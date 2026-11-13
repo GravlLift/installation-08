@@ -11,8 +11,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 
@@ -54,21 +52,9 @@ func BuildWeapon(ctx context.Context, opts BuildWeaponOptions, out string, annou
 	return mapmesh.BuildWeapon(ctx, gameRoot, target, out, generatorTagWeapon, announce)
 }
 
-// weaponID parses a weapon key into its `weap` tag GlobalID.
-func weaponID(key string) (uint32, error) {
-	hex := key
-	if len(hex) >= 2 && (strings.EqualFold(hex[:2], "0x")) {
-		hex = hex[2:]
-	}
-	if len(hex) != 8 {
-		return 0, fmt.Errorf("weapon key %q: want 8 hex digits (the weap tag GlobalID)", key)
-	}
-	id, err := strconv.ParseUint(hex, 16, 32)
-	if err != nil {
-		return 0, fmt.Errorf("weapon key %q: %w", key, err)
-	}
-	return uint32(id), nil
-}
+// weaponID parses a weapon key into its `weap` tag GlobalID (stringID, the shared 8-hex-digit
+// StringID parser also used by build-piece and build-firstperson).
+func weaponID(key string) (uint32, error) { return stringID(key, "weapon key") }
 
 // generatorTagWeapon is written into every built weapon GLB's extras, naming the chain that
 // produced it.
