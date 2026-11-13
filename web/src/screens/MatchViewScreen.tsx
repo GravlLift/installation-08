@@ -3,7 +3,7 @@
  * its map mesh is built, and mounts the lifted 3D view with everything the DOCUMENT ALONE
  * can feed it (see `docs/PARITY.md` for what still needs data this server does not serve).
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Replay3DView } from '../features/match-replay/ui/Replay3DView'
 import type { PageAction3dInputs } from '../features/match-replay/scene3d/action3dInputs'
@@ -21,20 +21,66 @@ import {
   meshUrl,
   MeshNotBuiltError,
 } from '../lib/api/standalone'
+import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
+import { useReplayFullscreen, REPLAY_FULLSCREEN_FRAME } from '../features/match-replay/hooks/useReplayFullscreen'
+import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
+import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
+import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
+import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
 
+/** The arrow/J/L seek step, in seconds — the same magnitude as LevelUp's `SKIP_SECONDS`
+ *  (`layers/replayCanvasConfig.ts`, not lifted here: a single constant, not worth a file). */
+const SKIP_SECONDS = 10
+
+/** Builds the `Action3dShow` flags and their toggles from `useReplaySettings`, the only mapping
+ *  point between the drawer's persisted preferences and what the 3D view reads every frame. */
+function useAction3dShow(): { show: Action3dShow; toggle: { [K in keyof Action3dShow]: () => void } } {
+  const settings = useReplaySettings()
+  return {
+    show: {
+      shots: settings.showShotFx,
+      kills: settings.showKillFx,
+      weaponPads: settings.showWeaponPads,
+      groundWeapons: settings.showGroundWeapons,
+      groundWeaponsSpecialOnly: settings.showGroundWeaponsSpecialOnly,
+      groundWeaponsStarting: settings.showGroundWeaponsStarting,
+      placements: settings.showPlacements,
+      vehicles: settings.showVehicles,
+      objectives: settings.showModeObjectives,
+      flags: settings.showFlagCarries,
+      vipCrown: settings.showVipCrown,
+      bombCarrier: settings.showBombCarrier,
+    },
+    toggle: {
+      shots: settings.toggleShotFx,
+      kills: settings.toggleKillFx,
+      weaponPads: settings.toggleWeaponPads,
+      groundWeapons: settings.toggleGroundWeapons,
+      groundWeaponsSpecialOnly: settings.toggleGroundWeaponsSpecialOnly,
+      groundWeaponsStarting: settings.toggleGroundWeaponsStarting,
+      placements: settings.togglePlacements,
+      vehicles: settings.toggleVehicles,
+      objectives: settings.toggleModeObjectives,
+      flags: settings.toggleFlagCarries,
+      vipCrown: settings.toggleVipCrown,
+      bombCarrier: settings.toggleBombCarrier,
+    },
+  }
+}
+
 /** Aim-hold window for shot direction, in frames: the same magnitude as the death/shot-flash
- *  hold used elsewhere on this page (0.6 s of gameplay) — there is no page setting for it
- *  here (no settings drawer, see PARITY §2), so this is a reasonable fixed default. */
+ *  hold used elsewhere on this page (0.6 s of gameplay). The settings drawer does not expose
+ *  this one (LevelUp does not either — it is a fixed constant there too). */
 function aimHoldFramesOf(doc: ReplayDocumentReady): number {
   return Math.round(0.6 * framesPerSecond(doc))
 }
 
 type ViewState =
   | { phase: 'loading'; step: 'document' | 'mesh' }
-  | { phase: 'mesh-not-built'; moduleKey: string }
+  | { phase: 'mesh-not-built'; moduleKey: string; doc: ReplayDocumentReady }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; doc: ReplayDocumentReady }
 
@@ -44,18 +90,22 @@ function useMatchDocument(matchId: string): ViewState {
     const controller = new AbortController()
     setState({ phase: 'loading', step: 'document' })
     void (async () => {
+      let doc: ReplayDocumentReady | null = null
       try {
         const raw = await fetchReplayDocument(matchId, controller.signal)
         if (controller.signal.aborted) return
-        const doc = normalizeReplayDocument(raw)
+        doc = normalizeReplayDocument(raw)
         setState({ phase: 'loading', step: 'mesh' })
         await checkMesh(matchId, controller.signal)
         if (controller.signal.aborted) return
         setState({ phase: 'ready', doc })
       } catch (err) {
         if (controller.signal.aborted) return
-        if (err instanceof MeshNotBuiltError) {
-          setState({ phase: 'mesh-not-built', moduleKey: err.moduleKey })
+        // The document fetch above already succeeded whenever `doc` is set here — only the
+        // mesh check failed with `MeshNotBuiltError`. Keep that document so the build panel
+        // below can mount the 3D view the moment the build finishes, with no re-fetch or reload.
+        if (err instanceof MeshNotBuiltError && doc) {
+          setState({ phase: 'mesh-not-built', moduleKey: err.moduleKey, doc })
           return
         }
         setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
@@ -64,6 +114,85 @@ function useMatchDocument(matchId: string): ViewState {
     return () => controller.abort()
   }, [matchId])
   return state
+}
+
+/** The panel shown instead of the 3D view while the match's map mesh is not built. Checks the
+ *  build state once on mount (a build may already be queued or running from another tab), lets
+ *  the viewer start one, and polls every two seconds; `onReady` fires the moment the mesh is
+ *  built, so the caller can mount the 3D view without a reload. */
+function MeshBuildPanel({
+  matchId,
+  moduleKey,
+  onReady,
+  onBack,
+}: {
+  matchId: string
+  moduleKey: string
+  onReady: () => void
+  onBack: () => void
+}) {
+  const { phase, build } = useMeshBuild(matchId)
+
+  useEffect(() => {
+    if (phase.phase === 'ready') onReady()
+  }, [phase.phase, onReady])
+
+  // The initial moduleKey (from the mesh-not-built 404) covers the gap before the build-state
+  // route answers for the first time; after that, the server's own moduleKey is authoritative.
+  const effectiveModuleKey = (phase.phase !== 'checking' && phase.moduleKey) || moduleKey
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-3 text-sm">
+      <p className="text-foreground">
+        Map module: <span className="font-mono">{effectiveModuleKey || 'unknown'}</span>
+      </p>
+      <p className={phase.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
+        {meshBuildStatusText(phase)}
+      </p>
+      {phase.phase === 'absent' && (
+        <button
+          type="button"
+          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
+          onClick={build}
+        >
+          Build map
+        </button>
+      )}
+      {phase.phase === 'failed' && (
+        <button
+          type="button"
+          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
+          onClick={build}
+        >
+          Retry
+        </button>
+      )}
+      <button type="button" className="text-xs underline" onClick={onBack}>
+        Back to matches
+      </button>
+    </div>
+  )
+}
+
+function meshBuildStatusText(phase: MeshBuildPhase): string {
+  switch (phase.phase) {
+    case 'checking':
+      return 'Checking build status…'
+    case 'absent':
+      return 'This match’s map has not been built yet.'
+    case 'queued':
+      return typeof phase.queuePosition === 'number'
+        ? `Queued (position ${phase.queuePosition})…`
+        : 'Queued…'
+    case 'building':
+      return typeof phase.elapsedMs === 'number'
+        ? `Building the map… ${Math.round(phase.elapsedMs / 1000)}s elapsed`
+        : 'Building the map…'
+    case 'ready':
+      return 'Map built, loading…'
+    case 'failed':
+      return `Build failed: ${phase.error}`
+  }
 }
 
 function PlaybackBar({
@@ -157,6 +286,40 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
   const [viewpoint, setViewpoint] = useState<string | null>(doc.roster[0]?.xuid ?? null)
   const [size, setSize] = useState({ width: 960, height: 540 })
   const hostRef = useRef<HTMLDivElement>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const { show, toggle } = useAction3dShow()
+  const fullscreen = useReplayFullscreen()
+  const fps = framesPerSecond(doc)
+
+  // Keyboard shortcuts (`useReplayShortcuts`, lifted unchanged): play/pause, ±10s seek,
+  // frame-step, restart and fullscreen. `toggleSound` is a deliberate no-op — no sound is
+  // ported in this standalone shell yet (see docs/PARITY.md) — and `zoom` is left undefined:
+  // it drives the 2D camera's pan/zoom keys, which do not exist here (3D-only viewer).
+  const stepFrames = useCallback(
+    (delta: number) => {
+      const next = Math.min(doc.frameCount - 1, Math.max(0, frameRef.current + delta))
+      frameRef.current = next
+      setFrame(Math.round(next))
+    },
+    [doc.frameCount],
+  )
+  const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
+  const togglePlay = useCallback(() => setPlaying((p) => !p), [])
+  const restart = useCallback(() => stepFrames(-Infinity), [stepFrames])
+  const toggleSound = useCallback(() => {
+    /* Sound is not ported yet (docs/PARITY.md §2) — the M shortcut has nothing to toggle. */
+  }, [])
+  useReplayShortcuts({
+    togglePlay,
+    seekBy,
+    stepFrames,
+    restart,
+    toggleSound,
+    toggleFullscreen: fullscreen.toggle,
+    skipSeconds: SKIP_SECONDS,
+    enabled: true,
+  })
 
   useEffect(() => {
     const host = hostRef.current
@@ -189,20 +352,7 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
       allegiance: identity.allegiance,
       pageAllegiance: identity.allegiance,
       inks,
-      show: {
-        shots: true,
-        kills: true,
-        weaponPads: true,
-        groundWeapons: true,
-        groundWeaponsSpecialOnly: false,
-        groundWeaponsStarting: false,
-        placements: true,
-        vehicles: true,
-        objectives: true,
-        flags: true,
-        vipCrown: true,
-        bombCarrier: true,
-      },
+      show,
       shotHoldFrames: Math.round(0.6 * framesPerSecond(doc)),
       framesPerSecond: framesPerSecond(doc),
       deathHoldFrames: Math.round(1.4 * framesPerSecond(doc)),
@@ -219,10 +369,11 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
       locale: 'en',
     }
     return inputs
-  }, [doc, shotFx, kills, mapObjectives, identity, inks])
+  }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className={fullscreen.active ? REPLAY_FULLSCREEN_FRAME : 'flex h-screen flex-col'}>
+      <div className={fullscreen.active ? 'flex h-full flex-col' : 'contents'}>
       <div ref={hostRef} className="relative min-h-0 flex-1">
         <Replay3DView
           meshPath={meshUrl(matchId)}
@@ -240,6 +391,23 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
           playWindow={null}
           timeLimitMs={null}
         />
+        <button
+          ref={settingsButtonRef}
+          type="button"
+          onClick={() => setSettingsOpen((v) => !v)}
+          className="absolute right-3 top-3 z-10 rounded bg-card/90 px-2 py-1 text-xs text-foreground shadow hover:bg-muted"
+        >
+          Settings
+        </button>
+        {settingsOpen && (
+          <ReplaySettingsDrawer
+            locale="en"
+            show={show}
+            toggle={toggle}
+            triggerRef={settingsButtonRef}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
       </div>
       <PlaybackBar
         doc={doc}
@@ -253,6 +421,7 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
         viewpoint={viewpoint}
         setViewpoint={setViewpoint}
       />
+      </div>
     </div>
   )
 }
@@ -265,6 +434,12 @@ export function MatchViewScreen({
   onBack: () => void
 }) {
   const state = useMatchDocument(matchId)
+  // Once the build panel reports `ready`, mount the 3D view immediately — no reload, no
+  // re-fetch of the document (it is already held by the `mesh-not-built` state below).
+  const [meshJustBuilt, setMeshJustBuilt] = useState(false)
+  useEffect(() => {
+    setMeshJustBuilt(false)
+  }, [matchId])
 
   if (state.phase === 'loading') {
     return (
@@ -277,16 +452,14 @@ export function MatchViewScreen({
     )
   }
 
-  if (state.phase === 'mesh-not-built') {
+  if (state.phase === 'mesh-not-built' && !meshJustBuilt) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 text-sm">
-        <p className="text-destructive">
-          Map mesh not built for this match (module: {state.moduleKey || 'unknown'}).
-        </p>
-        <button type="button" className="text-xs underline" onClick={onBack}>
-          Back to matches
-        </button>
-      </div>
+      <MeshBuildPanel
+        matchId={matchId}
+        moduleKey={state.moduleKey}
+        onBack={onBack}
+        onReady={() => setMeshJustBuilt(true)}
+      />
     )
   }
 
@@ -301,5 +474,12 @@ export function MatchViewScreen({
     )
   }
 
-  return <ReplayViewer matchId={matchId} doc={state.doc} />
+  const doc = state.phase === 'ready' ? state.doc : state.phase === 'mesh-not-built' ? state.doc : null
+  if (!doc) {
+    // Unreachable: the three branches above cover 'loading', 'mesh-not-built' (while not just
+    // built) and 'error'. TypeScript cannot narrow `state` across the `meshJustBuilt` flag, so
+    // this is a defensive fallback rather than a reachable state.
+    return null
+  }
+  return <ReplayViewer matchId={matchId} doc={doc} />
 }
