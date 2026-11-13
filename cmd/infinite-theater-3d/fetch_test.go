@@ -9,6 +9,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,6 +17,18 @@ import (
 	"strings"
 	"testing"
 )
+
+type localOnlyTransport struct {
+	host string
+	base http.RoundTripper
+}
+
+func (t localOnlyTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host != t.host {
+		return nil, fmt.Errorf("unexpected outbound request to %s", r.URL.Host)
+	}
+	return t.base.RoundTrip(r)
+}
 
 func TestMatchFacts(t *testing.T) {
 	raw := []byte(`{"MatchInfo":{"MapVariant":{"AssetId":"map"},"UgcGameVariant":{"PublicName":"Slayer"}},"Players":[{"PlayerId":"xuid(123)","LastTeamId":1,"PlayerTeamStats":[{"TeamId":1,"Stats":{"CoreStats":{"Kills":5,"Deaths":2,"Assists":3}}}]}],"Teams":[{"TeamId":1,"Stats":{"CoreStats":{"Score":9}}},{"TeamId":0,"Stats":{"CoreStats":{"Score":10}}}]}`)
@@ -144,7 +157,13 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	api := haloapi.New(s.Client(), haloapi.Endpoints{Stats: base, Discovery: base, Economy: base}, "fake", "fake")
+	serverURL, err := url.Parse(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := s.Client()
+	client.Transport = localOnlyTransport{host: serverURL.Host, base: client.Transport}
+	api := haloapi.New(client, haloapi.Endpoints{Stats: base, Discovery: base, Economy: base}, "fake", "fake")
 	built := false
 	opts := fetchOptions{build: func(root *store.Root, id string) error { built = true; return nil }}
 	if err = fetchPipeline(context.Background(), root, api, "abc", opts); err != nil {

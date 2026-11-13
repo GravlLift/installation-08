@@ -83,19 +83,20 @@ type Stats struct {
 // Report states, field by field, what the document is missing or degraded because of an
 // absent input. WithoutStats and WithoutManifest name the document fields concerned.
 type Report struct {
-	MatchID         string   `json:"matchId"`
-	MapName         string   `json:"mapName,omitempty"`
-	MapAssetID      string   `json:"mapAssetId,omitempty"`
-	MapModule       string   `json:"mapModule,omitempty"`
-	Build           string   `json:"build,omitempty"`
-	Tracks          int      `json:"tracks"`
-	FrameCount      int      `json:"frameCount"`
-	FrameInterval   int      `json:"frameIntervalMs"`
-	DurationMS      int      `json:"durationMs,omitempty"`
-	Kills           int      `json:"kills,omitempty"`
-	Shots           int      `json:"shots,omitempty"`
-	WithoutManifest []string `json:"withoutManifest,omitempty"`
-	WithoutStats    []string `json:"withoutStats,omitempty"`
+	MatchID         string       `json:"matchId"`
+	MapName         string       `json:"mapName,omitempty"`
+	MapAssetID      string       `json:"mapAssetId,omitempty"`
+	MapModule       string       `json:"mapModule,omitempty"`
+	Build           string       `json:"build,omitempty"`
+	Tracks          int          `json:"tracks"`
+	FrameCount      int          `json:"frameCount"`
+	FrameInterval   int          `json:"frameIntervalMs"`
+	DurationMS      int          `json:"durationMs,omitempty"`
+	Kills           int          `json:"kills,omitempty"`
+	Shots           int          `json:"shots,omitempty"`
+	KillDetails     []KillDetail `json:"-"`
+	WithoutManifest []string     `json:"withoutManifest,omitempty"`
+	WithoutStats    []string     `json:"withoutStats,omitempty"`
 }
 
 // ErrUnreadable is a clear error (never a panic) for a chunk folder that cannot be loaded.
@@ -132,6 +133,7 @@ func Build(ctx context.Context, in Input) (replay.ReplayDocument, Report, error)
 		return replay.ReplayDocument{}, report, fmt.Errorf("decode %s: %w", matchID, err)
 	}
 	fillReport(&report, doc, killsource)
+	report.KillDetails = killDetails(killsource, deaths)
 	return doc, report, nil
 }
 

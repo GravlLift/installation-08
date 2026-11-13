@@ -125,6 +125,13 @@ func buildStored(root *store.Root, matchID string, f importFlags) error {
 	if err := root.WriteFile(replayPath, gz); err != nil {
 		return fmt.Errorf("write replay %s: %w", matchID, err)
 	}
+	details, err := json.Marshal(report.KillDetails)
+	if err != nil {
+		return fmt.Errorf("encode kill details %s: %w", matchID, err)
+	}
+	if err := root.WriteFile(variantPath(root, matchID, "kill-details.json"), details); err != nil {
+		return fmt.Errorf("write kill details %s: %w", matchID, err)
+	}
 	if f.rebuild {
 		fmt.Printf("rebuilt %s\n", matchID)
 		return nil
