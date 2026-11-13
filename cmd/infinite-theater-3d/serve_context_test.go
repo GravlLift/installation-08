@@ -184,3 +184,25 @@ func TestContextModeAndExtremes(t *testing.T) {
 		t.Fatalf("response: %s", rec.Body.String())
 	}
 }
+
+func TestContextStaticAssets(t *testing.T) {
+	root := newFakeStore(t)
+	for _, p := range []string{"static/medals/halo_infinite/42.png", "static/maps/halo_infinite/map.png"} {
+		if err := root.WriteFile(filepath.Join(root.Dir(), filepath.FromSlash(p)), []byte("image-data")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newTestHandlers(root, nil)
+	for _, tc := range []struct {
+		path string
+		code int
+	}{{"/static/medals/halo_infinite/42.png", 200}, {"/static/maps/halo_infinite/map.png", 200}, {"/static/medals/halo_infinite/99.png", 404}, {"/static/maps/halo_infinite/../match.json", 404}} {
+		rec := get(t, h, tc.path, nil)
+		if rec.Code != tc.code {
+			t.Errorf("%s: %d", tc.path, rec.Code)
+		}
+		if tc.code == 200 && rec.Body.String() != "image-data" {
+			t.Errorf("%s: %q", tc.path, rec.Body.String())
+		}
+	}
+}
