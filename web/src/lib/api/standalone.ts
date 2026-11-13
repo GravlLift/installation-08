@@ -325,3 +325,62 @@ export async function startMatchFetch(matchId: string, signal?: AbortSignal): Pr
   if (!res.ok) throw new ApiError(`POST .../fetch: HTTP ${res.status}`, res.status, body)
   return body as FetchStateBody
 }
+
+/** The state of the Ekur export the server can see: a full valid reference, no candidate at
+ *  all, or a candidate that does not carry the contract entries. */
+export type CoatingsExportState = 'ok' | 'not_set' | 'invalid'
+
+/** One coating library in the coating status: built, still current (not stale), and how many
+ *  of its materials the export does not know (they render neutral). */
+export interface CoatingsLibraryStatus {
+  built: boolean
+  stale: boolean
+  materialsMissing: number
+}
+
+/** One coating library as the server sends it (`materials_missing` is the server's snake_case
+ *  field). The client renames it to `materialsMissing` in `CoatingsLibraryStatus`. */
+export interface CoatingsLibraryRaw {
+  built: boolean
+  stale: boolean
+  materials_missing: number
+}
+
+/** The body of `GET /api/coatings/status` as the client consumes it (see `coatingsStatus` in
+ *  `cmd/infinite-theater-3d/serve_coatings.go`): the export state and the three coating
+ *  libraries, each reporting whether it is built, still current, and how many of its materials
+ *  the export does not know. */
+export interface CoatingsStatusBody {
+  export: CoatingsExportState
+  libraries: {
+    spartan_pieces: CoatingsLibraryStatus
+    weapons: CoatingsLibraryStatus
+    first_person: CoatingsLibraryStatus
+  }
+}
+
+/** `GET /api/coatings/status` — the coating status. The viewer fetches it once per match view
+ *  to decide whether to show its top-bar notice. The response never carries a path or an
+ *  environment value. */
+export async function fetchCoatingsStatus(signal?: AbortSignal): Promise<CoatingsStatusBody> {
+  const res = await fetch('/api/coatings/status', { signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`GET /api/coatings/status: HTTP ${res.status}`, res.status, body)
+  const raw = body as {
+    export?: CoatingsExportState
+    libraries?: Record<string, CoatingsLibraryRaw>
+  }
+  const libraries = raw.libraries ?? {}
+  const norm = (key: 'spartan_pieces' | 'weapons' | 'first_person'): CoatingsLibraryStatus => {
+    const lib = libraries[key] ?? { built: false, stale: false, materials_missing: 0 }
+    return { built: lib.built, stale: lib.stale, materialsMissing: lib.materials_missing }
+  }
+  return {
+    export: raw.export ?? 'not_set',
+    libraries: {
+      spartan_pieces: norm('spartan_pieces'),
+      weapons: norm('weapons'),
+      first_person: norm('first_person'),
+    },
+  }
+}

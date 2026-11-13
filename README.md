@@ -75,6 +75,17 @@ weapon coatings, first-person arm painting), the build reads the Ekur coating re
 set `IT3D_EKUR_DIR` to the folder that holds it, or put it in `<data>/ekur`. Without it,
 coated materials render in their neutral color.
 
+The Ekur reference is the community Blender plugin's JSON export of the game (its
+`materials/`, `stylelists/` and `styles/` folders plus `globals.json` and
+`visor_data.json`). Use a full export of the installed game: an older export lacks newer
+armor and weapons, which then render neutral. The three coating libraries (Spartan pieces,
+weapons, first person) record a short stamp of the export in their `index.json`; when the
+export changes, `serve` moves the stale library aside at its next start, rebuilds it, and
+removes the old copy once the rebuild succeeds. With no export set, existing libraries are
+kept. The viewer shows a quiet notice in its top bar when the export is missing or invalid
+("Coatings off") or when some materials are absent from it ("Coatings incomplete: N pieces
+are missing from the Ekur export"); when everything is fine it shows nothing.
+
 | Command | What it builds | Key flags |
 |---|---|---|
 | `build-mesh` | one map's world mesh (geometry, sun, light probes, placed lights) to a GLB | `--map <module-key>`, `--out <file.glb>`, `--game <deploy-root>` |
@@ -124,6 +135,9 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   `POST /api/first-person/build`; `GET /api/first-person/{file}` (a rig or texture).
 - Spartan piece library: `GET /api/spartan-pieces/{file}`, `POST /api/spartan-pieces/build`,
   `GET /api/spartan-pieces/state`.
+- `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
+  per coating library whether it is built, stale, and how many of its materials the export
+  does not know (`materials_missing`). It never carries a path or an environment value.
 - Static assets: `GET /static/weapons-assets/halo_infinite/jeu/{file}` (weapon icons),
   `.../hud/{file}` (HUD equipment and grenade icons), `GET /static/ranks/halo_infinite/{file}`
   (rank badges), `GET /static/sounds/halo_infinite/{file}` (replay sounds).

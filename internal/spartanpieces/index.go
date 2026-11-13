@@ -150,8 +150,12 @@ func FileSwatch(key string) string { return filePrefixSwatch + key + ".png" }
 type Index struct {
 	Schema int `json:"schema"`
 	// Mode: the Spartan `mode` (GlobalID); Generator: the tool that wrote the library.
-	Mode        string            `json:"mode"`
-	Generator   string            `json:"generator"`
+	Mode      string `json:"mode"`
+	Generator string `json:"generator"`
+	// EkurStamp: the digest of the Ekur export this build read (EkurStamp), ""
+	// when the build ran without an export: the server compares it with the
+	// current export and rebuilds the library when the two differ.
+	EkurStamp   string            `json:"ekur_stamp"`
 	Skeleton    SkeletonIndex     `json:"skeleton"`
 	Pieces      []PieceIndex      `json:"pieces"`
 	Attachments []AttachmentIndex `json:"attachments"`

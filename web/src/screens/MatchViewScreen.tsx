@@ -30,6 +30,7 @@ import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useVariantLayer } from './useVariantLayer'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
+import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
 import { MatchHeaderBar } from './MatchHeaderBar'
 import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
@@ -355,6 +356,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
 
   const summary = useMatchSummary(matchId)
   const remote = useRemoteMatch(matchId)
+  const coatings = useCoatingsNotice()
   const armor = useMemo<ReplayArmorSource>(
     () => ({ matchId, piecesPath: replaySpartanPiecesPath() }),
     [matchId],
@@ -396,7 +398,12 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     <div className="flex min-h-screen flex-col">
       <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />
       <div ref={viewerRef} data-testid="replay-viewer" className={fullscreen.active ? 'flex h-full w-full flex-col justify-center bg-black' : 'flex w-full flex-col bg-black'}>
-      <div className="flex justify-end gap-2 bg-card px-3 py-2">
+      <div className="flex items-center justify-end gap-2 bg-card px-3 py-2">
+        {coatings.notice && (
+          <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="mr-2 text-xs text-muted-foreground">
+            {coatings.notice}
+          </span>
+        )}
         <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
           {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
         </button>

@@ -6,9 +6,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
@@ -30,15 +34,8 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return err == nil
 	}
 	switch module {
-	case meshjobs.JobWeapons:
-		_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
-		return err == nil
-	case meshjobs.JobFirstPerson:
-		_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
-		return err == nil
-	case meshjobs.JobSpartanPieces:
-		_, err := os.Stat(filepath.Join(root.Dir(), "spartan-pieces", "index.json"))
-		return err == nil
+	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces:
+		return coatingLibraryReady(root.Dir(), module)
 	case meshjobs.JobWeaponIcons:
 		return weaponicons.SetReady(root.Dir())
 	case meshjobs.JobHudIcons:
@@ -52,6 +49,100 @@ func jobModuleReady(root *store.Root, module string) bool {
 	}
 	_, err = os.Stat(p)
 	return err == nil
+}
+
+// staleSuffix marks a library folder the startup moved aside because its index no longer
+// matches the Ekur export: the normal build job rebuilds the library over the folder name,
+// and the old folder is removed once the new build succeeds. The suffix is never a valid
+// library file name, so a stray marker left behind is inert (never served, never re-queued).
+const staleSuffix = ".stale"
+
+// coatingLibraryReady is the readiness of the three coating libraries (weapons,
+// first-person, spartan-pieces): the index is present and its recorded Ekur stamp matches
+// the current export (or the current export is absent, which never downgrades a library).
+// A library without a recorded stamp (built before stamps existed) is ready only when no
+// export is available: an export that appears later rebuilds it.
+func coatingLibraryReady(dataDir, module string) bool {
+	stamp, ok := recordedEkurStamp(dataDir, module)
+	if !ok {
+		return false
+	}
+	cur, ok := currentEkurStamp(dataDir)
+	if !ok {
+		return false
+	}
+	if cur == "" {
+		return true
+	}
+	return stamp == cur
+}
+
+// ekurStampCache holds the current export's stamp per data directory, computed once per
+// process: readiness runs on every build-state poll (under the runner's lock), and reading a
+// full export's tens of thousands of names each time would stall it. An export change takes
+// effect at the next start, which is also when stale libraries are moved aside.
+var ekurStampCache sync.Map // export folder ("" for none) -> ekurStampEntry
+
+type ekurStampEntry struct {
+	stamp string
+	ok    bool
+}
+
+// currentEkurStamp is the stamp of the export EkurDir resolves for dataDir: "" with true
+// when no valid export is set (never a downgrade), false when the export cannot be read.
+func currentEkurStamp(dataDir string) (string, bool) {
+	// Resolving the folder is cheap (five stats); listing it is what the cache saves.
+	dir := spartanpieces.EkurDir(dataDir)
+	if dir == "" {
+		return "", true
+	}
+	if v, hit := ekurStampCache.Load(dir); hit {
+		e := v.(ekurStampEntry)
+		return e.stamp, e.ok
+	}
+	e := ekurStampEntry{ok: true}
+	stamp, err := spartanpieces.EkurStamp(dir)
+	if err != nil {
+		slog.Warn("current ekur stamp could not be read", "err", err)
+		e.ok = false
+	}
+	e.stamp = stamp
+	ekurStampCache.Store(dir, e)
+	return e.stamp, e.ok
+}
+
+// recordedEkurStamp reads the "ekur_stamp" field of a coating library's index.json; false
+// when the index is absent or unreadable.
+func recordedEkurStamp(dataDir, module string) (string, bool) {
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return "", false
+	}
+	raw, err := os.ReadFile(filepath.Join(dataDir, folder, "index.json"))
+	if err != nil {
+		return "", false
+	}
+	var idx struct {
+		EkurStamp string `json:"ekur_stamp"`
+	}
+	if err := json.Unmarshal(raw, &idx); err != nil {
+		return "", false
+	}
+	return idx.EkurStamp, true
+}
+
+// coatingLibraryFolder is the data-directory folder of a coating library module key, and
+// whether the key is one (map meshes, icons and variant layers are not).
+func coatingLibraryFolder(module string) (string, bool) {
+	switch module {
+	case meshjobs.JobWeapons:
+		return "weapons", true
+	case meshjobs.JobFirstPerson:
+		return "first-person", true
+	case meshjobs.JobSpartanPieces:
+		return "spartan-pieces", true
+	}
+	return "", false
 }
 
 // meshJobsFor wires the mesh build runner to the store: the ready callback reports whether a
@@ -128,6 +219,7 @@ func buildWeaponLibrary(ctx context.Context, root *store.Root, gameRoot string, 
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
+	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobWeapons)
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
 }
 
@@ -140,6 +232,7 @@ func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot str
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
+	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobFirstPerson)
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
 }
 
@@ -152,6 +245,7 @@ func buildSpartanPieceLibrary(ctx context.Context, root *store.Root, gameRoot st
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
+	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobSpartanPieces)
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: result.Triangles}, nil
 }
 
@@ -186,6 +280,110 @@ func buildRanks(ctx context.Context, root *store.Root, gameRoot string) (meshjob
 	}
 	slog.InfoContext(ctx, "rank badges built", "files", files, "bytes", n)
 	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
+}
+
+// moveStaleCoatingLibrary moves a stale coating library's folder aside (to <name>.stale,
+// replacing any older one) so the normal build job rebuilds it before the routes serve it.
+// A rename to a folder target that already exists fails on Windows, so the older .stale is
+// removed first. A removal that hits a symlink or junction is refused: the log says so and
+// the folder stays in place (a stray .stale is inert: never served, never re-queued, and it
+// replaces the older one on the next stale startup). It logs one line per stale library.
+func moveStaleCoatingLibrary(dataDir, module string) {
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return
+	}
+	dir := filepath.Join(dataDir, folder)
+	stale := dir + staleSuffix
+	// Removing the older .stale first (and on Windows, even when the rename would fail
+	// over an existing target) is what makes the replacement happen.
+	if err := removeTreeRefusingSymlinks(stale, "previous stale library"); err != nil {
+		slog.Warn("stale library not replaced", "library", folder, "err", err)
+	}
+	if err := os.Rename(dir, stale); err != nil {
+		slog.Warn("stale library not moved", "library", folder, "err", err)
+		return
+	}
+	slog.Info("coating library stale: moved aside, rebuild queued", "library", folder)
+}
+
+// removeStaleCoatingLibrary removes a stale library folder after its rebuild succeeded. A
+// refusal to follow a symlink or junction leaves it in place (it is inert, and the next
+// stale startup replaces it), logged.
+func removeStaleCoatingLibrary(dataDir, module string) {
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return
+	}
+	if err := removeTreeRefusingSymlinks(filepath.Join(dataDir, folder)+staleSuffix, "stale library"); err != nil {
+		slog.Warn("stale library left in place", "library", folder, "err", err)
+	} else {
+		slog.Info("stale library removed after rebuild", "library", folder)
+	}
+}
+
+// removeTreeRefusingSymlinks removes path (a library folder set aside by the startup) and
+// everything under it, refusing to follow a symlink or a directory junction: any reparse
+// point found in the walk leaves the tree untouched and its own error says so. It is the
+// only code that deletes a .stale folder, and it never deletes anything outside it.
+func removeTreeRefusingSymlinks(path, what string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if !info.Mode().IsDir() {
+		// A symlink or a junction is not a directory (neither is a file): remove the link
+		// itself, never what it points at.
+		return os.Remove(path)
+	}
+	// The first walk only inspects: a symlink or junction anywhere leaves the tree
+	// untouched (WalkDir reports its error, which stops the walk at that entry).
+	if err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Since Go 1.23 a Windows junction reports ModeIrregular rather than ModeSymlink:
+		// refuse both, and any other reparse point.
+		if d.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			return errors.New(what + " contains a symlink or junction (" + d.Name() + "); refusing to follow it")
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	// The second walk deletes: files first, then each directory once it is empty
+	// (bottom-up, because WalkDir visits a directory before its children).
+	if err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return os.Remove(p)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	// Remove the now-empty directories, deepest first (the reverse of the walk order).
+	var dirs []string
+	_ = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && p != path {
+			dirs = append(dirs, p)
+		}
+		return nil
+	})
+	for i := len(dirs) - 1; i >= 0; i-- {
+		if err := os.Remove(dirs[i]); err != nil {
+			return err
+		}
+	}
+	return os.Remove(path)
 }
 
 // firstMapModule is the first map module key in the store, or "" when the store holds no
