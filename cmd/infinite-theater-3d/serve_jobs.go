@@ -13,6 +13,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
@@ -33,6 +34,9 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return err == nil
 	case meshjobs.JobFirstPerson:
 		_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
+		return err == nil
+	case meshjobs.JobSpartanPieces:
+		_, err := os.Stat(filepath.Join(root.Dir(), "spartan-pieces", "index.json"))
 		return err == nil
 	case meshjobs.JobWeaponIcons:
 		return weaponicons.SetReady(root.Dir())
@@ -63,6 +67,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return filepath.Join(root.Dir(), "weapons")
 		case meshjobs.JobFirstPerson:
 			return filepath.Join(root.Dir(), "first-person")
+		case meshjobs.JobSpartanPieces:
+			return filepath.Join(root.Dir(), "spartan-pieces")
 		case meshjobs.JobWeaponIcons:
 			return weaponicons.OutDir(root.Dir())
 		case meshjobs.JobHudIcons:
@@ -87,6 +93,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildWeaponLibrary(ctx, root, game, weaponKeys)
 		case meshjobs.JobFirstPerson:
 			return buildFirstPersonLibrary(ctx, root, game)
+		case meshjobs.JobSpartanPieces:
+			return buildSpartanPieceLibrary(ctx, root, game)
 		case meshjobs.JobWeaponIcons:
 			return buildWeaponIcons(ctx, root, game)
 		case meshjobs.JobHudIcons:
@@ -126,6 +134,18 @@ func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot str
 		return meshjobs.BuildResult{}, err
 	}
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
+}
+
+// buildSpartanPieceLibrary runs the Spartan armor piece library build into the
+// store's spartan-pieces folder, opening the module index of the first map in the
+// store (any installed map's index covers the game's globals, where the Spartan
+// lives). It is the spartan-pieces job's body in the mesh build runner.
+func buildSpartanPieceLibrary(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	result, err := spartanpieces.Build(ctx, spartanpieces.Options{Map: firstMapModule(root), GameRoot: gameRoot, DataDir: root.Dir()}, nil)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: result.Triangles}, nil
 }
 
 // buildWeaponIcons runs the weapon-icon build into the store's data directory. It is the
