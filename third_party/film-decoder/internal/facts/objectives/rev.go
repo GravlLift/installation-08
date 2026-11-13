@@ -284,5 +284,7 @@ package objectives
 // `grammar-2026-11-09.4` (changements de la commande lus dans la vue C) ; aucune lecture de cette couche ne
 // consomme la commande, golden recopie.
 
-// Rev est la revision de la sortie des objectifs.
+// Rev est la revision de la sortie des objectifs.//
+// A REVISION CONSTANTE (passes derriere la marche, 2026-11-13) : la VALEUR de `grammar.Rev` (`grammar-2026-11-13`) monte ; aucune
+// source de cette couche ne change. L empreinte du golden est recopiee au meme rang.
 const Rev = "objectives-2026-10-17"
