@@ -112,6 +112,33 @@ func TestContextKillDetails(t *testing.T) {
 	}
 }
 
+// TestContextKillDetailsAbsent pins the d01ba030 regression: a match whose film decode
+// left no kill-details.json (stored before the build wrote it, or an unpublishable
+// killsource) must still serve 200 with its kills, minus the weapon fields, and not
+// turn the absence of the file into an error.
+func TestContextKillDetailsAbsent(t *testing.T) {
+	root := newFakeStore(t)
+	path, _ := root.MatchReplayPath("abc")
+	if err := root.WriteFile(path, gzipJSON(t, []byte(`{"killCauses":[{"feedMs":30000,"killer":"1","victim":"2"},{"feedMs":31000,"killer":"1","victim":"3"}]}`))); err != nil {
+		t.Fatal(err)
+	}
+	result, err := buildContext(root, "abc", "")
+	if err != nil {
+		t.Fatalf("absent kill-details must not fail the context: %v", err)
+	}
+	events := result["highlight_events"].([]contextJSON)
+	if len(events) != 2 {
+		t.Fatalf("kills: %v", events)
+	}
+	for i, e := range events {
+		for _, field := range []string{"weapon_key", "weapon_image_url", "weapon_image_tinted", "weapon_label", "assist_state", "assist_gamertag"} {
+			if e[field] != nil {
+				t.Fatalf("event %d: absent details must not stamp %s: %v", i, field, e)
+			}
+		}
+	}
+}
+
 func TestContextDerivedScoreboard(t *testing.T) {
 	root := newFakeStore(t)
 	raw := []byte(`{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"Alpha","LastTeamId":0,"ParticipationInfo":{"FirstJoinedTime":"2026-01-01T00:00:20.926Z"},"PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":1,"Assists":3,"DamageDealt":900,"DamageTaken":450,"AverageLifeDuration":"PT29.8S","Medals":[{"NameId":1512363953,"Count":2}]}}}]}]}`)
