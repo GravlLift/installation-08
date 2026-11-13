@@ -52,11 +52,12 @@ type State string
 // module whose file appears later (built by another process) reports ready without any
 // state transition here.
 const (
-	StateAbsent   State = "absent"
-	StateQueued   State = "queued"
-	StateBuilding State = "building"
-	StateReady    State = "ready"
-	StateFailed   State = "failed"
+	StateAbsent    State = "absent"
+	StateQueued    State = "queued"
+	StateBuilding  State = "building"
+	StateReady     State = "ready"
+	StateFailed    State = "failed"
+	StateCancelled State = "cancelled"
 )
 
 // BuildResult summarizes one completed build (the byte count and triangle count of the
@@ -106,6 +107,8 @@ type Runner struct {
 	queue       []string // modules waiting to build, in arrival order
 	active      string   // the module being built, or ""
 	failed      map[string]string
+	cancelled   map[string]bool
+	cancelling  bool
 	started     map[string]time.Time
 	result      map[string]BuildResult
 	cancel      context.CancelFunc // the active build's cancel, or nil
@@ -125,14 +128,15 @@ func New(build Builder, gameRoot string, ready func(string) bool) (*Runner, erro
 		return nil, fmt.Errorf("meshjobs: ready is required")
 	}
 	return &Runner{
-		build:    build,
-		gameRoot: gameRoot,
-		ready:    ready,
-		failed:   make(map[string]string),
-		started:  make(map[string]time.Time),
-		result:   make(map[string]BuildResult),
-		done:     make(chan struct{}),
-		kick:     make(chan struct{}, 1),
+		build:     build,
+		gameRoot:  gameRoot,
+		ready:     ready,
+		failed:    make(map[string]string),
+		cancelled: make(map[string]bool),
+		started:   make(map[string]time.Time),
+		result:    make(map[string]BuildResult),
+		done:      make(chan struct{}),
+		kick:      make(chan struct{}, 1),
 	}, nil
 }
 
@@ -177,6 +181,7 @@ func (r *Runner) Enqueue(module string) Snapshot {
 		}
 	}
 	r.queue = append(r.queue, module)
+	delete(r.cancelled, module)
 	r.kickPumpLocked()
 	return r.snapshotLocked(module)
 }
@@ -200,6 +205,9 @@ func (r *Runner) pump() {
 			module := r.queue[0]
 			r.queue = r.queue[1:]
 			r.active = module
+			ctx, cancel := context.WithCancel(context.Background())
+			r.cancel = cancel
+			r.cancelling = false
 			r.started[module] = time.Now()
 			delete(r.failed, module)
 			// Drain a stray kick so we do not spin: it was for the job we just took.
@@ -208,9 +216,9 @@ func (r *Runner) pump() {
 			default:
 			}
 			r.mu.Unlock()
-			r.runJob(module)
+			r.runJob(ctx, module)
 			r.mu.Lock()
-			r.active = ""
+			cancel()
 			select {
 			case <-r.kick: // a module queued during the build: loop back and take it
 			default:
@@ -230,27 +238,32 @@ func (r *Runner) pump() {
 // runJob builds one module. The build writes the mesh to the destination path (it uses a
 // temp file + rename, so a half-written file is never served) and the runner records the
 // outcome. A Stop cancels the build's context.
-func (r *Runner) runJob(module string) {
-	ctx, cancel := context.WithCancel(context.Background())
-	r.mu.Lock()
-	r.cancel = cancel
-	r.mu.Unlock()
-	defer func() {
-		cancel()
-		r.mu.Lock()
-		r.cancel = nil
-		r.mu.Unlock()
-	}()
-
+func (r *Runner) runJob(ctx context.Context, module string) {
 	out := r.outFor(module)
 	res, err := r.build(ctx, module, r.gameRoot, out)
 	r.mu.Lock()
-	if err == nil {
+	if r.cancelling {
+		r.cancelled[module] = true
+	} else if err == nil {
 		r.result[module] = res
 	} else {
 		r.failed[module] = err.Error()
 	}
+	r.active = ""
+	r.cancel = nil
 	r.mu.Unlock()
+}
+
+// Cancel cancels the active build for module, if one is running.
+func (r *Runner) Cancel(module string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.active != module || r.cancel == nil || r.cancelling {
+		return false
+	}
+	r.cancelling = true
+	r.cancel()
+	return true
 }
 
 // outFor is the destination file for module's mesh.
@@ -292,6 +305,9 @@ func (r *Runner) snapshotLocked(module string) Snapshot {
 	}
 	if pos, ok := r.queuePosition(module); ok {
 		return Snapshot{State: StateQueued, ModuleKey: module, QueuePosition: pos}
+	}
+	if r.cancelled[module] {
+		return Snapshot{State: StateCancelled, ModuleKey: module}
 	}
 	if errText, ok := r.failed[module]; ok {
 		return Snapshot{State: StateFailed, ModuleKey: module, Error: errText}

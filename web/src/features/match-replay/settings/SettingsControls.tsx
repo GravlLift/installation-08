@@ -56,9 +56,9 @@ export function SettingsToggle({
       aria-checked={pressed}
       onClick={onToggle}
       title={hint}
-      className="flex h-7 w-full items-center justify-between gap-2 rounded px-2 text-left text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="flex min-h-7 w-full items-center justify-between gap-2 rounded px-2 py-1 text-left text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
     >
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 break-words">{label}</span>
       <ToggleTrack on={pressed} />
     </button>
   )
