@@ -139,6 +139,7 @@ var familyToKey = map[uint32]string{
 	0x2ac9c2ff: "hinf_heatwave",
 	0xc30d87c7: "hinf_ravager",
 	0x9387a8b9: "hinf_shock_rifle",
+	0x1a22fee6: "hinf_shock_rifle",
 	0x84bd29ed: "hinf_disruptor",
 	0x80977ba5: "hinf_mangler",
 	0xd7915565: "hinf_mutilator",
@@ -258,7 +259,7 @@ func buildIcons() map[uint32]replay.WeaponIconRef {
 	out := make(map[uint32]replay.WeaponIconRef, len(familyToKey))
 	for family, key := range familyToKey {
 		if key == "hinf_unarmed" {
-			out[family] = replay.WeaponIconRef{URL: "/static/weapons-assets/halo_infinite/Melee.png", Tinted: false}
+			out[family] = replay.WeaponIconRef{URL: "/static/weapons-assets/halo_infinite/jeu/killfeed-65.png", Tinted: true}
 			continue
 		}
 		hex := "0x" + fmt.Sprintf("%08x", family)
@@ -269,13 +270,8 @@ func buildIcons() map[uint32]replay.WeaponIconRef {
 			}
 			continue
 		}
-		// Concept files (grenades) have static icons.
-		if key == "hinf_frag_grenade" || key == "hinf_plasma_grenade" || key == "hinf_dynamo_grenade" {
-			out[family] = replay.WeaponIconRef{
-				URL:    "/static/weapons-assets/halo_infinite/Grenade.png",
-				Tinted: false,
-			}
-			continue
+		if index, ok := map[string]string{"hinf_frag_grenade": "46", "hinf_plasma_grenade": "47", "hinf_dynamo_grenade": "48"}[key]; ok {
+			out[family] = replay.WeaponIconRef{URL: "/static/weapons-assets/halo_infinite/jeu/killfeed-" + index + ".png", Tinted: true}
 		}
 		// No icon: the client shows the text label.
 	}
