@@ -18,6 +18,20 @@ func countShotsWithAim(doc ReplayDocument) int {
 	return n
 }
 
+// countPoints compte les points de piste que `keep` retient. SORTI de `golden_assembly_test.go` au
+// schema 109 par DEPLACEMENT PUR : la ligne du plein debit y entrait sous un plafond fige.
+func countPoints(doc ReplayDocument, keep func(Point) bool) int {
+	n := 0
+	for _, tr := range doc.Tracks {
+		for _, pt := range tr.Points {
+			if keep(pt) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 // countShotsWithWeapon compte les tirs publies avec une arme nommee.
 func countShotsWithWeapon(doc ReplayDocument) int {
 	n := 0

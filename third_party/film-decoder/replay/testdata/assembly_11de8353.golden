@@ -5,8 +5,16 @@
 # l ASSEMBLAGE ; le DECODAGE est verrouille a part par la mini-bobine.
 
 ## AXE DE TEMPS
+<<<<<<< ours
+5144 frames · intervalle 100 ms · duree 514400 ms
+schema 116 · titre halo_infinite
+||||||| base
+5144 frames · intervalle 100 ms · duree 514400 ms
+schema 106 · titre halo_infinite
+=======
 15588 frames · intervalle 33 ms · duree 514404 ms
 schema 112 · titre halo_infinite
+>>>>>>> upstream
 version majeure du film : 38
 origine de la frame 0 sur l horloge du fil : 86805 ms
 coup d envoi date par le film : 108387 ms · 177/182 piste(s) en mouvement · rafale 15 · marge depuis la frame 0 : 21582 ms
@@ -15,6 +23,7 @@ coup d envoi date par le film : 108387 ms · 177/182 piste(s) en mouvement · ra
 182 trace(s) · 238281 point(s) de grille
 seuil de publication 1 point(s) : 0 vie(s) REFUSEE(S) portant 0 point(s) — si le film ecrit une position, elle se publie
 64 lacune(s) de replication DANS une vie, 1096288 ms au total — un trou n'est pas une fin de vie, la piste ne s'y interpole simplement pas
+plein debit : 240648 positions (81555 points), 144339 visees dont 11187 sans position (5470 sans vie), 0 sans bornes de carte
 182 trace(s) NOMMEE(S) par le pont (fil des morts, fermetures, sieges de bot, relais, puis
 occupation du slot dans le TEMPS) · 0 sans identite — un DEFAUT de nommage a instruire,
 jamais une categorie de donnee (decision produit du 2026-09-07)
@@ -63,7 +72,7 @@ repartition des vies par designateur : 0 x108 · 1 x74
 rejets : slot introuvable=14 · slot ambigu=0 · hors fenetre=0 · sans trace publiee=0
 somme de controle : rattaches + rejets = disponibles -> 1968 = 1968 (equilibre : true)
 verdict : nominal
-1954 tir(s) publie(s) · 1530 avec un cap de visee lisible · 1954 avec une arme nommee
+1954 tir(s) publie(s) · 1954 avec un cap de visee lisible · 1954 avec une arme nommee
 
 ## GRENADES — le lancer porte son auteur ; ce qui se mesure est OU il est pose
 139 rattache(s) / 145 disponible(s) = 95.9 %
@@ -842,6 +851,7 @@ repli_impulsion_fusionnee_dans_le_geste          36
 repli_origine_au_sol_lachee_par_fenetre          297
 repli_place_du_remplacant_par_chainage_d_equipe  2
 repli_position_hors_emprise_ecartee              1
+repli_saut_derive_de_la_vitesse                  1151
 repli_tourelle_porteur_voisin_de_slot            14
 
 ## LIBELLES D ARMES — le tag brut reste A COTE du libelle, jamais a sa place

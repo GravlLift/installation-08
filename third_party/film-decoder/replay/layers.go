@@ -147,11 +147,15 @@ var couchesDesCalques = map[string]string{
 	"projectiles":         grammar.Rev, // build_pistes.go <- FilmInputs.Projectiles
 	"grenades":            grammar.Rev, // build_pistes.go <- FilmInputs.Grenades
 	"inventory":           grammar.Rev, // build_inventaire.go <- FilmInputs.Inventory
+	"ammoReads":           grammar.Rev,
 	"grenadeReads":        grammar.Rev, // build_inventaire.go <- FilmInputs.Inventory + InventoryDeltas
 	"abilities":           grammar.Rev, // build_inventaire.go <- FilmInputs.AbilityRanks + Inventory
 	"equipmentChanges":    grammar.Rev, // build_inventaire.go <- FilmInputs.EquipmentChanges
 	"translocations":      grammar.Rev, // build_inventaire.go <- FilmInputs.Translocations
 	"knockbacks":          grammar.Rev, // build_inventaire.go <- FilmInputs.Knockbacks
+	"drawnWeapons":        grammar.Rev, // build_inventaire.go `poserActionsDuJoueur` <- FilmInputs.DrawnWeapons (i42 par trame)
+	"damages":             grammar.Rev, // build_inventaire.go `poserActionsDuJoueur` <- FilmInputs.Actions (damage_aftermath, vue A)
+	"actions":             grammar.Rev, // build_inventaire.go `poserActionsDuJoueur` <- FilmInputs.Actions (genres 38, 39, 40, vue A) ; build_postures.go <- FilmInputs.ControlInputs (sauts)
 	"carriedEquipment":    grammar.Rev, // build_inventaire.go <- FilmInputs.CarriedEquipment
 	"riftPoses":           grammar.Rev, // build_inventaire.go <- FilmInputs.CarriedEquipment
 	"abilityImpulses":     grammar.Rev, // build_inventaire.go <- FilmInputs.AbilityImpulses
@@ -168,7 +172,7 @@ var couchesDesCalques = map[string]string{
 	"objectiveObjects":    grammar.Rev, // build_objective_objects.go <- FilmInputs.Pads.Weapons SEUL : son en-tete mesure « aucune lecture de film ajoutee », ni statborg ni morts
 	"vehicles":            grammar.Rev, // build_vehicles.go <- FilmInputs.Vehicles
 	"vehicleCycles":       grammar.Rev, // vehicle_cycles.go <- `doc.Vehicles` SEUL : une couche d ANALYSE sur les vies deja publiees, donc la MEME revision que le calque dont elle derive
-	"stances":             grammar.Rev, // document_stances.go <- FilmInputs.MovementStates (i29/i62/i54, lot 5.3.6)
+	"stances":             grammar.Rev, // document_stances.go <- FilmInputs.MovementStates (i29/i62/i54, lot 5.3.6) ; build_postures.go <- FilmInputs.ControlInputs
 	"zoneStates":          grammar.Rev, // build_zones.go <- FilmInputs.ZoneReads, ZoneKeyReads (le catalogue de zones vient de l appelant, il ne decode rien)
 
 	// --- LES FAITS : les calques dont les lignes sortent du decodage killsource ou du statborg,
@@ -183,6 +187,7 @@ var couchesDesCalques = map[string]string{
 	"identity":          objectives.Rev, // build_pistes.go <- `reg.Section`, qui publie `statborgSlots` (facts/objectives)
 	"roster":            killsource.Rev, // build_pistes.go `buildRoster` <- opt.Bots AJOUTE des lignes (identity.go), et les bots sont decodes par facts/killsource
 	"neutralDeaths":     killsource.Rev, // build_inventaire.go <- opt.NeutralDeaths, resolues par `replaybuild.neutralDeaths` sur `decfilm.Result`
+	"killCauses":        killsource.Rev, // build_inventaire.go <- opt.KillCauses, resolues par `replaybuild.killCauses` sur `decfilm.Result`
 	"equipmentEpisodes": killsource.Rev, // build_pistes.go : les episodes sortent de la grammaire, mais `attachAllEquipmentKills` y ECRIT `k`/`a` depuis opt.Kills (killsource)
 	"objectives":        objectives.Rev, // objectives.go <- opt.Objectives (`objectives.IdentifiedEvent`)
 	"scoreTimeline":     objectives.Rev, // build_score.go <- opt.Score.Records (enregistrements d entite du statborg)

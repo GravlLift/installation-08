@@ -103,6 +103,10 @@ func (s *filmScan) balayerPont() {
 	// supplementaire — jamais d'erreur, juste moins de couverture sur un film qui ne les ecrit pas.
 	s.in.Detonations, _ = grammar.ScanProjectileDetonations(s.fc)
 	s.opt.observe(s.ctx, "detonations", s.in.Detonations)
+	// Messages d action du joueur (vue A : degats, et les genres que la grammaire garde) : meme passe
+	// des tetes, jamais d erreur, juste moins de couverture sur un film qui ne les ecrit pas.
+	s.in.Actions = grammar.ScanFilmActions(s.fc)
+	s.opt.observe(s.ctx, "filmActions", s.in.Actions)
 	// Le fil des morts NOMME les vies par le pont par morts, cale l'horloge des morts et ouvre la
 	// lecture de la table d index (cf. [filmScan.poserLeFilDesMorts]). Il a ete LU par l etage du pont.
 	s.poserLeFilDesMorts(s.pont.Morts, s.pont.ErrMorts)

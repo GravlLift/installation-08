@@ -57,16 +57,26 @@ type Loadout struct {
 type Shot struct {
 	// T est l'index de frame, sur le même axe que Point.T.
 	T int `json:"t"`
+	// O (optionnel) est le décalage du tir DANS sa frame, en millisecondes entières, de 0 à
+	// frameIntervalMs - 1 : même horodatage, même origine et même pas de grille que T, à la
+	// différence près qu'on retient le RESTE du partage. T*frameIntervalMs+O donne l'heure du
+	// tir sur l'horloge du document à la milliseconde près. Absent quand le tir tombe juste sur
+	// la borne de sa frame (le client lit l'absence comme 0).
+	O int `json:"o,omitempty"`
 	// Slot est le slot du biped tireur : il désigne la Track d'où part le tir.
 	Slot uint32 `json:"slot"`
 	// X, Y sont l'origine du tir (position du tireur).
 	X float32 `json:"x"`
 	Y float32 `json:"y"`
-	// H (optionnel) est le CAP DE VISÉE du tir en degrés, même convention que Point.H.
-	// Absent quand la visée n'était pas lisible hors ligne (le champ vit après des boucles
-	// de longueur variable dans ~80 % des records) : le client dessine alors un simple
-	// marqueur, sans direction. Même PIÈGE omitempty que Point.H, même parade (0 -> 360).
+	// H (optionnel) est le CAP DE VISÉE du tireur à l'instant du tir, en degrés, même convention
+	// que Point.H : sa dernière lecture i21 au plus tard à cet instant, à défaut le champ de visée
+	// du record de tir (cf. shots_visee.go, `coverage.shots.aim` dit laquelle). Absent quand ni
+	// l'une ni l'autre n'existe : le client dessine alors un simple marqueur, sans direction.
+	// Même PIÈGE omitempty que Point.H, même parade (0 -> 360).
 	H float32 `json:"h,omitempty"`
+	// P (optionnel) est l'ÉLÉVATION DE VISÉE de la même lecture que H, en degrés, même
+	// convention que Point.P : absente sur un tir qui porte H veut dire « à plat ».
+	P float32 `json:"p,omitempty"`
 	// Weapon est l'identifiant global 64 bits de l'arme, en hexadécimal (un entier 64 bits
 	// ne survit pas au `number` JavaScript). Clé de metadata.weapon_labels.weapon_id.
 	Weapon string `json:"w,omitempty"`
@@ -158,4 +168,9 @@ type Track struct {
 	// n'existe : la vie est en cours et le client tient la dernière position.
 	StartFrame int `json:"startFrame,omitempty"`
 	EndFrame   int `json:"endFrame,omitempty"`
+	// FullRate (schema 109) porte TOUS les echantillons de position et de visee de la vie, chacun a
+	// son instant, en colonnes differentielles (cf. tracks_plein_debit.go). `Points` reste la vie
+	// sur la grille de frames ; `FullRate` est la meme vie au debit du film. Absent : artefact
+	// anterieur au schema 109.
+	FullRate *FullRateTrack `json:"fullRate,omitempty"`
 }

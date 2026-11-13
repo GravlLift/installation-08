@@ -171,6 +171,16 @@ func encodeInventaire(w *gwriter, g *FilmFacts) {
 		w.bool8(d.SelRead)
 		w.i(int64(d.Sel))
 		w.u(uint64(d.Mask))
+		w.u(uint64(len(d.Ammo)))
+		for _, a := range d.Ammo {
+			w.i(int64(a.WeaponSlot))
+			for _, v := range []*uint32{a.Mag, a.FracQ, a.Res} {
+				w.bool8(v != nil)
+				if v != nil {
+					w.u(uint64(*v))
+				}
+			}
+		}
 	}
 
 }

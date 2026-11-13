@@ -197,6 +197,12 @@ type Coverage struct {
 	// messages lus, paires, 104 non appariés, publiées, écartées. Publiée même quand aucune ne l'est,
 	// pour la même raison que `translocations`.
 	Knockbacks *KnockbackCoverage `json:"knockbacks,omitempty"`
+	// PlayerActions est la couverture des ACTIONS DU JOUEUR (schema 107, cf. document_actions_joueur.go) :
+	// arme desiree, degats, causes de kill — lus, publies, ecartes. Publiee des que la piste existe.
+	PlayerActions *PlayerActionsCoverage `json:"playerActions,omitempty"`
+	// ControlPlaces dit quel joueur tient chaque place de controle, lue dans les tirs (schema 111,
+	// places_de_controle.go). Absent : artefact anterieur.
+	ControlPlaces *ControlPlaceCoverage `json:"controlPlaces,omitempty"`
 	// CarriedEquipment est la couverture de l'ÉQUIPEMENT PORTÉ et des poses de faille (schéma 95, cf.
 	// document_equipement_porte.go). Publiée même quand rien ne l'est.
 	CarriedEquipment *CarriedEquipmentCoverage `json:"carriedEquipment,omitempty"`
@@ -253,6 +259,7 @@ type Coverage struct {
 	// GrenadeReads dit ce que chaque canal a apporte a l'axe des grenades portees, et si le
 	// canal MUNITIONS du film a ete refuse en bloc (cf. grenade_reads.go).
 	GrenadeReads *GrenadeReadCoverage `json:"grenadeReads,omitempty"`
+	AmmoReads    *GrenadeReadCoverage `json:"ammoReads,omitempty"`
 	// Abilities est la couverture du calque IDENTITE DE CAPACITE PORTEE (cf. abilities.go) :
 	// lectures i48/image-cle disponibles, celles ecartees comme BRUIT DE BALAYAGE (rang hors
 	// domaine plausible, RAPPORT_E0_2026-09-10 §3), celles sans trajectoire publiee, et

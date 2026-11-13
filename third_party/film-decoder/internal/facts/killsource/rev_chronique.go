@@ -398,6 +398,30 @@ package killsource
 // prouvee par les digests `replay-equiv` des 20 films de reference (egaux au temoin d avant le lot) et par
 // la liste des tests (memes noms, memes verdicts). Aucune ligne `match_kill_events` ne devient candidate au
 // redecodage. Golden de revision et golden de perimetre regeneres une seule fois.
+<<<<<<< ours
+//
+// A REVISION CONSTANTE (lot 8 « actions du film », 2026-11-09) : la VALEUR de `grammar.Rev` monte a
+// `grammar-2026-11-09` (jeu d armes desire par trame, messages `damage_aftermath` gardes dans la vue A).
+// Aucune source de cette couche ne change ; aucun bit n est lu autrement, et la lecture de la vue A que
+// killsource emploie rend les memes kills (le genre 0 garde sa charge, il ne l arrete pas). Golden regenere
+// a revision constante.
+//
+// A REVISION CONSTANTE (lot 8 « actions du film », item 3, 2026-11-09) : `grammar.Rev` monte a
+// `grammar-2026-11-09.2` (la vue A garde aussi les genres 38, 39 et 40) et `film/types` nomme ces trois
+// genres. Aucune source de cette couche ne change, la vue A rend les memes kills. Golden regenere a
+// revision constante.
+//
+// A REVISION CONSTANTE (lot 8 « actions du film », item 6, 2026-11-09) : `grammar.Rev` monte a
+// `grammar-2026-11-09.3` (la visee modale du tir n est lue que sous ses deux drapeaux nuls). Aucune source de
+// cette couche ne change et aucune de ses lectures ne consomme la visee du tir. Golden regenere a revision
+// constante.
+//
+// A REVISION CONSTANTE (lot 8, postures de la commande, 2026-11-09) : `grammar.Rev` monte a
+// `grammar-2026-11-09.4` (les changements de la commande sont lus dans la vue C, au canal du tir continu) et
+// `film/types` nomme leurs types. Aucune source de cette couche ne change et aucune de ses lectures ne
+// consomme la commande. Golden regenere a revision constante.
+||||||| base
+=======
 //
 // A REVISION CONSTANTE (equipement porte, identite lue sur l objet, 2026-11-08) : la VALEUR de `grammar.Rev` monte a
 // `grammar-2026-11-08` (le canal de l equipement porte rend le GlobalID de chaque objet attache) et `film/types` gagne deux
@@ -446,3 +470,4 @@ package killsource
 // deux sans section d identification) decodes avant et apres, la liste des morts publiees (instant, victime, tueur du kill-feed,
 // source de degat, assistant, parts de degats, ecart tueur / source, voie de lecture) est identique ligne a ligne. Les mesures de kills du banc de verite du `replay-corpus-gate` ne se lancent pas
 // depuis le depot dedie du decodeur. Golden regenere a revision constante.
+>>>>>>> upstream

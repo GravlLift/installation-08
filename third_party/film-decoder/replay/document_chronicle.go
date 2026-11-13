@@ -3637,6 +3637,187 @@ package replay
 //	                les revisions qui hachent sa valeur.
 //
 //	LE PARC         un artefact 105 : verdict `redecoder` (la revision de grammaire a change).
+<<<<<<< ours
+
+// v107 (2026-11-09, lot 8 « actions du film »). Trois calques de ce que le film ECRIT et que le decodeur
+// lisait deja, publies en listes d evenements (aucun champ par frame) :
+//
+//	`drawnWeapons[]`  {t, slot, d?, d2?} : l emplacement d arme desire a CHAQUE changement (`i42` du bipede
+//	                 dans les trames delta), la meme grandeur qu `inventory[].d`, qui n est lu qu aux images-cles.
+//	                 512155b9 : 459 changements publies ; 251 lectures ecartees, faites sur le record NEW d une vie
+//	                 dont le slot n est lie qu apres la traversee (`coverage.playerActions.drawnSlotUnbound`).
+//	`damages[]`      {t, slot, by?, src?} : les messages `damage_aftermath` (vue A, genre 0) dont l entite touchee
+//	                 est une vie publiee — le degat encaisse, le responsable (base 0x200 du domaine 1) et la source
+//	                 `jpt!`. 512155b9 : 1 679 publies sur 1 725 lus (46 sur un vehicule ou une vie non publiee). AUCUNE QUANTITE : le `R(5)` qu un
+//	                 lecteur ancien nommait « magnitude » ne prend que 0, 1 et 2 sur trois films ; ce n est pas une
+//	                 quantite de degat.
+//	`killCauses[]`   {feedMs, killer, victim?, class, category?} : la classe de la source du degat fatal (arme,
+//	                 corps a corps, grenade, vehicule, objet explosif, environnement, inconnu) et son modificateur
+//	                 (`SilentMelee` l assassinat, `CollisionDamage`, `AttachedDamage`...), resolus par la cuisson
+//	                 depuis killsource, comme `neutralDeaths`. 512155b9 : 230 kills, dont 126 `Headshot`, 52 au
+//	                 corps a corps (6 `SilentMelee`), 5 grenades `AttachedDamage`.
+//	`coverage.playerActions`   les comptes lus, publies et ecartes des trois calques.
+//
+//	CE QUI MONTE    `SchemaVersion` 106 -> 107, `grammar.Rev` -> `grammar-2026-11-09` (deux sorties neuves de la
+//	AVEC ELLE       grammaire, aucun bit lu autrement), `SchemaDesFaits` 18 -> 19 (les faits portent les deux
+//	                listes), et les revisions qui hachent sa valeur.
+//
+//	LE PARC         un artefact 106 : verdict `redecoder` (la revision de grammaire a change).
+
+// v108 (2026-11-09, lot 8 « actions du film »). Les GESTES du joueur que la vue A ecrit, en une liste
+// d evenements :
+//
+//	`actions[]`      {t, slot, kind} : `reload` (`weapon_reload`, genre 38), `throwStart`
+//	                 (`biped_throw_initiate`, 39) et `melee` (`biped_melee_initiate`, 40), la vie qui agit
+//	                 portee par la reference 0 sous la base 0x200. 512155b9 : 766 + 393 + 147 = 1 306 lus,
+//	                 1 306 publies. Recoupements : 51 des 52 kills au corps a corps ont un `melee` du tueur
+//	                 0 a 2 frames avant (le 52e a 14 ; temoin decale de 30 s : 1) ; 393 `throwStart` pour 393
+//	                 grenades ; 2 rechargements sur 493 suivis d un tir de la meme vie a moins de 0,5 s, 451
+//	                 des 484 encadres par deux tirs le sont par la meme arme.
+//	`coverage.playerActions`   quatre compteurs de plus : actionsRead, actionsPublished, actionsNoTrack,
+//	                 actionsBeforeOrigin.
+//
+//	CE QUI MONTE    `SchemaVersion` 107 -> 108, `grammar.Rev` -> `grammar-2026-11-09.2` (la vue A garde trois
+//	AVEC ELLE       genres de plus, aucun bit lu autrement). `SchemaDesFaits` reste 19 : le format porte deja le
+//	                genre de chaque message, seul le contenu change, et la revision de grammaire le refuse.
+//
+//	LE PARC         un artefact 107 : verdict `redecoder` (la revision de grammaire a change).
+
+// v109 (2026-11-09, lot 8, pistes au plein debit). La vue 3D interpolait la position et la visee entre
+// des points distants de 100 ms (un par frame, le premier observe) quand le film les replique a chaque
+// tick serveur (60 ou 30 par seconde) : la visee paraissait en retard des que le joueur tournait.
+//
+//	`tracks[].fullRate`   {t, x, y, z, gaps, aimT, h, p} : TOUS les records de position de la vie a leur
+//	                 milliseconde depuis l origine de la grille, et toutes ses visees aux leurs, en colonnes
+//	                 differentielles d entiers (centiemes d unite monde, quanta bruts du composant i21).
+//	                 `points` ne change pas. Encodage et conversion : `tracks_plein_debit.go`.
+//	`coverage.tracks.{fullRateSamples,fullRateAimSamples,noWorld}`   ce que le plein debit porte, et les
+//	                 positions sans bornes de carte qu aucune representation ne publie. 512155b9 : 351 049
+//	                 positions des faits, 351 049 publiees (59 395 points), 226 087 visees.
+//
+//	CE QUI MONTE    `SchemaVersion` 108 -> 109. Aucune revision de couche ni `SchemaDesFaits` ne bouge :
+//	AVEC ELLE       les faits portent deja chaque position avec son horodatage et ses quanta de visee.
+//
+//	LE PARC         un artefact 108 : verdict `a republier` (assemblage seul, aucun fait perime).
+
+// v110 (2026-11-09, lot 8, directions de tir). `shots[].h` venait du champ de visee du record de tir 36 :
+// 43 % des tirs de 512155b9 en portaient un, et 31 % de ceux-la tombaient a moins d un degre de la visee
+// i21 du tireur (69 % au-dela de 5 degres, presque tous sur les faces -Y et -Z du cube). Ce champ n est
+// ecrit que sous ses deux drapeaux nuls ; sous un drapeau pose, les 30 bits lus etaient un autre champ.
+//
+//	`shots[].h`, `shots[].p`   la visee i21 du tireur : sa derniere lecture, avec ou sans position, au plus
+//	                 tard a l instant du tir et a moins de 5 s (`shots_visee.go`). Tenir bat interpoler,
+//	                 mesure contre la visee exacte des records : mediane 0,05 a 0,08 deg contre 0,15 a
+//	                 0,26. Le champ du record n est plus qu un repli nomme et compte
+//	                 (`repli_visee_du_tir_lue_dans_le_record`). `p` nait : l elevation de la meme lecture.
+//	`coverage.shots.aim`   {track, sameTick, record, none} : d ou vient chaque direction ; track + record
+//	                 + none = attached + unpublished.
+//	MESURE          tirs publies portant une direction, et part a moins de 1 deg de la visee du tireur
+//	                 recalculee hors production : 512155b9 2 259 / 2 259 (2 257 / 2 257) ; 47535e96
+//	                 906 / 920 (827 / 827) ; 02eab71d 7 173 / 7 195 (7 058 / 7 058) ; d297598e 6 268 / 6 353 (6 030 / 6 030).
+//
+//	CE QUI MONTE    `SchemaVersion` 109 -> 110, et `grammar.Rev` `grammar-2026-11-09.3` (la visee du
+//	AVEC ELLE       record n est lue que sous ses deux drapeaux nuls : le contenu des faits change, pas leur
+//	                 format, `SchemaDesFaits` reste 19).
+//
+//	LE PARC         un artefact 109 : verdict `redecoder` (la revision de grammaire a change).
+
+// v111 (2026-11-09, lot 8, postures de la commande). Sur les builds recents le film n annonce ni `i29`
+// (accroupi) ni `i62` (glissade) : `stances[]` n y portait aucun accroupi ni aucune glissade. La vue de
+// controle porte, par place de controle et par tick, le bouton d accroupi (qui est aussi celui de la
+// glissade) et l impulsion du saut (`types.ControlInputChange`).
+//
+//	`stances[]`      `crouch` et `slide` lus dans la commande, poses sur la vie du joueur qui tient la place
+//	                 a cet instant (places lues dans les tirs, `places_de_controle.go`) ; `ms0` / `ms1` nes :
+//	                 les bornes a la milliseconde, sur l axe de `fullRate.t`. Regle : `postures_de_controle.go`.
+//	`actions[]`      `jump` ne : l impulsion du bouton de saut ; `ms` ne sur toute action. `jumpDerived` n est
+//	                 plus publie que la ou l etat de la commande n est pas connu (repli
+//	                 `repli_saut_derive_de_la_vitesse`).
+//	`coverage.stances.control`   ce que la commande a donne : pressions, accroupis, glissades, sauts, et ce qui
+//	                 est ecarte (place sans joueur, sans vie, en vehicule, sans position).
+//	MESURE          512155b9 : 833 accroupis, 558 glissades, 1 547 sauts ; 88,9 % des glissades passent
+//	                 3,10 u/s sous 800 ms (temoin decale de 30 s : 55,3 %) ; 87,2 % des glissades physiques
+//	                 couvertes (temoin 10,3 %) ; 88,9 % des sauts suivis d une montee de 0,3 u (temoin 16,0 %).
+//	                 02eab71d : 350, 303, 2 120 ; 97,4 % ; 69,9 % (temoin 2,5 %) ; 84,1 % (temoin 12,7 %).
+//
+//	CE QUI MONTE    `SchemaVersion` 110 -> 111, `grammar.Rev` `grammar-2026-11-09.4` (les changements de la
+//	AVEC ELLE       commande sont lus dans la vue C, aucune largeur ne change), `SchemaDesFaits` 19 -> 20 (les
+//	                 faits portent les changements et leurs comptes).
+//
+//	LE PARC         un artefact 110 : verdict `redecoder` (la revision de grammaire a change).
+
+// v112 (2026-11-09, lot 8, tireur de la place). Le tireur d un tir ou d une rafale etait l occupant du siege
+// du roster dont la presence couvre l instant ; un arrivant en cours de match tient une place que sa fiche
+// ne date pas toujours, et son tir tombait alors sur l index de la place, donc sur un autre joueur ou sur
+// aucun slot. La lecture des places dans les tirs (`places_de_controle.go`, schema 111) date chaque place
+// joueur par joueur.
+//
+//	`shots[]` `bursts[]`  le tireur est d abord le joueur que la place lue designe a l instant ; le siege du
+//	                 roster n est plus que le repli `repli_tireur_par_le_siege_de_la_place` (`tirs_par_place.go`).
+//	`coverage.controlPlaces`  `shotsByPlace`, `shotsBySeat`, `burstsByPlace`, `burstsBySeat` naissent.
+//	MESURE          02eab71d, 7 443 tirs dont l unite nomme le tireur : le siege en rendait 388 a la place
+//	                 elle-meme, la lecture 0 ; validation croisee (lecture sur une moitie des tirs, jugee sur
+//	                 l autre) 0 faux. Publies : 7 195 -> 7 227 tirs rattaches, rafales 175 -> 186.
+//	                 d297598e : 1 433 tirs sur 6 198 rendus a la place par le siege, 0 par la lecture ;
+//	                 rafales 216 -> 240.
+//
+//	CE QUI MONTE    `SchemaVersion` 111 -> 112 seule : ni la grammaire ni les faits ne changent.
+//
+//	LE PARC         un artefact 111 dont les faits sont sur disque : verdict `republier`.
+
+// v113 (2026-11-09, lot 8, visees sans position). Le film replique la visee `i21` d un bipede aussi dans
+// des records sans position (`grammar.ScanBipedAimOnly`) ; elles ne se lisaient que sur un film a vehicules,
+// et les colonnes de visee de `tracks[].fullRate` ne portaient que celles des records de position.
+//
+//	`tracks[].fullRate`  `aimT`, `h`, `p` portent aussi les visees sans position de la vie, fusionnees dans
+//	                 l ordre du temps (`tracks_visees_seules.go`) ; la vie est celle du registre dont les
+//	                 bornes couvrent l instant.
+//	`coverage.tracks`  `fullRateAimOnlySamples` (comprises dans `fullRateAimSamples`) et `aimOnlyNoLife`
+//	                 naissent ; leur somme vaut les lectures (`coverage.vehicles.aimReads`).
+//	`shots[]`        la direction d un tir lit aussi ces visees sur un film sans vehicule.
+//	MESURE          512155b9 : 5 690 lues, 4 000 posees, 1 690 hors de toute vie ; 2 275 posees encadrees
+//	                 par une position a moins de 500 ms ; tirs visant au paquet meme 2 167 -> 2 185.
+//
+//	CE QUI MONTE    `SchemaVersion` 112 -> 113, `SchemaDesFaits` 20 -> 21 (le format ne change pas, le
+//	AVEC ELLE       contenu des visees d une arene oui).
+//
+//	LE PARC         un artefact 112 : verdict `republier` (aucune revision de couche ne bouge), puis ses
+//	                 faits du schema 20 sont refuses sur leur en-tete : le match se redecode.
+
+// v114 (2026-11-09, lot 8, stick de deplacement). La vue de controle porte, par place et a chaque
+// changement, le couple analogique du deplacement ; les faits le gardent depuis le schema 20.
+//
+//	`tracks[].fullRate`  `stickT`, `sx`, `sy` naissent (`stick_de_deplacement.go`) : un echantillon par
+//	                 changement du couple, sur la vie du joueur qui tient la place, valeurs brutes R(6) (31
+//	                 au repos, 0 et 62 aux butees), -1 quand l etat de la commande n est pas connu ; la vie
+//	                 s ouvre sur l etat que sa place porte a son premier instant.
+//	`coverage.stances.control`  `stickSamples`, `stickNoLife` naissent.
+//	MESURE          512155b9 : 157 004 echantillons, 291 changements sans vie. Repere : relatif a la visee
+//	                 (R = 0,960, decalage 0,1 degre, contre 0,082 dans le monde) ; `sx` sur l axe du cap
+//	                 (62 = plein avant), `sy` a +90 degres du cap, de x vers y du monde. Gzip
+//	                 1 685 199 -> 1 956 877 octets.
+//
+//	CE QUI MONTE    `SchemaVersion` 113 -> 114 seule : ni la grammaire ni les faits ne changent.
+//
+//	LE PARC         un artefact 113 dont les faits sont sur disque : verdict `republier`.
+
+// v115 : ammoReads publie les munitions des images-cles et des deltas sur leur propre axe.
+// SchemaDesFaits 22 transporte les valeurs et leur presence dans chaque delta.
+
+// v116 : le tir publie son decale dans sa frame.
+//
+//	`shots[].o`   le decale du tir dans sa frame, en millisecondes entieres, de 0 a frameIntervalMs - 1 :
+//                 le reste du partage de son horodatage par le pas de la grille, sur la meme origine que
+//                 `t` ; `t`*frameIntervalMs+`o` est l heure du tir sur l horloge du document, a la
+//                 milliseconde. Absent quand le tir tombe juste sur la borne de sa frame : le client lit
+//                 l absence comme 0. Les tirs d une frame se rangent par `t` puis `o`, a l ordre du film
+//                 en cas d egalite.
+//
+//	CE QUI MONTE    `SchemaVersion` 115 -> 116 seule : ni la grammaire ni les faits ne changent.
+//
+//	LE PARC         un artefact 115 dont les faits sont sur disque : verdict `republier`.
+||||||| base
+=======
 
 // v107 (2026-11-08, fin de vie a la mort ecrite ; equipement porte : l identite se lit sur l objet).
 //
@@ -3956,3 +4137,4 @@ package replay
 //
 // LE PARC         un artefact 111 : verdict `a redecoder` (les faits cuits au schema 21 et aux revisions d avant se refusent sur
 //                 leur en-tete). La recuisson est une decision de l utilisateur.
+>>>>>>> upstream

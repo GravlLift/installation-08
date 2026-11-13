@@ -58,6 +58,8 @@ func (s *filmScan) balayerEtatsDeMouvement() {
 	s.opt.Fallbacks.DeclencheN(fallback.NomDebutDeListeFermeAuBit, m.DebutsDeListeParRepliFermeAuBit)
 	s.in.MovementStates, s.in.MovementStateStats = m.MovementStates, st
 	s.in.ContinuousFire, s.in.ContinuousFireStats = m.ContinuousFire, tc
+	s.in.DrawnWeapons, s.in.DrawnWeaponStats = m.DrawnWeapons, m.DrawnWeaponStats
+	s.in.ControlInputs, s.in.ControlInputStats = m.ControlInputs, m.ControlInputStats
 	if s.in.Vehicles.Scanned {
 		morts := mortsDeVehicule(s.ctx, s.matchID, m)
 		s.in.Vehicles.Deaths, s.in.Vehicles.BipedDeaths = morts.Vehicles, morts.Bipeds
@@ -67,6 +69,10 @@ func (s *filmScan) balayerEtatsDeMouvement() {
 	s.opt.observe(s.ctx, "movementStates.stats", st)
 	s.opt.observe(s.ctx, "continuousFire", s.in.ContinuousFire)
 	s.opt.observe(s.ctx, "continuousFire.stats", tc)
+	s.opt.observe(s.ctx, "drawnWeapons", s.in.DrawnWeapons)
+	s.opt.observe(s.ctx, "drawnWeapons.stats", s.in.DrawnWeaponStats)
+	s.opt.observe(s.ctx, "controlInputs", s.in.ControlInputs)
+	s.opt.observe(s.ctx, "controlInputs.stats", s.in.ControlInputStats)
 	s.opt.observe(s.ctx, "vehicleDeaths", mortsEtOccupation{Deaths: s.in.Vehicles.Deaths, Occupancy: s.in.Vehicles.Occupancy})
 	s.opt.observe(s.ctx, "vehicleDeaths.stats", s.in.Vehicles.DeathStats)
 }

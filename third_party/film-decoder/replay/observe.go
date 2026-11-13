@@ -59,6 +59,10 @@ var buildFromFilmSteps = []string{
 	"movementStates", "movementStates.stats",
 	// LE TIR CONTINU (lot M4b) : la MEME marche, la vue C de chaque trame.
 	"continuousFire", "continuousFire.stats",
+	// LE JEU D ARMES DESIRE (`i42`) : la MEME marche, par trame delta.
+	"drawnWeapons", "drawnWeapons.stats",
+	// LES BOUTONS DE CONTROLE ET LE COUPLE ANALOGIQUE : la MEME marche, la vue C de chaque trame.
+	"controlInputs", "controlInputs.stats",
 	// LES MORTS DE VEHICULE ET L OCCUPATION : la MEME marche, le canal des morts ; vides quand le
 	// calque des vehicules n a pas ete balaye.
 	"vehicleDeaths", "vehicleDeaths.stats",
@@ -77,6 +81,8 @@ var buildFromFilmSteps = []string{
 	// LES DETONATIONS/IMPACTS DE PROJECTILE (lot detonations, 2026-10-22) : apres les pistes
 	// qu elles rattachent, meme horloge.
 	"detonations",
+	// LES MESSAGES D ACTION DU JOUEUR (vue A) : meme passe des tetes que les detonations.
+	"filmActions",
 	"deaths", "filmTable", "playerTeams", "playerIndices", "clockOrigin",
 }
 

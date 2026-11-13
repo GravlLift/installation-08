@@ -23,13 +23,42 @@ func TestLeTirDuRemplacantLuiRevient(t *testing.T) {
 		{TimestampUS: 1_000_000, FilmIndex: 5, HasShooter: true},
 		{TimestampUS: 4_000_000, FilmIndex: -1},
 	}
-	out, autres := places.tirsParPlace(fire, vsClock())
+	var cov ControlPlaceCoverage
+	out, autres := tireursDesPlaces{sieges: places, cov: &cov}.tirsParPlace(fire, vsClock())
 	if autres != 1 || out[0].FilmIndex != 9 || out[1].FilmIndex != 5 || out[2].FilmIndex != -1 {
 		t.Errorf("index = %d, %d, %d (%d rendus), attendu 9, 5, -1 (1)", out[0].FilmIndex, out[1].FilmIndex,
 			out[2].FilmIndex, autres)
 	}
 	if fire[0].FilmIndex != 5 {
 		t.Error("les evenements de l appelant ont ete modifies")
+	}
+	if cov.ShotsBySeat != 2 || cov.ShotsByPlace != 0 {
+		t.Errorf("comptes = %+v : attendu 2 tirs par le siege (aucune place lue)", cov)
+	}
+}
+
+// TestLaPlaceLuePrimeSurLeSiege — la place 5 est lue tenue par le joueur 7 (deux tirs de son unite) ;
+// le roster la donne a l index 5 sur tout le match. Un tir de la place 5 revient a 7, par la lecture ;
+// un tir de la place 6, qu aucun tir a unite n a liee, revient a l occupant de son siege, compte comme
+// repli.
+func TestLaPlaceLuePrimeSurLeSiege(t *testing.T) {
+	horloge := replayClock{origin: 0, step: 100_000, frames: 1000}
+	lues := lirePlacesDeControle([]grammar.FireEvent{tirDePlace(5, 20, 100), tirDePlace(5, 20, 300)},
+		occupantsPlats(map[uint32]int{20: 7}), horloge, map[int][2]int{7: {0, 999}}, true)
+	sieges := nouveauxTireursParPlace([]RosterEntry{
+		{XUID: "1", FilmIndex: 5, Seat: 5, Presence: []PresenceInterval{{From: 0, To: 999}}},
+		{XUID: "2", FilmIndex: 8, Seat: 6, Presence: []PresenceInterval{{From: 0, To: 999}}},
+	})
+	cov := lues.cov
+	t2 := tireursDesPlaces{lues: lues, sieges: sieges, cov: &cov}
+	fire := []grammar.FireEvent{{TimestampUS: 20_000_000, FilmIndex: 5, HasShooter: true},
+		{TimestampUS: 20_000_000, FilmIndex: 6, HasShooter: true}}
+	out, autres := t2.tirsParPlace(fire, horloge)
+	if autres != 2 || out[0].FilmIndex != 7 || out[1].FilmIndex != 8 {
+		t.Errorf("index = %d, %d (%d rendus), attendu 7, 8 (2)", out[0].FilmIndex, out[1].FilmIndex, autres)
+	}
+	if cov.ShotsByPlace != 1 || cov.ShotsBySeat != 1 {
+		t.Errorf("comptes = %+v : attendu 1 par la place lue, 1 par le siege", cov)
 	}
 }
 

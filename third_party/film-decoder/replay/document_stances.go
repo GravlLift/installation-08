@@ -50,6 +50,11 @@ type Stance struct {
 	// MESUREE de fin, soit la fin de la vie.
 	T0 int `json:"t0"`
 	T1 int `json:"t1"`
+	// Ms0 / Ms1 bornent l intervalle a la MILLISECONDE, sur l axe des colonnes `fullRate.t` (ms depuis
+	// l origine de la grille) : seules les postures lues dans la commande (`crouch` et `slide` de la
+	// vue de controle, schema 111) les portent. Absents : l intervalle n est connu qu a la frame.
+	Ms0 *int64 `json:"ms0,omitempty"`
+	Ms1 *int64 `json:"ms1,omitempty"`
 }
 
 // StanceCoverage dit ce que la marche a lu et ce qu elle a jete — les denominateurs sans
@@ -107,6 +112,9 @@ type StanceCoverage struct {
 	RefusedNewFalseReads  int `json:"refusedNewFalseReads,omitempty"`
 	RefusedNewLostCreates int `json:"refusedNewLostCreations,omitempty"`
 	RefusedNewUndecided   int `json:"refusedNewUndecided,omitempty"`
+	// Control dit ce que la vue de controle a donne aux postures et aux sauts (schema 111,
+	// postures_de_controle.go). Absent : artefact anterieur.
+	Control *ControlStanceCoverage `json:"control,omitempty"`
 	// MapWidths est le triplet de largeurs d axe employe par le chemin absolu d `i0`. PUBLIE
 	// parce que c est le pre-requis le plus facile a oublier : un triplet qui n est pas celui de
 	// la carte du match rend la marche muette (cf. `grammar/movement_states.go`).
@@ -149,22 +157,10 @@ func buildStances(in stanceInputs) ([]Stance, StanceCoverage) {
 	}
 	out := stancesDesCles(parCle, windows, in.origin, in.step)
 	sortStances(out)
-	cov.Intervals = len(out)
-	cov.ByKind = map[string]int{}
-	// CE N EST PAS L ENSEMBLE DES SLOTS PUBLIES, et la nuance compte : c est l ensemble des vies
-	// qui PORTENT au moins un intervalle, derive des intervalles qu on vient de produire — pas
-	// une seconde derivation de `doc.Tracks` (celle-la n a qu un proprietaire,
-	// `published_tracks.go`). D ou un ensemble d appartenance, et non une table de booleens qui
-	// ressemblerait a l autre.
-	lives := map[uint32]struct{}{}
-	for _, s := range out {
-		cov.ByKind[s.Kind]++
-		lives[s.Slot] = struct{}{}
-	}
-	cov.Lives = len(lives)
-	if len(cov.ByKind) == 0 {
-		cov.ByKind = nil
-	}
+	// LES COMPTES SE TIRENT DES INTERVALLES PRODUITS, pas d une seconde derivation de `doc.Tracks`
+	// (celle-la n a qu un proprietaire, `published_tracks.go`) ; la passe des postures de la
+	// commande les recompte apres y avoir ajoute les siennes (build_postures.go).
+	recompterLesPostures(out, &cov)
 	return out, cov
 }
 

@@ -109,10 +109,25 @@ type VehicleScan struct {
 // le film est deja charge et le contexte deja ouvert (lots 1 et 2 de PLAN_CUISSON_PERF), et
 // c'est lui qui porte la bande bipede, le decoupage d'i0 et le registre que les cinq lectures
 // ci-dessous partagent.
+//
+// LES VISEES SANS POSITION SE LISENT SUR TOUT FILM, vehicules ou non (schema 113) : un bipede a pied
+// replique aussi sa visee dans des records sans position, notamment quand sa position se tait. Elles servent la
+// direction des tirs (`shots_visee.go`) et le plein debit des vies (`tracks_visees_seules.go`), pas
+// seulement les occupants ; aucune des trois pannes du calque ne les tait.
 func decodeFilmVehicleScan(ctx context.Context,
 	fc *grammar.FilmContext, matchID string, wr *profile.Vec3Range, mpp profile.MPPWidths,
 ) VehicleScan {
 	defer gwInstallMPPWidths(fc, gwWidthsForFilm(fc, mpp))()
+	out := decodeFilmVehicleLayer(ctx, fc, matchID, wr)
+	out.Aims = decodeFilmOccupantAims(ctx, fc, matchID)
+	slog.InfoContext(ctx, "visees sans position lues", "match_id", matchID, "lectures", len(out.Aims))
+	return out
+}
+
+// decodeFilmVehicleLayer decode les quatre lectures du calque propres aux vehicules (bande, creations,
+// nuage, evenements), sous les largeurs MPP que l appelant a installees.
+func decodeFilmVehicleLayer(ctx context.Context, fc *grammar.FilmContext, matchID string,
+	wr *profile.Vec3Range) VehicleScan {
 	kf := grammar.ScanWorldObjectKeyframes(fc, grammar.VehicleTypeIndex)
 	if len(kf.Band) == 0 {
 		slog.InfoContext(ctx, "vehicules : aucun slot ti=40 aux images-cles — film lu, aucun vehicule",
@@ -133,11 +148,10 @@ func decodeFilmVehicleScan(ctx context.Context,
 	}
 	out := VehicleScan{Scanned: true, Keyframes: kf, Creations: cre, Stats: st, Positions: pos}
 	out.Events = decodeFilmVehicleEvents(ctx, fc, matchID)
-	out.Aims = decodeFilmOccupantAims(ctx, fc, matchID)
 	slog.InfoContext(ctx, "vehicules : balayage ti=40",
 		"slots", st.Slots, "ancres", st.Anchors, "creationsAcceptees", st.Accepted,
 		"imagesCles", len(kf.TimesUS), "viesRecensees", len(kf.SeenUS),
-		"echantillons", len(pos), "evenements", len(out.Events), "viseesSansPosition", len(out.Aims))
+		"echantillons", len(pos), "evenements", len(out.Events))
 	return out
 }
 

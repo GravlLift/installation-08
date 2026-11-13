@@ -74,12 +74,19 @@ const coordScale = 100
 //	DERNIER (`clore`).
 func BuildFromPositions(ctx context.Context, matchID, titleSlug string, pos []grammar.BipedPosition,
 	fire []grammar.FireEvent, opt Options) ReplayDocument {
+	return assemblerLeDocument(ctx, matchID, titleSlug, pos, fire, opt).doc
+}
+
+// assemblerLeDocument deroule les passes de [BuildFromPositions] et rend l etat de l assemblage, document
+// compris : les instruments de mesure du paquet relisent ce que les passes se transmettent.
+func assemblerLeDocument(ctx context.Context, matchID, titleSlug string, pos []grammar.BipedPosition,
+	fire []grammar.FireEvent, opt Options) *assemblage {
 	a := &assemblage{ctx: ctx, matchID: matchID, opt: opt, pos: pos, fire: fire}
 	// LES DIAGNOSTICS DE L ASSEMBLAGE SE JOURNALISENT EN SORTIE, sur les deux retours (lot J12.3).
 	defer a.journaliserLesDiagnostics()
 	if !a.ouvrir(titleSlug) {
 		a.poserLesCalquesProduits()
-		return a.doc
+		return a
 	}
 	a.passerLaPorte()
 	a.poserLesPistes()
@@ -95,13 +102,15 @@ func BuildFromPositions(ctx context.Context, matchID, titleSlug string, pos []gr
 	a.poserLibellesEtInventaire()
 	a.poserCapacitesEtTranslocations()
 	a.poserImpulsionsEtCharges()
+	a.poserActionsDuJoueur()
+	a.poserLesPosturesDeControle()
 	a.clore()
 	// LES CALQUES PRODUITS EN DERNIER, APRES `clore` : la table se lit sur le document FINI, et
 	// la seconde porte des tirs comme les replis ecrivent encore pendant les passes precedentes
 	// (cf. layers.go). Le document sans aucune piste la pose aussi, dans son retour anticipe :
 	// sans quoi `layers` absent porterait DEUX sens, celui que le schema 62 ferme.
 	a.poserLesCalquesProduits()
-	return a.doc
+	return a
 }
 
 // assemblage porte l'état que les passes de [BuildFromPositions] se transmettent.
@@ -138,7 +147,9 @@ type assemblage struct {
 	// Le registre d'identité et ce que la pose des pistes en a tiré.
 	reg IdentityRegistry
 	// indexTireur : l index de tireur des tirs est-il la place sur ce film (lot M4b.4) ?
-	indexTireur    accordIndexUnite
+	indexTireur accordIndexUnite
+	// places : quel joueur tient chaque place de controle, lu dans les tirs (places_de_controle.go).
+	places         placesDeControle
 	trackCov       TrackCoverage
 	unnamed        unnamedLivesReport
 	equipes        teamPublication
@@ -150,7 +161,7 @@ type assemblage struct {
 	// Les mesures faites AVANT `composerLaCouverture` et posées par elle.
 	shotCov     LayerCoverage
 	grenCov     LayerCoverage
-	shotOrphans []orphanShot
+	shotOrphans orphelinsDesTirs
 	projCov     *ProjectileCoverage
 	// birthCov est la couverture des dotations de naissance (schema 69), mesuree a la pose des
 	// loadouts et posee par `composerLaCouverture`.

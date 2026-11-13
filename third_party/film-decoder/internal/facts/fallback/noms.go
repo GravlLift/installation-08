@@ -23,6 +23,14 @@ const (
 	NomPieceEngendreeSansEvenement Nom = "repli_piece_engendree_sans_evenement"
 	// NomDetonationDernierePositionConnue : `replay/projectiles.go`, `attachDetonations`.
 	NomDetonationDernierePositionConnue Nom = "repli_detonation_derniere_position_connue"
+	// NomViseeDuTirLueDansLeRecord : `replay/shots_visee.go`, `viser`.
+	NomViseeDuTirLueDansLeRecord Nom = "repli_visee_du_tir_lue_dans_le_record"
+	// NomSautDeriveDeLaVitesse : `replay/build_postures.go`, `filtrerLesSautsDerives` ; compte par
+	// `poserLesPosturesDeControle`.
+	NomSautDeriveDeLaVitesse Nom = "repli_saut_derive_de_la_vitesse"
+	// NomTireurParLeSiegeDeLaPlace : `replay/tirs_par_place.go`, `tireursDesPlaces.tireur` ; compte
+	// par `tirsParPlace` (tirs) et `fire_bursts.go` (rafales).
+	NomTireurParLeSiegeDeLaPlace Nom = "repli_tireur_par_le_siege_de_la_place"
 	// NomPlafondGrenadeParDefaut : applique par la fenetre d inventaire DERRIERE la lecture de l etat complet,
 	// sur les seuls records non admis (`grammar/keyframe_etats_fenetre.go`, `rendreParLaFenetre` ->
 	// `keyframeInventoriesDe`, lot D1.2 de 2.7.d1) ; compte par `replay/film_scan.go` (`balayerInventaire`)

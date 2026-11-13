@@ -491,6 +491,8 @@ func renderTracks(p func(string, ...any), doc ReplayDocument) {
 		// ne s'y interpole pas (`Point.G`), et le compte dit combien de fois le film se tait.
 		p("%d lacune(s) de replication DANS une vie, %d ms au total — un trou n'est pas une fin "+
 			"de vie, la piste ne s'y interpole simplement pas", tc.Gaps, tc.GapMS)
+		// LE PLEIN DEBIT (schema 109) : chaque position retenue, a son instant ; les visees sans position (113).
+		p("plein debit : %d positions (%d points), %d visees dont %d sans position (%d sans vie), %d sans bornes de carte", tc.FullRateSamples, tc.PublishedPoints, tc.FullRateAimSamples, tc.FullRateAimOnlySamples, tc.AimOnlyNoLife, tc.NoWorld)
 	} else {
 		p("seuil de publication : NON APPLIQUE (le film ne porte aucune position)")
 	}
@@ -1137,18 +1139,6 @@ func renderBounds(p func(string, ...any), doc ReplayDocument) {
 	p("x [%.2f, %.2f] · y [%.2f, %.2f] · z [%.2f, %.2f]",
 		doc.Bounds.MinX, doc.Bounds.MaxX, doc.Bounds.MinY, doc.Bounds.MaxY,
 		doc.Bounds.MinZ, doc.Bounds.MaxZ)
-}
-
-func countPoints(doc ReplayDocument, keep func(Point) bool) int {
-	n := 0
-	for _, tr := range doc.Tracks {
-		for _, pt := range tr.Points {
-			if keep(pt) {
-				n++
-			}
-		}
-	}
-	return n
 }
 
 func pct(a, b int) string {

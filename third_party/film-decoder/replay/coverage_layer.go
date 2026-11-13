@@ -52,6 +52,9 @@ type LayerCoverage struct {
 	// build HI_1_4_1, ou pont slot -> joueur en defaut). Peuples par le seul calque des tirs.
 	ByUnit         int `json:"byUnit,omitempty"`
 	UnitOtherIndex int `json:"unitOtherIndex,omitempty"`
+	// Aim dit d'où vient la direction de chaque tir posé (cf. ShotAimCoverage). Peuplé par le
+	// seul calque des tirs ; nil partout ailleurs.
+	Aim *ShotAimCoverage `json:"aim,omitempty"`
 }
 
 // Balanced vérifie l'invariant : tout ce qui existait est soit rattaché, soit rejeté sous

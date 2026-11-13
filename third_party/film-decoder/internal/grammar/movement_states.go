@@ -156,6 +156,15 @@ type MarcheDesTrames struct {
 	// [debutParFermetureRangee] (repli `repli_debut_de_liste_ferme_au_bit`). Comme le compte precedent,
 	// il voyage dans le rapport des replis, pas dans [types.MovementStateStats].
 	DebutsDeListeParRepliFermeAuBit int
+	// DrawnWeapons sont les lectures du jeu d armes desire du bipede (`i42`) dans les trames, triees par
+	// instant puis par slot ([canalDuJeuDArmes]) ; DrawnWeaponStats, leurs denominateurs.
+	DrawnWeapons     []types.DrawnWeaponRead
+	DrawnWeaponStats types.DrawnWeaponStats
+	// ControlInputs sont les changements des boutons d accroupi et de saut de chaque index de
+	// controle, lus dans les vues C fermees ([collecteurDesBoutons]), tries par instant puis par index ;
+	// ControlInputStats, leurs denominateurs.
+	ControlInputs     []types.ControlInputChange
+	ControlInputStats types.ControlInputStats
 }
 
 // ScanMarcheDesTrames est [ScanMarcheDesTramesAvec] avec toutes les lectures.
@@ -190,8 +199,10 @@ func ScanMarcheDesTramesAvec(fc *FilmContext, l LecturesDeLaMarche) (MarcheDesTr
 		return m, err
 	}
 	sc := nouveauCanalDesEtats(st, reg, arch)
-	tir := nouveauCollecteurTirContinu(&m.ContinuousFireStats)
-	canaux := []Canal{sc, tir}
+	boutons := nouveauCollecteurDesBoutons(&m.ControlInputStats)
+	tir := nouveauCollecteurTirContinu(&m.ContinuousFireStats, boutons)
+	armes := nouveauCanalDuJeuDArmes()
+	canaux := []Canal{sc, tir, armes}
 	if fc.recup.lectures == nil {
 		canaux = append(canaux, nouveauCanalDesLecturesBipedes(fc))
 	}
@@ -216,6 +227,8 @@ func ScanMarcheDesTramesAvec(fc *FilmContext, l LecturesDeLaMarche) (MarcheDesTr
 	m.LiaisonsParRepliDAnticipation = sc.liaisonsDuRepliDAnticipation()
 	m.DebutsDeListeParRepliFermeAuBit = sc.obs.DebutsDeListeParRepliFermeAuBit
 	m.ContinuousFire = tir.out
+	m.ControlInputs = boutons.out
+	m.DrawnWeapons, m.DrawnWeaponStats = armes.out, armes.st
 	m.ContinuousFireStats.Scanned = true
 	if !sc.transmet {
 		*st = types.MovementStateStats{MapWidths: st.MapWidths, Absent: true, Scanned: true}

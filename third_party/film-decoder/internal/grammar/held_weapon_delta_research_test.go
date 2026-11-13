@@ -121,7 +121,7 @@ type hwCapture struct {
 func hwInstall(c *hwCapture) func() {
 	prevW, prevS := observateur.HeldWeaponHook, observateur.DesiredWeaponSetHook
 	SetHeldWeaponHook(func(h, l uint32) { c.high, c.low, c.gotWeapon = h, l, true })
-	SetDesiredWeaponSetHook(func(j JeuDArmes) { c.sel, c.gotSel = j.Demande, true })
+	SetDesiredWeaponSetHook(func(_ uint32, j JeuDArmes) { c.sel, c.gotSel = j.Demande, true })
 	return func() {
 		SetHeldWeaponHook(prevW)
 		SetDesiredWeaponSetHook(prevS)

@@ -5,8 +5,16 @@
 # l ASSEMBLAGE ; le DECODAGE est verrouille a part par la mini-bobine.
 
 ## AXE DE TEMPS
+<<<<<<< ours
+8117 frames · intervalle 100 ms · duree 811700 ms
+schema 116 · titre halo_infinite
+||||||| base
+8117 frames · intervalle 100 ms · duree 811700 ms
+schema 106 · titre halo_infinite
+=======
 24596 frames · intervalle 33 ms · duree 811668 ms
 schema 112 · titre halo_infinite
+>>>>>>> upstream
 version majeure du film : 37
 origine de la frame 0 sur l horloge du fil : 11847 ms
 coup d envoi date par le film : 33495 ms · 169/169 piste(s) en mouvement · rafale 7 · marge depuis la frame 0 : 21648 ms
@@ -15,6 +23,7 @@ coup d envoi date par le film : 33495 ms · 169/169 piste(s) en mouvement · raf
 169 trace(s) · 135722 point(s) de grille
 seuil de publication 1 point(s) : 0 vie(s) REFUSEE(S) portant 0 point(s) — si le film ecrit une position, elle se publie
 8 lacune(s) de replication DANS une vie, 147865 ms au total — un trou n'est pas une fin de vie, la piste ne s'y interpole simplement pas
+plein debit : 267405 positions (45138 points), 192126 visees dont 1906 sans position (2131 sans vie), 0 sans bornes de carte
 169 trace(s) NOMMEE(S) par le pont (fil des morts, fermetures, sieges de bot, relais, puis
 occupation du slot dans le TEMPS) · 0 sans identite — un DEFAUT de nommage a instruire,
 jamais une categorie de donnee (decision produit du 2026-09-07)
@@ -43,7 +52,7 @@ repartition des vies par designateur : 0 x83 · 1 x86
 rejets : slot introuvable=3 · slot ambigu=0 · hors fenetre=0 · sans trace publiee=0
 somme de controle : rattaches + rejets = disponibles -> 1635 = 1635 (equilibre : true)
 verdict : nominal
-1632 tir(s) publie(s) · 716 avec un cap de visee lisible · 1632 avec une arme nommee
+1632 tir(s) publie(s) · 1632 avec un cap de visee lisible · 1632 avec une arme nommee
 
 ## GRENADES — le lancer porte son auteur ; ce qui se mesure est OU il est pose
 310 rattache(s) / 310 disponible(s) = 100.0 %
@@ -394,6 +403,7 @@ repli_fin_de_vie_sans_tableau_api                3
 repli_identite_premier_occupant_du_siege         74
 repli_origine_au_sol_lachee_par_fenetre          184
 repli_prise_de_socle_premiere_du_cycle           7
+repli_saut_derive_de_la_vitesse                  758
 
 ## LIBELLES D ARMES — le tag brut reste A COTE du libelle, jamais a sa place
 11 identifiant(s) nomme(s) ; un identifiant absent garde son hexadecimal a l ecran et

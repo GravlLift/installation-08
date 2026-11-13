@@ -237,6 +237,23 @@ const VersionCodecFaits = 2
 // ce lot porte le blob v28 : il est refuse a la magie du blob, et redecode — sans quoi un artefact rejoue
 // depuis des faits perimes perdrait la detonation lue et retomberait systematiquement sur le repli nomme
 // (`fallback.NomDetonationDernierePositionConnue`).
+<<<<<<< ours
+// SCHEMA 19 (2026-11-09, lot 8 « actions du film ») : le complement de la section 1 porte, apres
+// l equipement porte, les lectures du jeu d armes desire du bipede (`FilmInputs.DrawnWeapons`,
+// `DrawnWeaponStats`) et les messages d action de la vue A (`FilmInputs.Actions`,
+// `encodeActionsDuJoueur`). Un fichier du schema 18 ne les porte pas : il est refuse sur son en-tete
+// (la montee de `grammar.Rev` du meme lot le refusait deja sur ses revisions de couche).
+// SCHEMA 20 (2026-11-09, lot 8, accroupi, glissade et saut) : le complement porte, apres les actions du
+// joueur, les changements des boutons de controle et du couple analogique (`FilmInputs.ControlInputs`,
+// `encodeBoutonsDeControle`). Un fichier du schema 19 ne les porte pas : refuse sur son en-tete.
+// SCHEMA 21 (2026-11-09, lot 8, visees sans position) : `VehicleScan.Aims` change de SENS sans changer de
+// format. Les visees des records sans position se lisaient sur un film a vehicules seulement ; elles se
+// lisent sur tout film. Un fichier du schema 20 d une arene les porte vides : refuse sur son en-tete (meme
+// raisonnement qu au schema 17, aucune revision de couche ne bouge).
+const SchemaDesFaits = 22
+||||||| base
+const SchemaDesFaits = 18
+=======
 // SCHEMA 19 (2026-11-08, equipement porte) : chaque lecture de l equipement porte porte l IDENTITE de l objet a sa
 // creation (`CarriedEquipmentRead.HasGlobalID`, `GlobalID` : le GlobalID de son tag `eqip`), ecrite apres le genre de
 // lecture. La famille de l objet se lit desormais sur lui, et non sur l annonce i48 du porteur dans le meme paquet.
@@ -261,6 +278,7 @@ const VersionCodecFaits = 2
 // bascules fausses sans erreur, et un profil qui les croit fausses lit un film HI_1_11_0 a HI_1_13_0 comme avant : c est le refus SUR
 // L EN-TETE qui doit le dire. `grammar.Rev` (`grammar-2026-11-12.4`) et `profile.Rev` montent avec ce numero, comme aux schemas 11 et 15.
 const SchemaDesFaits = 22
+>>>>>>> upstream
 
 // Identifiants de section. Ils ne se reutilisent JAMAIS : un identifiant retire reste retire, sinon
 // un vieux fichier se relit comme une section qui n est pas la sienne.
@@ -470,6 +488,8 @@ func lireSectionJSON(charge []byte, cible any, libelle string) error {
 //	d inventaire      liste en tranche VIDE, or `Inventory == nil` est une garde de calque
 //	poussees          les poussees d equipement et leurs denominateurs (schema des faits 12)
 //	equipement porte  les lectures des objets portes et leurs denominateurs (schema des faits 13)
+//	actions           le jeu d armes desire et les messages d action de la vue A (schema des faits 19)
+//	boutons           les boutons de controle et le couple analogique (schema des faits 20)
 //	verdict           le verdict du fil des morts (lot M8), EN DERNIER
 func encodeComplementDesEntrees(w *gwriter, g *FilmFacts) {
 	encodeGardesDeMode(w, g.FilmInputs)
@@ -477,6 +497,8 @@ func encodeComplementDesEntrees(w *gwriter, g *FilmFacts) {
 	w.bool8(g.Inventory != nil)
 	encodePoussees(w, g.Knockbacks, g.KnockbackStats)
 	encodeEquipementPorte(w, g.CarriedEquipment, g.CarriedEquipmentStats)
+	encodeActionsDuJoueur(w, g.DrawnWeapons, g.DrawnWeaponStats, g.Actions)
+	encodeBoutonsDeControle(w, g.ControlInputs, g.ControlInputStats)
 	encodeVerdictDuFilDesMorts(w, g.DeathsFeed)
 }
 
@@ -488,5 +510,7 @@ func decodeComplementDesEntrees(r *greader, g *FilmFacts) {
 	}
 	g.Knockbacks, g.KnockbackStats = decodePoussees(r)
 	g.CarriedEquipment, g.CarriedEquipmentStats = decodeEquipementPorte(r)
+	g.DrawnWeapons, g.DrawnWeaponStats, g.Actions = decodeActionsDuJoueur(r)
+	g.ControlInputs, g.ControlInputStats = decodeBoutonsDeControle(r)
 	g.DeathsFeed = decodeVerdictDuFilDesMorts(r)
 }

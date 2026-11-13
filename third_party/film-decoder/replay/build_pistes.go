@@ -61,8 +61,14 @@ func (a *assemblage) poserLesPistes() {
 	// découpe vient des VIES du registre, et ce fichier-ci est déjà au-delà du seuil de 500 L.
 	a.trackCov = poserLesTraces(a.ctx, &a.doc, a.sorted, decoupeDesTraces{
 		origin: a.origin, step: a.step, minPoints: a.opt.minPoints(), scoped: a.opt.Scoped,
+<<<<<<< ours
+		vies: a.reg.Vies(), fb: a.opt.Fallbacks, visees: a.opt.Vehicles.Aims,
+||||||| base
+		vies: a.reg.Vies(), fb: a.opt.Fallbacks,
+=======
 		vies: a.reg.Vies(), fb: a.opt.Fallbacks,
 		fin: nouvelleClotureParMort(a.opt.Deaths, a.reg.CalageSiConnu(), a.reg.Vies(), a.opt.Participants, a.horloge()),
+>>>>>>> upstream
 	})
 	// CE QUE LA PORTE DES POSITIONS A ECARTE se publie avec la couverture des traces : un point
 	// ecarte est un point que le seuil de publication n a jamais vu (cf. positions_porte.go).
@@ -164,19 +170,33 @@ func (a *assemblage) poserLesEquipesEtLeRoster() {
 	a.reg.logRegistry(a.ctx, a.matchID)
 }
 
+// tireursDesPlaces rend le tireur de chaque place : la place lue dans les tirs, le siege a defaut.
+func (a *assemblage) tireursDesPlaces() tireursDesPlaces {
+	return tireursDesPlaces{lues: a.places, sieges: nouveauxTireursParPlace(a.doc.Roster), cov: &a.places.cov}
+}
+
 // poserTirsProjectilesEtGrenades publie les trois calques du combat, chacun avec sa couverture.
 func (a *assemblage) poserTirsProjectilesEtGrenades() {
 	// Chaque calque rend sa COUVERTURE en même temps que son contenu. Le filtrage par
 	// trajectoire publiée qui suit est lui aussi compté, sous une catégorie distincte.
 	var shots []Shot
+	// LA PLACE DE CONTROLE DE CHAQUE JOUEUR, LUE DANS SES TIRS (places_de_controle.go) : les postures de
+	// la commande s y posent.
+	occ := a.reg.Occupants()
+	a.places = lirePlacesDeControle(a.fire, occ, a.horloge(), viesParJoueur(a.doc.Tracks, a.doc.Roster, occ, a.horloge()),
+		a.indexTireur.estLaPlace())
 	// LE TIREUR EST L OCCUPANT DE SA PLACE (lot M4b.4, tirs_par_place.go) : l index d un tir est
 	// la place, et le remplacant en herite. Les evenements de `a.fire` restent ceux du film.
 	// Sur un film ou l index n est pas la place, seule la reference 0 pose un tir.
 	fire := sansIndexDeTireur(a.fire)
 	if a.indexTireur.estLaPlace() {
-		fire, a.siegeCov.TirsParPlace = nouveauxTireursParPlace(a.doc.Roster).tirsParPlace(a.fire, a.horloge())
+		fire, a.siegeCov.TirsParPlace = a.tireursDesPlaces().tirsParPlace(a.fire, a.horloge())
 	}
-	shots, a.shotOrphans, a.shotCov = buildShots(a.sorted, fire, a.origin, a.step, a.reg.Occupants())
+	// LA VISEE DES TIRS (schema 110, shots_visee.go) : les lectures i21 du tireur, avec et sans position.
+	viseur := nouveauViseur(a.sorted, a.opt.Vehicles.Aims, a.opt.Fallbacks)
+	var orphelins []orphanShot
+	shots, orphelins, a.shotCov = buildShots(a.sorted, fire, a.horloge(), a.reg.Occupants(), viseur)
+	a.shotOrphans = orphelinsDesTirs{tirs: orphelins, viseur: viseur}
 	a.doc.Shots = keepShotsOfPublishedTracks(shots, a.doc.Tracks)
 	a.shotCov.Unpublished = countUnpublished(len(shots), len(a.doc.Shots))
 	a.shotCov.Attached = len(a.doc.Shots)

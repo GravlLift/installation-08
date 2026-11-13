@@ -367,14 +367,15 @@ func consumeWeaponStateOverheated(br *Lecteur) {
 // ---------------------------------------------------------------------------
 
 // consumeBipedDesiredWeaponSet lit `i42` du bipede ([lireJeuDArmes]) et publie ses trois champs
-// au crochet du bipede.
+// au crochet du bipede, avec le slot du record en cours de decodage (pose par la boucle de records,
+// comme pour [Lecteur.publishEtatMouvement]).
 func consumeBipedDesiredWeaponSet(br *Lecteur) {
 	j := lireJeuDArmes(br)
 	if arreterSiJeuDArmesRefuse(br, j) {
 		return
 	}
 	if br.obs != nil && br.obs.DesiredWeaponSetHook != nil {
-		br.obs.DesiredWeaponSetHook(j)
+		br.obs.DesiredWeaponSetHook(br.cap.accumSlot, j)
 	}
 }
 

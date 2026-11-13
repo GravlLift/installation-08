@@ -73,7 +73,7 @@ func citerLesLecturesDUneBobine(t *testing.T, nom string, fc *FilmContext) (*tem
 	var st types.MovementStateStats
 	var tir types.ContinuousFireStats
 	etats := &temoinDesEtats{movementStateScanner: nouveauCanalDesEtats(&st, reg, arch), t: t, nom: nom, reg: reg}
-	controle := &temoinDuControle{collecteurTirContinu: nouveauCollecteurTirContinu(&tir), t: t, nom: nom}
+	controle := &temoinDuControle{collecteurTirContinu: nouveauCollecteurTirContinu(&tir, nil), t: t, nom: nom}
 	if err := Distribuer(fc, etats, controle); err != nil {
 		t.Fatalf("%s : %v", nom, err)
 	}

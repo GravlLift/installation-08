@@ -1,11 +1,16 @@
 package replay
 
 import (
+	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/JGtm/halo-infinite-film-decoder/internal/grammar"
 )
+
+// grilleDeTest est la grille des tests de tirs : origine a 1 s, frames de 100 ms.
+var grilleDeTest = replayClock{origin: 1_000_000, step: 100_000}
 
 // posAt fabrique un échantillon de position portant un cap de visée i21.
 func posAt(slot uint32, tUS uint64, x, y float32, headingDeg float64) grammar.BipedPosition {
@@ -52,9 +57,9 @@ func TestBuildShots_PlacesShotOnItsOwnerSlot(t *testing.T) {
 	events := []grammar.FireEvent{
 		fireAt(1_200_000, 3, 90),
 		fireAt(1_300_000, 3, 90),
-		{TimestampUS: 1_400_000, FilmIndex: 3, WeaponID: 1}, // sans visée : le pont suffit
+		{TimestampUS: 1_400_000, FilmIndex: 3, WeaponID: 1}, // sans visée lue dans le record
 	}
-	shots, _, cov := buildShots(pos, events, 1_000_000, 100_000, occupantsPlats(map[uint32]int{10: 3}))
+	shots, _, cov := buildShots(pos, events, grilleDeTest, occupantsPlats(map[uint32]int{10: 3}), nouveauViseur(pos, nil, nil))
 	// L'invariant de couverture vaut AUSSI sur le cas nominal : tout ce qui existait est
 	// soit rattache, soit rejete sous une cause nommee.
 	if !cov.Balanced() {
@@ -74,8 +79,60 @@ func TestBuildShots_PlacesShotOnItsOwnerSlot(t *testing.T) {
 	if shots[0].Weapon != "0x6ACDC44D42C9679F" {
 		t.Errorf("arme = %q, attendu l'identifiant 64 bits en hexadécimal", shots[0].Weapon)
 	}
-	if shots[2].H != 0 {
-		t.Errorf("un tir sans visée décodée ne doit porter aucun cap, reçu %v", shots[2].H)
+	// La direction est la visée i21 du tireur, que le record porte la sienne ou non.
+	for i, s := range shots {
+		if s.H != 90 {
+			t.Errorf("tir %d : cap %v, attendu 90 (la visée i21 du slot 10)", i, s.H)
+		}
+	}
+}
+
+// TestBuildShots_PublishesOffsetInsideFrame : les tirs d une meme frame portent chacun leur decale
+// `o` en millisecondes (le reste du partage de leur horodatage par le pas de la grille), sur la
+// meme frame `T`, dans l ordre de leurs horodatages ; le tir qui tombe juste sur la borne de sa
+// frame a `o` egal a 0 et le champ est omis du JSON.
+func TestBuildShots_PublishesOffsetInsideFrame(t *testing.T) {
+	var pos []grammar.BipedPosition
+	for i := range uint64(20) {
+		pos = append(pos, posAt(10, 1_000_000+i*20_000, 1, 1, 90))
+	}
+	// HORODATAGES DONNES HORS ORDRE : le tri publie doit les ranger par leur decale reel.
+	events := []grammar.FireEvent{
+		fireAt(1_260_000, 3, 90),
+		fireAt(1_200_000, 3, 90), // sur la borne de sa frame
+		fireAt(1_290_000, 3, 90),
+		fireAt(1_230_000, 3, 90),
+	}
+	shots, _, cov := buildShots(pos, events, grilleDeTest, occupantsPlats(map[uint32]int{10: 3}), nouveauViseur(pos, nil, nil))
+	if !cov.Balanced() {
+		t.Errorf("fuite dans la couverture : %+v", cov)
+	}
+	if len(shots) != 4 {
+		t.Fatalf("tirs publiés = %d, attendu 4 : %+v", len(shots), shots)
+	}
+	decoulesAttendus := []int{0, 30, 60, 90}
+	for i, s := range shots {
+		if s.T != 2 {
+			t.Errorf("tir %d : frame %d, attendu 2 (les quatre tombent dans la meme frame)", i, s.T)
+		}
+		if s.O != decoulesAttendus[i] {
+			t.Errorf("tir %d : decale %d ms, attendu %d ms (ordre des horodatages)", i, s.O, decoulesAttendus[i])
+		}
+	}
+	// LE CHAMP EST OPTIONNEL : un decale nul est omis du JSON, un decale non nul est publie.
+	pour, err := json.Marshal(shots[0])
+	if err != nil {
+		t.Fatalf("sérialisation du tir de borne : %v", err)
+	}
+	if strings.Contains(string(pour), `"o"`) {
+		t.Errorf("JSON du tir de borne porte %q, attendu l omission du champ nul : %s", "o", pour)
+	}
+	pour, err = json.Marshal(shots[1])
+	if err != nil {
+		t.Fatalf("sérialisation du tir decale : %v", err)
+	}
+	if !strings.Contains(string(pour), `"o":30`) {
+		t.Errorf("JSON du tir decale n porte pas %q : %s", `"o":30`, pour)
 	}
 }
 
@@ -91,7 +148,7 @@ func TestBuildShots_RejectsAmbiguous(t *testing.T) {
 	events := []grammar.FireEvent{fireAt(1_200_000, 3, 90), fireAt(1_300_000, 3, 90)}
 	// DEUX slots pour le MEME joueur au meme instant : le rattachement est ambigu, et rien ne
 	// doit etre publie. C'est le cas que la categorie `Ambiguous` existe pour nommer.
-	shots, _, cov := buildShots(pos, events, 1_000_000, 100_000, occupantsPlats(map[uint32]int{10: 3, 11: 3}))
+	shots, _, cov := buildShots(pos, events, grilleDeTest, occupantsPlats(map[uint32]int{10: 3, 11: 3}), nouveauViseur(pos, nil, nil))
 	if len(shots) != 0 {
 		t.Fatalf("tirs publiés malgré l'ambiguïté : %+v", shots)
 	}

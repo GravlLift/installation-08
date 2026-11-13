@@ -31,7 +31,7 @@ func tire(index int, tenue bool) EntreeDeControle {
 // la marche de la trame, puis la trame — et rend les rafales et les compteurs.
 func plier(ps []paquetTC) ([]types.ContinuousFireBurst, types.ContinuousFireStats) {
 	var st types.ContinuousFireStats
-	c := nouveauCollecteurTirContinu(&st)
+	c := nouveauCollecteurTirContinu(&st, nil)
 	for _, p := range ps {
 		if !p.trou {
 			c.recevoir(LectureVueC{Atteinte: true, Fermee: true, Entrees: p.entrees})
@@ -153,7 +153,7 @@ func TestFinDeFilm(t *testing.T) {
 // TestLesCausesDesTrousSontVentilees : chaque paquet non lu tombe sous UNE cause.
 func TestLesCausesDesTrousSontVentilees(t *testing.T) {
 	var st types.ContinuousFireStats
-	c := nouveauCollecteurTirContinu(&st)
+	c := nouveauCollecteurTirContinu(&st, nil)
 	for i, l := range []LectureVueC{
 		{},
 		{Atteinte: true},

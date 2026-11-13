@@ -13,7 +13,9 @@ package replay
 //
 // # LA REGLE
 //
-// Un tir de la place P a la frame F appartient a l entree du roster dont un INTERVALLE de presence
+// Un tir de la place P a la frame F appartient d abord au joueur qui tient P a F selon la lecture des
+// places dans les tirs ([tireursDesPlaces], places_de_controle.go). A defaut, il appartient a l entree
+// du roster dont un INTERVALLE de presence
 // est tenu a P (`PresenceInterval.Seat`, sinon `RosterEntry.Seat`) et couvre F — jusqu a `toMax`, la borne d affichage : deux occupants successifs
 // d une place ne se recouvrent pas (`sieges_places.go`). Sans occupant unique a cet instant, la
 // place reste l index : c est exactement le rattachement d avant, juste pour tout joueur sans
@@ -23,6 +25,7 @@ package replay
 // PUR : aucune I/O.
 
 import (
+	"github.com/JGtm/halo-infinite-film-decoder/internal/facts/fallback"
 	"github.com/JGtm/halo-infinite-film-decoder/internal/grammar"
 )
 
@@ -83,25 +86,70 @@ func presenceCouvre(ivs []PresenceInterval, fr int) bool {
 	return false
 }
 
-// tirsParPlace rend une COPIE des evenements de tir dont l index est celui de l occupant de la
-// place a l instant du tir, et le nombre de tirs rendus a un autre index. Les evenements de
-// l appelant ne sont pas modifies (le registre et la lecture des places les relisent tels que le
-// film les ecrit).
-func (t tireursParPlace) tirsParPlace(fire []grammar.FireEvent, horloge replayClock) ([]grammar.FireEvent, int) {
-	if len(t) == 0 || len(fire) == 0 {
+// tireursDesPlaces rend le tireur d une place a une frame : le joueur qui la tient selon la lecture des
+// places dans les tirs (places_de_controle.go), sinon l occupant du siege du roster (le repli
+// `repli_tireur_par_le_siege_de_la_place`), sinon la place elle-meme. La lecture prime parce qu elle
+// date la place joueur par joueur depuis les tirs dont l unite nomme le tireur, la ou le siege suit la
+// fiche affichee, qui ne couvre pas toujours l instant du tir (un arrivant en cours de match). Les tirs
+// et les rafales sont comptes par source dans `coverage.controlPlaces`.
+type tireursDesPlaces struct {
+	lues   placesDeControle
+	sieges tireursParPlace
+	// cov recoit les comptes par source (`coverage.controlPlaces`) ; nil ne compte rien.
+	cov *ControlPlaceCoverage
+}
+
+// tireur rend l index de joueur du tireur de la place a la frame, vrai quand il differe de la place,
+// et vrai quand il vient du siege (le repli).
+func (t tireursDesPlaces) tireur(place, fr int) (idx int, autre, parLeSiege bool) {
+	if j, ok := t.lues.joueurA(place, fr); ok {
+		return j, j != place, false
+	}
+	idx, autre = t.sieges.tireur(place, fr)
+	return idx, autre, true
+}
+
+// tirsParPlace rend une COPIE des evenements de tir dont l index est celui du tireur de la place a
+// l instant du tir, et le nombre de tirs rendus a un autre index. Les evenements de l appelant ne
+// sont pas modifies (le registre et la lecture des places les relisent tels que le film les ecrit).
+func (t tireursDesPlaces) tirsParPlace(fire []grammar.FireEvent, horloge replayClock) ([]grammar.FireEvent, int) {
+	if len(fire) == 0 {
 		return fire, 0
 	}
 	out := make([]grammar.FireEvent, len(fire))
 	copy(out, fire)
-	autres := 0
+	autres, parLesSieges := 0, 0
 	for i := range out {
 		if !out[i].HasShooter {
 			continue
 		}
-		if idx, autre := t.tireur(out[i].FilmIndex, horloge.frame(out[i].TimestampUS)); autre {
+		idx, autre, parLeSiege := t.tireur(out[i].FilmIndex, horloge.frame(out[i].TimestampUS))
+		t.compter(parLeSiege, false)
+		if parLeSiege {
+			parLesSieges++
+		}
+		if autre {
 			out[i].FilmIndex = idx
 			autres++
 		}
 	}
+	horloge.fb.DeclencheN(fallback.NomTireurParLeSiegeDeLaPlace, parLesSieges)
 	return out, autres
+}
+
+// compter range un tir (ou une rafale) sous sa source.
+func (t tireursDesPlaces) compter(parLeSiege, rafale bool) {
+	if t.cov == nil {
+		return
+	}
+	switch {
+	case rafale && parLeSiege:
+		t.cov.BurstsBySeat++
+	case rafale:
+		t.cov.BurstsByPlace++
+	case parLeSiege:
+		t.cov.ShotsBySeat++
+	default:
+		t.cov.ShotsByPlace++
+	}
 }

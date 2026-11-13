@@ -73,11 +73,15 @@ type Options struct {
 	// Projectiles : trajectoires de projectile decodees des paquets delta (cf. projectiles.go).
 	// Entree de DONNEES, comme Loadouts et Grenades. Absente = rejeu sans trajectoires.
 	Projectiles []types.ProjectileTrack
-	// Detonations : messages de detonation/impact de projectile lus dans la vue A (genres 5/6,
-	// grammar.ScanProjectileDetonations). Entree de DONNEES, comme Projectiles. Absente = rejeu
-	// sans message de detonation (le repli nomme repli_detonation_derniere_position_connue sert
-	// alors systematiquement, cf. projectiles.go).
-	Detonations []types.ProjectileDetonation
+	// Detonations : detonations/impacts de projectile de la vue A (genres 5/6). Absente = le repli
+	// repli_detonation_derniere_position_connue sert toujours (cf. projectiles.go).
+	Detonations       []types.ProjectileDetonation
+	Actions           []types.FilmActionMessage  // actions du joueur (schema 107) : messages de la vue A
+	DrawnWeapons      []types.DrawnWeaponRead    // le jeu d armes desire du bipede, `i42` par trame delta
+	DrawnWeaponStats  types.DrawnWeaponStats     // les denominateurs de DrawnWeapons
+	ControlInputs     []types.ControlInputChange // boutons et couple analogique par index de controle (vue C)
+	ControlInputStats types.ControlInputStats    // les denominateurs de ControlInputs
+	KillCauses        []KillCause                // resolues par l appelant depuis killsource, comme NeutralDeaths
 	// Inventory : inventaire complet lu aux memes images-cles que les armes portees
 	// (cf. inventory.go). Entree de DONNEES. Absente = rejeu sans grenades ni munitions.
 	Inventory []types.KeyframeInventory

@@ -63,10 +63,10 @@ type vehicleShotRide struct {
 // attachVehicleShots publie, dans `doc.Shots`, les tirs des joueurs embarqués et met la
 // couverture à jour. Rien à faire sans épisode ni orphelin — le document sort inchangé.
 func attachVehicleShots(ctx context.Context,
-	doc *ReplayDocument, orphans []orphanShot, reg IdentityRegistry, clock replayClock,
+	doc *ReplayDocument, orphans orphelinsDesTirs, reg IdentityRegistry, clock replayClock,
 ) {
 	cov := doc.Coverage
-	if len(orphans) == 0 || len(doc.Vehicles) == 0 || cov == nil {
+	if len(orphans.tirs) == 0 || len(doc.Vehicles) == 0 || cov == nil {
 		return
 	}
 	rides := vehicleRidesByOccupant(doc.Vehicles)
@@ -78,9 +78,10 @@ func attachVehicleShots(ctx context.Context,
 	board := vehicleShotBoard{
 		rides: rides, tracks: doc.Vehicles, lives: vehicleLifeIndex(doc.Vehicles), clock: clock,
 		parSlot: vehicleLivesBySlot(doc.Vehicles),
+		viseur:  orphans.viseur,
 	}
 	var added []Shot
-	for _, o := range orphans {
+	for _, o := range orphans.tirs {
 		s, verdict, onCarrier, parUnite := board.shotOf(o, occ.slotsDe(o.ev.FilmIndex, int64(o.ev.TimestampUS)))
 		vehicleShotTally(doc.Coverage.Vehicles, verdict)
 		if verdict != vehicleShotPlaced {
@@ -108,7 +109,9 @@ func attachVehicleShots(ctx context.Context,
 		return
 	}
 	doc.Shots = append(doc.Shots, added...)
-	slices.SortStableFunc(doc.Shots, func(a, b Shot) int { return cmp.Compare(a.T, b.T) })
+	slices.SortStableFunc(doc.Shots, func(a, b Shot) int {
+		return cmp.Or(cmp.Compare(a.T, b.T), cmp.Compare(a.O, b.O))
+	})
 	cov.Verdict["shots"] = verdictOf(cov.Shots)
 	nameVariantsByWeapon(doc.Vehicles, added, cov.Vehicles)
 	logVehicleShots(ctx, doc.Coverage.Vehicles, len(added))
@@ -140,6 +143,7 @@ type vehicleShotBoard struct {
 	lives   map[VehicleLifeRef]int
 	parSlot map[uint32][]int
 	clock   replayClock
+	viseur  *viseurDesTirs
 }
 
 // poseParUnite dit si un tir a ete pose par sa reference 0 (`vehicle_shots_unit.go`), et s il
@@ -215,10 +219,9 @@ func (b vehicleShotBoard) poserSur(
 		return Shot{}, vehicleShotUnplaced, false
 	}
 	v := b.tracks[at].Slot
-	s := Shot{T: fr, Slot: occupant, X: round2(x), Y: round2(y), Vehicle: &v}
-	if h, ok := o.ev.AimHeadingDeg(); ok {
-		s.H = headingForJSON(float32(h))
-	}
+	delta := o.ev.TimestampUS - b.clock.origin
+	s := Shot{T: fr, O: int(delta % b.clock.step / 1000), Slot: occupant, X: round2(x), Y: round2(y), Vehicle: &v}
+	b.viseur.viser(&s, o.ev, occupant)
 	if o.ev.WeaponID != 0 {
 		s.Weapon = formatWeaponID(o.ev.WeaponID)
 	}

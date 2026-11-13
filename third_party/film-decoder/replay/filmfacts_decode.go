@@ -212,6 +212,19 @@ func decodeInventaire(r *greader, g *FilmFacts) {
 		d.SelRead = r.bool8()
 		d.Sel = int(r.i())
 		d.Mask = uint32(r.u())
+		if n := r.compte(4); n > 0 {
+			d.Ammo = make([]types.InventoryDeltaAmmo, 0, n)
+			for j := 0; j < n && r.err == nil; j++ {
+				a := types.InventoryDeltaAmmo{WeaponSlot: int(r.i())}
+				for _, v := range []**uint32{&a.Mag, &a.FracQ, &a.Res} {
+					if r.bool8() {
+						x := uint32(r.u())
+						*v = &x
+					}
+				}
+				d.Ammo = append(d.Ammo, a)
+			}
+		}
 		g.InventoryDeltas = append(g.InventoryDeltas, d)
 	}
 

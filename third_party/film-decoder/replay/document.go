@@ -44,7 +44,13 @@ package replay
 // donc aux deux : le retrait de ces notes-ci a fait disparaitre la seule description de la v51,
 // restauree a la chronique le meme jour. Une entree de chronique se pose DANS LE COMMIT qui
 // monte la version, jamais apres.
+<<<<<<< ours
+const SchemaVersion = 116
+||||||| base
+const SchemaVersion = 106
+=======
 const SchemaVersion = 112
+>>>>>>> upstream
 
 // ReplayDocument est le rejeu 2D sérialisé d'un match.
 type ReplayDocument struct {
@@ -153,6 +159,8 @@ type ReplayDocument struct {
 	// degaine et du marqueur de lecture vide. Les deux axes coexistent parce qu'ils n'ont pas la
 	// meme cadence, et les melanger ferait masquer une lecture pleine par une lecture partielle.
 	GrenadeReads []GrenadeRead `json:"grenadeReads,omitempty"`
+	// AmmoReads porte les lectures de munitions par vie et emplacement d arme.
+	AmmoReads []AmmoRead `json:"ammoReads,omitempty"`
 	// AbilityLabels nomme les RANGS de capacité que le document emploie.
 	//
 	// LA TABLE EST PARTIELLE, et un rang absent GARDE SON NUMÉRO à l'écran, marqué non
@@ -167,19 +175,14 @@ type ReplayDocument struct {
 	// seulement sont mesurées — les autres équipements restent sans état plutôt que
 	// devinés. Absent si aucune vie publiée ne porte d'épisode.
 	EquipmentEpisodes []EquipmentEpisode `json:"equipmentEpisodes,omitempty"`
-	// Stances est l'ETAT DE MOUVEMENT du Spartan, en intervalles datés par vie (schéma 66,
-	// cf. document_stances.go) : `crouch` (accroupi, `i29`), `slide` (glissade, `i62`) et
-	// `mobility` (action de mobilité, `i54`).
-	//
-	// TROIS GENRES SEULEMENT, PARCE QUE TROIS SEULEMENT SONT LUS. Le SPRINT est RÉFUTÉ comme
-	// observable par la vitesse (la loi de déquantification d'`i1` est exacte — écrivain relu,
-	// constantes relues — et la distribution au sol n'a qu'un seul mode, à 2-3 m/s sur deux
-	// films) ; le SAUT est LU mais PAS PROUVÉ (sa segmentation repose sur deux seuils
-	// d'instrument, et la signature ne tient pas d'un film à l'autre). Publier l'un des deux
-	// publierait un seuil comme une donnée. Chiffres : note 5.3, § 2septdecies.
-	//
-	// ABSENT si aucune vie publiée ne porte d'intervalle — `coverage.stances` dit alors si le
-	// balayage a tourné (`scanned`) et si le film déclare les composants (`absent`).
+	// Stances est l'ETAT DE MOUVEMENT du Spartan, en intervalles datés par vie (cf. document_stances.go) :
+	// quatre genres LUS dans un composant — `crouch` (`i29`), `slide` (`i62`), `clamber` (`i54`) et
+	// `sprint` (`i57`, la fente de capacité active 1 nommée par l'image, lot 5.9.5) — et un DÉRIVÉ,
+	// `jumpDerived` (l'intégrale de la vitesse verticale d'`i1`, reconnue à sa hauteur). Les films du
+	// build HI_1_13_0 n'écrivent ni `i29` ni `i62` dans leurs trames delta (lot 8, 2026-11-09) : zéro
+	// `crouch` et zéro `slide` y est la lecture juste. ABSENT si aucune vie publiée ne porte
+	// d'intervalle — `coverage.stances` dit si le balayage a tourné (`scanned`) et si le film déclare
+	// les composants (`absent`).
 	Stances []Stance `json:"stances,omitempty"`
 	// GrappleLines est la liste des TRACTIONS de grappin (cf. grapple_lines.go) : la
 	// fenêtre datée [t0, t1] — du tir à l'ARRIVÉE mesurée sur la trajectoire — et le point
@@ -230,6 +233,12 @@ type ReplayDocument struct {
 	Translocations []Translocation `json:"translocations,omitempty"`
 	// Knockbacks : les POUSSÉES d'équipement lues dans le film (cf. document_knockbacks.go).
 	Knockbacks []Knockback `json:"knockbacks,omitempty"`
+	// DrawnWeapons, Damages, KillCauses : les ACTIONS DU JOUEUR (schema 107, document_actions_joueur.go).
+	DrawnWeapons []DrawnWeapon `json:"drawnWeapons,omitempty"`
+	Damages      []Damage      `json:"damages,omitempty"`
+	KillCauses   []KillCause   `json:"killCauses,omitempty"`
+	// Actions : les GESTES du joueur, rechargement, lancer amorce, coup (schema 108, document_gestes.go).
+	Actions []PlayerAction `json:"actions,omitempty"`
 	// CarriedEquipment et RiftPoses : l'ÉQUIPEMENT PORTÉ (énergie, usages restants, activations) et les
 	// POSES de faille du translocateur (cf. document_equipement_porte.go).
 	CarriedEquipment []CarriedEquipment `json:"carriedEquipment,omitempty"`

@@ -40,11 +40,23 @@ func modalAimBit(pay []byte) (int, bool) {
 	return modalAimBitFrom(pay, h)
 }
 
-// modalAimBitFrom rend la position de la visée d'un record dont la tête est DÉJÀ lue.
+// modalAimBitFrom rend la position de la visée d'un record dont la tête est DÉJÀ lue, ou ok=false
+// quand le record n'en porte pas.
+//
+// LES DEUX DRAPEAUX QUI LA PRÉCÈDENT LA GARDENT : la visée n'est écrite que quand ils valent tous
+// deux 0. Sous un drapeau posé, les 30 bits qui suivent sont un autre champ (aucune fenêtre voisine
+// ne rend la visée du tireur) : les lire en visée publiait une direction fausse, presque toujours sur
+// les faces -Y et -Z. Mesures : chronique de la révision `grammar-2026-11-09.3`.
 func modalAimBitFrom(pay []byte, h enteteTir36) (int, bool) {
 	pos, ok := modalPostCountsBitFrom(pay, h)
 	if !ok {
 		return 0, false
+	}
+	br := LecteurSur(pay)
+	br.SetBitPos(pos)
+	premier, second := br.ReadBit(), br.ReadBit() // les deux lus : la position avance de deux bits
+	if premier || second {
+		return 0, false // drapeau posé : le record ne porte pas de visée lisible
 	}
 	return pos + modalAimGap, true
 }

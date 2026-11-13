@@ -37,6 +37,8 @@ import (
 // a un offset arbitraire : bruyant par chance, pas par construction, et le message ne dit pas
 // quoi faire. [TestGoldenInputsVersionGuard] verrouille le refus explicite.
 //
+// Le codec transporte les munitions de chaque delta avec la presence de chaque grandeur.
+//
 // v21 (2026-09-14, lot 1.7) : le fixture porte L EQUIPE DE CHAQUE JOUEUR (`FilmInputs.PlayerTeams`,
 // `index de joueur -> designateur`, lue par `grammar.ScanPlayerTeams` dans le composant i0 de
 // ti=9) ET le RAPPORT de cette lecture (`FilmInputs.TeamScan`). Les deux, parce qu une table vide
@@ -248,7 +250,7 @@ import (
 // faits perdrait l explosion lue et retomberait systematiquement sur le repli nomme
 // (`fallback.NomDetonationDernierePositionConnue`), la ou le decodage direct publierait la
 // detonation. Garde : [TestCodecCouvreFilmInputs].
-const filmFactsMagic = "REPLAYINPUTS29\n"
+const filmFactsMagic = "REPLAYINPUTS30\n"
 
 // ---------------------------------------------------------------------------
 // LES CHAMPS SERIALISES, PAR TYPE — ce sont ceux que l assemblage consomme :

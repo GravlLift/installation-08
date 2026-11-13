@@ -67,6 +67,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -114,7 +115,50 @@ type contractFixture struct {
 // autrement que la regeneration, le golden ne comparerait pas ce qu'il a ecrit.
 func (f contractFixture) cuire(t *testing.T) ReplayDocument {
 	t.Helper()
-	return amincirPistes(f.assemble(t), f.stride)
+	return amincirPleinDebit(amincirPistes(f.assemble(t), f.stride))
+}
+
+// contractFixturesPleinDebitPistes / contractFixturesPleinDebitMin : le PLEIN DEBIT (schema 109) que
+// les fixtures gardent — ENTIER, sur les deux vies les plus COURTES qui en portent au moins 60
+// echantillons (1 s a 60 Hz). Les autres pistes n en portent pas.
+//
+// UN ARBITRAGE DE BUDGET, comme `contractFixturesStride`, et il vaut pour TOUTES les fixtures,
+// `000d5950` comprise : le plein debit pese environ six fois les points, et le jeu tenait deja a
+// 2,96 Mio pour un plafond de 3. La FORME du champ (ses huit colonnes, leurs types, la nullabilite
+// de `gaps` et des colonnes de visee) traverse la frontiere sur deux vies aussi bien que sur
+// toutes ; les valeurs sont figees cote Go par `tracks_plein_debit_test.go` et les goldens
+// d assemblage. AUCUNE VIE N EST TRONQUEE : une vie garde tout son plein debit ou n en porte aucun,
+// sans quoi le web lirait une vie qui s arrete a mi-chemin et retomberait sur rien de vrai.
+const (
+	contractFixturesPleinDebitPistes = 2
+	contractFixturesPleinDebitMin    = 60
+)
+
+// amincirPleinDebit applique la coupe du plein debit (cf. ci-dessus). Les vies gardees sont choisies
+// par longueur croissante puis par rang dans le document : le choix est deterministe.
+func amincirPleinDebit(doc ReplayDocument) ReplayDocument {
+	tracks := make([]Track, len(doc.Tracks))
+	copy(tracks, doc.Tracks)
+	var candidates []int
+	for i, tr := range tracks {
+		if tr.FullRate != nil && len(tr.FullRate.T) >= contractFixturesPleinDebitMin {
+			candidates = append(candidates, i)
+		}
+	}
+	sort.SliceStable(candidates, func(a, b int) bool {
+		return len(tracks[candidates[a]].FullRate.T) < len(tracks[candidates[b]].FullRate.T)
+	})
+	garde := map[int]bool{}
+	for _, i := range candidates[:min(len(candidates), contractFixturesPleinDebitPistes)] {
+		garde[i] = true
+	}
+	for i := range tracks {
+		if !garde[i] {
+			tracks[i].FullRate = nil
+		}
+	}
+	doc.Tracks = tracks
+	return doc
 }
 
 // amincirPistes garde un point sur `stride` par piste, PLUS LE DERNIER.

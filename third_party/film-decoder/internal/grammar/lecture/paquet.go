@@ -218,6 +218,8 @@ type VueA struct {
 	// Detonations sont les messages de détonation/impact de projectile lus (genres 5 et 6,
 	// [MessageDeDetonation]), dans l'ordre.
 	Detonations []MessageDeDetonation
+	// Actions sont les messages d'action du joueur lus ([MessageDAction]), dans l'ordre.
+	Actions []MessageDAction
 }
 
 // MessageDePoussee est un message de poussée d'équipement de la vue A, avec ses deux premières

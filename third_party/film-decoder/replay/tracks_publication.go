@@ -63,9 +63,16 @@ type decoupeDesTraces struct {
 	vies []lifeSpan
 	// fb : le compteur de replis de la cuisson (nil-safe).
 	fb *fallback.Compteur
+<<<<<<< ours
+	// visees : les visees sans position du film (`grammar.ScanBipedAimOnly`), posees sur le plein debit
+	// de leur vie (tracks_visees_seules.go).
+	visees []grammar.BipedAim
+||||||| base
+=======
 	// fin : les morts ecrites, pour finir une vie a la sienne quand elle suit le dernier point
 	// (cf. tracks_fin_de_vie.go). Zero = chaque vie finit a son dernier point.
 	fin clotureParMort
+>>>>>>> upstream
 }
 
 // decimateTracks projette les positions sur la grille de frames (un point par slot et par
@@ -93,9 +100,26 @@ type decoupeDesTraces struct {
 // SANS AUCUN COMPTEUR : un artefact publiant 90 traces là où le film en portait 95 était
 // indistinguable d'un film à 90 vies. Les deux compteurs disent combien de VIES et combien de
 // POINTS le seuil a retirés — cf. TrackCoverage, publié en `coverage.tracks`.
+//
+// LE PLEIN DEBIT VOYAGE AVEC (schema 109, cf. tracks_plein_debit.go) : chaque record retenu entre
+// aussi, AVANT le test de frame, dans la piste `FullRate` de sa vie — la decimation ne choisit que
+// les points, jamais ce que la vie porte.
 func decimateTracks(sorted []grammar.BipedPosition, in decoupeDesTraces) ([]Track, TrackCoverage) {
 	origin, step := in.origin, in.step
 	bornes := bornesDesVies(sorted, in)
+<<<<<<< ours
+	accs := map[uint32]*accDeSlot{}
+||||||| base
+	type acc struct {
+		done      [][]Point // les vies CLOSES de ce slot, dans l'ordre
+		pts       []Point
+		lastFrame int
+		lastUS    uint64
+		vie       int // l'indice, dans `bornes[slot]`, de la vie en cours
+		lacuneMS  int // la lacune que le PROCHAIN point publié portera, en ms ; 0 = aucune
+	}
+	accs := map[uint32]*acc{}
+=======
 	type acc struct {
 		done      []vieDecimee // les vies CLOSES de ce slot, dans l'ordre
 		pts       []Point
@@ -105,16 +129,18 @@ func decimateTracks(sorted []grammar.BipedPosition, in decoupeDesTraces) ([]Trac
 		lacuneMS  int // la lacune que le PROCHAIN point publié portera, en ms ; 0 = aucune
 	}
 	accs := map[uint32]*acc{}
+>>>>>>> upstream
 	var order []uint32
 	cov := TrackCoverage{MinPoints: in.minPoints}
 	for _, p := range sorted {
 		if !p.HasWorld { // quantum sans bornes de carte : pas une coordonnée, on ne publie pas
+			cov.NoWorld++
 			continue
 		}
 		frame := int((p.TimestampUS - origin) / step)
 		a := accs[p.Slot]
 		if a == nil {
-			a = &acc{lastFrame: -1, vie: -1}
+			a = &accDeSlot{lastFrame: -1, vie: -1, plein: &pleinDebit{origineGrid: origin}}
 			accs[p.Slot] = a
 			order = append(order, p.Slot)
 		}
@@ -122,8 +148,16 @@ func decimateTracks(sorted []grammar.BipedPosition, in decoupeDesTraces) ([]Trac
 		switch {
 		case len(a.pts) > 0 && vie != a.vie:
 			// FIN DE VIE ÉCRITE : la track courante se clôt, la suivante s'ouvre.
+<<<<<<< ours
+			a.done, a.pleinsClos = append(a.done, a.pts), append(a.pleinsClos, a.plein)
+			a.pts, a.lastFrame, a.plein = nil, -1, &pleinDebit{origineGrid: origin}
+||||||| base
+			a.done = append(a.done, a.pts)
+			a.pts, a.lastFrame = nil, -1
+=======
 			a.done = append(a.done, vieDecimee{a.pts, a.vie})
 			a.pts, a.lastFrame = nil, -1
+>>>>>>> upstream
 		case len(a.pts) > 0 && int64(p.TimestampUS)-int64(a.lastUS) > lifeGapUS:
 			// LACUNE : la réplication s'est tue au-delà du seuil SANS que le film ferme la vie.
 			// Le point qui rouvre la piste la porte, pour que le client ne trace rien au travers.
@@ -132,7 +166,10 @@ func decimateTracks(sorted []grammar.BipedPosition, in decoupeDesTraces) ([]Trac
 			cov.GapMS += ms
 			a.lacuneMS = ms
 		}
-		a.vie, a.lastUS = vie, p.TimestampUS
+		a.vie, a.lastUS, a.plein.vie = vie, p.TimestampUS, vie
+		// `lacuneMS` n est non nul que sur le record qui vient de rouvrir la vie : il est remis a
+		// zero par le point qu il ouvre, toujours une frame neuve (une lacune passe 5 s).
+		a.plein.ajouter(p, a.lacuneMS > 0)
 		if frame == a.lastFrame {
 			continue
 		}
@@ -141,32 +178,90 @@ func decimateTracks(sorted []grammar.BipedPosition, in decoupeDesTraces) ([]Trac
 		a.lacuneMS = 0
 		a.pts = append(a.pts, pt)
 	}
+	repartirLesViseesSeules(in.visees, bornes, accs, origin, &cov)
+	return publierLesVies(order, accs, &cov, in.minPoints), cov
+}
+
+// accDeSlot est l etat de `decimateTracks` pour un slot : ses vies closes, la vie en cours, et ce
+// qu il faut retenir du record precedent.
+type accDeSlot struct {
+	done       [][]Point     // les vies CLOSES de ce slot, dans l'ordre
+	pleinsClos []*pleinDebit // leur plein debit, meme ordre que `done`
+	pts        []Point
+	plein      *pleinDebit // le plein debit de la vie en cours
+	lastFrame  int
+	lastUS     uint64
+	vie        int // l'indice, dans `bornes[slot]`, de la vie en cours
+	lacuneMS   int // la lacune que le PROCHAIN point publié portera, en ms ; 0 = aucune
+}
+
+// publierLesVies rend une Track par vie, dans l ordre de premiere apparition des slots, et tient
+// les comptes de ce que le seuil retient et refuse. EXTRAITE de `decimateTracks` au schema 109 :
+// le plein debit y entrait, et la fonction aurait passe les 80 lignes du depot.
+func publierLesVies(order []uint32, accs map[uint32]*accDeSlot, cov *TrackCoverage, minPoints int) []Track {
 	tracks := make([]Track, 0, len(order))
 	for _, slot := range order {
 		a := accs[slot]
+<<<<<<< ours
+		pleins := append(a.pleinsClos, a.plein)
+		for i, pts := range append(a.done, a.pts) {
+			if len(pts) < minPoints {
+||||||| base
+		for _, pts := range append(a.done, a.pts) {
+			if len(pts) < in.minPoints {
+=======
 		for _, v := range append(a.done, vieDecimee{a.pts, a.vie}) {
 			if len(v.pts) < in.minPoints {
+>>>>>>> upstream
 				// LE REFUS SE COMPTE, ET IL NE SE DÉCLENCHE PLUS AU SEUIL PAR DÉFAUT : celui-ci
 				// vaut 1 depuis le lot 1.6.5 (« si le film le dit, on publie »), donc ce compteur
 				// est à 0 sur toute cuisson qui ne règle pas `Options.MinPoints`. Il reste pour
 				// l'appelant qui le règle, et parce qu'un compteur à 0 qui pourrait monter est ce
 				// qui rend un retour en arrière visible.
 				cov.RefusedMinPoints++
+<<<<<<< ours
+				cov.RefusedPoints += len(pts)
+				cov.AimOnlyNoLife += len(pleins[i].seules)
+||||||| base
+				cov.RefusedPoints += len(pts)
+=======
 				cov.RefusedPoints += len(v.pts)
+>>>>>>> upstream
 				continue
 			}
+			plein := pleins[i]
 			tracks = append(tracks, Track{
 				Slot:       slot,
 				Team:       -1,
+<<<<<<< ours
+				Points:     pts,
+				StartFrame: pts[0].T,
+				EndFrame:   pts[len(pts)-1].T,
+				FullRate:   plein.rendre(),
+||||||| base
+				Points:     pts,
+				StartFrame: pts[0].T,
+				EndFrame:   pts[len(pts)-1].T,
+=======
 				Points:     v.pts,
 				StartFrame: v.pts[0].T,
 				EndFrame:   in.finDeLaVie(bornes[slot], v),
+>>>>>>> upstream
 			})
 			cov.Published++
+<<<<<<< ours
+			cov.PublishedPoints += len(pts)
+			cov.FullRateSamples += plein.n
+			cov.FullRateAimSamples += plein.visees + len(plein.seules)
+			cov.FullRateAimOnlySamples += len(plein.seules)
+||||||| base
+			cov.PublishedPoints += len(pts)
+=======
 			cov.PublishedPoints += len(v.pts)
+>>>>>>> upstream
 		}
 	}
-	return tracks, cov
+	return tracks
 }
 
 // vieDecimee est une vie du slot telle que la decimation l a close : ses points et son indice
@@ -355,6 +450,20 @@ type TrackCoverage struct {
 	HorsEmprise               int `json:"horsEmprise"`
 	SlotsArmes                int `json:"slotsArmes"`
 	SlotsDesarmes             int `json:"slotsDesarmes"`
+	// LE PLEIN DEBIT (schema 109, cf. tracks_plein_debit.go). FullRateSamples : les positions
+	// publiees dans `tracks[].fullRate`, toutes vies publiees confondues ; FullRateAimSamples : les
+	// visees de ses colonnes, celles des records de position et celles sans position. NoWorld : les positions sans bornes de carte (un quantum, pas une
+	// coordonnee), qu aucune representation ne publie. Sur une cuisson au seuil par defaut, les
+	// positions retenues par la porte valent FullRateSamples + NoWorld : la decimation ne choisit
+	// que les points.
+	FullRateSamples    int `json:"fullRateSamples"`
+	FullRateAimSamples int `json:"fullRateAimSamples"`
+	NoWorld            int `json:"noWorld"`
+	// LES VISEES SANS POSITION (schema 113, tracks_visees_seules.go). FullRateAimOnlySamples : celles que
+	// les colonnes de visee portent, comprises dans FullRateAimSamples ; AimOnlyNoLife : celles qu aucune
+	// vie publiee de leur slot ne couvre. Leur somme vaut les lectures du film.
+	FullRateAimOnlySamples int `json:"fullRateAimOnlySamples"`
+	AimOnlyNoLife          int `json:"aimOnlyNoLife"`
 }
 
 // logTrackCoverage journalise ce que la publication des traces a refusé et ce que le film a tu.

@@ -87,6 +87,9 @@ type FluxVueA struct {
 	// Detonations : les messages de detonation/impact de projectile (genres 5 et 6) lus, dans
 	// l ordre ([messageDeDetonation]).
 	Detonations []lecture.MessageDeDetonation
+	// Actions : les messages d action du joueur lus ([genreDAction]), dans l ordre
+	// ([messageDAction]).
+	Actions []lecture.MessageDAction
 }
 
 // refDeMessage est une reference d entite d un message de vue A : sa porte, son index et sa
@@ -162,6 +165,8 @@ func recueillirLeMessage(br *Lecteur, out *FluxVueA, genre, debut int) {
 		out.Poussees = append(out.Poussees, messageDePoussee(br, genre, debut))
 	case genre == GenreProjectileDetonate || genre == GenreProjectileImpactEffect:
 		out.Detonations = append(out.Detonations, messageDeDetonation(br, genre, debut))
+	case genreDAction(genre):
+		out.Actions = append(out.Actions, messageDAction(br, genre, debut))
 	}
 }
 

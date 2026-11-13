@@ -55,6 +55,9 @@ func (a *assemblage) poserLibellesEtInventaire() {
 	builtGren := buildGrenadeReads(a.opt.Inventory, a.opt.InventoryDeltas, a.origin, a.step)
 	a.doc.GrenadeReads = keepGrenadeReadsOfPublishedTracks(builtGren, a.doc.Tracks)
 	attachGrenadeReadCoverage(a.ctx, &a.doc, builtGren, a.opt.InventoryDeltaAmmoRefused)
+	builtAmmo := buildAmmoReads(a.opt.Inventory, a.opt.InventoryDeltas, a.origin, a.step, a.opt.InventoryDeltaAmmoRefused)
+	a.doc.AmmoReads = keepOfPublishedTracks(builtAmmo, a.doc.Tracks, func(r AmmoRead, slots map[uint32]bool) bool { return slots[r.Slot] })
+	attachAmmoReadCoverage(&a.doc, builtAmmo, a.opt.InventoryDeltaAmmoRefused)
 }
 
 // poserCapacitesEtTranslocations publie les rangs de grenade, les lectures de capacite, les
@@ -181,4 +184,18 @@ func (a *assemblage) clore() {
 	// que les faits persistent (lot J8.7 ; cf. versement_des_replis.go).
 	versementDeLAssemblage(a.opt.Fallbacks, a.opt.ReplisHorsBalayage)
 	attachFallbackCoverage(a.ctx, &a.doc, a.opt.Fallbacks) // EN DERNIER : cf. fallbacks_publication.go
+}
+
+// poserActionsDuJoueur publie l arme desiree a chaque changement, les degats encaisses, les gestes et la cause de
+// chaque kill, pour les seules vies publiees (cf. document_actions_joueur.go).
+func (a *assemblage) poserActionsDuJoueur() {
+	var cov PlayerActionsCoverage
+	slots := publishedSlots(a.doc.Tracks)
+	a.doc.DrawnWeapons = buildDrawnWeapons(a.opt.DrawnWeapons, a.opt.DrawnWeaponStats, slots, a.origin, a.step, &cov)
+	a.doc.Damages = buildDamages(a.opt.Actions, slots, a.origin, a.step, &cov)
+	a.doc.Actions = buildPlayerActions(a.opt.Actions, slots, a.origin, a.step, &cov)
+	a.doc.KillCauses = keepKillCausesOfPublishedTracks(a.opt.KillCauses, publishedXUIDs(a.doc.Tracks, a.reg.PontEpure()))
+	cov.KillCauses = len(a.doc.KillCauses)
+	a.doc.Coverage.PlayerActions = &cov
+	logPlayerActionsCoverage(a.ctx, cov, len(a.opt.KillCauses))
 }

@@ -105,6 +105,14 @@ type FilmInputs struct {
 	// c'est-a-dire des TRANSITIONS : c'est l'assemblage qui les replie en intervalles.
 	MovementStates     []types.MovementStateRead
 	MovementStateStats types.MovementStateStats
+	// DrawnWeapons / DrawnWeaponStats sont les lectures du jeu d armes desire du bipede dans les trames
+	// delta (`i42`, la MEME marche) et leurs denominateurs.
+	DrawnWeapons     []types.DrawnWeaponRead
+	DrawnWeaponStats types.DrawnWeaponStats
+	// ControlInputs / ControlInputStats sont les BOUTONS DE CONTROLE (accroupi, saut) et le couple analogique
+	// de chaque index de controle, lus dans la vue C de la MEME marche, et leurs denominateurs.
+	ControlInputs     []types.ControlInputChange
+	ControlInputStats types.ControlInputStats
 	// ContinuousFire / ContinuousFireStats sont le TIR CONTINU (lot M4b), lu par la MEME marche que
 	// les etats de mouvement : les rafales de la vue de controle, et ce que sa lecture n a pas atteint.
 	ContinuousFire      []types.ContinuousFireBurst
@@ -155,6 +163,8 @@ type FilmInputs struct {
 	Projectiles []types.ProjectileTrack
 	// Detonations sont les messages de detonation/impact de projectile lus dans la vue A.
 	Detonations []types.ProjectileDetonation
+	// Actions sont les messages d action du joueur lus dans la vue A (`grammar.ScanFilmActions`).
+	Actions []types.FilmActionMessage
 	// Deaths est le fil des morts : il NOMME les vies et fonde tout le rattachement.
 	Deaths []types.Death
 	// DeathsFeed est le VERDICT de la lecture du fil des morts et sa cause (lot M8 des retours
@@ -233,6 +243,8 @@ func (in FilmInputs) applyTo(opt *Options) {
 	opt.AbilityCharges, opt.AbilityChargeStats = in.AbilityCharges, in.AbilityChargeStats
 	opt.MovementStates, opt.MovementStateStats = in.MovementStates, in.MovementStateStats
 	opt.ContinuousFire, opt.ContinuousFireStats = in.ContinuousFire, in.ContinuousFireStats
+	opt.DrawnWeapons, opt.DrawnWeaponStats = in.DrawnWeapons, in.DrawnWeaponStats
+	opt.ControlInputs, opt.ControlInputStats = in.ControlInputs, in.ControlInputStats
 	opt.Scoped = buildScopedLookup(in.ZoomEvents,
 		buildLifeSpans(indexBySlot(in.Positions)), zoomHoldUS)
 	opt.Placements, opt.PlacementStats = in.Placements, in.PlacementStats
@@ -247,6 +259,7 @@ func (in FilmInputs) applyTo(opt *Options) {
 	opt.Grenades = in.Grenades
 	opt.Projectiles = in.Projectiles
 	opt.Detonations = in.Detonations
+	opt.Actions = in.Actions
 	opt.Deaths = in.Deaths
 	opt.DeathsFeed = in.DeathsFeed.Verdict
 	opt.PlayerIndices = in.PlayerIndices

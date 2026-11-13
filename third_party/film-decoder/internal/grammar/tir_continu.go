@@ -93,10 +93,13 @@ type collecteurTirContinu struct {
 	tenus map[cleBitDeTir]*etatBitDeTir
 	// inconnu : l etat du joueur depuis un trou, jusqu a sa prochaine entree lue.
 	inconnu [joueursDeControle]bool
+	// boutons recoit le verdict de chaque trame a sa cloture (`boutons_de_controle.go`) : la vue C
+	// n a qu un crochet, et ce canal le tient. Nil : aucun lecteur des boutons.
+	boutons *collecteurDesBoutons
 }
 
-func nouveauCollecteurTirContinu(st *types.ContinuousFireStats) *collecteurTirContinu {
-	return &collecteurTirContinu{st: st, tenus: map[cleBitDeTir]*etatBitDeTir{}}
+func nouveauCollecteurTirContinu(st *types.ContinuousFireStats, boutons *collecteurDesBoutons) *collecteurTirContinu {
+	return &collecteurTirContinu{st: st, tenus: map[cleBitDeTir]*etatBitDeTir{}, boutons: boutons}
 }
 
 // Interets : le tir continu n interprete aucun composant.
@@ -134,6 +137,9 @@ func (c *collecteurTirContinu) fermer(nonLocalise bool) {
 	c.dernier = c.ts
 	if l.Atteinte {
 		c.st.Reached++
+	}
+	if c.boutons != nil {
+		c.boutons.trame(c.ts, l, !nonLocalise && l.Fermee)
 	}
 	if nonLocalise || !l.Fermee {
 		c.ventilerTrou(nonLocalise, l)
@@ -275,6 +281,9 @@ func (c *collecteurTirContinu) Clore(BilanDeMarche) {
 		c.clore(k, s, c.dernier, types.ContinuousFireBoundFilmEnd)
 	}
 	sortContinuousFire(c.out)
+	if c.boutons != nil {
+		c.boutons.clore()
+	}
 }
 
 // sortContinuousFire ordonne les rafales sur un ordre TOTAL (debut, joueur, main, nature, rang) :

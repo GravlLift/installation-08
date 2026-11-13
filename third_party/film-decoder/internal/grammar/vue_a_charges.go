@@ -20,6 +20,8 @@ package grammar
 //	FUN_14080dec4  R(32)                              br.Skip(32)
 //	FUN_1406d3140  reference de domaine               readVarWidthInt
 
+import "github.com/JGtm/halo-infinite-film-decoder/internal/grammar/lecture"
+
 // largeurDirection est l immediat `R9D = 0x13` de `FUN_14076dc04` aux sites qui lisent une
 // direction unitaire quantifiee (`FUN_1406d8288` la decode sans lire de bit).
 const largeurDirection = 19
@@ -92,8 +94,15 @@ const degatsF58AvecOctet = 1
 // [lot1DecodeDamageAftermath] lit la porte de `FUN_1407f2058` a polarite inversee (« si 1 : R(5) »,
 // D-LN-2 de `LOT_LN.md`), et les reunir changerait la sortie de `weapon_hits` et toucherait le
 // rattrapage des kills. Retrait : le lot dedie qui centralise `FUN_1407f15a4` et corrige D-LN-2.
+//
+// La source `R(32)` est GARDEE sur le lecteur (`br.actionLue`, [messageDAction]) ; aucun bit n est
+// lu autrement.
 func chargeDegatsApres(br *Lecteur) bool {
-	consumeGateR(br, 32)      // FUN_14080d69c
+	br.actionLue = lecture.MessageDAction{}
+	if br.ReadBit() { // FUN_14080d69c : la source, R(32) sous sa porte
+		br.actionLue.Source = uint32(br.ReadBits(32)) //nolint:gosec // 32 bits
+		br.actionLue.Drapeaux |= lecture.ActionSourceLue
+	}
 	consumeGate0R(br, 5)      // FUN_1407f2058
 	br.Skip(largeurDirection) // FUN_14076dc04, R9D = EBP + 0x14 = 0x13 (1407f15e8)
 	if br.ReadBit() {         // [+0x20]
