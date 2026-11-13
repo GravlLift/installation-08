@@ -14,7 +14,7 @@ func BuildFirstPersonArms(ctx context.Context, arsenal *himap.Arsenal, dataDir, 
 	if err != nil {
 		return 0, err
 	}
-	coatings, err := openCoatingWork(EkurDir(dataDir))
+	coatings, err := OpenCoatingWork(EkurDir(dataDir))
 	if err != nil {
 		return 0, err
 	}
