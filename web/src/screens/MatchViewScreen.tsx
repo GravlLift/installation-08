@@ -32,6 +32,7 @@ import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { MatchHeaderBar } from './MatchHeaderBar'
 import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
+import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
 import { ReplaySoundControls } from '../features/match-replay/sound/ReplaySoundControls'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
 
@@ -350,6 +351,10 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
 
   const summary = useMatchSummary(matchId)
   const remote = useRemoteMatch(matchId)
+  const armor = useMemo<ReplayArmorSource>(
+    () => ({ matchId, piecesPath: replaySpartanPiecesPath() }),
+    [matchId],
+  )
 
   // Scene inputs are independent of the scoreboard overlay.
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
@@ -392,7 +397,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           meshPath={meshUrl(matchId)}
           variantPath={variantPath}
           weaponsPath="/api/weapons"
-          armor={null}
+          armor={armor}
           doc={doc}
           frameRef={frameRef}
           viewpoint={viewpoint}
