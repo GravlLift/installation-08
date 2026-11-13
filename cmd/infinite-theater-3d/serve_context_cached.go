@@ -69,9 +69,9 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 	}
 	playlist := contextReadJSON(variantPath(root, id, "playlist.json"))
 	if name := textValue(playlist["PublicName"]); name != "" {
-		header["playlist_label"] = name
+		header["playlist_label"] = contextPlaylistLabel(name)
 	} else if name := textValue(object(playlist["PublicName"])["value"]); name != "" {
-		header["playlist_label"] = name
+		header["playlist_label"] = contextPlaylistLabel(name)
 	}
 	mapID := textValue(header["map_id"])
 	if mapID != "" && store.ModuleKeyValid(mapID) {

@@ -226,6 +226,28 @@ func TestContextCachedMetadata(t *testing.T) {
 // the stats-full array order. LevelUp applies no other sort (Q27BulkMedals
 // orders by xuid, count DESC; ties keep medals_earned insertion order, which
 // is the raw 343 stats payload order, internal/sync/transforms.go ExtractMedals).
+func TestContextPlaylistLabel(t *testing.T) {
+	for raw, want := range map[string]string{
+		"Ranked Arena":        "Ranked Arena",
+		"Ranked":              "Ranked",
+		"Arena : Ascension":   "Ascension",
+		"arena":               "arena",
+		"Super Fiesta":        "Super Fiesta",
+		"Super Fiesta : X":    "X",
+		"Fiesta":              "Fiesta",
+		"Castle wars : X":     "X",
+		"  Btb : X  ":         "X",
+		"Tactical : X":        "X",
+		"Community : X":       "X",
+		"Firefight : X":       "X",
+		"Armed Assault : X":   "Armed Assault : X",
+	} {
+		if got := contextPlaylistLabel(raw); got != want {
+			t.Errorf("%q = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestContextMedalOrder(t *testing.T) {
 	root := newFakeStore(t)
 	raw := []byte(`{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":1,"Deaths":1,"Medals":[{"NameId":42,"Count":1},{"NameId":43,"Count":3},{"NameId":44,"Count":1}]}}}]}]}`)
