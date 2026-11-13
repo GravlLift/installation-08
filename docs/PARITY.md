@@ -170,7 +170,6 @@ from its Go builder or context route; **parity** = already equal, no change need
 | all | `header.map_image_url` | present | absent for a `.jpg` map | fixed: the probe tries `.png` then `.jpg` (the asset route accepts both) |
 | all | `header.score_timeline_kind` | `hidden` (frag modes) / `events` (point modes) / absent (curve) | absent | fixed: `contextScoreTimelineKind` ports the `[score_timeline]` tokens on the raw pair name |
 | all | `header.is_ranked` | true for a `Ranked:` variant | false | fixed: set from the pair-name category, kept alongside the skill-file signal |
-| all | `scoreboard[].damage_per_kill` / `damage_per_death` / `offensive_conversion` / `defensive_resistance` | present | absent | fixed: `fillContextCombatYield` (pure functions of the API `CoreStats`) |
 | all | `regulation_seconds` | 720 for the ten declared variants, absent otherwise | absent | fixed: `contextRegulationSeconds` ports the `[regulation_seconds]` table |
 | all | `header.t0_ms` / `playable_duration_seconds` | join-based (17809 / 14886 on the two shared matches) | film-based (29983 / 26203) | report: the two read different clocks (LevelUp joins the API join times, the standalone reads the film's own origin); a real difference but not in the builder or context route |
 | Oddball `7d798138` | `header.score_label` | `2 - 1` (rounds) | was `185 - 200` (cumulative points) | fixed: `contextScore` reads `[rounds_decide]` in rounds, points demoted to `score_points_label` |

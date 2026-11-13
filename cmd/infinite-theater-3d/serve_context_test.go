@@ -200,23 +200,6 @@ func TestContextRegulationSeconds(t *testing.T) {
 	}
 }
 
-// TestContextCombatYield pins the combat-yield row fields: pure functions of the API
-// CoreStats, zero counts leave the per-field reading absent, rounding is two decimals.
-func TestContextCombatYield(t *testing.T) {
-	row := contextJSON{}
-	fillContextCombatYield(row, map[string]any{"Kills": float64(10), "Deaths": float64(6), "DamageDealt": float64(2455), "DamageTaken": float64(1830)})
-	for key, want := range map[string]any{"damage_per_kill": 245.5, "damage_per_death": 305.0, "offensive_conversion": 0.63, "defensive_resistance": 0.38} {
-		if row[key] != want {
-			t.Errorf("%s = %v, want %v", key, row[key], want)
-		}
-	}
-	row = contextJSON{}
-	fillContextCombatYield(row, map[string]any{"Kills": float64(0), "Deaths": float64(0), "DamageDealt": float64(300), "DamageTaken": float64(100)})
-	if row["damage_per_kill"] != nil || row["damage_per_death"] != nil || row["offensive_conversion"] != nil || row["defensive_resistance"] != nil {
-		t.Fatalf("zero denominator must stay absent: %v", row)
-	}
-}
-
 func TestContextWithoutStats(t *testing.T) {
 	rec := get(t, newTestHandlers(newFakeStore(t), nil), "/api/matches/abc/context", nil)
 	if rec.Code != http.StatusOK {

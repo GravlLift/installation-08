@@ -271,7 +271,6 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 			}
 			fillContextObjective(row, bundle)
 			fillContextMedals(row, core)
-			fillContextCombatYield(row, core)
 			if seconds, ok := contextDuration(textValue(core["AverageLifeDuration"])); ok {
 				row["avg_life_seconds"] = int64(seconds)
 			}
