@@ -28,6 +28,9 @@ func TestObjectiveModesAndOrdering(t *testing.T) {
 
 func TestServeMapObjectives(t *testing.T) {
 	root := newFakeStore(t)
+	if err := root.WriteFile(variantPath(root, "abc", "stats.json"), []byte(`{"gameVariantName":"Ranked:King of the Hill"}`)); err != nil {
+		t.Fatal(err)
+	}
 	h := newTestHandlers(root, nil)
 	rec := get(t, h, "/api/matches/abc/replay", nil)
 	var doc map[string]json.RawMessage
@@ -49,9 +52,7 @@ func TestServeMapObjectives(t *testing.T) {
 	if err = root.WriteFile(variantPath(root, "abc", "map.mvar"), raw); err != nil {
 		t.Fatal(err)
 	}
-	if err = root.WriteFile(variantPath(root, "abc", "stats.json"), []byte(`{"gameVariantName":"Ranked:King of the Hill"}`)); err != nil {
-		t.Fatal(err)
-	}
+
 	for _, headers := range []map[string]string{nil, {"Accept-Encoding": "gzip"}} {
 		rec = get(t, h, "/api/matches/abc/replay", headers)
 		body := rec.Body.Bytes()
