@@ -2,8 +2,19 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 )
+
+// contextRoundsDecide mirrors LevelUp's regulation.toml [rounds_decide]: the variants whose
+// result is read in rounds, not points (LevelUp internal/analysis/team_score_display.go).
+func contextRoundsDecide(variant string) bool {
+	switch variant {
+	case "Arena:Oddball", "Ranked:Oddball", "Oddball:Arena":
+		return true
+	}
+	return false
+}
 
 func contextScore(header contextJSON, stats build.Stats, payload map[string]any, xuid string) {
 	reverse := false
@@ -43,8 +54,13 @@ func contextScore(header contextJSON, stats build.Stats, payload map[string]any,
 			total = n
 		}
 	}
-	switch stats.GameVariantName {
-	case "Arena:Oddball", "Ranked:Oddball", "Oddball:Arena":
+	// Rounds reading: the per-team won counts from the stats file (fresh) or the raw payload
+	// (the fallback for a match whose stats file predates the rounds field). The total plays
+	// LevelUp's RoundsTotal: the reading needs a match that actually had rounds to read.
+	if contextRoundsDecide(stats.GameVariantName) {
+		if stats.TeamRoundsWon != nil && found[0] && found[1] {
+			rounds[0], rounds[1] = (*stats.TeamRoundsWon)[0][0], (*stats.TeamRoundsWon)[1][0]
+		}
 		if total >= 2 && found[0] && found[1] && rounds[0] >= 0 && rounds[1] >= 0 {
 			if reverse {
 				rounds[0], rounds[1] = rounds[1], rounds[0]

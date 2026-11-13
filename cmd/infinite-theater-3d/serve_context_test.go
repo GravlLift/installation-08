@@ -66,6 +66,157 @@ func TestContextScoreRounds(t *testing.T) {
 	}
 }
 
+// TestContextScoreRoundsFresh pins the fresh reading: the stats file carries the per-team
+// RoundsWon (the builder now records it from the payload Teams), and the score is read in
+// those rounds, not in the cumulative points (which would crown the wrong team).
+func TestContextScoreRoundsFresh(t *testing.T) {
+	rounds := [2][3]int{{3, 0, 0}, {1, 0, 0}}
+	stats := build.Stats{GameVariantName: "Ranked:Oddball", TeamScores: &[2]int{150, 240}, TeamRoundsWon: &rounds, Players: []build.StatsPlayer{{XUID: "1", TeamID: 0}}}
+	payload := map[string]any{"Teams": []any{map[string]any{"TeamId": float64(0), "Stats": map[string]any{"CoreStats": map[string]any{"RoundsWon": float64(0)}}}, map[string]any{"TeamId": float64(1), "Stats": map[string]any{"CoreStats": map[string]any{"RoundsWon": float64(4)}}}}}
+	header := contextJSON{}
+	contextScore(header, stats, payload, "1")
+	if header["score_kind"] != "rounds" || header["score_label"] != "3 - 1" || header["score_points_label"] != "150 - 240" {
+		t.Fatalf("fresh rounds must beat the stale payload and the cumulative points: %v", header)
+	}
+}
+
+// TestContextScoreRoundsTotalGuard pins the LevelUp RoundsTotal guard: a variant whose
+// teams never had rounds to read (total < 2) falls back to the points, never inventing
+// a 0 - 0 round reading.
+func TestContextScoreRoundsTotalGuard(t *testing.T) {
+	rounds := [2][3]int{{1, 0, 0}, {0, 0, 0}}
+	stats := build.Stats{GameVariantName: "Ranked:Oddball", TeamScores: &[2]int{90, 120}, TeamRoundsWon: &rounds, Players: []build.StatsPlayer{{XUID: "1", TeamID: 0}}}
+	payload := map[string]any{"Teams": []any{map[string]any{"TeamId": float64(0), "Stats": map[string]any{"CoreStats": map[string]any{"RoundsWon": float64(0)}}}, map[string]any{"TeamId": float64(1), "Stats": map[string]any{"CoreStats": map[string]any{"RoundsWon": float64(0)}}}}}
+	header := contextJSON{}
+	contextScore(header, stats, payload, "1")
+	if header["score_kind"] != "points" || header["score_label"] != "90 - 120" {
+		t.Fatalf("no rounds played: the points must stand: %v", header)
+	}
+}
+
+// TestContextOutcome pins the header outcome for the viewing player: xuid narrows to that
+// player's own line (LevelUp serves the caller's result), empty xuid means "any
+// participant" so a plain viewer still gets a result, and the colors/tokens are LevelUp's.
+func TestContextOutcome(t *testing.T) {
+	payload := map[string]any{"Players": []any{
+		map[string]any{"PlayerId": "xuid(2)", "Outcome": float64(3)},
+		map[string]any{"PlayerId": "xuid(1)", "Outcome": float64(2)},
+	}}
+	for _, tc := range []struct {
+		xuid  string
+		want  string
+		token string
+		color string
+	}{
+		{"1", "win", "outcome-win", "#22c55e"},
+		{"2", "loss", "outcome-loss", "#ef4444"},
+		{"", "loss", "outcome-loss", "#ef4444"},
+	} {
+		header := contextJSON{"outcome_color": "#94a3b8"}
+		contextOutcome(header, payload, tc.xuid)
+		if header["outcome"] != tc.want || header["outcome_color_token"] != tc.token || header["outcome_color"] != tc.color || header["outcome_code"] == nil {
+			t.Errorf("xuid %q: %v", tc.xuid, header)
+		}
+	}
+	// No readable outcome: the neutral default stands.
+	header := contextJSON{"outcome_color": "#94a3b8"}
+	contextOutcome(header, map[string]any{"Players": []any{map[string]any{"PlayerId": "xuid(1)"}}}, "1")
+	if header["outcome"] != nil || header["outcome_color"] != "#94a3b8" {
+		t.Fatalf("absent outcome must not claim: %v", header)
+	}
+}
+
+// TestContextScoreTimelineTokens pins the [score_timeline] table token matching on the RAW
+// pair name (the API mode name, only the map suffix removed): whole words, the longest
+// token wins, nothing else is normalized. The variant is usually the exact form
+// ("Ranked:King of the Hill"); the playlist name is the fallback for a match whose variant
+// is unreadable.
+func TestContextScoreTimelineTokens(t *testing.T) {
+	for _, tc := range []struct {
+		label string
+		want  any
+	}{
+		{"slayer", "hidden"},
+		{"team snipers", "hidden"},
+		{"ctf", "events"},
+		{"neutral flag", "events"},
+		{"king of the hill", "events"},
+		{"koth", "events"},
+		{"assault", "events"},
+		{"neutral bomb", "events"},
+		{"one bomb", "events"},
+		{"ranked king of the hill on bazaar", "events"},
+		{"super fiesta slayer on strike force", "hidden"},
+		{"hustle ctf on bazaar", "events"},
+		{"oddball on strike force", nil},
+		{"strongholds on bazaar", nil},
+		{"", nil},
+	} {
+		got := contextScoreTimelineToken(tc.label)
+		if got != tc.want {
+			t.Errorf("%q = %v, want %v", tc.label, got, tc.want)
+		}
+	}
+}
+
+// TestContextScoreTimelineKind pins the header field on the variant and its playlist-name
+// fallback: an unknown variant and playlist keep the client default (absent, the "curve"
+// the client computes by absence).
+func TestContextScoreTimelineKind(t *testing.T) {
+	for _, tc := range []struct {
+		variant, playlist string
+		want              any
+	}{
+		{"Ranked:King of the Hill", "", "events"},
+		{"", "Ranked:King of the Hill on Bazaar", "events"},
+		{"", "", nil},
+	} {
+		header := contextJSON{}
+		contextScoreTimelineKind(header, tc.variant, tc.playlist)
+		if header["score_timeline_kind"] != tc.want {
+			t.Errorf("variant %q playlist %q = %v, want %v", tc.variant, tc.playlist, header["score_timeline_kind"], tc.want)
+		}
+	}
+}
+
+// TestContextRegulationSeconds pins the [regulation_seconds] table: the declared variants
+// measure 720s, the rest carry no regulation reading at all.
+func TestContextRegulationSeconds(t *testing.T) {
+	for _, tc := range []struct {
+		variant string
+		want    int
+		ok      bool
+	}{
+		{"Ranked:Slayer", 720, true},
+		{"Strongholds:Arena", 720, true},
+		{"CTF:Arena", 720, true},
+		{"Arena:Oddball", 0, false},
+		{"Ranked:King of the Hill", 0, false},
+	} {
+		got, ok := contextRegulationSeconds(tc.variant)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s = %d,%v, want %d,%v", tc.variant, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// TestContextCombatYield pins the combat-yield row fields: pure functions of the API
+// CoreStats, zero counts leave the per-field reading absent, rounding is two decimals.
+func TestContextCombatYield(t *testing.T) {
+	row := contextJSON{}
+	fillContextCombatYield(row, map[string]any{"Kills": float64(10), "Deaths": float64(6), "DamageDealt": float64(2455), "DamageTaken": float64(1830)})
+	for key, want := range map[string]any{"damage_per_kill": 245.5, "damage_per_death": 305.0, "offensive_conversion": 0.63, "defensive_resistance": 0.38} {
+		if row[key] != want {
+			t.Errorf("%s = %v, want %v", key, row[key], want)
+		}
+	}
+	row = contextJSON{}
+	fillContextCombatYield(row, map[string]any{"Kills": float64(0), "Deaths": float64(0), "DamageDealt": float64(300), "DamageTaken": float64(100)})
+	if row["damage_per_kill"] != nil || row["damage_per_death"] != nil || row["offensive_conversion"] != nil || row["defensive_resistance"] != nil {
+		t.Fatalf("zero denominator must stay absent: %v", row)
+	}
+}
+
 func TestContextWithoutStats(t *testing.T) {
 	rec := get(t, newTestHandlers(newFakeStore(t), nil), "/api/matches/abc/context", nil)
 	if rec.Code != http.StatusOK {

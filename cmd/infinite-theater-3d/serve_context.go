@@ -69,11 +69,12 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 		return nil, err
 	}
 	var payload map[string]any
+	var playlistName string
 	if err == nil {
 		if err = json.Unmarshal(full, &payload); err != nil {
 			return nil, err
 		}
-		facts, _, _, e := matchFacts(full)
+		facts, _, _, name, e := matchFacts(full)
 		if e != nil {
 			return nil, e
 		}
@@ -81,6 +82,7 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 			facts.GameVariantName = stats.GameVariantName
 		}
 		stats = facts
+		playlistName = name
 	}
 	rows := contextRows(meta, stats, payload, xuid)
 	header := contextHeader(meta, stats, payload, xuid)
@@ -97,17 +99,110 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 		header["t0_ms"] = t0
 	}
 	contextTiming(header, payload, t0)
+	contextOutcome(header, payload, xuid)
 	events, err := contextEvents(root, id, rows, t0)
 	if err != nil {
 		return nil, err
 	}
+	contextScoreTimelineKind(header, stats.GameVariantName, playlistName)
 	contextCached(root, id, header, rows, events)
 	result := contextJSON{"header": header, "scoreboard": rows, "highlight_events": events, "media": contextJSON{"media_items": []any{}}, "source_unavailable": false}
-	switch stats.GameVariantName {
-	case "CTF:Arena", "CTF:Arena Neutral Flag", "Team Slayer:Arena", "Slayer:Arena", "Slayer:Arena Super Fiesta", "Slayer:Arena Tactical", "Strongholds:Arena", "Arena:Slayer", "Arena:Team Slayer", "Ranked:Slayer":
-		result["regulation_seconds"] = 720
+	if seconds, ok := contextRegulationSeconds(stats.GameVariantName); ok {
+		result["regulation_seconds"] = seconds
 	}
 	return result, nil
+}
+
+// contextScoreTimelineTokens is the [score_timeline] table of LevelUp's regulation.toml as
+// whole-word tokens (the longest token wins; the raw pair name is stripped of its map
+// suffix before matching, nothing else). "hidden" = the frag score is already read above,
+// "events" = the points are few and the instants carry the information.
+var contextScoreTimelineTokens = map[string]string{
+	"slayer": "hidden", "team snipers": "hidden",
+	"ctf": "events", "neutral flag": "events", "king of the hill": "events",
+	"koth": "events", "assault": "events", "neutral bomb": "events", "one bomb": "events",
+}
+
+// contextScoreTimelineToken mirrors the table on a RAW pair name (the API mode name, only
+// the map suffix removed): whole words, the longest token wins, nothing else is
+// normalized. It returns the kind ("hidden" or "events"), or "" for the client default
+// ("curve", which LevelUp emits by absence).
+func contextScoreTimelineToken(label string) any {
+	// The token separator of the raw pair name is the playlist colon ("Ranked:King of the
+	// Hill"); it is not a word, so it comes out before the words are counted.
+	low := strings.ToLower(strings.ReplaceAll(label, ":", " "))
+	words := map[string]bool{}
+	for _, w := range strings.Fields(low) {
+		words[w] = true
+	}
+	best := ""
+	for token := range contextScoreTimelineTokens {
+		if strings.Contains(token, " ") {
+			continue // multi-word tokens are matched below, word by word
+		}
+		if words[token] && len(token) > len(best) {
+			best = token
+		}
+	}
+	for _, token := range []string{"team snipers", "king of the hill", "neutral flag", "neutral bomb", "one bomb"} {
+		if len(token) > len(best) && contextLabelHasPhrase(low, token) {
+			best = token
+		}
+	}
+	if best == "" {
+		return nil
+	}
+	return contextScoreTimelineTokens[best]
+}
+
+// contextScoreTimelineKind stamps the header field from the variant, falling back to the
+// playlist name (a match whose variant is unreadable still carries the mode in its
+// playlist). An empty token keeps the field absent: the client default.
+func contextScoreTimelineKind(header contextJSON, variant, playlistName string) {
+	label := contextStripMapSuffix(variant)
+	if label == "" {
+		label = contextStripMapSuffix(playlistName)
+	}
+	if kind := contextScoreTimelineToken(label); kind != nil {
+		header["score_timeline_kind"] = kind
+	}
+}
+
+// contextStripMapSuffix mirrors LevelUp's modelabel.StripMapSuffix: it removes the map
+// suffix (" on <map>" / " sur <carte>", FR and EN) of a mode label and nothing else.
+func contextStripMapSuffix(label string) string {
+	return strings.TrimSpace(contextMapSuffix.ReplaceAllString(strings.TrimSpace(label), ""))
+}
+
+// contextLabelHasPhrase says whether every word of the phrase occurs in the label in order
+// and adjacency ("king of the hill" in "ranked:king of the hill on bazaar").
+func contextLabelHasPhrase(low, phrase string) bool {
+	words := strings.Fields(low)
+	p := strings.Fields(phrase)
+	for i := 0; i+len(p) <= len(words); i++ {
+		matched := true
+		for j, w := range p {
+			if words[i+j] != w {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
+// contextRegulationSeconds mirrors LevelUp's regulation.toml [regulation_seconds]: the
+// variants that measure 720s (the ranked 7v7 variants are not declared in the table and
+// carry no regulation reading). ok=false means absent: the field stays out of the header.
+func contextRegulationSeconds(variant string) (int, bool) {
+	switch variant {
+	case "CTF:Arena", "CTF:Arena Neutral Flag", "Team Slayer:Arena", "Slayer:Arena", "Slayer:Arena Super Fiesta", "Slayer:Arena Tactical", "Strongholds:Arena", "Arena:Slayer", "Arena:Team Slayer", "Ranked:Slayer":
+		return 720, true
+	}
+	return 0, false
 }
 
 func contextRows(meta store.Match, stats build.Stats, payload map[string]any, xuid string) []contextJSON {
@@ -176,6 +271,7 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 			}
 			fillContextObjective(row, bundle)
 			fillContextMedals(row, core)
+			fillContextCombatYield(row, core)
 			if seconds, ok := contextDuration(textValue(core["AverageLifeDuration"])); ok {
 				row["avg_life_seconds"] = int64(seconds)
 			}
@@ -192,13 +288,20 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 
 func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, xuid string) contextJSON {
 	h := contextJSON{"match_id": meta.MatchID, "start_time_label": "", "outcome_color": "#94a3b8", "had_bot_teammate": false, "map_ui": meta.MapName, "mode_ui": stats.GameVariantName, "playlist_label": "", "is_ranked": false, "replay_available": true}
-	if mode, category := contextMode(stats.GameVariantName); mode != "" {
+	mode, category := contextMode(stats.GameVariantName)
+	if mode != "" {
 		h["mode_ui"], h["mode_category"] = mode, category
 	}
 	if meta.MapAssetID != "" {
 		h["map_id"] = meta.MapAssetID
 		// LevelUp apps/go-api/internal/games/halo_infinite/adapter_asset_urls.go.
 		h["waypoint_url"] = "https://www.halowaypoint.com/halo-infinite/matches/" + meta.MatchID
+	}
+	// LevelUp reads the ranked signal from the pair name; the standalone keeps its own
+	// fallback (the skill file) in contextCached, which also covers matches whose pair
+	// name is unreadable.
+	if category == "Ranked" {
+		h["is_ranked"] = true
 	}
 	contextScore(h, stats, payload, xuid)
 	info := object(payload["MatchInfo"])
@@ -211,9 +314,18 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 	if name := textValue(object(info["Playlist"])["PublicName"]); name != "" {
 		h["playlist_label"] = contextPlaylistLabel(name)
 	}
+	return h
+}
+
+// contextOutcome reads the header outcome for the viewing player (xuid) from the raw API
+// payload. xuid empty means "any participant", so a plain viewer without an account still
+// gets a result (the document names the teams, the API names the outcome); a given xuid
+// narrows to that player's own line. The default header keeps the neutral color the
+// builder set (no outcome read = no claim).
+func contextOutcome(h contextJSON, payload map[string]any, xuid string) {
 	for _, value := range array(payload["Players"]) {
 		p := object(value)
-		if xuid == "" || textValue(p["PlayerId"]) != "xuid("+xuid+")" {
+		if xuid != "" && textValue(p["PlayerId"]) != "xuid("+xuid+")" {
 			continue
 		}
 		code, _ := p["Outcome"].(float64)
@@ -229,7 +341,6 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 		}
 		break
 	}
-	return h
 }
 
 // contextPlaylistPrefixes are matchmaking category prefixes that can head a playlist
