@@ -95,46 +95,46 @@ func weaponCoatingsOf(root *store.Root, body []byte, labelCat weapons.LabelCatal
 	}
 	var out []armor.WeaponCoating
 	for _, c := range cores {
-		key, ok := weaponModelKeyOf(root, c, labelCat)
-		if !ok {
-			continue
-		}
-		wc := armor.WeaponCoating{CoreID: c.CoreID, ModelKey: key}
+		styleKey := ""
 		if c.CoatingPath != "" {
 			if raw, err := os.ReadFile(gamecmsPath(root, c.CoatingPath)); err == nil {
 				if dto, err := haloapi.DecodeWeaponCoating(raw); err == nil && dto.StyleID != nil {
-					wc.StyleKey = spartanpieces.Identifier(uint32(*dto.StyleID))
+					styleKey = spartanpieces.Identifier(uint32(*dto.StyleID))
 				}
 			}
 		}
-		out = append(out, wc)
+		// One entry per model key of the weapon: a weapon with two models (the Bandit and
+		// the Bandit Evo, the two Shock Rifles) shares the core's coating, and the replay
+		// may hold either.
+		for _, key := range weaponModelKeysOf(root, c, labelCat) {
+			out = append(out, armor.WeaponCoating{CoreID: c.CoreID, ModelKey: key, StyleKey: styleKey})
+		}
 	}
 	return out
 }
 
-// weaponModelKeyOf resolves one equipped core's model key: its equipped theme file's weapon
-// name, through the weapon name tables. A theme that is not read, or a weapon name the
-// tables do not know, is logged once and not resolved.
-func weaponModelKeyOf(root *store.Root, c haloapi.WeaponThemeDTO, labelCat weapons.LabelCatalog) (string, bool) {
+// weaponModelKeysOf resolves one equipped core's model keys: its equipped theme file's
+// weapon name, through the weapon name tables. A theme that is not read, or a weapon name
+// the tables do not know, is logged once and not resolved (nil).
+func weaponModelKeysOf(root *store.Root, c haloapi.WeaponThemeDTO, labelCat weapons.LabelCatalog) []string {
 	if c.ThemePath == "" {
-		return "", false
+		return nil
 	}
 	raw, err := os.ReadFile(gamecmsPath(root, c.ThemePath))
 	if err != nil {
 		logWeaponCoatMiss(c.CoreID, "theme not in cache", c.ThemePath)
-		return "", false
+		return nil
 	}
 	theme, err := haloapi.DecodeWeaponTheme(raw)
 	if err != nil {
 		logWeaponCoatMiss(c.CoreID, "theme unreadable", c.ThemePath)
-		return "", false
+		return nil
 	}
-	key, ok := labelCat.ModelKeyForWeaponName(theme.WeaponName)
-	if !ok {
+	keys := labelCat.ModelKeysForWeaponName(theme.WeaponName)
+	if keys == nil {
 		logWeaponCoatMiss(c.CoreID, "weapon name unknown", theme.WeaponName)
-		return "", false
 	}
-	return key, true
+	return keys
 }
 
 func withReason(e armor.Spartan, reason armor.Reason) armor.Spartan {

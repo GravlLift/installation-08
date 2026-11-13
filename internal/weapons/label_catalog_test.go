@@ -3,7 +3,10 @@ package weapons
 // label_catalog_test.go — the family table's parity with LevelUp's weapon registry: the
 // family to key map must equal the map LevelUp's cat.Keys is built from.
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // levelUpRegistryFamilies is the family to key projection of LevelUp's
 // weaponRegistryInfiniteFilmshell (apps/go-api/internal/games/weapons/registry.go, worktree
@@ -69,27 +72,30 @@ func TestFamilyToKeyMatchesLevelUpRegistry(t *testing.T) {
 	}
 }
 
-// TestModelKeyForWeaponName — a weapon named by its display name (as a GameCMS theme file
-// carries it) resolves to the model key of the weapon that name names: the BR75 to its
-// family, and distinct weapons to distinct keys.
-func TestModelKeyForWeaponName(t *testing.T) {
+// TestModelKeysForWeaponName — a weapon named by its display name (as a GameCMS theme file
+// carries it) resolves to every model key of the weapon that name names: the BR75 to its
+// family, a two-family weapon (the Bandit, the Shock Rifle) to both, so the key the replay
+// writes is always covered.
+func TestModelKeysForWeaponName(t *testing.T) {
 	cat, err := LoadLabelCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The BR75's GameCMS title is "BR75 Battle Rifle"; the table's name is "BR75".
-	key, ok := cat.ModelKeyForWeaponName("BR75 Battle Rifle")
-	if !ok || key != "2b1824d5" {
-		t.Fatalf("BR75 Battle Rifle: got %q %v, want 2b1824d5", key, ok)
+	cases := map[string][]string{
+		"BR75 Battle Rifle":  {"2b1824d5"},
+		"MA40 Assault Rifle": {"48c19d2d"},
+		"M392 Bandit":        {"2fb21c87", "6acdc44d"},
+		"Shock Rifle":        {"1a22fee6", "9387a8b9"},
+		"Vestige Carbine":    {"3e070217"},
+		"MK50 Sidekick":      {"f408190f"},
 	}
-	// Distinct weapons give distinct keys.
-	br75, _ := cat.ModelKeyForWeaponName("BR75 Battle Rifle")
-	ma40, _ := cat.ModelKeyForWeaponName("MA40 Assault Rifle")
-	if br75 == ma40 {
-		t.Fatalf("BR75 and MA40 resolve to the same key %q", br75)
+	for name, want := range cases {
+		got := cat.ModelKeysForWeaponName(name)
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%s: got %v, want %v", name, got, want)
+		}
 	}
-	// An unknown name does not resolve.
-	if _, ok := cat.ModelKeyForWeaponName("NoSuchWeapon"); ok {
-		t.Fatalf("NoSuchWeapon: got true, want false")
+	if got := cat.ModelKeysForWeaponName("NoSuchWeapon"); got != nil {
+		t.Fatalf("NoSuchWeapon: got %v, want nil", got)
 	}
 }
