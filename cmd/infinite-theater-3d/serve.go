@@ -121,6 +121,10 @@ func runServe(args []string) error {
 // runner's queue with the map builds, so it never runs beside one.
 func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) (*meshjobs.Runner, error) {
 	ready := func(module string) bool {
+		if id, ok := variantJobID(module); ok {
+			_, err := os.Stat(variantPath(root, id, "variant.glb"))
+			return err == nil
+		}
 		if module == meshjobs.JobWeapons {
 			_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
 			return err == nil
@@ -133,6 +137,9 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return err == nil
 	}
 	dest := func(module string) string {
+		if id, ok := variantJobID(module); ok {
+			return variantPath(root, id, "variant.glb")
+		}
 		if module == meshjobs.JobWeapons {
 			return filepath.Join(root.Dir(), "weapons")
 		}
@@ -143,6 +150,13 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		if id, ok := variantJobID(module); ok {
+			result, err := buildMatchVariant(ctx, root, id, game, out)
+			if err != nil {
+				slog.Warn("variant build failed", "id", id, "err", err)
+			}
+			return result, err
+		}
 		if module == meshjobs.JobWeapons {
 			return buildWeaponLibrary(ctx, root, game, weaponKeys)
 		}
