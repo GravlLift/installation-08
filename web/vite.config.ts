@@ -18,6 +18,16 @@ export default defineConfig({
   server: {
     port: 5183,
     strictPort: true,
+    // The standalone Go server (`infinite-theater-3d serve`) owns the data: matches,
+    // replay documents and map meshes. Proxying keeps the app on relative `/api/...`
+    // URLs so the same build works unchanged once `serve --web` serves this bundle
+    // itself (no proxy needed then — same origin).
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8177',
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     environment: 'jsdom',
