@@ -89,3 +89,74 @@ func TestFetchArtifactsCachesArmorDefinitions(t *testing.T) {
 		}
 	}
 }
+
+// TestFetchArtifactsCachesWeaponDefinitions: each definition an equipped weapon
+// theme reads (coating and theme files) is fetched once into the shared GameCMS
+// cache; a re-fetch serves the cache without hitting the fake again.
+func TestFetchArtifactsCachesWeaponDefinitions(t *testing.T) {
+	var compressed bytes.Buffer
+	zw := zlib.NewWriter(&compressed)
+	_, _ = zw.Write([]byte("film-data"))
+	_ = zw.Close()
+	calls := map[string]int{}
+	var base string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls[r.URL.Path]++
+		switch r.URL.Path {
+		case "/films/matches/abc/spectate":
+			fmt.Fprintf(w, `{"BlobStoragePathPrefix":%q,"CustomData":{"Chunks":[{"Index":0,"ChunkType":3,"ChunkSize":%d,"FileRelativePath":"film"}]}}`, base+"/blob", compressed.Len())
+		case "/blob/film":
+			_, _ = w.Write(compressed.Bytes())
+		case "/Waypoint/file/medals/metadata.json":
+			fmt.Fprint(w, `{"Medals":[]}`)
+		case "/matches/abc/stats":
+			fmt.Fprint(w, `{"MatchInfo":{"UgcGameVariant":{"PublicName":"Slayer"}},"Players":[{"PlayerId":"xuid(123)","LastTeamId":1}]}`)
+		case "/players/xuid(123)/customization":
+			fmt.Fprint(w, `{"WeaponCores":{"WeaponCores":[{"CoreId":"br","CorePath":"br.json","CoreType":"WeaponBR","Themes":[{"IsEquipped":true,"ThemePath":"inventory/weapon/themes/br.json","CoatingPath":"inventory/weapon/coatings/4257011.json"}]}]}}`)
+		case "/progression/file/inventory/weapon/coatings/4257011.json":
+			fmt.Fprint(w, `{"CommonData":{"Id":"4257011","Type":"WeaponCoating"},"StyleId":{"m_identifier":-139792058}}`)
+		case "/progression/file/inventory/weapon/themes/br.json":
+			fmt.Fprint(w, `{"CommonData":{"Id":"br-theme","Type":"WeaponTheme"}}`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer s.Close()
+	base = s.URL
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverURL, err := url.Parse(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := s.Client()
+	client.Transport = localOnlyTransport{host: serverURL.Host, base: client.Transport}
+	api := haloapi.New(client, haloapi.Endpoints{Stats: base, Discovery: base, Economy: base, GameCMS: base}, "fake", "fake")
+	opts := fetchOptions{build: func(*store.Root, string) error { return nil }}
+	if err = fetchPipeline(context.Background(), root, api, "abc", opts); err != nil {
+		t.Fatal(err)
+	}
+	defs := []string{
+		"/progression/file/inventory/weapon/coatings/4257011.json",
+		"/progression/file/inventory/weapon/themes/br.json",
+	}
+	for _, p := range defs {
+		if calls[p] != 1 {
+			t.Fatalf("definition %s fetched %d times", p, calls[p])
+		}
+		if _, err = os.Stat(filepath.Join(root.Dir(), "gamecms", filepath.FromSlash(p[len("/progression/file/"):]))); err != nil {
+			t.Fatalf("cache miss %s: %v", p, err)
+		}
+	}
+	if err = fetchPipeline(context.Background(), root, api, "abc", opts); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range defs {
+		if calls[p] != 1 {
+			t.Fatalf("definition %s re-fetched: %d calls", p, calls[p])
+		}
+	}
+}

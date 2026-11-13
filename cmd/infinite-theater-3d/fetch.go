@@ -261,6 +261,7 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 			return e
 		}
 		fetchArmorDefinitions(ctx, root, api, armor)
+		fetchWeaponDefinitions(ctx, root, api, armor)
 	}
 	return nil
 }
@@ -284,24 +285,47 @@ func fetchArmorDefinitions(ctx context.Context, root *store.Root, api *haloapi.C
 		return
 	}
 	for _, p := range append([]string{c.ThemePath}, haloapi.ArmorItemPaths(c)...) {
-		if p == "" {
-			continue
+		cacheDefinition(ctx, root, api, "armor", p)
+	}
+}
+
+// fetchWeaponDefinitions saves each definition the player's equipped weapon
+// themes read (the theme file and the coating file) once into the shared
+// cache, skipping the ones already saved.
+func fetchWeaponDefinitions(ctx context.Context, root *store.Root, api *haloapi.Client, customization []byte) {
+	cores, err := haloapi.DecodeWeaponCores(customization)
+	if err != nil {
+		return
+	}
+	for _, c := range cores {
+		for _, p := range haloapi.WeaponItemPaths(&c) {
+			cacheDefinition(ctx, root, api, "weapon", p)
 		}
-		target := gamecmsPath(root, p)
-		if _, err := os.Stat(target); err == nil {
-			continue
-		} else if !os.IsNotExist(err) {
-			slog.Warn("gamecms cache unreadable", "path", p, "err", err)
-			continue
-		}
-		raw, err := api.ProgressionFile(ctx, p)
-		if err != nil {
-			slog.Warn("armor definition unavailable", "path", p, "err", err)
-			continue
-		}
-		if err := root.WriteFile(target, raw); err != nil {
-			slog.Warn("armor definition not saved", "path", p, "err", err)
-		}
+	}
+}
+
+// cacheDefinition saves one GameCMS inventory file into the shared cache,
+// skipping a file already saved. A definition that cannot be read is logged,
+// not fatal: the manifest route lists an unread item as unresolved rather
+// than failing the match.
+func cacheDefinition(ctx context.Context, root *store.Root, api *haloapi.Client, kind, inventoryPath string) {
+	if inventoryPath == "" {
+		return
+	}
+	target := gamecmsPath(root, inventoryPath)
+	if _, err := os.Stat(target); err == nil {
+		return
+	} else if !os.IsNotExist(err) {
+		slog.Warn("gamecms cache unreadable", "path", inventoryPath, "err", err)
+		return
+	}
+	raw, err := api.ProgressionFile(ctx, inventoryPath)
+	if err != nil {
+		slog.Warn(kind+" definition unavailable", "path", inventoryPath, "err", err)
+		return
+	}
+	if err := root.WriteFile(target, raw); err != nil {
+		slog.Warn(kind+" definition not saved", "path", inventoryPath, "err", err)
 	}
 }
 
