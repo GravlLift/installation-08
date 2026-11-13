@@ -142,6 +142,9 @@ func TestLabelCatalogGrenadeOrder(t *testing.T) {
 		if cat.Grenades[i].Text["en"] != w {
 			t.Fatalf("grenade %d = %q, want %q", i, cat.Grenades[i].Text["en"], w)
 		}
+		if got, expected := cat.Grenades[i].Img, "/static/weapons-assets/halo_infinite/hud/"+w+".png"; got != expected {
+			t.Errorf("grenade %d image = %q, want %q", i, got, expected)
+		}
 	}
 }
 

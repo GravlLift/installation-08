@@ -1,18 +1,6 @@
 // hud.go — the HUD equipment and grenade icon set.
 //
-// The game draws each piece of equipment (Overshield, Drop Wall, Grappleshot, ...) and
-// each grenade (Frag, Plasma, Spike, Dynamo) as a white glyph on a transparent
-// background, in the HUD and on the loadout screen. The glyphs live in a `bitm` atlas of
-// the install (tag 7dcd396a, 21 images at 128×128), one image per equipment.
-//
-// Unlike the kill feed atlas (killfeed.go), this atlas has no `bitd` naming table. The
-// index-to-equipment mapping was established visually against the game's HUD: each of the
-// 21 decoded images was compared against the 15 public HUD stems. Two images (the "NO
-// ICON" placeholder at index 18 and the duplicate at 16) have no public stem.
-//
-// BuildHud decodes the pinned atlas, crops each glyph to its opaque bounding box, scales
-// it to fit 96×96 preserving aspect ratio (the longest edge becomes 96 px, the glyph is
-// centered), and writes one PNG per named image under HudOutDir(dataDir).
+// Build the game's grenade and equipment HUD glyphs from their pinned atlases.
 
 package weaponicons
 
@@ -30,35 +18,31 @@ import (
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
 
-// hudAtlasTag is the `bitm` atlas that holds the HUD equipment and grenade glyphs.
-// Confirmed by visual decoding: all 15 public stems appear among its 21 images.
-const hudAtlasTag = 0x7dcd396a
-
-// hudIconSize is the output canvas size in pixels, matching LevelUp's committed set.
-const hudIconSize = 96
-
-// hudStemByIndex maps an atlas image index to the public HUD file stem. The mapping was
-// established by decoding the atlas, cropping each glyph to its opaque bounding box, and
-// matching the resulting aspect ratio against LevelUp's reference PNGs (which preserve the
-// source aspect ratio). Each of the 15 stems maps to a unique index; the remaining indices
-// (1, 3, 4, 8, 10, 14, 18) have no public stem.
-var hudStemByIndex = map[int]string{
-	1:  "ThreatSeeker",
-	2:  "Repulsor",
-	3:  "RepairField",
-	4:  "Dynamo",
-	5:  "DropWall",
-	6:  "ThreatSensor",
-	7:  "Plasma",
-	8:  "QuantumTranslocator",
-	9:  "Frag",
-	12: "Grappleshot",
-	13: "ActiveCamouflage",
-	15: "Overshield",
-	16: "Thruster",
-	17: "ShroudScreen",
-	20: "Spike",
+// HUD sources are pinned to the game atlas and index used by LevelUp's extractor.
+type hudSource struct {
+	atlas uint32
+	index int
 }
+
+var hudSources = map[string]hudSource{
+	"ActiveCamouflage":    {0xc6b7ad41, 5},
+	"DropWall":            {0xc6b7ad41, 2},
+	"Dynamo":              {0xa2dcd69e, 3},
+	"Frag":                {0xa2dcd69e, 0},
+	"Grappleshot":         {0xc6b7ad41, 1},
+	"Overshield":          {0xc6b7ad41, 6},
+	"Plasma":              {0xa2dcd69e, 1},
+	"QuantumTranslocator": {0xc6b7ad41, 15},
+	"RepairField":         {0xc6b7ad41, 17},
+	"Repulsor":            {0xc6b7ad41, 4},
+	"ShroudScreen":        {0xc6b7ad41, 9},
+	"Spike":               {0xa2dcd69e, 2},
+	"ThreatSeeker":        {0xc6b7ad41, 16},
+	"ThreatSensor":        {0xc6b7ad41, 3},
+	"Thruster":            {0xc6b7ad41, 0},
+}
+
+const hudIconSize = 96
 
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
@@ -69,13 +53,9 @@ func HudOutDir(dataDir string) string {
 // piece of equipment and grenade, in LevelUp's public file names). The route serves only
 // these names, so the list is the surface of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudStemByIndex))
-	seen := map[string]bool{}
-	for _, stem := range hudStemByIndex {
-		if !seen[stem] {
-			seen[stem] = true
-			out = append(out, stem)
-		}
+	out := make([]string, 0, len(hudSources))
+	for stem := range hudSources {
+		out = append(out, stem)
 	}
 	sort.Strings(out)
 	return out
@@ -90,7 +70,8 @@ func HudSetReady(dataDir string) bool {
 
 // hudName is one named image of the HUD atlas.
 type hudName struct {
-	Index int    // the image's position in the atlas
+	Index int // the image's position in the atlas
+	Atlas uint32
 	File  string // the file name written (Frag.png, ...)
 	Game  string // the internal name ("" when not mapped)
 }
@@ -112,28 +93,11 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	ix := buildIndex("")
 	slog.InfoContext(ctx, "module index built", "archives", ix.nMods, "entries", ix.nEntry)
 
-	a, err := atlasOf(ix, hudAtlasTag)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("hud atlas %08x: %w", hudAtlasTag, err)
-	}
-	slog.InfoContext(ctx, "hud atlas loaded", "images", len(a.imgs))
-
-	// Collect the entries: only indices that have a public stem.
 	var entries []hudName
-	seen := map[string]bool{}
-	for idx, stem := range hudStemByIndex {
-		if idx >= len(a.imgs) {
-			continue
-		}
-		// Deduplicate: if two indices map to the same stem, keep the first.
-		if seen[stem] {
-			continue
-		}
-		seen[stem] = true
-		entries = append(entries, hudName{Index: idx, File: stem + ".png", Game: stem})
+	for stem, source := range hudSources {
+		entries = append(entries, hudName{Index: source.index, Atlas: source.atlas, File: stem + ".png", Game: stem})
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Index < entries[j].Index })
-	slog.InfoContext(ctx, "hud entries resolved", "count", len(entries))
+	sort.Slice(entries, func(i, j int) bool { return entries[i].File < entries[j].File })
 
 	total, written, decoded, err := writeHudAtlas(ctx, ix, entries, out)
 	if err != nil {
@@ -152,15 +116,18 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and
 // writes the PNG. Returns the byte count, file count, and decoded descriptors.
-func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out string) (total, written int, decoded map[int]bitmImg, err error) {
-	decoded = map[int]bitmImg{}
+func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out string) (total, written int, decoded map[string]bitmImg, err error) {
+	decoded = map[string]bitmImg{}
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
 			return 0, 0, nil, err
 		}
-		cropped, _, im, err := decodeAlphaGlyph(ix, hudAtlasTag, e.Index)
+		cropped, _, im, err := decodeAlphaGlyph(ix, e.Atlas, e.Index)
 		if err != nil {
 			return 0, 0, nil, fmt.Errorf("hud icon %s (index %d): %w", e.File, e.Index, err)
+		}
+		if !imageVerified(ix, e.Atlas, e.Index) || cropped.Bounds().Dx() < 2 || cropped.Bounds().Dy() < 2 {
+			return 0, 0, nil, fmt.Errorf("hud icon %s: unverified or empty source", e.File)
 		}
 		scaled := scaleToFit(cropped, hudIconSize)
 		if err := writePNG(filepath.Join(out, e.File), scaled); err != nil {
@@ -170,7 +137,7 @@ func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out str
 		if err != nil {
 			return 0, 0, nil, err
 		}
-		decoded[e.Index] = im
+		decoded[e.File] = im
 		total += int(fi.Size())
 		written++
 	}
@@ -214,16 +181,16 @@ type hudIndexEntry struct {
 }
 
 // writeHudIndex writes the HUD set's index.json.
-func writeHudIndex(out string, entries []hudName, decoded map[int]bitmImg) error {
+func writeHudIndex(out string, entries []hudName, decoded map[string]bitmImg) error {
 	outs := make([]hudIndexEntry, 0, len(entries))
 	for _, e := range entries {
-		im, ok := decoded[e.Index]
+		im, ok := decoded[e.File]
 		if !ok {
 			continue
 		}
 		outs = append(outs, hudIndexEntry{
 			Index: e.Index, File: e.File, GameName: e.Game,
-			Source:  fmt.Sprintf("%08x", hudAtlasTag),
+			Source:  fmt.Sprintf("%08x", e.Atlas),
 			SourceW: im.W, SourceH: im.H,
 		})
 	}
