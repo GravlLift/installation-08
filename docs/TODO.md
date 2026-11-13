@@ -9,11 +9,25 @@ are in [PARITY.md](PARITY.md).
 
 - Real scoreboard: the context route serves the scoreboard rows and the match header shows
   the score; the on-screen scoreboard component is removed and not yet re-added (`d53ab5d`).
-- Transport bar: match time in the transport, film export, and the 16:9 player frame with
-  the fullscreen button (in progress).
-- Weapon coatings on screen (in progress; pipeline in [WEAPON-COATINGS.md](WEAPON-COATINGS.md)).
+- Transport bar: the full transport (the reference's `ReplayTransport`) and film export.
+  The match-time readout, the 16:9 player and the fullscreen button are done.
+- Coating libraries: rebuild automatically when the Ekur export changes, and show a viewer
+  notice when coatings are off or incomplete (in progress). Weapon and armor coatings
+  render on screen, first and third person (`40a022c`, `3c3a99e`).
 - English translation pass of the lifted French comments and strings.
 - Packaging and an installer.
+
+## Other open work
+
+- Map file weight: compressed textures (for example KTX2/Basis; files are 600 to 900 MB
+  today, mostly texture data) and a lower-detail build option for weaker machines.
+- Live Fire: check whether the three extra structures its scenario names are ever visible
+  (they add 266 MB); drop or thin them by a general rule if not.
+- Map fidelity: terrain material-layer blending and its hole mask; cut-out materials drawn
+  alpha-cut whatever their blend field says; the Aquarius table side color; stronger light
+  and shadow contrast.
+- Decoder upstreaming: the shot aim fix is open upstream; the control-view reader (crouch,
+  slide, jump) is next.
 
 ## After migration (owner's queue, in this order)
 
