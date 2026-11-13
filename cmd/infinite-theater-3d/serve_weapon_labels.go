@@ -50,6 +50,11 @@ func enrichWeaponLabels(ctx context.Context, cat weaponsCatalog, doc *replay.Rep
 			// Borrowing a neighbour's key would give it another weapon's voice.
 			continue
 		}
+		if icon, ok := cat.LabelCatalog.Icons[family]; ok && (lbl.Img == "" ||
+			lbl.Img == "/static/weapons-assets/halo_infinite/Grenade.png" ||
+			lbl.Img == "/static/weapons-assets/halo_infinite/Melee.png") {
+			lbl.Img, lbl.Tinted = icon.URL, icon.Tinted
+		}
 		lbl.Key = key
 		lbl.Tint = cat.ShotTints[key]
 		lbl.Role = cat.Roles[key]

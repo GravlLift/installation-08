@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 //go:embed tables/weapon_names.toml
@@ -65,8 +66,10 @@ func LoadLabelCatalog() (LabelCatalog, error) {
 	if err != nil {
 		return LabelCatalog{}, fmt.Errorf("weapon roles: %w", err)
 	}
+	labels := buildFamilyLabels(families, names, shotEffects)
+	labels.Icons = refdata.Labels().Icons
 	return LabelCatalog{
-		LabelCatalog: buildFamilyLabels(families, names, shotEffects),
+		LabelCatalog: labels,
 		FamilyToKey:  families, ShotImpacts: shotImpacts, ShotTints: shotTints, Roles: roles,
 	}, nil
 }

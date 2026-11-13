@@ -7,6 +7,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -249,4 +251,47 @@ func gunzipBytesForTest(t *testing.T, gz []byte) []byte {
 		t.Fatal(err)
 	}
 	return out
+}
+
+func TestServedWeaponIconCoverage(t *testing.T) {
+	families := map[string]string{
+		"0x0A1992BC": "05", "0x1A22FEE6": "23", "0x2B1824D5": "01",
+		"0x3E070217": "39", "0x48C19D2D": "00", "0x6ACDC44D": "33",
+		"0xC3542946": "11", "0xF408190F": "03", "0xFD98554C": "02",
+	}
+	doc := &replay.ReplayDocument{WeaponLabels: map[string]replay.WeaponLabel{}}
+	for family := range families {
+		doc.WeaponLabels[family] = replay.WeaponLabel{Text: replay.Text{"en": "stored"}}
+		doc.WeaponLabels[family+"42C9679F"] = replay.WeaponLabel{Text: replay.Text{"en": "stored"}}
+	}
+	doc.WeaponLabels["0x00007CA9"] = replay.WeaponLabel{Img: "/static/weapons-assets/halo_infinite/Melee.png"}
+	enrichWeaponLabels(context.Background(), testLabelCatalog, doc)
+	if got := doc.WeaponLabels["0x00007CA9"].Img; got != "/static/weapons-assets/halo_infinite/jeu/killfeed-65.png" {
+		t.Errorf("legacy melee image = %q", got)
+	}
+	if dir := os.Getenv("IT3D_TEST_ICON_DIR"); dir != "" {
+		for family := range testLabelCatalog.LabelCatalog.Weapons {
+			icon, ok := testLabelCatalog.LabelCatalog.Icons[family]
+			if !ok || icon.URL == "" {
+				t.Errorf("%08x has no icon", family)
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(dir, filepath.Base(icon.URL))); err != nil {
+				t.Errorf("%08x icon file: %v", family, err)
+			}
+		}
+	}
+	for family, index := range families {
+		for _, id := range []string{family, family + "42C9679F"} {
+			want := "/static/weapons-assets/halo_infinite/jeu/contour-" + index + ".png"
+			if got := doc.WeaponLabels[id].Img; got != want {
+				t.Errorf("%s image = %q, want %q", id, got, want)
+			}
+			if dir := os.Getenv("IT3D_TEST_ICON_DIR"); dir != "" {
+				if _, err := os.Stat(filepath.Join(dir, filepath.Base(want))); err != nil {
+					t.Errorf("%s icon file: %v", id, err)
+				}
+			}
+		}
+	}
 }
