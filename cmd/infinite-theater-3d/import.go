@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,11 +26,13 @@ import (
 type importFlags struct {
 	chunks   string
 	manifest string
+	mvar     string
 	stats    string
 	match    string
 	mapName  string
 	catalog  string
 	dataDir  string
+	rebuild  bool
 }
 
 // parseImportFlags turns `import` arguments into importFlags. The chunks folder and the
@@ -39,6 +42,7 @@ func parseImportFlags(args []string) (importFlags, error) {
 	var f importFlags
 	fs.StringVar(&f.chunks, "chunks", "", "folder holding chunk_00.bin, chunk_01.bin, ... (required)")
 	fs.StringVar(&f.manifest, "manifest", "", "film manifest; copied into the store (optional)")
+	fs.StringVar(&f.mvar, "mvar", "", "map variant; copied into the store (optional)")
 	fs.StringVar(&f.stats, "stats", "", "match stats JSON; copied into the store (optional)")
 	fs.StringVar(&f.match, "match", "", "match id for the store and the document; derived when absent")
 	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\"); absent, it is resolved from the film's map asset id (chunk_00) through the embedded identity table")
@@ -97,8 +101,13 @@ func runImport(args []string) error {
 
 func buildStored(root *store.Root, matchID string, f importFlags) error {
 	chunkDir, _ := root.MatchChunksDir(matchID)
+	_, zone, err := matchObjectiveCatalog(root, matchID)
+	if err != nil {
+		slog.Warn("derive build objectives", "id", matchID, "err", err)
+	}
 	doc, report, err := build.Build(context.Background(), build.Input{
 		ChunkDir:     chunkDir,
+		Zone:         zone,
 		ManifestPath: optionalPath(root.MatchManifestPath(matchID)),
 		StatsPath:    optionalPath(root.MatchStatsPath(matchID)),
 		CatalogPath:  f.catalog,
@@ -115,6 +124,10 @@ func buildStored(root *store.Root, matchID string, f importFlags) error {
 	replayPath, _ := root.MatchReplayPath(matchID)
 	if err := root.WriteFile(replayPath, gz); err != nil {
 		return fmt.Errorf("write replay %s: %w", matchID, err)
+	}
+	if f.rebuild {
+		fmt.Printf("rebuilt %s\n", matchID)
+		return nil
 	}
 	if err := root.SaveMatchMeta(matchID, store.Match{
 		MatchID:    matchID,
@@ -226,6 +239,11 @@ func copyFilmToStore(root *store.Root, matchID string, f importFlags) error {
 		dst, _ := root.MatchManifestPath(matchID)
 		if err := root.WriteCopy(dst, f.manifest); err != nil {
 			return fmt.Errorf("copy manifest: %w", err)
+		}
+	}
+	if f.mvar != "" {
+		if err := root.WriteCopy(variantPath(root, matchID, "map.mvar"), f.mvar); err != nil {
+			return fmt.Errorf("copy map variant: %w", err)
 		}
 	}
 	if f.stats != "" {

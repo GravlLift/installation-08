@@ -4,9 +4,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
+	"github.com/JGtm/halo-infinite-film-decoder/replay"
 )
 
 func TestObjectiveModesAndOrdering(t *testing.T) {
@@ -14,15 +16,31 @@ func TestObjectiveModesAndOrdering(t *testing.T) {
 		{Pos: mapvar.Vec3{X: 5}, Up: mapvar.Vec3{Z: 1}, Forward: mapvar.Vec3{X: 1}, Labels: []int32{mapvar.LabelHashHillRole}, ShapeRaw: &mapvar.ShapeRaw{Family: 2, S5: 393216, S7: 65536, S8: 65536}},
 		{Pos: mapvar.Vec3{X: 1}, Up: mapvar.Vec3{Z: 1}, Forward: mapvar.Vec3{X: 1}, Labels: []int32{mapvar.LabelHashHillRole}, ShapeRaw: &mapvar.ShapeRaw{Family: 2, S5: 393216, S7: 65536, S8: 65536}},
 	}}
-	got := objectivesFromVariant(v, objectiveSpecs("Ranked:King of the Hill"))
+	objectives, zone, err := objectiveCatalogFromVariant(v, "Ranked:King of the Hill", objectiveSpecs("Ranked:King of the Hill"))
+	if err != nil || !zone.Hill || len(zone.Zones) != len(objectives.Zones) {
+		t.Fatalf("zone catalog: %+v %v", zone, err)
+	}
+	for i, z := range zone.Zones {
+		if float32(z.Center.X) != objectives.Zones[i].X || float32(z.Center.Y) != objectives.Zones[i].Y || float32(z.Center.Z) != objectives.Zones[i].Z {
+			t.Fatalf("catalog order differs at %d", i)
+		}
+	}
+	_, empty, err := objectiveCatalogFromVariant(v, "Slayer", objectiveSpecs("Slayer"))
+	if err != nil || !reflect.DeepEqual(empty.Zones, []replay.Zone(nil)) {
+		t.Fatalf("slayer zones: %+v %v", empty, err)
+	}
+	got := objectives
 	if got == nil || len(got.Zones) != 2 || got.Zones[0].X != 1 || got.Zones[0].Team != -1 {
 		t.Fatalf("zones: %+v", got)
 	}
-	if got := objectivesFromVariant(v, objectiveSpecs("Slayer")); got != nil {
+	if got, _, _ := objectiveCatalogFromVariant(v, "Slayer", objectiveSpecs("Slayer")); got != nil {
 		t.Fatalf("slayer: %+v", got)
 	}
 	if got, err := deriveObjectivesFromVariant(nil, "KOTH"); err != nil || got != nil {
 		t.Fatalf("objectives without a variant: %+v, %v", got, err)
+	}
+	if _, _, err := objectiveCatalog([]byte("invalid"), "KOTH"); err == nil {
+		t.Fatal("invalid variant accepted")
 	}
 }
 
@@ -80,11 +98,7 @@ func BenchmarkDeriveObjectives(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		v, err := mapvar.Parse(raw)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if _, err := deriveObjectivesFromVariant(v, "KOTH"); err != nil {
+		if _, _, err := objectiveCatalog(raw, "KOTH"); err != nil {
 			b.Fatal(err)
 		}
 	}

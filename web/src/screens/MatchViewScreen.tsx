@@ -30,6 +30,8 @@ import { usePlaybackLoop } from './usePlaybackLoop'
 import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useVariantLayer } from './useVariantLayer'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
+import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
+import { MatchHeaderBar } from './MatchHeaderBar'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
 
@@ -335,6 +337,8 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
     return () => observer.disconnect()
   }, [])
 
+  const summary = useMatchSummary(matchId)
+  const remote = useRemoteMatch(matchId)
   const inks = useReplayInks(0)
 
   // Everything below is read from the document alone (see docs/PARITY.md for what still
@@ -376,7 +380,8 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
 
   return (
     <div className={fullscreen.active ? REPLAY_FULLSCREEN_FRAME : 'flex h-screen flex-col'}>
-      <div className={fullscreen.active ? 'flex h-full flex-col' : 'contents'}>
+      {!fullscreen.active && <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />}
+      <div className={fullscreen.active ? 'flex h-full flex-col' : 'flex min-h-0 flex-1 flex-col'}>
       <div ref={hostRef} className="relative min-h-0 flex-1">
         <Replay3DView
           meshPath={meshUrl(matchId)}
@@ -394,13 +399,6 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           playWindow={null}
           timeLimitMs={null}
         />
-        <button
-          type="button"
-          onClick={onBack}
-          className="absolute left-3 top-3 z-10 rounded bg-card/90 px-2 py-1 text-xs text-foreground shadow hover:bg-muted"
-        >
-          ← Matches
-        </button>
         <button
           ref={settingsButtonRef}
           type="button"

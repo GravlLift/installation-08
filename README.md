@@ -28,6 +28,11 @@ replaces it. Tokens are stored encrypted for the current Windows user in the dat
 .\infinite-theater-3d.exe serve
 ```
 
+For a local `import`, pass `--mvar <file>` with `--stats <file>` to include live objective zones.
+
+To rebuild a fetched replay from its saved inputs without a network request, run
+`.\infinite-theater-3d.exe rebuild <match-id> --data <dir>`.
+
 The same steps are available to the web viewer through `serve`: `POST /api/auth/login`
 starts the device-code flow, `GET /api/auth/state` reports `signed_out`, `pending` (with the
 address and code to show), `signed_in` or `failed`, `POST /api/auth/logout` signs out,
