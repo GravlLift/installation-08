@@ -247,6 +247,9 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	if err = root.WriteFile(statsPath, stats); err != nil {
 		return err
 	}
+	if err = fetchContextArtifacts(ctx, root, api, id, raw); err != nil {
+		slog.Warn("context metadata fetch failed", "id", id, "err", err)
+	}
 	if mapID != "" {
 		mvar, e := api.Mvar(ctx, mapID, mapVersion)
 		if e != nil {

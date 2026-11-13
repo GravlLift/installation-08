@@ -43,7 +43,7 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 	}))
 	defer s.Close()
 	base = s.URL
-	c := New(s.Client(), Endpoints{s.URL + "/hi", s.URL + "/hi", s.URL + "/hi"}, "test-spartan", "test-clearance")
+	c := New(s.Client(), Endpoints{Stats: s.URL + "/hi", Discovery: s.URL + "/hi", Economy: s.URL + "/hi"}, "test-spartan", "test-clearance")
 	c.interval = 0
 	ctx := context.Background()
 	ms, err := c.Matches(ctx, "123", 1)
