@@ -127,7 +127,7 @@ function useMatchDocument(matchId: string): ViewState {
  *  build state once on mount (a build may already be queued or running from another tab), lets
  *  the viewer start one, and polls every two seconds; `onReady` fires the moment the mesh is
  *  built, so the caller can mount the 3D view without a reload. */
-function MeshBuildPanel({
+export function MeshBuildPanel({
   matchId,
   moduleKey,
   onReady,
@@ -138,7 +138,7 @@ function MeshBuildPanel({
   onReady: () => void
   onBack: () => void
 }) {
-  const { phase, build } = useMeshBuild(matchId)
+  const { phase, build, cancel, cancelling } = useMeshBuild(matchId)
 
   useEffect(() => {
     if (phase.phase === 'ready') onReady()
@@ -153,10 +153,11 @@ function MeshBuildPanel({
       <p className="text-foreground">
         Map module: <span className="font-mono">{effectiveModuleKey || 'unknown'}</span>
       </p>
-      <p className={phase.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
-        {meshBuildStatusText(phase)}
-      </p>
-      {phase.phase === 'absent' && (
+      <div className="flex items-center gap-3">
+        <p className={phase.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{meshBuildStatusText(phase)}</p>
+        {phase.phase === 'building' && <button type="button" onClick={cancel} disabled={cancelling} className="rounded bg-primary px-3 py-1.5 text-primary-foreground disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel'}</button>}
+      </div>
+      {(phase.phase === 'absent' || phase.phase === 'cancelled') && (
         <button
           type="button"
           className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
@@ -199,6 +200,8 @@ function meshBuildStatusText(phase: MeshBuildPhase): string {
       return 'Map built, loading…'
     case 'failed':
       return `Build failed: ${phase.error}`
+    case 'cancelled':
+      return 'Build cancelled.'
   }
 }
 

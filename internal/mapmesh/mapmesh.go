@@ -109,12 +109,23 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	if err != nil {
 		return Summary{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return Summary{}, err
+	}
 	announce(StepLighting)
 	readLighting(ctx, t, m)
+	if err := ctx.Err(); err != nil {
+		return Summary{}, err
+	}
 	announce(StepWriting)
 	extras := map[string]any{"module": t.Key, "mapNames": t.Names, axesGLBKey: axesGLB, "frame": t.Frame}
 	sky := skyOf(ctx, gameRoot, t, m)
-	n, err := writeFile(path, func(w io.Writer) error { return himap.EcritGLBCiel(w, m, generator, extras, sky) })
+	n, err := writeFile(path, func(w io.Writer) error {
+		if err := himap.EcritGLBCiel(w, m, generator, extras, sky); err != nil {
+			return err
+		}
+		return ctx.Err()
+	})
 	if err != nil {
 		return Summary{}, err
 	}

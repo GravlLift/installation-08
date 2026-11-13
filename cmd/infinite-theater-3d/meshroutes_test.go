@@ -222,3 +222,61 @@ func TestMeshStateTransitions(t *testing.T) {
 		t.Fatalf("ready state missing moduleKey: %s", body)
 	}
 }
+
+func TestMeshCancelAndRestart(t *testing.T) {
+	root := meshTestStore(t)
+	started := make(chan struct{}, 2)
+	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		started <- struct{}{}
+		<-ctx.Done()
+		return meshjobs.BuildResult{}, ctx.Err()
+	}
+	jobs, err := meshjobs.New(build, "", func(string) bool { return false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs.Start()
+	t.Cleanup(func() { jobs.Stop(time.Second) })
+	h := newTestHandlers(root, jobs)
+	path := "/api/matches/abc/mesh/"
+	if rec := postMesh(t, h, path+"cancel", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("idle cancel = %d", rec.Code)
+	}
+	postMesh(t, h, path+"build", nil)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("build did not start")
+	}
+	if rec := postMesh(t, h, "/api/matches/def/mesh/cancel", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("other module cancel = %d", rec.Code)
+	}
+	if rec := postMesh(t, h, path+"cancel", map[string]string{"Origin": "https://evil.example"}); rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin cancel = %d", rec.Code)
+	}
+	if rec := postMesh(t, h, path+"cancel", nil); rec.Code != http.StatusOK {
+		t.Fatalf("cancel = %d: %s", rec.Code, rec.Body.String())
+	}
+	deadline := time.Now().Add(time.Second)
+	for jobs.Snapshot("moda").State != meshjobs.State("cancelled") {
+		if time.Now().After(deadline) {
+			t.Fatalf("state after cancel = %+v", jobs.Snapshot("moda"))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if rec := get(t, h, path+"state", nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"state":"cancelled"`) {
+		t.Fatalf("cancelled state = %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := postMesh(t, h, path+"cancel", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("finished cancel = %d", rec.Code)
+	}
+	postMesh(t, h, path+"build", nil)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("retry did not start")
+	}
+	if got := jobs.Snapshot("moda").State; got != meshjobs.StateBuilding {
+		t.Fatalf("retry state = %s", got)
+	}
+}

@@ -32,6 +32,7 @@ describe('phaseOfMeshState', () => {
       elapsedMs: 500,
     })
     expect(phaseOfMeshState({ ...base, state: 'ready' })).toEqual({ phase: 'ready', moduleKey: 'mod' })
+    expect(phaseOfMeshState({ ...base, state: 'cancelled' })).toEqual({ phase: 'cancelled', moduleKey: 'mod' })
     expect(phaseOfMeshState({ ...base, state: 'failed', error: 'boom' })).toEqual({
       phase: 'failed',
       moduleKey: 'mod',

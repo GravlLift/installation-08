@@ -71,7 +71,7 @@ export class NoMapModuleError extends ApiError {
 }
 
 /** The lifecycle of a module's mesh build job, as `GET`/`POST .../mesh/state`/`build` answer it. */
-export type MeshBuildState = 'absent' | 'queued' | 'building' | 'ready' | 'failed'
+export type MeshBuildState = 'absent' | 'queued' | 'building' | 'ready' | 'failed' | 'cancelled'
 
 /** The JSON body of `GET /api/matches/{id}/mesh/state` and `POST .../mesh/build` (see
  *  `meshStateJSON` in `cmd/infinite-theater-3d/serve.go`). Fields that do not apply to the
@@ -177,6 +177,13 @@ export async function requestMeshBuild(matchId: string, signal?: AbortSignal): P
   })
   const body = await readErrorBody(res)
   if (!res.ok) throwMeshError(res, body, matchId, 'POST .../mesh/build')
+  return body as MeshStateBody
+}
+
+export async function cancelMeshBuild(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/cancel`, { method: 'POST', signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throwMeshError(res, body, matchId, 'POST .../mesh/cancel')
   return body as MeshStateBody
 }
 

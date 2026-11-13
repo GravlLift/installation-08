@@ -287,6 +287,42 @@ func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, status, meshStateJSON(snap))
 }
 
+// handleMeshCancel cancels the running build for the match's map module.
+func (h serverHandlers) handleMeshCancel(w http.ResponseWriter, r *http.Request) {
+	if !originAllowed(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
+		return
+	}
+	if h.jobs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
+		return
+	}
+	id := r.PathValue("id")
+	if !store.MatchIDValid(id) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
+		return
+	}
+	meta, err := h.root.MatchMeta(id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "match_not_found", "id": id})
+		} else {
+			slog.Error("match meta", "err", err, "id", id)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		return
+	}
+	if meta.MapModule == "" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
+		return
+	}
+	if !h.jobs.Cancel(meta.MapModule) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "build_not_running"})
+		return
+	}
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meta.MapModule)))
+}
+
 // handleMeshState answers GET /api/matches/{id}/mesh/state with the module's build state.
 func (h serverHandlers) handleMeshState(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

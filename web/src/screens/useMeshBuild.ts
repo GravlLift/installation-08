@@ -12,6 +12,7 @@ import {
   ApiError,
   fetchMeshState,
   requestMeshBuild,
+  cancelMeshBuild,
   type MeshStateBody,
 } from '../lib/api/standalone'
 
@@ -22,6 +23,7 @@ export type MeshBuildPhase =
   | { phase: 'building'; moduleKey: string; elapsedMs?: number }
   | { phase: 'ready'; moduleKey: string }
   | { phase: 'failed'; moduleKey: string; error: string }
+  | { phase: 'cancelled'; moduleKey: string }
 
 /** Default polling interval while a build is queued or running. */
 export const MESH_BUILD_POLL_MS = 2000
@@ -38,6 +40,8 @@ export function phaseOfMeshState(body: MeshStateBody): MeshBuildPhase {
       return { phase: 'building', moduleKey: body.moduleKey, elapsedMs: body.elapsedMs }
     case 'ready':
       return { phase: 'ready', moduleKey: body.moduleKey }
+    case 'cancelled':
+      return { phase: 'cancelled', moduleKey: body.moduleKey }
     case 'failed':
       return { phase: 'failed', moduleKey: body.moduleKey, error: body.error ?? 'unknown error' }
   }
@@ -57,10 +61,13 @@ export interface UseMeshBuildResult {
   phase: MeshBuildPhase
   /** Starts (or joins) the build. No-op while a build is already in flight. */
   build: () => void
+  cancel: () => void
+  cancelling: boolean
 }
 
 export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_MS): UseMeshBuildResult {
   const [phase, setPhase] = useState<MeshBuildPhase>({ phase: 'checking' })
+  const [cancelling, setCancelling] = useState(false)
   // Read inside the interval callback without making it a dependency that would restart polling.
   const phaseRef = useRef(phase)
   phaseRef.current = phase
@@ -140,5 +147,20 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
     })()
   }, [matchId])
 
-  return { phase, build }
+  const cancel = useCallback(() => {
+    if (phaseRef.current.phase !== 'building' || cancelling) return
+    setCancelling(true)
+    void cancelMeshBuild(matchId).then((body) => {
+      setPhase(phaseOfMeshState(body))
+    }).catch((err: unknown) => {
+      setPhase({ phase: 'failed', moduleKey: moduleKeyOf(phaseRef.current), error: err instanceof Error ? err.message : String(err) })
+      setCancelling(false)
+    })
+  }, [matchId, cancelling])
+
+  useEffect(() => {
+    if (phase.phase !== 'building') setCancelling(false)
+  }, [phase.phase])
+
+  return { phase, build, cancel, cancelling }
 }
