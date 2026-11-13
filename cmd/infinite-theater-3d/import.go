@@ -92,6 +92,10 @@ func runImport(args []string) error {
 	if err := copyFilmToStore(root, matchID, f); err != nil {
 		return err
 	}
+	return buildStored(root, matchID, f)
+}
+
+func buildStored(root *store.Root, matchID string, f importFlags) error {
 	chunkDir, _ := root.MatchChunksDir(matchID)
 	doc, report, err := build.Build(context.Background(), build.Input{
 		ChunkDir:     chunkDir,
