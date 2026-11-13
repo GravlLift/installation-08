@@ -253,8 +253,19 @@ weapons path it is given (`/api/weapons` to `/api/first-person`).
 - `GET /api/first-person/state` — the first-person library's build state, in the same JSON
   shape as the mesh state (its `moduleKey` is `first-person`).
 
+At launch, when a game install is found, `serve` starts every one-time build in the
+background at once, in this order: the weapon icon set, the weapon model library, the
+first-person library, and, for every match in the store, that match's map mesh and variant
+layer (each distinct map module once). A build whose output is already in the data folder
+is skipped, so a restart only builds what is still missing. The builds land in the data
+directory (`<data>/assets/weapons-icons/...`, `<data>/weapons`, `<data>/first-person`,
+`<data>/maps/...` and each match's own folder) and run one at a time, never blocking the
+server from listening. A match fetched while the server runs is added to the same queue
+the moment the fetch route saves it. With no game install found the startup logs once and
+queues nothing; the on-demand routes below still answer and can trigger a build.
+
 A map, the weapon library and the first-person library build at most one at a time
-process-wide: the three jobs share the map build queue, so no two of them run together. A
+process-wide: the jobs share the map build queue, so no two of them run together. A
 build writes each GLB, texture and index to a temporary file in its library folder and
 renames it into place on success, so a half-written file is never served.
 

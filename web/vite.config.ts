@@ -27,6 +27,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8177',
         changeOrigin: true,
       },
+      // Game-derived assets the server builds into the data folder (weapon icons).
+      '/static': {
+        target: 'http://127.0.0.1:8177',
+        changeOrigin: true,
+      },
     },
   },
   test: {
