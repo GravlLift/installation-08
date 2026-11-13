@@ -84,11 +84,18 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	parFichier := map[string]bool{}
 
+	coats, err := spartanpieces.OpenCoatingWork(spartanpieces.EkurDir(opts.DataDir))
+	if err != nil {
+		return Result{}, err
+	}
+	if coats == nil {
+		slog.WarnContext(ctx, "first-person rigs without weapon coatings: no ekur reference")
+	}
 	armes, sans := a.ArmesPremierePersonne()
 	for _, s := range armes {
 		key := fmt.Sprintf("%08x", s.Arme)
 		announce("building first-person rig " + key)
-		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep)
+		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)
 		if err != nil {
 			raison := "error"
 			if errors.Is(err, himap.ErrSansPremierePersonne) {
@@ -159,17 +166,26 @@ func resolveModule(ctx context.Context, opts Options) (string, string, error) {
 // in this run, or already on disk from a previous run) and returns its file name and index
 // entry. The file name is the content digest of the written rig, so the same index is
 // rebuilt over the same files on a resume.
-func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, dir string, dep *depot) (string, Rig, error) {
+func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, dir string, dep *depot,
+	coats *spartanpieces.CoatingWork) (string, Rig, error) {
 	r, err := a.RigPremierePersonne(ctx, s.Arme, nil)
 	if err != nil {
 		return "", Rig{}, err
 	}
 	extras := map[string]any{"model": "first-person-rig", "weapon": key, axesGLBKey: axesGLB}
-	var buf bytes.Buffer
-	if err := himap.EcritGLBPeauAnime(&buf, r.Modele, r.Clips, generatorLibrary, extras); err != nil {
+	// The vendored reader writes the arms raw and bakes the weapon; the weapon's styled
+	// hard surfaces are written raw and styled too (marked rigWeapon, so the viewer tells
+	// them from the arms), so the held gun takes its player's coating like the
+	// third-person model.
+	painted, err := coats.PaintableGLB(ctx, r.Modele.Maillage, func() ([]byte, error) {
+		var buf bytes.Buffer
+		err := himap.EcritGLBPeauAnime(&buf, r.Modele, r.Clips, generatorLibrary, extras)
+		return buf.Bytes(), err
+	}, func(extras map[string]any) { extras[RigWeaponKey] = true })
+	if err != nil {
 		return "", Rig{}, err
 	}
-	glb, _, err := himap.ExterniseImagesGLB(buf.Bytes(), dep.depose)
+	glb, _, err := himap.ExterniseImagesGLB(painted, dep.depose)
 	if err != nil {
 		return "", Rig{}, err
 	}

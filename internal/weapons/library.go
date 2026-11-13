@@ -139,8 +139,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	return res, nil
 }
 
-// buildWeaponModel writes one weapon's painted GLB (its hard surfaces as raw
-// images, extras.surfaceBrute) and returns its byte size.
+// buildWeaponModel writes one weapon's painted GLB (its styled hard surfaces as
+// raw images, extras.surfaceBrute and extras.style; the others baked) and
+// returns its byte size.
 func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string, coats *spartanpieces.CoatingWork) (int64, error) {
 	id, err := parseKey(key)
 	if err != nil {
@@ -150,7 +151,6 @@ func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string, co
 	if err != nil {
 		return 0, err
 	}
-	m.SurfacesBrutes = true
 	return writeModelGLB(ctx, dir, key, m, coats, generatorWeapon, map[string]any{"weap": key})
 }
 
@@ -200,16 +200,13 @@ func parseKey(key string) (uint32, error) {
 // size. coats (nil accepted) puts the coating style on the painted materials before the write.
 func writeModelGLB(ctx context.Context, dir, key string, m *himap.MaillageMonde, coats *spartanpieces.CoatingWork,
 	generator string, extras map[string]any) (int64, error) {
-	var buf bytes.Buffer
-	if err := himap.EcritGLB(&buf, m, generator, withAxes(extras)); err != nil {
+	glb, err := coats.PaintableGLB(ctx, m, func() ([]byte, error) {
+		var buf bytes.Buffer
+		err := himap.EcritGLB(&buf, m, generator, withAxes(extras))
+		return buf.Bytes(), err
+	}, nil)
+	if err != nil {
 		return 0, err
-	}
-	glb := buf.Bytes()
-	if coats != nil {
-		var err error
-		if glb, err = himap.AnnoteMateriauxGLB(glb, coats.Annotate(ctx)); err != nil {
-			return 0, err
-		}
 	}
 	return writeFile(filepath.Join(dir, FileOf(key)), func(w ioWriter) error {
 		_, err := w.Write(glb)

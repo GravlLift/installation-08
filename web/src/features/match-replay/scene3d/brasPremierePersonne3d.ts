@@ -63,8 +63,18 @@ export function appliquerTenueRig(position: THREE.Vector3, quaternion: THREE.Qua
   }
 }
 
-export function estMateriauBras(materiau: THREE.Material): materiau is THREE.MeshStandardMaterial {
+/**
+ * estMateriauPeint : a raw (unbaked) rig material the view paints, arm or weapon. The library
+ * writes the weapon's styled hard surfaces raw too, marked `rigWeapon`, so the held gun takes
+ * its player's weapon coating.
+ */
+export function estMateriauPeint(materiau: THREE.Material): materiau is THREE.MeshStandardMaterial {
   return materiau instanceof THREE.MeshStandardMaterial && !!materiau.userData.surfaceBrute && !materiau.map
+}
+
+/** estMateriauBras : a raw rig material of the arms (not the weapon's, `rigWeapon`). */
+export function estMateriauBras(materiau: THREE.Material): materiau is THREE.MeshStandardMaterial {
+  return estMateriauPeint(materiau) && !materiau.userData.rigWeapon
 }
 
 export function peindreMateriauBras(materiau: THREE.Material, habit: Dress | null): boolean {
@@ -402,7 +412,7 @@ export class BrasPremierePersonne3d {
           if (!(objet instanceof THREE.Mesh)) return
           if (objet instanceof THREE.SkinnedMesh) objet.frustumCulled = false
           for (const materiau of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-            if (!estMateriauBras(materiau)) {
+            if (!estMateriauPeint(materiau)) {
               darkMetalFallback(materiau)
               continue
             }
@@ -410,7 +420,7 @@ export class BrasPremierePersonne3d {
             materiau.roughness = RUGOSITE_ARMURE_NEUTRE
           }
         })
-        await rawMaps(gltf.scene, gltf.parser, (m) => estMateriauBras(m) && !!m.userData.style)
+        await rawMaps(gltf.scene, gltf.parser, (m) => estMateriauPeint(m) && !!m.userData.style)
           .catch((erreur: unknown) => console.warn('rejeu 3D : masques des bras indisponibles', erreur))
         if (this.abort.signal.aborted) {
           this.liberer(gltf.scene)
@@ -439,7 +449,7 @@ export class BrasPremierePersonne3d {
         gltf.scene.traverse((objet) => {
           if (!(objet instanceof THREE.Mesh)) return
           for (const m of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-            if (estMateriauBras(m) && m.userData.style && !materiaux.includes(m)) materiaux.push(m)
+            if (estMateriauPeint(m) && m.userData.style && !materiaux.includes(m)) materiaux.push(m)
           }
         })
         entree.materiaux = materiaux

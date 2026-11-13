@@ -21,6 +21,11 @@ const axesGLB = "gltf(x, y, z) = halo(x, z, -y)"
 // axesGLBKey is the extras key of the axis mapping.
 const axesGLBKey = "axes"
 
+// RigWeaponKey is the material extras key a rig sets (true) on its weapon's raw, styled
+// hard surfaces: the viewer paints them with the weapon's coating and tells them from the
+// arms (also raw) by it.
+const RigWeaponKey = "rigWeapon"
+
 // writeFile writes what `write` produces under path+".tmp" then renames it, and returns
 // its size. A crash mid-write never leaves a torn file.
 func writeFile(path string, write func(ioWriter) error) (int64, error) {

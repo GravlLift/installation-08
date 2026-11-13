@@ -65,6 +65,90 @@ func (a *CoatingWork) Annotate(ctx context.Context) func(extras map[string]any) 
 	}
 }
 
+// PaintableGLB writes m (through write, which encodes m with its current
+// surface flags) so that only the hard surfaces the viewer can actually paint
+// are raw: a material the reference styles is written raw (extras.surfaceBrute)
+// and annotated (extras.style); one it cannot style is baked (extras.surfaceDure,
+// the neutral textured render), because a raw surface with no style renders
+// flat grey. The materials already in m.SurfacesBrutesDe stay raw whatever
+// their style (a first-person rig's arms, painted from the armor library).
+// mark, when not nil, is called on every raw styled material's extras that is
+// not one of those kept materials (a rig marks its weapon). A nil work writes
+// m with only the kept materials raw.
+func (a *CoatingWork) PaintableGLB(ctx context.Context, m *himap.MaillageMonde, write func() ([]byte, error),
+	mark func(extras map[string]any)) ([]byte, error) {
+	keep := map[uint32]bool{}
+	for id, raw := range m.SurfacesBrutesDe {
+		if raw {
+			keep[id] = true
+		}
+	}
+	setRaw := func(styled map[uint32]bool) {
+		m.SurfacesBrutes = false
+		m.SurfacesBrutesDe = map[uint32]bool{}
+		for id := range keep {
+			m.SurfacesBrutesDe[id] = true
+		}
+		for id := range styled {
+			m.SurfacesBrutesDe[id] = true
+		}
+	}
+	if a == nil {
+		setRaw(nil)
+		return write()
+	}
+	// Pass 1: every hard surface raw, to learn which ones the reference styles.
+	m.SurfacesBrutes = true
+	glb, err := write()
+	if err != nil {
+		return nil, err
+	}
+	annotate := a.Annotate(ctx)
+	styled, unstyled := map[uint32]bool{}, map[uint32]bool{}
+	note := func(extras map[string]any) bool {
+		_, raw := extras[himap.CleSurfaceBrute].(map[string]any)
+		id, ok := himap.NombreJSON(extras["id"])
+		if !ok || keep[id] {
+			return false
+		}
+		changed := annotate(extras)
+		if raw {
+			if changed {
+				styled[id] = true
+				if mark != nil {
+					mark(extras)
+				}
+			} else {
+				unstyled[id] = true
+			}
+		}
+		return changed
+	}
+	if glb, err = himap.AnnoteMateriauxGLB(glb, note); err != nil {
+		return nil, err
+	}
+	if len(unstyled) == 0 {
+		m.SurfacesBrutes = false
+		return glb, nil
+	}
+	// Pass 2: the unstyled surfaces baked, the styled ones raw again.
+	slog.InfoContext(ctx, "hard surfaces without style baked (neutral render)", "materials", len(unstyled), "styled", len(styled))
+	setRaw(styled)
+	if glb, err = write(); err != nil {
+		return nil, err
+	}
+	return himap.AnnoteMateriauxGLB(glb, func(extras map[string]any) bool {
+		if id, ok := himap.NombreJSON(extras["id"]); !ok || keep[id] {
+			return false
+		}
+		changed := annotate(extras)
+		if changed && mark != nil {
+			mark(extras)
+		}
+		return changed
+	})
+}
+
 // material returns the reference's material id (read once, counted once); nil
 // when it is missing.
 func (a *CoatingWork) material(ctx context.Context, id uint32, raw map[string]any) *ekurMaterial {

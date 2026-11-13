@@ -15,7 +15,7 @@ import type { LoadGate } from './loadGate3d'
 
 import { armorMaterial } from './armorMaterial3d'
 import type { Dress, SpartanArmory } from './armory3d'
-import { estMateriauBras, memePeinture } from './brasPremierePersonne3d'
+import { estMateriauPeint, memePeinture } from './brasPremierePersonne3d'
 import type { BakedLight } from './bakedLightShader'
 import type { Coat } from './armorCoat3d'
 import type { PreparationRig3d } from './preparationRig3d'
@@ -146,7 +146,7 @@ function materiauxPeinturables(racine: THREE.Object3D): THREE.Material[] {
   racine.traverse((objet) => {
     if (!(objet instanceof THREE.Mesh) || !objet.visible) return
     for (const m of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-      if (estMateriauBras(m) && m.userData.style && !result.includes(m)) result.push(m)
+      if (estMateriauPeint(m) && m.userData.style && !result.includes(m)) result.push(m)
     }
   })
   return result

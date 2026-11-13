@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import type { Dress } from './armory3d'
 import { verticalFovOf, viewmodelScale } from '../model/fovLogic'
-import { BrasPremierePersonne3d, estMateriauBras, memePeinture, peindreMateriauBras } from './brasPremierePersonne3d'
+import { BrasPremierePersonne3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './brasPremierePersonne3d'
 
 describe('estMateriauBras', () => {
   it('reconnaît la surface brute sans remplacer les matériaux de l’arme', () => {
@@ -14,6 +14,18 @@ describe('estMateriauBras', () => {
     bras.map = new THREE.Texture()
     expect(estMateriauBras(bras)).toBe(false)
     expect(estMateriauBras(new THREE.MeshBasicMaterial())).toBe(false)
+  })
+
+  it('a raw rig weapon material (rigWeapon) is painted but is not an arm', () => {
+    const arme = new THREE.MeshStandardMaterial()
+    arme.userData.surfaceBrute = { asg: 0 }
+    arme.userData.rigWeapon = true
+    expect(estMateriauPeint(arme)).toBe(true)
+    expect(estMateriauBras(arme)).toBe(false)
+    const bras = new THREE.MeshStandardMaterial()
+    bras.userData.surfaceBrute = { asg: 0 }
+    expect(estMateriauPeint(bras)).toBe(true)
+    expect(estMateriauBras(bras)).toBe(true)
   })
 })
 
