@@ -28,6 +28,7 @@ import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySe
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
 import { useDefaultViewpoint } from './useDefaultViewpoint'
+import { useVariantLayer } from './useVariantLayer'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
@@ -292,6 +293,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen()
   const fps = framesPerSecond(doc)
+  const variantPath = useVariantLayer(matchId)
 
   // Keyboard shortcuts (`useReplayShortcuts`, lifted unchanged): play/pause, ±10s seek,
   // frame-step, restart and fullscreen. `toggleSound` is a deliberate no-op — no sound is
@@ -378,7 +380,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
       <div ref={hostRef} className="relative min-h-0 flex-1">
         <Replay3DView
           meshPath={meshUrl(matchId)}
-          variantPath={null}
+          variantPath={variantPath}
           weaponsPath="/api/weapons"
           armor={null}
           doc={doc}
