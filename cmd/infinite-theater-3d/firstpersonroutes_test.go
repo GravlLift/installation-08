@@ -73,8 +73,10 @@ func writeFirstPersonFixtures(dir string) error {
 	}
 	files := map[string]string{
 		firstperson.FichierIndex:                      `{"schema":1,"generator":"test","weapons":[{"weapon":"abcdef12","file":"rig-0123456789abcdef.glb"}],"rigs":[{"file":"rig-0123456789abcdef.glb","bones":1,"triangles":1,"bytes":1,"clips":[],"actions":[],"missingActions":[]}],"failures":[],"textures":{"files":1,"bytes":12,"references":1}}`,
-		firstperson.FichierBras:                       `{"schema":1,"skeleton":{"bones":[]},"pieces":[],"default":{},"failures":[]}`,
+		firstperson.FichierBras:                       `{"schema":2,"skeleton":{"bones":["arm"]},"pieces":[{"key":"62059329-16a12dd4","region":"62059329","permutation":"16a12dd4","file":"piece-62059329-16a12dd4.glb"}],"default":{"62059329":"13d24f1f"},"failures":[]}`,
 		"rig-0123456789abcdef.glb":                    "glTF-rig-bytes",
+		"piece-62059329-16a12dd4.glb":                 "arm-piece",
+		"texture-" + strings.Repeat("a", 16) + ".png": "arm-texture",
 		"texture-" + strings.Repeat("0", 64) + ".png": "texture-bytes",
 	}
 	for nom, contenu := range files {
@@ -145,6 +147,12 @@ func TestFirstPersonBuildThenServe(t *testing.T) {
 	tex := get(t, h, "/api/first-person/texture-"+strings.Repeat("0", 64)+".png", nil)
 	if tex.Code != http.StatusOK || !strings.Contains(tex.Body.String(), "texture-bytes") {
 		t.Fatalf("texture = %d %s, want 200 texture bytes", tex.Code, tex.Body.String())
+	}
+	for _, file := range []string{"piece-62059329-16a12dd4.glb", "texture-" + strings.Repeat("a", 16) + ".png"} {
+		asset := get(t, h, "/api/first-person/"+file, nil)
+		if asset.Code != http.StatusOK {
+			t.Fatalf("arm asset %s: %d", file, asset.Code)
+		}
 	}
 	// A rig is range-capable: a Range request returns the requested slice with a 206.
 	req := httptest.NewRequest(http.MethodGet, "/api/first-person/rig-0123456789abcdef.glb", nil)

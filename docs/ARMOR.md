@@ -15,3 +15,9 @@ LevelUp registers the routes in `apps/go-api/internal/api/handlers/replay.go` an
 `web/src/lib/replay/spartanArmor.ts` requests the manifest and names the piece-library base URL. `Replay3DView` passes manifests to `scene3d/armory3d.ts`, which uses `armorLibrary3d.ts` to load the index, GLBs, textures and coatings, and `spartanArmor3d.ts` to dress the animated body. These components already exist in the standalone, but `MatchViewScreen.tsx` passes `armor={null}` and the existing hook still uses LevelUp player-scoped URLs.
 
 The standalone runner is `internal/meshjobs` wired by `cmd/infinite-theater-3d/serve_jobs.go`. `serve_startup.go` queues shared libraries and match builds; fetched customization is persisted by `fetch.go`. `dataDirFor` chooses the data root. All generated game assets belong there, outside Git.
+
+## First-person arms
+
+The first-person library includes skinned arm pieces and `bras.json`, ported from LevelUp's `premiere_personne_bras.go`. The viewer selects the followed player's region permutations, binds them to the weapon rig, and uses the Spartan coating library to paint them. Arm material styles require the same Ekur reference used by the Spartan piece build (`IT3D_EKUR_DIR` or `<data>/ekur`).
+
+Rebuild an existing library with `infinite-theater-3d build-firstperson-library --data <data-dir>`. The build route only queues a missing library and does not rebuild an existing one. The build reads the installed game and writes generated assets only under the selected data directory. An existing Spartan coating library must also have been built with Ekur.

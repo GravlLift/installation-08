@@ -48,7 +48,7 @@ func fichierTexture(data []byte, ext string) string {
 
 // nomFichierPremierePersonne is the only file names the library folder holds: the index, the
 // arm catalog, a rig, and a depot texture.
-var nomFichierPremierePersonne = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|texture-[0-9a-f]{64}\.(png|jpg))$`)
+var nomFichierPremierePersonne = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|texture-([0-9a-f]{16}|[0-9a-f]{64})\.(png|jpg))$`)
 
 // NomFichierPremierePersonne dit si `nom` est un fichier que la route des rigs sert.
 func NomFichierPremierePersonne(nom string) bool { return nomFichierPremierePersonne.MatchString(nom) }

@@ -3,7 +3,7 @@ package firstperson
 // library.go builds the first-person library on demand: one rig per weapon the game renders
 // in first person (the arms of the Spartan's default armor and the weapon on the one
 // skeleton of the weapon's own FP animation graph, every distinct animation baked on), the
-// shared texture depot, then index.json last. It is the library counterpart of the
+// shared texture depot, the player arm pieces, then index.json last. It is the library counterpart of the
 // single-weapon mapmesh.BuildFirstPerson: same himap chain (RigPremierePersonne,
 // EcritGLBPeauAnime), so a library rig is what build-firstperson would have written, plus a
 // content-based file name (two weapons on the same rig share a file) and the textures
@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 )
 
 // Options names a library build's inputs.
@@ -114,9 +115,11 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	sort.Slice(idx.Rigs, func(i, j int) bool { return idx.Rigs[i].File < idx.Rigs[j].File })
 	idx.Textures = Textures{Files: dep.fichiers, Bytes: dep.octets, References: dep.references}
 	res.Bytes += dep.octets
-	if err := WriteBras(dir); err != nil {
+	armBytes, err := spartanpieces.BuildFirstPersonArms(ctx, a, opts.DataDir, dir, announce)
+	if err != nil {
 		return res, err
 	}
+	res.Bytes += armBytes
 	if err := writeIndex(dir, idx); err != nil {
 		return res, err
 	}

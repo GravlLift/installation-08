@@ -122,6 +122,8 @@ func TestNomFichierPremierePersonne(t *testing.T) {
 		"index.json",
 		"bras.json",
 		"rig-0123456789abcdef.glb",
+		"piece-62059329-16a12dd4.glb",
+		"texture-" + strings.Repeat("0", 16) + ".png",
 		"texture-" + strings.Repeat("0", 64) + ".png",
 		"texture-" + strings.Repeat("a", 64) + ".jpg",
 	}
@@ -139,6 +141,7 @@ func TestNomFichierPremierePersonne(t *testing.T) {
 		"rig_0123456789abcdef.glb",                    // wrong separator
 		"texture-" + strings.Repeat("0", 63) + ".png", // 63 hex
 		"texture-" + strings.Repeat("0", 64) + ".gif", // wrong extension
+		"piece-62059329-16a12ddg.glb",
 		"weap-2b1824d5.glb",
 		"../index.json",
 		"",
