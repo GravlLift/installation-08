@@ -222,7 +222,7 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	if err != nil {
 		return err
 	}
-	facts, mapID, mapVersion, err := matchFacts(raw)
+	facts, mapID, mapVersion, _, err := matchFacts(raw)
 	if err != nil {
 		return errors.New("invalid match stats")
 	}

@@ -76,9 +76,11 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 	}
 	mapID := textValue(header["map_id"])
 	if mapID != "" && store.ModuleKeyValid(mapID) {
-		name := mapID + ".png"
-		if _, err := os.Stat(filepath.Join(root.Dir(), "static", "maps", "halo_infinite", name)); err == nil {
-			header["map_image_url"] = "/static/maps/halo_infinite/" + name
+		for _, name := range []string{mapID + ".png", mapID + ".jpg"} {
+			if _, err := os.Stat(filepath.Join(root.Dir(), "static", "maps", "halo_infinite", name)); err == nil {
+				header["map_image_url"] = "/static/maps/halo_infinite/" + name
+				break
+			}
 		}
 	}
 	contextSkill(header, rows, contextReadJSON(variantPath(root, id, "skill.json")), rankicons.OutDir(root.Dir()))

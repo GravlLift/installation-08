@@ -135,3 +135,51 @@ LevelUp never had to build. Added to `screens/MatchListScreen.tsx` (the home scr
 |---|---|---|
 | Account panel | `screens/AccountPanel.tsx` + `screens/useAuthState.ts` | Sign in with Xbox (Microsoft device-code flow), shows the code/link/countdown while pending, the gamertag once signed in, the server's error with a retry on failure. Polls `GET /api/auth/state` every 2s while pending; `normalizeAuthState` in `lib/api/standalone.ts` also accepts the server's older `{signedIn}` shape until it picks up the new `{state:...}` contract. |
 | Recent remote matches | `screens/RemoteMatchesPanel.tsx` + `screens/useRemoteMatches.ts` + `screens/useMatchFetchQueue.ts` | Shown while signed in: the account's recent matches from `GET /api/remote/matches`, each either "Open" (already in the local store, checked against `GET /api/matches`) or "Fetch" (downloads and builds it via `POST /api/matches/{id}/fetch`, polling `GET .../fetch/state` every 2s; single-flight client-side, and a 409 from the server falls back to polling the row's own state instead of erroring). A completed fetch refreshes the local list so the row becomes "Open". |
+
+## 4. Per-mode data parity (replay document + match context)
+
+Audited by comparing the two servers' outputs for the same film (`tools/parity`), not by
+reading code. The two matches both servers hold are `7d798138` (Ranked Oddball) and
+`9220185c` (Recharge / Ranked Slayer); the four matches LevelUp does not hold
+(`19628ee2` Strongholds, `d01ba030` King of the Hill, `a2c79b5e` Slayer, `f9a8ab62` CTF)
+are checked for internal completeness of their own document instead.
+
+Status: **fixed** = ported from LevelUp this pass and gated by a Go test; **report** = a
+real difference that lives in the vendored decoder or in LevelUp's database, not portable
+from its Go builder or context route; **parity** = already equal, no change needed.
+
+### 4.1 Replay document (per mode)
+
+| Mode (match) | Field | LevelUp | Ours | Status |
+|---|---|---|---|---|
+| Oddball `7d798138` | `skullCarries` | 46 | 46 | parity |
+| Oddball `7d798138` | `scoreTimeline` | present (no `targetScore`: `[rounds_decide]` mode, the score is read in rounds) | present (same) | parity |
+| Oddball `7d798138` | `projectiles` | 372 (schema 116, 100 ms grid) | 539 (schema 122, 33 ms grid) | report: decoder difference, the vendored decoder is newer and denser |
+| Oddball `7d798138` | `stances` / `drawnWeapons` / `ammoReads` / `weaponChanges` | 3260 / 594 / 3413 / 205 | 3266 / 610 / 3416 / 206 | report: same decoder difference |
+| Oddball `7d798138` | `coverage.fallbacks` / `carriedEquipment` / `padPickups` | 30 / 28 / 15 | 21 / 31 / 16 | report: decoder-side counts (the coverage summary is the decoder's own read of the film), not in the builder or context route |
+| Strongholds `19628ee2` | `scoreTimeline` | n/a (LevelUp lacks the match) | present, no `targetScore` | complete (Strongholds is not in `[score_target]`) |
+| King of the Hill `d01ba030` | `scoreTimeline.targetScore` | n/a | 4 (from `[score_target]` `"Ranked:King of the Hill" = 4`) | fixed: `replay.ScoreTarget` table + `Input.ScoreTarget` |
+| Slayer `a2c79b5e` | `scoreTimeline.targetScore` | n/a | 50 (from `[score_target]` `"Ranked:Slayer" = 50`) | fixed: same as above |
+| CTF `f9a8ab62` | `scoreTimeline.targetScore` | n/a | from `[score_target]` (the variant's declared capture target) | fixed: same as above |
+
+### 4.2 Match context (header, scoreboard, regulation)
+
+| Mode (match) | Field | LevelUp | Ours | Status |
+|---|---|---|---|---|
+| all | `header.outcome` / `outcome_code` / `outcome_color` / `outcome_color_token` | the viewer's result (win `#22c55e` / loss `#ef4444` / tie `#8b5cf6` / dnf `#8b5cf6`) | was always the neutral default | fixed: `contextOutcome` reads the API `Outcome` per xuid (any participant when xuid is empty) |
+| all | `header.map_image_url` | present | absent for a `.jpg` map | fixed: the probe tries `.png` then `.jpg` (the asset route accepts both) |
+| all | `header.score_timeline_kind` | `hidden` (frag modes) / `events` (point modes) / absent (curve) | absent | fixed: `contextScoreTimelineKind` ports the `[score_timeline]` tokens on the raw pair name |
+| all | `header.is_ranked` | true for a `Ranked:` variant | false | fixed: set from the pair-name category, kept alongside the skill-file signal |
+| all | `regulation_seconds` | 720 for the ten declared variants, absent otherwise | absent | fixed: `contextRegulationSeconds` ports the `[regulation_seconds]` table |
+| all | `header.t0_ms` / `playable_duration_seconds` | join-based (17809 / 14886 on the two shared matches) | film-based (29983 / 26203) | report: the two read different clocks (LevelUp joins the API join times, the standalone reads the film's own origin); a real difference but not in the builder or context route |
+| Oddball `7d798138` | `header.score_label` | `2 - 1` (rounds) | was `185 - 200` (cumulative points) | fixed: `contextScore` reads `[rounds_decide]` in rounds, points demoted to `score_points_label` |
+| Oddball `7d798138` | `scoreboard` rounds | per-team `RoundsWon` | was the payload's (stale) | fixed: the builder now records `TeamRoundsWon` from the payload teams; `contextScore` prefers the fresh value |
+| Strongholds `19628ee2` | objective `zone_captures` / `zone_secures` / `zone_offensive_kills` / `zone_defensive_kills` / `zone_scoring_ticks` / `time_in_zones_seconds` | n/a | present, non-empty on all 8 rows | complete |
+| King of the Hill `d01ba030` | same six zone fields | n/a | present, non-empty on all 8 rows | complete |
+| CTF `f9a8ab62` | objective `flag_captures` / `flag_grabs` / `flag_secures` / `flag_steals` / `flag_returns` / `flag_capture_assists` / `flag_carriers_killed` / `flag_returners_killed` / `kills_as_flag_carrier` / `kills_as_flag_returner` / `time_as_flag_carrier_seconds` | n/a | present, non-empty on all 8 rows | complete |
+| Slayer `a2c79b5e` | objective | n/a | absent on purpose (a frag mode has no objective block) | complete |
+| all | `scoreboard[].is_mvp` / `top_weapon_id` / `top_weapon_label` / `weapon_kills` | present | absent | report: LevelUp derives these from its match database (top-weapon aggregation, MVP), not from the film or the API payload — no portable source here |
+| all | `scoreboard[].expected_*` / `*_stddev` | present | present (from `skill.json`) | parity |
+
+The mode label on `d01ba030` differs in wording only (`King of the Hill` vs `Assassin`);
+the brief treats language-only differences as out of scope.

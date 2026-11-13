@@ -16,6 +16,9 @@ type matchPayload struct {
 		Mode struct {
 			Name string `json:"PublicName"`
 		} `json:"UgcGameVariant"`
+		Playlist struct {
+			PublicName string `json:"PublicName"`
+		} `json:"Playlist"`
 	} `json:"MatchInfo"`
 	Players []struct {
 		ID         string `json:"PlayerId"`
@@ -32,16 +35,19 @@ type matchPayload struct {
 		ID    int `json:"TeamId"`
 		Stats struct {
 			Core struct {
-				Score int `json:"Score"`
+				Score      int `json:"Score"`
+				RoundsWon  int `json:"RoundsWon"`
+				RoundsLost int `json:"RoundsLost"`
+				RoundsTied int `json:"RoundsTied"`
 			} `json:"CoreStats"`
 		} `json:"Stats"`
 	} `json:"Teams"`
 }
 
-func matchFacts(raw []byte) (build.Stats, string, string, error) {
+func matchFacts(raw []byte) (build.Stats, string, string, string, error) {
 	var p matchPayload
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return build.Stats{}, "", "", err
+		return build.Stats{}, "", "", "", err
 	}
 	f := build.Stats{GameVariantName: p.Info.Mode.Name}
 	for _, player := range p.Players {
@@ -68,5 +74,12 @@ func matchFacts(raw []byte) (build.Stats, string, string, error) {
 	if found[0] && found[1] {
 		f.TeamScores = &scores
 	}
-	return f, p.Info.Map.ID, p.Info.Map.Version, nil
+	var rounds [2][3]int
+	for _, team := range p.Teams {
+		if team.ID >= 0 && team.ID < 2 {
+			rounds[team.ID] = [3]int{team.Stats.Core.RoundsWon, team.Stats.Core.RoundsLost, team.Stats.Core.RoundsTied}
+		}
+	}
+	f.TeamRoundsWon = &rounds
+	return f, p.Info.Map.ID, p.Info.Map.Version, p.Info.Playlist.PublicName, nil
 }
