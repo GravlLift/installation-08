@@ -194,6 +194,12 @@ func enrichReplayDocument(ctx context.Context, root *store.Root, id string, cat 
 		keys = matchMapKeys{}
 	}
 
+	// The stored document may predate the field and leave it empty: the server names the
+	// title it serves, as LevelUp's server does.
+	if doc.TitleSlug == "" {
+		doc.TitleSlug = "halo_infinite"
+	}
+
 	// LevelUp's GetReplay order: objectives, then the weapon steps.
 	objectives, err := deriveObjectivesFromVariant(variant, keys.pairName)
 	if err != nil {

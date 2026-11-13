@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
@@ -208,6 +209,36 @@ func TestServedDocKeepsStoredFieldsAndAddsNew(t *testing.T) {
 	}
 	if lbl := got.WeaponLabels["0xd7915565"]; lbl.Key != "hinf_mutilator" {
 		t.Fatalf("served label not enriched: %+v", lbl)
+	}
+}
+
+// TestServedDocNamesTitleSlug — the stored document leaves titleSlug empty (it predates the
+// field); the server sets the title it serves, as LevelUp's server does.
+func TestServedDocNamesTitleSlug(t *testing.T) {
+	root := newFakeStore(t)
+	doc := testWeaponDoc()
+	doc.TitleSlug = ""
+	raw, err := encodeReplayDocument(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = root.WriteFile(variantPath(root, "abc", "replay.json.gz"), raw); err != nil {
+		t.Fatal(err)
+	}
+	if err = root.WriteFile(variantPath(root, "abc", "match.json"), []byte(`{"mapAssetId":"moda"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err = root.WriteFile(variantPath(root, "abc", "stats.json"), []byte(`{"gameVariantName":"Castle Wars: Ranked"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	out := gunzipBytesForTest(t, replayWithEnrichments(context.Background(), root, "abc", testLabelCatalog, raw))
+	var fields map[string]json.RawMessage
+	if err = json.Unmarshal(out, &fields); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(fields["titleSlug"])); got != `"`+`halo_infinite`+`"` {
+		t.Fatalf("titleSlug: %s", fields["titleSlug"])
 	}
 }
 
