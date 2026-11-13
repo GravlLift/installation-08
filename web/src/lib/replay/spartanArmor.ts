@@ -4,10 +4,11 @@
  * The data shapes (mirroring `domain.ReplaySpartans` server-side) are unchanged from
  * LevelUp. What changes is `useReplaySpartans`: LevelUp's version is a TanStack Query
  * hook gated by a deployment capability and the app's title store. This viewer has
- * neither — it is a plain `fetch`-backed hook against the path the caller gives it
- * (`ReplayArmorSource`), and when that route does not exist (this standalone build ships
- * no backend yet) it simply keeps `data` undefined, which is exactly how the 3D view
- * already degrades when armor is unavailable (plain-colored Spartans, no per-player skin).
+ * neither — it is a plain `fetch`-backed hook against the standalone server's
+ * `GET /api/matches/{id}/spartans` route (given by `ReplayArmorSource`), and when the
+ * match has no armor data it simply keeps `data` undefined, which is exactly how the
+ * 3D view already degrades when armor is unavailable (plain-colored Spartans, no
+ * per-player skin).
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -71,15 +72,14 @@ export interface ReplaySpartans {
 
 /** What the 3D view needs to dress a match's players. */
 export interface ReplayArmorSource {
-  playerSlug: string
   matchId: string
   /** The served folder of the armor piece library (`<folder>/<file>`). */
   piecesPath: string
 }
 
-/** Served folder of the Spartan armor piece library (shared by the title's matches). */
-export function replaySpartanPiecesPath(playerSlug: string, matchId: string): string {
-  return `/players/${playerSlug}/matches/${matchId}/replay/spartan-pieces`
+/** Served folder of the Spartan armor piece library (shared by all matches). */
+export function replaySpartanPiecesPath(): string {
+  return '/api/spartan-pieces'
 }
 
 interface SpartanArmorQuery {
@@ -96,7 +96,7 @@ const IDLE: SpartanArmorQuery = { data: undefined, fetchStatus: 'idle' }
  */
 export function useReplaySpartans(source: ReplayArmorSource | null): SpartanArmorQuery {
   const [state, setState] = useState<SpartanArmorQuery>(IDLE)
-  const key = source ? `${source.playerSlug}/${source.matchId}` : null
+  const key = source ? source.matchId : null
   const keyRef = useRef(key)
   keyRef.current = key
   useEffect(() => {
@@ -108,9 +108,7 @@ export function useReplaySpartans(source: ReplayArmorSource | null): SpartanArmo
     setState({ data: undefined, fetchStatus: 'fetching' })
     void (async () => {
       try {
-        const data = await api.get<ReplaySpartans>(
-          `/players/${source.playerSlug}/matches/${source.matchId}/replay/spartans`,
-        )
+        const data = await api.get<ReplaySpartans>(`/api/matches/${source.matchId}/spartans`)
         if (alive) setState({ data, fetchStatus: 'idle' })
       } catch {
         // Missing route or missing armor data: stay undefined, the view falls back.
