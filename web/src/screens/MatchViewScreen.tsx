@@ -404,7 +404,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
           Settings
         </button>
       </div>
-      <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={fullscreen.active ? { maxWidth: 'min(100%, calc((100vh - 7rem) * 16 / 9))' } : undefined}>
+      <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={{ maxWidth: fullscreen.active ? 'min(100%, calc((100vh - 7rem) * 16 / 9))' : 'min(100%, calc((100vh - 10rem) * 16 / 9))' }}>
         <Replay3DView
           meshPath={meshUrl(matchId)}
           variantPath={variantPath}
