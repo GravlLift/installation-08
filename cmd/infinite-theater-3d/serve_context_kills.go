@@ -38,6 +38,9 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 		byKey[key] = d
 	}
 	for _, event := range events {
+		if event["event_type"] != "kill" {
+			continue
+		}
 		key := contextKillKey{textValue(event["actor_xuid"]), event["event_time_ms"].(int64)}
 		detail, ok := byKey[key]
 		if !ok || conflicts[key] {

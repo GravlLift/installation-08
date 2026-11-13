@@ -20,6 +20,7 @@ import (
 type contextJSON map[string]any
 
 type contextDocument struct {
+	T0FilmMS   *int64 `json:"t0FilmMs"`
 	KillCauses []struct {
 		FeedMS   int    `json:"feedMs"`
 		Killer   string `json:"killer"`
@@ -88,6 +89,9 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 	}
 	header["replay_available"] = err == nil
 	t0 := contextT0(payload)
+	if filmT0, ok := contextFilmT0(root, id); ok {
+		t0 = filmT0
+	}
 	if t0 > 0 {
 		header["t0_ms"] = t0
 	}
@@ -216,7 +220,7 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 	return h
 }
 
-func contextEvents(root *store.Root, id string, rows []contextJSON, t0 int64) ([]contextJSON, error) {
+func contextDocumentEvents(root *store.Root, id string, rows []contextJSON, t0 int64) ([]contextJSON, error) {
 	events := []contextJSON{}
 	raw, err := root.LoadReplay(id)
 	if errors.Is(err, store.ErrNotFound) {
