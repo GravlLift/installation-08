@@ -24,7 +24,7 @@ export type BlastStyle = 'fire' | 'plasma' | 'shard'
 /** blastStyleOf : la mise en scène d'une détonation selon la nature de sa décharge (`fxInk`). */
 export function blastStyleOf(tint: FxTint): BlastStyle {
   if (tint === 'needle') return 'shard'
-  if (tint === 'plasma_cool' || tint === 'plasma_hot' || tint === 'electric' || tint === 'forerunner') return 'plasma'
+  if (tint === 'plasma_cool' || tint === 'plasma_green' || tint === 'plasma_hot' || tint === 'electric' || tint === 'forerunner') return 'plasma'
   return 'fire'
 }
 

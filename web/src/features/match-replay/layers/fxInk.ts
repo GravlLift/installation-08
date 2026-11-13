@@ -31,6 +31,7 @@ import { readThemeVar } from './themeInk'
 export type FxTint =
   | 'kinetic'
   | 'plasma_cool'
+  | 'plasma_green'
   | 'plasma_hot'
   | 'forerunner'
   | 'electric'
@@ -42,6 +43,7 @@ export type FxTint =
 export const SERVED_FX_TINTS: readonly FxTint[] = [
   'kinetic',
   'plasma_cool',
+  'plasma_green',
   'plasma_hot',
   'forerunner',
   'electric',
