@@ -4,16 +4,17 @@ The source files below are as of 2026-11-13, with the documented changes noted p
 
 | Directory | Upstream | Version | Zip hash | License |
 | --- | --- | --- | --- | --- |
-| film-decoder | https://github.com/JGtm/halo-infinite-film-decoder | v1.3.2 | `h1:pIE2RB0i666fGg3A0hcvlB5mYsocSIsjOXV31um4+vY=` | AGPL-3.0 |
+| film-decoder | https://github.com/JGtm/halo-infinite-film-decoder | v1.3.6 | `h1:CP7zIqapzMcHHam2aKBMsXAsaNgJCzjTWk27petIpxc=` | AGPL-3.0 |
 | map-images | https://github.com/JGtm/halo-infinite-map-images | v1.0.1 | `h1:Op1TrnECQKrCxOjWkI2Cb9WGf+S5nOikyap5eGZdPA=` | AGPL-3.0 |
 | files-reader | https://github.com/JGtm/halo-infinite-files-reader | v1.0.1 | `h1:sqD4leKw4x9yC+JdXWAVHOio6LOqF+VzKgcWZ5SL688=` | AGPL-3.0; `ooz` GPL-3.0 |
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
 
-## Changes from upstream v1.3.2 (film-decoder)
+## Changes from upstream v1.3.6 (film-decoder)
 
-The film-decoder module is a port of the LevelUp `feat/replay-3d` branch onto the published
-v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept capabilities:
+The film-decoder module carries the LevelUp `feat/replay-3d` port on upstream v1.3.6.
+Document schema 125, facts schema 23. Local steps 113–122 were renumbered 116–125
+after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept capabilities:
 
 - Full-rate tracks (`FullRateTrack`, `Track.FullRate`) with absolute-millisecond times,
   independent of the 33 ms document grid.
@@ -29,7 +30,7 @@ v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept ca
 - Carried ammo reads per life and weapon slot (`AmmoReads`).
 - Sub-frame shot offset inside the document frame (`Shot.O`, computed against the
   actual frame interval).
-- Blob codec `REPLAYINPUTS30` (upstream v1.3.2 ships `REPLAYINPUTS29`).
+- Blob codec `REPLAYINPUTS30` (upstream v1.3.6 ships `REPLAYINPUTS29`).
 - `filmcache` additions for a decode tool that receives an explicit manifest path outside
   the cache layout: `ParseManifest` (renders the entries of a manifest file by its bytes,
   the same `manifestJSON` shape as `Open`) and `NewSource` (a `Source` whose chunks read
@@ -38,8 +39,7 @@ v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept ca
   `OpenChunkDir` keep reconstructing the path from the cache layout and are unchanged.
 - `decfilm.LoadMapQuantCatalogBytes` (new file `decfilm/catalog_bytes.go`) reads the map
   quantization catalog from its bytes, not a file path: the standalone embeds its reference
-  catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade so the
-  `profile` layer, whose sources are fingerprinted, stays identical to upstream.
+  catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade, leaving the fingerprinted `profile` layer upstream-identical.
 
 ## Omitted upstream files
 

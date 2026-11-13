@@ -5,7 +5,7 @@ go 1.26.11
 require (
 	github.com/JGtm/halo-api v1.0.1
 	github.com/JGtm/halo-infinite-files-reader v1.0.1
-	github.com/JGtm/halo-infinite-film-decoder v1.3.2
+	github.com/JGtm/halo-infinite-film-decoder v1.3.6
 	github.com/JGtm/halo-infinite-map-images v1.0.1
 )
 
