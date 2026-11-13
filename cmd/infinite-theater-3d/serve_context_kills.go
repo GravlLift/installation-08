@@ -9,7 +9,11 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
+
+// weaponIconURLPrefix is the route prefix of the weapon icon set the build writes.
+const weaponIconURLPrefix = "/static/weapons-assets/halo_infinite/jeu/"
 
 type contextKillKey struct {
 	killer string
@@ -28,6 +32,10 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 	if err = json.Unmarshal(raw, &details); err != nil {
 		return err
 	}
+	// The weapon_key -> icon file map through the built index.json. A set that is not
+	// built yet has no index.json: the kills keep their label and get no icon URL, the
+	// same fallback as a key the index does not name.
+	iconBy, _ := weaponicons.WeaponKeyContourFile(root.Dir())
 	byKey := map[contextKillKey]build.KillDetail{}
 	conflicts := map[contextKillKey]bool{}
 	for _, d := range details {
@@ -48,6 +56,12 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 		}
 		if detail.WeaponKey != "" {
 			event["weapon_key"] = detail.WeaponKey
+			// The icon is a white mask carried by the alpha (the build drops the RGB),
+			// tinted to the killer's team color client-side: always tinted when served.
+			if file, ok := iconBy[detail.WeaponKey]; ok {
+				event["weapon_image_url"] = weaponIconURLPrefix + file
+				event["weapon_image_tinted"] = true
+			}
 		}
 		if detail.WeaponLabel != "" {
 			event["weapon_label"] = detail.WeaponLabel

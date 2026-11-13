@@ -212,6 +212,28 @@ func entryFor(at atlasTag, name string, keyByIndex map[int]string,
 	}
 }
 
+// WeaponKeyContourFile maps a weapon key to its contour icon file through the built
+// index.json (the `arme` field of the contour-style entries). It returns an empty map
+// when the set is not built yet: a kill without an icon falls back to its label, as
+// LevelUp does.
+func WeaponKeyContourFile(dataDir string) (map[string]string, error) {
+	raw, err := os.ReadFile(filepath.Join(OutDir(dataDir), "index.json"))
+	if err != nil {
+		return nil, err
+	}
+	var entries []iconEntry
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, e := range entries {
+		if e.Style == "contour" && e.WeaponKey != "" {
+			out[e.WeaponKey] = e.File
+		}
+	}
+	return out, nil
+}
+
 // writeIndex sorts the entries and writes index.json next to the PNGs.
 func writeIndex(out string, entries []iconEntry) error {
 	sort.Slice(entries, func(i, j int) bool {

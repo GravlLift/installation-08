@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
 func TestContextRoute(t *testing.T) {
@@ -84,10 +85,15 @@ func TestContextObjective(t *testing.T) {
 func TestContextKillDetails(t *testing.T) {
 	root := newFakeStore(t)
 	path, _ := root.MatchReplayPath("abc")
-	if err := root.WriteFile(path, gzipJSON(t, []byte(`{"killCauses":[{"feedMs":30000,"killer":"1","victim":"2"}]}`))); err != nil {
+	if err := root.WriteFile(path, gzipJSON(t, []byte(`{"killCauses":[{"feedMs":30000,"killer":"1","victim":"2"},{"feedMs":31000,"killer":"1","victim":"3"}]}`))); err != nil {
 		t.Fatal(err)
 	}
-	if err := root.WriteFile(variantPath(root, "abc", "kill-details.json"), []byte(`[{"time_ms":30000,"killer":"1","assist_state":"named","assist_gamertag":"Helper","killer_damage_pct":75,"weapon_key":"br75"}]`)); err != nil {
+	if err := root.WriteFile(variantPath(root, "abc", "kill-details.json"), []byte(`[{"time_ms":30000,"killer":"1","assist_state":"named","assist_gamertag":"Helper","killer_damage_pct":75,"weapon_key":"hinf_br75"},{"time_ms":31000,"killer":"1","weapon_key":"hinf_s7_sniper"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	// The icon set's index.json: the weapon key -> contour file map the kill feed reads.
+	// hinf_s7_sniper has no entry: that kill keeps its key and gets no icon URL.
+	if err := root.WriteFile(filepath.Join(weaponicons.OutDir(root.Dir()), "index.json"), []byte(`[{"index":0,"style":"contour","file":"contour-00.png","arme":"hinf_br75","source_tag":"bc17adf1"},{"index":0,"style":"silhouette","file":"silhouette-00.png","arme":"hinf_br75"}]`)); err != nil {
 		t.Fatal(err)
 	}
 	result, err := buildContext(root, "abc", "")
@@ -95,8 +101,14 @@ func TestContextKillDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := result["highlight_events"].([]contextJSON)
-	if len(events) != 1 || events[0]["assist_gamertag"] != "Helper" || events[0]["killer_damage_pct"] != 75 || events[0]["weapon_key"] != "br75" {
+	if len(events) != 2 || events[0]["assist_gamertag"] != "Helper" || events[0]["killer_damage_pct"] != 75 || events[0]["weapon_key"] != "hinf_br75" {
 		t.Fatalf("events: %v", events)
+	}
+	if events[0]["weapon_image_url"] != "/static/weapons-assets/halo_infinite/jeu/contour-00.png" || events[0]["weapon_image_tinted"] != true {
+		t.Fatalf("weapon icon: %v", events[0])
+	}
+	if events[1]["weapon_image_url"] != nil || events[1]["weapon_image_tinted"] != nil {
+		t.Fatalf("unmapped key must carry no icon: %v", events[1])
 	}
 }
 
