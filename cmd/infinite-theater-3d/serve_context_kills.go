@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -20,17 +21,17 @@ type contextKillKey struct {
 	time   int64
 }
 
+// decorateContextKills stamps the per-kill facts that only the film decode knows
+// (weapon, assist, damage shares) onto the kill events built from the death feed.
 func decorateContextKills(root *store.Root, id string, events, rows []contextJSON, t0 int64) error {
-	raw, err := os.ReadFile(variantPath(root, id, "kill-details.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
 	var details []build.KillDetail
-	if err = json.Unmarshal(raw, &details); err != nil {
-		return err
+	if details = readKillDetails(root, id); details == nil {
+		// No kill-details file at all. The match was stored before the build learned to
+		// write one, or its decode left no publishable kill facts: the events keep their
+		// death-feed identity and get no weapon. Rebuilding the match from its film
+		// restores the details.
+		slog.Info("kill feed details absent, serving kills without weapon", "match_id", id)
+		return nil
 	}
 	// The weapon_key -> icon file map through the built index.json. A set that is not
 	// built yet has no index.json: the kills keep their label and get no icon URL, the
@@ -88,4 +89,25 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 		}
 	}
 	return nil
+}
+
+// readKillDetails reads the variant's kill-details.json. It returns nil (not an error)
+// when the file is absent: that is the documented fallback, not a failure.
+func readKillDetails(root *store.Root, id string) []build.KillDetail {
+	raw, err := os.ReadFile(variantPath(root, id, "kill-details.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		// An unreadable-but-present file would otherwise serve kills with no weapon and
+		// no signal that the details were lost: log it before the degradation.
+		slog.Warn("kill details unreadable, serving kills without weapon", "match_id", id, "err", err)
+		return nil
+	}
+	var details []build.KillDetail
+	if err := json.Unmarshal(raw, &details); err != nil {
+		slog.Warn("kill details invalid, serving kills without weapon", "match_id", id, "err", err)
+		return nil
+	}
+	return details
 }
