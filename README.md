@@ -14,6 +14,27 @@ go build ./cmd/infinite-theater-3d
 
 The CLI also builds a map variant's object layer (`build-variant`), a weapon's static model (`build-weapon`), the Spartan body with its game animations (`build-spartan`), a single Spartan armor piece (`build-piece`), and a weapon's first-person rig with its arms and animations (`build-firstperson`). See their sections below.
 
+## Sign in and fetch a match
+
+On Windows, use a Microsoft public-client application registration that permits device-code
+flow and the Xbox Live scopes. Supply its client ID explicitly, either with `--client-id` or
+`IT3D_CLIENT_ID`. There is no built-in ID. The device flow opens a Microsoft verification
+page in your own browser and never asks this program for your password.
+
+```powershell
+.\infinite-theater-3d.exe login --client-id <your-public-client-id>
+.\infinite-theater-3d.exe matches --count 10
+.\infinite-theater-3d.exe fetch --match <match-id>
+.\infinite-theater-3d.exe serve
+```
+
+Use `--data <dir>` on each command to select a data directory. The default is
+`IT3D_DATA_DIR`, or `%LOCALAPPDATA%\infinite-theater-3d\data`. Tokens are encrypted for
+this Windows user with DPAPI under `auth`; `logout` removes the stored credentials. Fetch
+stores the film, stats, map variant, and public player customization with the replay. It
+reuses verified chunks on a subsequent attempt. Films expire on the service, and a film
+still being finalized must be tried again later. Real service compatibility has not yet
+been verified.
 ## build-mesh
 
 `build-mesh` writes a native map's world mesh (geometry, sun, baked light probes, placed lights) to a GLB file, built in-process from the local game installation:
@@ -200,3 +221,4 @@ built-in default appearance, exactly as it already does in LevelUp when those as
 not yet available.
 
 Based on JGtm's [LevelUp](https://github.com/JGtm/LevelUp) and published Halo modules. See [NOTICE.md](NOTICE.md) and [third_party/README.md](third_party/README.md). Licensed under AGPL-3.0.
+

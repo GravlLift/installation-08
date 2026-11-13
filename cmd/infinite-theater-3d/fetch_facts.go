@@ -10,15 +10,18 @@ import (
 type matchPayload struct {
 	Info struct {
 		Map struct {
-			ID string `json:"AssetId"`
+			ID      string `json:"AssetId"`
+			Version string `json:"VersionId"`
 		} `json:"MapVariant"`
 		Mode struct {
 			Name string `json:"PublicName"`
 		} `json:"UgcGameVariant"`
 	} `json:"MatchInfo"`
 	Players []struct {
-		ID    string `json:"PlayerId"`
-		Teams []struct {
+		ID         string `json:"PlayerId"`
+		Name       string `json:"Gamertag"`
+		LastTeamID int    `json:"LastTeamId"`
+		Teams      []struct {
 			ID    int `json:"TeamId"`
 			Stats struct {
 				Core struct{ Kills, Deaths, Assists int } `json:"CoreStats"`
@@ -35,19 +38,24 @@ type matchPayload struct {
 	} `json:"Teams"`
 }
 
-func matchFacts(raw []byte) (build.Stats, string, error) {
+func matchFacts(raw []byte) (build.Stats, string, string, error) {
 	var p matchPayload
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return build.Stats{}, "", err
+		return build.Stats{}, "", "", err
 	}
 	f := build.Stats{GameVariantName: p.Info.Mode.Name}
 	for _, player := range p.Players {
-		if len(player.Teams) == 0 {
-			continue
+		var t struct {
+			ID    int `json:"TeamId"`
+			Stats struct {
+				Core struct{ Kills, Deaths, Assists int } `json:"CoreStats"`
+			} `json:"Stats"`
 		}
-		t := player.Teams[0]
+		if len(player.Teams) > 0 {
+			t = player.Teams[0]
+		}
 		id := strings.TrimSuffix(strings.TrimPrefix(player.ID, "xuid("), ")")
-		f.Players = append(f.Players, build.StatsPlayer{XUID: id, TeamID: t.ID, Kills: t.Stats.Core.Kills, Deaths: t.Stats.Core.Deaths, Assists: t.Stats.Core.Assists})
+		f.Players = append(f.Players, build.StatsPlayer{Name: player.Name, XUID: id, TeamID: player.LastTeamID, Kills: t.Stats.Core.Kills, Deaths: t.Stats.Core.Deaths, Assists: t.Stats.Core.Assists})
 	}
 	var scores [2]int
 	var found [2]bool
@@ -60,5 +68,5 @@ func matchFacts(raw []byte) (build.Stats, string, error) {
 	if found[0] && found[1] {
 		f.TeamScores = &scores
 	}
-	return f, p.Info.Map.ID, nil
+	return f, p.Info.Map.ID, p.Info.Map.Version, nil
 }
