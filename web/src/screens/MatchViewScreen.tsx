@@ -26,6 +26,9 @@ import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShor
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
+import { useScoreboardHold } from './useScoreboardHold'
+import { readReplayScoreboard } from '../features/match-replay/model/replayScoreboardLogic'
+import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
 import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useVariantLayer } from './useVariantLayer'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
@@ -304,6 +307,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
   const viewerRef = useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const [scoreboardHeld, setScoreboard] = useScoreboardHold()
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
@@ -364,6 +368,14 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
   const kills = replayContext.kills
   const shotFx = useMemo(() => buildShotFx(doc, aimHoldFramesOf(doc)), [doc])
+  // The scoreboard reads the film's own counters at the current frame (model:
+  // replayScoreboardLogic). `null` until the match sheet has loaded, or when the film
+  // carries no score timeline / its clock is untrusted: nothing is shown then.
+  const scoreboardSheet = replayContext.context?.scoreboard ?? []
+  const scoreboardReading = useMemo(
+    () => (replayContext.context ? readReplayScoreboard(doc, scoreboardSheet, frame) : null),
+    [doc, scoreboardSheet, frame, replayContext.context],
+  )
 
   const action = useMemo<PageAction3dInputs>(() => {
     const inputs: PageAction3dInputs = {
@@ -403,6 +415,14 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
         <button ref={settingsButtonRef} type="button" onClick={() => setSettingsOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
           Settings
         </button>
+        <button
+          type="button"
+          aria-pressed={scoreboardHeld}
+          onClick={() => setScoreboard(!scoreboardHeld)}
+          className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted"
+        >
+          Scoreboard
+        </button>
       </div>
       <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={{ maxWidth: fullscreen.active ? 'min(100%, calc((100vh - 7rem) * 16 / 9))' : 'min(100%, calc((100vh - 10rem) * 16 / 9))' }}>
         <Replay3DView
@@ -422,6 +442,13 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
           timeLimitMs={replayContext.timeLimitMs}
           soundListenerRef={sound.listener}
         />
+        {scoreboardHeld && (
+          <ReplayScoreboardOverlay
+            reading={scoreboardReading}
+            sheet={scoreboardSheet}
+            followedXuid={viewpoint}
+          />
+        )}
         {settingsOpen && (
           <ReplaySettingsDrawer
             locale="en"
