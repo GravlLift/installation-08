@@ -21,6 +21,16 @@ func TestRemoteRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h.auth.steps = loginFlow{
+		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
+		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {
+			return nil, 0, context.Canceled
+		},
+		done: func(context.Context, string, *haloauth.OAuthToken) (haloauth.Credentials, error) {
+			return haloauth.Credentials{}, context.Canceled
+		},
+		logout: func() error { return nil },
+	}
 	r := httptest.NewRecorder()
 	h.ServeHTTP(r, httptest.NewRequest("GET", "/api/auth/state", nil))
 	if r.Code != 200 {
@@ -63,6 +73,16 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h.auth.steps = loginFlow{
+		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
+		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {
+			return nil, 0, context.Canceled
+		},
+		done: func(context.Context, string, *haloauth.OAuthToken) (haloauth.Credentials, error) {
+			return haloauth.Credentials{}, context.Canceled
+		},
+		logout: func() error { return nil },
+	}
 	api := haloapi.New(s.Client(), haloapi.Endpoints{Stats: s.URL, Discovery: s.URL, Economy: s.URL}, "synthetic", "synthetic")
 	h.remote.client = func(context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		return api, haloauth.Credentials{XUID: "123"}, nil
@@ -117,6 +137,16 @@ func TestRemoteFetchExpiredFilm(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h.auth.steps = loginFlow{
+		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
+		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {
+			return nil, 0, context.Canceled
+		},
+		done: func(context.Context, string, *haloauth.OAuthToken) (haloauth.Credentials, error) {
+			return haloauth.Credentials{}, context.Canceled
+		},
+		logout: func() error { return nil },
+	}
 	h.remote.client = func(context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		return nil, haloauth.Credentials{}, nil
 	}

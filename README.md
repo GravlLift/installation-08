@@ -28,6 +28,13 @@ replaces it. Tokens are stored encrypted for the current Windows user in the dat
 .\infinite-theater-3d.exe serve
 ```
 
+The same steps are available to the web viewer through `serve`: `POST /api/auth/login`
+starts the device-code flow, `GET /api/auth/state` reports `signed_out`, `pending` (with the
+address and code to show), `signed_in` or `failed`, `POST /api/auth/logout` signs out,
+`GET /api/remote/matches` lists recent matches, and `POST /api/matches/{id}/fetch` with
+`GET /api/matches/{id}/fetch/state` downloads and builds one. State-changing routes accept
+requests from loopback origins only. No route ever returns a token.
+
 Use `--data <dir>` on each command to select a data directory. The default is
 `IT3D_DATA_DIR`, or `%LOCALAPPDATA%\infinite-theater-3d\data`. Tokens are encrypted for
 this Windows user with DPAPI under `auth`; `logout` removes the stored credentials. Fetch

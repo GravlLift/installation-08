@@ -89,6 +89,9 @@ func runServe(args []string) error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", f.addr, err)
 	}
+	// A pending device-code login dies with the server (its wait fires, the session ends
+	// failed; no goroutine is left polling Microsoft).
+	defer h.stopPendingLogin()
 	srv := &http.Server{
 		Handler:           h,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -177,6 +180,7 @@ type serverHandlers struct {
 	weapKeys weapons.Catalog
 	mux      *http.ServeMux
 	remote   *remoteJobs
+	auth     *authSession
 }
 
 // ServeHTTP routes a request: a static file when the web directory serves it, otherwise

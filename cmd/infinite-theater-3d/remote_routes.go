@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -30,19 +29,6 @@ type remoteJobs struct {
 	fetch  func(context.Context, *store.Root, *haloapi.Client, string, fetchProgress) error
 }
 
-func (h serverHandlers) authState(w http.ResponseWriter, r *http.Request) {
-	raw, err := haloauth.Load(h.root.Dir())
-	if err != nil {
-		writeJSON(w, 200, map[string]any{"signedIn": false})
-		return
-	}
-	var c haloauth.Credentials
-	if json.Unmarshal(raw, &c) != nil || c.Refresh == "" {
-		writeJSON(w, 200, map[string]any{"signedIn": false})
-		return
-	}
-	writeJSON(w, 200, map[string]any{"signedIn": true, "gamertag": c.Gamertag})
-}
 func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 	count := 10
 	if s := r.URL.Query().Get("count"); s != "" {
@@ -140,13 +126,15 @@ func (h serverHandlers) fetchState(w http.ResponseWriter, r *http.Request) {
 // drive the routes directly as well as through the full server.
 func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog) serverHandlers {
 	var authMu sync.Mutex
-	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
 	}, fetch: fetchMatch}}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/auth/state", h.authState)
+	mux.HandleFunc("GET /api/auth/state", h.authStateRoute)
+	mux.HandleFunc("POST /api/auth/login", h.runLoginRoute)
+	mux.HandleFunc("POST /api/auth/logout", h.authLogoutRoute)
 	mux.HandleFunc("GET /api/remote/matches", h.remoteMatches)
 	mux.HandleFunc("POST /api/matches/{id}/fetch", h.startFetch)
 	mux.HandleFunc("GET /api/matches/{id}/fetch/state", h.fetchState)

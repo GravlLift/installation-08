@@ -19,7 +19,7 @@ import (
 type Endpoints struct{ Device, Token, User, XSTS, Spartan, Clearance string }
 
 var DefaultEndpoints = Endpoints{
-	"https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode",
+	"https://login.microsoftonline.com/consumers/oauth2/v2.0/DeviceCode",
 	"https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
 	"https://user.auth.xboxlive.com/user/authenticate",
 	"https://xsts.auth.xboxlive.com/xsts/authorize",
@@ -60,70 +60,135 @@ type deviceResponse struct {
 	Expires  int    `json:"expires_in"`
 	Interval int    `json:"interval"`
 }
-type oauthResponse struct {
+type OAuthToken struct {
 	Access  string `json:"access_token"`
 	Refresh string `json:"refresh_token"`
 	Error   string `json:"error"`
 }
 
-func (c *Client) Login(ctx context.Context, id string, show func(string, string)) (Credentials, error) {
+// DeviceCode is the half of the device-code flow that does not wait for the user: the
+// address and short code to show, and the wait bounded by the code's own lifetime.
+type DeviceCode struct {
+	Wait     context.Context
+	cancel   context.CancelFunc
+	Device   string
+	URI      string
+	Code     string
+	Expires  time.Duration
+	Interval time.Duration
+}
+
+// StartLogin asks Microsoft for a device code and returns it with the user-facing address
+// and short code. It does not wait for the user to enter the code. A terminal client shows
+// the pair and keeps waiting in Login; a server starts it in the background and answers the
+// web viewer with the pair, then waits in its own loop. Cancelling the returned wait (or
+// its parent) ends any wait built on it early.
+func (c *Client) StartLogin(ctx context.Context, id string) (*DeviceCode, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if strings.TrimSpace(id) == "" {
-		return Credentials{}, errors.New("client id is required")
+		return nil, errors.New("client id is required")
 	}
 	var d deviceResponse
 	_, err := c.form(ctx, c.endpoints.Device, url.Values{"client_id": {id}, "scope": {"Xboxlive.signin Xboxlive.offline_access"}}, &d)
 	if err != nil {
-		return Credentials{}, err
+		return nil, err
 	}
 	if d.Device == "" || d.Code == "" || d.URI == "" || d.Expires <= 0 {
-		return Credentials{}, errors.New("invalid device authorization response")
+		return nil, errors.New("invalid device authorization response")
 	}
-	show(d.URI, d.Code)
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(d.Expires)*time.Second)
-	defer cancel()
+	wait, cancel := context.WithTimeout(ctx, time.Duration(d.Expires)*time.Second)
 	if d.Interval <= 0 {
 		d.Interval = 5
 	}
-	interval := time.Duration(d.Interval) * time.Second
+	return &DeviceCode{Wait: wait, cancel: cancel, Device: d.Device, URI: d.URI, Code: d.Code, Expires: time.Duration(d.Expires) * time.Second, Interval: time.Duration(d.Interval) * time.Second}, nil
+}
+
+func (c *Client) Login(ctx context.Context, id string, show func(string, string)) (Credentials, error) {
+	d, err := c.StartLogin(ctx, id)
+	if err != nil {
+		return Credentials{}, err
+	}
+	defer d.cancel()
+	show(d.URI, d.Code)
+	interval := d.Interval
 	for {
 		if interval > 0 {
 			select {
-			case <-ctx.Done():
+			case <-d.Wait.Done():
 				return Credentials{}, errors.New("device authorization expired or canceled")
 			case <-time.After(interval):
 			}
 		}
-		var token oauthResponse
-		_, err = c.form(ctx, c.endpoints.Token, url.Values{"client_id": {id}, "grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {d.Device}}, &token)
+		token, adjust, err := c.pollDeviceToken(d, id)
 		if err != nil {
 			return Credentials{}, err
 		}
-		switch token.Error {
-		case "authorization_pending":
+		if token == nil {
+			interval += adjust
 			continue
-		case "slow_down":
-			interval += 5 * time.Second
-			continue
-		case "":
-		default:
-			return Credentials{}, errors.New("device authorization failed")
 		}
-		if token.Access == "" || token.Refresh == "" {
-			return Credentials{}, errors.New("invalid Microsoft token response")
-		}
-		result, err := c.exchange(ctx, token.Access)
-		if err != nil {
-			return Credentials{}, err
-		}
-		result.ClientID = id
-		result.Refresh = token.Refresh
-		if err = c.persist(result); err != nil {
-			return Credentials{}, err
-		}
-		return result, nil
+		return c.finishLogin(d.Wait, id, *token)
 	}
+}
+
+// Poll asks the token endpoint once for the device code f. A nil token means the user has
+// not finished yet; adjust is a non-zero interval lengthening when the endpoint asked to
+// slow down. A caller that polls on its own schedule (a server holding the login session)
+// uses this instead of the built-in loop.
+func (c *Client) Poll(d *DeviceCode, id string) (*OAuthToken, time.Duration, error) {
+	return c.pollDeviceToken(d, id)
+}
+
+// CompleteLogin exchanges a token Poll returned for the full credentials and persists
+// them. It takes the wait StartLogin returned so the exchange dies with the code's own
+// lifetime.
+func (c *Client) CompleteLogin(ctx context.Context, id string, token *OAuthToken) (Credentials, error) {
+	if token == nil {
+		return Credentials{}, errors.New("device authorization is not complete yet")
+	}
+	return c.finishLogin(ctx, id, *token)
+}
+
+// pollDeviceToken asks the token endpoint once. A nil token means the user has not
+// finished yet; adjust is a non-zero interval lengthening when the endpoint asked to slow
+// down.
+func (c *Client) pollDeviceToken(d *DeviceCode, id string) (*OAuthToken, time.Duration, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var token OAuthToken
+	_, err := c.form(d.Wait, c.endpoints.Token, url.Values{"client_id": {id}, "grant_type": {"urn:ietf:params:oauth:grant-type:device_code"}, "device_code": {d.Device}}, &token)
+	if err != nil {
+		return nil, 0, err
+	}
+	switch token.Error {
+	case "authorization_pending":
+		return nil, 0, nil
+	case "slow_down":
+		return nil, 5 * time.Second, nil
+	case "":
+	default:
+		return nil, 0, errors.New("device authorization failed")
+	}
+	if token.Access == "" || token.Refresh == "" {
+		return nil, 0, errors.New("invalid Microsoft token response")
+	}
+	return &token, 0, nil
+}
+
+func (c *Client) finishLogin(ctx context.Context, id string, token OAuthToken) (Credentials, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	result, err := c.exchange(ctx, token.Access)
+	if err != nil {
+		return Credentials{}, err
+	}
+	result.ClientID = id
+	result.Refresh = token.Refresh
+	if err = c.persist(result); err != nil {
+		return Credentials{}, err
+	}
+	return result, nil
 }
 
 func (c *Client) Current(ctx context.Context) (Credentials, error) {
@@ -144,7 +209,7 @@ func (c *Client) Current(ctx context.Context) (Credentials, error) {
 	if c.tokens.ClientID == "" || c.tokens.Refresh == "" {
 		return Credentials{}, errors.New("stored credentials are incomplete; sign in again")
 	}
-	var token oauthResponse
+	var token OAuthToken
 	_, err := c.form(ctx, c.endpoints.Token, url.Values{"client_id": {c.tokens.ClientID}, "grant_type": {"refresh_token"}, "refresh_token": {c.tokens.Refresh}, "scope": {"Xboxlive.signin Xboxlive.offline_access"}}, &token)
 	if err != nil {
 		return Credentials{}, err
