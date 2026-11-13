@@ -130,6 +130,9 @@ func killfeedDict() map[uint32]string {
 	for _, w := range curatedVocabulary {
 		add(w)
 	}
+	for _, w := range hudVocabulary() {
+		add(w)
+	}
 	for _, w := range assetVocabulary() {
 		add(w)
 	}
@@ -137,6 +140,22 @@ func killfeedDict() map[uint32]string {
 		add(w)
 	}
 	return dict
+}
+
+// hudVocabulary is the vocabulary of the EQUIPMENT HUD set (the `killfeed_<name>`
+// identifiers of the equipment and grenade icons the HUD draws). It is a CLOSED list of
+// 15: the same equipment the game's loadout screen shows, named the way the kill feed names
+// what it already cracked (the grenades by their damage-class word: the Dynamo is the
+// `lightning_grenade`, cf. assets.go). The entry without a class word is the Quantum
+// translocator, tried in the forms the game uses elsewhere.
+func hudVocabulary() []string {
+	return []string{
+		"active_camo", "drop_wall", "lightning_grenade", "frag_grenade",
+		"grappleshot", "overshield", "plasma_grenade",
+		"quantum_translocator", "quantum", "repair_field", "repulsor",
+		"shroud_screen", "spike_grenade", "threat_seeker", "threat_sensor",
+		"thruster",
+	}
 }
 
 // patternVocabulary declines the PATTERNS observed in the already-cracked identifiers,

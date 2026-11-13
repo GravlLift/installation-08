@@ -29,6 +29,11 @@ const JobFirstPerson = "first-person"
 // with the map builds, so at most one heavy build runs at a time.
 const JobWeaponIcons = "weapon-icons"
 
+// JobHudIcons is the module key the runner uses for the single HUD equipment/grenade icon
+// build (the 15 HUD PNGs and their index.json). It is queued after the weapon-icon job and
+// shares the runner's queue with the map builds, like the other library jobs.
+const JobHudIcons = "hud-icons"
+
 // State is one module's build state as seen through the runner.
 type State string
 

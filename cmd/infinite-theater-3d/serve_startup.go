@@ -43,13 +43,13 @@ func hasMatchMvar(root *store.Root, id string) bool {
 }
 
 // enqueueStartupBuilds enqueues every one-time build that is not ready yet, in this order:
-// the weapon icon set, the weapon library, the first-person library, then, for every match
-// in the store, that match's map mesh and variant layer (each distinct map module once, in
-// the store's listing order). ready is the runner's own readiness check, so an output that
-// is already on disk is skipped; variantExists says which matches have a stored map variant
-// to build. It enqueues through jobs (its own Enqueue, so a recording wrapper is used
-// transparently), never blocks, and logs one line naming what it queued (or "nothing"). A
-// nil jobs or ready is a no-op.
+// the weapon icon set, the HUD icon set, the weapon library, the first-person library,
+// then, for every match in the store, that match's map mesh and variant layer (each
+// distinct map module once, in the store's listing order). ready is the runner's own
+// readiness check, so an output that is already on disk is skipped; variantExists says
+// which matches have a stored map variant to build. It enqueues through jobs (its own
+// Enqueue, so a recording wrapper is used transparently), never blocks, and logs one line
+// naming what it queued (or "nothing"). A nil jobs or ready is a no-op.
 func enqueueStartupBuilds(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
 }, ready func(string) bool, matches []startupMatch, variantExists func(id string) bool) {
@@ -63,6 +63,9 @@ func enqueueStartupBuilds(jobs interface {
 	}
 	if !ready(meshjobs.JobWeaponIcons) {
 		enqueue(meshjobs.JobWeaponIcons)
+	}
+	if !ready(meshjobs.JobHudIcons) {
+		enqueue(meshjobs.JobHudIcons)
 	}
 	if !ready(meshjobs.JobWeapons) {
 		enqueue(meshjobs.JobWeapons)

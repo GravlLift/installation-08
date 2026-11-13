@@ -36,6 +36,8 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return err == nil
 	case meshjobs.JobWeaponIcons:
 		return weaponicons.SetReady(root.Dir())
+	case meshjobs.JobHudIcons:
+		return weaponicons.HudSetReady(root.Dir())
 	}
 	p, err := root.MeshPath(module)
 	if err != nil {
@@ -63,6 +65,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return filepath.Join(root.Dir(), "first-person")
 		case meshjobs.JobWeaponIcons:
 			return weaponicons.OutDir(root.Dir())
+		case meshjobs.JobHudIcons:
+			return weaponicons.HudOutDir(root.Dir())
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -85,6 +89,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildFirstPersonLibrary(ctx, root, game)
 		case meshjobs.JobWeaponIcons:
 			return buildWeaponIcons(ctx, root, game)
+		case meshjobs.JobHudIcons:
+			return buildHudIcons(ctx, root, game)
 		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {
@@ -130,6 +136,17 @@ func buildWeaponIcons(ctx context.Context, root *store.Root, gameRoot string) (m
 		return meshjobs.BuildResult{}, err
 	}
 	slog.InfoContext(ctx, "weapon icons built", "entries", entries, "bytes", n)
+	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
+}
+
+// buildHudIcons runs the HUD equipment/grenade icon build into the store's data directory.
+// It is the hud-icons job's body in the mesh build runner.
+func buildHudIcons(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	files, named, n, err := weaponicons.BuildHud(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	slog.InfoContext(ctx, "hud icons built", "files", files, "named", named, "bytes", n)
 	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
 }
 
