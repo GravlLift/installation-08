@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -103,11 +104,22 @@ func waitMeshReady(t *testing.T, h http.Handler, path string) string {
 	return body
 }
 
-// newTestHandlers builds a serverHandlers with the given store, runner and weapon catalog. The
-// mesh-route tests pass an empty weapon catalog (they exercise the mesh routes only).
+// newTestHandlers builds a serverHandlers with the given store and runner, the real weapon
+// label tables and an empty weapon model catalog (the mesh-route tests exercise the mesh
+// routes only).
 func newTestHandlers(root *store.Root, jobs *meshjobs.Runner) serverHandlers {
-	return newServerHandlers(root, "", jobs, weapons.Catalog{})
+	return newServerHandlers(root, "", jobs, weapons.Catalog{}, testLabelCatalog)
 }
+
+// testLabelCatalog is the embedded weapon label tables, loaded once for the whole test
+// binary: a corrupt table is a hard stop, reported where it is first needed.
+var testLabelCatalog = func() weapons.LabelCatalog {
+	cat, err := weapons.LoadLabelCatalog()
+	if err != nil {
+		panic(fmt.Sprintf("weapon label tables: %v", err))
+	}
+	return cat
+}()
 
 // TestMeshBuildStartsAndJoins — POST build on a match with no mesh returns 202; the state
 // route transitions absent -> (queued|building) -> ready; a second POST joins, not a

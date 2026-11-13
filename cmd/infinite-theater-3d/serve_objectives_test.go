@@ -21,8 +21,8 @@ func TestObjectiveModesAndOrdering(t *testing.T) {
 	if got := objectivesFromVariant(v, objectiveSpecs("Slayer")); got != nil {
 		t.Fatalf("slayer: %+v", got)
 	}
-	if _, err := deriveObjectives([]byte("invalid"), "KOTH"); err == nil {
-		t.Fatal("invalid variant accepted")
+	if got, err := deriveObjectivesFromVariant(nil, "KOTH"); err != nil || got != nil {
+		t.Fatalf("objectives without a variant: %+v, %v", got, err)
 	}
 }
 
@@ -80,7 +80,11 @@ func BenchmarkDeriveObjectives(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := deriveObjectives(raw, "KOTH"); err != nil {
+		v, err := mapvar.Parse(raw)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := deriveObjectivesFromVariant(v, "KOTH"); err != nil {
 			b.Fatal(err)
 		}
 	}

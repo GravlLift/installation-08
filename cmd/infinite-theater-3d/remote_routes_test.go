@@ -20,7 +20,7 @@ func TestRemoteRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 	h.auth.steps = loginFlow{
 		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
 		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {
@@ -72,7 +72,7 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 	if err = haloauth.Save(root.Dir(), credential); err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 	h.auth.steps = loginFlow{
 		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
 		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {
@@ -136,7 +136,7 @@ func TestRemoteFetchExpiredFilm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 	h.auth.steps = loginFlow{
 		start: func(context.Context, string) (*haloauth.DeviceCode, error) { return nil, context.Canceled },
 		poll: func(*haloauth.DeviceCode, string) (*haloauth.OAuthToken, time.Duration, error) {

@@ -72,7 +72,7 @@ func weaponTestRunner(t *testing.T, root *store.Root) *meshjobs.Runner {
 // weaponTestHandlers builds a serverHandlers whose weapon catalog names map "moda".
 func weaponTestHandlers(t *testing.T, root *store.Root, jobs *meshjobs.Runner) serverHandlers {
 	t.Helper()
-	return newServerHandlers(root, "", jobs, weapons.Catalog{Map: "moda"})
+	return newServerHandlers(root, "", jobs, weapons.Catalog{Map: "moda"}, testLabelCatalog)
 }
 
 // TestWeaponIndexNotBuilt — before a build, GET /api/weapons is a JSON 404 naming
@@ -178,7 +178,7 @@ func TestWeaponStateNoMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 
 	rec := get(t, h, "/api/weapons/state", nil)
 	if rec.Code != http.StatusConflict {
@@ -196,7 +196,7 @@ func TestWeaponBuildUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{Map: "moda"})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{Map: "moda"}, testLabelCatalog)
 
 	rec := get(t, h, "/api/weapons/state", nil)
 	if rec.Code != http.StatusServiceUnavailable {

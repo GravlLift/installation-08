@@ -126,9 +126,11 @@ func (h serverHandlers) fetchState(w http.ResponseWriter, r *http.Request) {
 // newServerHandlers builds the server: the API routes on a mux, wrapped by the static
 // fallback. It returns the concrete handler (which implements http.Handler) so a test can
 // drive the routes directly as well as through the full server.
-func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog) serverHandlers {
+func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog,
+	labelCat weapons.LabelCatalog,
+) serverHandlers {
 	var authMu sync.Mutex
-	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, labelCat: labelCat, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())

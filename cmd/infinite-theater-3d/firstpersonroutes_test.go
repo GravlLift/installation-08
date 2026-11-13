@@ -89,7 +89,7 @@ func writeFirstPersonFixtures(dir string) error {
 // (so the first-person build is allowed even with an empty store).
 func firstPersonTestHandlers(t *testing.T, root *store.Root, jobs *meshjobs.Runner) serverHandlers {
 	t.Helper()
-	return newServerHandlers(root, "", jobs, weapons.Catalog{Map: "moda"})
+	return newServerHandlers(root, "", jobs, weapons.Catalog{Map: "moda"}, testLabelCatalog)
 }
 
 // TestFirstPersonIndexNotBuilt — before a build, the index is a JSON 404 naming
@@ -225,7 +225,7 @@ func TestFirstPersonStateUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 
 	rec := get(t, h, "/api/first-person/state", nil)
 	if rec.Code != http.StatusServiceUnavailable {

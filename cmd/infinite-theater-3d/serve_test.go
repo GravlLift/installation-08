@@ -218,7 +218,7 @@ func TestServeStaticFallback(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(web, "index.html"), []byte("<html>home</html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, web, nil, weapons.Catalog{})
+	h := newServerHandlers(root, web, nil, weapons.Catalog{}, testLabelCatalog)
 	rec := get(t, h, "/some/spa/route", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "home") {
 		t.Fatalf("spa fallback: status=%d body=%s", rec.Code, rec.Body.String())

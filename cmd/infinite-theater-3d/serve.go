@@ -79,7 +79,11 @@ func runServe(args []string) error {
 	}
 	jobs.Start()
 	defer jobs.Stop(5 * time.Second)
-	h := newServerHandlers(root, f.web, jobs, weaponKeys)
+	labelCat, err := weapons.LoadLabelCatalog()
+	if err != nil {
+		return err
+	}
+	h := newServerHandlers(root, f.web, jobs, weaponKeys, labelCat)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -113,14 +117,15 @@ func runServe(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// serverHandlers bundles the store, the optional static directory, the mesh build runner, and
-// the weapon catalog. It implements http.Handler: ServeHTTP serves the static files for
-// non-API paths and the mux for the API routes.
+// serverHandlers bundles the store, the optional static directory, the mesh build runner,
+// the weapon model catalog and the weapon label tables. It implements http.Handler:
+// ServeHTTP serves the static files for non-API paths and the mux for the API routes.
 type serverHandlers struct {
 	root     *store.Root
 	web      string
 	jobs     *meshjobs.Runner
 	weapKeys weapons.Catalog
+	labelCat weapons.LabelCatalog
 	mux      *http.ServeMux
 	remote   *remoteJobs
 	auth     *authSession
@@ -196,7 +201,7 @@ func (h serverHandlers) handleReplay(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	raw = replayWithObjectives(h.root, id, raw)
+	raw = replayWithEnrichments(r.Context(), h.root, id, h.labelCat, raw)
 	acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 	if acceptsGzip {
 		w.Header().Set("Content-Encoding", "gzip")

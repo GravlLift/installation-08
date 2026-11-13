@@ -44,7 +44,7 @@ func newTestServer(t *testing.T, deviceResp, tokenResp string) (serverHandlers, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
 	c := haloauth.New(root.Dir(), srv.Client(), haloauth.Endpoints{
 		Device: srv.URL + "/device", Token: srv.URL + "/token", User: srv.URL + "/user",
 		XSTS: srv.URL + "/xsts", Spartan: srv.URL + "/spartan", Clearance: srv.URL + "/clearance",
