@@ -1,0 +1,44 @@
+/**
+ * meshFetch.ts — LE TÉLÉCHARGEMENT DU MAILLAGE 3D, lu en flux pour en dire la progression.
+ *
+ * Le fichier pèse des centaines de Mio : la vue affiche la part reçue. Il passe par le client
+ * d'API (en-têtes de titre et de langue, cookies, mapping d'erreurs), jamais par un `fetch` nu.
+ */
+import { api } from '@/lib/api/client'
+
+export async function fetchMesh(
+  path: string,
+  onProgress: (loaded: number, total: number) => void,
+  signal: AbortSignal,
+): Promise<ArrayBuffer> {
+  const response = await api.getResponse(path, { signal })
+  const total = Number(response.headers.get('Content-Length') ?? 0)
+  if (!response.body) return response.arrayBuffer()
+  // Taille annoncée : un seul tampon rempli au fil des morceaux, sans recopie finale. Un corps
+  // qui la dépasse retombe sur la liste de morceaux.
+  let out: Uint8Array<ArrayBuffer> | null = total > 0 ? new Uint8Array(total) : null
+  const chunks: Uint8Array[] = []
+  let loaded = 0
+  const reader = response.body.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (out && loaded + value.length <= total) {
+      out.set(value, loaded)
+    } else {
+      if (out) chunks.push(out.subarray(0, loaded))
+      out = null
+      chunks.push(value)
+    }
+    loaded += value.length
+    onProgress(loaded, total)
+  }
+  if (out) return loaded === total ? out.buffer : out.slice(0, loaded).buffer
+  const merged = new Uint8Array(loaded)
+  let at = 0
+  for (const c of chunks) {
+    merged.set(c, at)
+    at += c.length
+  }
+  return merged.buffer
+}

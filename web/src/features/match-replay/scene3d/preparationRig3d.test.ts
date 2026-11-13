@@ -1,0 +1,22 @@
+import { expect, it, vi } from 'vitest'
+import type { SpartanArmory, Dress } from './armory3d'
+import type { Coat } from './armorCoat3d'
+import { PreparationRig3d } from './preparationRig3d'
+
+it('abandonne un ancien revêtement même si le joueur garde son xuid', async () => {
+  let resoudre!: (coat: Coat | null) => void
+  const ancien = new Promise<Coat | null>((resolve) => { resoudre = resolve })
+  const peindreBras = vi.fn().mockReturnValueOnce(ancien).mockResolvedValue(null)
+  const armurerie = { regions: () => null, dress: () => ({} as Dress), peindreBras } as unknown as SpartanArmory
+  const preparation = new PreparationRig3d({
+    fichiersCharges: () => ['a'], materiauxDe: () => [], indexPieces: async () => null,
+    piece: async () => null, armurerie: () => armurerie, xuid: () => '1',
+  })
+  preparation.changerJoueur()
+  await Promise.resolve()
+  preparation.changerJoueur()
+  resoudre(new Map())
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  expect(preparation.coat('a')).toBeNull()
+  expect(peindreBras).toHaveBeenCalledTimes(2)
+})
