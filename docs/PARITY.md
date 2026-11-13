@@ -105,18 +105,19 @@ Redo this comparison on one match per game mode before calling the document comp
 
 | Field | LevelUp | Standalone | Drives |
 |---|---|---|---|
-| `skullCarries` | 46 | missing | Oddball: who holds the ball |
-| `objectiveObjects` | 93 | missing | objective objects on the map |
-| `scoreTimeline` | present | missing | score banner over time |
-| `killEffects` | 31 | missing | kill effect per weapon |
-| `weaponLabels` | 14 | missing | weapon names and icons (kill feed, HUD) |
-| `grenadeLabels` | 4 | missing | grenade names |
-| `abilityLabels` | 3 | missing | equipment names |
-| `carriedEquipment` | 28 | missing | equipment a player carries |
-| `riftPoses` | 6 | missing | objective poses |
-| `padPickups` | 37 | 25 | weapon pad pickups (count differs, unexplained) |
-| `weaponPads` | 8 | 7 | weapon pads (count differs, unexplained) |
-| `projectiles` | 372 | 539 | projectile paths (count differs, unexplained) |
+| `killEffects` | 31 | 31 | kill effect per weapon |
+| `weaponLabels` | 14 | 14 | weapon names and icons (kill feed, HUD) |
+| `grenadeLabels` | 4 | 4 | grenade names |
+| `abilityLabels` | 3 | 3 | equipment names |
+| `objectiveObjects` | 93 | 93 | objective objects on the map |
+| `carriedEquipment` | 28 | 28 | equipment a player carries |
+| `riftPoses` | 6 | 6 | objective poses |
+| `skullCarries` | 46 | absent | Oddball: who holds the ball (needs `--stats` with `gameVariantName`) |
+| `scoreTimeline` | present | absent | score banner over time (needs `--stats` with scoreboard rows) |
+| `padPickups` | 37 | 37 | weapon pad pickups |
+| `weaponPads` | 8 | 8 | weapon pads |
+| `projectiles` | 372 | 539 | projectile paths (decoder difference: schema 116 / 100 ms grid vs schema 122 / 33 ms grid) |
 
-Small differences also seen and unexplained: `stances` 3,260 / 3,266, `drawnWeapons`
-594 / 610, `ammoReads` 3,413 / 3,416, `weaponChanges` 205 / 206.
+Small differences, all decoder differences (older LevelUp decoder, schema 116, 100 ms
+frame interval vs the vendored decoder, schema 122, 33 ms): `stances` 3,260 / 3,266,
+`drawnWeapons` 594 / 610, `ammoReads` 3,413 / 3,416, `weaponChanges` 205 / 206.

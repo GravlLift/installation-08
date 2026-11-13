@@ -1,0 +1,214 @@
+{
+  "hinf_mutilator": {
+    "en": "Mutilator",
+    "fr": "Mutilateur"
+  },
+  "hinf_stalker_rifle": {
+    "en": "Stalker Rifle",
+    "fr": "Fusil traqueur"
+  },
+  "hinf_sentinel_beam": {
+    "en": "Sentinel Beam",
+    "fr": "Rayon de Sentinelle"
+  },
+  "hinf_hydra": {
+    "en": "MLRS-2 Hydra",
+    "fr": "Hydra"
+  },
+  "hinf_skewer": {
+    "en": "Skewer",
+    "fr": "Empaleur"
+  },
+  "hinf_cindershot": {
+    "en": "Cindershot",
+    "fr": "Crémateur"
+  },
+  "hinf_cqs48_bulldog": {
+    "en": "CQS48 Bulldog",
+    "fr": "CQS48 Bulldog"
+  },
+  "hinf_ma40_ar": {
+    "en": "MA40 AR",
+    "fr": "MA40 AR"
+  },
+  "hinf_coil_shock": {
+    "en": "Shock Coil",
+    "fr": "Bobine à choc"
+  },
+  "hinf_vk78_commando": {
+    "en": "VK78 Commando",
+    "fr": "VK78 Commando"
+  },
+  "hinf_m41_spnkr": {
+    "en": "M41 SPNKr",
+    "fr": "M41 SPNKr"
+  },
+  "hinf_s7_sniper": {
+    "en": "S7 Sniper",
+    "fr": "S7 Sniper"
+  },
+  "hinf_plasma_pistol": {
+    "en": "Plasma Pistol",
+    "fr": "Pistolet à plasma"
+  },
+  "hinf_banshee": {
+    "en": "Banshee",
+    "fr": "Banshee"
+  },
+  "hinf_heatwave": {
+    "en": "Heatwave",
+    "fr": "Calcineur"
+  },
+  "hinf_ghost": {
+    "en": "Ghost",
+    "fr": "Ghost"
+  },
+  "hinf_repulsor": {
+    "en": "Repulsor",
+    "fr": "Répulseur"
+  },
+  "hinf_environment": {
+    "en": "Environment",
+    "fr": "Chute et environnement"
+  },
+  "hinf_ma5k_avenger": {
+    "en": "MA5K Avenger",
+    "fr": "MA5K Avenger"
+  },
+  "hinf_vestige_carbine": {
+    "en": "Vestige Carbine",
+    "fr": "Carabine Vestige"
+  },
+  "hinf_dynamo_grenade": {
+    "en": "Dynamo Grenade",
+    "fr": "Grenade dynamo"
+  },
+  "hinf_sidekick": {
+    "en": "Mk50 Sidekick",
+    "fr": "MK50 Sidekick"
+  },
+  "hinf_turret_shade": {
+    "en": "Shade turret",
+    "fr": "Tourelle Shade"
+  },
+  "hinf_disruptor": {
+    "en": "Disruptor",
+    "fr": "Disrupteur"
+  },
+  "hinf_coil_hardlight": {
+    "en": "Blast Coil",
+    "fr": "Bobine à souffle"
+  },
+  "hinf_shock_rifle": {
+    "en": "Shock Rifle",
+    "fr": "Fusil électrique"
+  },
+  "hinf_br75": {
+    "en": "BR75",
+    "fr": "BR75"
+  },
+  "hinf_falcon_lmg": {
+    "en": "Falcon LMG turret",
+    "fr": "Tourelle LMG du Falcon"
+  },
+  "hinf_plasma_grenade": {
+    "en": "Plasma Grenade",
+    "fr": "Grenade plasma"
+  },
+  "hinf_pelican": {
+    "en": "Pelican",
+    "fr": "Pélican"
+  },
+  "hinf_mangler": {
+    "en": "Mangler",
+    "fr": "Déchiqueteur"
+  },
+  "hinf_coil_plasma": {
+    "en": "Plasma Coil",
+    "fr": "Bobine à plasma"
+  },
+  "hinf_bandit": {
+    "en": "M392 Bandit",
+    "fr": "Bandit EVO"
+  },
+  "hinf_frag_grenade": {
+    "en": "Frag Grenade",
+    "fr": "Grenade frag"
+  },
+  "hinf_fuel_rod_spnkr": {
+    "en": "Fuel Rod SPNKr",
+    "fr": "SPNKr à combustible"
+  },
+  "hinf_needler": {
+    "en": "Needler",
+    "fr": "Needler"
+  },
+  "hinf_gungoose": {
+    "en": "Gungoose",
+    "fr": "Gungoose"
+  },
+  "hinf_energy_sword": {
+    "en": "Energy Sword",
+    "fr": "Épée à énergie"
+  },
+  "hinf_ravager": {
+    "en": "Ravager",
+    "fr": "Ravageur"
+  },
+  "hinf_warthog": {
+    "en": "Warthog",
+    "fr": "Warthog"
+  },
+  "hinf_wasp": {
+    "en": "Wasp",
+    "fr": "Wasp"
+  },
+  "hinf_turret_machinegun": {
+    "en": "Machine gun turret",
+    "fr": "Tourelle mitrailleuse"
+  },
+  "hinf_turret_plasma": {
+    "en": "Plasma cannon",
+    "fr": "Canon à plasma"
+  },
+  "hinf_unarmed": {
+    "en": "Unarmed",
+    "fr": "Mains nues"
+  },
+  "hinf_gravity_hammer": {
+    "en": "Gravity Hammer",
+    "fr": "Marteau antigravité"
+  },
+  "hinf_wraith": {
+    "en": "Wraith",
+    "fr": "Apparition"
+  },
+  "hinf_pulse_carbine": {
+    "en": "Pulse Carbine",
+    "fr": "Carabine à impulsion"
+  },
+  "hinf_chopper": {
+    "en": "Chopper",
+    "fr": "Chopper"
+  },
+  "hinf_rockethog": {
+    "en": "Rockethog",
+    "fr": "Warthog lance-roquettes"
+  },
+  "hinf_phantom": {
+    "en": "Phantom",
+    "fr": "Phantom"
+  },
+  "hinf_coil_kinetic": {
+    "en": "UNSC Fusion Coil",
+    "fr": "Bobine à fusion UNSC"
+  },
+  "hinf_falcon_gl": {
+    "en": "Falcon grenade launcher",
+    "fr": "Lance-grenades du Falcon"
+  },
+  "hinf_scorpion": {
+    "en": "Scorpion",
+    "fr": "Scorpion"
+  }
+}

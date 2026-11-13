@@ -14,6 +14,8 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-film-decoder/types"
+
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 // buildOptions assembles the decoder options from what the film already says plus the
@@ -46,6 +48,8 @@ func buildOptions(ctx context.Context, matchID string, film *decfilm.Film, death
 		MatchKills:       matchKills,
 		KillCauses:       causes,
 		ProfilDeBalayage: profileOf(killsource),
+		Labels:           refdata.Labels(),
+		EquipmentEnergy:  refdata.EquipmentEnergy(),
 	}
 }
 
