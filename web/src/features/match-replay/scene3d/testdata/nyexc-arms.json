@@ -1,0 +1,401 @@
+{
+  "catalog": {
+    "schema": 2,
+    "skeleton": {
+      "bones": [
+        "b_pedestal",
+        "noeud_68e467f9",
+        "b_aim_pitch",
+        "b_aim_yaw",
+        "b_r_upperarm",
+        "b_l_upperarm",
+        "noeud_39d06b7d",
+        "b_l_shoulder_helper4",
+        "b_l_forearm",
+        "b_l_upperarm_fixup",
+        "b_l_shoulder_helper1",
+        "b_r_shoulder_helper3",
+        "b_r_shoulder_helper1",
+        "b_l_shoulder_helper3",
+        "b_r_shoulder_helper2",
+        "b_r_shoulder_fixup",
+        "b_r_forearm",
+        "b_r_shoulder_helper4",
+        "b_r_upperarm_fixup",
+        "b_l_shoulder_helper2",
+        "b_l_shoulder_fixup",
+        "b_l_elbow_armor",
+        "b_r_forearm_helper1",
+        "b_l_hand_twist",
+        "b_l_elbow_fixup",
+        "b_l_forearm_helper1",
+        "b_r_forearm_fixup",
+        "b_r_elbow_fixup",
+        "b_l_forearm_helper2",
+        "b_r_hand",
+        "b_r_forearm_helper4",
+        "b_r_forearm_helper3",
+        "b_l_forearm_fixup",
+        "b_l_forearm_helper4",
+        "b_r_forearm_helper2",
+        "b_l_forearm_helper3",
+        "b_r_elbow_armor",
+        "b_l_hand",
+        "b_r_hand_twist",
+        "b_l_pinky0",
+        "b_r_pinky0",
+        "b_r_index1",
+        "b_r_wrist_fixup",
+        "b_l_middle1",
+        "b_r_thumb1",
+        "b_r_hand_helper4",
+        "b_l_thumb1",
+        "b_l_grip",
+        "b_l_index1",
+        "b_r_middle1",
+        "b_r_hand_helper2",
+        "b_l_wrist_fixup",
+        "b_r_hand_helper3",
+        "b_r_hand_helper1",
+        "noeud_8fd72683",
+        "b_r_grip",
+        "b_r_ring1",
+        "b_l_ring1",
+        "b_r_ring2",
+        "b_l_middle2",
+        "b_l_pinky1",
+        "b_l_thumb2",
+        "b_l_index2",
+        "b_r_thumb2",
+        "b_l_ring2",
+        "b_r_pinky1",
+        "b_r_middle2",
+        "b_r_index2",
+        "b_r_pinky2",
+        "b_l_middle3",
+        "b_l_thumb3",
+        "b_r_thumb3",
+        "b_r_middle3",
+        "b_l_ring3",
+        "b_l_pinky2",
+        "b_l_index3",
+        "b_r_index3",
+        "b_r_ring3",
+        "b_r_pinky3",
+        "b_l_pinky3"
+      ],
+      "root": 0
+    },
+    "pieces": [
+      {
+        "key": "3f91af6a-16a12dd4",
+        "region": "3f91af6a",
+        "permutation": "16a12dd4",
+        "file": "piece-3f91af6a-16a12dd4.glb",
+        "triangles": 2535,
+        "bbox": {
+          "min": [
+            -0.021782042,
+            -0.12304194,
+            -0.24069357
+          ],
+          "max": [
+            0.06159971,
+            -0.024790898,
+            -0.11149779
+          ]
+        },
+        "bytes": 168392
+      },
+      {
+        "key": "dcb69b0f-16a12dd4",
+        "region": "dcb69b0f",
+        "permutation": "16a12dd4",
+        "file": "piece-dcb69b0f-16a12dd4.glb",
+        "triangles": 2747,
+        "bbox": {
+          "min": [
+            -0.032162555,
+            -0.06532627,
+            -0.15769112
+          ],
+          "max": [
+            0.01259855,
+            0.02476316,
+            -0.065245226
+          ]
+        },
+        "bytes": 177824
+      },
+      {
+        "key": "62059329-16a12dd4",
+        "region": "62059329",
+        "permutation": "16a12dd4",
+        "file": "piece-62059329-16a12dd4.glb",
+        "triangles": 8080,
+        "bbox": {
+          "min": [
+            0.038358595,
+            -0.16991767,
+            -0.27253556
+          ],
+          "max": [
+            0.102500245,
+            -0.100485496,
+            -0.2137933
+          ]
+        },
+        "bytes": 480036
+      },
+      {
+        "key": "a3bf50c6-16a12dd4",
+        "region": "a3bf50c6",
+        "permutation": "16a12dd4",
+        "file": "piece-a3bf50c6-16a12dd4.glb",
+        "triangles": 478,
+        "bbox": {
+          "min": [
+            -0.04410881,
+            -0.04010123,
+            -0.07877575
+          ],
+          "max": [
+            0.040495057,
+            0.039245646,
+            -0.059448846
+          ]
+        },
+        "bytes": 47032
+      },
+      {
+        "key": "bb7733d0-16a12dd4",
+        "region": "bb7733d0",
+        "permutation": "16a12dd4",
+        "file": "piece-bb7733d0-16a12dd4.glb",
+        "triangles": 2535,
+        "bbox": {
+          "min": [
+            -0.021782042,
+            -0.12304194,
+            0.11150625
+          ],
+          "max": [
+            0.06159971,
+            -0.024790898,
+            0.24070203
+          ]
+        },
+        "bytes": 168392
+      },
+      {
+        "key": "67548bfd-16a12dd4",
+        "region": "67548bfd",
+        "permutation": "16a12dd4",
+        "file": "piece-67548bfd-16a12dd4.glb",
+        "triangles": 2747,
+        "bbox": {
+          "min": [
+            -0.032162555,
+            -0.06532627,
+            0.06525368
+          ],
+          "max": [
+            0.01259855,
+            0.02476316,
+            0.15769958
+          ]
+        },
+        "bytes": 177828
+      },
+      {
+        "key": "7c8065e9-16a12dd4",
+        "region": "7c8065e9",
+        "permutation": "16a12dd4",
+        "file": "piece-7c8065e9-16a12dd4.glb",
+        "triangles": 8080,
+        "bbox": {
+          "min": [
+            0.038358595,
+            -0.16991767,
+            0.21380176
+          ],
+          "max": [
+            0.102500245,
+            -0.100485496,
+            0.27254403
+          ]
+        },
+        "bytes": 480040
+      },
+      {
+        "key": "4e91a821-16a12dd4",
+        "region": "4e91a821",
+        "permutation": "16a12dd4",
+        "file": "piece-4e91a821-16a12dd4.glb",
+        "triangles": 478,
+        "bbox": {
+          "min": [
+            -0.04410881,
+            -0.04010123,
+            0.059457306
+          ],
+          "max": [
+            0.040495057,
+            0.039245646,
+            0.07878421
+          ]
+        },
+        "bytes": 47032
+      }
+    ],
+    "default": {
+      "006f42a8": "13d24f1f",
+      "2c3c359d": "13d24f1f",
+      "3f91af6a": "13d24f1f",
+      "4e91a821": "13d24f1f",
+      "62059329": "13d24f1f",
+      "67548bfd": "13d24f1f",
+      "74276701": "13d24f1f",
+      "7c8065e9": "13d24f1f",
+      "a3bf50c6": "13d24f1f",
+      "ab25d202": "13d24f1f",
+      "b2e84b97": "13d24f1f",
+      "b64a2796": "13d24f1f",
+      "bb7733d0": "13d24f1f",
+      "dcb69b0f": "13d24f1f"
+    },
+    "failures": []
+  },
+  "player": {
+    "xuid": "2535444383025750",
+    "status": "armor",
+    "regions": [
+      {
+        "region": 225833582,
+        "permutation": 765472553,
+        "region_key": "0d75f26e",
+        "permutation_key": "2da02f29",
+        "source": "knee_pads"
+      },
+      {
+        "region": 702769714,
+        "permutation": 270486441,
+        "region_key": "29e36a32",
+        "permutation_key": "101f4ba9",
+        "source": "theme"
+      },
+      {
+        "region": 706373173,
+        "permutation": 270486441,
+        "region_key": "2a1a6635",
+        "permutation_key": "101f4ba9",
+        "source": "theme"
+      },
+      {
+        "region": 1066512234,
+        "permutation": 379661780,
+        "region_key": "3f91af6a",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_left_arm"
+      },
+      {
+        "region": 1133478663,
+        "permutation": 379661780,
+        "region_key": "438f8307",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_right_leg"
+      },
+      {
+        "region": 1250001557,
+        "permutation": 270486441,
+        "region_key": "4a818295",
+        "permutation_key": "101f4ba9",
+        "source": "theme"
+      },
+      {
+        "region": 1318168609,
+        "permutation": 379661780,
+        "region_key": "4e91a821",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_right_arm"
+      },
+      {
+        "region": 1644532521,
+        "permutation": 379661780,
+        "region_key": "62059329",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_left_arm"
+      },
+      {
+        "region": 1733594109,
+        "permutation": 379661780,
+        "region_key": "67548bfd",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_right_arm"
+      },
+      {
+        "region": 1798246436,
+        "permutation": 270486441,
+        "region_key": "6b2f1024",
+        "permutation_key": "101f4ba9",
+        "source": "theme"
+      },
+      {
+        "region": 1923396739,
+        "permutation": 270486441,
+        "region_key": "72a4b483",
+        "permutation_key": "101f4ba9",
+        "source": "theme"
+      },
+      {
+        "region": 2088789481,
+        "permutation": 379661780,
+        "region_key": "7c8065e9",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_right_arm"
+      },
+      {
+        "region": -2070903492,
+        "permutation": 379661780,
+        "region_key": "8490853c",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_left_leg"
+      },
+      {
+        "region": -2012771059,
+        "permutation": 765472553,
+        "region_key": "88078d0d",
+        "permutation_key": "2da02f29",
+        "source": "knee_pads"
+      },
+      {
+        "region": -1547743034,
+        "permutation": 379661780,
+        "region_key": "a3bf50c6",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_left_arm"
+      },
+      {
+        "region": -1149815856,
+        "permutation": 379661780,
+        "region_key": "bb7733d0",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_right_arm"
+      },
+      {
+        "region": -592012529,
+        "permutation": 379661780,
+        "region_key": "dcb69b0f",
+        "permutation_key": "16a12dd4",
+        "source": "prosthetic_left_arm"
+      },
+      {
+        "region": -436735957,
+        "permutation": 1425312801,
+        "region_key": "e5f7f02b",
+        "permutation_key": "54f48c21",
+        "source": "helmet"
+      }
+    ]
+  }
+}

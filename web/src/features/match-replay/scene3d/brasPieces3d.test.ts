@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import nyexc from './testdata/nyexc-arms.json'
 import { lierPiece, planBras, type BrasIndex, type BrasPiece } from './brasPieces3d'
 
 function indexPieces(pieces: BrasPiece[], defaut: Record<string, string>): BrasIndex {
@@ -11,6 +12,14 @@ function piece(key: string, region: string, permutation: string): BrasPiece {
 }
 
 describe('planBras', () => {
+  it('selects Nyexc’s live prosthetic arm pieces', () => {
+    const pieces = planBras(nyexc.catalog, nyexc.player.regions)
+    expect(pieces).toHaveLength(8)
+    expect(pieces.map((p) => p.key)).toContain('3f91af6a-16a12dd4')
+    expect(pieces.map((p) => p.key)).toContain('62059329-16a12dd4')
+    expect(nyexc.player.regions.find((r) => r.region_key === '3f91af6a')?.source).toBe('prosthetic_left_arm')
+  })
+
   it(`choisit la permutation du joueur quand la piece existe`, () => {
     const idx = indexPieces(
       [piece('r1-p1', 'r1', 'p1'), piece('r1-d', 'r1', 'd')],

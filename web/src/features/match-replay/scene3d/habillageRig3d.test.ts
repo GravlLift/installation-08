@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import nyexc from './testdata/nyexc-arms.json'
 
 import { type BrasIndex, type BrasPieces3d } from './brasPieces3d'
 import type { SpartanArmory } from './armory3d'
@@ -67,6 +68,27 @@ function piecesDe(root: THREE.Object3D): THREE.SkinnedMesh[] {
 }
 
 describe('HabillageRig3d', () => {
+  it('dresses a rig with the selected Nyexc arm pieces', async () => {
+    const { root, integre } = rigRacine('b_l_forearm')
+    const chargeur = { piece: vi.fn(async () => scenePiece('b_l_forearm')) }
+    const armory = { regions: () => nyexc.player.regions } as unknown as SpartanArmory
+    const habillage = new HabillageRig3d({
+      indexPieces: Promise.resolve(nyexc.catalog),
+      chargeur: chargeur as unknown as BrasPieces3d,
+      signal: new AbortController().signal,
+      xuid: () => nyexc.player.xuid,
+      armurerie: () => armory,
+      materiauSource: (m) => m,
+      invaliderPeinture: vi.fn(),
+    })
+    habillage.actualiser('rig', root)
+    await tick()
+    expect(chargeur.piece).toHaveBeenCalledWith('piece-3f91af6a-16a12dd4.glb')
+    expect(piecesDe(root)).toHaveLength(8)
+    expect(integre.visible).toBe(false)
+    habillage.changerJoueur()
+  })
+
   it('conserve les pièces de deux rigs jusqu’au changement de joueur', async () => {
     const a = rigRacine(), b = rigRacine()
     const scene = scenePiece('b_bracelette')
