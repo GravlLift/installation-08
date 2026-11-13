@@ -475,9 +475,9 @@ func cadreAuxAncresEtZonesForge(ctx context.Context, r *Rendu, opts OptionsCuiss
 // indexForge construit l'index des tags : le module des objets Forge d'abord (les `food` et
 // leurs `rtgo`), puis le canevas et les globaux.
 func indexForge(opts OptionsCuissonForge) (*ModuleIndex, *himodule.Module, error) {
-	principal := filepath.Join(opts.RacineDeploy, "any", "globals", "forge", "forge_objects-rtx-new.module")
+	principal := cheminDefinitionsForge(opts.RacineDeploy)
 	chemins := []string{principal}
-	if p := filepath.Join(opts.RacineDeploy, "pc", "globals", "forge", "forge_objects-rtx-new.module"); existeFichier(p) {
+	if p := cheminGeometrieForge(opts.RacineDeploy); existeFichier(p) {
 		chemins = append(chemins, p)
 	}
 	if opts.CheminModuleCanevas != "" && existeFichier(opts.CheminModuleCanevas) {
@@ -636,10 +636,13 @@ const (
 	GroupeMode = "mode"
 )
 
+// GroupeBloc : le groupe des objets de decor deplacables (crate), le plus courant des objets Forge.
+const GroupeBloc = "bloc"
+
 // groupesSautForge : les groupes de definition d'objet Forge SANS ref rtgo directe dans leur
 // `food`, dans l'ordre de frequence mesure sur Vagabond — 963 objets via `bloc`, 173 via
 // `scen`, 9 via `mach` (sonde F1CouvertureRtgo, 2026-08-10).
-var groupesSautForge = []string{"bloc", "scen", "mach"}
+var groupesSautForge = []string{GroupeBloc, "scen", "mach"}
 
 // modeleParSaut resout le modele d'un `food` sans ref rtgo directe : la definition d'objet
 // passe par un tag `bloc`/`scen`/`mach`, qui reference son modele `hlmt`, lequel porte la
@@ -705,8 +708,13 @@ func RefsInline(tag []byte, retient func(uint32) bool) []uint32 {
 }
 
 // InstanceForge construit l'instance de pose d'un objet `.mvar` : base orthonormee
-// Forward/Left/Up avec Left = Up x Forward, echelle unitaire (mesuree ABSENTE du format).
+// Forward/Left/Up avec Left = Up x Forward, echelle par axe local de l'objet (unitaire quand il
+// n'en porte pas).
 func InstanceForge(o mapvar.Object) Instance {
+	echelle := [3]float64{1, 1, 1}
+	if s := o.Scale; s != nil {
+		echelle = [3]float64{s.X, s.Y, s.Z}
+	}
 	f := normalise([3]float64{o.Forward.X, o.Forward.Y, o.Forward.Z})
 	u := normalise([3]float64{o.Up.X, o.Up.Y, o.Up.Z})
 	l := [3]float64{
@@ -715,7 +723,7 @@ func InstanceForge(o mapvar.Object) Instance {
 		u[0]*f[1] - u[1]*f[0],
 	}
 	return Instance{
-		Scale:    [3]float64{1, 1, 1},
+		Scale:    echelle,
 		Position: [3]float64{o.Pos.X, o.Pos.Y, o.Pos.Z},
 		Forward:  f,
 		Left:     l,

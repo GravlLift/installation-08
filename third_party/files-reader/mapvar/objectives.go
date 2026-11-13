@@ -172,6 +172,15 @@ func (o Objective) IsCTFNeutral() bool {
 	return slices.Contains(o.Labels, LabelCTFNeutralInclude)
 }
 
+// LabelInfectionInclude est le filtre d'activation du mode Infection : un objet qui le porte
+// n'existe dans une partie que si elle se joue en Infection.
+const LabelInfectionInclude = "infection_include"
+
+// HasLabel dit si l'objet porte le label `name` (son murmur3, LabelHash).
+func (o Object) HasLabel(name string) bool {
+	return slices.Contains(o.Labels, LabelHash(name))
+}
+
 // Role est le rôle d'objectif d'un objet, tel que le rejeu doit l'afficher.
 type Role string
 

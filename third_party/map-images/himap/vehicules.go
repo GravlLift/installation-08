@@ -56,20 +56,21 @@ func RefModeleVehicule(ctx context.Context, idx *ModuleIndex, tagVehi []byte) (i
 // HISTOIRE (2026-08-31 -> 2026-09-01). V4 avait pose ce plancher a 0x10000 pour ecarter DEUX
 // tags PARTAGES a ID minuscule qui deraillaient la resolution : `hlmt 0x0000001f` (octets
 // « 1f 00 00 00 » = l'entier 31, omnipresent) capte comme « premier hlmt », et son `mode
-// 0x00003a73` de repli (modele plat de 452 sections). Mais 0x10000 etait TROP HAUT : il
+// 0x00003a73` (les bras a la premiere personne, voir parasitesVehicule). Mais 0x10000 etait TROP HAUT : il
 // ecartait aussi des hlmt de tourelle legitimes a petit hash (mesure 2026-09-01 : la tourelle
 // `warthog_g` a pour modele `hlmt 0x0000e0d4` = 57 556, ecrase par le plancher, d'ou une
 // tourelle « SANS MODELE »). La bonne cible n'est pas un plancher haut mais l'exclusion NOMMEE
 // des deux parasites (parasitesVehicule) : ainsi les hlmt de tourelle a petit hash passent.
 const minTagIDVehicule = 0x00000100
 
-// parasitesVehicule : les GlobalID PARTAGES de repli qui derailleraient le balayage d'octets —
-// le `hlmt` omnipresent 0x1f (entier 31 present dans tout tag) et le `mode` plat 0x3a73 qu'il
-// porte. Exclus NOMMEMENT (et non par un plancher aveugle) pour ne pas ecarter du meme coup les
-// modeles de tourelle a petit hash.
+// parasitesVehicule : les GlobalID PARTAGES qui derailleraient le balayage d'octets. 0x1f et 0x3a73
+// sont le `hlmt` et le `mode` des bras a la premiere personne du joueur (references par les globales
+// joueur `glpa`, lus par Arsenal.SourcesBras), pas un modele de repli : le balayage capte 0x1f parce
+// que ses octets sont l'entier 31, present dans presque tout tag. Exclus NOMMEMENT (et non par un
+// plancher aveugle) pour ne pas ecarter du meme coup les modeles de tourelle a petit hash.
 var parasitesVehicule = map[uint32]bool{
-	0x0000001f: true, // hlmt de repli partage
-	0x00003a73: true, // mode plat de repli (452 sections)
+	0x0000001f: true, // hlmt des bras a la premiere personne
+	0x00003a73: true, // mode des bras a la premiere personne
 	0x000027d0: true, // mode d'etat partage « vehicle_partial_emp » (~10 vehis y pointent)
 }
 

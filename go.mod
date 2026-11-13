@@ -9,7 +9,11 @@ require (
 	github.com/JGtm/halo-infinite-map-images v1.0.1
 )
 
-require github.com/klauspost/compress v1.20.2 // indirect
+require (
+	github.com/klauspost/compress v1.20.2 // indirect
+	github.com/woozymasta/bcn v0.7.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+)
 
 replace github.com/JGtm/halo-infinite-film-decoder => ./third_party/film-decoder
 

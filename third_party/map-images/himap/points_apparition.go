@@ -42,7 +42,7 @@ const GroupeRamassable = "foki"
 
 // groupesDisqualifiants — les groupes dont la presence SOUS le `foki` refute le point
 // d'apparition : de la geometrie solide, ou un script. Voir le crible 2 en tete de fichier.
-var groupesDisqualifiants = map[string]bool{"bloc": true, "hsc*": true}
+var groupesDisqualifiants = map[string]bool{GroupeBloc: true, "hsc*": true}
 
 // EstPointDApparition dit si un `type_id` de variante de carte designe un point d'apparition
 // d'objet ramassable, et rend le nombre de `foki` distincts qu'il porte.

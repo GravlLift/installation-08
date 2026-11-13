@@ -39,6 +39,12 @@ const (
 	offGlobalID   = 0x28
 	offCompSize   = 0x20
 	offUncompSize = 0x24
+	// Decoupage des octets decompresses d'une entree : en-tete de tag, donnees de tag, puis
+	// donnees de ressource « actuelles » (les pixels d'un bitmap qui les porte en ligne). Une
+	// ressource brute (sans en-tete) a les trois a zero.
+	offHeaderSize    = 0x2C
+	offTagDataSize   = 0x30
+	offActualResSize = 0x38
 
 	offHdrStringsSize = 0x24
 	offHdrResCount    = 0x28
@@ -84,6 +90,21 @@ type File struct {
 	// GlobalID est l'identifiant global de tag (+0x28). C'est la cle de jointure avec les
 	// references de tag d'un autre tag.
 	GlobalID uint32
+	// HeaderSize + TagDataSize + ActualResourceSize = UncompSize quand l'entree porte un tag ;
+	// les trois valent zero pour une ressource brute (tout UncompSize est de la donnee).
+	HeaderSize         int
+	TagDataSize        int
+	ActualResourceSize int
+}
+
+// Donnees rend la partie « ressource » d'octets deja decompresses par Extract : ce qui suit
+// l'en-tete et les donnees de tag, ou tout pour une ressource brute.
+func (f File) Donnees(octets []byte) []byte {
+	debut := f.HeaderSize + f.TagDataSize
+	if debut <= 0 || debut > len(octets) {
+		return octets
+	}
+	return octets[debut:]
 }
 
 // UseHd1 dit si la donnee de cette entree vit dans le fichier compagnon `.module_hd1`.
@@ -306,6 +327,10 @@ func (m *Module) file(i int) File {
 		CompSize:   int(u32(m.data, e+offCompSize)),
 		UncompSize: int(u32(m.data, e+offUncompSize)),
 		GlobalID:   u32(m.data, e+offGlobalID),
+
+		HeaderSize:         int(u32(m.data, e+offHeaderSize)),
+		TagDataSize:        int(u32(m.data, e+offTagDataSize)),
+		ActualResourceSize: int(u32(m.data, e+offActualResSize)),
 	}
 }
 

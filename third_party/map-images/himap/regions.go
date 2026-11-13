@@ -91,6 +91,20 @@ func (ti tagInfo) subBlockTarget(fieldBlock, fieldOffset int) int {
 	return -1
 }
 
+// sousBlocsParOffset rend, en UNE lecture de la struct-table, tous les TagBlock imbriques d'un
+// bloc parent, indexes par offset de champ. subBlockTarget relit la table a chaque appel :
+// c'est quadratique sur un bloc de milliers d'enregistrements (les instances d'un sbsp).
+func (ti tagInfo) sousBlocsParOffset(fieldBlock int) map[int]int {
+	out := map[int]int{}
+	for i := 0; i < ti.structs; i++ {
+		b := ti.structTab + i*structEntrySize
+		if u16(ti.tag, b+0x10) == 1 && i32(ti.tag, b+0x18) == fieldBlock {
+			out[u32(ti.tag, b+0x1C)] = i32(ti.tag, b+0x14)
+		}
+	}
+	return out
+}
+
 // parsePermutations lit les enregistrements de permutation. Le stride se deduit de la taille du
 // bloc et du compteur ; SectionIndex/SectionCount sont lus aux offsets +4/+6, VALIDES par le
 // walker (plages coherentes couvrant les 90 sections du mode Warthog, SectionIndex -1 = herite).
