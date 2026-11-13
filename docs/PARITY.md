@@ -95,3 +95,27 @@ and `screens/useMeshBuild.ts`. Still missing: variant/weapons/spartans/spartan-p
 route for any of them) and `/replay/context` (no server route; `action.kills` is instead read
 from the document itself, see §1). `/replay/background*` and `/replay/callouts` are not required
 for the 3D-only shell.
+
+## Replay document fields
+
+Measured, not read from code: the same film (Live Fire, Ranked Oddball, match `7d798138`)
+built by LevelUp and by this repo's `import`, compared field by field at the top level.
+Redo this comparison on one match per game mode before calling the document complete.
+
+| Field | LevelUp | Standalone | Drives |
+|---|---|---|---|
+| `skullCarries` | 46 | missing | Oddball: who holds the ball |
+| `objectiveObjects` | 93 | missing | objective objects on the map |
+| `scoreTimeline` | present | missing | score banner over time |
+| `killEffects` | 31 | missing | kill effect per weapon |
+| `weaponLabels` | 14 | missing | weapon names and icons (kill feed, HUD) |
+| `grenadeLabels` | 4 | missing | grenade names |
+| `abilityLabels` | 3 | missing | equipment names |
+| `carriedEquipment` | 28 | missing | equipment a player carries |
+| `riftPoses` | 6 | missing | objective poses |
+| `padPickups` | 37 | 25 | weapon pad pickups (count differs, unexplained) |
+| `weaponPads` | 8 | 7 | weapon pads (count differs, unexplained) |
+| `projectiles` | 372 | 539 | projectile paths (count differs, unexplained) |
+
+Small differences also seen and unexplained: `stances` 3,260 / 3,266, `drawnWeapons`
+594 / 610, `ammoReads` 3,413 / 3,416, `weaponChanges` 205 / 206.
