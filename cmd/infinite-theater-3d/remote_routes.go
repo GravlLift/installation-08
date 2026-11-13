@@ -156,6 +156,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/matches", h.handleMatches)
 	mux.HandleFunc("GET /api/matches/{id}/replay", h.handleReplay)
+	mux.HandleFunc("GET /api/matches/{id}/context", h.handleContext)
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
 	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
