@@ -39,18 +39,14 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   `OpenChunkDir` keep reconstructing the path from the cache layout and are unchanged.
 - `decfilm.LoadMapQuantCatalogBytes` (new file `decfilm/catalog_bytes.go`) reads the map
   quantization catalog from its bytes, not a file path: the standalone embeds its reference
-<<<<<<< HEAD
-  catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade, leaving the fingerprinted `profile` layer upstream-identical.
-=======
   catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade so the
   `profile` layer, whose sources are fingerprinted, stays identical to upstream.
-- `replay.ScoreTarget` (new file `replay/score_target_table.go`, LOCAL-CHANGE, brief 142):
+- `replay.ScoreTarget` (new file `replay/score_target_table.go`, LOCAL-CHANGE):
   the `[score_target]` table of LevelUp's `regulation.toml`, measured per variant, ported
   verbatim. The LevelUp application injects the table into `ScoreInput.TargetScore`; the
   standalone has no config file, so the values live in this module and
   `internal/build` sets the input from the match variant. An absent variant returns no
   target (the timeline's safe fallback).
->>>>>>> port/mode-parity
 
 ## Omitted upstream files
 
