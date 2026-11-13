@@ -53,27 +53,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		announce = func(string) {}
 	}
 	start := time.Now()
-	gameRoot, err := himap.DeployRoot()
+	gameRoot, module, err := resolveModule(ctx, opts)
 	if err != nil {
-		return Result{}, fmt.Errorf("game install: %w", err)
-	}
-	if opts.GameRoot != "" {
-		gameRoot = opts.GameRoot
-	}
-	if opts.Map == "" {
-		// Any installed map's module index covers the game's weapons and globals; when no map
-		// is named, the first installed one is used (the same resolution the serve routes
-		// make from the store, applied to the game's own install).
-		mapKey, ok := firstInstalledMap(gameRoot)
-		if !ok {
-			return Result{}, errors.New("firstperson: no installed map found (pass --map <module-key>)")
-		}
-		slog.InfoContext(ctx, "no --map given; using the first installed map", "map", mapKey)
-		opts.Map = mapKey
-	}
-	module := filepath.Join(gameRoot, "pc", "levels", "multi", opts.Map, opts.Map+"-rtx-new.module")
-	if _, err := os.Stat(module); err != nil {
-		return Result{}, fmt.Errorf("map %q is not installed", opts.Map)
+		return Result{}, err
 	}
 	dir := filepath.Join(opts.DataDir, "first-person")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -140,6 +122,34 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	res.Seconds = time.Since(start).Seconds()
 	return res, nil
+}
+
+// resolveModule returns the game's deploy root (opts.GameRoot, else auto-detected) and the
+// module file of the map whose index the build opens (opts.Map, else the first installed
+// map: any installed map's module index covers the game's weapons and globals).
+func resolveModule(ctx context.Context, opts Options) (string, string, error) {
+	gameRoot := opts.GameRoot
+	if gameRoot == "" {
+		root, err := himap.DeployRoot()
+		if err != nil {
+			return "", "", fmt.Errorf("game install: %w", err)
+		}
+		gameRoot = root
+	}
+	mapKey := opts.Map
+	if mapKey == "" {
+		key, ok := firstInstalledMap(gameRoot)
+		if !ok {
+			return "", "", errors.New("firstperson: no installed map found (pass --map <module-key>)")
+		}
+		slog.InfoContext(ctx, "no map given; using the first installed map", "map", key)
+		mapKey = key
+	}
+	module := filepath.Join(gameRoot, "pc", "levels", "multi", mapKey, mapKey+"-rtx-new.module")
+	if _, err := os.Stat(module); err != nil {
+		return "", "", fmt.Errorf("map %q is not installed", mapKey)
+	}
+	return gameRoot, module, nil
 }
 
 // buildRig writes one weapon's rig (sharing a file by content digest when already written

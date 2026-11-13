@@ -219,22 +219,17 @@ func TestFirstPersonFileValidation(t *testing.T) {
 	}
 }
 
-// TestFirstPersonStateNoMap — with no map key in the catalog and no match in the store, a
-// build is 409 (there is no module index to open); the state route still answers.
-func TestFirstPersonStateNoMap(t *testing.T) {
+// TestFirstPersonStateUnavailable — with no runner, the state route is 503.
+func TestFirstPersonStateUnavailable(t *testing.T) {
 	root, err := store.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := newServerHandlers(root, "", nil, weapons.Catalog{})
 
-	rec := postMesh(t, h, "/api/first-person/build", nil)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("no-map build = %d, want 409", rec.Code)
-	}
-	rec2 := get(t, h, "/api/first-person/state", nil)
-	if rec2.Code != http.StatusServiceUnavailable {
-		t.Fatalf("no-runner state = %d, want 503", rec2.Code)
+	rec := get(t, h, "/api/first-person/state", nil)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("no-runner state = %d, want 503", rec.Code)
 	}
 }
 

@@ -95,14 +95,10 @@ func (h serverHandlers) handleFirstPersonFile(w http.ResponseWriter, r *http.Req
 
 // handleFirstPersonBuild answers POST /api/first-person/build: it starts or joins the
 // first-person library build and answers 202 with the state JSON. A non-loopback Origin is
-// refused with 403. A build is refused when the store names no map (no module index to open).
+// refused with 403. With no match in the store the build opens the first installed map.
 func (h serverHandlers) handleFirstPersonBuild(w http.ResponseWriter, r *http.Request) {
 	if !originAllowed(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
-		return
-	}
-	if h.weapKeys.Map == "" && firstMapModule(h.root) == "" {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module"})
 		return
 	}
 	if h.jobs == nil {
