@@ -19,6 +19,8 @@ func run(args []string) error {
 		return runDecode(args[1:])
 	case "import":
 		return runImport(args[1:])
+	case "serve":
+		return runServe(args[1:])
 	default:
 		return fmt.Errorf(usage)
 	}
