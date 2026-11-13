@@ -1498,39 +1498,51 @@ func TestStructureIsOptionalInDocument(t *testing.T) {
 	//   des trois charges de vue A de disposition mesuree depend du build (`profile.EcritureDuBuild`). Aucun champ
 	//   neuf ; le contenu cuit change pour les builds HI_1_11_0 a HI_1_13_0 (plus de paquets lus). `grammar.Rev` et
 	//   `profile.Rev` montent, `SchemaDesFaits` 21 -> 22 : un v111 se lit « à redécoder ». Détail : `document_chronicle.go`.
-	// - 113 (2026-11-09, port, lot 8 « actions du film ») : trois listes racine neuves, `drawnWeapons` (i42 a
+	// - 113 (2026-11-13, poses datees apres la fin de l axe) : une pose d equipement nee apres la derniere frame est de
+	//   nouveau ecartee (regle d avant le schema 111). Aucun champ neuf ; `equipmentPlacements` perd les poses que le
+	//   schema 111 publiait a la derniere frame. Aucune revision de decodage ne monte : un v112 se lit « à republier ».
+	//   Détail : `document_chronicle.go`.
+	// - 114 (2026-11-13, faits independants du pas) : les faits du match ne dependent plus du pas de la grille (drapeau,
+	//   origine des ramassages, cycles de vehicule, tir continu, poses de bord, vol de projectile, lien tir -> projectile,
+	//   datation des socles). Aucun champ neuf ; le contenu cuit change. Aucune revision de decodage ne monte : un v113 se
+	//   lit « à republier ». Détail : `document_chronicle.go`.
+	// - 115 (2026-11-13, passes derriere la marche) : les positions de vehicule et la visee des occupants viennent des
+	//   records que la marche des trames lit ; les lectures de hasard de l ancrage bit a bit disparaissent. Aucun champ
+	//   neuf ; le contenu cuit de `vehicles` change. `grammar.Rev` monte : un v114 se lit « à redécoder ». Détail :
+	//   `document_chronicle.go`.
+	// - 116 (2026-11-09, port, lot 8 « actions du film ») : trois listes racine neuves, `drawnWeapons` (i42 a
 	//   chaque changement), `damages` (damage_aftermath de la vue A) et `killCauses` (classe et categorie de
 	//   la source du degat fatal), plus `coverage.playerActions`. Le port reunit les deux branches de la
-	//   grammaire (`grammar-2026-11-13`) et les faits les portent (`SchemaDesFaits` 22 -> 23) : un v112 se
+	//   grammaire (`grammar-2026-11-13.2`) et les faits les portent (`SchemaDesFaits` 22 -> 23) : un v115 se
 	//   lit « a redecoder ». Detail : `document_chronicle.go`.
-	// - 114 (2026-11-09, lot 8 « actions du film ») : une liste racine neuve, `actions` (rechargement,
+	// - 117 (2026-11-09, lot 8 « actions du film ») : une liste racine neuve, `actions` (rechargement,
 	//   lancer amorce, coup : genres 38, 39, 40 de la vue A), plus quatre compteurs. La grammaire garde
-	//   ces messages : un v113 se lit « a republier ». Detail : `document_chronicle.go`.
-	// - 115 (2026-11-09, lot 8, pistes au plein debit) : `tracks[].fullRate`, chaque position et chaque visee
+	//   ces messages : un v116 se lit « a republier ». Detail : `document_chronicle.go`.
+	// - 118 (2026-11-09, lot 8, pistes au plein debit) : `tracks[].fullRate`, chaque position et chaque visee
 	//   de la vie a son instant (la 3D interpolait a 10 Hz). Assemblage seul, depuis des faits deja persistes :
-	//   un v114 se lit « a republier ». Detail : `document_chronicle.go`.
-	// - 116 (2026-11-09, lot 8, directions de tir) : la direction d un tir est la visee i21 de son tireur a
+	//   un v117 se lit « a republier ». Detail : `document_chronicle.go`.
+	// - 119 (2026-11-09, lot 8, directions de tir) : la direction d un tir est la visee i21 de son tireur a
 	//   l instant du tir, `shots[].p` et `coverage.shots.aim` naissent ; la visee du record n est plus lue que
-	//   sous ses deux drapeaux nuls : un v115 se lit « a republier ». Detail : `document_chronicle.go`.
-	// - 117 (2026-11-09, lot 8, postures de la commande) : `crouch` et `slide` lus dans la commande de la vue
+	//   sous ses deux drapeaux nuls : un v118 se lit « a republier ». Detail : `document_chronicle.go`.
+	// - 120 (2026-11-09, lot 8, postures de la commande) : `crouch` et `slide` lus dans la commande de la vue
 	//   de controle, `jump` dans `actions[]`, `ms0`/`ms1` et `ms` a la milliseconde (`SchemaDesFaits` 22 -> 23)
-	//   : un v116 se lit « a redecoder ». Detail : `document_chronicle.go`.
-	// - 118 (2026-11-09, lot 8, tireur de la place) : le tireur d un tir et d une rafale est le joueur qui tient
+	//   : un v119 se lit « a redecoder ». Detail : `document_chronicle.go`.
+	// - 121 (2026-11-09, lot 8, tireur de la place) : le tireur d un tir et d une rafale est le joueur qui tient
 	//   sa place selon la lecture des places dans les tirs, le siege du roster n est plus qu un repli compte : le
-	//   SENS de `shots[]` et `bursts[]` change, un v117 se lit « a republier ». Detail : `document_chronicle.go`.
-	// - 119 (2026-11-09, lot 8, visees sans position) : les visees sans position se lisent sur tout film et
-	//   entrent dans les colonnes de visee de `tracks[].fullRate` : un v118 se lit « a republier ». Detail :
+	//   SENS de `shots[]` et `bursts[]` change, un v120 se lit « a republier ». Detail : `document_chronicle.go`.
+	// - 122 (2026-11-09, lot 8, visees sans position) : les visees sans position se lisent sur tout film et
+	//   entrent dans les colonnes de visee de `tracks[].fullRate` : un v121 se lit « a republier ». Detail :
 	//   `document_chronicle.go`.
-	// - 120 (2026-11-09, lot 8, stick de deplacement) : le stick de deplacement de la commande au plein debit
-	//   (`stickT`/`sx`/`sy`), deja dans les faits : un v119 se lit « a republier ». Detail : chronique.
-	// - 121 (2026-11-11, lot 8, munitions) : `ammoReads` publie les munitions des images-cles et des deltas
-	//   sur leur propre axe (`SchemaDesFaits` 23 les transporte) : un v120 se lit « a republier ». Detail :
+	// - 123 (2026-11-09, lot 8, stick de deplacement) : le stick de deplacement de la commande au plein debit
+	//   (`stickT`/`sx`/`sy`), deja dans les faits : un v122 se lit « a republier ». Detail : chronique.
+	// - 124 (2026-11-11, lot 8, munitions) : `ammoReads` publie les munitions des images-cles et des deltas
+	//   sur leur propre axe (`SchemaDesFaits` 23 les transporte) : un v123 se lit « a republier ». Detail :
 	//   chronique.
-	// - 122 (2026-11-11) : `shots[].o`, le decale du tir dans sa frame en millisecondes (le reste du
-	//   partage de son horodatage par le pas de la grille) : un v121 se lit « a republier ».
+	// - 125 (2026-11-11) : `shots[].o`, le decale du tir dans sa frame en millisecondes (le reste du
+	//   partage de son horodatage par le pas de la grille) : un v124 se lit « a republier ».
 	//   Detail : chronique.
-	if SchemaVersion != 122 {
-		t.Fatalf("SchemaVersion = %d, attendu 122 : incrémenter exige une raison écrite ci-dessus "+
+	if SchemaVersion != 125 {
+		t.Fatalf("SchemaVersion = %d, attendu 125 : incrémenter exige une raison écrite ci-dessus "+
 			"(un champ optionnel de plus n'en est pas une)", SchemaVersion)
 	}
 }

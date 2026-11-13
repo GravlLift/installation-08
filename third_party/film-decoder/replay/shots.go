@@ -163,6 +163,7 @@ func (b poseurDeTirs) tir(e grammar.FireEvent, slot uint32, p grammar.BipedPosit
 		Slot: slot,
 		X:    round2(p.X),
 		Y:    round2(p.Y),
+		tUS:  e.TimestampUS,
 	}
 	b.viseur.viser(&s, e, slot)
 	if e.WeaponID != 0 {

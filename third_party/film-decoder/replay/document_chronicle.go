@@ -3956,7 +3956,102 @@ package replay
 //
 // LE PARC         un artefact 111 : verdict `a redecoder` (les faits cuits au schema 21 et aux revisions d avant se refusent sur
 //                 leur en-tete). La recuisson est une decision de l utilisateur.
-// v113 (2026-11-09, lot 8 « actions du film »). Trois calques de ce que le film ECRIT et que le decodeur
+
+// v113 (2026-11-13, poses datees apres la fin de l axe de nouveau ecartees). Aucun champ neuf, aucune forme qui change : c est le
+// CONTENU CUIT de `equipmentPlacements` qui change. Le schema 111 publiait a la derniere frame toute pose datee apres la fin de
+// l axe. Ces poses sont les objets recenses au dernier instantane du film, sans fin lue (`end` `open`) ni origine : le rejeu
+// s arrete a la derniere position et n a aucune frame ou les montrer, elles s empilaient sur la derniere. La regle d avant le
+// schema 111 revient : une pose nee apres la derniere frame est hors de l axe, comme une pose finie avant l origine.
+//
+//	`equipmentPlacements`   quatre films cuits a 100 ms aux deux regles : 14, 35, 36 et 37 poses de moins (`bcb6d393`, `084a804d`,
+//	                `e5adf7b2`, `4f77afc1`), toutes a la derniere frame ; les autres poses sont identiques ligne a ligne
+//	                (origine, fin, position, proprietaire).
+//	`coverage.equipmentPlacements`   `byFamily`, `byFamilyOrigin`, `byCause`, `unknown` et `endOpen` baissent d autant.
+//
+// CE QUI REVIENT AVEC LA REGLE : le dernier instantane tombe a quelques ms de la fin de la grille, d un cote ou de l autre selon le
+// pas ; le nombre de poses de bord peut donc differer entre 100 et 33 ms pour un meme film. Le reste du schema 111 ne bouge pas.
+//
+// CE QUI MONTE    `SchemaVersion` 112 -> 113, et avec lui `publication-113`. Aucune revision de grammaire, de faits ni de profil
+// AVEC ELLE       ne bouge.
+//
+// LE PARC         un artefact 112 : verdict `a republier` (les faits cuits restent frais). La recuisson est une decision de
+//                 l utilisateur.
+
+// v114 (2026-11-13, faits independants du pas). Aucun champ neuf, aucune forme qui change : c est le CONTENU CUIT qui change. Un
+// FAIT du match ne depend pas du pas de publication : toute fenetre, tolerance ou relation d ordre qui decide d un fait se calcule
+// en temps (millisecondes ou microsecondes du film), jamais en nombre d images de la grille. Le schema 111 (grille a 33 ms) a montre,
+// sur dix-huit films cuits a 100, 66, 50, 33, 20 et 10 ms, des valeurs qui bougeaient avec le pas faute de cette regle.
+//
+//	`flagCarries`    le point qui localise un porteur est le point publie le plus proche en temps EXACT (`Point.us`, non publie), a au plus
+//	                200 ms (`flagCarrierPointToleranceMS`), a egalite celui d avant ; une piste qui nait entre un point et l instant (mort puis
+//	                reapparition dans la fenetre) a son premier point plus pres de l instant : c est elle qui l emporte. Un corps immobile ne replique rien, et une tolerance
+//	                d une image valait 100 ms ou 33 ms (puis 230 a 299 ms une fois convertie en images). Le lacher volontaire d une vie
+//	                libre se date en millisecondes exactes (`matchMSOfUS`), plus arrondi au debut de sa frame. Un film de reference :
+//	                83 portages a tout pas (82 et 81 a 66 et 50 ms avant).
+//	`pickups[].origin`   l ordre entre le ramassage et la pose se decide en microsecondes ; une pose lachee par le RAMASSEUR LUI-MEME,
+//	                d une autre famille connue, est un echange et non l origine de ce qu il ramasse. `coverage.pickups.originGround`
+//	                baisse, `originUnknown` monte d autant, et la valeur est la meme a tout pas.
+//	`vehicleCycles`  les naissances d un emplacement se rangent en microsecondes ; deux vies nees a moins de 100 ms (`vehicleTwinWindowUS`)
+//	                sont un seul occupant (le « shade » sans echantillon ni fin, cree 33 ms apres le vehicule), et chaque naissance ne
+//	                s apparie qu a la fin datee de l occupant juste avant elle : la mort d une vie qui vivait encore quand la suivante est
+//	                nee ne lui repond pas. Un film de reference : deux emplacements de `shade` (deux et trois ecarts de 20,0 a 20,7 s,
+//	                chacun la mort du vehicule suivie de sa renaissance) sont etablis a tout pas ; 11 cycles, contre 10 a 100 ms et 9 a
+//	                33 ms avant.
+//	`continuousFire.shots`   les coups (a la cadence de l arme depuis l instant lu de la gachette) et les trous de gachette se
+//	                decident en microsecondes. Le document continue de publier les trous en frames entieres (`bursts[].holes`) :
+//	                c est ce que le client dessine. Seule la borne d une rafale que sa monture ou sa vie coupe reste une frame.
+//	`equipmentPlacements`   une pose nee apres la DERNIERE POSITION du film (en microsecondes) est hors de l axe ; le schema 113 la
+//	                comparait a la fin de la grille, qui tombe 0 a 99 ms (100 ms) ou 0 a 32 ms (33 ms) plus tard.
+//	`projectiles`    le pas impossible d un vol se juge entre enregistrements consecutifs du film, retenus ou non : a 100 ms un saut
+//	                entre deux enregistrements d une meme frame n etait jamais teste. `coverage.projectiles.truncated` est le meme a
+//	                tout pas ; le lien tir -> projectile compare des instants exacts a `projShotWindowMS`, plus des frames.
+//	`weaponPads`     la datation d une occupation de socle par un ramassage natif compare des instants exacts aux images-cles qui la
+//	                bornent (un ramassage a 50 ms de l image-cle qui separe deux occupations n est plus candidat des deux), et la
+//	                prise du cycle, la fin du cycle et la position du ramasseur se jugent sur les instants de la presence et du ramassage.
+//	`vehicles` (tourelles)   la naissance commune d une tourelle et de son porteur se juge sur les instants exacts de naissance.
+//
+// CE QUI RESTE, ET POURQUOI. Ce qui suit varie encore avec le pas d une quantite bornee par un pas, faute d un instant exact dans le
+// document ou parce que la regle est celle d une API en frames :
+//
+//	`stances`, `equipmentEpisodes[].k`, `continuousFire.noTrack` et `clippedToMount`   fenetres de vie d une piste (`StartFrame`,
+//	                `EndFrame`) et d une monture (`VehicleRide.T0`, `T1`) publiees en frames ; `equipmentEpisodes[].k` est de plus une
+//	                regle de fenetre sans tolerance dont la decision n est pas etablie.
+//	`vehicles[].destruction` (marge d embarquement `vehicleDestructionAboardTolMS`)   compare la fin d un episode d occupation, en frames,
+//	                a la destruction.
+//	`mergeVehicleRelays`   la fenetre de relais est l intervalle non observe `[T1, T1Max]` (frames) d une vie, de l ordre de 20 s : une
+//	                naissance a moins d un pas d un bord peut tomber de l autre cote.
+//	`skull_carries`   (`slackFrames`) seuil de fermeture d un train de crane exprime en frames de la grille.
+//	`AttributeZones` (`AttributeOptions.MaxGapFrames`)   API exportee en frames.
+//	`coverage.projectiles` (`shotLinked`, `shotAmbiguous`)   un vol d un seul point de grille ne se dessine pas : le nombre de vols
+//	                publies depend du pas, les liens suivent. `coverage.t0Film.burst`, les bornes de carte, `birthLoadouts.snapped`,
+//	                `vehicles.samplesAfterEnd` et `aimRideFrames` sont des grandeurs de resolution.
+//
+// CE QUI MONTE    `SchemaVersion` 113 -> 114, et avec lui `publication-114`. Aucune revision de grammaire, de faits ni de profil
+// AVEC ELLE       ne bouge.
+//
+// LE PARC         un artefact 113 : verdict `a republier` (les faits cuits restent frais). La recuisson est une decision de l utilisateur.
+
+// v115 (2026-11-13, passes derriere la marche). Aucun champ neuf, aucune forme qui change : c est le CONTENU CUIT qui change, pour
+// deux calques, parce que le DECODAGE change (`grammar-2026-11-13`, chronique de la couche).
+//
+//	`vehicles[].samples`   les positions de vehicule sont celles des records que la marche des trames lit, l ancrage bit a bit ne
+//	                passant plus que derriere elle. Meme nombre de vehicules ; 1 a 302 echantillons de plus par film sur dix films de
+//	                l equivalence, a 1 cm de mediane du trajet deja publie (42 cm au plus) ; 0 ou 1 de moins ;
+//	                `coverage.vehicles.echantillonsHorsEmprise` 9 -> 0 et 3 -> 0 la ou il n etait pas nul, et le repli
+//	                `repli_position_hors_emprise_ecartee` sort de `coverage.fallbacks` quand il tombe a zero.
+//	`vehicles[].rides[].aim`, `coverage.vehicles.aimReads`   la visee d un occupant est celle des records sans position que la marche
+//	                lit ; une lecture de la passe hors de tout record d une trame fermee n est plus rendue : 31 a 281 lectures brutes de
+//	                moins par film, dont des elevations de plus de 90 degres.
+//
+// Tout le reste du document est identique a l octet sur les vingt films de l equivalence (dix films sans vehicule ni visee a bord :
+// seule la ligne de l artefact change, par le numero de schema et la revision).
+//
+// CE QUI MONTE    `SchemaVersion` 114 -> 115, et avec lui `publication-115`. `grammar.Rev` -> `grammar-2026-11-13`. `SchemaDesFaits`
+// AVEC ELLE       reste 22 : le format des faits ne change pas, leur fraicheur se juge sur la revision.
+//
+// LE PARC         un artefact 114 : verdict `a redecoder` (les faits cuits se refusent sur la revision). La recuisson est une decision
+//                 de l utilisateur.
+// v116 (2026-11-09, lot 8 « actions du film »). Trois calques de ce que le film ECRIT et que le decodeur
 // lisait deja, publies en listes d evenements (aucun champ par frame) :
 //
 //	`drawnWeapons[]`  {t, slot, d?, d2?} : l emplacement d arme desire a CHAQUE changement (`i42` du bipede
@@ -3975,14 +4070,14 @@ package replay
 //	                 corps a corps (6 `SilentMelee`), 5 grenades `AttachedDamage`.
 //	`coverage.playerActions`   les comptes lus, publies et ecartes des trois calques.
 //
-//	CE QUI MONTE    `SchemaVersion` 112 -> 113, et le port reunit les deux branches de la grammaire
+//	CE QUI MONTE    `SchemaVersion` 115 -> 116, et le port reunit les deux branches de la grammaire
 //	AVEC ELLE       (l amont a `grammar-2026-11-12.4`, nous a `grammar-2026-11-09.4`) dans
-//	                `grammar-2026-11-13`, dont la chronique garde les ENTREES des deux series ;
+//	                `grammar-2026-11-13.2`, dont la chronique garde les ENTREES des deux series ;
 //                `SchemaDesFaits` 22 -> 23 (les faits portent les deux listes).
 //
-//	LE PARC         un artefact 112 : verdict `redecoder` (la revision de grammaire a change).
+//	LE PARC         un artefact 115 : verdict `redecoder` (la revision de grammaire a change).
 
-// v114 (2026-11-09, lot 8 « actions du film »). Les GESTES du joueur que la vue A ecrit, en une liste
+// v117 (2026-11-09, lot 8 « actions du film »). Les GESTES du joueur que la vue A ecrit, en une liste
 // d evenements :
 //
 //	`actions[]`      {t, slot, kind} : `reload` (`weapon_reload`, genre 38), `throwStart`
@@ -3995,12 +4090,12 @@ package replay
 //	`coverage.playerActions`   quatre compteurs de plus : actionsRead, actionsPublished, actionsNoTrack,
 //	                 actionsBeforeOrigin.
 //
-//	CE QUI MONTE    `SchemaVersion` 113 -> 114 seule : ni la grammaire ni les faits ne changent.
+//	CE QUI MONTE    `SchemaVersion` 116 -> 117 seule : ni la grammaire ni les faits ne changent.
 //	AVEC ELLE       Le format porte deja le genre de chaque message, seul le contenu change.
 //
-//	LE PARC         un artefact 113 : verdict `a republier` (assemblage seul, aucun fait perime).
+//	LE PARC         un artefact 116 : verdict `a republier` (assemblage seul, aucun fait perime).
 
-// v115 (2026-11-09, lot 8, pistes au plein debit). La vue 3D interpolait la position et la visee entre
+// v118 (2026-11-09, lot 8, pistes au plein debit). La vue 3D interpolait la position et la visee entre
 // des points distants d une frame de la grille (un par frame, le premier observe) quand le film les
 // replique a chaque tick serveur (60 ou 30 par seconde) : la visee paraissait en retard des que le
 // joueur tournait.
@@ -4013,12 +4108,12 @@ package replay
 //	                 positions sans bornes de carte qu aucune representation ne publie. 512155b9 : 351 049
 //	                 positions des faits, 351 049 publiees (59 395 points), 226 087 visees.
 //
-//	CE QUI MONTE    `SchemaVersion` 114 -> 115. Aucune revision de couche ni `SchemaDesFaits` ne bouge :
+//	CE QUI MONTE    `SchemaVersion` 117 -> 118. Aucune revision de couche ni `SchemaDesFaits` ne bouge :
 //	AVEC ELLE       les faits portent deja chaque position avec son horodatage et ses quanta de visee.
 //
-//	LE PARC         un artefact 114 : verdict `a republier` (assemblage seul, aucun fait perime).
+//	LE PARC         un artefact 117 : verdict `a republier` (assemblage seul, aucun fait perime).
 
-// v116 (2026-11-09, lot 8, directions de tir). `shots[].h` venait du champ de visee du record de tir 36 :
+// v119 (2026-11-09, lot 8, directions de tir). `shots[].h` venait du champ de visee du record de tir 36 :
 // 43 % des tirs de 512155b9 en portaient un, et 31 % de ceux-la tombaient a moins d un degre de la visee
 // i21 du tireur (69 % au-dela de 5 degres, presque tous sur les faces -Y et -Z du cube). Ce champ n est
 // ecrit que sous ses deux drapeaux nuls ; sous un drapeau pose, les 30 bits lus etaient un autre champ.
@@ -4034,13 +4129,13 @@ package replay
 //	                 recalculee hors production : 512155b9 2 259 / 2 259 (2 257 / 2 257) ; 47535e96
 //	                 906 / 920 (827 / 827) ; 02eab71d 7 173 / 7 195 (7 058 / 7 058) ; d297598e 6 268 / 6 353 (6 030 / 6 030).
 //
-//	CE QUI MONTE    `SchemaVersion` 115 -> 116 seule : la visee du
+//	CE QUI MONTE    `SchemaVersion` 118 -> 119 seule : la visee du
 //	AVEC ELLE       record n est lue que sous ses deux drapeaux nuls (deja dans la grammaire du port :
 //	                 le contenu des faits change, pas leur format, `SchemaDesFaits` reste 23).
 //
-//	LE PARC         un artefact 115 : verdict `a republier` (assemblage seul, aucun fait perime).
+//	LE PARC         un artefact 118 : verdict `a republier` (assemblage seul, aucun fait perime).
 
-// v117 (2026-11-09, lot 8, postures de la commande). Sur les builds recents le film n annonce ni `i29`
+// v120 (2026-11-09, lot 8, postures de la commande). Sur les builds recents le film n annonce ni `i29`
 // (accroupi) ni `i62` (glissade) : `stances[]` n y portait aucun accroupi ni aucune glissade. La vue de
 // controle porte, par place de controle et par tick, le bouton d accroupi (qui est aussi celui de la
 // glissade) et l impulsion du saut (`types.ControlInputChange`).
@@ -4058,14 +4153,14 @@ package replay
 //	                 couvertes (temoin 10,3 %) ; 88,9 % des sauts suivis d une montee de 0,3 u (temoin 16,0 %).
 //	                 02eab71d : 350, 303, 2 120 ; 97,4 % ; 69,9 % (temoin 2,5 %) ; 84,1 % (temoin 12,7 %).
 //
-//	CE QUI MONTE    `SchemaVersion` 116 -> 117, `SchemaDesFaits` 22 -> 23 (les faits portent les
+//	CE QUI MONTE    `SchemaVersion` 119 -> 120, `SchemaDesFaits` 22 -> 23 (les faits portent les
 //	AVEC ELLE       changements et leurs comptes ; la grammaire les lit deja depuis le port, aucune
 //                 largeur ne change).
 //
-//	LE PARC         un artefact 116 : verdict `redecoder` (les faits cuits au schema 22 se refusent
+//	LE PARC         un artefact 119 : verdict `redecoder` (les faits cuits au schema 22 se refusent
 //	                sur leur en-tete).
 
-// v118 (2026-11-09, lot 8, tireur de la place). Le tireur d un tir ou d une rafale etait l occupant du siege
+// v121 (2026-11-09, lot 8, tireur de la place). Le tireur d un tir ou d une rafale etait l occupant du siege
 // du roster dont la presence couvre l instant ; un arrivant en cours de match tient une place que sa fiche
 // ne date pas toujours, et son tir tombait alors sur l index de la place, donc sur un autre joueur ou sur
 // aucun slot. La lecture des places dans les tirs (`places_de_controle.go`, schema 111) date chaque place
@@ -4080,11 +4175,11 @@ package replay
 //	                 d297598e : 1 433 tirs sur 6 198 rendus a la place par le siege, 0 par la lecture ;
 //	                 rafales 216 -> 240.
 //
-//	CE QUI MONTE    `SchemaVersion` 117 -> 118 seule : ni la grammaire ni les faits ne changent.
+//	CE QUI MONTE    `SchemaVersion` 120 -> 121 seule : ni la grammaire ni les faits ne changent.
 //
-//	LE PARC         un artefact 117 dont les faits sont sur disque : verdict `a republier`.
+//	LE PARC         un artefact 120 dont les faits sont sur disque : verdict `a republier`.
 
-// v119 (2026-11-09, lot 8, visees sans position). Le film replique la visee `i21` d un bipede aussi dans
+// v122 (2026-11-09, lot 8, visees sans position). Le film replique la visee `i21` d un bipede aussi dans
 // des records sans position (`grammar.ScanBipedAimOnly`) ; elles ne se lisaient que sur un film a vehicules,
 // et les colonnes de visee de `tracks[].fullRate` ne portaient que celles des records de position.
 //
@@ -4097,12 +4192,12 @@ package replay
 //	MESURE          512155b9 : 5 690 lues, 4 000 posees, 1 690 hors de toute vie ; 2 275 posees encadrees
 //	                 par une position a moins de 500 ms ; tirs visant au paquet meme 2 167 -> 2 185.
 //
-//	CE QUI MONTE    `SchemaVersion` 118 -> 119 seule : le format ne change pas, le contenu des
+//	CE QUI MONTE    `SchemaVersion` 121 -> 122 seule : le format ne change pas, le contenu des
 //	AVEC ELLE       visees d une arene oui (les faits le portent deja depuis le port).
 //
-//	LE PARC         un artefact 118 : verdict `a republier` (assemblage seul).
+//	LE PARC         un artefact 121 : verdict `a republier` (assemblage seul).
 
-// v120 (2026-11-09, lot 8, stick de deplacement). La vue de controle porte, par place et a chaque
+// v123 (2026-11-09, lot 8, stick de deplacement). La vue de controle porte, par place et a chaque
 // changement, le couple analogique du deplacement ; les faits le gardent depuis le schema 20.
 //
 //	`tracks[].fullRate`  `stickT`, `sx`, `sy` naissent (`stick_de_deplacement.go`) : un echantillon par
@@ -4115,14 +4210,14 @@ package replay
 //	                 (62 = plein avant), `sy` a +90 degres du cap, de x vers y du monde. Gzip
 //	                 1 685 199 -> 1 956 877 octets.
 //
-//	CE QUI MONTE    `SchemaVersion` 119 -> 120 seule : ni la grammaire ni les faits ne changent.
+//	CE QUI MONTE    `SchemaVersion` 122 -> 123 seule : ni la grammaire ni les faits ne changent.
 //
-//	LE PARC         un artefact 119 dont les faits sont sur disque : verdict `a republier`.
+//	LE PARC         un artefact 122 dont les faits sont sur disque : verdict `a republier`.
 
-// v121 : ammoReads publie les munitions des images-cles et des deltas sur leur propre axe.
+// v124 : ammoReads publie les munitions des images-cles et des deltas sur leur propre axe.
 // `SchemaDesFaits` 23 transporte les valeurs et leur presence dans chaque delta.
 
-// v122 : le tir publie son decale dans sa frame.
+// v125 : le tir publie son decale dans sa frame.
 //
 //	`shots[].o`   le decale du tir dans sa frame, en millisecondes entieres, de 0 a frameIntervalMs - 1 :
 //                 le reste du partage de son horodatage par le pas de la grille, sur la meme origine que
@@ -4131,6 +4226,6 @@ package replay
 //                 l absence comme 0. Les tirs d une frame se rangent par `t` puis `o`, a l ordre du film
 //                 en cas d egalite.
 //
-//	CE QUI MONTE    `SchemaVersion` 121 -> 122 seule : ni la grammaire ni les faits ne changent.
+//	CE QUI MONTE    `SchemaVersion` 124 -> 125 seule : ni la grammaire ni les faits ne changent.
 //
-//	LE PARC         un artefact 121 dont les faits sont sur disque : verdict `a republier`.
+//	LE PARC         un artefact 124 dont les faits sont sur disque : verdict `a republier`.

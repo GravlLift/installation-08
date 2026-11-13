@@ -168,7 +168,7 @@ func scanBandeVide(kf grammar.WorldObjectKeyframes) VehicleScan {
 // et la passe des positions du collecteur ([LireLesVehicules]) la partagent.
 func nuageDesVehicules(fc *grammar.FilmContext, band map[uint32]bool, wr *profile.Vec3Range,
 ) ([]grammar.BipedPosition, error) {
-	return grammar.ScanBipedPositionsForBand(fc, grammar.NewSlotBand(band), vehicleScanOptions(fc, wr))
+	return grammar.ScanVehiclePositions(fc, grammar.NewSlotBand(band), vehicleScanOptions(fc, wr))
 }
 
 // VehiculesDuFilm porte les deux lectures `ti=40` que la passe des positions du collecteur consulte.
@@ -353,7 +353,7 @@ func attachVehicles(ctx context.Context,
 	doc.Vehicles = tracks
 	// LE CYCLE SE CALCULE SUR LES VIES PUBLIEES, ET APRES LA FUSION DES RELAIS : c est le
 	// document qui fait foi, pas le balayage (cf. vehicle_cycles.go).
-	doc.VehicleCycles = buildVehicleCycles(tracks, clock.step, &cov)
+	doc.VehicleCycles = buildVehicleCycles(tracks, &cov)
 	doc.Coverage.Vehicles = &cov
 	logVehicleCoverage(ctx, &cov)
 	// DEUX REPLIS COMPTES ICI (lot J8.7) : le cap deduit de la velocite, et l episode d occupation
