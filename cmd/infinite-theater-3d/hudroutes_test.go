@@ -160,7 +160,7 @@ func TestHudStartupOrder(t *testing.T) {
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobWeapons,
-		meshjobs.JobFirstPerson, "moda",
+		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, "moda",
 	}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
@@ -173,7 +173,8 @@ func TestHudStartupSkipsReady(t *testing.T) {
 	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
 	matches := []startupMatch{{MatchID: "aaaa", MapModule: "moda"}}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
-	want := []string{meshjobs.JobWeaponIcons, meshjobs.JobRanks, meshjobs.JobWeapons, meshjobs.JobFirstPerson, "moda"}
+	want := []string{meshjobs.JobWeaponIcons, meshjobs.JobRanks, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
+		meshjobs.JobSpartanPieces, "moda"}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
 	}

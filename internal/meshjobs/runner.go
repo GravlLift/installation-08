@@ -39,6 +39,12 @@ const JobHudIcons = "hud-icons"
 // runner's queue with the map builds, so at most one heavy build runs at a time.
 const JobRanks = "ranks"
 
+// JobSpartanPieces is the module key the runner uses for the single Spartan armor
+// piece library build (the piece and attachment GLBs, the shared textures, the
+// optional coating table, and the index.json). Like JobFirstPerson it shares the
+// runner's queue with the map builds, so at most one heavy build runs at a time.
+const JobSpartanPieces = "spartan-pieces"
+
 // State is one module's build state as seen through the runner.
 type State string
 
