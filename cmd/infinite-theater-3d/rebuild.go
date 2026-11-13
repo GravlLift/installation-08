@@ -13,7 +13,7 @@ func runRebuild(args []string) error {
 	}
 	id := args[0]
 	fs := flag.NewFlagSet("rebuild", flag.ContinueOnError)
-	data := fs.String("data", "", "data directory")
+	data := fs.String("data", "", dataDirHelp)
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}

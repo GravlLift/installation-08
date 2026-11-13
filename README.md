@@ -41,7 +41,9 @@ address and code to show), `signed_in` or `failed`, `POST /api/auth/logout` sign
 requests from loopback origins only. No route ever returns a token.
 
 Use `--data <dir>` on each command to select a data directory. The default is
-`IT3D_DATA_DIR`, or `%LOCALAPPDATA%\infinite-theater-3d\data`. Tokens are encrypted for
+`IT3D_DATA_DIR`, else the `data` folder of the repo checkout the program runs from
+(gitignored; worktrees share the main checkout's), else
+`%LOCALAPPDATA%\infinite-theater-3d\data` outside any checkout. Tokens are encrypted for
 this Windows user with DPAPI under `auth`; `logout` removes the stored credentials. Fetch
 stores the film, stats, map variant, and public player customization with the replay. It
 reuses verified chunks on a subsequent attempt. Films expire on the service, and a film
@@ -103,8 +105,8 @@ reads. Each model reuses the same per-model builder `build-weapon` and `build-sp
 - `--map` is any installed map's module key; its index's search path covers the game's
   `globals`/`common` modules, where the weapons and the Spartan live.
 - `--game` is the deploy root; omitted, it auto-detects the same way `build-mesh` does.
-- `--data` is the data directory the library lands in (`<dir>/weapons`); default
-  `IT3D_DATA_DIR` or `%LOCALAPPDATA%/infinite-theater-3d/data`.
+- `--data` is the data directory the library lands in (`<dir>/weapons`); default as above
+  (`IT3D_DATA_DIR`, else the checkout's `data` folder, else `%LOCALAPPDATA%`).
 
 The roster is the game's own `weap` tags, so the library covers every weapon a match can name
 without a replay-specific selection. A weapon whose model cannot be read (no visible geometry
@@ -186,7 +188,7 @@ or decompressed), and a map's mesh (range-capable):
 ```
 
 - `--addr` is the listen address (loopback by default, `127.0.0.1:8177`).
-- `--data` is the data directory (default: `IT3D_DATA_DIR` or `%LOCALAPPDATA%/infinite-theater-3d/data`).
+- `--data` is the data directory (default: `IT3D_DATA_DIR`, else the checkout's `data` folder, else `%LOCALAPPDATA%/infinite-theater-3d/data`).
 - `--game` is the game deploy root passed to on-demand map and weapon builds; omitted, it
   auto-detects the same way `build-mesh` does.
 - `--map` is the installed map whose module index the weapon-library build opens (its search

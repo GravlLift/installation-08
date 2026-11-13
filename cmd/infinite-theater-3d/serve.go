@@ -47,7 +47,7 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	var f serveFlags
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
 	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional)")
-	fs.StringVar(&f.dataDir, "data", "", "data directory (default: IT3D_DATA_DIR or %LOCALAPPDATA%/infinite-theater-3d/data)")
+	fs.StringVar(&f.dataDir, "data", "", dataDirHelp)
 	fs.StringVar(&f.game, "game", "", "game deploy root for map and weapon builds (empty auto-detects)")
 	fs.StringVar(&f.mapKey, "map", "", "installed map whose module index weapon builds open (default: first map in the data store)")
 	err := fs.Parse(args)

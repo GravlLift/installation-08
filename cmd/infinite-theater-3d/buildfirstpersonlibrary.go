@@ -16,7 +16,7 @@ import (
 func runBuildFirstPersonLibrary(args []string) error {
 	fs := flag.NewFlagSet("build-firstperson-library", flag.ContinueOnError)
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (Steam, Xbox)")
-	dataDir := fs.String("data", "", "data directory (default: IT3D_DATA_DIR or %LOCALAPPDATA%/infinite-theater-3d/data)")
+	dataDir := fs.String("data", "", dataDirHelp)
 	mapKey := fs.String("map", "", "any installed map's module key; its index covers the game's weapons and globals")
 	if err := fs.Parse(args); err != nil {
 		return err

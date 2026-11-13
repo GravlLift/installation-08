@@ -1,7 +1,6 @@
 /**
  * MatchViewScreen — fetches one match's replay document from the standalone server, checks
- * its map mesh is built, and mounts the lifted 3D view with everything the DOCUMENT ALONE
- * can feed it (see `docs/PARITY.md` for what still needs data this server does not serve).
+ * its map mesh is built, and mounts the lifted 3D view with its match context.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -11,7 +10,8 @@ import { useReplayInks } from '../features/match-replay/layers/useReplayInks'
 import { normalizeMapObjectives } from '../features/match-replay/layers/objectivesLayer'
 import { buildShotFx } from '../features/match-replay/model/shotFx'
 import { displayPlayerName } from '../lib/players/displayName'
-import { buildKillsFromDocument } from '../lib/replay/killsFromDocument'
+import { useMatchReplayContext } from './useMatchReplayContext'
+import { ReplayScoreboard } from './ReplayScoreboard'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
@@ -296,6 +296,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   const fullscreen = useReplayFullscreen()
   const fps = framesPerSecond(doc)
   const variantPath = useVariantLayer(matchId)
+  const replayContext = useMatchReplayContext(matchId, doc)
 
   // Keyboard shortcuts (`useReplayShortcuts`, lifted unchanged): play/pause, ±10s seek,
   // frame-step, restart and fullscreen. `toggleSound` is a deliberate no-op — no sound is
@@ -341,10 +342,9 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   const remote = useRemoteMatch(matchId)
   const inks = useReplayInks(0)
 
-  // Everything below is read from the document alone (see docs/PARITY.md for what still
-  // needs data this server does not serve — Match View context, mesh variant/weapons/armor).
+  // Scene inputs are independent of the scoreboard overlay.
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
-  const kills = useMemo(() => buildKillsFromDocument(doc), [doc])
+  const kills = replayContext.kills
   const shotFx = useMemo(() => buildShotFx(doc, aimHoldFramesOf(doc)), [doc])
   const identity = useMemo(
     () => buildDocumentTeamIdentity(doc, viewpoint, inks.teamColorOf, inks.neutral),
@@ -396,9 +396,10 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           width={size.width}
           height={size.height}
           action={action}
-          playWindow={null}
-          timeLimitMs={null}
+          playWindow={replayContext.playWindow}
+          timeLimitMs={replayContext.timeLimitMs}
         />
+        <ReplayScoreboard rows={replayContext.context?.scoreboard ?? []} />
         <button
           ref={settingsButtonRef}
           type="button"
