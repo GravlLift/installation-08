@@ -128,7 +128,7 @@ export function MatchListScreen({ onOpenMatch }: { onOpenMatch: (matchId: string
 
   return (
     <div className="h-screen overflow-y-auto bg-background p-6 text-foreground">
-      <h1 className="mb-4 text-lg font-semibold">LevelUp 3D Replay</h1>
+      <h1 className="mb-4 text-lg font-semibold">Infinite Theater 3D</h1>
 
       <div className="mb-6">
         <AccountPanel phase={auth.phase} onLogin={auth.login} onLogout={auth.logout} />
