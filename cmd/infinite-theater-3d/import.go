@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/JGtm/halo-infinite-film-decoder/replay"
+
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
@@ -39,7 +41,7 @@ func parseImportFlags(args []string) (importFlags, error) {
 	fs.StringVar(&f.manifest, "manifest", "", "film manifest; copied into the store (optional)")
 	fs.StringVar(&f.stats, "stats", "", "match stats JSON; copied into the store (optional)")
 	fs.StringVar(&f.match, "match", "", "match id for the store and the document; derived when absent")
-	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\") (required)")
+	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\"); absent, it is resolved from the film's map asset id (chunk_00) through the embedded identity table")
 	fs.StringVar(&f.catalog, "catalog", "", "map quantization catalog JSON; the embedded catalog is the default")
 	fs.StringVar(&f.dataDir, "data", "", "data directory (default: the IT3D_DATA_DIR env var or %LOCALAPPDATA%/infinite-theater-3d/data)")
 	err := fs.Parse(args)
@@ -48,9 +50,6 @@ func parseImportFlags(args []string) (importFlags, error) {
 	}
 	if f.chunks == "" {
 		return f, fmt.Errorf("--chunks is required")
-	}
-	if f.mapName == "" {
-		return f, fmt.Errorf("--map is required (the display name of the map, not the film's asset id)")
 	}
 	return f, nil
 }
@@ -115,16 +114,58 @@ func runImport(args []string) error {
 	}
 	if err := root.SaveMatchMeta(matchID, store.Match{
 		MatchID:    matchID,
-		MapName:    f.mapName,
+		MapName:    report.MapName,
+		MapAssetID: report.MapAssetID,
 		MapModule:  report.MapModule,
 		Build:      report.Build,
 		DurationMS: report.DurationMS,
+		Players:    rosterOf(doc, optionalPath(root.MatchStatsPath(matchID))),
 		ImportedAt: time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		return fmt.Errorf("write match summary %s: %w", matchID, err)
 	}
-	fmt.Printf("imported %s (map %s, build %s)\n", matchID, f.mapName, report.Build)
+	fmt.Printf("imported %s (map %s, build %s)\n", matchID, report.MapName, report.Build)
 	return nil
+}
+
+// rosterOf projects the document's roster onto the match summary's players: the film's
+// own table (name, xuid, team, bot flag), with the stats' names preferred where a stats
+// file was given (the operator's data wins over the film's death feed). A roster the
+// document does not carry yields an empty player list, not an error.
+func rosterOf(doc replay.ReplayDocument, statsPath string) []store.Player {
+	var stats struct {
+		Players []struct {
+			Name string `json:"name"`
+			XUID string `json:"xuid"`
+		} `json:"players"`
+	}
+	if statsPath != "" {
+		if raw, err := os.ReadFile(statsPath); err == nil {
+			_ = json.Unmarshal(raw, &stats)
+		}
+	}
+	byXUID := make(map[string]string, len(stats.Players))
+	for _, p := range stats.Players {
+		if p.XUID != "" {
+			byXUID[p.XUID] = p.Name
+		}
+	}
+	out := make([]store.Player, 0, len(doc.Roster))
+	for _, e := range doc.Roster {
+		name := e.Name
+		if n, ok := byXUID[e.XUID]; ok && n != "" {
+			name = n
+		}
+		pl := store.Player{Name: name, IsBot: e.Bot}
+		if e.XUID != "" {
+			pl.XUID = e.XUID
+		}
+		if e.Team != nil {
+			pl.TeamID = *e.Team
+		}
+		out = append(out, pl)
+	}
+	return out
 }
 
 // optionalPath returns a store path, or the empty string when it cannot be computed (the

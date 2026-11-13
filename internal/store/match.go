@@ -9,10 +9,14 @@ import (
 	"time"
 )
 
-// Player is one player of the match summary: a name and a team.
+// Player is one player of the match summary, from the document's roster (the film's own
+// player table): a name, the team the film writes for the player, and the bot flag. The
+// xuid is omitted when the film did not name the player (a bot without a declaration).
 type Player struct {
-	Name string `json:"name"`
-	Team int    `json:"team"`
+	Name   string `json:"name"`
+	XUID   string `json:"xuid,omitempty"`
+	TeamID int    `json:"teamId"`
+	IsBot  bool   `json:"isBot"`
 }
 
 // Match is the small match.json summary the store lists: enough for a viewer to pick a
@@ -20,6 +24,7 @@ type Player struct {
 type Match struct {
 	MatchID    string   `json:"matchId"`
 	MapName    string   `json:"mapName"`
+	MapAssetID string   `json:"mapAssetId,omitempty"`
 	MapModule  string   `json:"mapModule"`
 	Build      string   `json:"build"`
 	DurationMS int      `json:"durationMs"`

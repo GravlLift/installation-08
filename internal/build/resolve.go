@@ -5,34 +5,99 @@ package build
 // the decoder option types.
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
+	"github.com/JGtm/halo-infinite-film-decoder/filmcache"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-film-decoder/types"
 
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
-// resolveMapEntry looks the map up in the catalog. It is fatal by the decoder's own rule:
-// without the bounds and the axis widths of the map the decoder emits raw quanta, and
-// BuildFromFilm refuses to produce a document rather than wrong coordinates.
+// resolveMapEntry names the map and looks it up in the catalog. It is fatal by the
+// decoder's own rule: without the bounds and the axis widths of the map the decoder emits
+// raw quanta, and BuildFromFilm refuses to produce a document rather than wrong
+// coordinates.
+//
+// The name is a user override when given; otherwise it is resolved from the film alone:
+// chunk_00 carries a map asset id, and the identity table (internal/refdata) says what that
+// map is. The bounds themselves are never in the film.
 func resolveMapEntry(in Input) (decfilm.MapQuantEntry, error) {
-	if in.MapName == "" {
-		return decfilm.MapQuantEntry{}, fmt.Errorf("map name is required: pass the display name of the map (e.g. %q), not the film's asset id", "Live Fire")
+	name := in.MapName
+	if name == "" {
+		resolved, err := mapNameFromFilm(in)
+		if err != nil {
+			return decfilm.MapQuantEntry{}, err
+		}
+		name = resolved
 	}
 	catalog, err := catalogOf(in)
 	if err != nil {
 		return decfilm.MapQuantEntry{}, err
 	}
-	entry, err := catalog.Lookup(in.MapName)
+	entry, err := catalog.Lookup(name)
 	if err != nil {
-		return decfilm.MapQuantEntry{}, fmt.Errorf("map %q: %w", in.MapName, err)
+		return decfilm.MapQuantEntry{}, fmt.Errorf("map %q: %w", name, err)
 	}
 	return entry, nil
+}
+
+// mapNameFromFilm resolves the map's display name from the film's own identity: chunk_00's
+// map asset id looked up in the identity table. A film without a readable chunk_00, or an
+// asset id the table does not hold, is a clear error that says to pass --map.
+func mapNameFromFilm(in Input) (string, error) {
+	chunk0, err := readChunk0(in.ChunkDir, in.ManifestPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve the map from the film (pass --map with the display name): %w", err)
+	}
+	info, err := decfilm.ReadMatchInfo(chunk0)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve the map from the film (pass --map with the display name): %w", err)
+	}
+	if info.CarteAssetID == nil {
+		return "", fmt.Errorf("the film carries no map asset id: pass --map with the display name of the map")
+	}
+	id := guidString(*info.CarteAssetID)
+	ident, err := refdata.LookupMapIdentity(id)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve the map from the film (pass --map with the display name): %w", err)
+	}
+	return ident.Name, nil
+}
+
+// readChunk0 loads chunk_00 from the chunks folder (with the manifest index when it is
+// readable), the same way the build loads the whole film: one load, the first chunk.
+func readChunk0(chunkDir, manifestPath string) ([]byte, error) {
+	var meta []decfilm.ChunkMeta
+	if manifestPath != "" {
+		if raw, err := os.ReadFile(manifestPath); err == nil {
+			if chunks, err := filmcache.ParseManifest(raw); err == nil {
+				meta = filmcache.NewSource(chunks, chunkDir).Meta()
+			}
+		}
+	}
+	film, err := decfilm.LoadDir(chunkDir, meta)
+	if err != nil {
+		return nil, fmt.Errorf("film chunks unreadable: %w", err)
+	}
+	if len(film.Meta()) == 0 || film.Meta()[0].Index != 0 {
+		return nil, fmt.Errorf("chunk_00.bin is missing")
+	}
+	return film.Chunk(0), nil
+}
+
+// guidString renders a GUID in the canonical lowercase form (the first three fields
+// little-endian, as the film writes them).
+func guidString(g [16]byte) string {
+	return fmt.Sprintf("%08x-%04x-%04x-%x-%x",
+		binary.LittleEndian.Uint32(g[:4]), binary.LittleEndian.Uint16(g[4:6]),
+		binary.LittleEndian.Uint16(g[6:8]), g[8:10], g[10:])
 }
 
 // catalogOf loads the map catalog: an explicit path wins, the embedded reference catalog

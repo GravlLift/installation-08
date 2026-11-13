@@ -5,22 +5,30 @@ import (
 	"testing"
 )
 
-// TestParseImportFlagsRequired — the chunks folder and the map name are required; a
-// missing one is a clear error, and the optional inputs (manifest, stats, match, catalog,
-// data) parse to their zero form when absent.
+// TestParseImportFlagsRequired — the chunks folder is required; the map name is optional
+// (resolved from the film when absent), and the other inputs (manifest, stats, match,
+// catalog, data) parse to their zero form when absent.
 func TestParseImportFlagsRequired(t *testing.T) {
 	if _, err := parseImportFlags([]string{"--map", "Live Fire"}); err == nil {
 		t.Error("no --chunks: expected an error")
-	}
-	if _, err := parseImportFlags([]string{"--chunks", "d"}); err == nil {
-		t.Error("no --map: expected an error")
 	}
 	f, err := parseImportFlags([]string{"--chunks", "d", "--map", "Live Fire"})
 	if err != nil {
 		t.Fatalf("minimal set: %v", err)
 	}
+	if f.mapName != "Live Fire" {
+		t.Fatalf("map name = %q, want Live Fire", f.mapName)
+	}
 	if f.manifest != "" || f.stats != "" || f.match != "" || f.catalog != "" || f.dataDir != "" {
 		t.Fatalf("optional inputs not zero: %+v", f)
+	}
+	// The map name may be absent: it is then resolved from the film.
+	f, err = parseImportFlags([]string{"--chunks", "d"})
+	if err != nil {
+		t.Fatalf("chunks only: %v", err)
+	}
+	if f.mapName != "" {
+		t.Fatalf("absent map name = %q, want empty", f.mapName)
 	}
 }
 

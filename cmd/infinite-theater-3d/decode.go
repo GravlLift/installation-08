@@ -38,7 +38,7 @@ func parseDecodeFlags(args []string) (decodeFlags, error) {
 	fs.StringVar(&f.chunks, "chunks", "", "folder holding chunk_00.bin, chunk_01.bin, ...")
 	fs.StringVar(&f.manifest, "manifest", "", "film manifest (chunk index, types, start_ms); optional")
 	fs.StringVar(&f.stats, "stats", "", "match stats JSON (gameVariantName, players, teamScores); optional")
-	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\") (required)")
+	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\"); absent, it is resolved from the film's map asset id (chunk_00) through the embedded identity table")
 	fs.StringVar(&f.catalog, "catalog", "", "map quantization catalog JSON; the embedded catalog is the default")
 	fs.StringVar(&f.match, "match", "", "match id for the document; derived from the manifest or chunks folder name when absent")
 	fs.StringVar(&f.title, "title", "", "title slug for the document")
@@ -50,9 +50,6 @@ func parseDecodeFlags(args []string) (decodeFlags, error) {
 	}
 	if f.chunks == "" || f.out == "" {
 		return f, fmt.Errorf("--chunks and --out are required")
-	}
-	if f.mapName == "" {
-		return f, fmt.Errorf("--map is required (the display name of the map, not the film's asset id)")
 	}
 	return f, nil
 }

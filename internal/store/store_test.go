@@ -217,7 +217,7 @@ func TestMatchMetaAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := Match{MatchID: "abc", MapName: "Live Fire", MapModule: "sgh_interlock", Build: "HI_1_13_0",
-		DurationMS: 120000, Players: []Player{{Name: "jordan", Team: 0}}, ImportedAt: "2026-01-01T00:00:00Z"}
+		DurationMS: 120000, Players: []Player{{Name: "jordan", TeamID: 0}}, ImportedAt: "2026-01-01T00:00:00Z"}
 	if err := root.SaveMatchMeta("abc", m); err != nil {
 		t.Fatal(err)
 	}

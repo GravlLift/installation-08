@@ -50,19 +50,11 @@ func TestIsShort8(t *testing.T) {
 // TestLinesOfStats — the scoreboard projection: lines, the team table and the roster share
 // one source; a row with an empty xuid is dropped everywhere.
 func TestLinesOfStats(t *testing.T) {
-	s := Stats{
-		Players: []struct {
-			XUID    string `json:"xuid"`
-			TeamID  int    `json:"teamId"`
-			Kills   int    `json:"kills"`
-			Deaths  int    `json:"deaths"`
-			Assists int    `json:"assists"`
-		}{
-			{XUID: "1", TeamID: 0, Kills: 5, Deaths: 2, Assists: 3},
-			{XUID: "", TeamID: 1, Kills: 9, Deaths: 9, Assists: 9},
-			{XUID: "2", TeamID: 1, Kills: 1, Deaths: 4, Assists: 0},
-		},
-	}
+	s := Stats{Players: []StatsPlayer{
+		{XUID: "1", TeamID: 0, Kills: 5, Deaths: 2, Assists: 3},
+		{XUID: "", TeamID: 1, Kills: 9, Deaths: 9, Assists: 9},
+		{XUID: "2", TeamID: 1, Kills: 1, Deaths: 4, Assists: 0},
+	}}
 	lines, teams, roster := linesOfStats(s)
 	if len(lines) != 2 || len(teams) != 2 || len(roster) != 2 {
 		t.Fatalf("expected 2 of each, got %d lines, %d teams, %d roster", len(lines), len(teams), len(roster))
@@ -83,17 +75,7 @@ func TestParticipantsOf(t *testing.T) {
 	if got := participantsOf(Stats{}); len(got) != 0 {
 		t.Fatalf("empty stats -> %d participants, want 0", len(got))
 	}
-	s := Stats{
-		Players: []struct {
-			XUID    string `json:"xuid"`
-			TeamID  int    `json:"teamId"`
-			Kills   int    `json:"kills"`
-			Deaths  int    `json:"deaths"`
-			Assists int    `json:"assists"`
-		}{
-			{XUID: "7"},
-		},
-	}
+	s := Stats{Players: []StatsPlayer{{XUID: "7"}}}
 	if got := participantsOf(s); len(got) != 1 || got[0].ID != "7" {
 		t.Fatalf("participants = %+v, want one row with id 7", got)
 	}

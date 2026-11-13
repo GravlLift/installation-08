@@ -5,8 +5,9 @@ import (
 )
 
 // TestParseDecodeFlagsRequired — the required surface of the decode subcommand: the chunks
-// folder, the output path and the map name are mandatory (the catalog is optional: the
-// embedded catalog is the default), and a missing one is a clear error.
+// folder and the output path are mandatory (the map name and the catalog are optional: the
+// map is resolved from the film when absent, and the embedded catalog is the default), and
+// a missing one is a clear error.
 func TestParseDecodeFlagsRequired(t *testing.T) {
 	cases := []struct {
 		name string
@@ -14,7 +15,6 @@ func TestParseDecodeFlagsRequired(t *testing.T) {
 	}{
 		{"no chunks", []string{"--out", "o.json", "--map", "Live Fire"}},
 		{"no out", []string{"--chunks", "d", "--map", "Live Fire"}},
-		{"no map", []string{"--chunks", "d", "--out", "o.json"}},
 		{"nothing", []string{}},
 	}
 	for _, tc := range cases {

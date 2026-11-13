@@ -17,6 +17,8 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/memguard"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-film-decoder/types"
+
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 // Input describes what a standalone decode is given. ChunkDir, CatalogPath and MapName are
@@ -49,10 +51,21 @@ type Input struct {
 	MapName string
 }
 
+// StatsPlayer is one row of the match stats scoreboard.
+type StatsPlayer struct {
+	Name    string `json:"name"`
+	XUID    string `json:"xuid"`
+	TeamID  int    `json:"teamId"`
+	Kills   int    `json:"kills"`
+	Deaths  int    `json:"deaths"`
+	Assists int    `json:"assists"`
+}
+
 // Stats is the optional match facts the decoder needs from outside the film, mirroring the
 // LevelUp type port.MatchFacts (the players and team scores are the fields the document
-// consumes). Player names are NOT part of it: the film's death feed and its own player
-// table name every player, so a name-less document is still named.
+// consumes). The names are not consumed by the document (the film's own player table
+// names it), but the match summary (store.Match) prefers the stats' names when --stats is
+// given: a stats file is the operator's own data and wins over the film's death feed.
 type Stats struct {
 	// GameVariantName is the playlist variant as the API names it ("Oddball", "CTF", ...).
 	// Drives the mode gates (skull, flag, bomb, VIP layers) and the objective family.
@@ -60,13 +73,7 @@ type Stats struct {
 	// Players are the scoreboard rows. The (kills, deaths, assists) triple is the pairing
 	// key of the statborg entity slot to the player, so a row with empty counters pairs
 	// nothing and degrades the score curve and the objective attribution.
-	Players []struct {
-		XUID    string `json:"xuid"`
-		TeamID  int    `json:"teamId"`
-		Kills   int    `json:"kills"`
-		Deaths  int    `json:"deaths"`
-		Assists int    `json:"assists"`
-	} `json:"players"`
+	Players []StatsPlayer `json:"players"`
 	// TeamScores are the final scores, team 0 then team 1. Absent: the score resolution
 	// falls back to the per-team frag sums.
 	TeamScores *[2]int `json:"teamScores"`
@@ -76,6 +83,8 @@ type Stats struct {
 // absent input. WithoutStats and WithoutManifest name the document fields concerned.
 type Report struct {
 	MatchID         string   `json:"matchId"`
+	MapName         string   `json:"mapName,omitempty"`
+	MapAssetID      string   `json:"mapAssetId,omitempty"`
 	MapModule       string   `json:"mapModule,omitempty"`
 	Build           string   `json:"build,omitempty"`
 	Tracks          int      `json:"tracks"`
@@ -112,6 +121,7 @@ func Build(ctx context.Context, in Input) (replay.ReplayDocument, Report, error)
 		return replay.ReplayDocument{}, Report{}, fmt.Errorf("%w: %s", ErrUnreadable, in.ChunkDir)
 	}
 	report := newReport(matchID, in, entry.Module, hadManifest)
+	fillMapIdentity(&report, in, film.Chunk(0))
 	report.Build = buildOfChunk0(film.Chunk(0))
 	deaths := scanDeaths(ctx, matchID, film)
 	killsource := decodeKills(ctx, matchID, film, entry)
@@ -175,6 +185,27 @@ func buildOfChunk0(chunk0 []byte) string {
 	return replay.CleDeChunk0(chunk0).Build
 }
 
+// fillMapIdentity writes the map the film itself names (chunk_00's map asset id) into the
+// report, and repairs the map name when resolution went through the film (in.MapName was
+// absent, so the report does not carry it yet). The film without a readable identity
+// degrades to an empty field: the map name is still known (resolution succeeded to reach
+// this point), the id is simply not published.
+func fillMapIdentity(r *Report, in Input, chunk0 []byte) {
+	if len(chunk0) == 0 {
+		return
+	}
+	info, err := decfilm.ReadMatchInfo(chunk0)
+	if err != nil || info.CarteAssetID == nil {
+		return
+	}
+	r.MapAssetID = guidString(*info.CarteAssetID)
+	if r.MapName == "" {
+		if ident, err := refdata.LookupMapIdentity(r.MapAssetID); err == nil {
+			r.MapName = ident.Name
+		}
+	}
+}
+
 // scanDeaths reads the death feed once; its error degrades the lives and the attachments,
 // it never fails the build (a film without a readable highlight chunk still replays).
 func scanDeaths(ctx context.Context, matchID string, film *decfilm.Film) []types.Death {
@@ -198,7 +229,7 @@ func decodeKills(ctx context.Context, matchID string, film *decfilm.Film, entry 
 }
 
 func newReport(matchID string, in Input, module string, hadManifest bool) Report {
-	r := Report{MatchID: matchID, MapModule: module}
+	r := Report{MatchID: matchID, MapName: in.MapName, MapModule: module}
 	if in.ManifestPath == "" || !hadManifest {
 		r.WithoutManifest = []string{
 			"scoreTimeline (entity records are not datable without chunk start_ms)",
