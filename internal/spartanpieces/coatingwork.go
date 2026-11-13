@@ -98,8 +98,11 @@ func (a *coatingWork) material(ctx context.Context, id uint32, raw map[string]an
 // empty game image the reader does not publish, when Ekur names nothing: -1,
 // 0 or key absent).
 func sameMasks(raw map[string]any, textures map[string]int32) bool {
+	// The reader's surfaceBrute names its masks asg / masque0 / masque1 (French
+	// keys, the vendored reader's own); the reference names them Asg / Mask0 /
+	// Mask1. The keys must match what the reader actually writes.
 	bitmaps, _ := raw["bitmaps"].(map[string]any)
-	for key, name := range map[string]string{"asg": "Asg", "mask0": "Mask0", "mask1": "Mask1"} {
+	for key, name := range map[string]string{"asg": "Asg", "masque0": "Mask0", "masque1": "Mask1"} {
 		read, _ := himap.NombreJSON(bitmaps[key])
 		ref, named := textures[name]
 		if named && read == uint32(ref) {
