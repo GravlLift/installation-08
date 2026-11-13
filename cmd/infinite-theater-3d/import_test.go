@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -57,7 +58,8 @@ func TestResolveImportMatchID(t *testing.T) {
 }
 
 // TestDataDirFor — the data directory resolution: --data wins, then IT3D_DATA_DIR, then
-// the default under LOCALAPPDATA.
+// the repo checkout's data folder (a worktree shares the main checkout's), then the
+// default under LOCALAPPDATA.
 func TestDataDirFor(t *testing.T) {
 	if got, err := dataDirFor("explicit"); err != nil || got != "explicit" {
 		t.Fatalf("flag: %q, %v", got, err)
@@ -66,10 +68,28 @@ func TestDataDirFor(t *testing.T) {
 	if got, err := dataDirFor(""); err != nil || got != "fromenv" {
 		t.Fatalf("env: %q, %v", got, err)
 	}
-	// With no flag and no env, the default is under LOCALAPPDATA.
-	t.Setenv("LOCALAPPDATA", "C:/Users/x/AppData/Local")
 	t.Setenv("IT3D_DATA_DIR", "")
-	got, err := dataDirFor("")
+
+	repo := t.TempDir()
+	mod := []byte("module " + modulePath + "\n\ngo 1.26\n")
+	worktree := filepath.Join(repo, ".worktrees", "w")
+	for _, dir := range []string{repo, worktree} {
+		if err := os.MkdirAll(filepath.Join(dir, "cmd", "x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), mod, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, start := range []string{filepath.Join(repo, "cmd", "x"), filepath.Join(worktree, "cmd", "x")} {
+		if got, err := dataDirFrom("", []string{start}); err != nil || got != filepath.Join(repo, "data") {
+			t.Fatalf("checkout from %s: %q, %v", start, got, err)
+		}
+	}
+
+	// Outside any checkout, the default is under LOCALAPPDATA.
+	t.Setenv("LOCALAPPDATA", "C:/Users/x/AppData/Local")
+	got, err := dataDirFrom("", []string{t.TempDir()})
 	if err != nil {
 		t.Fatalf("default: %v", err)
 	}

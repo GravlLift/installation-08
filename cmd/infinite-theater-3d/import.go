@@ -47,7 +47,7 @@ func parseImportFlags(args []string) (importFlags, error) {
 	fs.StringVar(&f.match, "match", "", "match id for the store and the document; derived when absent")
 	fs.StringVar(&f.mapName, "map", "", "display name of the map (catalog key, e.g. \"Live Fire\"); absent, it is resolved from the film's map asset id (chunk_00) through the embedded identity table")
 	fs.StringVar(&f.catalog, "catalog", "", "map quantization catalog JSON; the embedded catalog is the default")
-	fs.StringVar(&f.dataDir, "data", "", "data directory (default: the IT3D_DATA_DIR env var or %LOCALAPPDATA%/infinite-theater-3d/data)")
+	fs.StringVar(&f.dataDir, "data", "", dataDirHelp)
 	err := fs.Parse(args)
 	if err != nil {
 		return f, err
@@ -56,21 +56,6 @@ func parseImportFlags(args []string) (importFlags, error) {
 		return f, fmt.Errorf("--chunks is required")
 	}
 	return f, nil
-}
-
-// dataDirFor resolves the data directory: --data, then IT3D_DATA_DIR, then the default.
-func dataDirFor(flagVal string) (string, error) {
-	if flagVal != "" {
-		return flagVal, nil
-	}
-	if env := os.Getenv("IT3D_DATA_DIR"); env != "" {
-		return env, nil
-	}
-	la := os.Getenv("LOCALAPPDATA")
-	if la == "" {
-		return "", fmt.Errorf("no data directory: pass --data or set IT3D_DATA_DIR")
-	}
-	return filepath.Join(la, "infinite-theater-3d", "data"), nil
 }
 
 // runImport copies the film into the store, builds the document, and writes the match

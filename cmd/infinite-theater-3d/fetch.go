@@ -51,7 +51,7 @@ func defaultClientID() string {
 func runLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ContinueOnError)
 	id := fs.String("client-id", defaultClientID(), "Microsoft public client ID")
-	data := fs.String("data", "", "data directory")
+	data := fs.String("data", "", dataDirHelp)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func runLogin(args []string) error {
 }
 func runLogout(args []string) error {
 	fs := flag.NewFlagSet("logout", flag.ContinueOnError)
-	data := fs.String("data", "", "data directory")
+	data := fs.String("data", "", dataDirHelp)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func runLogout(args []string) error {
 }
 func runMatches(args []string) error {
 	fs := flag.NewFlagSet("matches", flag.ContinueOnError)
-	data := fs.String("data", "", "data directory")
+	data := fs.String("data", "", dataDirHelp)
 	count := fs.Int("count", 10, "number of matches (1-25)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -100,7 +100,7 @@ func runMatches(args []string) error {
 }
 func runFetch(args []string) error {
 	fs := flag.NewFlagSet("fetch", flag.ContinueOnError)
-	data := fs.String("data", "", "data directory")
+	data := fs.String("data", "", dataDirHelp)
 	id := fs.String("match", "", "match id")
 	if err := fs.Parse(args); err != nil {
 		return err
