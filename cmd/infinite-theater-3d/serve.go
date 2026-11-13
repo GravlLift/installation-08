@@ -189,30 +189,6 @@ func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
-// newServerHandlers builds the server: the API routes on a mux, wrapped by the static
-// fallback. It returns the concrete handler (which implements http.Handler) so a test can
-// drive the routes directly as well as through the full server.
-func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog) serverHandlers {
-	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, remote: &remoteJobs{}}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/auth/state", h.authState)
-	mux.HandleFunc("GET /api/remote/matches", h.remoteMatches)
-	mux.HandleFunc("POST /api/matches/{id}/fetch", h.startFetch)
-	mux.HandleFunc("GET /api/matches/{id}/fetch/state", h.fetchState)
-	mux.HandleFunc("GET /api/health", h.handleHealth)
-	mux.HandleFunc("GET /api/matches", h.handleMatches)
-	mux.HandleFunc("GET /api/matches/{id}/replay", h.handleReplay)
-	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
-	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
-	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
-	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)
-	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
-	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)
-	mux.HandleFunc("GET /api/weapons/{file}", h.handleWeaponModel)
-	h.mux = mux
-	return h
-}
-
 // servesStatic says whether the path is one the static directory answers (any path that is
 // not an API route and not a method the API uses on an API path).
 func (h serverHandlers) servesStatic(r *http.Request) bool {

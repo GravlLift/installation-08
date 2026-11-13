@@ -10,7 +10,9 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 type fetchSnapshot struct {
@@ -24,6 +26,8 @@ type remoteJobs struct {
 	mu     sync.Mutex
 	active bool
 	states map[string]fetchSnapshot
+	client func(context.Context) (*haloapi.Client, haloauth.Credentials, error)
+	fetch  func(context.Context, *store.Root, *haloapi.Client, string, fetchProgress) error
 }
 
 func (h serverHandlers) authState(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +53,7 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 		}
 		count = n
 	}
-	api, t, err := apiClient(r.Context(), h.root.Dir())
+	api, t, err := h.remote.client(r.Context())
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "sign in required"})
 		return
@@ -95,10 +99,10 @@ func (h serverHandlers) runRemoteFetch(id string) {
 		j.states[id] = fetchSnapshot{State: state, MatchID: id, Done: done, Total: total}
 		j.mu.Unlock()
 	}
-	api, _, err := apiClient(context.Background(), h.root.Dir())
+	api, _, err := j.client(context.Background())
 	if err == nil {
 		update("downloading", 0, 0)
-		err = fetchMatch(context.Background(), h.root, api, id, update)
+		err = j.fetch(context.Background(), h.root, api, id, update)
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -129,4 +133,33 @@ func (h serverHandlers) fetchState(w http.ResponseWriter, r *http.Request) {
 		s = fetchSnapshot{State: "idle", MatchID: id}
 	}
 	writeJSON(w, 200, s)
+}
+
+// newServerHandlers builds the server: the API routes on a mux, wrapped by the static
+// fallback. It returns the concrete handler (which implements http.Handler) so a test can
+// drive the routes directly as well as through the full server.
+func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog) serverHandlers {
+	var authMu sync.Mutex
+	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+		authMu.Lock()
+		defer authMu.Unlock()
+		return apiClient(ctx, root.Dir())
+	}, fetch: fetchMatch}}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/auth/state", h.authState)
+	mux.HandleFunc("GET /api/remote/matches", h.remoteMatches)
+	mux.HandleFunc("POST /api/matches/{id}/fetch", h.startFetch)
+	mux.HandleFunc("GET /api/matches/{id}/fetch/state", h.fetchState)
+	mux.HandleFunc("GET /api/health", h.handleHealth)
+	mux.HandleFunc("GET /api/matches", h.handleMatches)
+	mux.HandleFunc("GET /api/matches/{id}/replay", h.handleReplay)
+	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
+	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
+	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
+	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)
+	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
+	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)
+	mux.HandleFunc("GET /api/weapons/{file}", h.handleWeaponModel)
+	h.mux = mux
+	return h
 }
