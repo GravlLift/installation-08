@@ -5,6 +5,13 @@ import type { ReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { PlaybackBar } from './MatchViewScreen'
 import { isTypingTarget } from '../features/match-replay/hooks/useReplayShortcuts'
 
+it('shows playback time for the current and final frames', () => {
+  const doc = { ...testReplayDoc(), frameIntervalMs: 100, frameCount: 1201 }
+  const sound = { available: false } as unknown as ReplaySound
+  render(<PlaybackBar doc={doc} frameRef={{ current: 650 }} frame={650} setFrame={vi.fn()} playing={false} setPlaying={vi.fn()} speed={1} setSpeed={vi.fn()} viewpoint={null} setViewpoint={vi.fn()} sound={sound} />)
+  expect(screen.getByText('1:05 / 2:00')).toBeInTheDocument()
+})
+
 it('renders sound controls in the transport and keeps volume arrows native', () => {
   const toggle = vi.fn()
   const sound = { available: true, on: false, volume: 0.7, mutedBySpeed: false, toggle } as unknown as ReplaySound

@@ -12,7 +12,7 @@ import { buildShotFx } from '../features/match-replay/model/shotFx'
 import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
-import { framesPerSecond } from '../lib/replay/replayLogic'
+import { formatClock, frameToMs, framesPerSecond } from '../lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import {
   checkMesh,
@@ -257,7 +257,7 @@ export function PlaybackBar({
         className="flex-1"
       />
       <span className="font-mono text-xs text-muted-foreground">
-        {frame} / {doc.frameCount - 1}
+        {formatClock(frameToMs(frame, doc))} / {formatClock(frameToMs(doc.frameCount - 1, doc))}
       </span>
       <label className="flex items-center gap-1 text-xs text-muted-foreground">
         Speed
