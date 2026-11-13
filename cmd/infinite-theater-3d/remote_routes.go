@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 
@@ -130,7 +132,18 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: fetchMatch}}
+	}, fetch: func(ctx context.Context, root *store.Root, api *haloapi.Client, id string, progress fetchProgress) error {
+		if err := fetchMatch(ctx, root, api, id, progress); err != nil {
+			return err
+		}
+		if jobs != nil {
+			if _, err := os.Stat(variantPath(root, id, "map.mvar")); err == nil {
+				jobs.Enqueue(variantPrefix + id)
+				slog.Info("variant build queued after fetch", "id", id)
+			}
+		}
+		return nil
+	}}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/state", h.authStateRoute)
 	mux.HandleFunc("POST /api/auth/login", h.runLoginRoute)
@@ -144,6 +157,9 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
 	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
+	mux.HandleFunc("GET /api/matches/{id}/variant.glb", h.handleVariant)
+	mux.HandleFunc("GET /api/matches/{id}/variant/state", h.handleVariantState)
+	mux.HandleFunc("POST /api/matches/{id}/variant/build", h.handleVariantBuild)
 	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)
 	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
 	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)

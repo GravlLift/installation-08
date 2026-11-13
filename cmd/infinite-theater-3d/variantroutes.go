@@ -1,0 +1,137 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/store"
+)
+
+const variantPrefix = "variant:"
+
+func variantJobID(key string) (string, bool) {
+	id, ok := strings.CutPrefix(key, variantPrefix)
+	return id, ok && store.MatchIDValid(id)
+}
+
+func variantPath(root *store.Root, id, name string) string {
+	meta, _ := root.MatchMetaPath(id)
+	return filepath.Join(filepath.Dir(meta), name)
+}
+
+func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out string) (meshjobs.BuildResult, error) {
+	meta, err := root.MatchMeta(id)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	if meta.MapModule == "" {
+		return meshjobs.BuildResult{}, fmt.Errorf("no map module for match %s", id)
+	}
+	summary, err := meshbuild.BuildVariant(ctx, meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game}, out, nil)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: summary.Bytes, Triangles: summary.Triangles}, nil
+}
+
+func (h serverHandlers) variantMatch(w http.ResponseWriter, r *http.Request) (string, bool) {
+	id := r.PathValue("id")
+	if !store.MatchIDValid(id) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
+		return "", false
+	}
+	_, err := h.root.MatchMeta(id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "match_not_found", "id": id})
+		return "", false
+	}
+	if err != nil {
+		slog.Error("match meta", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal_error"})
+		return "", false
+	}
+	return id, true
+}
+
+func (h serverHandlers) variantHasMvar(w http.ResponseWriter, id string) bool {
+	_, err := os.Stat(variantPath(h.root, id, "map.mvar"))
+	if errors.Is(err, os.ErrNotExist) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "variant_no_mvar", "id": id})
+		return false
+	}
+	if err != nil {
+		slog.Error("stat map variant", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal_error"})
+		return false
+	}
+	return true
+}
+
+func (h serverHandlers) handleVariant(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.variantMatch(w, r)
+	if !ok {
+		return
+	}
+	f, err := os.Open(variantPath(h.root, id, "variant.glb"))
+	if errors.Is(err, os.ErrNotExist) {
+		if h.variantHasMvar(w, id) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "variant_not_built", "id": id})
+		}
+		return
+	}
+	if err != nil {
+		slog.Error("open variant", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal_error"})
+		return
+	}
+	defer f.Close()
+	http.ServeContent(w, r, "variant.glb", time.Time{}, f)
+}
+
+func (h serverHandlers) handleVariantState(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.variantMatch(w, r)
+	if !ok {
+		return
+	}
+	if _, err := os.Stat(variantPath(h.root, id, "variant.glb")); errors.Is(err, os.ErrNotExist) && !h.variantHasMvar(w, id) {
+		return
+	}
+	if h.jobs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
+		return
+	}
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(variantPrefix+id)))
+}
+
+func (h serverHandlers) handleVariantBuild(w http.ResponseWriter, r *http.Request) {
+	if !originAllowed(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
+		return
+	}
+	id, ok := h.variantMatch(w, r)
+	if !ok {
+		return
+	}
+	if !h.variantHasMvar(w, id) {
+		return
+	}
+	if h.jobs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
+		return
+	}
+	snap := h.jobs.Enqueue(variantPrefix + id)
+	status := http.StatusAccepted
+	if snap.Ready() {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, meshStateJSON(snap))
+}
