@@ -33,10 +33,11 @@ func spartansTestStore(t *testing.T) *store.Root {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		filepath.Join("matches", "abc", "customization", "123.json"):                                  `{"ArmorCores":{"ArmorCores":[{"CoreId":"core","CorePath":"core.json","IsEquipped":true,"Themes":[{"IsEquipped":true,"ThemePath":"infinite/customization/armor/cores/core/theme.json","HelmetPath":"infinite/customization/armor/items/helmet.json","CoatingPath":"infinite/customization/armor/coatings/steel.json"}]}]},"SpartanBody":{"BodyType":"Medium"}}`,
+		filepath.Join("matches", "abc", "customization", "123.json"):                                  `{"ArmorCores":{"ArmorCores":[{"CoreId":"core","CorePath":"core.json","IsEquipped":true,"Themes":[{"IsEquipped":true,"ThemePath":"infinite/customization/armor/cores/core/theme.json","HelmetPath":"infinite/customization/armor/items/helmet.json","CoatingPath":"infinite/customization/armor/coatings/steel.json"}]}]},"SpartanBody":{"BodyType":"Medium"},"WeaponCores":{"WeaponCores":[{"CoreId":"core-ar","CorePath":"Cores/Weapon/209-200-olympus-aa30213b.json","CoreType":"WeaponAR","Themes":[{"IsEquipped":true,"ThemePath":"Inventory/Weapon/Themes/t-ar.json","CoatingPath":"Inventory/Weapon/Coatings/wc-ar.json"}]},{"CoreId":"core-br","CorePath":"Cores/Weapon/209-202-olympus-4a7b6c5d.json","CoreType":"WeaponBR","Themes":[{"IsEquipped":true,"ThemePath":"Inventory/Weapon/Themes/t-br.json","CoatingPath":"Inventory/Weapon/Coatings/wc-missing.json"}]}]}}`,
 		filepath.Join("gamecms", "infinite", "customization", "armor", "cores", "core", "theme.json"): `{"CommonData":{"Id":"theme","Type":"ArmorTheme"},"TagId":1234,"CoreRegionData":{"BaseRegionData":[{"RegionId":{"m_identifier":1},"PermutationId":{"m_identifier":2}}]}}`,
 		filepath.Join("gamecms", "infinite", "customization", "armor", "items", "helmet.json"):        `{"CommonData":{"Id":"helmet","Type":"ArmorHelmet"},"RegionData":[{"RegionId":{"m_identifier":1},"PermutationId":{"m_identifier":9}}]}`,
 		filepath.Join("gamecms", "infinite", "customization", "armor", "coatings", "steel.json"):      `{"CommonData":{"Id":"steel","Type":"ArmorCoating"},"StyleId":{"m_identifier":42}}`,
+		filepath.Join("gamecms", "inventory", "weapon", "coatings", "wc-ar.json"):                     `{"CommonData":{"Id":"wc","Type":"WeaponCoating"},"StyleId":{"m_identifier":55}}`,
 	}
 	for p, body := range files {
 		if err = root.WriteFile(filepath.Join(root.Dir(), filepath.FromSlash(p)), []byte(body)); err != nil {
@@ -74,6 +75,18 @@ func TestMatchSpartansServed(t *testing.T) {
 	}
 	if m.Coating == nil || m.Coating.StyleID == nil || *m.Coating.StyleID != 42 || m.Coating.StyleKey != "0000002a" {
 		t.Fatalf("coating: %+v", m.Coating)
+	}
+	// The equipped weapon cores: one reads its coating style from the cache, the
+	// other's coating file is absent (model key kept, no style: neutral paint).
+	if len(human.WeaponCoatings) != 2 {
+		t.Fatalf("weapon coatings: %+v", human.WeaponCoatings)
+	}
+	ar, br := human.WeaponCoatings[0], human.WeaponCoatings[1]
+	if ar.ModelKey != "aa30213b" || ar.StyleKey != "00000037" {
+		t.Fatalf("ar weapon coating: %+v", ar)
+	}
+	if br.ModelKey != "4a7b6c5d" || br.StyleKey != "" {
+		t.Fatalf("br weapon coating: %+v", br)
 	}
 	if bot.Status != armor.StatusDefault || bot.Reason != armor.ReasonBot {
 		t.Fatalf("bot: %+v", bot)

@@ -17,7 +17,9 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/armor"
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 func (h serverHandlers) handleMatchSpartans(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +78,36 @@ func spartanOf(root *store.Root, id string, p store.Player, now time.Time) armor
 		return withReason(e, armor.ReasonAPIError)
 	}
 	fetched := now
-	return armor.Spartan{XUID: p.XUID, Status: armor.StatusArmor, FetchedAt: &fetched, Manifest: &m}
+	return armor.Spartan{XUID: p.XUID, Status: armor.StatusArmor, FetchedAt: &fetched, Manifest: &m,
+		WeaponCoatings: weaponCoatingsOf(root, body)}
+}
+
+// weaponCoatingsOf reads the equipped weapon cores from the customization and, for each, its
+// coating style from the shared cache. A core whose coating file is not read, or that names no
+// style, keeps its model key with no style (the view paints it neutral); a core that names no
+// weapon model key is skipped. Nil when no equipped core was read.
+func weaponCoatingsOf(root *store.Root, body []byte) []armor.WeaponCoating {
+	cores, err := haloapi.DecodeWeaponCores(body)
+	if err != nil {
+		return nil
+	}
+	var out []armor.WeaponCoating
+	for _, c := range cores {
+		key, ok := weapons.CoreKey(c.CorePath)
+		if !ok {
+			continue
+		}
+		wc := armor.WeaponCoating{CoreID: c.CoreID, ModelKey: key}
+		if c.CoatingPath != "" {
+			if raw, err := os.ReadFile(gamecmsPath(root, c.CoatingPath)); err == nil {
+				if dto, err := haloapi.DecodeWeaponCoating(raw); err == nil && dto.StyleID != nil {
+					wc.StyleKey = spartanpieces.Identifier(uint32(*dto.StyleID))
+				}
+			}
+		}
+		out = append(out, wc)
+	}
+	return out
 }
 
 func withReason(e armor.Spartan, reason armor.Reason) armor.Spartan {

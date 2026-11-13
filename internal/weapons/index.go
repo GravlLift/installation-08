@@ -6,6 +6,7 @@ package weapons
 // grenade projectile rank (grenade0, grenade1, ...), or the Spartan body (spartan).
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,17 @@ func WeaponKey(id string) (string, bool) {
 		}
 	}
 	return strings.ToLower(hex[:8]), true
+}
+
+// CoreKey is the model key of a weapon core's inventory path: the hex family at the tail of
+// the path's base name ("Cores/Weapon/209-200-olympus-aa30213b.json" is "aa30213b"); false
+// when it does not name a weapon key.
+func CoreKey(corePath string) (string, bool) {
+	base := strings.TrimSuffix(filepath.Base(corePath), ".json")
+	if i := strings.LastIndex(base, "-"); i >= 0 {
+		base = base[i+1:]
+	}
+	return WeaponKey(base)
 }
 
 // GrenadeKey is a grenade projectile's model key, for its rank.
