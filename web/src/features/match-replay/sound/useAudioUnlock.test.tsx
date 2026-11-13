@@ -1,16 +1,15 @@
 /**
- * useAudioUnlock.test.tsx — LE SON DÉJÀ ACTIVÉ REVIT AU PREMIER GESTE SUR LA PAGE (item 12 du
- * plan backlog du 2026-09-26, décision D-10), jugé à travers `useReplaySound` : c'est là que
- * l'utilisateur l'entend, ou pas.
+ * useAudioUnlock.test.tsx — THE SOUND ALREADY ENABLED REVIVES ON THE FIRST GESTURE ON THE PAGE
+ * (item 12 of the backlog plan of 2026-09-26, decision D-10), judged through `useReplaySound`:
+ * that is where the user hears it, or not.
  *
- * LE DÉFAUT MESURÉ (A2.0, Chromium et Firefox, politique d'autoplay par défaut) : avec la lecture
- * automatique, la lecture démarre sans « Lecture » ni « Recommencer » ; aucun lecteur ne naît,
- * et un clic ailleurs sur la page n'y change rien. Le rejeu reste muet jusqu'à ce qu'on touche
- * au bouton du son. En passant d'un rejeu à un autre avec la lecture automatique, même silence,
- * alors que le document a déjà reçu un geste.
+ * THE MEASURED DEFECT (A2.0, Chromium and Firefox, default autoplay policy): with automatic
+ * playback, the playback starts without "Play" nor "Restart"; no player is born, and a click
+ * elsewhere on the page changes nothing. The replay stays silent until the sound button is
+ * touched. Going from one replay to another with automatic playback, same silence, even though
+ * the document has already received a gesture.
  *
- * On simule un RECHARGEMENT : la préférence est à « activé » dans le stockage local, et rien
- * n'est né.
+ * We simulate a RELOAD: the preference is "enabled" in local storage, and nothing has been born.
  */
 import { act, fireEvent, renderHook } from '@testing-library/react'
 
@@ -37,11 +36,11 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  // `userActivation` est posé sur l'instance par certains tests : on le retire.
+  // `userActivation` is set on the instance by some tests: we remove it.
   Reflect.deleteProperty(navigator, 'userActivation')
 })
 
-/** Un kill au BR à 2 000 ms : de quoi entendre (ou non) un son. */
+/** A BR kill at 2,000 ms: enough to hear (or not) a sound. */
 function kill(): ReplayKill {
   return {
     replayMs: 2_000, medals: [],
@@ -49,7 +48,7 @@ function kill(): ReplayKill {
     weaponKey: 'hinf_br75', weaponLabel: 'BR75', weaponImageUrl: '', weaponTinted: false,
     assistState: '', assistGamertag: '', assistTeamID: null,
     killerDamagePct: null, assistDamagePct: null,
-    victimXuid: 'V', victimGamertag: 'Victime',
+    victimXuid: 'V', victimGamertag: 'Victim',
   }
 }
 
@@ -65,26 +64,26 @@ function mount() {
   return renderHook(() => useReplaySound(doc, kills, 1, NO_CONTEXT))
 }
 
-/** Le document a-t-il déjà reçu un geste ? (API `navigator.userActivation`, absente de jsdom.) */
+/** Has the document already received a gesture? (API `navigator.userActivation`, absent from jsdom.) */
 function documentAlreadyActive(active: boolean) {
   Object.defineProperty(navigator, 'userActivation', { value: { hasBeenActive: active }, configurable: true })
 }
 
-/** Le kill passe : un son part si, et seulement si, un lecteur vit. */
+/** The kill passes: a sound goes out if, and only if, a player is alive. */
 function playKill(result: { current: ReturnType<typeof useReplaySound> }) {
   act(() => result.current.tick(1_900))
   act(() => result.current.tick(2_050))
 }
 
-describe('useAudioUnlock — préférence « activé », aucun lecteur (rechargement)', () => {
+describe('useAudioUnlock — preference "enabled", no player (reload)', () => {
   beforeEach(() => localStorage.setItem('replay-sound-on', 'true'))
 
-  it('le premier CLIC n’importe où sur la page ouvre le lecteur, une seule fois', async () => {
+  it('the first CLICK anywhere on the page opens the player, only once', async () => {
     const { result } = mount()
     fireEvent.click(document.body)
     await act(async () => { await flushAudio() })
     expect(ctx.resumed).toBe(1)
-    expect(fetchMock).toHaveBeenCalledTimes(2) // le kill + l'extrait d'intro (item 7)
+    expect(fetchMock).toHaveBeenCalledTimes(2) // the kill + the intro excerpt (item 7)
     playKill(result)
     expect(ctx.sources).toHaveLength(1)
     fireEvent.click(document.body)
@@ -92,7 +91,7 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
     expect(ctx.resumed).toBe(1)
   })
 
-  it('une TOUCHE aussi (au relâchement) ouvre le lecteur', async () => {
+  it('a KEY too (on release) opens the player', async () => {
     const { result } = mount()
     fireEvent.keyUp(document.body, { key: 'x' })
     await act(async () => { await flushAudio() })
@@ -101,7 +100,7 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
     expect(ctx.sources).toHaveLength(1)
   })
 
-  it('l’écouteur est RETIRÉ après le premier geste', async () => {
+  it('the listener is REMOVED after the first gesture', async () => {
     const removed = vi.spyOn(document, 'removeEventListener')
     mount()
     fireEvent.click(document.body)
@@ -110,7 +109,7 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
     expect(types).toEqual(expect.arrayContaining(['click', 'keyup']))
   })
 
-  it('document DÉJÀ activé à l’affichage (autre rejeu sans rechargement) : le lecteur s’ouvre sans geste', async () => {
+  it('document ALREADY active at display (another replay without reload): the player opens without gesture', async () => {
     documentAlreadyActive(true)
     const { result } = mount()
     await act(async () => { await flushAudio() })
@@ -119,7 +118,7 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
     expect(ctx.sources).toHaveLength(1)
   })
 
-  it('document jamais activé : RIEN avant le geste (politique d’autoplay)', () => {
+  it('document never activated: NOTHING before the gesture (autoplay policy)', () => {
     documentAlreadyActive(false)
     const { result } = mount()
     playKill(result)
@@ -128,17 +127,17 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
   })
 
   /**
-   * NON-RÉGRESSION DU 2026-08-27 : le premier clic sur le BOUTON DU SON active, il ne coupe pas.
-   * Un vrai clic émet `pointerdown` puis `click` ; le bouton (React, sous la racine) voit son
-   * `click` AVANT l'écouteur du document. Un écouteur sur `pointerdown` ouvrirait le lecteur
-   * AVANT la bascule, qui le trouverait vivant et COUPERAIT : deux clics pour entendre, le
-   * défaut du 27/08 revenu par une autre porte.
+   * NON-REGRESSION OF 2026-08-27: the first click on the SOUND BUTTON activates, it does not cut.
+   * A real click emits `pointerdown` then `click`; the button (React, under the root) sees its
+   * `click` BEFORE the document's listener. A listener on `pointerdown` would open the player
+   * BEFORE the toggle, which would find it alive and CUT: two clicks to hear, the 08/27 defect
+   * back through another door.
    */
-  it('le premier clic sur le BOUTON DU SON active et ne coupe pas', async () => {
+  it('the first click on the SOUND BUTTON activates and does not cut', async () => {
     const { result } = mount()
     fireEvent.pointerDown(document.body)
-    act(() => result.current.toggle()) // le `click` du bouton, sous la racine React
-    fireEvent.click(document.body) // puis le même `click`, arrivé au document
+    act(() => result.current.toggle()) // the button's `click`, under the React root
+    fireEvent.click(document.body) // then the same `click`, arriving at the document
     await act(async () => { await flushAudio() })
     expect(result.current.on).toBe(true)
     expect(localStorage.getItem('replay-sound-on')).toBe('true')
@@ -147,17 +146,17 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
     expect(ctx.sources).toHaveLength(1)
   })
 
-  it('la touche M (raccourci du son, sur `keydown`) active et ne coupe pas', async () => {
+  it('the M key (sound shortcut, on `keydown`) activates and does not cut', async () => {
     const { result } = mount()
     fireEvent.keyDown(document.body, { key: 'm' })
-    act(() => result.current.toggle()) // le raccourci, écouté par la fenêtre sur `keydown`
+    act(() => result.current.toggle()) // the shortcut, listened by the window on `keydown`
     fireEvent.keyUp(document.body, { key: 'm' })
     await act(async () => { await flushAudio() })
     expect(result.current.on).toBe(true)
     expect(ctx.resumed).toBe(1)
   })
 
-  it('démonté avant tout geste : un clic ensuite n’ouvre rien', () => {
+  it('unmounted before any gesture: a click afterwards opens nothing', () => {
     const { unmount } = mount()
     unmount()
     fireEvent.click(document.body)
@@ -165,8 +164,8 @@ describe('useAudioUnlock — préférence « activé », aucun lecteur (recharge
   })
 })
 
-describe('useAudioUnlock — préférence « coupé »', () => {
-  it('ni geste ni document déjà activé n’ouvrent quoi que ce soit, rien ne se télécharge', async () => {
+describe('useAudioUnlock — preference "off"', () => {
+  it('neither gesture nor already-active document open anything, nothing is downloaded', async () => {
     documentAlreadyActive(true)
     const { result } = mount()
     fireEvent.click(document.body)

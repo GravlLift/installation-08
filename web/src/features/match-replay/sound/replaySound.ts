@@ -1,168 +1,168 @@
 /**
- * replaySound.ts — CE QUI SONNE, ET QUAND.
+ * replaySound.ts — WHAT SOUNDS, AND WHEN.
  *
- * QUATRE VOISINS, EXTRAITS AU FIL DES LOTS parce que ce fichier atteint son plafond :
- * `replaySoundCursor.ts` tient le curseur de lecture (un événement ne part qu'une fois) et
- * `grenadeSound.ts` tout ce qui est propre à la GRENADE (2026-08-18, lot R2-G) ;
- * `replaySoundVariants.ts` tient le TIRAGE d'une variante et `objectiveSound.ts` les sons
- * d'OBJECTIF, leur camp et leurs silences (2026-08-26). Même règle à chaque fois : une famille
- * qui a sa source, sa clé de jointure et sa doctrine mérite son fichier.
+ * FOUR NEIGHBORS, EXTRACTED OVER THE LOTS because this file reaches its ceiling:
+ * `replaySoundCursor.ts` holds the playback cursor (an event goes out only once) and
+ * `grenadeSound.ts` everything specific to the GRENADE (2026-08-18, lot R2-G);
+ * `replaySoundVariants.ts` holds the DRAW of a variant and `objectiveSound.ts` the
+ * OBJECTIVE sounds, their side and their silences (2026-08-26). Same rule each time: a family
+ * that has its source, its join key and its doctrine deserves its file.
  *
- * LES SOURCES (deux, par nature — fusion du 2026-08-16) : les sons d'ARMES sont EXTRAITS
- * DU JEU (chantier sons-armes : banks Wwise decodees, coups reconstitues selon la
- * semantique prouvee, selection VOTEE par l'utilisateur — recette et provenance
- * dans `apps/go-api/cmd/weapon-sounds`) ; les sons d'EVENEMENTS (lancers, explosions, melee
- * fatale, equipements) viennent du pack fourni par l'utilisateur (2026-08-13/15). Tout vit
- * sous `static/sounds/halo_infinite/`, livre par `_outils/livraison.py` (armes seulement,
- * les evenements ne sont jamais touches). DEUX FAMILLES DE NOMS, parce qu'il y a deux
- * natures : une ARME porte le nom de sa clé canonique (weapon_names.toml, PAS le nom de
- * fichier FR des images — piège Crémateur/Cindershot) ; un ÉVÉNEMENT que le registre
- * d'armes ne nomme pas porte le nom de l'événement (`throw_*`, `explosion_*`,
- * `melee_kill`). Le manifeste — les tables ci-dessous et les deux de `grenadeSound.ts` —
- * est la liste EXACTE des fichiers livrés ; le
- * garde-rail `replaySoundAssets.guard.test.ts` le rejoue contre le dossier : un stem sans
- * fichier ou un fichier sans stem casse le test, jamais l'écoute.
+ * THE SOURCES (two, by nature — merge of 2026-08-16): the WEAPON sounds are EXTRACTED
+ * FROM THE GAME (weapons-sounds work site: decoded Wwise banks, shots reconstructed according to the
+ * proven semantics, selection VOTED by the user — recipe and provenance
+ * in `apps/go-api/cmd/weapon-sounds`); the EVENT sounds (throws, explosions, fatal
+ * melee, equipment) come from the pack provided by the user (2026-08-13/15). Everything lives
+ * under `static/sounds/halo_infinite/`, delivered by `_outils/livraison.py` (weapons only,
+ * the events are never touched). TWO FAMILIES OF NAMES, because there are two
+ * natures: a WEAPON carries the name of its canonical key (weapon_names.toml, NOT the FR file
+ * name of the images — Crémateur/Cindershot trap); an EVENT that the
+ * weapons registry does not name carries the name of the event (`throw_*`, `explosion_*`,
+ * `melee_kill`). The manifest — the tables below and the two of `grenadeSound.ts` —
+ * is the EXACT list of the delivered files; the
+ * guardrail `replaySoundAssets.guard.test.ts` replays it against the folder: a stem without
+ * a file or a file without a stem breaks the test, never the listening.
  *
- * LA DURÉE EST UNE PROPRIÉTÉ DE LA CATÉGORIE, et elle est portée par le FICHIER, pas par
- * le lecteur (décision utilisateur du 2026-08-16) : armes, lancers et mêlée à 1,2 s ;
- * explosions de grenade et équipements jusqu'à 4 s, parce qu'à la seconde ils s'entendaient
- * « écourtés ». Le lecteur joue le fichier jusqu'à sa fin (replayAudio.ts) — allonger un
- * son, c'est donc re-couper son asset, jamais toucher au moteur.
+ * THE DURATION IS A PROPERTY OF THE CATEGORY, and it is carried by the FILE, not by
+ * the player (user decision of 2026-08-16): weapons, throws and melee at 1.2 s;
+ * grenade explosions and equipment up to 4 s, because at the second they sounded
+ * "cut short". The player plays the file until its end (replayAudio.ts) — extending a
+ * sound is therefore re-cutting its asset, never touching the engine.
  *
- * LE NIVEAU EST ÉGALISÉ, ET C'EST AUSSI UNE PROPRIÉTÉ DU FICHIER (lot R2-S, 2026-08-18).
- * Les 41 assets étaient livrés à leur niveau de source : de -9,20 LUFS (rayon de Sentinelle)
- * à -40,78 LUFS (coup de mêlée), soit 31,58 LU d'écart — c'est la mesure de la remarque
- * utilisateur « surbouclier activation à peine audible » (il était 19 LU sous la carabine à
- * impulsion). Tous ont été renormalisés à -16 LUFS intégré, plafond -1 dBTP, par un GAIN
- * LINÉAIRE strict par fichier (mesure `ffmpeg -af loudnorm` en analyse, gain appliqué en
- * seconde passe) : ni compression, ni limiteur, ni ré-échantillonnage — durée, fréquence
- * d'échantillonnage, canaux et nombre d'échantillons INCHANGÉS, le timbre extrait du jeu
- * n'est pas retouché. Écart résiduel : 7,18 LU.
+ * THE LEVEL IS EQUALIZED, AND THAT IS ALSO A PROPERTY OF THE FILE (lot R2-S, 2026-08-18).
+ * The 41 assets were delivered at their source level: from -9.20 LUFS (Sentinel beam)
+ * to -40.78 LUFS (melee hit), i.e. a gap of 31.58 LU — that is the measurement of the user's
+ * remark "overshield activation barely audible" (it was 19 LU below the pulse
+ * carbine). They were all renormalized to -16 LUFS integrated, ceiling -1 dBTP, by a STRICT
+ * LINEAR GAIN per file (measurement `ffmpeg -af loudnorm` in analysis, gain applied in
+ * a second pass): no compression, no limiter, no resampling — duration, sampling
+ * frequency, channels and sample count UNCHANGED, the timbre extracted from the game
+ * is not retouched. Residual gap: 7.18 LU.
  *
- * QUINZE FICHIERS N'ATTEIGNENT PAS -16 LUFS, ET C'EST DE LA PHYSIQUE, PAS UN OUBLI : leur
- * facteur de crête (écart entre la crête vraie et le niveau intégré) va de 15 à 24 dB, si
- * bien qu'au plafond -1 dBTP ils plafonnent entre -17,2 et -23,1 LUFS. Les monter à la cible
- * exigerait un limiteur, c'est-à-dire écraser la transitoire d'un coup de feu ou la détente
- * d'une explosion. Ils sont donc laissés AU PLUS PRÈS, plafond atteint exactement : les armes
- * à salves (MA40 AR, MA5K Avenger, Bandit EVO, BR75, MK50 Sidekick, VK78 Commando, Fusil
- * traqueur, Disrupteur, Calcineur) et les impulsions isolées (lancers de fragmentation et de
- * plasma, coup de mêlée, capteur de menaces, explosions de fragmentation et de plasma).
- * Relever leur niveau intégré est une décision d'oreille sur le
- * TIMBRE, pas un réglage de gain — elle n'est pas prise ici.
+ * FIFTEEN FILES DO NOT REACH -16 LUFS, AND THAT IS PHYSICS, NOT AN OMISSION: their
+ * crest factor (gap between the true crest and the integrated level) goes from 15 to 24 dB, so
+ * that at the -1 dBTP ceiling they cap between -17.2 and -23.1 LUFS. Raising them to the target
+ * would require a limiter, i.e. crushing the transient of a gunshot or the release
+ * of an explosion. They are therefore left AS CLOSE AS, ceiling reached exactly: the
+ * volley weapons (MA40 AR, MA5K Avenger, Bandit EVO, BR75, MK50 Sidekick, VK78 Commando, Rifle
+ * stalker, Disruptor, Cindershot) and the isolated impulses (fragmentation and plasma
+ * throws, melee hit, threat sensor, fragmentation and plasma explosions).
+ * Raising their integrated level is an ear decision on the
+ * TIMBRE, not a gain setting — it is not taken here.
  *
- * CE QUI DÉCLENCHE UN SON, ET RIEN D'AUTRE :
- *  - les TIRS du film (doc.shots), TOUS — voir la règle de densité ci-dessous ;
- *  - les KILLS du fil (source résolue : vignette OU weapon_key, cf. `killSound`) —
- *    l'horloge est celle du fil, DÉJÀ APPLIQUÉE quand ils arrivent ici, la même qui date le
- *    flash des fiches et l'effet de mort : un son qui partirait sur l'horloge brute
- *    sonnerait à côté de son image ;
- *  - les LANCERS de grenade (doc.grenades, l'auteur est écrit dans le film), par TYPE, et
- *    l'EXPLOSION de CHAQUE grenade à la FIN DE VOL de son projectile (décision utilisateur
- *    du 2026-08-18) — les deux formes du même objet, doctrine et tables : `grenadeSound.ts` ;
- *  - un kill À LA MÊLÉE sonne le coup qui a tué, et un kill À LA grenade l'explosion DE SON
- *    TYPE (c'est elle qui a tué, pas le geste du lancer) — les deux passent par la VIGNETTE
- *    de la source de dégât, pas par le weapon_key (cf. ci-dessous) ;
- *  - les POSES D'ÉQUIPEMENT (doc.equipmentPlacements, schéma 10 — le mur seul) : le GESTE de
- *    pose sonne, à `t0`, ET SEULEMENT SI LA POSE EST UN DÉPLOIEMENT MESURÉ
- *    (`placementIsDeployedObject`, la MÊME règle que le calque). Rien ne sonne à la fin : la
- *    disparition d'un mur n'est pas un acte, c'est la fin d'une durée. Une famille sans fichier
- *    (les objets non identifiés, et toutes celles que le nommage ajoutera) reste muette. Le
- *    capteur, le traqueur, le champ de réparation et l'écran occultant sonnent par leur
- *    UTILISATION datée (`carriedEquipment[].uses`, `carriedUseSound.ts`) ;
- *  - les ÉPISODES D'ÉQUIPEMENT ACTIF (doc.equipmentEpisodes, schéma 7 — camo et
- *    surbouclier, les deux familles MESURÉES) : le début d'épisode sonne l'activation,
- *    la fin sonne la désactivation SEULEMENT quand elle est MESURÉE (`endRead`) — un
- *    épisode fermé par la mort du porteur ne sonne pas de désactivation, rien ne l'a
- *    mesurée et le kill sonne déjà là. CHOIX DOCUMENTÉ pour le surbouclier : sa fin
- *    mesurée est l'ÉPUISEMENT (retour sous 100 %), et y jouer la désactivation est un
- *    choix de mise en scène — le gate d'écoute utilisateur tranchera ;
- *  - les TRACTIONS DE GRAPPIN (doc.grappleLines, schéma 8, lot G du 2026-08-20) : le TIR
- *    sonne à `t0`, un événement par traction. Rien ne sonne à `t1` : l'arrivée sur la
- *    trajectoire ferme la fenêtre du calque (`grappleLayer.ts`), ce n'est pas un geste ;
- *  - les ACTIONS D'OBJECTIF (doc.objectives — lot du 2026-08-26) : chacune sonne à sa frame,
- *    par NOM CANONIQUE DE STATISTIQUE et DANS LE CAMP DE SON AUTEUR. Détail, périmètre et
- *    silences : `objectiveSound.ts`.
+ * WHAT TRIGGERS A SOUND, AND NOTHING ELSE:
+ *  - the SHOTS of the film (doc.shots), ALL — see the density rule below;
+ *  - the KILLS of the feed (resolved source: thumbnail OR weapon_key, cf. `killSound`) —
+ *    the clock is that of the feed, ALREADY APPLIED when they arrive here, the same one that dates the
+ *    flash of the cards and the death effect: a sound that would go out on the raw clock
+ *    would sound next to its image;
+ *  - the GRENADE THROWS (doc.grenades, the author is written in the film), per TYPE, and
+ *    the EXPLOSION of EACH grenade at the END OF FLIGHT of its projectile (user decision
+ *    of 2026-08-18) — the two forms of the same object, doctrine and tables: `grenadeSound.ts`;
+ *  - a MELEE KILL sounds the hit that killed, and a GRENADE KILL the explosion OF ITS
+ *    TYPE (it is that which killed, not the gesture of the throw) — the two pass through the THUMBNAIL
+ *    of the damage source, not through the weapon_key (cf. below);
+ *  - the EQUIPMENT PLACEMENTS (doc.equipmentPlacements, schema 10 — the wall alone): the GESTURE of
+ *    placement sounds, at `t0`, AND ONLY IF THE PLACEMENT IS A MEASURED DEPLOYMENT
+ *    (`placementIsDeployedObject`, the SAME rule as the layer). Nothing sounds at the end: the
+ *    disappearance of a wall is not an act, it is the end of a duration. A family without a file
+ *    (the unidentified objects, and all those the naming will add) stays silent. The
+ *    sensor, the threat seeker, the repair field and the shroud screen sound by their
+ *    DATED USE (`carriedEquipment[].uses`, `carriedUseSound.ts`);
+ *  - the EPISODES OF ACTIVE EQUIPMENT (doc.equipmentEpisodes, schema 7 — cloak and
+ *    overshield, the two MEASURED families): the start of the episode sounds the activation,
+ *    the end sounds the deactivation ONLY when it is MEASURED (`endRead`) — an
+ *    episode closed by the death of the bearer does not sound a deactivation, nothing has
+ *    measured it and the kill already sounds there. DOCUMENTED CHOICE for the overshield: its end
+ *    measured is the EXHAUSTION (return under 100%), and playing the deactivation there is a
+ *    staging choice — the user's listening gate will decide;
+ *  - the GRAPPLE PULLS (doc.grappleLines, schema 8, lot G of 2026-08-20): the SHOT
+ *    sounds at `t0`, one event per pull. Nothing sounds at `t1`: the arrival on the
+ *    trajectory closes the window of the layer (`grappleLayer.ts`), that is not a gesture;
+ *  - the OBJECTIVE ACTIONS (doc.objectives — lot of 2026-08-26): each one sounds at its frame,
+ *    per CANONICAL NAME OF STATISTIC AND IN THE SIDE OF ITS AUTHOR. Detail, scope and
+ *    silences: `objectiveSound.ts`.
  *
- * UNE TROISIÈME SOURCE, DEPUIS LE 2026-08-26 : la RE des banques Wwise — banques NOMMÉES par hachage FNV-1 de
- * leur identifiant, puis leurs événements par la même voie, puis chaque geste reconstruit
- * couche par couche aux gains relevés. Elle apporte les sons d'objectif, et REMPLACE trois
- * fichiers du pack utilisateur À STEM CONSTANT (`grapple_fire`, `repulsor_kill`,
- * `repair_field_activate`) — même nom, source du jeu, et désormais plusieurs variantes tirées
- * à chaque lecture (`replaySoundVariants.ts`).
+ * A THIRD SOURCE, SINCE 2026-08-26: the RE of the Wwise banks — banks NAMED by FNV-1 hashing of
+ * their identifier, then their events by the same way, then each gesture reconstructed
+ * layer by layer at the gains noted. It brings the objective sounds, and REPLACES three
+ * files of the user pack AT CONSTANT STEM (`grapple_fire`, `repulsor_kill`,
+ * `repair_field_activate`) — same name, game source, and now multiple variants drawn
+ * at each read (`replaySoundVariants.ts`).
  *
- * POURQUOI LA VIGNETTE, ET PAS LE weapon_key, POUR LES GRENADES ET LA MÊLÉE. Le registre
- * d'armes ne porte NI la grenade à pointes NI la mêlée générique : la table de pont
- * `killicon/data/rules.tsv` leur donne une ligne SANS weapon_key (GGGL 3 et CLASSE MELEE).
- * Ce qui les distingue est donc la seule quantité que le backend publie pour elles — la
- * vignette du kill feed, qui voyage dans `weaponImageUrl`, et dont l'adapter dit lui-même
- * qu'elle « porte le sens » là où le nom propre n'existe pas (adapter_asset_urls.go). Les
- * quatre grenades ont chacune la leur (GGGL 0..3 -> killfeed-46..49) et la mêlée la
- * sienne (killfeed-65) : quatre explosions distinctes et un son de mêlée, sans jamais
- * DEVINER un type. Le garde-rail rejoue cette table contre `rules.tsv`.
+ * WHY THE THUMBNAIL, AND NOT THE weapon_key, FOR THE GRENADES AND THE MELEE. The registry
+ * of weapons carries NEITHER the spike grenade NOR the generic melee: the bridge table
+ * `killicon/data/rules.tsv` gives them a line WITHOUT weapon_key (GGGL 3 and MELEE CLASS).
+ * What distinguishes them is therefore the only quantity the backend publishes for them — the
+ * kill feed thumbnail, which travels in `weaponImageUrl`, and of which the adapter itself says
+ * that it "carries the meaning" where the proper name does not exist (adapter_asset_urls.go). The
+ * four grenades each have their own (GGGL 0..3 -> killfeed-46..49) and the melee
+ * its own (killfeed-65): four distinct explosions and one melee sound, without ever
+ * GUESSING a type. The guardrail replays this table against `rules.tsv`.
  *
- * CE QUI RESTE MUET ICI, ET POURQUOI (mesuré, pas supposé) :
- *  - le COUP DE MÊLÉE NON FATAL (`Melee - Hit` du pack) : le document de rejeu ne porte
- *    aucun flux de dégâts ni d'impact — ses seuls événements datés sont les tirs, les
- *    lancers, les trajectoires et le fil des MORTS (replay/document.go). Le brancher
- *    demanderait de déduire un impact d'une baisse de bouclier, c'est-à-dire de l'inventer.
- *    Le fichier n'est donc pas livré : un asset que rien ne joue casserait le garde-rail ;
- *  - les 2 étiquettes de grenade AMBIGU sur 17 (`damagetag/data/labels.tsv` : effet
- *    générique traversant plusieurs entrées `gggl`) : non publiables, donc sans vignette,
- *    donc sans son DE KILL. Le type de la source de dégât n'est pas établi : silence, jamais
- *    l'explosion d'une voisine. La grenade concernée garde son explosion de FIN DE VOL —
- *    l'inconnue n'est pas la même : ce qui manque là est le lien mort -> grenade, pas le
- *    type du lancer, que le film publie avec son rang ;
- *  - un LANCER dont le film ne publie pas le rang, ou publie un rang hors des quatre types
- *    connus : ni geste ni explosion. Le type n'est pas établi, donc rien ne sonne — et
- *    `buildGrenadeRestFx` ne replie plus un rang absent sur 0 pour cette raison exacte.
+ * WHAT REMAINS SILENT HERE, AND WHY (measured, not assumed):
+ *  - the NON-FATAL MELEE HIT (`Melee - Hit` of the pack): the replay document carries
+ *    no damage flow nor impact — its only dated events are the shots, the
+ *    throws, the trajectories and the feed of DEATHS (replay/document.go). Wiring it
+ *    would require deducing an impact from a shield drop, i.e. inventing it.
+ *    The file is therefore not delivered: an asset nothing plays would break the guardrail;
+ *  - the 2 AMBIGU grenade labels out of 17 (`damagetag/data/labels.tsv`: effect
+ *    generic crossing several `gggl` entries): not publishable, therefore without thumbnail,
+ *    therefore without SOUND OF KILL. The type of the damage source is not established: silence, never
+ *    the explosion of a neighbor. The grenade concerned keeps its END OF FLIGHT explosion —
+ *    the unknown is not the same: what is missing there is the death -> grenade link, not the
+ *    type of the throw, which the film publishes with its rank;
+ *  - a THROW of which the film does not publish the rank, or publishes a rank out of the four
+ *    known types: neither gesture nor explosion. The type is not established, therefore nothing sounds — and
+ *    `buildGrenadeRestFx` no longer falls back an absent rank to 0 for this exact reason.
  *
- * LA DENSITÉ N'EST PAS FILTRÉE — DÉCISION UTILISATEUR DU 2026-08-15, mot pour mot : « tu me
- * les mets TOUS autant que possible pour le moment, je verrai si c'est trop ensuite ». Il n'y
- * a donc ICI aucune règle éditoriale : ni cadence minimale entre deux tirs d'un même joueur,
- * ni priorité, ni quota. Le SEUL plafond est TECHNIQUE et il vit à la lecture
- * (`SOUND_MAX_VOICES`, replayAudio.ts) : au-delà de huit voix simultanées, les sources
- * supplémentaires sont refusées plutôt que d'empiler un mur de bruit. Mesures du 2026-08-15
- * (simulation à 1×, une voix tenue 1 s) : film témoin 000d5950 — 483 sons pour 483 tirs,
- * 46 voix refusées ; corpus des 23 artefacts locaux — 17 068 sons pour 17 904 tirs (95,3 %),
- * 4 897 voix refusées (28,7 % des sources). Le plafond MORD, et c'est lui seul qui borne.
+ * THE DENSITY IS NOT FILTERED — USER DECISION OF 2026-08-15, word for word: "put
+ * them ALL in as much as possible for the moment, I'll see if it's too much afterwards". There is
+ * therefore HERE no editorial rule: neither minimum rate between two shots of the same player,
+ * nor priority, nor quota. The ONLY ceiling is TECHNICAL and it lives at the read
+ * (`SOUND_MAX_VOICES`, replayAudio.ts): beyond eight simultaneous voices, the sources
+ * extra are refused rather than stacking a wall of noise. Measurements of 2026-08-15
+ * (simulation at 1x, one voice held 1 s): witness film 000d5950 — 483 sounds for 483 shots,
+ * 46 voices refused; corpus of the 23 local artifacts — 17 068 sounds for 17 904 shots (95.3%),
+ * 4 897 voices refused (28.7% of the sources). The ceiling BITES, and it is the only one that bounds.
  *
- * UN TIR SONNE L'ARME QUI L'A PRODUIT, JAMAIS UNE AUTRE. La jointure passe par la clé
- * canonique publiée avec le libellé (`weaponLabels[id].key`, posée à la requête par le
- * service) : sans clé, ou sans fichier pour cette clé, le tir est MUET. Les armes que le
- * REGISTRE ne nomme pas (Mutilator, tourelles, armes de PNJ) le restent par construction —
- * même règle que les libellés et les effets ; leurs sons extraits existent dans l'archive
- * du chantier, prêts si le registre les nomme un jour.
+ * A SHOT SOUNDS THE WEAPON THAT PRODUCED IT, NEVER ANOTHER. The join passes through the
+ * canonical key published with the label (`weaponLabels[id].key`, set at the request by the
+ * service): without a key, or without a file for this key, the shot is SILENT. The weapons that the
+ * REGISTRY does not name (Mutilator, turrets, NPC weapons) remain so by construction —
+ * same rule as the labels and the effects; their extracted sounds exist in the
+ * archive of the work site, ready if the registry names them one day.
  *
- * UNE ARME = UN SON, MÊME QUAND SON TAG DÉCLARE DEUX MODES DE TIR — inventaire du
- * 2026-08-18 (lot R2-S, item S3), réponse à la question « il en manque ? ». Le tableau
- * « Weapon Fire Sounds » du tag `weap` déclare les modes d'une arme, et un VRAI mode a son
- * propre son de 1re personne (critère de la recette d'extraction, calibré sur les votes).
- * Passées à ce crible, les 26 armes du registre en déclarent UN SEUL, sauf DEUX :
- *  - Pistolet à plasma (`hinf_plasma_pistol`, weap 000041b7) : modes 1 et 3, le 3 étant le
- *    tir CHARGÉ (surcharge), avec ses événements propres `b4e0f7a3` (1P) et `e370a684` (3P) ;
- *  - Ravageur (`hinf_ravager`, weap 05b2c46c) : modes 1 et 2, le 2 étant le tir CHARGÉ.
- * Aucun des deux modes chargés n'est livré : le fichier joué est le mode 1 dans les deux cas
- * (Ravageur : le tir 3 coups, `bb31841b`). Le tir CONTINU, lui, n'est PAS un second mode de
- * tag : c'est la nature du mode unique du Rayon de Sentinelle (`a220122d`, rôle confirmé par
- * l'utilisateur), et le fichier livré pour cette arme est son tir COURT (`503433748`). Les
- * deux autres candidats au tir continu sont RÉFUTÉS par la mesure de cadence (registre des
- * reports) : Crémateur 1 400 ms d'écart médian entre deux tirs, Calcineur 800 ms.
+ * A WEAPON = A SOUND, EVEN WHEN ITS TAG DECLARES TWO FIRE MODES — inventory of
+ * 2026-08-18 (lot R2-S, item S3), answer to the question "are there missing ones?". The
+ * "Weapon Fire Sounds" table of the `weap` tag declares the modes of a weapon, and a TRUE mode has its
+ * own first-person sound (criterion of the extraction recipe, calibrated on the votes).
+ * Passed through this sieve, the 26 weapons of the registry declare ONLY ONE, except TWO:
+ *  - Plasma pistol (`hinf_plasma_pistol`, weap 000041b7): modes 1 and 3, the 3 being the
+ *    CHARGED shot (overcharge), with its own events `b4e0f7a3` (1P) and `e370a684` (3P);
+ *  - Ravager (`hinf_ravager`, weap 05b2c46c): modes 1 and 2, the 2 being the CHARGED shot.
+ * None of the two charged modes is delivered: the file played is mode 1 in both cases
+ * (Ravager: the 3-shot, `bb31841b`). The CONTINUOUS shot, it, is NOT a second mode of
+ * tag: it is the nature of the unique mode of the Sentinel Beam (`a220122d`, role confirmed by
+ * the user), and the file delivered for this weapon is its SHORT shot (`503433748`). The
+ * two other candidates to the continuous shot are REFUTED by the rate measurement (registry of
+ * reports): Cindershot 1 400 ms median gap between two shots, Calcineur 800 ms.
  *
- * CE QU'ON N'A PAS FAIT, ET POURQUOI : aucun fichier n'a été créé pour ces modes. Le rejeu
- * ne SAIT pas de quel mode vient un tir — le film ne publie que l'arme, et les deux mesures
- * de qualification (jauge de charge, cadence) sont des NO-GO documentés. Livrer un son de
- * tir chargé le ferait donc sonner sur des tirs normaux : ce serait l'invention que ce
- * fichier refuse partout. Les rendus existent dans l'archive du chantier, prêts le jour où
- * une source qualifie le mode d'un tir.
+ * WHAT WE DID NOT DO, AND WHY: no file was created for these modes. The replay
+ * does not KNOW which mode a shot comes from — the film only publishes the weapon, and the two
+ * qualification measurements (charge gauge, rate) are documented NO-GOs. Delivering a sound of
+ * charged shot would therefore make it sound on normal shots: that would be the invention this
+ * file refuses everywhere. The renders exist in the archive of the work site, ready the day
+ * a source qualifies the mode of a shot.
  *
- * UN KILL DONT NI LA VIGNETTE NI LA CLÉ NE RÉPONDENT (véhicules, objets explosifs, dégât
- * global, armes hors registre) = SILENCE
- * PROPRE : jamais le son d'une arme voisine, même règle que les effets de rendu
- * (replay_labels.toml). La mêlée générique, elle, n'est PLUS de ceux-là : elle n'a pas de
- * clé mais elle a une vignette, et c'est par là qu'elle sonne.
+ * A KILL OF WHICH NEITHER THE THUMBNAIL NOR THE KEY ANSWERS (vehicles, explosive objects, damage
+ * global, weapons out of registry) = CLEAN
+ * SILENCE: never the sound of a neighbor weapon, same rule as the render effects
+ * (replay_labels.toml). The generic melee, it, is NO LONGER of those: it has no
+ * key but it has a thumbnail, and that is how it sounds.
  *
- * Pas de React, pas de Web Audio ici : logique pure, testée (replaySound.test.ts).
- * La lecture (AudioContext, enveloppe de gain) vit dans replayAudio.ts.
+ * No React, no Web Audio here: pure logic, tested (replaySound.test.ts).
+ * The playback (AudioContext, gain envelope) lives in replayAudio.ts.
  */
 import type { KillEvent } from '@/features/match-view/_momentum'
 
@@ -210,27 +210,27 @@ export {
 export { ROUND_OVER_SOUND_STEMS, roundOverSoundEvents } from './roundOverSound'
 
 /**
- * Catégorie d'un son, pour le filtre du tiroir de réglages (phase 2, décision utilisateur
- * du 16/08) : ARMES (tirs et kills d'arme, même table — cf. WEAPON_SOUND_STEMS), GRENADES
- * (lancers ET explosions : c'est le même objet, sous deux formes), MÊLÉE (le seul coup
- * fatal sonné, `melee_kill`), ÉQUIPEMENTS (camouflage, surbouclier).
+ * Category of a sound, for the filter of the settings drawer (phase 2, user decision
+ * of 16/08): WEAPONS (shots and weapon kills, same table — cf. WEAPON_SOUND_STEMS), GRENADES
+ * (throws AND explosions: it is the same object, in two forms), MELEE (the only
+ * fatal hit sounded, `melee_kill`), EQUIPMENT (cloak, overshield).
  */
 export type SoundCategory = 'weapon' | 'grenade' | 'melee' | 'equipment' | 'objective'
 
 /**
- * Son d'ARME par weapon_key -> stem de fichier sous static/sounds/{slug}/.
+ * WEAPON sound by weapon_key -> stem of file under static/sounds/{slug}/.
  *
- * UNE SEULE TABLE POUR LES TIRS ET LES KILLS D'ARME : c'est la même arme, donc le même
- * son. La séparer en deux ferait deux vérités à tenir à jour, et le jour où elles
- * divergeraient un tir et le kill qu'il produit ne sonneraient plus pareil.
+ * A SINGLE TABLE FOR THE SHOTS AND THE WEAPON KILLS: it is the same weapon, therefore the same
+ * sound. Separating it in two would make two truths to keep up to date, and the day they
+ * diverged a shot and the kill it produces would no longer sound the same.
  *
- * LES GRENADES N'Y SONT PAS, et ce n'est pas un oubli : le film ne publie aucun TIR de
- * grenade (mesure du 2026-08-15 sur les 23 artefacts locaux : 0 des 17 904 tirs porte une
- * clé de grenade). Elles ont leurs deux tables à elles, une par forme du même objet — le
- * geste (THROW_SOUND_STEMS) et la détonation (EXPLOSION_SOUND_STEMS) — et chacune sa propre
- * horloge.
+ * THE GRENADES ARE NOT THERE, and that is not an omission: the film does not publish any SHOT of
+ * grenade (measurement of 2026-08-15 on the 23 local artifacts: 0 of the 17 904 shots carries a
+ * grenade key). They have their two tables to themselves, one per form of the same object — the
+ * gesture (THROW_SOUND_STEMS) and the detonation (EXPLOSION_SOUND_STEMS) — and each its own
+ * clock.
  *
- * Une clé absente de cette table = silence propre.
+ * A key absent from this table = clean silence.
  */
 export const WEAPON_SOUND_STEMS: Readonly<Record<string, string>> = {
   hinf_ma40_ar: 'hinf_ma40_ar',
@@ -255,7 +255,7 @@ export const WEAPON_SOUND_STEMS: Readonly<Record<string, string>> = {
   hinf_skewer: 'hinf_skewer',
   hinf_m41_spnkr: 'hinf_m41_spnkr',
   hinf_stalker_rifle: 'hinf_stalker_rifle',
-  // Les quatre que le pack initial n'avait pas — l'extraction du jeu les fournit.
+  // The four that the initial pack did not have — the game extraction provides them.
   hinf_bandit: 'hinf_bandit',
   hinf_ma5k_avenger: 'hinf_ma5k_avenger',
   hinf_fuel_rod_spnkr: 'hinf_fuel_rod_spnkr',
@@ -263,50 +263,50 @@ export const WEAPON_SOUND_STEMS: Readonly<Record<string, string>> = {
 }
 
 /**
- * Son d'un KILL dont la SOURCE DE DÉGÂT n'a pas de weapon_key CÔTÉ REGISTRE D'ARMES —
- * grenades, mêlée, et désormais le répulseur : la vignette du kill feed -> son + catégorie.
+ * Sound of a KILL of which the DAMAGE SOURCE has no weapon_key SIDE WEAPONS REGISTRY —
+ * grenades, melee, and now the repulsor: the kill feed thumbnail -> sound + category.
  *
- * LA CLÉ EST LE STEM DE LA VIGNETTE (`killfeed-NN`), parce que c'est la seule quantité que
- * le backend publie pour ces sources : `killicon/data/rules.tsv` leur donne une ligne sans
- * weapon_key (GGGL 3 = grenade à pointes, CLASSE MELEE = geste partagé par tout l'arsenal,
- * NOM Repulsor = équipement hors registre d'armes — cf. ci-dessous). L'ordre des grenades
- * est celui du dépôt, établi par deux chaînes indépendantes : 0 Fragmentation, 1 Plasma,
- * 2 Dynamo, 3 Spike (RECETTE_LOADOUT §8, replay_labels.toml), et `rules.tsv` le reporte tel
- * quel sur les vignettes 46 à 49.
+ * THE KEY IS THE STEM OF THE THUMBNAIL (`killfeed-NN`), because that is the only quantity that
+ * the backend publishes for these sources: `killicon/data/rules.tsv` gives them a line without
+ * weapon_key (GGGL 3 = spike grenade, MELEE CLASS = gesture shared by the whole arsenal,
+ * NAME Repulsor = equipment out of the weapons registry — cf. below). The order of the grenades
+ * is that of the repo, established by two independent chains: 0 Fragmentation, 1 Plasma,
+ * 2 Dynamo, 3 Spike (RECETTE_LOADOUT §8, replay_labels.toml), and `rules.tsv` reports it as
+ * is on the thumbnails 46 to 49.
  *
- * CETTE TABLE PASSE AVANT WEAPON_SOUND_STEMS sur un kill : les trois grenades qui ONT une
- * clé (frag, plasma, dynamo) sonneraient sinon deux vérités concurrentes. Une vignette
- * absente de cette table (les armes du registre, les véhicules, les objets) retombe sur la
- * clé canonique, et une source sans vignette du tout reste muette.
+ * THIS TABLE PASSES BEFORE WEAPON_SOUND_STEMS on a kill: the three grenades that HAVE a
+ * key (frag, plasma, dynamo) would otherwise sound two competing truths. A thumbnail
+ * absent from this table (the weapons of the registry, the vehicles, the objects) falls back to the
+ * canonical key, and a source without a thumbnail at all stays silent.
  *
- * DEPUIS LE 2026-08-18, ELLE N'EST PLUS LA SEULE SOURCE D'EXPLOSION : la fin de vol de
- * chaque grenade en programme une (EXPLOSION_SOUND_STEMS). Ce que cette table garde en
- * propre, c'est la MÊLÉE — et, pour les grenades, la priorité au dédoublonnage.
+ * SINCE 2026-08-18, IT IS NO LONGER THE ONLY SOURCE OF EXPLOSION: the end of flight of
+ * each grenade schedules one (EXPLOSION_SOUND_STEMS). What this table keeps in
+ * its own, it is the MELEE — and, for the grenades, the priority to the deduplication.
  *
- * LA VALEUR PORTE LA CATÉGORIE AVEC LE STEM (type `KillSound`, défini plus bas), et ce
- * n'est plus un simple stem depuis le répulseur (lot R6, 2026-08-25) : avant lui, cette
- * table ne contenait QUE des grenades et LA mêlée, deux catégories qu'un simple test
- * `stem === 'melee_kill'` suffisait à distinguer dans `killSound`. Le répulseur casse cette
- * hypothèse binaire — sa catégorie est ARME (weapon), pas grenade — d'où le passage à une
- * table qui nomme sa catégorie EXPLICITEMENT plutôt que de la re-déduire d'un stem au point
- * de lecture (même principe que EQUIPMENT_SOUND_STEMS : une seule vérité, portée par la
- * table, jamais reconstruite ailleurs).
+ * THE VALUE CARRIES THE CATEGORY WITH THE STEM (type `KillSound`, defined below), and that
+ * is no longer a simple stem since the repulsor (lot R6, 2026-08-25): before it, this
+ * table only contained GRENADES and THE melee, two categories that a simple test
+ * `stem === 'melee_kill'` was enough to distinguish in `killSound`. The repulsor breaks this
+ * binary assumption — its category is WEAPON (weapon), not grenade — hence the passage to a
+ * table that names its category EXPLICITLY rather than re-deducing it from a stem at the point
+ * of read (same principle as EQUIPMENT_SOUND_STEMS: a single truth, carried by the
+ * table, never reconstructed elsewhere).
  *
- * LE RÉPULSEUR (`killfeed-56` -> `repulsor_kill`, catégorie `weapon`) REJOINT CETTE TABLE
- * ET NON `WEAPON_SOUND_STEMS`, alors qu'il a désormais un nom propre côté Go
- * (`damagetag/data/labels.tsv` : ARME SOUS_RESERVE "Repulsor") : ce nom n'a PAS de
- * `weapon_key` dans le registre d'armes (`killicon/data/rules.tsv`, règle NOM Repulsor,
- * colonne weapon_key VIDE — même situation que Mutilator et Sandwich, des armes HORS
- * registre). Sans weapon_key, `WEAPON_SOUND_STEMS` ne peut jamais répondre pour lui ; seule
- * la vignette le peut, exactement comme la mêlée et les grenades avant lui. Identification
- * du `jpt!` (07104b31) par RE hors ligne via `himap` (lot R6, 2026-08-25) : chaîne
- * `eqip 7ca85adc` (répulseur, `replay_labels.toml`) -> `sofa 6845f2b3` -> `eqip` frère
- * `1e79ebda` -> `jpt! 07104b31`, propulseur écarté (eqip distincts 0x430dda48/0xeef5d48d).
- * Détail : `damagetag/data/labels.tsv` et `killicon/data/rules.tsv`.
+ * THE REPELLER (`killfeed-56` -> `repulsor_kill`, category `weapon`) JOINS THIS TABLE
+ * AND NOT `WEAPON_SOUND_STEMS`, while it now has a proper name side Go
+ * (`damagetag/data/labels.tsv`: WEAPON UNDER_RESERVE "Repulsor"): that name does NOT have a
+ * `weapon_key` in the weapons registry (`killicon/data/rules.tsv`, rule NAME Repulsor,
+ * weapon_key column EMPTY — same situation as Mutilator and Sandwich, weapons OUT OF
+ * registry). Without weapon_key, `WEAPON_SOUND_STEMS` can never answer for it; only
+ * the thumbnail can, exactly like the melee and the grenades before it. Identification
+ * of the `jpt!` (07104b31) by RE offline via `himap` (lot R6, 2026-08-25): chain
+ * `eqip 7ca85adc` (repulsor, `replay_labels.toml`) -> `sofa 6845f2b3` -> `eqip` brother
+ * `1e79ebda` -> `jpt! 07104b31`, thruster discarded (distinct eqip 0x430dda48/0xeef5d48d).
+ * Detail: `damagetag/data/labels.tsv` and `killicon/data/rules.tsv`.
  *
- * Le garde-rail `replaySoundAssets.guard.test.ts` rejoue ces six clés contre `rules.tsv` :
- * un index d'atlas qui bougerait, ou une sixième source sans weapon_key, casse le test —
- * jamais l'écoute.
+ * The guardrail `replaySoundAssets.guard.test.ts` replays these six keys against `rules.tsv`:
+ * an atlas index that moved, or a sixth source without weapon_key, breaks the test —
+ * never the listening.
  */
 export const KILL_SPRITE_SOUND_STEMS: Readonly<Record<string, KillSound>> = {
   'killfeed-46': { stem: 'explosion_frag', category: 'grenade' },
@@ -315,16 +315,16 @@ export const KILL_SPRITE_SOUND_STEMS: Readonly<Record<string, KillSound>> = {
   'killfeed-49': { stem: 'explosion_spike', category: 'grenade' },
   'killfeed-65': { stem: 'melee_kill', category: 'melee' },
   'killfeed-56': { stem: 'repulsor_kill', category: 'weapon' },
-  // LES QUATRE BOBINES (2026-08-27). Un kill de bobine n'avait AUCUNE icône jusqu'ici, et la
-  // cause était technique, pas doctrinale : la coupe à trois segments qui extrait la racine de
-  // banque rendait `exp_single_small_{shock,plasma,kineticunsc,hardlight}` toutes identiques.
-  // La racine LONGUE les distingue, et l'atlas porte leurs quatre vignettes depuis la passe de
-  // nommage du 2026-08-09. Le son est l'événement à CINQ COUCHES SIMULTANÉES de chaque banque
-  // — le seul des trois qu'elle porte qui soit l'explosion complète, les deux autres étant des
-  // perspectives (RE du 2026-08-26, §5).
+  // THE FOUR COILS (2026-08-27). A coil kill had NO icon until now, and the
+  // cause was technical, not doctrinal: the three-segment cut that extracts the root of
+  // bank made `exp_single_small_{shock,plasma,kineticunsc,hardlight}` all identical.
+  // The LONG root distinguishes them, and the atlas carries their four thumbnails since the naming pass of
+  // 2026-08-09. The sound is the event with FIVE SIMULTANEOUS LAYERS of each bank
+  // — the only of the three it carries that is the complete explosion, the two others being
+  // perspectives (RE of 2026-08-26, §5).
   //
-  // CATÉGORIE ARME, comme le répulseur : une bobine tue par explosion, mais c'est une source de
-  // dégât du décor, pas une grenade lancée — et le tiroir de réglages n'a pas de case « décor ».
+  // WEAPON CATEGORY, like the repulsor: a coil kills by explosion, but it is a damage source
+  // of the decoration, not a thrown grenade — and the settings drawer has no "decoration" case.
   'killfeed-42': { stem: 'coil_shock', category: 'weapon' },
   'killfeed-43': { stem: 'coil_blast', category: 'weapon' },
   'killfeed-44': { stem: 'coil_fusion', category: 'weapon' },
@@ -332,10 +332,10 @@ export const KILL_SPRITE_SOUND_STEMS: Readonly<Record<string, KillSound>> = {
 }
 
 /**
- * Sons d'ÉQUIPEMENT par famille d'épisode (`fam` du document) -> stems d'activation et de
- * désactivation. La clé est l'identifiant STABLE publié par l'artefact — une famille hors
- * table (un futur équipement non mesuré) reste muette, jamais le son d'une voisine.
- * Le garde-rail `replaySoundAssets.guard.test.ts` rejoue ces stems contre le dossier.
+ * EQUIPMENT sounds per episode family (`fam` of the document) -> stems of activation and of
+ * deactivation. The key is the STABLE identifier published by the artifact — a family out of
+ * table (a future equipment not measured) stays silent, never the sound of a neighbor.
+ * The guardrail `replaySoundAssets.guard.test.ts` replays these stems against the folder.
  */
 export const EQUIPMENT_SOUND_STEMS: Readonly<
   Record<string, { activate: string; deactivate: string }>
@@ -345,114 +345,114 @@ export const EQUIPMENT_SOUND_STEMS: Readonly<
 }
 
 /**
- * Son d'une POSE d'équipement par FAMILLE (`family` du document, schéma 10) -> stem du fichier
- * joué à `t0`, l'instant du geste.
+ * Sound of a PLACEMENT of equipment per FAMILY (`family` of the document, schema 10) -> stem of the file
+ * played at `t0`, the moment of the gesture.
  *
- * CETTE TABLE NE PORTE PLUS QUE LE MUR (2026-10-15). Le film ne produit plus de pose `deployed` pour
- * le capteur, le traqueur, le champ de réparation et l'écran occultant depuis la règle du 15/09 : ils
- * sonnent désormais par leur UTILISATION datée (`carriedEquipment[].uses`, `carriedUseSound.ts`),
- * avec les stems dont la provenance est écrite ci-dessous. Une famille n'est que dans l'une des deux
- * tables : le mur, dont la pose suit l'utilisation de deux ou trois images, sonnerait deux fois.
+ * THIS TABLE NO LONGER CARRIES THAN THE WALL (2026-10-15). The film no longer produces a `deployed` placement for
+ * the sensor, the threat seeker, the repair field and the shroud screen since the 15/09 rule: they
+ * sound now by their DATED USE (`carriedEquipment[].uses`, `carriedUseSound.ts`),
+ * with the stems whose provenance is written below. A family is only in one of the two
+ * tables: the wall, whose placement follows the use by two or three frames, would sound twice.
  *
- * UNE TABLE DISTINCTE DE `EQUIPMENT_SOUND_STEMS`, et ce n'est pas une duplication : les deux
- * parlent d'équipement, mais pas du même OBJET. L'une porte des ÉPISODES D'ÉTAT sur le
- * porteur (camouflage, surbouclier : un début ET une fin mesurés) ; celle-ci porte des OBJETS
- * POSÉS sur le terrain, dont seul le geste de pose est un événement — la disparition d'un mur
- * n'est pas un acte, c'est la fin d'une durée, et rien ne la sonne. Les fondre obligerait
- * chaque famille à déclarer une désactivation qu'elle n'a pas.
+ * A DISTINCT TABLE FROM `EQUIPMENT_SOUND_STEMS`, and that is not a duplication: the two
+ * speak of equipment, but not of the same OBJECT. One carries EPISODES OF STATE on the
+ * bearer (cloak, overshield: a start AND an end measured); this one carries OBJECTS
+ * PLACED on the terrain, of which only the placement gesture is an event — the disappearance of a wall
+ * is not an act, it is the end of a duration, and nothing sounds it. Merging them would force
+ * each family to declare a deactivation it does not have.
  *
- * Une famille absente de cette table est MUETTE (les objets non identifiés, `other`, et toutes
- * les familles que le lot de nommage ajoutera sans son) — jamais le son d'une voisine, même
- * règle que partout ailleurs ici. Le garde-rail `replaySoundAssets.guard.test.ts` rejoue ces
- * stems contre le dossier d'assets.
+ * A family absent from this table is SILENT (the unidentified objects, `other`, and all
+ * the families the naming lot will add without sound) — never the sound of a neighbor, same
+ * rule as everywhere else here. The guardrail `replaySoundAssets.guard.test.ts` replays these
+ * stems against the assets folder.
  *
- * LE TRAQUEUR PREND LE SON DU CAPTEUR, ET CE N'EST PAS « LE SON D'UNE VOISINE » (décision
- * utilisateur du 2026-08-18). La règle générale de ce fichier — une famille sans source reste
- * muette — vaut contre les EMPRUNTS ARBITRAIRES : donner au champ de réparation le son du mur
- * affirmerait un objet pour un autre. Ici, le traqueur de menaces et le capteur de menaces
- * sont le MÊME appareil dans le jeu, à un mode près : le capteur balaie sa zone en boucle, le
- * traqueur émet une impulsion unique. Le geste de POSE, lui, est identique — c'est le même
- * boîtier qu'on lâche. L'emprunt est donc adossé à une parenté, écrite ici et testée, et non
- * au fait qu'il « reste un son disponible ».
+ * THE THREAT SEEKER TAKES THE SENSOR'S SOUND, AND THAT IS NOT "THE SOUND OF A NEIGHBOR" (decision
+ * user of 2026-08-18). The general rule of this file — a family without a source stays
+ * silent — holds against ARBITRARY BORROWINGS: giving the repair field the sound of the wall
+ * would assert an object for another. Here, the threat seeker and the threat sensor
+ * are the SAME device in the game, to one mode near: the sensor sweeps its zone in loop, the
+ * seeker emits a single impulse. The gesture of PLACEMENT, it, is identical — it is the same
+ * box that is released. The borrowing is therefore based on a kinship, written here and tested, and not
+ * on the fact that "a sound remains available".
  *
- * LE CHAMP DE RÉPARATION SONNE DEPUIS LE 2026-08-18, ET SON SON VIENT DU JEU. Le relevé du
- * lot R3 concluait « la chaîne d'extraction ne connaît PAS le groupe `eqip` ». Elle le connaît
- * désormais (`PLAN_EQUIPEMENTS_MANQUANTS_SONS`, phase 3) : `cmd/weapon-sounds`, modes
- * `eqip-sons` puis `eqip-banks`, chaîne
- * `eqip -> effe -> snd! -> événement Wwise -> sbnk -> .wem`.
+ * THE REPAIR FIELD HAS SOUNDED SINCE 2026-08-18, AND ITS SOUND COMES FROM THE GAME. The survey of
+ * the lot R3 concluded "the extraction chain does NOT know the `eqip` group". It knows it
+ * now (`PLAN_EQUIPEMENTS_MANQUANTS_SONS`, phase 3): `cmd/weapon-sounds`, modes
+ * `eqip-sons` then `eqip-banks`, chain
+ * `eqip -> effe -> snd! -> Wwise event -> sbnk -> .wem`.
  *
- * POURQUOI LE MAILLON `effe` EST INDISPENSABLE, et pourquoi personne ne l'avait vu : la table
- * de dépendances d'un `eqip` ne porte que deux `snd!`, et ce sont les MÊMES pour 21 objets
- * d'équipement — du mur au surbouclier. C'est l'EFFET (`effe`) qui est propre à un geste.
+ * WHY THE LINK `effe` IS INDISPENSABLE, and why no one had seen it: the table
+ * of dependencies of an `eqip` carries only two `snd!`, and those are the SAME for 21 objects
+ * of equipment — from the wall to the overshield. It is the EFFECT (`effe`) that is specific to a gesture.
  *
- * CE QUI DÉSIGNE CE FICHIER-LÀ, et non un autre des 35 `.wem` de la banque : l'`eqip`
- * `5c8e2316` (l'appareil du champ de réparation, second `eqip` du `sofa` `0e1febf8` =
- * `repair_field`) atteint la banque `5724312f`, que AUCUN autre `eqip` du jeu n'atteint, et
- * dont 4 `.wem` tombent dans le pack `sb_007_abl_repairfield.pck` — le jeu la nomme lui-même.
- * Son unique `snd!` (`22c2323a`) désigne deux événements qui rendent LES MÊMES trois `.wem`,
- * variantes uniformes d'un seul `RandomSequence` : il n'y a pas de choix à faire, seulement un
- * tirage.
+ * WHAT DESIGNATES THIS FILE, and not another of the 35 `.wem` of the bank: the `eqip`
+ * `5c8e2316` (the device of the repair field, second `eqip` of the `sofa` `0e1febf8` =
+ * `repair_field`) reaches the bank `5724312f`, that NO other `eqip` of the game reaches, and
+ * of which 4 `.wem` fall in the pack `sb_007_abl_repairfield.pck` — the game names it itself.
+ * Its unique `snd!` (`22c2323a`) designates two events that render THE SAME three `.wem`,
+ * uniform variants of a single `RandomSequence`: there is no choice to make, only a
+ * draw.
  *
- * CE QUI A CHANGÉ LE 2026-08-27, ET C'EST UNE ERREUR CORRIGÉE, PAS UN RÉGLAGE. Le fichier
- * livré depuis le 2026-08-18 était le geste de POSE (`play_007_abl_repairfield_deploy_player`,
- * événement `8ed46d21`, 0,38 s) — un claquement d'objet lâché. L'ACTIVATION du champ est un
- * autre événement, `play_007_abl_repairfield_activate` (`c48cf171`, 3,26 s), et c'est celui
- * que l'utilisateur veut entendre quand un joueur pose le champ (décision du 2026-08-27,
- * après écoute de la planche). Les deux événements ne se distinguaient pas avant le nommage
- * des banques par hachage : la chaîne de tags menait aux deux sans dire lequel était lequel.
- * Les trois variantes livrées sont désormais les trois `.wem` de `c48cf171`
- * (143632032 / 222530989 / 640887009), gain de chemin +1 dB appliqué.
+ * WHAT CHANGED ON 2026-08-27, AND THAT IS A CORRECTED ERROR, NOT A SETTING. The file
+ * delivered since 2026-08-18 was the gesture of PLACEMENT (`play_007_abl_repairfield_deploy_player`,
+ * event `8ed46d21`, 0.38 s) — a clatter of object released. The ACTIVATION of the field is an
+ * other event, `play_007_abl_repairfield_activate` (`c48cf171`, 3.26 s), and that is the one
+ * that the user wants to hear when a player places the field (decision of 2026-08-27,
+ * after listening of the board). The two events did not distinguish before the naming
+ * of the banks by hashing: the tag chain led to the two without saying which was which.
+ * The three variants delivered are now the three `.wem` of `c48cf171`
+ * (143632032 / 222530989 / 640887009), path gain +1 dB applied.
  *
- * ÉGALISATION : crête vraie plafonnée à -1,0 dBTP par gain LINÉAIRE (-0,8 / -1,0 / -2,0 dB),
- * plafond du lot R2-S, même convention que `repair_field_end`.
+ * EQUALIZATION: true crest capped at -1.0 dBTP by LINEAR GAIN (-0.8 / -1.0 / -2.0 dB),
+ * ceiling of the lot R2-S, same convention as `repair_field_end`.
  *
- * LA FAILLE DU TRANSLOCATEUR NE SONNE PAS PAR CETTE TABLE : sa pose n est pas une pose d objet du
- * monde, c est l énergie du translocateur PORTÉ qui tombe à zéro (`riftPoses`, schéma 95). Elle
- * sonne par `riftPoseSound.ts`, sa téléportation par `translocationSound.ts`.
+ * THE RIFT OF THE TRANSPORTER DOES NOT SOUND BY THIS TABLE: its placement is not a placement of object of
+ * the world, it is the energy of the CARRIED transporter that falls to zero (`riftPoses`, schema 95). It
+ * sounds by `riftPoseSound.ts`, its teleportation by `translocationSound.ts`.
  *
- * RESTENT HORS DE CETTE TABLE, par décision et non par manque : le répulseur (que `PLACEMENT_RENDER`
- * ne DESSINE pas non plus — c'est une capacité, pas un objet posé ; il sonne par sa poussée
- * (`knockbackSound.ts`) et par son kill),
- * les deux bonus, et l'objet non identifié `other` (il a pourtant
- * SA banque, `92c830f5`, 38 `.wem` — mais un objet qu'on ne sait pas nommer n'a pas à
- * s'annoncer, et son dessin dépend d'une bascule que le son ne partage pas). LE GRAPPIN
- * (lot G, 2026-08-20) ET LE PROPULSEUR (2026-09-03) N'EN SONT PLUS : ils sonnent par LEURS
- * PROPRES tables — `GRAPPLE_SOUND_STEM` ci-dessous (`doc.grappleLines`, schéma 8) et
- * `ABILITY_IMPULSE_SOUND_STEMS` (`abilityImpulseSound.ts`, `doc.abilityImpulses`, schéma 38).
- * Ce ne sont pas des objets posés au sens de CETTE table-ci.
+ * REMAIN OUT OF THIS TABLE, by decision and not by lack: the repulsor (that `PLACEMENT_RENDER`
+ * does not DRAW either — it is a capability, not a placed object; it sounds by its push
+ * (`knockbackSound.ts`) and by its kill),
+ * the two bonuses, and the unidentified object `other` (it nevertheless
+ * HAS its bank, `92c830f5`, 38 `.wem` — but an object we do not know how to name does not have to
+ * announce itself, and its drawing depends on a toggle that the sound does not share). THE GRAPPLE
+ * (lot G, 2026-08-20) AND THE THRUSTER (2026-09-03) ARE NO LONGER: they sound by THEIR
+ * OWN tables — `GRAPPLE_SOUND_STEM` below (`doc.grappleLines`, schema 8) and
+ * `ABILITY_IMPULSE_SOUND_STEMS` (`abilityImpulseSound.ts`, `doc.abilityImpulses`, schema 38).
+ * They are not placed objects in the sense of THIS table.
  */
 export const EQUIPMENT_PLACEMENT_SOUND_STEMS: Readonly<Record<string, string>> = {
   wall: 'wall_activate',
 }
 
 /**
- * Son du TIR de grappin (doc.grappleLines, schéma 8, lot G du 2026-08-20) — UN SEUL stem,
- * aucune famille : chaque traction sonne le même tir, quel que soit le slot. Catégorie
- * ÉQUIPEMENT (le grappin est un objet d'équipement du joueur, au même titre que camouflage
- * et surbouclier) — cf. `buildSoundTimeline`.
+ * Sound of the SHOT of grapple (doc.grappleLines, schema 8, lot G of 2026-08-20) — A SINGLE stem,
+ * no family: each pull sounds the same shot, whatever the slot. Category
+ * EQUIPMENT (the grapple is a player equipment object, same as cloak
+ * and overshield) — cf. `buildSoundTimeline`.
  *
- * SOURCE DISTINCTE DES DEUX DÉCRITES EN TÊTE DE FICHIER : une archive utilisateur de sons
- * extraits du jeu (nov. 2021), variante « Activate (Hit Short) » — décision superviseur, lot
- * G. 1,687 s, au-dessus de la coupe des armes (1,2 s) : gardée entière, comme les
- * équipements. ÉGALISATION : gain LINÉAIRE de +15,07 dB (mesuré -31,07 LUFS / -16,95 dBTP en
- * entrée), résultat -16,01 LUFS / -1,88 dBTP — cible et plafond du lot R2-S atteints.
+ * SOURCE DISTINCT FROM THE TWO DESCRIBED AT THE TOP OF THE FILE: a user archive of sounds
+ * extracted from the game (Nov. 2021), variant "Activate (Hit Short)" — supervisor decision, lot
+ * G. 1.687 s, above the weapons' cut (1.2 s): kept in full, like the
+ * equipment. EQUALIZATION: LINEAR GAIN of +15.07 dB (measured -31.07 LUFS / -16.95 dBTP in
+ * entry), result -16.01 LUFS / -1.88 dBTP — target and ceiling of the lot R2-S reached.
  */
 export const GRAPPLE_SOUND_STEM = 'grapple_fire'
 
 /**
- * LES CATÉGORIES QUE L'UTILISATEUR PEUT COUPER. Elles étaient cinq (phase 2, décision du
- * 16/08) ; « Objectifs » en est sorti le 2026-09-02 sur retour utilisateur — « c'était pas
- * clair du tout » : dans une liste de bascules, « Objectifs » se lit comme un CALQUE, pas comme
- * une famille de sons. Les sons d'objectif jouent désormais toujours.
+ * THE CATEGORIES THE USER CAN CUT. They were five (phase 2, decision of
+ * 16/08); "Objectives" was out since 2026-09-02 on user feedback — "it wasn't
+ * clear at all": in a list of toggles, "Objectives" reads like a LAYER, not like
+ * a family of sounds. The objective sounds play now always.
  *
- * CE N’EST PAS LA LISTE DES CATÉGORIES : le type SoundCategory en compte toujours cinq, car
- * classer un son reste utile. C'est la liste de ce qui se RÈGLE. Une préférence stockée qui
- * nommerait encore « objective » ne se relit donc plus, et la catégorie se rallume d'elle-même.
+ * IT IS NOT THE LIST OF CATEGORIES: the SoundCategory type still counts five, because
+ * classifying a sound remains useful. That is the list of what is SET. A stored preference that
+ * would still name "objective" is no longer read back, and the category relights itself.
  */
 /**
- * Le sous-type des categories REGLABLES. Il existe pour que le compilateur tienne la paire :
- * une categorie retiree d ici doit perdre son libelle i18n, et reciproquement. Sans lui, le
- * retrait de « Objectifs » compilait avec un libelle manquant a l execution.
+ * The sub-type of the SETTABLE categories. It exists so that the compiler holds the pair:
+ * a category removed from here must lose its i18n label, and vice versa. Without it, the
+ * removal of "Objectives" compiled with a label missing at execution.
  */
 export type TogglableSoundCategory = Exclude<SoundCategory, 'objective'>
 
@@ -463,10 +463,10 @@ export const SOUND_CATEGORIES: readonly TogglableSoundCategory[] = [
   'equipment',
 ]
 
-/** Filtre par catégorie : une entrée par catégorie, `true` = catégorie audible. */
+/** Filter per category: one entry per category, `true` = category audible. */
 export type SoundCategoryFilter = Readonly<Record<SoundCategory, boolean>>
 
-/** Le comportement D'AUJOURD'HUI, inchangé par défaut : tout sonne. */
+/** The behavior OF TODAY, unchanged by default: everything sounds. */
 export const SOUND_CATEGORIES_DEFAULT: SoundCategoryFilter = {
   weapon: true,
   grenade: true,
@@ -476,20 +476,20 @@ export const SOUND_CATEGORIES_DEFAULT: SoundCategoryFilter = {
 }
 
 /**
- * shotSoundStem — le fichier d'un TIR, ou undefined pour le silence.
+ * shotSoundStem — the file of a SHOT, or undefined for silence.
  *
- * Le film date le tir et nomme son arme par un identifiant ; la clé canonique arrive avec
- * le libellé (`weaponLabels[id].key`). Aucune direction n'est requise — c'est tout l'intérêt
- * du son : il n'a besoin QUE de l'instant (demande utilisateur du 2026-08-15).
+ * The film dates the shot and names its weapon by an identifier; the canonical key arrives with
+ * the label (`weaponLabels[id].key`). No direction is required — that is the whole point
+ * of the sound: it only needs the moment (user request of 2026-08-15).
  *
- * DEUX JOINTURES DEPUIS LE LOT VÉHICULES (2026-09-04), DANS CET ORDRE : le registre d'armes
- * d'abord (les armes de joueur, tirées à pied OU depuis un siège), puis les armes DE VÉHICULE
- * — leurs identifiants sont ABSENTS de `weaponLabels`, c'est le REGISTRE DES ARMES DE VÉHICULE
- * du document qui les nomme (schéma 69, `vehicleWeaponRegistry.ts` ; il remplace la table client
- * du lot). Aucune des deux ne répond, ou silence décidé par le registre = silence propre.
+ * TWO JOINS SINCE THE VEHICLES LOT (2026-09-04), IN THIS ORDER: the weapons registry
+ * first (the player weapons, fired on foot OR from a seat), then the WEAPONS OF VEHICLE
+ * — their identifiers are ABSENT from `weaponLabels`, it is the REGISTRY OF VEHICLE WEAPONS
+ * of the document that names them (schema 69, `vehicleWeaponRegistry.ts`; it replaces the client table
+ * of the lot). Neither of the two answers, or silence decided by the registry = clean silence.
  *
- * LE PORTEUR N'EST PAS LU (retours du 2026-09-23, lot L1.5) : l'arme seule décide, aucun châssis
- * n'est cherché.
+ * THE CARRIER IS NOT READ (feedback of 2026-09-23, lot L1.5): the weapon alone decides, no chassis
+ * is sought.
  */
 export function shotSoundStem(
   doc: ReplayDocumentReady,
@@ -502,11 +502,11 @@ export function shotSoundStem(
 }
 
 /**
- * killSourceSpriteStem — le stem de la vignette d'une source de dégât, lu dans son URL.
+ * killSourceSpriteStem — the stem of the thumbnail of a damage source, read in its URL.
  *
- * Le backend compose `/static/weapons-assets/{slug}/jeu/killfeed-NN.png` (adapter_asset_urls.go,
- * `static.URL` : ni empreinte ni paramètre de version). Le stem est donc le nom de fichier
- * sans son extension. Rien à extraire = chaîne vide, jamais une supposition.
+ * The backend composes `/static/weapons-assets/{slug}/jeu/killfeed-NN.png` (adapter_asset_urls.go,
+ * `static.URL`: neither fingerprint nor version parameter). The stem is therefore the file name
+ * without its extension. Nothing to extract = empty string, never an assumption.
  */
 export function killSourceSpriteStem(imageURL: string | undefined): string {
   const path = (imageURL ?? '').split('?')[0]
@@ -514,32 +514,32 @@ export function killSourceSpriteStem(imageURL: string | undefined): string {
   return file.endsWith('.png') ? file.slice(0, -'.png'.length) : ''
 }
 
-/** Un son de kill résolu, avec la catégorie qui a répondu — sert le filtre par catégorie. */
+/** A resolved kill sound, with the category that answered — serves the filter per category. */
 interface KillSound {
   stem: string
   category: Extract<SoundCategory, 'weapon' | 'grenade' | 'melee'>
 }
 
 /**
- * killSound — DEUX JOINTURES, DANS CET ORDRE : la vignette de la source d'abord (c'est elle
- * qui sait distinguer les quatre grenades, la mêlée et le répulseur, que le registre d'armes
- * ne nomme pas), la clé canonique ensuite (les armes DU registre). Aucune des deux ne répond
- * = silence propre. Elle rend le stem ET la catégorie, parce que `buildSoundTimeline` a
- * besoin des deux : le fichier à jouer, et la catégorie que le filtre du tiroir peut couper.
+ * killSound — TWO JOINS, IN THIS ORDER: the thumbnail of the source first (it is that
+ * which knows to distinguish the four grenades, the melee and the repulsor, that the weapons registry
+ * does not name), the canonical key after (the weapons OF the registry). Neither of the two answers
+ * = clean silence. It returns the stem AND the category, because `buildSoundTimeline` has
+ * need of the two: the file to play, and the category that the drawer's filter can cut.
  *
- * PLUS DE TERNAIRE MELEE/GRENADE ICI (lot R6, 2026-08-25) : tant que
- * `KILL_SPRITE_SOUND_STEMS` ne portait que des grenades et LA mêlée, un test
- * `stem === 'melee_kill'` suffisait à trancher la catégorie. Le répulseur (catégorie ARME)
- * a cassé cette hypothèse binaire — la table nomme désormais sa catégorie EXPLICITEMENT
- * (type `KillSound`), et cette fonction la restitue telle quelle : une seule vérité, portée
- * par la table, jamais re-devinée ici à partir du stem.
+ * NO MORE MELEE/GRENADE TERNARY HERE (lot R6, 2026-08-25): while
+ * `KILL_SPRITE_SOUND_STEMS` only carried grenades and THE melee, a test
+ * `stem === 'melee_kill'` was enough to decide the category. The repulsor (category WEAPON)
+ * broke this binary assumption — the table now names its category EXPLICITLY
+ * (type `KillSound`), and this function restores it as is: a single truth, carried
+ * by the table, never re-guessed here from the stem.
  *
- * EXPORTÉE POUR ÊTRE TESTÉE À L'UNITÉ, et c'est son seul appelant de production
- * (`buildSoundTimeline`) qui lui donne son sens. La façade `killSoundStem`, qui n'en
- * exposait que le stem, a été SUPPRIMÉE le 2026-08-16 : le filtre par catégorie lui a pris
- * son dernier appelant de production, et un export qui ne survit que par ses tests est le
- * code mort que la règle 7 de CLAUDE.md interdit. Ses cas sont testés dans
- * `replaySound.test.ts`, augmentés de la catégorie — l'information neuve du filtre.
+ * EXPORTED TO BE UNIT-TESTED, and that is its only production caller
+ * (`buildSoundTimeline`) that gives it its meaning. The facade `killSoundStem`, which only
+ * exposed its stem, was REMOVED on 2026-08-16: the filter per category took it
+ * its last production caller, and an export that survives only by its tests is the
+ * dead code that rule 7 of CLAUDE.md forbids. Its cases are tested in
+ * `replaySound.test.ts`, augmented with the category — the new information of the filter.
  */
 export function killSound(kill: Pick<KillEvent, 'weaponKey' | 'weaponImageUrl'>): KillSound | undefined {
   const sprite = killSourceSpriteStem(kill.weaponImageUrl)
@@ -550,33 +550,33 @@ export function killSound(kill: Pick<KillEvent, 'weaponKey' | 'weaponImageUrl'>)
 }
 
 /**
- * buildSoundTimeline précalcule la piste sonore du document : TIRS datés par leur frame de
- * film + kills DÉJÀ RECALÉS par le fil (`killsOfFeed` — une seule horloge, et un seul
- * recalage : ni ce module ni l'effet de mort ne le rejouent, 2026-09-05 J2) + lancers de
- * grenade et explosions de fin de vol. Triée chronologiquement, construite une fois.
+ * buildSoundTimeline pre-computes the sound track of the document: SHOTS dated by their frame of
+ * film + kills ALREADY REALIGNED by the feed (`killsOfFeed` — a single clock, and a single
+ * realignment: neither this module nor the death effect replays it, 2026-09-05 J2) + throws of
+ * grenade and end-of-flight explosions. Sorted chronologically, built once.
  *
- * LES TIRS ET LES KILLS COEXISTENT SANS DÉDUPLICATION, et c'est voulu : le tir qui tue est
- * un événement du film, la mort qu'il cause en est un autre, daté par le fil. Les fondre
- * ferait disparaître l'un des deux sur une horloge où ils ne tombent pas au même instant.
+ * THE SHOTS AND THE KILLS COEXIST WITHOUT DEDUPLICATION, and that is intentional: the shot that kills is
+ * an event of the film, the death it causes is another, dated by the feed. Merging them
+ * would make one of the two disappear on a clock where they do not fall at the same moment.
  *
- * `categories` (tiroir de réglages, phase 2) RETIRE À LA CONSTRUCTION les catégories
- * coupées par l'utilisateur — jamais en aval, dans le lecteur : une catégorie coupée ne
- * précharge même pas ses fichiers. Par défaut, tout sonne (SOUND_CATEGORIES_DEFAULT) :
- * un appelant qui ne passe pas ce 4e paramètre garde le comportement d'aujourd'hui, à
- * l'identique — c'est le cas de tous les appels existants avant cette table.
+ * `categories` (settings drawer, phase 2) REMOVES AT CONSTRUCTION the categories
+ * cut by the user — never downstream, in the player: a category cut does
+ * not even pre-load its files. By default, everything sounds (SOUND_CATEGORIES_DEFAULT):
+ * a caller that does not pass this 4th parameter keeps today's behavior, as
+ * is — that is the case of all existing calls before this table.
  */
 export function buildSoundTimeline(
   doc: ReplayDocumentReady,
   kills: readonly ReplayKill[],
   categories: SoundCategoryFilter = SOUND_CATEGORIES_DEFAULT,
   sideOfXuid?: (xuid: string) => ObjectiveSide,
-  // Le camp ALLIÉ, en numéro d'équipe — la clé des sons d'ÉTAT DE ZONE, qui joignent sur le
-  // propriétaire d'une zone et non sur le xuid d'un joueur (`zoneSound.ts`). `null` = camp non
-  // résolu : capture en cours et tics de score se taisent, la nouvelle colline sonne quand même.
+  // The ALLIED side, in team number — the key of the ZONE STATE sounds, which join on the
+  // owner of a zone and not on the xuid of a player (`zoneSound.ts`). `null` = side not
+  // resolved: capture in progress and score ticks stay silent, the new hill sounds anyway.
   allyTeam: number | null = null,
-  // La LANGUE DE L'INTERFACE — la seule entrée locale-aware de la piste : le son « manche
-  // terminée » est une VOIX d'annonceur (`roundOverSound.ts`). Absente (anciens appels, mesure de
-  // disponibilité), ce son se tait : le rejeu ne devine pas une langue.
+  // THE LANGUAGE OF THE INTERFACE — the only locale-aware entry of the track: the "round
+  // ended" sound is an ANNOUNCER'S VOICE (`roundOverSound.ts`). Absent (old calls, availability
+  // measurement), this sound stays silent: the replay does not guess a language.
   locale?: ReplayLocale,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
@@ -585,28 +585,28 @@ export function buildSoundTimeline(
       const stem = shotSoundStem(doc, s)
       if (stem) out.push(soundEvent(frameToMs(s.t, doc), stem, { x: s.x, y: s.y }))
     }
-    // LE TIR CONTINU (schéma 71, lot M4b) : chaque rafale tient sa boucle, ou rejoue son coup
-    // à la cadence de l'arme, et finit sur le coup de queue. Doctrine : `fireBurstSound.ts`.
+    // THE CONTINUOUS SHOT (schema 71, lot M4b): each burst holds its loop, or replays its shot
+    // at the rate of the weapon, and ends on the tail shot. Doctrine: `fireBurstSound.ts`.
     out.push(...fireBurstSoundEvents(doc, (w) => shotSoundStem(doc, { w })))
-    // Les RAMASSAGES ET LÂCHERS D'ARME (schéma 25) : datés par `weaponChanges`, plus rien à
-    // déduire — c'est ce canal qui a remplacé la règle « au premier tir » retirée le même
-    // jour. Doctrine, sons et choix du `swapped` : `weaponChangeSound.ts`.
+    // THE PICKUPS AND DROPS OF WEAPON (schema 25): dated by `weaponChanges`, nothing more to
+    // deduce — that is the channel that replaced the rule "at the first shot" removed the same
+    // day. Doctrine, sounds and choice of `swapped`: `weaponChangeSound.ts`.
     out.push(...weaponChangeSoundEvents(doc))
-    // La DESTRUCTION d'un véhicule (schéma 30, lot du 2026-09-05) : le MÊME signal que
-    // l'effet visuel — `end === VEHICLE_END_DESTROYED` ET `tEnd` publié, rien d'autre.
-    // INERTE AUJOURD'HUI : tout artefact existant publie `end: "unknown"`, donc zéro
-    // événement — le son est prêt, il n'invente pas la mesure. Un bruitage one-shot,
-    // catégorie ARMES du tiroir (comme les bobines), jamais le bus moteur. Doctrine,
-    // jeux de sons dédupliqués et jointure famille -> set : `vehicleDestructionSound.ts`.
+    // The DESTRUCTION of a vehicle (schema 30, lot of 2026-09-05): the SAME signal as
+    // the visual effect — `end === VEHICLE_END_DESTROYED` AND `tEnd` published, nothing else.
+    // INERT TODAY: every existing artifact publishes `end: "unknown"`, therefore zero
+    // events — the sound is ready, it does not invent the measurement. A one-shot sound effect,
+    // category WEAPONS of the drawer (like the coils), never the engine bus. Doctrine,
+    // deduplicated sets of sounds and join family -> set: `vehicleDestructionSound.ts`.
     for (const v of doc.vehicles) {
       const boom = vehicleDestructionSound(v)
       if (boom) out.push(soundEvent(frameToMs(boom.frame, doc), boom.stem))
     }
   }
-  // Les explosions programmées PAR UN KILL, retenues au passage : ce sont elles qui
-  // dédoublonnent les fins de vol, et elles doivent donc être connues avant.
+  // The explosions scheduled BY A KILL, kept in passing: they are the ones that
+  // deduplicate the ends of flight, and they therefore must be known before.
   const killExplosions: ReplaySoundEvent[] = []
-  // Les kills au répulseur programmés : la poussée du même instant ne se rejoue pas (knockbackSound.ts).
+  // The repulsor kills scheduled: the push of the same moment is not replayed (knockbackSound.ts).
   const repulsorKills: RepulsorKillSound[] = []
   if (kills.length > 0 && doc.tracks.length > 0) {
     for (const k of kills) {
@@ -618,12 +618,12 @@ export function buildSoundTimeline(
       if (snd.stem === KNOCKBACK_SOUND_STEM) repulsorKills.push({ ms: ev.ms, xuid: k.xuid })
     }
   }
-  // Le filtre « grenades » couvre les DEUX formes de l'objet, comme depuis le 16/08 : couper
-  // la catégorie coupe les lancers ET les explosions, y compris celles des kills ci-dessus.
+  // The "grenades" filter covers the TWO forms of the object, as since 16/08: cutting
+  // the category cuts the throws AND the explosions, including those of the kills above.
   if (categories.grenade) out.push(...grenadeSoundEvents(doc, killExplosions))
-  // Les épisodes d'équipement actif : l'activation au début, la désactivation SEULEMENT
-  // sur une fin MESURÉE (`endRead`) — un épisode fermé par la mort ne sonne rien de plus,
-  // le kill sonne déjà là et rien n'a mesuré une désactivation.
+  // The episodes of active equipment: the activation at the start, the deactivation ONLY
+  // on a MEASURED end (`endRead`) — an episode closed by the death sounds nothing more,
+  // the kill already sounds there and nothing has measured a deactivation.
   if (categories.equipment) {
     for (const e of doc.equipmentEpisodes) {
       const stems = EQUIPMENT_SOUND_STEMS[e.fam]
@@ -631,83 +631,83 @@ export function buildSoundTimeline(
       out.push(soundEvent(frameToMs(e.t0, doc), stems.activate))
       if (e.endRead) out.push(soundEvent(frameToMs(e.t1, doc), stems.deactivate))
     }
-    // Les POSES d'équipement (schéma 10) : le GESTE sonne, à `t0`, et lui seul. La fin de vie
-    // d'un mur n'est pas un acte — c'est la fin d'une durée mesurée, et rien ne la sonne.
+    // The PLACEMENTS of equipment (schema 10): the GESTURE sounds, at `t0`, and it alone. The end of life
+    // of a wall is not an act — it is the end of a measured duration, and nothing sounds it.
     //
-    // LE FILTRE EST CELUI DU CALQUE, ET IL EST PARTAGÉ EXPRÈS. Sur les 11 films calibrés,
-    // 88,6 % des poses sont des objets LÂCHÉS À LA MORT du porteur : les sonner ferait partir
-    // un « mur déployé » à chaque mort tenant un mur — 91 fois sur 222 poses de mur, 106 fois
-    // sur 155 poses de capteur. Et un mur réellement déployé produit DEUX poses (l'appareil et
-    // ses panneaux) : sans la règle des panneaux, il sonnerait deux fois.
+    // THE FILTER IS THAT OF THE LAYER, AND IT IS SHARED INTENTIONALLY. On the 11 calibrated films,
+    // 88.6% of the placements are objects DROPPED AT THE DEATH of the bearer: sounding them would make go out
+    // a "wall deployed" at each death holding a wall — 91 times out of 222 placements of wall, 106 times
+    // out of 155 placements of sensor. And a wall really deployed produces TWO placements (the device and
+    // its panels): without the panels rule, it would sound twice.
     for (const p of doc.equipmentPlacements) {
       if (!placementIsDeployedObject(p)) continue
       const stem = EQUIPMENT_PLACEMENT_SOUND_STEMS[p.family]
       if (stem) out.push(soundEvent(frameToMs(p.t0, doc), stem))
     }
-    // Les TRACTIONS de grappin (schéma 8) : le TIR sonne à `t0`, un événement par traction —
-    // aucune fin sonnée, `t1` ne fait que fermer la fenêtre du calque (`grappleLayer.ts`).
+    // The PULLS of grapple (schema 8): the SHOT sounds at `t0`, one event per pull —
+    // no end sounded, `t1` only closes the window of the layer (`grappleLayer.ts`).
     for (const g of doc.grappleLines) {
       out.push(soundEvent(frameToMs(g.t0, doc), GRAPPLE_SOUND_STEM))
     }
-    // LE RAMASSAGE SUR SOCLE A ÉTÉ RETIRÉ LE 2026-08-30, et il faut dire pourquoi plutôt que de
-    // laisser un trou muet. Il sonnait au PREMIER TIR d'une famille d'arme de socle, faute de
-    // canal qui date le ramassage (`padPickups` : médiane de 20,00 s entre `tLow` et `tHigh` ;
-    // loadouts sur la même grille d'images-clés, 0 sur 597 datés à moins de 5 s). Les mesures
-    // étaient justes, la conclusion ne l'était pas : la doctrine de cette chaîne est que le rejeu
-    // SE TAIT plutôt que de deviner, et on avait déplacé le son sur un AUTRE geste — il partait
-    // en même temps qu'un tir, il partait pour une arme prise au sol ou sur un mort, et il ne
-    // partait jamais pour une arme ramassée sans être tirée. Décision utilisateur du 2026-08-30 :
-    // se taire jusqu'à ce qu'un canal DATE le ramassage. Le son, lui, reste identifié
-    // (`play_007_abl_shared_pickup`, événement `c73036e4`) et audible sur la planche
-    // `3c84fab7-5e36-4777-a2d9-bd1c90b08f65` ; il n'est plus livré tant que rien ne le déclenche.
+    // THE PICKUP ON STAND WAS REMOVED ON 2026-08-30, and it must say why rather than
+    // leave a silent hole. It sounded at the FIRST SHOT of a stand weapon family, lacking a
+    // channel that dates the pickup (`padPickups`: median of 20.00 s between `tLow` and `tHigh`;
+    // loadouts on the same grid of keyframes, 0 out of 597 dated less than 5 s). The measurements
+    // were correct, the conclusion was not: the doctrine of this chain is that the replay
+    // STAYS SILENT rather than guessing, and we had moved the sound to ANOTHER gesture — it went out
+    // at the same time as a shot, it went out for a weapon taken from the ground or from a dead, and it
+    // never went out for a weapon picked up without being fired. User decision of 2026-08-30:
+    // stay silent until a channel DATES the pickup. The sound, it, remains identified
+    // (`play_007_abl_shared_pickup`, event `c73036e4`) and audible on the board
+    // `3c84fab7-5e36-4777-a2d9-bd1c90b08f65`; it is no longer delivered while nothing triggers it.
     //
-    // L'APPARITION SUR SOCLE — arme OU équipement, chacun son son : le calque DATE l'instant
-    // (`weaponPads[].spawns`) et publie la famille qui les sépare. Détail : `padSpawnSound.ts`.
+    // THE APPEARANCE ON STAND — weapon OR equipment, each its sound: the layer DATES the moment
+    // (`weaponPads[].spawns`) and publishes the family that separates them. Detail: `padSpawnSound.ts`.
     out.push(...padSpawnSoundEvents(doc))
-    // LE RAMASSAGE D'ÉQUIPEMENT (schéma 26) : daté par `equipmentChanges`. Le son attendait cet
-    // instant depuis le 2026-08-27 ; la consommation reste muette (elle sonne déjà par sa
-    // famille). Doctrine : `equipmentChangeSound.ts`.
+    // THE PICKUP OF EQUIPMENT (schema 26): dated by `equipmentChanges`. The sound waited for this
+    // moment since 2026-08-27; the consumption remains silent (it already sounds by its
+    // family). Doctrine: `equipmentChangeSound.ts`.
     out.push(...equipmentChangeSoundEvents(doc))
-    // L'USAGE D'UNE CAPACITÉ QUI POUSSE SON PORTEUR (schéma 38) : le propulseur, daté par le
-    // film et validé 5/5 contre un relevé Theater. Un son par impulsion publiée, à sa frame ;
-    // aucune fin sonnée — le geste EST une impulsion. Table par famille : `abilityImpulseSound.ts`.
+    // THE USE OF A CAPABILITY THAT PROPULSES ITS CASTER (schema 38): the thruster, dated by the
+    // film and validated 5/5 against a Theater survey. One sound per published impulse, at its frame;
+    // no end sounded — the gesture IS an impulse. Table per family: `abilityImpulseSound.ts`.
     out.push(...abilityImpulseSoundEvents(doc))
-    // LA POUSSÉE DU RÉPULSEUR (schéma 94) et LA TÉLÉPORTATION DU TRANSLOCATEUR (schéma 38) : deux
-    // gestes que le film date. Doctrine : `knockbackSound.ts`, `translocationSound.ts`.
+    // THE PUSH OF THE REPELLER (schema 94) AND THE TELEPORTATION OF THE TRANSPORTER (schema 38): two
+    // gestures that the film dates. Doctrine: `knockbackSound.ts`, `translocationSound.ts`.
     out.push(...knockbackSoundEvents(doc, repulsorKills))
     out.push(...translocationSoundEvents(doc))
-    // LA POSE DE LA FAILLE (schéma 95) : son COUP à l'instant de la pose. Doctrine : `riftPoseSound.ts`.
+    // THE PLACEMENT OF THE RIFT (schema 95): its HIT at the moment of the placement. Doctrine: `riftPoseSound.ts`.
     out.push(...riftPoseSoundEvents(doc))
-    // L'UTILISATION du capteur, du traqueur, du champ et de l'écran (schéma 95), à l'image où le film
-    // la date. Doctrine : `carriedUseSound.ts`.
+    // THE USE of the sensor, the seeker, the field and the screen (schema 95), at the frame where the film
+    // dates it. Doctrine: `carriedUseSound.ts`.
     out.push(...carriedUseSoundEvents(doc))
-    // LA FIN DU CHAMP DE RÉPARATION : la suppression, écrite par le film, de l'objet qu'il engendre.
+    // THE END OF THE REPAIR FIELD: the deletion, written by the film, of the object it spawns.
     out.push(...carriedEndSoundEvents(doc))
   }
-  // Les ACTIONS D'OBJECTIF : chacune sonne à sa frame, dans le camp de son auteur. Sans
-  // résolveur de camp (appelant qui n'a pas l'allégeance du film), les seules actions qui
-  // sonnent sont celles sans variante d'équipe — le rejeu ne devine jamais un camp.
+  // The OBJECTIVE ACTIONS: each one sounds at its frame, in the side of its author. Without
+  // a side resolver (caller that does not have the film's allegiance), the only actions that
+  // sound are those without a team variant — the replay never guesses a side.
   if (categories.objective) {
     out.push(...objectiveSoundEvents(doc, sideOfXuid))
-    // Les sons d'ÉTAT DE ZONE : capture en cours, domination, déplacement de la colline. Ils ne
-    // viennent d'aucun joueur — leur source est `doc.zoneStates`, pas `doc.objectives` — mais
-    // ils appartiennent à la même catégorie du tiroir, et se coupent donc avec elle.
+    // The ZONE STATE sounds: capture in progress, domination, move of the hill. They do
+    // not come from any player — their source is `doc.zoneStates`, not `doc.objectives` — but
+    // they belong to the same category of the drawer, and are cut therefore with it.
     out.push(...zoneSoundEvents(doc, allyTeam))
-    // LE SON DE LA BOMBE ARMÉE (Assaut, schéma 29) : un événement au début de chaque mèche.
-    // Sa source est `doc.bombArmings`, pas `doc.objectives` — le canal de l'anneau ti=12 ne
-    // nomme aucun joueur. Le stem est celui de la NOUVELLE COLLINE, emprunté par référence
-    // (décision utilisateur du portage) : doctrine et provenance dans `bombCountdown.ts`.
+    // THE SOUND OF THE ARMED BOMB (Assault, schema 29): an event at the start of each fuse.
+    // Its source is `doc.bombArmings`, not `doc.objectives` — the channel of the ring ti=12 does not
+    // name any player. The stem is that of the NEW HILL, borrowed by reference
+    // (user decision of the port): doctrine and provenance in `bombCountdown.ts`.
     out.push(...bombArmingSoundEvents(doc))
-    // LES SONS DU CRANE d'Oddball : prise et chute. Leur source est `doc.skullCarries`
-    // (schema 23), pas `doc.objectives` — le nommage statborg ne couvre pas Oddball. Ils
-    // n'ont pas de camp : la banque du mode ne porte pas de variante `_team`/`_enemy` sur
-    // ces gestes. Doctrine et inventaire de ce qui reste dehors : `skullSound.ts`.
+    // THE SOUNDS OF THE SKULL of Oddball: pickup and drop. Their source is `doc.skullCarries`
+    // (schema 23), not `doc.objectives` — the statborg naming does not cover Oddball. They
+    // have no side: the mode's bank does not carry a `_team`/`_enemy` variant on
+    // these gestures. Doctrine and inventory of what remains out: `skullSound.ts`.
     out.push(...skullSoundEvents(doc, allyTeam))
-    // LE SON « MANCHE TERMINÉE », sur la même mesure que le message inter-manche : la bascule
-    // d'une manche à la suivante (`roundTransitions`, roundsLogic), datée par le calque de score.
-    // CÂBLÉ depuis le 2026-08-28 (l'asset annonceur FR/EN a été fourni) — exactement comme le
-    // stub qui vivait ici l'annonçait. Sans `locale`, il se tait : une voix a une langue, et le
-    // rejeu n'en devine pas une. Table de stem et doctrine : `roundOverSound.ts`.
+    // THE SOUND "ROUND ENDED", on the same measurement as the inter-round message: the flip
+    // of a round to the next (`roundTransitions`, roundsLogic), dated by the score layer.
+    // WIRED since 2026-08-28 (the announcer asset FR/EN was provided) — exactly as the
+    // stub that lived here announced it. Without `locale`, it stays silent: a voice has a language, and the
+    // replay does not guess one. Table of stem and doctrine: `roundOverSound.ts`.
     if (locale) out.push(...roundOverSoundEvents(doc, locale))
   }
   return out.sort((a, b) => a.ms - b.ms)

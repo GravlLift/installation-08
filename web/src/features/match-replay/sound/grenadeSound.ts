@@ -1,48 +1,48 @@
 /**
- * grenadeSound.ts — LES DEUX SONS DU MÊME OBJET : le GESTE du lancer, et la DÉTONATION.
+ * grenadeSound.ts — THE TWO SOUNDS OF THE SAME OBJECT: the GESTURE of the throw, and the DETONATION.
  *
- * EXTRAIT DE `replaySound.ts` LE 2026-08-18 (lot R2-G) : ce fichier-ci est né quand
- * l'explosion a cessé d'être une ligne du manifeste pour devenir une règle — une datation,
- * un dédoublonnage, et un silence à tenir. Le manifeste général, les catégories et
- * l'assemblage de la piste restent chez le voisin ; ici vit tout ce qui est propre à la
- * grenade, doctrine comprise. Le garde-rail `replaySoundAssets.guard.test.ts` rejoue les
- * deux tables ci-dessous contre le dossier d'assets, comme les autres.
+ * EXTRACTED FROM `replaySound.ts` ON 2026-08-18 (lot R2-G): this file was born when
+ * the explosion stopped being a line of the manifest to become a rule — a dating,
+ * a deduplication, and a silence to hold. The general manifest, the categories and
+ * the assembly of the track remain with the neighbor; here lives everything specific to the
+ * grenade, doctrine included. The guardrail `replaySoundAssets.guard.test.ts` replays the
+ * two tables below against the assets folder, like the others.
  *
- * L'EXPLOSION SONNE À CHAQUE FIN DE VOL, PLUS SEULEMENT SUR UN KILL — décision utilisateur
- * du 2026-08-18, mot pour mot : « que ça kill ou pas, elles explosent donc faut jouer le
- * son ». C'est la réponse au grief D2 (« les lancers sont joués mais j'ai pas les
- * explosions »), dont le lot R2-S avait mesuré la cause : l'explosion n'avait qu'UNE source,
- * la vignette d'un kill à la grenade — 16 explosions pour 343 lancers sur les trois témoins,
- * et ZÉRO sur 00162144 qui en porte pourtant 143. Ce n'était pas un masquage, c'était une
- * absence. LES LANCERS RESTENT : la décision 4 du plan R2 les aurait retirés si l'explosion
- * les recouvrait plus d'une fois sur deux — 31,3 % mesurés sur la piste réelle, 48,6 % sur
- * les fins de vol appariées, sous le seuil des deux façons (test S2, replaySound.test.ts).
+ * THE EXPLOSION SOUNDS AT EVERY END OF FLIGHT, NO LONGER ONLY ON A KILL — user decision
+ * of 2026-08-18, word for word: "whether it kills or not, they explode so the
+ * sound must be played". That is the answer to gripe D2 ("the throws are played but I don't get the
+ * explosions"), whose cause lot R2-S had measured: the explosion had only ONE source,
+ * the thumbnail of a grenade kill — 16 explosions for 343 throws on the three witnesses,
+ * and ZERO on 00162144 which nonetheless carries 143. It was not a masking, it was an
+ * absence. THE THROWS REMAIN: decision 4 of the R2 plan would have removed them if the explosion
+ * covered them more than one time in two — 31.3% measured on the real track, 48.6% on
+ * the paired flight endings, below the threshold both ways (test S2, replaySound.test.ts).
  *
- * LA DATATION EST CELLE DE L'ÉCRAN, ET IL N'Y EN A QU'UNE : l'instant vient de
- * `buildGrenadeRestFx` (grenadeFx.ts), la fonction qui pose DÉJÀ l'effet visuel de fin de
- * vol — le dernier pas répliqué du projectile lié au lancer. Écrire ici une seconde règle
- * ferait sonner l'explosion à côté de son image le jour où l'une des deux bougerait.
- * Conséquence assumée, qui s'entend : ce point est la DERNIÈRE POSITION CONNUE, pas un
- * impact — pour une frag la réplication cesse ~1,4 s avant la fin de la mèche, et le son est
- * donc en avance sur la détonation réelle, exactement comme l'effet à l'écran. Une grenade
- * dont le film ne lie AUCUN projectile ne sonne que son lancer : rien ne date sa fin.
+ * THE DATING IS THE SCREEN'S, AND THERE IS ONLY ONE: the moment comes from
+ * `buildGrenadeRestFx` (grenadeFx.ts), the function that ALREADY places the visual effect of the
+ * flight end — the last replicated step of the projectile linked to the throw. Writing a second rule here
+ * would make the explosion sound next to its image the day one of the two moved.
+ * Assumed consequence, which is heard: this point is the LAST KNOWN POSITION, not an
+ * impact — for a frag the replication stops ~1.4 s before the fuse end, and the sound is
+ * therefore ahead of the real detonation, exactly like the effect on screen. A grenade
+ * whose film links NO projectile only sounds its throw: nothing dates its end.
  *
- * LA DYNAMO SONNE, MÊME SI L'ÉCRAN NE LA FAIT PAS DÉTONER. `restKindOf` lui donne une nappe
- * électrique persistante plutôt qu'une déflagration, parce que c'est ce que l'arme fait dans
- * le jeu ; mais la décharge s'ENTEND, le pack porte `explosion_dynamo`, il sonnait déjà sur
- * un kill à la Dynamo, et la décision du 18/08 ne fait pas d'exception de type. L'écran et la
- * piste disent la même chose de deux façons.
+ * THE DYNAMO SOUNDS, EVEN IF THE SCREEN DOES NOT MAKE IT DETONATE. `restKindOf` gives it a
+ * persistent electric sheet rather than a blast, because that is what the weapon does in
+ * the game; but the discharge IS HEARD, the pack carries `explosion_dynamo`, it was already sounding on
+ * a Dynamo kill, and the 18/08 decision makes no exception of type. The screen and the
+ * track say the same thing in two ways.
  *
- * UN KILL À LA GRENADE NE SONNE PAS DEUX FOIS. Les deux sources parlent alors du même objet :
- * la vignette du kill, et la fin de vol du projectile. Quand elles tombent à moins de
- * `GRENADE_EXPLOSION_DEDUP_MS` l'une de l'autre AVEC LE MÊME TYPE, c'est une seule détonation
- * entendue deux fois — on garde le KILL et on retire la fin de vol. Pourquoi le kill : il est
- * daté par `alignFeed`, l'horloge qui date déjà le flash de la fiche et l'effet de mort, et
- * c'est le son que l'utilisateur a validé le 16/08. L'appariement est UN POUR UN : un kill
- * n'annule qu'UNE fin de vol, sinon deux grenades du même type lancées ensemble
- * disparaîtraient toutes les deux derrière un seul kill.
+ * A GRENADE KILL DOES NOT SOUND TWICE. The two sources then speak of the same object:
+ * the kill's thumbnail, and the end of flight of the projectile. When they fall within
+ * `GRENADE_EXPLOSION_DEDUP_MS` of each other WITH THE SAME TYPE, it is a single detonation
+ * heard twice — we keep the KILL and remove the flight end. Why the kill: it is
+ * dated by `alignFeed`, the clock that already dates the card flash and the death effect, and
+ * it is the sound the user approved on 16/08. The pairing is ONE TO ONE: a kill
+ * cancels only ONE flight end, otherwise two grenades of the same type thrown together
+ * would both disappear behind a single kill.
  *
- * Pas de React, pas de Web Audio : logique pure, testée (replaySound.test.ts).
+ * No React, no Web Audio: pure logic, tested (replaySound.test.ts).
  */
 import { buildRestFx } from '../model/shotImpactFx'
 import { frameToMs } from '../../../lib/replay/replayLogic'
@@ -50,8 +50,8 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { ReplaySoundEvent } from './replaySound'
 
 /**
- * Son de LANCER par rang de grenade (l'index EST le rang, même règle que grenadeLabels :
- * 0 Frag, 1 Plasma, 2 Dynamo, 3 Spike — replay_labels.toml). Un rang hors table = silence.
+ * THROW sound per grenade rank (the index IS the rank, same rule as grenadeLabels:
+ * 0 Frag, 1 Plasma, 2 Dynamo, 3 Spike — replay_labels.toml). A rank out of the table = silence.
  */
 export const THROW_SOUND_STEMS: readonly string[] = [
   'throw_frag',
@@ -61,16 +61,16 @@ export const THROW_SOUND_STEMS: readonly string[] = [
 ]
 
 /**
- * Son d'EXPLOSION par rang de grenade — MÊME INDEX que THROW_SOUND_STEMS, parce que c'est le
- * même objet sous ses deux formes. Un rang hors table = silence : le type n'est pas établi.
+ * EXPLOSION sound per grenade rank — SAME INDEX as THROW_SOUND_STEMS, because it is the
+ * same object in its two forms. A rank out of the table = silence: the type is not established.
  *
- * LES QUATRE STEMS SONT AUSSI DANS `KILL_SPRITE_SOUND_STEMS`, ET CE N'EST PAS UNE COPIE DE
- * TROP : les deux tables ne se joignent pas par la même quantité — celle-ci par le RANG que
- * le film publie avec le lancer (ce qui a été LANCÉ), l'autre par la VIGNETTE que le backend
- * publie avec le kill (ce qui a TUÉ). Les fondre demanderait de traduire l'une en l'autre à
- * chaque lecture, alors que rien ne garantit que les deux chaînes garderont le même ordre.
- * Le garde-rail `replaySoundAssets.guard.test.ts` rejoue justement cette égalité (rang N
- * <-> killfeed-46+N) : le jour où l'une bougerait, l'autre deviendrait fausse EN SILENCE.
+ * THE FOUR STEMS ARE ALSO IN `KILL_SPRITE_SOUND_STEMS`, AND THAT IS NOT AN EXTRA COPY:
+ * the two tables do not join by the same quantity — this one by the RANK that
+ * the film publishes with the throw (what was THROWN), the other by the THUMBNAIL that the backend
+ * publishes with the kill (what KILLED). Merging them would require translating one into the other at
+ * every read, while nothing guarantees that the two chains will keep the same order.
+ * The guardrail `replaySoundAssets.guard.test.ts` replays precisely this equality (rank N
+ * <-> killfeed-46+N): the day one moved, the other would become wrong IN SILENCE.
  */
 export const EXPLOSION_SOUND_STEMS: readonly string[] = [
   'explosion_frag',
@@ -80,27 +80,27 @@ export const EXPLOSION_SOUND_STEMS: readonly string[] = [
 ]
 
 /**
- * Écart en deçà duquel une explosion de fin de vol et un kill à la grenade DU MÊME TYPE sont
- * la même détonation entendue deux fois (dédoublonnage, décision du 2026-08-18).
+ * Gap below which a flight-end explosion and a grenade kill OF THE SAME TYPE are
+ * the same detonation heard twice (deduplication, decision of 2026-08-18).
  *
- * 0,3 s est la fenêtre de la DÉCISION 4 du plan R2, celle qui servait déjà à juger si un
- * lancer masquait son explosion : en poser une seconde pour la même question ferait deux
- * seuils à tenir. Elle est large devant l'écart mesuré entre les deux horloges (le fil est
- * recalé à ±150 ms de sa médiane, cf. KILL_MATCH_TOL_MS) et courte devant le délai qui
- * sépare deux grenades d'un même joueur.
+ * 0.3 s is the window of DECISION 4 of the R2 plan, the one already serving to judge whether a
+ * throw was masking its explosion: placing a second one for the same question would make two
+ * thresholds to hold. It is wide compared to the measured gap between the two clocks (the feed is
+ * re-aligned to ±150 ms of its median, cf. KILL_MATCH_TOL_MS) and short compared to the delay that
+ * separates two grenades from the same player.
  */
 export const GRENADE_EXPLOSION_DEDUP_MS = 300
 
 
 /**
- * grenadeSoundEvents — LES DEUX SONS DU MÊME OBJET : le GESTE de chaque lancer, à la frame
- * du lancer, et l'EXPLOSION de chaque fin de vol, à la frame que `buildGrenadeRestFx` a déjà
- * calculée pour l'écran. Un rang hors des quatre types connus ne rend ni l'un ni l'autre.
+ * grenadeSoundEvents — THE TWO SOUNDS OF THE SAME OBJECT: the GESTURE of each throw, on the
+ * throw's frame, and the EXPLOSION of each flight end, on the frame that `buildGrenadeRestFx` has already
+ * computed for the screen. A rank out of the four known types returns neither.
  *
- * `killExplosions` porte les explosions QUE LES KILLS ONT DÉJÀ PROGRAMMÉES, dans l'ordre où
- * elles l'ont été. Une fin de vol qui retombe sur l'une d'elles — même type, moins de
- * `GRENADE_EXPLOSION_DEDUP_MS` d'écart — est la même détonation : on la retire, et on MARQUE
- * le kill comme consommé pour qu'il n'en annule pas une seconde.
+ * `killExplosions` carries the explosions THAT THE KILLS HAVE ALREADY SCHEDULED, in the order in which
+ * they were scheduled. A flight end that falls on one of them — same type, less than
+ * `GRENADE_EXPLOSION_DEDUP_MS` of gap — is the same detonation: we remove it, and we MARK
+ * the kill as consumed so it does not cancel a second one.
  */
 export function grenadeSoundEvents(
   doc: ReplayDocumentReady,
@@ -113,8 +113,8 @@ export function grenadeSoundEvents(
   }
   const consommes = new Set<number>()
   for (const fx of buildRestFx(doc)) {
-    // Un projectile de tir (`tint` posé) sonne par son ARME, une grenade par son rang : jamais le
-    // son de l'une pour l'autre.
+    // A shot projectile (`tint` set) sounds through its WEAPON, a grenade through its rank: never the
+    // sound of one for the other.
     const stem = fx.tint === undefined ? EXPLOSION_SOUND_STEMS[fx.rank] : fx.impactStem
     if (!stem) continue
     const ms = frameToMs(fx.frame, doc)
@@ -129,4 +129,3 @@ export function grenadeSoundEvents(
   }
   return out
 }
-

@@ -1,40 +1,40 @@
 /**
- * equipmentChangeSound.ts — LE RAMASSAGE D'ÉQUIPEMENT, daté par le film.
+ * equipmentChangeSound.ts — PICKING UP EQUIPMENT, dated by the film.
  *
- * Le son est identifié depuis le 2026-08-26 et confirmé à l'oreille par l'utilisateur
- * (« c'est bien pour le ramassage des armes sur socles de power up ») :
- * `play_007_abl_shared_pickup` (`c73036e4`, banque `sb_007_abl_shared`, 0,80 s). Ce qui
- * manquait était l'INSTANT — et le schéma 26 le publie : `doc.equipmentChanges` porte les
- * ramassages (`taken`) et les consommations (`spent`), datés à la frame, par vie. Rien à
- * déduire, on joue ce que le calque date.
+ * The sound has been identified since 2026-08-26 and confirmed by ear by the user
+ * ("that's right for picking up weapons on power-up stands"):
+ * `play_007_abl_shared_pickup` (`c73036e4`, bank `sb_007_abl_shared`, 0.80 s). What
+ * was missing was the MOMENT — and schema 26 publishes it: `doc.equipmentChanges` carries
+ * pickups (`taken`) and consumptions (`spent`), dated to the frame, per life. Nothing to
+ * infer: the app plays what the layer dates.
  *
- * ## Le `spent` est MUET, et c'est un choix écrit
+ * ## `spent` is SILENT, and that is a written choice
  *
- * Consommer un équipement, c'est l'UTILISER — et l'utilisation sonne déjà par sa propre
- * famille : le camouflage et le surbouclier par leurs épisodes (`equipmentEpisodes`), le mur
- * par sa pose (`equipmentPlacements`), le capteur, le traqueur, le champ de réparation et
- * l'écran occultant par leur utilisation (`carriedEquipment[].uses`), le grappin par sa traction
- * (`grappleLines`), le répulseur par son kill. Un jingle générique de « consommation »
- * DOUBLERAIT ces sons-là au même instant. Les familles dont l'usage n'est pas encore mesuré
- * restent muettes — même règle que partout : on ne devine pas.
+ * Consuming a piece of equipment is USING it — and the use already sounds through its own
+ * family: the cloak and the shield boost through their episodes (`equipmentEpisodes`), the wall
+ * through its placement (`equipmentPlacements`), the sensor, the threat seeker, the repair field and
+ * the shroud screen through their use (`carriedEquipment[].uses`), the grapple through its pull
+ * (`grappleLines`), the repeller through its kill. A generic "consumption" jingle
+ * would DOUBLE those very sounds at the same moment. Families whose use has not been measured yet
+ * stay silent — same rule as everywhere: we do not guess.
  *
- * Le `spent` a servi d'éclat de fiche au TRANSLOCATEUR du 2026-09-02 au 2026-09-03 ; il n'est
- * plus, depuis le schéma 38, que le REPLI des artefacts anciens — l'usage est daté par
- * l'événement du film (`translocations[]`, cf. `placementTeleport.ts`). Dans les deux cas c'est
- * un effet VISUEL, pas un son : le muet de ce fichier ne concerne que l'audio, et il tient —
- * aucun stem n'est désigné pour la translocation (même règle que le crâne).
+ * `spent` served as a card shred for the TRANSPORTER from 2026-09-02 to 2026-09-03; it is no
+ * longer, since schema 38, but the FALLBACK for old artifacts — the use is dated by
+ * the film event (`translocations[]`, cf. `placementTeleport.ts`). In both cases it is
+ * a VISUAL effect, not a sound: the silence of this file only concerns audio, and it holds —
+ * no stem is designated for translocation (same rule as the skull).
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /**
- * Le son du ramassage d'équipement. Banque `sb_007_abl_shared`, événement `c73036e4` =
- * `play_007_abl_shared_pickup` — nom cassé par hachage ET confirmé à l'oreille.
+ * The equipment pickup sound. Bank `sb_007_abl_shared`, event `c73036e4` =
+ * `play_007_abl_shared_pickup` — name broken by hashing AND confirmed by ear.
  */
 export const EQUIPMENT_PICKUP_SOUND_STEM = 'objective_pad_pickup'
 
-/** equipmentChangeSoundEvents — un son par ramassage publié, à sa frame. */
+/** equipmentChangeSoundEvents — one sound per published pickup, on its frame. */
 export function equipmentChangeSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   for (const c of doc.equipmentChanges) {

@@ -1,38 +1,39 @@
 /**
- * soundSpatial.ts — LA PLACE D'UN SON DANS L'ESPACE : son niveau et son côté pour qui écoute.
+ * soundSpatial.ts — THE PLACE OF A SOUND IN SPACE: its level and its side for the one listening.
  *
- * Repère de la carte, z vers le haut : seul le plan horizontal compte. Le cap suit la convention
- * du document (`h` en degrés, 0 vers +X, 90 vers +Y), celle que `aimDirThree` tourne en direction
- * de caméra : la droite de l'auditeur est donc (sin h, -cos h).
+ * Map coordinates, z upward: only the horizontal plane counts. The heading follows the
+ * convention of the document (`h` in degrees, 0 toward +X, 90 toward +Y), the one that
+ * `aimDirThree` turns into a camera direction: the right of the listener is therefore (sin h,
+ * -cos h).
  *
- * Pas de Web Audio ici : géométrie pure, testable (soundSpatial.test.ts).
+ * No Web Audio here: pure geometry, testable (soundSpatial.test.ts).
  */
 import type { ReplaySoundEvent } from './replaySoundVariants'
 
-/** Distance, en unités de carte, jusqu'à laquelle un son garde son plein niveau. */
+/** Distance, in map units, up to which a sound keeps its full level. */
 export const SPATIAL_FULL_RADIUS = 3
 /**
- * Largeur stéréo maximale : un son plein côté garde près de 40 % de son niveau dans l'autre
- * oreille, comme une tête entre deux oreilles, jamais un canal muet.
+ * Maximum stereo width: a sound fully to one side keeps about 40% of its level in the other
+ * ear, like a head between two ears, never a muted channel.
  */
 export const SPATIAL_PAN_WIDTH = 0.5
-/** Distance en deçà de laquelle un son n'a pas de côté. */
+/** Distance below which a sound has no side. */
 export const SPATIAL_CENTER_RADIUS = 0.5
 
-/** Qui écoute : sa position dans la carte et son cap en degrés. */
+/** Who listens: its position in the map and its heading in degrees. */
 export interface SoundListener {
   x: number
   y: number
   heading: number
 }
 
-/** D'où vient le son, dans la carte. */
+/** Where the sound comes from, in the map. */
 export interface SoundSource {
   x: number
   y: number
 }
 
-/** Le placement d'une voix : `gain` dans ]0, 1], `pan` dans [-1, 1], positif à DROITE. */
+/** The placement of a voice: `gain` in ]0, 1], `pan` in [-1, 1], positive to the RIGHT. */
 export interface SoundPlacement {
   gain: number
   pan: number
@@ -41,9 +42,9 @@ export interface SoundPlacement {
 const CENTERED: SoundPlacement = { gain: 1, pan: 0 }
 
 /**
- * spatialOf place un son pour un auditeur. `own` : le son est celui de l'auditeur lui-même, il
- * sonne plein et au centre. Sinon le niveau décroît en inverse de la distance au-delà de
- * SPATIAL_FULL_RADIUS, sans plancher, et le côté est le sinus du gisement.
+ * spatialOf places a sound for a listener. `own`: the sound is that of the listener itself, it
+ * sounds full and centered. Otherwise the level decays inversely with distance beyond
+ * SPATIAL_FULL_RADIUS, without a floor, and the side is the sine of the bearing.
  */
 export function spatialOf(listener: SoundListener, source: SoundSource, own: boolean): SoundPlacement {
   if (own) return CENTERED
@@ -58,9 +59,9 @@ export function spatialOf(listener: SoundListener, source: SoundSource, own: boo
 }
 
 /**
- * placeOf — le placement d'un événement sonore pour un auditeur. `undefined` sans auditeur ou
- * sans lieu : le son joue alors tel quel, comme avant. Sinon le son est AUTRUI : jamais le son
- * de l'auditeur lui-même, qui resterait plein et au centre.
+ * placeOf — the placement of a sound event for a listener. `undefined` without a listener or
+ * without a place: the sound then plays as is, like before. Otherwise the sound is OTHERS:
+ * never the sound of the listener itself, which would stay full and centered.
  */
 export function placeOf(
   listener: SoundListener | null,

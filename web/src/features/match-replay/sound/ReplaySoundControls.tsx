@@ -1,19 +1,19 @@
 /**
- * ReplaySoundControls — l'interrupteur du son et son volume, à la barre de lecture.
+ * ReplaySoundControls — the sound switch and its volume, on the transport bar.
  *
- * SEUL L'HABILLAGE CHANGE (planche 2a du 2026-08-28) : bouton ROND comme le reste du transport,
- * curseur de volume habillé au lieu du `input[type=range]` nu. Les DEUX RÈGLES de l'ancien
- * fichier restent, mot pour mot :
+ * ONLY THE SKIN CHANGED (board 2a of 2026-08-28): ROUND button like the rest of the
+ * transport, dressed volume slider instead of the bare `input[type=range]`. The TWO
+ * RULES of the old file remain, word for word:
  *
- *  - pas de commande quand il n'y a rien à commander (une piste sans un seul son ne montre pas
- *    d'interrupteur) ;
- *  - un interrupteur qui n'agit pas en ce moment le DIT (à vitesse rapide le son se tait — le
- *    bouton s'estompe et l'infobulle explique) plutôt que de laisser croire à une panne.
+ *  - no control when there is nothing to control (a track without a single sound shows no
+ *    switch);
+ *  - a switch that is not acting right now SAYS SO (at fast speed the sound goes mute —
+ *    the button fades and the tooltip explains) rather than making it look like a failure.
  *
- * ET LE CURSEUR NE S'ESCAMOTE TOUJOURS PAS quand le son est coupé (demande du 2026-08-25) : il
- * tombe à zéro, s'estompe, et son infobulle dit que le niveau réglé revient avec le son. Le
- * niveau lui-même survit à la coupure — `sound.volume` est l'état de préférence, que la bascule
- * ne touche pas ; le zéro affiché est un affichage, jamais une écriture.
+ * AND THE SLIDER STILL DOES NOT DISAPPEAR when the sound is cut (request of 2026-08-25): it
+ * falls to zero, fades, and its tooltip says that the set level comes back with the sound.
+ * The level itself survives the cut — `sound.volume` is the preference state, which the
+ * toggle does not touch; the zero shown is a display, never a write.
  */
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import type { ReplaySound } from './useReplaySound'
@@ -68,7 +68,7 @@ export function ReplaySoundControls({ sound, locale }: ReplaySoundControlsProps)
   )
 }
 
-/** Icône haut-parleur : ondes quand le son joue, croix quand il est coupé. */
+/** Speaker icon: waves when the sound plays, cross when it is cut. */
 function SpeakerIcon({ muted }: { muted: boolean }) {
   return (
     <svg

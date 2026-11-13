@@ -1,30 +1,30 @@
 /**
- * padSpawnSound.ts — L'APPARITION D'UNE ARME SUR SON SOCLE, datée à la frame.
+ * padSpawnSound.ts — THE APPEARANCE OF A WEAPON ON ITS STAND, dated to the frame.
  *
- * ## Pourquoi ce fichier existe, et pourquoi son voisin n'existe plus
+ * ## Why this file exists, and why its neighbor no longer exists
  *
- * Le socle PUBLIE ses instants d'apparition (`WeaponPad.spawns`, en frames, sur l'axe de
- * `Point.T`) : il n'y a ni joueur ni déduction, on joue ce que le calque date.
+ * The stand PUBLISHES its moments of appearance (`WeaponPad.spawns`, in frames, on the
+ * `Point.T` axis): there is neither player nor deduction, the app plays what the layer dates.
  *
- * SON SYMÉTRIQUE, LE RAMASSAGE, A ÉTÉ RETIRÉ LE 2026-08-30 (`padSound.ts`, supprimé) et c'est
- * la même frontière qui l'explique. Aucun canal ne date le ramassage — `padPickups` donne un
- * intervalle dont la médiane est 20,00 s, et les loadouts vivent sur la même grille
- * d'images-clés. La règle d'alors le déduisait du premier TIR d'une famille d'arme de socle :
- * mesures justes, conclusion fausse. La doctrine de cette chaîne est que le rejeu SE TAIT
- * plutôt que de deviner, et déplacer un son sur un autre geste n'est pas se taire.
- * **Ici, le calque date ; là-bas, il ne datait pas. C'est toute la différence.**
+ * ITS SYMMETRIC, THE PICKUP, WAS REMOVED ON 2026-08-30 (`padSound.ts`, deleted) and it is
+ * the same boundary that explains it. No channel dates the pickup — `padPickups` gives an
+ * interval whose median is 20.00 s, and the loadouts live on the same grid
+ * of keyframes. The rule of then deduced it from the first SHOT of a stand weapon family:
+ * correct measurements, wrong conclusion. The doctrine of this chain is that the replay STAYS SILENT
+ * rather than guessing, and moving a sound to another gesture is not staying silent.
+ * **Here, the layer dates; there, it was not dating. That is the whole difference.**
  *
- * ## Ce que le son est, et ce qu'il n'est pas
+ * ## What the sound is, and what it is not
  *
- * Le geste vient de `sb_004_mod_mp_shared_weaponpad` (`play_004_mod_mp_shared_weaponpad_appear`,
- * `54bd9e43`), nom cassé par hachage le 2026-08-30 et DÉSIGNÉ à l'oreille par l'utilisateur le
- * même jour.
+ * The gesture comes from `sb_004_mod_mp_shared_weaponpad` (`play_004_mod_mp_shared_weaponpad_appear`,
+ * `54bd9e43`), name broken by hashing on 2026-08-30 and DESIGNATED by ear by the user on
+ * the same day.
  *
- * IL NE VAUT QUE POUR LES ARMES DE PUISSANCE, et ce n'est pas une prudence de notre part : le
- * Lua du jeu garde la table `MPItemSpawnerAudioAssets` par `MP_WEAPON_TIER.Power`. L'utilisateur
- * l'a dit dans les mêmes termes — « donc que les armes spéciales, pas les armes sur râteliers ».
- * Le calque, lui, ne publie QUE des socles : `doc.weaponPads` est la liste des socles du match,
- * les râteliers n'y sont pas. La restriction est donc tenue par la source, pas par un filtre.
+ * IT ONLY HOLDS FOR POWER WEAPONS, and that is not a caution on our part: the
+ * game Lua keeps the table `MPItemSpawnerAudioAssets` by `MP_WEAPON_TIER.Power`. The user
+ * said it in the same terms — "so only the special weapons, not the weapons on racks".
+ * The layer, it, publishes ONLY stands: `doc.weaponPads` is the list of the match's stands,
+ * the racks are not there. The restriction is therefore held by the source, not by a filter.
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
@@ -32,42 +32,42 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { padEquipmentFamilyOf } from '../model/weaponPadFamilies'
 
 /**
- * Le son de l'apparition d'une ARME sur socle. Banque `sb_004_mod_mp_shared_weaponpad`,
- * événement `54bd9e43` = `play_004_mod_mp_shared_weaponpad_appear`.
+ * The sound of the appearance of a WEAPON on a stand. Bank `sb_004_mod_mp_shared_weaponpad`,
+ * event `54bd9e43` = `play_004_mod_mp_shared_weaponpad_appear`.
  */
 export const PAD_SPAWN_SOUND_STEM = 'objective_pad_spawn'
 
 /**
- * Le son de l'apparition d'un ÉQUIPEMENT sur socle — désigné à l'oreille par l'utilisateur le
- * 2026-08-30 (« Equip 7 »). Banque commune des équipements `sb_007_abl_shared`, événement
- * `4093f3c4`, nom Wwise non cassé.
+ * The sound of the appearance of EQUIPMENT on a stand — designated by ear by the user on
+ * 2026-08-30 ("Equip 7"). Common bank of equipment `sb_007_abl_shared`, event
+ * `4093f3c4`, Wwise name not broken.
  *
- * DEUX SONS ET PAS UN, parce que le calque distingue déjà les deux natures : un socle
- * d'équipement publie sa FAMILLE (`powerup_overshield` / `powerup_camo`) là où un socle d'arme
- * publie un identifiant de famille d'arme — c'est `padEquipmentFamilyOf` qui les sépare, la
- * même jointure que l'affichage des socles (`useReplayWeaponPads`). Le jeu, lui, n'a PAS de
- * banque de socle d'équipement (mesuré le 2026-08-30 : gabarit `sb_004_mod_mp_shared_%s` sur
- * le dictionnaire complet, rien pour l'équipement) — le son vient donc de la banque commune,
- * et la désignation est celle de l'oreille.
+ * TWO SOUNDS AND NOT ONE, because the layer already distinguishes the two natures: an equipment
+ * stand publishes its FAMILY (`powerup_overshield` / `powerup_camo`) where a weapon stand
+ * publishes a weapon family identifier — it is `padEquipmentFamilyOf` that separates them, the
+ * same join as the display of the stands (`useReplayWeaponPads`). The game, it, has NO
+ * equipment stand bank (measured 2026-08-30: template `sb_004_mod_mp_shared_%s` on
+ * the complete dictionary, nothing for equipment) — the sound therefore comes from the common bank,
+ * and the designation is that of the ear.
  */
 export const EQUIPMENT_PAD_SPAWN_SOUND_STEM = 'equipment_pad_spawn'
 
 /**
- * PAD_SPAWN_MAX_PAR_MATCH — plafond de sûreté, et il dit ce qu'il coupe.
+ * PAD_SPAWN_MAX_PAR_MATCH — safety ceiling, and it says what it cuts.
  *
- * Un match porte 57 socles au plus haut relevé, et un socle réapparaît toutes les 30 à 180 s :
- * l'ordre de grandeur attendu est la centaine d'apparitions. Le plafond est là pour qu'un
- * artefact aberrant (un socle dont le cycle s'emballe) ne noie pas la piste, pas pour rogner un
- * match normal. Il est LOGGÉ par le test, jamais silencieux.
+ * A match carries 57 stands at the highest noted value, and a stand reappears every 30 to 180 s:
+ * the expected order of magnitude is the hundred of appearances. The ceiling is there so that an
+ * aberrant artifact (a stand whose cycle runs away) does not drown the track, not to trim a
+ * normal match. It is LOGGED by the test, never silent.
  */
 export const PAD_SPAWN_MAX_PAR_MATCH = 300
 
 /**
- * padSpawnSoundEvents — un son par apparition d'arme sur un socle, triés.
+ * padSpawnSoundEvents — one sound per weapon appearance on a stand, sorted.
  *
- * Aucune notion de camp : un socle n'appartient à personne. Aucune dépendance au camp allié,
- * donc — contrairement aux sons d'état de zone, celui-ci sonne même quand l'équipe alliée n'est
- * pas résolue (`FilmAllegiance.allyTeam` nul : le film ne situe pas le joueur regardé).
+ * No notion of side: a stand belongs to no one. No dependency on the allied side,
+ * therefore — unlike the zone state sounds, this one sounds even when the allied team is not
+ * resolved (`FilmAllegiance.allyTeam` null: the film does not place the viewed player).
  */
 export function padSpawnSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const pads = doc.weaponPads ?? []

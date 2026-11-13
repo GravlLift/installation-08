@@ -1,24 +1,24 @@
 /**
- * vehicleEngineMix.ts — LES MOTEURS DANS L'EXPORT HORS TEMPS RÉEL : la MÊME logique que la
- * page (mêmes bornes d'épisodes fusionnés, mêmes fondus croisés de 150 ms à puissance
- * constante, même bus à 0,85), posée d'avance dans l'`OfflineAudioContext` du mixage.
+ * vehicleEngineMix.ts — THE ENGINES IN THE OUT-OF-REAL-TIME EXPORT: the SAME logic as the
+ * page (same bounds of merged episodes, same 150 ms crossfades at constant power, same bus at
+ * 0.85), placed in advance in the `OfflineAudioContext` of the mixing.
  *
- * LE PLAN EST CELUI DE LA PAGE (`vehicleEngineSound.planVehicleEngines`, transmis par
- * `useReplaySound.exportTrack`) : le clip ne peut ni inventer un moteur ni en manquer un —
- * exactement la doctrine de `replayAudioMix.ts` pour la piste d'événements.
+ * THE PLAN IS THAT OF THE PAGE (`vehicleEngineSound.planVehicleEngines`, transmitted by
+ * `useReplaySound.exportTrack`): the clip cannot invent an engine or miss one —
+ * exactly the doctrine of `replayAudioMix.ts` for the event track.
  *
- * CE QUI CHANGE PAR RAPPORT AU TEMPS RÉEL, ET POURQUOI :
- *  - tout est PRÉ-CALCULÉ en SEGMENTS purs (`planEngineSegments`, testés) : hors ligne, il
- *    n'y a pas de curseur à suivre — chaque source connaît son instant, sa boucle et ses
- *    fondus dès la planification ;
- *  - un épisode COUPÉ par la borne de début reprend directement sur `loop` (même règle que
- *    le seek : jamais de re-enter pour un démarrage que le clip ne montre pas) ;
- *  - un épisode COUPÉ par la borne de fin s'éteint par le fondu de jonction (150 ms) qui se
- *    termine PILE sur la borne — pas d'enveloppe ajoutée à un `exit`, qui ne joue ici que si
- *    la sortie est DANS le clip (ses fins sont gravées, il déborde alors en queue) ;
- *  - un ARRÊT LONG ne pose aucune source : la boucle qui le précède finit par le fondu
- *    d'extinction (`ENGINE_STOP_FADE_S`), celle qui le suit commence par le fondu de reprise
- *    (`ENGINE_RESTART_FADE_S`) — les mêmes que la page.
+ * WHAT CHANGES WITH RESPECT TO REAL TIME, AND WHY:
+ *  - everything is PRE-COMPUTED in PURE SEGMENTS (`planEngineSegments`, tested): offline, there
+ *    is no cursor to follow — each source knows its moment, its loop and its
+ *    fades as of the planning;
+ *  - an episode CUT by the start bound resumes directly on `loop` (same rule as
+ *    the seek: never a re-enter for a start that the clip does not show);
+ *  - an episode CUT by the end bound is turned off by the junction fade (150 ms) that
+ *    ends EXACTLY on the bound — no added envelope on an `exit`, which only plays here if
+ *    the exit is IN the clip (its ends are engraved, it then overflows in the tail);
+ *  - a LONG STOP places no source: the loop that precedes it ends with the
+ *    fade-out (`ENGINE_STOP_FADE_S`), the one that follows it begins with the resume fade
+ *    (`ENGINE_RESTART_FADE_S`) — the same as the page.
  */
 import {
   ENGINE_CROSSFADE_S,
@@ -32,21 +32,21 @@ import {
   type EngineSpan,
 } from './vehicleEngineSound'
 
-/** Une source moteur posée sur l'axe du CLIP (secondes). */
+/** An engine source placed on the axis of the CLIP (seconds). */
 export interface EngineSegment {
   stem: string
-  /** Départ sur l'axe du clip. Peut être négatif de moins d'un fondu : borné au rendu. */
+  /** Start on the axis of the clip. Can be negative by less than a fade: bounded at render. */
   atS: number
   loop: boolean
-  /** Fin forcée (boucles et enter) ; absent = la source joue son fichier entier (exit). */
+  /** Forced end (loops and enter); absent = the source plays its whole file (exit). */
   stopS?: number
-  /** Fondu d'entrée à puissance constante, depuis `atS`. */
+  /** Input fade at constant power, from `atS`. */
   fadeInS?: number
-  /** Fondu de sortie à puissance constante, se terminant à `stopS`. */
+  /** Output fade at constant power, ending at `stopS`. */
   fadeOutS?: number
 }
 
-/** Les périodes de COURSE d'un épisode bornées à [a, b], dans l'ordre (les arrêts en moins). */
+/** The RUNNING periods of an episode bounded to [a, b], in order (the stops removed). */
 function courseSpans(ep: EngineEpisode, a: number, b: number): EngineSpan[] {
   const out: EngineSpan[] = []
   let cursor = a
@@ -62,10 +62,10 @@ function courseSpans(ep: EngineEpisode, a: number, b: number): EngineSpan[] {
 }
 
 /**
- * planEngineSegments — les segments d'UN plan de véhicule, bornés à la plage exportée.
+ * planEngineSegments — the segments of ONE vehicle plan, bounded to the exported range.
  *
- * `durOf` rend la durée décodée d'un stem (l'enter en a besoin pour poser sa jonction), ou
- * `null` si le fichier est absent — le segment concerné saute, silence propre comme partout.
+ * `durOf` returns the decoded duration of a stem (the enter needs it to place its junction), or
+ * `null` if the file is absent — the concerned segment skips, clean silence like everywhere.
  */
 export function planEngineSegments(
   plan: EnginePlan,
@@ -82,7 +82,7 @@ export function planEngineSegments(
     if (b <= a) continue
     const entered = ep.t0Ms >= bounds.startMs
     const enterDur = entered ? durOf(stems.enter) : null
-    // La voix tenue démarre à la jonction de l'enter quand il joue, au bord du clip sinon.
+    // The held voice starts at the junction of the enter when it plays, at the edge of the clip otherwise.
     let heldStart = rel(a)
     let heldFadeIn = 0
     if (enterDur !== null && enterDur > 0) {
@@ -101,13 +101,13 @@ export function planEngineSegments(
     const courses = durOf(stems.loop) === null ? [] : courseSpans(ep, a, b)
     for (let i = 0; i < courses.length; i++) {
       const c = courses[i]
-      // La course qui ouvre l'épisode prend la jonction de l'enter (ou le bord du clip) ; les
-      // suivantes REPARTENT d'un arrêt.
+      // The course that opens the episode takes the junction of the enter (or the edge of the clip); the
+      // following ones RESTART from a stop.
       const opens = c.t0Ms === a
       const atS = opens ? heldStart : rel(c.t0Ms)
       const fadeInS = opens ? heldFadeIn : ENGINE_RESTART_FADE_S
-      // La fin d'une course : vers `exit` (fondu croisé), vers un arrêt (fondu d'extinction),
-      // ou coupée net par le bord du clip.
+      // The end of a course: toward `exit` (crossfade), toward a stop (fade-out),
+      // or cut off by the edge of the clip.
       const closes = c.t1Ms === b
       const fadeOutS = closes ? ENGINE_CROSSFADE_S : ENGINE_STOP_FADE_S
       out.push({
@@ -126,7 +126,7 @@ export function planEngineSegments(
   return out
 }
 
-/** Tous les stems dont les segments d'un jeu de plans peuvent avoir besoin (décodage). */
+/** All the stems that the segments of a set of plans may need (decoding). */
 export function engineStemsOf(plans: readonly EnginePlan[]): string[] {
   const out = new Set<string>()
   for (const p of plans) {
@@ -138,8 +138,8 @@ export function engineStemsOf(plans: readonly EnginePlan[]): string[] {
 }
 
 /**
- * engineTailSeconds — ce que les moteurs DÉBORDENT après la borne du clip : la queue d'un
- * `exit` gravé qui commence près de la fin. Même rôle que `tailSeconds` pour les événements.
+ * engineTailSeconds — what the engines OVERFLOW after the bound of the clip: the tail of an
+ * engraved `exit` that begins near the end. Same role as `tailSeconds` for the events.
  */
 export function engineTailSeconds(
   segments: readonly EngineSegment[],
@@ -155,8 +155,8 @@ export function engineTailSeconds(
 }
 
 /**
- * scheduleEngineMix pose les segments dans le contexte hors ligne, derrière le bus moteur
- * (0,85 — la même retenue que la page, décision utilisateur du 2026-09-04).
+ * scheduleEngineMix places the segments in the offline context, behind the engine bus
+ * (0.85 — the same restraint as the page, user decision of 2026-09-04).
  */
 export function scheduleEngineMix(
   ctx: BaseAudioContext,

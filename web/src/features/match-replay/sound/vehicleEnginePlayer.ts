@@ -1,33 +1,33 @@
 /**
- * vehicleEnginePlayer.ts — LA LECTURE TEMPS RÉEL des moteurs de véhicules, et rien d'autre.
+ * vehicleEnginePlayer.ts — THE REAL-TIME PLAYBACK of the vehicle engines, and nothing else.
  *
- * Le lecteur d'événements (`replayAudio.ts`) joue des one-shots enveloppés ; un moteur est un
- * ÉTAT CONTINU (cf. l'en-tête de `vehicleEngineSound.ts`, qui porte le plan et le contrat de
- * la banque). Ce module tient les sources Web Audio de cet état :
+ * The event player (`replayAudio.ts`) plays envelopped one-shots; an engine is a
+ * CONTINUOUS STATE (cf. the header of `vehicleEngineSound.ts`, which carries the plan and the
+ * contract of the bank). This module holds the Web Audio sources of this state:
  *
- *  - ENTRÉE CONTINUE (la lecture franchit T0) : `enter` part, et son fondu croisé vers `loop`
- *    est PRÉ-PROGRAMMÉ à la construction (automation Web Audio) — aucun battement à surveiller,
- *    la jonction tombe à l'échantillon près quelle que soit la charge de la page.
- *  - SEEK AU MILIEU D'UN ÉPISODE : reprise DIRECTEMENT sur `loop` (décision de cadrage n° 6,
- *    jamais de re-enter — un démarrage de moteur qui n'a pas eu lieu serait un mensonge).
- *  - SORTIE (la lecture franchit T1) : fondu croisé vers `exit`, qui se joue ENTIER et finit à
- *    zéro tout seul (fins gravées — AUCUNE enveloppe ajoutée, contrat de la banque).
- *  - ARRÊT LONG en cours d'épisode (phase `arret`) : la boucle s'éteint en fondu
- *    (`ENGINE_STOP_FADE_S`) et la chaîne reste ouverte SANS voix ; à la reprise, une boucle
- *    neuve monte en fondu (`ENGINE_RESTART_FADE_S`). Ni `enter` ni `exit` : le moteur n'a
- *    pas été coupé.
- *  - PAUSE / COUPURE / DÉMONTAGE : rampe courte (`ENGINE_STOP_RAMP_S`, 20 ms) — l'anti-clic
- *    d'un arrêt que la timeline ne raconte pas, pas une enveloppe musicale.
- *  - VITESSE DE LECTURE ≠ 1 : les BORNES suivent la timeline (T0/T1 sont détectés sur les ms
- *    du rejeu), mais les fichiers se jouent à VITESSE NATURELLE — jamais de `playbackRate`,
- *    donc jamais de moteur « chipmunk ». Au-delà de `SOUND_MAX_SPEED`, le câblage
- *    (`useReplaySound`) cesse d'appeler `sync` et appelle `stopAll` : même silence que le
- *    reste de la piste, même message « son coupé par la vitesse ».
+ *  - CONTINUOUS ENTRY (the playback crosses T0): `enter` goes out, and its crossfade toward `loop`
+ *    is PRE-PROGRAMMED at the construction (Web Audio automation) — no beat to watch,
+ *    the junction lands to the sample whatever the load of the page.
+ *  - SEEK IN THE MIDDLE OF AN EPISODE: resume DIRECTLY on `loop` (framing decision n° 6,
+ *    never a re-enter — an engine start that did not take place would be a lie).
+ *  - EXIT (the playback crosses T1): crossfade toward `exit`, which plays WHOLE and ends at
+ *    zero by itself (engraved ends — NO added envelope, contract of the bank).
+ *  - LONG STOP mid-episode (phase `arret`): the loop fades out
+ *    (`ENGINE_STOP_FADE_S`) and the chain stays open WITHOUT a voice; on the resume, a new
+ *    loop rises in a fade (`ENGINE_RESTART_FADE_S`). Neither `enter` nor `exit`: the engine
+ *    was not cut.
+ *  - PAUSE / CUT / UNMOUNT: short ramp (`ENGINE_STOP_RAMP_S`, 20 ms) — the anti-click
+ *    of a stop that the timeline does not narrate, not a musical envelope.
+ *  - PLAYBACK SPEED ≠ 1: the BOUNDS follow the timeline (T0/T1 are detected on the ms
+ *    of the replay), but the files play at NATURAL SPEED — never a `playbackRate`,
+ *    therefore never a "chipmunk" engine. Beyond `SOUND_MAX_SPEED`, the wiring
+ *    (`useReplaySound`) stops calling `sync` and calls `stopAll`: same silence as the
+ *    rest of the track, same "sound cut by speed" message.
  *
- * LES MOTEURS NE COMPTENT PAS DANS `SOUND_MAX_VOICES` : ce plafond arbitre des one-shots de
- * mêlée équivalents entre eux ; couper un moteur au profit d'un tir raconterait qu'un véhicule
- * s'est tu sans raison. Deux ou trois moteurs simultanés sont le maximum réaliste d'un match,
- * et le bus à 0,85 les tient en retrait.
+ * THE ENGINES DO NOT COUNT IN `SOUND_MAX_VOICES`: that ceiling arbitrates equivalent one-shots
+ * of a melee; cutting an engine in favor of a shot would narrate that a vehicle
+ * went silent without reason. Two or three simultaneous engines are the realistic maximum of a match,
+ * and the bus at 0.85 keeps them in restraint.
  */
 import {
   ENGINE_CROSSFADE_S,
@@ -43,37 +43,37 @@ import {
 } from './vehicleEngineSound'
 
 /**
- * Saut de timeline au-delà duquel une avance n'est plus une lecture continue : même valeur et
- * même raison que `SOUND_RESYNC_JUMP_MS` (replaySoundCursor.ts) — mais ici le recalage ne
- * SAUTE pas des sons, il réconcilie un état (couper ce qui ne doit plus sonner, reprendre la
- * boucle de ce qui doit).
+ * Timeline jump beyond which a forward move is no longer a continuous playback: same value and
+ * same reason as `SOUND_RESYNC_JUMP_MS` (replaySoundCursor.ts) — but here the reseeding does
+ * not SKIP sounds, it reconciles a state (cut what should no longer sound, resume the
+ * loop of what should).
  */
 export const ENGINE_RESYNC_JUMP_MS = 1_000
 
-/** Ce que le lecteur moteur demande à son hôte : le contexte, le bus moteur, les tampons. */
+/** What the engine player asks of its host: the context, the engine bus, the buffers. */
 export interface EngineAudioPort {
   ctx: BaseAudioContext
-  /** Le bus moteur (gain 0,85 posé par l'hôte), branché sur le maître du lecteur. */
+  /** The engine bus (gain 0.85 set by the host), plugged on the master of the player. */
   out: AudioNode
-  /** Tampon décodé d'un stem, `null`/`undefined` = absent ou pas encore chargé : silence. */
+  /** Decoded buffer of a stem, `null`/`undefined` = absent or not yet loaded: silence. */
   bufferOf: (stem: string) => AudioBuffer | null | undefined
 }
 
-/** Une source en vol : le nœud, son gain, et de quoi l'éteindre proprement. */
+/** A source in flight: the node, its gain, and what to turn it off cleanly. */
 interface EngineVoice {
   src: AudioBufferSourceNode
   gain: GainNode
 }
 
-/** L'état d'un épisode en train de sonner. `holdUntil` protège le fondu enter->loop programmé. */
+/** The state of an episode in the process of sounding. `holdUntil` protects the enter->loop programmed fade. */
 interface EngineChain {
   phase: EnginePhase
   /**
-   * La voix TENUE (la boucle), `null` pendant un arrêt. L'enter et l'exit sont des one-shots
-   * qui s'éteignent seuls.
+   * The HELD voice (the loop), `null` during a stop. The enter and the exit are one-shots
+   * that turn off by themselves.
    */
   held: EngineVoice | null
-  /** Temps de contexte avant lequel aucun swap idle/loop n'est permis (fondu d'enter en cours). */
+  /** Context time before which no idle/loop swap is allowed (enter fade in progress). */
   holdUntil: number
 }
 
@@ -82,30 +82,30 @@ const CURVES = equalPowerCurves()
 export class VehicleEnginePlayer {
   private port: EngineAudioPort
   private plans: EnginePlan[] = []
-  /** clé `plan:épisode` -> chaîne en vol. */
+  /** key `plan:episode` -> chain in flight. */
   private chains = new Map<string, EngineChain>()
   /**
-   * Les ONE-SHOTS en vol (`enter` pendant son fondu, `exit` jusqu'à sa fin gravée) : ils ne
-   * sont la voix tenue de personne, mais une PAUSE doit les éteindre aussi — un moteur qui
-   * finit son démarrage pendant que la lecture est arrêtée serait un son sans image.
+   * The ONE-SHOTS in flight (`enter` during its fade, `exit` up to its engraved end): they
+   * are not the held voice of anyone, but a PAUSE must turn them off too — an engine
+   * that finishes its start while the playback is stopped would be a sound without an image.
    */
   private tails = new Set<EngineVoice>()
-  /** Dernier instant servi, ou `null` = le prochain `sync` est un recalage silencieux. */
+  /** Last moment served, or `null` = the next `sync` is a silent reseeding. */
   private lastMs: number | null = null
 
   constructor(port: EngineAudioPort) {
     this.port = port
   }
 
-  /** setPlans remplace le plan (changement de document). Tout ce qui sonne s'arrête. */
+  /** setPlans replaces the plan (document change). Everything that sounds stops. */
   setPlans(plans: EnginePlan[]): void {
     this.stopAll()
     this.plans = plans
   }
 
   /**
-   * sync fait suivre l'état des moteurs à l'instant `ms` du rejeu. À appeler à chaque
-   * battement audible ; un saut (scrub, reprise) est détecté ici et réconcilié en silence.
+   * sync makes the state of the engines follow the moment `ms` of the replay. To call at each
+   * audible beat; a jump (scrub, resume) is detected here and reconciled in silence.
    */
   sync(ms: number): void {
     const continuous =
@@ -119,27 +119,27 @@ export class VehicleEnginePlayer {
         this.reconcile(key, plan, chain, phase)
         return
       }
-      // ENTRÉE : la lecture FRANCHIT T0 — le seul chemin qui joue `enter`.
+      // ENTRY: the playback CROSSES T0 — the only path that plays `enter`.
       if (!chain && last < ep.t0Ms && ms >= ep.t0Ms && phase !== null) {
         this.startEnter(key, plan, phase)
         return
       }
-      // SORTIE : la lecture FRANCHIT T1 — fondu vers `exit`, qui se joue entier.
+      // EXIT: the playback CROSSES T1 — fade toward `exit`, which plays whole.
       if (chain && last < ep.t1Ms && ms >= ep.t1Ms) {
         this.startExit(key, plan, chain)
         return
       }
-      // COURSE <-> ARRÊT en cours d'épisode, une fois le fondu d'enter retombé.
+      // RUNNING <-> STOP mid-episode, once the enter fade has settled.
       if (chain && phase !== null && chain.phase !== phase && this.port.ctx.currentTime >= chain.holdUntil) {
         this.swapHeld(plan, chain, phase)
         return
       }
-      // Épisode entré par un chemin non continu couvert plus haut ? Réconciliation par défaut.
+      // Episode entered by a non-continuous path covered above? Reconciliation by default.
       if (!chain && phase !== null) this.startHeld(key, plan, phase)
     })
   }
 
-  /** stopAll éteint tout par la rampe courte. Le prochain `sync` sera un recalage. */
+  /** stopAll turns everything off by the short ramp. The next `sync` will be a reseeding. */
   stopAll(): void {
     for (const chain of this.chains.values()) this.release(chain)
     this.chains.clear()
@@ -160,7 +160,7 @@ export class VehicleEnginePlayer {
     }
   }
 
-  /** reconcile — l'état voulu SANS histoire : boucle directe dedans, silence dehors. */
+  /** reconcile — the wanted state WITHOUT history: direct loop in, silence out. */
   private reconcile(
     key: string,
     plan: EnginePlan,
@@ -175,8 +175,8 @@ export class VehicleEnginePlayer {
   }
 
   /**
-   * startHeld ouvre la chaîne SANS enter (le chemin du seek) : la boucle directe en course,
-   * aucune voix pendant un arrêt.
+   * startHeld opens the chain WITHOUT enter (the seek path): the direct loop in running,
+   * no voice during a stop.
    */
   private startHeld(key: string, plan: EnginePlan, phase: Exclude<EnginePhase, null>): void {
     if (phase === 'arret') {
@@ -189,15 +189,15 @@ export class VehicleEnginePlayer {
   }
 
   /**
-   * startEnter joue `enter` et PRÉ-PROGRAMME son fondu croisé vers la voix tenue : les deux
-   * automations sont posées maintenant, la jonction n'a besoin d'aucun battement.
+   * startEnter plays `enter` and PRE-PROGRAMS its crossfade toward the held voice: the two
+   * automations are placed now, the junction needs no beat.
    */
   private startEnter(key: string, plan: EnginePlan, phase: Exclude<EnginePhase, null>): void {
     const stems = VEHICLE_ENGINE_STEMS[plan.family]
     const buf = stems ? this.port.bufferOf(stems.enter) : null
     const t0 = this.port.ctx.currentTime
     if (!buf) {
-      // Enter absent (chargement en retard) : la boucle directe vaut mieux qu'un silence.
+      // Enter absent (late loading): the direct loop is better than a silence.
       this.startHeld(key, plan, phase)
       return
     }
@@ -211,7 +211,7 @@ export class VehicleEnginePlayer {
     this.chains.set(key, { phase: 'loop', held, holdUntil: fadeAt + ENGINE_CROSSFADE_S })
   }
 
-  /** startExit fond la voix tenue vers `exit`, qui se joue ENTIER (fins gravées). */
+  /** startExit fades the held voice toward `exit`, which plays WHOLE (engraved ends). */
   private startExit(key: string, plan: EnginePlan, chain: EngineChain): void {
     const stems = VEHICLE_ENGINE_STEMS[plan.family]
     const buf = stems ? this.port.bufferOf(stems.exit) : null
@@ -222,10 +222,10 @@ export class VehicleEnginePlayer {
     const voice = this.spawnVoice(buf, false, t0, 0)
     this.trackTail(voice)
     voice.gain.gain.setValueCurveAtTime(CURVES.fadeIn, t0, ENGINE_CROSSFADE_S)
-    // Pas de `stop` posé : la source s'arrête à la fin de son fichier, et `onended` nettoie.
+    // No `stop` placed: the source stops at the end of its file, and `onended` cleans up.
   }
 
-  /** trackTail suit un one-shot en vol pour que `stopAll` puisse l'éteindre lui aussi. */
+  /** trackTail follows a one-shot in flight so that `stopAll` can turn it off too. */
   private trackTail(voice: EngineVoice): void {
     this.tails.add(voice)
     const inner = voice.src.onended
@@ -235,25 +235,25 @@ export class VehicleEnginePlayer {
     }
   }
 
-  /** fadeOutVoice — rampe courte puis arrêt d'une voix quelconque. */
+  /** fadeOutVoice — short ramp then stop of any voice. */
   private fadeOutVoice(voice: EngineVoice, at: number, fadeS: number): void {
     const g = voice.gain.gain
     try {
       g.cancelScheduledValues(at)
       g.setValueCurveAtTime(scaledFadeOut(g.value), at, fadeS)
     } catch (err) {
-      // Un fondu déjà EN COURS (entrée, sortie ou croisé) chevauche la courbe d'arrêt : le
-      // navigateur refuse la programmation. Une pause qui lève une exception laisserait le
-      // moteur tourner ; on coupe donc franchement (un clic vaut mieux qu'un moteur qui
-      // ronfle sur une image arrêtée), et la cause est dite.
-      console.warn("[replay-audio] fondu d'arrêt refusé, coupure franche :", err)
+      // A fade ALREADY IN PROGRESS (entry, exit or crossfade) overlaps the stop curve: the
+      // browser refuses the programming. A pause that throws an exception would leave the
+      // engine running; we therefore cut outright (a click is better than an engine
+      // idling on a stopped frame), and the cause is said.
+      console.warn("[replay-audio] stop fade refused, hard cut:", err)
       voice.src.stop(at)
       return
     }
     voice.src.stop(at + fadeS)
   }
 
-  /** swapHeld — course -> arrêt : la boucle s'éteint en fondu ; arrêt -> course : elle remonte. */
+  /** swapHeld — running -> stop: the loop fades out; stop -> running: it rises. */
   private swapHeld(plan: EnginePlan, chain: EngineChain, phase: Exclude<EnginePhase, null>): void {
     const t0 = this.port.ctx.currentTime
     if (phase === 'arret') {
@@ -266,7 +266,7 @@ export class VehicleEnginePlayer {
     chain.phase = phase
   }
 
-  /** spawnLoop crée la voix TENUE : la boucle de la famille, fondu d'entrée optionnel. */
+  /** spawnLoop creates the HELD voice: the loop of the family, optional input fade. */
   private spawnLoop(plan: EnginePlan, at: number, fadeS: number): EngineVoice | null {
     const stem = VEHICLE_ENGINE_STEMS[plan.family]?.loop
     const buf = stem ? this.port.bufferOf(stem) : null
@@ -276,14 +276,14 @@ export class VehicleEnginePlayer {
     return voice
   }
 
-  /** spawnVoice — source + gain branchés sur le bus, nettoyés à la fin de la source. */
+  /** spawnVoice — source + gain plugged on the bus, cleaned at the end of the source. */
   private spawnVoice(buf: AudioBuffer, loop: boolean, at: number, gain0: number): EngineVoice {
     const ctx = this.port.ctx
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(gain0, at)
     const src = ctx.createBufferSource()
     src.buffer = buf
-    // LE FONDU DE REBOUCLAGE EST DANS LE FICHIER (contrat de la banque) : `loop = true` suffit.
+    // THE LOOP FADE IS IN THE FILE (contract of the bank): `loop = true` suffices.
     src.loop = loop
     src.connect(gain)
     gain.connect(this.port.out)
@@ -295,21 +295,21 @@ export class VehicleEnginePlayer {
     return { src, gain }
   }
 
-  /** fadeOutHeld éteint la voix tenue par un fondu, puis l'arrête. */
+  /** fadeOutHeld turns off the held voice by a fade, then stops it. */
   private fadeOutHeld(chain: EngineChain, at: number, fadeS: number): void {
     if (!chain.held) return
     this.fadeOutVoice(chain.held, at, fadeS)
     chain.held = null
   }
 
-  /** release — l'arrêt d'urgence (pause, coupure) : rampe de 20 ms, jamais un clic. */
+  /** release — the emergency stop (pause, cut): 20 ms ramp, never a click. */
   private release(chain: EngineChain): void {
     const t0 = this.port.ctx.currentTime
     this.fadeOutHeld(chain, t0, ENGINE_STOP_RAMP_S)
   }
 }
 
-/** La courbe de sortie, remise à l'échelle du gain courant (un fondu qui part d'où on est). */
+/** The output curve, rescaled to the current gain (a fade that starts from where we are). */
 function scaledFadeOut(from: number): Float32Array {
   const base = CURVES.fadeOut
   const out = new Float32Array(base.length)

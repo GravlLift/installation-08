@@ -1,38 +1,39 @@
 /**
- * useAudioUnlock — LE LECTEUR S'OUVRE AU PREMIER GESTE SUR LA PAGE, QUEL QU'IL SOIT, quand la
- * préférence est à « activé » (item 12 du plan backlog du 2026-09-26, décision D-10).
+ * useAudioUnlock — THE PLAYER OPENS ON THE FIRST GESTURE ON THE PAGE, WHATEVER IT IS, when the
+ * preference is "enabled" (item 12 of the backlog plan of 2026-09-26, decision D-10).
  *
- * LE DÉFAUT MESURÉ (A2.0, Chromium et Firefox, politique d'autoplay par défaut). Seuls
- * « Lecture », « Recommencer » et le bouton du son ouvraient le lecteur. Avec la lecture
- * automatique, la lecture démarre sans aucun de ces gestes : le rejeu restait muet, clic
- * ailleurs sur la page ou pas, jusqu'à ce qu'on touche au bouton du son. En passant d'un rejeu
- * à un autre sans rechargement, même silence, alors que le document avait déjà reçu un geste.
+ * THE MEASURED DEFECT (A2.0, Chromium and Firefox, default autoplay policy). Only "Play",
+ * "Restart" and the sound button opened the player. With automatic playback, the playback starts
+ * without any of these gestures: the replay stayed silent, click elsewhere on the page or not,
+ * until the sound button was touched. Going from one replay to another without reloading, same
+ * silence, even though the document had already received a gesture.
  *
- * DEUX RÈGLES, et la politique d'autoplay des navigateurs n'est jamais contournée :
- *  - le document a DÉJÀ reçu un geste (`navigator.userActivation.hasBeenActive`, cas du passage
- *    d'un rejeu à un autre) : le lecteur s'ouvre dès l'affichage. Chromium et Firefox autorisent
- *    un contexte audio sur une activation acquise ;
- *  - sinon, un écouteur unique attend le premier geste sur le document, ouvre le lecteur, et se
- *    retire. Jamais de son sans geste préalable.
+ * TWO RULES, and the browsers' autoplay policy is never bypassed:
+ *  - the document HAS ALREADY received a gesture (`navigator.userActivation.hasBeenActive`,
+ *    case of going from one replay to another): the player opens as soon as it is displayed.
+ *    Chromium and Firefox allow an audio context on an acquired activation;
+ *  - otherwise, a unique listener waits for the first gesture on the document, opens the player,
+ *    and removes itself. Never any sound without a prior gesture.
  *
- * `click` ET `keyup`, PAS `pointerdown` NI `keydown`, ET C'EST UNE CONDITION DU CORRECTIF DU
- * 2026-08-27. Le premier clic sur le bouton du son doit ACTIVER. Or `pointerdown` précède le
- * `click` du bouton, et la touche M agit sur `keydown`, écoutée par la fenêtre APRÈS le document.
- * Un écouteur sur ces deux événements ouvrirait donc le lecteur avant la bascule, qui le
- * trouverait vivant et COUPERAIT. Sur `click` et `keyup`, le document passe après le bouton et
- * après le raccourci. L'activation, elle, est acquise dès `pointerdown` ou `keydown` : le
- * contexte né dans `click` ou `keyup` démarre en marche (mesuré au même A2.0).
+ * `click` AND `keyup`, NOT `pointerdown` NOR `keydown`, AND THAT IS A CONDITION OF THE FIX OF
+ * 2026-08-27. The first click on the sound button must ACTIVATE. Now `pointerdown` precedes the
+ * `click` of the button, and the M key acts on `keydown`, listened by the window AFTER the
+ * document. A listener on these two events would therefore open the player before the toggle,
+ * which would find it alive and CUT. On `click` and `keyup`, the document passes after the
+ * button and after the shortcut. The activation, it, is acquired as of `pointerdown` or
+ * `keydown`: the context born in `click` or `keyup` starts in operation (measured at the same
+ * A2.0).
  *
- * `open` est `wake` : sans effet si la préférence est « coupé » ou si le lecteur vit déjà.
+ * `open` is `wake`: no effect if the preference is "off" or if the player is already alive.
  */
 import { useEffect, useRef } from 'react'
 
-/** Les gestes qui ouvrent le lecteur : voir l'en-tête pour le choix des événements. */
+/** The gestures that open the player: see the header for the choice of events. */
 const UNLOCK_EVENTS = ['click', 'keyup'] as const
 
 export function useAudioUnlock(wanted: boolean, open: () => void): void {
-  // `open` LU PAR UNE REF : il change d'identité avec les réglages du lecteur, et l'écouteur ne
-  // doit pas être retiré puis reposé à chaque rendu pour autant.
+  // `open` READ BY A REF: it changes identity with the player settings, and the listener
+  // must not be removed and re-posed at each render for that.
   const openRef = useRef(open)
   useEffect(() => { openRef.current = open }, [open])
   useEffect(() => {

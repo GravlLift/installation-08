@@ -1,15 +1,15 @@
 /**
- * replayAudio.test.ts — LE MOTEUR, sur un AudioContext de laboratoire.
+ * replayAudio.test.ts — THE ENGINE, on a laboratory AudioContext.
  *
- * Ce qui se vérifie ici ne s'entend pas à l'oreille et casse en silence : qu'un son parte
- * bien (déclenchement), qu'il joue jusqu'au bout de SON fichier avec un fondu de sortie
- * (la durée par catégorie est portée par l'asset depuis le 2026-08-16 ; le lecteur ne
- * garde qu'un plafond de sûreté), qu'un fichier absent reste un SILENCE mémorisé (jamais
- * une re-tentative par kill, jamais un son de remplacement), et qu'un échange nourri ne
- * fasse pas un mur de voix.
+ * What is verified here is not heard by ear and breaks silently: that a sound goes out
+ * properly (trigger), that it plays to the end of ITS file with an output fade
+ * (the duration per category is carried by the asset since 2026-08-16; the player keeps
+ * only a safety ceiling), that an absent file stays a MEMORIZED SILENCE (never a
+ * re-attempt per kill, never a replacement sound), and that a sustained exchange does
+ * not make a wall of voices.
  *
- * jsdom n'a pas de Web Audio : le contexte est un double instrumenté qui note ce qu'on lui
- * demande. Il ne juge pas le rendu sonore — c'est le gate d'écoute qui le fait.
+ * jsdom has no Web Audio: the context is an instrumented double that notes what is asked
+ * of it. It does not judge the sound render — that is the listening gate that does it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,8 +46,8 @@ afterEach(() => {
 const flush = flushAudio
 const okResponse = okAudioResponse
 
-describe('ReplayAudioPlayer — déclenchement', () => {
-  it('joue un son chargé : une source démarrée à l instant courant', async () => {
+describe('ReplayAudioPlayer — trigger', () => {
+  it('plays a loaded sound: a source started at the current instant', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/static/sounds/halo_infinite/hinf_br75.ogg'])
     await flush()
@@ -56,7 +56,7 @@ describe('ReplayAudioPlayer — déclenchement', () => {
     expect(ctx.sources[0].started).toBe(ctx.currentTime)
   })
 
-  it('ne charge qu UNE fois la même URL, même précédée de plusieurs demandes', async () => {
+  it('loads the SAME URL only ONCE, even preceded by several requests', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg', '/a.ogg'])
     p.preload(['/a.ogg'])
@@ -66,7 +66,7 @@ describe('ReplayAudioPlayer — déclenchement', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('plusieurs sons SIMULTANÉS partent ensemble (un échange, pas une file)', async () => {
+  it('several SIMULTANEOUS sounds go out together (an exchange, not a queue)', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg', '/b.ogg', '/c.ogg'])
     await flush()
@@ -78,14 +78,14 @@ describe('ReplayAudioPlayer — déclenchement', () => {
   })
 })
 
-describe('ReplayAudioPlayer — coupure', () => {
-  it('joue un son jusqu au bout de son fichier : fondu sur la fin, pas à la seconde', async () => {
+describe('ReplayAudioPlayer — cut', () => {
+  it('plays a sound to the end of its file: fade on the end, not at the second', async () => {
     const p = new ReplayAudioPlayer(1)
-    p.preload(['/explosion.ogg']) // 3 s de source (une explosion de grenade livrée)
+    p.preload(['/explosion.ogg']) // 3 s of source (a delivered grenade explosion)
     await flush()
     p.play('/explosion.ogg')
     const t0 = ctx.currentTime
-    // Le gain de voix est le dernier créé (le maître naît avec le lecteur).
+    // The voice gain is the last created (the master is born with the player).
     const voice = ctx.gains[ctx.gains.length - 1]
     expect(voice.gain.calls).toEqual([
       ['set', 1, t0],
@@ -95,7 +95,7 @@ describe('ReplayAudioPlayer — coupure', () => {
     expect(ctx.sources[0].stopped).toBe(t0 + 3)
   })
 
-  it('un son plus long que le plafond de sûreté y est coupé (asset livré trop long)', async () => {
+  it('a sound longer than the safety ceiling is cut there (asset delivered too long)', async () => {
     const p = new ReplayAudioPlayer(1)
     fetchMock.mockResolvedValueOnce(okResponse(30))
     p.preload(['/entier.ogg'])
@@ -111,7 +111,7 @@ describe('ReplayAudioPlayer — coupure', () => {
     expect(ctx.sources[0].stopped).toBe(t0 + SOUND_CUT_MAX_S)
   })
 
-  it('un son très court joue entier, fondu borné à sa moitié', async () => {
+  it('a very short sound plays whole, fade bounded to its half', async () => {
     const p = new ReplayAudioPlayer(1)
     fetchMock.mockResolvedValueOnce(okResponse(0.4))
     p.preload(['/court.ogg'])
@@ -122,8 +122,8 @@ describe('ReplayAudioPlayer — coupure', () => {
   })
 })
 
-describe('ReplayAudioPlayer — silence propre', () => {
-  it('fichier absent (404) : AUCUNE source, et pas de re-tentative à chaque passage', async () => {
+describe('ReplayAudioPlayer — clean silence', () => {
+  it('absent file (404): NO source, and no re-attempt at each passage', async () => {
     const p = new ReplayAudioPlayer(1)
     fetchMock.mockResolvedValue({ ok: false, status: 404 })
     p.preload(['/absent.ogg'])
@@ -134,7 +134,7 @@ describe('ReplayAudioPlayer — silence propre', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('URL jamais demandée : silence à cet instant, chargement pour les suivants', async () => {
+  it('URL never requested: silence at that instant, loading for the following', async () => {
     const p = new ReplayAudioPlayer(1)
     p.play('/tard.ogg')
     expect(ctx.sources).toHaveLength(0)
@@ -144,7 +144,7 @@ describe('ReplayAudioPlayer — silence propre', () => {
     expect(ctx.sources).toHaveLength(1)
   })
 
-  it('fichier indécodable : silence mémorisé, jamais une exception qui casse la lecture', async () => {
+  it('undecodable file: memorized silence, never an exception that breaks the reading', async () => {
     const p = new ReplayAudioPlayer(1)
     vi.spyOn(ctx, 'decodeAudioData').mockRejectedValue(new Error('bouillie'))
     p.preload(['/casse.ogg'])
@@ -154,8 +154,8 @@ describe('ReplayAudioPlayer — silence propre', () => {
   })
 })
 
-describe('ReplayAudioPlayer — voix et volume', () => {
-  it('plafonne les voix simultanées, et en libère une quand un son se termine', async () => {
+describe('ReplayAudioPlayer — voices and volume', () => {
+  it('caps the simultaneous voices, and frees one when a sound ends', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg'])
     await flush()
@@ -166,7 +166,7 @@ describe('ReplayAudioPlayer — voix et volume', () => {
     expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 1)
   })
 
-  it('la CONCLUSION passe hors plafond, avec l’enveloppe normale, sans occuper de voix', async () => {
+  it('the CONCLUSION goes out of ceiling, with the normal envelope, without occupying a voice', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg', '/voix.ogg', '/fanfare.ogg'])
     await flush()
@@ -174,19 +174,19 @@ describe('ReplayAudioPlayer — voix et volume', () => {
     p.playConclusion('/voix.ogg')
     p.playConclusion('/fanfare.ogg')
     expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 2)
-    // Enveloppe normale : jusqu'au bout du fichier (3 s ici), fondu compris.
+    // Normal envelope: to the end of the file (3 s here), fade included.
     expect(ctx.sources[SOUND_MAX_VOICES].stopped).toBeCloseTo(ctx.currentTime + 3)
-    // Un son ordinaire reste refusé : le plafond n'a pas bougé.
+    // An ordinary sound stays refused: the ceiling has not moved.
     p.play('/a.ogg')
     expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 2)
-    // La fin des conclusions ne rend aucune voix qu'elles n'avaient pas prise.
+    // The end of the conclusions does not return any voice they had not taken.
     ctx.sources[SOUND_MAX_VOICES].end()
     ctx.sources[SOUND_MAX_VOICES + 1].end()
     p.play('/a.ogg')
     expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 2)
   })
 
-  it('stopAll (la PAUSE) éteint TOUT ce qui est en vol, la conclusion exceptée', async () => {
+  it('stopAll (the PAUSE) turns off EVERYTHING in flight, the conclusion excepted', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg', '/voix.ogg'])
     await flush()
@@ -195,28 +195,28 @@ describe('ReplayAudioPlayer — voix et volume', () => {
     p.playConclusion('/voix.ogg')
     p.stopAll()
     const rampEnd = ctx.currentTime + VOLUME_RAMP_S
-    // Les deux sons ordinaires sont arrêtés par la rampe courte, pas à la fin de leur fichier.
+    // The two ordinary sounds are stopped by the short ramp, not at the end of their file.
     expect(ctx.sources[0].stopped).toBeCloseTo(rampEnd)
     expect(ctx.sources[1].stopped).toBeCloseTo(rampEnd)
-    // La conclusion, partie à la borne de fin, garde son enveloppe normale (3 s ici).
+    // The conclusion, gone out at the end bound, keeps its normal envelope (3 s here).
     expect(ctx.sources[2].stopped).toBeCloseTo(ctx.currentTime + 3)
   })
 
-  it('la voix d’ANNONCEUR (manche terminée) est hors plafond ET coupée par la pause : deux règles distinctes', async () => {
+  it('the ANNOUNCER voice (round ended) is out of ceiling AND cut by the pause: two distinct rules', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg', '/manche.ogg', '/voix.ogg'])
     await flush()
     for (let i = 0; i < SOUND_MAX_VOICES; i++) p.play('/a.ogg')
-    p.playAnnouncer('/manche.ogg') // plafond atteint : l'annonce passe quand même
+    p.playAnnouncer('/manche.ogg') // ceiling reached: the announcement goes out anyway
     p.playConclusion('/voix.ogg')
     expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 2)
     p.stopAll()
     const rampEnd = ctx.currentTime + VOLUME_RAMP_S
-    expect(ctx.sources[SOUND_MAX_VOICES].stopped).toBeCloseTo(rampEnd) // l'annonce s'arrête à la pause
-    expect(ctx.sources[SOUND_MAX_VOICES + 1].stopped).toBeCloseTo(ctx.currentTime + 3) // la conclusion survit
+    expect(ctx.sources[SOUND_MAX_VOICES].stopped).toBeCloseTo(rampEnd) // the announcement stops at the pause
+    expect(ctx.sources[SOUND_MAX_VOICES + 1].stopped).toBeCloseTo(ctx.currentTime + 3) // the conclusion survives
   })
 
-  it('stopAll rend leurs voix aux sons éteints (un son terminé ne se coupe pas deux fois)', async () => {
+  it('stopAll returns their voices to the sounds turned off (a finished sound is not cut twice)', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg'])
     await flush()
@@ -226,12 +226,12 @@ describe('ReplayAudioPlayer — voix et volume', () => {
     expect(ctx.sources[0].stopped).toBeCloseTo(ctx.currentTime + 3)
   })
 
-  it('le volume initial est posé à la construction (pas de premier son à plein régime)', () => {
+  it('the initial volume is set at the construction (no first sound at full blast)', () => {
     new ReplayAudioPlayer(0.4)
     expect(ctx.gains[0].gain.value).toBe(0.4)
   })
 
-  it('setVolume rampe (pas de clic) et borne dans 0..1', () => {
+  it('setVolume ramps (no click) and bounds within 0..1', () => {
     const p = new ReplayAudioPlayer(1)
     const master = ctx.gains[0]
     p.setVolume(0.5)
@@ -245,7 +245,7 @@ describe('ReplayAudioPlayer — voix et volume', () => {
     ])
   })
 
-  it('dispose ferme le contexte (rien ne tourne après le démontage)', () => {
+  it('dispose closes the context (nothing runs after the unmount)', () => {
     const p = new ReplayAudioPlayer(1)
     p.dispose()
     expect(ctx.closed).toBe(1)
@@ -253,13 +253,13 @@ describe('ReplayAudioPlayer — voix et volume', () => {
 })
 
 /**
- * LE PAN STÉRÉO — un son spatialisé sonne plus bas selon sa distance et d'un côté. Ce qui
- * casse en silence : un son centré qui ouvrirait quand même un panneur (un nœud de plus, un
- * coût pour rien), ou un son à un côté qui passerait sans lui (aucune erreur levée, le son
- * sonnerait au centre).
+ * THE STEREO PAN — a spatialized sound sounds lower according to its distance and to one side.
+ * What breaks silently: a centered sound that would still open a panner (one more node, a
+ * cost for nothing), or a sound to one side that would pass without it (no error raised, the
+ * sound would sound at the center).
  */
-describe('ReplayAudioPlayer — le pan stéréo', () => {
-  it('sans place : AUCUN panneur, et la tenue est inchangée', async () => {
+describe('ReplayAudioPlayer — the stereo pan', () => {
+  it('without a place: NO panner, and the gain is unchanged', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg'])
     await flush()
@@ -269,7 +269,7 @@ describe('ReplayAudioPlayer — le pan stéréo', () => {
     expect(voice.gain.calls[0]).toEqual(['set', 1, ctx.currentTime])
   })
 
-  it('une place à un côté : un panneur au bon côté, et la tenue multipliée', async () => {
+  it('a place to one side: a panner on the right side, and the gain multiplied', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg'])
     await flush()
@@ -280,7 +280,7 @@ describe('ReplayAudioPlayer — le pan stéréo', () => {
     expect(voice.gain.calls[0]).toEqual(['set', 0.5, ctx.currentTime])
   })
 
-  it('une place CENTRÉE (pan 0) : aucun panneur, mais la tenue est multipliée', async () => {
+  it('a CENTERED place (pan 0): no panner, but the gain is multiplied', async () => {
     const p = new ReplayAudioPlayer(1)
     p.preload(['/a.ogg'])
     await flush()
@@ -292,29 +292,29 @@ describe('ReplayAudioPlayer — le pan stéréo', () => {
 })
 
 /**
- * LE ROBINET D'ENREGISTREMENT — la sortie parallèle qui alimente la vidéo capturée.
+ * THE RECORDING TAP — the parallel output that feeds the captured video.
  *
- * CE QUI CASSE EN SILENCE ICI, et c'est la raison d'être de ces trois cas : un clip muet ne
- * lève aucune erreur. Si le robinet se branche ailleurs que la sortie réelle — sur le maître
- * alors que la chaîne de distance est posée — le son continue de sortir des haut-parleurs et
- * le fichier, lui, ne contient rien. Rien dans l'interface ne le dirait.
+ * WHAT BREAKS SILENTLY HERE, and that is the reason for these three cases: a mute clip
+ * raises no error. If the tap is plugged somewhere other than the real output — on the
+ * master while the distance chain is in place — the sound continues out of the speakers and
+ * the file, for its part, contains nothing. Nothing in the interface would say it.
  */
-describe('ReplayAudioPlayer — la piste d’enregistrement', () => {
-  it('branche le MAÎTRE sur le robinet, en PLUS des haut-parleurs', () => {
+describe('ReplayAudioPlayer — the recording track', () => {
+  it('plugs the MASTER on the tap, IN ADDITION to the speakers', () => {
     const p = new ReplayAudioPlayer(1)
     const master = ctx.gains[0]
-    expect(ctx.streamDests).toHaveLength(0) // rien tant qu'on ne filme pas
+    expect(ctx.streamDests).toHaveLength(0) // nothing until we film
     const track = p.recordingTrack()
     expect(ctx.streamDests).toHaveLength(1)
     expect(track).toBe(ctx.streamDests[0].track)
-    // Les DEUX sorties, pas l'une à la place de l'autre : filmer ne coupe pas l'écoute.
+    // The TWO outputs, not one in place of the other: filming does not cut the listening.
     expect(master.connections).toContain(ctx.destination)
     expect(master.connections).toContain(ctx.streamDests[0])
   })
 
-  it('n’ouvre qu’UN robinet, même demandé plusieurs fois', () => {
-    // Un clip suivant reprend la même piste ; en recréer un par enregistrement laisserait
-    // des nœuds derrière lui, et le graphe grossirait à chaque bouton pressé.
+  it('opens only ONE tap, even requested several times', () => {
+    // A following clip reuses the same track; recreating one per recording would leave
+    // nodes behind it, and the graph would grow at each button press.
     const p = new ReplayAudioPlayer(1)
     const a = p.recordingTrack()
     const b = p.recordingTrack()
@@ -322,18 +322,18 @@ describe('ReplayAudioPlayer — la piste d’enregistrement', () => {
     expect(a).toBe(b)
   })
 
-  it('suit la CHAÎNE DE DISTANCE : c’est le dernier nœud qui alimente le robinet', () => {
+  it('follows the DISTANCE CHAIN: it is the last node that feeds the tap', () => {
     const p = new ReplayAudioPlayer(1)
     p.recordingTrack()
     p.setDistance({ gainDb: -6, cutoffHz: 4_000 })
     const filtre = ctx.filters[0]
     expect(filtre.connections).toContain(ctx.destination)
     expect(filtre.connections).toContain(ctx.streamDests[0])
-    // Et le maître ne double PLUS la sortie : il passe désormais par la chaîne.
+    // And the master no longer doubles the output: it passes through the chain.
     expect(ctx.gains[0].connections).not.toContain(ctx.streamDests[0])
   })
 
-  it('un navigateur sans flux audio rend `null` plutôt que de lever', () => {
+  it('a browser without an audio stream returns `null` rather than raising', () => {
     ;(ctx as unknown as Record<string, unknown>).createMediaStreamDestination = undefined
     const p = new ReplayAudioPlayer(1)
     expect(p.recordingTrack()).toBeNull()

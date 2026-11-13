@@ -1,53 +1,52 @@
 /**
- * replaySoundCursor.ts — LA LECTURE DE LA PISTE : quand un événement part, et quand il ne
- * part pas. Rien de ce qui SONNE ne vit ici (le manifeste et la piste sont dans
- * replaySound.ts) — seulement la comptabilité du curseur.
+ * replaySoundCursor.ts — READING THE TRACK: when an event goes out, and when it does not.
+ * Nothing that SOUNDS lives here (the manifest and the track are in replaySound.ts) — only
+ * the accounting of the cursor.
  *
- * EXTRAIT DE `replaySound.ts` LE 2026-08-18 (lot R2-G) pour payer l'ajout des explosions de
- * fin de vol : le fichier d'origine annonçait trois sujets (« ce qui sonne, quand, et
- * comment le curseur ne rejoue rien deux fois ») et arrivait au plafond de 500 lignes. Le
- * troisième est le seul qui ne touche jamais au manifeste : il ne connaît de la piste que
- * son instant et son ordre.
+ * EXTRACTED FROM `replaySound.ts` ON 2026-08-18 (lot R2-G) to pay for adding the end-of-flight
+ * explosions: the original file announced three topics ("what sounds, when, and how the cursor
+ * never replays anything twice") and was reaching the 500-line ceiling. The third is the only
+ * one that never touches the manifest: it knows of the track only its moment and its order.
  *
- * LA RÈGLE QUE CE FICHIER TIENT, ET ELLE EST LA SEULE : un événement part UNE fois, et un
- * DÉPLACEMENT (scrub, rebouclage, reprise après pause) ne rejoue pas ce qu'il a enjambé.
+ * THE RULE THIS FILE HOLDS, AND IT IS THE ONLY ONE: an event goes out ONCE, and a JUMP
+ * (scrub, rewind, resume after pause) does not replay what it crossed.
  *
- * Pas de React, pas de Web Audio : logique pure, testée (replaySound.test.ts).
+ * No React, no Web Audio: pure logic, tested (replaySound.test.ts).
  */
 import type { ReplaySoundEvent } from './replaySound'
 
 /**
- * Saut au-delà duquel une avance n'est PAS une lecture continue mais un déplacement
- * (scrub, retour au début, reprise après pause longue) : le curseur se RECALE sans rien
- * jouer — rejouer d'un coup tous les sons enjambés ferait un mur de bruit. À 4x, un pas
- * d'animation avance de ~70 ms de rejeu : 1 s de marge ne peut pas confondre les deux.
+ * Jump beyond which a forward move is NOT continuous playback but a jump
+ * (scrub, return to the start, resume after a long pause): the cursor is RESEEDED without playing
+ * anything — replaying in one go all the sounds crossed would make a wall of noise. At 4x, an
+ * animation step advances by ~70 ms of replay: a 1 s margin cannot confuse the two.
  */
 export const SOUND_RESYNC_JUMP_MS = 1_000
 
 /**
- * Vitesse de lecture au-delà de laquelle le son se TAIT.
+ * Playback speed beyond which sound is MUTED.
  *
- * POURQUOI. Un son tient ~1 s de temps réel quelle que soit la vitesse : à 4×, cette
- * seconde couvre 4 s de match, et les éliminations d'un même échange (2 à 4 s d'écart) se
- * recouvrent en permanence. Ce qu'on entendrait alors n'est plus le rythme du match mais
- * celui du lecteur. À 2×, elles restent distinctes — c'est la borne.
+ * WHY. A sound holds ~1 s of real time whatever the speed: at 4x, that second covers 4 s of
+ * match, and the kills of the same exchange (2 to 4 s apart) overlap continuously. What would
+ * be heard then is no longer the rhythm of the match but that of the player. At 2x, they stay
+ * distinct — that is the bound.
  */
 export const SOUND_MAX_SPEED = 2
 
-/** soundPlaysAtSpeed — le son a-t-il un sens à cette vitesse de lecture ? */
+/** soundPlaysAtSpeed — does the sound make sense at this playback speed? */
 export function soundPlaysAtSpeed(multiplier: number): boolean {
   return multiplier <= SOUND_MAX_SPEED
 }
 
-/** Le curseur de lecture sonore : dernier instant servi, index du prochain événement. */
+/** The sound playback cursor: last moment served, index of the next event. */
 export interface SoundCursor {
   ms: number
   idx: number
 }
 
-/** resyncSoundCursor pose le curseur À l'instant donné : rien avant lui ne jouera. */
+/** resyncSoundCursor sets the cursor AT the given moment: nothing before it will play. */
 export function resyncSoundCursor(timeline: ReplaySoundEvent[], ms: number): SoundCursor {
-  // Premier index strictement postérieur à `ms` (recherche binaire, timeline triée).
+  // First index strictly after `ms` (binary search, timeline sorted).
   let lo = 0
   let hi = timeline.length
   while (lo < hi) {
@@ -59,11 +58,11 @@ export function resyncSoundCursor(timeline: ReplaySoundEvent[], ms: number): Sou
 }
 
 /**
- * advanceSoundCursor avance le curseur à `nowMs` et rend les événements à jouer.
+ * advanceSoundCursor advances the cursor to `nowMs` and returns the events to play.
  *
- * Lecture continue (avance courte) : tout événement dans (cursor.ms, nowMs] part UNE
- * fois. Recul ou saut long : recalage silencieux — le son accompagne la lecture, il ne
- * raconte pas ce qu'on a enjambé.
+ * Continuous playback (short advance): every event in (cursor.ms, nowMs] goes out ONCE.
+ * Backward move or long jump: silent reseeding — the sound follows the playback, it does not
+ * narrate what was crossed.
  */
 export function advanceSoundCursor(
   timeline: ReplaySoundEvent[],

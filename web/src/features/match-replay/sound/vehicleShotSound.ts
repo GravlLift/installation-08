@@ -1,64 +1,64 @@
 /**
- * vehicleShotSound.ts — LES VARIANTES DU SON D'UN TIR EN VÉHICULE (lot du 2026-09-04).
+ * vehicleShotSound.ts — THE VARIANTS OF THE SOUND OF A SHOT IN VEHICLE (lot of 2026-09-04).
  *
- * DEPUIS LE SCHÉMA 69 (retours du rejeu du 2026-09-23, lot M4a), QUELLE ARME SONNE QUEL STEM
- * N'EST PLUS DÉCIDÉ ICI. La table `Shot.w -> stem` de ce fichier était clée par des tags `weap`
- * du module du jeu, dont la plupart n'apparaissaient dans aucun film (7 sur 11 au parc du
- * 2026-09-23). Le REGISTRE DU TITRE la remplace (`config/titles/{slug}/mappings/vehicle_weapons.toml`,
- * clé = tag OBSERVÉ, `sound` = le stem de la première variante, ou `silence` et sa raison) ; le
- * document le publie et `model/vehicleWeaponRegistry.ts` le lit. Ce fichier ne garde que ce que
- * le registre ne dit pas : les DEUX PRISES de chaque son, pour le tirage par coup.
+ * SINCE SCHEMA 69 (replay feedback of 2026-09-23, lot M4a), WHICH WEAPON SOUNDS WHICH STEM
+ * IS NO LONGER DECIDED HERE. The table `Shot.w -> stem` of this file was keyed by `weap` tags
+ * of the game module, most of which did not appear in any film (7 out of 11 in the corpus of
+ * 2026-09-23). The TITLE REGISTRY replaces it (`config/titles/{slug}/mappings/vehicle_weapons.toml`,
+ * key = OBSERVED tag, `sound` = the stem of the first variant, or `silence` and its reason); the
+ * document publishes it and `model/vehicleWeaponRegistry.ts` reads it. This file keeps only what
+ * the registry does not say: the TWO TAKES of each sound, for the drawing per shot.
  *
- * LES SOURCES SONT LES RECONSTRUCTIONS Wwise VALIDÉES PAR L'UTILISATEUR (manifeste_v3.json,
- * rev12), livrées en DEUX variantes (deux prises de la
- * même perspective), coupées à la règle des ARMES (1,2 s max), 48 kHz / 16 bits / stéréo,
- * égalisées à la convention du lot R2-S (-16 LUFS visé, plafond -1 dBTP, gain LINÉAIRE seul).
- * Perspective : la prise « 3e personne » (vue spectateur) par défaut, sauf désignation à l'écoute
- * (Wraith et Banshee M2 : « vue pilote prise 1 », 2026-09-04 ; Banshee M1 : la reconstruction
- * ORIGINALE de 0,125 s, 2026-09-05 — la piste « cadence du tag » a été abandonnée à la réécoute).
+ * THE SOURCES ARE THE Wwise RECONSTRUCTIONS VALIDATED BY THE USER (manifeste_v3.json,
+ * rev12), delivered in TWO variants (two takes of the
+ * same perspective), cut to the WEAPONS rule (1.2 s max), 48 kHz / 16 bits / stereo,
+ * equalized to the convention of the lot R2-S (-16 LUFS targeted, ceiling -1 dBTP, LINEAR gain
+ * only). Perspective: the "3rd person" take (spectator view) by default, except by ear designation
+ * (Wraith and Banshee M2: "cockpit view take 1", 2026-09-04; Banshee M1: the ORIGINAL
+ * reconstruction of 0.125 s, 2026-09-05 — the "tag rate" track was abandoned on the re-listening).
  *
- * DES VARIANTES D'ARMES À TIR CONTINU (Ghost, Banshee M1, Chopper, LMG du Falcon, LMG du Wasp)
- * restent ici alors qu'aucun film ne les publie encore : ce sont des ASSETS livrés, pas des clés de
- * tag — le registre les nommera le jour où le décodeur lira le tir continu (lot M4b).
+ * VARIANTS OF WEAPONS WITH CONTINUOUS SHOT (Ghost, Banshee M1, Chopper, LMG of the Falcon, LMG of the Wasp)
+ * remain here even though no film publishes them yet: they are DELIVERED ASSETS, not keys of
+ * tag — the registry will name them the day the decoder reads the continuous shot (lot M4b).
  *
- * LIVRAISON DU 2026-09-24 (retours du rejeu, lot M6.1 ; sons désignés À L'OREILLE par
- * l'utilisateur sur la page d'écoute `rr_2026-09-23`, « les premiers candidats sont tous bons »).
- * Sources : rendus V3E hors dépôt (`Halo Infinite - Sons v75/rr_2026-09-23/`, manifeste
- * `manifeste_rr_2026-09-23.json` : gains de chemin complets, une normalisation commune par rendu).
- * Même recette que la livraison du 2026-09-04 (même en-tête RIFF `Lavf`, mesurée sur les stems
- * livrés) : coupe à 1,2 s avec un fondu de sortie de 50 ms pour un coup plus long, source plus
- * courte livrée entière ; gain LINÉAIRE = min(-16 LUFS - intégré, -1 dBTP - crête vraie), crête
- * seule sous 0,4 s (intégré non mesurable) ; 48 kHz / 16 bits / stéréo.
- *  - MISSILES DU WASP (`vehicle_shot_wasp_*`) : REMPLACÉS par le rendu rééquilibré
- *    (`wasp_missiles_controle/coup_3p*`, événement e22a0d32, couches à +22 / +13 / +8 dB au lieu
- *    des +7,8 / +2,8 / +0,8 dB de l'ancien rendu rev9 — mêmes médias, preuve au manifeste).
- *  - LMG DU WASP (`vehicle_shot_wasp_lmg_*`, événement 5baca8ee, cadence du tag 600/min) : la
- *    BOUCLE 3P (8 s, `boucle_8s_3p`) tenue pendant le tir et le COUP 3P isolé (0,2 s, deux prises)
- *    en queue à l'arrêt. La boucle est égalisée par la recette ; la queue reçoit le MÊME gain
- *    rapporté au rendu (écart de normalisation du manifeste : 1,64 contre 3,97 dB), pour que le
- *    dernier coup ne sonne pas plus fort que la rafale qu'il termine. Câblage : lot M4b. LA
- *    BOUCLE N'EST DANS AUCUNE TABLE DE PRODUCTION tant que rien ne la joue (0 code inerte) : elle
- *    est DÉPOSÉE et déclarée au garde-rail d'assets (`replaySoundAssets.guard.test.ts`,
- *    `DEPOSES_POUR_M4B`, avec son échéance).
- *  - LANCE-GRENADES DU FALCON : AUCUN fichier — le registre lui donne les roquettes du
- *    Rockethog, le jeu joue le MÊME événement (18 médias identiques, sonde SONS du 2026-09-24).
- *  - Variantes lointaines A-E : NON retenues (décision du 2026-09-24), non livrées.
+ * DELIVERY OF 2026-09-24 (replay feedback, lot M6.1; sounds designated BY EAR by
+ * the user on the listening page `rr_2026-09-23`, "the first candidates are all good").
+ * Sources: V3E renders out of the repository (`Halo Infinite - Sons v75/rr_2026-09-23/`, manifest
+ * `manifeste_rr_2026-09-23.json`: complete path gains, one common normalization per render).
+ * Same recipe as the delivery of 2026-09-04 (same RIFF header `Lavf`, measured on the stems
+ * delivered): cut at 1.2 s with a 50 ms output fade for a longer shot, shorter source
+ * delivered whole; LINEAR gain = min(-16 LUFS - integrated, -1 dBTP - true crest), crest
+ * only under 0.4 s (integrated not measurable); 48 kHz / 16 bits / stereo.
+ *  - WASP MISSILES (`vehicle_shot_wasp_*`): REPLACED by the rebalanced render
+ *    (`wasp_missiles_controle/coup_3p*`, event e22a0d32, layers at +22 / +13 / +8 dB instead
+ *    of the +7.8 / +2.8 / +0.8 dB of the old render rev9 — same media, proof in the manifest).
+ *  - WASP LMG (`vehicle_shot_wasp_lmg_*`, event 5baca8ee, tag rate 600/min): the
+ *    3P LOOP (8 s, `boucle_8s_3p`) held during the shot and the ISOLATED 3P SHOT (0.2 s, two takes)
+ *    in the tail at the stop. The loop is equalized by the recipe; the tail receives the SAME gain
+ *    referred to the render (manifest normalization gap: 1.64 against 3.97 dB), so that the
+ *    last shot does not sound louder than the burst it ends. Wiring: lot M4b. THE
+ *    LOOP IS IN NO PRODUCTION TABLE until nothing plays it (0 dead code): it is
+ *    DEPOSITED and declared to the assets guardrail (`replaySoundAssets.guard.test.ts`,
+ *    `DEPOSES_POUR_M4B`, with its deadline).
+ *  - FALCON GRENADE LAUNCHER: NO file — the registry gives it the rockets of the
+ *    Rockethog, the game plays the SAME event (18 identical media, SONS probe of 2026-09-24).
+ *  - Far variants A-E: NOT retained (decision of 2026-09-24), not delivered.
  *
- * LES TIRS DE VÉHICULE SONT DES BRUITAGES COMME LES AUTRES ARMES : catégorie `weapon` du
- * tiroir, plafond de voix du lecteur, famille `sfx` à l'export — rien à voir avec le bus moteur.
+ * THE VEHICLE SHOTS ARE SOUND EFFECTS LIKE THE OTHER WEAPONS: category `weapon` of
+ * the drawer, voice ceiling of the player, family `sfx` at the export — nothing to do with the engine bus.
  */
 
 /**
- * VEHICLE_SHOT_SOUND_VARIANTS — les deux prises de chaque arme, fusionnées dans
- * `SOUND_VARIANTS` (replaySoundVariants.ts) pour que `soundEvent` les attache et que
- * `pickVariantStem` tire à chaque coup — la MÊME mécanique que le grappin. Table nommée ici
- * (et pas inline là-bas) parce que le garde-rail d'assets a besoin de la reconnaître : ces
- * variantes suivent la règle de durée des ARMES (1,2 s), pas celle des équipements.
+ * VEHICLE_SHOT_SOUND_VARIANTS — the two takes of each weapon, merged in
+ * `SOUND_VARIANTS` (replaySoundVariants.ts) so that `soundEvent` attaches them and
+ * `pickVariantStem` draws at each shot — the SAME mechanics as the grapple. Table named here
+ * (and not inline there) because the assets guardrail needs to recognize it: these
+ * variants follow the duration rule of WEAPONS (1.2 s), not that of the equipment.
  */
 export const VEHICLE_SHOT_SOUND_VARIANTS: Readonly<Record<string, readonly string[]>> = {
   vehicle_shot_ghost_1: ['vehicle_shot_ghost_1', 'vehicle_shot_ghost_2'],
   vehicle_shot_banshee_m2_1: ['vehicle_shot_banshee_m2_1', 'vehicle_shot_banshee_m2_2'],
-  // Banshee M1 : _1 = prise 3e personne (vue spectateur), _2 = vue pilote — cf. en-tête.
+  // Banshee M1: _1 = 3rd person take (spectator view), _2 = cockpit view — cf. header.
   vehicle_shot_banshee_m1_1: ['vehicle_shot_banshee_m1_1', 'vehicle_shot_banshee_m1_2'],
   vehicle_shot_wraith_1: ['vehicle_shot_wraith_1', 'vehicle_shot_wraith_2'],
   vehicle_shot_chopper_1: ['vehicle_shot_chopper_1', 'vehicle_shot_chopper_2'],
@@ -70,19 +70,18 @@ export const VEHICLE_SHOT_SOUND_VARIANTS: Readonly<Record<string, readonly strin
   vehicle_shot_wasp_1: ['vehicle_shot_wasp_1', 'vehicle_shot_wasp_2'],
   vehicle_shot_gungoose_1: ['vehicle_shot_gungoose_1', 'vehicle_shot_gungoose_2'],
   vehicle_shot_falcon_lmg_1: ['vehicle_shot_falcon_lmg_1', 'vehicle_shot_falcon_lmg_2'],
-  // LMG du Wasp : les deux prises du COUP isolé, la queue d'une rafale (cf. en-tête).
+  // LMG of the Wasp: the two takes of the ISOLATED SHOT, the tail of a burst (cf. header).
   vehicle_shot_wasp_lmg_1: ['vehicle_shot_wasp_lmg_1', 'vehicle_shot_wasp_lmg_2'],
 }
 
 /**
- * VEHICLE_SHOT_LOOPS — LES BOUCLES DE TIR TENU livrées, keyées par la PREMIÈRE variante du COUP de
- * leur arme (lot M6.1, câblage au lot M4b, schéma 71). Le registre du titre publie la boucle d'une
- * arme (`vehicleWeapons[w].loop`) ; cette table est le MANIFESTE des boucles que le client sait
- * tenir — une boucle absente d'ici se tait plutôt que de jouer un fichier non vérifié, et le coup
- * se rejoue alors à la cadence (`fireBurstSound.ts`). Le garde-rail d'assets vérifie leur format,
- * leur durée (au-delà de la coupe des armes, sous le plafond de sûreté) et leur coup déclaré.
+ * VEHICLE_SHOT_LOOPS — THE HELD-SHOT LOOPS delivered, keyed by the FIRST variant of the SHOT of
+ * their weapon (lot M6.1, wiring at lot M4b, schema 71). The title registry publishes the loop of a
+ * weapon (`vehicleWeapons[w].loop`); this table is the MANIFEST of the loops that the client knows
+ * how to hold — a loop absent here stays silent rather than playing an unverified file, and the shot
+ * is then replayed at the rate (`fireBurstSound.ts`). The assets guardrail verifies their format,
+ * their duration (beyond the weapons cut, under the safety ceiling) and their declared shot.
  */
 export const VEHICLE_SHOT_LOOPS: Readonly<Record<string, string>> = {
   vehicle_shot_wasp_lmg_1: 'vehicle_shot_wasp_lmg_loop',
 }
-

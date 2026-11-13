@@ -1,76 +1,76 @@
 /**
- * weaponChangeSound.ts — LE RAMASSAGE ET LE LÂCHER D'ARME, datés par le film.
+ * weaponChangeSound.ts — THE PICKUP AND THE DROP OF WEAPON, dated by the film.
  *
- * ## Pourquoi ce fichier peut exister depuis le 2026-08-30, et pas avant
+ * ## Why this file can exist since 2026-08-30, and not before
  *
- * L'ancienne règle (`padSound.ts`, supprimée le même jour) jouait le ramassage au premier TIR
- * d'une famille d'arme de socle — mesures justes, conclusion fausse : la doctrine de cette
- * chaîne est que le rejeu SE TAIT plutôt que de deviner, et déplacer un son sur un autre geste
- * n'est pas se taire. Le chantier ramassage (schéma 25) a changé la donne : `doc.weaponChanges`
- * PUBLIE les prises et les lâchers, datés à la frame, par vie. Il n'y a plus rien à déduire —
- * on joue ce que le calque date, comme partout ailleurs.
+ * The old rule (`padSound.ts`, deleted the same day) played the pickup at the first SHOT
+ * of a pad weapon family — correct measurements, wrong conclusion: the doctrine of this
+ * chain is that the replay STAYS SILENT rather than guessing, and moving a sound to another gesture
+ * is not staying silent. The pickup work site (schema 25) changed the game: `doc.weaponChanges`
+ * PUBLISHES the pickups and the drops, dated to the frame, per life. There is nothing left to deduce —
+ * we play what the layer dates, like everywhere else.
  *
- * ## Les sons, et d'où ils viennent
+ * ## The sounds, and where they come from
  *
- * Les deux gestes vivent dans la banque de bruitage du Spartan (`sb_006_chm_un_spartan`,
- * `e9a52b26`) et portent la même signature Wwise : une couche, une variante parmi trois,
+ * The two gestures live in the sound bank of the Spartan (`sb_006_chm_un_spartan`,
+ * `e9a52b26`) and carry the same Wwise signature: one layer, one variant out of three,
  * gain -6 dB.
  *
- *  - LE LÂCHER : `play_006_chm_un_spartan_weapondrop` (`6cdd92fd`, 0,31 s) — le seul événement
- *    de ces 230 dont le nom se casse, DÉSIGNÉ à l'oreille par l'utilisateur le 2026-08-30.
- *  - LE RAMASSAGE : `168832f6` (0,34 s) — nom non cassé, désigné le même jour PAR DÉFAUT
- *    (« faute de mieux ») parmi les onze gestes de la banque qui portent la signature du
- *    lâcher. La désignation est plus faible que les autres et le RE le dit (§ 12.5) ; si le
- *    rendu sonne faux en situation, les dix autres candidats restent sur la planche
+ *  - THE DROP: `play_006_chm_un_spartan_weapondrop` (`6cdd92fd`, 0.31 s) — the only event
+ *    of these 230 whose name is broken, DESIGNATED by ear by the user on 2026-08-30.
+ *  - THE PICKUP: `168832f6` (0.34 s) — name not broken, designated the same day BY DEFAULT
+ *    ("for lack of better") among the eleven gestures of the bank that carry the signature of
+ *    the drop. The designation is weaker than the others and the RE says it (§ 12.5); if the
+ *    render sounds wrong in situation, the ten other candidates remain on the board
  *    `3c84fab7-5e36-4777-a2d9-bd1c90b08f65`.
  *
- * ## La règle, et ses deux choix écrits
+ * ## The rule, and its two written choices
  *
- *  - UN `swapped` SONNE LE RAMASSAGE, ET RIEN D'AUTRE. Un échange est un lâcher et une prise
- *    au même instant ; jouer les deux fichiers superposés ferait un artefact de mixage, pas
- *    deux gestes. Ce qu'on entend d'un échange, c'est l'arme qui ARRIVE en main.
- *  - TOUTES LES VIES SONNENT, comme les tirs et les grenades : le calque publie l'auteur, le
- *    tiroir de réglages filtre par catégorie, pas par joueur. L'ordre de grandeur mesuré du
- *    canal est ~100-230 changements par match — celui des lancers de grenade.
+ *  - A `swapped` SOUNDS THE PICKUP, AND NOTHING ELSE. An exchange is a drop and a pickup
+ *    at the same moment; playing the two files superimposed would make a mixing artifact, not
+ *    two gestures. What is heard of an exchange is the weapon that ARRIVES in hand.
+ *  - ALL THE LIVES SOUND, like the shots and the grenades: the layer publishes the author, the
+ *    settings drawer filters by category, not by player. The measured order of magnitude of
+ *    the channel is ~100-230 changes per match — that of the grenade throws.
  *
- * ## Le canal NATIF vient COMBLER les trous, et surtout pas doubler (schéma 30, 2026-08-31)
+ * ## The NATIVE channel comes to FILL the holes, and above all not double (schema 30, 2026-08-31)
  *
- * `doc.pickups` publie l'événement `biped_pickup` que la bobine écrit elle-même. Là où les deux
- * canaux voient la même prise, ils s'accordent (21/21 et 11/12 appariements arme nommée à moins
- * de 500 ms) — jouer les deux ferait sonner DEUX FOIS le même geste. Mais `weaponChanges` a un
- * rappel PARTIEL : sur le film de référence, les images-clés révèlent sept arrivées d'arme
- * qu'il n'explique pas (Gravity Hammer ×3, M41 SPNKr ×3, Stalker Rifle ×1), et le canal natif
- * en nomme cinq. Ces prises-là sont aujourd'hui MUETTES.
+ * `doc.pickups` publishes the event `biped_pickup` that the coil writes itself. Where the two
+ * channels see the same pickup, they agree (21/21 and 11/12 pairings named weapon less than
+ * 500 ms apart) — playing the two would make sound TWICE the same gesture. But `weaponChanges` has a
+ * PARTIAL recall: on the reference film, the keyframes reveal seven weapon arrivals
+ * it does not explain (Gravity Hammer x3, M41 SPNKr x3, Stalker Rifle x1), and the native channel
+ * names five of them. Those pickups are today SILENT.
  *
- * La règle est donc : un ramassage natif d'ARME sonne SI ET SEULEMENT SI aucun `taken` /
- * `swapped` de `weaponChanges` ne le couvre (même vie, même famille, à moins de cinq frames —
- * la tolérance d'appariement de 500 ms sur une grille de 100 ms). C'est exactement la doctrine
- * appliquée côté Go aux classes d'équipement : combler un trou, jamais doublonner.
+ * The rule is therefore: a native WEAPON pickup sounds IF AND ONLY IF no `taken` /
+ * `swapped` of `weaponChanges` covers it (same life, same family, less than five frames —
+ * the 500 ms pairing tolerance on a 100 ms grid). That is exactly the doctrine
+ * applied on the Go side to the equipment classes: fill a hole, never duplicate.
  *
- * LES RAMASSAGES NON-ARME NE SONNENT PAS ICI. Le canal natif les publie (classes 2 et 3 : équipement,
- * grenades, consommables) mais leur son est déjà l'affaire d'`equipmentChangeSound`. Leur donner
- * en plus le bruit du ramassage d'arme ferait entendre une arme là où il n'y en a pas.
+ * NON-WEAPON PICKUPS DO NOT SOUND HERE. The native channel publishes them (classes 2 and 3: equipment,
+ * grenades, consumables) but their sound is already the affair of `equipmentChangeSound`. Giving them
+ * on top the sound of the weapon pickup would make hear a weapon where there is none.
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /**
- * Les fichiers, par geste. Le `swapped` n'a pas d'entrée : il joue `taken` (cf. l'en-tête).
+ * The files, by gesture. The `swapped` has no entry: it plays `taken` (cf. the header).
  */
 export const WEAPON_CHANGE_SOUND_STEMS = {
-  /** L'arme arrive en main — ramassage, ou moitié audible d'un échange. */
+  /** The weapon arrives in hand — pickup, or audible half of an exchange. */
   taken: 'weapon_pickup',
-  /** L'emplacement passe à vide : l'arme part au sol. */
+  /** The slot goes empty: the weapon goes to the ground. */
   dropped: 'weapon_drop',
 } as const
 
 /**
- * weaponChangeSoundEvents — un son par changement d'arme publié, à sa frame.
+ * weaponChangeSoundEvents — one sound per published weapon change, at its frame.
  *
- * Aucun camp et aucun filtre : le geste appartient à celui qui le fait, et le document
- * n'écarte déjà les ré-annonces de spawn (ce ne sont pas des ramassages, cf.
- * document_weapon_changes.go côté Go).
+ * No side and no filter: the gesture belongs to the one who does it, and the document
+ * already excludes the spawn re-announcements (they are not pickups, cf.
+ * document_weapon_changes.go on the Go side).
  */
 export function weaponChangeSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
@@ -86,26 +86,26 @@ export function weaponChangeSoundEvents(doc: ReplayDocumentReady): ReplaySoundEv
 }
 
 /**
- * NATIVE_PICKUP_MATCH_FRAMES — la fenêtre qui décide qu'un ramassage natif et un `taken` de
- * `weaponChanges` sont LE MÊME geste. Cinq frames = 500 ms sur la grille de 100 ms du rejeu,
- * c'est-à-dire la tolérance sous laquelle l'accord des deux canaux a été mesuré côté Go.
+ * NATIVE_PICKUP_MATCH_FRAMES — the window that decides that a native pickup and a `taken` of
+ * `weaponChanges` are THE SAME gesture. Five frames = 500 ms on the 100 ms grid of the replay,
+ * that is, the tolerance under which the agreement of the two channels was measured on the Go side.
  *
- * NON EXPORTÉ : rien hors de ce module n'a à connaître la fenêtre. La première version
- * l'exportait « au cas où » — personne ne l'importait, et `knip` l'aurait signalé.
+ * NOT EXPORTED: nothing outside this module has to know the window. The first version
+ * exported it "just in case" — no one imported it, and `knip` would have flagged it.
  */
 const NATIVE_PICKUP_MATCH_FRAMES = 5
 
 /**
- * nativePickupsNotAlreadyHeard — les ramassages natifs d'ARME que `weaponChanges` ne couvre
- * pas. C'est la seule population qui a le droit de sonner en plus : tout le reste ferait
- * entendre deux fois le même geste (cf. l'en-tête). Non exporté, pour la même raison : son
- * seul consommateur est `weaponChangeSoundEvents`, et les tests passent par lui.
+ * nativePickupsNotAlreadyHeard — the native WEAPON pickups that `weaponChanges` does not cover.
+ * It is the only population that has the right to sound on top: everything else would
+ * make hear twice the same gesture (cf. the header). Not exported, for the same reason: its
+ * only consumer is `weaponChangeSoundEvents`, and the tests go through it.
  */
 function nativePickupsNotAlreadyHeard(
   doc: ReplayDocumentReady,
 ): ReplayDocumentReady['pickups'] {
-  // Optionnel à dessein : un artefact antérieur au schéma 30 n'a pas de `pickups`, et le
-  // rejeu doit se taire sur ce qu'il ne porte pas, pas lever.
+  // Optional by design: an artifact prior to schema 30 has no `pickups`, and the
+  // replay must stay silent on what it does not carry, not throw.
   if (!doc.pickups?.length) return []
   const heard = doc.weaponChanges.filter((c) => c.kind !== 'dropped')
   return doc.pickups.filter((p) => {

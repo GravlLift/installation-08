@@ -1,21 +1,21 @@
 /**
- * impactSound.ts — LE SON D'IMPACT D'UN PROJECTILE DE TIR D'UNE ARME À PIED (roquettes...).
+ * impactSound.ts — THE IMPACT SOUND OF A GUN PROJECTILE FROM A FOOTWEAPON (rockets...).
  *
- * La table est keyée par le weapon_key du titre (`WeaponLabel.key`). Les armes de VÉHICULE n'y
- * figurent pas : leur son de détonation est déclaré par le registre du titre
- * (`vehicle_weapons.toml`, `impact_sound`) et publié sur `VehicleWeapon.impactSound` — le client
- * ne porte aucun tag d'arme de véhicule (garde-rail `vehicleWeaponRegistry.guard.test.ts`).
+ * The table is keyed by the title's weapon_key (`WeaponLabel.key`). VEHICLE weapons do not
+ * appear there: their detonation sound is declared by the title registry
+ * (`vehicle_weapons.toml`, `impact_sound`) and published on `VehicleWeapon.impactSound` — the client
+ * carries no vehicle weapon tag (guardrail `vehicleWeaponRegistry.guard.test.ts`).
  *
- * Seuls les sons VALIDÉS À L'OREILLE sont déclarés (rendus extraits du jeu, événement sonore
- * reconstitué couche par couche) ; une arme absente de la table explose en silence, et n'emprunte
- * JAMAIS le son d'une explosion de grenade (ce serait affirmer une arme qu'on ignore). Pour en
- * déclarer un : ajouter `weapon_key -> stem` ci-dessous ; le fichier
- * `static/sounds/{slug}/<stem>.ogg` doit exister (garde-rail `replaySoundAssets.guard.test.ts`), et
- * la lecture passe par `grenadeSoundEvents`.
+ * Only the sounds VALIDATED BY EAR are declared (renders extracted from the game, sound event
+ * reconstructed layer by layer); a weapon absent from the table explodes in silence, and borrows
+ * NEVER the sound of a grenade explosion (that would be asserting a weapon we do not know). To
+ * declare one: add `weapon_key -> stem` below; the file
+ * `static/sounds/{slug}/<stem>.ogg` must exist (guardrail `replaySoundAssets.guard.test.ts`), and
+ * the playback goes through `grenadeSoundEvents`.
  */
 export const IMPACT_SOUND_STEMS: Readonly<Record<string, string>> = {}
 
-/** Le stem du son d'impact d'une arme à pied, ou `undefined` (silence). */
+/** The stem of the impact sound of a footweapon, or `undefined` (silence). */
 export function impactSoundStem(weaponKey: string): string | undefined {
   return Object.hasOwn(IMPACT_SOUND_STEMS, weaponKey) ? IMPACT_SOUND_STEMS[weaponKey] : undefined
 }

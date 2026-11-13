@@ -1,14 +1,14 @@
 /**
- * useReplayEngineSound — LA COUTURE React des moteurs de véhicules, consommée par
- * `useReplaySound` (qui possède le lecteur Web Audio et le battement).
+ * useReplayEngineSound — THE React SEAM of the vehicle engines, consumed by
+ * `useReplaySound` (which owns the Web Audio player and the beat).
  *
- * Extraite dans son propre fichier pour la même raison que les autres sous-hooks du son :
- * `useReplaySound.ts` est au plafond de taille du dépôt, et ce câblage-ci a une frontière
- * nette — il ne connaît ni la piste d'événements, ni les préférences ; seulement le plan
- * moteur (`vehicleEngineSound.ts`) et son lecteur (`vehicleEnginePlayer.ts`).
+ * Extracted into its own file for the same reason as the other sound sub-hooks:
+ * `useReplaySound.ts` is at the size ceiling of the repository, and this wiring has a clear
+ * boundary — it knows neither the event track, nor the preferences; only the engine plan
+ * (`vehicleEngineSound.ts`) and its player (`vehicleEnginePlayer.ts`).
  *
- * TOUT EST LU DANS DES RÉFÉRENCES par des rappels stables : `sync` bat à chaque pas
- * d'animation et ne doit jamais recréer la boucle du canvas (même règle que `tick`).
+ * EVERYTHING IS READ IN REFERENCES by stable callbacks: `sync` beats at each animation step
+ * and must never recreate the canvas loop (same rule as `tick`).
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -25,15 +25,15 @@ import {
 import { engineStemsOf } from './vehicleEngineMix'
 
 export interface ReplayEngineSound {
-  /** Les stems à PRÉCHARGER avec la piste : un moteur demandé à T0 sonnerait en retard. */
+  /** The stems to PRELOAD with the track: an engine requested at T0 would sound late. */
   stems: string[]
-  /** Crée le lecteur moteur sur le lecteur principal. Idempotent (rappelé à chaque geste). */
+  /** Creates the engine player on the main player. Idempotent (called at each gesture). */
   attach: (player: ReplayAudioPlayer) => void
-  /** Fait suivre les moteurs à l'instant du rejeu — à appeler quand la piste est audible. */
+  /** Makes the engines follow the replay moment — to call when the track is audible. */
   sync: (ms: number) => void
-  /** Éteint tout (pause, coupure, vitesse muette, démontage) : rampe courte, jamais un clic. */
+  /** Turns everything off (pause, cut, muted speed, unmount): short ramp, never a click. */
   stop: () => void
-  /** Le plan, pour l'export hors temps réel (lu à l'appel, jamais au rendu). */
+  /** The plan, for the out-of-real-time export (read at call, never at render). */
   plansForExport: () => readonly EnginePlan[]
 }
 
@@ -45,12 +45,13 @@ export function useReplayEngineSound(doc: ReplayDocumentReady): ReplayEngineSoun
   const plansRef = useRef(plans)
   useEffect(() => {
     plansRef.current = plans
-    // Un document qui change sous un lecteur vivant : le plan se remplace, ce qui sonnait
-    // s'éteint (setPlans arrête tout), et la lecture suivante repart du bon film.
+    // A document that changes under a living player: the plan is replaced, what was sounding
+    // is turned off (setPlans stops everything), and the next playback restarts from the right
+    // film.
     engineRef.current?.setPlans(plans)
   }, [plans])
 
-  // Le lecteur moteur meurt AVEC le composant, comme le lecteur principal juste au-dessus.
+  // The engine player dies WITH the component, like the main player just above.
   useEffect(() => () => {
     engineRef.current?.dispose()
     engineRef.current = null
@@ -62,7 +63,7 @@ export function useReplayEngineSound(doc: ReplayDocumentReady): ReplayEngineSoun
     const engine = new VehicleEnginePlayer({
       ctx: bus.ctx,
       out: bus.out,
-      // Le cache du lecteur principal est indexé par URL ; le plan parle en stems.
+      // The main player's cache is indexed by URL; the plan speaks in stems.
       bufferOf: (stem) => bus.bufferOf(soundUrlOf(stem)),
     })
     engine.setPlans(plansRef.current)

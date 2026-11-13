@@ -1,10 +1,10 @@
 /**
- * introSound.test.tsx — LA MUSIQUE D'INTRO (item 7 du backlog, décision D-8), côté son.
+ * introSound.test.tsx — THE INTRO MUSIC (item 7 of the backlog, decision D-8), sound side.
  *
- * Le DÉCLENCHEMENT (quand la lecture part du préambule) se teste côté lecture
- * (`hooks/useReplayPlayback.intro.test.tsx`). Ici, ce que le son en fait : l'extrait passe par
- * la voie ordinaire du lecteur, donc par ses silences — son coupé, vitesse au-delà de
- * SOUND_MAX_SPEED — et il est préchargé avec la piste, sans jamais entrer dans l'export.
+ * The TRIGGER (when playback leaves the preamble) is tested on the playback side
+ * (`hooks/useReplayPlayback.intro.test.tsx`). Here, what the sound does with it: the excerpt goes through
+ * the ordinary path of the player, so through its silences — sound off, speed beyond
+ * SOUND_MAX_SPEED — and it is pre-loaded with the track, without ever entering the export.
  */
 import { act, renderHook } from '@testing-library/react'
 
@@ -21,7 +21,7 @@ import { useReplaySound, type ReplaySoundContext } from './useReplaySound'
 
 const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined }
 const INTRO_URL = `/static/sounds/halo_infinite/${INTRO_MUSIC_STEM}.ogg`
-/** La durée factice de l'extrait (1 octet = 0,1 s dans le faux décodeur) : c'est elle qu'on lit. */
+/** The fake duration of the excerpt (1 byte = 0.1 s in the fake decoder): that is what is read. */
 const INTRO_S = 3.3
 
 let ctx: FakeContext
@@ -62,8 +62,8 @@ function mount(speed = 1) {
 
 const introSources = () => ctx.sources.filter((s) => s.buffer?.duration === INTRO_S)
 
-describe('useReplaySound — la musique d’intro', () => {
-  it('garde le battement et la conclusion stables entre les rendus', () => {
+describe('useReplaySound — the intro music', () => {
+  it('keeps the tick and the conclusion stable between renders', () => {
     const view = mount()
     const { tick, endMatch } = view.result.current
     view.rerender({ s: 1 })
@@ -73,7 +73,7 @@ describe('useReplaySound — la musique d’intro', () => {
     expect(view.result.current.tick).toBe(tick)
   })
 
-  it('son activé, à 1× : l’extrait est préchargé avec la piste et part une fois', async () => {
+  it('sound on, at 1x: the excerpt is pre-loaded with the track and goes out once', async () => {
     const { result } = mount()
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
@@ -82,9 +82,9 @@ describe('useReplaySound — la musique d’intro', () => {
     expect(introSources()).toHaveLength(1)
   })
 
-  // DA-9 / A4.9 : premier « Lecture » après un rechargement. Le lecteur naît DANS ce geste
-  // (`wake`), l'extrait n'est pas encore décodé quand `intro` est appelée juste après.
-  it('premier « Lecture » après un rechargement : l’extrait part quand même, une fois décodé', async () => {
+  // DA-9 / A4.9: first "Play" after a reload. The player is born IN that gesture
+  // (`wake`), the excerpt is not yet decoded when `intro` is called just after.
+  it('first "Play" after a reload: the excerpt goes out all the same, once decoded', async () => {
     localStorage.setItem('replay-sound-on', 'true')
     const { result } = mount()
     act(() => {
@@ -97,7 +97,7 @@ describe('useReplaySound — la musique d’intro', () => {
     localStorage.clear()
   })
 
-  it('à SOUND_MAX_SPEED tout juste, elle part encore', async () => {
+  it('at SOUND_MAX_SPEED exactly, it still goes out', async () => {
     const { result } = mount(SOUND_MAX_SPEED)
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
@@ -105,14 +105,14 @@ describe('useReplaySound — la musique d’intro', () => {
     expect(introSources()).toHaveLength(1)
   })
 
-  it('son coupé : silence, et aucun contexte ni téléchargement au passage', () => {
+  it('sound off: silence, and no context nor download in the passing', () => {
     const { result } = mount()
     act(() => result.current.intro())
     expect(ctx.sources).toHaveLength(0)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('au-delà de SOUND_MAX_SPEED : silence, comme le reste du son', async () => {
+  it('beyond SOUND_MAX_SPEED: silence, like the rest of the sound', async () => {
     const { result } = mount(SOUND_MAX_SPEED * 2)
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
@@ -120,7 +120,7 @@ describe('useReplaySound — la musique d’intro', () => {
     expect(ctx.sources).toHaveLength(0)
   })
 
-  it('absente de l’export : ni dans la piste ni dans la conclusion, rangée en musique', async () => {
+  it('absent from the export: not in the track nor in the conclusion, shelved as music', async () => {
     const { result } = mount()
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })

@@ -1,43 +1,43 @@
 /**
- * useReplaySound — LE CÂBLAGE du son du rejeu : préférence de l'utilisateur, cycle de vie
- * du lecteur Web Audio, et le battement qui fait sonner ce que le curseur vient de passer.
+ * useReplaySound — THE WIRING of the replay sound: user preference, lifecycle
+ * of the Web Audio player, and the beat that makes sound what the cursor just crossed.
  *
- * Il n'y a ici NI règle sonore (replaySound.ts : quoi sonne, quand, et le curseur qui ne
- * rejoue rien deux fois) NI lecture (replayAudio.ts : contexte, enveloppe, voix) — ce
- * fichier n'est que la couture React entre les deux, pour que le composant canvas n'ait
- * pas à connaître Web Audio (anti-pattern « logique dans le composant »).
+ * There is here NEITHER sound rule (replaySound.ts: what sounds, when, and the cursor that
+ * never replays anything twice) NOR playback (replayAudio.ts: context, envelope, voices) —
+ * this file is only the React seam between the two, so that the canvas component does not
+ * have to know Web Audio (anti-pattern "logic in the component").
  *
- * DEUX ÉTATS, PAS UN — ET C'EST LA LEÇON DU CORRECTIF DU 2026-08-27. La PRÉFÉRENCE (« je veux
- * du son », persistée) et le LECTEUR (l'AudioContext, qui ne peut naître que dans un geste)
- * sont deux choses distinctes, et un rechargement de page les désaccorde forcément : la
- * préférence revient du stockage local, le lecteur non. Pendant cette fenêtre le panneau
- * affichait « son activé » alors que rien ne pouvait sonner, et le clic suivant — le geste qui
- * aurait pu tout réparer — basculait la préférence à « coupé ». Il fallait donc DEUX clics pour
- * entendre quoi que ce soit, ce qui ressemblait à une panne.
+ * TWO STATES, NOT ONE — AND THAT IS THE LESSON OF THE FIX OF 2026-08-27. The PREFERENCE ("I want
+ * sound", persisted) and the PLAYER (the AudioContext, which can only be born in a gesture)
+ * are two distinct things, and a page reload necessarily desyncs them: the
+ * preference comes back from local storage, the player does not. During this window the panel
+ * displayed "sound enabled" while nothing could sound, and the next click — the gesture that
+ * could have fixed everything — toggled the preference to "off". It therefore took TWO clicks
+ * to hear anything, which looked like a failure.
  *
- * LE DÉSACCORD SE RÉSOUT AU PREMIER GESTE, quel qu'il soit, et jamais avant (item 12, 2026-09-27) :
- *  - le bouton du son ACTIVE quand rien ne joue, au lieu de couper (`toggle`) ;
- *  - « Lecture » et « Recommencer » éveillent le lecteur (`wake`, via `useReplayPlayback`) ;
- *  - tout autre clic ou touche sur la page aussi, et un document qui a DÉJÀ reçu un geste
- *    (autre rejeu sans rechargement) l'ouvre dès l'affichage (`useAudioUnlock`).
- * Jamais de son sans geste préalable : c'est la liste des gestes qui s'allonge.
+ * THE DESYNC IS RESOLVED AT THE FIRST GESTURE, whatever it is, and never before (item 12, 2026-09-27):
+ *  - the sound button ACTIVES when nothing plays, instead of cutting (`toggle`);
+ *  - "Play" and "Restart" wake the player (`wake`, via `useReplayPlayback`);
+ *  - any other click or key on the page too, and a document that HAS ALREADY received a
+ *    gesture (another replay without reload) opens it at display (`useAudioUnlock`).
+ * Never any sound without a prior gesture: it is the list of gestures that grows.
  *
- * TROIS SILENCES SONT VOULUS, et aucun n'est un bug :
- *  - COUPÉ PAR DÉFAUT : rien ne sonne, rien ne se télécharge même, tant que l'utilisateur
- *    n'a pas cliqué. L'AudioContext naît DANS ce clic (politique d'autoplay : un contexte
- *    créé hors geste démarre suspendu) ;
- *  - LECTEUR EN PAUSE OU ONGLET EN ARRIÈRE-PLAN : la boucle d'animation ne bat plus, donc
- *    `tick` n'est plus appelé. Au retour, le saut de temps recale le curseur en silence
- *    (SOUND_RESYNC_JUMP_MS) : ce qui a été enjambé ne se rejoue pas ;
- *  - AVANCE RAPIDE : au-delà de SOUND_MAX_SPEED, le curseur suit sans jouer.
+ * THREE SILENCES ARE INTENDED, and none is a bug:
+ *  - OFF BY DEFAULT: nothing sounds, nothing is downloaded even, until the user
+ *    has clicked. The AudioContext is born IN that click (autoplay policy: a context
+ *    created outside a gesture starts suspended);
+ *  - PLAYER IN PAUSE OR TAB IN BACKGROUND: the animation loop no longer beats, so
+ *    `tick` is no longer called. On return, the time jump reseeds the cursor in silence
+ *    (SOUND_RESYNC_JUMP_MS): what was crossed is not replayed;
+ *  - FAST FORWARD: beyond SOUND_MAX_SPEED, the cursor follows without playing.
  *
- * LE SON DE FIN DE PARTIE (lot C) NE VIENT PAS DE LA PISTE, comme l'intro (`introSound.ts`). Il
- * n'a pas d'instant sur l'horloge du film : c'est la LECTURE qui l'appelle en arrivant sur la
- * borne de fin (`useReplayPlayback.onEnded`), une fois par arrivée. Il passe par le même
- * lecteur, donc par la même préférence et le même volume — son coupé, rien ; et il obéit aussi
- * au silence d'avance rapide, sans quoi le panneau annoncerait « son coupé par la vitesse »
- * pendant qu'une fanfare joue. Ses prises sont PRÉCHARGÉES avec la piste : le tirage a lieu à
- * l'arrivée en fin, et un fichier demandé à cet instant arriverait trop tard.
+ * THE END OF MATCH SOUND (lot C) DOES NOT COME FROM THE TRACK, like the intro (`introSound.ts`).
+ * It has no moment on the film's clock: it is the PLAYBACK that calls it on arriving at the
+ * end bound (`useReplayPlayback.onEnded`), once per arrival. It goes through the same
+ * player, therefore through the same preference and the same volume — sound off, nothing; and
+ * it obeys the fast-forward silence too, otherwise the panel would announce "sound cut by speed"
+ * while a fanfare plays. Its takes are PRELOADED with the track: the drawing takes
+ * place at the arrival at the end, and a file requested at that moment would arrive too late.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
@@ -73,118 +73,118 @@ import { useReplayEngineSound } from './useReplayEngineSound'
 import { useAudioUnlock } from './useAudioUnlock'
 import type { EnginePlan } from './vehicleEngineSound'
 
-/** Préférences persistées — patron partagé (replayPreferences.ts), né ici. */
+/** Persisted preferences — shared pattern (replayPreferences.ts), born here. */
 const SOUND_ON_KEY = 'replay-sound-on'
 const SOUND_VOLUME_KEY = 'replay-sound-volume'
-/** Catégories COUPÉES, pas les catégories actives : un futur 5e stem reste ON par défaut
- *  pour qui a déjà une préférence stockée — jamais besoin de migrer ce JSON. */
+/** Categories CUT, not the active categories: a future 5th stem stays ON by default
+ * for those who already have a stored preference — never need to migrate this JSON. */
 const SOUND_CATEGORIES_OFF_KEY = 'replay-sound-categories-off'
 
-/** Volume d'ouverture : assez présent pour s'entendre, assez bas pour ne pas faire sursauter. */
+/** Opening volume: present enough to be heard, low enough not to startle. */
 export const SOUND_VOLUME_DEFAULT = 0.7
 
-/** Ce que le composant reçoit : un état à afficher, des commandes, un battement. */
-/** Ce que l'export hors temps reel mixe : la piste que la page joue, telle quelle. */
+/** What the component receives: a state to display, commands, a beat. */
+/** What the out-of-real-time export mixes: the track the page plays, as is. */
 export interface ReplayExportTrack {
   timeline: readonly ReplaySoundEvent[]
-  /** Les prises de FIN DE PARTIE : elles n'ont pas d'instant sur la piste. */
+  /** The END OF MATCH takes: they have no moment on the track. */
   endMatchStems: readonly string[]
   /**
-   * QUELS STEMS SONT DE LA VOIX, ET LESQUELS SONT DE LA MUSIQUE — pour les pistes separees du
-   * clip exporte. Tout ce qui n'y figure pas est un BRUITAGE : c'est le cas de tres loin le plus
-   * courant, et le defaut le plus sur (un son mal classe reste dans le mixage complet).
+   * WHICH STEMS ARE VOICE, AND WHICH ARE MUSIC — for the separated tracks of the
+   * exported clip. Everything that does not appear there is a SOUND EFFECT: that is by far
+   * the most common case, and the safest default (a misclassified sound stays in the full mix).
    *
-   * La VOIX ne se limite pas a la fin de match : l'annonceur dit aussi la fin de MANCHE, et ce
-   * son-la vit dans la piste, mele aux bruitages.
+   * The VOICE is not limited to the end of match: the announcer also announces the end of ROUND,
+   * and that sound lives in the track, mixed with the sound effects.
    */
   families: { voice: readonly string[]; music: readonly string[] }
   /**
-   * LE PLAN MOTEUR DES VÉHICULES (cf. `vehicleEngineSound.ts`) : pas des événements mais des
-   * ÉTATS continus — l'export les pose par segments (`vehicleEngineMix.ts`), la page par son
-   * lecteur dédié. Même plan des deux côtés : le clip ne peut ni inventer ni manquer un moteur.
+   * THE ENGINE PLAN OF THE VEHICLES (cf. `vehicleEngineSound.ts`): not events but
+   * continuous STATES — the export places them by segments (`vehicleEngineMix.ts`), the page
+   * by its dedicated player. Same plan on both sides: the clip cannot invent or miss an engine.
    */
   engines: readonly EnginePlan[]
-  /** Reglage d'instance de la variation d'arme, lu a l'appel (page admin). */
+  /** Instance setting of weapon variation, read at call (admin page). */
   variationPercent: number
   /**
-   * Reglage d'instance de DISTANCE (page admin). L'export pose la meme chaine attenuation +
-   * passe-bas que le lecteur : sans lui, le clip sonnerait plus fort et plus brillant que la
-   * page, ce qui contredit « la trace fidele ».
+   * Instance setting of DISTANCE (admin page). The export places the same attenuation chain +
+   * low-pass as the player: without it, the clip would sound louder and brighter than the
+   * page, which contradicts "the faithful track".
    */
   distancePercent: number
 }
 
 export interface ReplaySound {
-  /** QUI ÉCOUTE : la vue 3D y écrit sa caméra à chaque image ; `null` (vue 2D) = aucun son placé. */
+  /** WHO LISTENS: the 3D view writes its camera there at each frame; `null` (2D view) = no sound placed. */
   listener: RefObject<SoundListener | null>
-  /** La piste porte au moins un son : sinon, pas de commande à offrir. INDÉPENDANT du
-   *  filtre par catégorie — tout décocher ne doit pas faire disparaître le panneau. */
+  /** The track carries at least one sound: otherwise, no command to offer. INDEPENDENT of
+   * the category filter — unchecking all must not make the panel disappear. */
   available: boolean
   on: boolean
   toggle: () => void
   /**
-   * À appeler dans un GESTE DE TRANSPORT (lecture, recommencer) : rend son lecteur à un rejeu
-   * dont la préférence est restée à « activé » d'une session à l'autre. Sans effet si le son
-   * est coupé ou si le lecteur vit déjà.
+   * To call in a TRANSPORT GESTURE (play, restart): restores its player to a replay
+   * whose preference stayed "enabled" from one session to the next. No effect if the sound
+   * is off or if the player is already alive.
    */
   wake: () => void
   volume: number
   setVolume: (v: number) => void
-  /** Le son est activé mais tu par la vitesse de lecture (à dire, pas à cacher). */
+  /** The sound is enabled but muted by the playback speed (to say, not to hide). */
   mutedBySpeed: boolean
-  /** Filtre par catégorie (tiroir de réglages, phase 2) : `true` = catégorie audible. */
+  /** Category filter (settings drawer, phase 2): `true` = category audible. */
   categories: SoundCategoryFilter
   toggleCategory: (category: SoundCategory) => void
-  /** À appeler à chaque pas d'animation avec l'instant courant du rejeu, en ms. */
+  /** To call at each animation step with the current moment of the replay, in ms. */
   tick: (ms: number) => void
   /**
-   * seek — UN DÉPLACEMENT, PAS UNE LECTURE : le curseur se POSE à cet instant sans rien jouer.
+   * seek — A JUMP, NOT A PLAYBACK: the cursor is PLACED at this moment without playing anything.
    *
-   * POURQUOI C'EST UNE COMMANDE À PART (lot 5.8.7). `tick` est le battement de la LECTURE : il
-   * tire tout ce qui tombe entre l'instant précédent et celui-ci, et ne recale en silence qu'au
-   * -delà de `SOUND_RESYNC_JUMP_MS`. Servi après un GLISSÉ de frise, il fait donc l'une de deux
-   * choses fausses : une rafale (saut sous la seconde) ou un recalage qui dépend de l'amplitude
-   * du geste. Un déplacement n'a pas d'amplitude qui compte — on n'a pas écouté ce qu'on a
-   * enjambé, quelle que soit sa durée.
+   * WHY IT IS A SEPARATE COMMAND (lot 5.8.7). `tick` is the beat of the PLAYBACK: it
+   * plays everything that falls between the previous moment and this one, and only reseeds in silence
+   * beyond `SOUND_RESYNC_JUMP_MS`. Served after a TIMELINE DRAG, it therefore does one of two
+   * wrong things: a burst (jump under the second) or a reseeding that depends on the amplitude
+   * of the gesture. A jump has no amplitude that counts — we did not listen to what we
+   * crossed, whatever its duration.
    */
   seek: (ms: number) => void
   /**
-   * LA LECTURE VIENT DE S'ARRÊTER OU DE REPARTIR. Les sons d'événement n'en ont pas besoin
-   * (sans battement, rien ne part) — les MOTEURS de véhicules, si : une boucle en vol ne
-   * s'éteint pas toute seule, la pause doit la couper (rampe de 20 ms, décision n° 6).
+   * THE PLAYBACK JUST STOPPED OR RESTARTED. The event sounds do not need it
+   * (without a beat, nothing goes out) — the VEHICLE ENGINES do: a loop in flight does
+   * not turn off by itself, the pause must cut it (20 ms ramp, decision n° 6).
    */
   setTransportPlaying: (playing: boolean) => void
   /**
-   * LA CONCLUSION : voix de l'annonceur + fanfare, à appeler UNE fois quand la lecture atteint
-   * la borne de fin du match. Rien ne sonne si le son est coupé, si la fin n'est pas lisible
-   * (cf. `endMatchSoundSpec`) ou si la vitesse dépasse SOUND_MAX_SPEED.
+   * THE CONCLUSION: announcer voice + fanfare, to call ONCE when the playback reaches
+   * the end bound of the match. Nothing sounds if the sound is off, if the end is not readable
+   * (cf. `endMatchSoundSpec`) or if the speed exceeds SOUND_MAX_SPEED.
    */
   endMatch: () => void
-  /** LA MUSIQUE D'INTRO (item 7, `introSound.ts`) : au départ depuis le préambule, par la voie
-   *  ordinaire — son coupé ou vitesse au-delà de SOUND_MAX_SPEED, silence. Jamais dans l'export. */
+  /** THE INTRO MUSIC (item 7, `introSound.ts`): at the departure from the preamble, by the
+   * ordinary route — sound off or speed beyond SOUND_MAX_SPEED, silence. Never in the export. */
   intro: () => void
   /**
-   * LA PISTE AUDIO À JOINDRE À UNE VIDÉO enregistrée, ou `null`.
+   * THE AUDIO TRACK TO JOIN TO A RECORDED VIDEO, or `null`.
    *
-   * `null` dans deux cas qui n'en font qu'un du point de vue de l'utilisateur : le son est
-   * coupé, ou le lecteur n'est pas né (il ne naît que dans le geste qui active le son). Le
-   * clip sort alors muet, et c'est la décision 6 du plan — la piste est câblée AU DÉMARRAGE
-   * de l'enregistrement, donc activer le son ensuite ne l'ajoute pas au clip en cours. La
-   * raison n'est pas technique mais de lisibilité : un fichier dont le son démarrerait en
-   * cours de route passerait pour un fichier abîmé.
+   * `null` in two cases that make only one from the user's point of view: the sound is
+   * off, or the player has not been born (it is only born in the gesture that activates the sound). The
+   * clip then comes out silent, and that is decision 6 of the plan — the track is wired AT THE START
+   * of the recording, so activating the sound afterwards does not add it to the clip in progress. The
+   * reason is not technical but of readability: a file whose sound would start
+   * partway through would be mistaken for a damaged file.
    */
   recordingTrack: () => MediaStreamTrack | null
   /**
-   * CE QUE L'EXPORT HORS TEMPS RÉEL MIXE (`replayAudioMix.ts`). La piste n'est PAS reconstruite
-   * là-bas : c'est celle que la page joue, donc le clip ne peut ni inventer un son ni en
-   * manquer un. `endMatchStems` porte les prises de fin de partie, qui n'ont pas d'instant sur
-   * la piste — elles se posent sur la borne de fin.
+   * WHAT THE OUT-OF-REAL-TIME EXPORT MIXES (`replayAudioMix.ts`). The track is NOT rebuilt
+   * there: it is the one the page plays, so the clip cannot invent a sound or
+   * miss one. `endMatchStems` carries the end-of-match takes, which have no moment on
+   * the track — they are placed on the end bound.
    */
   exportTrack: () => ReplayExportTrack
 }
 
-/** Lit les catégories COUPÉES ; une valeur inconnue (ancienne clé, JSON corrompu) est
- *  ignorée plutôt que de faire échouer toute la lecture — silence propre côté préférence. */
+/** Reads the categories CUT; an unknown value (old key, corrupted JSON) is
+ * ignored rather than making the whole read fail — clean silence on the preference side. */
 function readStoredCategoriesOff(): ReadonlySet<SoundCategory> {
   try {
     const raw = localStorage.getItem(SOUND_CATEGORIES_OFF_KEY)
@@ -199,10 +199,10 @@ function readStoredCategoriesOff(): ReadonlySet<SoundCategory> {
 }
 
 /**
- * Sous-hook : le filtre par catégorie, sa persistance, sa bascule — extrait pour garder
- * useReplaySound sous le seuil de lisibilité (CLAUDE.md n°5, fonction ≤ 80 lignes) plutôt
- * que de laisser grossir une fonction déjà dense. Même responsabilité que le reste du
- * fichier (préférence utilisateur + câblage React), un cran plus petit.
+ * Sub-hook: the category filter, its persistence, its toggle — extracted to keep
+ * useReplaySound under the readability threshold (CLAUDE.md n°5, function ≤ 80 lines) rather
+ * than let an already dense function grow. Same responsibility as the rest of the
+ * file (user preference + React wiring), one step smaller.
  */
 function useSoundCategoryFilter(): {
   categories: SoundCategoryFilter
@@ -215,18 +215,18 @@ function useSoundCategoryFilter(): {
     grenade: !categoriesOff.has('grenade'),
     melee: !categoriesOff.has('melee'),
     equipment: !categoriesOff.has('equipment'),
-    // TOUJOURS VRAI : « Objectifs » n'est plus réglable (cf. SOUND_CATEGORIES). La lecture
-    // du stockage l'ignore déjà, ce littéral dit la même chose au type.
+    // ALWAYS TRUE: "Objectives" is no longer adjustable (cf. SOUND_CATEGORIES). The read
+    // of the storage already ignores it, this literal says the same thing to the type.
     objective: true,
   }), [categoriesOff])
 
-  // NEXT CALCULÉ HORS UPDATER, PERSISTANCE APRÈS `setCategoriesOff` (même correctif que le
-  // bug U2 des bascules, `usePersistedFlag` / `thought_log.md`) : `persistPreference`
-  // notifie ses abonnés SYNCHRONEMENT, et un abonné qui rappelle `setState` depuis
-  // l'updater d'un AUTRE `setState` (ici `setCategoriesOff`) déclenche une mise à jour
-  // d'état en pleine phase de rendu — React le refuse (« Cannot update a component while
-  // rendering a different component »). Aucun symptôme aujourd'hui (`SOUND_CATEGORIES_OFF_KEY`
-  // n'a pas d'abonné croisé), mais le motif fautif ne doit pas se reproduire.
+  // NEXT COMPUTED OUTSIDE THE UPDATER, PERSISTENCE AFTER `setCategoriesOff` (same fix as the
+  // U2 toggle bug, `usePersistedFlag` / `thought_log.md`): `persistPreference`
+  // notifies its subscribers SYNCHRONOUSLY, and a subscriber that recalls `setState` from
+  // the updater of ANOTHER `setState` (here `setCategoriesOff`) triggers a state update
+  // in the middle of the render phase — React refuses it ("Cannot update a component while
+  // rendering a different component"). No symptom today (`SOUND_CATEGORIES_OFF_KEY`
+  // has no crossed subscriber), but the faulty pattern must not be reproduced.
   const toggleCategory = useCallback((category: SoundCategory) => {
     const next = new Set(categoriesOff)
     if (next.has(category)) next.delete(category)
@@ -238,23 +238,23 @@ function useSoundCategoryFilter(): {
   return { categories, toggleCategory }
 }
 
-/** Le match porte-t-il un son du tout, INDÉPENDAMMENT du filtre choisi ? Sert `available` :
- *  si elle suivait la piste filtrée, tout décocher ferait disparaître le seul bouton qui
- *  permet de tout rallumer. */
+/** Does the match carry a sound at all, INDEPENDENTLY of the chosen filter? Serves `available`:
+ * if it followed the filtered track, unchecking all would make disappear the only button that
+ * allows turning everything back on. */
 
 
-/** Les URL des sons EFFECTIVEMENT présents dans une piste : on ne précharge jamais le pack
- *  entier (58 fichiers) pour un match qui n'en joue que cinq. `extra` porte les stems qui
- *  n'ont pas d'instant sur l'horloge — les prises de la fin de partie, dont le tirage n'aura
- *  lieu qu'à l'arrivée en fin. */
+/** The URLs of the sounds EFFECTIVELY present in a track: we never preload the full
+ * pack (58 files) for a match that only plays five of them. `extra` carries the stems that
+ * have no moment on the clock — the end-of-match takes, whose drawing will
+ * only take place at the arrival at the end. */
 function soundURLsFor(
   timeline: readonly { stem: string; variants?: readonly string[] }[],
   extra: readonly string[],
 ): Map<string, string> {
   const urls = new Map<string, string>()
   for (const e of timeline) {
-    // TOUTES les variantes sont préchargées, pas seulement celle qui sortira du tirage : le
-    // tirage a lieu à la lecture, et un fichier pas encore décodé y serait un silence.
+    // ALL variants are preloaded, not only the one that will come out of the drawing: the
+    // drawing takes place at playback, and a file not yet decoded there would be a silence.
     for (const stem of stemsOf(e)) {
       if (!urls.has(stem)) urls.set(stem, soundUrlOf(stem))
     }
@@ -266,16 +266,16 @@ function soundURLsFor(
 }
 
 /**
- * Sous-hook : les REGLAGES D'INSTANCE des sons d'armes (page admin — variation RANGED et
- * distance), extrait pour la meme raison que le filtre par categorie : garder le hook
- * principal sous le seuil de lisibilite. La variation se lit au TIRAGE (ref, pas une
- * dependance du battement) ; la distance se POSE sur le lecteur des qu'elle change — et
- * `apply` la pose aussi a la creation du lecteur, qui nait apres le premier reglage.
+ * Sub-hook: the INSTANCE SETTINGS of the weapon sounds (admin page — variation RANGED and
+ * distance), extracted for the same reason as the category filter: keep the main hook
+ * under the readability threshold. The variation is read at the DRAWING (ref, not a
+ * dependency of the beat); the distance is PLACED on the player as soon as it changes — and
+ * `apply` also places it at the creation of the player, which is born after the first setting.
  */
 function useInstanceSoundTuning(playerRef: { current: ReplayAudioPlayer | null }): {
   variationPercentRef: { current: number }
-  /** MEME NATURE QUE LA VARIATION : une REF, parce que l'export la lit a son lancement et non
-   *  pendant un rendu (lire une ref au rendu rend une valeur arbitraire). */
+  /** SAME NATURE AS THE VARIATION: a REF, because the export reads it at its launch and not
+   * during a render (reading a ref at render gives an arbitrary value). */
   distancePercentRef: { current: number }
   apply: (player: ReplayAudioPlayer) => void
 } {
@@ -296,35 +296,35 @@ function useInstanceSoundTuning(playerRef: { current: ReplayAudioPlayer | null }
 }
 
 /**
- * ReplaySoundContext — les entrées de `useReplaySound` qui dépendent du CONTEXTE de la page
- * (allégeance vue du point de vue, fin de partie, langue), plutôt que de la piste elle-même
- * (`doc`/`kills`/`speed`, restés positionnels).
+ * ReplaySoundContext — the entries of `useReplaySound` that depend on the CONTEXT of the page
+ * (allegiance seen from the viewpoint, end of match, language), rather than on the track itself
+ * (`doc`/`kills`/`speed`, kept positional).
  *
- * Regroupées en objet le 2026-09-10 :
- * le hook avait 7 paramètres positionnels (seuil du dépôt CLAUDE.md n°5 : 5), une exemption
- * commentée en attendant ce lot, qui touche les 8 appels du hook — dont 7 tests.
+ * Grouped into an object on 2026-09-10:
+ * the hook had 7 positional parameters (threshold of the repository CLAUDE.md n°5: 5), a commented
+ * exemption waiting for this lot, which touches the 8 calls of the hook — including 7 tests.
  *
- * LES TROIS CHAMPS SONT REQUIS (`null`/`undefined` explicite). L'allégeance porte le POINT DE
- * VUE (décision 11 du 2026-09-06 : « allié » / « adverse » se disent par rapport au joueur
- * regardé ; seule la fin de partie, `endMatch`, reste ancrée sur le joueur de la page) : un
- * appelant qui l'omettrait laisserait les tics de zone et la voix d'objectif sur un autre camp
- * que celui de la carte, et les tests resteraient verts — requise, l'oubli ne compile pas.
+ * THE THREE FIELDS ARE REQUIRED (`null`/`undefined` explicit). The allegiance carries the VIEWPOINT
+ * (decision 11 of 2026-09-06: "ally" / "opposing" are said with respect to the player
+ * viewed; only the end of match, `endMatch`, remains anchored on the player of the page): a
+ * caller who would omit it would leave the zone ticks and the objective voice on another side
+ * than that of the map, and the tests would stay green — required, the forget does not compile.
  */
 export interface ReplaySoundContext {
-  /** L'allégeance lue dans le film, vue du point de vue (`model.allegiance`) : le camp de
-   *  l'auteur d'une action d'objectif (`objectiveSideResolver`) et le camp allié des sons de
-   *  zone. Sans allégeance, les actions qui ont deux variantes d'équipe restent MUETTES — le
-   *  rejeu ne devine jamais un camp, même règle que l'encre des calques. */
+  /** The allegiance read in the film, seen from the viewpoint (`model.allegiance`): the side
+   * of the author of an objective action (`objectiveSideResolver`) and the allied side of the
+   * zone sounds. Without allegiance, the actions that have two team variants stay MUTED — the
+   * replay never guesses a side, same rule as the ink of the layers. */
   allegiance: FilmAllegiance
   endMatch: EndMatchSoundSpec | null
-  /** La LANGUE de l'interface : elle ne sert QU'au son « manche terminée » (voix d'annonceur,
-   *  `roundOverSound.ts`), la seule entrée locale-aware de la piste. Absente, ce son se tait. */
+  /** The LANGUAGE of the interface: it serves ONLY the "round ended" sound (announcer voice,
+   * `roundOverSound.ts`), the only locale-aware entry of the track. Absent, that sound stays silent. */
   locale: ReplayLocale | undefined
 }
 
 export function useReplaySound(
   doc: ReplayDocumentReady,
-  // Les kills DU FIL, déjà recalés (`killsOfFeed`) : la piste ne rejoue plus le recalage.
+  // The kills OF THE FILM, already realigned (`killsOfFeed`): the track no longer replays the realignment.
   kills: readonly ReplayKill[],
   speed: number,
   context: ReplaySoundContext,
@@ -332,8 +332,8 @@ export function useReplaySound(
   const { allegiance, endMatch, locale } = context
   const listener = useRef<SoundListener | null>(null)
   const sideOfXuid = useMemo(() => objectiveSideResolver(allegiance), [allegiance])
-  // Le camp allié EN NUMÉRO : les sons d'état de zone joignent sur le propriétaire d'une zone,
-  // pas sur le xuid d'un joueur. Même allégeance du film que le résolveur ci-dessus.
+  // The allied side AS A NUMBER: the zone state sounds join on the owner of a zone,
+  // not on the xuid of a player. Same film allegiance as the resolver above.
   const allyTeam = allegiance.allyTeam
   const [on, setOn] = useState(() => readStoredFlag(SOUND_ON_KEY, false))
   const [volume, setVolumeState] = useState(() =>
@@ -342,46 +342,46 @@ export function useReplaySound(
   const { categories, toggleCategory } = useSoundCategoryFilter()
   const playerRef = useRef<ReplayAudioPlayer | null>(null)
   const tuning = useInstanceSoundTuning(playerRef)
-  // LES MOTEURS DE VÉHICULES (sous-hook dédié, même raison de taille que les deux autres) :
-  // des états continus, pas des événements — ils ne passent ni par la piste ni par le curseur.
+  // THE VEHICLE ENGINES (dedicated sub-hook, same size reason as the other two):
+  // continuous states, not events — they go neither through the track nor through the cursor.
   const engine = useReplayEngineSound(doc)
 
-  // Piste JOUÉE, catégories coupées retirées À LA CONSTRUCTION (jamais en aval, dans le
-  // lecteur) ; DISPONIBILITÉ DU PANNEAU indépendante de ce filtre (hasSoundEvents ci-dessus).
+  // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
+  // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
   const timeline = useMemo(
     () => buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, locale),
     [doc, kills, categories, sideOfXuid, allyTeam, locale],
   )
-  // Les MOTEURS comptent dans la disponibilité : un match sans événement sonore mais avec un
-  // véhicule occupé a bien quelque chose à faire entendre, donc un bouton à offrir.
+  // The ENGINES count in the availability: a match without sound event but with a
+  // occupied vehicle does have something to make hear, therefore a button to offer.
 
-  // Les prises de la FIN entrent dans le préchargement avec la piste : le tirage n'a lieu qu'à
-  // l'arrivée en fin, et un fichier demandé à cet instant sonnerait après le silence.
+  // The takes of the END enter the preload with the track: the drawing only takes place
+  // at the arrival at the end, and a file requested at that moment would sound after the silence.
   const urls = useMemo(
     () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, ...engine.stems]),
     [timeline, endMatch, engine.stems],
   )
 
   const cursorRef = useRef<SoundCursor>({ ms: 0, idx: 0 })
-  // Le prochain battement POSE le curseur sans rien jouer. Vrai à l'activation et à tout
-  // changement de piste : sans cela, activer le son à 500 ms ferait partir d'un coup tout
-  // ce qui précède (l'écart au curseur, resté à 0, passerait pour une lecture continue).
+  // The next beat PLACES the cursor without playing anything. True at activation and at any
+  // change of track: without that, activating the sound at 500 ms would send out all at once
+  // everything that precedes (the gap to the cursor, stayed at 0, would pass for continuous playback).
   const resyncRef = useRef(true)
-  // La lecture tourne-t-elle ? Présumée vraie jusqu'à ce que la page dise le contraire
-  // (`setTransportPlaying`, publié à chaque changement lu/pause, y compris au montage).
+  // Is the playback running? Presumed true until the page says otherwise
+  // (`setTransportPlaying`, published at each play/pause change, including at mount).
   const playingRef = useRef(true)
-  // Lus par le battement sans en être des dépendances : couper le son ou changer de vitesse
-  // ne doit pas recréer la boucle d'animation du canvas.
+  // Read by the beat without being dependencies of it: cutting the sound or changing the speed
+  // must not recreate the animation loop of the canvas.
   const onRef = useRef(on)
-  // Le NIVEAU réglé, lu par les gestes qui ouvrent le lecteur : le mettre en dépendance de
-  // leurs rappels les recréerait à chaque pas du curseur de volume. Il s'écrit dans
-  // `setVolume`, son seul point d'entrée.
+  // The LEVEL set, read by the gestures that open the player: making it a dependency of
+  // their callbacks would recreate them at each step of the volume cursor. It is written in
+  // `setVolume`, its only entry point.
   const volumeRef = useRef(volume)
   const speedRef = useRef(speed)
   const timelineRef = useRef(timeline)
   const urlsRef = useRef(urls)
-  // La lecture de fin suit la même règle : `onEnded` doit rester STABLE, sans quoi la boucle
-  // d'animation se recréerait le jour où l'en-tête du match arrive.
+  // The end playback follows the same rule: `onEnded` must remain STABLE, otherwise the
+  // animation loop would be recreated the day the match header arrives.
   const endMatchRef = useRef(endMatch)
 
   useEffect(() => { onRef.current = on }, [on])
@@ -391,24 +391,24 @@ export function useReplaySound(
     timelineRef.current = timeline
     urlsRef.current = urls
     resyncRef.current = true
-    // Un match qui change alors que le son tourne : les nouveaux sons se chargent, les
-    // anciens restent en cache (même lecteur, mêmes URL le cas échéant).
+    // A match that changes while the sound is running: the new sounds load, the
+    // old ones stay in cache (same player, same URLs where applicable).
     if (onRef.current) playerRef.current?.preload(urls.values())
   }, [timeline, urls])
 
-  // Le lecteur meurt AVEC le composant : un AudioContext laissé ouvert survit à la page.
+  // The player dies WITH the component: an AudioContext left open survives the page.
   useEffect(() => () => {
     playerRef.current?.dispose()
     playerRef.current = null
   }, [])
 
   /**
-   * openPlayer — LE LECTEUR PREND VIE. À N'APPELER QUE DANS UN GESTE UTILISATEUR : c'est la
-   * seule fenêtre où un AudioContext démarre en marche (politique d'autoplay).
+   * openPlayer — THE PLAYER COMES TO LIFE. TO CALL ONLY IN A USER GESTURE: it is the
+   * only window where an AudioContext starts in operation (autoplay policy).
    *
-   * Il lit le volume dans une REF et non dans l'état : cette fonction est appelée par des
-   * rappels stables (bascule du bouton, gestes de transport), et en faire une dépendance du
-   * volume les recréerait à chaque mouvement du curseur.
+   * It reads the volume in a REF and not in the state: this function is called by
+   * stable callbacks (button toggle, transport gestures), and making it a dependency of
+   * the volume would recreate them at each movement of the cursor.
    */
   const openPlayer = useCallback(() => {
     const level = volumeRef.current
@@ -426,13 +426,13 @@ export function useReplaySound(
   }, [tuning, engine.attach])
 
   /**
-   * wake — CE QUE FAIT UN GESTE DE TRANSPORT QUAND LA PRÉFÉRENCE EST DÉJÀ À « ACTIVÉ ».
+   * wake — WHAT A TRANSPORT GESTURE DOES WHEN THE PREFERENCE IS ALREADY AT "ENABLED".
    *
-   * Rien du tout dans le cas nominal : le lecteur existe déjà, ou le son est coupé. Il ne sert
-   * qu'à la situation décrite plus haut — préférence restaurée à `true` par le stockage local,
-   * aucun lecteur, donc aucun son. Le premier « Lecture » ou « Recommencer » est un geste
-   * utilisateur ; il vaut donc pour la politique d'autoplay, et il rend au rejeu le son que
-   * l'utilisateur n'a jamais coupé.
+   * Nothing at all in the nominal case: the player already exists, or the sound is off. It only
+   * serves the situation described above — preference restored to `true` by the local storage,
+   * no player, therefore no sound. The first "Play" or "Restart" is a user gesture; it
+   * therefore counts for the autoplay policy, and it restores to the replay the sound that
+   * the user never cut.
    */
   const wake = useCallback(() => {
     if (!onRef.current || playerRef.current) return
@@ -441,19 +441,19 @@ export function useReplaySound(
   useAudioUnlock(on, wake)
 
   const toggle = useCallback(() => {
-    // RIEN À COMMANDER, RIEN NE BOUGE (correctif du 2026-08-28, revue R1). Le bouton du son ne
-    // se rend pas quand le match n'a aucun son — mais le RACCOURCI CLAVIER, lui, n'a pas de
-    // rendu à respecter : « M » sur un tel match basculait la préférence, la PERSISTAIT
-    // (`SOUND_ON_KEY`) et ouvrait un lecteur, sans qu'un seul pixel ne change à l'écran. Le
-    // rejeu suivant démarrait alors dans l'état inverse de celui qu'on croyait avoir laissé.
-    // La garde vit ICI, chez le propriétaire de l'état, et pas dans le clavier : c'est le seul
-    // endroit qui la rend vraie pour TOUS les appelants, présents et à venir.
+    // NOTHING TO COMMAND, NOTHING MOVES (fix of 2026-08-28, review R1). The sound button does
+    // not render when the match has no sound — but the KEYBOARD SHORTCUT, it, has no
+    // render to respect: "M" on such a match toggled the preference, PERSISTED
+    // it (`SOUND_ON_KEY`) and opened a player, without a single pixel changing on screen. The
+    // next replay would then start in the opposite state of the one we thought we left.
+    // The guard lives HERE, at the owner of the state, and not in the keyboard: it is the only
+    // place that makes it true for ALL callers, present and to come.
 
-    // LE PREMIER CLIC APRÈS UN RECHARGEMENT ACTIVE, IL NE COUPE PAS (correctif du 2026-08-27).
-    // La préférence est à « activé » mais aucun lecteur n'existe : l'état affiché et l'état
-    // réel se contredisent, et basculer la préférence à « coupé » ferait payer à l'utilisateur
-    // une incohérence dont il n'est pas l'auteur — il faudrait DEUX clics pour entendre quelque
-    // chose. Ce clic-ci réconcilie les deux : le son se met à jouer, la préférence ne bouge pas.
+    // THE FIRST CLICK AFTER A RELOAD ACTIVES, IT DOES NOT CUT (fix of 2026-08-27).
+    // The preference is "enabled" but no player exists: the displayed state and the real
+    // state contradict each other, and toggling the preference to "off" would make the user
+    // pay for an inconsistency he did not author — it would take TWO clicks to hear something.
+    // This click reconciles the two: the sound starts playing, the preference does not move.
     if (onRef.current && !playerRef.current) {
       openPlayer()
       return
@@ -461,14 +461,14 @@ export function useReplaySound(
     const next = !onRef.current
     onRef.current = next
     persistPreference(SOUND_ON_KEY, String(next))
-    // DANS LE GESTE, toujours. Coupure IMMÉDIATE dans l'autre sens (rampe du maître) : ce qui
-    // est en vol s'éteint avec, plutôt que de traîner une seconde après le clic.
+    // IN THE GESTURE, always. IMMEDIATE CUT in the other direction (master ramp): what
+    // is in flight is turned off with it, rather than lingering a second after the click.
     if (next) openPlayer()
     else {
       playerRef.current?.setVolume(0)
-      // La rampe du maître éteint ce qui est EN VOL ; une boucle moteur, elle, resterait à
-      // tourner en silence et repartirait au prochain réglage de volume — on la coupe. Les
-      // rafales tenues aussi.
+      // The master ramp turns off what is IN FLIGHT; an engine loop, by contrast, would
+      // keep turning in silence and restart at the next volume setting — we cut it. The
+      // held bursts too.
       engine.stop()
       playerRef.current?.stopHeld()
     }
@@ -483,9 +483,9 @@ export function useReplaySound(
     if (onRef.current) playerRef.current?.setVolume(clamped)
   }, [])
 
-  // La piste d'enregistrement se lit sur les REFS (`onRef`, `playerRef`) et non sur l'état :
-  // elle est demandée au moment d'un clic sur « Enregistrer », jamais pendant un rendu, et
-  // cette fonction doit rester stable pour ne pas recréer l'objet de capture à chaque son.
+  // The recording track is read on the REFS (`onRef`, `playerRef`) and not on the state:
+  // it is requested at the moment of a click on "Record", never during a render, and
+  // this function must remain stable so as not to recreate the capture object at each sound.
   const recordingTrack = useCallback((): MediaStreamTrack | null => {
     if (!onRef.current) return null
     return playerRef.current?.recordingTrack() ?? null
@@ -494,53 +494,53 @@ export function useReplaySound(
   const tick = useCallback((ms: number) => {
     const tl = timelineRef.current
     const player = playerRef.current
-    // Le curseur SUIT toujours la lecture, même muet : en revenant à 1×, on repart de
-    // l'instant courant et non d'un passé enjambé.
+    // The cursor ALWAYS follows the playback, even muted: on returning to 1x, we restart
+    // from the current moment and not from a crossed past.
     if (!onRef.current || !player || !soundPlaysAtSpeed(speedRef.current)) {
       cursorRef.current = resyncSoundCursor(tl, ms)
-      // Les MOTEURS se taisent avec le reste : au-delà de SOUND_MAX_SPEED, le panneau dit
-      // « son coupé par la vitesse », et un moteur qui continuerait le ferait mentir. Les
-      // rafales TENUES aussi (schéma 71).
+      // The ENGINES stay silent with the rest: beyond SOUND_MAX_SPEED, the panel says
+      // "sound cut by speed", and an engine that would continue would make it lie. The
+      // held bursts too (schema 71).
       engine.stop()
       player?.stopHeld()
       return
     }
-    // Les moteurs suivent l'instant AVANT le tirage des événements : un saut est réconcilié
-    // en silence par le lecteur moteur lui-même (reprise directement sur la boucle).
-    // LES MOTEURS NE SUIVENT QUE LA LECTURE. Un déplacement (glissé de frise, pas d'image, saut
-    // vers un repère) bat aussi à l'arrêt : y réconcilier les moteurs démarrait des boucles que
-    // plus rien n'éteignait (la pause a déjà eu lieu), un véhicule ronflant sur une image fixe.
+    // The engines follow the moment BEFORE the drawing of the events: a jump is reconciled
+    // in silence by the engine player itself (resuming directly on the loop).
+    // THE ENGINES ONLY FOLLOW THE PLAYBACK. A jump (timeline drag, frame step, jump
+    // to a landmark) also beats at the stop: reconciling the engines there would start loops
+    // that nothing would turn off (the pause already happened), a vehicle idling on a fixed frame.
     if (playingRef.current) engine.sync(ms)
     else engine.stop()
     if (resyncRef.current) {
       resyncRef.current = false
       cursorRef.current = resyncSoundCursor(tl, ms)
-      // UN SAUT éteint la rafale tenue : elle appartenait à l'instant quitté.
+      // A JUMP turns off the held burst: it belonged to the moment left.
       player.stopHeld()
       return
     }
     const { cursor, fire } = advanceSoundCursor(tl, cursorRef.current, ms)
     cursorRef.current = cursor
     for (const e of fire) {
-      // LE TIRAGE DE VARIANTE A LIEU ICI, pas à la construction de la piste : une piste est
-      // bâtie une fois pour tout le match, y tirer ferait rejouer le même fichier à chaque
-      // occurrence du geste — exactement ce que la variante évite (`replaySoundVariants.ts`).
+      // THE VARIANT DRAWING TAKES PLACE HERE, not at the construction of the track: a track is
+      // built once for the whole match, drawing there would make replay the same file at each
+      // occurrence of the gesture — exactly what the variant avoids (`replaySoundVariants.ts`).
       const stem = pickVariantStem(e)
       const url = urlsRef.current.get(stem)
       if (!url) continue
       const shape = soundShapeOf(e)
-      // À l'arrêt (pas d'image, saut vers un repère), un son bref atterrit avec l'image, mais
-      // une rafale TENUE (jusqu'à dix secondes) tirerait sur une image qui ne bouge plus.
+      // At the stop (no frame, jump to a landmark), a short sound lands with the frame, but
+      // a held burst (up to ten seconds) would pull on a frame that no longer moves.
       if (!playingRef.current && shape?.holdS !== undefined) continue
-      // UNE VOIX D'ANNONCEUR passe hors plafond, sans variation (règle `soundOccupiesVoice`), et la
-      // pause l'éteint comme tout son en vol (règle `soundSurvivesPause`) : deux questions distinctes.
+      // AN ANNOUNCER VOICE passes out of ceiling, without variation (rule `soundOccupiesVoice`), and
+      // the pause turns it off like any sound in flight (rule `soundSurvivesPause`): two distinct questions.
       if (e.announcer) {
         player.playAnnouncer(url)
         continue
       }
-      // Le tirage de variation ne concerne que les ARMES : la table est keyee par stem
-      // d'arme, tout autre stem se joue tel quel (drawVariation rend le neutre exact). La FORME
-      // (son tenu ou coupé d'une rafale de tir continu, schéma 71) voyage avec l'événement.
+      // The variation drawing only concerns WEAPONS: the table is keyed by weapon
+      // stem, any other stem plays as is (drawVariation returns the exact neutral). The SHAPE
+      // (held sound or cut shot of a continuous fire burst, schema 71) travels with the event.
       player.play(
         url,
         drawVariation(WEAPON_SOUND_VARIATIONS[stem], tuning.variationPercentRef.current),
@@ -551,12 +551,12 @@ export function useReplaySound(
   }, [tuning.variationPercentRef, engine.stop, engine.sync])
 
   /**
-   * seek — LE CHEMIN DES DÉPLACEMENTS : il lève le drapeau de recalage puis bat une fois.
+   * seek — THE PATH OF THE JUMPS: it raises the reseeding flag then beats once.
    *
-   * IL RÉUTILISE LE MÊME DRAPEAU QUE L'ACTIVATION ET LE CHANGEMENT DE PISTE (`resyncRef`), et
-   * c'est ce qui le rend sûr : ce chemin « pose le curseur sans rien jouer » existe depuis le
-   * premier jour et il est déjà le seul à savoir aussi réconcilier les MOTEURS (`engine.sync`
-   * passe avant la garde). Une seconde écriture du curseur, ici, aurait oublié les moteurs.
+   * IT REUSES THE SAME FLAG AS THE ACTIVATION AND THE TRACK CHANGE (`resyncRef`), and
+   * that is what makes it safe: this path "places the cursor without playing anything" exists since
+   * the first day and it is already the only one that also knows how to reconcile the ENGINES (`engine.sync`
+   * passes before the guard). A second writing of the cursor, here, would have forgotten the engines.
    */
   const seek = useCallback(
     (ms: number) => {
@@ -566,40 +566,40 @@ export function useReplaySound(
     [tick],
   )
 
-  // LA CONCLUSION. Elle ne passe PAS par le curseur : elle n'a pas d'instant sur la piste, et
-  // le curseur existe pour ne pas rejouer ce qu'on a enjambé — une question qui n'a pas de sens
-  // pour un événement qui n'arrive qu'au bout. C'est l'appelant qui garantit l'unicité (la
-  // lecture n'atteint sa borne qu'une fois par passage, cf. `useReplayPlayback`).
+  // THE CONCLUSION. It does NOT pass through the cursor: it has no moment on the track, and
+  // the cursor exists to not replay what we crossed — a question that makes no sense
+  // for an event that only arrives at the end. The caller guarantees uniqueness (the
+  // playback reaches its bound only once per passage, cf. `useReplayPlayback`).
   //
-  // AUCUNE VARIATION RANGED ICI : ces fourchettes sont celles du moteur du jeu pour les ARMES
-  // (weaponSoundVariations.ts). Une réplique d'annonceur et une fanfare se jouent telles quelles.
+  // NO RANGED VARIATION HERE: these ranges are those of the game engine for the WEAPONS
+  // (weaponSoundVariations.ts). An announcer line and a fanfare play as they are.
   const playEndMatch = useCallback(() => {
     const spec = endMatchRef.current
     const player = playerRef.current
     if (!spec || !onRef.current || !player || !soundPlaysAtSpeed(speedRef.current)) return
     for (const stem of endMatchSounds(spec.outcome, spec.ffa, spec.locale)) {
       const url = urlsRef.current.get(stem)
-      if (url) player.playConclusion(url) // hors plafond de voix (item 11, `soundOccupiesVoice`)
+      if (url) player.playConclusion(url) // out of voice ceiling (item 11, `soundOccupiesVoice`)
     }
   }, [])
 
-  // L'INTRO : voie ordinaire, calée sur le coup d'envoi même décodée en retard (`introSound.ts`).
+  // THE INTRO: ordinary route, aligned on the kickoff even decoded late (`introSound.ts`).
   const playIntro = useCallback(() => {
     const [url, player, speed] = [urlsRef.current.get(INTRO_MUSIC_STEM), playerRef.current, speedRef.current]
     if (url && player && onRef.current && soundPlaysAtSpeed(speed)) void playIntroAligned(player, url, speed)
   }, [])
 
-  // LA PISTE POUR L'EXPORT SE LIT À L'APPEL, JAMAIS AU RENDU — même patron que
-  // `recordingTrack` juste au-dessus, et pour la même raison : `variationPercentRef` est une
-  // REF (réglage d'instance de la page admin). La lire pendant le rendu rendrait une valeur
-  // arbitraire et casserait la mémoïsation, ce que le lint du compilateur React signale.
+  // THE TRACK FOR THE EXPORT IS READ AT THE CALL, NEVER AT THE RENDER — same pattern as
+  // `recordingTrack` just above, and for the same reason: `variationPercentRef` is a
+  // REF (instance setting of the admin page). Reading it during the render would give an arbitrary
+  // value and break the memoization, which the React compiler lint signals.
   const exportTrack = useCallback(
     (): ReplayExportTrack => ({
       timeline: timelineRef.current,
-      // `endMatchSounds` et NON `endMatchSoundStems` : le second est la liste de
-      // PRECHARGEMENT (toutes les prises possibles), le premier ce qui JOUE reellement — une
-      // voix tiree, plus la musique. Les confondre faisait jouer les deux prises a la fois.
-      // Le tirage est SEME pour que deux exports du meme match sonnent pareil (decision D7).
+      // `endMatchSounds` and NOT `endMatchSoundStems`: the second is the list of
+      // PRELOAD (all possible takes), the first what ACTUALLY PLAYS — one
+      // drawn voice, plus the music. Confusing them made play the two takes at once.
+      // The drawing is SEEDED so that two exports of the same match sound the same (decision D7).
       endMatchStems: endMatchSoundsFor(endMatchRef.current),
       families: soundFamiliesFor(endMatchRef.current, locale),
       engines: engine.plansForExport(),
@@ -609,15 +609,15 @@ export function useReplaySound(
     [tuning, engine.plansForExport, locale],
   )
 
-  // LA PAUSE COUPE LES MOTEURS (rampe de 20 ms) : sans battement, une boucle en vol ne
-  // s'éteindrait jamais. La reprise n'a rien à faire — le prochain `tick` recale tout.
+  // THE PAUSE CUTS THE ENGINES (20 ms ramp): without a beat, a loop in flight
+  // would never turn off. The resume has nothing to do — the next `tick` reseeds everything.
   const setTransportPlaying = useCallback(
     (playing: boolean) => {
       playingRef.current = playing
       if (playing) return
       engine.stop()
-      // TOUT ce qui est en vol s'éteint avec : rafales tenues, explosions, répliques — une image
-      // arrêtée ne tire plus et ne résonne plus (la conclusion de match, elle, est épargnée).
+      // EVERYTHING that is in flight is turned off with it: held bursts, explosions, lines — a stopped frame
+      // no longer pulls and no longer resonates (the match conclusion, by contrast, is spared).
       playerRef.current?.stopAll()
     },
     [engine.stop],

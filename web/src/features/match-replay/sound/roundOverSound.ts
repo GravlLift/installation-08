@@ -1,39 +1,41 @@
 /**
- * roundOverSound.ts — LE SON « MANCHE TERMINÉE » (voix d'annonceur), daté à la bascule de manche.
+ * roundOverSound.ts — THE "ROUND ENDED" SOUND (announcer voice), dated to the round transition.
  *
- * UN FICHIER À PART, sur le modèle de `zoneSound.ts` et `objectiveSound.ts` : le manifeste général
- * (`replaySound.ts`) est à son plafond de taille, et cette famille a sa source, sa clé et sa
- * doctrine. Le stub qui décrivait ce câblage y vivait déjà (bloc des sons d'objectif) ; il est ici
- * réalisé, à l'identique de ce qu'il annonçait — une table de stem, un `roundOverSoundEvents`.
+ * A FILE APART, on the model of `zoneSound.ts` and `objectiveSound.ts`: the general manifest
+ * (`replaySound.ts`) is at its size ceiling, and this family has its source, its key and its
+ * doctrine. The stub that described this wiring already lived there (the objective sounds block);
+ * it is here implemented, identical to what it announced — a stem table, a `roundOverSoundEvents`.
  *
- * QUAND. À chaque BASCULE de manche (`roundTransitions`, `roundsLogic`) — l'instant exact où
- * l'overlay inter-manche (`ReplayRoundBreakOverlay`) affiche « Manche N terminée ». Les deux
- * partagent la MÊME mesure, par la MÊME garde d'horloge (`scoreTimelineOf`, qui se tait sur un
- * film dont l'origine n'est pas résolue) : un son qui partirait sur l'horloge brute sonnerait à
- * côté de son message. Sur un mode à manche unique, `roundTransitions` est vide : rien ne sonne.
+ * WHEN. At each ROUND TRANSITION (`roundTransitions`, `roundsLogic`) — the exact moment where
+ * the inter-round overlay (`ReplayRoundBreakOverlay`) shows "Round N ended". The two share the
+ * SAME measurement, through the SAME clock guard (`scoreTimelineOf`, which stays silent on a
+ * film whose origin is not resolved): a sound that would go out on the raw clock would sound
+ * next to its message. On a single-round mode, `roundTransitions` is empty: nothing sounds.
  *
- * ET CETTE BASCULE EST LA FIN DE LA MANCHE DEPUIS LE 2026-08-29, plus le début de la suivante :
- * la voix arrivait 19 à 34 s en retard (mesure des quatre témoins multi-manches, cf. l'en-tête de
- * `roundsLogic`) — l'annonceur disait « manche terminée » alors que la manche d'après était
- * lancée. Rien à changer ici : ce fichier ne date rien lui-même, il lit la borne partagée.
+ * AND THIS TRANSITION IS THE END OF THE ROUND SINCE 2026-08-29, no longer the start of the next
+ * one: the voice was arriving 19 to 34 s late (measurement of the four multi-round witnesses,
+ * cf. the header of `roundsLogic`) — the announcer was saying "round ended" while the next round
+ * was already launched. Nothing to change here: this file does not date anything itself, it reads
+ * the shared bound.
  *
- * LOCALE-AWARE, comme la voix de FIN DE PARTIE (`endMatchSound.ts`) : une VOIX d'annonceur a une
- * langue. Les deux packs (FR et EN) sont extraits du jeu, et la langue jouée est celle de
- * l'INTERFACE (prop `locale` de la page rejeu) — pas celle du jeu au moment du match, que le film
- * ne publie pas. C'est la SEULE entrée locale-aware de la PISTE (les sons de fin de partie ne
- * passent pas par la piste) : d'où le paramètre `locale` ajouté à `buildSoundTimeline`, servi une
- * fois à la construction — le stem est donc figé, pas tiré à la lecture comme une variante.
+ * LOCALE-AWARE, like the END OF MATCH voice (`endMatchSound.ts`): an ANNOUNCER VOICE has a
+ * language. The two packs (FR and EN) are extracted from the game, and the language played is
+ * that of the INTERFACE (prop `locale` of the replay page) — not that of the game at the moment
+ * of the match, which the film does not publish. It is the ONLY locale-aware entry of the TRACK
+ * (the end-of-match sounds do not go through the track): hence the `locale` parameter added to
+ * `buildSoundTimeline`, served once at construction — the stem is therefore frozen, not drawn at
+ * playback like a variant.
  *
- * CATÉGORIE OBJECTIF, comme les sons d'état de zone : c'est un son de DÉROULÉ du mode, pas une
- * arme ni un équipement. Le tiroir de réglages le coupe donc avec la case « Objectifs ».
+ * OBJECTIVE CATEGORY, like the zone state sounds: it is a sound of the mode's PLAY, not a weapon
+ * nor an equipment. The settings drawer cuts it with the "Objectives" checkbox.
  *
- * HORS PLAFOND DE VOIX (`announcer`, règle `soundOccupiesVoice`) : la fin d'une manche tombe au
- * milieu des derniers tirs, lancers et explosions, qui tiennent les huit voix ; une voix
- * d'annonceur soumise au plafond y serait refusée en silence.
+ * OUT OF THE VOICE CEILING (`announcer`, rule `soundOccupiesVoice`): the end of a round lands in
+ * the middle of the last shots, throws and explosions, which hold the eight voices; an announcer
+ * voice subject to the ceiling would be silently refused there.
  *
- * Pas de React, pas de Web Audio : logique pure, testée (`roundOverSound.test.ts`). Le garde-rail
- * `replaySoundAssets.guard.test.ts` rejoue ces deux stems contre le dossier d'assets, comme les
- * autres — un stem sans fichier, ou un fichier sans stem, casse le test, jamais l'écoute.
+ * No React, no Web Audio: pure logic, tested (`roundOverSound.test.ts`). The guardrail
+ * `replaySoundAssets.guard.test.ts` replays these two stems against the assets folder, like the
+ * others — a stem without a file, or a file without a stem, breaks the test, never the listening.
  */
 import { scoreTimelineOf } from '@/lib/replay/scoreTimeline'
 
@@ -44,8 +46,8 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { roundTransitions } from '../model/roundsLogic'
 
 /**
- * Le stem de la voix « manche terminée », par langue. Extraits du jeu (pack annonceur fourni par
- * l'utilisateur) : FR `257984770`, EN `327120953`, renommés en un stem parlant.
+ * The stem of the "round ended" voice, by language. Extracted from the game (announcer pack
+ * provided by the user): FR `257984770`, EN `327120953`, renamed in a speaking stem.
  */
 export const ROUND_OVER_SOUND_STEMS: Readonly<Record<ReplayLocale, string>> = {
   fr: 'round_over_fr',
@@ -53,10 +55,10 @@ export const ROUND_OVER_SOUND_STEMS: Readonly<Record<ReplayLocale, string>> = {
 }
 
 /**
- * roundOverSoundEvents — un son par bascule de manche, dans la langue de l'interface.
+ * roundOverSoundEvents — one sound per round transition, in the language of the interface.
  *
- * Rend une liste vide quand le mode n'a qu'une manche (aucune bascule), ou quand l'horloge du film
- * n'est pas recalée (garde de `scoreTimelineOf`) — même silence que l'overlay inter-manche.
+ * Returns an empty list when the mode has only one round (no transition), or when the film's
+ * clock is not realigned (guard of `scoreTimelineOf`) — same silence as the inter-round overlay.
  */
 export function roundOverSoundEvents(
   doc: ReplayDocumentReady,

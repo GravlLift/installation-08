@@ -1,14 +1,14 @@
 /**
- * useReplaySound.pause.test.tsx — LA PAUSE ÉTEINT TOUT, ET UN DÉPLACEMENT À L'ARRÊT NE RALLUME PAS.
+ * useReplaySound.pause.test.tsx — THE PAUSE TURNS OFF EVERYTHING, AND A JUMP AT THE STOP DOES NOT REKINDLE.
  *
- * Constaté sur le terrain (contrôles v8, 2026-10-21) : les sons de véhicule continuaient une fois
- * le rejeu mis en pause. Deux causes, deux tests :
- *  1. un déplacement à l'arrêt (glissé de frise, pas d'image, saut vers un repère) bat le son ET
- *     y réconciliait les MOTEURS, qui redémarraient leur boucle sans que plus rien ne l'éteigne ;
- *  2. la pause n'éteignait que les moteurs et les rafales tenues, pas les autres sons en vol.
+ * Observed in the field (v8 controls, 2026-10-21): the vehicle sounds continued once
+ * the replay was put in pause. Two causes, two tests:
+ *  1. a jump at the stop (timeline drag, frame step, jump to a landmark) beat the sound AND
+ *     reconciled the ENGINES in it, which would restart their loop without anything turning it off;
+ *  2. the pause only turned off the engines and the held bursts, not the other sounds in flight.
  *
- * Les moteurs sont doublés (leur lecteur a ses propres tests) : ce qui se vérifie ici est le
- * CÂBLAGE — quand le hook demande aux moteurs de suivre, et quand il leur demande de se taire.
+ * The engines are doubled (their player has its own tests): what is verified here is the
+ * WIRING — when the hook asks the engines to follow, and when it asks them to stay silent.
  */
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -54,7 +54,7 @@ function kill(over: Partial<ReplayKill> = {}): ReplayKill {
     weaponKey: 'hinf_br75', weaponLabel: 'BR75', weaponImageUrl: '', weaponTinted: false,
     assistState: '', assistGamertag: '', assistTeamID: null,
     killerDamagePct: null, assistDamagePct: null,
-    victimXuid: 'V', victimGamertag: 'Victime',
+    victimXuid: 'V', victimGamertag: 'Victim',
     ...over,
   }
 }
@@ -78,8 +78,8 @@ async function mountOn() {
   return hook
 }
 
-describe('useReplaySound — les moteurs ne suivent que la lecture', () => {
-  it('en lecture, un battement fait suivre les moteurs', async () => {
+describe('useReplaySound — the engines only follow the playback', () => {
+  it('in playback, a beat makes the engines follow', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(true))
     engine.sync.mockClear()
@@ -87,7 +87,7 @@ describe('useReplaySound — les moteurs ne suivent que la lecture', () => {
     expect(engine.sync).toHaveBeenCalledWith(1_900)
   })
 
-  it('À L ARRÊT, un déplacement (seek) ne réveille AUCUN moteur', async () => {
+  it('AT THE STOP, a jump (seek) wakes NO engine', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(false))
     engine.sync.mockClear()
@@ -96,7 +96,7 @@ describe('useReplaySound — les moteurs ne suivent que la lecture', () => {
     expect(engine.stop).toHaveBeenCalled()
   })
 
-  it('À L ARRÊT, un pas d image (tick) ne réveille aucun moteur non plus', async () => {
+  it('AT THE STOP, a frame step (tick) wakes no engine either', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(false))
     engine.sync.mockClear()
@@ -104,7 +104,7 @@ describe('useReplaySound — les moteurs ne suivent que la lecture', () => {
     expect(engine.sync).not.toHaveBeenCalled()
   })
 
-  it('la reprise de la lecture rend aux moteurs leur suivi', async () => {
+  it('resuming the playback gives back their following to the engines', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(false))
     act(() => result.current.setTransportPlaying(true))
@@ -114,18 +114,18 @@ describe('useReplaySound — les moteurs ne suivent que la lecture', () => {
   })
 })
 
-describe('useReplaySound — la pause éteint tout ce qui est en vol', () => {
-  it('un son d événement en cours est arrêté par la rampe courte, pas à la fin de son fichier', async () => {
+describe('useReplaySound — the pause turns off everything that is in flight', () => {
+  it('an event sound in course is stopped by the short ramp, not at the end of its file', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(true))
     act(() => result.current.tick(1_900))
-    act(() => result.current.tick(2_050)) // le kill part
+    act(() => result.current.tick(2_050)) // the kill goes out
     expect(ctx.sources).toHaveLength(1)
     act(() => result.current.setTransportPlaying(false))
     expect(ctx.sources[0].stopped).toBeCloseTo(ctx.currentTime + VOLUME_RAMP_S)
   })
 
-  it('à l arrêt, un pas d image joue encore le son bref qui atterrit avec l image', async () => {
+  it('at the stop, a frame step still plays the short sound that lands with the frame', async () => {
     const { result } = await mountOn()
     act(() => result.current.setTransportPlaying(false))
     act(() => result.current.tick(1_900))

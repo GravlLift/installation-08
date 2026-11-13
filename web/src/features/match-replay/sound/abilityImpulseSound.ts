@@ -1,48 +1,48 @@
 /**
- * abilityImpulseSound.ts — L'USAGE D'UNE CAPACITÉ QUI POUSSE SON PORTEUR, daté par le film.
+ * abilityImpulseSound.ts — USING AN ABILITY THAT PROPULSES ITS CASTER, dated by the film.
  *
- * LA SOURCE est le document (schéma 38) : `abilityImpulses`, une entrée PLATE par geste —
- * (t, slot, family) — lue dans le corps `tag == 1` des composants i57/i59 (le même canal dont
- * le tag 3 porte le grappin) et ATTRIBUÉE par le rang de capacité de la MÊME VIE. Aucun seuil
- * de vitesse, aucune heuristique : on joue ce que le calque date.
+ * THE SOURCE is the document (schema 38): `abilityImpulses`, a FLAT entry per gesture —
+ * (t, slot, family) — read in the `tag == 1` body of the i57/i59 components (the same channel
+ * whose tag 3 carries the grapple) and ATTRIBUTED by the ability rank of the SAME LIFE. No speed
+ * threshold, no heuristic: the app plays what the layer dates.
  *
- * LA VALIDATION EST UNE VÉRITÉ TERRAIN, pas une mesure interne : sur le film `1cd3848a`,
- * l'utilisateur a relevé au Theater ses cinq usages de propulseur (1:51, 1:54, 2:03, 2:05,
- * 2:14) et la chaîne rend 1:52, 1:55, 2:03, 2:05, 2:15 — précision 5/5, rappel 5/5.
+ * THE VALIDATION IS A GROUND TRUTH, not an internal measurement: on film `1cd3848a`,
+ * the user logged his five thruster uses in the Theater (1:51, 1:54, 2:03, 2:05,
+ * 2:14) and the chain returns 1:52, 1:55, 2:03, 2:05, 2:15 — precision 5/5, recall 5/5.
  *
- * ## Pourquoi une TABLE PAR FAMILLE et non un stem unique
+ * ## Why a TABLE PER FAMILY and not a single stem
  *
- * Le grappin sonne par un stem nu (`GRAPPLE_SOUND_STEM`) parce que son calque ne porte QUE
- * des tractions. Celui-ci porte une `family` : il est ouvert à toute capacité que le titre
- * déclarera mesurée. Une famille absente de la table reste MUETTE — jamais le son d'une
- * voisine, même règle que `EQUIPMENT_PLACEMENT_SOUND_STEMS`.
+ * The grapple sounds through a bare stem (`GRAPPLE_SOUND_STEM`) because its layer carries ONLY
+ * pulls. This one carries a `family`: it is open to any ability the title will declare
+ * measured. A family absent from the table stays SILENT — never the sound of a
+ * neighbor, same rule as `EQUIPMENT_PLACEMENT_SOUND_STEMS`.
  *
- * LE RÉPULSEUR N'Y ENTRERA PAS PAR CE CANAL : il n'est pas dans les impulsions de capacité
- * (négatif mesuré sur neuf canaux, lots R8/R9 du 2026-09-03). Le film date ses POUSSÉES par une
- * paire de messages (schéma 94, `doc.knockbacks`) : elles sonnent par `knockbackSound.ts`.
+ * THE REPELLER WILL NOT ENTER THROUGH THIS CHANNEL: it is not in the ability impulses
+ * (negative measured on nine channels, lots R8/R9 of 2026-09-03). The film dates its PULSES by a
+ * pair of messages (schema 94, `doc.knockbacks`): they sound through `knockbackSound.ts`.
  *
- * CATÉGORIE ÉQUIPEMENT — le propulseur est une capacité d'équipement du joueur, au même titre
- * que le grappin, le camouflage et le surbouclier (cf. `buildSoundTimeline`).
+ * EQUIPMENT CATEGORY — the thruster is a player equipment ability, same as
+ * the grapple, the cloak and the shield boost (cf. `buildSoundTimeline`).
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /**
- * Les stems d'impulsion, PAR FAMILLE du document.
+ * The impulse stems, PER FAMILY of the document.
  *
- * `thruster` : banque `sb_007_abl_evade`, événement `307114b6` =
- * `play_007_abl_evade_blast_player` — nom cassé par gabarits sur un dictionnaire de
- * 138 886 jetons (espérance de collision 0,00091, seuil 0,10), et refermé par la paire
- * complémentaire `_player` / `_nonplayer` sur le même radical. La perspective du PORTEUR
- * (stéréo, non spatialisée) est celle que le rejeu sert pour toutes les capacités.
- * Trois variantes : le jeu en tire une à chaque dash (`replaySoundVariants.ts`).
+ * `thruster`: bank `sb_007_abl_evade`, event `307114b6` =
+ * `play_007_abl_evade_blast_player` — name broken by templates against a dictionary of
+ * 138 886 tokens (expected collision 0.00091, threshold 0.10), and re-closed by the
+ * complementary `_player` / `_nonplayer` pair on the same radical. The CASTER's perspective
+ * (stereo, not spatialized) is the one the replay serves for all abilities.
+ * Three variants: the game draws one per dash (`replaySoundVariants.ts`).
  */
 export const ABILITY_IMPULSE_SOUND_STEMS: Readonly<Record<string, string>> = {
   thruster: 'thruster_activate',
 }
 
-/** abilityImpulseSoundEvents — un son par impulsion publiée dont la famille a un stem. */
+/** abilityImpulseSoundEvents — one sound per published impulse whose family has a stem. */
 export function abilityImpulseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   for (const imp of doc.abilityImpulses) {

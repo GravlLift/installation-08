@@ -1,30 +1,30 @@
 /**
- * replayAudio.ts — LA LECTURE Web Audio des sons du rejeu, et rien d'autre.
+ * replayAudio.ts — THE Web Audio PLAYBACK of the replay's sounds, and nothing else.
  *
- * LA DURÉE JOUÉE EST CELLE DU FICHIER, et c'est le fichier qui porte la règle de durée
- * par catégorie (décision utilisateur du 2026-08-16, lot R2.1) : une arme, un lancer et
- * la mêlée sont livrés à 1,2 s ; une explosion de grenade et un équipement vont jusqu'à
- * 4 s, parce que leur source dure 1,8 à 4,8 s et que les couper à la seconde les rendait
- * « écourtés » à l'oreille ; les répliques et les fanfares de FIN DE PARTIE (lot C,
- * 2026-08-27) sont livrées entières, jusqu'à 11,67 s — une fanfare coupée n'est plus une
- * fanfare. Le lecteur n'impose donc plus SA seconde à tout le monde : il joue ce qu'on lui
- * livre, et `SOUND_CUT_MAX_S` n'est plus qu'un PLAFOND DE SÛRETÉ contre un fichier livré trop
+ * THE PLAYED DURATION IS THAT OF THE FILE, and it is the file that carries the duration rule
+ * per category (user decision of 2026-08-16, lot R2.1): a weapon, a throw and
+ * the melee are delivered at 1.2 s; a grenade explosion and an equipment go up to
+ * 4 s, because their source lasts 1.8 to 4.8 s and cutting them at the second made them
+ * "cut short" by ear; the lines and fanfares of END OF MATCH (lot C,
+ * 2026-08-27) are delivered in full, up to 11.67 s — a cut fanfare is no longer a
+ * fanfare. The player therefore no longer imposes ITS second on everyone: it plays what is
+ * delivered to it, and `SOUND_CUT_MAX_S` is no more than a SAFETY CEILING against a file delivered too
  * long.
  *
- * LA COUPE RESTE UNE ENVELOPPE DE GAIN : tenue pleine, puis fondu de sortie sur les
- * dernières 0,25 s. Un `stop()` sec au milieu d'une onde claquerait (discontinuité) — le
- * fondu est la coupe propre, y compris à la fin exacte d'un fichier dont la source a été
- * tronquée au plafond (c'est le cas de l'explosion plasma, source 4,07 s).
+ * THE CUT REMAINS A GAIN ENVELOPE: full hold, then fade out over the
+ * last 0.25 s. A hard `stop()` in the middle of a wave would click (discontinuity) — the
+ * fade is the clean cut, including at the exact end of a file whose source has been
+ * truncated at the ceiling (that is the case of the plasma explosion, source 4.07 s).
  *
- * L'AudioContext ne naît QUE dans le geste utilisateur qui active le son (politique
- * d'autoplay des navigateurs : un contexte créé hors geste démarre suspendu). Le son du
- * rejeu étant COUPÉ PAR DÉFAUT, rien ne se charge ni ne sonne tant que l'utilisateur n'a
- * pas cliqué — c'est aussi ce qui respecte `prefers-reduced-motion` par construction :
- * aucune stimulation non demandée.
+ * The AudioContext is born ONLY in the user gesture that activates the sound (browsers'
+ * autoplay policy: a context created outside a gesture starts suspended). The sound of
+ * the replay being CUT OFF BY DEFAULT, nothing is loaded nor sounds until the user has
+ * not clicked — that is also what respects `prefers-reduced-motion` by construction:
+ * no undemanded stimulation.
  *
- * Un fichier introuvable ou indécodable est mémorisé comme ABSENT (silence propre, pas de
- * re-tentative à chaque kill) — le manifeste (replaySound.ts) rend le cas exceptionnel,
- * le garde-rail d'assets le rend visible en CI.
+ * A file not found or undecodable is memorized as ABSENT (clean silence, no
+ * re-attempt at each kill) — the manifest (replaySound.ts) makes the case exceptional,
+ * the assets guardrail makes it visible in CI.
  */
 
 import {
@@ -35,105 +35,104 @@ import {
 import { type SoundPlacement } from './soundSpatial'
 
 /**
- * PLAFOND de durée jouée, en secondes — pas la coupe : la durée d'un son est celle de son
- * FICHIER (règle par catégorie, appliquée à la livraison des assets : armes/lancers/mêlée
- * 1,2 s, explosions et équipements jusqu'à 4 s, répliques et fanfares de FIN DE PARTIE
- * entières). Ce plafond ne mord donc sur AUCUN fichier livré aujourd'hui — il existe pour
- * qu'un asset livré par erreur en pleine longueur (une source de 30 s) ne tienne pas une voix
- * pendant tout un échange.
+ * CEILING of played duration, in seconds — not the cut: the duration of a sound is that of its
+ * FILE (rule per category, applied at the delivery of the assets: weapons/throws/melee
+ * 1.2 s, explosions and equipment up to 4 s, lines and fanfares of END OF MATCH
+ * in full). This ceiling therefore does not bite on ANY file delivered today — it exists so
+ * that an asset delivered by mistake at full length (a 30 s source) does not hold a voice
+ * during a whole exchange.
  *
- * LA RÈGLE EST « PLAFOND = PLUS LONG FICHIER LIVRÉ », arrondi au-dessus : un nombre plus bas
- * tronquerait un son SANS que rien ne le dise, un nombre bien plus haut ne protégerait plus de
- * rien. Historique des relevés (fusion du 2026-08-27, deux lots convergents) : 4,0 s tant que
- * les explosions et équipements étaient les plus longs ; 4 -> 6 s quand la reconstitution des
- * gestes Wwise a révélé qu'un conteneur déclare COMBIEN de fois il se joue ET À QUEL RYTHME
- * (`play_004_mod_mp_ctf_flag_taken_team` 4,588 s, `objective_zone_new` 5,15 s) ; 6 -> 12 s
- * quand les fanfares de FIN DE PARTIE entrent au catalogue — la plus longue, l'égalité, fait
- * 11,67 s. Le plafond n'est pas là pour raccourcir un geste — le tronquer en silence est
- * exactement ce que ce commentaire interdit — mais pour qu'un asset livré par erreur en pleine
- * longueur (une source de 30 s) ne tienne pas une voix pendant tout un échange. C'est le
- * garde-rail `replaySoundAssets.guard.test.ts` qui pose la question à chaque livraison.
+ * THE RULE IS "CEILING = LONGEST FILE DELIVERED", rounded up: a lower number
+ * would truncate a sound WITHOUT anything saying so, a much higher number would no longer protect
+ * anything. History of the readings (merge of 2026-08-27, two convergent lots): 4.0 s while
+ * explosions and equipment were the longest; 4 -> 6 s when the reconstruction of
+ * the Wwise gestures revealed that a container declares HOW MANY TIMES it plays AND AT WHAT RHYTHM
+ * (`play_004_mod_mp_ctf_flag_taken_team` 4.588 s, `objective_zone_new` 5.15 s); 6 -> 12 s
+ * when the END OF MATCH fanfares enter the catalog — the longest, the tie, makes
+ * 11.67 s. The ceiling is not there to shorten a gesture — truncating it in silence is
+ * exactly what this comment forbids — but so that an asset delivered by mistake at full
+ * length (a 30 s source) does not hold a voice during a whole exchange. It is the
+ * guardrail `replaySoundAssets.guard.test.ts` that poses the question at each delivery.
  *
- * CE QUE ÇA NE CHANGE PAS : ce qui sature les voix est le TIR, et un tir tient toujours 1,2 s.
- * Les gestes longs (vol de drapeau, déplacement de colline, fanfare de fin) sont les plus
- * rares de la piste.
+ * WHAT IT CHANGES NOT: what saturates the voices is the SHOT, and a shot always lasts 1.2 s.
+ * The long gestures (flag steal, hill move, end fanfare) are the rarest of the track.
  */
 export const SOUND_CUT_MAX_S = 12.0
 
-/** Durée du fondu de sortie, en secondes (borné à la moitié du son pour les très courts). */
+/** Duration of the fade out, in seconds (bounded to half of the sound for the very short). */
 export const SOUND_FADE_S = 0.25
 
 /**
- * Voix simultanées maximum : au-delà, les sons supplémentaires sont sautés. Sur un échange
- * nourri, empiler vingt sources ne raconte rien de plus qu'un mur de bruit.
+ * Maximum simultaneous voices: beyond, the extra sounds are skipped. On a
+ * sustained exchange, stacking twenty sources tells nothing more than a wall of noise.
  *
- * C'EST LE SEUL PLAFOND DE TOUTE LA CHAÎNE SONORE depuis que TOUS les tirs sonnent
- * (décision utilisateur du 2026-08-15 : aucun filtrage éditorial). Ce qu'il coûte, mesuré
- * le même jour par simulation à 1× (une voix tenue 1 s, la durée jouée d'alors) : sur le
- * film témoin 000d5950, 46 sources refusées pour 483 tirs sonores ; sur les 23 artefacts
- * locaux, 4 897 refus pour 17 068 sources, soit 28,7 %. Le relever est un changement d'UN
- * chiffre — à faire si l'écoute le demande, pas avant : c'est une décision d'oreille, pas
- * de code.
+ * IT IS THE ONLY CEILING OF THE WHOLE SOUND CHAIN since ALL shots sound
+ * (user decision of 2026-08-15: no editorial filtering). What it costs, measured
+ * the same day by simulation at 1x (a voice held 1 s, the played duration of then): on the
+ * witness film 000d5950, 46 sources refused for 483 sonic shots; on the 23 artifacts
+ * local, 4 897 refusals for 17 068 sources, i.e. 28.7%. Raising it is a change of ONE
+ * digit — to do if the listening demands it, not before: it is an ear decision, not
+ * code.
  *
- * CE QUE L'ALLONGEMENT DU 2026-08-16 CHANGE POUR CE PLAFOND : rien sur ce qui le fait
- * mordre. Ce qui le sature est le TIR (17 904 tirs au corpus mesuré), et un tir tient
- * toujours 1,2 s. Seules les explosions et les équipements tiennent désormais jusqu'à 4 s,
- * et ce sont les événements les plus rares de la piste — un kill à la grenade, un épisode
- * de camouflage. Le plafond reste inchangé (décision du lot R2.1).
+ * WHAT THE EXTENSION OF 2026-08-16 CHANGES FOR THIS CEILING: nothing on what makes it
+ * bite. What saturates it is the SHOT (17 904 shots in the measured corpus), and a shot lasts
+ * always 1.2 s. Only the explosions and the equipment now hold up to 4 s,
+ * and they are the rarest events of the track — a grenade kill, a
+ * cloak episode. The ceiling stays unchanged (decision of lot R2.1).
  */
 export const SOUND_MAX_VOICES = 8
 
 /**
- * soundOccupiesVoice — LA RÈGLE UNIQUE du plafond de voix, partagée par le lecteur de la page
- * (`ReplayAudioPlayer.play` / `playConclusion` / `playAnnouncer`) et par l'export (`applyVoiceCap`).
+ * soundOccupiesVoice — THE SINGLE RULE of the voice ceiling, shared by the page player
+ * (`ReplayAudioPlayer.play` / `playConclusion` / `playAnnouncer`) and by the export (`applyVoiceCap`).
  *
- * UNE VOIX D'ANNONCEUR ÉCHAPPE AU PLAFOND ET N'OCCUPE AUCUNE VOIX : la conclusion (voix et
- * fanfare de fin de MATCH) et la voix « manche terminée ». Le plafond arbitre entre des sons DE
- * MÊLÉE, tous équivalents ; une annonce n'en est pas — elle raconte le déroulé du match, et c'est
- * précisément aux instants qu'elle annonce (fin de manche, fin de match) que les derniers tirs,
- * lancers et explosions tiennent les huit voix : une annonce soumise au plafond y serait refusée
- * en silence.
+ * AN ANNOUNCER'S VOICE ESCAPES THE CEILING AND OCCUPIES NO VOICE: the conclusion (voice and
+ * fanfare of MATCH end) and the "round ended" voice. The ceiling arbitrates between sounds OF
+ * MIXED ACTION, all equivalent; an announcement is not one — it tells the course of the match, and it is
+ * precisely at the moments it announces (round end, match end) that the last shots,
+ * throws and explosions hold the eight voices: an announcement submitted to the ceiling would be refused
+ * in silence.
  */
 export function soundOccupiesVoice(sound: { conclusion?: boolean; announcer?: boolean }): boolean {
   return sound.conclusion !== true && sound.announcer !== true
 }
 
 /**
- * soundSurvivesPause — LA PAUSE NE COUPE QUE CE QUI N'EST PAS LA CONCLUSION. Question distincte du
- * plafond de voix (`soundOccupiesVoice`) : la voix « manche terminée » échappe au plafond MAIS
- * s'arrête à la pause, comme toute réplique en vol sur une image arrêtée ; la conclusion de match
- * (voix et fanfare) part au moment où la lecture s'arrête d'elle-même, et la pause qui suit ne
- * doit pas la couper.
+ * soundSurvivesPause — THE PAUSE CUTS ONLY WHAT IS NOT THE CONCLUSION. A distinct question from the
+ * voice ceiling (`soundOccupiesVoice`): the "round ended" voice escapes the ceiling BUT
+ * stops at the pause, like any line in flight on a stopped image; the match conclusion
+ * (voice and fanfare) goes out at the moment playback stops by itself, and the pause that follows must not
+ * cut it.
  */
 export function soundSurvivesPause(sound: { conclusion?: boolean }): boolean {
   return sound.conclusion === true
 }
 
-/** Ce qu'un son est pour le lecteur : se soumet-il au plafond de voix, survit-il à la pause ? */
+/** What a sound is for the player: does it submit to the voice ceiling, does it survive the pause? */
 interface SoundKind {
   voix: boolean
   survitALaPause: boolean
 }
 
-/** soundKindOf — les deux règles ci-dessus pour un son ordinaire, une annonce ou une conclusion. */
+/** soundKindOf — the two rules above for an ordinary sound, an announcement or a conclusion. */
 function soundKindOf(sound: { conclusion?: boolean; announcer?: boolean }): SoundKind {
   return { voix: soundOccupiesVoice(sound), survitALaPause: soundSurvivesPause(sound) }
 }
 
 /**
- * Durée de la rampe de volume, en secondes. Poser `gain.value` d'un coup pendant qu'un son
- * joue fait un CLIC (discontinuité) — au curseur de volume, qui émet des dizaines de
- * valeurs par seconde, ce serait un crépitement. 20 ms suffisent et ne s'entendent pas.
+ * Duration of the volume ramp, in seconds. Setting `gain.value` all at once while a sound
+ * plays makes a CLICK (discontinuity) — at the volume cursor, which emits dozens of
+ * values per second, that would be a crackle. 20 ms suffice and are not heard.
  */
 export const VOLUME_RAMP_S = 0.02
 
 /**
- * soundEnvelope calcule l'enveloppe d'une source de `durationS` secondes : l'instant où
- * le fondu commence et celui où tout s'arrête. Pure, testée (replaySound.test.ts).
+ * soundEnvelope computes the envelope of a source of `durationS` seconds: the moment where
+ * the fade begins and the one where everything stops. Pure, tested (replaySound.test.ts).
  *
- * Le son joue jusqu'au BOUT DE SON FICHIER (c'est la livraison qui règle la durée par
- * catégorie), sauf au-delà du plafond de sûreté. Le fondu est borné à la moitié du son
- * pour les très courts : sans cela, un son de 0,1 s serait un fondu et rien d'autre.
+ * The sound plays until the END OF ITS FILE (delivery regulates the duration per
+ * category), except beyond the safety ceiling. The fade is bounded to half of the sound
+ * for the very short: without that, a 0.1 s sound would be a fade and nothing else.
  */
 export function soundEnvelope(durationS: number): { fadeStartS: number; stopS: number } {
   const stopS = Math.min(Math.max(durationS, 0), SOUND_CUT_MAX_S)
@@ -142,8 +141,8 @@ export function soundEnvelope(durationS: number): { fadeStartS: number; stopS: n
 }
 
 /**
- * La FORME d'un son de rafale (schéma 71, lot M4b) : tenu en boucle pendant `holdS`, ou coupé à
- * `cutS` (le coup suivant d'une rafale sans boucle). Absente = l'enveloppe ordinaire.
+ * The SHAPE of a burst sound (schema 71, lot M4b): held in loop for `holdS`, or cut to
+ * `cutS` (the next shot of a loopless burst). Absent = the ordinary envelope.
  */
 export interface SoundShape {
   holdS?: number
@@ -151,15 +150,15 @@ export interface SoundShape {
 }
 
 /**
- * Durée du RELÂCHEMENT d'un son tenu, en secondes : la boucle s'éteint en 50 ms au lâcher de la
- * gâchette — assez pour ne pas claquer, assez court pour que le coup de queue qui suit se lise.
+ * Duration of the RELEASE of a held sound, in seconds: the loop dies out in 50 ms at the release of the
+ * trigger — enough not to click, short enough that the tail shot that follows reads.
  */
 export const SOUND_HOLD_RELEASE_S = 0.05
 
 /**
- * soundEnvelopeOf — l'enveloppe d'un son SELON SA FORME : tenu (boucle jusqu'à `holdS`, puis
- * relâchement), coupé (arrêt à `cutS`, fondu borné à la moitié), ou ordinaire (`soundEnvelope`).
- * Pure, et la MÊME pour la lecture et pour l'export.
+ * soundEnvelopeOf — the envelope of a sound ACCORDING TO ITS SHAPE: held (loop until `holdS`, then
+ * release), cut (stop at `cutS`, fade bounded to half), or ordinary (`soundEnvelope`).
+ * Pure, and the SAME for playback and for the export.
  */
 export function soundEnvelopeOf(
   durationS: number,
@@ -176,7 +175,7 @@ export function soundEnvelopeOf(
   return { ...soundEnvelope(durationS), loop: false }
 }
 
-/** soundShapeOf — la forme d'un événement de la piste, en secondes. */
+/** soundShapeOf — the shape of an event of the track, in seconds. */
 export function soundShapeOf(e: { holdMs?: number; cutMs?: number }): SoundShape | undefined {
   if (e.holdMs !== undefined) return { holdS: e.holdMs / 1000 }
   if (e.cutMs !== undefined) return { cutS: e.cutMs / 1000 }
@@ -184,49 +183,49 @@ export function soundShapeOf(e: { holdMs?: number; cutMs?: number }): SoundShape
 }
 
 /**
- * ReplayAudioPlayer — contexte, volume maître, cache de buffers, lecture enveloppée.
+ * ReplayAudioPlayer — context, master volume, buffer cache, enveloped playback.
  *
- * Le constructeur DOIT être appelé dans un geste utilisateur (clic sur le bouton son).
+ * The constructor MUST be called in a user gesture (click on the sound button).
  */
 export class ReplayAudioPlayer {
   private ctx: AudioContext
   private master: GainNode
-  /** URL -> buffer décodé, ou null = absent/indécodable (silence mémorisé). */
+  /** URL -> decoded buffer, or null = absent/undecodable (memorized silence). */
   private buffers = new Map<string, AudioBuffer | null>()
-  /** URL -> chargement en cours : une seule requête par URL, et une promesse qu'on peut attendre. */
+  /** URL -> loading in progress: one request per URL, and a promise we can await. */
   private loading = new Map<string, Promise<void>>()
   private voices = 0
-  /** Les sons TENUS en vol (rafales de tir continu), que la pause et le saut éteignent. */
+  /** The HELD sounds in flight (full-auto fire bursts), which the pause and the jump cut off. */
   private held = new Set<{ src: AudioBufferSourceNode; gain: GainNode }>()
   /**
-   * TOUS les sons en vol (une pause éteint tout, pas seulement les rafales tenues).
-   * `survitALaPause` n'est vrai que pour une CONCLUSION de match (fanfare, annonceur de fin) : elle
-   * part au moment même où la lecture s'arrête d'elle-même à la borne, et la pause qui suit ne doit
-   * pas la couper (`soundSurvivesPause`).
+   * ALL the sounds in flight (a pause cuts everything off, not only the held bursts).
+   * `survitALaPause` is true only for a CONCLUSION of match (fanfare, end announcer): it
+   * goes out at the very moment playback stops by itself at the bound, and the pause that follows must not
+   * cut it (`soundSurvivesPause`).
    */
   private live = new Set<{ src: AudioBufferSourceNode; gain: GainNode; survitALaPause: boolean }>()
-  /** Chaîne de distance (réglage d'instance, page admin). Nulle = AUCUN nœud ajouté :
-   *  le chemin du signal reste celui d'origine, source -> enveloppe -> maître. */
+  /** Distance chain (instance setting, admin page). Null = NO node added:
+   *  the signal path stays the original one, source -> envelope -> master. */
   private distGain: GainNode | null = null
   private distFilter: BiquadFilterNode | null = null
   /**
-   * LE ROBINET D'ENREGISTREMENT (2026-08-26) : une seconde sortie, branchée EN PARALLÈLE de
-   * `ctx.destination`, dont la piste va au `MediaRecorder` de la capture vidéo.
+   * THE RECORDING FAUCET (2026-08-26): a second output, wired IN PARALLEL with
+   * `ctx.destination`, whose track goes to the `MediaRecorder` of the video capture.
    *
-   * Il n'existe que si on l'a demandé (`recordingTrack`) : un rejeu qu'on ne filme pas ne
-   * paie pas un nœud de plus. Une fois né il RESTE — un enregistrement suivant reprend la
-   * même piste, et le recréer à chaque clip laisserait des nœuds derrière lui.
+   * It exists only if demanded (`recordingTrack`): a replay we do not film does not
+   * pay for one more node. Once born it STAYS — a following recording resumes the
+   * same track, and recreating it at each clip would leave nodes behind it.
    */
   private recordDest: MediaStreamAudioDestinationNode | null = null
   /**
-   * Le dernier nœud AVANT la sortie : `master` sans chaîne de distance, `distFilter` avec.
-   * Le suivre est ce qui permet au robinet de se brancher au BON endroit — brancher `master`
-   * alors que la chaîne de distance est posée enregistrerait un son que personne n'entend.
+   * The last node BEFORE the output: `master` without distance chain, `distFilter` with.
+   * Following it is what allows the faucet to wire to the RIGHT place — wiring `master`
+   * while the distance chain is set would record a sound that no one hears.
    */
   private out: AudioNode
 
-  /** `volume` est posé À LA CONSTRUCTION : un gain par défaut à 1 ferait passer le premier
-   *  son à plein régime avant que la préférence de l'utilisateur ne soit appliquée. */
+  /** `volume` is set AT CONSTRUCTION: a default gain at 1 would pass the first
+   *  sound at full before the user's preference is applied. */
   constructor(volume: number) {
     this.ctx = new AudioContext()
     this.master = this.ctx.createGain()
@@ -236,10 +235,10 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * connectOut branche un nœud sur la ou les SORTIES : les haut-parleurs toujours, et le
-   * robinet d'enregistrement quand il existe. Les trois points de la classe qui atteignaient
-   * `ctx.destination` passent par ici — sans quoi poser la chaîne de distance en cours
-   * d'enregistrement couperait le son du clip sans couper celui des haut-parleurs.
+   * connectOut wires a node to the OUTPUTS: the speakers always, and the
+   * recording faucet when it exists. The three points of the class that reached
+   * `ctx.destination` go through here — otherwise setting the distance chain during
+   * a recording would cut the sound of the clip without cutting that of the speakers.
    */
   private connectOut(node: AudioNode): void {
     this.out = node
@@ -248,24 +247,24 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * recordingTrack rend la piste audio à joindre à une vidéo, ou `null` si ce navigateur ne
-   * sait pas en fabriquer. Le robinet est créé À LA PREMIÈRE DEMANDE, puis conservé.
+   * recordingTrack returns the audio track to join to a video, or `null` if this browser does
+   * not know how to make one. The faucet is created ON FIRST REQUEST, then kept.
    */
   recordingTrack(): MediaStreamTrack | null {
     if (typeof this.ctx.createMediaStreamDestination !== 'function') return null
     if (!this.recordDest) {
       this.recordDest = this.ctx.createMediaStreamDestination()
-      // Le robinet naît APRÈS le câblage : il faut donc le raccrocher à la sortie courante,
-      // celle-là même que les haut-parleurs reçoivent.
+      // The faucet is born AFTER the wiring: it therefore must be re-hooked to the current output,
+      // the very one the speakers receive.
       this.out.connect(this.recordDest)
     }
     return this.recordDest.stream.getAudioTracks()[0] ?? null
   }
 
   /**
-   * setVolume règle le volume maître (borné 0..1) par une RAMPE COURTE : c'est ce qui
-   * distingue un réglage d'un clic. Volume 0 = coupure — les sons déjà en vol s'éteignent
-   * avec le maître, aucun n'est laissé en fond.
+   * setVolume adjusts the master volume (bounded 0..1) by a SHORT RAMP: that is what
+   * distinguishes a setting from a click. Volume 0 = cut-off — the sounds already in flight die out
+   * with the master, none is left in the background.
    */
   setVolume(v: number): void {
     const t0 = this.ctx.currentTime
@@ -276,9 +275,9 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * setDistance pose ou retire la chaîne de distance (atténuation + passe-bas) ENTRE le
-   * maître et la sortie. Réglage d'instance (admin) : à 0 %, `chain` est nul et les deux
-   * nœuds sont déconnectés — le fichier extrait se joue tel quel, exigence « sons purs ».
+   * setDistance sets or removes the distance chain (attenuation + low-pass) BETWEEN the
+   * master and the output. Instance setting (admin): at 0%, `chain` is null and the two
+   * nodes are disconnected — the extracted file plays as is, "pure sounds" requirement.
    */
   setDistance(chain: DistanceChain | null): void {
     this.master.disconnect()
@@ -300,13 +299,13 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * engineBus — LE PORT DES MOTEURS DE VÉHICULES (`vehicleEnginePlayer.ts`) : le contexte, un
-   * bus de gain dédié branché sur le MAÎTRE, et l'accès aux tampons déjà décodés.
+   * engineBus — THE PORT OF THE VEHICLE ENGINES (`vehicleEnginePlayer.ts`): the context, a
+   * dedicated gain bus wired to the MASTER, and access to the buffers already decoded.
    *
-   * Le bus passe par `master` et non par la sortie : les moteurs suivent ainsi le volume
-   * réglé, la chaîne de distance ET le robinet d'enregistrement sans qu'aucun des trois n'ait
-   * à connaître leur existence. Le gain du bus (0,85, décision utilisateur du 2026-09-04) est
-   * posé par l'appelant — ce lecteur ne connaît aucune règle moteur.
+   * The bus goes through `master` and not through the output: the engines thus follow the volume
+   * set, the distance chain AND the recording faucet without any of the three having
+   * to know their existence. The bus gain (0.85, user decision of 2026-09-04) is
+   * set by the caller — this player knows no engine rule.
    */
   engineBus(gain: number): { ctx: BaseAudioContext; out: AudioNode; bufferOf: (url: string) => AudioBuffer | null | undefined } {
     const bus = this.ctx.createGain()
@@ -315,19 +314,19 @@ export class ReplayAudioPlayer {
     return { ctx: this.ctx, out: bus, bufferOf: (url) => this.buffers.get(url) }
   }
 
-  /** resume relance le contexte (à appeler dans le geste d'activation). */
+  /** resume restarts the context (to call in the activation gesture). */
   resume(): void {
     void this.ctx.resume()
   }
 
-  /** dispose ferme le contexte (démontage du composant). */
+  /** dispose closes the context (unmount of the component). */
   dispose(): void {
     void this.ctx.close()
   }
 
   /**
-   * preload charge et décode les URLs pas encore connues, en tâche de fond. Un échec
-   * (404, décodage) est mémorisé comme absent : jamais de re-tentative par événement.
+   * preload loads and decodes the URLs not yet known, in background. A failure
+   * (404, decoding) is memorized as absent: never a re-attempt per event.
    */
   preload(urls: Iterable<string>): void {
     for (const url of urls) {
@@ -343,9 +342,9 @@ export class ReplayAudioPlayer {
       const raw = await res.arrayBuffer()
       this.buffers.set(url, await this.ctx.decodeAudioData(raw))
     } catch (err) {
-      // Silence propre ET dit : un asset du manifeste qui manque au runtime est une
-      // anomalie de déploiement, pas un cas nominal — une trace, pas une par kill.
-      console.warn('[replay-audio] son indisponible, silence :', url, err)
+      // Clean silence AND said: a manifest asset missing at runtime is a
+      // deployment anomaly, not a nominal case — a trace, not one per kill.
+      console.warn('replay 3D: sound unavailable, silence:', url, err)
       this.buffers.set(url, null)
     } finally {
       this.loading.delete(url)
@@ -353,51 +352,51 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * play joue une URL déjà chargée : tenue pleine puis fondu (soundEnvelope). Pas encore
-   * chargée (scrub avant la fin du preload) ou absente : silence, jamais d'attente — un
-   * son en retard sur son image est pire qu'un son manqué.
+   * play plays an already loaded URL: full hold then fade (soundEnvelope). Not yet
+   * loaded (scrub before the end of the preload) or absent: silence, never a wait — a
+   * sound late on its image is worse than a missed sound.
    */
   play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement): void {
     this.start(url, soundKindOf({}), { draw, shape, place })
   }
 
   /**
-   * playConclusion joue un son de FIN DE MATCH (voix d'annonceur, fanfare) : même enveloppe que
-   * `play`, mais HORS PLAFOND et sans compter de voix — règle et raison : `soundOccupiesVoice`.
+   * playConclusion plays an END OF MATCH sound (announcer's voice, fanfare): same envelope as
+   * `play`, but OUTSIDE THE CEILING and without counting a voice — rule and reason: `soundOccupiesVoice`.
    */
   playConclusion(url: string): void {
     this.start(url, soundKindOf({ conclusion: true }))
   }
 
   /**
-   * playAnnouncer joue une VOIX D'ANNONCEUR de la piste (« manche terminée ») : même enveloppe que
-   * `play`, HORS PLAFOND et sans compter de voix — règle et raison : `soundOccupiesVoice`.
+   * playAnnouncer plays a TRACK ANNOUNCER'S VOICE ("round ended"): same envelope as
+   * `play`, OUTSIDE THE CEILING and without counting a voice — rule and reason: `soundOccupiesVoice`.
    */
   playAnnouncer(url: string): void {
     this.start(url, soundKindOf({ announcer: true }))
   }
 
-  /** L'URL est-elle décodée (tampon prêt, pas un absent mémorisé) ? */
+  /** Is the URL decoded (buffer ready, not a memorized absent)? */
   isLoaded(url: string): boolean {
     return !!this.buffers.get(url)
   }
 
-  /** Se résout quand le chargement de l'URL est fini, réussi ou non ; le lance au besoin. */
+  /** Resolves when the loading of the URL is done, successful or not; launches it if needed. */
   whenLoaded(url: string): Promise<void> {
     this.preload([url])
     return this.loading.get(url) ?? Promise.resolve()
   }
 
   /**
-   * playFrom joue comme `play` (voie ordinaire, plafond de voix), mais en entrant dans le tampon à
-   * `offsetS` : un son parti en retard reste calé sur l'instant où il aurait dû partir (musique
-   * d'intro, A4.9). Le reste de l'enveloppe est décalé d'autant.
+   * playFrom plays like `play` (ordinary path, voice ceiling), but entering the buffer at
+   * `offsetS`: a sound that went out late stays aligned on the moment it should have gone out (intro
+   * music, A4.9). The rest of the envelope is offset by that much.
    */
   playFrom(url: string, offsetS: number): void {
     this.start(url, soundKindOf({}), { offsetS })
   }
 
-  /** start pose une source enveloppée ; `kind` dit si elle se soumet au plafond (et le tient) et si la pause l'éteint. */
+  /** start places an enveloped source; `kind` says whether it submits to the ceiling (and holds it) and whether the pause cuts it. */
   private start(url: string, kind: SoundKind, opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement } = {}): void {
     const { draw, shape, place } = opts
     const offsetS = opts.offsetS ?? 0
@@ -410,10 +409,10 @@ export class ReplayAudioPlayer {
     const t0 = this.ctx.currentTime
     const env = soundEnvelopeOf(buf.duration, shape)
     const [fadeStartS, stopS, loop] = [env.fadeStartS - offsetS, env.stopS - offsetS, env.loop]
-    // La VARIATION de cette lecture (fourchettes RANGED du jeu, tirées en amont) : un gain
-    // de départ et une vitesse de lecture. Sans tirage, la tenue est à 1 — inchangé. La PLACE
-    // (`place`) la multiplie : un son spatialisé est plus bas selon sa distance, au même
-    // câblage qu'un son non spatialisé quand on n'en demande pas.
+    // The VARIATION of this playback (the game's RANGED ranges, drawn upstream): a gain
+    // of start and a playback speed. Without a draw, the hold is at 1 — unchanged. The PLACE
+    // (`place`) multiplies it: a spatialized sound is lower according to its distance, at the same
+    // wiring as a non-spatialized sound when we do not ask for one.
     const tenue = (draw ? gainFromDb(draw.gainDb) : 1) * (place?.gain ?? 1)
     const gain = this.ctx.createGain()
     gain.gain.setValueAtTime(tenue, t0)
@@ -424,8 +423,8 @@ export class ReplayAudioPlayer {
     src.loop = loop
     if (draw && draw.playbackRate !== 1) src.playbackRate.value = draw.playbackRate
     src.connect(gain)
-    // Le PAN ne naît que si on le demande et s'il est à un CÔTÉ : sans `place`, ou `pan` à 0,
-    // le câblage reste exactement gain -> maître, aucun nœud en plus.
+    // The PAN is born only if demanded and at a SIDE: without `place`, or `pan` at 0,
+    // the wiring stays exactly gain -> master, no node more.
     let panner: StereoPannerNode | null = null
     if (place && place.pan !== 0) {
       panner = this.ctx.createStereoPanner()
@@ -436,8 +435,8 @@ export class ReplayAudioPlayer {
       gain.connect(this.master)
     }
     if (voix) this.voices++
-    // UN SON TENU se retient : la pause et le saut l'éteignent (`stopHeld`), sinon une rafale de
-    // dix secondes continuerait de tirer sur une image arrêtée.
+    // A HELD SOUND is held back: the pause and the jump cut it (`stopHeld`), otherwise a burst of
+    // ten seconds would keep firing on a stopped image.
     const tenu = loop ? { src, gain } : null
     if (tenu) this.held.add(tenu)
     const enVol = { src, gain, survitALaPause }
@@ -454,7 +453,7 @@ export class ReplayAudioPlayer {
     src.stop(t0 + stopS)
   }
 
-  /** stopHeld éteint les sons TENUS en vol (rampe de volume), à la pause et au saut. */
+  /** stopHeld cuts off the HELD sounds in flight (volume ramp), at the pause and the jump. */
   stopHeld(): void {
     const t0 = this.ctx.currentTime
     for (const { src, gain } of this.held) {
@@ -467,10 +466,10 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * stopAll éteint TOUT ce qui est en vol (rampe de volume), conclusion exceptée
-   * (`soundSurvivesPause`) : c'est la PAUSE. Une explosion de véhicule, une réplique, la voix de
-   * manche ou l'extrait d'intro ne se finissent pas sur une image arrêtée ; stopHeld ne couvrait que
-   * les rafales tenues.
+   * stopAll cuts off EVERYTHING that is in flight (volume ramp), conclusion excepted
+   * (`soundSurvivesPause`): that is the PAUSE. A vehicle explosion, a line, the voice of
+   * round or the intro excerpt do not end on a stopped image; stopHeld only covered
+   * the held bursts.
    */
   stopAll(): void {
     this.stopHeld()

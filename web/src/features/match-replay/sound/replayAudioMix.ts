@@ -1,35 +1,35 @@
 /**
- * replayAudioMix.ts — LA PISTE SONORE DE L'EXPORT, mixée HORS DU TEMPS RÉEL.
+ * replayAudioMix.ts — THE SOUND TRACK OF THE EXPORT, mixed OFF REAL TIME.
  *
- * # LA MÊME PISTE, JOUÉE AUTREMENT
+ * # THE SAME TRACK, PLAYED DIFFERENTLY
  *
- * Le rejeu sonore de la page est un LECTEUR : un curseur avance avec la lecture et déclenche
- * les sons au passage (`replaySoundCursor.ts`), un par un, à l'instant réel. L'export n'a pas
- * de lecture à suivre — il connaît la piste entière d'avance et peut donc la POSER d'un coup :
- * chaque événement à son instant absolu dans un `OfflineAudioContext`, qui rend le mixage
- * complet bien plus vite que sa durée.
+ * The page's sound replay is a PLAYER: a cursor advances with playback and triggers
+ * the sounds in passing (`replaySoundCursor.ts`), one by one, at real time. The export has no
+ * playback to follow — it knows the whole track in advance and can therefore PLACE it at once:
+ * each event at its absolute moment in an `OfflineAudioContext`, which renders the complete mixing
+ * much faster than its duration.
  *
- * LA PISTE N'EST PAS RECONSTRUITE ICI. Elle vient de `buildSoundTimeline()`, celle-là même que
- * la page joue — le mixage exporté ne peut donc pas contenir un son que le rejeu n'aurait pas
- * fait entendre, ni en manquer un.
+ * THE TRACK IS NOT RECONSTRUCTED HERE. It comes from `buildSoundTimeline()`, the very one that
+ * the page plays — the exported mixing therefore cannot contain a sound the replay would not have
+ * made heard, nor miss one.
  *
- * # CE QUI EST REPRIS À L'IDENTIQUE DU LECTEUR, ET POURQUOI
+ * # WHAT IS TAKEN IDENTICALLY FROM THE PLAYER, AND WHY
  *
- * - L'ENVELOPPE (`soundEnvelope`) : tenue pleine puis fondu de sortie. Un `stop()` sec au
- *   milieu d'une onde claque ; c'est vrai hors ligne comme en direct.
- * - LE PLAFOND DE VOIX (`SOUND_MAX_VOICES`) : sur un échange nourri, empiler vingt sources ne
- *   raconte rien de plus qu'un mur de bruit. Sans ce plafond, l'export sonnerait DIFFÉREMMENT
- *   de la page — plus fort et plus confus — alors qu'il doit en être la trace fidèle.
- * - LE TIRAGE DE VARIANTE ET LA VARIATION D'ARME : mêmes fonctions, `pickVariantStem` et
- *   `drawVariation`, qui acceptent toutes deux un générateur injectable.
+ * - THE ENVELOPE (`soundEnvelope`): full hold then fade out. A hard `stop()` in the
+ *   middle of a wave clicks; that is true offline as in live.
+ * - THE VOICE CEILING (`SOUND_MAX_VOICES`): on a sustained exchange, stacking twenty sources does
+ *   not tell anything more than a wall of noise. Without this ceiling, the export would sound DIFFERENTLY
+ *   than the page — louder and more confused — while it must be its faithful trace.
+ * - THE VARIANT DRAW AND THE WEAPON VARIATION: same functions, `pickVariantStem` and
+ *   `drawVariation`, which both accept an injectable generator.
  *
- * # UNE SEULE CHOSE CHANGE : LE HASARD DEVIENT REPRODUCTIBLE
+ * # ONLY ONE THING CHANGES: RANDOMNESS BECOMES REPRODUCIBLE
  *
- * En direct, tirer une variante au hasard est ce qui empêche un geste répété de sonner comme
- * une boucle. Sur un FICHIER, le même hasard rendrait deux exports du même match subtilement
- * différents — impossible à comparer, impossible à re-livrer à l'identique. La graine est donc
- * dérivée de l'ÉVÉNEMENT lui-même (son rang et son stem) : deux exports du même match sonnent
- * pareil, et deux occurrences du même geste sonnent quand même différemment.
+ * In live, drawing a variant at random is what prevents a repeated gesture from sounding like
+ * a loop. On a FILE, the same randomness would make two exports of the same match subtly
+ * different — impossible to compare, impossible to re-deliver identically. The seed is therefore
+ * derived from the EVENT itself (its rank and its stem): two exports of the same match sound
+ * the same, and two occurrences of the same gesture still sound differently.
  */
 import { distanceChain, drawVariation, gainFromDb, type SoundDraw } from './weaponSoundLogic'
 import {
@@ -52,120 +52,120 @@ import {
 import type { EnginePlan } from './vehicleEngineSound'
 import { staticAssetURL } from '@/lib/staticAssets'
 
-/** Fréquence d'échantillonnage du mixage. 48 kHz : la cadence native des assets livrés. */
+/** Sampling frequency of the mixing. 48 kHz: the native rate of the delivered assets. */
 export const MIX_SAMPLE_RATE = 48_000
-/** Deux canaux : les sources sont mono, le conteneur et les lecteurs attendent de la stéréo. */
+/** Two channels: the sources are mono, the container and the players expect stereo. */
 export const MIX_CHANNELS = 2
 
 /**
- * L'extension des sons livrés : Opus en conteneur Ogg (encodés par `cmd/sounds-encode`). Les URL
- * de son ne se composent qu'ici ; le garde-rail `replaySoundAssets.guard.test.ts` rejoue ce chemin
- * contre le dossier d'assets.
+ * The extension of the delivered sounds: Opus in Ogg container (encoded by `cmd/sounds-encode`). The sound
+ * URLs are only composed here; the guardrail `replaySoundAssets.guard.test.ts` replays this path
+ * against the assets folder.
  */
 const SOUND_FILE_EXT = '.ogg'
 
 /**
- * soundUrlOf — L'URL d'un stem de son, et LE SEUL ENDROIT qui la fabrique.
+ * soundUrlOf — THE URL OF A SOUND STEM, and THE ONLY PLACE that makes it.
  *
- * Le littéral `staticAssetURL('sound', stem, <extension>)` en était à sa TROISIÈME copie (deux dans
- * `soundURLsFor`, une ici) : la règle CLAUDE.md n° 6 impose alors de centraliser. Les deux
- * copies du lecteur consomment desormais cette fonction.
+ * The literal `staticAssetURL('sound', stem, <extension>)` was at its THIRD copy (two in
+ * `soundURLsFor`, one here): CLAUDE.md rule n° 6 then imposes centralization. The two
+ * copies of the player now consume this function.
  */
 export function soundUrlOf(stem: string): string {
   return staticAssetURL('sound', stem, SOUND_FILE_EXT)
 }
 
 /**
- * LES TROIS FAMILLES DE SON D'UN REJEU, telles qu'un montage veut les separer.
+ * THE THREE SOUND FAMILIES OF A REPLAY, as a montage wants to separate them.
  *
- * Elles ne recouvrent PAS les categories du lecteur (`weapon`, `grenade`, `melee`, `equipment`,
- * `objective`) : ces cinq-la sont TOUTES des bruitages. La voix et la musique n'existent qu'aux
- * conclusions — l'annonceur de fin de manche et de fin de match, et la fanfare finale. Une piste
- * « musique » d'un rejeu contient donc dix secondes a la fin, et du silence avant.
+ * They do NOT cover the categories of the player (`weapon`, `grenade`, `melee`, `equipment`,
+ * `objective`): those five are ALL sound effects. The voice and the music only exist at the
+ * conclusions — the end of round and end of match announcer, and the final fanfare. A track
+ * "music" of a replay therefore contains ten seconds at the end, and silence before.
  */
 export type SoundFamily = 'sfx' | 'voice' | 'music'
 
-/** Un son retenu par le mixage : quoi jouer, quand, et avec quelle variation. */
+/** A sound kept by the mixing: what to play, when, and with what variation. */
 export interface MixedSound {
-  /** Instant sur l'axe du CLIP (0 = première image exportée), en millisecondes. */
+  /** Moment on the CLIP axis (0 = first exported frame), in milliseconds. */
   atMs: number
-  /** Le fichier effectivement joué — variante déjà tirée. */
+  /** The file actually played — variant already drawn. */
   stem: string
   draw: SoundDraw
   /**
-   * `true` = LA CONCLUSION (voix d'annonceur, fanfare). Elle ECHAPPE au plafond de voix, ici
-   * comme dans le lecteur de la page — regle et raison en un seul endroit : `soundOccupiesVoice`
+   * `true` = THE CONCLUSION (announcer's voice, fanfare). It ESCAPES the voice ceiling, here
+   * as in the page player — rule and reason in one place: `soundOccupiesVoice`
    * (`replayAudio.ts`).
    */
   conclusion?: boolean
-  /** `true` = une VOIX D'ANNONCEUR de la piste (« manche terminée ») : hors plafond, meme regle. */
+  /** `true` = a TRACK ANNOUNCER'S VOICE ("round ended"): out of ceiling, same rule. */
   announcer?: boolean
-  /** La famille a laquelle ce son appartient, pour les pistes separees du clip. */
+  /** The family this sound belongs to, for the separate tracks of the clip. */
   family: SoundFamily
-  /** La FORME d'un son de rafale (tenu ou coupé), la même qu'en direct (`soundEnvelopeOf`). */
+  /** The SHAPE of a burst sound (held or cut), the same as in live (`soundEnvelopeOf`). */
   shape?: SoundShape
   /**
-   * LA PLACE du son pour l'auditeur du clip (gain selon la distance, pan selon le gisement),
-   * posée par `planAudioMix` quand le mix reçoit un auditeur. Absente = le son se joue tel
-   * quel, exactement comme sans auditeur.
+   * THE PLACE of the sound for the clip's listener (gain according to distance, pan according to the bearing),
+   * placed by `planAudioMix` when the mix receives a listener. Absent = the sound plays as
+   * is, exactly as without a listener.
    */
   place?: SoundPlacement
 }
 
-/** La plage exportée, sur l'axe du rejeu. */
+/** The exported range, on the replay's axis. */
 export interface MixBounds {
   startMs: number
   endMs: number
 }
 
 export interface MixOptions {
-  /** Réglage d'instance de la variation d'arme (page admin), en pourcentage. */
+  /** Instance setting of the weapon variation (admin page), in percent. */
   variationPercent: number
   /**
-   * RÉGLAGE D'INSTANCE DE DISTANCE (page admin), en pourcentage. Il pose une atténuation et un
-   * passe-bas sur le maître, exactement comme `ReplayAudioPlayer.setDistance` le fait pour les
-   * haut-parleurs. Sans lui, un export sonnerait plus fort et plus brillant que la page —
-   * l'inverse de ce que « la trace fidèle » veut dire.
+   * INSTANCE SETTING OF DISTANCE (admin page), in percent. It places an attenuation and a
+   * low-pass on the master, exactly as `ReplayAudioPlayer.setDistance` does for the
+   * speakers. Without it, an export would sound louder and brighter than the page —
+   * the opposite of what "the faithful trace" means.
    */
   distancePercent?: number
   /**
-   * Les prises de FIN DE PARTIE (voix d'annonceur + fanfare). Elles n'ont pas d'instant sur la
-   * piste — elles se posent sur la borne de fin, et seulement si elle est dans la plage.
+   * The takes of END OF MATCH (announcer's voice + fanfare). They have no moment on the
+   * track — they are placed on the end bound, and only if it is in the range.
    */
   endMatchStems?: readonly string[]
   /**
-   * QUELS STEMS APPARTIENNENT A QUELLE FAMILLE. Tout ce qui n'y figure pas est un BRUITAGE :
-   * c'est le cas le plus courant de tres loin, et le defaut le plus sur — un son mal classe se
-   * retrouve dans les bruitages, jamais absent du mixage complet.
+   * WHICH STEMS BELONG TO WHICH FAMILY. Anything not there is a SOUND EFFECT:
+   * that is by far the most common case, and the safest default — a misclassified sound
+   * ends up in the sound effects, never absent from the complete mixing.
    */
   families?: { voice: readonly string[]; music: readonly string[] }
   /**
-   * LE PLAN MOTEUR DES VÉHICULES (`vehicleEngineSound.planVehicleEngines`, transmis par la
-   * page) : des ÉTATS continus, posés en segments par `vehicleEngineMix.ts` — mêmes bornes
-   * d'épisodes, mêmes fondus de 150 ms et même bus 0,85 que la lecture temps réel. Ils sont
-   * des BRUITAGES (famille `sfx`) et ne comptent pas dans le plafond de voix, comme en direct.
+   * THE ENGINE PLAN OF THE VEHICLES (`vehicleEngineSound.planVehicleEngines`, passed by the
+   * page): continuous STATES, placed in segments by `vehicleEngineMix.ts` — same episode
+   * bounds, same 150 ms fades and same 0.85 bus as the real-time playback. They are
+   * SOUND EFFECTS (family `sfx`) and do not count in the voice ceiling, as in live.
    */
   engines?: readonly EnginePlan[]
   /**
-   * L'AUDITEUR du clip, une fonction de l'instant en millisecondes : qui écoute le mix (la
-   * position et le cap du joueur suivi dans un export 3D, cf. `soundListenerOf`). Chaque
-   * événement qui porte un lieu (`at`) se place pour lui, MÊME règle que le lecteur temps
-   * réel (`placeOf` : gain selon la distance, pan selon le gisement). Sans auditeur, le mix
-   * reste tel qu'avant — un export 2D ne spatialise pas, comme la page en 2D.
+   * THE LISTENER of the clip, a function of the moment in milliseconds: who listens to the mix (the
+   * position and the bearing of the followed player in a 3D export, cf. `soundListenerOf`). Each
+   * event that carries a place (`at`) is placed for it, SAME rule as the real-time
+   * player (`placeOf`: gain according to distance, pan according to the bearing). Without a listener, the mix
+   * stays as before — a 2D export does not spatialize, like the page in 2D.
    */
   listenerAt?: (ms: number) => SoundListener | null
 }
 
 /**
- * mixSeed — une graine stable dérivée du rang et du stem de l'événement.
+ * mixSeed — a stable seed derived from the rank and the stem of the event.
  *
- * DÉRIVÉE DE L'ÉVÉNEMENT, et pas d'un compteur global : un compteur ferait dépendre le tirage
- * d'un événement de TOUS ceux qui le précèdent, donc changerait tout le mixage dès qu'on borne
- * la plage autrement. Ici, exporter une manche seule fait sonner ses tirs exactement comme
- * dans l'export du match entier.
+ * DERIVED FROM THE EVENT, and not from a global counter: a counter would make the draw of
+ * an event depend on ALL those that precede it, therefore change the whole mixing as soon as we bound
+ * the range differently. Here, exporting a round alone makes its shots sound exactly like
+ * in the export of the whole match.
  */
 export function mixSeed(index: number, stem: string): number {
-  // FNV-1a 32 bits : court, sans dépendance, et bien assez dispersé pour choisir une variante.
+  // FNV-1a 32 bits: short, no dependency, and well dispersed enough to choose a variant.
   let h = 0x811c9dc5 ^ index
   for (let i = 0; i < stem.length; i++) {
     h ^= stem.charCodeAt(i)
@@ -175,27 +175,27 @@ export function mixSeed(index: number, stem: string): number {
 }
 
 /**
- * seededRandom — un générateur uniforme reproductible (mulberry32).
+ * seededRandom — a reproducible uniform generator (mulberry32).
  *
- * `Math.random` ne se sème pas : c'est la seule raison pour laquelle ce générateur existe. Il
- * n'a aucune prétention cryptographique, et n'en a pas besoin — il choisit entre trois prises
- * d'un même tir.
+ * `Math.random` is not seedable: that is the only reason this generator exists. It
+ * has no cryptographic claim, and does not need any — it chooses among three takes
+ * of the same shot.
  */
 export function seededRandom(seed: number): () => number {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0
     let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    t = (t + Math.imul(t ^ (a >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
 
 /**
- * planAudioMix retient les événements de la plage et TIRE leur variante, de façon reproductible.
+ * planAudioMix keeps the events of the range and DRAWS their variant, reproducibly.
  *
- * LE RANG UTILISÉ POUR LA GRAINE EST CELUI DANS LA PISTE ENTIÈRE, pas dans la plage : c'est ce
- * qui rend le tirage indépendant du bornage (cf. `mixSeed`).
+ * THE RANK USED FOR THE SEED IS THE ONE IN THE WHOLE TRACK, not in the range: that is what
+ * makes the draw independent of the bounding (cf. `mixSeed`).
  */
 export function planAudioMix(
   timeline: readonly ReplaySoundEvent[],
@@ -208,12 +208,12 @@ export function planAudioMix(
     if (e.ms < bounds.startMs || e.ms > bounds.endMs) continue
     const rnd = seededRandom(mixSeed(i, e.stem))
     const stem = pickVariantStem(e, rnd)
-    // La variation RANGED ne concerne que les ARMES : la table est indexée par stem d'arme, et
-    // `drawVariation` rend le neutre exact pour tout autre stem.
+    // The RANGED variation only concerns the WEAPONS: the table is indexed by weapon stem, and
+    // `drawVariation` returns the exact neutral for any other stem.
     const draw = drawVariation(WEAPON_SOUND_VARIATIONS[stem], options.variationPercent, rnd)
     const shape = soundShapeOf(e)
-    // LA PLACE POUR L'AUDITEUR DU CLIP, à son instant, MÊME règle que le lecteur temps réel
-    // (`placeOf`) : sans auditeur ou sans lieu, aucun placement — le son reste tel quel.
+    // THE PLACE FOR THE CLIP'S LISTENER, at its moment, SAME rule as the real-time player
+    // (`placeOf`): without a listener or without a place, no placement — the sound stays as is.
     const place = options.listenerAt ? placeOf(options.listenerAt(e.ms), e) : undefined
     out.push({
       atMs: e.ms - bounds.startMs,
@@ -225,13 +225,13 @@ export function planAudioMix(
       ...(place ? { place } : {}),
     })
   }
-  // LA CONCLUSION SE POSE SUR LA BORNE DE FIN, et l'appelant ne la fournit QUE si la plage
-  // atteint vraiment la fin du match (cf. `mixExportAudio`) : un extrait de milieu de match ne
-  // se termine pas sur une fanfare de victoire. Ce module ne peut PAS trancher lui-meme — il ne
-  // connait que des millisecondes, pas la borne de fin du match.
+  // THE CONCLUSION IS PLACED ON THE END BOUND, and the caller provides it ONLY if the range
+  // really reaches the end of the match (cf. `mixExportAudio`): a mid-match excerpt does
+  // not end on a victory fanfare. This module cannot judge on its own — it
+  // only knows milliseconds, not the end bound of the match.
   for (const stem of options.endMatchStems ?? []) {
-    // AUCUNE VARIATION ICI, comme dans le lecteur : les fourchettes sont celles des armes, une
-    // réplique d'annonceur et une fanfare se jouent telles quelles.
+    // NO VARIATION HERE, like in the player: the ranges are those of the weapons, a
+    // announcer's line and a fanfare play as they are.
     out.push({
       atMs: bounds.endMs - bounds.startMs,
       stem,
@@ -243,7 +243,7 @@ export function planAudioMix(
   return out.sort((a, b) => a.atMs - b.atMs)
 }
 
-/** familyOf classe un stem. Hors des deux listes connues, c'est un bruitage (cf. `MixOptions`). */
+/** familyOf classifies a stem. Out of the two known lists, it is a sound effect (cf. `MixOptions`). */
 function familyOf(stem: string, familles: MixOptions['families']): SoundFamily {
   if (!familles) return 'sfx'
   if (familles.music.includes(stem)) return 'music'
@@ -252,34 +252,34 @@ function familyOf(stem: string, familles: MixOptions['families']): SoundFamily {
 }
 
 /**
- * applyVoiceCap rejoue LA MÊME comptabilité de voix que le lecteur temps réel.
+ * applyVoiceCap replays THE SAME voice accounting as the real-time player.
  *
- * Le lecteur compte les sources vivantes et refuse celles qui dépassent `SOUND_MAX_VOICES`.
- * Hors ligne, la même règle se calcule d'avance : une source occupe une voix de son instant
- * jusqu'à la fin de son enveloppe. Sans cela, l'export empilerait tout et sonnerait plus fort
- * et plus confus que la page — mesuré sur le corpus local : 28,7 % des sources sont refusées
- * en direct sur un échange nourri.
+ * The player counts the living sources and refuses those that exceed `SOUND_MAX_VOICES`.
+ * Offline, the same rule is computed in advance: a source occupies a voice from its moment
+ * until the end of its envelope. Without that, the export would stack everything and sound louder
+ * and more confused than the page — measured on the local corpus: 28.7% of sources are refused
+ * in live on a sustained exchange.
  *
- * LA CONCLUSION suit la même exception des deux côtés : hors plafond, sans voix occupée
- * (`soundOccupiesVoice`). Jusqu'au 2026-09-26, seul l'export l'appliquait — la page refusait
- * la fanfare d'une fin dense, et « la même comptabilité » était fausse sur ce point (item 11).
- * Garde-rail de parité : `replayAudioMix.test.ts`.
+ * THE CONCLUSION follows the same exception on both sides: out of ceiling, without voice occupied
+ * (`soundOccupiesVoice`). Until 2026-09-26, only the export applied it — the page refused
+ * the fanfare of a dense end, and "the same accounting" was false on that point (item 11).
+ * Parity guardrail: `replayAudioMix.test.ts`.
  *
- * `durationOf` rend la durée du fichier en secondes, ou `null` s'il est absent — un asset
- * manquant est un silence, exactement comme en direct, et il n'occupe alors aucune voix.
+ * `durationOf` returns the duration of the file in seconds, or `null` if absent — a missing
+ * asset is a silence, exactly as in live, and it then occupies no voice.
  */
 export function applyVoiceCap(
   sounds: readonly MixedSound[],
   durationOf: (stem: string) => number | null,
 ): MixedSound[] {
   const kept: MixedSound[] = []
-  /** Instants de libération des voix occupées, en ms sur l'axe du clip. */
+  /** Release moments of the occupied voices, in ms on the clip axis. */
   let busy: number[] = []
   for (const s of sounds) {
     const seconds = durationOf(s.stem)
     if (seconds === null) continue
-    // UNE ANNONCE PASSE TOUJOURS (conclusion, voix de manche) et n'occupe aucune voix
-    // (`soundOccupiesVoice`) : elle ne dispute rien aux bruitages, elle raconte le deroule.
+    // AN ANNOUNCEMENT ALWAYS PASSES (conclusion, round voice) and occupies no voice
+    // (`soundOccupiesVoice`): it disputes nothing with the sound effects, it tells the course.
     if (!soundOccupiesVoice(s)) {
       kept.push(s)
       continue
@@ -293,15 +293,15 @@ export function applyVoiceCap(
   return kept
 }
 
-/** Ce que le rendu hors ligne consomme : les tampons déjà décodés, par stem. */
+/** What the offline render consumes: the buffers already decoded, by stem. */
 export type MixBuffers = ReadonlyMap<string, AudioBuffer | null>
 
 /**
- * decodeMixSources charge et décode les fichiers dont le mixage a besoin.
+ * decodeMixSources loads and decodes the files the mixing needs.
  *
- * UN ASSET ABSENT EST MÉMORISÉ COMME TEL (`null`), jamais retenté et jamais remonté en erreur :
- * c'est la politique du lecteur (`replayAudio.ts`), et un export ne doit pas échouer en entier
- * parce qu'un fichier manque. Le silence est propre, et il est dit une fois dans la console.
+ * AN ABSENT ASSET IS MEMORIZED AS SUCH (`null`), never re-attempted and never raised as an error:
+ * that is the policy of the player (`replayAudio.ts`), and an export must not fail in whole
+ * because a file is missing. The silence is clean, and it is said once in the console.
  */
 export async function decodeMixSources(
   stems: Iterable<string>,
@@ -321,7 +321,7 @@ export async function decodeMixSources(
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       out.set(stem, await ctx.decodeAudioData(await res.arrayBuffer()))
     } catch (err) {
-      console.warn('[replay-export] son indisponible, silence :', url, err)
+      console.warn('replay 3D: sound unavailable, silence:', url, err)
       out.set(stem, null)
     }
   }
@@ -329,16 +329,16 @@ export async function decodeMixSources(
 }
 
 /**
- * scheduleMix pose toutes les sources dans un contexte hors ligne, chacune avec son enveloppe.
+ * scheduleMix places all the sources in an offline context, each with its envelope.
  *
- * C'est la transposition EXACTE de `ReplayAudioPlayer.play()` : gain de tenue, palier, fondu
- * linéaire jusqu'à zéro, et `playbackRate` quand la variation en demande un. La seule
- * différence est l'instant — absolu ici, « maintenant » là-bas.
+ * That is the EXACT transposition of `ReplayAudioPlayer.play()`: hold gain, plateau, linear
+ * fade to zero, and `playbackRate` when the variation demands one. The only
+ * difference is the moment — absolute here, "now" there.
  *
- * LA PLACE suit la même règle que le lecteur : le gain de tenue est MULTIPLIÉ par le gain du
- * placement (un son spatialisé est plus bas selon sa distance), et le panneur stéréo ne naît
- * que si le placement en demande un à un côté — sans `place`, ou `pan` à 0, le câblage reste
- * `source -> gain -> destination`, aucun nœud en plus.
+ * THE PLACE follows the same rule as the player: the hold gain is MULTIPLIED by the gain of the
+ * placement (a spatialized sound is lower according to its distance), and the stereo panner is born
+ * only if the placement demands one at a side — without `place`, or `pan` at 0, the wiring stays
+ * `source -> gain -> destination`, no node more.
  */
 export function scheduleMix(
   ctx: BaseAudioContext,
@@ -361,7 +361,7 @@ export function scheduleMix(
     src.loop = loop
     if (s.draw.playbackRate !== 1) src.playbackRate.value = s.draw.playbackRate
     src.connect(gain)
-    // Le PAN ne naît que si on le demande et s'il est à un CÔTÉ : même règle que le lecteur.
+    // The PAN is born only if demanded and at a SIDE: same rule as the player.
     if (s.place && s.place.pan !== 0) {
       const panner = ctx.createStereoPanner()
       panner.pan.value = s.place.pan
@@ -376,29 +376,29 @@ export function scheduleMix(
 }
 
 /**
- * renderAudioMix rend la piste complète en un tampon.
+ * renderAudioMix renders the complete track in a buffer.
  *
- * LA DURÉE EST CELLE DU CLIP, plus la QUEUE du dernier son : couper net à la borne trancherait
- * une fanfare de fin de partie qui dure onze secondes et qui commence, par définition, à la
- * dernière image.
+ * THE DURATION IS THAT OF THE CLIP, plus the TAIL of the last sound: a hard cut at the bound would slice
+ * an end-of-match fanfare that lasts eleven seconds and that begins, by definition, at the
+ * last frame.
  */
 export async function renderAudioMix(
   sounds: readonly MixedSound[],
   buffers: MixBuffers,
-  /** Duree TOTALE a rendre, queue comprise — l'appelant la calcule une fois pour toutes. */
+  /** TOTAL duration to render, tail included — the caller computes it once and for all. */
   durationMs: number,
   masterGain: number,
   distancePercent = 0,
-  /** Les segments moteur à poser derrière leur bus (0,85), avec les mêmes tampons. */
+  /** The engine segments to place behind their bus (0.85), with the same buffers. */
   engineSegments: readonly EngineSegment[] = [],
 ): Promise<AudioBuffer> {
   const frames = Math.max(1, Math.ceil((durationMs / 1000) * MIX_SAMPLE_RATE))
   const ctx = new OfflineAudioContext(MIX_CHANNELS, frames, MIX_SAMPLE_RATE)
   const master = ctx.createGain()
   master.gain.value = Math.min(Math.max(masterGain, 0), 1)
-  // LA CHAÎNE DE DISTANCE, MÊME RECETTE QUE LE LECTEUR (`ReplayAudioPlayer.setDistance`) :
-  // maître -> atténuation -> passe-bas -> sortie. À 0 %, `distanceChain` rend `null` et AUCUN
-  // nœud n'est posé — le chemin du signal reste celui d'origine, exigence « sons purs ».
+  // THE DISTANCE CHAIN, SAME RECIPE AS THE PLAYER (`ReplayAudioPlayer.setDistance`):
+  // master -> attenuation -> low-pass -> output. At 0%, `distanceChain` returns `null` and NO
+  // node is placed — the signal path stays the original one, "pure sounds" requirement.
   const chain = distanceChain(distancePercent)
   if (chain) {
     const dist = ctx.createGain()
@@ -418,10 +418,10 @@ export async function renderAudioMix(
 }
 
 /**
- * tailSeconds — ce qui DÉPASSE la borne, et rien d'autre.
+ * tailSeconds — what OVERFLOWS the bound, and nothing else.
  *
- * Le calcul porte sur le dépassement et non sur la fin absolue du dernier son : additionner
- * cette dernière à la durée du clip doublerait presque la piste pour un match entier.
+ * The computation carries on the overflow and not on the absolute end of the last sound: adding
+ * that last one to the duration of the clip would almost double the track for a whole match.
  */
 export function tailSeconds(
   sounds: readonly MixedSound[],
@@ -438,34 +438,34 @@ export function tailSeconds(
 }
 
 /**
- * LES PISTES D'UN CLIP, DANS L'ORDRE OU LE CONTENEUR LES ECRIRA.
+ * THE TRACKS OF A CLIP, IN THE ORDER THE CONTAINER WILL WRITE THEM.
  *
- * `full` VIENT EN PREMIER, et ce n'est pas un detail de presentation : un lecteur ordinaire
- * ne joue QUE la premiere piste (un navigateur n'expose meme pas les autres). Livrer les
- * familles sans le mixage ferait entendre les seuls bruitages, sans musique ni voix — une
- * regression pour tout le monde sauf le monteur.
+ * `full` COMES FIRST, and that is not a presentation detail: an ordinary player
+ * only plays the first track (a browser does not even expose the others). Delivering the
+ * families without the mixing would make heard the only sound effects, without music or voice — a
+ * regression for everyone but the editor.
  */
 export interface MixedTracks {
   full: AudioBuffer
-  /** Les familles NON VIDES, dans l'ordre `sfx`, `voice`, `music`. */
+  /** The NON-EMPTY families, in the order `sfx`, `voice`, `music`. */
   families: { family: SoundFamily; buffer: AudioBuffer }[]
 }
 
-/** L'ordre d'ecriture des familles. Stable, pour que deux exports se ressemblent. */
+/** The writing order of the families. Stable, so that two exports resemble each other. */
 const FAMILY_ORDER: readonly SoundFamily[] = ['sfx', 'voice', 'music']
 
 /**
- * mixReplayAudio — LE POINT D'ENTREE UNIQUE : de la piste du rejeu aux tampons prets a encoder.
+ * mixReplayAudio — THE SINGLE ENTRY POINT: from the replay's track to the buffers ready to encode.
  *
- * Il enchaine les quatre etapes dans le seul ordre possible : retenir et tirer (pur), decoder
- * (les durees ne se connaissent qu'apres), plafonner les voix (elle en a besoin), rendre.
+ * It chains the four steps in the only possible order: keep and draw (pure), decode
+ * (the durations are only known after), cap the voices (it needs them), render.
  *
- * LES FAMILLES SONT RENDUES A PARTIR DES MEMES SONS RETENUS que le mixage complet — jamais
- * replanifiees. C'est ce qui garantit qu'en superposant les pistes separees on retrouve
- * exactement le mixage : meme tirage, meme plafond de voix, memes instants.
+ * THE FAMILIES ARE RENDERED FROM THE SAME SOUNDS KEPT as the complete mixing — never
+ * replanned. That is what guarantees that by superimposing the separate tracks one gets back
+ * exactly the mixing: same draw, same voice ceiling, same moments.
  *
- * `null` quand il n'y a rien a mixer — piste vide, plage sans le moindre son, ou navigateur
- * sans `OfflineAudioContext`. L'appelant sort alors un clip MUET plutot que pas de clip.
+ * `null` when there is nothing to mix — empty track, range without the slightest sound, or browser
+ * without `OfflineAudioContext`. The caller then outputs a SILENT clip rather than no clip.
  */
 export async function mixReplayAudio(
   timeline: readonly ReplaySoundEvent[],
@@ -475,12 +475,12 @@ export async function mixReplayAudio(
   if (typeof OfflineAudioContext !== 'function') return null
   const planned = planAudioMix(timeline, bounds, options)
   const enginePlans = options.engines ?? []
-  // « Rien à mixer » compte les MOTEURS : un match sans événement mais avec un véhicule
-  // occupé dans la plage a bien une piste sonore à rendre.
+  // "Nothing to mix" counts the ENGINES: a match without an event but with a vehicle
+  // occupied in the range has well a sound track to render.
   if (planned.length === 0 && enginePlans.length === 0) return null
   const durationMs = bounds.endMs - bounds.startMs
-  // UN CONTEXTE JETABLE POUR LE SEUL DECODAGE : `decodeAudioData` a besoin d'un contexte, mais
-  // pas de celui qui rendra le mixage — dont la longueur depend justement des durees decodees.
+  // A THROWAWAY CONTEXT FOR THE SOLE DECODING: `decodeAudioData` needs a context, but
+  // not the one that will render the mixing — whose length depends precisely on the decoded durations.
   const probe = new OfflineAudioContext(MIX_CHANNELS, 1, MIX_SAMPLE_RATE)
   const buffers = await decodeMixSources(
     [...planned.map((s) => s.stem), ...engineStemsOf(enginePlans)],
@@ -489,12 +489,12 @@ export async function mixReplayAudio(
   )
   const durOf = (stem: string) => buffers.get(stem)?.duration ?? null
   const kept = applyVoiceCap(planned, durOf)
-  // LES SEGMENTS MOTEUR : mêmes bornes que la page, bornés à la plage. Hors plafond de voix.
+  // THE ENGINE SEGMENTS: same bounds as the page, bounded to the range. Out of the voice ceiling.
   const engineSegments = enginePlans.flatMap((p) => planEngineSegments(p, bounds, durOf))
   if (kept.length === 0 && engineSegments.length === 0) return null
-  // LA DUREE EST CELLE DU MIXAGE COMPLET POUR TOUTES LES PISTES : des pistes de longueurs
-  // differentes se decaleraient a la lecture dans un montage. La queue prend le plus long des
-  // deux mondes — le dernier événement enveloppé, ou un `exit` de moteur gravé qui déborde.
+  // THE DURATION IS THAT OF THE COMPLETE MIXING FOR ALL TRACKS: tracks of different
+  // lengths would offset in playback in a montage. The tail takes the longest of the
+  // two worlds — the last enveloped event, or an engine `exit` engraved that overflows.
   const tail = Math.max(
     tailSeconds(kept, buffers, durationMs),
     engineTailSeconds(engineSegments, durOf, durationMs / 1000),
@@ -506,7 +506,7 @@ export async function mixReplayAudio(
   const families: MixedTracks['families'] = []
   for (const family of FAMILY_ORDER) {
     const sons = kept.filter((s) => s.family === family)
-    // Les moteurs sont des BRUITAGES : ils sortent dans la piste `sfx`, comme dans le mixage.
+    // The engines are SOUND EFFECTS: they come out in the `sfx` track, like in the mixing.
     const engines = family === 'sfx' ? engineSegments : []
     if (sons.length === 0 && engines.length === 0) continue
     families.push({ family, buffer: await rendre(sons, engines) })

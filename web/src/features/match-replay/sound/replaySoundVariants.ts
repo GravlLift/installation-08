@@ -1,72 +1,73 @@
 /**
- * replaySoundVariants.ts — UN GESTE, PLUSIEURS FICHIERS : le tirage de variante.
+ * replaySoundVariants.ts — ONE GESTURE, SEVERAL FILES: the drawing of a variant.
  *
- * EXTRAIT DE `replaySound.ts` LE 2026-08-26, pour la même raison que `replaySoundCursor.ts`
- * et `grenadeSound.ts` avant lui : le fichier d'origine atteignait son plafond de lisibilité.
- * Ce qui vit ici est tout ce qui concerne le CHOIX du fichier — le type d'événement, le
- * manifeste des variantes, le constructeur qui les attache, et le tirage lui-même.
+ * EXTRACTED FROM `replaySound.ts` ON 2026-08-26, for the same reason as `replaySoundCursor.ts`
+ * and `grenadeSound.ts` before it: the original file was reaching its readability ceiling.
+ * What lives here is everything that concerns the CHOICE of the file — the event type, the
+ * manifest of variants, the constructor that attaches them, and the drawing itself.
  *
- * POURQUOI DES VARIANTES. Un événement Wwise dont la couche est un `RandomSequence` ne joue
- * pas un fichier : il en TIRE un, uniformément (mesure du chantier armes : 6 976 tables de
- * poids égales sur 6 976). Livrer une seule variante publiait donc un geste appauvri — trois
- * poses de champ de réparation dans un même match sonnaient exactement pareil, là où le jeu
- * en joue trois différentes.
+ * WHY VARIANTS. A Wwise event whose layer is a `RandomSequence` does not play a file: it
+ * DRAWS one, uniformly (measurement of the weapons work site: 6,976 tables of equal weights out
+ * of 6,976). Delivering a single variant was therefore publishing an impoverished gesture —
+ * three placements of repair field in the same match sounded exactly the same, where the game
+ * plays three different ones.
  *
- * LE TIRAGE SE FAIT À LA LECTURE, JAMAIS À LA CONSTRUCTION DE LA PISTE. Une piste est bâtie
- * une fois pour tout le match (`buildSoundTimeline`, mémoïsée) : y tirer figerait le choix, et
- * deux occurrences du même geste rejoueraient le même fichier — exactement ce que la variante
- * est censée éviter.
+ * THE DRAWING HAPPENS AT PLAYBACK, NEVER AT THE CONSTRUCTION OF THE TRACK. A track is built
+ * once for the whole match (`buildSoundTimeline`, memoized): drawing in it would freeze the
+ * choice, and two occurrences of the same gesture would replay the same file — exactly what the
+ * variant is meant to avoid.
  */
 
 import { VEHICLE_BOOM_SOUND_VARIANTS } from './vehicleDestructionSound'
 import { VEHICLE_SHOT_SOUND_VARIANTS } from './vehicleShotSound'
 
-/** Un événement sonore posé sur l'horloge du rejeu. */
+/** A sound event placed on the replay clock. */
 export interface ReplaySoundEvent {
-  /** Instant en ms sur l'horloge du rejeu (celle du fil et des fiches). */
+  /** Moment in ms on the replay clock (that of the thread and the cards). */
   ms: number
   /**
-   * Stem du fichier sous static/sounds/{titleSlug}/ — la PREMIÈRE variante quand il y en a
-   * plusieurs, et le fichier joué quand `variants` est absent.
+   * Stem of the file under static/sounds/{titleSlug}/ — the FIRST variant when there are
+   * several, and the file played when `variants` is absent.
    */
   stem: string
-  /** Toutes les variantes jouables de ce geste, `stem` compris. Absent = un seul fichier. */
+  /** All the playable variants of this gesture, `stem` included. Absent = a single file. */
   variants?: readonly string[]
   /**
-   * LE SON TENU d'une rafale de tir continu (schéma 71) : le fichier se joue EN BOUCLE pendant
-   * `holdMs`, puis s'éteint (`SOUND_HOLD_RELEASE_S`). Absent = un son ponctuel.
+   * THE HELD SOUND of a continuous fire burst (schema 71): the file plays IN A LOOP during
+   * `holdMs`, then fades out (`SOUND_HOLD_RELEASE_S`). Absent = a point sound.
    */
   holdMs?: number
   /**
-   * LE COUP COUPÉ À LA CADENCE : un coup d'une rafale sans boucle s'arrête au coup suivant, comme
-   * le conteneur du jeu en mode « cadence de déclenchement » — une voix par rafale, jamais un mur.
+   * THE SHOT CUT TO THE RATE: a shot of a burst without loop stops at the next shot, like the
+   * game's container in "trigger rate" mode — one voice per burst, never a wall.
    */
   cutMs?: number
   /**
-   * UNE VOIX D'ANNONCEUR (« manche terminée ») : elle échappe au plafond de voix, à la page comme à
-   * l'export (`soundOccupiesVoice`). Absent = un bruitage, soumis au plafond.
+   * AN ANNOUNCER VOICE ("round ended"): it escapes the voice ceiling, at the page as at the
+   * export (`soundOccupiesVoice`). Absent = a sound effect, subject to the ceiling.
    */
   announcer?: true
   /**
-   * D'où vient le son, en repère de la carte (x, y) : le plan horizontal du son spatial
-   * (`soundSpatial.ts`). Absent = un son sans lieu, joué tel quel quel que soit l'auditeur.
+   * Where the sound comes from, in map coordinates (x, y): the horizontal plane of spatial
+   * sound (`soundSpatial.ts`). Absent = a sound without a place, played as is whatever the
+   * listener.
    */
   at?: { x: number; y: number }
 }
 
 /**
- * SOUND_VARIANTS — les gestes que le jeu joue en TIRANT une variante, et la liste EXACTE de
- * leurs fichiers. C'est un MANIFESTE au même titre que les tables de `replaySound.ts` : le
- * garde-rail `replaySoundAssets.guard.test.ts` le rejoue contre le dossier d'assets, un stem
- * sans fichier ou un fichier sans stem casse le test.
+ * SOUND_VARIANTS — the gestures that the game plays by DRAWING a variant, and the EXACT list
+ * of their files. It is a MANIFEST just like the tables of `replaySound.ts`: the guardrail
+ * `replaySoundAssets.guard.test.ts` replays it against the assets folder, a stem without a file
+ * or a file without a stem breaks the test.
  *
- * LA PREMIÈRE VARIANTE GARDE LE STEM NU, et ce n'est pas de la coquetterie : les tables et les
- * garde-rails existants nomment déjà `grapple_fire`, `repulsor_kill`, `repair_field_activate`.
- * Suffixer les trois aurait fait un renommage en cascade sans rien apporter à l'oreille.
+ * THE FIRST VARIANT KEEPS THE BARE STEM, and that is not vanity: the existing tables and
+ * guardrails already name `grapple_fire`, `repulsor_kill`, `repair_field_activate`. Suffixing
+ * the three would have made a cascade renaming without giving anything to the ear.
  *
- * PÉRIMÈTRE : seuls les gestes dont le rendu du 2026-08-26 a produit plusieurs variantes y
- * entrent. Un stem absent de cette table se joue tel quel — c'est le cas de tous les autres,
- * y compris les sept sons d'objectif (leurs événements n'ont qu'une variante par couche).
+ * SCOPE: only the gestures of which the render of 2026-08-26 produced several variants enter.
+ * A stem absent from this table plays as is — that is the case of all the others, including
+ * the seven objective sounds (their events have only one variant per layer).
  */
 export const SOUND_VARIANTS: Readonly<Record<string, readonly string[]>> = {
   grapple_fire: ['grapple_fire', 'grapple_fire_v2', 'grapple_fire_v3'],
@@ -77,15 +78,15 @@ export const SOUND_VARIANTS: Readonly<Record<string, readonly string[]>> = {
     'repair_field_activate_v3',
   ],
   repair_field_end: ['repair_field_end', 'repair_field_end_v2', 'repair_field_end_v3'],
-  // LE PROPULSEUR (banque `sb_007_abl_evade`, evenement `307114b6` =
-  // `play_007_abl_evade_blast_player`, rendu du 2026-09-03) : « 1 couche, 1 parmi 3 », le jeu
-  // tire une variante A CHAQUE dash. Meme forme que le grappin, et pour la meme raison — c'est
-  // le meme genre de geste, une impulsion unique sans boucle ni queue.
+  // THE THRUSTER (bank `sb_007_abl_evade`, event `307114b6` =
+  // `play_007_abl_evade_blast_player`, render of 2026-09-03): "1 layer, 1 of 3", the game
+  // draws a variant AT EACH dash. Same shape as the grapple, and for the same reason — it is
+  // the same kind of gesture, a single impulse without loop or tail.
   thruster_activate: ['thruster_activate', 'thruster_activate_v2', 'thruster_activate_v3'],
-  // LE CRANE d'Oddball (banque `sb_004_mod_mp_oddball`, rendu du 2026-08-29) : quatre de ses
-  // gestes sont des `RandomSequence` a plusieurs `.wem`, exactement comme le grappin. Le jeu
-  // TIRE une variante a chaque lecture ; le rejeu aussi. `objective_skull_spawn` n'y est pas :
-  // son evenement est « 1 couche, 1 son », un seul fichier.
+  // THE CRANE of Oddball (bank `sb_004_mod_mp_oddball`, render of 2026-08-29): four of its
+  // gestures are `RandomSequence` with several `.wem`, exactly like the grapple. The game
+  // DRAWS a variant at each reading; the replay does too. `objective_skull_spawn` is not in it:
+  // its event is "1 layer, 1 sound", a single file.
   objective_skull_despawn: ['objective_skull_despawn', 'objective_skull_despawn_v2'],
   objective_skull_taken: ['objective_skull_taken', 'objective_skull_taken_v2'],
   objective_skull_pickup: ['objective_skull_pickup', 'objective_skull_pickup_v2'],
@@ -94,23 +95,23 @@ export const SOUND_VARIANTS: Readonly<Record<string, readonly string[]>> = {
     'objective_skull_dropped_v2',
     'objective_skull_dropped_v3',
   ],
-  // LES TIRS D'ARMES DE VÉHICULE (lot du 2026-09-04) : deux prises par arme, tirées à chaque
-  // coup comme le jeu le fait. La table vit dans `vehicleShotSound.ts` (avec la jointure
-  // `Shot.w` -> stem et toute la doctrine) et se fusionne ici pour que `soundEvent` les
-  // attache sans qu'aucun appelant ne change. Leur nommage `_1`/`_2` (pas `stem`/`_v2`)
-  // suit la règle de livraison du lot véhicules ; le garde-rail les reconnaît à leur
-  // préfixe pour leur appliquer la règle de durée des ARMES (1,2 s), pas des équipements.
+  // THE SHOTS OF VEHICLE WEAPONS (lot of 2026-09-04): two takes per weapon, drawn at each
+  // shot as the game does. The table lives in `vehicleShotSound.ts` (with the join
+  // `Shot.w` -> stem and all the doctrine) and merges here so that `soundEvent` attaches
+  // them without any caller changing. Their `_1`/`_2` naming (not `stem`/`_v2`) follows the
+  // delivery rule of the vehicles lot; the guardrail recognizes them by their prefix to apply
+  // to them the duration rule of WEAPONS (1.2 s), not of equipment.
   ...VEHICLE_SHOT_SOUND_VARIANTS,
-  // LES DESTRUCTIONS DE VÉHICULE (lot du 2026-09-05) : trois prises par jeu de sons, tirées à
-  // chaque destruction. La table et sa doctrine (jointure famille -> set, banques dédupliquées
-  // par mesure md5) vivent dans `vehicleDestructionSound.ts` — même mécanique que les tirs.
+  // THE DESTRUCTIONS OF VEHICLES (lot of 2026-09-05): three takes per sound set, drawn at
+  // each destruction. The table and its doctrine (family -> set join, banks deduplicated
+  // by md5 measurement) live in `vehicleDestructionSound.ts` — same mechanics as the shots.
   ...VEHICLE_BOOM_SOUND_VARIANTS,
 }
 
 /**
- * soundEvent — le SEUL constructeur d'événement sonore de la chaîne : il attache les variantes
- * du stem quand il en a. Passer par lui partout est ce qui garantit qu'un geste à variantes ne
- * peut pas être poussé « nu » par un appelant qui l'ignorerait.
+ * soundEvent — the ONLY sound event constructor of the chain: it attaches the variants of
+ * the stem when it has them. Going through it everywhere is what guarantees that a gesture
+ * with variants cannot be pushed "bare" by a caller who would ignore them.
  */
 export function soundEvent(ms: number, stem: string, at?: { x: number; y: number }): ReplaySoundEvent {
   const variants = SOUND_VARIANTS[stem]
@@ -119,8 +120,8 @@ export function soundEvent(ms: number, stem: string, at?: { x: number; y: number
 }
 
 /**
- * pickVariantStem — le TIRAGE d'une variante, à la lecture. Uniforme, comme le
- * `RandomSequence` du jeu. `rnd` est injectable pour que le test soit déterministe.
+ * pickVariantStem — THE DRAWING of a variant, at playback. Uniform, like the
+ * `RandomSequence` of the game. `rnd` is injectable so that the test is deterministic.
  */
 export function pickVariantStem(
   event: Pick<ReplaySoundEvent, 'stem' | 'variants'>,
@@ -132,7 +133,7 @@ export function pickVariantStem(
   return list[i] ?? event.stem
 }
 
-/** Tous les stems jouables d'un événement — ce que le préchargement doit couvrir. */
+/** All the playable stems of an event — what the preloading must cover. */
 export function stemsOf(event: Pick<ReplaySoundEvent, 'stem' | 'variants'>): readonly string[] {
   return event.variants && event.variants.length > 0 ? event.variants : [event.stem]
 }

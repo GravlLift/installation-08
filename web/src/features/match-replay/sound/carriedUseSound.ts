@@ -1,44 +1,45 @@
 /**
- * carriedUseSound.ts — L'UTILISATION D'UN ÉQUIPEMENT PORTÉ, entendue à l'instant où le film la date.
+ * carriedUseSound.ts — USING A CARRIED PIECE OF EQUIPMENT, heard at the moment the film dates it.
  *
- * LA SOURCE est le document (schéma 95) : `carriedEquipment[].uses`, les images des activations de
- * l'objet porté (i21). Chacune est suivie, une ou deux images plus tard, de la baisse d'énergie d'un
- * coût de la famille : c'est le geste qui consomme une charge. La famille est celle du rang de l'objet
- * (`abilityLabels[r].family`).
+ * THE SOURCE is the document (schema 95): `carriedEquipment[].uses`, the frames of the carried
+ * item's activations (i21). Each one is followed, one or two frames later, by the energy drop of a
+ * cost of the family: that is the gesture consuming a charge. The family is the one from the item's
+ * rank (`abilityLabels[r].family`).
  *
- * POURQUOI CES QUATRE FAMILLES, ET POURQUOI PAS LEUR POSE. Le capteur, le traqueur, le champ de
- * réparation et l'écran occultant sonnaient sur leur pose `deployed` (`equipmentPlacements`) ; le film
- * ne produit plus de pose `deployed` pour eux depuis la règle du 15/09, et ils étaient muets depuis.
- * Leur utilisation est datée par le film : décision utilisateur du 2026-10-15, les rebrancher dessus,
- * avec le même stem et les mêmes variantes qu'avant. Le mur garde sa pose `deployed`, qui suit son
- * utilisation de deux ou trois images : il n'entre pas ici, sans quoi il sonnerait deux fois.
+ * WHY THESE FOUR FAMILIES, AND WHY NOT THEIR PLACEMENT. The sensor, the threat seeker, the repair
+ * field and the shroud screen used to sound on their `deployed` placement (`equipmentPlacements`);
+ * the film no longer produces a `deployed` placement for them since the 15/09 rule, and they had
+ * been silent since. Their use is dated by the film: user decision of 2026-10-15, rewire them on
+ * it, with the same stem and the same variants as before. The wall keeps its `deployed`
+ * placement, which follows its use by two or three frames: it does not enter here, otherwise it
+ * would sound twice.
  *
- * L'INSTANT est l'utilisation lue, sans décalage : aucun de ces quatre sons n'a de montée relevée
- * (contrairement à la pose de la faille, `riftPoseSound.ts`). Catégorie Équipement.
+ * THE MOMENT is the use as read, no offset: none of these four sounds has a rise noted
+ * (unlike the rift's placement, `riftPoseSound.ts`). Equipment category.
  *
- * LA FIN DU CHAMP DE RÉPARATION (décision utilisateur du 2026-10-15 : « si on a l'événement, on
- * rebranche le son de fin »). Le film l'écrit : la pile i28 de l'objet porté nomme l'objet que
- * l'équipement engendre, et la SUPPRESSION de cet objet est la fin du champ
- * (`carriedEquipment[].tracked[].t1`). Le son d'extinction (`play_007_abl_repairfield_deactivate`)
- * part à cette image ; un champ dont la suppression n'est pas lue ne sonne pas sa fin.
+ * THE END OF THE REPAIR FIELD (user decision of 2026-10-15: "if we have the event, we
+ * rewire the end sound"). The film writes it: the carried item's i28 stack names the object the
+ * equipment spawns, and the DELETION of that object is the end of the field
+ * (`carriedEquipment[].tracked[].t1`). The deactivation sound (`play_007_abl_repairfield_deactivate`)
+ * goes out on that frame; a field whose deletion is not read does not sound its end.
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
-/** Le stem de l'utilisation, par famille de la palette. */
+/** The use stem, per palette family. */
 export const CARRIED_USE_SOUND_STEMS: Readonly<Record<string, string>> = {
   sensor: 'sensor_activate',
-  // Même appareil que le capteur, un mode près : même geste, donc même son.
+  // Same device as the sensor, one mode over: same gesture, so same sound.
   threat_seeker: 'sensor_activate',
-  // L'ACTIVATION du champ (`play_007_abl_repairfield_activate`), pas le claquement de sa pose :
-  // décision utilisateur du 2026-08-27, détail dans `replaySound.ts`.
+  // The field's ACTIVATION (`play_007_abl_repairfield_activate`), not the clatter of its placement:
+  // user decision of 2026-08-27, details in `replaySound.ts`.
   repair_field: 'repair_field_activate',
-  // `play_007_abl_shroud_deploy_player`, banque `sb_007_abl_shroud` (nommé le 2026-08-27).
+  // `play_007_abl_shroud_deploy_player`, bank `sb_007_abl_shroud` (named 2026-08-27).
   shroud_screen: 'shroud_deploy',
 }
 
-/** carriedUseSoundEvents — un son par utilisation publiée d'une famille de la table, à son image. */
+/** carriedUseSoundEvents — one sound per published use of a family in the table, on its frame. */
 export function carriedUseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   for (const c of doc.carriedEquipment) {
@@ -51,15 +52,15 @@ export function carriedUseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEven
 }
 
 /**
- * Le stem de la FIN d'un objet engendré, par famille : seul le champ de réparation a un son
- * d'extinction propre dans le jeu (décision produit du 2026-08-26, « y compris le champ de
- * réparation qui disparaît »).
+ * The stem of the END of a spawned object, per family: only the repair field has a
+ * proper deactivation sound in the game (product decision of 2026-08-26, "including the
+ * disappearing repair field").
  */
 export const CARRIED_END_SOUND_STEMS: Readonly<Record<string, string>> = {
   repair_field: 'repair_field_end',
 }
 
-/** carriedEndSoundEvents — un son par fin lue d'un objet engendré d'une famille de la table. */
+/** carriedEndSoundEvents — one sound per end read of a spawned object of a family in the table. */
 export function carriedEndSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   for (const c of doc.carriedEquipment) {

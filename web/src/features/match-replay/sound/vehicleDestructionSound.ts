@@ -1,53 +1,53 @@
 /**
- * vehicleDestructionSound.ts — LE SON DE LA DESTRUCTION D'UN VÉHICULE (lot du 2026-09-05).
+ * vehicleDestructionSound.ts — THE SOUND OF THE DESTRUCTION OF A VEHICLE (lot of 2026-09-05).
  *
- * LE SIGNAL EST EXACTEMENT CELUI DE L'EFFET VISUEL (schéma 39, `vehiclesLayer.ts`) : un
- * véhicule dont `end === VEHICLE_END_DESTROYED` ET dont `tEnd` est publié — les deux
- * conditions, portées par `vehicleDestructionFrame`, la MÊME fonction que l'explosion du
- * calque (`vehiclesPaint.ts`). Tant que le Go ne publie que `end: "unknown"` (l'état actuel
- * de CHAQUE artefact existant), cette chaîne rend ZÉRO événement : le son est PRÊT, il
- * n'invente pas la mesure — exactement comme l'effet visuel qu'il accompagne.
+ * THE SIGNAL IS EXACTLY THAT OF THE VISUAL EFFECT (schema 39, `vehiclesLayer.ts`): a
+ * vehicle whose `end === VEHICLE_END_DESTROYED` AND whose `tEnd` is published — the two
+ * conditions, carried by `vehicleDestructionFrame`, the SAME function as the explosion of
+ * the layer (`vehiclesPaint.ts`). Until the Go publishes only `end: "unknown"` (the current
+ * state of EVERY existing artifact), this chain returns ZERO events: the sound is READY, it
+ * does not invent the measurement — exactly like the visual effect it accompanies.
  *
- * C'EST UN BRUITAGE COMME LES AUTRES : un one-shot posé dans `buildSoundTimeline` (catégorie
- * `weapon` du tiroir — même choix que les bobines : une explosion du monde, et le tiroir n'a
- * pas de case « décor »), famille `sfx` à l'export, plafond de voix normal du lecteur. RIEN
- * à voir avec le bus moteur (0,85) des boucles continues (`vehicleEngineSound.ts`) : la
- * destruction est un événement, pas un état.
+ * IT IS A SOUND EFFECT LIKE THE OTHERS: a one-shot placed in `buildSoundTimeline` (category
+ * `weapon` of the drawer — same choice as the coils: an explosion of the world, and the drawer
+ * has no "decor" checkbox), family `sfx` at the export, normal voice ceiling of the player. NOTHING
+ * to do with the engine bus (0.85) of the continuous loops (`vehicleEngineSound.ts`): the
+ * destruction is an event, not a state.
  *
- * LES BANQUES SONT DÉDUPLIQUÉES, ET C'EST UNE MESURE (md5 sur les sources, 2026-09-05) :
- * dans `sons_v3_reconstruits/<Vehicule>/destruction/`, les fichiers du Wasp sont IDENTIQUES
- * octet à octet à ceux du Warthog_roquettes, et ceux du Wraith à ceux de la Banshee. Livrer
- * huit dossiers aurait dupliqué quatre banques : les fichiers sont donc nommés par JEU DE
- * SONS (`vehicle_boom_<set>_<n>`), et les FAMILLES du document (les mêmes clés que
- * `VEHICLE_ENGINE_STEMS`) se mappent dessus. Six jeux distincts :
+ * THE BANKS ARE DEDUPLICATED, AND THAT IS A MEASUREMENT (md5 on the sources, 2026-09-05):
+ * in `sons_v3_reconstruits/<Vehicle>/destruction/`, the files of the Wasp are IDENTICAL
+ * byte for byte to those of the Warthog_roquettes, and those of the Wraith to those of the Banshee.
+ * Delivering eight folders would have duplicated four banks: the files are therefore named by
+ * SOUND SET (`vehicle_boom_<set>_<n>`), and the FAMILIES of the document (the same keys as
+ * `VEHICLE_ENGINE_STEMS`) map onto them. Six distinct sets:
  *
- *   warthog         <- banque Warthog_roquettes (familles warthog, wasp)
- *   covenant_lourd  <- banque Banshee           (familles banshee, wraith)
- *   chopper         <- banque Chopper           (famille chopper)
- *   ghost           <- banque Ghost             (famille ghost)
- *   scorpion        <- banque Scorpion          (famille scorpion)
- *   mongoose        <- banque Gungoose          (famille mongoose — le Gungoose EST un
- *                      Mongoose armé, même châssis : parenté écrite, pas un emprunt arbitraire,
- *                      même règle que le traqueur qui prend le son du capteur)
+ *   warthog         <- bank Warthog_roquettes (families warthog, wasp)
+ *   covenant_lourd  <- bank Banshee           (families banshee, wraith)
+ *   chopper         <- bank Chopper           (family chopper)
+ *   ghost           <- bank Ghost             (family ghost)
+ *   scorpion        <- bank Scorpion          (family scorpion)
+ *   mongoose        <- bank Gungoose          (family mongoose — the Gungoose IS an
+ *                      armed Mongoose, same chassis: written kinship, not an arbitrary borrowing,
+ *                      same rule as the tracker that takes the sound of the sensor)
  *
- * LES TROIS PRISES PROCHES de chaque banque (`explosion.ogg`, `_v2`, `_v3`) sont les trois
- * variantes tirées à chaque destruction (`SOUND_VARIANTS`, même mécanique que le grappin) ;
- * les prises LOINTAINES (`explosion_lointaine_*`) sont IGNORÉES — le rejeu n'a pas de notion
- * de distance de caméra. Durées livrées : 2,58 à 5,36 s, toutes ENTIÈRES (aucune n'atteint le
- * plafond de sûreté du lecteur, 12 s — la troncature au fondu n'a pas eu à servir).
- * Égalisation : -16 LUFS visé, plafond -1 dBTP, gain LINÉAIRE seul (convention du lot R2-S).
+ * THE THREE CLOSE TAKES of each bank (`explosion.ogg`, `_v2`, `_v3`) are the three
+ * variants drawn at each destruction (`SOUND_VARIANTS`, same mechanics as the grapple);
+ * the FAR TAKES (`explosion_lointaine_*`) are IGNORED — the replay has no notion
+ * of camera distance. Delivered durations: 2.58 to 5.36 s, all WHOLE (none reaches the
+ * safety ceiling of the player, 12 s — the truncation at the fade did not have to serve).
+ * Equalization: -16 LUFS targeted, ceiling -1 dBTP, LINEAR gain only (convention of the lot R2-S).
  *
- * CE QUI NE SONNE PAS : le DÉCOR (pelican, phantom, skiff — `vehicleIsDecor`, le même
- * refus que le calque et les moteurs : rien ne les détruit dans une partie), une famille NON
- * RÉSOLUE (chaîne vide) ou SANS JEU DE SONS — silence propre, jamais la banque d'une voisine.
+ * WHAT DOES NOT SOUND: the DECOR (pelican, phantom, skiff — `vehicleIsDecor`, the same
+ * refusal as the layer and the engines: nothing destroys them in a match), an UNRESOLVED
+ * FAMILY (empty string) or WITHOUT A SOUND SET — clean silence, never the bank of a neighbor.
  */
 import type { ReplayVehicleTrackReady } from '../../../lib/replay/replayNormalize'
 import { vehicleDestructionFrame, vehicleIsDecor } from '../model/vehiclesLayer'
 
 /**
- * VEHICLE_BOOM_SETS — jeu de sons -> ses trois variantes, la première portant le stem que la
- * jointure famille -> set désigne. C'est un MANIFESTE : le garde-rail
- * `replaySoundAssets.guard.test.ts` le rejoue contre le dossier d'assets.
+ * VEHICLE_BOOM_SETS — sound set -> its three variants, the first carrying the stem that the
+ * family -> set join designates. It is a MANIFEST: the guardrail
+ * `replaySoundAssets.guard.test.ts` replays it against the assets folder.
  */
 export const VEHICLE_BOOM_SETS: Readonly<Record<string, readonly string[]>> = {
   warthog: ['vehicle_boom_warthog_1', 'vehicle_boom_warthog_2', 'vehicle_boom_warthog_3'],
@@ -63,9 +63,9 @@ export const VEHICLE_BOOM_SETS: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * VEHICLE_BOOM_FAMILY_SET — famille du document (`VehicleTrack.family`, les mêmes clés que
- * `VEHICLE_ENGINE_STEMS`) -> jeu de sons. Les doublons de banque mesurés se lisent ici :
- * wasp partage la banque du warthog, wraith celle de la banshee. Une famille absente = silence.
+ * VEHICLE_BOOM_FAMILY_SET — family of the document (`VehicleTrack.family`, the same keys as
+ * `VEHICLE_ENGINE_STEMS`) -> sound set. The measured bank duplicates are read here:
+ * wasp shares the bank of the warthog, wraith that of the banshee. An absent family = silence.
  */
 export const VEHICLE_BOOM_FAMILY_SET: Readonly<Record<string, string>> = {
   warthog: 'warthog',
@@ -79,23 +79,23 @@ export const VEHICLE_BOOM_FAMILY_SET: Readonly<Record<string, string>> = {
 }
 
 /**
- * VEHICLE_BOOM_SOUND_VARIANTS — premier stem de chaque jeu -> ses trois variantes, fusionné
- * dans `SOUND_VARIANTS` (replaySoundVariants.ts) pour que `soundEvent` les attache et que
- * `pickVariantStem` tire à chaque destruction — la même mécanique que les tirs de véhicule,
- * et le même sens de dépendance (ce module n'importe PAS replaySoundVariants : pas de cycle).
+ * VEHICLE_BOOM_SOUND_VARIANTS — first stem of each set -> its three variants, merged
+ * into `SOUND_VARIANTS` (replaySoundVariants.ts) so that `soundEvent` attaches them and
+ * `pickVariantStem` draws at each destruction — the same mechanics as the vehicle shots,
+ * and the same direction of dependency (this module does NOT import replaySoundVariants: no cycle).
  */
 export const VEHICLE_BOOM_SOUND_VARIANTS: Readonly<Record<string, readonly string[]>> =
   Object.fromEntries(Object.values(VEHICLE_BOOM_SETS).map((stems) => [stems[0], stems]))
 
-/** Tous les stems de destruction — préchargement et garde-rail d'assets. */
+/** All the destruction stems — preloading and assets guardrail. */
 export function allVehicleBoomStems(): string[] {
   return Object.values(VEHICLE_BOOM_SETS).flat()
 }
 
 /**
- * vehicleDestructionSound — la destruction d'UN véhicule : la frame de la preuve et le stem
- * de la première variante, ou `null` (destruction non établie, décor, famille sans jeu).
- * `buildSoundTimeline` fait le reste (datation `frameToMs`, attache des variantes).
+ * vehicleDestructionSound — the destruction of ONE vehicle: the frame of the proof and the stem
+ * of the first variant, or `null` (destruction not established, decor, family without set).
+ * `buildSoundTimeline` does the rest (dating `frameToMs`, attaching of the variants).
  */
 export function vehicleDestructionSound(
   track: ReplayVehicleTrackReady,

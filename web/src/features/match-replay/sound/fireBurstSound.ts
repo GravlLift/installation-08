@@ -1,24 +1,24 @@
 /**
- * fireBurstSound.ts — LE SON D'UNE RAFALE DE TIR CONTINU (schéma 71, lot M4b des retours du rejeu).
+ * fireBurstSound.ts — THE SOUND OF A FULL-AUTO FIRE BURST (schema 71, replay-feedback lot M4b).
  *
- * LA DÉCISION DE L'UTILISATEUR (Q5, validée) : un son PROLONGÉ pendant le tir, du début à la fin de
- * la rafale — pas une boucle qui relance l'attaque —, et le COUP en queue au lâcher. Deux formes,
- * selon ce que l'arme a de livré :
+ * THE USER'S DECISION (Q5, approved): a SUSTAINED sound during the firing, from the start to the
+ * end of the burst — not a loop that re-triggers the attack —, and the SHOT in the tail on release.
+ * Two shapes, according to what the weapon has of delivered:
  *
- *  - UNE BOUCLE LIVRÉE (LMG du Wasp : `vehicleWeapons[w].loop`, reconnue par `VEHICLE_SHOT_LOOPS`) :
- *    elle est TENUE sur chaque passage lu de la rafale (les passages muets la coupent), et le coup
- *    de queue sonne au lâcher LU (`b1 = released`) — un lâcher perdu dans un trou n'a pas d'instant ;
- *  - SANS BOUCLE (Ghost, Banshee, Chopper, LMG, LAAG) : le coup se rejoue À LA CADENCE DE L'ARME,
- *    chaque coup COUPÉ au suivant — c'est le conteneur du jeu lui-même, en mode « cadence de
- *    déclenchement » (AkTransitionMode 5, manifeste V3 : Ghost 0,130 s, Banshee 0,125 s, Chopper
- *    0,250 s, LMG 0,077 s, la période de tir de chaque arme). Une voix par rafale, jamais un mur ;
- *    le dernier coup sonne entier ;
- *  - UN FAISCEAU (au-delà de `CADENCE_FAISCEAU`, le Rayon de Sentinelle à 60 coups par seconde : un
- *    coup par tick du jeu) : ses coups ne se distinguent plus, le son de l'arme est TENU comme une
- *    boucle.
+ *  - A DELIVERED LOOP (Wasp LMG: `vehicleWeapons[w].loop`, recognized by `VEHICLE_SHOT_LOOPS`):
+ *    it is HELD on each read passage of the burst (silent passages cut it), and the tail shot
+ *    sounds on the READ release (`b1 = released`) — a release lost in a hole has no moment;
+ *  - WITHOUT LOOP (Ghost, Banshee, Chopper, LMG, LAAG): the shot is replayed AT THE WEAPON'S RATE,
+ *    each shot CUT to the next — that is the game container itself, in "trigger rate" mode
+ *    (AkTransitionMode 5, V3 manifest: Ghost 0.130 s, Banshee 0.125 s, Chopper
+ *    0.250 s, LMG 0.077 s, the firing period of each weapon). One voice per burst, never a wall;
+ *    the last shot sounds in full;
+ *  - A BEAM (beyond `CADENCE_FAISCEAU`, the Sentinel Ray at 60 shots per second: one
+ *    shot per game tick): its shots no longer distinguish themselves, the weapon sound is HELD like a
+ *    loop.
  *
- * Une rafale dont l'arme n'a pas de son (silence décidé au registre, arme absente) se tait. Les
- * instants sont ceux de `model/fireBursts.ts` — les mêmes que les éclairs.
+ * A burst whose weapon has no sound (silence decided in the registry, weapon absent) stays silent.
+ * The moments are those of `model/fireBursts.ts` — the same as the flashes.
  */
 import { frameToMs, positionAt } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayFireBurstReady, ReplayTrackReady } from '../../../lib/replay/replayNormalize'
@@ -29,19 +29,19 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { VEHICLE_SHOT_LOOPS } from './vehicleShotSound'
 
 /**
- * CADENCE_FAISCEAU — au-delà (coups par seconde), le tir est un FAISCEAU : 60/s est un coup par
- * tick de simulation (Rayon de Sentinelle, lu dans son tag), et aucune arme à projectiles lue au
- * lot M4b ne dépasse 18/s (LAAG). Le seuil sépare les deux familles mesurées ; une arme future qui
- * tomberait entre les deux se déciderait à l'oreille.
+ * CADENCE_FAISCEAU — beyond (shots per second), the firing is a BEAM: 60/s is one shot per
+ * simulation tick (Sentinel Ray, read in its tag), and no projectile weapon read at
+ * lot M4b exceeds 18/s (LAAG). The threshold separates the two measured families; a future weapon that
+ * would fall between the two would be decided by ear.
  */
 export const CADENCE_FAISCEAU = 30
 
-/** Les boucles que le client sait tenir (manifeste `VEHICLE_SHOT_LOOPS`). */
+/** The loops the client knows to hold (manifest `VEHICLE_SHOT_LOOPS`). */
 const BOUCLES_CONNUES = new Set(Object.values(VEHICLE_SHOT_LOOPS))
 
 /**
- * fireBurstSoundEvents — les sons des rafales du document. `stemOf` résout le son d'une arme
- * (`shotSoundStem` de la piste : registre des armes de joueur, puis des armes de véhicule).
+ * fireBurstSoundEvents — the sounds of the document's bursts. `stemOf` resolves the sound of a weapon
+ * (`shotSoundStem` of the track: player weapons registry, then vehicle weapons).
  */
 export function fireBurstSoundEvents(
   doc: ReplayDocumentReady,
@@ -61,9 +61,9 @@ export function fireBurstSoundEvents(
 }
 
 /**
- * positionOfSlot — le lieu d'où part une rafale : la position du slot qui tire, à `t0` (le
- * bipède qui déclenche, index partagé des calques de geste, `livesPosition.ts`). Un slot sans
- * vie vivante à cet instant ne donne pas de lieu — le son joue sans place, jamais inventée.
+ * positionOfSlot — the place where a burst starts: the position of the firing slot, at `t0` (the
+ * biped that triggers, shared index of the gesture layers, `livesPosition.ts`). A slot without
+ * a living life at that moment gives no place — the sound plays without a place, never invented.
  */
 function positionOfSlot(vies: Map<number, ReplayTrackReady[]>, slot: number, frame: number): { x: number; y: number } | undefined {
   const vie = lifeOfSlotAt(vies, slot, frame)
@@ -72,7 +72,7 @@ function positionOfSlot(vies: Map<number, ReplayTrackReady[]>, slot: number, fra
   return p ? { x: p.x, y: p.y } : undefined
 }
 
-/** boucleDe — le son TENU d'une rafale : la boucle livrée de l'arme, ou son coup si c'est un faisceau. */
+/** boucleDe — the HELD sound of a burst: the weapon's delivered loop, or its shot if it is a beam. */
 function boucleDe(doc: ReplayDocumentReady, b: ReplayFireBurstReady, coup: string): string | undefined {
   const livree = vehicleWeaponOf(doc, b.w)?.loop
   if (livree && BOUCLES_CONNUES.has(livree)) return livree
@@ -80,8 +80,8 @@ function boucleDe(doc: ReplayDocumentReady, b: ReplayFireBurstReady, coup: strin
 }
 
 /**
- * sonsTenus — la boucle tenue sur chaque passage LU de la rafale, et le coup de queue au lâcher lu
- * (absent pour un faisceau, dont la boucle EST le coup).
+ * sonsTenus — the loop held on each READ passage of the burst, and the tail shot on the read release
+ * (absent for a beam, whose loop IS the shot).
  */
 function sonsTenus(
   doc: ReplayDocumentReady,
@@ -96,7 +96,7 @@ function sonsTenus(
     if (h.t0 > debut) out.push(tenu(doc, boucle, debut, h.t0, at))
     debut = Math.max(debut, h.t1)
   }
-  // Une rafale d'UNE image tient tout de même une image : c'est la plus courte gâchette lue.
+  // A single-frame burst still holds one frame: that is the shortest trigger read.
   if (b.t1 > debut || (b.holes.length === 0 && b.t1 === b.t0)) {
     out.push(tenu(doc, boucle, debut, Math.max(b.t1, debut + 1), at))
   }
@@ -104,7 +104,7 @@ function sonsTenus(
   return out
 }
 
-/** tenu — un événement de son tenu entre deux images. */
+/** tenu — a held sound event between two frames. */
 function tenu(
   doc: ReplayDocumentReady,
   stem: string,
@@ -116,7 +116,7 @@ function tenu(
   return { ...soundEvent(ms, stem, at), holdMs: frameToMs(a, doc) - ms }
 }
 
-/** coupsALaCadence — un coup par coup simulé, coupé au suivant ; le dernier sonne entier. */
+/** coupsALaCadence — one shot per simulated shot, cut to the next; the last one sounds in full. */
 function coupsALaCadence(
   doc: ReplayDocumentReady,
   b: ReplayFireBurstReady,

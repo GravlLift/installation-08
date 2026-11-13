@@ -1,53 +1,53 @@
 /**
- * endMatchSound.ts — CE QUI SONNE QUAND LE MATCH SE TERMINE : la voix de l'annonceur et la
- * fanfare, ensemble, une fois.
+ * endMatchSound.ts — WHAT SOUNDS WHEN THE MATCH ENDS: the announcer's voice and the
+ * fanfare, together, once.
  *
- * UN FICHIER À PART, SUR LE MODÈLE DE `grenadeSound.ts` (lot R2-G) : le manifeste général
- * (`replaySound.ts`) porte ce qui sonne PENDANT le match, événement par événement, sur
- * l'horloge du film. La fin de partie n'est pas un événement du film — c'est la CONCLUSION,
- * elle ne se date pas, elle se déclenche à l'arrivée de la lecture sur la borne de fin
- * (`useReplayPlayback`), et elle dépend de deux quantités que rien d'autre dans le son ne
- * regarde : l'ISSUE du joueur de la page et la LANGUE de l'interface. Le voisin est par
- * ailleurs à son plafond de taille.
+ * A FILE OF ITS OWN, ON THE MODEL OF `grenadeSound.ts` (lot R2-G): the general manifest
+ * (`replaySound.ts`) carries what sounds DURING the match, event by event, on
+ * the film's clock. The end of match is not a film event — it is the CONCLUSION,
+ * it is not dated, it is triggered when playback reaches the end bound
+ * (`useReplayPlayback`), and it depends on two quantities nothing else in the sound
+ * looks at: the OUTCOME of the page's player and the LANGUAGE of the interface. The neighbor
+ * is also at its size ceiling.
  *
- * PREMIÈRE ENTRÉE LOCALE-AWARE DU CATALOGUE SONORE. Un tir, une explosion, une pose n'ont pas
- * de langue ; une VOIX D'ANNONCEUR en a une. Les deux packs (FR et EN) sont extraits du jeu,
- * et la langue jouée est celle de l'INTERFACE (prop `locale` de la page rejeu) — pas celle du
- * jeu au moment du match, que le film ne publie pas.
+ * FIRST LOCALE-AWARE ENTRY OF THE SOUND CATALOG. A shot, an explosion, a placement have no
+ * language; an ANNOUNCER'S VOICE has one. The two packs (FR and EN) are extracted from the game,
+ * and the language played is the one of the INTERFACE (the `locale` prop of the replay page) —
+ * not the game's language at the time of the match, which the film does not publish.
  *
- * DEUX SONS PARTENT ENSEMBLE, ET C'EST LA MISE EN SCÈNE DU JEU (décision utilisateur du
- * 2026-08-27) : la réplique de l'annonceur par-dessus la fanfare. Ce sont deux voix du
- * lecteur, jamais un fichier pré-mixé — l'utilisateur garde son volume, et une re-livraison
- * d'un seul des deux ne demande pas de re-mixer l'autre.
+ * TWO SOUNDS GO OUT TOGETHER, AND THAT IS THE GAME'S STAGING (user decision of
+ * 2026-08-27): the announcer's line on top of the fanfare. They are two voices of
+ * the player, never a pre-mixed file — the user keeps their volume, and a re-delivery
+ * of one of the two does not require re-mixing the other.
  *
- * PLUSIEURS PRISES, TIRAGE AU SORT (règle du vote : « prises multiples -> tirage aleatoire »).
- * L'aléa est INJECTÉ (`rand`), comme partout ailleurs dans le son du rejeu (patron
- * `drawVariation` / `weaponSoundVariations.ts`) : les tests fixent la prise, la production
- * passe `Math.random`. Le FR a deux prises pour la victoire, la défaite et l'égalité ; l'EN
- * n'en a qu'une pour la victoire et l'égalité — le pack en porte deux pour la seule défaite.
+ * MULTIPLE TAKES, RANDOM DRAW (vote rule: "multiple takes -> random draw").
+ * The randomness is INJECTED (`rand`), like everywhere else in the replay sound (pattern
+ * `drawVariation` / `weaponSoundVariations.ts`): tests pin the take, production
+ * passes `Math.random`. FR has two takes for win, loss and tie; EN
+ * has only one for win and tie — the EN pack carries two for loss only.
  *
- * LE FFA N'A PAS D'ÉCRAN, MAIS IL A UN SON (décision D-C3). L'écran de fin exige DEUX camps
- * (`victoryLogic.ts`, décision D-B1) : sur un match sans équipes il ne se rend pas, et c'est
- * juste — il annoncerait un affrontement qui n'a pas eu lieu. Une VOIX, elle, n'a pas ce
- * problème : « Vainqueur » ne nomme personne. Le FFA GAGNÉ sonne donc, avec la fanfare de
- * victoire ; le FFA perdu et l'égalité en FFA restent muets, faute d'une réplique qui dise
- * cela sans nommer d'équipe.
+ * FFA HAS NO SCREEN, BUT IT HAS A SOUND (decision D-C3). The end screen requires TWO sides
+ * (`victoryLogic.ts`, decision D-B1): on a teamless match it does not render, and that
+ * is fair — it would announce a confrontation that did not take place. A VOICE, it, has no
+ * such problem: "Winner" names no one. A WON FFA therefore sounds, with the
+ * victory fanfare; a lost FFA and an FFA tie stay silent, lacking a line that says
+ * that without naming a team.
  *
- * LE REPLI EN ANGLAIS EST DOCUMENTÉ, PAS SILENCIEUX : le pack annonceur EN ne porte aucun
- * « Winner » isolé (relevé à la transcription du 2026-08-27, `vote_fin_partie.json` :
- * `winner_ffa: "A_IDENTIFIER"`). Le FFA gagné en anglais joue donc « Victory », qui dit vrai
- * — l'utilisateur a bien gagné — au lieu de rester muet sur la seule langue.
+ * THE FALLBACK TO ENGLISH IS DOCUMENTED, NOT SILENT: the EN announcer pack carries no
+ * standalone "Winner" (noted at the 2026-08-27 transcription, `vote_fin_partie.json`:
+ * `winner_ffa: "A_IDENTIFIER"`). A won FFA in English therefore plays "Victory", which is true
+ * — the user did indeed win — instead of staying silent on the only language.
  *
- * L'ISSUE VIENT DE LA MÊME LECTURE QUE L'ÉCRAN, et il n'y en a qu'une : `readVictory`
- * (`victoryLogic.ts`) pour les matchs à deux camps, `outcomeCodeToValue` (`lib/outcome.ts`,
- * source unique du dépôt) pour le reste. Re-décoder `outcome_code` ici ferait deux vérités,
- * et le jour où l'une bougerait l'écran annoncerait une victoire pendant que le son sonnerait
- * une défaite.
+ * THE OUTCOME COMES FROM THE SAME READING AS THE SCREEN, and there is only one: `readVictory`
+ * (`victoryLogic.ts`) for two-side matches, `outcomeCodeToValue` (`lib/outcome.ts`,
+ * the single source of truth of the repo) for the rest. Re-decoding `outcome_code` here would make two truths,
+ * and the day one of them moved the screen would announce a victory while the sound sounded
+ * a defeat.
  *
- * Pas de React, pas de Web Audio : logique pure, testée (endMatchSound.test.ts). Le câblage
- * vit dans `useReplaySound`, la lecture dans `replayAudio.ts`. Le garde-rail
- * `replaySoundAssets.guard.test.ts` rejoue les trois tables ci-dessous contre le dossier
- * d'assets, comme les autres.
+ * No React, no Web Audio: pure logic, tested (endMatchSound.test.ts). The wiring
+ * lives in `useReplaySound`, the playback in `replayAudio.ts`. The guardrail
+ * `replaySoundAssets.guard.test.ts` replays the three tables below against the assets
+ * folder, like the others.
  */
 import { meXUIDOf } from '@/features/match-view/xuidMeta'
 import type { MatchScoreboardRow } from '@/lib/api/types'
@@ -57,11 +57,11 @@ import type { ReplayLocale } from '../i18n/i18n'
 import { readVictory, type VictoryFilm, type VictoryOutcome } from '../model/victoryLogic'
 
 /**
- * Les PRISES de la voix d'annonceur, par issue puis par langue. Une liste à plusieurs entrées
- * = plusieurs enregistrements du même mot dans le jeu, entre lesquels on tire (cf. l'en-tête).
+ * The announcer's voice TAKES, per outcome then per language. A list with multiple entries
+ * = multiple recordings of the same word in the game, among which the app draws (cf. the header).
  *
- * Transcriptions relevées à l'extraction (2026-08-27) : FR « Victoire » (×2), « Défaite »
- * (×2), « Égalité » / « À égalité » ; EN « Victory », « Defeat » (×2), « Game tied ».
+ * Transcriptions noted at extraction (2026-08-27): FR "Victoire" (x2), "Défaite"
+ * (x2), "Égalité" / "À égalité"; EN "Victory", "Defeat" (x2), "Game tied".
  */
 export const END_VOICE_STEMS: Readonly<
   Record<VictoryOutcome, Readonly<Record<ReplayLocale, readonly string[]>>>
@@ -81,10 +81,10 @@ export const END_VOICE_STEMS: Readonly<
 }
 
 /**
- * La FANFARE par issue — une seule par issue, et sans langue : une musique ne parle pas.
- * Elles sont livrées à -18 LUFS quand les voix le sont à -16 (décision utilisateur du
- * 2026-08-27, « audible sans hurler ») : la réplique doit passer AU-DESSUS de la fanfare,
- * c'est cet écart de 2 LU qui l'y met, pas un réglage du lecteur.
+ * The FANFARE per outcome — one per outcome, and without language: music does not speak.
+ * They are delivered at -18 LUFS while the voices are at -16 (user decision of
+ * 2026-08-27, "audible without shouting"): the line must pass OVER the fanfare,
+ * that 2 LU gap puts it there, not a player setting.
  */
 export const END_MUSIC_STEMS: Readonly<Record<VictoryOutcome, string>> = {
   win: 'end_victory_music_01',
@@ -93,8 +93,8 @@ export const END_MUSIC_STEMS: Readonly<Record<VictoryOutcome, string>> = {
 }
 
 /**
- * La voix du FFA GAGNÉ, par langue — « Vainqueur », la réplique qui ne nomme aucune équipe.
- * L'anglais retombe sur « Victory » : le pack EN n'a pas de « Winner » isolé (cf. l'en-tête).
+ * The voice of the WON FFA, per language — "Vainqueur" (Winner), the line that names no team.
+ * English falls back to "Victory": the EN pack has no standalone "Winner" (cf. the header).
  */
 export const END_FFA_WIN_VOICE_STEMS: Readonly<Record<ReplayLocale, readonly string[]>> = {
   fr: ['end_winner_voice_fr_01'],
@@ -102,37 +102,37 @@ export const END_FFA_WIN_VOICE_STEMS: Readonly<Record<ReplayLocale, readonly str
 }
 
 /**
- * Ce qu'il faut savoir d'un match pour le conclure en son : l'issue DU JOUEUR DE LA PAGE, la
- * langue de l'interface, et si le match opposait deux camps identifiés.
+ * What needs to be known about a match to conclude it in sound: the OUTCOME OF THE PAGE'S
+ * PLAYER, the interface language, and whether the match opposed two identified sides.
  */
 export interface EndMatchSoundSpec {
   outcome: VictoryOutcome
   /**
-   * `true` = le match n'oppose PAS deux camps identifiés — FFA, plus de deux camps, ou joueur
-   * de la page que le film ne situe pas. Le nom vient du cas qui le peuple en pratique ; ce
-   * que le drapeau dit vraiment, c'est « aucune équipe à nommer », et la voix choisie
-   * (« Vainqueur ») est justement celle qui n'en nomme aucune.
+   * `true` = the match does NOT oppose two identified sides — FFA, more than two sides, or a
+   * page player the film does not place. The name comes from the case that populates it in
+   * practice; what the flag really says is "no team to name", and the voice chosen
+   * ("Vainqueur" / Winner) is precisely the one that names none.
    */
   ffa: boolean
   locale: ReplayLocale
 }
 
 /**
- * endMatchSoundSpec lit la fin d'un match du point de vue du SON, en s'appuyant sur la lecture
- * de l'écran (`readVictory`) — jamais sur un second décodage de `outcome_code`.
+ * endMatchSoundSpec reads the end of a match from the SOUND's point of view, relying on the
+ * screen's reading (`readVictory`) — never on a second decoding of `outcome_code`.
  *
- * `null` = rien ne sonne : match non conclu (en-tête pas encore chargé, code hors contrat),
- * abandon, ou fin sans équipes que la voix ne saurait annoncer (FFA perdu ou à égalité).
+ * `null` = nothing sounds: match not concluded (header not yet loaded, code out of contract),
+ * surrender, or a teamless end the voice could not announce (lost FFA or tie).
  *
- * IL N'A PAS DE SUJET, ET C'EST VOULU (décision 3 du plan « frise, point de vue », 2026-09-06).
- * `readVictory` accepte un sujet — par les yeux de qui la fin se lit — et l'écran de fin, lui, y
- * passe le POINT DE VUE ; ici le sujet est omis : la fin se lit pour le JOUEUR DE LA PAGE, que
- * cette fonction retrouve ELLE-MÊME dans la feuille (`meXUIDOf`) — l'appelant ne peut donc pas y
- * glisser le point de vue — et dont l'équipe se lit dans le film comme partout ailleurs.
- * Inspecter un adversaire ne doit pas faire retentir « Défaite » sur un match qu'on a gagné. Les
- * deux appels divergent donc exprès. Ne pas « harmoniser » : voir aussi le commentaire de la
- * route, à l'appel d'`endMatchSoundSpec`. `film` ne sert qu'à ses camps et à l'équipe d'un
- * joueur : la référence que l'allégeance porte (le point de vue) n'est pas lue.
+ * IT HAS NO SUBJECT, AND THAT IS INTENTIONAL (decision 3 of the "timeline, point of view" plan, 2026-09-06).
+ * `readVictory` accepts a subject — through whose eyes the end is read — and the end screen, it, passes
+ * the POINT OF VIEW there; here the subject is omitted: the end is read for the PAGE'S PLAYER, whom
+ * this function itself finds in the scoreboard (`meXUIDOf`) — the caller can therefore not slip in
+ * the point of view — and whose team is read in the film like everywhere else.
+ * Inspecting an opponent must not make "Défaite" (Defeat) ring out on a match that was won. The
+ * two calls therefore intentionally diverge. Do not "harmonize": also see the comment on the
+ * route, at the `endMatchSoundSpec` call. `film` serves only its sides and a
+ * player's team: the reference that the allegiance carries (the point of view) is not read.
  */
 export function endMatchSoundSpec(
   film: VictoryFilm,
@@ -140,21 +140,21 @@ export function endMatchSoundSpec(
   outcomeCode: number | null | undefined,
   locale: ReplayLocale,
 ): EndMatchSoundSpec | null {
-  // SANS SUJET : le sujet omis vaut « le joueur de la page » (décision 3).
+  // NO SUBJECT: the omitted subject stands for "the page's player" (decision 3).
   const reading = readVictory(film, outcomeCode, meXUIDOf(scoreboard))
   if (reading) return { outcome: reading.outcome, ffa: false, locale }
-  // Sans deux camps lisibles, seule la VICTOIRE a une réplique : « Vainqueur » se passe
-  // d'adversaire nommé, « Défaite » et « Égalité » supposent un affrontement à deux camps.
+  // Without two readable sides, only the VICTORY has a line: "Vainqueur" (Winner) does
+  // without a named opponent, "Défaite" (Defeat) and "Égalité" (Tie) presuppose a two-side confrontation.
   const outcome = outcomeCodeToValue(outcomeCode)
   return outcome === 'win' ? { outcome, ffa: true, locale } : null
 }
 
 /**
- * endMatchSounds rend LES FICHIERS À JOUER ENSEMBLE à l'arrivée en fin de match : la voix
- * tirée parmi ses prises, puis la fanfare. Liste vide = rien ne sonne.
+ * endMatchSounds returns THE FILES TO PLAY TOGETHER at the arrival at match end: the voice
+ * drawn among its takes, then the fanfare. Empty list = nothing sounds.
  *
- * `rand` est injecté pour que les tests fixent la prise ; la production passe `Math.random`
- * (même patron que `drawVariation` pour les fourchettes RANGED des armes).
+ * `rand` is injected so that tests pin the take; production passes `Math.random`
+ * (same pattern as `drawVariation` for the weapons' RANGED ranges).
  */
 export function endMatchSounds(
   outcome: VictoryOutcome,
@@ -170,9 +170,9 @@ export function endMatchSounds(
 }
 
 /**
- * endMatchSoundStems rend TOUTES les prises qu'une fin PEUT jouer, tirage compris — c'est ce
- * que le lecteur doit précharger. Précharger la seule prise tirée ne marcherait pas : le
- * tirage a lieu à l'arrivée en fin, et un fichier demandé à cet instant arriverait après.
+ * endMatchSoundStems returns ALL the takes an end MAY play, draw included — that is what
+ * the player must pre-load. Pre-loading only the drawn take would not work: the
+ * draw happens at the arrival at end, and a file requested at that moment would arrive late.
  */
 export function endMatchSoundStems(spec: EndMatchSoundSpec | null): string[] {
   if (!spec) return []
@@ -185,9 +185,9 @@ export function endMatchSoundStems(spec: EndMatchSoundSpec | null): string[] {
 }
 
 /**
- * Une prise au hasard. Le tirage est borné à l'index valide : un `rand` qui rendrait
- * exactement 1 (hors contrat de `Math.random`, mais pas d'un double de test) sortirait sinon
- * de la liste et jouerait `undefined`.
+ * A random take. The draw is bounded to the valid index: a `rand` that returns
+ * exactly 1 (out of `Math.random`'s contract, but not of a test double) would otherwise
+ * fall out of the list and play `undefined`.
  */
 function pickTake(takes: readonly string[], rand: () => number): string {
   return takes[Math.min(Math.floor(rand() * takes.length), takes.length - 1)]

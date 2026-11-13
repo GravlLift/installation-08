@@ -1,12 +1,12 @@
 /**
- * exportSoundFamilies.ts — ce que l'EXPORT hors temps réel reçoit du son de la page, en plus de
- * la piste : les prises de fin de partie qu'il jouera, et le classement voix / musique de ses
- * pistes séparées.
+ * exportSoundFamilies.ts — what the OFFLINE EXPORT receives from the page's sound, in addition to
+ * the track: the end-of-match takes it will play, and the voice / music classification of its
+ * separate tracks.
  *
- * EXTRAIT DE `useReplaySound.ts` LE 2026-09-27 (item 7, musique d'intro) : le hook est au-dessus
- * du seuil de taille et ne doit pas grossir. Le lot lui ajoutait une commande ; ces deux fonctions
- * pures, sans React, sont sorties pour compenser. Rien n'a changé dans leur logique, hormis
- * l'entrée de la musique d'intro dans la famille « musique ».
+ * EXTRACTED FROM `useReplaySound.ts` ON 2026-09-27 (item 7, intro music): the hook is over
+ * its size threshold and must not grow. The lot added it a command; these two
+ * pure functions, without React, were extracted to compensate. Nothing changed in their logic, except
+ * the intro music's entry into the "music" family.
  */
 import {
   END_FFA_WIN_VOICE_STEMS,
@@ -21,10 +21,10 @@ import { seededRandom } from './replayAudioMix'
 import { ROUND_OVER_SOUND_STEMS } from './roundOverSound'
 
 /**
- * endMatchSoundsFor — les prises de fin QUE L'EXPORT JOUERA, tirage seme.
+ * endMatchSoundsFor — the end takes THAT THE EXPORT WILL PLAY, seeded draw.
  *
- * Le chemin temps reel tire au hasard a chaque arrivee en fin ; un fichier, lui, doit sonner
- * pareil a chaque export du meme match (decision D7 du plan d'export).
+ * The real-time path draws randomly at each arrival at end; a file, it, must sound
+ * the same on each export of the same match (decision D7 of the export plan).
  */
 export function endMatchSoundsFor(spec: EndMatchSoundSpec | null): string[] {
   if (!spec) return []
@@ -32,21 +32,21 @@ export function endMatchSoundsFor(spec: EndMatchSoundSpec | null): string[] {
 }
 
 /**
- * soundFamiliesFor — quels stems sont de la VOIX, quels stems sont de la MUSIQUE.
+ * soundFamiliesFor — which stems are of the VOICE, which stems are of the MUSIC.
  *
- * On liste TOUTES les prises possibles, pas seulement celle qui a ete tiree : le classement doit
- * valoir quel que soit le tirage, et un stem de trop dans la liste ne coute rien (rien ne le
- * jouera).
+ * It lists ALL possible takes, not only the one that was drawn: the classification must
+ * hold whatever the draw, and an extra stem in the list costs nothing (nothing will
+ * play it).
  *
- * LA VOIX DE FIN DE MANCHE EST DE LA VOIX. Elle vit dans la piste, melee aux bruitages, et c'est
- * la seule voix qu'un extrait de milieu de match peut contenir.
+ * THE ROUND-END VOICE IS OF THE VOICE. It lives in the track, mixed in with the sound effects, and
+ * it is the only voice a mid-match excerpt can contain.
  *
- * LA MUSIQUE D'INTRO EST DE LA MUSIQUE, meme si l'export ne la joue pas (decision D-8) : le
- * classement dit ce qu'est un stem, pas s'il sonne dans le clip.
+ * THE INTRO MUSIC IS OF THE MUSIC, even if the export does not play it (decision D-8): the
+ * classification says what a stem is, not whether it sounds in the clip.
  */
 export function soundFamiliesFor(
   spec: EndMatchSoundSpec | null,
-  /** Absente (anciens appels), la voix de fin de manche n'est pas dans la piste non plus. */
+  /** Missing (old calls), the round-end voice is not in the track either. */
   locale: ReplayLocale | undefined,
 ): { voice: readonly string[]; music: readonly string[] } {
   const voice: string[] = locale ? [ROUND_OVER_SOUND_STEMS[locale]] : []

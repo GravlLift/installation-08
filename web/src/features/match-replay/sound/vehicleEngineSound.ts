@@ -1,115 +1,115 @@
 /**
- * vehicleEngineSound.ts — LE PLAN SONORE DES MOTEURS DE VÉHICULES : quelles familles sonnent,
- * quand un moteur tourne, et comment ses clips s'enchaînent. Logique PURE, sans Web Audio ni
- * React — la lecture temps réel vit dans `vehicleEnginePlayer.ts`, le mixage d'export dans
- * `vehicleEngineMix.ts`, les deux consomment CE plan.
+ * vehicleEngineSound.ts — THE SOUND PLAN OF THE VEHICLE ENGINES: which families sound,
+ * when an engine runs, and how its clips chain. PURE LOGIC, without Web Audio nor
+ * React — the real-time playback lives in `vehicleEnginePlayer.ts`, the export mixing in
+ * `vehicleEngineMix.ts`, the two consume THIS plan.
  *
- * # POURQUOI UN MODULE À PART, ET PAS `replaySound.ts`
+ * # WHY A SEPARATE MODULE, AND NOT `replaySound.ts`
  *
- * La piste du rejeu est une suite d'ÉVÉNEMENTS one-shot (un tir, un kill, un jingle) que le
- * curseur déclenche au passage. Un moteur n'est pas un événement : c'est un ÉTAT CONTINU —
- * il démarre, boucle tant que le véhicule est occupé, et s'arrête. Le lecteur d'événements
- * (`ReplayAudioPlayer.play`, enveloppe tenue + fondu) ne sait pas tenir un état, et lui
- * apprendre casserait sa seule règle (« la durée jouée est celle du fichier »).
+ * The track of the replay is a sequence of one-shot EVENTS (a shot, a kill, a jingle) that the
+ * cursor triggers on the way. An engine is not an event: it is a CONTINUOUS STATE —
+ * it starts, loops as long as the vehicle is occupied, and stops. The event player
+ * (`ReplayAudioPlayer.play`, held envelope + fade) does not know how to hold a state, and teaching
+ * it would break its only rule ("the duration played is that of the file").
  *
- * # LE CONTRAT DE LA BANQUE (HANDOFF SFX_vehicules, 2026-09-04 — NON NÉGOCIABLE)
+ * # THE CONTRACT OF THE BANK (HANDOFF SFX_vehicles, 2026-09-04 — NON-NEGOTIABLE)
  *
  *   enter -> loop x N -> exit
  *
- *  - Les BOUCLES rebouclent sans clic : le fondu est DANS le fichier (`loop = true` sur la
- *    source, rien à ajouter au rebouclage).
- *  - Les JONCTIONS entre clips se font par fondu croisé de 150 ms À PUISSANCE CONSTANTE
- *    (sin/cos, jamais linéaire — un fondu linéaire entre signaux décorrélés creuse l'énergie
- *    de 3 dB pile au raccord, mesuré sur le Warthog et le Chopper pendant la production).
- *  - Les FINS SONT GRAVÉES : chaque `exit` finit à zéro tout seul. AUCUNE enveloppe de sortie
- *    à ajouter — c'est l'inverse exact de la règle des sons d'événement.
+ *  - The LOOPS loop without a click: the fade is IN THE FILE (`loop = true` on the
+ *    source, nothing to add at the loop point).
+ *  - The JUNCTIONS between clips are done by a 150 ms crossfade AT CONSTANT POWER
+ *    (sin/cos, never linear — a linear fade between decorrelated signals digs the energy
+ *    by exactly 3 dB at the junction, measured on the Warthog and the Chopper during the production).
+ *  - THE ENDS ARE ENGRAVED: each `exit` ends at zero by itself. NO output envelope
+ *    to add — that is the exact opposite of the rule of the event sounds.
  *
- * # LE MOTEUR NE SONNE QUE SI LE VÉHICULE BOUGE VRAIMENT (décision utilisateur du 2026-11-02)
+ * # THE ENGINE ONLY SOUNDS IF THE VEHICLE REALLY MOVES (user decision of 2026-11-02)
  *
- * Un véhicule occupé mais immobile est SILENCIEUX : aucun clip de ralenti (« on va pas en
- * mettre, ça simplifie »). L'épisode commence au premier mouvement réel et finit au dernier ;
- * un arrêt plus court que `ENGINE_STOP_MERGE_MS` ne change rien (la course continue), un arrêt
- * plus long éteint la boucle par un fondu (`ENGINE_STOP_FADE_S`) et la rallume par un fondu
- * (`ENGINE_RESTART_FADE_S`), sans rejouer `enter` ni `exit` (2 à 7 s chacun : les rejouer à
- * chaque arrêt raconterait un moteur qu'on coupe et relance).
+ * A vehicle occupied but stationary is SILENT: no idle clip ("we're not going to
+ * put it in, it simplifies things"). The episode starts at the first real movement and ends at the last;
+ * a stop shorter than `ENGINE_STOP_MERGE_MS` changes nothing (the run continues), a stop
+ * longer turns off the loop by a fade (`ENGINE_STOP_FADE_S`) and rekindles it by a fade
+ * (`ENGINE_RESTART_FADE_S`), without replaying `enter` nor `exit` (2 to 7 s each: replaying them
+ * at each stop would narrate an engine that is cut and restarted).
  *
- * # LE BOOST N'EST PAS CÂBLÉ, ET C'EST UNE MESURE, PAS UN OUBLI (premiere CI du chantier : 2026-09-05)
+ * # THE BOOST IS NOT WIRED, AND THAT IS A MEASUREMENT, NOT A FORGET (first CI of the work site: 2026-09-05)
  *
- * Décision de cadrage du 2026-09-04 : ne câbler le boost QUE pour ghost et chopper
- * (wraith_boost est RÉFUTÉ par l'utilisateur — le clip n'est pas un boost ; banshee n'a pas
- * de clip), avec un gate chiffré écrit AVANT la mesure : un boost = vitesse soutenue
- * > k x régime de croisière propre du véhicule pendant >= N frames, et un véhicule SANS boost
- * (mongoose, warthog) ne doit produire AUCUNE détection.
+ * Framing decision of 2026-09-04: wire the boost ONLY for ghost and chopper
+ * (wraith_boost is REFUTED by the user — the clip is not a boost; banshee has no
+ * clip), with a numerical gate written BEFORE the measurement: a boost = sustained speed
+ * > k x clean cruise regime of the vehicle for >= N frames, and a vehicle WITHOUT boost
+ * (mongoose, warthog) must produce NO detection.
  *
- * MESURE (2026-09-04, artefacts de démo 0d76e8f1 et fccc61cd, vitesse = distance entre
- * échantillons / dt, croisière = médiane des vitesses en mouvement pendant l'occupation) :
- *  - k = 1,3, N = 15 frames (1,5 s) : le TÉMOIN mongoose détecte (1,5 s sur 0d76e8f1,
- *    2,7 s sur fccc61cd) — faux positifs, gate invalide ;
- *  - k = 1,5 : témoin propre, mais le SEUL ghost occupé du corpus (slot 777) ne détecte
- *    RIEN non plus (croisière 8,72, p90 9,10 — la trajectoire échantillonnée à 10 Hz lisse
- *    le boost sous le bruit de conduite).
- * Aucun couple (k, N) ne sépare donc un boost d'une descente de pente sur ces données : la
- * détection par vitesse N'EST PAS FIABLE, et le cadrage (§4) prescrit alors de livrer SANS
- * boost. Les clips `ghost_boost`/`chopper_boost` restent dans la banque source, non copiés —
- * un fichier livré que rien ne joue serait un asset mort (garde-rail d'assets). Condition de
- * reprise : une mesure du boost qui ne passe pas par la vitesse (un champ du film, ou un
- * échantillonnage plus fin).
+ * MEASUREMENT (2026-09-04, demo artifacts 0d76e8f1 and fccc61cd, speed = distance between
+ * samples / dt, cruise = median of the speeds in motion during the occupation):
+ *  - k = 1.3, N = 15 frames (1.5 s): the WITNESS mongoose detects (1.5 s on 0d76e8f1,
+ *    2.7 s on fccc61cd) — false positives, gate invalid;
+ *  - k = 1.5: clean witness, but the ONLY ghost occupied of the corpus (slot 777) detects
+ *    NOTHING either (cruise 8.72, p90 9.10 — the trajectory sampled at 10 Hz smooths
+ *    the boost under the noise of driving).
+ * No (k, N) couple therefore separates a boost from a slope descent on these data: the
+ * detection by speed IS NOT RELIABLE, and the framing (§4) then prescribes to deliver WITHOUT
+ * boost. The clips `ghost_boost`/`chopper_boost` stay in the source bank, not copied —
+ * a file delivered that nothing plays would be a dead asset (assets guardrail). Condition of
+ * resume: a measurement of the boost that does not go through the speed (a field of the film, or a
+ * finer sampling).
  */
 import type { ReplayVehicleTrackReady } from '../../../lib/replay/replayNormalize'
 import { vehicleIsDecor } from '../model/vehiclesLayer'
 
 /**
- * LE BUS MOTEUR EST À 0,85 x LE MAÎTRE (décision utilisateur du 2026-09-04 : « les moteurs
- * ne doivent pas être au niveau des autres sons »). Un seul nœud de gain, posé entre les
- * sources moteur et le maître : les moteurs suivent donc le volume réglé, la chaîne de
- * distance et le robinet d'enregistrement comme tout le monde, 15 % en retrait.
+ * THE ENGINE BUS IS AT 0.85 x THE MASTER (user decision of 2026-09-04: "the engines
+ * must not be at the level of the other sounds"). A single gain node, placed between the
+ * engine sources and the master: the engines therefore follow the set volume, the distance chain
+ * and the recording tap like everyone, 15% in restraint.
  */
 export const VEHICLE_ENGINE_BUS_GAIN = 0.85
 
-/** Fondu croisé aux jonctions entre clips, en secondes (contrat de la banque, §2). */
+/** Crossfade at the junctions between clips, in seconds (contract of the bank, §2). */
 export const ENGINE_CROSSFADE_S = 0.15
 
 /**
- * Rampe d'arrêt d'urgence, en secondes : pause, coupure du son, démontage. Ce n'est PAS une
- * enveloppe de sortie musicale (interdite par le contrat) — c'est l'anti-clic minimal d'un
- * arrêt que la timeline n'a pas raconté, même durée que `VOLUME_RAMP_S` du lecteur.
+ * Emergency stop ramp, in seconds: pause, sound cut, unmount. It is NOT a
+ * musical output envelope (forbidden by the contract) — it is the minimal anti-click of a
+ * stop that the timeline did not narrate, same duration as `VOLUME_RAMP_S` of the player.
  */
 export const ENGINE_STOP_RAMP_S = 0.02
 
 /**
- * Un trou D'OCCUPATION plus court que ceci ne coupe pas le moteur (décision de cadrage n° 1) :
- * les épisodes d'un même véhicule se FUSIONNENT. Un conducteur qui descend deux secondes pour
- * ramasser un drapeau n'éteint pas le moteur à l'oreille du spectateur.
+ * An OCCUPATION HOLE shorter than this does not cut the engine (framing decision n° 1):
+ * the episodes of the same vehicle MERGE. A driver who gets down for two seconds to
+ * pick up a flag does not turn off the engine to the ear of the spectator.
  */
 export const ENGINE_RIDE_GAP_MERGE_MS = 2_000
 
 /**
- * Au-dessus de cette vitesse horizontale (unités du film par seconde, distance entre deux
- * échantillons / dt), le véhicule BOUGE. Mesure sur 500 rejeux (2026-11-02, conducteurs de
- * véhicules terrestres) : à l'arrêt la vitesse reste sous 0,05 ; la croisière va de 3 à 12. Le
- * seuil de 1 écarte la dérive d'un véhicule posé ou poussé sans compter comme un mouvement.
+ * Above this horizontal speed (units of the film per second, distance between two
+ * samples / dt), the vehicle MOVES. Measurement on 500 replays (2026-11-02, drivers of
+ * land vehicles): at the stop the speed stays under 0.05; the cruise goes from 3 to 12. The
+ * threshold of 1 keeps out the drift of a placed or pushed vehicle without counting it as a movement.
  */
 export const VEHICLE_MOVE_SPEED = 1
 
 /**
- * Un arrêt plus court que ceci (ms) ne coupe pas la boucle : un conducteur qui freine puis
- * repart ne fait pas clignoter le moteur. Plus long, la boucle s'éteint en fondu.
+ * A stop shorter than this (ms) does not cut the loop: a driver who brakes then
+ * restarts does not make the engine blink. Longer, the loop fades out.
  */
 export const ENGINE_STOP_MERGE_MS = 1_500
 
 /**
- * Un mouvement (après fusion des arrêts courts) plus court que ceci (ms) n'allume rien : un
- * véhicule bousculé par une explosion n'a pas démarré.
+ * A movement (after the merging of the short stops) shorter than this (ms) lights nothing: a
+ * vehicle bumped by an explosion did not start.
  */
 export const ENGINE_MOVE_MIN_MS = 500
 
-/** Fondu d'extinction de la boucle quand le véhicule s'arrête, en secondes. */
+/** Fade-out of the loop when the vehicle stops, in seconds. */
 export const ENGINE_STOP_FADE_S = 0.6
 
-/** Fondu de reprise de la boucle quand le véhicule repart, en secondes. */
+/** Fade-in of the loop when the vehicle restarts, in seconds. */
 export const ENGINE_RESTART_FADE_S = 0.3
 
-/** Les clips d'une famille. */
+/** The clips of a family. */
 export interface EngineStems {
   enter: string
   loop: string
@@ -117,15 +117,15 @@ export interface EngineStems {
 }
 
 /**
- * LA TABLE FAMILLE -> STEMS, alignée sur `family` du document (`VehicleTrack.family`) et sur
- * les fichiers `static/sounds/halo_infinite/vehicle_<famille>_<clip>.ogg` (garde-rail
- * `replaySoundAssets.guard.test.ts` : manifeste et dossier sont la même liste). Une famille
- * absente de cette table (tourelles, châssis non résolu) est un SILENCE PROPRE.
+ * THE FAMILY -> STEMS TABLE, aligned on `family` of the document (`VehicleTrack.family`) and on
+ * the files `static/sounds/halo_infinite/vehicle_<family>_<clip>.ogg` (guardrail
+ * `replaySoundAssets.guard.test.ts`: manifest and folder are the same list). A family
+ * absent from this table (turrets, unresolved chassis) is a CLEAN SILENCE.
  *
- * LE FALCON SONNE DEPUIS LE 2026-09-24 : il est sorti des familles de DÉCOR
- * (`FAMILLES_NON_JOUABLES`, décision utilisateur « le Falcon ça dépend »), et un Falcon occupé
- * joue son moteur comme tout véhicule. Un Falcon sans occupant n'a pas de moteur, qu'il soit
- * garé, de décor de carte (`vehicleIsScenery`, lot M7) ou planant en décor de Behemoth.
+ * THE FALCON SOUNDS SINCE 2026-09-24: it came out of the DECOR families
+ * (`FAMILLES_NON_JOUABLES`, user decision "the Falcon it depends"), and an occupied Falcon
+ * plays its engine like any vehicle. A Falcon without an occupant has no engine, whether it is
+ * parked, a map decor (`vehicleIsScenery`, lot M7) or hovering as a Behemoth decor.
  */
 export const VEHICLE_ENGINE_STEMS: Readonly<Record<string, EngineStems>> = {
   warthog: { enter: 'vehicle_warthog_enter', loop: 'vehicle_warthog_loop', exit: 'vehicle_warthog_exit' },
@@ -139,36 +139,36 @@ export const VEHICLE_ENGINE_STEMS: Readonly<Record<string, EngineStems>> = {
   ghost: { enter: 'vehicle_ghost_enter', loop: 'vehicle_ghost_loop', exit: 'vehicle_ghost_exit' },
 }
 
-/** Tous les stems moteur, pour le préchargement et le garde-rail d'assets. */
+/** All the engine stems, for the preloading and the assets guardrail. */
 export function allEngineStems(): string[] {
   return Object.values(VEHICLE_ENGINE_STEMS).flatMap((s) => [s.enter, s.loop, s.exit])
 }
 
-/** Une période fermée sur l'axe du rejeu, en millisecondes. */
+/** A closed period on the axis of the replay, in milliseconds. */
 export interface EngineSpan {
   t0Ms: number
   t1Ms: number
 }
 
 /**
- * Un épisode moteur : du premier mouvement (`t0Ms`, `enter`) au dernier (`t1Ms`, `exit`),
- * silencieux pendant ses `arrets`.
+ * An engine episode: from the first movement (`t0Ms`, `enter`) to the last (`t1Ms`, `exit`),
+ * silent during its `arrets`.
  */
 export interface EngineEpisode extends EngineSpan {
-  /** Les arrêts longs, strictement intérieurs à l'épisode, triés : la boucle s'y tait. */
+  /** The long stops, strictly interior to the episode, sorted: the loop is silent there. */
   arrets: EngineSpan[]
 }
 
-/** Le plan moteur d'UN véhicule : sa famille (clé de `VEHICLE_ENGINE_STEMS`) et ses épisodes. */
+/** The engine plan of ONE vehicle: its family (key of `VEHICLE_ENGINE_STEMS`) and its episodes. */
 export interface EnginePlan {
   family: string
   episodes: EngineEpisode[]
 }
 
 /**
- * mergeRideSpans — L'UNION des épisodes d'occupation (décision de cadrage n° 1) : les rides
- * peuvent se CHEVAUCHER (plusieurs passagers) et se suivre de près (changement de conducteur) ;
- * le moteur, lui, sonne d'un seul tenant. Un trou < `gapMergeMs` ne le coupe pas.
+ * mergeRideSpans — THE UNION of the occupation episodes (framing decision n° 1): the rides
+ * can OVERLAP (several passengers) and follow closely (change of driver);
+ * the engine, it, sounds as one piece. A hole < `gapMergeMs` does not cut it.
  */
 export function mergeRideSpans(
   rides: readonly { t0: number; t1: number }[],
@@ -192,13 +192,13 @@ export function mergeRideSpans(
 }
 
 /**
- * movingSpansOf — les périodes où le véhicule BOUGE VRAIMENT, bornées à `span`, triées.
+ * movingSpansOf — the periods where the vehicle REALLY MOVES, bounded to `span`, sorted.
  *
- * La vitesse se dérive des échantillons de trajectoire (distance horizontale / dt — la seule
- * cinématique que le film publie) : un intervalle entre deux échantillons compte s'il dépasse
- * `VEHICLE_MOVE_SPEED`. Les intervalles séparés de moins de `ENGINE_STOP_MERGE_MS` se fusionnent
- * (un arrêt court ne coupe rien) ; un mouvement fusionné plus court que `ENGINE_MOVE_MIN_MS` est
- * écarté. Sans échantillon qui bouge, la liste est vide : un véhicule immobile se tait.
+ * The speed is derived from the trajectory samples (horizontal distance / dt — the only
+ * kinematics that the film publishes): an interval between two samples counts if it exceeds
+ * `VEHICLE_MOVE_SPEED`. The intervals separated by less than `ENGINE_STOP_MERGE_MS` are merged
+ * (a short stop cuts nothing); a merged movement shorter than `ENGINE_MOVE_MIN_MS` is
+ * set aside. Without a sample that moves, the list is empty: a stationary vehicle stays silent.
  */
 export function movingSpansOf(
   samples: readonly { t: number; x: number; y: number }[],
@@ -221,8 +221,8 @@ export function movingSpansOf(
 }
 
 /**
- * episodeOfMoves — l'épisode moteur d'une occupation : du premier mouvement au dernier, les
- * trous entre mouvements devenant des arrêts. `null` si le véhicule n'a pas bougé.
+ * episodeOfMoves — the engine episode of an occupation: from the first movement to the last, the
+ * holes between movements becoming stops. `null` if the vehicle did not move.
  */
 export function episodeOfMoves(moves: readonly EngineSpan[]): EngineEpisode | null {
   if (moves.length === 0) return null
@@ -232,12 +232,12 @@ export function episodeOfMoves(moves: readonly EngineSpan[]): EngineEpisode | nu
 }
 
 /**
- * planVehicleEngines — LE PLAN COMPLET d'un document : un plan par véhicule qui sonne.
+ * planVehicleEngines — THE COMPLETE PLAN of a document: a plan per vehicle that sounds.
  *
- * QUATRE REFUS, dans l'ordre : le DÉCOR (jamais de son — décision de cadrage n° 1, même
- * ensemble que le calque), la famille SANS BANQUE (silence propre — n° 2), le véhicule
- * JAMAIS OCCUPÉ (un moteur ne tourne que pendant l'union des rides), et l'occupation SANS
- * MOUVEMENT (un véhicule immobile se tait, décision utilisateur du 2026-11-02).
+ * FOUR REFUSALS, in order: the DECOR (never a sound — framing decision n° 1, same
+ * set as the layer), the family WITHOUT BANK (clean silence — n° 2), the vehicle
+ * NEVER OCCUPIED (an engine only runs during the union of the rides), and the occupation WITHOUT
+ * MOVEMENT (a stationary vehicle stays silent, user decision of 2026-11-02).
  */
 export function planVehicleEngines(
   vehicles: readonly ReplayVehicleTrackReady[],
@@ -257,10 +257,10 @@ export function planVehicleEngines(
   return out
 }
 
-/** Ce qu'un moteur DOIT jouer à un instant donné, hors transitions (le lecteur pose celles-ci). */
+/** What an engine MUST play at a given moment, outside transitions (the player places those). */
 export type EnginePhase = 'loop' | 'arret' | null
 
-/** enginePhaseAt — l'état nominal d'un épisode à `ms` : course, arrêt (silence), ou rien. */
+/** enginePhaseAt — the nominal state of an episode at `ms`: running, stop (silence), or nothing. */
 export function enginePhaseAt(episode: EngineEpisode, ms: number): EnginePhase {
   if (ms < episode.t0Ms || ms >= episode.t1Ms) return null
   for (const s of episode.arrets) {
@@ -270,12 +270,12 @@ export function enginePhaseAt(episode: EngineEpisode, ms: number): EnginePhase {
 }
 
 /**
- * equalPowerCurves — les deux rampes d'un fondu croisé À PUISSANCE CONSTANTE (sin/cos).
+ * equalPowerCurves — the two ramps of a crossfade AT CONSTANT POWER (sin/cos).
  *
- * C'est LE piège documenté par la banque (§5 du HANDOFF, deux itérations perdues) : un fondu
- * linéaire entre deux signaux décorrélés creuse l'énergie de 3 dB au raccord. sin²+cos² = 1 —
- * l'énergie totale reste plate sur toute la jonction. Les courbes servent
- * `setValueCurveAtTime` côté temps réel comme côté export.
+ * It is THE trap documented by the bank (§5 of the HANDOFF, two iterations lost): a fade
+ * linear between two decorrelated signals digs the energy by 3 dB at the junction. sin²+cos² = 1 —
+ * the total energy stays flat over the whole junction. The curves serve
+ * `setValueCurveAtTime` on the real-time side as on the export side.
  */
 export function equalPowerCurves(steps = 32): { fadeIn: Float32Array; fadeOut: Float32Array } {
   const fadeIn = new Float32Array(steps)

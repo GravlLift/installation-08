@@ -1,46 +1,46 @@
 /**
- * knockbackSound.ts — LA POUSSÉE DU RÉPULSEUR, entendue à chaque fois que le film l'écrit.
+ * knockbackSound.ts — THE REPELLER'S PUSH, heard every time the film writes it.
  *
- * LA SOURCE est le document (schéma 94) : `knockbacks`, une entrée par joueur poussé, datée par la
- * paire de messages du film (`EquipmentObjectKnockedBack` puis `EquipmentKnockbackPlayer`). Le son
- * est CELUI DU RÉPULSEUR DÉJÀ LIVRÉ (`repulsor_kill`, ses trois variantes) : décision de
- * l'utilisateur, « le répulseur est déjà bon » — aucun son nouveau.
+ * THE SOURCE is the document (schema 94): `knockbacks`, one entry per pushed player, dated by the
+ * pair of messages of the film (`EquipmentObjectKnockedBack` then `EquipmentKnockbackPlayer`). The sound
+ * is THAT OF THE ALREADY DELIVERED REPELLER (`repulsor_kill`, its three variants): decision of
+ * the user, "the repulsor is already good" — no new sound.
  *
- * DEUX DÉDOUBLONNAGES, et ils ne décident d'aucun fait (la poussée est publiée, on choisit seulement
- * combien de fois la faire entendre) :
- *  - UN SOUFFLE, UN SON. Un même usage pousse souvent plusieurs joueurs, écrits dans des paquets
- *    voisins : les poussées d'un même auteur à moins de `KNOCKBACK_SAME_BLAST_MS` de la précédente
- *    ne rejouent pas le son.
- *  - LE KILL SONNE DÉJÀ. Une poussée qui tue fait entendre le son du kill au répulseur
- *    (`KILL_SPRITE_SOUND_STEMS`, vignette `killfeed-56`) au même instant : la poussée se tait quand
- *    un kill au répulseur DU MÊME AUTEUR (le tueur est l'auteur de la poussée, par son xuid) est
- *    programmé à moins de `KNOCKBACK_KILL_DEDUP_MS`. Une poussée dont l'auteur n'est pas nommé ne
- *    se tait pas : on ne la rattache pas au kill d'un autre.
+ * TWO DEDUPLICATIONS, and they decide no fact (the push is published, we only choose
+ * how many times to make it heard):
+ *  - ONE BLAST, ONE SOUND. A same use often pushes several players, written in
+ *    neighbor packets: the pushes of a same author within `KNOCKBACK_SAME_BLAST_MS` of the previous one
+ *    do not replay the sound.
+ *  - THE KILL ALREADY SOUNDS. A push that kills makes the repulsor kill sound heard
+ *    (`KILL_SPRITE_SOUND_STEMS`, thumbnail `killfeed-56`) at the same moment: the push stays silent when
+ *    a repulsor kill OF THE SAME AUTHOR (the killer is the author of the push, by his xuid) is
+ *    scheduled within `KNOCKBACK_KILL_DEDUP_MS`. A push whose author is not named does
+ *    not stay silent: we do not attach it to the kill of another.
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
-/** Le stem de la poussée : celui du kill au répulseur, déjà livré. */
+/** The stem of the push: that of the repulsor kill, already delivered. */
 export const KNOCKBACK_SOUND_STEM = 'repulsor_kill'
 
-/** Fenêtre d'un même souffle, par auteur : un usage, un son. */
+/** Window of a same blast, per author: one use, one sound. */
 export const KNOCKBACK_SAME_BLAST_MS = 300
 
-/** Écart sous lequel un kill au répulseur programmé couvre déjà la poussée. Une image et demie. */
+/** Gap below which a scheduled repulsor kill already covers the push. One and a half frames. */
 export const KNOCKBACK_KILL_DEDUP_MS = 150
 
-/** Un kill au répulseur déjà programmé sur la piste : son instant et son tueur. */
+/** A repulsor kill already scheduled on the track: its moment and its killer. */
 export interface RepulsorKillSound {
   ms: number
   xuid: string
 }
 
 /**
- * knockbackSoundEvents — un son par souffle publié, sauf quand le kill au répulseur du même auteur et
- * du même instant le fait déjà entendre. `repulsorKills` sont les kills au répulseur DÉJÀ programmés
- * (la catégorie des armes coupée, il n'y en a aucun, et la poussée sonne seule).
+ * knockbackSoundEvents — one sound per published blast, except when the repulsor kill of the same author and
+ * of the same moment already makes it heard. `repulsorKills` are the repulsor kills ALREADY scheduled
+ * (the weapons category cut, there is none, and the push sounds alone).
  */
 export function knockbackSoundEvents(
   doc: ReplayDocumentReady,

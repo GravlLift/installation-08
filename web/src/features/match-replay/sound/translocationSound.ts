@@ -1,24 +1,24 @@
 /**
- * translocationSound.ts — LA TÉLÉPORTATION DU TRANSLOCATEUR, entendue à son départ.
+ * translocationSound.ts — THE TELEPORTATION OF THE TRANSPORTER, heard at its departure.
  *
- * LA SOURCE est le document (schéma 38) : `translocations`, une entrée par saut, datée par
- * l'événement du film `EquipmentTranslocatorTeleportEffects` (type 117), qui précède le saut de 5 à
- * 80 ms. Le son part à cet instant : c'est le DÉPART du geste.
+ * THE SOURCE is the document (schema 38): `translocations`, one entry per jump, dated by the
+ * film event `EquipmentTranslocatorTeleportEffects` (type 117), which precedes the jump by 5 to
+ * 80 ms. The sound goes out at that moment: it is the DEPARTURE of the gesture.
  *
- * LE SON (`translocator_teleport`) est le geste tel que le jeu le joue, recomposé de la banque de
- * l'appareil (`sb_007_abl_quantum`) : l'événement de départ du porteur `10f62776`
- * (`play_007_abl_quantum_teleport_player_start`, `.wem` 123675313) puis, 0,20 s plus tard, l'effet
- * `efe84c70` (`.wem` 596614165), délais et gains relevés sur une capture du jeu ; 48 kHz stéréo,
- * crête plafonnée à -1 dBTP. Catégorie Équipement.
+ * THE SOUND (`translocator_teleport`) is the gesture as the game plays it, reassembled from the
+ * device's bank (`sb_007_abl_quantum`): the departure event of the carrier `10f62776`
+ * (`play_007_abl_quantum_teleport_player_start`, `.wem` 123675313) then, 0.20 s later, the
+ * effect `efe84c70` (`.wem` 596614165), delays and gains measured on a game capture; 48 kHz
+ * stereo, crest capped at -1 dBTP. Category Equipment.
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
-/** Le stem de la téléportation. */
+/** The stem of the teleportation. */
 export const TRANSLOCATION_SOUND_STEM = 'translocator_teleport'
 
-/** translocationSoundEvents — un son par téléportation publiée, à sa frame. */
+/** translocationSoundEvents — one sound per published teleportation, at its frame. */
 export function translocationSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   return doc.translocations.map((t) => soundEvent(frameToMs(t.t, doc), TRANSLOCATION_SOUND_STEM))
 }

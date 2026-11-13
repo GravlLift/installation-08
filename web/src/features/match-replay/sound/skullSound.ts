@@ -1,79 +1,78 @@
 /**
- * skullSound.ts — LES SONS DU CRANE d'Oddball, et les deux canaux qui les datent.
+ * skullSound.ts — THE SOUNDS OF THE ODDBALL SKULL, and the two channels that date them.
  *
- * POURQUOI UN FICHIER A PART, la meme raison que `zoneSound.ts` : la source n'est pas
- * `doc.objectives`. Le nommage statborg (`objectiveevents/named.go`) ne porte que
- * `ObjectiveTypeFlag`, `ObjectiveTypeZone` et `ObjectiveTypeVip` — `ObjectiveTypeSkull` existe
- * comme constante sans table d'emplacements, donc AUCUNE statistique d'Oddball n'arrive dans
- * `doc.objectives`. Ces sons se datent sur `doc.skullCarries` (schema 23, les PERIODES DE
- * PORTAGE), sur `doc.objectiveObjects` (les VIES du crane libre) et sur `doc.scoreTimeline`.
+ * WHY A SEPARATE FILE, the same reason as `zoneSound.ts`: the source is not `doc.objectives`.
+ * The statborg naming (`objectiveevents/named.go`) only carries `ObjectiveTypeFlag`,
+ * `ObjectiveTypeZone` and `ObjectiveTypeVip` — `ObjectiveTypeSkull` exists as a constant without
+ * a placements table, so NO Oddball statistic arrives in `doc.objectives`. These sounds are
+ * dated on `doc.skullCarries` (schema 23, the CARRY PERIODS), on `doc.objectiveObjects` (the
+ * LIVES of the free skull) and on `doc.scoreTimeline`.
  *
- * C'est ce qui a change depuis la RE du 2026-08-27 (les sept sons etaient valides,
- * le cablage ne l'etait pas encore) : a l'epoque le moteur sonore ne lisait que `doc.objectives` et le
- * verdict etait « pas cablable ». Le schema 23 a ouvert le canal, et `zoneSound.ts` a etabli
- * le precedent d'un son qui ne vient d'aucune statistique.
+ * This is what changed since the RE of 2026-08-27 (the seven sounds were valid, the wiring was
+ * not yet): at the time the sound engine only read `doc.objectives` and the verdict was "not
+ * wireable". Schema 23 opened the channel, and `zoneSound.ts` established the precedent of a
+ * sound that comes from no statistic.
  *
- * D'OU VIENNENT CES SONS. Banque `b0c651ea` = `sb_004_mod_mp_oddball` (28 evenements, 53 sons),
- * trouvee le 2026-08-27 par hachage FNV-1 du nom de fichier et jamais inventoriee avant. Les
- * noms d'evenement sont CASSES, pas designes a l'oreille :
+ * WHERE THESE SOUNDS COME FROM. Bank `b0c651ea` = `sb_004_mod_mp_oddball` (28 events, 53 sounds),
+ * found on 2026-08-27 by FNV-1 hashing of the file name and never inventoried before. The
+ * event names are BROKEN, not designated by ear:
  *
- *   play_004_mod_mp_oddball_skull_spawn     event f1dbd79a   1 son       5,47 s
- *   play_004_mod_mp_oddball_skull_despawn   event fab3a00d   1 parmi 2   1,71 s
- *   play_004_mod_mp_oddball_skull_taken     event db39b4c6   1 parmi 2   2,72 s
- *   play_004_mod_mp_oddball_skull_pickup    event f8b484a1   1 parmi 2   2,26 s  (-5 dB)
- *   play_004_mod_mp_oddball_skull_dropped   event 4a27941d   1 parmi 3   2,87 s
- *   play_004_mod_mp_oddball_scoring_team    event 60468d1a   2 couches   3,62 s
- *   play_004_mod_mp_oddball_scoring_enemy   event b72c33bf   2 couches   4,36 s
+ *   play_004_mod_mp_oddball_skull_spawn     event f1dbd79a   1 sound       5.47 s
+ *   play_004_mod_mp_oddball_skull_despawn   event fab3a00d   1 of 2        1.71 s
+ *   play_004_mod_mp_oddball_skull_taken     event db39b4c6   1 of 2        2.72 s
+ *   play_004_mod_mp_oddball_skull_pickup    event f8b484a1   1 of 2        2.26 s  (-5 dB)
+ *   play_004_mod_mp_oddball_skull_dropped   event 4a27941d   1 of 3        2.87 s
+ *   play_004_mod_mp_oddball_scoring_team    event 60468d1a   2 layers      3.62 s
+ *   play_004_mod_mp_oddball_scoring_enemy   event b72c33bf   2 layers      4.36 s
  *
- * Le rendu a ete refait localement depuis le module du jeu, et les durees obtenues rejouent
- * celles de la planche au centieme — c'est le controle qui valide le mappage evenement -> `.wem`.
+ * The render was redone locally from the game module, and the durations obtained replay those of
+ * the board to the hundredth — that is the control that validates the event -> `.wem` mapping.
  *
- * ## LA MARQUE : le son EXISTE DEJA dans l'arbre, sous un autre nom
+ * ## THE MARK: the sound ALREADY EXISTS in the tree, under another name
  *
- * MESURE DU 2026-08-29, et elle a un temoin negatif. Les deux couches de `scoring_team`
- * portent le `.wem` 578850042 (1,81 s, joue deux fois bout a bout = les 3,62 s annonces) et
- * celles de `scoring_enemy` le `.wem` 444143858 (2,18 s x2 = 4,36 s). Compares aux fichiers
- * DEJA LIVRES `objective_zone_tick_team` / `_enemy`, leurs enveloppes correlent a **+1,000**
- * exactement, la ou deux sons sans rapport de la meme famille correlent a +0,66 / +0,69.
+ * MEASUREMENT OF 2026-08-29, and it has a negative witness. The two layers of `scoring_team`
+ * carry the `.wem` 578850042 (1.81 s, played twice back to back = the announced 3.62 s) and
+ * those of `scoring_enemy` the `.wem` 444143858 (2.18 s x2 = 4.36 s). Compared to the files
+ * ALREADY DELIVERED `objective_zone_tick_team` / `_enemy`, their envelopes correlate at
+ * **+1.000** exactly, where two unrelated sounds of the same family correlate at +0.66 / +0.69.
  *
- * C'est LE MEME SON, declare une fois par mode de jeu — exactement ce que la RE avait deja
- * constate pour la capture de zone (« le meme son declare une fois par mode »). On ne livre
- * donc AUCUN fichier de plus : ces deux gestes pointent sur les stems existants. Et le
- * traitement de ces fichiers tombe juste ici sans rien changer — ils sont tronques a 1,2 s
- * avec un fondu et attenues a -12 dBTP parce que le tic de Bastion sonne UNE FOIS PAR
- * SECONDE. En Oddball on marque 1 point par seconde de portage : meme cadence, meme besoin.
+ * It is THE SAME SOUND, declared once per game mode — exactly what the RE had already noted for
+ * zone capture ("the same sound declared once per mode"). So NO additional file is delivered:
+ * these two gestures point to the existing stems. And the treatment of these files fits right
+ * here without changing anything — they are truncated at 1.2 s with a fade and attenuated to
+ * -12 dBTP because the Bastion tick sounds ONCE PER SECOND. In Oddball we score 1 point per
+ * second of carry: same rate, same need.
  *
- * ## APPARITION ET DISPARITION : une approximation ASSUMEE, et bornee par construction
+ * ## APPEARANCE AND DISAPPEARANCE: an ASSUMED approximation, and bounded by construction
  *
- * REGLE PRODUIT DE L'UTILISATEUR (2026-08-29) : « c'est quand il apparait sur son socle ou se
- * retrouve hors map. Ce n'est pas encore finalise comme evenements mais peut-etre que tu peux
- * faire comme si pour le son ? » Ces deux gestes ne sont donc PAS mesures — ils sont approches,
- * avec l'accord explicite de l'utilisateur, et la doctrine est de le dire ici plutot que de
- * laisser croire a une mesure.
+ * USER PRODUCT RULE (2026-08-29): "it's when it appears on its pedestal or ends up out of the
+ * map. It's not finalized as events yet but maybe you can do as if for the sound?" These two
+ * gestures are therefore NOT measured — they are approximated, with the user's explicit
+ * agreement, and the doctrine is to say it here rather than let it look like a measurement.
  *
- * L'APPROXIMATION S'APPUIE SUR LA VERITE TERRAIN de `d9781168` : « 2:48 meurt en sautant dans le
- * vide avec le crane -> cooldown -> respawn socle 2:53 ». Le crane sorti de la carte ne tombe
- * pas au sol : il DISPARAIT, puis REAPPARAIT sur son socle. D'ou :
+ * THE APPROXIMATION RESTS ON THE GROUND TRUTH of `d9781168`: "2:48 dies jumping into the void
+ * with the skull -> cooldown -> pedestal respawn 2:53". The skull out of the map does not fall
+ * to the ground: it DISAPPEARS, then REAPPEARS on its pedestal. Hence:
  *
- *   HORS MAP  une periode de portage qui se ferme SANS qu'aucune vie ne s'ouvre derriere.
- *             Un lacher normal, lui, rouvre une vie (le crane roule au sol) — les deux cas
- *             sont EXCLUSIFS, et c'est ce qui evite de sonner la chute et la disparition
- *             au meme instant.
- *   SOCLE     la premiere vie du film, puis la premiere vie qui suit chaque disparition.
+ *   OUT OF MAP a carry period that closes WITHOUT any life opening behind it. A normal drop,
+ *             by contrast, reopens a life (the skull rolls on the ground) — the two cases are
+ *             EXCLUSIVE, and that is what avoids sounding the fall and the disappearance at the
+ *             same moment.
+ *   PEDESTAL   the first life of the film, then the first life that follows each disappearance.
  *
- * CE QUI BORNE LE COMPTE, et c'est le point important : l'apparition n'est PAS posee sur
- * « chaque debut de vie ». On ne sait toujours pas combien de vies un film Oddball publie, et
- * une vie par rebond ferait sonner une fanfare de 5,47 s a chaque rebond. En la chainant aux
- * disparitions, le nombre d'apparitions vaut AU PLUS 1 + le nombre de disparitions — une
- * quantite qui ne peut pas s'emballer, quelle que soit la granularite reelle des vies.
+ * WHAT BOUNDS THE COUNT, and that is the important point: the appearance is NOT placed on
+ * "every start of life". We still do not know how many lives an Oddball film publishes, and a
+ * life per bounce would make a 5.47 s fanfare sound at each bounce. By chaining it to the
+ * disappearances, the number of appearances is AT MOST 1 + the number of disappearances — a
+ * quantity that cannot run away, whatever the real granularity of the lives.
  *
- * ## Le camp, et ce qui se tait sans lui
+ * ## The side, and what stays silent without it
  *
- * Les cinq gestes du crane n'ont PAS de variante d'equipe dans le jeu : la banque ne porte ni
- * `_team` ni `_enemy` sur ces evenements, contrairement aux captures de drapeau. Ils sonnent
- * donc pareil pour tout le monde, camp connu ou non — et c'est une mesure sur la banque, pas
- * un raccourci. La MARQUE, elle, a ses deux cotes : sans camp allie resolu (le film ne situe
- * pas le joueur regarde), elle se TAIT — meme regle que partout dans la chaine sonore.
+ * The five skull gestures have NO team variant in the game: the bank carries neither `_team`
+ * nor `_enemy` on these events, unlike the flag captures. They therefore sound the same for
+ * everyone, side known or not — and that is a measurement on the bank, not a shortcut. THE
+ * MARK, by contrast, has its two sides: without a resolved allied side (the film does not place
+ * the viewed player), it STAYS SILENT — same rule as everywhere in the sound chain.
  */
 import type {
   ReplayDocumentReady,
@@ -85,93 +84,94 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { scoreTimelineOf } from '@/lib/replay/scoreTimeline'
 
 /**
- * SKULL_SOUND_STEMS — les fichiers, par geste.
+ * SKULL_SOUND_STEMS — the files, by gesture.
  *
- * MANIFESTE au meme titre que les tables de `replaySound.ts` — le garde-rail
- * `replaySoundAssets.guard.test.ts` le rejoue contre le dossier d'assets, dans les DEUX sens.
+ * MANIFEST just like the tables of `replaySound.ts` — the guardrail
+ * `replaySoundAssets.guard.test.ts` replays it against the assets folder, in BOTH directions.
  *
- * `scoringTeam` / `scoringEnemy` POINTENT SUR LES STEMS DE ZONE, et ce n'est pas un pis-aller :
- * la mesure ci-dessus etablit que c'est le meme fichier (correlation +1,000). Le nom porte
- * « zone » parce que c'est la que le son a ete identifie en premier ; il designe en realite le
- * TIC DE SCORE, que Bastion et Oddball declarent chacun de leur cote.
+ * `scoringTeam` / `scoringEnemy` POINT TO THE ZONE STEMS, and that is not a fallback: the
+ * measurement above establishes that it is the same file (correlation +1.000). The name carries
+ * "zone" because that is where the sound was identified first; it actually designates the
+ * SCORE TICK, that Bastion and Oddball each declare on their own side.
  */
 export const SKULL_SOUND_STEMS = {
-  /** Crane qui REAPPARAIT sur son socle. Rendu de l'event `f1dbd79a`, un seul fichier. */
+  /** Skull REAPPEARING on its pedestal. Render of event `f1dbd79a`, a single file. */
   spawn: 'objective_skull_spawn',
-  /** Crane HORS MAP : il disparait au lieu de tomber. Event `fab3a00d`, 2 variantes. */
+  /** Skull OUT OF MAP: it disappears instead of falling. Event `fab3a00d`, 2 variants. */
   despawn: 'objective_skull_despawn',
-  /** Crane PRIS sur son socle (il y reposait). Rendu de l'event `db39b4c6`, 2 variantes. */
+  /** Skull TAKEN from its pedestal (it was resting there). Render of event `db39b4c6`, 2 variants. */
   taken: 'objective_skull_taken',
-  /** Crane RAMASSE au sol. Rendu de l'event `f8b484a1` a -5 dB, 2 variantes. */
+  /** Skull PICKED UP from the ground. Render of event `f8b484a1` at -5 dB, 2 variants. */
   pickup: 'objective_skull_pickup',
-  /** Crane LACHE : le porteur meurt ou le pose, et le crane roule au sol. Event `4a27941d`. */
+  /** Skull DROPPED: the carrier dies or sets it down, and the skull rolls on the ground. Event `4a27941d`. */
   dropped: 'objective_skull_dropped',
-  /** Ticket de score, mon equipe. MEME FICHIER que le tic de Bastion (cf. l'en-tete). */
+  /** Score ticket, my team. SAME FILE as the Bastion tick (cf. the header). */
   scoringTeam: 'objective_zone_tick_team',
-  /** Ticket de score, l'adversaire. MEME FICHIER que le tic de Bastion. */
+  /** Score ticket, the opponent. SAME FILE as the Bastion tick. */
   scoringEnemy: 'objective_zone_tick_enemy',
 } as const
 
 /**
- * TOLERANCE_FRAMES — l'ecart admis entre la fin d'une vie et la prise qu'elle precede, pour
- * reconnaitre « le porteur arrive SUR le crane au repos ». Meme ordre de grandeur que la
- * tolerance de `zoneSound.ts`, et meme raison : les series publiees sont ALLEGEES, donc le
- * dernier point d'une vie precede la bascule de quelques images.
+ * TOLERANCE_FRAMES — the admitted gap between the end of a life and the pickup it precedes, to
+ * recognize "the carrier arrives ON the resting skull". Same order of magnitude as the
+ * tolerance of `zoneSound.ts`, and same reason: the published series are THINNED, so the
+ * last point of a life precedes the flip by a few frames.
  */
 const TOLERANCE_FRAMES = 12
 
 /**
- * RETOMBEE_FRAMES — la fenetre dans laquelle une vie doit s'ouvrir apres un lacher pour que ce
- * lacher soit une CHUTE AU SOL. Au-dela, le crane n'est pas retombe : il est sorti de la carte.
- * La verite terrain donne l'ordre de grandeur de l'autre cote (5 s entre la mort dans le vide
- * et le respawn au socle) ; une seconde suffit largement a couvrir une retombee reelle.
+ * RETOMBEE_FRAMES — the window in which a life must open after a drop for that drop to be a
+ * FALL TO THE GROUND. Beyond it, the skull did not fall back: it went out of the map. The
+ * ground truth gives the order of magnitude on the other side (5 s between the death in the
+ * void and the respawn on the pedestal); a second is more than enough to cover a real fall
+ * back.
  */
 const RETOMBEE_FRAMES = 60
 
 /**
- * estAuRepos — la vie designe-t-elle un crane POSE ? `t0 === t1` : un seul instant emis, ce que
- * `skullPresence.ts` a etabli comme la signature du socle.
+ * isAtRest — does the life designate a skull AT REST? `t0 === t1`: a single instant emitted,
+ * what `skullPresence.ts` established as the signature of the pedestal.
  */
-function estAuRepos(vie: ReplayObjectiveObjectReady): boolean {
+function isAtRest(vie: ReplayObjectiveObjectReady): boolean {
   return vie.t0 === vie.t1
 }
 
 /**
- * priseSurRepos dit si la prise `t0` suit immediatement un crane au repos. Elle cherche la vie
- * de plus grand `t1` qui se termine avant la prise, et ne repond vrai que si cette vie est un
- * repos ET qu'elle touche la prise a la tolerance pres — un repos vieux de dix secondes ne
- * decrit pas la prise en cours.
+ * pickupOnRest says whether the pickup `t0` immediately follows a skull at rest. It looks for
+ * the life with the largest `t1` that ends before the pickup, and only answers true if that
+ * life is a rest AND that it touches the pickup within the tolerance — a rest ten seconds old
+ * does not describe the pickup in progress.
  */
-function priseSurRepos(lives: readonly ReplayObjectiveObjectReady[], t0: number): boolean {
+function pickupOnRest(lives: readonly ReplayObjectiveObjectReady[], t0: number): boolean {
   let derniere: ReplayObjectiveObjectReady | undefined
   for (const vie of lives) {
     if (vie.t1 > t0) continue
     if (!derniere || vie.t1 > derniere.t1) derniere = vie
   }
   if (!derniere) return false
-  return estAuRepos(derniere) && t0 - derniere.t1 <= TOLERANCE_FRAMES
+  return isAtRest(derniere) && t0 - derniere.t1 <= TOLERANCE_FRAMES
 }
 
 /**
- * retombeApres dit si une vie s'ouvre dans la fenetre qui suit un lacher — c'est-a-dire si le
- * crane est retombe au sol.
+ * fallsBackAfter says whether a life opens in the window that follows a drop — that is, whether
+ * the skull fell back to the ground.
  *
- * UN ARTEFACT SANS AUCUNE VIE REPOND VRAI, et cette degradation est le coeur de la fonction :
- * « aucune vie apres le lacher » et « aucune vie du tout » ne sont pas la meme chose. Le second
- * cas est un artefact qui ne publie pas `objectiveObjects` — on n'y sait RIEN de la trajectoire
- * du crane, et en conclure une sortie de carte serait affirmer l'exceptionnel a partir d'une
- * absence de donnee. Sans information, le rejeu joue le geste ORDINAIRE.
+ * AN ARTIFACT WITHOUT ANY LIFE ANSWERS TRUE, and this degradation is the heart of the function:
+ * "no life after the drop" and "no life at all" are not the same thing. The second case is an
+ * artifact that does not publish `objectiveObjects` — there we know NOTHING of the skull's
+ * trajectory, and concluding a map exit would be asserting the exceptional from an absence of
+ * data. Without information, the replay plays the ORDINARY gesture.
  */
-function retombeApres(lives: readonly ReplayObjectiveObjectReady[], t1: number): boolean {
+function fallsBackAfter(lives: readonly ReplayObjectiveObjectReady[], t1: number): boolean {
   if (lives.length === 0) return true
   return lives.some((v) => v.t0 >= t1 && v.t0 - t1 <= RETOMBEE_FRAMES)
 }
 
 /**
- * premiereVieApres rend l'instant de la premiere vie qui s'ouvre strictement apres `t`, ou
- * `undefined`. C'est la REAPPARITION du crane sur son socle.
+ * firstLifeAfter returns the moment of the first life that opens strictly after `t`, or
+ * `undefined`. This is the REAPPEARANCE of the skull on its pedestal.
  */
-function premiereVieApres(
+function firstLifeAfter(
   lives: readonly ReplayObjectiveObjectReady[],
   t: number,
 ): number | undefined {
@@ -182,22 +182,22 @@ function premiereVieApres(
   return best
 }
 
-/** Le camp d'un ticket de score, vu de la page — meme notion que dans `objectiveSound.ts`. */
+/** The side of a score ticket, seen from the page — same notion as in `objectiveSound.ts`. */
 type MarqueSide = 'ally' | 'enemy'
 
 /**
- * ticketsDeMarque — un evenement par PALIER DE SCORE, dans le camp de l'equipe qui marque.
+ * scoreTickets — one event per SCORE STEP, in the side of the team that scores.
  *
- * C'EST LE MECANISME DE L'AFFICHAGE AU-DESSUS DU CANVAS, et pas un second calcul : le film ne
- * transmet pas un score echantillonne mais ses CHANGEMENTS (`scoreTimeline.ts` : « une serie
- * est une suite de PALIERS — {t, v} veut dire a partir de la frame t la valeur est v »). Chaque
- * palier montant EST un ticket de score, celui-la meme que la banniere lit. On lit `total` et
- * non `rounds[]` : la grandeur qui repart de zero a chaque manche ferait passer une remise a
- * zero pour une marque.
+ * THIS IS THE MECHANISM OF THE DISPLAY ABOVE THE CANVAS, and not a second computation: the
+ * film does not transmit a sampled score but its CHANGES (`scoreTimeline.ts`: "a series is a
+ * sequence of STEPS — {t, v} means from frame t the value is v"). Each rising step IS a score
+ * ticket, the very one that the banner reads. We read `total` and not `rounds[]`: the quantity
+ * that restarts from zero at each round would make a reset pass for a score.
  *
- * SANS CAMP ALLIE, RIEN NE SONNE : jouer l'un des deux cotes serait affirmer un camp.
+ * WITHOUT AN ALLIED SIDE, NOTHING SOUNDS: playing one of the two sides would be asserting a
+ * side.
  */
-function ticketsDeMarque(doc: ReplayDocumentReady, allyTeam: number | null): ReplaySoundEvent[] {
+function scoreTickets(doc: ReplayDocumentReady, allyTeam: number | null): ReplaySoundEvent[] {
   if (allyTeam === null) return []
   const timeline = scoreTimelineOf(doc)
   if (!timeline) return []
@@ -215,20 +215,20 @@ function ticketsDeMarque(doc: ReplayDocumentReady, allyTeam: number | null): Rep
 }
 
 /**
- * skullSoundEvents — les sons du crane, poses sur l'horloge du rejeu.
+ * skullSoundEvents — the sounds of the skull, placed on the replay clock.
  *
- * L'HORLOGE NE DEMANDE AUCUN RECALAGE : `t0` et `t1` d'une periode de portage sont deja des
- * index d'image, sur le meme axe que les tirs et les positions. La conversion est la meme
- * `frameToMs` que partout.
+ * THE CLOCK DOES NOT REQUIRE ANY REALIGNMENT: `t0` and `t1` of a carry period are already
+ * image indexes, on the same axis as the shots and the positions. The conversion is the same
+ * `frameToMs` as everywhere.
  *
- * LA PORTE D'ENTREE EST `skullCarries` : sans periode de portage, le film n'est pas un Oddball
- * et RIEN ne sonne — y compris les tickets de score, qui autrement se declencheraient sur les
- * paliers de n'importe quel mode.
+ * THE ENTRY GATE IS `skullCarries`: without a carry period, the film is not an Oddball and
+ * NOTHING sounds — including the score tickets, which otherwise would be triggered on the
+ * steps of any mode.
  *
- * UNE PERIODE NON FERMEE NE LACHE RIEN. `closed: false` signale un portage que le FILM
- * interrompt (fin de match, fin d'enregistrement) : personne n'a lache le crane, et le rejeu ne
- * joue ni la chute ni la disparition. Sonner la fin de l'enregistrement serait inventer une
- * action que le match n'a pas eue.
+ * AN UNCLOSED PERIOD DROPS NOTHING. `closed: false` signals a carry that the FILM interrupts
+ * (end of match, end of recording): no one dropped the skull, and the replay plays neither the
+ * fall nor the disappearance. Sounding the end of the recording would be inventing an action
+ * that the match did not have.
  */
 export function skullSoundEvents(
   doc: ReplayDocumentReady,
@@ -239,31 +239,31 @@ export function skullSoundEvents(
   const lives = doc.objectiveObjects ?? []
   const out: ReplaySoundEvent[] = []
 
-  // LES APPARITIONS SONT UN ENSEMBLE D'INSTANTS, pas une suite de `push` : l'apparition
-  // d'ouverture et celle qui suit une disparition DESIGNENT LA MEME VIE quand le crane sort de
-  // la carte avant d'avoir jamais touche le sol. Deux `push` y feraient sonner deux fanfares de
-  // 5,47 s au meme instant ; l'ensemble les confond, ce qui est exactement le sens voulu.
+  // THE APPEARANCES ARE A SET OF MOMENTS, not a sequence of `push`: the opening appearance
+  // and the one that follows a disappearance DESIGNATE THE SAME LIFE when the skull goes out
+  // of the map before ever touching the ground. Two `push` would make two 5.47 s fanfares
+  // sound at the same moment; the set merges them, which is exactly the intended meaning.
   const apparitions = new Set<number>()
-  const ouverture = premiereVieApres(lives, -1)
+  const ouverture = firstLifeAfter(lives, -1)
   if (ouverture !== undefined) apparitions.add(ouverture)
 
   for (const c of carries) {
-    const prise = priseSurRepos(lives, c.t0) ? SKULL_SOUND_STEMS.taken : SKULL_SOUND_STEMS.pickup
+    const prise = pickupOnRest(lives, c.t0) ? SKULL_SOUND_STEMS.taken : SKULL_SOUND_STEMS.pickup
     out.push(soundEvent(frameToMs(c.t0, doc), prise))
     if (!c.closed) continue
-    // CHUTE ou HORS MAP, jamais les deux : le crane est retombe au sol, ou il a disparu.
-    if (retombeApres(lives, c.t1)) {
+    // FALL or OUT OF MAP, never both: the skull fell back to the ground, or it disappeared.
+    if (fallsBackAfter(lives, c.t1)) {
       out.push(soundEvent(frameToMs(c.t1, doc), SKULL_SOUND_STEMS.dropped))
       continue
     }
     out.push(soundEvent(frameToMs(c.t1, doc), SKULL_SOUND_STEMS.despawn))
-    // ... et le crane REAPPARAIT sur son socle a la vie suivante. C'est ce chainage qui borne
-    // le nombre d'apparitions (cf. l'en-tete).
-    const socle = premiereVieApres(lives, c.t1)
+    // ... and the skull REAPPEARS on its pedestal at the next life. This chaining is what
+    // bounds the number of appearances (cf. the header).
+    const socle = firstLifeAfter(lives, c.t1)
     if (socle !== undefined) apparitions.add(socle)
   }
 
   for (const t of apparitions) out.push(soundEvent(frameToMs(t, doc), SKULL_SOUND_STEMS.spawn))
-  out.push(...ticketsDeMarque(doc, allyTeam))
+  out.push(...scoreTickets(doc, allyTeam))
   return out.sort((a, b) => a.ms - b.ms)
 }
