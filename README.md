@@ -147,6 +147,29 @@ Not ported: LevelUp builds every piece of the Spartan (and the arms) at once int
 - `--no-arms` keeps the skeleton and clips without the Spartan's arm geometry, for a viewer that poses its own arms.
 - `--game` and `--out` are as in `build-mesh`.
 
+## build-firstperson-library
+
+`build-firstperson-library` builds the whole first-person library at once: every weapon the
+game renders in first person (the arms of the Spartan's default armor and the weapon on the
+one skeleton of the weapon's own FP animation graph, every distinct animation baked on),
+into `<data>/first-person`:
+
+```powershell
+.\infinite-theater-3d.exe build-firstperson-library [--game <deploy-root>] [--data <dir>] [--map <module-key>]
+```
+
+- `--map` is any installed map's module key; its index covers the game's weapons and
+  globals. Omitted, the first map in the data store is used; with no map in the store the
+  build fails with a named error.
+- The library holds one rig per first-person-capable weapon, named by the content digest of
+  the written rig (`rig-<16 hex>.glb`): two weapons on the same rig share a file. Shared
+  images are externalized to the library's texture depot (`texture-<32 hex>.png|jpg`), so
+  every rig stays small. `index.json` (the per-weapon and per-rig entries the viewer reads)
+  and `bras.json` (the arm pieces catalog, written empty: this library does not build piece
+  GLBs, the view uses the arms baked in each rig) are written last; a weapon whose rig
+  cannot be read gets an empty `<key>.none` marker and a `failures` entry, and the build
+  continues. A build interrupted mid-way resumes: files already built are kept.
+
 ## serve
 
 `serve` is the local HTTP server (standard library only) over the data directory. It binds
@@ -201,10 +224,32 @@ served the same way the viewer addresses it: one GLB per model key.
 - `GET /api/weapons/state` — the weapon library's build state, in the same JSON shape as the
   mesh state (its `moduleKey` is `weapons`).
 
-A map and the weapon library build at most one at a time process-wide; the weapons job shares
-the map build queue, so a weapon build and a map build never run together. A build writes each
-GLB (and the index) to a temporary file in the weapons folder and renames it into place on
-success, so a half-written file is never served.
+The first-person library (built by `build-firstperson-library`, or on demand through the
+routes below) is served the way the viewer addresses it: it derives the folder from the
+weapons path it is given (`/api/weapons` to `/api/first-person`).
+
+- `GET /api/first-person/index.json` — the first-person library's index: the per-weapon
+  entries (`weapon`, `file`), the per-rig entries (`file`, `bones`, `triangles`, `bytes`,
+  `idleWeapon`, `clips`, `actions`, `missingActions`) and the texture depot summary. Before
+  the library is built it is a JSON `404` `{"error":"first_person_not_built"}`.
+- `GET /api/first-person/bras.json` — the arm pieces catalog (written empty by this
+  library). Before the build it is a JSON `404` `{"error":"first_person_not_built"}`.
+- `GET /api/first-person/{file}` — one library file (a `rig-<16 hex>.glb` or a
+  `texture-<32 hex>.png|jpg`, range-capable). A name that is not one of the library's own,
+  or that would escape the library folder, is a JSON `404`
+  `{"error":"first_person_file_not_available"}`.
+- `POST /api/first-person/build` — starts or joins the first-person-library build (one job,
+  queued with the map builds and the weapon-library build so at most one heavy build runs
+  at a time). Answers `202` while it builds, `200` `ready` when the library is already
+  present, `409` when there is no map key to open an index from, and `503` when the build
+  runner is unavailable. Refused with `403` from a non-loopback `Origin`, as the others are.
+- `GET /api/first-person/state` — the first-person library's build state, in the same JSON
+  shape as the mesh state (its `moduleKey` is `first-person`).
+
+A map, the weapon library and the first-person library build at most one at a time
+process-wide: the three jobs share the map build queue, so no two of them run together. A
+build writes each GLB, texture and index to a temporary file in its library folder and
+renames it into place on success, so a half-written file is never served.
 
 ## Web viewer (development)
 

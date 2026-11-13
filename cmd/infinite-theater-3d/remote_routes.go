@@ -148,6 +148,11 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
 	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)
 	mux.HandleFunc("GET /api/weapons/{file}", h.handleWeaponModel)
+	mux.HandleFunc("GET /api/first-person/index.json", h.handleFirstPersonIndex)
+	mux.HandleFunc("GET /api/first-person/bras.json", h.handleFirstPersonBras)
+	mux.HandleFunc("GET /api/first-person/state", h.handleFirstPersonState)
+	mux.HandleFunc("POST /api/first-person/build", h.handleFirstPersonBuild)
+	mux.HandleFunc("GET /api/first-person/{file}", h.handleFirstPersonFile)
 	h.mux = mux
 	return h
 }

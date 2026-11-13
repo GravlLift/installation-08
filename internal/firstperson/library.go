@@ -1,0 +1,261 @@
+package firstperson
+
+// library.go builds the first-person library on demand: one rig per weapon the game renders
+// in first person (the arms of the Spartan's default armor and the weapon on the one
+// skeleton of the weapon's own FP animation graph, every distinct animation baked on), the
+// shared texture depot, then index.json last. It is the library counterpart of the
+// single-weapon mapmesh.BuildFirstPerson: same himap chain (RigPremierePersonne,
+// EcritGLBPeauAnime), so a library rig is what build-firstperson would have written, plus a
+// content-based file name (two weapons on the same rig share a file) and the textures
+// externalized to the depot.
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sort"
+	"time"
+
+	"github.com/JGtm/halo-infinite-map-images/himap"
+)
+
+// Options names a library build's inputs.
+type Options struct {
+	// Map is the installed map whose module index the build opens (its search path covers
+	// the game's globals/common modules, where the weapons and the arms live).
+	Map string
+	// GameRoot is the deploy root; empty auto-detects it.
+	GameRoot string
+	// DataDir is the data directory; the library lands in <DataDir>/first-person.
+	DataDir string
+}
+
+// Result summarizes a library build.
+type Result struct {
+	Built   int
+	Skipped int
+	Bytes   int64
+	Seconds float64
+}
+
+// Build builds the whole first-person library into <DataDir>/first-person and writes
+// index.json last. A weapon whose rig cannot be written is recorded in the index (failures)
+// and marked with an empty <key>.none file, and the build continues; a build interrupted
+// mid-way resumes over the files already present. announce (nil accepted) receives a
+// one-line log at each weapon.
+func Build(ctx context.Context, opts Options, announce func(string)) (Result, error) {
+	if announce == nil {
+		announce = func(string) {}
+	}
+	start := time.Now()
+	gameRoot, err := himap.DeployRoot()
+	if err != nil {
+		return Result{}, fmt.Errorf("game install: %w", err)
+	}
+	if opts.GameRoot != "" {
+		gameRoot = opts.GameRoot
+	}
+	if opts.Map == "" {
+		// Any installed map's module index covers the game's weapons and globals; when no map
+		// is named, the first installed one is used (the same resolution the serve routes
+		// make from the store, applied to the game's own install).
+		mapKey, ok := firstInstalledMap(gameRoot)
+		if !ok {
+			return Result{}, errors.New("firstperson: no installed map found (pass --map <module-key>)")
+		}
+		slog.InfoContext(ctx, "no --map given; using the first installed map", "map", mapKey)
+		opts.Map = mapKey
+	}
+	module := filepath.Join(gameRoot, "pc", "levels", "multi", opts.Map, opts.Map+"-rtx-new.module")
+	if _, err := os.Stat(module); err != nil {
+		return Result{}, fmt.Errorf("map %q is not installed", opts.Map)
+	}
+	dir := filepath.Join(opts.DataDir, "first-person")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return Result{}, fmt.Errorf("first-person directory: %w", err)
+	}
+
+	a, err := himap.OuvreArsenal(gameRoot, module)
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() {
+		if err := a.Close(); err != nil {
+			slog.WarnContext(ctx, "closing arsenal", "err", err)
+		}
+	}()
+
+	dep := &depot{dir: dir, vues: map[string]bool{}}
+	var res Result
+	idx := Index{
+		Schema:    SchemaFirstPerson,
+		Generator: generatorLibrary,
+		Weapons:   []Arme{},
+		Rigs:      []Rig{},
+		Failures:  []Echec{},
+	}
+	parFichier := map[string]bool{}
+
+	armes, sans := a.ArmesPremierePersonne()
+	for _, s := range armes {
+		key := fmt.Sprintf("%08x", s.Arme)
+		announce("building first-person rig " + key)
+		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep)
+		if err != nil {
+			raison := "error"
+			if errors.Is(err, himap.ErrSansPremierePersonne) {
+				raison = "no_first_person"
+			}
+			slog.WarnContext(ctx, "first-person rig not written", "weapon", key, "reason", raison, "err", err)
+			idx.Failures = append(idx.Failures, Echec{Weapon: key, Reason: raison})
+			if merr := writeMarker(dir, key); merr != nil {
+				return res, fmt.Errorf("marker for %s: %w", key, merr)
+			}
+			res.Skipped++
+			continue
+		}
+		idx.Weapons = append(idx.Weapons, Arme{Weapon: key, File: fichier})
+		if !parFichier[fichier] {
+			parFichier[fichier] = true
+			idx.Rigs = append(idx.Rigs, rig)
+			res.Bytes += rig.Bytes
+		}
+		res.Built++
+	}
+	slog.InfoContext(ctx, "first-person roster scanned", "weapons", len(armes), "without_first_person_block", sans)
+
+	sort.Slice(idx.Rigs, func(i, j int) bool { return idx.Rigs[i].File < idx.Rigs[j].File })
+	idx.Textures = Textures{Files: dep.fichiers, Bytes: dep.octets, References: dep.references}
+	res.Bytes += dep.octets
+	if err := WriteBras(dir); err != nil {
+		return res, err
+	}
+	if err := writeIndex(dir, idx); err != nil {
+		return res, err
+	}
+	res.Seconds = time.Since(start).Seconds()
+	return res, nil
+}
+
+// buildRig writes one weapon's rig (sharing a file by content digest when already written
+// in this run, or already on disk from a previous run) and returns its file name and index
+// entry. The file name is the content digest of the written rig, so the same index is
+// rebuilt over the same files on a resume.
+func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, dir string, dep *depot) (string, Rig, error) {
+	r, err := a.RigPremierePersonne(ctx, s.Arme, nil)
+	if err != nil {
+		return "", Rig{}, err
+	}
+	extras := map[string]any{"model": "first-person-rig", "weapon": key, axesGLBKey: axesGLB}
+	var buf bytes.Buffer
+	if err := himap.EcritGLBPeauAnime(&buf, r.Modele, r.Clips, generatorLibrary, extras); err != nil {
+		return "", Rig{}, err
+	}
+	glb, _, err := himap.ExterniseImagesGLB(buf.Bytes(), dep.depose)
+	if err != nil {
+		return "", Rig{}, err
+	}
+	fichier := FichierRig(glb)
+	rig := rigIndex(r, fichier)
+	if _, err := writeFileIfAbsent(filepath.Join(dir, fichier), glb); err != nil {
+		return "", Rig{}, err
+	}
+	rig.Bytes = int64(len(glb))
+	return fichier, rig, nil
+}
+
+// rigIndex rend l'entrée d'index d'un rig: l'empreinte du squelette et des triangles, la
+// pose de repos (quand le graphe porte un clip idle), et un clip par animation distincte.
+func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
+	out := Rig{
+		File:        fichier,
+		Bones:       len(r.Modele.Noeuds),
+		Triangles:   r.Modele.Maillage.Structure.Triangles(),
+		Clips:       []Clip{},
+		Actions:     []Action{},
+		MissingActs: r.Absentes,
+	}
+	if out.MissingActs == nil {
+		out.MissingActs = []string{}
+	}
+	if pos, forward, ok := r.ArmeEnAttente(); ok {
+		out.IdleWeapon = &Pose{Position: axesGLTFFirstPerson(pos), Forward: axesGLTFFirstPerson(forward)}
+	}
+	premiere := map[string]himap.ActionRig{}
+	for _, ac := range r.Actions {
+		if _, vu := premiere[ac.Clip]; !vu {
+			premiere[ac.Clip] = ac
+		}
+	}
+	for _, c := range r.Clips {
+		an, ac := c.Clip.Animation, premiere[c.Nom]
+		cadence := himap.CadenceAnimation(an)
+		out.Clips = append(out.Clips, Clip{
+			Name:            c.Nom,
+			Action:          ac.Action,
+			Variant:         ac.Variante,
+			Type:            himap.NomTypeAnimation(an.Type),
+			Overlay:         an.Type == himap.AnimationSurcouche,
+			FrameCount:      c.Clip.Images,
+			FrameRate:       cadence,
+			DurationSeconds: float64(c.Clip.Images) / float64(cadence),
+		})
+	}
+	for _, ac := range r.Actions {
+		out.Actions = append(out.Actions, Action{Action: ac.Action, Variant: ac.Variante, Clip: ac.Clip})
+	}
+	return out
+}
+
+// axesGLTFFirstPerson: (x, y, z) Halo -> (x, z, -y) glTF.
+func axesGLTFFirstPerson(v [3]float64) [3]float32 {
+	return [3]float32{float32(v[0]), float32(v[2]), float32(-v[1])}
+}
+
+// writeIndex writes the library's index.json atomically, last.
+func writeIndex(dir string, idx Index) error {
+	raw, err := json.MarshalIndent(idx, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = writeFile(filepath.Join(dir, FichierIndex), func(w ioWriter) error {
+		_, werr := w.Write(raw)
+		return werr
+	})
+	return err
+}
+
+// writeMarker writes the empty <key>.none file for a weapon with no readable rig, so a
+// resumed build does not retry it (the weapons library's own convention).
+func writeMarker(dir, key string) error {
+	return os.WriteFile(filepath.Join(dir, key+".none"), nil, 0o644) //nolint:gosec // cache marker, set by the caller
+}
+
+// firstInstalledMap is the module key of the first installed map (in directory order) whose
+// `-rtx-new.module` is present, and whether one was found.
+func firstInstalledMap(gameRoot string) (string, bool) {
+	multi := filepath.Join(gameRoot, "pc", "levels", "multi")
+	entries, err := os.ReadDir(multi)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		module := filepath.Join(multi, e.Name(), e.Name()+"-rtx-new.module")
+		if _, err := os.Stat(module); err == nil {
+			return e.Name(), true
+		}
+	}
+	return "", false
+}
+
+// generatorLibrary is the generator tag written into every library rig GLB's extras and the
+// index, naming the chain that produced it.
+const generatorLibrary = "cmd/infinite-theater-3d build-firstperson-library (halo-infinite-map-images, first-person library)"

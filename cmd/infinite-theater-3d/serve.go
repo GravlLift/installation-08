@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -121,8 +122,12 @@ func runServe(args []string) error {
 // runner's queue with the map builds, so it never runs beside one.
 func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) (*meshjobs.Runner, error) {
 	ready := func(module string) bool {
-		if module == meshjobs.JobWeapons {
+		switch module {
+		case meshjobs.JobWeapons:
 			_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
+			return err == nil
+		case meshjobs.JobFirstPerson:
+			_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
 			return err == nil
 		}
 		p, err := root.MeshPath(module)
@@ -133,8 +138,11 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return err == nil
 	}
 	dest := func(module string) string {
-		if module == meshjobs.JobWeapons {
+		switch module {
+		case meshjobs.JobWeapons:
 			return filepath.Join(root.Dir(), "weapons")
+		case meshjobs.JobFirstPerson:
+			return filepath.Join(root.Dir(), "first-person")
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -143,8 +151,11 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
-		if module == meshjobs.JobWeapons {
+		switch module {
+		case meshjobs.JobWeapons:
 			return buildWeaponLibrary(ctx, root, game, weaponKeys)
+		case meshjobs.JobFirstPerson:
+			return buildFirstPersonLibrary(ctx, root, game)
 		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {
@@ -168,6 +179,28 @@ func buildWeaponLibrary(ctx context.Context, root *store.Root, gameRoot string, 
 		return meshjobs.BuildResult{}, err
 	}
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
+}
+
+// buildFirstPersonLibrary runs the first-person library build into the store's first-person
+// folder, opening the module index of the first map in the store (any installed map's index
+// covers the game's weapons and globals). It is the first-person job's body in the mesh
+// build runner.
+func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	result, err := firstperson.Build(ctx, firstperson.Options{Map: firstMapModule(root), GameRoot: gameRoot, DataDir: root.Dir()}, nil)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
+}
+
+// firstMapModule is the first map module key in the store, or "" when the store holds no
+// match: the module index any installed map opens covers the game's weapons and globals.
+func firstMapModule(root *store.Root) string {
+	ms, err := root.ListMatches()
+	if err != nil || len(ms) == 0 {
+		return ""
+	}
+	return ms[0].MapModule
 }
 
 // serverHandlers bundles the store, the optional static directory, the mesh build runner, and

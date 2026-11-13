@@ -19,6 +19,11 @@ import (
 // the runner's queue with the map builds, so it never runs beside one: the library is one job.
 const JobWeapons = "weapons"
 
+// JobFirstPerson is the module key the runner uses for the single first-person library build.
+// Like JobWeapons it shares the runner's queue with the map builds, so at most one heavy
+// build (map, weapons, or first person) runs at a time.
+const JobFirstPerson = "first-person"
+
 // State is one module's build state as seen through the runner.
 type State string
 
