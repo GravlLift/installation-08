@@ -140,18 +140,24 @@ type ArmorCustomizationDTO struct {
 
 // ArmorItemPaths are the inventory paths of the item files a manifest needs
 // from the equipped theme: the pieces, the attachments, the coating, the
-// visor. An unequipped slot is skipped.
+// visor. An unequipped slot is skipped; a path shared by two slots (the
+// shoulder pads) is listed once.
 func ArmorItemPaths(c *ArmorCustomizationDTO) []string {
+	seen := map[string]bool{}
 	var out []string
+	add := func(p string) {
+		if p != "" && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
 	for _, p := range []string{
 		c.HelmetPath, c.GlovesPath, c.KneePadsPath,
 		c.LeftShoulderPadPath, c.RightShoulderPadPath,
 		c.HelmetAttachmentPath, c.ChestAttachmentPath, c.WristAttachmentPath, c.HipAttachmentPath,
 		c.CoatingPath, c.VisorPath,
 	} {
-		if p != "" {
-			out = append(out, p)
-		}
+		add(p)
 	}
 	return out
 }
