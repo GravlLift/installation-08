@@ -27,6 +27,7 @@ import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShor
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
+import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
@@ -278,12 +279,12 @@ function PlaybackBar({
   )
 }
 
-function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentReady }) {
+function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
-  const [viewpoint, setViewpoint] = useState<string | null>(doc.roster[0]?.xuid ?? null)
+  const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
   const hostRef = useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -392,6 +393,13 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
           timeLimitMs={null}
         />
         <button
+          type="button"
+          onClick={onBack}
+          className="absolute left-3 top-3 z-10 rounded bg-card/90 px-2 py-1 text-xs text-foreground shadow hover:bg-muted"
+        >
+          ← Matches
+        </button>
+        <button
           ref={settingsButtonRef}
           type="button"
           onClick={() => setSettingsOpen((v) => !v)}
@@ -481,5 +489,5 @@ export function MatchViewScreen({
     // this is a defensive fallback rather than a reachable state.
     return null
   }
-  return <ReplayViewer matchId={matchId} doc={doc} />
+  return <ReplayViewer matchId={matchId} doc={doc} onBack={onBack} />
 }
