@@ -35,9 +35,21 @@ func apiFor(ctx context.Context, auth *haloauth.Client) (*haloapi.Client, haloau
 	}
 	return haloapi.New(nil, haloapi.DefaultEndpoints, t.Spartan, t.Clearance), t, nil
 }
+
+// publicClientID is this project's own Microsoft app registration (a public client: no
+// secret exists). IT3D_CLIENT_ID or --client-id replaces it.
+const publicClientID = "d3efe43c-09c8-4f73-a92e-e6883c46acd5"
+
+func defaultClientID() string {
+	if id := os.Getenv("IT3D_CLIENT_ID"); id != "" {
+		return id
+	}
+	return publicClientID
+}
+
 func runLogin(args []string) error {
 	fs := flag.NewFlagSet("login", flag.ContinueOnError)
-	id := fs.String("client-id", os.Getenv("IT3D_CLIENT_ID"), "Microsoft public client ID (required)")
+	id := fs.String("client-id", defaultClientID(), "Microsoft public client ID")
 	data := fs.String("data", "", "data directory")
 	if err := fs.Parse(args); err != nil {
 		return err

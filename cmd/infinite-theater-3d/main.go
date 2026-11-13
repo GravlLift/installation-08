@@ -8,7 +8,7 @@ import (
 
 const usage = `usage: infinite-theater-3d <command> [flags]
 
-  login --client-id <id> [--data <dir>]
+  login [--client-id <id>] [--data <dir>]
   logout [--data <dir>]
   matches [--count N] [--data <dir>]
   fetch --match <id> [--data <dir>]

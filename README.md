@@ -16,13 +16,13 @@ The CLI also builds a map variant's object layer (`build-variant`), a weapon's s
 
 ## Sign in and fetch a match
 
-On Windows, use a Microsoft public-client application registration that permits device-code
-flow and the Xbox Live scopes. Supply its client ID explicitly, either with `--client-id` or
-`IT3D_CLIENT_ID`. There is no built-in ID. The device flow opens a Microsoft verification
-page in your own browser and never asks this program for your password.
+Sign-in uses the device-code flow: the program prints a Microsoft address and a short code,
+you enter the code in your own browser, and the program never sees your password. It uses
+this project's own public Microsoft app registration; `--client-id` or `IT3D_CLIENT_ID`
+replaces it. Tokens are stored encrypted for the current Windows user in the data directory.
 
 ```powershell
-.\infinite-theater-3d.exe login --client-id <your-public-client-id>
+.\infinite-theater-3d.exe login
 .\infinite-theater-3d.exe matches --count 10
 .\infinite-theater-3d.exe fetch --match <match-id>
 .\infinite-theater-3d.exe serve
