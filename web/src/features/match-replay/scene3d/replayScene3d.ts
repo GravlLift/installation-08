@@ -141,6 +141,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       get tracks() { return self.tracks }, get povXuid() { return self.povXuid },
       get mode() { return self.mode }, get action() { return self.action },
       get originAboveFloor() { return self.originAboveFloor }, camera: this.camera,
+      pickables: () => self.groundSurfaces(), raycaster: this.raycaster,
     })
     this.exportScene = new ReplayExportScene3d({
       renderer: this.renderer, camera: this.camera, orbit: this.orbit, labels: this.labels,

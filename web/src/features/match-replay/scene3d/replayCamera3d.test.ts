@@ -13,7 +13,7 @@ describe('ReplayCamera3d', () => {
       lastLifeBefore: (_xuid: string, frame: number) => frame > 2 ? point : null,
       firstLifeAfter: () => point,
     } as unknown as Tracks3d
-    const placement = new ReplayCamera3d({ tracks, povXuid: 'A', mode: 'fp', action: null, originAboveFloor: 0, camera: new THREE.PerspectiveCamera() })
+    const placement = new ReplayCamera3d({ tracks, povXuid: 'A', mode: 'fp', action: null, originAboveFloor: 0, camera: new THREE.PerspectiveCamera(), pickables: () => [], raycaster: new THREE.Raycaster() })
     expect(placement.povState(1)).toEqual({ state: point, status: 'unspawned' })
     expect(placement.povState(2)).toEqual({ state: point, status: 'alive' })
     expect(placement.povState(3)).toEqual({ state: point, status: 'dead' })
