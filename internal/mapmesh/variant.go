@@ -8,10 +8,8 @@ package mapmesh
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
@@ -31,13 +29,13 @@ type VariantTarget struct {
 	// Styles are the variant's style layers (mapvar.Parse), resolved against ForgeMaterials for
 	// material tints.
 	Styles map[int32][]mapvar.StyleLayer
-	// ForgeMaterials is a reference catalog of Forge material tints (JSON; not shipped by this
-	// repo, see NOTICE.md); empty skips tinting (objects come out in their default material
-	// color).
-	ForgeMaterials string
-	// ForgeObjects is a reference catalog of Forge object visibility (JSON; not shipped by this
-	// repo); empty keeps every placed object visible, including Forge's own editor-only markers.
-	ForgeObjects string
+	// ForgeMaterials is a reference catalog of Forge material tints (JSON), resolved by the
+	// caller (embedded default or a --forge-materials override); nil skips tinting (objects come
+	// out in their default material color).
+	ForgeMaterials []byte
+	// ForgeObjects is a reference catalog of Forge object visibility (JSON), resolved by the
+	// caller; nil keeps every placed object visible, including Forge's own editor-only markers.
+	ForgeObjects []byte
 }
 
 // BuildVariant writes the variant's object-layer GLB to `path`, built in-process from the local
@@ -74,28 +72,20 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	return s, nil
 }
 
-// forgeTints reads the Forge material tints catalog at `path` (see VariantTarget.ForgeMaterials);
-// an empty path skips tinting (nil, nil).
-func forgeTints(path string, styles map[int32][]mapvar.StyleLayer) (map[int32]himap.TeinteForge, error) {
-	if path == "" {
+// forgeTints resolves the Forge material tints catalog (see VariantTarget.ForgeMaterials); nil
+// data skips tinting (nil, nil).
+func forgeTints(data []byte, styles map[int32][]mapvar.StyleLayer) (map[int32]himap.TeinteForge, error) {
+	if data == nil {
 		return nil, nil
-	}
-	data, err := os.ReadFile(path) //nolint:gosec // reference catalog path, set by the caller
-	if err != nil {
-		return nil, fmt.Errorf("forge materials: %w", err)
 	}
 	return himap.LitMateriauxForge(data, styles)
 }
 
-// forgeInvisible reads the Forge object visibility catalog at `path` (see
-// VariantTarget.ForgeObjects); an empty path keeps every object visible (nil, nil).
-func forgeInvisible(path string) (map[himap.CleObjetVariante]bool, error) {
-	if path == "" {
+// forgeInvisible resolves the Forge object visibility catalog (see VariantTarget.ForgeObjects);
+// nil data keeps every object visible (nil, nil).
+func forgeInvisible(data []byte) (map[himap.CleObjetVariante]bool, error) {
+	if data == nil {
 		return nil, nil
-	}
-	data, err := os.ReadFile(path) //nolint:gosec // reference catalog path, set by the caller
-	if err != nil {
-		return nil, fmt.Errorf("forge objects: %w", err)
 	}
 	return ForgeHiddenObjects(data)
 }

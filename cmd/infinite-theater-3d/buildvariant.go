@@ -18,8 +18,8 @@ func runBuildVariant(args []string) error {
 	mapKey := fs.String("map", "", "variant's map key: an installed module's folder name, or a Forge map's map_id")
 	mvar := fs.String("mvar", "", "path to the variant's .mvar file")
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (LEVELUP_HALO_DEPLOY, Steam, Xbox)")
-	forgeMaterials := fs.String("forge-materials", "", "reference catalog of Forge material tints (JSON); empty skips tinting")
-	forgeObjects := fs.String("forge-objects", "", "reference catalog of Forge object visibility (JSON); empty keeps every object visible")
+	forgeMaterials := fs.String("forge-materials", "", "reference catalog of Forge material tints (JSON); empty uses the catalog embedded in this binary")
+	forgeObjects := fs.String("forge-objects", "", "reference catalog of Forge object visibility (JSON); empty uses the catalog embedded in this binary")
 	out := fs.String("out", "", "GLB file to write")
 	if err := fs.Parse(args); err != nil {
 		return err

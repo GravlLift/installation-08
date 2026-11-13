@@ -75,6 +75,28 @@ func GeometryOverride(module string) (string, error) {
 	return settings.Cartes[module].ModuleGeometrie, nil
 }
 
+// DefaultForgeMaterials returns the embedded Forge material tints catalog (JSON), copied
+// unmodified from LevelUp's data/titles/halo_infinite/reference/forge_materials.json (see
+// NOTICE.md). Used by build-variant when --forge-materials is not given.
+func DefaultForgeMaterials() ([]byte, error) {
+	blob, err := data.ReadFile("data/forge_materials.json")
+	if err != nil {
+		return nil, fmt.Errorf("mapref: forge materials: %w", err)
+	}
+	return blob, nil
+}
+
+// DefaultForgeObjects returns the embedded Forge object visibility catalog (JSON), copied
+// unmodified from LevelUp's data/titles/halo_infinite/reference/forge_objects.json (see
+// NOTICE.md). Used by build-variant when --forge-objects is not given.
+func DefaultForgeObjects() ([]byte, error) {
+	blob, err := data.ReadFile("data/forge_objects.json")
+	if err != nil {
+		return nil, fmt.Errorf("mapref: forge objects: %w", err)
+	}
+	return blob, nil
+}
+
 // BackgroundKeys lists every embedded background sidecar's module key, for callers that need to
 // walk the whole catalog (tests, mainly).
 func BackgroundKeys() ([]string, error) {

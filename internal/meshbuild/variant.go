@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
+	"github.com/llampwall/infinite-theater-3d/internal/mapref"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -44,8 +45,8 @@ type BuildVariantOptions struct {
 	// GameRoot is the game's deploy root; empty resolves it the way build-mesh does
 	// (himap.DeployRoot: LEVELUP_HALO_DEPLOY, else auto-detected Steam or Xbox).
 	GameRoot string
-	// ForgeMaterials and ForgeObjects are optional reference catalogs (see
-	// mapmesh.VariantTarget).
+	// ForgeMaterials and ForgeObjects are optional reference catalog file paths (see
+	// mapmesh.VariantTarget); empty uses the catalogs embedded in this binary (mapref).
 	ForgeMaterials, ForgeObjects string
 }
 
@@ -72,11 +73,45 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 	if err != nil {
 		return mapmesh.Summary{}, err
 	}
+	materials, err := forgeMaterialsCatalog(opts.ForgeMaterials)
+	if err != nil {
+		return mapmesh.Summary{}, err
+	}
+	objects, err := forgeObjectsCatalog(opts.ForgeObjects)
+	if err != nil {
+		return mapmesh.Summary{}, err
+	}
 	target := mapmesh.VariantTarget{
 		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles,
-		ForgeMaterials: opts.ForgeMaterials, ForgeObjects: opts.ForgeObjects,
+		ForgeMaterials: materials, ForgeObjects: objects,
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)
+}
+
+// forgeMaterialsCatalog resolves the Forge material tints catalog: `path` if given, else the
+// catalog embedded in this binary (mapref.DefaultForgeMaterials).
+func forgeMaterialsCatalog(path string) ([]byte, error) {
+	if path != "" {
+		data, err := os.ReadFile(path) //nolint:gosec // reference catalog path, set by the caller
+		if err != nil {
+			return nil, fmt.Errorf("forge materials: %w", err)
+		}
+		return data, nil
+	}
+	return mapref.DefaultForgeMaterials()
+}
+
+// forgeObjectsCatalog resolves the Forge object visibility catalog: `path` if given, else the
+// catalog embedded in this binary (mapref.DefaultForgeObjects).
+func forgeObjectsCatalog(path string) ([]byte, error) {
+	if path != "" {
+		data, err := os.ReadFile(path) //nolint:gosec // reference catalog path, set by the caller
+		if err != nil {
+			return nil, fmt.Errorf("forge objects: %w", err)
+		}
+		return data, nil
+	}
+	return mapref.DefaultForgeObjects()
 }
 
 // resolveVariantModule resolves the installed `.module` that carries `mapKey`'s rendered

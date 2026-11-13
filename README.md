@@ -37,8 +37,8 @@ The map's objective-anchor positions, name list and background calibration come 
 - `--map` is the variant's map key: an installed map's module folder name (e.g. `sgh_blueprint` for Recharge), or a Forge map's `map_id` (resolved against the game's own Forge canvas modules, falling back to the variant's own `level_id` for a canvas the catalog does not yet name).
 - `--mvar` is the path to the variant's `.mvar` file; this tool never downloads one itself.
 - `--game` is as in `build-mesh`.
-- `--forge-materials` is an optional reference catalog of Forge material tints (JSON). LevelUp ships this at `data/titles/halo_infinite/reference/forge_materials.json` (~160 KB); without it, Forge objects come out in their default material color.
-- `--forge-objects` is an optional reference catalog of Forge object visibility (JSON). LevelUp ships this at `data/titles/halo_infinite/reference/forge_objects.json` (~3.6 MB); without it, Forge's own editor-only markers (blockers, gameplay volumes, spawn/nav-mesh markers, generic lights, FX) are placed in the layer along with everything else.
+- `--forge-materials` is an optional override for the Forge material tints catalog (JSON). Omitted, this tool uses the copy embedded in the binary (`internal/mapref`, from LevelUp's `data/titles/halo_infinite/reference/forge_materials.json`, ~160 KB); see [NOTICE.md](NOTICE.md).
+- `--forge-objects` is an optional override for the Forge object visibility catalog (JSON). Omitted, this tool uses the copy embedded in the binary (`internal/mapref`, from LevelUp's `data/titles/halo_infinite/reference/forge_objects.json`, ~3.8 MB); without any catalog (impossible now that one is embedded, but true of an empty override file), Forge's own editor-only markers (blockers, gameplay volumes, spawn/nav-mesh markers, generic lights, FX) would be placed in the layer along with everything else.
 - `--out` is the GLB file to write.
 
 ## build-weapon
