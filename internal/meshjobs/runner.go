@@ -24,6 +24,11 @@ const JobWeapons = "weapons"
 // build (map, weapons, or first person) runs at a time.
 const JobFirstPerson = "first-person"
 
+// JobWeaponIcons is the module key the runner uses for the single weapon-icon build (the
+// PNG set and its index.json). Like the other library jobs it shares the runner's queue
+// with the map builds, so at most one heavy build runs at a time.
+const JobWeaponIcons = "weapon-icons"
+
 // State is one module's build state as seen through the runner.
 type State string
 

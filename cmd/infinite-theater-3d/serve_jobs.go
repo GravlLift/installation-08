@@ -14,6 +14,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
@@ -35,6 +36,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		case meshjobs.JobFirstPerson:
 			_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
 			return err == nil
+		case meshjobs.JobWeaponIcons:
+			return weaponicons.SetReady(root.Dir())
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -52,6 +55,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return filepath.Join(root.Dir(), "weapons")
 		case meshjobs.JobFirstPerson:
 			return filepath.Join(root.Dir(), "first-person")
+		case meshjobs.JobWeaponIcons:
+			return weaponicons.OutDir(root.Dir())
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -72,6 +77,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildWeaponLibrary(ctx, root, game, weaponKeys)
 		case meshjobs.JobFirstPerson:
 			return buildFirstPersonLibrary(ctx, root, game)
+		case meshjobs.JobWeaponIcons:
+			return buildWeaponIcons(ctx, root, game)
 		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {
@@ -107,6 +114,17 @@ func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot str
 		return meshjobs.BuildResult{}, err
 	}
 	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
+}
+
+// buildWeaponIcons runs the weapon-icon build into the store's data directory. It is the
+// weapon-icons job's body in the mesh build runner.
+func buildWeaponIcons(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	entries, n, err := weaponicons.Build(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	slog.InfoContext(ctx, "weapon icons built", "entries", entries, "bytes", n)
+	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
 }
 
 // firstMapModule is the first map module key in the store, or "" when the store holds no
