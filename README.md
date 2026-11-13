@@ -12,6 +12,8 @@ go build ./cmd/infinite-theater-3d
 .\infinite-theater-3d.exe build-mesh --map sgh_blueprint --out sgh_blueprint.glb
 ```
 
+The CLI also builds a map variant's object layer (`build-variant`), a weapon's static model (`build-weapon`), the Spartan body with its game animations (`build-spartan`), a single Spartan armor piece (`build-piece`), and a weapon's first-person rig with its arms and animations (`build-firstperson`). See their sections below.
+
 ## build-mesh
 
 `build-mesh` writes a native map's world mesh (geometry, sun, baked light probes, placed lights) to a GLB file, built in-process from the local game installation:
@@ -43,7 +45,7 @@ The map's objective-anchor positions, name list and background calibration come 
 
 ## build-weapon
 
-`build-weapon` writes one weapon's static model (no animation; animation lives only on the Spartan rig, which this tool does not build) to a GLB file, read from the index of any installed map (weapons live in the game's shared `globals`/`common` modules):
+`build-weapon` writes one weapon's static third-person model (no animation; a weapon only animates on the Spartan body's reload/fire clips, not ported — see build-spartan) to a GLB file, read from the index of any installed map (weapons live in the game's shared `globals`/`common` modules):
 
 ```powershell
 .\infinite-theater-3d.exe build-weapon --weapon <hex-id> --map <module-key> [--game <deploy-root>] --out <file.glb>
@@ -51,6 +53,46 @@ The map's objective-anchor positions, name list and background calibration come 
 
 - `--weapon` is the weapon's `weap` tag GlobalID: 8 hex digits, optional `0x` prefix (e.g. `2b1824d5` for the BR75 Battle Rifle, `48c19d2d` for the MA40 Assault Rifle).
 - `--map` is any installed map's module key, as in `build-mesh`; its index covers the game's weapons.
+- `--game` and `--out` are as in `build-mesh`.
+
+## build-spartan
+
+`build-spartan` writes the Spartan body (default armor) as an animated skinned GLB: squelette, geometry and influences, with the posture/class-agnostic body animations baked on (idle, locomotion in eight directions, crouch, slide, airborne, landing, climb, thruster dodge, melee, death — `mapmesh.BodyAnimations`, 73 animations as of this build):
+
+```powershell
+.\infinite-theater-3d.exe build-spartan --map <module-key> [--game <deploy-root>] --out <file.glb>
+```
+
+- `--map` is any installed map's module key; its index covers the game's globals, where the Spartan render_model and its animation graphs live.
+- `--game` and `--out` are as in `build-mesh`.
+
+Not baked on: each weapon's own reload/fire/vent clips, which LevelUp selects by the weapon held (its `meshproto.ClipsDesArmes`/`ClipsDesClasses` catalogs) — that is viewer-side animation-selection wiring this repo does not have yet.
+
+## build-piece
+
+`build-piece` writes one Spartan armor piece (a region's permutation) as a skinned GLB, on the Spartan's full skeleton so a viewer can pose every piece on the one body rig:
+
+```powershell
+.\infinite-theater-3d.exe build-piece --region <hex-id> --permutation <hex-id> --map <module-key> [--game <deploy-root>] --out <file.glb>
+```
+
+- `--region` and `--permutation` are the piece's key (StringIDs): 8 hex digits, optional `0x` prefix.
+- `--map` is any installed map's module key; its index covers the game's globals.
+- `--game` and `--out` are as in `build-mesh`.
+
+Not ported: LevelUp builds every piece of the Spartan (and the arms) at once into a library folder with a shared index and texture depot, and paints each material with a coating style read from the community Ekur reference (a Blender plugin's JSON export, external to this repo). This tool builds one piece at a time with its textures embedded in its own GLB, in its default (unpainted) color, matching LevelUp's own documented behavior when no Ekur reference is given.
+
+## build-firstperson
+
+`build-firstperson` writes one weapon's first-person rig (arms, weapon and every distinct animation its graph carries) as an animated skinned GLB:
+
+```powershell
+.\infinite-theater-3d.exe build-firstperson --weapon <hex-id> --map <module-key> [--game <deploy-root>] [--no-arms] --out <file.glb>
+```
+
+- `--weapon` is the weapon's `weap` tag GlobalID, as in `build-weapon`; only weapons with a first-person block build (most arena weapons; swords and the gravity hammer have no FP rig block to read).
+- `--map` is any installed map's module key; its index covers the game's weapons and globals (arms live there, like the Spartan body).
+- `--no-arms` keeps the skeleton and clips without the Spartan's arm geometry, for a viewer that poses its own arms.
 - `--game` and `--out` are as in `build-mesh`.
 
 Based on JGtm's [LevelUp](https://github.com/JGtm/LevelUp) and published Halo modules. See [NOTICE.md](NOTICE.md) and [third_party/README.md](third_party/README.md). Licensed under AGPL-3.0.
