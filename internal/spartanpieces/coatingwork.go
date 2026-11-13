@@ -132,7 +132,7 @@ func (a *CoatingWork) Finish(ctx context.Context, arsenal *himap.Arsenal, folder
 		return nil, err
 	}
 	a.index.Bytes += n
-	for _, key := range sortedKeys(a.lists) {
+	for _, key := range sortedKeys(perStyle) {
 		c := Coating{Style: key, Lists: perStyle[key], Styles: map[string]CoatingStyle{}}
 		for _, ref := range c.Lists {
 			c.Styles[ref] = d.styles[ref]
