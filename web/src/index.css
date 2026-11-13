@@ -26,9 +26,10 @@
   --team-enemy: #ef4444;
 
   /* 3D HUD (Replay3DView / ReplayAth3d / ReplayCadence3d): readable over any map. */
-  --replay-hud-on-dark: #f3f4f6;
-  --replay-hud-shadow: rgba(0, 0, 0, 0.55);
-  --replay-hud-weapon: #f3f4f6;
+  /* LevelUp's HUD values: the game's light-blue HUD ink. */
+  --replay-hud-on-dark: #eaf2f5;
+  --replay-hud-shadow: rgba(0, 0, 0, 0.8);
+  --replay-hud-weapon: #a9dcff;
 
   /* Shot effect tints (fxInk.ts): one per discharge nature the server publishes in
      weaponLabels[].tint. Diegetic colors (what the game shows), saturated because effects draw
