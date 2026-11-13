@@ -5,6 +5,7 @@ package haloapi
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 // WeaponThemeDTO is a weapon core and its equipped theme. The paths are
@@ -95,4 +96,49 @@ func DecodeWeaponCoating(body []byte) (*WeaponCoatingDTO, error) {
 		return nil, err
 	}
 	return &WeaponCoatingDTO{ID: f.CommonData.ID, Type: f.CommonData.Type, StyleID: f.StyleID}, nil
+}
+
+// WeaponThemeDef is the part of a weapon theme file that names its weapon: the
+// weapon's display name (the CommonData title) and the core that owns it
+// (ParentPaths, a single WeaponCore entry).
+type WeaponThemeDef struct {
+	// WeaponName is the CommonData.Title.value of the theme file: the weapon's
+	// display name ("BR75 Battle Rifle"), "" when the file carries no title.
+	WeaponName string
+	// CorePath is the theme's ParentPaths[0], a WeaponCore; "" when the file
+	// names no parent.
+	CorePath string
+}
+
+// ErrNoWeaponTheme: the file is not a weapon theme (no CommonData.Title).
+var ErrNoWeaponTheme = errors.New("haloapi: not a weapon theme (no title)")
+
+type weaponThemeFile struct {
+	CommonData struct {
+		ID    string `json:"Id"`
+		Type  string `json:"Type"`
+		Title *struct {
+			Value string `json:"value"`
+		} `json:"Title"`
+	} `json:"CommonData"`
+	ParentPaths []struct {
+		Path string `json:"Path"`
+		Type string `json:"Type"`
+	} `json:"ParentPaths"`
+}
+
+// DecodeWeaponTheme reads a weapon theme file.
+func DecodeWeaponTheme(body []byte) (*WeaponThemeDef, error) {
+	var f weaponThemeFile
+	if err := json.Unmarshal(body, &f); err != nil {
+		return nil, err
+	}
+	if f.CommonData.Title == nil || f.CommonData.Title.Value == "" {
+		return nil, ErrNoWeaponTheme
+	}
+	out := &WeaponThemeDef{WeaponName: f.CommonData.Title.Value}
+	if len(f.ParentPaths) > 0 {
+		out.CorePath = f.ParentPaths[0].Path
+	}
+	return out, nil
 }

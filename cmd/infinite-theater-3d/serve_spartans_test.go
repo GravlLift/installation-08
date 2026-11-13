@@ -38,6 +38,10 @@ func spartansTestStore(t *testing.T) *store.Root {
 		filepath.Join("gamecms", "infinite", "customization", "armor", "items", "helmet.json"):        `{"CommonData":{"Id":"helmet","Type":"ArmorHelmet"},"RegionData":[{"RegionId":{"m_identifier":1},"PermutationId":{"m_identifier":9}}]}`,
 		filepath.Join("gamecms", "infinite", "customization", "armor", "coatings", "steel.json"):      `{"CommonData":{"Id":"steel","Type":"ArmorCoating"},"StyleId":{"m_identifier":42}}`,
 		filepath.Join("gamecms", "inventory", "weapon", "coatings", "wc-ar.json"):                     `{"CommonData":{"Id":"wc","Type":"WeaponCoating"},"StyleId":{"m_identifier":55}}`,
+		// The equipped themes name their weapons (the model key resolves from the theme's
+		// weapon name, not the core file name).
+		filepath.Join("gamecms", "inventory", "weapon", "themes", "t-ar.json"): `{"CommonData":{"Id":"t-ar","Type":"WeaponTheme","Title":{"status":"Ready","value":"MA40 Assault Rifle"}},"ParentPaths":[{"Path":"Cores/Weapon/209-200-olympus-aa30213b.json","Type":"WeaponCore"}]}`,
+		filepath.Join("gamecms", "inventory", "weapon", "themes", "t-br.json"): `{"CommonData":{"Id":"t-br","Type":"WeaponTheme","Title":{"status":"Ready","value":"BR75 Battle Rifle"}},"ParentPaths":[{"Path":"Cores/Weapon/209-202-olympus-4a7b6c5d.json","Type":"WeaponCore"}]}`,
 	}
 	for p, body := range files {
 		if err = root.WriteFile(filepath.Join(root.Dir(), filepath.FromSlash(p)), []byte(body)); err != nil {
@@ -76,16 +80,19 @@ func TestMatchSpartansServed(t *testing.T) {
 	if m.Coating == nil || m.Coating.StyleID == nil || *m.Coating.StyleID != 42 || m.Coating.StyleKey != "0000002a" {
 		t.Fatalf("coating: %+v", m.Coating)
 	}
-	// The equipped weapon cores: one reads its coating style from the cache, the
+	// The equipped weapon cores: the model key is the weapon the equipped theme names
+	// (not the core file's shared suffix); one reads its coating style from the cache, the
 	// other's coating file is absent (model key kept, no style: neutral paint).
 	if len(human.WeaponCoatings) != 2 {
 		t.Fatalf("weapon coatings: %+v", human.WeaponCoatings)
 	}
 	ar, br := human.WeaponCoatings[0], human.WeaponCoatings[1]
-	if ar.ModelKey != "aa30213b" || ar.StyleKey != "00000037" {
+	// MA40 Assault Rifle -> hinf_ma40_ar -> family 48c19d2d.
+	if ar.ModelKey != "48c19d2d" || ar.StyleKey != "00000037" {
 		t.Fatalf("ar weapon coating: %+v", ar)
 	}
-	if br.ModelKey != "4a7b6c5d" || br.StyleKey != "" {
+	// BR75 Battle Rifle -> hinf_br75 -> family 2b1824d5; its coating file is absent.
+	if br.ModelKey != "2b1824d5" || br.StyleKey != "" {
 		t.Fatalf("br weapon coating: %+v", br)
 	}
 	if bot.Status != armor.StatusDefault || bot.Reason != armor.ReasonBot {

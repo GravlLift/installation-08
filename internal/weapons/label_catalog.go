@@ -38,6 +38,10 @@ type LabelCatalog struct {
 	// FamilyToKey maps a weapon family (high 32 bits of the film's weapon id, hex) to the
 	// title's canonical weapon_key.
 	FamilyToKey map[string]string
+	// namesByWeapon maps a display name (case-insensitive, trimmed) to the title's
+	// canonical weapon_key: the reverse of the names table, for a weapon named by its
+	// label rather than its family.
+	namesByWeapon map[string]string
 	// ShotImpacts maps a weapon_key to whether its projectile explodes on impact.
 	ShotImpacts map[string]bool
 	// ShotTints maps a weapon_key to the nature of its discharge.
@@ -68,7 +72,93 @@ func LoadLabelCatalog() (LabelCatalog, error) {
 	return LabelCatalog{
 		LabelCatalog: buildFamilyLabels(families, names, shotEffects),
 		FamilyToKey:  families, ShotImpacts: shotImpacts, ShotTints: shotTints, Roles: roles,
+		namesByWeapon: weaponNameIndex(names),
 	}, nil
+}
+
+// weaponNameIndex builds the display-name to weapon_key index from the names table.
+func weaponNameIndex(names map[string]map[string]string) map[string]string {
+	out := map[string]string{}
+	for key, row := range names {
+		if en, ok := row["en"]; ok && en != "" {
+			out[strings.ToLower(strings.TrimSpace(en))] = key
+		}
+	}
+	return out
+}
+
+// gunTypeWords are the common weapon-type words the game's display name carries that the
+// name table abbreviates or omits ("MA40 Assault Rifle" vs "MA40 AR"): removed from the
+// game name before the table match, so the match is on the weapon's identity, not its type.
+var gunTypeWords = map[string]bool{
+	"rifle": true, "assault": true, "battle": true, "pistol": true, "sidekick": true,
+	"commando": true, "sniper": true, "bulldog": true, "hydra": true, "spnkr": true,
+	"avenger": true, "carbine": true, "shock": true, "beam": true, "sword": true,
+	"hammer": true, "skewer": true, "cindershot": true, "heatwave": true, "ravager": true,
+	"disruptor": true, "mangler": true, "mutilator": true, "stalker": true, "vestige": true,
+	"plasma": true, "needler": true, "sentinel": true, "energy": true, "gravity": true,
+	"unsc": true, "fusion": true, "coil": true, "frag": true, "grenade": true, "dynamo": true,
+}
+
+// ModelKeyForWeaponName resolves a weapon's display name (as a GameCMS theme file
+// carries it, e.g. "BR75 Battle Rifle") to its model key (the family, 8 lowercase hex
+// digits). It matches the name table case-insensitively: first by the whole name, then by
+// the name stripped of common weapon-type words ("MA40 Assault Rifle" -> "ma40", which
+// prefix-matches "ma40 ar"). False when the name is not in the table.
+func (c LabelCatalog) ModelKeyForWeaponName(name string) (string, bool) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return "", false
+	}
+	if key, ok := c.namesByWeapon[name]; ok {
+		return c.familyOfKey(key)
+	}
+	// Stripped name: the game name without its weapon-type words, the identity part
+	// ("MA40 Assault Rifle" -> "ma40", "BR75 Battle Rifle" -> "br75").
+	stripped := stripGunTypeWords(name)
+	if stripped == "" {
+		return "", false
+	}
+	// The longest table label that matches the stripped name wins: the label is a prefix
+	// of the stripped name ("ma40 ar" in "ma40 ar"), or the stripped name is a prefix of
+	// the label ("ma40" in "ma40 ar").
+	var bestKey string
+	bestLen := -1
+	for label, k := range c.namesByWeapon {
+		m := strings.HasPrefix(stripped, label) || strings.HasPrefix(label, stripped)
+		if m && len(stripped) > bestLen {
+			bestKey, bestLen = k, len(stripped)
+		}
+	}
+	if bestLen < 0 {
+		return "", false
+	}
+	return c.familyOfKey(bestKey)
+}
+
+// stripGunTypeWords removes the common weapon-type words from name and returns the
+// remaining words joined by a single space ("" when nothing remains).
+func stripGunTypeWords(name string) string {
+	var out []string
+	for _, w := range strings.Fields(name) {
+		if !gunTypeWords[w] {
+			out = append(out, w)
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+// familyOfKey maps a weapon_key to a model key (a family, 8 lowercase hex digits). A key
+// with several families (the Bandit has two) resolves to its smallest one, so the answer
+// is stable whatever the map order is.
+func (c LabelCatalog) familyOfKey(key string) (string, bool) {
+	best := ""
+	for family, k := range c.FamilyToKey {
+		if k == key && (best == "" || family < best) {
+			best = family
+		}
+	}
+	return best, best != ""
 }
 
 // buildFamilyLabels folds the per-key tables into the decoder's per-family label table:

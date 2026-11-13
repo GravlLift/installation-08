@@ -34,10 +34,11 @@ GLBs and, when an Ekur reference is found, writes beside them:
   `swatch-[0-9a-f]{8}.png`) with the spartanpieces content types.
 - `GET /api/matches/{id}/spartans` (`serve_spartans.go`) extends each player with
   `weapon_coatings`: one entry per equipped weapon core, in API order, each with
-  `core_id`, `model_key` (`weapons.CoreKey` of the core's inventory path) and `style_key` (the
-  coating GameCMS file's `StyleID`, as a hex identifier). A core whose coating file was not read, or
-  that names no style, keeps its model key with an empty style; a core with no weapon model key is
-  skipped; no equipped core gives nil.
+  `core_id`, `model_key` (the weapon library key of the weapon the core's equipped theme names,
+  resolved through the weapon name tables) and `style_key` (the coating GameCMS file's `StyleID`,
+  as a hex identifier). A core whose equipped theme is not in the cache, or whose weapon name the
+  tables do not know, is left out (logged once); a core whose coating file was not read, or that
+  names no style, keeps its model key with an empty style; no equipped core gives nil.
 
 ## Web
 
@@ -62,8 +63,8 @@ GLBs and, when an Ekur reference is found, writes beside them:
 
 ## What is missing
 
-- Weapon cores whose inventory path names no model key in the weapons library index are skipped;
-  their weapons stay neutral.
+- Weapon cores whose equipped theme is not in the GameCMS cache, or whose weapon name the tables
+  do not know, are left out of `weapon_coatings` (logged once); their weapons stay neutral.
 - An empty `style_key` (coating file absent from the gamecms cache, unreadable, or naming no style)
   paints the model neutral; the match data itself is unchanged.
 - A weapons library built without an Ekur reference has no `coatings.json`: every weapon material
