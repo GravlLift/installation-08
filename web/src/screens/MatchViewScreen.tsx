@@ -378,7 +378,7 @@ function ReplayViewer({ matchId, doc }: { matchId: string; doc: ReplayDocumentRe
         <Replay3DView
           meshPath={meshUrl(matchId)}
           variantPath={null}
-          weaponsPath={null}
+          weaponsPath="/api/weapons"
           armor={null}
           doc={doc}
           frameRef={frameRef}
