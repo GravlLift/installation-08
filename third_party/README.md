@@ -1,6 +1,6 @@
 # Upstream modules
 
-The source files below are unmodified as of 2026-11-13. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.
+The source files below are as of 2026-11-13, with the documented changes noted per module. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.
 
 | Directory | Upstream | Version | Zip hash | License |
 | --- | --- | --- | --- | --- |
@@ -9,6 +9,27 @@ The source files below are unmodified as of 2026-11-13. Each retains its own `go
 | files-reader | https://github.com/JGtm/halo-infinite-files-reader | v1.0.1 | `h1:sqD4leKw4x9yC+JdXWAVHOio6LOqF+VzKgcWZ5SL688=` | AGPL-3.0; `ooz` GPL-3.0 |
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
+
+## Changes from upstream v1.3.2 (film-decoder)
+
+The film-decoder module is a port of the LevelUp `feat/replay-3d` branch onto the published
+v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept capabilities:
+
+- Full-rate tracks (`FullRateTrack`, `Track.FullRate`) with absolute-millisecond times,
+  independent of the 33 ms document grid.
+- Shot direction from the shooter's aim (`shots_visee.go`, `Shot.P`).
+- Aim-only samples for records without a position (`VehicleScan.Aims`).
+- Move stick readings from the control view.
+- Control-view stances: crouch, slide, jump derived from vertical velocity.
+- Shooter identification by control place.
+- Drawn weapon per slot (`DrawnWeapons`).
+- Damage events per slot (`Damages`).
+- Kill cause attribution (`KillCauses`).
+- Player gestures: reload, grenade throw, punch (`Actions` / `PlayerAction`).
+- Carried ammo reads per life and weapon slot (`AmmoReads`).
+- Sub-frame shot offset inside the document frame (`Shot.O`, computed against the
+  actual frame interval).
+- Blob codec `REPLAYINPUTS30` (upstream v1.3.2 ships `REPLAYINPUTS29`).
 
 ## Omitted upstream files
 
