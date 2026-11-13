@@ -123,3 +123,24 @@ func TestContextDerivedScoreboard(t *testing.T) {
 		}
 	}
 }
+
+func TestContextZeroDeaths(t *testing.T) {
+	root := newFakeStore(t)
+	raw := []byte(`{"Players":[{"PlayerId":"xuid(1)","Gamertag":"Alpha","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":0,"DamageDealt":450,"DamageTaken":100}}}]}]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
+	var got struct {
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Scoreboard) != 1 || got.Scoreboard[0]["defensive_resistance"] != float64(-1) {
+		t.Fatalf("response: %s", rec.Body.String())
+	}
+	if _, ok := got.Scoreboard[0]["damage_per_death"]; ok {
+		t.Fatalf("unexpected damage_per_death: %s", rec.Body.String())
+	}
+}
