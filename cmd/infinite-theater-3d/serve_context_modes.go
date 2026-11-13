@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"regexp"
 	"strings"
 )
@@ -58,82 +57,4 @@ func contextMode(raw string) (string, string) {
 		}
 	}
 	return strings.TrimSpace(contextModeSuffix.ReplaceAllString(right, "")), cat
-}
-
-// LevelUp apps/go-api/internal/analysis/scoreboard_extremes.go.
-func contextExtremes(rows []contextJSON) {
-	humans := []contextJSON{}
-	for _, row := range rows {
-		if row["is_bot"] != true {
-			humans = append(humans, row)
-		}
-	}
-	if len(humans) < 2 {
-		return
-	}
-	best, worst := make([]int, len(humans)), make([]int, len(humans))
-	for _, col := range []struct {
-		name    string
-		weight  int
-		inverse bool
-	}{{"kills", 2, false}, {"deaths", 2, true}, {"assists", 1, false}, {"kda", 3, false}, {"accuracy", 1, false}, {"score", 3, false}, {"damage_dealt", 2, false}, {"damage_taken", 2, true}, {"headshot_kills", 1, false}, {"max_killing_spree", 1, false}, {"perfect_kills", 1, false}} {
-		vals := make([]float64, len(humans))
-		min, max := math.Inf(1), math.Inf(-1)
-		for i, row := range humans {
-			v := math.NaN()
-			switch n := row[col.name].(type) {
-			case int:
-				v = float64(n)
-			case float64:
-				v = n
-			}
-			vals[i] = v
-			if v < min {
-				min = v
-			}
-			if v > max {
-				max = v
-			}
-		}
-		if min >= max {
-			continue
-		}
-		for i, v := range vals {
-			if col.inverse {
-				if v == min {
-					best[i] += col.weight
-				}
-				if v == max {
-					worst[i] += col.weight
-				}
-			} else {
-				if v == max {
-					best[i] += col.weight
-				}
-				if v == min {
-					worst[i] += col.weight
-				}
-			}
-		}
-	}
-	pick := func(count []int, exclude int) int {
-		idx, score := -1, 1
-		for i, v := range count {
-			if i != exclude && v > score {
-				idx, score = i, v
-			}
-		}
-		return idx
-	}
-	lvp := pick(worst, -1)
-	mvp := pick(best, -1)
-	if lvp == mvp && lvp >= 0 {
-		mvp = pick(best, lvp)
-	}
-	if mvp >= 0 {
-		humans[mvp]["is_mvp"] = true
-	}
-	if lvp >= 0 {
-		humans[lvp]["is_lvp"] = true
-	}
 }

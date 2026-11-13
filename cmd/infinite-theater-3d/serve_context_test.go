@@ -117,31 +117,10 @@ func TestContextDerivedScoreboard(t *testing.T) {
 		t.Fatalf("response: %s", rec.Body.String())
 	}
 	row := got.Scoreboard[0]
-	for key, want := range map[string]any{"avg_life_seconds": float64(29), "first_joined_time": "2026-01-01T00:00:20Z", "perfect_kills": float64(2), "offensive_conversion": 0.75, "defensive_resistance": float64(2), "damage_per_kill": float64(450), "damage_per_death": float64(450)} {
+	for key, want := range map[string]any{"avg_life_seconds": float64(29), "first_joined_time": "2026-01-01T00:00:20Z", "perfect_kills": float64(2)} {
 		if row[key] != want {
 			t.Errorf("%s = %v, want %v", key, row[key], want)
 		}
-	}
-}
-
-func TestContextZeroDeaths(t *testing.T) {
-	root := newFakeStore(t)
-	raw := []byte(`{"Players":[{"PlayerId":"xuid(1)","Gamertag":"Alpha","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":0,"DamageDealt":450,"DamageTaken":100}}}]}]}`)
-	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
-		t.Fatal(err)
-	}
-	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
-	var got struct {
-		Scoreboard []map[string]any `json:"scoreboard"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-		t.Fatal(err)
-	}
-	if len(got.Scoreboard) != 1 || got.Scoreboard[0]["defensive_resistance"] != float64(-1) {
-		t.Fatalf("response: %s", rec.Body.String())
-	}
-	if _, ok := got.Scoreboard[0]["damage_per_death"]; ok {
-		t.Fatalf("unexpected damage_per_death: %s", rec.Body.String())
 	}
 }
 
@@ -166,7 +145,7 @@ func TestContextWaypointURL(t *testing.T) {
 	}
 }
 
-func TestContextModeAndExtremes(t *testing.T) {
+func TestContextMode(t *testing.T) {
 	root := newFakeStore(t)
 	raw := []byte(`{"MatchInfo":{"UgcGameVariant":{"PublicName":"Ranked:Oddball"}},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":10,"Deaths":1,"Assists":3,"PersonalScore":1000,"KDA":10,"Accuracy":80,"DamageDealt":1000,"DamageTaken":300}}}]},{"PlayerId":"xuid(2)","Gamertag":"B","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":1,"Deaths":10,"Assists":0,"PersonalScore":100,"KDA":-9,"Accuracy":20,"DamageDealt":200,"DamageTaken":1000}}}]}]}`)
 	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
@@ -180,7 +159,7 @@ func TestContextModeAndExtremes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || len(got.Scoreboard) != 2 || got.Scoreboard[0]["is_mvp"] != true || got.Scoreboard[1]["is_lvp"] != true {
+	if got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || len(got.Scoreboard) != 2 {
 		t.Fatalf("response: %s", rec.Body.String())
 	}
 }

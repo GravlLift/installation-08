@@ -365,7 +365,6 @@ export interface BackfillStartRequest {
   events?: boolean
   skill?: boolean
   personal_scores?: boolean
-  performance_scores?: boolean
   aliases?: boolean
   lusr?: boolean
   /** Re-fetch CSR par-match via GetMatchSkill (RankRecap). Idempotent
@@ -647,18 +646,14 @@ export interface MatchHistoryRow {
   delta_mmr: number | null
   win_rate_hist: number | null
   win_rate_hist_total: number | null
-  performance_score_relative: number | null
   average_life_mmss: string
   match_url: string
-  is_excluded?: boolean
   /** S56 — combat yield */
   kills?: number | null
   assists?: number | null
   deaths?: number | null
   damage_dealt?: number | null
   damage_taken?: number | null
-  offensive_conversion?: number | null
-  defensive_resistance?: number | null
   offensive_finishing?: number | null
   map_image_url?: string | null
 }
@@ -777,7 +772,6 @@ export interface ExplorerMatchRow {
    *  page de rejeu. Absent/false = rien n'est rendu (jamais de lien vers un 404). */
   has_replay?: boolean
   /** 0=none, 1=domination, 2=humiliation, 3=remontada, 4=débandade, 5=contre-remontada. */
-  dominance_flag?: number
   /**
    * Indique qu'un coéquipier du joueur était un bot pendant le match.
    * Présent uniquement sur les best_matches de la page carrière (exclu côté
@@ -954,8 +948,6 @@ export interface HeroKPIs {
   favorite_weapon_kills: number
   favorite_playlist_name: string
   favorite_playlist_count: number
-  avg_offensive_conversion: number | null
-  avg_defensive_resistance: number | null
   /** Dégâts moyens par frag / par mort (Σ dmg / Σ kills|deaths). Nil si dénominateur nul. */
   dmg_per_kill?: number | null
   dmg_per_death?: number | null
@@ -1018,7 +1010,6 @@ export interface RecentMatchItem {
   outcome_tone: string
   score_label?: string | null
   narrative_badges?: string[]
-  is_favorite: boolean
   /** S56 — champs enrichis pour MatchCard */
   map_ui?: string | null
   mode_ui?: string | null
@@ -1026,15 +1017,11 @@ export interface RecentMatchItem {
   kills?: number | null
   assists?: number | null
   deaths?: number | null
-  performance_score_relative?: number | null
   /** Placement de la chaîne de PERFORMANCE (X/Y) : renseigné (avec
-   *  performance_score_relative nul) quand la chaîne du match compte moins de Y matchs
    *  éligibles → aucune perf calculable. La tuile affiche « En placement (X/Y) » au lieu
    *  d'un vide. JAMAIS un 0 fabriqué pour une perf absente. Cf. PlacementPendingNote. */
   perf_placement_done?: number | null
   perf_placement_total?: number | null
-  offensive_conversion?: number | null
-  defensive_resistance?: number | null
   offensive_finishing?: number | null
   damage_dealt?: number | null
   damage_taken?: number | null
@@ -2056,13 +2043,8 @@ export interface MatchScoreboardRow {
   shoulder_bash_kills?: number | null
   /** Clé canonique d'issue (MT-06) : le web localise via useOutcomeLabel/useOutcomeMapping. */
   outcome?: 'win' | 'loss' | 'tie' | 'dnf'
-  /** V7 — combat yield */
   top_weapon_id?: number | null
   top_weapon_label?: string | null
-  offensive_conversion?: number | null
-  defensive_resistance?: number | null
-  damage_per_kill?: number | null
-  damage_per_death?: number | null
   expected_kills?: number | null
   expected_deaths?: number | null
   expected_assists?: number | null
@@ -2071,8 +2053,6 @@ export interface MatchScoreboardRow {
   weapon_kills?: PlayerWeaponKillRow[]
   /** Médailles gagnées par CE joueur dans ce match (expander scoreboard). */
   medals?: PlayerMedalRow[]
-  /** Performance score 0..100 — uniquement pour les joueurs trackés (main + amis). */
-  performance_score?: number | null
   /** True si bot dans l'équipe du joueur — uniquement pour les joueurs trackés. */
   had_bot_teammate?: boolean
   /** Skill rank (CSR/LUSR) pour ce match — uniquement pour les joueurs trackés. */
@@ -2646,7 +2626,6 @@ export interface PostSyncCounters {
   engagement_coefs_updated: number
   sessions_assigned: number
   citations_computed: number
-  dominance_flags_computed: number
   /** Rattrapés par la convergence (étapes 1.54 / 1.56). */
   converged_events: number
   converged_psa: number
