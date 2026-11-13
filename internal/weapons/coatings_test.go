@@ -66,7 +66,8 @@ func ekurNoGradient(t *testing.T, folder string) {
 
 // TestWeaponCoatingWork — the weapon library's coating distillation: the
 // painted materials receive extras.style from the reference; Finish writes
-// coatings.json and one coating file per style list, with no game arsenal.
+// coatings.json and one coating file per named style (keyed by the style id
+// the players' style keys carry, not the list key), with no game arsenal.
 func TestWeaponCoatingWork(t *testing.T) {
 	folder := t.TempDir()
 	ekurNoGradient(t, folder)
@@ -118,11 +119,26 @@ func TestWeaponCoatingWork(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, "coatings.json")); err != nil {
 		t.Errorf("coatings.json not written: %v", err)
 	}
-	// One coating file per style list named by the materials.
-	if _, err := os.Stat(filepath.Join(out, "coating-000001c8.json")); err != nil {
-		t.Errorf("coating file of the list not written: %v", err)
+	// One coating file per named style: the fixture list's only style has
+	// reference -177284589, key f56eda13; no file keyed by the list key.
+	raw, err := os.ReadFile(filepath.Join(out, "coating-f56eda13.json"))
+	if err != nil {
+		t.Fatalf("coating file of the style key not written: %v", err)
 	}
-	raw, err := os.ReadFile(filepath.Join(out, "coatings.json"))
+	var coating struct {
+		Style string            `json:"style"`
+		Lists map[string]string `json:"lists"`
+	}
+	if err := json.Unmarshal(raw, &coating); err != nil {
+		t.Fatal(err)
+	}
+	if coating.Style != "f56eda13" || coating.Lists["000001c8"] != "f56eda13" {
+		t.Errorf("coating = %+v, want style f56eda13 naming list 000001c8", coating)
+	}
+	if _, err := os.Stat(filepath.Join(out, "coating-000001c8.json")); !os.IsNotExist(err) {
+		t.Errorf("coating file keyed by the list key exists: %v", err)
+	}
+	raw, err = os.ReadFile(filepath.Join(out, "coatings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
