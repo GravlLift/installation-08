@@ -18,8 +18,8 @@ import (
 
 type contextCatalog struct {
 	Medals []struct {
-		ID     int64 `json:"NameId"`
-		Sprite int   `json:"SpriteIndex"`
+		ID     int64 `json:"nameId"`
+		Sprite int   `json:"spriteIndex"`
 	} `json:"Medals"`
 }
 

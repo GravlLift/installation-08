@@ -199,7 +199,7 @@ func TestContextCachedMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Test Medal"},"Description":{"value":"Test description"},"Difficulty":"Heroic","SpriteIndex":0}]}`
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"Test Medal"},"description":{"value":"Test description"},"difficultyIndex":1,"spriteIndex":0}]}`
 	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
 		t.Fatal(err)
 	}
@@ -217,8 +217,16 @@ func TestContextCachedMetadata(t *testing.T) {
 	row := got.Scoreboard[0]
 	medals, _ := row["medals"].([]any)
 	rank, _ := row["skill_rank"].(map[string]any)
-	if got.Header["is_ranked"] != true || got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" {
+	if got.Header["is_ranked"] != true || got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" || medals[0].(map[string]any)["difficulty"] != "Heroic" {
 		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestContextMedalDifficulty(t *testing.T) {
+	for index, want := range map[int]string{0: "Normal", 1: "Heroic", 2: "Legendary", 3: "Mythic", -1: "Normal", 9: "Normal"} {
+		if got := contextMedalDifficulty(index); got != want {
+			t.Errorf("index %d = %q, want %q", index, got, want)
+		}
 	}
 }
 
@@ -227,7 +235,7 @@ func TestContextMedalEventMetadata(t *testing.T) {
 	if err := root.WriteFile(variantPath(root, "abc", "events.json"), []byte(`[{"XUID":1,"EventType":"medal","TimeMS":1000,"TypeHint":50,"MedalType":26}]`)); err != nil {
 		t.Fatal(err)
 	}
-	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Killjoy"},"Description":{"value":"End a spree"}}]}`
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"Killjoy"},"description":{"value":"End a spree"},"difficultyIndex":0}]}`
 	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
 		t.Fatal(err)
 	}

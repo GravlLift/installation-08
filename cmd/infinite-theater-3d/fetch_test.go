@@ -197,7 +197,7 @@ func TestFetchContextArtifacts(t *testing.T) {
 		case "/mapModePairs/pair/versions/ver":
 			fmt.Fprint(w, `{"PublicName":"Ranked:Oddball on Live Fire"}`)
 		case "/Waypoint/file/medals/metadata.json":
-			fmt.Fprint(w, `{"Medals":[{"NameId":42,"Name":{"value":"Test"},"SpriteIndex":0}]}`)
+			fmt.Fprint(w, `{"Medals":[{"nameId":42,"name":{"value":"Test"},"spriteIndex":0}]}`)
 		case "/Waypoint/file/medals/images/medal_sheet_xl.png":
 			img := image.NewRGBA(image.Rect(0, 0, 256, 256))
 			_ = png.Encode(w, img)
