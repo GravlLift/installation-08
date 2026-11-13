@@ -27,6 +27,7 @@ import (
 type Input struct {
 	// ChunkDir is the folder holding chunk_00.bin, chunk_01.bin, ...
 	ChunkDir string
+	Zone     replay.ZoneInput
 	// ManifestPath is the film manifest (chunk index, types, start_ms). Absent: the film
 	// still loads, but entity records and the bomb clock are not datable (no score curve).
 	ManifestPath string

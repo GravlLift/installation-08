@@ -19,7 +19,7 @@ func TestParseImportFlagsRequired(t *testing.T) {
 	if f.mapName != "Live Fire" {
 		t.Fatalf("map name = %q, want Live Fire", f.mapName)
 	}
-	if f.manifest != "" || f.stats != "" || f.match != "" || f.catalog != "" || f.dataDir != "" {
+	if f.mvar != "" || f.manifest != "" || f.stats != "" || f.match != "" || f.catalog != "" || f.dataDir != "" {
 		t.Fatalf("optional inputs not zero: %+v", f)
 	}
 	// The map name may be absent: it is then resolved from the film.
@@ -75,5 +75,12 @@ func TestDataDirFor(t *testing.T) {
 	}
 	if got != filepath.Join("C:/Users/x/AppData/Local", "infinite-theater-3d", "data") {
 		t.Fatalf("default = %q, want %q", got, filepath.Join("C:/Users/x/AppData/Local", "infinite-theater-3d", "data"))
+	}
+}
+
+func TestImportVariantFlag(t *testing.T) {
+	f, err := parseImportFlags([]string{"--chunks", "chunks", "--mvar", "map.mvar"})
+	if err != nil || f.mvar != "map.mvar" {
+		t.Fatalf("variant flag: %+v %v", f, err)
 	}
 }
