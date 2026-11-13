@@ -60,6 +60,33 @@ export class MatchNotFoundError extends ApiError {
   }
 }
 
+/** Thrown when a match has no map module at all, so no mesh can ever be built for it. */
+export class NoMapModuleError extends ApiError {
+  matchId: string
+
+  constructor(matchId: string) {
+    super(`match ${matchId} has no map module`, 409, { error: 'no_map_module', id: matchId })
+    this.matchId = matchId
+  }
+}
+
+/** The lifecycle of a module's mesh build job, as `GET`/`POST .../mesh/state`/`build` answer it. */
+export type MeshBuildState = 'absent' | 'queued' | 'building' | 'ready' | 'failed'
+
+/** The JSON body of `GET /api/matches/{id}/mesh/state` and `POST .../mesh/build` (see
+ *  `meshStateJSON` in `cmd/infinite-theater-3d/serve.go`). Fields that do not apply to the
+ *  current state are omitted by the server, never sent as `null`. */
+export interface MeshStateBody {
+  state: MeshBuildState
+  moduleKey: string
+  error?: string
+  queuePosition?: number
+  startedAt?: string
+  elapsedMs?: number
+  bytes?: number
+  triangles?: number
+}
+
 async function readErrorBody(res: Response): Promise<unknown> {
   try {
     return await res.json()
@@ -122,4 +149,33 @@ export async function checkMesh(matchId: string, signal?: AbortSignal): Promise<
     throw new ApiError(`mesh check: HTTP ${res.status}`, res.status, body)
   }
   throw new ApiError(`mesh check: HTTP ${res.status}`, res.status, await readErrorBody(res))
+}
+
+/** Raises the typed errors `fetchMeshState`/`requestMeshBuild` share for a non-2xx response. */
+function throwMeshError(res: Response, body: unknown, matchId: string, label: string): never {
+  const errorCode = body && typeof body === 'object' ? (body as { error?: string }).error : undefined
+  if (res.status === 404 && errorCode === 'match_not_found') throw new MatchNotFoundError(matchId)
+  if (res.status === 409 && errorCode === 'no_map_module') throw new NoMapModuleError(matchId)
+  throw new ApiError(`${label}: HTTP ${res.status}`, res.status, body)
+}
+
+/** `GET /api/matches/{id}/mesh/state` — the module's current build state, polled by the build
+ *  panel while a build is queued or running. */
+export async function fetchMeshState(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/state`, { signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throwMeshError(res, body, matchId, 'GET .../mesh/state')
+  return body as MeshStateBody
+}
+
+/** `POST /api/matches/{id}/mesh/build` — starts or joins the module's build; answers 202 with
+ *  the queued/building state, or 200 with the ready state when the mesh already exists. */
+export async function requestMeshBuild(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/build`, {
+    method: 'POST',
+    signal,
+  })
+  const body = await readErrorBody(res)
+  if (!res.ok) throwMeshError(res, body, matchId, 'POST .../mesh/build')
+  return body as MeshStateBody
 }
