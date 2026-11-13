@@ -39,6 +39,19 @@ describe('usePlaybackLoop', () => {
     for (const cb of batch) cb(now)
   }
 
+  it('advances the sound clock at playback speed and signals the end once', () => {
+    const doc = testReplayDoc({ frameCount: 31 })
+    const tick = vi.fn()
+    const onEnded = vi.fn()
+    renderHook(() => usePlaybackLoop({ doc, playing: true, speed: 2, fps: 30, frameRef: { current: 0 }, setFrame: vi.fn(), setPlaying: vi.fn(), tick, onEnded }))
+    act(() => flushOneTick(250))
+    expect(tick).toHaveBeenLastCalledWith(500)
+    act(() => flushOneTick(250))
+    expect(tick).toHaveBeenLastCalledWith(1000)
+    expect(onEnded).toHaveBeenCalledOnce()
+    expect(pending).toHaveLength(0)
+  })
+
   it('schedules exactly one callback per tick while playing (never doubles the queue)', () => {
     const doc = testReplayDoc({ frameCount: 100_000 })
     const frameRef = { current: 0 }

@@ -8,7 +8,7 @@
  * anchored to the button that opened it (`useAnchoredPanel`, which this app does not lift — it
  * only matters for exact pixel alignment, not behavior). Left out entirely (not present in this
  * standalone shell, see `docs/PARITY.md`): the 2D map's aim/zones/trail/heatmap toggles, marker
- * colors, sound category filters, and export — none of those have any effect here yet.
+ * colors and export — none of those have any effect here yet.
  *
  * Carries `data-replay-escape-layer` (the attribute `useReplayFullscreen` already lifted and
  * reads) so an Escape press closes this drawer first when fullscreen is also active, instead of
@@ -21,11 +21,15 @@ import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { LayersSection, type ReplayLayerControls } from './ReplaySettingsLayers'
 import { Aids3dSection } from './ReplaySettingsAids3d'
 import { Look3dSection } from './ReplaySettingsLook3d'
+import { SettingsToggle } from './SettingsControls'
+import { SOUND_CATEGORIES } from '../sound/replaySound'
+import type { ReplaySound } from '../sound/useReplaySound'
 
 const PANEL_WIDTH = 360
 
 interface ReplaySettingsDrawerProps extends ReplayLayerControls {
   locale: ReplayLocale
+  sound: ReplaySound
   onClose: () => void
   /** The button that opened the panel: excluded from "click outside", and given focus back by
    *  the caller on close. */
@@ -61,7 +65,7 @@ function useDrawerDismiss(
   }, [panelRef, triggerRef, onClose])
 }
 
-export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef }: ReplaySettingsDrawerProps) {
+export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef, sound }: ReplaySettingsDrawerProps) {
   const t = REPLAY_TEXT[locale]
   const panelRef = useRef<HTMLDivElement>(null)
   useDrawerDismiss(panelRef, triggerRef, onClose)
@@ -90,6 +94,12 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
       <LayersSection locale={locale} show={show} toggle={toggle} />
       <Look3dSection locale={locale} />
       <Aids3dSection locale={locale} />
+      <section className="space-y-1">
+        <h3 className="text-xs font-medium text-muted-foreground">{t.soundCategoriesTitle}</h3>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+          {SOUND_CATEGORIES.map((category) => <SettingsToggle key={category} label={t.soundCategory[category]} pressed={sound.categories[category]} onToggle={() => sound.toggleCategory(category)} />)}
+        </div>
+      </section>
     </div>,
     document.body,
   )

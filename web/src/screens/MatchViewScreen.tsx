@@ -32,6 +32,9 @@ import { useVariantLayer } from './useVariantLayer'
 import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { MatchHeaderBar } from './MatchHeaderBar'
+import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
+import { ReplaySoundControls } from '../features/match-replay/sound/ReplaySoundControls'
+import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
 
@@ -199,7 +202,7 @@ function meshBuildStatusText(phase: MeshBuildPhase): string {
   }
 }
 
-function PlaybackBar({
+export function PlaybackBar({
   doc,
   frameRef,
   frame,
@@ -210,6 +213,7 @@ function PlaybackBar({
   setSpeed,
   viewpoint,
   setViewpoint,
+  sound,
 }: {
   doc: ReplayDocumentReady
   frameRef: React.RefObject<number>
@@ -221,27 +225,30 @@ function PlaybackBar({
   setSpeed: (s: number) => void
   viewpoint: string | null
   setViewpoint: (xuid: string | null) => void
+  sound: ReplaySound
 }) {
   const fps = framesPerSecond(doc)
-  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying })
+  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
       <button
         type="button"
         className="rounded bg-primary px-3 py-1 text-primary-foreground"
-        onClick={() => setPlaying(!playing)}
+        onClick={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
       >
         {playing ? 'Pause' : 'Play'}
       </button>
       <input
         type="range"
+        data-replay-timeline=""
         min={0}
         max={Math.max(0, doc.frameCount - 1)}
         value={frame}
         onChange={(e) => {
           const next = Number(e.target.value)
           frameRef.current = next
+          sound.seek(next * 1000 / fps)
           setFrame(next)
         }}
         className="flex-1"
@@ -263,6 +270,7 @@ function PlaybackBar({
           ))}
         </select>
       </label>
+      <ReplaySoundControls sound={sound} locale="en" />
       <label className="flex items-center gap-1 text-xs text-muted-foreground">
         Follow
         <select
@@ -297,31 +305,34 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   const fps = framesPerSecond(doc)
   const variantPath = useVariantLayer(matchId)
   const replayContext = useMatchReplayContext(matchId, doc)
+  const inks = useReplayInks(0)
+  const identity = useMemo(
+    () => buildDocumentTeamIdentity(doc, viewpoint, inks.teamColorOf, inks.neutral),
+    [doc, viewpoint, inks],
+  )
+  const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
+  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en' })
+  useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
 
-  // Keyboard shortcuts (`useReplayShortcuts`, lifted unchanged): play/pause, ±10s seek,
-  // frame-step, restart and fullscreen. `toggleSound` is a deliberate no-op — no sound is
-  // ported in this standalone shell yet (see docs/PARITY.md) — and `zoom` is left undefined:
-  // it drives the 2D camera's pan/zoom keys, which do not exist here (3D-only viewer).
+  // The 2D pan and zoom shortcuts are omitted from this 3D-only viewer.
   const stepFrames = useCallback(
     (delta: number) => {
       const next = Math.min(doc.frameCount - 1, Math.max(0, frameRef.current + delta))
       frameRef.current = next
+      sound.seek(next * 1000 / fps)
       setFrame(Math.round(next))
     },
-    [doc.frameCount],
+    [doc.frameCount, fps, sound.seek],
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
-  const togglePlay = useCallback(() => setPlaying((p) => !p), [])
-  const restart = useCallback(() => stepFrames(-Infinity), [stepFrames])
-  const toggleSound = useCallback(() => {
-    /* Sound is not ported yet (docs/PARITY.md §2) — the M shortcut has nothing to toggle. */
-  }, [])
+  const togglePlay = useCallback(() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [playing, sound.wake, sound.intro])
+  const restart = useCallback(() => { sound.wake(); stepFrames(-Infinity) }, [stepFrames, sound.wake])
   useReplayShortcuts({
     togglePlay,
     seekBy,
     stepFrames,
     restart,
-    toggleSound,
+    toggleSound: sound.toggle,
     toggleFullscreen: fullscreen.toggle,
     skipSeconds: SKIP_SECONDS,
     enabled: true,
@@ -340,16 +351,11 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
 
   const summary = useMatchSummary(matchId)
   const remote = useRemoteMatch(matchId)
-  const inks = useReplayInks(0)
 
   // Scene inputs are independent of the scoreboard overlay.
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
   const kills = replayContext.kills
   const shotFx = useMemo(() => buildShotFx(doc, aimHoldFramesOf(doc)), [doc])
-  const identity = useMemo(
-    () => buildDocumentTeamIdentity(doc, viewpoint, inks.teamColorOf, inks.neutral),
-    [doc, viewpoint, inks],
-  )
 
   const action = useMemo<PageAction3dInputs>(() => {
     const inputs: PageAction3dInputs = {
@@ -398,6 +404,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           action={action}
           playWindow={replayContext.playWindow}
           timeLimitMs={replayContext.timeLimitMs}
+          soundListenerRef={sound.listener}
         />
         <ReplayScoreboard rows={replayContext.context?.scoreboard ?? []} />
         <button
@@ -411,6 +418,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
         {settingsOpen && (
           <ReplaySettingsDrawer
             locale="en"
+            sound={sound}
             show={show}
             toggle={toggle}
             triggerRef={settingsButtonRef}
@@ -429,6 +437,7 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
         setSpeed={setSpeed}
         viewpoint={viewpoint}
         setViewpoint={setViewpoint}
+        sound={sound}
       />
       </div>
     </div>
