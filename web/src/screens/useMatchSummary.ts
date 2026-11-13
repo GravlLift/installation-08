@@ -1,32 +1,53 @@
 /**
  * useMatchSummary — the one `MatchSummary` row for `matchId`, read from `GET /api/matches` (no
- * single-match route exists yet, see `cmd/infinite-theater-3d/remote_routes.go`). Used by
- * `MatchHeaderBar` to show the map name and import time above the 3D viewer. `null` while
- * loading, on a fetch error, or if the id is not in the list — the header just shows less.
+ * single-match route exists yet, see `cmd/infinite-theater-3d/remote_routes.go`), and
+ * useRemoteMatch — the same match's row in "Your recent matches" (`GET /api/remote/matches`),
+ * which carries the mode and when it was played. Used by `MatchHeaderBar` above the 3D viewer.
+ * Each is `null` while loading, on a fetch error (signed out, service down), or when the id is
+ * not in its list; the header just shows less.
  */
 import { useEffect, useState } from 'react'
 
-import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
+import { fetchMatches, fetchRemoteMatches, type MatchSummary, type RemoteMatch } from '../lib/api/standalone'
 
-export function useMatchSummary(matchId: string): MatchSummary | null {
-  const [summary, setSummary] = useState<MatchSummary | null>(null)
+/** useRowOf loads a list once per `matchId` and keeps the row whose id matches. */
+function useRowOf<T>(
+  matchId: string,
+  load: (signal: AbortSignal) => Promise<T[]>,
+  idOf: (row: T) => string,
+  label: string,
+): T | null {
+  const [row, setRow] = useState<T | null>(null)
 
   useEffect(() => {
-    setSummary(null)
+    setRow(null)
     const controller = new AbortController()
     void (async () => {
       try {
-        const matches = await fetchMatches(controller.signal)
+        const rows = await load(controller.signal)
         if (controller.signal.aborted) return
-        setSummary(matches.find((m) => m.matchId === matchId) ?? null)
+        setRow(rows.find((r) => idOf(r) === matchId) ?? null)
       } catch (err) {
         if (controller.signal.aborted) return
-        console.warn('useMatchSummary: failed to load match list', err)
-        setSummary(null)
+        console.warn(`${label}: failed to load`, err)
+        setRow(null)
       }
     })()
     return () => controller.abort()
+    // load, idOf and label are module-level constants at every call site.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId])
 
-  return summary
+  return row
+}
+
+const summaryId = (m: MatchSummary) => m.matchId
+const remoteId = (m: RemoteMatch) => m.id
+
+export function useMatchSummary(matchId: string): MatchSummary | null {
+  return useRowOf(matchId, fetchMatches, summaryId, 'useMatchSummary')
+}
+
+export function useRemoteMatch(matchId: string): RemoteMatch | null {
+  return useRowOf(matchId, fetchRemoteMatches, remoteId, 'useRemoteMatch')
 }
