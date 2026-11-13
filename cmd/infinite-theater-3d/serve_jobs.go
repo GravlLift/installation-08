@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
@@ -66,15 +67,48 @@ func coatingLibraryReady(dataDir, module string) bool {
 	if !ok {
 		return false
 	}
-	dir := spartanpieces.EkurDir(dataDir)
-	if dir == "" {
-		return true
-	}
-	cur, err := spartanpieces.EkurStamp(dir)
-	if err != nil {
+	cur, ok := currentEkurStamp(dataDir)
+	if !ok {
 		return false
 	}
+	if cur == "" {
+		return true
+	}
 	return stamp == cur
+}
+
+// ekurStampCache holds the current export's stamp per data directory, computed once per
+// process: readiness runs on every build-state poll (under the runner's lock), and reading a
+// full export's tens of thousands of names each time would stall it. An export change takes
+// effect at the next start, which is also when stale libraries are moved aside.
+var ekurStampCache sync.Map // export folder ("" for none) -> ekurStampEntry
+
+type ekurStampEntry struct {
+	stamp string
+	ok    bool
+}
+
+// currentEkurStamp is the stamp of the export EkurDir resolves for dataDir: "" with true
+// when no valid export is set (never a downgrade), false when the export cannot be read.
+func currentEkurStamp(dataDir string) (string, bool) {
+	// Resolving the folder is cheap (five stats); listing it is what the cache saves.
+	dir := spartanpieces.EkurDir(dataDir)
+	if dir == "" {
+		return "", true
+	}
+	if v, hit := ekurStampCache.Load(dir); hit {
+		e := v.(ekurStampEntry)
+		return e.stamp, e.ok
+	}
+	e := ekurStampEntry{ok: true}
+	stamp, err := spartanpieces.EkurStamp(dir)
+	if err != nil {
+		slog.Warn("current ekur stamp could not be read", "err", err)
+		e.ok = false
+	}
+	e.stamp = stamp
+	ekurStampCache.Store(dir, e)
+	return e.stamp, e.ok
 }
 
 // recordedEkurStamp reads the "ekur_stamp" field of a coating library's index.json; false
@@ -311,8 +345,10 @@ func removeTreeRefusingSymlinks(path, what string) error {
 		if err != nil {
 			return err
 		}
-		if d.Type()&fs.ModeSymlink != 0 {
-			return errors.New(what + " contains a symlink (" + d.Name() + "); refusing to follow it")
+		// Since Go 1.23 a Windows junction reports ModeIrregular rather than ModeSymlink:
+		// refuse both, and any other reparse point.
+		if d.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
+			return errors.New(what + " contains a symlink or junction (" + d.Name() + "); refusing to follow it")
 		}
 		return nil
 	}); err != nil {

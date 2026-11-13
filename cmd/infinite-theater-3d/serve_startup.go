@@ -24,7 +24,6 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
-	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
@@ -144,13 +143,8 @@ func runServeStartup(jobs interface {
 // so the normal build job rebuilds each one before the routes serve it. Never a downgrade:
 // with no valid export, existing libraries are left in place.
 func renameStaleCoatingLibraries(dataDir string) {
-	dir := spartanpieces.EkurDir(dataDir)
-	if dir == "" {
-		return
-	}
-	cur, err := spartanpieces.EkurStamp(dir)
-	if err != nil {
-		slog.Warn("current ekur stamp could not be read", "err", err)
+	cur, ok := currentEkurStamp(dataDir)
+	if !ok || cur == "" {
 		return
 	}
 	for _, module := range []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces} {
