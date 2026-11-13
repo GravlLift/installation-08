@@ -13,27 +13,35 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-film-decoder/types"
+
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 // resolveMapEntry looks the map up in the catalog. It is fatal by the decoder's own rule:
 // without the bounds and the axis widths of the map the decoder emits raw quanta, and
 // BuildFromFilm refuses to produce a document rather than wrong coordinates.
 func resolveMapEntry(in Input) (decfilm.MapQuantEntry, error) {
-	if in.CatalogPath == "" {
-		return decfilm.MapQuantEntry{}, fmt.Errorf("map catalog path is required (the map bounds are not derivable from the film)")
-	}
 	if in.MapName == "" {
 		return decfilm.MapQuantEntry{}, fmt.Errorf("map name is required: pass the display name of the map (e.g. %q), not the film's asset id", "Live Fire")
 	}
-	catalog, err := decfilm.LoadMapQuantCatalog(in.CatalogPath)
+	catalog, err := catalogOf(in)
 	if err != nil {
-		return decfilm.MapQuantEntry{}, fmt.Errorf("map catalog: %w", err)
+		return decfilm.MapQuantEntry{}, err
 	}
 	entry, err := catalog.Lookup(in.MapName)
 	if err != nil {
 		return decfilm.MapQuantEntry{}, fmt.Errorf("map %q: %w", in.MapName, err)
 	}
 	return entry, nil
+}
+
+// catalogOf loads the map catalog: an explicit path wins, the embedded reference catalog
+// is the default (the standalone ships it, the user owns no reference files).
+func catalogOf(in Input) (*decfilm.MapQuantCatalog, error) {
+	if in.CatalogPath == "" {
+		return refdata.MapQuantBounds()
+	}
+	return decfilm.LoadMapQuantCatalog(in.CatalogPath)
 }
 
 // resolveMatchID names the match of the document. An explicit MatchID wins; otherwise the

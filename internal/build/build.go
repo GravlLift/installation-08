@@ -1,6 +1,8 @@
 // Package build turns a folder of theater film chunks into the replay document the viewer
 // reads, in process, with no LevelUp application code: the vendored decoder is the whole
-// pipeline (film load, killsource, statborg second decode, document assembly).
+// pipeline (film load, killsource, statborg second decode, document assembly). The map
+// quantization catalog defaults to the embedded reference catalog (internal/refdata); a
+// given path overrides it.
 package build
 
 import (
@@ -29,9 +31,11 @@ type Input struct {
 	// StatsPath is the optional match-stats JSON (see Stats). Absent: the document builds
 	// from the film alone (see Report).
 	StatsPath string
-	// CatalogPath is the map quantization catalog (map bounds and axis widths). Required:
-	// without it the decoder emits raw quanta and BuildFromFilm refuses to produce a
-	// document rather than wrong coordinates.
+	// CatalogPath is the map quantization catalog (map bounds and axis widths). Empty: the
+	// embedded reference catalog (internal/refdata) is used. A given path overrides it.
+	// The bounds themselves are never derivable from the film: the decoder emits raw quanta
+	// without them, and BuildFromFilm refuses to produce a document rather than wrong
+	// coordinates.
 	CatalogPath string
 	// MatchID names the match in the document. Absent: derived from the manifest file
 	// name (the cache convention <short8>.json) or the chunks folder name, expanded to

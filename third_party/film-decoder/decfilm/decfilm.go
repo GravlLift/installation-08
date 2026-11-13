@@ -445,6 +445,14 @@ func LoadMapQuantCatalog(path string) (*profile.MapQuantCatalog, error) {
 	return profile.LoadMapQuantCatalog(path)
 }
 
+// LoadMapQuantCatalogBytes lit le catalogue de bornes depuis ses octets (un catalogue
+// embarqué dans le binaire, sans chemin de fichier).
+//
+// AJOUTÉ pour le port standalone (infinite-theater-3d).
+func LoadMapQuantCatalogBytes(where string, blob []byte) (*profile.MapQuantCatalog, error) {
+	return profile.ParseMapQuantCatalog(where, blob)
+}
+
 type MapQuantCatalog = profile.MapQuantCatalog
 type MapQuantEntry = profile.MapQuantEntry
 
