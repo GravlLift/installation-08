@@ -63,6 +63,10 @@ type Source struct {
 	// tailles : `size_bytes` de chaque entree, a la meme position que `chunks` (0 = inconnue,
 	// manifeste historique). Cf. chunk.go.
 	tailles []int64
+	// direct : quand il est pose, c'est le REPERTOIRE DE CHUNKS absolu a lire (la source
+	// construite par [NewSource] pour un chemin de manifeste arbitraire) ; sinon les chunks
+	// vivent a [ChunkDir(root, short)], la disposition cache.
+	direct string
 }
 
 // Source implemente la source de film canonique du depot. C'est ce que verifie cette ligne,
@@ -135,7 +139,7 @@ func (s *Source) Chunk(i int) ([]byte, error) {
 	if i < 0 || i >= len(s.chunks) {
 		return nil, fmt.Errorf("filmcache: chunk %d hors bornes (%d au manifeste de %s)", i, len(s.chunks), s.short)
 	}
-	path := CheminDuChunk(ChunkDir(s.root, s.short), s.chunks[i].Index)
+	path := CheminDuChunk(s.dirDesChunks(), s.chunks[i].Index)
 	raw, err := lireChunkValide(path, s.chunks[i].Index, s.tailles[i])
 	if err != nil {
 		return nil, fmt.Errorf("filmcache: chunk %d de %s (%s) : %w", s.chunks[i].Index, s.short, path, err)
@@ -220,6 +224,15 @@ func ListShortIDs(root string) ([]string, error) {
 		out = append(out, name[:len(name)-len(".json")])
 	}
 	return out, nil
+}
+
+// dirDesChunks rend le repertoire ou [Chunk] lit les fichiers : le chemin pose par [NewSource]
+// quand il y en a un, sinon la disposition cache.
+func (s *Source) dirDesChunks() string {
+	if s.direct != "" {
+		return s.direct
+	}
+	return ChunkDir(s.root, s.short)
 }
 
 func chunkName(index int) string { return fmt.Sprintf("chunk_%02d.bin", index) }

@@ -30,6 +30,12 @@ v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept ca
 - Sub-frame shot offset inside the document frame (`Shot.O`, computed against the
   actual frame interval).
 - Blob codec `REPLAYINPUTS30` (upstream v1.3.2 ships `REPLAYINPUTS29`).
+- `filmcache` additions for a decode tool that receives an explicit manifest path outside
+  the cache layout: `ParseManifest` (renders the entries of a manifest file by its bytes,
+  the same `manifestJSON` shape as `Open`) and `NewSource` (a `Source` whose chunks read
+  from a caller-given folder, via a `direct` field on `Source` that `Chunk` consults before
+  the cache path). These serve `infinite-theater-3d decode --manifest <file>`; `Open` and
+  `OpenChunkDir` keep reconstructing the path from the cache layout and are unchanged.
 
 ## Omitted upstream files
 

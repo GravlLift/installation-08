@@ -1,50 +1,25 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"os"
-
-	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
-	"github.com/JGtm/halo-infinite-film-decoder/replay"
 )
+
+const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | decode --chunks <dir> [--manifest <file.json>] [--stats <file.json>] --map <name> --catalog <file.json> [--match <id>] [--title <slug>] [--gzip] --out <doc.json>"
 
 func run(args []string) error {
 	if len(args) == 1 && args[0] == "version" {
 		fmt.Println("infinite-theater-3d: early skeleton")
 		return nil
 	}
-	if len(args) != 2 || args[0] != "decode-info" {
-		return fmt.Errorf("usage: infinite-theater-3d version | decode-info <chunk-dir>")
+	switch args[0] {
+	case "decode-info":
+		return runDecodeInfo(args[1:])
+	case "decode":
+		return runDecode(args[1:])
+	default:
+		return fmt.Errorf(usage)
 	}
-	film, err := decfilm.LoadDir(args[1], nil)
-	if err != nil {
-		return err
-	}
-	if len(film.Meta()) == 0 || film.Meta()[0].Index != 0 {
-		return fmt.Errorf("chunk_00.bin is missing")
-	}
-	chunk := film.Chunk(0)
-	info, err := decfilm.ReadMatchInfo(chunk)
-	if err != nil {
-		return err
-	}
-	guid := func(p *[16]byte) string {
-		if p == nil {
-			return "unknown"
-		}
-		return fmt.Sprintf("%08x-%04x-%04x-%x-%x", binary.LittleEndian.Uint32(p[:4]), binary.LittleEndian.Uint16(p[4:6]), binary.LittleEndian.Uint16(p[6:8]), p[8:10], p[10:])
-	}
-	name := "unknown"
-	if info.Nom != nil {
-		name = *info.Nom
-	}
-	build := replay.CleDeChunk0(chunk).Build
-	if build == "" {
-		build = "unknown"
-	}
-	fmt.Printf("Map asset ID: %s\nMap version ID: %s\nGame variant: %s\nBuild: %s\n", guid((*[16]byte)(info.CarteAssetID)), guid((*[16]byte)(info.CarteVersionID)), name, build)
-	return nil
 }
 
 func main() {
