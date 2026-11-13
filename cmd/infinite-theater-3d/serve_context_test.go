@@ -99,3 +99,27 @@ func TestContextKillDetails(t *testing.T) {
 		t.Fatalf("events: %v", events)
 	}
 }
+
+func TestContextDerivedScoreboard(t *testing.T) {
+	root := newFakeStore(t)
+	raw := []byte(`{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"Alpha","LastTeamId":0,"ParticipationInfo":{"FirstJoinedTime":"2026-01-01T00:00:20.926Z"},"PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":1,"Assists":3,"DamageDealt":900,"DamageTaken":450,"AverageLifeDuration":"PT29.8S","Medals":[{"NameId":1512363953,"Count":2}]}}}]}]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
+	var got struct {
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Scoreboard) == 0 {
+		t.Fatalf("response: %s", rec.Body.String())
+	}
+	row := got.Scoreboard[0]
+	for key, want := range map[string]any{"avg_life_seconds": float64(29), "first_joined_time": "2026-01-01T00:00:20Z", "perfect_kills": float64(2), "offensive_conversion": 0.75, "defensive_resistance": float64(2), "damage_per_kill": float64(450), "damage_per_death": float64(450)} {
+		if row[key] != want {
+			t.Errorf("%s = %v, want %v", key, row[key], want)
+		}
+	}
+}

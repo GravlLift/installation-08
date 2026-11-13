@@ -158,6 +158,11 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 		participation := object(p["ParticipationInfo"])
 		for source, dest := range map[string]string{"JoinedInProgress": "joined_in_progress", "LeftInProgress": "left_in_progress", "FirstJoinedTime": "first_joined_time", "LastLeaveTime": "last_leave_time"} {
 			if v, ok := participation[source]; ok && v != nil {
+				if source == "FirstJoinedTime" || source == "LastLeaveTime" {
+					if t, err := time.Parse(time.RFC3339Nano, textValue(v)); err == nil {
+						v = t.UTC().Format(time.RFC3339)
+					}
+				}
 				row[dest] = v
 			}
 		}
@@ -170,13 +175,14 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 			fillContextObjective(row, bundle)
 			fillContextMedals(row, core)
 			if seconds, ok := contextDuration(textValue(core["AverageLifeDuration"])); ok {
-				row["avg_life_seconds"] = seconds
+				row["avg_life_seconds"] = int64(seconds)
 			}
 			for source, dest := range map[string]string{"PersonalScore": "score", "KDA": "kda", "Accuracy": "accuracy", "DamageDealt": "damage_dealt", "DamageTaken": "damage_taken", "ShotsFired": "shots_fired", "ShotsHit": "shots_hit", "HeadshotKills": "headshot_kills", "MaxKillingSpree": "max_killing_spree", "GrenadeKills": "grenade_kills", "MeleeKills": "melee_kills", "PowerWeaponKills": "power_weapon_kills"} {
 				if v, ok := core[source]; ok && v != nil {
 					row[dest] = v
 				}
 			}
+			contextCombatYield(row)
 			break
 		}
 		break
