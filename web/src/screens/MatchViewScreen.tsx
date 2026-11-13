@@ -21,6 +21,7 @@ import {
   meshUrl,
   MeshNotBuiltError,
 } from '../lib/api/standalone'
+import { usePlaybackLoop } from './usePlaybackLoop'
 
 const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
 
@@ -89,23 +90,7 @@ function PlaybackBar({
   setViewpoint: (xuid: string | null) => void
 }) {
   const fps = framesPerSecond(doc)
-  useEffect(() => {
-    if (!playing) return
-    let raf = 0
-    let last = performance.now()
-    const step = (now: number) => {
-      const deltaFrames = ((now - last) / 1000) * fps * speed
-      last = now
-      const next = Math.min(doc.frameCount - 1, Math.max(0, (frameRef.current ?? 0) + deltaFrames))
-      frameRef.current = next
-      setFrame(Math.round(next))
-      if (next < doc.frameCount - 1) raf = requestAnimationFrame(step)
-      else setPlaying(false)
-      raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [playing, speed, fps, doc.frameCount, frameRef, setFrame, setPlaying])
+  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying })
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
