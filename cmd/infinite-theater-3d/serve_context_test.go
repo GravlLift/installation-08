@@ -222,6 +222,39 @@ func TestContextCachedMetadata(t *testing.T) {
 	}
 }
 
+// TestContextMedalOrder pins the medal sort rule: count descending, ties keep
+// the stats-full array order. LevelUp applies no other sort (Q27BulkMedals
+// orders by xuid, count DESC; ties keep medals_earned insertion order, which
+// is the raw 343 stats payload order, internal/sync/transforms.go ExtractMedals).
+func TestContextMedalOrder(t *testing.T) {
+	root := newFakeStore(t)
+	raw := []byte(`{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":1,"Deaths":1,"Medals":[{"NameId":42,"Count":1},{"NameId":43,"Count":3},{"NameId":44,"Count":1}]}}}]}]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"A"},"difficultyIndex":0},{"nameId":43,"name":{"value":"B"},"difficultyIndex":1},{"nameId":44,"name":{"value":"C"},"difficultyIndex":0}]}`
+	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
+	var got struct {
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	medals, _ := got.Scoreboard[0]["medals"].([]any)
+	want := []float64{43, 42, 44}
+	if len(medals) != len(want) {
+		t.Fatalf("medals: %v", medals)
+	}
+	for i, id := range want {
+		if medals[i].(map[string]any)["medal_id"] != id {
+			t.Fatalf("medal order: %v", medals)
+		}
+	}
+}
+
 func TestContextMedalDifficulty(t *testing.T) {
 	for index, want := range map[int]string{0: "Normal", 1: "Heroic", 2: "Legendary", 3: "Mythic", -1: "Normal", 9: "Normal"} {
 		if got := contextMedalDifficulty(index); got != want {
