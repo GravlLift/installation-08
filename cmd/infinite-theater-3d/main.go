@@ -9,7 +9,7 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 )
 
-const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | build-mesh --map <key> [--game <root>] --out <file.glb>"
+const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | build-mesh --map <key> [--game <root>] --out <file.glb> | build-variant --map <key> --mvar <file.mvar> [--game <root>] --out <file.glb> | build-weapon --weapon <hex-id> --map <key> [--game <root>] --out <file.glb>"
 
 func run(args []string) error {
 	if len(args) == 1 && args[0] == "version" {
@@ -18,6 +18,12 @@ func run(args []string) error {
 	}
 	if len(args) >= 1 && args[0] == "build-mesh" {
 		return runBuildMesh(args[1:])
+	}
+	if len(args) >= 1 && args[0] == "build-variant" {
+		return runBuildVariant(args[1:])
+	}
+	if len(args) >= 1 && args[0] == "build-weapon" {
+		return runBuildWeapon(args[1:])
 	}
 	if len(args) != 2 || args[0] != "decode-info" {
 		return fmt.Errorf("%s", usage)
