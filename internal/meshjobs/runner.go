@@ -34,6 +34,11 @@ const JobWeaponIcons = "weapon-icons"
 // shares the runner's queue with the map builds, like the other library jobs.
 const JobHudIcons = "hud-icons"
 
+// JobRanks is the module key the runner uses for the single rank badge build (the 31 CSR
+// badge PNGs decoded from the game install). Like the other icon jobs it shares the
+// runner's queue with the map builds, so at most one heavy build runs at a time.
+const JobRanks = "ranks"
+
 // State is one module's build state as seen through the runner.
 type State string
 

@@ -13,6 +13,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
@@ -38,6 +39,8 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return weaponicons.SetReady(root.Dir())
 	case meshjobs.JobHudIcons:
 		return weaponicons.HudSetReady(root.Dir())
+	case meshjobs.JobRanks:
+		return rankicons.SetReady(root.Dir())
 	}
 	p, err := root.MeshPath(module)
 	if err != nil {
@@ -67,6 +70,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return weaponicons.OutDir(root.Dir())
 		case meshjobs.JobHudIcons:
 			return weaponicons.HudOutDir(root.Dir())
+		case meshjobs.JobRanks:
+			return rankicons.OutDir(root.Dir())
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -91,6 +96,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildWeaponIcons(ctx, root, game)
 		case meshjobs.JobHudIcons:
 			return buildHudIcons(ctx, root, game)
+		case meshjobs.JobRanks:
+			return buildRanks(ctx, root, game)
 		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {
@@ -147,6 +154,17 @@ func buildHudIcons(ctx context.Context, root *store.Root, gameRoot string) (mesh
 		return meshjobs.BuildResult{}, err
 	}
 	slog.InfoContext(ctx, "hud icons built", "files", files, "named", named, "bytes", n)
+	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
+}
+
+// buildRanks runs the rank badge build into the store's data directory. It is the
+// ranks job's body in the mesh build runner.
+func buildRanks(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	files, n, err := rankicons.Build(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	slog.InfoContext(ctx, "rank badges built", "files", files, "bytes", n)
 	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
 }
 
