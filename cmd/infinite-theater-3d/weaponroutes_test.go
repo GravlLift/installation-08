@@ -172,6 +172,48 @@ func TestWeaponModelKeyValidation(t *testing.T) {
 	}
 }
 
+// TestWeaponCoatingFiles — the coating files (coatings.json, coating-<style>.json,
+// swatch-<gradient>.png, the spartanpieces contract) are served from the weapons folder with
+// their content type; a coating name that is not a file is a JSON 404.
+func TestWeaponCoatingFiles(t *testing.T) {
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := weaponTestHandlers(t, root, nil)
+	dir := filepath.Join(root.Dir(), "weapons")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"coatings.json":         `{"schema":2}`,
+		"coating-f56ee213.json": `{"style":"f56ee213"}`,
+		"swatch-0b000001.png":   "png-bytes",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, body := range files {
+		rec := get(t, h, "/api/weapons/"+name, nil)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), body) {
+			t.Fatalf("%s = %d %s, want 200 bytes", name, rec.Code, rec.Body.String())
+		}
+	}
+	if ct := get(t, h, "/api/weapons/coating-f56ee213.json", nil).Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("coating content type = %q", ct)
+	}
+	if ct := get(t, h, "/api/weapons/swatch-0b000001.png", nil).Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("swatch content type = %q", ct)
+	}
+	// A coating name that matches the whitelist but has no file is a 404.
+	missing := get(t, h, "/api/weapons/coating-ffffffff.json", nil)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing coating = %d, want 404", missing.Code)
+	}
+}
+
 // TestWeaponStateNoMap — with no map key in the catalog, state and build are 409.
 func TestWeaponStateNoMap(t *testing.T) {
 	root, err := store.New(t.TempDir())

@@ -22,6 +22,8 @@ export interface SourcePreparation {
   piece(fichier: string): Promise<THREE.Object3D | null>
   armurerie(): SpartanArmory | null
   xuid(): string | null
+  /** La clé du modèle de l'arme du rig de fichier `fichier`, null sans modèle chargé pour lui. */
+  cleArmeDe(fichier: string): string | null
 }
 
 /**
@@ -74,7 +76,7 @@ export class PreparationRig3d {
     const habit = armurerie.dress(xuid)
     if (!habit) return
     for (const fichier of lot) {
-      const coat = await armurerie.peindreBras(xuid, habit, this.source.materiauxDe(fichier))
+      const coat = await armurerie.peindreBras(xuid, habit, this.source.materiauxDe(fichier), this.source.cleArmeDe(fichier))
       if (coat && generation === this.generation && this.source.xuid() === xuid) this.coats.set(fichier, coat)
     }
   }

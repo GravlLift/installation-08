@@ -7,6 +7,7 @@ package weapons
 // what a single-weapon build produces.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -34,10 +36,11 @@ type Options struct {
 
 // Result summarizes a library build.
 type Result struct {
-	Built   int
-	Skipped int
-	Bytes   int64
-	Seconds float64
+	Built    int
+	Skipped  int
+	Coatings int
+	Bytes    int64
+	Seconds  float64
 }
 
 // Build builds the whole library described by opts.Catalog into <DataDir>/weapons and writes
@@ -65,6 +68,13 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		return Result{}, fmt.Errorf("weapons directory: %w", err)
 	}
 
+	coats, err := spartanpieces.OpenCoatingWork(spartanpieces.EkurDir(opts.DataDir))
+	if err != nil {
+		return Result{}, err
+	}
+	if coats == nil {
+		slog.WarnContext(ctx, "weapon library without coatings: no ekur reference")
+	}
 	a, err := himap.OuvreArsenal(gameRoot, module)
 	if err != nil {
 		return Result{}, err
@@ -78,7 +88,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	var res Result
 	for _, key := range opts.Catalog.Keys {
 		announce("building weapon " + key)
-		n, err := buildWeaponModel(ctx, a, key, dir)
+		n, err := buildWeaponModel(ctx, a, key, dir, coats)
 		if err != nil {
 			if errors.Is(err, himap.ErrSansModele) {
 				if merr := writeMarker(dir, key); merr != nil {
@@ -114,6 +124,14 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 
 	idx := NewIndex(opts.Catalog.Keys, generatorLibrary)
+	if coats != nil {
+		idx.Coatings, err = coats.Finish(ctx, a, dir)
+		if err != nil {
+			return res, err
+		}
+		res.Coatings = idx.Coatings.Coatings
+		res.Bytes += idx.Coatings.Bytes
+	}
 	if err := writeIndex(dir, idx); err != nil {
 		return res, err
 	}
@@ -121,8 +139,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	return res, nil
 }
 
-// buildWeaponModel writes one weapon's GLB and returns its byte size.
-func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string) (int64, error) {
+// buildWeaponModel writes one weapon's painted GLB (its hard surfaces as raw
+// images, extras.surfaceBrute) and returns its byte size.
+func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string, coats *spartanpieces.CoatingWork) (int64, error) {
 	id, err := parseKey(key)
 	if err != nil {
 		return 0, err
@@ -131,7 +150,8 @@ func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string) (i
 	if err != nil {
 		return 0, err
 	}
-	return writeModelGLB(dir, key, m, generatorWeapon, map[string]any{"weap": key})
+	m.SurfacesBrutes = true
+	return writeModelGLB(ctx, dir, key, m, coats, generatorWeapon, map[string]any{"weap": key})
 }
 
 // buildGrenadeModel writes one grenade projectile's GLB and returns its byte size.
@@ -140,7 +160,7 @@ func buildGrenadeModel(ctx context.Context, a *himap.Arsenal, rank int, dir stri
 	if err != nil {
 		return 0, err
 	}
-	return writeModelGLB(dir, GrenadeKey(rank), m, generatorGrenade, map[string]any{"grenade": rank})
+	return writeModelGLB(ctx, dir, GrenadeKey(rank), m, nil, generatorGrenade, map[string]any{"grenade": rank})
 }
 
 // buildSpartanModel writes the Spartan body's animated GLB and returns its byte size, through
@@ -176,10 +196,24 @@ func parseKey(key string) (uint32, error) {
 	return uint32(id), nil
 }
 
-// writeModelGLB writes the model's GLB to dir/FileOf(key) atomically and returns its byte size.
-func writeModelGLB(dir, key string, m *himap.MaillageMonde, generator string, extras map[string]any) (int64, error) {
+// writeModelGLB writes the model's GLB to dir/FileOf(key) atomically and returns its byte
+// size. coats (nil accepted) puts the coating style on the painted materials before the write.
+func writeModelGLB(ctx context.Context, dir, key string, m *himap.MaillageMonde, coats *spartanpieces.CoatingWork,
+	generator string, extras map[string]any) (int64, error) {
+	var buf bytes.Buffer
+	if err := himap.EcritGLB(&buf, m, generator, withAxes(extras)); err != nil {
+		return 0, err
+	}
+	glb := buf.Bytes()
+	if coats != nil {
+		var err error
+		if glb, err = himap.AnnoteMateriauxGLB(glb, coats.Annotate(ctx)); err != nil {
+			return 0, err
+		}
+	}
 	return writeFile(filepath.Join(dir, FileOf(key)), func(w ioWriter) error {
-		return himap.EcritGLB(w, m, generator, withAxes(extras))
+		_, err := w.Write(glb)
+		return err
 	})
 }
 

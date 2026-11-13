@@ -6,8 +6,11 @@ package weapons
 // grenade projectile rank (grenade0, grenade1, ...), or the Spartan body (spartan).
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 )
 
 // KeySpartan is the model key of the Spartan body.
@@ -34,6 +37,17 @@ func WeaponKey(id string) (string, bool) {
 		}
 	}
 	return strings.ToLower(hex[:8]), true
+}
+
+// CoreKey is the model key of a weapon core's inventory path: the hex family at the tail of
+// the path's base name ("Cores/Weapon/209-200-olympus-aa30213b.json" is "aa30213b"); false
+// when it does not name a weapon key.
+func CoreKey(corePath string) (string, bool) {
+	base := strings.TrimSuffix(filepath.Base(corePath), ".json")
+	if i := strings.LastIndex(base, "-"); i >= 0 {
+		base = base[i+1:]
+	}
+	return WeaponKey(base)
 }
 
 // GrenadeKey is a grenade projectile's model key, for its rank.
@@ -74,6 +88,9 @@ type Index struct {
 	Generator  string   `json:"generator"`
 	WeapKeys   []string `json:"weapons"`
 	SpartanKey string   `json:"spartan"`
+	// Coatings: the coating table of the library (coatings.json), nil when the
+	// build had no Ekur reference: the weapons then stay in their neutral paint.
+	Coatings *spartanpieces.CoatingsIndex `json:"coatings,omitempty"`
 }
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan

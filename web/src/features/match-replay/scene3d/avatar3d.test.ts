@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { fixtureClips } from '../test/spartanClips'
 import { spartanSkeleton } from '../test/spartanSkeleton'
-import { ARMURE_NEUTRE } from './armorMaterial3d'
-import { makeAvatar, placeBody, showBodyFx, showWeapon, wearSpartan } from './avatar3d'
+import type { Coat } from './armorCoat3d'
+import { neutralPaint } from './armorCoating3d'
+import { ARMURE_NEUTRE, packPaint } from './armorMaterial3d'
+import { makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan } from './avatar3d'
 import type { BodyFxState } from './bodyShell3d'
 import { registerSpartanClips } from './clips3d'
 import { newClipMix } from './clipSample3d'
@@ -213,5 +215,75 @@ describe('showWeapon avec le Spartan', () => {
     expect(a.model?.parent).toBe(a.aim)
     expect(a.spartan?.rig.root.visible).toBe(false)
     expect(a.body.visible).toBe(false)
+  })
+})
+
+describe('showWeapon avec le revêtement de l’arme', () => {
+  /** Un modèle d'arme : un maillage peint (masques bruts). */
+  function gunSource(): THREE.Group {
+    const g = new THREE.Group()
+    const m = new THREE.MeshStandardMaterial()
+    m.userData.armorMaps = { asg: null, mask0: null, mask1: null }
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(), m))
+    return g
+  }
+
+  /** Le revêtement `materiaux` peints, une peinture neutre chacun. */
+  function coatDe(...materiaux: THREE.Material[]): Coat {
+    return new Map(materiaux.map((m) => [m, {
+      maps: { asg: null, mask0: null, mask1: null },
+      paint: packPaint(neutralPaint(), () => undefined, () => {}),
+      gradients: { value: null } as unknown as THREE.IUniform<THREE.Texture>,
+    }]))
+  }
+
+  it('peint la copie du modèle en main du revêtement, une copie par matériau source', () => {
+    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const source = gunSource()
+    const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
+    showWeapon(a, held, source, null, coatDe(mat))
+    const copie = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    expect(copie).not.toBe(mat)
+    expect(copie.userData.armorUniforms).toBeDefined()
+    expect(a.weaponCoat?.get(mat)).toBe(copie)
+  })
+
+  it('change de revêtement : les copies précédentes sont disposées', () => {
+    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const source = gunSource()
+    const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
+    showWeapon(a, held, source, null, coatDe(mat))
+    const copie1 = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    const dispose = vi.spyOn(copie1, 'dispose')
+    showWeapon(a, held, source, null, coatDe(mat))
+    expect((a.model!.children[0] as THREE.Mesh).material).not.toBe(copie1)
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('sans revêtement, la source revient ; à la sortie de l’arme, les copies sont libérées', () => {
+    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const source = gunSource()
+    const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
+    showWeapon(a, held, source, null, coatDe(mat))
+    const copie = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    const dispose = vi.spyOn(copie, 'dispose')
+    showWeapon(a, held, source, null, null)
+    expect((a.model!.children[0] as THREE.Mesh).material).toBe(mat)
+    expect(dispose).toHaveBeenCalledTimes(1)
+    showWeapon(a, null, null, null)
+    expect(a.model).toBeNull()
+    expect(a.weaponCoat).toBeNull()
+  })
+
+  it('releaseWeapon libère le revêtement posé', () => {
+    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const source = gunSource()
+    const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
+    showWeapon(a, held, source, null, coatDe(mat))
+    const dispose = vi.spyOn((a.model!.children[0] as THREE.Mesh).material as THREE.Material, 'dispose')
+    releaseWeapon(a)
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(a.weaponCoat).toBeNull()
+    expect((a.model!.children[0] as THREE.Mesh).material).toBe(mat)
   })
 })

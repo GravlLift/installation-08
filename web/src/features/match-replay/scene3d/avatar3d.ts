@@ -13,11 +13,15 @@
  * `b_r_grip`) comme le jeu l'y attache (`GRIP_TO_WEAPON`) : les clips tiennent l'arme des deux mains,
  * le tangage du buste la lève avec eux. En 1re personne et sans Spartan, l'arme est portée par le cône.
  * Au tir, l'arme recule (`recoil3d`, posé par `recoilPose3d`) : en 3e personne avec les deux bras.
+ * Le modèle est peint du revêtement de l'arme du joueur (`Coat` de `armory3d`) par copies de
+ * matériau (`armorMaterial3d`), posées à `showWeapon`, libérées à `releaseWeapon`.
  */
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 
 import { TAG_CLASS } from './actionKit'
+import type { Coat } from './armorCoat3d'
+import { armorMaterial } from './armorMaterial3d'
 import type { Dress } from './armory3d'
 import type { BakedLight } from './bakedLightShader'
 import { AIM_HEIGHT, BODY_CENTER, BODY_LENGTH, BODY_RADIUS, CROUCH_DROP, EYE_HEIGHT } from './body3d'
@@ -68,6 +72,10 @@ export interface Avatar {
   model: THREE.Object3D | null
   /** Le modèle dont `model` est la copie. */
   modelSource: THREE.Object3D | null
+  /** Les copies de matériau peintes sur `model`, par matériau source, null sans revêtement posé. */
+  weaponCoat: Map<THREE.Material, THREE.Material> | null
+  /** Le revêtement (`armory3d.coatArme`) dont les copies sont posées sur `model`. */
+  weaponCoatFor: Coat | null
   /** Le Spartan du joueur (une copie teinte), null sans modèle chargé. */
   spartan: SpartanCopy | null
   /** Le modèle dont `spartan` est la copie (posé même si la copie a échoué : pas de nouvel essai). */
@@ -107,7 +115,8 @@ export function makeAvatar(scene: THREE.Scene, name: string, color: THREE.Color)
   const tag = new CSS2DObject(el)
   scene.add(group, tag)
   return {
-    group, body, aim, gun, model: null, modelSource: null, spartan: null, spartanSource: null, dress: null, shell: null,
+    group, body, aim, gun, model: null, modelSource: null, weaponCoat: null, weaponCoatFor: null,
+    spartan: null, spartanSource: null, dress: null, shell: null,
     tag, name, color: color.getStyle(), tint: color.clone(), mix: newClipMix(),
   }
 }
@@ -184,18 +193,28 @@ export function placeBody(a: Avatar, feet: THREE.Vector3, pose: SpartanPose & { 
 /**
  * showWeapon : l'arme en main (le modèle du jeu `model` s'il est chargé, la barre sinon). `view` :
  * le joueur est la caméra (1re personne), seule son arme se
- * dessine, tenue dans le champ comme `view` le dit (viewGrip3d) ; null sinon. Après `placeBody`.
+ * dessine, tenue dans le champ comme `view` le dit (viewGrip3d) ; null sinon. `coat` : le
+ * revêtement de l'arme du joueur, peint en copies de matériau sur la copie du modèle ; null
+ * s'il n'est pas prêt. Après `placeBody`.
  */
 export function showWeapon(
   a: Avatar,
   held: { color: THREE.Color; recoil?: Recoil | null } | null,
   model: THREE.Object3D | null,
   view: ViewGrip | null,
+  coat: Coat | null = null,
 ): void {
   const firstPerson = view !== null
   const spartan = firstPerson ? null : a.spartan
   const holder = spartan ? spartan.rig.rightGrip : a.aim
-  holdModel(a, held ? model : null, holder)
+  const source = held ? model : null
+  if (source !== a.modelSource) detacherRevêtementArme(a)
+  holdModel(a, source, holder)
+  if (a.model && a.weaponCoatFor !== coat) {
+    detacherRevêtementArme(a)
+    a.weaponCoatFor = coat
+    a.weaponCoat = coat ? poserRevêtementArme(a.model, coat) : null
+  }
   if (a.model && view) {
     a.model.position.set(view.x, view.y, view.z)
     a.model.quaternion.setFromAxisAngle(BARREL, view.roll).multiply(MODEL_TURN)
@@ -249,4 +268,50 @@ function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object
     a.model = model ? model.clone() : null
   }
   if (a.model && a.model.parent !== holder) holder.add(a.model)
+}
+
+/**
+ * poserRevêtementArme peint la copie `model` du modèle d'arme du revêtement `coat` : une copie de
+ * matériau (`armorMaterial3d`) par matériau source peint, posée sur les maillages ; rend la
+ * correspondance source vers copie (vide sans matériau peint).
+ */
+function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
+  const copies = new Map<THREE.Material, THREE.Material>()
+  model.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return
+    const liste = Array.isArray(o.material) ? o.material : [o.material]
+    const neufs: THREE.Material[] = []
+    for (const m of liste) {
+      const paint = coat.get(m)
+      if (!paint) { neufs.push(m); continue }
+      let copie = copies.get(m)
+      if (!copie) { copie = armorMaterial(m as THREE.MeshStandardMaterial, paint); copies.set(m, copie) }
+      neufs.push(copie)
+    }
+    o.material = Array.isArray(o.material) ? neufs : neufs[0]
+  })
+  return copies
+}
+
+/** detacherRevêtementArme rend aux maillages leurs matériaux source et libère les copies peintes. */
+function detacherRevêtementArme(a: Avatar): void {
+  if (!a.weaponCoat) return
+  const copies = a.weaponCoat
+  // Les copies posées sont les valeurs ; la restauration cherche par copie vers matériau source.
+  const sources = new Map<THREE.Material, THREE.Material>()
+  for (const [src, cop] of copies) sources.set(cop, src)
+  if (a.model) a.model.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return
+    const liste = Array.isArray(o.material) ? o.material : [o.material]
+    const dOrigine = liste.map((m) => sources.get(m) ?? m)
+    o.material = Array.isArray(o.material) ? dOrigine : dOrigine[0]
+  })
+  for (const c of copies.values()) c.dispose()
+  a.weaponCoat = null
+  a.weaponCoatFor = null
+}
+
+/** releaseWeapon libère le revêtement de l'arme du joueur (fin de la scène). */
+export function releaseWeapon(a: Avatar): void {
+  detacherRevêtementArme(a)
 }

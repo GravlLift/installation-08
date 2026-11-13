@@ -50,6 +50,19 @@ type Spartan struct {
 	Reason    Reason     `json:"reason,omitempty"`
 	FetchedAt *time.Time `json:"fetched_at,omitempty"`
 	Manifest  *Manifest  `json:"manifest,omitempty"`
+	// WeaponCoatings: the coating of each equipped weapon, in the API's order;
+	// empty when no equipped core was read.
+	WeaponCoatings []WeaponCoating `json:"weapon_coatings,omitempty"`
+}
+
+// WeaponCoating is the coating of one equipped weapon. ModelKey is the weapon
+// library's model key of the core; StyleKey is the style list the equipped
+// theme's coating file names, the weapon library's key of its coating file;
+// empty when the coating file was not read.
+type WeaponCoating struct {
+	CoreID   string `json:"core_id,omitempty"`
+	ModelKey string `json:"model_key"`
+	StyleKey string `json:"style_key,omitempty"`
 }
 
 // Manifest is a set of armor pieces, to assemble on a skeleton.
