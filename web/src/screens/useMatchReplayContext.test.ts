@@ -12,7 +12,7 @@ it('loads the selected player context and derives the replay window and time lim
     media: { media_items: [] }, source_unavailable: false, regulation_seconds: 720,
   }) })
   vi.stubGlobal('fetch', fetchMock)
-  const doc = { roster: [{ xuid: '123', name: 'Alpha' }], tracks: [], originMs: 0, frameCount: 1000, frameIntervalMs: 100 } as unknown as ReplayDocumentReady
+  const doc = { roster: [{ xuid: '123', name: 'Alpha' }], tracks: [], killCauses: [], originMs: 0, frameCount: 1000, frameIntervalMs: 100 } as unknown as ReplayDocumentReady
   const { result } = renderHook(() => useMatchReplayContext('abc', doc))
   await waitFor(() => expect(result.current.timeLimitMs).toBe(720000))
   expect(fetchMock).toHaveBeenCalledWith('/api/matches/abc/context?xuid=123', expect.any(Object))

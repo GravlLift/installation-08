@@ -4,6 +4,7 @@ import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { collectKillEvents } from '../features/match-view/_momentum'
 import { buildFeedEntries, collectMedalEvents, killsOfFeed } from '../features/match-replay/model/killFeedLogic'
 import { replayWindow } from '../features/match-replay/model/replayWindow'
+import { buildKillsFromDocument } from '../lib/replay/killsFromDocument'
 import { useAuthState } from './useAuthState'
 import { xuidOfGamertag } from './useDefaultViewpoint'
 
@@ -48,7 +49,9 @@ export function useMatchReplayContext(matchId: string, doc: ReplayDocumentReady)
     const feed = buildFeedEntries(collectKillEvents(events, identity), collectMedalEvents(events), context?.header.t0_ms ?? 0, doc)
     return {
       context,
-      kills: killsOfFeed(feed),
+      // Until the context arrives (or if it cannot load), the kills the document itself
+      // carries keep the kill feed and kill markers drawn.
+      kills: context ? killsOfFeed(feed) : buildKillsFromDocument(doc),
       playWindow: replayWindow(doc, context?.header),
       timeLimitMs: context?.regulation_seconds != null ? context.regulation_seconds * 1000 : null,
     }
