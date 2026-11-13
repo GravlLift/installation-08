@@ -64,6 +64,12 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
   and placed objects, layered materials and height blend, cut-out materials, baked light
   probes and lamps, sun and sky, terrain heightfields, weapons, armor pieces (117 new files,
   15 modified). New dependency: `github.com/woozymasta/bcn` v0.7.0.
+  - `himap/arsenal_roster.go` (new, LOCAL-CHANGE): `Arsenal.RosterArmes` enumerates every
+    weapon's `weap` GlobalID in the installed modules (the weapon-settings group does not
+    exist in the game; the `weap` tags themselves are the roster). It reads the unexported
+    geometry index through an `Arsenal` method because no external package can, mirroring the
+    existing `Grenade` pattern. Serves the standalone weapon-library build
+    (`cmd/infinite-theater-3d build-weapons`).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
