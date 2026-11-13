@@ -101,6 +101,7 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 	if err != nil {
 		return nil, err
 	}
+	contextCached(root, id, header, rows, events)
 	result := contextJSON{"header": header, "scoreboard": rows, "highlight_events": events, "media": contextJSON{"media_items": []any{}}, "source_unavailable": false}
 	switch stats.GameVariantName {
 	case "CTF:Arena", "CTF:Arena Neutral Flag", "Team Slayer:Arena", "Slayer:Arena", "Slayer:Arena Super Fiesta", "Slayer:Arena Tactical", "Strongholds:Arena", "Arena:Slayer", "Arena:Team Slayer", "Ranked:Slayer":

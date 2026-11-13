@@ -206,3 +206,59 @@ func TestContextStaticAssets(t *testing.T) {
 		}
 	}
 }
+
+func TestContextCachedMetadata(t *testing.T) {
+	root := newFakeStore(t)
+	files := map[string]string{
+		"stats-full.json": `{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":1,"Medals":[{"NameId":42,"Count":2}]}}}]}]}`,
+		"skill.json":      `{"Value":[{"Id":"xuid(1)","ResultCode":0,"Result":{"StatPerformances":{"Kills":{"Expected":3.5,"StdDev":1.2},"Deaths":{"Expected":2.5,"StdDev":0.8}},"RankRecap":{"PreMatchCsr":{"Value":1500},"PostMatchCsr":{"Value":1505,"Tier":"Onyx","SubTier":0,"InitialMeasurementMatches":5}}}}]}`,
+		"playlist.json":   `{"PublicName":"Ranked Arena"}`,
+	}
+	for p, v := range files {
+		if err := root.WriteFile(variantPath(root, "abc", p), []byte(v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Test Medal"},"Description":{"value":"Test description"},"Difficulty":"Heroic","SpriteIndex":0}]}`
+	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
+	var got struct {
+		Header     map[string]any   `json:"header"`
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Scoreboard) != 1 {
+		t.Fatalf("%s", rec.Body.String())
+	}
+	row := got.Scoreboard[0]
+	medals, _ := row["medals"].([]any)
+	rank, _ := row["skill_rank"].(map[string]any)
+	if got.Header["is_ranked"] != true || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestContextMedalEventMetadata(t *testing.T) {
+	root := newFakeStore(t)
+	if err := root.WriteFile(variantPath(root, "abc", "events.json"), []byte(`[{"XUID":1,"EventType":"medal","TimeMS":1000,"TypeHint":50,"MedalType":26}]`)); err != nil {
+		t.Fatal(err)
+	}
+	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Killjoy"},"Description":{"value":"End a spree"}}]}`
+	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context", nil)
+	var got struct {
+		Events []map[string]any `json:"highlight_events"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Events) != 1 || got.Events[0]["medal_name_id"] != float64(42) || got.Events[0]["medal_label"] != "Killjoy" || got.Events[0]["medal_description"] != "End a spree" || got.Events[0]["medal_image_url"] != "/static/medals/halo_infinite/42.png" {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}

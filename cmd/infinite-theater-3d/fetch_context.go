@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 	}
 	skill, err := api.Skill(ctx, id, xuids)
 	if err != nil {
-		return err
+		slog.Warn("match skill unavailable", "id", id, "err", err)
 	}
 	if len(skill) > 0 {
 		if err = root.WriteFile(variantPath(root, id, "skill.json"), skill); err != nil {
@@ -58,7 +59,7 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 	}
 	playlist, err := api.Playlist(ctx, p.Info.Playlist.ID, p.Info.Playlist.Version)
 	if err != nil {
-		return err
+		slog.Warn("playlist unavailable", "id", id, "err", err)
 	}
 	if len(playlist) > 0 {
 		if err = root.WriteFile(variantPath(root, id, "playlist.json"), playlist); err != nil {
@@ -66,7 +67,7 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 		}
 	}
 	if err = fetchMedalAssets(ctx, root, api); err != nil {
-		return err
+		slog.Warn("medal assets unavailable", "id", id, "err", err)
 	}
 	if p.Info.Map.ID != "" && store.ModuleKeyValid(p.Info.Map.ID) {
 		target := filepath.Join(root.Dir(), "static", "maps", "halo_infinite", p.Info.Map.ID+".png")
