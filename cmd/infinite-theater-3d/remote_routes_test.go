@@ -110,3 +110,34 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func TestRemoteFetchExpiredFilm(t *testing.T) {
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newServerHandlers(root, "", nil, weapons.Catalog{})
+	h.remote.client = func(context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+		return nil, haloauth.Credentials{}, nil
+	}
+	h.remote.fetch = func(context.Context, *store.Root, *haloapi.Client, string, fetchProgress) error {
+		return &haloapi.FilmUnavailableError{}
+	}
+	r := httptest.NewRecorder()
+	h.ServeHTTP(r, httptest.NewRequest("POST", "/api/matches/abc/fetch", nil))
+	if r.Code != 202 {
+		t.Fatal(r.Code)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		r = httptest.NewRecorder()
+		h.ServeHTTP(r, httptest.NewRequest("GET", "/api/matches/abc/fetch/state", nil))
+		if strings.Contains(r.Body.String(), "film not available") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(r.Body.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
