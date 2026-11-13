@@ -179,3 +179,142 @@ export async function requestMeshBuild(matchId: string, signal?: AbortSignal): P
   if (!res.ok) throwMeshError(res, body, matchId, 'POST .../mesh/build')
   return body as MeshStateBody
 }
+
+// --- Account sign-in (`/api/auth/*`) ---------------------------------------------------------
+
+/** The four states the sign-in contract defines. Fields that do not apply to a given state are
+ *  omitted by the server, never sent as `null` — same convention as `MeshStateBody`. */
+export type AuthStateValue = 'signed_out' | 'pending' | 'signed_in' | 'failed'
+
+/** The body of `GET /api/auth/state`, `POST /api/auth/login` and `POST /api/auth/logout`. */
+export interface AuthStateBody {
+  state: AuthStateValue
+  gamertag?: string
+  verificationUri?: string
+  userCode?: string
+  expiresAt?: string
+  error?: string
+}
+
+/** The server's older `/api/auth/state` shape (`{signedIn, gamertag?}`), read only so this
+ *  client still works against a server build that has not picked up the `{state:...}` contract
+ *  yet (see `cmd/infinite-theater-3d/remote_routes.go`, `authState`). Once every server this
+ *  app talks to answers with `state`, this type and `normalizeAuthState`'s fallback branch can
+ *  go. */
+interface LegacyAuthStateBody {
+  signedIn?: boolean
+  gamertag?: string
+}
+
+function isAuthStateValue(v: unknown): v is AuthStateValue {
+  return v === 'signed_out' || v === 'pending' || v === 'signed_in' || v === 'failed'
+}
+
+/** Normalizes whatever `/api/auth/state` answers: the current `{state:...}` contract when
+ *  present, the older `{signedIn}` shape otherwise. An unrecognized or missing `state` that
+ *  does not look signed in reads as `signed_out`, never as an error. */
+export function normalizeAuthState(raw: unknown): AuthStateBody {
+  if (raw && typeof raw === 'object' && isAuthStateValue((raw as { state?: unknown }).state)) {
+    return raw as AuthStateBody
+  }
+  const legacy = raw as LegacyAuthStateBody | null
+  if (legacy && legacy.signedIn) {
+    return { state: 'signed_in', gamertag: legacy.gamertag }
+  }
+  return { state: 'signed_out' }
+}
+
+/** `GET /api/auth/state` — the current sign-in state. */
+export async function fetchAuthState(signal?: AbortSignal): Promise<AuthStateBody> {
+  const res = await fetch('/api/auth/state', { signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`GET /api/auth/state: HTTP ${res.status}`, res.status, body)
+  return normalizeAuthState(body)
+}
+
+/** `POST /api/auth/login` — starts the Microsoft device-code sign-in (202 with the pending
+ *  state) or reports an already-signed-in account (200, `signed_in`). */
+export async function startLogin(signal?: AbortSignal): Promise<AuthStateBody> {
+  const res = await fetch('/api/auth/login', { method: 'POST', signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`POST /api/auth/login: HTTP ${res.status}`, res.status, body)
+  return normalizeAuthState(body)
+}
+
+/** `POST /api/auth/logout` — signs out and returns the signed-out state. */
+export async function requestLogout(signal?: AbortSignal): Promise<AuthStateBody> {
+  const res = await fetch('/api/auth/logout', { method: 'POST', signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`POST /api/auth/logout: HTTP ${res.status}`, res.status, body)
+  return normalizeAuthState(body)
+}
+
+// --- Remote matches and fetching (`/api/remote/matches`, `/api/matches/{id}/fetch*`) --------
+
+/** One row of `GET /api/remote/matches` (see `internal/haloapi/client.go`, `Match`). */
+export interface RemoteMatch {
+  id: string
+  map: string
+  mode: string
+  time: string
+}
+
+/** `GET /api/remote/matches` — the signed-in player's recent matches from the Halo service.
+ *  401 when not signed in, 502 when the service call itself fails; both carry a typed
+ *  `{error: string}` body that becomes this error's message. */
+export async function fetchRemoteMatches(signal?: AbortSignal): Promise<RemoteMatch[]> {
+  const res = await fetch('/api/remote/matches', { signal })
+  if (!res.ok) {
+    const body = await readErrorBody(res)
+    const message =
+      body && typeof body === 'object' && typeof (body as { error?: string }).error === 'string'
+        ? (body as { error: string }).error
+        : `HTTP ${res.status}`
+    throw new ApiError(`GET /api/remote/matches: ${message}`, res.status, body)
+  }
+  return (await res.json()) as RemoteMatch[]
+}
+
+/** The lifecycle of one match's remote fetch-and-build job, as the fetch state route answers
+ *  it. `idle` means the server holds no job for this match id at all (never started, or a
+ *  different match is the one in flight). */
+export type FetchJobState = 'idle' | 'queued' | 'downloading' | 'building' | 'ready' | 'failed'
+
+/** The body of `GET /api/matches/{id}/fetch/state` and the 202 from `POST .../fetch`. */
+export interface FetchStateBody {
+  state: FetchJobState
+  matchId?: string
+  done: number
+  total: number
+  error?: string
+}
+
+/** Thrown by `startMatchFetch` on 409: the server runs one fetch at a time and another one is
+ *  already in progress (possibly for a different match, possibly started from another tab). */
+export class FetchConflictError extends ApiError {
+  constructor(body: unknown) {
+    super('a fetch is already in progress', 409, body)
+  }
+}
+
+/** `GET /api/matches/{id}/fetch/state` — the match's current fetch/build job state, polled
+ *  while a job for it is queued, downloading or building. */
+export async function fetchFetchState(matchId: string, signal?: AbortSignal): Promise<FetchStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/fetch/state`, { signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`GET .../fetch/state: HTTP ${res.status}`, res.status, body)
+  return body as FetchStateBody
+}
+
+/** `POST /api/matches/{id}/fetch` — starts downloading and building this match; the server
+ *  does one at a time and answers 409 (`FetchConflictError`) when another is already running. */
+export async function startMatchFetch(matchId: string, signal?: AbortSignal): Promise<FetchStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/fetch`, {
+    method: 'POST',
+    signal,
+  })
+  const body = await readErrorBody(res)
+  if (res.status === 409) throw new FetchConflictError(body)
+  if (!res.ok) throw new ApiError(`POST .../fetch: HTTP ${res.status}`, res.status, body)
+  return body as FetchStateBody
+}
