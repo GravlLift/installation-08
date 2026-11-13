@@ -63,17 +63,17 @@ func (h serverHandlers) variantMatch(w http.ResponseWriter, r *http.Request) (st
 }
 
 func (h serverHandlers) variantHasMvar(w http.ResponseWriter, id string) bool {
-	_, err := os.Stat(variantPath(h.root, id, "map.mvar"))
-	if errors.Is(err, os.ErrNotExist) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "variant_no_mvar", "id": id})
-		return false
+	if hasMatchMvar(h.root, id) {
+		return true
 	}
-	if err != nil {
+	_, err := os.Stat(variantPath(h.root, id, "map.mvar"))
+	if !errors.Is(err, os.ErrNotExist) {
 		slog.Error("stat map variant", "id", id, "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal_error"})
 		return false
 	}
-	return true
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": "variant_no_mvar", "id": id})
+	return false
 }
 
 func (h serverHandlers) handleVariant(w http.ResponseWriter, r *http.Request) {

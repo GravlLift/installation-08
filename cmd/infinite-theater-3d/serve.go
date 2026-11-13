@@ -79,7 +79,7 @@ func runServe(args []string) error {
 	}
 	jobs.Start()
 	defer jobs.Stop(5 * time.Second)
-	maybeEnqueueWeaponIcons(jobs, dataDir, f.game)
+	runServeStartup(jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game)
 	labelCat, err := weapons.LoadLabelCatalog()
 	if err != nil {
 		return err

@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 
@@ -91,6 +89,12 @@ func (h serverHandlers) runRemoteFetch(id string) {
 	if err == nil {
 		update("downloading", 0, 0)
 		err = j.fetch(context.Background(), h.root, api, id, update)
+		if err == nil {
+			// The fetch route is where the server learns about a match added while it runs:
+			// the new match's map mesh and variant layer join the build queue here, through
+			// the runner's own readiness checks.
+			h.enqueueMatchBuilds(id)
+		}
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -134,18 +138,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: func(ctx context.Context, root *store.Root, api *haloapi.Client, id string, progress fetchProgress) error {
-		if err := fetchMatch(ctx, root, api, id, progress); err != nil {
-			return err
-		}
-		if jobs != nil {
-			if _, err := os.Stat(variantPath(root, id, "map.mvar")); err == nil {
-				jobs.Enqueue(variantPrefix + id)
-				slog.Info("variant build queued after fetch", "id", id)
-			}
-		}
-		return nil
-	}}}
+	}, fetch: fetchMatch}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/state", h.authStateRoute)
 	mux.HandleFunc("POST /api/auth/login", h.runLoginRoute)

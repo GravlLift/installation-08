@@ -18,34 +18,40 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
+// jobModuleReady is the runner's own readiness check: it reports whether a module's output
+// is on disk (a map's mesh file, or a library's index, or a match's variant layer). The
+// startup step and the runner use it, so a build whose output is already on disk is never
+// queued by either.
+func jobModuleReady(root *store.Root, module string) bool {
+	if id, ok := variantJobID(module); ok {
+		_, err := os.Stat(variantPath(root, id, "variant.glb"))
+		return err == nil
+	}
+	switch module {
+	case meshjobs.JobWeapons:
+		_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
+		return err == nil
+	case meshjobs.JobFirstPerson:
+		_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
+		return err == nil
+	case meshjobs.JobWeaponIcons:
+		return weaponicons.SetReady(root.Dir())
+	}
+	p, err := root.MeshPath(module)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(p)
+	return err == nil
+}
+
 // meshJobsFor wires the mesh build runner to the store: the ready callback reports whether a
 // module's output is on disk (a map's mesh file, or the weapon library's index), the
 // destination maps a module to its output file, and the builder runs the real map build for a
 // map module and the real weapon-library build for the weapons job. The weapons job shares the
 // runner's queue with the map builds, so it never runs beside one.
 func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) (*meshjobs.Runner, error) {
-	ready := func(module string) bool {
-		if id, ok := variantJobID(module); ok {
-			_, err := os.Stat(variantPath(root, id, "variant.glb"))
-			return err == nil
-		}
-		switch module {
-		case meshjobs.JobWeapons:
-			_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
-			return err == nil
-		case meshjobs.JobFirstPerson:
-			_, err := os.Stat(filepath.Join(root.Dir(), "first-person", "index.json"))
-			return err == nil
-		case meshjobs.JobWeaponIcons:
-			return weaponicons.SetReady(root.Dir())
-		}
-		p, err := root.MeshPath(module)
-		if err != nil {
-			return false
-		}
-		_, err = os.Stat(p)
-		return err == nil
-	}
+	ready := func(module string) bool { return jobModuleReady(root, module) }
 	dest := func(module string) string {
 		if id, ok := variantJobID(module); ok {
 			return variantPath(root, id, "variant.glb")
