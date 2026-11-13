@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/JGtm/halo-infinite-files-reader/himodule"
 )
@@ -93,6 +94,71 @@ func GeometrySearchPath(deployRoot, moduleCarte string) ([]string, error) {
 	return chemins, nil
 }
 
+// GeometrySearchPathMonde ajoute a GeometrySearchPath le module de geometrie des objets Forge
+// (la structure de certaines cartes natives pose des objets du catalogue Forge comme instances de
+// son sbsp, et leurs `rtgo` ne vivent que la), puis les modules `any` de CheminsMateriaux, ou
+// vivent les tags des objets que pose le scenario (`scen`, `mach`, `bloc`, `hlmt`). Places en
+// dernier, ils ne priment sur aucune geometrie `pc`. Le rendu vu du dessus garde
+// GeometrySearchPath.
+func GeometrySearchPathMonde(deployRoot, moduleCarte string) ([]string, error) {
+	chemins, err := GeometrySearchPath(deployRoot, moduleCarte)
+	if err != nil {
+		return nil, err
+	}
+	if p := cheminGeometrieForge(deployRoot); existeFichier(p) {
+		chemins = append(chemins, p)
+	}
+	objets, err := CheminsMateriaux(deployRoot, moduleCarte)
+	if err != nil {
+		return nil, err
+	}
+	return append(chemins, objets...), nil
+}
+
+// moduleScenario rend le module dont le `levl` pose les objets du scenario : celui de la carte.
+func (o OptionsCuisson) moduleScenario() string {
+	if o.CheminModuleCarte != "" {
+		return o.CheminModuleCarte
+	}
+	return o.CheminModule
+}
+
+// modulesCarteDeportee rend, pour une carte dont la geometrie vit dans un autre module (Live
+// Fire), le module de la carte et son jumeau `any` : ils portent les tags des objets que pose son
+// scenario et leurs materiaux. Places en dernier, ils ne priment sur rien de ce que la geometrie
+// trouve deja. Rien pour une carte qui porte sa geometrie.
+func (o OptionsCuisson) modulesCarteDeportee() []string {
+	if o.CheminModuleCarte == "" || o.CheminModuleCarte == o.CheminModule {
+		return nil
+	}
+	out := []string{o.CheminModuleCarte}
+	if j, ok := jumeauAny(o.RacineDeploy, o.CheminModuleCarte); ok {
+		out = append(out, j)
+	}
+	return out
+}
+
+// jumeauAny rend le module `any` jumeau d'un module `pc`, s'il existe.
+func jumeauAny(deployRoot, modulePC string) (string, bool) {
+	rel, err := filepath.Rel(filepath.Join(deployRoot, "pc"), modulePC)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	jumeau := filepath.Join(deployRoot, "any", rel)
+	return jumeau, existeFichier(jumeau)
+}
+
+// cheminGeometrieForge rend le module `pc` des objets Forge : leurs `rtgo` et leurs bitmaps.
+func cheminGeometrieForge(deployRoot string) string {
+	return filepath.Join(deployRoot, "pc", "globals", "forge", "forge_objects-rtx-new.module")
+}
+
+// cheminDefinitionsForge rend le module `any` des objets Forge : leurs definitions `food`, dont
+// le GlobalID est le type_id d'un objet du `.mvar`.
+func cheminDefinitionsForge(deployRoot string) string {
+	return filepath.Join(deployRoot, "any", "globals", "forge", "forge_objects-rtx-new.module")
+}
+
 // Lookup dit si un GlobalID est connu, et de quel module il vient.
 func (idx *ModuleIndex) Lookup(id uint32) (groupe, module string, ok bool) {
 	e, ok := idx.parID[id]
@@ -130,6 +196,16 @@ func (idx *ModuleIndex) ExtractWithResources(id uint32) (tag, blob []byte, err e
 		return nil, nil, err
 	}
 	return tag, blob, nil
+}
+
+// entree rend le module et l'entree d'un GlobalID, pour les lecteurs qui choisissent eux-memes
+// parmi les ressources (les niveaux de mip d'un bitmap).
+func (idx *ModuleIndex) entree(id uint32) (*himodule.Module, himodule.File, bool) {
+	e, ok := idx.parID[id]
+	if !ok {
+		return nil, himodule.File{}, false
+	}
+	return idx.modules[e.module], e.fichier, true
 }
 
 // Taille rend le nombre d'entrees indexees (diagnostic).

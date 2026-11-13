@@ -41,6 +41,22 @@ func TestLabelHashKnownValue(t *testing.T) {
 	}
 }
 
+// TestHasLabel : le label se reconnait par son hash, parmi d'autres ; le filtre d'Infection est un
+// nom de la table, et son contraire ne le satisfait pas.
+func TestHasLabel(t *testing.T) {
+	if LabelName(LabelHash(LabelInfectionInclude)) != LabelInfectionInclude {
+		t.Fatalf("%q absent de labelNames", LabelInfectionInclude)
+	}
+	o := Object{Labels: []int32{LabelHash("assault_exclude"), LabelHash(LabelInfectionInclude)}}
+	if !o.HasLabel(LabelInfectionInclude) {
+		t.Error("infection_include non reconnu")
+	}
+	if (Object{Labels: []int32{LabelHash("infection_exclude")}}).HasLabel(LabelInfectionInclude) ||
+		(Object{}).HasLabel(LabelInfectionInclude) {
+		t.Error("infection_include reconnu sur un objet qui ne le porte pas")
+	}
+}
+
 func TestParseBreaker(t *testing.T) {
 	v, err := Parse(fixture(t, "breaker_ctf_breaker.mvar"))
 	if err != nil {

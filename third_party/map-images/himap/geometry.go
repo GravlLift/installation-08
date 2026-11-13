@@ -29,8 +29,18 @@ const (
 
 // Offsets dans un enregistrement de LOD render data.
 const (
+	lodOffParts        = 0x28
 	lodOffVertexBuffer = 0x64
 	lodOffIndexBuffer  = 0x8A
+)
+
+// Un enregistrement du bloc `parts` d'un LOD (Reclaimer `SubmeshBlock`, 24 o) : le rang du
+// materiau dans la liste de l'instance, puis la plage du tampon d'indices qu'il couvre.
+const (
+	partStride      = 24
+	partOffMateriau = 0x00
+	partOffDebut    = 0x04
+	partOffCompte   = 0x08
 )
 
 // Offsets des bornes dans un enregistrement `Per Mesh Data` (144 o).
@@ -67,6 +77,20 @@ type bufferDesc struct {
 type Mesh struct {
 	Vertices  [][3]float64
 	Triangles [][3]int
+	// Parts decoupe Triangles par materiau. Un triangle hors de toute part n'a pas de
+	// materiau connu ; un maillage sans bloc `parts` en porte une seule, de rang 0.
+	Parts []PartMaillage
+	// UV : les trois jeux de coordonnees de texture par sommet ; un jeu vaut nil quand le LOD
+	// ne le porte pas lisible.
+	UV [NJeuxUV][][2]float32
+}
+
+// PartMaillage : les triangles [Debut, Debut+Compte) de Mesh.Triangles, dessines avec le
+// materiau de rang Materiau dans Instance.Materiaux.
+type PartMaillage struct {
+	Materiau int
+	Debut    int
+	Compte   int
 }
 
 // RuntimeGeoAsset est un tag `rtgo` pret a rendre des maillages.
@@ -171,7 +195,10 @@ func decodeIndexDesc(r []byte) (bufferDesc, bool) {
 // decorer : les drapeaux de visibilite du LOD (`lod flags`, `lod render flags`, cf.
 // filtres_reclaimer.go) ne se lisent nulle part ailleurs, et les recalculer dans un second
 // parcours donnerait deux lectures a maintenir du meme bloc.
-type lodEntry struct{ vertexBuf, indexBuf, abs int }
+//
+// `bloc` / `rang` situent l'enregistrement dans son data-block : c'est la cle de la
+// struct-table pour ses blocs imbriques (`parts`).
+type lodEntry struct{ vertexBuf, indexBuf, abs, bloc, rang int }
 
 // lods rend les niveaux de detail d'un maillage.
 func (a *RuntimeGeoAsset) lods(meshIndex int) []lodEntry {
@@ -204,27 +231,36 @@ func (a *RuntimeGeoAsset) lods(meshIndex int) []lodEntry {
 			vertexBuf: int(binary.LittleEndian.Uint16(r[lodOffVertexBuffer:])),
 			indexBuf:  int(binary.LittleEndian.Uint16(r[lodOffIndexBuffer:])),
 			abs:       abs + k*lodStride,
+			bloc:      cible,
+			rang:      k,
 		})
 	}
 	return out
 }
 
-// bounds rend les bornes de dequantification d'un maillage : par maillage sur un rtgo,
-// uniques au modele sur un mode (BoundingBoxBlock, paires min/max entrelacees).
+// bounds rend les bornes de dequantification d'un maillage : la boite de quantification du
+// tag (premier BoundingBoxBlock, paires min/max entrelacees), commune a tous ses maillages,
+// rtgo comme mode.
 func (a *RuntimeGeoAsset) bounds(meshIndex int) (mn, mx [3]float64, ok bool) {
-	if meshIndex < 0 || meshIndex >= a.geo.MeshCount {
+	off := a.geo.BoundsAbs + bboxOffBounds
+	if meshIndex < 0 || meshIndex >= a.geo.MeshCount || a.geo.BoundsAbs < 0 || off+24 > len(a.info.tag) {
 		return mn, mx, false
 	}
+	for i := 0; i < 3; i++ {
+		mn[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(a.info.tag[off+i*8:])))
+		mx[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(a.info.tag[off+4+i*8:])))
+	}
+	return mn, mx, bornesValides(mn, mx)
+}
+
+// BornesRendu rend la boite serree d'un maillage en repere local : ses bornes `Per Mesh Data`
+// sur un rtgo, la boite du modele sur un mode (qui n'en porte pas par maillage).
+func (a *RuntimeGeoAsset) BornesRendu(meshIndex int) (mn, mx [3]float64, ok bool) {
 	if a.geo.PerMeshAbs < 0 {
-		off := a.geo.BoundsAbs + bboxOffBounds
-		if a.geo.BoundsAbs < 0 || off+24 > len(a.info.tag) {
-			return mn, mx, false
-		}
-		for i := 0; i < 3; i++ {
-			mn[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(a.info.tag[off+i*8:])))
-			mx[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(a.info.tag[off+4+i*8:])))
-		}
-		return mn, mx, bornesValides(mn, mx)
+		return a.bounds(meshIndex)
+	}
+	if meshIndex < 0 || meshIndex >= a.geo.MeshCount {
+		return mn, mx, false
 	}
 	off := a.geo.PerMeshAbs + meshIndex*perMeshStride
 	if off+perMeshStride > len(a.info.tag) {
@@ -302,11 +338,6 @@ func (a *RuntimeGeoAsset) chooseLOD(meshIndex int) (lodEntry, bool) {
 // Blob rend le blob de ressources (lecture seule, pour les temoins).
 func (a *RuntimeGeoAsset) Blob() []byte { return a.blob }
 
-// Bounds rend les bornes de dequantification d'un maillage.
-func (a *RuntimeGeoAsset) Bounds(meshIndex int) (mn, mx [3]float64, ok bool) {
-	return a.bounds(meshIndex)
-}
-
 // Mesh decode un maillage en repere local. Renvoie nil si le maillage n'est pas exploitable
 // (aucun LOD, tampon de positions absent, descripteur hors du blob) — c'est un cas normal,
 // pas une erreur : le compte des maillages rendus est publie par l'appelant.
@@ -331,10 +362,11 @@ func DequantSigne(q uint16, mn, mx float64) float64 {
 
 // MeshDequant decode un maillage avec une lecture de quantification donnee.
 func (a *RuntimeGeoAsset) MeshDequant(meshIndex int, dq Dequant) *Mesh {
-	vd, id, ok := a.MeshBuffers(meshIndex)
+	l, ok := a.chooseLOD(meshIndex)
 	if !ok {
 		return nil
 	}
+	vd, id := a.vertexDescs[l.vertexBuf], a.indexDescs[l.indexBuf]
 	if vd.Usage != vertexUsagePosition || vd.Stride != vertexStridePosition {
 		return nil
 	}
@@ -354,16 +386,49 @@ func (a *RuntimeGeoAsset) MeshDequant(meshIndex int, dq Dequant) *Mesh {
 		}
 	}
 
-	return &Mesh{Vertices: verts, Triangles: a.triangles(id, len(verts))}
+	tris, gardes := a.triangles(id, len(verts))
+	return &Mesh{Vertices: verts, Triangles: tris, Parts: a.parts(l, gardes, len(tris)), UV: a.uvs(l, len(verts))}
 }
 
-// triangles lit le tampon d'indices et rend les faces dont les trois sommets existent.
+// parts lit le bloc `parts` du LOD retenu et traduit chaque plage d'INDICES en plage de
+// TRIANGLES gardes. gardes[f] est le nombre de triangles gardes avant la face f (cf.
+// triangles) : une face ecartee n'est donc comptee dans aucune part.
+func (a *RuntimeGeoAsset) parts(l lodEntry, gardes []int, nTris int) []PartMaillage {
+	cible := a.info.subBlockTarget(l.bloc, l.rang*lodStride+lodOffParts)
+	if cible < 0 {
+		return []PartMaillage{{Materiau: 0, Debut: 0, Compte: nTris}}
+	}
+	abs, size := a.info.blockAbs(cible)
+	if abs < 0 || size <= 0 || abs+size > len(a.info.tag) || size%partStride != 0 {
+		return []PartMaillage{{Materiau: 0, Debut: 0, Compte: nTris}}
+	}
+	faces := len(gardes) - 1
+	out := make([]PartMaillage, 0, size/partStride)
+	for k := 0; k < size/partStride; k++ {
+		r := abs + k*partStride
+		f0 := min(max(u32(a.info.tag, r+partOffDebut)/3, 0), faces)
+		f1 := min(max(f0+u32(a.info.tag, r+partOffCompte)/3, f0), faces)
+		if gardes[f1] > gardes[f0] {
+			out = append(out, PartMaillage{
+				Materiau: int(int16(u16(a.info.tag, r+partOffMateriau))),
+				Debut:    gardes[f0],
+				Compte:   gardes[f1] - gardes[f0],
+			})
+		}
+	}
+	return out
+}
+
+// triangles lit le tampon d'indices et rend les faces dont les trois sommets existent, avec
+// le compte cumule des faces gardees (gardes[f] = gardees avant la face f, len = faces+1).
 //
 // Une face dont un indice depasse le tampon de sommets est ECARTEE, pas corrigee : elle
 // signale un appariement LOD/tampon faux, et la rendre inventerait de la geometrie.
-func (a *RuntimeGeoAsset) triangles(id bufferDesc, nVerts int) [][3]int {
+func (a *RuntimeGeoAsset) triangles(id bufferDesc, nVerts int) ([][3]int, []int) {
 	out := make([][3]int, 0, id.Count/3)
+	gardes := make([]int, 0, id.Count/3+1)
 	for i := 0; i+2 < id.Count; i += 3 {
+		gardes = append(gardes, len(out))
 		var t [3]int
 		hors := false
 		for k := 0; k < 3; k++ {
@@ -383,5 +448,5 @@ func (a *RuntimeGeoAsset) triangles(id bufferDesc, nVerts int) [][3]int {
 			out = append(out, t)
 		}
 	}
-	return out
+	return out, append(gardes, len(out))
 }

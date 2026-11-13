@@ -35,7 +35,15 @@ const (
 	// ECARTE l'instance quand le bit `mesh is custom shadow caster` est pose. Le plugin
 	// confirme l'offset au champ pres : 0xF0 `per Instance Material Block` (20 o) + 3 x _6.
 	insOffMeshFlags = 0x110
+	// insOffMateriaux : le champ tag-block `per Instance Material Block`, en tete de la meme
+	// struct. Chaque enregistrement est une reference de tag `mat ` (refMateriauStride) ; une
+	// partie de maillage designe son materiau par son RANG dans cette liste (PartMaillage).
+	insOffMateriaux = 0xF0
 )
+
+// refMateriauStride : un enregistrement `per Instance Material Block`, une reference de tag
+// (28 o), le GlobalID a +8 comme pour la reference de maillage (refOffGlobalID).
+const refMateriauStride = 0x1C
 
 // FlagMeshCustomShadowCaster : bit `mesh is custom shadow caster` de `mesh flags override`.
 // Une instance qui le porte n'est PAS de la geometrie visible — c'est un volume dedie a la
@@ -69,6 +77,9 @@ type Instance struct {
 	// MeshRef est le champ `Runtime geo mesh reference` brut (0x1C octets). Son layout
 	// interne est INCONNU : il n'est utilisé que comme clé opaque d'identité de mesh.
 	MeshRef [insSizeMeshRef]byte `json:"-"`
+	// Materiaux : les GlobalID des tags `mat ` de l'instance, dans l'ordre du bloc. Vide quand
+	// le bloc l'est ; un rang hors liste se lit alors comme « materiau inconnu ».
+	Materiaux []uint32 `json:"materials,omitempty"`
 }
 
 // MeshKey identifie le mesh source d'une instance (référence de tag opaque + index).
@@ -118,7 +129,9 @@ func (in Instance) localToWorld(l [3]float64) [3]float64 {
 
 // BSPInstances regroupe les instances d'un tag sbsp.
 type BSPInstances struct {
-	FileIndex  int        `json:"file_index"`
+	FileIndex int `json:"file_index"`
+	// GlobalID : le GlobalID du tag sbsp, cle de sa structure dans le scenario (LitNiveau).
+	GlobalID   uint32     `json:"global_id"`
 	UncompSize int        `json:"uncomp_size"`
 	Bounds     Bounds     `json:"bounds"`
 	Instances  []Instance `json:"instances"`
@@ -152,7 +165,7 @@ func ReadModuleInstances(modulePath string) ([]BSPInstances, error) {
 			}
 			continue
 		}
-		bi.FileIndex, bi.UncompSize = f.Index, f.UncompSize
+		bi.FileIndex, bi.GlobalID, bi.UncompSize = f.Index, f.GlobalID, f.UncompSize
 		out = append(out, bi)
 	}
 	if len(out) == 0 {
@@ -205,11 +218,29 @@ func instancesFromTagInfo(ti tagInfo) (BSPInstances, error) {
 		return BSPInstances{}, fmt.Errorf("taille de bloc %d non multiple de %#x", size, instanceStride)
 	}
 	n := size / instanceStride
+	sousBlocs := ti.sousBlocsParOffset(target)
 	res.Instances = make([]Instance, 0, n)
 	for i := 0; i < n; i++ {
-		res.Instances = append(res.Instances, decodeInstance(ti.tag, abs+i*instanceStride, i))
+		in := decodeInstance(ti.tag, abs+i*instanceStride, i)
+		if cible, ok := sousBlocs[i*instanceStride+insOffMateriaux]; ok {
+			in.Materiaux = ti.materiauxInstance(cible)
+		}
+		res.Instances = append(res.Instances, in)
 	}
 	return res, nil
+}
+
+// materiauxInstance lit un bloc `per Instance Material Block` (data-block cible).
+func (ti tagInfo) materiauxInstance(cible int) []uint32 {
+	abs, size := ti.blockAbs(cible)
+	if abs < 0 || size <= 0 || abs+size > len(ti.tag) || size%refMateriauStride != 0 {
+		return nil
+	}
+	out := make([]uint32, size/refMateriauStride)
+	for k := range out {
+		out[k] = uint32(u32(ti.tag, abs+k*refMateriauStride+refOffGlobalID))
+	}
+	return out
 }
 
 const instancesBlockName = "instanced geometry instances"

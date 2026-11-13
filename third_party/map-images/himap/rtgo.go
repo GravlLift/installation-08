@@ -75,11 +75,14 @@ type RuntimeGeo struct {
 	// enregistrements `Sections` d'un mode.
 	MeshCount int
 	// PerMeshAbs / PerMeshSize localisent le bloc dans les octets du tag. PerMeshAbs < 0 :
-	// pas de bloc per-mesh (tag `mode`), les bornes sont uniques (BoundsAbs).
+	// pas de bloc per-mesh (tag `mode`). Ses bornes sont celles du RENDU d'un maillage (sa
+	// boite serree), pas celles de sa quantification.
 	PerMeshAbs  int
 	PerMeshSize int
-	// BoundsAbs localise l'enregistrement BoundingBoxBlock d'un `mode` : des bornes de
-	// dequantification UNIQUES au modele, la ou le rtgo les porte par maillage.
+	// BoundsAbs localise le premier enregistrement BoundingBoxBlock, rtgo comme mode : la boite
+	// de QUANTIFICATION des positions et des coordonnees de texture de tous les maillages du
+	// tag. Sur un rtgo, un maillage plus petit que la boite n'occupe qu'une partie de la plage
+	// de 16 bits ; le dequantifier entre ses propres bornes l'etirerait.
 	BoundsAbs int
 	// Champs reperes mais non encore decodes — leur presence est publiee pour que la
 	// suite du portage (T2, T3) parte d'un constat, pas d'une supposition.
@@ -130,11 +133,15 @@ func runtimeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	if size%perMeshStride != 0 {
 		return RuntimeGeo{}, fmt.Errorf("%w (taille %d)", ErrPerMeshStride, size)
 	}
+	absB, err := premiereBoite(ti, parOffset, rtgoOffBoundingBoxes)
+	if err != nil {
+		return RuntimeGeo{}, err
+	}
 	return RuntimeGeo{
 		MeshCount:            size / perMeshStride,
 		PerMeshAbs:           abs,
 		PerMeshSize:          size,
-		BoundsAbs:            -1,
+		BoundsAbs:            absB,
 		SectionsTarget:       parOffset[rtgoOffSections],
 		BoundingBoxesTarget:  parOffset[rtgoOffBoundingBoxes],
 		ResourceGroupsTarget: parOffset[rtgoOffMeshResourceGroups],
@@ -161,22 +168,31 @@ func modeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	if absS < 0 || sizeS <= 0 || sizeS%sectionStride != 0 || absS+sizeS > len(ti.tag) {
 		return RuntimeGeo{}, fmt.Errorf("himap: bloc Sections de taille %d non multiple de %d", sizeS, sectionStride)
 	}
-	bbox, ok := parOffset[modeOffBoundingBoxes]
-	if !ok {
-		return RuntimeGeo{}, fmt.Errorf("himap: aucun tag-block BoundingBoxes a l'offset %d", modeOffBoundingBoxes)
-	}
-	absB, sizeB := ti.blockAbs(bbox)
-	// Reclaimer documente des modes SANS bounding box (attaches) : sans bornes, aucune
-	// dequantification possible — le tag est declare illisible, jamais devine.
-	if absB < 0 || sizeB < bboxStride || sizeB%bboxStride != 0 || absB+bboxStride > len(ti.tag) {
-		return RuntimeGeo{}, fmt.Errorf("himap: bloc BoundingBoxes de taille %d non multiple de %d", sizeB, bboxStride)
+	absB, err := premiereBoite(ti, parOffset, modeOffBoundingBoxes)
+	if err != nil {
+		return RuntimeGeo{}, err
 	}
 	return RuntimeGeo{
 		MeshCount:            sizeS / sectionStride,
 		PerMeshAbs:           -1,
 		BoundsAbs:            absB,
 		SectionsTarget:       sections,
-		BoundingBoxesTarget:  bbox,
+		BoundingBoxesTarget:  parOffset[modeOffBoundingBoxes],
 		ResourceGroupsTarget: parOffset[modeOffMeshResourceGroups],
 	}, nil
+}
+
+// premiereBoite rend la position du premier enregistrement du bloc BoundingBoxes, au champ
+// racine `off`. Reclaimer documente des modes SANS boite (attaches) : sans elle, aucune
+// dequantification possible, le tag est declare illisible, jamais devine.
+func premiereBoite(ti tagInfo, parOffset map[int]int, off int) (int, error) {
+	cible, ok := parOffset[off]
+	if !ok {
+		return -1, fmt.Errorf("himap: aucun tag-block BoundingBoxes a l'offset %d", off)
+	}
+	abs, size := ti.blockAbs(cible)
+	if abs < 0 || size < bboxStride || size%bboxStride != 0 || abs+bboxStride > len(ti.tag) {
+		return -1, fmt.Errorf("himap: bloc BoundingBoxes de taille %d non multiple de %d", size, bboxStride)
+	}
+	return abs, nil
 }

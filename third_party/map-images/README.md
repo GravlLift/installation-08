@@ -20,6 +20,42 @@ One package, `himap`, built on `github.com/JGtm/halo-infinite-files-reader`:
   clipped to the navigation mesh).
 - `FondPNG` encodes a `Rendu` as an image in one of the `StyleFond` looks; `CalageDuRendu` gives
   the pixel -> world mapping to publish with it.
+- `CollecteMaillageMonde` returns the same map's geometry as world-space triangles (Halo world units of 3.048 m, Z up,
+  the frame of the replay positions) instead of an image, in a `MaillageMonde`; `EcritGLB` writes
+  it as glTF 2.0 binary, converted to glTF axes, one primitive per game material.
+  `ParcourtInstances` is the instance walk both outputs share.
+- `LitMateriau` / `LitMateriaux` read a `mat ` tag (shader, alpha blend mode, and for the shaders
+  whose texture slots are known, the alpha-cutout mask with its tiling and threshold, and the
+  color layers of the layered level and diffuse shaders: color or gradient textures, tiling,
+  linear tints, blend mode, under a macro mask, plus each layer's tangent normal map and the
+  control map, exported with occlusion, roughness and metal or gradient); `CheminsMateriaux` lists the modules that hold a
+  map's materials, which are not the geometry modules. `LitBitmap` decodes a `bitm` texture
+  (inline or mip resources, BCn through `github.com/woozymasta/bcn`) at the largest mip under a
+  requested size. The GLB carries `TEXCOORD_0` to `TEXCOORD_2`, writes cutout materials as glTF
+  `MASK` with their mask image, and layered materials as their first layer for any glTF viewer
+  plus every layer in `extras.couches` for a viewer that composes them (`glb_couches.go`).
+- `LitSoleil` reads a map's sun from the `dwsg` tag of its `any` module (hour angle, latitude,
+  azimuth, season, through standard solar geometry) as a unit vector in Halo axes toward the sun;
+  set `MaillageMonde.Soleil` and the GLB publishes it as `scenes[0].extras.levelupSun`. Only
+  Recharge is checked against an in-game image (`soleil.go`).
+- `LitSondes` reads a map's baked light, a grid of irradiance probes per region in the `stlm`
+  tag (R11G11B10 octahedral tiles, Halo axes, probes at cell centers; both conventions are
+  measured by `sondes_gamefiles_test.go`); set `MaillageMonde.Sondes` and the GLB publishes the
+  regions as `scenes[0].extras.levelupProbes`, one buffer view of raw texels each.
+- `Materiau.Emissif` is a material's own light for the two glowing shaders (`illum_full`,
+  `diffuse_emissive`, `emissif.go`); the GLB writes it as standard `emissiveFactor` plus
+  `KHR_materials_emissive_strength`.
+- `LitLumieres` reads a map's placed lights from the same `stlm` tag (active ones, sun excluded);
+  set `MaillageMonde.Lumieres` and the GLB publishes omni and spot lights as
+  `scenes[0].extras.levelupLights` (Halo axes, beam axis from `DirectionProjecteur`, cones in
+  degrees). The tilt direction of inclined spots is not settled (`lumieres.go`).
+- `MaillageMonde.SurfacesBrutes` (set for Spartan armor pieces) writes each hard-surface
+  material's control images raw instead of a baked color: ASG, mask 0 and mask 1, once per
+  bitmap, named in `extras.surfaceBrute` for a viewer that paints the coating itself
+  (`glb_surfaces_brutes.go`; the game's one-pixel empty image is treated as absent).
+  `Arsenal.Nuancier` reads a coating swatch's gradient image; `AnnoteMateriauxGLB` lets a caller
+  add its own material extras. The coating model (zones, gradients, scratches, grime) follows
+  the Blender add-on Ekur by The Halo Archive, read as prior art, no code copied.
 - `NewModuleIndex`, `ReadModuleInstances`, `ReadModuleBSPBounds` and `ReadRuntimeGeoTag` are the
   lower-level readers the renderer is made of, exported for diagnostics.
 - `DeployRoot` finds a local installation (`LEVELUP_HALO_DEPLOY`, else the usual locations).
@@ -51,7 +87,7 @@ deploy := "/path/to/Halo Infinite/deploy" // your install's deploy folder, or le
 r, bilan, err := himap.CuitCarteNative(context.Background(), himap.OptionsCuisson{
 	RacineDeploy: deploy,
 	CheminModule: deploy + "/pc/levels/multi/ridgeline/ridgeline-rtx-new.module",
-	Ancres:       [][3]float64{{12.5, -40.0, 3.0}, {-60.2, 18.7, 2.5}}, // objectives, world metres
+	Ancres:       [][3]float64{{12.5, -40.0, 3.0}, {-60.2, 18.7, 2.5}}, // objectives, world units
 })
 if err != nil {
 	log.Fatal(err)

@@ -312,6 +312,9 @@ func f32(b []byte, o int) float64 {
 type tagInfo struct {
 	tag        []byte
 	headerSize int
+	// dataSize : taille de la section des donnees de tag, qui precede la section des donnees
+	// de ressource (cf. blockAbsSection).
+	dataSize   int
 	deps       int
 	dataBlocks int
 	structs    int
@@ -354,6 +357,7 @@ func tagCandidates(tag []byte) []tagInfo {
 			ti := tagInfo{
 				tag:        tag,
 				headerSize: hs,
+				dataSize:   ds,
 				deps:       u32(tag, H-0x20),
 				dataBlocks: u32(tag, H-0x1C),
 				structs:    u32(tag, H-0x18),
@@ -376,6 +380,21 @@ func (ti tagInfo) blockAbs(idx int) (int, int) {
 	abs := u64(ti.tag, b+8)
 	if u16(ti.tag, b+6) != 0 {
 		abs += ti.headerSize
+	}
+	return abs, size
+}
+
+// Sections d'un data-block (u16 a +6 de son entree) : en-tete, donnees de tag, donnees de
+// ressource. blockAbs ne distingue que la premiere des autres ; les constantes d'un materiau
+// vivent dans la troisieme.
+const sectionRessource = 2
+
+// blockAbsSection est blockAbs pour un bloc qui peut vivre dans la section des donnees de
+// ressource, placee apres l'en-tete et les donnees de tag.
+func (ti tagInfo) blockAbsSection(idx int) (int, int) {
+	abs, size := ti.blockAbs(idx)
+	if u16(ti.tag, ti.blockTab+idx*blockEntrySize+6) == sectionRessource {
+		abs += ti.dataSize
 	}
 	return abs, size
 }

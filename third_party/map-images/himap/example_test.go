@@ -17,7 +17,7 @@ func ExampleCuitCarteNative() {
 	r, bilan, err := himap.CuitCarteNative(context.Background(), himap.OptionsCuisson{
 		RacineDeploy: deploy,
 		CheminModule: deploy + "/pc/levels/multi/ridgeline/ridgeline-rtx-new.module",
-		Ancres:       [][3]float64{{12.5, -40.0, 3.0}, {-60.2, 18.7, 2.5}}, // objectives, world metres
+		Ancres:       [][3]float64{{12.5, -40.0, 3.0}, {-60.2, 18.7, 2.5}}, // objectives, world units
 	})
 	if err != nil {
 		log.Fatal(err)

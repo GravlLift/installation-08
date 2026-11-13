@@ -25,6 +25,12 @@
 //	[8]        index d'équipe (0 / 1) — ABSENT si l'objet n'est pas d'équipe
 //	[9]        liste de labels ; chaque entrée est un struct{0: hash int32}
 //
+// Sac de propriétés #8, hors sous-arbre gameplay :
+//
+//	[4][0][0]  StringId de lieu (zones nommées) — voir readLocationID
+//	[23][0][0] échelle vec3 par axe local (avant, gauche, haut) — ABSENTE quand l'objet garde
+//	           l'échelle de son type
+//
 // Le hash de label est un murmur3_x86_32(seed=0) du nom snake_case du label
 // (CRAQUÉ : murmur3("stockpile_socket") == 2110778921, valeur observée telle quelle
 // dans ctf_breaker.mvar). Voir objectives.go pour la table de résolution.
@@ -44,16 +50,19 @@ const TeamUnset = -1
 
 // Object est un objet placé par la variante de carte.
 type Object struct {
-	Index      int
-	TypeID     int32
-	Pos        Vec3
-	Up         Vec3
-	Forward    Vec3
-	Flags      uint8
-	Category   int
-	TeamIndex  int
-	Labels     []int32
-	InstanceID int32
+	Index   int
+	StyleID *int32
+	// RepresentationID est le hash du nom choisi au chemin 8/24[0]/1/0, nil quand absent.
+	RepresentationID *int32
+	TypeID           int32
+	Pos              Vec3
+	Up               Vec3
+	Forward          Vec3
+	Flags            uint8
+	Category         int
+	TeamIndex        int
+	Labels           []int32
+	InstanceID       int32
 	// ShapeRaw : les entiers du sac de forme, non convertis. nil quand l'objet
 	// n'a pas de forme (cas normal des objectifs ponctuels). Voir shape.go —
 	// la conversion en mètres passe par Object.Shape().
@@ -69,11 +78,15 @@ type Object struct {
 	// l affirmation, longtemps ecrite dans nos en-tetes, qu une carte Forge n a pas de
 	// callouts. Elle est FAUSSE : le zero ne vaut que pour les CANEVAS.
 	LocationID uint32
+	// Scale : l'échelle de l'objet par axe local (X avant, Y gauche, Z haut), au chemin
+	// `#8/23[0]/0`. nil quand l'objet n'en porte pas : il garde l'échelle unitaire de son type.
+	Scale *Vec3
 }
 
 // Variant est une variante de carte décodée.
 type Variant struct {
 	Objects []Object
+	Styles  map[int32][]StyleLayer
 	Names   []string // root[10][1] : chaînes lisibles, ordre du fichier
 	LevelID int32    // root[1][0][0]
 }
@@ -84,7 +97,7 @@ func Parse(buf []byte) (*Variant, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mapvar: %w", err)
 	}
-	v := &Variant{}
+	v := &Variant{Styles: readStyles(root)}
 	if hdr, ok := root.Field(1); ok {
 		if sub, ok2 := hdr.Field(0); ok2 {
 			if id, ok3 := sub.Field(0); ok3 {
@@ -138,11 +151,26 @@ func parseObject(index int, raw Value) Object {
 // et labels de mode de jeu.
 func readGameplayBag(o *Object, bag Value) {
 	o.LocationID = readLocationID(bag)
+	o.Scale = readScale(bag)
+	if liste, ok := bag.Field(24); ok && len(liste.Items) > 0 {
+		if ref, ok := liste.Items[0].Field(1); ok {
+			if id, ok := ref.Field(0); ok {
+				n := int32(id.Int)
+				o.RepresentationID = &n
+			}
+		}
+	}
 	sub, ok := bag.Field(0)
 	if !ok || len(sub.Items) == 0 {
 		return
 	}
 	gp := sub.Items[0]
+	if ref, ok := gp.Field(13); ok {
+		if id, ok := ref.Field(0); ok {
+			n := int32(id.Int)
+			o.StyleID = &n
+		}
+	}
 	o.ShapeRaw = readShape(gp)
 	if c, ok := gp.Field(1); ok {
 		o.Category = int(c.Int)
@@ -181,6 +209,19 @@ func readLocationID(bag Value) uint32 {
 	return uint32(sid.Int)
 }
 
+// readScale lit l'échelle par axe du sac #8, au chemin `23[0]/0` ; nil sans elle.
+func readScale(bag Value) *Vec3 {
+	lst, ok := bag.Field(23)
+	if !ok || len(lst.Items) == 0 {
+		return nil
+	}
+	if _, ok := lst.Items[0].Field(0); !ok {
+		return nil
+	}
+	s := readVec(lst.Items[0], 0)
+	return &s
+}
+
 func readVec(raw Value, field uint16) Vec3 {
 	v, ok := raw.Field(field)
 	if !ok {
@@ -195,6 +236,68 @@ func readVec(raw Value, field uint16) Vec3 {
 	}
 	if c, ok := v.Field(2); ok {
 		out.Z = c.Float
+	}
+	return out
+}
+
+// StyleLayer décrit une couche et sa teinte facultative.
+type StyleLayer struct {
+	Hash   int32
+	Tint   *Vec3
+	Scalar float64
+}
+
+func readStyles(root Value) map[int32][]StyleLayer {
+	out := map[int32][]StyleLayer{}
+	styles, _ := root.Field(8)
+	for _, style := range styles.Items {
+		ident, ok := style.Field(1)
+		if !ok {
+			continue
+		}
+		id, ok := ident.Field(0)
+		if !ok {
+			continue
+		}
+		var layers []StyleLayer
+		first, ok := style.Field(3)
+		if !ok {
+			out[int32(id.Int)] = layers
+			continue
+		}
+		ref, ok := first.Field(1)
+		if !ok {
+			out[int32(id.Int)] = layers
+			continue
+		}
+		if _, ok = ref.Field(0); !ok {
+			out[int32(id.Int)] = layers
+			continue
+		}
+		for n := uint16(3); n <= 6; n++ {
+			l, ok := style.Field(n)
+			if !ok {
+				continue
+			}
+			h, ok := l.Field(1)
+			if !ok {
+				continue
+			}
+			h, ok = h.Field(0)
+			if !ok {
+				continue
+			}
+			layer := StyleLayer{Hash: int32(h.Int)}
+			if tint, ok := l.Field(2); ok && len(tint.Fields) > 0 {
+				v := readVec(l, 2)
+				layer.Tint = &v
+			}
+			if scalar, ok := l.Field(3); ok {
+				layer.Scalar = scalar.Float
+			}
+			layers = append(layers, layer)
+		}
+		out[int32(id.Int)] = layers
 	}
 	return out
 }

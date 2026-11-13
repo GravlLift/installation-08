@@ -16,7 +16,10 @@
 //	+12 Position   (3 x f32)
 //	+24 Rotation   (4 x f32, quaternion x,y,z,w)
 //	+40 Scale      (1 x f32, echelle uniforme — 1.0 pour les noeuds de chassis mesures)
-//	+44 inverse forward/left/up (9 f32) + +80 inverse position (3 f32) : skinning, non lus ici.
+//	+44 inverse forward/left/up (9 f32) + +80 inverse position (3 f32) : la matrice inverse de
+//	    liaison (peau), du repere modele vers le repere du noeud dans sa pose de repos :
+//	    p_noeud = avant*p.x + gauche*p.y + haut*p.z + position (trois COLONNES, temoin
+//	    TestSpartanAPeau : son produit avec NodeModelTransform rend l'identite).
 package himap
 
 import (
@@ -32,15 +35,21 @@ const (
 	nodeOffPos    = 12
 	nodeOffQuat   = 24
 	nodeOffScale  = 40
+	nodeOffInvRot = 44
+	nodeOffInvPos = 80
 )
 
 // Noeud : un noeud du squelette d'un render_model, avec sa transformee LOCALE (relative au parent).
 type Noeud struct {
 	Name   uint32     // StringId du nom
 	Parent int        // index du noeud parent (-1 = racine)
-	Pos    [3]float64 // translation locale (m)
+	Pos    [3]float64 // translation locale (unites du jeu)
 	Quat   [4]float64 // rotation locale (quaternion x,y,z,w)
 	Scale  float64    // echelle uniforme locale
+	// InvAxes (avant, gauche, haut) et InvPos : la matrice inverse de liaison, colonnes puis
+	// translation (en-tete du fichier).
+	InvAxes [3][3]float64
+	InvPos  [3]float64
 }
 
 // ModeNodes marche le bloc noeuds d'un tag `mode` deja decompresse.
@@ -83,6 +92,12 @@ func (ti tagInfo) parseNodes(abs, n int) []Noeud {
 		}
 		for a := 0; a < 4; a++ {
 			nd.Quat[a] = f32(ti.tag, r+nodeOffQuat+a*4)
+		}
+		for c := 0; c < 3; c++ {
+			for a := 0; a < 3; a++ {
+				nd.InvAxes[c][a] = f32(ti.tag, r+nodeOffInvRot+(c*3+a)*4)
+			}
+			nd.InvPos[c] = f32(ti.tag, r+nodeOffInvPos+c*4)
 		}
 		out = append(out, nd)
 	}

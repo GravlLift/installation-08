@@ -1,29 +1,53 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
 
-const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | import --chunks <dir> --map <name> [--manifest <file>] [--stats <file>] [--match <id>] [--catalog <file>] [--data <dir>] | serve [--addr <host:port>] [--web <dir>]"
+const usage = `usage: infinite-theater-3d <command> [flags]
+
+  version
+  decode-info <chunk-dir>
+  decode --chunks <dir> --map <name> --out <doc.json> [--manifest <file>] [--stats <file>] [--catalog <file>]
+  import --chunks <dir> --map <name> [--manifest <file>] [--stats <file>] [--match <id>] [--catalog <file>] [--data <dir>]
+  serve [--addr <host:port>] [--web <dir>] [--data <dir>]
+  build-mesh --map <key> [--game <root>] --out <file.glb>
+  build-variant --map <key> --mvar <file.mvar> [--game <root>] --out <file.glb>
+  build-weapon --weapon <hex-id> --map <key> [--game <root>] --out <file.glb>
+  build-spartan --map <key> [--game <root>] --out <file.glb>
+  build-piece --region <hex-id> --permutation <hex-id> --map <key> [--game <root>] [--ekur <dir>] --out <file.glb>
+  build-firstperson --weapon <hex-id> --map <key> [--game <root>] [--no-arms] [--ekur <dir>] --out <file.glb>`
+
+// commands maps each subcommand to its entry point; every entry takes the arguments that
+// follow the subcommand name.
+var commands = map[string]func([]string) error{
+	"decode-info":       runDecodeInfo,
+	"decode":            runDecode,
+	"import":            runImport,
+	"serve":             runServe,
+	"build-mesh":        runBuildMesh,
+	"build-variant":     runBuildVariant,
+	"build-weapon":      runBuildWeapon,
+	"build-spartan":     runBuildSpartan,
+	"build-piece":       runBuildPiece,
+	"build-firstperson": runBuildFirstPerson,
+}
 
 func run(args []string) error {
+	if len(args) == 0 {
+		return errors.New(usage)
+	}
 	if len(args) == 1 && args[0] == "version" {
 		fmt.Println("infinite-theater-3d: early skeleton")
 		return nil
 	}
-	switch args[0] {
-	case "decode-info":
-		return runDecodeInfo(args[1:])
-	case "decode":
-		return runDecode(args[1:])
-	case "import":
-		return runImport(args[1:])
-	case "serve":
-		return runServe(args[1:])
-	default:
-		return fmt.Errorf(usage)
+	command, ok := commands[args[0]]
+	if !ok {
+		return errors.New(usage)
 	}
+	return command(args[1:])
 }
 
 func main() {

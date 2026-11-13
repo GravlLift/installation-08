@@ -47,6 +47,24 @@ func (m *Module) resourceSlot(k int) (int, error) {
 // C'est l'espace d'adressage des descripteurs de tampons : un descripteur qui dit
 // « offset 4096, taille 512 » designe ces octets-la, pas un fichier a resoudre.
 func (m *Module) ResourceBlob(f File) ([]byte, error) {
+	res, err := m.Ressources(f)
+	if err != nil {
+		return nil, err
+	}
+	var out []byte
+	for k, r := range res {
+		buf, err := m.Extract(r)
+		if err != nil {
+			return nil, fmt.Errorf("himodule: ressource %d (entree %d): %w", k, r.Index, err)
+		}
+		out = append(out, buf...)
+	}
+	return out, nil
+}
+
+// Ressources rend, dans l'ordre, les entrees qui portent les ressources d'une entree. Pour un
+// bitmap, ce sont ses niveaux de mip, du plus petit au plus grand.
+func (m *Module) Ressources(f File) ([]File, error) {
 	debut := m.ResourceIndex(f.Index)
 	fin := m.resourceCount()
 	if f.Index+1 < m.fileCount {
@@ -56,7 +74,7 @@ func (m *Module) ResourceBlob(f File) ([]byte, error) {
 		return nil, fmt.Errorf("himodule: plage de ressources inversee pour l'entree %d (%d..%d)",
 			f.Index, debut, fin)
 	}
-	var out []byte
+	out := make([]File, 0, fin-debut)
 	for k := debut; k < fin; k++ {
 		slot, err := m.resourceSlot(k)
 		if err != nil {
@@ -65,11 +83,7 @@ func (m *Module) ResourceBlob(f File) ([]byte, error) {
 		if slot < 0 || slot >= m.fileCount {
 			return nil, fmt.Errorf("himodule: slot de ressource %d hors des %d entrees", slot, m.fileCount)
 		}
-		buf, err := m.Extract(m.file(slot))
-		if err != nil {
-			return nil, fmt.Errorf("himodule: ressource %d (entree %d): %w", k, slot, err)
-		}
-		out = append(out, buf...)
+		out = append(out, m.file(slot))
 	}
 	return out, nil
 }

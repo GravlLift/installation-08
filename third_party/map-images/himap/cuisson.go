@@ -145,6 +145,14 @@ type OptionsCuisson struct {
 	// main. Il ne se justifie que par sa raison ecrite et il ne doit jamais devenir la voie
 	// normale — un rectangle ne connait pas la carte.
 	BoiteUtile [4]float64
+	// CadreMaillage borne la COLLECTE DU MAILLAGE MONDE (CollecteMaillageMonde) aux instances dont
+	// la boite monde touche ce rectangle (minX, minY, maxX, maxY) ; une instance retenue l'est
+	// entiere. Zero = pas de bornage. Sans effet sur la cuisson du fond, qui a son propre cadre.
+	CadreMaillage [4]float64
+	// CheminModuleCarte est le .module `pc` de la carte elle-meme quand sa geometrie vit dans un
+	// autre (Live Fire : module commun) : son scenario (`levl`) pose les objets hors du sbsp, et lui
+	// et son jumeau `any` portent leurs tags (CollecteMaillageMonde). Vide = CheminModule.
+	CheminModuleCarte string
 	// RogneAuxComposantesAncrees efface les amas de matiere qui ne portent aucune ancre et n en
 	// touchent aucun qui en porte une (`composantes.go`).
 	//
@@ -339,23 +347,13 @@ func CadreSurAncresEchelle(ancres [][3]float64, cell float64) *Rendu {
 // sondes de mesure qui doivent lire la matiere BRUTE, avant ces etapes. Le rendu `r` doit etre
 // cadre et regle (Tranche, NiveauDeJeu) par l'appelant ; les compteurs sont inscrits dans `b`.
 func PeupleDepuisModule(ctx context.Context, r *Rendu, b *BilanCuisson, opts OptionsCuisson) error {
-	chemins, err := GeometrySearchPath(opts.RacineDeploy, opts.CheminModule)
+	idx, bsp, err := ouvreBSPRetenu(b, opts)
 	if err != nil {
-		return fmt.Errorf("chemins de geometrie : %w", err)
-	}
-	idx, err := NewModuleIndex(chemins...)
-	if err != nil {
-		return fmt.Errorf("index des modules : %w", err)
+		return err
 	}
 	// L'index vit le temps de CETTE carte : sans cette fermeture, un balayage garde autant de
 	// jeux de projections qu'il a cuit de cartes (cf. ModuleIndex.Close).
 	defer func() { _ = idx.Close() }()
-	bsps, err := ReadModuleInstances(opts.CheminModule)
-	if err != nil {
-		return fmt.Errorf("instances du module : %w", err)
-	}
-	bsp := ChoisitBSP(bsps, opts.Ancres)
-	b.BSPs, b.BSPInstances = len(bsps), len(bsp.Instances)
 	b.Dessinees, b.EcarteesDecor = PeupleRendu(ctx, r, idx, bsp)
 	if b.Dessinees == 0 {
 		return fmt.Errorf("aucune instance dessinee sur %d du bsp retenu", len(bsp.Instances))
@@ -363,16 +361,82 @@ func PeupleDepuisModule(ctx context.Context, r *Rendu, b *BilanCuisson, opts Opt
 	return nil
 }
 
+// ouvreBSPRetenu ouvre l'index de geometrie d'une carte native et rend le bsp choisi par les
+// ancres, sur l'ordre de recherche du rendu vu du dessus. L'appelant ferme l'index. La collecte
+// du maillage monde lit le meme bsp, choisi de la meme facon, avec en plus les objets Forge.
+func ouvreBSPRetenu(b *BilanCuisson, opts OptionsCuisson) (*ModuleIndex, BSPInstances, error) {
+	chemins, err := GeometrySearchPath(opts.RacineDeploy, opts.CheminModule)
+	if err != nil {
+		return nil, BSPInstances{}, fmt.Errorf("chemins de geometrie : %w", err)
+	}
+	return ouvreBSPDans(b, opts, chemins)
+}
+
+// ouvreBSPDans est ouvreBSPRetenu sur un ordre de recherche donne (GeometrySearchPathMonde pour
+// la collecte du maillage monde).
+func ouvreBSPDans(b *BilanCuisson, opts OptionsCuisson, chemins []string) (*ModuleIndex, BSPInstances, error) {
+	idx, err := NewModuleIndex(chemins...)
+	if err != nil {
+		return nil, BSPInstances{}, fmt.Errorf("index des modules : %w", err)
+	}
+	bsps, err := ReadModuleInstances(opts.CheminModule)
+	if err != nil {
+		_ = idx.Close()
+		return nil, BSPInstances{}, fmt.Errorf("instances du module : %w", err)
+	}
+	bsp := ChoisitBSP(bsps, opts.Ancres)
+	b.BSPs, b.BSPInstances = len(bsps), len(bsp.Instances)
+	return idx, bsp, nil
+}
+
+// ouvreBSPMonde est ouvreBSPDans pour la collecte du maillage monde : en plus du bsp joue (choisi
+// par les ancres, comme le rendu vu du dessus), il rend TOUTES les structures du module. La
+// collecte du monde en a besoin : le sol d'une carte est repandu sur plusieurs d'entre elles, et
+// aucune seule des boites ne porte la carte entiere (mesure du 2026-11-12, Live Fire). Le rendu
+// vu du dessus ne l'utilise pas : il dessine son bsp unique, un fond de page.
+func ouvreBSPMonde(b *BilanCuisson, opts OptionsCuisson, chemins []string) (*ModuleIndex, BSPInstances, []BSPInstances, error) {
+	idx, err := NewModuleIndex(chemins...)
+	if err != nil {
+		return nil, BSPInstances{}, nil, fmt.Errorf("index des modules : %w", err)
+	}
+	bsps, err := ReadModuleInstances(opts.CheminModule)
+	if err != nil {
+		_ = idx.Close()
+		return nil, BSPInstances{}, nil, fmt.Errorf("instances du module : %w", err)
+	}
+	bsp := ChoisitBSP(bsps, opts.Ancres)
+	b.BSPs, b.BSPInstances = len(bsps), len(bsp.Instances)
+	return idx, bsp, bsps, nil
+}
+
 // PeupleRendu projette les instances d'un bsp dans un rendu deja cadre.
 //
 // C'est LE coeur de la chaine, et il est partage avec le banc de non-regression
 // (`TestBancCliffhanger`) : deux boucles jumelles auraient diverge, et le banc aurait alors
-// cesse de garder la production.
+// cesse de garder la production. Le parcours lui-meme vit dans `ParcourtInstances`, que la
+// collecte du maillage monde partage.
 //
 // Rend le nombre d'instances dessinees et le nombre ecartees comme decor.
 func PeupleRendu(ctx context.Context, r *Rendu, idx *ModuleIndex, bsp BSPInstances) (int, int) {
-	assets := map[uint32]*RuntimeGeoAsset{}
 	dessinees, decor := 0, 0
+	ParcourtInstances(ctx, idx, bsp, func(m *Mesh, in Instance, estDecor, _ bool) {
+		if estDecor {
+			decor++
+			return
+		}
+		dessinees++
+		r.AddMeshBorne(m, in, MargeBornageInstance)
+	})
+	return dessinees, decor
+}
+
+// ParcourtInstances visite chaque instance VISIBLE d'un bsp avec son maillage decode (repere
+// local). Sont sautes : les instances supprimees en edition, les projecteurs d'ombre, celles
+// dont le tag n'est pas un `rtgo` lisible. `estDecor` signale le decor grossier
+// (`EstDecorGrossier`) : le rendu vu du dessus l'ecarte, un consommateur 3D peut le garder.
+func ParcourtInstances(ctx context.Context, idx *ModuleIndex, bsp BSPInstances,
+	visite func(m *Mesh, in Instance, estDecor, horsPasseVisible bool)) {
+	assets := map[uint32]*RuntimeGeoAsset{}
 	for _, in := range bsp.Instances {
 		// Reclaimer ECARTE les projecteurs d'ombre (`MeshIsCustomShadowCaster`) : leur
 		// maillage est un volume de projection, pas de la geometrie visible.
@@ -395,14 +459,20 @@ func PeupleRendu(ctx context.Context, r *Rendu, idx *ModuleIndex, bsp BSPInstanc
 		if m == nil {
 			continue
 		}
-		if EstDecorGrossier(m, in, AireMaxTriangleJouable) {
-			decor++
-			continue
-		}
-		dessinees++
-		r.AddMeshBorne(m, in, MargeBornageInstance)
+		visite(m, in, EstDecorGrossier(m, in, AireMaxTriangleJouable), horsPasseVisible(a, in.MeshIndex))
 	}
-	return dessinees, decor
+}
+
+// horsPasseVisible dit que le jeu ne dessine pas ce maillage a l'ecran : section de projection
+// d'ombre, LOD retenu porteur de mandataires d'ombre, ou aucun LOD du niveau 0 (les trois
+// criteres de Reclaimer, cf. filtres_reclaimer.go). Le rendu vu du dessus ne s'en sert pas
+// (son banc de non-regression est cale sans) ; la vue 3D, elle, voit a hauteur d'oeil.
+func horsPasseVisible(a *RuntimeGeoAsset, meshIndex int) bool {
+	f, ok := a.FiltreDuMaillage(meshIndex)
+	if !ok {
+		return false
+	}
+	return f.ProjecteurOmbre() || f.ProxiesOmbre() || !a.PorteLeLOD(meshIndex, 0)
 }
 
 // ouvreAsset extrait et decode un tag de geometrie (`rtgo`, ou `mode` — lot B Forge). Un tag
