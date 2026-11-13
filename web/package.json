@@ -11,6 +11,7 @@
     "test:run": "vitest run --maxWorkers=2"
   },
   "dependencies": {
+    "mediabunny": "1.55.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.170.0",
