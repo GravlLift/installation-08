@@ -269,6 +269,23 @@ process-wide: the jobs share the map build queue, so no two of them run together
 build writes each GLB, texture and index to a temporary file in its library folder and
 renames it into place on success, so a half-written file is never served.
 
+## Replay sounds
+
+The viewer plays the match's sounds from `<data>/assets/sounds/halo_infinite/` (one
+`.ogg` per stem, served by `GET /static/sounds/halo_infinite/{file}`). That set cannot
+be rebuilt from a game installation: it was hand-produced for the LevelUp replay player
+(decoded, assembled and picked by ear), and its source material no longer exists. Copy
+it into the data directory from the folder that holds it:
+
+```powershell
+.\infinite-theater-3d.exe import-sounds --from <sounds-dir> [--data <dir>]
+```
+
+The import copies every `.ogg` file (subfolders kept), skips files already present and
+identical, replaces a changed one, and logs the counts. The data directory is gitignored,
+so the sounds are never committed. Until the import has run, `serve` logs one line at
+startup naming this command, and the route answers `404` for every sound.
+
 ## Web viewer (development)
 
 `web/` is a Vite + React + TypeScript app with the 3D replay scene lifted from LevelUp's

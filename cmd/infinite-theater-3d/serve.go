@@ -72,6 +72,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	logSoundsMissing(dataDir)
 	weaponKeys := weaponCatalogFor(root, f.mapKey)
 	jobs, err := meshJobsFor(root, f.game, weaponKeys)
 	if err != nil {

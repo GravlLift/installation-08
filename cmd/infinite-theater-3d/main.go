@@ -16,6 +16,7 @@ const usage = `usage: infinite-theater-3d <command> [flags]
   decode-info <chunk-dir>
   decode --chunks <dir> --map <name> --out <doc.json> [--manifest <file>] [--stats <file>] [--catalog <file>]
   import --chunks <dir> --map <name> [--manifest <file>] [--stats <file>] [--mvar <file>] [--match <id>] [--catalog <file>] [--data <dir>]
+  import-sounds --from <dir> [--data <dir>]
   rebuild <match-id> [--data <dir>]
   serve [--addr <host:port>] [--web <dir>] [--data <dir>]
   build-mesh --map <key> [--game <root>] --out <file.glb>
@@ -38,6 +39,7 @@ var commands = map[string]func([]string) error{
 	"decode-info":               runDecodeInfo,
 	"decode":                    runDecode,
 	"import":                    runImport,
+	"import-sounds":             runImportSounds,
 	"rebuild":                   runRebuild,
 	"serve":                     runServe,
 	"build-mesh":                runBuildMesh,
