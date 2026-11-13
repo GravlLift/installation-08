@@ -34,6 +34,13 @@ Open work that is not a parity gap with the LevelUp replay page (those are in
 - Offer our decoder changes upstream as pull requests, smallest first (shot aim fix, then
   the control-view reader for crouch, slide and jump).
 
+## Server
+
+- A map build is not cancellable: stopping the server mid-build can leave a temporary file
+  in `maps\`. Make the build honor cancellation, or sweep stale temporary files at start.
+- Oddball, flag and zone state are absent from the replay document; find where LevelUp got
+  them and carry them.
+
 ## Housekeeping
 
 - Translate the lifted scene code's French comments and names to English.
