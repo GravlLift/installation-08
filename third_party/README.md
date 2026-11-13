@@ -36,10 +36,10 @@ v1.3.2 upstream (base `ac8d6c3da`). Schema version 122, facts schema 23. Kept ca
   from a caller-given folder, via a `direct` field on `Source` that `Chunk` consults before
   the cache path). These serve `infinite-theater-3d decode --manifest <file>`; `Open` and
   `OpenChunkDir` keep reconstructing the path from the cache layout and are unchanged.
-- `profile.ParseMapQuantCatalog` (and its `decfilm` alias `LoadMapQuantCatalogBytes`) read
-  the map quantization catalog from its bytes, not a file path: the standalone embeds its
-  reference catalog in the binary (`go:embed`, `internal/refdata`) and has no catalog file
-  to name. `LoadMapQuantCatalog` now delegates to it; the path-based behavior is unchanged.
+- `decfilm.LoadMapQuantCatalogBytes` (new file `decfilm/catalog_bytes.go`) reads the map
+  quantization catalog from its bytes, not a file path: the standalone embeds its reference
+  catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade so the
+  `profile` layer, whose sources are fingerprinted, stays identical to upstream.
 
 ## Omitted upstream files
 

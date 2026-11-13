@@ -181,22 +181,13 @@ func LoadMapQuantCatalog(path string) (*MapQuantCatalog, error) {
 	if err != nil {
 		return nil, fmt.Errorf("catalogue de bornes illisible (%s) : %w", path, err)
 	}
-	return ParseMapQuantCatalog(path, blob)
-}
-
-// ParseMapQuantCatalog lit le catalogue depuis ses octets. [where] nomme la provenance dans
-// les messages d'erreur (un chemin, ou un marqueur pour un catalogue embarqué).
-//
-// AJOUTÉ pour le port standalone (infinite-theater-3d) : le catalogue embarqué dans le
-// binaire (go:embed) n'a pas de chemin de fichier ; [LoadMapQuantCatalog] y délègue.
-func ParseMapQuantCatalog(where string, blob []byte) (*MapQuantCatalog, error) {
 	var c MapQuantCatalog
 	if err := json.Unmarshal(blob, &c); err != nil {
-		return nil, fmt.Errorf("catalogue de bornes invalide (%s) : %w", where, err)
+		return nil, fmt.Errorf("catalogue de bornes invalide (%s) : %w", path, err)
 	}
 	if c.SchemaVersion != MapQuantSchemaVersion {
 		return nil, fmt.Errorf("catalogue de bornes en version %d, attendu %d (%s)",
-			c.SchemaVersion, MapQuantSchemaVersion, where)
+			c.SchemaVersion, MapQuantSchemaVersion, path)
 	}
 	return &c, nil
 }
