@@ -288,9 +288,9 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
   }
   o.material = emits(source) ? ctx.glowCopy(ctx.mats[key], source) : ctx.mats[key]
   if (key === 'seeThrough' && extras.vitre && extras.couches && !emits(source)) {
-    // La vitre sombre du jeu (`vitre` en couches) se dessine teintée, pas comme du verre clair.
     const teinte = teinteVerreTeint(extras.couches)
-    if (teinte) o.material = ctx.verreTeint(teinte)
+    // Below 0.25 linear brightness, multiply blending obscures the view rather than reading as a tint.
+    if (teinte && (teinte[0] + teinte[1] + teinte[2]) / 3 >= 0.25) o.material = ctx.verreTeint(teinte)
   }
   if (extras.teinte && !extras.couches && key !== 'seeThrough' && !emits(source)) o.material = ctx.tintCopy(ctx.mats[key], source, extras.teinte)
   if (extras.couches && key !== 'seeThrough' && prepareLayerUVs(o.geometry, extras.couches)) {

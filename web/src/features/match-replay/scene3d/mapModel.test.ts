@@ -1,8 +1,4 @@
-/**
- * mapModel.test.ts — la vitre teintée du jeu (matériau `vitre` en couches sombres) se dessine
- * sombre à l'opacité de la vitre teintée, la vitre claire sans couches garde le verre clair
- * partagé, et deux vitres de même teinte partagent un matériau.
- */
+/** Tests glass material selection and stencil decals. */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
@@ -32,7 +28,7 @@ const TEINTE_ATTENDUE = (0.127 + 0.095 + 0.091) / 3
  * pochoir — un décalque au shader du jeu sans texture, un shader étranger, et une structure de
  * référence.
  */
-function tinyGlb(): ArrayBuffer {
+function tinyGlb(glass: LayeredInfo = COUCHES_SOMBRE): ArrayBuffer {
   const bin = new ArrayBuffer(60)
   new Float32Array(bin, 0, 12).set(SQUARE)
   new Uint16Array(bin, 48, 6).set(INDICES)
@@ -57,8 +53,8 @@ function tinyGlb(): ArrayBuffer {
     ],
     meshes: [mesh(0), mesh(1), mesh(2), mesh(3), mesh(4), mesh(5)],
     materials: [
-      { name: 'mat_sombre_a', extras: { vitre: true, couches: COUCHES_SOMBRE } },
-      { name: 'mat_sombre_b', extras: { vitre: true, couches: COUCHES_SOMBRE } },
+      { name: 'mat_sombre_a', extras: { vitre: true, couches: glass } },
+      { name: 'mat_sombre_b', extras: { vitre: true, couches: glass } },
       { name: 'mat_vitre', extras: { vitre: true } },
       { name: 'mat_plain' },
       { name: 'mat_decal', extras: { shader: 3233303146 } },
@@ -115,32 +111,36 @@ describe('teinteVerreTeint', () => {
   })
 })
 
-describe('la vitre teintée', () => {
-  it('une vitre en couches sombres porte un matériau teinté, pas le verre clair partagé', async () => {
-    const layer = await loadLayerModel(tinyGlb(), null)
-    const sombre = meshUnder(layer.root, 'vitre_sombre_a')
-    const claire = meshUnder(layer.root, 'vitres')
-    const m = sombre.material as THREE.MeshBasicMaterial
-    expect(m).not.toBe(claire.material)
-    expect(m).toBeInstanceOf(THREE.MeshBasicMaterial)
-    expect(m.blending).toBe(THREE.MultiplyBlending)
-    expect(m.color.r).toBeCloseTo(TEINTE_ATTENDUE)
-    expect(m.color.g).toBeCloseTo(TEINTE_ATTENDUE)
-    expect(m.color.b).toBeCloseTo(TEINTE_ATTENDUE)
-    // Elle multiplie ce qui est derrière elle : translucide, sans écriture de profondeur, double face.
-    expect(m.transparent).toBe(true)
-    expect(m.depthWrite).toBe(false)
-    expect(m.side).toBe(THREE.DoubleSide)
-    // Le verre clair sans couches garde son opacité de famille.
-    expect((claire.material as THREE.MeshStandardMaterial).opacity).toBe(0.18)
+describe('layered glass', () => {
+  const glass = (layers: LayeredInfo['couches']): LayeredInfo => ({ couches: layers, masque: -1, jeuMasque: 1, jeuCouches: layers.length })
+  const gradient = (value: number) => ({ sorte: 'degrade' as const, bas: [value, value, value] as [number, number, number], milieu: [value, value, value] as [number, number, number], haut: [value, value, value] as [number, number, number], opacite: 1 })
+
+  it.each([
+    ['black single layer', glass([gradient(0)])],
+    ['dark gray two layers', glass([gradient(0.105), gradient(0.06)])],
+  ])('uses the shared clear glass for %s', async (_name, info) => {
+    const layer = await loadLayerModel(tinyGlb(info), null)
+    const material = meshUnder(layer.root, 'vitre_sombre_a').material as THREE.MeshStandardMaterial
+    expect(material).toBe(meshUnder(layer.root, 'vitres').material)
+    expect(material.color.getHex()).toBe(0x9fd4ff)
+    expect(material.transparent).toBe(true)
+    expect(material.opacity).toBe(0.18)
+    expect(material.depthWrite).toBe(false)
+    expect(material.side).toBe(THREE.DoubleSide)
     layer.dispose()
   })
 
-  it('deux vitres sombres de même teinte partagent un matériau', async () => {
-    const layer = await loadLayerModel(tinyGlb(), null)
-    const a = meshUnder(layer.root, 'vitre_sombre_a')
-    const b = meshUnder(layer.root, 'vitre_sombre_b')
-    expect(a.material).toBe(b.material)
+  it('retains and shares multiply blending for a readable tint', async () => {
+    const layer = await loadLayerModel(tinyGlb(glass([gradient(0.5)])), null)
+    const material = meshUnder(layer.root, 'vitre_sombre_a').material as THREE.MeshBasicMaterial
+    expect(material).toBe(meshUnder(layer.root, 'vitre_sombre_b').material)
+    expect(material).not.toBe(meshUnder(layer.root, 'vitres').material)
+    expect(material).toBeInstanceOf(THREE.MeshBasicMaterial)
+    expect(material.blending).toBe(THREE.MultiplyBlending)
+    expect(material.color.r).toBeCloseTo(0.5)
+    expect(material.transparent).toBe(true)
+    expect(material.depthWrite).toBe(false)
+    expect(material.side).toBe(THREE.DoubleSide)
     layer.dispose()
   })
 })
