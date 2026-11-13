@@ -33,13 +33,19 @@ func (t localOnlyTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestMatchFacts(t *testing.T) {
-	raw := []byte(`{"MatchInfo":{"MapVariant":{"AssetId":"map"},"UgcGameVariant":{"PublicName":"Slayer"}},"Players":[{"PlayerId":"xuid(123)","LastTeamId":1,"PlayerTeamStats":[{"TeamId":1,"Stats":{"CoreStats":{"Kills":5,"Deaths":2,"Assists":3}}}]}],"Teams":[{"TeamId":1,"Stats":{"CoreStats":{"Score":9}}},{"TeamId":0,"Stats":{"CoreStats":{"Score":10}}}]}`)
-	f, mapID, _, err := matchFacts(raw)
+	raw := []byte(`{"MatchInfo":{"MapVariant":{"AssetId":"map"},"UgcGameVariant":{"PublicName":"Slayer"},"Playlist":{"PublicName":"Ranked Arena"}},"Players":[{"PlayerId":"xuid(123)","LastTeamId":1,"PlayerTeamStats":[{"TeamId":1,"Stats":{"CoreStats":{"Kills":5,"Deaths":2,"Assists":3}}}]}],"Teams":[{"TeamId":1,"Stats":{"CoreStats":{"Score":9,"RoundsWon":1,"RoundsLost":0,"RoundsTied":0}}},{"TeamId":0,"Stats":{"CoreStats":{"Score":10,"RoundsWon":2,"RoundsLost":0,"RoundsTied":0}}}]}`)
+	f, mapID, _, playlist, err := matchFacts(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if mapID != "map" || f.GameVariantName != "Slayer" || len(f.Players) != 1 || f.Players[0].XUID != "123" || f.Players[0].Kills != 5 || f.TeamScores == nil || *f.TeamScores != [2]int{10, 9} {
 		t.Fatalf("facts: %+v %s", f, mapID)
+	}
+	if playlist != "Ranked Arena" {
+		t.Fatalf("playlist: %q", playlist)
+	}
+	if f.TeamRoundsWon == nil || (*f.TeamRoundsWon)[0] != [3]int{2, 0, 0} || (*f.TeamRoundsWon)[1] != [3]int{1, 0, 0} {
+		t.Fatalf("rounds: %+v", f.TeamRoundsWon)
 	}
 }
 
