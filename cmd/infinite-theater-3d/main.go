@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | decode --chunks <dir> [--manifest <file.json>] [--stats <file.json>] --map <name> --catalog <file.json> [--match <id>] [--title <slug>] [--gzip] --out <doc.json>"
+const usage = "usage: infinite-theater-3d version | decode-info <chunk-dir> | import --chunks <dir> --map <name> [--manifest <file>] [--stats <file>] [--match <id>] [--catalog <file>] [--data <dir>] | serve [--addr <host:port>] [--web <dir>]"
 
 func run(args []string) error {
 	if len(args) == 1 && args[0] == "version" {
@@ -17,6 +17,8 @@ func run(args []string) error {
 		return runDecodeInfo(args[1:])
 	case "decode":
 		return runDecode(args[1:])
+	case "import":
+		return runImport(args[1:])
 	default:
 		return fmt.Errorf(usage)
 	}

@@ -36,13 +36,13 @@ func TestIsShort8(t *testing.T) {
 	yes := []string{"7d798138", "ABCDEF01"}
 	no := []string{"7d79813", "7d7981381", "7d7981z8", "7d7981-8", "7d 98138"}
 	for _, s := range yes {
-		if !isShort8(s) {
-			t.Errorf("isShort8(%q) = false, want true", s)
+		if !IsShort8(s) {
+			t.Errorf("IsShort8(%q) = false, want true", s)
 		}
 	}
 	for _, s := range no {
-		if isShort8(s) {
-			t.Errorf("isShort8(%q) = true, want false", s)
+		if IsShort8(s) {
+			t.Errorf("IsShort8(%q) = true, want false", s)
 		}
 	}
 }

@@ -5,17 +5,16 @@ import (
 )
 
 // TestParseDecodeFlagsRequired — the required surface of the decode subcommand: the chunks
-// folder, the output path, the map name and the catalog are all mandatory, and a missing
-// one is a clear error (not a silent default).
+// folder, the output path and the map name are mandatory (the catalog is optional: the
+// embedded catalog is the default), and a missing one is a clear error.
 func TestParseDecodeFlagsRequired(t *testing.T) {
 	cases := []struct {
 		name string
 		args []string
 	}{
-		{"no chunks", []string{"--out", "o.json", "--map", "Live Fire", "--catalog", "c.json"}},
-		{"no out", []string{"--chunks", "d", "--map", "Live Fire", "--catalog", "c.json"}},
-		{"no map", []string{"--chunks", "d", "--out", "o.json", "--catalog", "c.json"}},
-		{"no catalog", []string{"--chunks", "d", "--out", "o.json", "--map", "Live Fire"}},
+		{"no chunks", []string{"--out", "o.json", "--map", "Live Fire"}},
+		{"no out", []string{"--chunks", "d", "--map", "Live Fire"}},
+		{"no map", []string{"--chunks", "d", "--out", "o.json"}},
 		{"nothing", []string{}},
 	}
 	for _, tc := range cases {
@@ -47,14 +46,15 @@ func TestParseDecodeFlagsFull(t *testing.T) {
 	}
 }
 
-// TestParseDecodeFlagsOptionalAbsent — the manifest and the stats are optional by design:
-// a decode without them parses and carries empty values (the document degrades, it does not fail).
+// TestParseDecodeFlagsOptionalAbsent — the manifest, stats and catalog are optional by
+// design: a decode without them parses and carries empty values (the document degrades, it
+// does not fail; the embedded catalog is the default).
 func TestParseDecodeFlagsOptionalAbsent(t *testing.T) {
-	f, err := parseDecodeFlags([]string{"--chunks", "d", "--out", "o.json", "--map", "Live Fire", "--catalog", "c.json"})
+	f, err := parseDecodeFlags([]string{"--chunks", "d", "--out", "o.json", "--map", "Live Fire"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if f.manifest != "" || f.stats != "" || f.gzip {
+	if f.manifest != "" || f.stats != "" || f.catalog != "" || f.gzip {
 		t.Fatalf("optional inputs not zero: %+v", f)
 	}
 }

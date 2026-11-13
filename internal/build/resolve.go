@@ -56,15 +56,15 @@ func resolveMatchID(in Input) string {
 			continue
 		}
 		base := strings.TrimSuffix(filepath.Base(p), filepath.Ext(filepath.Base(p)))
-		if isShort8(base) {
+		if IsShort8(base) {
 			return base + "-0000-0000-0000-000000000000"
 		}
 	}
 	return ""
 }
 
-// isShort8 says whether s is the short form of a match id: eight hex characters.
-func isShort8(s string) bool {
+// IsShort8 says whether s is the short form of a match id: eight hex characters.
+func IsShort8(s string) bool {
 	if len(s) != 8 {
 		return false
 	}
