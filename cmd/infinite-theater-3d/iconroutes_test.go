@@ -106,8 +106,10 @@ func TestIconRouteMissingSet(t *testing.T) {
 	r.Start()
 	defer r.Stop(time.Second)
 	time.Sleep(100 * time.Millisecond)
-	if s := r.Snapshot(meshjobs.JobWeaponIcons); s.State != meshjobs.StateAbsent {
-		t.Fatalf("state after the request = %s, want absent (nothing enqueued)", s.State)
+	for _, job := range []string{meshjobs.JobWeaponIcons, meshjobs.JobHudIcons} {
+		if s := r.Snapshot(job); s.State != meshjobs.StateAbsent {
+			t.Fatalf("%s state after the request = %s, want absent (nothing enqueued)", job, s.State)
+		}
 	}
 }
 

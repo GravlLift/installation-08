@@ -74,9 +74,10 @@ func newRecordingRunner(t *testing.T, ready func(string) bool) *recordingRunner 
 	return rec
 }
 
-// TestStartupBuildsOrderAndOnce — the startup step enqueues the three libraries in the
-// fixed order first, then each distinct map module once, with a match's variant following;
-// an output that is ready is skipped.
+// TestStartupBuildsOrderAndOnce — the startup step enqueues the four libraries in the
+// fixed order first (weapon icons, HUD icons, weapon library, first-person library), then
+// each distinct map module once, with a match's variant following; an output that is ready
+// is skipped.
 func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	matches := []startupMatch{
@@ -88,8 +89,8 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
 	enqueueStartupBuilds(rr, rr.ready, matches, variantExists)
 	want := []string{
-		meshjobs.JobWeaponIcons, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
-		"moda", "variant:aaaa", "variant:bbbb", "modb",
+		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobWeapons,
+		meshjobs.JobFirstPerson, "moda", "variant:aaaa", "variant:bbbb", "modb",
 	}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
@@ -106,7 +107,7 @@ func TestStartupBuildsSkipsReady(t *testing.T) {
 		{MatchID: "cccc", MapModule: "modb"},
 	}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" })
-	want := []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, "moda"}
+	want := []string{meshjobs.JobHudIcons, meshjobs.JobWeapons, meshjobs.JobFirstPerson, "moda"}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
 	}
@@ -125,19 +126,20 @@ func TestStartupBuildsNoInstall(t *testing.T) {
 }
 
 // TestStartupBuildsFoundInstall — when the install is found the startup step enqueues the
-// three libraries and, for the store's matches, the two distinct map modules and the one
+// four libraries and, for the store's matches, the two distinct map modules and the one
 // stored variant.
 func TestStartupBuildsFoundInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", t.TempDir())
 	runServeStartup(rr, rr.ready, root, "")
-	// The three libraries lead, in order; the two distinct map modules and the one stored
+	// The four libraries lead, in order; the two distinct map modules and the one stored
 	// variant follow (their relative order is the store's listing order, newest import
 	// first, a tie broken by id).
 	got := rr.modules()
-	if len(got) != 6 || got[0] != meshjobs.JobWeaponIcons || got[1] != meshjobs.JobWeapons || got[2] != meshjobs.JobFirstPerson {
-		t.Fatalf("queued = %v, want the three libraries first in order", got)
+	if len(got) != 7 || got[0] != meshjobs.JobWeaponIcons || got[1] != meshjobs.JobHudIcons ||
+		got[2] != meshjobs.JobWeapons || got[3] != meshjobs.JobFirstPerson {
+		t.Fatalf("queued = %v, want the four libraries first in order", got)
 	}
 	for _, want := range []string{"moda", "variant:bbbb", "modb"} {
 		found := false

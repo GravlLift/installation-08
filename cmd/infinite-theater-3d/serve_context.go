@@ -100,6 +100,7 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 	if err != nil {
 		return nil, err
 	}
+	contextCached(root, id, header, rows, events)
 	result := contextJSON{"header": header, "scoreboard": rows, "highlight_events": events, "media": contextJSON{"media_items": []any{}}, "source_unavailable": false}
 	switch stats.GameVariantName {
 	case "CTF:Arena", "CTF:Arena Neutral Flag", "Team Slayer:Arena", "Slayer:Arena", "Slayer:Arena Super Fiesta", "Slayer:Arena Tactical", "Strongholds:Arena", "Arena:Slayer", "Arena:Team Slayer", "Ranked:Slayer":
@@ -158,6 +159,11 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 		participation := object(p["ParticipationInfo"])
 		for source, dest := range map[string]string{"JoinedInProgress": "joined_in_progress", "LeftInProgress": "left_in_progress", "FirstJoinedTime": "first_joined_time", "LastLeaveTime": "last_leave_time"} {
 			if v, ok := participation[source]; ok && v != nil {
+				if source == "FirstJoinedTime" || source == "LastLeaveTime" {
+					if t, err := time.Parse(time.RFC3339Nano, textValue(v)); err == nil {
+						v = t.UTC().Format(time.RFC3339)
+					}
+				}
 				row[dest] = v
 			}
 		}
@@ -170,7 +176,7 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 			fillContextObjective(row, bundle)
 			fillContextMedals(row, core)
 			if seconds, ok := contextDuration(textValue(core["AverageLifeDuration"])); ok {
-				row["avg_life_seconds"] = seconds
+				row["avg_life_seconds"] = int64(seconds)
 			}
 			for source, dest := range map[string]string{"PersonalScore": "score", "KDA": "kda", "Accuracy": "accuracy", "DamageDealt": "damage_dealt", "DamageTaken": "damage_taken", "ShotsFired": "shots_fired", "ShotsHit": "shots_hit", "HeadshotKills": "headshot_kills", "MaxKillingSpree": "max_killing_spree", "GrenadeKills": "grenade_kills", "MeleeKills": "melee_kills", "PowerWeaponKills": "power_weapon_kills"} {
 				if v, ok := core[source]; ok && v != nil {
@@ -184,9 +190,14 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 }
 
 func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, xuid string) contextJSON {
-	h := contextJSON{"match_id": meta.MatchID, "start_time_label": "", "outcome_color": "#94a3b8", "dominance_flag": false, "had_bot_teammate": false, "map_ui": meta.MapName, "mode_ui": stats.GameVariantName, "playlist_label": "", "performance_display": "-", "is_excluded": false, "is_ranked": false, "is_favorite": false, "replay_available": true}
+	h := contextJSON{"match_id": meta.MatchID, "start_time_label": "", "outcome_color": "#94a3b8", "had_bot_teammate": false, "map_ui": meta.MapName, "mode_ui": stats.GameVariantName, "playlist_label": "", "is_ranked": false, "replay_available": true}
+	if mode, category := contextMode(stats.GameVariantName); mode != "" {
+		h["mode_ui"], h["mode_category"] = mode, category
+	}
 	if meta.MapAssetID != "" {
 		h["map_id"] = meta.MapAssetID
+		// LevelUp apps/go-api/internal/games/halo_infinite/adapter_asset_urls.go.
+		h["waypoint_url"] = "https://www.halowaypoint.com/halo-infinite/matches/" + meta.MatchID
 	}
 	contextScore(h, stats, payload, xuid)
 	info := object(payload["MatchInfo"])

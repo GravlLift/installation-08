@@ -1,0 +1,306 @@
+/**
+ * replayAudioMix.test.ts — CE QUE LE MIXAGE RETIENT, ET DANS QUEL ORDRE.
+ *
+ * Web Audio n'existe pas sous jsdom : ce qui se teste ici est la partie DÉCIDÉE — quels sons
+ * sont retenus, avec quelle variante, et lesquels le plafond de voix refuse. Le rendu lui-même
+ * (`OfflineAudioContext`) et l'encodage AAC se vérifient à l'oreille sur un clip, et c'est le
+ * gate de recette de l'étape E4 du plan.
+ *
+ * LE POINT LE PLUS IMPORTANT DE CE FICHIER est la REPRODUCTIBILITÉ : deux exports du même match
+ * doivent sonner pareil, sans quoi on ne peut ni comparer deux versions d'un clip, ni le
+ * re-livrer à l'identique.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  applyVoiceCap,
+  mixSeed,
+  planAudioMix,
+  scheduleMix,
+  seededRandom,
+  tailSeconds,
+  type MixedSound,
+} from './replayAudioMix'
+import { ReplayAudioPlayer, SOUND_MAX_VOICES } from './replayAudio'
+import { FakeContext, flushAudio, installFakeAudio } from '../test/fakeAudio'
+import type { ReplaySoundEvent } from './replaySoundVariants'
+
+const BOUNDS = { startMs: 1000, endMs: 5000 }
+const OPTS = { variationPercent: 0 }
+
+/** Une piste avec un geste à variantes et deux gestes nus, dont un HORS de la plage. */
+const TIMELINE: ReplaySoundEvent[] = [
+  { ms: 500, stem: 'avant_la_plage' },
+  { ms: 1200, stem: 'tir_a', variants: ['tir_a', 'tir_a_2', 'tir_a_3'] },
+  { ms: 2400, stem: 'explosion' },
+  { ms: 4800, stem: 'tir_a', variants: ['tir_a', 'tir_a_2', 'tir_a_3'] },
+  { ms: 9000, stem: 'apres_la_plage' },
+]
+
+describe('seededRandom / mixSeed — le hasard devient reproductible', () => {
+  it('deux générateurs de même graine rendent la même suite', () => {
+    const a = seededRandom(1234)
+    const b = seededRandom(1234)
+    expect([a(), a(), a()]).toEqual([b(), b(), b()])
+  })
+
+  it('deux graines différentes divergent', () => {
+    expect(seededRandom(1)()).not.toBe(seededRandom(2)())
+  })
+
+  it('la graine dépend du RANG ET du stem', () => {
+    expect(mixSeed(0, 'tir_a')).not.toBe(mixSeed(1, 'tir_a'))
+    expect(mixSeed(0, 'tir_a')).not.toBe(mixSeed(0, 'tir_b'))
+  })
+
+  it('la graine d’un rang donné est STABLE d’un appel à l’autre', () => {
+    expect(mixSeed(7, 'explosion')).toBe(mixSeed(7, 'explosion'))
+  })
+})
+
+describe('planAudioMix — ce qui entre dans le clip', () => {
+  it('ne retient que les sons de la plage', () => {
+    const out = planAudioMix(TIMELINE, BOUNDS, OPTS)
+    expect(out).toHaveLength(3)
+    expect(out.some((s) => s.stem.startsWith('avant'))).toBe(false)
+    expect(out.some((s) => s.stem.startsWith('apres'))).toBe(false)
+  })
+
+  it('replace les instants sur l’axe du CLIP, pas sur celui du rejeu', () => {
+    // Le premier son du match exporté tombe a 1200 - 1000 = 200 ms du debut du fichier.
+    expect(planAudioMix(TIMELINE, BOUNDS, OPTS)[0].atMs).toBe(200)
+  })
+
+  it('rend EXACTEMENT le même mixage deux fois de suite', () => {
+    // La garantie centrale du module : deux exports du même match sonnent pareil.
+    expect(planAudioMix(TIMELINE, BOUNDS, OPTS)).toEqual(planAudioMix(TIMELINE, BOUNDS, OPTS))
+  })
+
+  it('deux occurrences du MÊME geste peuvent tirer des variantes différentes', () => {
+    // C'est tout l'objet des variantes : un geste répété ne doit pas sonner comme une boucle.
+    // Les deux tirs partagent le stem mais pas le rang, donc pas la graine.
+    const out = planAudioMix(TIMELINE, BOUNDS, OPTS)
+    const tirs = out.filter((s) => s.stem.startsWith('tir_a'))
+    expect(tirs).toHaveLength(2)
+    expect(mixSeed(1, 'tir_a')).not.toBe(mixSeed(3, 'tir_a'))
+  })
+
+  it('le tirage reste dans la liste des variantes déclarées', () => {
+    for (const s of planAudioMix(TIMELINE, BOUNDS, OPTS)) {
+      expect(['tir_a', 'tir_a_2', 'tir_a_3', 'explosion']).toContain(s.stem)
+    }
+  })
+
+  it('borner la plage AUTREMENT ne change pas le tirage des sons communs', () => {
+    // Le rang est celui de la piste ENTIÈRE : exporter une manche seule doit faire sonner ses
+    // tirs exactement comme dans l'export du match entier.
+    const large = planAudioMix(TIMELINE, { startMs: 0, endMs: 10_000 }, OPTS)
+    const etroit = planAudioMix(TIMELINE, BOUNDS, OPTS)
+    const communs = large.filter((s) => s.atMs >= 1000 && s.atMs <= 5000).map((s) => s.stem)
+    expect(etroit.map((s) => s.stem)).toEqual(communs)
+  })
+
+  it('pose les prises de fin de partie SUR la borne de fin', () => {
+    const out = planAudioMix(TIMELINE, BOUNDS, { ...OPTS, endMatchStems: ['fanfare'] })
+    const fin = out.find((s) => s.stem === 'fanfare')
+    expect(fin?.atMs).toBe(4000)
+    // Aucune variation sur une fanfare : les fourchettes RANGED sont celles des armes.
+    expect(fin?.draw).toEqual({ gainDb: 0, playbackRate: 1 })
+  })
+
+  it('rend la liste triée par instant', () => {
+    const out = planAudioMix(TIMELINE, BOUNDS, { ...OPTS, endMatchStems: ['fanfare'] })
+    expect(out.map((s) => s.atMs)).toEqual([...out.map((s) => s.atMs)].sort((a, b) => a - b))
+  })
+})
+
+/**
+ * LA PLACE POUR L'AUDITEUR DU CLIP : un export 3D suit un joueur, et ses sons se placent pour
+ * lui comme ceux de la page — gain selon la distance, pan selon le gisement. Sans auditeur,
+ * le mix est EXACTEMENT celui d'avant (aucun placement, aucun câblage en plus).
+ */
+describe('planAudioMix — le placement pour l’auditeur du clip', () => {
+  // L'auditeur est a l'origine, tourné vers +X : sa droite est -Y.
+  const TIMELINE_LIEE: ReplaySoundEvent[] = [
+    { ms: 2000, stem: 'proche', at: { x: 0, y: -0.2 } },
+    { ms: 3000, stem: 'lointain', at: { x: 0, y: -10 } },
+    { ms: 4000, stem: 'sans_lieu' },
+  ]
+  const AUDITEUR = () => ({ x: 0, y: 0, heading: 0 })
+
+  it('un son lointain est plus bas qu’un proche, et un son a droite pane a droite', () => {
+    const out = planAudioMix(TIMELINE_LIEE, BOUNDS, { ...OPTS, listenerAt: AUDITEUR })
+    const proche = out.find((s) => s.stem === 'proche')
+    const loin = out.find((s) => s.stem === 'lointain')
+    expect(proche?.place).toEqual({ gain: 1, pan: 0 })
+    expect(loin?.place?.gain).toBeCloseTo(0.3)
+    expect(loin?.place?.gain).toBeLessThan(1)
+    expect(loin?.place?.pan).toBeGreaterThan(0)
+    // Sans lieu, aucun placement : le son se joue tel quel.
+    expect(out.find((s) => s.stem === 'sans_lieu')?.place).toBeUndefined()
+  })
+
+  it('sans auditeur, le mix est EXACTEMENT celui d’avant', () => {
+    const sans = planAudioMix(TIMELINE_LIEE, BOUNDS, OPTS)
+    const avec = planAudioMix(TIMELINE_LIEE, BOUNDS, { ...OPTS, listenerAt: AUDITEUR })
+    expect(sans).toEqual(avec.map(({ place: _place, ...reste }) => reste))
+  })
+})
+
+describe('scheduleMix — le placement, même câblage que le lecteur', () => {
+  const BUFFERS = new Map([['s', { duration: 1 } as AudioBuffer]])
+
+  it('multiplie le gain de tenue par le gain du placement', () => {
+    const ctx = new FakeContext()
+    const sons: MixedSound[] = [
+      { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx', place: { gain: 0.25, pan: 0 } },
+    ]
+    scheduleMix(ctx as unknown as BaseAudioContext, {} as AudioNode, sons, BUFFERS)
+    expect(ctx.gains[0].gain.value).toBe(0.25)
+    expect(ctx.panners).toHaveLength(0)
+    expect(ctx.gains[0].connections).toHaveLength(1)
+  })
+
+  it('pose un panneur seulement quand le pan est a un cote', () => {
+    const ctx = new FakeContext()
+    const sons: MixedSound[] = [
+      { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx', place: { gain: 0.5, pan: 0.4 } },
+    ]
+    scheduleMix(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)
+    expect(ctx.panners).toHaveLength(1)
+    expect(ctx.panners[0].pan.value).toBe(0.4)
+    expect(ctx.gains[0].connections).toEqual([ctx.panners[0]])
+    expect(ctx.panners[0].connections).toEqual([ctx.destination])
+  })
+
+  it('sans place : gain branche directement, aucun panneur', () => {
+    const ctx = new FakeContext()
+    const sons: MixedSound[] = [
+      { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx' },
+    ]
+    scheduleMix(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)
+    expect(ctx.panners).toHaveLength(0)
+    expect(ctx.gains[0].connections).toEqual([ctx.destination])
+  })
+})
+
+/** Fabrique N sons simultanés — de quoi saturer le plafond de voix. */
+function simultanes(n: number, atMs = 0): MixedSound[] {
+  return Array.from({ length: n }, (_, i) => ({
+    atMs,
+    stem: `s${i}`,
+    draw: { gainDb: 0, playbackRate: 1 },
+    family: 'sfx' as const,
+  }))
+}
+
+describe('applyVoiceCap — la même comptabilité que le lecteur temps réel', () => {
+  const UNE_SECONDE = () => 1
+
+  it('laisse passer tant que le plafond n’est pas atteint', () => {
+    expect(applyVoiceCap(simultanes(SOUND_MAX_VOICES), UNE_SECONDE)).toHaveLength(SOUND_MAX_VOICES)
+  })
+
+  it('refuse au-delà du plafond', () => {
+    // Sans cela l'export sonnerait plus fort et plus confus que la page.
+    expect(applyVoiceCap(simultanes(SOUND_MAX_VOICES + 5), UNE_SECONDE)).toHaveLength(
+      SOUND_MAX_VOICES,
+    )
+  })
+
+  it('libère les voix quand les sons se sont tus', () => {
+    const serres = simultanes(SOUND_MAX_VOICES, 0)
+    const plusTard = simultanes(3, 5000)
+    expect(applyVoiceCap([...serres, ...plusTard], UNE_SECONDE)).toHaveLength(
+      SOUND_MAX_VOICES + 3,
+    )
+  })
+
+  it('un asset absent est un silence, et n’occupe AUCUNE voix', () => {
+    const sons = [...simultanes(2, 0), { atMs: 0, stem: 'absent', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx' as const }]
+    const out = applyVoiceCap(sons, (stem) => (stem === 'absent' ? null : 1))
+    expect(out.map((s) => s.stem)).toEqual(['s0', 's1'])
+  })
+})
+
+/**
+ * GARDE-RAIL DE PARITÉ (item 11, 2026-09-26) : la conclusion échappait au plafond à l'export
+ * depuis le 29/08, mais pas à la page — la fanfare d'une fin dense s'entendait dans le clip et
+ * pas dans le rejeu. La même situation saturée passe ici par les DEUX chemins.
+ */
+describe('la conclusion — même règle à la page et à l’export', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('plafond plein : les deux chemins gardent la conclusion et refusent le son ordinaire de trop', async () => {
+    const conclusion = (stem: string): MixedSound => ({
+      atMs: 0, stem, draw: { gainDb: 0, playbackRate: 1 }, family: 'music', conclusion: true,
+    })
+    const sons = [...simultanes(SOUND_MAX_VOICES + 1), conclusion('voix'), conclusion('fanfare')]
+    const exportes = applyVoiceCap(sons, () => 1).map((s) => s.stem)
+
+    const { ctx } = installFakeAudio(1)
+    const p = new ReplayAudioPlayer(1)
+    p.preload(sons.map((s) => `/${s.stem}.ogg`))
+    await flushAudio()
+    const joues: string[] = []
+    for (const s of sons) {
+      const avant = ctx.sources.length
+      if (s.conclusion) p.playConclusion(`/${s.stem}.ogg`)
+      else p.play(`/${s.stem}.ogg`)
+      if (ctx.sources.length > avant) joues.push(s.stem)
+    }
+
+    expect(exportes).toHaveLength(SOUND_MAX_VOICES + 2)
+    expect(exportes).toContain('fanfare')
+    expect(joues).toEqual(exportes)
+  })
+})
+
+describe('tailSeconds — ce qui DÉPASSE la borne', () => {
+  const buffers = new Map([['fanfare', { duration: 10 } as AudioBuffer]])
+
+  it('rend le dépassement, pas la fin absolue', () => {
+    // Une fanfare de 10 s posée a 4 s d'un clip de 5 s deborde de 9 s, pas de 14.
+    const sons: MixedSound[] = [{ atMs: 4000, stem: 'fanfare', draw: { gainDb: 0, playbackRate: 1 }, family: 'music' }]
+    expect(tailSeconds(sons, buffers, 5000)).toBe(9)
+  })
+
+  it('rend zéro quand tout tient dans la plage', () => {
+    const sons: MixedSound[] = [{ atMs: 0, stem: 'fanfare', draw: { gainDb: 0, playbackRate: 1 }, family: 'music' }]
+    expect(tailSeconds(sons, buffers, 60_000)).toBe(0)
+  })
+})
+
+/**
+ * GARDE-RAIL DE PARITÉ (contrôle n° 7, 2026-10-21) : la voix « manche terminée » tombe au milieu
+ * des derniers tirs et explosions de la manche, qui tiennent les huit voix. Elle passe hors
+ * plafond par les DEUX chemins, comme la conclusion.
+ */
+describe('la voix de manche — hors plafond à la page et à l’export', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('planAudioMix porte la marque, et le plafond plein la laisse passer des deux côtés', async () => {
+    const timeline: ReplaySoundEvent[] = [
+      ...Array.from({ length: SOUND_MAX_VOICES }, (_, i) => ({ ms: 1000, stem: `s${i}` })),
+      { ms: 1000, stem: 'round_over_fr', announcer: true },
+    ]
+    const planned = planAudioMix(timeline, { startMs: 0, endMs: 5000 }, OPTS)
+    expect(planned.find((s) => s.stem === 'round_over_fr')?.announcer).toBe(true)
+    const exportes = applyVoiceCap(planned, () => 1).map((s) => s.stem)
+    expect(exportes).toContain('round_over_fr')
+
+    const { ctx } = installFakeAudio(1)
+    const p = new ReplayAudioPlayer(1)
+    p.preload(planned.map((s) => `/${s.stem}.ogg`))
+    await flushAudio()
+    const joues: string[] = []
+    for (const s of planned) {
+      const avant = ctx.sources.length
+      if (s.announcer) p.playAnnouncer(`/${s.stem}.ogg`)
+      else p.play(`/${s.stem}.ogg`)
+      if (ctx.sources.length > avant) joues.push(s.stem)
+    }
+    expect(joues).toEqual(exportes)
+    expect(joues).toHaveLength(SOUND_MAX_VOICES + 1)
+  })
+})

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -180,5 +182,55 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 	full, err := os.ReadFile(filepath.Join(root.MatchesDir(), "abc", "stats-full.json"))
 	if err != nil || !bytes.Contains(full, []byte(`"PlayerId":"xuid(123)"`)) {
 		t.Fatalf("full stats not saved: %s, %v", full, err)
+	}
+}
+
+func TestFetchContextArtifacts(t *testing.T) {
+	var calls = map[string]int{}
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls[r.URL.Path]++
+		switch r.URL.Path {
+		case "/matches/abc/skill":
+			fmt.Fprint(w, `{"Value":[]}`)
+		case "/playlists/pl/versions/ver":
+			fmt.Fprint(w, `{"PublicName":"Ranked Arena"}`)
+		case "/mapModePairs/pair/versions/ver":
+			fmt.Fprint(w, `{"PublicName":"Ranked:Oddball on Live Fire"}`)
+		case "/Waypoint/file/medals/metadata.json":
+			fmt.Fprint(w, `{"Medals":[{"NameId":42,"Name":{"value":"Test"},"SpriteIndex":0}]}`)
+		case "/Waypoint/file/medals/images/medal_sheet_xl.png":
+			img := image.NewRGBA(image.Rect(0, 0, 256, 256))
+			_ = png.Encode(w, img)
+		case "/Maps/map/versions/ver":
+			fmt.Fprintf(w, `{"Files":{"Prefix":%q,"FileRelativePaths":["thumbnail.png"]}}`, "http://"+r.Host+"/blob")
+		case "/blob/thumbnail.png":
+			fmt.Fprint(w, "map-image")
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer s.Close()
+	u, _ := url.Parse(s.URL)
+	client := s.Client()
+	client.Transport = localOnlyTransport{host: u.Host, base: client.Transport}
+	api := haloapi.New(client, haloapi.Endpoints{Stats: s.URL, Discovery: s.URL, Economy: s.URL, Skill: s.URL, GameCMS: s.URL}, "fake", "fake")
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte(`{"MatchInfo":{"Playlist":{"AssetId":"pl","VersionId":"ver"},"PlaylistMapModePair":{"AssetId":"pair","VersionId":"ver"},"MapVariant":{"AssetId":"map","VersionId":"ver"}},"Players":[{"PlayerId":"xuid(123)"}]}`)
+	for i := 0; i < 2; i++ {
+		if err := fetchContextArtifacts(context.Background(), root, api, "abc", raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{"matches/abc/skill.json", "matches/abc/playlist.json", "matches/abc/map-mode-pair.json", "medals/metadata.json", "static/medals/halo_infinite/42.png", "static/maps/halo_infinite/map.png"} {
+		if _, err := os.Stat(filepath.Join(root.Dir(), filepath.FromSlash(p))); err != nil {
+			t.Errorf("%s: %v", p, err)
+		}
+	}
+	if calls["/Waypoint/file/medals/metadata.json"] != 1 || calls["/Waypoint/file/medals/images/medal_sheet_xl.png"] != 1 {
+		t.Fatalf("catalog not reused: %v", calls)
 	}
 }

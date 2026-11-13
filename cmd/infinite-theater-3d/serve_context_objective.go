@@ -70,12 +70,17 @@ func fillContextObjective(row contextJSON, bundle map[string]any) {
 
 func fillContextMedals(row contextJSON, core map[string]any) {
 	medals := []contextJSON{}
+	row["perfect_kills"] = 0
 	for _, v := range array(core["Medals"]) {
 		medal := object(v)
 		id, ok := medal["NameId"].(float64)
 		count, exists := medal["Count"].(float64)
 		if ok && exists && id != 0 && count != 0 {
 			medals = append(medals, contextJSON{"medal_id": id, "count": count})
+			// LevelUp internal/analysis/perfect_kills.go identifies Infinite's Perfect medal.
+			if id == 1512363953 {
+				row["perfect_kills"] = count
+			}
 		}
 	}
 	if len(medals) > 0 {

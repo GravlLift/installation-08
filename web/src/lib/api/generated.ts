@@ -1208,7 +1208,6 @@ export interface paths {
         /**
          * Lance un backfill (job long)
          * @description Corps JSON lu à la main (400 `invalid_body` sinon) : `player_slug` (obligatoire), les
-         *     portées (`medals`, `events`, `skill`, `performance_scores`, `lusr`, `citations`,
          *     `engagement_scores`... ; aucune = tout), `force_rescan`, `max_matches`, `dry_run` et
          *     `title` (slug du titre, défaut : le titre par défaut ; le joueur doit y être suivi, 404
          *     `player_not_found` sinon). Sur un titre qui ne déclare pas `citations.engine` (Halo 5),
@@ -2083,7 +2082,6 @@ export interface paths {
         head?: never;
         /**
          * Marquer ou démarquer un match comme non pertinent
-         * @description Positionne is_excluded pour un match donné dans player_match_enrichment.
          *     Un match exclu est ignoré partout dans l'app (stats, graphes, historique, export).
          */
         patch: operations["setMatchExclusion"];
@@ -2660,8 +2658,6 @@ export interface paths {
          * Matchs marquants — 15 best + 15 worst (format Explorer)
          * @description Retourne les 15 meilleurs et 15 pires matchs du joueur au format
          *     ExplorerMatchesRow (mêmes colonnes que la page Explorer). Tri par
-         *     priorité dominance puis performance_score (DESC pour best, ASC pour worst).
-         *     Filtres d'éligibilité : performance_score NOT NULL, time_played≥180s,
          *     is_firefight=FALSE. Asymétrie WIN/LOSS sur had_bot_teammate : les WIN
          *     avec bot coéquipier sont conservés (perf personnelle méritoire malgré
          *     le handicap), les LOSS avec bot coéquipier sont exclus (responsabilité
@@ -7297,8 +7293,6 @@ export interface components {
             /** Format: int64 */
             delta_perf?: number;
             /** Format: int64 */
-            dominance_flag?: number;
-            /** Format: int64 */
             duration_seconds?: number;
             /** Format: double */
             enemy_mmr?: number;
@@ -7465,8 +7459,6 @@ export interface components {
             deaths: number;
             /** Format: double */
             deaths_per_min?: number;
-            /** Format: double */
-            defensive_resistance?: number;
             /** Format: int64 */
             draws: number;
             frag_distribution?: components["schemas"]["FragDistribution"];
@@ -7488,8 +7480,6 @@ export interface components {
             losses: number;
             /** Format: int64 */
             melee_kills: number;
-            /** Format: double */
-            offensive_conversion?: number;
             /** Format: int64 */
             perfect_kills: number;
             /** Format: int64 */
@@ -8379,13 +8369,9 @@ export interface components {
             /** Format: double */
             avg_accuracy: number;
             /** Format: double */
-            avg_defensive_resistance?: number;
-            /** Format: double */
             avg_life_seconds: number;
             /** Format: double */
             avg_match_seconds: number;
-            /** Format: double */
-            avg_offensive_conversion?: number;
             combat_profile?: components["schemas"]["CombatProfileBlock"];
             /** Format: double */
             deaths_per_game: number;
@@ -8398,8 +8384,6 @@ export interface components {
             /** Format: int64 */
             matches_count: number;
             outcomes: components["schemas"]["KPIStatsOutcomesStruct"];
-            /** Format: double */
-            performance_score?: number;
             rank_delta?: components["schemas"]["RankDelta"];
             /** Format: int64 */
             total_play_seconds: number;
@@ -9230,8 +9214,6 @@ export interface components {
             /** Format: double */
             delta_mmr: number | null;
             /** Format: int64 */
-            dominance_flag?: number;
-            /** Format: int64 */
             duration_seconds?: number;
             /** Format: double */
             enemy_mmr: number | null;
@@ -9239,7 +9221,6 @@ export interface components {
             expected_win_prob?: number;
             experience_type_label?: string;
             has_replay?: boolean;
-            is_excluded: boolean;
             is_overtime?: boolean;
             is_with_friends: boolean;
             /** Format: double */
@@ -9262,8 +9243,6 @@ export interface components {
             perf_placement_total?: number;
             /** Format: int64 */
             perf_tier?: number;
-            /** Format: int64 */
-            performance_score_relative: number | null;
             /** Format: int64 */
             personal_score?: number;
             /** Format: int64 */
@@ -9673,17 +9652,11 @@ export interface components {
             /** Format: double */
             damage_dealt?: number;
             /** Format: double */
-            damage_per_death?: number;
-            /** Format: double */
-            damage_per_kill?: number;
-            /** Format: double */
             damage_taken?: number;
             /** Format: int64 */
             deaths?: number;
             /** Format: double */
             deaths_stddev?: number;
-            /** Format: double */
-            defensive_resistance?: number;
             /** Format: double */
             expected_assists?: number;
             /** Format: double */
@@ -9700,9 +9673,7 @@ export interface components {
             /** Format: int64 */
             headshot_kills?: number;
             is_bot?: boolean;
-            is_lvp?: boolean;
             is_me: boolean;
-            is_mvp?: boolean;
             joined_in_progress?: boolean;
             /** Format: double */
             kda?: number;
@@ -9719,14 +9690,10 @@ export interface components {
             /** Format: int64 */
             melee_kills?: number;
             objective?: components["schemas"]["MatchScoreboardObjective"];
-            /** Format: double */
-            offensive_conversion?: number;
             /** @enum {string} */
             outcome?: "win" | "loss" | "tie" | "dnf";
             /** Format: int64 */
             perfect_kills?: number;
-            /** Format: double */
-            performance_score?: number;
             /** Format: int64 */
             power_weapon_kills?: number;
             /** Format: int64 */
@@ -9843,10 +9810,7 @@ export interface components {
             analysis_pending_parts?: string[] | null;
             analysis_state?: string;
             dominance_badge?: components["schemas"]["MatchViewDominanceBadge"];
-            dominance_flag: boolean;
             had_bot_teammate: boolean;
-            is_excluded: boolean;
-            is_favorite: boolean;
             is_overtime?: boolean;
             is_ranked: boolean;
             map_id?: string;
@@ -9863,9 +9827,6 @@ export interface components {
             outcome_color_token?: string;
             /** Format: int64 */
             overtime_seconds?: number;
-            performance_color?: string;
-            performance_color_token?: string;
-            performance_display: string;
             /** Format: int64 */
             playable_duration_seconds?: number;
             playlist_label: string;
@@ -11109,8 +11070,6 @@ export interface components {
             /** Format: int64 */
             converged_psa: number;
             /** Format: int64 */
-            dominance_flags_computed: number;
-            /** Format: int64 */
             duration_ms: number;
             /** Format: int64 */
             engagement_coefs_updated: number;
@@ -11972,8 +11931,6 @@ export interface components {
             /** Format: int64 */
             max_killing_spree?: number;
             participation: components["schemas"]["SessionParticipationAxis"][] | null;
-            /** Format: double */
-            performance_score: number | null;
             session_label: string;
             /** Format: double */
             skill_rating_delta?: number;
@@ -12041,11 +11998,7 @@ export interface components {
             /** Format: double */
             deaths_expected?: number;
             /** Format: double */
-            defensive_resistance?: number;
-            /** Format: double */
             delta_mmr?: number;
-            /** Format: int64 */
-            dominance_flag?: number;
             dominant_category?: string;
             /** Format: int64 */
             duration_seconds?: number;
@@ -12067,8 +12020,6 @@ export interface components {
             map_name?: string;
             match_id: string;
             mode_ui?: string;
-            /** Format: double */
-            offensive_conversion?: number;
             /** Format: int64 */
             outcome?: number;
             pair_name: string;
@@ -12078,8 +12029,6 @@ export interface components {
             perf_placement_total?: number;
             /** Format: int64 */
             perf_tier?: number;
-            /** Format: double */
-            performance_score?: number;
             /** Format: int64 */
             personal_score?: number;
             /** Format: int64 */
@@ -12275,7 +12224,6 @@ export interface components {
             spnkr_refresh_backfill_events?: boolean;
             spnkr_refresh_backfill_lusr?: boolean;
             spnkr_refresh_backfill_medals?: boolean;
-            spnkr_refresh_backfill_performance_scores?: boolean;
             spnkr_refresh_backfill_personal_scores?: boolean;
             spnkr_refresh_backfill_skill?: boolean;
             spnkr_refresh_with_backfill?: boolean;
@@ -12845,8 +12793,6 @@ export interface components {
             /** Format: double */
             delta_mmr?: number;
             /** Format: int64 */
-            dominance_flag?: number;
-            /** Format: int64 */
             duration_seconds?: number;
             /** Format: double */
             enemy_mmr_avg?: number;
@@ -12863,8 +12809,6 @@ export interface components {
             /** Format: int64 */
             outcome: number;
             pair_name?: string;
-            /** Format: double */
-            performance_score?: number;
             playlist_name?: string;
             score_kind?: string;
             score_label?: string;
@@ -12891,8 +12835,6 @@ export interface components {
             match_id: string;
             /** Format: int64 */
             outcome: number;
-            /** Format: double */
-            performance_score?: number;
             session_label?: string;
             start_time: string;
             /** Format: double */
@@ -13004,8 +12946,6 @@ export interface components {
             melee_kills?: number;
             /** Format: int64 */
             perfect_kills?: number;
-            /** Format: double */
-            performance_score?: number;
             /** Format: int64 */
             power_weapon_kills?: number;
             /** Format: double */
@@ -13324,13 +13264,9 @@ export interface components {
             /** Format: double */
             avg_damage_taken: number | null;
             /** Format: double */
-            avg_defensive_resistance?: number;
-            /** Format: double */
             avg_life_seconds: number | null;
             /** Format: double */
             avg_max_killing_spree: number | null;
-            /** Format: double */
-            avg_offensive_conversion?: number;
             /** Format: double */
             deaths_per_min: number | null;
             /** Format: double */
@@ -13343,8 +13279,6 @@ export interface components {
             match_count: number;
             /** Format: double */
             perfect_kills_per_match: number | null;
-            /** Format: double */
-            performance_score: number | null;
             /** Format: int64 */
             ranked_match_count: number;
             /** Format: int64 */
@@ -14075,8 +14009,6 @@ export interface components {
             /** Format: double */
             deaths_expected?: number;
             /** Format: int64 */
-            dominance_flag?: number;
-            /** Format: int64 */
             headshot_kills?: number;
             /** Format: int64 */
             index: number;
@@ -14188,14 +14120,10 @@ export interface components {
         TitleSummary: {
             capabilities: string[] | null;
             /** Format: double */
-            defensive_resistance_p80: number;
-            /** Format: double */
             effective_hp_to_kill: number;
             icon_url?: string;
             is_default: boolean;
             name: string;
-            /** Format: double */
-            offensive_conversion_p80: number;
             /** @description false si l'API du titre ne fournit pas damage_taken (Halo 5) : le front neutralise la Résistance défensive (N/A) au lieu d'afficher 0. */
             provides_damage_taken: boolean;
             /** @description true si le titre fournit la folie meurtrière max par match (native ou calculée via events horodatés). Front masque la série si false. */
@@ -14356,8 +14284,6 @@ export interface components {
             losses: number;
             /** Format: int64 */
             matches: number;
-            /** Format: double */
-            performance_score?: number;
             /** Format: double */
             win_rate?: number;
             /** Format: int64 */

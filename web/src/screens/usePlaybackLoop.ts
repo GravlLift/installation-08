@@ -23,9 +23,11 @@ export interface PlaybackLoopDeps {
   frameRef: { current: number }
   setFrame: (f: number) => void
   setPlaying: (p: boolean) => void
+  tick?: (ms: number) => void
+  onEnded?: () => void
 }
 
-export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying }: PlaybackLoopDeps): void {
+export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick, onEnded }: PlaybackLoopDeps): void {
   useEffect(() => {
     if (!playing) return
     let raf = 0
@@ -35,12 +37,13 @@ export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, 
       last = now
       const next = Math.min(doc.frameCount - 1, Math.max(0, (frameRef.current ?? 0) + deltaFrames))
       frameRef.current = next
+      tick?.(next * 1000 / fps)
       setFrame(Math.round(next))
       // Exactly one of these two branches runs, and only the first one schedules another tick.
       if (next < doc.frameCount - 1) raf = requestAnimationFrame(step)
-      else setPlaying(false)
+      else { setPlaying(false); onEnded?.() }
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [playing, speed, fps, doc.frameCount, frameRef, setFrame, setPlaying])
+  }, [playing, speed, fps, doc.frameCount, frameRef, setFrame, setPlaying, tick, onEnded])
 }
