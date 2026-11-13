@@ -22,8 +22,11 @@ import (
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
 
-// coatingWork is one build's coating distillation.
-type coatingWork struct {
+// CoatingWork is one build's coating distillation: the Ekur reference read,
+// the painted materials annotated (Annotate) and the coating files written at
+// the end (Finish). The Spartan piece library owns its own work; the weapon
+// library reuses it to paint the weapon models it writes.
+type CoatingWork struct {
 	ref       ekurRef
 	index     CoatingsIndex
 	loaded    map[uint32]*ekurMaterial
@@ -31,22 +34,22 @@ type coatingWork struct {
 	gradients map[uint32]bool
 }
 
-// openCoatingWork validates the reference folder; nil, nil when it is not
+// OpenCoatingWork validates the reference folder; nil, nil when it is not
 // given.
-func openCoatingWork(folder string) (*coatingWork, error) {
+func OpenCoatingWork(folder string) (*CoatingWork, error) {
 	if folder == "" {
 		return nil, nil
 	}
 	if !EkurValid(folder) {
 		return nil, fmt.Errorf("ekur reference %s: missing one of the contract entries", folder)
 	}
-	return &coatingWork{ref: ekurRef{folder: folder},
+	return &CoatingWork{ref: ekurRef{folder: folder},
 		index:  CoatingsIndex{Source: filepath.Base(folder)},
 		loaded: map[uint32]*ekurMaterial{}, lists: map[string]bool{}, gradients: map[uint32]bool{}}, nil
 }
 
-// annotate puts extras.style on a painted material (himap.AnnotateMaterialsGLB).
-func (a *coatingWork) annotate(ctx context.Context) func(extras map[string]any) bool {
+// Annotate puts extras.style on a painted material (himap.AnnotateMateriauxGLB).
+func (a *CoatingWork) Annotate(ctx context.Context) func(extras map[string]any) bool {
 	return func(extras map[string]any) bool {
 		id, ok := himap.NombreJSON(extras["id"])
 		raw, painted := extras[himap.CleSurfaceBrute].(map[string]any)
@@ -64,7 +67,7 @@ func (a *coatingWork) annotate(ctx context.Context) func(extras map[string]any) 
 
 // material returns the reference's material id (read once, counted once); nil
 // when it is missing.
-func (a *coatingWork) material(ctx context.Context, id uint32, raw map[string]any) *ekurMaterial {
+func (a *CoatingWork) material(ctx context.Context, id uint32, raw map[string]any) *ekurMaterial {
 	if m, seen := a.loaded[id]; seen {
 		return m
 	}
@@ -116,9 +119,9 @@ func sameMasks(raw map[string]any, textures map[string]int32) bool {
 	return true
 }
 
-// finish writes the common table, one file per coating and the gradient
+// Finish writes the common table, one file per coating and the gradient
 // images in folder; it returns the index section.
-func (a *coatingWork) finish(ctx context.Context, arsenal *himap.Arsenal, folder string) (*CoatingsIndex, error) {
+func (a *CoatingWork) Finish(ctx context.Context, arsenal *himap.Arsenal, folder string) (*CoatingsIndex, error) {
 	d := distill{ref: a.ref, styles: map[string]CoatingStyle{}, gradients: a.gradients}
 	table, perStyle, err := d.table(ctx, a.lists)
 	if err != nil {
@@ -153,7 +156,7 @@ func (a *coatingWork) finish(ctx context.Context, arsenal *himap.Arsenal, folder
 
 // writeSwatches writes, read from the game, the image of each gradient named
 // by the kept styles.
-func (a *coatingWork) writeSwatches(ctx context.Context, arsenal *himap.Arsenal, folder string) error {
+func (a *CoatingWork) writeSwatches(ctx context.Context, arsenal *himap.Arsenal, folder string) error {
 	ids := make([]uint32, 0, len(a.gradients))
 	for id := range a.gradients {
 		ids = append(ids, id)

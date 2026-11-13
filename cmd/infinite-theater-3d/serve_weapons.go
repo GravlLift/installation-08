@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
@@ -48,32 +49,50 @@ func (h serverHandlers) handleWeaponIndex(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(raw)
 }
 
-// handleWeaponModel answers GET /api/weapons/{file} with one weapon model (range-capable).
-// The file name must be a well-formed model key plus .glb; a missing file is a JSON 404.
+// handleWeaponModel answers GET /api/weapons/{file} with one library file: a model GLB
+// (range-capable) or a coating file (coatings.json, coating-<style>.json, swatch-<gradient>.png,
+// the spartanpieces contract beside the Spartan piece routes). A missing file is a JSON 404.
 func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
+	dir := filepath.Join(h.root.Dir(), "weapons")
+	if weapons.CoatingFile(file) {
+		h.serveWeaponFile(w, r, dir, file, map[string]string{"error": "coating_not_available", "file": file})
+		return
+	}
 	key := strings.TrimSuffix(file, ".glb")
 	if !strings.HasSuffix(file, ".glb") || !weapons.ModelKeyValid(key) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "weapon_model_not_available", "key": key})
 		return
 	}
-	full, ok := joinInside(filepath.Join(h.root.Dir(), "weapons"), weapons.FileOf(key))
+	h.serveWeaponFile(w, r, dir, weapons.FileOf(key), map[string]string{"error": "weapon_model_not_available", "key": key})
+}
+
+// serveWeaponFile serves one library file of dir (range-capable); a missing file, a directory,
+// or a path that escapes the folder is the JSON 404 notFound.
+func (h serverHandlers) serveWeaponFile(w http.ResponseWriter, r *http.Request, dir, file string, notFound map[string]string) {
+	full, ok := joinInside(dir, file)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "weapon_model_not_available", "key": key})
+		writeJSON(w, http.StatusNotFound, notFound)
+		return
+	}
+	info, err := os.Stat(full)
+	if err != nil || info.IsDir() {
+		writeJSON(w, http.StatusNotFound, notFound)
 		return
 	}
 	f, err := os.Open(full)
 	if err != nil {
 		if os.IsNotExist(err) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "weapon_model_not_available", "key": key})
+			writeJSON(w, http.StatusNotFound, notFound)
 			return
 		}
-		slog.Error("open weapon model", "err", err, "key", key)
+		slog.Error("open weapon library file", "err", err, "file", file)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	defer f.Close()
-	http.ServeContent(w, r, weapons.FileOf(key), time.Time{}, f)
+	w.Header().Set("Content-Type", spartanpieces.FileType(file))
+	http.ServeContent(w, r, file, time.Time{}, f)
 }
 
 // handleWeaponBuild answers POST /api/weapons/build: it starts or joins the weapon library

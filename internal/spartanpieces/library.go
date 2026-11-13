@@ -59,7 +59,7 @@ type library struct {
 	folder    string
 	generator string
 	depot     *textureDepot
-	coatings  *coatingWork
+	coatings  *CoatingWork
 	index     Index
 	bytes     int64
 }
@@ -77,7 +77,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		return Result{}, err
 	}
-	coatings, err := openCoatingWork(EkurDir(opts.DataDir))
+	coatings, err := OpenCoatingWork(EkurDir(opts.DataDir))
 	if err != nil {
 		return Result{}, err
 	}
@@ -112,7 +112,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	b.index.Markers = markersOf(r)
 	b.index.Themes = themesOf(ctx, a)
 	if coatings != nil {
-		if b.index.Coatings, err = coatings.finish(ctx, a, dir); err != nil {
+		if b.index.Coatings, err = coatings.Finish(ctx, a, dir); err != nil {
 			return b.result(), err
 		}
 		b.bytes += b.index.Coatings.Bytes
@@ -180,7 +180,7 @@ func (b *library) writePiece(r *himap.Armurerie, c himap.CleArmure, key string) 
 func (b *library) writeGLB(file string, glb []byte) (int64, error) {
 	if b.coatings != nil {
 		var err error
-		if glb, err = himap.AnnoteMateriauxGLB(glb, b.coatings.annotate(b.ctx)); err != nil {
+		if glb, err = himap.AnnoteMateriauxGLB(glb, b.coatings.Annotate(b.ctx)); err != nil {
 			return 0, err
 		}
 	}

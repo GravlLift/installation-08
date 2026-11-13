@@ -8,6 +8,8 @@ package weapons
 import (
 	"strconv"
 	"strings"
+
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 )
 
 // KeySpartan is the model key of the Spartan body.
@@ -74,6 +76,9 @@ type Index struct {
 	Generator  string   `json:"generator"`
 	WeapKeys   []string `json:"weapons"`
 	SpartanKey string   `json:"spartan"`
+	// Coatings: the coating table of the library (coatings.json), nil when the
+	// build had no Ekur reference: the weapons then stay in their neutral paint.
+	Coatings *spartanpieces.CoatingsIndex `json:"coatings,omitempty"`
 }
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
