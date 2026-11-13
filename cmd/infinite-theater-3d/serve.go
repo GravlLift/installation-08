@@ -267,6 +267,14 @@ func (h serverHandlers) handleReplay(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	objectives, objectiveErr := matchObjectives(h.root, id)
+	if objectiveErr != nil {
+		slog.Warn("derive map objectives", "id", id, "err", objectiveErr)
+	} else if enriched, enrichErr := enrichReplay(raw, objectives); enrichErr != nil {
+		slog.Warn("enrich replay objectives", "id", id, "err", enrichErr)
+	} else {
+		raw = enriched
+	}
 	acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
 	if acceptsGzip {
 		w.Header().Set("Content-Encoding", "gzip")
