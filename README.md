@@ -141,6 +141,24 @@ Not baked on: each weapon's own reload/fire/vent clips, which LevelUp selects by
 
 Not ported: LevelUp builds every piece of the Spartan (and the arms) at once into a library folder with a shared index and texture depot, and paints each material with a coating style read from the community Ekur reference (a Blender plugin's JSON export, external to this repo). This tool builds one piece at a time with its textures embedded in its own GLB, in its default (unpainted) color, matching LevelUp's own documented behavior when no Ekur reference is given.
 
+## Coatings (the Ekur reference)
+
+The armor and weapon coatings the viewer paints come from an Ekur reference: the community
+Blender plugin's JSON export (its `materials/`, `stylelists/`, `styles/` folders and
+`globals.json` / `visor_data.json`). Point the server at a full export with the
+`IT3D_EKUR_DIR` environment variable (or drop the export in `<data>/ekur`); the three coating
+libraries (Spartan pieces, weapons, first person) read it while they build and record a short
+stamp of it in their `index.json`. The server keeps the library it built and rebuilds it
+automatically, on its next start, the moment the export's stamp changes, so a changed export
+never leaves a stale uncoated library behind. `GET /api/coatings/status` reports, without any
+path or environment value, whether the export is `ok`, `not_set`, or `invalid`, and per
+library whether it is built and current and how many of its materials the export does not know
+(`materials_missing`, the ones that render neutral). The match viewer fetches that route once
+and, when the export is missing or invalid or some materials are absent, shows a small quiet
+notice in its top bar (to the left of the Fullscreen and Settings buttons): "Coatings off: no
+Ekur export found", "Coatings off: the Ekur export is invalid", or "Coatings incomplete: N
+pieces are missing from the Ekur export". When everything is fine the viewer shows nothing.
+
 ## build-firstperson
 
 `build-firstperson` writes one weapon's first-person rig (arms, weapon and every distinct animation its graph carries) as an animated skinned GLB:
@@ -252,6 +270,11 @@ weapons path it is given (`/api/weapons` to `/api/first-person`).
   runner is unavailable. Refused with `403` from a non-loopback `Origin`, as the others are.
 - `GET /api/first-person/state` — the first-person library's build state, in the same JSON
   shape as the mesh state (its `moduleKey` is `first-person`).
+- `GET /api/coatings/status` — the coating status: `{"export":"ok|not_set|invalid",
+  "libraries":{"spartan_pieces":{...},"weapons":{...},"first_person":{...}}}` where each
+  library reports `built`, `stale` and `materials_missing` (the count of its materials the
+  Ekur export does not know). It never carries the export path or any environment value (see
+  the Coatings section).
 
 At launch, when a game install is found, `serve` starts every one-time build in the
 background at once, in this order: the weapon icon set, the weapon model library, the
