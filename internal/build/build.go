@@ -51,6 +51,10 @@ type Input struct {
 	// in the film (chunk_00 match info) is never a catalog key; the catalog keys are
 	// display names (e.g. "Live Fire"). Required.
 	MapName string
+	// ScoreTarget is the variant's victory score (LevelUp regulation.toml [score_target]),
+	// published on the score timeline when the film's final scores do not exceed it.
+	// Absent: the timeline carries no target and the viewer bars stay unfilled.
+	ScoreTarget int
 }
 
 // StatsPlayer is one row of the match stats scoreboard.
@@ -79,6 +83,12 @@ type Stats struct {
 	// TeamScores are the final scores, team 0 then team 1. Absent: the score resolution
 	// falls back to the per-team frag sums.
 	TeamScores *[2]int `json:"teamScores"`
+	// TeamRoundsWon are the per-team won/lost/tied round counts from the match stats
+	// (TeamStats.CoreStats.RoundsWon/...), team 0 then team 1. RoundsDecide modes read
+	// the result in rounds, and without these the score label can show the losing team
+	// first (the final team score is a cumulative total, not the result on those modes).
+	// Absent: the round reading is not available and the score falls back to points.
+	TeamRoundsWon *[2][3]int `json:"teamRoundsWon,omitempty"`
 }
 
 // Report states, field by field, what the document is missing or degraded because of an

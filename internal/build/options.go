@@ -29,6 +29,11 @@ func buildOptions(ctx context.Context, matchID string, film *decfilm.Film, death
 	recs, bursts, horloge := statborg(ctx, matchID, film)
 	gates := replay.GardesDeLaVariante(stats.GameVariantName)
 	in.Zone.TeamByXUID = teams
+	if in.ScoreTarget == 0 {
+		if target, ok := replay.ScoreTarget(stats.GameVariantName); ok {
+			in.ScoreTarget = target
+		}
+	}
 	pont := replay.NouveauPontParManche(recs, deathInstants(deaths), lines, nil)
 	kills, matchKills, causes := killRefs(killsource, deaths)
 	return replay.Options{
