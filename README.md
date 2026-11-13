@@ -95,6 +95,43 @@ Not ported: LevelUp builds every piece of the Spartan (and the arms) at once int
 - `--no-arms` keeps the skeleton and clips without the Spartan's arm geometry, for a viewer that poses its own arms.
 - `--game` and `--out` are as in `build-mesh`.
 
+## serve
+
+`serve` is the local HTTP server (standard library only) over the data directory. It binds
+to loopback by default and serves the match list, a match's replay document (gzip as stored,
+or decompressed), and a map's mesh (range-capable):
+
+```powershell
+.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>]
+```
+
+- `--addr` is the listen address (loopback by default, `127.0.0.1:8177`).
+- `--data` is the data directory (default: `IT3D_DATA_DIR` or `%LOCALAPPDATA%/infinite-theater-3d/data`).
+- `--game` is the game deploy root passed to on-demand map builds; omitted, it auto-detects
+  the same way `build-mesh` does.
+
+Routes:
+
+- `GET /api/health` — version and liveness.
+- `GET /api/matches` — the match summaries, newest first.
+- `GET /api/matches/{id}/replay` — the match's built replay document (gzip if the client
+  accepts it, otherwise decompressed).
+- `GET /api/matches/{id}/mesh.glb` — the map's geometry (range-capable). A missing mesh is a
+  JSON `404` naming the module key.
+- `POST /api/matches/{id}/mesh/build` — starts or joins the on-demand build of the match's
+  map. Answers `202` with the state JSON while it builds, `200` `ready` when the file is
+  already present, `404` for an unknown match, and `409` when the match has no map module.
+  Refused with `403` from a non-loopback `Origin`, so another website open in the browser
+  cannot trigger a build.
+- `GET /api/matches/{id}/mesh/state` — the module's build state:
+  `{"state":"absent|queued|building|ready|failed","moduleKey":"...","error":"...",
+  "queuePosition":N,"startedAt":"...","elapsedMs":N}` (fields that do not apply are omitted).
+
+A map builds at most one at a time process-wide; further requests queue in arrival order, and
+a request for a map already queued or building joins it. A build writes to a temporary file
+in the maps folder and renames it into place on success, so a half-written file is never
+served. A failed or interrupted build leaves no temporary file behind.
+
 ## Web viewer (development)
 
 `web/` is a Vite + React + TypeScript app with the 3D replay scene lifted from LevelUp's
