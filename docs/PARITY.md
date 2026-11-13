@@ -1,109 +1,96 @@
 # Feature parity: LevelUp replay page vs standalone 3D shell
 
 Source (read-only): `P:\software\LevelUp\.worktrees\replay-3d\apps\web\src\features\match-replay\` and `src\lib\replay\`.
-Target: `P:\software\infinite-theater-3d\.worktrees\port-web\web\src\`.
-`Replay3DView.tsx` and its scene3d/model/layers/sound/settings/export dependencies were lifted byte-identical into the
-target; the gap is entirely in what calls them and in which supporting files were left behind.
+Target: `P:\software\infinite-theater-3d` `web\src\`.
+`Replay3DView.tsx` and its scene3d/model/layers/sound/settings/export dependencies were lifted into the
+target; the gap was in what calls them and in which supporting files were left behind.
 
-As of the server-wiring pass (see git log): the app is routed (`App.tsx`, a hand-rolled hash router — no router
-dependency installed) between `screens/MatchListScreen.tsx` (`GET /api/matches`) and `screens/MatchViewScreen.tsx`
-(fetches the document and mesh for one match id and mounts `Replay3DView`). The old `/dev/map.glb` /
-`/dev/replay.json` static-file path is gone from the app code; `src/lib/api/standalone.ts` is the client for this
-server's own routes, reached through the Vite dev proxy (`vite.config.ts`, `/api` → `127.0.0.1:8177`). Three new
-doc-only adapters feed the view real data the shell previously stubbed: `src/lib/replay/killsFromDocument.ts`
-(kills from `doc.killCauses`), `src/lib/replay/teamIdentityFromDocument.ts` (team colors/names/allegiance from
-`doc.roster[].team`), and a direct call to the already-ported, already doc-pure `buildShotFx` (`features/
-match-replay/model/shotFx.ts`) that the shell simply never invoked.
+The app is routed (`App.tsx`, a hand-rolled hash router) between `screens/MatchListScreen.tsx`
+(`GET /api/matches`) and `screens/MatchViewScreen.tsx` (fetches the document, context and mesh for one
+match id and mounts `Replay3DView`). `src/lib/api/standalone.ts` is the client for this server's own
+routes, reached through the Vite dev proxy (`vite.config.ts`, `/api` to `127.0.0.1:8177`).
+`screens/useMatchReplayContext.ts` fetches `GET /api/matches/{id}/context` (header, scoreboard,
+regulation, kill and medal events) and feeds the kill feed, the score banner data and
+`playWindow`/`timeLimitMs`; until it arrives, `buildKillsFromDocument` keeps the kill feed drawn
+from the document's own `killCauses`.
 
 ## 1. Replay3DView props (view inputs)
 
 | Feature | Source in LevelUp (file:line) | State in standalone | What is needed to wire it |
 |---|---|---|---|
-| meshPath (map GLB) | `ui/Replay3DView.tsx:56`, fed by `lib/replay/meshBuild.ts:217-236` (`useReplayMesh3d`) and `lib/replay/queries.ts:128` (`replayMeshPath`) | **wired**: `src/lib/api/standalone.ts` (`meshUrl`) points at this server's own `GET /api/matches/{id}/mesh.glb`, through the Vite dev proxy (`vite.config.ts`, `/api` → `127.0.0.1:8177`); `MatchViewScreen` pre-checks it with `checkMesh` (a `HEAD`, falling back to a `GET` of the typed 404 body) before mounting the 3D view. `mesh_not_built` now shows a build panel (`screens/useMeshBuild.ts` + `MeshBuildPanel` in `MatchViewScreen.tsx`) instead of a dead end: it checks `GET .../mesh/state` once (a build may already be queued/building from another tab), offers a "Build map" button that calls `POST .../mesh/build`, polls the state route every 2s while queued/building, and mounts the 3D view the moment it reports `ready` — no reload. `failed` shows the server's error text and a Retry button | none |
-| variantPath (mvar object layer) | `ui/Replay3DView.tsx:58`, `meshBuild.ts:73,141` | missing: `App.tsx:221` passes `variantPath={null}` | serve `.../replay/variant.glb` and pass its URL |
+| meshPath (map GLB) | `ui/Replay3DView.tsx:56`, fed by `lib/replay/meshBuild.ts:217-236` (`useReplayMesh3d`) and `lib/replay/queries.ts:128` (`replayMeshPath`) | **wired**: `src/lib/api/standalone.ts` (`meshUrl`) points at this server's own `GET /api/matches/{id}/mesh.glb`, through the Vite dev proxy; `MatchViewScreen` pre-checks it with `checkMesh` (a `HEAD`, falling back to a `GET` of the typed 404 body) before mounting the 3D view. `mesh_not_built` shows a build panel (`screens/useMeshBuild.ts` + `MeshBuildPanel` in `MatchViewScreen.tsx`) instead of a dead end: it checks `GET .../mesh/state` once (a build may already be queued/building from another tab), offers a "Build map" button that calls `POST .../mesh/build`, polls the state route every 2s while queued/building, and mounts the 3D view the moment it reports `ready` (no reload). The panel also offers **Cancel** (`POST .../mesh/cancel`, `ca86818`). `failed` shows the server's error text and a Retry button | none |
+| variantPath (mvar object layer) | `ui/Replay3DView.tsx:58`, `meshBuild.ts:73,141` | **wired** (`1839da2`): `screens/useVariantLayer.ts` polls `GET /api/matches/{id}/variant/state` and passes the `variant.glb` URL once the per-match variant layer is built (built by `POST .../variant/build` or the serve startup queue) | none |
 | weaponsPath (weapon models folder) | `ui/Replay3DView.tsx:59`, consumed by `scene3d/weaponModels3d.ts:108` via `Replay3DView.tsx:190-194` | server done: `GET /api/weapons` + `GET /api/weapons/{key}.glb` (built by `build-weapons` or `POST /api/weapons/build`). **wired**: `screens/MatchViewScreen.tsx` passes `weaponsPath="/api/weapons"` | none |
-| armor (spartan armor manifest + pieces) | `ui/Replay3DView.tsx:61`, `meshBuild.ts:77,228-231`, `lib/replay/spartanArmor.ts:87-103` | missing: `App.tsx:222` passes `armor={null}` | serve `.../replay/spartans` and `.../replay/spartan-pieces/{file}`, build a `ReplayArmorSource` |
+| armor (spartan armor manifest + pieces) | `ui/Replay3DView.tsx:61`, `meshBuild.ts:77,228-231`, `lib/replay/spartanArmor.ts:87-103` | **wired** (`5a0f9c0`, `95972d7`): `GET /api/matches/{id}/spartans` serves each player's armor manifest from the cached GameCMS definitions, and `MatchViewScreen.tsx` passes a `ReplayArmorSource` (`matchId`, `piecesPath`) to the scene, which loads the piece library from `GET /api/spartan-pieces/{file}` | prosthetics and armor coatings are still open, see §5 |
 | doc (replay document) | `lib/replay/queries.ts:37-79` (`useMatchReplay`, route `/players/{slug}/matches/{id}/replay`) | **wired**: `src/lib/api/standalone.ts` (`fetchReplayDocument`) calls this server's own `GET /api/matches/{id}/replay` (gzip over the wire, decompressed transparently by `fetch`) through the Vite proxy; `normalizeReplayDocument` kept unchanged | none |
 | frameRef / playback clock | n/a (page-local ref) | wired: `screens/MatchViewScreen.tsx` (`ReplayViewer`'s `frameRef`), driven by `PlaybackBar`'s `requestAnimationFrame` loop in the same file | none, functionally equivalent (LevelUp's `useReplayClock`/`useReplayPlayback` are richer but not required) |
 | viewpoint (followed player) | `ui/ReplayCanvas.tsx:192` (required prop, page-resolved) | wired: `screens/MatchViewScreen.tsx` state + `<select>` in `PlaybackBar` | none |
-| colorOfXuid | `layers/useSlotIdentity.ts:239-246` (team-ally/team-enemy semantic tokens) | **wired**: `src/lib/replay/teamIdentityFromDocument.ts` reads `doc.roster[].team` (the SAME sole source of allegiance `filmAllegiance.ts` uses) and resolves it through `rosterLogic.colorByXuidResolver` + the real `useReplayInks` team tokens — no hash-to-hue left | `useSlotIdentity.ts`'s scoreboard join and bot-takeover ("fiche") gating via `seatLogic.ts` are NOT ported (neither file exists in this worktree, and there is no scoreboard without `/replay/context`) — team color/name resolve correctly, but a bot a human has "taken over" still keeps its pawn (same as before) |
+| colorOfXuid | `layers/useSlotIdentity.ts:239-246` (team-ally/team-enemy semantic tokens) | **wired**: `src/lib/replay/teamIdentityFromDocument.ts` reads `doc.roster[].team` (the SAME sole source of allegiance `filmAllegiance.ts` uses) and resolves it through `rosterLogic.colorByXuidResolver` + the real `useReplayInks` team tokens (light-blue ink, `6d0a37d`) | `useSlotIdentity.ts`'s scoreboard join and bot-takeover ("fiche") gating via `seatLogic.ts` are NOT ported (neither file exists here) |
 | locale | `ui/Replay3DView.tsx:67` | wired, hardcoded `'en'`: `screens/MatchViewScreen.tsx` | fine for a standalone shell; add a picker if i18n parity is wanted |
 | width / height | `ui/Replay3DView.tsx:68-69` | wired: `ResizeObserver` in `screens/MatchViewScreen.tsx` (`ReplayViewer`) | none |
 | compact | `ui/Replay3DView.tsx:71`, used by `Replay3DSlot.tsx:73` for the inset view | not used (default `false`); no inset view exists in the shell | n/a unless an inset/picture-in-picture mode is added |
 | active | `ui/Replay3DView.tsx:73`, used by `Replay3DSlot.tsx:73` to freeze rendering when 2D is shown | not used (default `true`); shell has no 2D mode to switch away to | n/a unless a 2D fallback is added |
-| action.shotFx | `scene3d/action3dInputs.ts:42`, built in `ui/ReplayCanvas.tsx:358-364` from `useReplayFx`/`useReplayStaticLayers` | **wired**: `MatchViewScreen` calls `buildShotFx(doc, aimHoldFrames)` directly — this function was already fully doc-pure (reads `doc.shots`, `doc.weaponLabels`, vehicle registries; no Match View data needed at all), it was simply never called by the shell | `aimHoldFrames` uses a fixed 0.6s-of-gameplay default — the settings drawer now exists (see §2) but does not expose this one, same as LevelUp's own page |
-| action.kills | `scene3d/action3dInputs.ts:43`, from `ui/ReplayCanvas.tsx:250` (`killsOfFeed(feedEntries)`), `feedEntries` from `/replay/context` | **wired from a different, doc-native source**: `src/lib/replay/killsFromDocument.ts` reads `doc.killCauses` (killer/victim xuid, cause class, headshot category, `feedMs`) directly — no `/replay/context` route exists on this server, but the document itself carries enough to date and name each kill (`feedMs - doc.originMs`, the same subtraction `killFeedLogic.ts` already does) | weapon icon/label stay empty: LevelUp's `KillEvent.weaponKey` is resolved against its own DB vocabulary, distinct from the film's `killCauses.class` (`'ARME'\|'GRENADE'\|'MELEE'`, confirmed by reading a captured document — `weaponLabels`/`killEffects` are themselves absent from it); mapping one to the other would be invented, not read. Assists are not in `killCauses` at all (`assistState` stays `''`). Medals have no source here (no highlight events) |
-| action.mapObjectives | `scene3d/action3dInputs.ts:44`, `ui/ReplayCanvas.tsx:339` (`normalizeMapObjectives(doc.mapObjectives)`) | **wired**: `MatchViewScreen` now calls `normalizeMapObjectives(doc.mapObjectives)` | the one captured match (`7d798138…`, Live Fire/Slayer) has no `mapObjectives` at all — correctly: objective-mode fields (`flagCarries`, `zoneStates`, `vipCrown`, `skullCarries`) are likewise absent from its document, so this is a mode without objectives, not a capture gap. Unverified on an objective-mode match (none captured here) |
-| action.allegiance / pageAllegiance | `scene3d/action3dInputs.ts:46-51`, from `doc`'s film allegiance model, required prop of `ReplayCanvas.tsx:175` | **wired**: `teamIdentityFromDocument.ts` calls the SAME `buildFilmAllegiance` the source page uses, referenced on the followed viewpoint (falling back to the first roster entry) | none — this was always doc-only, the shell just never called it |
+| action.shotFx | `scene3d/action3dInputs.ts:42`, built in `ui/ReplayCanvas.tsx:358-364` from `useReplayFx`/`useReplayStaticLayers` | **wired**: `MatchViewScreen` calls `buildShotFx(doc, aimHoldFrames)` directly (shot tints restored and saturated, `be2bad7`, `d67b04f`) | `aimHoldFrames` uses a fixed 0.6s-of-gameplay default, same as LevelUp's own page |
+| action.kills | `scene3d/action3dInputs.ts:43`, from `ui/ReplayCanvas.tsx:250` (`killsOfFeed(feedEntries)`) | **wired**: `useMatchReplayContext.ts` builds feed entries from the context's highlight events (`collectKillEvents`, `collectMedalEvents`, `buildFeedEntries`), falling back to `buildKillsFromDocument` (`doc.killCauses`) until the context arrives; weapon icons resolve through the weapon label catalog (`a855cb6`, `c76bff5`, `498f965`) | none |
+| action.mapObjectives | `scene3d/action3dInputs.ts:44`, `ui/ReplayCanvas.tsx:339` (`normalizeMapObjectives(doc.mapObjectives)`) | **wired**: `MatchViewScreen` calls `normalizeMapObjectives(doc.mapObjectives)`; objective zones for King of the Hill and Strongholds are filled from the match's stored `map.mvar` at fetch/import time (`serve_objectives.go`) | none |
+| action.allegiance / pageAllegiance | `scene3d/action3dInputs.ts:46-51`, from `doc`'s film allegiance model, required prop of `ReplayCanvas.tsx:175` | **wired**: `teamIdentityFromDocument.ts` calls the SAME `buildFilmAllegiance` the source page uses, referenced on the followed viewpoint (falling back to the first roster entry) | none |
 | action.inks (per-player colors) | `layers/useReplayInks.ts`, theme-aware palette version | wired, but theme-independent: `screens/MatchViewScreen.tsx` (`useReplayInks(0)`, palette version hardcoded to 0) | pass a real palette-version signal if the shell ever supports theme switching |
-| action.show.* (layer toggles) | `scene3d/action3dInputs.ts:21-39`, driven by `useReplaySettings`/`useReplayDrawer` toggle panel in `ui/ReplayCanvas.tsx:274,710-729` | **wired**: `screens/MatchViewScreen.tsx` (`useAction3dShow`) builds the 12 `Action3dShow` flags straight from `useReplaySettings` (already lifted), and the new "Layers" section of `ReplaySettingsDrawer` toggles them live | none for the 12 flags `Action3dShow` actually reads; `useReplaySettings`' other fields (aim/zones/trail/heatmap/marker colors) stay unread — they drive the 2D canvas only, see the Settings drawer row below |
+| action.show.* (layer toggles) | `scene3d/action3dInputs.ts:21-39`, driven by `useReplaySettings`/`useReplayDrawer` toggle panel in `ui/ReplayCanvas.tsx:274,710-729` | **wired**: `screens/MatchViewScreen.tsx` (`useAction3dShow`) builds the 12 `Action3dShow` flags straight from `useReplaySettings` (already lifted), and the "Layers" section of `ReplaySettingsDrawer` toggles them live | `useReplaySettings`' other fields (aim/zones/trail/heatmap/marker colors) stay unread; they drive the 2D canvas only |
 | action.shotHoldFrames / framesPerSecond / deathHoldFrames | `ui/ReplayCanvas.tsx:364` | wired: `screens/MatchViewScreen.tsx` computed from `framesPerSecond(doc)` | none |
-| action.colorOfSlot / nameOfSlot | `layers/useSlotIdentity.ts:217-238` (slot ownership resolved from the film) | **wired**: `teamIdentityFromDocument.ts` builds the same slot-ownership resolvers `rosterLogic.ts` exports (`buildPlayers` + `buildSlotOwnership` + `colorResolver`/`nameResolver`), with an empty scoreboard (gamertag falls back to the film's own name) and no seat gating — `useSlotIdentity.ts` itself was not ported (see colorOfXuid row above) | a slot a human has "taken over" from a bot still shows the bot's color/name (no `seatLogic.ts`) |
-| action.nameOfXuid | `layers/useSlotIdentity.ts:238` (roster-based name resolver) | wired, different source: `screens/MatchViewScreen.tsx` looks up `doc.roster` directly via `displayPlayerName`, falling back to `teamIdentityFromDocument`'s own `nameOfXuid` | functionally equivalent, no action needed |
-| action.seatedOfXuid | `layers/useSlotIdentity.ts:250` (`seated.isSeated`, tracks bot takeover) | stubbed: `screens/MatchViewScreen.tsx` always returns `true` (unchanged — `seatLogic.ts` was not ported, see colorOfXuid row) | port the seated/bot-takeover logic if bot handling matters |
+| action.colorOfSlot / nameOfSlot | `layers/useSlotIdentity.ts:217-238` (slot ownership resolved from the film) | **wired**: `teamIdentityFromDocument.ts` builds the same slot-ownership resolvers `rosterLogic.ts` exports, with the context scoreboard as the name source and no seat gating | a slot a human has "taken over" from a bot still shows the bot's color/name (no `seatLogic.ts`) |
+| action.nameOfXuid | `layers/useSlotIdentity.ts:238` (roster-based name resolver) | wired, different source: `screens/MatchViewScreen.tsx` looks up `doc.roster` directly via `displayPlayerName`, falling back to `teamIdentityFromDocument`'s own `nameOfXuid` | functionally equivalent |
+| action.seatedOfXuid | `layers/useSlotIdentity.ts:250` (`seated.isSeated`, tracks bot takeover) | stubbed: `screens/MatchViewScreen.tsx` always returns `true` (no `seatLogic.ts`) | port the seated/bot-takeover logic if bot handling matters |
 | action.locale | same as top-level `locale` | wired `'en'`: `screens/MatchViewScreen.tsx` | none |
-| aids (3D analysis overlays) | `settings/useReplay3dAids.ts`, merged inside `Replay3DView.tsx:112-113` | **wired**: hook is lifted unchanged and called inside `Replay3DView.tsx:112`; the new `Aids3dSection` in `ReplaySettingsDrawer` toggles each of the 8 flags live | none |
-| playWindow | `ui/Replay3DView.tsx:77`, computed once per page in LevelUp's `model/replayWindow.ts` | still `null` (`screens/MatchViewScreen.tsx`) | genuinely needs data this server does not hold: `replayWindow()` requires `header.t0_ms`/`playable_duration_seconds` from the Match View header, not in the document or the `/api/matches` summary — leaving it `null` triggers the documented "play whole film" fallback, not invented |
-| timeLimitMs | `ui/Replay3DView.tsx:83`, from match context header | still `null` (`screens/MatchViewScreen.tsx`) | same missing data as `playWindow` — the regulation time limit lives in the Match View context header, not in `doc` or the `/api/matches` summary |
-| soundListenerRef | `ui/Replay3DView.tsx` and `sound/useReplaySound.ts` | **wired**: the 3D camera updates the sound listener every frame | Camera position and heading drive spatial placement |
+| aids (3D analysis overlays) | `settings/useReplay3dAids.ts`, merged inside `Replay3DView.tsx:112-113` | **wired**: hook is lifted unchanged and called inside `Replay3DView.tsx`; the `Aids3dSection` in `ReplaySettingsDrawer` toggles each of the 8 flags live | none |
+| playWindow | `ui/Replay3DView.tsx:77`, computed once per page in LevelUp's `model/replayWindow.ts` | **wired**: `replayWindow(doc, context.header)` in `useMatchReplayContext.ts`, fed by the context route's `header.t0_ms` / `playable_duration_seconds` (`74e6c0b`) | none |
+| timeLimitMs | `ui/Replay3DView.tsx:83`, from match context header | **wired**: `context.regulation_seconds * 1000` in `useMatchReplayContext.ts` | none |
+| soundListenerRef | `ui/Replay3DView.tsx` and `sound/useReplaySound.ts` | **wired**: the 3D camera updates the sound listener every frame (spatial sound enabled, `dcdbf8f`) | none |
 
 ## 2. Controls around the 3D view (not props of the view)
 
 | Feature | Source in LevelUp (file:line) | State in standalone | What is needed to wire it |
 |---|---|---|---|
 | Play / pause | `ui/ReplayTransport.tsx` via `useReplayPlayback` | wired, minimal: `screens/MatchViewScreen.tsx` (`PlaybackBar`) plain button | none for parity of function; cosmetic only |
-| Seek / scrubber | `ui/ReplayTransport.tsx` + `ui/ReplayTimelineTracks.tsx` (kill markers, presence bars, media thumbnails) | wired but bare: `screens/MatchViewScreen.tsx` plain `<input type="range">`, no track visuals | port `hooks/useReplayTimeline.ts` + `ui/ReplayTimelineTracks.tsx` (neither is in the lifted set) |
+| Seek / scrubber | `ui/ReplayTransport.tsx` + `ui/ReplayTimelineTracks.tsx` (kill markers, presence bars, media thumbnails) | wired but bare: `screens/MatchViewScreen.tsx` plain `<input type="range">`, no track visuals | port `hooks/useReplayTimeline.ts` + `ui/ReplayTimelineTracks.tsx` |
 | Speed control | `ui/ReplayTransport.tsx`, `useReplaySettings.setSpeed` | wired: `screens/MatchViewScreen.tsx` fixed `[0.25,0.5,1,2,4]` select | none |
 | Follow / viewpoint picker | `ui/ReplayTimelineTracks.tsx` menu, resolved via `useReplayTimeline` | wired: `screens/MatchViewScreen.tsx` plain select over `doc.roster` | none |
-| Camera mode (fp/tp/free) | `ui/Replay3DView.tsx:329-349` (buttons inside the lifted component) | wired: same code, lifted unchanged | none |
+| Camera mode (fp/tp/free) | `ui/Replay3DView.tsx:329-349` (buttons inside the lifted component) | wired: same code, lifted unchanged; the third-person camera stays out of the map through a spring arm (`c0c9be1`) | none |
 | 2D / 3D toggle | `ui/Replay3DSlot.tsx:87-105` | missing: shell has no 2D canvas at all, so no toggle is needed or possible | n/a unless a 2D mode is ported too |
-| Settings drawer (layer toggles, 3D aids, lighting/look, FOV) | `settings/ReplaySettingsDrawer.tsx`, `ReplaySettingsAids3d.tsx`, `ReplaySettingsLook3d.tsx`, driven by `hooks useReplay3dAids/Fov/Look` | **wired, simplified**: `features/match-replay/settings/ReplaySettingsDrawer.tsx` is a fresh shell (overlay panel, Escape/click-outside/close-button dismiss, focus-on-open — same contract as the source, minus `useAnchoredPanel`: it sits fixed at the bottom-right corner instead of anchored to the Settings button). It composes a ported `Aids3dSection`, a ported `Look3dSection` (shadows/reflections/occlusion/game-light/FOV), and a new `LayersSection` scoped to the 12 `Action3dShow` flags (see the action.show row above). `SettingsToggle`/`InfoMark` are local plain-React/Tailwind primitives (`settings/SettingsControls.tsx`) since the source's version imports LevelUp's shadcn `Button`, not available here and not addable (no new dependency). Opened by a "Settings" button over the 3D view in `MatchViewScreen.tsx` | left out on purpose (no effect in this 3D-only shell, see the next rows and §1/§3): the 2D map's aim/zones/trail/heatmap toggles, marker-color choice and export. Sound category filters are wired. `useAnchoredPanel` was not ported (pixel-anchoring only, not behavior) |
-| Sound (toggle, volume, spatial listener) | `sound/useReplaySound.ts`, `sound/ReplaySoundControls.tsx` | **wired**: playback, seeking, volume, mute, categories and camera listener | Missing sound assets are silent |
-| Export / recording (image, video) | `export/useReplayExport.ts`, `ReplayExportDialog.tsx`, `Export3dChoice.tsx`, `export/replayCapture.ts`, `replayVideoEncoder.ts` | missing: only `eventLoopYield.ts`, `exportFormats.ts`, `exportLayoutStore.ts`, `replay3dExportStore.ts` were lifted; the scene registers itself for export (`Replay3DView.tsx:271-275`, `registerReplay3DExport`) but nothing ever reads that registration | port the capture/encoder files and the export dialog |
-| Kill feed | `ui/ReplayKillFeed.tsx`, fed by `action.kills` | component not lifted/ported — but its data source, `action.kills`, is now real (`killsFromDocument.ts`, see §1), so porting this component would show real kills, not placeholders | port `ReplayKillFeed.tsx` |
-| Score banner / scoreboard / team panel | `ui/ReplayScoreBanner.tsx`, `ui/ReplayTeams.tsx`, `ui/ReplayTeamHeader.tsx`, fed by `/replay/context` scoreboard rows | missing: none of these components were lifted, and the scoreboard rows they need are not in the document (confirmed: no `/replay/context` route and `doc.scoreTimeline`/roster carry no per-player score columns) | port the components + fetch `.../replay/context` |
-| Victory overlay / round-break overlay / bomb countdown | `ui/ReplayVictoryOverlay.tsx`, `ReplayRoundBreakOverlay.tsx`, `ReplayBombCountdownOverlay.tsx`, assembled via `ui/ReplayPublishedPanels.tsx` into `ReplayCanvas`'s `mapOverlays` prop | missing: none lifted | port `ReplayPublishedPanels.tsx` and its dependencies |
-| Hover tooltips (placements, weapon pads, flags, ground weapons, vehicles) | `ui/ReplayCanvasTips.tsx`, `ReplayGroundWeaponTip.tsx`, etc., only shown in 2D mode (`!small2d` gate, `ui/ReplayCanvas.tsx:770`) | n/a: 2D canvas does not exist in the shell | n/a unless 2D mode is ported |
-| Keyboard shortcuts | `hooks/useReplayShortcuts.ts` | **wired**: `screens/MatchViewScreen.tsx` calls the hook (unchanged) with real callbacks — Space/K play-pause, ←/→ and J/L ±10s seek, `,`/`.` frame-step, R restart, F fullscreen (via the newly-ported `useReplayFullscreen`). The timeline-input exemption (`data-replay-timeline`) and the editable-target guard both work unchanged | `toggleSound` (M) controls mute; `zoom` is left `undefined` — it drives the 2D camera's pan/zoom keys, which do not exist in this 3D-only viewer |
-| Fullscreen | `hooks/useReplayFullscreen.ts`, button in `ReplayTransport.tsx` | **wired**: `useReplayFullscreen.ts` ported byte-identical (its one dependency, `useExportActive`, was already lifted) and driven by the F shortcut above; the overlay frame (`REPLAY_FULLSCREEN_FRAME`) is applied to the match view's root container | no separate fullscreen BUTTON was added (only the F key) — `ReplayTransport.tsx` itself was not ported, see the Seek/scrubber row |
-| Surface inspector (alt/click probe) | `ui/useSurfaceProbe.ts`, rendered inside `Replay3DView.tsx:308-316` | wired: lifted unchanged, works out of the box | none |
-| View-grip tuner overlay | `ui/useViewGripTuner.ts`, rendered inside `Replay3DView.tsx:317-321` | wired: lifted unchanged | none |
-| Loading screen | `ui/ReplayChargement3d.tsx`, rendered inside `Replay3DView.tsx:322` | wired: lifted unchanged | none |
-| FPS / cadence HUD | `ui/ReplayCadence3d.tsx`, rendered inside `Replay3DView.tsx:328` | wired: lifted unchanged | none |
-| In-view HUD (health/shield, held-weapon icon, scope zoom overlay, kill popups, medal badges) | `ui/ReplayAth3d.tsx` + `ReplayAthFil3d.tsx`, `ReplayAthLunette3d.tsx`, `ReplayKillPopup3d.tsx`, `MedalBadges.tsx`, `components/ui/WeaponIcon.tsx` | wired for data already in `doc` (health, weapon-in-hand, scope zoom); kill popups now fire for real (`action.kills` is wired, see §1) but without a weapon icon (`weaponKey` is empty, see §1); medal badges still show nothing — `killCauses` carries no medal data | none further without a medal source |
+| Settings drawer (layer toggles, 3D aids, lighting/look, FOV) | `settings/ReplaySettingsDrawer.tsx`, `ReplaySettingsAids3d.tsx`, `ReplaySettingsLook3d.tsx` | **wired, simplified**: `features/match-replay/settings/ReplaySettingsDrawer.tsx` is a fresh shell (fixed bottom-right panel, Escape/click-outside/close-button dismiss, focus-on-open). It composes a ported `Aids3dSection`, a ported `Look3dSection`, and a `LayersSection` scoped to the 12 `Action3dShow` flags. Settings labels wrap instead of truncating (`fb1e79b`). `SettingsToggle`/`InfoMark` are local primitives since the source's version imports LevelUp's shadcn `Button` | left out on purpose: the 2D map's aim/zones/trail/heatmap toggles, marker-color choice and export; sound category filters are wired |
+| Sound (toggle, volume, spatial listener) | `sound/useReplaySound.ts`, `sound/ReplaySoundControls.tsx` | **wired**: playback, seeking, volume, mute, categories and camera listener; spatial sound on (`dcdbf8f`) | missing sound assets are silent; the sound set is hand-produced and imported with `import-sounds` (see README) |
+| Export / recording (image, video) | `export/useReplayExport.ts`, `ReplayExportDialog.tsx`, `Export3dChoice.tsx` | missing: only the export support files were lifted; the scene registers itself for export but nothing reads that registration | port the capture/encoder files and the export dialog (in progress, see TODO) |
+| Kill feed | `ui/ReplayKillFeed.tsx`, fed by `action.kills` | **wired**: real kills from the context's highlight events (document `killCauses` until the context loads), contour weapon icons on kill events (`a855cb6`), kills without a weapon when the kill-details are absent (`a87b067`) | none |
+| Score banner / scoreboard / team panel | `ui/ReplayScoreBanner.tsx`, `ui/ReplayTeams.tsx`, `ui/ReplayTeamHeader.tsx` | context route serves the scoreboard rows and the score banner data (outcome, score label, rounds, regulation: `4cba90b`, `bf33f18`); the match header shows the map, mode, score and played time (`ec98ab7`, `bf8e657`). The full scoreboard overlay is removed and not yet re-added as a real component (`d53ab5d`) | a real scoreboard component over the context rows (in progress, see TODO) |
+| Victory overlay / round-break overlay / bomb countdown | `ui/ReplayVictoryOverlay.tsx`, `ReplayRoundBreakOverlay.tsx`, `ReplayBombCountdownOverlay.tsx` | missing: none lifted | port `ReplayPublishedPanels.tsx` and its dependencies |
+| Hover tooltips (placements, weapon pads, flags, ground weapons, vehicles) | `ui/ReplayCanvasTips.tsx`, `ReplayGroundWeaponTip.tsx`, etc., only shown in 2D mode | n/a: 2D canvas does not exist in the shell | n/a unless 2D mode is ported |
+| Keyboard shortcuts | `hooks/useReplayShortcuts.ts` | **wired**: `screens/MatchViewScreen.tsx` calls the hook (unchanged) with real callbacks: Space/K play-pause, and and J/L seek, frame-step, R restart, F fullscreen | `toggleSound` (M) controls mute; `zoom` is left undefined (it drives the 2D camera's pan/zoom keys) |
+| Fullscreen | `hooks/useReplayFullscreen.ts`, button in `ReplayTransport.tsx` | **wired**: `useReplayFullscreen.ts` ported and driven by the F key; the 16:9 player frame and a fullscreen button are not in place yet | transport bar work (in progress, see TODO) |
+| Surface inspector (alt/click probe) | `ui/useSurfaceProbe.ts`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
+| View-grip tuner overlay | `ui/useViewGripTuner.ts`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
+| Loading screen | `ui/ReplayChargement3d.tsx`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
+| FPS / cadence HUD | `ui/ReplayCadence3d.tsx`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
+| In-view HUD (health/shield, held-weapon icon, scope zoom overlay, kill popups, medal badges) | `ui/ReplayAth3d.tsx` + `ReplayAthFil3d.tsx`, `ReplayAthLunette3d.tsx`, `ReplayKillPopup3d.tsx`, `MedalBadges.tsx`, `components/ui/WeaponIcon.tsx` | **wired**: the HUD stays visible in third person with pinned ammo behavior (`1e3164c`); health, weapon-in-hand and scope zoom read from the document; kill popups fire for real; medal badges show nothing (no medal source in the document) | medal badges need a medal source |
 
 ## 3. LevelUp API routes the scene/loaders call
 
 | Route | Caller (LevelUp file) | What it returns | Shimmed in standalone? |
 |---|---|---|---|
-| `GET /players/{slug}/matches/{id}/replay` | `lib/replay/queries.ts:37-79` (`useMatchReplay`) | the replay document (`ReplayDocument`) that `Replay3DView` renders | yes — by this server's own `GET /api/matches/{id}/replay` (`src/lib/api/standalone.ts`), not a LevelUp-shaped route but the same payload shape |
-| `GET /players/{slug}/matches/{id}/replay/context` | `lib/replay/queries.ts:90-102` (`useMatchReplayContext`) | header, scoreboard rows, kill/event feed, media list | not shimmed; `action.kills` now comes from `doc.killCauses` instead (see §1, `killsFromDocument.ts`) — scoreboard, media and `playWindow`/`timeLimitMs` (which need the header) stay empty, this server holds none of that |
-| `GET /players/{slug}/matches/{id}/replay/background` | `lib/replay/queries.ts:111-125` | map background image calibration (2D-only) | not shimmed; not needed by the 3D view |
-| `GET /players/{slug}/matches/{id}/replay/background.png` | `lib/replay/queries.ts:223-252` | map background image blob (2D-only) | not shimmed; not needed by the 3D view |
+| `GET /players/{slug}/matches/{id}/replay` | `lib/replay/queries.ts:37-79` | the replay document that `Replay3DView` renders | yes: `GET /api/matches/{id}/replay` |
+| `GET /players/{slug}/matches/{id}/replay/context` | `lib/replay/queries.ts:90-102` | header, scoreboard rows, kill/event feed, media list | yes: `GET /api/matches/{id}/context` (the standalone's own context, built from the stored film, stats and map variant: outcome, score, regulation, objective stats, kills, medals; it holds no per-player top-weapon or MVP columns, which are derived from a match database the standalone does not keep) |
+| `GET /players/{slug}/matches/{id}/replay/background` / `background.png` | `lib/replay/queries.ts:111-125,223-252` | map background image calibration (2D-only) | not shimmed; not needed by the 3D view |
 | `GET /players/{slug}/matches/{id}/replay/callouts` | `lib/replay/queries.ts:261-274` | named map zones (2D-only) | not shimmed; not needed by the 3D view |
-| `HEAD`/`GET /players/{slug}/matches/{id}/replay/mesh.glb` | `lib/replay/queries.ts:128-130,189-196`; fetched by `scene3d/meshFetch.ts` via `Replay3DView.tsx:149` | the 3D map mesh GLB | yes — by this server's own `GET /api/matches/{id}/mesh.glb` (range-capable, `mesh_not_built` JSON 404 named and handled before mount) |
-| `HEAD`/`GET /players/{slug}/matches/{id}/replay/variant.glb` | `lib/replay/queries.ts:136-138,203-210` | variant object layer GLB (crates, cover from the `.mvar`) | not shimmed; `screens/MatchViewScreen.tsx` passes `variantPath: null` |
-| `GET /players/{slug}/matches/{id}/replay/weapons` (folder, `<key>.glb` files) | `lib/replay/queries.ts:141-143`; consumed by `scene3d/weaponModels3d.ts:108` (`${base}/${key}.glb`) via `Replay3DView.tsx:190-194` | weapon GLB models, keyed by weapon | **shimmed**: this server's own `GET /api/weapons` (the `index.json`, `{"schema":1,"weapons":[...]}`, `404 weapons_not_built` before a build) and `GET /api/weapons/{key}.glb` (range-capable; `weapon_model_not_available` JSON 404 for a malformed key or a path escape). Built by `build-weapons` or on demand via `POST /api/weapons/build` / `GET /api/weapons/state` (the weapons job shares the map build queue). A web change points the scene at it by passing a non-null `weaponsPath` (`/api/weapons`, proxied) to `Replay3DView`; `screens/MatchViewScreen.tsx` passes it |
-| `GET /players/{slug}/matches/{id}/replay/first-person` (folder: `index.json`, `bras.json`, `rig-<16hex>.glb`, `texture-<32hex>.png\|jpg`) | `scene3d/premierePersonne3d.ts:48-54` (the folder is derived from the weapons path: `/weapons` to `/first-person`); consumed by `scene3d/brasPremierePersonne3d.ts:121,160` (the index and the arm catalog) and `:382-384` (each rig, via `fetchMesh` + `GLTFLoader`) | the first-person rig library: per-weapon rig entries, per-rig clip/action metadata, and the rig and texture files | **shimmed**: this server's own `GET /api/first-person/index.json` (the index the viewer reads, `404 first_person_not_built` before a build), `GET /api/first-person/bras.json` (the arm catalog, written empty by this library: the view uses the arms baked in each rig), and `GET /api/first-person/{file}` (a `rig-<16hex>.glb` or `texture-<32hex>.png\|jpg`, range-capable; `first_person_file_not_available` JSON 404 for a foreign name, a path escape, or a directory). Built by `build-firstperson-library` or on demand via `POST /api/first-person/build` / `GET /api/first-person/state` (the first-person job shares the map build queue with the weapons job). The viewer already derives the folder from `weaponsPath`, so no web change is needed once `weaponsPath` is non-null |
-| `GET`/`POST /players/{slug}/matches/{id}/replay/mesh/build` | `lib/replay/meshBuild.ts:96-98,158-210` | mesh/variant build status, and triggers a build | **shimmed** for the map, the weapon library and the first-person library: `GET /api/matches/{id}/mesh/state`, `POST /api/matches/{id}/mesh/build`, `GET /api/weapons/state` / `POST /api/weapons/build`, and `GET /api/first-person/state` / `POST /api/first-person/build` (the three jobs share one queue: at most one heavy build at a time) |
-| `GET /players/{slug}/matches/{id}/replay/spartans` | `lib/replay/spartanArmor.ts:103` | spartan armor manifest per player | not shimmed; `screens/MatchViewScreen.tsx` passes `armor: null` |
-| `GET /players/{slug}/matches/{id}/replay/spartan-pieces/{file}` | `lib/replay/spartanArmor.ts:87-88`, consumed by `scene3d/armorLibrary3d.ts` | armor piece model files | not shimmed; same as above |
-
-The standalone server now serves the document, the mesh, the weapon library, and the
-first-person library itself (`GET /api/matches/{id}/replay`, `GET /api/matches/{id}/mesh.glb`,
-`GET /api/weapons` + `GET /api/weapons/{key}.glb`, `GET /api/first-person/index.json` +
-`GET /api/first-person/bras.json` + `GET /api/first-person/{file}`, all proxied at `/api/*` by
-`vite.config.ts`) — see `src/lib/api/standalone.ts`.
-Still missing: variant, spartans and spartan-pieces (no server route for any of them) and
-`/replay/context` (no server route; `action.kills` is instead read from the document itself,
-see §1). `/replay/mesh/build`
-is shimmed (map + weapon-library state and build routes); `/replay/background*` and
-`/replay/callouts` are not required for the 3D-only shell.
+| `HEAD`/`GET .../replay/mesh.glb` | `lib/replay/queries.ts:128-130,189-196` | the 3D map mesh GLB | yes: `GET /api/matches/{id}/mesh.glb` (range-capable) |
+| `HEAD`/`GET .../replay/variant.glb` | `lib/replay/queries.ts:136-138,203-210` | variant object layer GLB | yes: `GET /api/matches/{id}/variant.glb` (per match, `1839da2`) |
+| `GET .../replay/weapons` (folder) | `lib/replay/queries.ts:141-143` | weapon GLB models, keyed by weapon | yes: `GET /api/weapons` (index + coating files) and `GET /api/weapons/{file}` |
+| `GET .../replay/first-person` (folder) | `scene3d/premierePersonne3d.ts:48-54` | the first-person rig library | yes: `GET /api/first-person/index.json`, `bras.json`, `{file}` |
+| `GET`/`POST .../replay/mesh/build` | `lib/replay/meshBuild.ts:96-98,158-210` | build status, build trigger | yes: mesh, variant, weapons, first-person and spartan-pieces state/build routes (one shared queue, at most one heavy build at a time; `POST .../mesh/cancel` cancels a running map build, `ca86818`) |
+| `GET .../replay/spartans` | `lib/replay/spartanArmor.ts:103` | spartan armor manifest per player | yes: `GET /api/matches/{id}/spartans` (`5a0f9c0`) |
+| `GET .../replay/spartan-pieces/{file}` | `lib/replay/spartanArmor.ts:87-88` | armor piece model files | yes: `GET /api/spartan-pieces/{file}` (the library build is enqueued at serve startup) |
 
 ## Replay document fields
 
 Measured, not read from code: the same film (Live Fire, Ranked Oddball, match `7d798138`)
-built by LevelUp and by this repo's `import`, compared field by field at the top level.
+built by LevelUp and by this repo, compared field by field at the top level.
 Redo this comparison on one match per game mode before calling the document complete.
 
 | Field | LevelUp | Standalone | Drives |
@@ -115,11 +102,11 @@ Redo this comparison on one match per game mode before calling the document comp
 | `objectiveObjects` | 93 | 93 | objective objects on the map |
 | `carriedEquipment` | 28 | 28 | equipment a player carries |
 | `riftPoses` | 6 | 6 | objective poses |
-| `skullCarries` | 46 | absent | Oddball: who holds the ball (needs `--stats` with `gameVariantName`) |
-| `scoreTimeline` | present | absent | score banner over time (needs `--stats` with scoreboard rows) |
+| `skullCarries` | 46 | 46 | Oddball: who holds the ball |
+| `scoreTimeline` | present | present | score banner over time |
 | `padPickups` | 37 | 37 | weapon pad pickups |
 | `weaponPads` | 8 | 8 | weapon pads |
-| `projectiles` | 372 | 539 | projectile paths (decoder difference: schema 116 / 100 ms grid vs schema 122 / 33 ms grid) |
+| `projectiles` | 372 | 539 | projectile paths (decoder difference: the vendored decoder is newer and denser) |
 
 Small differences, all decoder differences (older LevelUp decoder, schema 116, 100 ms
 frame interval vs the vendored decoder, schema 122, 33 ms): `stances` 3,260 / 3,266,
@@ -127,59 +114,77 @@ frame interval vs the vendored decoder, schema 122, 33 ms): `stances` 3,260 / 3,
 
 ## Standalone-only screens
 
-These have no LevelUp source page to port from — LevelUp runs server-side against an
-already-authenticated fleet of players, so this standalone app needs its own account UI that
-LevelUp never had to build. Added to `screens/MatchListScreen.tsx` (the home screen):
+These have no LevelUp source page to port from: LevelUp runs server-side against an
+already-authenticated fleet of players, so this standalone app needs its own account UI.
+Added to `screens/MatchListScreen.tsx` (the home screen):
 
 | Screen/section | File(s) | What it does |
 |---|---|---|
-| Account panel | `screens/AccountPanel.tsx` + `screens/useAuthState.ts` | Sign in with Xbox (Microsoft device-code flow), shows the code/link/countdown while pending, the gamertag once signed in, the server's error with a retry on failure. Polls `GET /api/auth/state` every 2s while pending; `normalizeAuthState` in `lib/api/standalone.ts` also accepts the server's older `{signedIn}` shape until it picks up the new `{state:...}` contract. |
-| Recent remote matches | `screens/RemoteMatchesPanel.tsx` + `screens/useRemoteMatches.ts` + `screens/useMatchFetchQueue.ts` | Shown while signed in: the account's recent matches from `GET /api/remote/matches`, each either "Open" (already in the local store, checked against `GET /api/matches`) or "Fetch" (downloads and builds it via `POST /api/matches/{id}/fetch`, polling `GET .../fetch/state` every 2s; single-flight client-side, and a 409 from the server falls back to polling the row's own state instead of erroring). A completed fetch refreshes the local list so the row becomes "Open". |
+| Account panel | `screens/AccountPanel.tsx` + `screens/useAuthState.ts` | Sign in with Xbox (Microsoft device-code flow), shows the code/link/countdown while pending, the gamertag once signed in, the server's error with a retry on failure. Polls `GET /api/auth/state` every 2s while pending. |
+| Recent remote matches | `screens/RemoteMatchesPanel.tsx` + `screens/useRemoteMatches.ts` + `screens/useMatchFetchQueue.ts` | The account's recent matches from `GET /api/remote/matches`, each "Open" (already in the local store) or "Fetch" (downloads and builds it via `POST /api/matches/{id}/fetch`, polling `GET .../fetch/state` every 2s; single-flight client-side, a 409 falls back to polling the row's own state). A completed fetch refreshes the local list so the row becomes "Open". Opening a match selects the signed-in player (`f624d7a`). |
 
 ## 4. Per-mode data parity (replay document + match context)
 
 Audited by comparing the two servers' outputs for the same film (`tools/parity`), not by
 reading code. The two matches both servers hold are `7d798138` (Ranked Oddball) and
-`9220185c` (Recharge / Ranked Slayer); the four matches LevelUp does not hold
+`9220185c` (Recharge / Ranked Slayer); the four matches the reference does not hold
 (`19628ee2` Strongholds, `d01ba030` King of the Hill, `a2c79b5e` Slayer, `f9a8ab62` CTF)
 are checked for internal completeness of their own document instead.
 
-Status: **fixed** = ported from LevelUp this pass and gated by a Go test; **report** = a
-real difference that lives in the vendored decoder or in LevelUp's database, not portable
-from its Go builder or context route; **parity** = already equal, no change needed.
+Status: **fixed** = ported this pass and gated by a Go test; **report** = a real difference
+that lives in the vendored decoder or in the reference's database, not portable from its Go
+builder or context route; **parity** = already equal, no change needed.
 
 ### 4.1 Replay document (per mode)
 
-| Mode (match) | Field | LevelUp | Ours | Status |
+| Mode (match) | Field | Reference | Ours | Status |
 |---|---|---|---|---|
 | Oddball `7d798138` | `skullCarries` | 46 | 46 | parity |
-| Oddball `7d798138` | `scoreTimeline` | present (no `targetScore`: `[rounds_decide]` mode, the score is read in rounds) | present (same) | parity |
+| Oddball `7d798138` | `scoreTimeline` | present (no `targetScore`: a `[rounds_decide]` mode, the score is read in rounds) | present (same) | parity |
 | Oddball `7d798138` | `projectiles` | 372 (schema 116, 100 ms grid) | 539 (schema 122, 33 ms grid) | report: decoder difference, the vendored decoder is newer and denser |
 | Oddball `7d798138` | `stances` / `drawnWeapons` / `ammoReads` / `weaponChanges` | 3260 / 594 / 3413 / 205 | 3266 / 610 / 3416 / 206 | report: same decoder difference |
-| Oddball `7d798138` | `coverage.fallbacks` / `carriedEquipment` / `padPickups` | 30 / 28 / 15 | 21 / 31 / 16 | report: decoder-side counts (the coverage summary is the decoder's own read of the film), not in the builder or context route |
-| Strongholds `19628ee2` | `scoreTimeline` | n/a (LevelUp lacks the match) | present, no `targetScore` | complete (Strongholds is not in `[score_target]`) |
-| King of the Hill `d01ba030` | `scoreTimeline.targetScore` | n/a | 4 (from `[score_target]` `"Ranked:King of the Hill" = 4`) | fixed: `replay.ScoreTarget` table + `Input.ScoreTarget` |
-| Slayer `a2c79b5e` | `scoreTimeline.targetScore` | n/a | 50 (from `[score_target]` `"Ranked:Slayer" = 50`) | fixed: same as above |
+| Oddball `7d798138` | `coverage.fallbacks` / `carriedEquipment` / `padPickups` | 30 / 28 / 15 | 21 / 31 / 16 | report: decoder-side counts, not in the builder or context route |
+| Strongholds `19628ee2` | `scoreTimeline` | n/a | present, no `targetScore` | complete (Strongholds is not in `[score_target]`) |
+| King of the Hill `d01ba030` | `scoreTimeline.targetScore` | n/a | 4 (from `[score_target]` "Ranked:King of the Hill" = 4) | fixed: `replay.ScoreTarget` table + `Input.ScoreTarget` |
+| Slayer `a2c79b5e` | `scoreTimeline.targetScore` | n/a | 50 (from `[score_target]` "Ranked:Slayer" = 50) | fixed: same as above |
 | CTF `f9a8ab62` | `scoreTimeline.targetScore` | n/a | from `[score_target]` (the variant's declared capture target) | fixed: same as above |
 
 ### 4.2 Match context (header, scoreboard, regulation)
 
-| Mode (match) | Field | LevelUp | Ours | Status |
+| Mode (match) | Field | Reference | Ours | Status |
 |---|---|---|---|---|
-| all | `header.outcome` / `outcome_code` / `outcome_color` / `outcome_color_token` | the viewer's result (win `#22c55e` / loss `#ef4444` / tie `#8b5cf6` / dnf `#8b5cf6`) | was always the neutral default | fixed: `contextOutcome` reads the API `Outcome` per xuid (any participant when xuid is empty) |
-| all | `header.map_image_url` | present | absent for a `.jpg` map | fixed: the probe tries `.png` then `.jpg` (the asset route accepts both) |
-| all | `header.score_timeline_kind` | `hidden` (frag modes) / `events` (point modes) / absent (curve) | absent | fixed: `contextScoreTimelineKind` ports the `[score_timeline]` tokens on the raw pair name |
-| all | `header.is_ranked` | true for a `Ranked:` variant | false | fixed: set from the pair-name category, kept alongside the skill-file signal |
+| all | `header.outcome` / `outcome_code` / `outcome_color` / `outcome_color_token` | the viewer's result (win / loss / tie / dnf colors) | was always the neutral default | fixed: `contextOutcome` reads the API `Outcome` per xuid (`4cba90b`) |
+| all | `header.map_image_url` | present | absent for a `.jpg` map | fixed: the probe tries `.png` then `.jpg` |
+| all | `header.score_timeline_kind` | `hidden` (frag modes) / `events` (point modes) / absent (curve) | absent | fixed: `contextScoreTimelineKind` ports the `[score_timeline]` tokens |
+| all | `header.is_ranked` | true for a `Ranked:` variant | false | fixed: set from the pair-name category |
 | all | `regulation_seconds` | 720 for the ten declared variants, absent otherwise | absent | fixed: `contextRegulationSeconds` ports the `[regulation_seconds]` table |
-| all | `header.t0_ms` / `playable_duration_seconds` | join-based (17809 / 14886 on the two shared matches) | film-based (29983 / 26203) | report: the two read different clocks (LevelUp joins the API join times, the standalone reads the film's own origin); a real difference but not in the builder or context route |
-| Oddball `7d798138` | `header.score_label` | `2 - 1` (rounds) | was `185 - 200` (cumulative points) | fixed: `contextScore` reads `[rounds_decide]` in rounds, points demoted to `score_points_label` |
-| Oddball `7d798138` | `scoreboard` rounds | per-team `RoundsWon` | was the payload's (stale) | fixed: the builder now records `TeamRoundsWon` from the payload teams; `contextScore` prefers the fresh value |
+| all | `header.t0_ms` / `playable_duration_seconds` | join-based (17809 / 14886 on the two shared matches) | film-based (29983 / 26203) | report: the two read different clocks (the reference joins the API join times, the standalone reads the film's own origin) |
+| Oddball `7d798138` | `header.score_label` | `2 - 1` (rounds) | was `185 - 200` (cumulative points) | fixed: `contextScore` reads `[rounds_decide]` in rounds (`bf33f18`), points demoted to `score_points_label` |
+| Oddball `7d798138` | `scoreboard` rounds | per-team `RoundsWon` | was the payload's (stale) | fixed: the builder records `TeamRoundsWon` from the payload teams |
 | Strongholds `19628ee2` | objective `zone_captures` / `zone_secures` / `zone_offensive_kills` / `zone_defensive_kills` / `zone_scoring_ticks` / `time_in_zones_seconds` | n/a | present, non-empty on all 8 rows | complete |
 | King of the Hill `d01ba030` | same six zone fields | n/a | present, non-empty on all 8 rows | complete |
 | CTF `f9a8ab62` | objective `flag_captures` / `flag_grabs` / `flag_secures` / `flag_steals` / `flag_returns` / `flag_capture_assists` / `flag_carriers_killed` / `flag_returners_killed` / `kills_as_flag_carrier` / `kills_as_flag_returner` / `time_as_flag_carrier_seconds` | n/a | present, non-empty on all 8 rows | complete |
 | Slayer `a2c79b5e` | objective | n/a | absent on purpose (a frag mode has no objective block) | complete |
-| all | `scoreboard[].is_mvp` / `top_weapon_id` / `top_weapon_label` / `weapon_kills` | present | absent | report: LevelUp derives these from its match database (top-weapon aggregation, MVP), not from the film or the API payload — no portable source here |
+| all | `scoreboard[].is_mvp` / `top_weapon_id` / `top_weapon_label` / `weapon_kills` | present | absent | report: the reference derives these from its match database, not from the film or the API payload |
 | all | `scoreboard[].expected_*` / `*_stddev` | present | present (from `skill.json`) | parity |
 
-The mode label on `d01ba030` differs in wording only (`King of the Hill` vs `Assassin`);
-the brief treats language-only differences as out of scope.
+## 5. Viewer features ported from LevelUp
+
+The features lifted from the reference's replay page into this standalone viewer, with the
+merged commit that landed each one (on `port/web`). "In progress" means the build side is
+merged and the on-screen result is still being finished.
+
+| Feature | State | Commit |
+|---|---|---|
+| Armor (per-player armor manifests from the fetched customization + cached GameCMS definitions, piece library, scene wiring) | done | `5a0f9c0` (manifest route), `5e11149` (GameCMS fetch + shared cache), `95972d7` (scene pointed at the standalone routes), `0859280`/`763506c`/`270a307` (piece library build and routes), `62658bd` (rank badges) |
+| First-person armor and arms (per-player arms on the followed player's rig, built from the piece library and painted against the coating reference) | done | `f3a6f8c` (player armor for the arms), `8c0a1e2` (the exported coating work, called from first person), `ba42e5b` (Nyexc arm selection) |
+| Armor coatings (Ekur reference read at the Spartan piece library build; neutral fallback when the reference is absent) | done | `0859280` (piece library build with coatings), `36f490e` (mask comparison) |
+| Weapon coatings (each player's equipped weapon painted with its coating, third and first person) | in progress | `2e100c4` (build coatings into the weapon library), `66bbfc4` (serve each player's equipped coatings with the match), `a49a6fe` (paint the weapon models), `498f965` (each coating resolves to its own model key), `dd12400` (pipeline doc); open items in [WEAPON-COATINGS.md](WEAPON-COATINGS.md) |
+| Kill feed icons (contour weapon icons on kill events, missing replay weapon icons filled) | done | `a855cb6`, `c76bff5`, `469bdb0` |
+| HUD (first and third person: health, shield, held weapon, scope, kill popups) | done | `1e3164c` (HUD visible in third person, ammo behavior pinned), `6d0a37d` (light-blue HUD ink) |
+| Ammo (HUD ammo readout pinned to the document's ammo reads) | done | `1e3164c` |
+| Grenade icons (HUD equipment/grenade icon set, built from the install and served) | done | `e810f10` (build and serve the set), `f91bd4e` (correct HUD grenade icons) |
+| Glass (dark layered glass rendered clear) | done | `4e1a941` |
+| Camera collision (third-person camera kept out of the map) | done | `c0c9be1` (spring arm) |
+| Map build cancel (cancel a running map build from the build panel) | done | `ca86818` |
+| Settings labels (wrap instead of truncating) | done | `fb1e79b` |
