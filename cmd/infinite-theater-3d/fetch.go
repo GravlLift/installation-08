@@ -118,17 +118,7 @@ func runFetch(args []string) error {
 		return err
 	}
 	ctx := context.Background()
-	if err := fetchMatch(ctx, root, api, *id, nil); err != nil {
-		return err
-	}
-	if _, err := os.Stat(variantPath(root, *id, "map.mvar")); err == nil {
-		if _, err := buildMatchVariant(ctx, root, *id, "", variantPath(root, *id, "variant.glb")); err != nil {
-			slog.Warn("variant build failed after fetch", "id", *id, "err", err)
-		} else {
-			slog.Info("variant built after fetch", "id", *id)
-		}
-	}
-	return nil
+	return fetchMatch(ctx, root, api, *id, nil)
 }
 
 type savedChunk struct {
@@ -246,6 +236,9 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	}
 	if err = root.WriteFile(statsPath, stats); err != nil {
 		return err
+	}
+	if err = fetchContextArtifacts(ctx, root, api, id, raw); err != nil {
+		slog.Warn("context metadata fetch failed", "id", id, "err", err)
 	}
 	if mapID != "" {
 		mvar, e := api.Mvar(ctx, mapID, mapVersion)

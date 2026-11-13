@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-type Endpoints struct{ Stats, Discovery, Economy string }
+type Endpoints struct{ Stats, Discovery, Economy, Skill, GameCMS string }
 
-var DefaultEndpoints = Endpoints{"https://halostats.svc.halowaypoint.com:443/hi", "https://discovery-infiniteugc.svc.halowaypoint.com/hi", "https://economy.svc.halowaypoint.com/hi"}
+var DefaultEndpoints = Endpoints{Stats: "https://halostats.svc.halowaypoint.com:443/hi", Discovery: "https://discovery-infiniteugc.svc.halowaypoint.com/hi", Economy: "https://economy.svc.halowaypoint.com/hi", Skill: "https://skill.svc.halowaypoint.com:443/hi", GameCMS: "https://gamecms-hacs.svc.halowaypoint.com/hi"}
 
 type Client struct {
 	http               *http.Client

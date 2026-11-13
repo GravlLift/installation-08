@@ -79,6 +79,7 @@ func runServe(args []string) error {
 	}
 	jobs.Start()
 	defer jobs.Stop(5 * time.Second)
+	runServeStartup(jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game)
 	labelCat, err := weapons.LoadLabelCatalog()
 	if err != nil {
 		return err
@@ -134,6 +135,10 @@ type serverHandlers struct {
 // ServeHTTP routes a request: a static file when the web directory serves it, otherwise
 // the API mux.
 func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/static/medals/") || strings.HasPrefix(r.URL.Path, "/static/maps/") {
+		h.serveContextAsset(w, r)
+		return
+	}
 	if h.servesStatic(r) {
 		h.serveStatic(w, r)
 		return
