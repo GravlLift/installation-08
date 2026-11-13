@@ -37,13 +37,13 @@ export const PLASMA_CORE_RADIUS = 0.02
 /** Le halo : un second lobe à ce multiple du rayon du cœur. */
 export const PLASMA_HALO_MULT = 2
 /** Le halo, à cette fraction de l'intensité du cœur. */
-export const PLASMA_HALO_DIM = 0.35
+export const PLASMA_HALO_DIM = 0.7
 /** La fréquence du pulsé de l'orbe (pulsés par seconde). */
 export const PLASMA_PULSE_RATE = 1.5
 /** L'amplitude du pulsé : l'intensité et le rayon varient de cette fraction autour de leur moyenne. */
 export const PLASMA_PULSE_DEPTH = 0.3
 /** Le bleu-blanc du cœur : cette fraction d'incandescence dans la teinte plasma. */
-export const PLASMA_CORE_MIX = 0.55
+export const PLASMA_CORE_MIX = 0.3
 
 /**
  * plasmaPulse — l'intensité du pulsé de l'orbe, fonction pure du temps en secondes : une valeur

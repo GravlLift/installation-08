@@ -31,16 +31,16 @@
   --replay-hud-weapon: #f3f4f6;
 
   /* Shot effect tints (fxInk.ts): one per discharge nature the server publishes in
-     weaponLabels[].tint. Diegetic colors (what the game shows), LevelUp's dark-theme values;
-     a missing one draws the effect colorless. */
+     weaponLabels[].tint. Diegetic colors (what the game shows), saturated because effects draw
+     additively and mix toward the white core; a missing one draws the effect colorless. */
   --replay-fx-core: oklch(0.98 0.03 90);
   --replay-fx-kinetic: oklch(0.85 0.16 75);
-  --replay-fx-plasma-cool: oklch(0.75 0.15 245);
-  --replay-fx-plasma-green: oklch(0.82 0.2 145);
-  --replay-fx-plasma-hot: oklch(0.7 0.2 30);
-  --replay-fx-forerunner: oklch(0.72 0.2 300);
-  --replay-fx-electric: oklch(0.88 0.16 200);
-  --replay-fx-needle: oklch(0.75 0.22 330);
+  --replay-fx-plasma-cool: oklch(0.6 0.25 260);
+  --replay-fx-plasma-green: oklch(0.78 0.3 142);
+  --replay-fx-plasma-hot: oklch(0.62 0.25 30);
+  --replay-fx-forerunner: oklch(0.6 0.28 300);
+  --replay-fx-electric: oklch(0.65 0.22 245);
+  --replay-fx-needle: oklch(0.65 0.28 340);
   --replay-fx-blast: oklch(0.8 0.18 55);
   --replay-fx-neutral: oklch(0.8 0.02 255);
 }

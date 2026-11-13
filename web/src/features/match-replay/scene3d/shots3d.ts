@@ -72,6 +72,9 @@ export const IMPACT_SECONDS = 0.12
 const IMPACT_RADIUS = 0.012
 // Le blanc de la balle, mêlé à la teinte de l'arme : un trait chaud, pas un néon de la couleur pure.
 const CORE_MIX = 0.5
+// Energy discharges (plasma, electric, Forerunner...) keep their own color: the game shows a
+// saturated bolt, so only a touch of the white core goes in.
+const ENERGY_CORE_MIX = 0.1
 const CAPACITY = 512
 // Bacs à sable du tir de 1re personne : le repère caméra est tourné dans la visée, aucun tir n'alloue.
 const VUE_HAUT = new THREE.Vector3(0, 1, 0)
@@ -253,7 +256,8 @@ export class Shots3dLayer implements ActionLayer3d {
         if (e.time > frame) break
         const fp = e.slot === firstPerson
         const path = this.pathOf(e, fp)
-        const tint = this.c.copy(this.ctx.ink.of(fx.tint[e.tint] || fx.core)).lerp(core, CORE_MIX)
+        const mix = e.tint === 'kinetic' || !fx.tint[e.tint] ? CORE_MIX : ENERGY_CORE_MIX
+        const tint = this.c.copy(this.ctx.ink.of(fx.tint[e.tint] || fx.core)).lerp(core, mix)
         if (path) this.draw(path, (frame - e.time) / fps, tint, core, { e, fam: e.fam, hold, view: fp })
       }
     }
