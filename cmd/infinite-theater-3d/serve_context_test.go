@@ -144,3 +144,24 @@ func TestContextZeroDeaths(t *testing.T) {
 		t.Fatalf("unexpected damage_per_death: %s", rec.Body.String())
 	}
 }
+
+func TestContextWaypointURL(t *testing.T) {
+	root := newFakeStore(t)
+	if err := root.WriteFile(variantPath(root, "abc", "match.json"), []byte(`{"matchId":"abc","mapAssetId":"map"}`)); err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte(`{"MatchInfo":{"MapVariant":{"AssetId":"map"}},"Players":[]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context", nil)
+	var got struct {
+		Header map[string]any `json:"header"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Header["waypoint_url"] != "https://www.halowaypoint.com/halo-infinite/matches/abc" {
+		t.Fatalf("response: %s", rec.Body.String())
+	}
+}

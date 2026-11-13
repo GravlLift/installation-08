@@ -193,6 +193,8 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 	h := contextJSON{"match_id": meta.MatchID, "start_time_label": "", "outcome_color": "#94a3b8", "dominance_flag": false, "had_bot_teammate": false, "map_ui": meta.MapName, "mode_ui": stats.GameVariantName, "playlist_label": "", "performance_display": "-", "is_excluded": false, "is_ranked": false, "is_favorite": false, "replay_available": true}
 	if meta.MapAssetID != "" {
 		h["map_id"] = meta.MapAssetID
+		// LevelUp apps/go-api/internal/games/halo_infinite/adapter_asset_urls.go.
+		h["waypoint_url"] = "https://www.halowaypoint.com/halo-infinite/matches/" + meta.MatchID
 	}
 	contextScore(h, stats, payload, xuid)
 	info := object(payload["MatchInfo"])
