@@ -260,8 +260,49 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 		if e = root.WriteFile(filepath.Join(filepath.Dir(statsPath), "customization", p.XUID+".json"), armor); e != nil {
 			return e
 		}
+		fetchArmorDefinitions(ctx, root, api, armor)
 	}
 	return nil
+}
+
+// gamecmsPath is the shared cache location of one GameCMS inventory file:
+// <data>\gamecms\<lowercase inventory path>. A file's content does not change,
+// so a saved file is served to every match without an expiry.
+func gamecmsPath(root *store.Root, inventoryPath string) string {
+	rel := strings.ToLower(strings.Trim(inventoryPath, "/"))
+	return filepath.Join(root.Dir(), "gamecms", filepath.FromSlash(rel))
+}
+
+// fetchArmorDefinitions saves each definition the player's equipped armor reads
+// (the theme file and every item file) once into the shared cache, skipping the
+// ones already saved. A definition that cannot be read is logged, not fatal:
+// the manifest route lists an unread item as unresolved rather than failing
+// the match.
+func fetchArmorDefinitions(ctx context.Context, root *store.Root, api *haloapi.Client, customization []byte) {
+	c, err := haloapi.DecodeArmorCustomization(customization)
+	if err != nil {
+		return
+	}
+	for _, p := range append([]string{c.ThemePath}, haloapi.ArmorItemPaths(c)...) {
+		if p == "" {
+			continue
+		}
+		target := gamecmsPath(root, p)
+		if _, err := os.Stat(target); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			slog.Warn("gamecms cache unreadable", "path", p, "err", err)
+			continue
+		}
+		raw, err := api.ProgressionFile(ctx, p)
+		if err != nil {
+			slog.Warn("armor definition unavailable", "path", p, "err", err)
+			continue
+		}
+		if err := root.WriteFile(target, raw); err != nil {
+			slog.Warn("armor definition not saved", "path", p, "err", err)
+		}
+	}
 }
 
 func inflateChunk(raw []byte) ([]byte, error) {
