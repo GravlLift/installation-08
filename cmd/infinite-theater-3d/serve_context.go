@@ -82,6 +82,7 @@ func buildContext(root *store.Root, id, xuid string) (contextJSON, error) {
 		stats = facts
 	}
 	rows := contextRows(meta, stats, payload, xuid)
+	contextExtremes(rows)
 	header := contextHeader(meta, stats, payload, xuid)
 	_, err = os.Stat(variantPath(root, id, "replay.json.gz"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -191,6 +192,9 @@ func fillFullRow(row contextJSON, payload map[string]any, xuid string) {
 
 func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, xuid string) contextJSON {
 	h := contextJSON{"match_id": meta.MatchID, "start_time_label": "", "outcome_color": "#94a3b8", "dominance_flag": false, "had_bot_teammate": false, "map_ui": meta.MapName, "mode_ui": stats.GameVariantName, "playlist_label": "", "performance_display": "-", "is_excluded": false, "is_ranked": false, "is_favorite": false, "replay_available": true}
+	if mode, category := contextMode(stats.GameVariantName); mode != "" {
+		h["mode_ui"], h["mode_category"] = mode, category
+	}
 	if meta.MapAssetID != "" {
 		h["map_id"] = meta.MapAssetID
 		// LevelUp apps/go-api/internal/games/halo_infinite/adapter_asset_urls.go.

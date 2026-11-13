@@ -165,3 +165,22 @@ func TestContextWaypointURL(t *testing.T) {
 		t.Fatalf("response: %s", rec.Body.String())
 	}
 }
+
+func TestContextModeAndExtremes(t *testing.T) {
+	root := newFakeStore(t)
+	raw := []byte(`{"MatchInfo":{"UgcGameVariant":{"PublicName":"Ranked:Oddball"}},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":10,"Deaths":1,"Assists":3,"PersonalScore":1000,"KDA":10,"Accuracy":80,"DamageDealt":1000,"DamageTaken":300}}}]},{"PlayerId":"xuid(2)","Gamertag":"B","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":1,"Deaths":10,"Assists":0,"PersonalScore":100,"KDA":-9,"Accuracy":20,"DamageDealt":200,"DamageTaken":1000}}}]}]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context", nil)
+	var got struct {
+		Header     map[string]any   `json:"header"`
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || len(got.Scoreboard) != 2 || got.Scoreboard[0]["is_mvp"] != true || got.Scoreboard[1]["is_lvp"] != true {
+		t.Fatalf("response: %s", rec.Body.String())
+	}
+}
