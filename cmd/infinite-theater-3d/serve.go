@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,6 +24,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -34,6 +37,7 @@ type serveFlags struct {
 	addr    string
 	web     string
 	dataDir string
+	game    string
 }
 
 // parseServeFlags turns `serve` arguments into serveFlags.
@@ -43,6 +47,7 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
 	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional)")
 	fs.StringVar(&f.dataDir, "data", "", "data directory (default: IT3D_DATA_DIR or %LOCALAPPDATA%/infinite-theater-3d/data)")
+	fs.StringVar(&f.game, "game", "", "game deploy root for map builds (empty auto-detects, as build-mesh does)")
 	err := fs.Parse(args)
 	if err != nil {
 		return f, err
@@ -65,7 +70,13 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	h := newServerHandlers(root, f.web)
+	jobs, err := meshJobsFor(root, f.game)
+	if err != nil {
+		return err
+	}
+	jobs.Start()
+	defer jobs.Stop(5 * time.Second)
+	h := newServerHandlers(root, f.web, jobs)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -96,12 +107,47 @@ func runServe(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// serverHandlers bundles the store and the optional static directory. It implements
-// http.Handler: ServeHTTP serves the static files for non-API paths and the mux for the
-// API routes.
+// meshJobsFor wires the mesh build runner to the store: the ready callback reports whether
+// a module's mesh file exists, the destination maps a module to its store path, and the
+// builder is the real map build (meshbuild.BuildMap) with the deploy root from --game.
+func meshJobsFor(root *store.Root, gameRoot string) (*meshjobs.Runner, error) {
+	ready := func(module string) bool {
+		p, err := root.MeshPath(module)
+		if err != nil {
+			return false
+		}
+		_, err = os.Stat(p)
+		return err == nil
+	}
+	dest := func(module string) string {
+		p, err := root.MeshPath(module)
+		if err != nil {
+			return module + ".glb"
+		}
+		return p
+	}
+	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
+		if err != nil {
+			return meshjobs.BuildResult{}, err
+		}
+		return meshjobs.BuildResult{Bytes: summary.Bytes, Triangles: summary.Triangles}, nil
+	}
+	r, err := meshjobs.New(build, gameRoot, ready)
+	if err != nil {
+		return nil, err
+	}
+	r.SetDest(dest)
+	return r, nil
+}
+
+// serverHandlers bundles the store, the optional static directory, and the mesh build
+// runner. It implements http.Handler: ServeHTTP serves the static files for non-API paths
+// and the mux for the API routes.
 type serverHandlers struct {
 	root *store.Root
 	web  string
+	jobs *meshjobs.Runner
 	mux  *http.ServeMux
 }
 
@@ -118,13 +164,15 @@ func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // newServerHandlers builds the server: the API routes on a mux, wrapped by the static
 // fallback. It returns the concrete handler (which implements http.Handler) so a test can
 // drive the routes directly as well as through the full server.
-func newServerHandlers(root *store.Root, web string) serverHandlers {
-	h := serverHandlers{root: root, web: web}
+func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner) serverHandlers {
+	h := serverHandlers{root: root, web: web, jobs: jobs}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/matches", h.handleMatches)
 	mux.HandleFunc("GET /api/matches/{id}/replay", h.handleReplay)
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
+	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
+	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
 	h.mux = mux
 	return h
 }
@@ -209,6 +257,113 @@ func (h serverHandlers) handleReplay(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(doc)
+}
+
+// originAllowed says whether a state-changing request may come from r's Origin. A request
+// with no Origin header (a same-origin or non-browser client) is allowed; a request whose
+// Origin names a loopback host (localhost, 127.0.0.1, [::1], any port) is allowed. Any
+// other Origin (another website open in the user's browser) is refused, so it cannot
+// trigger a map build. Every state-changing route goes through this one helper.
+func originAllowed(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+// handleMeshBuild answers POST /api/matches/{id}/mesh/build: it starts or joins the build
+// for the match's module and answers 202 with the state JSON. A match whose mesh is already
+// on disk answers 200 ready. A non-loopback Origin is refused with 403.
+func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) {
+	if !originAllowed(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
+		return
+	}
+	if h.jobs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
+		return
+	}
+	id := r.PathValue("id")
+	if !store.MatchIDValid(id) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
+		return
+	}
+	meta, err := h.root.MatchMeta(id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "match_not_found", "id": id})
+			return
+		}
+		slog.Error("match meta", "err", err, "id", id)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if meta.MapModule == "" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
+		return
+	}
+	snap := h.jobs.Enqueue(meta.MapModule)
+	status := http.StatusAccepted
+	if snap.Ready() {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, meshStateJSON(snap))
+}
+
+// handleMeshState answers GET /api/matches/{id}/mesh/state with the module's build state.
+func (h serverHandlers) handleMeshState(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !store.MatchIDValid(id) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
+		return
+	}
+	meta, err := h.root.MatchMeta(id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "match_not_found", "id": id})
+			return
+		}
+		slog.Error("match meta", "err", err, "id", id)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if meta.MapModule == "" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
+		return
+	}
+	if h.jobs == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
+		return
+	}
+	snap := h.jobs.Snapshot(meta.MapModule)
+	writeJSON(w, http.StatusOK, meshStateJSON(snap))
+}
+
+// meshStateJSON is the state JSON the build and state routes hand out. Fields that do not
+// apply for the state are omitted (an empty string, a zero, or an unset time).
+func meshStateJSON(s meshjobs.Snapshot) map[string]any {
+	out := map[string]any{"state": string(s.State), "moduleKey": s.ModuleKey}
+	if s.Error != "" {
+		out["error"] = s.Error
+	}
+	if s.QueuePosition > 0 {
+		out["queuePosition"] = s.QueuePosition
+	}
+	if !s.StartedAt.IsZero() {
+		out["startedAt"] = s.StartedAt.UTC().Format(time.RFC3339Nano)
+		out["elapsedMs"] = s.ElapsedMs
+	}
+	if s.Bytes > 0 || s.Triangles > 0 {
+		out["bytes"] = s.Bytes
+		out["triangles"] = s.Triangles
+	}
+	return out
 }
 
 // handleMesh answers /api/matches/{id}/mesh.glb with the map's geometry (range-capable via
