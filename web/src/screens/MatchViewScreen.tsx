@@ -11,7 +11,6 @@ import { normalizeMapObjectives } from '../features/match-replay/layers/objectiv
 import { buildShotFx } from '../features/match-replay/model/shotFx'
 import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
-import { ReplayScoreboard } from './ReplayScoreboard'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
@@ -406,7 +405,6 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           timeLimitMs={replayContext.timeLimitMs}
           soundListenerRef={sound.listener}
         />
-        <ReplayScoreboard rows={replayContext.context?.scoreboard ?? []} />
         <button
           ref={settingsButtonRef}
           type="button"
