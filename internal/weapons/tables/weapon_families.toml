@@ -1,0 +1,40 @@
+# Ported from LevelUp's weapon registry, the table weaponRegistryInfiniteFilmshell in
+# apps/go-api/internal/games/weapons/registry.go (worktree replay-3d, branch integration).
+#
+# Hand-written mapping of a weapon family (the high 32 bits of the film's 64-bit weapon id)
+# to the title's canonical weapon_key: the join that lets a decoded shot name the weapon
+# that fired it. One line per family, in the registry's order, first id per key.
+
+[families]
+"2b1824d5" = "hinf_br75"
+"2fb21c87" = "hinf_bandit"
+"48c19d2d" = "hinf_ma40_ar"
+"f5c335df" = "hinf_ma5k_avenger"
+"fd98554c" = "hinf_vk78_commando"
+"0a1992bc" = "hinf_s7_sniper"
+"b619d84a" = "hinf_cqs48_bulldog"
+"767db96d" = "hinf_hydra"
+"71ab0a2c" = "hinf_m41_spnkr"
+"9d6aaed2" = "hinf_fuel_rod_spnkr"
+"f408190f" = "hinf_sidekick"
+"c3542946" = "hinf_plasma_pistol"
+"b533957e" = "hinf_needler"
+"a0955e9e" = "hinf_sentinel_beam"
+"4ff3937e" = "hinf_energy_sword"
+"841ac5e5" = "hinf_gravity_hammer"
+"0d20c469" = "hinf_skewer"
+"230447b1" = "hinf_cindershot"
+"2ac9c2ff" = "hinf_heatwave"
+"c30d87c7" = "hinf_ravager"
+"9387a8b9" = "hinf_shock_rifle"
+"84bd29ed" = "hinf_disruptor"
+"80977ba5" = "hinf_mangler"
+"d7915565" = "hinf_mutilator"
+"30484ea6" = "hinf_pulse_carbine"
+"daf193c7" = "hinf_stalker_rifle"
+"3e070217" = "hinf_vestige_carbine"
+"b6dbead8" = "hinf_frag_grenade"
+"c1e1bab0" = "hinf_plasma_grenade"
+"3ad55da4" = "hinf_dynamo_grenade"
+"00007ca9" = "hinf_unarmed"
+"e9e7ff79" = "hinf_coil_kinetic"

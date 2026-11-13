@@ -1,0 +1,42 @@
+# Ported from LevelUp's weapon registry, the weaponRegistryWeapons rows
+# (apps/go-api/internal/games/weapons/registry.go, worktree replay-3d, branch integration),
+# limited to the weapon_keys the filmshell family table names.
+#
+# Hand-written mapping of weapon_key to combat role, from the canonical cross-title weapon
+# registry (internal/games/weapons, never a title mapping file). The role of a key the table
+# does not name is the empty string: a weapon the registry does not classify keeps no role
+# and borrows none from a neighbour.
+
+[roles]
+hinf_br75 = "precision"
+hinf_bandit = "precision"
+hinf_ma40_ar = "automatic"
+hinf_ma5k_avenger = "automatic"
+hinf_vk78_commando = "automatic"
+hinf_s7_sniper = "sniper"
+hinf_cqs48_bulldog = "shotgun"
+hinf_hydra = "power"
+hinf_m41_spnkr = "power"
+hinf_fuel_rod_spnkr = "power"
+hinf_sidekick = "sidearm"
+hinf_plasma_pistol = "sidearm"
+hinf_needler = "special"
+hinf_sentinel_beam = "special"
+hinf_energy_sword = "power"
+hinf_gravity_hammer = "power"
+hinf_skewer = "power"
+hinf_cindershot = "power"
+hinf_heatwave = "shotgun"
+hinf_ravager = "automatic"
+hinf_shock_rifle = "sniper"
+hinf_disruptor = "sidearm"
+hinf_mangler = "sidearm"
+hinf_mutilator = "shotgun"
+hinf_pulse_carbine = "automatic"
+hinf_stalker_rifle = "precision"
+hinf_vestige_carbine = "precision"
+hinf_frag_grenade = "grenade"
+hinf_plasma_grenade = "grenade"
+hinf_dynamo_grenade = "grenade"
+hinf_unarmed = "melee"
+hinf_coil_kinetic = "environmental"

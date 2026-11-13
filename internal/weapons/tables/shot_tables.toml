@@ -1,0 +1,72 @@
+# Ported from LevelUp's config/titles/halo_infinite/mappings/replay_labels.toml
+# (worktree replay-3d, branch integration), the [shot_effects], [shot_impact] and
+# [shot_tints] sections, limited to the weapon_keys the filmshell family table names.
+#
+# Hand-written title mapping. [shot_effects] is the render family of a weapon's shots (the
+# WeaponLabel.Fx published with the completed labels); [shot_impact] is the fact that the
+# projectile explodes on impact (the WeaponLabel.Impact); [shot_tints] is the nature of the
+# discharge that tints the muzzle flash (the WeaponLabel.Tint, a theme token the client
+# colors: kinetic, plasma_cool, plasma_hot, forerunner, electric, needle, blast).
+
+[shot_effects]
+hinf_ma40_ar = "ballistic"
+hinf_br75 = "ballistic"
+hinf_vk78_commando = "ballistic"
+hinf_sidekick = "ballistic"
+hinf_cqs48_bulldog = "ballistic"
+hinf_s7_sniper = "ballistic"
+hinf_stalker_rifle = "ballistic"
+hinf_mangler = "ballistic"
+hinf_skewer = "ballistic"
+hinf_plasma_pistol = "plasma"
+hinf_pulse_carbine = "plasma"
+hinf_ravager = "plasma"
+hinf_sentinel_beam = "light"
+hinf_heatwave = "light"
+hinf_disruptor = "shock"
+hinf_shock_rifle = "shock"
+hinf_m41_spnkr = "explosive"
+hinf_fuel_rod_spnkr = "explosive"
+hinf_vestige_carbine = "plasma"
+hinf_cindershot = "explosive"
+hinf_hydra = "explosive"
+hinf_gravity_hammer = "melee"
+hinf_energy_sword = "melee"
+hinf_needler = "needles"
+hinf_frag_grenade = "explosive"
+hinf_plasma_grenade = "explosive"
+hinf_dynamo_grenade = "shock"
+hinf_bandit = "ballistic"
+hinf_ma5k_avenger = "ballistic"
+
+[shot_impact]
+hinf_m41_spnkr = true
+hinf_fuel_rod_spnkr = true
+hinf_cindershot = true
+hinf_hydra = true
+
+[shot_tints]
+hinf_ma40_ar = "kinetic"
+hinf_br75 = "kinetic"
+hinf_bandit = "kinetic"
+hinf_ma5k_avenger = "kinetic"
+hinf_vk78_commando = "kinetic"
+hinf_s7_sniper = "kinetic"
+hinf_cqs48_bulldog = "kinetic"
+hinf_sidekick = "kinetic"
+hinf_hydra = "blast"
+hinf_m41_spnkr = "blast"
+hinf_mangler = "kinetic"
+hinf_skewer = "kinetic"
+hinf_plasma_pistol = "plasma_cool"
+hinf_pulse_carbine = "plasma_cool"
+hinf_vestige_carbine = "plasma_cool"
+hinf_fuel_rod_spnkr = "plasma_cool"
+hinf_ravager = "plasma_hot"
+hinf_stalker_rifle = "plasma_hot"
+hinf_sentinel_beam = "forerunner"
+hinf_cindershot = "forerunner"
+hinf_heatwave = "forerunner"
+hinf_disruptor = "electric"
+hinf_shock_rifle = "electric"
+hinf_needler = "needle"

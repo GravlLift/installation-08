@@ -1,0 +1,41 @@
+# Ported from LevelUp's config/titles/halo_infinite/mappings/weapon_names.toml
+# (apps/go-api of P:\software\LevelUp, worktree replay-3d, branch integration).
+#
+# Hand-written title mapping: the display names of the weapons the title knows, keyed by
+# weapon_key. Only the keys that the filmshell family table (weapon_families.toml) names
+# are listed; the keys the title maps but the film never writes (vehicles, turrets, coils
+# that only die, the repulsor) would reach the replay document through no other path.
+
+[weapons]
+hinf_br75 = { en = "BR75", fr = "BR75" }
+hinf_bandit = { en = "M392 Bandit", fr = "Bandit EVO" }
+hinf_ma40_ar = { en = "MA40 AR", fr = "MA40 AR" }
+hinf_ma5k_avenger = { en = "MA5K Avenger", fr = "MA5K Avenger" }
+hinf_vk78_commando = { en = "VK78 Commando", fr = "VK78 Commando" }
+hinf_s7_sniper = { en = "S7 Sniper", fr = "S7 Sniper" }
+hinf_cqs48_bulldog = { en = "CQS48 Bulldog", fr = "CQS48 Bulldog" }
+hinf_hydra = { en = "MLRS-2 Hydra", fr = "Hydra" }
+hinf_m41_spnkr = { en = "M41 SPNKr", fr = "M41 SPNKr" }
+hinf_fuel_rod_spnkr = { en = "Fuel Rod SPNKr", fr = "SPNKr à combustible" }
+hinf_sidekick = { en = "Mk50 Sidekick", fr = "MK50 Sidekick" }
+hinf_plasma_pistol = { en = "Plasma Pistol", fr = "Pistolet à plasma" }
+hinf_needler = { en = "Needler", fr = "Needler" }
+hinf_sentinel_beam = { en = "Sentinel Beam", fr = "Rayon de Sentinelle" }
+hinf_energy_sword = { en = "Energy Sword", fr = "Épée à énergie" }
+hinf_gravity_hammer = { en = "Gravity Hammer", fr = "Marteau antigravité" }
+hinf_skewer = { en = "Skewer", fr = "Empaleur" }
+hinf_cindershot = { en = "Cindershot", fr = "Crémateur" }
+hinf_heatwave = { en = "Heatwave", fr = "Calcineur" }
+hinf_ravager = { en = "Ravager", fr = "Ravageur" }
+hinf_shock_rifle = { en = "Shock Rifle", fr = "Fusil électrique" }
+hinf_disruptor = { en = "Disruptor", fr = "Disrupteur" }
+hinf_mangler = { en = "Mangler", fr = "Déchiqueteur" }
+hinf_mutilator = { en = "Mutilator", fr = "Mutilateur" }
+hinf_pulse_carbine = { en = "Pulse Carbine", fr = "Carabine à impulsion" }
+hinf_stalker_rifle = { en = "Stalker Rifle", fr = "Fusil traqueur" }
+hinf_vestige_carbine = { en = "Vestige Carbine", fr = "Carabine Vestige" }
+hinf_frag_grenade = { en = "Frag Grenade", fr = "Grenade frag" }
+hinf_plasma_grenade = { en = "Plasma Grenade", fr = "Grenade plasma" }
+hinf_dynamo_grenade = { en = "Dynamo Grenade", fr = "Grenade dynamo" }
+hinf_unarmed = { en = "Unarmed", fr = "Mains nues" }
+hinf_coil_kinetic = { en = "UNSC Fusion Coil", fr = "Bobine à fusion UNSC" }
