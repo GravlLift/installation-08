@@ -11,8 +11,8 @@
 // ICON" placeholder at index 18 and the duplicate at 16) have no public stem.
 //
 // BuildHud decodes the pinned atlas, crops each glyph to its opaque bounding box, scales
-// it to 96×96 (the size LevelUp's committed set uses), and writes one PNG per named image
-// under HudOutDir(dataDir).
+// it to fit 96×96 preserving aspect ratio (the longest edge becomes 96 px, the glyph is
+// centered), and writes one PNG per named image under HudOutDir(dataDir).
 
 package weaponicons
 
@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"image"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,28 +38,26 @@ const hudAtlasTag = 0x7dcd396a
 const hudIconSize = 96
 
 // hudStemByIndex maps an atlas image index to the public HUD file stem. The mapping was
-// established by decoding the atlas and visually matching each glyph against the game's
-// HUD and LevelUp's reference PNGs. Indices 16 and 18 (a duplicate and a "NO ICON"
-// placeholder) have no public stem and are not written.
+// established by decoding the atlas, cropping each glyph to its opaque bounding box, and
+// matching the resulting aspect ratio against LevelUp's reference PNGs (which preserve the
+// source aspect ratio). Each of the 15 stems maps to a unique index; the remaining indices
+// (1, 3, 4, 8, 10, 14, 18) have no public stem.
 var hudStemByIndex = map[int]string{
-	0:  "DropWall",
 	1:  "ThreatSeeker",
 	2:  "Repulsor",
-	3:  "ShroudScreen",
-	4:  "RepairField",
-	5:  "Grappleshot",
+	3:  "RepairField",
+	4:  "Dynamo",
+	5:  "DropWall",
 	6:  "ThreatSensor",
-	7:  "QuantumTranslocator",
-	8:  "Plasma",
+	7:  "Plasma",
+	8:  "QuantumTranslocator",
 	9:  "Frag",
-	10: "Dynamo",
-	11: "Repulsor",
-	12: "Spike",
+	12: "Grappleshot",
 	13: "ActiveCamouflage",
-	14: "Thruster",
 	15: "Overshield",
-	19: "Overshield",
-	20: "Thruster",
+	16: "Thruster",
+	17: "ShroudScreen",
+	20: "Spike",
 }
 
 // HudOutDir is the HUD icon set's folder below the data directory.
@@ -163,7 +162,7 @@ func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out str
 		if err != nil {
 			return 0, 0, nil, fmt.Errorf("hud icon %s (index %d): %w", e.File, e.Index, err)
 		}
-		scaled := scaleToSize(cropped, hudIconSize)
+		scaled := scaleToFit(cropped, hudIconSize)
 		if err := writePNG(filepath.Join(out, e.File), scaled); err != nil {
 			return 0, 0, nil, fmt.Errorf("write %s: %w", e.File, err)
 		}
@@ -178,18 +177,26 @@ func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out str
 	return total, written, decoded, nil
 }
 
-// scaleToSize scales img to size×size using nearest-neighbor (the glyphs are flat white
-// on transparent; no anti-aliasing is needed at this scale).
-func scaleToSize(src *image.NRGBA, size int) *image.NRGBA {
-	dst := image.NewNRGBA(image.Rect(0, 0, size, size))
+// scaleToFit scales src to fit within size×size preserving aspect ratio, centered on the
+// canvas. The longest edge becomes size pixels; the other edge scales proportionally.
+// Nearest-neighbor (the glyphs are flat white on transparent; no anti-aliasing is needed).
+func scaleToFit(src *image.NRGBA, size int) *image.NRGBA {
 	b := src.Bounds()
 	sw, sh := b.Dx(), b.Dy()
-	for y := 0; y < size; y++ {
-		sy := y * sh / size
-		for x := 0; x < size; x++ {
-			sx := x * sw / size
+	if sw == 0 || sh == 0 {
+		return image.NewNRGBA(image.Rect(0, 0, size, size))
+	}
+	// Scale so the longer edge fits exactly in size.
+	scale := float64(size) / float64(max(sw, sh))
+	dw, dh := int(math.Round(float64(sw)*scale)), int(math.Round(float64(sh)*scale))
+	dst := image.NewNRGBA(image.Rect(0, 0, size, size))
+	ox, oy := (size-dw)/2, (size-dh)/2
+	for y := 0; y < dh; y++ {
+		sy := y * sh / dh
+		for x := 0; x < dw; x++ {
+			sx := x * sw / dw
 			s := src.PixOffset(b.Min.X+sx, b.Min.Y+sy)
-			o := dst.PixOffset(x, y)
+			o := dst.PixOffset(ox+x, oy+y)
 			copy(dst.Pix[o:o+4], src.Pix[s:s+4])
 		}
 	}
