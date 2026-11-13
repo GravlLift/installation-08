@@ -194,12 +194,12 @@ export function Replay3DView({
   }, [mapScene, weaponsPath])
   useEffect(() => {
     if (!mapScene || !piecesPath || !spartans) return
-    const armory = new SpartanArmory(new ArmorLibrary(piecesPath), spartans.players, gateRef.current ?? undefined)
+    const armory = new SpartanArmory(new ArmorLibrary(piecesPath), spartans.players, gateRef.current ?? undefined, weaponsPath)
     armoryRef.current = armory
     mapScene.setSpartanArmory(armory)
     preloadAssets3d(doc, null, armory)
     return () => { armoryRef.current = null; mapScene.setSpartanArmory(null) }
-  }, [mapScene, piecesPath, spartans, doc])
+  }, [mapScene, piecesPath, spartans, doc, weaponsPath])
   useEffect(() => {
     if (!mapScene) return
     const gate = gateRef.current!

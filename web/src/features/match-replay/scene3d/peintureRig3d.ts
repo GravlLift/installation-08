@@ -7,7 +7,8 @@
  * rig, habit) évite de repeindre à chaque image ; chaque rig conserve ses copies et une génération abandonne une peinture en retard
  * quand le joueur change. Le revêtement préparé en fond (`PreparationRig3d`) se pose sans attente
  * quand il est prêt ; sinon la peinture se calcule en fond. `invalider` force un repeintage : les
- * pièces venues d'arriver portent des matériaux que la peinture posée ne couvre pas.
+ * pièces venues d'arriver portent des matériaux que la peinture posée ne couvre pas. L'arme du rig
+ * se peint de son propre revêtement : `cleArmeDe` nomme sa clé de modèle à `peindreBras`.
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
@@ -23,6 +24,8 @@ import type { PreparationRig3d } from './preparationRig3d'
 export interface SourcePeinture {
   armurerie(): SpartanArmory | null
   xuid(): string | null
+  /** La clé du modèle de l'arme du rig de fichier `fichier`, null sans modèle chargé pour lui. */
+  cleArmeDe(fichier: string): string | null
   /** La préparation en fond : le revêtement prêt, par fichier de rig. */
   preparation: PreparationRig3d
   gate?: LoadGate
@@ -93,7 +96,7 @@ export class PeintureRig3d {
     const generation = this.generation
     rig.enCours = true
     const chargement = armurerie
-      .peindreBras(xuid, habit, materiaux)
+      .peindreBras(xuid, habit, materiaux, this.source.cleArmeDe(fichier))
       .then((coat) => {
         if (!coat || generation !== this.generation || this.rigs.get(fichier) !== rig) return
         this.appliquer(rig, coat)

@@ -55,6 +55,14 @@ export interface SpartanArmorManifest {
   unresolved?: string[]
 }
 
+/** The coating of one equipped weapon; `style_key` absent when its file was not read. */
+export interface WeaponCoating {
+  core_id?: string
+  /** The weapon library's model key of the core. */
+  model_key: string
+  style_key?: string
+}
+
 export interface ReplaySpartan {
   xuid?: string
   bid?: string
@@ -62,6 +70,8 @@ export interface ReplaySpartan {
   reason?: string
   fetched_at?: string
   manifest?: SpartanArmorManifest
+  /** The coating of each equipped weapon, in the API's order; absent when none was read. */
+  weapon_coatings?: WeaponCoating[]
 }
 
 /** Each match player's armor (`domain.ReplaySpartans`). */

@@ -5,6 +5,10 @@
  * (`armorMaterial3d.packPaint`), ses dégradés chargés dans la texture à couches de la session
  * (`armorGradients3d`). `spartan3d` en peint ses copies.
  *
+ * Le noyau (`paintMaterials`) peint des matériaux pour UNE table et UN revêtement donnés : la tenue
+ * d'un joueur y passe avec sa visière, les armes (`weaponCoat3d`) avec la table de leur bibliothèque
+ * et sans visière.
+ *
  * Replis nommés, rapportés UNE fois par joueur à la console : table illisible (tout neutre),
  * revêtement absent de la bibliothèque (style par défaut de chaque liste), dégradé non chargé (neutre),
  * et ceux de `armorCoating3d`.
@@ -18,6 +22,7 @@ import {
   paintOf,
   visorSwatch,
   type CoatingFile,
+  type CoatingSwatch,
   type CoatingTable,
   type MaterialStyle,
   type PaintIssueKind,
@@ -87,17 +92,32 @@ export async function construirePeintureMateriaux(materiaux: readonly THREE.Mate
   if (!table) note('coatings_unavailable', '')
   else if (!coating) note('coating_unknown', key ?? m.coating?.path ?? '')
   const visor = table ? visorSwatch(table, m.visor, note) : null
+  const coat = await paintMaterials(materiaux, table, { coating, visor }, lib, note)
+  return { coat, issues: [...counts.values()] }
+}
+
+/**
+ * paintMaterials : le noyau de la peinture — `materiaux` peints pour la table `table` (null : tout
+ * neutre) et la peinture du joueur (son revêtement, null absent, sa visière, null aucune).
+ */
+export async function paintMaterials(
+  materiaux: readonly THREE.Material[],
+  table: CoatingTable | null,
+  peinture: { coating: CoatingFile | null; visor: CoatingSwatch | null },
+  lib: Pick<CoatSource, 'swatch' | 'gradients'>,
+  note: PaintNote,
+): Promise<Coat> {
   const coat = new Map<THREE.Material, CoatPaint>()
   await Promise.all(
     materiaux.map(async (mat) => {
       const style = (mat.userData.style as MaterialStyle | undefined) ?? null
-      const paint = table ? paintOf(style, { table, coating, visor }, note) : neutralPaint()
+      const paint = table ? paintOf(style, { table, coating: peinture.coating, visor: peinture.visor }, note) : neutralPaint()
       await Promise.all(gradientsOf(paint).map((g) => lib.swatch(g)))
       const packed = packPaint(paint, (g) => lib.gradients.layer(g), note)
       coat.set(mat, { maps: mat.userData.armorMaps as ArmorMaps, paint: packed, gradients: lib.gradients.uniform })
     }),
   )
-  return { coat, issues: [...counts.values()] }
+  return coat
 }
 
 /** reportCoat écrit la peinture d'un joueur une fois : revêtement, visière, et chaque repli compté. */

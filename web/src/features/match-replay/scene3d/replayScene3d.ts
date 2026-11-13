@@ -35,7 +35,7 @@ import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { SpartanArmory } from './armory3d'
-import { drawnWeapon, makeAvatar, placeBody, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
+import { drawnWeapon, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
 import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
@@ -56,7 +56,7 @@ import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
-import type { WeaponModels } from './weaponModels3d'
+import { weaponModelKey, type WeaponModels } from './weaponModels3d'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
 /** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
 export type PovStatus = 'alive' | 'dead' | 'unspawned' | 'none'
@@ -402,6 +402,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.setSpartanArmory(null)
     this.setWeaponModels(null)
     for (const a of this.avatars.values()) {
+      releaseWeapon(a)
       for (const m of [a.body, a.aim, a.gun]) {
         m.geometry.dispose()
         ;(m.material as THREE.Material).dispose()
@@ -453,7 +454,13 @@ export class ReplayScene3d implements Replay3DExportSource {
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null)
-      showWeapon(a, held, rigVisible ? null : held?.model ?? null, firstPerson ? viewGripOf(held?.key ?? null) : null)
+      const modelArme = rigVisible ? null : held?.model ?? null
+      // Le modèle d'arme se peint du revêtement du joueur : la peinture part en fond, la copie de
+      // l'arme se la pose quand elle est prête et couvrante (`armory3d.coatArme`).
+      const cleArme = held?.key ? weaponModelKey(held.key) : null
+      if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
+      const coatArme = modelArme && cleArme ? (this.armory?.coatArme(p.xuid, cleArme, modelArme) ?? null) : null
+      showWeapon(a, held, modelArme, firstPerson ? viewGripOf(held?.key ?? null) : null, coatArme)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null
       showBodyFx(a, fx)
       // Le contour d'équipe : chaque joueur visible, sauf soi-même en 1re personne.

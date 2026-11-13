@@ -106,8 +106,11 @@ function paintedPiece(): THREE.Object3D {
   return root
 }
 
-/** Un réseau factice : chaque fichier rend une scène fraîche, `fail` les fichiers en échec. */
-function fakeIO(fail: Set<string> = new Set(), scenes: Record<string, () => THREE.Object3D> = {}) {
+/**
+ * Un réseau factice : chaque fichier rend une scène fraîche, `fail` les fichiers en échec. Les
+ * URLs sous `/armes/` (la bibliothèque des armes) lisent `weaponDocs`, sinon les documents d'armure.
+ */
+function fakeIO(fail: Set<string> = new Set(), scenes: Record<string, () => THREE.Object3D> = {}, weaponDocs: Record<string, () => unknown> = {}) {
   const nameOf = (url: string) => url.slice(url.lastIndexOf('/') + 1)
   const loadGlb = vi.fn(async (url: string) => {
     const name = nameOf(url)
@@ -117,7 +120,9 @@ function fakeIO(fail: Set<string> = new Set(), scenes: Record<string, () => THRE
   const documents: Record<string, () => unknown> = { 'index.json': index, 'coatings.json': table, 'coating-2c5251bc.json': coatingFile }
   const fetchJson = vi.fn(async (url: string) => {
     const name = nameOf(url)
-    const doc = fail.has(name) ? undefined : documents[name]
+    if (fail.has(name)) throw new Error('404')
+    const docs = String(url).includes('/armes/') ? { ...documents, ...weaponDocs } : documents
+    const doc = docs[name]
     if (!doc) throw new Error('404')
     return doc()
   })
@@ -284,6 +289,119 @@ describe('SpartanArmory', () => {
     armory.dress('1')
     await settle()
     expect(armory.dress('1')?.outfit.issues.map((i) => i.kind)).toEqual(['piece_bones_mismatch', 'piece_load_failed'])
+  })
+})
+
+describe('SpartanArmory armes', () => {
+  /** Un modèle d'arme : un maillage peint dont la liste de style n'est pas dans la table d'armure. */
+  function weaponScene(): THREE.Object3D {
+    const root = new THREE.Group()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
+    root.add(mesh)
+    mesh.material.userData = {
+      armorMaps: { asg: null, mask0: null, mask1: null },
+      style: { stylelist: 'f00dface', region: '0b7e328b', intentions: ['229d91fa'], layers: 1, texel_density: [1, 1], offset: [0, 0] },
+    }
+    return root
+  }
+
+  const joueursArmes: ReplaySpartan[] = [
+    { xuid: '1', status: 'armor', manifest: manifest('h1'), weapon_coatings: [{ model_key: '11111111', style_key: '2c5251bc' }] },
+  ]
+
+  it('peindreArme : coatArme nulle en attente, le coat posé et en cache ensuite', async () => {
+    const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    const scene = weaponScene()
+    const p = armory.peindreArme('1', '11111111', scene)
+    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
+    const coat = await p
+    expect(coat?.size).toBe(1)
+    expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
+    expect(armory.peindreArme('1', '11111111', scene)).toBe(p)
+    // La peinture rapportée une fois à la console.
+    expect(console.info).toHaveBeenCalledTimes(1)
+  })
+
+  it('peindreArme : sans revêtement pour l’arme, null en cache, sans lire la bibliothèque des armes', async () => {
+    const { io, fetchJson } = fakeIO()
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }], undefined, '/armes', io)
+    const scene = weaponScene()
+    expect(await armory.peindreArme('1', '11111111', scene)).toBeNull()
+    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
+    expect(fetchJson.mock.calls.every(([url]) => !String(url).includes('/armes/'))).toBe(true)
+  })
+
+  it('peindreArme : sans bibliothèque des armes, null', async () => {
+    const { io } = fakeIO()
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes)
+    expect(await armory.peindreArme('1', '11111111', weaponScene())).toBeNull()
+  })
+
+  it('coatArme : le coat ne couvre plus tous les matériaux peints du modèle, null', async () => {
+    const { io } = fakeIO()
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    const scene = weaponScene()
+    const coat = await armory.peindreArme('1', '11111111', scene)
+    const extra = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
+    extra.material.userData = {
+      armorMaps: { asg: null, mask0: null, mask1: null },
+      style: { stylelist: 'f00dface', region: '0b7e328b', intentions: ['229d91fa'], layers: 1, texel_density: [1, 1], offset: [0, 0] },
+    }
+    scene.add(extra)
+    expect(coat).not.toBeNull()
+    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
+  })
+
+  /** Le revêtement d'arme `2c5251bc` : la liste `f00dface` prend le style `036e9dd8` de la table. */
+  function coatingArmes(): CoatingFile {
+    return { style: '2c5251bc', lists: { f00dface: '036e9dd8' }, styles: {} }
+  }
+
+  /** La table de la bibliothèque des armes : la liste `f00dface` a pour défaut `036e9dd8`, sans dégradé. */
+  function tableArmes(): CoatingTable {
+    return {
+      schema: 1, globals: {}, default_styles: { f00dface: '036e9dd8' },
+      styles: { '036e9dd8': { grime_amount: 0, scratch_amount: 0, regions: { '0b7e328b': { '229d91fa': SWATCH } } } },
+      visors: { patterns: {}, colors: {} },
+    }
+  }
+
+  it('peindreBras : l’arme du rig prend son revêtement, les bras celui du joueur', async () => {
+    const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
+    const m = { ...manifest('h4'), coating: { path: 'c', style_id: 1, style_key: '2c5251bc' } }
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), [
+      { xuid: '1', status: 'armor', manifest: m, weapon_coatings: [{ model_key: '22222222', style_key: '00000000' }] },
+    ], undefined, '/armes', io)
+    armory.dress('1')
+    await settle()
+    const habit = armory.dress('1')
+    if (!habit) throw new Error('habit absent')
+    const bras = [...habit.coat.keys()][0]
+    const arme = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
+    const paint = await armory.peindreBras('1', habit, [bras, arme], '22222222')
+    expect(paint).not.toBeNull()
+    expect(paint!.has(bras)).toBe(true)
+    // L’arme a le revêtement demandé, absent de la bibliothèque : style par défaut, sans dégradé.
+    expect(paint!.has(arme)).toBe(true)
+    expect(Array.from(paint!.get(arme)!.paint.data.slice(0, 2))).toEqual([1, -1])
+    // Les bras ont le revêtement du joueur, dégradé chargé.
+    expect(Array.from(paint!.get(bras)!.paint.data.slice(0, 2))).toEqual([1, 0])
+    expect(loadSwatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('peindreBras : sans entrée pour l’arme, son matériau reste sans peinture', async () => {
+    const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    armory.dress('1')
+    await settle()
+    const habit = armory.dress('1')
+    if (!habit) throw new Error('habit absent')
+    const bras = [...habit.coat.keys()][0]
+    const arme = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
+    const paint = await armory.peindreBras('1', habit, [bras, arme], '99999999')
+    expect(paint).not.toBeNull()
+    expect(paint!.has(arme)).toBe(false)
   })
 })
 

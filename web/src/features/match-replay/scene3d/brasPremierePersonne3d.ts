@@ -92,6 +92,8 @@ export class BrasPremierePersonne3d {
   private readonly entrees = new Map<string, Entree>()
   private readonly abort = new AbortController()
   private readonly armes = new Map<string, RigPremierePersonne>()
+  /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
+  private readonly fichiersArmes = new Map<string, string>()
   private visible: THREE.Object3D | null = null
   private cleVisible: string | null = null
   private armurerie: SpartanArmory | null = null
@@ -134,11 +136,13 @@ export class BrasPremierePersonne3d {
       piece: (fichier) => this.chargeurPieces.piece(fichier),
       armurerie: () => this.armurerie,
       xuid: () => this.xuid,
+      cleArmeDe: (fichier) => this.fichiersArmes.get(fichier) ?? null,
     })
     this.peinture = new PeintureRig3d({
       xuid: () => this.xuid,
       armurerie: () => this.armurerie,
       preparation: this.preparation,
+      cleArmeDe: (fichier) => this.fichiersArmes.get(fichier) ?? null,
       gate: this.gate,
       baked: this.baked ?? null,
     })
@@ -162,7 +166,10 @@ export class BrasPremierePersonne3d {
       const rigs = new Map(index.rigs.map((rig) => [rig.file, rig]))
       for (const arme of index.weapons) {
         const rig = rigs.get(arme.file)
-        if (rig) this.armes.set(arme.weapon.toLowerCase(), rig)
+        if (rig) {
+          this.armes.set(arme.weapon.toLowerCase(), rig)
+          this.fichiersArmes.set(rig.file, arme.weapon.toLowerCase())
+        }
       }
     } catch (erreur) {
       if (!this.abort.signal.aborted) console.warn('rejeu 3D : index première personne indisponible', erreur)

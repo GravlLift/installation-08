@@ -11,6 +11,10 @@
  * Un modèle se charge à sa première demande et la vue garde sa forme simple en attendant. Absent
  * (404 : pas encore construit, ou arme sans modèle), il est redemandé après `RETRY_MS` : une
  * construction lancée pendant le visionnage paraît sans recharger la page.
+ *
+ * Les matériaux peints (`extras.surfaceBrute`) reçoivent leurs masques bruts en `userData.armorMaps`
+ * (`armorLibrary3d.rawMaps`) : la vue peint les armes du joueur de leur revêtement
+ * (`weaponCoat3d`).
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
@@ -18,6 +22,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
 
 import { isNotFound } from '@/lib/replay/queries'
 
+import { rawMaps } from './armorLibrary3d'
 import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips } from './clips3d'
 import { measureSyncPhases } from './clipSample3d'
 import { darkMetalFallback } from './fallbackMetal3d'
@@ -108,6 +113,9 @@ export class WeaponModels {
         const buffer = await fetchMesh(`${this.base}/${key}.glb`, noProgress, this.abort.signal)
         const gltf = await new GLTFLoader().parseAsync(buffer, '')
         prepareModel(gltf.scene)
+        await rawMaps(gltf.scene, gltf.parser).catch((erreur: unknown) => {
+          if (!this.abort.signal.aborted) console.warn('rejeu 3D : masques de l’arme indisponibles', key, erreur)
+        })
         if (gltf.animations.length > 0) registerClips(gltf)
         this.owned.push(gltf.scene)
         this.entries.set(key, { model: gltf.scene })

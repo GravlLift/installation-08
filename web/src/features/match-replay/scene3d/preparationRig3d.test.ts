@@ -11,6 +11,7 @@ it('abandonne un ancien revêtement même si le joueur garde son xuid', async ()
   const preparation = new PreparationRig3d({
     fichiersCharges: () => ['a'], materiauxDe: () => [], indexPieces: async () => null,
     piece: async () => null, armurerie: () => armurerie, xuid: () => '1',
+    cleArmeDe: () => 'cle-a',
   })
   preparation.changerJoueur()
   await Promise.resolve()

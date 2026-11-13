@@ -45,11 +45,12 @@ function preparationDe(coat: Coat | null): PreparationRig3d {
   return { coat: () => coat } as unknown as PreparationRig3d
 }
 
-function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation: PreparationRig3d): PeintureRig3d {
+function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation: PreparationRig3d, cleArmeDe: (fichier: string) => string | null = () => null): PeintureRig3d {
   return new PeintureRig3d({
     xuid: () => '1',
     armurerie: () => armurerie,
     preparation,
+    cleArmeDe,
   })
 }
 
@@ -89,12 +90,12 @@ describe('PeintureRig3d', () => {
     a.root.add(piece.root.children[0])
     const armurerie = armurerieDe({} as Dress)
     const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
-    const peinture = peintureDe(a.root, armurerie.armurerie, { coat: (f: string) => coats.get(f) } as unknown as PreparationRig3d)
+    const peinture = peintureDe(a.root, armurerie.armurerie, { coat: (f: string) => coats.get(f) } as unknown as PreparationRig3d, () => 'cle-a')
     peinture.actualiser('a', a.root)
     peinture.actualiser('b', b.root)
     expect(peinture.enCours('a')).toBe(true)
     expect(peinture.enCours('b')).toBe(false)
-    expect(armurerie.peindreBras).toHaveBeenCalledWith('1', expect.anything(), [a.materiau, piece.materiau])
+    expect(armurerie.peindreBras).toHaveBeenCalledWith('1', expect.anything(), [a.materiau, piece.materiau], 'cle-a')
     armurerie.resoudre(new Map([...coatDe(a.materiau), ...coatDe(piece.materiau)]))
     await tick()
     expect(peinture.materiauSource((a.root.children[1] as THREE.Mesh).material as THREE.Material)).toBe(piece.materiau)
