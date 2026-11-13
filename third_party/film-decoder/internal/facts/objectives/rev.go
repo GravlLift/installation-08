@@ -234,19 +234,6 @@ package objectives
 // qu aucun bit soit lu autrement. SORTIE IDENTIQUE, prouvee par les digests `replay-equiv` des 20 films de
 // reference (egaux au temoin d avant le lot) et par la liste des tests (memes noms, memes verdicts). Golden
 // de revision et golden de perimetre regeneres une seule fois.
-<<<<<<< ours
-// A REVISION CONSTANTE (lot 8 « actions du film », 2026-11-09) : la VALEUR de `grammar.Rev` monte a
-// `grammar-2026-11-09` (jeu d armes desire par trame, messages `damage_aftermath` gardes) ; aucune source de
-// cette couche ne change et aucune de ses lectures n appelle ces canaux, l empreinte du golden est recopiee.
-// A REVISION CONSTANTE (lot 8, item 3, 2026-11-09) : `grammar.Rev` monte a `grammar-2026-11-09.2` (la vue A
-// garde aussi les genres 38, 39, 40) ; aucune source de cette couche ne change, golden recopie.
-// A REVISION CONSTANTE (lot 8, item 6, 2026-11-09) : `grammar.Rev` monte a `grammar-2026-11-09.3` (visee modale
-// du tir sous ses deux drapeaux nuls) ; aucune lecture de cette couche ne consomme la visee du tir, golden recopie.
-// A REVISION CONSTANTE (lot 8, postures de la commande, 2026-11-09) : `grammar.Rev` monte a
-// `grammar-2026-11-09.4` (changements de la commande lus dans la vue C) ; aucune lecture de cette couche ne
-// consomme la commande, golden recopie.
-||||||| base
-=======
 // A REVISION CONSTANTE (equipement porte, identite lue sur l objet, 2026-11-08) : la VALEUR de `grammar.Rev` monte a
 // `grammar-2026-11-08` (le canal de l equipement porte rend le GlobalID de chaque objet attache) et `film/types` gagne deux
 // champs de la lecture de l equipement porte ; aucune source de cette couche ne change et aucune de ses lectures n appelle
@@ -286,7 +273,16 @@ package objectives
 // (`profile-2026-11-12.2`) et de `grammar.Rev` (`grammar-2026-11-12.4`) montent ; aucune source de cette couche ne change. Les tests de
 // la couche et ses fixtures sont ceux d avant ; les mesures du banc de verite du `replay-corpus-gate` ne se lancent pas depuis le depot
 // dedie du decodeur ; l empreinte du golden est recopiee au meme rang.
->>>>>>> upstream
+// A REVISION CONSTANTE (lot 8 « actions du film », 2026-11-09) : la VALEUR de `grammar.Rev` monte a
+// `grammar-2026-11-09` (jeu d armes desire par trame, messages `damage_aftermath` gardes) ; aucune source de
+// cette couche ne change et aucune de ses lectures n appelle ces canaux, l empreinte du golden est recopiee.
+// A REVISION CONSTANTE (lot 8, item 3, 2026-11-09) : `grammar.Rev` monte a `grammar-2026-11-09.2` (la vue A
+// garde aussi les genres 38, 39, 40) ; aucune source de cette couche ne change, golden recopie.
+// A REVISION CONSTANTE (lot 8, item 6, 2026-11-09) : `grammar.Rev` monte a `grammar-2026-11-09.3` (visee modale
+// du tir sous ses deux drapeaux nuls) ; aucune lecture de cette couche ne consomme la visee du tir, golden recopie.
+// A REVISION CONSTANTE (lot 8, postures de la commande, 2026-11-09) : `grammar.Rev` monte a
+// `grammar-2026-11-09.4` (changements de la commande lus dans la vue C) ; aucune lecture de cette couche ne
+// consomme la commande, golden recopie.
 
 // Rev est la revision de la sortie des objectifs.
 const Rev = "objectives-2026-10-17"

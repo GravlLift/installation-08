@@ -79,23 +79,11 @@ func projDe(g Grenade) int {
 	return *g.Proj
 }
 
-<<<<<<< ours
 // trierTirs range les tirs publies par frame, les tirs d une meme frame par leur decale O, les
 // tirs de la meme milliseconde dans l ORDRE DU FILM (lot J10.1, 2026-09-27, DT-9). Une frame de
-// la grille (100 ms) porte souvent plusieurs tirs, parfois d un meme tireur au meme point : le
+// la grille  porte souvent plusieurs tirs, parfois d un meme tireur au meme point : le
 // decale en millisecondes les separe quand il le peut, et leur seul rang restant est celui du
 // flux des evenements de tir, que le tri STABLE conserve.
-||||||| base
-// trierTirs range les tirs publies par frame, les tirs d une meme frame dans l ORDRE DU FILM (lot
-// J10.1, 2026-09-27, DT-9). Une frame de la grille (100 ms) porte souvent plusieurs tirs, parfois
-// d un meme tireur au meme point : aucun champ publie ne les separe, leur seule cle unique est leur
-// rang dans le flux des evenements de tir, que le tri STABLE conserve.
-=======
-// trierTirs range les tirs publies par frame, les tirs d une meme frame dans l ORDRE DU FILM (lot
-// J10.1, 2026-09-27, DT-9). Une frame de la grille porte souvent plusieurs tirs, parfois
-// d un meme tireur au meme point : aucun champ publie ne les separe, leur seule cle unique est leur
-// rang dans le flux des evenements de tir, que le tri STABLE conserve.
->>>>>>> upstream
 func trierTirs(out []Shot) {
 	slices.SortStableFunc(out, func(a, b Shot) int {
 		return cmp.Or(cmp.Compare(a.T, b.T), cmp.Compare(a.O, b.O))
