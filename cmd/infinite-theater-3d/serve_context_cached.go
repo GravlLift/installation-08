@@ -13,8 +13,8 @@ import (
 )
 
 type contextMedal struct {
-	ID              int64 `json:"nameId"`
-	Name            struct {
+	ID   int64 `json:"nameId"`
+	Name struct {
 		Value string `json:"value"`
 	} `json:"name"`
 	Description struct {
