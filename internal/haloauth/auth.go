@@ -48,7 +48,9 @@ func New(dir string, client *http.Client, endpoints Endpoints) *Client {
 	if client == nil {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
-	return &Client{dir: dir, http: client, endpoints: endpoints}
+	copyClient := *client
+	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Client{dir: dir, http: &copyClient, endpoints: endpoints}
 }
 
 type deviceResponse struct {
@@ -81,6 +83,9 @@ func (c *Client) Login(ctx context.Context, id string, show func(string, string)
 	show(d.URI, d.Code)
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(d.Expires)*time.Second)
 	defer cancel()
+	if d.Interval <= 0 {
+		d.Interval = 5
+	}
 	interval := time.Duration(d.Interval) * time.Second
 	for {
 		if interval > 0 {

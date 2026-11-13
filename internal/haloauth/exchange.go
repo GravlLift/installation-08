@@ -36,7 +36,17 @@ func (c *Client) exchange(ctx context.Context, access string) (Credentials, erro
 	if err != nil {
 		return Credentials{}, err
 	}
-	if xsts.Token == "" || len(xsts.Display.XUI) == 0 {
+	if xsts.Token == "" {
+		return Credentials{}, errors.New("missing Xbox identity")
+	}
+	identity := xsts
+	if len(identity.Display.XUI) == 0 || identity.Display.XUI[0].Gamertag == "" || identity.Display.XUI[0].XUID == "" {
+		_, err = c.json(ctx, c.endpoints.XSTS, map[string]any{"RelyingParty": "http://xboxlive.com", "TokenType": "JWT", "Properties": map[string]any{"SandboxId": "RETAIL", "UserTokens": []string{user.Token}}}, &identity)
+		if err != nil {
+			return Credentials{}, err
+		}
+	}
+	if len(identity.Display.XUI) == 0 || identity.Display.XUI[0].Gamertag == "" || identity.Display.XUI[0].XUID == "" {
 		return Credentials{}, errors.New("missing Xbox identity")
 	}
 	var sp struct {
@@ -68,5 +78,5 @@ func (c *Client) exchange(ctx context.Context, access string) (Credentials, erro
 		return Credentials{}, errors.New("missing clearance token")
 	}
 	expiry, _ := time.Parse(time.RFC3339, sp.Expires.ISO)
-	return Credentials{Spartan: sp.Token, Clearance: clearance.ID, Gamertag: xsts.Display.XUI[0].Gamertag, XUID: xsts.Display.XUI[0].XUID, Expires: expiry}, nil
+	return Credentials{Spartan: sp.Token, Clearance: clearance.ID, Gamertag: identity.Display.XUI[0].Gamertag, XUID: identity.Display.XUI[0].XUID, Expires: expiry}, nil
 }
