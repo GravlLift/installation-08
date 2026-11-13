@@ -1,13 +1,16 @@
-# Ported from LevelUp's weapon registry, the table weaponRegistryInfiniteFilmshell in
-# apps/go-api/internal/games/weapons/registry.go (worktree replay-3d, branch integration).
+# Ported in full from LevelUp's weapon registry, the table weaponRegistryInfiniteFilmshell in
+# apps/go-api/internal/games/weapons/registry.go (worktree replay-3d, branch integration):
+# every entry the registry gives LevelUp's cat.Keys (FilmshellWeaponKeysByFamily, one line
+# per family, first id per key) and nothing else.
 #
 # Hand-written mapping of a weapon family (the high 32 bits of the film's 64-bit weapon id)
 # to the title's canonical weapon_key: the join that lets a decoded shot name the weapon
-# that fired it. One line per family, in the registry's order, first id per key.
+# that fired it.
 
 [families]
 "2b1824d5" = "hinf_br75"
 "2fb21c87" = "hinf_bandit"
+"6acdc44d" = "hinf_bandit"
 "48c19d2d" = "hinf_ma40_ar"
 "f5c335df" = "hinf_ma5k_avenger"
 "fd98554c" = "hinf_vk78_commando"
@@ -27,6 +30,7 @@
 "2ac9c2ff" = "hinf_heatwave"
 "c30d87c7" = "hinf_ravager"
 "9387a8b9" = "hinf_shock_rifle"
+"1a22fee6" = "hinf_shock_rifle"
 "84bd29ed" = "hinf_disruptor"
 "80977ba5" = "hinf_mangler"
 "d7915565" = "hinf_mutilator"
@@ -38,3 +42,4 @@
 "3ad55da4" = "hinf_dynamo_grenade"
 "00007ca9" = "hinf_unarmed"
 "e9e7ff79" = "hinf_coil_kinetic"
+"1d63a8cd" = "hinf_coil_kinetic"
