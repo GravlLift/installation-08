@@ -55,7 +55,7 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 	if _, err = c.Chunk(ctx, m.Prefix, m.Custom.Chunks[0]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = c.Mvar(ctx, "map"); err != nil {
+	if _, err = c.Mvar(ctx, "map", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = c.Customization(ctx, "123"); err != nil {
@@ -65,5 +65,35 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 	var gone *FilmUnavailableError
 	if !errors.As(err, &gone) {
 		t.Fatalf("expected film unavailable: %v", err)
+	}
+}
+
+func TestRetriesAndBlobDoesNotCarryCredentials(t *testing.T) {
+	attempts := 0
+	var base string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/blob" {
+			if r.Header.Get("x-343-authorization-spartan") != "" || r.Header.Get("343-clearance") != "" {
+				t.Error("credentials sent to blob")
+			}
+			fmt.Fprint(w, "abc")
+			return
+		}
+		attempts++
+		if attempts < 3 {
+			w.WriteHeader(503)
+			return
+		}
+		fmt.Fprint(w, `{"MatchInfo":{}}`)
+	}))
+	defer s.Close()
+	base = s.URL
+	c := New(s.Client(), Endpoints{Stats: base, Discovery: base, Economy: base}, "test-secret", "test-clearance")
+	c.interval = 0
+	if _, err := c.Stats(context.Background(), "abc"); err != nil || attempts != 3 {
+		t.Fatalf("retry %d %v", attempts, err)
+	}
+	if _, err := c.Chunk(context.Background(), base, Chunk{Path: "blob", Size: 3}); err != nil {
+		t.Fatal(err)
 	}
 }

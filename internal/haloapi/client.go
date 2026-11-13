@@ -137,12 +137,19 @@ func blobURL(prefix, rel string) string {
 }
 
 type Match struct {
-	ID   string `json:"MatchId"`
-	Info struct {
-		Start string `json:"StartTime"`
-		Map   any    `json:"MapVariant"`
-		Mode  any    `json:"UgcGameVariant"`
-	} `json:"MatchInfo"`
+	ID   string `json:"id"`
+	Map  string `json:"map"`
+	Mode string `json:"mode"`
+	Time string `json:"time"`
+}
+type matchInfo struct {
+	Start string `json:"StartTime"`
+	Map   struct {
+		Name string `json:"PublicName"`
+	} `json:"MapVariant"`
+	Mode struct {
+		Name string `json:"PublicName"`
+	} `json:"UgcGameVariant"`
 }
 
 func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, error) {
@@ -150,11 +157,44 @@ func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, 
 		return nil, errors.New("count must be between 1 and 25")
 	}
 	var result struct {
-		Results []Match `json:"Results"`
+		Results []struct {
+			ID   string    `json:"MatchId"`
+			Info matchInfo `json:"MatchInfo"`
+		} `json:"Results"`
 	}
 	_, err := c.json(ctx, fmt.Sprintf("%s/players/xuid(%s)/matches?count=%d&start=0&type=all", c.endpoints.Stats, segment(xuid), count), &result)
-	return result.Results, err
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Match, 0, len(result.Results))
+	for _, row := range result.Results {
+		info := row.Info
+		if info.Map.Name == "" || info.Mode.Name == "" {
+			raw, e := c.Stats(ctx, row.ID)
+			if e != nil {
+				return nil, e
+			}
+			var details struct {
+				Info matchInfo `json:"MatchInfo"`
+			}
+			if json.Unmarshal(raw, &details) != nil {
+				return nil, errors.New("invalid match stats")
+			}
+			if info.Map.Name == "" {
+				info.Map = details.Info.Map
+			}
+			if info.Mode.Name == "" {
+				info.Mode = details.Info.Mode
+			}
+			if info.Start == "" {
+				info.Start = details.Info.Start
+			}
+		}
+		out = append(out, Match{ID: row.ID, Map: info.Map.Name, Mode: info.Mode.Name, Time: info.Start})
+	}
+	return out, nil
 }
+
 func (c *Client) Stats(ctx context.Context, id string) ([]byte, error) {
 	var v any
 	return c.json(ctx, c.endpoints.Stats+"/matches/"+segment(id)+"/stats", &v)
@@ -199,14 +239,18 @@ func (c *Client) Customization(ctx context.Context, xuid string) ([]byte, error)
 	var v any
 	return c.json(ctx, c.endpoints.Economy+"/players/xuid("+segment(xuid)+")/customization?view=public", &v)
 }
-func (c *Client) Mvar(ctx context.Context, id string) ([]byte, error) {
+func (c *Client) Mvar(ctx context.Context, id, version string) ([]byte, error) {
 	var a struct {
 		Files struct {
 			Prefix string   `json:"Prefix"`
 			Paths  []string `json:"FileRelativePaths"`
 		} `json:"Files"`
 	}
-	_, err := c.json(ctx, c.endpoints.Discovery+"/Maps/"+segment(id), &a)
+	endpoint := c.endpoints.Discovery + "/Maps/" + segment(id)
+	if version != "" {
+		endpoint += "/versions/" + segment(version)
+	}
+	_, err := c.json(ctx, endpoint, &a)
 	if err != nil {
 		return nil, err
 	}
