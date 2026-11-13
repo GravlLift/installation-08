@@ -21,7 +21,7 @@ match-replay/model/shotFx.ts`) that the shell simply never invoked.
 |---|---|---|---|
 | meshPath (map GLB) | `ui/Replay3DView.tsx:56`, fed by `lib/replay/meshBuild.ts:217-236` (`useReplayMesh3d`) and `lib/replay/queries.ts:128` (`replayMeshPath`) | **wired**: `src/lib/api/standalone.ts` (`meshUrl`) points at this server's own `GET /api/matches/{id}/mesh.glb`, through the Vite dev proxy (`vite.config.ts`, `/api` → `127.0.0.1:8177`); `MatchViewScreen` pre-checks it with `checkMesh` (a `HEAD`, falling back to a `GET` of the typed 404 body) before mounting the 3D view, so `mesh_not_built` shows a message naming the module key instead of a loader error | none |
 | variantPath (mvar object layer) | `ui/Replay3DView.tsx:58`, `meshBuild.ts:73,141` | missing: `App.tsx:221` passes `variantPath={null}` | serve `.../replay/variant.glb` and pass its URL |
-| weaponsPath (weapon models folder) | `ui/Replay3DView.tsx:59`, `meshBuild.ts:75,227` | missing: `App.tsx:221` passes `weaponsPath={null}` | serve `.../replay/weapons` folder and pass its base path |
+| weaponsPath (weapon models folder) | `ui/Replay3DView.tsx:59`, consumed by `scene3d/weaponModels3d.ts:108` via `Replay3DView.tsx:190-194` | server done: `GET /api/weapons` + `GET /api/weapons/{key}.glb` (built by `build-weapons` or `POST /api/weapons/build`). Still not wired: `screens/MatchViewScreen.tsx:230` passes `weaponsPath={null}` | the web change passes `weaponsPath="/api/weapons"` (proxied) to `Replay3DView`; no further server work |
 | armor (spartan armor manifest + pieces) | `ui/Replay3DView.tsx:61`, `meshBuild.ts:77,228-231`, `lib/replay/spartanArmor.ts:87-103` | missing: `App.tsx:222` passes `armor={null}` | serve `.../replay/spartans` and `.../replay/spartan-pieces/{file}`, build a `ReplayArmorSource` |
 | doc (replay document) | `lib/replay/queries.ts:37-79` (`useMatchReplay`, route `/players/{slug}/matches/{id}/replay`) | **wired**: `src/lib/api/standalone.ts` (`fetchReplayDocument`) calls this server's own `GET /api/matches/{id}/replay` (gzip over the wire, decompressed transparently by `fetch`) through the Vite proxy; `normalizeReplayDocument` kept unchanged | none |
 | frameRef / playback clock | n/a (page-local ref) | wired: `screens/MatchViewScreen.tsx` (`ReplayViewer`'s `frameRef`), driven by `PlaybackBar`'s `requestAnimationFrame` loop in the same file | none, functionally equivalent (LevelUp's `useReplayClock`/`useReplayPlayback` are richer but not required) |
@@ -83,13 +83,17 @@ match-replay/model/shotFx.ts`) that the shell simply never invoked.
 | `GET /players/{slug}/matches/{id}/replay/callouts` | `lib/replay/queries.ts:261-274` | named map zones (2D-only) | not shimmed; not needed by the 3D view |
 | `HEAD`/`GET /players/{slug}/matches/{id}/replay/mesh.glb` | `lib/replay/queries.ts:128-130,189-196`; fetched by `scene3d/meshFetch.ts` via `Replay3DView.tsx:149` | the 3D map mesh GLB | yes — by this server's own `GET /api/matches/{id}/mesh.glb` (range-capable, `mesh_not_built` JSON 404 named and handled before mount) |
 | `HEAD`/`GET /players/{slug}/matches/{id}/replay/variant.glb` | `lib/replay/queries.ts:136-138,203-210` | variant object layer GLB (crates, cover from the `.mvar`) | not shimmed; `screens/MatchViewScreen.tsx` passes `variantPath: null` |
-| `GET /players/{slug}/matches/{id}/replay/weapons` (folder, `<key>.glb` files) | `lib/replay/queries.ts:141-143`; consumed by `scene3d/weaponModels3d.ts` via `Replay3DView.tsx:190-194` | weapon GLB models, keyed by weapon | not shimmed; `screens/MatchViewScreen.tsx` passes `weaponsPath: null` |
-| `GET`/`POST /players/{slug}/matches/{id}/replay/mesh/build` | `lib/replay/meshBuild.ts:96-98,158-210` | mesh/variant build status, and triggers a build | not shimmed; no build flow exists in the standalone server |
+| `GET /players/{slug}/matches/{id}/replay/weapons` (folder, `<key>.glb` files) | `lib/replay/queries.ts:141-143`; consumed by `scene3d/weaponModels3d.ts:108` (`${base}/${key}.glb`) via `Replay3DView.tsx:190-194` | weapon GLB models, keyed by weapon | **shimmed**: this server's own `GET /api/weapons` (the `index.json`, `{"schema":1,"weapons":[...]}`, `404 weapons_not_built` before a build) and `GET /api/weapons/{key}.glb` (range-capable; `weapon_model_not_available` JSON 404 for a malformed key or a path escape). Built by `build-weapons` or on demand via `POST /api/weapons/build` / `GET /api/weapons/state` (the weapons job shares the map build queue). A web change points the scene at it by passing a non-null `weaponsPath` (`/api/weapons`, proxied) to `Replay3DView` — still `null` in `screens/MatchViewScreen.tsx:230` until that change lands |
+| `GET`/`POST /players/{slug}/matches/{id}/replay/mesh/build` | `lib/replay/meshBuild.ts:96-98,158-210` | mesh/variant build status, and triggers a build | **shimmed** for the map and the weapon library: `GET /api/matches/{id}/mesh/state`, `POST /api/matches/{id}/mesh/build`, and `GET /api/weapons/state` / `POST /api/weapons/build` |
 | `GET /players/{slug}/matches/{id}/replay/spartans` | `lib/replay/spartanArmor.ts:103` | spartan armor manifest per player | not shimmed; `screens/MatchViewScreen.tsx` passes `armor: null` |
 | `GET /players/{slug}/matches/{id}/replay/spartan-pieces/{file}` | `lib/replay/spartanArmor.ts:87-88`, consumed by `scene3d/armorLibrary3d.ts` | armor piece model files | not shimmed; same as above |
 
-The standalone server now serves the document and the mesh itself (`GET /api/matches/{id}/replay`,
-`GET /api/matches/{id}/mesh.glb`, proxied at `/api/*` by `vite.config.ts`) — see `src/lib/api/standalone.ts`.
-Still missing: variant/weapons/spartans/spartan-pieces (no server route for any of them) and `/replay/context`
-(no server route; `action.kills` is instead read from the document itself, see §1). `/replay/mesh/build`,
-`/replay/background*`, and `/replay/callouts` are not required for the 3D-only shell.
+The standalone server now serves the document, the mesh, and the weapon library itself (`GET
+/api/matches/{id}/replay`, `GET /api/matches/{id}/mesh.glb`, `GET /api/weapons` + `GET
+/api/weapons/{key}.glb`, all proxied at `/api/*` by `vite.config.ts`) — see `src/lib/api/standalone.ts`.
+Still missing: variant, spartans and spartan-pieces (no server route for any of them) and
+`/replay/context` (no server route; `action.kills` is instead read from the document itself,
+see §1). The weapons folder is served, but the scene is still pointed at `weaponsPath: null`
+(`screens/MatchViewScreen.tsx:230`) until the web change passes `/api/weapons`. `/replay/mesh/build`
+is shimmed (map + weapon-library state and build routes); `/replay/background*` and
+`/replay/callouts` are not required for the 3D-only shell.

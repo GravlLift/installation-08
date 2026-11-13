@@ -11,6 +11,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 // meshTestStore builds a temp store with two matches: "abc" (module "moda", no mesh file)
@@ -102,13 +103,19 @@ func waitMeshReady(t *testing.T, h http.Handler, path string) string {
 	return body
 }
 
+// newTestHandlers builds a serverHandlers with the given store, runner and weapon catalog. The
+// mesh-route tests pass an empty weapon catalog (they exercise the mesh routes only).
+func newTestHandlers(root *store.Root, jobs *meshjobs.Runner) serverHandlers {
+	return newServerHandlers(root, "", jobs, weapons.Catalog{})
+}
+
 // TestMeshBuildStartsAndJoins — POST build on a match with no mesh returns 202; the state
 // route transitions absent -> (queued|building) -> ready; a second POST joins, not a
 // duplicate build.
 func TestMeshBuildStartsAndJoins(t *testing.T) {
 	root := meshTestStore(t)
 	jobs := meshTestRunner(t, root)
-	h := newServerHandlers(root, "", jobs)
+	h := newTestHandlers(root, jobs)
 
 	rec := postMesh(t, h, "/api/matches/abc/mesh/build", nil)
 	if rec.Code != http.StatusAccepted {
@@ -132,7 +139,7 @@ func TestMeshBuildStartsAndJoins(t *testing.T) {
 func TestMeshBuildOriginCheck(t *testing.T) {
 	root := meshTestStore(t)
 	jobs := meshTestRunner(t, root)
-	h := newServerHandlers(root, "", jobs)
+	h := newTestHandlers(root, jobs)
 
 	rec := postMesh(t, h, "/api/matches/abc/mesh/build", map[string]string{"Origin": "https://evil.example.com"})
 	if rec.Code != http.StatusForbidden {
@@ -151,7 +158,7 @@ func TestMeshBuildOriginCheck(t *testing.T) {
 func TestMeshBuildUnknownMatch(t *testing.T) {
 	root := meshTestStore(t)
 	jobs := meshTestRunner(t, root)
-	h := newServerHandlers(root, "", jobs)
+	h := newTestHandlers(root, jobs)
 
 	rec := postMesh(t, h, "/api/matches/fff0000/mesh/build", nil)
 	if rec.Code != http.StatusNotFound {
@@ -172,7 +179,7 @@ func TestMeshBuildNoModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	jobs := meshTestRunner(t, root)
-	h := newServerHandlers(root, "", jobs)
+	h := newTestHandlers(root, jobs)
 
 	rec := postMesh(t, h, "/api/matches/abc/mesh/build", nil)
 	if rec.Code != http.StatusConflict {
@@ -189,7 +196,7 @@ func TestMeshBuildNoModule(t *testing.T) {
 func TestMeshStateTransitions(t *testing.T) {
 	root := meshTestStore(t)
 	jobs := meshTestRunner(t, root)
-	h := newServerHandlers(root, "", jobs)
+	h := newTestHandlers(root, jobs)
 	statePath := "/api/matches/abc/mesh/state"
 
 	// Absent before any build.

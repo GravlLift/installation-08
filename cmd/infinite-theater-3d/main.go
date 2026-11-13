@@ -16,6 +16,7 @@ const usage = `usage: infinite-theater-3d <command> [flags]
   build-mesh --map <key> [--game <root>] --out <file.glb>
   build-variant --map <key> --mvar <file.mvar> [--game <root>] --out <file.glb>
   build-weapon --weapon <hex-id> --map <key> [--game <root>] --out <file.glb>
+  build-weapons --map <key> [--game <root>] [--data <dir>]
   build-spartan --map <key> [--game <root>] --out <file.glb>
   build-piece --region <hex-id> --permutation <hex-id> --map <key> [--game <root>] [--ekur <dir>] --out <file.glb>
   build-firstperson --weapon <hex-id> --map <key> [--game <root>] [--no-arms] [--ekur <dir>] --out <file.glb>`
@@ -30,6 +31,7 @@ var commands = map[string]func([]string) error{
 	"build-mesh":        runBuildMesh,
 	"build-variant":     runBuildVariant,
 	"build-weapon":      runBuildWeapon,
+	"build-weapons":     runBuildWeapons,
 	"build-spartan":     runBuildSpartan,
 	"build-piece":       runBuildPiece,
 	"build-firstperson": runBuildFirstPerson,

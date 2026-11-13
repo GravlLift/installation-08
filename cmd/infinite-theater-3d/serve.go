@@ -27,6 +27,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 // Version is the build version served by /api/health.
@@ -38,6 +39,7 @@ type serveFlags struct {
 	web     string
 	dataDir string
 	game    string
+	mapKey  string
 }
 
 // parseServeFlags turns `serve` arguments into serveFlags.
@@ -47,7 +49,8 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
 	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional)")
 	fs.StringVar(&f.dataDir, "data", "", "data directory (default: IT3D_DATA_DIR or %LOCALAPPDATA%/infinite-theater-3d/data)")
-	fs.StringVar(&f.game, "game", "", "game deploy root for map builds (empty auto-detects, as build-mesh does)")
+	fs.StringVar(&f.game, "game", "", "game deploy root for map and weapon builds (empty auto-detects)")
+	fs.StringVar(&f.mapKey, "map", "", "installed map whose module index weapon builds open (default: first map in the data store)")
 	err := fs.Parse(args)
 	if err != nil {
 		return f, err
@@ -70,13 +73,14 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	jobs, err := meshJobsFor(root, f.game)
+	weaponKeys := weaponCatalogFor(root, f.mapKey)
+	jobs, err := meshJobsFor(root, f.game, weaponKeys)
 	if err != nil {
 		return err
 	}
 	jobs.Start()
 	defer jobs.Stop(5 * time.Second)
-	h := newServerHandlers(root, f.web, jobs)
+	h := newServerHandlers(root, f.web, jobs, weaponKeys)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -107,11 +111,17 @@ func runServe(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// meshJobsFor wires the mesh build runner to the store: the ready callback reports whether
-// a module's mesh file exists, the destination maps a module to its store path, and the
-// builder is the real map build (meshbuild.BuildMap) with the deploy root from --game.
-func meshJobsFor(root *store.Root, gameRoot string) (*meshjobs.Runner, error) {
+// meshJobsFor wires the mesh build runner to the store: the ready callback reports whether a
+// module's output is on disk (a map's mesh file, or the weapon library's index), the
+// destination maps a module to its output file, and the builder runs the real map build for a
+// map module and the real weapon-library build for the weapons job. The weapons job shares the
+// runner's queue with the map builds, so it never runs beside one.
+func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) (*meshjobs.Runner, error) {
 	ready := func(module string) bool {
+		if module == meshjobs.JobWeapons {
+			_, err := os.Stat(filepath.Join(root.Dir(), "weapons", "index.json"))
+			return err == nil
+		}
 		p, err := root.MeshPath(module)
 		if err != nil {
 			return false
@@ -120,6 +130,9 @@ func meshJobsFor(root *store.Root, gameRoot string) (*meshjobs.Runner, error) {
 		return err == nil
 	}
 	dest := func(module string) string {
+		if module == meshjobs.JobWeapons {
+			return filepath.Join(root.Dir(), "weapons")
+		}
 		p, err := root.MeshPath(module)
 		if err != nil {
 			return module + ".glb"
@@ -127,6 +140,9 @@ func meshJobsFor(root *store.Root, gameRoot string) (*meshjobs.Runner, error) {
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		if module == meshjobs.JobWeapons {
+			return buildWeaponLibrary(ctx, root, game, weaponKeys)
+		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {
 			return meshjobs.BuildResult{}, err
@@ -141,14 +157,25 @@ func meshJobsFor(root *store.Root, gameRoot string) (*meshjobs.Runner, error) {
 	return r, nil
 }
 
-// serverHandlers bundles the store, the optional static directory, and the mesh build
-// runner. It implements http.Handler: ServeHTTP serves the static files for non-API paths
-// and the mux for the API routes.
+// buildWeaponLibrary runs the weapon library build into the store's weapons folder. It is the
+// weapons job's body in the mesh build runner.
+func buildWeaponLibrary(ctx context.Context, root *store.Root, gameRoot string, keys weapons.Catalog) (meshjobs.BuildResult, error) {
+	result, err := weapons.Build(ctx, weapons.Options{Catalog: keys, GameRoot: gameRoot, DataDir: root.Dir()}, nil)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: result.Bytes, Triangles: 0}, nil
+}
+
+// serverHandlers bundles the store, the optional static directory, the mesh build runner, and
+// the weapon catalog. It implements http.Handler: ServeHTTP serves the static files for
+// non-API paths and the mux for the API routes.
 type serverHandlers struct {
-	root *store.Root
-	web  string
-	jobs *meshjobs.Runner
-	mux  *http.ServeMux
+	root     *store.Root
+	web      string
+	jobs     *meshjobs.Runner
+	weapKeys weapons.Catalog
+	mux      *http.ServeMux
 }
 
 // ServeHTTP routes a request: a static file when the web directory serves it, otherwise
@@ -164,8 +191,8 @@ func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // newServerHandlers builds the server: the API routes on a mux, wrapped by the static
 // fallback. It returns the concrete handler (which implements http.Handler) so a test can
 // drive the routes directly as well as through the full server.
-func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner) serverHandlers {
-	h := serverHandlers{root: root, web: web, jobs: jobs}
+func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weaponKeys weapons.Catalog) serverHandlers {
+	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/matches", h.handleMatches)
@@ -173,6 +200,10 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner) serv
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
 	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
+	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)
+	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
+	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)
+	mux.HandleFunc("GET /api/weapons/{file}", h.handleWeaponModel)
 	h.mux = mux
 	return h
 }

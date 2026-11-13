@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 // newFakeStore builds a temp store with one match ("abc") holding a gzip document and a
@@ -66,7 +67,7 @@ func get(t *testing.T, h http.Handler, path string, headers map[string]string) *
 
 // TestServeHealth — /api/health answers ok and the version.
 func TestServeHealth(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	rec := get(t, h, "/api/health", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -78,7 +79,7 @@ func TestServeHealth(t *testing.T) {
 
 // TestServeMatches — /api/matches returns the summaries, newest first (one match here).
 func TestServeMatches(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	rec := get(t, h, "/api/matches", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -92,7 +93,7 @@ func TestServeMatches(t *testing.T) {
 // TestServeReplayGzip — a gzip-accepting client gets the document with Content-Encoding
 // gzip; a plain client gets it decompressed.
 func TestServeReplayGzip(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	// gzip-accepting
 	rec := get(t, h, "/api/matches/abc/replay", map[string]string{"Accept-Encoding": "gzip"})
 	if rec.Code != http.StatusOK {
@@ -125,7 +126,7 @@ func TestServeReplayGzip(t *testing.T) {
 // path-walks a literal request path before dispatch, so a traversal id is refused (307 or
 // 404) by the mux before it reaches the handler, which is also safe.
 func TestServeReplayInvalidID(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	for _, id := range []string{"../etc", "a/b", "xyz!"} {
 		req := httptest.NewRequest(http.MethodGet, "/api/matches/"+id+"/replay", nil)
 		req.SetPathValue("id", id)
@@ -140,7 +141,7 @@ func TestServeReplayInvalidID(t *testing.T) {
 // TestServeReplayMuxRefusesTraversal — through the full server, a traversal id is refused
 // by the mux (307 or 404) and never reads a file outside the store.
 func TestServeReplayMuxRefusesTraversal(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	for _, id := range []string{"../etc", "a/b"} {
 		rec := get(t, h, "/api/matches/"+id+"/replay", nil)
 		if rec.Code == http.StatusOK {
@@ -151,7 +152,7 @@ func TestServeReplayMuxRefusesTraversal(t *testing.T) {
 
 // TestServeReplayNotFound — a valid-but-absent match id is a JSON 404.
 func TestServeReplayNotFound(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	rec := get(t, h, "/api/matches/fff0000/replay", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -165,7 +166,7 @@ func TestServeReplayNotFound(t *testing.T) {
 // the requested slice with a 206 and the right Content-Length; a HEAD returns the full
 // length.
 func TestServeMeshRange(t *testing.T) {
-	h := newServerHandlers(newFakeStore(t), "", nil)
+	h := newTestHandlers(newFakeStore(t), nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/matches/abc/mesh.glb", nil)
 	req.Header.Set("Range", "bytes=0-3")
 	rec := httptest.NewRecorder()
@@ -199,7 +200,7 @@ func TestServeMeshNotBuilt(t *testing.T) {
 	if err := root.SaveMatchMeta("abc", store.Match{MatchID: "abc", MapName: "M", MapModule: "missing_mod", ImportedAt: "2026-01-01T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil)
+	h := newTestHandlers(root, nil)
 	rec := get(t, h, "/api/matches/abc/mesh.glb", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
@@ -217,7 +218,7 @@ func TestServeStaticFallback(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(web, "index.html"), []byte("<html>home</html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, web, nil)
+	h := newServerHandlers(root, web, nil, weapons.Catalog{})
 	rec := get(t, h, "/some/spa/route", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "home") {
 		t.Fatalf("spa fallback: status=%d body=%s", rec.Code, rec.Body.String())

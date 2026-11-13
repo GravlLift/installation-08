@@ -55,6 +55,30 @@ The map's objective-anchor positions, name list and background calibration come 
 - `--map` is any installed map's module key, as in `build-mesh`; its index covers the game's weapons.
 - `--game` and `--out` are as in `build-mesh`.
 
+## build-weapons
+
+`build-weapons` builds the whole weapon model library at once: every weapon in the installed
+game's roster (its `weap` tags), the game's grenade projectiles, and the Spartan body with its
+game animations, into the data directory's `weapons` folder, plus the `index.json` the viewer
+reads. Each model reuses the same per-model builder `build-weapon` and `build-spartan` use
+(`mapmesh`), so the GLBs are byte-compatible with a single-weapon build:
+
+```powershell
+.\infinite-theater-3d.exe build-weapons --map <module-key> [--game <deploy-root>] [--data <dir>]
+```
+
+- `--map` is any installed map's module key; its index's search path covers the game's
+  `globals`/`common` modules, where the weapons and the Spartan live.
+- `--game` is the deploy root; omitted, it auto-detects the same way `build-mesh` does.
+- `--data` is the data directory the library lands in (`<dir>/weapons`); default
+  `IT3D_DATA_DIR` or `%LOCALAPPDATA%/infinite-theater-3d/data`.
+
+The roster is the game's own `weap` tags, so the library covers every weapon a match can name
+without a replay-specific selection. A weapon whose model cannot be read (no visible geometry
+in its `default` variant, or an unreadable material) is written as an empty `<key>.none`
+marker, not an error: the build continues and the viewer falls back to a placeholder for it.
+The command reports how many were built, how many skipped, the total bytes, and the wall time.
+
 ## build-spartan
 
 `build-spartan` writes the Spartan body (default armor) as an animated skinned GLB: squelette, geometry and influences, with the posture/class-agnostic body animations baked on (idle, locomotion in eight directions, crouch, slide, airborne, landing, climb, thruster dodge, melee, death — `mapmesh.BodyAnimations`, 73 animations as of this build):
@@ -102,13 +126,16 @@ to loopback by default and serves the match list, a match's replay document (gzi
 or decompressed), and a map's mesh (range-capable):
 
 ```powershell
-.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>]
+.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>] [--map <module-key>]
 ```
 
 - `--addr` is the listen address (loopback by default, `127.0.0.1:8177`).
 - `--data` is the data directory (default: `IT3D_DATA_DIR` or `%LOCALAPPDATA%/infinite-theater-3d/data`).
-- `--game` is the game deploy root passed to on-demand map builds; omitted, it auto-detects
-  the same way `build-mesh` does.
+- `--game` is the game deploy root passed to on-demand map and weapon builds; omitted, it
+  auto-detects the same way `build-mesh` does.
+- `--map` is the installed map whose module index the weapon-library build opens (its search
+  path covers the game's `globals`/`common` weapons). Omitted, it defaults to the first map
+  in the data store; with no map in the store the weapon routes answer `409`.
 
 Routes:
 
@@ -127,10 +154,29 @@ Routes:
   `{"state":"absent|queued|building|ready|failed","moduleKey":"...","error":"...",
   "queuePosition":N,"startedAt":"...","elapsedMs":N}` (fields that do not apply are omitted).
 
-A map builds at most one at a time process-wide; further requests queue in arrival order, and
-a request for a map already queued or building joins it. A build writes to a temporary file
-in the maps folder and renames it into place on success, so a half-written file is never
-served. A failed or interrupted build leaves no temporary file behind.
+The weapon library (built by `build-weapons`, or on demand through the routes below) is
+served the same way the viewer addresses it: one GLB per model key.
+
+- `GET /api/weapons` — the weapon library's index (`{"schema":1,"weapons":[...8-hex keys...]}`).
+  Before the library is built it is a JSON `404` `{"error":"weapons_not_built"}`.
+- `GET /api/weapons/{key}.glb` — one weapon model (range-capable), where `{key}` is a model
+  key: a weapon's 8-hex `weap` family, `grenade<rank>`, or `spartan`. A name that is not a
+  well-formed model key, or that would escape the weapons folder, is a JSON `404`
+  `{"error":"weapon_model_not_available"}`. A weapon with no readable model has no GLB (an
+  empty `<key>.none` marker is written instead), so its fetch is a `404` the viewer treats as
+  a placeholder.
+- `POST /api/weapons/build` — starts or joins the weapon-library build (one job, queued with
+  the map builds so it never runs beside one). Answers `202` while it builds, `200` `ready`
+  when the library is already present, `409` when there is no map key to open an index from,
+  and `503` when the build runner is unavailable. Refused with `403` from a non-loopback
+  `Origin`, as the map build is.
+- `GET /api/weapons/state` — the weapon library's build state, in the same JSON shape as the
+  mesh state (its `moduleKey` is `weapons`).
+
+A map and the weapon library build at most one at a time process-wide; the weapons job shares
+the map build queue, so a weapon build and a map build never run together. A build writes each
+GLB (and the index) to a temporary file in the weapons folder and renames it into place on
+success, so a half-written file is never served.
 
 ## Web viewer (development)
 
@@ -146,9 +192,11 @@ npm run dev   # http://localhost:5183
 
 It loads a replay document and a map mesh from `web/public/dev/` (gitignored — not
 checked in): put a normalized replay document at `web/public/dev/replay.json` and the
-map's GLB at `web/public/dev/map.glb`. Weapon models and per-player armor are passed as
-`null` for now (no server route serves them yet in this standalone build); the scene
-falls back to its built-in default appearance, exactly as it already does in LevelUp
-when those assets are not yet available.
+map's GLB at `web/public/dev/map.glb`. Weapon models are served by the `serve` weapon
+routes (`/api/weapons` index and `/api/weapons/{key}.glb`); the viewer is pointed at
+them by passing a non-null `weaponsPath` to the scene (the `WeaponModels` base). Per-player
+armor is still passed as `null` in this standalone build; the scene falls back to its
+built-in default appearance, exactly as it already does in LevelUp when those assets are
+not yet available.
 
 Based on JGtm's [LevelUp](https://github.com/JGtm/LevelUp) and published Halo modules. See [NOTICE.md](NOTICE.md) and [third_party/README.md](third_party/README.md). Licensed under AGPL-3.0.

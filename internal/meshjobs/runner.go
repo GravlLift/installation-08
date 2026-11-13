@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+// JobWeapons is the module key the runner uses for the single weapon-library build. It shares
+// the runner's queue with the map builds, so it never runs beside one: the library is one job.
+const JobWeapons = "weapons"
+
 // State is one module's build state as seen through the runner.
 type State string
 
