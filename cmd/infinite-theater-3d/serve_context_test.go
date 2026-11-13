@@ -199,7 +199,7 @@ func TestContextCachedMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Test Medal"},"Description":{"value":"Test description"},"Difficulty":"Heroic","SpriteIndex":0}]}`
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"Test Medal"},"description":{"value":"Test description"},"difficultyIndex":1,"spriteIndex":0}]}`
 	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
 		t.Fatal(err)
 	}
@@ -217,8 +217,71 @@ func TestContextCachedMetadata(t *testing.T) {
 	row := got.Scoreboard[0]
 	medals, _ := row["medals"].([]any)
 	rank, _ := row["skill_rank"].(map[string]any)
-	if got.Header["is_ranked"] != true || got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" {
+	if got.Header["is_ranked"] != true || got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" || medals[0].(map[string]any)["difficulty"] != "Heroic" {
 		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestContextPlaylistLabel(t *testing.T) {
+	for raw, want := range map[string]string{
+		"Ranked Arena":      "Ranked Arena",
+		"Ranked":            "Ranked",
+		"Arena : Ascension": "Ascension",
+		"arena":             "arena",
+		"Super Fiesta":      "Super Fiesta",
+		"Super Fiesta : X":  "X",
+		"Fiesta":            "Fiesta",
+		"Castle wars : X":   "X",
+		"  Btb : X  ":       "X",
+		"Tactical : X":      "X",
+		"Community : X":     "X",
+		"Firefight : X":     "X",
+		"Armed Assault : X": "Armed Assault : X",
+	} {
+		if got := contextPlaylistLabel(raw); got != want {
+			t.Errorf("%q = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+// TestContextMedalOrder pins the medal sort rule: count descending, ties keep
+// the stats-full array order. LevelUp applies no other sort (Q27BulkMedals
+// orders by xuid, count DESC; ties keep medals_earned insertion order, which
+// is the raw 343 stats payload order, internal/sync/transforms.go ExtractMedals).
+func TestContextMedalOrder(t *testing.T) {
+	root := newFakeStore(t)
+	raw := []byte(`{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":1,"Deaths":1,"Medals":[{"NameId":42,"Count":1},{"NameId":43,"Count":3},{"NameId":44,"Count":1}]}}}]}]}`)
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), raw); err != nil {
+		t.Fatal(err)
+	}
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"A"},"difficultyIndex":0},{"nameId":43,"name":{"value":"B"},"difficultyIndex":1},{"nameId":44,"name":{"value":"C"},"difficultyIndex":0}]}`
+	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context?xuid=1", nil)
+	var got struct {
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	medals, _ := got.Scoreboard[0]["medals"].([]any)
+	want := []float64{43, 42, 44}
+	if len(medals) != len(want) {
+		t.Fatalf("medals: %v", medals)
+	}
+	for i, id := range want {
+		if medals[i].(map[string]any)["medal_id"] != id {
+			t.Fatalf("medal order: %v", medals)
+		}
+	}
+}
+
+func TestContextMedalDifficulty(t *testing.T) {
+	for index, want := range map[int]string{0: "Normal", 1: "Heroic", 2: "Legendary", 3: "Mythic", -1: "Normal", 9: "Normal"} {
+		if got := contextMedalDifficulty(index); got != want {
+			t.Errorf("index %d = %q, want %q", index, got, want)
+		}
 	}
 }
 
@@ -227,7 +290,7 @@ func TestContextMedalEventMetadata(t *testing.T) {
 	if err := root.WriteFile(variantPath(root, "abc", "events.json"), []byte(`[{"XUID":1,"EventType":"medal","TimeMS":1000,"TypeHint":50,"MedalType":26}]`)); err != nil {
 		t.Fatal(err)
 	}
-	catalog := `{"Medals":[{"NameId":42,"Name":{"value":"Killjoy"},"Description":{"value":"End a spree"}}]}`
+	catalog := `{"Medals":[{"nameId":42,"name":{"value":"Killjoy"},"description":{"value":"End a spree"},"difficultyIndex":0}]}`
 	if err := root.WriteFile(filepath.Join(root.Dir(), "medals", "metadata.json"), []byte(catalog)); err != nil {
 		t.Fatal(err)
 	}

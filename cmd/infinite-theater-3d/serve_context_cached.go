@@ -13,14 +13,28 @@ import (
 )
 
 type contextMedal struct {
-	ID   int64 `json:"NameId"`
+	ID   int64 `json:"nameId"`
 	Name struct {
 		Value string `json:"value"`
-	} `json:"Name"`
+	} `json:"name"`
 	Description struct {
 		Value string `json:"value"`
-	} `json:"Description"`
-	Difficulty string `json:"Difficulty"`
+	} `json:"description"`
+	DifficultyIndex int `json:"difficultyIndex"`
+}
+
+// contextMedalDifficulty maps the Waypoint difficultyIndex to LevelUp's labels
+// (LevelUp apps/go-api/internal/games/halo_infinite/migrations/steps.go).
+func contextMedalDifficulty(index int) string {
+	switch index {
+	case 1:
+		return "Heroic"
+	case 2:
+		return "Legendary"
+	case 3:
+		return "Mythic"
+	}
+	return "Normal"
 }
 
 func contextReadJSON(path string) map[string]any {
@@ -55,9 +69,9 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 	}
 	playlist := contextReadJSON(variantPath(root, id, "playlist.json"))
 	if name := textValue(playlist["PublicName"]); name != "" {
-		header["playlist_label"] = name
+		header["playlist_label"] = contextPlaylistLabel(name)
 	} else if name := textValue(object(playlist["PublicName"])["value"]); name != "" {
-		header["playlist_label"] = name
+		header["playlist_label"] = contextPlaylistLabel(name)
 	}
 	mapID := textValue(header["map_id"])
 	if mapID != "" && store.ModuleKeyValid(mapID) {
@@ -89,7 +103,7 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 			id, _ := contextNumber(medal["medal_id"])
 			if m, ok := byID[int64(id)]; ok {
 				medal["label"] = m.Name.Value
-				medal["difficulty"] = m.Difficulty
+				medal["difficulty"] = contextMedalDifficulty(m.DifficultyIndex)
 				medal["image_url"] = fmt.Sprintf("/static/medals/halo_infinite/%d.png", m.ID)
 			}
 		}

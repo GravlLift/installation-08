@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -208,7 +209,7 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 		}
 	}
 	if name := textValue(object(info["Playlist"])["PublicName"]); name != "" {
-		h["playlist_label"] = name
+		h["playlist_label"] = contextPlaylistLabel(name)
 	}
 	for _, value := range array(payload["Players"]) {
 		p := object(value)
@@ -229,6 +230,36 @@ func contextHeader(meta store.Match, stats build.Stats, payload map[string]any, 
 		break
 	}
 	return h
+}
+
+// contextPlaylistPrefixes are matchmaking category prefixes that can head a playlist
+// name, stripped for display (LevelUp internal/analysis/playlist_label.go). "ranked"
+// is deliberately NOT in the list: it carries the ranked signal.
+var contextPlaylistPrefixes = []string{
+	"super husky raid", "super fiesta", "husky raid", "castle wars",
+	"arena", "btb", "fiesta", "firefight", "gruntpocalypse",
+	"tactical", "assault", "community",
+}
+
+// contextPlaylistLabel strips a leading category prefix ("Arena : X" -> "X") and
+// capitalizes the first rune of the rest. No known prefix, or the playlist IS the
+// category ("Fiesta"), returns the trimmed name unchanged.
+func contextPlaylistLabel(name string) string {
+	trimmed := strings.TrimSpace(name)
+	low := strings.ToLower(trimmed)
+	for _, p := range contextPlaylistPrefixes {
+		if !strings.HasPrefix(low, p+" ") {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimLeft(trimmed[len(p):], " :"))
+		if rest == "" {
+			return trimmed
+		}
+		for _, r := range rest {
+			return string(unicode.ToUpper(r)) + rest[len(string(r)):]
+		}
+	}
+	return trimmed
 }
 
 func contextDocumentEvents(root *store.Root, id string, rows []contextJSON, t0 int64) ([]contextJSON, error) {
