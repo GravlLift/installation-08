@@ -84,11 +84,12 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 		{MatchID: "bbbb", MapModule: "moda"}, // same module as aaaa: queued once
 		{MatchID: "cccc", MapModule: "modb"},
 	}
-	variantExists := func(id string) bool { return id == "aaaa" }
+	// bbbb shares aaaa's map module but has a variant of its own: its variant is still queued.
+	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
 	enqueueStartupBuilds(rr, rr.ready, matches, variantExists)
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
-		"moda", "variant:aaaa", "modb",
+		"moda", "variant:aaaa", "variant:bbbb", "modb",
 	}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)

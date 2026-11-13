@@ -77,13 +77,14 @@ func enqueueStartupBuilds(jobs interface {
 			if !ready(m.MapModule) {
 				enqueue(m.MapModule)
 			}
-			if variantExists != nil && variantExists(m.MatchID) {
-				key := variantPrefix + m.MatchID
-				if !seen[key] {
-					seen[key] = true
-					if !ready(key) {
-						enqueue(key)
-					}
+		}
+		// The variant layer is per match: two matches on one map each get theirs.
+		if variantExists != nil && variantExists(m.MatchID) {
+			key := variantPrefix + m.MatchID
+			if !seen[key] {
+				seen[key] = true
+				if !ready(key) {
+					enqueue(key)
 				}
 			}
 		}
