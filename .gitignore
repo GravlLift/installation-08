@@ -1,6 +1,5 @@
 docs/sys/lookup.json
 .chinvex-status.json
-
 # Local build and generated data
 /infinite-theater-3d
 /infinite-theater-3d.exe
@@ -10,3 +9,4 @@ docs/sys/lookup.json
 /web/node_modules/
 /web/dist/
 .worktrees/
+/web/public/dev/

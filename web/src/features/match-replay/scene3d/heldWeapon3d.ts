@@ -1,0 +1,59 @@
+/**
+ * heldWeapon3d.ts — L'ARME EN MAIN de chaque joueur, pour la vue 3D.
+ *
+ * La lecture commune avec l'ATH tient compte des événements datés de la vie.
+ *
+ * Les lectures ne changent qu'à l'image entière : elles se gardent par image et par emplacement,
+ * la vue en demande une par joueur et par image d'écran.
+ */
+import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
+
+import { catalogText } from '../i18n/catalogLabel'
+import type { ReplayLocale } from '../i18n/i18n'
+import { fxTintOf, type FxTint } from '../layers/fxInk'
+import { armeEnMain, craneEnMain } from '../model/armeEnMain'
+
+export interface HeldWeapon3d {
+  id: string
+  /** Le nom de l'arme dans la langue du lecteur ; vide quand le catalogue ne le porte pas. */
+  name: string
+  /** La nature de décharge de l'arme (la teinte de ses tirs). */
+  tint: FxTint
+}
+
+export class HeldWeapons3d {
+  private frame = Number.NaN
+  private readonly cache = new Map<number, HeldWeapon3d | null>()
+  private readonly doc: ReplayDocumentReady
+  private readonly locale: () => ReplayLocale
+
+  constructor(doc: ReplayDocumentReady, locale: () => ReplayLocale) {
+    this.doc = doc
+    this.locale = locale
+  }
+
+  at(slot: number, frame: number): HeldWeapon3d | null {
+    const f = Math.floor(frame)
+    if (f !== this.frame) {
+      this.frame = f
+      this.cache.clear()
+    }
+    if (this.cache.has(slot)) return this.cache.get(slot) ?? null
+    const read = heldWeaponAt(this.doc, slot, f, this.locale())
+    this.cache.set(slot, read)
+    return read
+  }
+}
+
+export function heldWeaponAt(
+  doc: ReplayDocumentReady,
+  slot: number,
+  frame: number,
+  locale: ReplayLocale,
+): HeldWeapon3d | null {
+  // Le porteur du crâne le tient en main : la lecture d'arme l'écarte (l'ATH n'en affiche pas), la vue 3D le montre.
+  const held = armeEnMain(doc, slot, frame) ?? craneEnMain(doc, slot, frame)
+  if (!held) return null
+  const label = doc.weaponLabels?.[held.id]
+  return { id: held.id, name: catalogText(label, locale) ?? '', tint: fxTintOf(label?.tint) }
+}

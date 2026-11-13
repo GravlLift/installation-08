@@ -1,0 +1,108 @@
+import * as THREE from 'three'
+import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { cloak, type Avatar } from './avatar3d'
+import type { Outline3d } from './outline3d'
+
+type Objets = { roots: readonly THREE.Object3D[]; detaches: readonly THREE.Object3D[]; composer: EffectComposer; avatars: readonly Avatar[]; outline: Outline3d }
+
+/**
+ * Compile la scène et les modèles détachés, et charge une seule fois chaque texture des copies
+ * préparées. `roots` (attachés à la scène : avatars, corps, rigs de première personne) sont
+ * compilés par la scène ; `detaches` (modèles d'arme, non attachés) sont compilés contre la scène
+ * (`compileAsync` avec la scène cible : lumières et environnement de la scène).
+ */
+export async function prechauffer3d(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  objets: Objets,
+): Promise<void> {
+  try {
+    await compilerEtCharger(renderer, scene, camera, objets)
+  } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
+}
+
+async function compilerEtCharger(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  objets: Objets,
+): Promise<void> {
+  const { roots, detaches, composer } = objets
+  const cible = renderer.getRenderTarget()
+  const ombres = renderer.shadowMap.needsUpdate
+  let compilations: Promise<unknown>[]
+  try {
+    renderer.setRenderTarget(composer.readBuffer)
+    compilations = [renderer.compileAsync(scene, camera), ...detaches.map((source) => renderer.compileAsync(source, camera, scene))]
+  } finally { renderer.setRenderTarget(cible) }
+  for (const texture of texturesDe([...roots, ...detaches])) renderer.initTexture(texture)
+  for (const source of detaches) scene.add(source)
+  try {
+    avecObjetsVisibles([...roots, ...detaches], () => objets.outline.avecSujetsPrepares(objets.avatars.map((a) => a.group), (plan) => {
+      renderer.shadowMap.needsUpdate = true
+      plan('whole')
+      composer.render()
+      avecCamouflage(objets.avatars.flatMap((a) => a.spartan ? [a.spartan.materials] : []), () => {
+        plan('stand')
+        composer.render()
+      })
+    }))
+  } finally {
+    for (const source of detaches) scene.remove(source)
+    renderer.setRenderTarget(cible)
+    renderer.shadowMap.needsUpdate = ombres
+  }
+  await Promise.all(compilations)
+}
+
+/** Applique le camouflage du jeu aux matériaux préparés et rend leur état après le dessin. */
+export function avecCamouflage(groupes: readonly (readonly THREE.Material[])[], rendre: () => void): void {
+  const etats = new Map<THREE.Material, [boolean, boolean, number]>()
+  for (const groupe of groupes) for (const m of groupe) if (!etats.has(m)) etats.set(m, [m.transparent, m.depthWrite, m.opacity])
+  try {
+    for (const groupe of groupes) cloak(groupe, 0.5)
+    rendre()
+  } finally {
+    for (const [m, [transparent, depthWrite, opacity]] of etats) {
+      if (m.transparent !== transparent) { m.transparent = transparent; m.needsUpdate = true }
+      m.depthWrite = depthWrite
+      m.opacity = opacity
+    }
+  }
+}
+
+/** Rend les objets préparés et restaure leur visibilité et leur filtrage spatial. */
+export function avecObjetsVisibles(roots: readonly THREE.Object3D[], rendre: () => void): void {
+  const etats = new Map<THREE.Object3D, [boolean, boolean]>()
+  for (const root of roots) root.traverse((objet) => {
+    if (etats.has(objet)) return
+    etats.set(objet, [objet.visible, objet.frustumCulled])
+    objet.visible = true
+    objet.frustumCulled = false
+  })
+  try { rendre() } finally {
+    for (const [objet, [visible, filtre]] of etats) { objet.visible = visible; objet.frustumCulled = filtre }
+  }
+}
+
+/** texturesDe : les textures des matériaux sous les racines, dédoublonnées ; les uniformes d'armure peinte sont comptés. */
+export function texturesDe(roots: readonly THREE.Object3D[]): THREE.Texture[] {
+  const textures = new Set<THREE.Texture>()
+  const ajouter = (valeur: unknown) => { if (valeur instanceof THREE.Texture) textures.add(valeur) }
+  for (const racine of roots) racine.traverse((objet) => {
+    const materiau = (objet as THREE.Mesh).material
+    if (!materiau) return
+    for (const m of Array.isArray(materiau) ? materiau : [materiau]) collecterTextures(m, ajouter)
+  })
+  return [...textures]
+}
+
+function collecterTextures(materiau: THREE.Material, ajouter: (valeur: unknown) => void): void {
+  const champs = materiau as THREE.MeshStandardMaterial
+  for (const t of [champs.map, champs.normalMap, champs.roughnessMap, champs.metalnessMap, champs.emissiveMap, champs.aoMap]) ajouter(t)
+  if (materiau instanceof THREE.ShaderMaterial) for (const u of Object.values(materiau.uniforms)) ajouter(u.value)
+  // L'armure peinte porte ses masques et ses dégradés dans des uniformes posés par `onBeforeCompile` (cf. `armorMaterial3d`).
+  const armure = materiau.userData.armorUniforms as Record<string, THREE.IUniform> | undefined
+  if (armure) for (const u of Object.values(armure)) ajouter(u.value)
+}

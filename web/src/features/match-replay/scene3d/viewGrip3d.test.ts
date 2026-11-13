@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest'
+
+import { formatViewGrip, tuneViewGrip, viewGripOf, viewGripStep } from './viewGrip3d'
+
+describe('viewGripStep', () => {
+  it('déplace à droite vers le -X du cône, Maj grossit le pas', () => {
+    expect(viewGripStep('KeyL', false)).toEqual({ x: -0.005, y: 0, z: 0, roll: 0 })
+    expect(viewGripStep('KeyI', true)).toEqual({ x: 0, y: 0.02, z: 0, roll: 0 })
+    expect(viewGripStep('KeyM', false)).toEqual({ x: 0, y: 0, z: 0.005, roll: 0 })
+    expect(viewGripStep('KeyO', false)?.roll).toBeCloseTo(Math.PI / 90)
+  })
+
+  it('ignore les autres touches', () => {
+    expect(viewGripStep('KeyA', false)).toBeNull()
+  })
+})
+
+describe('viewGripOf / tuneViewGrip', () => {
+  it('chaque modèle a sa tenue, la tenue par défaut sinon', () => {
+    expect(viewGripOf('1a22fee6')).not.toEqual(viewGripOf(null))
+    expect(viewGripOf('00000000')).toEqual(viewGripOf(null))
+  })
+
+  it('le réglage ne touche que le modèle réglé', () => {
+    const before = viewGripOf(null)
+    const tuned = tuneViewGrip('0000beef', { x: 0.01, y: 0, z: 0, roll: 0 })
+    expect(tuned.x).toBeCloseTo(before.x + 0.01)
+    expect(viewGripOf('0000beef')).toEqual(tuned)
+    expect(viewGripOf(null)).toEqual(before)
+  })
+})
+
+describe('formatViewGrip', () => {
+  it('écrit la tenue comme une ligne de la table', () => {
+    expect(formatViewGrip('1a22fee6', 'Shock Rifle', { x: -0.03, y: -0.085, z: 0.045, roll: 0.1 })).toBe(
+      "'1a22fee6': { x: -0.030, y: -0.085, z: 0.045, roll: 0.100 }, // Shock Rifle",
+    )
+  })
+})
