@@ -167,6 +167,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	mux.HandleFunc("GET /api/first-person/{file}", h.handleFirstPersonFile)
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/jeu/{file}", h.handleWeaponIconFile)
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/hud/{file}", h.handleHudIconFile)
+	mux.HandleFunc("GET /static/ranks/halo_infinite/{file}", h.handleRankIconFile)
 	mux.HandleFunc("GET /static/sounds/halo_infinite/{file}", h.handleSoundFile)
 	h.mux = mux
 	return h

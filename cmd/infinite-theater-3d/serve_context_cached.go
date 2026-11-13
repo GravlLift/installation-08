@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -80,7 +81,7 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 			header["map_image_url"] = "/static/maps/halo_infinite/" + name
 		}
 	}
-	contextSkill(header, rows, contextReadJSON(variantPath(root, id, "skill.json")))
+	contextSkill(header, rows, contextReadJSON(variantPath(root, id, "skill.json")), rankicons.OutDir(root.Dir()))
 	raw, err := os.ReadFile(filepath.Join(root.Dir(), "medals", "metadata.json"))
 	if err != nil {
 		return
@@ -125,7 +126,12 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 		}
 	}
 }
-func contextSkill(header contextJSON, rows []contextJSON, skill map[string]any) {
+
+// contextSkill decorates the scoreboard rows with the per-player CSR rank from the
+// cached skill.json. icon_url is set only when the badge file is in the built set: a
+// badge the build did not write would 404, and an empty URL is the documented fallback
+// (LevelUp emits "" for a badge it does not serve).
+func contextSkill(header contextJSON, rows []contextJSON, skill map[string]any, ranksDir string) {
 	for _, item := range array(skill["Value"]) {
 		entry := object(item)
 		if code, ok := contextNumber(entry["ResultCode"]); ok && code != 0 {
@@ -169,11 +175,12 @@ func contextSkill(header contextJSON, rows []contextJSON, skill map[string]any) 
 					if pre, ok := contextNumber(object(recap["PreMatchCsr"])["Value"]); ok {
 						rank["rating_delta"] = value - pre
 					}
-					icon := tier + strconv.Itoa(int(sub))
-					if tier == "Onyx" || sub <= 0 {
-						icon = "Onyx"
+					name := rankicons.IconName(tier, int(sub))
+					if _, err := os.Stat(filepath.Join(ranksDir, name)); err == nil {
+						rank["icon_url"] = "/static/ranks/halo_infinite/" + name
+					} else {
+						rank["icon_url"] = ""
 					}
-					rank["icon_url"] = "/static/ranks/halo_infinite/120px-HINF-CSR_" + icon + ".png"
 					row["skill_rank"] = rank
 				}
 			}
