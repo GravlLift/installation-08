@@ -121,3 +121,14 @@ Redo this comparison on one match per game mode before calling the document comp
 Small differences, all decoder differences (older LevelUp decoder, schema 116, 100 ms
 frame interval vs the vendored decoder, schema 122, 33 ms): `stances` 3,260 / 3,266,
 `drawnWeapons` 594 / 610, `ammoReads` 3,413 / 3,416, `weaponChanges` 205 / 206.
+
+## Standalone-only screens
+
+These have no LevelUp source page to port from — LevelUp runs server-side against an
+already-authenticated fleet of players, so this standalone app needs its own account UI that
+LevelUp never had to build. Added to `screens/MatchListScreen.tsx` (the home screen):
+
+| Screen/section | File(s) | What it does |
+|---|---|---|
+| Account panel | `screens/AccountPanel.tsx` + `screens/useAuthState.ts` | Sign in with Xbox (Microsoft device-code flow), shows the code/link/countdown while pending, the gamertag once signed in, the server's error with a retry on failure. Polls `GET /api/auth/state` every 2s while pending; `normalizeAuthState` in `lib/api/standalone.ts` also accepts the server's older `{signedIn}` shape until it picks up the new `{state:...}` contract. |
+| Recent remote matches | `screens/RemoteMatchesPanel.tsx` + `screens/useRemoteMatches.ts` + `screens/useMatchFetchQueue.ts` | Shown while signed in: the account's recent matches from `GET /api/remote/matches`, each either "Open" (already in the local store, checked against `GET /api/matches`) or "Fetch" (downloads and builds it via `POST /api/matches/{id}/fetch`, polling `GET .../fetch/state` every 2s; single-flight client-side, and a 409 from the server falls back to polling the row's own state instead of erroring). A completed fetch refreshes the local list so the row becomes "Open". |
