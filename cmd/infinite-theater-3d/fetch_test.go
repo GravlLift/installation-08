@@ -153,9 +153,13 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 	if !built {
 		t.Fatal("build not called")
 	}
-	for _, name := range []string{"manifest.json", "stats.json", "map.mvar", "customization/123.json", "chunks/chunk_00.bin"} {
+	for _, name := range []string{"manifest.json", "stats.json", "stats-full.json", "map.mvar", "customization/123.json", "chunks/chunk_00.bin"} {
 		if _, err = os.Stat(filepath.Join(root.MatchesDir(), "abc", name)); err != nil {
 			t.Fatal(err)
 		}
+	}
+	full, err := os.ReadFile(filepath.Join(root.MatchesDir(), "abc", "stats-full.json"))
+	if err != nil || !bytes.Contains(full, []byte(`"PlayerId":"xuid(123)"`)) {
+		t.Fatalf("full stats not saved: %s, %v", full, err)
 	}
 }

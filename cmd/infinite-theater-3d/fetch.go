@@ -241,6 +241,9 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	}
 	stats, _ := json.Marshal(facts)
 	statsPath, _ := root.MatchStatsPath(id)
+	if err = root.WriteFile(filepath.Join(filepath.Dir(statsPath), "stats-full.json"), raw); err != nil {
+		return err
+	}
 	if err = root.WriteFile(statsPath, stats); err != nil {
 		return err
 	}
