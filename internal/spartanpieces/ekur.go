@@ -13,10 +13,13 @@
 package spartanpieces
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -56,6 +59,47 @@ func EkurDir(dataDir string) string {
 		return candidate
 	}
 	return ""
+}
+
+// EkurStamp is a short hex digest of an Ekur reference folder: it changes when
+// the export changes (a file added to or removed from one of the three
+// directories, or the size or mod time of globals.json or visor_data.json) and
+// stays the same otherwise. It reads file names and the two stat pairs only —
+// never file contents — so it is fast on a full export (tens of thousands of
+// material files). Empty string for an empty folder argument, and an error
+// (with no stamp) when a directory cannot be read.
+func EkurStamp(folder string) (string, error) {
+	if folder == "" {
+		return "", nil
+	}
+	sum := sha256.New()
+	for _, name := range []string{"materials", "stylelists", "styles"} {
+		// The entry must be a directory: a file where one is expected is a broken export.
+		info, err := os.Stat(filepath.Join(folder, name))
+		if err != nil || !info.IsDir() {
+			return "", fmt.Errorf("ekur stamp: %s: %v", name, err)
+		}
+		entries, err := os.ReadDir(filepath.Join(folder, name))
+		if err != nil {
+			return "", err
+		}
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Fprintf(sum, "%s/%s\n", name, n)
+		}
+	}
+	for _, name := range []string{"globals.json", "visor_data.json"} {
+		info, err := os.Stat(filepath.Join(folder, name))
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(sum, "%s|%d|%d\n", name, info.Size(), info.ModTime().UnixNano())
+	}
+	return hex.EncodeToString(sum.Sum(nil)[:8]), nil
 }
 
 // ekurLayer is one coating layer (CommonLayer).

@@ -68,12 +68,19 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		return Result{}, fmt.Errorf("weapons directory: %w", err)
 	}
 
-	coats, err := spartanpieces.OpenCoatingWork(spartanpieces.EkurDir(opts.DataDir))
+	ekurDir := spartanpieces.EkurDir(opts.DataDir)
+	coats, err := spartanpieces.OpenCoatingWork(ekurDir)
 	if err != nil {
 		return Result{}, err
 	}
 	if coats == nil {
 		slog.WarnContext(ctx, "weapon library without coatings: no ekur reference")
+	}
+	// Stamp of the export read by this build: the server compares it with the current
+	// export to decide when a rebuild is due ("" when the build ran without an export).
+	stamp, err := spartanpieces.EkurStamp(ekurDir)
+	if err != nil {
+		slog.WarnContext(ctx, "ekur stamp could not be read", "err", err)
 	}
 	a, err := himap.OuvreArsenal(gameRoot, module)
 	if err != nil {
@@ -124,6 +131,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 
 	idx := NewIndex(opts.Catalog.Keys, generatorLibrary)
+	idx.EkurStamp = stamp
 	if coats != nil {
 		idx.Coatings, err = coats.Finish(ctx, a, dir)
 		if err != nil {

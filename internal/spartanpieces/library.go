@@ -77,12 +77,19 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		return Result{}, err
 	}
-	coatings, err := OpenCoatingWork(EkurDir(opts.DataDir))
+	ekurDir := EkurDir(opts.DataDir)
+	coatings, err := OpenCoatingWork(ekurDir)
 	if err != nil {
 		return Result{}, err
 	}
 	if coatings == nil {
 		slog.WarnContext(ctx, "library without coatings: no ekur reference")
+	}
+	// Stamp of the export read by this build: the server compares it with the current
+	// export to decide when a rebuild is due ("" when the build ran without an export).
+	stamp, err := EkurStamp(ekurDir)
+	if err != nil {
+		slog.WarnContext(ctx, "ekur stamp could not be read", "err", err)
 	}
 	dir := filepath.Join(opts.DataDir, "spartan-pieces")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -118,6 +125,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		b.bytes += b.index.Coatings.Bytes
 	}
 	b.index.Textures = TexturesIndex{Files: b.depot.fichiers, Bytes: b.depot.octets, References: b.depot.references}
+	b.index.EkurStamp = stamp
 	b.bytes += b.depot.octets
 	if err := b.writeIndex(); err != nil {
 		return b.result(), err

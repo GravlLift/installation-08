@@ -24,6 +24,7 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
@@ -123,6 +124,7 @@ func runServeStartup(jobs interface {
 		}
 		return
 	}
+	renameStaleCoatingLibraries(root.Dir())
 	ms, err := root.ListMatches()
 	if err != nil {
 		slog.Warn("list matches for startup builds", "err", err)
@@ -135,6 +137,30 @@ func runServeStartup(jobs interface {
 	enqueueStartupBuilds(jobs, ready, matches, func(id string) bool {
 		return hasMatchMvar(root, id)
 	})
+}
+
+// renameStaleCoatingLibraries moves each stale coating library aside (one log line each,
+// naming the library and the stamps that differ) before the one-time builds are enqueued,
+// so the normal build job rebuilds each one before the routes serve it. Never a downgrade:
+// with no valid export, existing libraries are left in place.
+func renameStaleCoatingLibraries(dataDir string) {
+	dir := spartanpieces.EkurDir(dataDir)
+	if dir == "" {
+		return
+	}
+	cur, err := spartanpieces.EkurStamp(dir)
+	if err != nil {
+		slog.Warn("current ekur stamp could not be read", "err", err)
+		return
+	}
+	for _, module := range []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces} {
+		stamp, ok := recordedEkurStamp(dataDir, module)
+		if !ok || stamp == cur {
+			continue
+		}
+		slog.Info("coating library stale", "library", module, "old_stamp", stamp, "new_stamp", cur)
+		moveStaleCoatingLibrary(dataDir, module)
+	}
 }
 
 // enqueueMatchBuilds enqueues one match's map mesh and, when its map variant file is

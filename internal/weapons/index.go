@@ -72,8 +72,12 @@ func FileOf(key string) string { return key + ".glb" }
 // Index is the weapons/index.json the view reads: the schema marker, the generator tag, and the
 // model keys in key order.
 type Index struct {
-	Schema     int      `json:"schema"`
-	Generator  string   `json:"generator"`
+	Schema    int    `json:"schema"`
+	Generator string `json:"generator"`
+	// EkurStamp: the digest of the Ekur export this build read (spartanpieces.EkurStamp),
+	// "" when the build ran without an export: the server compares it with the current
+	// export and rebuilds the library when the two differ.
+	EkurStamp  string   `json:"ekur_stamp"`
 	WeapKeys   []string `json:"weapons"`
 	SpartanKey string   `json:"spartan"`
 	// Coatings: the coating table of the library (coatings.json), nil when the

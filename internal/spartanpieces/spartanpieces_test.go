@@ -179,6 +179,108 @@ func TestEkurDir(t *testing.T) {
 	}
 }
 
+// TestEkurStamp — the export digest: empty for an empty argument, stable for the same
+// folder, changed by a material file added, by globals.json changing, and by a style file
+// removed; unchanged by a content-only edit of a file in one of the three directories.
+func TestEkurStamp(t *testing.T) {
+	if got, err := EkurStamp(""); err != nil || got != "" {
+		t.Fatalf("EkurStamp(\"\") = %q, %v; want empty, nil", got, err)
+	}
+	folder := t.TempDir()
+	ekurFixture(t, folder)
+	base, err := EkurStamp(folder)
+	if err != nil || len(base) != 16 {
+		t.Fatalf("EkurStamp = %q, %v; want a 16-hex digest", base, err)
+	}
+	if got, _ := EkurStamp(folder); got != base {
+		t.Fatalf("second read = %q, want %q (stable)", got, base)
+	}
+	// A content-only change inside materials/ is not part of the digest.
+	if err := os.WriteFile(filepath.Join(folder, "materials", "123.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := EkurStamp(folder); got != base {
+		t.Fatalf("content-only change changed the stamp: %q", got)
+	}
+	// A material file added changes it.
+	if err := os.WriteFile(filepath.Join(folder, "materials", "999.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	added, err := EkurStamp(folder)
+	if err != nil || added == base {
+		t.Fatalf("added material: stamp = %q, %v; want different from %q", added, err, base)
+	}
+	// globals.json changing (size or mod time) changes it.
+	if err := os.WriteFile(filepath.Join(folder, "globals.json"), []byte(`{"entries":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	globals, err := EkurStamp(folder)
+	if err != nil || globals == added {
+		t.Fatalf("changed globals.json: stamp = %q, %v; want different from %q", globals, err, added)
+	}
+	// A style file removed changes it.
+	if err := os.Remove(filepath.Join(folder, "styles", "-177284589.json")); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := EkurStamp(folder)
+	if err != nil || removed == globals {
+		t.Fatalf("removed style: stamp = %q, %v; want different from %q", removed, err, globals)
+	}
+	// A file where a directory is expected (the styles entry is a file, not a folder)
+	// yields an error, not a stamp.
+	if err := removeDirTree(t, filepath.Join(folder, "styles")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "styles"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EkurStamp(folder); err == nil {
+		t.Fatal("file where a directory is expected: accepted")
+	}
+	if err := os.Remove(filepath.Join(folder, "globals.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EkurStamp(folder); err == nil {
+		t.Fatal("folder without globals.json accepted")
+	}
+}
+
+// removeDirTree deletes dir and everything under it (test-only; the fixtures are small
+// and never contain a symlink, so a plain recursive delete is safe here).
+func removeDirTree(t *testing.T, dir string) error {
+	t.Helper()
+	// Files first, then directories deepest first (the fixtures never hold a symlink).
+	if err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return os.Remove(p)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	var dirs []string
+	if err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			dirs = append(dirs, p)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		if err := os.Remove(dirs[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // TestEkurShapesRoundTrip — the Ekur shapes read from the fixture distill to
 // the index shapes the viewer reads.
 func TestEkurShapesRoundTrip(t *testing.T) {

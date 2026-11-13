@@ -58,8 +58,12 @@ func NomFichierPremierePersonne(nom string) bool { return nomFichierPremierePers
 // summary. The JSON field names are the view's own (IndexPremierePersonne in
 // web/src/features/match-replay/scene3d/premierePersonne3d.ts).
 type Index struct {
-	Schema    int      `json:"schema"`
-	Generator string   `json:"generator"`
+	Schema    int    `json:"schema"`
+	Generator string `json:"generator"`
+	// EkurStamp: the digest of the Ekur export this build read (spartanpieces.EkurStamp),
+	// "" when the build ran without an export: the server compares it with the current
+	// export and rebuilds the library when the two differ.
+	EkurStamp string   `json:"ekur_stamp"`
 	Weapons   []Arme   `json:"weapons"`
 	Rigs      []Rig    `json:"rigs"`
 	Failures  []Echec  `json:"failures"`

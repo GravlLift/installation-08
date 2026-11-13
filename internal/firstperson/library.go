@@ -84,12 +84,19 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	parFichier := map[string]bool{}
 
-	coats, err := spartanpieces.OpenCoatingWork(spartanpieces.EkurDir(opts.DataDir))
+	ekurDir := spartanpieces.EkurDir(opts.DataDir)
+	coats, err := spartanpieces.OpenCoatingWork(ekurDir)
 	if err != nil {
 		return Result{}, err
 	}
 	if coats == nil {
 		slog.WarnContext(ctx, "first-person rigs without weapon coatings: no ekur reference")
+	}
+	// Stamp of the export read by this build: the server compares it with the current
+	// export to decide when a rebuild is due ("" when the build ran without an export).
+	stamp, err := spartanpieces.EkurStamp(ekurDir)
+	if err != nil {
+		slog.WarnContext(ctx, "ekur stamp could not be read", "err", err)
 	}
 	armes, sans := a.ArmesPremierePersonne()
 	for _, s := range armes {
@@ -121,6 +128,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 
 	sort.Slice(idx.Rigs, func(i, j int) bool { return idx.Rigs[i].File < idx.Rigs[j].File })
 	idx.Textures = Textures{Files: dep.fichiers, Bytes: dep.octets, References: dep.references}
+	idx.EkurStamp = stamp
 	res.Bytes += dep.octets
 	armBytes, err := spartanpieces.BuildFirstPersonArms(ctx, a, opts.DataDir, dir, announce)
 	if err != nil {
