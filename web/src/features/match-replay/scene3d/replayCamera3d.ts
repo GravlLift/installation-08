@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { EYE_HEIGHT } from './body3d'
 import { deathCameraPose, povSubject, type DeathCameraOpts, type DeathCameraPose } from './deathCamera3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
+import { springArmLength } from './springArm3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { MapModel } from './mapModel'
 import type { CameraMode3d, PovStatus } from './replayScene3d'
@@ -21,6 +22,9 @@ interface CameraState {
   action: ActionScene3d | null
   originAboveFloor: number
   camera: THREE.PerspectiveCamera
+  /** The surfaces the spring arm ray tests against: the map structure, then the attached layer. */
+  pickables: () => THREE.Mesh[]
+  raycaster: THREE.Raycaster
 }
 
 /** Calcule l'état suivi et pose la caméra sans modifier le mode choisi. */
@@ -28,6 +32,12 @@ export class ReplayCamera3d {
   private readonly state: CameraState
   private readonly tmpFeet = new THREE.Vector3()
   private readonly tmpPose: DeathCameraPose = { position: new THREE.Vector3(), look: new THREE.Vector3() }
+  private readonly tmpDesired = new THREE.Vector3()
+  private readonly tmpArm = new THREE.Vector3()
+  private readonly rise = new THREE.Vector3(0, TP_RISE, 0)
+  /** The third-person spring arm length in u; -1 until the first placement, which starts at full length. */
+  private armLength = -1
+  private lastClock = 0
 
   constructor(state: CameraState) { this.state = state }
 
@@ -60,9 +70,37 @@ export class ReplayCamera3d {
     const heading = rider && this.state.povXuid ? this.state.action?.riderHeadingAt(this.state.povXuid, f) ?? s.h : s.h
     const d = new THREE.Vector3(...aimDirThree(heading, rider ? 0 : s.p))
     this.state.camera.position.copy(eye)
-    if (this.state.mode === 'tp') this.state.camera.position.addScaledVector(d, -TP_DISTANCE).add(new THREE.Vector3(0, TP_RISE, 0))
+    if (this.state.mode === 'tp') this.springArm(eye, d)
     this.state.camera.lookAt(eye.clone().addScaledVector(d, 10))
     return status
+  }
+
+  /** springArm: the third-person camera, pulled in by the map when the arm from the head hits it. */
+  private springArm(eye: THREE.Vector3, d: THREE.Vector3): void {
+    this.tmpDesired.copy(eye).addScaledVector(d, -TP_DISTANCE).add(this.rise)
+    const fullLength = eye.distanceTo(this.tmpDesired)
+    this.tmpArm.copy(this.tmpDesired).sub(eye).normalize()
+    let hit: number | null = null
+    const pickables = this.state.pickables()
+    if (pickables.length > 0) {
+      const raycaster = this.state.raycaster
+      raycaster.firstHitOnly = true
+      raycaster.far = fullLength
+      raycaster.set(eye, this.tmpArm)
+      const first = raycaster.intersectObjects(pickables, false)[0]
+      hit = first ? first.distance : null
+    }
+    const prev = this.armLength < 0 ? fullLength : this.armLength
+    this.armLength = springArmLength(eye, this.tmpDesired, hit, prev, this.deltaTime())
+    this.state.camera.position.copy(eye).addScaledVector(this.tmpArm, this.armLength)
+  }
+
+  /** deltaTime: seconds since the previous placement, clamped so a pause does not skip the ease. */
+  private deltaTime(): number {
+    const now = performance.now()
+    const dt = this.lastClock === 0 ? 0 : (now - this.lastClock) / 1000
+    this.lastClock = now
+    return Math.min(Math.max(dt, 0), 0.1)
   }
 
   /** placeDead : en 1re personne, un joueur mort suit son corps inerte en 3e, ou garde son dernier œil. */
