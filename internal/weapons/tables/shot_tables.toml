@@ -6,7 +6,7 @@
 # WeaponLabel.Fx published with the completed labels); [shot_impact] is the fact that the
 # projectile explodes on impact (the WeaponLabel.Impact); [shot_tints] is the nature of the
 # discharge that tints the muzzle flash (the WeaponLabel.Tint, a theme token the client
-# colors: kinetic, plasma_cool, plasma_hot, forerunner, electric, needle, blast).
+# colors: kinetic, plasma_cool, plasma_green, plasma_hot, forerunner, electric, needle, blast).
 
 [shot_effects]
 hinf_ma40_ar = "ballistic"
@@ -60,7 +60,7 @@ hinf_mangler = "kinetic"
 hinf_skewer = "kinetic"
 hinf_plasma_pistol = "plasma_cool"
 hinf_pulse_carbine = "plasma_cool"
-hinf_vestige_carbine = "plasma_cool"
+hinf_vestige_carbine = "plasma_green"
 hinf_fuel_rod_spnkr = "plasma_cool"
 hinf_ravager = "plasma_hot"
 hinf_stalker_rifle = "plasma_hot"
