@@ -101,6 +101,6 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
         </div>
       </section>
     </div>,
-    document.body,
+    document.fullscreenElement ?? document.body,
   )
 }

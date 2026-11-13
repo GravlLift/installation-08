@@ -12,7 +12,7 @@ import { buildShotFx } from '../features/match-replay/model/shotFx'
 import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
-import { framesPerSecond } from '../lib/replay/replayLogic'
+import { formatClock, frameToMs, framesPerSecond } from '../lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import {
   checkMesh,
@@ -21,7 +21,7 @@ import {
   MeshNotBuiltError,
 } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
-import { useReplayFullscreen, REPLAY_FULLSCREEN_FRAME } from '../features/match-replay/hooks/useReplayFullscreen'
+import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
@@ -257,7 +257,7 @@ export function PlaybackBar({
         className="flex-1"
       />
       <span className="font-mono text-xs text-muted-foreground">
-        {frame} / {doc.frameCount - 1}
+        {formatClock(frameToMs(frame, doc))} / {formatClock(frameToMs(doc.frameCount - 1, doc))}
       </span>
       <label className="flex items-center gap-1 text-xs text-muted-foreground">
         Speed
@@ -293,7 +293,7 @@ export function PlaybackBar({
   )
 }
 
-function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
+export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -301,10 +301,11 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
   const hostRef = useRef<HTMLDivElement>(null)
+  const viewerRef = useRef<HTMLDivElement>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const { show, toggle } = useAction3dShow()
-  const fullscreen = useReplayFullscreen()
+  const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
   const variantPath = useVariantLayer(matchId)
   const replayContext = useMatchReplayContext(matchId, doc)
@@ -392,10 +393,18 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
   }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
   return (
-    <div className={fullscreen.active ? REPLAY_FULLSCREEN_FRAME : 'flex h-screen flex-col'}>
-      {!fullscreen.active && <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />}
-      <div className={fullscreen.active ? 'flex h-full flex-col' : 'flex min-h-0 flex-1 flex-col'}>
-      <div ref={hostRef} className="relative min-h-0 flex-1">
+    <div className="flex min-h-screen flex-col">
+      <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />
+      <div ref={viewerRef} data-testid="replay-viewer" className={fullscreen.active ? 'flex h-full w-full flex-col justify-center bg-black' : 'flex w-full flex-col bg-black'}>
+      <div className="flex justify-end gap-2 bg-card px-3 py-2">
+        <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
+          {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
+        </button>
+        <button ref={settingsButtonRef} type="button" onClick={() => setSettingsOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
+          Settings
+        </button>
+      </div>
+      <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={fullscreen.active ? { maxWidth: 'min(100%, calc((100vh - 7rem) * 16 / 9))' } : undefined}>
         <Replay3DView
           meshPath={meshUrl(matchId)}
           variantPath={variantPath}
@@ -413,14 +422,6 @@ function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDo
           timeLimitMs={replayContext.timeLimitMs}
           soundListenerRef={sound.listener}
         />
-        <button
-          ref={settingsButtonRef}
-          type="button"
-          onClick={() => setSettingsOpen((v) => !v)}
-          className="absolute right-3 top-3 z-10 rounded bg-card/90 px-2 py-1 text-xs text-foreground shadow hover:bg-muted"
-        >
-          Settings
-        </button>
         {settingsOpen && (
           <ReplaySettingsDrawer
             locale="en"
