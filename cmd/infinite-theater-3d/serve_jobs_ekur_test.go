@@ -152,6 +152,37 @@ func TestRemoveStaleRefusesSymlink(t *testing.T) {
 	}
 }
 
+// TestRestoreStaleAfterFailedBuild — when a rebuild fails, the failed build's partial
+// folder is removed and the previous library comes back from .stale (an out-of-date
+// library still renders; an absent one renders nothing).
+func TestRestoreStaleAfterFailedBuild(t *testing.T) {
+	data := t.TempDir()
+	dir := writeCoatingLibraryIndex(t, data, meshjobs.JobWeapons, "old")
+	moveStaleCoatingLibrary(data, meshjobs.JobWeapons)
+	// The failed build left a partial folder with no index.
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "partial.glb"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	restoreStaleCoatingLibrary(data, meshjobs.JobWeapons)
+	if stamp, ok := recordedEkurStamp(data, meshjobs.JobWeapons); !ok || stamp != "old" {
+		t.Fatalf("previous library not restored: stamp %q ok %v", stamp, ok)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "partial.glb")); err == nil {
+		t.Fatal("partial build file survived the restore")
+	}
+	if _, err := os.Stat(dir + staleSuffix); err == nil {
+		t.Fatal(".stale folder still present after the restore")
+	}
+	// Without a .stale folder, a failed build leaves things as they are.
+	restoreStaleCoatingLibrary(data, meshjobs.JobWeapons)
+	if _, ok := recordedEkurStamp(data, meshjobs.JobWeapons); !ok {
+		t.Fatal("restore without .stale removed the library")
+	}
+}
+
 // ekurFixtureCmd lays down the five contract entries of an Ekur reference in folder (the
 // cmd-level twin of the spartanpieces fixture: this package cannot import that test file).
 func ekurFixtureCmd(t *testing.T, folder string) {

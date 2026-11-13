@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -215,8 +216,22 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 // buildWeaponLibrary runs the weapon library build into the store's weapons folder. It is the
 // weapons job's body in the mesh build runner.
 func buildWeaponLibrary(ctx context.Context, root *store.Root, gameRoot string, keys weapons.Catalog) (meshjobs.BuildResult, error) {
+	// The startup catalog names only the map: discover the game's weapon roster from it, as
+	// build-weapons does. Without this the build wrote only the extras (body, grenades).
+	if len(keys.Keys) == 0 {
+		cat, err := weapons.Discover(ctx, keys.Map, gameRoot)
+		if err != nil {
+			restoreStaleCoatingLibrary(root.Dir(), meshjobs.JobWeapons)
+			return meshjobs.BuildResult{}, fmt.Errorf("weapon roster: %w", err)
+		}
+		keys = cat
+	}
 	result, err := weapons.Build(ctx, weapons.Options{Catalog: keys, GameRoot: gameRoot, DataDir: root.Dir()}, nil)
+	if err == nil && result.Built == 0 {
+		err = errors.New("weapon library build wrote no weapon model")
+	}
 	if err != nil {
+		restoreStaleCoatingLibrary(root.Dir(), meshjobs.JobWeapons)
 		return meshjobs.BuildResult{}, err
 	}
 	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobWeapons)
@@ -230,6 +245,7 @@ func buildWeaponLibrary(ctx context.Context, root *store.Root, gameRoot string, 
 func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
 	result, err := firstperson.Build(ctx, firstperson.Options{Map: firstMapModule(root), GameRoot: gameRoot, DataDir: root.Dir()}, nil)
 	if err != nil {
+		restoreStaleCoatingLibrary(root.Dir(), meshjobs.JobFirstPerson)
 		return meshjobs.BuildResult{}, err
 	}
 	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobFirstPerson)
@@ -243,6 +259,7 @@ func buildFirstPersonLibrary(ctx context.Context, root *store.Root, gameRoot str
 func buildSpartanPieceLibrary(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
 	result, err := spartanpieces.Build(ctx, spartanpieces.Options{Map: firstMapModule(root), GameRoot: gameRoot, DataDir: root.Dir()}, nil)
 	if err != nil {
+		restoreStaleCoatingLibrary(root.Dir(), meshjobs.JobSpartanPieces)
 		return meshjobs.BuildResult{}, err
 	}
 	removeStaleCoatingLibrary(root.Dir(), meshjobs.JobSpartanPieces)
@@ -320,6 +337,31 @@ func removeStaleCoatingLibrary(dataDir, module string) {
 	} else {
 		slog.Info("stale library removed after rebuild", "library", folder)
 	}
+}
+
+// restoreStaleCoatingLibrary puts a stale library back when its rebuild failed: a stale
+// library still renders (only some coatings are out of date), an absent one renders nothing.
+// The failed build's partial folder is removed first (refusing symlinks and junctions); if
+// that is refused, or no .stale folder exists, nothing is moved.
+func restoreStaleCoatingLibrary(dataDir, module string) {
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return
+	}
+	dir := filepath.Join(dataDir, folder)
+	stale := dir + staleSuffix
+	if _, err := os.Lstat(stale); err != nil {
+		return
+	}
+	if err := removeTreeRefusingSymlinks(dir, "failed library build"); err != nil {
+		slog.Warn("stale library not restored", "library", folder, "err", err)
+		return
+	}
+	if err := os.Rename(stale, dir); err != nil {
+		slog.Warn("stale library not restored", "library", folder, "err", err)
+		return
+	}
+	slog.Warn("library rebuild failed: previous library restored", "library", folder)
 }
 
 // removeTreeRefusingSymlinks removes path (a library folder set aside by the startup) and
