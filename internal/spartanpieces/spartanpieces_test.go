@@ -5,7 +5,10 @@
 package spartanpieces
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -262,6 +265,82 @@ func TestEkurShapesRoundTrip(t *testing.T) {
 	}
 	if p.Gradient != Identifier(7) {
 		t.Fatalf("visor gradient = %q", p.Gradient)
+	}
+}
+
+// TestCoatingWorkFinishPerStyle — Finish writes one coating file per named
+// style of the lists the materials name (the key the viewer asks for, the
+// player's style key), its lists mapping each list to the style's reference
+// and its styles carrying those references' data; no file keyed by a list key.
+func TestCoatingWorkFinishPerStyle(t *testing.T) {
+	refDir := t.TempDir()
+	ekurFixture(t, refDir)
+	// No gradient bitmaps anywhere: the test needs no arsenal to read them.
+	if err := os.WriteFile(filepath.Join(refDir, "styles", "-177284589.json"),
+		[]byte(`{"grime_amount":0,"scratch_amount":0,"grime_swatch":{"index":0,"disabled":true,"gradient_transform":[1,1],"roughness":4},`+
+			`"regions":{"789":{"layers":{"1":{"index":0,"gradient_transform":[2,2],"roughness":4,"top_color":[1,0,0],"mid_color":[0,1,0],"bot_color":[0,0,1]}}}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(refDir, "visor_data.json"), []byte(`{"patterns":{},"colors":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := OpenCoatingWork(refDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	// Material 123 names style list 456 (the fixture's).
+	if !w.Annotate(ctx)(map[string]any{"id": json.Number("123"), himap.CleSurfaceBrute: map[string]any{}}) {
+		t.Fatal("material 123 not annotated with a style")
+	}
+	out := t.TempDir()
+	idx, err := w.Finish(ctx, nil, out)
+	if err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	// The file is keyed by the style id (the coating StyleId), not the list key.
+	raw, err := os.ReadFile(filepath.Join(out, FileCoating("f56eda13")))
+	if err != nil {
+		t.Fatalf("coating file of the style id absent: %v (the builder keys files by the list key)", err)
+	}
+	var c Coating
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	listKey := Identifier(uint32(456))
+	if c.Style != "f56eda13" {
+		t.Errorf("style = %q", c.Style)
+	}
+	if c.Lists[listKey] != "f56eda13" {
+		t.Errorf("lists[%s] = %q, want the style reference f56eda13; got: %s", listKey, c.Lists[listKey], raw)
+	}
+	s, ok := c.Styles["f56eda13"]
+	if !ok {
+		t.Fatalf("styles missing f56eda13: %s", raw)
+	}
+	if layer, ok := s.Regions[Identifier(789)][Identifier(1)]; !ok || layer.Top != [3]float32{1, 0, 0} {
+		t.Errorf("style region layer = %+v", s.Regions[Identifier(789)])
+	}
+	// No file keyed by the list key (that is the stub shape).
+	if _, err := os.Stat(filepath.Join(out, FileCoating(listKey))); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("file %q keyed by the list key exists, want none", FileCoating(listKey))
+	}
+	// The common table still names each list's default style.
+	raw, err = os.ReadFile(filepath.Join(out, FileCoatings))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tab CoatingTable
+	if err := json.Unmarshal(raw, &tab); err != nil {
+		t.Fatal(err)
+	}
+	if tab.Defaults[listKey] != "f56eda13" {
+		t.Errorf("default_styles[%s] = %q", listKey, tab.Defaults[listKey])
+	}
+	if idx.Coatings != 1 || idx.Lists != 1 || idx.Styles != 1 {
+		t.Errorf("index = %+v", idx)
 	}
 }
 

@@ -21,7 +21,9 @@ pipeline reuses the Spartan armor coating work end to end: the same file contrac
 GLBs and, when an Ekur reference is found, writes beside them:
 
 - `coatings.json` — the common table (per-list default style, styles, swatches);
-- one `coating-<style>.json` per style list the weapon materials name;
+- one `coating-<style>.json` per named style of the lists the weapon materials name (keyed by
+  the style id the players' `style_key` carries; its `lists` maps each list to the style's
+  reference);
 - one `swatch-<gradient>.png` per gradient image.
 
 `index.json` carries the coatings section. Without an Ekur reference the build warns
