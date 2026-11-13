@@ -8,6 +8,10 @@ import (
 
 const usage = `usage: infinite-theater-3d <command> [flags]
 
+  login --client-id <id> [--data <dir>]
+  logout [--data <dir>]
+  matches [--count N] [--data <dir>]
+  fetch --match <id> [--data <dir>]
   version
   decode-info <chunk-dir>
   decode --chunks <dir> --map <name> --out <doc.json> [--manifest <file>] [--stats <file>] [--catalog <file>]
@@ -24,6 +28,10 @@ const usage = `usage: infinite-theater-3d <command> [flags]
 // commands maps each subcommand to its entry point; every entry takes the arguments that
 // follow the subcommand name.
 var commands = map[string]func([]string) error{
+	"login":             runLogin,
+	"logout":            runLogout,
+	"matches":           runMatches,
+	"fetch":             runFetch,
 	"decode-info":       runDecodeInfo,
 	"decode":            runDecode,
 	"import":            runImport,
