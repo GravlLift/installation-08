@@ -56,7 +56,7 @@ const HALO_RADIUS = 0.3
 // La lumière d'une détonation éclaire la pièce sur ~18 m.
 const DETONATION_LIGHT_RANGE = 6
 // La couleur de cette lumière : la teinte de la déflagration mêlée de blanc incandescent.
-const DETONATION_CORE_MIX = 0.6
+const DETONATION_CORE_MIX = 0.35
 
 // La grenade tournoie en vol (rad/s), autour d'un axe incliné.
 const GRENADE_SPIN = 4 * Math.PI
