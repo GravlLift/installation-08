@@ -45,6 +45,14 @@ func contextNumber(v any) (float64, bool) {
 	return 0, false
 }
 func contextCached(root *store.Root, id string, header contextJSON, rows, events []contextJSON) {
+	pair := contextReadJSON(variantPath(root, id, "map-mode-pair.json"))
+	pairName := textValue(pair["PublicName"])
+	if pairName == "" {
+		pairName = textValue(object(pair["PublicName"])["value"])
+	}
+	if mode, category := contextMode(pairName); mode != "" {
+		header["mode_ui"], header["mode_category"] = mode, category
+	}
 	playlist := contextReadJSON(variantPath(root, id, "playlist.json"))
 	if name := textValue(playlist["PublicName"]); name != "" {
 		header["playlist_label"] = name

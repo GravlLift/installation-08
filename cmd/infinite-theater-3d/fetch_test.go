@@ -194,6 +194,8 @@ func TestFetchContextArtifacts(t *testing.T) {
 			fmt.Fprint(w, `{"Value":[]}`)
 		case "/playlists/pl/versions/ver":
 			fmt.Fprint(w, `{"PublicName":"Ranked Arena"}`)
+		case "/mapModePairs/pair/versions/ver":
+			fmt.Fprint(w, `{"PublicName":"Ranked:Oddball on Live Fire"}`)
 		case "/Waypoint/file/medals/metadata.json":
 			fmt.Fprint(w, `{"Medals":[{"NameId":42,"Name":{"value":"Test"},"SpriteIndex":0}]}`)
 		case "/Waypoint/file/medals/images/medal_sheet_xl.png":
@@ -217,13 +219,13 @@ func TestFetchContextArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := []byte(`{"MatchInfo":{"Playlist":{"AssetId":"pl","VersionId":"ver"},"MapVariant":{"AssetId":"map","VersionId":"ver"}},"Players":[{"PlayerId":"xuid(123)"}]}`)
+	raw := []byte(`{"MatchInfo":{"Playlist":{"AssetId":"pl","VersionId":"ver"},"PlaylistMapModePair":{"AssetId":"pair","VersionId":"ver"},"MapVariant":{"AssetId":"map","VersionId":"ver"}},"Players":[{"PlayerId":"xuid(123)"}]}`)
 	for i := 0; i < 2; i++ {
 		if err := fetchContextArtifacts(context.Background(), root, api, "abc", raw); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, p := range []string{"matches/abc/skill.json", "matches/abc/playlist.json", "medals/metadata.json", "static/medals/halo_infinite/42.png", "static/maps/halo_infinite/map.png"} {
+	for _, p := range []string{"matches/abc/skill.json", "matches/abc/playlist.json", "matches/abc/map-mode-pair.json", "medals/metadata.json", "static/medals/halo_infinite/42.png", "static/maps/halo_infinite/map.png"} {
 		if _, err := os.Stat(filepath.Join(root.Dir(), filepath.FromSlash(p))); err != nil {
 			t.Errorf("%s: %v", p, err)
 		}

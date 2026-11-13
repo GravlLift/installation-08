@@ -30,6 +30,14 @@ func (c *Client) Playlist(ctx context.Context, id, version string) ([]byte, erro
 	var v any
 	return c.json(ctx, c.endpoints.Discovery+"/playlists/"+segment(id)+"/versions/"+segment(version), &v)
 }
+
+func (c *Client) MapModePair(ctx context.Context, id, version string) ([]byte, error) {
+	if id == "" || version == "" {
+		return nil, nil
+	}
+	var v any
+	return c.json(ctx, c.endpoints.Discovery+"/mapModePairs/"+segment(id)+"/versions/"+segment(version), &v)
+}
 func (c *Client) MedalCatalog(ctx context.Context) ([]byte, error) {
 	if c.endpoints.GameCMS == "" {
 		return nil, nil

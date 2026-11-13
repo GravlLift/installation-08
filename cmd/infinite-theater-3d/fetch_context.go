@@ -30,6 +30,10 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 				ID      string `json:"AssetId"`
 				Version string `json:"VersionId"`
 			} `json:"Playlist"`
+			Pair struct {
+				ID      string `json:"AssetId"`
+				Version string `json:"VersionId"`
+			} `json:"PlaylistMapModePair"`
 			Map struct {
 				ID      string `json:"AssetId"`
 				Version string `json:"VersionId"`
@@ -63,6 +67,15 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 	}
 	if len(playlist) > 0 {
 		if err = root.WriteFile(variantPath(root, id, "playlist.json"), playlist); err != nil {
+			return err
+		}
+	}
+	pair, err := api.MapModePair(ctx, p.Info.Pair.ID, p.Info.Pair.Version)
+	if err != nil {
+		slog.Warn("map mode pair unavailable", "id", id, "err", err)
+	}
+	if len(pair) > 0 {
+		if err = root.WriteFile(variantPath(root, id, "map-mode-pair.json"), pair); err != nil {
 			return err
 		}
 	}

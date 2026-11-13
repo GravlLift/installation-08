@@ -210,9 +210,10 @@ func TestContextStaticAssets(t *testing.T) {
 func TestContextCachedMetadata(t *testing.T) {
 	root := newFakeStore(t)
 	files := map[string]string{
-		"stats-full.json": `{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":1,"Medals":[{"NameId":42,"Count":2}]}}}]}]}`,
-		"skill.json":      `{"Value":[{"Id":"xuid(1)","ResultCode":0,"Result":{"StatPerformances":{"Kills":{"Expected":3.5,"StdDev":1.2},"Deaths":{"Expected":2.5,"StdDev":0.8}},"RankRecap":{"PreMatchCsr":{"Value":1500},"PostMatchCsr":{"Value":1505,"Tier":"Onyx","SubTier":0,"InitialMeasurementMatches":5}}}}]}`,
-		"playlist.json":   `{"PublicName":"Ranked Arena"}`,
+		"stats-full.json":    `{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2,"Deaths":1,"Medals":[{"NameId":42,"Count":2}]}}}]}]}`,
+		"skill.json":         `{"Value":[{"Id":"xuid(1)","ResultCode":0,"Result":{"StatPerformances":{"Kills":{"Expected":3.5,"StdDev":1.2},"Deaths":{"Expected":2.5,"StdDev":0.8}},"RankRecap":{"PreMatchCsr":{"Value":1500},"PostMatchCsr":{"Value":1505,"Tier":"Onyx","SubTier":0,"InitialMeasurementMatches":5}}}}]}`,
+		"playlist.json":      `{"PublicName":"Ranked Arena"}`,
+		"map-mode-pair.json": `{"PublicName":"Ranked:Oddball on Live Fire"}`,
 	}
 	for p, v := range files {
 		if err := root.WriteFile(variantPath(root, "abc", p), []byte(v)); err != nil {
@@ -237,7 +238,7 @@ func TestContextCachedMetadata(t *testing.T) {
 	row := got.Scoreboard[0]
 	medals, _ := row["medals"].([]any)
 	rank, _ := row["skill_rank"].(map[string]any)
-	if got.Header["is_ranked"] != true || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" {
+	if got.Header["is_ranked"] != true || got.Header["mode_ui"] != "Oddball" || got.Header["mode_category"] != "Ranked" || got.Header["playlist_label"] != "Ranked Arena" || row["expected_kills"] != 3.5 || row["deaths_stddev"] != 0.8 || rank["rating_value"] != float64(1505) || len(medals) != 1 || medals[0].(map[string]any)["label"] != "Test Medal" {
 		t.Fatalf("%s", rec.Body.String())
 	}
 }
