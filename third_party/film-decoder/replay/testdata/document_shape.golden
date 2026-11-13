@@ -1,24 +1,10 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
-<<<<<<< ours
-schema 116
-empreinte-stockee 0a4ac2112e6621a7
-empreinte-servie 0a4ac2112e6621a7
-empreinte-cuite 60ad890ba2fc9beb
-empreinte-cuite-regle 3
-||||||| base
-schema 106
-empreinte-stockee 0d2f84c6bfc90744
-empreinte-servie 0d2f84c6bfc90744
-empreinte-cuite 5851d6b8391f4d64
-empreinte-cuite-regle 3
-=======
-schema 112
-empreinte-stockee 39a297d308194f20
-empreinte-servie 39a297d308194f20
-empreinte-cuite 4214014a3609cab4
+schema 122
+empreinte-stockee c1922d9834f1675e
+empreinte-servie c1922d9834f1675e
+empreinte-cuite 467acfe598095bcc
 empreinte-cuite-regle 4
->>>>>>> upstream
 
 AbilityCharge
   Charges json:"charges" int
@@ -381,14 +367,11 @@ Coverage
   VipCrown json:"vipCrown,omitempty" *VipCrownCoverage
   WeaponChanges json:"weaponChanges,omitempty" *WeaponChangeCoverage
   Zones json:"zones,omitempty" *ZonesCoverage
-<<<<<<< ours
 Damage
   By json:"by,omitempty" *uint32
   Slot json:"slot" uint32
   Src json:"src,omitempty" *uint32
   T json:"t" int
-||||||| base
-=======
 DeadState
   EnumA json:"" int32
   EnumB json:"" int32
@@ -402,7 +385,6 @@ DeadState
   Val0e json:"" uint8
   Val14 json:"" uint8
   Val18 json:"" int8
->>>>>>> upstream
 DeathsPathTally
   Matched json:"matched" int
   Population json:"population" int

@@ -111,10 +111,4 @@
 #               GlobalID du tag `eqip` de l objet, ecrit dans son record de creation). Aucune lecture d octets
 #               ne change.
 source-2026-09-16	4d8427e406555c7cca2bbe0e94c3658a639cb394c4be305a08d7e413ab998913
-<<<<<<< ours
-source-2026-09-16.2	82387e1b2a32fd9bfdf745edf75dc98cd3c1f85f66370fc29bba7ae791b5b02a
-||||||| base
-source-2026-09-16.2	1110e2ab8d490f020878d5ac1bacfcb4deaaad4027aa208a9eb9eedcb2804415
-=======
-source-2026-09-16.2	2783311f299c5725a6127a1dcbdbfcb358ad63872c1d821cdfa7d494ed64234f
->>>>>>> upstream
+source-2026-09-16.2	a16d7bf7d19e3dcd0d9c76976c45c968d6334b8b7bff987037658ff32d43290c
