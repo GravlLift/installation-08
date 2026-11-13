@@ -224,6 +224,9 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	if err != nil {
 		return errors.New("invalid match stats")
 	}
+	if facts.GameVariantName == "" {
+		facts.GameVariantName = api.ModeName(ctx, raw)
+	}
 	stats, _ := json.Marshal(facts)
 	statsPath, _ := root.MatchStatsPath(id)
 	if err = root.WriteFile(statsPath, stats); err != nil {

@@ -143,13 +143,9 @@ type Match struct {
 	Time string `json:"time"`
 }
 type matchInfo struct {
-	Start string `json:"StartTime"`
-	Map   struct {
-		Name string `json:"PublicName"`
-	} `json:"MapVariant"`
-	Mode struct {
-		Name string `json:"PublicName"`
-	} `json:"UgcGameVariant"`
+	Start string   `json:"StartTime"`
+	Map   assetRef `json:"MapVariant"`
+	Mode  assetRef `json:"UgcGameVariant"`
 }
 
 func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, error) {
@@ -169,28 +165,7 @@ func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, 
 	out := make([]Match, 0, len(result.Results))
 	for _, row := range result.Results {
 		info := row.Info
-		if info.Map.Name == "" || info.Mode.Name == "" {
-			raw, e := c.Stats(ctx, row.ID)
-			if e != nil {
-				return nil, e
-			}
-			var details struct {
-				Info matchInfo `json:"MatchInfo"`
-			}
-			if json.Unmarshal(raw, &details) != nil {
-				return nil, errors.New("invalid match stats")
-			}
-			if info.Map.Name == "" {
-				info.Map = details.Info.Map
-			}
-			if info.Mode.Name == "" {
-				info.Mode = details.Info.Mode
-			}
-			if info.Start == "" {
-				info.Start = details.Info.Start
-			}
-		}
-		out = append(out, Match{ID: row.ID, Map: info.Map.Name, Mode: info.Mode.Name, Time: info.Start})
+		out = append(out, Match{ID: row.ID, Map: c.assetName(ctx, kindMap, info.Map), Mode: c.assetName(ctx, kindMode, info.Mode), Time: info.Start})
 	}
 	return out, nil
 }

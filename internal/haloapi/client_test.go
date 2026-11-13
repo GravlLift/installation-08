@@ -17,7 +17,11 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/hi/players/xuid(123)/matches":
-			fmt.Fprint(w, `{"Results":[{"MatchId":"abc"}]}`)
+			fmt.Fprint(w, `{"Results":[{"MatchId":"abc","MatchInfo":{"StartTime":"t","MapVariant":{"AssetId":"m1","VersionId":"v1"},"UgcGameVariant":{"AssetId":"g1","VersionId":"v2"}}}]}`)
+		case "/hi/maps/m1/versions/v1":
+			fmt.Fprint(w, `{"PublicName":"Live Fire - Ranked"}`)
+		case "/hi/ugcGameVariants/g1/versions/v2":
+			fmt.Fprint(w, `{"PublicName":"Ranked:Oddball"}`)
 		case "/hi/matches/abc/stats":
 			fmt.Fprint(w, `{"Players":[]}`)
 		case "/hi/films/matches/abc/spectate":
@@ -42,8 +46,15 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 	c := New(s.Client(), Endpoints{s.URL + "/hi", s.URL + "/hi", s.URL + "/hi"}, "test-spartan", "test-clearance")
 	c.interval = 0
 	ctx := context.Background()
-	if _, err := c.Matches(ctx, "123", 1); err != nil {
+	ms, err := c.Matches(ctx, "123", 1)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(ms) != 1 || ms[0].Map != "Live Fire - Ranked" || ms[0].Mode != "Ranked:Oddball" {
+		t.Fatalf("names not resolved from asset ids: %+v", ms)
+	}
+	if got := c.ModeName(ctx, []byte(`{"MatchInfo":{"UgcGameVariant":{"AssetId":"g1","VersionId":"v2"}}}`)); got != "Ranked:Oddball" {
+		t.Fatalf("mode name %q", got)
 	}
 	if _, err := c.Stats(ctx, "abc"); err != nil {
 		t.Fatal(err)
