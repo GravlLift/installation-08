@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
+	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
@@ -59,40 +60,63 @@ func objectiveSpecs(mode string) []replay.ObjectiveRoleSpec {
 	return out
 }
 
-func deriveObjectives(raw []byte, mode string) (*replay.MapObjectives, error) {
+func objectiveCatalog(raw []byte, mode string) (*replay.MapObjectives, replay.ZoneInput, error) {
 	specs := objectiveSpecs(mode)
 	if len(specs) == 0 {
-		return nil, nil
+		return nil, replay.ZoneInput{}, nil
 	}
 	variant, err := mapvar.Parse(raw)
 	if err != nil {
-		return nil, err
+		return nil, replay.ZoneInput{}, err
 	}
-	return objectivesFromVariant(variant, specs), nil
+	return objectiveCatalogFromVariant(variant, mode, specs)
+}
+
+func objectiveCatalogFromVariant(variant *mapvar.Variant, mode string, specs []replay.ObjectiveRoleSpec) (*replay.MapObjectives, replay.ZoneInput, error) {
+	entry := replay.MapObjectivesEntry{Objectives: variant.Objectives()}
+	objectives := replay.BuildMapObjectives(entry, specs)
+	var zone replay.ZoneInput
+	for _, spec := range specs {
+		if spec.Role != mapvar.RoleHill && spec.Role != mapvar.RoleStrongholdZone {
+			continue
+		}
+		zone.Zones = append(zone.Zones, entry.ZonesOfRole(spec.Role).Zones...)
+		if zone.Roles != "" {
+			zone.Roles += ","
+		}
+		zone.Roles += string(spec.Role)
+	}
+	zone.Hill = decfilm.ObjectiveTypeOf(mode) == decfilm.ObjectiveTypeHill
+	return objectives, zone, nil
 }
 
 func matchObjectives(root *store.Root, id string) (*replay.MapObjectives, error) {
+	objectives, _, err := matchObjectiveCatalog(root, id)
+	return objectives, err
+}
+
+func matchObjectiveCatalog(root *store.Root, id string) (*replay.MapObjectives, replay.ZoneInput, error) {
 	stats, err := os.ReadFile(variantPath(root, id, "stats.json"))
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, replay.ZoneInput{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, replay.ZoneInput{}, err
 	}
 	var facts struct {
 		GameVariantName string `json:"gameVariantName"`
 	}
 	if err = json.Unmarshal(stats, &facts); err != nil {
-		return nil, err
+		return nil, replay.ZoneInput{}, err
 	}
 	raw, err := os.ReadFile(variantPath(root, id, "map.mvar"))
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, replay.ZoneInput{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, replay.ZoneInput{}, err
 	}
-	return deriveObjectives(raw, facts.GameVariantName)
+	return objectiveCatalog(raw, facts.GameVariantName)
 }
 
 // servedReplay is one match's served document and the stamp of the files it was made from.
@@ -179,8 +203,4 @@ func enrichReplay(raw []byte, objectives *replay.MapObjectives) ([]byte, error) 
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func objectivesFromVariant(variant *mapvar.Variant, specs []replay.ObjectiveRoleSpec) *replay.MapObjectives {
-	return replay.BuildMapObjectives(replay.MapObjectivesEntry{Objectives: variant.Objectives()}, specs)
 }
