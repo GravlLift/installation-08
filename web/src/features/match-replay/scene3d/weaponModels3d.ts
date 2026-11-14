@@ -26,6 +26,7 @@ import { rawMaps } from './armorLibrary3d'
 import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips } from './clips3d'
 import { measureSyncPhases } from './clipSample3d'
 import { darkMetalFallback } from './fallbackMetal3d'
+import { FlagBanners } from './flagBanner3d'
 import { fetchMesh } from './meshFetch'
 import { ReticleRanges } from './reticleRanges3d'
 
@@ -55,12 +56,15 @@ export class WeaponModels {
   readonly gate?: LoadGate
   /** The red-reticle ranges and zoom magnifications of the library's index (served at `base`). */
   readonly reticles: ReticleRanges
+  /** The team banners of the library's index (the CTF flag's). */
+  private readonly banners: FlagBanners
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
-  constructor(base: string, gate?: LoadGate, reticles: ReticleRanges = new ReticleRanges(base)) {
+  constructor(base: string, gate?: LoadGate, reticles: ReticleRanges = new ReticleRanges(base), banners: FlagBanners = new FlagBanners(base)) {
     this.base = base
     this.gate = gate
     this.reticles = reticles
+    this.banners = banners
   }
 
   /** reticleRange is the red-reticle range of the weapon `id` at `zoomLevel`, null when it has none. */
@@ -73,6 +77,17 @@ export class WeaponModels {
   model(id: string): THREE.Object3D | null {
     const key = weaponModelKey(id)
     return key ? this.byKey(key) : null
+  }
+
+  /**
+   * flagModel is the model (to clone) of the flag `id` dressed with the banner of team `team`
+   * (null: a flag of no team), its cloth tinted `ink` (null: the effect's white), the bare model
+   * while the banner is not known; null until the model is loaded.
+   */
+  flagModel(id: string, team: number | null, ink: THREE.Color | null): THREE.Object3D | null {
+    const key = weaponModelKey(id)
+    const model = key ? this.byKey(key) : null
+    return key && model ? this.banners.dress(model, key, team, ink) : null
   }
 
   /** spartan rend le Spartan à peau (à cloner par `SkeletonUtils`, cf. `spartan3d`), null tant qu'il n'est pas là. */
@@ -105,6 +120,7 @@ export class WeaponModels {
   dispose(): void {
     this.abort.abort()
     this.reticles.dispose()
+    this.banners.dispose()
     for (const root of this.owned) {
       root.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return

@@ -187,6 +187,7 @@ describe('Vehicles3dLayer', () => {
       playerFeet: () => null,
       slotState: () => null,
       weaponModel: () => null,
+      flagModel: () => null,
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,

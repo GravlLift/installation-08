@@ -5,7 +5,7 @@
  *  - les interrupteurs : `show.objectives` seul commande tout, les familles suivent le leur ;
  *  - les zones jointes au catalogue suivent leur activité et leur propriétaire ;
  *  - l'indice de hauteur d'un objet posé vient du porteur le plus proche dans le temps ;
- *  - drapeau, crâne et bombe : au-dessus du porteur localisé, au sol sinon.
+ *  - drapeau : dans la main du porteur localisé, au sol sinon ; crâne et bombe : chez le porteur, au sol sinon.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -23,7 +23,8 @@ import {
   bombExplosionsOf,
   bombPlaceAt,
   carryHintAt,
-  flagPlacesAt,
+  flagPlaceAt3d,
+  markersToDraw,
   objectivesShown,
   prepareFlag,
   prepareObjectives,
@@ -83,6 +84,14 @@ describe('prepareObjectives', () => {
     expect(p.markers).toEqual([MARKER])
   })
 
+  it('a CTF base gives way to the drawn flag model, the other markers stay', () => {
+    const delivery = { ...MARKER, role: 'flag_delivery' }
+    const other = { ...MARKER, role: 'bomb_spawn' }
+    const markers = [MARKER, delivery, other]
+    expect(markersToDraw(markers, true)).toEqual([other])
+    expect(markersToDraw(markers, false)).toEqual(markers)
+  })
+
   it('catalogue non joignable : aucun état', () => {
     const p = prepareObjectives([zone()], zoneDoc([state()], 3))
     expect(p.zones[0].state).toBeNull()
@@ -105,7 +114,7 @@ describe('carryHintAt', () => {
   })
 })
 
-describe('flagPlacesAt', () => {
+describe('flagPlaceAt3d', () => {
   const carry: ReplayFlagCarryReady = {
     team: 1,
     spans: [
@@ -116,32 +125,27 @@ describe('flagPlacesAt', () => {
     ],
   }
   const posOf = (xuid: string, f: number): XY | null => (xuid === 'A' && f < 35 ? { x: 9, y: 9 } : null)
-  const flag = prepareFlag(carry, zOf)
+  const flag = prepareFlag(carry)
 
-  it('à la base : posé au sol, sans base vide', () => {
-    expect(flagPlacesAt(flag, 5, posOf, zOf)).toEqual({
-      team: 1, live: { on: 'floor', at: { x: 1, y: 1 }, hint: 3 }, hollow: false, home: null,
-    })
-    expect(flag.homeHint).toBe(3)
+  it('at home: on the floor of its base, at the height of the carrier closest in time', () => {
+    expect(flagPlaceAt3d(flag, 5, posOf, zOf)).toEqual({ on: 'floor', at: { x: 1, y: 1 }, hint: 3 })
   })
 
-  it('porté : au-dessus du porteur, la base reste en fantôme', () => {
-    const p = flagPlacesAt(flag, 15, posOf, zOf)
-    expect(p?.live).toEqual({ on: 'carrier', xuid: 'A' })
-    expect(p?.home).toEqual({ on: 'floor', at: { x: 1, y: 1 }, hint: 3 })
+  it('carried, dated or not: in the hand of its carrier', () => {
+    expect(flagPlaceAt3d(flag, 15, posOf, zOf)).toEqual({ on: 'carrier', xuid: 'A' })
+    expect(flagPlaceAt3d(flag, 32, posOf, zOf)).toEqual({ on: 'carrier', xuid: 'A' })
   })
 
-  it('tombé : au sol, à la hauteur du dernier porteur', () => {
-    expect(flagPlacesAt(flag, 25, posOf, zOf)?.live).toEqual({ on: 'floor', at: { x: 4, y: 4 }, hint: 3 })
+  it('dropped: on the floor where it fell, at the height of the last carrier', () => {
+    expect(flagPlaceAt3d(flag, 25, posOf, zOf)).toEqual({ on: 'floor', at: { x: 4, y: 4 }, hint: 3 })
   })
 
-  it('portage non daté : fanion creux ; porteur perdu : libre à sa dernière position', () => {
-    expect(flagPlacesAt(flag, 32, posOf, zOf)).toMatchObject({ live: { on: 'carrier', xuid: 'A' }, hollow: true })
-    expect(flagPlacesAt(flag, 38, posOf, zOf)?.live).toEqual({ on: 'floor', at: { x: 9, y: 9 }, hint: 3 })
+  it('carrier lost: free at his last known position', () => {
+    expect(flagPlaceAt3d(flag, 38, posOf, zOf)).toEqual({ on: 'floor', at: { x: 9, y: 9 }, hint: 3 })
   })
 
-  it('hors de tout intervalle : rien', () => {
-    expect(flagPlacesAt(flag, 50, posOf, zOf)).toBeNull()
+  it('outside every span: nothing', () => {
+    expect(flagPlaceAt3d(flag, 50, posOf, zOf)).toBeNull()
   })
 })
 

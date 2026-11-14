@@ -5,11 +5,21 @@
  * Le tag `weap` porte sa classe, que la vue ne lit pas encore (StringID à décalage variable, cf. plan) :
  * la table ci-dessous la donne par la clé stable du libellé d'arme du document (`weaponLabels[id].key`,
  * celle de `config/titles/halo_infinite/mappings/replay_labels.toml`). Une arme absente de la table,
- * sans libellé ou sans clé, se tient comme un fusil. Le crâne de l'Oddball n'est pas une arme de la
- * rangée : son porteur prend la classe `ball` par son portage (`skullCarries`), pas par cette table.
+ * sans libellé ou sans clé, se tient comme un fusil. Le crâne de l'Oddball et le drapeau du CTF ne
+ * sont pas des armes de la rangée : leur porteur prend la classe de l'objet par son portage
+ * (`carriedObjectAt`), pas par cette table (`CARRIED_OBJECT_CLASS`).
  */
+import type { CarriedObject } from '../model/armeEnMain'
 
 export type WeaponClass = 'rifle' | 'pistol' | 'missile' | 'sword' | 'hammer' | 'ball' | 'turret'
+
+/**
+ * The animation class of an objective object held in hand, as its `weap` tag declares it
+ * (`himap.EtiquettesAnimationArme`): the skull `0017592c` is `ball`; the flag `2a392328` is
+ * `hammer` with the type `ctf`, and the Spartan's graphs carry no `ctf` clip of their own, so its
+ * carrier plays the hammer's.
+ */
+export const CARRIED_OBJECT_CLASS: Readonly<Record<CarriedObject, WeaponClass>> = { skull: 'ball', flag: 'hammer' }
 
 /** La classe de repli : celle qui a le jeu de clips complet. */
 export const DEFAULT_WEAPON_CLASS: WeaponClass = 'rifle'

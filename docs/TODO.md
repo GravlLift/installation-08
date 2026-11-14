@@ -52,7 +52,16 @@ are in [PARITY.md](PARITY.md).
 7. Map builder: zero-color gradient layers (shaders `47b5f7e5`, `2aaf6012`, `377bfad9`,
    `ff2a209d`). Fixing these also lets the glass workaround go.
 8. CTF flags are a primitive pole and triangle (same as in the reference); they should use
-   the game's flag model and stand.
+   the game's flag model and stand. DONE for the model (weap `2a392328`): on its stand at
+   home, in hand in third and first person, upright where it was dropped. DONE for the team
+   banner: the per-team effects the flag attaches (one per team permutation) are single
+   long-lived particle quads; the viewer draws their cloth (first image of the waving sheet)
+   and the team's emblem layer, statically. The effects' color is a white constant and the game
+   applies the team color at runtime, so the cloth takes the viewer's side ink for the flag's
+   team (the emblem stays white). Not done: the banner
+   on the first-person rig (the rig is a separate model with no marker read for it), the
+   cloth flutter (flipbook rate not read), the remaining effect layers (glow strips, grids,
+   lens and light), and the dropped flag's tilt (the film carries no rotation for it).
 
 ## Viewer UI (open)
 

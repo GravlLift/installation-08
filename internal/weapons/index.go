@@ -89,27 +89,31 @@ type Index struct {
 	// and no magnification: its reticle never turns red and it does not zoom. Always written,
 	// empty included: an index without the field predates it and is stale.
 	ReticleRanges map[string]ReticleRange `json:"reticle_ranges"`
+	// Banners: per weapon model key, the team banner its model carries (banners.go). Always
+	// written, empty included: an index without the field predates it and is stale.
+	Banners map[string]Banner `json:"banners"`
 }
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
 	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
-		ReticleRanges: map[string]ReticleRange{}}
+		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}}
 }
 
-// IndexHasReticleRanges says whether a library index.json carries the red-reticle data the view
-// reads: each reticle entry has its per-level magnifications. A library built before the
-// magnifications existed is stale (its non-empty entries lack the field, and its rebuild adds
-// them); a table without entries (no readable weapons) carries nothing and is current.
-func IndexHasReticleRanges(raw []byte) bool {
+// IndexCurrent says whether a library index.json carries every field the view reads from it: the
+// red-reticle table, each entry with its per-level magnifications, and the team banners. A library
+// built before one of them existed is stale (its rebuild adds it); a reticle table without entries
+// (no readable weapons) carries nothing more and is current.
+func IndexCurrent(raw []byte) bool {
 	var idx struct {
 		ReticleRanges *map[string]struct {
 			Magnifications json.RawMessage `json:"magnifications"`
 		} `json:"reticle_ranges"`
+		Banners *map[string]json.RawMessage `json:"banners"`
 	}
-	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil {
-		return false // the field was never written (a pre-field library)
+	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil {
+		return false // a field was never written (a library older than it)
 	}
 	for _, r := range *idx.ReticleRanges {
 		if len(r.Magnifications) == 0 || string(r.Magnifications) == "null" {

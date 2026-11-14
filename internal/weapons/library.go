@@ -121,11 +121,10 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		res.Bytes += n
 	}
 
-	announce("reading red reticle ranges")
 	idx := NewIndex(opts.Catalog.Keys, generatorLibrary)
 	idx.EkurStamp = stamp
-	if idx.ReticleRanges, err = readReticleRanges(ctx, gameRoot, module, opts.Catalog.Keys); err != nil {
-		return res, fmt.Errorf("red reticle ranges: %w", err)
+	if err := readTagFields(ctx, a, tagSource{gameRoot, module, dir}, &idx, announce); err != nil {
+		return res, err
 	}
 	if coats != nil {
 		idx.Coatings, err = coats.Finish(ctx, a, dir)
@@ -140,6 +139,24 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	res.Seconds = time.Since(start).Seconds()
 	return res, nil
+}
+
+// tagSource names where the index's tag-read fields come from and where their files go.
+type tagSource struct{ gameRoot, module, dir string }
+
+// readTagFields fills the index fields read from the weapons' tags: the red-reticle ranges and
+// the team banners (whose images land in src.dir).
+func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *Index, announce func(string)) error {
+	var err error
+	announce("reading red reticle ranges")
+	if idx.ReticleRanges, err = readReticleRanges(ctx, src.gameRoot, src.module, idx.WeapKeys); err != nil {
+		return fmt.Errorf("red reticle ranges: %w", err)
+	}
+	announce("reading team banners")
+	if idx.Banners, err = readBanners(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
+		return fmt.Errorf("team banners: %w", err)
+	}
+	return nil
 }
 
 // buildWeaponModel writes one weapon's painted GLB (its styled hard surfaces as

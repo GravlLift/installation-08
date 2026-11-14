@@ -35,29 +35,32 @@ func TestReticleRangeOf(t *testing.T) {
 	}
 }
 
-// TestIndexReticleRanges — a new index reads as current; an index written before the field or
-// before its magnifications existed reads as stale (it is rebuilt to add them).
+// TestIndexReticleRanges — a new index always carries the fields (empty included) and reads as
+// current; an index written before one of them, or before the reticle magnifications, existed
+// reads as stale (it is rebuilt to add them).
 func TestIndexReticleRanges(t *testing.T) {
 	raw, err := json.Marshal(NewIndex([]string{"2b1824d5"}, "test"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !IndexHasReticleRanges(raw) {
+	if !IndexCurrent(raw) {
 		t.Fatalf("new index %s: field missing", raw)
 	}
 	for _, old := range []string{
 		`{"schema":1,"weapons":["2b1824d5"]}`,
-		`{"reticle_ranges":{"2b1824d5":{"unscoped":18,"zoomed":[36]}}}`, // no magnifications yet
+		`{"reticle_ranges":null,"banners":{}}`,
+		`{"reticle_ranges":{}}`,                                                      // no banners yet
+		`{"reticle_ranges":{"2b1824d5":{"unscoped":18,"zoomed":[36]}},"banners":{}}`, // no magnifications yet
 		`not json`,
 	} {
-		if IndexHasReticleRanges([]byte(old)) {
+		if IndexCurrent([]byte(old)) {
 			t.Errorf("%s: reported current", old)
 		}
 	}
 	idx := NewIndex(nil, "test")
 	idx.ReticleRanges["2b1824d5"] = ReticleRange{Unscoped: 18, Zoomed: []float64{36}, Magnifications: []float64{2}}
 	raw, _ = json.Marshal(idx)
-	if !IndexHasReticleRanges(raw) {
+	if !IndexCurrent(raw) {
 		t.Fatalf("index with magnifications %s: reported stale", raw)
 	}
 	var back struct {

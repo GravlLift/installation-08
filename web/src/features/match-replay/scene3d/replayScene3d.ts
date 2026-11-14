@@ -213,6 +213,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       playerFeet: (xuid, frame) => this.playerFeet(xuid, frame),
       slotState: (slot, frame) => tracks.sampleSlot(slot, frame),
       weaponModel: (id) => this.weaponModels?.model(id) ?? null,
+      flagModel: (id, team, ink) => this.weaponModels?.flagModel(id, team, ink) ?? null,
       grenadeModel: (rank) => this.weaponModels?.grenade(rank) ?? null,
       spartanModel: () => this.weaponModels?.spartan() ?? null,
       dressOf: (xuid) => this.armory?.dress(xuid) ?? null,

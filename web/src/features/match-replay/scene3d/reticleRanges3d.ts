@@ -4,12 +4,10 @@
  * per zoom level that range scaled by the level's magnification). World units.
  *
  * A weapon absent from the table has no range: its reticle never turns red. There is no shared
- * value for "any weapon". The index is read once; while it cannot be read (library not built yet,
- * or built before the field existed and being rebuilt) every weapon has no range, and the read is
- * retried after `RETRY_MS`.
+ * value for "any weapon". While the index cannot be read (`indexField3d`) every weapon has no
+ * range.
  */
-import { api } from '@/lib/api/client'
-import { isNotFound } from '@/lib/replay/queries'
+import { IndexField, type FetchJson } from './indexField3d'
 
 /**
  * One weapon's entry in the index: `zoomed[level - 1]` is the range at that zoom level, and
@@ -23,9 +21,6 @@ export interface ReticleRangeEntry {
 }
 
 export type ReticleRangeTable = Readonly<Record<string, ReticleRangeEntry>>
-
-/** Delay before reading the index again after a failed read (ms). */
-const RETRY_MS = 15_000
 
 /**
  * reticleRangeAt is the range of the weapon `entry` at the zoom level `zoomLevel` (0 = at the
@@ -56,31 +51,18 @@ export function parseReticleRanges(doc: unknown): ReticleRangeTable | null {
   return out
 }
 
-type FetchJson = (url: string, signal: AbortSignal) => Promise<unknown>
-
-const defaultFetch: FetchJson = (url, signal) => api.get<unknown>(url, undefined, { signal })
-
 /** ReticleRanges — the table of the library served at `indexUrl`, read on first use. */
 export class ReticleRanges {
-  private table: ReticleRangeTable | null = null
-  private loading = false
-  private retryAt = 0
-  private readonly abort = new AbortController()
-  private readonly indexUrl: string
-  private readonly fetchJson: FetchJson
+  private readonly table: IndexField<ReticleRangeTable>
 
-  constructor(indexUrl: string, fetchJson: FetchJson = defaultFetch) {
-    this.indexUrl = indexUrl
-    this.fetchJson = fetchJson
+  constructor(indexUrl: string, fetchJson?: FetchJson) {
+    this.table = new IndexField(indexUrl, parseReticleRanges, fetchJson)
   }
 
   /** range is the range of the weapon of model key `key` at `zoomLevel`, null when it has none (yet). */
   range(key: string, zoomLevel: number): number | null {
-    if (!this.table) {
-      this.load()
-      return null
-    }
-    return reticleRangeAt(this.table[key], zoomLevel)
+    const table = this.table.get()
+    return table ? reticleRangeAt(table[key], zoomLevel) : null
   }
 
   /**
@@ -88,31 +70,11 @@ export class ReticleRanges {
    * or null when the index has none for it (yet, or at all): a weapon the tags give no zoom to.
    */
   magnifications(key: string): number[] | null {
-    if (!this.table) {
-      this.load()
-      return null
-    }
-    const entry = this.table[key]
+    const entry = this.table.get()?.[key]
     return entry && entry.magnifications.length > 0 ? entry.magnifications : null
   }
 
   dispose(): void {
-    this.abort.abort()
-  }
-
-  private load(): void {
-    if (this.loading || performance.now() < this.retryAt) return
-    this.loading = true
-    this.fetchJson(this.indexUrl, this.abort.signal).then(
-      (doc) => {
-        this.table = parseReticleRanges(doc)
-        if (!this.table) this.retryAt = performance.now() + RETRY_MS
-      },
-      (err: unknown) => {
-        if (this.abort.signal.aborted) return
-        if (!isNotFound(err)) console.warn('replay 3D: weapon index unreadable, no red reticle ranges', err)
-        this.retryAt = performance.now() + RETRY_MS
-      },
-    ).finally(() => { this.loading = false })
+    this.table.dispose()
   }
 }

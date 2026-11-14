@@ -6,14 +6,15 @@
  * par emplacement, coups de mêlée mortels par tueur (kills du fil dont la source est la mêlée,
  * `fall3d.fallKindOf`), changements de l'arme en main par emplacement (cherchés aux seules images où
  * la lecture de l'arme peut changer : relevés d'armes, inventaires, prises et lâchers). La classe de
- * l'arme vient du libellé de l'arme tenue (`weaponClass3d`) ; le porteur du crâne tient la classe
- * `ball`. La PHASE de locomotion d'une vie s'intègre point par point (distance au sol / foulée du
+ * l'arme vient du libellé de l'arme tenue (`weaponClass3d`) ; le porteur du crâne ou d'un drapeau
+ * tient la classe de l'objet. La PHASE de locomotion d'une vie s'intègre point par point (distance au sol / foulée du
  * mélange à ce point) et se garde par vie : elle ne dépend que du document.
  *
  */
 import { msToFrames } from '@/lib/replay/replayLogic'
 
 import { familyOf } from '../layers/shotEffects'
+import { carriedObjectAt } from '../model/armeEnMain'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { covers } from '../model/replaySpans'
 import type { ActionContext } from './actionScene3d'
@@ -37,7 +38,7 @@ import { heldWeaponAt, type HeldWeapon3d } from './heldWeapon3d'
 import { postureFilm } from './posturesFilm3d'
 import { thrusterBursts } from './thruster3d_logic'
 import type { LifeView } from './tracks3d'
-import { DEFAULT_WEAPON_CLASS, weaponClassOfKey, type WeaponClass } from './weaponClass3d'
+import { CARRIED_OBJECT_CLASS, DEFAULT_WEAPON_CLASS, weaponClassOfKey, type WeaponClass } from './weaponClass3d'
 import { weaponModelKey } from './weaponModels3d'
 
 const STANCE_KINDS: Readonly<Record<string, keyof MotionStances>> = {
@@ -153,9 +154,10 @@ export class Motion3d {
     return this.uses
   }
 
-  /** weaponClass : la classe de l'arme tenue ; le crâne porté donne `ball`. */
+  /** weaponClass : la classe de l'arme tenue ; un objet d'objectif porté donne la sienne (`CARRIED_OBJECT_CLASS`). */
   private weaponClass(xuid: string, slot: number, frame: number): WeaponClass {
-    for (const c of this.ctx.doc.skullCarries) if (c.xuid === xuid && covers(c, frame)) return 'ball'
+    const carried = carriedObjectAt(this.ctx.doc, xuid, frame)
+    if (carried) return CARRIED_OBJECT_CLASS[carried]
     const held = this.held(slot, frame)
     return held ? weaponClassOfKey(this.ctx.doc.weaponLabels?.[held.id]?.key) : DEFAULT_WEAPON_CLASS
   }

@@ -61,6 +61,7 @@ function calque(rank: number): { layer: Flights3dLayer; root: THREE.Group } {
     playerFeet: () => null,
     slotState: () => null,
     weaponModel: () => null,
+    flagModel: () => null,
     grenadeModel: () => null,
     spartanModel: () => null,
     dressOf: () => null,

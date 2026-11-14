@@ -11,7 +11,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayLocale } from '../i18n/i18n'
 import { fxTintOf, type FxTint } from '../layers/fxInk'
-import { armeEnMain, craneEnMain } from '../model/armeEnMain'
+import { armeEnMain, flagTeamInHand, objetEnMain } from '../model/armeEnMain'
 
 export interface HeldWeapon3d {
   id: string
@@ -19,6 +19,8 @@ export interface HeldWeapon3d {
   name: string
   /** La nature de décharge de l'arme (la teinte de ses tirs). */
   tint: FxTint
+  /** The team of the CTF flag held instead of a weapon (its banner), absent for anything else. */
+  flagTeam?: number
 }
 
 export class HeldWeapons3d {
@@ -51,9 +53,13 @@ export function heldWeaponAt(
   frame: number,
   locale: ReplayLocale,
 ): HeldWeapon3d | null {
-  // Le porteur du crâne le tient en main : la lecture d'arme l'écarte (l'ATH n'en affiche pas), la vue 3D le montre.
-  const held = armeEnMain(doc, slot, frame) ?? craneEnMain(doc, slot, frame)
+  // The carrier of the skull or of a flag holds it in hand: the weapon reading leaves it out (the HUD shows none), the 3D view shows it.
+  const weapon = armeEnMain(doc, slot, frame)
+  const held = weapon ?? objetEnMain(doc, slot, frame)
   if (!held) return null
   const label = doc.weaponLabels?.[held.id]
-  return { id: held.id, name: catalogText(label, locale) ?? '', tint: fxTintOf(label?.tint) }
+  const read: HeldWeapon3d = { id: held.id, name: catalogText(label, locale) ?? '', tint: fxTintOf(label?.tint) }
+  const flagTeam = weapon ? null : flagTeamInHand(doc, slot, frame)
+  if (flagTeam !== null) read.flagTeam = flagTeam
+  return read
 }
