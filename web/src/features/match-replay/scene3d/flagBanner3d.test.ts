@@ -6,7 +6,7 @@
 import * as THREE from 'three'
 import { describe, expect, it, vi } from 'vitest'
 
-import { FlagBanners } from './flagBanner3d'
+import { FlagBanners, flagBannerInk } from './flagBanner3d'
 import { emblemFileOf, parseBanners, quadCenter } from './flagBanner3dModel'
 
 const FLAG = '2a392328'
@@ -70,13 +70,13 @@ describe('FlagBanners', () => {
     const fetchJson = vi.fn((_url: string, _signal: AbortSignal) => Promise.resolve<unknown>(index))
     const banners = new FlagBanners('/api/weapons', fetchJson)
     const flag = new THREE.Group()
-    expect(banners.dress(flag, FLAG, 0)).toBe(flag) // index not read yet
+    expect(banners.dress(flag, FLAG, 0, null)).toBe(flag) // index not read yet
     await flush()
-    const eagle = banners.dress(flag, FLAG, 0)
-    const cobra = banners.dress(flag, FLAG, 1)
-    const neutral = banners.dress(flag, FLAG, null)
+    const eagle = banners.dress(flag, FLAG, 0, null)
+    const cobra = banners.dress(flag, FLAG, 1, null)
+    const neutral = banners.dress(flag, FLAG, null, null)
     expect(eagle).not.toBe(flag)
-    expect(banners.dress(flag, FLAG, 0)).toBe(eagle)
+    expect(banners.dress(flag, FLAG, 0, null)).toBe(eagle)
     expect(cobra).not.toBe(eagle)
     const quads = (o: THREE.Object3D) => o.getObjectByName('team-banner')?.children as THREE.Mesh[]
     expect(quads(eagle)).toHaveLength(2)
@@ -89,8 +89,36 @@ describe('FlagBanners', () => {
     expect(xAxis.z).toBeCloseTo(-1, 6)
     expect(cloth.scale.x).toBeCloseTo(0.375, 6)
     const other = new THREE.Group()
-    expect(banners.dress(other, '2b1824d5', 0)).toBe(other)
+    expect(banners.dress(other, '2b1824d5', 0, null)).toBe(other)
     expect(fetchJson).toHaveBeenCalledTimes(1)
     banners.dispose()
+  })
+
+  it('tints the cloth with the team ink and keeps the emblem white; no ink keeps the effect white', async () => {
+    const banners = new FlagBanners('/api/weapons', () => Promise.resolve<unknown>(index))
+    banners.dress(new THREE.Group(), FLAG, 0, null)
+    await flush()
+    const flag = new THREE.Group()
+    const ally = new THREE.Color(0.1, 0.4, 0.9)
+    const [cloth, emblem] = banners.dress(flag, FLAG, 0, ally).getObjectByName('team-banner')!.children as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[]
+    expect(cloth.material.color.equals(ally)).toBe(true)
+    expect(emblem.material.color.equals(new THREE.Color())).toBe(true)
+    banners.dress(flag, FLAG, 0, null)
+    expect(cloth.material.color.equals(new THREE.Color())).toBe(true)
+    banners.dispose()
+  })
+})
+
+describe('flagBannerInk', () => {
+  const inputs = {
+    allegiance: { ofTeam: (t: number | null | undefined) => (t === 0 ? true : t === 1 ? false : null), ofXuid: () => null },
+    inks: { teamColorOf: (ally: boolean) => (ally ? 'ally-ink' : 'enemy-ink') },
+  } as unknown as Parameters<typeof flagBannerInk>[0]
+  const ink = { of: (css: string | null | undefined) => new THREE.Color().setHSL(css === 'ally-ink' ? 0.6 : 0, 1, 0.5) }
+
+  it('is the side ink of the flag team from the followed point of view, none for a team it does not place', () => {
+    expect(flagBannerInk(inputs, 0, ink)?.equals(ink.of('ally-ink'))).toBe(true)
+    expect(flagBannerInk(inputs, 1, ink)?.equals(ink.of('enemy-ink'))).toBe(true)
+    expect(flagBannerInk(inputs, -1, ink)).toBeNull()
   })
 })

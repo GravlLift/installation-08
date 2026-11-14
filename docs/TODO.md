@@ -56,7 +56,9 @@ are in [PARITY.md](PARITY.md).
    home, in hand in third and first person, upright where it was dropped. DONE for the team
    banner: the per-team effects the flag attaches (one per team permutation) are single
    long-lived particle quads; the viewer draws their cloth (first image of the waving sheet)
-   and the team's emblem layer, statically, in the effects' own white. Not done: the banner
+   and the team's emblem layer, statically. The effects' color is a white constant and the game
+   applies the team color at runtime, so the cloth takes the viewer's side ink for the flag's
+   team (the emblem stays white). Not done: the banner
    on the first-person rig (the rig is a separate model with no marker read for it), the
    cloth flutter (flipbook rate not read), the remaining effect layers (glow strips, grids,
    lens and light), and the dropped flag's tilt (the film carries no rotation for it).

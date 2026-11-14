@@ -81,13 +81,13 @@ export class WeaponModels {
 
   /**
    * flagModel is the model (to clone) of the flag `id` dressed with the banner of team `team`
-   * (null: a flag of no team), the bare model while the banner is not known; null until the model
-   * is loaded.
+   * (null: a flag of no team), its cloth tinted `ink` (null: the effect's white), the bare model
+   * while the banner is not known; null until the model is loaded.
    */
-  flagModel(id: string, team: number | null): THREE.Object3D | null {
+  flagModel(id: string, team: number | null, ink: THREE.Color | null): THREE.Object3D | null {
     const key = weaponModelKey(id)
     const model = key ? this.byKey(key) : null
-    return key && model ? this.banners.dress(model, key, team) : null
+    return key && model ? this.banners.dress(model, key, team, ink) : null
   }
 
   /** spartan rend le Spartan à peau (à cloner par `SkeletonUtils`, cf. `spartan3d`), null tant qu'il n'est pas là. */

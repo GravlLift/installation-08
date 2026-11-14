@@ -35,6 +35,7 @@ import type { Action3dInputs } from './action3dInputs'
 import { InstancePool, LabelPool } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { HEAD_TOP } from './body3d'
+import { flagBannerInk } from './flagBanner3d'
 import { standingWeaponPose } from './groundWeaponPose3d'
 import {
   bombExplosionsOf,
@@ -228,7 +229,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     const shown = objectivesShown(inputs.show.objectives, this.page.families?.() ?? null)
     this.begin()
     if (shown.zones) this.paintZones(frame, inputs, shown.flags)
-    if (shown.flags) this.paintFlags(frame)
+    if (shown.flags) this.paintFlags(frame, inputs)
     this.paintCarriedObjects(frame, inputs.inks, shown)
     this.end()
   }
@@ -285,7 +286,7 @@ export class Objectives3dLayer implements ActionLayer3d {
    * porteur qu'elle ne pose pas le laisse au sol sous son point 2D. Tant que le modèle n'est pas
    * chargé, rien. The standing pose is measured on the bare model (the banner hangs above its foot).
    */
-  private paintFlags(frame: number): void {
+  private paintFlags(frame: number, inputs: Action3dInputs): void {
     const model = this.flagModel()
     if (!model || !this.flagId) return
     if (this.flagPose?.model !== model) this.flagPose = { model, pose: standingWeaponPose(model) }
@@ -296,7 +297,8 @@ export class Objectives3dLayer implements ActionLayer3d {
       const at = place.on === 'floor' ? this.floorAt(place.at, place.hint) : this.floorUnderCarrier(place.xuid, frame)
       if (!at) continue
       at.y += pose.lift
-      this.flagModels.add(this.ctx.flagModel(this.flagId, f.carry.team) ?? model, at, pose.rotation)
+      const ink = flagBannerInk(inputs, f.carry.team, this.ctx.ink)
+      this.flagModels.add(this.ctx.flagModel(this.flagId, f.carry.team, ink) ?? model, at, pose.rotation)
     }
   }
 

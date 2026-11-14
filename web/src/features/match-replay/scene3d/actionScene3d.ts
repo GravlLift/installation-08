@@ -17,6 +17,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import type { Action3dInputs } from './action3dInputs'
 import type { Ground, InkCache, LabelPool } from './actionKit'
+import { flagBannerInk } from './flagBanner3d'
 import type { Aids3d } from './aids3d'
 import type { Dress } from './armory3d'
 import type { DrawnWeapon } from './avatar3d'
@@ -59,10 +60,11 @@ export interface ActionContext {
   /** Le modèle du jeu de l'arme `id` (à cloner), null tant qu'il n'est pas chargé (`weaponModels3d`). */
   weaponModel(id: string): THREE.Object3D | null
   /**
-   * The game's model of the flag `id` (to clone) dressed with the banner of team `team`, the bare
-   * model while the banner is not known, null until the model is loaded (`weaponModels3d.flagModel`).
+   * The game's model of the flag `id` (to clone) dressed with the banner of team `team`, its cloth
+   * tinted `ink` (`flagBannerInk`; null: the effect's white), the bare model while the banner is
+   * not known, null until the model is loaded (`weaponModels3d.flagModel`).
    */
-  flagModel(id: string, team: number | null): THREE.Object3D | null
+  flagModel(id: string, team: number | null, ink: THREE.Color | null): THREE.Object3D | null
   /** Le modèle du jeu du projectile de la grenade de rang `rank` (à cloner), null tant qu'il n'est pas chargé. */
   grenadeModel(rank: number): THREE.Object3D | null
   /** Le Spartan à peau du jeu (à cloner par `SkeletonUtils`), null tant qu'il n'est pas chargé. */
@@ -208,13 +210,16 @@ export class ActionScene3d {
   heldWeapon(slot: number, frame: number): HeldShown | null {
     const w = this.held.at(slot, frame)
     if (!w) return null
-    const fx = this.ctx.inputs().inks.fx
+    const inputs = this.ctx.inputs()
+    const fx = inputs.inks.fx
     let recoil = this.kicks.get(slot)
     if (!recoil) this.kicks.set(slot, (recoil = newRecoil()))
     return {
       name: w.name,
       color: this.ctx.ink.of(fx.tint[w.tint] || fx.core),
-      model: w.flagTeam === undefined ? this.ctx.weaponModel(w.id) : this.ctx.flagModel(w.id, w.flagTeam),
+      model: w.flagTeam === undefined
+        ? this.ctx.weaponModel(w.id)
+        : this.ctx.flagModel(w.id, w.flagTeam, flagBannerInk(inputs, w.flagTeam, this.ctx.ink)),
       key: weaponModelKey(w.id),
       recoil: this.recoil.at(slot, frame, w.id, recoil),
     }
