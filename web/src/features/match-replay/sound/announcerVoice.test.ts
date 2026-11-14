@@ -16,14 +16,14 @@ import {
 } from './announcerVoice'
 
 const MANIFEST: AnnouncerManifest = {
-  version: 1,
+  version: 2,
   language: 'en',
   lines: {
-    doublekill: { takes: [{ file: 'announcer_doublekill_01.ogg', durationMs: 900 }] },
-    overkillmedal: { takes: [{ file: 'announcer_overkillmedal_01.ogg', durationMs: 1_000 }, { file: 'announcer_overkillmedal_02.ogg', durationMs: 1_200 }] },
-    ctfstart: { takes: [{ file: 'announcer_ctfstart_01.ogg', durationMs: 1_400 }] },
-    flagcaptured: { takes: [{ file: 'announcer_flagcaptured_01.ogg', durationMs: 1_100 }] },
-    '1minutes': { takes: [{ file: 'announcer_1minutes_01.ogg', durationMs: 800 }] },
+    doublekill: { takes: [{ file: 'announcer_doublekill_01.wav', durationMs: 900 }] },
+    overkillmedal: { takes: [{ file: 'announcer_overkillmedal_01.wav', durationMs: 1_000 }, { file: 'announcer_overkillmedal_02.wav', durationMs: 1_200 }] },
+    ctfstart: { takes: [{ file: 'announcer_ctfstart_01.wav', durationMs: 1_400 }] },
+    flagcaptured: { takes: [{ file: 'announcer_flagcaptured_01.wav', durationMs: 1_100 }] },
+    '1minutes': { takes: [{ file: 'announcer_1minutes_01.wav', durationMs: 800 }] },
   },
 }
 
@@ -52,8 +52,8 @@ describe('manifestVoice', () => {
   const voice = manifestVoice(MANIFEST)
 
   it('resolves a call through its names, with every take and its measured duration', () => {
-    expect(voice.takes('medal.double_kill', 'en')).toEqual([{ stem: 'announcer_doublekill_01', durationMs: 900 }])
-    expect(voice.takes('medal.overkill', 'fr').map((t) => t.stem)).toEqual(['announcer_overkillmedal_01', 'announcer_overkillmedal_02'])
+    expect(voice.takes('medal.double_kill', 'en')).toEqual([{ stem: 'announcer_doublekill_01.wav', durationMs: 900 }])
+    expect(voice.takes('medal.overkill', 'fr').map((t) => t.stem)).toEqual(['announcer_overkillmedal_01.wav', 'announcer_overkillmedal_02.wav'])
     expect(voice.takes('mode.ctf', 'en')[0].durationMs).toBe(1_400)
     expect(voice.takes('medal.perfect', 'en')).toEqual([])
   })
@@ -63,20 +63,26 @@ describe('manifestVoice', () => {
     const bundled = tableVoice({ 'medal.double_kill': { en: { stem: 'bundled_dk', durationMs: 700 } } })
     const both = combineVoices(bundled, voice)
     expect(both.takes('medal.double_kill', 'en')[0].stem).toBe('bundled_dk')
-    expect(both.takes('medal.double_kill', 'fr')[0].stem).toBe('announcer_doublekill_01')
+    expect(both.takes('medal.double_kill', 'fr')[0].stem).toBe('announcer_doublekill_01.wav')
   })
 })
 
 describe('parseAnnouncerManifest and loadAnnouncerManifest', () => {
   it('keeps the well-formed takes and refuses another shape', () => {
     const parsed = parseAnnouncerManifest({
-      version: 1,
+      version: 2,
       language: 'en',
-      lines: { a: { takes: [{ file: '../x.ogg', durationMs: 5 }, { file: 'ok_01.ogg', durationMs: 0 }] }, b: { takes: [{ file: 'b_01.ogg', durationMs: 5 }] } },
+      lines: {
+        a: { takes: [{ file: '../x.wav', durationMs: 5 }, { file: 'ok_01.wav', durationMs: 0 }, { file: 'c_01.ogg', durationMs: 5 }] },
+        b: { takes: [{ file: 'b_01.wav', durationMs: 5 }] },
+      },
     })
-    expect(parsed?.lines).toEqual({ b: { takes: [{ file: 'b_01.ogg', durationMs: 5 }] } })
-    expect(parseAnnouncerManifest({ version: 2, language: 'en', lines: {} })).toBeNull()
+    expect(parsed?.lines).toEqual({ b: { takes: [{ file: 'b_01.wav', durationMs: 5 }] } })
     expect(parseAnnouncerManifest('nope')).toBeNull()
+  })
+
+  it('refuses a version-1 manifest (Ogg takes): silent until the server rebuilds it', () => {
+    expect(parseAnnouncerManifest({ version: 1, language: 'en', lines: { b: { takes: [{ file: 'b_01.ogg', durationMs: 5 }] } } })).toBeNull()
   })
 
   it('reads the route; a 404, a failure or no fetch at all is null, never a throw', async () => {

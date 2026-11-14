@@ -18,16 +18,19 @@ import (
 // ManifestName is the file the viewer reads to learn which announcer lines the sound folder holds.
 const ManifestName = "announcer.json"
 
-// ManifestVersion is the manifest's format version.
-const ManifestVersion = 1
+// ManifestVersion is the manifest's format version. Version 2: every take is the decoder's own
+// PCM WAV (version 1 takes were Ogg Vorbis re-encoded by ffmpeg); a manifest of an older version
+// is stale and the extraction runs again.
+const ManifestVersion = 2
 
-// Tools are the two programs extraction runs. The game stores its voice as Wwise Vorbis, which
-// only a Wwise-aware decoder reads: Decoder is a `vgmstream-cli` executable (it writes PCM WAV),
-// and Encoder an `ffmpeg` executable with libvorbis (it writes the Ogg Vorbis the sound route
-// serves).
+// TakeExt is the file extension of an extracted take.
+const TakeExt = ".wav"
+
+// Tools are the programs extraction runs. The game stores its voice as Wwise Vorbis, which only a
+// Wwise-aware decoder reads: Decoder is a `vgmstream-cli` executable, and the PCM WAV it writes
+// is the file the sound route serves (browsers play WAV; see the README for the sizes).
 type Tools struct {
 	Decoder string
-	Encoder string
 }
 
 // Manifest lists the extracted lines by vocalization name.
@@ -71,6 +74,22 @@ type ExtractResult struct {
 	Bytes    int64
 }
 
+// ManifestStatus reads the manifest in dir: built when it is there and readable, stale when its
+// version is older than ManifestVersion (its takes are in a format this build no longer writes).
+func ManifestStatus(dir string) (built, stale bool) {
+	raw, err := os.ReadFile(filepath.Join(dir, ManifestName))
+	if err != nil {
+		return false, false
+	}
+	var m struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return false, false
+	}
+	return true, m.Version < ManifestVersion
+}
+
 // mediaSource returns the bytes of a media id: streamed from a language package, or embedded in
 // its bank.
 type mediaSource func(id uint32) ([]byte, error)
@@ -78,8 +97,8 @@ type mediaSource func(id uint32) ([]byte, error)
 // Extract decodes the named lines of the catalog into OutDir and writes the manifest there. A name
 // the catalog does not hold is reported in Missing, never an error: the viewer stays silent on it.
 func Extract(ctx context.Context, c *Catalog, opts ExtractOptions) (*ExtractResult, error) {
-	if opts.Tools.Decoder == "" || opts.Tools.Encoder == "" {
-		return nil, errors.New("announcer: a decoder (vgmstream-cli) and an encoder (ffmpeg) are required")
+	if opts.Tools.Decoder == "" {
+		return nil, errors.New("announcer: a decoder (vgmstream-cli) is required")
 	}
 	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
 		return nil, err
@@ -128,7 +147,7 @@ func extractLine(ctx context.Context, name string, line Line, src mediaSource, o
 				continue
 			}
 			seen[media] = true
-			file := fmt.Sprintf("announcer_%s_%02d.ogg", name, len(ml.Takes)+1)
+			file := fmt.Sprintf("announcer_%s_%02d%s", name, len(ml.Takes)+1, TakeExt)
 			ms, size, err := decodeMedia(ctx, src, media, opts.Tools, work, filepath.Join(opts.OutDir, file))
 			if err != nil {
 				return ManifestLine{}, err
@@ -141,22 +160,21 @@ func extractLine(ctx context.Context, name string, line Line, src mediaSource, o
 	return ml, nil
 }
 
-// decodeMedia writes one media as Ogg Vorbis at out and returns its duration (read from the
-// decoded PCM) and the written file's size.
+// decodeMedia decodes one media to the PCM WAV out and returns its duration (read from the WAV)
+// and the file's size.
 func decodeMedia(ctx context.Context, src mediaSource, media uint32, tools Tools, work, out string) (int, int64, error) {
 	raw, err := src(media)
 	if err != nil {
 		return 0, 0, err
 	}
 	wem := filepath.Join(work, fmt.Sprintf("%d.wem", media))
-	wav := filepath.Join(work, fmt.Sprintf("%d.wav", media))
 	if err := os.WriteFile(wem, raw, 0o644); err != nil {
 		return 0, 0, err
 	}
-	if err := run(ctx, tools.Decoder, "-o", wav, wem); err != nil {
+	if err := run(ctx, tools.Decoder, "-o", out, wem); err != nil {
 		return 0, 0, fmt.Errorf("decode media %d: %w", media, err)
 	}
-	pcm, err := os.ReadFile(wav)
+	pcm, err := os.ReadFile(out)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -164,14 +182,7 @@ func decodeMedia(ctx context.Context, src mediaSource, media uint32, tools Tools
 	if err != nil {
 		return 0, 0, fmt.Errorf("media %d: %w", media, err)
 	}
-	if err := run(ctx, tools.Encoder, "-y", "-loglevel", "error", "-i", wav, "-c:a", "libvorbis", "-q:a", "5", out); err != nil {
-		return 0, 0, fmt.Errorf("encode media %d: %w", media, err)
-	}
-	st, err := os.Stat(out)
-	if err != nil {
-		return 0, 0, err
-	}
-	return ms, st.Size(), nil
+	return ms, int64(len(pcm)), nil
 }
 
 // run runs a tool and returns its output in the error when it fails.

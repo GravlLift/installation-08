@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -36,5 +38,39 @@ func TestAnnouncerFolderFallsBackToEnglish(t *testing.T) {
 	}
 	if _, _, err := announcerFolder(deploy, "de"); err == nil {
 		t.Fatal("an unknown language was accepted")
+	}
+}
+
+// TestFindDecoder — the flag wins and must exist; with no flag the copy in tools\vgmstream next
+// to the program is used; with neither (and nothing on PATH) the error names where it belongs.
+func TestFindDecoder(t *testing.T) {
+	t.Setenv("PATH", "")
+	exeDir := t.TempDir()
+	if _, err := findDecoder(filepath.Join(exeDir, "missing.exe"), exeDir); err == nil {
+		t.Fatal("a missing --decoder was accepted")
+	}
+	if _, err := findDecoder("", exeDir); err == nil || !strings.Contains(err.Error(), bundledDecoderDir) {
+		t.Fatalf("no decoder: %v", err)
+	}
+	name := decoderCommand
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bundled := filepath.Join(exeDir, bundledDecoderDir, name)
+	if err := os.MkdirAll(filepath.Dir(bundled), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, []byte("MZ"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := findDecoder("", exeDir); err != nil || got != bundled {
+		t.Fatalf("bundled: %q %v", got, err)
+	}
+	other := filepath.Join(t.TempDir(), "vgmstream-cli.exe")
+	if err := os.WriteFile(other, []byte("MZ"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := findDecoder(other, exeDir); err != nil || got != other {
+		t.Fatalf("flag: %q %v", got, err)
 	}
 }
