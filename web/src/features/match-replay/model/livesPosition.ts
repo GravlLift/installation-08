@@ -1,55 +1,55 @@
 /**
- * livesPosition.ts — L'UNIQUE écriture du bloc « position d'un joueur à une image ».
+ * livesPosition.ts — THE SINGLE writing of the block « position of a player at a frame ».
  *
- * CE QUE CE MODULE CENTRALISE. Relire la position d'un joueur à une image donnée demande
- * quatre pièces, toutes ici : la FENÊTRE APRÈS-MORT (`KILLPOS_WINDOW_MS`, puis
- * `deathWindowFrames` qui la convertit en images), l'INDEX des vies par joueur
- * (`buildLivesByXuid`), la RELECTURE elle-même (`posOfPlayerAt`) et son assemblage sur un
- * document (`buildPlayerPosAt`). Ce bloc était copié dans quatre hooks et deux constructeurs
- * purs ; règle n° 6 du dépôt : à la troisième copie on centralise, et le garde-rail
- * (`livesPosition.guard.test.ts`) interdit la re-divergence.
+ * WHAT THIS MODULE CENTRALIZES. Re-reading the position of a player at a given frame requires
+ * four pieces, all here: the POST-DEATH WINDOW (`KILLPOS_WINDOW_MS`, then
+ * `deathWindowFrames` which converts it to frames), the INDEX of lives per player
+ * (`buildLivesByXuid`), the RE-READING itself (`posOfPlayerAt`) and its assembly on a
+ * document (`buildPlayerPosAt`). This block was copied in four hooks and two pure builders;
+ * rule no. 6 of the repo: at the third copy one centralizes, and the guard-rail
+ * (`livesPosition.guard.test.ts`) forbids the re-divergence.
  *
- * LA PRIMITIVE A ÉTÉ RAPATRIÉE DE `killFx.ts` LE 2026-09-05, ET LA « COPIE JUMELLE
- * AUTORISÉE » N'EXISTE PLUS. `posOfPlayerAt` et `KILLPOS_WINDOW_MS` vivaient dans killFx.ts,
- * ce qui forçait ce module à l'importer — et interdisait donc à killFx.ts d'importer
- * celui-ci (cycle). killFx.ts y entretenait, en conséquence, sa propre copie de l'index et
- * de la fenêtre, dûment allowlistée. En déplaçant la primitive vers son module canonique, le
- * cycle disparaît, la copie avec lui, et l'allowlist du garde-rail retombe à DEUX entrées.
+ * THE PRIMITIVE WAS REPATRIATED FROM `killFx.ts` ON 2026-09-05, AND THE « ALLOWED TWIN
+ * COPY » NO LONGER EXISTS. `posOfPlayerAt` and `KILLPOS_WINDOW_MS` lived in killFx.ts,
+ * which forced this module to import it — and therefore forbade killFx.ts from importing
+ * this one (cycle). killFx.ts accordingly maintained there its own copy of the index and
+ * of the window, duly allowlisted. By moving the primitive to its canonical module, the
+ * cycle disappears, the copy with it, and the allowlist of the guard-rail falls back to TWO entries.
  *
- * LA FENÊTRE APRÈS-MORT fait partie du bloc, pas une option : un poseur de bombe meurt souvent
- * DANS son explosion, un porteur lâche à sa mort — sans elle, l'événement le mieux daté du
- * match perdrait sa position.
+ * THE POST-DEATH WINDOW is part of the block, not an option: a bomb planter often dies
+ * IN his explosion, a carrier drops on his death — without it, the best-dated event of the
+ * match would lose its position.
  *
- * C'EST LA POSITION DU BIPÈDE, ET ELLE N'EST PLUS LE DERNIER MOT. Un joueur embarqué ne
- * réplique plus sa position monde : la relecture ci-dessous interpole alors en ligne droite à
- * travers le décor. Les lecteurs de production passent donc par `carrierPosition.ts`
- * (`useCarrierPosAt` / `buildCarrierPosAt`), qui pose le véhicule par-dessus ce repli. Ce
- * module reste la relecture DU BIPÈDE, écrite une fois — il ne connaît aucun véhicule.
+ * IT IS THE BIPED'S POSITION, AND IT IS NO LONGER THE FINAL WORD. An embarked player no
+ * longer replicates his world position: the re-reading below then interpolates in a straight line through
+ * the scenery. The production readers therefore go through `carrierPosition.ts`
+ * (`useCarrierPosAt` / `buildCarrierPosAt`), which places the vehicle on top of this fallback. This
+ * module stays the re-reading OF THE BIPED, written once — it knows no vehicle.
  */
 
 import { isAliveAt, msToFrames, positionAt, trackWindow, type XY } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayTrackReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * Fenêtre d'acceptation d'une DERNIÈRE position après la fin d'une vie, en ms. La victime,
- * par construction, vient de mourir — sa trace est close, sa dernière position reste vraie.
+ * Acceptance window of a LAST position after the end of a life, in ms. The victim,
+ * by construction, has just died — his track is closed, his last position stays true.
  *
- * ELLE VAUT LA FENÊTRE DEATH D'ORIGINE (1,5 s) MAIS N'EN DÉPEND PLUS : la croix de mort est
- * passée à 2,5 s le 2026-08-18, celle-ci non. Ce sont deux questions différentes — combien de
- * temps un repère reste LISIBLE d'un côté, jusqu'où une position reste VRAIE de l'autre — et
- * les lier ferait bouger la seconde à chaque réglage d'écran de la première.
+ * IT IS WORTH THE ORIGINAL DEATH WINDOW (1.5 s) BUT NO LONGER DEPENDS ON IT: the death cross
+ * went to 2.5 s on 2026-08-18, this one did not. These are two different questions — how long a
+ * marker stays READABLE on one side, up to where a position stays TRUE on the other — and
+ * linking them would move the second with every screen setting of the first.
  */
 export const KILLPOS_WINDOW_MS = 1_500
 
-/** La position relue, telle que `posOfPlayerAt` la rend. */
+/** The position re-read, as `posOfPlayerAt` renders it. */
 export type PlayerPosAt = (xuid: string, frame: number) => XY | null
 
 /**
- * posOfPlayerAt — position d'un joueur à une frame, relue dans ses trajectoires.
+ * posOfPlayerAt — position of a player at a frame, re-read in his trajectories.
  *
- * Patron `posOfNameAt` du POC : une vie VIVANTE à cette frame rend sa position ; sinon on
- * accepte la DERNIÈRE position d'une vie close depuis moins de `deathFrames` — c'est le cas
- * de la victime, par construction. Au-delà : null, aucune position inventée.
+ * POC's `posOfNameAt` pattern: a LIVING life at this frame renders its position; otherwise one
+ * accepts the LAST position of a life closed for less than `deathFrames` — that is the case
+ * of the victim, by construction. Beyond: null, no position invented.
  */
 export function posOfPlayerAt(
   lives: ReplayTrackReady[] | undefined,
@@ -77,7 +77,7 @@ export function posOfPlayerAt(
   return last ? { x: last.x, y: last.y } : null
 }
 
-/** buildLivesByXuid — l'index des vies par joueur, construit UNE fois par document. */
+/** buildLivesByXuid — the index of lives per player, built ONCE per document. */
 export function buildLivesByXuid(tracks: readonly ReplayTrackReady[]): Map<string, ReplayTrackReady[]> {
   const map = new Map<string, ReplayTrackReady[]>()
   for (const t of tracks) {
@@ -90,13 +90,13 @@ export function buildLivesByXuid(tracks: readonly ReplayTrackReady[]): Map<strin
 }
 
 /**
- * buildLivesBySlot — l'index des vies par SLOT, construit UNE fois par document.
+ * buildLivesBySlot — the index of lives per SLOT, built ONCE per document.
  *
- * POURQUOI PAR SLOT ET PAS PAR XUID (registre 2026-09-05, K1). Les EFFETS attachés à un geste
- * — éclair de bouche, « ! » du tireur, câble de grappin, dash de propulseur — sont datés par
- * le film avec un numéro de SLOT, pas un xuid : c'est la vie du bipède qui tire, et un même
- * joueur en a plusieurs. Cet index était réécrit byte pour byte dans les quatre calques
- * concernés ; il n'a désormais qu'une écriture.
+ * WHY BY SLOT AND NOT BY XUID (register 2026-09-05, K1). The EFFECTS attached to a gesture
+ * — muzzle flash, shooter's « ! », grapple cable, thruster dash — are dated by
+ * the film with a SLOT number, not an xuid: it is the biped's life that shoots, and the same
+ * player has several of them. This index was rewritten byte for byte in the four layers
+ * concerned; it now has only one writing.
  */
 export function buildLivesBySlot(
   tracks: readonly ReplayTrackReady[],
@@ -111,12 +111,12 @@ export function buildLivesBySlot(
 }
 
 /**
- * lifeOfSlotAt — LA VIE d'un slot qui couvre une image donnée, ou `undefined`.
+ * lifeOfSlotAt — THE LIFE of a slot that covers a given frame, or `undefined`.
  *
- * PRENDRE LA PREMIÈRE VENUE SERAIT UNE FAUTE, et c'est tout l'objet de cette fonction : un
- * joueur a plusieurs vies dans le film, et lire le regard ou la position de la MAUVAISE vie
- * place le geste ailleurs sur la carte. Un slot sans vie à cet instant ne rend rien — jamais
- * une vie voisine.
+ * TAKING THE FIRST THAT COMES WOULD BE A FAULT, and that is the whole point of this function: a
+ * player has several lives in the film, and reading the gaze or the position of the WRONG life
+ * places the gesture elsewhere on the map. A slot without a life at that instant renders nothing — never
+ * a neighboring life.
  */
 export function lifeOfSlotAt(
   bySlot: ReadonlyMap<number, ReplayTrackReady[]>,
@@ -126,12 +126,12 @@ export function lifeOfSlotAt(
   return (bySlot.get(slot) ?? []).find((l) => isAliveAt(l, frame))
 }
 
-/** deathWindowFrames — la fenêtre après-mort en images (au moins une). */
+/** deathWindowFrames — the post-death window in frames (at least one). */
 export function deathWindowFrames(doc: ReplayDocumentReady): number {
   return Math.max(1, Math.round(msToFrames(KILLPOS_WINDOW_MS, doc)))
 }
 
-/** buildPlayerPosAt — la relecture pure, pour les constructeurs hors React. */
+/** buildPlayerPosAt — the pure re-reading, for the builders outside React. */
 export function buildPlayerPosAt(doc: ReplayDocumentReady): PlayerPosAt {
   const lives = buildLivesByXuid(doc.tracks)
   const window = deathWindowFrames(doc)

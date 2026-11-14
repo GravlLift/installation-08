@@ -1,29 +1,29 @@
 /**
- * equipmentZones.ts — LE JOUEUR DANS UNE ZONE D'ÉQUIPEMENT : ce que la fiche a le droit
- * d'affirmer quand un joueur se tient dans le disque d'un objet posé.
+ * equipmentZones.ts — THE PLAYER IN AN EQUIPMENT ZONE: what the card is allowed
+ * to assert when a player stands in the disk of a placed object.
  *
- * LA SOURCE est la même que celle du calque de la carte : `equipmentPlacements` (schéma 10),
- * filtré par les MÊMES portes — `placementKind` (famille déployée, jamais un objet lâché) et
- * `isPlacementActive` (fenêtre d'affichage, durée officielle du capteur incluse). La fiche ne
- * dit donc jamais autre chose que ce que la carte dessine : si le disque est à l'écran et que
- * le joueur est dedans, la fiche le porte ; si le calque ne dessine pas la pose, la fiche se
- * tait. Deux réponses divergentes à « cette zone existe-t-elle ? » seraient un défaut.
+ * THE SOURCE is the same as that of the map layer: `equipmentPlacements` (schema 10),
+ * filtered by the SAME gates — `placementKind` (deployed family, never a dropped object) and
+ * `isPlacementActive` (display window, official sensor duration included). The card
+ * therefore never says anything other than what the map draws: if the disk is on screen and
+ * the player is inside it, the card carries it; if the layer does not draw the placement, the card
+ * stays silent. Two divergent answers to « does this zone exist? » would be a defect.
  *
- * TROIS ZONES, ET SEULEMENT TROIS — celles dont l'objet EXERCE un effet de surface :
- *  - le CHAMP DE RÉPARATION (rayon déclaré, cf. placementShapes.REPAIR_FIELD_RADIUS_M) et
- *    l'ÉCRAN OCCULTANT (rayon déclaré, SHROUD_RADIUS_M) valent pour TOUT LE MONDE : le dôme
- *    du jeu soigne quiconque s'y tient, la bulle cache dans les deux sens. Aucun camp n'entre
- *    dans la règle, et c'est fidèle au jeu, pas une simplification ;
- *  - le CAPTEUR DE MENACES ne concerne que les ADVERSAIRES du poseur, et la règle de camp est
- *    EXACTEMENT celle de `sensorReveals` (threatSensor.ts) : l'équipe du FILM des deux côtés,
- *    et sans camp connu — poseur non mesuré, vie dont le film tait l'équipe — RIEN n'est
- *    affirmé. La fiche dit ici l'ÉTAT (« il se tient dans la zone d'un capteur adverse »),
- *    au présent et en continu ; la marque de RÉVÉLATION de la carte, elle, garde sa propre
- *    règle (appartenance mesurée à l'instant du ping) — deux affirmations distinctes, toutes
- *    deux vraies. `sincePingMs` est publié pour que l'affichage puisse battre à la cadence
- *    officielle du capteur au lieu d'inventer un rythme.
+ * THREE ZONES, AND ONLY THREE — those whose object EXERCISES a surface effect:
+ *  - the REPAIR FIELD (declared radius, cf. placementShapes.REPAIR_FIELD_RADIUS_M) and
+ *    the SHROUD SCREEN (declared radius, SHROUD_RADIUS_M) apply to EVERYONE: the dome
+ *    of the game heals whoever stands in it, the bubble hides in both directions. No camp enters
+ *    the rule, and that is faithful to the game, not a simplification;
+ *  - the THREAT SENSOR concerns only the ADVERSARIES of the placer, and the camp rule is
+ *    EXACTLY the one of `sensorReveals` (threatSensor.ts): the team of the FILM on both sides,
+ *    and without a known camp — placer not measured, life whose team the film keeps silent — NOTHING is
+ *    asserted. The card states the STATE here (« it stands in the zone of an enemy sensor »),
+ *    in the present and continuously; the REVEAL marker of the map, for its part, keeps its own
+ *    rule (membership measured at the instant of the ping) — two distinct assertions, both
+ *    true. `sincePingMs` is published so that the display can beat at the
+ *    official cadence of the sensor instead of inventing a rhythm.
  *
- * Pas de React, pas de canvas : logique pure, testée (equipmentZones.test.ts).
+ * No React, no canvas: pure logic, tested (equipmentZones.test.ts).
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
@@ -38,15 +38,15 @@ import { REPAIR_FIELD_RADIUS_M } from '../layers/placementShapes'
 import { SHROUD_RADIUS_M } from '../layers/placementShroud'
 import { SENSOR_RADIUS_M, sensorPingAgeMs } from './threatSensor'
 
-/** Ce que la fiche a besoin de LIRE : les poses, et le camp de la vie qui occupe un slot À UNE
- *  IMAGE (même contrat que `PlacementScene.campOfSlot` — null = camp inconnu, donc jamais un
- *  ennemi ; la frame lève l'ambiguïté d'un slot réattribué entre manches). */
+/** What the card needs to READ: the placements, and the camp of the life that occupies a slot AT ONE
+ *  FRAME (same contract as `PlacementScene.campOfSlot` — null = unknown camp, therefore never an
+ *  enemy; the frame lifts the ambiguity of a slot reattributed between rounds). */
 export interface ZoneScene {
   placements: readonly ReplayEquipmentPlacement[]
   campOfSlot: (slot: number, frame: number) => number | null
 }
 
-/** Le joueur interrogé : sa vie (slot), sa position MONDE à l'image, et l'image. */
+/** The queried player: its life (slot), its WORLD position at the frame, and the frame. */
 export interface ZoneQuery {
   slot: number
   x: number
@@ -54,26 +54,26 @@ export interface ZoneQuery {
   frame: number
 }
 
-/** Ce que la fiche doit dire à une frame : chaque zone, indépendamment. */
+/** What the card must say at a frame: each zone, independently. */
 export interface ZonePresence {
   repair: boolean
   /**
-   * ms depuis la POSE de l'écran occultant qui couvre le joueur — la plus récente quand
-   * plusieurs se recouvrent (même règle que le capteur : deux horloges superposées ne
-   * diraient rien de plus). C'est l'horloge des ÉCLAIRS de la fiche (délai négatif,
-   * cf. ReplayTeams.ZoneFxOverlay) : le scintillement reprend à son avancement réel
-   * après un saut de lecture, jamais sur un rythme inventé. Null = hors de tout écran.
+   * ms since the PLACEMENT of the shroud screen covering the player — the most recent when
+   * several overlap (same rule as the sensor: two overlapping clocks would
+   * say nothing more). This is the clock of the FLASHES of the card (negative delay,
+   * cf. ReplayTeams.ZoneFxOverlay): the flicker resumes at its actual progress
+   * after a playback jump, never on an invented rhythm. Null = outside any screen.
    */
   shroudSinceMs: number | null
   /**
-   * ms depuis le dernier ping du capteur ADVERSE qui couvre le joueur — le plus fraîchement
-   * pingé quand plusieurs se recouvrent (même règle que la marque de révélation : deux
-   * horloges superposées ne diraient rien de plus). Null = hors de toute zone adverse.
+   * ms since the last ping of the ENEMY sensor covering the player — the most recently
+   * pinged when several overlap (same rule as the reveal marker: two
+   * overlapping clocks would say nothing more). Null = outside any enemy zone.
    */
   sensorSincePingMs: number | null
 }
 
-/** Aucune allocation par frame : la valeur « hors de toute zone » est partagée. */
+/** No allocation per frame: the « outside any zone » value is shared. */
 export const NO_ZONES: ZonePresence = Object.freeze({
   repair: false,
   shroudSinceMs: null,
@@ -81,18 +81,18 @@ export const NO_ZONES: ZonePresence = Object.freeze({
 })
 
 /**
- * LES BASCULES DU TIROIR N'ENTRENT PAS ICI, et c'est un choix dit : elles gouvernent ce que
- * la CARTE affiche en PLUS des objets déployés (objets non identifiés, lâchers). Les trois
- * zones sont toutes des familles déployées, que ces bascules ne touchent pas — l'état d'un
- * joueur ne dépend pas d'un réglage d'affichage.
+ * THE DRAWER TOGGLES DO NOT ENTER HERE, and that is a stated choice: they govern what
+ * the MAP displays IN ADDITION to the deployed objects (unidentified objects, drops). The three
+ * zones are all deployed families, which these toggles do not touch — the state of a
+ * player does not depend on a display setting.
  */
 const NO_TOGGLES: PlacementToggles = { showUnnamed: false, showDropped: false }
 
 /**
- * Rayon de CHAQUE zone, en mètres monde — les MÊMES constantes que le tracé de la carte, et
- * chacune garde le statut que son fichier d'origine lui écrit : officielle pour le capteur,
- * déclarée (choix d'écran) pour le champ et l'écran. Une règle de rendu absente de cette
- * table n'est pas une zone : le mur est un arc, pas un disque, et un objet lâché n'agit pas.
+ * Radius of EACH zone, in world meters — the SAME constants as the drawing of the map, and
+ * each keeps the status that its source file writes to it: official for the sensor,
+ * declared (screen choice) for the field and the screen. A render rule absent from this
+ * table is not a zone: the wall is an arc, not a disk, and a dropped object does not act.
  */
 const ZONE_RADIUS_M: Partial<Record<PlacementKind, number>> = {
   field: REPAIR_FIELD_RADIUS_M,
@@ -101,11 +101,11 @@ const ZONE_RADIUS_M: Partial<Record<PlacementKind, number>> = {
 }
 
 /**
- * zonePresenceAt dit dans quelles zones un joueur se tient à une frame.
+ * zonePresenceAt says in which zones a player stands at a frame.
  *
- * Le balayage est linéaire sur les poses (dizaines par film) avec deux sorties O(1) en tête
- * (famille sans zone, fenêtre close) : négligeable devant le rendu, même appelé par fiche et
- * par image (huit fiches sur le pire corpus).
+ * The sweep is linear over the placements (tens per film) with two O(1) exits up front
+ * (family without zone, closed window): negligible next to the render, even called per card and
+ * per frame (eight cards on the worst corpus).
  */
 export function zonePresenceAt(
   scene: ZoneScene,
@@ -115,8 +115,8 @@ export function zonePresenceAt(
   let repair = false
   let shroudSinceMs: number | null = null
   let sensorSincePingMs: number | null = null
-  // Le joueur interrogé est vivant à l'image (la fiche l'a résolu depuis sa vie courante) : son
-  // camp se lit donc à `query.frame`, jamais figé pour tout le match.
+  // The queried player is alive at the frame (the card resolved it from its current life): its
+  // camp is therefore read at `query.frame`, never frozen for the whole match.
   const side = scene.campOfSlot(query.slot, query.frame)
   for (const p of scene.placements) {
     const kind = placementKind(p, NO_TOGGLES)
@@ -129,15 +129,15 @@ export function zonePresenceAt(
     if (dx * dx + dy * dy > radius * radius) continue
     if (kind === 'field') repair = true
     else if (kind === 'shroud') {
-      // L'ÂGE DE LA POSE, pas un booléen : les éclairs de la fiche se calent dessus.
+      // THE AGE OF THE PLACEMENT, not a boolean: the flashes of the card align on it.
       const since = (query.frame - p.t0) * time.frameMs
       if (shroudSinceMs === null || since < shroudSinceMs) shroudSinceMs = since
     } else {
-      // CAPTEUR : adverse seulement, les deux camps CONNUS — la règle de sensorReveals,
-      // à l'identique. Sans poseur mesuré ou sans camp, le disque se dessine mais la fiche
-      // n'affirme aucune inimitié.
+      // SENSOR: enemy only, both camps KNOWN — the rule of sensorReveals,
+      // identically. Without a measured placer or without a camp, the disk is drawn but the card
+      // asserts no hostility.
       if (p.owner < 0 || side === null) continue
-      // Le poseur se lit à l'instant de sa POSE (`p.t0`), où il était vivant sur ce slot.
+      // The placer is read at the instant of its PLACEMENT (`p.t0`), where it was alive on this slot.
       const owner = scene.campOfSlot(p.owner, p.t0)
       if (owner === null || owner === side) continue
       const since = sensorPingAgeMs((query.frame - p.t0) * time.frameMs)

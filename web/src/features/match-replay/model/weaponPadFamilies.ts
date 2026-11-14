@@ -1,56 +1,59 @@
 /**
- * weaponPadFamilies.ts — CE QUI MÉRITE UNE GRANDE ICÔNE SUR UN SOCLE, et pourquoi la liste
- * est écrite plutôt que devinée.
+ * weaponPadFamilies.ts — WHAT DESERVES A BIG ICON ON A PEDESTAL, and why the list is written
+ * rather than guessed.
  *
- * LA DEMANDE EST UN ARBITRAGE D'ÉCRAN, mot pour mot (bilan du 2026-08-18, W4) : « des icônes
- * trop petites seraient inutiles mais des trop grosses risquent de polluer » — et la raison
- * du partage y est donnée dans la même phrase : « sur les socles au sol on a des power-ups et
- * des armes plus puissantes qui ont un intérêt très stratégique », les râteliers portant « des
- * armes "classiques" pas game changer ». La taille suit donc l'ENJEU de l'arme, pas sa place :
- * la donnée ne distingue pas un socle au sol d'un râtelier mural (position seule).
+ * THE REQUEST IS A SCREEN ARBITRATION, word for word (balance of 2026-08-18, W4): « des
+ * icônes trop petites seraient inutiles mais des trop grosses risquent de polluer » [icons
+ * that are too small would be useless but ones that are too big risk polluting] — and the
+ * reason for the split is given in the same sentence: « sur les socles au sol on a des
+ * power-ups et des armes plus puissantes qui ont un intérêt très stratégique » [on the
+ * ground pedestals we have power-ups and more powerful weapons that are of great strategic
+ * interest], the racks carrying « des armes "classiques" pas game changer » ["classic"
+ * weapons, not game-changers]. The size therefore follows the STAKES of the weapon, not its
+ * place: the data does not distinguish a ground pedestal from a wall rack (position only).
  *
- * LA CLÉ EST LE `weapon_key` DU TITRE, jamais l'hexadécimal du film ni un libellé. C'est le
- * même vocabulaire que la banque de sons (`weaponLabels[id].key`, posé à la requête par le
- * service) : une famille d'arme y entre par son identifiant canonique, stable et bilingue en
- * aval. Un identifiant que le titre ne catalogue pas n'a pas de clé — il reste donc CLASSIQUE,
- * jamais promu par défaut : agrandir ce qu'on ne sait pas nommer serait affirmer un enjeu que
- * rien n'établit.
+ * THE KEY IS THE `weapon_key` OF THE TITLE, never the hexadecimal of the film nor a label.
+ * It is the same vocabulary as the sound bank (`weaponLabels[id].key`, set on request by
+ * the service): a weapon family enters it by its canonical identifier, stable and bilingual
+ * downstream. An identifier the title does not catalog has no key — it therefore stays
+ * CLASSIC, never promoted by default: enlarging what one cannot name would assert stakes
+ * that nothing establishes.
  *
- * CETTE LISTE EST LA RÈGLE, PAS LE RELEVÉ D'UN CORPUS. Elle est écrite AVANT la mesure et vaut
- * pour les matchs à venir : un socle qui porterait une arme de puissance jamais vue dans les
- * quatre témoins doit être grand du premier coup.
+ * THIS LIST IS THE RULE, NOT THE SURVEY OF A CORPUS. It is written BEFORE the measurement
+ * and holds for the matches to come: a pedestal that would carry a power weapon never seen
+ * in the four witnesses must be big from the first hit.
  *
- * TOUT SOCLE N'EST PAS UNE ARME (schéma 17, 2026-08-19) : un socle de POWER-UP publie une
- * famille d'ÉQUIPEMENT et non un identifiant d'arme. La seconde table de ce fichier
- * (`PAD_EQUIPMENT_FAMILIES`) les nomme une par une, et c'est elle — jamais un test de préfixe —
- * qui décide qu'une clé n'est pas à chercher dans `weaponLabels`.
+ * NOT EVERY PEDESTAL IS A WEAPON (schema 17, 2026-08-19): a POWER-UP pedestal publishes an
+ * EQUIPMENT family and not a weapon identifier. The second table of this file
+ * (`PAD_EQUIPMENT_FAMILIES`) names them one by one, and it is that table — never a prefix
+ * test — that decides a key is not to be looked for in `weaponLabels`.
  */
 
-/** Les deux tailles d'icône de socle. `power` = grande, `classic` = petite. */
+/** The two pedestal icon sizes. `power` = big, `classic` = small. */
 export type PadScale = 'power' | 'classic'
 
 /**
- * LES TROIS NATURES D'UN SOCLE (retour utilisateur du 2026-08-26 : « une couleur pour chaque
- * type, en respectant les couleurs accessibles »).
+ * THE THREE NATURES OF A PEDESTAL (user feedback of 2026-08-26: « une couleur pour chaque
+ * type, en respectant les couleurs accessibles » [a color for each type, while respecting
+ * accessible colors]).
  *
- * ELLE N'EST PAS LA TAILLE, et c'est pour cela qu'elle a son propre type. `PadScale` répond à
- * « est-ce stratégique ? » et n'a que deux valeurs : un power-up et un sniper sont tous deux
- * GRANDS. La nature, elle, répond à « qu'est-ce que c'est ? » et en distingue trois — un
- * bonus qu'on ramasse, une arme de puissance, un râtelier ordinaire. Les confondre obligerait
- * à teinter pareil le surbouclier et l'épée.
+ * IT IS NOT THE SIZE, and that is why it has its own type. `PadScale` answers "is it
+ * strategic?" and has only two values: a power-up and a sniper are both BIG. The nature,
+ * it, answers "what is it?" and distinguishes three — a bonus you pick up, a power weapon,
+ * an ordinary rack. Confusing them would force tinting the overshield and the sword alike.
  *
- * L'ORDRE DE RÉSOLUTION EST LE MÊME QUE PARTOUT DANS CE FICHIER : la table des familles
- * d'équipement d'abord (elle seule sait qu'une clé n'est pas une arme), le registre des armes
- * de puissance ensuite, le repli ordinaire enfin.
+ * THE ORDER OF RESOLUTION IS THE SAME AS EVERYWHERE IN THIS FILE: the equipment families
+ * table first (it alone knows a key is not a weapon), the power weapons registry next, the
+ * ordinary fallback last.
  */
 export type PadFamily = 'powerup' | 'power' | 'classic'
 
 /**
- * padFamilyOf — la nature d'un socle, d'après ce qu'il porte.
+ * padFamilyOf — the nature of a pedestal, from what it carries.
  *
- * `key` est la clé canonique du titre (`weaponLabels[id].key`), absente pour une arme hors
- * catalogue : un socle qu'on ne sait pas nommer reste `classic`, jamais promu — la même règle
- * prudente que `padScaleOf` juste en dessous.
+ * `key` is the canonical key of the title (`weaponLabels[id].key`), absent for a weapon
+ * out of catalog: a pedestal one cannot name stays `classic`, never promoted — the same
+ * cautious rule as `padScaleOf` just below.
  */
 export function padFamilyOf(weapon: string, key: string | null | undefined): PadFamily {
   if (padEquipmentFamilyOf(weapon)) return 'powerup'
@@ -58,23 +61,25 @@ export function padFamilyOf(weapon: string, key: string | null | undefined): Pad
 }
 
 /**
- * LES ARMES DE PUISSANCE ET LES POWER-UPS, nommés un par un (demande utilisateur du 18/08 :
- * « liste EXPLICITE »). Ce sont les `weapon_key` du registre du titre
- * (`config/titles/halo_infinite/mappings/weapon_names.toml`) — un garde-rail les y vérifie.
+ * THE POWER WEAPONS AND THE POWER-UPS, named one by one (user request of 08/18: « liste
+ * EXPLICITE » [EXPLICIT list]). They are the `weapon_key` of the title registry
+ * (`config/titles/halo_infinite/mappings/weapon_names.toml`) — a guard-rail verifies them
+ * there.
  *
- * LES DEUX POWER-UPS Y ÉTAIENT AVANT D'AVOIR UN MEMBRE MESURÉ, et le pari est tenu. Ils ont
- * été écrits le 2026-08-18 sur la seule demande de l'utilisateur — le corpus des onze films
- * ne montrait alors qu'UNE pose de surbouclier et UNE de camouflage, toutes deux LÂCHÉES À LA
- * MORT, publiées par un autre canal du document (`equipmentPlacements`). Le 2026-08-19, la
- * voie `ti=37` a trouvé leur socle : un `powerup_overshield` au centre de Catalyst, publié
- * dans `weaponPads` (schéma 17). Ils sont donc GRANDS sans qu'on ait eu à y revenir.
+ * THE TWO POWER-UPS WERE THERE BEFORE HAVING A MEASURED MEMBER, and the bet is kept. They
+ * were written on 2026-08-18 on the user's request alone — the corpus of eleven films then
+ * showed only ONE overshield placement and ONE camouflage one, both DROPPED ON DEATH,
+ * published by another channel of the document (`equipmentPlacements`). On 2026-08-19, the
+ * `ti=37` path found their pedestal: a `powerup_overshield` at the center of Catalyst,
+ * published in `weaponPads` (schema 17). They are therefore BIG without having to go back
+ * to them.
  *
- * CE SONT DES CLÉS DE FAMILLE D'ÉQUIPEMENT, pas des clés d'arme, et elles ne se joignent donc
- * à AUCUNE table de `weaponLabels` : `PAD_EQUIPMENT_FAMILIES`, plus bas, dit ce que le calque
- * en fait (taille, libellé, vignette).
+ * THESE ARE EQUIPMENT FAMILY KEYS, not weapon keys, and they therefore join NO table of
+ * `weaponLabels`: `PAD_EQUIPMENT_FAMILIES`, below, says what the layer does with them
+ * (size, label, thumbnail).
  */
 export const POWER_PAD_KEYS: readonly string[] = [
-  // Armes de puissance — le registre d'armes du titre.
+  // Power weapons — the title's weapon registry.
   'hinf_s7_sniper',
   'hinf_energy_sword',
   'hinf_gravity_hammer',
@@ -82,62 +87,62 @@ export const POWER_PAD_KEYS: readonly string[] = [
   'hinf_fuel_rod_spnkr',
   'hinf_skewer',
   'hinf_cindershot',
-  // Power-ups — familles d'équipement (cf. `PAD_EQUIPMENT_FAMILIES` : un socle mesuré en porte).
+  // Power-ups — equipment families (cf. `PAD_EQUIPMENT_FAMILIES`: a measured pedestal carries one).
   'powerup_overshield',
   'powerup_camo',
 ]
 
-/** Les clés de POWER_PAD_KEYS qui viennent du registre d'ARMES du titre (garde-rail). */
+/** The keys of POWER_PAD_KEYS that come from the title's WEAPONS registry (guard-rail). */
 export const POWER_PAD_WEAPON_KEYS: readonly string[] = POWER_PAD_KEYS.filter(
   (k) => !k.startsWith('powerup_'),
 )
 
 /**
- * padScaleOf — la taille d'un socle d'après la clé canonique de ce qu'il porte.
+ * padScaleOf — the size of a pedestal from the canonical key of what it carries.
  *
- * Clé absente (arme hors catalogue du titre, ou artefact servi sans catalogue lisible) =
- * `classic` : le défaut est la petite taille, dans les deux sens de la règle.
+ * Key absent (weapon out of the title's catalog, or artifact served without a readable
+ * catalog) = `classic`: the default is the small size, in both directions of the rule.
  */
 export function padScaleOf(key: string | null | undefined): PadScale {
   return key && POWER_PAD_KEYS.includes(key) ? 'power' : 'classic'
 }
 
-// --- LES FAMILLES NON-ARME D'UN SOCLE -------------------------------------------------------
+// --- THE NON-WEAPON FAMILIES OF A PEDESTAL ---------------------------------------------------
 
 /**
- * CE QU'UN SOCLE PORTE QUAND CE N'EST PAS UNE ARME — et pourquoi il fallait une seconde table.
+ * WHAT A PEDESTAL CARRIES WHEN IT IS NOT A WEAPON — and why a second table was needed.
  *
- * DEPUIS LE SCHÉMA 17 (2026-08-19), `weaponPads[].weapon` n'est plus toujours l'hexadécimal
- * d'une famille d'arme : un socle de POWER-UP publie la FAMILLE du manifeste d'équipement
- * (`powerup_overshield`), parce que `weaponLabels` est une table d'ARMES où aucun identifiant
- * d'équipement n'entre (cf. `gwPadWeaponID`, côté Go). Le calque joignait cette clé à
- * `weaponLabels` : elle n'y était pas, donc le socle restait PETIT, sans vignette, et
- * l'infobulle affichait la chaîne brute « powerup_overshield ».
+ * SINCE SCHEMA 17 (2026-08-19), `weaponPads[].weapon` is not always the hexadecimal of a
+ * weapon family: a POWER-UP pedestal publishes the FAMILY of the equipment manifest
+ * (`powerup_overshield`), because `weaponLabels` is a WEAPONS table where no equipment
+ * identifier enters (cf. `gwPadWeaponID`, on the Go side). The layer joined that key to
+ * `weaponLabels`: it was not there, so the pedestal stayed SMALL, without a thumbnail, and
+ * the tooltip displayed the raw string "powerup_overshield".
  *
- * UNE TABLE ÉCRITE, PAS UN TEST DE PRÉFIXE. Reconnaître « ça commence par `powerup_` » aurait
- * marché aujourd'hui et menti demain : le manifeste du titre porte quinze familles
- * d'équipement (`wall`, `sensor`, `grenade_*`…), et rien ne dit que les prochaines à monter sur
- * un socle s'appelleront `powerup_*`. Une clé absente de cette table reste donc traitée comme
- * un identifiant d'arme — le comportement d'avant, inchangé.
+ * A WRITTEN TABLE, NOT A PREFIX TEST. Recognizing "it starts with `powerup_`" would have
+ * worked today and lied tomorrow: the title manifest carries fifteen equipment families
+ * (`wall`, `sensor`, `grenade_*`...), and nothing says the next ones to mount on a
+ * pedestal will be called `powerup_*`. A key absent from this table is therefore still
+ * treated as a weapon identifier — the previous behavior, unchanged.
  */
 export interface PadEquipmentFamily {
   /**
-   * Stem de la vignette de HUD, servie sous `static/weapons-assets/{slug}/hud/`.
+   * Stem of the HUD thumbnail, served under `static/weapons-assets/{slug}/hud/`.
    *
-   * C'EST L'IMAGE QUE LE MANIFESTE DU TITRE NOMME DÉJÀ pour la capacité de même nom
-   * (`icon = "hud/Overshield"` dans `replay_labels.toml`) : le manifeste ne déclare aucune
-   * icône sur ses `[[equipment_objects]]`, mais il nomme celle-ci ailleurs, et c'est le même
-   * masque. Le garde-rail rejoue les deux — le fichier livré ET la ligne du manifeste.
+   * IT IS THE IMAGE THE TITLE MANIFEST ALREADY NAMES for the ability of the same name
+   * (`icon = "hud/Overshield"` in `replay_labels.toml`): the manifest declares no icon on
+   * its `[[equipment_objects]]`, but it names this one elsewhere, and it is the same mask.
+   * The guard-rail replays both — the delivered file AND the manifest line.
    */
   icon: string
 }
 
-/** Les familles NON-ARME connues du calque des socles. Le typage porte la parité FR/EN. */
+/** The NON-WEAPON families known to the pedestals layer. The typing carries the FR/EN parity. */
 export type PadEquipmentFamilyKey = 'powerup_overshield' | 'powerup_camo'
 
 /**
- * LA TABLE. Ses clés sont les familles publiées par le document, et elles figurent toutes
- * dans `POWER_PAD_KEYS` (garde-rail) : un power-up de socle est GRAND, sans règle en double.
+ * THE TABLE. Its keys are the families published by the document, and they all figure in
+ * `POWER_PAD_KEYS` (guard-rail): a pedestal power-up is BIG, without a doubled rule.
  */
 export const PAD_EQUIPMENT_FAMILIES: Readonly<Record<PadEquipmentFamilyKey, PadEquipmentFamily>> = {
   powerup_overshield: { icon: 'Overshield' },
@@ -145,10 +150,12 @@ export const PAD_EQUIPMENT_FAMILIES: Readonly<Record<PadEquipmentFamilyKey, PadE
 }
 
 /**
- * padEquipmentFamilyOf — la famille non-arme d'un socle, ou null quand la clé n'en est pas une.
+ * padEquipmentFamilyOf — the non-weapon family of a pedestal, or null when the key is not
+ * one.
  *
- * `hasOwnProperty` et non `in` : `'constructor'` est une clé de socle parfaitement possible sur
- * un titre futur, et un identifiant hérité du prototype rendrait une famille qui n'existe pas.
+ * `hasOwnProperty` and not `in`: `'constructor'` is a perfectly possible pedestal key on
+ * a future title, and an identifier inherited from the prototype would return a family
+ * that does not exist.
  */
 export function padEquipmentFamilyOf(weapon: string): PadEquipmentFamilyKey | null {
   return Object.prototype.hasOwnProperty.call(PAD_EQUIPMENT_FAMILIES, weapon)

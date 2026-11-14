@@ -1,70 +1,69 @@
 /**
- * threatSensor.ts — LE CAPTEUR DE MENACES : sa portée, son PING, et ce que le ping révèle.
+ * threatSensor.ts — THE THREAT SENSOR: its range, its PING, and what the ping reveals.
  *
- * LES CHIFFRES SONT OFFICIELS, ET ILS NE SONT PAS MESURÉS ICI. Le film ne porte AUCUNE portée
- * de détection, aucune cadence de balayage, aucune durée de révélation — ni dans le record de
- * création de l'objet, ni dans sa vie. Ce fichier les tient donc de la source publiée par
- * l'éditeur, citée verbatim (ajustements de la saison 4) :
+ * THE NUMBERS ARE OFFICIAL, AND THEY ARE NOT MEASURED HERE. The film carries NO detection
+ * range, no sweep cadence, no reveal duration — neither in the object's creation record nor
+ * in its life. This file therefore takes them from the source published by the editor, quoted
+ * verbatim (season 4 adjustments):
  *
  *   « Ping Frequency: 2.8 -> 1.8 secondes » · « Sensor Radius: 3.1wu -> 4.25wu »
  *   « Sensor Duration: 6.5 -> 15 secondes » · « Reveal Duration: 2.5 -> 0.75 secondes »
  *   -- Halo Waypoint, « Sandbox Overview Season 4 », article `/fr-fr/news/sandbox-overview-season-4`
  *
- * (Le domaine n'est pas écrit ici, et ce n'est pas un oubli : le garde-rail I19
- * `waypointUrl.guard.test.ts` réserve ce littéral à `waypointUrl.ts`. Le chemin de l'article
- * suffit à retrouver la source — ne pas recoller l'URL entière, la suite tomberait.)
+ * (The domain is not written here, and that is no oversight: the guard-rail I19
+ * `waypointUrl.guard.test.ts` reserves this literal for `waypointUrl.ts`. The article path
+ * is enough to find the source — do not paste the full URL back, the rest would break.)
  *
- * L'INTENTION QUE LA SOURCE DONNE À CES VALEURS éclaire le rendu : « create more
- * location-based marking, giving more permanence and coverage ». C'est un marquage de LIEU,
- * pas de personne — d'où l'appartenance mesurée À L'INSTANT DU PING (plus bas).
+ * THE INTENTION THE SOURCE GIVES THESE VALUES lights the rendering: "create more
+ * location-based marking, giving more permanence and coverage". It is a marking of PLACE,
+ * not of person — hence the membership measured AT THE PING MOMENT (below).
  *
- * L'UNITÉ EST UNE SUPPOSITION, ET ELLE EST ÉCRITE. Les positions du rejeu sont en mètres
- * monde ; « wu » est l'unité monde de Slipspace, SUPPOSÉE ici valoir 1 m. 4,25 m de rayon
- * (8,5 m de diamètre) est plausible pour un capteur d'arène ; l'autre conversion parfois
- * citée (3,048 m/wu) donnerait 26 m de diamètre, invraisemblable sur une carte de 50 m. Le
- * jour où une portée serait MESURÉE dans le film, elle remplacerait la constante — et la
- * remplacerait seule.
+ * THE UNIT IS AN ASSUMPTION, AND IT IS WRITTEN. The replay positions are in world meters;
+ * "wu" is the world unit of Slipspace, ASSUMED here to be worth 1 m. A 4.25 m radius
+ * (8.5 m diameter) is plausible for an arena sensor; the other conversion sometimes cited
+ * (3.048 m/wu) would give a 26 m diameter, implausible on a 50 m map. The day a range is
+ * MEASURED in the film, it would replace the constant — and only it would.
  *
- * IL PINGE, IL NE RESPIRE PAS (correction du 2026-08-17). Le premier rendu faisait osciller
- * le rayon du disque de ±6 % autour d'une portée déclarée à 8 m : une respiration lente, qui
- * ne disait rien du jeu et donnait au capteur une zone deux fois trop large. Le capteur du jeu
- * émet une onde toutes les 1,8 s ; c'est cette onde qui est dessinée, à la portée officielle.
+ * IT PINGS, IT DOES NOT BREATHE (correction of 2026-08-17). The first rendering made the disk
+ * radius oscillate by ±6% around a range declared at 8 m: a slow breathing, which said
+ * nothing about the game and gave the sensor a zone twice too wide. The in-game sensor
+ * emits a wave every 1.8 s; it is that wave that is drawn, at the official range.
  *
- * FONCTION DU TEMPS, PAS ANIMATION À ÉTAT (même règle que `explosionFx`) : la lecture avance,
- * recule, saute au curseur. Le même âge rend toujours la même image, donc un retour en arrière
- * rejoue exactement ce qu'on avait vu. Sous `prefers-reduced-motion`, l'onde ne part pas — le
- * disque et son anneau restent, et la marque de révélation cesse de s'estomper.
+ * A FUNCTION OF TIME, NOT A STATE ANIMATION (same rule as `explosionFx`): the playback moves
+ * forward, back, jumps to the cursor. The same age always renders the same image, so a
+ * rewind replays exactly what one had seen. Under `prefers-reduced-motion`, the wave does
+ * not depart — the disk and its ring remain, and the reveal mark stops fading.
  *
- * CE QUE LE PING RÉVÈLE. À chaque ping, les vies ADVERSES du poseur qui se trouvent dans le
- * rayon À L'INSTANT DU PING portent une marque pendant 0,75 s. Trois choix, tous conséquences
- * de la source :
- *  - L'APPARTENANCE SE MESURE AU PING, jamais à l'image courante : la source parle de
- *    « location-based marking », et 0,75 s de course valent ~3 m à la vitesse de base d'un
- *    Spartan, soit les trois quarts du rayon. Tester « maintenant » marquerait les entrants
- *    et démarquerait les sortants — exactement l'inverse de ce que le capteur affirme.
- *  - LA MARQUE SUIT LA VIE : elle est dessinée à la position COURANTE, comme le contour du
- *    jeu suit sa cible. Un halo laissé trois mètres derrière un point qui bouge se lirait
- *    comme un défaut d'affichage.
- *  - ELLE NE SURVIT PAS À SA CIBLE : une vie qui se termine pendant la fenêtre perd sa marque
- *    à l'image même. La mort a déjà son calque, la marque n'a rien à y ajouter.
+ * WHAT THE PING REVEALS. At each ping, the ADVERSE lives of the placer that are within the
+ * radius AT THE PING MOMENT carry a mark for 0.75 s. Three choices, all consequences of the
+ * source:
+ *  - MEMBERSHIP IS MEASURED AT THE PING, never at the current frame: the source speaks of
+ *    "location-based marking", and 0.75 s of running are ~3 m at a Spartan's base speed,
+ *    that is three quarters of the radius. Testing "now" would mark the entrants and
+ *    unmark the exiters — exactly the reverse of what the sensor asserts.
+ *  - THE MARK FOLLOWS THE LIFE: it is drawn at the CURRENT position, as the game's outline
+ *    follows its target. A halo left three meters behind a moving point would read as a
+ *    display defect.
+ *  - IT DOES NOT OUTLIVE ITS TARGET: a life that ends during the window loses its mark on
+ *    the very frame. Death already has its layer, the mark has nothing to add there.
  *
- * LE CAMP EST L'ÉQUIPE DU FILM (`campResolver`), PAS « allié / adverse ». Le drapeau d'alliance
- * est relatif au joueur regardé : il rangerait tout le monde en deux camps, ce qui est faux en
- * BTB à quatre camps. Ce qu'il faut savoir ici, c'est si DEUX vies s'opposent. Sans camp connu
- * — poseur non mesuré (`owner < 0`), vie dont le film tait l'équipe ou n'en donne aucune
- * (mêlée générale) — AUCUNE révélation : le ping se dessine quand même (il est mesuré, lui),
- * et rien n'affirme une inimitié dont on ne sait rien.
+ * THE CAMP IS THE FILM'S TEAM (`campResolver`), NOT "ally / enemy". The allegiance flag is
+ * relative to the player being watched: it would sort everyone into two camps, which is
+ * wrong in four-camp BTB. What must be known here is whether TWO LIVES oppose each other.
+ * Without a known camp — placer not measured (`owner < 0`), life whose team the film keeps
+ * silent or gives none (free-for-all) — NO reveal: the ping is drawn anyway (it is
+ * measured, itself), and nothing asserts an enmity of which one knows nothing.
  *
- * COÛT PAR IMAGE, MESURÉ SUR LE CORPUS LOCAL (27 artefacts, 2026-08-17). Un seul en porte :
- * `000d5950`, 19 capteurs, tous avec poseur mesuré — au plus DEUX actifs en même temps, et au
- * plus deux dans une fenêtre de révélation (moyenne 0,055 par image, 0,103 actifs). Le
- * balayage coûte donc, au pire de ce corpus : 2 x 99 tests de fenêtre de vie (O(1)) puis
- * 2 x 8 interpolations de position (dichotomie) — négligeable devant les 228 primitives d'UNE
- * explosion. La borne large du corpus (BTB : 256 vies, 28 simultanées) tiendrait sous
- * 8 x 256 tests même avec huit capteurs actifs.
+ * COST PER FRAME, MEASURED ON THE LOCAL CORPUS (27 artifacts, 2026-08-17). Only one carries
+ * any: `000d5950`, 19 sensors, all with a measured placer — at most TWO active at the same
+ * time, and at most two in a reveal window (average 0.055 per frame, 0.103 active). The
+ * sweep therefore costs, at the worst of this corpus: 2 x 99 life-window tests (O(1)) then
+ * 2 x 8 position interpolations (binary search) — negligible next to the 228 primitives of
+ * ONE explosion. The corpus's wide bound (BTB: 256 lives, 28 simultaneous) would fit under
+ * 8 x 256 tests even with eight active sensors.
  *
- * Pas de React, pas de couleur écrite : géométrie et arithmétique pures (l'encre vient du
- * calque appelant, qui la tient des tokens du thème).
+ * No React, no written color: pure geometry and arithmetic (the ink comes from the calling
+ * layer, which takes it from the theme tokens).
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
@@ -72,120 +71,122 @@ import { isAliveAt, positionAt } from '../../../lib/replay/replayLogic'
 import type { ReplayTrackReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * Rayon du capteur, en mètres monde. VALEUR OFFICIELLE (« Sensor Radius: 4.25wu »), sous la
- * supposition d'unité écrite en tête : 1 wu = 1 m.
+ * Sensor radius, in world meters. OFFICIAL VALUE ("Sensor Radius: 4.25wu"), under the unit
+ * assumption written in the header: 1 wu = 1 m.
  */
 export const SENSOR_RADIUS_M = 4.25
 
-/** Période du ping, en millisecondes. VALEUR OFFICIELLE (« Ping Frequency: 1.8 secondes »). */
+/** Ping period, in milliseconds. OFFICIAL VALUE ("Ping Frequency: 1.8 secondes"). */
 export const SENSOR_PING_MS = 1_800
 
 /**
- * Durée de la marque « révélé », en millisecondes. VALEUR OFFICIELLE (« Reveal Duration:
- * 0.75 secondes ») : elle est BRÈVE, et c'est le sens de l'ajustement de la saison 4 — la
- * révélation ne suit plus longtemps sa cible, c'est le capteur qui dure et couvre un lieu.
+ * Duration of the "revealed" mark, in milliseconds. OFFICIAL VALUE ("Reveal Duration:
+ * 0.75 secondes"): it is SHORT, and that is the point of the season 4 adjustment — the
+ * reveal no longer follows its target for long, it is the sensor that lasts and covers a
+ * place.
  */
 export const SENSOR_REVEAL_MS = 750
 
 /**
- * Durée de vie officielle du capteur, en millisecondes (« Sensor Duration: 15 secondes »).
+ * Official lifetime of the sensor, in milliseconds ("Sensor Duration: 15 secondes").
  *
- * C'EST LE REPLI DE LA FENÊTRE, PAS SON CONTRAT. Un capteur dont le film écrit la suppression
- * (objet engendré situé, `endRead`, cf. `spawnedObjects.ts`) se dessine jusqu'à cette fin lue,
- * qui peut dépasser 15 s ; cette durée ne vaut que pour une pose sans fin lue (`placementWindow.ts`).
- * Elle ne borne ni le nombre de pings ni la révélation : le ping est périodique à tout âge
- * (`sensorPing`).
+ * IT IS THE FALLBACK OF THE WINDOW, NOT ITS CONTRACT. A sensor whose deletion the film
+ * writes (situated spawned object, `endRead`, cf. `spawnedObjects.ts`) is drawn until that
+ * read end, which can exceed 15 s; this duration only holds for a placement without a read
+ * end (`placementWindow.ts`). It bounds neither the number of pings nor the reveal: the ping
+ * is periodic at any age (`sensorPing`).
  */
 export const SENSOR_DURATION_MS = 15_000
 
 /**
- * Course de l'onde d'un ping, en millisecondes : le temps qu'elle met à atteindre le rayon.
+ * Run of a ping's wave, in milliseconds: the time it takes to reach the radius.
  *
- * CE N'EST PAS UNE MESURE et la source n'en dit rien : c'est un choix de RYTHME. 400 ms sur
- * une période de 1 800 laissent l'onde se lire comme un coup (elle occupe moins du quart du
- * cycle) puis rendent le disque au repos — une onde qui remplirait la période donnerait un
- * capteur qui gonfle en continu, soit la respiration qu'on vient de retirer.
+ * THIS IS NOT A MEASUREMENT and the source says nothing of it: it is a RHYTHM choice.
+ * 400 ms on a period of 1,800 let the wave read as a strike (it occupies less than a quarter
+ * of the cycle) then return the disk to rest — a wave that would fill the period would give
+ * a sensor that swells continuously, i.e. the breathing that was just removed.
  */
 export const SENSOR_SWEEP_MS = 400
 
-/** Remplissage du disque : très bas — c'est une zone, elle ne doit rien masquer. */
+/** Disk fill: very low — it is a zone, it must mask nothing. */
 export const SENSOR_FILL_ALPHA = 0.1
-/** Anneau fixe au rayon : la bordure de la zone, présente entre deux pings. */
+/** Fixed ring at the radius: the border of the zone, present between two pings. */
 export const SENSOR_RING_ALPHA = 0.55
 export const SENSOR_RING_WIDTH = 1.25
-/** Opacité de départ de l'onde du ping : elle claque, puis s'efface en s'ouvrant. */
+/** Starting opacity of the ping wave: it snaps, then fades away as it opens. */
 export const SENSOR_PING_ALPHA = 0.9
-/** Épaisseur de l'onde : plus franche que l'anneau fixe, c'est elle l'événement. */
+/** Thickness of the wave: sharper than the fixed ring, it is the event. */
 export const SENSOR_PING_WIDTH = 2
 
 /**
- * Rayon de la marque « révélé » autour de la vie, en pixels d'ÉCRAN.
+ * Radius of the "revealed" mark around the life, in SCREEN pixels.
  *
- * 12 px LA POSE HORS DE PORTÉE DES AUTRES ANNEAUX du marqueur de joueur : son noyau monte à
- * 4,8 px, son liseré à 5,8, l'anneau d'identité à ~7,4 et les anneaux d'étage à 6,5 et 9,3
- * (cf. replayMarkers.ts). Elle s'en distingue aussi par la COULEUR — les anneaux d'étage sont
- * à l'encre du thème, la marque porte la teinte de l'équipe du poseur.
+ * 12 px PINS IT OUT OF REACH OF THE OTHER RINGS of the player marker: its core goes up to
+ * 4.8 px, its edging to 5.8, the identity ring to ~7.4 and the level rings to 6.5 and 9.3
+ * (cf. replayMarkers.ts). It is also distinguished from them by COLOR — the level rings are
+ * in the theme's ink, the mark carries the tint of the placer's team.
  */
 export const REVEAL_RADIUS_PX = 12
-/** Remplissage du halo : bas, il éclaire le joueur sans effacer la carte sous lui. */
+/** Halo fill: low, it lights the player without erasing the map under him. */
 export const REVEAL_FILL_ALPHA = 0.18
-/** Opacité du liseré au ping ; elle décroît jusqu'à l'extinction de la marque. */
+/** Edging opacity at the ping; it decays until the mark dies out. */
 export const REVEAL_ALPHA = 0.8
 export const REVEAL_WIDTH = 1.5
 
-/** Ce que le capteur a besoin de savoir de l'instant courant. */
+/** What the sensor needs to know about the current instant. */
 export interface SensorTime {
-  /** Image courante (fractionnaire pendant la lecture). */
+  /** Current frame (fractional during playback). */
   frame: number
-  /** Durée RÉELLE d'une frame, en ms (`frameToMs(1, doc)`), jamais un compteur d'images. */
+  /** REAL duration of one frame, in ms (`frameToMs(1, doc)`), never a frame counter. */
   frameMs: number
 }
 
-/** Les vies du film, et le camp de chacune — tout ce que la révélation a besoin de lire. */
+/** The film's lives, and the camp of each — everything the reveal needs to read. */
 export interface SensorScene {
-  /** Toutes les vies : le balayage filtre lui-même sur la fenêtre de vie. */
+  /** All the lives: the sweep filters on the life window itself. */
   lives: readonly ReplayTrackReady[]
   /**
-   * Camp de la vie qui occupe un slot À UNE IMAGE (son équipe du FILM) ; null = camp inconnu,
-   * donc jamais un ennemi. La frame est nécessaire parce qu'un slot de biped est réattribué
-   * entre manches : le poseur se lit à l'instant de sa POSE, la cible à l'instant du PING.
+   * Camp of the life occupying a slot AT A FRAME (its team of the FILM); null = unknown
+   * camp, therefore never an enemy. The frame is needed because a biped slot is re-allocated
+   * between rounds: the placer is read at the instant of its PLACEMENT, the target at the
+   * instant of the PING.
    */
   campOfSlot: (slot: number, frame: number) => number | null
 }
 
-/** L'onde du ping courant : où elle en est de sa course, et ce qu'il lui reste d'opacité. */
+/** The current ping's wave: where it is in its run, and how much opacity it has left. */
 export interface SensorPingWave {
-  /** Rayon atteint, en FRACTION du rayon du capteur — dans [0, 1[. */
+  /** Radius reached, as a FRACTION of the sensor radius — in [0, 1[. */
   reach: number
-  /** Opacité du trait, décroissante : l'onde s'efface en s'ouvrant. */
+  /** Stroke opacity, decreasing: the wave fades away as it opens. */
   alpha: number
 }
 
-/** Une vie RÉVÉLÉE par un ping, à l'image courante. */
+/** A life REVEALED by a ping, at the current frame. */
 export interface SensorReveal {
-  /** Slot de la vie révélée. */
+  /** Slot of the revealed life. */
   slot: number
-  /** Sa position MONDE à l'image COURANTE : la marque suit le joueur (cf. en-tête). */
+  /** Its WORLD position at the CURRENT frame: the mark follows the player (cf. header). */
   x: number
   y: number
-  /** Slot du POSEUR : la marque porte SA couleur d'équipe — c'est son camp qui voit. */
+  /** Slot of the PLACER: the mark carries HIS team color — it is his camp that sees. */
   owner: number
   /**
-   * Image de la POSE du capteur (`s.t0`) : c'est l'image à laquelle résoudre la couleur du
-   * poseur — le slot `owner` peut appartenir à un autre joueur à l'image courante (manche
-   * suivante), et le poseur, lui, était vivant quand il a posé.
+   * Frame of the sensor's PLACEMENT (`s.t0`): it is the frame at which to resolve the
+   * placer's color — the slot `owner` may belong to another player at the current frame
+   * (following round), and the placer, himself, was alive when he placed it.
    */
   ownerFrame: number
-  /** Temps écoulé depuis le ping qui l'a révélée, en ms — dans [0, SENSOR_REVEAL_MS]. */
+  /** Time elapsed since the ping that revealed it, in ms — in [0, SENSOR_REVEAL_MS]. */
   sinceMs: number
 }
 
 /**
- * sensorPingAgeMs — temps écoulé depuis le DERNIER ping, à l'âge donné.
+ * sensorPingAgeMs — time elapsed since the LAST ping, at the given age.
  *
- * Le premier ping part à l'âge zéro : le capteur balaie dès qu'il touche le sol. Un âge
- * négatif (la pose n'existe pas encore) rend zéro plutôt qu'une phase inversée — mais le
- * calque ne l'appelle jamais hors de la fenêtre [t0, t1].
+ * The first ping departs at age zero: the sensor sweeps as soon as it touches the ground. A
+ * negative age (the placement does not exist yet) returns zero rather than an inverted
+ * phase — but the layer never calls it outside the window [t0, t1].
  */
 export function sensorPingAgeMs(ageMs: number): number {
   if (!(ageMs > 0)) return 0
@@ -193,12 +194,12 @@ export function sensorPingAgeMs(ageMs: number): number {
 }
 
 /**
- * sensorPing — l'onde du ping courant, ou null quand elle a fini sa course : entre deux
- * pings, le capteur ne montre plus que son disque et son anneau.
+ * sensorPing — the current ping's wave, or null when it has finished its run: between two
+ * pings, the sensor shows nothing but its disk and its ring.
  *
- * L'ouverture suit un easeOutCubic — l'onde part vite du centre puis se calme au bord, le
- * patron de l'onde de choc de l'explosion (`explosionFx.drawWave`), pour la même raison :
- * c'est ainsi qu'une impulsion se lit. Sous mouvement réduit, aucune onde.
+ * The opening follows an easeOutCubic — the wave leaves the center fast then settles at the
+ * edge, the shockwave pattern of the explosion (`explosionFx.drawWave`), for the same
+ * reason: that is how an impulse reads. Under reduced motion, no wave.
  */
 export function sensorPing(ageMs: number, reducedMotion: boolean): SensorPingWave | null {
   if (reducedMotion) return null
@@ -209,10 +210,11 @@ export function sensorPing(ageMs: number, reducedMotion: boolean): SensorPingWav
 }
 
 /**
- * revealAlpha — l'opacité de la marque à son âge : franche au ping, éteinte à 0,75 s.
+ * revealAlpha — the opacity of the mark at its age: sharp at the ping, extinguished at
+ * 0.75 s.
  *
- * Sous mouvement réduit elle NE S'ESTOMPE PAS : la marque reste une information (« cet
- * adversaire a été détecté »), et une opacité fixe la garde sans la faire palpiter.
+ * Under reduced motion it DOES NOT FADE: the mark remains information ("this enemy has
+ * been detected"), and a fixed opacity keeps it without making it pulse.
  */
 export function revealAlpha(sinceMs: number, reducedMotion: boolean): number {
   if (reducedMotion) return REVEAL_ALPHA
@@ -221,12 +223,13 @@ export function revealAlpha(sinceMs: number, reducedMotion: boolean): number {
 }
 
 /**
- * sensorReveals — les vies révélées par les capteurs ACTIFS à cette image.
+ * sensorReveals — the lives revealed by the ACTIVE sensors at this frame.
  *
- * `sensors` est la liste des poses de famille `sensor` déjà retenues par la table de rendu et
- * actives à l'image (c'est le calque qui la constitue, il boucle déjà dessus) : cette fonction
- * ne décide ni du rendu d'une famille ni de la fenêtre d'une pose, elle décide de la
- * révélation. Tout le reste — camp, portée, instant de mesure — est écrit en tête du fichier.
+ * `sensors` is the list of `sensor` family placements already kept by the render table and
+ * active at the frame (it is the layer that builds it, it already loops over it): this
+ * function decides neither the rendering of a family nor the window of a placement, it
+ * decides the reveal. Everything else — camp, range, instant of measurement — is written
+ * in the file header.
  */
 export function sensorReveals(
   sensors: readonly ReplayEquipmentPlacement[],
@@ -236,25 +239,26 @@ export function sensorReveals(
   const r2 = SENSOR_RADIUS_M * SENSOR_RADIUS_M
   const bySlot = new Map<number, SensorReveal>()
   for (const s of sensors) {
-    // SANS POSEUR MESURÉ, AUCUNE RÉVÉLATION : on ignore le camp du capteur, donc personne
-    // n'est « ennemi » de lui. Le ping, lui, continue de se dessiner.
+    // WITHOUT A MEASURED PLACER, NO REVEAL: the sensor's camp is ignored, so no one is
+    // "enemy" to it. The ping, itself, keeps being drawn.
     if (s.owner < 0) continue
-    // LE POSEUR SE LIT À L'INSTANT DE LA POSE (`s.t0`) : il était alors vivant sur ce slot, et
-    // c'est SON camp qui voit. À l'image courante, le slot pourrait déjà être libre ou à un autre.
+    // THE PLACER IS READ AT THE INSTANT OF THE PLACEMENT (`s.t0`): he was then alive on
+    // that slot, and it is HIS camp that sees. At the current frame the slot could already
+    // be free or belong to someone else.
     const side = scene.campOfSlot(s.owner, s.t0)
     if (side === null) continue
     const sinceMs = sensorPingAgeMs((time.frame - s.t0) * time.frameMs)
     if (sinceMs > SENSOR_REVEAL_MS) continue
-    // L'image du PING, d'où l'appartenance est mesurée. Fractionnaire : `positionAt`
-    // interpole, et un ping ne tombe pas sur une frame ronde.
+    // The frame of the PING, from which membership is measured. Fractional: `positionAt`
+    // interpolates, and a ping does not fall on a whole frame.
     const pingFrame = time.frameMs > 0 ? time.frame - sinceMs / time.frameMs : time.frame
     for (const life of scene.lives) {
-      // Les deux tests de fenêtre d'abord : O(1) chacun, et ils écartent 99 vies sur 8
-      // avant toute dichotomie de position (cf. le coût en tête).
+      // The two window tests first: O(1) each, and they rule out 99 lives down to 8
+      // before any binary search of position (cf. the cost in the header).
       if (!isAliveAt(life, pingFrame)) continue
       if (!isAliveAt(life, time.frame)) continue
-      // La CIBLE se lit à l'instant du PING, où elle est vivante (contrôle ci-dessus) : c'est le
-      // camp de la vie qui occupe alors ce slot, jamais celui d'une autre manche.
+      // The TARGET is read at the instant of the PING, where it is alive (check above): it
+      // is the camp of the life occupying that slot then, never that of another round.
       const other = scene.campOfSlot(life.slot, pingFrame)
       if (other === null || other === side) continue
       const atPing = positionAt(life.points, pingFrame)
@@ -264,8 +268,8 @@ export function sensorReveals(
       if (dx * dx + dy * dy > r2) continue
       const now = positionAt(life.points, time.frame)
       if (!now) continue
-      // DEUX CAPTEURS PEUVENT VOIR LA MÊME VIE : une seule marque, la PLUS FRAÎCHE. Deux
-      // halos superposés doubleraient l'opacité sans rien dire de plus.
+      // TWO SENSORS CAN SEE THE SAME LIFE: one mark only, the FRESHEST. Two overlaid
+      // halos would double the opacity without saying anything more.
       const held = bySlot.get(life.slot)
       if (held && held.sinceMs <= sinceMs) continue
       bySlot.set(life.slot, { slot: life.slot, x: now.x, y: now.y, owner: s.owner, ownerFrame: s.t0, sinceMs })

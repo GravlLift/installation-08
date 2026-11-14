@@ -1,14 +1,14 @@
 /**
- * placementWindow.ts — DE QUAND A QUAND une pose d'equipement est a l'ecran.
+ * placementWindow.ts — FROM WHEN TO WHEN a placement of equipment is on screen.
  *
- * EXTRAIT DE `equipmentPlacementsLayer.ts` LE 2026-08-18 (lot R2-V), qui portait deja une dette
- * de taille (503 lignes) et gagnait la chaine de cap du mur. La decoupe tombe sur la seule
- * question de ce fichier : le TEMPS. Ce qui reste au calque, c'est la decision de rendu et le
- * trace ; ce qui vient ici, c'est la fenetre — et elle se raisonne sans connaitre une seule
- * forme.
+ * EXTRACTED FROM `equipmentPlacementsLayer.ts` ON 2026-08-18 (batch R2-V), which already carried a debt
+ * of size (503 lines) and was gaining the cap chain of the wall. The split falls on the only
+ * question of this file: TIME. What remains to the overlay is the render decision and the
+ * trace; what comes here is the window — and it is reasoned about without knowing a single
+ * shape.
  *
- * Le calque REEXPORTE ces trois fonctions : elles font partie de sa surface publique (le survol
- * et les tests les lisent), et la decoupe interne n'a pas a remonter jusqu'a ses appelants.
+ * The overlay RE-EXPORTS these three functions: they are part of its public surface (the hover
+ * and the tests read them), and the internal split does not have to climb back up to its callers.
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
@@ -23,13 +23,13 @@ import { WALL_DURATION_MS } from '../layers/placementWall'
 import { SENSOR_DURATION_MS } from './threatSensor'
 
 /**
- * LES DURÉES DE REPLI, par famille : celles qu'une pose SANS FIN LUE se voit appliquer. Une famille absente de
- * cette table n'a aucune durée connue : elle reste affichée jusqu'à la fin du rejeu, faute de mieux.
+ * THE FALLBACK DURATIONS, per family: those that a placement WITHOUT READ END is applied. A family absent from
+ * this table has no known duration: it stays displayed up to the end of the replay, lacking anything better.
  *
- * Les valeurs vivent dans le fichier de LEUR famille (`threatSensor.ts`, `placementWall.ts`,
- * `placementShapes.ts`), avec leur portée et leur géométrie, et cette table ne fait que les rassembler pour la
- * fenêtre. Le capteur tient la durée publiée par l'éditeur ; le mur et l'écran occultant celle que le film
- * mesure (médiane de la barrière, durée de la bulle) — et le film, quand il date leur fin, l'emporte.
+ * The values live in the file of THEIR family (`threatSensor.ts`, `placementWall.ts`,
+ * `placementShapes.ts`), with their range and their geometry, and this table only gathers them for the
+ * window. The sensor keeps the duration published by the editor; the wall and the shroud screen that which the film
+ * measures (median of the barrier, duration of the bubble) — and the film, when it dates their end, outranks them.
  */
 const OFFICIAL_DURATION_MS: Partial<Record<PlacementKind, number>> = {
   sensor: SENSOR_DURATION_MS,
@@ -38,43 +38,43 @@ const OFFICIAL_DURATION_MS: Partial<Record<PlacementKind, number>> = {
 }
 
 /**
- * Une pose dont la FIN peut être LUE. `endRead` ne se pose que sur une pose fabriquée depuis un
- * objet engendré dont le film écrit la suppression (`spawnedObjects.ts` : capteur, champ de
- * réparation, bulle de l'écran occultant) : son `t1` est alors la fin de l'objet, pas la borne inférieure
- * d'une fin inconnue. Les poses DU DOCUMENT portent la leur dans `lifeEnd` (le mur, schéma 106).
+ * A placement of which the END can be READ. `endRead` is only set on a placement fabricated from a
+ * spawned object of which the film writes the removal (`spawnedObjects.ts`: sensor, repair field,
+ * bubble of the shroud screen): its `t1` is then the end of the object, not the lower bound
+ * of an unknown end. The placements OF THE DOCUMENT carry theirs in `lifeEnd` (the wall, schema 106).
  *
- * Le type voyage sous celui des poses du document (`ReplayEquipmentPlacement`) : les tableaux du
- * calque restent typés ainsi, et le drapeau se lit à l'exécution, ici et nulle part ailleurs.
+ * The type travels under that of the placements of the document (`ReplayEquipmentPlacement`): the arrays of the
+ * overlay stay typed thus, and the flag is read at runtime, here and nowhere else.
  */
 export type WindowedPlacement = ReplayEquipmentPlacement & { readonly endRead?: boolean }
 
 /**
- * placementEndFrame — LA DERNIÈRE IMAGE à laquelle une pose se dessine.
+ * placementEndFrame — THE LAST FRAME at which a placement is drawn.
  *
- * `t1` N'EST PAS LA DISPARITION DE L'OBJET, et c'est mesuré, pas supposé (2026-08-18,
- * `filmdec/equipment_life_end_test.go`) : le décodeur ne suit que les records qui portent une
- * position, si bien que `t1` date l'instant où l'objet cesse de BOUGER. Un mur de protection y
- * atteint 0,7 s de médiane et un capteur 2,1 s, quand le recensement des keyframes montre
- * 101 de ces 295 objets encore présents plus d'une seconde après. Pour les poses du document, le
- * film ne date AUCUNE disparition d'équipement — le record de suppression et la queue de records
- * sans position y sont l'un et l'autre du bruit au témoin. `t1` est donc une BORNE INFÉRIEURE
- * (sauf pour les poses à fin lue, première règle ci-dessous).
+ * `t1` IS NOT THE DISAPPEARANCE OF THE OBJECT, and that is measured, not assumed (2026-08-18,
+ * `filmdec/equipment_life_end_test.go`): the decoder only follows the records that carry a
+ * position, so that `t1` dates the instant at which the object stops MOVING. A protection wall there
+ * reaches a median of 0.7 s and a sensor 2.1 s, while the census of keyframes shows
+ * 101 of these 295 objects still present more than one second later. For the placements of the document, the
+ * film dates NO disappearance of equipment — the removal record and the tail of records
+ * without position are both noise there on the witness. `t1` is therefore a LOWER BOUND
+ * (except for the placements with read end, first rule below).
  *
- * D'OÙ LA RÈGLE, en trois temps et sans rien inventer :
- *  - une pose à FIN LUE s'arrête à cette fin, que la durée de repli ne prolonge pas : la lecture l'emporte sur
- *    toute durée supposée. C'est `endRead` (objet engendré dont le film écrit la suppression : son `t1`) pour
- *    une pose fabriquée, `lifeEnd` (suppression de l'objet que la pose a créé : le mur) pour une pose du document ;
- *  - une famille dont la durée est connue s'y tient FAUTE DE FIN LUE — le capteur de menaces dure
- *    15 s (éditeur), le mur 12,48 s (médiane mesurée), l'écran 7,5 s (lue dans le film) : cf.
- *    OFFICIAL_DURATION_MS ;
- *  - les autres restent affichées jusqu'à la fin du rejeu, faute d'une durée à leur opposer.
+ * HENCE THE RULE, in three times and without inventing anything:
+ *  - a placement with READ END stops at this end, which the fallback duration does not extend: the reading outranks any
+ *    assumed duration. That is `endRead` (spawned object of which the film writes the removal: its `t1`) for
+ *    a fabricated placement, `lifeEnd` (removal of the object that the placement created: the wall) for a placement of the document;
+ *  - a family of which the duration is known keeps to it LACKING READ END — the threat sensor lasts
+ *    15 s (editor), the wall 12.48 s (measured median), the screen 7.5 s (read in the film): cf.
+ *    OFFICIAL_DURATION_MS;
+ *  - the others stay displayed up to the end of the replay, lacking a duration to oppose them.
  *
- * LE MUR A REJOINT LE CAPTEUR le 2026-08-20 (demande utilisateur). Il restait jusqu'à la fin
- * du rejeu au nom du principe « ne rien affirmer que la mesure ne porte » — mais laisser un
- * mur à l'écran pendant huit minutes affirme lui aussi quelque chose, et de plus faux : la
- * durée officielle est la meilleure information disponible, exactement comme pour le capteur.
+ * THE WALL HAS JOINED THE SENSOR on 2026-08-20 (user request). It stayed up to the end
+ * of the replay in the name of the principle « assert nothing that the measurement does not carry » — but letting a
+ * wall on screen for eight minutes asserts something too, and a false one at that: the
+ * official duration is the best information available, exactly as for the sensor.
  *
- * Jamais AVANT `t1` : la borne mesurée l'emporte si elle dépasse la durée officielle.
+ * Never BEFORE `t1`: the measured bound outranks if it exceeds the official duration.
  */
 export function placementEndFrame(
   p: WindowedPlacement,
@@ -90,7 +90,7 @@ export function placementEndFrame(
   return Math.min(Math.max(official, p.t1), lastFrame)
 }
 
-/** isPlacementActive — la pose se dessine-t-elle à cette image ? (cf. placementEndFrame). */
+/** isPlacementActive — is the placement drawn at this frame? (cf. placementEndFrame). */
 export function isPlacementActive(
   p: WindowedPlacement,
   kind: PlacementKind,
@@ -101,12 +101,12 @@ export function isPlacementActive(
 }
 
 /**
- * placementShows — la pose a-t-elle quelque chose À L'ÉCRAN à cette image ?
+ * placementShows — does the placement have something ON SCREEN at this frame?
  *
- * Toutes les familles montrent quelque chose sur toute leur fenêtre d'affichage (cf.
- * placementEndFrame), SAUF le traqueur :
- * son impulsion est unique et brève, et après elle il ne reste rien. Le survol suit le dessin —
- * on n'inspecte pas ce qui n'est pas là, même règle que la bascule des objets non identifiés.
+ * All the families show something over their whole display window (cf.
+ * placementEndFrame), EXCEPT the seeker:
+ * its impulse is unique and brief, and after it nothing remains. The hover follows the drawing —
+ * one does not inspect what is not there, same rule as the toggle of the unidentified objects.
  */
 export function placementShows(
   p: ReplayEquipmentPlacement,

@@ -1,42 +1,42 @@
 /**
- * headingInterp — LE CAP ENTRE DEUX ÉCHANTILLONS, par le plus court chemin angulaire.
+ * headingInterp — THE HEADING BETWEEN TWO SAMPLES, by the shortest angular path.
  *
- * POURQUOI (contrôles v8, 2026-10-21, témoin 7b0d89c4 : « rotations saccadées des véhicules »). Le
- * film publie un cap par image du document (10 Hz) et le rendu tourne à l'écran bien plus vite : la
- * POSITION d'un véhicule s'interpole entre deux échantillons (`positionAt`), son CAP était tenu au
- * dernier échantillon — le sprite glissait en continu puis pivotait par saccades de 100 ms. Un cap
- * s'interpole sur le cercle : de 350 à 10 degrés, le chemin est de +20, pas de -340 (d'où le plus
- * court chemin, et non une moyenne arithmétique).
+ * WHY (v8 checks, 2026-10-21, witness 7b0d89c4: « rotations saccadées des véhicules » [jerked rotations of the vehicles]). The
+ * film publishes one heading per document frame (10 Hz) and the render spins on screen much faster: the
+ * POSITION of a vehicle interpolates between two samples (`positionAt`), its HEADING was held at the
+ * last sample — the sprite glided continuously then turned in 100 ms jerks. A heading
+ * interpolates on the circle: from 350 to 10 degrees, the path is +20, not -340 (hence the
+ * shortest path, and not an arithmetic mean).
  *
- * CE QUE CETTE INTERPOLATION NE FAIT PAS, ET C'EST VOLONTAIRE :
- *  - elle ne traverse jamais un SILENCE de réplication (`g > 0`) : comme la
- *    position, le cap est tenu au point qui précède — un véhicule ne tourne pas pendant que le film
- *    se tait ;
- *  - elle ne comble pas un trou plus long que `HEADING_INTERP_MAX_SPAN_FRAMES` : au-delà, les deux
- *    lectures n'appartiennent plus à un même mouvement et le cap reste tenu (un virage lissé sur
- *    dix secondes serait une invention).
+ * WHAT THIS INTERPOLATION DOES NOT DO, AND THAT IS INTENTIONAL:
+ *  - it never crosses a REPLICATION SILENCE (`g > 0`): like the
+ *    position, the heading is held at the preceding point — a vehicle does not turn while the film
+ *    is silent;
+ *  - it does not fill a gap longer than `HEADING_INTERP_MAX_SPAN_FRAMES`: beyond that, the two
+ *    readings no longer belong to the same motion and the heading stays held (a turn smoothed over
+ *    ten seconds would be an invention).
  *
- * Pas de React, pas de canevas : de l'arithmétique datée, testable seule.
+ * No React, no canvas: dated arithmetic, testable on its own.
  */
 
 /**
- * Écart maximal, en images, entre deux lectures de cap pour qu'on tourne de l'une à l'autre. Une
- * seconde (10 images) : le même ordre que le maintien d'une lecture de visée
- * (`VEHICLE_AIM_HOLD_FRAMES`), pour la même raison — au-delà, ce n'est plus un flux continu.
+ * Maximum gap, in frames, between two heading readings for one to turn from one to the other. One
+ * second (10 frames): the same order as the hold of an aim reading
+ * (`VEHICLE_AIM_HOLD_FRAMES`), for the same reason — beyond that, it is no longer a continuous stream.
  */
 export const HEADING_INTERP_MAX_SPAN_FRAMES = 10
 
-/** Un point qui porte (ou non) un cap : un échantillon de véhicule ou une lecture de visée. */
+/** A point that carries (or not) a heading: a vehicle sample or an aim reading. */
 export interface HeadingPoint {
   t: number
   h?: number
-  /** Silence de réplication qui PRÉCÈDE ce point (ms) : on ne tourne pas au travers. */
+  /** Replication silence that PRECEDES this point (ms): one does not turn across it. */
   g?: number
 }
 
 /**
- * lerpHeadingDeg — le cap à la fraction `f` (0..1) de `from` vers `to`, par le PLUS COURT chemin
- * (écart ramené dans [-180, 180)). Le résultat est ramené dans [0, 360).
+ * lerpHeadingDeg — the heading at fraction `f` (0..1) from `from` to `to`, by the SHORTEST path
+ * (gap brought into [-180, 180)). The result is brought into [0, 360).
  */
 export function lerpHeadingDeg(from: number, to: number, f: number): number {
   const delta = ((((to - from) % 360) + 540) % 360) - 180
@@ -44,10 +44,10 @@ export function lerpHeadingDeg(from: number, to: number, f: number): number {
 }
 
 /**
- * headingTowardNext — le cap à `frame`, sachant que `points[prevIdx]` est la dernière lecture de
- * cap au plus tard à cet instant. S'il existe une lecture suivante de cap, atteignable sans
- * traverser de silence et à moins de `maxSpanFrames`, le cap tourne vers elle ; sinon il reste celui
- * de `points[prevIdx]`. `prevIdx` doit désigner un point qui porte un cap.
+ * headingTowardNext — the heading at `frame`, knowing that `points[prevIdx]` is the last heading
+ * reading at latest at that instant. If there is a following heading reading, reachable without
+ * crossing a silence and at less than `maxSpanFrames`, the heading turns toward it; otherwise it
+ * stays the one of `points[prevIdx]`. `prevIdx` must designate a point that carries a heading.
  */
 export function headingTowardNext(
   points: readonly HeadingPoint[],

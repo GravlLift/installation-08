@@ -1,46 +1,46 @@
 /**
- * grenadeFx.ts — CE QUE LE LIEN LANCER -> PROJECTILE PERMET DE DIRE, et rien de plus.
+ * grenadeFx.ts — WHAT THE THROW -> PROJECTILE LINK ALLOWS TO SAY, and nothing more.
  *
- * CORRIGÉ LE 2026-10-22 (lot detonations, suite du contrôle n° 24 des contrôles v8). Le film
- * ÉCRIT la détonation (message `projectile_detonate`/`projectile_impact_effect` de la vue A,
- * genres 5/6) : le serveur la publie sur `Projectile.detoT/detoX/detoY` quand elle est à portée
- * de la piste (`detoLue` vrai), et pose sinon un repli NOMMÉ et COMPTÉ côté Go — la DERNIÈRE
- * POSITION RÉPLIQUÉE, jamais une détonation affirmée. Ce calque lit ces trois champs tels que
- * le serveur les a déjà résolus : il ne recalcule plus rien depuis `P`.
+ * FIXED ON 2026-10-22 (detonations batch, follow-up to check no. 24 of the v8 checks). The film
+ * WRITES the detonation (message `projectile_detonate`/`projectile_impact_effect` of view A,
+ * types 5/6): the server publishes it on `Projectile.detoT/detoX/detoY` when it is within reach
+ * of the track (`detoLue` true), and places otherwise a NAMED and COUNTED fallback on the Go side — the LAST
+ * REPLICATED POSITION, never an asserted detonation. This layer reads these three fields as
+ * the server has already resolved them: it no longer recomputes anything from `P`.
  *
- * PAR TYPE (décision du plan, lot 2 item 2.3) : Shock/Dynamo (rang 2) laisse une nappe
- * ÉLECTRIQUE persistante ~2-3 s — c'est ce que l'arme fait dans le jeu, et la géométrie
- * brisée est déjà la signature de la famille `shock`. Les autres types reçoivent un halo
- * discret, sans affirmation de détonation.
+ * BY TYPE (plan decision, batch 2 item 2.3): Shock/Dynamo (rank 2) leaves a persistent
+ * ELECTRIC POND ~2-3 s — that is what the weapon does in the game, and the shattered
+ * geometry is already the signature of the `shock` family. The other types receive a
+ * subtle halo, without an assertion of detonation.
  *
- * Pas de React, pas de canvas : logique pure, testée (grenadeFx.test.ts).
+ * No React, no canvas: pure logic, tested (grenadeFx.test.ts).
  */
 import { EXPLOSION_MS } from '../layers/explosionFx'
 import type { FxTint } from '../layers/fxInk'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
-/** Rang du type Shock/Dynamo dans GrenadeLabels — l'ordre des rangs est LA donnée
- *  (établi par deux chaînes indépendantes, cf. replay_labels.toml). */
+/** Rank of the Shock/Dynamo type in GrenadeLabels — the order of the ranks is THE data
+ *  (established by two independent chains, cf. replay_labels.toml). */
 export const DYNAMO_RANK = 2
 
 /**
- * restKindOf — CE QUE FAIT UNE GRENADE AU BOUT DE SON VOL, par type.
+ * restKindOf — WHAT A GRENADE DOES AT THE END OF ITS FLIGHT, by type.
  *
- * L'ORDRE DES RANGS EST LA DONNÉE (0 Frag, 1 Plasma, 2 Dynamo, 3 Spike), établi par deux
- * chaînes indépendantes et publié par le titre ; ce qui est CHOISI ici, c'est la mise en
- * scène, et elle suit ce que l'arme fait dans le jeu :
- *  - Frag et Plasma DÉTONENT : explosion particulaire (item 3.3) ;
- *  - Dynamo N'EXPLOSE PAS — elle pose une nappe électrique persistante (~2,5 s). Règle
- *    livrée au lot 2.3 et confirmée par l'utilisateur, inchangée ici ;
- *  - Spike : elle se PLANTE puis projette ses pointes. C'est aussi le seul type dont la fin
- *    de vol est certifiée `at-rest` (mesure : 15 vols liés sur 21, 0 pour les trois autres)
- *    — l'objet s'immobilise AVANT de se déclencher. Elle reçoit donc une explosion, teintée
- *    « cristal » plutôt que feu. **C'est le point que le plan laisse À TRANCHER À L'ŒIL**
- *    (item 3.3) : si l'utilisateur la préfère sans détonation, une ligne suffit à la rendre
- *    au halo.
+ * THE ORDER OF THE RANKS IS THE DATA (0 Frag, 1 Plasma, 2 Dynamo, 3 Spike), established by two
+ * independent chains and published by the title; what is CHOSEN here is the staging, and it
+ * follows what the weapon does in the game:
+ *  - Frag and Plasma DETONATE: particle explosion (item 3.3);
+ *  - Dynamo DOES NOT EXPLODE — it places a persistent electric pond (~2.5 s). Rule
+ *    delivered at batch 2.3 and confirmed by the user, unchanged here;
+ *  - Spike: it PLANTS itself then projects its needles. It is also the only type whose end
+ *    of flight is certified `at-rest` (measurement: 15 linked flights out of 21, 0 for the three others)
+ *    — the object comes to rest BEFORE arming itself. It therefore receives an explosion, tinted
+ *    « crystal » rather than fire. **This is the point the plan leaves TO BE JUDGED BY EYE**
+ *    (item 3.3): if the user prefers it without detonation, one line suffices to restore
+ *    it to the halo.
  *
- * Un rang inconnu (type qu'un titre publierait sans qu'on le connaisse) garde le HALO
- * discret : jamais l'effet d'un type voisin.
+ * An unknown rank (type a title would publish without our knowing it) keeps the SUBTLE
+ * HALO: never the effect of a neighboring type.
  */
 export type GrenadeRestKind = 'explosion' | 'nappe' | 'halo'
 
@@ -50,10 +50,10 @@ export function restKindOf(rank: number): GrenadeRestKind {
 }
 
 /**
- * explosionTintOf — la NATURE de la déflagration d'un type, dans le vocabulaire des teintes
- * (fxInk.ts) : une grenade à fragmentation est une déflagration chimique, une grenade plasma
- * une décharge d'énergie froide, une Spike une gerbe de cristal. Même logique que les tirs :
- * la couleur dit ce qui explose, jamais qui l'a lancée.
+ * explosionTintOf — the NATURE of the blast of a type, in the vocabulary of tints
+ * (fxInk.ts): a fragmentation grenade is a chemical blast, a plasma grenade
+ * a cold energy discharge, a Spike a spray of crystal. Same logic as the shots:
+ * the color says what explodes, never who threw it.
  */
 export function explosionTintOf(rank: number): FxTint {
   if (rank === 1) return 'plasma_cool'
@@ -62,78 +62,78 @@ export function explosionTintOf(rank: number): FxTint {
 }
 
 /**
- * Rémanences au point de repos, en temps réel : la nappe électrique persiste, et la fenêtre
- * des trois types qui détonent vaut EXACTEMENT la timeline de leur explosion.
+ * Remanences at the rest point, in real time: the electric pond persists, and the window
+ * of the three types that detonate equals EXACTLY the timeline of their explosion.
  *
- * LA FENÊTRE DE LA NAPPE PASSE DE 2,5 À 3,0 s LE 2026-08-18 (A4 : « la nappe doit persister au
- * moins 2,5 s au sol »). La fenêtre déclarée disait DÉJÀ 2,5 s ; ce que l'écran montrait, lui,
- * durait 2,10 s — l'opacité descendait linéairement et passait sous le seuil de lisibilité
- * avant la fin de la fenêtre (mesure du lot R3, item R3.2). Ce sont donc DEUX choses qui
- * changent ensemble et qui ne valent qu'ensemble : la fenêtre monte à 3,0 s, et la courbe
- * d'opacité devient un plateau suivi d'une chute (`dynamoAlpha`, grenadeRestLayer.ts). Mesure
- * après : 2,60 s visibles. LE SON N'EST PAS TOUCHÉ — il est daté par la fin de vol, pas par
- * cette fenêtre.
+ * THE POND'S WINDOW GOES FROM 2.5 TO 3.0 s ON 2026-08-18 (A4: « the pond must persist for at
+ * least 2.5 s on the ground »). The declared window ALREADY said 2.5 s; what the screen showed, for its part,
+ * lasted 2.10 s — the opacity descended linearly and passed below the readability
+ * threshold before the end of the window (measurement of batch R3, item R3.2). So it is TWO things that
+ * change together and only hold together: the window rises to 3.0 s, and the opacity
+ * curve becomes a plateau followed by a drop (`dynamoAlpha`, grenadeRestLayer.ts). Measurement
+ * after: 2.60 s visible. THE SOUND IS NOT TOUCHED — it is dated by the end of flight, not by
+ * this window.
  *
- * ELLE EST ALIGNÉE SUR `EXPLOSION_MS`, ET C'EST UN INVARIANT, pas une coïncidence : cette
- * fenêtre BORNE le dessin (`drawGrenadeRestLayer` sort dès `age > hold`). Restée à 1,4 s
- * pendant que la timeline passait à 2,4 s, elle aurait coupé chaque explosion à 58 % de sa
- * course — exactement le défaut que la planche du 16/08 signalait (« trop bref »), déplacé
- * d'un cran. Le test de `grenadeFx` rejoue l'égalité.
+ * IT IS ALIGNED ON `EXPLOSION_MS`, AND THAT IS AN INVARIANT, not a coincidence: this
+ * window BOUNDS the drawing (`drawGrenadeRestLayer` exits as soon as `age > hold`). Left at 1.4 s
+ * while the timeline was passing to 2.4 s, it would have cut each explosion at 58% of its
+ * run — exactly the defect the 16/08 board reported (« too brief »), moved
+ * up one notch. The test of `grenadeFx` replays the equality.
  */
 export const DYNAMO_REST_HOLD_MS = 3_000
 export const GRENADE_REST_HOLD_MS = EXPLOSION_MS
 
-/** Rémanence du badge de lancer sur la FICHE (le `.gic` du POC) : celle des lancers. */
+/** Remanence of the throw badge on the CARD (the `.gic` of the POC): that of the throws. */
 export const GRENADE_THROW_HOLD_MS = 1_400
 
-/** Un effet de fin de vol, précalculé en coordonnées monde. */
+/** An end-of-flight effect, precomputed in world coordinates. */
 export interface GrenadeRestFx {
-  /** Frame de l'EXPLOSION publiée par le serveur (`Projectile.detoT`) : celle du message de
-   *  détonation/impact LU quand `detoLue` est vrai, celle du dernier pas du projectile lié
-   *  sinon (repli nommé côté Go). */
+  /** Frame of the EXPLOSION published by the server (`Projectile.detoT`): that of the
+   *  READ detonation/impact message when `detoLue` is true, that of the last step of the linked projectile
+   *  otherwise (named fallback on the Go side). */
   frame: number
   x: number
   y: number
-  /** Rang du type de grenade (index dans grenadeLabels), `-1` quand le film ne le publie pas.
-   *  PAS DE REPLI SUR 0 : `restKindOf` rend alors le halo discret — exactement ce que sa
-   *  propre doctrine promet — et le SON se tait (EXPLOSION_SOUND_STEMS, grenadeSound.ts).
-   *  Replier sur 0 ferait détoner une frag, et sonner SON explosion, pour une grenade dont
-   *  le type n'est pas établi : l'effet d'une voisine, ce que ce fichier refuse partout. */
+  /** Rank of the grenade type (index in grenadeLabels), `-1` when the film does not publish it.
+   *  NO FALLBACK TO 0: `restKindOf` then returns the subtle halo — exactly what its
+   *  own doctrine promises — and the SOUND falls silent (EXPLOSION_SOUND_STEMS, grenadeSound.ts).
+   *  Falling back to 0 would make a frag detonate, and sound ITS explosion, for a grenade whose
+   *  type is not established: the effect of a neighbor, which this file refuses everywhere. */
   rank: number
-  /** Fin de vol CERTIFIÉE (`projectile-at-rest-state`). MESURE sur le témoin 000d5950 :
-   *  le composant n'apparaît QUE sur des vols Spike (15/21 liés) — jamais frag, plasma ni
-   *  Dynamo (0/44), dont l'objet DÉTONE au lieu de s'immobiliser. Conditionner l'effet à
-   *  cette certification éteindrait donc trois types sur quatre — l'effet se pose au
-   *  dernier point répliqué, et l'écran dit ce que c'est. */
+  /** CERTIFIED end of flight (`projectile-at-rest-state`). MEASUREMENT on the witness 000d5950:
+   *  the component appears ONLY on Spike flights (15/21 linked) — never frag, plasma nor
+   *  Dynamo (0/44), whose object DETONATES instead of coming to rest. Conditioning the effect on
+   *  this certification would therefore extinguish three types out of four — the effect is placed at
+   *  the last replicated point, and the screen says what it is. */
   rest: boolean
-  /** Germe stable pour la géométrie brisée : revenir en arrière redonne la même forme. */
+  /** Stable seed for the shattered geometry: going back gives the same shape again. */
   seed: number
-  /** Présent = explosion d'un PROJECTILE DE TIR (`buildShotImpactFx`), pas d'une grenade : le
-   *  calque la dessine en explosion quel que soit `rank`, dans cette nature de décharge. */
+  /** Present = explosion of a SHOT PROJECTILE (`buildShotImpactFx`), not of a grenade: the
+   *  layer draws it as an explosion whatever `rank` is, in this nature of discharge. */
   tint?: FxTint
-  /** Stem du son de la détonation d'un projectile de tir (registre de l'arme). Absent sur un
-   *  projectile de tir = explosion muette ; une grenade (sans `tint`) sonne par son rang. */
+  /** Stem of the sound of the detonation of a shot projectile (register of the weapon). Absent on a
+   *  shot projectile = silent explosion; a grenade (without `tint`) sounds by its rank. */
   impactStem?: string
 }
 
-/** Germe de la géométrie d'une explosion, fonction de sa seule frame : la même explosion
- *  rejoue la même forme, grenade ou projectile de tir (une seule formule). */
+/** Seed of the geometry of an explosion, function of its frame alone: the same explosion
+ *  replays the same shape, grenade or shot projectile (a single formula). */
 export function explosionSeedOf(frame: number): number {
   return (frame * 2654435761) % 100003
 }
 
-/** Le lancer actif d'un joueur : son rang, et l'âge du geste (en frames). */
+/** The active throw of a player: its rank, and the age of the gesture (in frames). */
 export interface ThrowReading {
   rank: number
   age: number
 }
 
 /**
- * grenadeThrowActive — le DERNIER lancer d'un joueur dans la fenêtre de rémanence.
+ * grenadeThrowActive — the LAST throw of a player in the remanence window.
  *
- * L'AUTEUR EST ÉCRIT DANS LE FILM (Grenade.i = index de joueur du film) : il n'est pas
- * deviné, contrairement au tireur d'un tir — c'est ce qui autorise un badge sur la FICHE.
- * La jointure passe par l'index de film du roster, jamais par un ordre supposé.
+ * THE AUTHOR IS WRITTEN IN THE FILM (Grenade.i = film player index): it is not
+ * guessed, unlike the shooter of a shot — that is what allows a badge on the CARD.
+ * The join goes through the film index of the roster, never through a supposed order.
  */
 export function grenadeThrowActive(
   doc: ReplayDocumentReady,
@@ -152,23 +152,23 @@ export function grenadeThrowActive(
 }
 
 /**
- * buildGrenadeRestFx relie chaque lancer à l'EXPLOSION de SON projectile.
+ * buildGrenadeRestFx links each throw to the EXPLOSION of ITS projectile.
  *
- * L'INSTANT ET LA POSITION VIENNENT DU SERVEUR (`Projectile.detoT/detoX/detoY`, corrigé le
- * 2026-10-22) : le message de détonation/impact LU dans la vue A quand il est à portée de la
- * piste, ou, à défaut, la DERNIÈRE POSITION RÉPLIQUÉE — un repli nommé et compté côté Go
- * (`fallback.NomDetonationDernierePositionConnue`), jamais une détonation affirmée sans lecture.
- * Ce calque ne recalcule rien depuis `P` : il lit la décision déjà prise.
+ * THE INSTANT AND THE POSITION COME FROM THE SERVER (`Projectile.detoT/detoX/detoY`, fixed on
+ * 2026-10-22): the READ detonation/impact message in view A when it is within reach of the
+ * track, or, failing that, the LAST REPLICATED POSITION — a named and counted fallback on the Go side
+ * (`fallback.NomDetonationDernierePositionConnue`), never an asserted detonation without a read.
+ * This layer recomputes nothing from `P`: it reads the decision already taken.
  *
- * L'effet n'est PAS conditionné à la certification `at-rest` : mesurée par type, elle
- * n'existe que sur les Spike (cf. GrenadeRestFx.rest) — l'exiger éteindrait les autres.
- * Un lien hors bornes (artefact d'une autre version) est ignoré — jamais un effet posé
- * au hasard.
+ * The effect is NOT conditioned on the `at-rest` certification: measured by type, it
+ * exists only on the Spike (cf. GrenadeRestFx.rest) — demanding it would extinguish the others.
+ * An out-of-bounds link (artifact of another version) is ignored — never an effect placed
+ * at random.
  *
- * DEPUIS LE 2026-08-18, ELLE DATE AUSSI LE SON (lot R2-G) : l'explosion de chaque grenade
- * part à `frame`, la même que l'effet à l'écran (grenadeSound.ts). C'est délibérément la
- * MÊME fonction et non une règle parallèle — deux datations qui divergeraient feraient
- * sonner l'explosion à côté de son image, sans que rien ne le dise.
+ * SINCE 2026-08-18, IT ALSO DATES THE SOUND (batch R2-G): the explosion of each grenade
+ * starts at `frame`, the same as the on-screen effect (grenadeSound.ts). This is deliberately the
+ * SAME function and not a parallel rule — two datings that would diverge would make
+ * the explosion sound next to its image, without anything saying so.
  */
 export function buildGrenadeRestFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   const out: GrenadeRestFx[] = []

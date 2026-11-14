@@ -1,7 +1,7 @@
 /**
- * L'état de chargement de la carte 3D. `materials` et `index` portent une progression `done` /
- * `total` (images décodées, index de rayons bâtis) : la barre avance au fil des unités, pas en un
- * seul saut. Sans compte, la fraction est le début de leur bande.
+ * The loading state of the 3D map. `materials` and `index` carry a `done` /
+ * `total` progress (decoded images, built rays index): the bar advances as units complete, not in a
+ * single jump. Without a count, the fraction is the beginning of their band.
  */
 export type LoadState =
   | { kind: 'download'; loaded: number; total: number }

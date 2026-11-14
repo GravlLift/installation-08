@@ -1,22 +1,22 @@
 /**
- * shotImpactFx.ts — L'EXPLOSION D'UN PROJECTILE DE TIR (mortier, roquettes, bombe...).
+ * shotImpactFx.ts — THE EXPLOSION OF A SHOT PROJECTILE (mortar, rockets, bomb...).
  *
- * LE LIEN VIENT DU SERVEUR : `Projectile.shot` est l'index, dans `shots`, du tir dont le projectile
- * est né (appariement par coïncidence de frame et de position, aucune ambiguïté publiée). La
- * détonation, elle, est celle que le film écrit (`detoT/detoX/detoY`, `detoLue` vrai).
+ * THE LINK COMES FROM THE SERVER: `Projectile.shot` is the index, in `shots`, of the shot from which the projectile
+ * was born (pairing by coincidence of frame and position, no ambiguity published). The
+ * detonation, for its part, is the one that the film writes (`detoT/detoX/detoY`, `detoLue` true).
  *
- * CE QUI DÉCIDE D'UNE EXPLOSION EST UN FAIT DÉCLARÉ PAR ARME, `impact`, publié par le titre sur le
- * libellé de l'arme à pied (`WeaponLabel.impact`) ou sur l'entrée du registre de véhicule
- * (`VehicleWeapon.impact`). JAMAIS la forme de rendu `fx` : le mortier du Wraith est `plasma` comme
- * le pistolet plasma, qui n'explose pas, et le canon du Scorpion est `explosive` sans projectile
- * publié. Garde-rail : shotImpactFx.test.ts.
+ * WHAT DECIDES AN EXPLOSION IS A FACT DECLARED PER WEAPON, `impact`, published by the title on the
+ * label of the foot weapon (`WeaponLabel.impact`) or on the entry of the vehicle registry
+ * (`VehicleWeapon.impact`). NEVER the render shape `fx`: the mortar of the Wraith is `plasma` like
+ * the plasma pistol, which does not explode, and the gun of the Scorpion is `explosive` without projectile
+ * published. Guardrail: shotImpactFx.test.ts.
  *
- * Dégradations propres, sans erreur : un projectile sans `shot` (artefact antérieur au schéma 104,
- * grenade, balle sans tir publié), un tir hors bornes, une arme sans `impact`, une détonation
- * non lue (`detoLue` faux : repli sur la dernière position, pas une explosion lue) ne posent rien.
+ * Clean degradations, without error: a projectile without `shot` (artifact prior to schema 104,
+ * grenade, bullet without published shot), an out-of-bounds shot, a weapon without `impact`, a detonation
+ * not read (`detoLue` false: fallback to the last position, not a read explosion) place nothing.
  *
- * Les entrées rejoignent celles des grenades (`GrenadeRestFx`) : MÊME calque, MÊME timeline, MÊME
- * germe, MÊME interrupteur de couche. Pas de React, pas de canvas : logique pure.
+ * The entries join those of the grenades (`GrenadeRestFx`): SAME layer, SAME timeline, SAME
+ * seed, SAME layer switch. No React, no canvas: pure logic.
  */
 import { fxTintOf, type FxTint } from '../layers/fxInk'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
@@ -24,19 +24,19 @@ import { buildGrenadeRestFx, explosionSeedOf, type GrenadeRestFx } from './grena
 import { vehicleWeaponOf } from './vehicleWeaponRegistry'
 import { impactSoundStem } from '../sound/impactSound'
 
-/** Nature de la déflagration d'un projectile de tir dont l'arme ne déclare pas de teinte. */
+/** Nature of the deflagration of a shot projectile whose weapon declares no tint. */
 const DEFAULT_IMPACT_TINT: FxTint = 'blast'
 
-/** Ce que le document dit de l'explosion d'une arme : sa nature, et le stem de son son (absent = muette). */
+/** What the document says about the explosion of a weapon: its nature, and the stem of its sound (absent = silent). */
 interface ImpactReading {
   tint: FxTint
   impactStem?: string
 }
 
 /**
- * impactOf lit, pour la clé d'arme `w` d'un tir, le fait « son projectile explose ». Le registre
- * des armes à pied d'abord, celui des armes de véhicule ensuite — le même ordre que le style des
- * tirs (`buildShotFx`). `null` = pas d'explosion.
+ * impactOf reads, for the weapon key `w` of a shot, the fact « its projectile explodes ». The registry
+ * of foot weapons first, that of vehicle weapons next — the same order as the style of the
+ * shots (`buildShotFx`). `null` = no explosion.
  */
 function impactOf(doc: ReplayDocumentReady, w: string | undefined): ImpactReading | null {
   if (!w) return null
@@ -56,8 +56,8 @@ function tintOrDefault(raw: string | undefined): FxTint {
 }
 
 /**
- * buildShotImpactFx relie chaque projectile à l'explosion de SON tir, quand l'arme du tir déclare
- * `impact` et que la détonation a été LUE dans le film.
+ * buildShotImpactFx links each projectile to the explosion of ITS shot, when the weapon of the shot declares
+ * `impact` and the detonation has been READ in the film.
  */
 export function buildShotImpactFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   const out: GrenadeRestFx[] = []
@@ -81,8 +81,8 @@ export function buildShotImpactFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   return out
 }
 
-/** Toutes les fins de vol explosives du film : celles des grenades, puis celles des tirs. L'écran
- *  et le son lisent CETTE liste, jamais deux datations parallèles. */
+/** All the explosive ends of flight of the film: those of the grenades, then those of the shots. The screen
+ *  and the sound read THIS list, never two parallel datings. */
 export function buildRestFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   return [...buildGrenadeRestFx(doc), ...buildShotImpactFx(doc)]
 }

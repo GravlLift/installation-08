@@ -1,76 +1,76 @@
 /**
- * carriedGlyphPlace.ts — LA RÈGLE UNIQUE : où se dessine un objet d'objectif PORTÉ quand son
- * porteur n'a PAS de position à l'image servie.
+ * carriedGlyphPlace.ts — THE SINGLE RULE: where a CARRIED objective object is drawn when its
+ * carrier has NO position at the served frame.
  *
- * LE FAIT, MESURÉ. Une période de portage est un INTERVALLE ; la trajectoire du porteur, elle,
- * est une suite d'échantillons qui peut s'interrompre (vie non répliquée, trou de réplication du
- * bipède). L'audit du 2026-09-10 a compté ces images : **533 sur 32 464** pour le drapeau
- * (1,64 %, §3.5) et **694** pour le crâne d'Oddball (7,0 % du parc, rapport 6.2 §2.1). Le
- * portage est VRAI sur ces images — c'est la position qui manque, pas le fait.
+ * THE FACT, MEASURED. A carrying period is an INTERVAL; the carrier's trajectory, for its part,
+ * is a sequence of samples that can be interrupted (life not replicated, bipode replication hole).
+ * The audit of 2026-09-10 counted these frames: **533 out of 32,464** for the flag
+ * (1.64%, §3.5) and **694** for the Oddball skull (7.0% of the fleet, report 6.2 §2.1). The
+ * carrying is TRUE on these frames — it is the position that is missing, not the fact.
  *
- * CE QUE LES TROIS CALQUES FAISAIENT, ET QUI ÉTAIT FAUX DE DEUX FAÇONS DIFFÉRENTES :
- *  - crâne (`skullCarrierLayer`) et bombe (`bombCarrierLayer`) : `if (!w) continue` — l'objet
- *    DISPARAÎT de l'écran, alors qu'il est quelque part et que le film le sait ;
- *  - drapeau (`flagCarriesLayer`) : repli sur `{x: now.x, y: now.y}`, l'ANCRE DU SPAN — une
- *    position PÉRIMÉE, dessinée avec l'habillage d'un objet PORTÉ. Un objet immobile faux se lit
- *    comme un fait, ce qui est pire qu'un trou.
+ * WHAT THE THREE LAYERS WERE DOING, AND WHAT WAS WRONG IN TWO DIFFERENT WAYS:
+ *  - skull (`skullCarrierLayer`) and bomb (`bombCarrierLayer`): `if (!w) continue` — the object
+ *    DISAPPEARS from the screen, while it is somewhere and the film knows it;
+ *  - flag (`flagCarriesLayer`): fallback to `{x: now.x, y: now.y}`, THE SPAN'S ANCHOR — a
+ *    EXPIRED position, drawn with the dressing of a CARRIED object. A falsely stationary object reads
+ *    as a fact, which is worse than a hole.
  *
- * LA RÈGLE, LA MÊME POUR LES TROIS : sans position du porteur, l'objet est rendu **LIBRE à sa
- * DERNIÈRE POSITION CONNUE** — la dernière position du porteur depuis le début du portage, à
- * défaut le dernier repos connu de l'objet (l'appelant le sert : socle du crâne, ancre du span
- * du drapeau). « Libre » n'est pas un aveu d'ignorance : c'est la seule chose vraie qu'on puisse
- * dire — l'objet est à cet endroit-là, et personne n'est dessiné dessous.
+ * THE RULE, THE SAME FOR THE THREE: without a carrier position, the object is rendered **FREE at its
+ * LAST KNOWN POSITION** — the carrier's last position since the start of the carrying, failing that
+ * the object's last known rest (the caller serves it: skull pedestal, flag's span
+ * anchor). « Free » is not an admission of ignorance: it is the only true thing one can
+ * say — the object is at that spot, and no one is drawn underneath.
  *
- * POURQUOI L'ÉTAT VISUEL CHANGE, ET PAS SEULEMENT LA POSITION. L'habillage « porté » désigne un
- * JOUEUR : le décalage du drapeau existe pour ne pas recouvrir le pion du porteur
- * (`glyphIsOffset`), le crâne se pose au-dessus du marqueur. Sans porteur à l'écran, ces
- * décorations pointent le vide. L'habillage « libre » désigne un LIEU, et c'est ce que la
- * position servie ici est devenue.
+ * WHY THE VISUAL STATE CHANGES, AND NOT ONLY THE POSITION. The « carried » dressing designates a
+ * PLAYER: the flag's offset exists so as not to cover the carrier's piece
+ * (`glyphIsOffset`), the skull sits above the marker. Without a carrier on screen, these
+ * decorations point at nothing. The « free » dressing designates a PLACE, and that is what the
+ * position served here has become.
  *
- * UN SEUL GLYPHE PAR OBJET ET PAR IMAGE, c'est l'invariant que cette règle protège : l'état
- * rendu ici est EXCLUSIF (`carried` XOR `free` XOR `absent`), et les calques d'objet libre s'y
- * branchent (cf. `skullPresenceAt`, précédence du portage) plutôt que de deviner chacun de leur
- * côté. Deux glyphes du même objet à la même image seraient deux affirmations contradictoires.
+ * ONE GLYPH PER OBJECT AND PER FRAME, that is the invariant this rule protects: the state
+ * returned here is EXCLUSIVE (`carried` XOR `free` XOR `absent`), and the free object layers plug
+ * into it (cf. `skullPresenceAt`, carrying precedence) rather than each guessing on their
+ * own. Two glyphs of the same object at the same frame would be two contradictory assertions.
  *
- * LE BALAYAGE ARRIÈRE NE SORT JAMAIS DU PORTAGE : il s'arrête à `t0`. Remonter au-delà servirait
- * la position d'AVANT la prise — c'est-à-dire le dernier repos, que l'appelant sert déjà
- * explicitement s'il le connaît. Coût : le trou mesuré le plus long du parc tient en quelques
- * dizaines d'images, et un portage dont le porteur n'est JAMAIS localisable sort au premier tour
- * par le repli (`xuid` nul) ou au terme d'un seul balayage de la période.
+ * THE BACKWARD SWEEP NEVER LEAVES THE CARRYING: it stops at `t0`. Going beyond would serve
+ * the position of BEFORE the pickup — that is, the last rest, which the caller already serves
+ * explicitly if it knows it. Cost: the longest measured hole of the fleet fits in a few
+ * tens of frames, and a carrying whose carrier is NEVER localizable exits on the first turn
+ * by the fallback (null `xuid`) or at the end of a single sweep of the period.
  */
 import type { XY } from '../../../lib/replay/replayLogic'
 
-/** La lecture de position d'un porteur à une image — celle de `carrierPosition.ts`. */
+/** The position reading of a carrier at a frame — the one from `carrierPosition.ts`. */
 export type CarrierPosAt = (xuid: string, frame: number) => XY | null
 
 /**
- * CarriedGlyphPlace — où et COMMENT se dessine l'objet à cette image. Les trois états sont
- * EXCLUSIFS : c'est ce qui interdit deux glyphes du même objet à la même image.
+ * CarriedGlyphPlace — where and HOW the object is drawn at this frame. The three states are
+ * EXCLUSIVE: that is what forbids two glyphs of the same object at the same frame.
  */
 export type CarriedGlyphPlace =
-  /** Le porteur est localisable : l'objet se dessine SUR lui, habillage « porté ». */
+  /** The carrier is localizable: the object is drawn ON it, « carried » dressing. */
   | { state: 'carried'; at: XY }
-  /** Le porteur n'a pas de position : l'objet se dessine LIBRE, à sa dernière place connue. */
+  /** The carrier has no position: the object is drawn FREE, at its last known place. */
   | { state: 'free'; at: XY }
-  /** Aucune position connue, ni du porteur ni de l'objet : on n'invente rien. */
+  /** No known position, neither of the carrier nor of the object: nothing is invented. */
   | { state: 'absent' }
 
-/** Le portage réduit à ce dont la règle a besoin : QUI porte, et DEPUIS QUELLE image. */
+/** The carrying reduced to what the rule needs: WHO carries, and SINCE WHICH frame. */
 export interface CarriedSpan {
-  /** Le porteur. `null` = l'artefact ne le nomme pas : aucune trajectoire à relire. */
+  /** The carrier. `null` = the artifact does not name it: no trajectory to reread. */
   xuid: string | null
-  /** Première image du portage : borne du balayage arrière, jamais franchie. */
+  /** First frame of the carrying: bound of the backward sweep, never crossed. */
   t0: number
 }
 
 /**
- * carriedGlyphPlaceAt applique la règle, et c'est son UNIQUE écriture (garde-rail :
+ * carriedGlyphPlaceAt applies the rule, and it is the UNIQUE place it is written (guardrail:
  * `carriedGlyphPlace.guard.test.ts`).
  *
- * `fallback` est le dernier REPOS connu de l'objet lui-même, servi par l'appelant quand il en
- * connaît un : socle du crâne, ancre du span pour le drapeau. `null` quand l'objet n'a aucun
- * canal de position propre — c'est le cas de la bombe (`document_bomb_carries.go` : l'objet
- * bombe n'a pas de canal mesuré côté Go).
+ * `fallback` is the last KNOWN REST of the object itself, served by the caller when it
+ * knows one: skull pedestal, span anchor for the flag. `null` when the object has no
+ * position channel of its own — that is the case of the bomb (`document_bomb_carries.go`: the
+ * bomb object has no channel measured on the Go side).
  */
 export function carriedGlyphPlaceAt(
   posOf: CarrierPosAt,
@@ -86,9 +86,9 @@ export function carriedGlyphPlaceAt(
 }
 
 /**
- * lastKnownCarrierPos remonte image par image de `frame - 1` jusqu'à `since` (inclus) et rend la
- * première position trouvée, ou `null`. Le pas est l'image parce que c'est la seule unité que le
- * calque connaisse — il ne reçoit jamais l'horloge du document.
+ * lastKnownCarrierPos goes back frame by frame from `frame - 1` down to `since` (inclusive) and returns the
+ * first position found, or `null`. The step is the frame because it is the only unit the
+ * layer knows — it never receives the document's clock.
  */
 function lastKnownCarrierPos(
   posOf: CarrierPosAt,

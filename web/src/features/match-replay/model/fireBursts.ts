@@ -1,25 +1,25 @@
 /**
- * fireBursts.ts — LES COUPS D'UNE RAFALE DE TIR CONTINU, POSÉS COMME THEATER LES POSE (schéma 71,
- * lot M4b des retours du rejeu).
+ * fireBursts.ts — THE SHOTS OF A CONTINUOUS-FIRE BURST, PLACED THE WAY THEATER PLACES THEM (schema 71,
+ * batch M4b of the replay returns).
  *
- * LE FILM N'ÉCRIT PAS L'INSTANT DE CHAQUE COUP d'une arme à tir continu (Ghost, canons de la
- * Banshee, Chopper, LMG, LAAG, tourelles, Rayon de Sentinelle) : il écrit la gâchette TENUE, au
- * tick, dans la vue de contrôle. Le jeu simule les coups à la cadence du TAG de l'arme ; le document
- * publie la rafale (`doc.bursts` : bornes, arme, véhicule porteur, cadence, passages muets) et ce
- * module pose les coups — le PREMIER à la pose de la gâchette, les suivants à la cadence, montée
- * en cadence comprise (LAAG : de 5 à 18 coups par seconde en 1,6 s). C'est le calcul du serveur
- * (`replay/fire_bursts.go`, `instantsDesCoups`), et le compte `coverage.continuousFire.shots` en
- * est le contrôle.
+ * THE FILM DOES NOT WRITE THE INSTANT OF EACH SHOT of a continuous-fire weapon (Ghost, Banshee
+ * cannons, Chopper, LMG, LAAG, turrets, Sentinel Ray): it writes the HELD trigger, at
+ * the tick, in the control view. The game simulates the shots at the rate of the TAG of the weapon; the document
+ * publishes the burst (`doc.bursts`: bounds, weapon, carrier vehicle, rate, silent passages) and this
+ * module places the shots — the FIRST at the trigger pull, the following ones at the rate, rate ramp
+ * included (LAAG: from 5 to 18 shots per second in 1.6 s). This is the server's calculation
+ * (`replay/fire_bursts.go`, `instantsDesCoups`), and the count `coverage.continuousFire.shots` is
+ * its check.
  *
- * LES PASSAGES MUETS (`holes`) ne portent AUCUN coup : la lecture ne les a pas atteints, et
- * rien n'autorise à y supposer la gâchette tenue (décision de l'utilisateur du 2026-09-24).
+ * THE SILENT PASSAGES (`holes`) carry NO shot: the read did not reach them, and
+ * nothing authorizes supposing the trigger held in them (user decision of 2026-09-24).
  *
- * UN COUP DEVIENT UN TIR DU DOCUMENT (`fireBurstShots`) : même forme que `doc.shots` — frame,
- * slot du tireur, position, arme, véhicule — pour que l'éclair de bouche et le « ! » du tireur le
- * dessinent comme n'importe quel tir. Un coup par FRAME au plus et par rafale : au-delà (Rayon de
- * Sentinelle, 60 coups par seconde), l'éclair se relance à chaque image, ce qui EST un faisceau.
+ * A SHOT BECOMES A SHOT OF THE DOCUMENT (`fireBurstShots`): same shape as `doc.shots` — frame,
+ * shooter's slot, position, weapon, vehicle — so that the muzzle flash and the « ! » of the shooter
+ * draw it like any shot. One shot per FRAME at most and per burst: beyond that (Sentinel Ray,
+ * 60 shots per second), the flash re-triggers at each frame, which IS a beam.
  *
- * Pur : aucun React, aucun canvas.
+ * Pure: no React, no canvas.
  */
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayFireBurstReady } from '../../../lib/replay/replayNormalize'
@@ -27,18 +27,18 @@ import { buildCarrierPosAt } from './carrierPosition'
 import { buildLivesBySlot, lifeOfSlotAt } from './livesPosition'
 
 /**
- * EPSILON_FRAME — la tolérance de la borne de fin : les coups s'accumulent en flottants, et un coup
- * qui tombe EXACTEMENT sur la dernière image (60/s : 6 coups par image) ne doit pas s'en perdre
- * par l'arrondi. La même que le serveur (`replay/fire_bursts.go`, `epsilonFrame`).
+ * EPSILON_FRAME — the tolerance of the end bound: the shots accumulate in floats, and a shot
+ * that falls EXACTLY on the last frame (60/s: 6 shots per frame) must not be lost
+ * by the rounding. The same as the server's (`replay/fire_bursts.go`, `epsilonFrame`).
  */
 const EPSILON_FRAME = 1e-6
 
-/** Un tir simulé d'une rafale, dans la forme d'un tir du document. */
+/** A simulated shot of a burst, in the shape of a document shot. */
 export interface FireBurstShot {
   t: number
   /**
-   * Offset intra-frame (ms) : absent pour les coups simulés — la rafale est posée sur la frame entière
-   * (un coup par frame au plus), l'offset du document n'existe pas pour eux.
+   * Intra-frame offset (ms): absent for the simulated shots — the burst is placed over the whole frame
+   * (one shot per frame at most), the document's offset does not exist for them.
    */
   o?: number
   slot: number
@@ -49,8 +49,8 @@ export interface FireBurstShot {
 }
 
 /**
- * burstShotFrames — les instants des coups d'une rafale, en frames FRACTIONNAIRES, hors de ses
- * passages muets. `frameIntervalMs` est le pas du document.
+ * burstShotFrames — the instants of the shots of a burst, in FRACTIONAL frames, outside its
+ * silent passages. `frameIntervalMs` is the step of the document.
  */
 export function burstShotFrames(b: ReplayFireBurstReady, frameIntervalMs: number): number[] {
   if (!(b.rate > 0) || !(frameIntervalMs > 0)) return []
@@ -68,21 +68,21 @@ export function burstShotFrames(b: ReplayFireBurstReady, frameIntervalMs: number
   return out
 }
 
-/** inHole dit si un instant tombe dans un passage muet de la rafale. */
+/** inHole says if an instant falls in a silent passage of the burst. */
 function inHole(b: ReplayFireBurstReady, t: number): boolean {
   return b.holes.some((h) => t >= h.t0 && t < h.t1)
 }
 
 /**
- * fireBurstShots — les coups simulés de toutes les rafales, un par frame et par rafale au plus,
- * posés sur le VÉHICULE porteur (sa position à cette image) ou sur la VIE du tireur à pied. Un
- * coup sans position (véhicule sans échantillon ni naissance, vie hors de sa fenêtre) ne se pose
- * pas : il ne se dessinerait nulle part.
+ * fireBurstShots — the simulated shots of all the bursts, one per frame and per burst at most,
+ * placed on the CARRIER VEHICLE (its position at that frame) or on the LIFE of the foot shooter. A
+ * shot without position (vehicle without sample nor birth, life outside its window) is not placed:
+ * it would be drawn nowhere.
  */
 export function fireBurstShots(doc: ReplayDocumentReady): FireBurstShot[] {
   if (doc.bursts.length === 0) return []
-  // LA POSITION EST CELLE DU PORTEUR (`carrierPosition.ts`, le chemin unique) : embarqué, le
-  // véhicule qu il monte — à l interpolation même du sprite ; à pied, son bipède.
+  // THE POSITION IS THE CARRIER'S (`carrierPosition.ts`, the single path): embarked, the
+  // vehicle it rides — at the same interpolation as the sprite; on foot, its bipode.
   const posOf = buildCarrierPosAt(doc)
   const bySlot = buildLivesBySlot(doc.tracks)
   const out: FireBurstShot[] = []
@@ -103,9 +103,9 @@ export function fireBurstShots(doc: ReplayDocumentReady): FireBurstShot[] {
 }
 
 /**
- * xuidDuTireur — le joueur de la rafale : la vie de son slot à la pose de la gâchette, sinon
- * l épisode d occupation de ce slot sur le véhicule porteur (un tireur embarqué ne réplique plus
- * sa position, sa vie peut s être close avant). Sans nom, la rafale ne se pose pas.
+ * xuidDuTireur — the player of the burst: the life of its slot at the trigger pull, otherwise
+ * the occupation episode of that slot on the carrier vehicle (an embarked shooter no longer replicates
+ * its position, its life may have closed before). Without a name, the burst is not placed.
  */
 function xuidDuTireur(
   doc: ReplayDocumentReady,

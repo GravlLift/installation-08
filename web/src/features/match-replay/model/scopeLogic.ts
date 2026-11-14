@@ -1,14 +1,14 @@
 /**
- * scopeLogic.ts — LE ZOOM DE LA VUE 1re PERSONNE, fonction pure de l'image.
+ * scopeLogic.ts — THE ZOOM OF THE FIRST-PERSON VIEW, a pure function of the frame.
  *
- * Le film porte le cran de lunette sur les points des pistes (`Point.s` : 0 ou absent = à la
- * hanche, 1, 2). On lit ce cran avec LA MEME REGLE D'ÂGE que le cône de visée 2D (`heldReading`
- * de `replayLogic` : un cran dont l'âge dépasse celui du cap de visée, ou la fenêtre de maintien,
- * appartient à une autre visée et est refusé).
+ * The film carries the scope level on the track points (`Point.s`: 0 or absent = at the
+ * hip, 1, 2). This level is read with THE SAME AGE RULE as the 2D aim cone (`heldReading`
+ * of `replayLogic`: a level whose age exceeds that of the aim snap, or the hold window,
+ * belongs to another aim and is refused).
  *
- * L'AMPLISSÉE LISSÉE (0..1) est une fonction pure de l'image : elle se déduit de l'image où le
- * cran a changé (arrivée d'un point ou expiration de sa fenêtre), jamais d'un état caché —
- * revenir en arrière dans la frise rend donc exactement la même image que de jouer.
+ * THE SMOOTHED RATIO (0..1) is a pure function of the frame: it is deduced from the frame where the
+ * level changed (arrival of a point or expiration of its window), never from hidden state —
+ * going back in the timeline therefore returns exactly the same frame as playing forward.
  */
 import {
   heldReading,
@@ -19,24 +19,24 @@ import {
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { REPLAY_TIMING_MS } from '../hooks/useReplayTiming'
 
-/** Le genre de lunette d'une arme. */
+/** The scope kind of a weapon. */
 export type ScopeKind = 'scope' | 'smartLink' | 'bandit'
 
 /**
- * Le style de l'overlay d'une lunette montée : le cercle du tireur d'élite (masque noir + croix)
- * ou le cadre holographique (vignette latérale, bandes et réticule, sans masque).
+ * The overlay style of a mounted scope: the sniper circle (black mask + cross)
+ * or the holographic frame (side vignette, bands and reticle, no mask).
  */
 export type ScopeStyle = 'cercle' | 'holo'
 
 /**
- * La lunette d'une arme : son genre et l'AMPLIFICATION par cran (index = cran - 1 ; un cran
- * manquant se lit sur le dernier — le film ne publie pas de cran 2 pour une lunette à un cran).
- * Valeurs de départ : le réglage fin se fera à l'écran, d'oici une table unique nommée.
+ * The scope of a weapon: its kind and the MAGNIFICATION per level (index = level - 1; a missing
+ * level is read on the last one — the film does not publish a level 2 for a one-level scope).
+ * Starting values: the fine tuning will be done on screen, hence a single named table.
  */
 export interface ScopeSpec {
   kind: ScopeKind
   mags: number[]
-  /** Le style de l'overlay ; le cercle du tireur d'élite quand absent. */
+  /** The overlay style; the sniper circle when absent. */
   style?: ScopeStyle
 }
 
@@ -51,8 +51,8 @@ const LUNETTES = {
 } satisfies Record<string, ScopeSpec>
 
 /**
- * TABLE UNIQUE des lunettes, par CLÉ DE MODÈLE (les huit premiers chiffres de l'identifiant de
- * l'arme, écriture canonique) quand le modèle est connu.
+ * SINGLE TABLE of the scopes, by MODEL KEY (the first eight digits of the
+ * weapon identifier, canonical writing) when the model is known.
  */
 export const SCOPES_PAR_MODELE: Readonly<Record<string, ScopeSpec>> = {
   '0a1992bc': LUNETTES.s7,
@@ -63,7 +63,7 @@ export const SCOPES_PAR_MODELE: Readonly<Record<string, ScopeSpec>> = {
   '2fb21c87': LUNETTES.bandit,
 }
 
-/** TABLE UNIQUE, par CLÉ DE LIBELLÉ du document (`weaponLabels[identifiant].key`). */
+/** SINGLE TABLE, by LABEL KEY of the document (`weaponLabels[identifiant].key`). */
 export const SCOPES_PAR_ETIQUETTE: Readonly<Record<string, ScopeSpec>> = {
   hinf_s7_sniper: LUNETTES.s7,
   hinf_shock_rifle: LUNETTES.choc,
@@ -74,12 +74,12 @@ export const SCOPES_PAR_ETIQUETTE: Readonly<Record<string, ScopeSpec>> = {
   hinf_bandit: LUNETTES.bandit,
 }
 
-/** Toute arme non listée : un léger zoom, l'arme reste visible à l'écran. */
+/** Any weapon not listed: a light zoom, the weapon stays visible on screen. */
 export const LUNETTE_PAR_DEFAUT: ScopeSpec = { kind: 'smartLink', mags: [1.4] }
 
 /**
- * specLunette donne la lunette d'une arme : par clé de modèle d'abord (la plus stable), puis par
- * clé de libellé, sinon la lunette par défaut.
+ * specLunette gives the scope of a weapon: by model key first (the most stable), then by
+ * label key, otherwise the default scope.
  */
 export function specLunette(
   cleModele: string | null | undefined,
@@ -96,46 +96,46 @@ export function specLunette(
   return LUNETTE_PAR_DEFAUT
 }
 
-/** Le style d'overlay de la lunette `spec` : le cercle du tireur d'élite quand elle n'en précise pas. */
+/** The overlay style of the scope `spec`: the sniper circle when it does not specify one. */
 export function styleLunette(spec: ScopeSpec): ScopeStyle {
   return spec.style ?? 'cercle'
 }
 
-/** La clé de libellé de l'arme dont la clé de modèle est `cleModele` (huit premiers chiffres de l'identifiant). */
+/** The label key of the weapon whose model key is `cleModele` (first eight digits of the identifier). */
 export function etiquetteDe(doc: ReplayDocumentReady, cleModele: string): string | null {
   const identifiant = Object.keys(doc.weaponLabels ?? {}).find((id) => id.startsWith(cleModele))
   return identifiant ? (doc.weaponLabels?.[identifiant]?.key ?? null) : null
 }
 
 /**
- * zoomAt donne le zoom du joueur suivi à l'image `frame` : son cran, le genre de lunette,
- * l'amplissée lissée (0..1) et l'amplification effective (1 = aucun zoom). Hors vie : pas de zoom.
+ * zoomAt gives the zoom of the followed player at the frame `frame`: its level, the scope kind,
+ * the smoothed ratio (0..1) and the effective magnification (1 = no zoom). Outside life: no zoom.
  */
 export interface Zoom3d {
-  /** Le cran de lunette (0, 1 ou 2). */
+  /** The scope level (0, 1 or 2). */
   level: number
   kind: ScopeKind
-  /** L'amplissée lissée, 0..1 : fonction pure de l'image (cf. tête de fichier). */
+  /** The smoothed ratio, 0..1: pure function of the frame (cf. file header). */
   amount: number
-  /** L'amplification effective du champ : 1 + (amplification du cran − 1) × amplissée. */
+  /** The effective magnification of the field of view: 1 + (magnification of the level − 1) × ratio. */
   mag: number
 }
 
-/** La durée du lissage du zoom, en temps réel : le film n'échappe pas au tempo du jeu. */
+/** The duration of the zoom smoothing, in real time: the film does not escape the tempo of the game. */
 export const ZOOM_LISSAGE_MS = 120
 
-/** La fenêtre de recherche du dernier changement de cran, en frames : bien au-delà du lissage. */
+/** The search window of the last level change, in frames: well beyond the smoothing. */
 const FENETRE_RECHERCHE = 300
 
-/** La vie du joueur suivi qui couvre l'image, null hors vie (aucun point n'est lu hors vie). */
+/** The life of the followed player that covers the frame, null outside life (no point is read outside life). */
 function vieCouvrante(doc: ReplayDocumentReady, xuid: string, frame: number) {
   return doc.tracks.find((track) => track.xuid === xuid && isAliveAt(track, frame)) ?? null
 }
 
 /**
- * niveauDe lit le cran de lunette des points à l'image, avec LA REGLE D'ÂGE PARTAGÉE : on garde
- * le dernier cran transmis, sauf s'il date plus longtemps que le dernier cap de visée (il
- * appartient alors à une visée antérieure) ou s'il dépasse la fenêtre de maintien du regard.
+ * niveauDe reads the scope level of the points at the frame, with THE SHARED AGE RULE: one keeps
+ * the last level transmitted, unless it dates earlier than the last aim snap (it
+ * then belongs to an earlier aim) or it exceeds the hold window of the gaze.
  */
 function niveauDe(points: ReplayDocumentReady['tracks'][number]['points'], frame: number, maintien: number): number {
   const visee = heldReading(points, frame, (p) => p.h, maintien)
@@ -145,22 +145,22 @@ function niveauDe(points: ReplayDocumentReady['tracks'][number]['points'], frame
   return cran.value > 0 ? Math.min(2, cran.value) : 0
 }
 
-/** L'amplification du cran `level` pour la lunette (1 : hanche). */
+/** The magnification of the level `level` for the scope (1: hip). */
 function magCran(spec: ScopeSpec, level: number): number {
   if (level <= 0) return 1
   return spec.mags[Math.min(level, spec.mags.length) - 1]
 }
 
-/** Le lissage en U (0..1) : lent aux deux bouts, vite au milieu. */
+/** The U-shaped smoothing (0..1): slow at both ends, fast in the middle. */
 function lissage(u: number): number {
   const x = Math.max(0, Math.min(1, u))
   return x * x * (3 - 2 * x)
 }
 
 /**
- * dernierChangement cherche, en remontant depuis `frame`, l'image où le cran a changé : une
- * arrivée de point ou l'expiration de sa fenêtre de maintien (t + maintien + 1). Hors la fenêtre
- * de recherche, le cran est constant depuis trop longtemps pour que le lissage le sente : null.
+ * dernierChangement seeks, going back from `frame`, the frame where the level changed: an
+ * arrival of a point or the expiration of its hold window (t + maintien + 1). Outside the
+ * search window, the level has been constant too long for the smoothing to feel it: null.
  */
 function dernierChangement(
   points: ReplayDocumentReady['tracks'][number]['points'],
@@ -201,14 +201,14 @@ export function zoomAt(doc: ReplayDocumentReady, xuid: string, frame: number, sp
   }
   const c = dernierChangement(vie.points, vie.startFrame ?? 0, frame, maintien)
   const avant = c === null ? level : c - 1 < (vie.startFrame ?? 0) ? 0 : niveauDe(vie.points, c - 1, maintien)
-  // De cran à cran (1 vers 2) l'amplissée reste pleine : seul le passage par 0 se lisse.
+  // From level to level (1 to 2) the ratio stays full: only the passage through 0 is smoothed.
   const amount = c === null ? 1 : avant === 0 ? lissage((frame - c) / lissageFrames) : avant > 0 ? 1 : 0
   return { level, kind: spec.kind, amount, mag: 1 + (magCran(spec, level) - 1) * amount }
 }
 
 /**
- * zoomedFov ramène le champ vertical `baseFovDeg` à l'amplification `magnification` : un champ
- * vertical θ devient 2·atan(tan(θ/2) / magnification), en degrés.
+ * zoomedFov brings the vertical field of view `baseFovDeg` to the magnification `magnification`: a
+ * vertical field of view θ becomes 2·atan(tan(θ/2) / magnification), in degrees.
  */
 export function zoomedFov(baseFovDeg: number, magnification: number): number {
   if (magnification <= 1) return baseFovDeg

@@ -1,37 +1,37 @@
 /**
- * shotFx.ts — CE QU'ON SAIT D'UN TIR AVANT DE LE DESSINER : où, quand, quelle forme,
- * quelle teinte, et dans quelle direction le tireur REGARDAIT.
+ * shotFx.ts — WHAT IS KNOWN ABOUT A SHOT BEFORE DRAWING IT: where, when, what shape,
+ * what tint, and in which direction the shooter WAS LOOKING.
  *
- * TIRS EN VÉHICULE (2026-09-03) : `doc.shots[i].v` marque un tir tiré depuis le véhicule de ce
- * slot (même clé que `VehicleTrack.slot`) — `x`/`y` valent alors la position INTERPOLÉE DU
- * VÉHICULE (centre), pas celle d'un tireur (le bipède ne réplique plus une fois embarqué,
- * `document.go`). Ce module résout ICI, une fois, ce qui NE DÉPEND QUE DU FILM (le véhicule
- * porteur et son cap à l'instant du tir, `vehicleChassisHeadingAt`) et le montage de l'arme
- * (`vehicleWeaponMountOf`, registre du titre publié dans le document, schéma 69) ; ce qui dépend
- * du SPRITE CHARGÉ (sa taille, donc le
- * décalage écran réel) reste au tracé (`drawShotsLayer`), qui seul connaît `sizeOf` — même
- * découpage précalcul/canevas que le reste du fichier.
+ * SHOTS FROM A VEHICLE (2026-09-03): `doc.shots[i].v` marks a shot fired from the vehicle of this
+ * slot (same key as `VehicleTrack.slot`) — `x`/`y` then hold the INTERPOLATED POSITION OF THE
+ * VEHICLE (center), not that of a shooter (the biped no longer replicates once boarded,
+ * `document.go`). This module resolves HERE, once, what DEPENDS ONLY ON THE FILM (the
+ * carrying vehicle and its heading at the instant of the shot, `vehicleChassisHeadingAt`) and the mount of the weapon
+ * (`vehicleWeaponMountOf`, registry of the title published in the document, schema 69); what depends
+ * on the LOADED SPRITE (its size, hence the
+ * real on-screen offset) stays at the draw (`drawShotsLayer`), which alone knows `sizeOf` — same
+ * precompute/canvas split as the rest of the file.
  *
- * LA MESURE QUI A DÉBLOQUÉ CE CALQUE (2026-08-15). Le rendu orientait un tir par le champ
- * `h` de l'ÉVÉNEMENT de tir : présent sur 90 tirs sur 483 du film témoin (18,6 %), 16,1 %
- * sur les 23 artefacts locaux. D'où l'impression d'absence d'effet. Or le cap de REGARD
- * vit AUSSI dans les trajectoires — c'est lui qui alimente déjà le calque « Visée » — et il
- * est connu en continu. En le relisant à l'instant du tir (même `heldReading`, même fenêtre
- * de maintien que le cône), la couverture passe à **483/483 sur le témoin (100 %)** et
- * **99,1 % sur le corpus** ; l'âge médian de la lecture est de 0 ms, et 94,4 % des lectures
- * ont moins de 200 ms.
+ * THE MEASUREMENT THAT UNLOCKED THIS LAYER (2026-08-15). The render oriented a shot by the field
+ * `h` of the SHOT EVENT: present on 90 shots out of 483 of the witness film (18.6%), 16.1%
+ * on the 23 local artifacts. Hence the impression of no effect. Yet the LOOK heading
+ * lives IN THE TRAJECTORIES TOO — it is what already feeds the « Aim » layer — and it
+ * is known continuously. By re-reading it at the instant of the shot (same `heldReading`, same window
+ * of hold as the cone), coverage goes to **483/483 on the witness (100%)** and
+ * **99.1% on the corpus**; the median age of the reading is 0 ms, and 94.4% of the readings
+ * have less than 200 ms.
  *
- * POURQUOI LE REGARD SEUL, ET PAS LE `h` DE L'ÉVÉNEMENT QUAND IL EST LÀ. Parce que les deux
- * disent la même chose : sur les 2 866 tirs qui portent les DEUX, l'écart médian est de
- * 0,3° et 84,4 % sont sous 5°. Une seule règle vaut donc mieux que deux, et c'est celle qui
- * couvre tout.
+ * WHY THE GAZE ALONE, AND NOT THE `h` OF THE EVENT WHEN IT IS THERE. Because the two
+ * say the same thing: on the 2,866 shots that carry BOTH, the median gap is
+ * 0.3° and 84.4% are under 5°. A single rule is therefore better than two, and it is the one that
+ * covers everything.
  *
- * LA MÊLÉE N'ENTRE PAS : un coup de marteau n'est pas un tir, il n'a pas d'éclair de bouche
- * (règle établie au lot 3.2, et la référence Csstat exclut la mêlée explicitement). Mesure :
- * 0 événement de tir de famille `melee` sur les 17 904 du corpus — la règle ne coûte rien,
- * mais sans elle un film qui en porterait un afficherait un éclair faux.
+ * MELEE DOES NOT ENTER: a hammer blow is not a shot, it has no muzzle flash
+ * (rule established at lot 3.2, and the Csstat reference excludes melee explicitly). Measurement:
+ * 0 shot events of family `melee` on the 17,904 of the corpus — the rule costs nothing,
+ * but without it a film carrying one would display a false flash.
  *
- * Pas de React, pas de canvas : logique pure, testée (shotFx.test.ts).
+ * No React, no canvas: pure logic, tested (shotFx.test.ts).
  */
 import { fxTintOf, type FxTint } from '../layers/fxInk'
 import { familyOf, type ShotFamily } from '../layers/shotEffects'
@@ -45,112 +45,112 @@ import { buildLivesBySlot, lifeOfSlotAt } from './livesPosition'
 import { fireBurstShots } from './fireBursts'
 
 /**
- * VehicleShotSource — CE QU'IL FAUT, EN PLUS DU CENTRE, POUR PLACER L'EFFET AU BON MONTAGE
- * (`vehicleWeaponMounts.vehicleShotPlacement`, appelé au tracé une fois le sprite chargé).
- * `null` sur `ShotFxEntry.vehicleShot` = tir à pied, OU tir en véhicule dont l'arme n'a pas de
- * montage connu (`vehicleWeaponMountOf` rend `null`) : le repli reste alors le centre du
- * véhicule, exactement le comportement d'avant ce fichier.
+ * VehicleShotSource — WHAT IS NEEDED, IN ADDITION TO THE CENTER, TO PLACE THE EFFECT AT THE RIGHT MOUNT
+ * (`vehicleWeaponMounts.vehicleShotPlacement`, called at the draw once the sprite is loaded).
+ * `null` on `ShotFxEntry.vehicleShot` = shot on foot, OR vehicle shot whose weapon has no
+ * known mount (`vehicleWeaponMountOf` returns `null`): the fallback then stays at the center of
+ * the vehicle, exactly the behavior before this file.
  */
 export interface VehicleShotSource {
   /**
-   * Le montage de l'arme sur le châssis, ou `null` quand le registre du document ne le porte pas
-   * (arme absente du registre, ou entrée sans montage), OU quand l'arme n'est pas une arme de
-   * véhicule du tout (`arme: 'joueur'`).
-   * `null` ne fait PLUS perdre la source : l'éclair reste au CENTRE du véhicule, mais il garde sa
+   * The mount of the weapon on the chassis, or `null` when the registry of the document does not carry it
+   * (weapon absent from the registry, or entry without mount), OR when the weapon is not a vehicle
+   * weapon at all (`arme: 'joueur'`).
+   * `null` NO LONGER makes the source lost: the flash stays at the CENTER of the vehicle, but it keeps its
    * DIRECTION (cf. `vehicleShotPlacement`).
    */
   mount: VehicleWeaponMount | null
   /**
-   * CE QUI A TIRÉ, ET C'EST LA CLÉ DE LA RÈGLE DE DIRECTION (lot 5.8.5) : une arme DE VÉHICULE est
-   * solidaire du châssis (son cap est donc un repli légitime), une arme DE JOUEUR tirée depuis un
-   * siège ne l'est PAS — le passager vise où il veut, et lui prêter le cap du véhicule serait une
-   * invention (règle du lot 5.2a.5, qui SURVIT). La seule direction qu'elle accepte est la visée
-   * MESURÉE de son tireur.
+   * WHAT FIRED, AND IT IS THE KEY OF THE DIRECTION RULE (lot 5.8.5): a VEHICLE weapon is
+   * solidary of the chassis (its heading is therefore a legitimate fallback), a PLAYER weapon fired from a
+   * seat is NOT — the passenger aims where it wants, and lending it the heading of the vehicle would be an
+   * invention (rule of lot 5.2a.5, which SURVIVES). The only direction it accepts is the AIM
+   * MEASURED of its shooter.
    *
-   * LE DISCRIMINATEUR EST LE REGISTRE D'ARMES, comme pour le son : une arme absente de
-   * `weaponLabels` est une arme de véhicule.
+   * THE DISCRIMINATOR IS THE WEAPON REGISTRY, as for the sound: a weapon absent from
+   * `weaponLabels` is a vehicle weapon.
    */
   arme: 'vehicule' | 'joueur'
-  /** Famille du véhicule porteur (clé de `sizeOf`/`spriteOf`, cf. `VehicleStyle`). */
+  /** Family of the carrying vehicle (key of `sizeOf`/`spriteOf`, cf. `VehicleStyle`). */
   family: string | undefined
   /**
-   * Cap MONDE du véhicule à l'instant du tir — celui auquel le CHÂSSIS EST DESSINÉ
-   * (`vehicleChassisHeadingAt`), degrés, convention `Point.h`. C'est le même que le sprite, et ce
-   * n'est pas un détail : le montage d'arme est une ancre dans le repère LOCAL du sprite, donc un
-   * éclair posé à un autre cap sortirait du châssis qu'il est censé quitter.
+   * WORLD heading of the vehicle at the instant of the shot — the one to which the CHASSIS IS DRAWN
+   * (`vehicleChassisHeadingAt`), degrees, convention `Point.h`. It is the same as the sprite, and it
+   * is not a detail: the weapon mount is an anchor in the LOCAL frame of the sprite, so a
+   * flash placed at another heading would come out of the chassis it is supposed to leave.
    */
   headingDeg: number
   /**
-   * Visée MESURÉE de CELUI QUI A TIRÉ, degrés monde, ou `null` faute de lecture en vigueur
-   * (`vehicleShooterAimAt`, apparié par SLOT — cf. son en-tête pour le négatif du lot 5.5.1 qui
-   * rend cette valeur nécessaire). Elle n'oriente QUE les montages de classe `tourelle` : le
-   * châssis, lui, garde son propre cap.
+   * AIM MEASURED of THE ONE WHO FIRED, world degrees, or `null` lacking a reading in force
+   * (`vehicleShooterAimAt`, paired by SLOT — cf. its header for the negative of lot 5.5.1 that
+   * makes this value necessary). It orients ONLY the mounts of class `tourelle`: the
+   * chassis, for its part, keeps its own heading.
    */
   shooterHeadingDeg: number | null
 }
 
-/** Un tir prêt à dessiner : coordonnées MONDE, la conversion en pixels dépend du cadrage. */
+/** A shot ready to draw: WORLD coordinates, the conversion to pixels depends on the framing. */
 export interface ShotFxEntry {
-  /** Frame du tir sur la grille du rejeu (lectures de pose : regard, arme en main, position). */
+  /** Frame of the shot on the grid of the replay (pose readings: gaze, weapon in hand, position). */
   frame: number
   /**
-   * Image FRACTIONNAIRE du tir : `frame` + l'offset intra-frame du document (`o`, ms) ramenée au pas
-   * de grille. C'est elle qui cale le tir dans le temps de la scène (vol, éclair, recul, animation) ;
-   * les tirs d'une même frame s'y séparent à l'ordre du film.
+   * FRACTIONAL frame of the shot: `frame` + the intra-frame offset of the document (`o`, ms) reduced to the grid
+   * step. It is this one that places the shot in the time of the scene (flight, flash, recoil, animation);
+   * shots of the same frame are separated there at the order of the film.
    */
   time: number
-  /** Emplacement du bipède tireur (la vue 3D y relit sa hauteur et le tangage de sa visée). */
+  /** Location of the biped shooter (the 3D view re-reads there its height and the yaw of its aim). */
   slot: number
   x: number
   y: number
   /**
-   * Cap de REGARD du tireur à cet instant, en degrés monde. null = aucune lecture dans la
-   * fenêtre de maintien : l'éclair sera une bouffée ronde, jamais une direction inventée.
+   * GAZE heading of the shooter at this instant, in world degrees. null = no reading in the
+   * hold window: the flash will be a round puff, never an invented direction.
    */
   h: number | null
   fam: ShotFamily
   tint: FxTint
-  /** Germe stable : deux lectures du même instant redonnent la même forme. */
+  /** Stable seed: two readings of the same instant give back the same shape. */
   seed: number
-  /** Tir d'une ARME DE VÉHICULE ; `null` pour un tir à pied ou une arme de joueur. */
+  /** Shot of a VEHICLE WEAPON; `null` for a shot on foot or a player weapon. */
   vehicleShot: VehicleShotSource | null
 }
 
 /**
- * buildShotFx précalcule les tirs dessinables d'un document — positions, familles, teintes
- * et regards résolus UNE fois au chargement (patron `buildKillFx`). Pendant la lecture, il
- * ne reste que le passage monde -> pixels.
+ * buildShotFx precomputes the drawable shots of a document — positions, families, tints
+ * and gazes resolved ONCE at load (pattern `buildKillFx`). During the reading, only
+ * the passage world -> pixels remains.
  *
- * `aimHoldFrames` est la fenêtre de maintien du regard, en frames : la MÊME que celle du
- * cône de visée, parce que c'est la même lecture. Au-delà, on ne sait plus où le joueur
- * regardait, et une direction périmée affirmerait ce qu'on ignore.
+ * `aimHoldFrames` is the hold window of the gaze, in frames: the SAME one as that of the
+ * aim cone, because it is the same reading. Beyond it, one no longer knows where the player
+ * was looking, and an expired direction would affirm what one does not know.
  *
- * `seatedAtSlot` : la règle du pion (`SlotIdentity.seatedAtSlot`). Un tir tiré par un joueur qui ne
- * tient plus de fiche à cet instant — un bot relevé — ne s'ancre sur aucun pion : il n'est pas
- * dessiné. Le tir reste dans le film et dans les comptes ; seul l'éclair de la carte s'éteint.
+ * `seatedAtSlot`: the rule of the piece (`SlotIdentity.seatedAtSlot`). A shot fired by a player who no
+ * longer holds a card at this instant — a raised bot — anchors on no piece: it is not
+ * drawn. The shot stays in the film and in the counts; only the flash of the map goes out.
  */
 export function buildShotFx(
   doc: ReplayDocumentReady,
   aimHoldFrames: number,
   seatedAtSlot?: (slot: number, ownerFrame: number, frame: number) => boolean,
 ): ShotFxEntry[] {
-  // LES COUPS DU TIR CONTINU (schéma 71) entrent comme des tirs : même éclair, même montage, même
-  // regard — ils ne diffèrent que par leur source, simulée à la cadence du tag (`fireBursts.ts`).
+  // THE BLOWS OF THE FULL-AUTO FIRE (schema 71) enter as shots: same flash, same mount, same
+  // gaze — they differ only by their source, simulated at the cadence of the tag (`fireBursts.ts`).
   const tirs = [...doc.shots, ...fireBurstShots(doc)]
   if (tirs.length === 0) return []
-  // UNE TRACE = UNE VIE, et le slot de biped est réattribué à chaque réapparition : on
-  // groupe donc par slot, puis on retient la vie QUI COUVRE l'instant du tir. Prendre la
-  // première venue lirait le regard d'une autre vie du même joueur.
+  // ONE TRACK = ONE LIFE, and the biped slot is re-allocated at each respawn: one
+  // therefore groups by slot, then keeps the life THAT COVERS the instant of the shot. Taking the
+  // first one that comes would read the gaze of another life of the same player.
   const bySlot = buildLivesBySlot(doc.tracks)
   const out: ShotFxEntry[] = []
   for (const s of tirs) {
     if (seatedAtSlot && !seatedAtSlot(s.slot, s.t, s.t)) continue
     const label = s.w ? doc.weaponLabels?.[s.w] : undefined
-    // DEUX JOINTURES, DANS CET ORDRE — la MÊME que celle du son (`shotSoundStem`) : le registre
-    // des armes de JOUEUR d'abord, puis le REGISTRE DES ARMES DE VÉHICULE du document (schéma 69,
-    // qui remplace la table client du lot 5.8.2). Sans la seconde, 68 % des tirs de véhicule de
-    // `4f77afc1` tombaient sur la famille `plain` et la teinte `neutral` — un halo gris pâle
-    // centré sur un sprite, qui ne se lit pas comme un tir.
+    // TWO JOINS, IN THIS ORDER — the SAME one as that of the sound (`shotSoundStem`): the registry
+    // of PLAYER weapons first, then the VEHICLE WEAPON REGISTRY of the document (schema 69,
+    // which replaces the client table of lot 5.8.2). Without the second, 68% of the vehicle shots of
+    // `4f77afc1` fell on the family `plain` and the tint `neutral` — a pale gray halo
+    // centered on a sprite, which is not read as a shot.
     const style = label ? null : vehicleShotStyleOf(doc, s.w)
     const fam = familyOf(label?.fx ?? style?.fx)
     if (fam === 'melee') continue
@@ -173,45 +173,45 @@ export function buildShotFx(
 }
 
 /**
- * vehicleShotSourceOf — RÉSOUT UNE FOIS ce que le rendu aura besoin de savoir sur un tir en
- * véhicule : le véhicule porteur (par `v`, MÊME clé que `VehicleTrack.slot`), le montage de
- * l'arme (par `w`) quand il est documenté, et le cap du véhicule à l'instant `t`.
+ * vehicleShotSourceOf — RESOLVES ONCE what the render will need to know about a shot from
+ * a vehicle: the carrying vehicle (by `v`, SAME key as `VehicleTrack.slot`), the mount of
+ * the weapon (by `w`) when it is documented, and the heading of the vehicle at the instant `t`.
  *
- * # POURQUOI UN MONTAGE INCONNU NE FAIT PLUS PERDRE LA SOURCE (2026-09-20)
+ * # WHY AN UNKNOWN MOUNT NO LONGER MAKES THE SOURCE LOST (2026-09-20)
  *
- * LE DÉFAUT MESURÉ, et il explique à lui seul le constat utilisateur du 2026-09-19 (« toujours
- * pas d'effets de tir pour les véhicules »). Le cap de REGARD d'un tir vient de la trajectoire
- * du BIPÈDE (`heldReading` ci-dessous) — or un bipède EMBARQUÉ NE RÉPLIQUE PLUS. Mesure du
- * 2026-09-20 sur quatre documents cuits : sur les tirs qui portent `v`, le cap de regard est
- * lisible pour **1 sur 241** (`4f77afc1`), 3 sur 241 (`5676a9ba`), 0 sur 47 (`c259789d`) et
- * 0 sur 15 (`8a485699`). Sans cap, `drawMuzzleFlash` tombe sur la BOUFFÉE RONDE — sans
- * direction, centrée sur le châssis, et dans la teinte `neutral` (68 % de ces tirs portent une
- * arme absente de `weaponLabels`, donc sans famille ni teinte). Un halo gris pâle centré sur le
- * sprite ne se lit pas comme un tir : c'est ce que l'utilisateur ne voyait pas.
+ * THE MEASURED DEFAULT, and it alone explains the user observation of 2026-09-19 (« still
+ * no shot effects for the vehicles »). The GAZE heading of a shot comes from the trajectory
+ * of the BIPED (`heldReading` below) — yet a BOARDED biped NO LONGER REPLICATES. Measurement of
+ * 2026-09-20 on four baked documents: on the shots that carry `v`, the gaze heading is
+ * readable for **1 out of 241** (`4f77afc1`), 3 out of 241 (`5676a9ba`), 0 out of 47 (`c259789d`) and
+ * 0 out of 15 (`8a485699`). Without heading, `drawMuzzleFlash` falls on the ROUND PUFF — without
+ * direction, centered on the chassis, and in the tint `neutral` (68% of these shots carry a
+ * weapon absent from `weaponLabels`, therefore without family nor tint). A pale gray halo centered on the
+ * sprite is not read as a shot: it is what the user was not seeing.
  *
- * CE QUE LE FILM DONNE, LUI, POUR 100 % DE CES TIRS : le CAP DU VÉHICULE. Garder la source même
- * sans montage rend donc une direction à l'éclair, et `vehicleShotPlacement` la traduit.
+ * WHAT THE FILM GIVES, FOR ITS PART, FOR 100% OF THESE SHOTS: THE HEADING OF THE VEHICLE. Keeping the source even
+ * without mount therefore gives back a direction to the flash, and `vehicleShotPlacement` translates it.
  *
- * LA GARDE EST LE REGISTRE D'ARMES, et c'est le MÊME discriminateur que le son
- * (`shotSoundStem` : « leurs identifiants sont ABSENTS de `weaponLabels` »).
+ * THE GUARD IS THE WEAPON REGISTRY, and it is the SAME discriminator as the sound
+ * (`shotSoundStem`: « their identifiers are ABSENT from `weaponLabels` »).
  *
- * # UNE ARME DE JOUEUR TIRÉE D'UN SIÈGE GARDE LA SOURCE DEPUIS LE LOT 5.8.5, ET POUR SA VISÉE
+ * # A PLAYER WEAPON FIRED FROM A SEAT KEEPS THE SOURCE SINCE LOT 5.8.5, AND FOR ITS AIM
  *
- * LE NÉGATIF QUI L'ÉCARTAIT EST TOMBÉ, et c'est le lot 5.5.2 qui l'a fait tomber. 5.2a.5 les
- * laissait sur leur propre cap de REGARD — la règle était juste (le passager vise où il veut) mais
- * ce cap vient de la trajectoire du BIPÈDE, qui ne réplique plus une fois embarqué : il est
- * lisible pour **1 tir sur 241** (`4f77afc1`). Mesure de la population : **76 tirs sur 241**
- * (D2 du lot 5.5).
+ * THE NEGATIVE THAT WAS SETTING IT ASIDE HAS FALLEN, and it is lot 5.5.2 that made it fall. 5.2a.5 was
+ * leaving them on their own GAZE heading — the rule was correct (the passenger aims where it wants) but
+ * this heading comes from the trajectory of the BIPED, which no longer replicates once boarded: it is
+ * readable for **1 shot out of 241** (`4f77afc1`). Measurement of the population: **76 shots out of 241**
+ * (D2 of lot 5.5).
  *
- * CE QUE 5.5.2 A ÉTABLI : la visée de l'épisode du TIREUR, appariée par SLOT, est SON PROPRE
- * REGARD — pas celui d'autrui. L'objection qui gelait ce cas (« faire passer une mesure d'autrui
- * pour une approximation de soi ») ne s'y applique donc pas, et l'utilisateur l'a tranché le
- * 2026-09-21 : « pour un occupant NON conducteur, l'orientation de son arme passager est sa
- * VISÉE, son regard classique comme à pied ».
+ * WHAT 5.5.2 ESTABLISHED: the aim of the EPISODE OF THE SHOOTER, paired by SLOT, is ITS OWN
+ * GAZE — not that of another. The objection that was freezing this case (« passing off a measurement of another
+ * as an approximation of oneself ») therefore does not apply there, and the user ruled it on
+ * 2026-09-21: « for a NON-driver occupant, the orientation of their passenger weapon is their
+ * AIM, their regular gaze like on foot ».
  *
- * LA RÈGLE DE 5.2a.5 SURVIT ENTIÈRE : cette arme ne prend JAMAIS le cap du châssis. Sans lecture
- * de visée en vigueur, la source n'est même pas créée — le tir retombe alors sur son propre
- * regard, exactement comme avant ce lot (`h`), et sur la bouffée ronde à défaut.
+ * THE RULE OF 5.2a.5 SURVIVES ENTIRE: this weapon NEVER takes the heading of the chassis. Without reading
+ * of aim in force, the source is not even created — the shot then falls back to its own
+ * gaze, exactly as before this lot (`h`), and on the round puff as a fallback.
  */
 function vehicleShotSourceOf(
   doc: ReplayDocumentReady,
@@ -222,20 +222,20 @@ function vehicleShotSourceOf(
   const track = doc.vehicles.find((v) => v.slot === shot.v)
   if (!track) return null
   const mount = vehicleWeaponMountOf(doc, shot.w)
-  // ARME DE VÉHICULE = absente du registre d'armes de joueur (cf. l'en-tête de cette fonction).
+  // VEHICLE WEAPON = absent from the player weapon registry (cf. the header of this function).
   const armeDeVehicule = shot.w !== undefined && doc.weaponLabels?.[shot.w] === undefined
-  // LE SLOT DU TIREUR, PAS SON SIÈGE (lot 5.5) : c'est la seule clé qui désigne l'occupant qui a
-  // tiré, et elle vaut pour le tourelleur passager du Warthog comme pour le conducteur artilleur
-  // du Scorpion — comme pour le passager qui tire sa propre arme.
+  // THE SLOT OF THE SHOOTER, NOT THEIR SEAT (lot 5.5): it is the only key that designates the occupant who
+  // fired, and it holds for the passenger gunner of the Warthog as for the driver gunner
+  // of the Scorpion — as for the passenger who fires their own weapon.
   const viseeTireur =
     vehicleShooterAimAt(track, shot.slot, t) ?? viseeSurUnePiecePortee(doc, track, shot.slot, t)
-  // UNE ARME DE JOUEUR N'ENTRE QUE SI SA VISÉE EST LUE : sans elle, la source n'apporterait rien
-  // et le tir perdrait son propre regard (`h`), qui est parfois lisible.
+  // A PLAYER WEAPON ENTERS ONLY IF ITS AIM IS READ: without it, the source would bring nothing
+  // and the shot would lose its own gaze (`h`), which is sometimes readable.
   if (!mount && !armeDeVehicule && viseeTireur === null) return null
   return {
     mount,
     arme: armeDeVehicule ? 'vehicule' : 'joueur',
-    // LE SPRITE DESSINÉ, variante comprise (schéma 69) : c'est sur SES dimensions que l'ancre se lit.
+    // THE SPRITE DRAWN, variant included (schema 69): it is on ITS dimensions that the anchor is read.
     family: vehicleSpriteFamily(track),
     headingDeg: vehicleChassisHeadingAt(track, t),
     shooterHeadingDeg: viseeTireur,
@@ -243,16 +243,16 @@ function vehicleShotSourceOf(
 }
 
 /**
- * viseeSurUnePiecePortee — LA VISÉE DU TIREUR QUAND SON ÉPISODE EST RESTÉ SUR UNE PIÈCE MONTÉE du
- * véhicule qui porte le tir (schéma 69, revue adverse du lot M4a, F1).
+ * viseeSurUnePiecePortee — THE AIM OF THE SHOOTER WHEN THEIR EPISODE STAYED ON A MOUNTED GUN of
+ * the vehicle that carries the shot (schema 69, adverse review of lot M4a, F1).
  *
- * Le serveur pose un tir de tourelle sur le PORTEUR (`v` = le châssis) dès que la pièce a un
- * `carrier`, mais il ne reporte l'épisode de l'artilleur sur ce porteur que s'il le peut : un
- * épisode hors de la fenêtre du porteur, un occupant déjà à bord, ou un épisode de repli dont la
- * montée à bord ne se voit pas près du porteur (2026-09-24) le laissent sur la pièce. Chercher la visée sur le seul porteur la perdait alors — mesure
- * du 2026-09-24 : 174 tirs sur 276 perdaient leur visée lue, et le montage `turret` retombait sur
- * la bouffée ronde. La pièce appartient au porteur par `carrier {slot, gen}` : son épisode EST
- * l'épisode du tireur, apparié par SLOT comme partout ailleurs.
+ * The server places a turret shot on the CARRIER (`v` = the chassis) as soon as the gun has a
+ * `carrier`, but it only moves the episode of the gunner onto that carrier if it can: an
+ * episode outside the window of the carrier, an occupant already aboard, or a fallback episode whose
+ * boarding is not seen near the carrier (2026-09-24) leaves it on the gun. Searching the aim on the sole carrier lost it then — measurement
+ * of 2026-09-24: 174 shots out of 276 lost their aim read, and the mount `turret` fell back on
+ * the round puff. The gun belongs to the carrier by `carrier {slot, gen}`: its episode IS
+ * the episode of the shooter, paired by SLOT as everywhere else.
  */
 function viseeSurUnePiecePortee(
   doc: ReplayDocumentReady,

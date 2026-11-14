@@ -1,25 +1,25 @@
 /**
- * bombCountdown.ts — LE COMPTE À REBOURS DE LA BOMBE D'ASSAUT. Logique pure, pas de React.
+ * bombCountdown.ts — THE COUNTDOWN OF THE ASSAULT BOMB. Pure logic, no React.
  *
- * D'OÙ VIENT LA DONNÉE. `doc.bombArmings` (schéma 29) : l'anneau du marqueur `ti=12 i14` est
- * la jauge d'armement — protocole du 2026-09-01 avec tirage nul (13/13 Neutral Bomb CV 0,016,
- * 4/4 Husky Raid, 0/1000 tirages nuls aussi bien). Chaque entrée porte l'instant ARMÉ (`t`) et
- * la MÈCHE (`fuseMs`, 4 930 ms côté Go) : la fenêtre du compte à rebours est [t, t + fuseMs],
- * rien d'autre n'est deviné.
+ * WHERE THE DATA COMES FROM. `doc.bombArmings` (schema 29): the ring of the `ti=12 i14` marker is
+ * the arming gauge — protocol of 2026-09-01 with zero draw (13/13 Neutral Bomb CV 0.016,
+ * 4/4 Husky Raid, 0/1000 zero draws as well). Each entry carries the ARMED instant (`t`) and
+ * the FUSE (`fuseMs`, 4,930 ms on the Go side): the countdown window is [t, t + fuseMs],
+ * nothing else is guessed.
  *
- * AUCUNE GARDE DE MODE ICI, et c'est délibéré (même doctrine que `useReplayBombBlast`) : la
- * garde EST la donnée. `bombArmings` n'est publié que par un match d'Assaut couvert (jamais
- * One Bomb — le canal y est réfuté, CV 0,725), et un film d'un autre mode rend une liste vide.
+ * NO MODE GUARD HERE, and that is deliberate (same doctrine as `useReplayBombBlast`): the
+ * guard IS the data. `bombArmings` is only published by a covered Assault match (never
+ * One Bomb — the channel is refuted there, CV 0.725), and a film of another mode returns an empty list.
  *
- * LA GARDE D'HORLOGE EST CELLE DE LA DÉFLAGRATION (`filmClockTrusted`) : `t` n'est une frame
- * du document que si l'origine du film est résolue. Sinon l'écart est INCONNU (3,6 à 50,8 s
- * selon le match) et le compte à rebours partirait avant que la bombe ne soit armée. Muet vaut
- * mieux que faux.
+ * THE CLOCK GUARD IS THE ONE OF THE BLAST (`filmClockTrusted`): `t` is a frame
+ * of the document only if the film's origin is resolved. Otherwise the offset is UNKNOWN (3.6 to 50.8 s
+ * depending on the match) and the countdown would start before the bomb is armed. Silent is
+ * better than wrong.
  *
- * PAS DE POSITION, ET C'EST UNE PROPRIÉTÉ DE LA MESURE : le navpoint est un marqueur d'écran,
- * pas un acteur — le canal ne dit ni qui arme ni où. Le compte à rebours est donc un BANDEAU
- * (overlay non spatial), jamais un point sur la carte : poser un lieu que la mesure ne donne
- * pas serait l'erreur que la déflagration évite déjà.
+ * NO POSITION, AND THAT IS A PROPERTY OF THE MEASUREMENT: the navpoint is a screen marker,
+ * not an actor — the channel says neither who arms nor where. The countdown is therefore a BANNER
+ * (non-spatial overlay), never a point on the map: to place a location the measurement does not
+ * give would be the error the blast already avoids.
  */
 import { filmClockTrusted } from '@/lib/replay/scoreTimeline'
 
@@ -28,21 +28,21 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { soundEvent, type ReplaySoundEvent } from '../sound/replaySoundVariants'
 import { ZONE_SOUND_STEMS } from '../sound/zoneSound'
 
-/** L'état du compte à rebours à une image donnée : ce qu'il reste de mèche, et la course. */
+/** The state of the countdown at a given frame: what is left of the fuse, and the run. */
 export interface BombCountdownState {
-  /** Millisecondes restantes avant l'explosion attendue (bornées à zéro). */
+  /** Milliseconds remaining before the expected explosion (bounded at zero). */
   remainingMs: number
-  /** Course écoulée de la mèche, 0 (armée) -> 1 (explosion) — pour la barre. */
+  /** Elapsed run of the fuse, 0 (armed) -> 1 (explosion) — for the bar. */
   progress: number
 }
 
 /**
- * activeBombCountdown — le compte à rebours actif à l'image lue, ou null.
+ * activeBombCountdown — the countdown active at the read frame, or null.
  *
- * DÉRIVÉ DE LA POSITION DE LECTURE, PAS D'UN ÉTAT (doctrine de `ReplayRoundBreakOverlay`) :
- * visible tant que l'image tombe dans [t, t + fuseMs], il se rejoue si l'on repasse dessus et
- * se ferme dès qu'on le quitte. Deux armements ne peuvent pas se recouvrir (le hold puis la
- * mèche les séparent d'au moins ~6 s) — le dernier commencé gagne par construction.
+ * DERIVED FROM THE PLAYBACK POSITION, NOT FROM A STATE (doctrine of `ReplayRoundBreakOverlay`):
+ * visible as long as the frame falls in [t, t + fuseMs], it plays again if one passes over it and
+ * closes as soon as one leaves it. Two armings cannot overlap (the hold then the
+ * fuse separates them by at least ~6 s) — the last one started wins by construction.
  */
 export function activeBombCountdown(
   doc: ReplayDocumentReady,
@@ -63,19 +63,19 @@ export function activeBombCountdown(
 }
 
 /**
- * bombArmingSoundEvents — le son de `bomb_armed`, un événement par armement.
+ * bombArmingSoundEvents — the sound of `bomb_armed`, one event per arming.
  *
- * LE STEM EST CELUI DE LA NOUVELLE COLLINE (`ZONE_SOUND_STEMS.newZone`, désigné à l'oreille
- * par l'utilisateur le 2026-08-27) : décision utilisateur du portage — un son accompagne le
- * début du compte à rebours, et la banque d'Assaut extraite n'a pas de geste « bombe armée »
- * propre désigné. Emprunté par RÉFÉRENCE, jamais recopié : si la désignation change, elle
- * change pour les deux d'un seul coup. Pas de camp — le canal ne dit pas qui arme, et ce
- * son-là n'affirme rien (même propriété que la nouvelle colline).
+ * THE STEM IS THE ONE OF THE NEW HILL (`ZONE_SOUND_STEMS.newZone`, designated by ear
+ * by the user on 2026-08-27): user decision of the port — a sound accompanies the
+ * start of the countdown, and the extracted Assault bank has no « armed bomb » gesture
+ * of its own designated. Borrowed by REFERENCE, never copied: if the designation changes, it
+ * changes for both at once. No camp — the channel does not say who arms, and this
+ * sound asserts nothing (same property as the new hill).
  *
- * L'HORLOGE NE DEMANDE AUCUN RECALAGE : `t` est déjà l'index de frame du document (la
- * soustraction d'origine est faite côté Go), même conversion `frameToMs` que partout. La
- * garde d'horloge vit chez l'appelant (`replaySound.ts` ne bâtit ses événements que sur un
- * document dont il lit les frames) — et `bombArmings` vide rend une liste vide.
+ * THE CLOCK ASKS FOR NO RESYNC: `t` is already the frame index of the document (the
+ * origin subtraction is done on the Go side), the same `frameToMs` conversion as everywhere. The
+ * clock guard lives on the caller side (`replaySound.ts` builds its events only on a
+ * document from which it reads the frames) — and an empty `bombArmings` returns an empty list.
  */
 export function bombArmingSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   if (!filmClockTrusted(doc)) return []

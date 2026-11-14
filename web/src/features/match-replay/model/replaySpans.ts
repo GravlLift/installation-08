@@ -1,35 +1,35 @@
 /**
- * replaySpans — « CET INTERVALLE COUVRE-T-IL CETTE IMAGE ? », écrit une fois.
+ * replaySpans — « DOES THIS INTERVAL COVER THIS FRAME? », written once.
  *
- * POURQUOI CE MODULE EXISTE (registre 2026-09-05, K5). Le film date tout ce qui DURE par un
- * couple d'images `{t0, t1}` : un portage de bombe, de crâne ou de drapeau, une période de
- * VIP, une occupation de véhicule, une station de faille. Le prédicat « cet intervalle couvre
- * l'image courante » était écrit DIX fois, dans deux orthographes selon l'auteur :
+ * WHY THIS MODULE EXISTS (register 2026-09-05, K5). The film dates everything that LASTS by a
+ * pair of frames `{t0, t1}`: a carry of bomb, skull or flag, a period of
+ * VIP, a vehicle occupancy, a rift station. The predicate « this interval covers
+ * the current frame » was written TEN times, in two spellings depending on the author:
  *
  *     frame >= s.t0 && frame <= s.t1        s.t0 <= frame && frame <= s.t1
  *
- * Les dix étaient d'accord — mesuré en vérification adverse (V-WEB-2) : même convention,
- * fermée aux deux bouts. C'est précisément ce qui rendait la dixième copie facile à écrire
- * sans y penser, et la onzième facile à écrire FAUX : `<` au lieu de `<=` sur `t1` fait
- * disparaître un glyphe à sa dernière image, ce qui ne se voit sur aucun écran.
+ * The ten were in agreement — measured in adversarial verification (V-WEB-2): same convention,
+ * closed at both ends. That is precisely what made the tenth copy easy to write
+ * without thinking about it, and the eleventh easy to write WRONG: `<` instead of `<=` on `t1` makes
+ * a glyph disappear at its last frame, which is not visible on any screen.
  *
- * FERMÉ AUX DEUX BOUTS, ET C'EST UNE DÉCISION. `t1` est la DERNIÈRE image où l'état vaut,
- * pas la première où il ne vaut plus : un portage d'une seule image a `t0 === t1` et doit se
- * peindre. La convention est celle du film, pas un choix de commodité.
+ * CLOSED AT BOTH ENDS, AND IT IS A DECISION. `t1` is the LAST frame where the state holds,
+ * not the first where it no longer does: a carry of a single frame has `t0 === t1` and must be
+ * painted. The convention is that of the film, not a choice of convenience.
  */
 
-/** Ce que ce prédicat demande d'un intervalle, et rien de plus. */
+/** What this predicate asks of an interval, and nothing more. */
 export interface FrameSpan {
   t0: number
   t1: number
 }
 
-/** covers — l'intervalle contient-il l'image ? Fermé aux deux bouts (cf. l'en-tête). */
+/** covers — does the interval contain the frame? Closed at both ends (cf. the header). */
 export function covers(span: FrameSpan, frame: number): boolean {
   return frame >= span.t0 && frame <= span.t1
 }
 
-/** spansAt — les intervalles d'une liste qui couvrent l'image, dans l'ordre de la liste. */
+/** spansAt — the intervals of a list that cover the frame, in the order of the list. */
 export function spansAt<T extends FrameSpan>(spans: readonly T[], frame: number): T[] {
   return spans.filter((s) => covers(s, frame))
 }

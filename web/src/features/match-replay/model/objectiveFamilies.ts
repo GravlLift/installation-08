@@ -1,44 +1,44 @@
 /**
- * objectiveFamilies.ts — LA FAMILLE D'OBJECTIF D'UNE STATISTIQUE NOMMÉE. Logique pure, pas de
- * React, aucune chaîne d'interface.
+ * objectiveFamilies.ts — THE OBJECTIVE FAMILY OF A NAMED STATISTIC. Pure logic, no
+ * React, no interface strings.
  *
- * CE QUE `doc.objectives` PORTE, ET QUI N'EST PAS UN OBJECTIF. Le contrat de transport
- * (`ObjectiveAction`) n'a qu'un champ `stat` — aucun `kind`, aucune `family` : c'est le NOM de
- * la statistique qui dit la famille, et il est posé côté Go par
- * `internal/games/halo_infinite/film/facts/objectives/named.go`. Or les tables de ce fichier ne contiennent pas
- * que des objectifs : `kills` (`comp 2 A`) y est l'ANCRE D'IDENTITÉ du balayage et `assists`
- * (`comp 3 A`) son voisin de contrôle croisé. Les deux sont publiés comme les autres — et sur
- * `8bc6074f` ils font 99 % du calque (15 648 actions sur 15 808, audit du 2026-09-10 §12-1).
+ * WHAT `doc.objectives` CARRIES, AND THAT IS NOT AN OBJECTIVE. The transport contract
+ * (`ObjectiveAction`) has only one `stat` field — no `kind`, no `family`: it is the NAME of
+ * the statistic that says the family, and it is placed on the Go side by
+ * `internal/games/halo_infinite/film/facts/objectives/named.go`. Yet the tables of this file do not contain
+ * only objectives: `kills` (`comp 2 A`) is there the IDENTITY ANCHOR of the sweep and `assists`
+ * (`comp 3 A`) its neighbor of cross-check. The two are published like the others — and on
+ * `8bc6074f` they make up 99% of the layer (15,648 actions out of 15,808, audit of 2026-09-10 §12-1).
  *
- * LA RÈGLE DE NOMMAGE EST LE CONTRAT, et elle se vérifie : toute statistique d'objectif est
- * préfixée par sa famille (`flag_captures`, `zone_secures`, `vip_selected`, `bomb_detonations`,
- * `skull_grabs`...), et les familles sont exactement les `ObjectiveType*` de
- * `objectiveevents/extract.go`. Les deux statistiques hors objectif, elles, n'ont AUCUN préfixe.
- * La liste ci-dessous n'est donc pas une énumération devinée des stats connues — qui périmerait
- * au premier emplacement nommé — mais la liste des FAMILLES, stable et fermée côté serveur
- * (garde-rail Go : `objectiveevents.TestStatsNommeesPortentLeurFamille`, qui tient la règle de
- * nommage sur toutes les tables du décodeur).
+ * THE NAMING RULE IS THE CONTRACT, and it is checked: every objective statistic is
+ * prefixed by its family (`flag_captures`, `zone_secures`, `vip_selected`, `bomb_detonations`,
+ * `skull_grabs`...), and the families are exactly the `ObjectiveType*` of
+ * `objectiveevents/extract.go`. The two non-objective statistics, for their part, have NO prefix.
+ * The list below is therefore not a guessed enumeration of the known stats — which would expire
+ * at the first named placement — but the list of FAMILIES, stable and closed on the server side
+ * (Go guard-rail: `objectiveevents.TestStatsNommeesPortentLeurFamille`, which holds the naming rule
+ * on all the tables of the decoder).
  *
- * LA PARITÉ AVEC LA LISTE GO EST TENUE PAR UN TEST, depuis le 2026-09-13 :
- * `objectiveevents.TestFamillesObjectifPariteGoTS` LIT ce fichier et compare le tableau
- * ci-dessous ET le type union `ObjectiveFamily` à la liste Go, ordre compris. Jusque-là ce
- * commentaire affirmait la garantie sans qu'aucun test ne l'assure : une 7e famille ajoutée au
- * décodeur rendait le Go rouge et laissait ce fichier VERT, et le calque cessait sans un mot de
- * dessiner les pulses de cette famille (constat R6 de la revue du 2026-09-13). Toute famille
- * ajoutée ici s'ajoute dans `objectiveevents/families.go` — et réciproquement.
+ * THE PARITY WITH THE GO LIST IS HELD BY A TEST, since 2026-09-13:
+ * `objectiveevents.TestFamillesObjectifPariteGoTS` READS this file and compares the array
+ * below AND the union type `ObjectiveFamily` to the Go list, order included. Until then this
+ * comment asserted the guarantee without any test ensuring it: a 7th family added to
+ * the decoder turned the Go red and left this file GREEN, and the layer ceased without a word to
+ * draw the pulses of that family (finding R6 of the review of 2026-09-13). Any family
+ * added here is added in `objectiveevents/families.go` — and vice versa.
  *
- * POURQUOI UNE LISTE BLANCHE ET NON UNE LISTE NOIRE `kills`/`assists` : une statistique future
- * qui ne serait pas un objectif (le balayage en ajoute au fil des corpus) passerait une liste
- * noire sans que rien ne le signale. Une famille d'objectif nouvelle, elle, est un ajout
- * DÉLIBÉRÉ au décodeur, et l'ajouter ici est la même ligne que côté Go.
+ * WHY A WHITELIST AND NOT A BLACKLIST of `kills`/`assists`: a future statistic
+ * that would not be an objective (the sweep adds them as the corpus progress) would pass a
+ * blacklist without anything signaling it. A new objective family, it, is a
+ * DELIBERATE addition to the decoder, and adding it here is the same line as on the Go side.
  */
 
-/** Les familles d'objectif, telles que `objectiveevents/extract.go` les nomme. */
+/** The objective families, as `objectiveevents/extract.go` names them. */
 export type ObjectiveFamily = 'flag' | 'zone' | 'hill' | 'skull' | 'vip' | 'bomb'
 
 /**
- * L'ordre est celui des constantes Go (`ObjectiveTypeFlag`, `Zone`, `Hill`, `Skull`, `Vip`,
- * `Bomb`) : deux listes qui se répondent se lisent côte à côte.
+ * The order is that of the Go constants (`ObjectiveTypeFlag`, `Zone`, `Hill`, `Skull`, `Vip`,
+ * `Bomb`): two lists that answer each other are read side by side.
  */
 export const OBJECTIVE_FAMILIES: readonly ObjectiveFamily[] = [
   'flag',
@@ -50,10 +50,10 @@ export const OBJECTIVE_FAMILIES: readonly ObjectiveFamily[] = [
 ]
 
 /**
- * objectiveFamilyOf rend la famille d'objectif d'une statistique nommée, ou `null` quand la
- * statistique n'en est pas une (`kills`, `assists`, et tout nom sans préfixe de famille).
+ * objectiveFamilyOf renders the objective family of a named statistic, or `null` when the
+ * statistic is not one (`kills`, `assists`, and any name without a family prefix).
  *
- * Le séparateur est exigé : `flag_grabs` est de la famille `flag`, `flagrant` ne l'est pas.
+ * The separator is required: `flag_grabs` is of the `flag` family, `flagrant` is not.
  */
 export function objectiveFamilyOf(stat: string): ObjectiveFamily | null {
   for (const family of OBJECTIVE_FAMILIES) {
@@ -62,7 +62,7 @@ export function objectiveFamilyOf(stat: string): ObjectiveFamily | null {
   return null
 }
 
-/** isObjectiveFamilyStat — la même question en booléen, pour les filtres et les dénominateurs. */
+/** isObjectiveFamilyStat — the same question as a boolean, for the filters and the denominators. */
 export function isObjectiveFamilyStat(stat: string): boolean {
   return objectiveFamilyOf(stat) !== null
 }

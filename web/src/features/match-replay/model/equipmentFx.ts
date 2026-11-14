@@ -1,44 +1,44 @@
 /**
- * equipmentFx.ts — L'ÉTAT ACTIF D'UN ÉQUIPEMENT sur la fiche joueur, lu dans les épisodes.
+ * equipmentFx.ts — THE ACTIVE STATE OF AN EQUIPMENT on the player card, read in the episodes.
  *
- * LA SOURCE est le document (schéma 7) : `equipmentEpisodes`, des épisodes datés PAR VIE
- * (slot) sur l'axe des frames — les deux seules familles dont l'état est MESURÉ côté film
- * (camouflage : i28 queue[1], interrupteur binaire ; surbouclier : i5 non clampé, règle
- * q > 64). La DURÉE de l'effet EST l'épisode : actif exactement quand la frame est dans
- * [t0, t1], aucune rémanence inventée.
+ * THE SOURCE is the document (schema 7): `equipmentEpisodes`, episodes dated PER LIFE
+ * (slot) on the frame axis — the only two families whose state is MEASURED on the film side
+ * (camouflage: i28 queue[1], binary switch; overshield: i5 unclamped, rule
+ * q > 64). The DURATION of the effect IS the episode: active exactly when the frame is in
+ * [t0, t1], no invented remanence.
  *
- * L'EFFET S'ATTACHE À LA FICHE PAR LA VIE (slot -> fiche), la même chaîne que le flash de
- * mort : `playerStateAt` donne la vie courante, son slot désigne les épisodes. Un épisode
- * se ferme à la mort au plus tard (le document le garantit), donc une fiche morte n'a
- * jamais d'effet d'équipement.
+ * THE EFFECT ATTACHES TO THE CARD BY THE LIFE (slot -> card), the same chain as the death
+ * flash: `playerStateAt` gives the current life, its slot designates the episodes. An episode
+ * closes at the latest at death (the document guarantees it), so a dead card never
+ * has an equipment effect.
  *
- * Pas de React, pas de canvas : logique pure, testée (equipmentFx.test.ts).
+ * No React, no canvas: pure logic, tested (equipmentFx.test.ts).
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * Les deux familles publiées par le document. Identifiants STABLES du contrat (`fam`) —
- * une famille inconnue ne reçoit AUCUN effet, jamais celui d'une voisine.
+ * The two families published by the document. STABLE identifiers of the contract (`fam`) —
+ * an unknown family receives NO effect, never that of a neighbor.
  */
 export const EQUIP_FAMILY_CAMO = 'camo'
 export const EQUIP_FAMILY_OVERSHIELD = 'overshield'
 
-/** Ce que la fiche doit dire à une frame : chaque famille active, indépendamment. */
+/** What the card must say at a frame: each active family, independently. */
 export interface ActiveEquipment {
   camo: boolean
   overshield: boolean
 }
 
-/** Aucune allocation par frame : la valeur « rien d'actif » est partagée. */
+/** No allocation per frame: the « nothing active » value is shared. */
 const NONE: ActiveEquipment = Object.freeze({ camo: false, overshield: false })
 
 /**
- * activeEquipmentAt dit quelles familles sont actives pour un SLOT à une frame.
+ * activeEquipmentAt says which families are active for a SLOT at a frame.
  *
- * La recherche porte sur le slot, jamais sur le joueur — un slot est une vie, et c'est ce
- * qui rend la lecture sûre : un épisode ne peut pas survivre à son porteur. Les épisodes
- * sont peu nombreux (dizaines par film) : le balayage linéaire par frame reste négligeable
- * devant le rendu.
+ * The search is on the slot, never on the player — a slot is a life, and that is what
+ * makes the reading safe: an episode cannot outlive its carrier. The episodes
+ * are few in number (tens per film): the linear sweep per frame stays negligible
+ * next to the render.
  */
 export function activeEquipmentAt(
   doc: ReplayDocumentReady,
