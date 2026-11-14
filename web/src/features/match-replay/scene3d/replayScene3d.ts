@@ -28,7 +28,6 @@ import { framesPerSecond } from '@/lib/replay/replayLogic'
 import { BrasPremierePersonne3d } from './brasPremierePersonne3d'
 import { dossierPremierePersonne } from './premierePersonne3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-
 import type { Export3dSetup, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
@@ -57,6 +56,8 @@ import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
+import { readRedReticle } from './redReticle3d'
+import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
 /** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
 export type PovStatus = 'alive' | 'dead' | 'unspawned' | 'none'
@@ -161,7 +162,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.tracks = tracks
     this.scene.add(model.root)
     this.lighting.setSunStrength(model.sunStrength)
-
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
       .map((p) => new THREE.Vector3(...toThree(p.x, p.y, p.z)))
@@ -191,7 +191,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.feetDrop = measureOriginAboveFloor(tracks.players.flatMap((p) => tracks.allPoints(p.xuid)), this.model, this.raycaster)
     this.scene.add(this.actionRoot); this.prepareAvatars()
   }
-
   /**
    * enableAction pose les calques d'action (tirs, vols, morts, objets, véhicules...). `inputs` est
    * relu à chaque image : le thème, le tiroir et la langue changent sans reconstruire les calques.
@@ -225,12 +224,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     })
     this.prechargerRigs()
   }
-
   /** prechargerRigs : le chargement des rigs des armes portées par le match commence pour l'écran de chargement. */
   private prechargerRigs(): void {
     if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc))
   }
-
   /**
    * setWeaponModels pose la source des modèles d'arme et du Spartan (la précédente est libérée,
    * les Spartans qui en sont des copies avec elle) ; null : aucune.
@@ -245,7 +242,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.prechargerRigs()
     this.prepareAvatars()
   }
-
   /**
    * setSpartanArmory pose l'armure des joueurs du match (`armory3d`), que la scène possède : la
    * précédente est libérée après que les joueurs l'ont rendue ; null : l'armure par défaut pour tous.
@@ -257,12 +253,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.armory = armory
     this.prepareAvatars()
   }
-
   /** mapLight : la lumière cuite de la carte posée, que ses calques reprennent ; null sans carte ou sans lumière. */
   get mapLight(): BakedLight | null {
     return this.model?.baked ?? null
   }
-
   /**
    * attachLayer pose un calque sur la carte (un seul : le précédent est retiré). Faux sans carte
    * posée (scène libérée) : le calque reste à l'appelant, qui le libère.
@@ -276,7 +270,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.ground?.setPickables(this.groundSurfaces())
     return true
   }
-
   /** detachLayer retire le calque posé et le libère ; sans calque, rien. */
   detachLayer(): void {
     const layer = this.layer
@@ -287,28 +280,23 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lighting.releaseLayer(layer.surfaces)
     layer.dispose()
   }
-
   /** setLook applique les réglages d'éclairage du tiroir : ombres, reflets, occlusion ambiante. */
   setLook(look: Look3d): void {
     this.lighting.setLook(look)
     this.post.gtao.enabled = look.ambientOcclusion
   }
-
   /** setFovPreference applique le réglage de champ du jeu (degrés horizontaux à 16:9) : le champ vertical de base de la caméra. */
   setFovPreference(gameFovDeg: number): void {
     this.scopeView.changerBase(this.camera, verticalFovOf(gameFovDeg))
   }
-
   setPov(xuid: string | null): void {
     if (this.exportScene.held) this.exportScene.held.pov = xuid
     else this.applyPov(xuid)
   }
-
   setMode(mode: CameraMode3d): void {
     if (this.exportScene.held) this.exportScene.held.mode = mode
     else this.applyMode(mode)
   }
-
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return
     if (this.exportScene.held) {
@@ -366,6 +354,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   beginExport(setup: Export3dSetup): void { this.exportScene.beginExport(setup) }
+  redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>): boolean {
+    return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null })
+  }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
   endExport(): void { this.exportScene.endExport() }
