@@ -25,7 +25,7 @@ export interface MatchSummary {
   isRanked?: boolean
   startTime?: string
   mapImageUrl?: string
-  teamScores?: [number, number] | number[]
+  teamScores?: [number, number]
   outcome?: string
   scoreMine?: number
   scoreTheirs?: number

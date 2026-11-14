@@ -52,12 +52,12 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 502, map[string]string{"error": "match history unavailable"})
 		return
 	}
-	writeJSON(w, 200, remoteMatchsWithImages(h.root, matches))
+	writeJSON(w, 200, remoteMatchesWithImages(h.root, matches))
 }
 
-// remoteMatchsWithImages adds the stored map image URL to each remote match entry (empty
+// remoteMatchesWithImages adds the stored map image URL to each remote match entry (empty
 // when the image is not on disk): no extra network request, just a stat of the local file.
-func remoteMatchsWithImages(root *store.Root, matches []haloapi.Match) []haloapi.Match {
+func remoteMatchesWithImages(root *store.Root, matches []haloapi.Match) []haloapi.Match {
 	for i := range matches {
 		matches[i].MapImageURL = storeMapImageURL(root, matches[i].MapAssetID)
 	}

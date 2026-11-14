@@ -30,8 +30,8 @@ type listSummary struct {
 	MapImageUrl  string  `json:"mapImageUrl,omitempty"`
 	TeamScores   *[2]int `json:"teamScores,omitempty"`
 	Outcome      string  `json:"outcome,omitempty"`
-	ScoreMine    int     `json:"scoreMine,omitempty"`
-	ScoreTheirs  int     `json:"scoreTheirs,omitempty"`
+	ScoreMine    *int    `json:"scoreMine,omitempty"`
+	ScoreTheirs  *int    `json:"scoreTheirs,omitempty"`
 }
 
 // matchlistEntry is one match's derived list fields plus the score and outcome the context
@@ -87,10 +87,12 @@ func matchlistEnriched(root *store.Root, ms []store.Match, accountName string, c
 					row := e.AccountRow
 					s.Outcome = textValue(row["outcome"])
 					if mine, ok := contextNumber(row["score_mine"]); ok {
-						s.ScoreMine = int(mine)
+						v := int(mine)
+						s.ScoreMine = &v
 					}
 					if theirs, ok := contextNumber(row["score_theirs"]); ok {
-						s.ScoreTheirs = int(theirs)
+						v := int(theirs)
+						s.ScoreTheirs = &v
 					}
 				}
 			}
