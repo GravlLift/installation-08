@@ -90,7 +90,7 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
 	enqueueStartupBuilds(rr, rr.ready, matches, variantExists)
 	want := []string{
-		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobWeapons,
+		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
 		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces,
 		"moda", "variant:aaaa", "variant:bbbb", "modb",
 	}
@@ -109,7 +109,7 @@ func TestStartupBuildsSkipsReady(t *testing.T) {
 		{MatchID: "cccc", MapModule: "modb"},
 	}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" })
-	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
+	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
 		meshjobs.JobSpartanPieces, "moda"}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
@@ -129,25 +129,25 @@ func TestStartupBuildsNoInstall(t *testing.T) {
 }
 
 // TestStartupBuildsFoundInstall — when the install is found the startup step enqueues the
-// six libraries and, for the store's matches, the two distinct map modules and the one
+// seven libraries and, for the store's matches, the two distinct map modules and the one
 // stored variant.
 func TestStartupBuildsFoundInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", t.TempDir())
 	runServeStartup(rr, rr.ready, root, "")
-	// The six libraries lead, in order; the two distinct map modules and the one stored
+	// The seven libraries lead, in order; the two distinct map modules and the one stored
 	// variant follow (their relative order is the store's listing order, newest import
 	// first, a tie broken by id).
 	got := rr.modules()
-	if len(got) != 9 || got[0] != meshjobs.JobWeaponIcons || got[1] != meshjobs.JobHudIcons ||
-		got[2] != meshjobs.JobRanks || got[3] != meshjobs.JobWeapons || got[4] != meshjobs.JobFirstPerson ||
-		got[5] != meshjobs.JobSpartanPieces {
-		t.Fatalf("queued = %v, want the six libraries first in order", got)
+	if len(got) != 10 || got[0] != meshjobs.JobWeaponIcons || got[1] != meshjobs.JobHudIcons ||
+		got[2] != meshjobs.JobRanks || got[3] != meshjobs.JobAnnouncer || got[4] != meshjobs.JobWeapons ||
+		got[5] != meshjobs.JobFirstPerson || got[6] != meshjobs.JobSpartanPieces {
+		t.Fatalf("queued = %v, want the seven libraries first in order", got)
 	}
 	for _, want := range []string{"moda", "variant:bbbb", "modb"} {
 		found := false
-		for _, m := range got[6:] {
+		for _, m := range got[7:] {
 			if m == want {
 				found = true
 				break

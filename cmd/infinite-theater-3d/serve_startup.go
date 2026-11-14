@@ -5,7 +5,7 @@ package main
 //
 // A one-time build is built once, in the background, when `serve` starts, and kept in the
 // data folder: the weapon icon set, the weapon model library, the first-person library,
-// and, for every match in the store, that match's map mesh and variant layer (each distinct
+// the announcer sounds, and, for every match in the store, that match's map mesh and variant layer (each distinct
 // map module once). The readiness of a build is the runner's own ready callback, so a build
 // whose output is already on disk is never queued. The step never blocks startup: it only
 // appends to the runner's queue and logs one line saying what it queued. When no install
@@ -43,8 +43,8 @@ func hasMatchMvar(root *store.Root, id string) bool {
 }
 
 // enqueueStartupBuilds enqueues every one-time build that is not ready yet, in this order:
-// the weapon icon set, the HUD icon set, the rank badge set, the weapon library, the
-// first-person library, the Spartan piece library, then, for every match in the store,
+// the weapon icon set, the HUD icon set, the rank badge set, the announcer sounds, the weapon
+// library, the first-person library, the Spartan piece library, then, for every match in the store,
 // that match's map mesh and variant layer (each
 // distinct map module once, in the store's listing order). ready is the runner's own
 // readiness check, so an output that is already on disk is skipped; variantExists says
@@ -70,6 +70,9 @@ func enqueueStartupBuilds(jobs interface {
 	}
 	if !ready(meshjobs.JobRanks) {
 		enqueue(meshjobs.JobRanks)
+	}
+	if !ready(meshjobs.JobAnnouncer) {
+		enqueue(meshjobs.JobAnnouncer)
 	}
 	if !ready(meshjobs.JobWeapons) {
 		enqueue(meshjobs.JobWeapons)

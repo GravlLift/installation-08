@@ -43,6 +43,8 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return weaponicons.HudSetReady(root.Dir())
 	case meshjobs.JobRanks:
 		return rankicons.SetReady(root.Dir())
+	case meshjobs.JobAnnouncer:
+		return announcerReady(root.Dir())
 	}
 	p, err := root.MeshPath(module)
 	if err != nil {
@@ -183,6 +185,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return weaponicons.HudOutDir(root.Dir())
 		case meshjobs.JobRanks:
 			return rankicons.OutDir(root.Dir())
+		case meshjobs.JobAnnouncer:
+			return soundsDir(root.Dir())
 		}
 		p, err := root.MeshPath(module)
 		if err != nil {
@@ -211,6 +215,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildHudIcons(ctx, root, game)
 		case meshjobs.JobRanks:
 			return buildRanks(ctx, root, game)
+		case meshjobs.JobAnnouncer:
+			return buildAnnouncer(ctx, root, game)
 		}
 		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
 		if err != nil {

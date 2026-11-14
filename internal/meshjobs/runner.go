@@ -39,6 +39,12 @@ const JobHudIcons = "hud-icons"
 // runner's queue with the map builds, so at most one heavy build runs at a time.
 const JobRanks = "ranks"
 
+// JobAnnouncer is the module key the runner uses for the single announcer sound build (the
+// announcer's voice lines decoded from the game install into the replay sound folder, with
+// their announcer.json manifest). Like the icon jobs it shares the runner's queue with the map
+// builds, so at most one heavy build runs at a time.
+const JobAnnouncer = "announcer"
+
 // JobSpartanPieces is the module key the runner uses for the single Spartan armor
 // piece library build (the piece and attachment GLBs, the shared textures, the
 // optional coating table, and the index.json). Like JobFirstPerson it shares the
