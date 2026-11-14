@@ -190,4 +190,29 @@ Found while checking the current data (2026-11-13):
 3. Countdown: always, or only the first time a match is opened?
 4. Stored and remote matches in one list (as drafted in 4.2) or two tabs?
 5. Larger map images: fetch the hero image for every map up front on sign-in, or only as
-   matches are fetched?
+   matches are fetched? (As built: only as matches are fetched; a stored image under
+   1000 px wide is replaced on the next fetch of a match on that map.)
+
+## 10. 2D view (idea, not started)
+
+A top-down view of the match, our own, built from the map we already load rather than from
+hand-made background images. Origin: a birds-eye render of Live Fire made while checking
+the grass, which read as a usable map straight away.
+
+- **Source**: the built map mesh, drawn by an orthographic camera looking straight down.
+  The camera's bounds are known, so world position to pixel is exact with no per-map
+  calibration. Works for any map that has a mesh, Forge maps included.
+- **Roofs** are the problem: seen from above, most of a map is rooftop and the floors
+  people fight on are hidden.
+- **Chosen approach: one image per floor.** Slice the map into height bands and render
+  each band from above with everything over it removed. The view shows the band the
+  followed player is on and switches as they change floor; other floors can show faintly.
+  Needed in any case for stacked maps such as Recharge.
+- **Where the bands come from**: the film. Every position a player stood on is in the
+  replay, so the walked heights cluster into floors without tuning by hand. To check
+  against maps with ramps and uneven ground (Live Fire) before trusting it.
+- **Lighting**: flat light from above. The baked sun gives long shadows that read as walls.
+- **On screen**: full size as its own view of the player (as the 2D replay it replaces
+  was), with the same transport; later a corner minimap over the 3D view.
+- **Not decided**: rendered once per map and stored, or drawn live from the loaded mesh;
+  what the players, objectives, weapons on the ground and kills look like on it.
