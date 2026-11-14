@@ -11,20 +11,28 @@ import { useFocusList } from './useFocusList'
 
 export interface FocusListProps {
   /** One entry per row; the row's text comes from `name` and `sub`. */
-  items: { name: string; sub?: string; aside?: ReactNode }[]
+  /** id is the row's stable key when names can repeat (two matches on one map). */
+  items: { id?: string; name: string; sub?: string; aside?: ReactNode }[]
   /** Selects the focused row (Enter or a click). */
   onSelect?: (index: number) => void
   /** Back action on Escape, when given. */
   onBack?: () => void
   /** An extra class for the list element (pages size the list from there). */
   className?: string
+  /** The focused row, when the page owns it; see useFocusList. */
+  index?: number
+  /** Called when a key or a hover asks for another row. */
+  onIndexChange?: (index: number) => void
 }
 
-export function FocusList({ items, onSelect, onBack, className }: FocusListProps) {
+export function FocusList(props: FocusListProps) {
+  const { items, onSelect, onBack, className } = props
   const { index, onHover, onClick } = useFocusList({
     count: items.length,
     onSelect,
     onBack,
+    index: props.index,
+    onIndexChange: props.onIndexChange,
   })
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -42,7 +50,7 @@ export function FocusList({ items, onSelect, onBack, className }: FocusListProps
     >
       {items.map((item, i) => (
         <div
-          key={item.name}
+          key={item.id ?? item.name}
           role="option"
           aria-selected={i === index}
           className={'bc-row' + (i === index ? ' bc-focus' : '')}

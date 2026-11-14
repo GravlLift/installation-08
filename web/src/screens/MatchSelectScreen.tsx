@@ -18,6 +18,7 @@ import { Plate } from '../ui/Plate'
 import { Screen } from '../ui/Screen'
 import { TickerDot } from '../ui/Ticker'
 import {
+  cleanMapName,
   fetchStateLabel,
   formatDuration,
   formatPlayedAt,
@@ -50,15 +51,16 @@ function navigate(path: string): void {
 function listItemOf(
   row: MatchRow,
   phaseOf: (matchId: string) => import('./useMatchFetchQueue').FetchRowPhase,
-): { name: string; sub: string; aside: ReactNode } {
+): { id: string; name: string; sub: string; aside: ReactNode } {
   if (row.kind === 'stored') {
     const m = row.match
-    const name = m.mapName || m.mapModule || m.matchId
+    const name = cleanMapName(m.mapName || m.mapModule || m.matchId)
     const sub = [m.modeName, formatPlayedAt(m.startTime ?? m.importedAt), formatDuration(m.durationMs)]
       .filter(Boolean)
       .join(' · ')
     const aside = storedAside(m)
     return {
+      id: m.matchId,
       name,
       sub,
       aside: aside ? (
@@ -76,9 +78,9 @@ function listItemOf(
     }
   }
   const m = row.match
-  const name = m.map || m.id
+  const name = cleanMapName(m.map || m.id)
   const sub = [m.mode, formatPlayedAt(m.time)].filter(Boolean).join(' · ')
-  return { name, sub, aside: <div className="bc-fetch-state">{fetchStateLabel(phaseOf(m.id))}</div> }
+  return { id: m.id, name, sub, aside: <div className="bc-fetch-state">{fetchStateLabel(phaseOf(m.id))}</div> }
 }
 
 /** The right-hand preview: the map image sharp in the frame, the plate under it. A row with
@@ -180,6 +182,13 @@ export function MatchSelectScreen() {
   const tabs = visibleTabs(signedIn)
   const focusIndex = indexOfRow(filtered, focusId)
   const focused = filtered[focusIndex]
+  const onFocusChange = useCallback(
+    (i: number) => {
+      const row = filtered[i]
+      if (row) setFocusId(row.id)
+    },
+    [filtered],
+  )
   const backdropUrl = focused ? previewOf(focused, gamertag).imageUrl : null
 
   // When a fetch becomes ready its row leaves the not-stored side: keep the focus on it,
@@ -306,6 +315,8 @@ export function MatchSelectScreen() {
               items={filtered.map((r) => listItemOf(r, fetchQueue.phaseOf))}
               onSelect={onMenuSelect}
               onBack={onBack}
+              index={focusIndex}
+              onIndexChange={onFocusChange}
             />
           )}
         </div>

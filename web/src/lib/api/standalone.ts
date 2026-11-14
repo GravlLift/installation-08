@@ -17,7 +17,7 @@ export interface MatchSummary {
   mapModule: string
   build: string
   durationMs: number
-  players: { name: string; team: number }[] | null
+  players: { name: string; xuid?: string; teamId: number; isBot?: boolean }[] | null
   importedAt: string
   modeName?: string
   modeCategory?: string

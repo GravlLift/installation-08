@@ -155,10 +155,10 @@ describe('previewOf', () => {
       playlistName: 'Free for all',
       mapImageUrl: '/static/maps/halo_infinite/1.png',
       players: [
-        { name: 'Jordan', team: 0 },
-        { name: 'A', team: 0 },
-        { name: 'B', team: 1 },
-        { name: 'C', team: 1 },
+        { name: 'Jordan', teamId: 0 },
+        { name: 'A', teamId: 0 },
+        { name: 'B', teamId: 1 },
+        { name: 'C', teamId: 1 },
       ],
     })
     const p = previewOf({ kind: 'stored', id: 'm1', match: m }, 'Jordan')
@@ -202,11 +202,11 @@ describe('previewOf', () => {
 
 describe('rostersOf', () => {
   const players = [
-    { name: 'Jordan', team: 1 },
-    { name: 'A', team: 1 },
-    { name: 'B', team: 0 },
-    { name: 'C', team: 0 },
-    { name: 'D', team: -1 },
+    { name: 'Jordan', teamId: 1 },
+    { name: 'A', teamId: 1 },
+    { name: 'B', teamId: 0 },
+    { name: 'C', teamId: 0 },
+    { name: 'D', teamId: -1 },
   ]
 
   it('names Team 1 and Team 2 when the player is not in the match', () => {

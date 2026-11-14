@@ -175,10 +175,10 @@ export function rostersOf(match: MatchSummary, gamertag: string | null): SelectR
   const players = match.players ?? []
   const teams = new Map<number, string[]>()
   for (const p of players) {
-    if (p.team < 0) continue
-    const names = teams.get(p.team) ?? []
+    if (p.teamId < 0) continue
+    const names = teams.get(p.teamId) ?? []
     names.push(p.name)
-    teams.set(p.team, names)
+    teams.set(p.teamId, names)
   }
   const ids = [...teams.keys()].sort((a, b) => a - b)
   const mine = myTeamIndex(ids, players, gamertag)
@@ -193,14 +193,14 @@ export function rostersOf(match: MatchSummary, gamertag: string | null): SelectR
 /** The index of the signed-in player's team among the match's teams, or -1. */
 function myTeamIndex(
   ids: number[],
-  players: { name: string; team: number }[],
+  players: { name: string; teamId: number }[],
   gamertag: string | null,
 ): number {
   if (!gamertag) return -1
   const me = gamertag.replace(/\s+/g, '').toLowerCase()
   for (const p of players) {
     if (me && p.name.replace(/\s+/g, '').toLowerCase() === me) {
-      return ids.indexOf(p.team)
+      return ids.indexOf(p.teamId)
     }
   }
   return -1
