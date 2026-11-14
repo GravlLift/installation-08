@@ -1,13 +1,13 @@
 /**
  * App — the whole standalone page, routed: the broadcast Home (`HomeScreen`) at `#/`, the
- * match list (`MatchListScreen`) at `#/matches`, and a match view (`MatchViewScreen`) at
- * `#/matches/<id>` that mounts the lifted 3D scene over real server data. No router
- * dependency is installed, so this is a minimal hand-rolled hash router.
+ * match select page (`MatchSelectScreen`) at `#/matches`, and a match view
+ * (`MatchViewScreen`) at `#/matches/<id>` that mounts the lifted 3D scene over real server
+ * data. No router dependency is installed, so this is a minimal hand-rolled hash router.
  */
 import { useEffect, useState } from 'react'
 
 import { HomeScreen } from './screens/HomeScreen'
-import { MatchListScreen } from './screens/MatchListScreen'
+import { MatchSelectScreen } from './screens/MatchSelectScreen'
 import { MatchViewScreen } from './screens/MatchViewScreen'
 
 export type Route = { name: 'home' } | { name: 'list' } | { name: 'match'; matchId: string }
@@ -47,11 +47,7 @@ export function App() {
   }
 
   if (route.name === 'list') {
-    return (
-      <MatchListScreen
-        onOpenMatch={(matchId) => navigate(`/matches/${encodeURIComponent(matchId)}`)}
-      />
-    )
+    return <MatchSelectScreen />
   }
 
   return <HomeScreen />
