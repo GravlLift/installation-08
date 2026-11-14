@@ -139,7 +139,7 @@ export class ActionScene3d {
   private tirs = new Map<number, SlotShots>()
   private xuidPremierePersonne = ''
   private readonly evenements: EvenementsPremierePersonne = {
-    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], frame: 0, fps: 1,
+    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 1,
     rechargementValide: (t, f) => this.moves.rechargementValide(this.xuidPremierePersonne, t, f),
   }
   private readonly kicks = new Map<number, Recoil>()
@@ -179,6 +179,7 @@ export class ActionScene3d {
     e.accroupis = postures.crouch
     e.sauts = postures.jump
     e.escalades = postures.clamber
+    e.usages = this.moves.firstPersonUses(slot, fps)
     e.frame = frame
     e.fps = fps
     return e

@@ -1,4 +1,5 @@
 import { clipDuRig, type ClipPremierePersonne, type RigPremierePersonne } from './premierePersonne3d'
+import { useAt, type UseShot } from './equipmentUse3d_logic'
 import type { IntervalleSprint } from './evenementsPremierePersonne3d'
 import { firstAbove } from './recoilShots3d'
 
@@ -23,6 +24,8 @@ export interface EvenementsPremierePersonne {
   accroupis: readonly IntervalleSprint[]
   sauts: readonly IntervalleSprint[]
   escalades: readonly IntervalleSprint[]
+  /** Les usages qui jouent un clip du jeu (équipement porté, grappin, propulseur), triés par image. */
+  usages: readonly UseShot[]
   frame: number
   fps: number
   rechargementValide: (debut: number, frame: number) => boolean
@@ -300,6 +303,14 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
   if (clipRecharge && tempsRecharge < clipRecharge.durationSeconds && tir <= recharge && e.rechargementValide(recharge, e.frame)) {
     pose.base = clipRecharge
     pose.tempsBase = tempsRecharge
+  }
+  // L'usage d'un équipement, le tir du grappin ou le propulseur coupent le rechargement ; un coup les coupe.
+  const usage = useAt(e.usages, e.frame)
+  const clipUsage = usage ? clipDuRig(rig, usage.action) : null
+  const tempsUsage = usage ? (e.frame - usage.frame) / e.fps : Infinity
+  if (clipUsage && tempsUsage < clipUsage.durationSeconds) {
+    pose.base = clipUsage
+    pose.tempsBase = tempsUsage
   }
   if (clipCoup && tempsCoup < clipCoup.durationSeconds) {
     pose.base = clipCoup

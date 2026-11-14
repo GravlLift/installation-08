@@ -15,7 +15,8 @@
  *     (`SpartanClip.sync`) : les pieds ne glissent pas et tous les clips mêlés posent le même pied ;
  *   - escalade : entrée puis sortie étirées sur l'intervalle ; glissade et saut : temps depuis le
  *     début de l'intervalle ; réception : temps depuis la fin du saut.
- * PAR-DESSUS (remplacent les os qu'ils animent) : corps à corps (impact calé sur l'image du coup),
+ * PAR-DESSUS (remplacent les os qu'ils animent) : propulseur (l'esquive du jeu dans la direction de
+ * la poussée relative au cap, depuis l'image de la poussée), corps à corps (impact calé sur l'image du coup),
  * lancer de grenade (lâcher calé sur l'image du lancer), rechargement (depuis son image), rangement
  * (fini à l'image du changement d'arme, classe de l'ancienne) et dégainage (depuis cette image, classe
  * de la nouvelle).
@@ -24,6 +25,7 @@
  */
 import type { SpartanClip } from './clips3d'
 import type { ClipLayer, ClipMix } from './clipSample3d'
+import { lastStartedAt, type DodgeShot, type EvadeDir } from './equipmentUse3d_logic'
 import { DEFAULT_WEAPON_CLASS, type WeaponClass } from './weaponClass3d'
 
 /** Un intervalle de posture du film, fermé aux deux bouts (`replaySpans.covers`). */
@@ -58,6 +60,8 @@ export interface MotionEvents {
   /** L'image du début du rechargement. */
   reload: readonly number[]
   swaps: readonly WeaponSwap[]
+  /** Les poussées du propulseur : leur image et leur direction relative au cap. */
+  dodges?: readonly DodgeShot[]
 }
 
 /** L'allure : vitesse au sol (u/s), direction relative au cap (degrés, + = gauche), phase (cycles). */
@@ -134,6 +138,7 @@ interface ClassClips {
   reload: SpartanClip | null
   putAway: SpartanClip | null
   ready: SpartanClip | null
+  dodge: Record<EvadeDir, SpartanClip | null>
 }
 
 const resolved = new WeakMap<ClipCatalog, Map<WeaponClass, ClassClips>>()
@@ -173,6 +178,7 @@ function resolveClass(cat: ClipCatalog, cls: WeaponClass): ClassClips {
     reload: one('combat', 'reload_1'),
     putAway: one('combat', 'put_away'),
     ready: one('combat', 'ready'),
+    dodge: { front: one('combat', 'dodge_front'), back: one('combat', 'dodge_back'), left: one('combat', 'dodge_left'), right: one('combat', 'dodge_right') },
   }
 }
 
@@ -431,6 +437,13 @@ function oneAction(out: ClipMix, clip: SpartanClip | null, frames: readonly numb
 /** actions pose les actions par-dessus (cf. l'en-tête). */
 function actions(q: MotionInput, cat: ClipCatalog, c: ClassClips, out: ClipMix): void {
   const ev = q.events
+  const d = ev.dodges ? lastStartedAt(ev.dodges, q.frame, (s) => s.t) : -1
+  if (d >= 0) {
+    const shot = (ev.dodges as readonly DodgeShot[])[d]
+    const clip = c.dodge[shot.dir]
+    const time = (q.frame - shot.t) / q.fps
+    if (clip) pushOver(out, clip, time, actionWeight(time, clip.once))
+  }
   oneAction(out, c.melee, ev.melee, q, MELEE_IMPACT)
   oneAction(out, c.melee, ev.meleeStart ?? [], q, 0)
   oneAction(out, c.grenade, ev.grenade, q, THROW_RELEASE)

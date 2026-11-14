@@ -30,10 +30,12 @@ import {
   type Span,
   type WeaponSwap,
 } from './clipSelect3d'
+import { dodgeShots, firstPersonUses, type DodgeShot, type UseShot } from './equipmentUse3d_logic'
 import { fallKindOf } from './fall3d'
 import { bracketAt, gaitAt, lerpAt, type Bracket, type Gait } from './gait3d'
 import { heldWeaponAt, type HeldWeapon3d } from './heldWeapon3d'
 import { postureFilm } from './posturesFilm3d'
+import { thrusterBursts } from './thruster3d_logic'
 import type { LifeView } from './tracks3d'
 import { DEFAULT_WEAPON_CLASS, weaponClassOfKey, type WeaponClass } from './weaponClass3d'
 import { weaponModelKey } from './weaponModels3d'
@@ -48,6 +50,8 @@ const STANCE_KINDS: Readonly<Record<string, keyof MotionStances>> = {
 const NO_SPANS: readonly Span[] = []
 const NO_FRAMES: readonly number[] = []
 const NO_SWAPS: readonly WeaponSwap[] = []
+const NO_DODGES: readonly DodgeShot[] = []
+const NO_USES: readonly UseShot[] = []
 const NO_STANCES: MotionStances = { crouch: NO_SPANS, sprint: NO_SPANS, slide: NO_SPANS, clamber: NO_SPANS, jump: NO_SPANS }
 
 export class Motion3d {
@@ -70,6 +74,7 @@ export class Motion3d {
     frame: 0, fps: 1, weapon: DEFAULT_WEAPON_CLASS, gait: null, stances: NO_STANCES, events: this.events,
   }
   private readonly scratch = newClipMix()
+  private uses: { fps: number; dodges: Map<number, DodgeShot[]>; fp: Map<number, UseShot[]> } | null = null
 
   /** `held` : l'arme en main d'un emplacement à une image (celle que la scène montre). */
   constructor(ctx: ActionContext, held: (slot: number, frame: number) => HeldWeapon3d | null) {
@@ -123,6 +128,7 @@ export class Motion3d {
     this.events.grenade = this.grenades.get(life.slot) ?? NO_FRAMES
     this.events.swaps = this.swapsOf(life.slot)
     this.events.reload = this.rechargement(xuid, life, frame)
+    this.events.dodges = this.usesAt(q.fps).dodges.get(life.slot) ?? NO_DODGES
     q.reloadClip = this.clipRechargement(clips, life.slot, frame, q.weapon)
     return selectClips(q, clips, out)
   }
@@ -130,6 +136,21 @@ export class Motion3d {
   /** Les mêmes postures alimentent les animations à la première personne. */
   postures(slot: number): MotionStances {
     return this.stances.get(slot) ?? NO_STANCES
+  }
+
+  /** Les usages qui jouent un clip à la première personne (`equipmentUse3d_logic`), par emplacement. */
+  firstPersonUses(slot: number, fps: number): readonly UseShot[] {
+    return this.usesAt(Math.max(1, fps)).fp.get(slot) ?? NO_USES
+  }
+
+  /** usesAt : les esquives et les usages du document, lus une fois par cadence. */
+  private usesAt(fps: number) {
+    if (this.uses?.fps !== fps) {
+      const heading = (slot: number, frame: number) => this.ctx.slotState(slot, frame)?.h ?? null
+      const dodges = dodgeShots(thrusterBursts(this.ctx.doc, 1000 / fps), heading)
+      this.uses = { fps, dodges, fp: firstPersonUses(this.ctx.doc, dodges) }
+    }
+    return this.uses
   }
 
   /** weaponClass : la classe de l'arme tenue ; le crâne porté donne `ball`. */

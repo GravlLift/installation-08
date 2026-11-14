@@ -16,7 +16,7 @@ function rigAvec(...noms: string[]): RigPremierePersonne {
 }
 const rig = rigAvec('reload_full', 'reload_empty', 'reload_enter', 'melee_strike_1', 'fire_1')
 function evenements(): EvenementsPremierePersonne {
-  return { rechargements: [10], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], frame: 12, fps: 10, rechargementValide: () => true }
+  return { rechargements: [10], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 12, fps: 10, rechargementValide: () => true }
 }
 function change(frame: number, avant: string | null = 'a', apres: string | null = 'b'): ChangementArme {
   return { frame, avant, apres }
@@ -37,6 +37,24 @@ describe('actions première personne', () => {
     expect(lire(rig, e).base).toBeNull()
     e.rechargementValide = () => true
     e.tirs = [11]
+    expect(lire(rig, e).base).toBeNull()
+  })
+  it('plays the repulsor use clip from its activation frame, over the reload, under a melee strike', () => {
+    const r = rigAvec('reload_full', 'melee_strike_1', 'knockback:equipment_activate')
+    const e = evenements(); e.usages = [{ frame: 11, action: 'knockback:equipment_activate' }]
+    let pose = lire(r, e)
+    expect(pose.base?.action).toBe('knockback:equipment_activate')
+    expect(pose.tempsBase).toBeCloseTo(0.1)
+    e.frame = 10.5
+    expect(lire(r, e).base?.action).toBe('reload_full')
+    e.frame = 21.5
+    expect(lire(r, e).base).toBeNull()
+    e.frame = 12; e.coups = [11.5]
+    pose = lire(r, e)
+    expect(pose.base?.action).toBe('melee_strike_1')
+  })
+  it('plays nothing for a use whose clip the rig lacks (library built before the clip existed)', () => {
+    const e = evenements(); e.rechargements = []; e.usages = [{ frame: 11, action: 'knockback:equipment_activate' }]
     expect(lire(rig, e).base).toBeNull()
   })
   it('donne la priorité au coup de mêlée', () => {

@@ -133,6 +133,7 @@ export function motionCatalog(): SpartanClips {
     clips.push(fakeClip(`crouch:rifle:locomote_walk_${d}`, 28, { stride: 0.618 }))
     clips.push(fakeClip(`combat:pistol:locomote_run_${d}`, 22, { stride: 1.533 }))
     clips.push(fakeClip(`combat:pistol:locomote_walk_${d}`, 26, { stride: 0.94 }))
+    clips.push(fakeClip(`combat:rifle:dodge_${d}`, 20))
   }
   return new SpartanClips(clips)
 }
