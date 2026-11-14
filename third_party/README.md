@@ -83,6 +83,15 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     geometry index through an `Arsenal` method because no external package can, mirroring the
     existing `Grenade` pattern. Serves the standalone weapon-library build
     (`cmd/infinite-theater-3d build-weapons`).
+  - `himap/terrain_melange.go`, `himap/terrain_melange_bake.go` (new, LOCAL-CHANGE) and
+    `terrain_collecte.go`, `terrain_maillage.go`, `maillage_monde.go` (modified): an `rtrn`
+    terrain now publishes its palette blend instead of one palette color. Each node's weight
+    programs (a small stack machine over the node's BC1/BC3 input textures) are evaluated per
+    cell, the palette is grouped by color into the four layers the viewer draws, and the
+    sequential weights are baked into a mask atlas on UV set 1. Entries without a color map
+    (Live Fire's grass) draw the three-color gradient of the Material Layer Data indexed by
+    their packed map's alpha. Adds `tagInfo.cibleDonnees` (data reference table lookup).
+    Covered by `himap/terrain_melange_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

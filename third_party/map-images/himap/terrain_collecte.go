@@ -7,24 +7,27 @@ import (
 	"log/slog"
 )
 
-func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, map[uint32]Materiau, error) {
+// LOCAL-CHANGE (infinite-theater-3d): also returns the synthetic textures of the baked palette
+// blend (terrain_melange_bake.go).
+func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, map[uint32]Materiau, map[uint32]Texture, error) {
 	var out GroupeMaillage
 	matieres := map[uint32]Materiau{}
+	synthetiques := map[uint32]Texture{}
 	refs, err := terrainsDuScenario(opts.moduleScenario())
 	if err != nil {
-		return out, nil, err
+		return out, nil, nil, err
 	}
 	for _, ref := range refs {
 		cadre, err := cadreTerrain(ref.Cadre, opts.CadreMaillage)
 		if err != nil {
-			return out, nil, err
+			return out, nil, nil, err
 		}
 		if cadre[2] <= cadre[0] || cadre[3] <= cadre[1] {
 			continue
 		}
 		s, err := ouvreTerrain(idx, ref.ID)
 		if err != nil {
-			return out, nil, err
+			return out, nil, nil, err
 		}
 		plage, tuiles, noeuds, err := litTerrainAdapte(idx, s, cadre)
 		if err != nil {
@@ -34,21 +37,31 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 		if len(tuiles) == 0 {
 			continue
 		}
-		mat, err := couleurTerrain(idx, s, noeuds)
-		if err != nil {
-			slog.Warn("terrain sans couleur lisible", "id", fmt.Sprintf("%08x", ref.ID), "erreur", err)
-			continue
+		params := parametresTerrain{Resolution: s.resolution, Pas: plage.pas, Origine: [3]float64{plage.origine[0], plage.origine[1], s.position[2]}, Amplitude: s.taille[2]}
+		var mat Materiau
+		if cuit, ok := cuitMelangeTerrain(idx, s, plage, tuiles, noeuds, ref.ID); ok {
+			mat = cuit.materiau
+			params.Atlas = cuit.atlas
+			for id, t := range cuit.textures {
+				synthetiques[id] = t
+			}
+		} else {
+			mat, err = couleurTerrain(idx, s, noeuds)
+			if err != nil {
+				slog.Warn("terrain sans couleur lisible", "id", fmt.Sprintf("%08x", ref.ID), "erreur", err)
+				continue
+			}
 		}
-		params := parametresTerrain{Resolution: s.resolution, Pas: plage.pas, Origine: [3]float64{plage.origine[0], plage.origine[1], s.position[2]}, Amplitude: s.taille[2], Materiau: mat.ID}
+		params.Materiau = mat.ID
 		g, err := assembleTerrain(tuiles, params)
 		if err != nil {
-			return out, nil, err
+			return out, nil, nil, err
 		}
 		ajouteGroupeTerrain(&out, g)
 		out.Instances += len(tuiles)
 		matieres[mat.ID] = mat
 	}
-	return out, matieres, nil
+	return out, matieres, synthetiques, nil
 }
 
 func ajouteGroupeTerrain(dst *GroupeMaillage, src GroupeMaillage) {
@@ -87,14 +100,31 @@ func litTerrainAdapte(idx *ModuleIndex, s sourceTerrain, cadre [4]float64) (plag
 	return plageTerrain{}, nil, nil, errTerrainNoeudAbsent
 }
 
-func (m *MaillageMonde) resoutTexturesTerrain(ctx context.Context, idx *ModuleIndex, matieres map[uint32]Materiau) error {
+// LOCAL-CHANGE (infinite-theater-3d): the terrain materials join after the other textures are
+// read, so their synthetic textures (baked mask, white) are not looked up in the modules.
+func (m *MaillageMonde) resoutTexturesTerrain(ctx context.Context, idx *ModuleIndex, matieres map[uint32]Materiau, synthetiques map[uint32]Texture) error {
+	m.resoutTextures(ctx, idx)
+	for id, t := range synthetiques {
+		m.TexturesCouches[id] = t
+	}
 	for id, mat := range matieres {
 		m.Materiaux[id] = mat
-	}
-	m.resoutTextures(ctx, idx)
-	for id := range matieres {
-		if _, ok := m.TexturesCouches[id]; !ok {
-			return fmt.Errorf("terrain : texture %08x illisible", id)
+		for _, k := range mat.Couches.Couches {
+			for _, b := range []uint32{k.Bitmap, k.Normale, k.Controle} {
+				if _, ok := m.TexturesCouches[b]; ok || b == 0 {
+					continue
+				}
+				t, err := LitBitmap(idx, b, coteCouche)
+				if err != nil {
+					slog.WarnContext(ctx, "texture de terrain illisible", "bitmap", fmt.Sprintf("%08x", b), "err", err)
+					m.TexturesCouchesIllisibles++
+					continue
+				}
+				m.TexturesCouches[b] = t
+			}
+		}
+		if _, ok := m.TexturesCouches[mat.Couches.Couches[0].Bitmap]; !ok {
+			return fmt.Errorf("terrain : texture %08x illisible", mat.Couches.Couches[0].Bitmap)
 		}
 	}
 	return nil

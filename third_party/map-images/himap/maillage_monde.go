@@ -158,7 +158,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 		ParcourtInstances(ctx, idx, autre, ajoute)
 	}
 	out.posePlacements(ctx, idx, opts)
-	terrain, matieresTerrain, err := collecteTerrains(idx, opts)
+	terrain, matieresTerrain, texturesTerrain, err := collecteTerrains(idx, opts)
 	if err != nil {
 		return nil, b, fmt.Errorf("terrain : %w", err)
 	}
@@ -169,7 +169,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	if err := out.resoutMateriaux(opts, idx); err != nil {
 		return nil, b, err
 	}
-	if err := out.resoutTexturesTerrain(ctx, idx, matieresTerrain); err != nil {
+	if err := out.resoutTexturesTerrain(ctx, idx, matieresTerrain, texturesTerrain); err != nil {
 		return nil, b, err
 	}
 	slog.InfoContext(ctx, "maillage monde collecte", "instances", b.Dessinees, "decor", b.EcarteesDecor,
