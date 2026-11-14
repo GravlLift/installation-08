@@ -1,6 +1,7 @@
 /**
  * equipment3dShapes.ts — LES FORMES 3D DE L'ÉQUIPEMENT : un lot instancié par forme, et une méthode
- * par objet (mur, faille, écran occultant, capteur, traqueur, champ, objet lâché, câble, poussée).
+ * par objet (mur sans cap, faille, écran occultant, capteur, traqueur, champ, objet lâché, poussée).
+ * La barrière du mur (`dropWall3d`) et le grappin (`grapple3d`) ont leur propre module.
  *
  * Les PORTÉES sont celles de la 2D, lues dans les fichiers de chaque famille (capteur 4,25 u, champ
  * 3 u, écran 6 u, mur de rayon 1,6 u ouvert à 110°) : la 3D n'y ajoute que la hauteur. Les tailles
@@ -13,17 +14,9 @@ import * as THREE from 'three'
 
 import { REPAIR_FIELD_RADIUS_M, seekerImpulse } from '../layers/placementShapes'
 import { SHROUD_RADIUS_M } from '../layers/placementShroud'
-import { WALL_OPENING_RAD, WALL_RADIUS_M } from '../layers/placementWall'
+import { WALL_RADIUS_M } from '../layers/placementWall'
 import { SENSOR_RADIUS_M, sensorPing } from '../model/threatSensor'
 import { InstancePool, SegmentPool } from './actionKit'
-
-/** Hauteur du mur (u) : un choix d'écran, à hauteur d'épaule d'un joueur (environ 0,69 u). */
-const WALL_HEIGHT_U = 0.75
-const WALL_THICKNESS_U = 0.05
-/** La corde de l'arc 2D : le mur 3D en couvre exactement les deux bouts. */
-const WALL_WIDTH_U = 2 * WALL_RADIUS_M * Math.sin(WALL_OPENING_RAD / 2)
-/** Distance du poseur au plan du mur : le milieu de la corde de l'arc 2D. */
-const WALL_OFFSET_U = WALL_RADIUS_M * Math.cos(WALL_OPENING_RAD / 2)
 
 /** La faille : un anneau debout, à peu près de la taille d'un joueur accroupi. */
 const RIFT_RADIUS_U = 0.3
@@ -42,13 +35,6 @@ const SEEKER_RING_U = 0.6
 const RING_SEGMENTS = 32
 const RING_RADIUS_U = 0.015
 const RING_LIFT_U = 0.02
-
-/** Le câble du grappin (repère d'analyse) et le point d'accroche. */
-const CABLE_RADIUS_U = 0.012
-const ANCHOR_RADIUS_U = 0.035
-/** Le câble tel que le jeu le montre : un fil de ~1 cm, l'encre du câble assombrie (métal). */
-const GAME_CABLE_RADIUS_U = 0.004
-const GAME_CABLE_SHADE = 0.3
 
 /** La flèche de poussée : la hampe, puis une pointe de longueur fixe. */
 const ARROW_RADIUS_U = 0.025
@@ -72,18 +58,14 @@ const scratch = {
   a: new THREE.Vector3(),
   b: new THREE.Vector3(),
   s: new THREE.Vector3(),
-  c: new THREE.Color(),
 }
 
-/** headingQuat — la rotation qui tourne l'axe local +Z vers le cap Halo `deg`, autour de la verticale. */
-function headingQuat(deg: number): THREE.Quaternion {
+/**
+ * headingQuat — la rotation qui tourne l'axe local +Z vers le cap Halo `deg`, autour de la verticale.
+ * Le quaternion rendu est partagé : à consommer aussitôt (une pose d'instance).
+ */
+export function headingQuat(deg: number): THREE.Quaternion {
   return scratch.q.setFromAxisAngle(UP, (deg * Math.PI) / 180 + Math.PI / 2)
-}
-
-/** headingDir — le cap Halo `deg` en direction horizontale three (x, -y Halo sur x, z three). */
-function headingDir(deg: number, out: THREE.Vector3): THREE.Vector3 {
-  const h = (deg * Math.PI) / 180
-  return out.set(Math.cos(h), 0, -Math.sin(h))
 }
 
 function solid(): THREE.Material {
@@ -101,20 +83,17 @@ export interface PairInk3d {
 }
 
 export class EquipmentShapes3d {
-  private readonly slabs: InstancePool
   private readonly tori: InstancePool
   private readonly discs: InstancePool
   private readonly domes: InstancePool
   private readonly spheres: InstancePool
   private readonly pucks: InstancePool
   private readonly gems: InstancePool
-  private readonly beads: InstancePool
   private readonly cones: InstancePool
   private readonly lines: SegmentPool
   private readonly all: { begin(): void; end(): void; dispose(): void }[]
 
   constructor(parent: THREE.Object3D) {
-    this.slabs = new InstancePool(parent, new THREE.BoxGeometry(1, 1, 1), solid(), SOLID_CAPACITY)
     this.tori = new InstancePool(parent, new THREE.TorusGeometry(1, RIFT_TUBE_RATIO, 8, 32), solid(), VOLUME_CAPACITY)
     this.discs = new InstancePool(parent, new THREE.CircleGeometry(1, 32), volume(RIFT_CORE_OPACITY, THREE.DoubleSide), VOLUME_CAPACITY)
     const hemisphere = new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2)
@@ -122,12 +101,11 @@ export class EquipmentShapes3d {
     this.spheres = new InstancePool(parent, new THREE.SphereGeometry(1, 32, 16), volume(SHROUD_OPACITY), VOLUME_CAPACITY)
     this.pucks = new InstancePool(parent, new THREE.CylinderGeometry(1, 1, 1, 16), solid(), SOLID_CAPACITY)
     this.gems = new InstancePool(parent, new THREE.OctahedronGeometry(1), solid(), SOLID_CAPACITY)
-    this.beads = new InstancePool(parent, new THREE.SphereGeometry(1, 8, 6), solid(), SOLID_CAPACITY)
     // La pointe de la flèche : un cône dont la BASE est à l'origine, la pointe vers +Y.
     const cone = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
     this.cones = new InstancePool(parent, cone, solid(), SOLID_CAPACITY)
     this.lines = new SegmentPool(parent, solid(), SEGMENT_CAPACITY)
-    this.all = [this.slabs, this.tori, this.discs, this.domes, this.spheres, this.pucks, this.gems, this.beads, this.cones, this.lines]
+    this.all = [this.tori, this.discs, this.domes, this.spheres, this.pucks, this.gems, this.cones, this.lines]
   }
 
   begin(): void {
@@ -143,17 +121,11 @@ export class EquipmentShapes3d {
   }
 
   /**
-   * wall — une dalle verticale face au cap de pose, posée sur la corde de l'arc 2D. Sans cap (la 2D
-   * trace alors un cercle pointillé), un anneau au sol du rayon du mur : aucune orientation inventée.
+   * wallRing — le mur dont aucune source ne donne le cap (la 2D trace alors un cercle pointillé) :
+   * un anneau au sol du rayon du mur, aucune orientation inventée. Le mur orienté est `dropWall3d`.
    */
-  wall(at: THREE.Vector3, headingDeg: number | null, color: THREE.Color): void {
-    if (headingDeg === null) {
-      this.ring(at, WALL_RADIUS_M, color)
-      return
-    }
-    const c = headingDir(headingDeg, scratch.p).multiplyScalar(WALL_OFFSET_U).add(at)
-    c.y += WALL_HEIGHT_U / 2
-    this.slabs.add(c, headingQuat(headingDeg), scratch.s.set(WALL_WIDTH_U, WALL_HEIGHT_U, WALL_THICKNESS_U), color)
+  wallRing(at: THREE.Vector3, color: THREE.Color): void {
+    this.ring(at, WALL_RADIUS_M, color)
   }
 
   /** rift — l'anneau debout de la faille (lèvres) et son cœur translucide, tourné vers `headingDeg`. */
@@ -199,19 +171,6 @@ export class EquipmentShapes3d {
     const c = scratch.p.copy(at)
     c.y += DROPPED_SIZE_U
     this.gems.add(c, null, DROPPED_SIZE_U, color)
-  }
-
-  /**
-   * cable — le câble de grappin de la main au point d'accroche. `aid` (repère d'analyse) : trait
-   * épais à l'encre claire et point d'accroche ; sinon le câble du jeu, un fil sombre sans marque.
-   */
-  cable(hand: THREE.Vector3, anchor: THREE.Vector3, color: THREE.Color, aid: boolean): void {
-    if (!aid) {
-      this.lines.add(hand, anchor, GAME_CABLE_RADIUS_U, scratch.c.copy(color).multiplyScalar(GAME_CABLE_SHADE))
-      return
-    }
-    this.lines.add(hand, anchor, CABLE_RADIUS_U, color)
-    this.beads.add(anchor, null, ANCHOR_RADIUS_U, color)
   }
 
   /** arrow — une flèche de `length` (u) depuis `from`, le long de `dir` (unitaire, axes three). */
