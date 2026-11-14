@@ -26,10 +26,10 @@ func announcerReady(dataDir string) bool {
 	return built && !stale
 }
 
-// buildAnnouncer runs the announcer extraction into the store's sound folder with the bundled
-// decoder. It is the announcer job's body in the mesh build runner.
+// buildAnnouncer runs the announcer extraction into the store's sound folder. It is the
+// announcer job's body in the mesh build runner.
 func buildAnnouncer(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
-	res, folder, err := buildAnnouncerSounds(ctx, gameRoot, root.Dir(), announcerJobLanguage, "")
+	res, folder, err := buildAnnouncerSounds(ctx, gameRoot, root.Dir(), announcerJobLanguage)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}

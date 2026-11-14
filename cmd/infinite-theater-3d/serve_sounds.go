@@ -4,7 +4,7 @@ package main
 //
 // The viewer addresses /static/sounds/halo_infinite/<stem>.ogg, and the announcer
 // extraction's manifest /static/sounds/halo_infinite/announcer.json and takes
-// (announcer_<line>_<nn>.wav, data directory only). The set is
+// (announcer_<line>_<nn>.ogg, data directory only). The set is
 // built into the binary (internal/sounds, from JGtm's LevelUp), so the viewer
 // is not silent on a fresh install. The route serves a file from the user's
 // data directory when it is there, so an imported file wins over the built-in
@@ -31,23 +31,20 @@ func soundsDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "sounds", "halo_infinite")
 }
 
-// soundFile is a file name the sound route may serve: an .ogg file of the
-// sound set, or the announcer extraction (its WAV takes and its announcer.json
-// manifest, written by build-sounds or the announcer job into the data directory
+// soundFile is a file name the sound route may serve: an .ogg file (the sound
+// set, or an announcer take), or the announcer extraction's announcer.json
+// manifest (written by build-sounds or the announcer job into the data directory
 // only). A name that passes this check but is in neither the data directory nor
 // the built-in set still gets a 404, and a name that would escape the folder is
 // refused by joinInside.
 func soundFile(name string) bool {
-	return strings.HasSuffix(name, ".ogg") || strings.HasSuffix(name, announcer.TakeExt) || name == announcer.ManifestName
+	return strings.HasSuffix(name, ".ogg") || name == announcer.ManifestName
 }
 
 // soundContentType is the media type of a sound route file.
 func soundContentType(name string) string {
-	switch {
-	case name == announcer.ManifestName:
+	if name == announcer.ManifestName {
 		return "application/json"
-	case strings.HasSuffix(name, announcer.TakeExt):
-		return "audio/wav"
 	}
 	return "audio/ogg"
 }

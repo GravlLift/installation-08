@@ -3,35 +3,34 @@ package announcer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/llampwall/infinite-theater-3d/internal/wwise"
+	"github.com/llampwall/infinite-theater-3d/internal/wwvorbis"
 )
 
 // ManifestName is the file the viewer reads to learn which announcer lines the sound folder holds.
 const ManifestName = "announcer.json"
 
-// ManifestVersion is the manifest's format version. Version 2: every take is the decoder's own
-// PCM WAV (version 1 takes were Ogg Vorbis re-encoded by ffmpeg); a manifest of an older version
-// is stale and the extraction runs again.
-const ManifestVersion = 2
+// ManifestVersion is the manifest's format version. Version 3: every take is the game's own
+// Vorbis stream repacked into an Ogg file, without decoding (internal/wwvorbis). Version 2 takes
+// were PCM WAV decoded by vgmstream, version 1 takes Ogg re-encoded by ffmpeg; a manifest of an
+// older version is stale and the extraction runs again.
+const ManifestVersion = 3
 
 // TakeExt is the file extension of an extracted take.
-const TakeExt = ".wav"
+const TakeExt = ".ogg"
 
-// Tools are the programs extraction runs. The game stores its voice as Wwise Vorbis, which only a
-// Wwise-aware decoder reads: Decoder is a `vgmstream-cli` executable, and the PCM WAV it writes
-// is the file the sound route serves (browsers play WAV; see the README for the sizes).
-type Tools struct {
-	Decoder string
-}
+// takeFile is the name of every take file any manifest version wrote: announcer_<line>_<nn>
+// with the extension of its version (.ogg or .wav). A rebuild removes the ones its manifest no
+// longer lists, and no other file.
+var takeFile = regexp.MustCompile(`^announcer_[a-z0-9]+_[0-9]{2,}\.(ogg|wav)$`)
 
 // Manifest lists the extracted lines by vocalization name.
 type Manifest struct {
@@ -50,7 +49,7 @@ type ManifestLine struct {
 	Takes []ManifestTake `json:"takes"`
 }
 
-// ManifestTake is one decoded recording.
+// ManifestTake is one extracted recording.
 type ManifestTake struct {
 	File       string `json:"file"`
 	Media      uint32 `json:"media"`
@@ -60,7 +59,6 @@ type ManifestTake struct {
 // ExtractOptions says what to extract and where.
 type ExtractOptions struct {
 	Names        []string
-	Tools        Tools
 	OutDir       string
 	Language     string
 	GameLanguage string
@@ -72,6 +70,9 @@ type ExtractResult struct {
 	Missing  []string
 	Files    int
 	Bytes    int64
+	// Removed is the number of take files of an earlier extraction the new manifest no longer
+	// lists, deleted from OutDir.
+	Removed int
 }
 
 // ManifestStatus reads the manifest in dir: built when it is there and readable, stale when its
@@ -94,20 +95,14 @@ func ManifestStatus(dir string) (built, stale bool) {
 // its bank.
 type mediaSource func(id uint32) ([]byte, error)
 
-// Extract decodes the named lines of the catalog into OutDir and writes the manifest there. A name
-// the catalog does not hold is reported in Missing, never an error: the viewer stays silent on it.
+// Extract writes the named lines of the catalog into OutDir as Ogg Vorbis takes, writes the
+// manifest there, then removes the take files of an earlier extraction the manifest does not
+// list. A name the catalog does not hold is reported in Missing, never an error: the viewer stays
+// silent on it.
 func Extract(ctx context.Context, c *Catalog, opts ExtractOptions) (*ExtractResult, error) {
-	if opts.Tools.Decoder == "" {
-		return nil, errors.New("announcer: a decoder (vgmstream-cli) is required")
-	}
 	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
 		return nil, err
 	}
-	work, err := os.MkdirTemp("", "announcer-extract-")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(work)
 	src := c.mediaSource()
 	res := &ExtractResult{Manifest: &Manifest{Version: ManifestVersion, Language: opts.Language, GameLanguage: opts.GameLanguage, Lines: map[string]ManifestLine{}}}
 	for _, name := range uniqueSorted(opts.Names) {
@@ -119,7 +114,7 @@ func Extract(ctx context.Context, c *Catalog, opts ExtractOptions) (*ExtractResu
 			res.Missing = append(res.Missing, name)
 			continue
 		}
-		ml, err := extractLine(ctx, name, line, src, opts, work, res)
+		ml, err := extractLine(name, line, src, opts.OutDir, res)
 		if err != nil {
 			return nil, fmt.Errorf("announcer: %s: %w", name, err)
 		}
@@ -132,13 +127,16 @@ func Extract(ctx context.Context, c *Catalog, opts ExtractOptions) (*ExtractResu
 	if err := os.WriteFile(filepath.Join(opts.OutDir, ManifestName), raw, 0o644); err != nil {
 		return nil, err
 	}
-	slog.InfoContext(ctx, "announcer extracted", "lines", len(res.Manifest.Lines), "files", res.Files, "missing", len(res.Missing))
+	if res.Removed, err = removeStaleTakes(opts.OutDir, res.Manifest); err != nil {
+		return nil, err
+	}
+	slog.InfoContext(ctx, "announcer extracted", "lines", len(res.Manifest.Lines), "files", res.Files, "missing", len(res.Missing), "removed", res.Removed)
 	return res, nil
 }
 
-// extractLine decodes every take of one line. A take's event can play several media (a random
+// extractLine writes every take of one line. A take's event can play several media (a random
 // container): each media is one take.
-func extractLine(ctx context.Context, name string, line Line, src mediaSource, opts ExtractOptions, work string, res *ExtractResult) (ManifestLine, error) {
+func extractLine(name string, line Line, src mediaSource, outDir string, res *ExtractResult) (ManifestLine, error) {
 	ml := ManifestLine{Bank: line.Takes[0].Bank, Event: fmt.Sprintf("%08x", line.Takes[0].Event)}
 	seen := map[uint32]bool{}
 	for _, take := range line.Takes {
@@ -148,7 +146,7 @@ func extractLine(ctx context.Context, name string, line Line, src mediaSource, o
 			}
 			seen[media] = true
 			file := fmt.Sprintf("announcer_%s_%02d%s", name, len(ml.Takes)+1, TakeExt)
-			ms, size, err := decodeMedia(ctx, src, media, opts.Tools, work, filepath.Join(opts.OutDir, file))
+			ms, size, err := repackMedia(src, media, filepath.Join(outDir, file))
 			if err != nil {
 				return ManifestLine{}, err
 			}
@@ -160,38 +158,47 @@ func extractLine(ctx context.Context, name string, line Line, src mediaSource, o
 	return ml, nil
 }
 
-// decodeMedia decodes one media to the PCM WAV out and returns its duration (read from the WAV)
-// and the file's size.
-func decodeMedia(ctx context.Context, src mediaSource, media uint32, tools Tools, work, out string) (int, int64, error) {
+// repackMedia writes one media to out as Ogg Vorbis and returns its duration (from the stream's
+// own sample count) and the file's size.
+func repackMedia(src mediaSource, media uint32, out string) (int, int64, error) {
 	raw, err := src(media)
 	if err != nil {
 		return 0, 0, err
 	}
-	wem := filepath.Join(work, fmt.Sprintf("%d.wem", media))
-	if err := os.WriteFile(wem, raw, 0o644); err != nil {
-		return 0, 0, err
-	}
-	if err := run(ctx, tools.Decoder, "-o", out, wem); err != nil {
-		return 0, 0, fmt.Errorf("decode media %d: %w", media, err)
-	}
-	pcm, err := os.ReadFile(out)
-	if err != nil {
-		return 0, 0, err
-	}
-	ms, err := WAVDurationMs(pcm)
+	s, err := wwvorbis.Repack(raw)
 	if err != nil {
 		return 0, 0, fmt.Errorf("media %d: %w", media, err)
 	}
-	return ms, int64(len(pcm)), nil
+	if err := os.WriteFile(out, s.Ogg, 0o644); err != nil {
+		return 0, 0, err
+	}
+	return s.DurationMs(), int64(len(s.Ogg)), nil
 }
 
-// run runs a tool and returns its output in the error when it fails.
-func run(ctx context.Context, tool string, args ...string) error {
-	out, err := exec.CommandContext(ctx, tool, args...).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %w: %s", filepath.Base(tool), err, strings.TrimSpace(string(out)))
+// removeStaleTakes deletes the regular files of dir named like a take (takeFile) that m does not
+// list, and returns how many it deleted. Nothing else in dir is touched, and nothing below it.
+func removeStaleTakes(dir string, m *Manifest) (int, error) {
+	keep := map[string]bool{}
+	for _, l := range m.Lines {
+		for _, t := range l.Takes {
+			keep[t.File] = true
+		}
 	}
-	return nil
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, e := range entries {
+		if !e.Type().IsRegular() || !takeFile.MatchString(e.Name()) || keep[e.Name()] {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+			return removed, fmt.Errorf("announcer: remove stale take: %w", err)
+		}
+		removed++
+	}
+	return removed, nil
 }
 
 // mediaSource indexes the catalog's media: the language packages first, then the media embedded

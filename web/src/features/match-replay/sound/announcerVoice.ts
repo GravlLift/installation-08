@@ -10,7 +10,7 @@
  * THE MANIFEST IS KEYED BY THE GAME'S OWN VOCALIZATION NAMES ("doublekill", "flagcaptured"),
  * and this file maps each call key of the scheduler onto them (`voiceNamesOfCall`). The Go side
  * (`internal/announcer/names.go`) extracts exactly the names this map asks for. The durations are
- * the decoded files' own (measured by `build-sounds` on the PCM), never a guess.
+ * the streams' own (`build-sounds` reads each one's sample count), never a guess.
  *
  * THE EXTRACTED VOICE HAS THE INSTALL'S LANGUAGE, whatever the page's: the game decides which
  * announcer packages are installed (this install has English only), so the manifest's lines are
@@ -97,16 +97,20 @@ export function voiceNamesOfCall(key: string): readonly string[] {
 
 /** The manifest version this viewer reads: `ManifestVersion` in `internal/announcer/extract.go`.
  *  An older manifest is refused (silent) until the server's announcer job rebuilds it. */
-const MANIFEST_VERSION = 2
+const MANIFEST_VERSION = 3
 
-/** A take's file: the decoder's own PCM WAV, named after its line. Its stem is the whole file
- *  name: `soundUrlOf` keeps a stem that carries its own `.wav` extension. */
-const TAKE_FILE = /^[a-z0-9_]+\.wav$/
+/** A take's file: the game's Vorbis stream in an Ogg file, named after its line. */
+const TAKE_FILE = /^[a-z0-9_]+\.ogg$/
+
+/** The stem of a take's file: `soundUrlOf` adds the `.ogg` extension back. */
+function stemOfFile(file: string): string {
+  return file.replace(/\.ogg$/, '')
+}
 
 /** manifestVoice — the extracted lines, for every locale (see the header). */
 export function manifestVoice(manifest: AnnouncerManifest): AnnouncerVoice {
   const takesOf = (name: string): AnnouncerTake[] =>
-    (manifest.lines[name]?.takes ?? []).map((t) => ({ stem: t.file, durationMs: t.durationMs }))
+    (manifest.lines[name]?.takes ?? []).map((t) => ({ stem: stemOfFile(t.file), durationMs: t.durationMs }))
   return {
     takes(key) {
       for (const name of voiceNamesOfCall(key)) {
@@ -116,7 +120,7 @@ export function manifestVoice(manifest: AnnouncerManifest): AnnouncerVoice {
       return []
     },
     stems() {
-      return Object.values(manifest.lines).flatMap((l) => l.takes.map((t) => t.file))
+      return Object.values(manifest.lines).flatMap((l) => l.takes.map((t) => stemOfFile(t.file)))
     },
   }
 }
