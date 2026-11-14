@@ -13,6 +13,7 @@ import { useCallback, useMemo, useRef, type RefObject } from 'react'
 import { formatClock, frameToMs, framesPerSecond } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { SPEED_MULTIPLIERS } from '../features/match-replay/settings/useReplaySettings'
+import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
 import { ReplaySoundControls } from '../features/match-replay/sound/ReplaySoundControls'
 import type { ReplaySound } from '../features/match-replay/sound/useReplaySound'
 import type { ReplayKill } from '../features/match-replay/model/killFeedLogic'
@@ -32,6 +33,8 @@ export interface PlayerTransportProps {
   onRestart: () => void
   onSetSpeed: (speed: number) => void
   onSetViewpoint: (xuid: string | null) => void
+  view: SceneView3d
+  onSetView: (view: SceneView3d) => void
   onScrub: (frame: number) => void
   onSeekBy: (seconds: number) => void
   onToggleScoreboard: () => void
@@ -162,6 +165,10 @@ export function PlayerTransport(props: PlayerTransportProps) {
               {value}×
             </button>
           ))}
+        </div>
+        <div className="bc-seg" role="group" aria-label="View" title="View (V)">
+          <button type="button" className={props.view === '3d' ? 'on' : ''} aria-pressed={props.view === '3d'} onClick={() => props.onSetView('3d')}>3D</button>
+          <button type="button" className={props.view === 'top' ? 'on' : ''} aria-pressed={props.view === 'top'} onClick={() => props.onSetView('top')}>2D</button>
         </div>
         <span className="bc-lbl">POV</span>
         <select

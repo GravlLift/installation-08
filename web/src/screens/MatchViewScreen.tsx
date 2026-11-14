@@ -19,6 +19,7 @@ import { meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
+import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
@@ -96,6 +97,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const [playing, setPlaying] = useState(!held)
   const [speed, setSpeed] = useState(1)
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
+  const [view, setView] = useState<SceneView3d>('3d')
+  const toggleView = useCallback(() => setView((v) => (v === '3d' ? 'top' : '3d')), [])
   const [size, setSize] = useState({ width: 960, height: 540 })
   const hostRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
@@ -162,6 +165,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     restart,
     toggleSound: sound.toggle,
     toggleFullscreen: fullscreen.toggle,
+    toggleView,
     skipSeconds: SKIP_SECONDS,
     enabled: !held,
   })
@@ -260,6 +264,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
               timeLimitMs={replayContext.timeLimitMs}
               soundListenerRef={sound.listener}
               onLoadState={onLoadState}
+              view={view}
             />
             {scoreboardHeld && (
               <ReplayScoreboardOverlay
@@ -318,6 +323,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
             onRestart={restart}
             onSetSpeed={setSpeed}
             onSetViewpoint={setViewpoint}
+            view={view}
+            onSetView={setView}
             onScrub={onScrub}
             onSeekBy={seekBy}
             onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
