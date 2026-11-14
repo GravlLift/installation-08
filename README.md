@@ -28,8 +28,8 @@ The normal path is the web viewer over the local server.
 
 `serve` starts the local HTTP server (loopback, `127.0.0.1:8177` by default) and, when it
 finds a game installation, queues every one-time build in the background: the weapon icon
-set, the HUD icon set, the rank badge set, the weapon model library, the first-person
-library, the Spartan piece library, and, for every match already in the store, that match's
+set, the HUD icon set, the rank badge set, the announcer's voice lines, the weapon model
+library, the first-person library, the Spartan piece library, and, for every match already in the store, that match's
 map mesh and variant layer. A build whose output is already on disk is skipped, so a
 restart only builds what is still missing. The builds run one at a time and never block
 the server from listening.
@@ -92,6 +92,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB | `--map <key> --mvar <file.mvar> --out <file.glb>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
+| `build-sounds` | the announcer's voice lines (168 calls, decoded to WAV into `<data>/assets/sounds/halo_infinite/` with `announcer.json`) | `--lang en\|fr`, `--data <dir>`, `--decoder <vgmstream-cli>` |
 | `build-firstperson-library` | the whole first-person rig library (one rig per first-person-capable weapon, shared texture depot, `index.json`) | `--data <dir>`, `--map <module-key>` |
 | `build-spartan` | the Spartan body with its game animations, to one GLB | `--map <module-key>`, `--out <file.glb>` |
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
@@ -136,6 +137,8 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   `POST /api/first-person/build`; `GET /api/first-person/{file}` (a rig or texture).
 - Spartan piece library: `GET /api/spartan-pieces/{file}`, `POST /api/spartan-pieces/build`,
   `GET /api/spartan-pieces/state`.
+- Announcer sounds: `GET /api/announcer/state` (the job state plus `built` and `stale`: a
+  manifest of an older format is rebuilt), `POST /api/announcer/build`.
 - `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
   per coating library whether it is built, stale, and how many of its materials the export
   does not know (`materials_missing`). It never carries a path or an environment value.
@@ -162,6 +165,21 @@ The import copies every `.ogg` file (subfolders kept), skips files already prese
 identical, and replaces a changed one. The route serves a file from
 `<data>/assets/sounds/halo_infinite/` when it exists there, otherwise from the built-in
 set; a name in neither set is a `404`.
+
+The announcer's calls (medals, objectives, mode name, time warnings) come from your own
+game install. `serve` extracts them once at startup like the other one-time builds, or by
+hand:
+
+```powershell
+.\infinite-theater-3d.exe build-sounds [--lang en|fr] [--data <dir>] [--game <deploy-root>]
+```
+
+The game stores the voice as Wwise Vorbis; `vgmstream-cli` decodes it to WAV, which the
+viewer plays as is (no second tool). The packaged build carries the decoder in
+`tools\vgmstream\` next to the exe and finds it with no flag; from a source build, put
+`vgmstream-cli` on `PATH` or pass `--decoder <path>`. The 168 lines are 168 files, about
+50 MB of 48 kHz stereo WAV (a match loads only the lines it calls). Without an extraction
+`announcer.json` is a `404` and only the built-in round-over voice speaks.
 
 ## Other commands
 
@@ -194,13 +212,23 @@ dist\infinite-theater-3d-<version>-windows-amd64\
     LICENSE
     NOTICE.md
     README.md
+    tools\vgmstream\...   (the announcer decoder, see below)
     third_party\...
 dist\infinite-theater-3d-<version>-windows-amd64.zip
 ```
 
+The announcer decoder is the official vgmstream r2168 Windows release, pinned by URL and
+SHA-256 in the script: it is downloaded once into `dist\cache\` (or taken from
+`-VgmstreamZip <file>` for an offline build), refused if its hash differs, and only
+`vgmstream-cli.exe` and the eight DLLs it imports are copied. Their licenses, versions and
+the LGPL source note are in [third_party/vgmstream/NOTICE.md](third_party/vgmstream/NOTICE.md);
+the license texts ship in the release's `third_party\vgmstream\`. `-OutDir <dir>` writes
+the exe, the folder and the zip somewhere other than `dist\`.
+
 The exe is a single file: double-click it (or run it with no arguments) and it serves
 and opens the viewer in the default browser. A `version` subcommand prints the build
-version. The sound set is built in (see Replay sounds above); the Ekur export is still
+version. The sound set is built in and the announcer is extracted at first start (see
+Replay sounds above); the Ekur export is still
 user-supplied; pass `--data <dir>` and `--game <deploy-root>` if the defaults do not
 apply.
 
