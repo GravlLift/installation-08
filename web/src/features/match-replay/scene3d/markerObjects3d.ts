@@ -2,14 +2,14 @@
  * markerObjects3d.ts — LES OBJETS POSÉS QUE LE JEU NE DESSINE PAS.
  *
  * Le calque des objets d'une variante publie la table de ses objets (`levelupObjects`, boîtes en
- * axes du jeu). Certains types ne sont que des repères d'éditeur (l'emplacement d'une arme au mur,
- * son bloc d'ancrage) : le jeu ne les montre jamais. Leurs triangles sont retirés des surfaces
- * avant tout le reste (bornes, collisions, fusion des matériaux).
+ * axes du jeu). Certains types ne sont que des repères d'éditeur : le jeu ne les montre jamais.
+ * Leurs triangles sont retirés des surfaces avant tout le reste (bornes, collisions, fusion des
+ * matériaux). The weapon rack (1649659840) is not one: the layer draws its real Forge kit.
  */
 import * as THREE from 'three'
 
-/** Types d'objet posés qui ne sont que des repères : le repère d'arme murale, son bloc au sol. */
-export const MARKER_OBJECT_TYPES: ReadonlySet<number> = new Set([1649659840, 0xe93f446d])
+/** Types d'objet posés qui ne sont que des repères : le bloc au sol d'une arme murale. */
+export const MARKER_OBJECT_TYPES: ReadonlySet<number> = new Set([0xe93f446d])
 
 // Un sommet d'un objet est dans sa boîte, à l'arrondi de la publication près.
 const BOX_SLACK = 0.02

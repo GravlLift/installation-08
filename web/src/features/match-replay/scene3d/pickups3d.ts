@@ -3,10 +3,11 @@
  *
  * Aucune règle n'est réécrite ici : la présence, l'état d'un socle, le filtre des armes au sol et
  * la nature d'une arme sont ceux de la vue 2D, appelés tels quels.
- *  - Un SOCLE est un disque posé au sol, à l'encre de sa nature (`padFamilyOf`). Plein, une boîte
- *    d'arme flotte au-dessus et tourne lentement ; incertain, la boîte est fantôme ; vide, le disque
- *    reste seul (`padStateAt`). Un socle MONTÉ (un râtelier mural, qui surplombe le sol, `padMountOf`)
- *    n'a ni disque ni socle : seul le modèle du jeu y est posé. Un socle hors des bornes de la carte
+ *  - The pad itself (floor pad, wall rack) is the game's own model, drawn by the variant object
+ *    layer (`variantLayer.ts`); this layer draws only the weapon it holds. Full, a weapon box in its
+ *    family ink (`padFamilyOf`) floats above the pad and turns slowly; uncertain, the box is a ghost;
+ *    empty, nothing is drawn (`padStateAt`). On a MOUNTED pad (a wall rack, above the floor,
+ *    `padMountOf`) only the game's weapon model is posed, at its height. Un socle hors des bornes de la carte
  *    (`padOutOfBounds`) n'est pas dessiné du tout. Les socles sont préparés comme en 2D : croisés
  *    avec les emplacements de la carte, datés par les ramassages natifs, puis leur incertitude
  *    ramenée à ce qu'un joueur a pu faire (`useReplayWeaponPads`).
@@ -42,16 +43,12 @@ import { toThree } from './tracks3d'
 import { WeaponModelPool } from './weaponModels3d'
 import { groundWeaponPose } from './groundWeaponPose3d'
 
-/** Rayon et épaisseur du disque d'un socle (u). */
-const PAD_DISC_RADIUS = 0.35
-const PAD_DISC_HEIGHT = 0.03
-const PAD_DISC_SEGMENTS = 24
 /** La boîte d'arme : longueur, hauteur, largeur (u). */
 const BOX_LENGTH = 0.5
 const BOX_HEIGHT = 0.08
 const BOX_WIDTH = 0.12
-/** Écart entre le dessus du disque et le dessous de la boîte qui flotte (u). */
-const PAD_BOX_LIFT = 0.25
+/** Gap between a floor pad's feet and the underside of the weapon floating above it (u). */
+const PAD_BOX_LIFT = 0.28
 /** Vitesse de rotation de la boîte d'un socle plein (radians par image). */
 const PAD_SPIN_PER_FRAME = 0.02
 /** Déphasage d'un socle à l'autre, pour que les boîtes ne tournent pas en bloc (radians). */
@@ -64,8 +61,8 @@ const GROUND_YAW_STEP = Math.PI * (3 - Math.sqrt(5))
  */
 const FLOOR_SNAP = 0.3
 /**
- * Un socle qui surplombe le sol sous lui de plus que ceci est un râtelier mural, pas un socle posé
- * au sol : il n'a ni disque ni socle, seul le modèle du jeu est posé (u).
+ * A pad more than this above the floor under it is a wall rack, not a floor pad: only the game's
+ * weapon model is posed on it, at its height (u).
  */
 const PAD_MOUNT_THRESHOLD = 0.25
 /** Un socle au-delà de cette marge hors des bornes de la carte n'est pas dessiné (u). */
@@ -184,7 +181,7 @@ interface PadSpot {
   pad: ReplayWeaponPadReady
   family: PadFamily
   feet: THREE.Vector3
-  /** Râtelier mural : pas de disque ni de socle, seul le modèle est posé à sa hauteur. */
+  /** Wall rack: only the weapon model is posed, at its height. */
   mounted: boolean
   phase: number
 }
@@ -241,7 +238,6 @@ export class Pickups3dLayer implements ActionLayer3d {
   private readonly ctx: ActionContext
   private readonly pads: PadSpot[]
   private readonly groundSpots: Map<ReplayGroundWeapon, GroundSpot>
-  private readonly discs: InstancePool
   private readonly solidBoxes: InstancePool
   private readonly ghostBoxes: InstancePool
   /** Les modèles du jeu, pleins seulement : un incertain reste une boîte fantôme. */
@@ -255,12 +251,6 @@ export class Pickups3dLayer implements ActionLayer3d {
     this.pads = padSpotsOf(ctx, prepareWeaponPads(ctx.doc))
     this.groundSpots = groundSpotsOf(ctx, ctx.doc.groundWeapons)
     const boxes = capacity(this.pads.length + this.groundSpots.size)
-    this.discs = new InstancePool(
-      ctx.root,
-      new THREE.CylinderGeometry(PAD_DISC_RADIUS, PAD_DISC_RADIUS, PAD_DISC_HEIGHT, PAD_DISC_SEGMENTS),
-      new THREE.MeshLambertMaterial(),
-      capacity(this.pads.length),
-    )
     this.solidBoxes = new InstancePool(ctx.root, boxGeometry(), new THREE.MeshLambertMaterial(), boxes)
     this.ghostBoxes = new InstancePool(
       ctx.root,
@@ -273,13 +263,11 @@ export class Pickups3dLayer implements ActionLayer3d {
 
   update(frame: number): void {
     const { show, inks } = this.ctx.inputs()
-    this.discs.begin()
     this.solidBoxes.begin()
     this.ghostBoxes.begin()
     this.models.begin()
     if (show.weaponPads) this.paintPads(frame, inks.pad)
     if (show.groundWeapons) this.paintGround(frame, inks.pad, show.groundWeaponsSpecialOnly, show.groundWeaponsStarting)
-    this.discs.end()
     this.solidBoxes.end()
     this.ghostBoxes.end()
   }
@@ -288,23 +276,20 @@ export class Pickups3dLayer implements ActionLayer3d {
     const { p, q } = this.scratch
     for (const spot of this.pads) {
       if (spot.mounted) {
-        // Un râtelier mural n'a ni disque ni socle : seul le modèle du jeu y est posé, à sa hauteur.
+        // A wall rack: only the game's weapon model is posed, at its height.
         const model = this.ctx.weaponModel(spot.pad.weapon)
         if (!model) continue
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         this.models.add(model, p.copy(spot.feet), q)
         continue
       }
-      const color = this.ctx.ink.of(ink[spot.family])
-      p.copy(spot.feet).setY(spot.feet.y + PAD_DISC_HEIGHT / 2)
-      this.discs.add(p, null, 1, color)
       const look = padBoxLook(padStateAt(spot.pad, frame))
       if (!look) continue
-      p.setY(spot.feet.y + PAD_DISC_HEIGHT + PAD_BOX_LIFT + BOX_HEIGHT / 2)
+      p.copy(spot.feet).setY(spot.feet.y + PAD_BOX_LIFT + BOX_HEIGHT / 2)
       q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
       const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
       if (model) this.models.add(model, p, q)
-      else this.poolOf(look).add(p, q, 1, color)
+      else this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
     }
   }
 
@@ -352,7 +337,6 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   dispose(): void {
-    this.discs.dispose()
     this.solidBoxes.dispose()
     this.ghostBoxes.dispose()
     this.models.dispose()

@@ -5,12 +5,13 @@ import {
   CUT_FALL_S,
   CUT_HEADROOM,
   CUT_RISE_S,
+  CutFollower,
   FLOOR_MARGIN,
   cutTarget,
+  highestDrawn,
   lowestDrawn,
   median,
   smoothCut,
-  topDownFrame,
   type CutSource,
 } from './topDownLogic'
 
@@ -88,16 +89,26 @@ describe('lowestDrawn — the floor of the drawn depth', () => {
   })
 })
 
-describe('topDownFrame — the area fits the view of its aspect', () => {
-  it('centers on the area and fits it at a wide aspect', () => {
-    const frame = topDownFrame({ minX: -10, minZ: 0, maxX: 10, maxZ: 20 }, 16 / 9)
-    expect(frame.center).toEqual([0, 10])
-    expect(frame.halfWidth).toBeCloseTo(17.778)
-    expect(frame.halfHeight).toBeCloseTo(10)
+describe('highestDrawn — the cut of the ghost of the upper floors', () => {
+  it('is a headroom over the highest walked height', () => {
+    expect(highestDrawn([3, -0.02, 5.39])).toBeCloseTo(5.39 + CUT_HEADROOM)
   })
-  it('fits the area at a tall aspect', () => {
-    const frame = topDownFrame({ minX: -10, minZ: 0, maxX: 10, maxZ: 20 }, 9 / 16)
-    expect(frame.halfWidth).toBeCloseTo(10)
-    expect(frame.halfHeight).toBeCloseTo(17.778)
+  it('is a headroom over 0 with no height', () => {
+    expect(highestDrawn([])).toBeCloseTo(CUT_HEADROOM)
+  })
+})
+describe('CutFollower — the cut of one view over time', () => {
+  it('lands on the target first, then keeps the last seen feet while the followed player is out of life', () => {
+    const c = new CutFollower(0)
+    expect(c.step(0, 'a', 3, [3, 0])).toBeCloseTo(3 + CUT_HEADROOM)
+    expect(c.step(10_000, 'a', null, [0, 0])).toBeCloseTo(3 + CUT_HEADROOM)
+  })
+
+  it('forgets the last feet for another followed player, and restarts after a reset', () => {
+    const c = new CutFollower(0)
+    c.step(0, 'a', 3, [3])
+    expect(c.step(10_000, 'b', null, [1])).toBeCloseTo(1 + CUT_HEADROOM)
+    c.reset()
+    expect(c.step(10_001, null, null, [5])).toBeCloseTo(5 + CUT_HEADROOM)
   })
 })

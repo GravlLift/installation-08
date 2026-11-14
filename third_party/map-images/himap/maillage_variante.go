@@ -22,8 +22,8 @@
 // CE QUI EST ECARTE : les volumes de mort (TypesVolumesDeMort) et tout objet qui porte une FORME
 // (zones d'objectif, declencheurs, limites : des volumes de jeu, pas de la matiere). Un volume
 // au modele vide (render_model sans boite) n'est pas lisible et compte « sans modele ». Les
-// reperes de reapparition (drapeauRepere) ne sont pas poses non plus, ni les objets du mode
-// Infection (label `infection_include`, voir ecartInfection). Les
+// reperes de reapparition (drapeauRepere) ne sont pas poses non plus, ni les objets que le mode
+// de la partie ne cree pas (LOCAL-CHANGE (infinite-theater-3d): filtres_mode.go). Les
 // leviers du fond vu du dessus (tranche, plafond de pose, minceur, types et drapeaux exclus par
 // carte) ne s'appliquent pas : ils reglent une image vue du dessus, pas ce que le jeu dessine.
 package himap
@@ -61,6 +61,9 @@ type OptionsVariante struct {
 	Objets     []mapvar.Object
 	Teintes    map[int32]TeinteForge
 	Invisibles map[CleObjetVariante]bool
+	// Filtres (LOCAL-CHANGE (infinite-theater-3d)): the labels the match's mode activates
+	// (filtres_mode.go); the zero value builds the layer of a match without a known mode.
+	Filtres FiltresMode
 }
 
 // BilanVariante compte le sort des objets d'une variante.
@@ -76,8 +79,8 @@ type BilanVariante struct {
 	Volumes       int
 	// Reperes : reperes de reapparition (drapeauRepere), invisibles en partie.
 	Reperes int
-	// Infection : objets du seul mode Infection (ecartInfection).
-	Infection int
+	// HorsMode : objets que le mode de la partie ne cree pas (ecartHorsMode).
+	HorsMode int
 	// SansPalette : objets poses dont le modele `rtgo` n'a pas de palette lisible ; ils sortent
 	// au materiau inconnu.
 	SansPalette int
@@ -97,6 +100,9 @@ type modeleVariante struct {
 	// `rtgo` est centre sur son origine alors que le `.mvar` donne la position de sa base ; un
 	// `mode` a deja sa base a l'origine (socle nul).
 	socle float64
+	// pieces (LOCAL-CHANGE (infinite-theater-3d)): the objects of the type's Forge kit, posed
+	// in the object's frame (kits_forge.go); empty for a type that has its own model.
+	pieces []pieceKit
 }
 
 // ecartVariante dit pourquoi un objet de variante n'est pas pose.
@@ -107,18 +113,18 @@ const (
 	ecartVolumeDeMort
 	ecartVolume
 	ecartRepere
-	// ecartInfection : l'objet porte le filtre de mode `infection_include`, il n'existe qu'en
-	// Infection. La couche se construit une fois par variante, pas par mode de jeu : une partie
-	// jouee en Infection sur cette variante n'aura pas ces objets dans la vue.
-	ecartInfection
+	// ecartHorsMode : les filtres de mode de l'objet l'ecartent du mode de la partie
+	// (FiltresMode.ecarte).
+	ecartHorsMode
 )
 
 // drapeauRepere : le bit des drapeaux d'objet (`.mvar` #7) que portent les seuls reperes de
 // reapparition, que le jeu ne dessine pas en partie.
 const drapeauRepere = 0x2
 
-// ecartDeVariante rend la raison qui ecarte l'objet, `posable` sinon.
-func ecartDeVariante(o mapvar.Object) ecartVariante {
+// ecartDeVariante rend la raison qui ecarte l'objet d'une partie aux filtres de mode `f`,
+// `posable` sinon.
+func ecartDeVariante(o mapvar.Object, f FiltresMode) ecartVariante {
 	if _, mort := TypesVolumesDeMort[o.TypeID]; mort {
 		return ecartVolumeDeMort
 	}
@@ -128,8 +134,8 @@ func ecartDeVariante(o mapvar.Object) ecartVariante {
 	if o.Flags&drapeauRepere != 0 {
 		return ecartRepere
 	}
-	if o.HasLabel(mapvar.LabelInfectionInclude) {
-		return ecartInfection
+	if f.ecarte(o) {
+		return ecartHorsMode
 	}
 	return posable
 }
@@ -181,7 +187,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	representations := modelesDesRepresentations(ctx, objets, idx, forge)
 	b.Types = len(modeles)
 	out := &MaillageMonde{}
-	poses := out.poseVarianteTeinte(opts.Objets, modeles, representations, &b, opts.Teintes, opts.Invisibles)
+	poses := out.poseVarianteTeinte(opts, modeles, representations, &b)
 	if out.Structure.Triangles() == 0 {
 		return nil, b, fmt.Errorf("aucun triangle pose sur %d objets de variante", len(opts.Objets))
 	}
@@ -191,7 +197,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	out.resoutTextures(ctx, idx)
 	out.appliqueTeintes()
 	slog.InfoContext(ctx, "objets de la variante poses", "objets", b.Objets, "poses", b.Poses,
-		"invisibles", b.Invisibles, "sansModele", b.SansModele, "volumesDeMort", b.VolumesDeMort, "volumes", b.Volumes, "reperes", b.Reperes, "infection", b.Infection,
+		"invisibles", b.Invisibles, "sansModele", b.SansModele, "volumesDeMort", b.VolumesDeMort, "volumes", b.Volumes, "reperes", b.Reperes, "horsMode", b.HorsMode,
 		"sansPalette", b.SansPalette, "repliRepresentation", b.RepliRepresentation, "types", b.Types,
 		"triangles", out.Structure.Triangles(), "trianglesOmbre", out.Ombre.Triangles(),
 		"materiaux", len(out.Materiaux), "materiauxIllisibles", out.MateriauxIllisibles,
@@ -230,6 +236,12 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		}
 		out[ty] = mv
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): a type without a model of its own poses its kit.
+	for ty, mv := range kitsDesTypes(ctx, objets, idx, forge, assets) {
+		if out[ty] == nil {
+			out[ty] = mv
+		}
+	}
 	return out
 }
 
@@ -257,13 +269,13 @@ type typePose struct {
 
 // poseVarianteTeinte pose les objets de la variante que ni leur visibilite ni ecartDeVariante
 // n'ecartent, teintes par leur style, et rend, par type, ce qui a ete pose.
-func (m *MaillageMonde) poseVarianteTeinte(objets []mapvar.Object, modeles map[int32]*modeleVariante, representations map[cleRepresentation]*modeleVariante, b *BilanVariante, teintes map[int32]TeinteForge, invisibles map[CleObjetVariante]bool) map[int32]*typePose {
+func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int32]*modeleVariante, representations map[cleRepresentation]*modeleVariante, b *BilanVariante) map[int32]*typePose {
 	poses := map[int32]*typePose{}
-	for i, o := range objets {
-		if objetInvisible(o, invisibles) {
+	for i, o := range opts.Objets {
+		if objetInvisible(o, opts.Invisibles) {
 			continue
 		}
-		if !compteEcart(ecartDeVariante(o), b) {
+		if !compteEcart(ecartDeVariante(o, opts.Filtres), b) {
 			continue
 		}
 		mv, repli := selectionRepresentation(o, modeles[o.TypeID], representations)
@@ -282,7 +294,7 @@ func (m *MaillageMonde) poseVarianteTeinte(objets []mapvar.Object, modeles map[i
 		var teinte TeinteForge
 		var colore bool
 		if o.StyleID != nil {
-			teinte, colore = teintes[*o.StyleID]
+			teinte, colore = opts.Teintes[*o.StyleID]
 		}
 		if colore {
 			avantIndices = map[uint32]int{}
@@ -320,8 +332,8 @@ func compteEcart(e ecartVariante, b *BilanVariante) bool {
 		b.Volumes++
 	case ecartRepere:
 		b.Reperes++
-	case ecartInfection:
-		b.Infection++
+	case ecartHorsMode:
+		b.HorsMode++
 	default:
 		return true
 	}
@@ -330,18 +342,17 @@ func compteEcart(e ecartVariante, b *BilanVariante) bool {
 
 // poseObjet pose les maillages de l'objet de rang i et range sa boite monde dans `Objets`.
 func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante) {
-	in := instanceVariante(o, mv.materiaux, mv.socle)
 	debutS, debutO := len(m.Structure.Sommets), len(m.Ombre.Sommets)
-	for _, k := range mv.maillages {
-		mesh := mv.asset.Mesh(k)
-		if mesh == nil {
-			continue
+	m.poseMaillagesVariante(mv, instanceVariante(o, mv.materiaux, mv.socle))
+	// LOCAL-CHANGE (infinite-theater-3d): the kit's objects, each lifted from its own base.
+	for _, p := range mv.pieces {
+		local := p.pose
+		for a := range local.Position {
+			local.Position[a] += local.Up[a] * p.mv.socle * local.Scale[2]
 		}
-		g := &m.Structure
-		if mv.ombre[k] {
-			g = &m.Ombre
-		}
-		g.ajoute(mesh, in, 0)
+		in := composeInstance(instanceVariante(o, nil, 0), local)
+		in.Materiaux = p.mv.materiaux
+		m.poseMaillagesVariante(p.mv, in)
 	}
 	m.Structure.Instances++
 	mnS, mxS, okS := boiteDesSommets(m.Structure.Sommets[debutS:])
@@ -355,6 +366,22 @@ func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante) {
 		return
 	}
 	m.Objets = append(m.Objets, ObjetPose{Index: i, Type: o.TypeID, Min: mnS, Max: mxS})
+}
+
+// poseMaillagesVariante ajoute les maillages d'un modele a l'instance `in` : a la structure, ou aux
+// ombres pour une section que le jeu ne dessine pas a l'ecran.
+func (m *MaillageMonde) poseMaillagesVariante(mv *modeleVariante, in Instance) {
+	for _, k := range mv.maillages {
+		mesh := mv.asset.Mesh(k)
+		if mesh == nil {
+			continue
+		}
+		g := &m.Structure
+		if mv.ombre[k] {
+			g = &m.Ombre
+		}
+		g.ajoute(mesh, in, 0)
+	}
 }
 
 // instanceVariante rend la pose d'un objet de variante (InstanceForge) levee de son socle le long

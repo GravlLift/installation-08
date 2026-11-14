@@ -16,7 +16,8 @@ import (
 )
 
 // ReticleRange is the distance within which a weapon's reticle turns red on an enemy, read from its
-// `weap` tag: the autoaim range. World units (1 wu = 3.048 m).
+// `weap` tag: the autoaim range, and the magnification the tag gives each zoom level. World units
+// (1 wu = 3.048 m) for the ranges.
 type ReticleRange struct {
 	// Unscoped is the range at the hip.
 	Unscoped float64 `json:"unscoped"`
@@ -24,6 +25,12 @@ type ReticleRange struct {
 	// that level's magnification, or Unscoped when the tag sets "do not scale for magnification".
 	// Empty for a weapon without a zoom level: zoomed, it keeps Unscoped.
 	Zoomed []float64 `json:"zoomed"`
+	// Magnifications is the magnification the tag gives each zoom level (index = level - 1), the
+	// field the first-person view zooms to. Empty for a weapon without a zoom level. It is a field
+	// of this entry rather than a sibling map because the range and the magnification are read from
+	// the same tag: the entries are written and absent together, and the view reads the two of a
+	// weapon from one place.
+	Magnifications []float64 `json:"magnifications"`
 }
 
 // rangeSteps is the number of rounding steps per world unit of a written range (0.0001 wu): a
@@ -36,7 +43,15 @@ func reticleRangeOf(a weaponicons.AimAssist) (ReticleRange, bool) {
 	if a.AutoaimRange <= 0 {
 		return ReticleRange{}, false
 	}
-	r := ReticleRange{Unscoped: roundRange(a.AutoaimRange), Zoomed: []float64{}}
+	var mags []float64
+	for _, mag := range a.Magnifications {
+		mags = append(mags, roundRange(mag))
+	}
+	r := ReticleRange{
+		Unscoped:       roundRange(a.AutoaimRange),
+		Zoomed:         []float64{},
+		Magnifications: mags,
+	}
 	for _, mag := range a.Magnifications {
 		z := a.AutoaimRange
 		if a.ScalesWithZoom {

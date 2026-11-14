@@ -54,7 +54,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		announce = func(string) {}
 	}
 	start := time.Now()
-	gameRoot, module, err := resolveModule(ctx, opts)
+	gameRoot, module, err := ResolveModule(ctx, opts)
 	if err != nil {
 		return Result{}, err
 	}
@@ -142,10 +142,11 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	return res, nil
 }
 
-// resolveModule returns the game's deploy root (opts.GameRoot, else auto-detected) and the
+// ResolveModule returns the game's deploy root (opts.GameRoot, else auto-detected) and the
 // module file of the map whose index the build opens (opts.Map, else the first installed
-// map: any installed map's module index covers the game's weapons and globals).
-func resolveModule(ctx context.Context, opts Options) (string, string, error) {
+// map: any installed map's module index covers the game's weapons and globals). Other builds
+// that read the weapons and the Spartan (the reload sounds) resolve their module here too.
+func ResolveModule(ctx context.Context, opts Options) (string, string, error) {
 	gameRoot := opts.GameRoot
 	if gameRoot == "" {
 		root, err := himap.DeployRoot()

@@ -233,25 +233,26 @@ describe('Pickups3dLayer', () => {
       flashes: new FlashLights(new THREE.Scene()),
     }
     const layer = new Pickups3dLayer(ctx)
-    // Ordre des lots : disques, boîtes pleines, boîtes fantômes (les copies de modèles viennent après).
-    const counts = () => root.children.slice(0, 3).map((c) => (c as THREE.InstancedMesh).count)
+    // Pool order: solid boxes, ghost boxes (model copies come after).
+    const counts = () => root.children.slice(0, 2).map((c) => (c as THREE.InstancedMesh).count)
     return { layer, counts, root }
   }
 
-  it('peint disque et boîte selon l’état du socle et de l’arme au sol', () => {
-    const { layer, counts } = calque(show)
+  it('paints only the weapon box by pad and ground-weapon state, never a stand-in pad', () => {
+    const { layer, counts, root } = calque(show)
+    expect(root.children.filter((c) => (c as THREE.Mesh).geometry instanceof THREE.CylinderGeometry)).toEqual([])
     layer.update(15)
-    expect(counts()).toEqual([1, 2, 0])
+    expect(counts()).toEqual([2, 0])
     layer.update(25)
-    expect(counts()).toEqual([1, 1, 1])
+    expect(counts()).toEqual([1, 1])
     layer.update(45)
-    expect(counts()).toEqual([1, 0, 1])
+    expect(counts()).toEqual([0, 1])
     layer.update(60)
-    expect(counts()).toEqual([1, 0, 0])
+    expect(counts()).toEqual([0, 0])
     layer.dispose()
   })
 
-  it('ne pose ni disque ni socle pour un râtelier mural, seulement le modèle à sa hauteur', () => {
+  it('poses only the weapon model at its height on a wall rack', () => {
     const solSalle = { floorY: () => 4.4 }
     const { layer, counts, root } = calque(
       show,
@@ -260,8 +261,8 @@ describe('Pickups3dLayer', () => {
       solSalle,
     )
     layer.update(15)
-    expect(counts()).toEqual([0, 0, 0])
-    const copie = root.children[3]
+    expect(counts()).toEqual([0, 0])
+    const copie = root.children[2]
     expect(copie).toBeDefined()
     expect(copie.position.y).toBeCloseTo(4.936)
     layer.dispose()
@@ -276,11 +277,11 @@ describe('Pickups3dLayer', () => {
     })
     layer.update(15)
     expect(ids).toEqual(['00000002'])
-    const copy = root.children[3]
+    const copy = root.children[2]
     expect(copy).toBeDefined()
     expect(new THREE.Box3().setFromObject(copy).min.y).toBeCloseTo(0)
     layer.update(16)
-    expect(root.children[3]).toBe(copy)
+    expect(root.children[2]).toBe(copy)
     layer.update(60)
     expect(copy.visible).toBe(false)
     layer.dispose()
@@ -289,7 +290,7 @@ describe('Pickups3dLayer', () => {
   it('laisse les lots vides quand les interrupteurs sont éteints', () => {
     const { layer, counts } = calque({ ...show, weaponPads: false, groundWeapons: false })
     layer.update(15)
-    expect(counts()).toEqual([0, 0, 0])
+    expect(counts()).toEqual([0, 0])
     layer.dispose()
   })
 })

@@ -114,6 +114,23 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     height blend index of the template layer. Before this, layer 4 read layer 3's mask channel
     (empty on those boulders) and the dirt never showed. Covered by
     `himap/couches_rang_test.go` (new).
+  - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
+    type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
+    its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the
+    global `scen 00000079`, so the weapon rack, power weapon pad, equipment pad and grenade pad
+    drew a 114-triangle placeholder box. Across the 4,235 Forge foods the typed rule changes
+    exactly those four types.
+  - `himap/kits_forge.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): a Forge
+    type without its own model whose food names a Forge object kit (`foki`) with at least one
+    machine poses the kit's objects (reference, position, yaw/pitch/roll, per-axis scale), as the
+    game does for the weapon, power-up, equipment and grenade pads and the weapon rack. Kits
+    without a machine (cameras, podiums, mannequins, capture-zone setups) pose nothing.
+  - `himap/filtres_mode.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): the
+    variant layer keeps only the objects the match's mode creates (`<mode>_include` labels
+    OR'ed, `<mode>_exclude` labels removing), replacing the Infection-only rule
+    (`OptionsVariante.Filtres`, `BilanVariante.HorsMode`). Zone markers, flag stands, oddball
+    spawns of other modes no longer draw. Covered by `himap/filtres_mode_test.go`,
+    `himap/kits_forge_test.go` and `himap/kits_forge_gamefiles_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

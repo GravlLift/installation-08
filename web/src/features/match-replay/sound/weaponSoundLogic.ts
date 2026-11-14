@@ -115,6 +115,11 @@ export function drawVariation(
   return { gainDb, playbackRate: playbackRateFromCents(cents) }
 }
 
+/** withEventGain adds an event's own level gain (`ReplaySoundEvent.gainDb`) to a playback's draw. */
+export function withEventGain(draw: SoundDraw, event: { gainDb?: number }): SoundDraw {
+  return event.gainDb ? { ...draw, gainDb: draw.gainDb + event.gainDb } : draw
+}
+
 /** gainFromDb converts decibels to a linear factor (that of a GainNode). */
 export function gainFromDb(db: number): number {
   if (!Number.isFinite(db)) return 1

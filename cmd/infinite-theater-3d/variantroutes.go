@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,11 +37,35 @@ func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out stri
 	if meta.MapModule == "" {
 		return meshjobs.BuildResult{}, fmt.Errorf("no map module for match %s", id)
 	}
-	summary, err := meshbuild.BuildVariant(ctx, meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game}, out, nil)
+	mode, _, err := matchGameVariantName(root, id)
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	opts := meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game, Mode: mode}
+	summary, err := meshbuild.BuildVariant(ctx, opts, out, nil)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
 	return meshjobs.BuildResult{Bytes: summary.Bytes, Triangles: summary.Triangles}, nil
+}
+
+// matchGameVariantName reads a stored match's game variant name (its mode) from stats.json; a
+// missing file reports ok false, never an error.
+func matchGameVariantName(root *store.Root, id string) (string, bool, error) {
+	stats, err := os.ReadFile(variantPath(root, id, "stats.json"))
+	if os.IsNotExist(err) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	var facts struct {
+		GameVariantName string `json:"gameVariantName"`
+	}
+	if err = json.Unmarshal(stats, &facts); err != nil {
+		return "", false, err
+	}
+	return facts.GameVariantName, true, nil
 }
 
 func (h serverHandlers) variantMatch(w http.ResponseWriter, r *http.Request) (string, bool) {

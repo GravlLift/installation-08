@@ -29,8 +29,8 @@ export class ScopeView3d {
    * et dit si les bras doivent quitter l'écran : une lunette ou le cadre Bandit monté au-delà
    * de la moitié du lissage remplace l'arme ; un lien intelligent la garde.
    */
-  appliquer(camera: THREE.PerspectiveCamera, doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec): boolean {
-    const zoom = zoomAt(doc, xuid, frame, spec)
+  appliquer(camera: THREE.PerspectiveCamera, doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): boolean {
+    const zoom = zoomAt(doc, xuid, frame, spec, mags)
     const fov = zoom.mag > 1 ? zoomedFov(this.baseFov, zoom.mag) : this.baseFov
     this.poseFov(camera, fov)
     this.montee = spec.kind !== 'smartLink' && zoom.amount > 0.5

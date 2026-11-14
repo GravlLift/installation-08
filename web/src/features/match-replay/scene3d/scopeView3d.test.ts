@@ -10,7 +10,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { LUNETTE_PAR_DEFAUT, specLunette } from '../model/scopeLogic'
 import { ScopeView3d } from './scopeView3d'
 
-/** Un film où le joueur « A » vise au cran 1 sur toute sa vie : lien intelligent à 1,4×. */
+/** Un film où le joueur « A » vise au cran 1 sur toute sa vie. */
 function docAvecCran(): ReplayDocumentReady {
   return {
     frameIntervalMs: 20,
@@ -31,7 +31,7 @@ describe('ScopeView3d', () => {
   it('cache les bras et zoome avec le Bandit', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     const view = new ScopeView3d(55)
-    expect(view.appliquer(camera, docAvecCran(), 'A', 6, specLunette('6acdc44d', null))).toBe(true)
+    expect(view.appliquer(camera, docAvecCran(), 'A', 6, specLunette('6acdc44d', null), [1.6])).toBe(true)
     expect(camera.fov).toBeCloseTo(2 * Math.atan(Math.tan(55 * Math.PI / 360) / 1.6) * 180 / Math.PI)
   })
 
@@ -39,7 +39,7 @@ describe('ScopeView3d', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     const view = new ScopeView3d(55)
     expect(view.montee).toBe(false)
-    expect(view.appliquer(camera, docAvecCran(), 'A', 6, specLunette('6acdc44d', null))).toBe(true)
+    expect(view.appliquer(camera, docAvecCran(), 'A', 6, specLunette('6acdc44d', null), [1.6])).toBe(true)
     expect(view.montee).toBe(true)
     view.reposer(camera)
     expect(view.montee).toBe(false)
@@ -48,7 +48,7 @@ describe('ScopeView3d', () => {
   it('le lien intelligent zoome sans monter de lunette', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     const view = new ScopeView3d(55)
-    view.appliquer(camera, docAvecCran(), 'A', 6, LUNETTE_PAR_DEFAUT)
+    view.appliquer(camera, docAvecCran(), 'A', 6, LUNETTE_PAR_DEFAUT, [1.4])
     expect(view.montee).toBe(false)
   })
 
@@ -75,7 +75,7 @@ describe('ScopeView3d', () => {
     const view = new ScopeView3d(55)
     view.changerBase(camera, 67.5)
     // Le zoom est lissé sur six images : à la sixième il est à pleine amplification.
-    view.appliquer(camera, docAvecCran(), 'A', 6, LUNETTE_PAR_DEFAUT)
+    view.appliquer(camera, docAvecCran(), 'A', 6, LUNETTE_PAR_DEFAUT, [1.4])
     expect(camera.fov).toBeLessThan(67.5)
     expect(camera.fov).toBeGreaterThan(55 / 2)
   })

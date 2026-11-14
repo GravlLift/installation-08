@@ -178,6 +178,11 @@
 /* Player chrome (brief 126): the 3D view fills the window on black; a slim strip rides the
  * top, the transport is the lower third, both inside the 16:9 box and both auto-hiding. */
 .bc-player { position: fixed; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
+/* The player is dark: native controls (selects, checkboxes, ranges, and the option lists the
+ * browser draws) take the dark scheme and our colors, or an open list comes up white with our
+ * light text on it. */
+.bc-player { color-scheme: dark; }
+.bc-player option { background: var(--studio-800); color: var(--ink); }
 .bc-player-box { position: relative; aspect-ratio: 16 / 9; width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
   overflow: hidden; background: var(--studio-950); }
 
@@ -203,17 +208,44 @@
   clip-path: polygon(0 0, calc(100% - var(--slant)) 0, 100% var(--slant), 100% 100%, 0 100%); border-left: 3px solid var(--air); }
 
 /* Scrub bar: our own slider (not a range input), with the played part, the head and the
- * kill marks, `role="slider"` for the keyboard and screen readers. */
-.bc-scrub { position: relative; height: 18px; cursor: pointer; outline-offset: 4px; }
+ * event marks, `role="slider"` for the keyboard and screen readers. */
+.bc-scrub { position: relative; height: 28px; cursor: pointer; outline-offset: 4px; }
 .bc-scrub:focus-visible { outline: 2px solid var(--air); }
-.bc-scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; background: rgba(255,255,255,0.14); }
-.bc-scrub-played { position: absolute; left: 0; top: 8px; height: 3px; background: var(--air); }
-.bc-scrub-head { position: absolute; top: 2px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
-.bc-scrub-mark { position: absolute; top: 5px; width: 2px; height: 9px; opacity: 0.8; }
+.bc-scrub-track { position: absolute; left: 0; right: 0; top: 12px; height: 3px; background: rgba(255,255,255,0.14); }
+.bc-scrub-played { position: absolute; left: 0; top: 12px; height: 3px; background: var(--air); }
+.bc-scrub-head { position: absolute; top: 6px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
 
-/* Controls row, left to right (the mockup's `.ctl`). */
-.bc-ctl { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-family: var(--display); font-stretch: 75%;
+/* The selected player's event marks, one lane per kind so none hides another: medals above the
+ * track, kills on it, deaths below it (`scrubMarks`). The button is the hit area, wider than
+ * the drawn mark; a group of close events draws wider. */
+.bc-scrub-mark { position: absolute; width: 14px; margin-left: -7px; padding: 0; border: 0; background: none;
+  cursor: pointer; display: flex; justify-content: center; z-index: 1; }
+.bc-scrub-mark i { display: block; }
+.bc-scrub-mark-medal { top: 0; height: 9px; align-items: center; }
+.bc-scrub-mark-medal i { width: 6px; height: 6px; background: var(--air-hot); transform: rotate(45deg); }
+.bc-scrub-mark-kill { top: 7px; height: 13px; align-items: stretch; }
+.bc-scrub-mark-kill i { width: 3px; background: var(--win); }
+.bc-scrub-mark-death { top: 18px; height: 10px; align-items: flex-end; }
+.bc-scrub-mark-death i { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-bottom: 7px solid var(--loss); }
+.bc-scrub-mark-many.bc-scrub-mark-kill i { width: 5px; }
+.bc-scrub-mark-many.bc-scrub-mark-medal i { width: 8px; height: 8px; }
+.bc-scrub-mark-many.bc-scrub-mark-death i { border-left-width: 6px; border-right-width: 6px; }
+.bc-scrub-mark:hover i, .bc-scrub-mark:focus-visible i { filter: brightness(1.3); }
+/* The tooltip opens below the bar (above it the transport's clipped edge would cut it). */
+.bc-scrub-mark-tip { display: none; position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  white-space: pre; padding: 3px 7px; font-size: 12px; line-height: 1.35; text-align: left; color: var(--ink);
+  text-transform: none; letter-spacing: 0.02em;
+  background: var(--studio-950); border: 1px solid var(--studio-700); pointer-events: none; z-index: 2; }
+.bc-scrub-mark-tip.bc-scrub-mark-tip-end { left: auto; right: 0; transform: none; }
+.bc-scrub-mark:hover .bc-scrub-mark-tip { display: block; }
+
+/* Controls row, left to right (the mockup's `.ctl`). It is made of groups that never break
+ * inside; when the row does not fit, whole groups wrap to a second row. */
+.bc-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-top: 8px; font-family: var(--display); font-stretch: 75%;
   letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; color: var(--ink); }
+.bc-ctl-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+.bc-seg button:disabled { opacity: 0.4; cursor: default; }
 .bc-ctl button, .bc-ctl select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .bc-ctl .bc-play { width: 38px; height: 30px; background: var(--air); color: #04121c; font-size: 14px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -228,17 +260,23 @@
 .bc-seg { display: flex; }
 .bc-seg button { padding: 5px 12px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
   font-size: 12px; letter-spacing: 0.16em; }
-.bc-seg button:hover { color: var(--ink); }
+.bc-seg button:not(.on):not(:disabled):hover { color: var(--ink); }
 .bc-seg button.on { color: #04121c; background: var(--ink); border-color: var(--ink); font-weight: 700; }
 .bc-ctl .bc-gap { flex: 1; }
 .bc-ctl .bc-lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.22em; margin: 0 8px 0 16px; }
 .bc-pov { padding: 5px 14px 4px; border-left: 3px solid var(--team-ally); background: var(--studio-800);
   font-size: 13px; letter-spacing: 0.1em; }
 .bc-pov:hover { color: var(--ink); }
-/* The open list is drawn by the browser: give it the dark scheme and our own colors, or it
- * comes up white with our light text on it. */
-.bc-pov { color-scheme: dark; }
-.bc-pov option { background: var(--studio-800); color: var(--ink); text-transform: none; letter-spacing: 0; }
+/* The open list's colors come from `.bc-player option`; the bar's caps and tracking stop here. */
+.bc-pov option { text-transform: none; letter-spacing: 0; }
+/* A panel opened from the bar (settings, export): on the right, between the top strip and the
+ * bar (the safe insets `usePlayerChromeInsets` publishes on the box), never over either; it
+ * sits at the bottom of that slot, and its content scrolls when taller than the slot. */
+.bc-panel { position: absolute; right: 16px; left: 16px; z-index: 25; pointer-events: none;
+  top: calc(var(--bc-chrome-top, 48px) + 8px); bottom: calc(var(--bc-chrome-bottom, 96px) + 8px);
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; }
+.bc-panel > * { pointer-events: auto; max-height: 100%; max-width: 100%; }
+
 /* The sound control keeps its own behavior; the chrome only gives it a seat in the row. */
 .bc-sound { display: inline-flex; align-items: center; gap: 8px; }
 .bc-sound input[type="range"] { accent-color: var(--air); }

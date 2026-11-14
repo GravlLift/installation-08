@@ -1,14 +1,14 @@
 /**
- * Replay3DView.hud.test.tsx — the HUD (ReplayAth3d) renders its weapon corner (ammo,
- * reserve, grenades) regardless of camera mode. The 3D view itself needs three.js and
- * WebGL, so this test mounts the lightweight HUD component directly and verifies it
- * produces visible ammo output. The camera-mode gate was removed from Replay3DView:
- * the HUD is a DOM overlay, not a scene element, so it does not depend on which
- * camera renders the scene behind it.
+ * Replay3DView.hud.test.tsx — what the HUD (ReplayAth3d) draws at each level (`hudLevel`):
+ * first person everything; third person the followed player's whole HUD (weapon corner with
+ * magazine and reserve, as pinned since 1e3164c) but no reticle; free view no weapon corner;
+ * 2D the score strip alone. The 3D view itself needs three.js and WebGL, so this mounts the
+ * HUD component directly.
  */
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ReplayAth3d } from './ReplayAth3d'
+import type { HudLevel } from '../model/hudLevel'
 import { testReplayDoc } from '../test/testDoc'
 
 const frameRef = { current: 0 } as const
@@ -23,28 +23,44 @@ function hudDoc() {
   })
 }
 
-describe('ReplayAth3d renders the weapon corner in every camera mode', () => {
-  it('shows magazine and reserve when mounted (first-person)', () => {
-    const { container } = render(
-      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} />,
-    )
+function renderHud(hud?: HudLevel) {
+  return render(
+    <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} />,
+  ).container
+}
+
+describe('ReplayAth3d at each HUD level', () => {
+  it('first person: weapon corner and reticle', () => {
+    const container = renderHud('full')
+    expect(container.textContent).toContain('13')
+    expect(container.textContent).toContain('42')
+    expect(container.querySelector('svg')).not.toBeNull()
+  })
+
+  it('third person: the weapon corner renders magazine and reserve', () => {
+    const container = renderHud('noReticle')
     expect(container.textContent).toContain('13')
     expect(container.textContent).toContain('42')
   })
 
-  it('shows magazine and reserve when mounted (third-person, no fp-only gate)', () => {
-    const { container } = render(
-      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} />,
-    )
-    expect(container.textContent).toContain('13')
-    expect(container.textContent).toContain('42')
+  it('third person: no reticle', () => {
+    expect(renderHud('noReticle').querySelector('svg')).toBeNull()
   })
 
-  it('keeps only the score strip in the top-down view', () => {
-    const { container } = render(
-      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} topDown />,
-    )
+  it('free view: no weapon corner and no reticle', () => {
+    const container = renderHud('spectator')
     expect(container.textContent).not.toContain('13')
     expect(container.textContent).not.toContain('42')
+    expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('2D: the score strip alone', () => {
+    const container = renderHud('score')
+    expect(container.textContent).not.toContain('13')
+    expect(container.querySelector('[role="list"]')).toBeNull()
+  })
+
+  it('free view keeps the kill feed', () => {
+    expect(renderHud('spectator').querySelector('[role="list"]')).not.toBeNull()
   })
 })

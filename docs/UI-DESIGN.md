@@ -121,10 +121,41 @@ Sparse on purpose: the 3D view fills the window.
 
 - Top: a thin score bug (teams, score, clock), broadcast style, already present as the HUD
   overlays; restyled to the system, not redesigned in behavior.
-- Bottom: our own transport as a lower third. Play/pause, a scrub bar with kill and
-  objective marks, time, speed, camera mode (first person, third person, free), the
-  player picker, sound, settings, fullscreen. It fades out while playing and returns on
-  mouse move or key press.
+- Bottom: our own transport as a lower third. Play/pause, -10 / +10, previous / next
+  event, a scrub bar, time, speed, the camera group, sound, scoreboard, settings, film
+  export, fullscreen.
+- The scrub bar marks the selected player's events only, as the game's theater does: his
+  kills, deaths and medals (the selected player is the followed one, or in free view the
+  last one followed; no player, no marks). One lane per kind so none hides another:
+  medals (amber diamonds) above the track, kills (green ticks) on it, deaths (red
+  triangles) below it. Within a lane, marks closer than 8 px group into one wider mark
+  whose tooltip lists every event (`screens/scrubMarks.ts`). Clicking a mark seeks 2 s
+  before its event and never starts a track drag; hovering shows what it is and its clock
+  ("Kill: X (BR75) 2:36", "Death: by Y 2:54", "Double Kill 2:36"). The bar stays one tab
+  stop: `[` and `]` (and the ‹ › buttons) step to the previous and next event. It fades out while playing and returns on mouse move or key press;
+  it stays up while paused, while scrubbing and while a panel of its own is open.
+- The camera group is the one home of every camera choice, under one "Camera" label: view
+  (`3D | 2D`), camera mode (1st person, 3rd person, Free view) and the POV picker. In 2D
+  the mode segment stays in place, disabled, so the bar does not jump.
+- Camera rule (`screens/cameraChoiceLogic.ts`): free view follows no one. The Free
+  segment and the picker's "Free camera" entry are the same state. The player followed
+  last stays the reference (the free camera starts behind him, team colors keep his side),
+  and picking a player in free view follows him in the last follow mode.
+- What each camera draws (`model/hudLevel.ts`): first person shows the arms rig and the
+  whole HUD; third person keeps the followed player's whole HUD (weapon corner, grenades,
+  shield, kill feed, kill popups, score strip) without the aim (reticle, scope masks,
+  Bandit frame); free view follows no one and keeps the score strip and the kill feed; 2D
+  keeps the score strip alone (the kill feed would sit over the map's lower left).
+- When the bar does not fit (a narrow window), its groups wrap to a second row; a group
+  never breaks inside.
+- Panels opened from the bar (settings, export) open one at a time on the right, between
+  the top strip and the bar, never over either; they scroll when taller than that space.
+  The bar's button toggles its panel, Escape and a click outside close the settings
+  drawer, and the export button shows the progress of a running export.
+- Safe insets: the player publishes how far its chrome reaches as `--bc-chrome-top` and
+  `--bc-chrome-bottom` on the 16:9 box (`usePlayerChromeInsets`). The bar's panels sit
+  between them and the HUD's shield never goes above the top one.
+- Fullscreen takes the whole player (scene, strip, bar, panels).
 - No auto-play toggle.
 - The settings drawer and the scoreboard keep their functions and take the new tokens.
 - Back returns to match select with the same row focused.
@@ -151,6 +182,10 @@ Shared pieces, each built once:
 | Play/pause | Space | A (in player) |
 | Seek | Left/Right, J/L | bumpers |
 | Scoreboard | Tab (hold) | View |
+| Camera mode (3D view) | 1, 2, 3 (1st, 3rd, free) | |
+| Previous / next event of the selected player | [ / ] | |
+| View 3D / 2D | V | |
+| Fullscreen | F | |
 
 Mouse always works: hover focuses, click selects. Gamepad support is phase 1b; the focus
 model is built for it from the start.
@@ -193,7 +228,7 @@ Found while checking the current data (2026-11-13):
    matches are fetched? (As built: only as matches are fetched; a stored image under
    1000 px wide is replaced on the next fetch of a match on that map.)
 
-## 10. 2D view (first version live: `V` or the `3D | 2D` switch)
+## 10. 2D view (live: `V` or the `3D | 2D` switch; corner minimap in 3D: `N`)
 
 A top-down view of the match, our own, built from the map we already load rather than from
 hand-made background images. Origin: a birds-eye render of Live Fire made while checking
@@ -201,7 +236,8 @@ the grass, which read as a usable map straight away.
 
 - **Source**: the built map mesh, drawn by an orthographic camera looking straight down.
   The camera's bounds are known, so world position to pixel is exact with no per-map
-  calibration. Works for any map that has a mesh, Forge maps included.
+  calibration. Works for any map that has a mesh, Forge maps included. The map keeps its
+  own painted materials; nothing is swapped for flat colors.
 - **Roofs** are the problem: seen from above, most of a map is rooftop and the floors
   people fight on are hidden.
 - **Chosen approach: a cut that follows the player.** Everything higher than a head and a
@@ -211,13 +247,42 @@ the grass, which read as a usable map straight away.
   median living player. The first idea, height bands clustered from the walked heights,
   failed on Recharge: ramps make the walked heights continuous, so the whole map was one
   band and the view showed its roof (`topDownLogic.ts`).
-- **Lighting**: the 3D view's own, sun shadows included, so a floor reads the same color in
-  both views. With the map's shadow casters hidden and the shadow map off, every floor under
-  a roof was in full sun and the map read as a white slab.
-- **Players**: a disc in team color at the feet with a facing wedge, a fixed size on screen,
-  drawn over the map; a ring on the followed player; players above the cut or well below his
-  floor are dimmed and their tag carries an up or down arrow (`playerMarkers3d.ts`).
-- **On screen**: full size as its own view of the player (as the 2D replay it replaces
-  was), with the same transport; later a corner minimap over the 3D view.
-- **Not decided**: rendered once per map and stored, or drawn live from the loaded mesh;
-  what the players, objectives, weapons on the ground and kills look like on it.
+- **Floors above the cut, faintly** (`topDownGhost3d.ts`): the cut opens the solid structure
+  the upper floors stand on, whose inside is not drawn, so players upstairs used to float
+  over the studio color. The whole map seen from above, cut a headroom over the highest
+  walked floor (so no roof), is rendered once into an image and laid flat under the cut
+  view at the bottom of its depth range: the current floor and the floors seen below it
+  cover it, and where the cut view has nothing the floor above shows through, dimmed and
+  half transparent. The map's outline is always there, a player upstairs stands on
+  something, and the current floor stays the clear one. Not shown: a floor that overhangs
+  the current one (a bridge over a hall) is not drawn over it. Cost: one image render per
+  scene graph (about 6 ms on Recharge, once) and one textured quad per frame.
+- **Lighting** (`topDownStage3d.ts`): the 3D view's low sun is put out for every top-down
+  render; the floors take the sky, the capture probes and the game's baked light only,
+  so materials keep their colors without the sunlit pools under skylights and the shadow
+  bands under beams. A soft overhead sun was tried and dropped: a light straight down seen
+  straight down puts its specular peak on every flat floor and the metal floors read white.
+  The 3D lighting is untouched (the swap is per render) and the shadow map is not redrawn
+  while the top-down view shows.
+- **Framing** (`topDownNavLogic.ts`, `topDownInput3d.ts`): the walked area fits between the
+  page's top strip and transport bar (read from the page; their place is kept while they
+  fade out). Wheel zooms toward the cursor (up to 8x), a drag pans, both clamped to the
+  area; a double click or `0` goes back to the whole map. Zoomed in, the view keeps the
+  followed player inside its central 60%; a drag hands the framing to the viewer until the
+  next reset.
+- **Players** (`playerMarkers3d.ts`): a disc in team color at the feet with a facing wedge,
+  a fixed size on screen at any zoom, drawn over the map on a light edge and a dark halo
+  (ink and studio tokens) so it reads on dark and bright floors; a ring on the followed
+  player; players above the cut or well below his floor are dimmed and their tag carries
+  an up or down arrow. A dead player waiting to respawn is a cross in his team color where
+  he fell. Name tags do not pile up: in rank order (the followed player, then the drawn
+  floor, then the other floors) each tag goes over its marker, else under it, else is
+  hidden.
+- **Corner minimap** (`topDownMinimap3d.ts`, `minimapLogic.ts`): in first and third person,
+  a square at the top right (the kill feed holds the bottom left) with the same painted,
+  cut map around the followed player, 40 u across, heading-up as the game's motion
+  tracker turns, with a dot per living player. The map around him is rendered into a
+  cached image twice the minimap's span, redone only when he strays from its center or
+  changes floor, at most twice a second; each frame only draws the turned square and the
+  dots. `N` shows or hides it (`M` is the sound key); the choice is remembered.
+- **Not decided**: what objectives, weapons on the ground and kills look like on it.

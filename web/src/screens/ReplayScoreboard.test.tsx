@@ -12,7 +12,7 @@ vi.mock('../features/match-replay/sound/useReplaySound', () => ({ useReplaySound
 // The match context is per-test: each test sets `contextValue` before mounting.
 const contextValue = vi.hoisted(() => ({ value: null as unknown }))
 vi.mock('./useMatchReplayContext', () => ({
-  useMatchReplayContext: () => ({ kills: [], context: contextValue.value, playWindow: null, timeLimitMs: null }),
+  useMatchReplayContext: () => ({ kills: [], medals: [], context: contextValue.value, playWindow: null, timeLimitMs: null }),
 }))
 
 beforeEach(() => {

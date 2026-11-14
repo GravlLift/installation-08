@@ -12,15 +12,18 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
+	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 )
 
 // announcerLanguages maps the viewer's language codes to the game's sound language folders.
 var announcerLanguages = map[string]string{"en": "English(US)", "fr": "French(France)"}
 
-// runBuildSounds extracts the multiplayer announcer's voice lines from the installed game into
-// the replay sound folder (<data>/assets/sounds/halo_infinite), with the announcer.json manifest
-// the viewer reads. The game stores the voice as Wwise Vorbis, which is repacked into the Ogg
-// Vorbis files the viewer plays without decoding (internal/wwvorbis): no other program runs.
+// runBuildSounds extracts the multiplayer announcer's voice lines and the weapons' reload sounds
+// from the installed game into the replay sound folder (<data>/assets/sounds/halo_infinite),
+// with the announcer.json and reloads.json manifests the viewer reads. The game stores them as
+// Wwise Vorbis, which is repacked into the Ogg Vorbis files the viewer plays without decoding
+// (internal/wwvorbis): no other program runs.
 func runBuildSounds(args []string) error {
 	fs := flag.NewFlagSet("build-sounds", flag.ContinueOnError)
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (Steam, Xbox)")
@@ -40,7 +43,27 @@ func runBuildSounds(args []string) error {
 	}
 	fmt.Printf("announcer (%s) built into %s: %d lines, %d files, %d bytes; %d names not in the game; %d old take files removed\n",
 		filepath.Base(folder), soundsDir(dir), len(res.Manifest.Lines), res.Files, res.Bytes, len(res.Missing), res.Removed)
+	reloads, err := buildReloadSounds(context.Background(), *gameRoot, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("reloads built into %s: %d weapons, %d files, %d bytes; %d old take files removed\n",
+		soundsDir(dir), len(reloads.Manifest.Weapons), reloads.Files, reloads.Bytes, reloads.Removed)
 	return nil
+}
+
+// buildReloadSounds is the reload extraction both build-sounds and the server's sound job run:
+// every weapon's third-person reload sounds, into the data directory's sound folder.
+func buildReloadSounds(ctx context.Context, gameRoot, dataDir string) (*reloadsounds.Result, error) {
+	root, module, err := firstperson.ResolveModule(ctx, firstperson.Options{GameRoot: gameRoot})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	res, err := reloadsounds.Build(ctx, reloadsounds.Options{GameRoot: root, Module: module, OutDir: soundsDir(dataDir)})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, nil
 }
 
 // buildAnnouncerSounds is the announcer extraction both build-sounds and the server's announcer

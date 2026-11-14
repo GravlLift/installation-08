@@ -84,9 +84,10 @@ type Index struct {
 	// Coatings: the coating table of the library (coatings.json), nil when the
 	// build had no Ekur reference: the weapons then stay in their neutral paint.
 	Coatings *spartanpieces.CoatingsIndex `json:"coatings,omitempty"`
-	// ReticleRanges: per weapon model key, the red-reticle range read from its `weap` tag
-	// (reticle.go). A weapon absent from it has no range: its reticle never turns red. Always
-	// written, empty included: an index without the field predates it and is stale.
+	// ReticleRanges: per weapon model key, the red-reticle range and the per-level zoom
+	// magnifications read from its `weap` tag (reticle.go). A weapon absent from it has no range
+	// and no magnification: its reticle never turns red and it does not zoom. Always written,
+	// empty included: an index without the field predates it and is stale.
 	ReticleRanges map[string]ReticleRange `json:"reticle_ranges"`
 	// Banners: per weapon model key, the team banner its model carries (banners.go). Always
 	// written, empty included: an index without the field predates it and is stale.
@@ -100,17 +101,24 @@ func NewIndex(weaponKeys []string, generator string) Index {
 		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}}
 }
 
-// IndexCurrent says whether a library index.json carries every field the view reads from it
-// (reticle_ranges, banners): a library built before one of them existed is stale (its rebuild
-// adds it).
+// IndexCurrent says whether a library index.json carries every field the view reads from it: the
+// red-reticle table, each entry with its per-level magnifications, and the team banners. A library
+// built before one of them existed is stale (its rebuild adds it); a reticle table without entries
+// (no readable weapons) carries nothing more and is current.
 func IndexCurrent(raw []byte) bool {
 	var idx struct {
-		ReticleRanges json.RawMessage `json:"reticle_ranges"`
-		Banners       json.RawMessage `json:"banners"`
+		ReticleRanges *map[string]struct {
+			Magnifications json.RawMessage `json:"magnifications"`
+		} `json:"reticle_ranges"`
+		Banners *map[string]json.RawMessage `json:"banners"`
 	}
-	if err := json.Unmarshal(raw, &idx); err != nil {
-		return false
+	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil {
+		return false // a field was never written (a library older than it)
 	}
-	present := func(f json.RawMessage) bool { return len(f) > 0 && string(f) != "null" }
-	return present(idx.ReticleRanges) && present(idx.Banners)
+	for _, r := range *idx.ReticleRanges {
+		if len(r.Magnifications) == 0 || string(r.Magnifications) == "null" {
+			return false
+		}
+	}
+	return true
 }

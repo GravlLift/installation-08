@@ -102,17 +102,8 @@ func objectiveCatalogFromVariant(variant *mapvar.Variant, mode string, specs []r
 // matchObjectiveCatalog is objectiveCatalog over a stored match's map.mvar and stats.json
 // mode; a missing file yields no catalog, never an error.
 func matchObjectiveCatalog(root *store.Root, id string) (*replay.MapObjectives, replay.ZoneInput, error) {
-	stats, err := os.ReadFile(variantPath(root, id, "stats.json"))
-	if os.IsNotExist(err) {
-		return nil, replay.ZoneInput{}, nil
-	}
-	if err != nil {
-		return nil, replay.ZoneInput{}, err
-	}
-	var facts struct {
-		GameVariantName string `json:"gameVariantName"`
-	}
-	if err = json.Unmarshal(stats, &facts); err != nil {
+	mode, ok, err := matchGameVariantName(root, id)
+	if !ok || err != nil {
 		return nil, replay.ZoneInput{}, err
 	}
 	raw, err := os.ReadFile(variantPath(root, id, "map.mvar"))
@@ -122,7 +113,7 @@ func matchObjectiveCatalog(root *store.Root, id string) (*replay.MapObjectives, 
 	if err != nil {
 		return nil, replay.ZoneInput{}, err
 	}
-	return objectiveCatalog(raw, facts.GameVariantName)
+	return objectiveCatalog(raw, mode)
 }
 
 // servedReplay is one match's served document and the stamp of the files it was made from.

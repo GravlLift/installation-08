@@ -18,11 +18,15 @@ function geometrie(): THREE.BufferGeometry {
 describe('markerBoxes', () => {
   it('ne garde que les types repères, signés ou non', () => {
     const boxes = markerBoxes([
-      { index: 1, type: 1649659840, min: [0, 0, 0], max: [1, 1, 1] },
-      { index: 2, type: -381729683, min: [0, 0, 0], max: [1, 1, 1] },
+      { index: 1, type: -381729683, min: [0, 0, 0], max: [1, 1, 1] },
+      { index: 2, type: 0xe93f446d, min: [0, 0, 0], max: [1, 1, 1] },
       { index: 3, type: 42, min: [0, 0, 0], max: [1, 1, 1] },
     ])
     expect(boxes).toHaveLength(2)
+  })
+
+  it('keeps the weapon rack, whose real kit the layer draws', () => {
+    expect(markerBoxes([{ index: 1, type: 1649659840, min: [0, 0, 0], max: [1, 1, 1] }])).toEqual([])
   })
 
   it('rend une liste vide sans table', () => {
@@ -33,7 +37,7 @@ describe('markerBoxes', () => {
 describe('dropTriangles', () => {
   it('retire le triangle dans la boîte du repère et garde les autres', () => {
     const g = geometrie()
-    const boxes = markerBoxes([{ index: 1, type: 1649659840, min: [0.9, 1.9, 2.9], max: [1.2, 2.1, 3.2] }])
+    const boxes = markerBoxes([{ index: 1, type: -381729683, min: [0.9, 1.9, 2.9], max: [1.2, 2.1, 3.2] }])
     expect(dropTriangles(g, new THREE.Matrix4(), boxes)).toBe(1)
     expect(Array.from(g.index!.array)).toEqual([3, 4, 5])
   })

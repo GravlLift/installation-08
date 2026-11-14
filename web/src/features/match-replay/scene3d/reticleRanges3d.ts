@@ -9,10 +9,15 @@
  */
 import { IndexField, type FetchJson } from './indexField3d'
 
-/** One weapon's entry in the index: `zoomed[level - 1]` is the range at that zoom level. */
+/**
+ * One weapon's entry in the index: `zoomed[level - 1]` is the range at that zoom level, and
+ * `magnifications[level - 1]` is the magnification the tag gives that level (the zoom the
+ * first-person view applies). A weapon without a zoom level has an empty list for both.
+ */
 export interface ReticleRangeEntry {
   unscoped: number
   zoomed: number[]
+  magnifications: number[]
 }
 
 export type ReticleRangeTable = Readonly<Record<string, ReticleRangeEntry>>
@@ -37,7 +42,11 @@ export function parseReticleRanges(doc: unknown): ReticleRangeTable | null {
     const e = value as Partial<ReticleRangeEntry> | null
     if (typeof e?.unscoped !== 'number' || e.unscoped <= 0) continue
     const zoomed = Array.isArray(e.zoomed) ? e.zoomed.filter((z): z is number => typeof z === 'number' && z > 0) : []
-    out[key] = { unscoped: e.unscoped, zoomed }
+    // An entry whose magnifications are missing (an index built before the field) is dropped:
+    // the weapon then does not zoom, and a retry after the index rebuilds recovers it.
+    const mags = Array.isArray(e.magnifications) ? e.magnifications.filter((m): m is number => typeof m === 'number' && m > 1) : null
+    if (mags === null) continue
+    out[key] = { unscoped: e.unscoped, zoomed, magnifications: mags }
   }
   return out
 }
@@ -54,6 +63,15 @@ export class ReticleRanges {
   range(key: string, zoomLevel: number): number | null {
     const table = this.table.get()
     return table ? reticleRangeAt(table[key], zoomLevel) : null
+  }
+
+  /**
+   * magnifications is the zoom magnifications of the weapon of model key `key` (index = level - 1),
+   * or null when the index has none for it (yet, or at all): a weapon the tags give no zoom to.
+   */
+  magnifications(key: string): number[] | null {
+    const entry = this.table.get()?.[key]
+    return entry && entry.magnifications.length > 0 ? entry.magnifications : null
   }
 
   dispose(): void {
