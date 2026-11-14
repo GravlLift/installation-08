@@ -33,12 +33,18 @@ are in [PARITY.md](PARITY.md).
 3. Equipment animations and effects. DONE for grapple, repulsor and shroud screen. Thruster
    and drop wall are built but not yet seen on screen (no stored match has a drop wall);
    the shroud has no ground band, no animation, and an opaque inside view.
-4. Weapon pads (new): the pads the game places should render as pads.
+4. Weapon pads (new): the pads the game places should render as pads. DONE: the variant
+   layer draws each pad's Forge kit (weapon, power-up, equipment and grenade pads, wall
+   rack); the viewer's stand-in disc is gone. Pad state stays the film's (full, uncertain,
+   empty weapon). Not done: the pad's hologram while a weapon is incoming and the glow color
+   per state (kit properties `previewAsHologramFull`, `itemShouldRotateFull`).
 5. Red reticle (new): the hit reticle should turn red on a valid target. DONE: fixed red,
    per-weapon range from the weapon tags. The zoomed range (unscoped times magnification)
    is inferred.
 6. Two ground pads that should not render: object #214, type -877512201, materials
-   `mat_b3dcd79c`, shader `6eb5a1b6`.
+   `mat_b3dcd79c`, shader `6eb5a1b6`. DONE: they are mode zone markers (Land Grab here);
+   the variant layer now keeps only objects the match's mode includes. Stored variants need
+   a rebuild to pick it up.
 7. Map builder: zero-color gradient layers (shaders `47b5f7e5`, `2aaf6012`, `377bfad9`,
    `ff2a209d`). Fixing these also lets the glass workaround go.
 8. CTF flags are a primitive pole and triangle (same as in the reference); they should use
