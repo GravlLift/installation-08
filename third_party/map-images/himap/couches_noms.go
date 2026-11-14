@@ -41,6 +41,10 @@ type nomsCouche struct {
 	// indiceRouge : pour une couche degrade, l'indice est le rouge de la carte de controle, pas
 	// son alpha (shaders de vegetation : alpha constant, degrade porte en rouge).
 	indiceRouge bool
+	// exigeCouleurs (LOCAL-CHANGE (infinite-theater-3d)) : the form applies only when the shader
+	// declares its top color. Its control slot is shared with the `surface_*` family, whose
+	// shaders without a color map would otherwise read as a black gradient.
+	exigeCouleurs bool
 }
 
 // nomsCouches : couches 1 a 4. La premiere n'a ni opacite ni melange : elle couvre tout.
@@ -84,6 +88,11 @@ var nomsSurfaces = []nomsCouche{
 	{controle: 0x33056de0, normale: 0x0d66c9ce, // -, surface_normal_map
 		haut: 0x2427bd73, milieu: 0x4dd1036e, bas: 0x36d57828, // top_color, mid_color, bottom_color
 		intensiteNormale: 0x09dad903, indiceRouge: true}, // surface_normal_intensity
+	// LOCAL-CHANGE (infinite-theater-3d): terrain decorators (grass clumps, shaders bd7bb1c4 and
+	// d313108e). No color map: a gradient (three colors at constant bytes 32, 48, 64) indexed by
+	// the red of the control map at `surface_*`'s control slot; the cutout is the alpha of
+	// `surface_normal_map` (decoupe.go). Names not resolved, recognized on Live Fire's clumps.
+	{controle: 0x255bb2ea, haut: 0x060b3ab4, milieu: 0xc09a725d, bas: 0x40853e37, indiceRouge: true, exigeCouleurs: true},
 }
 
 // surfaceParNoms lit la surface d'un shader a une surface : la premiere forme de nomsSurfaces
@@ -191,7 +200,8 @@ func (n nomsCouche) lit(params ParametresShader, pp postprocessLu, c lecteurCons
 		k.Sorte = CoucheDegrade
 		k.Bitmap, k.Transfo, _ = texture(n.paquet)
 		k.Normale, k.TransfoNormale = k.Bitmap, k.Transfo
-	case n.aTexture(texture, n.controle) && (!surface || (n.couleur == 0 && n.paquet == 0)):
+	// LOCAL-CHANGE (infinite-theater-3d): `exigeCouleurs` forms need their gradient declared.
+	case n.aTexture(texture, n.controle) && (!surface || (n.couleur == 0 && n.paquet == 0 && (!n.exigeCouleurs || declare(params, n.haut)))):
 		k.Sorte = CoucheDegrade
 		k.Bitmap, k.Transfo, _ = texture(n.controle)
 		k.Controle, k.TransfoControle = k.Bitmap, k.Transfo
@@ -240,6 +250,12 @@ func (n nomsCouche) litFondu(k *Couche, params ParametresShader, c lecteurConsta
 	if o, ok := octetParam(params, n.melangeNormale); ok {
 		k.MelangeNormale = c.mode(o)
 	}
+}
+
+// declare : the shader declares the parameter (a zero name, not recorded, counts as declared).
+func declare(params ParametresShader, nom uint32) bool {
+	_, ok := params[nom]
+	return nom == 0 || ok
 }
 
 func (n nomsCouche) aTexture(texture func(uint32) (uint32, Transfo, bool), nom uint32) bool {

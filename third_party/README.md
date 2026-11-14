@@ -92,6 +92,15 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     (Live Fire's grass) draw the three-color gradient of the Material Layer Data indexed by
     their packed map's alpha. Adds `tagInfo.cibleDonnees` (data reference table lookup).
     Covered by `himap/terrain_melange_test.go` (new).
+  - `himap/decorateurs.go`, `himap/decorateurs_pose.go`, `himap/glb_decorateurs.go` (new,
+    LOCAL-CHANGE) and `terrain_collecte.go`, `maillage_monde.go`, `glb.go` (modified): a
+    terrain's scattered decorators (Live Fire's grass clumps). Reads the `dcrt` meshes (10-bit
+    positions, buffers in the tag's resource section), runs each placement description's density
+    program on the nodes of every quadtree level under the tiles read, scatters clumps with a
+    seeded generator (thinned per kind to a budget), and writes one node per mesh with
+    `EXT_mesh_gpu_instancing`. `couches_noms.go` and `decoupe.go` (modified) give the clump
+    shaders (`bd7bb1c4`, `d313108e`) a gradient surface and an alpha cutout; that form applies
+    only when the shader declares its gradient colors. Covered by `himap/decorateurs_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

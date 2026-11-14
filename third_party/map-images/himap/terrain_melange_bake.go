@@ -7,6 +7,8 @@ import (
 	"image"
 	"log/slog"
 	"math"
+
+	"github.com/JGtm/halo-infinite-files-reader/himodule"
 )
 
 // coteCouleurPalette : the size a palette color map is read at to measure its average color;
@@ -50,42 +52,8 @@ func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuile
 	if err != nil {
 		return out, false
 	}
-	cache := map[int]*image.NRGBA{}
-	lit := func(r, canaux int) *image.NRGBA {
-		if img, ok := cache[r]; ok {
-			return img
-		}
-		var img *image.NRGBA
-		if r >= 0 && r < len(ressources) {
-			if d, err := mod.Extract(ressources[r]); err == nil {
-				img = decodeEntree(ressources[r].Donnees(d), canaux)
-			}
-		}
-		cache[r] = img
-		return img
-	}
-	gpu := map[int]*image.NRGBA{}
-	echantillonGPU := func(i, canal int, wx, wy float64) float32 {
-		if i < 0 || i >= len(mel.partagesGPU) {
-			return 0
-		}
-		img, ok := gpu[i]
-		if !ok {
-			if t, err := LitBitmap(idx, mel.partagesGPU[i].id, coteCouche); err == nil {
-				img = t.Image
-			}
-			gpu[i] = img
-		}
-		if img == nil {
-			return 0
-		}
-		e := mel.partagesGPU[i].echelle
-		u, v := wx*float64(e[0]), wy*float64(e[1])
-		w, h := img.Rect.Dx(), img.Rect.Dy()
-		x := int(math.Floor((u-math.Floor(u))*float64(w))) % w
-		y := int(math.Floor((v-math.Floor(v))*float64(h))) % h
-		return float32(img.Pix[y*img.Stride+x*4+canal]) / 255
-	}
+	lit := newDecodeCache(mod, ressources).lit
+	echantillonGPU := echantillonneurGPU(idx, mel)
 	tx, ty := p.x1-p.x0+1, p.y1-p.y0+1
 	W, H := tx*terrainCellules, ty*terrainCellules
 	np := len(mel.palette)
@@ -230,4 +198,56 @@ func couleurMoyenneLineaire(img *image.NRGBA) [3]float32 {
 		return [3]float32{1, 1, 1}
 	}
 	return [3]float32{float32(s[0] / float64(n)), float32(s[1] / float64(n)), float32(s[2] / float64(n))}
+}
+
+// cacheEntrees decodes each input texture resource of a terrain's heightmap pool once.
+type cacheEntrees struct {
+	mod        *himodule.Module
+	ressources []himodule.File
+	images     map[int]*image.NRGBA
+}
+
+func newDecodeCache(mod *himodule.Module, ressources []himodule.File) *cacheEntrees {
+	return &cacheEntrees{mod: mod, ressources: ressources, images: map[int]*image.NRGBA{}}
+}
+
+func (c *cacheEntrees) lit(r, canaux int) *image.NRGBA {
+	if img, ok := c.images[r]; ok {
+		return img
+	}
+	var img *image.NRGBA
+	if r >= 0 && r < len(c.ressources) {
+		if d, err := c.mod.Extract(c.ressources[r]); err == nil {
+			img = decodeEntree(c.ressources[r].Donnees(d), canaux)
+		}
+	}
+	c.images[r] = img
+	return img
+}
+
+// echantillonneurGPU samples a channel of a shared interpreter bitmap at a world position,
+// tiled by its UV scale.
+func echantillonneurGPU(idx *ModuleIndex, mel melangeTerrain) func(i, canal int, wx, wy float64) float32 {
+	gpu := map[int]*image.NRGBA{}
+	return func(i, canal int, wx, wy float64) float32 {
+		if i < 0 || i >= len(mel.partagesGPU) {
+			return 0
+		}
+		img, ok := gpu[i]
+		if !ok {
+			if t, err := LitBitmap(idx, mel.partagesGPU[i].id, coteCouche); err == nil {
+				img = t.Image
+			}
+			gpu[i] = img
+		}
+		if img == nil {
+			return 0
+		}
+		e := mel.partagesGPU[i].echelle
+		u, v := wx*float64(e[0]), wy*float64(e[1])
+		w, h := img.Rect.Dx(), img.Rect.Dy()
+		x := int(math.Floor((u-math.Floor(u))*float64(w))) % w
+		y := int(math.Floor((v-math.Floor(v))*float64(h))) % h
+		return float32(img.Pix[y*img.Stride+x*4+canal]) / 255
+	}
 }
