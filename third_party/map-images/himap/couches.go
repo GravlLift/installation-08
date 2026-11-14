@@ -7,7 +7,8 @@
 //
 //   - `rohm` : une carte de couleur multipliee par une teinte ;
 //   - `rohg` : pas de couleur ; l'alpha de la carte de controle choisit dans un degrade a trois
-//     teintes (0 : haut, 0,5 : milieu, 1 : bas) ;
+//     teintes (0 : bas, 0,5 : milieu, 1 : haut ; LOCAL-CHANGE (infinite-theater-3d): corrected to
+//     Ekur's ColorMixer, the text said 0 : haut) ;
 //   - `nnhg` : comme `rohg`, l'alpha de sa carte « packee » portant le degrade.
 //
 // Les couches se lisent par les noms des parametres du shader (couches_noms.go). Les shaders

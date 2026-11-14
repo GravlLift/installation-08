@@ -6,7 +6,7 @@
  * la première ; les couches se répètent sur le jeu `jeuCouches` (3e pour un shader de niveau, 1er
  * pour un diffus, qui n'a qu'une couche).
  * - Couche « couleur » : carte sRGB × teinte. Couche « dégradé » : le rouge de sa carte choisit
- *   entre haut (0), milieu (0,5) et bas (1). Les teintes sont linéaires.
+ *   entre bas (0), milieu (0,5) et haut (1). Les teintes sont linéaires.
  * - Relief : chaque couche a sa carte normale tangente (convention DirectX : +Y suit la
  *   coordonnée v, vers le bas de l'image) et son occlusion (vert de sa carte de contrôle),
  *   mélangées avec les mêmes poids que la couleur. Le GLB ne porte pas de tangentes : le repère
@@ -123,12 +123,13 @@ float maskWeight(vec4 m, int k) {
 
 vec2 at(vec4 x) { return vCouche * x.xy + x.zw; }
 
-// Couleur d'une couche à partir de l'échantillon de sa carte.
+// Couleur d'une couche à partir de l'échantillon de sa carte. A gradient runs from the bottom
+// color (0) through the middle (0.5) to the top (1), as Ekur's ColorMixer node does.
 vec3 colorOf(vec4 s, int k) {
   if (L_KIND(k) < 0.5) return s.rgb * L_TINT(k);
   float g = s.r;
-  vec3 low = mix(L_MID(k), L_BOT(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
-  return mix(low, L_TOP(k), clamp(1.0 - g * 2.0, 0.0, 1.0));
+  vec3 low = mix(L_MID(k), L_BOT(k), clamp(1.0 - g * 2.0, 0.0, 1.0));
+  return mix(low, L_TOP(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
 }
 
 // Normale tangente d'une couche à partir du rouge et du vert de sa carte normale.

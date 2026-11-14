@@ -9,7 +9,8 @@
 //	(LOCAL-CHANGE (infinite-theater-3d): a layer with `rang` r takes the weight of template
 //	layer r + 1 and its height blend index, whatever its position in `couches`)
 //	couche couleur = carte (sRGB) x teinte ; couche degrade = haut / milieu / bas selon le
-//	rouge de son image (0 : haut, 0,5 : milieu, 1 : bas)
+//	rouge de son image (0 : bas, 0,5 : milieu, 1 : haut ; LOCAL-CHANGE (infinite-theater-3d):
+//	corrected to Ekur's ColorMixer, the text said 0 : haut)
 //	relief : `normale` (image tangente, X, Y, Z en R, V, B, convention DirectX : V vers le bas
 //	de l'image), melangee de couche en couche avec les memes poids ; occlusion = vert de
 //	l'image `controle` (1 sans controle), multipliee a la couleur
