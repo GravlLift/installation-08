@@ -64,6 +64,24 @@ export function readStoredChoice<T extends string>(
 }
 
 /**
+ * Reads a persisted string, accepted only if `isValid` confirms it (shape check on the way in —
+ * a value written by anyone else, or by a removed version, must never enter the state);
+ * absent, invalid or storage unavailable -> `fallback`.
+ */
+export function readStoredString(
+  key: string,
+  fallback: string,
+  isValid: (value: string) => boolean,
+): string {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw !== null && isValid(raw) ? raw : fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
  * Lit une valeur JSON persistée (objet ou liste) ; absente, illisible ou storage indisponible ->
  * null. L'appelant valide la forme : rien ici ne la garantit.
  */

@@ -26,6 +26,7 @@ import type { SemanticToken } from '@/lib/accessibility/semantic-tokens'
 
 import { readInk } from './canvasInk'
 import { useExportActive } from '../export/exportLayoutStore'
+import { useTeamColors } from '../settings/useTeamColors'
 import { readFxInk, type FxInk } from './fxInk'
 import type { RiftInk } from './placementRift'
 import type { ShroudInk } from './placementShroud'
@@ -247,11 +248,14 @@ export function useReplayInks(paletteVersion: number): ReplayInks {
   // but this memo must be RECALCULATED at the entry and the exit of the export — and, with
   // it, everything that depends on an ink (cooked layers, tinted vignettes).
   const exporting = useExportActive()
+  // THE TEAM COLORS ARE A LIVE USER PREFERENCE: the memo takes them from the preference
+  // state, not a DOM read, because the effect that updates the CSS variables runs after this
+  // render — resolving from the document here would serve the stale value. Keying on the
+  // two values re-resolves the inks when the drawer changes them, no reload.
+  const { ally, enemy } = useTeamColors()
   return useMemo(() => {
     void paletteVersion
     void exporting
-    const ally = resolveToken('team-ally')
-    const enemy = resolveToken('team-enemy')
     return {
       teamColorOf: (isAlly: boolean) => (isAlly ? ally : enemy),
       geometry: resolveToken(GEOMETRY_TOKEN),
@@ -275,5 +279,5 @@ export function useReplayInks(paletteVersion: number): ReplayInks {
       body: { overshield: resolveToken(OVERSHIELD_TOKEN) },
       mark: { fill: readInk('--foreground'), outline: readInk('--background') },
     }
-  }, [paletteVersion, exporting])
+  }, [paletteVersion, exporting, ally, enemy])
 }

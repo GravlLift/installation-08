@@ -21,6 +21,7 @@ import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { LayersSection, type ReplayLayerControls } from './ReplaySettingsLayers'
 import { Aids3dSection } from './ReplaySettingsAids3d'
 import { Look3dSection } from './ReplaySettingsLook3d'
+import { TeamColorsSection } from './ReplaySettingsTeamColors'
 import { SettingsToggle } from './SettingsControls'
 import { SOUND_CATEGORIES } from '../sound/replaySound'
 import type { ReplaySound } from '../sound/useReplaySound'
@@ -92,6 +93,7 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
         </button>
       </div>
       <LayersSection locale={locale} show={show} toggle={toggle} />
+      <TeamColorsSection />
       <Look3dSection locale={locale} />
       <Aids3dSection locale={locale} />
       <section className="space-y-1">

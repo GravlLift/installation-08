@@ -12,8 +12,6 @@ import { REPLAY_TEXT } from '../i18n/i18n'
 export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale) {
   const source = preparerAth(doc, xuid, kills)
   const names = new Map(doc.roster.map((p) => [p.xuid, p.name || p.xuid]))
-  const ally = resolveToken('team-ally')
-  const enemy = resolveToken('team-enemy')
   const white = '#eaf2f5'
   const weaponInk = resolveToken('replay-hud-weapon')
   const urls = new Set<string>()
@@ -40,6 +38,10 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     return true
   }
   return (ctx: CanvasRenderingContext2D, view: { width: number; height: number }, frame: number) => {
+    // LIVE READ AT PAINT TIME: the team colors are a user preference that can change after the
+    // HUD was built; resolving them here (not once above) keeps the export on the current colors.
+    const ally = resolveToken('team-ally')
+    const enemy = resolveToken('team-enemy')
     const { width: w, height: h } = view
     const size = Math.max(19, Math.min(39, 7.7 + h * 0.0287))
     const ath = lireAth(source, frame, locale)
