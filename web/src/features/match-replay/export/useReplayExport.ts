@@ -485,6 +485,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // d'ou l'ordre : demande, attente, ouverture.
         await waitForExportLayout(canvas, format, o.redraw)
         const mix = options?.sound === false ? null : await mixExportAudio(o, bounds, plan, view3d)
+        if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix of a long range takes minutes): stop before encoding; `finally` restores.
         // LE MAINTIEN SE CALCULE UNE FOIS LE SON CONNU (cf. `holdMsFor`), et le plan se refait :
         // la derniere image doit tenir assez longtemps pour qu'on lise le verdict, et au moins
         // aussi longtemps que le son continue.
