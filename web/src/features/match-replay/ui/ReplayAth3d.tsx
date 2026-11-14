@@ -7,7 +7,7 @@ import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, preparerAth } from '../model/ath3d_logic'
-import { specLunette, styleLunette, zoomAt } from '../model/scopeLogic'
+import { magsPourArme, specLunette, styleLunette, zoomAt } from '../model/scopeLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayAthFil3d } from './ReplayAthFil3d'
 import { ReplayAthLunette3d } from './ReplayAthLunette3d'
@@ -61,7 +61,10 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     : { camp: 'team-ally' as const, score: score.ally.score, part: score.ally.fill })
   const cle = ath?.armeId?.replace(/^0x/i, '').slice(0, 8).toLowerCase()
   const spec = specLunette(cle, ath?.etiquette?.key)
-  const zoom = zoomAt(doc, xuid, frame, spec)
+  // The magnification per level comes from the weapon index (the tag's own values); the hand
+  // table gives only the kind and the style. A weapon the index has no zoom for does not zoom.
+  const mags = magsPourArme(cle, sceneRef?.current?.magnifications(cle ?? '') ?? null)
+  const zoom = zoomAt(doc, xuid, frame, spec, mags)
   const armeId = ath?.armeId ?? null
   useEffect(() => {
     heldRef.current = armeId ? { weaponId: armeId, zoomLevel: zoom.level } : null

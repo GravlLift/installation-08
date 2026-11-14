@@ -6,9 +6,9 @@ const index = {
   schema: 1,
   weapons: ['2b1824d5', '0a1992bc', 'f408190f', '000025ad'],
   reticle_ranges: {
-    '2b1824d5': { unscoped: 18, zoomed: [36] },
-    '0a1992bc': { unscoped: 17, zoomed: [68, 153] },
-    'f408190f': { unscoped: 15, zoomed: [] },
+    '2b1824d5': { unscoped: 18, zoomed: [36], magnifications: [2] },
+    '0a1992bc': { unscoped: 17, zoomed: [68, 153], magnifications: [4, 9] },
+    'f408190f': { unscoped: 15, zoomed: [], magnifications: [] },
   },
 }
 
@@ -29,7 +29,26 @@ describe('red reticle ranges', () => {
 
   it('treats an index without the field as having no ranges yet', () => {
     expect(parseReticleRanges({ schema: 1, weapons: [] })).toBeNull()
-    expect(parseReticleRanges({ reticle_ranges: { a: { unscoped: 0, zoomed: [] } } })).toEqual({})
+    expect(parseReticleRanges({ reticle_ranges: { a: { unscoped: 0, zoomed: [], magnifications: [] } } })).toEqual({})
+  })
+
+  it('drops an entry whose magnifications are missing (an index built before the field)', () => {
+    expect(parseReticleRanges({ reticle_ranges: { a: { unscoped: 18, zoomed: [36] } } })).toEqual({})
+    expect(parseReticleRanges({ reticle_ranges: { a: { unscoped: 18, zoomed: [36], magnifications: [2] } } })).toEqual({ a: { unscoped: 18, zoomed: [36], magnifications: [2] } })
+  })
+
+  it('answers the zoom magnifications of the held weapon, null without them', async () => {
+    const fetchJson = vi.fn((_url: string, _signal: AbortSignal) => Promise.resolve<unknown>(index))
+    const ranges = new ReticleRanges('/api/weapons', fetchJson)
+    expect(ranges.magnifications('0a1992bc')).toBeNull() // not loaded yet
+    await flush()
+    expect(ranges.magnifications('0a1992bc')).toEqual([4, 9])
+    expect(ranges.magnifications('2b1824d5')).toEqual([2])
+    // A weapon without a zoom level (an empty list) has no magnification.
+    expect(ranges.magnifications('f408190f')).toBeNull()
+    // A weapon absent from the table has none.
+    expect(ranges.magnifications('000025ad')).toBeNull()
+    ranges.dispose()
   })
 
   it('loads the index once and answers by held weapon id', async () => {
