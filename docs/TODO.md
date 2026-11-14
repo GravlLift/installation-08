@@ -7,13 +7,8 @@ are in [PARITY.md](PARITY.md).
 
 ## Migration (still open)
 
-- Real scoreboard: the context route serves the scoreboard rows and the match header shows
-  the score; the on-screen scoreboard component is removed and not yet re-added (`d53ab5d`).
 - Transport bar: the full transport (the reference's `ReplayTransport`) and film export.
   The match-time readout, the 16:9 player and the fullscreen button are done.
-- Coating libraries: rebuild automatically when the Ekur export changes, and show a viewer
-  notice when coatings are off or incomplete (in progress). Weapon and armor coatings
-  render on screen, first and third person (`40a022c`, `3c3a99e`).
 - English translation pass of the lifted French comments and strings.
 - Packaging and an installer.
 
@@ -42,6 +37,14 @@ are in [PARITY.md](PARITY.md).
    `ff2a209d`). Fixing these also lets the glass workaround go.
 8. CTF flags are a primitive pole and triangle (same as in the reference); they should use
    the game's flag model and stand.
+
+## Ideas for later
+
+- Programmed camera for film export: a timeline with automation lanes for the camera, so a
+  user can direct a clip the game's theater never allowed. Lanes for camera keyframes with
+  easing, built-in acrobatic moves (orbits, fly-bys, whip pans), target lock and switching
+  between players, overlay and filter toggles, and kill effects. The export renders that
+  directed camera view. Builds on the film export and the transport bar.
 
 ## Parked until the migration is done
 
