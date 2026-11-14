@@ -84,9 +84,10 @@ type Index struct {
 	// Coatings: the coating table of the library (coatings.json), nil when the
 	// build had no Ekur reference: the weapons then stay in their neutral paint.
 	Coatings *spartanpieces.CoatingsIndex `json:"coatings,omitempty"`
-	// ReticleRanges: per weapon model key, the red-reticle range read from its `weap` tag
-	// (reticle.go). A weapon absent from it has no range: its reticle never turns red. Always
-	// written, empty included: an index without the field predates it and is stale.
+	// ReticleRanges: per weapon model key, the red-reticle range and the per-level zoom
+	// magnifications read from its `weap` tag (reticle.go). A weapon absent from it has no range
+	// and no magnification: its reticle never turns red and it does not zoom. Always written,
+	// empty included: an index without the field predates it and is stale.
 	ReticleRanges map[string]ReticleRange `json:"reticle_ranges"`
 }
 
@@ -97,14 +98,23 @@ func NewIndex(weaponKeys []string, generator string) Index {
 		ReticleRanges: map[string]ReticleRange{}}
 }
 
-// IndexHasReticleRanges says whether a library index.json carries the reticle_ranges field: a
-// library built before the field existed is stale (its rebuild adds it).
+// IndexHasReticleRanges says whether a library index.json carries the red-reticle data the view
+// reads: each reticle entry has its per-level magnifications. A library built before the
+// magnifications existed is stale (its non-empty entries lack the field, and its rebuild adds
+// them); a table without entries (no readable weapons) carries nothing and is current.
 func IndexHasReticleRanges(raw []byte) bool {
 	var idx struct {
-		ReticleRanges json.RawMessage `json:"reticle_ranges"`
+		ReticleRanges *map[string]struct {
+			Magnifications json.RawMessage `json:"magnifications"`
+		} `json:"reticle_ranges"`
 	}
-	if err := json.Unmarshal(raw, &idx); err != nil {
-		return false
+	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil {
+		return false // the field was never written (a pre-field library)
 	}
-	return len(idx.ReticleRanges) > 0 && string(idx.ReticleRanges) != "null"
+	for _, r := range *idx.ReticleRanges {
+		if len(r.Magnifications) == 0 || string(r.Magnifications) == "null" {
+			return false
+		}
+	}
+	return true
 }
