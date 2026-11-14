@@ -10,3 +10,7 @@ docs/sys/lookup.json
 /web/dist/
 .worktrees/
 /web/public/dev/
+# Packaging output and the embedded viewer's staging files (the placeholder is kept).
+/dist/
+/internal/webdist/files/*
+!/internal/webdist/files/placeholder
