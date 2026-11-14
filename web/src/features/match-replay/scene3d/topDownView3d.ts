@@ -1,19 +1,16 @@
 /**
  * topDownView3d.ts — the top-down view of the replay scene: the same scene, drawn from
  * straight above with an orthographic camera, cut at a height that follows the followed player
- * (`topDownLogic.cutTarget`, smoothed over time), with a marker per living player.
+ * (`topDownLogic.CutFollower`), with a marker per player, framed between the page's chrome and
+ * zoomed and panned by the viewer (`topDownNavLogic`, gestures in `topDownInput3d`).
  *
  * The camera rides `TOP_LIFT` above the cut and its near plane sits on the cut, so every slab
  * over the followed player's head is not drawn; its far plane sits under the lowest walked
  * height, so the floor he stands on shows with the floors below it through openings, and the
  * terrain and backdrop under the played area do not. Near/far instead of
  * `renderer.clippingPlanes`: no global state to save and restore, and no leak into the shadow
- * pass. A fog in the page's studio color, starting under the drawn floor, fades the floors
- * below with their depth so they read as lower.
- *
- * The lighting is the 3D view's own, sun shadows included: the map's shadow casters (the
- * `ombre-carte` proxies) stay in the scene, so a floor under a roof stays in the roof's shade
- * and reads the same color in 2D as in 3D. Only the sky and the structure back faces are hidden.
+ * pass. What the cut leaves empty shows the floors above it faintly (`topDownGhost3d`); the
+ * fog, background, hidden helpers and overhead light of every top-down render are `topDownStage3d`.
  *
  * The draw runs through the composer on the orthographic camera so the scene gets the same
  * final color treatment as the 3D view (tone mapping, output color space, the grade). Only the
@@ -28,23 +25,20 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 
-import { BACK_FACE_NAME } from './backFaces3d'
 import { cssColor } from './cssColor'
-import { PlayerMarkers3d, type MarkerPose } from './playerMarkers3d'
-import { unitsPerPixel } from './playerMarkers3d_logic'
-import { CUT_HEADROOM, cutTarget, lowestDrawn, smoothCut, topDownFrame } from './topDownLogic'
+import { PlayerMarkers3d, type DeadPose, type MarkerPose } from './playerMarkers3d'
+import { TopDownGhost } from './topDownGhost3d'
+import { TopDownInput } from './topDownInput3d'
+import { CUT_HEADROOM, CutFollower, highestDrawn, lowestDrawn } from './topDownLogic'
+import { NAV_HOME, NO_INSETS, followed, frameOf, insetsFrom, panBy, screenAt, zoomAt, type Insets, type NavContext, type NavState, type Span, type TopDownBounds, type Viewport } from './topDownNavLogic'
+import { TOP_LIFT, TopDownStage } from './topDownStage3d'
 
-/** The lift of the camera above the cut, keeps the near plane positive (u). */
-const TOP_LIFT = 2
 /** Margin around the walked X/Z area in the frame (u): the walls just past the last footstep. */
 const TOP_MARGIN = 3
-/** The fog under the drawn floor: where it starts below it, and the depth it takes to full (u). */
-const FADE_START = 0.5
-const FADE_DEPTH = 12
-/** Helper meshes not drawn in the top-down view (the sky is passed separately to `sync`). */
-const HIDDEN_NAMES = new Set([BACK_FACE_NAME])
 /** The passes that read no camera: the scene render, the output, the grade, the antialias. */
 const CAMERA_AGNOSTIC = [RenderPass, OutputPass, ShaderPass, SMAAPass]
+/** How often the chrome's place is read from the page (ms): it moves only on a resize or a font load. */
+const INSETS_EVERY_MS = 500
 
 /** cameraAgnostic — a composer pass that needs no perspective camera. */
 function cameraAgnostic(pass: Pass): boolean {
@@ -53,122 +47,134 @@ function cameraAgnostic(pass: Pass): boolean {
 
 /** What one top-down draw needs from the scene. */
 export interface TopDownDraw {
-  renderer: THREE.WebGLRenderer
   composer: EffectComposer
   /** One pose per living player. */
   players: readonly MarkerPose[]
+  /** One pose per dead player waiting to come back. */
+  dead: readonly DeadPose[]
   /** The followed player, null in free camera. */
   followed: string | null
+}
+
+/** What the view is built on: the scene and its renderer, the sun, the walked heights and box (scene axes). */
+export interface TopDownSetup {
+  scene: THREE.Scene
+  renderer: THREE.WebGLRenderer
+  sun: THREE.DirectionalLight
+  heights: readonly number[]
+  walked: THREE.Box3
 }
 
 export class TopDownView3d {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400)
   private readonly scene: THREE.Scene
+  private readonly renderer: THREE.WebGLRenderer
+  private readonly stage: TopDownStage
+  private readonly ghost: TopDownGhost
   private readonly markers: PlayerMarkers3d
+  private readonly input: TopDownInput
   private readonly lowestY: number
-  private readonly bounds: THREE.Box3
-  private hidden: { obj: THREE.Object3D; visible: boolean }[] = []
-  /** The cut drawn last, and when (performance.now ms); null before the first draw. */
-  private cut: number | null = null
-  private cutAt = 0
-  /** The followed player and his feet when last seen alive (scene Y), for the frames he is out of life. */
-  private lastFollowed: { xuid: string | null; y: number | null } = { xuid: null, y: null }
-  /** The page's studio color, read from its `--studio-950` token once; null if absent. */
-  private studio: THREE.Color | null = null
-  private fog: THREE.Fog | null = null
+  private readonly bounds: TopDownBounds
+  private readonly cut: CutFollower
+  private nav: NavState = NAV_HOME
+  private insets: Insets = NO_INSETS
+  private insetsAt = -Infinity
+  /** The light edge under each marker, the page's `--ink` token; null if absent. */
+  private edge: THREE.Color | null | undefined
 
-  /** `heights` the walked feet heights, `walked` the box of the walked positions (scene axes). */
-  constructor(scene: THREE.Scene, heights: readonly number[], walked: THREE.Box3) {
-    this.scene = scene
-    this.markers = new PlayerMarkers3d(scene)
-    this.lowestY = lowestDrawn(heights)
-    this.bounds = walked.clone().expandByScalar(TOP_MARGIN)
+  constructor(s: TopDownSetup) {
+    this.scene = s.scene
+    this.renderer = s.renderer
+    this.stage = new TopDownStage(s.scene, s.sun)
+    this.lowestY = lowestDrawn(s.heights)
+    const area = s.walked.clone().expandByScalar(TOP_MARGIN)
+    this.bounds = { minX: area.min.x, minZ: area.min.z, maxX: area.max.x, maxZ: area.max.z }
+    this.ghost = new TopDownGhost(s.scene, area, highestDrawn(s.heights), this.lowestY)
+    this.markers = new PlayerMarkers3d(s.scene)
+    this.cut = new CutFollower(this.lowestY)
+    this.input = new TopDownInput(s.renderer.domElement, {
+      zoom: (x, y, factor) => (this.nav = zoomAt(this.navContext(), x, y, factor)),
+      pan: (dx, dy) => (this.nav = panBy(this.navContext(), dx, dy)),
+      reset: () => (this.nav = NAV_HOME),
+    })
   }
 
-  /** Collect the helper meshes to hide (by name) plus the sky; run when the scene graph changes. */
-  sync(sky: THREE.Object3D | null): void {
-    this.hidden = []
-    if (sky) this.hidden.push({ obj: sky, visible: sky.visible })
-    this.scene.traverse((obj) => {
-      if (HIDDEN_NAMES.has(obj.name)) this.hidden.push({ obj, visible: obj.visible })
-    })
+  /** Collect the helpers to hide plus the sky, and the map roots; run when the scene graph changes (the cached images are redone). */
+  sync(sky: THREE.Object3D | null, roots: readonly THREE.Object3D[]): void {
+    this.stage.sync(sky, roots)
+    this.ghost.invalidate()
   }
 
   /** The 3D view draws: the markers go, the cut restarts from the target at the next top draw. */
   idle(): void {
     this.markers.hide()
-    this.cut = null
-    this.lastFollowed = { xuid: null, y: null }
+    this.cut.reset()
+    this.input.active = false
   }
 
   /** Draw the scene straight down, cut over the followed player, with the player markers. */
   draw(d: TopDownDraw): void {
-    const scene = this.scene
-    const saved = { fog: scene.fog, background: scene.background }
-    const studio = this.studioColor(saved.background)
-    const cutY = this.moveCut(d)
-    const unitsPerPx = this.frame(d.renderer, cutY)
-    this.markers.update(d.players, { cutY, followed: d.followed, unitsPerPx, rim: studio })
-    if (studio) {
-      scene.background = studio
-      scene.fog = this.fadeBelow(studio)
-    } else {
-      scene.fog = null
-    }
-    for (const h of this.hidden) h.obj.visible = false
+    this.input.active = true
+    const followedPose = d.followed ? d.players.find((p) => p.xuid === d.followed) ?? null : null
+    const cutY = this.cut.step(performance.now(), d.followed, followedPose ? followedPose.feet.y : null, d.players.map((p) => p.feet.y))
+    this.ghost.ensure(this.renderer, this.stage)
+    const view = this.viewport()
+    this.readInsets()
+    this.nav = followed(this.navContext(), followedPose ? [followedPose.feet.x, followedPose.feet.z] : null)
+    const frame = this.frame(view, cutY)
+    const toScreen = (x: number, z: number) => screenAt(frame, view, x, z)
+    this.markers.update(d.players, d.dead, { cutY, followed: d.followed, unitsPerPx: frame.unitsPerPx, halo: this.stage.studioColor(), edge: this.edgeColor(), toScreen })
+    this.ghost.fill.visible = true
     try {
-      this.renderComposer(d.composer)
+      this.stage.run({ mapOnly: false }, () => this.renderComposer(d.composer))
     } finally {
-      scene.fog = saved.fog
-      scene.background = saved.background
-      for (const h of this.hidden) h.obj.visible = h.visible
+      this.ghost.fill.visible = false
     }
   }
 
-  /** Remove the markers from the scene and free them. */
+  /** Remove what the view added to the scene and the page, and free it. */
   dispose(): void {
+    this.input.dispose()
     this.markers.dispose(this.scene)
+    this.ghost.dispose(this.scene)
   }
 
-  /** Move the cut toward this frame's target (`cutTarget`), smoothed over the time since the last draw. */
-  private moveCut(d: TopDownDraw): number {
+  private viewport(): Viewport {
+    const size = this.renderer.getSize(new THREE.Vector2())
+    return { width: size.x, height: size.y }
+  }
+
+  private navContext(): NavContext {
+    return { bounds: this.bounds, view: this.viewport(), insets: this.insets, nav: this.nav }
+  }
+
+  /**
+   * The page's chrome over the canvas (`insetsFrom`): the player's top strip and transport bar,
+   * found by their classes in the player around the canvas, re-read every `INSETS_EVERY_MS`. Their
+   * place is kept while they fade out, so the map does not jump when the chrome hides.
+   */
+  private readInsets(): Insets {
     const now = performance.now()
-    const followed = d.followed ? d.players.find((p) => p.xuid === d.followed) ?? null : null
-    if (d.followed !== this.lastFollowed.xuid) this.lastFollowed = { xuid: d.followed, y: null }
-    if (followed) this.lastFollowed.y = followed.feet.y
-    const target = cutTarget({
-      followedY: followed ? followed.feet.y : null,
-      lastFollowedY: this.lastFollowed.y,
-      livingY: d.players.map((p) => p.feet.y),
-      previous: this.cut,
-      lowestY: this.lowestY,
-    })
-    this.cut = smoothCut(this.cut, target, (now - this.cutAt) / 1000)
-    this.cutAt = now
-    return this.cut
-  }
-
-  /**
-   * The fog that fades what lies under the drawn floor into the studio color with its depth;
-   * distances are from the camera, which rides `TOP_LIFT` over the cut.
-   */
-  private fadeBelow(color: THREE.Color): THREE.Fog {
-    const near = TOP_LIFT + CUT_HEADROOM + FADE_START
-    this.fog ??= new THREE.Fog(color, near, near + FADE_DEPTH)
-    return this.fog
-  }
-
-  /**
-   * The page's dark studio color from its `--studio-950` token, read once; null if the token is
-   * absent or the scene background is not a color. The scene's own background is the fallback the
-   * resolver takes when the token cannot be painted, so no color is invented here.
-   */
-  private studioColor(saved: THREE.Color | THREE.Texture | null): THREE.Color | null {
-    if (this.studio === null) {
-      const value = getComputedStyle(document.documentElement).getPropertyValue('--studio-950').trim()
-      if (value && saved instanceof THREE.Color) this.studio = cssColor(value, saved)
+    if (now - this.insetsAt < INSETS_EVERY_MS) return this.insets
+    this.insetsAt = now
+    const canvas = this.renderer.domElement
+    const player = canvas.closest('.bc-player')
+    const span = (el: Element | null | undefined): Span | null => {
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return { top: r.top, bottom: r.bottom }
     }
-    return this.studio
+    this.insets = insetsFrom(span(canvas) as Span, span(player?.querySelector('.bc-player-top')), span(player?.querySelector('.bc-player-transport')))
+    return this.insets
+  }
+
+  /** The light marker edge from the page's `--ink` token, read once. */
+  private edgeColor(): THREE.Color | null {
+    if (this.edge === undefined) {
+      const value = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()
+      this.edge = value ? cssColor(value, new THREE.Color()) : null
+    }
+    return this.edge
   }
 
   /**
@@ -194,25 +200,16 @@ export class TopDownView3d {
     }
   }
 
-  /**
-   * Place the camera `TOP_LIFT` over the cut, near plane on the cut and far plane under the
-   * lowest walked floor, framing the walked area; returns the view's world units per CSS pixel.
-   */
-  private frame(renderer: THREE.WebGLRenderer, cutY: number): number {
-    const size = renderer.getSize(new THREE.Vector2())
-    const aspect = size.y > 0 ? size.x / size.y : 1
-    const { min, max } = this.bounds
-    const f = topDownFrame({ minX: min.x, minZ: min.z, maxX: max.x, maxZ: max.z }, aspect)
-    this.camera.left = -f.halfWidth
-    this.camera.right = f.halfWidth
-    this.camera.top = f.halfHeight
-    this.camera.bottom = -f.halfHeight
+  /** Place the camera `TOP_LIFT` over the cut, near plane on the cut and far plane under the lowest walked floor, on the navigation's frame. */
+  private frame(view: Viewport, cutY: number): ReturnType<typeof frameOf> {
+    const f = frameOf(this.bounds, view, this.insets, this.nav)
+    Object.assign(this.camera, { left: -f.halfWidth, right: f.halfWidth, top: f.halfHeight, bottom: -f.halfHeight })
     this.camera.position.set(f.center[0], cutY + TOP_LIFT, f.center[1])
     this.camera.up.set(0, 0, -1)
     this.camera.lookAt(f.center[0], cutY, f.center[1])
     this.camera.near = TOP_LIFT
     this.camera.far = TOP_LIFT + Math.max(cutY - this.lowestY, CUT_HEADROOM)
     this.camera.updateProjectionMatrix()
-    return unitsPerPixel(f.halfHeight, size.y)
+    return f
   }
 }

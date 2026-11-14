@@ -1,7 +1,7 @@
 /**
  * topDownLogic.ts — pure logic of the top-down view: the cut height (everything above it is
- * not drawn), its smoothing over time, the lowest drawn height, and the orthographic frame that
- * fits the played area in a view of a given aspect.
+ * not drawn), its smoothing over time, and the lowest and highest drawn heights. The framing
+ * (zoom, pan, chrome) is `topDownNavLogic`.
  *
  * The cut follows a player, not a floor table: on a map whose floors are joined by ramps the
  * walked heights are continuous, so no clustering of them can tell one floor from another. The
@@ -75,6 +75,37 @@ export function smoothCut(previous: number | null, target: number, dtSeconds: nu
   return previous + (target - previous) * (1 - Math.exp(-dtSeconds / tau))
 }
 
+/**
+ * CutFollower — the cut of one top-down view over time: `cutTarget` for the frame's players,
+ * smoothed since the last step; the followed player's feet are remembered while he is out of life.
+ */
+export class CutFollower {
+  private cut: number | null = null
+  private at = 0
+  private last: { xuid: string | null; y: number | null } = { xuid: null, y: null }
+  private readonly lowestY: number
+
+  constructor(lowestY: number) {
+    this.lowestY = lowestY
+  }
+
+  /** Start over: the next step lands on its target. */
+  reset(): void {
+    this.cut = null
+    this.last = { xuid: null, y: null }
+  }
+
+  /** The cut at `nowMs`: `followedY` his feet (null out of life or without him), `livingY` everyone's. */
+  step(nowMs: number, followed: string | null, followedY: number | null, livingY: readonly number[]): number {
+    if (followed !== this.last.xuid) this.last = { xuid: followed, y: null }
+    if (followedY !== null) this.last.y = followedY
+    const target = cutTarget({ followedY, lastFollowedY: this.last.y, livingY, previous: this.cut, lowestY: this.lowestY })
+    this.cut = smoothCut(this.cut, target, (nowMs - this.at) / 1000)
+    this.at = nowMs
+    return this.cut
+  }
+}
+
 /** lowestDrawn — the lowest height drawn: the lowest walked height minus the floor margin. */
 export function lowestDrawn(heights: readonly number[]): number {
   let lowest = Infinity
@@ -82,30 +113,9 @@ export function lowestDrawn(heights: readonly number[]): number {
   return (Number.isFinite(lowest) ? lowest : 0) - FLOOR_MARGIN
 }
 
-/** The X/Z extent of the played area, margins already applied by the caller (u). */
-export interface TopDownBounds {
-  minX: number
-  minZ: number
-  maxX: number
-  maxZ: number
-}
-
-/** The orthographic frame: the half-width and half-height that fit the area, and its center. */
-export interface TopDownFrame {
-  /** Center of the played area, (X, Z). */
-  center: [number, number]
-  halfWidth: number
-  halfHeight: number
-}
-
-/**
- * topDownFrame — fit the X/Z bounds in a view of `aspect` (width over height): the
- * half-width is the larger of the area's half-width and the half-depth the aspect asks
- * for, the half-height follows from it, so the whole area is on screen.
- */
-export function topDownFrame(bounds: TopDownBounds, aspect: number): TopDownFrame {
-  const w = bounds.maxX - bounds.minX
-  const d = bounds.maxZ - bounds.minZ
-  const halfWidth = Math.max(w / 2, (d / 2) * aspect)
-  return { center: [(bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2], halfWidth, halfHeight: halfWidth / aspect }
+/** highestDrawn — the top of the highest walked floor's headroom: what the ghost of the upper floors is cut at. */
+export function highestDrawn(heights: readonly number[]): number {
+  let highest = -Infinity
+  for (const h of heights) if (h > highest) highest = h
+  return (Number.isFinite(highest) ? highest : 0) + CUT_HEADROOM
 }

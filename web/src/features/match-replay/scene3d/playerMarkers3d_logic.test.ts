@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DIMMED_MARKER_OPACITY, LOWER_FLOOR_DROP, topDownMarkers, unitsPerPixel } from './playerMarkers3d_logic'
+import { DIMMED_MARKER_OPACITY, LOWER_FLOOR_DROP, TAG_OFFSET_PX, declutterTags, topDownMarkers, unitsPerPixel } from './playerMarkers3d_logic'
 import { CUT_HEADROOM } from './topDownLogic'
 
 /** The cut over a followed player standing at 0. */
@@ -59,5 +59,29 @@ describe('unitsPerPixel — the world size of a screen pixel in the orthographic
   })
   it('is 0 for an empty viewport', () => {
     expect(unitsPerPixel(20, 0)).toBe(0)
+  })
+})
+
+describe('declutterTags — close players keep readable tags', () => {
+  const tag = (x: number, y: number, rank: number) => ({ x, y, w: 80, h: 16, rank })
+
+  it('puts every tag over its marker when nothing overlaps', () => {
+    expect(declutterTags([tag(0, 0, 1), tag(300, 0, 1)])).toEqual(['above', 'above'])
+  })
+
+  it('moves the lower-ranked tag under its marker when two players stand close', () => {
+    expect(declutterTags([tag(10, 0, 2), tag(0, 0, 1)])).toEqual(['below', 'above'])
+  })
+
+  it('hides a tag with no free place, never one that outranks it', () => {
+    expect(declutterTags([tag(0, 0, 0), tag(5, 0, 1), tag(8, 2, 2)])).toEqual(['above', 'below', 'hidden'])
+  })
+
+  it('breaks rank ties in input order', () => {
+    expect(declutterTags([tag(0, 0, 1), tag(4, 0, 1)])).toEqual(['above', 'below'])
+  })
+
+  it('keeps a tag over its marker when the other is far enough under it', () => {
+    expect(declutterTags([tag(0, 0, 1), tag(0, 2 * TAG_OFFSET_PX + 40, 1)])).toEqual(['above', 'above'])
   })
 })

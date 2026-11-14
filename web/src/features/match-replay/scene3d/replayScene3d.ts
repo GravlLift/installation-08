@@ -4,7 +4,7 @@
  * It owns no time: the page's player advances its image and the view calls `render(frame)`
  * once per screen frame. Cameras: first and third person on the followed player (the page's
  * viewpoint), free (orbit around it), and the orthographic top-down view (`topDownView3d`)
- * drawing the same scene straight down, one floor band at a time.
+ * drawing the same scene straight down, cut over the followed player.
  *
  * The replay and the map are in Halo world units (1 u = 3.048 m), not meters: measured
  * median run speed 2.3 u/s, that of a Spartan. All sizes below are in u.
@@ -51,7 +51,7 @@ import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
 import type { SceneView3d } from './topDownLogic'
 import { TopDownView3d } from './topDownView3d'
-import type { MarkerPose } from './playerMarkers3d'
+import type { DeadPose, MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
@@ -101,7 +101,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private view: SceneView3d = '3d'
   /** The top-down view, built when the map is attached; null without a map. */
   private top: TopDownView3d | null = null
-  private topPlayers: MarkerPose[] = []
+  private topPlayers: MarkerPose[] = []; private topDead: DeadPose[] = [] // the living and the dead, posed for the top-down view
   /** The player the top-down view follows and rings: the page's viewpoint, null in free camera. */
   private topFollowed: string | null = null
   private povXuid: string | null = null
@@ -177,14 +177,13 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.lighting.takeGameLight(model.baked) // game light active during the probe captures
       this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
       this.playTop = playBox.max.y
-      // Top-down view: cut over the followed player, down to the lowest walked floor, framed on the walked area.
-      this.top = new TopDownView3d(this.scene, playPoints.map((p) => p.y), new THREE.Box3().setFromPoints(playPoints))
+      this.top = new TopDownView3d({ scene: this.scene, renderer: this.renderer, sun: this.lighting.sun, heights: playPoints.map((p) => p.y), walked: new THREE.Box3().setFromPoints(playPoints) })
     }
     if (model.ciel) {
       this.ciel = creerCiel(model.sun ?? SUN_FALLBACK, model.ciel.texture, model.ciel.color, model.sunStrength)
       this.scene.add(this.ciel)
     }
-    this.top?.sync(this.ciel)
+    this.top?.sync(this.ciel, this.mapRoots())
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
     for (const p of tracks.players) {
@@ -262,7 +261,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(layer.root)
     this.lighting.lightLayer(layer.surfaces)
     this.ground?.setPickables(this.groundSurfaces())
-    this.top?.sync(this.ciel)
+    this.top?.sync(this.ciel, this.mapRoots())
     return true
   }
 
@@ -273,7 +272,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.layer = null
     this.scene.remove(layer.root)
     this.ground?.setPickables(this.groundSurfaces())
-    this.top?.sync(this.ciel)
+    this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
     layer.dispose()
   }
@@ -298,10 +297,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   /** setView chooses the drawing view: the perspective 3D view or the orthographic top-down. */
-  setView(view: SceneView3d) {
-    if (this.exportScene.held) this.exportScene.held.view = view
-    else this.view = view
-  }
+  setView(view: SceneView3d) { if (this.exportScene.held) this.exportScene.held.view = view; else this.view = view }
 
   /** setTopFollowed: the player the top-down view's cut follows; null (free camera): the living players' median. */
   setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
@@ -346,10 +342,11 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.orbit.update()
     }
     t = marquer(p, 2, t)
-    this.lighting.updateShadows(frame)
-    t = marquer(p, 3, t)
     const top = this.view === 'top' ? this.top : null
-    if (top) top.draw({ renderer: this.renderer, composer: this.post.composer, players: this.topPlayers, followed: this.topFollowed })
+    this.orbit.enabled = this.mode === 'free' && !top // the top-down view has its own gestures on the canvas
+    if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
+    t = marquer(p, 3, t)
+    if (top) top.draw({ composer: this.post.composer, players: this.topPlayers, dead: this.topDead, followed: this.topFollowed })
     else { this.top?.idle(); this.post.composer.render() }
     t = marquer(p, 4, t)
     this.labels.render(this.scene, top ? top.camera : this.camera)
@@ -427,6 +424,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.bras?.cacher()
     this.post.outline.begin()
     this.topPlayers.length = 0
+    this.topDead.length = 0
     const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position // the name-tag eye: the drawing camera
     for (const p of tracks.players) {
       const a = this.avatars.get(p.xuid)
@@ -437,6 +435,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (!s && !rider) {
         a.group.visible = false
         a.tag.visible = false
+        const fell = tracks.firstLifeAfter(p.xuid, f) ? tracks.lastLifeBefore(p.xuid, f) : null // dead, coming back: a cross where he fell
+        if (fell) this.topDead.push({ xuid: p.xuid, feet: feetOf(fell, this.originAboveFloor), avatar: a })
         continue
       }
       const feet = rider ?? feetOf(s as PlayerState3d, this.originAboveFloor)
@@ -482,6 +482,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec)) this.bras?.cacher()
   }
 
+  /** mapRoots: the posed map's root and its layer's. */
+  private mapRoots(): THREE.Object3D[] { return [this.model?.root, this.layer?.root].filter((r): r is THREE.Object3D => !!r) }
   /** groundSurfaces: the ground surfaces, the map's then the posed layer's. */
   private groundSurfaces(): THREE.Mesh[] {
     return [...(this.model?.pickables ?? []), ...(this.layer?.pickables ?? [])]
