@@ -12,7 +12,7 @@ import { InstancePool, SegmentPool } from './actionKit'
 import type { RepulsorBurst } from './repulsor3d_logic'
 
 /** How much of the team ink the shell and its ring add (additive light). */
-const SHELL_GLOW = 0.35
+const SHELL_GLOW = 0.2
 const RING_GLOW = 1
 const RING_SEGMENTS = 32
 const RING_RADIUS_U = 0.012
@@ -27,7 +27,9 @@ export class Repulsor3d {
   constructor(parent: THREE.Object3D) {
     const glow = (side: THREE.Side) =>
       new THREE.MeshBasicMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side, toneMapped: false })
-    this.shells = new InstancePool(parent, new THREE.SphereGeometry(1, 24, 16), glow(THREE.BackSide), CAPACITY)
+    // Front faces only: a camera inside the burst (the carrier's own view, or anyone it reaches)
+    // sees the ring, never a full-screen wash of the team ink.
+    this.shells = new InstancePool(parent, new THREE.SphereGeometry(1, 24, 16), glow(THREE.FrontSide), CAPACITY)
     this.rings = new SegmentPool(parent, glow(THREE.FrontSide), CAPACITY * RING_SEGMENTS)
   }
 
