@@ -3,8 +3,11 @@ import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import { BODY_CENTER, BODY_RADIUS, CROUCH_DROP } from './body3d'
 import { toThree, type Tracks3d } from './tracks3d'
 
-// shortcut: one placeholder range in Halo world units, replace with extracted per-weapon reticle ranges.
-export const RED_RETICLE_RANGE = 10
+/** The weapon the followed player holds (its film identifier) and its zoom level (0 = at the hip). */
+export interface HeldWeapon {
+  weaponId: string
+  zoomLevel: number
+}
 
 export interface ReticleTarget {
   feet: THREE.Vector3
@@ -29,13 +32,18 @@ export function redReticleTarget(ray: THREE.Ray, targets: readonly ReticleTarget
   return enemy && nearest <= range ? nearest : null
 }
 
+/**
+ * readRedReticle says whether the followed player's reticle is red: an enemy body is the first
+ * body on the aim ray, within `range` (the held weapon's red-reticle range, world units, from the
+ * weapon library index; null for a weapon without one, never red) and not behind a wall.
+ */
 export function readRedReticle(options: {
   tracks: Tracks3d | null; frame: number; xuid: string | null; camera: THREE.Camera; drop: number
   allegiance: Pick<FilmAllegiance, 'ofXuid'>; surfaces: THREE.Mesh[]; raycaster: THREE.Raycaster
-  riderAt: (xuid: string, frame: number) => THREE.Vector3 | null
+  riderAt: (xuid: string, frame: number) => THREE.Vector3 | null; range: number | null
 }): boolean {
-  const { tracks, frame, xuid, camera, drop, allegiance, surfaces, raycaster, riderAt } = options
-  if (!tracks || !xuid || !tracks.sample(xuid, frame)) return false
+  const { tracks, frame, xuid, camera, drop, allegiance, surfaces, raycaster, riderAt, range } = options
+  if (range === null || !tracks || !xuid || !tracks.sample(xuid, frame)) return false
   const targets: ReticleTarget[] = []
   for (const player of tracks.players) {
     if (player.xuid === xuid) continue
@@ -46,7 +54,7 @@ export function readRedReticle(options: {
     targets.push({ feet: rider ?? new THREE.Vector3(x, y - drop, z), crouch: state?.crouch ?? false, enemy: allegiance.ofXuid(player.xuid) === false })
   }
   const direction = camera.getWorldDirection(new THREE.Vector3())
-  const distance = redReticleTarget(new THREE.Ray(camera.position, direction), targets, RED_RETICLE_RANGE)
+  const distance = redReticleTarget(new THREE.Ray(camera.position, direction), targets, range)
   if (distance === null) return false
   raycaster.firstHitOnly = true
   raycaster.far = distance

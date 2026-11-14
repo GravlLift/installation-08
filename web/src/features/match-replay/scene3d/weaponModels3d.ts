@@ -27,6 +27,7 @@ import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips
 import { measureSyncPhases } from './clipSample3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { fetchMesh } from './meshFetch'
+import { ReticleRanges } from './reticleRanges3d'
 
 /** Délai avant de redemander un modèle absent (ms). */
 const RETRY_MS = 15_000
@@ -52,11 +53,20 @@ export class WeaponModels {
   private readonly abort = new AbortController()
   readonly base: string
   readonly gate?: LoadGate
+  /** The red-reticle ranges of the library's index (served at `base`). */
+  private readonly reticles: ReticleRanges
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
-  constructor(base: string, gate?: LoadGate) {
+  constructor(base: string, gate?: LoadGate, reticles: ReticleRanges = new ReticleRanges(base)) {
     this.base = base
     this.gate = gate
+    this.reticles = reticles
+  }
+
+  /** reticleRange is the red-reticle range of the weapon `id` at `zoomLevel`, null when it has none. */
+  reticleRange(id: string, zoomLevel: number): number | null {
+    const key = weaponModelKey(id)
+    return key ? this.reticles.range(key, zoomLevel) : null
   }
 
   /** model rend le modèle (à cloner) de l'arme `id`, null tant qu'il n'est pas là. */
@@ -94,6 +104,7 @@ export class WeaponModels {
 
   dispose(): void {
     this.abort.abort()
+    this.reticles.dispose()
     for (const root of this.owned) {
       root.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { WeaponIcon } from '@/components/ui/WeaponIcon'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
@@ -15,17 +15,20 @@ import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
+import type { HeldWeapon } from '../scene3d/redReticle3d'
 
 export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null> }) {
   const [frame, setFrame] = useState(0)
   const [onEnemy, setOnEnemy] = useState(false)
+  // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
+  const heldRef = useRef<HeldWeapon | null>(null)
   const source = useMemo(() => preparerAth(doc, xuid, kills), [doc, xuid, kills])
   useEffect(() => {
     let raf = 0
     const lire = () => {
       const frame = frameRef.current ?? 0
       setFrame(frame)
-      setOnEnemy(sceneRef?.current?.redReticle(frame, source.allegeance) ?? false)
+      setOnEnemy(sceneRef?.current?.redReticle(frame, source.allegeance, heldRef.current) ?? false)
       raf = requestAnimationFrame(lire)
     }
     raf = requestAnimationFrame(lire)
@@ -48,6 +51,10 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const cle = ath?.armeId?.replace(/^0x/i, '').slice(0, 8).toLowerCase()
   const spec = specLunette(cle, ath?.etiquette?.key)
   const zoom = zoomAt(doc, xuid, frame, spec)
+  const armeId = ath?.armeId ?? null
+  useEffect(() => {
+    heldRef.current = armeId ? { weaponId: armeId, zoomLevel: zoom.level } : null
+  }, [armeId, zoom.level])
   const lunetteMontee = spec.kind === 'scope' && zoom.amount > 0.5
   // Un lien intelligent garde le réticule, réduit de 30 % avec l'amplissée du zoom.
   const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
