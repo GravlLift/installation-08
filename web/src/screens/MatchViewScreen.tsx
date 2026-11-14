@@ -28,6 +28,7 @@ import { readReplayScoreboard } from '../features/match-replay/model/replayScore
 import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
 import { useCameraChoice } from './useCameraChoice'
 import { usePlayerChromeInsets } from './usePlayerChromeInsets'
+import { usePlayerMarks } from './usePlayerMarks'
 import { useVariantLayer } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
@@ -169,18 +170,6 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     wasHeld.current = held
   }, [held, sound.wake, sound.intro])
   const restart = useCallback(() => { sound.wake(); stepFrames(-Infinity) }, [stepFrames, sound.wake])
-  useReplayShortcuts({
-    togglePlay,
-    seekBy,
-    stepFrames,
-    restart,
-    toggleSound: sound.toggle,
-    toggleFullscreen: fullscreen.toggle,
-    toggleView,
-    setCameraMode: view === '3d' ? camera.setMode : undefined,
-    skipSeconds: SKIP_SECONDS,
-    enabled: !held,
-  })
 
   useEffect(() => {
     const host = hostRef.current
@@ -243,6 +232,21 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     sound.seek(next * 1000 / fps)
     setFrame(next)
   }, [frameRef, sound.seek, fps])
+  // The scrub bar's marks: the reference player's kills, deaths and medals.
+  const marks = usePlayerMarks({ doc, player: camera.player, kills, medals: replayContext.medals, nameOfXuid: action.nameOfXuid, frameRef, onSeek: onScrub })
+  useReplayShortcuts({
+    togglePlay,
+    seekBy,
+    stepFrames,
+    restart,
+    toggleSound: sound.toggle,
+    toggleFullscreen: fullscreen.toggle,
+    toggleView,
+    setCameraMode: view === '3d' ? camera.setMode : undefined,
+    stepEvent: marks.stepEvent,
+    skipSeconds: SKIP_SECONDS,
+    enabled: !held,
+  })
 
   const menuOpen = settingsOpen || exportOpen || scoreboardHeld
   const chrome = usePlayerChromeVisibility({ playing, menuOpen, scrubbing })
@@ -319,8 +323,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
             viewpoint={camera.followed}
             cameraMode={camera.mode}
             onSetCameraMode={camera.setMode}
-            kills={kills}
-            colorOfXuid={identity.colorOfXuid}
+            events={marks.events}
+            onStepEvent={marks.stepEvent}
             sound={sound}
             onTogglePlay={togglePlay}
             onRestart={restart}

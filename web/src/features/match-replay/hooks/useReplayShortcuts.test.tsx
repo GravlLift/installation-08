@@ -38,3 +38,12 @@ it('leaves the camera keys to the browser when the page has no camera choice (2D
   expect(press('1').defaultPrevented).toBe(false)
   unmount()
 })
+
+it('steps to the previous and next event with [ and ]', () => {
+  const stepEvent = vi.fn()
+  const { unmount } = renderHook(() => useReplayShortcuts(handlers({ stepEvent })))
+  press('[')
+  press(']')
+  expect(stepEvent.mock.calls).toEqual([[-1], [1]])
+  unmount()
+})

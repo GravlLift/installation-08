@@ -208,13 +208,37 @@
   clip-path: polygon(0 0, calc(100% - var(--slant)) 0, 100% var(--slant), 100% 100%, 0 100%); border-left: 3px solid var(--air); }
 
 /* Scrub bar: our own slider (not a range input), with the played part, the head and the
- * kill marks, `role="slider"` for the keyboard and screen readers. */
-.bc-scrub { position: relative; height: 18px; cursor: pointer; outline-offset: 4px; }
+ * event marks, `role="slider"` for the keyboard and screen readers. */
+.bc-scrub { position: relative; height: 28px; cursor: pointer; outline-offset: 4px; }
 .bc-scrub:focus-visible { outline: 2px solid var(--air); }
-.bc-scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; background: rgba(255,255,255,0.14); }
-.bc-scrub-played { position: absolute; left: 0; top: 8px; height: 3px; background: var(--air); }
-.bc-scrub-head { position: absolute; top: 2px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
-.bc-scrub-mark { position: absolute; top: 5px; width: 2px; height: 9px; opacity: 0.8; }
+.bc-scrub-track { position: absolute; left: 0; right: 0; top: 12px; height: 3px; background: rgba(255,255,255,0.14); }
+.bc-scrub-played { position: absolute; left: 0; top: 12px; height: 3px; background: var(--air); }
+.bc-scrub-head { position: absolute; top: 6px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
+
+/* The selected player's event marks, one lane per kind so none hides another: medals above the
+ * track, kills on it, deaths below it (`scrubMarks`). The button is the hit area, wider than
+ * the drawn mark; a group of close events draws wider. */
+.bc-scrub-mark { position: absolute; width: 14px; margin-left: -7px; padding: 0; border: 0; background: none;
+  cursor: pointer; display: flex; justify-content: center; z-index: 1; }
+.bc-scrub-mark i { display: block; }
+.bc-scrub-mark-medal { top: 0; height: 9px; align-items: center; }
+.bc-scrub-mark-medal i { width: 6px; height: 6px; background: var(--air-hot); transform: rotate(45deg); }
+.bc-scrub-mark-kill { top: 7px; height: 13px; align-items: stretch; }
+.bc-scrub-mark-kill i { width: 3px; background: var(--win); }
+.bc-scrub-mark-death { top: 18px; height: 10px; align-items: flex-end; }
+.bc-scrub-mark-death i { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-bottom: 7px solid var(--loss); }
+.bc-scrub-mark-many.bc-scrub-mark-kill i { width: 5px; }
+.bc-scrub-mark-many.bc-scrub-mark-medal i { width: 8px; height: 8px; }
+.bc-scrub-mark-many.bc-scrub-mark-death i { border-left-width: 6px; border-right-width: 6px; }
+.bc-scrub-mark:hover i, .bc-scrub-mark:focus-visible i { filter: brightness(1.3); }
+/* The tooltip opens below the bar (above it the transport's clipped edge would cut it). */
+.bc-scrub-mark-tip { display: none; position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  white-space: pre; padding: 3px 7px; font-size: 12px; line-height: 1.35; text-align: left; color: var(--ink);
+  text-transform: none; letter-spacing: 0.02em;
+  background: var(--studio-950); border: 1px solid var(--studio-700); pointer-events: none; z-index: 2; }
+.bc-scrub-mark-tip.bc-scrub-mark-tip-end { left: auto; right: 0; transform: none; }
+.bc-scrub-mark:hover .bc-scrub-mark-tip { display: block; }
 
 /* Controls row, left to right (the mockup's `.ctl`). It is made of groups that never break
  * inside; when the row does not fit, whole groups wrap to a second row. */

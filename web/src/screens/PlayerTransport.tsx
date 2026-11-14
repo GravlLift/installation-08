@@ -1,7 +1,7 @@
 /**
- * PlayerTransport — the lower third of the player: the scrub bar (our own slider element, with
- * the played part, a head and one mark per kill in the killer's color) and the controls row:
- * play/pause, back and forward 10 s, restart, the clock, the speed segments, the camera group
+ * PlayerTransport — the lower third of the player: the scrub bar (`ScrubBar`, with the selected
+ * player's kills, deaths and medals as marks) and the controls row: play/pause, back and
+ * forward 10 s, previous and next event, restart, the clock, the speed segments, the camera group
  * (view 3D / 2D, camera mode, POV picker: the one home of every camera choice), sound,
  * scoreboard, settings, film export and fullscreen.
  *
@@ -12,9 +12,9 @@
  * handled on the slider because the viewer's shortcuts already seek on those keys from anywhere
  * (handling them here too would seek twice); the slider adds Home and End.
  */
-import { useCallback, useMemo, useRef, type RefObject } from 'react'
+import type { RefObject } from 'react'
 
-import { formatClock, frameToMs, framesPerSecond } from '../lib/replay/replayLogic'
+import { formatClock, frameToMs } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { SPEED_MULTIPLIERS } from '../features/match-replay/settings/useReplaySettings'
 import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
@@ -22,9 +22,9 @@ import type { CameraMode3d } from '../features/match-replay/scene3d/replayScene3
 import { SCENE3D_TEXT } from '../features/match-replay/i18n/scene3dText'
 import { ReplaySoundControls } from '../features/match-replay/sound/ReplaySoundControls'
 import type { ReplaySound } from '../features/match-replay/sound/useReplaySound'
-import type { ReplayKill } from '../features/match-replay/model/killFeedLogic'
 import { displayPlayerName } from '../lib/players/displayName'
-import { clampUnit, frameAt, fractionAtFrame } from './scrubMath'
+import { ScrubBar } from './ScrubBar'
+import type { PlayerEvent } from './scrubMarks'
 
 export interface PlayerTransportProps {
   doc: ReplayDocumentReady
@@ -35,8 +35,10 @@ export interface PlayerTransportProps {
   viewpoint: string | null
   cameraMode: CameraMode3d
   onSetCameraMode: (mode: CameraMode3d) => void
-  kills: ReplayKill[]
-  colorOfXuid: (xuid: string) => string | null
+  /** The selected player's kills, deaths and medals (`usePlayerMarks`), drawn as scrub marks. */
+  events: readonly PlayerEvent[]
+  /** Seeks to the previous (-1) or next (1) event of the selected player. */
+  onStepEvent: (direction: -1 | 1) => void
   sound: ReplaySound
   onTogglePlay: () => void
   onRestart: () => void
@@ -60,95 +62,6 @@ export interface PlayerTransportProps {
   onScrubbingChange?: (scrubbing: boolean) => void
   /** The transport's own element, for the player's safe insets (`usePlayerChromeInsets`). */
   rootRef?: RefObject<HTMLDivElement | null>
-}
-
-type ScrubBarProps = Pick<
-  PlayerTransportProps,
-  'doc' | 'frame' | 'kills' | 'colorOfXuid' | 'onScrub' | 'onScrubbingChange'
->
-
-/** The scrub bar: click or drag to seek (the pointer is captured, so a drag keeps following
- *  outside the bar), Home and End on the keyboard. */
-function ScrubBar({ doc, frame, kills, colorOfXuid, onScrub, onScrubbingChange }: ScrubBarProps) {
-  const barRef = useRef<HTMLDivElement>(null)
-  const dragging = useRef(false)
-  const last = doc.frameCount - 1
-  const fps = framesPerSecond(doc)
-
-  const seekAt = useCallback((clientX: number) => {
-    const rect = barRef.current?.getBoundingClientRect()
-    if (!rect || rect.width <= 0) return
-    onScrub(frameAt(clampUnit((clientX - rect.left) / rect.width), doc.frameCount))
-  }, [doc.frameCount, onScrub])
-
-  const endDrag = useCallback(() => {
-    if (!dragging.current) return
-    dragging.current = false
-    onScrubbingChange?.(false)
-  }, [onScrubbingChange])
-
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.currentTarget.focus()
-    dragging.current = true
-    onScrubbingChange?.(true)
-    seekAt(event.clientX)
-    // Capture keeps a drag following outside the bar. It throws for a pointer the browser no
-    // longer tracks (a synthetic or already-released one): the click has still sought.
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId)
-    } catch {
-      endDrag()
-    }
-  }
-  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragging.current) seekAt(event.clientX)
-  }
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Home') { event.preventDefault(); onScrub(0) }
-    else if (event.key === 'End') { event.preventDefault(); onScrub(last) }
-  }
-
-  const marks = useMemo(() => kills
-    .map((kill, i) => ({
-      key: `${i}-${kill.xuid}`,
-      fraction: fractionAtFrame((kill.replayMs * fps) / 1000, doc.frameCount),
-      color: colorOfXuid(kill.xuid),
-    }))
-    .filter((mark) => mark.fraction > 0 && mark.fraction < 1), [kills, fps, doc.frameCount, colorOfXuid])
-
-  const fraction = fractionAtFrame(frame, doc.frameCount)
-  const clock = formatClock(frameToMs(frame, doc))
-  return (
-    <div
-      ref={barRef}
-      role="slider"
-      aria-label="Match time"
-      aria-valuemin={0}
-      aria-valuemax={last}
-      aria-valuenow={Math.round(frame)}
-      aria-valuetext={clock}
-      data-replay-timeline=""
-      tabIndex={0}
-      className="bc-scrub"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onKeyDown={onKeyDown}
-    >
-      <div className="bc-scrub-track" />
-      {marks.map((mark) => (
-        <div
-          key={mark.key}
-          className="bc-scrub-mark"
-          style={{ left: `${mark.fraction * 100}%`, ...(mark.color ? { background: mark.color } : {}) }}
-        />
-      ))}
-      <div className="bc-scrub-played" style={{ width: `${fraction * 100}%` }} />
-      <div className="bc-scrub-head" style={{ left: `${fraction * 100}%` }} />
-    </div>
-  )
 }
 
 const CAMERA_TEXT = SCENE3D_TEXT.en
@@ -215,8 +128,7 @@ export function PlayerTransport(props: PlayerTransportProps) {
       <ScrubBar
         doc={doc}
         frame={frame}
-        kills={props.kills}
-        colorOfXuid={props.colorOfXuid}
+        events={props.events}
         onScrub={props.onScrub}
         onScrubbingChange={props.onScrubbingChange}
       />
@@ -227,6 +139,8 @@ export function PlayerTransport(props: PlayerTransportProps) {
           </button>
           <button type="button" className="bc-ctl-btn" onClick={() => props.onSeekBy(-10)} aria-label="Back 10 seconds" title="Back 10 s (Left)">-10</button>
           <button type="button" className="bc-ctl-btn" onClick={() => props.onSeekBy(10)} aria-label="Forward 10 seconds" title="Forward 10 s (Right)">+10</button>
+          <button type="button" className="bc-ctl-btn" onClick={() => props.onStepEvent(-1)} disabled={props.events.length === 0} aria-label="Previous event" title="Previous kill, death or medal of the selected player ([)">‹</button>
+          <button type="button" className="bc-ctl-btn" onClick={() => props.onStepEvent(1)} disabled={props.events.length === 0} aria-label="Next event" title="Next kill, death or medal of the selected player (])">›</button>
           <button type="button" className="bc-ctl-btn" onClick={props.onRestart} aria-label="Restart" title="Restart (R)">↺</button>
           <span className="bc-time">{clock} <i>/</i> {total}</span>
         </div>

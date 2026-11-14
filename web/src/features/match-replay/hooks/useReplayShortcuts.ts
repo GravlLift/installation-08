@@ -49,6 +49,8 @@ export interface ReplayShortcutHandlers {
   toggleView?: () => void
   /** Chooses the camera mode: 1 first person, 2 third person, 3 free view (the order of the control bar's segment); absent = the keys are not listened to (the 2D view, where the segment is disabled). */
   setCameraMode?: (mode: CameraMode3d) => void
+  /** Seeks to the selected player's previous (-1) or next (1) kill, death or medal: the keys [ and ]; absent = the keys are not listened to. */
+  stepEvent?: (direction: -1 | 1) => void
   /** Le saut des flèches, en secondes (cf. SKIP_SECONDS de la barre). */
   skipSeconds: number
   /** `false` quand la page n'a pas de rejeu chargé : rien n'est écouté. */
@@ -124,6 +126,8 @@ type PlayerKeyAction =
   | 'cameraFirst'
   | 'cameraThird'
   | 'cameraFree'
+  | 'previousEvent'
+  | 'nextEvent'
 
 /**
  * LES TOUCHES DU LECTEUR, majuscules comprises : Verr. Maj allumé ne doit éteindre aucun
@@ -140,6 +144,7 @@ const PLAYER_KEYS = new Map<string, PlayerKeyAction>([
   ['f', 'fullscreen'], ['F', 'fullscreen'],
   ['v', 'view'], ['V', 'view'],
   ['1', 'cameraFirst'], ['2', 'cameraThird'], ['3', 'cameraFree'],
+  ['[', 'previousEvent'], [']', 'nextEvent'],
 ])
 
 /** The camera mode each camera key chooses. */
@@ -157,7 +162,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
-  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, skipSeconds, enabled, zoom } = h
+  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds, enabled, zoom } = h
   // LE CADRAGE PAR RÉFÉRENCE, et pas en dépendance de l'effet : son objet est recréé à chaque
   // rendu, et le cadrage change soixante fois par seconde pendant la lecture. En dépendance,
   // l'écouteur clavier se réabonnerait à cette cadence. La référence s'écrit dans un effet —
@@ -182,6 +187,8 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       cameraFirst: camera('cameraFirst'),
       cameraThird: camera('cameraThird'),
       cameraFree: camera('cameraFree'),
+      previousEvent: () => stepEvent?.(-1),
+      nextEvent: () => stepEvent?.(1),
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return
@@ -211,10 +218,11 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       if (!action) return
       if (action === 'view' && !toggleView) return // no view on this page: the key stays with the browser
       if (CAMERA_KEY_MODE[action] && !setCameraMode) return // no camera choice here: the key stays with the browser
+      if ((action === 'previousEvent' || action === 'nextEvent') && !stepEvent) return
       e.preventDefault()
       actions[action]()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, skipSeconds])
+  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds])
 }
