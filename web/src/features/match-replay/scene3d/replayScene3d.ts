@@ -152,6 +152,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       get lastFrame() { return self.lastFrame },
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
       placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame) => { this.cameraPlacement.placeCamera(frame) },
+      placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
     })
   }
   /** attach pose la carte et les joueurs, éclaire l'aire de jeu et capture l'environnement. */

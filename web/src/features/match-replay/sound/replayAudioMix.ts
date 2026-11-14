@@ -470,7 +470,7 @@ const FAMILY_ORDER: readonly SoundFamily[] = ['sfx', 'voice', 'music']
 export async function mixReplayAudio(
   timeline: readonly ReplaySoundEvent[],
   bounds: MixBounds,
-  options: MixOptions & { volume: number; urlOf: (stem: string) => string | undefined },
+  options: MixOptions & { volume: number; urlOf: (stem: string) => string | undefined; trimToBounds?: boolean },
 ): Promise<MixedTracks | null> {
   if (typeof OfflineAudioContext !== 'function') return null
   const planned = planAudioMix(timeline, bounds, options)
@@ -499,7 +499,7 @@ export async function mixReplayAudio(
     tailSeconds(kept, buffers, durationMs),
     engineTailSeconds(engineSegments, durOf, durationMs / 1000),
   )
-  const total = durationMs + tail * 1000
+  const total = durationMs + (options.trimToBounds ? 0 : tail * 1000)
   const rendre = (sons: readonly MixedSound[], engines: readonly EngineSegment[]) =>
     renderAudioMix(sons, buffers, total, options.volume, options.distancePercent ?? 0, engines)
   const full = await rendre(kept, engineSegments)

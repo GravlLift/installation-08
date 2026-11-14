@@ -12,7 +12,7 @@ import { buildShotFx } from '../features/match-replay/model/shotFx'
 import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
-import { formatClock, frameToMs, framesPerSecond } from '../lib/replay/replayLogic'
+import { framesPerSecond } from '../lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import {
   checkMesh,
@@ -37,10 +37,12 @@ import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
 import { MatchHeaderBar } from './MatchHeaderBar'
 import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
-import { ReplaySoundControls } from '../features/match-replay/sound/ReplaySoundControls'
+import { ReplayTransport } from '../features/match-replay/ui/ReplayTransport'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
-
-const SPEEDS = [0.25, 0.5, 1, 2, 4] as const
+import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
+import { ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
+import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
+import { useReplay3DExport } from '../features/match-replay/export/replay3dExportStore'
 
 /** The arrow/J/L seek step, in seconds — the same magnitude as LevelUp's `SKIP_SECONDS`
  *  (`layers/replayCanvasConfig.ts`, not lifted here: a single constant, not worth a file). */
@@ -235,49 +237,23 @@ export function PlaybackBar({
   sound: ReplaySound
 }) {
   const fps = framesPerSecond(doc)
+  const settings = useReplaySettings()
   usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
-      <button
-        type="button"
-        className="rounded bg-primary px-3 py-1 text-primary-foreground"
-        onClick={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
-      >
-        {playing ? 'Pause' : 'Play'}
-      </button>
-      <input
-        type="range"
-        data-replay-timeline=""
-        min={0}
-        max={Math.max(0, doc.frameCount - 1)}
-        value={frame}
-        onChange={(e) => {
-          const next = Number(e.target.value)
+      <div className="w-full"><ReplayTransport
+        doc={doc} frame={frame} playing={playing} speed={speed} onSetSpeed={setSpeed}
+        autoPlay={settings.autoPlay} onToggleAutoPlay={settings.toggleAutoPlay} sound={sound}
+        onTogglePlay={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
+        onRestart={() => { sound.wake(); frameRef.current = 0; sound.seek(0); setFrame(0) }}
+        onSeekBy={(seconds) => { const next = Math.round(Math.max(0, Math.min(doc.frameCount - 1, frameRef.current + seconds * fps))); frameRef.current = next; sound.seek(next * 1000 / fps); setFrame(next) }}
+        onScrub={(next) => {
           frameRef.current = next
           sound.seek(next * 1000 / fps)
           setFrame(next)
         }}
-        className="flex-1"
-      />
-      <span className="font-mono text-xs text-muted-foreground">
-        {formatClock(frameToMs(frame, doc))} / {formatClock(frameToMs(doc.frameCount - 1, doc))}
-      </span>
-      <label className="flex items-center gap-1 text-xs text-muted-foreground">
-        Speed
-        <select
-          className="rounded border border-border bg-background px-1 py-0.5 text-foreground"
-          value={speed}
-          onChange={(e) => setSpeed(Number(e.target.value))}
-        >
-          {SPEEDS.map((s) => (
-            <option key={s} value={s}>
-              {s}x
-            </option>
-          ))}
-        </select>
-      </label>
-      <ReplaySoundControls sound={sound} locale="en" />
+      /></div>
       <label className="flex items-center gap-1 text-xs text-muted-foreground">
         Follow
         <select
@@ -298,9 +274,10 @@ export function PlaybackBar({
 }
 
 export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
+  const settings = useReplaySettings()
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
-  const [playing, setPlaying] = useState(false)
+  const [playing, setPlaying] = useState(settings.autoPlay)
   const [speed, setSpeed] = useState(1)
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
@@ -322,6 +299,27 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
   const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en' })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null)
+  const exportLayout = useExportLayout()
+  const exportScene = useReplay3DExport()
+  const [exportOpen, setExportOpen] = useState(false)
+  const redrawExport = useCallback(() => {
+    const canvas = exportCanvasRef.current
+    const layout = exportLayoutRequested()
+    if (canvas && layout) {
+      canvas.width = Math.round(layout.width * layout.pixelRatio)
+      canvas.height = Math.round(layout.height * layout.pixelRatio)
+    }
+  }, [])
+  void exportLayout
+  const capture = useReplayCapture({
+    canvasRef: exportCanvasRef, doc, frameRef, playing, play: () => setPlaying((p) => !p),
+    redraw: redrawExport, playWindow: replayContext.playWindow,
+    scoreboard: replayContext.context?.scoreboard ?? [], allegiance: identity.allegiance,
+    kills: replayContext.kills, timeLimitMs: replayContext.timeLimitMs,
+    outcome: { code: replayContext.context?.header.outcome_code }, viewpoint, locale: 'en',
+    soundTrack: sound.exportTrack, soundVolume: sound.volume,
+  })
 
   // The 2D pan and zoom shortcuts are omitted from this 3D-only viewer.
   const stepFrames = useCallback(
@@ -416,6 +414,11 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
             {coatings.notice}
           </span>
         )}
+        <canvas ref={exportCanvasRef} hidden />
+        <div className="relative">
+          <button type="button" disabled={!exportScene || !capture.videoExport?.supported} onClick={() => setExportOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50">Export film</button>
+          {exportOpen && exportScene && capture.videoExport && <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />}
+        </div>
         <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
           {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
         </button>
