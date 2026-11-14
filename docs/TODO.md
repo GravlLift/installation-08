@@ -17,7 +17,9 @@ are in [PARITY.md](PARITY.md).
 - Map file weight: compressed textures (for example KTX2/Basis; files are 600 to 900 MB
   today, mostly texture data) and a lower-detail build option for weaker machines.
 - Live Fire: check whether the three extra structures its scenario names are ever visible
-  (they add 266 MB); drop or thin them by a general rule if not.
+  (they add 266 MB); drop or thin them by a general rule if not. They may be the distant
+  vista: the game shows snowy mountains on Live Fire's horizon and the viewer shows none.
+- Live Fire sky: the clouds barely read compared with the game (after the map materials).
 - Map fidelity: terrain material-layer blending and its hole mask; cut-out materials drawn
   alpha-cut whatever their blend field says; the Aquarius table side color; stronger light
   and shadow contrast.
