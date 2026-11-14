@@ -1,46 +1,45 @@
 /**
- * translocationCuts — UNE TRANSLOCATION EST UNE COUPURE DE LA PISTE, PAS UN DÉPLACEMENT.
+ * translocationCuts — A TRANSLOCATION IS A CUT OF THE TRACK, NOT A MOVEMENT.
  *
- * LE DÉFAUT CONSTATÉ À L'ÉCRAN (aj14-b, B0, film `1b2d9e08`, lecture à 1×). La piste d'une vie
- * est échantillonnée à chaque image ; l'échantillon d'ARRIVÉE d'une translocation se trouve à
- * 3 à 20 m du précédent. Interpolé comme un pas ordinaire, il donnait deux défauts : le pion
- * GLISSAIT du départ à l'arrivée pendant une image, et la traînée traçait un trait droit entre
- * les deux points, tenu pendant toute sa fenêtre — un déplacement que personne n'a fait.
+ * THE DEFECT OBSERVED ON SCREEN (aj14-b, B0, film `1b2d9e08`, playback at 1×). A life's track
+ * is sampled at every frame; the ARRIVAL sample of a translocation is found 3 to 20 m from
+ * the previous one. Interpolated as an ordinary step, it gave two defects: the pawn SLID from
+ * departure to arrival over one frame, and the trail drew a straight line between the two
+ * points, held for its whole window — a movement no one made.
  *
- * CE QUE LE MODULE DIT. `translocations[]` (l'événement 117 du film) porte les deux positions
- * du saut (`fx/fy` -> `tx/ty`). La coupure est posée sur le premier échantillon d'arrivée : celui
- * dont le PRÉCÉDENT est au départ et dont lui-même est à l'arrivée. `replayLogic` la lit comme une
- * lacune de réplication pour la position, l'altitude et la traînée (rien ne s'interpole au
- * travers) mais pas pour le dessin (`inGapAt` ne la voit pas : le joueur est là, il n'est pas
- * pâli).
+ * WHAT THE MODULE SAYS. `translocations[]` (the film's event 117) carries the jump's two
+ * positions (`fx/fy` -> `tx/ty`). The cut is set on the first arrival sample: the one whose
+ * PREDECESSOR is at the departure and which itself is at the arrival. `replayLogic` reads it
+ * as a replication gap for the position, the altitude and the trail (nothing interpolates
+ * across it) but not for the drawing (`inGapAt` does not see it: the player is there, they
+ * are not paled).
  *
- * POURQUOI ON CHERCHE LE COUPLE D'ÉCHANTILLONS ET ON NE LE DEVINE PAS. L'image de l'événement
- * est tantôt la dernière image au départ, tantôt la première à l'arrivée (mesuré sur le parc du
- * 2026-10-14 : 30 événements sur 122 dans le premier cas, 92 dans le second). Deux candidats
- * seulement sont essayés — le premier échantillon à l'image de l'événement ou après, et le
- * suivant —, chacun vérifié par les DEUX positions publiées. Aucun seuil de distance de saut :
- * une translocation peut faire 50 cm. Un événement sans positions, ou dont aucun couple ne
- * correspond (1 sur 123 au parc : la piste s'arrête avant), ne coupe rien — on n'invente pas
- * de coupure.
+ * WHY ONE SEARCHES THE SAMPLE PAIR AND DOES NOT GUESS IT. The event's frame is sometimes the
+ * last frame at the departure, sometimes the first at the arrival (measured on the fleet of
+ * 2026-10-14: 30 events out of 122 in the first case, 92 in the second). Only two candidates
+ * are tried — the first sample at the event's frame or after, and the next one —, each
+ * verified by the TWO published positions. No jump-distance threshold: a translocation can be
+ * 50 cm. An event without positions, or whose pair does not match (1 out of 123 in the fleet:
+ * the track stops before), cuts nothing — one does not invent a cut.
  */
 import type { ReplayDocument } from '@/lib/api/types'
 
 import type { ReplayCutPoint } from './replayReadyTypes'
 
 /**
- * Écart maximal, en mètres, entre une extrémité publiée du saut et l'échantillon qui la porte.
- * Mesuré sur les 122 événements appariés du parc : 0,00 à 0,27 m au départ, 0,00 à 1,39 m à
- * l'arrivée (le joueur bouge pendant l'image) ; 2 m laisse la marge d'un échantillon décalé. Un
- * saut très court (0,48 m au plus petit) peut apparier deux couples voisins : la coupure tombe
- * alors entre deux échantillons presque confondus, et ne déplace rien.
+ * Maximum gap, in meters, between a published end of the jump and the sample that carries it.
+ * Measured on the fleet's 122 paired events: 0.00 to 0.27 m at the departure, 0.00 to 1.39 m
+ * at the arrival (the player moves during the frame); 2 m leaves the margin of one shifted
+ * sample. A very short jump (0.48 m at the smallest) can pair two neighboring pairs: the cut
+ * then falls between two nearly coincident samples, and moves nothing.
  */
 export const CUT_TOLERANCE_M = 2
 
 type Translocation = NonNullable<ReplayDocument['translocations']>[number]
 
 /**
- * cutSampleIndex — l'index de l'échantillon d'arrivée de CETTE translocation dans CETTE piste,
- * ou -1 quand elle n'y est pas lisible.
+ * cutSampleIndex — the index of the ARRIVAL sample of THIS translocation in THIS track, or -1
+ * when it is not readable there.
  */
 export function cutSampleIndex(points: readonly ReplayCutPoint[], ev: Translocation): number {
   const { fx, fy, tx, ty } = ev
@@ -65,11 +64,11 @@ export function cutSampleIndex(points: readonly ReplayCutPoint[], ev: Translocat
 }
 
 /**
- * markTranslocationCuts — pose `cut` sur l'échantillon d'arrivée de chaque translocation.
+ * markTranslocationCuts — sets `cut` on the arrival sample of each translocation.
  *
- * Une vie par piste : un slot peut en porter plusieurs (réapparitions), on cherche donc parmi
- * celles du slot. Les pistes sans coupure sont rendues TELLES QUELLES (même référence), les
- * autres reçoivent un tableau neuf — les échantillons du contrat ne sont jamais mutés.
+ * One life per track: a slot can carry several (reappearances), so one searches among those
+ * of the slot. Tracks without a cut are returned AS-IS (same reference), the others receive a
+ * fresh array — the contract's samples are never mutated.
  */
 export function markTranslocationCuts<T extends { slot: number; points: ReplayCutPoint[] }>(
   tracks: readonly T[],

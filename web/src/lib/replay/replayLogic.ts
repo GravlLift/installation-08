@@ -1,6 +1,6 @@
 /**
- * replayLogic.ts — logique PURE du rejeu 2D (interpolation, projection, lecture).
- * Sans React ni canvas → testable unitairement (anti-pattern « logique dans le composant »).
+ * replayLogic.ts — PURE logic of the 2D replay (interpolation, projection, reading).
+ * No React nor canvas → unit-testable (anti-pattern "logic in the component").
  */
 import type { ReplayBounds, ReplayMapObject, ReplayPoint } from '@/lib/api/types'
 
@@ -14,41 +14,41 @@ export interface XY {
 }
 
 /**
- * Cadence de lecture « 1× » quand l'artefact ne porte pas d'échelle temporelle
- * (frameIntervalMs absent, anciens artefacts) : l'axe T est alors un simple index.
+ * "1×" playback rate when the artifact carries no time scale (frameIntervalMs absent, older
+ * artifacts): the T axis is then a plain index.
  */
 const FALLBACK_FPS = 60
 
-/** Nombre de bandes d'altitude proposées comme « étages ». */
+/** Number of altitude bands offered as "floors". */
 export const FLOOR_BANDS = 3
 
 /**
- * LES LACUNES DE RÉPLICATION (`Point.g`, lot 1.9.13 côté Go ; lues ici depuis le 2026-09-23,
- * lot L1.4 des retours du rejeu, décision Q14). Un point qui porte `g > 0` dit : « avant moi, le
- * film n'a RIEN répliqué pendant `g` ms — ne pas interpoler au travers, ni segment, ni position
- * intermédiaire » (`film/replay/document_aim.go`, champ G). Pendant une lacune, la position (et
- * l'altitude) est donc TENUE au dernier point qui la précède ; la traînée ne relie jamais ses deux
- * côtés ; le dessin du pion la pâlit (`inGapAt`, `layers/replayMarkers.ts`). Avant cette
- * lecture, un pion glissait des dizaines de secondes vers un point lointain (974 lacunes au parc,
- * 222 à plus de 10 m).
+ * THE REPLICATION GAPS (`Point.g`, lot 1.9.13 on the Go side; read here since 2026-09-23, lot
+ * L1.4 of the replay feedback, decision Q14). A point carrying `g > 0` says: "before me, the
+ * film replicated NOTHING for `g` ms — do not interpolate across, neither segment nor
+ * intermediate position" (`film/replay/document_aim.go`, field G). During a gap, the position
+ * (and the altitude) is therefore HELD at the last point that precedes it; the trail never
+ * joins its two sides; the pawn's drawing pales it (`inGapAt`, `layers/replayMarkers.ts`).
+ * Before this reading, a pawn slid for tens of seconds toward a distant point (974 gaps in the
+ * fleet, 222 over 10 m).
  */
 function isGapPoint(p: { g?: number }): boolean {
   return (p.g ?? 0) > 0
 }
 
 /**
- * Un point qui ROMPT la ligne : une lacune de réplication (`g`) OU la coupure d'une
- * translocation (`cut`, posée par `translocationCuts.ts`). Position, altitude et traînée ne
- * s'interpolent jamais au travers ; seule la lacune pâlit le pion (`inGapAt`) — après une
- * translocation, le joueur est présent et vu.
+ * A point that BREAKS the line: a replication gap (`g`) OR the cut of a translocation (`cut`,
+ * set by `translocationCuts.ts`). Position, altitude and trail are never interpolated across it;
+ * only the gap pales the pawn (`inGapAt`) — after a translocation, the player is present and
+ * seen.
  */
 function breaksLine(p: { g?: number; cut?: boolean }): boolean {
   return isGapPoint(p) || p.cut === true
 }
 
 /**
- * bracketAt rend les deux échantillons qui encadrent `t` (`a.t <= t < b.t`), `t` étant
- * STRICTEMENT à l'intérieur de la piste (recherche binaire). L'appelant traite les bords.
+ * bracketAt returns the two samples that bracket `t` (`a.t <= t < b.t`), `t` being STRICTLY
+ * inside the track (binary search). The caller handles the edges.
  */
 function bracketAt<P extends { t: number }>(points: readonly P[], t: number): { a: P; b: P } {
   let lo = 0
@@ -62,11 +62,11 @@ function bracketAt<P extends { t: number }>(points: readonly P[], t: number): { 
 }
 
 /**
- * positionAt renvoie la position d'une track au temps `t` (index de frame) :
- * - null avant le 1er point échantillonné ;
- * - le dernier point maintenu après le dernier échantillon ;
- * - interpolation linéaire entre deux échantillons connus (recherche binaire) ;
- * - SAUF au travers d'une lacune (`b.g > 0`) : la position est tenue au point qui la précède.
+ * positionAt returns a track's position at time `t` (frame index):
+ * - null before the first sampled point;
+ * - the last point held after the last sample;
+ * - linear interpolation between two known samples (binary search);
+ * - EXCEPT across a gap (`b.g > 0`): the position is held at the point that precedes it.
  */
 export function positionAt(points: ReplayCutPoint[], t: number): XY | null {
   if (points.length === 0) return null
@@ -83,9 +83,9 @@ export function positionAt(points: ReplayCutPoint[], t: number): XY | null {
 }
 
 /**
- * inGapAt dit si l'image `t` tombe DANS une lacune de réplication : strictement après le point
- * qui la précède et avant le point (`g > 0`) qui la clôt. Faux sur un point, avant la vie et
- * après son dernier point.
+ * inGapAt says whether frame `t` falls INSIDE a replication gap: strictly after the point that
+ * precedes it and before the point (`g > 0`) that closes it. False on a point, before the life
+ * and after its last point.
  */
 export function inGapAt(points: readonly ReplayPoint[], t: number): boolean {
   if (points.length < 2 || t <= points[0].t || t >= points[points.length - 1].t) return false
@@ -94,9 +94,9 @@ export function inGapAt(points: readonly ReplayPoint[], t: number): boolean {
 }
 
 /**
- * trailAt renvoie les points de la traînée d'une track dans la fenêtre [t-window, t]
- * (échantillons bruts) plus la tête interpolée à `t`. Un point qui clôt une lacune REPART la
- * traînée : aucun segment ne relie les deux côtés d'un silence du film.
+ * trailAt returns the points of a track's trail in the window [t-window, t] (raw samples) plus
+ * the head interpolated at `t`. A point that closes a gap RESTARTS the trail: no segment joins
+ * the two sides of a film silence.
  */
 export function trailAt(points: ReplayCutPoint[], t: number, windowFrames: number): XY[] {
   const start = t - windowFrames
@@ -116,8 +116,8 @@ export function trailAt(points: ReplayCutPoint[], t: number, windowFrames: numbe
 }
 
 /**
- * altitudeAt renvoie le Z interpolé d'une track au temps `t` (0 si l'artefact n'a pas de Z),
- * tenu au travers d'une lacune comme la position.
+ * altitudeAt returns the interpolated Z of a track at time `t` (0 if the artifact has no Z),
+ * held across a gap like the position.
  */
 export function altitudeAt(points: ReplayCutPoint[], t: number): number | null {
   if (points.length === 0) return null
@@ -134,8 +134,8 @@ export function altitudeAt(points: ReplayCutPoint[], t: number): number | null {
 }
 
 /**
- * advanceFrame calcule le prochain temps de lecture ; boucle à 0 en fin de rejeu.
- * `deltaFrames` peut être fractionnaire (dt réel × vitesse).
+ * advanceFrame computes the next playback time; loops to 0 at the end of the replay.
+ * `deltaFrames` can be fractional (real dt × speed).
  */
 export function advanceFrame(t: number, deltaFrames: number, frameCount: number): number {
   if (frameCount <= 1) return 0
@@ -145,9 +145,8 @@ export function advanceFrame(t: number, deltaFrames: number, frameCount: number)
 }
 
 /**
- * worldToCanvas projette une position monde (x,y) dans un rectangle canvas (fit en
- * préservant le ratio, centré, avec marge `pad`). Y est INVERSÉ : le monde a +Y vers le
- * haut, le canvas +Y vers le bas.
+ * worldToCanvas projects a world position (x,y) into a canvas rectangle (fit preserving the
+ * ratio, centered, with margin `pad`). Y is INVERTED: the world has +Y up, the canvas +Y down.
  */
 export function worldToCanvas(
   p: XY,
@@ -170,17 +169,16 @@ export function worldToCanvas(
 }
 
 /**
- * usefulHeight — LA HAUTEUR AU-DELÀ DE LAQUELLE ON N'AJOUTE PLUS DE CARTE, MAIS DU VIDE.
+ * usefulHeight — THE HEIGHT BEYOND WHICH ONE ADDS NO MORE MAP, BUT EMPTY SPACE.
  *
- * Il répond à une question que la hauteur fixe n'avait
- * jamais eu à poser : jusqu'où le terrain gagne-t-il à grandir ? `canvasScale` prend le PLUS
- * PETIT des deux rapports (largeur/largeur de scène, hauteur/hauteur de scène). Passé le point
- * où la largeur devient le facteur limitant, chaque pixel de hauteur en plus n'agrandit plus
- * rien : il ajoute une bande vide au-dessus et au-dessous de la carte.
+ * It answers a question the fixed height never had to ask: how far does the terrain benefit
+ * from growing? `canvasScale` takes the SMALLEST of the two ratios (width/scene width,
+ * height/scene height). Past the point where the width becomes the limiting factor, each
+ * extra pixel of height enlarges nothing: it adds an empty band above and below the map.
  *
- * Ce plafond est donc PAR CARTE. Une carte quasi carrée peut occuper beaucoup de hauteur dans
- * une colonne large ; une carte très allongée sature bien avant. C'est ce que le plafond
- * constant ne pouvait pas exprimer.
+ * This ceiling is therefore PER MAP. A near-square map can occupy a lot of height in a wide
+ * column; a very elongated map saturates much sooner. That is what the constant ceiling could
+ * not express.
  */
 export function usefulHeight(bounds: ReplayBounds, available: number, pad: number): number {
   const bw = Math.max(bounds.maxX - bounds.minX, 1e-6)
@@ -189,12 +187,12 @@ export function usefulHeight(bounds: ReplayBounds, available: number, pad: numbe
 }
 
 /**
- * LES PALIERS DE ZOOM, et pourquoi ce ne sont pas des crans continus.
+ * THE ZOOM STEPS, and why they are not continuous.
  *
- * Changer le cadrage fait RECUIRE les quatre calques statiques (le sol et ses ~45 000 cellules
- * en tête). Un zoom continu — la molette — en déclencherait un par cran, donc des dizaines par
- * geste. Des paliers rendent chaque changement rare, prévisible, et NOMMABLE à l'écran : « 2x »
- * se lit, « 1,37x » ne veut rien dire pour qui regarde un match.
+ * Changing the framing makes the four static layers RE-BAKE (the ground and its ~45 000 cells
+ * first). A continuous zoom — the wheel — would trigger one per notch, so dozens per gesture.
+ * Steps make each change rare, predictable, and NAMEABLE on screen: "2x" reads, "1.37x" means
+ * nothing to whoever is watching a match.
  */
 export const ZOOM_LEVELS = [1, 1.5, 2, 3] as const
 export type ZoomLevel = (typeof ZOOM_LEVELS)[number]
@@ -204,16 +202,16 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
- * clampCenter — le centre de la fenêtre, ramené là où la fenêtre reste DANS la scène.
+ * clampCenter — the center of the window, brought back where the window stays INSIDE the scene.
  *
- * Exporté séparément de `visibleBounds` parce que l'état du zoom en a besoin sans vouloir les
- * bornes : quand on baisse le zoom, le centre courant peut devenir illégal (une fenêtre plus
- * large ne tient plus aussi près du bord) et il faut le rapprocher AVANT de le stocker — sinon
- * l'état garde une valeur que l'affichage corrige en silence, et les deux divergent.
+ * Exported separately from `visibleBounds` because the zoom state needs it without wanting the
+ * bounds: when the zoom is lowered, the current center can become illegal (a wider window no
+ * longer fits as close to the edge) and it must be brought in BEFORE storing it — otherwise
+ * the state keeps a value the display corrects in silence, and the two diverge.
  *
- * À zoom 1 la fenêtre vaut la scène : les deux bornes du `clamp` se rejoignent, il ne reste
- * qu'une position possible. La croix directionnelle se désactive donc d'elle-même, sans que
- * personne ait à écrire la règle « pas de déplacement à zoom 1 ».
+ * At zoom 1 the window equals the scene: the two bounds of the `clamp` meet, only one possible
+ * position remains. The directional cross therefore disables itself, without anyone having to
+ * write the rule "no panning at zoom 1".
  */
 export function clampCenter(
   scene: ReplayBounds,
@@ -230,35 +228,35 @@ export function clampCenter(
 }
 
 /**
- * visibleBounds — LA FENÊTRE VISIBLE, et c'est TOUT ce que le zoom change.
+ * visibleBounds — THE VISIBLE WINDOW, and that is ALL the zoom changes.
  *
- * # POURQUOI PAR LES BORNES, ET PAS PAR UNE ÉCHELLE
+ * # WHY BY THE BOUNDS, AND NOT BY A SCALE
  *
- * La tentation était d'ajouter `{échelle, panX, panY}` au cadrage et de les appliquer partout.
- * Cela aurait touché `worldToCanvas`, `canvasScale`, le survol, les quatre calques et les
- * infobulles — et surtout introduit DEUX façons de dire où tombe un point du monde, qui
- * auraient divergé au premier oubli.
+ * The temptation was to add `{scale, panX, panY}` to the framing and apply them everywhere.
+ * That would have touched `worldToCanvas`, `canvasScale`, the hover, the four layers and the
+ * tooltips — and above all introduced TWO ways of stating where a world point falls, which
+ * would have diverged at the first oversight.
  *
- * Or la projection est entièrement définie par les BORNES : `worldToCanvas` mappe `bounds` vers
- * la toile. Zoomer, c'est donc rétrécir les bornes ; se déplacer, c'est les translater. Rien
- * d'autre ne bouge — le survol lit la même projection que le dessin, il suit sans une ligne.
+ * Yet the projection is entirely defined by the BOUNDS: `worldToCanvas` maps `bounds` onto
+ * the canvas. Zooming is therefore shrinking the bounds; moving is translating them. Nothing
+ * else moves — the hover reads the same projection as the drawing, it follows without a line.
  *
- * # CE QUE ÇA RÈGLE GRATUITEMENT
+ * # WHAT THAT SETTLES FOR FREE
  *
- * Les calques statiques cuisent depuis le cadrage : avec des bornes rétrécies, ils cuisent la
- * FENÊTRE à la résolution de l'écran. Leur surface ne dépend donc PAS du niveau de zoom — la
- * crainte d'une mémoire qui enfle avec le grossissement est évitée par construction, et non par
- * une précaution qu'il faudrait maintenir.
+ * The static layers bake from the framing: with shrunken bounds, they bake the WINDOW at the
+ * screen's resolution. Their area therefore does NOT depend on the zoom level — the fear of a
+ * memory that swells with the magnification is avoided by construction, and not by a
+ * precaution that would have to be maintained.
  *
- * # L'ASPECT EST PRÉSERVÉ
+ * # THE ASPECT IS PRESERVED
  *
- * Les deux dimensions sont divisées par le MÊME facteur. Sans cela, `usefulHeight` (le plafond
- * de hauteur calculé par carte) et le cadrage se contrediraient à chaque palier : la fenêtre
- * réclamerait une forme que la toile ne peut pas lui donner, et la carte flotterait dans des
- * bandes vides qui changeraient de taille à chaque cran.
+ * The two dimensions are divided by the SAME factor. Without that, `usefulHeight` (the
+ * height ceiling computed per map) and the framing would contradict each other at every step:
+ * the window would demand a shape the canvas cannot give it, and the map would float in empty
+ * bands that change size at every notch.
  *
- * L'amplitude verticale (`minZ`/`maxZ`) traverse inchangée : le zoom est plan, il ne dit rien
- * des étages.
+ * The vertical amplitude (`minZ`/`maxZ`) passes through unchanged: the zoom is planar, it says
+ * nothing about the floors.
  */
 export function visibleBounds(
   scene: ReplayBounds,
@@ -280,12 +278,12 @@ export function visibleBounds(
   }
 }
 
-/** Le centre de la scène — la position de départ du cadrage, et celle du retour à 1x. */
+/** The center of the scene — the starting position of the framing, and the return-to-1x one. */
 export function sceneCenter(scene: ReplayBounds): { x: number; y: number } {
   return { x: (scene.minX + scene.maxX) / 2, y: (scene.minY + scene.maxY) / 2 }
 }
 
-/** canvasScale = pixels par unité monde pour le même cadrage que worldToCanvas. */
+/** canvasScale = pixels per world unit for the same framing as worldToCanvas. */
 export function canvasScale(
   bounds: ReplayBounds,
   width: number,
@@ -298,21 +296,21 @@ export function canvasScale(
 }
 
 /**
- * sceneBounds cadre la scène.
+ * sceneBounds frames the scene.
  *
- * AVEC UN SOL RECONSTRUIT, LE CADRE EST LA ZONE JOUÉE. La structure d'une carte couvre
- * ±250 m (skybox, décor lointain) là où les joueurs en parcourent 50 : cadrer sur elle
- * réduirait le terrain à un timbre au centre de l'écran. C'est aussi le cadrage du POC.
+ * WITH A RECONSTRUCTED FLOOR, THE FRAME IS THE PLAYED AREA. A map's structure covers ±250 m
+ * (skybox, distant decor) where the players traverse 50: framing on it would reduce the
+ * terrain to a stamp in the center of the screen. That is also the POC's framing.
  *
- * `hasMapImage` ÉTEND CETTE MÊME RÈGLE AU FOND DE CARTE, et le défaut qu'elle corrige était
- * visible à l'écran (2026-08-26) : quand une image est posée, `ReplayCanvas` ne dessine PAS
- * les props Forge (ils sont le `else if` du fond), mais l'union les gardait au dénominateur
- * du cadre. Le cadre était donc dimensionné sur une matière INVISIBLE, et la carte se
- * réduisait à un timbre dans un canvas vide. Une image de carte est un fond au même titre
- * qu'un sol reconstruit : elle rend les props inutiles au cadrage.
+ * `hasMapImage` EXTENDS THIS SAME RULE TO THE MAP BACKGROUND, and the defect it fixed was
+ * visible on screen (2026-08-26): when an image is laid, `ReplayCanvas` does NOT draw the
+ * Forge props (they are the background's `else if`), but the union kept them in the frame's
+ * denominator. The frame was therefore sized to INVISIBLE matter, and the map reduced to a
+ * stamp in an empty canvas. A map image is a background just like a reconstructed floor: it
+ * makes the props useless for the framing.
  *
- * SANS SOL NI IMAGE, les props Forge redeviennent le seul fond, et ils débordent de la zone
- * parcourue : on cadre alors sur l'union, sinon ils seraient rognés.
+ * WITHOUT A FLOOR NOR AN IMAGE, the Forge props become the sole background again, and they
+ * overflow the traversed area: one then frames on the union, otherwise they would be cropped.
  */
 export function sceneBounds(doc: ReplayDocumentReady, hasMapImage = false): ReplayBounds {
   if (hasMapImage || doc.structure?.length) return doc.bounds
@@ -329,67 +327,67 @@ export function sceneBounds(doc: ReplayDocumentReady, hasMapImage = false): Repl
 }
 
 /**
- * framesPerSecond donne la cadence de lecture « 1× » : le rejeu suit alors le temps réel
- * du match (frameIntervalMs = durée réelle d'une frame). Sans échelle temporelle dans
- * l'artefact, on retombe sur la cadence historique (axe = index de record).
+ * framesPerSecond gives the "1×" playback rate: the replay then follows the match's real time
+ * (frameIntervalMs = real duration of a frame). Without a time scale in the artifact, one
+ * falls back on the historical rate (axis = record index).
  */
 export function framesPerSecond(doc: ReplayDocumentReady): number {
   const interval = doc.frameIntervalMs ?? 0
   return interval > 0 ? 1000 / interval : FALLBACK_FPS
 }
 
-/** frameToMs convertit une frame en millisecondes écoulées depuis le début du rejeu. */
+/** frameToMs converts a frame into milliseconds elapsed since the start of the replay. */
 export function frameToMs(frame: number, doc: ReplayDocumentReady): number {
   const interval = doc.frameIntervalMs ?? 0
   return interval > 0 ? frame * interval : (frame / FALLBACK_FPS) * 1000
 }
 
-/** msToFrames convertit une durée réelle (ms) en nombre de frames. */
+/** msToFrames converts a real duration (ms) into a number of frames. */
 export function msToFrames(ms: number, doc: Pick<ReplayDocumentReady, 'frameIntervalMs'>): number {
   const interval = doc.frameIntervalMs ?? 0
   return interval > 0 ? ms / interval : (ms / 1000) * FALLBACK_FPS
 }
 
 /**
- * L'ouverture d'un rejeu depuis un lien tactique se place CE DÉLAI AVANT l'événement : le temps de
- * voir venir l'action plutôt que d'arriver sur le coup. Même valeur pour les deux horloges.
+ * Opening a replay from a tactical link places itself THIS DELAY BEFORE the event: time to
+ * see the action coming rather than arriving on the spot. Same value for both clocks.
  */
 export const OUVERTURE_AVANT_EVENEMENT_MS = 5000
 
-/** Ce que la route du rejeu tire d'un lien tactique une fois le document chargé. */
+/** What the replay route draws from a tactical link once the document is loaded. */
 export interface TacticalOpenAtFrame {
-  /** La frame à laquelle ouvrir le rejeu, ou `null` : pas de lien, lien malformé, document
-   *  pas encore chargé, ou horloge du match non établie (voir `showMissingOriginNotice`). */
+  /** The frame at which to open the replay, or `null`: no link, malformed link, document
+   *  not yet loaded, or match clock not established (see `showMissingOriginNotice`). */
   openAtFrame: number | null
-  /** `true` quand `clock: 'match'` demandait une conversion que ce document ne permet pas (pas
-   *  d'origine du film, donc pas d'horloge du match, cf. `matchClock`) — la route affiche alors
-   *  un avis plutôt que d'ouvrir sur un saut approximatif. */
+  /** `true` when `clock: 'match'` asked for a conversion this document does not allow (no
+   *  film origin, hence no match clock, see `matchClock`) — the route then displays a notice
+   *  rather than opening on an approximate jump. */
   showMissingOriginNotice: boolean
 }
 
 /**
- * resolveTacticalOpenAtFrame — LA fonction que la route du rejeu appelle pour un lien
- * tactique (`?t=&clock=`), du texte brut de l'URL à la frame prête pour `ReplayCanvas.
+ * resolveTacticalOpenAtFrame — THE function the replay route calls for a tactical link
+ * (`?t=&clock=`), from the URL's raw text to the frame ready for `ReplayCanvas.
  * openAtFrame`.
  *
- * LA CLÉ `clock` DIT SUR QUEL AXE `t` EST EXPRIMÉ (même vocabulaire que `TacticalContribution.clock`
- * côté Go, `domain/tactical_cellule.go`) :
- *   - `film`  (temps, routes) : l'axe du film, déjà celui que `msToFrames` consomme ;
- *   - `match` (morts, frags, gagne, isole) : l'axe du match. La conversion est LA soustraction
- *     unique du rejeu, `matchClock(doc).filmMsOfMatchMs` (`t − originMs`) : aucune autre.
- *     Sans origine du film (`matchClock` rend `null`), pas de repli sur zéro — l'écart est un
- *     inconnu de plusieurs secondes, et un saut faux ne se distinguerait pas d'un saut exact :
- *     l'avis `showMissingOriginNotice` le dit.
+ * THE `clock` KEY SAYS ON WHICH AXIS `t` IS EXPRESSED (same vocabulary as
+ * `TacticalContribution.clock` on the Go side, `domain/tactical_cellule.go`):
+ *   - `film`  (times, routes): the film axis, already the one `msToFrames` consumes;
+ *   - `match` (deaths, frags, wins, isolations): the match axis. The conversion is THE
+ *     replay's sole subtraction, `matchClock(doc).filmMsOfMatchMs` (`t − originMs`): no other.
+ *     Without a film origin (`matchClock` returns `null`), no fallback to zero — the gap is an
+ *     unknown of several seconds, and a wrong jump would not be distinguishable from an exact
+ *     one: the `showMissingOriginNotice` notice says so.
  *
- * L'instant d'ouverture est reculé de `OUVERTURE_AVANT_EVENEMENT_MS`, plancher à l'image zéro.
+ * The opening instant is moved back by `OUVERTURE_AVANT_EVENEMENT_MS`, floored at the zero frame.
  *
- * `search.t` EST UNE CHAÎNE (pas un nombre) : cf. la doc de `Route.validateSearch` dans
- * `replay.tsx` — un champ numérique dans le schéma de recherche de CETTE route empoisonnerait
- * le schéma GLOBAL que TanStack Router fusionne entre toutes les routes.
+ * `search.t` IS A STRING (not a number): see the doc of `Route.validateSearch` in
+ * `replay.tsx` — a numeric field in THIS route's search schema would poison the GLOBAL schema
+ * that TanStack Router merges across all routes.
  *
- * `doc` ABSENT (document pas encore chargé) rend `{ openAtFrame: null, showMissingOriginNotice:
- * false }` — PAS un avis : l'avis ne se prononce QUE lorsque le document est là et dit
- * lui-même qu'il n'a pas d'origine. Avant ça, la page est en chargement, pas en défaut.
+ * `doc` ABSENT (document not yet loaded) returns `{ openAtFrame: null, showMissingOriginNotice:
+ * false }` — NOT a notice: the notice is issued ONLY when the document is there and says
+ * itself that it has no origin. Before that, the page is loading, not in a defect.
  */
 export function resolveTacticalOpenAtFrame(
   search: { t?: string; clock?: 'match' | 'film' },
@@ -401,7 +399,7 @@ export function resolveTacticalOpenAtFrame(
   if (!Number.isFinite(tMs) || tMs < 0) return none
   let filmMs = tMs
   if (search.clock === 'match') {
-    // `filmMsOfMatchMs` ne lit pas l'en-tête du match : seule l'origine du film compte ici.
+    // `filmMsOfMatchMs` does not read the match header: only the film origin counts here.
     const horloge = matchClock(doc, null)
     if (!horloge) return { openAtFrame: null, showMissingOriginNotice: true }
     filmMs = horloge.filmMsOfMatchMs(tMs)
@@ -411,18 +409,18 @@ export function resolveTacticalOpenAtFrame(
 }
 
 /**
- * formatClock formate une durée en `m:ss` (chronomètre du rejeu). IL TRONQUE, et c'est la
- * convention d'un lecteur : « 1:05 » vaut « on est dans la 66e seconde », pas « on en est à
- * 66 s arrondi ». Toutes les surfaces visibles du rejeu le partagent (horloge, fil des
- * éliminations, marques de la frise) — garde-rail `replayClockFormat.guard.test.ts`.
+ * formatClock formats a duration as `m:ss` (the replay's stopwatch). IT TRUNCATES, and that is
+ * the convention of a player: "1:05" means "we are in the 66th second", not "we are at 66 s
+ * rounded". Every visible surface of the replay shares it (clock, kill feed, timeline marks) —
+ * guardrail `replayClockFormat.guard.test.ts`.
  *
- * CE QUE CE PARTAGE A CHANGÉ À L'ÉCRAN, et c'est assumé (2026-09-06, revue R1, constat C4 —
- * cinquième exception du lot v2 D) : l'INFOBULLE NATIVE des marques de la frise
- * (`ui/ReplayTimelineTracks.tsx`, `title={m.clock}`) affichait une seconde de PLUS avant ce
- * lot, sur environ une marque sur deux — elle appelait le formateur d'INSTANT de
- * `lib/formatters`, qui ARRONDIT au lieu de tronquer. Le décalage n'était pas un détail
- * d'affichage : la même mort se datait « 1:06 » dans l'infobulle et « 1:05 » dans le fil,
- * sur le même écran. C'est la résolution du résidu P0-6, pas une régression.
+ * WHAT THAT SHARING CHANGED ON SCREEN, and it is accepted (2026-09-06, review R1, finding C4 —
+ * fifth exception of lot v2 D): the NATIVE TOOLTIP of the timeline marks
+ * (`ui/ReplayTimelineTracks.tsx`, `title={m.clock}`) displayed a second MORE before this
+ * lot, on roughly one mark out of two — it called the INSTANT formatter of `lib/formatters`,
+ * which ROUNDS instead of truncating. The offset was not a display detail: the same death was
+ * dated "1:06" in the tooltip and "1:05" in the feed, on the same screen. That is the
+ * resolution of the P0-6 residue, not a regression.
  */
 export function formatClock(ms: number): string {
   const total = Math.max(Math.floor(ms / 1000), 0)
@@ -430,21 +428,21 @@ export function formatClock(ms: number): string {
   return `${Math.floor(total / 60)}:${sec < 10 ? '0' : ''}${sec}`
 }
 
-/** formatSeconds rend un délai court en secondes avec une décimale (virgule décimale FR/EN). */
+/** formatSeconds renders a short delay in seconds with one decimal (FR/EN decimal comma). */
 export function formatSeconds(ms: number): string {
   return `${(Math.max(0, ms) / 1000).toFixed(1)} s`
 }
 
 /**
- * READING_FADE — une lecture au plancher d'âge garde la moitié de son opacité : elle
- * s'estompe, elle ne disparaît pas. C'est le `fade` passé à `freshness` par toutes les
- * surfaces des fiches (vitals, armes, inventaire), pour qu'« ancien » se lise pareil partout.
+ * READING_FADE — a reading at the age floor keeps half its opacity: it fades, it does not
+ * disappear. That is the `fade` passed to `freshness` by every card surface (vitals, weapons,
+ * inventory), so that "old" reads the same everywhere.
  */
 export const READING_FADE = 0.5
 
 /**
- * trackWindow borne la vie d'une track sur l'axe de temps. Les champs sont omitempty
- * côté artefact : startFrame absent = 0, endFrame absent = t du dernier point.
+ * trackWindow bounds a track's life on the time axis. The fields are omitempty on the
+ * artifact side: startFrame absent = 0, endFrame absent = t of the last point.
  */
 export function trackWindow(track: ReplayTrackReady): { start: number; end: number } {
   const last = track.points[track.points.length - 1]
@@ -454,37 +452,37 @@ export function trackWindow(track: ReplayTrackReady): { start: number; end: numb
   }
 }
 
-/** isAliveAt indique si la vie de la track couvre la frame (sinon : ne rien dessiner). */
+/** isAliveAt indicates whether the track's life covers the frame (otherwise: draw nothing). */
 export function isAliveAt(track: ReplayTrackReady, frame: number): boolean {
   const w = trackWindow(track)
   return frame >= w.start && frame <= w.end
 }
 
 /**
- * HeldReading — une mesure du film et SON ÂGE, en frames.
+ * HeldReading — a film measurement and ITS AGE, in frames.
  *
- * POURQUOI L'ÂGE VOYAGE AVEC LA VALEUR. Le flux est différentiel : le film ne retransmet une
- * grandeur que lorsqu'elle CHANGE. Ce qui est à l'écran entre deux transmissions est donc la
- * DERNIÈRE lecture connue, pas l'état de l'instant. Afficher l'une pour l'autre sans le dire
- * a produit un défaut réel, observé à 1:06 sur un joueur dont l'état affiché datait de 9,7 s.
- * La mesure qui a fondé la correction dit que ce n'est pas un cas rare : sur les 21 899 fiches
- * d'un match, l'âge médian de la lecture est de 8,4 s et 7,1 % seulement ont moins d'une
- * seconde. Une mesure ancienne doit donc PÂLIR, jamais disparaître ni se faire passer pour
- * fraîche.
+ * WHY THE AGE TRAVELS WITH THE VALUE. The stream is differential: the film re-transmits a
+ * quantity only when it CHANGES. What is on screen between two transmissions is therefore the
+ * LAST known reading, not the state of the instant. Displaying one as the other without
+ * saying so produced a real defect, observed at 1:06 on a player whose displayed state dated
+ * from 9.7 s. The measurement that grounded the fix says it is not a rare case: across the
+ * 21 899 cards of a match, the median reading age is 8.4 s and only 7.1 % are under one
+ * second. An old measurement must therefore PALE, never disappear nor pass itself off as
+ * fresh.
  */
 export interface HeldReading {
   value: number
-  /** Âge de la lecture, en frames. 0 = mesurée à cette image même. */
+  /** Age of the reading, in frames. 0 = measured at that very frame. */
   age: number
 }
 
 /**
- * heldReading rend la dernière valeur transmise au plus tard à `frame`, avec son âge, ou null
- * si aucune n'existe dans la fenêtre `maxAge`.
+ * heldReading returns the last value transmitted at the latest at `frame`, with its age, or
+ * null if none exists in the `maxAge` window.
  *
- * `pick` doit rendre `undefined` pour « non transmis ». ATTENTION : `0` est une VALEUR — un
- * bouclier nul est l'information la plus utile du champ. Tester la véracité au lieu de
- * `undefined` effacerait précisément le cas qui compte.
+ * `pick` must return `undefined` for "not transmitted". NOTE: `0` is a VALUE — a null shield
+ * is the most useful piece of information on the field. Testing truthiness instead of
+ * `undefined` would erase precisely the case that counts.
  */
 export function heldReading(
   points: ReplayPoint[],
@@ -505,12 +503,12 @@ export function heldReading(
 }
 
 /**
- * lastIndexAt rend l'index du dernier point d'horodatage <= t (-1 si aucun), par dichotomie.
+ * lastIndexAt returns the index of the last point timestamped <= t (-1 if none), by bisection.
  *
- * SIGNATURE ÉLARGIE LE 2026-09-03 (schéma 31) : elle ne lit QUE `t`, et la série de visée d'un
- * occupant de véhicule (`ReplayVehicleAim`, sans `x`/`y`) a exactement le même besoin. L'élargir
- * évite une seconde dichotomie copiée dans `vehiclesLayer.ts` (règle « ≤ 2 copies ») ; un
- * `ReplayPoint[]` reste assignable tel quel.
+ * SIGNATURE WIDENED ON 2026-09-03 (schema 31): it reads ONLY `t`, and a vehicle occupant's
+ * aim series (`ReplayVehicleAim`, without `x`/`y`) has exactly the same need. Widening it
+ * avoids a second bisection copied into `vehiclesLayer.ts` (rule "≤ 2 copies"); a
+ * `ReplayPoint[]` stays assignable as-is.
  */
 export function lastIndexAt(points: readonly { t: number }[], t: number): number {
   if (points.length === 0 || t < points[0].t) return -1
@@ -525,20 +523,20 @@ export function lastIndexAt(points: readonly { t: number }[], t: number): number
 }
 
 /**
- * freshness convertit un âge en facteur d'opacité dans [1 - fade, 1] : franc quand la mesure
- * vient d'arriver, atténué quand elle date. C'est la même graduation partout dans le rejeu —
- * cône de visée, bouclier, inventaire — pour qu'« ancien » se lise toujours de la même façon.
+ * freshness converts an age into an opacity factor in [1 - fade, 1]: full when the
+ * measurement just arrived, attenuated when it dates. It is the same gradation everywhere in
+ * the replay — aim cone, shield, inventory — so that "old" always reads the same way.
  *
- * L'âge peut être NÉGATIF (lecture d'une image-clé à venir, cf. loadoutAt) : une lecture
- * éloignée dans le temps est une lecture éloignée, quel que soit le sens — l'estompage porte
- * sur la valeur absolue.
+ * The age can be NEGATIVE (reading of a future keyframe, see loadoutAt): a reading far away
+ * in time is a far reading, whatever the direction — the dimming applies to the absolute
+ * value.
  */
 export function freshness(age: number, hold: number, fade: number): number {
   if (hold <= 0) return 1
   return 1 - fade * Math.min(1, Math.abs(age) / hold)
 }
 
-/** altitudeRatio normalise un Z dans [0,1] sur l'amplitude verticale connue (0,5 si plate). */
+/** altitudeRatio normalizes a Z into [0,1] over the known vertical amplitude (0.5 if flat). */
 export function altitudeRatio(z: number, minZ: number, maxZ: number): number {
   const span = maxZ - minZ
   if (!(span > 1e-6)) return 0.5
@@ -546,16 +544,16 @@ export function altitudeRatio(z: number, minZ: number, maxZ: number): number {
   return r < 0 ? 0 : r > 1 ? 1 : r
 }
 
-/** floorOf renvoie l'index de tranche d'altitude (0 = bas) pour un Z donné. */
+/** floorOf returns the altitude-band index (0 = low) for a given Z. */
 export function floorOf(z: number, minZ: number, maxZ: number, bands = FLOOR_BANDS): number {
   const idx = Math.floor(altitudeRatio(z, minZ, maxZ) * bands)
   return idx >= bands ? bands - 1 : idx
 }
 
 /**
- * footprint renvoie les 4 coins MONDE de l'emprise d'un prop Forge (rectangle centré sur
- * (x,y), de taille (dx,dy), tourné de `yaw` degrés autour de la verticale). Renvoie une
- * liste vide si l'objet n'a pas d'emprise : le rendu tombe alors sur un simple point.
+ * footprint returns the 4 WORLD corners of a Forge prop's footprint (rectangle centered on
+ * (x,y), of size (dx,dy), rotated `yaw` degrees around the vertical). Returns an empty list
+ * if the object has no footprint: the render then falls to a plain point.
  */
 export function footprint(o: ReplayMapObject): XY[] {
   const dx = o.dx ?? 0
@@ -578,16 +576,16 @@ export function footprint(o: ReplayMapObject): XY[] {
 }
 
 /**
- * canvasToWorld — L'INVERSE EXACT de `worldToCanvas`.
+ * canvasToWorld — THE EXACT INVERSE of `worldToCanvas`.
  *
- * Il existe pour UNE raison : savoir quel point du monde se trouve sous le pointeur, afin que la
- * molette grossisse VERS le curseur. Sans lui, la molette ne pourrait que grossir vers le centre
- * de la fenêtre — c'est-à-dire déplacer sous la souris ce qu'on visait avec elle.
+ * It exists for ONE reason: to know which world point lies under the pointer, so the wheel
+ * zooms TOWARD the cursor. Without it, the wheel could only zoom toward the center of the
+ * window — that is, move under the mouse what one was aiming at with it.
  *
- * Il reprend la formule de `worldToCanvas` à l'envers, terme pour terme, et le test d'aller-
- * retour est ce qui garantit qu'ils ne divergeront pas : deux projections écrites séparément
- * finissent toujours par se contredire d'un demi-pixel, et un demi-pixel de dérive à chaque cran
- * de molette devient un décalage franc en cinq crans.
+ * It takes the `worldToCanvas` formula in reverse, term for term, and the round-trip test is
+ * what guarantees they will not diverge: two projections written separately always end up
+ * contradicting each other by a half-pixel, and a half-pixel of drift per wheel notch becomes
+ * a plain offset in five notches.
  */
 export function canvasToWorld(
   c: XY,
@@ -609,13 +607,13 @@ export function canvasToWorld(
 }
 
 /**
- * zoomTowards — le centre qui laisse un point du monde IMMOBILE à l'écran quand le zoom change.
+ * zoomTowards — the center that keeps a world point STILL on screen when the zoom changes.
  *
- * La formule tient en une ligne, et elle se démontre : un point `p` est à la même position
- * RELATIVE dans la fenêtre avant et après si son écart au centre est divisé par le même facteur
- * que la fenêtre elle-même. D'où `c' = p + (c - p) x (zoomAvant / zoomApres)`.
+ * The formula fits in one line, and it is provable: a point `p` is at the same RELATIVE
+ * position in the window before and after if its offset from the center is divided by the
+ * same factor as the window itself. Hence `c' = p + (c - p) x (zoomBefore / zoomAfter)`.
  *
- * C'est ce qui fait qu'une molette « attrape » l'endroit qu'on vise au lieu de le chasser.
+ * That is what makes a wheel "grab" the place one is aiming at instead of chasing it away.
  */
 export function zoomTowards(
   center: XY,
@@ -628,25 +626,25 @@ export function zoomTowards(
 }
 
 /**
- * layerOffset — OÙ POSER UN CALQUE DÉJÀ CUIT quand le cadrage a bougé depuis sa cuisson.
+ * layerOffset — WHERE TO PLACE AN ALREADY-BAKED LAYER when the framing has moved since its bake.
  *
- * # POURQUOI IL EXISTE
+ * # WHY IT EXISTS
  *
- * Pendant un glisser, le cadrage change à chaque mouvement de pointeur. Recuire les calques
- * statiques à cette cadence est hors de question — le sol reconstruit fait ~45 000 cellules.
- * Mais un glisser est une TRANSLATION PURE : la même image, posée ailleurs. Il suffit donc de
- * recopier le calque cuit avec un décalage, et c'est EXACT — pas une approximation qu'on
- * corrigerait après coup.
+ * During a drag, the framing changes with every pointer movement. Re-baking the static layers
+ * at that rate is out of the question — the reconstructed ground makes ~45 000 cells. But a
+ * drag is a PURE TRANSLATION: the same image, placed elsewhere. So it suffices to copy the
+ * baked layer with an offset, and it is EXACT — not an approximation one would correct
+ * after the fact.
  *
- * # COMMENT
+ * # HOW
  *
- * Le pixel (0,0) du calque cuit désigne un point du monde, celui que SA projection y plaçait.
- * On demande où ce même point tombe dans la projection COURANTE : c'est le décalage. Les deux
- * projections partagent leur échelle tant que le zoom n'a pas changé (mêmes dimensions de
- * fenêtre), donc le résultat est une translation et rien d'autre.
+ * Pixel (0,0) of the baked layer designates a world point, the one ITS projection placed
+ * there. One asks where that same point falls in the CURRENT projection: that is the offset.
+ * The two projections share their scale as long as the zoom has not changed (same window
+ * dimensions), so the result is a translation and nothing else.
  *
- * Au changement de ZOOM, l'échelle diffère et un décalage ne suffirait plus : c'est pourquoi
- * l'appelant ne gèle la cuisson que pendant un glisser, jamais pendant un zoom.
+ * On a ZOOM change, the scale differs and an offset would no longer suffice: that is why the
+ * caller freezes the bake only during a drag, never during a zoom.
  */
 export function layerOffset(
   cooked: { bounds: ReplayBounds; width: number; height: number; pad: number } | null,
@@ -658,30 +656,31 @@ export function layerOffset(
 }
 
 /**
- * frameBounds — LA SCÈNE ÉLARGIE JUSQU'À LA FORME DE LA TOILE.
+ * frameBounds — THE SCENE ENLARGED TO THE SHAPE OF THE CANVAS.
  *
- * # LE DÉFAUT QU'IL CORRIGE (retour utilisateur du 2026-09-03)
+ * # THE DEFECT IT FIXES (user feedback of 2026-09-03)
  *
- * « Quand je zoome c'est croppé alors que le bloc du replay est assez grand. »
+ * "When I zoom, it is cropped, even though the replay block is big enough." (original French:
+ * « Quand je zoome c'est croppé alors que le bloc du replay est assez grand. »)
  *
- * La toile épousait le ratio de la SCÈNE. Quand la hauteur est bornée par l'écran — le cas
- * courant — cette toile est alors plus étroite que le bloc, et il reste des marges vides à
- * gauche et à droite. En zoomant, l'image grossit dans cette toile étroite et se coupe à ses
- * bords, pendant que la place disponible juste à côté ne sert à rien.
+ * The canvas hugged the ratio of the SCENE. When the height is bounded by the screen — the
+ * common case — that canvas is then narrower than the block, and there are empty margins left
+ * and right. Zooming, the image enlarges in that narrow canvas and is cut at its edges, while
+ * the space available right next to it serves nothing.
  *
- * # LA CORRECTION
+ * # THE FIX
  *
- * La toile prend TOUTE la largeur du bloc, et c'est la fenêtre visible qui adopte la forme de la
- * toile — élargie sur l'axe non limitant jusqu'à contenir la scène. Les bandes vides d'hier
- * deviennent de l'espace monde : à grossissement 1 le rendu est le même, mais dès qu'on zoome,
- * la fenêtre rétrécit depuis ce cadre-là et remplit la toile entière.
+ * The canvas takes the WHOLE width of the block, and it is the visible window that adopts the
+ * canvas's shape — enlarged on the non-limiting axis until it contains the scene. Yesterday's
+ * empty bands become world space: at magnification 1 the render is the same, but as soon as
+ * one zooms, the window shrinks from that frame and fills the whole canvas.
  *
- * # POURQUOI LE CADRE, ET PAS LA SCÈNE, EST LA RÉFÉRENCE DU ZOOM
+ * # WHY THE FRAME, AND NOT THE SCENE, IS THE REFERENCE OF THE ZOOM
  *
- * Tout ce qui borne le cadrage — `clampCenter`, `visibleBounds` — doit travailler sur CE
- * rectangle. Borner sur la scène laisserait le déplacement s'arrêter avant les bords de ce qu'on
- * voit, et le zoom repartirait d'une forme qui n'est pas celle de la toile : la fenêtre
- * redeviendrait plus étroite qu'elle, et le recadrage réapparaîtrait au premier cran.
+ * Everything that bounds the framing — `clampCenter`, `visibleBounds` — must work on THIS
+ * rectangle. Bounding on the scene would let the panning stop before the edges of what one
+ * sees, and the zoom would restart from a shape that is not the canvas's: the window would
+ * become narrower than it again, and the reframing would reappear at the first notch.
  */
 export function frameBounds(
   scene: ReplayBounds,
@@ -693,8 +692,8 @@ export function frameBounds(
   const bh = Math.max(scene.maxY - scene.minY, 1e-6)
   const cw = Math.max(width - 2 * pad, 1)
   const ch = Math.max(height - 2 * pad, 1)
-  // Les mètres par pixel qu'impose l'axe LIMITANT : c'est lui qui décide de l'échelle, et
-  // l'autre axe reçoit le surplus en espace monde plutôt qu'en bande vide.
+  // The meters per pixel imposed by the LIMITING axis: it is the one that decides the scale,
+  // and the other axis receives the surplus as world space rather than as an empty band.
   const mpp = Math.max(bw / cw, bh / ch)
   const halfW = (cw * mpp) / 2
   const halfH = (ch * mpp) / 2
