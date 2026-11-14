@@ -147,6 +147,18 @@ export function objectiveSideResolver(
 }
 
 /**
+ * objectiveActionClock — the replay moment of an objective action: its exact match time through
+ * the page's clock when the film publishes an origin, otherwise its frame (see below). Shared by
+ * the objective sounds and the announcer's objective calls, so both land on the same instant.
+ */
+export function objectiveActionClock(
+  doc: ReplayDocumentReady,
+): (a: { t: number; timeMs?: number | null }) => number {
+  const clock = replayClock(doc)
+  return (a) => (clock && a.timeMs != null ? clock.filmMsOfMatchMs(a.timeMs) : frameToMs(a.t, doc))
+}
+
+/**
  * objectiveSoundEvents — the objective actions of the document, placed on the replay's clock.
  *
  * THE MOMENT IS THE ONE THE FILM DATES, TO THE MILLISECOND (fixed 2026-09-20). The action
@@ -178,12 +190,12 @@ export function objectiveSoundEvents(
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   const vus = new Set<string>()
-  const clock = replayClock(doc)
+  const msOf = objectiveActionClock(doc)
   for (const a of doc.objectives) {
     const side = sideOfXuid?.(a.xuid) ?? 'unknown'
     const stem = objectiveSoundStem(a.stat, side)
     if (!stem) continue
-    const ms = clock && a.timeMs != null ? clock.filmMsOfMatchMs(a.timeMs) : frameToMs(a.t, doc)
+    const ms = msOf(a)
     const cle = `${a.stat}|${ms}|${side}`
     if (vus.has(cle)) continue
     vus.add(cle)

@@ -19,7 +19,7 @@ import { INTRO_MUSIC_STEM } from './introSound'
 import { SOUND_MAX_SPEED } from './replaySoundCursor'
 import { useReplaySound, type ReplaySoundContext } from './useReplaySound'
 
-const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined }
+const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined, followed: null, medals: [] }
 const INTRO_URL = `/static/sounds/halo_infinite/${INTRO_MUSIC_STEM}.ogg`
 /** The fake duration of the excerpt (1 byte = 0.1 s in the fake decoder): that is what is read. */
 const INTRO_S = 3.3

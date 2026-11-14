@@ -26,7 +26,7 @@ import { SOUND_VOLUME_DEFAULT, useReplaySound, type ReplaySoundContext } from '.
 
 /** Default context of the tests of this file: no allegiance, no end of match, no
  * locale — only `endMatch` varies from one test to another (`{ ...NO_CONTEXT, endMatch }`). */
-const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined }
+const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined, followed: null, medals: [] }
 
 let ctx: FakeContext
 let fetchMock: ReturnType<typeof vi.fn>
@@ -197,10 +197,10 @@ describe('useReplaySound — intended silences', () => {
 })
 
 describe('useReplaySound — categories (settings drawer, phase 2)', () => {
-  it('the five categories are active by default', () => {
+  it('the six categories are active by default', () => {
     const { result } = mount()
     expect(result.current.categories).toEqual({
-      weapon: true, grenade: true, melee: true, equipment: true, objective: true,
+      weapon: true, grenade: true, melee: true, equipment: true, objective: true, announcer: true,
     })
   })
 

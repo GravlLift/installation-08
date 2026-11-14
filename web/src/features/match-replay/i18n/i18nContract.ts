@@ -231,7 +231,7 @@ export interface ReplayText {
   soundFastHint: string
   /** Filtre des sons par catégorie (tiroir de réglages, phase 2, décision du 16/08). */
   soundCategoriesTitle: string
-  soundCategory: Record<'weapon' | 'grenade' | 'melee' | 'equipment', string>
+  soundCategory: Record<'weapon' | 'grenade' | 'melee' | 'equipment' | 'announcer', string>
   /**
    * LA CAPTURE D'IMAGE (2026-08-26) : un bouton en icône dans la barre de lecture, qui
    * télécharge la scène courante en PNG. Le libellé dit le GESTE, pas la technique — « PNG »,
