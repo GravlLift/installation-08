@@ -73,10 +73,16 @@ function ScrubBar({ doc, frame, kills, colorOfXuid, onScrub, onScrubbingChange }
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.currentTarget.focus()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
     dragging.current = true
     onScrubbingChange?.(true)
     seekAt(event.clientX)
+    // Capture keeps a drag following outside the bar. It throws for a pointer the browser no
+    // longer tracks (a synthetic or already-released one): the click has still sought.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      endDrag()
+    }
   }
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (dragging.current) seekAt(event.clientX)

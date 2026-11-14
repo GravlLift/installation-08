@@ -235,6 +235,10 @@
 .bc-pov { padding: 5px 14px 4px; border-left: 3px solid var(--team-ally); background: var(--studio-800);
   font-size: 13px; letter-spacing: 0.1em; }
 .bc-pov:hover { color: var(--ink); }
+/* The open list is drawn by the browser: give it the dark scheme and our own colors, or it
+ * comes up white with our light text on it. */
+.bc-pov { color-scheme: dark; }
+.bc-pov option { background: var(--studio-800); color: var(--ink); text-transform: none; letter-spacing: 0; }
 /* The sound control keeps its own behavior; the chrome only gives it a seat in the row. */
 .bc-sound { display: inline-flex; align-items: center; gap: 8px; }
 .bc-sound input[type="range"] { accent-color: var(--air); }
