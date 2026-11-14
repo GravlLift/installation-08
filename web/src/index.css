@@ -30,6 +30,7 @@
   --replay-hud-on-dark: #eaf2f5;
   --replay-hud-shadow: rgba(0, 0, 0, 0.8);
   --replay-hud-weapon: #a9dcff;
+  --replay-export-backdrop: #000;
 
   /* Shot effect tints (fxInk.ts): one per discharge nature the server publishes in
      weaponLabels[].tint. Diegetic colors (what the game shows), saturated because effects draw

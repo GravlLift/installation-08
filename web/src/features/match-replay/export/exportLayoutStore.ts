@@ -130,7 +130,7 @@ export async function waitForExportLayout(
     }
     if (performance.now() > deadline) {
       throw new Error(
-        `mise en page d'export non appliquee (toile ${canvas.width}x${canvas.height}, attendu ${format.width}x${format.height})`,
+        `Export layout was not applied (canvas ${canvas.width}x${canvas.height}, expected ${format.width}x${format.height})`,
       )
     }
     await yieldToEvents()

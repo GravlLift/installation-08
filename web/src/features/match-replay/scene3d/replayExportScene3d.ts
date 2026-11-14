@@ -27,6 +27,7 @@ interface ExportScene {
   applyMode(mode: CameraMode3d): void
   placeAvatars(frame: number): void
   placeCamera(frame: number): void
+  placeFirstPerson(frame: number): void
 }
 
 /** La vue d'écran pendant un export : ce qu'elle avait, et ce qu'elle demande depuis. */
@@ -84,8 +85,9 @@ export class ReplayExportScene3d {
     this.scene.lastFrame = frame
     if (this.scene.hasTracks) {
       this.scene.placeAvatars(frame)
-      this.scene.action?.update(frame)
       this.scene.placeCamera(frame)
+      this.scene.placeFirstPerson(frame)
+      this.scene.action?.update(frame)
     }
     this.scene.lighting.updateShadows(frame)
     this.scene.post.composer.render()

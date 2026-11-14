@@ -35,6 +35,10 @@ import { useReplaySound, type ReplaySound } from '../features/match-replay/sound
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
 import { ReplayTransport } from '../features/match-replay/ui/ReplayTransport'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
+import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
+import { ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
+import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
+import { useReplay3DExport } from '../features/match-replay/export/replay3dExportStore'
 
 /** The arrow/J/L seek step, in seconds — the same magnitude as LevelUp's `SKIP_SECONDS`
  *  (`layers/replayCanvasConfig.ts`, not lifted here: a single constant, not worth a file). */
@@ -290,6 +294,27 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
   const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en' })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
+  const exportCanvasRef = useRef<HTMLCanvasElement>(null)
+  const exportLayout = useExportLayout()
+  const exportScene = useReplay3DExport()
+  const [exportOpen, setExportOpen] = useState(false)
+  const redrawExport = useCallback(() => {
+    const canvas = exportCanvasRef.current
+    const layout = exportLayoutRequested()
+    if (canvas && layout) {
+      canvas.width = Math.round(layout.width * layout.pixelRatio)
+      canvas.height = Math.round(layout.height * layout.pixelRatio)
+    }
+  }, [])
+  void exportLayout
+  const capture = useReplayCapture({
+    canvasRef: exportCanvasRef, doc, frameRef, playing, play: () => setPlaying((p) => !p),
+    redraw: redrawExport, playWindow: replayContext.playWindow,
+    scoreboard: replayContext.context?.scoreboard ?? [], allegiance: identity.allegiance,
+    kills: replayContext.kills, timeLimitMs: replayContext.timeLimitMs,
+    outcome: { code: replayContext.context?.header.outcome_code }, viewpoint, locale: 'en',
+    soundTrack: sound.exportTrack, soundVolume: sound.volume,
+  })
 
   // The 2D pan and zoom shortcuts are omitted from this 3D-only viewer.
   const stepFrames = useCallback(
@@ -370,6 +395,11 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
       <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />
       <div ref={viewerRef} data-testid="replay-viewer" className={fullscreen.active ? 'flex h-full w-full flex-col justify-center bg-black' : 'flex w-full flex-col bg-black'}>
       <div className="flex justify-end gap-2 bg-card px-3 py-2">
+        <canvas ref={exportCanvasRef} hidden />
+        <div className="relative">
+          <button type="button" disabled={!exportScene || !capture.videoExport?.supported} onClick={() => setExportOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50">Export film</button>
+          {exportOpen && exportScene && capture.videoExport && <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />}
+        </div>
         <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
           {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
         </button>
