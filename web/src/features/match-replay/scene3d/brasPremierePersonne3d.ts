@@ -21,6 +21,7 @@ import { HabillageRig3d } from './habillageRig3d'
 import { PeintureRig3d } from './peintureRig3d'
 import type { Recoil } from './recoil3d'
 import { pivotDuRecul, poserReculRig } from './reculPremierePersonne3d'
+import { fpCableStart } from './grapple3d_logic'
 
 // La bouche du canon : en repère du porteur (`bouche`, `axe`, pour `boucheVue`) et, pour suivre le
 // rig animé, en repère LOCAL de l'objet qui la porte (`porteurLocal` / `point` / `axeLocale`).
@@ -31,7 +32,7 @@ type StBouche = {
   point?: THREE.Vector3
   axeLocale?: THREE.Vector3
 }
-type Entree = { materiaux: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: RigPremierePersonne; actions: Map<string, THREE.AnimationAction>; listeActions: THREE.AnimationAction[]; clip: ClipPremierePersonne; bouche?: StBouche; pivot: THREE.Vector3 | null } | null
+type Entree = { materiaux: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: RigPremierePersonne; actions: Map<string, THREE.AnimationAction>; listeActions: THREE.AnimationAction[]; clip: ClipPremierePersonne; bouche?: StBouche; pivot: THREE.Vector3 | null; mainGauche: THREE.Object3D | null } | null
 
 // Le champ vertical (degrés) auquel les tenues et la bouche du rig ont été réglées : le
 // porteur se contre-échelle à ce champ (viewmodelScale) pour en garder la projection.
@@ -105,6 +106,7 @@ export class BrasPremierePersonne3d {
   /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
   private readonly fichiersArmes = new Map<string, string>()
   private visible: THREE.Object3D | null = null
+  private readonly mainMonde = new THREE.Vector3()
   private cleVisible: string | null = null
   private armurerie: SpartanArmory | null = null
   private xuid: string | null = null
@@ -317,6 +319,21 @@ export class BrasPremierePersonne3d {
     return true
   }
 
+  /**
+   * mainGaucheMonde: where a first-person grapple cable leaves, in WORLD space at the rendered
+   * frame (`grapple3d_logic.fpCableStart`): the left hand bone of the visible rig, otherwise the
+   * estimated left hand carried by the camera the holder copies (`placer`). Allocates nothing.
+   */
+  mainGaucheMonde(out: THREE.Vector3): THREE.Vector3 {
+    const rig = this.visible && this.cleVisible ? this.armes.get(this.cleVisible) : null
+    const main = rig ? this.entrees.get(rig.file)?.mainGauche ?? null : null
+    if (main) {
+      main.updateWorldMatrix(true, false)
+      main.getWorldPosition(this.mainMonde)
+    }
+    return fpCableStart(this.porteur.position, this.porteur.quaternion, main ? this.mainMonde : null, out)
+  }
+
   cacher(): void {
     if (this.visible) this.visible.visible = false
     this.visible = null
@@ -441,7 +458,7 @@ export class BrasPremierePersonne3d {
         const listeActions = [...actions.values()]
         gltf.scene.visible = false
         this.support.add(gltf.scene)
-        const entree: NonNullable<Entree> = { root: gltf.scene, mixer, clip, rig, actions, listeActions, materiaux: [], pivot: pivotDuRecul(rig.idleWeapon) }
+        const entree: NonNullable<Entree> = { root: gltf.scene, mixer, clip, rig, actions, listeActions, materiaux: [], pivot: pivotDuRecul(rig.idleWeapon), mainGauche: gltf.scene.getObjectByName('b_l_hand') ?? null }
         this.entrees.set(rig.file, entree)
         // La bouche du canon, une fois, à la pose idle : le rig se repose, c'est sa position de repos.
         this.mesurerBouche(entree)

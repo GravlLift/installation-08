@@ -17,18 +17,22 @@
  *
  * THE EQUIPMENT IN USE, as the game shows it, each in its own module (pure timing and geometry in
  * its `*_logic.ts`): the grapple hook flying out and holding (`grapple3d`), the drop wall rising and
- * dissolving (`dropWall3d`), the repulsor burst at every activation (`repulsor3d`) and the thruster
- * exhaust at every measured use (`thruster3d`). Camouflage and overshield are on the body
- * (`bodyFx3d`).
+ * dissolving (`dropWall3d`), the shroud screen's opaque bubble (`shroud3d`) and the thruster exhaust at
+ * every measured use (`thruster3d`). Camouflage and overshield are on the body (`bodyFx3d`). The
+ * repulsor shows nothing in the world: its use is the game's arm animation (`equipmentUse3d_logic`).
+ *
+ * IN FIRST PERSON (the slot `ctx.firstPersonSlot` names): the grapple cable leaves the viewer's left
+ * hand (`ctx.firstPersonLeftHand`), the thruster draws no exhaust in the viewer's face, and the wall
+ * and the bubble are world objects seen like any other (inside the bubble, its inner wall).
  *
  * LES DEUX BASCULES QUE LE TIROIR 3D NE PORTE PAS valent leur défaut du tiroir 2D : objets non
  * identifiés éteints, objets lâchés allumés (`PLACEMENT_TOGGLES_3D`). Poses et failles suivent
- * l'interrupteur des poses (the drop wall with them); grapple, repulsor and thruster act on their
+ * l'interrupteur des poses (the drop wall and the bubble with them); grapple and thruster act on their
  * carrier and follow no switch, like camouflage and overshield.
  *
  * LES REPÈRES D'ANALYSE (`aids3d`, éteints par défaut) coiffent ce que le jeu ne montre pas tel
- * quel : les formes des poses (`placementShapes` : tout sauf mur, capteur et champ, que le jeu
- * montre, `ALWAYS_SHOWN`) et les flèches de poussée (`knockbackArrows`).
+ * quel : les formes des poses (`placementShapes` : tout sauf mur, écran occultant, capteur et champ,
+ * que le jeu montre, `ALWAYS_SHOWN`) et les flèches de poussée (`knockbackArrows`).
  */
 import * as THREE from 'three'
 
@@ -50,8 +54,8 @@ import { wallPanels, wallPhaseAt, type WallPanel } from './dropWall3d_logic'
 import { EquipmentShapes3d } from './equipment3dShapes'
 import { Grapple3d } from './grapple3d'
 import { grapplePhaseAt } from './grapple3d_logic'
-import { Repulsor3d } from './repulsor3d'
-import { repulsorBurstAt, repulsorPulses, type RepulsorPulse } from './repulsor3d_logic'
+import { Shroud3d } from './shroud3d'
+import { shroudBubbleAt } from './shroud3d_logic'
 import { Thruster3d } from './thruster3d'
 import { thrusterBursts, thrusterJetAt, type ThrusterBurst } from './thruster3d_logic'
 import { toThree } from './tracks3d'
@@ -62,8 +66,8 @@ type Knockback = ReplayDocumentReady['knockbacks'][number]
 /** Les bascules 2D sans commande en 3D : leurs défauts du tiroir (`useReplaySettings`). */
 export const PLACEMENT_TOGGLES_3D: PlacementToggles = { showUnnamed: false, showDropped: true }
 
-/** Les poses dessinées hors du repère `placementShapes` : le jeu montre la barrière du mur et la portée du capteur et du champ. */
-const ALWAYS_SHOWN: ReadonlySet<PlacementKind> = new Set<PlacementKind>(['wall', 'sensor', 'field'])
+/** Les poses dessinées hors du repère `placementShapes` : le jeu montre la barrière du mur, la bulle de l'écran et la portée du capteur et du champ. */
+const ALWAYS_SHOWN: ReadonlySet<PlacementKind> = new Set<PlacementKind>(['wall', 'shroud', 'sensor', 'field'])
 
 /** placementDrawn — la pose se dessine-t-elle, le repère des formes des poses allumé ou non ? */
 export function placementDrawn(kind: PlacementKind, shapes: boolean): boolean {
@@ -72,7 +76,7 @@ export function placementDrawn(kind: PlacementKind, shapes: boolean): boolean {
 
 /** Hauteur de la main au-dessus des pieds (u) : le câble part de là. */
 const HAND_ABOVE_FEET_U = 0.45
-/** Hauteur du centre du corps au-dessus des pieds (u) : la flèche de poussée, la salve du répulseur et le jet du propulseur partent de là. */
+/** Hauteur du centre du corps au-dessus des pieds (u) : la flèche de poussée et le jet du propulseur partent de là. */
 const BODY_ABOVE_FEET_U = 0.345
 /** Longueur de la flèche par unité de vitesse imposée, et son plafond (u). */
 const KNOCKBACK_U_PER_SPEED = 0.2
@@ -156,12 +160,11 @@ export class Equipment3dLayer implements ActionLayer3d {
   private readonly rifts: RiftItem[]
   private readonly grapples: GrappleItem[]
   private readonly knockbacks: readonly Knockback[]
-  private readonly pulses: readonly RepulsorPulse[]
   private readonly bursts: readonly ThrusterBurst[]
   private readonly shapes: EquipmentShapes3d
   private readonly grapple: Grapple3d
   private readonly wall: DropWall3d
-  private readonly repulsor: Repulsor3d
+  private readonly shroud: Shroud3d
   private readonly thruster: Thruster3d
   private readonly pools: readonly { begin(): void; end(): void; dispose(): void }[]
   private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }
@@ -174,14 +177,13 @@ export class Equipment3dLayer implements ActionLayer3d {
     this.rifts = this.riftItems(doc)
     this.grapples = doc.grappleLines.filter((l) => l.t1 > l.t0).map((l) => ({ l, anchor: this.anchorOf(l) }))
     this.knockbacks = doc.knockbacks.filter((k) => knockbackArrow(k) !== null)
-    this.pulses = repulsorPulses(doc)
     this.bursts = thrusterBursts(doc, this.time.frameMs)
     this.shapes = new EquipmentShapes3d(ctx.root)
     this.grapple = new Grapple3d(ctx.root)
     this.wall = new DropWall3d(ctx.root)
-    this.repulsor = new Repulsor3d(ctx.root)
+    this.shroud = new Shroud3d(ctx.root)
     this.thruster = new Thruster3d(ctx.root)
-    this.pools = [this.shapes, this.grapple, this.wall, this.repulsor, this.thruster]
+    this.pools = [this.shapes, this.grapple, this.wall, this.shroud, this.thruster]
   }
 
   update(frame: number): void {
@@ -192,7 +194,6 @@ export class Equipment3dLayer implements ActionLayer3d {
       if (inputs.aids.placementShapes) this.paintRifts(frame, inputs)
     }
     this.paintGrapples(frame, inputs)
-    this.paintRepulsors(frame, inputs)
     this.paintThrusters(frame, inputs)
     if (inputs.aids.knockbackArrows) this.paintKnockbacks(frame, inputs)
     for (const p of this.pools) p.end()
@@ -266,11 +267,15 @@ export class Equipment3dLayer implements ActionLayer3d {
   private paintPlacements(frame: number, inputs: Action3dInputs): void {
     const ink = this.ctx.ink
     const rift = { a: ink.of(inputs.inks.rift.rim), b: ink.of(inputs.inks.rift.core) }
-    const shroud = { a: ink.of(inputs.inks.shroud.core), b: ink.of(inputs.inks.shroud.glow) }
+    const shroud = { core: ink.of(inputs.inks.shroud.core), glow: ink.of(inputs.inks.shroud.glow) }
     for (const it of this.placements) {
       if (!it.at || !placementDrawn(it.kind, inputs.aids.placementShapes)) continue
       if (it.kind === 'wall') {
         this.paintWall(it, it.at, frame, ink.of(inputs.inks.wall))
+        continue
+      }
+      if (it.kind === 'shroud') {
+        this.paintShroud(it, it.at, frame, shroud)
         continue
       }
       if (!placementShownAt(it, frame, this.time)) continue
@@ -278,9 +283,6 @@ export class Equipment3dLayer implements ActionLayer3d {
       switch (it.kind) {
         case 'rift':
           this.shapes.rift(it.at, it.heading ?? 0, rift)
-          break
-        case 'shroud':
-          this.shapes.shroud(it.at, shroud)
           break
         case 'sensor':
           this.shapes.sensor(it.at, ageMs, this.ownerInk(it.p, inputs))
@@ -311,22 +313,28 @@ export class Equipment3dLayer implements ActionLayer3d {
     if (phase) this.wall.wall(at.y, it.panels, phase, color)
   }
 
-  /** paintRepulsors — the burst of every repulsor activation, from the carrier's body at the activation, in his team color then. */
-  private paintRepulsors(frame: number, inputs: Action3dInputs): void {
-    for (const pulse of this.pulses) {
-      if (pulse.t > frame) break
-      const burst = repulsorBurstAt(pulse, frame, this.time.frameMs)
-      const center = burst ? this.feetAt(pulse.slot, pulse.t, BODY_ABOVE_FEET_U, this.scratch.b) : null
-      if (!burst || !center) continue
-      this.repulsor.burst(center, burst, this.ctx.ink.of(inputs.colorOfSlot(pulse.slot, pulse.t) ?? inputs.inks.fx.core))
-    }
+  /**
+   * paintShroud — the shroud screen's bubble over its window (`shroud3d_logic`), centered on the
+   * bubble's published position (the grenade's rest without a read bubble), on the ground point
+   * under it when the height is not published.
+   */
+  private paintShroud(it: PlacementItem, at: THREE.Vector3, frame: number, ink: { core: THREE.Color; glow: THREE.Color }): void {
+    const bubble = shroudBubbleAt(it.p.t0, it.end, frame, this.time.frameMs)
+    if (!bubble) return
+    const center = it.p.z != null ? this.scratch.b.set(...toThree(it.p.x, it.p.y, it.p.z)) : at
+    this.shroud.bubble(center, bubble, ink.core, ink.glow)
   }
 
-  /** paintThrusters — the exhaust of every measured thruster use, behind the carrier as he moves, in his team color at the use. */
+  /**
+   * paintThrusters — the exhaust of every measured thruster use, behind the carrier as he moves, in
+   * his team color at the use; none for the first-person viewer (it would fill his own view).
+   */
   private paintThrusters(frame: number, inputs: Action3dInputs): void {
     const core = this.ctx.ink.of(inputs.inks.fx.core)
+    const viewer = this.ctx.firstPersonSlot(frame)
     for (const b of this.bursts) {
       if (b.t > frame) break
+      if (b.slot === viewer) continue
       const jet = thrusterJetAt(b, frame, this.time.frameMs)
       const body = jet ? this.feetAt(b.slot, frame, BODY_ABOVE_FEET_U, this.scratch.b) : null
       if (!jet || !body) continue
@@ -348,9 +356,21 @@ export class Equipment3dLayer implements ActionLayer3d {
     for (const g of this.grapples) {
       const phase = g.anchor ? grapplePhaseAt(g.l, frame, this.time.frameMs) : null
       if (!g.anchor || !phase) continue
-      const hand = this.feetAt(g.l.slot, frame, HAND_ABOVE_FEET_U, this.scratch.a)
+      const hand = this.cableStart(g.l.slot, frame)
       if (hand) this.grapple.pull(hand, g.anchor, phase, color, inputs.aids.grappleLines)
     }
+  }
+
+  /**
+   * cableStart — where the cable leaves: the viewer's own left hand in first person
+   * (`ctx.firstPersonLeftHand`), otherwise the carrier's hand height over his feet.
+   */
+  private cableStart(slot: number, frame: number): THREE.Vector3 | null {
+    if (slot === this.ctx.firstPersonSlot(frame)) {
+      const fp = this.ctx.firstPersonLeftHand?.(this.scratch.a) ?? null
+      if (fp) return fp
+    }
+    return this.feetAt(slot, frame, HAND_ABOVE_FEET_U, this.scratch.a)
   }
 
   private paintKnockbacks(frame: number, inputs: Action3dInputs): void {

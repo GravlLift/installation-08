@@ -23,8 +23,31 @@ import (
 type ActionPremierePersonne struct {
 	Nom string
 	// Surcouche : l'action se cherche aussi par son nom (ClipsDeLAction), l'arbre ne portant pas les
-	// surcouches.
+	// surcouches ni certaines actions d'une fois (le propulseur, le grappin).
 	Surcouche bool
+	// Jeu : le niveau « jeu » du chemin de l'action (ClipsDeLActionDuJeu), vide pour `any`. L'usage
+	// d'un equipement est l'action `equipment_activate` sous le jeu de cet equipement ; son clip
+	// s'appelle `<jeu>:<action>` (NomActionDuJeu).
+	Jeu string
+}
+
+// Jeux d'equipement de l'arbre FP (StringID nommes par murmur3 sur le graphe de chaque arme, 79
+// graphes sur 79) : le repulseur (`ability_knockback`) et le capteur de menace
+// (`ability_location_sensor`). Les jeux `camo` et `quantum` (translocateur) existent aussi ; un
+// cinquieme (#6132b1e2) reste sans nom.
+const (
+	ActionUsageEquipement = "equipment_activate"
+	JeuRepulseur          = "knockback"
+	JeuCapteurMenace      = "location"
+)
+
+// NomActionDuJeu rend le nom d'action d'un rig pour l'action `action` du jeu `jeu` : l'action seule
+// sans jeu, `<jeu>:<action>` sinon (l'ordre du chemin du jeu, jeu avant action).
+func NomActionDuJeu(jeu, action string) string {
+	if jeu == "" {
+		return action
+	}
+	return jeu + ":" + action
 }
 
 // ActionsPremierePersonne : les actions cuites dans chaque rig, quand le graphe de l'arme les porte.
@@ -39,6 +62,11 @@ var ActionsPremierePersonne = []ActionPremierePersonne{
 	{Nom: "overheated"}, {Nom: "vent_enter"}, {Nom: "vent_loop"}, {Nom: "vent_exit"},
 	{Nom: "moving", Surcouche: true}, {Nom: "jump", Surcouche: true}, {Nom: "fall", Surcouche: true},
 	{Nom: "land_soft", Surcouche: true}, {Nom: "land_hard", Surcouche: true}, {Nom: "crouch", Surcouche: true},
+	// Le propulseur (une direction par clip) et le tir du grappin.
+	{Nom: "evade_front", Surcouche: true}, {Nom: "evade_back", Surcouche: true}, {Nom: "evade_left", Surcouche: true},
+	{Nom: "evade_right", Surcouche: true}, {Nom: "grapple_hook_deploy", Surcouche: true},
+	// L'usage des equipements portes.
+	{Nom: ActionUsageEquipement, Jeu: JeuRepulseur}, {Nom: ActionUsageEquipement, Jeu: JeuCapteurMenace},
 }
 
 // RigPremierePersonne : le rig d'une arme.
@@ -265,12 +293,12 @@ func (m *ModeleAPeau) versePieces(ctx context.Context, asset *RuntimeGeoAsset, s
 func (r *RigPremierePersonne) litClips(gs *GraphesAnimation) error {
 	parAnimation := map[[2]uint32]string{}
 	for _, ac := range ActionsPremierePersonne {
-		clips, err := gs.ClipsDeLAction(ac.Nom, ac.Surcouche)
+		clips, chemin, err := clipsDeLActionRig(gs, ac)
 		if err != nil {
 			return err
 		}
 		if len(clips) == 0 {
-			r.Absentes = append(r.Absentes, ac.Nom)
+			r.Absentes = append(r.Absentes, NomActionDuJeu(ac.Jeu, ac.Nom))
 			continue
 		}
 		for _, c := range clips {
@@ -285,7 +313,7 @@ func (r *RigPremierePersonne) litClips(gs *GraphesAnimation) error {
 				if c.Graphe != gs.Propre {
 					decode = pistesSurSquelette(decode, c.Graphe.Os, gs.Propre.Os)
 				}
-				r.Clips = append(r.Clips, ClipGLB{Nom: nom, Clip: decode, Chemin: PrefixeNomPremierePersonne + c.Action,
+				r.Clips = append(r.Clips, ClipGLB{Nom: nom, Clip: decode, Chemin: chemin,
 					Cadence: CadenceAnimation(decode.Animation),
 					Extras:  map[string]any{"action": c.Action, "variant": c.Variante, "source": c.Source}})
 				parAnimation[cle] = nom
@@ -294,6 +322,18 @@ func (r *RigPremierePersonne) litClips(gs *GraphesAnimation) error {
 		}
 	}
 	return nil
+}
+
+// clipsDeLActionRig rend les animations d'une action du rig et le nom du jeu qui les designe
+// (recopie dans les extras du clip) : par l'arbre et le nom pour une action sans jeu, par le chemin
+// du jeu sinon.
+func clipsDeLActionRig(gs *GraphesAnimation, ac ActionPremierePersonne) ([]ClipAction, string, error) {
+	if ac.Jeu == "" {
+		clips, err := gs.ClipsDeLAction(ac.Nom, ac.Surcouche)
+		return clips, PrefixeNomPremierePersonne + ac.Nom, err
+	}
+	clips, err := gs.ClipsDeLActionDuJeu(ac.Jeu, ac.Nom)
+	return clips, NomDuJeuPremierePersonne(ac.Jeu, ac.Nom), err
 }
 
 // pistesSurSquelette rend le clip `c`, decode sur les os `de` d'un graphe herite, avec une piste par

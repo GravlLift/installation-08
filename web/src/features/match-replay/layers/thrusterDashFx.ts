@@ -1,5 +1,7 @@
 /**
- * thrusterDashFx.ts — the THRUSTER PUSH on the pawn of the player: a short, oriented dash.
+ * thrusterDashFx.ts — the THRUSTER PUSH: when each measured use happens, which way it pushed, and
+ * the timing of its effect. The 3D view's exhaust (`scene3d/thruster3d`) and the game's dodge and
+ * evade clips (`scene3d/equipmentUse3d_logic`) read it; the 2D dash on the pawn was retired.
  *
  * THE SOURCE is the document (schema 38): `abilityImpulses`, a FLAT entry per gesture —
  * (t, slot, family) — read in the body `tag == 1` of the i57/i59 components of the film and
@@ -7,14 +9,6 @@
  * chain is validated against a ground truth: on the film `1cd3848a`, the user noted in the
  * Theater their five uses (1:51, 1:54, 2:03, 2:05, 2:14) and the layer dates five of them,
  * to within one second — precision 5/5, recall 5/5.
- *
- * ## Why the PAWN and not the card
- *
- * User decision (2026-09-03): "trop bref pour mettre sur la fiche mais un petit effet sur
- * le pion oui, fait un truc qui fait comme un dash" (too short to put on the card but a
- * small effect on the pawn yes, do something that acts like a dash). The gesture lasts half
- * a second; a card column or a thumbnail flash would not have shown it. What it shows is a
- * DISPLACEMENT — so it is drawn where the displacement is read, on the map.
  *
  * ## Where the DIRECTION comes from, and why it is not in the event
  *
@@ -29,19 +23,11 @@
  * WITHOUT A MEASURABLE DIRECTION, NOTHING IS DRAWN. A dash without orientation would be an
  * invented shape; the doctrine of the workstream is that the replay stays silent rather than
  * guess.
- *
- * ## What this file does not do
- *
- * No off-screen layer, no re-baking: two projections and a handful of strokes per active
- * dash, all in pure geometry on a `CanvasRenderingContext2D` (same rule as `grappleLayer.ts`
- * and `replayDraw.ts`). The inks arrive ALREADY RESOLVED from the semantic tokens — no color
- * literal here.
  */
 import type { ReplayPoint } from '@/lib/api/types'
 
 import { positionAt, type XY } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { type CanvasView, projectTo } from '../model/replayView'
 import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 
 /**
@@ -51,7 +37,7 @@ import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
  *
  * The thruster is alone there, and the repulsor will not enter through this channel: it is
  * NOT in the ability impulses (negative measured on nine channels, lots R8/R9 of
- * 2026-09-03). Its PUSHS are drawn by `knockbackFx.ts` (schema 94).
+ * 2026-09-03). Its pushes are `knockbacks` (schema 94, `knockbackFx.ts`).
  */
 const DASH_FAMILIES: ReadonlySet<string> = new Set(['thruster'])
 
@@ -76,14 +62,12 @@ export const THRUSTER_DASH_HEADING_MS = 280
  */
 const HEADING_MIN = 0.05
 
-/** A dash ready to draw: the instant, the life, its trajectory and its read direction. */
+/** A measured push: the instant, the life and its read direction. */
 export interface ThrusterDashFx {
   /** Frame of the measured impulse — the effect starts from there, never before. */
   frame: number
   /** Slot of the life that pushes: the team color is resolved there, at the frame of the impulse. */
   slot: number
-  /** The points of ITS life — the position of the pawn is re-read there at every frame, the dash follows it. */
-  points: ReplayPoint[]
   /** Start of the direction reading, in world. */
   from: XY
   /** End of the direction reading, in world. The direction is `to - from`, projected. */
@@ -150,7 +134,6 @@ export function buildThrusterDashFx(
     out.push({
       frame: imp.t,
       slot: imp.slot,
-      points: track.points,
       from: heading.from,
       to: heading.to,
     })
@@ -188,134 +171,4 @@ export function dashProgress(ageMs: number, reducedMotion: boolean): DashProgres
   if (reducedMotion) return { reach: 1, alpha: DASH_ALPHA_STATIC }
   const p = ageMs / THRUSTER_DASH_MS
   return { reach: 1 - Math.pow(1 - p, 3), alpha: (1 - p) * DASH_ALPHA }
-}
-
-// --- Tracing geometry, in SCREEN pixels (multiplied by the density `k`) -----------------
-
-/**
- * The wake starts BEHIND the marker, not on it: `DASH_GAP` detaches it from the core (3.4 px
- * of radius plus its rim) so that the pawn stays readable and the push reads as coming out.
- * Deliberately short length — it is a gesture, not a trail.
- */
-const DASH_GAP = 5
-const DASH_LEN = 20
-const DASH_HALF_W = 3.2
-/** The wake is a wash: it passes UNDER the chevrons, which carry the reading. */
-const DASH_WAKE_ALPHA = 0.55
-/**
- * Two chevrons — speed lines — placed along the wake. They point IN the direction of the
- * push: they are the ones that say the direction without adding an arrow.
- */
-const CHEVRON_AT: readonly number[] = [0.5, 0.85]
-const CHEVRON_HALF = 3.4
-const CHEVRON_DEPTH = 2.6
-const CHEVRON_WIDTH = 1.5
-
-/** The clock of the layer: current frame, real duration of a frame, density, preference. */
-interface DashTime {
-  frame: number
-  /** REAL duration of a frame — the effect lasts in ms of match, never in number of frames. */
-  frameMs: number
-  k: number
-  reducedMotion: boolean
-}
-
-/** The style: the team color of the life that pushes. `null` = life without owner. */
-export interface DashStyle {
-  colorOfSlot: (slot: number, frame: number) => string | null
-}
-
-/**
- * drawThrusterDashLayer paints the active dashes at the current frame.
- *
- * THE COLOR IS RESOLVED AT THE FRAME OF THE IMPULSE, never at the current frame: a biped
- * slot is reassigned at the respawns, and the current frame can already belong to ANOTHER
- * life (same rule as `SensorReveal.ownerFrame`).
- */
-export function drawThrusterDashLayer(
-  ctx: CanvasRenderingContext2D,
-  fx: readonly ThrusterDashFx[],
-  view: CanvasView,
-  time: DashTime,
-  style: DashStyle,
-): void {
-  for (const f of fx) {
-    const prog = dashProgress((time.frame - f.frame) * time.frameMs, time.reducedMotion)
-    if (!prog) continue
-    const color = style.colorOfSlot(f.slot, f.frame)
-    if (!color) continue
-    const head = positionAt(f.points, time.frame)
-    if (!head) continue
-    const dir = screenDirection(f, view)
-    if (!dir) continue
-    // SAVE PER DASH, like the grapple layer: the state of the context returns intact to the
-    // caller, and a film without thruster does NOT emit a single call (the following layer
-    // inherits exactly what it had before).
-    ctx.save()
-    drawDash(ctx, project(head, view), dir, prog, { k: time.k, color })
-    ctx.restore()
-  }
-}
-
-/**
- * screenDirection projects the two bounds of the reading and normalizes IN PIXELS.
- *
- * The normalization is done after projection and not before: the world -> canvas passage can
- * invert an axis and does not have the same scale in x and in y — a world unit vector would
- * not stay unitary there, nor even oriented the same way.
- */
-function screenDirection(f: ThrusterDashFx, view: CanvasView): XY | null {
-  const a = project(f.from, view)
-  const b = project(f.to, view)
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const len = Math.hypot(dx, dy)
-  if (!(len > 0)) return null
-  return { x: dx / len, y: dy / len }
-}
-
-/**
- * drawDash: the wake behind the pawn, then the chevrons that say the direction. `c` is the
- * center of the pawn in pixels, `u` the unit direction IN PIXELS. Exported for the repulsor
- * push (`knockbackFx.ts`), which draws the same wake on the pushed player.
- */
-export function drawDash(
-  ctx: CanvasRenderingContext2D,
-  c: XY,
-  u: XY,
-  prog: DashProgress,
-  paint: { k: number; color: string },
-): void {
-  const k = paint.k
-  const n = { x: -u.y, y: u.x }
-  const len = DASH_LEN * k * prog.reach
-  // The wake: a wedge that starts from the edge of the marker and thins toward the tail.
-  const bx = c.x - u.x * DASH_GAP * k
-  const by = c.y - u.y * DASH_GAP * k
-  const w = DASH_HALF_W * k
-  ctx.fillStyle = paint.color
-  ctx.strokeStyle = paint.color
-  ctx.globalAlpha = prog.alpha * DASH_WAKE_ALPHA
-  ctx.beginPath()
-  ctx.moveTo(bx + n.x * w, by + n.y * w)
-  ctx.lineTo(bx - n.x * w, by - n.y * w)
-  ctx.lineTo(bx - u.x * len, by - u.y * len)
-  ctx.closePath()
-  ctx.fill()
-  // The chevrons, placed along the wake and pointing in the direction of the push.
-  ctx.globalAlpha = prog.alpha
-  ctx.lineWidth = CHEVRON_WIDTH * k
-  for (const at of CHEVRON_AT) {
-    const px = bx - u.x * len * at
-    const py = by - u.y * len * at
-    ctx.beginPath()
-    ctx.moveTo(px + n.x * CHEVRON_HALF * k, py + n.y * CHEVRON_HALF * k)
-    ctx.lineTo(px + u.x * CHEVRON_DEPTH * k, py + u.y * CHEVRON_DEPTH * k)
-    ctx.lineTo(px - n.x * CHEVRON_HALF * k, py - n.y * CHEVRON_HALF * k)
-    ctx.stroke()
-  }
-}
-
-function project(p: XY, view: CanvasView): XY {
-  return projectTo(view, p)
 }

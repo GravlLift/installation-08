@@ -1,10 +1,10 @@
 /**
  * equipment3dShapes.ts — LES FORMES 3D DE L'ÉQUIPEMENT : un lot instancié par forme, et une méthode
- * par objet (mur sans cap, faille, écran occultant, capteur, traqueur, champ, objet lâché, poussée).
- * La barrière du mur (`dropWall3d`) et le grappin (`grapple3d`) ont leur propre module.
+ * par objet (mur sans cap, faille, capteur, traqueur, champ, objet lâché, poussée). La barrière du mur
+ * (`dropWall3d`), la bulle de l'écran occultant (`shroud3d`) et le grappin (`grapple3d`) ont leur propre module.
  *
  * Les PORTÉES sont celles de la 2D, lues dans les fichiers de chaque famille (capteur 4,25 u, champ
- * 3 u, écran 6 u, mur de rayon 1,6 u ouvert à 110°) : la 3D n'y ajoute que la hauteur. Les tailles
+ * 3 u, mur de rayon 1,6 u ouvert à 110°) : la 3D n'y ajoute que la hauteur. Les tailles
  * qui ne sont que d'écran en 2D (pixels) reçoivent ici une taille monde, nommée et sans prétention
  * de mesure.
  *
@@ -13,7 +13,6 @@
 import * as THREE from 'three'
 
 import { REPAIR_FIELD_RADIUS_M, seekerImpulse } from '../layers/placementShapes'
-import { SHROUD_RADIUS_M } from '../layers/placementShroud'
 import { WALL_RADIUS_M } from '../layers/placementWall'
 import { SENSOR_RADIUS_M, sensorPing } from '../model/threatSensor'
 import { InstancePool, SegmentPool } from './actionKit'
@@ -41,9 +40,8 @@ const ARROW_RADIUS_U = 0.025
 const ARROW_HEAD_LENGTH_U = 0.16
 const ARROW_HEAD_RADIUS_U = 0.07
 
-/** Opacités des volumes : les zones ne masquent rien, la bulle de l'écran occulte un peu plus. */
+/** Opacités des volumes : les zones ne masquent rien. */
 const ZONE_OPACITY = 0.18
-const SHROUD_OPACITY = 0.3
 const RIFT_CORE_OPACITY = 0.45
 
 /** Capacités des lots : au-delà, une instance est ignorée (cf. `InstancePool.add`). */
@@ -76,7 +74,7 @@ function volume(opacity: number, side: THREE.Side = THREE.FrontSide): THREE.Mate
   return new THREE.MeshBasicMaterial({ transparent: true, opacity, depthWrite: false, side })
 }
 
-/** Les encres déjà converties d'une faille ou d'un écran occultant. */
+/** Les encres déjà converties d'une faille. */
 export interface PairInk3d {
   a: THREE.Color
   b: THREE.Color
@@ -86,7 +84,6 @@ export class EquipmentShapes3d {
   private readonly tori: InstancePool
   private readonly discs: InstancePool
   private readonly domes: InstancePool
-  private readonly spheres: InstancePool
   private readonly pucks: InstancePool
   private readonly gems: InstancePool
   private readonly cones: InstancePool
@@ -98,14 +95,13 @@ export class EquipmentShapes3d {
     this.discs = new InstancePool(parent, new THREE.CircleGeometry(1, 32), volume(RIFT_CORE_OPACITY, THREE.DoubleSide), VOLUME_CAPACITY)
     const hemisphere = new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2)
     this.domes = new InstancePool(parent, hemisphere, volume(ZONE_OPACITY, THREE.DoubleSide), VOLUME_CAPACITY)
-    this.spheres = new InstancePool(parent, new THREE.SphereGeometry(1, 32, 16), volume(SHROUD_OPACITY), VOLUME_CAPACITY)
     this.pucks = new InstancePool(parent, new THREE.CylinderGeometry(1, 1, 1, 16), solid(), SOLID_CAPACITY)
     this.gems = new InstancePool(parent, new THREE.OctahedronGeometry(1), solid(), SOLID_CAPACITY)
     // La pointe de la flèche : un cône dont la BASE est à l'origine, la pointe vers +Y.
     const cone = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
     this.cones = new InstancePool(parent, cone, solid(), SOLID_CAPACITY)
     this.lines = new SegmentPool(parent, solid(), SEGMENT_CAPACITY)
-    this.all = [this.tori, this.discs, this.domes, this.spheres, this.pucks, this.gems, this.cones, this.lines]
+    this.all = [this.tori, this.discs, this.domes, this.pucks, this.gems, this.cones, this.lines]
   }
 
   begin(): void {
@@ -135,12 +131,6 @@ export class EquipmentShapes3d {
     const q = headingQuat(headingDeg)
     this.tori.add(c, q, RIFT_RADIUS_U, ink.a)
     this.discs.add(c, q, RIFT_RADIUS_U * RIFT_CORE_RATIO, ink.b)
-  }
-
-  /** shroud — la bulle de l'écran occultant (cœur translucide) et son bord au sol (encre électrique). */
-  shroud(at: THREE.Vector3, ink: PairInk3d): void {
-    this.spheres.add(at, null, SHROUD_RADIUS_M, ink.a)
-    this.ring(at, SHROUD_RADIUS_M, ink.b)
   }
 
   /** sensor — l'appareil, le dôme de sa portée officielle, son anneau et l'onde du ping en cours. */

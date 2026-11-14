@@ -219,4 +219,19 @@ describe('selectClips : actions par-dessus', () => {
     expect(after.map((l) => l.name)).toEqual(['combat:pistol:ready'])
     expect(after[0].time).toBeCloseTo(0.1)
   })
+
+  it('thruster: the dodge clip of the push direction plays from the push frame, the latest push wins', () => {
+    const dodges = [{ t: 500, dir: 'left' as const }, { t: 504, dir: 'back' as const }]
+    const at = (frame: number) => over(select(input({ frame, events: { melee: [], grenade: [], reload: [], swaps: [], dodges } })))
+    expect(at(499)).toEqual([])
+    expect(at(502)[0]).toMatchObject({ name: 'combat:rifle:dodge_left', time: expect.closeTo(0.2, 9) })
+    expect(at(505)[0]).toMatchObject({ name: 'combat:rifle:dodge_back', time: expect.closeTo(0.1, 9) })
+    // The clip lasts 19/30 s: gone 7 film frames (0.7 s) after the last push.
+    expect(at(511)).toEqual([])
+  })
+
+  it('thruster: a class without its own dodge takes the rifle one', () => {
+    const m = over(select(input({ frame: 501, weapon: 'pistol', events: { melee: [], grenade: [], reload: [], swaps: [], dodges: [{ t: 500, dir: 'front' }] } })))
+    expect(m[0]?.name).toBe('combat:rifle:dodge_front')
+  })
 })
