@@ -49,11 +49,16 @@ are in [PARITY.md](PARITY.md).
 - 2D view: floors above the followed player are cut away entirely (players there float over
   black; draw other floors faintly), skylight patches are overexposed, the map sits under
   the header and the control bar, and there is no corner minimap yet.
-- Camera controls live in three places: the 1st person / 3rd person / Free view switch on
-  the scene, `3D | 2D` and the POV picker in the control bar. Move them into one group; in
-  free view the first-person weapon stays on screen.
-- The settings drawer covers the right-hand transport buttons while open; fullscreen is
-  unchecked since the redesign.
+- The HUD's bottom strip (score, kill feed, ammo) sits under the control bar while the bar
+  shows. The player publishes its safe insets (`--bc-chrome-top`, `--bc-chrome-bottom`);
+  only the HUD's shield reads them so far, the bottom strip and the 2D map's framing do not.
+- Film export of a whole match with sound stayed in "Preparing" for over six minutes on
+  2026-11-14 (a 52 s range without sound encodes at once). The offline mix renders the
+  whole range, likely once per sound family; Cancel takes effect only once the mix ends.
+  Missing: progress for the mix, or a mix that can be interrupted.
+- Fullscreen could not be checked by browser automation (Chrome refused the request from
+  a synthetic click); the button label and the layout inside the player are tested only
+  in unit tests and by code reading.
 - Home screen: Settings and Quit rows, gamepad input, live 3D backdrops.
 
 ## Ideas for later

@@ -122,9 +122,28 @@ Sparse on purpose: the 3D view fills the window.
 - Top: a thin score bug (teams, score, clock), broadcast style, already present as the HUD
   overlays; restyled to the system, not redesigned in behavior.
 - Bottom: our own transport as a lower third. Play/pause, a scrub bar with kill and
-  objective marks, time, speed, camera mode (first person, third person, free), the
-  player picker, sound, settings, fullscreen. It fades out while playing and returns on
-  mouse move or key press.
+  objective marks, time, speed, the camera group, sound, scoreboard, settings, film
+  export, fullscreen. It fades out while playing and returns on mouse move or key press;
+  it stays up while paused, while scrubbing and while a panel of its own is open.
+- The camera group is the one home of every camera choice, under one "Camera" label: view
+  (`3D | 2D`), camera mode (1st person, 3rd person, Free view) and the POV picker. In 2D
+  the mode segment stays in place, disabled, so the bar does not jump.
+- Camera rule (`screens/cameraChoiceLogic.ts`): free view follows no one. The Free
+  segment and the picker's "Free camera" entry are the same state. The player followed
+  last stays the reference (the free camera starts behind him, team colors keep his side),
+  and picking a player in free view follows him in the last follow mode.
+- What each camera draws: first person shows the arms rig and the full HUD (reticle,
+  shield, ammo, kill feed); third person, free view and 2D keep the score strip only.
+- When the bar does not fit (a narrow window), its groups wrap to a second row; a group
+  never breaks inside.
+- Panels opened from the bar (settings, export) open one at a time on the right, between
+  the top strip and the bar, never over either; they scroll when taller than that space.
+  The bar's button toggles its panel, Escape and a click outside close the settings
+  drawer, and the export button shows the progress of a running export.
+- Safe insets: the player publishes how far its chrome reaches as `--bc-chrome-top` and
+  `--bc-chrome-bottom` on the 16:9 box (`usePlayerChromeInsets`). The bar's panels sit
+  between them and the HUD's shield never goes above the top one.
+- Fullscreen takes the whole player (scene, strip, bar, panels).
 - No auto-play toggle.
 - The settings drawer and the scoreboard keep their functions and take the new tokens.
 - Back returns to match select with the same row focused.
@@ -151,6 +170,9 @@ Shared pieces, each built once:
 | Play/pause | Space | A (in player) |
 | Seek | Left/Right, J/L | bumpers |
 | Scoreboard | Tab (hold) | View |
+| Camera mode (3D view) | 1, 2, 3 (1st, 3rd, free) | |
+| View 3D / 2D | V | |
+| Fullscreen | F | |
 
 Mouse always works: hover focuses, click selects. Gamepad support is phase 1b; the focus
 model is built for it from the start.
