@@ -89,8 +89,8 @@ export function featuredFacts(m: MatchSummary): FeaturedFacts {
 }
 
 /** The main menu, exactly the rows the page can do: Watch always; Recent matches when
- *  signed in (the match list carries the account panel and the remote list); Sign in
- *  when signed out (it goes to the same panel). */
+ *  signed in (the match select page carries the account's rows); Sign in when signed out
+ *  (brief 124, item 6: it goes straight to the device-code plate on that page). */
 export function homeMenu(signedIn: boolean): HomeMenuItem[] {
   const menu: HomeMenuItem[] = [
     { name: 'Watch', sub: 'Pick a stored match and play it', route: '/matches' },
@@ -98,7 +98,7 @@ export function homeMenu(signedIn: boolean): HomeMenuItem[] {
   if (signedIn) {
     menu.push({ name: 'Recent matches', sub: 'Fetch games from your account', route: '/matches' })
   } else {
-    menu.push({ name: 'Sign in', sub: 'Connect your Xbox account', route: '/matches' })
+    menu.push({ name: 'Sign in', sub: 'Connect your Xbox account', route: '/matches?signin=1' })
   }
   return menu
 }

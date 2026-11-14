@@ -144,11 +144,12 @@ describe('homeMenu', () => {
     expect(homeMenu(true).map((m) => m.name)).toEqual(['Watch', 'Recent matches'])
   })
 
-  it('is Watch plus Sign in when signed out', () => {
+  it('is Watch plus Sign in when signed out, and Sign in opens the plate directly', () => {
     expect(homeMenu(false).map((m) => m.name)).toEqual(['Watch', 'Sign in'])
+    expect(homeMenu(false).find((m) => m.name === 'Sign in')?.route).toBe('/matches?signin=1')
   })
 
-  it('points every row at the match list', () => {
+  it('points the watch rows at the match select page', () => {
     expect(homeMenu(true).every((m) => m.route === '/matches')).toBe(true)
   })
 })

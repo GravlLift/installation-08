@@ -69,7 +69,7 @@ export function HomeScreen() {
     if (item) navigate(item.route)
   }, [signedIn])
 
-  const onSignIn = useCallback(() => navigate('/matches'), [])
+  const onSignIn = useCallback(() => navigate('/matches?signin=1'), [])
 
   const matches = state.phase === 'ready' ? state.matches : []
   const featured = featuredMatch(matches)
