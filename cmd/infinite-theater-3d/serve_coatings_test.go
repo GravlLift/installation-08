@@ -30,7 +30,7 @@ func writeCoatingIndexWithCoatings(t *testing.T, dataDir, module, stamp string, 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"ekur_stamp":"` + stamp + `","coatings":{"materials_missing":` + strconv.Itoa(missing) + `},"reticle_ranges":{}}`
+	body := `{"ekur_stamp":"` + stamp + `","coatings":{"materials_missing":` + strconv.Itoa(missing) + `},"reticle_ranges":{},"banners":{}}`
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -115,8 +115,8 @@ func TestCoatingStatusInvalid(t *testing.T) {
 }
 
 // TestWeaponLibraryStaleWithoutReticleRanges — a weapon library index built before the
-// red-reticle ranges existed is stale even with no export (status route and readiness), so the
-// normal build job rebuilds it; the same index with the field is current.
+// red-reticle ranges and the team banners existed is stale even with no export (status route and
+// readiness), so the normal build job rebuilds it; the same index with the fields is current.
 func TestWeaponLibraryStaleWithoutReticleRanges(t *testing.T) {
 	t.Setenv(spartanpieces.EkurEnv, "")
 	h := newTestHandlers(newFakeStore(t), nil)

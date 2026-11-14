@@ -72,8 +72,9 @@ var formatBitmap = map[int]struct {
 // ErrFormatBitmap signale un format de pixels que le decodeur ne lit pas.
 var ErrFormatBitmap = errors.New("himap: format de bitmap non pris en charge")
 
-// enteteBitmap : le premier enregistrement du bloc `bitmaps` d'un tag.
-type enteteBitmap struct{ larg, haut, format, nombre int }
+// enteteBitmap : le premier enregistrement du bloc `bitmaps` d'un tag. prof : le nombre de
+// couches d'un tableau de textures (1 pour une texture simple).
+type enteteBitmap struct{ larg, haut, prof, format, nombre int }
 
 func litEnteteBitmap(tag []byte) (enteteBitmap, error) {
 	for _, ti := range tagCandidates(tag) {
@@ -92,6 +93,7 @@ func litEnteteBitmap(tag []byte) (enteteBitmap, error) {
 		return enteteBitmap{
 			larg:   int(u16(tag, abs+bitmapOffLarg)),
 			haut:   int(u16(tag, abs+bitmapOffHaut)),
+			prof:   max(int(u16(tag, abs+bitmapOffProf)), 1),
 			format: int(u16(tag, abs+bitmapOffFormat)),
 			nombre: size / bitmapStride,
 		}, nil

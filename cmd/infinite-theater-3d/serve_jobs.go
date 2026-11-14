@@ -136,15 +136,15 @@ func recordedEkurStamp(dataDir, module string) (string, bool) {
 }
 
 // libraryIndexCurrent says whether a coating library's index carries every field the view reads
-// from it: the weapon library's index must carry its red-reticle ranges
-// (weapons.IndexHasReticleRanges), so a library built before them is stale and its rebuild, in
-// place, adds them. The other libraries have no such field.
+// from it: the weapon library's index must carry its red-reticle ranges and team banners
+// (weapons.IndexCurrent), so a library built before them is stale and its rebuild, in place,
+// adds them. The other libraries have no such field.
 func libraryIndexCurrent(dataDir, module string) bool {
 	if module != meshjobs.JobWeapons {
 		return true
 	}
 	raw, err := os.ReadFile(filepath.Join(dataDir, "weapons", "index.json"))
-	return err == nil && weapons.IndexHasReticleRanges(raw)
+	return err == nil && weapons.IndexCurrent(raw)
 }
 
 // coatingLibraryFolder is the data-directory folder of a coating library module key, and

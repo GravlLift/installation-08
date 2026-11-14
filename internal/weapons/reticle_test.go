@@ -28,18 +28,19 @@ func TestReticleRangeOf(t *testing.T) {
 	}
 }
 
-// TestIndexReticleRanges — a new index always carries the field (empty included) and reads as
-// current; an index written before the field existed reads as stale.
+// TestIndexReticleRanges — a new index always carries the fields (empty included) and reads as
+// current; an index written before one of them existed reads as stale.
 func TestIndexReticleRanges(t *testing.T) {
 	raw, err := json.Marshal(NewIndex([]string{"2b1824d5"}, "test"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !IndexHasReticleRanges(raw) {
+	if !IndexCurrent(raw) {
 		t.Fatalf("new index %s: field missing", raw)
 	}
-	for _, old := range []string{`{"schema":1,"weapons":["2b1824d5"]}`, `{"reticle_ranges":null}`, `not json`} {
-		if IndexHasReticleRanges([]byte(old)) {
+	for _, old := range []string{`{"schema":1,"weapons":["2b1824d5"]}`, `{"reticle_ranges":null,"banners":{}}`,
+		`{"reticle_ranges":{}}`, `not json`} {
+		if IndexCurrent([]byte(old)) {
 			t.Errorf("%s: reported current", old)
 		}
 	}

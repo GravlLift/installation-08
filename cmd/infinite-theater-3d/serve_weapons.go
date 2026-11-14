@@ -50,12 +50,13 @@ func (h serverHandlers) handleWeaponIndex(w http.ResponseWriter, r *http.Request
 }
 
 // handleWeaponModel answers GET /api/weapons/{file} with one library file: a model GLB
-// (range-capable) or a coating file (coatings.json, coating-<style>.json, swatch-<gradient>.png,
-// the spartanpieces contract beside the Spartan piece routes). A missing file is a JSON 404.
+// (range-capable), a coating file (coatings.json, coating-<style>.json, swatch-<gradient>.png,
+// the spartanpieces contract beside the Spartan piece routes) or a team banner image
+// (banner-<key>-cloth.png, banner-<key>-emblem<rank>.png). A missing file is a JSON 404.
 func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 	dir := filepath.Join(h.root.Dir(), "weapons")
-	if weapons.CoatingFile(file) {
+	if weapons.CoatingFile(file) || weapons.BannerFile(file) {
 		h.serveWeaponFile(w, r, dir, file, map[string]string{"error": "coating_not_available", "file": file})
 		return
 	}

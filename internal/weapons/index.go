@@ -88,23 +88,29 @@ type Index struct {
 	// (reticle.go). A weapon absent from it has no range: its reticle never turns red. Always
 	// written, empty included: an index without the field predates it and is stale.
 	ReticleRanges map[string]ReticleRange `json:"reticle_ranges"`
+	// Banners: per weapon model key, the team banner its model carries (banners.go). Always
+	// written, empty included: an index without the field predates it and is stale.
+	Banners map[string]Banner `json:"banners"`
 }
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
 	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
-		ReticleRanges: map[string]ReticleRange{}}
+		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}}
 }
 
-// IndexHasReticleRanges says whether a library index.json carries the reticle_ranges field: a
-// library built before the field existed is stale (its rebuild adds it).
-func IndexHasReticleRanges(raw []byte) bool {
+// IndexCurrent says whether a library index.json carries every field the view reads from it
+// (reticle_ranges, banners): a library built before one of them existed is stale (its rebuild
+// adds it).
+func IndexCurrent(raw []byte) bool {
 	var idx struct {
 		ReticleRanges json.RawMessage `json:"reticle_ranges"`
+		Banners       json.RawMessage `json:"banners"`
 	}
 	if err := json.Unmarshal(raw, &idx); err != nil {
 		return false
 	}
-	return len(idx.ReticleRanges) > 0 && string(idx.ReticleRanges) != "null"
+	present := func(f json.RawMessage) bool { return len(f) > 0 && string(f) != "null" }
+	return present(idx.ReticleRanges) && present(idx.Banners)
 }
