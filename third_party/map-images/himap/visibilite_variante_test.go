@@ -16,7 +16,7 @@ func TestObjetsVisibles(t *testing.T) {
 	}
 	var m MaillageMonde
 	var pose BilanVariante
-	m.poseVarianteTeinte(objets, nil, nil, &pose, nil, invisibles)
+	m.poseVarianteTeinte(OptionsVariante{Objets: objets, Invisibles: invisibles}, nil, nil, &pose)
 	if pose.SansModele != 2 {
 		t.Fatalf("placement filtré: %+v", pose)
 	}

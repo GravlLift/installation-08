@@ -8,7 +8,8 @@ import (
 )
 
 // TestEcartDeVariante : un volume de mort et un objet a forme sont des volumes de jeu ; un objet
-// du mode Infection est ecarte ; un objet sans forme se pose, `infection_exclude` compris.
+// du mode Infection est ecarte d'une partie sans mode ; un objet sans forme se pose,
+// `infection_exclude` compris.
 func TestEcartDeVariante(t *testing.T) {
 	var mort int32
 	for ty := range TypesVolumesDeMort {
@@ -26,13 +27,13 @@ func TestEcartDeVariante(t *testing.T) {
 		{"zone", mapvar.Object{TypeID: 95146865, ShapeRaw: &mapvar.ShapeRaw{Family: 3}}, ecartVolume},
 		{"repere de reapparition", mapvar.Object{TypeID: -1533673853, Flags: 7}, ecartRepere},
 		{"accessoire", mapvar.Object{TypeID: 1739378636, Flags: 21}, posable},
-		{"porte d'Infection", mapvar.Object{TypeID: 1282914177, Flags: 1, Labels: []int32{mapvar.LabelHash(mapvar.LabelInfectionInclude)}}, ecartInfection},
+		{"porte d'Infection", mapvar.Object{TypeID: 1282914177, Flags: 1, Labels: []int32{mapvar.LabelHash(mapvar.LabelInfectionInclude)}}, ecartHorsMode},
 		{"caisse d'Infection parmi d'autres labels", mapvar.Object{TypeID: 1006238451, Flags: 1,
-			Labels: []int32{mapvar.LabelHash("assault_exclude"), mapvar.LabelHash(mapvar.LabelInfectionInclude)}}, ecartInfection},
+			Labels: []int32{mapvar.LabelHash("assault_exclude"), mapvar.LabelHash(mapvar.LabelInfectionInclude)}}, ecartHorsMode},
 		{"grille hors Infection", mapvar.Object{TypeID: 1233051095, Flags: 1, Labels: []int32{mapvar.LabelHash("infection_exclude")}}, posable},
 	}
 	for _, c := range cas {
-		if got := ecartDeVariante(c.o); got != c.veut {
+		if got := ecartDeVariante(c.o, FiltresMode{}); got != c.veut {
 			t.Errorf("%s : %d, attendu %d", c.nom, got, c.veut)
 		}
 	}
@@ -122,7 +123,7 @@ func TestInstanceForgeEchelle(t *testing.T) {
 // TestCompteEcart : chaque ecart se compte a sa ligne du bilan ; un objet posable ne compte rien.
 func TestCompteEcart(t *testing.T) {
 	var b BilanVariante
-	for _, e := range []ecartVariante{ecartVolumeDeMort, ecartVolume, ecartRepere, ecartRepere, ecartInfection} {
+	for _, e := range []ecartVariante{ecartVolumeDeMort, ecartVolume, ecartRepere, ecartRepere, ecartHorsMode} {
 		if compteEcart(e, &b) {
 			t.Errorf("ecart %d rendu posable", e)
 		}
@@ -130,13 +131,14 @@ func TestCompteEcart(t *testing.T) {
 	if !compteEcart(posable, &b) {
 		t.Error("posable rendu ecarte")
 	}
-	if b.VolumesDeMort != 1 || b.Volumes != 1 || b.Reperes != 2 || b.Infection != 1 {
+	if b.VolumesDeMort != 1 || b.Volumes != 1 || b.Reperes != 2 || b.HorsMode != 1 {
 		t.Errorf("bilan %+v", b)
 	}
 }
 
-// TestPoseVarianteInfection : l'objet du mode Infection n'est pas pose et se compte a sa ligne ;
-// son contraire (`infection_exclude`) et l'objet sans label vont jusqu'au modele (absent ici).
+// TestPoseVarianteInfection : l'objet du mode Infection n'est pas pose dans une partie sans mode
+// et se compte a sa ligne ; son contraire (`infection_exclude`) et l'objet sans label vont
+// jusqu'au modele (absent ici).
 func TestPoseVarianteInfection(t *testing.T) {
 	objets := []mapvar.Object{
 		{TypeID: 1282914177, Flags: 1, Labels: []int32{mapvar.LabelHash(mapvar.LabelInfectionInclude)}},
@@ -145,10 +147,10 @@ func TestPoseVarianteInfection(t *testing.T) {
 	}
 	var m MaillageMonde
 	var b BilanVariante
-	if poses := m.poseVarianteTeinte(objets, nil, nil, &b, nil, nil); len(poses) != 0 {
+	if poses := m.poseVarianteTeinte(OptionsVariante{Objets: objets}, nil, nil, &b); len(poses) != 0 {
 		t.Fatalf("poses %v sans modele", poses)
 	}
-	if b.Infection != 1 || b.SansModele != 2 || b.Poses != 0 {
+	if b.HorsMode != 1 || b.SansModele != 2 || b.Poses != 0 {
 		t.Fatalf("bilan %+v, attendu 1 objet d'Infection et 2 sans modele", b)
 	}
 }
