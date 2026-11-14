@@ -4,7 +4,7 @@
 ;
 ;   /DVersion=<version>      the release version (the AppVersion)
 ;   /DPackageDir=<folder>    the release folder to install (the exe, LICENSE,
-;                            NOTICE.md, README.md, third_party)
+;                            NOTICE.md, README.md, tools, third_party)
 ;
 ; The install is per-user (no administrator prompt) into
 ; {localappdata}\Programs\Infinite Theater 3D. The uninstaller removes the

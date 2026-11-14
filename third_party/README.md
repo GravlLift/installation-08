@@ -10,6 +10,10 @@ The source files below are as of 2026-11-13, with the documented changes noted p
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
 
+`vgmstream/` holds no code: only the license texts and the notice of the vgmstream decoder
+the packaged build carries (r2168, pinned and hash-checked by `tools/package.ps1`, run as a
+separate program by the announcer build). See [vgmstream/NOTICE.md](vgmstream/NOTICE.md).
+
 ## Changes from upstream v1.3.6 (film-decoder)
 
 The film-decoder module carries the LevelUp `feat/replay-3d` port on upstream v1.3.6.
