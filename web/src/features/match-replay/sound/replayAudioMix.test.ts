@@ -18,6 +18,7 @@ import {
   planAudioMix,
   scheduleMix,
   seededRandom,
+  soundUrlOf,
   tailSeconds,
   type MixedSound,
 } from './replayAudioMix'
@@ -36,6 +37,13 @@ const TIMELINE: ReplaySoundEvent[] = [
   { ms: 4800, stem: 'tir_a', variants: ['tir_a', 'tir_a_2', 'tir_a_3'] },
   { ms: 9000, stem: 'apres_la_plage' },
 ]
+
+describe('soundUrlOf — one URL per stem', () => {
+  it('a bundled stem gets the Ogg extension; an extracted announcer take keeps its WAV name', () => {
+    expect(soundUrlOf('explosion')).toBe('/static/sounds/halo_infinite/explosion.ogg')
+    expect(soundUrlOf('announcer_doublekill_01.wav')).toBe('/static/sounds/halo_infinite/announcer_doublekill_01.wav')
+  })
+})
 
 describe('seededRandom / mixSeed — the randomness becomes reproducible', () => {
   it('two generators of the same seed return the same sequence', () => {

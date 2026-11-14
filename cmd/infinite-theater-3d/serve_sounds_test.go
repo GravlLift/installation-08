@@ -168,17 +168,20 @@ func TestSoundRouteViaMux(t *testing.T) {
 	}
 }
 
-// TestSoundFile — the name filter: an .ogg and the announcer manifest pass, anything else does not.
+// TestSoundFile — the name filter: an .ogg, an announcer .wav take and the announcer manifest
+// pass, anything else does not.
 func TestSoundFile(t *testing.T) {
 	cases := map[string]bool{
-		"gunshot_battle_rifle.ogg": true,
-		"a.ogg":                    true,
-		"a.OGG":                    false,
-		"a.oggx":                   false,
-		"a":                        false,
-		"index.json":               false,
-		"announcer.json":           true,
-		"announcer.JSON":           false,
+		"gunshot_battle_rifle.ogg":    true,
+		"a.ogg":                       true,
+		"a.OGG":                       false,
+		"a.oggx":                      false,
+		"a":                           false,
+		"index.json":                  false,
+		"announcer.json":              true,
+		"announcer.JSON":              false,
+		"announcer_doublekill_01.wav": true,
+		"a.wavx":                      false,
 	}
 	for name, want := range cases {
 		if ok := soundFile(name); ok != want {
@@ -203,5 +206,12 @@ func TestSoundRouteAnnouncerManifest(t *testing.T) {
 	rec := get(t, h, soundRoute+"announcer.json", nil)
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" || rec.Body.String() != `{"version":1}` {
 		t.Fatalf("status = %d, Content-Type = %q, body = %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+	if err := os.WriteFile(filepath.Join(soundsDir(root.Dir()), "announcer_doublekill_01.wav"), []byte("RIFF"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rec = get(t, h, soundRoute+"announcer_doublekill_01.wav", nil)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "audio/wav" {
+		t.Fatalf("take: status = %d, Content-Type = %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
 }

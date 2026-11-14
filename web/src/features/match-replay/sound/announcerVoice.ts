@@ -95,15 +95,18 @@ export function voiceNamesOfCall(key: string): readonly string[] {
   return OBJECTIVE_VOICE[key] ?? MATCH_VOICE[key] ?? []
 }
 
-/** The stem of a manifest file. */
-function stemOfFile(file: string): string {
-  return file.replace(/\.ogg$/, '')
-}
+/** The manifest version this viewer reads: `ManifestVersion` in `internal/announcer/extract.go`.
+ *  An older manifest is refused (silent) until the server's announcer job rebuilds it. */
+const MANIFEST_VERSION = 2
+
+/** A take's file: the decoder's own PCM WAV, named after its line. Its stem is the whole file
+ *  name: `soundUrlOf` keeps a stem that carries its own `.wav` extension. */
+const TAKE_FILE = /^[a-z0-9_]+\.wav$/
 
 /** manifestVoice — the extracted lines, for every locale (see the header). */
 export function manifestVoice(manifest: AnnouncerManifest): AnnouncerVoice {
   const takesOf = (name: string): AnnouncerTake[] =>
-    (manifest.lines[name]?.takes ?? []).map((t) => ({ stem: stemOfFile(t.file), durationMs: t.durationMs }))
+    (manifest.lines[name]?.takes ?? []).map((t) => ({ stem: t.file, durationMs: t.durationMs }))
   return {
     takes(key) {
       for (const name of voiceNamesOfCall(key)) {
@@ -113,7 +116,7 @@ export function manifestVoice(manifest: AnnouncerManifest): AnnouncerVoice {
       return []
     },
     stems() {
-      return Object.values(manifest.lines).flatMap((l) => l.takes.map((t) => stemOfFile(t.file)))
+      return Object.values(manifest.lines).flatMap((l) => l.takes.map((t) => t.file))
     },
   }
 }
@@ -151,15 +154,15 @@ export function combineVoices(...voices: readonly AnnouncerVoice[]): AnnouncerVo
 export function parseAnnouncerManifest(raw: unknown): AnnouncerManifest | null {
   if (!raw || typeof raw !== 'object') return null
   const m = raw as Partial<AnnouncerManifest>
-  if (m.version !== 1 || typeof m.language !== 'string' || !m.lines || typeof m.lines !== 'object') return null
+  if (m.version !== MANIFEST_VERSION || typeof m.language !== 'string' || !m.lines || typeof m.lines !== 'object') return null
   const lines: Record<string, { takes: { file: string; durationMs: number }[] }> = {}
   for (const [name, line] of Object.entries(m.lines)) {
     const takes = (Array.isArray(line?.takes) ? line.takes : []).filter(
-      (t) => typeof t?.file === 'string' && /^[a-z0-9_]+\.ogg$/.test(t.file) && typeof t.durationMs === 'number' && t.durationMs > 0,
+      (t) => typeof t?.file === 'string' && TAKE_FILE.test(t.file) && typeof t.durationMs === 'number' && t.durationMs > 0,
     )
     if (takes.length > 0) lines[name] = { takes }
   }
-  return { version: 1, language: m.language, lines }
+  return { version: MANIFEST_VERSION, language: m.language, lines }
 }
 
 /**

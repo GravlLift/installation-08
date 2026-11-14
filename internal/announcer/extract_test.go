@@ -10,18 +10,14 @@ import (
 	"testing"
 )
 
-// fakeToolEnv makes the test binary act as the decoder or the encoder extraction runs.
+// fakeToolEnv makes the test binary act as the decoder extraction runs.
 const fakeToolEnv = "ANNOUNCER_FAKE_TOOL"
 
-// TestMain lets the test binary stand in for both tools when fakeToolEnv is set: vgmstream-cli
-// when its first argument is "-o" ("-o out.wav in.wem": writes a WAV whose length is the media's
-// first byte in tenths of a second), ffmpeg otherwise (copies its -i input to its last argument).
+// TestMain lets the test binary stand in for vgmstream-cli when fakeToolEnv is set:
+// "-o out.wav in.wem" writes a WAV whose length is the media's first byte in tenths of a second.
 func TestMain(m *testing.M) {
 	if os.Getenv(fakeToolEnv) != "" {
-		if len(os.Args) > 1 && os.Args[1] == "-o" {
-			os.Exit(fakeDecoder(os.Args[1:]))
-		}
-		os.Exit(fakeEncoder(os.Args[1:]))
+		os.Exit(fakeDecoder(os.Args[1:]))
 	}
 	os.Exit(m.Run())
 }
@@ -38,19 +34,6 @@ func fakeDecoder(args []string) int {
 		return 1
 	}
 	return 0
-}
-
-func fakeEncoder(args []string) int {
-	for i, a := range args {
-		if a == "-i" && i+1 < len(args) {
-			raw, err := os.ReadFile(args[i+1])
-			if err != nil || os.WriteFile(args[len(args)-1], raw, 0o644) != nil {
-				return 1
-			}
-			return 0
-		}
-	}
-	return 2
 }
 
 // testWAV is a 48 kHz stereo 16-bit PCM WAV of the given length.
@@ -94,14 +77,16 @@ func TestExtractWritesFilesAndManifest(t *testing.T) {
 		embedded: map[uint32][]byte{7: {12}, 8: {5}},
 	}
 	out := t.TempDir()
-	tools := Tools{Decoder: self, Encoder: self}
-	opts := ExtractOptions{Names: []string{"doublekill", "nosuchline", "doublekill"}, Tools: tools, OutDir: out, Language: "en", GameLanguage: "English(US)"}
+	opts := ExtractOptions{Names: []string{"doublekill", "nosuchline", "doublekill"}, Tools: Tools{Decoder: self}, OutDir: out, Language: "en", GameLanguage: "English(US)"}
 	res, err := Extract(context.Background(), c, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(res.Missing, []string{"nosuchline"}) || res.Files != 2 {
 		t.Fatalf("result: missing %v files %d", res.Missing, res.Files)
+	}
+	if want := int64(len(testWAV(1200)) + len(testWAV(500))); res.Bytes != want {
+		t.Fatalf("bytes %d, want %d", res.Bytes, want)
 	}
 	raw, err := os.ReadFile(filepath.Join(out, ManifestName))
 	if err != nil {
@@ -112,8 +97,8 @@ func TestExtractWritesFilesAndManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := ManifestLine{Bank: "sb_main", Event: "000000e1", Takes: []ManifestTake{
-		{File: "announcer_doublekill_01.ogg", Media: 7, DurationMs: 1200},
-		{File: "announcer_doublekill_02.ogg", Media: 8, DurationMs: 500},
+		{File: "announcer_doublekill_01.wav", Media: 7, DurationMs: 1200},
+		{File: "announcer_doublekill_02.wav", Media: 8, DurationMs: 500},
 	}}
 	if m.Version != ManifestVersion || m.Language != "en" || !reflect.DeepEqual(m.Lines["doublekill"], want) {
 		t.Fatalf("manifest: %+v", m)
@@ -123,14 +108,39 @@ func TestExtractWritesFilesAndManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if built, stale := ManifestStatus(out); !built || stale {
+		t.Fatalf("fresh manifest: built %v stale %v", built, stale)
+	}
+}
+
+// TestManifestStatus — no manifest is not built; an older version is built but stale; an
+// unreadable one is not built.
+func TestManifestStatus(t *testing.T) {
+	dir := t.TempDir()
+	if built, stale := ManifestStatus(dir); built || stale {
+		t.Fatalf("absent: built %v stale %v", built, stale)
+	}
+	write := func(body string) {
+		if err := os.WriteFile(filepath.Join(dir, ManifestName), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"version":1,"lines":{}}`)
+	if built, stale := ManifestStatus(dir); !built || !stale {
+		t.Fatalf("version 1: built %v stale %v", built, stale)
+	}
+	write(`not json`)
+	if built, _ := ManifestStatus(dir); built {
+		t.Fatal("an unreadable manifest counts as built")
+	}
 }
 
 func TestExtractRefusesMissingToolsAndBadNames(t *testing.T) {
 	c := &Catalog{Lines: map[uint32]Line{}}
 	if _, err := Extract(context.Background(), c, ExtractOptions{OutDir: t.TempDir()}); err == nil {
-		t.Fatal("extraction ran without tools")
+		t.Fatal("extraction ran without a decoder")
 	}
-	opts := ExtractOptions{Names: []string{"../escape"}, Tools: Tools{Decoder: "d", Encoder: "e"}, OutDir: t.TempDir()}
+	opts := ExtractOptions{Names: []string{"../escape"}, Tools: Tools{Decoder: "d"}, OutDir: t.TempDir()}
 	if _, err := Extract(context.Background(), c, opts); err == nil {
 		t.Fatal("a name with a path separator was accepted")
 	}

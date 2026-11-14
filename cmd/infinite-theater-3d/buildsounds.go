@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 
@@ -19,67 +20,103 @@ import (
 // announcerLanguages maps the viewer's language codes to the game's sound language folders.
 var announcerLanguages = map[string]string{"en": "English(US)", "fr": "French(France)"}
 
+// decoderCommand is the vgmstream decoder's program name, and bundledDecoderDir the folder,
+// relative to this program's own folder, where the packaged build carries it with its DLLs
+// (tools\package.ps1).
+const decoderCommand = "vgmstream-cli"
+
+var bundledDecoderDir = filepath.Join("tools", "vgmstream")
+
 // runBuildSounds extracts the multiplayer announcer's voice lines from the installed game into
 // the replay sound folder (<data>/assets/sounds/halo_infinite), with the announcer.json manifest
-// the viewer reads. The game stores the voice as Wwise Vorbis: --decoder names a vgmstream-cli
-// executable, and the lines are re-encoded to Ogg Vorbis with ffmpeg (--encoder).
+// the viewer reads. The game stores the voice as Wwise Vorbis, which vgmstream-cli decodes to the
+// WAV files the viewer plays; the packaged build carries it, --decoder names another copy.
 func runBuildSounds(args []string) error {
 	fs := flag.NewFlagSet("build-sounds", flag.ContinueOnError)
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (Steam, Xbox)")
 	dataDir := fs.String("data", "", dataDirHelp)
 	lang := fs.String("lang", "en", "announcer language: en or fr (falls back to en when the game has no fr announcer)")
-	decoder := fs.String("decoder", "", "path to vgmstream-cli (required: decodes the game's Wwise Vorbis)")
-	encoder := fs.String("encoder", "ffmpeg", "ffmpeg executable with libvorbis (re-encodes to Ogg Vorbis)")
+	decoder := fs.String("decoder", "", "path to vgmstream-cli; empty uses the copy in tools\\vgmstream next to this program, then PATH")
 	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *decoder == "" {
-		return errors.New("build-sounds: --decoder <path to vgmstream-cli> is required")
-	}
-	tools, err := soundTools(*decoder, *encoder)
-	if err != nil {
 		return err
 	}
 	dir, err := dataDirFor(*dataDir)
 	if err != nil {
 		return err
 	}
-	root, err := deployRootFor(*gameRoot)
-	if err != nil {
-		return err
-	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	ctx := context.Background()
-	code, folder, err := announcerFolder(root, *lang)
+	res, folder, err := buildAnnouncerSounds(context.Background(), *gameRoot, dir, *lang, *decoder)
 	if err != nil {
 		return err
-	}
-	catalog, err := announcer.Discover(ctx, root, folder)
-	if err != nil {
-		return fmt.Errorf("build-sounds: %w", err)
-	}
-	res, err := announcer.Extract(ctx, catalog, announcer.ExtractOptions{
-		Names: announcer.CallNames(build.MedalNames()), Tools: tools, OutDir: soundsDir(dir),
-		Language: code, GameLanguage: filepath.Base(folder),
-	})
-	if err != nil {
-		return fmt.Errorf("build-sounds: %w", err)
 	}
 	fmt.Printf("announcer (%s) built into %s: %d lines, %d files, %d bytes; %d names not in the game\n",
 		filepath.Base(folder), soundsDir(dir), len(res.Manifest.Lines), res.Files, res.Bytes, len(res.Missing))
 	return nil
 }
 
-// soundTools resolves the two programs extraction runs.
-func soundTools(decoder, encoder string) (announcer.Tools, error) {
-	if _, err := os.Stat(decoder); err != nil {
-		return announcer.Tools{}, fmt.Errorf("build-sounds: decoder: %w", err)
-	}
-	enc, err := exec.LookPath(encoder)
+// buildAnnouncerSounds is the announcer extraction both build-sounds and the server's announcer
+// job run: it resolves the decoder and the game's announcer folder for lang, and extracts every
+// line the viewer calls into the data directory's sound folder. It returns the game folder read.
+func buildAnnouncerSounds(ctx context.Context, gameRoot, dataDir, lang, decoderFlag string) (*announcer.ExtractResult, string, error) {
+	decoder, err := findDecoder(decoderFlag, programDir())
 	if err != nil {
-		return announcer.Tools{}, fmt.Errorf("build-sounds: encoder %q not found: %w", encoder, err)
+		return nil, "", err
 	}
-	return announcer.Tools{Decoder: decoder, Encoder: enc}, nil
+	root, err := deployRootFor(gameRoot)
+	if err != nil {
+		return nil, "", err
+	}
+	code, folder, err := announcerFolder(root, lang)
+	if err != nil {
+		return nil, "", err
+	}
+	catalog, err := announcer.Discover(ctx, root, folder)
+	if err != nil {
+		return nil, "", fmt.Errorf("build-sounds: %w", err)
+	}
+	res, err := announcer.Extract(ctx, catalog, announcer.ExtractOptions{
+		Names: announcer.CallNames(build.MedalNames()), Tools: announcer.Tools{Decoder: decoder}, OutDir: soundsDir(dataDir),
+		Language: code, GameLanguage: filepath.Base(folder),
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, folder, nil
+}
+
+// programDir is the folder of the running program ("" when it cannot be resolved).
+func programDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(exe)
+}
+
+// findDecoder resolves vgmstream-cli: the flag when given (it must exist), else the bundled copy
+// in tools\vgmstream under exeDir (the packaged build's layout), else the command on PATH.
+func findDecoder(flagValue, exeDir string) (string, error) {
+	if flagValue != "" {
+		if _, err := os.Stat(flagValue); err != nil {
+			return "", fmt.Errorf("build-sounds: decoder: %w", err)
+		}
+		return flagValue, nil
+	}
+	name := decoderCommand
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if exeDir != "" {
+		bundled := filepath.Join(exeDir, bundledDecoderDir, name)
+		if _, err := os.Stat(bundled); err == nil {
+			return bundled, nil
+		}
+	}
+	if p, err := exec.LookPath(decoderCommand); err == nil {
+		return p, nil
+	}
+	return "", errors.New("build-sounds: vgmstream-cli not found: the packaged build carries it in " +
+		filepath.Join(bundledDecoderDir, name) + " next to the program; pass --decoder <path> otherwise")
 }
 
 // deployRootFor returns the game's deploy root: the flag, or the detected install.
@@ -103,7 +140,7 @@ func announcerFolder(deployRoot, lang string) (string, string, error) {
 	}
 	folder := filepath.Join(announcer.SoundRoot(deployRoot), name)
 	if lang != "en" && !announcer.HasPackages(folder) {
-		fmt.Printf("The game install has no %s announcer (no announcer package in %s); using English.\n", name, folder)
+		slog.Info("the game install has no announcer in this language; using English", "language", name, "folder", folder)
 		return announcerFolder(deployRoot, "en")
 	}
 	return lang, folder, nil
