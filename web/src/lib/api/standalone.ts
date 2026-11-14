@@ -8,7 +8,9 @@
  */
 import type { ReplayDocument } from './types'
 
-/** One row of `GET /api/matches` (see `internal/store/match.go`). */
+/** One row of `GET /api/matches` (see `internal/store/match.go`). The new match-select
+ *  fields are optional: a match whose stored context data is missing omits them, and the
+ *  outcome/score fields are present only for a signed-in account that is in the match. */
 export interface MatchSummary {
   matchId: string
   mapName: string
@@ -17,6 +19,16 @@ export interface MatchSummary {
   durationMs: number
   players: { name: string; team: number }[] | null
   importedAt: string
+  modeName?: string
+  modeCategory?: string
+  playlistName?: string
+  isRanked?: boolean
+  startTime?: string
+  mapImageUrl?: string
+  teamScores?: [number, number] | number[]
+  outcome?: string
+  scoreMine?: number
+  scoreTheirs?: number
 }
 
 /** The JSON body of a 404 from `/mesh.glb` when the map's mesh has not been built. */
@@ -258,12 +270,16 @@ export async function requestLogout(signal?: AbortSignal): Promise<AuthStateBody
 
 // --- Remote matches and fetching (`/api/remote/matches`, `/api/matches/{id}/fetch*`) --------
 
-/** One row of `GET /api/remote/matches` (see `internal/haloapi/client.go`, `Match`). */
+/** One row of `GET /api/remote/matches` (see `internal/haloapi/client.go`, `Match`).
+ *  `mapAssetId` is present when the service response names the map variant's asset id;
+ *  `mapImageUrl` is present when that image is already stored locally ("" when not). */
 export interface RemoteMatch {
   id: string
   map: string
   mode: string
   time: string
+  mapAssetId?: string
+  mapImageUrl?: string
 }
 
 /** `GET /api/remote/matches` — the signed-in player's recent matches from the Halo service.

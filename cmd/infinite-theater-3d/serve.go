@@ -136,15 +136,16 @@ func runServe(args []string) error {
 // model catalog and the weapon label tables. It implements http.Handler: ServeHTTP serves
 // the static files for non-API paths and the mux for the API routes.
 type serverHandlers struct {
-	root     *store.Root
-	web      string // the --web directory, when given
-	webFS    fs.FS  // the embedded viewer, nil when the build has none
-	jobs     *meshjobs.Runner
-	weapKeys weapons.Catalog
-	labelCat weapons.LabelCatalog
-	mux      *http.ServeMux
-	remote   *remoteJobs
-	auth     *authSession
+	root      *store.Root
+	web       string // the --web directory, when given
+	webFS     fs.FS  // the embedded viewer, nil when the build has none
+	jobs      *meshjobs.Runner
+	weapKeys  weapons.Catalog
+	labelCat  weapons.LabelCatalog
+	mux       *http.ServeMux
+	remote    *remoteJobs
+	auth      *authSession
+	listCache *matchlistCache
 }
 
 // ServeHTTP routes a request: the built-in context assets for the medals and map
@@ -209,7 +210,10 @@ func (h serverHandlers) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "version": Version})
 }
 
-// handleMatches answers /api/matches with the match summaries, newest first.
+// handleMatches answers /api/matches with the match summaries, newest first, enriched with
+// the list fields (mode, playlist, outcome, score, start time, map image) from the stored
+// context data. A match whose context data is missing keeps its stored fields and omits the
+// new ones; the list never fails over a single match.
 func (h serverHandlers) handleMatches(w http.ResponseWriter, r *http.Request) {
 	ms, err := h.root.ListMatches()
 	if err != nil {
@@ -220,7 +224,31 @@ func (h serverHandlers) handleMatches(w http.ResponseWriter, r *http.Request) {
 	if ms == nil {
 		ms = []store.Match{}
 	}
-	writeJSON(w, http.StatusOK, ms)
+	writeJSON(w, http.StatusOK, matchlistEnriched(h.root, ms, h.matchlistAccountName(), h.listCache))
+}
+
+// matchlistAccountName is the signed-in account's gamertag ("" when none is known): the
+// session's in-memory value when a login completed in this process, else the stored
+// credentials (the same code path the auth state route uses). The roster match is on the
+// name, not the xuid: the stored summary may predate a sign-in that has no gamertag here,
+// and the name is what the web already matches on.
+func (h serverHandlers) matchlistAccountName() string {
+	if h.auth == nil {
+		return ""
+	}
+	s := h.auth
+	s.mu.Lock()
+	gamer := s.gamer
+	s.mu.Unlock()
+	if gamer != "" {
+		return gamer
+	}
+	if st := storedAuthState(h.root.Dir()); st["gamertag"] != nil {
+		if tag, ok := st["gamertag"].(string); ok {
+			return tag
+		}
+	}
+	return ""
 }
 
 // handleReplay answers /api/matches/{id}/replay with the document: gzip-encoded as stored

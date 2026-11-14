@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -50,7 +52,31 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 502, map[string]string{"error": "match history unavailable"})
 		return
 	}
-	writeJSON(w, 200, matches)
+	writeJSON(w, 200, remoteMatchsWithImages(h.root, matches))
+}
+
+// remoteMatchsWithImages adds the stored map image URL to each remote match entry (empty
+// when the image is not on disk): no extra network request, just a stat of the local file.
+func remoteMatchsWithImages(root *store.Root, matches []haloapi.Match) []haloapi.Match {
+	for i := range matches {
+		matches[i].MapImageURL = storeMapImageURL(root, matches[i].MapAssetID)
+	}
+	return matches
+}
+
+// storeMapImageURL is the URL of the stored map image for an asset id, "" when no image
+// file is on disk (the same <root>/static/maps/halo_infinite/<id>.png|jpg form the context
+// route uses).
+func storeMapImageURL(root *store.Root, assetID string) string {
+	if assetID == "" || !store.ModuleKeyValid(assetID) {
+		return ""
+	}
+	for _, name := range []string{assetID + ".png", assetID + ".jpg"} {
+		if _, err := os.Stat(filepath.Join(root.Dir(), "static", "maps", "halo_infinite", name)); err == nil {
+			return "/static/maps/halo_infinite/" + name
+		}
+	}
+	return ""
 }
 func (h serverHandlers) startFetch(w http.ResponseWriter, r *http.Request) {
 	if !originAllowed(r) {
@@ -140,7 +166,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: fetchMatch}}
+	}, fetch: fetchMatch}, listCache: newMatchlistCache()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/state", h.authStateRoute)
 	mux.HandleFunc("POST /api/auth/login", h.runLoginRoute)
