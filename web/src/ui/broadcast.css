@@ -175,11 +175,76 @@
 .bc-pregame-actions { display: flex; gap: 12px; margin-top: 8px; }
 .bc-pregame-error { color: var(--loss); font-size: 14px; max-width: 480px; margin: 8px 0 0; }
 
+/* Player chrome (brief 126): the 3D view fills the window on black; a slim strip rides the
+ * top, the transport is the lower third, both inside the 16:9 box and both auto-hiding. */
+.bc-player { position: fixed; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
+.bc-player-box { position: relative; aspect-ratio: 16 / 9; width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+  overflow: hidden; background: var(--studio-950); }
+
+/* The auto-hide fade of the strip and the transport. */
+.bc-chrome { transition: opacity 200ms ease; }
+.bc-chrome.bc-hidden { opacity: 0; pointer-events: none; }
+
+/* Top strip: back, map, mode, date, coatings notice. */
+.bc-player-top { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; font-family: var(--display); font-stretch: 75%;
+  background: linear-gradient(180deg, rgba(3,6,10,0.82), rgba(3,6,10,0.55) 70%, transparent); }
+.bc-player-back { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; padding: 5px 14px 4px; color: var(--ink); border: 1px solid var(--studio-700);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.bc-player-map { font-weight: 700; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+.bc-player-meta { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); }
+.bc-player-top .bc-spacer { flex: 1; }
+.bc-player-notice { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
+
+/* Transport: the lower third (the mockup's `.transport`). */
+.bc-player-transport { position: absolute; left: 16px; right: 16px; bottom: 12px; z-index: 20;
+  padding: 10px 20px 10px 16px; background: linear-gradient(90deg, rgba(10,16,24,0.94), rgba(17,26,38,0.82));
+  clip-path: polygon(0 0, calc(100% - var(--slant)) 0, 100% var(--slant), 100% 100%, 0 100%); border-left: 3px solid var(--air); }
+
+/* Scrub bar: our own slider (not a range input), with the played part, the head and the
+ * kill marks, `role="slider"` for the keyboard and screen readers. */
+.bc-scrub { position: relative; height: 18px; cursor: pointer; outline-offset: 4px; }
+.bc-scrub:focus-visible { outline: 2px solid var(--air); }
+.bc-scrub-track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; background: rgba(255,255,255,0.14); }
+.bc-scrub-played { position: absolute; left: 0; top: 8px; height: 3px; background: var(--air); }
+.bc-scrub-head { position: absolute; top: 2px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
+.bc-scrub-mark { position: absolute; top: 5px; width: 2px; height: 9px; opacity: 0.8; }
+
+/* Controls row, left to right (the mockup's `.ctl`). */
+.bc-ctl { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-family: var(--display); font-stretch: 75%;
+  letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; color: var(--ink); }
+.bc-ctl button, .bc-ctl select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.bc-ctl .bc-play { width: 38px; height: 30px; background: var(--air); color: #04121c; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.bc-ctl .bc-play:hover { background: var(--ink); }
+.bc-ctl .bc-ctl-btn { padding: 5px 9px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); }
+.bc-ctl .bc-ctl-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+.bc-ctl .bc-ctl-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--air-deep); }
+.bc-ctl .bc-time { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600; margin: 0 14px 0 8px;
+  letter-spacing: 0.06em; text-transform: none; }
+.bc-ctl .bc-time i { color: var(--ink-faint); font-style: normal; }
+.bc-seg { display: flex; }
+.bc-seg button { padding: 5px 12px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
+  font-size: 12px; letter-spacing: 0.16em; }
+.bc-seg button:hover { color: var(--ink); }
+.bc-seg button.on { color: #04121c; background: var(--ink); border-color: var(--ink); font-weight: 700; }
+.bc-ctl .bc-gap { flex: 1; }
+.bc-ctl .bc-lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.22em; margin: 0 8px 0 16px; }
+.bc-pov { padding: 5px 14px 4px; border-left: 3px solid var(--team-ally); background: var(--studio-800);
+  font-size: 13px; letter-spacing: 0.1em; }
+.bc-pov:hover { color: var(--ink); }
+/* The sound control keeps its own behavior; the chrome only gives it a seat in the row. */
+.bc-sound { display: inline-flex; align-items: center; gap: 8px; }
+.bc-sound input[type="range"] { accent-color: var(--air); }
+
 /* Reduced motion: the drift, the cross-fade, the page wipe and the count scale stop. */
 @media (prefers-reduced-motion: reduce) {
   .bc-backdrop .bc-layer, .bc-view { animation: none; }
   .bc-count { animation: none; }
   .bc-progress .bc-bar i.indeterminate { animation: none; width: 100%; }
+  .bc-chrome { transition: none; }
 }
 
 .bc-menu { margin-top: 14px; }

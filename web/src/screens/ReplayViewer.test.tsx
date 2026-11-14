@@ -13,10 +13,10 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
 })
 
-it('uses a 16:9 viewer and requests fullscreen on that container', () => {
+it('uses a full-window viewer and requests fullscreen on that container', () => {
   render(<ReplayViewer matchId="test" doc={testReplayDoc()} onBack={vi.fn()} />)
   const viewer = screen.getByTestId('replay-viewer')
-  expect(screen.getByTestId('replay-view')).toHaveClass('aspect-video')
+  expect(screen.getByTestId('replay-view')).toBeInTheDocument()
   const requestFullscreen = vi.fn().mockResolvedValue(undefined)
   viewer.requestFullscreen = requestFullscreen
   fireEvent.click(screen.getByRole('button', { name: 'Fullscreen' }))

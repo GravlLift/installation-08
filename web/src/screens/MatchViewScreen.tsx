@@ -30,22 +30,20 @@ import { useVariantLayer } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
-import { MatchHeaderBar } from './MatchHeaderBar'
-import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
+import { useReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
-import { ReplayTransport } from '../features/match-replay/ui/ReplayTransport'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
 import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
 import { ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
 import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
 import { useReplay3DExport } from '../features/match-replay/export/replay3dExportStore'
+import { PlayerTransport } from './PlayerTransport'
+import { usePlayerChromeVisibility } from './usePlayerChromeVisibility'
+import { cleanMapName, playerTopMeta } from './matchSelectModel'
 
-/** The arrow/J/L seek step, in seconds — the same magnitude as LevelUp's `SKIP_SECONDS`
- *  (`layers/replayCanvasConfig.ts`, not lifted here: a single constant, not worth a file). */
+/** The arrow/J/L seek step, in seconds. */
 const SKIP_SECONDS = 10
 
-/** Builds the `Action3dShow` flags and their toggles from `useReplaySettings`, the only mapping
- *  point between the drawer's persisted preferences and what the 3D view reads every frame. */
 function useAction3dShow(): { show: Action3dShow; toggle: { [K in keyof Action3dShow]: () => void } } {
   const settings = useReplaySettings()
   return {
@@ -80,83 +78,15 @@ function useAction3dShow(): { show: Action3dShow; toggle: { [K in keyof Action3d
   }
 }
 
-/** Aim-hold window for shot direction, in frames: the same magnitude as the death/shot-flash
- *  hold used elsewhere on this page (0.6 s of gameplay). The settings drawer does not expose
- *  this one (LevelUp does not either — it is a fixed constant there too). */
 function aimHoldFramesOf(doc: ReplayDocumentReady): number {
   return Math.round(0.6 * framesPerSecond(doc))
-}
-
-
-export function PlaybackBar({
-  doc,
-  frameRef,
-  frame,
-  setFrame,
-  playing,
-  setPlaying,
-  speed,
-  setSpeed,
-  viewpoint,
-  setViewpoint,
-  sound,
-}: {
-  doc: ReplayDocumentReady
-  frameRef: React.RefObject<number>
-  frame: number
-  setFrame: (f: number) => void
-  playing: boolean
-  setPlaying: (p: boolean) => void
-  speed: number
-  setSpeed: (s: number) => void
-  viewpoint: string | null
-  setViewpoint: (xuid: string | null) => void
-  sound: ReplaySound
-}) {
-  const fps = framesPerSecond(doc)
-  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
-      <div className="w-full"><ReplayTransport
-        doc={doc} frame={frame} playing={playing} speed={speed} onSetSpeed={setSpeed}
-        sound={sound}
-        onTogglePlay={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
-        onRestart={() => { sound.wake(); frameRef.current = 0; sound.seek(0); setFrame(0) }}
-        onSeekBy={(seconds) => { const next = Math.round(Math.max(0, Math.min(doc.frameCount - 1, frameRef.current + seconds * fps))); frameRef.current = next; sound.seek(next * 1000 / fps); setFrame(next) }}
-        onScrub={(next) => {
-          frameRef.current = next
-          sound.seek(next * 1000 / fps)
-          setFrame(next)
-        }}
-      /></div>
-      <label className="flex items-center gap-1 text-xs text-muted-foreground">
-        Follow
-        <select
-          className="rounded border border-border bg-background px-1 py-0.5 text-foreground"
-          value={viewpoint ?? ''}
-          onChange={(e) => setViewpoint(e.target.value || null)}
-        >
-          <option value="">(none — free view)</option>
-          {doc.roster.map((r) => (
-            <option key={r.xuid} value={r.xuid}>
-              {displayPlayerName(r.name, r.xuid)}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  )
 }
 
 export interface ReplayViewerProps {
   matchId: string
   doc: ReplayDocumentReady
   onBack: () => void
-  /** While true the replay does not play: the pre-game screen holds it until its countdown
-   *  ends. Playback starts by itself when this turns false. */
   held?: boolean
-  /** The 3D scene's load states, for the page that holds the viewer. */
   onLoadState?: (load: LoadState) => void
 }
 
@@ -172,6 +102,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const [scoreboardHeld, setScoreboard] = useScoreboardHold()
+  const [scrubbing, setScrubbing] = useState(false)
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
@@ -207,7 +138,6 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     soundTrack: sound.exportTrack, soundVolume: sound.volume,
   })
 
-  // The 2D pan and zoom shortcuts are omitted from this 3D-only viewer.
   const stepFrames = useCallback(
     (delta: number) => {
       const next = Math.min(doc.frameCount - 1, Math.max(0, frameRef.current + delta))
@@ -219,7 +149,6 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
   const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [held, playing, sound.wake, sound.intro])
-  // Released by the pre-game screen: the match starts playing, with its intro, from the top.
   const wasHeld = useRef(held)
   useEffect(() => {
     if (wasHeld.current && !held) { sound.wake(); if (frameRef.current === 0) sound.intro(); setPlaying(true) }
@@ -234,7 +163,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     toggleSound: sound.toggle,
     toggleFullscreen: fullscreen.toggle,
     skipSeconds: SKIP_SECONDS,
-    enabled: true,
+    enabled: !held,
   })
 
   useEffect(() => {
@@ -256,13 +185,9 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     [matchId],
   )
 
-  // Scene inputs are independent of the scoreboard overlay.
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
   const kills = replayContext.kills
   const shotFx = useMemo(() => buildShotFx(doc, aimHoldFramesOf(doc)), [doc])
-  // The scoreboard reads the film's own counters at the current frame (model:
-  // replayScoreboardLogic). `null` until the match sheet has loaded, or when the film
-  // carries no score timeline / its clock is untrusted: nothing is shown then.
   const scoreboardSheet = replayContext.context?.scoreboard ?? []
   const scoreboardReading = useMemo(
     () => (replayContext.context ? readReplayScoreboard(doc, scoreboardSheet, frame) : null),
@@ -288,94 +213,124 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
         const entry = doc.roster.find((r) => r.xuid === xuid)
         return entry ? displayPlayerName(entry.name, entry.xuid) : identity.nameOfXuid(xuid)
       },
-      // Bot-takeover "fiche" gating is not ported here (seatLogic.ts was left behind, see
-      // PARITY §1) — every owned slot draws, same as the dev shell before this change.
       seatedOfXuid: () => true,
       locale: 'en',
     }
     return inputs
   }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
+  // The playback loop lives here (it did in the old PlaybackBar).
+  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
+
+  const onScrub = useCallback((next: number) => {
+    frameRef.current = next
+    sound.seek(next * 1000 / fps)
+    setFrame(next)
+  }, [frameRef, sound.seek, fps])
+
+  const menuOpen = settingsOpen || exportOpen || scoreboardHeld
+  const chrome = usePlayerChromeVisibility({ playing, menuOpen, scrubbing })
+
+  // The top strip content.
+  const mapName = summary ? cleanMapName(summary.mapName || summary.mapModule || '') : remote?.map ? cleanMapName(remote.map) : null
+  const meta = playerTopMeta(summary, remote)
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />
-      <div ref={viewerRef} data-testid="replay-viewer" className={fullscreen.active ? 'flex h-full w-full flex-col justify-center bg-black' : 'flex w-full flex-col bg-black'}>
-      <div className="flex items-center justify-end gap-2 bg-card px-3 py-2">
-        {coatings.notice && (
-          <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="mr-2 text-xs text-muted-foreground">
-            {coatings.notice}
-          </span>
-        )}
-        <canvas ref={exportCanvasRef} hidden />
-        <div className="relative">
-          <button type="button" disabled={!exportScene || !capture.videoExport?.supported} onClick={() => setExportOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50">Export film</button>
-          {exportOpen && exportScene && capture.videoExport && <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />}
+    <div
+      ref={(el) => { viewerRef.current = el; chrome.scopeRef.current = el }}
+      data-testid="replay-viewer"
+      className="bc-player"
+    >
+      <div className="bc-player-box">
+        <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
+            <Replay3DView
+              meshPath={meshUrl(matchId)}
+              variantPath={variantPath}
+              weaponsPath="/api/weapons"
+              armor={armor}
+              doc={doc}
+              frameRef={frameRef}
+              viewpoint={viewpoint}
+              colorOfXuid={identity.colorOfXuid}
+              locale="en"
+              width={size.width}
+              height={size.height}
+              action={action}
+              playWindow={replayContext.playWindow}
+              timeLimitMs={replayContext.timeLimitMs}
+              soundListenerRef={sound.listener}
+              onLoadState={onLoadState}
+            />
+            {scoreboardHeld && (
+              <ReplayScoreboardOverlay
+                reading={scoreboardReading}
+                sheet={scoreboardSheet}
+                followedXuid={viewpoint}
+              />
+            )}
+            {settingsOpen && (
+              <ReplaySettingsDrawer
+                locale="en"
+                sound={sound}
+                show={show}
+                toggle={toggle}
+                triggerRef={settingsButtonRef}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
+            <canvas ref={exportCanvasRef} hidden />
+            {exportOpen && exportScene && capture.videoExport && (
+              <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />
+            )}
         </div>
-        <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
-          {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
-        <button ref={settingsButtonRef} type="button" onClick={() => setSettingsOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
-          Settings
-        </button>
-        <button
-          type="button"
-          aria-pressed={scoreboardHeld}
-          onClick={() => setScoreboard(!scoreboardHeld)}
-          className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted"
+
+        <div
+          className={`bc-player-top bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
+          onPointerEnter={chrome.onScopeEnter}
+          onPointerLeave={chrome.onScopeLeave}
         >
-          Scoreboard
-        </button>
-      </div>
-      <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={{ maxWidth: fullscreen.active ? 'min(100%, calc((100vh - 7rem) * 16 / 9))' : 'min(100%, calc((100vh - 10rem) * 16 / 9))' }}>
-        <Replay3DView
-          meshPath={meshUrl(matchId)}
-          variantPath={variantPath}
-          weaponsPath="/api/weapons"
-          armor={armor}
-          doc={doc}
-          frameRef={frameRef}
-          viewpoint={viewpoint}
-          colorOfXuid={identity.colorOfXuid}
-          locale="en"
-          width={size.width}
-          height={size.height}
-          action={action}
-          playWindow={replayContext.playWindow}
-          timeLimitMs={replayContext.timeLimitMs}
-          soundListenerRef={sound.listener}
-          onLoadState={onLoadState}
-        />
-        {scoreboardHeld && (
-          <ReplayScoreboardOverlay
-            reading={scoreboardReading}
-            sheet={scoreboardSheet}
-            followedXuid={viewpoint}
-          />
-        )}
-        {settingsOpen && (
-          <ReplaySettingsDrawer
-            locale="en"
+          <button type="button" className="bc-player-back" onClick={onBack}>← Matches</button>
+          {mapName && <span className="bc-player-map">{mapName}</span>}
+          {meta && <span className="bc-player-meta">{meta}</span>}
+          <span className="bc-spacer" />
+          {coatings.notice && (
+            <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
+              {coatings.notice}
+            </span>
+          )}
+        </div>
+
+        <div
+          className={`bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
+          onPointerEnter={chrome.onScopeEnter}
+          onPointerLeave={chrome.onScopeLeave}
+        >
+          <PlayerTransport
+            doc={doc}
+            frame={frame}
+            playing={playing}
+            speed={speed}
+            viewpoint={viewpoint}
+            kills={kills}
+            colorOfXuid={identity.colorOfXuid}
             sound={sound}
-            show={show}
-            toggle={toggle}
-            triggerRef={settingsButtonRef}
-            onClose={() => setSettingsOpen(false)}
+            onTogglePlay={togglePlay}
+            onRestart={restart}
+            onSetSpeed={setSpeed}
+            onSetViewpoint={setViewpoint}
+            onScrub={onScrub}
+            onSeekBy={seekBy}
+            onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
+            scoreboardOn={scoreboardHeld}
+            onToggleSettings={() => setSettingsOpen((v) => !v)}
+            settingsRef={settingsButtonRef}
+            onToggleExport={() => setExportOpen((v) => !v)}
+            exportDisabled={!exportScene || !capture.videoExport?.supported}
+            onToggleFullscreen={fullscreen.toggle}
+            fullscreenActive={fullscreen.active}
+            onScrubbingChange={setScrubbing}
           />
-        )}
-      </div>
-      <PlaybackBar
-        doc={doc}
-        frameRef={frameRef}
-        frame={frame}
-        setFrame={setFrame}
-        playing={playing}
-        setPlaying={setPlaying}
-        speed={speed}
-        setSpeed={setSpeed}
-        viewpoint={viewpoint}
-        setViewpoint={setViewpoint}
-        sound={sound}
-      />
+        </div>
       </div>
     </div>
   )
