@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
@@ -63,6 +65,27 @@ func get(t *testing.T, h http.Handler, path string, headers map[string]string) *
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+func post(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// writeFakeStoredAuth drops a fake signed-in credential (no real token) into the data dir's
+// auth folder, so storedAuthState would report signed_in if it were read.
+func writeFakeStoredAuth(t *testing.T, dir string) {
+	t.Helper()
+	raw, err := json.Marshal(haloauth.Credentials{Refresh: "fake-refresh-not-a-real-token", Gamertag: "FakePlayer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := haloauth.Save(dir, raw); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestServeHealth — /api/health answers ok and the version.
@@ -241,5 +264,64 @@ func TestJoinInside(t *testing.T) {
 	}
 	if _, ok := joinInside(web, "a/../../outside.txt"); ok {
 		t.Error("a/../../outside.txt should be refused")
+	}
+}
+
+// TestServeReadOnlyRefusesStateChanging — with --read-only on, every state-changing
+// request is refused with a 403 read_only before any route runs, while the read routes
+// still answer 200.
+func TestServeReadOnlyRefusesStateChanging(t *testing.T) {
+	root := newFakeStore(t)
+	h := newTestHandlers(root, nil)
+	h.readOnly = true
+	hnd := h.readOnlyHandler()
+	for _, path := range []string{"/api/matches/x/fetch", "/api/auth/login", "/api/matches/x/mesh/build"} {
+		rec := post(t, hnd, path)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("%s: status = %d, want 403", path, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), `"read_only"`) {
+			t.Fatalf("%s: body = %s, want read_only", path, rec.Body.String())
+		}
+	}
+	if rec := get(t, hnd, "/api/health", nil); rec.Code != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", rec.Code)
+	}
+	if rec := get(t, hnd, "/api/matches", nil); rec.Code != http.StatusOK {
+		t.Fatalf("matches status = %d, want 200", rec.Code)
+	}
+}
+
+// TestServeReadOnlyAuthStateHidesAccount — with --read-only on, the auth state route
+// reports signed out without reading the store, even when the data folder holds a sign-in.
+func TestServeReadOnlyAuthStateHidesAccount(t *testing.T) {
+	root := newFakeStore(t)
+	writeFakeStoredAuth(t, root.Dir())
+	h := newTestHandlers(root, nil)
+	h.readOnly = true
+	rec := get(t, h.readOnlyHandler(), "/api/auth/state", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var st map[string]any
+	if json.Unmarshal(rec.Body.Bytes(), &st) != nil {
+		t.Fatalf("state body: %s", rec.Body.String())
+	}
+	if st["state"] != "signed_out" || st["signedIn"] != false {
+		t.Fatalf("read-only must report signed_out: %v", st)
+	}
+}
+
+// TestServeReadOnlyOffUnchanged — with the flag off, a state-changing request is not
+// refused by the read-only guard: it reaches the route and gets the route's own answer.
+func TestServeReadOnlyOffUnchanged(t *testing.T) {
+	root := newFakeStore(t)
+	h := newTestHandlers(root, nil) // readOnly is false
+	rec := post(t, h.readOnlyHandler(), "/api/matches/x/mesh/build")
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("flag off must not refuse: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "builds_unavailable") {
+		t.Fatalf("expected the build route's own answer, got: %s", rec.Body.String())
 	}
 }

@@ -209,6 +209,12 @@ func (h serverHandlers) loginFailed(message string) {
 // CLI). It keeps the legacy signedIn key (web and tests read it) alongside state and
 // gamertag.
 func (h serverHandlers) authStateRoute(w http.ResponseWriter, r *http.Request) {
+	if h.readOnly {
+		// A shared server never exposes the owner's account, even if the data folder holds a
+		// sign-in: answer the signed-out shape without reading the auth store.
+		writeJSON(w, http.StatusOK, map[string]any{"state": "signed_out", "signedIn": false})
+		return
+	}
 	s := h.auth
 	s.mu.Lock()
 	if s.wait == nil && s.gamer == "" && s.err == "" {

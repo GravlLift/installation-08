@@ -38,12 +38,13 @@ var Version = "0.1.0-dev"
 
 // serveFlags is the parsed form of the `serve` arguments.
 type serveFlags struct {
-	addr    string
-	web     string
-	open    bool
-	dataDir string
-	game    string
-	mapKey  string
+	addr     string
+	web      string
+	open     bool
+	readOnly bool
+	dataDir  string
+	game     string
+	mapKey   string
 }
 
 // parseServeFlags turns `serve` arguments into serveFlags.
@@ -53,6 +54,7 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
 	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional; the embedded viewer answers when no directory is given)")
 	fs.BoolVar(&f.open, "open", false, "open the default browser on the server's address once it is listening")
+	fs.BoolVar(&f.readOnly, "read-only", false, "refuse every state-changing request (for a server shown to others through a tunnel)")
 	fs.StringVar(&f.dataDir, "data", "", dataDirHelp)
 	fs.StringVar(&f.game, "game", "", "game deploy root for map and weapon builds (empty auto-detects)")
 	fs.StringVar(&f.mapKey, "map", "", "installed map whose module index weapon builds open (default: first map in the data store)")
@@ -91,6 +93,10 @@ func runServe(args []string) error {
 		return err
 	}
 	h := newServerHandlers(root, f.web, jobs, weaponKeys, labelCat)
+	h.readOnly = f.readOnly
+	if f.readOnly {
+		slog.Info("read-only mode: state-changing requests are refused")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -108,7 +114,7 @@ func runServe(args []string) error {
 	// failed; no goroutine is left polling Microsoft).
 	defer h.stopPendingLogin()
 	srv := &http.Server{
-		Handler:           h,
+		Handler:           h.readOnlyHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errCh := make(chan error, 1)
@@ -139,6 +145,7 @@ type serverHandlers struct {
 	root      *store.Root
 	web       string // the --web directory, when given
 	webFS     fs.FS  // the embedded viewer, nil when the build has none
+	readOnly  bool   // when true, the server refuses every state-changing request
 	jobs      *meshjobs.Runner
 	weapKeys  weapons.Catalog
 	labelCat  weapons.LabelCatalog
@@ -146,6 +153,27 @@ type serverHandlers struct {
 	remote    *remoteJobs
 	auth      *authSession
 	listCache *matchlistCache
+}
+
+// readOnlyHandler is the one middleware the read-only mode wraps the top-level handler in:
+// it refuses every request whose method is not GET, HEAD or OPTIONS with a 403 before any
+// route (static or API) runs. The GET routes it passes through are served from a fresh mux
+// bound to this handler (readOnly set), so the auth and remote routes answer their
+// signed-out shapes; the server's original mux was built before readOnly was known. When
+// the server is not read-only it passes the request through unchanged.
+func (h serverHandlers) readOnlyHandler() http.Handler {
+	if !h.readOnly {
+		return h
+	}
+	inner := h
+	inner.mux = inner.buildMux()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "read_only"})
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
 }
 
 // ServeHTTP routes a request: the built-in context assets for the medals and map
