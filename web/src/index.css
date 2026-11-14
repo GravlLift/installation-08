@@ -47,6 +47,16 @@
   --replay-fx-blast: oklch(0.8 0.18 55);
   --replay-fx-neutral: oklch(0.8 0.02 255);
 
+  /* Shroud screen bubble (layers/shroudInk.ts): diegetic colors read in the game's material of
+     the bubble's render model (mode 0x646070ea, mat 0xc3214bb8, shader shdv 0x5137930f), its
+     linear constants converted to sRGB. Body: `emissive_color` (0, 0.2502, 1). Rim:
+     `fresnel_color` (0.2961, 1, 0.9823). Cell border: the shader's color at constant byte 224
+     (0.2789, 0.8308, 1), the lightest blue of the material; its parameter name is not resolved,
+     so its use for the border is an attribution, not a reading. */
+  --replay-shroud-body: #0089ff;
+  --replay-shroud-rim: #94fffd;
+  --replay-shroud-cell: #90ebff;
+
   /* Broadcast system (docs/UI-DESIGN.md section 3): the studio base, ink, the on-air
      accent and the type/motion tokens the `bc-*` pages read (see ui/broadcast.css).
      These are new names; the tokens above keep their exact values for the 3D view. */

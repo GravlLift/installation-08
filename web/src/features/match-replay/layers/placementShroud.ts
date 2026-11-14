@@ -46,11 +46,15 @@ export const SHROUD_RADIUS_M = 6
  */
 export const SHROUD_DURATION_MS = 7_500
 
-/** The two inks of the bubble: the night blue of the core, the electric blue of the edge
- * and the bolts. */
+/**
+ * The inks of the bubble, the game's own (`shroudInk.ts`): the blue of its body (`core`), the
+ * cyan-white of its rim (`glow`, also the 2D edge and bolts), and the light blue of the 3D
+ * bubble's hexagonal cell borders (`cell`).
+ */
 export interface ShroudInk {
   core: string
   glow: string
+  cell: string
 }
 
 /** Part of the radius occupied by the edge fade (verdict R2-6: 22%). */
