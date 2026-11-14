@@ -55,9 +55,9 @@ export function cleanMapName(m: MatchSummary): string {
  *  scores, else nothing. */
 export function scoreLabel(m: MatchSummary): string {
   if (m.scoreMine !== undefined && m.scoreTheirs !== undefined) {
-    return `${m.scoreMine} : ${m.scoreTheirs}`
+    return `${m.scoreMine} - ${m.scoreTheirs}`
   }
-  if (m.teamScores) return `${m.teamScores[0]} : ${m.teamScores[1]}`
+  if (m.teamScores) return `${m.teamScores[0]} - ${m.teamScores[1]}`
   return ''
 }
 
@@ -71,7 +71,8 @@ export function resultLabel(m: MatchSummary): string {
 /** Formats an ISO instant as a locale date (the raw string when it does not parse). */
 export function formatPlayedAt(iso: string): string {
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString()
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 /** Builds the featured plate's facts from one match (omitting empty cells). */

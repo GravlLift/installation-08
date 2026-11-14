@@ -35,8 +35,10 @@ export function Screen({
     <>
       <Backdrop imageUrl={backdropUrl} sharp={sharp} />
       <div className="bc-stage">
-        <TopBar gamertag={gamertag} onSignIn={onSignIn} crumb={crumb} />
-        <main style={{ minHeight: 0, display: 'grid' }}>
+        <header>
+          <TopBar gamertag={gamertag} onSignIn={onSignIn} crumb={crumb} />
+        </header>
+        <main className="bc-main">
           <section key={id} className="bc-view">
             {children}
           </section>

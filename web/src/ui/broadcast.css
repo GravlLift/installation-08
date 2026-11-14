@@ -23,7 +23,7 @@
 
 /* Page frame. */
 .bc-stage { position: fixed; inset: 0; z-index: 1; display: grid; grid-template-rows: auto 1fr auto; }
-.bc-view { min-height: 0; padding: 28px 36px 8px; animation: bc-wipe 260ms ease-out; }
+.bc-view { display: grid; min-height: 0; padding: 28px 36px 8px; animation: bc-wipe 260ms ease-out; }
 @keyframes bc-wipe { from { opacity: 0; clip-path: polygon(0 0, 0 0, -8% 100%, 0 100%); } to { opacity: 1; clip-path: polygon(0 0, 110% 0, 100% 100%, 0 100%); } }
 
 /* Top bar */
@@ -94,3 +94,6 @@
 @media (prefers-reduced-motion: reduce) {
   .bc-backdrop .bc-layer, .bc-view { animation: none; }
 }
+
+.bc-menu { margin-top: 14px; }
+.bc-main { display: grid; min-height: 0; }

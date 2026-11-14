@@ -75,11 +75,11 @@ describe('cleanMapName', () => {
 
 describe('scoreLabel', () => {
   it('uses scoreMine/scoreTheirs when present', () => {
-    expect(scoreLabel(match({ scoreMine: 3, scoreTheirs: 1 }))).toBe('3 : 1')
+    expect(scoreLabel(match({ scoreMine: 3, scoreTheirs: 1 }))).toBe('3 - 1')
   })
 
   it('falls back to teamScores', () => {
-    expect(scoreLabel(match({ teamScores: [5, 2] }))).toBe('5 : 2')
+    expect(scoreLabel(match({ teamScores: [5, 2] }))).toBe('5 - 2')
   })
 
   it('stays empty when no score is known', () => {
@@ -125,7 +125,7 @@ describe('featuredFacts', () => {
     expect(facts.mapName).toBe('Recharge')
     expect(facts.facts).toEqual([
       { label: 'Mode', value: 'Slayer' },
-      { label: 'Final', value: '3 : 1' },
+      { label: 'Final', value: '3 - 1' },
       { label: 'Result', value: 'Victory' },
       { label: 'Played', value: formatPlayedAt('2026-11-05T09:00:00Z') },
     ])

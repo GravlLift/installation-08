@@ -26,7 +26,16 @@ import {
   type FeaturedFacts,
 } from './homeScreenModel'
 
-type MatchesState = { phase: 'loading' } | { phase: 'ready'; matches: MatchSummary[] }
+type MatchesState =
+  | { phase: 'loading' }
+  | { phase: 'unreachable' }
+  | { phase: 'ready'; matches: MatchSummary[] }
+
+const SERVER_LABEL: Record<MatchesState['phase'], string> = {
+  loading: 'Connecting to server',
+  unreachable: 'Server not reachable',
+  ready: 'Server connected',
+}
 
 function navigate(path: string): void {
   window.location.hash = path
@@ -44,7 +53,7 @@ export function HomeScreen() {
         setState({ phase: 'ready', matches })
       } catch {
         if (controller.signal.aborted) return
-        setState({ phase: 'ready', matches: [] })
+        setState({ phase: 'unreachable' })
       }
     })()
     return () => controller.abort()
@@ -60,11 +69,14 @@ export function HomeScreen() {
     if (item) navigate(item.route)
   }, [signedIn])
 
-  const onWatch = useCallback(() => navigate('/matches'), [])
   const onSignIn = useCallback(() => navigate('/matches'), [])
 
   const matches = state.phase === 'ready' ? state.matches : []
   const featured = featuredMatch(matches)
+  const featuredId = featured?.matchId
+  const onWatch = useCallback(() => {
+    if (featuredId) navigate(`/matches/${encodeURIComponent(featuredId)}`)
+  }, [featuredId])
   const facts: FeaturedFacts | null = featured ? featuredFacts(featured) : null
   const backdropUrl = featured?.mapImageUrl ?? null
 
@@ -78,8 +90,8 @@ export function HomeScreen() {
       backdropUrl={backdropUrl}
       items={[
         <span key="server">
-          <TickerDot bad={state.phase === 'loading'} />
-          {state.phase === 'loading' ? 'Connecting to server' : 'Server connected'}
+          <TickerDot bad={state.phase !== 'ready'} />
+          {SERVER_LABEL[state.phase]}
         </span>,
         ...tickerText.map((text) => <span key={text}>{text}</span>),
       ]}
@@ -88,7 +100,7 @@ export function HomeScreen() {
       <div className="bc-home">
         <div>
           <div className="bc-eyebrow">Main menu</div>
-          <div style={{ marginTop: 14 }}>
+          <div className="bc-menu">
             <FocusList
               items={homeMenu(signedIn).map((m) => ({ name: m.name, sub: m.sub }))}
               onSelect={onMenuSelect}
