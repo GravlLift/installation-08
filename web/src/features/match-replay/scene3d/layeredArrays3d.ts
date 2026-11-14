@@ -190,9 +190,9 @@ Surface layered() {
   bool useHeight = head.y > 0.5 && L_HEIGHT(0).w > 0.5 && L_HAS_CTL(0) > 0.5;
   float h = useHeight ? startHeight(layerSample(P_TEXEL(${SLOT_TEXEL} + 1).xy, L_CXFORM(0)).a, m.a) : 0.0;
   Surface s = Surface(layerColor(0), layerNormal(0), layerControl(0));
-  if (count > 1) { float w = useHeight && L_HEIGHT(1).w > 0.5 && L_HAS_CTL(1) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 3).xy, L_CXFORM(1)).a, m.r, 1) : m.r * L_OPACITY(1); stack(s, layerColor(1), layerNormal(1), layerControl(1), w, 1); }
-  if (count > 2) { float w = useHeight && L_HEIGHT(2).w > 0.5 && L_HAS_CTL(2) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 5).xy, L_CXFORM(2)).a, m.g, 2) : m.g * L_OPACITY(2); stack(s, layerColor(2), layerNormal(2), layerControl(2), w, 2); }
-  if (count > 3) { float w = useHeight && L_HEIGHT(3).w > 0.5 && L_HAS_CTL(3) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 7).xy, L_CXFORM(3)).a, m.b, 3) : m.b * L_OPACITY(3); stack(s, layerColor(3), layerNormal(3), layerControl(3), w, 3); }
+  if (count > 1) { float mw = maskWeight(m, 1); float w = useHeight && L_HEIGHT(1).w > 0.5 && L_HAS_CTL(1) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 3).xy, L_CXFORM(1)).a, mw, 1) : mw * L_OPACITY(1); stack(s, layerColor(1), layerNormal(1), layerControl(1), w, 1); }
+  if (count > 2) { float mw = maskWeight(m, 2); float w = useHeight && L_HEIGHT(2).w > 0.5 && L_HAS_CTL(2) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 5).xy, L_CXFORM(2)).a, mw, 2) : mw * L_OPACITY(2); stack(s, layerColor(2), layerNormal(2), layerControl(2), w, 2); }
+  if (count > 3) { float mw = maskWeight(m, 3); float w = useHeight && L_HEIGHT(3).w > 0.5 && L_HAS_CTL(3) > 0.5 ? heightWeight(h, layerSample(P_TEXEL(${SLOT_TEXEL} + 7).xy, L_CXFORM(3)).a, mw, 3) : mw * L_OPACITY(3); stack(s, layerColor(3), layerNormal(3), layerControl(3), w, 3); }
   return s;
 }`
 }
@@ -230,6 +230,6 @@ export function mergedMaterial(base: THREE.MeshStandardMaterial, atlas: LayeredA
       shader.fragmentShader.replace('#include <common>', `#include <common>${head}`),
     )
   }
-  m.customProgramCacheKey = () => `couches-tableaux-v1-${atlas.arrays.length}`
+  m.customProgramCacheKey = () => `couches-tableaux-v2-${atlas.arrays.length}`
   return m
 }

@@ -36,7 +36,15 @@ describe('packLayers', () => {
     expect(row(data, 1, 4)).toEqual(f([0.4, 0.5, 0.6, 1]))
     expect(row(data, 1, 5)).toEqual(f([0.7, 0.8, 0.9, 0.5]))
     expect(row(data, 1, 6)).toEqual([1, 1.5, 2, 3])
-    expect(row(data, 1, 7)).toEqual([1, 1, 1, 0])
+    expect(row(data, 1, 7)).toEqual([1, 1, 1, 1])
+  })
+
+  it('range le rang du gabarit d’une couche, à défaut sa position', () => {
+    // Couches 1, 2 et 4 du gabarit (rochers de Live Fire) : la troisième lit le canal de la couche 4.
+    const data = packLayers([{ sorte: 'couleur' }, { sorte: 'degrade' }, { sorte: 'degrade', rang: 3 }], [false, false, false], [false, false, false])
+    expect(row(data, 0, 7)[3]).toBe(0)
+    expect(row(data, 1, 7)[3]).toBe(1)
+    expect(row(data, 2, 7)[3]).toBe(3)
   })
 
   it('donne leurs défauts aux champs absents et aux couches absentes', () => {
@@ -86,6 +94,6 @@ describe('layeredMaterial', () => {
     expect(arrays.map(([name]) => name)).toEqual(['uLayer'])
     expect(row(shader.uniforms.uLayer.value as Float32Array, 0, 7)).toEqual([1, 0, 0, 0])
     expect(shader.fragmentShader).toContain(`uniform vec4 uLayer[4 * LAYER_ROWS];`)
-    expect(m.customProgramCacheKey()).toBe('couches-v4')
+    expect(m.customProgramCacheKey()).toBe('couches-v5')
   })
 })
