@@ -13,13 +13,8 @@ import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
-import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import {
-  checkMesh,
-  fetchReplayDocument,
-  meshUrl,
-  MeshNotBuiltError,
-} from '../lib/api/standalone'
+import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
+import { meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
@@ -31,7 +26,7 @@ import { readReplayScoreboard } from '../features/match-replay/model/replayScore
 import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
 import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useVariantLayer } from './useVariantLayer'
-import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
+import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
 import { MatchHeaderBar } from './MatchHeaderBar'
@@ -91,125 +86,6 @@ function aimHoldFramesOf(doc: ReplayDocumentReady): number {
   return Math.round(0.6 * framesPerSecond(doc))
 }
 
-type ViewState =
-  | { phase: 'loading'; step: 'document' | 'mesh' }
-  | { phase: 'mesh-not-built'; moduleKey: string; doc: ReplayDocumentReady }
-  | { phase: 'error'; message: string }
-  | { phase: 'ready'; doc: ReplayDocumentReady }
-
-function useMatchDocument(matchId: string): ViewState {
-  const [state, setState] = useState<ViewState>({ phase: 'loading', step: 'document' })
-  useEffect(() => {
-    const controller = new AbortController()
-    setState({ phase: 'loading', step: 'document' })
-    void (async () => {
-      let doc: ReplayDocumentReady | null = null
-      try {
-        const raw = await fetchReplayDocument(matchId, controller.signal)
-        if (controller.signal.aborted) return
-        doc = normalizeReplayDocument(raw)
-        setState({ phase: 'loading', step: 'mesh' })
-        await checkMesh(matchId, controller.signal)
-        if (controller.signal.aborted) return
-        setState({ phase: 'ready', doc })
-      } catch (err) {
-        if (controller.signal.aborted) return
-        // The document fetch above already succeeded whenever `doc` is set here — only the
-        // mesh check failed with `MeshNotBuiltError`. Keep that document so the build panel
-        // below can mount the 3D view the moment the build finishes, with no re-fetch or reload.
-        if (err instanceof MeshNotBuiltError && doc) {
-          setState({ phase: 'mesh-not-built', moduleKey: err.moduleKey, doc })
-          return
-        }
-        setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return () => controller.abort()
-  }, [matchId])
-  return state
-}
-
-/** The panel shown instead of the 3D view while the match's map mesh is not built. Checks the
- *  build state once on mount (a build may already be queued or running from another tab), lets
- *  the viewer start one, and polls every two seconds; `onReady` fires the moment the mesh is
- *  built, so the caller can mount the 3D view without a reload. */
-export function MeshBuildPanel({
-  matchId,
-  moduleKey,
-  onReady,
-  onBack,
-}: {
-  matchId: string
-  moduleKey: string
-  onReady: () => void
-  onBack: () => void
-}) {
-  const { phase, build, cancel, cancelling } = useMeshBuild(matchId)
-
-  useEffect(() => {
-    if (phase.phase === 'ready') onReady()
-  }, [phase.phase, onReady])
-
-  // The initial moduleKey (from the mesh-not-built 404) covers the gap before the build-state
-  // route answers for the first time; after that, the server's own moduleKey is authoritative.
-  const effectiveModuleKey = (phase.phase !== 'checking' && phase.moduleKey) || moduleKey
-
-  return (
-    <div className="flex h-screen flex-col items-center justify-center gap-3 text-sm">
-      <p className="text-foreground">
-        Map module: <span className="font-mono">{effectiveModuleKey || 'unknown'}</span>
-      </p>
-      <div className="flex items-center gap-3">
-        <p className={phase.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{meshBuildStatusText(phase)}</p>
-        {phase.phase === 'building' && <button type="button" onClick={cancel} disabled={cancelling} className="rounded bg-primary px-3 py-1.5 text-primary-foreground disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel'}</button>}
-      </div>
-      {(phase.phase === 'absent' || phase.phase === 'cancelled') && (
-        <button
-          type="button"
-          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
-          onClick={build}
-        >
-          Build map
-        </button>
-      )}
-      {phase.phase === 'failed' && (
-        <button
-          type="button"
-          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
-          onClick={build}
-        >
-          Retry
-        </button>
-      )}
-      <button type="button" className="text-xs underline" onClick={onBack}>
-        Back to matches
-      </button>
-    </div>
-  )
-}
-
-function meshBuildStatusText(phase: MeshBuildPhase): string {
-  switch (phase.phase) {
-    case 'checking':
-      return 'Checking build status…'
-    case 'absent':
-      return 'This match’s map has not been built yet.'
-    case 'queued':
-      return typeof phase.queuePosition === 'number'
-        ? `Queued (position ${phase.queuePosition})…`
-        : 'Queued…'
-    case 'building':
-      return typeof phase.elapsedMs === 'number'
-        ? `Building the map… ${Math.round(phase.elapsedMs / 1000)}s elapsed`
-        : 'Building the map…'
-    case 'ready':
-      return 'Map built, loading…'
-    case 'failed':
-      return `Build failed: ${phase.error}`
-    case 'cancelled':
-      return 'Build cancelled.'
-  }
-}
 
 export function PlaybackBar({
   doc,
@@ -237,14 +113,13 @@ export function PlaybackBar({
   sound: ReplaySound
 }) {
   const fps = framesPerSecond(doc)
-  const settings = useReplaySettings()
   usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
       <div className="w-full"><ReplayTransport
         doc={doc} frame={frame} playing={playing} speed={speed} onSetSpeed={setSpeed}
-        autoPlay={settings.autoPlay} onToggleAutoPlay={settings.toggleAutoPlay} sound={sound}
+        sound={sound}
         onTogglePlay={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
         onRestart={() => { sound.wake(); frameRef.current = 0; sound.seek(0); setFrame(0) }}
         onSeekBy={(seconds) => { const next = Math.round(Math.max(0, Math.min(doc.frameCount - 1, frameRef.current + seconds * fps))); frameRef.current = next; sound.seek(next * 1000 / fps); setFrame(next) }}
@@ -274,10 +149,9 @@ export function PlaybackBar({
 }
 
 export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
-  const settings = useReplaySettings()
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
-  const [playing, setPlaying] = useState(settings.autoPlay)
+  const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
@@ -495,53 +369,5 @@ export function MatchViewScreen({
   matchId: string
   onBack: () => void
 }) {
-  const state = useMatchDocument(matchId)
-  // Once the build panel reports `ready`, mount the 3D view immediately — no reload, no
-  // re-fetch of the document (it is already held by the `mesh-not-built` state below).
-  const [meshJustBuilt, setMeshJustBuilt] = useState(false)
-  useEffect(() => {
-    setMeshJustBuilt(false)
-  }, [matchId])
-
-  if (state.phase === 'loading') {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p>{state.step === 'document' ? 'Loading replay document…' : 'Checking map mesh…'}</p>
-        <button type="button" className="text-xs underline" onClick={onBack}>
-          Back to matches
-        </button>
-      </div>
-    )
-  }
-
-  if (state.phase === 'mesh-not-built' && !meshJustBuilt) {
-    return (
-      <MeshBuildPanel
-        matchId={matchId}
-        moduleKey={state.moduleKey}
-        onBack={onBack}
-        onReady={() => setMeshJustBuilt(true)}
-      />
-    )
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 text-sm">
-        <p className="text-destructive">Failed to load match {matchId}: {state.message}</p>
-        <button type="button" className="text-xs underline" onClick={onBack}>
-          Back to matches
-        </button>
-      </div>
-    )
-  }
-
-  const doc = state.phase === 'ready' ? state.doc : state.phase === 'mesh-not-built' ? state.doc : null
-  if (!doc) {
-    // Unreachable: the three branches above cover 'loading', 'mesh-not-built' (while not just
-    // built) and 'error'. TypeScript cannot narrow `state` across the `meshJustBuilt` flag, so
-    // this is a defensive fallback rather than a reachable state.
-    return null
-  }
-  return <ReplayViewer matchId={matchId} doc={doc} onBack={onBack} />
+  return <PreGameScreen matchId={matchId} onBack={onBack} />
 }
