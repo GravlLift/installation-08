@@ -20,8 +20,8 @@ export interface Aids3d {
   /** La flèche de la poussée du répulseur, de la couleur de son auteur. */
   knockbackArrows: boolean
   /**
-   * Les formes des poses hors mur, capteur et champ de réparation (que le jeu montre, et qui restent
-   * allumés) : écran occultant, traqueur, failles du translocateur, objets lâchés.
+   * Les formes des poses hors mur, écran occultant, capteur et champ de réparation (que le jeu montre,
+   * et qui restent allumés) : traqueur, failles du translocateur, objets lâchés.
    */
   placementShapes: boolean
   /** L'étiquette de chaque joueur à toute distance ; éteint, seulement à portée (`nameTags3d`). */

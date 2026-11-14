@@ -15,7 +15,33 @@
  * fire was not read starts at the attach, and its hook would then land one flight late.
  *
  * A function of the frame alone: seeking backwards or forwards gives the same picture.
+ *
+ * IN FIRST PERSON the cable leaves the viewer's own LEFT hand (the grappleshot is worn on the left
+ * forearm): the left hand bone (`b_l_hand`) of the first-person rig as it is drawn at the frame,
+ * and, while no rig is drawn (not loaded yet, scope mounted), a fixed point low on the left of the
+ * view (`FP_LEFT_HAND_IN_VIEW`). Never the body point, which sits behind the first-person camera.
  */
+import * as THREE from 'three'
+
+/**
+ * The left hand in the first-person camera frame (three axes: x right, y up, -z forward), in u.
+ * ESTIMATE, used only while no rig is drawn: low on the left of the view and just in front of the
+ * eye, where the rig's left hand sits at rest (about a forearm, 0.3 u, below and ahead of the eye).
+ */
+export const FP_LEFT_HAND_IN_VIEW: Readonly<{ x: number; y: number; z: number }> = { x: -0.12, y: -0.12, z: -0.25 }
+
+const view = new THREE.Vector3()
+
+/**
+ * fpCableStart — where the cable leaves in first person, written in `out` (world, three axes): the
+ * rig's left hand when one is drawn (`rigHand`), otherwise `FP_LEFT_HAND_IN_VIEW` carried by the
+ * camera (`eye`, `look`: its world position and orientation).
+ */
+export function fpCableStart(eye: THREE.Vector3, look: THREE.Quaternion, rigHand: THREE.Vector3 | null, out: THREE.Vector3): THREE.Vector3 {
+  if (rigHand) return out.copy(rigHand)
+  view.set(FP_LEFT_HAND_IN_VIEW.x, FP_LEFT_HAND_IN_VIEW.y, FP_LEFT_HAND_IN_VIEW.z).applyQuaternion(look)
+  return out.copy(eye).add(view)
+}
 
 /** The hook's flight from the hand to the anchor (ms): the fire-to-attach gap the decoder measures. */
 export const GRAPPLE_HOOK_FLIGHT_MS = 150

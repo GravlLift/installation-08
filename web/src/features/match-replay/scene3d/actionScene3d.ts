@@ -82,6 +82,11 @@ export interface ActionContext {
    */
   rigMuzzleWorld?: (pos: THREE.Vector3, axe: THREE.Vector3) => boolean
   /**
+   * Where a first-person grapple cable leaves, in WORLD space at the rendered frame: the viewer's
+   * left hand (`grapple3d_logic.fpCableStart`), written in `out`; null when the scene has no rig.
+   */
+  firstPersonLeftHand?: (out: THREE.Vector3) => THREE.Vector3 | null
+  /**
    * La lunette est-elle montée sur la vue 1re personne de l'image rendue (les bras retirés de
    * l'écran), lue à la même image ; `null` quand la scène ne la porte pas.
    */

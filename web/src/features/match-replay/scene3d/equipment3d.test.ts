@@ -121,9 +121,9 @@ describe('equipment3d — failles, câbles et poussées', () => {
     expect(knockbackArrow(doc.knockbacks[2])).toBeNull()
   })
 
-  it('placement shapes aid off: the drop wall, the sensor and the repair field stay, as in the game', () => {
-    for (const kind of ['wall', 'sensor', 'field'] as const) expect(placementDrawn(kind, false)).toBe(true)
-    for (const kind of ['rift', 'shroud', 'seeker', 'unnamed', 'dropped'] as const) {
+  it('placement shapes aid off: the drop wall, the shroud bubble, the sensor and the repair field stay, as in the game', () => {
+    for (const kind of ['wall', 'shroud', 'sensor', 'field'] as const) expect(placementDrawn(kind, false)).toBe(true)
+    for (const kind of ['rift', 'seeker', 'unnamed', 'dropped'] as const) {
       expect(placementDrawn(kind, false)).toBe(false)
       expect(placementDrawn(kind, true)).toBe(true)
     }

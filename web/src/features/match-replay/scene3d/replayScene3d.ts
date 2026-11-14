@@ -218,7 +218,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       drawnWeapon: (xuid) => drawnWeapon(this.avatars.get(xuid)),
       firstPersonSlot: (f) => (this.mode === 'fp' && this.povXuid ? tracks.sample(this.povXuid, f)?.slot ?? null : null),
       rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,
-      rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false,
+      rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false, firstPersonLeftHand: (out) => this.bras?.mainGaucheMonde(out) ?? null,
       scopeMounted: () => this.scopeView.montee,
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
