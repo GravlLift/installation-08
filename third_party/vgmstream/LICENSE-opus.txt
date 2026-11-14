@@ -1,7 +1,3 @@
-avcodec-vgmstream-63.dll in the vgmstream r2168 release is built with --enable-libopus
-and carries libopus 1.6.1 inside it (it reports "libopus 1.6.1"; there is no separate
-opus DLL). libopus is distributed under the BSD-style license below.
-
 Copyright 2001-2023 Xiph.Org, Skype Limited, Octasic,
                     Jean-Marc Valin, Timothy B. Terriberry,
                     CSIRO, Gregory Maxwell, Mark Borgerding,
