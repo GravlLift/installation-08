@@ -53,8 +53,8 @@ export class WeaponModels {
   private readonly abort = new AbortController()
   readonly base: string
   readonly gate?: LoadGate
-  /** The red-reticle ranges of the library's index (served at `base`). */
-  private readonly reticles: ReticleRanges
+  /** The red-reticle ranges and zoom magnifications of the library's index (served at `base`). */
+  readonly reticles: ReticleRanges
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
   constructor(base: string, gate?: LoadGate, reticles: ReticleRanges = new ReticleRanges(base)) {

@@ -29,30 +29,30 @@ export type ScopeKind = 'scope' | 'smartLink' | 'bandit'
 export type ScopeStyle = 'cercle' | 'holo'
 
 /**
- * The scope of a weapon: its kind and the MAGNIFICATION per level (index = level - 1; a missing
- * level is read on the last one — the film does not publish a level 2 for a one-level scope).
- * Starting values: the fine tuning will be done on screen, hence a single named table.
+ * The scope of a weapon: its kind and overlay style. The MAGNIFICATION per level comes from the
+ * weapon index (the tag's own values), not from a hand table: the film does not publish a level 2
+ * for a one-level scope, so a missing level is read on the last one.
  */
 export interface ScopeSpec {
   kind: ScopeKind
-  mags: number[]
   /** The overlay style; the sniper circle when absent. */
   style?: ScopeStyle
 }
 
 const LUNETTES = {
-  s7: { kind: 'scope', mags: [5, 10] },
-  choc: { kind: 'scope', mags: [2.5, 5], style: 'holo' },
-  stalker: { kind: 'scope', mags: [2.5, 5] },
-  skewer: { kind: 'scope', mags: [2.5, 5] },
-  br75: { kind: 'scope', mags: [2] },
-  vk78: { kind: 'scope', mags: [1.5] },
-  bandit: { kind: 'bandit', mags: [1.6] },
+  s7: { kind: 'scope' },
+  choc: { kind: 'scope', style: 'holo' },
+  stalker: { kind: 'scope' },
+  skewer: { kind: 'scope' },
+  br75: { kind: 'scope' },
+  vk78: { kind: 'scope' },
+  bandit: { kind: 'bandit' },
 } satisfies Record<string, ScopeSpec>
 
 /**
  * SINGLE TABLE of the scopes, by MODEL KEY (the first eight digits of the
- * weapon identifier, canonical writing) when the model is known.
+ * weapon identifier, canonical writing) when the model is known. It gives the KIND and the STYLE;
+ * the magnification per level comes from the weapon index.
  */
 export const SCOPES_PAR_MODELE: Readonly<Record<string, ScopeSpec>> = {
   '0a1992bc': LUNETTES.s7,
@@ -74,8 +74,12 @@ export const SCOPES_PAR_ETIQUETTE: Readonly<Record<string, ScopeSpec>> = {
   hinf_bandit: LUNETTES.bandit,
 }
 
-/** Any weapon not listed: a light zoom, the weapon stays visible on screen. */
-export const LUNETTE_PAR_DEFAUT: ScopeSpec = { kind: 'smartLink', mags: [1.4] }
+/**
+ * Any weapon the index gives a zoom to but the table does not list: it zooms like the game, with
+ * the default kind (a light smart-link zoom, the weapon stays visible on screen) and the default
+ * style (the sniper circle).
+ */
+export const LUNETTE_PAR_DEFAUT: ScopeSpec = { kind: 'smartLink' }
 
 /**
  * specLunette gives the scope of a weapon: by model key first (the most stable), then by
@@ -145,10 +149,31 @@ function niveauDe(points: ReplayDocumentReady['tracks'][number]['points'], frame
   return cran.value > 0 ? Math.min(2, cran.value) : 0
 }
 
-/** The magnification of the level `level` for the scope (1: hip). */
-function magCran(spec: ScopeSpec, level: number): number {
-  if (level <= 0) return 1
-  return spec.mags[Math.min(level, spec.mags.length) - 1]
+/**
+ * magCran is the magnification of the level `level` from the weapon's index magnifications
+ * (`mags`, index = level - 1): 1 at the hip (level 0), and for a level past the declared ones the
+ * last one (the film does not publish a level 2 for a one-level scope).
+ */
+function magCran(mags: number[], level: number): number {
+  if (level <= 0 || mags.length === 0) return 1
+  return mags[Math.min(level, mags.length) - 1]
+}
+
+/** The missing-magnification warnings, once per weapon key (the index may still be loading). */
+const sansAmplification = new Set<string>()
+
+/**
+ * magsPourArme resolves the held weapon's magnifications from the index `mags`, or null when it
+ * has none for the weapon (yet): a weapon the table knows but the index has no magnification for
+ * does not zoom. The missing case is warned once per weapon key, the project's missing-data log.
+ */
+export function magsPourArme(cle: string | null | undefined, mags: number[] | null): number[] | null {
+  if (mags && mags.length > 0) return mags
+  if (cle && !sansAmplification.has(cle)) {
+    sansAmplification.add(cle)
+    console.warn('rejeu 3D : arme sans amplification dans l’index, pas de zoom', cle)
+  }
+  return null
 }
 
 /** The U-shaped smoothing (0..1): slow at both ends, fast in the middle. */
@@ -188,7 +213,7 @@ function dernierChangement(
   return null
 }
 
-export function zoomAt(doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec): Zoom3d {
+export function zoomAt(doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): Zoom3d {
   const vie = vieCouvrante(doc, xuid, frame)
   if (!vie) return { level: 0, kind: spec.kind, amount: 0, mag: 1 }
   const maintien = msToFrames(REPLAY_TIMING_MS.aimHold, doc)
@@ -203,7 +228,7 @@ export function zoomAt(doc: ReplayDocumentReady, xuid: string, frame: number, sp
   const avant = c === null ? level : c - 1 < (vie.startFrame ?? 0) ? 0 : niveauDe(vie.points, c - 1, maintien)
   // From level to level (1 to 2) the ratio stays full: only the passage through 0 is smoothed.
   const amount = c === null ? 1 : avant === 0 ? lissage((frame - c) / lissageFrames) : avant > 0 ? 1 : 0
-  return { level, kind: spec.kind, amount, mag: 1 + (magCran(spec, level) - 1) * amount }
+  return { level, kind: spec.kind, amount, mag: 1 + (magCran(mags ?? [], level) - 1) * amount }
 }
 
 /**

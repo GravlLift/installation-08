@@ -242,6 +242,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.prepareAvatars()
   }
 
+  /** magnifications is the zoom magnifications of the weapon of model key `key` from the weapon index, or null when it has none (yet, or at all). */
+  magnifications(key: string): number[] | null {
+    return this.weaponModels?.reticles.magnifications(key) ?? null
+  }
+
   /** setSpartanArmory poses the match players' armor (`armory3d`), owned by the scene; the previous one is released after the players return it; null: the default armor for all. */
   setSpartanArmory(armory: SpartanArmory | null): void {
     const source = this.weaponModels?.spartan() ?? null
@@ -479,7 +484,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     const cle = this.inView?.key ?? null
     const spec = specLunette(cle, cle ? etiquetteDe(doc, cle) : null)
-    if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec)) this.bras?.cacher()
+    const mags = cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null
+    if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec, mags)) this.bras?.cacher()
   }
 
   /** groundSurfaces: the ground surfaces, the map's then the posed layer's. */
