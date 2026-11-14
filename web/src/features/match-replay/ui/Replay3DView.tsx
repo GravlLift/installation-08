@@ -46,6 +46,7 @@ import { listenerOfCamera } from '../scene3d/soundListener3d'
 import type { SoundListener } from '../sound/soundSpatial'
 import { ReplayCadence3d } from './ReplayCadence3d'
 import { ReplayChargement3d } from './ReplayChargement3d'
+import { useMinimap3d } from './useMinimap3d'
 import { useSurfaceProbe } from './useSurfaceProbe'
 import { useViewGripTuner } from './useViewGripTuner'
 import { useVariantLayer } from './useVariantLayer'
@@ -318,6 +319,7 @@ export function Replay3DView({
     }
   }, [ready, active, frameRef, cadenceRef, soundListenerRef])
 
+  useMinimap3d(sceneRef, ready && !compact)
   const surface = useSurfaceProbe(sceneRef)
   const viewGrip = useViewGripTuner(sceneRef, ready && mode === 'fp')
   return (
