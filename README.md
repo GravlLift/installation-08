@@ -167,6 +167,36 @@ startup naming this command, and the route answers `404` for every sound.
   local files.
 - `rebuild <match-id> [--data <dir>]`: rebuild a stored match from its saved inputs.
 
+## Packaged build
+
+`tools/package.ps1` produces a self-contained Windows binary with the web viewer
+embedded:
+
+```powershell
+tools\package.ps1 -Version 0.1.0
+```
+
+Requires `go`, `gcc` (a C toolchain for cgo), and `npm` on `PATH`. The script builds
+`web\` (`npm run build`), stages `web\dist\index.html` and `web\dist\assets\` into
+`internal\webdist\files`, builds the Go binary with the `embedweb` build tag, the
+`-ldflags` version, and a static MinGW link (no `libwinpthread-1.dll` or other
+MinGW runtime DLLs on the target machine), and writes:
+
+```
+dist\infinite-theater-3d-<version>-windows-amd64\
+    infinite-theater-3d.exe
+    LICENSE
+    NOTICE.md
+    README.md
+    third_party\...
+dist\infinite-theater-3d-<version>-windows-amd64.zip
+```
+
+The exe is a single file: double-click it (or run it with no arguments) and it serves
+and opens the viewer in the default browser. A `version` subcommand prints the build
+version. Sounds and the Ekur export are still user-supplied per the sections above;
+pass `--data <dir>` and `--game <deploy-root>` if the defaults do not apply.
+
 ## Web viewer
 
 `web/` is a Vite + React + TypeScript app. For development:
