@@ -49,9 +49,9 @@ import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './track
 import { ScopeView3d } from './scopeView3d'
 import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
-import { floorBands, type SceneView3d } from './topDownLogic'
+import type { SceneView3d } from './topDownLogic'
 import { TopDownView3d } from './topDownView3d'
-import { PlayerMarkers3d, type MarkerPose } from './playerMarkers3d'
+import type { MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
@@ -67,8 +67,6 @@ const FREE_RISE = 1.5
 // Play area: the replay positions' box, grown by PLAY_MARGIN around and PLAY_HEADROOM above (roofs, bridges).
 const PLAY_MARGIN = 15
 const PLAY_HEADROOM = 20
-// Height gap (u) that separates two floors: a ramp stays continuous, floors are apart.
-const FLOOR_GAP = 3
 // Sun for a map whose mesh does not publish the game's: chosen by eye on Recharge.
 const SUN_FALLBACK = { azimuth: 217, elevation: 58 }
 const SKY_TINT = 0x9fb4c8
@@ -103,8 +101,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   private view: SceneView3d = '3d'
   /** The top-down view, built when the map is attached; null without a map. */
   private top: TopDownView3d | null = null
-  private markers: PlayerMarkers3d | null = null
   private topPlayers: MarkerPose[] = []
+  /** The player the top-down view follows and rings: the page's viewpoint, null in free camera. */
+  private topFollowed: string | null = null
   private povXuid: string | null = null
   private originAboveFloor = 0
   private lastFrame = 0
@@ -178,18 +177,14 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.lighting.takeGameLight(model.baked) // game light active during the probe captures
       this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
       this.playTop = playBox.max.y
-      // Top-down view: one band per floor of the played heights, framed on the played X/Z area.
-      this.top = new TopDownView3d(
-        floorBands(playPoints.map((p) => p.y), FLOOR_GAP),
-        { minX: playBox.min.x, minZ: playBox.min.z, maxX: playBox.max.x, maxZ: playBox.max.z },
-      )
-      this.markers = new PlayerMarkers3d(); this.markers.attach(this.scene)
+      // Top-down view: cut over the followed player, down to the lowest walked floor, framed on the walked area.
+      this.top = new TopDownView3d(this.scene, playPoints.map((p) => p.y), new THREE.Box3().setFromPoints(playPoints))
     }
     if (model.ciel) {
       this.ciel = creerCiel(model.sun ?? SUN_FALLBACK, model.ciel.texture, model.ciel.color, model.sunStrength)
       this.scene.add(this.ciel)
     }
-    this.top?.sync(this.scene, this.ciel)
+    this.top?.sync(this.ciel)
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
     for (const p of tracks.players) {
@@ -267,7 +262,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(layer.root)
     this.lighting.lightLayer(layer.surfaces)
     this.ground?.setPickables(this.groundSurfaces())
-    this.top?.sync(this.scene, this.ciel)
+    this.top?.sync(this.ciel)
     return true
   }
 
@@ -278,7 +273,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.layer = null
     this.scene.remove(layer.root)
     this.ground?.setPickables(this.groundSurfaces())
-    this.top?.sync(this.scene, this.ciel)
+    this.top?.sync(this.ciel)
     this.lighting.releaseLayer(layer.surfaces)
     layer.dispose()
   }
@@ -307,6 +302,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.exportScene.held) this.exportScene.held.view = view
     else this.view = view
   }
+
+  /** setTopFollowed: the player the top-down view's cut follows; null (free camera): the living players' median. */
+  setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
 
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return
@@ -350,14 +348,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     t = marquer(p, 2, t)
     this.lighting.updateShadows(frame)
     t = marquer(p, 3, t)
-    const followed = this.povXuid ?? this.tracks?.players[0]?.xuid ?? null
-    const s = followed ? this.tracks?.sample(followed, frame) : null
-    const band = this.view === 'top' && this.top ? this.top.bandFor(s?.z ?? null) : null
-    this.markers?.update(this.topPlayers, this.top?.floorBands ?? [], band, this.view === 'top' ? followed : null)
-    const drewTop = this.view === 'top' && this.top ? this.top.draw(this.scene, this.renderer, this.post.composer, band) : false
-    if (!drewTop) this.post.composer.render()
+    const top = this.view === 'top' ? this.top : null
+    if (top) top.draw({ renderer: this.renderer, composer: this.post.composer, players: this.topPlayers, followed: this.topFollowed })
+    else { this.top?.idle(); this.post.composer.render() }
     t = marquer(p, 4, t)
-    this.labels.render(this.scene, drewTop ? this.top!.camera : this.camera)
+    this.labels.render(this.scene, top ? top.camera : this.camera)
     marquer(p, 5, t)
     p.appels = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
@@ -407,7 +402,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       a.tag.element.remove()
     }
     this.detachLayer()
-    this.markers?.dispose(this.scene)
+    this.top?.dispose()
     if (this.ciel) { this.scene.remove(this.ciel); this.ciel.geometry.dispose(); this.ciel.material.dispose(); this.ciel = null }
     this.model?.dispose()
     this.model = null // no map: a layer arriving after release is refused (`attachLayer`)
@@ -462,8 +457,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
       a.group.visible = !(firstPerson && rider) // aboard in first person: no weapon shown
-      placeTag(a.tag, feet, firstPerson ? null : eye, p.xuid === this.povXuid || !!this.action?.aids().allNameTags)
-      this.topPlayers.push({ xuid: p.xuid, feet, y: feet.y, heading: h, avatar: a })
+      placeTag(a.tag, feet, firstPerson ? null : eye, this.view === 'top' || p.xuid === this.povXuid || !!this.action?.aids().allNameTags) // top: every tag, a map key
+      this.topPlayers.push({ xuid: p.xuid, feet, heading: h, avatar: a })
     }
   }
 

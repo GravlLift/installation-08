@@ -268,6 +268,10 @@ export function Replay3DView({
   useEffect(() => {
     if (ready) sceneRef.current?.setView(view)
   }, [ready, view])
+  // The top-down view follows the chosen viewpoint only: in free camera its cut follows the living players.
+  useEffect(() => {
+    if (ready) sceneRef.current?.setTopFollowed(viewpoint ?? null)
+  }, [ready, viewpoint])
   // L'éclairage suit le tiroir (ombres, reflets, occlusion ambiante).
   const { look } = useReplay3dLook()
   useEffect(() => {

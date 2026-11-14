@@ -1,74 +1,67 @@
 /**
- * playerMarkers3d_logic.ts — pure geometry of the top-down player markers: where each living
- * player's disc sits and which way it faces, and how a player on a floor other than the one
- * being drawn is dimmed and chevroned.
+ * playerMarkers3d_logic.ts — pure geometry of the top-down player markers: which way each
+ * living player's disc faces, how a player on another floor than the drawn one is dimmed and
+ * chevroned, and the marker's size on screen.
  *
- * Scene axes: X/Z on the floor, Y up (three.js). Sizes are world units; the disc radius is the
- * body radius times a named factor so a marker scales with the map like the bodies do.
+ * Scene axes: X/Z on the floor, Y up (three.js). A marker keeps a fixed size in screen pixels
+ * whatever the map's extent, so it reads the same on a small arena and on a big team map.
  */
-import { BODY_RADIUS } from './body3d'
-import { bandAt, type FloorBand } from './topDownLogic'
+import { CUT_HEADROOM } from './topDownLogic'
 
-/** How many body radii a marker disc is across. */
-export const MARKER_SIZE_FACTOR = 2.0
-/** Opacity of a marker (and its tag) on a floor other than the drawn one. */
-export const DIMMED_MARKER_OPACITY = 0.4
+/** Radius of a marker disc on screen (CSS px). */
+export const MARKER_RADIUS_PX = 9
+/** Opacity of a marker (and its tag) on another floor than the drawn one. */
+export const DIMMED_MARKER_OPACITY = 0.45
+/**
+ * How far under the followed player's floor (u) a player stands before he counts as on a
+ * lower floor: past a flight of stairs, short of the next storey (Halo storeys are ~2 u apart).
+ */
+export const LOWER_FLOOR_DROP = 1.2
 
 /** The marker state of one player at a frame. */
 export interface MarkerGeometry {
-  /** Drawn for living players only. */
-  visible: boolean
-  /** Marker and tag opacity: 1 in the drawn band, dimmed in another. */
+  /** Marker and tag opacity: 1 on the drawn floor, dimmed on another. */
   opacity: number
-  /** A player in another band: above or below the drawn floor; null in-band. */
+  /** A player on another floor: above the cut or well below the drawn floor; null on it. */
   chevron: 'above' | 'below' | null
   /** Facing on the floor, a unit XZ direction (three axes). */
   dirX: number
   dirZ: number
 }
 
-/** What the scene knows of one player at a frame, in scene axes. */
+/** What the scene knows of one living player at a frame, in scene axes. */
 export interface TopDownPlayerInput {
-  xuid: string
   /** Scene Y of the feet. */
   y: number
   /** Yaw in degrees, the same convention as the tracks. */
   heading: number
-  alive: boolean
 }
 
 /**
- * topDownMarkers — the marker state of each player, in input order. `bands` and the drawn
- * `band` are the same objects the top-down view uses, so a player in the drawn band is told by
- * band identity; in another band the marker and tag dim and a chevron names the direction.
+ * topDownMarkers — the marker state of each living player, in input order, against the cut
+ * height `cutY`. Above the cut (his floor is not drawn) a player is dimmed and chevroned up;
+ * more than `LOWER_FLOOR_DROP` under the drawn floor (the cut less its headroom) he is dimmed
+ * and chevroned down.
  */
-export function topDownMarkers(
-  players: readonly TopDownPlayerInput[],
-  bands: readonly FloorBand[],
-  band: FloorBand | null,
-): MarkerGeometry[] {
+export function topDownMarkers(players: readonly TopDownPlayerInput[], cutY: number): MarkerGeometry[] {
+  const floorY = cutY - CUT_HEADROOM
   return players.map((p) => {
-    const [dx, , dz] = dirOf(p.heading)
-    if (!p.alive || !band || bands.length === 0) {
-      return { visible: p.alive && !!band, opacity: 1, chevron: null, dirX: dx, dirZ: dz }
-    }
-    const own = bandAt(bands, p.y)
-    const inBand = own === band
-    return {
-      visible: true,
-      opacity: inBand ? 1 : DIMMED_MARKER_OPACITY,
-      chevron: inBand ? null : own.floorY > band.floorY ? 'above' : 'below',
-      dirX: dx,
-      dirZ: dz,
-    }
+    const [dirX, dirZ] = dirOf(p.heading)
+    const chevron = p.y > cutY ? 'above' : p.y < floorY - LOWER_FLOOR_DROP ? 'below' : null
+    return { opacity: chevron ? DIMMED_MARKER_OPACITY : 1, chevron, dirX, dirZ }
   })
 }
 
 /** dirOf — a yaw (degrees) as a unit XZ direction on the floor, in three axes. */
-function dirOf(hDeg: number): [number, number, number] {
+function dirOf(hDeg: number): [number, number] {
   const h = (hDeg * Math.PI) / 180
-  return [Math.cos(h), 0, -Math.sin(h)]
+  return [Math.cos(h), -Math.sin(h)]
 }
 
-/** The marker disc radius (world units), from the body radius. */
-export const MARKER_RADIUS = BODY_RADIUS * MARKER_SIZE_FACTOR
+/**
+ * unitsPerPixel — world units per CSS pixel of an orthographic view `halfHeight` units tall
+ * (half) on a viewport `viewportPx` CSS pixels tall; 0 for an empty viewport.
+ */
+export function unitsPerPixel(halfHeight: number, viewportPx: number): number {
+  return viewportPx > 0 ? (2 * halfHeight) / viewportPx : 0
+}

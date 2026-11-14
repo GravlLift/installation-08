@@ -1,65 +1,85 @@
 /**
- * topDownLogic.ts — pure logic of the top-down view: floor bands from the heights players
- * stood at, the band containing a height, and the orthographic frame that fits the played
- * area in a view of a given aspect.
+ * topDownLogic.ts — pure logic of the top-down view: the cut height (everything above it is
+ * not drawn), its smoothing over time, the lowest drawn height, and the orthographic frame that
+ * fits the played area in a view of a given aspect.
+ *
+ * The cut follows a player, not a floor table: on a map whose floors are joined by ramps the
+ * walked heights are continuous, so no clustering of them can tell one floor from another. The
+ * cut sits a head and a clearance above the feet of the followed player, so the floor he stands
+ * on shows with what lies below it through openings, and every slab over his head is gone.
  *
  * Heights are world units on the SCENE's up axis (three.js Y). The replay document publishes
  * them on its own up axis (Halo Z); `toThree` maps document Z to scene Y, so callers pass
  * the document's Z values straight through.
  */
+import { HEAD_TOP } from './body3d'
 
 /** The drawing view of the scene: perspective (3D) or the orthographic top-down view. */
 export type SceneView3d = '3d' | 'top'
 
-/** The two drawing bounds of one floor. */
-export interface FloorBand {
-  /** Lowest drawn height: the lowest standing height of the cluster minus a margin. */
-  floorY: number
-  /** Highest drawn height: the highest standing height of the cluster plus headroom. */
-  ceilingY: number
-}
+/** Clearance between the top of a standing Spartan's head and the cut (u, ~0.9 m). */
+export const CUT_CLEARANCE = 0.3
+/** The cut height above the feet it follows: a standing Spartan plus the clearance (u). */
+export const CUT_HEADROOM = HEAD_TOP + CUT_CLEARANCE
+/**
+ * Time constants of the cut's smoothing (s). It rises slowly, so a jump does not lift it into
+ * the ceiling, and falls fast, so the floor a player has just walked down from does not cover
+ * him for long.
+ */
+export const CUT_RISE_S = 0.6
+export const CUT_FALL_S = 0.2
+/** Margin kept drawn under the lowest walked height (u); below it is terrain and backdrop. */
+export const FLOOR_MARGIN = 0.5
 
-/** Margin below the lowest standing height of a floor (u). */
-const FLOOR_MARGIN = 0.5
-/** Headroom above the highest standing height: a standing Spartan plus aim (u). */
-const STAND_HEADROOM = 2.5
-/** Keep a band's ceiling this far under the next band's floor, so the clip never reaches it (u). */
-const BAND_CLEARANCE = 0.01
+/** What the cut follows at a frame, scene Y of feet. */
+export interface CutSource {
+  /** The followed player's feet, null without a followed player or while he is out of life. */
+  followedY: number | null
+  /** The followed player's feet when last seen alive, null if never (or in free camera). */
+  lastFollowedY: number | null
+  /** The feet of every living player. */
+  livingY: readonly number[]
+  /** The cut drawn at the previous frame, null before the first. */
+  previous: number | null
+  /** The lowest walked height of the match, the last resort when nothing else is known. */
+  lowestY: number
+}
 
 /**
- * floorBands — cluster the heights into floors: sort, split where two consecutive heights
- * are more than `gap` apart, one band per cluster. A ramp (continuously spread heights)
- * stays in one band. Where the headroom of one cluster reaches the next one's floor, the
- * lower ceiling is capped under it: the clip must never reach the floor above.
+ * cutTarget — the height the cut moves to: a headroom over the followed player's feet; while
+ * he is out of life, over the feet he was last seen on; in free camera (or before he was ever
+ * seen) over the median feet of the living players; with nobody alive, the previous cut, else
+ * a headroom over the lowest walked height.
  */
-export function floorBands(heights: number[], gap: number): FloorBand[] {
-  if (heights.length === 0) return []
-  const sorted = [...heights].sort((a, b) => a - b)
-  const bands: FloorBand[] = []
-  let start = 0
-  for (let i = 1; i <= sorted.length; i++) {
-    const last = i === sorted.length
-    if (last || sorted[i] - sorted[i - 1] > gap) {
-      bands.push({ floorY: sorted[start] - FLOOR_MARGIN, ceilingY: sorted[i - 1] + STAND_HEADROOM })
-      start = i
-    }
-  }
-  for (let i = 0; i < bands.length - 1; i++) {
-    if (bands[i].ceilingY >= bands[i + 1].floorY) bands[i].ceilingY = bands[i + 1].floorY - BAND_CLEARANCE
-  }
-  return bands
+export function cutTarget(src: CutSource): number {
+  const feet = src.followedY ?? src.lastFollowedY ?? (src.livingY.length > 0 ? median(src.livingY) : null)
+  if (feet !== null) return feet + CUT_HEADROOM
+  return src.previous ?? src.lowestY + CUT_HEADROOM
 }
 
-/** bandAt — the band containing the height `y`, else the nearest one (by band center). */
-export function bandAt(bands: readonly FloorBand[], y: number): FloorBand {
-  let best = bands[0]
-  let bestDist = Infinity
-  for (const band of bands) {
-    if (y >= band.floorY && y <= band.ceilingY) return band
-    const dist = Math.abs((band.floorY + band.ceilingY) / 2 - y)
-    if (dist < bestDist) { bestDist = dist; best = band }
-  }
-  return best
+/** median — the middle value (mean of the two middle ones for an even count); NaN when empty. */
+export function median(values: readonly number[]): number {
+  if (values.length === 0) return Number.NaN
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = sorted.length >> 1
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+/**
+ * smoothCut — move the cut from `previous` toward `target` over `dtSeconds` (exponential,
+ * `CUT_RISE_S` up, `CUT_FALL_S` down); the first cut (previous null) lands on the target.
+ */
+export function smoothCut(previous: number | null, target: number, dtSeconds: number): number {
+  if (previous === null || !(dtSeconds > 0)) return previous ?? target
+  const tau = target > previous ? CUT_RISE_S : CUT_FALL_S
+  return previous + (target - previous) * (1 - Math.exp(-dtSeconds / tau))
+}
+
+/** lowestDrawn — the lowest height drawn: the lowest walked height minus the floor margin. */
+export function lowestDrawn(heights: readonly number[]): number {
+  let lowest = Infinity
+  for (const h of heights) if (h < lowest) lowest = h
+  return (Number.isFinite(lowest) ? lowest : 0) - FLOOR_MARGIN
 }
 
 /** The X/Z extent of the played area, margins already applied by the caller (u). */

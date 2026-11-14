@@ -1,160 +1,191 @@
 /**
  * playerMarkers3d.ts — the top-down player markers: one filled disc at each living player's
- * feet in his team color, a short wedge where he is facing, and a ring around the followed
- * player. Pure geometry (`playerMarkers3d_logic`) decides where, facing, and dimming; this
- * file owns the pooled meshes and poses them in the scene. Drawn only in the top-down view.
+ * feet in his team color, a wedge out of it where he is facing, and a ring around the followed
+ * player. Pure geometry (`playerMarkers3d_logic`) decides facing, dimming and size; this file
+ * owns the pooled meshes and poses them in the scene. Drawn only in the top-down view.
+ *
+ * Markers are map symbols, not bodies: they are drawn over the scene (no depth test) at a fixed
+ * size in screen pixels, just under the cut so the orthographic camera's near plane never clips
+ * them, a player above the cut included. His tag is moved the same way, above his marker on
+ * screen, since the label renderer hides a tag outside the camera's depth range.
  */
 import * as THREE from 'three'
-import { MARKER_RADIUS, topDownMarkers, type MarkerGeometry } from './playerMarkers3d_logic'
-import type { FloorBand } from './topDownLogic'
+import { MARKER_RADIUS_PX, topDownMarkers, type MarkerGeometry } from './playerMarkers3d_logic'
 import type { Avatar } from './avatar3d'
 
-/** One player's marker pose at a frame, in scene axes. */
+/** One living player's marker pose at a frame, in scene axes. */
 export interface MarkerPose {
   xuid: string
   /** The feet the disc sits on. */
   feet: THREE.Vector3
-  /** Scene Y of the feet, to tell the player's floor. */
-  y: number
   /** Yaw in degrees, the tracks' convention. */
   heading: number
   avatar: Avatar
 }
 
-/** A hair above the floor so a marker does not z-fight the surface under the player. */
-const MARKER_LIFT = 0.02
-/** How long the facing wedge runs from the disc center, in marker radii. */
-const WEDGE_LENGTH = MARKER_RADIUS * 1.7
-/** Half the wedge's base, in marker radii. */
-const WEDGE_HALF = MARKER_RADIUS * 0.35
+/** How far under the cut markers and tags are drawn, inside the camera's depth range (u). */
+const MARKER_DEPTH = 0.05
+/** The facing wedge, in disc radii: from its base inside the disc to its tip outside. */
+const WEDGE_BASE = 0.5
+const WEDGE_TIP = 1.9
+const WEDGE_HALF = 0.6
+/** The dark rim under a disc, in disc radii: it keeps the disc readable on a sunlit floor. */
+const RIM_SCALE = 1.3
+/** The followed player's ring, inner and outer radius in disc radii. */
+const RING_INNER = 1.5
+const RING_OUTER = 1.9
+/** The tag's center above the marker's on screen (CSS px): a radius, a gap, half a tag. */
+const TAG_OFFSET_PX = MARKER_RADIUS_PX + 16
+/** Draw order: off-floor markers, then on-floor ones over them, the ring last; a rim under its disc. */
+const ORDER_DIMMED = 10
+const ORDER_ON_FLOOR = 11
+const ORDER_RING = 12
+const ORDER_OVER_RIM = 0.5
 
-interface MarkerSet {
-  disc: THREE.Mesh
-  wedge: THREE.Mesh
+/** What the view tells the markers each frame. */
+export interface MarkerView {
+  /** The cut height (scene Y): players above it are on a floor not drawn. */
+  cutY: number
+  /** The ringed player, null in free camera. */
+  followed: string | null
+  /** World units per CSS pixel of the view, so a marker keeps its size on screen. */
+  unitsPerPx: number
+  /** The rim color under each disc (the page's studio color), null for no rim. */
+  rim: THREE.Color | null
 }
 
-/** The scene objects of one player's marker (a disc and a facing wedge). */
-function makeMarker(color: THREE.Color): MarkerSet {
-  const discGeo = new THREE.CircleGeometry(MARKER_RADIUS, 24)
-  discGeo.rotateX(-Math.PI / 2)
-  const disc = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false }))
-  const wedgeGeo = new THREE.BufferGeometry()
-  wedgeGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, WEDGE_HALF, 0, WEDGE_LENGTH, -WEDGE_HALF, 0, WEDGE_LENGTH], 3))
-  const wedge = new THREE.Mesh(wedgeGeo, new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide }))
-  return { disc, wedge }
+interface MarkerSet {
+  root: THREE.Group
+  rim: THREE.Mesh
+  disc: THREE.Mesh
+  wedge: THREE.Mesh
+  material: THREE.MeshBasicMaterial
+  rimMaterial: THREE.MeshBasicMaterial
+}
+
+/** A material drawn over the scene: no depth test or write, no fog, translucent when dimmed. */
+function overlayMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: false, depthWrite: false, fog: false, side: THREE.DoubleSide })
+}
+
+/** The shared unit geometries (disc radius 1, flat on the floor, the wedge along +Z). */
+function unitGeometries(): { disc: THREE.BufferGeometry; wedge: THREE.BufferGeometry; ring: THREE.BufferGeometry } {
+  const disc = new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2)
+  const wedge = new THREE.BufferGeometry()
+  wedge.setAttribute('position', new THREE.Float32BufferAttribute([WEDGE_HALF, 0, WEDGE_BASE, -WEDGE_HALF, 0, WEDGE_BASE, 0, 0, WEDGE_TIP], 3))
+  const ring = new THREE.RingGeometry(RING_INNER, RING_OUTER, 40).rotateX(-Math.PI / 2)
+  return { disc, wedge, ring }
 }
 
 export class PlayerMarkers3d {
   private readonly root = new THREE.Group()
   private readonly of = new Map<string, MarkerSet>()
+  private readonly geo = unitGeometries()
   private readonly ring: THREE.Mesh
-  /** The tags this view gave a chevron, so `hide` restores their plain name. */
-  private chevroned: Avatar[] = []
+  /** The tags this view changed (text, place), so `hide` gives them their plain name back. */
+  private touched: Avatar[] = []
 
-  constructor() {
-    const ringGeo = new THREE.RingGeometry(MARKER_RADIUS * 1.3, MARKER_RADIUS * 1.55, 32)
-    ringGeo.rotateX(-Math.PI / 2)
-    this.ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide }))
-    this.ring.visible = false
+  constructor(scene: THREE.Scene) {
+    this.ring = new THREE.Mesh(this.geo.ring, overlayMaterial(new THREE.Color()))
+    this.ring.renderOrder = ORDER_RING
     this.root.add(this.ring)
-  }
-
-  /** Add the (hidden) marker root to the scene. */
-  attach(scene: THREE.Scene): void {
     this.root.visible = false
     scene.add(this.root)
   }
 
-  /** Show the marker root; pose per player with `update`. */
-  show(): void { this.root.visible = true }
-
-  /** Hide the root and every marker, restoring the tag text any chevron overwrote. */
+  /** Hide every marker, restoring the tag text a chevron overwrote. */
   hide(): void {
+    if (!this.root.visible) return
     this.root.visible = false
-    this.ring.visible = false
-    for (const m of this.of.values()) m.disc.visible = false, (m.wedge.visible = false)
-    for (const a of this.chevroned) a.tag.element.textContent = a.name
-    this.chevroned = []
+    for (const a of this.touched) a.tag.element.textContent = a.name
+    this.touched = []
   }
 
-  /** Remove the marker root from the scene and free its geometry. */
+  /** Remove the markers from the scene and free their geometry and materials. */
   dispose(scene: THREE.Scene): void {
     scene.remove(this.root)
-    for (const m of this.of.values()) m.disc.geometry.dispose(), (m.disc.material as THREE.MeshBasicMaterial).dispose(), m.wedge.geometry.dispose(), (m.wedge.material as THREE.MeshBasicMaterial).dispose()
+    for (const m of this.of.values()) m.material.dispose(), m.rimMaterial.dispose()
     this.of.clear()
-    this.ring.geometry.dispose()
-    ;(this.ring.material as THREE.MeshBasicMaterial).dispose()
+    ;(this.ring.material as THREE.Material).dispose()
+    for (const g of Object.values(this.geo)) g.dispose()
   }
 
-  /**
-   * Pose this frame's markers: `poses` one per living player, `bands` and the drawn `band`
-   * the view's, `followed` the ringed player (null: no ring). No band: everything hidden.
-   */
-  update(poses: MarkerPose[], bands: readonly FloorBand[], band: FloorBand | null, followed: string | null): void {
-    if (!band) {
-      this.hide()
-      return
-    }
-    this.show()
-    const geos = topDownMarkers(poses.map((p) => ({ xuid: p.xuid, y: p.y, heading: p.heading, alive: true })), bands, band)
-    this.place(poses.map((p, i) => ({ xuid: p.xuid, feet: p.feet, geometry: geos[i], avatar: p.avatar })), followed)
+  /** Pose this frame's markers: `poses` one per living player, `view` what the top-down view tells. */
+  update(poses: readonly MarkerPose[], view: MarkerView): void {
+    this.root.visible = true
+    const before = this.touched
+    this.touched = []
+    const radius = MARKER_RADIUS_PX * view.unitsPerPx
+    const y = view.cutY - MARKER_DEPTH
+    const geos = topDownMarkers(poses.map((p) => ({ y: p.feet.y, heading: p.heading })), view.cutY)
+    for (const m of this.of.values()) m.root.visible = false
+    this.ring.visible = false
+    poses.forEach((p, i) => {
+      const set = this.setFor(p.xuid, p.avatar)
+      this.place(set, p, geos[i], { radius, y, rim: view.rim })
+      this.placeTag(p, geos[i], y, view.unitsPerPx)
+      if (p.xuid === view.followed) this.placeRing(p, radius, y)
+    })
+    for (const a of before) if (!this.touched.includes(a)) a.tag.element.textContent = a.name
   }
 
-  /**
-   * Pose the computed markers. `players` is one entry per living player, parallel to the
-   * geometry; `followed` is the ringed player (null: no ring).
-   */
-  private place(players: { xuid: string; feet: THREE.Vector3; geometry: MarkerGeometry; avatar: Avatar }[], followed: string | null): void {
-    this.chevroned = []
-    const seen = new Set<string>()
-    for (const { xuid, feet, geometry, avatar } of players) {
-      seen.add(xuid)
-      const set = this.setFor(xuid, avatar)
-      const op = geometry.opacity
-      set.disc.position.set(feet.x, feet.y + MARKER_LIFT, feet.z)
-      set.wedge.position.copy(set.disc.position)
-      set.wedge.rotation.y = Math.atan2(geometry.dirX, geometry.dirZ)
-      for (const mesh of [set.disc, set.wedge]) mesh.visible = geometry.visible
-      for (const material of [set.disc.material, set.wedge.material]) (material as THREE.MeshBasicMaterial).opacity = op
-      if (geometry.visible) this.chevronTag(avatar, geometry)
-    }
-    for (const [xuid, m] of this.of) if (!seen.has(xuid)) m.disc.visible = false, (m.wedge.visible = false)
-    this.placeRing(followed ? players.find((p) => p.xuid === followed) ?? null : null)
+  /** Pose one player's rim, disc and wedge at his feet, at the drawing height `at.y`. */
+  private place(set: MarkerSet, p: MarkerPose, g: MarkerGeometry, at: { radius: number; y: number; rim: THREE.Color | null }): void {
+    set.root.visible = true
+    set.root.position.set(p.feet.x, at.y, p.feet.z)
+    set.root.scale.setScalar(at.radius)
+    set.wedge.rotation.y = Math.atan2(g.dirX, g.dirZ)
+    set.material.opacity = g.opacity
+    set.rim.visible = at.rim !== null
+    if (at.rim) set.rimMaterial.color.copy(at.rim)
+    set.rimMaterial.opacity = g.opacity
+    const order = g.chevron ? ORDER_DIMMED : ORDER_ON_FLOOR
+    set.rim.renderOrder = order
+    set.disc.renderOrder = order + ORDER_OVER_RIM
+    set.wedge.renderOrder = order + ORDER_OVER_RIM
   }
 
-  /** The followed player's ring, at his feet in his team color; hidden without one. */
-  private placeRing(target: { feet: THREE.Vector3; avatar: Avatar } | null): void {
-    if (!target) {
-      this.ring.visible = false
-      return
-    }
+  /** The followed player's ring, around his disc in his team color. */
+  private placeRing(p: MarkerPose, radius: number, y: number): void {
     this.ring.visible = true
-    this.ring.position.set(target.feet.x, target.feet.y + MARKER_LIFT, target.feet.z)
-    ;(this.ring.material as THREE.MeshBasicMaterial).color.copy(target.avatar.tint)
+    this.ring.position.set(p.feet.x, y, p.feet.z)
+    this.ring.scale.setScalar(radius)
+    ;(this.ring.material as THREE.MeshBasicMaterial).color.copy(p.avatar.tint)
+  }
+
+  /**
+   * Put the player's tag above his marker on screen (scene -Z is screen up in this view), give it
+   * his floor chevron and dim it off-floor; the opacity the tag already has is multiplied.
+   */
+  private placeTag(p: MarkerPose, g: MarkerGeometry, y: number, unitsPerPx: number): void {
+    const { tag, name } = p.avatar
+    tag.position.set(p.feet.x, y, p.feet.z - TAG_OFFSET_PX * unitsPerPx)
+    const el = tag.element
+    const text = g.chevron ? `${name} ${g.chevron === 'above' ? '↑' : '↓'}` : name
+    if (el.textContent !== text) el.textContent = text
+    if (g.chevron) this.touched.push(p.avatar)
+    const base = el.style.opacity === '' ? 1 : Number(el.style.opacity)
+    const opacity = Math.round(base * g.opacity * 100) / 100
+    const css = opacity >= 1 ? '' : String(opacity)
+    if (el.style.opacity !== css) el.style.opacity = css
   }
 
   /** A marker set for the player, minted in his team color on first use. */
   private setFor(xuid: string, avatar: Avatar): MarkerSet {
     let set = this.of.get(xuid)
     if (!set) {
-      set = makeMarker(avatar.tint)
-      this.root.add(set.disc, set.wedge)
+      const material = overlayMaterial(avatar.tint)
+      const rimMaterial = overlayMaterial(avatar.tint)
+      const root = new THREE.Group()
+      const rim = new THREE.Mesh(this.geo.disc, rimMaterial)
+      rim.scale.setScalar(RIM_SCALE)
+      const disc = new THREE.Mesh(this.geo.disc, material)
+      const wedge = new THREE.Mesh(this.geo.wedge, material)
+      root.add(rim, disc, wedge)
+      this.root.add(root)
+      set = { root, rim, disc, wedge, material, rimMaterial }
       this.of.set(xuid, set)
     }
     return set
-  }
-
-  /**
-   * Give a player's tag its floor chevron (in-band: plain name) and dim it off-band. The base
-   * opacity placeTag set this frame is read, then multiplied by the marker opacity.
-   */
-  private chevronTag(avatar: Avatar, geometry: MarkerGeometry): void {
-    const el = avatar.tag.element
-    const chevron = geometry.chevron
-    const text = chevron ? `${avatar.name} ${chevron === 'above' ? '↑' : '↓'}` : avatar.name
-    if (el.textContent !== text) el.textContent = text
-    if (chevron) this.chevroned.push(avatar)
-    const base = el.style.opacity === '' ? 1 : Number(el.style.opacity)
-    if (base > 0) el.style.opacity = String(Math.round(base * geometry.opacity * 100) / 100)
   }
 }
