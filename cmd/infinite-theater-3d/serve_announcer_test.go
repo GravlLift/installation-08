@@ -1,6 +1,6 @@
-// serve_announcer_test.go — the announcer sound library: readiness from the manifest's version,
-// the state/build route pair over the mesh build runner (a fake build writes the manifest), the
-// read-only refusal.
+// serve_announcer_test.go — the extracted sound library: readiness from the two manifests and
+// their versions, the state/build route pair over the mesh build runner (a fake build writes the
+// manifests), the read-only refusal.
 
 package main
 
@@ -16,28 +16,41 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
-// writeAnnouncerManifest writes a manifest of the given version into the store's sound folder.
+// writeAnnouncerManifest writes an announcer manifest of the given version into the store's
+// sound folder.
 func writeAnnouncerManifest(t *testing.T, dataDir string, version int) {
+	t.Helper()
+	writeSoundManifest(t, dataDir, announcer.ManifestName, map[string]any{"version": version, "language": "en", "lines": map[string]any{}})
+}
+
+// writeReloadsManifest writes a reloads manifest of the given version into the store's sound folder.
+func writeReloadsManifest(t *testing.T, dataDir string, version int) {
+	t.Helper()
+	writeSoundManifest(t, dataDir, reloadsounds.ManifestName, map[string]any{"version": version, "weapons": map[string]any{}})
+}
+
+func writeSoundManifest(t *testing.T, dataDir, name string, body map[string]any) {
 	t.Helper()
 	dir := soundsDir(dataDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := json.Marshal(map[string]any{"version": version, "language": "en", "lines": map[string]any{}})
+	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, announcer.ManifestName), raw, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
 // announcerTestHandlers wires a runner whose readiness is the server's own (jobModuleReady) and
-// whose fake build, for the announcer job only, writes a current manifest.
+// whose fake build, for the announcer job only, writes current manifests.
 func announcerTestHandlers(t *testing.T) (serverHandlers, *store.Root) {
 	t.Helper()
 	root, err := store.New(t.TempDir())
@@ -49,6 +62,7 @@ func announcerTestHandlers(t *testing.T) (serverHandlers, *store.Root) {
 			return meshjobs.BuildResult{}, context.Canceled
 		}
 		writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
+		writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
 		return meshjobs.BuildResult{Bytes: 1}, nil
 	}
 	r, err := meshjobs.New(build, "", func(m string) bool { return jobModuleReady(root, m) })
@@ -79,7 +93,7 @@ func announcerState(t *testing.T, h http.Handler) (state string, built, stale bo
 }
 
 // TestAnnouncerReadiness — absent and version-1 manifests are not ready (the startup queues the
-// job); a current manifest is.
+// job), nor is a current announcer manifest without the reloads' one; both current are.
 func TestAnnouncerReadiness(t *testing.T) {
 	h, root := announcerTestHandlers(t)
 	if jobModuleReady(root, meshjobs.JobAnnouncer) {
@@ -88,16 +102,30 @@ func TestAnnouncerReadiness(t *testing.T) {
 	if state, built, stale := announcerState(t, h); state != "absent" || built || stale {
 		t.Fatalf("no manifest: %s built %v stale %v", state, built, stale)
 	}
-	writeAnnouncerManifest(t, root.Dir(), 1)
-	if jobModuleReady(root, meshjobs.JobAnnouncer) {
-		t.Fatal("a version-1 manifest is ready")
-	}
-	if state, built, stale := announcerState(t, h); state != "absent" || !built || !stale {
-		t.Fatalf("version 1: %s built %v stale %v", state, built, stale)
-	}
 	writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
+	if jobModuleReady(root, meshjobs.JobAnnouncer) {
+		t.Fatal("ready without the reloads manifest")
+	}
+	if state, built, _ := announcerState(t, h); state != "absent" || built {
+		t.Fatalf("announcer only: %s built %v", state, built)
+	}
+	writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
 	if state, built, stale := announcerState(t, h); state != "ready" || !built || stale {
 		t.Fatalf("current: %s built %v stale %v", state, built, stale)
+	}
+	for name, write := range map[string]func(){
+		"announcer version 1": func() { writeAnnouncerManifest(t, root.Dir(), 1) },
+		"reloads version 0":   func() { writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion-1) },
+	} {
+		writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
+		writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
+		write()
+		if jobModuleReady(root, meshjobs.JobAnnouncer) {
+			t.Fatalf("%s: ready", name)
+		}
+		if state, built, stale := announcerState(t, h); state != "absent" || !built || !stale {
+			t.Fatalf("%s: %s built %v stale %v", name, state, built, stale)
+		}
 	}
 }
 

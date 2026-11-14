@@ -168,8 +168,8 @@ func TestSoundRouteViaMux(t *testing.T) {
 	}
 }
 
-// TestSoundFile — the name filter: an .ogg (sound set or announcer take) and the announcer
-// manifest pass, anything else does not (the WAV takes of manifest version 2 included).
+// TestSoundFile — the name filter: an .ogg (sound set, announcer or reload take) and the two
+// extraction manifests pass, anything else does not (the WAV takes of manifest version 2 included).
 func TestSoundFile(t *testing.T) {
 	cases := map[string]bool{
 		"gunshot_battle_rifle.ogg":    true,
@@ -182,6 +182,9 @@ func TestSoundFile(t *testing.T) {
 		"announcer.JSON":              false,
 		"announcer_doublekill_01.ogg": true,
 		"announcer_doublekill_01.wav": false,
+		"reloads.json":                true,
+		"reloads.JSON":                false,
+		"reload_0012abcd.ogg":         true,
 	}
 	for name, want := range cases {
 		if ok := soundFile(name); ok != want {
