@@ -8,26 +8,27 @@ import (
 )
 
 // LOCAL-CHANGE (infinite-theater-3d): also returns the synthetic textures of the baked palette
-// blend (terrain_melange_bake.go).
-func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, map[uint32]Materiau, map[uint32]Texture, error) {
+// blend (terrain_melange_bake.go), and the decorators it scatters (decorateurs_pose.go).
+func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, map[uint32]Materiau, map[uint32]Texture, []TapisDecorateur, error) {
 	var out GroupeMaillage
 	matieres := map[uint32]Materiau{}
 	synthetiques := map[uint32]Texture{}
+	var decorateurs []TapisDecorateur
 	refs, err := terrainsDuScenario(opts.moduleScenario())
 	if err != nil {
-		return out, nil, nil, err
+		return out, nil, nil, nil, err
 	}
 	for _, ref := range refs {
 		cadre, err := cadreTerrain(ref.Cadre, opts.CadreMaillage)
 		if err != nil {
-			return out, nil, nil, err
+			return out, nil, nil, nil, err
 		}
 		if cadre[2] <= cadre[0] || cadre[3] <= cadre[1] {
 			continue
 		}
 		s, err := ouvreTerrain(idx, ref.ID)
 		if err != nil {
-			return out, nil, nil, err
+			return out, nil, nil, nil, err
 		}
 		plage, tuiles, noeuds, err := litTerrainAdapte(idx, s, cadre)
 		if err != nil {
@@ -55,13 +56,14 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 		params.Materiau = mat.ID
 		g, err := assembleTerrain(tuiles, params)
 		if err != nil {
-			return out, nil, nil, err
+			return out, nil, nil, nil, err
 		}
 		ajouteGroupeTerrain(&out, g)
+		decorateurs = append(decorateurs, poseDecorateurs(idx, s, plage, tuiles, params, ref.ID)...)
 		out.Instances += len(tuiles)
 		matieres[mat.ID] = mat
 	}
-	return out, matieres, synthetiques, nil
+	return out, matieres, synthetiques, decorateurs, nil
 }
 
 func ajouteGroupeTerrain(dst *GroupeMaillage, src GroupeMaillage) {

@@ -101,6 +101,9 @@ type gltfNode struct {
 	Translation *[3]float32 `json:"translation,omitempty"`
 	Rotation    *[4]float32 `json:"rotation,omitempty"`
 	Scale       *[3]float32 `json:"scale,omitempty"`
+	// Extensions (LOCAL-CHANGE (infinite-theater-3d)): EXT_mesh_gpu_instancing for scattered
+	// decorators (glb_decorateurs.go).
+	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
 type gltfMesh struct {
@@ -195,6 +198,7 @@ func documentGLB(m *MaillageMonde, generateur string, extras map[string]any) (*g
 		}
 		ajouteGroupe(doc, bin, gr.nom, gr.g, mats.rang)
 	}
+	ajouteDecorateurs(doc, bin, m.Decorateurs, mats.rang)
 	if mats.err != nil {
 		return nil, nil, fmt.Errorf("textures des materiaux : %w", mats.err)
 	}

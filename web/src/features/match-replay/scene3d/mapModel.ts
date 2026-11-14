@@ -377,6 +377,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const decalStencil = new Map<string, THREE.MeshStandardMaterial>()
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
   const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
+  const instanced: THREE.InstancedMesh[] = []
   gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const source = o.material as THREE.MeshStandardMaterial
@@ -384,6 +385,17 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     const node = o.parent?.name || o.name
     if (node.startsWith('ombre') || (extras.shader !== undefined && SCREEN_EFFECT_SHADERS.has(extras.shader))) {
       o.visible = false
+      return
+    }
+    if (o instanceof THREE.InstancedMesh) {
+      // A terrain's scattered clumps (grass, `decorHerbe*`): tens of thousands of copies of one
+      // small cutout mesh. They get their material and receive shadows, and stay out of the
+      // families' passes (ray index, shadow proxies, merging), which read one copy only.
+      tagSurface(o, source, extras.shader, 'decor')
+      placeMaterial(o, source, extras, 'decor', ctx)
+      instanced.push(o)
+      o.castShadow = false
+      o.receiveShadow = true
       return
     }
     const key: Family = (extras.melange ?? 0) !== 0 || extras.vitre ? 'seeThrough' : node.startsWith('decor') ? 'decor' : 'structure'
@@ -394,6 +406,10 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     o.receiveShadow = true
   })
   await Promise.all(ctx.jobs)
+  // A clump's cards are seen from both sides, as in the game. Their layered materials are theirs
+  // alone (the composition names their cutout and gradient).
+  const familyShared = new Set<THREE.Material>(Object.values(mats))
+  for (const o of instanced) for (const m of [o.material].flat()) if (!familyShared.has(m)) m.side = THREE.DoubleSide
   for (const m of decalStencil.values()) owned.push(m)
   const drawn = [...groups.structure, ...groups.decor]
   const merge = mergeLayers ? convertLayered(drawn, [...drawn, ...groups.seeThrough], owned) : null
