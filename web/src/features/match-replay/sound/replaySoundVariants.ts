@@ -48,6 +48,11 @@ export interface ReplaySoundEvent {
    */
   announcer?: true
   /**
+   * A LEVEL GAIN of this event, in dB, added to the playback's draw at the page as at the export
+   * (`withEventGain`). Absent = the file's level. Only the reloads carry one (`reloadLoudness.ts`).
+   */
+  gainDb?: number
+  /**
    * Where the sound comes from, in map coordinates (x, y): the horizontal plane of spatial
    * sound (`soundSpatial.ts`). Absent = a sound without a place, played as is whatever the
    * listener.

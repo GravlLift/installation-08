@@ -31,7 +31,7 @@
  * derived from the EVENT itself (its rank and its stem): two exports of the same match sound
  * the same, and two occurrences of the same gesture still sound differently.
  */
-import { distanceChain, drawVariation, gainFromDb, type SoundDraw } from './weaponSoundLogic'
+import { distanceChain, drawVariation, gainFromDb, withEventGain, type SoundDraw } from './weaponSoundLogic'
 import {
   SOUND_MAX_VOICES,
   soundEnvelopeOf,
@@ -210,7 +210,7 @@ export function planAudioMix(
     const stem = pickVariantStem(e, rnd)
     // The RANGED variation only concerns the WEAPONS: the table is indexed by weapon stem, and
     // `drawVariation` returns the exact neutral for any other stem.
-    const draw = drawVariation(WEAPON_SOUND_VARIATIONS[stem], options.variationPercent, rnd)
+    const draw = withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[stem], options.variationPercent, rnd), e)
     const shape = soundShapeOf(e)
     // THE PLACE FOR THE CLIP'S LISTENER, at its moment, SAME rule as the real-time player
     // (`placeOf`): without a listener or without a place, no placement — the sound stays as is.

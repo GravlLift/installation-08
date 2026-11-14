@@ -73,6 +73,12 @@ func TestParseBankFollowsEventsToMedia(t *testing.T) {
 	if got := bk.EventMedia(401); got != nil {
 		t.Fatalf("a sound read as an event: %v", got)
 	}
+	if got := bk.EventTargetTypes(100); !reflect.DeepEqual(got, []byte{HircRandomSeq}) {
+		t.Fatalf("event 100 targets %v", got)
+	}
+	if got := bk.EventTargetTypes(401); got != nil {
+		t.Fatalf("a sound read as an event: %v", got)
+	}
 	if string(bk.Embedded[9003]) != "xyz" {
 		t.Fatalf("embedded media: %q", bk.Embedded[9003])
 	}

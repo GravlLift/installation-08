@@ -46,15 +46,16 @@ import { soundUrlOf } from './replayAudioMix'
 
 import { persistPreference, readStoredFlag, readStoredNumber } from '../settings/replayPreferences'
 import { endMatchSoundsOf, endMatchSoundStems, type EndMatchSoundSpec } from './endMatchSound'
-import { useAnnouncerTrack, type AnnouncerContext } from './useAnnouncerTrack'
+import type { AnnouncerContext } from './useAnnouncerTrack'
+import { useSoundTimeline } from './useSoundTimeline'
 import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
 import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
 import { ReplayAudioPlayer, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { distanceChain, drawVariation } from './weaponSoundLogic'
+import { distanceChain, drawVariation, withEventGain } from './weaponSoundLogic'
 import { WEAPON_SOUND_VARIATIONS } from './weaponSoundVariations'
-import { buildSoundTimeline, type SoundCategory, type SoundCategoryFilter } from './replaySound'
+import type { SoundCategory, SoundCategoryFilter } from './replaySound'
 import { objectiveSideResolver } from './objectiveSound'
 import type { FilmAllegiance } from '../../../lib/replay/filmAllegiance'
 import { pickVariantStem, stemsOf, type ReplaySoundEvent } from './replaySoundVariants'
@@ -278,11 +279,7 @@ export function useReplaySound(
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
-  const announcer = useAnnouncerTrack(context, on)
-  const timeline = useMemo(
-    () => buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, announcer),
-    [doc, kills, categories, sideOfXuid, allyTeam, announcer],
-  )
+  const { timeline, announcer } = useSoundTimeline(doc, kills, { categories, sideOfXuid, allyTeam, announcer: context, on })
   // The END-OF-MATCH VOICE is the announcer's too: cutting the category keeps the fanfare alone.
   const endMatch = useMemo(
     () => (context.endMatch && !categories.announcer ? { ...context.endMatch, voiced: false as const } : context.endMatch),
@@ -479,7 +476,7 @@ export function useReplaySound(
       // (held sound or cut shot of a continuous fire burst, schema 71) travels with the event.
       player.play(
         url,
-        drawVariation(WEAPON_SOUND_VARIATIONS[stem], tuning.variationPercentRef.current),
+        withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[stem], tuning.variationPercentRef.current), e),
         shape,
         placeOf(listener.current, e),
       )

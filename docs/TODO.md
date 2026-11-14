@@ -27,7 +27,11 @@ are in [PARITY.md](PARITY.md).
 
 ## After migration (owner's queue, in this order)
 
-1. Reload sounds are inconsistent between weapons.
+1. Reload sounds are inconsistent between weapons. DONE: every weapon's reload is extracted
+   from the installed game, timed by its reload animation, cancelled with the reload, and
+   brought to one level. Not yet heard in a match; the level target is a measured guess.
+   Shell-loading weapons (Cindershot, Heatwave, Hydra) play one loading step per reload
+   action, whatever the number of shells; the battery weapons' vent is silent.
 2. Announcer (the in-game voice calls). DONE: lines repacked from the installed game in
    pure Go. Objective calls (flag, bomb, hill) not yet checked in a match.
 3. Equipment animations and effects. DONE for grapple, repulsor and shroud screen. Thruster

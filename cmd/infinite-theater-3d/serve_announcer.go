@@ -1,9 +1,9 @@
 package main
 
-// serve_announcer.go — the announcer sound library: the build job's body (the same extraction
-// build-sounds runs), its readiness, and the state/build route pair. The job shares the mesh
-// build runner's queue with the other one-time builds; the Origin loopback check and the state
-// JSON are the mesh routes' own.
+// serve_announcer.go — the extracted sound library (the announcer's voice lines and the weapons'
+// reload sounds): the build job's body (the same extractions build-sounds runs), its readiness,
+// and the state/build route pair. The job shares the mesh build runner's queue with the other
+// one-time builds; the Origin loopback check and the state JSON are the mesh routes' own.
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -19,33 +20,42 @@ import (
 // which falls back to English anyway when the install has no other announcer.
 const announcerJobLanguage = "en"
 
-// announcerReady is the announcer library's readiness: its manifest is in the sound folder and
-// is not stale (a manifest of an older format version is rebuilt).
+// announcerReady is the sound library's readiness: the announcer's and the reloads' manifests
+// are both in the sound folder and neither is stale (a manifest of an older format version, or
+// one missing, has the job run again).
 func announcerReady(dataDir string) bool {
-	built, stale := announcer.ManifestStatus(soundsDir(dataDir))
-	return built && !stale
+	dir := soundsDir(dataDir)
+	built, stale := announcer.ManifestStatus(dir)
+	reloadsBuilt, reloadsStale := reloadsounds.ManifestStatus(dir)
+	return built && !stale && reloadsBuilt && !reloadsStale
 }
 
-// buildAnnouncer runs the announcer extraction into the store's sound folder. It is the
-// announcer job's body in the mesh build runner.
+// buildAnnouncer runs the announcer and reload extractions into the store's sound folder. It
+// is the announcer job's body in the mesh build runner.
 func buildAnnouncer(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
 	res, folder, err := buildAnnouncerSounds(ctx, gameRoot, root.Dir(), announcerJobLanguage)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
 	slog.InfoContext(ctx, "announcer sounds built", "language", folder, "lines", len(res.Manifest.Lines), "files", res.Files, "bytes", res.Bytes)
-	return meshjobs.BuildResult{Bytes: res.Bytes, Triangles: 0}, nil
+	reloads, err := buildReloadSounds(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: res.Bytes + reloads.Bytes, Triangles: 0}, nil
 }
 
-// handleAnnouncerState answers GET /api/announcer/state with the announcer library's build
-// state, plus whether its manifest is built and whether it is stale.
+// handleAnnouncerState answers GET /api/announcer/state with the sound library's build state,
+// plus whether its manifests are both built and whether either is stale.
 func (h serverHandlers) handleAnnouncerState(w http.ResponseWriter, r *http.Request) {
 	if h.jobs == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
 	out := meshStateJSON(h.jobs.Snapshot(meshjobs.JobAnnouncer))
-	out["built"], out["stale"] = announcer.ManifestStatus(soundsDir(h.root.Dir()))
+	built, stale := announcer.ManifestStatus(soundsDir(h.root.Dir()))
+	reloadsBuilt, reloadsStale := reloadsounds.ManifestStatus(soundsDir(h.root.Dir()))
+	out["built"], out["stale"] = built && reloadsBuilt, stale || reloadsStale
 	writeJSON(w, http.StatusOK, out)
 }
 

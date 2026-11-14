@@ -28,7 +28,7 @@ The normal path is the web viewer over the local server.
 
 `serve` starts the local HTTP server (loopback, `127.0.0.1:8177` by default) and, when it
 finds a game installation, queues every one-time build in the background: the weapon icon
-set, the HUD icon set, the rank badge set, the announcer's voice lines, the weapon model
+set, the HUD icon set, the rank badge set, the announcer's voice lines and the weapons' reload sounds, the weapon model
 library, the first-person library, the Spartan piece library, and, for every match already in the store, that match's
 map mesh and variant layer. A build whose output is already on disk is skipped, so a
 restart only builds what is still missing. The builds run one at a time and never block
@@ -92,7 +92,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB | `--map <key> --mvar <file.mvar> --out <file.glb>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
-| `build-sounds` | the announcer's voice lines (168 calls, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json`) | `--lang en\|fr`, `--data <dir>` |
+| `build-sounds` | the announcer's voice lines (168 calls) and every weapon's reload sounds, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json` and `reloads.json` | `--lang en\|fr`, `--data <dir>` |
 | `build-firstperson-library` | the whole first-person rig library (one rig per first-person-capable weapon, shared texture depot, `index.json`) | `--data <dir>`, `--map <module-key>` |
 | `build-spartan` | the Spartan body with its game animations, to one GLB | `--map <module-key>`, `--out <file.glb>` |
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
@@ -137,8 +137,9 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   `POST /api/first-person/build`; `GET /api/first-person/{file}` (a rig or texture).
 - Spartan piece library: `GET /api/spartan-pieces/{file}`, `POST /api/spartan-pieces/build`,
   `GET /api/spartan-pieces/state`.
-- Announcer sounds: `GET /api/announcer/state` (the job state plus `built` and `stale`: a
-  manifest of an older format is rebuilt), `POST /api/announcer/build`.
+- Announcer and reload sounds: `GET /api/announcer/state` (the job state plus `built` and
+  `stale`, true when both manifests are there and when either is of an older format, which is
+  rebuilt), `POST /api/announcer/build` (one job extracts both).
 - `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
   per coating library whether it is built, stale, and how many of its materials the export
   does not know (`materials_missing`). It never carries a path or an environment value.
@@ -181,6 +182,18 @@ re-encoding (`internal/wwvorbis`, a port of ww2ogg; no other program runs). The 
 earlier extraction that the new `announcer.json` no longer lists (`announcer_<line>_<nn>`
 `.ogg` or `.wav` only). Without an extraction `announcer.json` is a `404` and only the
 built-in round-over voice speaks.
+
+The same command extracts every weapon's reload. The game posts a reload's sounds from the
+Spartan's third-person reload animation of the held weapon's type
+(`<stance>:<class>:<type>:reload_1`, standing and crouched); the build reads each animation's
+sound events and their frames, follows each `snd!` tag to its third-person Wwise event and
+writes every take as `reload_<media id>.ogg` (183 files, about 1.4 MB of 48 kHz mono, for 52
+weapon tags), with `reloads.json`. A weapon type with no `reload_1` animation (the battery
+weapons, which vent, and the melee weapons) gets no entry and its reloads stay silent. The viewer
+plays each sound at its frame after the film's reload action, cancels the rest of the reload at
+the player's death, weapon change, melee, throw, shot or next reload, and brings every reload's
+loudest sound to one level (`web/src/features/match-replay/sound/reloadLoudness.ts`). Without an
+extraction `reloads.json` is a `404` and no reload sounds.
 
 ## Other commands
 
