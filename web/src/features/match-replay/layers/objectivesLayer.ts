@@ -1,59 +1,59 @@
 /**
- * objectivesLayer.ts — le CALQUE STATIQUE des objectifs du mode joué (lot 4) : normalisation,
- * géométrie et pulses d'action. Logique pure, pas de React.
+ * objectivesLayer.ts — the STATIC LAYER of the objectives of the mode played (lot 4):
+ * normalization, geometry and action pulses. Pure logic, no React.
  *
- * L'ÉTAT VIVANT DES ZONES VIT À CÔTÉ (`zoneStatesLayer.ts`, schéma 16). La frontière est celle du
- * TEMPS : ici la géométrie, qui ne change jamais et se cuit une fois hors écran ; là l'état, qui
- * change à chaque image et se peint dans la boucle. Les deux tracent la MÊME forme — `traceZonePath`
- * est exporté pour cela, plutôt que recopié.
+ * THE LIVING STATE OF THE ZONES LIVES BESIDE IT (`zoneStatesLayer.ts`, schema 16). The
+ * boundary is that of TIME: here the geometry, which never changes and is cooked once
+ * off-screen; there the state, which changes at every frame and is painted in the loop. The
+ * two trace the SAME shape — `traceZonePath` is exported for that, rather than copied.
  *
- * LES PULSES RESTENT, ET CE N'EST PAS UN DOUBLON. Ils marquent l'INSTANT d'une action (une
- * capture vient d'avoir lieu, un anneau s'ouvre et s'éteint) ; l'état vivant, lui, décrit une
- * DURÉE. La bascule de teinte d'une zone est d'ailleurs ce que le pulse annonce — les deux se
- * lisent ensemble, l'un ponctuel, l'autre continu.
+ * THE PULSES STAY, AND THAT IS NOT A DUPLICATION. They mark the INSTANT of an action (a
+ * capture just took place, a ring opens and fades); the living state, for its part,
+ * describes a DURATION. The tint flip of a zone is indeed what the pulse announces — the two
+ * are read together, one punctual, the other continuous.
  *
- * SAUF POUR LE DRAPEAU, ET C'EST LE LOT 3.1 (schéma 15). Le pulse de CTF n'était PAS un instant
- * annoncé : c'était un SUBSTITUT, faute d'objet — il posait l'action sur l'élément statique le
- * plus proche de son auteur, c'est-à-dire sur un socle voisin, jamais sur le drapeau. Depuis que
- * `flagCarries` publie l'objet lui-même (position, porteur, état, image par image), ce substitut
- * dirait la MÊME chose en moins juste, et les deux se contrediraient à l'écran. Il est donc
- * RETIRÉ dès que le document porte des drapeaux (cf. `buildObjectivePulses`). Les pulses de zone
- * et d'Oddball, eux, n'ont pas d'objet vivant et gardent leur rôle entier — la fonction n'est
- * donc pas supprimée, seule la FAMILLE drapeau sort.
+ * EXCEPT FOR THE FLAG, AND THAT IS LOT 3.1 (schema 15). The CTF pulse was NOT an announced
+ * instant: it was a SUBSTITUTE, for lack of an object — it placed the action on the static
+ * element closest to its author, that is, on a neighboring pedestal, never on the flag.
+ * Since `flagCarries` publishes the object itself (position, carrier, state, frame by
+ * frame), this substitute would say the SAME thing less precisely, and the two would
+ * contradict each other on screen. It is therefore REMOVED as soon as the document carries
+ * flags (cf. `buildObjectivePulses`). The zone and Oddball pulses, for their part, have no
+ * living object and keep their whole role — the function is therefore not removed, only the
+ * flag FAMILY comes out.
  *
- * ET SEULES LES FAMILLES D'OBJECTIF EN FONT UN (D.1, 2026-09-13). `doc.objectives` n'est pas une
- * liste d'objectifs : il porte TOUT ce que le statborg sait nommer, `kills` et `assists`
- * compris — l'ancre d'identité du balayage et son contrôle croisé (`objectiveevents/named.go`).
- * Sur `8bc6074f` cela faisait 15 648 pulses construits par image de scène pour 160 actions
- * d'objectif réelles (audit du 2026-09-10 §12-1), et un anneau de capture allumé à chaque frag.
- * Le tri se fait sur la FAMILLE du nom (`model/objectiveFamilies.ts`), pas sur une liste de
- * statistiques : c'est le seul discriminant que le contrat de transport publie.
+ * AND ONLY THE OBJECTIVE FAMILIES MAKE ONE (D.1, 2026-09-13). `doc.objectives` is not a list
+ * of objectives: it carries EVERYTHING the statborg knows to name, `kills` and `assists`
+ * included — the identity anchor of the sweep and its cross-check (`objectiveevents/named.go`).
+ * On `8bc6074f` that made 15,648 pulses built per scene frame for 160 real objective
+ * actions (audit of 2026-09-10 §12-1), and a capture ring lit at every frag. The sorting is
+ * done on the FAMILY of the name (`model/objectiveFamilies.ts`), not on a list of
+ * statistics: it is the only discriminant that the transport contract publishes.
  *
- * CE QUE LE SERVEUR A DÉJÀ DÉCIDÉ, et que ce calque ne rejoue pas : quels rôles servir
- * (table du titre jointe au pair_name), quelles équipes afficher (les modes à possession
- * dynamique arrivent neutres). Le front dessine CE QUI ARRIVE — un document sans
- * `mapObjectives` n'a simplement pas de calque.
+ * WHAT THE SERVER HAS ALREADY DECIDED, and that this layer does not replay: which roles to
+ * serve (table of the title joined to the pair_name), which teams to display (the modes with
+ * dynamic possession arrive neutral). The front draws WHAT ARRIVES — a document without
+ * `mapObjectives` simply has no layer.
  *
- * AUCUN LIBELLÉ, ET C'EST UNE RÈGLE : la lettre A/B/C affichée en jeu n'existe dans
- * aucune donnée décodée (le rang spatial du serveur n'est PAS un nom, cf.
- * objectives_catalog.go). Ce calque n'écrit donc JAMAIS de texte — le garde
- * `drawObjectivesLayer n'appelle ni fillText ni strokeText` est testé.
+ * NO LABEL, AND THAT IS A RULE: the letter A/B/C displayed in game exists in no decoded data
+ * (the spatial rank of the server is NOT a name, cf. objectives_catalog.go). This layer
+ * therefore NEVER writes text — the guard "drawObjectivesLayer does not call fillText nor
+ * strokeText" is tested.
  *
- * GÉOMÉTRIE : mêmes transforms monde -> canvas que structure/tracks (worldToCanvas,
- * canvasScale). Une boîte arrive en demi-extents + vecteur Forward (projeté au plan,
- * normalisé ici) ; un cylindre en rayon monde. Les marqueurs sont des POINTS : un
- * losange (apparition/socle), doublé d'un anneau pour une livraison — jamais un disque
- * de zone inventé (règle shape.go).
+ * GEOMETRY: same world -> canvas transforms as structure/tracks (worldToCanvas, canvasScale).
+ * A box arrives in half extents + Forward vector (projected to the plane, normalized here);
+ * a cylinder in world radius. The markers are POINTS: a diamond (appearance/pedestal),
+ * doubled by a ring for a delivery — never an invented zone disk (rule shape.go).
  *
- * L'ALTITUDE SE DIT COMME CELLE DES JOUEURS (2026-09-18). Un objectif portait un `z` que
- * personne ne lisait : un socle de drapeau à l'étage se dessinait exactement comme un socle au
- * sol, pendant que les pions disaient leur étage par des anneaux. Le calque parle désormais le
- * même langage, sans texte : un MARQUEUR porte `fl` anneaux concentriques (`floorRings.ts`,
- * la boucle des pions), une ZONE porte `fl` contours concentriques EXTÉRIEURS — extérieurs
- * parce que le calque vivant (`zoneStatesLayer`) repeint l'intérieur de la forme quand la zone
- * est tenue, et recouvrirait tout ce qui y serait cuit. L'étage est celui de `floorOf`, sur
- * l'amplitude verticale du document (`ObjectivesStyle.z`) ; un terrain PLAT n'en donne aucun
- * (cf. `floorInRange`, garde commune aux pions).
+ * ALTITUDE IS STATED AS THAT OF THE PLAYERS (2026-09-18). An objective carried a `z` that no
+ * one read: a flag pedestal on a floor was drawn exactly like a pedestal on the ground,
+ * while the pawns stated their floor by rings. The layer now speaks the same language,
+ * without text: a MARKER carries `fl` concentric rings (`floorRings.ts`, the loop of the
+ * pawns), a ZONE carries `fl` concentric OUTER outlines — outer because the living layer
+ * (`zoneStatesLayer`) repaints the inside of the shape when the zone is held, and would
+ * cover what was baked there. The floor is that of `floorOf`, on the vertical amplitude of
+ * the document (`ObjectivesStyle.z`); a FLAT terrain gives none (cf. `floorInRange`, guard
+ * shared with the pawns).
  */
 import type { ReplayMapObjectives } from '@/lib/api/types'
 
@@ -66,31 +66,31 @@ import { filmClockTrusted } from '@/lib/replay/scoreTimeline'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { type CanvasView, projectTo, scaleOf } from '../model/replayView'
 
-/** Valeur « aucun camp » du team_index — celle du fichier de carte, servie telle quelle. */
+/** "No side" value of team_index — that of the map file, served as is. */
 export const OBJECTIVE_TEAM_NEUTRAL = -1
 
-/** Un élément d'objectif prêt à dessiner : nullabilité résolue, Forward normalisé 2D. */
+/** An objective element ready to draw: nullability resolved, Forward normalized 2D. */
 export interface ObjectiveElementReady {
   role: string
-  /** Index d'équipe À AFFICHER : -1 = neutre (déjà arbitré côté serveur). */
+  /** Team index TO DISPLAY: -1 = neutral (already arbitrated on the server side). */
   team: number
   x: number
   y: number
   z: number
   kind: 'zone' | 'marker'
   family?: 'box' | 'cylinder'
-  /** Boîte : demi-cotés monde le long de fwd et de sa perpendiculaire. */
+  /** Box: world half extents along fwd and its perpendicular. */
   halfX: number
   halfY: number
-  /** Cylindre : rayon monde. */
+  /** Cylinder: world radius. */
   radius: number
-  /** Axe de la boîte, unitaire 2D (les repères dégénérés sont refusés côté serveur). */
+  /** Axis of the box, unit 2D (the degenerate frames are refused on the server side). */
   fwd: XY
 }
 
 /**
- * normalizeMapObjectives résout la nullabilité du transport UNE fois, à l'entrée (même
- * règle que normalizeCallouts). L'ordre servi (tri spatial serveur) est conservé.
+ * normalizeMapObjectives resolves the nullability of the transport ONCE, at the entry (same
+ * rule as normalizeCallouts). The order served (server spatial sort) is kept.
  */
 export function normalizeMapObjectives(
   mo: ReplayMapObjectives | null | undefined,
@@ -130,10 +130,11 @@ export function normalizeMapObjectives(
 }
 
 /**
- * unit2D normalise la projection au plan du Forward. Le serveur refuse les repères
- * dégénérés (mapvar) et l'axe Up des zones est vertical sur tout le catalogue mesuré :
- * la projection est donc un vecteur horizontal non nul — le repli (1,0) ne sert que de
- * ceinture si une donnée future violait l'invariant, et il rend une boîte alignée.
+ * unit2D normalizes the projection to the plane of the Forward. The server refuses the
+ * degenerate frames (mapvar) and the Up axis of the zones is vertical on the whole measured
+ * catalog: the projection is therefore a non-null horizontal vector — the fallback (1,0)
+ * only serves as a belt if a future data violated the invariant, and it returns an aligned
+ * box.
  */
 function unit2D(x: number | undefined, y: number | undefined): XY {
   const vx = x ?? 0
@@ -143,59 +144,61 @@ function unit2D(x: number | undefined, y: number | undefined): XY {
   return { x: vx / n, y: vy / n }
 }
 
-/** Style du calque : la couleur d'équipe est RÉSOLUE par l'appelant (règle color-tokens). */
+/** Style of the layer: the team color is RESOLVED by the caller (color-tokens rule). */
 export interface ObjectivesStyle {
-  /** Couleur d'un index d'équipe ; -1 (neutre) rend l'encre neutre du thème. */
+  /** Color of a team index; -1 (neutral) returns the neutral ink of the theme. */
   colorOfTeam: (team: number) => string
   /**
-   * LE LISERÉ D'UN OBJECTIF SANS CAMP (2026-09-08) — l'encre du FOND, posée sous le contour.
+   * THE RIM OF AN OBJECTIVE WITHOUT SIDE (2026-09-08) — the ink of the BACKGROUND, placed
+   * under the outline.
    *
-   * Il n'existe QUE pour `team === -1`, et c'est tout son sens : un objectif tenu porte la
-   * couleur de son camp, qui le détache déjà ; un objectif neutre est gris, et un gris posé sur
-   * un fond de carte photographique se dissout selon la zone. Le liseré à l'encre du fond lui
-   * rend un bord franc sans lui inventer de couleur — la même technique que le glyphe de drapeau
-   * et les marques (`useReplayInks.mark.outline`), et la seule qui marche dans les DEUX thèmes.
+   * It exists ONLY for `team === -1`, and that is its whole meaning: a held objective
+   * carries the color of its side, which already detaches it; a neutral objective is gray,
+   * and a gray placed on a photographic map background dissolves depending on the zone. The
+   * rim in the ink of the background gives it a sharp edge without inventing it a color —
+   * the same technique as the flag glyph and the marks (`useReplayInks.mark.outline`), and
+   * the only one that works in BOTH themes.
    */
   neutralOutline: string
   /**
-   * L'AMPLITUDE VERTICALE DU DOCUMENT (`doc.bounds.minZ/maxZ`, la même que celle des pions) :
-   * c'est sur elle que `floorOf` range un `z` dans un étage. Sans elle, un objectif ne peut pas
-   * dire sa hauteur dans le langage des joueurs.
+   * THE VERTICAL AMPLITUDE OF THE DOCUMENT (`doc.bounds.minZ/maxZ`, the same as that of the
+   * pawns): it is on it that `floorOf` ranges a `z` into a floor. Without it, an objective
+   * cannot state its height in the language of the players.
    */
   z: { min: number; max: number }
 }
 
-/** `team` d'un objectif que PERSONNE ne tient — arbitré côté serveur. */
+/** `team` of an objective that NO ONE holds — arbitrated on the server side. */
 const TEAM_NONE = -1
 
-// Réglages du calque : assez francs pour se lire sous les trajectoires, assez bas pour
-// ne pas concurrencer les joueurs (mêmes ordres de grandeur que les callouts).
+// Settings of the layer: sharp enough to read under the trajectories, low enough not to
+// compete with the players (same orders of magnitude as the callouts).
 const ZONE_FILL_ALPHA = 0.09
 const ZONE_STROKE_ALPHA = 0.6
 const ZONE_STROKE_WIDTH = 1.5
-/** Débord du liseré d'un objectif SANS CAMP, de chaque côté du contour (cf. ObjectivesStyle). */
+/** Overhang of the rim of an objective WITHOUT SIDE, on each side of the outline (cf. ObjectivesStyle). */
 const ZONE_RIM_PAD = 1.2
 const MARKER_SIZE = 5.5
 const MARKER_RING = 8
 const MARKER_ALPHA = 0.9
 /**
- * Premier anneau d'ÉTAGE d'un marqueur : AU-DELÀ de l'anneau de livraison (8 px), sinon les
- * deux se confondraient et une livraison au sol se lirait « à l'étage ». Le pas d'un anneau
- * (`FLOOR_RING_GAP`) au-delà du rayon de livraison : l'écart entre l'anneau de livraison et le
- * premier anneau d'étage est alors le même qu'entre deux anneaux d'étage.
+ * First FLOOR ring of a marker: BEYOND the delivery ring (8 px), otherwise the two would
+ * blend and a ground delivery would read "on a floor". The step of a ring (`FLOOR_RING_GAP`)
+ * beyond the delivery radius: the gap between the delivery ring and the first floor ring is
+ * then the same as between two floor rings.
  */
 const MARKER_FLOOR_RING_FIRST = MARKER_RING + FLOOR_RING_GAP
 /**
- * Pas d'un contour d'étage de zone, en PIXELS d'écran : le même que celui des anneaux, pour
- * que l'œil compte la même chose. Le contour n° r est décalé de r fois ce pas vers l'extérieur,
- * ce qui le laisse au-delà du trait le plus épais du calque vivant (3,5 px, soit 1,75 px de
- * débord) — jamais recouvert.
+ * Step of a zone floor outline, in SCREEN PIXELS: the same as that of the rings, so that the
+ * eye counts the same thing. Outline n° r is offset by r times this step outward, which
+ * leaves it beyond the thickest stroke of the living layer (3.5 px, i.e. 1.75 px of
+ * overhang) — never covered.
  */
 const ZONE_FLOOR_PAD_STEP = FLOOR_RING_GAP
 const ZONE_FLOOR_STROKE_WIDTH = 1
 /**
- * drawObjectivesLayer peint zones puis marqueurs. Calque STATIQUE — l'appelant le cuit
- * hors écran et le recopie, comme le sol et les callouts. AUCUN texte (cf. en-tête).
+ * drawObjectivesLayer paints zones then markers. STATIC layer — the caller cooks it
+ * off-screen and copies it, like the ground and the callouts. NO TEXT (cf. header).
  */
 export function drawObjectivesLayer(
   ctx: CanvasRenderingContext2D,
@@ -211,8 +214,8 @@ export function drawObjectivesLayer(
     const rim = e.team === TEAM_NONE ? style.neutralOutline : null
     if (e.kind === 'zone') drawZone(ctx, e, { px, scale, color, rim, fl: floorInRange(e.z, style.z) })
   }
-  // Les marqueurs par-dessus les zones : une livraison ponctuelle vit parfois DANS son
-  // cylindre (mesuré sur Catalyst) et doit rester visible.
+  // The markers on top of the zones: a punctual delivery sometimes lives INSIDE its
+  // cylinder (measured on Catalyst) and must stay visible.
   for (const e of elements) {
     if (e.kind !== 'marker') continue
     const rim = e.team === TEAM_NONE ? style.neutralOutline : null
@@ -221,19 +224,19 @@ export function drawObjectivesLayer(
   ctx.globalAlpha = 1
 }
 
-/** Ce qu'une zone doit savoir pour se peindre : projection, encres et étage. */
+/** What a zone must know to be painted: projection, inks and floor. */
 export interface ZoneDrawing {
   px: (p: XY) => XY
   scale: number
   color: string
   rim: string | null
-  /** Étage (0 = sol) : autant de contours concentriques extérieurs. */
+  /** Floor (0 = ground): as many outer concentric outlines. */
   fl: number
 }
 
 /**
- * Zone : boîte ORIENTÉE (4 coins monde) ou cylindre (rayon monde -> pixels), puis ses contours
- * d'étage à l'EXTÉRIEUR — un par étage, de plus en plus pâles, comme les anneaux d'un pion.
+ * Zone: ORIENTED box (4 world corners) or cylinder (world radius -> pixels), then its floor
+ * outlines on the OUTSIDE — one per floor, progressively paler, like the rings of a pawn.
  */
 function drawZone(
   ctx: CanvasRenderingContext2D,
@@ -245,8 +248,8 @@ function drawZone(
   ctx.globalAlpha = ZONE_FILL_ALPHA
   ctx.fillStyle = color
   ctx.fill()
-  // LE LISERÉ D'ABORD, PLUS ÉPAIS, ET LE CONTOUR PAR-DESSUS : c'est ce qui lui laisse un bord
-  // franc sur un fond clair comme sur un fond sombre. L'ordre inverse le mangerait.
+  // THE RIM FIRST, THICKER, AND THE OUTLINE ON TOP: that is what leaves it a sharp edge on a
+  // light background as on a dark one. The reverse order would eat it.
   if (rim !== null) {
     ctx.globalAlpha = ZONE_STROKE_ALPHA
     ctx.strokeStyle = rim
@@ -261,9 +264,10 @@ function drawZone(
 }
 
 /**
- * drawZoneFloorContours : `fl` contours concentriques EXTÉRIEURS, décalés de `ZONE_FLOOR_PAD_STEP`
- * pixels chacun, tracés par la MÊME géométrie que la zone (`traceZonePath` et son `padPx`).
- * Trait fin, même couleur, opacité décroissante — le même pâlissement que les anneaux.
+ * drawZoneFloorContours: `fl` concentric OUTER outlines, each offset by
+ * `ZONE_FLOOR_PAD_STEP` pixels, traced by THE SAME geometry as the zone (`traceZonePath`
+ * and its `padPx`). Thin stroke, same color, decreasing opacity — the same paling as the
+ * rings.
  */
 export function drawZoneFloorContours(
   ctx: CanvasRenderingContext2D,
@@ -280,18 +284,18 @@ export function drawZoneFloorContours(
   }
 }
 
-/** Ce qu'un marqueur doit savoir pour se peindre : encres et étage. */
+/** What a marker must know to be painted: inks and floor. */
 interface MarkerDrawing {
   color: string
   rim: string | null
-  /** Étage (0 = sol) : autant d'anneaux concentriques, au-delà de l'anneau de livraison. */
+  /** Floor (0 = ground): as many concentric rings, beyond the delivery ring. */
   fl: number
 }
 
 /**
- * Marqueur : LOSANGE plein (apparition, socle) ; une LIVRAISON (`*_delivery`) gagne un
- * anneau — c'est un point d'arrivée, pas une apparition, et la différence se lit sans
- * texte. Les anneaux d'ÉTAGE viennent en premier, sous la silhouette, comme sur un pion.
+ * Marker: solid DIAMOND (appearance, pedestal); a DELIVERY (`*_delivery`) gains a ring —
+ * it is a point of arrival, not an appearance, and the difference reads without text. The
+ * FLOOR rings come first, under the silhouette, like on a pawn.
  */
 function drawMarker(
   ctx: CanvasRenderingContext2D,
@@ -310,7 +314,7 @@ function drawMarker(
   ctx.lineTo(c.x, c.y + MARKER_SIZE)
   ctx.lineTo(c.x - MARKER_SIZE, c.y)
   ctx.closePath()
-  // Même geste que la zone : le liseré sous la silhouette, jamais par-dessus (cf. drawZone).
+  // Same gesture as the zone: the rim under the silhouette, never on top (cf. drawZone).
   if (rim !== null) {
     ctx.strokeStyle = rim
     ctx.lineWidth = 2 * ZONE_RIM_PAD
@@ -327,17 +331,18 @@ function drawMarker(
 }
 
 /**
- * flagPulsesRetired dit si la famille DRAPEAU des pulses doit se taire : elle se tait dès que le
- * document publie la vie des drapeaux, parce qu'alors le substitut a un remplaçant EXACT.
+ * flagPulsesRetired says whether the flag FAMILY of the pulses must stay silent: it stays
+ * silent as soon as the document publishes the lives of the flags, because then the
+ * substitute has an EXACT replacement.
  *
- * Ce n'est PAS conditionné à la bascule d'affichage du calque : un lecteur qui éteint les
- * drapeaux demande moins de choses à l'écran, pas le retour d'une approximation.
+ * It is NOT conditioned to the display flip of the layer: a reader who turns off the flags
+ * asks for less on the screen, not the return of an approximation.
  */
 export function flagPulsesRetired(doc: ReplayDocumentReady): boolean {
   return doc.flagCarries.length > 0
 }
 
-/** Un pulse : une ACTION d'objectif (doc.objectives) posée sur son élément le plus proche. */
+/** A pulse: an OBJECTIVE ACTION (doc.objectives) placed on its closest element. */
 export interface ObjectivePulse {
   frame: number
   x: number
@@ -346,57 +351,61 @@ export interface ObjectivePulse {
 }
 
 /**
- * buildObjectivePulses apparie chaque action d'objectif du document à l'élément servi le
- * plus proche de son AUTEUR à l'instant de l'action (position relue par `buildCarrierPosAt` :
- * le VÉHICULE quand l'auteur y est embarqué, sinon ses vies de bipède et la même fenêtre
- * après-mort que le calque des morts).
+ * buildObjectivePulses pairs each objective action of the document with the served element
+ * closest to its AUTHOR at the instant of the action (position re-read by
+ * `buildCarrierPosAt`: the VEHICLE when the author is embarked in it, otherwise their biped
+ * lives and the same after-death window as the death layer).
  *
- * LA PROXIMITÉ EST 2D : la position interpolée d'une trace est XY (le z ne voyage pas
- * dans positionAt), et les objectifs d'un même mode ne se superposent pas en plan sur
- * les cartes mesurées. Une action sans position relue est ÉCARTÉE — un pulse posé au
- * hasard désignerait la mauvaise zone.
+ * THE PROXIMITY IS 2D: the interpolated position of a trace is XY (the z does not travel in
+ * positionAt), and the objectives of the same mode do not overlap in plan on the measured
+ * maps. An action without a re-read position is SET ASIDE — a pulse placed at random would
+ * designate the wrong zone.
  *
- * `a.t` EST DÉJÀ UNE FRAME DU DOCUMENT — LE CLIENT NE RETRANCHE RIEN. C'est le contrat du
- * champ, écrit côté Go : `ObjectiveAction.T` est « l'index de frame, sur le même axe que
- * Point.T et Shot.T » (`games/halo_infinite/film/replay/objectives.go`), et c'est `buildObjectiveActions`
- * qui pose l'instant sur la grille via `scoreClock.frameOf` — laquelle RETRANCHE l'origine
- * (`build_score.go`, `replayScoreClock` : `originMS = originMSOf(doc.OriginMs, …)`).
+ * `a.t` IS ALREADY A FRAME OF THE DOCUMENT — THE CLIENT SUBTRACTS NOTHING. That is the
+ * contract of the field, written on the Go side: `ObjectiveAction.T` is "the frame index,
+ * on the same axis as Point.T and Shot.T" (`games/halo_infinite/film/replay/objectives.go`),
+ * and it is `buildObjectiveActions` that places the instant on the grid via
+ * `scoreClock.frameOf` — which SUBTRACTS the origin (`build_score.go`, `replayScoreClock`:
+ * `originMS = originMSOf(doc.OriginMs, …)`).
  *
- * CETTE FONCTION LA RETRANCHAIT UNE SECONDE FOIS (revue R1, 2026-08-18). La correction avait
- * été faite côté client le 2026-08-14 (lot containment), puis côté Go au lot A phase 1
- * (`63b90583c`, report `:123` du registre) sans que celle-ci soit retirée. Le double décalage
- * allumait les pulses `originMs` TROP TÔT — de 3,6 s à 50,8 s selon le match — et JETAIT
- * purement et simplement les actions dont la frame était inférieure à cette origine.
+ * THIS FUNCTION SUBTRACTED IT A SECOND TIME (review R1, 2026-08-18). The correction had
+ * been done on the client side on 2026-08-14 (lot containment), then on the Go side at lot A
+ * phase 1 (`63b90583c`, report `:123` of the register) without the former being removed. The
+ * double offset lit the pulses `originMs` TOO SOON — from 3.6 s to 50.8 s depending on the
+ * match — and THREW away, purely and simply, the actions whose frame was lower than this
+ * origin.
  *
- * Le fil des éliminations, lui, garde sa soustraction (`killFeedLogic`, `replayMs =
- * event_time_ms + t0Ms − originMs`) et ce n'est pas une incohérence : ses instants viennent
- * de la Match View, pas du film — personne ne les a recalés avant lui.
+ * The feed of the eliminations, for its part, keeps its subtraction (`killFeedLogic`,
+ * `replayMs = event_time_ms + t0Ms − originMs`) and that is not an inconsistency: its
+ * instants come from the Match View, not from the film — no one had realigned them before it.
  */
 export function buildObjectivePulses(
   doc: ReplayDocumentReady,
   elements: ObjectiveElementReady[],
 ): ObjectivePulse[] {
   if (elements.length === 0 || doc.objectives.length === 0 || doc.tracks.length === 0) return []
-  // L'ORIGINE DOIT ÊTRE CONNUE POUR QUE `a.t` VEUILLE DIRE QUELQUE CHOSE (P2 de la revue du
-  // lot A phase 1). Le recalage est fait côté Go, mais avec ZÉRO quand l'origine n'a pas pu
-  // être établie (`replayScoreClock` → `originMSOf`) : les frames publiées sont alors décalées
-  // de 3,6 s à 50,8 s selon le match, et l'appariement lirait la position de l'auteur ailleurs.
-  // `coverage.originResolved` le dit, et un calque muet vaut mieux qu'un calque faux — c'est la
-  // MÊME règle qui masque le score (cf. filmClockTrusted).
+  // THE ORIGIN MUST BE KNOWN FOR `a.t` TO MEAN ANYTHING (P2 of the review of lot A phase 1).
+  // The realignment is done on the Go side, but with ZERO when the origin could not be
+  // established (`replayScoreClock` → `originMSOf`): the published frames are then offset by
+  // 3.6 s to 50.8 s depending on the match, and the pairing would read the position of the
+  // author elsewhere. `coverage.originResolved` says it, and a silent layer is worth better
+  // than a wrong one — it is the SAME rule that masks the score (cf. filmClockTrusted).
   if (!filmClockTrusted(doc)) return []
-  // LE SUBSTITUT DU DRAPEAU SORT ICI, à la source, plutôt qu'au tracé : un pulse construit puis
-  // non dessiné resterait dans la mémoire de la scène et dans les dépendances de `draw`.
+  // THE SUBSTITUTE OF THE FLAG COMES OUT HERE, at the source, rather than at the tracing: a
+  // pulse built then not drawn would stay in the memory of the scene and in the dependencies
+  // of `draw`.
   const dropFlags = flagPulsesRetired(doc)
   const posOf = buildCarrierPosAt(doc)
   const out: ObjectivePulse[] = []
   for (const a of doc.objectives) {
-    // SEULES LES FAMILLES D'OBJECTIF FONT UN PULSE (cf. l'en-tête, D.1 du 2026-09-13) : les
-    // frags et les assistances voyagent dans le même tableau et n'ont rien à annoncer ici.
+    // ONLY THE OBJECTIVE FAMILIES MAKE A PULSE (cf. the header, D.1 of 2026-09-13): the
+    // frags and the assists travel in the same array and have nothing to announce here.
     const family = objectiveFamilyOf(a.stat)
     if (family === null) continue
     if (dropFlags && family === 'flag') continue
-    // AUCUN RECALAGE ICI : `a.t` est déjà une frame du document (cf. en-tête). L'action que
-    // la grille ne portait pas a été comptée hors fenêtre côté Go et n'est pas publiée.
+    // NO REALIGNMENT HERE: `a.t` is already a frame of the document (cf. header). The action
+    // that the grid did not carry was counted outside the window on the Go side and is not
+    // published.
     const frame = a.t
     const pos = posOf(a.xuid, frame)
     if (!pos) continue
@@ -417,16 +426,16 @@ export function buildObjectivePulses(
   return out
 }
 
-/** Fenêtre d'affichage d'un pulse (forme d'EventWindow de replayDraw). */
+/** Display window of a pulse (shape of EventWindow of replayDraw). */
 interface PulseWindow {
   frame: number
   hold: number
 }
 
 /**
- * drawObjectivePulses dessine les pulses de la fenêtre courante : un anneau qui S'OUVRE
- * depuis l'élément (l'action vient d'y avoir lieu) puis s'éteint. Sous « mouvement
- * réduit » : anneau statique, opacité constante — même règle que les autres effets.
+ * drawObjectivePulses draws the pulses of the current window: a ring that OPENS from the
+ * element (the action just took place there) then fades. Under "reduced motion": static
+ * ring, constant opacity — same rule as the other effects.
  */
 export function drawObjectivePulses(
   ctx: CanvasRenderingContext2D,
@@ -452,15 +461,15 @@ export function drawObjectivePulses(
 }
 
 /**
- * zoneCornersWorld rend les QUATRE COINS MONDE d'une zone en boîte : centre ± fwd·halfX ±
- * perp·halfY. La perpendiculaire est le fwd tourné de +90° monde — l'inversion d'axe Y est
- * portée par `worldToCanvas`, jamais ici.
+ * zoneCornersWorld returns the FOUR WORLD CORNERS of a box zone: center ± fwd·halfX ±
+ * perp·halfY. The perpendicular is the fwd rotated by +90° world — the Y axis inversion is
+ * carried by `worldToCanvas`, never here.
  *
- * IL EST EXPORTÉ, ET C'EST LA RAISON D'ÊTRE DE L'EXTRACTION (2026-08-25, item D-R). Deux
- * lecteurs ont besoin de cette formule : le TRACÉ du contour (`traceZonePath`) et l'EMPRISE
- * écran de la zone (`zoneStatesLayer`, pour clipper le remplissage progressif de capture). La
- * recopier ferait exactement ce que l'en-tête de `traceZonePath` interdisait déjà — deux
- * géométries qui divergent au premier correctif, avec un écart invisible parce que crédible.
+ * IT IS EXPORTED, AND THAT IS THE REASON FOR THE EXTRACTION (2026-08-25, item D-R). Two
+ * readers need this formula: the TRACING of the outline (`traceZonePath`) and the SCREEN
+ * FOOTPRINT of the zone (`zoneStatesLayer`, to clip the progressive fill of the capture).
+ * Copying it would do exactly what the header of `traceZonePath` already forbade — two
+ * geometries that diverge at the first fix, with an invisible gap because plausible.
  */
 export function zoneCornersWorld(e: ObjectiveElementReady, padWorld = 0): XY[] {
   const perp = { x: -e.fwd.y, y: e.fwd.x }
@@ -475,27 +484,28 @@ export function zoneCornersWorld(e: ObjectiveElementReady, padWorld = 0): XY[] {
 }
 
 /**
- * zoneCanvasRadius rend le rayon ÉCRAN d'une zone cylindrique, plancher compris. Exporté pour
- * la même raison que `zoneCornersWorld` : le tracé et l'emprise doivent lire le MÊME rayon, y
- * compris son plancher — sinon l'emprise et le contour se décalent sur les toutes petites zones.
+ * zoneCanvasRadius returns the SCREEN radius of a cylindrical zone, floor included. Exported
+ * for the same reason as `zoneCornersWorld`: the tracing and the footprint must read THE
+ * SAME radius, including its floor — otherwise the footprint and the outline would offset on
+ * the tiniest zones.
  */
 export function zoneCanvasRadius(e: ObjectiveElementReady, scale: number): number {
   return Math.max(e.radius * scale, 2)
 }
 
 /**
- * traceZonePath pose le contour d'une zone — boîte ORIENTÉE (4 coins monde) ou cylindre (rayon
- * monde -> pixels).
+ * traceZonePath places the outline of a zone — ORIENTED box (4 world corners) or cylinder
+ * (world radius -> pixels).
  *
- * IL EST EXPORTÉ PARCE QUE DEUX CALQUES LE TRACENT : celui-ci (géométrie, cuite une fois) et
- * l'état vivant des zones (`zoneStatesLayer.ts`, repeint à chaque image). Deux copies de la
- * même forme divergeraient au premier correctif de géométrie — et l'écart serait invisible :
- * un contour légèrement faux reste crédible.
+ * IT IS EXPORTED BECAUSE TWO LAYERS TRACE IT: this one (geometry, cooked once) and the
+ * living state of the zones (`zoneStatesLayer.ts`, repainted at every frame). Two copies of
+ * the same shape would diverge at the first geometry fix — and the gap would be invisible:
+ * an outline slightly wrong stays plausible.
  *
- * `padPx` (2026-09-18) DILATE la forme de ce nombre de pixels d'écran, vers l'extérieur — c'est
- * ce qui trace les contours d'étage sans une seconde copie de la géométrie : un cylindre
- * gagne `padPx` sur son rayon écran, une boîte gagne `padPx / scale` sur chaque demi-côté
- * monde. À 0 (défaut), la forme exacte.
+ * `padPx` (2026-09-18) DILATES the shape by this number of screen pixels, outward — that is
+ * what traces the floor outlines without a second copy of the geometry: a cylinder gains
+ * `padPx` on its screen radius, a box gains `padPx / scale` on each world half extent. At 0
+ * (default), the exact shape.
  */
 export function traceZonePath(
   ctx: CanvasRenderingContext2D,

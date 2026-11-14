@@ -1,47 +1,47 @@
 /**
- * canvasInk.ts — les ENCRES STRUCTURELLES du canvas de rejeu.
+ * canvasInk.ts — the STRUCTURAL INKS of the replay canvas.
  *
- * POURQUOI CE FICHIER EXISTE, ET POURQUOI CE N'EST PAS UNE ENTORSE À LA RÈGLE DES TOKENS.
- * Les tokens sémantiques (`--ac-*`) disent un RÔLE MÉTIER : une victoire, un tier de
- * performance, une équipe. Les traits dont ce canvas a besoin ici n'en portent aucun — l'arête
- * d'une marche et le texte d'une étiquette sont de la mise en page, exactement comme le sont
- * le fond de piste et la bordure d'un SVG, que la règle projet tolère nommément.
+ * WHY THIS FILE EXISTS, AND WHY IT IS NOT A BREACH OF THE TOKEN RULE.
+ * The semantic tokens (`--ac-*`) state a BUSINESS ROLE: a victory, a tier of
+ * performance, a team. The strokes this canvas needs here carry none of them — the edge of a
+ * step and the text of a label are layout, exactly like the track background and the border of
+ * an SVG, which the project rule explicitly tolerates.
  *
- * Ce qu'on refuse en revanche, c'est le littéral : un `#8b97a3` en dur ne suivrait ni le thème
- * clair, ni le thème sombre, ni un changement de charte. On lit donc les variables du système
- * de design lui-même, comme le fait `resolveToken` pour les tokens.
+ * What is refused instead is the literal: a hard-coded `#8b97a3` would follow neither the light
+ * theme, nor the dark theme, nor a change of chart. So we read the variables of the design
+ * system itself, the way `resolveToken` does for tokens.
  *
- * Toute couleur qui DIT quelque chose (une équipe, un tir, une mort) passe par un token — ce
- * fichier ne doit jamais servir à en fabriquer une.
+ * Any color that SAYS something (a team, a shot, a death) goes through a token — this file
+ * must never be used to fabricate one.
  */
 import { log } from '@/lib/accessibility/_logger'
 
 import { readThemeVar } from './themeInk'
 
-/** Variables de mise en page du système de design employées par le canvas. */
+/** Layout variables of the design system used by the canvas. */
 export type InkVar =
   | '--muted-foreground'
   | '--border'
   | '--foreground'
-  /** Encre du FOND : elle sert de LISERÉ à ce qui est rempli de `--foreground` (socles). */
+  /** BACKGROUND ink: it serves as the OUTLINE of anything filled with `--foreground` (pedestals). */
   | '--background'
   | '--card'
-  /** Contour des noms sous les marqueurs (sombre dans les deux thèmes, cf. globals.css). */
+  /** Stroke of the names under the markers (dark in both themes, cf. globals.css). */
   | '--replay-label-stroke'
-  /** Fond de la VIDÉO exportée : noir pur, identique dans les deux thèmes (décision D8). */
+  /** BACKDROP of the exported video: pure black, identical in both themes (decision D8). */
   | '--replay-export-backdrop'
 
 /**
- * readInk lit une variable de mise en page du thème — celle du thème SOMBRE pendant un export
- * (cf. `themeInk.ts`, décision D9), celle du thème actif sinon. Rend une chaîne vide côté serveur ou si
- * la variable manque — un `fillStyle` vide laisse le contexte inchangé plutôt que de peindre
- * une couleur inventée.
+ * readInk reads a layout variable of the theme — the DARK theme's during an export
+ * (cf. `themeInk.ts`, decision D9), the active theme's otherwise. Returns an empty string on
+ * the server side or when the variable is missing — an empty `fillStyle` leaves the context
+ * unchanged rather than painting an invented color.
  */
 export function readInk(name: InkVar): string {
   if (typeof document === 'undefined') return ''
   const value = readThemeVar(name)
   if (!value) {
-    log.error(`replay-ink:${name}`, `Variable de mise en page "${name}" absente du thème.`)
+    log.error(`replay-ink:${name}`, `Layout variable "${name}" missing from the theme.`)
     return ''
   }
   return value

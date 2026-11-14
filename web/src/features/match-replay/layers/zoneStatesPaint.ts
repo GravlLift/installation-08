@@ -1,23 +1,23 @@
 /**
- * zoneStatesPaint.ts — COMMENT une zone vivante se peint : l'appartenance, la progression de
- * capture, et l'échelle d'opacités qui les hiérarchise.
+ * zoneStatesPaint.ts — HOW a living zone is painted: the ownership, the capture progress,
+ * and the scale of opacities that hierarchizes them.
  *
- * POURQUOI CE FICHIER EXISTE (2026-08-25, item D-R). `zoneStatesLayer.ts` décide CE QU'IL FAUT
- * peindre — il lit l'intervalle qui couvre la frame, la valeur de la jauge, la lettre de la
- * zone. Ce fichier-ci décide COMMENT : quelles opacités, dans quel ordre, avec quel découpage.
- * La frontière n'est pas cosmétique : le calque a grossi de 417 à 568 lignes en passant de l'arc
- * extérieur au remplissage de la forme, c'est-à-dire au-dessus du seuil du dépôt, et la règle
- * est d'EXTRAIRE plutôt que d'exempter. Le découpage suit la couture naturelle — lecture d'état
- * d'un côté, primitives de rendu de l'autre — et non un partage arbitraire pour tenir un compte
- * de lignes.
+ * WHY THIS FILE EXISTS (2026-08-25, item D-R). `zoneStatesLayer.ts` decides WHAT MUST BE
+ * PAINTED — it reads the interval that covers the frame, the value of the gauge, the letter
+ * of the zone. This file decides HOW: which opacities, in which order, with which breakdown.
+ * The boundary is not cosmetic: the layer grew from 417 to 568 lines in going from the outer
+ * arc to the fill of the shape, that is, above the repository threshold, and the rule is to
+ * EXTRACT rather than to exempt. The breakdown follows the natural seam — reading of state
+ * on one side, primitives of rendering on the other — and not an arbitrary split to hold a
+ * line count.
  *
- * LA GÉOMÉTRIE N'EST PAS ICI, ET NE DOIT JAMAIS Y ENTRER. Toute forme vient de `traceZonePath`
- * (`objectivesLayer.ts`), et l'emprise écran de `zoneCornersWorld` / `zoneCanvasRadius`, les
- * deux helpers que ce même fichier exporte pour ça. Une seconde formule de forme divergerait au
- * premier correctif, et l'écart serait invisible parce que crédible.
+ * THE GEOMETRY IS NOT HERE, AND MUST NEVER ENTER. Every shape comes from `traceZonePath`
+ * (`objectivesLayer.ts`), and the screen footprint from `zoneCornersWorld` /
+ * `zoneCanvasRadius`, the two helpers that same file exports for that. A second formula of
+ * shape would diverge at the first fix, and the gap would be invisible because plausible.
  *
- * LES ENCRES ARRIVENT RÉSOLUES (règle color-tokens) : ce fichier n'en choisit aucune, il ne
- * choisit que des OPACITÉS et des épaisseurs. Aucune valeur de couleur n'y est écrite.
+ * THE INKS ARRIVE RESOLVED (color-tokens rule): this file chooses none, it only chooses
+ * OPACITIES and thicknesses. No color value is written there.
  */
 import {
   traceZonePath,
@@ -28,82 +28,84 @@ import {
 import type { XY } from '../../../lib/replay/replayLogic'
 
 /**
- * ZoneStateNow — ce qu'une zone montre à une frame donnée.
+ * ZoneStateNow — what a zone shows at a given frame.
  *
- * `owner` vaut `null` quand PERSONNE ne la tient : c'est une mesure (la valeur neutre du canal
- * de propriété), pas une absence de donnée — d'où le champ, plutôt qu'un état omis. Le sommet
- * `progress` de l'intervalle n'y figure plus : le rendu ne le lit plus.
+ * `owner` is `null` when NO ONE holds it: it is a measurement (the neutral value of the
+ * ownership channel), not an absence of data — hence the field, rather than an omitted
+ * state. The apex `progress` of the interval no longer figures there: the rendering no
+ * longer reads it.
  *
- * IL VIT ICI, ET PAS DANS LE CALQUE, pour que la dépendance reste À SENS UNIQUE : le calque
- * importe la peinture, jamais l'inverse. Le type que les deux partagent appartient donc au
- * fichier importé.
+ * IT LIVES HERE, AND NOT IN THE LAYER, so that the dependency stays ONE WAY: the layer
+ * imports the paint, never the reverse. The type that the two share therefore belongs to the
+ * imported file.
  */
 export interface ZoneStateNow {
   owner: number | null
   active: boolean
 }
 
-// Réglages du calque vivant. Plus francs que le calque statique (qui reste dessous) : c'est le
-// contraste entre les deux qui fait lire la bascule, et les zones sans état courant gardent
-// leur trait faible — elles paraissent estompées sans qu'on ait à les repeindre.
+// Settings of the living layer. Sharper than the static layer (which stays underneath): it
+// is the contrast between the two that makes the flip read, and the zones without current
+// state keep their weak stroke — they appear dimmed without having to be repainted.
 //
-// LES DEUX REMPLISSAGES D'APPARTENANCE ONT ÉTÉ RENFORCÉS le 2026-08-25 (item D-R, retour
-// utilisateur « la teinte est trop discrète ») : tenue 0,22 -> 0,30, active 0,30 -> 0,42.
-// L'écart ENTRE LES DEUX se creuse en même temps qu'ils montent — sans quoi renforcer la zone
-// tenue aurait effacé ce qui distingue la colline active, qui est le repère le plus utile de la
-// carte. L'échelle complète et son invariant sont testés (`ZONE_ALPHA_ORDER`).
+// THE TWO OWNERSHIP FILLS WERE STRENGTHENED on 2026-08-25 (item D-R, user return "la teinte
+// est trop discrète" (the tint is too discreet)): held 0.22 -> 0.30, active 0.30 -> 0.42.
+// The gap BETWEEN THE TWO widens at the same time as they rise — otherwise strengthening
+// the held zone would have erased what distinguishes the active hill, which is the most
+// useful landmark of the map. The full scale and its invariant are tested
+// (`ZONE_ALPHA_ORDER`).
 const ZONE_HELD_FILL_ALPHA = 0.3
 const ZONE_HELD_STROKE_ALPHA = 0.95
 const ZONE_HELD_STROKE_WIDTH = 2.5
 const ZONE_ACTIVE_FILL_ALPHA = 0.42
 const ZONE_ACTIVE_STROKE_WIDTH = 3.5
 /**
- * ZONE NON PRISE : LE CONTOUR GRISÉ (demande utilisateur du 2026-08-25, « bases non prises :
- * contour grisé »).
+ * ZONE NOT TAKEN: THE GRAYED OUTLINE (user request of 2026-08-25, "bases non prises :
+ * contour grisé" (bases not taken: grayed outline)).
  *
- * L'ENCRE ÉTAIT DÉJÀ LA BONNE — le neutre du thème — mais le TRAIT était celui d'une zone
- * tenue : même opacité (0,95), même épaisseur (2,5). Une base que personne ne tient
- * s'affirmait donc aussi fort qu'une base gagnée, et ne se distinguait que par sa teinte et
- * l'absence de remplissage. Elle est maintenant EN RETRAIT : plus fine, plus transparente.
- * « Personne » est un état faible, il se dessine faible.
+ * THE INK WAS ALREADY THE RIGHT ONE — the neutral of the theme — but the STROKE was that of
+ * a held zone: same opacity (0.95), same thickness (2.5). A base that no one holds therefore
+ * asserted itself as strongly as a won base, and distinguished itself only by its tint and
+ * the absence of fill. It is now IN RETREAT: thinner, more transparent. "No one" is a weak
+ * state, it is drawn weak.
  *
- * LE SEUIL EST `owner === null`, PAS `held` — et la nuance est du sens. `held` est faux dans
- * DEUX cas : personne ne tient la zone (une MESURE du film), ou bien quelqu'un la tient mais
- * la page ne sait pas situer son camp (le film ne situe pas le joueur regardé). Le second
- * n'est pas une zone libre : la griser dirait au lecteur qu'elle est à prendre alors qu'elle
- * est tenue. Elle garde donc le trait plein, à l'encre neutre.
+ * THE THRESHOLD IS `owner === null`, NOT `held` — and the nuance is one of meaning. `held`
+ * is false in TWO cases: no one holds the zone (a MEASUREMENT of the film), or someone holds
+ * it but the page cannot locate their side (the film does not locate the player being
+ * watched). The second is not a free zone: graying it would tell the reader it is to be
+ * taken while it is held. It therefore keeps the full stroke, in the neutral ink.
  */
 const ZONE_FREE_STROKE_ALPHA = 0.5
 const ZONE_FREE_STROKE_WIDTH = 1.6
 
 /**
- * LA CAPTURE EN COURS : la progression de l'attaquant, et l'effacement du propriétaire.
+ * CAPTURE IN PROGRESS: the progress of the attacker, and the erasure of the owner.
  *
- * `ZONE_CAPTURE_FILL_ALPHA` est le plus fort remplissage du calque, et c'est voulu : pendant
- * une capture, ce qui compte à l'écran est CE QUI EST EN TRAIN DE CHANGER, pas ce qui est
- * acquis. `ZONE_UNDER_CAPTURE_FILL_ALPHA` est le plus faible, sous celui d'une zone tenue
- * ordinaire : le propriétaire recule pendant qu'on lui prend sa base. Les deux se lisent
- * ensemble — la part encore à lui, la part déjà prise —, ce qu'un arc extérieur ne pouvait pas
- * dire.
+ * `ZONE_CAPTURE_FILL_ALPHA` is the strongest fill of the layer, and that is intended: during
+ * a capture, what matters on screen is WHAT IS CHANGING, not what is acquired.
+ * `ZONE_UNDER_CAPTURE_FILL_ALPHA` is the weakest, under that of an ordinary held zone: the
+ * owner retreats while their base is being taken. The two are read together — the part
+ * still theirs, the part already taken —, what an outer arc could not say.
  *
- * UNE ZONE LIBRE EN COURS DE CAPTURE N'A PAS DE TEINTE DE PROPRIÉTAIRE À AFFAIBLIR : la
- * progression y est le SEUL remplissage, et son encre reste NEUTRE (le film ne dit pas qui
- * pousse la jauge, cf. `ZoneStateStyle.colorOfCapturer`).
+ * A FREE ZONE IN CAPTURE HAS NO OWNERSHIP TINT TO WEAKEN: the progress there is the ONLY
+ * fill, and its ink stays NEUTRAL (the film does not say who is pushing the gauge, cf.
+ * `ZoneStateStyle.colorOfCapturer`).
  */
 const ZONE_CAPTURE_FILL_ALPHA = 0.55
 const ZONE_UNDER_CAPTURE_FILL_ALPHA = 0.16
 
 /**
- * ZONE_ALPHA_ORDER — L'ÉCHELLE D'APPARTENANCE, du plus faible au plus fort, EXPORTÉE POUR ÊTRE
- * TESTÉE.
+ * ZONE_ALPHA_ORDER — THE SCALE OF OWNERSHIP, from the weakest to the strongest, EXPORTED TO
+ * BE TESTED.
  *
- * POURQUOI CETTE CONSTANTE EXISTE. Ces cinq opacités ne valent que les unes par rapport aux
- * autres : c'est leur ORDRE qui porte la lecture (libre < en cours de perte < tenue < active <
- * progression), pas leurs valeurs absolues, et le gate visuel de l'utilisateur peut toutes les
- * bouger. Un réglage remonté seul casserait la lecture sans casser aucun test qui vise une
- * valeur — d'où un invariant d'ORDRE plutôt que cinq attentes numériques.
+ * WHY THIS CONSTANT EXISTS. These five opacities are only worth one compared to the other:
+ * it is their ORDER that carries the reading (free < in loss < held < active < progress),
+ * not their absolute values, and the visual gate of the user can move all of them. A
+ * setting raised alone would break the reading without breaking any test that targets a
+ * value — hence an invariant of ORDER rather than five numeric expectations.
  *
- * La zone LIBRE y entre à zéro : elle n'a aucun remplissage, et c'est le bas de l'échelle.
+ * The FREE zone enters it at zero: it has no fill at all, and that is the bottom of the
+ * scale.
  */
 export const ZONE_ALPHA_ORDER = [
   0,
@@ -113,42 +115,42 @@ export const ZONE_ALPHA_ORDER = [
   ZONE_CAPTURE_FILL_ALPHA,
 ] as const
 
-/** Ce que le tracé d'une zone vivante a besoin de savoir (règle des 5 paramètres). */
+/** What the tracing of a living zone needs to know (5-parameter rule). */
 export interface ZonePaint {
   px: (p: XY) => XY
   scale: number
   ink: string
   /**
-   * `false` = pas de camp À TEINTER : LISERÉ SEUL, aucun remplissage d'appartenance. Deux
-   * situations distinctes le produisent — personne ne tient la zone, ou son camp n'est pas
-   * situable (le film ne situe pas le joueur regardé) — et seule la PREMIÈRE grise le contour
-   * (cf. ZONE_FREE_STROKE_*, qui se décide sur `now.owner`, pas sur ce drapeau).
+   * `false` = no side TO TINT: OUTLINE ONLY, no ownership fill. Two distinct situations
+   * produce it — no one holds the zone, or their side is not locatable (the film does not
+   * locate the player being watched) — and only the FIRST one grays the outline (cf.
+   * ZONE_FREE_STROKE_*, which is decided on `now.owner`, not on this flag).
    */
   held: boolean
   /**
-   * L'état de la zone à cette frame, ou `null` quand AUCUN intervalle ne la couvre. Le second
-   * cas n'arrive que porté par une `capture` : une rampe de jauge qui précède la première
-   * émission du canal de propriété. Rien n'y est peint que la progression — ni teinte ni
-   * contour, faute d'appartenance à affirmer.
+   * The state of the zone at this frame, or `null` when NO interval covers it. The second
+   * case only comes carried by a `capture`: a gauge ramp that precedes the first emission of
+   * the ownership channel. Nothing is painted there but the progress — no tint nor outline,
+   * lacking ownership to assert.
    */
   now: ZoneStateNow | null
-  /** La valeur de la jauge à l'image, dans ]0, 1], ou `null` : aucune capture en cours. */
+  /** The value of the gauge at the frame, in ]0, 1], or `null`: no capture in progress. */
   capture: number | null
-  /** L'encre de la progression : le camp d'en face, ou le neutre (cf. `colorOfCapturer`). */
+  /** The ink of the progress: the facing side, or the neutral (cf. `colorOfCapturer`). */
   captureInk: string
 }
 
 /**
- * Zone tenue : remplissage + liseré à l'encre du camp. Zone active : les deux, renforcés.
- * Zone NON PRISE : contour GRISÉ, en retrait, sans remplissage (cf. ZONE_FREE_STROKE_*).
- * Zone EN COURS DE CAPTURE : la teinte du propriétaire s'efface et la progression de
- * l'attaquant remplit la forme par le bas (cf. `paintCaptureFill`).
+ * Held zone: fill + outline in the ink of the side. Active zone: both, strengthened.
+ * NOT TAKEN zone: GRAYED outline, in retreat, without fill (cf. ZONE_FREE_STROKE_*).
+ * ZONE IN CAPTURE: the tint of the owner fades and the progress of the attacker fills the
+ * shape from the bottom (cf. `paintCaptureFill`).
  *
- * L'ORDRE DE PEINTURE EST LE SENS DE LECTURE, et il n'est pas interchangeable : appartenance,
- * puis progression, puis contour. La progression passe SUR la teinte parce que c'est elle
- * l'information neuve ; le contour passe en DERNIER parce qu'un liseré à demi recouvert par un
- * remplissage clippé à la même forme se lirait comme un trait plus fin — c'est-à-dire comme une
- * zone libre, exactement le contresens que le lot A venait de corriger.
+ * THE ORDER OF PAINTING IS THE READING, and it is not interchangeable: ownership, then
+ * progress, then outline. The progress passes OVER the tint because it is the new
+ * information; the outline passes LAST because a rim half covered by a fill clipped to the
+ * same shape would read as a thinner stroke — that is, as a free zone, exactly the
+ * misunderstanding that lot A had just corrected.
  */
 export function paintZoneState(
   ctx: CanvasRenderingContext2D,
@@ -158,10 +160,10 @@ export function paintZoneState(
   if (p.capture !== null) paintCaptureFill(ctx, e, p)
   else paintOwnerFill(ctx, e, p, false)
   if (p.now === null) return
-  // « LIBRE » EST UNE MESURE, pas une absence : `owner === null` est la valeur neutre du canal
-  // de propriété (cf. ZoneSpan.Owner côté Go). Une zone dont AUCUN intervalle ne couvre la
-  // frame n'affiche que sa progression (ci-dessus) : « on ne sait pas » ne doit pas se lire
-  // « personne ne la tient ».
+  // "FREE" IS A MEASUREMENT, not an absence: `owner === null` is the neutral value of the
+  // ownership channel (cf. ZoneSpan.Owner on the Go side). A zone of which NO interval
+  // covers the frame only shows its progress (above): "we do not know" must not be read
+  // "no one holds it".
   const free = p.now.owner === null && !p.now.active
   ctx.globalAlpha = free ? ZONE_FREE_STROKE_ALPHA : ZONE_HELD_STROKE_ALPHA
   ctx.strokeStyle = p.ink
@@ -175,12 +177,12 @@ export function paintZoneState(
 }
 
 /**
- * paintCaptureFill peint une zone EN COURS DE CAPTURE : la teinte du propriétaire AFFAIBLIE
- * d'abord, la progression de l'attaquant FRANCHE par-dessus.
+ * paintCaptureFill paints a zone IN CAPTURE: the tint of the owner WEAKENED first, the
+ * progress of the attacker CLEAR on top.
  *
- * LES DEUX SONT ICI PARCE QU'ILS SE RÈGLENT L'UN PAR RAPPORT À L'AUTRE : l'effacement du
- * propriétaire n'a de sens qu'accompagné de ce qui le remplace. Le cas sans capture, lui, ne
- * pose que la teinte pleine — `paintOwnerFill` seul.
+ * THE TWO ARE HERE BECAUSE THEY ARE TUNED AGAINST EACH OTHER: the erasure of the owner only
+ * makes sense accompanied by what replaces it. The case without capture, for its part, only
+ * places the full tint — `paintOwnerFill` alone.
  */
 function paintCaptureFill(
   ctx: CanvasRenderingContext2D,
@@ -191,9 +193,9 @@ function paintCaptureFill(
   const box = zoneCanvasBox(e, p.px, p.scale)
   const h = (box.bottom - box.top) * Math.min(Math.max(p.capture ?? 0, 0), 1)
   if (h <= 0) return
-  // LE DÉCOUPAGE PAR LA FORME ELLE-MÊME : un rectangle en espace ÉCRAN, clippé par le contour
-  // de la zone. C'est ce qui rend le remplissage agnostique de la famille — une boîte orientée
-  // et un cylindre passent par le même `traceZonePath`, sans un seul cas particulier ici.
+  // THE CUT BY THE SHAPE ITSELF: a rectangle in SCREEN space, clipped by the outline of the
+  // zone. That is what makes the fill agnostic of the family — an oriented box and a
+  // cylinder pass through the same `traceZonePath`, without a single special case here.
   ctx.save()
   traceZonePath(ctx, e, p.px, p.scale)
   ctx.clip()
@@ -204,8 +206,8 @@ function paintCaptureFill(
 }
 
 /**
- * paintOwnerFill pose la teinte d'appartenance — AFFAIBLIE quand une capture est en cours.
- * Aucune teinte sur une zone libre ni sur un camp non situable : `held` le dit.
+ * paintOwnerFill places the ownership tint — WEAKENED when a capture is in progress. No
+ * tint on a free zone nor on a non-locatable side: `held` says it.
  */
 function paintOwnerFill(
   ctx: CanvasRenderingContext2D,
@@ -224,7 +226,7 @@ function paintOwnerFill(
   ctx.fill()
 }
 
-/** L'emprise ÉCRAN d'une zone : ce que le remplissage de capture balaie du bas vers le haut. */
+/** The SCREEN footprint of a zone: what the capture fill sweeps from bottom to top. */
 interface ZoneCanvasBox {
   left: number
   right: number
@@ -233,9 +235,9 @@ interface ZoneCanvasBox {
 }
 
 /**
- * zoneCanvasBox rend l'emprise écran d'une zone, à partir de LA MÊME géométrie que le tracé —
- * `zoneCornersWorld` pour une boîte, `zoneCanvasRadius` pour un cylindre, tous deux exportés
- * par `objectivesLayer` exactement pour ça. Aucune formule de forme n'est recopiée ici.
+ * zoneCanvasBox returns the screen footprint of a zone, from THE SAME geometry as the
+ * tracing — `zoneCornersWorld` for a box, `zoneCanvasRadius` for a cylinder, both exported
+ * by `objectivesLayer` exactly for that. No formula of shape is copied here.
  */
 function zoneCanvasBox(
   e: ObjectiveElementReady,

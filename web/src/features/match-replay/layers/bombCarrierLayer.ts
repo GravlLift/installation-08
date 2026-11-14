@@ -1,28 +1,29 @@
 /**
- * bombCarrierLayer.ts — LA BOMBE D'ASSAUT (schéma 30), image par image : sur son PORTEUR
- * pendant les périodes de portage, AU SOL entre un lâcher et la prise suivante.
+ * bombCarrierLayer.ts — the ASSAULT BOMB (schema 30), frame by frame: on its CARRIER during
+ * the carry periods, ON THE GROUND between a drop and the next pickup.
  *
- * POURQUOI IL VIT À CÔTÉ DE `skullCarrierLayer`. Même partage : le marqueur suit son porteur
- * image par image (le porteur court, la période ne publie qu'un intervalle), donc il se peint À
- * CHAQUE IMAGE, sur la position RELUE du joueur — jamais à une position figée.
+ * WHY IT LIVES BESIDE `skullCarrierLayer`. Same sharing: the marker follows its carrier
+ * frame by frame (the carrier runs, the period only publishes an interval), so it is painted
+ * AT EVERY FRAME, on the RE-READ position of the player — never at a frozen position.
  *
- * LA BOMBE AU SOL EST DÉRIVÉE, PAS PUBLIÉE, et c'est écrit des deux côtés (cf.
- * document_bomb_carries.go) : l'objet bombe n'a pas de canal mesuré côté Go. Entre la FIN d'une
- * période FERMÉE et la prise suivante, la bombe est immobile au DERNIER POINT de son lâcheur —
- * la règle du drapeau `dropped`, la position venant ici de la piste déjà publiée du lâcheur à
- * l'instant du lâcher. Le segment se coupe au premier de : la prise suivante, l'EXPLOSION
- * (`bomb_detonations` du calque des actions — après elle, la bombe n'existe plus), la fin de
- * l'axe. SANS HORLOGE DE CONFIANCE (`filmClockTrusted` faux), les explosions ne se posent pas
- * sur la grille : le sol ne se dessine PAS (l'appelant passe `explosions: null`) — une bombe
- * posée qui survivrait à sa propre explosion affirmerait ce que le film ne dit pas ; muet vaut
- * mieux que faux, la règle de toute la chaîne.
+ * THE BOMB ON THE GROUND IS DERIVED, NOT PUBLISHED, and that is written on both sides (cf.
+ * document_bomb_carries.go): the bomb object has no measured channel on the Go side. Between
+ * the END of a CLOSED period and the next pickup, the bomb is immobile at the LAST POINT of
+ * its dropper — the `dropped` rule of the flag, the position coming here from the already
+ * published track of the dropper at the instant of the drop. The segment is cut at the first
+ * of: the next pickup, the EXPLOSION (`bomb_detonations` of the actions layer — after it,
+ * the bomb no longer exists), the end of the axis. WITHOUT A TRUSTED CLOCK
+ * (`filmClockTrusted` false), the explosions are not placed on the grid: the ground is NOT
+ * drawn (the caller passes `explosions: null`) — a placed bomb that would survive its own
+ * explosion would assert what the film does not say; silent is worth better than wrong, the
+ * rule of the whole chain.
  *
- * `closed` faux = RIEN ne date la fin du portage (le film s'arrête pendant) : le glyphe porté
- * PULSE, comme le crâne — l'incertitude est à l'écran, pas dans une note. Un portage ouvert ne
- * produit JAMAIS de bombe au sol : personne ne l'a lâchée.
+ * `closed` false = NOTHING dates the end of the carry (the film stops during it): the carried
+ * glyph PULSES, like the skull — the uncertainty is on the screen, not in a note. An open
+ * carry NEVER produces a ground bomb: no one dropped it.
  *
- * Le glyphe est UNIQUE (`bombGlyph.ts`) pour les deux états — on reconnaît le même objet ;
- * seule sa place change, exactement comme le crâne libre et le crâne porté.
+ * The glyph is SINGLE (`bombGlyph.ts`) for the two states — one recognizes the same object;
+ * only its place changes, exactly like the free skull and the carried skull.
  */
 import { drawBombGlyph } from './bombGlyph'
 import { type XY } from '../../../lib/replay/replayLogic'
@@ -34,42 +35,42 @@ import { carriedGlyphAlpha } from './carriedGlyphPulse'
 import { carriedGlyphPlaceAt } from '../model/carriedGlyphPlace'
 import { covers } from '../model/replaySpans'
 
-/** Style du calque : les encres sont RÉSOLUES par l'appelant (règle color-tokens). */
+/** Style of the layer: the inks are RESOLVED by the caller (color-tokens rule). */
 export interface BombCarrierStyle {
-  /** Encre de la bombe (token du thème déjà résolu par l'appelant). */
+  /** Ink of the bomb (token of the theme already resolved by the caller). */
   ink: string
-  /** Encre du FOND : le liseré, comme celui du crâne et du drapeau. */
+  /** Ink of the BACKGROUND: the rim, like that of the skull and the flag. */
   outline: string
-  /** Mouvement réduit : la pulsation d'un portage « ouvert » devient une opacité constante. */
+  /** Reduced motion: the pulsation of an "open" carry becomes a constant opacity. */
   reducedMotion: boolean
 }
 
 /**
- * BombCarrierInput — ce que le calque reçoit de l'appelant (`useReplayBombCarrier`).
+ * BombCarrierInput — what the layer receives from the caller (`useReplayBombCarrier`).
  *
- * `posOf` est LA raison d'être du champ : la bombe se dessine sur le marqueur de son porteur à
- * l'image courante, et AU SOL sur le dernier point de son lâcheur. Le calque ne sait pas relire
- * une trajectoire — l'appelant lui passe la lecture.
+ * `posOf` is the REASON FOR THE FIELD: the bomb is drawn on the marker of its carrier at the
+ * current frame, and ON THE GROUND at the last point of its dropper. The layer does not know
+ * how to re-read a trajectory — the caller passes it the reading.
  */
 export interface BombCarrierInput {
   style: BombCarrierStyle
-  /** Position monde du joueur à une image, ou `null` s'il n'est pas localisable. */
+  /** World position of the player at a frame, or `null` if they are not locatable. */
   posOf: (xuid: string, frame: number) => XY | null
 }
 
-/** Décalage vertical au-dessus du point du porteur (le marqueur occupe le point lui-même). */
+/** Vertical offset above the point of the carrier (the marker occupies the point itself). */
 const BOMB_OFFSET_Y = 12
 
 /**
- * Opacité de la bombe AU SOL : légèrement sous le porté, parce que la position est DÉRIVÉE
- * (dernier point du lâcheur) et non publiée — la nuance dit la nature de la donnée sans
- * la faire disparaître.
+ * Opacity of the bomb ON THE GROUND: slightly under the carried one, because the position is
+ * DERIVED (last point of the dropper) and not published — the nuance states the nature of
+ * the data without making it disappear.
  */
 const ALPHA_GROUND = 0.85
 
 /**
- * bombCarrierActiveAt rend les portages qui COUVRENT l'image demandée. UNE SEULE bombe : au
- * plus un, mais on rend une liste (comme les calques frères) pour un tracé uniforme. Pure.
+ * bombCarrierActiveAt returns the carries that COVER the requested frame. ONLY ONE bomb: at
+ * most one, but we return a list (like the sibling layers) for a uniform tracing. Pure.
  */
 export function bombCarrierActiveAt(
   carries: readonly ReplayBombCarry[],
@@ -83,12 +84,12 @@ export function bombCarrierActiveAt(
 }
 
 /**
- * bombGroundAt rend la période FERMÉE dont le lâcher met la bombe au sol à cette image, ou
- * `null` : personne ne la porte, la dernière période fermée est à t1 < frame, aucune période
- * suivante n'a commencé, et aucune explosion n'est tombée dans ]t1, frame].
+ * bombGroundAt returns the CLOSED period whose drop puts the bomb on the ground at this
+ * frame, or `null`: no one carries it, the last closed period is at t1 < frame, no following
+ * period has started, and no explosion fell in ]t1, frame].
  *
- * `explosions` : les frames des `bomb_detonations`, triées — `null` quand l'horloge du film
- * n'est pas de confiance : le sol ne se dessine pas (cf. l'en-tête). Pure, testée à part.
+ * `explosions`: the frames of the `bomb_detonations`, sorted — `null` when the clock of the
+ * film is not trusted: the ground is not drawn (cf. the header). Pure, tested apart.
  */
 export function bombGroundAt(
   carries: readonly ReplayBombCarry[],
@@ -98,30 +99,31 @@ export function bombGroundAt(
   if (explosions === null) return null
   let last: ReplayBombCarry | null = null
   for (const c of carries) {
-    if (covers(c, frame)) return null // portée : jamais au sol en même temps
+    if (covers(c, frame)) return null // carried: never on the ground at the same time
     if (c.t1 < frame && c.closed && (last === null || c.t1 > last.t1)) last = c
   }
   if (last === null) return null
   for (const e of explosions) {
-    if (e > last.t1 && e <= frame) return null // la bombe a sauté : elle n'existe plus
+    if (e > last.t1 && e <= frame) return null // the bomb went off: it no longer exists
   }
   return last
 }
 
 /**
- * drawBombCarrier peint la bombe de l'image : sur son porteur courant (par-dessus le marqueur),
- * ou au sol sur le dernier point de son lâcheur.
+ * drawBombCarrier paints the bomb of the frame: on its current carrier (on top of the
+ * marker), or on the ground at the last point of its dropper.
  *
- * PORTEUR SANS POSITION (audit du 2026-09-10, cause C10 ; lot 6.7 phase B2) : la bombe ne
- * DISPARAÎT plus. Le portage est vrai, c'est la trajectoire du bipède qui a un trou — la règle
- * commune aux trois glyphes portés (`carriedGlyphPlace.ts`) la rend LIBRE à sa dernière position
- * connue, avec l'habillage du sol. Sans AUCUNE position connue depuis le début du portage, rien
- * n'est dessiné : la bombe n'a pas de canal de position propre, et l'inventer serait affirmer
- * une place que le film ne donne pas.
+ * CARRIER WITHOUT POSITION (audit of 2026-09-10, cause C10; lot 6.7 phase B2): the bomb no
+ * longer DISAPPEARS. The carry is true, it is the trajectory of the biped that has a hole —
+ * the rule shared by the three carried glyphs (`carriedGlyphPlace.ts`) makes it FREE at its
+ * last known position, with the dressing of the ground. WITHOUT ANY known position since the
+ * start of the carry, nothing is drawn: the bomb has no position channel of its own, and
+ * inventing one would assert a place that the film does not give.
  *
- * BORNAGE HORS CADRE (plan escouade hors cadre, chantier B, décision D3, 2026-09-10) : SEULE la
- * bombe PORTÉE (sur son porteur) est plaquée à la marge quand il sort du cadrage visible — au
- * sol, elle est un objet de carte, comme un socle d'arme, hors du périmètre tranché pour ce lot.
+ * OFF-SCREEN BOUNDING (off-screen squad plan, workstream B, decision D3, 2026-09-10): ONLY
+ * the CARRIED bomb (on its carrier) is clamped to the margin when it leaves the visible
+ * framing — on the ground, it is an object of the map, like a weapon pedestal, outside the
+ * scope ruled for this lot.
  */
 export function drawBombCarrier(
   ctx: CanvasRenderingContext2D,
@@ -132,40 +134,43 @@ export function drawBombCarrier(
   frame: number,
 ): void {
   for (const c of bombCarrierActiveAt(carries, frame)) {
-    // LA RÈGLE COMMUNE AUX TROIS GLYPHES PORTÉS (`carriedGlyphPlace.ts`) : sans position du
-    // porteur, la bombe est LIBRE à sa dernière position connue, pas disparue. `fallback: null`
-    // — la bombe n'a AUCUN canal de position propre (cf. l'en-tête, document_bomb_carries.go).
+    // THE RULE SHARED BY THE THREE CARRIED GLYPHS (`carriedGlyphPlace.ts`): without a
+    // position of the carrier, the bomb is FREE at its last known position, not
+    // disappeared. `fallback: null` — the bomb has NO position channel of its own (cf. the
+    // header, document_bomb_carries.go).
     const place = carriedGlyphPlaceAt(layer.posOf, c, frame, null)
     if (place.state === 'absent') continue
     if (place.state === 'free') {
-      // LIBRE : ancrée sur le point lui-même, sans le décalage du porté (aucun pion à éviter),
-      // et sans bornage hors cadre — c'est devenu un objet de carte, comme la bombe au sol.
+      // FREE: anchored on the point itself, without the offset of the carried one (no pawn
+      // to avoid), and without off-screen bounding — it has become an object of the map,
+      // like the ground bomb.
       drawBombGlyph(ctx, projectTo(view, place.at), {
         ink: layer.style.ink,
         outline: layer.style.outline,
         alpha: ALPHA_GROUND,
       })
       ctx.globalAlpha = 1
-      return // une seule bombe : un seul glyphe à cette image
+      return // only one bomb: a single glyph at this frame
     }
-    // ÉCHELLE 1 : ce calque ne met encore rien à l'échelle de l'écran (`k`), même convention
-    // que `flagCarriesLayer`/`skullCarrierLayer` (cf. leur en-tête).
+    // SCALE 1: this layer does not yet scale anything to the screen (`k`), same convention
+    // as `flagCarriesLayer`/`skullCarrierLayer` (cf. their header).
     const mark = edgeMarkFor(place.at, view, OFFSCREEN_MARGIN_PX, 1)
     const at = mark ? mark.at : projectTo(view, place.at)
-    // La bombe se pose AU-DESSUS du marqueur (celui-ci occupe le point) : le décalage est
-    // appliqué ICI, le glyphe partagé ne connaît que son centre.
+    // The bomb is placed ABOVE the marker (it occupies the point): the offset is applied
+    // HERE, the shared glyph only knows its center.
     drawBombGlyph(ctx, { x: at.x, y: at.y - BOMB_OFFSET_Y }, {
       ink: layer.style.ink,
       outline: layer.style.outline,
       alpha: carriedGlyphAlpha(c.closed, frame, layer.style.reducedMotion),
     })
     ctx.globalAlpha = 1
-    return // une seule bombe : portée, donc jamais au sol à la même image
+    return // only one bomb: carried, hence never on the ground at the same frame
   }
   const ground = bombGroundAt(carries, explosions, frame)
   if (ground) {
-    // AU SOL : au dernier point du lâcheur, à l'INSTANT du lâcher (t1) — la position ne se
-    // relit pas à l'image courante, la bombe ne suit pas un joueur qui ne la porte plus.
+    // ON THE GROUND: at the last point of the dropper, at the INSTANT of the drop (t1) —
+    // the position is not re-read at the current frame, the bomb does not follow a player
+    // who no longer carries it.
     const w = layer.posOf(ground.xuid, ground.t1)
     if (w) {
       const at = projectTo(view, w)

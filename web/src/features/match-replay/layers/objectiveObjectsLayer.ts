@@ -1,31 +1,33 @@
 /**
- * objectiveObjectsLayer.ts — LES POSITIONS ÉMISES du crâne d'Oddball (schéma 21) et son tracé au
- * sol. Ce fichier est le SOCLE GÉOMÉTRIQUE : le primitif `objectiveObjectAt` (dernier point émis,
- * et SEULEMENT dans [t0, t1]), le survol, et le tracé d'une présence libre. La RÈGLE de présence
- * — carried / free / absent, avec le test du prochain événement — vit dans `skullPresence.ts`,
- * qui consomme ce fichier en SENS UNIQUE (jamais l'inverse : ce socle n'importe pas la règle).
+ * objectiveObjectsLayer.ts — THE PUBLISHED POSITIONS of the Oddball skull (schema 21) and its
+ * tracing on the ground. This file is the GEOMETRIC FOUNDATION: the `objectiveObjectAt`
+ * primitive (last point published, and ONLY inside [t0, t1]), the hover, and the tracing of a
+ * free presence. The PRESENCE RULE — carried / free / absent, with the test of the next
+ * event — lives in `skullPresence.ts`, which consumes this file in ONE DIRECTION (never the
+ * inverse: this foundation does not import the rule).
  *
- * POURQUOI IL VIT À CÔTÉ DE `flagCarriesLayer` ET NON DEDANS. Les deux dessinent un objet de
- * mode, mais ils ne lisent pas la même chose : `flagCarries` publie des INTERVALLES D'ÉTAT (le
- * drapeau porté n'a pas de position propre, le calque le colle à son porteur) ; ici on publie des
- * POSITIONS RÉELLEMENT ÉMISES par l'objet.
+ * WHY IT LIVES BESIDE `flagCarriesLayer` AND NOT INSIDE IT. The two draw a mode object, but
+ * they do not read the same thing: `flagCarries` publishes STATE INTERVALS (the carried flag
+ * has no position of its own, the layer sticks it to its carrier); here we publish POSITIONS
+ * ACTUALLY PUBLISHED by the object.
  *
- * L'INVARIANT, RÉÉCRIT AU SCHÉMA 23. Avant `skullCarries`, ce calque restait MUET dès qu'une vie
- * finissait — « prolonger la dernière position au-delà de t1 laisserait le crâne posé pendant
- * qu'un joueur court avec ». Cette justification est aujourd'hui INVERSÉE : le rendu SAIT désormais
- * quand le crâne est porté (`skullCarries`). Le nouvel invariant, porté par `skullPresenceAt` :
- * TENIR un repos qu'une PRISE corrobore (le porteur arrive sur la position tenue) ; rester MUET
- * pendant les portages connus ; rester ABSENT pendant un respawn ou une retombée (le prochain
- * début est alors une VIE, pas une prise — aucun fantôme au point de chute). AUCUNE INTERPOLATION,
- * jamais : une position tenue est une position RÉELLEMENT émise (le dernier repos), pas inventée.
+ * THE INVARIANT, REWRITTEN AT SCHEMA 23. Before `skullCarries`, this layer stayed SILENT as
+ * soon as a life ended — « extending the last position beyond t1 would leave the skull placed
+ * while a player runs with it ». This justification is today INVERTED: rendering now KNOWS
+ * when the skull is carried (`skullCarries`). The new invariant, carried by
+ * `skullPresenceAt`: HOLD a rest that a PICKUP corroborates (the carrier arrives on the held
+ * position); stay SILENT during known carries; stay ABSENT during a respawn or a fall-back
+ * (the next beginning is then a LIFE, not a pickup — no ghost at the point of landing). NO
+ * INTERPOLATION, ever: a held position is a position ACTUALLY published (the last rest), not
+ * invented.
  *
- * LE GLYPHE EST CELUI, PARTAGÉ, DU CRÂNE (`skullGlyph.ts`) : le MÊME dessin que le crâne porté
- * (`skullCarrierLayer`), pour qu'on reconnaisse le même objet — seule sa place change (au sol /
- * au-dessus d'un joueur). Habillé comme le drapeau depuis le 2026-08-28 (liseré à l'encre du
- * fond, taille agrandie, deux orbites) : cf. l'en-tête de `skullGlyph.ts` pour le pourquoi et la
- * limite (l'icône du jeu existe mais n'est pas cuite dans le document).
+ * THE GLYPH IS THE SHARED ONE OF THE SKULL (`skullGlyph.ts`): the SAME drawing as the carried
+ * skull (`skullCarrierLayer`), so that one recognizes the same object — only its place changes
+ * (on the ground / above a player). Dressed like the flag since 2026-08-28 (rim in the ink of
+ * the background, enlarged size, two orbits): cf. the header of `skullGlyph.ts` for the why
+ * and the limit (the game icon exists but is not cooked in the document).
  *
- * AUCUN TEXTE, comme les calques voisins : ce qui se dit se dit dans l'infobulle.
+ * NO TEXT, like the neighboring layers: what is said is said in the tooltip.
  */
 import { type XY } from '../../../lib/replay/replayLogic'
 import { drawSkullGlyph } from './skullGlyph'
@@ -33,49 +35,51 @@ import { drawSkullGlyph } from './skullGlyph'
 import { type CanvasView, projectTo } from '../model/replayView'
 import type { ReplayObjectiveObjectReady } from '../../../lib/replay/replayNormalize'
 
-/** Le rayon de SURVOL : plus généreux que le tracé, comme pour le drapeau. */
+/** The HOVER radius: more generous than the tracing, as for the flag. */
 export const OBJECTIVE_OBJECT_HIT_RADIUS = 11
 
 /**
- * ALPHA_AT_REST — le glyphe d'un crâne IMMOBILE (vie réduite à un point, ou dernier point d'une
- * vie terminée). Il est en jeu, il ne bouge pas : pleine encre, sans effet.
+ * ALPHA_AT_REST — the glyph of an IMMOTILE skull (life reduced to a point, or last point of a
+ * ended life). It is in play, it does not move: full ink, without effect.
  */
 const ALPHA_AT_REST = 0.95
 
 /**
- * ALPHA_ROLLING — le glyphe pendant que l'objet BOUGE encore (la vie a un point à cette image et
- * un autre après). Légèrement plus soutenu : c'est le moment où il compte le plus.
+ * ALPHA_ROLLING — the glyph while the object is still MOVING (the life has a point at this
+ * frame and another after). Slightly more sustained: it is the moment it counts the most.
  */
 const ALPHA_ROLLING = 1
 
-/** Ce que le calque a besoin de savoir pour se dessiner (règle des 5 paramètres). */
+/** What the layer needs to know to draw itself (5-parameter rule). */
 export interface ObjectiveObjectsInput {
   style: {
-    /** L'encre sémantique de l'objet, résolue par l'appelant — jamais une couleur en dur ici. */
+    /** The semantic ink of the object, resolved by the caller — never a hard color here. */
     ink: string
-    /** L'encre du FOND : le liseré du crâne, comme celui du drapeau (`skullGlyph.ts`). */
+    /** The ink of the BACKGROUND: the rim of the skull, like that of the flag (`skullGlyph.ts`). */
     outline: string
   }
 }
 
-/** ObjectiveObjectNow — ce qu'un objet d'objectif montre à une image donnée. */
+/** ObjectiveObjectNow — what an objective object shows at a given frame. */
 export interface ObjectiveObjectNow {
-  /** La vie qui porte cette position. */
+  /** The life that carries this position. */
   life: ReplayObjectiveObjectReady
-  /** La position en coordonnées MONDE. */
+  /** The position in WORLD coordinates. */
   at: XY
-  /** L'objet bouge-t-il encore à cette image ? (un point plus tard dans la même vie) */
+  /** Does the object still move at this frame? (a point later in the same life) */
   rolling: boolean
 }
 
 /**
- * objectiveObjectAt rend la position de l'objet à l'image servie, ou `null` s'il ne réplique pas.
+ * objectiveObjectAt returns the position of the object at the served frame, or `null` if it
+ * does not replay.
  *
- * PRIMITIF PUR, INCHANGÉ : « LE DERNIER POINT ÉMIS, ET SEULEMENT À L'INTÉRIEUR DE LA VIE ». Hors
- * de [t0, t1], il rend `null` — il ne sait rien du portage ni du repos tenu. C'est `skullPresenceAt`
- * (cf. `skullPresence.ts`) qui compose ce primitif avec `skullCarries` pour décider s'il faut
- * TENIR un dernier repos (une prise le corrobore) ou rester absent. Ne pas déplacer cette décision
- * ici : ce fichier reste le socle géométrique, la règle vit une couche au-dessus.
+ * PURE PRIMITIVE, UNCHANGED: « THE LAST POINT PUBLISHED, AND ONLY INSIDE THE LIFE ». Outside
+ * [t0, t1], it returns `null` — it knows nothing of the carry nor of the held rest. It is
+ * `skullPresenceAt` (cf. `skullPresence.ts`) that composes this primitive with `skullCarries`
+ * to decide whether to HOLD a last rest (a pickup corroborates it) or stay absent. Do not
+ * move this decision here: this file remains the geometric foundation, the rule lives one
+ * layer above.
  */
 export function objectiveObjectAt(
   life: ReplayObjectiveObjectReady,
@@ -92,7 +96,7 @@ export function objectiveObjectAt(
   return { life, at: { x: p.x, y: p.y }, rolling: idx < life.pts.length - 1 }
 }
 
-/** objectiveObjectsAt rend TOUS les objets qui répliquent à cette image. */
+/** objectiveObjectsAt returns ALL the objects that replay at this frame. */
 export function objectiveObjectsAt(
   lives: readonly ReplayObjectiveObjectReady[],
   frame: number,
@@ -106,10 +110,11 @@ export function objectiveObjectsAt(
 }
 
 /**
- * drawFreeSkull trace le crâne LIBRE à la position MONDE `at` servie, avec le glyphe PARTAGÉ
- * (`skullGlyph.ts`) — le même que le crâne porté. L'appelant (le hook) ne l'invoque qu'après avoir
- * résolu une présence `free` via `skullPresenceAt` : ce fichier ne connaît ni le portage ni le
- * repos tenu, il pose un glyphe là où on le lui dit. `rolling` choisit l'alpha (bouge / immobile).
+ * drawFreeSkull traces the FREE skull at the WORLD position `at` served, with the SHARED
+ * glyph (`skullGlyph.ts`) — the same as the carried skull. The caller (the hook) only
+ * invokes it after having resolved a `free` presence via `skullPresenceAt`: this file knows
+ * neither the carry nor the held rest, it places a glyph where it is told. `rolling` chooses
+ * the alpha (moving / immotile).
  */
 export function drawFreeSkull(
   ctx: CanvasRenderingContext2D,
@@ -127,18 +132,19 @@ export function drawFreeSkull(
   ctx.globalAlpha = 1
 }
 
-/** Ce qu'un survol a trouvé : l'objet, sa position LUE À CET INSTANT, et où poser l'infobulle. */
+/** What a hover found: the object, its position READ AT THIS INSTANT, and where to place the tooltip. */
 export interface ObjectiveObjectHit {
   now: ObjectiveObjectNow
-  /** Point CANVAS du glyphe — l'infobulle se pose là, pas sous le pointeur brut. */
+  /** CANVAS point of the glyph — the tooltip is placed there, not under the raw pointer. */
   at: XY
 }
 
 /**
- * objectiveObjectHitAt rend l'objet dont le glyphe se trouve sous le point CANVAS servi.
+ * objectiveObjectHitAt returns the object whose glyph is under the served CANVAS point.
  *
- * LE SURVOL REJOUE EXACTEMENT LA GÉOMÉTRIE DU TRACÉ (même conversion, même centre) : viser une
- * forme dessinée ailleurs ne toucherait rien, et ce genre d'écart ne se voit pas à la lecture.
+ * THE HOVER REPLAYS EXACTLY THE GEOMETRY OF THE TRACING (same conversion, same center):
+ * aiming at a shape drawn elsewhere would touch nothing, and this kind of gap is not seen at
+ * the reading.
  */
 export function objectiveObjectHitAt(
   lives: readonly ReplayObjectiveObjectReady[],

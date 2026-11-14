@@ -1,81 +1,82 @@
 /**
- * floorRings.ts — LE LANGAGE D'ÉTAGE DU REJEU : des anneaux concentriques, un par étage au-dessus
- * du sol. UNE SEULE IMPLÉMENTATION, partagée par les pions (`replayMarkers.ts`) et par les
- * objectifs du mode (`objectivesLayer.ts`, lot du 2026-09-18).
+ * floorRings.ts — THE REPLAY'S FLOOR LANGUAGE: concentric rings, one per floor above the
+ * ground. ONE SINGLE IMPLEMENTATION, shared by the pawns (`replayMarkers.ts`) and by the mode
+ * objectives (`objectivesLayer.ts`, lot of 2026-09-18).
  *
- * LA DOCTRINE VIENT DES PIONS (planche du 2026-08-16, A1 du 2026-08-18) et ne change pas en
- * s'étendant aux objectifs : jamais un décalage du marqueur (en vue de dessus, déplacer un point
- * vers le haut de l'écran voudrait dire « plus au nord »), l'altitude est un PALIER et non un
- * dégradé, c'est le NOMBRE d'anneaux qui dit la hauteur et lui seul — la couleur ne dit que le
- * camp. Un socle de drapeau à l'étage porte donc exactement ce que porte un joueur à l'étage.
+ * THE DOCTRINE COMES FROM THE PAWNS (board of 2026-08-16, A1 of 2026-08-18) and does not
+ * change when extended to the objectives: never a marker offset (in top view, moving a point
+ * to the top of the screen would mean "further north"), altitude is a STEP and not a
+ * gradient, it is the NUMBER of rings that states the height and it alone — the color only
+ * says the team. A flag pedestal on a floor therefore carries exactly what a player on a
+ * floor carries.
  *
- * POURQUOI UN FICHIER, ET PAS UN EXPORT DE `replayMarkers.ts` : les objectifs se cuisent hors
- * écran, sans document ni image courante ; importer le module des pions pour trois constantes
- * et une boucle aurait tiré avec lui le cône de visée, les étiquettes et les chevrons. La règle
- * du dépôt (≤ 2 copies d'un motif, la 3e se centralise) s'applique dès la DEUXIÈME ici : deux
- * boucles d'anneaux divergeraient au premier réglage, et l'écart serait invisible parce que
- * crédible.
+ * WHY A FILE, AND NOT AN EXPORT OF `replayMarkers.ts`: the objectives are cooked off-screen,
+ * with no document nor current frame; importing the pawns module for three constants and a
+ * loop would have dragged in the aim cone, the labels and the chevrons. The repository rule
+ * (<= 2 copies of a pattern, the 3rd is centralized) applies from the SECOND one here: two
+ * ring loops would diverge at the first tuning, and the gap would be invisible because it
+ * would look plausible.
  *
- * LE PREMIER RAYON EST UN PARAMÈTRE, le pas ne l'est pas. Le pion pose son premier anneau à
- * `FLOOR_RING_RADIUS` (6,5 px, détaché du point) ; un marqueur d'objectif porte déjà un anneau
- * de LIVRAISON à 8 px et doit poser le sien au-delà, sinon les deux se confondraient. Le PAS
- * entre anneaux, lui, est le même partout : c'est lui que l'œil compte.
+ * THE FIRST RADIUS IS A PARAMETER, the step is not. The pawn places its first ring at
+ * `FLOOR_RING_RADIUS` (6.5 px, detached from the point); an objective marker already carries
+ * a DELIVERY ring at 8 px and must place its own beyond it, otherwise the two would blend.
+ * The STEP between rings, however, is the same everywhere: that is what the eye counts.
  */
 import { floorOf, type XY } from '../../../lib/replay/replayLogic'
 
 /**
- * Amplitude verticale en deçà de laquelle le terrain est PLAT : `altitudeRatio` rend alors 0,5
- * par convention et `floorOf` l'étage 1, ce qui poserait un anneau sur chaque pion et chaque
- * objectif sans que rien ne soit plus haut que rien. Bornes égales = vieux artefact sans Z, ou
- * plateau sans relief ; dans les deux cas le langage d'étage n'a rien à dire.
+ * Vertical span below which the terrain is FLAT: `altitudeRatio` then returns 0.5 by
+ * convention and `floorOf` floor 1, which would place a ring on every pawn and every objective
+ * without anything being higher than anything. Equal bounds = old artifact without Z, or
+ * plateau without relief; in both cases the floor language has nothing to say.
  */
 export const FLAT_SPAN = 1e-6
 
-/** Les bornes verticales du document, telles que `useReplayView` les sert. */
+/** The vertical bounds of the document, as `useReplayView` serves them. */
 export interface FloorRange {
   min: number
   max: number
 }
 
 /**
- * floorInRange : l'étage d'un `z` (0 = sol) dans le langage commun des pions et des objectifs —
- * `floorOf` sur l'amplitude du document, et 0 sur un terrain plat (cf. `FLAT_SPAN`). Aligné le
- * 2026-09-18 : la garde vivait chez les objectifs seuls, les pions portaient un anneau à tort
- * sur toute carte sans amplitude.
+ * floorInRange: the floor of a `z` (0 = ground) in the common language of pawns and objectives
+ * — `floorOf` over the document span, and 0 on flat terrain (cf. `FLAT_SPAN`). Aligned on
+ * 2026-09-18: the guard lived with the objectives alone, the pawns wrongly wore a ring on
+ * every map without amplitude.
  */
 export function floorInRange(z: number, range: FloorRange): number {
   if (!(range.max - range.min > FLAT_SPAN)) return 0
   return floorOf(z, range.min, range.max)
 }
 
-/** Rayon du PREMIER anneau d'un pion (planche du 2026-08-16 : détaché du point, pas collé). */
+/** Radius of the FIRST ring of a pawn (board of 2026-08-16: detached from the point, not stuck). */
 export const FLOOR_RING_RADIUS = 6.5
-/** Pas entre deux anneaux successifs — le même pour les pions et les objectifs. */
+/** Step between two successive rings — the same for pawns and objectives. */
 export const FLOOR_RING_GAP = 2.8
 export const FLOOR_RING_WIDTH = 1
 export const FLOOR_RING_ALPHA = 0.9
-/** Chaque anneau au-delà du premier pâlit d'autant : le premier reste le plus franc. */
+/** Each ring beyond the first pales by that much: the first stays the sharpest. */
 export const FLOOR_RING_ALPHA_DECAY = 0.18
 
 /**
- * floorRingRadius : rayon (px, avant facteur d'échelle) de l'anneau n° `r` (1 = le premier
- * au-dessus du sol), pour un premier anneau posé à `first`.
+ * floorRingRadius: radius (px, before scale factor) of ring n° `r` (1 = the first above the
+ * ground), for a first ring placed at `first`.
  */
 export function floorRingRadius(r: number, first: number = FLOOR_RING_RADIUS): number {
   return first + FLOOR_RING_GAP * (r - 1)
 }
 
-/** Ce qui varie d'un appelant à l'autre : le facteur d'échelle et le premier rayon. */
+/** What varies from one caller to the other: the scale factor and the first radius. */
 export interface FloorRingsGeometry {
-  /** Facteur d'échelle du marqueur (les pions en portent un, les objectifs non). */
+  /** Scale factor of the marker (pawns carry one, objectives do not). */
   k?: number
-  /** Rayon du premier anneau — cf. l'en-tête. */
+  /** Radius of the first ring — cf. the header. */
   first?: number
 }
 
 /**
- * drawFloorRings trace `fl` anneaux concentriques autour de `c`, dans `color`, en pâlissant
- * vers l'extérieur. `fl = 0` ne trace rien. Laisse `globalAlpha` à 1 en sortant.
+ * drawFloorRings traces `fl` concentric rings around `c`, in `color`, paling toward the
+ * outside. `fl = 0` traces nothing. Leaves `globalAlpha` at 1 on exit.
  */
 export function drawFloorRings(
   ctx: CanvasRenderingContext2D,

@@ -1,29 +1,29 @@
 /**
- * loadedImage.ts — LES IMAGES DES VIGNETTES DU REJEU, chargées une fois par URL.
+ * loadedImage.ts — THE REPLAY SPRITE IMAGES, loaded once per URL.
  *
- * # POURQUOI (2026-09-16, décision D9 du plan « formats vidéo »)
+ * # WHY (2026-09-16, decision D9 of the "video formats" plan)
  *
- * Les vignettes de grenade, d'arme au sol et de socle sont TEINTES à une encre du thème, et se
- * reteignent quand l'encre change. Elles le faisaient en RECHARGEANT l'image : la vignette
- * manquait le temps d'un `onload`. Sans conséquence tant que l'encre ne changeait qu'avec le
- * thème ; mais l'export bascule les encres au thème sombre à son entrée, et ses premières images
- * seraient sorties SANS vignettes — ou avec, selon la vitesse du cache du navigateur.
+ * The grenade, ground weapon and pedestal sprites are TINTED with a theme ink, and re-tinted
+ * when the ink changes. They used to do it by RELOADING the image: the sprite went missing
+ * for the duration of an `onload`. No consequence while the ink only changed with the theme;
+ * but the export switches the inks to the dark theme at its start, and its first frames would
+ * have come out WITHOUT sprites — or with, depending on the browser cache speed.
  *
- * Une image déjà chargée est donc rendue SYNCHRONEMENT : la reteinte a lieu dans le même passage
- * d'effets que le reste du changement d'encres, avant que l'export ne peigne sa première image.
+ * An already loaded image is therefore rendered SYNCHRONOUSLY: the re-tint happens in the same
+ * effects pass as the rest of the ink change, before the export paints its first frame.
  *
- * # LE SEUL `new Image()` DES CALQUES
+ * # THE ONLY `new Image()` OF THE LAYERS
  *
- * Quatre hooks recopiaient ce chargement (grenades, armes au sol, socles, véhicules). Il vit ici,
- * et le garde-rail `loadedImage.guard.test.ts` interdit d'en réécrire une copie.
+ * Four hooks were copying this loading (grenades, ground weapons, pedestals, vehicles). It
+ * lives here, and the guardrail `loadedImage.guard.test.ts` forbids rewriting a copy of it.
  */
 
 const images = new Map<string, HTMLImageElement>()
 
 /**
- * withLoadedImage — appelle `ready` avec l'image de `url` : tout de suite si elle est déjà
- * chargée, à son chargement sinon. Une image qui échoue n'appelle que `failed` s'il est fourni
- * (le calque garde son tracé de repli) ; elle n'est pas mise en cache, un appel suivant la retente.
+ * withLoadedImage — calls `ready` with the image of `url`: right away if it is already loaded,
+ * on its load otherwise. An image that fails calls only `failed` if it is provided (the layer
+ * keeps its fallback stroke); it is not cached, a following call retries it.
  */
 export function withLoadedImage(
   url: string,

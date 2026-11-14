@@ -1,24 +1,25 @@
 /**
- * placementShapes.ts — LE SOCLE DU TRACÉ des poses d'équipement, et les FORMES qui tiennent
- * dans un CENTRE PROJETÉ.
+ * placementShapes.ts — THE BASE OF THE TRACING of equipment placements, and the SHAPES that
+ * fit in a PROJECTED CENTER.
  *
- * LA FRONTIÈRE EST GÉOMÉTRIQUE, PAS THÉMATIQUE, et c'est ce qui la rend tenable : ce fichier
- * porte le cadrage (`PlacementView`, `project`, `viewScale`), les primitives de trait, et les
- * formes qui n'ont besoin que d'un point déjà projeté (pour le disque, d'un rayon déjà converti
- * en pixels). Le MUR vit à part (`placementWall.ts`) parce qu'il se calcule en MONDE — il porte
- * une orientation, et une orientation n'a de sens qu'avant la projection.
+ * THE BOUNDARY IS GEOMETRIC, NOT THEMATIC, and that is what makes it holdable: this file
+ * carries the framing (`PlacementView`, `project`, `viewScale`), the stroke primitives, and
+ * the shapes that only need an already-projected point (for the disk, an already-converted
+ * radius in pixels). The WALL lives apart (`placementWall.ts`) because it is computed in
+ * WORLD — it carries an orientation, and an orientation only makes sense before the
+ * projection.
  *
- * POURQUOI CE FICHIER EXISTE : le calque atteignait son seuil de taille (CLAUDE.md n°5) et ce
- * lot y ajoute trois familles. Plutôt qu'une exemption, la découpe — et elle tombe sur une
- * ligne qui se dit en une phrase.
+ * WHY THIS FILE EXISTS: the layer was reaching its size threshold (CLAUDE.md #5) and this
+ * lot adds three families to it. Rather than an exemption, the cut — and it falls on a line
+ * that is said in one sentence.
  *
- * CE QUE CHAQUE FORME AFFIRME, ET CE QU'ELLE N'AFFIRME PAS. Aucune de ces formes ne porte
- * d'orientation : le film n'en publie aucune pour ces objets (le seul cap mesuré est celui du
- * REGARD du poseur, et il n'est exploité que par l'arc du mur). Le losange de la balise est
- * symétrique par construction — il ne pointe nulle part, et c'est délibéré.
+ * WHAT EACH SHAPE ASSERTS, AND WHAT IT DOES NOT ASSERT. None of these shapes carries an
+ * orientation: the film publishes none for these objects (the only measured cap is that of
+ * the REGARD of the planter, and it is only exploited by the arc of the wall). The diamond
+ * of the beacon is symmetric by construction — it points nowhere, and that is deliberate.
  *
- * Pas de React, pas de couleur écrite : géométrie pure + un CanvasRenderingContext2D. L'encre
- * arrive du calque appelant, qui la tient des tokens du thème.
+ * No React, no written color: pure geometry + a CanvasRenderingContext2D. The ink comes from
+ * the calling layer, which holds it from the theme tokens.
  */
 import type { ReplayBounds } from '@/lib/api/types'
 
@@ -33,7 +34,7 @@ import {
 } from '../model/threatSensor'
 import { projectTo, scaleOf } from '../model/replayView'
 
-/** Cadrage du canvas (mêmes paramètres que worldToCanvas). */
+/** Canvas framing (same parameters as worldToCanvas). */
 export interface PlacementView {
   bounds: ReplayBounds
   width: number
@@ -41,21 +42,22 @@ export interface PlacementView {
   pad: number
 }
 
-/** project — un point monde vers les pixels du canvas (la chaîne des tracks). */
+/** project — a world point to the pixels of the canvas (the chain of the tracks). */
 export function project(p: XY, view: PlacementView): XY {
   return projectTo(view, p)
 }
 
-/** viewScale — le facteur pixels par mètre du cadrage courant (0 si le cadrage est dégénéré). */
+/** viewScale — the pixels-per-meter factor of the current framing (0 if the framing is
+ * degenerate). */
 export function viewScale(view: PlacementView): number {
   return scaleOf(view)
 }
 
 /**
- * Ce que toute forme a besoin de savoir de l'ÉCRAN : la densité de pixels (les épaisseurs la
- * suivent, même règle que les marqueurs) et le respect du mouvement réduit.
+ * What every shape needs to know of the SCREEN: the pixel density (the thicknesses follow
+ * it, same rule as the markers) and the respect of reduced motion.
  *
- * `PlacementTime` du calque en est un sur-ensemble : il se passe tel quel.
+ * `PlacementTime` of the layer is a superset of it: it is passed as is.
  */
 export interface ShapeStyle {
   k: number
@@ -63,16 +65,17 @@ export interface ShapeStyle {
 }
 
 /**
- * LE POINTILLÉ DE L'INCERTITUDE — une grammaire, pas une décoration.
+ * THE DOTTED LINE OF UNCERTAINTY — a grammar, not a decoration.
  *
- * Le calque l'emploie déjà pour le mur SANS CAP (« ici, un mur », sans dire dans quel sens) ;
- * le champ de réparation l'emploie pour sa BORNE (un rayon déclaré, pas mesuré). Dans les deux
- * cas le message est le même : cette limite n'est pas affirmée. Un trait plein, dans ce calque,
- * dit toujours une valeur qu'on tient d'une source (l'anneau du capteur : portée officielle).
+ * The layer already uses it for the wall WITHOUT CAP ("here, a wall", without saying in
+ * which direction); the repair field uses it for its BOUND (a declared radius, not
+ * measured). In both cases the message is the same: this limit is not asserted. A full
+ * stroke, in this layer, always says a value we hold from a source (the ring of the sensor:
+ * official range).
  */
 export const UNCERTAIN_DASH: readonly number[] = [3, 3]
 
-/** strokePolyline trace une suite de points DÉJÀ projetés (arc ouvert, cercle, losange). */
+/** strokePolyline traces a sequence of ALREADY PROJECTED points (open arc, circle, diamond). */
 export function strokePolyline(ctx: CanvasRenderingContext2D, pts: XY[], closed: boolean): void {
   if (pts.length === 0) return
   ctx.beginPath()
@@ -82,17 +85,17 @@ export function strokePolyline(ctx: CanvasRenderingContext2D, pts: XY[], closed:
   ctx.stroke()
 }
 
-// --- OBJET NON IDENTIFIÉ ------------------------------------------------------------------
+// --- UNIDENTIFIED OBJECT ------------------------------------------------------------------
 
-/** Rayon du point neutre des objets non identifiés, en pixels d'écran. */
+/** Radius of the neutral point of unidentified objects, in screen pixels. */
 export const UNNAMED_DOT_RADIUS_PX = 2.5
 
 const UNNAMED_ALPHA = 0.5
 
 /**
- * drawUnnamedDot — le point neutre d'un objet dont la nature n'est pas établie. Aucune forme
- * empruntée aux familles nommées : ce marqueur dit « un objet d'équipement est ici », et il n'a
- * pas le droit d'en dire plus.
+ * drawUnnamedDot — the neutral point of an object whose nature is not established. No shape
+ * borrowed from the named families: this marker says "an equipment object is here", and it
+ * has no right to say more.
  */
 export function drawUnnamedDot(
   ctx: CanvasRenderingContext2D,
@@ -109,34 +112,37 @@ export function drawUnnamedDot(
   ctx.restore()
 }
 
-// --- OBJET LÂCHÉ AU SOL -------------------------------------------------------------------
+// --- OBJECT DROPPED ON THE GROUND -------------------------------------------------------------------
 
-/** Rayon de l'anneau d'un objet lâché, en pixels d'écran. */
+/** Radius of the ring of a dropped object, in screen pixels. */
 export const DROPPED_RADIUS_PX = 4.5
 
 /**
- * L'ATTÉNUATION D'UN OBJET AU SOL. Elle est plus basse que celle du point non identifié (0,5) :
- * un lâcher est un fait certain mais SECONDAIRE, et il ne doit jamais prendre le pas sur le mur
- * ou le capteur déployés au même endroit.
+ * THE FAINTNESS OF AN OBJECT ON THE GROUND. It is lower than that of the unidentified point
+ * (0.5): a drop is a certain but SECONDARY fact, and it must never take precedence over the
+ * wall or the sensor deployed in the same place.
  */
 const DROPPED_ALPHA = 0.42
 
-/** Épaisseur du liseré, à la densité de l'écran (même règle que les autres traits du calque). */
+/** Thickness of the rim, at the density of the screen (same rule as the other strokes of
+ * the layer). */
 const DROPPED_LINE_WIDTH = 1.25
 
 /**
- * drawDroppedObject — l'objet de puissance tombé au sol : un anneau POINTILLÉ, atténué, vide.
+ * drawDroppedObject — the power object dropped on the ground: a DOTTED ring, faint, empty.
  *
- * TROIS CHOIX, ET CHACUN DIT LA MÊME CHOSE — l'objet est là, il n'agit pas.
- *  - POINTILLÉ : c'est la grammaire du calque (cf. UNCERTAIN_DASH), employée ici pour ce
- *    qu'elle sait déjà dire — la limite n'est pas affirmée, l'objet n'exerce aucune portée ;
- *  - VIDE (aucun remplissage) : les formes pleines de ce calque disent une ZONE d'effet
- *    (disque du capteur, champ de réparation). Un objet au sol n'en a aucune ;
- *  - UNE SEULE FORME pour toutes les familles : reprendre l'arc du mur ou le disque du capteur
- *    affirmerait un déploiement qui n'a pas eu lieu — la mesure dit l'inverse (un mur lâché
- *    porte l'identifiant de l'APPAREIL, jamais celui des panneaux).
+ * THREE CHOICES, AND EACH SAYS THE SAME THING — the object is there, it does not act.
+ *  - DOTTED: it is the grammar of the layer (cf. UNCERTAIN_DASH), used here for what it
+ *    already knows how to say — the limit is not asserted, the object exercises no range;
+ *  - EMPTY (no fill): the full shapes of this layer say an EFFECT ZONE (disk of the sensor,
+ *    repair field). An object on the ground has none;
+ *  - ONE SINGLE SHAPE for all the families: taking back the arc of the wall or the disk of
+ *    the sensor would assert a deployment that did not take place — the measurement says the
+ *    opposite (a dropped wall carries the identifier of the DEVICE, never that of the
+ *    panels).
  *
- * La famille, elle, se lit au survol : c'est l'infobulle qui nomme, jamais la forme.
+ * The family, for its part, is read at the hover: it is the tooltip that names, never the
+ * shape.
  */
 export function drawDroppedObject(
   ctx: CanvasRenderingContext2D,
@@ -157,15 +163,16 @@ export function drawDroppedObject(
   ctx.restore()
 }
 
-// --- MARQUE « RÉVÉLÉ » --------------------------------------------------------------------
+// --- "REVEALED" MARK --------------------------------------------------------------------
 
 /**
- * drawRevealMark — la marque « révélé » d'UNE vie : un halo bas et son liseré, à la teinte de
- * l'équipe du POSEUR du capteur (c'est son camp qui voit, pas celui de la cible).
+ * drawRevealMark — the "revealed" mark of ONE life: a low halo and its rim, in the tint of
+ * the team of the PLANTER of the sensor (it is their side that sees, not that of the
+ * target).
  *
- * Elle est peinte SOUS le marqueur du joueur — le calque des poses passe avant celui des vies —
- * donc elle l'entoure sans jamais le couvrir. Rayon en PIXELS et non en mètres : ce n'est pas
- * une portée, c'est un signe posé sur un point.
+ * It is painted UNDER the marker of the player — the layer of placements passes before that
+ * of the lives — so it surrounds it without ever covering it. Radius in PIXELS and not in
+ * meters: it is not a range, it is a sign placed on a point.
  */
 export function drawRevealMark(
   ctx: CanvasRenderingContext2D,
@@ -192,64 +199,65 @@ export function drawRevealMark(
   ctx.restore()
 }
 
-// --- BALISE DU TRANSLOCATEUR --------------------------------------------------------------
+// --- BEACON OF THE TRANSLOCATOR --------------------------------------------------------------
 
-// --- TRAQUEUR DE MENACES ------------------------------------------------------------------
+// --- THREAT SEEKER ------------------------------------------------------------------
 
 /**
- * Durée de l'UNIQUE impulsion du traqueur, en millisecondes.
+ * Duration of the UNIQUE impulse of the seeker, in milliseconds.
  *
- * DÉRIVÉE DE L'ONDE DU CAPTEUR, et c'est délibéré : les deux objets émettent le même genre
- * d'événement — une impulsion qui doit se lire comme un coup. Écrire une seconde constante
- * laisserait deux rythmes divergents pour un seul geste (CLAUDE.md n°6).
+ * DERIVED FROM THE WAVE OF THE SENSOR, and that is deliberate: the two objects emit the same
+ * kind of event — an impulse that must read as a blow. Writing a second constant would
+ * leave two divergent rhythms for a single gesture (CLAUDE.md #6).
  */
 export const SEEKER_IMPULSE_MS = SENSOR_SWEEP_MS
 
 /**
- * Rayon atteint par l'impulsion, en pixels d'ÉCRAN — PAS en mètres, et c'est le point.
+ * Radius reached by the impulse, in SCREEN pixels — NOT in meters, and that is the point.
  *
- * LE JEU NE PUBLIE AUCUNE PORTÉE POUR CET OBJET. La source officielle qui chiffre le détecteur
- * de menaces (portée 4,25 wu, ping 1,8 s, révélation 0,75 s — cf. threatSensor.ts) dit du
- * traqueur une seule chose : « un projectile à UNE impulsion qui rebondit ». Un rayon en mètres
- * serait donc une portée inventée, et le calque en dessinerait la zone. 14 px passent juste au
- * large de la marque de révélation (12 px) : l'événement se distingue de la marque qu'il
- * pourrait produire, sans prétendre couvrir un terrain.
+ * THE GAME PUBLISHES NO RANGE FOR THIS OBJECT. The official source that figures the threat
+ * detector (range 4.25 wu, ping 1.8 s, reveal 0.75 s — cf. threatSensor.ts) says only one
+ * thing of the seeker: "a projectile with ONE impulse that bounces". A radius in meters
+ * would therefore be an invented range, and the layer would draw its zone. 14 px pass just
+ * beyond the reveal mark (12 px): the event distinguishes itself from the mark it could
+ * produce, without claiming to cover a field.
  */
 export const SEEKER_IMPULSE_RADIUS_PX = 14
 
-/** Épaisseur de l'onde : franche, c'est un événement (même valeur que le ping du capteur). */
+/** Thickness of the wave: sharp, it is an event (same value as the ping of the sensor). */
 const SEEKER_IMPULSE_WIDTH = 2
 const SEEKER_IMPULSE_ALPHA = SENSOR_PING_ALPHA
 
-/** L'onde d'une impulsion : sa course (en fraction du rayon) et ce qu'il lui reste d'opacité. */
+/** The wave of an impulse: its travel (as a fraction of the radius) and what it has left of
+ * opacity. */
 export interface ImpulseWave {
   reach: number
   alpha: number
 }
 
 /**
- * seekerImpulseActive — l'impulsion est-elle en cours à cet âge ?
+ * seekerImpulseActive — is the impulse in progress at this age?
  *
- * ELLE NE SE REJOUE JAMAIS : une seule impulsion par pose, et après elle il ne reste RIEN — ni
- * zone, ni anneau, ni point. C'est la différence de nature avec le détecteur, qui pinge toutes
- * les 1,8 s pendant toute sa durée. Le survol suit cette fenêtre (cf. `placementShows`) : on
- * n'inspecte pas ce qui n'est plus dessiné.
+ * IT IS NEVER REPLAYED: one single impulse per placement, and after it there is NOTHING
+ * left — no zone, no ring, no point. It is the difference in nature with the detector, which
+ * pings every 1.8 s for its whole duration. The hover follows this window (cf.
+ * `placementShows`): one does not inspect what is no longer drawn.
  */
 export function seekerImpulseActive(ageMs: number): boolean {
   return ageMs >= 0 && ageMs < SEEKER_IMPULSE_MS
 }
 
 /**
- * seekerImpulse — l'onde de l'impulsion, ou null hors de sa fenêtre.
+ * seekerImpulse — the wave of the impulse, or null outside its window.
  *
- * FONCTION DU TEMPS, PAS ANIMATION À ÉTAT (même règle que `sensorPing` et `explosionFx`) : le
- * même âge rend toujours la même image, donc un retour en arrière rejoue ce qu'on avait vu.
- * L'ouverture suit un easeOutCubic — l'onde part vite puis se calme au bord, le patron d'une
- * impulsion.
+ * FUNCTION OF TIME, NOT STATEFUL ANIMATION (same rule as `sensorPing` and `explosionFx`):
+ * the same age always renders the same image, so a rewind replays what was seen. The
+ * opening follows an easeOutCubic — the wave goes fast then calms down at the edge, the
+ * pattern of an impulse.
  *
- * SOUS MOUVEMENT RÉDUIT, L'ONDE NE COURT PAS MAIS L'ÉVÉNEMENT RESTE : un anneau immobile au
- * rayon plein, pendant la même fenêtre. Supprimer l'onde sans rien mettre à sa place rendrait
- * la famille entièrement invisible pour qui demande moins de mouvement.
+ * UNDER REDUCED MOTION, THE WAVE DOES NOT RUN BUT THE EVENT REMAINS: a motionless ring at
+ * full radius, for the same window. Removing the wave without putting anything in its place
+ * would make the family entirely invisible for those who ask for less motion.
  */
 export function seekerImpulse(ageMs: number, reducedMotion: boolean): ImpulseWave | null {
   if (!seekerImpulseActive(ageMs)) return null
@@ -258,7 +266,7 @@ export function seekerImpulse(ageMs: number, reducedMotion: boolean): ImpulseWav
   return { reach: 1 - Math.pow(1 - pr, 3), alpha: (1 - pr) * SEEKER_IMPULSE_ALPHA }
 }
 
-/** drawSeekerImpulse — l'anneau de l'unique impulsion ; rien du tout en dehors d'elle. */
+/** drawSeekerImpulse — the ring of the unique impulse; nothing at all outside it. */
 export function drawSeekerImpulse(
   ctx: CanvasRenderingContext2D,
   c: XY,
@@ -278,61 +286,63 @@ export function drawSeekerImpulse(
   ctx.restore()
 }
 
-// --- CHAMP DE RÉPARATION ------------------------------------------------------------------
+// --- REPAIR FIELD ------------------------------------------------------------------
 
 /**
- * Rayon du champ de réparation, en mètres monde. VALEUR DÉCLARÉE, PAS MESURÉE, PAS OFFICIELLE.
+ * Radius of the repair field, in world meters. DECLARED VALUE, NOT MEASURED, NOT OFFICIAL.
  *
- * LES TROIS SOURCES POSSIBLES SONT VIDES, ET IL FAUT LE DIRE : le film ne porte aucune portée
- * (ni dans le record de création, ni dans la vie de l'objet — même constat que pour le
- * détecteur) ; la source officielle qui chiffre le détecteur ne chiffre pas ce champ ; et rien
- * n'a été mesuré dans le corpus. 3 m — 6 m de diamètre — est un choix d'ÉCRAN, calibré sur ce
- * que le dôme du jeu abrite (un joueur et un coéquipier), et il reste sous la portée officielle
- * du détecteur (4,25 m) pour que les deux disques ne se confondent pas.
+ * THE THREE POSSIBLE SOURCES ARE EMPTY, AND IT NEEDS TO BE SAID: the film carries no range
+ * (neither in the creation record, nor in the life of the object — same finding as for the
+ * detector); the official source that figures the detector does not figure this field; and
+ * nothing was measured in the corpus. 3 m — 6 m in diameter — is a SCREEN choice, calibrated
+ * on what the dome of the game shelters (a player and a teammate), and it stays under the
+ * official range of the detector (4.25 m) so that the two disks are not confused.
  *
- * LE POINTILLÉ DE SA BORNE PORTE CETTE RÉSERVE À L'ÉCRAN (cf. UNCERTAIN_DASH) : l'anneau du
- * capteur est plein parce que sa portée est publiée, celui du champ est pointillé parce que la
- * sienne ne l'est pas. Le jour où une portée serait mesurée ou publiée, elle remplacerait cette
- * constante — et le trait deviendrait plein.
+ * THE DOTTED LINE OF ITS BOUND CARRIES THIS RESERVE TO THE SCREEN (cf. UNCERTAIN_DASH): the
+ * ring of the sensor is full because its range is published, that of the field is dotted
+ * because its own is not. The day a range would be measured or published, it would replace
+ * this constant — and the stroke would become full.
  */
 export const REPAIR_FIELD_RADIUS_M = 3
 
-/** Remplissage du disque : très bas — c'est une zone, elle ne doit rien masquer. */
+/** Fill of the disk: very low — it is a zone, it must hide nothing. */
 const REPAIR_FIELD_FILL_ALPHA = 0.12
 const REPAIR_FIELD_RING_ALPHA = 0.5
 const REPAIR_FIELD_RING_WIDTH = 1.25
 
 /**
- * LA CROIX DE PHARMACIE (V8, demande utilisateur du 2026-08-18 : « comme c'est un truc pour
- * la santé tu peux mettre une croix comme une croix de pharmacie qui pulse ? avec le cercle
- * autour évidemment »).
+ * THE PHARMACY CROSS (V8, user request of 2026-08-18: "comme c'est un truc pour la santé tu
+ * peux mettre une croix comme une croix de pharmacie qui pulse ? avec le cercle autour
+ * évidemment" (since it is a thing for health can you put a cross like a pharmacy cross
+ * that pulses? with the circle around it of course)).
  *
- * CE QUE LA PULSATION DIT, ET CE QU'ELLE NE DIT PAS. Elle ne compte RIEN : le film ne porte
- * aucune cadence de soin, et prétendre le contraire serait inventer une mesure. Elle ne touche
- * donc QUE la croix — le disque et son anneau pointillé restent immobiles, et c'est eux qui
- * portent l'information (la zone, et la réserve sur sa portée). La croix respire parce qu'un
- * objet qui soigne est ACTIF, et une respiration lente est le seul signe d'activité qui ne
- * chiffre rien.
+ * WHAT THE PULSE SAYS, AND WHAT IT DOES NOT SAY. It counts NOTHING: the film carries no
+ * healing rate, and claiming the opposite would be inventing a measurement. It therefore
+ * touches ONLY the cross — the disk and its dotted ring remain motionless, and they are
+ * what carry the information (the zone, and the reserve on its range). The cross breathes
+ * because an object that heals is ACTIVE, and a slow breathing is the only sign of activity
+ * that figures nothing.
  *
- * SOUS MOUVEMENT RÉDUIT ELLE NE RESPIRE PAS, mais elle reste : la famille ne doit pas devenir
- * invisible pour qui demande moins de mouvement (même règle que l'onde du traqueur).
+ * UNDER REDUCED MOTION IT DOES NOT BREATHE, but it remains: the family must not become
+ * invisible for those who ask for less motion (same rule as the wave of the seeker).
  */
 const REPAIR_CROSS_PERIOD_MS = 1_800
-/** Demi-longueur de la croix, en fraction du rayon du champ. */
+/** Half-length of the cross, as a fraction of the radius of the field. */
 const REPAIR_CROSS_REACH = 0.42
-/** Épaisseur de la branche, même fraction : la croix garde ses proportions à toute échelle. */
+/** Thickness of the branch, same fraction: the cross keeps its proportions at every scale. */
 const REPAIR_CROSS_ARM = 0.15
-/** Croix la plus petite qui reste lisible, en pixels d'écran (BTB : 2,5 px/m). */
+/** Smallest cross that remains legible, in screen pixels (BTB: 2.5 px/m). */
 const REPAIR_CROSS_MIN_PX = 3.5
 const REPAIR_CROSS_ALPHA_LOW = 0.55
 const REPAIR_CROSS_ALPHA_HIGH = 0.95
 
 /**
- * repairCrossAlpha — l'opacité de la croix à cet âge : une respiration lente entre deux bornes.
+ * repairCrossAlpha — the opacity of the cross at this age: a slow breathing between two
+ * bounds.
  *
- * FONCTION DU TEMPS, PAS ANIMATION À ÉTAT (même règle que `sensorPing` et `seekerImpulse`) : le
- * même âge redonne toujours la même image, donc un retour en arrière rejoue ce qu'on avait vu.
- * Sous mouvement réduit, la valeur haute, constante.
+ * FUNCTION OF TIME, NOT STATEFUL ANIMATION (same rule as `sensorPing` and
+ * `seekerImpulse`): the same age always gives back the same image, so a rewind replays what
+ * was seen. Under reduced motion, the high value, constant.
  */
 export function repairCrossAlpha(ageMs: number, reducedMotion: boolean): number {
   if (reducedMotion) return REPAIR_CROSS_ALPHA_HIGH
@@ -340,22 +350,24 @@ export function repairCrossAlpha(ageMs: number, reducedMotion: boolean): number 
   return REPAIR_CROSS_ALPHA_LOW + (REPAIR_CROSS_ALPHA_HIGH - REPAIR_CROSS_ALPHA_LOW) * phase
 }
 
-/** Ce qu'il faut savoir d'un champ pour le tracer : où, jusqu'où, et depuis quand. */
+/** What needs to be known of a field to trace it: where, up to where, and since when. */
 export interface RepairFieldShape {
   c: XY
-  /** Rayon DÉJÀ converti en pixels : la conversion appartient au calque, seul à voir le cadrage. */
+  /** Radius ALREADY converted to pixels: the conversion belongs to the layer, the only one
+   * to see the framing. */
   radiusPx: number
-  /** Âge de la pose, en millisecondes de match — il donne sa phase à la respiration. */
+  /** Age of the placement, in match milliseconds — it gives its phase to the breathing. */
   ageMs: number
 }
 
 /**
- * drawRepairField — le disque du champ, à l'encre de l'équipe du poseur, borné d'un pointillé,
- * et LA CROIX DE PHARMACIE qui respire en son centre (cf. REPAIR_CROSS_PERIOD_MS).
+ * drawRepairField — the disk of the field, in the ink of the team of the planter, bounded
+ * by a dotted line, and THE PHARMACY CROSS that breathes in its center (cf.
+ * REPAIR_CROSS_PERIOD_MS).
  *
- * LA ZONE NE BOUGE PAS, SEULE LA CROIX RESPIRE. C'est la même distinction que pour le capteur —
- * ce qui affirme une mesure est immobile, ce qui bouge ne chiffre rien. Le disque dit la portée
- * (déclarée, d'où le pointillé), la croix dit « ici, on se soigne ».
+ * THE ZONE DOES NOT MOVE, ONLY THE CROSS BREATHES. It is the same distinction as for the
+ * sensor — what asserts a measurement is motionless, what moves figures nothing. The disk
+ * says the range (declared, hence the dotted line), the cross says "here, we heal".
  */
 export function drawRepairField(
   ctx: CanvasRenderingContext2D,
@@ -378,7 +390,7 @@ export function drawRepairField(
   ctx.beginPath()
   ctx.arc(c.x, c.y, radiusPx, 0, Math.PI * 2)
   ctx.stroke()
-  // LA CROIX : trait plein, à l'intérieur du cercle, jamais au-delà de sa borne.
+  // THE CROSS: full stroke, inside the circle, never beyond its bound.
   ctx.setLineDash([])
   ctx.globalAlpha = repairCrossAlpha(field.ageMs, style.reducedMotion)
   const reach = Math.max(radiusPx * REPAIR_CROSS_REACH, REPAIR_CROSS_MIN_PX * style.k)
@@ -390,5 +402,6 @@ export function drawRepairField(
   ctx.restore()
 }
 
-// La FAILLE du translocateur et son arc de téléportation vivent dans `placementRift.ts`.
-// La BULLE de l'écran occultant (rayon, durée de repli, éclairs) vit dans `placementShroud.ts`.
+// The RIFT of the translocator and its teleportation arc live in `placementRift.ts`.
+// The BUBBLE of the blackout screen (radius, fold duration, bolts) lives in
+// `placementShroud.ts`.

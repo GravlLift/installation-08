@@ -1,25 +1,26 @@
 /**
- * knockbackFx.ts — LA POUSSÉE DU RÉPULSEUR : une onde qui part de l'auteur, et un sillage sur le
- * joueur poussé, orienté par l'impulsion lue.
+ * knockbackFx.ts — THE PUSH OF THE REPULSOR: a wave that starts from the author, and a trail
+ * on the pushed player, oriented by the read impulse.
  *
- * LA SOURCE est le document (schéma 94) : `knockbacks`, une entrée par joueur poussé — (t, slot),
- * l'auteur `by` et la vitesse imposée `vx/vy/vz`, lus dans la paire de messages que le film écrit
- * (`EquipmentObjectKnockedBack` puis `EquipmentKnockbackPlayer`). Aucun seuil, aucune lecture de
- * trajectoire pour décider : la poussée EST publiée.
+ * THE SOURCE is the document (schema 94): `knockbacks`, one entry per pushed player — (t,
+ * slot), the author `by` and the imposed velocity `vx/vy/vz`, read from the pair of messages
+ * the film writes (`EquipmentObjectKnockedBack` then `EquipmentKnockbackPlayer`). No
+ * threshold, no trajectory reading to decide: the push IS published.
  *
- * ## Ce qui se dessine
+ * ## What draws
  *
- *  - L'ONDE, centrée sur l'auteur à l'image de la poussée : un anneau qui s'étend et s'efface. Elle
- *    dit QUI a poussé. Sans auteur publié (`by` absent), pas d'onde : on ne pose pas une source au
- *    hasard.
- *  - LE SILLAGE sur le joueur poussé, le tracé du propulseur (`drawDash` de `thrusterDashFx.ts`) :
- *    la DIRECTION vient de l'impulsion (`vx`, `vy`), pas du déplacement. Sans impulsion publiée,
- *    pas de sillage.
+ *  - THE WAVE, centered on the author at the frame of the push: a ring that extends and
+ *    fades. It says WHO pushed. Without a published author (`by` absent), no wave: we do
+ *    not place a source at random.
+ *  - THE TRAIL on the pushed player, the tracing of the thruster (`drawDash` of
+ *    `thrusterDashFx.ts`): the DIRECTION comes from the impulse (`vx`, `vy`), not from the
+ *    displacement. Without a published impulse, no trail.
  *
- * LA COULEUR est celle de l'équipe de l'AUTEUR, résolue à l'image de la poussée (le slot d'une vie
- * est repris aux réapparitions) ; sans auteur, celle du joueur poussé.
+ * THE COLOR is that of the team of the AUTHOR, resolved at the frame of the push (the slot
+ * of a life is taken back at respawns); without an author, that of the pushed player.
  *
- * Tout est en géométrie pure sur le contexte ; les encres arrivent déjà résolues depuis les tokens.
+ * Everything is pure geometry on the context; the inks arrive already resolved from the
+ * tokens.
  */
 import type { ReplayPoint } from '@/lib/api/types'
 
@@ -29,33 +30,35 @@ import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 import { type CanvasView, projectTo } from '../model/replayView'
 import { dashProgress, drawDash } from './thrusterDashFx'
 
-/** DURÉE DE L'EFFET, en temps réel du match : un souffle bref, comme le dash du propulseur. */
+/** DURATION OF THE EFFECT, in real time of the match: a brief breath, like the dash of the
+ * thruster. */
 export const KNOCKBACK_FX_MS = 520
 
-/** Rayon final de l'onde, en pixels d'écran (multiplié par la densité). */
+/** Final radius of the wave, in screen pixels (multiplied by the density). */
 const WAVE_RADIUS = 26
 const WAVE_WIDTH = 2.2
 const WAVE_ALPHA = 0.85
-/** Sous mouvement réduit : l'anneau est posé, plein rayon, opacité constante. */
+/** Under reduced motion: the ring is placed, full radius, constant opacity. */
 const WAVE_ALPHA_STATIC = 0.5
 
-/** Une poussée prête à dessiner. */
+/** A push ready to draw. */
 export interface KnockbackFx {
   frame: number
-  /** Slot du joueur poussé, et les points de SA vie (le sillage suit le pion). */
+  /** Slot of the pushed player, and the points of THEIR life (the trail follows the pawn). */
   slot: number
   points: ReplayPoint[]
-  /** Slot de l'auteur et sa position à l'image de la poussée ; absents sans auteur publié. */
+  /** Slot of the author and their position at the frame of the push; absent without a
+   * published author. */
   by: number | null
   origin: XY | null
-  /** Vitesse imposée, plan horizontal, en monde ; absente sans impulsion publiée. */
+  /** Imposed velocity, horizontal plane, in world; absent without a published impulse. */
   push: XY | null
 }
 
 /**
- * buildKnockbackFx joint chaque poussée à LA VIE du joueur poussé qui couvre son instant et, quand
- * l'auteur est publié, à la position de la vie de l'auteur à cet instant. Une poussée dont la vie
- * poussée n'a pas de points ne produit rien.
+ * buildKnockbackFx joins each push to THE LIFE of the pushed player that covers its instant
+ * and, when the author is published, to the position of the life of the author at that
+ * instant. A push whose pushed life has no points produces nothing.
  */
 export function buildKnockbackFx(doc: ReplayDocumentReady): KnockbackFx[] {
   if (doc.knockbacks.length === 0) return []
@@ -82,7 +85,7 @@ export function buildKnockbackFx(doc: ReplayDocumentReady): KnockbackFx[] {
   return out
 }
 
-/** L'horloge du calque : image courante, durée réelle d'une image, densité, préférence. */
+/** The clock of the layer: current frame, real duration of a frame, density, preference. */
 interface KnockbackTime {
   frame: number
   frameMs: number
@@ -90,14 +93,15 @@ interface KnockbackTime {
   reducedMotion: boolean
 }
 
-/** Le style : la couleur d'équipe d'une vie, à une image donnée. */
+/** The style: the team color of a life, at a given frame. */
 export interface KnockbackStyle {
   colorOfSlot: (slot: number, frame: number) => string | null
 }
 
 /**
- * waveProgress : rayon (part du rayon final) et présence de l'onde à cet âge, ou `null` hors de la
- * fenêtre. Étirement easeOutCubic, comme le dash et l'onde de choc de l'explosion.
+ * waveProgress: radius (part of the final radius) and presence of the wave at this age, or
+ * `null` outside the window. easeOutCubic stretch, like the dash and the shockwave of the
+ * explosion.
  */
 export function waveProgress(
   ageMs: number,
@@ -109,7 +113,7 @@ export function waveProgress(
   return { reach: 1 - Math.pow(1 - p, 3), alpha: (1 - p) * WAVE_ALPHA }
 }
 
-/** drawKnockbackLayer peint les poussées actives à l'image courante. */
+/** drawKnockbackLayer paints the pushes active at the current frame. */
 export function drawKnockbackLayer(
   ctx: CanvasRenderingContext2D,
   fx: readonly KnockbackFx[],
@@ -151,8 +155,8 @@ function drawWave(
 }
 
 /**
- * screenDirection projette le pion et le pion décalé de l'impulsion, et normalise EN PIXELS (la
- * projection peut inverser un axe et n'a pas la même échelle en x et en y).
+ * screenDirection projects the pawn and the pawn offset by the impulse, and normalizes IN
+ * PIXELS (the projection can invert an axis and does not have the same scale in x and in y).
  */
 function screenDirection(at: XY, push: XY, view: CanvasView): XY | null {
   const a = projectTo(view, at)

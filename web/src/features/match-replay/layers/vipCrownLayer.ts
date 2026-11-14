@@ -1,30 +1,34 @@
 /**
- * vipCrownLayer.ts — LA COURONNE VIP (schéma 22), image par image.
+ * vipCrownLayer.ts — THE VIP CROWN (schema 22), frame by frame.
  *
- * POURQUOI IL VIT À CÔTÉ DES AUTRES CALQUES D'ÉTAT. Même partage que `flagCarriesLayer.ts` : le
- * marqueur suit son porteur image par image (le VIP court, la période ne publie qu'un intervalle),
- * donc il se peint À CHAQUE IMAGE, sur la position RELUE du joueur — jamais à une position figée.
+ * WHY IT LIVES BESIDE THE OTHER STATE LAYERS. Same sharing as `flagCarriesLayer.ts`: the
+ * marker follows its carrier frame by frame (the VIP runs, the period only publishes an
+ * interval), so it is painted AT EVERY FRAME, on the RE-READ position of the player — never
+ * at a frozen position.
  *
- * CE QUE LA COURONNE DIT, ET RIEN DE PLUS : QUI porte la couronne VIP à cette image. Une période
- * s'ouvre à la sélection du VIP et se ferme à sa mort (ou à la sélection suivante). Deux camps ont
- * chacun leur VIP : deux couronnes peuvent donc être à l'écran en même temps, et c'est juste.
+ * WHAT THE CROWN SAYS, AND NOTHING MORE: WHO carries the VIP crown at this frame. A period
+ * opens at the selection of the VIP and closes at their death (or at the next selection).
+ * Two sides each have their VIP: two crowns can therefore be on screen at the same time,
+ * and that is right.
  *
- * `closed` faux = RIEN ne date la fin du port : l'intervalle court jusqu'à la fin de l'axe, une
- * BORNE HAUTE. La couronne est alors ATTÉNUÉE — l'incertitude est à l'écran, pas dans une note.
+ * `closed` false = NOTHING dates the end of the carry: the interval runs to the end of the
+ * axis, an UPPER BOUND. The crown is then FAINT — the uncertainty is on screen, not in a
+ * note.
  *
- * L'ENCRE EST CELLE DU CAMP DU VIP, vu du joueur regardé (allié / adverse), comme le drapeau :
- * avec deux VIP à l'écran, la couleur dit lequel est à protéger et lequel est à abattre. Sans
- * allégeance connue, le neutre du thème — jamais un camp supposé. L'encre est RÉSOLUE par
- * l'appelant (règle color-tokens). Le glyphe pose un LISERÉ à l'encre du fond, à la même cote que
- * le drapeau et le crâne, pour garder un bord franc sur un fond de carte chargé.
+ * THE INK IS THAT OF THE SIDE OF THE VIP, seen from the looked-at player (ally / enemy),
+ * like the flag: with two VIPs on screen, the color says which one is to protect and which
+ * one is to take down. Without known allegiance, the neutral of the theme — never a
+ * supposed side. The ink is RESOLVED by the caller (color-tokens rule). The glyph places a
+ * RIM in the ink of the background, at the same dimension as the flag and the skull, to
+ * keep a sharp edge on a busy map background.
  *
- * AUCUNE VIGNETTE DU JEU : le film ne porte pas le bit VIP (la voie est le statborg), il n'y a
- * donc ni tag ni image à deviner. La forme est décrite dans `crownGlyph.ts`, partagée avec le
- * filigrane de la fiche. Aucun texte : la couronne se pose SUR le joueur déjà nommé par son
- * marqueur, AU-DESSUS de lui — elle le qualifie, elle ne le remplace pas.
+ * NO GAME THUMBNAIL: the film does not carry the VIP bit (the lane is the statborg), there
+ * is therefore no tag nor image to guess. The shape is described in `crownGlyph.ts`,
+ * shared with the watermark of the card. No text: the crown sits ON the player already
+ * named by their marker, ABOVE them — it qualifies them, it does not replace them.
  *
- * LE PORTEUR SE RELIT DANS SES TRAJECTOIRES (`posOf`), comme le drapeau : sans position, la
- * couronne ne se dessine pas — elle n'a pas de position propre (elle est TOUJOURS sur le joueur).
+ * THE CARRIER IS RE-READ IN THEIR TRAJECTORIES (`posOf`), like the flag: without position,
+ * the crown does not draw — it has no position of its own (it is ALWAYS on the player).
  */
 import { type XY } from '../../../lib/replay/replayLogic'
 
@@ -34,41 +38,44 @@ import { carriedGlyphAlpha } from './carriedGlyphPulse'
 import { covers } from '../model/replaySpans'
 import { CROWN_BOTTOM, CROWN_BOX, traceCrown } from './crownGlyph'
 
-/** Style du calque : les encres sont RÉSOLUES par l'appelant (règle color-tokens). */
+/** Style of the layer: the inks are RESOLVED by the caller (color-tokens rule). */
 export interface VipCrownStyle {
-  /** Encre de la couronne d'un VIP : la couleur de son camp vu du joueur regardé, ou le neutre. */
+  /** Ink of the crown of a VIP: the color of their side seen from the looked-at player, or
+   * the neutral. */
   inkOf: (xuid: string) => string
-  /** Encre du FOND, pour le liseré (celle du drapeau et du crâne). */
+  /** Ink of the BACKGROUND, for the rim (that of the flag and the skull). */
   outline: string
-  /** Mouvement réduit : la pulsation de la couronne « ouverte » devient une opacité constante. */
+  /** Reduced motion: the pulsation of the "open" crown becomes a constant opacity. */
   reducedMotion: boolean
 }
 
 /**
- * VipCrownInput — ce que le calque reçoit de l'appelant (`useReplayVipCrown`).
+ * VipCrownInput — what the layer receives from the caller (`useReplayVipCrown`).
  *
- * `posOf` est LA raison d'être de ce champ : la couronne se dessine sur le marqueur du VIP à
- * l'image courante. Le calque ne sait pas relire une trajectoire — l'appelant lui passe la lecture.
+ * `posOf` is THE reason for this field: the crown draws on the marker of the VIP at the
+ * current frame. The layer does not know how to re-read a trajectory — the caller passes
+ * it the reading.
  */
 export interface VipCrownInput {
   style: VipCrownStyle
-  /** Position monde du joueur à une image, ou `null` s'il n'est pas localisable. */
+  /** World position of the player at a frame, or `null` if they are not locatable. */
   posOf: (xuid: string, frame: number) => XY | null
 }
 
-/** Côté du glyphe, en pixels canvas : la largeur du crâne porté (r=7 + liseré). */
+/** Side of the glyph, in canvas pixels: the width of the carried skull (r=7 + rim). */
 export const CROWN_SIZE_PX = 18
 /**
- * Hauteur du bas de la couronne au-dessus du point du joueur : le bas du crâne porté (centre à
- * 12, rayon 7), pour que les objets portés tiennent la même place au-dessus du marqueur.
+ * Height of the bottom of the crown above the point of the player: the bottom of the
+ * carried skull (center at 12, radius 7), so that the carried objects hold the same place
+ * above the marker.
  */
 const CROWN_FOOT_Y = 5
-/** Débord du liseré au-delà de la forme — MÊME COTE que le drapeau (`FLAG_OUTLINE_PAD`). */
+/** Overhang of the rim beyond the shape — SAME DIMENSION as the flag (`FLAG_OUTLINE_PAD`). */
 const CROWN_LISERE_PAD = 1.6
 
 /**
- * vipActiveAt rend les périodes qui COUVRENT l'image demandée — au plus une par VIP courant, mais
- * plusieurs camps peuvent avoir chacun le leur. Fonction PURE, testée à part.
+ * vipActiveAt returns the periods that COVER the requested frame — at most one per current
+ * VIP, but several sides can each have their own. PURE FUNCTION, tested apart.
  */
 export function vipActiveAt(
   periods: readonly ReplayVipPeriod[],
@@ -82,11 +89,11 @@ export function vipActiveAt(
 }
 
 /**
- * drawVipCrown peint, PAR-DESSUS les marqueurs, la couronne sur le VIP courant de chaque camp.
+ * drawVipCrown paints, ON TOP of the markers, the crown on the current VIP of each side.
  *
- * Un VIP non localisable (vie non publiée, image hors de ses trajectoires) n'est PAS dessiné : la
- * couronne n'a pas de position propre, et l'inventer serait affirmer une place que le film ne
- * donne pas à cette image.
+ * A non-locatable VIP (unpublished life, frame outside their trajectories) is NOT drawn:
+ * the crown has no position of its own, and inventing one would assert a place that the
+ * film does not give at this frame.
  */
 export function drawVipCrown(
   ctx: CanvasRenderingContext2D,
@@ -107,7 +114,7 @@ export function drawVipCrown(
   ctx.globalAlpha = 1
 }
 
-/** Ce que le tracé d'un glyphe a besoin de savoir. */
+/** What the tracing of a glyph needs to know. */
 interface CrownGlyphPaint {
   ink: string
   outline: string
@@ -115,8 +122,9 @@ interface CrownGlyphPaint {
 }
 
 /**
- * drawCrownGlyph trace la couronne AU-DESSUS du point servi : le liseré à l'encre du fond d'abord
- * (trait centré, dont le remplissage recouvre la moitié intérieure), puis la forme à l'encre du camp.
+ * drawCrownGlyph traces the crown ABOVE the point served: the rim in the ink of the
+ * background first (centered stroke, of which the fill covers the inner half), then the
+ * shape in the ink of the side.
  */
 export function drawCrownGlyph(
   ctx: CanvasRenderingContext2D,

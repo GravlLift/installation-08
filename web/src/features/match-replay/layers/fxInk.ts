@@ -1,33 +1,34 @@
 /**
- * fxInk.ts — LES TEINTES D'EFFET DE TIR, lues du thème.
+ * fxInk.ts — the SHOT EFFECT TINTS, read from the theme.
  *
- * CE QUE CE FICHIER TRANCHE, ET POURQUOI CE N'EST PAS UNE ENTORSE À LA RÈGLE DES TOKENS.
- * Le lot 3.2 avait acté « famille = FORME, couleur = TIREUR », et abandonné la palette du
- * POC. L'utilisateur ROUVRE cet arbitrage le 2026-08-15, mot pour mot : « le muzzle flash
- * c'est bien pour les armes CINÉTIQUES ; pour les autres faut des effets de type PLASMA
- * BLEUTÉ OU ROUGEÂTRE pour les armes Banished à énergie, voire d'ÉNERGIE VIOLETTE pour les
- * armes Forerunner », puis, en correction : « les couleurs des effets de tirs ne prennent
- * pas la couleur du tireur [...] elle prend seulement l'ARME en compte ». Ce n'est donc pas
- * un retour en arrière par oubli : la NATURE de la décharge se dit désormais par la couleur,
- * et l'identité du joueur reste portée par son marqueur et son cône de visée.
+ * WHAT THIS FILE SETTLES, AND WHY IT IS NOT A BREACH OF THE TOKEN RULE.
+ * Lot 3.2 had settled "family = SHAPE, color = SHOTTER", and dropped the POC palette. The
+ * user REOPENS this ruling on 2026-08-15, word for word: "le muzzle flash c'est bien pour
+ * les armes CINÉTIQUES ; pour les autres faut des effets de type PLASMA BLEUTÉ OU ROUGEÂTRE
+ * pour les armes Banished à énergie, voire d'ÉNERGIE VIOLETTE pour les armes Forerunner"
+ * (the muzzle flash is right for KINETIC weapons; for the others we need effects in the BLUE
+ * or REDDISH PLASMA style for the energy weapons of the Banished, or even VIOLET ENERGY for
+ * the Forerunner weapons), then, as a correction: "the shot effect colors don't take the
+ * shooter's color [...] they only take the WEAPON into account". So this is not a backslide
+ * out of forgetting: the NATURE of the discharge is now stated by color, and the player's
+ * identity stays carried by their marker and their aim cone.
  *
- * POURQUOI PAS DES TOKENS `--ac-*`. Ceux-là disent un RÔLE DE DONNÉE et sont remappés par
- * les palettes d'accessibilité : sous Okabe-Ito, un plasma bleu deviendrait orange, ce qui
- * détruirait l'information même que la teinte porte. Ces couleurs sont DIÉGÉTIQUES — elles
- * nomment ce que le jeu montre. Elles vivent donc dans le thème (`--replay-fx-*`,
- * globals.css), avec une valeur par thème clair/sombre, et sont lues ici comme
- * `canvasInk.ts` lit les encres de mise en page. La règle est étendue, pas contournée :
- * aucune valeur de couleur n'est écrite dans `features/`.
+ * WHY NOT `--ac-*` TOKENS. Those state a DATA ROLE and are remapped by the accessibility
+ * palettes: under Okabe-Ito, a blue plasma would become orange, which would destroy the very
+ * information the tint carries. These colors are DIEGETIC — they name what the game shows.
+ * They therefore live in the theme (`--replay-fx-*`, globals.css), with a value per light/dark
+ * theme, and are read here the way `canvasInk.ts` reads the layout inks. The rule is extended,
+ * not bypassed: no color value is written in `features/`.
  *
- * LE VOCABULAIRE EST CELUI DU SERVEUR : `[shot_tints]` du titre (nature de la décharge),
- * publié par arme dans `weaponLabels[id].tint`. Le garde-rail `fxInk.guard.test.ts` vérifie
- * que les deux listes coïncident et que chaque teinte a bien sa variable dans le thème —
- * une teinte ajoutée côté serveur et non stylée retomberait sinon en neutre, en silence.
+ * THE VOCABULARY IS THE SERVER'S: the title's `[shot_tints]` (the nature of the discharge),
+ * published per weapon in `weaponLabels[id].tint`. The guardrail `fxInk.guard.test.ts` checks
+ * that the two lists agree and that every tint has its variable in the theme — otherwise a
+ * tint added on the server and not styled would fall back to neutral, silently.
  */
 import { log } from '@/lib/accessibility/_logger'
 import { readThemeVar } from './themeInk'
 
-/** Natures de décharge. `neutral` n'est pas une nature : c'est l'absence de nature connue. */
+/** Natures of discharge. `neutral` is not a nature: it is the absence of a known nature. */
 export type FxTint =
   | 'kinetic'
   | 'plasma_cool'
@@ -39,7 +40,7 @@ export type FxTint =
   | 'blast'
   | 'neutral'
 
-/** Les natures que le TITRE peut publier (`neutral` est le repli du client, pas une valeur). */
+/** The natures the TITLE can publish (`neutral` is the client fallback, not a value). */
 export const SERVED_FX_TINTS: readonly FxTint[] = [
   'kinetic',
   'plasma_cool',
@@ -51,43 +52,44 @@ export const SERVED_FX_TINTS: readonly FxTint[] = [
   'blast',
 ]
 
-/** Variable de thème d'une teinte. Les tirets suivent la convention CSS, pas le TOML. */
+/** Theme variable of a tint. The dashes follow the CSS convention, not the TOML. */
 export function fxTintVar(tint: FxTint): string {
   return `--replay-fx-${tint.replace('_', '-')}`
 }
 
 /**
- * fxTintOf valide la nature annoncée par le document.
+ * fxTintOf validates the nature announced by the document.
  *
- * INCONNUE OU ABSENTE : `neutral`. On ne rapproche pas d'une teinte voisine — une couleur
- * empruntée affirmerait une nature qu'on ignore, exactement comme le ferait une forme
- * empruntée (même règle que `familyOf`).
+ * UNKNOWN OR ABSENT: `neutral`. We do not snap to a nearby tint — a borrowed color would
+ * assert a nature we do not know, exactly as a borrowed shape would (same rule as
+ * `familyOf`).
  */
 export function fxTintOf(raw: string | undefined): FxTint {
   if (!raw) return 'neutral'
   return (SERVED_FX_TINTS as readonly string[]).includes(raw) ? (raw as FxTint) : 'neutral'
 }
 
-/** Les encres d'un effet : la teinte de la décharge, et le cœur incandescent commun. */
+/** The inks of an effect: the tint of the discharge, and the shared white-hot core. */
 export interface FxInk {
   tint: Record<FxTint, string>
-  /** Le cœur blanc-chaud de l'éclair : la même incandescence quelle que soit la nature. */
+  /** The white-hot core of the flash: the same incandescence whatever the nature. */
   core: string
 }
 
 /**
- * readFxInk lit les teintes du thème (thème SOMBRE pendant un export, cf. `themeInk.ts`). À appeler UNE fois par thème (pas par image) : un
- * `getComputedStyle` par effet et par frame coûterait bien plus que le dessin lui-même.
+ * readFxInk reads the tints of the theme (DARK theme during an export, cf. `themeInk.ts`).
+ * Call it ONCE per theme (not per frame): a `getComputedStyle` per effect and per frame
+ * would cost far more than the drawing itself.
  *
- * Une variable absente rend une chaîne vide — un `fillStyle` vide laisse le contexte
- * inchangé plutôt que de peindre une couleur inventée (même règle que `readInk`).
+ * A missing variable returns an empty string — an empty `fillStyle` leaves the context
+ * unchanged rather than painting an invented color (same rule as `readInk`).
  */
 export function readFxInk(): FxInk {
   const read = (name: string): string => {
     if (typeof document === 'undefined') return ''
     const value = readThemeVar(name)
     if (!value) {
-      log.error(`replay-fx:${name}`, `Teinte d'effet "${name}" absente du thème.`)
+      log.error(`replay-fx:${name}`, `Effect tint "${name}" missing from the theme.`)
       return ''
     }
     return value
