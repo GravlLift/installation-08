@@ -114,10 +114,6 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   const sceneReady = sceneLoad?.kind === 'ready'
   const onCountdownDone = useCallback(() => setViewerLive(true), [])
   const countdown = usePreGameCountdown(onCountdownDone, sceneReady)
-  useEffect(() => {
-    setViewerLive(false)
-    setSceneLoad(null)
-  }, [matchId])
 
   // Escape goes back at any time before the replay starts.
   useEffect(() => {

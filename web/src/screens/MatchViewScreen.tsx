@@ -350,5 +350,7 @@ export function MatchViewScreen({
   matchId: string
   onBack: () => void
 }) {
-  return <PreGameScreen matchId={matchId} onBack={onBack} />
+  // Keyed by match: going from one match straight to another must start a fresh pre-game
+  // (its countdown runs once per mount).
+  return <PreGameScreen key={matchId} matchId={matchId} onBack={onBack} />
 }
