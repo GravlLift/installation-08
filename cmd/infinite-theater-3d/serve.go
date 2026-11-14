@@ -13,12 +13,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -27,7 +29,6 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
-	"github.com/llampwall/infinite-theater-3d/internal/webdist"
 )
 
 // Version is the build version, reported by the version command and /api/health. The
@@ -98,9 +99,9 @@ func runServe(args []string) error {
 	ln, err := net.Listen("tcp", f.addr)
 	if err != nil {
 		if f.open {
-			// The address is taken, most likely by another running copy: open the browser
-			// on the existing server and exit cleanly instead of failing with a raw error.
-			return openOnExisting(f.addr)
+			// The address is taken: when another running copy holds it, open the browser
+			// on that copy and exit cleanly.
+			return openOnExisting(f.addr, err)
 		}
 		return fmt.Errorf("listen %s: %w", f.addr, err)
 	}
@@ -138,8 +139,7 @@ func runServe(args []string) error {
 type serverHandlers struct {
 	root     *store.Root
 	web      string // the --web directory, when given
-	webFiles []byte // the embedded viewer's index.html and assets, when the build has one
-	webList  []string
+	webFS    fs.FS  // the embedded viewer, nil when the build has none
 	jobs     *meshjobs.Runner
 	weapKeys weapons.Catalog
 	labelCat weapons.LabelCatalog
@@ -161,46 +161,37 @@ func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.serveStaticDir(w, r)
 			return
 		}
-		if len(h.webFiles) > 0 {
-			h.serveEmbedded(w, r)
-			return
-		}
+		h.serveEmbedded(w, r)
+		return
 	}
 	h.mux.ServeHTTP(w, r)
 }
 
-// servesStatic says whether the path is one the static viewer answers: any path that is
-// not an API route and not a method the API uses on an API path. The /static/medals and
-// /static/maps prefixes are answered by the context-asset route, not by the static
-// viewer.
+// servesStatic says whether the path is one the static viewer answers: any path outside
+// the two prefixes the server keeps for itself, /api/ (the API) and /static/ (the icon,
+// rank, sound and context-asset routes of the mux).
 func (h serverHandlers) servesStatic(r *http.Request) bool {
-	if h.web == "" && len(h.webFiles) == 0 {
+	if h.web == "" && h.webFS == nil {
 		return false
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/") {
-		return false
-	}
-	return true
+	return !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/")
 }
 
-// serveEmbedded serves the embedded viewer: a named file from the embedded tree, index.html
-// for a client route (the single-page-app convention), 404 otherwise.
+// serveEmbedded serves the embedded viewer: the named file when the tree holds it,
+// otherwise index.html (the single-page-app convention, so a client route such as
+// /match/<id> opens the viewer).
 func (h serverHandlers) serveEmbedded(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Path
-	if name == "/" {
-		name = "/index.html"
-	}
-	if raw, err := webdist.File(strings.TrimPrefix(name, "/")); err == nil {
-		http.ServeContent(w, r, filepath.Base(name), time.Time{}, bytes.NewReader(raw))
+	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if info, err := fs.Stat(h.webFS, name); name != "" && err == nil && !info.IsDir() {
+		http.ServeFileFS(w, r, h.webFS, name)
 		return
 	}
-	if webdist.IsClientRoute(r.URL.Path, h.webList) {
-		if index, err := webdist.Index(); err == nil {
-			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
-			return
-		}
+	index, err := fs.ReadFile(h.webFS, "index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
 	}
-	http.NotFound(w, r)
+	http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

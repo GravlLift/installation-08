@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
-	"github.com/llampwall/infinite-theater-3d/internal/webdist"
 )
 
 // freePort returns a TCP port that is free when the test runs.
@@ -91,72 +93,82 @@ func writeWebFile(t *testing.T, dir, name, content string) {
 	}
 }
 
-// TestEmbeddedSelectionOrder — the --web directory wins over the embedded viewer, and
-// neither wins over the API mux. The default build embeds no viewer; the handler's
-// embedded fields stand in for a tagged build.
+// embeddedViewer is a stand-in for the tree a tagged build embeds.
+func embeddedViewer() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html":    {Data: []byte("<html>embedded</html>")},
+		"assets/app.js": {Data: []byte("embedded-js")},
+	}
+}
+
+// TestEmbeddedSelectionOrder: the --web directory wins over the embedded viewer, the
+// embedded viewer answers when no directory is given, and with neither the mux answers.
 func TestEmbeddedSelectionOrder(t *testing.T) {
 	root := newFakeStore(t)
 	dir := t.TempDir()
 	writeWebFile(t, dir, "index.html", "<html>dir</html>")
-	writeWebFile(t, dir, "assets/app.js", "dir-js")
 
 	hDir := newServerHandlers(root, dir, nil, weapons.Catalog{}, testLabelCatalog)
-	hDir.webFiles = []byte("<html>embedded</html>")
-	hDir.webList = []string{"assets/app.js", "index.html"}
+	hDir.webFS = embeddedViewer()
 	rec := get(t, hDir, "/", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "dir") {
 		t.Fatalf("dir wins: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	// No --web, no embedded viewer: the mux answers and the path is a 404.
+	hEmbedded := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	hEmbedded.webFS = embeddedViewer()
+	rec = get(t, hEmbedded, "/", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "embedded") {
+		t.Fatalf("embedded answers: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
 	hNone := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	hNone.webFS = nil
 	rec = get(t, hNone, "/", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("no viewer: status=%d, want 404", rec.Code)
 	}
 }
 
-// TestServeEmbeddedViewer — a tagged-style build (embedded fields set) answers a named
-// asset from the embedded tree and falls back to index.html for a deep client route;
-// API and /static/ paths keep their priority. The package File is a stub in this
-// untagged build, so the named asset is answered 404 here; the tagged build answers it
-// 200 (proven by the acceptance build and smoke test).
+// TestServeEmbeddedViewer: the embedded viewer answers a named asset with its own
+// content, answers index.html for a client route, and leaves the API and the /static/
+// routes to the mux.
 func TestServeEmbeddedViewer(t *testing.T) {
 	root := newFakeStore(t)
 	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
-	h.webFiles = []byte("<html>embedded</html>")
-	h.webList = []string{"assets/app.js", "index.html"}
+	h.webFS = embeddedViewer()
 
-	// A deep client route must not be swallowed by the mux. In the tagged build it is
-	// index.html; here the package stub makes it a 404. Either way it is not a mux route.
-	rec := get(t, h, "/match/abc", nil)
-	if rec.Code == http.StatusOK && strings.Contains(rec.Body.String(), `"ok"`) {
-		t.Fatalf("client route answered by the mux: %s", rec.Body.String())
+	rec := get(t, h, "/assets/app.js", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "embedded-js" {
+		t.Fatalf("asset: status=%d body=%s", rec.Code, rec.Body.String())
 	}
-
-	// API priority: /api/health is never answered by the static viewer.
+	for _, route := range []string{"/match/abc", "/assets", "/dev/map.glb"} {
+		rec = get(t, h, route, nil)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "embedded") {
+			t.Fatalf("client route %s: status=%d body=%s", route, rec.Code, rec.Body.String())
+		}
+	}
 	rec = get(t, h, "/api/health", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "version") {
 		t.Fatalf("api priority: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
-// TestServeEmbeddedIsClientRoute — IsClientRoute keeps API and /static out of the
-// fallback and lets every other path through.
-func TestServeEmbeddedIsClientRoute(t *testing.T) {
-	files := []string{"assets/app.js", "index.html"}
-	cases := map[string]bool{
-		"/":              true,
-		"/match/abc":     true,
-		"/any/deep":      true,
-		"/assets/app.js": false,
-		"/index.html":    false,
-		"/api/health":    false,
-		"/static/x":      false,
-	}
-	for in, want := range cases {
-		if got := webdist.IsClientRoute(in, files); got != want {
-			t.Errorf("IsClientRoute(%q) = %v, want %v", in, got, want)
+// TestStaticRoutesStayWithTheMux: a /static/ path is answered by the mux's own routes
+// (icons, ranks, sounds), never by the viewer's index.html, with a --web directory and
+// with the embedded viewer alike.
+func TestStaticRoutesStayWithTheMux(t *testing.T) {
+	root := newFakeStore(t)
+	dir := t.TempDir()
+	writeWebFile(t, dir, "index.html", "<html>dir</html>")
+	hDir := newServerHandlers(root, dir, nil, weapons.Catalog{}, testLabelCatalog)
+	hEmbedded := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	hEmbedded.webFS = embeddedViewer()
+
+	for name, h := range map[string]serverHandlers{"dir": hDir, "embedded": hEmbedded} {
+		rec := get(t, h, "/static/sounds/halo_infinite/absent.ogg", nil)
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "<html>") {
+			t.Fatalf("%s: status=%d body=%s, want the sound route's 404", name, rec.Code, rec.Body.String())
 		}
 	}
 }
@@ -220,18 +232,48 @@ func TestUrlForAddr(t *testing.T) {
 	}
 }
 
-// TestPortInUseOpensExisting — the open path when the address is taken: open the
-// browser on the existing server, and no error.
+// TestPortInUseOpensExisting: when another running copy holds the address (its health
+// route answers), the browser opens on that copy and the run reports no error.
 func TestPortInUseOpensExisting(t *testing.T) {
-	port := freePort(t)
-	occupyPort(t, port)
+	copyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/health" {
+			http.NotFound(w, r)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "version": "test"})
+	}))
+	t.Cleanup(copyServer.Close)
+	addr := copyServer.Listener.Addr().String()
 	urls := withFakeOpenBrowser(t)
-	// runServe's in-use branch reduces to this: open on the existing address, return nil.
-	if err := openOnExisting("127.0.0.1:" + port); err != nil {
-		t.Fatalf("port in use: %v", err)
+	if err := openOnExisting(addr, errors.New("address in use")); err != nil {
+		t.Fatalf("running copy on the port: %v", err)
 	}
 	got := readUrls(urls)
-	if len(got) != 1 || got[0] != "http://127.0.0.1:"+port {
-		t.Fatalf("opened on %v, want one open on http://127.0.0.1:%s", got, port)
+	if len(got) != 1 || got[0] != "http://"+addr {
+		t.Fatalf("opened on %v, want one open on http://%s", got, addr)
+	}
+}
+
+// TestPortInUseByAnotherProgram: when something that is not this program holds the
+// address, the listen error is returned and no browser opens.
+func TestPortInUseByAnotherProgram(t *testing.T) {
+	port := freePort(t)
+	ln := occupyPort(t, port)
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	urls := withFakeOpenBrowser(t)
+	listenErr := errors.New("address in use")
+	if err := openOnExisting("127.0.0.1:"+port, listenErr); !errors.Is(err, listenErr) {
+		t.Fatalf("err = %v, want the listen error", err)
+	}
+	if got := readUrls(urls); len(got) != 0 {
+		t.Fatalf("opened %v, want no browser open", got)
 	}
 }

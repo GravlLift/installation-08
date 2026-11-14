@@ -135,13 +135,8 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	labelCat weapons.LabelCatalog,
 ) serverHandlers {
 	var authMu sync.Mutex
-	var webFiles []byte
-	var webList []string
-	if f, err := webdist.Index(); err == nil {
-		webFiles = f
-		webList = webdist.List()
-	}
-	h := serverHandlers{root: root, web: web, webFiles: webFiles, webList: webList, jobs: jobs, weapKeys: weaponKeys, labelCat: labelCat, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+	webFS, _ := webdist.Open()
+	h := serverHandlers{root: root, web: web, webFS: webFS, jobs: jobs, weapKeys: weaponKeys, labelCat: labelCat, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())

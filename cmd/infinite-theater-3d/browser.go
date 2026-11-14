@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os/exec"
 	"runtime"
+	"time"
 )
 
 // openBrowser opens url in the default browser. It is a variable so tests replace it
@@ -66,11 +69,40 @@ func openOnListen(ctx context.Context, addr string) {
 	}()
 }
 
-// openOnExisting opens the browser on an address that is already taken by another
-// running copy and reports no error: the no-argument run uses it to exit cleanly
-// instead of failing with a raw listen error.
-func openOnExisting(addr string) error {
-	slog.Info("address in use, opening browser on the existing server", "addr", addr)
+// existingCopyTimeout bounds the health probe of the address a listen failed on.
+const existingCopyTimeout = 2 * time.Second
+
+// isRunningCopy reports whether the server answering on addr is this program: its
+// /api/health answers 200 with ok "true". Any other program holding the port fails it.
+func isRunningCopy(addr string) bool {
+	base := urlForAddr(addr)
+	if base == "" {
+		return false
+	}
+	client := http.Client{Timeout: existingCopyTimeout}
+	resp, err := client.Get(base + "/api/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var health struct {
+		OK string `json:"ok"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&health) != nil {
+		return false
+	}
+	return health.OK == "true"
+}
+
+// openOnExisting handles a listen failure of a run that opens the browser. When the
+// address is held by another running copy of this program, it opens the browser on that
+// copy and reports no error, so a second double-click exits cleanly. When anything else
+// holds the address, it returns the listen error.
+func openOnExisting(addr string, listenErr error) error {
+	if !isRunningCopy(addr) {
+		return fmt.Errorf("listen %s: %w", addr, listenErr)
+	}
+	slog.Info("already running, opening the browser on the existing server", "addr", addr)
 	if err := openBrowser(urlForAddr(addr)); err != nil {
 		slog.Warn("could not open the browser", "err", err)
 	}
