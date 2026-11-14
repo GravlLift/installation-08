@@ -88,9 +88,6 @@ export const EN_TEXT = {
   fullscreenEnter: 'Full screen',
   fullscreenExit: 'Exit full screen',
   wideMode: 'Wide mode',
-  autoPlay: 'Auto-play',
-  autoPlayHint:
-    'Turned on, the replay starts on its own when the page opens. Turned off — the default — it opens paused at kickoff and waits for the Play button. The choice is kept from one match to the next; it neither plays nor pauses a replay that is already open.',
   layers: 'Layers',
   layerAim: 'Aim',
   layerAimHint:

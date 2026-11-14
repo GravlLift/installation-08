@@ -15,12 +15,10 @@ interface ReplayTransportProps {
   onScrub: (frame: number) => void
   speed: number
   onSetSpeed: (speed: number) => void
-  autoPlay: boolean
-  onToggleAutoPlay: () => void
   sound: ReplaySound
 }
 
-export function ReplayTransport({ doc, frame, playing, onTogglePlay, onRestart, onSeekBy, onScrub, speed, onSetSpeed, autoPlay, onToggleAutoPlay, sound }: ReplayTransportProps) {
+export function ReplayTransport({ doc, frame, playing, onTogglePlay, onRestart, onSeekBy, onScrub, speed, onSetSpeed, sound }: ReplayTransportProps) {
   const [speedOpen, setSpeedOpen] = useState(false)
   const speedRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -40,7 +38,6 @@ export function ReplayTransport({ doc, frame, playing, onTogglePlay, onRestart, 
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-3.5">
         <div className="flex flex-1 items-center gap-2">
-          <button type="button" role="switch" aria-checked={autoPlay} aria-label="Auto-play" title="Auto-play" onClick={onToggleAutoPlay} className="rounded-full px-2 py-1 text-xs hover:bg-accent">Auto-play {autoPlay ? 'on' : 'off'}</button>
           <ReplaySoundControls sound={sound} locale="en" />
           <div ref={speedRef} className="relative">
             <button type="button" aria-label="Speed" aria-expanded={speedOpen} onClick={() => setSpeedOpen((open) => !open)} className="rounded-full border border-input px-3 py-1 text-xs">{speed}×</button>
