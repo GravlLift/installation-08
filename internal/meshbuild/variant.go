@@ -48,6 +48,9 @@ type BuildVariantOptions struct {
 	// ForgeMaterials and ForgeObjects are optional reference catalog file paths (see
 	// mapmesh.VariantTarget); empty uses the catalogs embedded in this binary (mapref).
 	ForgeMaterials, ForgeObjects string
+	// Mode is the match's game variant name; the layer holds the objects that mode creates
+	// (mapmesh.ModeFilters). Empty builds it for a match without a known mode.
+	Mode string
 }
 
 // BuildVariant builds a map variant's object-layer GLB and writes it to `out`.
@@ -83,7 +86,7 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 	}
 	target := mapmesh.VariantTarget{
 		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles,
-		ForgeMaterials: materials, ForgeObjects: objects,
+		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode,
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)
 }
