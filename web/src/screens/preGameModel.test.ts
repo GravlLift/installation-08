@@ -2,6 +2,8 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  COUNTDOWN_SKIP_GUARD_MS,
+  sceneStepOf,
   buildLineOf,
   COUNTDOWN_STEPS,
   preGameStepOfDocument,
@@ -136,11 +138,24 @@ describe('usePreGameCountdown', () => {
     expect(onDone).toHaveBeenCalledOnce()
   })
 
+  it('ignores the key press that opened the match, and Escape', () => {
+    vi.useFakeTimers()
+    const onDone = vi.fn()
+    renderHook(() => usePreGameCountdown(onDone))
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      vi.advanceTimersByTime(COUNTDOWN_SKIP_GUARD_MS)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
   it('skips on a key press and fires onDone once, immediately', () => {
     vi.useFakeTimers()
     const onDone = vi.fn()
     renderHook(() => usePreGameCountdown(onDone))
     act(() => {
+      vi.advanceTimersByTime(COUNTDOWN_SKIP_GUARD_MS)
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     })
     expect(onDone).toHaveBeenCalledOnce()
@@ -178,5 +193,20 @@ describe('usePreGameCountdown', () => {
 
   it('exposes the 3, 2, 1 sequence', () => {
     expect(COUNTDOWN_STEPS).toEqual([3, 2, 1])
+  })
+})
+
+describe('sceneStepOf', () => {
+  it('names each stage of the scene load with its real fraction', () => {
+    expect(sceneStepOf({ kind: 'download', loaded: 0, total: 0 }).label).toBe('Loading the map')
+    expect(sceneStepOf({ kind: 'materials', done: 1, total: 2 }).label).toBe('Preparing the map')
+    expect(sceneStepOf({ kind: 'assets' }).label).toBe('Loading players and weapons')
+    expect(sceneStepOf({ kind: 'ready' })).toEqual({ label: 'Ready', fraction: 1 })
+    const half = sceneStepOf({ kind: 'materials', done: 1, total: 2 }).fraction ?? 0
+    expect(half).toBeGreaterThan(0)
+    expect(half).toBeLessThan(1)
+  })
+  it('claims no progress when the scene failed', () => {
+    expect(sceneStepOf({ kind: 'error' }).fraction).toBeNull()
   })
 })

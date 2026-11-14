@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { fractionChargement3d, type LoadState } from '../features/match-replay/model/chargement3d_logic'
 import { displayPlayerName } from '../lib/players/displayName'
 
 /** A player as the summary carries it: a name and the team that owns the slot. */
@@ -92,6 +93,28 @@ export const COUNTDOWN_STEPS = [3, 2, 1] as const
  * latest `onDone` through a ref; the unmount and skip both clear the timer, so a page
  * change mid-count never fires the callback.
  */
+/** How long after the countdown starts a key or click cannot skip it yet. */
+export const COUNTDOWN_SKIP_GUARD_MS = 400
+
+/** The progress line for the 3D scene's own load: the step name and the scene's real
+ *  overall fraction (null when the scene failed, so no bar claims progress). */
+export function sceneStepOf(load: LoadState): { label: string; fraction: number | null } {
+  switch (load.kind) {
+    case 'download':
+      return { label: 'Loading the map', fraction: fractionChargement3d(load) }
+    case 'materials':
+    case 'index':
+      return { label: 'Preparing the map', fraction: fractionChargement3d(load) }
+    case 'assets':
+    case 'warmup':
+      return { label: 'Loading players and weapons', fraction: fractionChargement3d(load) }
+    case 'ready':
+      return { label: 'Ready', fraction: 1 }
+    case 'error':
+      return { label: 'The map could not be loaded', fraction: null }
+  }
+}
+
 export function usePreGameCountdown(onDone: () => void, started: boolean = true) {
   const [value, setValue] = useState<number | null>(COUNTDOWN_STEPS[0] ?? null)
   const [tick, setTick] = useState(0)
@@ -108,8 +131,15 @@ export function usePreGameCountdown(onDone: () => void, started: boolean = true)
       doneRef.current = true
       onDoneRef.current()
     }
-    const onKey = () => finish()
-    const onPointer = () => finish()
+    // A key or a click skips, except Escape (it goes back) and anything in the first moments
+    // (the key press or click that opened the match must not skip its countdown).
+    const armedAt = Date.now() + COUNTDOWN_SKIP_GUARD_MS
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' && Date.now() >= armedAt) finish()
+    }
+    const onPointer = () => {
+      if (Date.now() >= armedAt) finish()
+    }
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('pointerdown', onPointer, true)
     const step = (i: number) => {

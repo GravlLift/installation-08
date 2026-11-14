@@ -21,9 +21,11 @@ import { useMatchSummary } from './useMatchSummary'
 import { useMeshBuild } from './useMeshBuild'
 import { useAuthState } from './useAuthState'
 import { cleanMapName } from './matchSelectModel'
+import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import {
   buildLineOf,
   preGameStepOfDocument,
+  sceneStepOf,
   splitRosters,
   usePreGameCountdown,
 } from './preGameModel'
@@ -104,19 +106,41 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   const doc =
     state.phase === 'ready' || state.phase === 'build' ? state.doc : null
 
-  // The countdown runs only while the map is ready: it starts the moment the map is ready
-  // and ends by mounting the viewer.
+  // Once the document and the map file are there, the viewer mounts UNDER this screen and
+  // loads its 3D scene; this screen stays on top and shows the scene's own progress. The
+  // countdown starts only when the scene reports ready, and ends by releasing the viewer.
+  const [sceneLoad, setSceneLoad] = useState<LoadState | null>(null)
   const [viewerLive, setViewerLive] = useState(false)
+  const sceneReady = sceneLoad?.kind === 'ready'
   const onCountdownDone = useCallback(() => setViewerLive(true), [])
-  const countdown = usePreGameCountdown(onCountdownDone, mapReady)
-  // Reset when the match changes.
+  const countdown = usePreGameCountdown(onCountdownDone, sceneReady)
   useEffect(() => {
     setViewerLive(false)
+    setSceneLoad(null)
   }, [matchId])
 
-  if (viewerLive && doc) {
-    return <ReplayViewer matchId={matchId} doc={doc} onBack={onBack} />
-  }
+  // Escape goes back at any time before the replay starts.
+  useEffect(() => {
+    if (viewerLive) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onBack()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [viewerLive, onBack])
+
+  const viewer =
+    mapReady && doc ? (
+      <ReplayViewer
+        key={matchId}
+        matchId={matchId}
+        doc={doc}
+        onBack={onBack}
+        held={!viewerLive}
+        onLoadState={setSceneLoad}
+      />
+    ) : null
+  if (viewerLive) return viewer
 
   const roster = summary ? splitRosters(summary.players, gamertag) : null
   const eyebrow = [summary?.playlistName, summary?.modeName].filter(Boolean).join('  /  ')
@@ -139,15 +163,24 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
       break
     }
     case 'ready':
-      stepLabel = 'Ready'
-      fraction = 1
+      stepLabel = 'Loading the map'
       break
     case 'error':
       stepLabel = 'Failed to load the match'
       break
   }
+  // The scene's own load, once the viewer is mounted under this screen.
+  if (viewer && sceneLoad) {
+    const scene = sceneStepOf(sceneLoad)
+    stepLabel = scene.label
+    fraction = scene.fraction
+  }
+  const counting = sceneReady && countdown.value !== null
 
   return (
+    <>
+    {viewer}
+    <div className="bc-over">
     <Screen
       id="pregame"
       gamertag={gamertag}
@@ -160,10 +193,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
           {state.phase === 'error' ? 'Failed to load the match' : 'Match loading'}
         </span>,
       ]}
-      keys={[
-        ['Any key', 'Skip'],
-        ['Esc', 'Back'],
-      ]}
+      keys={counting ? [['Any key', 'Skip'], ['Esc', 'Back']] : [['Esc', 'Back']]}
     >
       <div className="bc-pregame">
         <div className="bc-pregame-panel">
@@ -197,8 +227,8 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
             </>
           ) : (
             <>
-              <ProgressLine label={stepLabel} fraction={fraction} />
-              {state.phase === 'build' && buildLine?.action ? (
+              {counting ? null : <ProgressLine label={stepLabel} fraction={fraction} />}
+              {!viewer && state.phase === 'build' && buildLine?.action ? (
                 <div className="bc-pregame-actions">
                   {buildLine.action === 'cancel' ? (
                     <button type="button" className="bc-signout" onClick={cancel} disabled={cancelling}>
@@ -211,7 +241,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
                   )}
                 </div>
               ) : null}
-              {mapReady && state.phase !== 'build' && countdown.value !== null ? (
+              {counting ? (
                 <div key={countdown.tick} className="bc-count">
                   {countdown.value}
                 </div>
@@ -221,5 +251,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
         </div>
       </div>
     </Screen>
+    </div>
+    </>
   )
 }

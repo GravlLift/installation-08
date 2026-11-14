@@ -146,18 +146,23 @@
 /* Pre-game: the match's map sharp as the backdrop, the rosters against each other, one
  * progress line, and the 3-2-1 countdown (brief 125). */
 .bc-pregame { display: grid; place-items: center; height: 100%; }
-.bc-pregame-panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.bc-pregame .bc-title { font-size: clamp(40px, 5vw, 72px); }
-.bc-versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; margin: 8px 0; }
+.bc-pregame-panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 3vh 4vw 4vh; background: radial-gradient(ellipse at center, rgba(5,8,13,0.72) 0, rgba(5,8,13,0.4) 60%, transparent 78%); }
+.bc-pregame .bc-eyebrow { font-size: 16px; }
+.bc-pregame .bc-title { font-size: clamp(72px, 9vw, 150px); }
+.bc-versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; margin: 18px 0 8px;
+  width: min(1000px, 92vw); }
 .bc-versus .bc-side { text-align: left; }
-.bc-versus .bc-side h4 { margin: 0 0 4px; font-family: var(--display); font-size: 11px; letter-spacing: 0.24em;
+.bc-versus .bc-ally { text-align: right; }
+.bc-versus .bc-side h4 { margin: 0 0 6px; font-family: var(--display); font-size: 14px; letter-spacing: 0.26em;
   text-transform: uppercase; font-weight: 600; }
 .bc-versus .bc-ally h4 { color: var(--team-ally); }
 .bc-versus .bc-enemy h4 { color: var(--team-enemy); }
-.bc-versus .bc-side div { padding: 2px 0; font-size: 13px; color: var(--ink-dim); border-bottom: 1px solid rgba(255,255,255,0.05); }
+.bc-versus .bc-side div { padding: 8px 0; font-family: var(--display); font-stretch: 85%; letter-spacing: 0.04em;
+  font-size: clamp(16px, 1.5vw, 24px); color: var(--ink); border-bottom: 1px solid rgba(255,255,255,0.12); }
 .bc-versus .bc-vs { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 44px;
   letter-spacing: 0.08em; color: var(--ink-faint); line-height: 1; padding-top: 4px; }
-.bc-progress { width: 100%; max-width: 420px; margin-top: 4px; }
+.bc-progress { width: min(560px, 80vw); margin-top: 22px; }
 .bc-progress .bc-bar { height: 3px; background: var(--studio-700); overflow: hidden; }
 .bc-progress .bc-bar i { display: block; height: 100%; background: var(--air); transition: width 300ms ease; }
 .bc-progress .bc-bar i.indeterminate { width: 40%; animation: bc-progress-slide 1.4s ease-in-out infinite; }
@@ -179,3 +184,5 @@
 
 .bc-menu { margin-top: 14px; }
 .bc-main { display: grid; min-height: 0; }
+/* A page laid over another one (the pre-game screen over the loading viewer). */
+.bc-over { position: fixed; inset: 0; z-index: 50; isolation: isolate; background: var(--studio-950); }

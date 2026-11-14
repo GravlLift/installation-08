@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Replay3DView } from '../features/match-replay/ui/Replay3DView'
+import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import type { PageAction3dInputs } from '../features/match-replay/scene3d/action3dInputs'
 import { useReplayInks } from '../features/match-replay/layers/useReplayInks'
 import { normalizeMapObjectives } from '../features/match-replay/layers/objectivesLayer'
@@ -148,10 +149,21 @@ export function PlaybackBar({
   )
 }
 
-export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
+export interface ReplayViewerProps {
+  matchId: string
+  doc: ReplayDocumentReady
+  onBack: () => void
+  /** While true the replay does not play: the pre-game screen holds it until its countdown
+   *  ends. Playback starts by itself when this turns false. */
+  held?: boolean
+  /** The 3D scene's load states, for the page that holds the viewer. */
+  onLoadState?: (load: LoadState) => void
+}
+
+export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }: ReplayViewerProps) {
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
-  const [playing, setPlaying] = useState(true)
+  const [playing, setPlaying] = useState(!held)
   const [speed, setSpeed] = useState(1)
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
@@ -206,7 +218,13 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     [doc.frameCount, fps, sound.seek],
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
-  const togglePlay = useCallback(() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [playing, sound.wake, sound.intro])
+  const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [held, playing, sound.wake, sound.intro])
+  // Released by the pre-game screen: the match starts playing, with its intro, from the top.
+  const wasHeld = useRef(held)
+  useEffect(() => {
+    if (wasHeld.current && !held) { sound.wake(); if (frameRef.current === 0) sound.intro(); setPlaying(true) }
+    wasHeld.current = held
+  }, [held, sound.wake, sound.intro])
   const restart = useCallback(() => { sound.wake(); stepFrames(-Infinity) }, [stepFrames, sound.wake])
   useReplayShortcuts({
     togglePlay,
@@ -325,6 +343,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
           playWindow={replayContext.playWindow}
           timeLimitMs={replayContext.timeLimitMs}
           soundListenerRef={sound.listener}
+          onLoadState={onLoadState}
         />
         {scoreboardHeld && (
           <ReplayScoreboardOverlay
