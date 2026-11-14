@@ -1,4 +1,4 @@
-import { frameToMs, trackWindow } from '@/lib/replay/replayLogic'
+import { frameToMs, isAliveAt, trackWindow } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { LOADOUT_SRC_BIRTH, currentLifeOf, loadoutAt, type LoadoutReading } from '@/lib/replay/rosterLogic'
 import { inventoryAt, type InventoryReading } from './inventoryReading'
@@ -45,7 +45,7 @@ const suivis = new WeakMap<ReplayDocumentReady, Map<number, SuiviMain>>()
  */
 export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
   const life = currentLifeOf(doc, slot, frame)
-  if (!life || doc.skullCarries.some((c) => c.xuid === life.xuid && covers(c, frame))) return null
+  if (!life || carriedObjectAt(doc, life.xuid, frame)) return null
   const lo = loadoutAt(doc, slot, frame)
   if (!lo) return null
   const inv = inventoryAt(doc, slot, frame)
@@ -144,18 +144,42 @@ function avantPremiereLecture(
   return (k === 0 || k === 1) && !changementEntre(doc, vie.slot, vie.naissance, releve) ? k : undefined
 }
 
-/** The weapon slot of carried objects (skull), next to the two weapons of the row. */
+/** The weapon slot of carried objects (skull, flag), next to the two weapons of the row. */
 const EMPLACEMENT_OBJET = 2
 
+/** The objective object a player holds in hand: the Oddball skull or a CTF flag. */
+export type CarriedObject = 'skull' | 'flag'
+
 /**
- * craneEnMain: the Oddball skull that life `slot` carries at `frame`, under its weapon identifier;
- * null outside carrying. The identifier comes from the most recent pickup of the object slot by
- * this life, failing that any pickup of the match (the carrying is dated by the score, its pickup
- * can follow it by a few frames).
+ * carriedObjectAt: the objective object player `xuid` holds at `frame`, null when none. The skull
+ * by its carry periods; a flag by the spans of its life that name this player as carrier
+ * (`carried`, and `carried_open` whose end is not dated). A carrier holds the object instead of
+ * a weapon: no carrier of the CTF films fires during a carry.
  */
-export function craneEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
+export function carriedObjectAt(
+  doc: Pick<ReplayDocumentReady, 'skullCarries' | 'flagCarries'>,
+  xuid: string | undefined,
+  frame: number,
+): CarriedObject | null {
+  if (!xuid) return null
+  if (doc.skullCarries.some((c) => c.xuid === xuid && covers(c, frame))) return 'skull'
+  for (const f of doc.flagCarries) {
+    for (const sp of f.spans) {
+      if (sp.xuid === xuid && (sp.state === 'carried' || sp.state === 'carried_open') && covers(sp, frame)) return 'flag'
+    }
+  }
+  return null
+}
+
+/**
+ * objetEnMain: the objective object (skull, flag) that life `slot` carries at `frame`, under its
+ * weapon identifier; null outside carrying. The identifier comes from the most recent pickup of
+ * the object slot by this life, failing that any pickup of the match (the carrying is dated by
+ * the score or the flag spans, its pickup can follow it by a few frames or be missing).
+ */
+export function objetEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
   const life = currentLifeOf(doc, slot, frame)
-  if (!life || !doc.skullCarries.some((c) => c.xuid === life.xuid && covers(c, frame))) return null
+  if (!life || !carriedObjectAt(doc, life.xuid, frame)) return null
   let propre: string | undefined, autre: string | undefined
   let quand = -Infinity
   for (const c of doc.weaponChanges) {
@@ -166,5 +190,22 @@ export function craneEnMain(doc: ReplayDocumentReady, slot: number, frame: numbe
   const w = propre ?? autre
   if (!w) return null
   return { id: /^[0-9a-f]{8}$/i.test(w) ? `0x${w.toUpperCase()}` : w, slotArme: EMPLACEMENT_OBJET }
+}
+
+/**
+ * flagObjectIdOf: the weapon identifier of the CTF flag of this film, the object its first
+ * located carrier holds in hand (`objetEnMain`); null without any carry the film can place. Every
+ * flag of a match is the same `weap` tag, the team only selects a permutation of its model.
+ */
+export function flagObjectIdOf(doc: ReplayDocumentReady): string | null {
+  for (const f of doc.flagCarries) {
+    for (const sp of f.spans) {
+      if (!sp.xuid || (sp.state !== 'carried' && sp.state !== 'carried_open')) continue
+      const life = doc.tracks.find((t) => t.xuid === sp.xuid && isAliveAt(t, sp.t0))
+      const held = life ? objetEnMain(doc, life.slot, sp.t0) : null
+      if (held) return held.id
+    }
+  }
+  return null
 }
 

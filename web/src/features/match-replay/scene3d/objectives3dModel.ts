@@ -5,8 +5,9 @@
  * drapeau, d'une bombe ou d'un objet porté sont ceux de la vue 2D, appelés tels quels. Ce module
  * ne fait que traduire leurs réponses dans le vocabulaire de la 3D :
  *  - une ZONE est visible quand son état le permet, teintée par son propriétaire ;
- *  - un OBJET (drapeau, crâne, bombe) se pose soit au-dessus de son porteur, soit au sol en un
- *    point (x, y) Halo, avec un indice de hauteur pour chercher le bon étage (`ObjectPlace`).
+ *  - un OBJET (drapeau, crâne, bombe) est soit chez son porteur (dans sa main pour le drapeau et
+ *    le crâne, au-dessus de lui pour la bombe), soit au sol en un point (x, y) Halo, avec un
+ *    indice de hauteur pour chercher le bon étage (`ObjectPlace`).
  *
  * L'indice de hauteur vient du porteur le plus proche dans le temps : les canaux d'objet ne
  * publient que (x, y), et le premier sol sous le plafond serait parfois un toit.
@@ -25,7 +26,7 @@ import { filmClockTrusted } from '@/lib/replay/scoreTimeline'
 
 import { BOMB_DETONATION_STAT } from '../layers/bombBlastFx'
 import { bombCarrierActiveAt, bombGroundAt } from '../layers/bombCarrierLayer'
-import { flagPlaceAt, flagSpanAt, homeAnchorOf } from '../layers/flagCarriesLayer'
+import { flagPlaceAt, flagSpanAt } from '../layers/flagCarriesLayer'
 import type { ObjectiveElementReady } from '../layers/objectivesLayer'
 import { skullCarrierActiveAt } from '../layers/skullCarrierLayer'
 import { zoneCatalogMatches, zoneElementsOf, zoneLetterOf } from '../layers/zoneStatesLayer'
@@ -117,6 +118,17 @@ export function prepareObjectives(
   return { zones, markers: objectives.filter((e) => e.kind === 'marker') }
 }
 
+/** The marker roles of a CTF base: in game the base is its stand (a map-variant object) and the flag on it. */
+const FLAG_BASE_ROLES: ReadonlySet<string> = new Set(['flag_spawn', 'flag_delivery'])
+
+/**
+ * markersToDraw: the mode markers the 3D draws as poles. Once the game's flag model is drawn, the
+ * flag bases give way to it: their pole stood where the flag stands and hid it.
+ */
+export function markersToDraw(markers: readonly ObjectiveElementReady[], flagDrawn: boolean): readonly ObjectiveElementReady[] {
+  return flagDrawn ? markers.filter((e) => !FLAG_BASE_ROLES.has(e.role)) : markers
+}
+
 /** Les encres de propriétaire et de zone neutre. */
 export interface ZoneInks {
   inkOf: (team: number) => string | null
@@ -166,55 +178,32 @@ export function carryHintAt(carries: readonly CarrySpan[], frame: number, zOf: F
   return best ? zOf(best.xuid, Math.min(Math.max(frame, best.t0), best.t1)) : null
 }
 
-/** Un drapeau préparé une fois : ses portages nommés, sa base, la hauteur de sa base. */
+/** Un drapeau préparé une fois : ses intervalles, et ses portages nommés. */
 export interface PreparedFlag {
   carry: ReplayFlagCarryReady
   carries: CarrySpan[]
-  home: XY | null
-  homeHint: number | null
 }
 
-/**
- * prepareFlag — la base vient des intervalles `home` (`homeAnchorOf`) ; sa hauteur, des pieds du
- * joueur qui prend le drapeau au départ d'un intervalle `home`.
- */
-export function prepareFlag(carry: ReplayFlagCarryReady, zOf: FeetZAt): PreparedFlag {
+/** prepareFlag — les portages nommés du drapeau, d'où se lit la hauteur d'un drapeau posé. */
+export function prepareFlag(carry: ReplayFlagCarryReady): PreparedFlag {
   const carries: CarrySpan[] = []
-  let homeHint: number | null = null
-  carry.spans.forEach((sp, i) => {
-    if (sp.xuid) carries.push({ xuid: sp.xuid, t0: sp.t0, t1: sp.t1 })
-    const next = carry.spans[i + 1]
-    if (homeHint === null && sp.state === 'home' && next?.xuid) homeHint = zOf(next.xuid, next.t0)
-  })
-  return { carry, carries, home: homeAnchorOf(carry), homeHint }
-}
-
-/** Le drapeau à une image : le glyphe vivant, et sa base vide quand il n'y est pas. */
-export interface FlagPlaces {
-  team: number
-  live: ObjectPlace
-  /** Fanion creux : `carried_open` (fin de portage non datée). */
-  hollow: boolean
-  home: ObjectPlace | null
+  for (const sp of carry.spans) if (sp.xuid) carries.push({ xuid: sp.xuid, t0: sp.t0, t1: sp.t1 })
+  return { carry, carries }
 }
 
 /**
- * flagPlacesAt — l'état du drapeau (`flagSpanAt`) et sa place (`flagPlaceAt`, qui applique la
- * règle commune des objets portés). Porté par un porteur localisé : au-dessus de lui ; sinon au
- * sol. Sans intervalle couvrant l'image, rien.
+ * flagPlaceAt3d — où est le drapeau à une image (`flagSpanAt`, puis `flagPlaceAt`, la règle
+ * commune des objets portés) : dans la main d'un porteur localisé, sinon au sol (sur sa base, là
+ * où il est tombé, ou à la dernière place connue d'un porteur perdu). Sans intervalle couvrant
+ * l'image, rien : le film ne dit pas où il est.
  */
-export function flagPlacesAt(f: PreparedFlag, frame: number, posOf: CarrierPosAt, zOf: FeetZAt): FlagPlaces | null {
+export function flagPlaceAt3d(f: PreparedFlag, frame: number, posOf: CarrierPosAt, zOf: FeetZAt): ObjectPlace | null {
   const now = flagSpanAt(f.carry, frame)
   if (!now) return null
   const place = flagPlaceAt(now, frame, posOf)
   const carried = now.state === 'carried' || now.state === 'carried_open'
-  const live: ObjectPlace =
-    carried && !place.loose && now.xuid
-      ? { on: 'carrier', xuid: now.xuid }
-      : { on: 'floor', at: place.at, hint: carryHintAt(f.carries, frame, zOf) }
-  const home: ObjectPlace | null =
-    f.home && now.state !== 'home' ? { on: 'floor', at: f.home, hint: f.homeHint } : null
-  return { team: f.carry.team, live, hollow: now.state === 'carried_open', home }
+  if (carried && !place.loose && now.xuid) return { on: 'carrier', xuid: now.xuid }
+  return { on: 'floor', at: place.at, hint: carryHintAt(f.carries, frame, zOf) }
 }
 
 /** Les sources du crâne : ses vies libres, ses portages, son socle (`skullSocle`). */

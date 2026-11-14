@@ -5,14 +5,16 @@
  * Les règles sont celles de la 2D, lues par `objectives3dModel` ; ce calque ne fait que poser :
  *  - une ZONE est un contour plat (cercle de son rayon, ou rectangle de ses demi-cotés le long
  *    de `fwd`) et une paroi translucide basse au sol, teints par le propriétaire connu ;
- *  - un MARQUEUR (apparition, socle, livraison) est une hampe fine de `MARKER_HEIGHT` ;
- *  - un DRAPEAU est une hampe et un fanion : au-dessus de la tête de son porteur, ou au sol ; sa
- *    base vide garde un drapeau fantôme ; un portage sans fin datée a le fanion fantôme ;
+ *  - un MARQUEUR (apparition, socle, livraison) est une hampe fine de `MARKER_HEIGHT` ; a CTF base
+ *    has none once the flag model is drawn (`markersToDraw`) ;
+ *  - un DRAPEAU est le modèle du jeu (le `weap` du drapeau, `flagObjectIdOf`) : dans la main de son
+ *    porteur (l'arme en main, `heldWeapon3d`), sinon debout au sol, sur sa base ou là où il est
+ *    tombé. Le socle de la base est un objet de la variante de carte, posé avec elle ;
  *  - le CRÂNE est une sphère, la BOMBE une boîte, la COURONNE un cône : au-dessus du porteur, ou
  *    au sol pour les deux premiers.
  *
  * Un objet porté suit les pieds 3D de son porteur (`playerFeet`, véhicule compris) ; quand la 3D
- * ne le situe pas mais que la 2D le fait (fenêtre après la mort), il se pose au-dessus du point 2D.
+ * ne le situe pas mais que la 2D le fait (fenêtre après la mort), il se pose au point 2D.
  * Le clignotement des objets portés de la 2D n'a pas d'équivalent : un lot n'a qu'une opacité.
  *
  * Unités monde Halo (cf. `tracks3d`).
@@ -25,6 +27,7 @@ import type { XY } from '@/lib/replay/replayLogic'
 import type { ObjectiveElementReady } from '../layers/objectivesLayer'
 import type { ReplayInks } from '../layers/useReplayInks'
 import { vipActiveAt } from '../layers/vipCrownLayer'
+import { flagObjectIdOf } from '../model/armeEnMain'
 import type { CarrierPosAt } from '../model/carriedGlyphPlace'
 import { buildCarrierPosAt } from '../model/carrierPosition'
 import { skullSocle } from '../model/skullPresence'
@@ -32,10 +35,12 @@ import type { Action3dInputs } from './action3dInputs'
 import { InstancePool, LabelPool } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { HEAD_TOP } from './body3d'
+import { standingWeaponPose } from './groundWeaponPose3d'
 import {
   bombExplosionsOf,
   bombPlaceAt,
-  flagPlacesAt,
+  flagPlaceAt3d,
+  markersToDraw,
   objectivesShown,
   prepareFlag,
   prepareObjectives,
@@ -52,6 +57,7 @@ import {
   type ZoneInks,
 } from './objectives3dModel'
 import { toThree } from './tracks3d'
+import { WeaponModelPool } from './weaponModels3d'
 import { zoneOutlineGeometry, zoneWallGeometry } from './zoneOutline3d'
 
 /** Hauteur de reference pour les etiquettes de zone (u). */
@@ -63,11 +69,6 @@ const ZONE_LETTER_LIFT = 0.25
 /** Hampe d'un marqueur (u). */
 const MARKER_HEIGHT = 1
 const MARKER_RADIUS = 0.03
-/** Le drapeau : hampe et fanion triangulaire (u). */
-const FLAG_POLE_HEIGHT = 0.5
-const FLAG_POLE_RADIUS = 0.02
-const FLAG_WING_WIDTH = 0.3
-const FLAG_WING_HEIGHT = 0.2
 /** Un objet porté flotte à cet écart au-dessus du sommet de la tête (u). */
 const CARRIED_GAP = 0.08
 /** Le crâne (~21 cm, la taille du modèle du jeu), la bombe (largeur, hauteur, profondeur), la couronne (u). */
@@ -76,8 +77,6 @@ const BOMB_SIZE = { w: 0.3, h: 0.18, d: 0.22 }
 const CROWN_RADIUS = 0.12
 const CROWN_HEIGHT = 0.2
 const CROWN_SIDES = 5
-/** Opacité du drapeau fantôme (base vide, fanion d'un portage non daté). */
-const GHOST_OPACITY = 0.35
 /** Plafonds des lots. */
 const ZONE_CAP = 64
 const MARKER_CAP = 64
@@ -165,34 +164,9 @@ function volumeMaterial(opacity: number): THREE.Material {
   return new THREE.MeshBasicMaterial({ transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide })
 }
 
-function ghostMaterial(): THREE.Material {
-  return new THREE.MeshBasicMaterial({ transparent: true, opacity: GHOST_OPACITY, depthWrite: false, side: THREE.DoubleSide })
-}
-
 /** Une hampe : cylindre fin, base à y = 0. */
 function poleGeometry(radius: number, height: number): THREE.BufferGeometry {
   return new THREE.CylinderGeometry(radius, radius, height, 8).translate(0, height / 2, 0)
-}
-
-/** Le fanion : un triangle au sommet de la hampe, pointe vers +X. */
-function wingGeometry(): THREE.BufferGeometry {
-  const top = FLAG_POLE_HEIGHT
-  const g = new THREE.BufferGeometry()
-  g.setAttribute(
-    'position',
-    new THREE.Float32BufferAttribute(
-      [0, top, 0, FLAG_WING_WIDTH, top - FLAG_WING_HEIGHT / 2, 0, 0, top - FLAG_WING_HEIGHT, 0],
-      3,
-    ),
-  )
-  g.computeVertexNormals()
-  return g
-}
-
-/** Les lots d'un drapeau (hampe + fanion), plein ou fantôme. */
-interface FlagPools {
-  poles: InstancePool
-  wings: InstancePool
 }
 
 /** Le calque des objectifs du mode. */
@@ -200,8 +174,12 @@ export class Objectives3dLayer implements ActionLayer3d {
   readonly labels: LabelPool
   private readonly volumes: ZoneVolumes
   private readonly markers: InstancePool
-  private readonly flag: FlagPools
-  private readonly ghost: FlagPools
+  /** Les drapeaux posés au sol : des copies du modèle du jeu. */
+  private readonly flagModels: WeaponModelPool
+  /** Le `weap` du drapeau de ce film, null sans portage qui le nomme. */
+  private readonly flagId: string | null
+  /** La pose debout du modèle du drapeau, mesurée une fois sur le modèle chargé. */
+  private flagPose: { model: THREE.Object3D; pose: ReturnType<typeof standingWeaponPose> } | null = null
   private readonly skull: InstancePool
   private readonly bomb: InstancePool
   private readonly crowns: InstancePool
@@ -226,15 +204,14 @@ export class Objectives3dLayer implements ActionLayer3d {
       return s ? s.z - ctx.originAboveFloor : null
     }
 
-    this.flags = doc.flagCarries.map((c) => prepareFlag(c, this.zOf))
+    this.flags = doc.flagCarries.map(prepareFlag)
+    this.flagId = flagObjectIdOf(doc)
     this.skullSources = { lives: doc.objectiveObjects, carries: doc.skullCarries, socle: skullSocle(doc.objectiveObjects) }
     this.explosions = bombExplosionsOf(doc)
     this.labels = new LabelPool(ctx.root)
     this.volumes = new ZoneVolumes(ctx.root)
     this.markers = new InstancePool(ctx.root, poleGeometry(MARKER_RADIUS, MARKER_HEIGHT), new THREE.MeshLambertMaterial(), MARKER_CAP)
-    const flagCap = Math.max(1, this.flags.length)
-    this.flag = this.flagPools(new THREE.MeshLambertMaterial(), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), flagCap)
-    this.ghost = this.flagPools(ghostMaterial(), ghostMaterial(), flagCap)
+    this.flagModels = new WeaponModelPool(ctx.root)
     this.skull = new InstancePool(ctx.root, new THREE.SphereGeometry(SKULL_RADIUS, 16, 12), new THREE.MeshLambertMaterial(), 1)
     this.bomb = new InstancePool(
       ctx.root,
@@ -246,20 +223,12 @@ export class Objectives3dLayer implements ActionLayer3d {
     this.crowns = new InstancePool(ctx.root, crown, new THREE.MeshLambertMaterial(), CROWN_CAP)
   }
 
-  private flagPools(pole: THREE.Material, wing: THREE.Material, cap: number): FlagPools {
-    return {
-      // Deux lots par drapeau vivant (le fanion fantôme d'un portage non daté) : capacité doublée.
-      poles: new InstancePool(this.ctx.root, poleGeometry(FLAG_POLE_RADIUS, FLAG_POLE_HEIGHT), pole, 2 * cap),
-      wings: new InstancePool(this.ctx.root, wingGeometry(), wing, 2 * cap),
-    }
-  }
-
   update(frame: number): void {
     const inputs = this.ctx.inputs()
     const shown = objectivesShown(inputs.show.objectives, this.page.families?.() ?? null)
     this.begin()
-    if (shown.zones) this.paintZones(frame, inputs)
-    if (shown.flags) this.paintFlags(frame, inputs.inks)
+    if (shown.zones) this.paintZones(frame, inputs, shown.flags)
+    if (shown.flags) this.paintFlags(frame)
     this.paintCarriedObjects(frame, inputs.inks, shown)
     this.end()
   }
@@ -267,6 +236,7 @@ export class Objectives3dLayer implements ActionLayer3d {
   private begin(): void {
     this.volumes.begin()
     for (const p of this.instancePools()) p.begin()
+    this.flagModels.begin()
     this.labels.begin()
   }
 
@@ -277,7 +247,7 @@ export class Objectives3dLayer implements ActionLayer3d {
   }
 
   private instancePools(): InstancePool[] {
-    return [this.markers, this.flag.poles, this.flag.wings, this.ghost.poles, this.ghost.wings, this.skull, this.bomb, this.crowns]
+    return [this.markers, this.skull, this.bomb, this.crowns]
   }
 
   /** Les objectifs préparés, refaits seulement quand la page sert une autre liste. */
@@ -286,7 +256,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     return this.prepared.value
   }
 
-  private paintZones(frame: number, inputs: Action3dInputs): void {
+  private paintZones(frame: number, inputs: Action3dInputs, flagsShown: boolean): void {
     const { inks } = inputs
     const k: ZoneInks = {
       inkOf: sideInkOf(this.page.allegiance, inks.teamColorOf),
@@ -303,27 +273,35 @@ export class Objectives3dLayer implements ActionLayer3d {
       this.v.set(...toThree(z.e.x, z.e.y, floor + ZONE_HEIGHT + ZONE_LETTER_LIFT))
       this.labels.add(this.v, z.letter, ink)
     }
-    for (const e of prepared.markers) {
+    for (const e of markersToDraw(prepared.markers, flagsShown && this.flagModel() !== null)) {
       this.v.set(...toThree(e.x, e.y, e.z))
       this.markers.add(this.v, null, 1, this.ctx.ink.of(k.inkOf(e.team) ?? k.neutral))
     }
   }
 
-  private paintFlags(frame: number, inks: ReplayInks): void {
-    const inkOf = sideInkOf(this.page.allegiance, inks.teamColorOf)
+  /**
+   * Les drapeaux hors de la main : le modèle du jeu debout au sol. Celui d'un porteur que la 3D
+   * pose est dans sa main (`heldWeapon3d`) ; un porteur qu'elle ne pose pas le laisse au sol sous
+   * son point 2D. Tant que le modèle n'est pas chargé, rien.
+   */
+  private paintFlags(frame: number): void {
+    const model = this.flagModel()
+    if (!model) return
+    if (this.flagPose?.model !== model) this.flagPose = { model, pose: standingWeaponPose(model) }
+    const { pose } = this.flagPose
     for (const f of this.flags) {
-      const now = flagPlacesAt(f, frame, this.posOf, this.zOf)
-      if (!now) continue
-      const color = this.ctx.ink.of(inkOf(now.team) ?? inks.floor.edge)
-      if (now.home) this.addFlag(this.placeOf(now.home, frame), color, this.ghost, this.ghost)
-      this.addFlag(this.placeOf(now.live, frame), color, this.flag, now.hollow ? this.ghost : this.flag)
+      const place = flagPlaceAt3d(f, frame, this.posOf, this.zOf)
+      if (!place || (place.on === 'carrier' && this.ctx.playerFeet(place.xuid, frame))) continue
+      const at = place.on === 'floor' ? this.floorAt(place.at, place.hint) : this.floorUnderCarrier(place.xuid, frame)
+      if (!at) continue
+      at.y += pose.lift
+      this.flagModels.add(model, at, pose.rotation)
     }
   }
 
-  private addFlag(at: THREE.Vector3 | null, color: THREE.Color, pole: FlagPools, wing: FlagPools): void {
-    if (!at) return
-    pole.poles.add(at, null, 1, color)
-    wing.wings.add(at, null, 1, color)
+  /** The game's flag model once loaded, null before or without a flag in this film. */
+  private flagModel(): THREE.Object3D | null {
+    return this.flagId ? this.ctx.weaponModel(this.flagId) : null
   }
 
   /**
@@ -388,6 +366,7 @@ export class Objectives3dLayer implements ActionLayer3d {
   dispose(): void {
     this.volumes.dispose()
     for (const p of this.instancePools()) p.dispose()
+    this.flagModels.dispose()
     this.labels.dispose()
   }
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { groundWeaponPose } from './groundWeaponPose3d'
+import { groundWeaponPose, standingWeaponPose } from './groundWeaponPose3d'
 
 describe('groundWeaponPose', () => {
   it('pose un modèle décentré sur le sol et conserve un cap horizontal stable', () => {
@@ -21,5 +21,22 @@ describe('groundWeaponPose', () => {
 
   it('ne produit pas de hauteur infinie pour un modèle vide', () => {
     expect(groundWeaponPose(new THREE.Group(), 0).lift).toBe(0)
+  })
+})
+
+describe('standingWeaponPose', () => {
+  it('keeps the model upright and puts its lowest point on the floor', () => {
+    // A pole whose origin (the grip) is 0.3 above its foot, like the flag's.
+    const model = new THREE.Group()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.9, 0.05))
+    mesh.position.set(0, 0.15, 0)
+    model.add(mesh)
+    const pose = standingWeaponPose(model)
+    expect(pose.rotation.equals(new THREE.Quaternion())).toBe(true)
+    expect(pose.lift).toBeCloseTo(0.3)
+  })
+
+  it('gives no lift for an empty model', () => {
+    expect(standingWeaponPose(new THREE.Group()).lift).toBe(0)
   })
 })
