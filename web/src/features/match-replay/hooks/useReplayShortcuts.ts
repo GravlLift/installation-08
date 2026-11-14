@@ -44,6 +44,8 @@ export interface ReplayShortcutHandlers {
   toggleSound: () => void
   /** Ouvre ou ferme le mode plein écran (useReplayFullscreen) : la touche F. */
   toggleFullscreen: () => void
+  /** Switches the 3D view between the perspective and the orthographic top-down: the key V; absent = the key is not listened to. */
+  toggleView?: () => void
   /** Le saut des flèches, en secondes (cf. SKIP_SECONDS de la barre). */
   skipSeconds: number
   /** `false` quand la page n'a pas de rejeu chargé : rien n'est écouté. */
@@ -115,6 +117,7 @@ type PlayerKeyAction =
   | 'sound'
   | 'restart'
   | 'fullscreen'
+  | 'view'
 
 /**
  * LES TOUCHES DU LECTEUR, majuscules comprises : Verr. Maj allumé ne doit éteindre aucun
@@ -129,6 +132,7 @@ const PLAYER_KEYS = new Map<string, PlayerKeyAction>([
   ['m', 'sound'], ['M', 'sound'],
   ['r', 'restart'], ['R', 'restart'],
   ['f', 'fullscreen'], ['F', 'fullscreen'],
+  ['v', 'view'], ['V', 'view'],
 ])
 
 export function isTypingTarget(target: EventTarget | null): boolean {
@@ -143,7 +147,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
-  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, skipSeconds, enabled, zoom } = h
+  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, skipSeconds, enabled, zoom } = h
   // LE CADRAGE PAR RÉFÉRENCE, et pas en dépendance de l'effet : son objet est recréé à chaque
   // rendu, et le cadrage change soixante fois par seconde pendant la lecture. En dépendance,
   // l'écouteur clavier se réabonnerait à cette cadence. La référence s'écrit dans un effet —
@@ -163,6 +167,7 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       sound: toggleSound,
       restart,
       fullscreen: toggleFullscreen,
+      view: toggleView ?? (() => {}),
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return
@@ -190,10 +195,11 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       // reste au navigateur.
       const action = PLAYER_KEYS.get(e.key)
       if (!action) return
+      if (action === 'view' && !toggleView) return // no view on this page: the key stays with the browser
       e.preventDefault()
       actions[action]()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, skipSeconds])
+  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, skipSeconds])
 }

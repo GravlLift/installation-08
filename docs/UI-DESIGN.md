@@ -193,7 +193,7 @@ Found while checking the current data (2026-11-13):
    matches are fetched? (As built: only as matches are fetched; a stored image under
    1000 px wide is replaced on the next fetch of a match on that map.)
 
-## 10. 2D view (idea, not started)
+## 10. 2D view (first version live: `V` or the `3D | 2D` switch)
 
 A top-down view of the match, our own, built from the map we already load rather than from
 hand-made background images. Origin: a birds-eye render of Live Fire made while checking
@@ -204,14 +204,19 @@ the grass, which read as a usable map straight away.
   calibration. Works for any map that has a mesh, Forge maps included.
 - **Roofs** are the problem: seen from above, most of a map is rooftop and the floors
   people fight on are hidden.
-- **Chosen approach: one image per floor.** Slice the map into height bands and render
-  each band from above with everything over it removed. The view shows the band the
-  followed player is on and switches as they change floor; other floors can show faintly.
-  Needed in any case for stacked maps such as Recharge.
-- **Where the bands come from**: the film. Every position a player stood on is in the
-  replay, so the walked heights cluster into floors without tuning by hand. To check
-  against maps with ramps and uneven ground (Live Fire) before trusting it.
-- **Lighting**: flat light from above. The baked sun gives long shadows that read as walls.
+- **Chosen approach: a cut that follows the player.** Everything higher than a head and a
+  clearance over the followed player's feet is not drawn (the camera's near plane), so his
+  floor shows with the floors under it through openings, faded by depth; the cut height is
+  smoothed over time so jumps and stairs do not flicker it. In free camera it follows the
+  median living player. The first idea, height bands clustered from the walked heights,
+  failed on Recharge: ramps make the walked heights continuous, so the whole map was one
+  band and the view showed its roof (`topDownLogic.ts`).
+- **Lighting**: the 3D view's own, sun shadows included, so a floor reads the same color in
+  both views. With the map's shadow casters hidden and the shadow map off, every floor under
+  a roof was in full sun and the map read as a white slab.
+- **Players**: a disc in team color at the feet with a facing wedge, a fixed size on screen,
+  drawn over the map; a ring on the followed player; players above the cut or well below his
+  floor are dimmed and their tag carries an up or down arrow (`playerMarkers3d.ts`).
 - **On screen**: full size as its own view of the player (as the 2D replay it replaces
   was), with the same transport; later a corner minimap over the 3D view.
 - **Not decided**: rendered once per map and stored, or drawn live from the loaded mesh;

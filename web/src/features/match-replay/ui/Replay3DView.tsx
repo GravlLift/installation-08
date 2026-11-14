@@ -33,6 +33,7 @@ import { LoadGate } from '../scene3d/loadGate3d'
 import { preloadAssets3d } from '../scene3d/preloadAssets3d'
 import { fetchMesh } from '../scene3d/meshFetch'
 import { ReplayScene3d, type CameraMode3d, type PovStatus } from '../scene3d/replayScene3d'
+import type { SceneView3d } from '../scene3d/topDownLogic'
 import { buildTracks3d } from '../scene3d/tracks3d'
 import { WeaponModels } from '../scene3d/weaponModels3d'
 import { useReplay3dAids } from '../settings/useReplay3dAids'
@@ -83,13 +84,15 @@ export interface Replay3DViewProps {
   timeLimitMs: number | null
   /** L'auditeur du son : la caméra de l'image rendue, `null` quand la vue ne rend pas. */
   soundListenerRef?: RefObject<SoundListener | null>
+  /** The drawing view: the perspective 3D view (default) or the orthographic top-down. */
+  view?: SceneView3d
   /** Called with each load state (download, decoding, assets, warm-up, ready, error), so a
    *  page can show the scene's real progress and know when it is ready. */
   onLoadState?: (load: LoadState) => void
 }
 
 export function Replay3DView({
-  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState,
+  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d',
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -262,6 +265,13 @@ export function Replay3DView({
   useEffect(() => {
     if (ready) sceneRef.current?.setMode(mode)
   }, [ready, mode])
+  useEffect(() => {
+    if (ready) sceneRef.current?.setView(view)
+  }, [ready, view])
+  // The top-down view follows the chosen viewpoint only: in free camera its cut follows the living players.
+  useEffect(() => {
+    if (ready) sceneRef.current?.setTopFollowed(viewpoint ?? null)
+  }, [ready, viewpoint])
   // L'éclairage suit le tiroir (ombres, reflets, occlusion ambiante).
   const { look } = useReplay3dLook()
   useEffect(() => {
@@ -312,7 +322,7 @@ export function Replay3DView({
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} />}
+      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} topDown={view === 'top'} />}
       {surface.probe && (
         <button
           type="button"
@@ -334,7 +344,7 @@ export function Replay3DView({
         </div>
       )}
       {ready && active && <ReplayCadence3d etatRef={cadenceRef} profil={lireProfil} locale={locale} />}
-      {ready && !compact && (
+      {ready && !compact && view !== 'top' && (
         <div
           className="absolute left-3 top-3 flex gap-0.5 rounded-md border border-border bg-card/85 p-1"
           role="group"

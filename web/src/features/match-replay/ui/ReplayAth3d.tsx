@@ -17,7 +17,17 @@ import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 
-export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null> }) {
+const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
+
+/**
+ * BandeauScore — the match score and clock, bottom center. The one strip of the first-person
+ * HUD that the top-down view keeps; everything else is first-person equipment.
+ */
+function BandeauScore({ locale, frame, doc, playWindow, timeLimitMs, coteGauche, coteDroite }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; coteGauche: { camp: 'team-ally' | 'team-enemy'; score: number; part: number }; coteDroite: { camp: 'team-ally' | 'team-enemy'; score: number; part: number } }) {
+  return <div role="group" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>
+}
+
+export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, topDown = false }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; topDown?: boolean }) {
   const [frame, setFrame] = useState(0)
   const [onEnemy, setOnEnemy] = useState(false)
   // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
@@ -60,9 +70,11 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
   const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
-  return <div className="pointer-events-none absolute inset-0" style={{ color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }}>
+  const bandeau = score && coteGauche && coteDroite ? <BandeauScore locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} coteGauche={coteGauche} coteDroite={coteDroite} /> : null
+  if (topDown) return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{bandeau}</div>
+  return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
-    {score && coteGauche && coteDroite && <div role="group" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>}
+    {bandeau}
     {ath && ath.bouclier !== null && <div style={{ position: 'absolute', top: '8%', left: '50%', width: 'min(50cqh, 90%)', transform: 'translateX(-50%)', height: '3.2%', minHeight: 8, border: `1px solid ${ath.bouclier <= 0 ? tokenCssVar('destructive') : 'currentColor'}`, clipPath: 'polygon(2% 0, 98% 0, 100% 100%, 0 100%)' }}><div style={{ position: 'absolute', inset: 0, width: `${Math.max(0, Math.min(1, ath.bouclier)) * 100}%`, background: tokenCssVar('info'), opacity: 0.85 }} /></div>}
     {ath && spec.kind === 'bandit' && zoom.amount > 0.5 && <ReplayAthBandit3d amount={zoom.amount} label={SCENE3D_TEXT[locale].banditZoom} />}
     {ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} reticleColor={reticleColor} /> : (

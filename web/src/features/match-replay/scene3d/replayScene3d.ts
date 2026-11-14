@@ -1,24 +1,21 @@
 /**
- * replayScene3d.ts — LA SCÈNE 3D DU REJEU : rendu WebGL, joueurs, caméras.
+ * replayScene3d.ts — the 3D replay scene: WebGL render, players, cameras.
  *
- * Elle ne possède pas le temps : le lecteur de la page avance son image, la vue appelle
- * `render(frame)` à chaque image d'écran. Trois caméras : à la première personne et à la
- * troisième sur le joueur suivi (le point de vue de la page), et libre (orbite autour de lui).
+ * It owns no time: the page's player advances its image and the view calls `render(frame)`
+ * once per screen frame. Cameras: first and third person on the followed player (the page's
+ * viewpoint), free (orbit around it), and the orthographic top-down view (`topDownView3d`)
+ * drawing the same scene straight down, one floor band at a time.
  *
- * Le rejeu et la carte sont en UNITÉS MONDE Halo (1 u = 3,048 m), pas en mètres : vitesse de
- * course médiane mesurée 2,3 u/s, celle d'un Spartiate. Toutes les tailles ci-dessous sont en u.
+ * The replay and the map are in Halo world units (1 u = 3.048 m), not meters: measured
+ * median run speed 2.3 u/s, that of a Spartan. All sizes below are in u.
  *
- * L'action du match (tirs, vols, morts, objets, véhicules) est posée par les calques d'action
- * (`actionScene3d`) après les joueurs, à chaque image rendue ; le joueur (`avatar3d`) porte l'arme en main.
+ * The match action (shots, flights, deaths, objects, vehicles) is placed by the action
+ * layers (`actionScene3d`) at each rendered frame; a surface layer can be posed on the map
+ * after it (`attachLayer`) and is released with the scene.
  *
- * Un calque de surfaces peut se poser sur la carte après elle (`attachLayer` : les objets de la
- * variante du match). Il entre dans tout ce que la carte sert : le sol des calques d'action,
- * l'inspecteur, l'occlusion ambiante, les sondes et les ombres ; il est libéré avec la scène.
- *
- * L'export vidéo la PREND (`beginExport` .. `endExport`, cf. `export/replay3dExportStore`) : rendu
- * à la taille du fichier, caméra et joueur suivi de l'export. Pendant ce temps, ce que la vue
- * d'écran demande (taille, caméra, joueur suivi) est retenu et appliqué au retour, et `render` ne
- * dessine plus rien.
+ * The video export takes the scene (`beginExport` .. `endExport`, cf. `export/replay3dExportStore`):
+ * it renders at the file's size and camera, holds what the screen view asks in the meantime,
+ * and `render` draws nothing while it runs.
  */
 import * as THREE from 'three'
 import { marquer, nouveauProfil } from './profilRendu3d'
@@ -52,6 +49,9 @@ import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './track
 import { ScopeView3d } from './scopeView3d'
 import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
+import type { SceneView3d } from './topDownLogic'
+import { TopDownView3d } from './topDownView3d'
+import type { MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
@@ -61,16 +61,14 @@ import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
 /** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
 export type PovStatus = 'alive' | 'dead' | 'unspawned' | 'none'
-// Départ de la caméra libre : derrière le joueur suivi et au-dessus de lui (u).
+// Free camera start: behind and above the followed player (u).
 const FREE_BACK = 3
 const FREE_RISE = 1.5
-// Aire de jeu : la boîte des positions du rejeu, élargie de PLAY_MARGIN autour et de
-// PLAY_HEADROOM au-dessus (toits, passerelles qui ombrent le sol).
+// Play area: the replay positions' box, grown by PLAY_MARGIN around and PLAY_HEADROOM above (roofs, bridges).
 const PLAY_MARGIN = 15
 const PLAY_HEADROOM = 20
-// Soleil d'une carte dont le maillage ne publie pas celui du jeu : choisi à l'œil sur Recharge.
+// Sun for a map whose mesh does not publish the game's: chosen by eye on Recharge.
 const SUN_FALLBACK = { azimuth: 217, elevation: 58 }
-// Ciel et brouillard (pas une couleur d'interface).
 const SKY_TINT = 0x9fb4c8
 const FOG_NEAR = 60
 const FOG_FAR = 220
@@ -99,6 +97,13 @@ export class ReplayScene3d implements Replay3DExportSource {
   private ground: Ground | null = null
   private tracks: Tracks3d | null = null
   private mode: CameraMode3d = 'fp'
+  /** The drawing view: perspective (3D) or the orthographic top-down (`topDownView3d`). */
+  private view: SceneView3d = '3d'
+  /** The top-down view, built when the map is attached; null without a map. */
+  private top: TopDownView3d | null = null
+  private topPlayers: MarkerPose[] = []
+  /** The player the top-down view follows and rings: the page's viewpoint, null in free camera. */
+  private topFollowed: string | null = null
   private povXuid: string | null = null
   private originAboveFloor = 0
   private lastFrame = 0
@@ -108,7 +113,6 @@ export class ReplayScene3d implements Replay3DExportSource {
   private action: ActionScene3d | null = null
   private bras: BrasPremierePersonne3d | null = null
   private doc: ReplayDocumentReady | null = null
-  // Champ de base : le réglage de champ du jeu, 100 horizontaux à 16:9, tourné en vertical.
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
   private fps = 30
   private weaponModels: WeaponModels | null = null
@@ -116,7 +120,6 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** L'arme du joueur suivi en 1re personne (clé et nom), null sans clé ; `rig` : c'est le rig bras + arme qui est dessiné. */
   inView: { key: string; name: string; rig: boolean } | null = null
   private readonly actionRoot = new THREE.Group()
-  // Hauteur de l'origine au-dessus des pieds, mesurée sur tous les joueurs (calques d'action).
   private feetDrop = 0
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
@@ -139,20 +142,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post = buildPostFx(this.renderer, this.scene, this.camera)
     const self = this
     this.cameraPlacement = new ReplayCamera3d({
-      get tracks() { return self.tracks }, get povXuid() { return self.povXuid },
-      get mode() { return self.mode }, get action() { return self.action },
-      get originAboveFloor() { return self.originAboveFloor }, camera: this.camera,
-      pickables: () => self.groundSurfaces(), raycaster: this.raycaster,
+      get tracks() { return self.tracks }, get povXuid() { return self.povXuid }, get mode() { return self.mode },
+      get action() { return self.action }, get originAboveFloor() { return self.originAboveFloor },
+      camera: this.camera, pickables: () => self.groundSurfaces(), raycaster: this.raycaster,
     })
     this.exportScene = new ReplayExportScene3d({
       renderer: this.renderer, camera: this.camera, orbit: this.orbit, labels: this.labels,
       post: this.post, lighting: this.lighting, avatars: this.avatars,
       get action() { return self.action }, get hasTracks() { return !!self.tracks },
       get mode() { return self.mode }, set mode(value) { self.mode = value },
+      get view() { return self.view }, set view(value) { self.view = value },
       get povXuid() { return self.povXuid }, set lastFrame(value) { self.lastFrame = value },
       get lastFrame() { return self.lastFrame },
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
-      placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame) => { this.cameraPlacement.placeCamera(frame) },
+      placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame) => this.cameraPlacement.placeCamera(frame),
       placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
     })
   }
@@ -171,16 +174,17 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.lighting.fit(playBox)
       const sun = model.sun ?? SUN_FALLBACK
       this.lighting.setSun(sun.azimuth, sun.elevation)
-      // La lumière du jeu est active pendant les captures des sondes.
-      this.lighting.takeGameLight(model.baked)
-      // Les sondes se posent là où des joueurs se sont tenus, à hauteur d'œil. Avant les avatars.
+      this.lighting.takeGameLight(model.baked) // game light active during the probe captures
       this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
       this.playTop = playBox.max.y
+      // Top-down view: cut over the followed player, down to the lowest walked floor, framed on the walked area.
+      this.top = new TopDownView3d(this.scene, playPoints.map((p) => p.y), new THREE.Box3().setFromPoints(playPoints))
     }
     if (model.ciel) {
       this.ciel = creerCiel(model.sun ?? SUN_FALLBACK, model.ciel.texture, model.ciel.color, model.sunStrength)
       this.scene.add(this.ciel)
     }
+    this.top?.sync(this.ciel)
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
     for (const p of tracks.players) {
@@ -191,10 +195,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.feetDrop = measureOriginAboveFloor(tracks.players.flatMap((p) => tracks.allPoints(p.xuid)), this.model, this.raycaster)
     this.scene.add(this.actionRoot); this.prepareAvatars()
   }
-  /**
-   * enableAction pose les calques d'action (tirs, vols, morts, objets, véhicules...). `inputs` est
-   * relu à chaque image : le thème, le tiroir et la langue changent sans reconstruire les calques.
-   */
+
+  /** enableAction poses the action layers (shots, flights, deaths, objects, vehicles); `inputs` is re-read each frame. */
   enableAction(doc: ReplayDocumentReady, inputs: () => Action3dInputs): void {
     const tracks = this.tracks
     if (!tracks || !this.model || this.action) return
@@ -224,14 +226,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     })
     this.prechargerRigs()
   }
-  /** prechargerRigs : le chargement des rigs des armes portées par le match commence pour l'écran de chargement. */
-  private prechargerRigs(): void {
-    if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc))
-  }
-  /**
-   * setWeaponModels pose la source des modèles d'arme et du Spartan (la précédente est libérée,
-   * les Spartans qui en sont des copies avec elle) ; null : aucune.
-   */
+
+  /** prechargerRigs: start loading the rigs of the weapons the match carries, for the loading screen. */
+  private prechargerRigs() { if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc)) }
+
+  /** setWeaponModels poses the source of the weapon and Spartan models (the previous one, and the Spartans copying it, is released); null: none. */
   setWeaponModels(models: WeaponModels | null): void {
     for (const a of this.avatars.values()) wearSpartan(a, null)
     this.weaponModels?.dispose()
@@ -242,10 +241,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.prechargerRigs()
     this.prepareAvatars()
   }
-  /**
-   * setSpartanArmory pose l'armure des joueurs du match (`armory3d`), que la scène possède : la
-   * précédente est libérée après que les joueurs l'ont rendue ; null : l'armure par défaut pour tous.
-   */
+
+  /** setSpartanArmory poses the match players' armor (`armory3d`), owned by the scene; the previous one is released after the players return it; null: the default armor for all. */
   setSpartanArmory(armory: SpartanArmory | null): void {
     const source = this.weaponModels?.spartan() ?? null
     for (const a of this.avatars.values()) wearSpartan(a, source, null, this.model?.baked ?? null)
@@ -253,14 +250,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.armory = armory
     this.prepareAvatars()
   }
-  /** mapLight : la lumière cuite de la carte posée, que ses calques reprennent ; null sans carte ou sans lumière. */
-  get mapLight(): BakedLight | null {
-    return this.model?.baked ?? null
-  }
-  /**
-   * attachLayer pose un calque sur la carte (un seul : le précédent est retiré). Faux sans carte
-   * posée (scène libérée) : le calque reste à l'appelant, qui le libère.
-   */
+
+  /** mapLight: the baked light of the posed map that its layers reuse; null without a map or a light. */
+  get mapLight(): BakedLight | null { return this.model?.baked ?? null }
+
+  /** attachLayer poses one layer on the map (the previous one is removed); false without a posed map: the layer stays with the caller, who releases it. */
   attachLayer(layer: SurfaceModel): boolean {
     if (!this.model) return false
     this.detachLayer()
@@ -268,24 +262,29 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(layer.root)
     this.lighting.lightLayer(layer.surfaces)
     this.ground?.setPickables(this.groundSurfaces())
+    this.top?.sync(this.ciel)
     return true
   }
-  /** detachLayer retire le calque posé et le libère ; sans calque, rien. */
+
+  /** detachLayer removes and releases the posed layer; nothing without one. */
   detachLayer(): void {
     const layer = this.layer
     if (!layer) return
     this.layer = null
     this.scene.remove(layer.root)
     this.ground?.setPickables(this.groundSurfaces())
+    this.top?.sync(this.ciel)
     this.lighting.releaseLayer(layer.surfaces)
     layer.dispose()
   }
-  /** setLook applique les réglages d'éclairage du tiroir : ombres, reflets, occlusion ambiante. */
+
+  /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion. */
   setLook(look: Look3d): void {
     this.lighting.setLook(look)
     this.post.gtao.enabled = look.ambientOcclusion
   }
-  /** setFovPreference applique le réglage de champ du jeu (degrés horizontaux à 16:9) : le champ vertical de base de la caméra. */
+
+  /** setFovPreference applies the game's field-of-view setting (horizontal degrees at 16:9): the camera's base vertical field. */
   setFovPreference(gameFovDeg: number): void {
     this.scopeView.changerBase(this.camera, verticalFovOf(gameFovDeg))
   }
@@ -297,6 +296,16 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.exportScene.held) this.exportScene.held.mode = mode
     else this.applyMode(mode)
   }
+
+  /** setView chooses the drawing view: the perspective 3D view or the orthographic top-down. */
+  setView(view: SceneView3d) {
+    if (this.exportScene.held) this.exportScene.held.view = view
+    else this.view = view
+  }
+
+  /** setTopFollowed: the player the top-down view's cut follows; null (free camera): the living players' median. */
+  setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
+
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return
     if (this.exportScene.held) {
@@ -307,7 +316,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
   }
 
-  /** probe rend la surface de la carte (ou du calque) sous le point d'écran (`clientX`, `clientY`), null hors carte. */
+  /** probe renders the map (or layer) surface under the screen point (`clientX`, `clientY`); null off the map. */
   probe(clientX: number, clientY: number): SurfaceProbe | null {
     const box = this.renderer.domElement.getBoundingClientRect()
     if (!this.model || box.width === 0 || box.height === 0) return null
@@ -316,23 +325,19 @@ export class ReplayScene3d implements Replay3DExportSource {
     return probeSurface(roots, this.camera, ndc)
   }
 
-  /** render pose la scène à l'image `frame` (fractionnaire) et la dessine ; rend l'état du joueur suivi. */
+  /** render poses the scene at frame `frame` (fractional) and draws it; returns the followed player's status. */
   render(frame: number): PovStatus {
     if (this.exportScene.held) return this.lastStatus
     this.lastFrame = frame
     let status: PovStatus = 'none'
     const p = this.profil
-    let t = performance.now()
-    this.renderer.info.reset()
+    let t = performance.now(); this.renderer.info.reset()
     if (this.tracks) {
       this.placeAvatars(frame)
       t = marquer(p, 0, t)
       status = this.cameraPlacement.placeCamera(frame)
-      // La lunette avant le rig : la contre-échelle du rig lit le champ de l'image en cours.
       this.placerLunette(frame)
       this.bras?.placer(this.camera)
-      // Les tirs lisent la bouche du rig posé à la caméra de l'image courante : le calque d'action
-      // tourne APRÈS la pose du rig, sinon la gerbe serait d'une image en retard sur le canon dessiné.
       t = marquer(p, 1, t)
       this.action?.update(frame)
     }
@@ -343,9 +348,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     t = marquer(p, 2, t)
     this.lighting.updateShadows(frame)
     t = marquer(p, 3, t)
-    this.post.composer.render()
+    const top = this.view === 'top' ? this.top : null
+    if (top) top.draw({ renderer: this.renderer, composer: this.post.composer, players: this.topPlayers, followed: this.topFollowed })
+    else { this.top?.idle(); this.post.composer.render() }
     t = marquer(p, 4, t)
-    this.labels.render(this.scene, this.camera)
+    this.labels.render(this.scene, top ? top.camera : this.camera)
     marquer(p, 5, t)
     p.appels = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
@@ -367,11 +374,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.originAboveFloor = xuid && this.tracks ? measureOriginAboveFloor(this.tracks.allPoints(xuid), this.model, this.raycaster) : 0
   }
 
-  /**
-   * applyMode change de caméra. La caméra libre part de la vue en cours, reculée derrière le joueur
-   * suivi et tournée vers lui : partir d'un point fixe au-dessus de lui la mettait dans le toit
-   * dès qu'il était à l'intérieur.
-   */
+  /** applyMode changes camera. The free camera starts from the current view, pulled behind the followed player and turned to it: a fixed point above him put it in the roof as soon as he was inside. */
   private applyMode(mode: CameraMode3d): void {
     this.mode = mode
     this.orbit.enabled = mode === 'free'
@@ -395,17 +398,15 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.setWeaponModels(null)
     for (const a of this.avatars.values()) {
       releaseWeapon(a)
-      for (const m of [a.body, a.aim, a.gun]) {
-        m.geometry.dispose()
-        ;(m.material as THREE.Material).dispose()
-      }
+      for (const m of [a.body, a.aim, a.gun]) m.geometry.dispose(), (m.material as THREE.Material).dispose()
       a.tag.element.remove()
     }
     this.detachLayer()
+    this.top?.dispose()
     if (this.ciel) { this.scene.remove(this.ciel); this.ciel.geometry.dispose(); this.ciel.material.dispose(); this.ciel = null }
     this.model?.dispose()
-    // Plus de carte : un calque arrivé après la libération est refusé (`attachLayer`).
-    this.model = null
+    this.model = null // no map: a layer arriving after release is refused (`attachLayer`)
+    this.top = null
     this.doc = null
     this.lighting.dispose()
     this.post.dispose()
@@ -425,13 +426,14 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.inView = null
     this.bras?.cacher()
     this.post.outline.begin()
+    this.topPlayers.length = 0
+    const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position // the name-tag eye: the drawing camera
     for (const p of tracks.players) {
       const a = this.avatars.get(p.xuid)
       if (!a) continue
       const s = tracks.sample(p.xuid, f)
-      // Embarqué, le bipède ne réplique plus : il suit son véhicule.
-      const rider = this.action?.riderAt(p.xuid, f) ?? null
-      const firstPerson = p.xuid === this.povXuid && this.mode === 'fp'
+      const rider = this.action?.riderAt(p.xuid, f) ?? null // aboard, the biped stops replicating: it follows its vehicle
+      const firstPerson = p.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
       if (!s && !rider) {
         a.group.visible = false
         a.tag.visible = false
@@ -440,31 +442,27 @@ export class ReplayScene3d implements Replay3DExportSource {
       const feet = rider ?? feetOf(s as PlayerState3d, this.originAboveFloor)
       const h = rider ? this.action?.riderHeadingAt(p.xuid, f) ?? s?.h ?? 0 : s?.h ?? 0
       this.buildAvatar(p.xuid, a)
-      // À bord, ni tangage ni locomotion : la vitesse du véhicule ne fait pas marcher le joueur.
-      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, dropOeil: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null }
+      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, dropOeil: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
       placeBody(a, feet, pose, firstPerson, this.lighting.probeAt(feet))
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null)
       const modelArme = rigVisible ? null : held?.model ?? null
-      // Le modèle d'arme se peint du revêtement du joueur : la peinture part en fond, la copie de
-      // l'arme se la pose quand elle est prête et couvrante (`armory3d.coatArme`).
       const cleArme = held?.key ? weaponModelKey(held.key) : null
       if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
       const coatArme = modelArme && cleArme ? (this.armory?.coatArme(p.xuid, cleArme, modelArme) ?? null) : null
       showWeapon(a, held, modelArme, firstPerson ? viewGripOf(held?.key ?? null) : null, coatArme)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null
       showBodyFx(a, fx)
-      // Le contour d'équipe : chaque joueur visible, sauf soi-même en 1re personne.
-      if (fx && !firstPerson) this.post.outline.add(a.group, fx)
+      if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
-      // À bord, le joueur suivi en 1re personne ne montre pas d'arme.
-      a.group.visible = !(firstPerson && rider)
-      placeTag(a.tag, feet, firstPerson ? null : this.camera.position, p.xuid === this.povXuid || !!this.action?.aids().allNameTags)
+      a.group.visible = !(firstPerson && rider) // aboard in first person: no weapon shown
+      placeTag(a.tag, feet, firstPerson ? null : eye, this.view === 'top' || p.xuid === this.povXuid || !!this.action?.aids().allNameTags) // top: every tag, a map key
+      this.topPlayers.push({ xuid: p.xuid, feet, heading: h, avatar: a })
     }
   }
 
-  /** playerFeet : les pieds d'un joueur (axes three), à bord d'un véhicule compris ; null hors vie. */
+  /** playerFeet: a player's feet (three axes), aboard a vehicle included; null out of life. */
   private playerFeet(xuid: string, frame: number): THREE.Vector3 | null {
     const rider = this.action?.riderAt(xuid, frame)
     if (rider) return rider.clone()
@@ -472,10 +470,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     return s ? feetOf(s, this.feetDrop) : null
   }
 
-  /**
-   * placerLunette ajuste le champ du zoom 1re personne (`scopeView3d`) et retire les bras de
-   * l'écran quand la lunette optique est montée ; hors 1re personne, le champ de base revient.
-   */
+  /** placerLunette adjusts the first-person zoom's field (`scopeView3d`) and takes the arms off screen when the optic sight is mounted; out of first person, the base field returns. */
   private placerLunette(f: number): void {
     const doc = this.doc
     if (this.mode !== 'fp' || !this.povXuid || !doc) {
@@ -487,13 +482,13 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec)) this.bras?.cacher()
   }
 
-  /** groundSurfaces : les surfaces du sol, celles de la carte puis celles du calque posé. */
+  /** groundSurfaces: the ground surfaces, the map's then the posed layer's. */
   private groundSurfaces(): THREE.Mesh[] {
     return [...(this.model?.pickables ?? []), ...(this.layer?.pickables ?? [])]
   }
 }
 
-/** feetOf : les pieds d'un joueur en axes three, `drop` sous son origine publiée. */
+/** feetOf: a player's feet in three axes, `drop` below his published origin. */
 function feetOf(s: PlayerState3d, drop: number): THREE.Vector3 {
   const [x, , z] = toThree(s.x, s.y, s.z)
   return new THREE.Vector3(x, s.z - drop, z)

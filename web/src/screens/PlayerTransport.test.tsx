@@ -22,6 +22,8 @@ function renderTransport(overrides: Record<string, unknown> = {}) {
     onRestart: noop,
     onSetSpeed: noop,
     onSetViewpoint: noop,
+    view: '3d',
+    onSetView: noop,
     onScrub: noop,
     onSeekBy: noop,
     onToggleScoreboard: noop,
@@ -91,6 +93,20 @@ it('calls onScrub(0) on Home and onScrub(last) on End', () => {
   expect(onScrub).toHaveBeenLastCalledWith(0)
   fireEvent.keyDown(bar, { key: 'End' })
   expect(onScrub).toHaveBeenLastCalledWith(doc.frameCount - 1)
+})
+
+it('renders the view segments with the current one pressed', () => {
+  renderTransport()
+  expect(screen.getByRole('button', { name: '3D', pressed: true })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '2D', pressed: false })).toBeInTheDocument()
+})
+
+it('calls onSetView with the view of the clicked segment', () => {
+  const onSetView = vi.fn()
+  renderTransport({ view: '3d', onSetView })
+  fireEvent.click(screen.getByRole('button', { name: '2D' }))
+  expect(onSetView).toHaveBeenCalledOnce()
+  expect(onSetView).toHaveBeenCalledWith('top')
 })
 
 it('calls onSetSpeed with the value of the clicked speed segment', () => {
