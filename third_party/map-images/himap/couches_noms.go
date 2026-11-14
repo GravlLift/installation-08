@@ -91,7 +91,7 @@ var nomsSurfaces = []nomsCouche{
 func surfaceParNoms(params ParametresShader, pp postprocessLu) *Couches {
 	c := lecteurConstantes(pp.constantes)
 	for _, n := range nomsSurfaces {
-		if k, ok := n.lit(params, pp, c, true); ok {
+		if k, ok := n.lit(params, pp, c, true, true); ok {
 			return &Couches{JeuUV: jeuUVDiffus, Couches: []Couche{k}}
 		}
 	}
@@ -141,7 +141,7 @@ func couchesDeNiveau(params ParametresShader, pp postprocessLu) *Couches {
 		out.Masque = pp.textures[o]
 	}
 	for i, n := range nomsCouches {
-		if k, ok := n.lit(params, pp, c, i == 0); ok {
+		if k, ok := n.lit(params, pp, c, i == 0, false); ok {
 			k.Hauteur = litHauteur(nomsHauteur[i], params, c, i == 0)
 			if k.Sorte == CoucheDegrade {
 				k.Matiere = litMatiere(nomsMatiere[i], params, c)
@@ -162,8 +162,11 @@ func couchesDeNiveau(params ParametresShader, pp postprocessLu) *Couches {
 }
 
 // lit rend la couche, ok=false quand le shader ne la declare pas ou que le materiau ne lie pas
-// sa texture principale.
-func (n nomsCouche) lit(params ParametresShader, pp postprocessLu, c lecteurConstantes, premiere bool) (Couche, bool) {
+// sa texture principale. Pour une surface (nomsSurfaces), l'entree est la famille du shader :
+// une entree dont le principal est une carte de couleur ne se reconnait pas sur sa carte de
+// controle secondaire (partagee entre familles de shaders), seule une forme rohg, dont la
+// controle EST le principal, lit sa couche sur la controle.
+func (n nomsCouche) lit(params ParametresShader, pp postprocessLu, c lecteurConstantes, premiere, surface bool) (Couche, bool) {
 	texture := func(nom uint32) (uint32, Transfo, bool) {
 		o, ok := params[nom]
 		if nom == 0 || !ok {
@@ -188,7 +191,7 @@ func (n nomsCouche) lit(params ParametresShader, pp postprocessLu, c lecteurCons
 		k.Sorte = CoucheDegrade
 		k.Bitmap, k.Transfo, _ = texture(n.paquet)
 		k.Normale, k.TransfoNormale = k.Bitmap, k.Transfo
-	case n.aTexture(texture, n.controle):
+	case n.aTexture(texture, n.controle) && (!surface || (n.couleur == 0 && n.paquet == 0)):
 		k.Sorte = CoucheDegrade
 		k.Bitmap, k.Transfo, _ = texture(n.controle)
 		k.Controle, k.TransfoControle = k.Bitmap, k.Transfo

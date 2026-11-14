@@ -71,6 +71,12 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
   and placed objects, layered materials and height blend, cut-out materials, baked light
   probes and lamps, sun and sky, terrain heightfields, weapons, armor pieces (117 new files,
   15 modified). New dependency: `github.com/woozymasta/bcn` v0.7.0.
+  - `himap/couches_noms.go` (LOCAL-CHANGE): surface recognition by names now refuses to
+    classify a color-map family on its secondary control map, which is shared with other
+    shader families; only rohg forms (control map as primary) match on it. A shader of a
+    color-map family whose color map is absent was misread as a zero-colored gradient layer
+    (dark walls on Live Fire, materials of shaders `2aaf6012`/`25144b6b`). Covered by the
+    synthetic test `himap/couches_noms_surface_test.go` (new).
   - `himap/arsenal_roster.go` (new, LOCAL-CHANGE): `Arsenal.RosterArmes` enumerates every
     weapon's `weap` GlobalID in the installed modules (the weapon-settings group does not
     exist in the game; the `weap` tags themselves are the roster). It reads the unexported
