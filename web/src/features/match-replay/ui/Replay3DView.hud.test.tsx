@@ -39,4 +39,12 @@ describe('ReplayAth3d renders the weapon corner in every camera mode', () => {
     expect(container.textContent).toContain('13')
     expect(container.textContent).toContain('42')
   })
+
+  it('keeps only the score strip in the top-down view', () => {
+    const { container } = render(
+      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} topDown />,
+    )
+    expect(container.textContent).not.toContain('13')
+    expect(container.textContent).not.toContain('42')
+  })
 })

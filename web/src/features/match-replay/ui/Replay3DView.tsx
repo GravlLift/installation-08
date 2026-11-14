@@ -318,7 +318,7 @@ export function Replay3DView({
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} />}
+      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} topDown={view === 'top'} />}
       {surface.probe && (
         <button
           type="button"
@@ -340,7 +340,7 @@ export function Replay3DView({
         </div>
       )}
       {ready && active && <ReplayCadence3d etatRef={cadenceRef} profil={lireProfil} locale={locale} />}
-      {ready && !compact && (
+      {ready && !compact && view !== 'top' && (
         <div
           className="absolute left-3 top-3 flex gap-0.5 rounded-md border border-border bg-card/85 p-1"
           role="group"

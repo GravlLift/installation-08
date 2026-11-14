@@ -10,11 +10,22 @@
  * `envers-structure`, the shadow proxies `ombre-carte`) are saved and restored around the
  * draw, the way the scene expects.
  *
- * The post effects (occlusion, team outline, grain) are skipped: the composer is bound to
- * the perspective camera, and the top-down view needs none of them. Players, weapons on
- * the ground, objectives and effects live in the same scene graph and are drawn as is.
+ * The draw runs through the composer on the orthographic camera so the scene gets the same
+ * final color treatment as the 3D view (tone mapping, output color space, the grade): a floor
+ * reads the same in 2D as in 3D. Only the camera-agnostic passes run; the perspective-bound
+ * ones (team outline mask and line, ambient occlusion) are skipped, which is why the composer
+ * is re-pointed, not rebuilt. The background is the page's dark studio, the sky stays hidden,
+ * and the sun's shadows are off: a baked sun reads as walls from straight above.
  */
 import * as THREE from 'three'
+import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { Pass } from 'three/addons/postprocessing/Pass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
+
+import { cssColor } from './cssColor'
 import { bandAt, topDownFrame, type FloorBand, type TopDownBounds } from './topDownLogic'
 
 /** The lift of the camera above the band ceiling, keeps the near plane positive (u). */
@@ -23,6 +34,13 @@ const TOP_LIFT = 2
 const TOP_SLACK = 0.5
 /** Helper meshes not drawn in the top-down view (the sky is passed separately to `sync`). */
 const HIDDEN_NAMES = new Set(['envers-structure', 'ombre-carte'])
+/** The passes that read no camera: the scene render, the output, the grade, the antialias. */
+const CAMERA_AGNOSTIC = [RenderPass, OutputPass, ShaderPass, SMAAPass]
+
+/** cameraAgnostic — a composer pass that needs no perspective camera. */
+function cameraAgnostic(pass: Pass): boolean {
+  return CAMERA_AGNOSTIC.some((Ctor) => pass instanceof Ctor)
+}
 
 export class TopDownView3d {
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400)
@@ -31,10 +49,17 @@ export class TopDownView3d {
   private hidden: { obj: THREE.Object3D; visible: boolean }[] = []
   /** The last band drawn, kept for frames where no player height is on the map. */
   private lastBand: FloorBand | null = null
+  /** The page's studio background, read from its `--studio-950` token once; null if absent. */
+  private studioBackground: THREE.Color | null = null
 
   constructor(bands: FloorBand[], bounds: TopDownBounds) {
     this.bands = bands
     this.bounds = bounds
+  }
+
+  /** The floor bands this view draws; the markers read them to tell a player's floor. */
+  get floorBands(): readonly FloorBand[] {
+    return this.bands
   }
 
   /** Collect the helper meshes to hide (by name) plus the sky; run when the scene graph changes. */
@@ -54,17 +79,63 @@ export class TopDownView3d {
     return this.lastBand
   }
 
-  /** Draw the scene straight down over the band; false when there is no band to draw. */
-  draw(scene: THREE.Scene, renderer: THREE.WebGLRenderer, band: FloorBand | null): boolean {
+  /**
+   * Draw the scene straight down over the band through the composer (its camera-agnostic
+   * passes); false when there is no band to draw.
+   */
+  draw(scene: THREE.Scene, renderer: THREE.WebGLRenderer, composer: EffectComposer, band: FloorBand | null): boolean {
     if (!band) return false
     const savedFog = scene.fog
     scene.fog = null
+    const savedBackground = scene.background
+    const studio = this.studioBg(savedBackground)
+    if (studio) scene.background = studio
+    const savedShadow = renderer.shadowMap.enabled
+    renderer.shadowMap.enabled = false
     for (const h of this.hidden) h.obj.visible = false
     this.frame(renderer, band)
-    renderer.render(scene, this.camera)
+    this.renderComposer(composer)
+    renderer.shadowMap.enabled = savedShadow
     scene.fog = savedFog
+    if (studio) scene.background = savedBackground
     for (const h of this.hidden) h.obj.visible = h.visible
     return true
+  }
+
+  /**
+   * The page's dark studio background from its `--studio-950` token, read once; null if the
+   * token is absent or the scene background is not a color. The scene's own background is the
+   * fallback the resolver takes when the token cannot be painted, so no color is invented here.
+   */
+  private studioBg(saved: THREE.Color | THREE.Texture | null): THREE.Color | null {
+    if (this.studioBackground === null) {
+      const value = getComputedStyle(document.documentElement).getPropertyValue('--studio-950').trim()
+      if (value && saved instanceof THREE.Color) this.studioBackground = cssColor(value, saved)
+    }
+    return this.studioBackground
+  }
+
+  /**
+   * Render the composer on the orthographic camera, skipping the perspective-bound passes.
+   * The render pass is re-pointed, and the disabled passes restored, around the draw.
+   */
+  private renderComposer(composer: EffectComposer): void {
+    const renderPass = composer.passes[0] as RenderPass
+    const savedCamera = renderPass.camera
+    const disabled: { pass: Pass; enabled: boolean }[] = []
+    for (const pass of composer.passes) {
+      if (!cameraAgnostic(pass)) {
+        disabled.push({ pass, enabled: pass.enabled })
+        pass.enabled = false
+      }
+    }
+    renderPass.camera = this.camera
+    try {
+      composer.render()
+    } finally {
+      renderPass.camera = savedCamera
+      for (const d of disabled) d.pass.enabled = d.enabled
+    }
   }
 
   /** Place the camera above the band, clip it to the band, and frame the played area. */

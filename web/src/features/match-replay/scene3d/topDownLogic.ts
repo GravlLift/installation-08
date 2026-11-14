@@ -23,11 +23,14 @@ export interface FloorBand {
 const FLOOR_MARGIN = 0.5
 /** Headroom above the highest standing height: a standing Spartan plus aim (u). */
 const STAND_HEADROOM = 2.5
+/** Keep a band's ceiling this far under the next band's floor, so the clip never reaches it (u). */
+const BAND_CLEARANCE = 0.01
 
 /**
  * floorBands — cluster the heights into floors: sort, split where two consecutive heights
  * are more than `gap` apart, one band per cluster. A ramp (continuously spread heights)
- * stays in one band.
+ * stays in one band. Where the headroom of one cluster reaches the next one's floor, the
+ * lower ceiling is capped under it: the clip must never reach the floor above.
  */
 export function floorBands(heights: number[], gap: number): FloorBand[] {
   if (heights.length === 0) return []
@@ -41,11 +44,14 @@ export function floorBands(heights: number[], gap: number): FloorBand[] {
       start = i
     }
   }
+  for (let i = 0; i < bands.length - 1; i++) {
+    if (bands[i].ceilingY >= bands[i + 1].floorY) bands[i].ceilingY = bands[i + 1].floorY - BAND_CLEARANCE
+  }
   return bands
 }
 
 /** bandAt — the band containing the height `y`, else the nearest one (by band center). */
-export function bandAt(bands: FloorBand[], y: number): FloorBand {
+export function bandAt(bands: readonly FloorBand[], y: number): FloorBand {
   let best = bands[0]
   let bestDist = Infinity
   for (const band of bands) {

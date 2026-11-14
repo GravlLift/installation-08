@@ -51,6 +51,7 @@ import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
 import { floorBands, type SceneView3d } from './topDownLogic'
 import { TopDownView3d } from './topDownView3d'
+import { PlayerMarkers3d, type MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
@@ -70,7 +71,6 @@ const PLAY_HEADROOM = 20
 const FLOOR_GAP = 3
 // Sun for a map whose mesh does not publish the game's: chosen by eye on Recharge.
 const SUN_FALLBACK = { azimuth: 217, elevation: 58 }
-// Sky and fog (not an interface color).
 const SKY_TINT = 0x9fb4c8
 const FOG_NEAR = 60
 const FOG_FAR = 220
@@ -103,6 +103,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private view: SceneView3d = '3d'
   /** The top-down view, built when the map is attached; null without a map. */
   private top: TopDownView3d | null = null
+  private markers: PlayerMarkers3d | null = null
+  private topPlayers: MarkerPose[] = []
   private povXuid: string | null = null
   private originAboveFloor = 0
   private lastFrame = 0
@@ -112,7 +114,6 @@ export class ReplayScene3d implements Replay3DExportSource {
   private action: ActionScene3d | null = null
   private bras: BrasPremierePersonne3d | null = null
   private doc: ReplayDocumentReady | null = null
-  // Champ de base : le réglage de champ du jeu, 100 horizontaux à 16:9, tourné en vertical.
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
   private fps = 30
   private weaponModels: WeaponModels | null = null
@@ -120,7 +121,6 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** L'arme du joueur suivi en 1re personne (clé et nom), null sans clé ; `rig` : c'est le rig bras + arme qui est dessiné. */
   inView: { key: string; name: string; rig: boolean } | null = null
   private readonly actionRoot = new THREE.Group()
-  // Hauteur de l'origine au-dessus des pieds, mesurée sur tous les joueurs (calques d'action).
   private feetDrop = 0
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
@@ -183,6 +183,7 @@ export class ReplayScene3d implements Replay3DExportSource {
         floorBands(playPoints.map((p) => p.y), FLOOR_GAP),
         { minX: playBox.min.x, minZ: playBox.min.z, maxX: playBox.max.x, maxZ: playBox.max.z },
       )
+      this.markers = new PlayerMarkers3d(); this.markers.attach(this.scene)
     }
     if (model.ciel) {
       this.ciel = creerCiel(model.sun ?? SUN_FALLBACK, model.ciel.texture, model.ciel.color, model.sunStrength)
@@ -332,16 +333,13 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lastFrame = frame
     let status: PovStatus = 'none'
     const p = this.profil
-    let t = performance.now()
-    this.renderer.info.reset()
+    let t = performance.now(); this.renderer.info.reset()
     if (this.tracks) {
       this.placeAvatars(frame)
       t = marquer(p, 0, t)
       status = this.cameraPlacement.placeCamera(frame)
-      // La lunette avant le rig : la contre-échelle du rig lit le champ de l'image en cours.
       this.placerLunette(frame)
       this.bras?.placer(this.camera)
-      // Shots read the rig's muzzle posed at the current camera: the action layer runs AFTER the rig is posed, or the burst lags the drawn barrel by a frame.
       t = marquer(p, 1, t)
       this.action?.update(frame)
     }
@@ -354,7 +352,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     t = marquer(p, 3, t)
     const followed = this.povXuid ?? this.tracks?.players[0]?.xuid ?? null
     const s = followed ? this.tracks?.sample(followed, frame) : null
-    const drewTop = this.view === 'top' && this.top ? this.top.draw(this.scene, this.renderer, this.top.bandFor(s?.z ?? null)) : false
+    const band = this.view === 'top' && this.top ? this.top.bandFor(s?.z ?? null) : null
+    this.markers?.update(this.topPlayers, this.top?.floorBands ?? [], band, this.view === 'top' ? followed : null)
+    const drewTop = this.view === 'top' && this.top ? this.top.draw(this.scene, this.renderer, this.post.composer, band) : false
     if (!drewTop) this.post.composer.render()
     t = marquer(p, 4, t)
     this.labels.render(this.scene, drewTop ? this.top!.camera : this.camera)
@@ -407,6 +407,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       a.tag.element.remove()
     }
     this.detachLayer()
+    this.markers?.dispose(this.scene)
     if (this.ciel) { this.scene.remove(this.ciel); this.ciel.geometry.dispose(); this.ciel.material.dispose(); this.ciel = null }
     this.model?.dispose()
     this.model = null // no map: a layer arriving after release is refused (`attachLayer`)
@@ -430,13 +431,13 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.inView = null
     this.bras?.cacher()
     this.post.outline.begin()
+    this.topPlayers.length = 0
     const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position // the name-tag eye: the drawing camera
     for (const p of tracks.players) {
       const a = this.avatars.get(p.xuid)
       if (!a) continue
       const s = tracks.sample(p.xuid, f)
       const rider = this.action?.riderAt(p.xuid, f) ?? null // aboard, the biped stops replicating: it follows its vehicle
-      // First person only in the 3D view: the top-down view draws every body, the followed one included.
       const firstPerson = p.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
       if (!s && !rider) {
         a.group.visible = false
@@ -452,7 +453,6 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null)
       const modelArme = rigVisible ? null : held?.model ?? null
-      // The weapon model is painted with the player's coating; the copy gets it when ready and covering (`armory3d.coatArme`).
       const cleArme = held?.key ? weaponModelKey(held.key) : null
       if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
       const coatArme = modelArme && cleArme ? (this.armory?.coatArme(p.xuid, cleArme, modelArme) ?? null) : null
@@ -463,6 +463,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
       a.group.visible = !(firstPerson && rider) // aboard in first person: no weapon shown
       placeTag(a.tag, feet, firstPerson ? null : eye, p.xuid === this.povXuid || !!this.action?.aids().allNameTags)
+      this.topPlayers.push({ xuid: p.xuid, feet, y: feet.y, heading: h, avatar: a })
     }
   }
 
