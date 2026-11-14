@@ -53,35 +53,34 @@ func contextNumber(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
 		return n, true
+	case int:
+		return float64(n), true
 	case string:
 		x, e := strconv.ParseFloat(n, 64)
 		return x, e == nil
 	}
 	return 0, false
 }
+
+// contextCachedFields is one match's cached context metadata (map-mode pair, playlist and
+// map image), read once and shared by the context route and the match list.
+type contextCachedFields struct {
+	Mode          string
+	Category      string
+	PlaylistLabel string
+	MapImageURL   string
+}
+
 func contextCached(root *store.Root, id string, header contextJSON, rows, events []contextJSON) {
-	pair := contextReadJSON(variantPath(root, id, "map-mode-pair.json"))
-	pairName := textValue(pair["PublicName"])
-	if pairName == "" {
-		pairName = textValue(object(pair["PublicName"])["value"])
+	fields := contextCachedFieldsFor(root, id, textValue(header["map_id"]))
+	if fields.Mode != "" {
+		header["mode_ui"], header["mode_category"] = fields.Mode, fields.Category
 	}
-	if mode, category := contextMode(pairName); mode != "" {
-		header["mode_ui"], header["mode_category"] = mode, category
+	if fields.PlaylistLabel != "" {
+		header["playlist_label"] = fields.PlaylistLabel
 	}
-	playlist := contextReadJSON(variantPath(root, id, "playlist.json"))
-	if name := textValue(playlist["PublicName"]); name != "" {
-		header["playlist_label"] = contextPlaylistLabel(name)
-	} else if name := textValue(object(playlist["PublicName"])["value"]); name != "" {
-		header["playlist_label"] = contextPlaylistLabel(name)
-	}
-	mapID := textValue(header["map_id"])
-	if mapID != "" && store.ModuleKeyValid(mapID) {
-		for _, name := range []string{mapID + ".png", mapID + ".jpg"} {
-			if _, err := os.Stat(filepath.Join(root.Dir(), "static", "maps", "halo_infinite", name)); err == nil {
-				header["map_image_url"] = "/static/maps/halo_infinite/" + name
-				break
-			}
-		}
+	if fields.MapImageURL != "" {
+		header["map_image_url"] = fields.MapImageURL
 	}
 	contextSkill(header, rows, contextReadJSON(variantPath(root, id, "skill.json")), rankicons.OutDir(root.Dir()))
 	raw, err := os.ReadFile(filepath.Join(root.Dir(), "medals", "metadata.json"))
@@ -127,6 +126,36 @@ func contextCached(root *store.Root, id string, header contextJSON, rows, events
 			event["medal_image_url"] = fmt.Sprintf("/static/medals/halo_infinite/%d.png", m.ID)
 		}
 	}
+}
+
+// contextCachedFieldsFor reads a match's cached context metadata: the map-mode pair's mode
+// and category, the playlist label and the stored map image URL ("" when no image file is
+// on disk). A file that is absent or unreadable simply leaves its field empty.
+func contextCachedFieldsFor(root *store.Root, id, mapID string) contextCachedFields {
+	var out contextCachedFields
+	pair := contextReadJSON(variantPath(root, id, "map-mode-pair.json"))
+	pairName := textValue(pair["PublicName"])
+	if pairName == "" {
+		pairName = textValue(object(pair["PublicName"])["value"])
+	}
+	if mode, category := contextMode(pairName); mode != "" {
+		out.Mode, out.Category = mode, category
+	}
+	playlist := contextReadJSON(variantPath(root, id, "playlist.json"))
+	if name := textValue(playlist["PublicName"]); name != "" {
+		out.PlaylistLabel = contextPlaylistLabel(name)
+	} else if name := textValue(object(playlist["PublicName"])["value"]); name != "" {
+		out.PlaylistLabel = contextPlaylistLabel(name)
+	}
+	if mapID != "" && store.ModuleKeyValid(mapID) {
+		for _, name := range []string{mapID + ".png", mapID + ".jpg"} {
+			if _, err := os.Stat(filepath.Join(root.Dir(), "static", "maps", "halo_infinite", name)); err == nil {
+				out.MapImageURL = "/static/maps/halo_infinite/" + name
+				break
+			}
+		}
+	}
+	return out
 }
 
 // contextSkill decorates the scoreboard rows with the per-player CSR rank from the

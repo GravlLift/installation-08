@@ -136,11 +136,16 @@ func blobURL(prefix, rel string) string {
 	return strings.TrimRight(prefix, "/") + "/" + strings.TrimLeft(rel, "/")
 }
 
+// Match is one row of the service's match history: the match id, the map and mode display
+// names, the start time, and the map's asset id (the service's own key for the map
+// variant, present when the response names it).
 type Match struct {
-	ID   string `json:"id"`
-	Map  string `json:"map"`
-	Mode string `json:"mode"`
-	Time string `json:"time"`
+	ID          string `json:"id"`
+	Map         string `json:"map"`
+	Mode        string `json:"mode"`
+	Time        string `json:"time"`
+	MapAssetID  string `json:"mapAssetId,omitempty"`
+	MapImageURL string `json:"mapImageUrl,omitempty"`
 }
 type matchInfo struct {
 	Start string   `json:"StartTime"`
@@ -165,7 +170,7 @@ func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, 
 	out := make([]Match, 0, len(result.Results))
 	for _, row := range result.Results {
 		info := row.Info
-		out = append(out, Match{ID: row.ID, Map: c.assetName(ctx, kindMap, info.Map), Mode: c.assetName(ctx, kindMode, info.Mode), Time: info.Start})
+		out = append(out, Match{ID: row.ID, Map: c.assetName(ctx, kindMap, info.Map), Mode: c.assetName(ctx, kindMode, info.Mode), Time: info.Start, MapAssetID: info.Map.ID})
 	}
 	return out, nil
 }
