@@ -60,26 +60,16 @@ if (-not (Test-Path (Join-Path $dist 'index.html'))) {
 # --- 3. Stage the viewer: index.html and assets only. web\dist\dev is local development
 # fixtures and never ends up in the exe or the zip.
 $stage = Join-Path (Join-Path (Join-Path $repo 'internal') 'webdist') 'files'
-New-Item -ItemType Directory -Force -Path $stage | Out-Null
-if (Test-Path $stage) {
-    $stageFiles = @(Get-ChildItem -LiteralPath $stage -File -ErrorAction SilentlyContinue)
-    foreach ($f in $stageFiles) { if ($f.PSIsContainer -eq $false) { Remove-Item -LiteralPath $f.FullName } }
-}
-$stageAssets = Join-Path $stage 'assets'
-if (Test-Path $stageAssets) {
-    $assetFiles = @(Get-ChildItem -LiteralPath $stageAssets -File -ErrorAction SilentlyContinue)
-    foreach ($f in $assetFiles) { if ($f.PSIsContainer -eq $false) { Remove-Item -LiteralPath $f.FullName } }
-}
-Copy-Item -LiteralPath (Join-Path $dist 'index.html') -Destination $stage
 $srcAssets = Join-Path $dist 'assets'
 $dstAssets = Join-Path $stage 'assets'
 New-Item -ItemType Directory -Force -Path $dstAssets | Out-Null
+# Drop the files of an earlier staging (asset names carry a content hash, so an old build
+# leaves other names behind). The tracked placeholder stays.
+Get-ChildItem -LiteralPath $stage -File | Where-Object Name -ne 'placeholder' | Remove-Item
+Get-ChildItem -LiteralPath $dstAssets -File | Remove-Item
+Copy-Item -LiteralPath (Join-Path $dist 'index.html') -Destination $stage
 if (Test-Path $srcAssets) {
     Get-ChildItem -LiteralPath $srcAssets -File | Copy-Item -Destination $dstAssets
-}
-# The tracked placeholder keeps the directory in git; it is not a viewer file.
-if (-not (Test-Path (Join-Path $stage 'placeholder'))) {
-    Set-Content -LiteralPath (Join-Path $stage 'placeholder') -Value 'staged by tools\package.ps1'
 }
 
 # --- 4. The packaged binary: embed tag, version, no debug info, static MinGW link.
@@ -96,10 +86,8 @@ finally { Pop-Location }
 # --- 5. The release folder and the zip.
 $name = "infinite-theater-3d-$Version-windows-amd64"
 $pkgDir = Join-Path $outDir $name
-if (Test-Path $pkgDir) {
-    Get-ChildItem -LiteralPath $pkgDir -File | Remove-Item -LiteralPath $_.FullName
-}
 New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
+Get-ChildItem -LiteralPath $pkgDir -File | Remove-Item
 Copy-Item -LiteralPath $exe -Destination (Join-Path $pkgDir 'infinite-theater-3d.exe')
 foreach ($f in 'LICENSE', 'NOTICE.md', 'README.md') {
     Copy-Item -LiteralPath (Join-Path $repo $f) -Destination $pkgDir
