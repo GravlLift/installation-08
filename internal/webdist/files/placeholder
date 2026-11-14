@@ -1,0 +1,4 @@
+This directory is the staging point for the embedded web viewer. tools\package.ps1
+copies web\dist\index.html and web\dist\assets\ into it before the tagged (embedweb)
+build. Its contents are gitignored; this placeholder file is tracked so the directory
+exists in a clean checkout and the embed pattern always matches.

@@ -54,11 +54,13 @@ var commands = map[string]func([]string) error{
 }
 
 func run(args []string) error {
+	// No arguments is the packaged double-click form: serve with the default address
+	// and open the browser once the server is listening.
 	if len(args) == 0 {
-		return errors.New(usage)
+		return runServe([]string{"--open"})
 	}
 	if len(args) == 1 && args[0] == "version" {
-		fmt.Println("infinite-theater-3d: early skeleton")
+		fmt.Println(Version)
 		return nil
 	}
 	command, ok := commands[args[0]]

@@ -12,6 +12,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
+	"github.com/llampwall/infinite-theater-3d/internal/webdist"
 )
 
 type fetchSnapshot struct {
@@ -134,7 +135,8 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	labelCat weapons.LabelCatalog,
 ) serverHandlers {
 	var authMu sync.Mutex
-	h := serverHandlers{root: root, web: web, jobs: jobs, weapKeys: weaponKeys, labelCat: labelCat, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+	webFS, _ := webdist.Open()
+	h := serverHandlers{root: root, web: web, webFS: webFS, jobs: jobs, weapKeys: weaponKeys, labelCat: labelCat, auth: &authSession{steps: defaultLoginFlow(root.Dir())}, remote: &remoteJobs{client: func(ctx context.Context) (*haloapi.Client, haloauth.Credentials, error) {
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())

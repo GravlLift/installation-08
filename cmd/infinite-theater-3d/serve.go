@@ -13,12 +13,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -29,13 +31,16 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
-// Version is the build version served by /api/health.
-const Version = "0.1.0"
+// Version is the build version, reported by the version command and /api/health. The
+// packaging build sets it with -ldflags "-X main.Version=<version>"; a build without
+// the flag reports the development version.
+var Version = "0.1.0-dev"
 
 // serveFlags is the parsed form of the `serve` arguments.
 type serveFlags struct {
 	addr    string
 	web     string
+	open    bool
 	dataDir string
 	game    string
 	mapKey  string
@@ -46,7 +51,8 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	var f serveFlags
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
-	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional)")
+	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional; the embedded viewer answers when no directory is given)")
+	fs.BoolVar(&f.open, "open", false, "open the default browser on the server's address once it is listening")
 	fs.StringVar(&f.dataDir, "data", "", dataDirHelp)
 	fs.StringVar(&f.game, "game", "", "game deploy root for map and weapon builds (empty auto-detects)")
 	fs.StringVar(&f.mapKey, "map", "", "installed map whose module index weapon builds open (default: first map in the data store)")
@@ -92,6 +98,11 @@ func runServe(args []string) error {
 
 	ln, err := net.Listen("tcp", f.addr)
 	if err != nil {
+		if f.open {
+			// The address is taken: when another running copy holds it, open the browser
+			// on that copy and exit cleanly.
+			return openOnExisting(f.addr, err)
+		}
 		return fmt.Errorf("listen %s: %w", f.addr, err)
 	}
 	// A pending device-code login dies with the server (its wait fires, the session ends
@@ -106,6 +117,9 @@ func runServe(args []string) error {
 		slog.Info("infinite-theater-3d serving", "addr", f.addr, "data", dataDir)
 		errCh <- srv.Serve(ln)
 	}()
+	if f.open {
+		openOnListen(ctx, f.addr)
+	}
 	select {
 	case <-ctx.Done():
 		slog.Info("shutting down")
@@ -119,12 +133,13 @@ func runServe(args []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// serverHandlers bundles the store, the optional static directory, the mesh build runner,
-// the weapon model catalog and the weapon label tables. It implements http.Handler:
-// ServeHTTP serves the static files for non-API paths and the mux for the API routes.
+// serverHandlers bundles the store, the static source, the mesh build runner, the weapon
+// model catalog and the weapon label tables. It implements http.Handler: ServeHTTP serves
+// the static files for non-API paths and the mux for the API routes.
 type serverHandlers struct {
 	root     *store.Root
-	web      string
+	web      string // the --web directory, when given
+	webFS    fs.FS  // the embedded viewer, nil when the build has none
 	jobs     *meshjobs.Runner
 	weapKeys weapons.Catalog
 	labelCat weapons.LabelCatalog
@@ -133,30 +148,50 @@ type serverHandlers struct {
 	auth     *authSession
 }
 
-// ServeHTTP routes a request: a static file when the web directory serves it, otherwise
-// the API mux.
+// ServeHTTP routes a request: the built-in context assets for the medals and map
+// previews, the static viewer (the --web directory or the embedded one) for the paths
+// it serves, and the API mux otherwise.
 func (h serverHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/static/medals/") || strings.HasPrefix(r.URL.Path, "/static/maps/") {
 		h.serveContextAsset(w, r)
 		return
 	}
 	if h.servesStatic(r) {
-		h.serveStatic(w, r)
+		if h.web != "" {
+			h.serveStaticDir(w, r)
+			return
+		}
+		h.serveEmbedded(w, r)
 		return
 	}
 	h.mux.ServeHTTP(w, r)
 }
 
-// servesStatic says whether the path is one the static directory answers (any path that is
-// not an API route and not a method the API uses on an API path).
+// servesStatic says whether the path is one the static viewer answers: any path outside
+// the two prefixes the server keeps for itself, /api/ (the API) and /static/ (the icon,
+// rank, sound and context-asset routes of the mux).
 func (h serverHandlers) servesStatic(r *http.Request) bool {
-	if h.web == "" {
+	if h.web == "" && h.webFS == nil {
 		return false
 	}
-	if strings.HasPrefix(r.URL.Path, "/api/") {
-		return false
+	return !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/static/")
+}
+
+// serveEmbedded serves the embedded viewer: the named file when the tree holds it,
+// otherwise index.html (the single-page-app convention, so a client route such as
+// /match/<id> opens the viewer).
+func (h serverHandlers) serveEmbedded(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if info, err := fs.Stat(h.webFS, name); name != "" && err == nil && !info.IsDir() {
+		http.ServeFileFS(w, r, h.webFS, name)
+		return
 	}
-	return true
+	index, err := fs.ReadFile(h.webFS, "index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -414,10 +449,10 @@ func (h serverHandlers) handleMesh(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, "mesh.glb", time.Time{}, file)
 }
 
-// serveStatic serves a file from the web directory, falling back to index.html for a path
-// with no file (the single-page-app convention). A request that would escape the web
+// serveStaticDir serves a file from the web directory, falling back to index.html for a
+// path with no file (the single-page-app convention). A request that would escape the web
 // directory (a .. segment) is refused.
-func (h serverHandlers) serveStatic(w http.ResponseWriter, r *http.Request) {
+func (h serverHandlers) serveStaticDir(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/")
 	if name == "" {
 		name = "index.html"
