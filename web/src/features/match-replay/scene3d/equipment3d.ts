@@ -17,7 +17,7 @@
  *
  * THE EQUIPMENT IN USE, as the game shows it, each in its own module (pure timing and geometry in
  * its `*_logic.ts`): the grapple hook flying out and holding (`grapple3d`), the drop wall rising and
- * dissolving (`dropWall3d`), the shroud screen's opaque bubble (`shroud3d`) and the thruster exhaust at
+ * dissolving (`dropWall3d`), the shroud screen's bubble (`shroud3d`) and the thruster exhaust at
  * every measured use (`thruster3d`). Camouflage and overshield are on the body (`bodyFx3d`). The
  * repulsor shows nothing in the world: its use is the game's arm animation (`equipmentUse3d_logic`).
  *
@@ -54,7 +54,7 @@ import { wallPanels, wallPhaseAt, type WallPanel } from './dropWall3d_logic'
 import { EquipmentShapes3d } from './equipment3dShapes'
 import { Grapple3d } from './grapple3d'
 import { grapplePhaseAt } from './grapple3d_logic'
-import { Shroud3d } from './shroud3d'
+import { Shroud3d, type ShroudColors } from './shroud3d'
 import { shroudBubbleAt } from './shroud3d_logic'
 import { Thruster3d } from './thruster3d'
 import { thrusterBursts, thrusterJetAt, type ThrusterBurst } from './thruster3d_logic'
@@ -267,7 +267,8 @@ export class Equipment3dLayer implements ActionLayer3d {
   private paintPlacements(frame: number, inputs: Action3dInputs): void {
     const ink = this.ctx.ink
     const rift = { a: ink.of(inputs.inks.rift.rim), b: ink.of(inputs.inks.rift.core) }
-    const shroud = { core: ink.of(inputs.inks.shroud.core), glow: ink.of(inputs.inks.shroud.glow) }
+    const s = inputs.inks.shroud
+    const shroud: ShroudColors = { body: ink.of(s.core), rim: ink.of(s.glow), cell: ink.of(s.cell) }
     for (const it of this.placements) {
       if (!it.at || !placementDrawn(it.kind, inputs.aids.placementShapes)) continue
       if (it.kind === 'wall') {
@@ -318,11 +319,11 @@ export class Equipment3dLayer implements ActionLayer3d {
    * bubble's published position (the grenade's rest without a read bubble), on the ground point
    * under it when the height is not published.
    */
-  private paintShroud(it: PlacementItem, at: THREE.Vector3, frame: number, ink: { core: THREE.Color; glow: THREE.Color }): void {
+  private paintShroud(it: PlacementItem, at: THREE.Vector3, frame: number, colors: ShroudColors): void {
     const bubble = shroudBubbleAt(it.p.t0, it.end, frame, this.time.frameMs)
     if (!bubble) return
     const center = it.p.z != null ? this.scratch.b.set(...toThree(it.p.x, it.p.y, it.p.z)) : at
-    this.shroud.bubble(center, bubble, ink.core, ink.glow)
+    this.shroud.bubble(center, bubble, colors)
   }
 
   /**

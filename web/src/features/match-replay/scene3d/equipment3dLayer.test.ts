@@ -14,7 +14,7 @@ import type { ActionContext } from './actionScene3d'
 import { AIDS3D_DEFAULT } from './aids3d'
 import { WALL_PANEL_COUNT } from './dropWall3d_logic'
 import { Equipment3dLayer } from './equipment3d'
-import { SHROUD_BUBBLE_RADIUS_U } from './shroud3d_logic'
+import { SHROUD_BUBBLE_RADIUS_U, SHROUD_OUTER_OPACITY } from './shroud3d_logic'
 
 const doc = testReplayDoc({
   frameCount: 1000,
@@ -53,7 +53,7 @@ const inks = {
   grapple: 'ink-grapple',
   wall: 'ink-wall',
   rift: { rim: 'ink-rift-rim', core: 'ink-rift-core' },
-  shroud: { core: 'ink-shroud-core', glow: 'ink-shroud-glow' },
+  shroud: { core: 'ink-shroud-core', glow: 'ink-shroud-glow', cell: 'ink-shroud-cell' },
   fx: { core: 'ink-fx-core', tint: {} },
   floor: { edge: 'ink-floor-edge' },
 }
@@ -79,14 +79,20 @@ function layer(firstPerson = false): { layer: Equipment3dLayer; root: THREE.Grou
   return { layer: new Equipment3dLayer(ctx), root }
 }
 
-/** The instances the layer has posed at the last update, all pools together, and the visible plain meshes (the bubbles). */
+/**
+ * The instances the layer has posed at the last update, all pools together, and the shown
+ * bubbles (a bubble is a group of two faces: it counts once).
+ */
 function instances(root: THREE.Group): number {
   let n = 0
   root.traverse((o) => {
     if (o instanceof THREE.InstancedMesh) n += o.count
-    else if (o instanceof THREE.Mesh && o.visible) n += 1
   })
-  return n
+  const bubbles = new Set<THREE.Object3D>()
+  root.traverseVisible((o) => {
+    if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) bubbles.add(o.parent === root || !o.parent ? o : o.parent)
+  })
+  return n + bubbles.size
 }
 
 /** The positions of every posed instance (three axes). */
@@ -131,19 +137,23 @@ describe('Equipment3dLayer — each effect at its dated frames', () => {
     expect(at(502)).toBe(0)
   })
 
-  it('the shroud screen: one opaque bubble from its birth to its deletion, centered on it', () => {
+  it('the shroud screen: one bubble from its birth to its deletion, centered on it, its inner wall opaque', () => {
     expect(at(805)).toBe(0)
     expect(at(850)).toBe(1)
-    let bubble: THREE.Mesh | null = null
-    root.traverse((o) => {
-      if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh) && o.visible) bubble = o
+    const faces: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[] = []
+    root.traverseVisible((o) => {
+      if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) faces.push(o as never)
     })
-    const b = bubble as unknown as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
-    expect(b.position.toArray()).toEqual([0, 0.5, -20])
-    expect(b.scale.x).toBeCloseTo(SHROUD_BUBBLE_RADIUS_U)
-    expect(b.material.depthWrite).toBe(true)
-    expect(b.material.transparent).toBe(false)
-    expect(b.material.side).toBe(THREE.DoubleSide)
+    expect(faces).toHaveLength(2)
+    const g = faces[0].parent as THREE.Object3D
+    expect(g.position.toArray()).toEqual([0, 0.5, -20])
+    expect(g.scale.x).toBeCloseTo(SHROUD_BUBBLE_RADIUS_U)
+    const inner = faces.find((f) => f.material.side === THREE.BackSide)
+    const outer = faces.find((f) => f.material.side === THREE.FrontSide)
+    expect(inner?.material.transparent).toBe(false)
+    expect(inner?.material.depthWrite).toBe(true)
+    expect(outer?.material.transparent).toBe(true)
+    expect(outer?.material.uniforms.uOpacity.value).toBe(SHROUD_OUTER_OPACITY)
     expect(at(881)).toBe(0)
   })
 

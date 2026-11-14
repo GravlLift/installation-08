@@ -21,7 +21,6 @@
 import { useMemo } from 'react'
 
 import { resolveToken } from '@/lib/accessibility/resolveToken'
-import { shiftLightness } from '@/lib/accessibility/scales'
 import type { SemanticToken } from '@/lib/accessibility/semantic-tokens'
 
 import { readInk } from './canvasInk'
@@ -30,6 +29,7 @@ import { useTeamColors } from '../settings/useTeamColors'
 import { readFxInk, type FxInk } from './fxInk'
 import type { RiftInk } from './placementRift'
 import type { ShroudInk } from './placementShroud'
+import { readShroudInk } from './shroudInk'
 import type { PadFamily } from '../model/weaponPadFamilies'
 
 /** Map background: neutral token, without directional connotation (the subject = the
@@ -120,15 +120,6 @@ const WALL_TOKEN: SemanticToken = 'warning'
  */
 const RIFT_RIM_TOKEN: SemanticToken = 'extreme'
 const RIFT_CORE_TOKEN: SemanticToken = 'bonus'
-/**
- * The FIXED ink of the blackout screen (user decision of 2026-10-30): the ELECTRIC BLUE of
- * the edge and the bolts, that of the bolts of the card (`replay-zone-bolt`, globals.css),
- * so that the map and the card speak of the same electricity. The NIGHT BLUE of the core is
- * the same tint darkened (`SHROUD_CORE_DARKEN`): one single token, so the bubble follows the
- * palette chosen.
- */
-const SHROUD_GLOW_TOKEN: SemanticToken = 'info'
-const SHROUD_CORE_DARKEN = -0.6
 
 /**
  * THE OVERSHIELD ON THE BODY (3D view): the green shell of the game, that the 3D pales with
@@ -211,7 +202,7 @@ export interface ReplayInks {
   wall: string
   /** The two FIXED inks of the rift of the translocator (cf. RIFT_RIM_TOKEN). */
   rift: RiftInk
-  /** The two FIXED inks of the blackout screen (cf. SHROUD_GLOW_TOKEN). */
+  /** The game's own inks of the shroud screen's bubble (`shroudInk.ts`, diegetic, not a token). */
   shroud: ShroudInk
   /**
    * The energy carried by the body of the Spartan in 3D: the overshield (cf.
@@ -229,11 +220,6 @@ export interface ReplayInks {
    * (`pad`), the same as their diamond.
    */
   mark: { fill: string; outline: string }
-}
-
-/** shroudInk — the electric blue, and the night blue that is the same tint darkened. */
-function shroudInk(glow: string): ShroudInk {
-  return { core: shiftLightness(glow, SHROUD_CORE_DARKEN), glow }
 }
 
 /**
@@ -275,7 +261,7 @@ export function useReplayInks(paletteVersion: number): ReplayInks {
       self: resolveToken(SELF_TOKEN),
       wall: resolveToken(WALL_TOKEN),
       rift: { rim: resolveToken(RIFT_RIM_TOKEN), core: resolveToken(RIFT_CORE_TOKEN) },
-      shroud: shroudInk(resolveToken(SHROUD_GLOW_TOKEN)),
+      shroud: readShroudInk(),
       body: { overshield: resolveToken(OVERSHIELD_TOKEN) },
       mark: { fill: readInk('--foreground'), outline: readInk('--background') },
     }
