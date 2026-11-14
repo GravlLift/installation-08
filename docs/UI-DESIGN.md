@@ -121,9 +121,18 @@ Sparse on purpose: the 3D view fills the window.
 
 - Top: a thin score bug (teams, score, clock), broadcast style, already present as the HUD
   overlays; restyled to the system, not redesigned in behavior.
-- Bottom: our own transport as a lower third. Play/pause, a scrub bar with kill and
-  objective marks, time, speed, the camera group, sound, scoreboard, settings, film
-  export, fullscreen. It fades out while playing and returns on mouse move or key press;
+- Bottom: our own transport as a lower third. Play/pause, -10 / +10, previous / next
+  event, a scrub bar, time, speed, the camera group, sound, scoreboard, settings, film
+  export, fullscreen.
+- The scrub bar marks the selected player's events only, as the game's theater does: his
+  kills, deaths and medals (the selected player is the followed one, or in free view the
+  last one followed; no player, no marks). One lane per kind so none hides another:
+  medals (amber diamonds) above the track, kills (green ticks) on it, deaths (red
+  triangles) below it. Within a lane, marks closer than 8 px group into one wider mark
+  whose tooltip lists every event (`screens/scrubMarks.ts`). Clicking a mark seeks 2 s
+  before its event and never starts a track drag; hovering shows what it is and its clock
+  ("Kill: X (BR75) 2:36", "Death: by Y 2:54", "Double Kill 2:36"). The bar stays one tab
+  stop: `[` and `]` (and the ‹ › buttons) step to the previous and next event. It fades out while playing and returns on mouse move or key press;
   it stays up while paused, while scrubbing and while a panel of its own is open.
 - The camera group is the one home of every camera choice, under one "Camera" label: view
   (`3D | 2D`), camera mode (1st person, 3rd person, Free view) and the POV picker. In 2D
@@ -174,6 +183,7 @@ Shared pieces, each built once:
 | Seek | Left/Right, J/L | bumpers |
 | Scoreboard | Tab (hold) | View |
 | Camera mode (3D view) | 1, 2, 3 (1st, 3rd, free) | |
+| Previous / next event of the selected player | [ / ] | |
 | View 3D / 2D | V | |
 | Fullscreen | F | |
 
