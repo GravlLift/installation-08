@@ -51,6 +51,27 @@ func (c *Client) MedalSheet(ctx context.Context) ([]byte, error) {
 	}
 	return c.get(ctx, c.endpoints.GameCMS+"/Waypoint/file/medals/images/medal_sheet_xl.png", true)
 }
+
+// mapImageRank ranks a map image path for selection: the full-screen backdrop wants the
+// largest image, so a path naming "hero" wins, then "screenshot", then any other image, and
+// "thumbnail" is last (it is still chosen when it is the only image). Non-image files rank
+// below zero so they are never selected.
+func mapImageRank(p string) int {
+	s := strings.ToLower(p)
+	if !(strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") || strings.HasSuffix(s, ".jpeg") || strings.HasSuffix(s, ".webp")) {
+		return -1
+	}
+	switch {
+	case strings.Contains(s, "hero"):
+		return 3
+	case strings.Contains(s, "screenshot"):
+		return 2
+	case strings.Contains(s, "thumbnail"):
+		return 0
+	default:
+		return 1
+	}
+}
 func (c *Client) MapImage(ctx context.Context, id, version string) ([]byte, error) {
 	if id == "" {
 		return nil, nil
@@ -69,20 +90,9 @@ func (c *Client) MapImage(ctx context.Context, id, version string) ([]byte, erro
 		return nil, err
 	}
 	selected := ""
-	rank := 0
+	rank := -1
 	for _, p := range v.Files.Paths {
-		s := strings.ToLower(p)
-		if !(strings.HasSuffix(s, ".png") || strings.HasSuffix(s, ".jpg") || strings.HasSuffix(s, ".jpeg") || strings.HasSuffix(s, ".webp")) {
-			continue
-		}
-		r := 1
-		if strings.Contains(s, "hero") || strings.Contains(s, "screenshot") {
-			r = 2
-		}
-		if strings.Contains(s, "thumbnail") {
-			r = 3
-		}
-		if r > rank {
+		if r := mapImageRank(p); r > rank {
 			selected, rank = p, r
 		}
 	}

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Replay3DView } from '../features/match-replay/ui/Replay3DView'
+import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import type { PageAction3dInputs } from '../features/match-replay/scene3d/action3dInputs'
 import { useReplayInks } from '../features/match-replay/layers/useReplayInks'
 import { normalizeMapObjectives } from '../features/match-replay/layers/objectivesLayer'
@@ -13,13 +14,8 @@ import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
-import { normalizeReplayDocument, type ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import {
-  checkMesh,
-  fetchReplayDocument,
-  meshUrl,
-  MeshNotBuiltError,
-} from '../lib/api/standalone'
+import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
+import { meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
@@ -31,25 +27,23 @@ import { readReplayScoreboard } from '../features/match-replay/model/replayScore
 import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
 import { useDefaultViewpoint } from './useDefaultViewpoint'
 import { useVariantLayer } from './useVariantLayer'
-import { useMeshBuild, type MeshBuildPhase } from './useMeshBuild'
+import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
-import { MatchHeaderBar } from './MatchHeaderBar'
-import { useReplaySound, type ReplaySound } from '../features/match-replay/sound/useReplaySound'
+import { useReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
-import { ReplayTransport } from '../features/match-replay/ui/ReplayTransport'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
 import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
 import { ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
 import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
 import { useReplay3DExport } from '../features/match-replay/export/replay3dExportStore'
+import { PlayerTransport } from './PlayerTransport'
+import { usePlayerChromeVisibility } from './usePlayerChromeVisibility'
+import { cleanMapName, playerTopMeta } from './matchSelectModel'
 
-/** The arrow/J/L seek step, in seconds — the same magnitude as LevelUp's `SKIP_SECONDS`
- *  (`layers/replayCanvasConfig.ts`, not lifted here: a single constant, not worth a file). */
+/** The arrow/J/L seek step, in seconds. */
 const SKIP_SECONDS = 10
 
-/** Builds the `Action3dShow` flags and their toggles from `useReplaySettings`, the only mapping
- *  point between the drawer's persisted preferences and what the 3D view reads every frame. */
 function useAction3dShow(): { show: Action3dShow; toggle: { [K in keyof Action3dShow]: () => void } } {
   const settings = useReplaySettings()
   return {
@@ -84,200 +78,22 @@ function useAction3dShow(): { show: Action3dShow; toggle: { [K in keyof Action3d
   }
 }
 
-/** Aim-hold window for shot direction, in frames: the same magnitude as the death/shot-flash
- *  hold used elsewhere on this page (0.6 s of gameplay). The settings drawer does not expose
- *  this one (LevelUp does not either — it is a fixed constant there too). */
 function aimHoldFramesOf(doc: ReplayDocumentReady): number {
   return Math.round(0.6 * framesPerSecond(doc))
 }
 
-type ViewState =
-  | { phase: 'loading'; step: 'document' | 'mesh' }
-  | { phase: 'mesh-not-built'; moduleKey: string; doc: ReplayDocumentReady }
-  | { phase: 'error'; message: string }
-  | { phase: 'ready'; doc: ReplayDocumentReady }
-
-function useMatchDocument(matchId: string): ViewState {
-  const [state, setState] = useState<ViewState>({ phase: 'loading', step: 'document' })
-  useEffect(() => {
-    const controller = new AbortController()
-    setState({ phase: 'loading', step: 'document' })
-    void (async () => {
-      let doc: ReplayDocumentReady | null = null
-      try {
-        const raw = await fetchReplayDocument(matchId, controller.signal)
-        if (controller.signal.aborted) return
-        doc = normalizeReplayDocument(raw)
-        setState({ phase: 'loading', step: 'mesh' })
-        await checkMesh(matchId, controller.signal)
-        if (controller.signal.aborted) return
-        setState({ phase: 'ready', doc })
-      } catch (err) {
-        if (controller.signal.aborted) return
-        // The document fetch above already succeeded whenever `doc` is set here — only the
-        // mesh check failed with `MeshNotBuiltError`. Keep that document so the build panel
-        // below can mount the 3D view the moment the build finishes, with no re-fetch or reload.
-        if (err instanceof MeshNotBuiltError && doc) {
-          setState({ phase: 'mesh-not-built', moduleKey: err.moduleKey, doc })
-          return
-        }
-        setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return () => controller.abort()
-  }, [matchId])
-  return state
-}
-
-/** The panel shown instead of the 3D view while the match's map mesh is not built. Checks the
- *  build state once on mount (a build may already be queued or running from another tab), lets
- *  the viewer start one, and polls every two seconds; `onReady` fires the moment the mesh is
- *  built, so the caller can mount the 3D view without a reload. */
-export function MeshBuildPanel({
-  matchId,
-  moduleKey,
-  onReady,
-  onBack,
-}: {
+export interface ReplayViewerProps {
   matchId: string
-  moduleKey: string
-  onReady: () => void
-  onBack: () => void
-}) {
-  const { phase, build, cancel, cancelling } = useMeshBuild(matchId)
-
-  useEffect(() => {
-    if (phase.phase === 'ready') onReady()
-  }, [phase.phase, onReady])
-
-  // The initial moduleKey (from the mesh-not-built 404) covers the gap before the build-state
-  // route answers for the first time; after that, the server's own moduleKey is authoritative.
-  const effectiveModuleKey = (phase.phase !== 'checking' && phase.moduleKey) || moduleKey
-
-  return (
-    <div className="flex h-screen flex-col items-center justify-center gap-3 text-sm">
-      <p className="text-foreground">
-        Map module: <span className="font-mono">{effectiveModuleKey || 'unknown'}</span>
-      </p>
-      <div className="flex items-center gap-3">
-        <p className={phase.phase === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>{meshBuildStatusText(phase)}</p>
-        {phase.phase === 'building' && <button type="button" onClick={cancel} disabled={cancelling} className="rounded bg-primary px-3 py-1.5 text-primary-foreground disabled:opacity-50">{cancelling ? 'Cancelling…' : 'Cancel'}</button>}
-      </div>
-      {(phase.phase === 'absent' || phase.phase === 'cancelled') && (
-        <button
-          type="button"
-          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
-          onClick={build}
-        >
-          Build map
-        </button>
-      )}
-      {phase.phase === 'failed' && (
-        <button
-          type="button"
-          className="rounded bg-primary px-3 py-1.5 text-primary-foreground"
-          onClick={build}
-        >
-          Retry
-        </button>
-      )}
-      <button type="button" className="text-xs underline" onClick={onBack}>
-        Back to matches
-      </button>
-    </div>
-  )
-}
-
-function meshBuildStatusText(phase: MeshBuildPhase): string {
-  switch (phase.phase) {
-    case 'checking':
-      return 'Checking build status…'
-    case 'absent':
-      return 'This match’s map has not been built yet.'
-    case 'queued':
-      return typeof phase.queuePosition === 'number'
-        ? `Queued (position ${phase.queuePosition})…`
-        : 'Queued…'
-    case 'building':
-      return typeof phase.elapsedMs === 'number'
-        ? `Building the map… ${Math.round(phase.elapsedMs / 1000)}s elapsed`
-        : 'Building the map…'
-    case 'ready':
-      return 'Map built, loading…'
-    case 'failed':
-      return `Build failed: ${phase.error}`
-    case 'cancelled':
-      return 'Build cancelled.'
-  }
-}
-
-export function PlaybackBar({
-  doc,
-  frameRef,
-  frame,
-  setFrame,
-  playing,
-  setPlaying,
-  speed,
-  setSpeed,
-  viewpoint,
-  setViewpoint,
-  sound,
-}: {
   doc: ReplayDocumentReady
-  frameRef: React.RefObject<number>
-  frame: number
-  setFrame: (f: number) => void
-  playing: boolean
-  setPlaying: (p: boolean) => void
-  speed: number
-  setSpeed: (s: number) => void
-  viewpoint: string | null
-  setViewpoint: (xuid: string | null) => void
-  sound: ReplaySound
-}) {
-  const fps = framesPerSecond(doc)
-  const settings = useReplaySettings()
-  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-3 py-2 text-sm text-foreground">
-      <div className="w-full"><ReplayTransport
-        doc={doc} frame={frame} playing={playing} speed={speed} onSetSpeed={setSpeed}
-        autoPlay={settings.autoPlay} onToggleAutoPlay={settings.toggleAutoPlay} sound={sound}
-        onTogglePlay={() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying(!playing) }}
-        onRestart={() => { sound.wake(); frameRef.current = 0; sound.seek(0); setFrame(0) }}
-        onSeekBy={(seconds) => { const next = Math.round(Math.max(0, Math.min(doc.frameCount - 1, frameRef.current + seconds * fps))); frameRef.current = next; sound.seek(next * 1000 / fps); setFrame(next) }}
-        onScrub={(next) => {
-          frameRef.current = next
-          sound.seek(next * 1000 / fps)
-          setFrame(next)
-        }}
-      /></div>
-      <label className="flex items-center gap-1 text-xs text-muted-foreground">
-        Follow
-        <select
-          className="rounded border border-border bg-background px-1 py-0.5 text-foreground"
-          value={viewpoint ?? ''}
-          onChange={(e) => setViewpoint(e.target.value || null)}
-        >
-          <option value="">(none — free view)</option>
-          {doc.roster.map((r) => (
-            <option key={r.xuid} value={r.xuid}>
-              {displayPlayerName(r.name, r.xuid)}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
-  )
+  onBack: () => void
+  held?: boolean
+  onLoadState?: (load: LoadState) => void
 }
 
-export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: ReplayDocumentReady; onBack: () => void }) {
-  const settings = useReplaySettings()
+export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }: ReplayViewerProps) {
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
-  const [playing, setPlaying] = useState(settings.autoPlay)
+  const [playing, setPlaying] = useState(!held)
   const [speed, setSpeed] = useState(1)
   const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
   const [size, setSize] = useState({ width: 960, height: 540 })
@@ -286,6 +102,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const [scoreboardHeld, setScoreboard] = useScoreboardHold()
+  const [scrubbing, setScrubbing] = useState(false)
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
@@ -321,7 +138,6 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     soundTrack: sound.exportTrack, soundVolume: sound.volume,
   })
 
-  // The 2D pan and zoom shortcuts are omitted from this 3D-only viewer.
   const stepFrames = useCallback(
     (delta: number) => {
       const next = Math.min(doc.frameCount - 1, Math.max(0, frameRef.current + delta))
@@ -332,7 +148,12 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     [doc.frameCount, fps, sound.seek],
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
-  const togglePlay = useCallback(() => { sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [playing, sound.wake, sound.intro])
+  const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [held, playing, sound.wake, sound.intro])
+  const wasHeld = useRef(held)
+  useEffect(() => {
+    if (wasHeld.current && !held) { sound.wake(); if (frameRef.current === 0) sound.intro(); setPlaying(true) }
+    wasHeld.current = held
+  }, [held, sound.wake, sound.intro])
   const restart = useCallback(() => { sound.wake(); stepFrames(-Infinity) }, [stepFrames, sound.wake])
   useReplayShortcuts({
     togglePlay,
@@ -342,7 +163,7 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     toggleSound: sound.toggle,
     toggleFullscreen: fullscreen.toggle,
     skipSeconds: SKIP_SECONDS,
-    enabled: true,
+    enabled: !held,
   })
 
   useEffect(() => {
@@ -364,13 +185,9 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
     [matchId],
   )
 
-  // Scene inputs are independent of the scoreboard overlay.
   const mapObjectives = useMemo(() => normalizeMapObjectives(doc.mapObjectives), [doc])
   const kills = replayContext.kills
   const shotFx = useMemo(() => buildShotFx(doc, aimHoldFramesOf(doc)), [doc])
-  // The scoreboard reads the film's own counters at the current frame (model:
-  // replayScoreboardLogic). `null` until the match sheet has loaded, or when the film
-  // carries no score timeline / its clock is untrusted: nothing is shown then.
   const scoreboardSheet = replayContext.context?.scoreboard ?? []
   const scoreboardReading = useMemo(
     () => (replayContext.context ? readReplayScoreboard(doc, scoreboardSheet, frame) : null),
@@ -396,93 +213,124 @@ export function ReplayViewer({ matchId, doc, onBack }: { matchId: string; doc: R
         const entry = doc.roster.find((r) => r.xuid === xuid)
         return entry ? displayPlayerName(entry.name, entry.xuid) : identity.nameOfXuid(xuid)
       },
-      // Bot-takeover "fiche" gating is not ported here (seatLogic.ts was left behind, see
-      // PARITY §1) — every owned slot draws, same as the dev shell before this change.
       seatedOfXuid: () => true,
       locale: 'en',
     }
     return inputs
   }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
+  // The playback loop lives here (it did in the old PlaybackBar).
+  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
+
+  const onScrub = useCallback((next: number) => {
+    frameRef.current = next
+    sound.seek(next * 1000 / fps)
+    setFrame(next)
+  }, [frameRef, sound.seek, fps])
+
+  const menuOpen = settingsOpen || exportOpen || scoreboardHeld
+  const chrome = usePlayerChromeVisibility({ playing, menuOpen, scrubbing })
+
+  // The top strip content.
+  const mapName = summary ? cleanMapName(summary.mapName || summary.mapModule || '') : remote?.map ? cleanMapName(remote.map) : null
+  const meta = playerTopMeta(summary, remote)
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <MatchHeaderBar summary={summary} remote={remote} onBack={onBack} />
-      <div ref={viewerRef} data-testid="replay-viewer" className={fullscreen.active ? 'flex h-full w-full flex-col justify-center bg-black' : 'flex w-full flex-col bg-black'}>
-      <div className="flex items-center justify-end gap-2 bg-card px-3 py-2">
-        {coatings.notice && (
-          <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="mr-2 text-xs text-muted-foreground">
-            {coatings.notice}
-          </span>
-        )}
-        <canvas ref={exportCanvasRef} hidden />
-        <div className="relative">
-          <button type="button" disabled={!exportScene || !capture.videoExport?.supported} onClick={() => setExportOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50">Export film</button>
-          {exportOpen && exportScene && capture.videoExport && <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />}
+    <div
+      ref={(el) => { viewerRef.current = el; chrome.scopeRef.current = el }}
+      data-testid="replay-viewer"
+      className="bc-player"
+    >
+      <div className="bc-player-box">
+        <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
+            <Replay3DView
+              meshPath={meshUrl(matchId)}
+              variantPath={variantPath}
+              weaponsPath="/api/weapons"
+              armor={armor}
+              doc={doc}
+              frameRef={frameRef}
+              viewpoint={viewpoint}
+              colorOfXuid={identity.colorOfXuid}
+              locale="en"
+              width={size.width}
+              height={size.height}
+              action={action}
+              playWindow={replayContext.playWindow}
+              timeLimitMs={replayContext.timeLimitMs}
+              soundListenerRef={sound.listener}
+              onLoadState={onLoadState}
+            />
+            {scoreboardHeld && (
+              <ReplayScoreboardOverlay
+                reading={scoreboardReading}
+                sheet={scoreboardSheet}
+                followedXuid={viewpoint}
+              />
+            )}
+            {settingsOpen && (
+              <ReplaySettingsDrawer
+                locale="en"
+                sound={sound}
+                show={show}
+                toggle={toggle}
+                triggerRef={settingsButtonRef}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
+            <canvas ref={exportCanvasRef} hidden />
+            {exportOpen && exportScene && capture.videoExport && (
+              <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />
+            )}
         </div>
-        <button type="button" onClick={fullscreen.toggle} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
-          {fullscreen.active ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
-        <button ref={settingsButtonRef} type="button" onClick={() => setSettingsOpen((v) => !v)} className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted">
-          Settings
-        </button>
-        <button
-          type="button"
-          aria-pressed={scoreboardHeld}
-          onClick={() => setScoreboard(!scoreboardHeld)}
-          className="rounded bg-card px-2 py-1 text-xs text-foreground hover:bg-muted"
+
+        <div
+          className={`bc-player-top bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
+          onPointerEnter={chrome.onScopeEnter}
+          onPointerLeave={chrome.onScopeLeave}
         >
-          Scoreboard
-        </button>
-      </div>
-      <div ref={hostRef} data-testid="replay-view" className="relative mx-auto aspect-video w-full" style={{ maxWidth: fullscreen.active ? 'min(100%, calc((100vh - 7rem) * 16 / 9))' : 'min(100%, calc((100vh - 10rem) * 16 / 9))' }}>
-        <Replay3DView
-          meshPath={meshUrl(matchId)}
-          variantPath={variantPath}
-          weaponsPath="/api/weapons"
-          armor={armor}
-          doc={doc}
-          frameRef={frameRef}
-          viewpoint={viewpoint}
-          colorOfXuid={identity.colorOfXuid}
-          locale="en"
-          width={size.width}
-          height={size.height}
-          action={action}
-          playWindow={replayContext.playWindow}
-          timeLimitMs={replayContext.timeLimitMs}
-          soundListenerRef={sound.listener}
-        />
-        {scoreboardHeld && (
-          <ReplayScoreboardOverlay
-            reading={scoreboardReading}
-            sheet={scoreboardSheet}
-            followedXuid={viewpoint}
-          />
-        )}
-        {settingsOpen && (
-          <ReplaySettingsDrawer
-            locale="en"
+          <button type="button" className="bc-player-back" onClick={onBack}>← Matches</button>
+          {mapName && <span className="bc-player-map">{mapName}</span>}
+          {meta && <span className="bc-player-meta">{meta}</span>}
+          <span className="bc-spacer" />
+          {coatings.notice && (
+            <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
+              {coatings.notice}
+            </span>
+          )}
+        </div>
+
+        <div
+          className={`bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
+          onPointerEnter={chrome.onScopeEnter}
+          onPointerLeave={chrome.onScopeLeave}
+        >
+          <PlayerTransport
+            doc={doc}
+            frame={frame}
+            playing={playing}
+            speed={speed}
+            viewpoint={viewpoint}
+            kills={kills}
+            colorOfXuid={identity.colorOfXuid}
             sound={sound}
-            show={show}
-            toggle={toggle}
-            triggerRef={settingsButtonRef}
-            onClose={() => setSettingsOpen(false)}
+            onTogglePlay={togglePlay}
+            onRestart={restart}
+            onSetSpeed={setSpeed}
+            onSetViewpoint={setViewpoint}
+            onScrub={onScrub}
+            onSeekBy={seekBy}
+            onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
+            scoreboardOn={scoreboardHeld}
+            onToggleSettings={() => setSettingsOpen((v) => !v)}
+            settingsRef={settingsButtonRef}
+            onToggleExport={() => setExportOpen((v) => !v)}
+            exportDisabled={!exportScene || !capture.videoExport?.supported}
+            onToggleFullscreen={fullscreen.toggle}
+            fullscreenActive={fullscreen.active}
+            onScrubbingChange={setScrubbing}
           />
-        )}
-      </div>
-      <PlaybackBar
-        doc={doc}
-        frameRef={frameRef}
-        frame={frame}
-        setFrame={setFrame}
-        playing={playing}
-        setPlaying={setPlaying}
-        speed={speed}
-        setSpeed={setSpeed}
-        viewpoint={viewpoint}
-        setViewpoint={setViewpoint}
-        sound={sound}
-      />
+        </div>
       </div>
     </div>
   )
@@ -495,53 +343,5 @@ export function MatchViewScreen({
   matchId: string
   onBack: () => void
 }) {
-  const state = useMatchDocument(matchId)
-  // Once the build panel reports `ready`, mount the 3D view immediately — no reload, no
-  // re-fetch of the document (it is already held by the `mesh-not-built` state below).
-  const [meshJustBuilt, setMeshJustBuilt] = useState(false)
-  useEffect(() => {
-    setMeshJustBuilt(false)
-  }, [matchId])
-
-  if (state.phase === 'loading') {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p>{state.step === 'document' ? 'Loading replay document…' : 'Checking map mesh…'}</p>
-        <button type="button" className="text-xs underline" onClick={onBack}>
-          Back to matches
-        </button>
-      </div>
-    )
-  }
-
-  if (state.phase === 'mesh-not-built' && !meshJustBuilt) {
-    return (
-      <MeshBuildPanel
-        matchId={matchId}
-        moduleKey={state.moduleKey}
-        onBack={onBack}
-        onReady={() => setMeshJustBuilt(true)}
-      />
-    )
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 text-sm">
-        <p className="text-destructive">Failed to load match {matchId}: {state.message}</p>
-        <button type="button" className="text-xs underline" onClick={onBack}>
-          Back to matches
-        </button>
-      </div>
-    )
-  }
-
-  const doc = state.phase === 'ready' ? state.doc : state.phase === 'mesh-not-built' ? state.doc : null
-  if (!doc) {
-    // Unreachable: the three branches above cover 'loading', 'mesh-not-built' (while not just
-    // built) and 'error'. TypeScript cannot narrow `state` across the `meshJustBuilt` flag, so
-    // this is a defensive fallback rather than a reachable state.
-    return null
-  }
-  return <ReplayViewer matchId={matchId} doc={doc} onBack={onBack} />
+  return <PreGameScreen matchId={matchId} onBack={onBack} />
 }

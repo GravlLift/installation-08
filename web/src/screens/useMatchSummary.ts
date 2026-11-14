@@ -2,7 +2,7 @@
  * useMatchSummary — the one `MatchSummary` row for `matchId`, read from `GET /api/matches` (no
  * single-match route exists yet, see `cmd/infinite-theater-3d/remote_routes.go`), and
  * useRemoteMatch — the same match's row in "Your recent matches" (`GET /api/remote/matches`),
- * which carries the mode and when it was played. Used by `MatchHeaderBar` above the 3D viewer.
+ * which carries the mode and when it was played. Used by the top strip of the player chrome.
  * Each is `null` while loading, on a fetch error (signed out, service down), or when the id is
  * not in its list; the header just shows less.
  */

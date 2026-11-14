@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	_ "image/jpeg" // register the jpeg decoder so image.DecodeConfig can size stored .jpg files
 	"image/png"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -83,22 +85,97 @@ func fetchContextArtifacts(ctx context.Context, root *store.Root, api *haloapi.C
 		slog.Warn("medal assets unavailable", "id", id, "err", err)
 	}
 	if p.Info.Map.ID != "" && store.ModuleKeyValid(p.Info.Map.ID) {
-		target := filepath.Join(root.Dir(), "static", "maps", "halo_infinite", p.Info.Map.ID+".png")
-		if _, err = os.Stat(target); os.IsNotExist(err) {
-			img, e := api.MapImage(ctx, p.Info.Map.ID, p.Info.Map.Version)
-			if e != nil {
-				return e
-			}
-			if len(img) > 0 {
-				if e = root.WriteFile(target, img); e != nil {
-					return e
-				}
-			}
-		} else if err != nil {
-			return err
-		}
+		fetchMapImage(ctx, root, api, p.Info.Map.ID, p.Info.Map.Version)
 	}
 	return nil
+}
+
+// minimumMapImageWidth is the pixel width below which a stored map image is a thumbnail that
+// must be re-downloaded: the full-screen backdrop needs at least this much to be legible.
+const minimumMapImageWidth = 1000
+
+var (
+	mapImageMu     sync.Mutex
+	smallMapImages = map[string]bool{} // asset ids whose image is small; not re-downloaded this run
+)
+
+// mapImageWidth reports a stored image's pixel width, reading only its header (png and jpeg
+// are the registered decoders). A file that cannot be decoded reports ok=false.
+func mapImageWidth(raw []byte) (int, bool) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return 0, false
+	}
+	return cfg.Width, true
+}
+
+// mapImageExt is the file extension matching the image's decoded format (jpeg becomes "jpg"),
+// defaulting to "png" when the bytes do not decode to a registered format.
+func mapImageExt(raw []byte) string {
+	_, format, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return "png"
+	}
+	if format == "jpeg" {
+		return "jpg"
+	}
+	return format
+}
+
+// fetchMapImage stores a map's image so the backdrop shows the real image, not a thumbnail. A
+// stored image that is missing, undecodable, or under minimumMapImageWidth wide is downloaded
+// and replaced; the replaced file is removed only after the new one is written. A download that
+// fails or yields nothing keeps the existing file, and an asset whose image comes back small is
+// kept but not retried again in the same process run.
+func fetchMapImage(ctx context.Context, root *store.Root, api *haloapi.Client, assetID, version string) {
+	dir := filepath.Join(root.Dir(), "static", "maps", "halo_infinite")
+	var existing []byte
+	var existingPath string
+	for _, name := range []string{assetID + ".png", assetID + ".jpg"} {
+		p := filepath.Join(dir, name)
+		if b, err := os.ReadFile(p); err == nil {
+			existing, existingPath = b, p
+			break
+		}
+	}
+	mapImageMu.Lock()
+	skip := smallMapImages[assetID]
+	mapImageMu.Unlock()
+	if skip {
+		return
+	}
+	need := len(existing) == 0
+	if !need {
+		w, ok := mapImageWidth(existing)
+		need = !ok || w < minimumMapImageWidth
+	}
+	if !need {
+		return
+	}
+	img, err := api.MapImage(ctx, assetID, version)
+	if err != nil {
+		slog.Warn("map image download failed", "id", assetID, "err", err)
+		return
+	}
+	if len(img) == 0 {
+		slog.Warn("map image download empty", "id", assetID)
+		return
+	}
+	target := filepath.Join(dir, assetID+"."+mapImageExt(img))
+	if err := root.WriteFile(target, img); err != nil {
+		slog.Warn("map image write failed", "id", assetID, "err", err)
+		return
+	}
+	if existingPath != "" && existingPath != target {
+		if err := os.Remove(existingPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("map image remove failed", "id", assetID, "err", err)
+		}
+	}
+	if w, ok := mapImageWidth(img); !ok || w < minimumMapImageWidth {
+		mapImageMu.Lock()
+		smallMapImages[assetID] = true
+		mapImageMu.Unlock()
+	}
 }
 func fetchMedalAssets(ctx context.Context, root *store.Root, api *haloapi.Client) error {
 	catalogPath := filepath.Join(root.Dir(), "medals", "metadata.json")

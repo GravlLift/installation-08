@@ -1,22 +1,23 @@
 /**
- * App — the whole standalone page, now routed: a match list (`MatchListScreen`) and a match
- * view (`MatchViewScreen`) that mounts the lifted 3D scene over real server data. No router
- * dependency is installed, so this is a minimal hand-rolled hash router: `#/` is the list,
- * `#/matches/<id>` is a match. See `docs/PARITY.md` for what each screen still cannot feed
- * the 3D view from this server alone.
+ * App — the whole standalone page, routed: the broadcast Home (`HomeScreen`) at `#/`, the
+ * match select page (`MatchSelectScreen`) at `#/matches`, and a match view
+ * (`MatchViewScreen`) at `#/matches/<id>` that mounts the lifted 3D scene over real server
+ * data. No router dependency is installed, so this is a minimal hand-rolled hash router.
  */
 import { useEffect, useState } from 'react'
 
-import { MatchListScreen } from './screens/MatchListScreen'
+import { HomeScreen } from './screens/HomeScreen'
+import { MatchSelectScreen } from './screens/MatchSelectScreen'
 import { MatchViewScreen } from './screens/MatchViewScreen'
 
-type Route = { name: 'list' } | { name: 'match'; matchId: string }
+export type Route = { name: 'home' } | { name: 'list' } | { name: 'match'; matchId: string }
 
-function parseHash(hash: string): Route {
+export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '') || '/'
   const match = /^\/matches\/([^/]+)\/?$/.exec(path)
   if (match) return { name: 'match', matchId: decodeURIComponent(match[1]) }
-  return { name: 'list' }
+  if (/^\/matches\/?$/.test(path)) return { name: 'list' }
+  return { name: 'home' }
 }
 
 function useHashRoute(): Route {
@@ -40,14 +41,14 @@ export function App() {
     return (
       <MatchViewScreen
         matchId={route.matchId}
-        onBack={() => navigate('/')}
+        onBack={() => navigate('/matches')}
       />
     )
   }
 
-  return (
-    <MatchListScreen
-      onOpenMatch={(matchId) => navigate(`/matches/${encodeURIComponent(matchId)}`)}
-    />
-  )
+  if (route.name === 'list') {
+    return <MatchSelectScreen />
+  }
+
+  return <HomeScreen />
 }

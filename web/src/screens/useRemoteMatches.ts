@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ApiError, fetchMatches, fetchRemoteMatches, type RemoteMatch } from '../lib/api/standalone'
-import { localMatchIdSet } from './homeScreenLogic'
+import { localMatchIdSet } from './matchSelectModel'
 
 export type RemoteMatchesState =
   | { phase: 'idle' }

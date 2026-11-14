@@ -90,9 +90,6 @@ export const FR_TEXT = {
   fullscreenEnter: 'Plein écran',
   fullscreenExit: 'Quitter le plein écran',
   wideMode: 'Mode large',
-  autoPlay: 'Lecture automatique',
-  autoPlayHint:
-    "Allumé, le rejeu démarre tout seul à l'ouverture de la page. Éteint — le réglage par défaut — il s'ouvre en pause au coup d'envoi et attend le bouton Lecture. Le choix est retenu d'un match à l'autre ; il ne met ni en lecture ni en pause le rejeu déjà ouvert.",
   layers: 'Calques',
   layerAim: 'Visée',
   layerAimHint:

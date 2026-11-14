@@ -83,10 +83,13 @@ export interface Replay3DViewProps {
   timeLimitMs: number | null
   /** L'auditeur du son : la caméra de l'image rendue, `null` quand la vue ne rend pas. */
   soundListenerRef?: RefObject<SoundListener | null>
+  /** Called with each load state (download, decoding, assets, warm-up, ready, error), so a
+   *  page can show the scene's real progress and know when it is ready. */
+  onLoadState?: (load: LoadState) => void
 }
 
 export function Replay3DView({
-  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef,
+  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState,
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -97,6 +100,11 @@ export function Replay3DView({
   // La scène dont la carte est posée : ce que le calque de la variante attend pour se charger.
   const [mapScene, setMapScene] = useState<ReplayScene3d | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'download', loaded: 0, total: 0 })
+  const onLoadStateRef = useRef(onLoadState)
+  onLoadStateRef.current = onLoadState
+  useEffect(() => {
+    onLoadStateRef.current?.(load)
+  }, [load])
   const [loadId, setLoadId] = useState(0)
   const [mode, setMode] = useState<CameraMode3d>('fp')
   const [povStatus, setPovStatus] = useState<PovStatus>('none')

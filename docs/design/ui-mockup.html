@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI mockup: Infinite Theater 3D</title>
+<style>
+:root {
+  --studio-950: #05080d;
+  --studio-900: #0a1018;
+  --studio-800: #111a26;
+  --studio-700: #1a2636;
+  --ink: #eef4f8;
+  --ink-dim: #a3b3c2;
+  --ink-faint: #5d6f82;
+  --air: #6fd3ff;
+  --air-deep: #1790d6;
+  --air-hot: #ffb347;
+  --team-ally: #4aa8ff;
+  --team-enemy: #ff5a4f;
+  --win: #5fe08a;
+  --loss: #ff6b61;
+  --display: 'Bahnschrift', 'DIN Alternate', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Segoe UI', system-ui, sans-serif;
+  --slant: 18px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--studio-950); color: var(--ink); font-family: var(--body); overflow: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+/* Backdrop: the treated map image, two layers for the cross-fade. */
+.backdrop { position: fixed; inset: -4%; z-index: 0; }
+.backdrop .layer { position: absolute; inset: 0; background-size: cover; background-position: center;
+  filter: blur(9px) saturate(1.25) brightness(0.8); opacity: 0; transition: opacity 600ms ease;
+  animation: drift 40s ease-in-out infinite alternate; }
+.backdrop .layer.on { opacity: 1; }
+.backdrop.sharp .layer { filter: blur(2px) saturate(1.15) brightness(0.8); }
+@keyframes drift { from { transform: scale(1.04) translate(-1%, -0.5%); } to { transform: scale(1.12) translate(1.5%, 1%); } }
+.backdrop::after { content: ''; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.14) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 55% 45%, transparent 35%, rgba(3,6,10,0.7) 100%),
+    linear-gradient(90deg, rgba(5,8,13,0.7), rgba(5,8,13,0.1) 45%),
+    linear-gradient(180deg, rgba(8,16,26,0.5), rgba(5,8,13,0.05) 25%, rgba(5,8,13,0.8)); }
+
+.stage { position: fixed; inset: 0; z-index: 1; display: grid; grid-template-rows: auto 1fr auto; }
+
+/* Top bar */
+.topbar { display: flex; align-items: center; gap: 20px; padding: 18px 36px; }
+.mark { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; letter-spacing: 0.22em; text-transform: uppercase; }
+.mark b { color: var(--air); font-weight: 700; }
+.onair { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; padding: 3px 10px 2px; background: var(--air-hot); color: #1a1000;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); font-weight: 700; }
+.crumb { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; color: var(--ink-dim); }
+.topbar .spacer { flex: 1; }
+.who { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
+.who b { color: var(--ink); font-weight: 600; }
+.rule { height: 1px; margin: 0 36px; background: linear-gradient(90deg, var(--air) 0, rgba(111,211,255,0.25) 22%, rgba(255,255,255,0.08) 100%); }
+
+/* Ticker */
+.ticker { display: flex; align-items: center; gap: 28px; padding: 10px 36px; font-size: 12px; color: var(--ink-dim);
+  background: linear-gradient(180deg, transparent, rgba(3,6,10,0.7)); font-family: var(--display); letter-spacing: 0.14em; text-transform: uppercase; }
+.ticker .keys { margin-left: auto; display: flex; gap: 18px; }
+.key { display: inline-block; min-width: 22px; padding: 1px 6px; margin-right: 6px; border: 1px solid var(--ink-faint); border-radius: 3px; color: var(--ink); text-align: center; font-size: 11px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--win); margin-right: 8px; }
+
+/* Views */
+.view { display: none; min-height: 0; padding: 28px 36px 8px; }
+.view.on { display: grid; animation: wipe 260ms ease-out; }
+@keyframes wipe { from { opacity: 0; clip-path: polygon(0 0, 0 0, -8% 100%, 0 100%); } to { opacity: 1; clip-path: polygon(0 0, 110% 0, 100% 100%, 0 100%); } }
+@media (prefers-reduced-motion: reduce) { .view.on, .backdrop .layer { animation: none; } }
+
+.eyebrow { font-family: var(--display); font-stretch: 75%; font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--air); }
+.title { font-family: var(--display); font-stretch: 75%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; line-height: 0.95; margin: 6px 0 0; }
+
+/* Focus list: gamepad-style rows */
+.list { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; padding-right: 10px; scrollbar-width: thin; scrollbar-color: var(--studio-700) transparent; }
+.row { position: relative; display: grid; align-items: center; text-align: left; width: 100%;
+  padding: 12px 22px 12px 26px; background: linear-gradient(90deg, rgba(17,26,38,0.82), rgba(17,26,38,0.45));
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+  border-left: 3px solid transparent; transition: background 120ms, transform 120ms, border-color 120ms; }
+.row .name { font-family: var(--display); font-stretch: 75%; font-size: 19px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.row .sub { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.06em; margin-top: 2px; }
+.row.focus { background: linear-gradient(90deg, rgba(111,211,255,0.95), rgba(111,211,255,0.62)); color: #04121c; border-left-color: #fff; transform: translateX(8px); }
+.row.focus .sub { color: #0b2c40; }
+.row.match { grid-template-columns: 1fr auto; column-gap: 16px; }
+.result { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; text-align: right; }
+.result small { display: block; font-size: 10px; letter-spacing: 0.24em; font-weight: 600; }
+.result.win small { color: var(--win); } .result.loss small { color: var(--loss); }
+.row.focus .result small { color: #04121c; }
+
+/* Plates */
+.plate { position: relative; background: linear-gradient(135deg, rgba(10,16,24,0.92), rgba(17,26,38,0.78)); padding: 18px 26px 18px 22px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--slant)), calc(100% - var(--slant)) 100%, 0 100%); border-left: 3px solid var(--air); }
+.shot { position: relative; aspect-ratio: 16 / 9; background: var(--studio-800) center / cover no-repeat;
+  clip-path: polygon(var(--slant) 0, 100% 0, 100% 100%, 0 100%, 0 var(--slant)); box-shadow: 0 0 0 1px rgba(111,211,255,0.25) inset; }
+.shot::before, .shot::after { content: ''; position: absolute; width: 26px; height: 26px; border: 2px solid var(--air); }
+.shot::before { right: 10px; top: 10px; border-left: 0; border-bottom: 0; }
+.shot::after { right: 10px; bottom: 10px; border-left: 0; border-top: 0; }
+.facts { display: grid; grid-template-columns: repeat(4, auto); gap: 6px 28px; justify-content: start; margin-top: 12px; }
+.fact span { display: block; font-family: var(--display); font-size: 10px; letter-spacing: 0.24em; color: var(--ink-faint); text-transform: uppercase; }
+.fact b { font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+.rosters { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; margin-top: 14px; font-size: 13px; }
+.rosters h4 { margin: 0 0 4px; font-family: var(--display); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 600; }
+.rosters .ally h4 { color: var(--team-ally); } .rosters .enemy h4 { color: var(--team-enemy); }
+.rosters div div { padding: 2px 0; color: var(--ink-dim); border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+/* Home */
+#home { grid-template-columns: minmax(320px, 26vw) 1fr; gap: 4vw; align-items: center; }
+#home .row { padding: 16px 26px 16px 30px; } #home .row .name { font-size: 26px; } #home .row .sub { font-size: 13px; }
+#home .feature { display: flex; flex-direction: column; align-items: flex-start; justify-self: end; width: min(100%, 118vh); }
+#home .feature .shot { width: 100%; }
+#home .feature .plate { margin: -84px 0 0 -28px; z-index: 1; min-width: 56%; padding: 20px 44px 22px 26px; }
+#home .title { font-size: clamp(48px, 5.4vw, 92px); }
+#home .facts b { font-size: 21px; }
+.cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; padding: 9px 26px 8px 18px; font-family: var(--display); font-stretch: 75%; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; background: var(--air); color: #04121c; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
+
+/* Select */
+#select { grid-template-columns: minmax(400px, 34vw) 1fr; grid-template-rows: auto 1fr; gap: 16px 3.5vw; }
+#select .head { grid-column: 1 / -1; display: flex; align-items: end; gap: 28px; }
+#select .title { font-size: 40px; }
+.tabs { display: flex; gap: 4px; margin-left: auto; }
+.tab { font-family: var(--display); font-stretch: 75%; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; padding: 6px 16px 5px; color: var(--ink-dim); border-bottom: 2px solid transparent; }
+.tab.on { color: var(--ink); border-bottom-color: var(--air); }
+#select .preview { display: flex; flex-direction: column; gap: 0; min-height: 0; justify-self: end; width: min(100%, 96vh); }
+#select .preview .plate { margin: -34px 40px 0 -24px; z-index: 1; }
+#select .preview .title { font-size: 34px; }
+
+/* Pre-game */
+#pregame { place-items: center; text-align: center; }
+.versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; width: min(1000px, 92vw); margin-top: 26px; }
+.versus .side { font-size: clamp(16px, 1.5vw, 24px); font-family: var(--display); font-stretch: 85%; letter-spacing: 0.04em; } .versus .side div { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.12); }
+#pregame > div { padding: 3vh 4vw 4vh; background: radial-gradient(ellipse at center, rgba(5,8,13,0.72) 0, rgba(5,8,13,0.4) 60%, transparent 78%); }
+.versus .ally { text-align: right; } .versus .enemy { text-align: left; }
+.versus h4 { margin: 0 0 6px; font-family: var(--display); font-stretch: 75%; letter-spacing: 0.26em; text-transform: uppercase; font-size: 14px; }
+.versus .ally h4 { color: var(--team-ally); } .versus .enemy h4 { color: var(--team-enemy); }
+.vs { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 44px; color: var(--ink-faint); letter-spacing: 0.1em; }
+#pregame .title { font-size: clamp(72px, 9vw, 150px); }
+#pregame .eyebrow { font-size: 16px; }
+.progress { width: min(560px, 80vw); margin: 34px auto 0; }
+.progress .bar { height: 3px; background: rgba(255,255,255,0.12); } .progress .bar i { display: block; height: 100%; width: 0; background: var(--air); transition: width 300ms linear; }
+.progress .step { margin-top: 8px; font-family: var(--display); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-dim); }
+.count { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 150px; line-height: 1; color: var(--air-hot); font-variant-numeric: tabular-nums; text-shadow: 0 0 40px rgba(255,179,71,0.45); }
+.count.tick { animation: tick 900ms ease-out; }
+@keyframes tick { from { transform: scale(1.5); opacity: 0.2; } 30% { opacity: 1; } to { transform: scale(1); } }
+
+/* Player */
+#player { grid-template-rows: auto 1fr auto; padding: 14px 0 0; }
+.bug { justify-self: center; display: grid; grid-template-columns: auto auto auto auto auto; align-items: stretch; font-family: var(--display); font-stretch: 75%; }
+.bug > * { padding: 7px 18px 6px; background: rgba(10,16,24,0.9); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 15px; }
+.bug .t.ally { border-bottom: 3px solid var(--team-ally); clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%); padding-left: 26px; }
+.bug .t.enemy { border-bottom: 3px solid var(--team-enemy); clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); padding-right: 26px; }
+.bug .s { background: var(--ink); color: #04121c; font-size: 20px; font-variant-numeric: tabular-nums; padding: 4px 16px; }
+.bug .c { color: var(--air); font-variant-numeric: tabular-nums; }
+.note { place-self: center; font-family: var(--display); letter-spacing: 0.2em; text-transform: uppercase; font-size: 12px; color: var(--ink-faint); text-align: center; }
+.note a { color: var(--air); }
+.transport { margin: 0 36px 10px; padding: 12px 22px 12px 18px; background: linear-gradient(90deg, rgba(10,16,24,0.94), rgba(17,26,38,0.82));
+  clip-path: polygon(0 0, calc(100% - var(--slant)) 0, 100% var(--slant), 100% 100%, 0 100%); border-left: 3px solid var(--air); }
+.scrub { position: relative; height: 18px; cursor: pointer; }
+.scrub .track { position: absolute; left: 0; right: 0; top: 8px; height: 3px; background: rgba(255,255,255,0.14); }
+.scrub .played { position: absolute; left: 0; top: 8px; height: 3px; width: 37%; background: var(--air); }
+.scrub .head { position: absolute; left: 37%; top: 2px; width: 3px; height: 15px; background: #fff; box-shadow: 0 0 10px var(--air); }
+.scrub .mk { position: absolute; top: 4px; width: 2px; height: 11px; }
+.ctl { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-family: var(--display); font-stretch: 75%; letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; }
+.ctl .play { width: 38px; height: 30px; background: var(--air); color: #04121c; font-size: 14px; clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.ctl .time { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600; margin: 0 14px 0 8px; } .ctl .time i { color: var(--ink-faint); font-style: normal; }
+.seg { display: flex; } .seg button { padding: 5px 12px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px; font-size: 12px; letter-spacing: 0.16em; }
+.seg button.on { color: #04121c; background: var(--ink); border-color: var(--ink); font-weight: 700; }
+.ctl .gap { flex: 1; } .ctl .lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.22em; margin: 0 8px 0 16px; }
+.pov { padding: 5px 14px 4px; border-left: 3px solid var(--team-ally); background: var(--studio-800); font-size: 13px; }
+.empty { color: var(--ink-dim); padding: 30px 0; }
+</style>
+</head>
+<body>
+<div class="backdrop" id="backdrop"><div class="layer"></div><div class="layer"></div></div>
+
+<div class="stage">
+  <div>
+    <div class="topbar">
+      <div class="mark">Infinite <b>Theater</b> 3D</div>
+      <div class="onair">Replay</div>
+      <div class="crumb" id="crumb"></div>
+      <div class="spacer"></div>
+      <div class="who" id="who"></div>
+    </div>
+    <div class="rule"></div>
+  </div>
+
+  <main style="min-height:0; display:grid;">
+    <!-- Home: the broadcast desk -->
+    <section class="view" id="home">
+      <div>
+        <div class="eyebrow">Main menu</div>
+        <div class="list" id="menu" style="margin-top:14px"></div>
+      </div>
+      <div class="feature">
+        <div class="shot" id="featShot"></div>
+        <div class="plate">
+          <div class="eyebrow">Featured game</div>
+          <h1 class="title" id="featTitle">&nbsp;</h1>
+          <div class="facts" id="featFacts"></div>
+          <button class="cta" id="featWatch">&#9654; Watch</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Match select: list left, image and caption right -->
+    <section class="view" id="select">
+      <div class="head">
+        <div><div class="eyebrow">Select a match</div><h1 class="title">Match library</h1></div>
+        <div class="tabs"><div class="tab on">All</div><div class="tab">Stored</div><div class="tab">Ranked</div><div class="tab">Recent</div></div>
+      </div>
+      <div class="list" id="matches"></div>
+      <div class="preview">
+        <div class="shot" id="selShot"></div>
+        <div class="plate">
+          <div class="eyebrow" id="selEyebrow">&nbsp;</div>
+          <h2 class="title" id="selTitle">&nbsp;</h2>
+          <div class="facts" id="selFacts"></div>
+          <div class="rosters" id="selRosters"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pre-game: loading as a moment -->
+    <section class="view" id="pregame">
+      <div>
+        <div class="eyebrow" id="preEyebrow">&nbsp;</div>
+        <h1 class="title" id="preTitle">&nbsp;</h1>
+        <div class="versus" id="preVersus"></div>
+        <div class="progress" id="preProgress"><div class="bar"><i></i></div><div class="step">&nbsp;</div></div>
+        <div class="count" id="preCount" hidden></div>
+      </div>
+    </section>
+
+    <!-- Player: score bug and our own transport over the 3D view -->
+    <section class="view" id="player">
+      <div class="bug" id="bug"></div>
+      <div class="note">The 3D replay fills this area<br><br><a id="openReal" href="#">Open this match in the current viewer</a></div>
+      <div class="transport">
+        <div class="scrub"><div class="track"></div><div class="played"></div><div id="marks"></div><div class="head"></div></div>
+        <div class="ctl">
+          <button class="play">&#10074;&#10074;</button>
+          <div class="time">4:42 <i>/ <span id="dur">12:44</span></i></div>
+          <div class="seg"><button>0.5x</button><button class="on">1x</button><button>2x</button><button>4x</button></div>
+          <span class="lbl">Camera</span>
+          <div class="seg"><button class="on">First</button><button>Third</button><button>Free</button></div>
+          <span class="lbl">Following</span>
+          <div class="pov" id="pov">Player</div>
+          <div class="gap"></div>
+          <div class="seg"><button>Scoreboard</button><button>Sound</button><button>Settings</button><button>Fullscreen</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="ticker">
+    <span id="tick1"><span class="dot"></span>Server connected</span>
+    <span id="tick2"></span>
+    <span class="keys" id="keys"></span>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const state = { view: 'home', matches: [], menuIdx: 0, matchIdx: 0, current: null, timers: [] }
+
+// Backdrop cross-fade between two layers.
+let layerOn = 0
+function setBackdrop(url, sharp) {
+  const bd = $('backdrop'); bd.classList.toggle('sharp', !!sharp)
+  const layers = bd.querySelectorAll('.layer')
+  const next = layers[1 - layerOn]
+  if (layers[layerOn].dataset.url === url && layers[layerOn].classList.contains('on')) return
+  next.style.backgroundImage = url ? `url("${url}")` : 'none'; next.dataset.url = url || ''
+  next.classList.add('on'); layers[layerOn].classList.remove('on'); layerOn = 1 - layerOn
+}
+
+const mmss = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+const img = (m) => m.header?.map_image_url || (m.mapAssetId ? `/static/maps/halo_infinite/${m.mapAssetId}.png` : '')
+const mapName = (m) => (m.header?.map_ui || m.mapName || m.mapModule || 'Unknown map').replace(/\s*-\s*Ranked$/i, '')
+const mode = (m) => m.header?.mode_ui || 'Custom game'
+const when = (m) => m.header?.start_time_label || new Date(m.importedAt).toLocaleDateString()
+const teams = (m) => { const p = m.players || []; const ids = [...new Set(p.map((x) => x.teamId))].sort(); return ids.map((id) => p.filter((x) => x.teamId === id)) }
+function mySide(m) { const me = (state.gamertag || '').replace(/\s+/g, '').toLowerCase(); const t = teams(m); const i = t.findIndex((side) => side.some((p) => p.name.replace(/\s+/g, '').toLowerCase() === me)); return i < 0 ? t : [t[i], ...t.filter((_, k) => k !== i)] }
+const facts = (pairs) => pairs.filter(([, v]) => v).map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')
+const resultHtml = (m) => { const h = m.header; if (!h?.score_label) return ''; const o = h.outcome === 'win' ? 'win' : h.outcome === 'loss' ? 'loss' : ''; return `<div class="result ${o}">${esc(h.score_label)}<small>${o ? (o === 'win' ? 'Victory' : 'Defeat') : '&nbsp;'}</small></div>` }
+
+const MENU = [
+  { name: 'Watch', sub: 'Pick a stored match and play it', go: 'select' },
+  { name: 'Recent matches', sub: 'Fetch games from your account', go: 'select' },
+  { name: 'Settings', sub: 'Look, sound, team colors', go: null },
+  { name: 'Quit', sub: 'Stop the server and close', go: null },
+]
+
+function renderHome() {
+  $('menu').innerHTML = MENU.map((it, i) => `<button class="row${i === state.menuIdx ? ' focus' : ''}" data-i="${i}"><div><div class="name">${it.name}</div><div class="sub">${it.sub}</div></div></button>`).join('')
+  const m = state.matches[0]
+  if (!m) { $('featTitle').textContent = 'No matches yet'; $('featFacts').innerHTML = facts([['Start here', 'Sign in, then fetch a match']]); return }
+  $('featShot').style.backgroundImage = `url("${img(m)}")`
+  $('featTitle').textContent = mapName(m)
+  $('featFacts').innerHTML = facts([['Mode', mode(m)], ['Final', m.header?.score_label], ['Result', m.header?.outcome === 'win' ? 'Victory' : m.header?.outcome === 'loss' ? 'Defeat' : ''], ['Played', when(m)]])
+  setBackdrop(img(m))
+}
+
+function renderSelect() {
+  const list = $('matches')
+  if (!state.matches.length) { list.innerHTML = '<div class="empty">No stored matches.</div>'; return }
+  list.innerHTML = state.matches.map((m, i) => `<button class="row match${i === state.matchIdx ? ' focus' : ''}" data-i="${i}"><div><div class="name">${esc(mapName(m))}</div><div class="sub">${esc(mode(m))} &middot; ${esc(when(m))} &middot; ${mmss(m.durationMs)}</div></div>${resultHtml(m)}</button>`).join('')
+  list.querySelector('.focus')?.scrollIntoView({ block: 'nearest' })
+  const m = state.matches[state.matchIdx]
+  $('selShot').style.backgroundImage = `url("${img(m)}")`
+  $('selEyebrow').textContent = [m.header?.playlist_label, mode(m)].filter(Boolean).join('  /  ')
+  $('selTitle').textContent = mapName(m)
+  $('selFacts').innerHTML = facts([['Final', m.header?.score_label], ['Length', mmss(m.durationMs)], ['Played', when(m)], ['Build', m.build]])
+  const [a = [], b = []] = mySide(m)
+  $('selRosters').innerHTML = `<div class="ally"><h4>Your team</h4>${a.map((p) => `<div>${esc(p.name)}</div>`).join('')}</div><div class="enemy"><h4>Opponents</h4>${b.map((p) => `<div>${esc(p.name)}</div>`).join('')}</div>`
+  setBackdrop(img(m))
+}
+
+function renderPregame() {
+  const m = state.current; if (!m) return
+  state.timers.forEach(clearTimeout); state.timers = []
+  $('preEyebrow').textContent = [m.header?.playlist_label, mode(m)].filter(Boolean).join('  /  ')
+  $('preTitle').textContent = mapName(m)
+  const [a = [], b = []] = mySide(m)
+  $('preVersus').innerHTML = `<div class="side ally"><h4>Your team</h4>${a.map((p) => `<div>${esc(p.name)}</div>`).join('')}</div><div class="vs">VS</div><div class="side enemy"><h4>Opponents</h4>${b.map((p) => `<div>${esc(p.name)}</div>`).join('')}</div>`
+  setBackdrop(img(m), true)
+  const bar = $('preProgress').querySelector('i'), step = $('preProgress').querySelector('.step'), count = $('preCount')
+  $('preProgress').hidden = false; count.hidden = true; bar.style.width = '0'
+  const steps = [['Loading the replay', 25], ['Loading the map', 70], ['Placing the variant layer', 92], ['Ready', 100]]
+  steps.forEach(([label, pct], i) => state.timers.push(setTimeout(() => { step.textContent = label; bar.style.width = pct + '%' }, 200 + i * 800)))
+  const t0 = 200 + steps.length * 800
+  state.timers.push(setTimeout(() => { $('preProgress').hidden = true; count.hidden = false }, t0))
+  ;[3, 2, 1].forEach((n, i) => state.timers.push(setTimeout(() => { count.textContent = n; count.classList.remove('tick'); void count.offsetWidth; count.classList.add('tick') }, t0 + i * 1000)))
+  state.timers.push(setTimeout(() => show('player'), t0 + 3000))
+}
+
+function renderPlayer() {
+  const m = state.current; if (!m) return
+  const h = m.header || {}
+  $('bug').innerHTML = `<div class="t ally">Your team</div><div class="s">${esc(h.score_mine ?? '-')}</div><div class="c">${mmss(m.durationMs * 0.37)}</div><div class="s">${esc(h.score_theirs ?? '-')}</div><div class="t enemy">Opponents</div>`
+  $('dur').textContent = mmss(m.durationMs)
+  const [a = []] = mySide(m); $('pov').textContent = (a.find((p) => p.name.replace(/\s+/g, '').toLowerCase() === (state.gamertag || '').replace(/\s+/g, '').toLowerCase()) || a[0] || { name: 'Player' }).name
+  let marks = ''; let seed = 7
+  for (let i = 0; i < 46; i++) { seed = (seed * 9301 + 49297) % 233280; const x = (seed / 233280) * 100; const ally = i % 2 === 0; marks += `<div class="mk" style="left:${x.toFixed(2)}%;background:${ally ? 'var(--team-ally)' : 'var(--team-enemy)'};opacity:.75"></div>` }
+  ;[18, 44, 61, 83].forEach((x) => { marks += `<div class="mk" style="left:${x}%;top:1px;height:17px;width:3px;background:var(--air-hot)"></div>` })
+  $('marks').innerHTML = marks
+  $('openReal').href = `/#/matches/${encodeURIComponent(m.matchId)}`
+  setBackdrop(img(m), true)
+}
+
+const CRUMBS = { home: '', select: 'Match library', pregame: 'Pre-game', player: 'Now playing' }
+const KEYS = { home: [['↑↓', 'Move'], ['Enter', 'Select']], select: [['↑↓', 'Move'], ['Enter', 'Watch'], ['Esc', 'Back']], pregame: [['Any key', 'Skip'], ['Esc', 'Back']], player: [['Space', 'Play / pause'], ['←→', 'Seek'], ['Tab', 'Scoreboard'], ['Esc', 'Back']] }
+function show(view) {
+  state.timers.forEach(clearTimeout); state.timers = []
+  state.view = view
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === view))
+  $('crumb').textContent = CRUMBS[view]
+  $('keys').innerHTML = KEYS[view].map(([k, l]) => `<span><span class="key">${k}</span>${l}</span>`).join('')
+  ;({ home: renderHome, select: renderSelect, pregame: renderPregame, player: renderPlayer })[view]()
+}
+function watch(i) { state.current = state.matches[i]; if (state.current) show('pregame') }
+function activateMenu() { const it = MENU[state.menuIdx]; if (it.go) show(it.go) }
+
+document.addEventListener('keydown', (e) => {
+  const v = state.view
+  if (v === 'home') {
+    if (e.key === 'ArrowDown') state.menuIdx = (state.menuIdx + 1) % MENU.length
+    else if (e.key === 'ArrowUp') state.menuIdx = (state.menuIdx + MENU.length - 1) % MENU.length
+    else if (e.key === 'Enter') return activateMenu()
+    else return
+    renderHome()
+  } else if (v === 'select') {
+    const n = state.matches.length
+    if (e.key === 'ArrowDown' && n) state.matchIdx = Math.min(n - 1, state.matchIdx + 1)
+    else if (e.key === 'ArrowUp' && n) state.matchIdx = Math.max(0, state.matchIdx - 1)
+    else if (e.key === 'Enter') return watch(state.matchIdx)
+    else if (e.key === 'Escape') return show('home')
+    else return
+    e.preventDefault(); renderSelect()
+  } else if (v === 'pregame') { e.key === 'Escape' ? show('select') : show('player') }
+  else if (v === 'player' && e.key === 'Escape') show('select')
+})
+$('menu').addEventListener('mousemove', (e) => { const r = e.target.closest('.row'); if (r && +r.dataset.i !== state.menuIdx) { state.menuIdx = +r.dataset.i; renderHome() } })
+$('menu').addEventListener('click', (e) => { if (e.target.closest('.row')) activateMenu() })
+$('matches').addEventListener('mousemove', (e) => { const r = e.target.closest('.row'); if (r && +r.dataset.i !== state.matchIdx) { state.matchIdx = +r.dataset.i; renderSelect() } })
+$('matches').addEventListener('click', (e) => { const r = e.target.closest('.row'); if (r) watch(+r.dataset.i) })
+$('featWatch').addEventListener('click', () => watch(0))
+
+async function load() {
+  try {
+    const auth = await fetch('/api/auth/state').then((r) => r.json()).catch(() => null)
+    state.gamertag = auth?.gamertag || auth?.phase?.gamertag || ''
+    $('who').innerHTML = state.gamertag ? `Signed in <b>${esc(state.gamertag)}</b>` : 'Not signed in'
+    const list = await fetch('/api/matches').then((r) => r.json())
+    await Promise.all(list.map(async (m) => { try { m.header = (await fetch(`/api/matches/${encodeURIComponent(m.matchId)}/context`).then((r) => r.json())).header } catch { m.header = null } }))
+    list.sort((a, b) => String(b.header?.start_time || b.importedAt).localeCompare(String(a.header?.start_time || a.importedAt)))
+    state.matches = list
+    $('tick2').textContent = `${list.length} matches stored`
+  } catch (err) {
+    $('tick1').innerHTML = '<span class="dot" style="background:var(--loss)"></span>Server not reachable'
+  }
+  show('home')
+}
+load()
+</script>
+</body>
+</html>
