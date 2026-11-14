@@ -15,6 +15,9 @@ type parametresTerrain struct {
 	Origine    [3]float64
 	Amplitude  float64
 	Materiau   uint32
+	// Atlas (LOCAL-CHANGE (infinite-theater-3d)): the baked blend mask's frame in world units
+	// (x0, top y, width, height); when set, UV set 1 addresses it, row 0 at the top.
+	Atlas [4]float64
 }
 
 // assembleTerrain partage les sommets des bords entre les tuiles adjacentes.
@@ -41,6 +44,10 @@ func assembleTerrain(tuiles []tuileTerrain, p parametresTerrain) (GroupeMaillage
 				wx, wy := p.Origine[0]+float64(cle[0])*p.Pas[0], p.Origine[1]+float64(cle[1])*p.Pas[1]
 				g.Sommets = append(g.Sommets, float32(wx), float32(wy), float32(z))
 				for j := range g.UV {
+					if j == jeuUVMacro && p.Atlas[2] > 0 && p.Atlas[3] > 0 {
+						g.UV[j] = append(g.UV[j], float32((wx-p.Atlas[0])/p.Atlas[2]), float32((p.Atlas[1]-wy)/p.Atlas[3]))
+						continue
+					}
 					g.UV[j] = append(g.UV[j], float32(wx), float32(wy))
 				}
 			}
