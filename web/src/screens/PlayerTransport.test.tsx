@@ -15,6 +15,8 @@ function renderTransport(overrides: Record<string, unknown> = {}) {
     playing: false,
     speed: 1,
     viewpoint: null,
+    cameraMode: 'fp',
+    onSetCameraMode: noop,
     kills: [],
     colorOfXuid: () => null,
     sound,
@@ -124,4 +126,39 @@ it('calls onSeekBy(-10) for back and onSeekBy(10) for forward', () => {
   expect(onSeekBy).toHaveBeenCalledWith(-10)
   fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }))
   expect(onSeekBy).toHaveBeenCalledWith(10)
+})
+
+it('groups view, camera mode and POV under one Camera label', () => {
+  renderTransport()
+  const group = screen.getByRole('group', { name: 'Camera' })
+  expect(group.querySelector('[aria-label="View"]')).toBeTruthy()
+  expect(group.querySelector('[aria-label="Camera mode"]')).toBeTruthy()
+  expect(group.querySelector('.bc-pov')).toBeTruthy()
+})
+
+it('presses the current camera mode and calls onSetCameraMode with the clicked one', () => {
+  const onSetCameraMode = vi.fn()
+  renderTransport({ cameraMode: 'tp', onSetCameraMode })
+  expect(screen.getByRole('button', { name: '3rd person', pressed: true })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Free view' }))
+  expect(onSetCameraMode).toHaveBeenCalledWith('free')
+})
+
+it('keeps the camera mode segment in place but disabled in 2D', () => {
+  renderTransport({ view: 'top' })
+  for (const name of ['1st person', '3rd person', 'Free view']) {
+    expect(screen.getByRole('button', { name })).toBeDisabled()
+  }
+  expect(screen.getByRole('combobox', { name: 'Viewpoint' })).not.toBeDisabled()
+})
+
+it('reads Free camera in the picker when no player is followed', () => {
+  const { utils } = renderTransport({ viewpoint: null, cameraMode: 'free' })
+  expect((utils.container.querySelector('.bc-pov') as HTMLSelectElement).value).toBe('')
+})
+
+it('carries the running export progress on the export button', () => {
+  renderTransport({ exportProgress: 42.4, exportDisabled: true })
+  const button = screen.getByRole('button', { name: 'Exporting 42%' })
+  expect(button).not.toBeDisabled()
 })

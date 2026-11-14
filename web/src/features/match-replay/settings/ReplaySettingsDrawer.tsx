@@ -4,18 +4,16 @@
  * it), dismissed by Escape, a click outside, or the close button, with focus entering the panel
  * on open.
  *
- * SIMPLIFIED FROM THE SOURCE: fixed to the bottom-right corner of the viewport rather than
- * anchored to the button that opened it (`useAnchoredPanel`, which this app does not lift — it
- * only matters for exact pixel alignment, not behavior). Left out entirely (not present in this
- * standalone shell, see `docs/PARITY.md`): the 2D map's aim/zones/trail/heatmap toggles, marker
- * colors and export — none of those have any effect here yet.
+ * Placed by the player, not here: it renders in place, and the player puts it in its panel slot
+ * (`.bc-panel`, between the top strip and the control bar), so it never covers the bar's buttons
+ * and comes along into fullscreen with the rest of the player. It scrolls when taller than the
+ * slot. Left out entirely (not present in this standalone shell, see `docs/PARITY.md`): the 2D
+ * map's aim/zones/trail/heatmap toggles, marker colors and export — none of those have any
+ * effect here yet.
  *
- * Carries `data-replay-escape-layer` (the attribute `useReplayFullscreen` already lifted and
- * reads) so an Escape press closes this drawer first when fullscreen is also active, instead of
- * both at once.
+ * Carries `data-replay-escape-layer`, the attribute that marks a layer Escape closes.
  */
 import { useEffect, useRef, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
 
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { LayersSection, type ReplayLayerControls } from './ReplaySettingsLayers'
@@ -71,15 +69,15 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
   const panelRef = useRef<HTMLDivElement>(null)
   useDrawerDismiss(panelRef, triggerRef, onClose)
 
-  return createPortal(
+  return (
     <div
       ref={panelRef}
       tabIndex={-1}
       role="region"
       data-replay-escape-layer=""
       aria-label={t.settingsButton}
-      style={{ width: PANEL_WIDTH, maxHeight: 'calc(100vh - 5rem)' }}
-      className="fixed bottom-16 right-3 z-50 flex flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-card px-3 py-3 text-sm text-foreground shadow-xl outline-none"
+      style={{ width: PANEL_WIDTH }}
+      className="flex flex-col gap-3 overflow-y-auto rounded-lg border border-border bg-card px-3 py-3 text-sm text-foreground shadow-xl outline-none"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">{t.settingsButton}</h2>
@@ -102,7 +100,6 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
           {SOUND_CATEGORIES.map((category) => <SettingsToggle key={category} label={t.soundCategory[category]} pressed={sound.categories[category]} onToggle={() => sound.toggleCategory(category)} />)}
         </div>
       </section>
-    </div>,
-    document.fullscreenElement ?? document.body,
+    </div>
   )
 }

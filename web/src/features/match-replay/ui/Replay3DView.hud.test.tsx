@@ -1,10 +1,8 @@
 /**
- * Replay3DView.hud.test.tsx — the HUD (ReplayAth3d) renders its weapon corner (ammo,
- * reserve, grenades) regardless of camera mode. The 3D view itself needs three.js and
- * WebGL, so this test mounts the lightweight HUD component directly and verifies it
- * produces visible ammo output. The camera-mode gate was removed from Replay3DView:
- * the HUD is a DOM overlay, not a scene element, so it does not depend on which
- * camera renders the scene behind it.
+ * Replay3DView.hud.test.tsx — the HUD (ReplayAth3d) draws its first-person equipment (reticle,
+ * ammo, reserve, grenades) only in first person; third person, free view and the top-down view
+ * pass `scoreOnly` (Replay3DView) and keep the score strip alone. The 3D view itself needs
+ * three.js and WebGL, so this mounts the HUD component directly.
  */
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -23,28 +21,22 @@ function hudDoc() {
   })
 }
 
-describe('ReplayAth3d renders the weapon corner in every camera mode', () => {
-  it('shows magazine and reserve when mounted (first-person)', () => {
+describe('ReplayAth3d draws first-person equipment in first person only', () => {
+  it('shows magazine, reserve and the reticle in first person', () => {
     const { container } = render(
       <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} />,
     )
     expect(container.textContent).toContain('13')
     expect(container.textContent).toContain('42')
+    expect(container.querySelector('svg')).not.toBeNull()
   })
 
-  it('shows magazine and reserve when mounted (third-person, no fp-only gate)', () => {
+  it('keeps only the score strip outside first person (third person, free view, top-down)', () => {
     const { container } = render(
-      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} />,
-    )
-    expect(container.textContent).toContain('13')
-    expect(container.textContent).toContain('42')
-  })
-
-  it('keeps only the score strip in the top-down view', () => {
-    const { container } = render(
-      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} topDown />,
+      <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} scoreOnly />,
     )
     expect(container.textContent).not.toContain('13')
     expect(container.textContent).not.toContain('42')
+    expect(container.querySelector('svg')).toBeNull()
   })
 })

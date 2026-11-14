@@ -27,6 +27,7 @@
  */
 import { useEffect, useRef } from 'react'
 import { isEditableTarget } from '@/lib/dom/editableTarget'
+import type { CameraMode3d } from '../scene3d/replayScene3d'
 
 /**
  * L'ATTRIBUT QUI REND SA FRAPPE À LA FRISE. Il est posé par `ReplayTimelineTracks` sur le seul
@@ -46,6 +47,8 @@ export interface ReplayShortcutHandlers {
   toggleFullscreen: () => void
   /** Switches the 3D view between the perspective and the orthographic top-down: the key V; absent = the key is not listened to. */
   toggleView?: () => void
+  /** Chooses the camera mode: 1 first person, 2 third person, 3 free view (the order of the control bar's segment); absent = the keys are not listened to (the 2D view, where the segment is disabled). */
+  setCameraMode?: (mode: CameraMode3d) => void
   /** Le saut des flèches, en secondes (cf. SKIP_SECONDS de la barre). */
   skipSeconds: number
   /** `false` quand la page n'a pas de rejeu chargé : rien n'est écouté. */
@@ -118,6 +121,9 @@ type PlayerKeyAction =
   | 'restart'
   | 'fullscreen'
   | 'view'
+  | 'cameraFirst'
+  | 'cameraThird'
+  | 'cameraFree'
 
 /**
  * LES TOUCHES DU LECTEUR, majuscules comprises : Verr. Maj allumé ne doit éteindre aucun
@@ -133,7 +139,11 @@ const PLAYER_KEYS = new Map<string, PlayerKeyAction>([
   ['r', 'restart'], ['R', 'restart'],
   ['f', 'fullscreen'], ['F', 'fullscreen'],
   ['v', 'view'], ['V', 'view'],
+  ['1', 'cameraFirst'], ['2', 'cameraThird'], ['3', 'cameraFree'],
 ])
+
+/** The camera mode each camera key chooses. */
+const CAMERA_KEY_MODE: Partial<Record<PlayerKeyAction, CameraMode3d>> = { cameraFirst: 'fp', cameraThird: 'tp', cameraFree: 'free' }
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
@@ -147,7 +157,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
-  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, skipSeconds, enabled, zoom } = h
+  const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, skipSeconds, enabled, zoom } = h
   // LE CADRAGE PAR RÉFÉRENCE, et pas en dépendance de l'effet : son objet est recréé à chaque
   // rendu, et le cadrage change soixante fois par seconde pendant la lecture. En dépendance,
   // l'écouteur clavier se réabonnerait à cette cadence. La référence s'écrit dans un effet —
@@ -158,6 +168,7 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
   }, [zoom])
   useEffect(() => {
     if (!enabled) return
+    const camera = (action: PlayerKeyAction) => () => { const mode = CAMERA_KEY_MODE[action]; if (mode) setCameraMode?.(mode) }
     const actions: Record<PlayerKeyAction, () => void> = {
       play: togglePlay,
       back: () => seekBy(-skipSeconds),
@@ -168,6 +179,9 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       restart,
       fullscreen: toggleFullscreen,
       view: toggleView ?? (() => {}),
+      cameraFirst: camera('cameraFirst'),
+      cameraThird: camera('cameraThird'),
+      cameraFree: camera('cameraFree'),
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return
@@ -196,10 +210,11 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       const action = PLAYER_KEYS.get(e.key)
       if (!action) return
       if (action === 'view' && !toggleView) return // no view on this page: the key stays with the browser
+      if (CAMERA_KEY_MODE[action] && !setCameraMode) return // no camera choice here: the key stays with the browser
       e.preventDefault()
       actions[action]()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, skipSeconds])
+  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, skipSeconds])
 }

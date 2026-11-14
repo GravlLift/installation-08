@@ -99,7 +99,7 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
     <div
       role="dialog"
       aria-label={t.exportDialogTitle}
-      className={`z-20 w-[22rem] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-4 shadow-lg ${threeDOnly ? 'relative mt-2' : 'absolute bottom-full right-0 mb-2'}`}
+      className={`z-20 w-[22rem] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-4 shadow-lg ${threeDOnly ? 'relative overflow-y-auto' : 'absolute bottom-full right-0 mb-2'}`}
     >
       <p className="text-sm font-semibold text-foreground">{t.exportDialogTitle}</p>
       {/* L'ÉCHEC SE DIT. Sans cette ligne, une panne d'encodeur faisait disparaître la barre

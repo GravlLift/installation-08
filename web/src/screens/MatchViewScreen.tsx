@@ -26,7 +26,8 @@ import { usePlaybackLoop } from './usePlaybackLoop'
 import { useScoreboardHold } from './useScoreboardHold'
 import { readReplayScoreboard } from '../features/match-replay/model/replayScoreboardLogic'
 import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
-import { useDefaultViewpoint } from './useDefaultViewpoint'
+import { useCameraChoice } from './useCameraChoice'
+import { usePlayerChromeInsets } from './usePlayerChromeInsets'
 import { useVariantLayer } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
@@ -35,7 +36,7 @@ import { useReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
 import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
-import { ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
+import { isExportBusy, ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
 import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
 import { useReplay3DExport } from '../features/match-replay/export/replay3dExportStore'
 import { PlayerTransport } from './PlayerTransport'
@@ -96,13 +97,24 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(!held)
   const [speed, setSpeed] = useState(1)
-  const [viewpoint, setViewpoint] = useDefaultViewpoint(doc.roster)
+  const camera = useCameraChoice(doc.roster)
+  // The reference player: team colors, the HUD and the export read from his side (free view included).
+  const viewpoint = camera.player
   const [view, setView] = useState<SceneView3d>('3d')
   const toggleView = useCallback(() => setView((v) => (v === '3d' ? 'top' : '3d')), [])
   const [size, setSize] = useState({ width: 960, height: 540 })
   const hostRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const topRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
+  usePlayerChromeInsets(boxRef, topRef, barRef)
+  // One panel opens from the bar at a time, on the right between the top strip and the bar.
+  const [panel, setPanel] = useState<'settings' | 'export' | null>(null)
+  const togglePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : which)), [])
+  const closePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : open)), [])
+  const settingsOpen = panel === 'settings'
+  const exportOpen = panel === 'export'
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const [scoreboardHeld, setScoreboard] = useScoreboardHold()
   const [scrubbing, setScrubbing] = useState(false)
@@ -117,12 +129,11 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     [doc, viewpoint, inks],
   )
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
-  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: viewpoint, medals: replayContext.medals, match: replayContext.announcerMatch })
+  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: camera.followed, medals: replayContext.medals, match: replayContext.announcerMatch })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
   const exportCanvasRef = useRef<HTMLCanvasElement>(null)
   const exportLayout = useExportLayout()
   const exportScene = useReplay3DExport()
-  const [exportOpen, setExportOpen] = useState(false)
   const redrawExport = useCallback(() => {
     const canvas = exportCanvasRef.current
     const layout = exportLayoutRequested()
@@ -166,6 +177,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     toggleSound: sound.toggle,
     toggleFullscreen: fullscreen.toggle,
     toggleView,
+    setCameraMode: view === '3d' ? camera.setMode : undefined,
     skipSeconds: SKIP_SECONDS,
     enabled: !held,
   })
@@ -245,7 +257,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
       data-testid="replay-viewer"
       className="bc-player"
     >
-      <div className="bc-player-box">
+      <div ref={boxRef} className="bc-player-box">
         <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
             <Replay3DView
               meshPath={meshUrl(matchId)}
@@ -265,31 +277,20 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
               soundListenerRef={sound.listener}
               onLoadState={onLoadState}
               view={view}
+              cameraMode={camera.mode}
             />
             {scoreboardHeld && (
               <ReplayScoreboardOverlay
                 reading={scoreboardReading}
                 sheet={scoreboardSheet}
-                followedXuid={viewpoint}
-              />
-            )}
-            {settingsOpen && (
-              <ReplaySettingsDrawer
-                locale="en"
-                sound={sound}
-                show={show}
-                toggle={toggle}
-                triggerRef={settingsButtonRef}
-                onClose={() => setSettingsOpen(false)}
+                followedXuid={camera.followed}
               />
             )}
             <canvas ref={exportCanvasRef} hidden />
-            {exportOpen && exportScene && capture.videoExport && (
-              <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => setExportOpen(false)} threeDOnly />
-            )}
         </div>
 
         <div
+          ref={topRef}
           className={`bc-player-top bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
           onPointerEnter={chrome.onScopeEnter}
           onPointerLeave={chrome.onScopeLeave}
@@ -315,29 +316,51 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
             frame={frame}
             playing={playing}
             speed={speed}
-            viewpoint={viewpoint}
+            viewpoint={camera.followed}
+            cameraMode={camera.mode}
+            onSetCameraMode={camera.setMode}
             kills={kills}
             colorOfXuid={identity.colorOfXuid}
             sound={sound}
             onTogglePlay={togglePlay}
             onRestart={restart}
             onSetSpeed={setSpeed}
-            onSetViewpoint={setViewpoint}
+            onSetViewpoint={camera.setPov}
             view={view}
             onSetView={setView}
             onScrub={onScrub}
             onSeekBy={seekBy}
             onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
             scoreboardOn={scoreboardHeld}
-            onToggleSettings={() => setSettingsOpen((v) => !v)}
+            onToggleSettings={() => togglePanel('settings')}
             settingsRef={settingsButtonRef}
-            onToggleExport={() => setExportOpen((v) => !v)}
+            onToggleExport={() => togglePanel('export')}
             exportDisabled={!exportScene || !capture.videoExport?.supported}
+            exportProgress={capture.videoExport && isExportBusy(capture.videoExport.state) ? capture.videoExport.state.pct : null}
             onToggleFullscreen={fullscreen.toggle}
             fullscreenActive={fullscreen.active}
             onScrubbingChange={setScrubbing}
+            rootRef={barRef}
           />
         </div>
+
+        {(settingsOpen || (exportOpen && exportScene)) && (
+          <div className="bc-panel">
+            {settingsOpen && (
+              <ReplaySettingsDrawer
+                locale="en"
+                sound={sound}
+                show={show}
+                toggle={toggle}
+                triggerRef={settingsButtonRef}
+                onClose={() => closePanel('settings')}
+              />
+            )}
+            {exportOpen && exportScene && capture.videoExport && (
+              <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => closePanel('export')} threeDOnly />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

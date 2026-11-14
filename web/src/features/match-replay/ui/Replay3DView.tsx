@@ -51,7 +51,6 @@ import { useVariantLayer } from './useVariantLayer'
 
 const NEUTRAL = new THREE.Color(0.8, 0.8, 0.8)
 const MB = 1024 * 1024
-const CAMERAS: CameraMode3d[] = ['fp', 'tp', 'free']
 
 export interface Replay3DViewProps {
   meshPath: string
@@ -68,7 +67,7 @@ export interface Replay3DViewProps {
   locale: ReplayLocale
   width: number
   height: number
-  /** Vue réduite dans le coin : sans les commandes de caméra (le cadre du coin capte le pointeur). */
+  /** A reduced corner view: smaller loading and status text. */
   compact?: boolean
   /** Faux quand la 3D est éteinte : la vue reste montée (carte chargée) mais ne rend plus d'image. */
   active?: boolean
@@ -86,13 +85,16 @@ export interface Replay3DViewProps {
   soundListenerRef?: RefObject<SoundListener | null>
   /** The drawing view: the perspective 3D view (default) or the orthographic top-down. */
   view?: SceneView3d
+  /** The camera mode, chosen by the page's control bar (`cameraChoiceLogic`). In free view
+   *  `viewpoint` is the player followed last: the free camera starts behind him. */
+  cameraMode: CameraMode3d
   /** Called with each load state (download, decoding, assets, warm-up, ready, error), so a
    *  page can show the scene's real progress and know when it is ready. */
   onLoadState?: (load: LoadState) => void
 }
 
 export function Replay3DView({
-  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d',
+  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', cameraMode: mode,
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -109,7 +111,6 @@ export function Replay3DView({
     onLoadStateRef.current?.(load)
   }, [load])
   const [loadId, setLoadId] = useState(0)
-  const [mode, setMode] = useState<CameraMode3d>('fp')
   const [povStatus, setPovStatus] = useState<PovStatus>('none')
   // Le premier joueur publié : le suivi par défaut quand la page n'a pas de point de vue.
   const [fallbackPov, setFallbackPov] = useState<string | null>(null)
@@ -270,8 +271,8 @@ export function Replay3DView({
   }, [ready, view])
   // The top-down view follows the chosen viewpoint only: in free camera its cut follows the living players.
   useEffect(() => {
-    if (ready) sceneRef.current?.setTopFollowed(viewpoint ?? null)
-  }, [ready, viewpoint])
+    if (ready) sceneRef.current?.setTopFollowed(mode === 'free' ? null : viewpoint ?? null)
+  }, [ready, viewpoint, mode])
   // L'éclairage suit le tiroir (ombres, reflets, occlusion ambiante).
   const { look } = useReplay3dLook()
   useEffect(() => {
@@ -318,11 +319,11 @@ export function Replay3DView({
 
   const surface = useSurfaceProbe(sceneRef)
   const viewGrip = useViewGripTuner(sceneRef, ready && mode === 'fp')
-  const cameraLabel: Record<CameraMode3d, string> = { fp: t.cameraFirst, tp: t.cameraThird, free: t.cameraFree }
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} topDown={view === 'top'} />}
+      {/* The first-person HUD (reticle, shield, ammo) belongs to first person in 3D; every other view keeps the score strip only. */}
+      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} scoreOnly={view === 'top' || mode !== 'fp'} />}
       {surface.probe && (
         <button
           type="button"
@@ -344,32 +345,6 @@ export function Replay3DView({
         </div>
       )}
       {ready && active && <ReplayCadence3d etatRef={cadenceRef} profil={lireProfil} locale={locale} />}
-      {ready && !compact && view !== 'top' && (
-        <div
-          className="absolute left-3 top-14 flex gap-0.5 rounded-md border border-border bg-card/85 p-1"
-          role="group"
-          aria-label={t.cameraGroup}
-        >
-          {CAMERAS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
-              className={`rounded px-2 py-0.5 text-xs transition-colors ${
-                mode === m ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/60'
-              }`}
-            >
-              {cameraLabel[m]}
-            </button>
-          ))}
-        </div>
-      )}
-      {ready && !compact && mode === 'free' && (
-        <div className="pointer-events-none absolute left-3 top-24 max-w-[90%] rounded-md bg-card/75 px-2 py-0.5 text-[11px] text-muted-foreground">
-          {t.cameraFreeHint}
-        </div>
-      )}
     </div>
   )
 }
