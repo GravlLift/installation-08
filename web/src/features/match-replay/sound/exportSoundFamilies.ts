@@ -17,6 +17,7 @@ import {
 } from './endMatchSound'
 import type { ReplayLocale } from '../i18n/i18n'
 import { announcerStems } from './announcerSound'
+import type { AnnouncerVoice } from './announcerVoice'
 import { INTRO_MUSIC_STEM } from './introSound'
 import { seededRandom } from './replayAudioMix'
 
@@ -38,9 +39,9 @@ export function endMatchSoundsFor(spec: EndMatchSoundSpec | null): string[] {
  * hold whatever the draw, and an extra stem in the list costs nothing (nothing will
  * play it).
  *
- * THE ANNOUNCER'S CALLS ARE OF THE VOICE (`announcerStems`, today the round-end voice). They live
- * in the track, mixed in with the sound effects, and they are the only voice a mid-match excerpt
- * can contain.
+ * THE ANNOUNCER'S CALLS ARE OF THE VOICE (`announcerStems`: the bundled round-end voice and every
+ * line extracted from the game). They live in the track, mixed in with the sound effects, and
+ * they are the only voice a mid-match excerpt can contain.
  *
  * THE INTRO MUSIC IS OF THE MUSIC, even if the export does not play it (decision D-8): the
  * classification says what a stem is, not whether it sounds in the clip.
@@ -49,8 +50,10 @@ export function soundFamiliesFor(
   spec: EndMatchSoundSpec | null,
   /** Missing (old calls), the announcer is not in the track either. */
   locale: ReplayLocale | undefined,
+  /** The extracted announcer lines (`useAnnouncerTrack`); absent = the bundled ones only. */
+  announcer?: AnnouncerVoice,
 ): { voice: readonly string[]; music: readonly string[] } {
-  const voice: string[] = locale ? announcerStems(locale) : []
+  const voice: string[] = locale ? announcerStems(locale, announcer) : []
   const music: string[] = [INTRO_MUSIC_STEM]
   if (spec) {
     voice.push(...END_FFA_WIN_VOICE_STEMS[spec.locale])

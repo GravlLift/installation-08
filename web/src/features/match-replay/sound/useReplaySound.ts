@@ -46,11 +46,10 @@ import { soundUrlOf } from './replayAudioMix'
 
 import { persistPreference, readStoredFlag, readStoredNumber } from '../settings/replayPreferences'
 import { endMatchSoundsOf, endMatchSoundStems, type EndMatchSoundSpec } from './endMatchSound'
-import type { FeedMedal } from './announcerSound'
+import { useAnnouncerTrack, type AnnouncerContext } from './useAnnouncerTrack'
 import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
 import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
-import type { ReplayLocale } from '../i18n/i18n'
 import { ReplayAudioPlayer, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { distanceChain, drawVariation } from './weaponSoundLogic'
@@ -244,20 +243,13 @@ function useInstanceSoundTuning(playerRef: { current: ReplayAudioPlayer | null }
  * caller who would omit it would leave the zone ticks and the objective voice on another side
  * than that of the map, and the tests would stay green — required, the forget does not compile.
  */
-export interface ReplaySoundContext {
+export interface ReplaySoundContext extends AnnouncerContext {
   /** The allegiance read in the film, seen from the viewpoint (`model.allegiance`): the side
    * of the author of an objective action (`objectiveSideResolver`) and the allied side of the
    * zone sounds. Without allegiance, the actions that have two team variants stay MUTED — the
    * replay never guesses a side, same rule as the ink of the layers. */
   allegiance: FilmAllegiance
   endMatch: EndMatchSoundSpec | null
-  /** The LANGUAGE of the interface: it serves ONLY the announcer (`announcerSound.ts`), the only
-   * locale-aware entry of the track. Absent, the announcer stays silent. */
-  locale: ReplayLocale | undefined
-  /** The FOLLOWED player (point of view): only their own medal calls play. Changing it rebuilds the track. */
-  followed: string | null
-  /** The medals of the aligned feed (`medalsOfFeed`), on the replay axis. */
-  medals: readonly FeedMedal[]
 }
 
 export function useReplaySound(
@@ -267,7 +259,7 @@ export function useReplaySound(
   speed: number,
   context: ReplaySoundContext,
 ): ReplaySound {
-  const { allegiance, locale, followed, medals } = context
+  const { allegiance, locale } = context
   const listener = useRef<SoundListener | null>(null)
   const sideOfXuid = useMemo(() => objectiveSideResolver(allegiance), [allegiance])
   // The allied side AS A NUMBER: the zone state sounds join on the owner of a zone,
@@ -286,7 +278,7 @@ export function useReplaySound(
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
-  const announcer = useMemo(() => (locale ? { locale, followed, medals } : undefined), [locale, followed, medals])
+  const announcer = useAnnouncerTrack(context, on)
   const timeline = useMemo(
     () => buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, announcer),
     [doc, kills, categories, sideOfXuid, allyTeam, announcer],
@@ -545,12 +537,12 @@ export function useReplaySound(
       // drawn voice, plus the music. Confusing them made play the two takes at once.
       // The drawing is SEEDED so that two exports of the same match sound the same (decision D7).
       endMatchStems: endMatchSoundsFor(endMatchRef.current),
-      families: soundFamiliesFor(endMatchRef.current, locale),
+      families: soundFamiliesFor(endMatchRef.current, locale, announcer?.voice),
       engines: engine.plansForExport(),
       variationPercent: tuning.variationPercentRef.current,
       distancePercent: tuning.distancePercentRef.current,
     }),
-    [tuning, engine.plansForExport, locale],
+    [tuning, engine.plansForExport, locale, announcer],
   )
 
   // THE PAUSE CUTS THE ENGINES (20 ms ramp): without a beat, a loop in flight

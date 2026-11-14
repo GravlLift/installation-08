@@ -114,7 +114,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     [doc, viewpoint, inks],
   )
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
-  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: viewpoint, medals: replayContext.medals })
+  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: viewpoint, medals: replayContext.medals, match: replayContext.announcerMatch })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
   const exportCanvasRef = useRef<HTMLCanvasElement>(null)
   const exportLayout = useExportLayout()
