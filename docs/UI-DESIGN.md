@@ -132,8 +132,11 @@ Sparse on purpose: the 3D view fills the window.
   segment and the picker's "Free camera" entry are the same state. The player followed
   last stays the reference (the free camera starts behind him, team colors keep his side),
   and picking a player in free view follows him in the last follow mode.
-- What each camera draws: first person shows the arms rig and the full HUD (reticle,
-  shield, ammo, kill feed); third person, free view and 2D keep the score strip only.
+- What each camera draws (`model/hudLevel.ts`): first person shows the arms rig and the
+  whole HUD; third person keeps the followed player's whole HUD (weapon corner, grenades,
+  shield, kill feed, kill popups, score strip) without the aim (reticle, scope masks,
+  Bandit frame); free view follows no one and keeps the score strip and the kill feed; 2D
+  keeps the score strip alone (the kill feed would sit over the map's lower left).
 - When the bar does not fit (a narrow window), its groups wrap to a second row; a group
   never breaks inside.
 - Panels opened from the bar (settings, export) open one at a time on the right, between

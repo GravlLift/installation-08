@@ -16,18 +16,19 @@ import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
+import type { HudLevel } from '../model/hudLevel'
 
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
 /**
- * BandeauScore — the match score and clock, bottom center. The one strip of the HUD that the
- * views other than first person keep (`scoreOnly`); everything else is first-person equipment.
+ * BandeauScore — the match score and clock, bottom center: drawn at every HUD level (`hudLevel`),
+ * the 2D view's 'score' level keeps it alone.
  */
 function BandeauScore({ locale, frame, doc, playWindow, timeLimitMs, coteGauche, coteDroite }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; coteGauche: { camp: 'team-ally' | 'team-enemy'; score: number; part: number }; coteDroite: { camp: 'team-ally' | 'team-enemy'; score: number; part: number } }) {
   return <div role="group" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>
 }
 
-export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, scoreOnly = false }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; scoreOnly?: boolean }) {
+export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full' }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel }) {
   const [frame, setFrame] = useState(0)
   const [onEnemy, setOnEnemy] = useState(false)
   // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
@@ -38,12 +39,12 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     const lire = () => {
       const frame = frameRef.current ?? 0
       setFrame(frame)
-      setOnEnemy(sceneRef?.current?.redReticle(frame, source.allegeance, heldRef.current) ?? false)
+      setOnEnemy(hud === 'full' && (sceneRef?.current?.redReticle(frame, source.allegeance, heldRef.current) ?? false))
       raf = requestAnimationFrame(lire)
     }
     raf = requestAnimationFrame(lire)
     return () => cancelAnimationFrame(raf)
-  }, [frameRef, sceneRef, source])
+  }, [frameRef, sceneRef, source, hud])
   const ath = lireAth(source, frame, locale)
   const fil = lireFilAth(source, frame)
   const popups = lirePopupsAth(source, frame)
@@ -71,14 +72,18 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
   const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
   const bandeau = score && coteGauche && coteDroite ? <BandeauScore locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} coteGauche={coteGauche} coteDroite={coteDroite} /> : null
-  if (scoreOnly) return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{bandeau}</div>
+  // The levels (`hudLevel`): 2D keeps the score strip, free view adds the kill feed, third person
+  // is the full HUD without the aim (reticle, scope masks, Bandit frame), first person is all of it.
+  if (hud === 'score') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{bandeau}</div>
+  if (hud === 'spectator') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}><ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />{bandeau}</div>
+  const aim = hud === 'full'
   return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {bandeau}
     {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
     {ath && ath.bouclier !== null && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(50cqh, 90%)', transform: 'translateX(-50%)', height: '3.2%', minHeight: 8, border: `1px solid ${ath.bouclier <= 0 ? tokenCssVar('destructive') : 'currentColor'}`, clipPath: 'polygon(2% 0, 98% 0, 100% 100%, 0 100%)' }}><div style={{ position: 'absolute', inset: 0, width: `${Math.max(0, Math.min(1, ath.bouclier)) * 100}%`, background: tokenCssVar('info'), opacity: 0.85 }} /></div>}
-    {ath && spec.kind === 'bandit' && zoom.amount > 0.5 && <ReplayAthBandit3d amount={zoom.amount} label={SCENE3D_TEXT[locale].banditZoom} />}
-    {ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} reticleColor={reticleColor} /> : (
+    {aim && ath && spec.kind === 'bandit' && zoom.amount > 0.5 && <ReplayAthBandit3d amount={zoom.amount} label={SCENE3D_TEXT[locale].banditZoom} />}
+    {aim && ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} reticleColor={reticleColor} /> : (
       <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
         {['cercle', 'precision', 'large', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r={ath.forme === 'large' ? 32 : ath.forme === 'precision' ? 15 : 25} />}
         {['precision', 'pistolet', 'point', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r="1.7" fill="currentColor" stroke="none" />}

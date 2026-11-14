@@ -22,6 +22,7 @@ import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanA
 import { registerReplay3DExport } from '../export/replay3dExportStore'
 import { nouvelleCadence, noterImage, noterTravail } from '../model/cadenceImages_logic'
 import { fractionChargement3d, type LoadState } from '../model/chargement3d_logic'
+import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import type { Action3dInputs, PageAction3dInputs } from '../scene3d/action3dInputs'
@@ -322,8 +323,8 @@ export function Replay3DView({
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
-      {/* The first-person HUD (reticle, shield, ammo) belongs to first person in 3D; every other view keeps the score strip only. */}
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} scoreOnly={view === 'top' || mode !== 'fp'} />}
+      {/* How much of the HUD each view draws: `hudLevelOf` (first person all, third person no aim, free view score and feed, 2D score). */}
+      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} />}
       {surface.probe && (
         <button
           type="button"
