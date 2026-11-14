@@ -62,10 +62,11 @@ const staleSuffix = ".stale"
 // first-person, spartan-pieces): the index is present and its recorded Ekur stamp matches
 // the current export (or the current export is absent, which never downgrades a library).
 // A library without a recorded stamp (built before stamps existed) is ready only when no
-// export is available: an export that appears later rebuilds it.
+// export is available: an export that appears later rebuilds it. An index missing a field the
+// view reads (libraryIndexCurrent) is never ready.
 func coatingLibraryReady(dataDir, module string) bool {
 	stamp, ok := recordedEkurStamp(dataDir, module)
-	if !ok {
+	if !ok || !libraryIndexCurrent(dataDir, module) {
 		return false
 	}
 	cur, ok := currentEkurStamp(dataDir)
@@ -130,6 +131,18 @@ func recordedEkurStamp(dataDir, module string) (string, bool) {
 		return "", false
 	}
 	return idx.EkurStamp, true
+}
+
+// libraryIndexCurrent says whether a coating library's index carries every field the view reads
+// from it: the weapon library's index must carry its red-reticle ranges
+// (weapons.IndexHasReticleRanges), so a library built before them is stale and its rebuild, in
+// place, adds them. The other libraries have no such field.
+func libraryIndexCurrent(dataDir, module string) bool {
+	if module != meshjobs.JobWeapons {
+		return true
+	}
+	raw, err := os.ReadFile(filepath.Join(dataDir, "weapons", "index.json"))
+	return err == nil && weapons.IndexHasReticleRanges(raw)
 }
 
 // coatingLibraryFolder is the data-directory folder of a coating library module key, and

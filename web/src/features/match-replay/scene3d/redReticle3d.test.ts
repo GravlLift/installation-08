@@ -30,10 +30,15 @@ describe('red reticle', () => {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2, 2), new THREE.MeshBasicMaterial())
     wall.position.x = 2
     wall.updateMatrixWorld()
-    const opts = { tracks, frame: 0, xuid: 'self', camera, drop: 0, allegiance: { ofXuid: () => false }, surfaces: [] as THREE.Mesh[], raycaster: new THREE.Raycaster(), riderAt: () => null }
+    const opts = { tracks, frame: 0, xuid: 'self', camera, drop: 0, allegiance: { ofXuid: () => false }, surfaces: [] as THREE.Mesh[], raycaster: new THREE.Raycaster(), riderAt: () => null, range: 10 as number | null }
     expect(readRedReticle(opts)).toBe(true)
     expect(readRedReticle({ ...opts, surfaces: [wall] })).toBe(false)
     const dead = { ...tracks, sample: (id: string) => id === 'self' ? state(0) : null }
     expect(readRedReticle({ ...opts, tracks: dead })).toBe(false)
+    // Two weapons, same enemy 5 wu away: the shorter range stays white, the longer turns red.
+    expect(readRedReticle({ ...opts, range: 2.5 })).toBe(false)
+    expect(readRedReticle({ ...opts, range: 18 })).toBe(true)
+    // A weapon without a range is never red, even point-blank.
+    expect(readRedReticle({ ...opts, range: null })).toBe(false)
   })
 })

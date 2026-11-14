@@ -24,6 +24,7 @@
   /* Team ink: a single accessible palette, not the game's official per-team_id colors. */
   --team-ally: #22c55e;
   --team-enemy: #ef4444;
+  --reticle-hostile: #ef4444;
 
   /* 3D HUD (Replay3DView / ReplayAth3d / ReplayCadence3d): readable over any map. */
   /* LevelUp's HUD values: the game's light-blue HUD ink. */

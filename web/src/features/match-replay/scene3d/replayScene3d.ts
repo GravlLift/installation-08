@@ -56,7 +56,7 @@ import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
-import { readRedReticle } from './redReticle3d'
+import { readRedReticle, type HeldWeapon } from './redReticle3d'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
 /** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
@@ -354,8 +354,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   beginExport(setup: Export3dSetup): void { this.exportScene.beginExport(setup) }
-  redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>): boolean {
-    return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null })
+  redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean {
+    return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null, range: held ? this.weaponModels?.reticleRange(held.weaponId, held.zoomLevel) ?? null : null })
   }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }

@@ -18,7 +18,8 @@ import (
 )
 
 // writeCoatingIndexWithCoatings writes a spartan-pieces or weapons index.json with the
-// given stamp and materials_missing count (the two libraries that carry a coatings section).
+// given stamp and materials_missing count (the two libraries that carry a coatings section),
+// and the weapon library's reticle_ranges field (current index).
 func writeCoatingIndexWithCoatings(t *testing.T, dataDir, module, stamp string, missing int) {
 	t.Helper()
 	folder, ok := coatingLibraryFolder(module)
@@ -29,7 +30,7 @@ func writeCoatingIndexWithCoatings(t *testing.T, dataDir, module, stamp string, 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"ekur_stamp":"` + stamp + `","coatings":{"materials_missing":` + strconv.Itoa(missing) + `}}`
+	body := `{"ekur_stamp":"` + stamp + `","coatings":{"materials_missing":` + strconv.Itoa(missing) + `},"reticle_ranges":{}}`
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +111,29 @@ func TestCoatingStatusInvalid(t *testing.T) {
 	w, _ := out.Libraries["weapons"]
 	if !w.Built {
 		t.Fatal("weapons library not reported built")
+	}
+}
+
+// TestWeaponLibraryStaleWithoutReticleRanges — a weapon library index built before the
+// red-reticle ranges existed is stale even with no export (status route and readiness), so the
+// normal build job rebuilds it; the same index with the field is current.
+func TestWeaponLibraryStaleWithoutReticleRanges(t *testing.T) {
+	t.Setenv(spartanpieces.EkurEnv, "")
+	h := newTestHandlers(newFakeStore(t), nil)
+	data := h.root.Dir()
+	writeCoatingLibraryIndex(t, data, meshjobs.JobWeapons, "00000000")
+	if w := getCoatingStatus(t, h).Libraries["weapons"]; !w.Built || !w.Stale {
+		t.Fatalf("weapons without reticle_ranges = %+v (want built and stale)", w)
+	}
+	if coatingLibraryReady(data, meshjobs.JobWeapons) {
+		t.Fatal("weapons without reticle_ranges: library ready")
+	}
+	writeCoatingIndexWithCoatings(t, data, meshjobs.JobWeapons, "00000000", 0)
+	if w := getCoatingStatus(t, h).Libraries["weapons"]; !w.Built || w.Stale {
+		t.Fatalf("weapons with reticle_ranges = %+v (want built, not stale)", w)
+	}
+	if !coatingLibraryReady(data, meshjobs.JobWeapons) {
+		t.Fatal("weapons with reticle_ranges, no export: library not ready")
 	}
 }
 

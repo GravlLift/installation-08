@@ -29,6 +29,13 @@ GLBs and, when an Ekur reference is found, writes beside them:
 `index.json` carries the coatings section. Without an Ekur reference the build warns
 ("weapon library without coatings: no ekur reference") and the weapons keep their neutral paint.
 
+`index.json` also carries `reticle_ranges` (`internal/weapons/reticle.go`): per weapon key, the
+red-reticle range read from the weapon's `weap` tag (`weaponicons.ReadAimAssist`), in world
+units: `unscoped` (the autoaim range) and `zoomed` (one entry per zoom level the tag declares,
+the autoaim range times that level's magnification). A weapon whose tag has no autoaim range is
+absent and its reticle never turns red. An index without the field is stale: the library is
+reported stale by `/api/coatings/status` and rebuilt in place by the normal build job.
+
 ## Route
 
 - `GET /api/weapons/...` (`serve_weapons.go`) serves the weapon library: model GLBs, `index.json`,
