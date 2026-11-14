@@ -52,7 +52,7 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   // Un lien intelligent garde le réticule, réduit de 30 % avec l'amplissée du zoom.
   const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
-  const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('team-enemy') : undefined
+  const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
   return <div className="pointer-events-none absolute inset-0" style={{ color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }}>
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {score && coteGauche && coteDroite && <div role="group" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>}
