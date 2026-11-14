@@ -143,9 +143,38 @@
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 .bc-signin-link { display: inline-block; margin-top: 12px; font-size: 12px; color: var(--air); text-decoration: underline; word-break: break-all; }
 
-/* Reduced motion: the drift, the cross-fade and the page wipe stop. */
+/* Pre-game: the match's map sharp as the backdrop, the rosters against each other, one
+ * progress line, and the 3-2-1 countdown (brief 125). */
+.bc-pregame { display: grid; place-items: center; height: 100%; }
+.bc-pregame-panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.bc-pregame .bc-title { font-size: clamp(40px, 5vw, 72px); }
+.bc-versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; margin: 8px 0; }
+.bc-versus .bc-side { text-align: left; }
+.bc-versus .bc-side h4 { margin: 0 0 4px; font-family: var(--display); font-size: 11px; letter-spacing: 0.24em;
+  text-transform: uppercase; font-weight: 600; }
+.bc-versus .bc-ally h4 { color: var(--team-ally); }
+.bc-versus .bc-enemy h4 { color: var(--team-enemy); }
+.bc-versus .bc-side div { padding: 2px 0; font-size: 13px; color: var(--ink-dim); border-bottom: 1px solid rgba(255,255,255,0.05); }
+.bc-versus .bc-vs { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 44px;
+  letter-spacing: 0.08em; color: var(--ink-faint); line-height: 1; padding-top: 4px; }
+.bc-progress { width: 100%; max-width: 420px; margin-top: 4px; }
+.bc-progress .bc-bar { height: 3px; background: var(--studio-700); overflow: hidden; }
+.bc-progress .bc-bar i { display: block; height: 100%; background: var(--air); transition: width 300ms ease; }
+.bc-progress .bc-bar i.indeterminate { width: 40%; animation: bc-progress-slide 1.4s ease-in-out infinite; }
+@keyframes bc-progress-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+.bc-progress .bc-step { margin-top: 6px; font-family: var(--display); font-size: 12px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--ink-dim); }
+.bc-count { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 150px; line-height: 1;
+  color: var(--air-hot); animation: bc-count-tick 900ms ease-out; }
+@keyframes bc-count-tick { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.bc-pregame-actions { display: flex; gap: 12px; margin-top: 8px; }
+.bc-pregame-error { color: var(--loss); font-size: 14px; max-width: 480px; margin: 8px 0 0; }
+
+/* Reduced motion: the drift, the cross-fade, the page wipe and the count scale stop. */
 @media (prefers-reduced-motion: reduce) {
   .bc-backdrop .bc-layer, .bc-view { animation: none; }
+  .bc-count { animation: none; }
+  .bc-progress .bc-bar i.indeterminate { animation: none; width: 100%; }
 }
 
 .bc-menu { margin-top: 14px; }
