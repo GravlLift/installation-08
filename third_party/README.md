@@ -101,6 +101,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     `EXT_mesh_gpu_instancing`. `couches_noms.go` and `decoupe.go` (modified) give the clump
     shaders (`bd7bb1c4`, `d313108e`) a gradient surface and an alpha cutout; that form applies
     only when the shader declares its gradient colors. Covered by `himap/decorateurs_test.go` (new).
+  - `himap/couches.go`, `himap/couches_noms.go`, `himap/glb_couches.go` (LOCAL-CHANGE): a level
+    shader may skip a template layer (Live Fire's boulder shader `804d3276` declares layers 1, 2
+    and 4). Each layer keeps its template rank (`Couche.Rang`), and the GLB writes it as `rang`
+    when it differs from the layer's position, so a reader takes the macro mask channel and the
+    height blend index of the template layer. Before this, layer 4 read layer 3's mask channel
+    (empty on those boulders) and the dirt never showed. Covered by
+    `himap/couches_rang_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

@@ -151,6 +151,7 @@ func couchesDeNiveau(params ParametresShader, pp postprocessLu) *Couches {
 	}
 	for i, n := range nomsCouches {
 		if k, ok := n.lit(params, pp, c, i == 0, false); ok {
+			k.Rang = i // LOCAL-CHANGE (infinite-theater-3d): see Couche.Rang
 			k.Hauteur = litHauteur(nomsHauteur[i], params, c, i == 0)
 			if k.Sorte == CoucheDegrade {
 				k.Matiere = litMatiere(nomsMatiere[i], params, c)

@@ -70,6 +70,11 @@ type Couche struct {
 	// Controle : carte dont le vert porte l'occlusion (0 : aucune, occlusion 1).
 	Controle        uint32
 	TransfoControle Transfo
+	// Rang (LOCAL-CHANGE (infinite-theater-3d)): the layer's number in the level template, minus
+	// one (0..3). A shader may skip a template layer (Live Fire's boulders declare layers 1, 2
+	// and 4); the macro mask channel and the height blend index follow the template number, not
+	// the position in Couches. 0 for forms outside the template.
+	Rang int
 }
 
 // Couches : le masque macro (0 : absent, la premiere couche couvre tout) et les couches dans
