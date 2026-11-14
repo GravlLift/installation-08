@@ -346,7 +346,7 @@ export function Replay3DView({
       {ready && active && <ReplayCadence3d etatRef={cadenceRef} profil={lireProfil} locale={locale} />}
       {ready && !compact && view !== 'top' && (
         <div
-          className="absolute left-3 top-3 flex gap-0.5 rounded-md border border-border bg-card/85 p-1"
+          className="absolute left-3 top-14 flex gap-0.5 rounded-md border border-border bg-card/85 p-1"
           role="group"
           aria-label={t.cameraGroup}
         >
@@ -366,7 +366,7 @@ export function Replay3DView({
         </div>
       )}
       {ready && !compact && mode === 'free' && (
-        <div className="pointer-events-none absolute left-3 top-12 max-w-[90%] rounded-md bg-card/75 px-2 py-0.5 text-[11px] text-muted-foreground">
+        <div className="pointer-events-none absolute left-3 top-24 max-w-[90%] rounded-md bg-card/75 px-2 py-0.5 text-[11px] text-muted-foreground">
           {t.cameraFreeHint}
         </div>
       )}
