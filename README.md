@@ -108,11 +108,12 @@ see [NOTICE.md](NOTICE.md).
 ## serve
 
 ```powershell
-.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>] [--map <module-key>]
+.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>] [--map <module-key>] [--read-only]
 ```
 
 - `--addr` is the listen address (loopback by default, `127.0.0.1:8177`).
 - `--web` is a directory of static files to serve for non-API paths (the built web app).
+- `--read-only` refuses every state-changing request (403): for a server shown to others through a tunnel, so a viewer cannot start a sign-in, a fetch or a build.
 - `--data`, `--game` and `--map` are as above.
 
 Routes (all under `/api` unless noted; state-changing routes accept loopback origins only):

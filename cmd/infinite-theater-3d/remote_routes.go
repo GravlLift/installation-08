@@ -33,6 +33,11 @@ type remoteJobs struct {
 }
 
 func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
+	if h.readOnly {
+		// A shared server answers as if signed out, so it never reaches the owner's account.
+		writeJSON(w, 401, map[string]string{"error": "sign in required"})
+		return
+	}
 	count := 10
 	if s := r.URL.Query().Get("count"); s != "" {
 		n, err := strconv.Atoi(s)
@@ -167,6 +172,14 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
 	}, fetch: fetchMatch}, listCache: newMatchlistCache()}
+	h.mux = h.buildMux()
+	return h
+}
+
+// buildMux builds the API route mux with every route bound to h. The handlers it registers
+// see h's own fields, so a mux built from a handler with readOnly set serves the read-only
+// answers: the read-only mode re-builds one from its wrapped handler (see readOnlyHandler).
+func (h serverHandlers) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/auth/state", h.authStateRoute)
 	mux.HandleFunc("POST /api/auth/login", h.runLoginRoute)
@@ -203,6 +216,5 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/hud/{file}", h.handleHudIconFile)
 	mux.HandleFunc("GET /static/ranks/halo_infinite/{file}", h.handleRankIconFile)
 	mux.HandleFunc("GET /static/sounds/halo_infinite/{file}", h.handleSoundFile)
-	h.mux = mux
-	return h
+	return mux
 }
