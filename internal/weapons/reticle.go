@@ -43,10 +43,14 @@ func reticleRangeOf(a weaponicons.AimAssist) (ReticleRange, bool) {
 	if a.AutoaimRange <= 0 {
 		return ReticleRange{}, false
 	}
+	var mags []float64
+	for _, mag := range a.Magnifications {
+		mags = append(mags, roundRange(mag))
+	}
 	r := ReticleRange{
 		Unscoped:       roundRange(a.AutoaimRange),
 		Zoomed:         []float64{},
-		Magnifications: append([]float64(nil), a.Magnifications...),
+		Magnifications: mags,
 	}
 	for _, mag := range a.Magnifications {
 		z := a.AutoaimRange

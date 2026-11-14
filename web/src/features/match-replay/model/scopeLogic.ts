@@ -163,11 +163,44 @@ function magCran(mags: number[], level: number): number {
 const sansAmplification = new Set<string>()
 
 /**
- * magsPourArme resolves the held weapon's magnifications from the index `mags`, or null when it
- * has none for the weapon (yet): a weapon the table knows but the index has no magnification for
- * does not zoom. The missing case is warned once per weapon key, the project's missing-data log.
+ * THE HAND FALLBACK OF THE MAGNIFICATION, by MODEL KEY. These weapons' tags declare a zoom level
+ * whose `magnification range` is [1, 1] (the tag carries no value above 1 the library reads), yet
+ * they zoom in game — the Shock Rifle has a real scope, the Bandits a light zoom. The index
+ * therefore gives them no usable magnification, and without this they would stop zooming. We keep
+ * them zooming with the value the hand table used before the magnification moved into the weapon
+ * index. It is a FALLBACK ONLY: it applies exactly to these keys, and only when the index's mags
+ * give nothing above 1. A weapon the tags do answer (a range above 1) never reaches it.
+ */
+const AMPLIFICATION_MANUELLE: Readonly<Record<string, readonly number[]>> = {
+  // Shock Rifle: the hand table's two-stage scope.
+  '1a22fee6': [2.5, 5],
+  // Both Bandits: the hand table's light zoom.
+  '6acdc44d': [1.6],
+  '2fb21c87': [1.6],
+}
+
+/**
+ * aManuels returns the hand fallback for the key, or null when the index's `mags` do answer a
+ * magnification above 1 (or the key has no fallback): the index's mags win whenever they carry a
+ * real zoom.
+ */
+function aManuels(cle: string | null | undefined, mags: number[] | null): number[] | null {
+  if (!cle) return null
+  const manuelle = AMPLIFICATION_MANUELLE[cle]
+  if (!manuelle) return null
+  if (mags && mags.some((m) => m > 1)) return null
+  return [...manuelle]
+}
+
+/**
+ * magsPourArme resolves the held weapon's magnifications: the index `mags` when they carry a zoom
+ * above 1, else the named hand fallback for the weapon, else null when the index has none (yet):
+ * a weapon the table knows but the index has no magnification for does not zoom. The missing case
+ * is warned once per weapon key, the project's missing-data log.
  */
 export function magsPourArme(cle: string | null | undefined, mags: number[] | null): number[] | null {
+  const manuelle = aManuels(cle, mags)
+  if (manuelle) return manuelle
   if (mags && mags.length > 0) return mags
   if (cle && !sansAmplification.has(cle)) {
     sansAmplification.add(cle)

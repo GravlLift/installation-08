@@ -24,6 +24,12 @@ func TestReticleRangeOf(t *testing.T) {
 	if !ok || r.Unscoped != 0.85 || r.Zoomed == nil || len(r.Zoomed) != 0 || r.Magnifications != nil || len(r.Magnifications) != 0 {
 		t.Fatalf("no zoom: %+v, %v (want 0.85 rounded and empty zoom and magnification lists)", r, ok)
 	}
+	// A float32 magnification carries digits past the tag's precision; the index rounds it the way
+	// it rounds a range, so a tag that holds 1.8 does not come out 1.7999999523162842.
+	r, ok = reticleRangeOf(weaponicons.AimAssist{AutoaimRange: 10, Magnifications: []float64{1.7999999523162842}, ScalesWithZoom: true})
+	if !ok || len(r.Magnifications) != 1 || r.Magnifications[0] != 1.8 {
+		t.Fatalf("float-noise magnification: %+v, %v (want 1.8)", r, ok)
+	}
 	if _, ok := reticleRangeOf(weaponicons.AimAssist{ScalesWithZoom: true, Magnifications: []float64{2}}); ok {
 		t.Fatal("no autoaim range: want no entry")
 	}

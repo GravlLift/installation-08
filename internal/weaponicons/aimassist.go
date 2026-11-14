@@ -210,6 +210,15 @@ func readAimFields(tag []byte, at func(string, int) (int, error)) (AimAssist, er
 // magnification range, two levels to its two ends. More levels are refused: how the game spreads
 // them over the range is not established from the installed data (no weapon declares more than
 // two).
+//
+// EVIDENCE (installed chasm, every weapon with a zoom level, read from the tag's own
+// `magnification range`): for EVERY one-level weapon the low and high ends are equal (lo == hi)
+// — the Shock Rifle and both Bandits read [1, 1], the BR75 [2, 2], the Commando [1.5, 1.5], the
+// S7 [4, 4]. So "one level zooms to the low end" and "to the high end" are the same read; the
+// low-end rule is confirmed, not a coincidence. A one-level weapon whose range is [1, 1]
+// genuinely declares no magnification above 1 in the tag (the Shock Rifle's real scope and the
+// Bandits' light zoom come from a field this library does not read), so the view restores a named
+// hand fallback for exactly those keys — see the web scope table, not here.
 func zoomMagnifications(levels int, lo, hi float64) ([]float64, error) {
 	switch {
 	case levels == 0:
