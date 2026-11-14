@@ -1,44 +1,48 @@
 /**
- * placementWall.ts — LE MUR DE PROTECTION : sa géométrie, son tracé, et SUR QUELLE POSE il se
- * dessine.
+ * placementWall.ts — THE PROTECTION WALL: its geometry, its tracing, and ON WHICH PLACEMENT it
+ * draws.
  *
- * DEUX RÈGLES DISTINCTES, ET C'EST POUR LES TENIR ENSEMBLE QUE LE MUR A SON FICHIER. La
- * première est de forme : un arc, orienté par le regard du poseur. La seconde est d'IDENTITÉ :
- * un mur déployé produit DEUX poses, et l'arc n'en concerne qu'une (cf. WALL_PANEL_IDS).
+ * TWO DISTINCT RULES, AND THAT IS WHY THE WALL HAS ITS FILE to hold them together. The first
+ * is of shape: an arc, oriented by the regard of the planter. The second is of IDENTITY: a
+ * deployed wall produces TWO placements, and the arc concerns only one of them (cf.
+ * WALL_PANEL_IDS).
  *
- * CE QUE LE MUR AFFIRME, ET CE QU'IL N'AFFIRME PAS. Le record de création ne porte AUCUNE
- * orientation d'objet (mesure du 18/08). `h` est le cap où le POSEUR REGARDAIT au moment de la
- * pose ; l'arc est donc orienté par le geste, pas par l'objet.
+ * WHAT THE WALL ASSERTS, AND WHAT IT DOES NOT ASSERT. The creation record carries NO object
+ * orientation (measurement of 18/08). `h` is the cap where the PLANTER WAS LOOKING at the
+ * moment of the placement; the arc is therefore oriented by the gesture, not by the object.
  *
- * TROIS SOURCES DE CAP, DANS CET ORDRE, ET AUCUNE N'EST INVENTÉE (V3, retour utilisateur du
- * 2026-08-18 : « sans cap je préférerais qu'on tente de corréler la visée ou la trajectoire du
- * joueur, un mur portatif rond serait trop troublant »). Mesure sur le corpus en cache — 32
- * films, 62 panneaux de mur :
+ * THREE SOURCES OF CAP, IN THIS ORDER, AND NONE IS INVENTED (V3, user return of 2026-08-18:
+ * "sans cap je préférerais qu'on tente de corréler la visée ou la trajectoire du joueur, un
+ * mur portatif rond serait trop troublant" (without a cap I would rather we try to correlate
+ * the aim or the trajectory of the player, a round portable wall would be too disturbing)).
+ * Measurement on the cached corpus — 32 films, 62 wall panels:
  *
- *   1. `placement` — le cap `h` de la POSE elle-même : 54 panneaux sur 62 (87,1 %) ;
- *   2. `trajectory` — la DERNIÈRE DIRECTION DE DÉPLACEMENT du poseur avant la pose, prise sur
- *      le dernier segment d'au moins 0,5 m : les 8 panneaux restants (12,9 %), TOUS résolus
- *      (déplacement maximal mesuré de 0,50 à 0,74 m — le seuil tombe juste, et c'est pour cela
- *      qu'il est bas) ;
- *   3. `aim` — la visée `h` de la dernière image de la vie du poseur qui en porte une : 0 cas
- *      sur 62 en pratique, mais disponible dans les 8 (âge 2 à 10 images). C'est le repli du
- *      repli, et il tient parce que les deux directions concordent souvent — écart médian de
- *      19,8° sur ces 8 cas, 5 sous 20°, 3 au-delà (43,5°, 83,8°, 103,8°).
+ *   1. `placement` — the cap `h` of the PLACEMENT itself: 54 panels out of 62 (87.1%);
+ *   2. `trajectory` — the LAST DISPLACEMENT DIRECTION of the planter before the placement,
+ *      taken on the last segment of at least 0.5 m: the 8 remaining panels (12.9%), ALL
+ *      resolved (measured maximum displacement from 0.50 to 0.74 m — the threshold falls
+ *      just right, and that is why it is low);
+ *   3. `aim` — the aim `h` of the last frame of the life of the planter that carries one: 0
+ *      cases out of 62 in practice, but available in the 8 (age 2 to 10 frames). It is the
+ *      fallback of the fallback, and it holds because the two directions often agree —
+ *      median spread of 19.8° on these 8 cases, 5 under 20°, 3 beyond (43.5°, 83.8°, 103.8°).
  *
- * LE CERCLE POINTILLÉ NE DISPARAÎT PAS DU CODE, MAIS IL DISPARAÎT DE L'ÉCRAN : il ne reste que
- * pour une pose dont le POSEUR N'A AUCUNE PISTE — 0 panneau sur 62 dans le corpus, alors que
- * 154 poses sur 2 563 (6,0 %, toutes familles confondues) ont bien un poseur sans piste. Ce
- * n'est donc pas une branche morte, c'est le cas qu'aucun film n'a encore produit POUR UN MUR.
+ * THE DOTTED CIRCLE DOES NOT DISAPPEAR FROM THE CODE, BUT IT DISAPPEARS FROM THE SCREEN: it
+ * remains only for a placement whose PLANTER HAS NO TRACK — 0 panel out of 62 in the corpus,
+ * whereas 154 placements out of 2,563 (6.0%, all families combined) do have a planter
+ * without track. It is therefore not a dead branch, it is the case that no film has yet
+ * produced FOR A WALL.
  *
- * UN CAP DÉDUIT SE VOIT : l'arc est POINTILLÉ quand il vient de la trajectoire ou de la visée,
- * franc quand il vient de la pose. Même grammaire que partout dans ce calque (UNCERTAIN_DASH) —
- * un trait plein dit une valeur qu'on tient de sa source.
+ * A DEDUCED CAP IS SEEN: the arc is DOTTED when it comes from the trajectory or the aim,
+ * sharp when it comes from the placement. Same grammar as everywhere in this layer
+ * (UNCERTAIN_DASH) — a full stroke says a value we hold from its source.
  *
- * POURQUOI UN ARC ET PAS UN RECTANGLE (décision utilisateur du 18/08) : « cet équipement laisse
- * passer les dégâts dans un sens et pas dans l'autre ». La concavité regarde le poseur — ses
- * tirs sortent par l'intérieur, ceux d'en face butent sur la face convexe. Le milieu de l'arc
- * est donc DEVANT la position, dans la direction du cap (on pose le mur devant soi), et l'arc
- * s'ouvre vers l'arrière.
+ * WHY AN ARC AND NOT A RECTANGLE (user decision of 18/08): "cet équipement laisse passer les
+ * dégâts dans un sens et pas dans l'autre" (this equipment lets damage through in one
+ * direction and not in the other). The concavity looks at the planter — their shots come
+ * out through the inside, those of the opponent stop against the convex face. The middle of
+ * the arc is therefore IN FRONT of the position, in the direction of the cap (one places the
+ * wall in front of oneself), and the arc opens toward the back.
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
@@ -54,96 +58,106 @@ import type { XY } from '../../../lib/replay/replayLogic'
 import type { ReplayTrackReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * LES PANNEAUX DU MUR — les deux identifiants sur lesquels l'arc se dessine.
+ * THE PANELS OF THE WALL — the two identifiers on which the arc draws.
  *
- * PROVENANCE : le manifeste du titre (`config/titles/halo_infinite/mappings/replay_labels.toml`,
- * `[[equipment_objects]]`) leur donne `kind = "deployed"` et la provenance `sofa_parent` — ils
- * sont ENGENDRÉS par l'appareil, ils ne sont pas portés. Le web ne reçoit que `family` et `id`,
- * d'où cette table côté client ; le garde-rail `placementPanels.guard.test.ts` la rejoue contre
- * le TOML, dans les deux sens, pour qu'un troisième panneau au manifeste devienne rouge ici.
+ * PROVENANCE: the title manifest
+ * (`config/titles/halo_infinite/mappings/replay_labels.toml`, `[[equipment_objects]]`) gives
+ * them `kind = "deployed"` and the provenance `sofa_parent` — they are GENERATED by the
+ * device, they are not carried. The web only receives `family` and `id`, hence this table on
+ * the client side; the guard `placementPanels.guard.test.ts` replays it against the TOML, in
+ * both directions, so that a third panel in the manifest turns red here.
  *
- * POURQUOI L'ARC N'EST PAS SUR L'APPAREIL. Un mur déployé produit DEUX poses `deployed` :
- * l'appareil qui vole ET ses panneaux. Les dessiner toutes deux ferait deux arcs pour un seul
- * mur. Et la mesure désigne les panneaux sans ambiguïté — 97,9 % et 97,7 % de déploiements,
- * contre 29,4 % et 13,0 % pour les deux appareils : 97,7 % d'un côté, 29,4 % de l'autre, et
- * rien entre les deux. Un appareil de mur à la position d'un joueur est, 87 fois sur 100,
- * l'objet qu'il tenait en mourant.
+ * WHY THE ARC IS NOT ON THE DEVICE. A deployed wall produces TWO `deployed` placements: the
+ * device that flies AND its panels. Drawing both would make two arcs for one wall. And the
+ * measurement designates the panels without ambiguity — 97.9% and 97.7% of deployments,
+ * against 29.4% and 13.0% for the two devices: 97.7% on one side, 29.4% on the other, and
+ * nothing in between. A wall device at the position of a player is, 87 times out of 100,
+ * the object they were holding when dying.
  */
 export const WALL_PANEL_IDS: readonly string[] = ['0x528fce46', '0x686b40c9']
 
 /**
- * Rayon du MUR, en mètres monde. 1,6 m avec une ouverture de 110° donne une corde de 2,6 m —
- * l'ordre de grandeur du mur du jeu. C'est un choix d'ÉCRAN calibré sur la carte, pas une
- * mesure : le film ne porte ni les dimensions de l'objet ni son orientation.
+ * Radius of the WALL, in world meters. 1.6 m with an opening of 110° gives a chord of 2.6 m
+ * — the order of magnitude of the wall of the game. It is a SCREEN choice calibrated on the
+ * map, not a measurement: the film carries neither the dimensions of the object nor its
+ * orientation.
  */
 export const WALL_RADIUS_M = 1.6
 
-/** Ouverture de l'arc, en radians (110°). */
+/** Opening of the arc, in radians (110°). */
 export const WALL_OPENING_RAD = (110 * Math.PI) / 180
 
 /**
- * DURÉE DE REPLI DU MUR, en millisecondes : 12,48 s, la MÉDIANE MESURÉE de sa barrière dans le film.
+ * FOLD DURATION OF THE WALL, in milliseconds: 12.48 s, the MEASURED MEDIAN of its barrier in
+ * the film.
  *
- * LE FILM DATE LA FIN DU MUR (schéma 106, `equipmentPlacements[].lifeEnd`) : le panneau est une vie que la
- * pile de l'objet porté nomme, et sa suppression est écrite ; la fenêtre s'arrête à cette fin quand elle est lue
- * (`placementEndFrame`). Cette constante ne sert plus qu'aux poses SANS fin lue (artefact antérieur au schéma
- * 106, pose sans lien, suppression non lue). Elle n'est plus « une dizaine de secondes » (Halo Waypoint, Sandbox
- * Overview Season 4) : la barrière dure 12 395 à 12 545 ms sur cinq films de 2025-11 à 2026-07 (médiane 12 480 ms),
- * et 16,7 s sur un film à durées longues. La médiane est le meilleur chiffre sans lecture.
+ * THE FILM DATES THE END OF THE WALL (schema 106, `equipmentPlacements[].lifeEnd`): the
+ * panel is a life the carried object stack names, and its removal is written; the window
+ * stops at this end when it is read (`placementEndFrame`). This constant now serves only
+ * placements WITHOUT read end (artifact earlier than schema 106, placement without link,
+ * non-read removal). It is no longer "a dozen seconds" (Halo Waypoint, Sandbox Overview
+ * Season 4): the barrier lasts 12,395 to 12,545 ms on five films from 2025-11 to 2026-07
+ * (median 12,480 ms), and 16.7 s on a film with long durations. The median is the best
+ * figure without reading.
  *
- * LA BORNE MESURÉE L'EMPORTE si elle dépasse : la fenêtre couvre toujours au moins `t1` (cf. `placementEndFrame`).
- * On n'efface pas un objet que la mesure montre encore vivant.
+ * THE MEASURED BOUND PREVAILS if it exceeds it: the window always covers at least `t1` (cf.
+ * `placementEndFrame`). One does not erase an object that the measurement shows still
+ * alive.
  */
 export const WALL_DURATION_MS = 12_480
 
 /**
- * PLANCHER DE LISIBILITÉ, en pixels d'écran. Un mur de 1,6 m sur une carte de Big Team Battle
- * (150 à 200 m de large pour 432 px utiles, soit ~2,5 px/m) tomberait à 4 px de rayon : une
- * éraflure. Le rayon monde effectif est donc relevé jusqu'à ce que l'arc atteigne ce plancher —
- * la pose reste à sa place exacte, seule sa TAILLE cesse de suivre l'échelle sous ce seuil.
+ * LEGIBILITY FLOOR, in screen pixels. A wall of 1.6 m on a Big Team Battle map (150 to 200 m
+ * wide for 432 useful pixels, i.e. ~2.5 px/m) would fall to a radius of 4 px: a scratch. The
+ * effective world radius is therefore raised until the arc reaches this floor — the placement
+ * stays at its exact place, only its SIZE stops following the scale under this threshold.
  */
 export const WALL_MIN_RADIUS_PX = 6
 
 /**
- * DÉPLACEMENT MINIMAL, en mètres monde, pour qu'un segment de trajectoire dise une DIRECTION.
+ * MINIMAL DISPLACEMENT, in world meters, for a segment of trajectory to say a DIRECTION.
  *
- * 0,5 m N'EST PAS UN CHOIX DE CONFORT : les trajectoires sont échantillonnées à 100 ms, et un
- * joueur qui vise sans bouger produit des points séparés de quelques centimètres — du bruit de
- * position, dont l'angle tourne à chaque image. Sous ce seuil, la direction ne serait pas
- * mesurée, elle serait tirée au sort. Les 8 murs sans cap du corpus atteignent 0,50 à 0,74 m
- * de déplacement maximal avant la pose : le seuil est exactement au bord, et le relever les
- * perdrait tous.
+ * 0.5 m IS NOT A COMFORT CHOICE: the trajectories are sampled at 100 ms, and a player aiming
+ * without moving produces points separated by a few centimeters — position noise, of which
+ * the angle turns at every frame. Under this threshold, the direction would not be measured,
+ * it would be drawn at random. The 8 walls without cap of the corpus reach 0.50 to 0.74 m
+ * of maximum displacement before the placement: the threshold is exactly at the edge, and
+ * raising it would lose them all.
  */
 export const WALL_TRAJECTORY_MIN_M = 0.5
 
-/** D'où vient le cap retenu pour l'arc — l'ordre de la chaîne est celui de cette union. */
+/** Where the cap retained for the arc comes from — the order of the chain is that of this
+ * union. */
 export type WallHeadingSource = 'placement' | 'trajectory' | 'aim'
 
-/** Le cap retenu, et SA PROVENANCE : c'est elle qui décide du trait (franc ou pointillé). */
+/** The cap retained, and ITS PROVENANCE: it is what decides the stroke (sharp or dotted). */
 export interface WallHeading {
   deg: number
   source: WallHeadingSource
 }
 
-/** Nombre de segments du polygone qui approche l'arc du mur (110° -> ~7° par segment). */
+/** Number of segments of the polygon that approximates the arc of the wall (110° -> ~7° per
+ * segment). */
 const WALL_ARC_SEGMENTS = 16
 
-/** Nombre de segments du cercle pointillé (pose sans cap) — un tour complet. */
+/** Number of segments of the dotted circle (placement without cap) — a full turn. */
 const WALL_RING_SEGMENTS = 48
 
-/** Épaisseur du trait du mur, en pixels d'écran (décision du plan : 2 px). */
+/** Thickness of the stroke of the wall, in screen pixels (decision of the plan: 2 px). */
 const WALL_LINE_WIDTH = 2
-/** Le halo : le même trait, plus large et transparent, posé sous le trait franc. */
+/** The halo: the same stroke, wider and transparent, placed under the sharp stroke. */
 const WALL_HALO_WIDTH = 5
 const WALL_HALO_ALPHA = 0.22
 const WALL_ALPHA = 0.9
 
 /**
- * arcWorld — les points MONDE d'un arc de cercle centré sur `center`, de `fromRad` à `toRad`.
+ * arcWorld — the WORLD points of an arc of circle centered on `center`, from `fromRad` to
+ * `toRad`.
  *
- * En MONDE et non en pixels : c'est là que l'orientation a un sens (l'axe Y du canvas est
- * inversé, celui du monde ne l'est pas), et c'est donc là que le test peut dire « le milieu de
- * l'arc est bien devant le poseur ». La projection vient après, point par point.
+ * In WORLD and not in pixels: that is where the orientation makes sense (the Y axis of the
+ * canvas is inverted, that of the world is not), and that is therefore where the test can
+ * say "the middle of the arc is well in front of the planter". The projection comes after,
+ * point by point.
  */
 function arcWorld(
   center: XY,
@@ -161,12 +175,13 @@ function arcWorld(
 }
 
 /**
- * wallArcWorld — l'arc du mur, en coordonnées monde.
+ * wallArcWorld — the arc of the wall, in world coordinates.
  *
- * `headingDeg` est le cap de VISÉE du poseur, dans la convention de `Point.h` : 0° pointe vers
- * les X croissants, l'angle tourne dans le sens direct du repère monde (+Y vers le haut). Le
- * MILIEU de l'arc est posé à ce cap, à `radiusM` de la position — donc devant le poseur — et
- * l'arc s'ouvre de part et d'autre : sa concavité regarde la position, c'est-à-dire le poseur.
+ * `headingDeg` is the AIM cap of the planter, in the convention of `Point.h`: 0° points
+ * toward increasing X, the angle turns in the direct sense of the world frame (+Y toward
+ * the top). The MIDDLE of the arc is placed at this cap, at `radiusM` from the position —
+ * so in front of the planter — and the arc opens on both sides: its concavity looks at the
+ * position, that is to say the planter.
  */
 export function wallArcWorld(
   center: XY,
@@ -179,8 +194,9 @@ export function wallArcWorld(
 }
 
 /**
- * wallRingWorld — le cercle complet servi à une pose SANS cap. Aucune orientation n'est
- * inventée : le tracé est fermé et pointillé, il dit le lieu et le rayon, rien d'autre.
+ * wallRingWorld — the complete circle served to a placement WITHOUT cap. No orientation is
+ * invented: the tracing is closed and dotted, it says the place and the radius, nothing
+ * else.
  */
 export function wallRingWorld(
   center: XY,
@@ -191,12 +207,13 @@ export function wallRingWorld(
 }
 
 /**
- * poserPointsBefore — les points de la vie du poseur ANTÉRIEURS à la pose, dans l'ordre.
+ * poserPointsBefore — the points of the life of the planter PRIOR to the placement, in
+ * order.
  *
- * PAR SLOT ET PAR FENÊTRE : un slot de bipède est réattribué à chaque réapparition, donc
- * plusieurs vies peuvent porter le même. Celle qui compte est celle qui CONTIENT l'instant de
- * la pose ; à défaut, la plus longue qui la précède — c'est ce que fait la comparaison sur le
- * nombre de points retenus.
+ * BY SLOT AND BY WINDOW: a biped slot is reattributed at each respawn, so several lives can
+ * carry the same one. The one that counts is the one that CONTAINS the instant of the
+ * placement; failing that, the longest one that precedes it — that is what the comparison on
+ * the number of points retained does.
  */
 function poserPointsBefore(
   lives: readonly ReplayTrackReady[],
@@ -213,12 +230,12 @@ function poserPointsBefore(
 }
 
 /**
- * trajectoryHeadingDeg — la DERNIÈRE direction de déplacement, ou null.
+ * trajectoryHeadingDeg — the LAST direction of displacement, or null.
  *
- * On remonte depuis le dernier point connu jusqu'à trouver un point distant d'au moins
- * `WALL_TRAJECTORY_MIN_M` : le vecteur qui les joint est la direction dans laquelle le joueur
- * ARRIVAIT. Remonter — plutôt que prendre les deux derniers points — est ce qui rend la mesure
- * stable : deux points consécutifs d'un joueur à l'arrêt ne disent rien.
+ * One goes back from the last known point until finding a point at least
+ * `WALL_TRAJECTORY_MIN_M` away: the vector that joins them is the direction in which the
+ * player WAS COMING. Going back — rather than taking the two last points — is what makes
+ * the measurement stable: two consecutive points of a player at rest say nothing.
  */
 function trajectoryHeadingDeg(points: ReplayTrackReady['points']): number | null {
   const head = points[points.length - 1]
@@ -232,7 +249,7 @@ function trajectoryHeadingDeg(points: ReplayTrackReady['points']): number | null
   return null
 }
 
-/** aimHeadingDeg — la visée `h` de la dernière image qui en porte une, ou null. */
+/** aimHeadingDeg — the aim `h` of the last frame that carries one, or null. */
 function aimHeadingDeg(points: ReplayTrackReady['points']): number | null {
   for (let i = points.length - 1; i >= 0; i--) {
     const h = points[i].h
@@ -242,11 +259,11 @@ function aimHeadingDeg(points: ReplayTrackReady['points']): number | null {
 }
 
 /**
- * wallHeading — LE CAP DE L'ARC et sa provenance, ou null si aucune source n'existe.
+ * wallHeading — THE CAP OF THE ARC and its provenance, or null if no source exists.
  *
- * `h` de la pose est un cap MESURÉ : nul est une valeur (un poseur peut regarder vers 0°),
- * seule son ABSENCE ouvre la chaîne — d'où le test sur `undefined`/`null` et non sur la
- * véracité.
+ * `h` of the placement is a MEASURED cap: null is a value (a planter can be looking toward
+ * 0°), only its ABSENCE opens the chain — hence the test on `undefined`/`null` and not on
+ * truthiness.
  */
 export function wallHeading(
   p: ReplayEquipmentPlacement,
@@ -262,8 +279,9 @@ export function wallHeading(
 }
 
 /**
- * wallRadiusM — le rayon monde effectivement tracé : celui du plan, relevé au plancher de
- * lisibilité quand l'échelle de la carte le réduirait à une éraflure (cf. WALL_MIN_RADIUS_PX).
+ * wallRadiusM — the world radius effectively traced: that of the plan, raised to the
+ * legibility floor when the scale of the map would reduce it to a scratch (cf.
+ * WALL_MIN_RADIUS_PX).
  */
 export function wallRadiusM(view: PlacementView): number {
   const scale = viewScale(view)
@@ -272,16 +290,16 @@ export function wallRadiusM(view: PlacementView): number {
 }
 
 /**
- * drawWall — l'arc du mur, halo puis trait franc. Cercle pointillé SEULEMENT quand aucune
- * source de cap n'existe (cf. la chaîne en tête de fichier : 0 panneau sur 62 mesurés).
+ * drawWall — the arc of the wall, halo then sharp stroke. Dotted circle ONLY when no source
+ * of cap exists (cf. the chain at the top of the file: 0 panel out of 62 measured).
  *
- * Le HALO est le même tracé, plus large et très transparent : sur un fond de carte chargé, un
- * trait de 2 px se perd dans le décor ; sur un fond clair, il se perd dans le blanc. Le halo
- * lui donne son assise sans rien ajouter à ce qu'il affirme.
+ * THE HALO is the same tracing, wider and very transparent: on a busy map background, a 2 px
+ * stroke is lost in the setting; on a light background, it is lost in the white. The halo
+ * gives it its footing without adding anything to what it asserts.
  *
- * LE POINTILLÉ DIT LA RÉSERVE, PAS LA FORME : un arc déduit de la trajectoire ou de la visée
- * reste un arc — il est simplement tracé en pointillé, parce que sa direction n'est pas celle
- * que le record de la pose affirme.
+ * THE DOTTED LINE SAYS THE RESERVE, NOT THE SHAPE: an arc deduced from the trajectory or
+ * the aim remains an arc — it is simply traced in dotted, because its direction is not the
+ * one that the record of the placement asserts.
  */
 export function drawWall(
   ctx: CanvasRenderingContext2D,

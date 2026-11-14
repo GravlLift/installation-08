@@ -1,139 +1,139 @@
 /**
- * explosionFx.ts — L'EXPLOSION D'UNE GRENADE, en particules.
+ * explosionFx.ts — THE EXPLOSION OF A GRENADE, in particles.
  *
- * PORTÉE, PAS RÉINVENTÉE. La référence est `apps/web/src/components/replay/ExplosionFx.tsx`
- * du projet Csstat : une timeline de 1,4 s — flash radial très bref, boule de feu en
- * composition additive, onde de choc en anneau, éclats en traînées, poussière résiduelle —
- * et trois familles de particules typées (braises, éclats, bouffées). La mécanique, les
- * coefficients de traînée et les PROPORTIONS de temps en sont repris ; ce qui change tient à
- * trois contraintes de CE canevas, écrites plus bas : le rendu doit être une FONCTION DU
- * TEMPS, il doit être BORNÉ, et sa DURÉE est celle qu'a demandée la planche du 16/08 (2,4 s,
- * cf. EXPLOSION_MS — les phases suivent, à l'échelle).
+ * BORROWED, NOT REINVENTED. The reference is `apps/web/src/components/replay/ExplosionFx.tsx`
+ * from the Csstat project: a 1.4 s timeline — very brief radial flash, additive fireball,
+ * shockwave ring, shard trails, residual dust — and three typed particle families (embers,
+ * shards, puffs). The mechanics, the drag coefficients and the TIME PROPORTIONS are taken
+ * from it; what changes amounts to three constraints of THIS canvas, written below: the
+ * render must be a FUNCTION OF TIME, it must be BOUNDED, and its DURATION is what the
+ * 16/08 board asked for (2.4 s, cf. EXPLOSION_MS — the phases follow, to scale).
  *
- * CE QUE L'EXPLOSION AFFIRME, ET CE QU'ELLE N'AFFIRME PAS. CORRIGÉ LE 2026-10-22 (lot
- * detonations) : le film ÉCRIT la détonation (message `projectile_detonate`/
- * `projectile_impact_effect` de la vue A), et le serveur la publie sur `Projectile.detoT/
- * detoX/detoY` quand elle est à portée de la piste (`detoLue` vrai, mesuré sur 727 lancers
- * liés de cinq films témoins, médiane 17-35 ms après la dernière position répliquée). Sans
- * détonation à portée, le serveur pose un repli NOMMÉ et COMPTÉ — la DERNIÈRE POSITION
- * RÉPLIQUÉE — jamais une détonation affirmée sans lecture. L'explosion reste une MISE EN
- * SCÈNE (particules, timeline) posée à l'instant et à la position que le serveur a décidés ;
- * elle ne les recalcule pas.
+ * WHAT THE EXPLOSION ASSERTS, AND WHAT IT DOES NOT ASSERT. CORRECTED 2026-10-22 (detonations
+ * lot): the film WRITES the detonation (`projectile_detonate`/`projectile_impact_effect`
+ * message from view A), and the server publishes it on `Projectile.detoT/detoX/detoY` when it
+ * is in range of the track (`detoLue` true, measured on 727 linked throws of five witness
+ * films, median 17-35 ms after the last replicated position). Without a detonation in range,
+ * the server sets a NAMED and COUNTED fallback — THE LAST REPLICATED POSITION — never an
+ * asserted detonation without a reading. The explosion remains a STAGING (particles,
+ * timeline) placed at the instant and position the server decided; it does not recompute
+ * them.
  *
- * FONCTION DU TEMPS, PAS ANIMATION À ÉTAT. La référence fait avancer ses particules image
- * par image. Ici la lecture se déplace : on avance, on recule, on saute au curseur. Une
- * explosion à état afficherait n'importe quoi après un retour en arrière. Chaque particule
- * est donc REJOUÉE depuis son germe à chaque image — même germe, même âge, même image.
+ * FUNCTION OF TIME, NOT STATEFUL ANIMATION. The reference advances its particles frame by
+ * frame. Here the reading moves: we go forward, backward, jump to the cursor. A stateful
+ * explosion would show anything after a rewind. Each particle is therefore REPLAYED from
+ * its seed at every frame — same seed, same age, same image.
  *
- * LA COMPOSITION EST UNE PROPRIÉTÉ DU FOND, PAS DE L'EFFET (correction du 2026-08-15).
- * La référence compose ses quatre calques chauds en ADDITIF (`lighter`) : sur sa carte noire,
- * l'explosion brûle. Mesuré ici en Chromium réel, phase par phase, sur les deux fonds de
- * chaque thème (`--background` et `--card`) et pour les trois types qui détonent — pixels
- * réellement changés d'au moins 24/255, au pire des deux fonds et des trois types :
+ * THE COMPOSITION IS A PROPERTY OF THE BACKGROUND, NOT OF THE EFFECT (correction of
+ * 2026-08-15). The reference composes its four hot layers ADDITIVELY (`lighter`): on its
+ * black map, the explosion burns. Measured here in real Chromium, phase by phase, on the two
+ * backgrounds of each theme (`--background` and `--card`) and for the three types that
+ * detonate — pixels actually changed by at least 24/255, worst of the two backgrounds and
+ * the three types:
  *
- *   phase                | thème sombre  | thème clair
+ *   phase                | dark theme    | light theme
  *   flash        (40 ms) | 648 -> 820    |   0 -> 1484
- *   boule de feu (180)   | 235 -> 194    |   0 ->  379
- *   onde de choc (180)   | 326 -> 318    |   0 ->  313
- *   éclats       (180)   |  47 ->  46    |   0 ->   43
- *   poussière    (900)   |  40 ->  40    | 314 ->  314   <- seule déjà en `source-over`
+ *   fireball     (180)   | 235 -> 194    |   0 ->  379
+ *   shockwave    (180)   | 326 -> 318    |   0 ->  313
+ *   shards       (180)   |  47 ->  46    |   0 ->   43
+ *   dust         (900)   |  40 ->  40    | 314 ->  314   <- the only one already in `source-over`
  *
- * (Ces chiffres datent de la timeline de 1,4 s ; l'étirement du 17/08 ne touche ni les
- * encres ni la composition, et le garde-rail les remesure à chaque exécution.)
+ * (These figures date from the 1.4 s timeline; the 17/08 stretch touches neither the inks
+ * nor the composition, and the guard remeasures them on every run.)
  *
- * Zéro n'est pas « peu » : `lighter` calcule `dst + src·α` puis écrête à 255. Sur un fond
- * déjà à 250-254, AUCUNE couleur, AUCUNE taille, AUCUNE opacité ne peut changer un pixel.
- * L'explosion n'était pas absente sur le thème clair : elle était AMPUTÉE de tout ce qui
- * claque, et il n'en restait que la poussière. Aucun test de primitives ne pouvait le voir —
- * d'où le garde-rail de rastérisation `e2e/replay-explosion-raster.spec.ts`.
+ * Zero is not "little": `lighter` computes `dst + src*alpha` then clamps to 255. On a
+ * background already at 250-254, NO color, NO size, NO opacity can change a pixel. The
+ * explosion was not absent on the light theme: it was AMPUTATED of everything that pops,
+ * and only the dust remained. No primitive test could see it — hence the rasterization
+ * guard `e2e/replay-explosion-raster.spec.ts`.
  *
- * CE QUI A ÉTÉ JUGÉ SITE PAR SITE, et non remplacé en bloc. L'additif reste le bon opérateur
- * quand DEUX SOURCES LUMINEUSES SE RECOUVRENT SUR UN FOND SOMBRE GARANTI. Deux conditions,
- * donc, et chaque site a été confronté aux deux :
- *  - le FLASH et l'ONDE DE CHOC ne dessinent qu'UNE primitive chacun : ils n'ont rien à
- *    accumuler, même sur fond noir. L'additif ne leur apportait rien et les exposait à la
- *    panne — ils n'y perdent donc RIEN ;
- *  - les BRAISES (12 disques) et les ÉCLATS (10 traînées) se recouvrent réellement : là,
- *    l'additif apportait quelque chose, et ils y PERDENT le sur-éclat blanc de leurs
- *    recouvrements. Ce qui reste : des disques semi-transparents dont les opacités se
- *    composent quand même (1-(1-a₁)(1-a₂)), donc un cœur qui se densifie — et le cœur
- *    incandescent reste porté par l'encre `core` des jeunes braises et par le flash.
- * Le fond, lui, n'est jamais garanti sombre : c'est celui du thème. Aucun des quatre sites ne
- * remplit donc la seconde condition, et les quatre passent en `source-over` — quatre fois le
- * même test, quatre réponses mesurées, pas un remplacement mécanique.
+ * WHAT WAS JUDGED SITE BY SITE, and not replaced in bulk. Additive remains the right operator
+ * when TWO LUMINOUS SOURCES OVERLAP ON A GUARANTEED DARK BACKGROUND. Two conditions,
+ * therefore, and each site was confronted with the two:
+ *  - THE FLASH and the SHOCKWAVE each draw only ONE primitive: they have nothing to
+ *    accumulate, even on a black background. Additive brought them nothing and exposed them
+ *    to the failure — they therefore LOSE NOTHING by leaving it;
+ *  - THE EMBERS (12 disks) and THE SHARDS (10 trails) really do overlap: there, additive
+ *    brought something, and they LOSE in it the white overglow of their overlaps. What
+ *    remains: semi-transparent disks whose opacities still compose (1-(1-a1)(1-a2)), so a
+ *    core that densifies — and the white-hot core is still carried by the `core` ink of the
+ *    young embers and by the flash.
+ * The background, for its part, is never guaranteed dark: it is that of the theme. None of
+ * the four sites therefore fulfills the second condition, and all four move to
+ * `source-over` — the same test four times, four measured answers, not a mechanical
+ * replacement.
  *
- * BORNÉE, ET LA BORNE EST MESURÉE (item 3.4) : 12 braises + 10 éclats + 6 bouffées = 28
- * particules par explosion, au plus 144 pas de simulation (2,4 s à 60 Hz). Le NOMBRE de
- * particules ne dépend pas de la durée — c'est le même essaim, qui vit plus longtemps — donc
- * le coût par image ne bouge pas : **19 dégradés radiaux et 228 primitives** au pire instant,
- * figés par test. Ce qui change avec l'étirement du 17/08, c'est la FENÊTRE de recouvrement :
- * le corpus des 23 artefacts locaux (801 explosions posées) montrait au plus 5 explosions
- * simultanées sur 1,4 s ; sur 2,4 s ce nombre ne peut que croître, et le pire cas reste
- * modeste (~10 explosions = 190 dégradés) sur un canevas dont le fond, la structure, les
- * zones et les objectifs sont déjà cuits hors écran.
+ * BOUNDED, AND THE BOUND IS MEASURED (item 3.4): 12 embers + 10 shards + 6 puffs = 28
+ * particles per explosion, at most 144 simulation steps (2.4 s at 60 Hz). The NUMBER of
+ * particles does not depend on the duration — it is the same swarm, living longer — so the
+ * cost per frame does not move: **19 radial gradients and 228 primitives** at the worst
+ * instant, frozen by test. What changes with the 17/08 stretch is the OVERLAP WINDOW: the
+ * corpus of 23 local artifacts (801 placed explosions) showed at most 5 simultaneous
+ * explosions on 1.4 s; on 2.4 s that number can only grow, and the worst case remains
+ * modest (~10 explosions = 190 gradients) on a canvas whose background, structure, zones
+ * and objectives are already cooked offscreen.
  */
 
 /**
- * Durée totale de la timeline, en millisecondes.
+ * Total duration of the timeline, in milliseconds.
  *
- * 2 400 ms DEPUIS LE 2026-08-17, contre 1 400 dans la référence Csstat : à la planche de
- * validation, les trois explosions ont été jugées « trop brèves » — le geste se lisait comme
- * un clignotement plutôt que comme une détonation. C'est un réglage de RYTHME, pas de
- * mesure : le film ne dit toujours rien de la détonation (cf. l'en-tête), seule la durée de
- * la mise en scène change.
+ * 2,400 ms SINCE 2026-08-17, against 1,400 in the Csstat reference: at the validation board,
+ * the three explosions were judged "too brief" — the gesture read as a flicker rather than
+ * as a detonation. It is a RHYTHM setting, not a measurement: the film still says nothing
+ * of the detonation (cf. the header), only the duration of the staging changes.
  *
- * ELLE EST LE SEUL BOUTON : toutes les phases en dérivent par `TIME_SCALE`, y compris les
- * durées de vie des particules. Rallonger la timeline sans rallonger les braises aurait
- * donné une explosion qui s'éteint au tiers puis laisse un vide de 1,6 s.
+ * IT IS THE ONLY KNOB: all the phases derive from it by `TIME_SCALE`, including the particle
+ * lifetimes. Lengthening the timeline without lengthening the embers would have given an
+ * explosion that dies out at a third then leaves a 1.6 s void.
  */
 export const EXPLOSION_MS = 2_400
 
-/** La timeline de la référence, dont tous les réglages ci-dessous sont issus. */
+/** The timeline of the reference, from which all the settings below derive. */
 const REFERENCE_MS = 1_400
-/** Facteur d'étirement de TOUTES les phases (1,714 aujourd'hui). */
+/** Stretch factor of ALL the phases (1.714 today). */
 const TIME_SCALE = EXPLOSION_MS / REFERENCE_MS
 
-/** Pas de simulation, en millisecondes : les coefficients de la référence sont par image 60 Hz. */
+/** Simulation step, in milliseconds: the reference coefficients are per 60 Hz frame. */
 const STEP_MS = 1000 / 60
 
-/** Bornes de coût — la raison d'être de l'item 3.4. */
+/** Cost bounds — the reason for the existence of item 3.4. */
 const EMBERS = 12
 const SPARKS = 10
 const DUST = 6
 const MAX_STEPS = Math.ceil(EXPLOSION_MS / STEP_MS)
 
-/** Rayon de référence de la boule de feu, en pixels d'ÉCRAN. */
+/** Reference radius of the fireball, in SCREEN pixels. */
 const BLAST_R = 13
-/** Durée du flash radial (référence : ~70 ms, puis extinction sur trois fois autant). */
+/** Duration of the radial flash (reference: ~70 ms, then extinction over three times as much). */
 const FLASH_MS = 70 * TIME_SCALE
-/** Durée de l'onde de choc. */
+/** Duration of the shockwave. */
 const WAVE_MS = 380 * TIME_SCALE
 
-/** Les encres d'une explosion, résolues depuis le thème (aucune couleur écrite ici). */
+/** The inks of an explosion, resolved from the theme (no color written here). */
 export interface ExplosionInk {
-  /** Teinte de la déflagration : elle suit le TYPE de grenade (feu, plasma, cristal). */
+  /** Tint of the blast: it follows the TYPE of grenade (fire, plasma, crystal). */
   fire: string
-  /** Cœur incandescent, commun à tous les effets de tir et d'explosion. */
+  /** White-hot core, common to all firing and explosion effects. */
   core: string
-  /** Poussière résiduelle : une encre de mise en page, pas une couleur de donnée. */
+  /** Residual dust: a layout ink, not a data color. */
   smoke: string
 }
 
-/** Où et quand l'explosion se joue. */
+/** Where and when the explosion plays. */
 export interface ExplosionShape {
   x: number
   y: number
-  /** Âge de l'explosion, en millisecondes. Au-delà de EXPLOSION_MS, plus rien n'est dessiné. */
+  /** Age of the explosion, in milliseconds. Beyond EXPLOSION_MS, nothing is drawn. */
   ageMs: number
-  /** Germe stable : deux lectures du même instant redonnent exactement la même image. */
+  /** Stable seed: two readings of the same instant give back exactly the same image. */
   seed: number
-  /** Densité du canevas : tout ce qui s'adresse à l'œil est multiplié par ce facteur. */
+  /** Canvas density: everything addressed to the eye is multiplied by this factor. */
   k: number
-  /** Sous « mouvement réduit », l'explosion ne se joue pas : une empreinte fixe la remplace. */
+  /** Under "reduced motion", the explosion does not play: a fixed footprint replaces it. */
   reduced: boolean
 }
 
-/** Générateur pseudo-aléatoire à germe — le même que la nappe électrique (LCG 32 bits). */
+/** Seeded pseudo-random generator — the same as the electric net (32-bit LCG). */
 function rng(seed: number): () => number {
   let s = (seed | 0) || 1
   return () => {
@@ -143,8 +143,8 @@ function rng(seed: number): () => number {
 }
 
 /**
- * drawExplosion joue l'explosion à l'âge demandé. Rien à l'extérieur de la fenêtre : une
- * explosion terminée ne coûte pas une opération.
+ * drawExplosion plays the explosion at the requested age. Nothing outside the window: a
+ * finished explosion costs no operation.
  */
 export function drawExplosion(
   ctx: CanvasRenderingContext2D,
@@ -169,8 +169,8 @@ export function drawExplosion(
 }
 
 /**
- * drawStill — SOUS MOUVEMENT RÉDUIT : une empreinte fixe, ni particules ni progression.
- * L'information (« quelque chose a explosé ici ») est gardée ; la stimulation ne l'est pas.
+ * drawStill — UNDER REDUCED MOTION: a fixed footprint, neither particles nor progression.
+ * The information ("something exploded here") is kept; the stimulation is not.
  */
 function drawStill(ctx: CanvasRenderingContext2D, s: ExplosionShape, ink: ExplosionInk): void {
   ctx.globalCompositeOperation = 'source-over'
@@ -188,10 +188,10 @@ function drawStill(ctx: CanvasRenderingContext2D, s: ExplosionShape, ink: Explos
 }
 
 /**
- * drawEmbers — LA BOULE DE FEU : des bouffées projetées radialement, freinées (traînée 0,86
- * par pas, référence) et légèrement tirées vers le bas. Elles GRANDISSENT en s'éteignant, et
- * leur cœur passe de l'incandescent à la teinte du type : c'est la scène de feu, en deux
- * encres du thème plutôt qu'en quatre couleurs écrites en dur.
+ * drawEmbers — THE FIREBALL: puffs projected radially, braked (drag 0.86 per step, reference)
+ * and slightly pulled downward. They GROW as they die, and their core goes from white-hot to
+ * the type tint: that is the fire scene, in two inks of the theme rather than four hard-coded
+ * colors.
  */
 function drawEmbers(
   ctx: CanvasRenderingContext2D,
@@ -199,17 +199,17 @@ function drawEmbers(
   ink: ExplosionInk,
   steps: number,
 ): void {
-  // SITE 1/4 — le seul, avec les éclats, où l'additif apportait quelque chose : douze disques
-  // qui se recouvrent, et dont les recouvrements brûlaient. Mais 0 px changé sur fond clair
-  // (mesuré) : la boule de feu n'existait pas la moitié du temps. En composition normale les
-  // opacités se composent encore (le cœur se densifie), et elle existe sur les deux fonds.
+  // SITE 1/4 — the only one, with the shards, where additive brought something: twelve disks
+  // that overlap, and whose overlaps burned. But 0 px changed on a light background
+  // (measured): the fireball did not exist half the time. In normal composition the opacities
+  // still compose (the core densifies), and it exists on both backgrounds.
   ctx.globalCompositeOperation = 'source-over'
   const rand = rng(s.seed)
   for (let i = 0; i < EMBERS; i++) {
     const ang = rand() * Math.PI * 2
     const sp = (0.35 + rand() * 1.1) * s.k
-    // La VIE suit la timeline (TIME_SCALE) : `el` reste donc la même fraction au même
-    // instant relatif — même taille, même opacité qu'avant à mi-parcours, mais sur 2,4 s.
+    // LIFE follows the timeline (TIME_SCALE): `el` therefore remains the same fraction at the
+    // same relative instant — same size, same opacity as before at mid-course, but over 2.4 s.
     const life = (16 + rand() * 16) * TIME_SCALE
     const r0 = (2.4 + rand() * 2.6) * s.k
     const el = steps / life
@@ -225,15 +225,15 @@ function drawEmbers(
       vy = vy * 0.86 + 0.02 * s.k
     }
     const r = r0 * (1 + el * 1.3)
-    // Jeune = cœur incandescent, vieille = teinte du type : le refroidissement de la
-    // référence, dit avec les deux encres dont on dispose.
+    // Young = white-hot core, old = type tint: the cooling of the reference, said with the
+    // two inks we have.
     paintRadial(ctx, x, y, r, el < 0.35 ? ink.core : ink.fire, (1 - el) * 0.8)
   }
 }
 
 /**
- * drawSparks — LES ÉCLATS : des traînées fines et rapides, freinées et attirées vers le bas.
- * Ce sont des traits, pas des dégradés — c'est ce qui rend la gerbe bon marché.
+ * drawSparks — THE SHARDS: thin fast trails, braked and attracted downward. They are strokes,
+ * not gradients — that is what makes the spray cheap.
  */
 function drawSparks(
   ctx: CanvasRenderingContext2D,
@@ -241,11 +241,11 @@ function drawSparks(
   ink: ExplosionInk,
   steps: number,
 ): void {
-  // SITE 2/4 — les éclats se recouvrent entre eux au départ (ils naissent tous au même
-  // point), donc l'additif y avait un sens ; il leur coûtait leur existence sur fond clair
-  // (0 px) et, sur fond sombre, il les DILUAIT dans la boule de feu qu'ils traversent — une
-  // traînée additive posée sur un cœur déjà saturé ne se distingue plus. En composition
-  // normale, ils gardent leur contour sur les deux fonds.
+  // SITE 2/4 — the shards overlap each other at the start (they are all born at the same
+  // point), so additive had a meaning there; it cost them their existence on a light
+  // background (0 px) and, on a dark background, it DILUTED them in the fireball they
+  // cross — an additive trail laid on an already-saturated core no longer distinguishes.
+  // In normal composition, they keep their outline on both backgrounds.
   ctx.globalCompositeOperation = 'source-over'
   ctx.lineCap = 'round'
   ctx.strokeStyle = ink.fire
@@ -276,9 +276,9 @@ function drawSparks(
 }
 
 /**
- * drawDust — LA POUSSIÈRE RÉSIDUELLE : quelques bouffées qui s'élargissent et s'attardent,
- * peintes SOUS le feu (composition normale). C'est ce qui empêche l'explosion de disparaître
- * d'un coup — la référence les fait vivre bien plus longtemps que les braises.
+ * drawDust — THE RESIDUAL DUST: a few puffs that widen and linger, painted UNDER the fire
+ * (normal composition). That is what prevents the explosion from disappearing all at once —
+ * the reference makes them live much longer than the embers.
  */
 function drawDust(
   ctx: CanvasRenderingContext2D,
@@ -294,9 +294,9 @@ function drawDust(
     const sp = (0.1 + rand() * 0.4) * s.k
     const life = (60 + rand() * 50) * TIME_SCALE
     const r0 = (3.5 + rand() * 3) * s.k
-    // L'ÉTALEMENT EST PAR VIE, PAS PAR PAS : il se divise par le même facteur que la vie se
-    // multiplie, sinon une bouffée d'une timeline 1,7 fois plus longue finirait 1,7 fois plus
-    // large — la poussière mangerait la carte au lieu de s'attarder dessus.
+    // THE SPREAD IS PER LIFE, NOT PER STEP: it divides by the same factor that the life
+    // multiplies, otherwise a puff of a 1.7-times-longer timeline would end 1.7 times wider
+    // — the dust would eat the map instead of lingering on it.
     const grow = ((0.05 + rand() * 0.09) * s.k) / TIME_SCALE
     const lf = steps / life
     if (lf >= 1) continue
@@ -310,20 +310,21 @@ function drawDust(
       vx *= 0.95
       vy *= 0.95
     }
-    // Elle monte en opacité au tout début (elle se forme), puis s'efface : c'est la rampe
-    // de la référence, qui évite une bouffée qui « apparaît » d'un bloc.
+    // It rises in opacity at the very start (it forms), then fades: that is the ramp of the
+    // reference, which avoids a puff that "appears" in one block.
     const a = (1 - lf) * Math.min(1, lf / 0.12) * 0.4
     paintRadial(ctx, x, y, r0 + grow * steps, ink.smoke, a)
   }
 }
 
-/** drawWave — L'ONDE DE CHOC : un anneau qui s'ouvre vite puis se calme (easeOutCubic). */
+/** drawWave — THE SHOCKWAVE: a ring that opens fast then calms down (easeOutCubic). */
 function drawWave(ctx: CanvasRenderingContext2D, s: ExplosionShape, ink: ExplosionInk): void {
   if (s.ageMs >= WAVE_MS) return
   const pr = s.ageMs / WAVE_MS
   const ease = 1 - Math.pow(1 - pr, 3)
-  // SITE 3/4 — UN SEUL anneau : il n'a rien à accumuler, l'additif ne lui apportait donc
-  // rien même sur fond noir, et lui coûtait tout sur fond clair (0 px). Zéro perte ici.
+  // SITE 3/4 — A SINGLE ring: it has nothing to accumulate, additive therefore brought it
+  // nothing even on a black background, and cost it everything on a light background (0 px).
+  // Zero loss here.
   ctx.globalCompositeOperation = 'source-over'
   ctx.strokeStyle = ink.fire
   ctx.globalAlpha = (1 - pr) * 0.8
@@ -333,29 +334,30 @@ function drawWave(ctx: CanvasRenderingContext2D, s: ExplosionShape, ink: Explosi
   ctx.stroke()
 }
 
-/** drawFlash — LE FLASH RADIAL, très bref, par-dessus tout le reste. */
+/** drawFlash — THE RADIAL FLASH, very brief, over everything else. */
 function drawFlash(ctx: CanvasRenderingContext2D, s: ExplosionShape, ink: ExplosionInk): void {
   const fl =
     s.ageMs < FLASH_MS ? 1 : s.ageMs < FLASH_MS * 4 ? 1 - (s.ageMs - FLASH_MS) / (FLASH_MS * 3) : 0
   if (fl <= 0) return
-  // SITE 4/4 — UN SEUL disque, par-dessus tout le reste : rien à accumuler non plus, et
-  // c'est LUI que l'utilisateur ne voyait pas (648 px sur fond sombre, 0 sur fond clair).
-  // Le plateau lui donne un corps : sans lui, un dégradé radial a déjà perdu la moitié de
-  // son opacité au tiers du rayon, et le coup de flash se réduisait à son centre.
+  // SITE 4/4 — A SINGLE disk, over everything else: nothing to accumulate either, and this is
+  // THE ONE the user did not see (648 px on a dark background, 0 on a light background).
+  // The plateau gives it body: without it, a radial gradient has already lost half its
+  // opacity at a third of the radius, and the flash blow was reduced to its center.
   ctx.globalCompositeOperation = 'source-over'
   paintRadial(ctx, s.x, s.y, BLAST_R * 1.8 * s.k, ink.core || ink.fire, fl * 0.9, FLASH_PLATEAU)
 }
 
 /**
- * PLATEAU du dégradé du FLASH : part du rayon qui reste à PLEINE teinte avant la retombée.
+ * PLATEAU of the FLASH gradient: part of the radius that stays at FULL tint before the
+ * falloff.
  *
- * Il ne sert QU'AU FLASH, et c'est délibéré : les braises et la poussière sont des BOUFFÉES,
- * un plateau en ferait des disques nets ; le flash, lui, est un COUP — il lui faut un corps.
- * Même remède qu'à l'éclair de bouche (`muzzleFlash.ts`, GRADIENT_PLATEAU), même raison.
+ * It serves ONLY THE FLASH, and that is deliberate: the embers and the dust are PUFFS, a
+ * plateau would make them sharp disks; the flash, for its part, is A BLOW — it needs a body.
+ * Same remedy as the muzzle flash (`muzzleFlash.ts`, GRADIENT_PLATEAU), same reason.
  */
 const FLASH_PLATEAU = 0.3
 
-/** paintRadial — un disque dégradé, de la couleur donnée vers la transparence. */
+/** paintRadial — a graded disk, from the given color toward transparency. */
 function paintRadial(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -369,8 +371,8 @@ function paintRadial(
   const g = ctx.createRadialGradient(x, y, 0, x, y, radius)
   g.addColorStop(0, color)
   if (plateau > 0) g.addColorStop(plateau, color)
-  // « transparent » plutôt qu'une couleur à alpha zéro : le canevas accepte n'importe quel
-  // format du thème (oklch compris) sans qu'on ait à le désassembler.
+  // "transparent" rather than a color with zero alpha: the canvas accepts any format of the
+  // theme (oklch included) without us having to disassemble it.
   g.addColorStop(1, 'transparent')
   ctx.globalAlpha = Math.min(1, alpha)
   ctx.fillStyle = g

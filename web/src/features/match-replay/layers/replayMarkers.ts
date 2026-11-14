@@ -1,34 +1,34 @@
 /**
- * replayMarkers.ts — LE JOUEUR SUR LA CARTE : traînée, marqueur d'étage, cône de visée,
- * apparition et mort.
+ * replayMarkers.ts — THE PLAYER ON THE MAP: trail, floor marker, aim cone, appearance and
+ * death.
  *
- * CE QUE CE CALQUE NE DESSINE PLUS. Une jauge de BOUCLIER surmontait chaque marqueur ; elle a
- * été retirée le 2026-08-15 à la demande de l'utilisateur — « je veux pas ces barres
- * horizontales au dessus des points de joueurs » — et cette demande remplace la décision du
- * 2026-08-13 qui l'avait rendue permanente. Le champ `sh` continue de voyager : ce sont les
- * FICHES de joueurs qui le lisent (rosterLogic.ts). C'est le dessin sur la carte qui est
- * refusé, pas la mesure.
+ * WHAT THIS LAYER NO LONGER DRAWS. A SHIELD gauge sat above each marker; it was removed on
+ * 2026-08-15 at the user's request — "je veux pas ces barres horizontales au dessus des
+ * points de joueurs" (I do not want these horizontal bars above the player points) — and
+ * this request replaces the decision of 2026-08-13 that had made it permanent. The `sh`
+ * field keeps traveling: it is the PLAYER CARDS that read it (rosterLogic.ts). What is
+ * refused is the drawing on the map, not the measurement.
  *
- * Une trace = UNE VIE, jamais un joueur : le slot de biped est réattribué à chaque
- * réapparition. Les trois instants d'une vie se lisent donc séparément — elle S'OUVRE (anneau),
- * elle DURE (marqueur + traînée), elle SE FERME (croix). Sans ces repères, une vie qui
- * disparaît et une autre qui commence deux mètres plus loin sont indiscernables.
+ * A trace = ONE LIFE, never a player: the biped slot is reassigned at each respawn. The
+ * three instants of a life are therefore read separately — it OPENS (ring), it DUR (marker
+ * + trail), it CLOSES (cross). Without these marks, a life that disappears and another that
+ * begins two meters away are indistinguishable.
  *
- * TOUT CE QUI S'ADRESSE À L'ŒIL EST À L'ÉCHELLE DE L'ÉCRAN, pas du canevas. Le canevas est
- * rendu à la densité du périphérique : un rayon déclaré en pixels de canevas apparaîtrait deux
- * fois plus petit sur un écran à forte densité. Les positions, elles, appartiennent au MONDE et
- * n'y touchent pas. C'est la distinction que le POC avait dû introduire après avoir constaté
- * que des points « grossis » restaient invisibles.
+ * EVERYTHING ADDRESSED TO THE EYE IS AT THE SCALE OF THE SCREEN, not the canvas. The canvas
+ * is rendered at the device density: a radius declared in canvas pixels would appear twice
+ * as small on a high-density screen. The positions, for their part, belong to the WORLD and
+ * do not touch it. That is the distinction the POC had to introduce after noticing that
+ * "enlarged" points stayed invisible.
  *
- * CE QUE CHAQUE MARQUEUR PORTE DEPUIS LE 2026-08-16 (plan d'habillage, décisions D1-D5) : la
- * couleur d'ÉQUIPE de son propriétaire (jamais une teinte par vie), sa FORME d'identité
- * (losange pour un ami, disque cerclé pour le joueur de la page) et son NOM écrit dessous
- * (replayLabels.ts). Le trait qui sortait du point — l'axe du cône — a été SUPPRIMÉ à la
- * demande de l'utilisateur (« supprimer le bâton qui sort de ces points ») : le cône dégradé
- * dit déjà la direction du regard.
+ * WHAT EACH MARKER CARRIES SINCE 2026-08-16 (dressing plan, decisions D1-D5): the TEAM
+ * color of its owner (never a tint per life), its identity SHAPE (diamond for a friend,
+ * outlined disk for the player of the page) and its NAME written below (replayLabels.ts).
+ * The stroke that came out of the point — the axis of the cone — was REMOVED at the user's
+ * request ("supprimer le bâton qui sort de ces points" (remove the stick that comes out of
+ * these points)): the gradient cone already says the direction of the gaze.
  *
- * Aucun littéral de couleur : les teintes d'équipe arrivent résolues depuis les tokens, les
- * encres de lisibilité depuis le thème (cf. canvasInk.ts).
+ * No color literal: the team tints arrive resolved from the tokens, the readability inks
+ * from the theme (cf. canvasInk.ts).
  */
 import type { PlayerMarkKind } from '../../../lib/replay/playerMarks'
 import { drawAimCone } from './replayAimCone'
@@ -50,15 +50,15 @@ import { type CanvasView, projectTo } from '../model/replayView'
 import { edgeMarkFor, OFFSCREEN_MARGIN_PX } from '../model/edgeClamp'
 import { drawOffscreenChevron, drawOffscreenLabel } from './offscreenChevron'
 
-// --- Durées, en frames, converties par l'appelant depuis le temps réel ---------------------
+// --- Durations, in frames, converted by the caller from real time ---------------------
 
 /**
- * Réglages temporels du calque, tous exprimés en frames de la grille du rejeu.
- * Les valeurs de référence viennent du POC, où elles ont été réglées à l'écran :
- * traînée 7 s, cône maintenu 5 s (la couverture de la visée passe de 43,6 % à 93,5 % du temps
- * de jeu), apparition 0,8 s. La mort, elle, a été RALLONGÉE depuis : 2,5 s et non plus les
- * 1,5 s du POC, où la croix passait inaperçue en lecture accélérée (cf. TIMING_MS dans
- * `useReplayTiming.ts`, seule source des durées déclarées).
+ * Time settings of the layer, all expressed in frames of the replay grid.
+ * The reference values come from the POC, where they were tuned on screen:
+ * trail 7 s, aim held 5 s (aim coverage goes from 43.6% to 93.5% of game time),
+ * appearance 0.8 s. Death, however, was LENGTHENED since: 2.5 s instead of the
+ * 1.5 s of the POC, where the cross passed unnoticed in accelerated reading (cf. TIMING_MS in
+ * `useReplayTiming.ts`, sole source of the declared durations).
  */
 export interface MarkerTiming {
   trail: number
@@ -67,72 +67,77 @@ export interface MarkerTiming {
   spawn: number
 }
 
-// --- Constantes de rendu (pixels d'ÉCRAN, sauf mention) ------------------------------------
+// --- Render constants (SCREEN pixels, unless stated) ------------------------------------
 
 /**
- * LA TRAÎNÉE S'ÉCLAIRCIT VERS LE PASSÉ. Un seul trait à opacité constante disait « le joueur
- * est passé par là » sans dire DANS QUEL SENS ; l'alpha qui monte vers la tête donne la
- * direction du mouvement sans ajouter la moindre flèche. La polyligne se dessine donc segment
- * par segment, chacun avec son opacité.
+ * THE TRAIL LIGHTENS TOWARD THE PAST. A single stroke at constant opacity said "the player
+ * went through there" without saying IN WHICH DIRECTION; the alpha that rises toward the head
+ * gives the direction of the movement without adding the slightest arrow. The polyline is
+ * therefore drawn segment by segment, each with its opacity.
  */
 const TRAIL_WIDTH = 1.6
 const TRAIL_ALPHA_TAIL = 0.08
 const TRAIL_ALPHA_HEAD = 0.63
 
 /**
- * LES TAILLES ET LE STYLE DU MARQUEUR SUIVENT LA PLANCHE VALIDÉE LE 2026-08-16 (item A1),
- * dont les valeurs sont transcrites au §1bis du plan d'habillage — verdict utilisateur :
- * « Parfait. Je veux exactement ce style pour les points, la croix de mort et la traînée. »
- * Ce que la planche change par rapport au POC : le point rétrécit (4,6 -> 3,4), le halo diffus
- * DISPARAÎT, et l'étage cesse d'être une couleur de trace pour devenir un anneau fin à l'encre
- * du thème.
+ * THE SIZES AND THE STYLE OF THE MARKER FOLLOW THE BOARD VALIDATED ON 2026-08-16 (item A1),
+ * whose values are transcribed at §1bis of the dressing plan — user verdict:
+ * "Parfait. Je veux exactement ce style pour les points, la croix de mort et la traînée."
+ * (Perfect. I want exactly this style for the points, the death cross and the trail.)
+ * What the board changes compared to the POC: the point shrinks (4.6 -> 3.4), the diffuse halo
+ * DISAPPEARS, and the floor stops being a trace color to become a thin ring in the ink of the
+ * theme.
  */
 const CORE_PER_FLOOR = 0.7
-// Les anneaux d'étage (un par étage au-dessus du sol, premier rayon FIXE et détaché du point)
-// vivent dans `floorRings.ts` depuis le 2026-09-18 : les objectifs du mode parlent le même
-// langage, et une seule boucle les trace.
+// The floor rings (one per floor above the ground, first radius FIXED and detached from the
+// point) live in `floorRings.ts` since 2026-09-18: the mode objectives speak the same
+// language, and a single loop traces them.
 const OUTLINE_ALPHA = 0.62
 /**
- * LE JOUEUR DE LA PAGE (forme 'ring') — DOUBLE CONTOUR ET HALO depuis le 2026-08-18.
+ * THE PLAYER OF THE PAGE (shape 'ring') — DOUBLE OUTLINE AND HALO since 2026-08-18.
  *
- * CE QUE LE RETOUR DEMANDE : « avoir l'icône du joueur actif qui se démarque de tous les
+ * WHAT THE RETURN ASKS FOR: "avoir l'icône du joueur actif qui se démarque de tous les
  * autres aussi (j'aurais bien aimé du vert mais pour l'accessibilité je sais pas si ça peut
- * le faire) ». La réponse tient en une règle : LA COULEUR NE PORTE JAMAIS SEULE. Le marqueur
- * du joueur de la page était déjà cerclé d'UN anneau ; il en porte DEUX, plus un halo diffus,
- * et c'est cette FORME qui le distingue — un lecteur qui ne voit pas la teinte voit toujours
- * le seul point de la carte à deux anneaux. La couleur (`selfInk`, token `success`) vient EN
- * PLUS, sur le contour et le halo ; le NOYAU garde la couleur d'ÉQUIPE, qui dit le camp.
+ * le faire)" (have the icon of the active player stand out from all the others too (I would
+ * have liked green but for accessibility I don't know if it can work)). The answer holds in
+ * one rule: THE COLOR NEVER CARRIES ALONE. The marker of the player of the page was already
+ * outlined by ONE ring; it now carries TWO, plus a diffuse halo, and it is this SHAPE that
+ * distinguishes it — a reader who does not see the tint always sees the only point on the
+ * map with two rings. The color (`selfInk`, token `success`) comes ON TOP, on the outline and
+ * the halo; the CORE keeps the TEAM color, which says the side.
  *
- * LE HALO EST DE RETOUR ICI, ET SEULEMENT ICI. Il avait été supprimé de TOUS les marqueurs le
- * 16/08 (« la lueur diffuse doublait l'emprise et empâtait la carte ») — sur un seul point de
- * la carte, il ne l'empâte pas, il le désigne.
+ * THE HALO IS BACK HERE, AND ONLY HERE. It had been removed from ALL the markers on
+ * 16/08 ("la lueur diffuse doublait l'emprise et empâtait la carte" (the diffuse glow doubled
+ * the footprint and blurred the map)) — on a single point of the map, it does not blur it,
+ * it designates it.
  */
 const SELF_RING_WIDTH = 1.5
 const SELF_RING_GAP = 1.6
-/** Écart entre les deux anneaux d'identité, en pixels d'écran. */
+/** Gap between the two identity rings, in screen pixels. */
 const SELF_RING_GAP_2 = 2.4
-/** Le halo : un disque diffus posé sous le marqueur, au rayon du second anneau. */
+/** The halo: a diffuse disk placed under the marker, at the radius of the second ring. */
 const SELF_HALO_PAD = 2.2
 const SELF_HALO_ALPHA = 0.22
 
 /**
- * CROIX DE MORT — demi-taille FIXE qui s'estompe (elle ne grandit plus, cf. §1bis).
+ * DEATH CROSS — FIXED half-size that fades (it no longer grows, cf. §1bis).
  *
- * PLUS PETITE ET PLUS ÉPAISSE depuis le 2026-08-18 (A1) : « les croix de mort plus petites,
- * plus épaisses, toujours rouges, et qui persistent plus longtemps ». À 5 px de demi-taille
- * pour 1,6 px de trait, la croix avait l'emprise d'un marqueur vivant et le poids d'un trait
- * de traînée — on la voyait large et pâle. À 3,6 pour 2,6 elle occupe moitié moins de surface
- * et frappe deux fois plus : c'est une marque, pas un joueur.
+ * SMALLER AND THICKER since 2026-08-18 (A1): "les croix de mort plus petites, plus épaisses,
+ * toujours rouges, et qui persistent plus longtemps" (death crosses smaller, thicker, always
+ * red, and lasting longer). At 5 px of half-size for 1.6 px of stroke, the cross had the
+ * footprint of a living marker and the weight of a trail stroke — it looked wide and pale.
+ * At 3.6 for 2.6 it occupies half the surface and strikes twice as hard: it is a mark, not a
+ * player.
  */
 const DEATH_RADIUS = 3.6
 const DEATH_WIDTH = 2.6
 const DEATH_ALPHA = 0.9
 
 /**
- * LE PION PENDANT UNE LACUNE DE RÉPLICATION (`Point.g`, décision utilisateur Q14 du 2026-09-23 :
- * « tenu, pâli »). La position est tenue au dernier point connu (`positionAt`) et le pion se
- * dessine à cette fraction de son opacité : il dit « on ne sait plus où il est depuis », pas
- * « il est là ». Ni cône de visée (la visée n'est pas répliquée non plus) ni anneaux d'étage.
+ * THE PAWN DURING A REPLICATION GAP (`Point.g`, user decision Q14 of 2026-09-23: "tenu,
+ * pâli" (held, faded)). The position is held at the last known point (`positionAt`) and the
+ * pawn is drawn at this fraction of its opacity: it says "we no longer know where it is
+ * since", not "it is there". No aim cone (the aim is not replicated either) nor floor rings.
  */
 const GAP_ALPHA = 0.35
 const SPAWN_RADIUS = 2
@@ -140,93 +145,95 @@ const SPAWN_GROWTH = 12
 const SPAWN_WIDTH = 1.2
 const SPAWN_ALPHA = 0.8
 /**
- * Style du calque : ce qu'une VIE emprunte à son PROPRIÉTAIRE, plus les encres du thème.
+ * Style of the layer: what a LIFE borrows from its OWNER, plus the inks of the theme.
  *
- * TOUT SE LIT PAR SLOT ET PAR IMAGE, jamais par index de trace ni par une valeur figée pour
- * tout le match. Le slot est la clé d'une vie ; le propriétaire de la vie qui occupe le slot À
- * CETTE IMAGE porte sa couleur d'équipe, sa marque d'identité et son nom (rosterLogic.ts) —
- * un slot de biped étant réattribué entre manches, la frame est indispensable pour ne pas
- * montrer le joueur d'une AUTRE manche. Un slot SANS propriétaire à l'image rend `null` en
- * couleur, et le calque ne le dessine PAS : caméras, spectateurs de fin de partie (2026-08-20).
- * La marque et le nom, eux, peuvent manquer sur une vie qui se dessine — elle sort alors sans
- * étiquette ni marque, pas sans marqueur.
+ * EVERYTHING IS READ BY SLOT AND BY FRAME, never by trace index nor by a value frozen for
+ * the whole match. The slot is the key of a life; the owner of the life that occupies the
+ * slot AT THIS FRAME carries their team color, their identity mark and their name
+ * (rosterLogic.ts) — a biped slot being reassigned between rounds, the frame is essential to
+ * not show the player of ANOTHER round. A slot WITHOUT an owner at the frame returns `null`
+ * for the color, and the layer does NOT draw it: cameras, end-of-game spectators (2026-08-20).
+ * The mark and the name, however, can be missing on a life that is drawn — it then comes out
+ * without label nor mark, not without marker.
  */
 export interface MarkerStyle {
-  /** Couleur d'équipe du propriétaire du slot à l'image. `null` = ne rien dessiner. */
+  /** Team color of the owner of the slot at the frame. `null` = draw nothing. */
   colorOfSlot: (slot: number, frame: number) => string | null
-  /** Encre qui contraste avec la page dans les deux thèmes : liseré, anneau du joueur. */
+  /** Ink that contrasts with the page in both themes: rim, ring of the player. */
   ink: string
   frame: number
   timing: MarkerTiming
   z: { min: number; max: number }
-  /** Densité du canevas : tout ce qui s'adresse à l'œil est multiplié par ce facteur. */
+  /** Canvas density: everything addressed to the eye is multiplied by this factor. */
   k: number
   showAim: boolean
-  /** Marque d'identité du propriétaire du slot à l'image : elle décide de la FORME du marqueur. */
+  /** Identity mark of the owner of the slot at the frame: it decides the SHAPE of the marker. */
   markOfSlot: (slot: number, frame: number) => PlayerMarkKind | undefined
-  /** Nom à écrire sous le marqueur ; `null` = slot sans propriétaire à l'image, donc sans étiquette. */
+  /** Name to write under the marker; `null` = slot without owner at the frame, hence no label. */
   nameOfSlot: (slot: number, frame: number) => string | null
-  /** Calque des noms (bouton « Noms », allumé par défaut) : un BTB doit pouvoir l'éteindre. */
-  /** Calque de la TRAÎNÉE (bouton « Traînée », allumé par défaut) — retour du 2026-08-18. */
+  /** Name layer ("Names" button, lit by default): a BTB must be able to turn it off. */
+  /** TRAIL layer ("Trail" button, lit by default) — return of 2026-08-18. */
   showTrail: boolean
-  /** Encre du DOUBLE CONTOUR et du halo du joueur de la page (token `success`, cf. useReplayInks). */
+  /** Ink of the DOUBLE OUTLINE and the halo of the player of the page (token `success`, cf. useReplayInks). */
   selfInk: string
   /**
-   * Encre de la CROIX DE MORT — token `destructive`, la même que les effets de mort du
-   * calque d'événements (cf. useReplayInks). « Toujours rouges » (A1, 2026-08-18) : une mort
-   * ne dit plus le camp de celui qui meurt, elle dit qu'on est mort. Le camp reste porté par
-   * la traînée qui vient de s'éteindre, par la fiche et par le fil.
+   * Ink of the DEATH CROSS — token `destructive`, the same as the death effects of the
+   * events layer (cf. useReplayInks). "toujours rouges" (always red) (A1, 2026-08-18): a
+   * death no longer says the side of the one who dies, it says one is dead. The side stays
+   * carried by the trail that just faded, by the card and by the feed.
    */
   deathInk: string
-  /** Encre du CONTOUR des noms — sombre dans les deux thèmes (cf. replayLabels.ts). */
+  /** Ink of the OUTLINE of the names — dark in both themes (cf. replayLabels.ts). */
   labelStroke: string
   /**
-   * PION EMBARQUÉ (lot véhicules, 2026-09-02, décision utilisateur) : vrai quand le slot est à
-   * bord d'un véhicule à cette image — un ÉPISODE D'OCCUPATION couvre `frame` (`VehicleRide`,
-   * `vehiclesLayer.buildEmbarkedPredicate`). Le bipède ne réplique plus sa position pendant
-   * l'épisode (le flux est interrompu, cf. `document_vehicles.go`) : le pion figé au point
-   * d'embarquement SERAIT INVENTÉ si on le dessinait encore — le véhicule teinté porte
-   * désormais l'information, et son nom est reporté sur le véhicule (empilé, conducteur en
-   * premier). Absent = comportement inchangé (aucun véhicule au document, ou calque désactivé).
+   * EMBARKED PAWN (vehicle lot, 2026-09-02, user decision): true when the slot is aboard a
+   * vehicle at this frame — an OCCUPATION EPISODE covers `frame` (`VehicleRide`,
+   * `vehiclesLayer.buildEmbarkedPredicate`). The biped no longer replicates its position
+   * during the episode (the stream is interrupted, cf. `document_vehicles.go`): the pawn
+   * frozen at the embarkation point WOULD BE INVENTED if it were still drawn — the tinted
+   * vehicle now carries the information, and its name is reported on the vehicle (stacked,
+   * driver first). Absent = unchanged behavior (no vehicle in the document, or layer
+   * disabled).
    *
-   * SUPPRIME TOUT — marqueur, traînée, croix de mort — PAS SEULEMENT LE MARQUEUR : la traînée
-   * lirait sinon un mouvement que le film ne montre pas, et une mort à bord (rare) reprendrait
-   * au point d'embarquement plutôt qu'à la sortie.
+   * REMOVES EVERYTHING — marker, trail, death cross — NOT ONLY THE MARKER: the trail would
+   * otherwise read a movement the film does not show, and a death aboard (rare) would resume
+   * at the embarkation point rather than at the exit.
    */
   embarkedAtSlot?: (slot: number, frame: number) => boolean
   /**
-   * LA RÈGLE DU PION (utilisateur, 2026-10-21) : vrai quand le propriétaire de la vie du slot
-   * (résolu à `ownerFrame`) occupe une fiche à `frame` (`seatLogic.SeatedIndex`). Faux : ni
-   * marqueur, ni traînée, ni cône, ni nom, ni croix de mort — un bot relevé n'a plus de pion, même
-   * quand le film lui donne encore des vies. `ownerFrame` est l'image BORNÉE à la fenêtre de la vie
-   * (celle de la couleur), `frame` l'image lue : une croix survit à sa vie, la fiche se lit à
-   * l'image lue. Absent = tout se dessine (appelants sans roster).
+   * THE RULE OF THE PAWN (user, 2026-10-21): true when the owner of the life of the slot
+   * (resolved at `ownerFrame`) occupies a card at `frame` (`seatLogic.SeatedIndex`). False:
+   * no marker, no trail, no cone, no name, no death cross — a revived bot has no pawn any
+   * more, even when the film still gives it lives. `ownerFrame` is the frame BOUNDED to the
+   * window of the life (that of the color), `frame` the frame read: a cross survives its
+   * life, the card is read at the frame read. Absent = everything is drawn (callers without
+   * roster).
    */
   seatedAtSlot?: (slot: number, ownerFrame: number, frame: number) => boolean
   /**
-   * BORNAGE HORS CADRE (plan escouade hors cadre, chantier B, décision D2, 2026-09-10) : le
-   * texte de l'étiquette d'un joueur hors fenêtre — nom ET distance jusqu'à sa position réelle.
-   * RÉSOLU PAR L'APPELANT (`REPLAY_TEXT[locale].offscreenMarkerFmt`), comme toute string UI de
-   * cette feature (règle color-tokens/i18n) : ce calque ne connaît aucune langue, il ne fait
-   * QUE composer la géométrie et poser le texte qu'on lui donne.
+   * OFF-SCREEN BOUNDING (off-screen squad plan, workstream B, decision D2, 2026-09-10):
+   * the text of the label of a player outside the window — name AND distance to their real
+   * position. RESOLVED BY THE CALLER (`REPLAY_TEXT[locale].offscreenMarkerFmt`), like every
+   * UI string of this feature (color-tokens/i18n rule): this layer knows no language, it
+   ONLY composes the geometry and places the text it is given.
    */
   offscreenLabelOf: (name: string, meters: number) => string
 }
 
 /**
- * La FORME dit l'identité, la couleur dit le camp (décision D5) : un ami se repère sans lire
- * son nom, celui qu'on regarde aussi, et aucune des deux marques ne touche à la couleur qui
- * porte déjà l'équipe.
+ * The SHAPE says the identity, the color says the side (decision D5): a friend is located
+ * without reading their name, the one being watched as well, and neither of the two marks
+ * touches the color that already carries the team.
  *
- * « CELUI QU'ON REGARDE » ET NON PLUS « LE JOUEUR DE LA PAGE » (2026-09-06, décision 13 du plan
- * « frise, point de vue ») : le disque cerclé suit le POINT DE VUE, qui vaut le joueur de la
- * page par défaut. La table des marques est construite par `buildPlayerMarks`, à qui la page
- * passe désormais ce point de vue — ce calque ne lit toujours que la marque, pas le tableau de
- * score.
+ * "THE ONE BEING WATCHED" AND NO LONGER "THE PLAYER OF THE PAGE" (2026-09-06, decision 13
+ * of the "timeline, point of view" plan): the outlined disk follows the POINT OF VIEW, which
+ * equals the player of the page by default. The table of marks is built by `buildPlayerMarks`,
+ * to whom the page now passes this point of view — this layer still only reads the mark, not
+ * the scoreboard.
  */
 export type MarkerShape = 'circle' | 'diamond' | 'ring'
 
-/** shapeOfMark : ami = losange, celui qu'on regarde = disque cerclé, tout le monde = disque. */
+/** shapeOfMark: friend = diamond, the one being watched = outlined disk, everyone = disk. */
 function shapeOfMark(mark: PlayerMarkKind | undefined): MarkerShape {
   if (mark === 'friend') return 'diamond'
   if (mark === 'me') return 'ring'
@@ -234,8 +241,8 @@ function shapeOfMark(mark: PlayerMarkKind | undefined): MarkerShape {
 }
 
 /**
- * drawTracksLayer dessine chaque vie à la frame courante : celles qui vivent, et celles qui
- * viennent de se fermer (la croix survit 2,5 s à la vie qu'elle termine).
+ * drawTracksLayer draws each life at the current frame: those that live, and those that
+ * just closed (the cross survives 2.5 s after the life it ends).
  */
 export function drawTracksLayer(
   ctx: CanvasRenderingContext2D,
@@ -246,25 +253,26 @@ export function drawTracksLayer(
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   tracks.forEach((track) => {
-    // PION EMBARQUÉ : rien ne se dessine pour ce slot à cette image — ni marqueur, ni traînée,
-    // ni croix de mort. Le véhicule qui le porte (vehiclesLayer.ts) affiche l'information à sa
-    // place. Vérifié EN PREMIER, avant toute résolution de couleur : un slot embarqué reste
-    // « vivant » côté données (son bipède n'est pas mort), la branche croix de mort ne doit donc
-    // jamais s'y substituer.
+    // EMBARKED PAWN: nothing is drawn for this slot at this frame — no marker, no trail,
+    // no death cross. The vehicle that carries it (vehiclesLayer.ts) displays the
+    // information in its place. Checked FIRST, before any color resolution: an embarked
+    // slot stays "alive" on the data side (its biped is not dead), the death cross branch
+    // must therefore never substitute for it.
     if (style.embarkedAtSlot?.(track.slot, style.frame)) return
-    // La couleur est celle du PROPRIÉTAIRE DE CETTE VIE : on résout donc l'identité à une image
-    // BORNÉE à la fenêtre de la vie. Vivant, c'est l'image courante ; en croix de mort, c'est la
-    // fin de la vie (l'image courante peut être au-delà, où le slot est libre ou déjà repris par
-    // une AUTRE vie — y résoudre effacerait la croix ou lui prêterait un autre joueur). Les vies
-    // d'un slot étant disjointes, une image dans [start, end] désigne CETTE vie sans ambiguïté.
+    // The color is that of THE OWNER OF THIS LIFE: we therefore resolve the identity at a
+    // frame BOUNDED to the window of the life. Alive, that is the current frame; in death
+    // cross, that is the end of the life (the current frame can be beyond it, where the slot
+    // is free or already taken over by ANOTHER life — resolving there would erase the cross
+    // or lend it another player). The lives of a slot being disjoint, a frame in [start,
+    // end] designates THIS life without ambiguity.
     const w = trackWindow(track)
     const at = Math.max(w.start, Math.min(style.frame, w.end))
     const color = style.colorOfSlot(track.slot, at)
     if (!color) return
     if (style.seatedAtSlot && !style.seatedAtSlot(track.slot, at, style.frame)) return
     if (!isAliveAt(track, style.frame)) {
-      // La couleur du slot reste la PORTE (une vie sans couleur ne se dessine pas), mais la
-      // croix ne la porte plus : elle est rouge (cf. `deathInk`).
+      // The color of the slot stays the GATE (a life without color is not drawn), but the
+      // cross no longer carries it: it is red (cf. `deathInk`).
       drawDeathMark(ctx, track, view, style)
       return
     }
@@ -274,13 +282,13 @@ export function drawTracksLayer(
 }
 
 /**
- * drawDeathMark marque l'endroit de la dernière position transmise pendant `timing.death`,
- * puis plus rien : le joueur a disparu jusqu'à sa réapparition, qui est une AUTRE vie.
+ * drawDeathMark marks the place of the last transmitted position during `timing.death`,
+ * then nothing: the player has disappeared until their respawn, which is ANOTHER life.
  *
- * HORS FENÊTRE (chantier B, décision D6, 2026-09-10) : la croix en X est remplacée par la
- * FLÈCHE, plaquée à la marge, au MÊME calcul de fondu — mais SANS nom ni distance. La croix ne
- * vit que 2,5 s et s'efface déjà ; sa position au bord dit la direction, une étiquette de plus
- * ajouterait un texte à peine lu (D6).
+ * OUTSIDE THE WINDOW (workstream B, decision D6, 2026-09-10): the X cross is replaced by the
+ * ARROW, clamped to the margin, at the SAME fade computation — but WITHOUT name nor
+ * distance. The cross only lives 2.5 s and already fades; its position at the edge says the
+ * direction, one more label would add a barely read text (D6).
  */
 function drawDeathMark(
   ctx: CanvasRenderingContext2D,
@@ -301,10 +309,10 @@ function drawDeathMark(
     return
   }
   const c = project(last, view)
-  // LA CROIX NE GRANDIT PAS (planche du 2026-08-16) : une croix qui enfle attire l'œil sur un
-  // événement déjà passé. Elle garde sa taille et s'efface.
+  // THE CROSS DOES NOT GROW (board of 2026-08-16): a swelling cross would draw the eye to an
+  // already past event. It keeps its size and fades.
   const r = DEATH_RADIUS * style.k
-  // TOUJOURS ROUGE (A1, 2026-08-18) : la couleur d'équipe du défunt ne passe plus ici.
+  // ALWAYS RED (A1, 2026-08-18): the team color of the deceased no longer passes here.
   ctx.strokeStyle = style.deathInk
   ctx.globalAlpha = DEATH_ALPHA * fade
   ctx.lineWidth = DEATH_WIDTH * style.k
@@ -318,13 +326,13 @@ function drawDeathMark(
 }
 
 /**
- * drawLivingTrack : traînée, cône, apparition, marqueur d'étage.
+ * drawLivingTrack: trail, cone, appearance, floor marker.
  *
- * HORS FENÊTRE (chantier B, décision D2, 2026-09-10) : plus rien de tout cela ne se dessine —
- * seule la FLÈCHE, plaquée à la marge, orientée vers la position réelle, dans la couleur
- * d'équipe, avec le nom ET la distance. Une traînée, un cône ou un anneau d'étage tracés à la
- * marge désigneraient un endroit que le joueur n'occupe pas : la flèche remplace intégralement
- * le marqueur, elle ne s'y ajoute pas (même logique que le pion embarqué, juste au-dessus).
+ * OUTSIDE THE WINDOW (workstream B, decision D2, 2026-09-10): nothing of all that is drawn
+ * any more — only the ARROW, clamped to the margin, oriented toward the real position, in the
+ * team color, with the name AND the distance. A trail, a cone or a floor ring traced at the
+ * margin would designate a place the player does not occupy: the arrow entirely replaces the
+ * marker, it does not add to it (same logic as the embarked pawn, just above).
  */
 function drawLivingTrack(
   ctx: CanvasRenderingContext2D,
@@ -347,30 +355,30 @@ function drawLivingTrack(
   }
   const c = project(head, view)
   const fl = floorIndex(track, style)
-  // DANS UNE LACUNE, le pion est tenu (`positionAt`) et PÂLI, sans cône (cf. `GAP_ALPHA`).
+  // IN A GAP, the pawn is held (`positionAt`) and FADED, without cone (cf. `GAP_ALPHA`).
   const alpha = inGapAt(track.points, style.frame) ? GAP_ALPHA : 1
 
   if (style.showTrail) drawTrail(ctx, track, view, style, color)
   if (style.showAim && alpha === 1) drawAimCone(ctx, track, c, style, color)
   drawSpawnRing(ctx, track, c, style, color)
-  // Vie EN COURS : l'image courante est dans sa fenêtre, elle désigne donc bien le propriétaire
-  // de CETTE vie (les vies d'un slot sont disjointes).
+  // Life IN PROGRESS: the current frame is in its window, it therefore designates the owner
+  // of THIS life (the lives of a slot are disjoint).
   const shape = shapeOfMark(style.markOfSlot(track.slot, style.frame))
   drawMarker(ctx, c, style, color, fl, shape, alpha)
-  // LE NOM SOUS LE POINT, jamais à côté d'une croix de mort : la ligne ci-dessus n'est
-  // atteinte que pour une vie EN COURS (drawDeathMark rend avant).
+  // THE NAME UNDER THE POINT, never beside a death cross: the line above is reached only
+  // for a life IN PROGRESS (drawDeathMark returns before).
   const name = style.nameOfSlot(track.slot, style.frame)
   if (name) drawNameLabel(ctx, c, name, style, color, markerEdge(fl, style.k, shape))
 }
 
 /**
- * markerEdge : distance du centre au bord EXTERNE de tout ce que le marqueur dessine, en
- * pixels d'écran — c'est SOUS ce bord que le nom se pose (replayLabels.ts).
+ * markerEdge: distance from the center to the OUTER edge of everything the marker draws, in
+ * screen pixels — it is UNDER this edge that the name is placed (replayLabels.ts).
  *
- * Le bord n'est pas toujours celui du liseré : au-dessus du sol, l'anneau d'étage est posé à
- * un rayon FIXE (6,5) qui dépasse le disque, et le joueur de la page porte en plus son anneau
- * d'identité. Prendre le maximum des trois est la seule façon d'être sûr que l'étiquette ne
- * chevauche aucun trait.
+ * The edge is not always that of the rim: above the ground, the floor ring is placed at a
+ * FIXED radius (6.5) that exceeds the disk, and the player of the page additionally carries
+ * their identity ring. Taking the maximum of the three is the only way to be sure that the
+ * label does not overlap any stroke.
  */
 function markerEdge(fl: number, k: number, shape: MarkerShape): number {
   const outline = CORE_RADIUS + CORE_PER_FLOOR * fl + OUTLINE_PAD
@@ -379,22 +387,22 @@ function markerEdge(fl: number, k: number, shape: MarkerShape): number {
   return Math.max(outline, ring, self) * k
 }
 
-/** selfRingRadius : rayon du PREMIER anneau d'identité du joueur de la page (forme 'ring'). */
+/** selfRingRadius: radius of the FIRST identity ring of the player of the page (shape 'ring'). */
 function selfRingRadius(fl: number): number {
   return CORE_RADIUS + CORE_PER_FLOOR * fl + OUTLINE_PAD + SELF_RING_GAP
 }
 
-/** selfRingRadius2 : rayon du SECOND anneau — c'est lui qui fait le « double contour ». */
+/** selfRingRadius2: radius of the SECOND ring — it is the one that makes the "double outline". */
 function selfRingRadius2(fl: number): number {
   return selfRingRadius(fl) + SELF_RING_GAP_2
 }
 
 /**
- * drawTrail : la polyligne des 7 s écoulées, dessinée SEGMENT PAR SEGMENT.
+ * drawTrail: the polyline of the 7 s that elapsed, drawn SEGMENT BY SEGMENT.
  *
- * Un seul `stroke` à opacité constante coûterait moins cher, mais il ne dirait pas le SENS du
- * déplacement. L'opacité monte linéairement de la queue (0,08 — presque effacé) vers la tête
- * (0,63) : la trace la plus visible est toujours celle de l'instant.
+ * A single `stroke` at constant opacity would cost less, but it would not say the DIRECTION
+ * of the displacement. The opacity rises linearly from the tail (0.08 — almost erased) to
+ * the head (0.63): the most visible trace is always that of the instant.
  */
 function drawTrail(
   ctx: CanvasRenderingContext2D,
@@ -422,7 +430,7 @@ function drawTrail(
   ctx.globalAlpha = 1
 }
 
-/** drawSpawnRing : l'anneau qui s'ouvre au premier instant de la vie. */
+/** drawSpawnRing: the ring that opens at the first instant of the life. */
 function drawSpawnRing(
   ctx: CanvasRenderingContext2D,
   track: ReplayTrackReady,
@@ -443,26 +451,28 @@ function drawSpawnRing(
 }
 
 /**
- * drawMarker dessine le joueur : anneaux d'étage, liseré, noyau — et sa FORME dit son identité
- * (disque, losange pour un ami, disque cerclé pour le joueur de la page).
+ * drawMarker draws the player: floor rings, rim, core — and its SHAPE says its identity
+ * (disk, diamond for a friend, outlined disk for the player of the page).
  *
- * IL N'Y A PLUS DE HALO (planche du 2026-08-16) : la lueur diffuse sous chaque point doublait
- * l'emprise du marqueur et empâtait la carte dès qu'un nom s'écrivait dessous. Le liseré
- * sombre suffit à détacher un point coloré d'un fond qui va du blanc au noir.
+ * THERE IS NO HALO ANYMORE (board of 2026-08-16): the diffuse glow under each point doubled
+ * the footprint of the marker and blurred the map as soon as a name was written below it.
+ * The dark rim is enough to detach a colored point from a background that runs from white to
+ * black.
  *
- * L'ÉTAGE SE LIT PAR DES ANNEAUX CONCENTRIQUES, jamais par un décalage du marqueur : en vue de
- * dessus, déplacer un point vers le haut de l'écran voudrait dire « plus au nord » et
- * fausserait la position. L'altitude est un palier, pas un dégradé — l'histogramme des z montre
- * des pics nets, la carte a trois niveaux de jeu.
+ * THE FLOOR IS READ BY CONCENTRIC RINGS, never by an offset of the marker: in top view,
+ * moving a point to the top of the screen would mean "further north" and would distort the
+ * position. Altitude is a step, not a gradient — the histogram of z shows sharp peaks, the
+ * map has three levels of play.
  *
- * L'ANNEAU D'ÉTAGE PREND LA COULEUR DU PION depuis le 2026-08-18 (A1 : « le cercle d'altitude à
- * la couleur du pion du joueur »). Il était à l'encre du thème, pour ne pas faire dire deux
- * choses à la couleur ; à l'écran, cette neutralité le détachait de son point et, sur une carte
- * à trois étages peuplée, on lisait des anneaux orphelins. La couleur ne dit toujours que le
- * camp — c'est le NOMBRE d'anneaux qui dit la hauteur, et lui seul.
+ * THE FLOOR RING TAKES THE COLOR OF THE PAWN since 2026-08-18 (A1: "le cercle d'altitude à
+ * la couleur du pion du joueur" (the altitude circle in the color of the pawn of the player)).
+ * It was in the ink of the theme, so as not to make the color say two things; on screen,
+ * this neutrality detached it from its point and, on a populated three-floor map, one read
+ * orphan rings. The color still only says the side — it is the NUMBER of rings that says the
+ * height, and it alone.
  *
- * LE LOSANGE A LE MÊME RAYON CIRCONSCRIT QUE LE DISQUE : la forme change, la taille non —
- * sinon un ami paraîtrait plus proche ou plus gros que ses coéquipiers.
+ * THE DIAMOND HAS THE SAME CIRCUMSCRIBED RADIUS AS THE DISK: the shape changes, the size
+ * does not — otherwise a friend would appear closer or bigger than their teammates.
  */
 function drawMarker(
   ctx: CanvasRenderingContext2D,
@@ -471,12 +481,12 @@ function drawMarker(
   color: string,
   fl: number,
   shape: MarkerShape,
-  /** Fraction d'opacité du pion : 1, ou `GAP_ALPHA` pendant une lacune de réplication. */
+  /** Opacity fraction of the pawn: 1, or `GAP_ALPHA` during a replication gap. */
   alpha = 1,
 ): void {
   const core = (CORE_RADIUS + CORE_PER_FLOOR * fl) * style.k
 
-  // LE HALO EN PREMIER, sous tout le reste : c'est une lueur, pas un trait.
+  // THE HALO FIRST, under everything else: it is a glow, not a stroke.
   if (shape === 'ring') drawSelfHalo(ctx, c, style, fl, alpha)
 
   if (alpha === 1) drawFloorRings(ctx, c, fl, color, { k: style.k })
@@ -496,11 +506,11 @@ function drawMarker(
 }
 
 /**
- * drawSelfRings — LES DEUX ANNEAUX du joueur de la page, à `selfInk`.
+ * drawSelfRings — THE TWO RINGS of the player of the page, in `selfInk`.
  *
- * DEUX, PAS UN : c'est le double contour qui porte l'identité quand la couleur ne peut pas
- * (cf. la note de SELF_RING_WIDTH). Le second est plus fin et plus pâle — l'œil lit « un
- * anneau souligné », pas « deux cercles ».
+ * TWO, NOT ONE: it is the double outline that carries the identity when the color cannot
+ * (cf. the note on SELF_RING_WIDTH). The second is thinner and paler — the eye reads "an
+ * underlined ring", not "two circles".
  */
 function drawSelfRings(
   ctx: CanvasRenderingContext2D,
@@ -523,7 +533,7 @@ function drawSelfRings(
   ctx.globalAlpha = 1
 }
 
-/** drawSelfHalo — la lueur diffuse sous le marqueur du joueur de la page (dégradé radial). */
+/** drawSelfHalo — the diffuse glow under the marker of the player of the page (radial gradient). */
 function drawSelfHalo(
   ctx: CanvasRenderingContext2D,
   c: XY,
@@ -543,7 +553,7 @@ function drawSelfHalo(
   ctx.globalAlpha = 1
 }
 
-/** corePath trace le noyau (ou son liseré) : cercle, ou losange de même rayon circonscrit. */
+/** corePath traces the core (or its rim): circle, or diamond of same circumscribed radius. */
 function corePath(ctx: CanvasRenderingContext2D, c: XY, r: number, shape: MarkerShape): void {
   ctx.beginPath()
   if (shape !== 'diamond') {
@@ -563,9 +573,9 @@ function project(p: XY, view: CanvasView): XY {
 }
 
 /**
- * floorIndex : l'étage du pion à l'image, par la garde COMMUNE aux objectifs (`floorInRange`) —
- * un terrain plat ne pose aucun anneau (aligné le 2026-09-18 ; avant, `floorOf` seul rendait
- * l'étage 1 à tout le monde sur une carte sans amplitude).
+ * floorIndex: the floor of the pawn at the frame, by the GUARD SHARED with the objectives
+ * (`floorInRange`) — a flat terrain places no ring at all (aligned 2026-09-18; before,
+ * `floorOf` alone gave floor 1 to everyone on a map without amplitude).
  */
 function floorIndex(track: ReplayTrackReady, style: MarkerStyle): number {
   const z = altitudeAt(track.points, style.frame)

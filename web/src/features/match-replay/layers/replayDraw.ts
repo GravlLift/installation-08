@@ -1,13 +1,13 @@
 /**
- * replayDraw.ts — couches de DÉCOR et d'ÉVÉNEMENTS du rejeu 2D : sol reconstruit, props Forge
- * (en repli), tirs et morts. Le joueur lui-même vit dans replayMarkers.ts.
- * Pas de React : uniquement un CanvasRenderingContext2D + de la géométrie pure
- * (replayLogic.ts). Les couleurs arrivent DÉJÀ RÉSOLUES depuis les tokens sémantiques
- * (getSeriesColors / resolveToken) — aucun littéral de couleur ici (règle color-tokens).
+ * replayDraw.ts — BACKGROUND and EVENTS layers of the 2D replay: reconstructed ground, Forge
+ * props (as fallback), shots and deaths. The player themselves lives in replayMarkers.ts.
+ * No React: only a CanvasRenderingContext2D + pure geometry (replayLogic.ts). The colors
+ * arrive ALREADY RESOLVED from the semantic tokens (getSeriesColors / resolveToken) — no
+ * color literal here (color-tokens rule).
  *
- * UN LANCER DE GRENADE NE POSE AUCUNE MARQUE AU POINT DE DÉPART : il se lit par son VOL
- * (replayProjectiles.ts), sa FIN DE VOL (useReplayGrenadeRest.ts) et le badge de lancer de
- * la fiche du lanceur (model/grenadeFx.ts).
+ * A GRENADE THROW PLACES NO MARK AT THE DEPARTURE POINT: it is read by its FLIGHT
+ * (replayProjectiles.ts), its END OF FLIGHT (useReplayGrenadeRest.ts) and the throw badge of
+ * the thrower's card (model/grenadeFx.ts).
  */
 import type { ReplayMapObject } from '@/lib/api/types'
 
@@ -22,14 +22,14 @@ import { vehicleShotOrigin, type VehicleMountSpriteSize } from '../model/vehicle
 import { type CanvasView, projectTo, scaleOf } from '../model/replayView'
 import { vehicleCeilPx } from '../../../lib/replay/screenSizes'
 
-/** Amplitude verticale utilisée pour l'indication d'étage. */
+/** Vertical amplitude used for the floor indication. */
 interface ZRange {
   min: number
   max: number
 }
 
-// Fond de carte : props Forge de 0,25 m² en moyenne — sans plancher de taille ils sont
-// invisibles. Opacités volontairement basses : le sujet du rendu reste les joueurs.
+// Map background: Forge props of 0.25 m² on average — without a size floor they are
+// invisible. Deliberately low opacities: the subject of the render remains the players.
 const OBJECT_MIN_PX = 2.5
 const OBJECT_ALPHA_LOW = 0.14
 const OBJECT_ALPHA_SPAN = 0.24
@@ -40,9 +40,9 @@ interface GeometryStyle {
 }
 
 /**
- * drawGeometryLayer dessine les props Forge SOUS les trajectoires : rectangles orientés
- * (ou petits carrés quand l'emprise projetée est sous le seuil de lisibilité).
- * L'opacité monte avec l'altitude : indication d'étage discrète, sans couleur dédiée.
+ * drawGeometryLayer draws the Forge props UNDER the trajectories: oriented rectangles
+ * (or small squares when the projected footprint is under the readability threshold).
+ * The opacity rises with altitude: a discreet floor indication, without a dedicated color.
  */
 export function drawGeometryLayer(
   ctx: CanvasRenderingContext2D,
@@ -74,51 +74,52 @@ export function drawGeometryLayer(
   ctx.globalAlpha = 1
 }
 
-// Les TRAJECTOIRES et les marqueurs de joueur vivent dans replayMarkers.ts : ce calque a
-// gagné le cône de visée, le bouclier, les anneaux d'étage, l'apparition et la mort, et il
-// aurait fait de ce fichier un god file.
+// The TRAJECTORIES and the player markers live in replayMarkers.ts: this layer gained the
+// aim cone, the shield, the floor rings, the appearance and the death, and it would have
+// made of this file a god file.
 
 /**
- * Couleurs héritées du sol reconstruit, SUPPRIMÉ le 2026-09-03 (décision utilisateur : ce repli
- * ne devait plus pouvoir tourner par inadvertance et cuire un calque de ~45 000 cellules).
- * Seul `edge` survit — il sert d'encre fine aux ZONES NOMMÉES. `fill` reste porté par
- * `useReplayInks` : c'est la même paire de tokens, et la séparer pour un seul champ coûterait
- * plus de câblage qu'elle n'en économiserait.
+ * Colors inherited from the reconstructed ground, REMOVED on 2026-09-03 (user decision: this
+ * fallback must no longer be able to run by accident and cook a layer of ~45,000 cells).
+ * Only `edge` survives — it serves as a fine ink for the NAMED ZONES. `fill` stays carried
+ * by `useReplayInks`: it is the same pair of tokens, and separating it for a single field
+ * would cost more wiring than it would save.
  */
 export interface FloorStyle {
   fill: string
   edge: string
 }
 
-/** Fenêtre d'affichage d'un événement ponctuel, en frames. */
+/** Display window of a point event, in frames. */
 export interface EventWindow {
   frame: number
-  /** Nombre de frames pendant lesquelles l'événement reste visible après son instant. */
+  /** Number of frames during which the event remains visible after its instant. */
   hold: number
   /**
-   * Durée RÉELLE d'une frame, en ms. Les effets dont la mise en scène a sa propre horloge —
-   * aujourd'hui l'étoile de mêlée, 400 ms — la lisent ici : une durée écrite en frames
-   * changerait de sens le jour où la cadence d'échantillonnage change (même règle que la fin
-   * de vol des grenades, qui porte déjà ce champ).
+   * REAL duration of a frame, in ms. The effects whose staging has its own clock — today the
+   * melee star, 400 ms — read it here: a duration written in frames would change meaning the
+   * day the sampling rate changes (same rule as the end of flight of the grenades, which
+   * already carries this field).
    */
   frameMs: number
 }
 
 /**
- * drawShotsLayer dessine les ÉCLAIRS DE BOUCHE de la fenêtre courante.
+ * drawShotsLayer draws the MUZZLE FLASHES of the current window.
  *
- * CE QUE LE POINT SIGNIFIE, et il faut que le rendu le respecte : le film n'enregistre que les
- * tirs qui INFLIGENT un dégât. Un tir dessiné a donc touché. Sa DIRECTION est celle du REGARD
- * du tireur à cet instant (relu dans sa trajectoire, cf. shotFx.ts) — sans lecture, une
- * bouffée ronde, jamais une direction inventée. SUR UN TIR EN VÉHICULE, le point ET la
- * direction viennent du MONTAGE de l'arme plutôt que du regard (`vehicleShotOrigin`, demande
- * utilisateur du 2026-09-03 — « si ça vient du passager, faut que le tir vienne du siège
- * passager qui a une tourelle »).
+ * WHAT THE POINT MEANS, and the render must respect it: the film only records the shots that
+ * DEAL damage. A drawn shot therefore hit. Its DIRECTION is that of the GAZE of the shooter
+ * at that instant (re-read in their trajectory, cf. shotFx.ts) — without a reading, a round
+ * puff, never an invented direction. ON A VEHICLE SHOT, the point AND the direction come from
+ * the MOUNT of the weapon rather than the gaze (`vehicleShotOrigin`, user request of
+ * 2026-09-03 — "si ça vient du passager, faut que le tir vienne du siège passager qui a une
+ * tourelle" (if it comes from the passenger, the shot must come from the passenger seat that
+ * has a turret)).
  *
- * CE CALQUE A CHANGÉ DE NATURE le 2026-08-15 (étape 2 du plan des effets de tirs) : il
- * dessinait une TRACE de 62 px dans la couleur du TIREUR ; il dessine désormais un éclair
- * court à la bouche de l'arme, teinté par la NATURE DE LA DÉCHARGE et par elle seule
- * (décision utilisateur). Le cône de visée, lui, n'a pas bougé — le flash s'y ajoute.
+ * THIS LAYER CHANGED NATURE on 2026-08-15 (step 2 of the shot effects plan): it used to
+ * draw a TRACE of 62 px in the color of the SHOOTER; it now draws a short flash at the mouth
+ * of the weapon, tinted by the NATURE OF THE DISCHARGE and by it alone (user decision). The
+ * aim cone, for its part, did not move — the flash is added to it.
  */
 export function drawShotsLayer(
   ctx: CanvasRenderingContext2D,
@@ -127,10 +128,10 @@ export function drawShotsLayer(
   win: EventWindow,
   style: ShotStyle,
 ): void {
-  // L'ÉCHELLE DU CADRAGE, lue une fois : le montage d'arme d'un tir en véhicule suit la TAILLE
-  // du sprite, qui en dépend depuis le 2026-09-20 (cf. `lib/replay/screenSizes.ts`).
+  // THE FRAMING SCALE, read once: the weapon mount of a vehicle shot follows the SIZE of the
+  // sprite, which depends on it since 2026-09-20 (cf. `lib/replay/screenSizes.ts`).
   const scalePxPerM = scaleOf(view)
-  // Le plafond de taille suit la TOILE (petit écran) : le montage suit le sprite tel qu'il se dessine.
+  // The size ceiling follows the CANVAS (small screen): the mount follows the sprite as it is drawn.
   const ceilPx = vehicleCeilPx(Math.min(view.width, view.height))
   for (const s of shots) {
     const age = win.frame - s.frame
@@ -153,54 +154,54 @@ export function drawShotsLayer(
   ctx.globalAlpha = 1
 }
 
-/** Style du calque des tirs : les encres du thème et la densité de l'écran. */
+/** Style of the shot layer: the inks of the theme and the density of the screen. */
 export interface ShotStyle {
   /**
-   * Teintes de décharge résolues depuis le thème (fxInk.ts). AUCUNE couleur de joueur
-   * n'entre ici : correction utilisateur du 2026-08-15 — « les couleurs des effets de tirs
-   * [...] prennent seulement l'ARME en compte ».
+   * Discharge tints resolved from the theme (fxInk.ts). NO player color enters here: user
+   * correction of 2026-08-15 — "les couleurs des effets de tirs [...] prennent seulement
+   * l'ARME en compte" (the shot effect colors [...] only take the WEAPON into account).
    */
   ink: FxInk
-  /** Densité du canevas : l'éclair s'adresse à l'œil, sa taille est en pixels d'écran. */
+  /** Canvas density: the flash addresses the eye, its size is in screen pixels. */
   k: number
   reducedMotion: boolean
   /**
-   * Taille du sprite d'une famille de véhicule, ou `null` (pas encore chargé). Optionnel :
-   * un appelant qui ne câble pas le calque véhicules (tests, ou futur écran sans véhicules)
-   * garde le repli centre pour tout tir en véhicule, jamais une exception.
+   * Sprite size of a vehicle family, or `null` (not yet loaded). Optional: a caller that does
+   * not wire the vehicle layer (tests, or a future screen without vehicles) keeps the center
+   * fallback for every vehicle shot, never an exception.
    */
   vehicleSizeOf?: (family: string) => VehicleMountSpriteSize | null
 }
 
-/** Style du calque des morts : la couleur du tueur, et le repli quand il n'a pas de trace. */
+/** Style of the death layer: the color of the killer, and the fallback when they have no trace. */
 export interface KillFxStyle {
   /**
-   * Couleur du TUEUR, résolue par slot ET par image : elle est demandée à l'INSTANT DU KILL
-   * (`e.frame`), pas à l'image de dessin — un slot est réattribué entre manches, et l'effet de
-   * mort persiste plusieurs frames après le coup, pendant lesquelles le slot pourrait déjà
-   * appartenir à un autre joueur.
+   * Color of the KILLER, resolved by slot AND by frame: it is requested at THE INSTANT OF THE
+   * KILL (`e.frame`), not at the drawing frame — a slot is reassigned between rounds, and the
+   * death effect persists several frames after the blow, during which the slot could already
+   * belong to another player.
    */
   colorOfSlot: (slot: number, frame: number) => string | null
   fallback: string
   reducedMotion: boolean
-  /** Densité du canevas : l'étoile de mêlée est déclarée en pixels d'ÉCRAN. */
+  /** Canvas density: the melee star is declared in SCREEN pixels. */
   k: number
 }
 
 /**
- * drawKillFxLayer dessine les EFFETS DE MORT de la fenêtre courante.
+ * drawKillFxLayer draws the DEATH EFFECTS of the current window.
  *
- * ORIENTÉ TUEUR -> VICTIME seulement quand le couple est complet (règle POC 89/93, portée
- * par `buildKillFx` : `vx` null = pas d'axe) ; sinon un marqueur pointillé non orienté.
- * L'extrémité est RÉELLE (`target`) : c'est la seule différence de nature avec les tirs,
- * dont la longueur n'est qu'une trace. La COULEUR est celle du tueur — la famille d'arme
- * se lit dans la FORME (arbitrage du lot 3.2, conservé).
+ * ORIENTED KILLER -> VICTIM only when the pair is complete (rule POC 89/93, carried by
+ * `buildKillFx`: `vx` null = no axis); otherwise an unoriented dotted marker. The end is
+ * REAL (`target`): that is the only difference of nature with the shots, whose length is
+ * only a trace. The COLOR is that of the killer — the weapon family is read in the SHAPE
+ * (ruling of lot 3.2, kept).
  *
- * LA MÊLÉE FATALE FAIT EXCEPTION depuis le 2026-08-18 (D3/R2-3) : elle ne trace ni arc ni
- * marqueur, elle pose une ÉTOILE au lieu de la mort (meleeStar.ts). Le corps à corps est
- * justement le cas où l'axe n'existe presque jamais — tueur et victime tombent sous le seuil
- * de 1,5 px ci-dessous — et où le rendu générique se réduisait donc à un anneau pointillé,
- * indiscernable d'une mort dont on ignore tout.
+ * THE FATAL MELEE IS THE EXCEPTION since 2026-08-18 (D3/R2-3): it traces neither arc nor
+ * marker, it places a STAR at the place of the death (meleeStar.ts). Close combat is exactly
+ * the case where the axis almost never exists — killer and victim fall under the 1.5 px
+ * threshold below — and where the generic render would have reduced to a dotted ring,
+ * indistinguishable from a death of which we know nothing.
  */
 export function drawKillFxLayer(
   ctx: CanvasRenderingContext2D,
@@ -216,8 +217,9 @@ export function drawKillFxLayer(
     const c = projectTo(view, e)
     const color = (e.slot !== null ? style.colorOfSlot(e.slot, e.frame) : null) ?? style.fallback
     if (e.fam === 'melee') {
-      // AU LIEU DE LA MORT : la victime quand elle est relue, l'origine sinon (elle vaut
-      // alors la position du tueur, à un pas de corps près — c'est un corps à corps).
+      // INSTEAD OF THE DEATH: the victim when they are re-read, the origin otherwise (it
+      // then equals the position of the killer, within one close-combat step — it is a close
+      // combat).
       const mort =
         e.deathX !== null && e.deathY !== null
           ? projectTo(view, { x: e.deathX, y: e.deathY })
@@ -233,9 +235,9 @@ export function drawKillFxLayer(
       const dx = v.x - c.x
       const dy = v.y - c.y
       const d = Math.hypot(dx, dy)
-      // < 1,5 px : tueur et victime au même endroit à l'écran (corps à corps). Aucun axe
-      // fiable à en tirer — le marqueur non orienté vaut mieux qu'un angle calculé sur du
-      // bruit d'arrondi (règle POC).
+      // < 1.5 px: killer and victim at the same place on screen (close combat). No reliable
+      // axis to draw from it — the unoriented marker is worth more than an angle computed on
+      // rounding noise (rule POC).
       if (d > 1.5) {
         angle = Math.atan2(dy, dx)
         length = d
@@ -259,34 +261,35 @@ export function drawKillFxLayer(
 }
 
 /**
- * tintedIconCanvas — un masque du HUD (blanc/gris + alpha) TEINT à une encre du thème,
- * une fois pour toutes dans un canvas hors écran. Un canvas ne connaît pas le
- * `mask-image` CSS de WeaponIcon : la teinte se fait par composition `source-in`, qui
- * préserve l'alpha et suit le thème par re-teinture (l'appelant re-teint au changement).
+ * tintedIconCanvas — a HUD mask (white/gray + alpha) TINTED with an ink of the theme, once
+ * for all in an off-screen canvas. A canvas does not know the CSS `mask-image` of WeaponIcon:
+ * the tint is done by `source-in` composition, which preserves the alpha and follows the
+ * theme by re-tinting (the caller re-tints on change).
  *
- * LE MIROIR EST CUIT ICI, PAS AU TRACÉ (2026-08-28) : les vignettes d'arme des socles sont
- * désormais les icônes PLEINES des fiches, et les deux atlas du jeu pointent vers la GAUCHE
- * quand le kill feed — donc la fiche, donc le socle — pointe à droite. Retourner à chaque image
- * demanderait un `save`/`scale`/`restore` par socle et par frame ; retourner une fois à la
- * cuisson ne coûte rien et laisse le calque poser une image comme les autres.
+ * THE MIRROR IS BAKED HERE, NOT AT THE TRACE (2026-08-28): the weapon thumbnails of the
+ * pedestals are now the FULL icons of the cards, and the two game atlases point LEFT when the
+ * kill feed — hence the card, hence the pedestal — points right. Flipping at each frame would
+ * require a `save`/`scale`/`restore` per pedestal and per frame; flipping once at the baking
+ * costs nothing and lets the layer place an image like the others.
  *
- * `tint: false` LAISSE L'IMAGE TELLE QUELLE (couleurs comprises) : c'est le cas d'un dessin fini
- * qu'on ne fait que retourner. Sans cette porte, une image finie retournée perdrait ses couleurs.
+ * `tint: false` LEAVES THE IMAGE AS IS (colors included): that is the case of a finished
+ * drawing that one only flips. Without this gate, a flipped finished image would lose its
+ * colors.
  */
 export interface TintedIconOptions {
-  /** Retourner l'image horizontalement (le sens du kill feed du jeu). */
+  /** Flip the image horizontally (the direction of the game's kill feed). */
   mirrored?: boolean
-  /** Teindre à l'encre donnée (défaut) ou garder les couleurs de l'image. */
+  /** Tint with the given ink (default) or keep the colors of the image. */
   tinted?: boolean
   /**
-   * Mode de composition de la teinte (2026-09-02, lot véhicules) : `'source-in'` (DÉFAUT,
-   * comportement STRICTEMENT INCHANGÉ) — la teinte REMPLACE la couleur du sprite, c'est le
-   * mode des masques HUD (blanc/gris + alpha). `'multiply'` — la teinte se MULTIPLIE avec les
-   * couleurs du sprite : le blanc devient l'encre, le NOIR RESTE NOIR (les traits de volume des
-   * sprites véhicules).
-   * `multiply` ne respecte PAS l'alpha à lui seul (`fillRect` en mode multiply rend opaque tout
-   * pixel de fond transparent) : un second passage `destination-in` avec l'image d'origine
-   * réapplique le canal alpha du sprite après le `fillRect`.
+   * Tint composition mode (2026-09-02, vehicle lot): `'source-in'` (DEFAULT, behavior
+   * STRICTLY UNCHANGED) — the tint REPLACES the color of the sprite, that is the mode of the
+   * HUD masks (white/gray + alpha). `'multiply'` — the tint MULTIPLIES with the colors of
+   * the sprite: the white becomes the ink, the BLACK STAYS BLACK (the volume strokes of the
+   * vehicle sprites).
+   * `multiply` does not respect the alpha on its own (`fillRect` in multiply mode makes every
+   * transparent background pixel opaque): a second `destination-in` pass with the original
+   * image reapplies the alpha channel of the sprite after the `fillRect`.
    */
   composite?: 'source-in' | 'multiply'
 }
@@ -310,16 +313,16 @@ export function tintedIconCanvas(
   if (!tinted) return off
   octx.globalCompositeOperation = composite
   octx.fillStyle = color
-  // `source-in`/`multiply` s'appliquent au canvas ENTIER : le rectangle se pose donc dans le
-  // repère de départ, sinon le miroir le décalerait hors du cadre.
+  // `source-in`/`multiply` apply to the WHOLE canvas: the rectangle is therefore placed in
+  // the starting frame, otherwise the mirror would offset it out of the frame.
   octx.setTransform(1, 0, 0, 1, 0, 0)
   octx.fillRect(0, 0, off.width, off.height)
   if (composite === 'multiply') {
-    // `multiply` a rendu tout le canvas opaque (y compris le fond, auparavant transparent) :
-    // on redessine le sprite dans le MÊME repère que le premier tracé (miroir compris, pour
-    // rester aligné pixel à pixel) et on ne garde, via `destination-in`, que ce que son canal
-    // alpha recouvre — le fond redevient transparent, les traits noirs gardent leur alpha quasi
-    // pleine, le remplissage garde son alpha d'ombrage (0,80..1).
+    // `multiply` made the whole canvas opaque (including the background, previously
+    // transparent): we redraw the sprite in the SAME frame as the first trace (mirror
+    // included, to stay aligned pixel by pixel) and we keep, via `destination-in`, only what
+    // its alpha channel covers — the background becomes transparent again, the black strokes
+    // keep their near full alpha, the fill keeps its shading alpha (0.80..1).
     if (mirrored) {
       octx.translate(off.width, 0)
       octx.scale(-1, 1)
@@ -332,11 +335,11 @@ export function tintedIconCanvas(
 }
 
 /**
- * outlinedSpriteCanvas — pose la BORDURE (jamais teintée) puis le sprite DÉJÀ TEINT par-dessus,
- * dans une vignette hors écran (sprites véhicules redessinés, 2026-09-16). Les deux images ont
- * le MÊME canevas et le MÊME centre par construction : aucun décalage à calculer. La bordure
- * est posée APRÈS la teinte, dans un canvas neuf : une composition `multiply`/`source-atop`
- * appliquée au même contexte la teinterait aussi.
+ * outlinedSpriteCanvas — places the OUTLINE (never tinted) then the ALREADY TINTED sprite on
+ * top, in an off-screen thumbnail (redrawn vehicle sprites, 2026-09-16). The two images have
+ * the SAME canvas and the SAME center by construction: no offset to compute. The outline is
+ * placed AFTER the tint, in a fresh canvas: a `multiply`/`source-atop` composition applied
+ * to the same context would tint it too.
  */
 export function outlinedSpriteCanvas(
   outline: HTMLImageElement,
@@ -353,24 +356,24 @@ export function outlinedSpriteCanvas(
 }
 
 /**
- * drawRotatedSprite — LA ROTATION BITMAP DU REJEU, sans précédent avant le lot véhicules
- * (2026-09-02). Repris du seul repère du dépôt qui tourne déjà une image autour d'un point —
- * `glow()` dans `muzzleFlash.ts:159-165` (translate + rotate + scale, puis restore) — plutôt
- * que d'inventer une seconde mécanique pour le même besoin.
+ * drawRotatedSprite — THE BITMAP ROTATION OF THE REPLAY, without precedent before the vehicle
+ * lot (2026-09-02). Taken from the only landmark of the repository that already rotates an
+ * image around a point — `glow()` in `muzzleFlash.ts:159-165` (translate + rotate + scale,
+ * then restore) — rather than inventing a second mechanic for the same need.
  *
- * `angle` EST DÉJÀ EN RADIANS CANEVAS, pas en cap monde : la conversion (inversion de signe,
- * cf. `drawShotsLayer` : « monde -> canevas, l'axe Y est inversé, donc l'angle l'est aussi »)
- * est la responsabilité de L'APPELANT, qui seul sait de quel cap il part. Ce helper ne fait
- * QUE la géométrie d'écran : centrer l'image sur `(x, y)`, la tourner, la mettre à l'échelle.
+ * `angle` IS ALREADY IN CANVAS RADIANS, not world heading: the conversion (sign inversion,
+ * cf. `drawShotsLayer`: "world -> canvas, the Y axis is inverted, so the angle is too") is
+ * the responsibility of THE CALLER, which alone knows which heading it starts from. This
+ * helper ONLY does the screen geometry: center the image on `(x, y)`, rotate it, scale it.
  *
- * `scale` EST UN FACTEUR MULTIPLICATIF DES PIXELS NATURELS DE L'IMAGE, pas une taille cible en
- * pixels d'écran : c'est l'appelant (`vehiclesLayer.ts`) qui calcule ce facteur à partir de la
- * taille voulue à l'écran et de la résolution du sprite — exactement le rôle que `ctx.scale`
- * joue déjà dans `glow()`. `drawImage` est ensuite posé à SA taille NATURELLE, centrée sur
- * l'origine du repère mis à l'échelle : le canevas fait le reste.
+ * `scale` IS A MULTIPLICATIVE FACTOR OF THE NATURAL PIXELS OF THE IMAGE, not a target size
+ * in screen pixels: it is the caller (`vehiclesLayer.ts`) that computes this factor from the
+ * desired screen size and the resolution of the sprite — exactly the role that `ctx.scale`
+ * already plays in `glow()`. `drawImage` is then placed at ITS NATURAL SIZE, centered on the
+ * origin of the scaled frame: the canvas does the rest.
  *
- * SANS IMAGE VALIDE (chargement pas encore abouti, dimensions nulles), RIEN NE SE DESSINE —
- * jamais un rectangle de repli qui prétendrait montrer un véhicule.
+ * WITHOUT A VALID IMAGE (load not yet complete, null dimensions), NOTHING IS DRAWN — never
+ * a fallback rectangle that would pretend to show a vehicle.
  */
 export function drawRotatedSprite(
   ctx: CanvasRenderingContext2D,

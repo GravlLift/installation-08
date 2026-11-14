@@ -1,44 +1,46 @@
 /**
- * equipmentPlacementsLayer.ts — LES POSES D'ÉQUIPEMENT sur la carte : ce qui se dessine, et
- * surtout ce qui ne se dessine PAS.
+ * equipmentPlacementsLayer.ts — EQUIPMENT PLACEMENTS on the map: what gets drawn, and above
+ * all what does NOT get drawn.
  *
- * LA SOURCE est le document (schéma 10) : `equipmentPlacements`, une pose par vie d'objet, avec
- * sa fenêtre [t0, t1] sur l'axe des frames, sa position monde, la FAMILLE que le manifeste du
- * titre lui donne (`replay_labels.toml`), l'IDENTIFIANT du tag `eqip`, le SLOT de son poseur
- * (`owner`, -1 si aucun bipède contemporain à moins de 3 m), le CAP de visée de ce poseur (`h`,
- * absent une fois sur sept) et — depuis le schéma 10 — l'ORIGINE MESURÉE de la pose.
+ * THE SOURCE is the document (schema 10): `equipmentPlacements`, one placement per object
+ * life, with its [t0, t1] window on the frame axis, its world position, the FAMILY the
+ * title manifest gives it (`replay_labels.toml`), the IDENTIFIER of the `eqip` tag, the SLOT
+ * of its planter (`owner`, -1 if no contemporary biped within 3 m), the AIM CAP of that
+ * planter (`h`, absent once in seven) and — since schema 10 — the MEASURED ORIGIN of the
+ * placement.
  *
- * `equipmentPlacements` N'EST PAS CE QUE SON NOM DIT, ET C'EST LA MESURE QUI L'A ÉTABLI (phase G
- * du 2026-08-18, 11 films calibrés, 3 661 poses à poseur mesuré). 88,6 % de ces poses naissent
- * dans les 2 frames et les 1,5 m qui suivent le DERNIER point de leur poseur : ce ne sont pas
- * des objets posés sur la carte, ce sont les objets que le joueur PORTAIT, relâchés quand il
- * MEURT. D'où le filtre `origin === 'deployed'` : la seule origine qui décrive un geste.
- * Le témoin qui valide la méthode est interne — si les 88,6 % étaient un artefact de fenêtre,
- * les PANNEAUX du mur les porteraient aussi ; ils en ont zéro sur 48 et un sur 43.
+ * `equipmentPlacements` IS NOT WHAT ITS NAME SAYS, AND THE MEASUREMENT ESTABLISHED THAT
+ * (phase G of 2026-08-18, 11 calibrated films, 3,661 placements with measured planter).
+ * 88.6% of these placements are born within the 2 frames and the 1.5 m following the LAST
+ * point of their planter: they are not objects placed on the map, they are the objects the
+ * player CARRIED, released when they DIE. Hence the `origin === 'deployed'` filter: the
+ * only origin that describes a gesture. The witness that validates the method is internal —
+ * if the 88.6% were a window artifact, the WALL PANELS would carry it too; they have zero on
+ * 48 and one on 43.
  *
- * DEPUIS LE 2026-08-19, UNE PART ÉTROITE DE CES LÂCHERS SE DESSINE QUAND MÊME, et c'est une
- * décision produit datée (utilisateur, 2026-08-18) : les objets de PUISSANCE au sol —
- * power-ups et équipements déployables — se voient, parce qu'ils sont ramassables et qu'ils
- * changent l'échange suivant. La liste de ce qui compte et la raison vivent dans
- * `placementDropped.ts`. La restriction « hors Fiesta » qui accompagnait cette décision a
- * été levée le 2026-08-20 : le réglage du tiroir gouverne seul, dans tous les modes.
+ * SINCE 2026-08-19, A NARROW PART OF THESE DROPS IS STILL DRAWN, and that is a dated product
+ * decision (user, 2026-08-18): power objects on the ground — power-ups and deployable
+ * equipment — are visible, because they are pickable and they change the next exchange. The
+ * list of what counts and the reason live in `placementDropped.ts`. The "no Fiesta"
+ * restriction that accompanied this decision was lifted on 2026-08-20: the drawer setting
+ * rules alone, in all modes.
  *
- * LE RENDU EST UNE TABLE PAR FAMILLE (`PLACEMENT_RENDER`), et c'est la règle qui compte : une
- * famille absente de la table ne dessine RIEN, une famille à `null` ne dessine rien NON PLUS
- * mais l'a décidé. Jamais le dessin d'une voisine, même principe que les libellés et les sons.
+ * THE RENDER IS A TABLE BY FAMILY (`PLACEMENT_RENDER`), and that is the rule that counts: a
+ * family absent from the table draws NOTHING, a family at `null` draws nothing EITHER but
+ * decided so. Never the drawing of a neighbor, same principle as labels and sounds.
  *
- * CE FICHIER DÉCIDE, IL NE TRACE PRESQUE PLUS. Le MUR (géométrie monde + identifiants des
- * panneaux) vit dans `placementWall.ts` ; les formes qui tiennent dans un centre projeté
- * (balise, impulsion du traqueur, disque du champ, point neutre, objet lâché, marque de
- * révélation) vivent dans `placementShapes.ts` avec le socle du cadrage ; la ZONE SENSIBLE au
- * pointeur vit dans `placementHitTest.ts`. Reste ici le CAPTEUR — sa portée est en mètres et
- * il est le seul à révéler — et l'aiguillage.
+ * THIS FILE DECIDES, IT BARELY TRACES ANYMORE. THE WALL (world geometry + panel identifiers)
+ * lives in `placementWall.ts`; the shapes that fit in a projected center (beacon, seeker
+ * pulse, field disk, neutral point, dropped object, reveal mark) live in
+ * `placementShapes.ts` along with the framing base; the POINTER SENSITIVE ZONE lives in
+ * `placementHitTest.ts`. What remains here is the SENSOR — its range is in meters and it is
+ * the only one that reveals — and the dispatch.
  *
- * LE CAPTEUR PINGE, et tout ce qu'il affirme — portée, cadence, durée de révélation, camp
- * révélé — vit dans `threatSensor.ts` : les chiffres y sont OFFICIELS et sourcés, la logique y
- * est pure et testée. Ce fichier n'en garde que le TRACÉ (disque, anneau, onde).
+ * THE SENSOR PINGS, and everything it asserts — range, rate, reveal duration, revealed side —
+ * lives in `threatSensor.ts`: the numbers there are OFFICIAL and sourced, the logic there is
+ * pure and tested. This file keeps only the TRACE (disk, ring, wave).
  *
- * Pas de React : géométrie pure + un CanvasRenderingContext2D (même règle que replayDraw).
+ * No React: pure geometry + a CanvasRenderingContext2D (same rule as replayDraw).
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
@@ -57,9 +59,9 @@ import {
 } from './placementShapes'
 import { drawShroud, SHROUD_RADIUS_M, type ShroudInk } from './placementShroud'
 import { drawWall, wallHeading, WALL_PANEL_IDS } from './placementWall'
-// La FENÊTRE d'une pose vit à part (cf. le réexport plus haut) : elle est aussi LUE ici, et un
-// réexport ne met rien dans la portée locale. L'import inverse, lui, ne porte que des TYPES —
-// il n'y a donc aucun cycle à l'exécution.
+// The WINDOW of a placement lives apart (cf. the re-export above): it is also READ here, and
+// a re-export puts nothing in the local scope. The reverse import, for its part, carries only
+// TYPES — so there is no cycle at execution.
 import { isPlacementActive } from '../model/placementWindow'
 import type { ReplayTrackReady } from '../../../lib/replay/replayNormalize'
 import {
@@ -73,23 +75,23 @@ import {
 } from '../model/threatSensor'
 
 /**
- * LA FENÊTRE D'UNE POSE vit dans `placementWindow.ts` depuis le 2026-08-18 (seuil de taille),
- * et se réexporte ici : le survol et les tests la lisent par ce module, la découpe interne n'a
- * pas à remonter jusqu'à eux.
+ * THE WINDOW OF A PLACEMENT lives in `placementWindow.ts` since 2026-08-18 (size threshold),
+ * and is re-exported here: hover and the tests read it through this module, the internal
+ * cut does not have to climb up to them.
  */
 export { isPlacementActive, placementEndFrame, placementShows } from '../model/placementWindow'
 
 /**
- * Le cadrage est réexporté ici : il est un ARGUMENT de ce calque (`drawEquipmentPlacementsLayer`,
- * `placementAt`), donc il appartient à sa surface publique — ses appelants n'ont pas à connaître
- * le fichier où la découpe interne l'a rangé.
+ * The framing is re-exported here: it is an ARGUMENT of this layer
+ * (`drawEquipmentPlacementsLayer`, `placementAt`), so it belongs to its public surface —
+ * its callers do not have to know the file where the internal cut put it.
  */
 export type { PlacementView } from './placementShapes'
 
 /**
- * Les façons de dessiner une pose. Ce ne sont PAS les familles : le jour où deux familles
- * partageront un rendu (deux murs de palettes différentes, par exemple), la table les enverra
- * toutes deux sur la même valeur sans qu'on duplique un tracé.
+ * The ways to draw a placement. These are NOT the families: the day two families share a
+ * render (two walls of different palettes, for example), the table sends them both to the
+ * same value without duplicating a trace.
  */
 export type PlacementKind =
   | 'wall'
@@ -100,57 +102,59 @@ export type PlacementKind =
   | 'field'
   | 'unnamed'
   /**
-   * L'OBJET DE PUISSANCE TOMBÉ AU SOL. Règle ORTHOGONALE à la table : elle ne vient pas d'une
-   * famille mais d'une ORIGINE (`dropped`) croisée avec la liste de `placementDropped.ts`.
-   * Une seule forme pour toutes les familles concernées — un objet au sol n'agit pas.
+   * THE POWER OBJECT DROPPED ON THE GROUND. Rule ORTHOGONAL to the table: it does not come
+   * from a family but from an ORIGIN (`dropped`) crossed with the list of
+   * `placementDropped.ts`. One shape for all the families concerned — an object on the
+   * ground does not act.
    */
   | 'dropped'
 
-/** Famille du MUR — nommée parce que la règle des panneaux la vise explicitement. */
+/** Family of the WALL — named because the rule of panels targets it explicitly. */
 const PLACEMENT_FAMILY_WALL = 'wall'
 
 /**
- * LA TABLE PAR FAMILLE — l'unique porte d'entrée du rendu. Les clés sont les identifiants
- * STABLES publiés par le document (`family`, posés par le manifeste du titre), jamais des
- * libellés.
+ * THE TABLE BY FAMILY — the single entry point of the render. The keys are the STABLE
+ * identifiers published by the document (`family`, set by the title manifest), never labels.
  *
- * TROIS ÉTATS, ET LEUR DIFFÉRENCE EST DU SENS, pas du code :
- *  - une RÈGLE DE RENDU : la famille se dessine, chacune avec sa forme ;
- *  - `null` : la famille est CONNUE et la décision est de ne rien dessiner — voir les objets
- *    portés ci-dessous ;
- *  - ABSENTE : on n'a rien décidé, et le calque se tait. C'est le cas des familles qu'un futur
- *    manifeste ajouterait, et celui — assumé — des power-ups (voir la note en fin de table).
+ * THREE STATES, AND THEIR DIFFERENCE IS MEANING, not code:
+ *  - a RENDER RULE: the family draws, each with its shape;
+ *  - `null`: the family is KNOWN and the decision is to draw nothing — see the carried
+ *    objects below;
+ *  - ABSENT: nothing was decided, and the layer stays silent. That is the case of the
+ *    families a future manifest would add, and of the — accepted — power-ups (see the note
+ *    at the end of the table).
  *
- * ELLE EST ÉNUMÉRÉE AILLEURS, et un garde-rail le vérifie : `equipmentFamilies` du valideur Go
- * (`internal/games/mappings/loader_replay_labels_equipment.go`) et `placementFamily` de l'i18n
- * doivent coïncider avec elle — cf. `placementFamily.guard.test.ts`, qui LIT le fichier Go.
+ * IT IS ENUMERATED ELSEWHERE, and a guard checks it: `equipmentFamilies` of the Go
+ * validator (`internal/games/mappings/loader_replay_labels_equipment.go`) and
+ * `placementFamily` of the i18n must agree with it — cf.
+ * `placementFamily.guard.test.ts`, which READS the Go file.
  */
 export const PLACEMENT_RENDER: Readonly<Record<string, PlacementKind | null>> = {
-  // Les objets que la mesure voit DÉPLOYÉS, chacun avec sa forme propre.
+  // The objects the measurement sees DEPLOYED, each with its own shape.
   wall: 'wall',
   sensor: 'sensor',
-  // LA FAMILLE GARDE SON NOM `translocator_beacon` — c est un identifiant STABLE du document,
-  // et des milliers d artefacts deja cuits le portent ; le renommer serait une rupture de
-  // contrat, pas une correction de libelle. Ce qui change est ce que le calque en DESSINE et
-  // ce qu il en DIT : une faille, pas une balise (correction de l utilisateur, 2026-08-27).
+  // THE FAMILY KEEPS ITS NAME `translocator_beacon` — it is a STABLE identifier of the
+  // document, and thousands of already-cooked artifacts carry it; renaming it would be a
+  // contract break, not a label correction. What changes is what the layer DRAWS of it and
+  // what it SAYS of it: a rift, not a beacon (user correction, 2026-08-27).
   translocator_beacon: 'rift',
-  // L ECRAN OCCULTANT : nomme le 2026-08-27 par sa banque sonore, dessine le meme jour apres
-  // le verdict de l utilisateur sur les trois propositions de la planche — « opaque et points
-  // au-dessus ». Nommer, sonner et dessiner ont ete trois travaux distincts, dans cet ordre.
+  // THE BLACKOUT SCREEN: named 2026-08-27 by its sound bank, drawn the same day after the
+  // user verdict on the three proposals of the board — "opaque with dots above". Naming,
+  // sounding and drawing were three distinct works, in that order.
   shroud_screen: 'shroud',
   threat_seeker: 'seeker',
   repair_field: 'field',
-  // L'objet posé dont la nature n'est pas établie : un point neutre, et seulement sur bascule.
+  // The placed object whose nature is not established: a neutral point, and only on toggle.
   other: 'unnamed',
-  // LES OBJETS QUE LE JOUEUR PORTE — `null` EXPLICITE, ET C'EST UNE DÉCISION MESURÉE.
+  // THE OBJECTS THE PLAYER CARRIES — `null` EXPLICIT, AND THAT IS A MEASURED DECISION.
   //
-  // Les quatre grenades font 59 à 63 % des poses du corpus, et 95 % d'entre elles sont des
-  // LÂCHERS À LA MORT (`dropped`). Les quelques `deployed` qui restent sont des grenades
-  // lancées — or les lancers ont déjà leur calque, avec leur trajectoire et leur type. Le
-  // grappin, le propulseur et le répulseur sont des capacités qui agissent SUR LEUR PORTEUR :
-  // ce que le film en publie ici est l'appareil lui-même, pas un objet posé sur le terrain (le
-  // grappin a d'ailleurs son propre calque de traction). Les dessiner noierait le mur et le
-  // capteur sous des points qui ne disent rien du terrain.
+  // The four grenades make 59 to 63% of the corpus placements, and 95% of them are DROPS AT
+  // DEATH (`dropped`). The few `deployed` that remain are thrown grenades — and throws
+  // already have their layer, with their trajectory and their type. The grapple, the
+  // thruster and the repulsor are capabilities that act ON THEIR CARRIER: what the film
+  // publishes here is the device itself, not an object placed on the field (the grapple
+  // moreover has its own traction layer). Drawing them would drown the wall and the sensor
+  // under points that say nothing of the field.
   grenade_frag: null,
   grenade_plasma: null,
   grenade_dynamo: null,
@@ -158,62 +162,65 @@ export const PLACEMENT_RENDER: Readonly<Record<string, PlacementKind | null>> = 
   grapple: null,
   thruster: null,
   repulsor: null,
-  // POWER-UPS (`powerup_overshield`, `powerup_camo`) : DÉLIBÉRÉMENT ABSENTS, PAS MÊME À `null`.
+  // POWER-UPS (`powerup_overshield`, `powerup_camo`): DELIBERATELY ABSENT, NOT EVEN AT
+  // `null`.
   //
-  // Le plan prévoyait de les dessiner comme des objets de la CARTE, sans poseur, à leur socle.
-  // LA MESURE A RÉFUTÉ L'HYPOTHÈSE SUR LE PEU QU'ON A : le corpus entier (11 films) porte UNE
-  // pose de surbouclier et UNE de camouflage, et les DEUX ont un poseur et sont `dropped` (23 et
-  // 38 ms, 0,53 et 0,67 m de la fin de vie de leur poseur). Aucune position récurrente n'a pu
-  // être cherchée. Coder une règle dont aucun membre mesuré ne relève serait du vocabulaire
-  // mort (CLAUDE.md n°7).
+  // The plan intended to draw them as objects of the MAP, without planter, at their pad.
+  // THE MEASUREMENT REFUTED THE HYPOTHESIS ON THE LITTLE WE HAD: the whole corpus (11
+  // films) carries ONE overshield placement and ONE camo placement, and the TWO have a
+  // planter and are `dropped` (23 and 38 ms, 0.53 and 0.67 m from the end of life of their
+  // planter). No recurrent position could be searched. Coding a rule that no measured
+  // member falls under would be dead vocabulary (CLAUDE.md #7).
   //
-  // LE SOCLE EXISTE DEPUIS LE 2026-08-19 (schéma 17) ET NE CHANGE RIEN ICI — à lire avant de
-  // « corriger » cette absence. La voie `ti=37` publie bien un vrai power-up de socle, mais
-  // dans `weaponPads`, l'autre canal du document, et le calque des SOCLES le dessine (grand,
-  // nommé, avec sa vignette de HUD). Les faire entrer dans cette table-ci dessinerait une
-  // SECONDE marque au même endroit.
+  // THE PAD EXISTS SINCE 2026-08-19 (schema 17) AND CHANGES NOTHING HERE — read before
+  // "correcting" this absence. The `ti=37` lane does publish a real pad power-up, but in
+  // `weaponPads`, the other channel of the document, and the PAD layer draws it (large,
+  // named, with its HUD vignette). Letting them into this table would draw a SECOND mark
+  // in the same place.
   //
-  // LEUR LÂCHER, LUI, SE DESSINE DEPUIS LE 2026-08-19 — et pas par cette table. La décision
-  // produit du 2026-08-18 (« dessiner les objets lâchés à la mort ») passe par
-  // une règle d'ORIGINE, `placementDropped.ts`, qui ne demande à aucune famille d'avoir une
-  // forme d'objet actif. Cette table reste ce qu'elle a toujours été : ce qui se dessine
-  // quand l'objet est DÉPLOYÉ. Les power-ups n'en ont pas, et n'en auront pas.
+  // THEIR DROP, HOWEVER, IS DRAWN SINCE 2026-08-19 — and not by this table. The product
+  // decision of 2026-08-18 ("draw the objects dropped at death") goes through an ORIGIN
+  // rule, `placementDropped.ts`, which does not ask any family to have an active object
+  // shape. This table remains what it has always been: what draws when the object is
+  // DEPLOYED. Power-ups do not have one, and will not have one.
 }
 
 /**
- * L'ORIGINE QUI SE DESSINE. Identifiant STABLE du document, jamais un libellé.
+ * THE ORIGIN THAT DRAWS. STABLE identifier of the document, never a label.
  *
- * Le vocabulaire publié est `deployed` / `dropped` / `unknown` — `spawn` n'existe pas : le
- * critère « dotation reçue au spawn » que le plan avait écrit avant la mesure compte 4 poses sur
- * 3 661 (0,1 %), et les quatre sont des vies de 0,13 s et 1,49 s où début et fin se confondent.
+ * The published vocabulary is `deployed` / `dropped` / `unknown` — `spawn` does not exist:
+ * the criterion "grant received at spawn" that the plan wrote before the measurement counts
+ * 4 placements on 3,661 (0.1%), and the four are lives of 0.13 s and 1.49 s where start and
+ * end coincide.
  */
 export const PLACEMENT_ORIGIN_DEPLOYED = 'deployed'
 
-/** Origine non établie : aucun poseur mesuré, ou artefact antérieur au schéma 10. */
+/** Origin not established: no measured planter, or artifact earlier than schema 10. */
 export const PLACEMENT_ORIGIN_UNKNOWN = 'unknown'
 
 /**
- * placementOrigin — l'origine d'une pose, telle qu'on a le droit de la lire.
+ * placementOrigin — the origin of a placement, as we are allowed to read it.
  *
- * LE CHAMP EST OPTIONNEL AU CONTRAT, ET SON ABSENCE SE LIT `unknown` — JAMAIS `deployed`. Les
- * artefacts antérieurs au schéma 10 sont encore sur disque et en production jusqu'à la
- * re-cuisson complète : un repli sur `deployed` ferait dessiner, sur tout ce parc, exactement le
- * mur fantôme que ce filtre existe pour supprimer.
+ * THE FIELD IS OPTIONAL IN THE CONTRACT, AND ITS ABSENCE READS `unknown` — NEVER
+ * `deployed`. Artifacts earlier than schema 10 are still on disk and in production until
+ * the full re-cook: a fallback on `deployed` would draw, across that whole fleet, exactly
+ * the ghost wall this filter exists to remove.
  */
 export function placementOrigin(p: ReplayEquipmentPlacement): string {
   return p.origin ?? PLACEMENT_ORIGIN_UNKNOWN
 }
 
 /**
- * placementIsDeployedObject — cette pose est-elle l'objet DÉPLOYÉ qu'on a le droit de montrer ?
+ * placementIsDeployedObject — is this placement the DEPLOYED object we are allowed to show?
  *
- * DEUX CONDITIONS, TOUTES DEUX MESURÉES : l'origine est un déploiement, et — pour le mur
- * seulement — l'identifiant est celui des PANNEAUX (cf. WALL_PANEL_IDS : un mur déployé produit
- * deux poses, l'appareil qui vole et ses panneaux, et les dessiner toutes deux ferait deux arcs
- * pour un seul mur).
+ * TWO CONDITIONS, BOTH MEASURED: the origin is a deployment, and — for the wall only — the
+ * identifier is that of the PANELS (cf. WALL_PANEL_IDS: a deployed wall produces two
+ * placements, the flying device and its panels, and drawing both would make two arcs for
+ * one wall).
  *
- * EXPORTÉE PARCE QUE LE SON LIT LA MÊME RÈGLE (`replaySound.ts`) : le geste de pose qui sonne
- * est le même que celui qui se dessine. Deux prédicats divergeraient au premier changement.
+ * EXPORTED BECAUSE THE SOUND READS THE SAME RULE (`replaySound.ts`): the placement gesture
+ * that sounds is the same as the one that draws. Two predicates would diverge at the first
+ * change.
  */
 export function placementIsDeployedObject(p: ReplayEquipmentPlacement): boolean {
   if (placementOrigin(p) !== PLACEMENT_ORIGIN_DEPLOYED) return false
@@ -222,111 +229,115 @@ export function placementIsDeployedObject(p: ReplayEquipmentPlacement): boolean 
 }
 
 /**
- * Ce que le calque a besoin de savoir de l'instant courant. `frameMs` est la durée RÉELLE
- * d'une frame (cf. `frameToMs(1, doc)`) : c'est elle qui donne son âge à la pulsation, jamais
- * un compteur d'images — la cadence d'échantillonnage est choisie au build.
+ * What the layer needs to know of the current instant. `frameMs` is the REAL duration of a
+ * frame (cf. `frameToMs(1, doc)`): it is what gives its age to the pulse, never a frame
+ * counter — the sampling rate is chosen at build.
  */
 export interface PlacementTime extends PlacementToggles {
   frame: number
   frameMs: number
-  /** Nombre total d'images du rejeu (`doc.frameCount`) : la borne des poses sans fin connue. */
+  /** Total number of frames of the replay (`doc.frameCount`): the bound of placements with
+   * no known end. */
   frames: number
-  /** Densité de pixels : les épaisseurs d'écran la suivent (même règle que les marqueurs). */
+  /** Pixel density: the screen thicknesses follow it (same rule as the markers). */
   k: number
   reducedMotion: boolean
 }
 
 /**
- * LES DEUX BASCULES DONT LE RENDU DÉPEND, et elles voyagent ensemble parce qu'elles répondent
- * à la même question : qu'est-ce qui a le droit d'apparaître en plus des objets déployés ?
+ * THE TWO TOGGLES THE RENDER DEPENDS ON, and they travel together because they answer the
+ * same question: what is allowed to appear in addition to the deployed objects?
  *
- * `showDropped` est le RÉGLAGE, et rien de plus. Une garde de mode le croisait jusqu'au
- * 2026-08-20 pour l'annuler en Fiesta ; elle a été retirée (demande utilisateur : ces lâchers
- * sont réels, et il veut les voir). Ce module n'a jamais connu aucun mode, et n'en connaît
- * toujours aucun — le document de rejeu n'en publie pas.
+ * `showDropped` is the SETTING, and nothing more. A mode guard crossed it until 2026-08-20
+ * to cancel it in Fiesta; it was removed (user request: these drops are real, and he wants
+ * to see them). This module has never known any mode, and still knows none — the replay
+ * document does not publish any.
  */
 export interface PlacementToggles {
-  /** Les objets non identifiés se dessinent-ils ? Bascule du tiroir, ÉTEINTE par défaut. */
+  /** Do unidentified objects draw? Drawer toggle, OFF by default. */
   showUnnamed: boolean
-  /** Les objets de puissance LÂCHÉS se dessinent-ils ? Bascule du tiroir, ALLUMÉE par défaut. */
+  /** Do DROPPED power objects draw? Drawer toggle, ON by default. */
   showDropped: boolean
 }
 
-/** Ce qu'il faut connaître du temps pour borner une pose — rien de plus (règle des 5 params). */
+/** What needs to be known of time to bound a placement — nothing more (5-parameter rule). */
 export type PlacementWindowTime = Pick<PlacementTime, 'frameMs' | 'frames'>
 
-/** Ce que le SURVOL a besoin de savoir de l'instant : l'image, sa fenêtre, et les bascules. */
+/** What the HOVER needs to know of the instant: the frame, its window, and the toggles. */
 export type PlacementHoverTime = Pick<PlacementTime, 'frame' | 'frameMs' | 'frames'> &
   PlacementToggles
 
 /**
- * Ce que le calque a besoin de LIRE : les poses, et — pour le seul capteur de menaces — les
- * vies et leur camp.
+ * What the layer needs to READ: the placements, and — for the threat sensor only — the
+ * lives and their sides.
  *
- * POURQUOI LES TROIS VOYAGENT ENSEMBLE. Le capteur ne se dessine pas seul : son ping RÉVÈLE
- * des adversaires, et « adversaire » est une relation entre deux vies. Les grouper garde
- * `drawEquipmentPlacementsLayer` à cinq paramètres (seuil CLAUDE.md n°5) et dit ce qu'ils sont :
- * une SCÈNE, pas trois arguments indépendants.
+ * WHY THE THREE TRAVEL TOGETHER. The sensor does not draw alone: its ping REVEALS
+ * opponents, and "opponent" is a relation between two lives. Grouping them keeps
+ * `drawEquipmentPlacementsLayer` at five parameters (CLAUDE.md #5 threshold) and says what
+ * they are: a SCENE, not three independent arguments.
  */
 export interface PlacementScene {
   placements: readonly ReplayEquipmentPlacement[]
-  /** Toutes les vies du film ; le balayage de révélation filtre lui-même sur leur fenêtre. */
+  /** All the lives of the film; the reveal scan filters itself on their window. */
   lives: readonly ReplayTrackReady[]
   /**
-   * Camp de la vie qui occupe un slot À UNE IMAGE (son équipe du FILM) ; null = camp inconnu, donc
-   * jamais révélé ni révélateur. La frame lève l'ambiguïté d'un slot réattribué entre manches
-   * (poseur lu à sa pose, cible au ping — cf. threatSensor).
+   * Side of the life that occupies a slot AT A FRAME (its team from the FILM); null =
+   * unknown side, so never revealed nor revealing. The frame lifts the ambiguity of a slot
+   * reattributed between rounds (planter read at its placement, target at the ping — cf.
+   * threatSensor).
    */
   campOfSlot: (slot: number, frame: number) => number | null
 }
 
-/** Les encres du calque : la couleur d'équipe du poseur, et le neutre quand il n'y en a pas. */
+/** Inks of the layer: the team color of the planter, and the neutral when there is none. */
 export interface PlacementInk {
   /**
-   * Couleur du poseur, résolue par slot ET par image, demandée à l'instant de la POSE (`p.t0`) —
-   * pas à l'image courante, où le slot peut appartenir à un autre joueur (manche suivante).
-   * DOIT être un résolveur de FRONTIÈRE (`colorOfSlotOrLast`) : la classe dominante des poses est
-   * l'objet LÂCHÉ à la mort, dont `t0 = finVie + 1` — le poseur ne couvre plus l'image, et un
-   * résolveur strict rendrait `null` → encre neutre au lieu de la couleur du lâcheur. `null` =
-   * ni vie couvrante ni vie précédente : on tombe sur `neutral`.
+   * Color of the planter, resolved by slot AND by frame, asked at the instant of the
+   * PLACEMENT (`p.t0`) — not at the current frame, where the slot can belong to another
+   * player (next round). MUST be a BOUNDARY resolver (`colorOfSlotOrLast`): the dominant
+   * class of placements is the object DROPPED at death, whose `t0 = deathEnd + 1` — the
+   * planter no longer covers the frame, and a strict resolver would return `null` →
+   * neutral ink instead of the color of the dropper. `null` = neither covering life nor
+   * previous life: falls back to `neutral`.
    */
   colorOfSlot: (slot: number, frame: number) => string | null
   /**
-   * Encre FIXE de l'arc du mur (token `warning`, verdict R2-5 du 2026-08-18). Elle ne passe
-   * PAS par `inkOf` : le mur est le seul objet posé dont la couleur dit ce qu'il EST plutôt
-   * que qui l'a posé — l'utilisateur a explicitement accepté de perdre le camp sur celui-là.
+   * FIXED ink of the wall arc (token `warning`, verdict R2-5 of 2026-08-18). It does NOT
+   * go through `inkOf`: the wall is the only placed object whose color says what it IS
+   * rather than who placed it — the user explicitly accepted to lose the side on that one.
    */
   wall: string
   /**
-   * Encres FIXES de la faille du translocateur (2026-08-27). Comme `wall`, elles ne passent
-   * PAS par `inkOf` : l'utilisateur veut que la faille lise comme un « portail
-   * interdimensionnel », et une teinte d'équipe la ferait lire comme un marqueur de camp.
+   * FIXED inks of the translocator rift (2026-08-27). Like `wall`, they do NOT go through
+   * `inkOf`: the user wants the rift to read as an "interdimensional portal", and a team
+   * tint would make it read as a side marker.
    */
   rift: RiftInk
   /**
-   * Encres FIXES de l'écran occultant (2026-10-30) : bleu nuit et bleu électrique. Comme la
-   * faille, elles disent ce qu'EST l'objet, pas qui l'a posé — elles ne passent pas par `inkOf`.
+   * FIXED inks of the blackout screen (2026-10-30): night blue and electric blue. Like the
+   * rift, they say what the object IS, not who placed it — they do not go through `inkOf`.
    */
   shroud: ShroudInk
-  /** Encre neutre du thème (`--muted-foreground`), servie aux poses sans poseur. */
+  /** Neutral ink of the theme (`--muted-foreground`), served to placements without planter. */
   neutral: string
 }
 
 /**
- * placementKind rend la règle de rendu d'une pose, ou null quand il n'y en a pas.
+ * placementKind renders the render rule of a placement, or null when there is none.
  *
- * TROIS PORTES, DANS CET ORDRE, ET L'ORDRE EST LA RÈGLE :
- *  1. l'OBJET NON IDENTIFIÉ passe en premier et ÉCHAPPE au filtre d'origine — sa bascule est
- *     un outil de diagnostic (« un objet d'équipement est ici, sa nature n'est pas établie »),
- *     et pour ce service-là l'origine n'apporte rien : on cherche à voir ce qu'on ne sait pas
- *     nommer, d'où qu'il vienne. Éteinte par défaut, comportement inchangé ;
- *  2. l'OBJET DE PUISSANCE LÂCHÉ ensuite, parce qu'il ne dépend PAS de la table : un power-up
- *     n'y figure pas du tout, et un mur lâché y figure sans en relever (son identifiant est
- *     celui de l'appareil, pas des panneaux). Le tester après la table le perdrait ;
- *  3. le DÉPLOIEMENT enfin — la règle d'origine, inchangée depuis le schéma 10.
+ * THREE GATES, IN THIS ORDER, AND THE ORDER IS THE RULE:
+ *  1. THE UNIDENTIFIED OBJECT passes first and ESCAPES the origin filter — its toggle is a
+ *     diagnostic tool ("an equipment object is here, its nature is not established"), and
+ *     for that service the origin adds nothing: we want to see what we cannot name, from
+ *     wherever it comes. Off by default, behavior unchanged;
+ *  2. THE DROPPED POWER OBJECT next, because it does NOT depend on the table: a power-up
+ *     does not figure in it at all, and a dropped wall figures in it without falling under
+ *     it (its identifier is that of the device, not the panels). Testing it after the
+ *     table would lose it;
+ *  3. THE DEPLOYMENT at last — the origin rule, unchanged since schema 10.
  *
- * Ce qui ne passe aucune des trois ne dessine rien : famille hors table, famille à `null`
- * (grenades et capacités), lâcher d'une famille qui n'est pas de puissance.
+ * What passes none of the three draws nothing: family off-table, family at `null`
+ * (grenades and capabilities), drop of a family that is not power.
  */
 export function placementKind(
   p: ReplayEquipmentPlacement,
@@ -339,28 +350,31 @@ export function placementKind(
   return placementIsDeployedObject(p) ? kind : null
 }
 
-/** inkOf — la couleur d'équipe du poseur, ou le neutre quand la pose n'a pas de poseur connu. */
+/** inkOf — the team color of the planter, or the neutral when the placement has no known
+ * planter. */
 function inkOf(p: ReplayEquipmentPlacement, ink: PlacementInk): string {
   if (p.owner < 0) return ink.neutral
-  // À L'INSTANT DE LA POSE (`p.t0`). ATTENTION : pour la classe DOMINANTE — les objets LÂCHÉS à
-  // la mort — `t0 = finVie + 1`, le poseur n'occupe DÉJÀ PLUS le slot. `colorOfSlot` doit donc
-  // être un résolveur de FRONTIÈRE (`ownerAtFrameOrLast`, câblé par l'appelant) : il retombe sur
-  // la vie qui vient de finir — le lâcheur — au lieu de rendre `null` (encre neutre). Pour un
-  // objet DÉPLOYÉ, `t0` tombe dans la vie du poseur et la frontière rend la même chose que strict.
+  // AT THE INSTANT OF THE PLACEMENT (`p.t0`). WARNING: for the DOMINANT class — objects
+  // DROPPED at death — `t0 = deathEnd + 1`, the planter does NOT occupy the slot ANYMORE.
+  // `colorOfSlot` must therefore be a BOUNDARY resolver (`ownerAtFrameOrLast`, wired by
+  // the caller): it falls back to the life that just ended — the dropper — instead of
+  // returning `null` (neutral ink). For a DEPLOYED object, `t0` falls in the life of the
+  // planter and the boundary returns the same thing as strict.
   return ink.colorOfSlot(p.owner, p.t0) ?? ink.neutral
 }
 
 /**
- * drawSensor — la ZONE du capteur (disque à alpha très bas, borné par son anneau) et, quand
- * une onde est en cours, LE PING : un anneau parti du centre qui s'ouvre jusqu'au rayon en
- * s'effaçant.
+ * drawSensor — the ZONE of the sensor (very low alpha disk, bounded by its ring) and, when
+ * a wave is in progress, THE PING: a ring that starts from the center and opens out to the
+ * radius while fading.
  *
- * LA ZONE NE BOUGE PLUS, seule l'onde bouge : c'est ce qui distingue un capteur qui PINGE d'un
- * capteur qui respire. Le disque dit la portée officielle, à demeure ; l'onde dit l'instant.
+ * THE ZONE NO LONGER MOVES, only the wave moves: that is what distinguishes a sensor that
+ * PINGS from a sensor that breathes. The disk says the official range, permanently; the
+ * wave says the instant.
  *
- * `ctx.arc` sur le centre PROJETÉ et le rayon à l'échelle : la projection du rejeu est une
- * similitude (même facteur en X et en Y, cf. worldToCanvas), donc un cercle monde reste un
- * cercle à l'écran. Ce qui se calcule en monde, c'est ce qui porte une ORIENTATION — le mur.
+ * `ctx.arc` on the PROJECTED center and the scaled radius: the replay projection is a
+ * similarity (same factor in X and in Y, cf. worldToCanvas), so a world circle stays a
+ * screen circle. What gets computed in world is what carries an ORIENTATION — the wall.
  */
 function drawSensor(
   ctx: CanvasRenderingContext2D,
@@ -396,12 +410,14 @@ function drawSensor(
 }
 
 /**
- * Ce qu'il faut pour tracer UNE pose : la pose, sa règle de rendu déjà décidée, et LES VIES.
+ * What is needed to trace ONE placement: the placement, its already-decided render rule,
+ * and THE LIVES.
  *
- * LES VIES SONT LÀ POUR LE SEUL MUR, et c'est assumé : depuis le 2026-08-18, un mur sans cap
- * de pose emprunte la TRAJECTOIRE de son poseur (cf. `wallHeading`). Les grouper dans un objet
- * plutôt que d'ajouter deux paramètres garde `drawPlacement` sous le seuil de la règle des
- * cinq (CLAUDE.md n°5) et évite de recalculer `placementKind`, que l'appelant connaît déjà.
+ * THE LIVES ARE THERE FOR THE WALL ONLY, and that is accepted: since 2026-08-18, a wall
+ * without an aim cap borrows the TRAJECTORY of its planter (cf. `wallHeading`). Grouping
+ * them in an object rather than adding two parameters keeps `drawPlacement` under the
+ * threshold of the five-parameter rule (CLAUDE.md #5) and avoids recomputing
+ * `placementKind`, which the caller already knows.
  */
 interface PlacementTarget {
   p: ReplayEquipmentPlacement
@@ -410,10 +426,11 @@ interface PlacementTarget {
 }
 
 /**
- * drawPlacement — la forme d'UNE pose, aiguillée par sa règle de rendu.
+ * drawPlacement — the shape of ONE placement, dispatched by its render rule.
  *
- * Le mur et le capteur reçoivent la pose et le cadrage : ils travaillent en MONDE. Les autres
- * reçoivent un centre déjà projeté — c'est la frontière de `placementShapes.ts`.
+ * The wall and the sensor receive the placement and the framing: they work in WORLD. The
+ * others receive an already-projected center — that is the boundary of
+ * `placementShapes.ts`.
  */
 function drawPlacement(
   ctx: CanvasRenderingContext2D,
@@ -434,8 +451,8 @@ function drawPlacement(
   }
   const c = project({ x: p.x, y: p.y }, view)
   const ageMs = (time.frame - p.t0) * time.frameMs
-  // Les deux disques dont la portée est en MÈTRES partagent la même échelle : la lire une fois
-  // évite qu'ils divergent le jour où le cadrage changerait de source.
+  // The two disks whose range is in METERS share the same scale: reading it once avoids
+  // their diverging the day the framing would change source.
   const pxParM = viewScale(view)
   if (kind === 'dropped') drawDroppedObject(ctx, c, time, color)
   else if (kind === 'rift') drawRift(ctx, c, time, ink.rift)
@@ -447,17 +464,17 @@ function drawPlacement(
 }
 
 /**
- * drawEquipmentPlacementsLayer trace les poses ACTIVES à l'image courante, puis les marques de
- * révélation que les pings de capteur produisent à cet instant.
+ * drawEquipmentPlacementsLayer traces the ACTIVE placements at the current frame, then the
+ * reveal marks that the sensor pings produce at this instant.
  *
- * La fenêtre dessinée est celle de `placementEndFrame` : une pose à fin lue (`endRead`, capteur
- * et champ engendrés) va de son repos à cette fin ; sinon `t1` n'est qu'une borne inférieure et
- * la famille se tient à sa durée officielle quand elle en a une (capteur, mur), ou reste jusqu'à
- * la fin du rejeu.
+ * The drawn window is that of `placementEndFrame`: a placement with read end (`endRead`,
+ * sensor and generated field) goes from its placement to that end; otherwise `t1` is only
+ * a lower bound and the family holds to its official duration when it has one (sensor,
+ * wall), or stays until the end of the replay.
  *
- * LES MARQUES PASSENT APRÈS TOUTES LES POSES, et jamais dans la boucle : une marque est un
- * signe posé sur un JOUEUR, elle doit se lire par-dessus les zones — y compris celle d'un
- * second capteur qui recouvrirait le premier.
+ * THE MARKS PASS AFTER ALL THE PLACEMENTS, and never in the loop: a mark is a sign placed
+ * on a PLAYER, it must read on top of the zones — including that of a second sensor that
+ * would cover the first.
  */
 export function drawEquipmentPlacementsLayer(
   ctx: CanvasRenderingContext2D,
@@ -475,27 +492,27 @@ export function drawEquipmentPlacementsLayer(
   }
   if (sensors.length === 0) return
   for (const reveal of sensorReveals(sensors, scene, time)) {
-    // La marque porte la couleur du POSEUR, résolue à l'image de sa pose (`reveal.ownerFrame`) :
-    // le slot du poseur peut appartenir à un autre joueur à l'image courante (manche suivante).
+    // The mark carries the color of the PLANTER, resolved at the frame of its placement
+    // (`reveal.ownerFrame`): the slot of the planter can belong to another player at the
+    // current frame (next round).
     const color = ink.colorOfSlot(reveal.owner, reveal.ownerFrame) ?? ink.neutral
     drawRevealMark(ctx, project({ x: reveal.x, y: reveal.y }, view), reveal.sinceMs, time, color)
   }
 }
 
 /**
- * countDrawablePlacements — ce qu'un document donne À DESSINER, compté par la MÊME PORTE que
- * le tracé (`placementKind`).
+ * countDrawablePlacements — what a document gives TO DRAW, counted by the SAME GATE as the
+ * tracing (`placementKind`).
  *
- * POURQUOI ICI ET PAS DANS LE COMPOSANT. Une bascule d'interface ne doit s'allumer que si
- * quelque chose se dessinerait derrière elle (même règle que le bouton Zones), et « quelque
- * chose se dessinerait » est une décision de CE module — famille hors table, objet porté,
- * lâcher d'une famille sans enjeu. La recompter dans le composant, c'est deux réponses
- * possibles à la même question. LES BASCULES VALENT TOUTES `true` AU COMPTAGE : on compte ce
- * qui SERAIT dessiné si le lecteur les allumait, sinon la commande qui les allume ne
- * s'afficherait jamais.
+ * WHY HERE AND NOT IN THE COMPONENT. An interface toggle must only light up if something
+ * would draw behind it (same rule as the Zones button), and "something would draw" is a
+ * decision of THIS module — family off-table, carried object, drop of a family with no
+ * stake. Recounting it in the component would be two possible answers to the same
+ * question. THE TOGGLES ALL COUNT AS `true`: we count what WOULD draw if the reader lit
+ * them, otherwise the command that lights them would never show.
  *
- * `dropped` EST UN SOUS-ENSEMBLE DE `drawable`, comme `unnamed` : ce sont trois vues du même
- * balayage, pas trois populations disjointes.
+ * `dropped` IS A SUBSET of `drawable`, like `unnamed`: they are three views of the same
+ * scan, not three disjoint populations.
  */
 export function countDrawablePlacements(placements: readonly ReplayEquipmentPlacement[]): {
   drawable: number

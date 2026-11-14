@@ -1,32 +1,33 @@
 /**
- * shotEffects.ts — LA FORME D'UN TIR DIT SON ARME.
+ * shotEffects.ts — the SHAPE OF A SHOT SAYS ITS WEAPON.
  *
- * CE QUI EST MESURÉ, ET CE QUI EST CHOISI. Ce qui est mesuré, c'est le LIBELLÉ de l'arme : le
- * film le porte sur chaque événement de tir, et l'artefact le nomme (22 familles nommées sur
- * 22 pour ce match). Ce qui est choisi, c'est la mise en scène — une famille d'arme se dessine
- * autrement qu'une autre. Aucune famille n'est déduite d'une observation : une arme hors
- * catalogue tombe sur le rendu neutre, jamais sur un rendu approchant.
+ * WHAT IS MEASURED, AND WHAT IS CHOSEN. What is measured is the LABEL of the weapon: the
+ * film carries it on every shot event, and the artifact names it (22 named families out of
+ * 22 for this match). What is chosen is the staging — a weapon family is drawn differently
+ * from another. No family is deduced from an observation: a weapon outside the catalog falls
+ * on the neutral rendering, never on an approximating one.
  *
- * OÙ VIT LE CLASSEMENT : dans les mappings du titre, publiés par l'artefact
- * (`weaponLabels[id].fx`). Ce fichier ne connaît plus une seule arme Halo.
+ * WHERE THE CLASSIFICATION LIVES: in the mappings of the title, published by the artifact
+ * (`weaponLabels[id].fx`). This file no longer knows a single Halo weapon.
  *
- * POURQUOI LA FORME ET NON LA TEINTE. Le POC distinguait les familles par sept teintes `hsla`
- * en dur. Ici la couleur appartient au TIREUR — c'est elle qui permet de suivre un joueur des
- * yeux — et les couleurs sémantiques passent par des tokens (règle du dépôt). Faire porter la
- * famille par la teinte obligerait soit à écraser l'identité du tireur, soit à inventer sept
- * couleurs hors du système. La forme, elle, est libre : une gerbe d'aiguilles ne ressemble à
- * rien d'autre, et elle reste lisible dans les deux thèmes sans qu'on ait à la décliner.
+ * WHY THE SHAPE AND NOT THE TINT. The POC distinguished the families by seven hard-coded
+ * `hsla` tints. Here the color belongs to the SHOOTER — that is what allows following a
+ * player with the eyes — and the semantic colors go through tokens (repository rule). Making
+ * the family carried by the tint would force either crushing the identity of the shooter,
+ * or inventing seven colors outside the system. The shape, for its part, is free: a burst
+ * of needles does not resemble anything else, and it stays readable in both themes without
+ * having to be derived.
  *
- * ACCESSIBILITÉ : sous « mouvement réduit », les effets ne s'animent pas. La géométrie et
- * l'opacité restent constantes pendant toute la rémanence — le marqueur reste, il ne bouge
- * plus. La feuille de style ne peut rien pour un canvas dessiné en JS : la préférence se lit
- * donc ici.
+ * ACCESSIBILITY: under "reduced motion", the effects do not animate. The geometry and the
+ * opacity stay constant for the whole afterglow — the marker remains, it no longer moves.
+ * The stylesheet cannot do anything for a canvas drawn in JS: the preference is therefore
+ * read here.
  */
-// L'échelle de la bombe vit dans le module feuille de l'éclair (voir sa doc) : c'est lui que
-// le garde-rail de rastérisation transpile seul, sans import de valeur.
+// The scale of the bomb lives in the leaf module of the flash (see its doc): it is the one
+// the rasterization guardrail transpiles alone, without value import.
 import { BOMB_SCALE } from './muzzleFlash'
 
-/** Familles de rendu. `sobre` n'est pas une famille : c'est l'absence de famille connue. */
+/** Rendering families. `sobre` is not a family: it is the absence of a known family. */
 export type ShotFamily =
   | 'ballistic'
   | 'plasma'
@@ -39,16 +40,17 @@ export type ShotFamily =
   | 'plain'
 
 /**
- * DRAWN_FAMILIES — les familles que ce fichier sait DESSINER.
+ * DRAWN_FAMILIES — the families this file knows how to DRAW.
  *
- * LE CATALOGUE DES ARMES N'EST PLUS ICI (lot 3.2). Il vivait en dur, par nom canonique
- * d'arme — 22 noms Halo dans du code de rendu, donc un catalogue de jeu recopié côté web,
- * qui se serait tu le jour où une arme est renommée et qui n'aurait jamais rien su d'un
- * second titre. Le classement vient désormais du DOCUMENT (`weaponLabels[id].fx`), résolu
- * hors ligne depuis `config/titles/{slug}/mappings/replay_labels.toml`.
+ * THE CATALOG OF WEAPONS IS NO LONGER HERE (lot 3.2). It used to live hard-coded, by
+ * canonical weapon name — 22 Halo names in rendering code, hence a game catalog copied on
+ * the web side, which would have gone silent the day a weapon is renamed and which would
+ * never have known anything of a second title. The classification now comes from the
+ * DOCUMENT (`weaponLabels[id].fx`), resolved offline from
+ * `config/titles/{slug}/mappings/replay_labels.toml`.
  *
- * Ce qui reste ici est ce qui APPARTIENT au rendu : la géométrie de chaque famille, et le
- * refus de dessiner ce qu'on ne connaît pas.
+ * What remains here is what BELONGS to the rendering: the geometry of each family, and the
+ * refusal to draw what one does not know.
  */
 const DRAWN_FAMILIES: Record<string, ShotFamily> = {
   ballistic: 'ballistic',
@@ -62,52 +64,52 @@ const DRAWN_FAMILIES: Record<string, ShotFamily> = {
 }
 
 /**
- * familyOf valide la famille annoncée par le document.
+ * familyOf validates the family announced by the document.
  *
- * SANS FAMILLE, OU HORS DES FORMES CONNUES : `plain`. On ne rapproche pas d'une famille
- * voisine — un rendu emprunté affirmerait une arme qu'on ignore, exactement comme le ferait
- * un visuel par défaut. Une famille inconnue du client (document plus récent que l'app)
- * tombe donc sur le trait neutre, pas sur une forme approchante.
+ * WITHOUT FAMILY, OR OUTSIDE THE KNOWN SHAPES: `plain`. We do not snap to a nearby family —
+ * a borrowed rendering would assert a weapon we do not know, exactly as a default visual
+ * would. A family unknown to the client (document newer than the app) therefore falls on the
+ * neutral stroke, not on an approximating shape.
  */
 export function familyOf(effect: string | undefined): ShotFamily {
   if (!effect) return 'plain'
   return DRAWN_FAMILIES[effect] ?? 'plain'
 }
 
-/** Géométrie d'un effet : origine, direction (radians canvas) et longueur en pixels. */
+/** Geometry of an effect: origin, direction (canvas radians) and length in pixels. */
 export interface ShotShape {
   x: number
   y: number
-  /** null = la visée n'était pas lisible : on ne dessine aucune direction. */
+  /** null = the aim was not readable: no direction is drawn. */
   angle: number | null
   length: number
-  /** 1 = à l'instant du tir, 0 = fin de rémanence. */
+  /** 1 = at the instant of the shot, 0 = end of afterglow. */
   fade: number
-  /** Sous « mouvement réduit », la forme ne progresse pas avec `fade`. */
+  /** Under "reduced motion", the shape does not progress with `fade`. */
   reduced: boolean
-  /** Départage les formes irrégulières pour que deux tirs voisins ne se superposent pas. */
+  /** Ties the broken shapes apart so that two neighboring shots do not overlap. */
   seed: number
   /**
-   * true SEULEMENT quand l'extrémité est une position RÉELLE — celle de la victime d'une
-   * mort (règle POC : couple tueur-victime complet). Sur un TIR, `length` n'est qu'une
-   * longueur de trace : y poser un halo d'impact inventerait un point de chute que le film
-   * ne donne pas. Les familles `explosive`, `needles` et `melee` s'en servent pour ne pas
-   * mentir sur leur extrémité.
+   * true ONLY when the end is a REAL position — that of the victim of a death (rule POC:
+   * complete killer-victim pair). On a SHOT, `length` is only a trace length: placing an
+   * impact halo there would invent a point of fall the film does not give. The families
+   * `explosive`, `needles` and `melee` use it not to lie about their end.
    */
   target?: boolean
   /**
-   * Mêlée UNIQUEMENT : la victime est à PORTÉE du geste (distance monde < 8 m, seuil
-   * mesuré côté killFx). L'arc de liaison tueur -> victime ne se dessine qu'alors — au
-   * delà, le geste garde son arc ouvert vers la victime, sans trait qui la relie.
+   * MELEE ONLY: the victim is in REACH of the gesture (world distance < 8 m, threshold
+   * measured on the killFx side). The killer -> victim link arc is only drawn then —
+   * beyond it, the gesture keeps its arc open toward the victim, without a line linking it.
    */
   meleeLink?: boolean
 }
 
 /**
- * drawShotEffect dessine un tir selon sa famille, dans la couleur DÉJÀ RÉSOLUE du tireur.
+ * drawShotEffect draws a shot according to its family, in the ALREADY RESOLVED color of the
+ * shooter.
  *
- * La direction n'est tracée que si le film la porte : sans elle, seul l'éclat d'origine est
- * dessiné. Tracer un trait par défaut ferait croire à une visée connue.
+ * The direction is only traced if the film carries it: without it, only the origin burst is
+ * drawn. Tracing a line by default would make one believe in a known aim.
  */
 export function drawShotEffect(
   ctx: CanvasRenderingContext2D,
@@ -157,16 +159,16 @@ export function drawShotEffect(
   ctx.restore()
 }
 
-/** Forme orientée : la géométrie plus son avancement, une fois la direction connue. */
+/** Oriented shape: its geometry plus its advance, once the direction is known. */
 interface Oriented extends Omit<ShotShape, 'angle'> {
   angle: number
   advance: number
 }
 
 /**
- * drawDeathMarker — la mort dont AUCUN axe n'est lisible (couple incomplet, règle 89/93) :
- * un anneau POINTILLÉ, daté et localisé, qui n'affirme aucune direction. Convention déjà
- * établie par le POC — le pointillé est la marque du « lu mais non orientable ».
+ * drawDeathMarker — the death of which NO axis is readable (incomplete pair, rule 89/93):
+ * a DOTTED ring, dated and localized, that asserts no direction. Convention already
+ * established by the POC — the dotted line is the mark of "read but not orientable".
  */
 export function drawDeathMarker(
   ctx: CanvasRenderingContext2D,
@@ -187,7 +189,7 @@ export function drawDeathMarker(
   ctx.restore()
 }
 
-/** drawOrigin — l'éclat d'un tir dont la visée n'est pas lisible. Aucune direction inventée. */
+/** drawOrigin — the burst of a shot whose aim is not readable. No direction invented. */
 function drawOrigin(ctx: CanvasRenderingContext2D, shape: ShotShape, fade: number): void {
   ctx.globalAlpha = 0.85 * fade
   ctx.beginPath()
@@ -200,13 +202,13 @@ function endOf(s: Oriented): { x: number; y: number } {
 }
 
 /**
- * drawBallistic — une poudre : trait net et bref, qui s'éteint sec.
+ * drawBallistic — a POWDER: a clean short stroke, that fades sharply.
  *
- * DEUX HORLOGES, recalées sur le POC : l'ÉCLAT s'éteint vite (carré du temps restant) —
- * c'est la détonation sèche demandée ; le TRAIT décroît plus lentement (puissance 1,5)
- * parce qu'il porte QUI a tiré sur QUI, et une information de ce prix ne doit pas
- * disparaître en deux images. Le POC avait mesuré le défaut inverse : tout au cube, et
- * l'effet était absent des vitesses 4x et 8x.
+ * TWO CLOCKS, re-tuned on the POC: the SPARK fades fast (square of the remaining time) —
+ * that is the dry detonation asked for; the STROKE decays more slowly (power 1.5) because it
+ * carries WHO shot at WHOM, and an information of that price must not disappear in two
+ * frames. The POC had measured the opposite defect: everything to the cube, and the effect
+ * was absent at the 4x and 8x speeds.
  */
 function drawBallistic(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const e = endOf(s)
@@ -218,7 +220,7 @@ function drawBallistic(ctx: CanvasRenderingContext2D, s: Oriented): void {
   ctx.moveTo(s.x, s.y)
   ctx.lineTo(e.x, e.y)
   ctx.stroke()
-  // L'éclat de bouche : il grandit en s'éteignant (POC), au carré — une détonation.
+  // The muzzle spark: it grows as it fades (POC), to the square — a detonation.
   ctx.globalAlpha = Math.min(1, 1.1 * k)
   ctx.beginPath()
   ctx.arc(s.x, s.y, 2 + 4.2 * k, 0, Math.PI * 2)
@@ -226,9 +228,9 @@ function drawBallistic(ctx: CanvasRenderingContext2D, s: Oriented): void {
 }
 
 /**
- * drawPlasma — l'énergie ne s'éteint pas comme une poudre : décroissance MOLLE (racine
- * carrée, recalée POC — c'est le contraste voulu avec la balistique : même geste,
- * extinction opposée), et le trait ONDULE.
+ * drawPlasma — the energy does not fade like a powder: SOFT decay (square root, re-tuned
+ * POC — that is the intended contrast with the ballistic: same gesture, opposite
+ * extinction), and the stroke WAVES.
  */
 function drawPlasma(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const nx = -Math.sin(s.angle)
@@ -251,9 +253,9 @@ function drawPlasma(ctx: CanvasRenderingContext2D, s: Oriented): void {
 }
 
 /**
- * drawLight — un RAI CONTINU : deux traits superposés, large et pâle sous fin et franc.
- * L'épaisseur ne varie pas avec l'âge, seule l'opacité baisse : un faisceau ne se
- * disperse pas, il s'éteint (largeurs recalées POC : 6,5 / 2,0).
+ * drawLight — a CONTINUOUS BEAM: two superposed strokes, wide and pale under thin and
+ * sharp. The thickness does not vary with the age, only the opacity falls: a beam does not
+ * disperse, it fades (widths re-tuned POC: 6.5 / 2.0).
  */
 function drawLight(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const e = endOf(s)
@@ -269,8 +271,8 @@ function drawLight(ctx: CanvasRenderingContext2D, s: Oriented): void {
 }
 
 /**
- * drawShock — un arc BRISÉ : une ligne en zigzag, jamais droite. Décroissance recalée
- * POC (puissance 1,6) : plus vif qu'un plasma, moins sec qu'une poudre.
+ * drawShock — a BROKEN ARC: a zigzag line, never straight. Decay re-tuned POC (power 1.6):
+ * quicker than a plasma, less dry than a powder.
  */
 function drawShock(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const nx = -Math.sin(s.angle)
@@ -292,11 +294,10 @@ function drawShock(ctx: CanvasRenderingContext2D, s: Oriented): void {
 }
 
 /**
- * drawExplosive — DEUX TEMPS : un départ épais et bref, puis une onde qui s'ouvre.
- * L'onde ne se pose à l'EXTRÉMITÉ que si elle est RÉELLE (`target`, la victime d'une
- * mort) ; sur un tir elle reste centrée sur le tireur — le film ne date aucun impact.
- * `scale` : 1 pour la déflagration, `BOMB_SCALE` pour la bombe (portée, onde ET traits plus
- * grands — lot M6.2).
+ * drawExplosive — TWO TIMES: a thick short start, then a wave that opens. The wave settles
+ * at the END only if it is REAL (`target`, the victim of a death); on a shot it stays
+ * centered on the shooter — the film dates no impact. `scale`: 1 for the blast,
+ * `BOMB_SCALE` for the bomb (range, wave AND strokes larger — lot M6.2).
  */
 function drawExplosive(ctx: CanvasRenderingContext2D, s: Oriented, scale: number): void {
   const burst = Math.max(0, (s.fade - 0.7) / 0.3)
@@ -320,10 +321,10 @@ function drawExplosive(ctx: CanvasRenderingContext2D, s: Oriented, scale: number
 }
 
 /**
- * drawMelee — AUCUN éclair de bouche : le geste n'est pas un tir, c'est un arc court,
- * ouvert du côté de la victime. L'ARC DE LIAISON entre les deux ne se dessine que si la
- * victime est réellement à portée (`meleeLink`, seuil 8 m mesuré côté killFx) : relier un
- * marteau à une victime à 20 m affirmerait un contact qui n'a pas eu lieu.
+ * drawMelee — NO muzzle flash: the gesture is not a shot, it is a short arc, open toward the
+ * victim. The LINK ARC between the two is only drawn if the victim is really in reach
+ * (`meleeLink`, threshold 8 m measured on the killFx side): linking a hammer to a victim 20
+ * m away would assert a contact that did not happen.
  */
 function drawMelee(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const r = 7 + 13 * s.advance
@@ -353,9 +354,9 @@ function drawMelee(ctx: CanvasRenderingContext2D, s: Oriented): void {
 }
 
 /**
- * drawNeedles — la signature est la GERBE, pas le trait : cinq brins qui s'écartent.
- * La petite détonation à l'extrémité ne se joue QUE si elle est réelle (`target`, une
- * mort) : un tir du Needler ne dit pas où ses aiguilles ont fini.
+ * drawNeedles — the signature is the BURST, not the stroke: five spikes that spread. The
+ * small detonation at the end only plays if it is real (`target`, a death): a shot of the
+ * Needler does not say where its needles ended up.
  */
 function drawNeedles(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const nx = -Math.sin(s.angle)
@@ -383,7 +384,7 @@ function drawNeedles(ctx: CanvasRenderingContext2D, s: Oriented): void {
   }
 }
 
-/** drawPlain — arme non cataloguée : un trait sobre, qui n'affirme aucune famille. */
+/** drawPlain — uncatalogued weapon: a sober stroke, that asserts no family. */
 function drawPlain(ctx: CanvasRenderingContext2D, s: Oriented): void {
   const e = endOf(s)
   ctx.globalAlpha = 0.7 * s.fade

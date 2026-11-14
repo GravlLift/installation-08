@@ -1,54 +1,54 @@
 /**
- * weaponPadsLayer.ts — LES SOCLES D'ARME sur la carte : ce que le calque affirme, et l'endroit
- * exact où il cesse d'affirmer.
+ * weaponPadsLayer.ts — THE WEAPON PADS on the map: what the layer asserts, and the exact
+ * place where it stops asserting.
  *
- * LA SOURCE est le document (schéma 11) : `weaponPads`, un socle par RÉCURRENCE SPATIALE
- * mesurée — des armes de même famille qui réapparaissent à moins d'un mètre, sans qu'aucune
- * vie ne s'achève à proximité. Chaque socle porte sa position monde, la FAMILLE d'arme (même
- * écriture qu'un loadout, donc même clé dans `weaponLabels`), ses apparitions, ses intervalles
- * de présence, et son CYCLE quand il est établi.
+ * THE SOURCE is the document (schema 11): `weaponPads`, one pad per MEASURED SPATIAL
+ * RECURRENCE — weapons of the same family that respawn within less than a meter, without any
+ * life ending nearby. Each pad carries its world position, the WEAPON FAMILY (same writing
+ * as a loadout, so the same key in `weaponLabels`), its spawns, its presence intervals, and
+ * its CYCLE when it is established.
  *
- * LA POSITION PEUT VENIR D'AILLEURS depuis le 2026-08-19, et c'est la seule chose qui le
- * peut : quand la réponse porte `mapWeaponPads`, l'appelant a remplacé le centroïde des
- * apparitions par la position du SPAWNER lue dans le fichier de carte (cf.
- * `crossedWeaponPads`). Ce calque ne le sait pas et n'a pas à le savoir — il dessine ce
- * qu'on lui donne, et tout le reste (présence, états, cycle) reste la mesure du match.
+ * THE POSITION CAN COME FROM ELSEWHERE since 2026-08-19, and that is the only thing that can:
+ * when the answer carries `mapWeaponPads`, the caller has replaced the centroid of the spawns
+ * by the position of the SPAWNER read in the map file (cf. `crossedWeaponPads`). This layer
+ * does not know it and does not have to know it — it draws what it is given, and everything
+ * else (presence, states, cycle) remains the measurement of the match.
  *
- * UNE PILE VERTICALE, ET LE LOSANGE EST SON PIED (retour utilisateur du 2026-08-27 : « l'icône
- * doit être au-dessus du petit losange, pas dedans »). De bas en haut : le LOSANGE à la position
- * exacte du socle, la VIGNETTE posée au-dessus de lui (son bas au sommet du losange, augmenté de
- * `PAD_GAP_PX`), le COMPTEUR au-dessus. Trois marques, une seule colonne, un seul lieu.
+ * A VERTICAL STACK, AND THE DIAMOND IS ITS FOOT (user return of 2026-08-27: "l'icône doit être
+ * au-dessus du petit losange, pas dedans" (the icon should be above the small diamond, not
+ * inside it)). From bottom to top: the DIAMOND at the exact position of the pad, the VIGNETTE
+ * placed above it (its bottom at the top of the diamond, increased by `PAD_GAP_PX`), the
+ * COUNTER above. Three marks, one single column, one single place.
  *
- * L'ANNEAU-BORDURE D'A13 N'EXISTE PLUS, et c'est le même retour : ce liseré losange, posé autour
- * de la vignette à l'encre de la nature, ENFERMAIT l'image — l'écran disait « l'icône dans le
- * losange » là où la donnée dit « une arme au-dessus d'un lieu ». Sa fonction — rendre la nature
- * du socle vive sur n'importe quel fond — revient au losange, désormais TOUJOURS PLEIN à cette
- * encre : un aplat de 6 px se lit mieux qu'un liseré de 1,4 px, et il ne cerne rien.
+ * THE A13 BORDER RING NO LONGER EXISTS, and it is the same return: this diamond rim, placed
+ * around the vignette in the ink of the nature, IMPRISONED the image — the screen said "the
+ * icon in the diamond" where the data says "a weapon above a place". Its function — make the
+ * nature of the pad live on any background — comes back to the diamond, now ALWAYS FULL at
+ * this ink: a flat fill of 6 px reads better than a rim of 1.4 px, and it circles nothing.
  *
- * LES TROIS ÉTATS SE LISENT AILLEURS (`weaponPadTime.ts`) : ce fichier ne fait que les
- * DESSINER, et il les dessine sur le LOSANGE, qui garde sa forme et son encre dans les trois
- * cas — plein à 0,95 (présence prouvée) ; plein atténué à 0,55, cerné d'un halo losange
- * POINTILLÉ (le film ne dit rien) ; plein très atténué à 0,35 et sans vignette (absence
- * prouvée).
+ * THE THREE STATES ARE READ ELSEWHERE (`weaponPadTime.ts`): this file only DRAWS them, and
+ * it draws them on the DIAMOND, which keeps its shape and its ink in the three cases — full
+ * at 0.95 (presence proven); faint full at 0.55, circled by a dotted diamond HALO (the film
+ * says nothing); very faint full at 0.35 and without vignette (absence proven).
  *
- * LE POINTILLÉ GARDE SON SENS — celui que `placementShapes` lui a donné : « cette limite n'est
- * pas affirmée ». Ici la limite est TEMPORELLE et non spatiale, mais le message est le même, et
- * c'est pour cela qu'il n'apparaît QUE sur l'état incertain : le losange plein, lui, dit une
- * présence ou une absence que la mesure tient.
+ * THE DOTTED LINE KEEPS ITS MEANING — the one that `placementShapes` gave it: "this limit is
+ * not asserted". Here the limit is TEMPORAL and not spatial, but the message is the same,
+ * and that is why it appears ONLY on the uncertain state: the full diamond, for its part,
+ * says a presence or an absence that the measurement holds.
  *
- * CE QUE CE CALQUE NE DESSINE JAMAIS :
- *  - LE RAMASSEUR. Le champ (`padPickups[].xuid`) est PUBLIÉ depuis le schéma 30 (2026-08-31),
- *    l'événement natif le portant. Aucune ligne d'ici ne le lit : ce calque dessine des LIEUX,
- *    pas des joueurs. C'est un choix de calque, plus une absence de donnée.
- *  - LES OBJETS LÂCHÉS. Ce sont les armes qu'un joueur relâche en mourant ; elles ne sont pas
- *    des socles et ne sont pas publiées ici (décision utilisateur du 18/08).
- *  - LA DIFFÉRENCE SOCLE AU SOL / RÂTELIER MURAL. La donnée ne porte qu'une position : rien
- *    ne les sépare, et l'écran dit « emplacement d'arme » plutôt que d'en choisir un.
- *  - UN COMPTE À REBOURS SANS SOURCE. Ni prochaine apparition mesurée, ni cycle établi : rien
- *    ne s'écrit — un tiret suggérerait qu'on saurait (cf. `padRespawnAt`).
+ * WHAT THIS LAYER NEVER DRAWS:
+ *  - THE PICKER. The field (`padPickups[].xuid`) is PUBLISHED since schema 30 (2026-08-31),
+ *    the native event carrying it. No line here reads it: this layer draws PLACES, not
+ *    players. It is a choice of layer, plus a data absence.
+ *  - THE DROPPED OBJECTS. They are the weapons a player releases when dying; they are not
+ *    pads and they are not published here (user decision of 18/08).
+ *  - THE DIFFERENCE GROUND PAD / WALL RACK. The data carries only a position: nothing
+ *    separates them, and the screen says "weapon location" rather than choosing one.
+ *  - A COUNTDOWN WITHOUT SOURCE. Neither measured next spawn, nor established cycle: nothing
+ *    is written — a dash would suggest that one would know (cf. `padRespawnAt`).
  *
- * Pas de React : géométrie pure + un CanvasRenderingContext2D, comme les calques voisins.
- * L'encre arrive de l'appelant, qui la tient des variables du thème.
+ * No React: pure geometry + a CanvasRenderingContext2D, like the neighboring layers. The ink
+ * comes from the caller, which holds it from the variables of the theme.
  */
 import type { ReplayWeaponPadReady } from '../../../lib/replay/replayNormalize'
 import { project, UNCERTAIN_DASH, type PlacementView } from './placementShapes'
@@ -56,72 +56,78 @@ import type { PadScale } from '../model/weaponPadFamilies'
 import type { XY } from '../../../lib/replay/replayLogic'
 import { padRespawnAt, padStateAt, type PadState } from '../model/weaponPadTime'
 
-/** Le cadrage est celui des poses : les deux calques projettent la même scène. */
+/** The framing is that of the placements: the two layers project the same scene. */
 export type { PlacementView as PadView } from './placementShapes'
 
 /**
- * Rayon du LOSANGE du socle, en pixels d'ÉCRAN, par taille (avant compensation d'aire).
+ * Radius of the DIAMOND of the pad, in SCREEN pixels, per size (before area compensation).
  *
- * LE LOSANGE DIT LE LIEU ET L'ÉTAT, la vignette dit ce qu'on y trouve (verdict du 2026-08-18,
- * amendé le 2026-08-27) : la vignette est posée AU-DESSUS, libre, et plus jamais dans un
- * anneau — un contenu enfermé à 8 px n'est pas lisible.
+ * THE DIAMOND SAYS THE PLACE AND THE STATE, the vignette says what one finds there (verdict
+ * of 2026-08-18, amended on 2026-08-27): the vignette is placed ABOVE, free, and no longer
+ * in a ring — a content imprisoned at 8 px is not readable.
  */
 const PAD_DOT_PX: Record<PadScale, number> = { power: 4.6, classic: 3.2 }
 
 /**
- * Hauteur de la vignette d'arme, en pixels d'écran, par taille.
+ * Height of the weapon vignette, in screen pixels, per size.
  *
- * LES DEUX VALEURS SONT UN ARBITRAGE D'ÉCRAN, pas une mesure : « des icônes trop petites
- * seraient inutiles mais des trop grosses risquent de polluer » (bilan du 18/08). La grande
- * tient sous le nom d'un joueur (8,5 px) augmenté de son contour ; la petite reste au-dessus
- * du point neutre des objets non identifiés (2,5 px de rayon), qu'elle ne doit pas imiter.
+ * THE TWO VALUES ARE A SCREEN ARBITRATION, not a measurement: "des icônes trop petites
+ * seraient inutiles mais des trop grosses risquent de polluer" (icons too small would be
+ * useless but too big ones risk polluting) (balance of 18/08). The large one fits under the
+ * name of a player (8.5 px) increased by its outline; the small one remains above the
+ * neutral point of the unidentified objects (2.5 px of radius), which it must not imitate.
  */
 const PAD_ICON_H_PX: Record<PadScale, number> = { power: 13, classic: 8 }
 
-/** Une vignette d'arme est large : au-delà de ce rapport, la largeur est bornée. */
+/** A weapon vignette is wide: beyond this ratio, the width is bounded. */
 const PAD_ICON_MAX_ASPECT = 3.2
 
-/** Écart entre deux étages de la pile (losange, vignette, compteur), en pixels d'écran. */
+/** Gap between two levels of the stack (diamond, vignette, counter), in screen pixels. */
 const PAD_GAP_PX = 2.5
 
 /**
- * LE HALO DE L'INCERTITUDE : un losange POINTILLÉ concentrique au socle, écarté de `GAP` pour
- * qu'on le distingue du plein qu'il cerne, tracé au plus fin qui se lise encore sur un fond de
- * carte imprimé. Il ne paraît QUE sur l'état incertain — c'est son seul rôle.
+ * THE HALO OF UNCERTAINTY: a DOTTED diamond concentric with the pad, offset by `GAP` so that
+ * one distinguishes it from the full one it circles, traced at the thinnest that still reads
+ * on a printed map background. It appears ONLY on the uncertain state — that is its only
+ * role.
  */
 const PAD_HALO_GAP_PX = 2
 const PAD_HALO_WIDTH = 1.2
 
 /**
- * LE SOCLE EST UN LOSANGE, PLUS UN ROND (A14, retour utilisateur du 2026-08-26 : « les socles
- * d'armes et de power up je veux pas de cercles, des points en losanges ce serait mieux, ça
- * facilite la lecture sinon on peut confondre avec des points de joueurs »).
+ * THE PAD IS A DIAMOND, PLUS A ROUND (A14, user return of 2026-08-26: "les socles d'armes et
+ * de power up je veux pas de cercles, des points en losanges ce serait mieux, ça facilite la
+ * lecture sinon on peut confondre avec des points de joueurs" (for the weapon and power-up
+ * pads I don't want circles, diamond-shaped points would be better, it makes reading easier
+ * otherwise one can confuse them with player points)).
  *
- * C'EST UNE FORME, PAS UNE TAILLE : le losange remplace le disque À LA MÊME PLACE, avec les
- * mêmes encres et les mêmes états. Un marqueur de JOUEUR reste un rond ; le vocabulaire de la
- * carte gagne donc une distinction franche, lisible même en petit et même en niveaux de gris.
+ * IT IS A SHAPE, NOT A SIZE: the diamond replaces the disk AT THE SAME PLACE, with the same
+ * inks and the same states. A PLAYER marker remains a round; the vocabulary of the map
+ * therefore gains a sharp distinction, readable even small and even in grayscale.
  *
- * LA COMPENSATION D'AIRE N'EST PAS UN ORNEMENT. À demi-diagonale égale, un losange couvre
- * `2r²` quand un disque couvre `πr²` — soit 64 % seulement. Remplacer l'un par l'autre sans
- * corriger aurait AMAIGRI tous les socles d'un tiers, ce qui n'est pas ce qui a été demandé.
- * Le facteur est `sqrt(π/2)` ≈ 1,2533, arrondi : à ce grossissement, les deux formes pèsent le
- * même poids d'encre à l'écran.
+ * THE AREA COMPENSATION IS NOT AN ORNAMENT. At equal half-diagonal, a diamond covers `2r²`
+ * when a disk covers `πr²` — i.e. only 64%. Replacing one with the other without correcting
+ * would have SLIMMED all the pads by a third, which is not what was asked. The factor is
+ * `sqrt(π/2)` ≈ 1.2533, rounded: at this enlargement, the two shapes weigh the same ink
+ * weight on the screen.
  */
 const PAD_DIAMOND_GROWTH = 1.25
 
 /**
- * traceDiamond pose le contour d'un losange centré, de demi-diagonale `half` (sommet en haut).
+ * traceDiamond places the outline of a centered diamond, of half-diagonal `half` (top
+ * vertex up).
  *
- * UNE SEULE COPIE POUR LES DEUX USAGES ICI — la marque et son halo d'incertitude. Deux tracés de
- * la même forme divergeraient au premier réglage, et l'écart serait invisible : un halo
- * légèrement désaligné de son losange reste crédible.
+ * ONE SINGLE COPY FOR THE TWO USES HERE — the mark and its halo of uncertainty. Two
+ * tracings of the same shape would diverge at the first setting, and the drift would be
+ * invisible: a halo slightly misaligned with its diamond remains credible.
  *
- * EXPORTÉE depuis le lot véhicules (2026-09-02) : le repère « famille de châssis non résolue »
- * de `vehiclesLayer.ts` est le même losange neutre que ce fichier trace déjà pour un socle — le
- * vocabulaire du dépôt pour « un objet de la carte, pas un joueur » (cf. `replayMarkers.corePath`,
- * troisième copie du même tracé). RÉUTILISER cette fonction plutôt que d'en écrire une troisième
- * est ce que CLAUDE.md n°6 demande à la 3e copie — la centralisation complète des trois (dont
- * `replayMarkers.ts`) reste une dette pré-existante, hors périmètre de ce lot (cf. Découvertes).
+ * EXPORTED since the vehicles lot (2026-09-02): the marker "unresolved chassis family" of
+ * `vehiclesLayer.ts` is the same neutral diamond that this file already traces for a pad —
+ * the vocabulary of the repository for "an object of the map, not a player" (cf.
+ * `replayMarkers.corePath`, third copy of the same tracing). REUSING this function rather
+ * than writing a third is what CLAUDE.md #6 asks at the 3rd copy — the complete
+ * centralization of the three (including `replayMarkers.ts`) remains a pre-existing debt,
+ * outside the scope of this lot (cf. Découvertes).
  */
 export function traceDiamond(ctx: CanvasRenderingContext2D, c: XY, half: number): void {
   ctx.beginPath()
@@ -133,115 +139,121 @@ export function traceDiamond(ctx: CanvasRenderingContext2D, c: XY, half: number)
 }
 
 /**
- * Épaisseur du LISERÉ de la vignette, en pixels d'écran, et le nombre de directions où on la
- * repose pour l'obtenir. Huit : à quatre, les diagonales laissent passer le fond.
+ * Thickness of the RIM of the vignette, in screen pixels, and the number of directions in
+ * which one replays it to obtain it. Eight: at four, the diagonals let the background
+ * through.
  */
 const PAD_OUTLINE_PX = 1.2
 const PAD_OUTLINE_STEPS = 8
 
-/** Opacités du losange et de la vignette, par état. `empty` n'a pas de vignette. */
+/** Opacities of the diamond and of the vignette, per state. `empty` has no vignette. */
 const PAD_ALPHA: Record<PadState, { dot: number; icon: number }> = {
   full: { dot: 0.95, icon: 0.95 },
   uncertain: { dot: 0.55, icon: 0.3 },
   empty: { dot: 0.35, icon: 0 },
 }
 
-/** Corps du compte à rebours, en pixels d'écran, et son contour de lisibilité. */
+/** Body of the countdown, in screen pixels, and its outline of legibility. */
 const PAD_COUNTDOWN_FONT_PX = 8
 const PAD_COUNTDOWN_STROKE_PX = 2.4
 
 /**
- * Marge de confort autour de la pile, en pixels d'écran : on vise près, pas au pixel.
+ * Comfort margin around the stack, in screen pixels: one aims near, not to the pixel.
  *
- * IL N'Y A PLUS DE PLANCHER DE VISABILITÉ (2026-08-27, revue adversariale). La zone portait un
- * `Math.max(..., 9 px)` hérité du temps où elle ne couvrait que le losange — un losange de
- * 3,2 px ne se vise pas. Depuis qu'elle couvre la pile, son premier terme vaut 12,25 px pour la
- * PLUS PETITE taille (4 + 5,25 + 3) et 16,5 px pour la grande : le plancher ne pouvait plus
- * jamais l'emporter. Un `Math.max` dont une branche est inatteignable est du code mort qui
- * ment sur la règle, pas une sécurité.
+ * THERE IS NO LONGER A VISIBILITY FLOOR (2026-08-27, adversarial review). The zone carried a
+ * `Math.max(..., 9 px)` inherited from the time when it only covered the diamond — a diamond
+ * of 3.2 px does not aim. Since it covers the stack, its first term is worth 12.25 px for
+ * the SMALLEST size (4 + 5.25 + 3) and 16.5 px for the large one: the floor could never
+ * prevail again. A `Math.max` of which a branch is unreachable is dead code that lies about
+ * the rule, not a safety.
  */
 const PAD_HOVER_MARGIN_PX = 3
 
-/** Ce que le calque a besoin de savoir de l'instant courant. */
+/** What the layer needs to know of the current instant. */
 export interface PadTime {
   frame: number
-  /** Durée RÉELLE d'une image (`frameToMs(1, doc)`) : le compte à rebours bat en temps réel. */
+  /** REAL duration of a frame (`frameToMs(1, doc)`): the countdown beats in real time. */
   frameMs: number
-  /** Densité de pixels : les épaisseurs d'écran la suivent (même règle que les marqueurs). */
+  /** Pixel density: the screen thicknesses follow it (same rule as the markers). */
   k: number
 }
 
 /**
- * Une vignette d'arme prête à poser : son CORPS et son LISERÉ, déjà teints hors écran.
+ * A weapon vignette ready to place: its BODY and its RIM, already tinted offscreen.
  *
- * DEUX IMAGES ET NON UNE, parce qu'un canvas ne sait pas cerner une image : le liseré
- * s'obtient en reposant la MÊME forme, teinte de l'encre du fond, tout autour du corps. Les
- * DEUX sont toujours servies depuis le 2026-08-27, y compris pour une image finie du jeu : un
- * liseré n'a besoin que de la SILHOUETTE, que la composition `source-in` rend de n'importe
- * quelle image à alpha (cf. `tintedIconCanvas`).
+ * TWO IMAGES AND NOT ONE, because a canvas does not know how to edge an image: the rim is
+ * obtained by replaying the SAME SHAPE, tinted with the ink of the background, all around
+ * the body. THE TWO are always served since 2026-08-27, including for a finished image of
+ * the game: a rim only needs the SILHOUETTE, that the composition `source-in` returns from
+ * any image with alpha (cf. `tintedIconCanvas`).
  */
 export interface PadIcon {
   fill: CanvasImageSource
   outline: CanvasImageSource
 }
 
-/** Ce que le calque emprunte au thème et au catalogue du document. */
+/** What the layer borrows from the theme and the catalog of the document. */
 export interface PadStyle {
-  /** Encre neutre du thème : un socle est un objet du terrain, il n'a pas de camp. */
+  /** Neutral ink of the theme: a pad is an object of the field, it has no side. */
   ink: string
   /**
-   * Les DEUX encres du marquage : ce qui est REMPLI à l'encre du texte, ce qui est CERNÉ à
-   * celle du fond. En thème sombre cela donne le « blanc rempli, contour sombre » ; en thème
-   * clair, l'inverse.
+   * The TWO inks of the marking: what is FILLED with the ink of the text, what is CIRCLED
+   * with that of the background. In dark theme that gives the "white filled, dark outline";
+   * in light theme, the reverse.
    *
-   * ELLES NE VALENT PLUS QUE POUR LE COMPTE À REBOURS depuis le 2026-08-28. La VIGNETTE, elle,
-   * est cernée de l'encre de sa NATURE (celle de son losange) : sur un fond de carte en niveaux
-   * de gris déjà cerné de noir, un liseré noir se confondait avec le décor et l'arme devenait
-   * illisible (retour utilisateur). Le choix se fait à la cuisson (`useReplayWeaponPads`) — ce
-   * calque reçoit les deux images déjà teintes et n'a pas à connaître la règle.
+   * THEY ARE NO LONGER WORTH ONLY FOR THE COUNTDOWN since 2026-08-28. The VIGNETTE, for its
+   * part, is circled with the ink of its NATURE (that of its diamond): on a grayscale map
+   * background already edged in black, a black rim was confused with the setting and the
+   * weapon became unreadable (user return). The choice is made at the cooking
+   * (`useReplayWeaponPads`) — this layer receives the two images already tinted and does not
+   * have to know the rule.
    */
   fill: string
   outline: string
-  /** Vignette TEINTE de la famille, ou null : le socle garde alors son seul losange. */
+  /** Vignette TINTED of the family, or null: the pad then keeps its only diamond. */
   iconOf: (weapon: string) => PadIcon | null
-  /** La taille à donner au socle, d'après ce qu'il porte (cf. weaponPadFamilies). */
+  /** The size to give to the pad, according to what it carries (cf. weaponPadFamilies). */
   scaleOf: (weapon: string) => PadScale
   /**
-   * L'encre de la NATURE du socle — power-up, arme de puissance, râtelier (A13, 2026-08-26).
-   * RÉSOLUE PAR L'APPELANT comme toutes les autres (règle color-tokens) : ce fichier ne
-   * connaît aucun token, il ne fait qu'employer la chaîne qu'on lui donne.
+   * The ink of the NATURE of the pad — power-up, power weapon, rack (A13, 2026-08-26).
+   * RESOLVED BY THE CALLER like all the others (color-tokens rule): this file knows no
+   * token, it only employs the string it is given.
    */
   inkOf: (weapon: string) => string
   /**
-   * Le compte à rebours déjà localisé, dans son écriture COMPACTE (celle de la carte).
+   * The countdown already localized, in its COMPACT writing (that of the map).
    *
-   * APPELÉ SUR TOUT SOCLE VIDE QUI A UNE SOURCE (D3, 2026-08-27) : une prochaine apparition
-   * mesurée, ou à défaut un cycle établi. La précondition d'avant — « seulement quand un cycle
-   * est établi » — est précisément le défaut que D3 corrige, la moitié des socles n'en portant
-   * aucun. Ce libellé ne dit PAS d'où vient le chiffre : c'est l'infobulle qui le distingue.
+   * CALLED ON EVERY EMPTY PAD THAT HAS A SOURCE (D3, 2026-08-27): a measured next spawn, or
+   * failing that an established cycle. The precondition of before — "only when a cycle is
+   * established" — is precisely the defect that D3 corrects, half of the pads carrying none.
+   * This label does NOT say where the number comes from: it is the tooltip that
+   * distinguishes.
    */
   countdownLabel: (seconds: number) => string
 }
 
-/** padRadiusPx — le rayon d'écran du LOSANGE d'un socle (sa taille suit ce qu'il porte). */
+/** padRadiusPx — the screen radius of the DIAMOND of a pad (its size follows what it
+ * carries). */
 export function padRadiusPx(pad: ReplayWeaponPadReady, style: PadStyle, k: number): number {
   return PAD_DOT_PX[style.scaleOf(pad.weapon)] * k
 }
 
-/** Les trois mesures d'écran de la pile : le losange, la vignette, l'écart qui les sépare. */
+/** The three screen measures of the stack: the diamond, the vignette, the gap that
+ * separates them. */
 interface PadStackPx {
-  /** Demi-diagonale du losange, compensation d'aire comprise. */
+  /** Half-diagonal of the diamond, area compensation included. */
   half: number
-  /** Hauteur de la vignette posée au-dessus. */
+  /** Height of the vignette placed above. */
   iconH: number
-  /** Écart entre deux étages. */
+  /** Gap between two levels. */
   gap: number
 }
 
 /**
- * padStackPx — LA PILE D'UN SOCLE en pixels d'écran, à la densité courante. UNE SEULE SOURCE
- * POUR LE TRACÉ ET LE SURVOL : deux copies de ces trois lignes divergeraient au premier réglage,
- * et l'écart se paierait en infobulles qui n'apparaissent pas là où l'œil vise.
+ * padStackPx — THE STACK OF A PAD in screen pixels, at the current density. ONE SINGLE
+ * SOURCE FOR THE TRACING AND THE HOVER: two copies of these three lines would diverge at the
+ * first setting, and the drift would be paid in tooltips that do not appear where the eye
+ * aims.
  */
 function padStackPx(pad: ReplayWeaponPadReady, style: PadStyle, k: number): PadStackPx {
   return {
@@ -252,31 +264,33 @@ function padStackPx(pad: ReplayWeaponPadReady, style: PadStyle, k: number): PadS
 }
 
 /**
- * padAt — le socle sous un point du canvas, ou null.
+ * padAt — the pad under a point of the canvas, or null.
  *
- * LA ZONE EST UN DISQUE CENTRÉ SUR LA COLONNE DE LA PILE (2026-08-27), assez haut pour couvrir
- * du bas du losange au sommet de la vignette : viser l'image et n'attraper que le losange, dix
- * pixels plus bas, serait exactement le défaut que la nouvelle grammaire crée si on ne relève
- * pas la zone avec elle.
+ * THE ZONE IS A DISK CENTERED ON THE COLUMN OF THE STACK (2026-08-27), high enough to cover
+ * from the bottom of the diamond to the top of the vignette: aiming the image and only
+ * catching the diamond, ten pixels lower, would be exactly the defect that the new grammar
+ * creates if one does not raise the zone with it.
  *
- * CE QU'IL FAUT SAVOIR DE CE DISQUE, parce qu'un disque n'est pas une pile : il couvre la
- * COLONNE CENTRALE sur toute la hauteur, mais les FLANCS EXTRÊMES d'une vignette très large
- * (rapport proche de la borne `PAD_ICON_MAX_ASPECT`, soit ~3) en sortent — de quelques pixels à
- * mi-hauteur, d'une dizaine aux coins hauts. C'est ASSUMÉ (revue adversariale du 2026-08-27) :
- * un rectangle rendrait l'arbitrage entre socles voisins nettement moins simple pour un gain qui
- * ne concerne que les extrémités d'une image, là où l'œil ne vise pas.
+ * WHAT NEEDS TO BE KNOWN OF THIS DISK, because a disk is not a stack: it covers the CENTRAL
+ * COLUMN over the whole height, but the EXTREME FLANKS of a very wide vignette (ratio close
+ * to the bound `PAD_ICON_MAX_ASPECT`, i.e. ~3) come out of it — by a few pixels at mid-height,
+ * by a dozen at the high corners. It is ACCEPTED (adversarial review of 2026-08-27): a
+ * rectangle would make the arbitration between neighboring pads clearly less simple for a
+ * gain that only concerns the ends of an image, where the eye does not aim.
  *
- * ELLE NE DÉPEND NI DE L'ÉTAT NI DU CHARGEMENT des vignettes : un socle vide occupe le même lieu
- * qu'un socle plein, et une cible qui bougerait avec l'instant lu serait impossible à viser.
+ * IT DEPENDS NEITHER ON THE STATE NOR ON THE LOADING of the vignettes: an empty pad occupies
+ * the same place as a full pad, and a target that would move with the instant read would be
+ * impossible to aim.
  *
- * Le survol se rejoue sur la DONNÉE, jamais sur les pixels : ce sont les mêmes positions
- * projetées que le tracé. Le plus proche l'emporte quand deux socles se recouvrent — deux
- * armes peuvent partager un mètre carré sur une petite arène.
+ * The hover is replayed on the DATA, never on the pixels: they are the same projected
+ * positions as the tracing. The closest prevails when two pads overlap — two weapons can
+ * share a square meter on a small arena.
  *
- * DEUX DISTANCES, ET C'EST VOLONTAIRE : l'APPARTENANCE se juge sur la pile (centre relevé),
- * l'ARBITRAGE entre deux socles atteints se juge sur le LIEU. Départager sur les piles ferait
- * gagner le voisin le plus petit — sa pile est plus basse, donc son centre plus proche du sol —
- * alors même que le pointeur est pile sur le losange de l'autre. Un socle est sa position.
+ * TWO DISTANCES, AND THAT IS INTENDED: the BELONGING is judged on the stack (raised
+ * center), the ARBITRATION between two reached pads is judged on the PLACE. Arbitrating on
+ * the stacks would make the smallest neighbor win — its stack is lower, so its center closer
+ * to the ground — even though the pointer is right on the diamond of the other. A pad is
+ * its position.
  */
 export function padAt(
   pads: readonly ReplayWeaponPadReady[],
@@ -290,8 +304,8 @@ export function padAt(
   for (const pad of pads) {
     const c = project({ x: pad.x, y: pad.y }, view)
     const { half, iconH, gap } = padStackPx(pad, style, k)
-    // La pile monte de `iconH + gap` au-dessus du losange : son centre monte donc de la
-    // moitié, et son demi-hauteur vaut celle du losange augmentée de la même moitié.
+    // The stack rises by `iconH + gap` above the diamond: its center therefore rises by
+    // the half, and its half-height is that of the diamond increased by the same half.
     const rise = (iconH + gap) / 2
     const reach = half + rise + PAD_HOVER_MARGIN_PX * k
     const inPile = (at.x - c.x) ** 2 + (at.y - (c.y - rise)) ** 2 <= reach * reach
@@ -305,18 +319,18 @@ export function padAt(
 }
 
 /**
- * drawDot — LE LOSANGE du socle : TOUJOURS PLEIN à l'encre de sa nature, et c'est l'OPACITÉ qui
- * dit l'état (2026-08-27).
+ * drawDot — THE DIAMOND of the pad: ALWAYS FULL in the ink of its nature, and it is the
+ * OPACITY that says the state (2026-08-27).
  *
- * POURQUOI PLEIN DANS LES TROIS CAS. Il portait un remplissage à l'état plein et un simple
- * contour aux deux autres : un trait de 1,2 px à 3 px de rayon, qui disparaissait sur un fond de
- * carte chargé — le lieu devenait invisible dès que l'arme était prise, c'est-à-dire au moment
- * précis où l'on cherche le socle. L'aplat tient dans tous les cas ; l'opacité le range derrière
- * la scène sans l'effacer.
+ * WHY FULL IN THE THREE CASES. It carried a fill in the full state and a simple outline in
+ * the two others: a stroke of 1.2 px at 3 px of radius, that disappeared on a busy map
+ * background — the place became invisible as soon as the weapon was taken, that is to say
+ * at the exact moment one looks for the pad. The flat fill holds in all cases; the opacity
+ * places it behind the scene without erasing it.
  *
- * LE POINTILLÉ N'EST PAS PERDU, il est déplacé : l'état incertain gagne un HALO losange
- * pointillé concentrique, qui garde le sens que `placementShapes` lui donne partout ailleurs —
- * « cette limite n'est pas affirmée » — sans le payer de la lisibilité du lieu.
+ * THE DOTTED LINE IS NOT LOST, it is moved: the uncertain state gains a dotted diamond HALO
+ * concentric, that keeps the meaning that `placementShapes` gives it everywhere else — "this
+ * limit is not asserted" — without paying for it the legibility of the place.
  */
 function drawDot(
   ctx: CanvasRenderingContext2D,
@@ -337,16 +351,17 @@ function drawDot(
 }
 
 /**
- * drawPadIcon — la vignette de l'arme, posée AU-DESSUS du losange, remplie et cernée.
+ * drawPadIcon — the vignette of the weapon, placed ABOVE the diamond, filled and circled.
  *
- * Hauteur imposée, largeur déduite du rapport de l'image (bornée : une vignette d'arme est
- * très large). Le liseré est la même image reposée tout autour, à l'encre du fond : c'est ce
- * qui la détache d'un fond de carte clair comme d'un fond sombre.
+ * Imposed height, width deduced from the ratio of the image (bounded: a weapon vignette is
+ * very wide). The rim is the same image replayed all around, in the ink of the background:
+ * that is what sets it apart from a light map background as from a dark one.
  *
- * Sans vignette — famille hors catalogue du titre, ou visuel absent — RIEN ne prend sa place :
- * jamais l'icône d'une arme voisine, et pas davantage un glyphe de repli (retour utilisateur du
- * 2026-08-26 : « j'ai l'impression qu'il y en a deux »). Le losange porte déjà le lieu et
- * l'état ; le nom reste lisible au survol.
+ * Without vignette — family off the catalog of the title, or visual absent — NOTHING takes
+ * its place: never the icon of a neighboring weapon, and no more a fallback glyph (user
+ * return of 2026-08-26: "j'ai l'impression qu'il y en a deux" (I have the impression there
+ * are two)). The diamond already carries the place and the state; the name remains readable
+ * at the hover.
  */
 function drawPadIcon(
   ctx: CanvasRenderingContext2D,
@@ -371,22 +386,23 @@ function drawPadIcon(
 }
 
 /**
- * drawCountdown — le compte à rebours AU SOMMET DE LA PILE, rempli et cerné comme la vignette.
+ * drawCountdown — the countdown AT THE TOP OF THE STACK, filled and circled like the
+ * vignette.
  *
- * SEULEMENT LE COMPTE (verdict du 2026-08-18) : ni médiane, ni nombre d'écarts, ni marge —
- * ces trois-là disaient la CONFIANCE dans le cycle, ce qui est une lecture d'analyse, pas un
- * repère de carte. Le compte, lui, répond à la seule question qu'on se pose en regardant un
- * socle vide : dans combien de temps.
+ * ONLY THE COUNT (verdict of 2026-08-18): no median, no number of gaps, no margin — these
+ * three said the CONFIDENCE in the cycle, which is a reading of analysis, not a marker of
+ * map. The count, for its part, answers the only question one asks oneself looking at an
+ * empty pad: in how much time.
  *
- * `topY` est le sommet de ce qui est RÉELLEMENT dessiné, et l'appelant n'a en pratique qu'un
- * candidat à lui passer : le sommet du LOSANGE. Un compte à rebours ne s'écrit que sur un socle
- * vide, et un socle vide n'a pas de vignette — ancrer plus haut ferait flotter le chiffre
- * au-dessus d'un trou, détaché du socle qu'il annonce.
+ * `topY` is the top of what is ACTUALLY drawn, and the caller has in practice only one
+ * candidate to pass it: the top of the DIAMOND. A countdown is only written on an empty pad,
+ * and an empty pad has no vignette — anchoring higher would make the number float above a
+ * hole, detached from the pad it announces.
  *
- * EXPORTÉE DEPUIS LE LOT 5.8 : les EMPLACEMENTS DE NAISSANCE DE VÉHICULE (schéma 63) écrivent le
- * même compte à rebours au-dessus du même losange (`vehicleCyclesLayer.ts`). Une seconde copie de
- * ces dix lignes aurait fait diverger la police, l'écart et l'épaisseur du contour entre deux
- * marques que le lecteur voit côte à côte sur la même carte (CLAUDE.md n°6).
+ * EXPORTED SINCE LOT 5.8: the VEHICLE SPAWN LOCATIONS (schema 63) write the same countdown
+ * above the same diamond (`vehicleCyclesLayer.ts`). A second copy of these ten lines would
+ * have made the font, the gap and the thickness of the outline diverge between two marks
+ * that the reader sees side by side on the same map (CLAUDE.md #6).
  */
 export function drawCountdown(
   ctx: CanvasRenderingContext2D,
@@ -411,9 +427,9 @@ export function drawCountdown(
 }
 
 /**
- * drawOnePad — LA PILE D'UN SOCLE, de bas en haut : le losange au lieu mesuré, la vignette
- * au-dessus (son bas au sommet du losange augmenté d'un écart, jamais sur lui), le compteur au
- * sommet. L'ordre vertical EST la règle du retour du 2026-08-27.
+ * drawOnePad — THE STACK OF A PAD, from bottom to top: the diamond at the measured place,
+ * the vignette above (its bottom at the top of the diamond increased by a gap, never on it),
+ * the counter at the top. The vertical order IS the rule of the return of 2026-08-27.
  */
 function drawOnePad(
   ctx: CanvasRenderingContext2D,
@@ -424,11 +440,12 @@ function drawOnePad(
 ): void {
   const { half, iconH, gap } = padStackPx(pad, style, time.k)
   const state = padStateAt(pad, time.frame)
-  // LE LOSANGE, À L'ENCRE DE SA NATURE (A13, 2026-08-26 : « bordure et couleur plus vive, une
-  // couleur pour chaque type »). Il portait l'encre neutre du terrain, la même pour les trois :
-  // un socle de surbouclier ne se distinguait d'un râtelier que par sa taille. `style.ink` reste
-  // servi et reste le NEUTRE — il ne teint plus la marque, et le râtelier ordinaire retombe sur
-  // une encre propre par sa propre famille.
+  // THE DIAMOND, IN THE INK OF ITS NATURE (A13, 2026-08-26: "bordure et couleur plus vive,
+  // une couleur pour chaque type" (border and brighter color, one color for each type)). It
+  // carried the neutral ink of the field, the same for the three: an overshield pad was not
+  // distinguished from a rack but by its size. `style.ink` remains served and remains the
+  // NEUTRAL — it no longer tints the mark, and the ordinary rack falls back on an ink of its
+  // own by its own family.
   const encre = style.inkOf(pad.weapon)
   ctx.strokeStyle = encre
   ctx.fillStyle = encre
@@ -440,14 +457,16 @@ function drawOnePad(
     ctx.globalAlpha = iconAlpha
     drawPadIcon(ctx, { x: c.x, y: iconBottom - iconH / 2 }, iconH, icon, time.k)
   }
-  // LE COMPTEUR NE DIT PAS SA SOURCE SUR LA CARTE, et c'est voulu : à 8 px, un chiffre suffit.
-  // La distinction mesurée / attendue se lit au survol, dans l'infobulle (D3, 2026-08-27).
+  // THE COUNTER DOES NOT SAY ITS SOURCE ON THE MAP, and that is intended: at 8 px, a number
+  // suffices. The distinction measured / expected is read at the hover, in the tooltip
+  // (D3, 2026-08-27).
   //
-  // IL S'ANCRE SUR LE LOSANGE, ET C'EST UNE CONSÉQUENCE, PAS UN CHOIX (revue adversariale du
-  // 2026-08-27) : un compte à rebours n'existe que sur un socle VIDE (`padRespawnAt`), et un
-  // socle vide n'a PAS de vignette (`PAD_ALPHA.empty.icon` vaut 0). Le sommet de la pile EST
-  // donc toujours celui du losange ici. Le code portait un `icon ? … : …` dont la première
-  // branche était inatteignable — il décrivait une pile que ce cas ne produit jamais.
+  // IT ANCHORS ON THE DIAMOND, AND THAT IS A CONSEQUENCE, NOT A CHOICE (adversarial review
+  // of 2026-08-27): a countdown only exists on an EMPTY pad (`padRespawnAt`), and an empty
+  // pad does NOT have a vignette (`PAD_ALPHA.empty.icon` is worth 0). The top of the stack
+  // IS therefore always that of the diamond here. The code carried an `icon ? … : …` of
+  // which the first branch was unreachable — it described a stack that this case never
+  // produces.
   const respawn = padRespawnAt(pad, time.frame, time.frameMs)
   if (respawn === null) return
   drawCountdown(ctx, c, c.y - half, style.countdownLabel(respawn.seconds), {
@@ -458,11 +477,11 @@ function drawOnePad(
 }
 
 /**
- * drawWeaponPadsLayer trace TOUS les socles du match à l'image courante.
+ * drawWeaponPadsLayer traces ALL the pads of the match at the current frame.
  *
- * Ils se dessinent tous, quel que soit leur état : un socle vide reste un lieu du terrain, et
- * l'effacer priverait le lecteur de l'information la plus utile — « l'arme de puissance n'est
- * plus là ». C'est aussi ce qui donne son ancrage au compte à rebours.
+ * They all draw, whatever their state: an empty pad remains a place of the field, and
+ * erasing it would deprive the reader of the most useful information — "the power weapon is
+ * no longer there". It is also what gives its anchoring to the countdown.
  */
 export function drawWeaponPadsLayer(
   ctx: CanvasRenderingContext2D,

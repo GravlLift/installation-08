@@ -1,33 +1,34 @@
 /**
- * themeInk.ts — LA LECTURE D'UNE VARIABLE DU THÈME pour le canvas du rejeu, et L'EXPORT QUI SE
- * PEINT TOUJOURS DANS LE THÈME SOMBRE (décision D9 du plan « formats vidéo », 2026-09-16).
+ * themeInk.ts — READING A THEME VARIABLE for the replay canvas, and THE EXPORT THAT IS ALWAYS
+ * PAINTED IN THE DARK THEME (decision D9 of the "video formats" plan, 2026-09-16).
  *
- * # LE BESOIN
+ * # THE NEED
  *
- * Un clip exporté doit avoir la MÊME apparence quelle que soit la préférence de qui l'exporte :
- * le thème sombre, celui pour lequel la carte et ses encres ont été dessinées. Mais basculer
- * `data-theme` sur la page le temps de l'export ferait clignoter toute l'interface.
+ * An exported clip must have the SAME look whatever the preference of whoever exports it: the
+ * dark theme, the one for which the map and its inks were drawn. But flipping `data-theme`
+ * on the page for the duration of the export would make the whole interface flicker.
  *
- * # POURQUOI NE PAS SIMPLEMENT LIRE UN ÉLÉMENT PORTANT `data-theme="dark"`
+ * # WHY NOT SIMPLY READ AN ELEMENT CARRYING `data-theme="dark"`
  *
- * Les variables du thème sont déclarées sur `:root[data-theme='dark']` / `:root[data-theme='light']`
- * (cf. `styles/globals.css`) : ces sélecteurs ne visent QUE la racine. Un élément isolé qui porte
- * l'attribut ne les reçoit pas — il hérite des valeurs du thème ACTIF. Il faudrait dupliquer tout
- * le bloc sombre sous un autre sélecteur, c'est-à-dire tenir deux définitions du thème.
+ * The theme variables are declared on `:root[data-theme='dark']` / `:root[data-theme='light']`
+ * (cf. `styles/globals.css`): those selectors target ONLY the root. A lone element carrying
+ * the attribute does not receive them — it inherits the values of the ACTIVE theme. We would
+ * have to duplicate the whole dark block under another selector, that is, keep two definitions
+ * of the theme.
  *
- * # CE QUI EST FAIT
+ * # WHAT IS DONE
  *
- * Pendant un export (`isExportActive`), la valeur est lue DANS LES RÈGLES de la feuille de style,
- * avec la cascade que le navigateur appliquerait en thème sombre : le style en ligne de la racine
- * (palettes d'accessibilité, `applyPalette`) l'emporte, puis `:root[data-theme=dark]`, puis
- * `:root`. Une référence `var(--x)` se résout de la même façon. La table est construite une fois
- * par export (clé : la mise en page demandée), pas à chaque lecture.
+ * During an export (`isExportActive`), the value is read IN THE RULES of the stylesheet, with
+ * the cascade the browser would apply in dark theme: the root's inline style (accessibility
+ * palettes, `applyPalette`) wins, then `:root[data-theme=dark]`, then `:root`. A `var(--x)`
+ * reference resolves the same way. The table is built once per export (key: the requested
+ * layout), not at every read.
  *
- * Hors export, rien ne change : `getComputedStyle` sur la racine, comme avant.
+ * Outside an export, nothing changes: `getComputedStyle` on the root, as before.
  */
 import { exportLayoutRequested, isExportActive } from '../export/exportLayoutStore'
 
-/** Le thème dans lequel l'export se peint, quel que soit celui de la page. */
+/** The theme in which the export is painted, whatever the page's is. */
 export const EXPORT_THEME = 'dark'
 
 interface ThemeTable {
@@ -38,12 +39,12 @@ interface ThemeTable {
 let cacheKey: object | null = null
 let cache: ThemeTable | null = null
 
-/** Les sélecteurs d'une règle, normalisés : sans guillemets ni espaces. */
+/** The selectors of a rule, normalized: without quotes or spaces. */
 function selectorsOf(rule: CSSStyleRule): string[] {
   return rule.selectorText.split(',').map((s) => s.replace(/["'\s]/g, ''))
 }
 
-/** Une règle `@media` dont la condition ne tient pas n'appliquerait rien : on ne la lit pas. */
+/** An `@media` rule whose condition does not hold would apply nothing: we do not read it. */
 function mediaMatches(rule: CSSRule): boolean {
   const media = (rule as CSSMediaRule).media
   if (!media || typeof window.matchMedia !== 'function') return true
@@ -52,7 +53,7 @@ function mediaMatches(rule: CSSRule): boolean {
 
 function collect(rules: CSSRuleList, table: ThemeTable): void {
   for (const rule of Array.from(rules)) {
-    // LES RÈGLES DE STYLE D'ABORD : une règle imbriquée porte AUSSI `cssRules`.
+    // THE STYLE RULES FIRST: a nested rule ALSO carries `cssRules`.
     if (!('selectorText' in rule)) {
       if ('cssRules' in rule && mediaMatches(rule)) collect((rule as CSSGroupingRule).cssRules, table)
       continue
@@ -79,8 +80,8 @@ function themeTable(): ThemeTable {
     try {
       collect(sheet.cssRules, table)
     } catch {
-      // Feuille d'une autre origine : ses règles ne sont pas lisibles, et le thème du dépôt n'y
-      // vit pas. On la saute.
+      // Sheet from another origin: its rules are not readable, and the repository's theme does
+      // not live there. Skip it.
     }
   }
   cacheKey = key
@@ -88,7 +89,7 @@ function themeTable(): ThemeTable {
   return table
 }
 
-/** La valeur d'une variable dans le thème de l'export, `var()` résolus ; `''` si absente. */
+/** The value of a variable in the export theme, `var()` resolved; `''` if absent. */
 function exportThemeValue(name: string, depth = 0): string {
   const inline = document.documentElement.style.getPropertyValue(name).trim()
   const t = themeTable()
@@ -100,8 +101,9 @@ function exportThemeValue(name: string, depth = 0): string {
 }
 
 /**
- * readThemeVar — la valeur d'une variable du thème pour le canvas : celle du thème SOMBRE pendant
- * un export, celle du thème actif sinon. Chaîne vide côté serveur ou si la variable manque.
+ * readThemeVar — the value of a theme variable for the canvas: the DARK theme's during an
+ * export, the active theme's otherwise. Empty string on the server side or if the variable
+ * is missing.
  */
 export function readThemeVar(name: string): string {
   if (typeof document === 'undefined') return ''

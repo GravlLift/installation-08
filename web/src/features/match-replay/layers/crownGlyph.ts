@@ -1,19 +1,19 @@
 /**
- * crownGlyph.ts — LA FORME DE LA COURONNE VIP, décrite UNE seule fois pour ses DEUX usages : le
- * glyphe de la carte (`vipCrownLayer`, canvas) et le filigrane de la fiche
- * (`ReplayObjectiveMark`, SVG). Même partage que `skullGlyph.ts` : une forme recopiée à deux
- * endroits finit par diverger.
+ * crownGlyph.ts — the SHAPE OF THE VIP CROWN, described ONE single time for its TWO uses: the
+ * map glyph (`vipCrownLayer`, canvas) and the card watermark
+ * (`ReplayObjectiveMark`, SVG). Same sharing as `skullGlyph.ts`: a shape copied in two
+ * places ends up diverging.
  *
- * LA SILHOUETTE, en repère 16×16 : un BANDEAU séparé du corps par un jour, un corps à trois
- * pointes, et une PERLE au bout de chaque pointe. Le bandeau et les perles sont ce qui fait lire
- * « couronne » à petite taille ; trois pointes nues se lisaient comme un M ou une colline.
+ * THE SILHOUETTE, in a 16x16 frame: a BAND separated from the body by a gap, a three-pointed
+ * body, and a PEARL on the end of each point. The band and the pearls are what makes it read
+ * as a "crown" at small sizes; three bare points read as an M or a hill.
  */
 import type { XY } from '../../../lib/replay/replayLogic'
 
-/** Côté du repère de la forme. */
+/** Side of the shape's frame. */
 export const CROWN_BOX = 16
 
-/** Le corps : base gauche, pointe gauche, creux, pointe centrale, creux, pointe droite, base droite. */
+/** The body: left base, left point, notch, center point, notch, right point, right base. */
 const BODY: readonly XY[] = [
   { x: 2.6, y: 11 },
   { x: 1.6, y: 4.8 },
@@ -24,17 +24,17 @@ const BODY: readonly XY[] = [
   { x: 13.4, y: 11 },
 ]
 
-/** Le bandeau, sous le corps, séparé de lui par un jour de 0,8. */
+/** The band, under the body, separated from it by a 0.8 gap. */
 const BAND = { x0: 2.6, y0: 11.8, x1: 13.4, y1: 13.8 }
 
-/** Les perles, au bout des trois pointes. */
+/** The pearls, at the ends of the three points. */
 const PEARLS: readonly { c: XY; r: number }[] = [
   { c: { x: 1.6, y: 4.3 }, r: 1.3 },
   { c: { x: 8, y: 2.6 }, r: 1.5 },
   { c: { x: 14.4, y: 4.3 }, r: 1.3 },
 ]
 
-/** Bas de la forme dans son repère : l'appelant y aligne le haut du marqueur du joueur. */
+/** Bottom of the shape in its frame: the caller aligns the top of the player marker there. */
 export const CROWN_BOTTOM = BAND.y1
 
 const n = (v: number) => Number(v.toFixed(2))
@@ -43,7 +43,7 @@ function pearlSvg({ c, r }: { c: XY; r: number }): string {
   return `M${n(c.x - r)} ${n(c.y)}a${r} ${r} 0 1 1 ${n(2 * r)} 0a${r} ${r} 0 1 1 ${n(-2 * r)} 0Z`
 }
 
-/** Le chemin SVG de la couronne, en repère 16×16 (filigrane de la fiche). */
+/** The SVG path of the crown, in the 16x16 frame (card watermark). */
 export const CROWN_SVG_PATH = [
   `M${BODY.map((p) => `${n(p.x)} ${n(p.y)}`).join('L')}Z`,
   `M${BAND.x0} ${BAND.y0}H${BAND.x1}V${BAND.y1}H${BAND.x0}Z`,
@@ -51,8 +51,8 @@ export const CROWN_SVG_PATH = [
 ].join(' ')
 
 /**
- * traceCrown pose le chemin de la couronne sur le contexte (sans le peindre), le repère 16×16
- * placé en `origin` et agrandi d'un facteur `scale`. L'appelant choisit fill et/ou stroke.
+ * traceCrown places the crown path on the context (without painting it), the 16x16 frame
+ * placed at `origin` and scaled by a factor `scale`. The caller chooses fill and/or stroke.
  */
 export function traceCrown(ctx: CanvasRenderingContext2D, origin: XY, scale: number): void {
   const px = (p: XY): XY => ({ x: origin.x + p.x * scale, y: origin.y + p.y * scale })

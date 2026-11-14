@@ -1,39 +1,39 @@
 /**
- * carriedGlyphPulse — LA PULSATION D'UN GLYPHE PORTÉ, écrite une fois.
+ * carriedGlyphPulse — the PULSATION OF A CARRIED GLYPH, written once.
  *
- * POURQUOI CE MODULE EXISTE (registre 2026-09-05, K4). Trois calques portent un objet SUR son
- * porteur — la couronne du VIP, le crâne d'Oddball, la bombe d'Assaut — et les trois
- * réécrivaient à l'identique la même respiration : quatre constantes et une sinusoïde, en md5
- * identique.
+ * WHY THIS MODULE EXISTS (register 2026-09-05, K4). Three layers carry an object ON its
+ * carrier — the crown of the VIP, the skull of Oddball, the bomb of Assault — and the three
+ * had rewritten identically the same breathing: four constants and a sinusoid, identical in
+ * md5.
  *
- * CE QUE LA DUPLICATION RISQUAIT, exactement. Les trois glyphes relèvent de trois modes de jeu
- * distincts et ne co-occurrent jamais à l'écran : le danger n'était donc PAS une
- * désynchronisation visible, mais la DÉRIVE — un réglage d'oeil sur l'un des trois, jamais
- * reporté sur les deux autres, et trois respirations différentes pour un seul geste de
- * lecture, que personne ne peut comparer puisqu'on ne les voit jamais ensemble.
+ * WHAT THE DUPLICATION RISSED, exactly. The three glyphs belong to three distinct game modes
+ * and never co-occur on screen: the danger was therefore NOT a visible desynchronization,
+ * but the DRIFT — an eye setting on one of the three, never reported to the other two, and
+ * three different breathings for a single gesture of reading, that no one can compare since
+ * they are never seen together.
  *
- * CE QUE LA PULSATION DIT. Un port OUVERT (le joueur porte encore) respire ; un port FERMÉ —
- * un fait daté l'a clos, mort du porteur ou passation — est PLEIN. C'est la seule chose que
- * l'opacité raconte, et c'est pourquoi elle ne dépend que de `closed` et de l'image.
+ * WHAT THE PULSATION SAYS. An OPEN carry (the player still carries) breathes; a CLOSED
+ * carry — a dated fact has closed it, death of the carrier or handover — is FULL. It is the
+ * only thing the opacity tells, and that is why it only depends on `closed` and the frame.
  *
- * MOUVEMENT RÉDUIT : la respiration s'arrête sur sa valeur MOYENNE, pas sur son minimum ni sur
- * son maximum — le glyphe reste lisible sans clignoter (`prefers-reduced-motion`).
+ * REDUCED MOTION: the breathing stops on its MEAN value, not on its minimum nor on its
+ * maximum — the glyph stays readable without blinking (`prefers-reduced-motion`).
  */
 
-/** Opacité pleine : un fait daté ferme le port (mort du porteur, ou passation). */
+/** Full opacity: a dated fact closes the carry (death of the carrier, or handover). */
 export const CARRIED_ALPHA_SOLID = 0.95
 
-/** Bornes de la pulsation d'un glyphe « ouvert » (`closed` faux), et sa période en images. */
+/** Bounds of the pulsation of an "open" glyph (`closed` false), and its period in frames. */
 export const CARRIED_PULSE_MIN = 0.42
 export const CARRIED_PULSE_MAX = 0.78
 export const CARRIED_PULSE_PERIOD_FRAMES = 26
 
 /**
- * carriedGlyphAlpha rend l'opacité d'un glyphe porté à l'image donnée.
+ * carriedGlyphAlpha returns the opacity of a carried glyph at the given frame.
  *
- * La période est en IMAGES et non en millisecondes, comme tout ce qui se lit sur la grille du
- * film : à vitesse double, la respiration double avec la scène, ce qui est le comportement
- * attendu d'un effet posé sur un porteur qui bouge lui aussi deux fois plus vite.
+ * The period is in FRAMES and not in milliseconds, like everything read on the grid of the
+ * film: at double speed, the breathing doubles with the scene, which is the expected
+ * behavior of an effect placed on a carrier that moves twice as fast as well.
  */
 export function carriedGlyphAlpha(closed: boolean, frame: number, reducedMotion: boolean): number {
   if (closed) return CARRIED_ALPHA_SOLID

@@ -1,77 +1,78 @@
 /**
- * zoneStatesLayer.ts — L'ÉTAT VIVANT DES ZONES (schémas 16-18) : qui tient quoi à l'image
- * courante, et la JAUGE DE CAPTURE qui se remplit sous les yeux.
+ * zoneStatesLayer.ts — THE LIVING STATE OF THE ZONES (schemas 16-18): who holds what at the
+ * current frame, and the CAPTURE GAUGE that fills under your eyes.
  *
- * POURQUOI IL VIT À CÔTÉ DU CALQUE STATIQUE, ET PAS DEDANS. `objectivesLayer.ts` porte la
- * GÉOMÉTRIE des objectifs du mode : elle ne dépend ni de l'image ni de la lecture, se cuit une
- * fois hors écran et se recopie. Celui-ci porte l'ÉTAT, qui change à chaque image — même
- * partage que les socles d'arme, et la seule façon de garder les deux fichiers sous le seuil du
- * dépôt. Les deux tracent la MÊME forme : le contour vient de `traceZonePath`, jamais d'une
- * seconde copie de la géométrie.
+ * WHY IT LIVES BESIDE THE STATIC LAYER, AND NOT INSIDE IT. `objectivesLayer.ts` carries the
+ * GEOMETRY of the objectives of the mode: it depends on neither the frame nor the reading, is
+ * cooked once off-screen and re-copied. This one carries the STATE, which changes every frame —
+ * the same sharing as the weapon pads, and the only way to keep both files under the line
+ * threshold of the repository. Both trace the SAME shape: the outline comes from
+ * `traceZonePath`, never from a second copy of the geometry.
  *
- * ET LA PEINTURE VIT DANS UN TROISIÈME FICHIER depuis le 2026-08-25 (`zoneStatesPaint.ts`).
- * Ici se décide CE QU'IL FAUT peindre — quel intervalle couvre la frame, quelle valeur porte la
- * jauge, quelle lettre revient à la zone ; là-bas COMMENT — les opacités, leur hiérarchie,
- * l'ordre des passes et le découpage de la progression. La coupure a été faite quand le passage
- * de l'arc extérieur au remplissage de la forme a poussé ce fichier de 417 à 568 lignes,
- * au-dessus du seuil du dépôt : extraire, jamais exempter. Elle suit une couture réelle, pas un
- * compte de lignes — un réglage d'encre se change sans rouvrir la lecture d'état, et
- * réciproquement.
+ * AND THE PAINTING LIVES IN A THIRD FILE since 2026-08-25 (`zoneStatesPaint.ts`). Here is
+ * decided WHAT NEEDS to be painted — which interval covers the frame, which value the gauge
+ * carries, which letter belongs to the zone; there it is HOW — the opacities, their
+ * hierarchy, the order of the passes and the slicing of the progression. The cut was made when
+ * the move from the outer arc to the fill of the shape pushed this file from 417 to 568 lines,
+ * over the threshold of the repository: extract, never exempt. It follows a real seam, not a
+ * line count — an ink setting changes without re-opening the state reading, and vice versa.
  *
- * CE QUE LE CALQUE MONTRE : la zone TEINTÉE de l'encre du camp qui la tient, la zone NON PRISE
- * d'un contour GRISÉ en retrait, la colline ACTIVE en surbrillance, et LA CAPTURE EN COURS
- * REMPLISSANT LA FORME (schéma 18) : la VALEUR de la jauge à l'image, lue dans la série `gauge`
- * de la zone en escalier — dernière valeur connue, tenue jusqu'au point suivant (une seconde
- * après le dernier de la série). Une zone sans état à cette frame n'est PAS repeinte : elle
- * garde le trait faible du calque statique, et paraît estompée sous celles qui sont tenues.
+ * WHAT THE LAYER SHOWS: the zone TINTED with the ink of the side that holds it, the NOT HELD
+ * zone in a RECURRED GRAY outline, the ACTIVE hill in highlight, and THE CAPTURE IN PROGRESS
+ * FILLING THE SHAPE (schema 18): the VALUE of the gauge at the frame, read in the `gauge`
+ * series of the zone as a staircase — the last known value, held until the next point (one
+ * second after the last of the series). A zone without state at this frame is NOT repainted:
+ * it keeps the faint stroke of the static layer, and appears faded under the ones that are
+ * held.
  *
- * LA PROGRESSION SE LIT SUR LA FORME, PLUS AUTOUR (2026-08-25). Jusqu'ici la jauge était un ARC tracé HORS
- * de la zone, à un rayon dérivé de sa plus grande demi-dimension. Deux défauts, et le second
- * est le vrai : l'arc parlait d'une base sans la toucher, et surtout SA FRACTION D'ANGLE N'EST
- * PAS UNE FRACTION D'AIRE dès que la forme n'est pas un disque — sur une boîte orientée, un
- * demi-tour d'arc recouvre une part de la base qui dépend de son orientation, pas de la
- * capture. Le remplissage, lui, est un BALAYAGE VERTICAL bas -> haut découpé par la forme
- * elle-même (`ctx.clip` sur `traceZonePath`) : sa hauteur est exactement la fraction publiée,
- * sur une boîte comme sur un cylindre, et il ne recouvre pas la lettre centrale comme l'aurait
- * fait un secteur angulaire.
+ * THE PROGRESSION READS ON THE SHAPE, NOT AROUND IT (2026-08-25). Until now the gauge was an
+ * ARC drawn OUTSIDE the zone, at a radius derived from its largest semi-dimension. Two
+ * defects, and the second is the real one: the arc spoke of the base without touching it, and
+ * above all ITS ANGLE FRACTION IS NOT AN AREA FRACTION as soon as the shape is not a disc —
+ * on an oriented box, a half-turn of arc covers a share of the base that depends on its
+ * orientation, not on the capture. The fill, for its part, is a VERTICAL SWEEP bottom -> top
+ * sliced by the shape itself (`ctx.clip` on `traceZonePath`): its height is exactly the
+ * published fraction, on a box as on a cylinder, and it does not cover the central letter as
+ * an angular sector would have.
  *
- * LA HIÉRARCHIE DES ENCRES, ET CE QU'ELLE DIT. Une zone en cours de capture montre DEUX camps à
- * la fois : celui qui la tient encore, et celui qui la prend. Le propriétaire s'EFFACE pendant
- * la capture (`ZONE_UNDER_CAPTURE_FILL_ALPHA`) et la progression de l'attaquant passe FRANCHE
- * par-dessus (`ZONE_CAPTURE_FILL_ALPHA`) — l'inverse laisserait la base « gagnée » dominer
- * l'écran au moment précis où elle est en train d'être perdue. L'échelle complète, du plus
- * faible au plus fort : libre (aucun remplissage) < tenue EN COURS DE PERTE < tenue < ACTIVE <
- * progression de l'attaquant.
+ * THE HIERARCHY OF THE INKS, AND WHAT IT SAYS. A zone in the middle of a capture shows TWO
+ * sides at once: the one that still holds it, and the one that is taking it. The owner
+ * FADES during the capture (`ZONE_UNDER_CAPTURE_FILL_ALPHA`) and the progression of the
+ * attacker passes OPEN over it (`ZONE_CAPTURE_FILL_ALPHA`) — the inverse would leave the
+ * « gained » base dominating the screen at the precise moment it is being lost. The complete
+ * scale, from the weakest to the strongest: free (no fill) < held IN THE PROCESS OF BEING
+ * LOST < held < ACTIVE < progression of the attacker.
  *
- * « NON PRISE » ET « ÉTAT INCONNU » NE SE CONFONDENT PAS, et c'est la raison d'être des deux
- * traitements ci-dessus. « Non prise » est une MESURE — l'intervalle qui couvre la frame porte
- * la valeur neutre du canal de propriété (`ZoneSpan.Owner` = `null` côté Go) — et elle se
- * dessine, en retrait. « État inconnu » est une absence d'intervalle : le calque se tait.
+ * « NOT HELD » AND « UNKNOWN STATE » DO NOT CONFUSE, and that is the reason for being of the
+ * two treatments above. « Not held » is a MEASUREMENT — the interval that covers the frame
+ * carries the neutral value of the ownership channel (`ZoneSpan.Owner` = `null` on the Go
+ * side) — and it is drawn, in recurred. « Unknown state » is an absence of interval: the
+ * layer stays silent.
  *
- * CE QUE LE CALQUE NE MONTRE PLUS (2026-08-18, lot C-ter volet 3) : le sommet `progress` de
- * l'intervalle. Le schéma 16 le traçait en arc, une valeur tenue pendant toute la durée de la
- * propriété — souvent 1,0, des minutes durant — et il se lisait comme « capture en cours »
- * alors qu'il n'en était que le maximum atteint. Sur un artefact qui ne porte pas `gauge`
- * (schéma <= 17), il n'y a donc AUCUNE PROGRESSION DU TOUT : mieux vaut rien qu'un signe qui
- * ment. Cette décision survit au changement de forme du 2026-08-25 — c'est la SÉRIE qui
- * autorise à dessiner, pas la géométrie employée pour le faire.
+ * WHAT THE LAYER NO LONGER SHOWS (2026-08-18, lot C-ter part 3): the `progress` top of the
+ * interval. Schema 16 traced it in an arc, a value held for the whole duration of the
+ * ownership — often 1.0, for minutes — and it read as « capture in progress » when it was
+ * only the maximum reached. On an artifact that does not carry `gauge` (schema <= 17), there
+ * is therefore NO PROGRESSION AT ALL: better nothing than a sign that lies. This decision
+ * survives the shape change of 2026-08-25 — it is the SERIES that authorizes to draw, not the
+ * geometry employed to do it.
  *
- * LA COLLINE (Roi de la colline, schéma 92) EST UNE ZONE À PART, ET LE CALQUE LA PORTE SEUL.
- * Une seule colline existe à la fois : celle que couvre un intervalle `active`. Le calque statique
- * ne dessine donc plus les collines (`staticObjectivesOf`) — six collines grises superposées
- * disaient le contraire du jeu — et ce calque peint la colline active entière : appartenance,
- * contours d'étage (`drawZoneFloorContours`, le langage des autres objectifs) et la jauge de
- * CAPTURE, une seconde environ pour un camp seul. Sa jauge redescend aussi : quand le camp qui
- * la tient la perd, elle se VIDE (`gaugeRamps[].draining`) à l'encre de ce camp. Hors de ses
- * intervalles, une colline ne se peint pas, jauge comprise.
+ * THE HILL (King of the Hill, schema 92) IS A ZONE APART, AND THE LAYER CARRIES IT ALONE.
+ * Only one hill exists at a time: the one covered by an `active` interval. The static layer
+ * therefore no longer draws the hills (`staticObjectivesOf`) — six gray hills superimposed
+ * said the opposite of the game — and this layer paints the whole active hill: ownership,
+ * floor contours (`drawZoneFloorContours`, the language of the other objectives) and the
+ * CAPTURE gauge, about one second for a side alone. Its gauge also descends: when the side
+ * that holds it loses it, it EMPTIES (`gaugeRamps[].draining`) with the ink of that side.
+ * Outside of its intervals, a hill is not painted, gauge included.
  *
- * UN SEUL TEXTE, ET C'EST LA LETTRE DE LA ZONE (2026-08-24). Le calque n'écrivait rien, parce que
- * la lettre A/B/C du HUD n'existe dans aucune donnée décodée. Elle n'y est toujours pas : ce que
- * l'artefact publie désormais (`letterRank`) est un FALLBACK D'ORDRE — les zones rangées par
- * numéro de slot `ti=13` croissant, un ordre mesuré reproductible d'un match à l'autre sur 8
- * cartes (17 films, 8/8 permutations identiques). Le garde-fou du dossier est amendé en
- * conséquence : il autorise LE glyphe d'une lettre A-C, et continue d'interdire tout AUTRE texte.
- * Le verdict « ce sont bien les lettres du jeu » appartient au relevé Theater de l'utilisateur.
+ * A SINGLE TEXT, AND IT IS THE LETTER OF THE ZONE (2026-08-24). The layer wrote nothing,
+ * because the A/B/C letter of the HUD exists in no decoded data. It still does not: what the
+ * artifact now publishes (`letterRank`) is a FALLBACK ORDER — the zones ranked by increasing
+ * `ti=13` slot number, a measured order reproducible from one match to another on 8 maps
+ * (17 films, 8/8 identical permutations). The guard of the file is amended accordingly: it
+ * authorizes THE glyph of an A-C letter, and continues to forbid any OTHER text. The verdict
+ * « these are well the letters of the game » belongs to the user's Theater reading.
  */
 import { drawZoneFloorContours, type ObjectiveElementReady } from './objectivesLayer'
 import { floorInRange } from './floorRings'
@@ -83,28 +84,30 @@ import type { ReplayZoneStateReady } from '../../../lib/replay/replayNormalize'
 import { type CanvasView, projectTo, scaleOf } from '../model/replayView'
 
 /**
- * ZONE_GAUGE_HOLD_MS — combien de temps le DERNIER point de la série reste affiché, en TEMPS RÉEL
- * (converti en frames par `useZoneStates`, une fois par document).
+ * ZONE_GAUGE_HOLD_MS — how long the LAST point of the series stays displayed, in REAL TIME
+ * (converted into frames by `useZoneStates`, once per document).
  *
- * ENTRE DEUX POINTS, LA VALEUR TIENT — quel que soit l'écart. La jauge du film ne redescend
- * jamais pas à pas (mesure du lot C-ter volet 3, `echelle_7344d24f.log`) : elle monte tant qu'on
- * capture, se TAIT tant que la capture est figée (zone contestée : 29 s à 0,92 sur `7344d24f`),
- * et revient à zéro d'une seule émission — que le producteur publie comme dernier point de la
- * rampe. Un silence entre deux points est donc une jauge FIGÉE, et l'escalier la garde à l'écran.
- * Seul le dernier point de la série n'a rien après lui pour dire ce qu'il devient : il tient une
- * seconde (la borne du producteur entre deux points d'une rampe), puis la progression s'efface.
+ * BETWEEN TWO POINTS, THE VALUE HOLDS — whatever the gap. The gauge of the film never
+ * descends step by step (measurement of lot C-ter part 3, `echelle_7344d24f.log`): it rises
+ * as long as one captures, STAYS SILENT as long as the capture is frozen (contested zone:
+ * 29 s at 0.92 on `7344d24f`), and returns to zero in a single emission — which the producer
+ * publishes as the last point of the ramp. A silence between two points is therefore a FROZEN
+ * gauge, and the staircase keeps it on screen. Only the last point of the series has nothing
+ * after it to say what it becomes: it holds one second (the producer's bound between two
+ * points of a ramp), then the progression fades.
  */
 export const ZONE_GAUGE_HOLD_MS = 1_000
 
 /**
- * spanStateAt rend l'état porté par l'intervalle qui couvre la frame (bornes INCLUSES), ou `null`
- * quand aucun ne la couvre — avant la première émission du film, la zone n'a pas d'état CONNU, et
- * la dessiner « neutre » affirmerait quelque chose que l'artefact ne dit pas.
+ * spanStateAt returns the state carried by the interval that covers the frame (bounds
+ * INCLUSIVE), or `null` when none covers it — before the first emission of the film, the
+ * zone has no KNOWN state, and drawing it « neutral » would assert something the artifact
+ * does not say.
  *
- * FONCTION PURE, et la SEULE lecture d'état du calque : c'est elle que le rendu appelle à chaque
- * image, pour chaque zone (cf. drawZoneStates). Elle est privée parce que rien hors du calque ne
- * lit l'état d'une zone ; un jour où quelque chose le lira, c'est elle qu'on exportera — pas une
- * seconde façon de faire la même lecture.
+ * PURE FUNCTION, and the ONLY state reading of the layer: it is what rendering calls every
+ * frame, for each zone (cf. drawZoneStates). It is private because nothing outside the layer
+ * reads the state of a zone; a day when something will read it, it is what one will export —
+ * not a second way of doing the same reading.
  */
 function spanStateAt(spans: ReplayZoneStateReady['spans'], frame: number): ZoneStateNow | null {
   for (const sp of spans) {
@@ -115,17 +118,17 @@ function spanStateAt(spans: ReplayZoneStateReady['spans'], frame: number): ZoneS
 }
 
 /**
- * zoneGaugeAt rend la VALEUR de la jauge à la frame demandée, lue EN ESCALIER dans la série
- * publiée : la dernière valeur dont l'instant est <= frame, tenue jusqu'au point suivant. Rend
- * `null` AVANT le premier point, et une fois le DERNIER point de la série plus vieux que
- * `holdFrames` (une seconde : la borne du producteur entre deux points d'une rampe — au-delà, plus
- * rien ne viendra dire ce que la jauge est devenue).
+ * zoneGaugeAt returns the VALUE of the gauge at the requested frame, read AS A STAIRCASE in
+ * the published series: the last value whose instant is <= frame, held until the next point.
+ * Returns `null` BEFORE the first point, and once the LAST point of the series is older than
+ * `holdFrames` (one second: the producer's bound between two points of a ramp — beyond,
+ * nothing will come to say what the gauge became).
  *
- * FONCTION PURE, SANS INTERPOLATION LINÉAIRE ET SANS EXPIRATION ENTRE DEUX POINTS : entre deux
- * points la vraie jauge a bougé de moins de 0,02, ou n'a pas bougé du tout (capture figée) —
- * inventer une pente lisserait ce que le producteur a quantifié, effacer l'arc cacherait un
- * blocage que le film montre. Une jauge qui retombe à zéro le dit par un point (cf.
- * ZONE_GAUGE_HOLD_MS).
+ * PURE FUNCTION, WITHOUT LINEAR INTERPOLATION AND WITHOUT EXPIRATION BETWEEN TWO POINTS:
+ * between two points the real gauge moved by less than 0.02, or did not move at all (frozen
+ * capture) — inventing a slope would smooth what the producer quantified, erasing the arc
+ * would hide a blockage the film shows. A gauge that falls back to zero says it by a point
+ * (cf. ZONE_GAUGE_HOLD_MS).
  */
 export function zoneGaugeAt(
   gauge: readonly ReplayGaugePoint[],
@@ -151,11 +154,12 @@ export function zoneGaugeAt(
 }
 
 /**
- * zoneElementsOf rend les éléments SURFACIQUES dans l'ordre servi — celui que `zoneRef` indexe.
+ * zoneElementsOf returns the SURFACE elements in the served order — the one that `zoneRef`
+ * indexes.
  *
- * L'ORDRE EST LE CONTRAT : `normalizeMapObjectives` empile les zones puis les marqueurs, en
- * conservant l'ordre du serveur, et `zoneStates[].zoneRef` est l'index dans `mapObjectives.zones`.
- * Filtrer sur `kind` restitue donc exactement cette liste.
+ * THE ORDER IS THE CONTRACT: `normalizeMapObjectives` stacks the zones then the markers,
+ * keeping the order of the server, and `zoneStates[].zoneRef` is the index in
+ * `mapObjectives.zones`. Filtering on `kind` therefore restores exactly this list.
  */
 export function zoneElementsOf(
   elements: readonly ObjectiveElementReady[],
@@ -164,44 +168,46 @@ export function zoneElementsOf(
 }
 
 /**
- * zoneCatalogMatches dit si l'index `zoneRef` de l'artefact est JOIGNABLE à la liste servie.
+ * zoneCatalogMatches says whether the `zoneRef` index of the artifact is JOINABLE to the
+ * served list.
  *
- * POURQUOI CETTE VÉRIFICATION EXISTE (revue R1, 2026-08-18). `zoneRef` est un INDEX dans
- * `mapObjectives.zones` — figé à la CUISSON de l'artefact — alors que `mapObjectives` est
- * reconstruit À CHAQUE REQUÊTE par le service, depuis le catalogue de formes de la carte et la
- * table de rôles du titre. Ces deux listes ne sont les mêmes que tant que ni le catalogue ni la
- * table ne bougent. Le jour où l'un des deux change sans que les artefacts soient recuits, la
- * teinte du camp se poserait sur une AUTRE zone : une erreur invisible et parfaitement crédible.
+ * WHY THIS VERIFICATION EXISTS (review R1, 2026-08-18). `zoneRef` is an INDEX in
+ * `mapObjectives.zones` — frozen at the COOKING of the artifact — whereas `mapObjectives`
+ * is rebuilt AT EVERY REQUEST by the service, from the shapes catalog of the map and the
+ * roles table of the title. These two lists are the same only as long as neither the catalog
+ * nor the table moves. The day one of them changes without the artifacts being re-cooked,
+ * the tint of the side would be placed on ANOTHER zone: an invisible and perfectly credible
+ * error.
  *
- * `coverage.zones.catalog` est le nombre de zones que l'artefact avait sous les yeux. Il ne
- * prouve pas que les listes coïncident — deux listes différentes peuvent avoir la même
- * longueur — mais il attrape le cas qui arrive vraiment : une zone ajoutée ou retirée du
- * catalogue. Dans le doute, le calque vivant se TAIT et le calque statique reste seul.
+ * `coverage.zones.catalog` is the number of zones the artifact had in sight. It does not
+ * prove that the lists coincide — two different lists can have the same length — but it
+ * catches the case that really happens: a zone added or removed from the catalog. In doubt,
+ * the living layer STAYS SILENT and the static layer remains alone.
  *
- * UN CATALOGUE ABSENT NE PASSE PAS : un artefact qui publie des états sans publier sa couverture
- * ne permet aucune vérification, et « pas vérifiable » se traite comme « pas joignable ».
+ * AN ABSENT CATALOG DOES NOT PASS: an artifact that publishes states without publishing its
+ * coverage allows no verification, and « not verifiable » is treated as « not joinable ».
  */
 export function zoneCatalogMatches(catalog: number | null | undefined, served: number): boolean {
   return catalog != null && catalog === served
 }
 
 /**
- * capturingTeamAt — LE CAMP QUI POUSSE LA JAUGE à la frame demandée, ou `null` quand rien ne le
- * mesure.
+ * capturingTeamAt — THE SIDE THAT PUSHES THE GAUGE at the requested frame, or `null` when
+ * nothing measures it.
  *
- * LA LECTURE EST CELLE DE L'ESCALIER, exactement comme `zoneGaugeAt` : la rampe qui couvre la
- * frame vaut jusqu'à son sommet, puis `holdFrames` de plus — la même tenue que la valeur qu'elle
- * colore. Sans cette tolérance, l'arc resterait dessiné une seconde de plus en changeant de
- * couleur, ce qui se lirait comme un changement de capteur.
+ * THE READING IS THAT OF THE STAIRCASE, exactly like `zoneGaugeAt`: the ramp that covers the
+ * frame holds until its top, then `holdFrames` more — the same holding as the value it
+ * colors. Without this tolerance, the arc would remain drawn one second longer while
+ * changing color, which would read as a change of sensor.
  *
- * `null` DANS TROIS CAS, ET AUCUN N'EST UNE ERREUR : aucune rampe ne couvre la frame (la jauge
- * est au repos), la rampe qui la couvre ne nomme personne (le film y dit le NEUTRE, ou la zone
- * n'a pas de canal pousseur élu et la rampe a avorté), ou l'artefact est antérieur au schéma 64.
- * Le rendu repeint au neutre dans les trois.
+ * `null` IN THREE CASES, AND NONE IS AN ERROR: no ramp covers the frame (the gauge is at
+ * rest), the ramp that covers it names no one (the film there says NEUTRAL, or the zone has
+ * no elected pusher channel and the ramp aborted), or the artifact is earlier than schema
+ * 64. Rendering repaints neutral in the three.
  *
- * UNE RAMPE AVORTÉE PEUT DÉSORMAIS PORTER UN CAMP, et c'est le gain du lot 5.6 côté serveur : le
- * camp n'est plus déduit de l'issue, il est LU sur le canal pousseur de la zone. Le rendu n'a
- * rien à changer pour l'afficher — il lisait déjà la clé.
+ * AN ABORTED RAMP CAN NOW CARRY A SIDE, and that is the gain of lot 5.6 on the server side:
+ * the side is no longer deduced from the outcome, it is READ on the pusher channel of the
+ * zone. Rendering has nothing to change to display it — it already read the key.
  */
 export function capturingTeamAt(
   ramps: readonly ReplayZoneGaugeRamp[],
@@ -212,9 +218,9 @@ export function capturingTeamAt(
 }
 
 /**
- * gaugeRampAt — LA RAMPE (ou le segment de colline) qui couvre la frame, lue en escalier comme
- * `capturingTeamAt` : jusqu'à sa dernière frame, puis `holdFrames` de plus. `null` quand aucune
- * ne la couvre.
+ * gaugeRampAt — THE RAMP (or hill segment) that covers the frame, read as a staircase like
+ * `capturingTeamAt`: until its last frame, then `holdFrames` more. `null` when none covers
+ * it.
  */
 export function gaugeRampAt(
   ramps: readonly ReplayZoneGaugeRamp[],
@@ -238,89 +244,90 @@ export function gaugeRampAt(
   return frame > r.t1 + holdFrames ? null : r
 }
 
-/** Style du calque VIVANT : les encres sont RÉSOLUES par l'appelant (règle color-tokens). */
+/** Style of the LIVING layer: the inks are RESOLVED by the caller (color-tokens rule). */
 export interface ZoneStateStyle {
-  /** Encre d'un camp ; `null` = camp inconnu (le film ne situe pas le joueur regardé) — le liseré reste neutre. */
+  /** Ink of a side; `null` = unknown side (the film does not locate the looked-at player) — the rim stays neutral. */
   colorOfOwner: (team: number) => string | null
   /**
-   * Encre du camp QUI POUSSE LA JAUGE, par son identifiant d'équipe. `null` = camp inconnu
-   * (le film ne situe pas le joueur regardé) — l'arc reste neutre.
+   * Ink of the side THAT PUSHES THE GAUGE, by its team identifier. `null` = unknown side
+   * (the film does not locate the looked-at player) — the arc stays neutral.
    *
-   * CE N'EST PLUS UNE DÉDUCTION DEPUIS LE SCHÉMA 64 (2026-09-20), ET C'EST TOUT LE CHANGEMENT.
-   * Le rendu déduisait le capteur du propriétaire courant — « le camp d'en face » —, ce qui ne
-   * vaut qu'à deux camps ET seulement sur une zone TENUE : sur une base NEUTRE la déduction
-   * n'existe pas, et le remplissage s'y peignait au neutre pendant qu'une équipe poussait. Le
-   * document publie désormais le camp (`zoneStates[].gaugeRamps[].capturingTeam`), et cette
-   * encre n'est plus que la traduction d'un identifiant d'équipe en couleur — la même que
-   * `colorOfOwner`. Depuis le lot 5.6, ce camp est LU dans le film (le canal pousseur de la
-   * zone) et non plus déduit de l'issue : les rampes AVORTÉES en portent un aussi.
+   * IT IS NO LONGER A DEDUCTION SINCE SCHEMA 64 (2026-09-20), AND THAT IS THE WHOLE CHANGE.
+   * Rendering deduced the sensor from the current owner — « the side opposite » —, which
+   * only holds for two sides AND only on a HELD zone: on a NEUTRAL base the deduction does
+   * not exist, and the fill was painted neutral there while a team was pushing. The document
+   * now publishes the side (`zoneStates[].gaugeRamps[].capturingTeam`), and this ink is
+   * nothing but the translation of a team identifier into color — the same as
+   * `colorOfOwner`. Since lot 5.6, this side is READ in the film (the pusher channel of the
+   * zone) and no longer deduced from the outcome: the ABORTED ramps carry one too.
    *
-   * CLÉ ABSENTE = NEUTRE, sans exception : le film peut nommer le neutre (« personne ne
-   * pousse »), une zone peut n'avoir aucun canal pousseur élu, et un artefact de schéma <= 63
-   * n'en porte aucune. Aucune inférence géométrique ne vient la remplacer — ce serait exactement
-   * l'invention que le dépôt s'interdit ailleurs.
+   * ABSENT KEY = NEUTRAL, without exception: the film can name the neutral (« no one is
+   * pushing »), a zone can have no elected pusher channel, and a schema <= 63 artifact
+   * carries none. No geometric inference comes to replace it — that would be exactly the
+   * invention the repository forbids elsewhere.
    */
   colorOfCapturer: (team: number) => string | null
-  /** Encre neutre : zone que personne ne tient, et arc de jauge sans camp connu. */
+  /** Neutral ink: zone no one holds, and gauge arc with no known side. */
   neutral: string
 }
 
 /**
- * ZoneStatesLayerInput — ce que le calque vivant reçoit de l'appelant (`useZoneStates`) : les
- * zones dans l'ordre servi, le verdict de jointure, les encres résolues, la tenue de la jauge.
+ * ZoneStatesLayerInput — what the living layer receives from the caller (`useZoneStates`):
+ * the zones in the served order, the join verdict, the resolved inks, the holding of the
+ * gauge.
  */
 export interface ZoneStatesLayerInput {
-  /** Les zones SURFACIQUES dans l'ordre servi : celui que `zoneStates[].zoneRef` indexe. */
+  /** The SURFACE zones in the served order: the one that `zoneStates[].zoneRef` indexes. */
   zoneElements: readonly ObjectiveElementReady[]
   /**
-   * `zoneRef` est-il joignable à `zoneElements` (cf. zoneCatalogMatches) ? Faux : le calque ne
-   * peint RIEN — l'index de l'artefact est figé à la cuisson, la liste servie est reconstruite à
-   * la requête, et teinter la mauvaise zone serait une erreur invisible.
+   * Is `zoneRef` joinable to `zoneElements` (cf. zoneCatalogMatches)? False: the layer
+   * paints NOTHING — the index of the artifact is frozen at cooking, the served list is
+   * rebuilt at the request, and tinting the wrong zone would be an invisible error.
    */
   joinable: boolean
   style: ZoneStateStyle
-  /** ZONE_GAUGE_HOLD_MS converti en frames pour ce document (cf. zoneGaugeAt). */
+  /** ZONE_GAUGE_HOLD_MS converted into frames for this document (cf. zoneGaugeAt). */
   gaugeHoldFrames: number
-  /** Amplitude verticale du document (`doc.bounds`) : l'étage d'une colline (`floorInRange`). */
+  /** Vertical amplitude of the document (`doc.bounds`): the floor of a hill (`floorInRange`). */
   z: { min: number; max: number }
 }
 
-// LA LETTRE DE LA ZONE. Même technique que les libellés de callouts (`lib/replay/calloutsPaint.ts`) :
-// blanc cerné de noir, volontairement HORS thème, cerne arrondi pour que les angles des lettres
-// ne produisent pas de pointes. C'est une encre STRUCTURELLE de calque — elle ne dit aucun rôle
-// métier, elle porte du contraste sur les aplats de la carte, exactement comme le HUD du jeu —,
-// donc la même exception documentée que `canvasInk.ts` s'applique. Plus grande que les callouts :
-// une lettre de base est un repère de premier plan, pas une annotation.
+// THE LETTER OF THE ZONE. Same technique as the callout labels (`lib/replay/calloutsPaint.ts`):
+// white outlined in black, deliberately OUTSIDE the theme, rounded outline so that the corners
+// of the letters do not produce points. It is a STRUCTURAL ink of the layer — it says no
+// business role, it carries contrast on the flat tints of the map, exactly like the HUD of
+// the game —, so the same documented exception as `canvasInk.ts` applies. Bigger than the
+// callouts: a base letter is a foreground landmark, not an annotation.
 const ZONE_LETTER_FONT = '700 13px ui-sans-serif, system-ui, sans-serif'
 const ZONE_LETTER_OUTLINE_WIDTH = 2.4
-const ZONE_LETTER_FILL = 'rgba(255, 255, 255, 1)' // color-allow: 2026-09-06 (revue R1, C5) — couleur STRUCTURELLE de trace (ombre / contour de lisibilite), pas une couleur qui dit quelque chose : exception de la doctrine color-tokens, deja documentee en tete
-const ZONE_LETTER_STROKE = 'rgba(0, 0, 0, 0.92)' // color-allow: 2026-09-06 (revue R1, C5) — couleur STRUCTURELLE de trace (ombre / contour de lisibilite), pas une couleur qui dit quelque chose : exception de la doctrine color-tokens, deja documentee en tete
-/** Les lettres que le HUD connaît. Le producteur ne publie jamais de rang au-delà. */
+const ZONE_LETTER_FILL = 'rgba(255, 255, 255, 1)' // color-allow: 2026-09-06 (revue R1, C5) — STRUCTURAL tracing color (shadow / readability outline), not a color that says something: exception of the color-tokens doctrine, already documented above
+const ZONE_LETTER_STROKE = 'rgba(0, 0, 0, 0.92)' // color-allow: 2026-09-06 (revue R1, C5) — STRUCTURAL tracing color (shadow / readability outline), not a color that says something: exception of the color-tokens doctrine, already documented above
+/** The letters the HUD knows. The producer never publishes a rank beyond. */
 const ZONE_LETTERS = ['A', 'B', 'C'] as const
 
 /**
- * drawZoneStates peint, PAR-DESSUS le calque statique, ce que le film dit de chaque zone à
- * l'image courante : teinte du propriétaire, surbrillance de la zone ACTIVE, et le REMPLISSAGE
- * DE LA CAPTURE EN COURS quand la série de jauge en porte une valeur à cette frame.
+ * drawZoneStates paints, ON TOP of the static layer, what the film says about each zone at
+ * the current frame: tint of the owner, highlight of the ACTIVE zone, and the FILL OF THE
+ * CAPTURE IN PROGRESS when the gauge series carries a value at this frame.
  *
- * CE CALQUE N'EST PAS STATIQUE, et c'est tout le point : sa géométrie ne bouge pas, son ÉTAT
- * change à chaque image — comme les socles d'arme. Il se peint donc dans la boucle, pas dans un
- * canvas cuit une fois.
+ * THIS LAYER IS NOT STATIC, and that is the whole point: its geometry does not move, its
+ * STATE changes every frame — like the weapon pads. It is therefore painted in the loop,
+ * not in a canvas cooked once.
  *
- * LA PROGRESSION NE DÉPEND PAS DE L'INTERVALLE COURANT : la jauge est une mesure de la ZONE,
- * publiée par frame ; une rampe qui précède la première émission du canal de propriété se
- * dessine quand même — à l'encre neutre, faute de savoir qui tient la zone, et SANS contour
- * (aucun intervalle ne couvre la frame, donc aucune appartenance à affirmer). Quand un
- * intervalle la couvre et que son propriétaire est connu, la progression prend l'encre du camp
- * d'en face : celui qui capture.
+ * THE PROGRESSION DOES NOT DEPEND ON THE CURRENT INTERVAL: the gauge is a measurement of
+ * the ZONE, published per frame; a ramp that precedes the first emission of the ownership
+ * channel is drawn anyway — in the neutral ink, for lack of knowing who holds the zone, and
+ * WITHOUT outline (no interval covers the frame, so no ownership to assert). When an
+ * interval covers it and its owner is known, the progression takes the ink of the opposite
+ * side: the one that captures.
  *
- * LA LETTRE DE LA ZONE se pose EN DERNIER, dans une seconde passe : une lettre recouverte par le
- * remplissage de la zone suivante serait illisible une fois sur trois, au hasard de l'ordre du
- * catalogue. C'est le seul texte que ce calque écrit (cf. l'en-tête).
+ * THE LETTER OF THE ZONE is placed LAST, in a second pass: a letter covered by the fill of
+ * the next zone would be unreadable one time in three, at the whim of the catalog order. It
+ * is the only text this layer writes (cf. the header).
  *
- * LA GARDE DE JOINTURE EST ICI, dans le calque, et pas seulement chez l'appelant : quand
- * `zones.joinable` est faux, la fonction rend AVANT le premier trait. C'est le calque qui
- * refuse de peindre — un appelant ne peut pas l'oublier, et le test le vérifie sur le contexte.
+ * THE JOIN GUARD IS HERE, in the layer, and not only at the caller: when `zones.joinable`
+ * is false, the function returns BEFORE the first stroke. It is the layer that refuses to
+ * paint — a caller cannot forget it, and the test verifies it on the context.
  */
 export function drawZoneStates(
   ctx: CanvasRenderingContext2D,
@@ -344,7 +351,7 @@ export function drawZoneStates(
   drawZoneLetters(ctx, letters)
 }
 
-/** Ce que la peinture d'une zone lit de l'image courante (règle des 5 paramètres). */
+/** What the painting of a zone reads from the current frame (5-parameter rule). */
 interface ZoneFrame {
   zones: ZoneStatesLayerInput
   px: (p: XY) => XY
@@ -353,9 +360,9 @@ interface ZoneFrame {
 }
 
 /**
- * paintZoneAt peint UNE zone à l'image courante. Une COLLINE (`isHillState`) ne se peint que
- * pendant ses intervalles — jauge comprise — et porte alors ses contours d'étage ; une jauge qui
- * SE VIDE (`draining`) prend l'encre du camp qui tient encore la colline.
+ * paintZoneAt paints ONE zone at the current frame. A HILL (`isHillState`) is painted only
+ * during its intervals — gauge included — and then carries its floor contours; a gauge that
+ * EMPTIES (`draining`) takes the ink of the side that still holds the hill.
  */
 function paintZoneAt(
   ctx: CanvasRenderingContext2D,
@@ -367,8 +374,8 @@ function paintZoneAt(
   const hill = isHillState(st)
   const now = spanStateAt(st.spans, f.frame)
   if (hill && !now) return
-  // Une jauge à ZÉRO (au repos, ou revenue à zéro) n'a pas de progression : un remplissage de
-  // hauteur nulle ne trace rien, autant ne pas l'émettre.
+  // A gauge at ZERO (at rest, or returned to zero) has no progression: a fill of null
+  // height traces nothing, as well not to emit it.
   const value = zoneGaugeAt(st.gauge, f.frame, gaugeHoldFrames)
   const capture = value !== null && value > 0 ? value : null
   if (!now && capture === null) return
@@ -392,18 +399,18 @@ function paintZoneAt(
 }
 
 /**
- * isHillState dit si l'état est celui d'une COLLINE : la seule zone dont les intervalles sont
- * marqués `active` (le producteur ne pose `active` que sur la colline du moment).
+ * isHillState says whether the state is that of a HILL: the only zone whose intervals are
+ * marked `active` (the producer only places `active` on the hill of the moment).
  */
 export function isHillState(st: { spans: readonly { active: boolean }[] }): boolean {
   return st.spans.some((s) => s.active)
 }
 
 /**
- * staticObjectivesOf rend les objectifs que le calque STATIQUE dessine : tous, sauf les zones d'un
- * document à COLLINES joignable — une seule colline existe à la fois, et c'est ce calque-ci qui la
- * peint (pendant ses intervalles). Non joignable, rien ne change : le calque vivant se tait, le
- * statique reste seul.
+ * staticObjectivesOf returns the objectives that the STATIC layer draws: all, except the
+ * zones of a JOINABLE HILLS document — only one hill exists at a time, and it is this layer
+ * that paints it (during its intervals). Not joinable, nothing changes: the living layer
+ * stays silent, the static one remains alone.
  */
 export function staticObjectivesOf(
   elements: readonly ObjectiveElementReady[],
@@ -415,11 +422,11 @@ export function staticObjectivesOf(
 }
 
 /**
- * zoneLetterOf traduit le rang publié en lettre, ou `null` quand il n'y en a pas.
+ * zoneLetterOf translates the published rank into a letter, or `null` when there is none.
  *
- * UN RANG HORS ALPHABET NE DESSINE RIEN. Le producteur ne publie jamais au-delà de C (la règle
- * `zoneLetterRanks` refuse un catalogue de plus de trois zones), mais le client ne le suppose
- * pas : une donnée future hors bornes doit se taire, pas afficher `undefined`.
+ * A RANK OUTSIDE THE ALPHABET DRAWS NOTHING. The producer never publishes beyond C (the
+ * `zoneLetterRanks` rule refuses a catalog of more than three zones), but the client does
+ * not assume it: future out-of-bounds data must stay silent, not display `undefined`.
  */
 export function zoneLetterOf(rank: number | null | undefined): string | null {
   if (rank == null || !Number.isInteger(rank) || rank < 0 || rank >= ZONE_LETTERS.length) return null
@@ -427,28 +434,28 @@ export function zoneLetterOf(rank: number | null | undefined): string | null {
 }
 
 /**
- * drawZoneLetters écrit les lettres à l'ancre de leur zone, blanc cerné de noir.
+ * drawZoneLetters writes the letters at the anchor of their zone, white outlined in black.
  *
- * CE QUE LA FONCTION FAIT DE `textAlign` / `textBaseline`, EXACTEMENT (relevé de revue,
- * 2026-08-25 — la version précédente de ce commentaire prétendait restaurer l'état trouvé, ce
- * qui était faux). Elle POSE `center` / `middle` pour centrer le glyphe sur l'ancre, puis
- * réécrit les VALEURS PAR DÉFAUT du canvas (`left` / `alphabetic`) en sortant. Elle ne lit rien
- * et ne restaure donc pas un réglage antérieur : si un calque précédent avait posé autre chose,
- * il ne le retrouverait pas.
+ * WHAT THE FUNCTION DOES TO `textAlign` / `textBaseline`, EXACTLY (review reading,
+ * 2026-08-25 — the previous version of this comment claimed to restore the found state,
+ * which was false). It PLACES `center` / `middle` to center the glyph on the anchor, then
+ * rewrites the DEFAULT VALUES of the canvas (`left` / `alphabetic`) on exiting. It reads
+ * nothing and therefore does not restore a previous setting: if a previous layer had placed
+ * something else, it would not find it back.
  *
- * POURQUOI C'EST SANS CONSÉQUENCE ICI, et sous quelle condition ça le reste : ce calque est le
- * dernier à écrire du texte dans la boucle de rendu, et les calques qui écrivent (callouts,
- * noms sous les marqueurs, socles) posent tous leur propre alignement avant de tracer. Aucun ne
- * dépend d'un état hérité. Le jour où un calque de texte s'appuierait sur l'état laissé par le
- * précédent, c'est cette hypothèse-là qu'il faudrait rouvrir — pas cette fonction seule.
+ * WHY THAT IS CONSEQUENCE-FREE HERE, and under which condition it remains so: this layer is
+ * the last to write text in the rendering loop, and the layers that write (callouts, names
+ * under the markers, pads) all place their own alignment before tracing. None depends on an
+ * inherited state. The day a text layer would rely on the state left by the previous one,
+ * it is that hypothesis that would need to be re-opened — not this function alone.
  */
 function drawZoneLetters(ctx: CanvasRenderingContext2D, letters: { at: XY; text: string }[]): void {
   if (letters.length === 0) return
   ctx.font = ZONE_LETTER_FONT
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  // Cerne arrondi : sans lineJoin round + miterLimit bas, les angles des lettres produisent des
-  // pointes là où deux segments du contour se rejoignent (même réglage que les callouts).
+  // Rounded outline: without lineJoin round + low miterLimit, the corners of the letters
+  // produce points where two segments of the outline meet (same setting as the callouts).
   ctx.lineJoin = 'round'
   ctx.miterLimit = 2
   ctx.lineWidth = ZONE_LETTER_OUTLINE_WIDTH

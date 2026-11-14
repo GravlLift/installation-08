@@ -1,101 +1,100 @@
 /**
- * replayAimCone.ts — LE CÔNE DE VISÉE d'un marqueur : son cap, et son ÉLÉVATION lue dans sa
- * LONGUEUR.
+ * replayAimCone.ts — the AIM CONE of a marker: its heading, and its ELEVATION read from its
+ * LENGTH.
  *
- * EXTRAIT DE `replayMarkers.ts` LE 2026-08-18 (lot R2-V) : le calque des marqueurs avait
- * franchi le seuil de taille du dépôt (CLAUDE.md n°5) et le lot lui ajoutait le double contour
- * du joueur de la page. La découpe tombe sur une frontière nette — le cône ne dessine PAS le
- * joueur, il dessine ce qu'il REGARDE, et il est le seul bloc du fichier à lire deux champs
- * (`h` et `p`) plutôt qu'une position.
+ * EXTRACTED FROM `replayMarkers.ts` ON 2026-08-18 (lot R2-V): the marker layer had crossed
+ * the repository size threshold (CLAUDE.md n°5) and the lot added to it the double outline of
+ * the page player. The cut falls on a clean boundary — the cone does NOT draw the player, it
+ * draws what the player LOOKS AT, and it is the only block in the file that reads two fields
+ * (`h` and `p`) rather than a position.
  */
 import type { MarkerStyle } from "./replayMarkers";
 import { freshness, heldReading, type XY } from "../../../lib/replay/replayLogic";
 import type { ReplayTrackReady } from "../../../lib/replay/replayNormalize";
 
-/** Longueur d'une visée À PLAT — la référence, pas le maximum : l'élévation joue autour d'elle. */
+/** Length of a FLAT aim — the reference, not the maximum: elevation plays around it. */
 const AIM_LENGTH = 52;
 const AIM_HALF_ANGLE = 0.42;
 /**
- * LA LUNETTE (schéma 29) : le cône RESSERRE SON OUVERTURE, et ne change PAS de longueur.
+ * THE SCOPE (schema 29): the cone TIGHTENS ITS OPENING, and does NOT change length.
  *
- * Les deux mécaniques sont volontairement orthogonales. L'ÉLÉVATION pilote la LONGUEUR (un
- * regard incliné porte moins loin sur le plan) ; la LUNETTE pilote l'ANGLE (un joueur épaulé
- * regarde plus étroit). Elles se lisent donc ensemble sans se confondre : un joueur à la
- * lunette qui vise vers le bas a un cône à la fois plus étroit et plus court.
+ * The two mechanics are deliberately orthogonal. ELEVATION drives the LENGTH (a tilted
+ * gaze carries shorter on the plane); the SCOPE drives the ANGLE (a player with the weapon
+ * shouldered looks more narrowly). They are therefore read together without being confused:
+ * a scoped player aiming down has a cone that is at once narrower and shorter.
  *
- * LE PALIER COMPTE, PAS SEULEMENT LE FAIT D'ÊTRE ÉPAULÉ. Le film publie un NIVEAU (`Point.S`),
- * et les paliers supérieurs y sont mesurés — rares, mais réels : sur quatre films, le second
- * cran apparaît cinq fois sur ~1 000 bascules (les armes qui zooment deux fois, le fusil de
- * précision en tête). Chaque cran DIVISE encore l'ouverture, par analogie avec le jeu où un
- * cran supplémentaire double le grossissement.
+ * THE STEP COUNTS, NOT JUST THE FACT OF BEING AT THE
+ * SCOPE (`Point.S`): the higher steps are measured there — rare, but real: across four films,
+ * the second detent appears five times out of ~1,000 flips (the weapons that zoom twice,
+ * the sniper rifle first among them). Each detent DIVIDES the opening again, by analogy with
+ * the game where an extra detent doubles the magnification.
  *
- * CES VALEURS SONT DES CHOIX DE RENDU, ET C'EST CE QU'IL FAUT. Le grossissement réel de l'arme
- * n'a pas de sens ici : sur une carte vue de dessus, le cône n'est pas un champ de vision, c'est
- * un REPÈRE DE LECTURE. Ce qui compte est que les états se distinguent d'un coup d'œil — hanche,
- * premier cran, second cran — pas qu'une ouverture reproduise un facteur optique. Le rapport
- * retenu (chaque cran divise par ~2,3) est calibré pour cette lisibilité, et le palier publié par
- * le film suffit à le piloter : aucun besoin d'aller chercher le grossissement dans les données
- * d'armes.
+ * THESE VALUES ARE RENDERING CHOICES, AND THAT IS WHAT THEY ARE. The weapon's real
+ * magnification has no meaning here: on a top-view map, the cone is not a field of vision,
+ * it is a READING MARK. What matters is that the states are distinguishable at a glance —
+ * hip, first detent, second detent — not that an opening reproduces an optical factor. The
+ * ratio kept (each detent divides by ~2.3) is calibrated for this readability, and the level
+ * published by the film is enough to drive it: no need to go fetch the magnification in the
+ * weapon data.
  */
 const AIM_SCOPED_DIVISOR = 2.3;
 /**
- * PLANCHER D'OUVERTURE. Sous ~0,07 rad le secteur devient plus fin que le contour du marqueur
- * aux échelles usuelles : il cesserait de se lire comme un cône pour devenir un trait, et
- * l'information « il est épaulé » se perdrait au moment même où elle est la plus forte.
+ * OPENING FLOOR. Below ~0.07 rad the sector becomes thinner than the marker's outline at
+ * usual scales: it would stop reading as a cone and become a line, and the information "he
+ * is shouldered" would be lost at the very moment it is strongest.
  */
 const AIM_SCOPED_MIN_HALF_ANGLE = 0.07;
 /**
- * Un cône plus étroit couvre moins de pixels : à opacité égale il se verrait MOINS qu'un cône
- * large, alors qu'il dit quelque chose de plus rare et de plus intéressant. Le supplément
- * compense la surface perdue, il ne crie pas.
+ * A narrower cone covers fewer pixels: at equal opacity it would be seen LESS than a wide
+ * cone, though it says something rarer and more interesting. The supplement compensates the
+ * surface lost; it does not shout.
  */
 const AIM_SCOPED_ALPHA_BOOST = 1.25;
 const AIM_CONE_ALPHA = 0.55;
-/** Une visée de 5 s ne vaut pas une visée de l'instant : elle perd 62 % de son opacité. */
+/** A 5 s aim is not worth an instant aim: it loses 62% of its opacity. */
 const AIM_FADE = 0.62;
 /**
- * L'AMPLITUDE DE L'ÉLÉVATION : ±55 % de la longueur à plat, atteints à la verticale.
+ * THE SWING OF THE ELEVATION: ±55% of the flat length, reached at the vertical.
  *
- * Le cône va donc de 23 px (visée pleine plongée) à 81 px (visée pleine montée) autour des
- * 52 px du regard horizontal — un rapport de 3,4 entre les deux extrêmes, assez pour que le
- * sens se lise SANS second repère, ce qui est tout l'objet du changement.
+ * The cone therefore runs from 23 px (full dive aim) to 81 px (full upward aim) around the
+ * 52 px of the horizontal gaze — a ratio of 3.4 between the two extremes, enough that the
+ * direction reads WITHOUT a second mark, which is the whole point of the change.
  *
- * Ce que la mesure dit du champ (lot E, 3 films) : médiane −4,7 / −3,4 / −3,6°, 67 à 77 % des
- * visées vers le BAS, extrêmes −85,5 à +82°. La carte ne s'allonge donc pas : les cônes
- * passent leur temps un cheveu SOUS la référence, et ce sont les instants qui comptent — un
- * tir en plongée, un joueur qui couvre une passerelle — qui s'écartent franchement.
+ * What the measurement says of the field (lot E, 3 films): median −4.7 / −3.4 / −3.6°, 67 to
+ * 77% of the aims DOWNWARD, extremes −85.5 to +82°. The map does not stretch then: the cones
+ * spend their time a hair BELOW the reference, and it is the instants that matter — a diving
+ * shot, a player covering a bridge — that deviate sharply.
  */
 const AIM_PITCH_SWING = 0.55;
-/** Au-delà, `sin` REDESCEND et inverserait la lecture : la longueur cesserait d'être monotone. */
+/** Beyond this, `sin` CLIMBS BACK DOWN and would invert the reading: the length would stop being monotone. */
 const AIM_PITCH_CLAMP_DEG = 90;
 
 /**
- * drawAimCone dessine la DIRECTION DU REGARD, décodée du même record que la position.
+ * drawAimCone draws the DIRECTION OF THE GAZE, decoded from the same record as the position.
  *
- * Le cône se dégrade du centre vers le bord — dense à l'origine, où il faut lire QUI vise,
- * transparent au bout, où il ne faut pas masquer le décor. Il pâlit avec l'âge de la mesure et
- * n'est PAS dessiné au-delà du maintien : passé ce délai, on ne sait plus où le joueur regarde,
- * et une direction périmée affirmerait ce qu'on ignore.
+ * The cone fades from the center to the edge — dense at the origin, where one must read WHO
+ * is aiming, transparent at the tip, where it must not mask the background. It pales with the
+ * age of the measurement and is NOT drawn beyond the hold: past that delay, we no longer know
+ * where the player looks, and an expired direction would assert what we do not know.
  *
- * IL N'Y A PLUS D'AXE (décision D3, 2026-08-16) : les deux traits qui prolongeaient le point
- * — « le bâton » — ont été supprimés à la demande de l'utilisateur. Ce que le cône seul perd
- * en précision d'angle, la carte le regagne en lisibilité : huit bâtons sur un 4v4 se
- * croisaient au-dessus des noms.
+ * THERE IS NO AXES ANYMORE (decision D3, 2026-08-16): the two lines that extended the point
+ * — "the stick" — were removed at the user's request. What the cone alone loses in angular
+ * precision, the map gains in readability: eight sticks on a 4v4 crossed above the names.
  *
- * IL N'Y A PLUS DE TICK D'ÉLÉVATION NON PLUS (2026-08-29, même demande, même raison). Le trait
- * collé à la pointe du cône se lisait comme un défaut de tracé plutôt que comme une mesure, et
- * il n'existait que pour rattraper le COSINUS d'alors, qui étant pair confondait « vise le
- * ciel » et « vise ses pieds ». La longueur porte désormais le signe elle-même (`pitchScale`) :
- * le tick n'avait plus rien à dire, il a donc été supprimé — pas désactivé (CLAUDE.md n°7).
+ * THERE IS NO ELEVATION TICK ANYMORE EITHER (2026-08-29, same request, same reason). The line
+ * stuck to the cone's tip read as a tracing defect rather than as a measurement, and it only
+ * existed to compensate for the COSINE of the time, which being even confused "aims at the
+ * sky" and "aims at his own feet". The length now carries the sign itself (`pitchScale`):
+ * the tick had nothing left to say, so it was removed — not disabled (CLAUDE.md n°7).
  *
- * SES DIMENSIONS SONT CELLES DE LA PLANCHE, « un peu plus prononcées » (verdict du soir du
- * 2026-08-16, §1bis du plan) : rayon 52 à plat, demi-ouverture 0,42 rad, alpha 0,55. Le cône
- * avait d'abord été rétréci à 30 px / 0,30 — trop timide pour se lire une fois les noms posés.
+ * ITS DIMENSIONS ARE THOSE OF THE BOARD, "a bit more pronounced" (verdict of the evening of
+ * 2026-08-16, §1bis of the plan): radius 52 flat, half-opening 0.42 rad, alpha 0.55. The
+ * cone had first been shrunk to 30 px / 0.30 — too timid to read once the names were placed.
  *
- * DEPUIS LE SCHÉMA 13, IL DIT LES DEUX AXES DU REGARD. Le cap oriente le secteur ; l'ÉLÉVATION
- * (`p`, degrés, positif = vers le haut) en règle la LONGUEUR — court vers le bas, long vers le
- * haut. Un artefact antérieur au schéma 13 ne porte pas `p` : le cône y garde sa longueur de
- * référence, et c'est le comportement voulu — absent se lit « à plat », jamais « inconnu ».
+ * SINCE SCHEMA 13, IT SAYS BOTH AXES OF THE GAZE. The heading orients the sector; the
+ * ELEVATION (`p`, degrees, positive = upward) rules its LENGTH — short when down, long when
+ * up. An artifact prior to schema 13 does not carry `p`: the cone keeps its reference length
+ * there, and that is the intended behavior — absent reads "flat", never "unknown".
  */
 export function drawAimCone(
   ctx: CanvasRenderingContext2D,
@@ -112,10 +111,10 @@ export function drawAimCone(
   );
   if (!read) return;
   const fresh = freshness(read.age, style.timing.aimHold, AIM_FADE);
-  // Monde -> canevas : l'axe Y est inversé, donc l'angle l'est aussi.
+  // World -> canvas: the Y axis is inverted, so the angle is too.
   const ang = (-read.value * Math.PI) / 180;
-  // LA LUNETTE agit sur l'OUVERTURE, jamais sur la longueur : celle-ci est deja portee par
-  // l'elevation. Les deux mecaniques restent ainsi lisibles ensemble.
+  // THE SCOPE acts on the OPENING, never on the length: the latter is already carried by
+  // the elevation. The two mechanics thus remain readable together.
   const palier = heldScoped(track.points, style, read.age);
   drawAimSector(ctx, c, ang, style.k, color, {
     lengthScale: aimLengthScale(heldPitch(track.points, style, read.age)),
@@ -125,42 +124,44 @@ export function drawAimCone(
   });
 }
 
-/** Ce que le SECTEUR laisse choisir à son appelant, en plus de l'angle et de l'encre. */
+/** What the SECTOR leaves to its caller, besides the angle and the ink. */
 export interface AimSectorOptions {
   /**
-   * Multiplie la longueur de référence (52 px). Le cône d'un PION y met son élévation
-   * (`aimLengthScale`) ; un appelant qui n'a pas d'élévation à dire laisse 1 — « à plat », qui est
-   * exactement le sens de l'absence (cf. la note du champ `p` ci-dessus).
+   * Multiplies the reference length (52 px). The cone of a PAWN puts its elevation there
+   * (`aimLengthScale`); a caller with no elevation to say leaves 1 — "flat", which is exactly
+   * the meaning of the absence (cf. the note on the `p` field above).
    */
   lengthScale?: number;
-  /** Fraîcheur de la mesure, 0..1 : elle module l'opacité. 1 = mesure de l'instant. */
+  /** Freshness of the measurement, 0..1: it modulates the opacity. 1 = measurement of the instant. */
   fresh?: number;
   /**
-   * DEMI-OUVERTURE du secteur, en radians. Défaut : celle de la hanche. Le cône d'un PION y met
-   * son palier de lunette (`scopedHalfAngle`) ; un véhicule n'a pas de lunette et laisse le
-   * défaut.
+   * HALF-OPENING of the sector, in radians. Default: that of the hip. The cone of a PAWN
+   * puts its scope step there (`scopedHalfAngle`); a vehicle has no scope and leaves the
+   * default.
    */
   halfAngle?: number;
   /**
-   * Multiplie l'opacité, plafonnée à 1. Sert au PALIER DE LUNETTE, qui resserre le cône : sans
-   * ce gain, un secteur trois fois plus étroit se lirait trois fois plus pâle à l'écran.
+   * Multiplies the opacity, capped at 1. Serves the SCOPE STEP, which tightens the cone:
+   * without this gain, a sector three times narrower would read three times paler on
+   * screen.
    */
   alphaBoost?: number;
 }
 
 /**
- * drawAimSector — LE SECTEUR DE VISÉE lui-même : la géométrie et les opacités, sans la mesure.
+ * drawAimSector — the AIM SECTOR itself: the geometry and the opacities, without the
+ * measurement.
  *
- * EXTRAIT DE `drawAimCone` (lot véhicules) : un joueur EMBARQUÉ ne réplique plus
- * son bipède, donc plus aucun cap de visée — mais le VÉHICULE, lui, porte un cap, et la décision
- * utilisateur du chantier est de l'employer (« à l'arrêt on assume qu'il regarde devant lui ; en
- * mouvement, la direction du déplacement »). Le calque des véhicules a donc besoin du MÊME cône,
- * à partir d'un angle qu'il calcule lui-même — pas d'une seconde géométrie qui divergerait au
- * premier réglage (règle « ≤ 2 copies »).
+ * EXTRACTED FROM `drawAimCone` (vehicle lot): an EMBARKED player no longer replicates their
+ * biped, so no more aim heading — but the VEHICLE, for its part, carries a heading, and the
+ * user's decision of the workstream is to use it ("at rest we assume it looks in front of
+ * itself; in motion, the direction of the movement"). The vehicle layer therefore needs the
+ * SAME cone, from an angle it computes itself — not a second geometry that would diverge at
+ * the first tuning ("≤ 2 copies" rule).
  *
- * `ang` EST DÉJÀ EN RADIANS CANEVAS (l'inversion monde -> écran appartient à l'appelant, qui
- * seul sait de quel cap il part), et l'appelant fournit aussi sa densité `k` et son encre : ce
- * bloc ne connaît ni marqueur, ni piste, ni thème.
+ * `ang` IS ALREADY IN CANVAS RADIANS (the world -> screen inversion belongs to the caller,
+ * which alone knows which heading it starts from), and the caller also supplies its density
+ * `k` and its ink: this block knows neither marker, nor track, nor theme.
  */
 export function drawAimSector(
   ctx: CanvasRenderingContext2D,
@@ -191,14 +192,14 @@ export function drawAimSector(
 }
 
 /**
- * heldPitch rend l'ÉLÉVATION en vigueur, ou 0 (à plat).
+ * heldPitch returns the ELEVATION in force, or 0 (flat).
  *
- * LA RÈGLE D'ÂGE N'EST PAS UNE PRÉCAUTION DÉCORATIVE. `p` est omis quand la visée s'arrondit
- * à plat (contrat du champ, cf. `Point.P` côté Go), et `heldReading` remonterait alors
- * jusqu'à un point PLUS ANCIEN qui, lui, porte une élévation : le marqueur afficherait une
- * plongée périmée sur une visée à plat actuelle. Les deux angles venant du MÊME
- * enregistrement, une élévation trouvée plus loin dans le passé que le cap appartient
- * forcément à une autre visée — on la refuse, et « absent » redevient ce qu'il doit être.
+ * THE AGE RULE IS NOT A DECORATIVE PRECAUTION. `p` is omitted when the aim rounds to flat
+ * (contract of the field, cf. `Point.P` on the Go side), and `heldReading` would then climb
+ * back to an OLDER point that, for its part, carries an elevation: the marker would display
+ * an expired dive on a current flat aim. The two angles coming from the SAME record, an
+ * elevation found further back in the past than the heading necessarily belongs to another
+ * aim — we refuse it, and "absent" becomes what it should be.
  */
 function heldPitch(
   points: ReplayTrackReady["points"],
@@ -215,18 +216,18 @@ function heldPitch(
 }
 
 /**
- * heldScoped dit si le joueur est A LA LUNETTE au moment lu, et applique LA MEME REGLE D'AGE
- * que l'elevation, pour la meme raison.
+ * heldScoped says whether the player IS AT THE SCOPE at the moment read, and applies THE
+ * SAME AGE RULE as the elevation, for the same reason.
  *
- * `s` est omis quand le joueur n'est pas a la lunette (contrat du champ, cf. `Point.S` cote
- * Go) : `heldReading` remonterait donc jusqu'a un point PLUS ANCIEN qui, lui, porte un palier,
- * et le marqueur afficherait un epaulement perime sur une visee a la hanche actuelle. Le champ
- * etant pose par le MEME enregistrement que le cap, un palier trouve plus loin dans le passe
- * que le cap appartient forcement a un autre instant — on le refuse.
+ * `s` is omitted when the player is not at the scope (contract of the field, cf. `Point.S`
+ * on the Go side): `heldReading` would therefore climb back to an OLDER point that, for its
+ * part, carries a step, and the marker would display an expired shoulder on a current hip
+ * aim. The field being set by the SAME record as the heading, a step found further back in
+ * the past than the heading necessarily belongs to another instant — we refuse it.
  *
- * ABSENT SE LIT « PAS A LA LUNETTE », JAMAIS « INCONNU » : c'est le contrat publie par le
- * document, et il rend correct par defaut le rendu des artefacts anterieurs au schema 29 —
- * ils dessinent l'ouverture large, ce qu'ils ont toujours fait.
+ * ABSENT READS "NOT AT THE SCOPE", NEVER "UNKNOWN": that is the contract published by the
+ * document, and it makes correct by default the rendering of artifacts prior to schema 29 —
+ * they draw the wide opening, which is what they have always done.
  */
 function heldScoped(
   points: ReplayTrackReady["points"],
@@ -244,10 +245,10 @@ function heldScoped(
 }
 
 /**
- * scopedHalfAngle : l'ouverture du cône pour un palier de lunette donné.
+ * scopedHalfAngle: the cone opening for a given scope step.
  *
- * Palier 0 (ou absent) : l'ouverture pleine, celle de la hanche. Chaque cran divise ensuite,
- * avec un plancher — sans lui, un troisième cran rendrait le cône illisible.
+ * Step 0 (or absent): the full opening, that of the hip. Each detent then divides, with a
+ * floor — without it, a third detent would make the cone unreadable.
  */
 function scopedHalfAngle(palier: number): number {
   if (palier <= 0) return AIM_HALF_ANGLE;
@@ -256,33 +257,33 @@ function scopedHalfAngle(palier: number): number {
 }
 
 /**
- * aimLengthScale : ce que l'élévation fait à la LONGUEUR du cône — `1 + 0,55 × sin(p)`.
+ * aimLengthScale: what the elevation does to the LENGTH of the cone — `1 + 0.55 × sin(p)`.
  *
- * EXPORTÉE LE 2026-09-03 (chantier véhicules, schéma 39) : le cône d'un OCCUPANT DE VÉHICULE lit désormais une vraie
- * élévation (`ReplayVehicleAim.p`, même composant `i21`, même convention que `Point.p`) et doit
- * donc la traduire de la MÊME façon qu'un pion — sinon deux barèmes de longueur coexisteraient
- * pour la même grandeur.
+ * EXPORTED ON 2026-09-03 (vehicle workstream, schema 39): the cone of a VEHICLE OCCUPANT
+ * now reads a real elevation (`ReplayVehicleAim.p`, same component `i21`, same convention as
+ * `Point.p`) and must therefore translate it the SAME way a pawn does — otherwise two length
+ * scales would coexist for the same quantity.
  *
- * CE N'EST PLUS UNE PROJECTION, ET C'EST DÉLIBÉRÉ. La version précédente valait `cos(p)`, la
- * part horizontale d'un regard incliné : physiquement juste, mais PAIRE — plonger de 30° et
- * viser 30° en l'air rendaient exactement le même cône, si bien qu'un repère de sens (le tick)
- * devait être ajouté à côté pour lever une ambiguïté que la longueur créait elle-même.
+ * IT IS NO LONGER A PROJECTION, AND THAT IS DELIBERATE. The previous version was `cos(p)`,
+ * the horizontal part of a tilted gaze: physically right, but EVEN — diving 30° and aiming
+ * 30° into the air gave exactly the same cone, so a direction mark (the tick) had to be added
+ * beside it to lift an ambiguity that the length itself created.
  *
- * Le sinus renverse ce marché : il est IMPAIR et STRICTEMENT CROISSANT sur [−90, +90], donc la
- * longueur seule ordonne les visées — plus le joueur pique, plus le cône est court ; plus il
- * lève la tête, plus il est long. Un seul trait de plume porte l'information, et rien n'est
- * collé au cône pour la compléter.
+ * The sine flips this bargain: it is ODD and STRICTLY INCREASING on [−90, +90], so the
+ * length alone orders the aims — the more the player noses down, the shorter the cone; the
+ * more it raises the head, the longer. A single stroke carries the information, and nothing
+ * is stuck on the cone to complete it.
  *
- * IL EST AUSSI LE PLUS SENSIBLE LÀ OÙ VIVENT LES MESURES : sa pente est maximale à plat, où
- * tombe la médiane du champ (−4,7 / −3,4 / −3,6° sur trois films), et il sature près de la
- * verticale, où le degré exact n'apprend plus rien.
+ * IT IS ALSO THE MOST SENSITIVE WHERE THE MEASUREMENTS LIVE: its slope is maximal flat,
+ * where the median of the field falls (−4.7 / −3.4 / −3.6° across three films), and it
+ * saturates near the vertical, where the exact degree teaches nothing more.
  *
- * LE PLANCHER N'EST PLUS UNE CONSTANTE À PART : à −90° le facteur vaut 0,45, soit 23 px — le
- * marqueur reste lisible sans qu'on ait à border quoi que ce soit. Le BORNAGE, lui, est
- * nécessaire pour une autre raison : `sin` redescend au-delà de ±90°, et la formule publiée de
- * `p` couvre ±180° sous réserve explicite (cf. `AimPitchDeg` côté Go). Une valeur hors de la
- * moitié centrale du champ raccourcirait donc un cône qui monte — on l'écrête plutôt que de
- * laisser la lecture s'inverser.
+ * THE FLOOR IS NO LONGER A SEPARATE CONSTANT: at −90° the factor is 0.45, i.e. 23 px — the
+ * marker stays readable without having to border anything. The CLAMP, however, is necessary
+ * for another reason: `sin` comes back down beyond ±90°, and the published formula of `p`
+ * covers ±180° under explicit condition (cf. `AimPitchDeg` on the Go side). A value outside
+ * the central half of the field would then shorten a cone that is rising — we cap it rather
+ * than let the reading invert.
  */
 export function aimLengthScale(pitchDeg: number): number {
   const bounded = Math.max(

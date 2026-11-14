@@ -1,64 +1,70 @@
 /**
- * placementShroud — LA BULLE de l'écran occultant (shroud screen) : sa portée, sa durée de
- * repli, et sa forme sur la carte.
+ * placementShroud — THE BUBBLE of the blackout screen (shroud screen): its range, its fold
+ * duration, and its shape on the map.
  *
- * POURQUOI UN FICHIER À PART. La bulle a gagné deux encres et des éclairs qui scintillent :
- * comme la faille (`placementRift.ts`) et le mur (`placementWall.ts`), elle sort de
- * `placementShapes.ts` pour garder celui-ci sous le seuil de 500 lignes.
+ * WHY A FILE APART. The bubble gained two inks and sparkling bolts: like the rift
+ * (`placementRift.ts`) and the wall (`placementWall.ts`), it comes out of
+ * `placementShapes.ts` to keep the latter under the 500-line threshold.
  *
- * Comme le reste du dossier : pas de React, pas de couleur écrite. Les encres arrivent du
- * calque appelant, qui les tient des tokens du thème (`useReplayInks`).
+ * Like the rest of the folder: no React, no written color. The inks come from the calling
+ * layer, which holds them from the theme tokens (`useReplayInks`).
  */
 import type { XY } from '../../../lib/replay/replayLogic'
 import type { ShapeStyle } from './placementShapes'
 
 /**
- * Rayon de l'écran occultant, en mètres monde. VALEUR DÉCLARÉE, PAS MESURÉE, PAS OFFICIELLE —
- * même statut que celui du champ de réparation, et il faut le dire aussi franchement.
+ * Radius of the blackout screen, in world meters. DECLARED VALUE, NOT MEASURED, NOT
+ * OFFICIAL — same status as that of the repair field, and it needs to be said just as
+ * plainly.
  *
- * LES TROIS SOURCES SONT VIDES, ET C'EST LA RAISON D'ÊTRE DU BORD FLOU. Le film ne porte
- * aucune portée pour cet objet ; la source officielle qui chiffre le détecteur (4,25 m) ne
- * chiffre pas cet écran ; et rien n'a été mesuré dans le corpus. 6 m — 12 m de diamètre — est
- * un choix d'ÉCRAN, calibré sur ce que la bulle du jeu couvre en pratique (un couloir, un
- * passage étroit), et volontairement DEUX FOIS le champ de réparation pour que les trois
- * disques du calque (capteur 4,25 m, champ 3 m, écran 6 m) ne se confondent jamais.
+ * THE THREE SOURCES ARE EMPTY, AND THAT IS THE REASON FOR THE EXISTENCE OF THE BLURRED
+ * EDGE. The film carries no range for this object; the official source that figures the
+ * detector (4.25 m) does not figure this screen; and nothing was measured in the corpus.
+ * 6 m — 12 m in diameter — is a SCREEN choice, calibrated on what the bubble of the game
+ * covers in practice (a corridor, a narrow passage), and deliberately TWICE the repair
+ * field so that the three disks of the layer (sensor 4.25 m, field 3 m, screen 6 m) are
+ * never confused.
  *
- * LE BORD FLOU PORTE CETTE RÉSERVE À L'ÉCRAN, comme le pointillé la porte pour le champ. Deux
- * conventions différentes pour la même réserve, et c'est voulu : le champ a une BORNE dont on
- * doute (un anneau, en pointillé), l'écran n'a pas de borne du tout (un dégradé, sans anneau).
- * Une limite nette dirait « au-delà de ce trait on se voit », ce que personne n'a établi.
+ * THE BLURRED EDGE CARRIES THIS RESERVE TO THE SCREEN, as the dotted line does for the
+ * field. Two different conventions for the same reserve, and that is intended: the field
+ * has a BOUND one doubts (a ring, in dotted), the screen has no bound at all (a gradient,
+ * no ring). A sharp limit would say "beyond this stroke one sees", which no one
+ * established.
  */
 export const SHROUD_RADIUS_M = 6
 
 /**
- * LA DURÉE DE REPLI DE L'ÉCRAN OCCULTANT, en ms : 7,5 s, LUE DANS LE FILM. À l'impact, le film fait naître un
- * objet que la pile i28 ne nomme pas et le supprime 7,51 s plus tard (38 écrans sur 39, cinq films de 2025-11 à
- * 2026-07), durée confirmée en jeu par l'utilisateur. Depuis le schéma 106 le document porte cet objet
- * (`tracked[].effect`) : sa naissance et sa suppression LUES bornent la pose (`spawnedObjects.ts`). Cette durée ne
- * sert plus qu'à un écran dont la bulle n'est pas lue (artefact antérieur, association ambiguë, suppression non
- * lue). Le `t1` de l'objet engendré, lui, est la fin de la GRENADE (0,1 à 0,4 s après le repos). La fenêtre de la
- * pose (`placementWindow.ts`) lit cette durée à cet endroit et nulle part ailleurs.
+ * THE FOLD DURATION OF THE BLACKOUT SCREEN, in ms: 7.5 s, READ IN THE FILM. At the impact,
+ * the film makes an object that the i28 stack does not name be born and removes it 7.51 s
+ * later (38 screens out of 39, five films from 2025-11 to 2026-07), duration confirmed in
+ * game by the user. Since schema 106 the document carries this object (`tracked[].effect`):
+ * its birth and removal READ bound the placement (`spawnedObjects.ts`). This duration
+ * serves only an screen whose bubble is not read (earlier artifact, ambiguous association,
+ * non-read removal). The `t1` of the generated object, for its part, is the end of the
+ * GRENADE (0.1 to 0.4 s after the placement). The window of the placement
+ * (`placementWindow.ts`) reads this duration at this place and nowhere else.
  */
 export const SHROUD_DURATION_MS = 7_500
 
-/** Les deux encres de la bulle : le bleu nuit du cœur, le bleu électrique du bord et des éclairs. */
+/** The two inks of the bubble: the night blue of the core, the electric blue of the edge
+ * and the bolts. */
 export interface ShroudInk {
   core: string
   glow: string
 }
 
-/** Part du rayon occupée par le fondu du bord (verdict R2-6 : 22 %). */
+/** Part of the radius occupied by the edge fade (verdict R2-6: 22%). */
 const SHROUD_FADE_RATIO = 0.22
-/** Opacité du cœur. Presque plein : le verdict du 2026-08-27 est « opaque ». */
+/** Opacity of the core. Almost full: the verdict of 2026-08-27 is "opaque". */
 const SHROUD_CORE_ALPHA = 0.94
-/** Où, dans le fondu, l'encre électrique culmine avant de s'éteindre. */
+/** Where, in the fade, the electric ink peaks before dying out. */
 const SHROUD_GLOW_STOP = 0.45
 
 /**
- * LE SCINTILLEMENT DES ÉCLAIRS — la MÊME courbe que ceux de la fiche (`@keyframes
- * replay-zone-bolt`, globals.css) : un double battement bref dans un cycle de 2,6 s. Les deux
- * copies (CSS pour la fiche, canevas ici) doivent rester identiques, sinon la carte et la fiche
- * d'un joueur dans la bulle ne battraient plus ensemble.
+ * THE SPARKLE OF THE BOLTS — the SAME curve as those of the card (`@keyframes
+ * replay-zone-bolt`, globals.css): a brief double beat in a 2.6 s cycle. The two copies
+ * (CSS for the card, canvas here) must remain identical, otherwise the map and the card of
+ * a player in the bubble would no longer beat together.
  */
 const SHROUD_BOLT_CYCLE_MS = 2_600
 const SHROUD_BOLT_KEYS: readonly (readonly [number, number])[] = [
@@ -66,16 +72,16 @@ const SHROUD_BOLT_KEYS: readonly (readonly [number, number])[] = [
 ]
 
 /**
- * Décalage de chaque éclair dans le cycle, en secondes — partagé avec la fiche
- * (`ReplayPlayerCard.SHROUD_BOLTS`), pour que les éclairs de la carte et ceux de la fiche
- * s'allument au même instant.
+ * Offset of each bolt in the cycle, in seconds — shared with the card
+ * (`ReplayPlayerCard.SHROUD_BOLTS`), so that the bolts of the map and those of the card
+ * light up at the same instant.
  */
 export const SHROUD_BOLT_OFFSETS_S = [0, 1.3, 2.05] as const
 
 /**
- * La géométrie des éclairs, en fractions du rayon plein : abscisse du tracé et zigzag de haut
- * en bas. Ils restent DANS le cœur — un éclair qui déborderait dessinerait la borne que le
- * fondu refuse de poser.
+ * The geometry of the bolts, in fractions of the full radius: abscissa of the tracing and
+ * top-to-bottom zigzag. They stay INSIDE the core — a bolt that would overhang would draw
+ * the bound the fade refuses to place.
  */
 const SHROUD_BOLT_X = [-0.38, 0.3, -0.02] as const
 const SHROUD_BOLT_PATH: readonly XY[] = [
@@ -85,9 +91,9 @@ const SHROUD_BOLT_WIDTH = 1.6
 const SHROUD_BOLT_BLUR = 6
 
 /**
- * shroudBoltAlpha — l'opacité d'un éclair `ageMs` après la pose, décalé de `offsetS` dans le
- * cycle. L'horloge est celle de la POSE, comme sur la fiche : après un saut de lecture, chaque
- * éclair reprend à son avancement réel, jamais sur un rythme inventé.
+ * shroudBoltAlpha — the opacity of a bolt `ageMs` after the placement, offset by `offsetS`
+ * in the cycle. The clock is that of the PLACEMENT, as on the card: after a reading jump,
+ * each bolt resumes at its real progress, never on an invented rhythm.
  */
 export function shroudBoltAlpha(ageMs: number, offsetS: number): number {
   const t = (ageMs + offsetS * 1000) / SHROUD_BOLT_CYCLE_MS
@@ -101,7 +107,8 @@ export function shroudBoltAlpha(ageMs: number, offsetS: number): number {
   return 0
 }
 
-/** La bulle à dessiner : son centre projeté, son rayon en pixels, son âge depuis la pose. */
+/** The bubble to draw: its projected center, its radius in pixels, its age since the
+ * placement. */
 export interface ShroudShape {
   c: XY
   radiusPx: number
@@ -109,18 +116,19 @@ export interface ShroudShape {
 }
 
 /**
- * drawShroud — LA BULLE de l'écran occultant.
+ * drawShroud — THE BUBBLE of the blackout screen.
  *
- * OPAQUE, ET LES PIONS AU-DESSUS (verdict utilisateur du 2026-08-27, parmi trois propositions
- * mises côte à côte sur la planche). L'opacité dit « ici, on ne se voit pas » — c'est la
- * fonction même de l'objet ; les pions passent au-dessus sans une ligne de code ici, parce que
- * le calque des poses est tracé AVANT celui des pistes.
+ * OPAQUE, AND THE PAWNS ON TOP (user verdict of 2026-08-27, among three proposals placed
+ * side by side on the board). The opacity says "here, we do not see each other" — that is
+ * the very function of the object; the pawns pass on top without a line of code here,
+ * because the layer of placements is traced BEFORE that of the tracks.
  *
- * BLEU NUIT, BORD ÉLECTRIQUE, ÉCLAIRS (décision utilisateur du 2026-10-30, qui remplace l'encre
- * neutre) : la bulle reprend l'électricité bleue de l'objet du jeu, déjà portée par la fiche
- * d'un joueur qui s'y trouve. Les éclairs sont un SIGNE, pas une mesure : rien dans le film ne
- * bat à ce rythme, d'où leur cycle emprunté à la fiche. Sous mouvement réduit ils restent
- * éteints, comme sur la fiche : le disque dit déjà l'état sans clignoter.
+ * NIGHT BLUE, ELECTRIC EDGE, BOLTS (user decision of 2026-10-30, which replaces the neutral
+ * ink): the bubble takes back the blue electricity of the object of the game, already
+ * carried by the card of a player who is there. The bolts are a SIGN, not a measurement:
+ * nothing in the film beats to this rhythm, hence their cycle borrowed from the card.
+ * Under reduced motion they remain off, as on the card: the disk already says the state
+ * without blinking.
  */
 export function drawShroud(
   ctx: CanvasRenderingContext2D,
@@ -137,8 +145,8 @@ export function drawShroud(
   ctx.beginPath()
   ctx.arc(c.x, c.y, plein, 0, Math.PI * 2)
   ctx.fill()
-  // Le fondu : du cœur, par l'encre électrique, jusqu'au néant — sans jamais poser de trait.
-  // C'est l'ABSENCE d'anneau qui dit que la portée n'est pas connue.
+  // The fade: from the core, by the electric ink, to nothingness — without ever placing a
+  // stroke. It is the ABSENCE of a ring that says the range is not known.
   const g = ctx.createRadialGradient(c.x, c.y, plein, c.x, c.y, radiusPx)
   g.addColorStop(0, ink.core)
   g.addColorStop(SHROUD_GLOW_STOP, ink.glow)
@@ -151,7 +159,7 @@ export function drawShroud(
   ctx.restore()
 }
 
-/** drawShroudBolts — les éclairs allumés à cet instant ; rien entre deux battements. */
+/** drawShroudBolts — the bolts lit at this instant; nothing between two beats. */
 function drawShroudBolts(
   ctx: CanvasRenderingContext2D,
   shape: ShroudShape,

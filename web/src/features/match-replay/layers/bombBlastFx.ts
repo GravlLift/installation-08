@@ -1,41 +1,43 @@
 /**
- * bombBlastFx.ts — LA DÉFLAGRATION D'UNE BOMBE D'ASSAUT. Logique pure, pas de React.
+ * bombBlastFx.ts — the BLAST OF AN ASSAULT BOMB. Pure logic, no React.
  *
- * POURQUOI CET EFFET EXISTE (retour utilisateur du 2026-08-31 : « faudrait un truc bien voyant
- * quand même »). L'Assaut publie depuis ce jour ses explosions (`bomb_detonations`, cf.
- * `objectiveevents/named.go`), et elles n'avaient qu'un FILIGRANE de fiche — 22 % d'opacité,
- * derrière le contenu, à l'autre bout de l'écran par rapport à la carte. Or en Assaut
- * l'explosion n'est pas un détail de score : c'est le SEUL événement qui décide de la manche,
- * et il n'y en a qu'une poignée par match. Il lui fallait la carte.
+ * WHY THIS EFFECT EXISTS (user return of 2026-08-31: "faudrait un truc bien voyant quand même"
+ * (there should still be something quite visible)). Assault has published its explosions since
+ * that day (`bomb_detonations`, cf. `objectiveevents/named.go`), and they only had a CARD
+ * WATERMARK — 22% opacity, behind the content, on the other end of the screen from the map.
+ * But in Assault the explosion is not a detail of the score: it is the ONLY event that decides
+ * the round, and there are only a handful per match. It needed the map.
  *
- * TROIS COUCHES, ET C'EST CE QUI LE REND VOYANT — un anneau seul se lit comme une capture de
- * drapeau, ce qu'une explosion n'est pas :
+ * THREE LAYERS, AND THAT IS WHAT MAKES IT VISIBLE — a ring alone would read as a flag
+ * capture, which an explosion is not:
  *
- *   1. l'ÉCLAT — un disque plein qui naît large et meurt vite (le premier quart de la vie) ;
- *   2. l'ONDE — un anneau épais qui s'ouvre bien plus loin que celui d'une capture
- *      (44 px contre 24) et s'amincit en se diluant ;
- *   3. les ÉCLATS — huit traits radiaux qui partent du point et s'éteignent. C'est eux qui
- *      disent « ça a explosé » plutôt que « ça a été capturé ».
+ *   1. the FLASH — a solid disk that is born wide and dies fast (the first quarter of the
+ *      life);
+ *   2. the WAVE — a thick ring that opens much further than that of a capture (44 px against
+ *      24) and thins as it dilates;
+ *   3. the SHARDS — eight radial strokes that leave the point and fade. They are the ones
+ *      that say "it exploded" rather than "it was captured".
  *
- * CE N'EST PAS UN PULSE D'OBJECTIF, et la différence est la même que pour l'onde de capture
- * (`flagCaptureFx`) : le pulse (`objectivesLayer.buildObjectivePulses`) pose l'action sur
- * l'ÉLÉMENT SERVI le plus proche. En Assaut il ne pose rien du tout — le catalogue d'objectifs
- * ne porte AUCUNE forme de site sur les cinq cartes d'Assaut (phase A3 du lot A). Cet effet-ci
- * lit la position RELUE de l'auteur, comme l'onde de capture.
+ * IT IS NOT AN OBJECTIVE PULSE, and the difference is the same as for the capture wave
+ * (`flagCaptureFx`): the pulse (`objectivesLayer.buildObjectivePulses`) places the action on
+ * the closest SERVED ELEMENT. In Assault it places nothing at all — the objective catalog
+ * carries NO form of site on the five Assault maps (phase A3 of lot A). This effect reads the
+ * RE-READ position of the author, like the capture wave.
  *
- * LA GARDE D'HORLOGE EST LA MÊME QUE CELLE DE L'ONDE DE CAPTURE : `a.t` n'est une frame du
- * document que si l'origine du film a été résolue (`filmClockTrusted`). Sinon l'écart est
- * INCONNU — mesuré de 3,6 s à 50,8 s selon le match — et la déflagration s'allumerait sur une
- * explosion qui n'a pas encore eu lieu. Muet vaut mieux que faux : la liste sort vide.
+ * THE CLOCK GUARD IS THE SAME AS THAT OF THE CAPTURE WAVE: `a.t` is a frame of the document
+ * only if the origin of the film has been resolved (`filmClockTrusted`). Otherwise the gap is
+ * UNKNOWN — measured from 3.6 s to 50.8 s depending on the match — and the blast would light
+ * up on an explosion that has not happened yet. Silent is worth better than wrong: the list
+ * comes out empty.
  *
- * AUCUNE POSITION DEVINÉE : une explosion dont l'auteur n'est pas localisable à cette image est
- * ÉCARTÉE. La poser au centre de la carte, ou sur le socle le plus proche, désignerait un lieu
- * que la mesure ne dit pas.
+ * NO GUESSED POSITION: an explosion whose author is not locatable at this frame is SET ASIDE.
+ * Placing it at the center of the map, or on the closest pedestal, would designate a place
+ * that the measurement does not say.
  *
- * AUCUN TOKEN ICI (règle color-tokens) : l'encre arrive résolue par l'appelant. C'est celle du
- * CAMP de l'auteur, comme pour l'onde de capture — sur la carte, le glyphe dit QUOI et la
- * couleur dit QUI, et en Assaut savoir quel camp a fait sauter la bombe est la moitié de
- * l'information.
+ * NO TOKEN HERE (color-tokens rule): the ink arrives resolved by the caller. It is that of
+ * the SIDE of the author, like the capture wave — on the map, the glyph says WHAT and the
+ * color says WHO, and in Assault knowing which side blew the bomb is half of the
+ * information.
  */
 import { filmClockTrusted } from '@/lib/replay/scoreTimeline'
 
@@ -44,28 +46,29 @@ import { type XY } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * La stat d'une explosion, telle que le serveur la nomme (`objectiveevents/named.go`). En
- * Assaut un point de mode vaut UNE explosion, et rien d'autre ne fait bouger le score — c'est
- * la seule stat de la famille que le film réplique.
+ * The stat of an explosion, as the server names it (`objectiveevents/named.go`). In Assault a
+ * mode point is worth ONE explosion, and nothing else moves the score — it is the only stat
+ * of the family that the film replicates.
  */
 export const BOMB_DETONATION_STAT = 'bomb_detonations'
 
-/** Une déflagration prête à dessiner : son instant, le lieu RELU de son auteur, et son auteur. */
+/** A blast ready to draw: its instant, the RE-READ place of its author, and its author. */
 export interface BombBlastFx {
-  /** Image du document (l'axe de `Point.T` — aucun recalage ici, cf. l'en-tête). */
+  /** Frame of the document (the axis of `Point.T` — no realignment here, cf. the header). */
   frame: number
   x: number
   y: number
-  /** L'auteur : c'est lui qui donne l'encre du camp, résolue par l'appelant. */
+  /** The author: it is they who give the ink of the side, resolved by the caller. */
   xuid: string
 }
 
 /**
- * buildBombBlastFx rend les explosions de bombe du film, posées au lieu de leur auteur.
+ * buildBombBlastFx returns the bomb explosions of the film, placed at the place of their
+ * author.
  *
- * `posOf` PORTE DÉJÀ SA FENÊTRE APRÈS-MORT (patron `posOfPlayerAt`, les mêmes vies indexées que
- * le drapeau porté et la couronne) — et cette fenêtre compte ici plus qu'ailleurs : le poseur
- * d'une bombe meurt souvent DANS son explosion.
+ * `posOf` ALREADY CARRIES ITS AFTER-DEATH WINDOW (pattern `posOfPlayerAt`, the same indexed
+ * lives as the carried flag and the crown) — and this window counts here more than elsewhere:
+ * the planter of a bomb often dies IN their explosion.
  */
 export function buildBombBlastFx(
   doc: ReplayDocumentReady,
@@ -84,58 +87,59 @@ export function buildBombBlastFx(
 }
 
 /**
- * Durée de l'effet, EN IMAGES — 12 images ≈ 1,2 s au pas de 100 ms documenté du rejeu.
+ * Duration of the effect, IN FRAMES — 12 frames ≈ 1.2 s at the documented 100 ms step of the
+ * replay.
  *
- * DEUX FOIS l'onde de capture (6 images), et c'est délibéré : une capture de drapeau se répète
- * plusieurs fois par manche, une explosion d'Assaut arrive une à quatre fois par MATCH (relevé
- * A0.3 : 28 explosions sur 9 films). Un événement rare a le droit de tenir l'écran plus
- * longtemps — le risque de recouvrement, lui, est nul à cette densité.
+ * TWICE the capture wave (6 frames), and that is deliberate: a flag capture repeats several
+ * times per round, an Assault explosion comes one to four times per MATCH (note A0.3: 28
+ * explosions on 9 films). A rare event is allowed to hold the screen longer — the risk of
+ * overlap, for its part, is nil at this density.
  */
 export const BOMB_BLAST_HOLD_FRAMES = 12
 
-/** Fenêtre d'affichage (même forme que celle de l'onde de capture). */
+/** Display window (same shape as that of the capture wave). */
 export interface BombBlastWindow {
   frame: number
   hold: number
 }
 
-/** Style de l'effet : l'encre du camp de l'auteur est RÉSOLUE par l'appelant. */
+/** Style of the effect: the ink of the side of the author is RESOLVED by the caller. */
 export interface BombBlastStyle {
-  /** Encre du camp de l'auteur vu de la page ; le neutre du thème quand il est inconnu. */
+  /** Ink of the side of the author seen from the page; the neutral of the theme when unknown. */
   inkOf: (xuid: string) => string
-  /** Mouvement réduit : rien ne s'ouvre, l'empreinte ne fait que s'éteindre. */
+  /** Reduced motion: nothing opens, the footprint only fades. */
   reducedMotion: boolean
 }
 
-// Géométrie, en pixels d'écran.
-/** L'ÉCLAT : disque plein, large d'emblée, éteint au quart de la vie. */
+// Geometry, in screen pixels.
+/** THE FLASH: solid disk, wide from the start, out at a quarter of the life. */
 const FLASH_R = 13
 const FLASH_LIFE = 0.25
 const FLASH_ALPHA = 0.55
-/** L'ONDE : bien plus ample que celle d'une capture (24 px) — c'est ce qui la distingue de loin. */
+/** THE WAVE: much broader than that of a capture (24 px) — that is what distinguishes it from far. */
 const WAVE_START_R = 8
 const WAVE_SPREAD = 36
 const WAVE_START_W = 4
 const WAVE_END_W = 0.8
 const WAVE_ALPHA = 0.95
-/** Les ÉCLATS : huit traits radiaux, du bord de l'éclat vers l'extérieur. */
+/** THE SHARDS: eight radial strokes, from the edge of the flash outward. */
 const SHARD_COUNT = 8
 const SHARD_INNER = 10
 const SHARD_LEN = 16
 const SHARD_W = 2
 const SHARD_ALPHA = 0.8
-/** Mouvement réduit : une empreinte FIXE — disque plein et anneau, aucun mouvement. */
+/** Reduced motion: a FIXED footprint — solid disk and ring, no movement. */
 const STATIC_R = 15
 const STATIC_W = 3
 
 /**
- * drawBombBlastFx dessine les explosions de la fenêtre courante.
+ * drawBombBlastFx draws the explosions of the current window.
  *
- * SOUS « MOUVEMENT RÉDUIT », UNE EMPREINTE FIXE QUI S'ÉTEINT — disque plein cerclé, sans
- * expansion ni éclats. C'est la règle de tous les effets du rejeu (`drawObjectivePulses`,
- * `drawFlagCaptureFx`) : ce qui disparaît est le MOUVEMENT, pas l'information. L'explosion
- * reste marquée, à sa place, pendant la même durée — et reste voyante, parce que le disque
- * plein l'est par lui-même.
+ * UNDER "REDUCED MOTION", A FIXED FOOTPRINT THAT FADES — a ringed solid disk, without
+ * expansion nor shards. It is the rule of all the effects of the replay (`drawObjectivePulses`,
+ * `drawFlagCaptureFx`): what disappears is the MOVEMENT, not the information. The explosion
+ * stays marked, in its place, for the same duration — and stays visible, because the solid
+ * disk is visible by itself.
  */
 export function drawBombBlastFx(
   ctx: CanvasRenderingContext2D,
@@ -166,22 +170,23 @@ export function drawBombBlastFx(
       continue
     }
 
-    // 1. L'ÉCLAT — il ne vit que le premier quart, et son alpha meurt sur CE quart, pas sur la
-    // vie entière : au-delà il ne resterait qu'un voile gris qui empâterait l'onde.
+    // 1. THE FLASH — it only lives the first quarter, and its alpha dies on THAT quarter,
+    // not on the whole life: beyond it only a gray veil would remain that would blur the
+    // wave.
     if (k < FLASH_LIFE) {
       ctx.globalAlpha = FLASH_ALPHA * (1 - k / FLASH_LIFE)
       ctx.beginPath()
       ctx.arc(c.x, c.y, FLASH_R, 0, Math.PI * 2)
       ctx.fill()
     }
-    // 2. L'ONDE.
+    // 2. THE WAVE.
     ctx.globalAlpha = WAVE_ALPHA * (1 - k)
     ctx.lineWidth = WAVE_START_W + (WAVE_END_W - WAVE_START_W) * k
     ctx.beginPath()
     ctx.arc(c.x, c.y, WAVE_START_R + WAVE_SPREAD * k, 0, Math.PI * 2)
     ctx.stroke()
-    // 3. LES ÉCLATS — ils partent avec l'onde et s'éteignent plus tôt qu'elle (le carré du
-    // temps), pour que la fin de l'effet soit un anneau seul et non un soleil qui s'efface.
+    // 3. THE SHARDS — they leave with the wave and fade earlier than it (the square of the
+    // time), so that the end of the effect is a ring alone and not a sun that erases.
     ctx.globalAlpha = SHARD_ALPHA * (1 - k) * (1 - k)
     ctx.lineWidth = SHARD_W
     const r0 = SHARD_INNER + WAVE_SPREAD * k

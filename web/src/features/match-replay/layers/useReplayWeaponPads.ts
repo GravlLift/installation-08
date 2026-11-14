@@ -1,32 +1,32 @@
 /**
- * useReplayWeaponPads — TOUT LE CÂBLAGE DU CALQUE DES SOCLES, en un seul point.
+ * useReplayWeaponPads — ALL THE WIRING OF THE PADS LAYER, in one single point.
  *
- * POURQUOI UN HOOK ET NON QUATRE MORCEAUX DANS `ReplayCanvas`. Le canvas du rejeu porte une
- * dette de taille GELÉE par un cliquet (cf. placementFamily.guard.test.ts) : toute addition s'y
- * fait par extraction, jamais par empilement. Ce hook réunit donc les quatre préoccupations du
- * calque — la cuisson des vignettes, le tracé par image, le survol et l'infobulle — et n'en
- * rend au canvas que trois lignes utiles : `paint`, les deux gestionnaires de pointeur, et le
- * survol courant. Même parti que `usePlacementHover` et `useSlotIdentity` avant lui.
+ * WHY A HOOK AND NOT FOUR PIECES IN `ReplayCanvas`. The canvas of the replay carries a size
+ * debt FROZEN by a ratchet (cf. placementFamily.guard.test.ts): any addition to it is done by
+ * extraction, never by stacking. This hook therefore gathers the four concerns of the layer —
+ * the cooking of the vignettes, the per-frame tracing, the hover and the tooltip — and only
+ * returns to the canvas three useful lines: `paint`, the two pointer handlers, and the
+ * current hover. Same stance as `usePlacementHover` and `useSlotIdentity` before it.
  *
- * LES VIGNETTES SONT CUITES UNE FOIS PAR THÈME, pas par image. Ce sont les MÊMES icônes que
- * les fiches joueur — celles du document (`weaponLabels[id].img`, 168 PNG extraits du jeu) —
- * et la plupart sont des MASQUES à teindre : un canvas ne connaît pas le `mask-image` du CSS,
- * la teinte se fait donc hors écran par composition (`tintedIconCanvas`, le même utilitaire que
- * les vignettes de grenade). Une famille sans visuel n'en emprunte aucun : le calque lui dessine
- * un glyphe neutre.
+ * THE VIGNETTES ARE COOKED ONCE PER THEME, not per frame. They are the SAME icons as the
+ * player cards — those of the document (`weaponLabels[id].img`, 168 PNGs extracted from the
+ * game) — and most are MASKS to tint: a canvas does not know the `mask-image` of CSS, the
+ * tinting is therefore done offscreen by composition (`tintedIconCanvas`, the same utility
+ * as the grenade vignettes). A family without visual borrows none: the layer draws it a
+ * neutral glyph.
  *
- * UN SOCLE N'EST PAS TOUJOURS UNE ARME (schéma 17, 2026-08-19). Un socle de POWER-UP publie une
- * famille d'ÉQUIPEMENT (`powerup_overshield`) et non l'hexadécimal d'une arme : elle n'est
- * dans AUCUNE table du document, ni pour la taille, ni pour le nom, ni pour la vignette. Les
- * trois résolutions passent donc par des fonctions pures (`padScaleFor`, `padNameFor`,
- * `padIconRefFor`) qui interrogent d'abord la table des familles non-arme — une table écrite,
- * jamais un test de préfixe — avant de retomber sur le catalogue d'armes. Sans elles, le socle
- * du centre de Catalyst restait petit, sans image, et son infobulle affichait sa clé brute.
+ * A PAD IS NOT ALWAYS A WEAPON (schema 17, 2026-08-19). A POWER-UP pad publishes an
+ * EQUIPMENT family (`powerup_overshield`) and not the hexadecimal of a weapon: it is in NO
+ * table of the document, neither for the size, nor for the name, nor for the vignette. The
+ * three resolutions therefore go through pure functions (`padScaleFor`, `padNameFor`,
+ * `padIconRefFor`) which first query the table of the non-weapon families — a written table,
+ * never a prefix test — before falling back on the weapon catalog. Without them, the center
+ * pad of Catalyst remained small, without image, and its tooltip displayed its raw key.
  *
- * L'IMAGE COURANTE EST LUE DANS UNE RÉFÉRENCE, jamais dans un état React (même règle et même
- * conséquence assumée que `usePlacementHover`) : si l'état d'un socle change SOUS un pointeur
- * immobile, son infobulle attend le prochain mouvement. À l'arrêt — le cas où l'on inspecte —
- * la lecture est exacte.
+ * THE CURRENT FRAME IS READ IN A REFERENCE, never in a React state (same rule and same
+ * accepted consequence as `usePlacementHover`): if the state of a pad changes UNDER a
+ * motionless pointer, its tooltip waits for the next movement. At rest — the case where one
+ * inspects — the reading is exact.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type RefObject } from 'react'
 
@@ -60,39 +60,40 @@ import {
 } from '../model/weaponPadTime'
 import { drawWeaponPadsLayer, padAt, type PadIcon } from './weaponPadsLayer'
 
-/** Le catalogue d'ARMES du document, tel qu'il arrive : une table par identifiant, ou rien. */
+/** The WEAPON catalog of the document, as it arrives: a table per identifier, or nothing. */
 type PadLabels = ReplayDocumentReady['weaponLabels']
 
 /**
- * weaponLabelKeyOf — LA CLÉ CANONIQUE d'une famille d'arme dans `weaponLabels`, quelle que
- * soit la forme de l'identifiant REÇU.
+ * weaponLabelKeyOf — THE CANONICAL KEY of a weapon family in `weaponLabels`, whatever the
+ * shape of the IDENTIFIER RECEIVED.
  *
- * DEUX ÉCRITURES COEXISTENT DANS LES ARTEFACTS DÉJÀ CUITS, ET C'EST UN DÉFAUT, PAS UN CHOIX.
- * `weaponPads[].weapon` et les clés de `weaponLabels` s'écrivent `0x%08X` (majuscules,
- * préfixées) ; `groundWeapons[].w` (et `weaponChanges[].w`, non lu ici) s'écrivent `%08x`
- * (minuscules, sans préfixe) — un artefact Go `fmt.Sprintf("%08x", ...)` jamais aligné sur
- * l'autre écriture. Vérifié sur les 64 artefacts locaux : zéro clé minuscule dans
- * `weaponLabels`. Résultat mesuré côté jointure : `groundWeapons` ne trouvait JAMAIS son
- * libellé — `labels?.[weapon]` rendait `undefined` sur 100 % des objets.
+ * TWO WRITINGS COEXIST IN THE ALREADY-COOKED ARTIFACTS, AND THAT IS A DEFECT, NOT A CHOICE.
+ * `weaponPads[].weapon` and the keys of `weaponLabels` are written `0x%08X` (uppercase,
+ * prefixed); `groundWeapons[].w` (and `weaponChanges[].w`, not read here) are written
+ * `%08x` (lowercase, without prefix) — a Go artifact `fmt.Sprintf("%08x", ...)` never
+ * aligned on the other writing. Verified on the 64 local artifacts: zero lowercase key in
+ * `weaponLabels`. Measured result on the join side: `groundWeapons` NEVER found its label —
+ * `labels?.[weapon]` returned `undefined` on 100% of the objects.
  *
- * LA DÉCISION DU LOT (2026-09-10) est de normaliser ICI, À LA LECTURE, plutôt que de recuire
- * les artefacts pour aligner `W` sur `0x%08X` : les 64 artefacts locaux et toute la production
- * gardent leur écriture minuscule, et rien ne les rend illisibles pour ce lot de plus. Aligner
- * l'écriture Go aurait exigé une recuisson complète — exclue du périmètre de ce lot — pour un
- * gain nul (aucun AUTRE lecteur Go ou web ne dépend de la casse de `W`, cf. `git grep` sur
- * `groundWeapons\[\].w` et `\.w\b` du calque : les seuls lecteurs sont ce module et
- * `groundWeaponsLayer.ts`, qui reçoit déjà l'identifiant BRUT et le passe tel quel à `iconOf`).
+ * THE DECISION OF THE LOT (2026-09-10) is to normalize HERE, AT THE READING, rather than to
+ * re-cook the artifacts to align `W` on `0x%08X`: the 64 local artifacts and all production
+ * keep their lowercase writing, and nothing makes them less readable for this lot. Aligning
+ * the Go writing would have required a complete re-cooking — excluded from the scope of this
+ * lot — for a null gain (no OTHER Go or web reader depends on the case of `W`, cf. `git
+ * grep` on `groundWeapons\[\].w` and `\.w\b` of the layer: the only readers are this module
+ * and `groundWeaponsLayer.ts`, which already receives the RAW identifier and passes it as is
+ * to `iconOf`).
  *
- * IDEMPOTENT SUR LA FORME CANONIQUE, ET C'EST CE QUI REND LA FONCTION SÛRE À POSER AUX DEUX
- * ENDROITS : une clé déjà `0x%08X` (les socles, qui fonctionnaient déjà) la traverse
- * INCHANGÉE. Appliquer `weaponLabelKeyOf` à `padScaleFor`/`padNameFor`/`padIconRefFor` — les
- * trois résolutions déjà PARTAGÉES par les socles ET les armes au sol (cf. `useReplayGroundWeapons`
- * qui réutilise `padIconRefFor`) — corrige donc le second calque sans aucun risque de régresser
- * le premier.
+ * IDEMPOTENT ON THE CANONICAL SHAPE, AND THAT IS WHAT MAKES THE FUNCTION SAFE TO PLACE AT
+ * BOTH PLACES: an already `0x%08X` key (the pads, which already worked) crosses it UNCHANGED.
+ * Applying `weaponLabelKeyOf` to `padScaleFor`/`padNameFor`/`padIconRefFor` — the three
+ * resolutions already SHARED by the pads AND the ground weapons (cf. `useReplayGroundWeapons`
+ * which reuses `padIconRefFor`) — therefore corrects the second layer without any risk of
+ * regressing the first.
  *
- * Une entrée qui n'a pas la forme d'un hexadécimal court (la clé d'équipement d'un power-up,
- * p. ex. `powerup_overshield`, déjà interceptée avant cet appel par `padEquipmentFamilyOf`)
- * traverse elle aussi INCHANGÉE : ce n'est pas de son ressort.
+ * An entry that does not have the shape of a short hexadecimal (the equipment key of a
+ * power-up, e.g. `powerup_overshield`, already intercepted before this call by
+ * `padEquipmentFamilyOf`) crosses it UNCHANGED as well: it is not its concern.
  */
 export function weaponLabelKeyOf(w: string): string {
   const hex = w.startsWith('0x') || w.startsWith('0X') ? w.slice(2) : w
@@ -101,32 +102,32 @@ export function weaponLabelKeyOf(w: string): string {
 }
 
 /**
- * padScaleFor — la TAILLE d'un socle, quelle que soit la nature de ce qu'il porte.
+ * padScaleFor — the SIZE of a pad, whatever the nature of what it carries.
  *
- * DEUX VOCABULAIRES, UNE SEULE RÈGLE. Un socle d'ARME publie l'hexadécimal d'une famille : sa
- * clé canonique se lit dans `weaponLabels[id].key` (posée à la requête par le service). Un
- * socle de POWER-UP publie DIRECTEMENT sa famille d'équipement, qui EST déjà la clé — la
- * chercher dans `weaponLabels`, table d'armes, ne rendait rien et laissait le socle petit.
- * `POWER_PAD_KEYS` porte les deux vocabulaires, donc la règle de taille ne se dédouble pas.
+ * TWO VOCABULARIES, ONE SINGLE RULE. A WEAPON pad publishes the hexadecimal of a family: its
+ * canonical key is read in `weaponLabels[id].key` (placed at the request by the service). A
+ * POWER-UP pad publishes DIRECTLY its equipment family, which IS already the key — looking
+ * for it in `weaponLabels`, a weapon table, returned nothing and left the pad small.
+ * `POWER_PAD_KEYS` carries the two vocabularies, so the size rule does not double.
  */
 export function padScaleFor(weapon: string, labels: PadLabels): PadScale {
   return padScaleOf(padEquipmentFamilyOf(weapon) ?? labels?.[weaponLabelKeyOf(weapon)]?.key)
 }
 
 /**
- * padNameFor — CE QUE L'INFOBULLE ÉCRIT, et l'ordre est une règle.
+ * padNameFor — WHAT THE TOOLTIP WRITES, and the order is a rule.
  *
- * 1. une famille d'équipement connue rend son libellé bilingue local (`padEquipmentFamily`) ;
- * 2. sinon le libellé bilingue du document, s'il nomme cet identifiant ;
- * 3. sinon l'identifiant lui-même — et c'est VOULU pour une arme hors catalogue du titre :
- *    l'hexadécimal est alors la seule chose vraie qu'on puisse écrire.
- *    L'EXEMPLE CITÉ ICI JUSQU'AU 2026-09-13 ÉTAIT FAUX. La famille `0xD7915565` (Mutilator)
- *    n'était pas une arme « hors catalogue » : elle était nommée depuis avril, et il ne
- *    manquait que son identifiant au registre du rejeu — un défaut, corrigé côté serveur, et
- *    non un cas assumé. Le repli reste inchangé, mais il ne se justifie plus par elle : une
- *    arme du jeu qui tombe à l'étape 3 est un manque à instruire, pas une fatalité.
- *    Une famille d'équipement, elle, ne peut jamais tomber dans ce cas : elle est nommée à
- *    l'étape 1 ou elle n'est pas dans la table.
+ * 1. a known equipment family returns its local bilingual label (`padEquipmentFamily`);
+ * 2. otherwise the bilingual label of the document, if it names this identifier;
+ * 3. otherwise the identifier itself — and that is INTENDED for a weapon off the catalog of
+ *    the title: the hexadecimal is then the only true thing one can write.
+ *    THE EXAMPLE CITED HERE UNTIL 2026-09-13 WAS FALSE. The family `0xD7915565` (Mutilator)
+ *    was not an "off-catalog" weapon: it had been named since April, and only its identifier
+ *    was missing from the replay register — a defect, corrected on the server side, and not
+ *    an accepted case. The fallback remains unchanged, but it is no longer justified by it:
+ *    a game weapon that falls to step 3 is a shortage to handle, not a fatality.
+ *    An equipment family, for its part, can never fall in this case: it is named at step 1
+ *    or it is not in the table.
  */
 export function padNameFor(
   weapon: string,
@@ -139,37 +140,40 @@ export function padNameFor(
   return catalogText(labels?.[weaponLabelKeyOf(weapon)], locale) ?? weapon
 }
 
-/** Une vignette à charger : son URL, son mode (masque à teindre ou image finie), son sens. */
+/** A vignette to load: its URL, its mode (mask to tint or finished image), its orientation. */
 export interface PadIconRef {
   url: string
   tinted: boolean
-  /** Vrai = image d'atlas, à retourner pour le sens du kill feed du jeu (cf. weaponFullIcon). */
+  /** True = atlas image, to turn for the sense of the kill feed of the game (cf.
+   * weaponFullIcon). */
   mirrored: boolean
 }
 
 /**
- * padIconRefFor — QUELLE IMAGE pour ce socle, ou null (le calque pose alors un glyphe neutre).
+ * padIconRefFor — WHICH IMAGE for this pad, or null (the layer then places a neutral glyph).
  *
- * UNE ARME PREND SA VERSION PLEINE, LA MÊME QUE LES FICHES ET LE KILL FEED (retour utilisateur
- * du 2026-08-28 : « pour les armes il faut utiliser les icônes comme pour les fiches de joueurs
- * et le kill feed »). Le document cuit l'atlas `contour` — un trait d'arme à vide, qui se perd
- * sur un fond de carte en niveaux de gris déjà cerné de noir ; la `silhouette` est une forme
- * PLEINE, lisible à 8 px. L'échange se fait côté client (`weaponFullIcon`), pour la même raison
- * que sur les fiches : l'URL est figée dans l'artefact au build. Et comme sur les fiches,
- * l'image d'atlas se rend RETOURNÉE — les deux atlas pointent à gauche, le jeu à droite.
+ * A WEAPON TAKES ITS FULL VERSION, THE SAME AS THE CARDS AND THE KILL FEED (user return of
+ * 2026-08-28: "pour les armes il faut utiliser les icônes comme pour les fiches de joueurs et
+ * le kill feed" (for the weapons one should use the icons like for the player cards and the
+ * kill feed)). The document cooks the `contour` atlas — an empty weapon stroke, which is
+ * lost on a grayscale map background already edged in black; the `silhouette` is a FULL
+ * shape, readable at 8 px. The exchange is done on the client side (`weaponFullIcon`), for
+ * the same reason as on the cards: the URL is frozen in the artifact at the build. And as
+ * on the cards, the atlas image is rendered TURNED — the two atlases point left, the game
+ * right.
  *
- * LES POWER-UPS SE RÉSOLVENT CÔTÉ CLIENT, comme la version pleine des icônes d'arme des
- * fiches (cf. `weaponFullIcon.ts`) : leur famille n'entre dans AUCUN catalogue du document — le
- * manifeste du titre ne déclare d'icône que sur ses grenades et ses capacités, jamais sur ses
- * `[[equipment_objects]]`. Le masque de HUD existe pourtant, livré sous
- * `static/weapons-assets/{slug}/hud/`, et c'est celui-là même que le manifeste nomme pour la
- * capacité de même nom. Un garde-rail rejoue le lien ; rien n'est deviné à l'exécution.
+ * THE POWER-UPS RESOLVE ON THE CLIENT SIDE, like the full version of the weapon icons of the
+ * cards (cf. `weaponFullIcon.ts`): their family does not enter ANY catalog of the document —
+ * the title manifest declares an icon only on its grenades and its capabilities, never on
+ * its `[[equipment_objects]]`. The HUD mask exists nevertheless, delivered under
+ * `static/weapons-assets/{slug}/hud/`, and it is that very one the manifest names for the
+ * capability of the same name. A guard replays the link; nothing is guessed at execution.
  */
 export function padIconRefFor(weapon: string, labels: PadLabels, titleSlug: string): PadIconRef | null {
   const family = padEquipmentFamilyOf(weapon)
   if (family) {
     const url = staticAssetURL('weapon', `hud/${PAD_EQUIPMENT_FAMILIES[family].icon}`, '.png', titleSlug)
-    // Le masque de HUD d'un power-up n'est pas une image d'atlas : il garde son sens.
+    // The HUD mask of a power-up is not an atlas image: it keeps its orientation.
     return url ? { url, tinted: true, mirrored: false } : null
   }
   const label = labels?.[weaponLabelKeyOf(weapon)]
@@ -179,63 +183,65 @@ export function padIconRefFor(weapon: string, labels: PadLabels, titleSlug: stri
 }
 
 /**
- * SPECIAL_WEAPON_ROLES — LES TROIS RÔLES DU FILTRE « ARMES SPÉCIALES » du calque des armes au
- * sol.
+ * SPECIAL_WEAPON_ROLES — THE THREE ROLES OF THE "SPECIAL WEAPONS" FILTER of the ground
+ * weapons layer.
  *
- * LA DÉFINITION RETENUE EST LA DIMENSION FONCTION DE COMBAT (`WeaponLabel.role`, posé à la
- * requête depuis le registre canonique — jamais une table d'armes en dur côté web), PAS LA
- * MANIPULATION (`class`) : elle isole exactement ce qu'un socle distribue et ce qu'un
- * adversaire a intérêt à ramasser (S7 Sniper, Shock Rifle, SPNKr, Skewer, Cindershot, Hydra,
- * Épée, Marteau, Needler, Sentinel Beam) et laisse dehors le CQS48 Bulldog (`shotgun`) et
- * l'arsenal de départ. Mesuré : 17,4 % des objets publiés, mais 65,3 % des reprises
- * OBSERVÉES — une arme reprise est presque deux fois sur trois une arme qui compte.
+ * THE DEFINITION RETAINED IS THE COMBAT FUNCTION DIMENSION (`WeaponLabel.role`, placed at
+ * the request from the canonical register — never a hard-coded weapon table on the web
+ * side), NOT THE HANDLING (`class`): it isolates exactly what a pad distributes and what an
+ * opponent has an interest in picking up (S7 Sniper, Shock Rifle, SPNKr, Skewer, Cindershot,
+ * Hydra, Épée, Marteau, Needler, Sentinel Beam) and leaves out the CQS48 Bulldog
+ * (`shotgun`) and the starting arsenal. Measured: 17.4% of the published objects, but 65.3%
+ * of the OBSERVED pickups — a picked-up weapon is almost two times out of three a weapon
+ * that counts.
  */
 export const SPECIAL_WEAPON_ROLES: ReadonlySet<string> = new Set(['sniper', 'power', 'special'])
 
 /**
- * isSpecialWeaponRole — le prédicat du filtre, et SA GARDE contre les rôles ABSENTS.
+ * isSpecialWeaponRole — the predicate of the filter, and ITS GUARD against ABSENT roles.
  *
- * UN RÔLE MANQUANT (libellé hors registre, ou artefact d'un titre qui n'en publie pas) N'EST
- * JAMAIS SPÉCIAL — c'est la règle explicite du lot : l'objet reste visible bascule ÉTEINTE, et
- * disparaît bascule ALLUMÉE, exactement comme une arme dont on ne sait rien ne s'affirme jamais
- * hors catalogue. Deviner « spécial » sur une absence de donnée serait le même mensonge qu'une
- * icône empruntée à une arme voisine.
+ * A MISSING ROLE (label off the register, or an artifact of a title that does not publish
+ * one) IS NEVER SPECIAL — that is the explicit rule of the lot: the object remains visible
+ * toggle OFF, and disappears toggle ON, exactly like a weapon of which one knows nothing
+ * never asserts itself off-catalog. Guessing "special" on a data absence would be the same
+ * lie as an icon borrowed from a neighboring weapon.
  */
 export function isSpecialWeaponRole(role: string | undefined): boolean {
   return role !== undefined && role !== '' && SPECIAL_WEAPON_ROLES.has(role)
 }
 
 /**
- * weaponRoleOf — LE RÔLE d'une arme, quelle que soit la forme de son identifiant (cf.
- * `weaponLabelKeyOf`). `undefined` quand le document ne le publie pas — jamais une chaîne
- * vide devinée : `isSpecialWeaponRole` distingue déjà « absent » de « connu et neutre ».
+ * weaponRoleOf — THE ROLE of a weapon, whatever the shape of its identifier (cf.
+ * `weaponLabelKeyOf`). `undefined` when the document does not publish it — never a guessed
+ * empty string: `isSpecialWeaponRole` already distinguishes "absent" from "known and
+ * neutral".
  */
 export function weaponRoleOf(weapon: string, labels: PadLabels): string | undefined {
   return labels?.[weaponLabelKeyOf(weapon)]?.role
 }
 
 /**
- * crossedWeaponPads — LES SOCLES À DESSINER, une fois le catalogue de la carte croisé.
+ * crossedWeaponPads — THE PADS TO DRAW, once the catalog of the map is crossed.
  *
- * CE QUE LE CROISEMENT APPORTE, et il n'apporte que ça : la POSITION. Le serveur ne sert
- * que les emplacements qu'un socle du match CONFIRME (à moins d'un mètre), et il les sert
- * à la position du SPAWNER telle que le fichier de carte la pose — au centimètre, connue
- * dès la première image. Le film, lui, ne donne que le centroïde des apparitions qu'il a
- * vues, donc rien avant la première.
+ * WHAT THE CROSSING BRINGS, and it brings only that: the POSITION. The server serves only
+ * the locations that a pad of the match CONFIRMS (less than a meter), and it serves them at
+ * the position of the SPAWNER as the map file places it — to the centimeter, known from the
+ * first frame. The film, for its part, only gives the centroid of the spawns it saw, so
+ * nothing before the first.
  *
- * CE QUE LE CROISEMENT NE TOUCHE PAS : la PRÉSENCE. Les apparitions, les intervalles, le
- * cycle, la famille d'arme et donc les états plein / incertain / vide et le compte à
- * rebours restent EXACTEMENT ceux du match. Le catalogue ne sait pas ce qui apparaît sur
- * un socle (un même objet porte l'épée ou le marteau selon le match), ni quand.
+ * WHAT THE CROSSING DOES NOT TOUCH: the PRESENCE. The spawns, the intervals, the cycle, the
+ * weapon family and therefore the full / uncertain / empty states and the countdown remain
+ * EXACTLY those of the match. The catalog does not know what appears on a pad (the same
+ * object carries the sword or the hammer depending on the match), nor when.
  *
- * UN SOCLE DU FILM QUE LE CATALOGUE IGNORE RESTE DESSINÉ, à sa position d'origine : le
- * film fait foi, le catalogue complète. Et un emplacement du catalogue que le film ne
- * confirme pas n'arrive jamais ici — le serveur ne l'envoie pas, et rien de ce qui suit ne
- * pourrait l'inventer, puisque tout part de `weaponPads`.
+ * A PAD OF THE FILM THAT THE CATALOG IGNORES REMAINS DRAWN, at its original position: the
+ * film is authoritative, the catalog complements. And a location of the catalog that the
+ * film does not confirm never arrives here — the server does not send it, and nothing of
+ * what follows could invent it, since everything starts from `weaponPads`.
  *
- * SANS CROISEMENT (carte hors catalogue, artefact d'un autre titre, réponse d'une version
- * antérieure) : la liste du film, inchangée. C'est le repli, et c'est le comportement
- * d'avant le 2026-08-19.
+ * WITHOUT CROSSING (map off-catalog, artifact of another title, answer of an earlier
+ * version): the list of the film, unchanged. It is the fallback, and it is the behavior of
+ * before 2026-08-19.
  */
 export function crossedWeaponPads(
   pads: readonly ReplayWeaponPadReady[],
@@ -243,8 +249,8 @@ export function crossedWeaponPads(
 ): readonly ReplayWeaponPadReady[] {
   const spots = cross?.pads ?? []
   if (spots.length === 0) return pads
-  // PREMIÈRE CITATION GAGNE : deux emplacements ne peuvent pas déplacer le même socle à
-  // deux endroits. Le serveur ne le fait pas, le client ne s'y fie pas.
+  // FIRST CITATION WINS: two locations cannot move the same pad to two places. The server
+  // does not do it, the client does not rely on it.
   const parSocle = new Map<number, (typeof spots)[number]>()
   for (const spot of spots) {
     if (!parSocle.has(spot.pad)) parSocle.set(spot.pad, spot)
@@ -256,19 +262,21 @@ export function crossedWeaponPads(
   })
 }
 
-/** Ce qui est survolé : le socle, son état LU À CET INSTANT, et où poser l'infobulle. */
+/** What is hovered: the pad, its state READ AT THIS INSTANT, and where to place the
+ * tooltip. */
 export interface WeaponPadHover {
   pad: ReplayWeaponPadReady
   at: XY
-  /** Nom de l'arme dans la langue du lecteur, ou son identifiant quand rien ne la nomme. */
+  /** Name of the weapon in the language of the reader, or its identifier when nothing
+   * names it. */
   name: string
   state: PadState
   /**
-   * Le compte à rebours ET SA PROVENANCE, ou null (socle non vide, ou aucune source).
+   * The countdown AND ITS PROVENANCE, or null (non-empty pad, or no source).
    *
-   * L'OBJET PLUTÔT QU'UN NOMBRE depuis D3 (2026-08-27) : l'infobulle doit distinguer la
-   * prochaine apparition VUE dans le film de celle que le cycle PRÉDIT. Le nombre seul
-   * mélangeait les deux et faisait lire une prédiction comme une mesure.
+   * THE OBJECT RATHER THAN A NUMBER since D3 (2026-08-27): the tooltip must distinguish the
+   * next spawn SEEN in the film from the one the cycle PREDICTS. The number alone confused
+   * the two and made a prediction read as a measurement.
    */
   respawn: PadRespawn | null
 }
@@ -276,36 +284,36 @@ export interface WeaponPadHover {
 export interface WeaponPadsInput {
   doc: ReplayDocumentReady
   view: PlacementView
-  /** L'image courante, telle que la boucle de lecture la tient. */
+  /** The current frame, as the reading loop holds it. */
   frameRef: RefObject<number>
-  /** Faux quand le calque est éteint : rien n'est dessiné, rien ne se survole. */
+  /** False when the layer is off: nothing is drawn, nothing is hovered. */
   enabled: boolean
   /**
-   * Les encres du calque : le NEUTRE du terrain (le point) et le couple REMPLISSAGE /
-   * LISERÉ du marquage (la vignette et le compte à rebours). Toutes viennent du canvas.
+   * The inks of the layer: the NEUTRAL of the field (the point) and the FILL / RIM pair of
+   * the marking (the vignette and the countdown). They all come from the canvas.
    */
   ink: {
     neutral: string
     fill: string
     outline: string
-    /** Encre par NATURE de socle (A13) : power-up, arme de puissance, râtelier ordinaire. */
+    /** Ink by NATURE of pad (A13): power-up, power weapon, ordinary rack. */
     family: Readonly<Record<PadFamily, string>>
   }
   locale: ReplayLocale
-  /** Repeindre la scène : les vignettes arrivent après coup (chargement asynchrone). */
+  /** Repaint the scene: the vignettes arrive after the fact (asynchronous loading). */
   redraw: () => void
 }
 
 export interface WeaponPads {
-  /** Le film porte-t-il des socles ? Une bascule qui ne commande rien ne s'affiche pas. */
+  /** Does the film carry pads? A toggle that commands nothing is not displayed. */
   available: boolean
   /**
-   * LE NOM DU CALQUE, porté par le calque et non par la table de liaison du canvas
-   * (2026-09-06, revue R1 constat C2) : c'est ce qui rend impossible de peindre ce geste
-   * sous l'identité d'un autre calque.
+   * THE NAME OF THE LAYER, carried by the layer and not by the binding table of the canvas
+   * (2026-09-06, review R1 finding C2): that is what makes it impossible to paint this
+   * gesture under the identity of another layer.
    */
   id: 'socles-armes'
-  /** Trace le calque à l'image demandée ; ne fait rien quand il est éteint. */
+  /** Trace the layer at the requested frame; does nothing when it is off. */
   paint: (ctx: CanvasRenderingContext2D, frame: number, k: number) => void
   hover: WeaponPadHover | null
   onPointerMove: (event: PointerEvent<HTMLCanvasElement>) => void
@@ -321,23 +329,23 @@ export function useReplayWeaponPads({
   locale,
   redraw,
 }: WeaponPadsInput): WeaponPads {
-  // LES SOCLES DU MATCH, POSÉS AUX EMPLACEMENTS DE LA CARTE quand le serveur les a croisés
-  // (cf. crossedWeaponPads), PUIS DATÉS PAR LE RAMASSAGE NATIF QUAND LE FILM LE DIT (cf.
-  // applyPadPickupDating, lot detonations du 2026-10-22), PUIS, pour ce qui reste incertain,
-  // leur incertitude ramenée à ce qu'un joueur a pu faire (cf. refinePadPresence, décision
-  // utilisateur du 2026-08-27).
+  // THE PADS OF THE MATCH, PLACED AT THE LOCATIONS OF THE MAP when the server crossed them
+  // (cf. crossedWeaponPads), THEN DATED BY THE NATIVE PICKUP WHEN THE FILM SAYS SO (cf.
+  // applyPadPickupDating, detonations lot of 2026-10-22), THEN, for what remains uncertain,
+  // their uncertainty brought back to what a player could have done (cf. refinePadPresence,
+  // user decision of 2026-08-27).
   //
-  // L'ORDRE DES TROIS EST LA RÈGLE (D-10 : la grammaire prime sur l'heuristique). La datation
-  // par l'événement natif passe EN PREMIER : elle collapse la fenêtre d'une occupation à
-  // l'instant exact quand le film le dit, et le raffinement par proximité qui suit n'a plus
-  // rien à faire sur elle (sa fenêtre est déjà quasi nulle). Le raffinement, lui, mesure des
-  // DISTANCES au socle, il doit donc travailler sur la position FINALE — le croisement ne la
-  // déplace que de moins d'un mètre par construction, mais c'est justement l'échelle du rayon
-  // d'approche, et l'inversion se paierait aux limites.
+  // THE ORDER OF THE THREE IS THE RULE (D-10: the grammar prevails over the heuristic). The
+  // dating by the native event passes FIRST: it collapses the window of an occupation to
+  // the exact instant when the film says so, and the proximity refinement that follows has
+  // nothing more to do on it (its window is already quasi-null). The refinement, for its
+  // part, measures DISTANCES to the pad, it must therefore work on the FINAL position — the
+  // crossing only moves it by less than a meter by construction, but that is exactly the
+  // scale of the approach radius, and the inversion would be paid at the edges.
   //
-  // UNE SEULE PASSE PAR DOCUMENT, jamais par image : le raffinement parcourt les segments de
-  // trace de chaque fenêtre d'incertitude, ce qui est trop cher à refaire soixante fois par
-  // seconde. Mémoïsé sur les quatre sources, comme le tableau qu'il rend.
+  // ONE SINGLE PASS PER DOCUMENT, never per frame: the refinement walks the segments of
+  // track of each window of uncertainty, which is too expensive to redo sixty times per
+  // second. Memoized on the four sources, like the table it returns.
   const pads = useMemo(
     () =>
       refinePadPresence(
@@ -351,14 +359,14 @@ export function useReplayWeaponPads({
   const titleSlug = useTitleSlug()
   const t = REPLAY_TEXT[locale]
 
-  // LA TAILLE ET LE NOM suivent la CLÉ CANONIQUE de ce que porte le socle — jamais son
-  // hexadécimal, jamais un libellé. Les trois résolutions vivent au-dessus, en fonctions
-  // pures : elles sont les mêmes pour une arme et pour un power-up de socle, et c'est là
-  // qu'est écrit lequel des deux vocabulaires s'applique.
+  // THE SIZE AND THE NAME follow the CANONICAL KEY of what the pad carries — never its
+  // hexadecimal, never a label. The three resolutions live above, in pure functions: they
+  // are the same for a weapon and for a pad power-up, and that is where it is written which
+  // of the two vocabularies applies.
   const labels = doc.weaponLabels
   const scaleOf = useCallback((weapon: string) => padScaleFor(weapon, labels), [labels])
-  // L'ENCRE DE LA NATURE (A13) : la famille se résout de la même clé canonique que la taille,
-  // et l'appelant a déjà résolu les trois tokens — ce hook ne fait que les apparier.
+  // THE INK OF THE NATURE (A13): the family is resolved from the same canonical key as the
+  // size, and the caller has already resolved the three tokens — this hook only pairs them.
   const inkOf = useCallback(
     (weapon: string) => ink.family[padFamilyOf(weapon, labels?.[weapon]?.key)],
     [labels, ink.family],
@@ -368,26 +376,28 @@ export function useReplayWeaponPads({
     [labels, t, locale],
   )
 
-  // LES VIGNETTES, cuites une fois par document ET par encre : un masque se teint hors écran,
-  // une image finie se pose telle quelle (même contrat `tinted` que WeaponIcon).
+  // THE VIGNETTES, cooked once per document AND per ink: a mask is tinted offscreen, a
+  // finished image is placed as is (same `tinted` contract as WeaponIcon).
   //
-  // DEUX TEINTURES PAR VIGNETTE depuis le 2026-08-18 : le CORPS à l'encre du texte, le LISERÉ
-  // à celle du fond. Un canvas ne sait pas cerner une image ; le calque repose donc la même
-  // forme tout autour, et il lui faut les deux.
+  // TWO TINTINGS PER VIGNETTE since 2026-08-18: the BODY in the ink of the text, the RIM in
+  // that of the background. A canvas does not know how to edge an image; the layer therefore
+  // replays the same shape all around, and it needs the two.
   //
-  // LE LISERÉ N'EST PLUS NOIR (retour utilisateur du 2026-08-28 : « pour les contours des armes
-  // et power-up, le noir ça va pas — les dessins de carte sont en niveaux de gris avec contours
-  // noirs, c'est difficile de distinguer les armes »). Il prend l'encre de la NATURE du socle,
-  // celle-là même que porte son losange : un halo coloré autour d'une silhouette claire se
-  // détache d'un fond gris, là où le noir sur noir se confondait. L'encre du fond (`ink.outline`)
-  // reste celle du COMPTE À REBOURS, qui est du texte et non une forme.
+  // THE RIM IS NO LONGER BLACK (user return of 2026-08-28: "pour les contours des armes et
+  // power-up, le noir ça va pas — les dessins de carte sont en niveaux de gris avec contours
+  // noirs, c'est difficile de distinguer les armes" (for the outlines of the weapons and
+  // power-ups, black does not work — the map drawings are in grayscale with black outlines,
+  // it is difficult to distinguish the weapons)). It takes the ink of the NATURE of the pad,
+  // that very one that its diamond carries: a colored halo around a light silhouette
+  // stands out from a gray background, where black on black was confused. The ink of the
+  // background (`ink.outline`) remains that of the COUNTDOWN, which is text and not a shape.
   //
-  // LE LISERÉ EST SERVI POUR TOUTES LES IMAGES depuis le 2026-08-27, images FINIES comprises
-  // (retour utilisateur : « icône AVEC contour »). Il était refusé aux non-masques au motif
-  // qu'on ne peut pas les reteindre — vrai pour le CORPS, faux pour le liseré : cerner ne
-  // demande que la SILHOUETTE, et `tintedIconCanvas` la rend de n'importe quelle image à alpha
-  // (composition `source-in`, qui ne garde que l'alpha et le remplit de l'encre). Seul le
-  // corps distingue donc encore les deux cas.
+  // THE RIM IS SERVED FOR ALL THE IMAGES since 2026-08-27, FINISHED images included (user
+  // return: "icône AVEC contour" (icon WITH outline)). It was refused to the non-masks on
+  // the ground that one cannot re-tint them — true for the BODY, false for the rim: edging
+  // only asks for the SILHOUETTE, and `tintedIconCanvas` returns it from any image with
+  // alpha (composition `source-in`, which keeps only the alpha and fills it with the ink).
+  // Only the body still distinguishes the two cases.
   useEffect(() => {
     const map = new Map<string, PadIcon>()
     iconsRef.current = map
@@ -441,9 +451,9 @@ export function useReplayWeaponPads({
         return
       }
       const rect = event.currentTarget.getBoundingClientRect()
-      // Le contexte dessine en pixels CSS ; le rapport ne vaut 1 que si la mise en page ne
-      // remet pas le canevas à l'échelle — on le calcule plutôt que de le supposer (même
-      // amorce que le survol des poses).
+      // The context draws in CSS pixels; the ratio is worth 1 only if the layout does not
+      // rescale the canvas — one computes it rather than supposing it (same reasoning as the
+      // hover of the placements).
       const kx = rect.width > 0 ? view.width / rect.width : 1
       const ky = rect.height > 0 ? view.height / rect.height : 1
       const at = { x: (event.clientX - rect.left) * kx, y: (event.clientY - rect.top) * ky }
@@ -467,9 +477,9 @@ export function useReplayWeaponPads({
           state: padStateAt(found, frame),
           respawn: padRespawnAt(found, frame, frameMs),
         }
-        // LE COMPTE SE COMPARE CHAMP À CHAMP depuis qu'il est un objet : `padRespawnAt` en
-        // construit un neuf à chaque appel, et une comparaison d'identité rendrait TOUJOURS un
-        // état différent — l'infobulle se recréerait à chaque mouvement de pointeur.
+        // THE COUNT IS COMPARED FIELD BY FIELD since it is an object: `padRespawnAt` builds
+        // a new one at each call, and an identity comparison would ALWAYS return a
+        // different state — the tooltip would be recreated at each pointer movement.
         if (
           prev &&
           prev.pad === next.pad &&

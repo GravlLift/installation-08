@@ -1,58 +1,59 @@
 /**
- * flagCarriesLayer.ts — LA VIE DES DRAPEAUX DE CTF (schéma 15), image par image.
+ * flagCarriesLayer.ts — THE LIVES OF THE CTF FLAGS (schema 15), frame by frame.
  *
- * POURQUOI IL VIT À CÔTÉ DU CALQUE STATIQUE, ET PAS DEDANS. Même partage que
- * `zoneStatesLayer.ts` : `objectivesLayer.ts` porte la GÉOMÉTRIE des objectifs (elle ne change
- * jamais, se cuit une fois hors écran et se recopie), celui-ci porte l'ÉTAT, qui change à chaque
- * image. C'est aussi la seule façon de garder les deux fichiers sous le seuil du dépôt.
+ * WHY IT LIVES BESIDE THE STATIC LAYER, AND NOT INSIDE IT. Same sharing as
+ * `zoneStatesLayer.ts`: `objectivesLayer.ts` carries the GEOMETRY of the objectives (it never
+ * changes, is cooked once offscreen and re-copied), this one carries the STATE, which changes
+ * at every frame. It is also the only way to keep both files under the threshold of the
+ * repository.
  *
- * LES QUATRE ÉTATS SONT CEUX DE L'ARTEFACT, jamais des états inventés ici :
+ * THE FOUR STATES ARE THOSE OF THE ARTIFACT, never states invented here:
  *
- *  - `carried` — un fait DATÉ ferme le portage. Le drapeau est collé au marqueur de son porteur.
- *  - `carried_open` — RIEN ne ferme le portage : l'intervalle court jusqu'à la fin de l'axe et
- *    c'est une BORNE HAUTE. Même icône, CREUSE — l'incertitude est à l'écran, pas dans une note.
- *  - `dropped` — le drapeau est au sol, à la position publiée : il n'est porté par personne mais
- *    il est toujours en jeu.
- *  - `home` — il est à sa base.
+ *  - `carried` — a DATED fact closes the carry. The flag is stuck to the marker of its carrier.
+ *  - `carried_open` — NOTHING closes the carry: the interval runs to the end of the axis and
+ *    that is an UPPER BOUND. Same icon, HOLLOW — the uncertainty is on screen, not in a note.
+ *  - `dropped` — the flag is on the ground, at the published position: it is carried by no one
+ *    but it is still in play.
+ *  - `home` — it is at its base.
  *
- * QUI CLIGNOTE, ET POURQUOI (retour utilisateur du 2026-08-27 : le drapeau doit « clignoter hors
- * de son socle »). Les DEUX états PORTÉS — `carried`, `carried_open` — clignotent ; `home` est
- * stable. La lecture que cela sert est celle d'un match de CTF : ce qui compte, c'est de repérer
- * d'un coup d'œil qu'un drapeau est SORTI, sans avoir à comparer deux positions. Un clignotement
- * au socle dirait l'inverse — que la situation est en cours — alors qu'un drapeau chez lui est
- * justement le repos. `prefers-reduced-motion` éteint le clignotement : opacité pleine et fixe,
- * le glyphe reste localisable (même règle que tous les effets du rejeu).
+ * WHO BLINKS, AND WHY (user return of 2026-08-27: the flag must "blink away from its pad").
+ * THE TWO CARRIED states — `carried`, `carried_open` — blink; `home` is stable. The reading
+ * that serves it is that of a CTF match: what counts is to spot at a glance that a flag is
+ * OUT, without having to compare two positions. A blink at the pad would say the opposite —
+ * that the situation is in progress — whereas a flag at home is precisely rest.
+ * `prefers-reduced-motion` turns off the blink: full fixed opacity, the glyph stays
+ * localizable (same rule as all the replay effects).
  *
- * `dropped` NE CLIGNOTE PAS (décision utilisateur du 2026-10-07) : un drapeau au sol est posé au
- * centre de sa zone de retour (`flagReturnZone.ts`), et c'est la zone — disque, anneau, jauge —
- * qui dit « il est sorti, et il rentre ». Un glyphe qui bat sur un cercle fixe se lit comme un
- * défaut d'affichage, pas comme un signal ; le fantôme reste, plein et stable.
+ * `dropped` DOES NOT BLINK (user decision of 2026-10-07): a flag on the ground is placed at
+ * the center of its return zone (`flagReturnZone.ts`), and it is the zone — disk, ring, gauge
+ * — that says "it is out, and it is coming back". A glyph beating on a fixed circle reads as
+ * a display defect, not as a signal; the ghost remains, full and stable.
  *
- * L'ATTÉNUATION NE PORTE PLUS L'INCERTITUDE, LE CREUX LA PORTE. `carried_open` clignote comme les
- * autres états hors base et garde son fanion CREUX : deux signaux pour deux choses différentes —
- * le clignotement dit « hors de sa base », le creux dit « fin non datée ». Une opacité faible en
- * plus les aurait confondus, et le clignotement l'aurait de toute façon effacée.
+ * THE ATTENUATION NO LONGER CARRIES THE UNCERTAINTY, THE HOLE CARRIES IT. `carried_open`
+ * blinks like the other off-base states and keeps its HOLLOW pennant: two signals for two
+ * different things — the blink says "away from its base", the hole says "end not dated". A
+ * low opacity on top would have confused them, and the blink would have erased it anyway.
  *
- * LA BASE PORTE UN ÉTAT PRÉSENT / ABSENT, et c'est la lecture que le plan demande : quand le
- * drapeau est `home`, le glyphe se pose PLEIN sur sa base ; quand il est ailleurs, la base garde
- * un glyphe ATTÉNUÉ et FIXE — « le drapeau n'est pas là ». Ce rappel d'absence NE clignote PAS :
- * c'est un repère de lieu, pas un événement ; le faire battre ferait deux clignotements
- * concurrents à l'écran pour un seul drapeau. Rien de plus : ni anneau, ni compte à rebours.
+ * THE BASE CARRIES A PRESENT / ABSENT STATE, and that is the reading the plan asks for: when
+ * the flag is `home`, the glyph sits FULL on its base; when it is elsewhere, the base keeps a
+ * FAINT and FIXED glyph — "the flag is not here". This absence reminder DOES NOT BLINK: it is
+ * a place marker, not an event; making it beat would give two competing blinks on screen for
+ * one flag. Nothing more: no ring, no countdown.
  *
- * POURQUOI LA BASE VIENT DES SPANS `home` ET NON DE `mapObjectives`. Les deux disent la même
- * position — le serveur résout les socles `flag_spawn` par `map_id` avant de publier le calque —
- * mais `mapObjectives` est RECONSTRUIT À CHAQUE REQUÊTE, alors que les spans voyagent avec
- * l'artefact. Joindre les deux exposerait le lot au décalage que le plan a déjà mesuré (trois
- * `flag_spawn` par carte de CTF, dont un NEUTRE au centre ; deux catalogues qui ne nomment pas
- * les modules pareil). L'ancre interne ne peut pas se tromper de drapeau.
+ * WHY THE BASE COMES FROM THE `home` SPANS AND NOT FROM `mapObjectives`. The two say the same
+ * position — the server resolves the `flag_spawn` pads by `map_id` before publishing the
+ * layer — but `mapObjectives` is REBUILT AT EACH REQUEST, whereas the spans travel with the
+ * artifact. Joining the two would expose the lot to the offset the plan already measured
+ * (three `flag_spawn` per CTF map, one of which is NEUTRAL at the center; two catalogs that
+ * do not name the modules the same). The internal anchor cannot be the wrong flag.
  *
- * AUCUNE VIGNETTE DU JEU, ET C'EST UNE MESURE, pas un renoncement : le drapeau n'est PAS un
- * `weap` (phase 0, item 0.3 — le marqueur de portage ne porte pas le suffixe d'identifiant
- * d'arme, 0 occurrence sur 83), il n'a donc pas de tag, et `weaponLabels` ne le nomme sur AUCUN
- * des trois témoins CTF. Le glyphe est donc tracé au canvas — hampe + fanion — à l'encre
- * d'équipe résolue par l'appelant. Aucune URL d'image n'est devinée.
+ * NO GAME THUMBNAIL, AND THAT IS A MEASUREMENT, not a surrender: the flag is NOT a `weap`
+ * (phase 0, item 0.3 — the carry marker does not carry the weapon identifier suffix, 0
+ * occurrence on 83), it therefore has no tag, and `weaponLabels` does not name it on ANY of
+ * the three CTF witnesses. The glyph is therefore traced on the canvas — pole + pennant — in
+ * the team ink resolved by the caller. No image URL is guessed.
  *
- * AUCUN TEXTE, comme les deux calques voisins : ce qui se dit se dit dans l'infobulle.
+ * NO TEXT, like the two neighboring layers: what is said is said in the tooltip.
  */
 import { type XY } from '../../../lib/replay/replayLogic'
 
@@ -61,52 +62,53 @@ import { carriedGlyphPlaceAt } from '../model/carriedGlyphPlace'
 import { edgeMarkFor, OFFSCREEN_MARGIN_PX } from '../model/edgeClamp'
 import type { ReplayFlagCarryReady } from '../../../lib/replay/replayNormalize'
 
-/** Les quatre états publiés par `flagCarries[].spans[].state` (schéma 15). */
+/** The four states published by `flagCarries[].spans[].state` (schema 15). */
 export type FlagState = 'carried' | 'carried_open' | 'dropped' | 'home'
 
-/** L'ordre dans lequel l'UI les nomme — et la liste que le contrat de texte doit couvrir. */
+/** The order in which the UI names them — and the list the text contract must cover. */
 export const FLAG_STATES: readonly FlagState[] = ['carried', 'carried_open', 'dropped', 'home']
 
 /**
- * FlagNow — ce qu'un drapeau montre à une image donnée.
+ * FlagNow — what a flag shows at a given frame.
  *
- * `state` est rendu tel que l'artefact l'écrit — d'où le type `string` et non l'union fermée.
- * Un état INCONNU du client (artefact plus récent que ce code) se dessine comme un drapeau
- * PRÉSENT : glyphe plein à sa position publiée, base marquée absente. C'est le comportement le
- * moins trompeur — l'objet EST quelque part, l'artefact le dit — et l'infobulle, elle, omet la
- * ligne d'état plutôt que d'inventer un libellé.
+ * `state` is returned as the artifact writes it — hence the type `string` and not the closed
+ * union. A state UNKNOWN to the client (artifact more recent than this code) draws as a
+ * PRESENT flag: full glyph at its published position, base marked absent. That is the least
+ * misleading behavior — the object IS somewhere, the artifact says so — and the tooltip, for
+ * its part, omits the state line rather than inventing a label.
  */
 export interface FlagNow {
-  /** L'équipe PROPRIÉTAIRE du drapeau (celle de sa base), telle que l'artefact la publie. */
+  /** The OWNER team of the flag (that of its base), as the artifact publishes it. */
   team: number
   state: string
-  /** Le porteur, seulement pour les deux états portés — `null` partout ailleurs. */
+  /** The carrier, only for the two carried states — `null` everywhere else. */
   xuid: string | null
-  /** Position publiée du span : celle du porteur au span, du lâcher, ou de la base. */
+  /** Published position of the span: that of the carrier at the span, of the drop, or of the
+   * base. */
   x: number
   y: number
-  /** Première image du span : c'est elle qui donne le « depuis quand » de l'infobulle. */
+  /** First frame of the span: it is what gives the "since when" of the tooltip. */
   t0: number
   /**
-   * LA JAUGE DE RETOUR à cette image (schéma 63), dans [0, 1] — `null` quand l'artefact n'en
-   * publie pas pour cet intervalle, ou quand aucun point ne précède encore l'image.
+   * THE RETURN GAUGE at this frame (schema 63), in [0, 1] — `null` when the artifact does
+   * not publish one for this interval, or when no point yet precedes the frame.
    *
-   * ESCALIER, PAS INTERPOLATION : le film émet par paliers et la valeur TIENT jusqu'au point
-   * suivant, exactement comme la jauge des zones. Interpoler inventerait un remplissage régulier
-   * que le jeu n'a pas — son taux suit une série harmonique et la jauge se VIDE quand plus
-   * personne n'est dans la zone.
+   * STAIRCASE, NOT INTERPOLATION: the film emits in steps and the value HOLDS until the next
+   * point, exactly like the zone gauge. Interpolating would invent a regular filling the game
+   * does not have — its rate follows a harmonic series and the gauge EMPTIES when no one is
+   * left in the zone.
    */
   returnProgress: number | null
 }
 
 /**
- * flagReturnAt rend la valeur de la jauge de retour à l'image demandée : le DERNIER point dont
- * l'instant ne dépasse pas l'image. `null` avant le premier point, et `null` quand l'artefact
- * n'en publie aucun (artefact antérieur à 63, ou intervalle que le film n'a pas couvert).
+ * flagReturnAt renders the value of the return gauge at the requested frame: the LAST point
+ * whose instant does not exceed the frame. `null` before the first point, and `null` when the
+ * artifact publishes none (artifact earlier than 63, or an interval the film did not cover).
  *
- * `undefined` ET tableau vide rendent la MÊME chose, et c'est voulu : le contrat n'écrit la clé
- * que lorsqu'elle porte des points, donc un tableau vide ne devrait jamais arriver — s'il
- * arrivait, il ne dirait toujours rien de plus.
+ * `undefined` AND an empty array return THE SAME THING, and that is intended: the contract
+ * writes the key only when it carries points, so an empty array should never arrive — if it
+ * arrived, it would still say nothing more.
  */
 export function flagReturnAt(
   points: ReadonlyArray<{ t: number; v: number }> | undefined | null,
@@ -122,12 +124,12 @@ export function flagReturnAt(
 }
 
 /**
- * flagSpanAt rend l'état du drapeau à l'image demandée, ou `null` quand aucun intervalle ne la
- * couvre — avant la première prise, l'artefact ne dit rien, et dessiner « à la base » par défaut
- * affirmerait ce qu'il ne dit pas.
+ * flagSpanAt returns the state of the flag at the requested frame, or `null` when no interval
+ * covers it — before the first pickup, the artifact says nothing, and drawing "at the base"
+ * by default would assert what it does not say.
  *
- * FONCTION PURE, testée à part : c'est elle que le rendu appelle à chaque image, et c'est elle
- * que le survol appelle pour composer l'infobulle.
+ * PURE FUNCTION, tested apart: it is what the render calls at every frame, and it is what
+ * the hover calls to compose the tooltip.
  */
 export function flagSpanAt(carry: ReplayFlagCarryReady, frame: number): FlagNow | null {
   for (const sp of carry.spans) {
@@ -146,11 +148,10 @@ export function flagSpanAt(carry: ReplayFlagCarryReady, frame: number): FlagNow 
 }
 
 /**
- * homeAnchorOf rend la position de la BASE du drapeau : celle de ses intervalles `home`.
+ * homeAnchorOf returns the position of the BASE of the flag: that of its `home` intervals.
  *
- * `null` quand le drapeau n'est jamais rentré chez lui sur ce film — la base n'est alors pas
- * connue de l'artefact, et aucun marqueur d'absence ne se dessine. C'est une donnée manquante,
- * pas un zéro.
+ * `null` when the flag never came home in this film — the base is then not known to the
+ * artifact, and no absence marker is drawn. It is missing data, not a zero.
  */
 export function homeAnchorOf(carry: ReplayFlagCarryReady): XY | null {
   for (const sp of carry.spans) {
@@ -159,167 +160,172 @@ export function homeAnchorOf(carry: ReplayFlagCarryReady): XY | null {
   return null
 }
 
-/** Style du calque : l'encre d'équipe est RÉSOLUE par l'appelant (règle color-tokens). */
+/** Style of the layer: the team ink is RESOLVED by the caller (color-tokens rule). */
 export interface FlagCarriesStyle {
-  /** Encre du drapeau de cette équipe ; l'appelant sert le neutre du thème s'il ne sait pas. */
+  /** Ink of the flag of this team; the caller serves the theme neutral if it does not know. */
   colorOfTeam: (team: number) => string
   /**
-   * Encre du FOND, résolue par l'appelant elle aussi : c'est celle du liseré posé sous le
-   * glyphe. Ce fichier ne connaît AUCUN token — il ne sait même pas quel thème est actif.
+   * Ink of the BACKGROUND, resolved by the caller as well: that is the one of the rim placed
+   * under the glyph. This file knows NO token — it does not even know which theme is active.
    */
   outline: string
-  /** Mouvement réduit : le clignotement hors base devient une opacité constante. */
+  /** Reduced motion: the off-base blink becomes a constant opacity. */
   reducedMotion: boolean
 }
 
-// Réglages du calque. Le glyphe reste volontairement PLUS PETIT que le marqueur d'un joueur :
-// il se pose À CÔTÉ du porteur, il ne doit pas le remplacer.
+// Layer settings. The glyph remains deliberately SMALLER than a player marker: it sits BESIDE
+// the carrier, it must not replace it.
 //
-// ÉLARGI DE 20 % LE 2026-08-26 (retour utilisateur : « le drapeau faudrait les faire un tout
-// petit peu plus gros »), PUIS DE 21 % DE PLUS LE 2026-08-27 (même lecteur, même écran : « le
-// rendre aussi plus gros » — 1,2 ne suffisait pas). C'est toujours un AJUSTEMENT, pas un
-// changement d'échelle : à 13 px de hampe le fanion faisait 9 × 6,5 px, et sur un fond de carte
-// chargé il se confondait avec les repères voisins. Les trois cotes du glyphe montent ensemble —
-// les élargir séparément déformerait le dessin — et le décalage ne bouge PAS : le glyphe grandit
-// vers le haut et la droite, donc son ancrage sur le point qu'il qualifie reste le même.
+// WIDENED BY 20% ON 2026-08-26 (user return: "le drapeau faudrait les faire un tout petit
+// peu plus gros" (the flags should be made a tiny bit bigger)), THEN BY A FURTHER 21% ON
+// 2026-08-27 (same reader, same screen: "le rendre aussi plus gros" (make it bigger too) —
+// 1.2 was not enough). It is still an ADJUSTMENT, not a scale change: at a 13 px pole the
+// pennant was 9 x 6.5 px, and on a busy map background it blended with the neighboring
+// markers. The three dimensions of the glyph rise together — widening them separately would
+// deform the drawing — and the offset does NOT move: the glyph grows upward and to the right,
+// so its anchoring on the point it qualifies stays the same.
 //
-// LE RAYON DE SURVOL SUIT, et il le doit : il couvre la hampe et le fanion. Le laisser à 12
-// aurait rendu insurvolable la part de glyphe gagnée par l'élargissement.
+// THE HOVER RADIUS FOLLOWS, and it must: it covers the pole and the pennant. Leaving it at 12
+// would have made the part of the glyph gained by the widening unhoverable.
 const FLAG_GLYPH_SCALE = 1.45
 const FLAG_POLE_H = 13 * FLAG_GLYPH_SCALE
 const FLAG_WING_W = 9 * FLAG_GLYPH_SCALE
 const FLAG_WING_H = 6.5 * FLAG_GLYPH_SCALE
-/** Décalage du glyphe par rapport au point qu'il qualifie (au-dessus et à droite du marqueur). */
+/** Offset of the glyph from the point it qualifies (above and to the right of the marker). */
 const FLAG_OFFSET_X = 6
 const FLAG_OFFSET_Y = 2
 
 /**
- * glyphIsOffset — QUELS ÉTATS ÉCARTENT LE GLYPHE DE SA POSITION (2026-09-08).
+ * glyphIsOffset — WHICH STATES OFFSET THE GLYPH FROM ITS POSITION (2026-09-08).
  *
- * `carried` SEUL, et la raison est dans le nom même du décalage : il existe pour ne pas
- * recouvrir le pion du porteur. Les trois autres états — `carried_open` (porté mais fin non
- * datée), `dropped`, `home` — désignent un LIEU, pas un joueur, et un lieu doit être dit à sa
- * position exacte : c'est là que se pose l'anneau de la zone de retour, le marqueur de livraison
- * et le socle, tous ancrés sur la position brute.
+ * `carried` ALONE, and the reason is in the name of the offset itself: it exists so as not
+ * to cover the pawn of the carrier. The three other states — `carried_open` (carried but end
+ * not dated), `dropped`, `home` — designate a PLACE, not a player, and a place must be said
+ * at its exact position: that is where the ring of the return zone, the delivery marker and
+ * the pad sit, all anchored on the raw position.
  *
- * `carried_open` prend la règle du lieu et non celle du portage : son incertitude porte sur la
- * FIN du portage, pas sur la position, et le fanion creux la dit déjà.
+ * `carried_open` takes the rule of the place and not that of the carry: its uncertainty
+ * bears on the END of the carry, not on the position, and the hollow pennant already says it.
  */
-// `string` et non `FlagState`, comme `flagBlinkAlpha` juste à côté : l'état publié par le
-// document est une chaîne libre, et un état inconnu doit se comporter comme un LIEU (pas de
-// décalage) plutôt que faire échouer le typage sur une donnée qu'on ne maîtrise pas.
+// `string` and not `FlagState`, like `flagBlinkAlpha` just beside: the state published by the
+// document is a free string, and an unknown state must behave as a PLACE (no offset) rather
+// than fail the typing on data we do not control.
 export function glyphIsOffset(state: string): boolean {
   return state === 'carried'
 }
 const FLAG_STROKE_WIDTH = 1.6
 /**
- * LISERÉ À L'ENCRE DU FOND — débord de chaque côté du trait, en pixels d'écran.
+ * RIM IN THE BACKGROUND INK — overhang on each side of the stroke, in screen pixels.
  *
- * POURQUOI (retour utilisateur du 2026-08-27 : le drapeau veut « un contour »). Le glyphe se
- * pose sur un fond de carte photographique : selon la zone, l'encre d'équipe passe sur du clair
- * ou du sombre, et son bord se dissout. La MÊME silhouette reposée dessous, plus épaisse, à
- * l'encre du fond, lui rend un bord franc sans lui inventer de couleur — c'est la technique
- * déjà employée par les vignettes de socle, et la seule qui marche dans les DEUX thèmes.
+ * WHY (user return of 2026-08-27: the flag wants "un contour" (an outline)). The glyph sits
+ * on a photographic map background: depending on the zone, the team ink passes over light or
+ * dark, and its edge dissolves. THE SAME silhouette placed underneath, thicker, in the
+ * background ink, gives it a sharp edge without inventing a color for it — that is the
+ * technique already used by the pad thumbnails, and the only one that works in BOTH themes.
  */
 const FLAG_OUTLINE_PAD = 1.6
-/** Épaisseur du trait de liseré : le trait du glyphe, débordé des deux côtés. */
+/** Thickness of the rim stroke: the stroke of the glyph, overhanging on both sides. */
 const FLAG_OUTLINE_WIDTH = FLAG_STROKE_WIDTH + 2 * FLAG_OUTLINE_PAD
-/** Rayon de SURVOL, en pixels : il couvre la hampe et le fanion, sans déborder sur le voisin. */
+/** HOVER radius, in pixels: it covers the pole and the pennant, without overhanging the
+ * neighbor. */
 export const FLAG_HIT_RADIUS = 12 * FLAG_GLYPH_SCALE
 
-/** Opacité pleine : le drapeau à sa base, et le haut du clignotement. */
+/** Full opacity: the flag at its base, and the top of the blink. */
 const ALPHA_SOLID = 0.95
 /**
- * Opacité atténuée — elle ne sert PLUS QU'À LA BASE VIDE depuis le 2026-08-27 : c'est un rappel
- * d'absence, il doit rester en retrait du glyphe vivant. `carried_open`, lui, dit son incertitude
- * par son fanion creux (cf. l'en-tête) et non plus par une opacité faible.
+ * Faint opacity — it serves ONLY THE EMPTY BASE since 2026-08-27: it is an absence reminder,
+ * it must stay in the background of the living glyph. `carried_open`, for its part, says its
+ * uncertainty by its hollow pennant (cf. the header) and no longer by a low opacity.
  */
 const ALPHA_FAINT = 0.38
 /**
- * Bornes du CLIGNOTEMENT hors base. Le creux ne descend jamais sous `BLINK_MIN` : un glyphe qui
- * s'éteint tout à fait deviendrait introuvable une demi-seconde sur deux, et le lecteur perdrait
- * ce que le clignotement était censé lui montrer.
+ * Bounds of the OFF-BASE BLINK. The hole never goes below `BLINK_MIN`: a glyph that dies
+ * out completely would become unfindable half a second out of two, and the reader would lose
+ * what the blink was meant to show.
  */
 const BLINK_MIN = 0.35
 const BLINK_MAX = ALPHA_SOLID
 /**
- * Période du clignotement, EN IMAGES — 10 images ≈ 1 s au pas de 100 ms documenté du rejeu.
+ * Blink period, IN FRAMES — 10 frames ≈ 1 s at the documented 100 ms step of the replay.
  *
- * Elle est en images et non en millisecondes pour la même raison que l'ancienne respiration : le
- * calque ne reçoit que l'index d'image, jamais l'horloge du document. Conséquence assumée — un
- * film au pas différent clignoterait plus vite ou plus lentement ; aucun n'a été mesuré à ce
- * jour, et la lecture ne dépend pas de la période exacte.
+ * It is in frames and not milliseconds for the same reason as the old breathing: the layer
+ * only receives the frame index, never the clock of the document. Accepted consequence — a
+ * film at a different step would blink faster or slower; none has been measured to this day,
+ * and the reading does not depend on the exact period.
  *
- * LE BATTEMENT EST UN COSINUS, ET C'EST MESURABLE : les images sont ENTIÈRES, et sur une période
- * paire un sinus ne tombe sur aucun de ses extrema (ils arrivent à la demi-image 2,5 et 7,5).
- * L'amplitude réellement affichée y perdait 5 % à chaque bord — 0,36..0,94 au lieu de 0,35..0,95.
- * Le cosinus place ses deux extrema sur des images entières : le clignotement montre toute sa
- * course, et les bornes ci-dessus sont ce qu'on voit, pas une intention.
+ * THE BEAT IS A COSINE, AND THAT IS MEASURABLE: the frames are WHOLE, and on an even period
+ * a sine lands on none of its extrema (they arrive at the half-frames 2.5 and 7.5). The
+ * amplitude actually displayed there lost 5% at each edge — 0.36..0.94 instead of
+ * 0.35..0.95. The cosine places its two extrema on whole frames: the blink shows its full
+ * travel, and the bounds above are what is seen, not an intention.
  */
 const BLINK_PERIOD_FRAMES = 10
 
 /**
- * ReplayFlagPaint — ce que le calque reçoit de l'appelant (`useReplayFlagCarries`).
+ * FlagCarriesInput — what the layer receives from the caller (`useReplayFlagCarries`).
  *
- * `posOf` est LA raison d'être de ce champ : un drapeau `carried` se dessine sur le marqueur de
- * son PORTEUR à l'image courante, pas à la position figée du span. Le calque ne sait pas relire
- * une trajectoire — c'est l'appelant qui lui passe la lecture, comme les pulses d'objectif.
+ * `posOf` is THE reason for this field: a `carried` flag draws on the marker of its CARRIER
+ * at the current frame, not at the frozen position of the span. The layer does not know how
+ * to re-read a trajectory — the caller passes it the reading, like the objective pulses.
  */
 export interface FlagCarriesInput {
   style: FlagCarriesStyle
-  /** Position monde d'un joueur à une image, ou `null` s'il n'est pas localisable. */
+  /** World position of a player at a frame, or `null` if they are not locatable. */
   posOf: (xuid: string, frame: number) => XY | null
 }
 
-/** Où le drapeau se dessine à cette image, et AVEC QUEL HABILLAGE (porté / lieu). */
+/** Where the flag draws at this frame, and WITH WHICH DRESSING (carried / place). */
 export interface FlagPlace {
-  /** Le point MONDE du glyphe. */
+  /** The WORLD point of the glyph. */
   at: XY
   /**
-   * LE PORTEUR A-T-IL ÉTÉ PERDU DE VUE ? Vrai = le drapeau se dessine comme un LIEU (pas de
-   * décalage, aucun pion à éviter) parce qu'aucun porteur n'est à l'écran sous lui.
+ * HAS THE CARRIER BEEN LOST OF SIGHT? True = the flag draws as a PLACE (no offset, no pawn
+ * to avoid) because no carrier is on screen under it.
    */
   loose: boolean
 }
 
 /**
- * flagPlaceAt rend le point MONDE où le drapeau se dessine à cette image, et son habillage.
+ * flagPlaceAt returns the WORLD point where the flag draws at this frame, and its dressing.
  *
- * PORTEUR SANS POSITION (audit du 2026-09-10, cause C9 ; lot 6.7 phase B2). Le calque repliait
- * sur `{x: now.x, y: now.y}` — l'ANCRE DU SPAN — en gardant l'habillage du PORTÉ. C'était deux
- * erreurs en une : une position PÉRIMÉE (le porteur a couru depuis), affirmée avec les
- * décorations d'un objet tenu par un joueur qui n'est pas à l'écran. 533 images sur 32 464
- * (1,64 % du parc CTF) étaient dans ce cas.
+ * CARRIER WITHOUT POSITION (audit of 2026-09-10, cause C9; lot 6.7 phase B2). The layer
+ * fell back on `{x: now.x, y: now.y}` — the SPAN ANCHOR — while keeping the CARRIED
+ * dressing. That was two errors in one: an EXPIRED position (the carrier has run since),
+ * asserted with the decorations of an object held by a player who is not on screen. 533
+ * frames out of 32,464 (1.64% of the CTF fleet) were in that case.
  *
- * LA RÈGLE EST CELLE DES TROIS GLYPHES PORTÉS (`carriedGlyphPlace.ts`) : la DERNIÈRE position
- * connue du porteur depuis le début du portage, à défaut l'ancre du span — qui reste une
- * position MESURÉE, la seule qui subsiste — et dans les deux cas l'habillage d'un LIEU.
+ * THE RULE IS THAT OF THE THREE CARRIED GLYPHS (`carriedGlyphPlace.ts`): the LAST known
+ * position of the carrier since the start of the carry, failing that the span anchor — which
+ * remains a MEASURED position, the only one that survives — and in both cases the dressing of
+ * a PLACE.
  */
 export function flagPlaceAt(now: FlagNow, frame: number, posOf: FlagCarriesInput['posOf']): FlagPlace {
   if (now.state !== 'carried' && now.state !== 'carried_open') {
     return { at: { x: now.x, y: now.y }, loose: false }
   }
   const place = carriedGlyphPlaceAt(posOf, now, frame, { x: now.x, y: now.y })
-  // `absent` est ici INATTEIGNABLE (le repli est toujours servi), mais le typage l'exige et on
-  // ne le traite pas par un `!` : l'ancre du span est la réponse, écrite une seule fois.
+  // `absent` is UNREACHABLE here (the fallback is always served), but the typing demands it
+  // and it is not handled by a `!`: the span anchor is the answer, written once.
   if (place.state === 'absent') return { at: { x: now.x, y: now.y }, loose: true }
   return { at: place.at, loose: place.state === 'free' }
 }
 
 /**
- * flagBlinkAlpha — l'opacité du glyphe à cette image : CLIGNOTANTE quand il est PORTÉ, STABLE
- * à la base et au sol (cf. l'en-tête : au sol, c'est la zone de retour qui porte le signal).
+ * flagBlinkAlpha — the opacity of the glyph at this frame: BLINKING when it is CARRIED,
+ * STABLE at the base and on the ground (cf. the header: on the ground, it is the return
+ * zone that carries the signal).
  *
- * FONCTION PURE, exportée : le calque du crâne d'Oddball la réutilisera telle quelle (renvoi
- * écrit dans PLAN_OBJECTIFS_VIVANTS_2E_LECTURE.md, décision 7) — un objet porté hors de son socle
- * se lit de la même façon, et deux copies de cette formule battraient à des rythmes différents.
+ * PURE FUNCTION, exported: the Oddball skull layer will reuse it as is (renvoi written in
+ * PLAN_OBJECTIFS_VIVANTS_2E_LECTURE.md, decision 7) — a carried object away from its pad is
+ * read the same way, and two copies of this formula would beat at different rhythms.
  *
- * UN ÉTAT INCONNU SUIT LE COMPORTEMENT « PRÉSENT » — opacité pleine et fixe. C'est la règle déjà
- * posée par l'en-tête pour les artefacts plus récents que ce code : l'objet EST quelque part,
- * l'artefact le dit, et faire clignoter ce qu'on ne sait pas nommer affirmerait « il est sorti ».
+ * AN UNKNOWN STATE FOLLOWS THE "PRESENT" BEHAVIOR — full fixed opacity. That is the rule
+ * already set by the header for artifacts more recent than this code: the object IS
+ * somewhere, the artifact says so, and making what we cannot name blink would assert "it is
+ * out".
  *
- * Elle remplace l'ancienne respiration du `dropped` (2026-08-27) : les deux auraient dit la même
- * chose de deux façons, et l'utilisateur en a demandé une seule.
+ * It replaces the old breathing of `dropped` (2026-08-27): the two would have said the same
+ * thing two ways, and the user asked for only one.
  */
 export function flagBlinkAlpha(state: string, frame: number, reducedMotion: boolean): number {
   if (reducedMotion) return ALPHA_SOLID
@@ -329,18 +335,18 @@ export function flagBlinkAlpha(state: string, frame: number, reducedMotion: bool
 }
 
 /**
- * drawFlagCarries peint, PAR-DESSUS le calque statique, ce que le film dit de chaque drapeau à
- * l'image courante : le glyphe sur son porteur, au sol, ou à sa base — et la base ATTÉNUÉE quand
- * le drapeau n'y est pas.
+ * drawFlagCarries paints, ON TOP of the static layer, what the film says of each flag at the
+ * current frame: the glyph on its carrier, on the ground, or at its base — and the FAINT base
+ * when the flag is not there.
  *
- * Un drapeau sans état à cette image n'est PAS dessiné : l'artefact ne dit rien de lui, le
- * calque non plus.
+ * A flag without state at this frame is NOT drawn: the artifact says nothing of it, neither
+ * does the layer.
  *
- * BORNAGE HORS CADRE (plan escouade hors cadre, chantier B, décision D3, 2026-09-10) : SEUL le
- * glyphe PORTÉ (`carried`/`carried_open`) est plaqué à la marge quand son porteur sort du
- * cadrage visible — c'est le seul état qui suit un JOUEUR. La base et le sol sont des lieux de
- * carte, comme un socle d'arme : hors du périmètre tranché pour ce lot, ils restent projetés
- * sans bornage, même hors toile.
+ * OFF-SCREEN BOUNDING (off-screen squad plan, workstream B, decision D3, 2026-09-10): ONLY
+ * the CARRIED glyph (`carried`/`carried_open`) is clamped to the margin when its carrier
+ * leaves the visible framing — it is the only state that follows a PLAYER. The base and the
+ * ground are places of the map, like a weapon pad: outside the scope ruled for this lot,
+ * they remain projected without bounding, even off canvas.
  */
 export function drawFlagCarries(
   ctx: CanvasRenderingContext2D,
@@ -356,20 +362,20 @@ export function drawFlagCarries(
     const ink = layer.style.colorOfTeam(carry.team)
     const outline = layer.style.outline
     const anchor = homeAnchorOf(carry)
-    // LA BASE D'ABORD, et seulement quand le drapeau n'y est pas : c'est le fond de la lecture,
-    // le glyphe vivant se pose par-dessus (ils coïncident quand l'état est `home`).
+    // THE BASE FIRST, and only when the flag is not there: it is the ground of the reading,
+    // the living glyph sits on top of it (they coincide when the state is `home`).
     if (anchor && now.state !== 'home') {
-      // LA BASE N'EST JAMAIS DÉCALÉE : c'est un lieu fixe, aucun pion ne s'y tient.
+      // THE BASE IS NEVER OFFSET: it is a fixed place, no pawn holds itself there.
       drawFlagGlyph(ctx, px(anchor), { ink, outline, alpha: ALPHA_FAINT, hollow: true, offset: false })
     }
     const place = flagPlaceAt(now, frame, layer.posOf)
     const worldPoint = place.at
-    // PORTÉ AU SENS DU RENDU : un portage dont le porteur n'est pas à l'écran ne l'est plus —
-    // ni bornage à la marge (il n'y a pas de pion à suivre), ni décalage (rien à éviter).
+    // CARRIED IN THE SENSE OF THE RENDER: a carry whose carrier is not on screen is no longer
+    // one — no margin bounding (there is no pawn to follow), no offset (nothing to avoid).
     const carried = !place.loose && (now.state === 'carried' || now.state === 'carried_open')
-    // ÉCHELLE 1 : ce calque, comme ses deux voisins (bombe, crâne), ne met encore rien à
-    // l'échelle de l'écran (`k`) — ses cotes sont des constantes fixes. La marge suit donc la
-    // même convention plutôt que d'inventer un facteur que rien d'autre ici ne consomme.
+    // SCALE 1: this layer, like its two neighbors (bomb, skull), does not yet scale anything
+    // to the screen (`k`) — its dimensions are fixed constants. The margin therefore follows
+    // the same convention rather than invent a factor nothing else here consumes.
     const mark = carried ? edgeMarkFor(worldPoint, view, OFFSCREEN_MARGIN_PX, 1) : null
     const at = mark ? mark.at : px(worldPoint)
     drawFlagGlyph(ctx, at, {
@@ -383,32 +389,34 @@ export function drawFlagCarries(
   ctx.globalAlpha = 1
 }
 
-/** Ce que le tracé d'un glyphe a besoin de savoir (règle des 5 paramètres). */
+/** What the tracing of a glyph needs to know (5-parameter rule). */
 export interface FlagGlyphPaint {
   ink: string
-  /** Encre du FOND : celle du liseré posé sous la silhouette (cf. FLAG_OUTLINE_PAD). */
+  /** Ink of the BACKGROUND: that of the rim placed under the silhouette (cf.
+   * FLAG_OUTLINE_PAD). */
   outline: string
   alpha: number
-  /** Fanion CREUX (liseré seul) : l'état est incertain, ou la base est vide. */
+  /** HOLLOW pennant (rim only): the state is uncertain, or the base is empty. */
   hollow: boolean
   /**
-   * LE GLYPHE S'ÉCARTE-T-IL DU POINT QU'IL QUALIFIE ? (2026-09-08)
+   * DOES THE GLYPH MOVE AWAY FROM THE POINT IT QUALIFIES? (2026-09-08)
    *
-   * Vrai pour le seul état `carried`, et c'est exactement ce que `FLAG_OFFSET_X/Y` dit de
-   * lui-même : « au-dessus et à droite DU MARQUEUR ». Le décalage a été conçu pour ne pas
-   * recouvrir le pion du PORTEUR — il n'a de sens que là où ce pion existe.
+   * True for the only state `carried`, and that is exactly what `FLAG_OFFSET_X/Y` says of
+   * itself: "above and to the right OF THE MARKER". The offset was designed so as not to
+   * cover the pawn of the CARRIER — it only makes sense where that pawn exists.
    *
-   * FAUX AILLEURS, ET C'EST UNE CORRECTION (retour utilisateur : « pourquoi le cercle n'a pas le
-   * pied du drapeau comme centre ? », puis « même sur le point de livraison c'est pareil »). Un
-   * drapeau au sol, à sa base ou sur son point de livraison n'a aucun marqueur à éviter : le
-   * décalage y faisait simplement MENTIR la position. Toutes les décorations d'objectif posées
-   * au même endroit — anneau de zone de retour, marqueur de livraison, marqueur d'apparition —
-   * ancrent sur la position brute ; le glyphe était le SEUL objet décalé du calque.
+   * FALSE ELSEWHERE, AND THAT IS A CORRECTION (user return: "pourquoi le cercle n'a pas le
+   * pied du drapeau comme centre ?" (why doesn't the circle have the foot of the flag as
+   * its center?), then "même sur le point de livraison c'est pareil" (same on the delivery
+   * point)). A flag on the ground, at its base or on its delivery point has no marker to
+   * avoid: the offset there simply made the position LIE. All the objective decorations
+   * placed in the same place — ring of the return zone, delivery marker, spawn marker —
+   * anchor on the raw position; the glyph was the ONLY offset object of the layer.
    */
   offset: boolean
 }
 
-/** Chemin de la HAMPE — tracé deux fois par glyphe (liseré puis trait), jamais recopié. */
+/** Path of the POLE — traced twice per glyph (rim then stroke), never re-copied. */
 function traceFlagPole(ctx: CanvasRenderingContext2D, x: number, foot: number, top: number): void {
   ctx.beginPath()
   ctx.moveTo(x, foot)
@@ -416,9 +424,10 @@ function traceFlagPole(ctx: CanvasRenderingContext2D, x: number, foot: number, t
 }
 
 /**
- * Contour du FANION posé sur le chemin COURANT, sans l'ouvrir : c'est la seule copie de cette
- * géométrie du fichier. Elle sert seule (`traceFlagWing`) et composée avec l'emprise du glyphe
- * (`strokeWingOutlineOutside`) — un troisième triangle écrit à la main dériverait des deux autres.
+ * Outline of the PENNANT placed on the CURRENT path, without opening it: that is the only
+ * copy of this geometry in the file. It serves alone (`traceFlagWing`) and composed with the
+ * footprint of the glyph (`strokeWingOutlineOutside`) — a third hand-written triangle would
+ * drift from the other two.
  */
 function wingSubpath(ctx: CanvasRenderingContext2D, x: number, top: number): void {
   ctx.moveTo(x, top)
@@ -427,29 +436,30 @@ function wingSubpath(ctx: CanvasRenderingContext2D, x: number, top: number): voi
   ctx.closePath()
 }
 
-/** Chemin du FANION — même raison que la hampe : une seule géométrie pour les deux passes. */
+/** Path of the PENNANT — same reason as the pole: one geometry for the two passes. */
 function traceFlagWing(ctx: CanvasRenderingContext2D, x: number, top: number): void {
   ctx.beginPath()
   wingSubpath(ctx, x, top)
 }
 
 /**
- * strokeWingOutlineOutside dépose le liseré du fanion CREUX en n'en gardant que la moitié
- * EXTÉRIEURE, par écrêtage.
+ * strokeWingOutlineOutside lays the rim of the HOLLOW pennant keeping only the OUTER HALF,
+ * by clipping.
  *
- * POURQUOI CE DÉTOUR (revue adversariale R1 du 2026-08-27, P1). Un trait de canvas est CENTRÉ sur
- * son chemin : à 4,8 px, le liseré déborde de 2,4 px DE CHAQUE CÔTÉ, donc 2,4 px vers l'intérieur
- * du fanion, dont le trait d'encre (1,6 px, soit 0,8 px vers l'intérieur) ne recouvre qu'un tiers.
- * Sur un fanion de rayon inscrit 3,31 px, il ne restait que 4,64 px² de creux visible contre
- * 21,1 px² avant le lot — le creux était comblé à ~87 %, et c'est lui, depuis ce même lot, qui
- * porte SEUL la fin non datée de `carried_open` (l'atténuation lui a été retirée).
+ * WHY THIS DETOUR (adversarial review R1 of 2026-08-27, P1). A canvas stroke is CENTERED on
+ * its path: at 4.8 px, the rim overhangs 2.4 px ON EACH SIDE, so 2.4 px toward the inside of
+ * the pennant, of which the ink stroke (1.6 px, i.e. 0.8 px toward the inside) covers only a
+ * third. On a pennant of inscribed radius 3.31 px, only 4.64 px² of visible hole remained
+ * against 21.1 px² before the lot — the hole was filled at ~87%, and it is it, since that
+ * same lot, that carries ALONE the end not dated of `carried_open` (the attenuation was
+ * removed from it).
  *
- * LA RÈGLE `evenodd` FAIT LE TRAVAIL : le chemin d'écrêtage compose l'emprise du glyphe ET le
- * fanion ; un point intérieur au fanion est entouré par DEUX sous-chemins — compte pair, donc
- * HORS région. Le liseré ne peut alors se déposer que dehors, et le creux reste entier.
+ * THE `evenodd` RULE DOES THE WORK: the clipping path composes the footprint of the glyph AND
+ * the pennant; a point inside the pennant is surrounded by TWO subpaths — even count, so OUT
+ * OF THE REGION. The rim can then only lay outside, and the hole stays whole.
  *
- * `save`/`restore` encadrent strictement l'écrêtage : une région d'écrêtage laissée ouverte
- * rognerait TOUS les calques suivants, et cela ne se verrait pas ici.
+ * `save`/`restore` strictly frame the clipping: a clipping region left open would crop ALL
+ * the following layers, and that would not be seen here.
  */
 function strokeWingOutlineOutside(
   ctx: CanvasRenderingContext2D,
@@ -469,30 +479,30 @@ function strokeWingOutlineOutside(
 }
 
 /**
- * drawFlagGlyph trace le drapeau : une HAMPE verticale et un FANION triangulaire, posés sur un
- * LISERÉ à l'encre du fond — la même silhouette, dessous, plus épaisse (2026-08-27).
+ * drawFlagGlyph traces the flag: a VERTICAL POLE and a TRIANGULAR PENNANT, placed on a RIM in
+ * the background ink — the same silhouette, underneath, thicker (2026-08-27).
  *
- * LE LISERÉ SE DÉPOSE PAR DEUX VOIES, ET LE FANION CREUX EXIGE LA SECONDE (revue R1 du
- * 2026-08-27, P1) :
+ * THE RIM LAYS BY TWO WAYS, AND THE HOLLOW PENNANT DEMANDS THE SECOND (review R1 of
+ * 2026-08-27, P1):
  *
- *  - FANION PLEIN et HAMPE — voie simple : le liseré est tracé AVANT, puis le remplissage (ou,
- *    pour la hampe, le trait d'encre) recouvre ce qui déborde vers l'intérieur. Une hampe n'a
- *    pas d'intérieur, un fanion plein est repeint : rien ne subsiste du débord intérieur.
- *  - FANION CREUX — voie écrêtée (`strokeWingOutlineOutside`) : là, RIEN ne repeint l'intérieur.
- *    Le trait de canvas étant CENTRÉ sur son chemin, la moitié intérieure du liseré (2,4 px) s'y
- *    déposait et le trait d'encre n'en recouvrait que 0,8 px : il restait 4,64 px² de creux sur
- *    les 21,1 px² d'avant le lot — comblé à ~87 %. L'écrêtage `evenodd` retire l'intérieur du
- *    fanion de la région de dessin, et le creux redevient entier.
+ *  - FULL PENNANT and POLE — simple way: the rim is traced FIRST, then the fill (or, for the
+ *    pole, the ink stroke) covers what overhangs toward the inside. A pole has no inside, a
+ *    full pennant is repainted: nothing remains of the inner overhang.
+ *  - HOLLOW PENNANT — clipped way (`strokeWingOutlineOutside`): there, NOTHING repaints the
+ *    inside. The canvas stroke being CENTERED on its path, the inner half of the rim (2.4 px)
+ *    laid on it and the ink stroke covered only 0.8 px of it: 4.64 px² of hole remained out
+ *    of the 21.1 px² of before the lot — filled at ~87%. The `evenodd` clip removes the
+ *    inside of the pennant from the drawing region, and the hole becomes whole again.
  *
- * CE N'EST PAS UN DÉTAIL DE STYLE : depuis ce même lot, le creux porte SEUL la fin non datée de
- * `carried_open` (l'atténuation lui a été retirée au profit du clignotement). Un creux comblé,
- * c'est un état qui ne se distingue plus de `carried`.
+ * THAT IS NOT A STYLE DETAIL: since that same lot, the hole carries ALONE the end not dated
+ * of `carried_open` (the attenuation was removed from it in favor of the blink). A filled
+ * hole is a state that no longer distinguishes itself from `carried`.
  *
- * IL SUIT L'OPACITÉ DU GLYPHE : un rappel d'absence atténué ne doit pas être cerné d'un trait
- * franc, sinon c'est le liseré qu'on voit et l'atténuation ne dit plus rien.
+ * IT FOLLOWS THE OPACITY OF THE GLYPH: a faint absence reminder must not be circled by a
+ * sharp stroke, otherwise it is the rim one sees and the attenuation says nothing anymore.
  *
- * Le point servi est le pied de la hampe, décalé pour se poser à côté du marqueur qu'il
- * qualifie plutôt que dessus. Tracé au canvas, sans image : cf. l'en-tête du fichier.
+ * The point served is the foot of the pole, offset to sit beside the marker it qualifies
+ * rather than on it. Traced on the canvas, without image: cf. the header of the file.
  */
 export function drawFlagGlyph(
   ctx: CanvasRenderingContext2D,
@@ -503,16 +513,16 @@ export function drawFlagGlyph(
   const foot = at.y - (paint.offset ? FLAG_OFFSET_Y : 0)
   const top = foot - FLAG_POLE_H
   ctx.globalAlpha = paint.alpha
-  // La pointe du fanion est un angle aigu : en `miter` le liseré y pousserait une aiguille
-  // plusieurs fois plus longue que le débord demandé. `round` la borne au débord.
+  // The point of the pennant is an acute angle: in `miter` the rim would push a needle
+  // several times longer than the requested overhang. `round` bounds it to the overhang.
   ctx.lineJoin = 'round'
   ctx.strokeStyle = paint.outline
   ctx.lineWidth = FLAG_OUTLINE_WIDTH
   traceFlagPole(ctx, x, foot, top)
   ctx.stroke()
-  // Le fanion CREUX écrête son liseré ; le plein n'en a pas besoin (son remplissage recouvre le
-  // débord intérieur), et l'écrêter pour rien coûterait un save/clip/restore par image et par
-  // drapeau.
+  // The HOLLOW pennant clips its rim; the full one does not need it (its fill covers the
+  // inner overhang), and clipping it for nothing would cost a save/clip/restore per frame and
+  // per flag.
   if (paint.hollow) strokeWingOutlineOutside(ctx, x, top, foot)
   else {
     traceFlagWing(ctx, x, top)
@@ -526,23 +536,24 @@ export function drawFlagGlyph(
   traceFlagWing(ctx, x, top)
   if (paint.hollow) ctx.stroke()
   else ctx.fill()
-  // L'état du contexte ne fuit pas vers les calques suivants (même règle que `globalAlpha`).
+  // The context state does not leak to the following layers (same rule as `globalAlpha`).
   ctx.lineJoin = 'miter'
 }
 
-/** Ce qu'un survol a trouvé : le drapeau, son état LU À CET INSTANT, et où poser l'infobulle. */
+/** What a hover found: the flag, its state READ AT THIS INSTANT, and where to place the
+ * tooltip. */
 export interface FlagHit {
   now: FlagNow
-  /** Point CANVAS du glyphe — l'infobulle se pose là, pas sous le pointeur brut. */
+  /** CANVAS point of the glyph — the tooltip sits there, not under the raw pointer. */
   at: XY
 }
 
 /**
- * flagAt rend le drapeau dont le glyphe se trouve sous le point CANVAS servi, ou `null`.
+ * flagAt returns the flag whose glyph is under the served CANVAS point, or `null`.
  *
- * LE SURVOL REJOUE EXACTEMENT LA MÊME GÉOMÉTRIE QUE LE TRACÉ (`flagPlaceAt`, même décalage) :
- * viser une forme dessinée ailleurs ne toucherait rien, et ce genre d'écart ne se voit pas.
- * Seul le glyphe VIVANT est survolable — la base atténuée n'est qu'un rappel d'absence.
+ * THE HOVER REPLAYS EXACTLY THE SAME GEOMETRY AS THE TRACING (`flagPlaceAt`, same offset):
+ * aiming a shape drawn elsewhere would touch nothing, and that kind of drift is not seen.
+ * Only the LIVING glyph is hoverable — the faint base is only an absence reminder.
  */
 export function flagAt(
   carries: readonly ReplayFlagCarryReady[],
@@ -558,10 +569,10 @@ export function flagAt(
     if (!now) continue
     const place = flagPlaceAt(now, frame, layer.posOf)
     const c = projectTo(view, place.at)
-    // MÊME RÈGLE DE DÉCALAGE QUE LE TRACÉ (2026-09-08) : elle dépend de l'ÉTAT, et depuis le lot
-    // 6.7 phase B2 aussi de `loose` (porteur perdu de vue). La recopier sans ces conditions
-    // rendrait la cible de survol à 6 px du glyphe — et un écart de cible ne se voit pas, il se
-    // subit.
+    // SAME OFFSET RULE AS THE TRACING (2026-09-08): it depends on the STATE, and since lot
+    // 6.7 phase B2 also on `loose` (carrier lost of sight). Copying it without these
+    // conditions would put the hover target 6 px from the glyph — and a target drift is not
+    // seen, it is endured.
     const decale = glyphIsOffset(now.state) && !place.loose
     const cx = c.x + (decale ? FLAG_OFFSET_X : 0)
     const cy = c.y - (decale ? FLAG_OFFSET_Y : 0) - FLAG_POLE_H / 2

@@ -1,50 +1,51 @@
 /**
- * replayLabels.ts — LE NOM SOUS LE POINT.
+ * replayLabels.ts — THE NAME UNDER THE POINT.
  *
- * DEMANDE UTILISATEUR DU 2026-08-16, mot pour mot : « ajouter le pseudo en dessous des points
- * (avec une bordure sur les lettres pour faciliter la lecture sur les fonds clairs et
- * foncés) ». La bordure n'est pas un ornement : le fond de carte cuit va du gris très clair
- * (aire jouable) au presque noir (pourtour), et un nom d'une seule couleur y disparaît d'un
- * côté ou de l'autre. C'est la technique du POC — `strokeText` puis `fillText`, contour rond
- * pour que les jonctions de lettres ne fassent pas de pointes.
+ * USER REQUEST OF 2026-08-16, word for word: "ajouter le pseudo en dessous des points (avec
+ * une bordure sur les lettres pour faciliter la lecture sur les fonds clairs et foncés)" (add
+ * the gamertag under the points (with a border on the letters to make reading easier on light
+ * and dark backgrounds)). The border is not an ornament: the baked map background runs from
+ * very light gray (playable area) to near black (rim), and a single-color name disappears on
+ * one side or the other. It is the POC technique — `strokeText` then `fillText`, round join
+ * so that the letter junctions do not make points.
  *
- * LE CONTOUR EST SOMBRE DANS LES DEUX THÈMES (`--replay-label-stroke`, cf. globals.css) : il
- * cerne des lettres qui portent, elles, la couleur d'ÉQUIPE du joueur. Un contour clair en
- * thème clair rendrait le nom illisible sur l'aire jouable, qui est justement claire.
+ * THE OUTLINE IS DARK IN BOTH THEMES (`--replay-label-stroke`, cf. globals.css): it frames
+ * letters that themselves carry the TEAM color of the player. A light outline in the light
+ * theme would make the name unreadable on the playable area, which is exactly light.
  *
- * POURQUOI UN FICHIER À PART : `replayMarkers.ts` frôlait le seuil de taille du dépôt, et
- * l'étiquette est une préoccupation distincte du marqueur (typographie contre géométrie).
+ * WHY A SEPARATE FILE: `replayMarkers.ts` was brushing against the repository size threshold,
+ * and the label is a distinct concern from the marker (typography versus geometry).
  */
 import type { XY } from '../../../lib/replay/replayLogic'
 
-/** Corps de la police, en pixels d'ÉCRAN (comme tout ce qui s'adresse à l'œil ici). */
+/** Font body, in SCREEN pixels (like everything addressed to the eye here). */
 const LABEL_FONT_PX = 8.5
-/** Graisse : semi-gras — un nom de 8,5 px en graisse normale se dissout sous son contour. */
+/** Weight: semi-bold — an 8.5 px name in normal weight dissolves under its outline. */
 const LABEL_WEIGHT = 600
-/** Épaisseur du contour de lisibilité, en pixels d'écran. */
+/** Thickness of the readability outline, in screen pixels. */
 const LABEL_STROKE_PX = 2.6
-/** Écart entre le bord externe du marqueur et le haut du texte. */
+/** Gap between the outer edge of the marker and the top of the text. */
 const LABEL_GAP_PX = 2.5
 
 /**
- * Ce que l'étiquette emprunte au style du calque. Structurel à dessein : `MarkerStyle` le
- * satisfait sans que ce fichier ait à importer le marqueur (l'inverse serait un cycle).
+ * What the label borrows from the style of the layer. Structural by design: `MarkerStyle`
+ * satisfies it without this file having to import the marker (the reverse would be a cycle).
  */
 export interface LabelStyle {
-  /** Densité du canevas. */
+  /** Canvas density. */
   k: number
-  /** Encre du contour des lettres. Vide = le thème ne porte pas la variable : pas de contour. */
+  /** Ink of the letter outline. Empty = the theme does not carry the variable: no outline. */
   labelStroke: string
 }
 
 /**
- * drawNameLabel écrit `name` centré sous le marqueur.
+ * drawNameLabel writes `name` centered under the marker.
  *
- * `markerEdge` est la distance du centre au bord EXTERNE de TOUT ce que le marqueur dessine —
- * son liseré, son anneau d'étage (posé à un rayon fixe, plus large que le disque) ou son
- * anneau d'identité, le plus grand des trois — en pixels d'écran : elle appartient à la
- * géométrie du marqueur, qui la calcule et la passe. Le texte s'aligne par son HAUT
- * (`textBaseline top`), donc il descend sous ce bord, jamais il ne remonte sur le point.
+ * `markerEdge` is the distance from the center to the OUTER edge of EVERYTHING the marker
+ * draws — its rim, its floor ring (placed at a fixed radius, wider than the disk) or its
+ * identity ring, the largest of the three — in screen pixels: it belongs to the geometry of
+ * the marker, which computes it and passes it. The text aligns by its TOP (`textBaseline
+ * top`), so it hangs under that edge, never rises onto the point.
  */
 export function drawNameLabel(
   ctx: CanvasRenderingContext2D,
