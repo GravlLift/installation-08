@@ -39,9 +39,9 @@ const TIMELINE: ReplaySoundEvent[] = [
 ]
 
 describe('soundUrlOf — one URL per stem', () => {
-  it('a bundled stem gets the Ogg extension; an extracted announcer take keeps its WAV name', () => {
+  it('a stem gets the Ogg extension, a bundled sound and an extracted announcer take alike', () => {
     expect(soundUrlOf('explosion')).toBe('/static/sounds/halo_infinite/explosion.ogg')
-    expect(soundUrlOf('announcer_doublekill_01.wav')).toBe('/static/sounds/halo_infinite/announcer_doublekill_01.wav')
+    expect(soundUrlOf('announcer_doublekill_01')).toBe('/static/sounds/halo_infinite/announcer_doublekill_01.ogg')
   })
 })
 

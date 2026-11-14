@@ -64,10 +64,6 @@ export const MIX_CHANNELS = 2
  */
 const SOUND_FILE_EXT = '.ogg'
 
-/** A stem that names its own file: the announcer takes `build-sounds` extracts from the game are
- *  the decoder's PCM WAV (`announcerVoice.ts`), so their stem is the whole file name. */
-const OWN_FILE_EXT = /\.wav$/
-
 /**
  * soundUrlOf — THE URL OF A SOUND STEM, and THE ONLY PLACE that makes it.
  *
@@ -76,7 +72,7 @@ const OWN_FILE_EXT = /\.wav$/
  * copies of the player now consume this function.
  */
 export function soundUrlOf(stem: string): string {
-  return staticAssetURL('sound', stem, OWN_FILE_EXT.test(stem) ? '' : SOUND_FILE_EXT)
+  return staticAssetURL('sound', stem, SOUND_FILE_EXT)
 }
 
 /**

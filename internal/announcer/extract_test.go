@@ -1,6 +1,7 @@
 package announcer
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -10,83 +11,58 @@ import (
 	"testing"
 )
 
-// fakeToolEnv makes the test binary act as the decoder extraction runs.
-const fakeToolEnv = "ANNOUNCER_FAKE_TOOL"
-
-// TestMain lets the test binary stand in for vgmstream-cli when fakeToolEnv is set:
-// "-o out.wav in.wem" writes a WAV whose length is the media's first byte in tenths of a second.
-func TestMain(m *testing.M) {
-	if os.Getenv(fakeToolEnv) != "" {
-		os.Exit(fakeDecoder(os.Args[1:]))
-	}
-	os.Exit(m.Run())
+// testSetup is a synthetic stripped Wwise setup packet: one codebook (library id 0), one floor,
+// one residue, one stereo mapping, a short and a long mode.
+var testSetup = []byte{
+	0x00, 0x00, 0x00, 0x01, 0x40, 0x40, 0x94, 0x40, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x0f, 0x00,
+	0x00, 0x00, 0x40, 0x00, 0x00, 0x02, 0x08, 0x00, 0x00, 0x40, 0x00, 0x20, 0x00,
 }
 
-func fakeDecoder(args []string) int {
-	if len(args) != 3 || args[0] != "-o" {
-		return 2
+// testWem is a synthetic Wwise Vorbis media in the game's layout (0x42 `fmt ` chunk, 2-byte
+// packet headers, modified packets) whose header says it is samples long. Its four audio packets
+// (short, long, long, short at 256/2048-sample blocks) decode 2176 samples, so samples must not
+// exceed that.
+func testWem(samples uint32) []byte {
+	le := binary.LittleEndian
+	data := []byte{0, 0, 0, 0}
+	data = le.AppendUint16(data, uint16(len(testSetup)))
+	data = append(data, testSetup...)
+	audio := uint32(len(data))
+	for _, p := range [][]byte{{0x00}, {0x01}, {0x01}, {0x00}} {
+		data = le.AppendUint16(data, uint16(len(p)))
+		data = append(data, p...)
 	}
-	in, err := os.ReadFile(args[2])
-	if err != nil || len(in) == 0 {
-		return 1
-	}
-	if os.WriteFile(args[1], testWAV(int(in[0])*100), 0o644) != nil {
-		return 1
-	}
-	return 0
-}
-
-// testWAV is a 48 kHz stereo 16-bit PCM WAV of the given length.
-func testWAV(ms int) []byte {
-	const rate, channels, bits = 48000, 2, 16
-	bps := rate * channels * bits / 8
-	data := bps * ms / 1000
-	b := append([]byte("RIFF"), make([]byte, 4)...)
-	b = append(b, "WAVEfmt "...)
-	b = binary.LittleEndian.AppendUint32(b, 16)
-	b = binary.LittleEndian.AppendUint16(b, 1)
-	b = binary.LittleEndian.AppendUint16(b, channels)
-	b = binary.LittleEndian.AppendUint32(b, rate)
-	b = binary.LittleEndian.AppendUint32(b, uint32(bps))
-	b = binary.LittleEndian.AppendUint16(b, channels*bits/8)
-	b = binary.LittleEndian.AppendUint16(b, bits)
-	b = append(b, "data"...)
-	b = binary.LittleEndian.AppendUint32(b, uint32(data))
-	return append(b, make([]byte, data)...)
-}
-
-func TestWAVDurationMs(t *testing.T) {
-	if got, err := WAVDurationMs(testWAV(1713)); err != nil || got != 1713 {
-		t.Fatalf("duration %d, %v", got, err)
-	}
-	if _, err := WAVDurationMs([]byte("OggS")); err == nil {
-		t.Fatal("a non-WAV file has a duration")
-	}
+	f := make([]byte, 0x42)
+	le.PutUint16(f, 0xFFFF)
+	le.PutUint16(f[2:], 2)
+	le.PutUint32(f[4:], 48000)
+	le.PutUint16(f[16:], 0x30)
+	le.PutUint32(f[0x18:], samples)
+	le.PutUint32(f[0x1C:], 0xE0)
+	le.PutUint32(f[0x28:], 4)
+	le.PutUint32(f[0x2C:], audio)
+	f[0x40], f[0x41] = 8, 11
+	b := append([]byte("RIFF\x00\x00\x00\x00WAVEfmt "), 0x42, 0, 0, 0)
+	b = append(b, f...)
+	b = append(append(b, "data"...), le.AppendUint32(nil, uint32(len(data)))...)
+	return append(b, data...)
 }
 
 func TestExtractWritesFilesAndManifest(t *testing.T) {
-	t.Setenv(fakeToolEnv, "1")
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
 	c := &Catalog{
 		Lines: map[uint32]Line{
 			StringID("doublekill"): {Vocalization: StringID("doublekill"), Takes: []Take{{Bank: "sb_main", Event: 0xE1, MediaIDs: []uint32{7, 8}}}},
 		},
-		embedded: map[uint32][]byte{7: {12}, 8: {5}},
+		embedded: map[uint32][]byte{7: testWem(2000), 8: testWem(1000)},
 	}
 	out := t.TempDir()
-	opts := ExtractOptions{Names: []string{"doublekill", "nosuchline", "doublekill"}, Tools: Tools{Decoder: self}, OutDir: out, Language: "en", GameLanguage: "English(US)"}
+	opts := ExtractOptions{Names: []string{"doublekill", "nosuchline", "doublekill"}, OutDir: out, Language: "en", GameLanguage: "English(US)"}
 	res, err := Extract(context.Background(), c, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(res.Missing, []string{"nosuchline"}) || res.Files != 2 {
 		t.Fatalf("result: missing %v files %d", res.Missing, res.Files)
-	}
-	if want := int64(len(testWAV(1200)) + len(testWAV(500))); res.Bytes != want {
-		t.Fatalf("bytes %d, want %d", res.Bytes, want)
 	}
 	raw, err := os.ReadFile(filepath.Join(out, ManifestName))
 	if err != nil {
@@ -97,19 +73,73 @@ func TestExtractWritesFilesAndManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := ManifestLine{Bank: "sb_main", Event: "000000e1", Takes: []ManifestTake{
-		{File: "announcer_doublekill_01.wav", Media: 7, DurationMs: 1200},
-		{File: "announcer_doublekill_02.wav", Media: 8, DurationMs: 500},
+		{File: "announcer_doublekill_01.ogg", Media: 7, DurationMs: 42},
+		{File: "announcer_doublekill_02.ogg", Media: 8, DurationMs: 21},
 	}}
 	if m.Version != ManifestVersion || m.Language != "en" || !reflect.DeepEqual(m.Lines["doublekill"], want) {
 		t.Fatalf("manifest: %+v", m)
 	}
+	var total int64
 	for _, tk := range want.Takes {
-		if _, err := os.Stat(filepath.Join(out, tk.File)); err != nil {
-			t.Fatal(err)
+		b, err := os.ReadFile(filepath.Join(out, tk.File))
+		if err != nil || !bytes.HasPrefix(b, []byte("OggS")) {
+			t.Fatalf("%s: %v", tk.File, err)
 		}
+		total += int64(len(b))
+	}
+	if res.Bytes != total {
+		t.Fatalf("bytes %d, want %d", res.Bytes, total)
 	}
 	if built, stale := ManifestStatus(out); !built || stale {
 		t.Fatalf("fresh manifest: built %v stale %v", built, stale)
+	}
+}
+
+// TestExtractRemovesStaleTakes — a rebuild deletes the take files of earlier extractions its
+// manifest no longer lists (older formats included), and leaves every other file alone.
+func TestExtractRemovesStaleTakes(t *testing.T) {
+	out := t.TempDir()
+	stale := []string{"announcer_doublekill_01.wav", "announcer_doublekill_03.ogg", "announcer_gone_01.ogg"}
+	kept := []string{"explosion.ogg", "announcer_notes.txt", "announcer_x.ogg", "end_defeat_voice_en_01.ogg"}
+	for _, f := range append(append([]string{}, stale...), kept...) {
+		if err := os.WriteFile(filepath.Join(out, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(out, "announcer_dir_01.ogg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &Catalog{
+		Lines:    map[uint32]Line{StringID("doublekill"): {Takes: []Take{{Bank: "b", Event: 1, MediaIDs: []uint32{7}}}}},
+		embedded: map[uint32][]byte{7: testWem(2000)},
+	}
+	res, err := Extract(context.Background(), c, ExtractOptions{Names: []string{"doublekill"}, OutDir: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Removed != len(stale) {
+		t.Fatalf("removed %d, want %d", res.Removed, len(stale))
+	}
+	for _, f := range stale {
+		if _, err := os.Stat(filepath.Join(out, f)); !os.IsNotExist(err) {
+			t.Fatalf("%s survived: %v", f, err)
+		}
+	}
+	for _, f := range append(kept, "announcer_doublekill_01.ogg", "announcer_dir_01.ogg", ManifestName) {
+		if _, err := os.Stat(filepath.Join(out, f)); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+	}
+}
+
+// TestExtractRefusesBadMedia — a media that is not Wwise Vorbis fails the extraction.
+func TestExtractRefusesBadMedia(t *testing.T) {
+	c := &Catalog{
+		Lines:    map[uint32]Line{StringID("doublekill"): {Takes: []Take{{Bank: "b", Event: 1, MediaIDs: []uint32{7}}}}},
+		embedded: map[uint32][]byte{7: []byte("RIFF\x04\x00\x00\x00WAVE")},
+	}
+	if _, err := Extract(context.Background(), c, ExtractOptions{Names: []string{"doublekill"}, OutDir: t.TempDir()}); err == nil {
+		t.Fatal("a media without Vorbis fields was extracted")
 	}
 }
 
@@ -125,9 +155,9 @@ func TestManifestStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(`{"version":1,"lines":{}}`)
+	write(`{"version":2,"lines":{}}`)
 	if built, stale := ManifestStatus(dir); !built || !stale {
-		t.Fatalf("version 1: built %v stale %v", built, stale)
+		t.Fatalf("version 2: built %v stale %v", built, stale)
 	}
 	write(`not json`)
 	if built, _ := ManifestStatus(dir); built {
@@ -135,12 +165,9 @@ func TestManifestStatus(t *testing.T) {
 	}
 }
 
-func TestExtractRefusesMissingToolsAndBadNames(t *testing.T) {
+func TestExtractRefusesBadNames(t *testing.T) {
 	c := &Catalog{Lines: map[uint32]Line{}}
-	if _, err := Extract(context.Background(), c, ExtractOptions{OutDir: t.TempDir()}); err == nil {
-		t.Fatal("extraction ran without a decoder")
-	}
-	opts := ExtractOptions{Names: []string{"../escape"}, Tools: Tools{Decoder: "d"}, OutDir: t.TempDir()}
+	opts := ExtractOptions{Names: []string{"../escape"}, OutDir: t.TempDir()}
 	if _, err := Extract(context.Background(), c, opts); err == nil {
 		t.Fatal("a name with a path separator was accepted")
 	}
