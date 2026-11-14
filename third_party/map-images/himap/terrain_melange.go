@@ -16,12 +16,13 @@
 //   - Programs @0xF0, 32 bytes: a hash and a block of u32. The first word is the instruction
 //     count; each instruction is opcode (high byte) and operand (low 16 bits). A program is a
 //     small stack machine that computes one shared layer's weight from the node's inputs.
-//   - Per node (112 bytes): material layers @0 (shared layer indices), texture remap @40 (8 bytes:
-//     texture int16, channel mask u8, flags u8, solid value f32), input texture data @88 (24 bytes:
-//     output id, bitmap resource index, four channel names). Input textures are 132 x 132 (two
-//     texels of border around the node's 128 cells), BC1 (8712 bytes) or BC3 (17424 bytes) in the
-//     heightmap bitmap's resource pool. A remap texture past the node's inputs names a shared
-//     interpreter bitmap (root @0xDC, 36 bytes: reference, UV scale) sampled in world space.
+//   - Per node (112 bytes): material layers @0 (shared layer indices), input texture data @88
+//     (24 bytes: output id, bitmap resource index, four channel names). A load names a texture
+//     by output id and a channel; the same mask sits in a different channel from node to node.
+//     Input textures are 132 x 132 (two texels of border around the node's 128 cells), BC1
+//     (8712 bytes) or BC3 (17424 bytes) in the heightmap bitmap's resource pool. An output id
+//     past the node's inputs names a shared interpreter bitmap (root @0xDC, 36 bytes: reference,
+//     UV scale) sampled in world space.
 //
 // The viewer draws at most four layers; the palette entries are grouped by color into four,
 // and the baked mask carries the sequential blend weights of groups 2 to 4.
@@ -30,7 +31,6 @@ package himap
 import (
 	"image"
 	"math"
-	"math/bits"
 
 	"github.com/woozymasta/bcn"
 )
@@ -49,8 +49,6 @@ const (
 	terrainChampDonnees     = 0x12c
 	terrainPasDonneesCouche = 208
 
-	noeudChampRemap           = 40
-	noeudPasRemap             = 8
 	noeudChampEntrees         = 88
 	noeudPasEntree            = 24
 	terrainCoteEntree         = 132
@@ -224,21 +222,22 @@ func (ti tagInfo) cibleDonnees(bloc, champ int) int {
 	return -1
 }
 
-// Program inputs: each input register holds a fixed number of channels; together they make the
-// node's eleven remap slots.
-var registresEntree = map[int][2]int{4: {0, 4}, 5: {4, 2}, 6: {6, 4}, 7: {10, 1}}
+// terrainTexturesMax : the input textures a program may name (the node's inputs, then the shared
+// interpreter bitmaps).
+const terrainTexturesMax = 16
 
-// emplacementEntree maps a load (register, channel) to its remap slot.
-func emplacementEntree(registre, canal int) (int, bool) {
-	r, ok := registresEntree[registre]
-	if !ok || canal < 0 || canal >= r[1] {
+// emplacementEntree maps a load (texture output id, channel) to its input slot, tex*4+channel.
+// The programs name the node's own textures and channels: the same mask is blue on one node and
+// green on another, following how that node packed its inputs.
+func emplacementEntree(tex, canal int) (int, bool) {
+	if tex < 0 || tex >= terrainTexturesMax || canal < 0 || canal > 3 {
 		return 0, false
 	}
-	return r[0] + canal, true
+	return tex*4 + canal, true
 }
 
-// evalueProgramme runs a weight program. Opcodes: 0x01..0x04 load channel R..A of an input
-// register, 0x0A push a half float, 0x0D multiply, 0x0F add, 0x12 one minus, 0x14
+// evalueProgramme runs a weight program. Opcodes: 0x01..0x04 load channel R..A of the input
+// texture whose output id is the operand, 0x0A push a half float, 0x0D multiply, 0x0F add, 0x12 one minus, 0x14
 // smoothstep(a, b, x), 0x17 band(x, low, high, fade below, fade above), 0x19 lerp(a, b, t).
 // The result is clamped to [0, 1]; ok=false for an unknown opcode or a malformed stack.
 func evalueProgramme(prog []uint32, entree func(slot int) float32) (float32, bool) {
@@ -337,67 +336,50 @@ func demiFlottant(h uint16) float32 {
 	return math.Float32frombits(signe | uint32(exp-15+127)<<23 | man<<13)
 }
 
-// entreeNoeud samples one remap slot of a node at a cell (x right, y down from the node's top
+// entreeNoeud samples one input slot of a node at a cell (x right, y down from the node's top
 // row) and world position.
 type entreeNoeud func(x, y int, wx, wy float64) float32
 
-// entreesNoeud builds the eleven remap slots of a node. lit decodes a bitmap resource of the
-// heightmap's pool; gpu samples a shared interpreter bitmap channel in world space.
+// entreesNoeud builds a node's input slots (emplacementEntree): the channels of each input
+// texture by output id, then, past the node's inputs, the shared interpreter bitmaps sampled in
+// world space. lit decodes a bitmap resource of the heightmap's pool; a slot nothing feeds reads 0.
 func entreesNoeud(s sourceTerrain, node int, lit func(ressource int, canaux int) *image.NRGBA, gpu func(i, canal int, wx, wy float64) float32) []entreeNoeud {
 	ti, tag := s.info, s.info.tag
-	sub := func(off, pas int) (int, int) {
-		b := ti.subBlockTarget(s.blocNoeuds, node*terrainPasNoeud+off)
-		if b < 0 {
-			return -1, 0
-		}
-		a, n := ti.blockAbs(b)
-		if a < 0 || a+n > len(tag) {
-			return -1, 0
-		}
-		return a, n / pas
+	out := make([]entreeNoeud, terrainTexturesMax*4)
+	zero := func(_, _ int, _, _ float64) float32 { return 0 }
+	for i := range out {
+		out[i] = zero
 	}
-	ea, ne := sub(noeudChampEntrees, noeudPasEntree)
-	type entree struct{ ressource, canaux int }
-	parSortie := map[int]entree{}
-	for k := 0; k < ne; k++ {
-		o := ea + k*noeudPasEntree
-		canaux := 0
+	ne := 0
+	if b := ti.subBlockTarget(s.blocNoeuds, node*terrainPasNoeud+noeudChampEntrees); b >= 0 {
+		ea, n := ti.blockAbs(b)
+		if ea >= 0 && ea+n <= len(tag) {
+			ne = n / noeudPasEntree
+			for k := 0; k < ne; k++ {
+				o := ea + k*noeudPasEntree
+				sortie := u32(tag, o)
+				canaux := 0
+				for c := 0; c < 4; c++ {
+					if u32(tag, o+8+4*c) != 0 {
+						canaux = c + 1
+					}
+				}
+				img := lit(u32(tag, o+4), canaux)
+				if img == nil || sortie < 0 || sortie >= terrainTexturesMax {
+					continue
+				}
+				for c := 0; c < 4; c++ {
+					out[sortie*4+c] = func(x, y int, _, _ float64) float32 {
+						return float32(img.Pix[(y+terrainBordEntree)*img.Stride+(x+terrainBordEntree)*4+c]) / 255
+					}
+				}
+			}
+		}
+	}
+	for tex := ne; tex < terrainTexturesMax; tex++ {
 		for c := 0; c < 4; c++ {
-			if u32(tag, o+8+4*c) != 0 {
-				canaux = c + 1
-			}
-		}
-		parSortie[u32(tag, o)] = entree{u32(tag, o+4), canaux}
-	}
-	ra, nr := sub(noeudChampRemap, noeudPasRemap)
-	out := make([]entreeNoeud, 0, nr)
-	for k := 0; k < nr; k++ {
-		o := ra + k*noeudPasRemap
-		tex := int(int16(u16(tag, o)))
-		masque := int(tag[o+2]) & 0x0f
-		solide := float32(f32(tag, o+4))
-		canal := bits.TrailingZeros8(uint8(masque))
-		constante := func(_, _ int, _, _ float64) float32 { return solide }
-		switch {
-		case tex < 0 || masque == 0 || canal > 3:
-			out = append(out, constante)
-		case tex < ne:
-			e, ok := parSortie[tex]
-			img := (*image.NRGBA)(nil)
-			if ok {
-				img = lit(e.ressource, e.canaux)
-			}
-			if img == nil {
-				out = append(out, constante)
-				continue
-			}
-			out = append(out, func(x, y int, _, _ float64) float32 {
-				o := (y+terrainBordEntree)*img.Stride + (x+terrainBordEntree)*4 + canal
-				return float32(img.Pix[o]) / 255
-			})
-		default:
 			i := tex - ne
-			out = append(out, func(_, _ int, wx, wy float64) float32 { return gpu(i, canal, wx, wy) })
+			out[tex*4+c] = func(_, _ int, wx, wy float64) float32 { return gpu(i, c, wx, wy) }
 		}
 	}
 	return out
@@ -494,13 +476,7 @@ func groupesPalette(aire []float64, couleur [][3]float32) ([]int, []int) {
 			ordre[j], ordre[j-1] = ordre[j-1], ordre[j]
 		}
 	}
-	ecart := func(a, b [3]float32) float32 {
-		d := float32(0)
-		for c := 0; c < 3; c++ {
-			d += (a[c] - b[c]) * (a[c] - b[c])
-		}
-		return float32(math.Sqrt(float64(d)))
-	}
+	ecart := ecartCouleurs
 	var reps []int
 	for _, i := range ordre {
 		if len(reps) == terrainGroupesMax || aire[i] <= 0 {
@@ -544,4 +520,43 @@ func masqueSequentiel(g [terrainGroupesMax]float32) [3]float32 {
 		}
 	}
 	return m
+}
+
+// ecartCouleurs compares two linear colors as they read: lightness in sRGB, plus hue as the
+// share of each channel, weighted so a dark brown stays apart from an olive green of the same
+// lightness.
+func ecartCouleurs(a, b [3]float32) float32 {
+	clair := func(c [3]float32) (float64, [3]float64) {
+		var s [3]float64
+		t := 0.0
+		for i, v := range c {
+			s[i] = srgbDeLineaire(float64(v))
+			t += s[i]
+		}
+		var part [3]float64
+		if t > 0 {
+			for i := range part {
+				part[i] = s[i] / t
+			}
+		}
+		return t / 3, part
+	}
+	la, pa := clair(a)
+	lb, pb := clair(b)
+	d := (la - lb) * (la - lb)
+	for i := range pa {
+		d += terrainPoidsTeinte * (pa[i] - pb[i]) * (pa[i] - pb[i])
+	}
+	return float32(math.Sqrt(d))
+}
+
+// terrainPoidsTeinte : how much hue counts against lightness when grouping palette colors.
+const terrainPoidsTeinte = 16
+
+func srgbDeLineaire(v float64) float64 {
+	v = min(max(v, 0), 1)
+	if v <= 0.0031308 {
+		return v * 12.92
+	}
+	return 1.055*math.Pow(v, 1/2.4) - 0.055
 }

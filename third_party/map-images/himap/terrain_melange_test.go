@@ -15,13 +15,13 @@ func TestDemiFlottantLitLesConstantesDesProgrammes(t *testing.T) {
 	}
 }
 
-// A program from Live Fire: band(slot 0; 0.2..0.6, fade 0.2 each side).
+// A program from Live Fire: band(R4; 0.2..0.6, fade 0.2 each side).
 func TestEvalueProgrammeBande(t *testing.T) {
 	prog := []uint32{0x01000004, 0x0a003266, 0x0a0038cd, 0x0a003266, 0x0a003266, 0x17000000}
 	for x, want := range map[float32]float32{0: 0, 0.1: 0.5, 0.4: 1, 0.7: 0.5, 0.9: 0} {
 		got, ok := evalueProgramme(prog, func(slot int) float32 {
-			if slot != 0 {
-				t.Fatalf("slot %d read, want 0", slot)
+			if slot != 16 {
+				t.Fatalf("slot %d read, want 16 (texture 4, red)", slot)
 			}
 			return x
 		})
@@ -31,20 +31,20 @@ func TestEvalueProgrammeBande(t *testing.T) {
 	}
 }
 
-// (1 - 0.6 * slot0) * band(slot1), the shape of Live Fire's masked layers; slot1 is register
-// 4's green channel.
+// (1 - 0.6 * R4) * band(G4), the shape of Live Fire's masked layers: texture 4's red is slot
+// 16, its green slot 17.
 func TestEvalueProgrammeMultiplieEtInverse(t *testing.T) {
 	prog := []uint32{0x01000004, 0x0a0038cd, 0x0d000000, 0x12000000, 0x02000004, 0x0a003266, 0x0a0038cd, 0x0a003266, 0x0a003266, 0x17000000, 0x0d000000}
-	got, ok := evalueProgramme(prog, func(slot int) float32 { return []float32{0.5, 0.4}[slot] })
+	got, ok := evalueProgramme(prog, func(slot int) float32 { return map[int]float32{16: 0.5, 17: 0.4}[slot] })
 	if !ok || !proche32(got, 0.7) {
 		t.Fatalf("got %v %v, want 0.7", got, ok)
 	}
 }
 
 func TestEvalueProgrammeLerpSmoothstepEtRegistres(t *testing.T) {
-	// lerp(0.5, 1, slot4) * smoothstep(0.5, 1, slot6): register 5 starts at slot 4, register 6 at 6.
+	// lerp(0.5, 1, R5) * smoothstep(0.5, 1, R6): textures 5 and 6 start at slots 20 and 24.
 	prog := []uint32{0x0a003800, 0x0a003c00, 0x01000005, 0x19000000, 0x0a003800, 0x0a003c00, 0x01000006, 0x14000000, 0x0d000000}
-	got, ok := evalueProgramme(prog, func(slot int) float32 { return map[int]float32{4: 1, 6: 0.75}[slot] })
+	got, ok := evalueProgramme(prog, func(slot int) float32 { return map[int]float32{20: 1, 24: 0.75}[slot] })
 	if !ok || !proche32(got, 0.5) {
 		t.Fatalf("got %v %v, want 0.5", got, ok)
 	}
@@ -52,7 +52,7 @@ func TestEvalueProgrammeLerpSmoothstepEtRegistres(t *testing.T) {
 
 func TestEvalueProgrammeRefuseLeMalForme(t *testing.T) {
 	lit := func(int) float32 { return 1 }
-	for _, prog := range [][]uint32{{0x99000000}, {0x0d000000}, {0x0a003c00, 0x0a003c00}, {0x01000009}, {0x03000005}} {
+	for _, prog := range [][]uint32{{0x99000000}, {0x0d000000}, {0x0a003c00, 0x0a003c00}, {0x01000010}} {
 		if _, ok := evalueProgramme(prog, lit); ok {
 			t.Errorf("%x accepted", prog)
 		}
@@ -82,7 +82,7 @@ func TestMasqueSequentielRendLesPoidsNormalises(t *testing.T) {
 
 func TestGroupesPaletteRegroupeParCouleur(t *testing.T) {
 	aire := []float64{10, 50, 5, 30, 1, 0}
-	couleur := [][3]float32{{0.1, 0.2, 0}, {0.3, 0.2, 0.1}, {0.11, 0.2, 0}, {0.5, 0.5, 0.5}, {0.3, 0.21, 0.1}, {0, 0, 1}}
+	couleur := [][3]float32{{0.1, 0.2, 0}, {0.3, 0.2, 0.1}, {0.1, 0.2, 0}, {0.5, 0.5, 0.5}, {0.3, 0.2, 0.1}, {0, 0, 1}}
 	groupe, reps := groupesPalette(aire, couleur)
 	if len(reps) != 3 || reps[0] != 1 || reps[1] != 3 || reps[2] != 0 {
 		t.Fatalf("reps %v", reps)

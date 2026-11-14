@@ -115,7 +115,9 @@ func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuile
 	if lus == 0 {
 		return out, false
 	}
-	// Normalize per cell and measure each entry's area.
+	// Normalize per cell and measure each entry's area as the cells it wins: overlapping layers
+	// (Live Fire's grass and dry grass share their cells) would otherwise split a look that
+	// covers most of the ground below one that wins nowhere.
 	aires := make([]float64, np)
 	for c := 0; c < W*H; c++ {
 		total := float32(0)
@@ -125,10 +127,14 @@ func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuile
 		if total <= 0 {
 			continue
 		}
+		best := 0
 		for k := range poids {
 			poids[k][c] /= total
-			aires[k] += float64(poids[k][c])
+			if poids[k][c] > poids[best][c] {
+				best = k
+			}
 		}
+		aires[best]++
 	}
 	couleurs := make([][3]float32, np)
 	for k, e := range mel.palette {
