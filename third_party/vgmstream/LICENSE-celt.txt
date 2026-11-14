@@ -1,10 +1,5 @@
-libcelt-0061.dll and libcelt-0110.dll in the vgmstream r2168 release are the CELT
-codec, versions 0.6.1 and 0.11.0 (symbol-suffixed so both load side by side),
-distributed under the BSD-style license below.
-
-Copyright 2001-2011 Jean-Marc Valin, Timothy B. Terriberry,
-                    CSIRO, Gregory Maxwell, Mark Borgerding,
-                    Erik de Castro Lopo, and other contributors
+Copyright 2001-2009 Jean-Marc Valin, Timothy B. Terriberry,
+                    CSIRO, and other contributors
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
