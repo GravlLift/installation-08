@@ -7,16 +7,16 @@
  */
 import type { ScopeStyle } from '../model/scopeLogic'
 
-export function ReplayAthLunette3d({ amount, style }: { amount: number; style: ScopeStyle }) {
+export function ReplayAthLunette3d({ amount, style, reticleColor }: { amount: number; style: ScopeStyle; reticleColor?: string }) {
   return (
     <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: amount }}>
-      {style === 'holo' ? <LunetteHolo /> : <LunetteCercle />}
+      {style === 'holo' ? <LunetteHolo color={reticleColor} /> : <LunetteCercle color={reticleColor} />}
     </div>
   )
 }
 
 /** Le style « cercle » : le masque noir et la croix du tireur d'élite. */
-function LunetteCercle() {
+function LunetteCercle({ color }: { color?: string }) {
   return (
     <>
       {/* Le masque : l'ombre portée d'un disque vide couvre tout ce qui l'entoure. */}
@@ -34,7 +34,7 @@ function LunetteCercle() {
       />
       <svg
         viewBox="0 0 100 100"
-        style={{ position: 'absolute', width: '92cqh', height: '92cqh', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+        style={{ color, position: 'absolute', width: '92cqh', height: '92cqh', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
         fill="none"
         stroke="currentColor"
         strokeWidth="0.25"
@@ -53,7 +53,7 @@ function LunetteCercle() {
  * fortement vers les bords, le tiers central reste clair, et un petit réticule (anneau + point)
  * marque le centre.
  */
-function LunetteHolo() {
+function LunetteHolo({ color }: { color?: string }) {
   return (
     <>
       <div
@@ -65,7 +65,7 @@ function LunetteHolo() {
       />
       <svg
         viewBox="0 0 10 10"
-        style={{ position: 'absolute', width: '2.2cqh', height: '2.2cqh', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
+        style={{ color, position: 'absolute', width: '2.2cqh', height: '2.2cqh', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
         fill="none"
         stroke="currentColor"
         opacity="0.9"

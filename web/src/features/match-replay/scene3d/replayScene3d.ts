@@ -25,7 +25,6 @@ import { framesPerSecond } from '@/lib/replay/replayLogic'
 import { BrasPremierePersonne3d } from './brasPremierePersonne3d'
 import { dossierPremierePersonne } from './premierePersonne3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-
 import type { Export3dSetup, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
@@ -56,6 +55,8 @@ import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { etiquetteDe, specLunette } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
+import { readRedReticle } from './redReticle3d'
+import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
 /** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
 export type PovStatus = 'alive' | 'dead' | 'unspawned' | 'none'
@@ -165,7 +166,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.tracks = tracks
     this.scene.add(model.root)
     this.lighting.setSunStrength(model.sunStrength)
-
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
       .map((p) => new THREE.Vector3(...toThree(p.x, p.y, p.z)))
@@ -292,12 +292,10 @@ export class ReplayScene3d implements Replay3DExportSource {
   setFovPreference(gameFovDeg: number): void {
     this.scopeView.changerBase(this.camera, verticalFovOf(gameFovDeg))
   }
-
   setPov(xuid: string | null): void {
     if (this.exportScene.held) this.exportScene.held.pov = xuid
     else this.applyPov(xuid)
   }
-
   setMode(mode: CameraMode3d): void {
     if (this.exportScene.held) this.exportScene.held.mode = mode
     else this.applyMode(mode)
@@ -368,6 +366,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   beginExport(setup: Export3dSetup): void { this.exportScene.beginExport(setup) }
+  redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>): boolean {
+    return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null })
+  }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
   endExport(): void { this.exportScene.endExport() }

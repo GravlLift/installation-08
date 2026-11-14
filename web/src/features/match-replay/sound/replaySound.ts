@@ -168,7 +168,6 @@ import type { KillEvent } from '@/features/match-view/_momentum'
 
 import { placementIsDeployedObject } from '../layers/equipmentPlacementsLayer'
 import { grenadeSoundEvents } from './grenadeSound'
-import type { ReplayLocale } from '../i18n/i18n'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { bombArmingSoundEvents } from '../model/bombCountdown'
 import { objectiveSoundEvents, type ObjectiveSide } from './objectiveSound'
@@ -180,7 +179,7 @@ import { KNOCKBACK_SOUND_STEM, knockbackSoundEvents, type RepulsorKillSound } fr
 import { translocationSoundEvents } from './translocationSound'
 import { riftPoseSoundEvents } from './riftPoseSound'
 import { carriedEndSoundEvents, carriedUseSoundEvents } from './carriedUseSound'
-import { roundOverSoundEvents } from './roundOverSound'
+import { announcerSoundEvents, type AnnouncerTrackInput } from './announcerSound'
 import { skullSoundEvents } from './skullSound'
 import { zoneSoundEvents } from './zoneSound'
 import { fireBurstSoundEvents } from './fireBurstSound'
@@ -207,15 +206,15 @@ export {
   carriedEndSoundEvents,
   carriedUseSoundEvents,
 } from './carriedUseSound'
-export { ROUND_OVER_SOUND_STEMS, roundOverSoundEvents } from './roundOverSound'
 
 /**
  * Category of a sound, for the filter of the settings drawer (phase 2, user decision
  * of 16/08): WEAPONS (shots and weapon kills, same table — cf. WEAPON_SOUND_STEMS), GRENADES
  * (throws AND explosions: it is the same object, in two forms), MELEE (the only
- * fatal hit sounded, `melee_kill`), EQUIPMENT (cloak, overshield).
+ * fatal hit sounded, `melee_kill`), EQUIPMENT (cloak, overshield), ANNOUNCER (the voice calls,
+ * `announcerSound.ts`, and the end-of-match voice; the fanfare is not a call and keeps playing).
  */
-export type SoundCategory = 'weapon' | 'grenade' | 'melee' | 'equipment' | 'objective'
+export type SoundCategory = 'weapon' | 'grenade' | 'melee' | 'equipment' | 'objective' | 'announcer'
 
 /**
  * WEAPON sound by weapon_key -> stem of file under static/sounds/{slug}/.
@@ -461,6 +460,7 @@ export const SOUND_CATEGORIES: readonly TogglableSoundCategory[] = [
   'grenade',
   'melee',
   'equipment',
+  'announcer',
 ]
 
 /** Filter per category: one entry per category, `true` = category audible. */
@@ -473,6 +473,7 @@ export const SOUND_CATEGORIES_DEFAULT: SoundCategoryFilter = {
   melee: true,
   equipment: true,
   objective: true,
+  announcer: true,
 }
 
 /**
@@ -574,10 +575,10 @@ export function buildSoundTimeline(
   // owner of a zone and not on the xuid of a player (`zoneSound.ts`). `null` = side not
   // resolved: capture in progress and score ticks stay silent, the new hill sounds anyway.
   allyTeam: number | null = null,
-  // THE LANGUAGE OF THE INTERFACE — the only locale-aware entry of the track: the "round
-  // ended" sound is an ANNOUNCER'S VOICE (`roundOverSound.ts`). Absent (old calls, availability
-  // measurement), this sound stays silent: the replay does not guess a language.
-  locale?: ReplayLocale,
+  // THE ANNOUNCER'S INPUTS — the only locale-aware entry of the track (a voice has a language).
+  // Absent (old calls, availability measurement), the announcer stays silent: the replay does
+  // not guess a language.
+  announcer?: AnnouncerTrackInput,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   if (categories.weapon) {
@@ -703,12 +704,12 @@ export function buildSoundTimeline(
     // have no side: the mode's bank does not carry a `_team`/`_enemy` variant on
     // these gestures. Doctrine and inventory of what remains out: `skullSound.ts`.
     out.push(...skullSoundEvents(doc, allyTeam))
-    // THE SOUND "ROUND ENDED", on the same measurement as the inter-round message: the flip
-    // of a round to the next (`roundTransitions`, roundsLogic), dated by the score layer.
-    // WIRED since 2026-08-28 (the announcer asset FR/EN was provided) — exactly as the
-    // stub that lived here announced it. Without `locale`, it stays silent: a voice has a language, and the
-    // replay does not guess one. Table of stem and doctrine: `roundOverSound.ts`.
-    if (locale) out.push(...roundOverSoundEvents(doc, locale))
+  }
+  // THE ANNOUNCER: the followed player's own medal calls, the objective calls of either side
+  // and the round ends, scheduled on one line so that no two calls overlap. The "round ended"
+  // voice lives there since 2026-11-13. Doctrine: `announcerSound.ts`.
+  if (categories.announcer && announcer) {
+    out.push(...announcerSoundEvents({ doc, sideOfXuid, ...announcer }, announcer.locale))
   }
   return out.sort((a, b) => a.ms - b.ms)
 }

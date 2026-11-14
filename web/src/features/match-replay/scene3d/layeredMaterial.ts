@@ -6,7 +6,7 @@
  * la première ; les couches se répètent sur le jeu `jeuCouches` (3e pour un shader de niveau, 1er
  * pour un diffus, qui n'a qu'une couche).
  * - Couche « couleur » : carte sRGB × teinte. Couche « dégradé » : le rouge de sa carte choisit
- *   entre haut (0), milieu (0,5) et bas (1). Les teintes sont linéaires.
+ *   entre bas (0), milieu (0,5) et haut (1). Les teintes sont linéaires.
  * - Relief : chaque couche a sa carte normale tangente (convention DirectX : +Y suit la
  *   coordonnée v, vers le bas de l'image) et son occlusion (vert de sa carte de contrôle),
  *   mélangées avec les mêmes poids que la couleur. Le GLB ne porte pas de tangentes : le repère
@@ -45,6 +45,12 @@ export interface LayerInfo {
   melangeNormale?: number
   echelleControle?: [number, number]
   decalageControle?: [number, number]
+  /**
+   * Template rank of the layer (0..3), present only when it differs from the layer's position: a
+   * shader can skip a template layer (Live Fire's boulders declare layers 1, 2 and 4). The rank
+   * picks the macro mask channel and the height blend index.
+   */
+  rang?: number
 }
 
 /** La composition d'un matériau (`extras.couches`). */
@@ -103,19 +109,27 @@ export const LAYER_COMPOSE = /* glsl */ `
 #define L_HAS_NRM(k) L_ROW(k, 7).x
 #define L_NBLEND(k) L_ROW(k, 7).y
 #define L_HAS_CTL(k) L_ROW(k, 7).z
+#define L_RANK(k) L_ROW(k, 7).w
 #define L_HEIGHT(k) L_ROW(k, 8)
 #define L_MAT(k) L_ROW(k, 9)
 varying vec2 vMacro;
 varying vec2 vCouche;
 
+// Weight of layer k in the macro mask: the channel of its template rank (2: R, 3: G, 4: B).
+float maskWeight(vec4 m, int k) {
+  float r = L_RANK(k);
+  return r < 1.5 ? m.r : (r < 2.5 ? m.g : m.b);
+}
+
 vec2 at(vec4 x) { return vCouche * x.xy + x.zw; }
 
-// Couleur d'une couche à partir de l'échantillon de sa carte.
+// Couleur d'une couche à partir de l'échantillon de sa carte. A gradient runs from the bottom
+// color (0) through the middle (0.5) to the top (1), as Ekur's ColorMixer node does.
 vec3 colorOf(vec4 s, int k) {
   if (L_KIND(k) < 0.5) return s.rgb * L_TINT(k);
   float g = s.r;
-  vec3 low = mix(L_MID(k), L_BOT(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
-  return mix(low, L_TOP(k), clamp(1.0 - g * 2.0, 0.0, 1.0));
+  vec3 low = mix(L_MID(k), L_BOT(k), clamp(1.0 - g * 2.0, 0.0, 1.0));
+  return mix(low, L_TOP(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
 }
 
 // Normale tangente d'une couche à partir du rouge et du vert de sa carte normale.
@@ -159,8 +173,9 @@ float startHeight(float c, float mask) {
 }
 float heightWeight(inout float h, float c, float mask, int k) {
   vec4 p = L_HEIGHT(k);
-  float next = clamp(p.x * (c + mask - 1.0) + float(k) * mask, 0.0, 4.0);
-  float threshold = min(float(k), h - 0.5 * p.y);
+  float rank = L_RANK(k);
+  float next = clamp(p.x * (c + mask - 1.0) + rank * mask, 0.0, 4.0);
+  float threshold = min(rank, h - 0.5 * p.y);
   float x = clamp((next - threshold) / max(p.y, 0.0001), 0.0, 1.0);
   float w = (L_OPACITY(k) < 0.0 ? 1.0 - x : x) * L_OPACITY(k);
   h += p.z * (max(h, next) - h);
@@ -202,9 +217,9 @@ Surface layered() {
   bool useHeight = uHasMask > 0.5 && L_HEIGHT(0).w > 0.5 && L_HAS_CTL(0) > 0.5;
   float h = useHeight ? startHeight(texture2D(uCtl0, at(L_CXFORM(0))).a, m.a) : 0.0;
   Surface s = Surface(layerColor(uTex0, 0), layerNormal(uNrm0, 0), layerControl(uCtl0, 0));
-  if (uCount > 1) { float w = useHeight && L_HEIGHT(1).w > 0.5 && L_HAS_CTL(1) > 0.5 ? heightWeight(h, texture2D(uCtl1, at(L_CXFORM(1))).a, m.r, 1) : m.r * L_OPACITY(1); stack(s, layerColor(uTex1, 1), layerNormal(uNrm1, 1), layerControl(uCtl1, 1), w, 1); }
-  if (uCount > 2) { float w = useHeight && L_HEIGHT(2).w > 0.5 && L_HAS_CTL(2) > 0.5 ? heightWeight(h, texture2D(uCtl2, at(L_CXFORM(2))).a, m.g, 2) : m.g * L_OPACITY(2); stack(s, layerColor(uTex2, 2), layerNormal(uNrm2, 2), layerControl(uCtl2, 2), w, 2); }
-  if (uCount > 3) { float w = useHeight && L_HEIGHT(3).w > 0.5 && L_HAS_CTL(3) > 0.5 ? heightWeight(h, texture2D(uCtl3, at(L_CXFORM(3))).a, m.b, 3) : m.b * L_OPACITY(3); stack(s, layerColor(uTex3, 3), layerNormal(uNrm3, 3), layerControl(uCtl3, 3), w, 3); }
+  if (uCount > 1) { float mw = maskWeight(m, 1); float w = useHeight && L_HEIGHT(1).w > 0.5 && L_HAS_CTL(1) > 0.5 ? heightWeight(h, texture2D(uCtl1, at(L_CXFORM(1))).a, mw, 1) : mw * L_OPACITY(1); stack(s, layerColor(uTex1, 1), layerNormal(uNrm1, 1), layerControl(uCtl1, 1), w, 1); }
+  if (uCount > 2) { float mw = maskWeight(m, 2); float w = useHeight && L_HEIGHT(2).w > 0.5 && L_HAS_CTL(2) > 0.5 ? heightWeight(h, texture2D(uCtl2, at(L_CXFORM(2))).a, mw, 2) : mw * L_OPACITY(2); stack(s, layerColor(uTex2, 2), layerNormal(uNrm2, 2), layerControl(uCtl2, 2), w, 2); }
+  if (uCount > 3) { float mw = maskWeight(m, 3); float w = useHeight && L_HEIGHT(3).w > 0.5 && L_HAS_CTL(3) > 0.5 ? heightWeight(h, texture2D(uCtl3, at(L_CXFORM(3))).a, mw, 3) : mw * L_OPACITY(3); stack(s, layerColor(uTex3, 3), layerNormal(uNrm3, 3), layerControl(uCtl3, 3), w, 3); }
   return s;
 }`
 
@@ -256,7 +271,8 @@ const rgb = (c?: [number, number, number]) => c ?? [0, 0, 0]
  * - 0 : échelle.xy, décalage.xy de la couleur ; 1 : idem de la normale ; 2 : idem du contrôle ;
  * - 3 : teinte.rgb, sorte (0 couleur, 1 dégradé) ; 4 : haut.rgb, mélange ;
  * - 5 : milieu.rgb, opacité ; 6 : bas.rgb, intensité de la normale ;
- * - 7 : a une normale, mode de normale, a un contrôle, 0.
+ * - 7 : a une normale, mode de normale, a un contrôle, rang du gabarit (`rang`, à défaut k) ;
+ * - 8 : hauteur ; 9 : matière.
  * Une couche absente vaut transformations neutres (1, 1, 0, 0) et zéro partout ailleurs.
  * `hasNormal[k]` / `hasControl[k]` : la carte de la couche k est chargée.
  */
@@ -277,7 +293,7 @@ export function packLayers(layers: readonly LayerInfo[], hasNormal: readonly boo
       ...rgb(l.haut), l.melange ?? 0,
       ...rgb(l.milieu), l.opacite ?? 0,
       ...rgb(l.bas), l.intensiteNormale ?? 1,
-      hasNormal[k] ? 1 : 0, l.melangeNormale ?? 0, hasControl[k] ? 1 : 0, 0,
+      hasNormal[k] ? 1 : 0, l.melangeNormale ?? 0, hasControl[k] ? 1 : 0, l.rang ?? k,
       ...(l.hauteur ?? [0, 0, 0]), l.hauteur ? 1 : 0,
       ...(l.matiere ?? [0, 0, 0]), l.matiere ? 1 : 0,
     ], o)
@@ -332,7 +348,7 @@ export async function layeredMaterial(
       shader.fragmentShader.replace('#include <common>', `#include <common>${FRAGMENT_HEAD}`),
     )
   }
-  m.customProgramCacheKey = () => 'couches-v4'
+  m.customProgramCacheKey = () => 'couches-v5'
   compositions.set(m, { info, layers, maps, normals, controls, mask })
   return m
 }

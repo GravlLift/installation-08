@@ -6,8 +6,11 @@
 //
 //	couleur = couche 1 ; puis, pour k = 2..4 : couleur = melange(couleur, couche k, poids k)
 //	poids 2, 3, 4 = R, V, B de l'image du masque macro (ses canaux V, B, A d'origine) x opacite
+//	(LOCAL-CHANGE (infinite-theater-3d): a layer with `rang` r takes the weight of template
+//	layer r + 1 and its height blend index, whatever its position in `couches`)
 //	couche couleur = carte (sRGB) x teinte ; couche degrade = haut / milieu / bas selon le
-//	rouge de son image (0 : haut, 0,5 : milieu, 1 : bas)
+//	rouge de son image (0 : bas, 0,5 : milieu, 1 : haut ; LOCAL-CHANGE (infinite-theater-3d):
+//	corrected to Ekur's ColorMixer, the text said 0 : haut)
 //	relief : `normale` (image tangente, X, Y, Z en R, V, B, convention DirectX : V vers le bas
 //	de l'image), melangee de couche en couche avec les memes poids ; occlusion = vert de
 //	l'image `controle` (1 sans controle), multipliee a la couleur
@@ -99,6 +102,11 @@ func (cg *couchesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, c 
 		}
 		if len(descs) == 0 {
 			baseGenerique(g, k, desc.tex, c.JeuUV)
+		}
+		// LOCAL-CHANGE (infinite-theater-3d): a layer after a skipped one keeps its template rank
+		// (mask channel and height blend index), written only when it differs from its position.
+		if k.Rang > len(descs) {
+			desc.couche["rang"] = k.Rang
 		}
 		descs = append(descs, desc)
 	}

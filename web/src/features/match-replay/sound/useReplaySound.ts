@@ -45,7 +45,9 @@ import type { ReplayKill } from '../model/killFeedLogic'
 import { soundUrlOf } from './replayAudioMix'
 
 import { persistPreference, readStoredFlag, readStoredNumber } from '../settings/replayPreferences'
-import { endMatchSounds, endMatchSoundStems, type EndMatchSoundSpec } from './endMatchSound'
+import { endMatchSoundsOf, endMatchSoundStems, type EndMatchSoundSpec } from './endMatchSound'
+import type { FeedMedal } from './announcerSound'
+import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
 import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
 import type { ReplayLocale } from '../i18n/i18n'
@@ -53,12 +55,7 @@ import { ReplayAudioPlayer, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { distanceChain, drawVariation } from './weaponSoundLogic'
 import { WEAPON_SOUND_VARIATIONS } from './weaponSoundVariations'
-import {
-  buildSoundTimeline,
-  SOUND_CATEGORIES,
-  type SoundCategory,
-  type SoundCategoryFilter,
-} from './replaySound'
+import { buildSoundTimeline, type SoundCategory, type SoundCategoryFilter } from './replaySound'
 import { objectiveSideResolver } from './objectiveSound'
 import type { FilmAllegiance } from '../../../lib/replay/filmAllegiance'
 import { pickVariantStem, stemsOf, type ReplaySoundEvent } from './replaySoundVariants'
@@ -76,9 +73,6 @@ import type { EnginePlan } from './vehicleEngineSound'
 /** Persisted preferences — shared pattern (replayPreferences.ts), born here. */
 const SOUND_ON_KEY = 'replay-sound-on'
 const SOUND_VOLUME_KEY = 'replay-sound-volume'
-/** Categories CUT, not the active categories: a future 5th stem stays ON by default
- * for those who already have a stored preference — never need to migrate this JSON. */
-const SOUND_CATEGORIES_OFF_KEY = 'replay-sound-categories-off'
 
 /** Opening volume: present enough to be heard, low enough not to startle. */
 export const SOUND_VOLUME_DEFAULT = 0.7
@@ -183,66 +177,6 @@ export interface ReplaySound {
   exportTrack: () => ReplayExportTrack
 }
 
-/** Reads the categories CUT; an unknown value (old key, corrupted JSON) is
- * ignored rather than making the whole read fail — clean silence on the preference side. */
-function readStoredCategoriesOff(): ReadonlySet<SoundCategory> {
-  try {
-    const raw = localStorage.getItem(SOUND_CATEGORIES_OFF_KEY)
-    if (!raw) return new Set()
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return new Set()
-    const known: readonly string[] = SOUND_CATEGORIES
-    return new Set(parsed.filter((v): v is SoundCategory => known.includes(v)))
-  } catch {
-    return new Set()
-  }
-}
-
-/**
- * Sub-hook: the category filter, its persistence, its toggle — extracted to keep
- * useReplaySound under the readability threshold (CLAUDE.md n°5, function ≤ 80 lines) rather
- * than let an already dense function grow. Same responsibility as the rest of the
- * file (user preference + React wiring), one step smaller.
- */
-function useSoundCategoryFilter(): {
-  categories: SoundCategoryFilter
-  toggleCategory: (category: SoundCategory) => void
-} {
-  const [categoriesOff, setCategoriesOff] = useState<ReadonlySet<SoundCategory>>(readStoredCategoriesOff)
-
-  const categories = useMemo<SoundCategoryFilter>(() => ({
-    weapon: !categoriesOff.has('weapon'),
-    grenade: !categoriesOff.has('grenade'),
-    melee: !categoriesOff.has('melee'),
-    equipment: !categoriesOff.has('equipment'),
-    // ALWAYS TRUE: "Objectives" is no longer adjustable (cf. SOUND_CATEGORIES). The read
-    // of the storage already ignores it, this literal says the same thing to the type.
-    objective: true,
-  }), [categoriesOff])
-
-  // NEXT COMPUTED OUTSIDE THE UPDATER, PERSISTENCE AFTER `setCategoriesOff` (same fix as the
-  // U2 toggle bug, `usePersistedFlag` / `thought_log.md`): `persistPreference`
-  // notifies its subscribers SYNCHRONOUSLY, and a subscriber that recalls `setState` from
-  // the updater of ANOTHER `setState` (here `setCategoriesOff`) triggers a state update
-  // in the middle of the render phase — React refuses it ("Cannot update a component while
-  // rendering a different component"). No symptom today (`SOUND_CATEGORIES_OFF_KEY`
-  // has no crossed subscriber), but the faulty pattern must not be reproduced.
-  const toggleCategory = useCallback((category: SoundCategory) => {
-    const next = new Set(categoriesOff)
-    if (next.has(category)) next.delete(category)
-    else next.add(category)
-    setCategoriesOff(next)
-    persistPreference(SOUND_CATEGORIES_OFF_KEY, JSON.stringify(Array.from(next)))
-  }, [categoriesOff])
-
-  return { categories, toggleCategory }
-}
-
-/** Does the match carry a sound at all, INDEPENDENTLY of the chosen filter? Serves `available`:
- * if it followed the filtered track, unchecking all would make disappear the only button that
- * allows turning everything back on. */
-
-
 /** The URLs of the sounds EFFECTIVELY present in a track: we never preload the full
  * pack (58 files) for a match that only plays five of them. `extra` carries the stems that
  * have no moment on the clock — the end-of-match takes, whose drawing will
@@ -317,9 +251,13 @@ export interface ReplaySoundContext {
    * replay never guesses a side, same rule as the ink of the layers. */
   allegiance: FilmAllegiance
   endMatch: EndMatchSoundSpec | null
-  /** The LANGUAGE of the interface: it serves ONLY the "round ended" sound (announcer voice,
-   * `roundOverSound.ts`), the only locale-aware entry of the track. Absent, that sound stays silent. */
+  /** The LANGUAGE of the interface: it serves ONLY the announcer (`announcerSound.ts`), the only
+   * locale-aware entry of the track. Absent, the announcer stays silent. */
   locale: ReplayLocale | undefined
+  /** The FOLLOWED player (point of view): only their own medal calls play. Changing it rebuilds the track. */
+  followed: string | null
+  /** The medals of the aligned feed (`medalsOfFeed`), on the replay axis. */
+  medals: readonly FeedMedal[]
 }
 
 export function useReplaySound(
@@ -329,7 +267,7 @@ export function useReplaySound(
   speed: number,
   context: ReplaySoundContext,
 ): ReplaySound {
-  const { allegiance, endMatch, locale } = context
+  const { allegiance, locale, followed, medals } = context
   const listener = useRef<SoundListener | null>(null)
   const sideOfXuid = useMemo(() => objectiveSideResolver(allegiance), [allegiance])
   // The allied side AS A NUMBER: the zone state sounds join on the owner of a zone,
@@ -348,9 +286,15 @@ export function useReplaySound(
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
+  const announcer = useMemo(() => (locale ? { locale, followed, medals } : undefined), [locale, followed, medals])
   const timeline = useMemo(
-    () => buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, locale),
-    [doc, kills, categories, sideOfXuid, allyTeam, locale],
+    () => buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, announcer),
+    [doc, kills, categories, sideOfXuid, allyTeam, announcer],
+  )
+  // The END-OF-MATCH VOICE is the announcer's too: cutting the category keeps the fanfare alone.
+  const endMatch = useMemo(
+    () => (context.endMatch && !categories.announcer ? { ...context.endMatch, voiced: false as const } : context.endMatch),
+    [context.endMatch, categories.announcer],
   )
   // The ENGINES count in the availability: a match without sound event but with a
   // occupied vehicle does have something to make hear, therefore a button to offer.
@@ -577,7 +521,7 @@ export function useReplaySound(
     const spec = endMatchRef.current
     const player = playerRef.current
     if (!spec || !onRef.current || !player || !soundPlaysAtSpeed(speedRef.current)) return
-    for (const stem of endMatchSounds(spec.outcome, spec.ffa, spec.locale)) {
+    for (const stem of endMatchSoundsOf(spec)) {
       const url = urlsRef.current.get(stem)
       if (url) player.playConclusion(url) // out of voice ceiling (item 11, `soundOccupiesVoice`)
     }

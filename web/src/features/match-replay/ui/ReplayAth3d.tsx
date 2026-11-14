@@ -14,16 +14,23 @@ import { ReplayAthLunette3d } from './ReplayAthLunette3d'
 import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
+import type { ReplayScene3d } from '../scene3d/replayScene3d'
 
-export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null }) {
+export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null> }) {
   const [frame, setFrame] = useState(0)
+  const [onEnemy, setOnEnemy] = useState(false)
+  const source = useMemo(() => preparerAth(doc, xuid, kills), [doc, xuid, kills])
   useEffect(() => {
     let raf = 0
-    const lire = () => { setFrame(frameRef.current ?? 0); raf = requestAnimationFrame(lire) }
+    const lire = () => {
+      const frame = frameRef.current ?? 0
+      setFrame(frame)
+      setOnEnemy(sceneRef?.current?.redReticle(frame, source.allegeance) ?? false)
+      raf = requestAnimationFrame(lire)
+    }
     raf = requestAnimationFrame(lire)
     return () => cancelAnimationFrame(raf)
-  }, [frameRef])
-  const source = useMemo(() => preparerAth(doc, xuid, kills), [doc, xuid, kills])
+  }, [frameRef, sceneRef, source])
   const ath = lireAth(source, frame, locale)
   const fil = lireFilAth(source, frame)
   const popups = lirePopupsAth(source, frame)
@@ -45,13 +52,14 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   // Un lien intelligent garde le réticule, réduit de 30 % avec l'amplissée du zoom.
   const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
+  const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('team-enemy') : undefined
   return <div className="pointer-events-none absolute inset-0" style={{ color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }}>
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {score && coteGauche && coteDroite && <div role="group" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>}
     {ath && ath.bouclier !== null && <div style={{ position: 'absolute', top: '8%', left: '50%', width: 'min(50cqh, 90%)', transform: 'translateX(-50%)', height: '3.2%', minHeight: 8, border: `1px solid ${ath.bouclier <= 0 ? tokenCssVar('destructive') : 'currentColor'}`, clipPath: 'polygon(2% 0, 98% 0, 100% 100%, 0 100%)' }}><div style={{ position: 'absolute', inset: 0, width: `${Math.max(0, Math.min(1, ath.bouclier)) * 100}%`, background: tokenCssVar('info'), opacity: 0.85 }} /></div>}
     {ath && spec.kind === 'bandit' && zoom.amount > 0.5 && <ReplayAthBandit3d amount={zoom.amount} label={SCENE3D_TEXT[locale].banditZoom} />}
-    {ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} /> : (
-      <svg viewBox="0 0 100 100" aria-hidden="true" style={{ position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
+    {ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} reticleColor={reticleColor} /> : (
+      <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
         {['cercle', 'precision', 'large', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r={ath.forme === 'large' ? 32 : ath.forme === 'precision' ? 15 : 25} />}
         {['precision', 'pistolet', 'point', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r="1.7" fill="currentColor" stroke="none" />}
         {['cercle', 'pistolet'].includes(ath.forme) && <path d="M50 18v5 M50 77v5 M18 50h5 M77 50h5" />}

@@ -7,7 +7,8 @@
 //
 //   - `rohm` : une carte de couleur multipliee par une teinte ;
 //   - `rohg` : pas de couleur ; l'alpha de la carte de controle choisit dans un degrade a trois
-//     teintes (0 : haut, 0,5 : milieu, 1 : bas) ;
+//     teintes (0 : bas, 0,5 : milieu, 1 : haut ; LOCAL-CHANGE (infinite-theater-3d): corrected to
+//     Ekur's ColorMixer, the text said 0 : haut) ;
 //   - `nnhg` : comme `rohg`, l'alpha de sa carte « packee » portant le degrade.
 //
 // Les couches se lisent par les noms des parametres du shader (couches_noms.go). Les shaders
@@ -70,6 +71,11 @@ type Couche struct {
 	// Controle : carte dont le vert porte l'occlusion (0 : aucune, occlusion 1).
 	Controle        uint32
 	TransfoControle Transfo
+	// Rang (LOCAL-CHANGE (infinite-theater-3d)): the layer's number in the level template, minus
+	// one (0..3). A shader may skip a template layer (Live Fire's boulders declare layers 1, 2
+	// and 4); the macro mask channel and the height blend index follow the template number, not
+	// the position in Couches. 0 for forms outside the template.
+	Rang int
 }
 
 // Couches : le masque macro (0 : absent, la premiere couche couvre tout) et les couches dans
