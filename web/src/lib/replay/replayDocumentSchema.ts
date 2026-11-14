@@ -1,86 +1,86 @@
 /**
- * replayDocumentSchema.ts — LE CONTRAT DU DOCUMENT DE REJEU, À L'EXÉCUTION.
+ * replayDocumentSchema.ts — THE REPLAY DOCUMENT'S CONTRACT, AT RUNTIME.
  *
- * POURQUOI CE FICHIER EXISTE (2026-09-13, lot 0.B ; architecture §12, garde-rail 3). Le web
- * type le document depuis `api/openapi.yaml` — et ces types N'EXISTENT PLUS à l'exécution. Un
- * champ renommé côté cuisson, ou dont le type change, ne fait donc rougir NI `tsc` (le contrat
- * généré aurait suivi) NI aucun test : il arrive en production, et le rendu tombe sur
- * `undefined.map`. C'est le trou que ce schéma ferme, à la frontière de transport.
+ * WHY THIS FILE EXISTS (2026-09-13, lot 0.B; architecture §12, guardrail 3). The web types the
+ * document from `api/openapi.yaml` — and those types NO LONGER EXIST at runtime. A field renamed
+ * on the bake side, or whose type changes, therefore turns neither `tsc` red (the generated
+ * contract would have followed) nor any test: it reaches production, and the render falls on
+ * `undefined.map`. This is the hole this schema closes, at the transport boundary.
  *
- * # CE QU'IL VALIDE — LA RACINE, ET EXACTEMENT
+ * # WHAT IT VALIDATES — THE ROOT, AND EXACTLY
  *
- * La racine est un objet STRICT : les 72 clés du contrat, ni plus ni moins. Trois manquements
- * en sortent nommés :
+ * The root is a STRICT object: the contract's 72 keys, no more no less. Three failures come out
+ * named:
  *
- *  - une clé REQUISE absente (`matchId`, `bounds`, `frameCount`, `schemaVersion`, `titleSlug`,
- *    `tracks`) ;
- *  - une clé de NATURE changée (un calque devenu objet, une borne devenue chaîne) ;
- *  - une clé INCONNUE — c'est-à-dire un champ RENOMMÉ (`shots` devenu `shotz`), ou un
- *    producteur en avance sur les types générés du web.
+ *  - an absent REQUIRED key (`matchId`, `bounds`, `frameCount`, `schemaVersion`, `titleSlug`,
+ *    `tracks`);
+ *  - a key whose KIND changed (a layer become an object, a bound become a string);
+ *  - an UNKNOWN key — that is, a RENAMED field (`shots` become `shotz`), or a producer ahead of
+ *    the web's generated types.
  *
- * LE TROISIÈME CAS EST LA RAISON DU MODE STRICT, et il a coûté une revue (ronde 1 du lot 0.B,
- * constat C1) : `z.object` DÉPOUILLE les clés inconnues et `.optional()` accepte l'absence —
- * si bien qu'un calque renommé passait le contrat en silence, le badge disait « à jour », et le
- * calque se rendait vide. Le mode strict ne bloque jamais le rendu : le manquement voyage
- * jusqu'au badge admin, le document est servi tel quel (cf. `validateReplayDocument`).
+ * THE THIRD CASE IS THE REASON FOR STRICT MODE, and it cost a review (lot 0.B round 1, finding
+ * C1): `z.object` STRIPS unknown keys and `.optional()` accepts absence — so a renamed layer
+ * passed the contract in silence, the badge said "up to date", and the layer rendered empty.
+ * Strict mode never blocks the render: the failure travels to the admin badge, the document is
+ * served as-is (see `validateReplayDocument`).
  *
- * # CE QU'IL NE VALIDE PAS, ET C'EST ÉCRIT ICI POUR QU'ON NE S'Y TROMPE PAS
+ * # WHAT IT DOES NOT VALIDATE, AND THIS IS WRITTEN HERE SO THAT NO ONE IS MISTAKEN
  *
- * Il NE DESCEND PAS dans les éléments des calques ni dans les blocs : `z.custom<T>()` porte le
- * TYPE (donc `tsc` voit la forme complète) sans re-valider chaque point de trajectoire. Un
- * champ renommé À L'INTÉRIEUR d'un `Shot`, d'un `Track` ou de `coverage` n'est donc PAS attrapé
- * ici. Le motif est délibéré et son coût est mesuré : un document réel porte des centaines de
- * milliers de points, et les parcourir un à un à chaque chargement coûterait plus cher que le
- * décodage JSON lui-même. La forme PROFONDE a son propre gardien, côté producteur : l'empreinte
- * réfléchie de `ReplayDocument` (`replay/document_shape_test.go`), qui refuse un changement de
- * forme sans montée de `SchemaVersion`.
+ * It DOES NOT DESCEND into the layers' elements nor into the blocks: `z.custom<T>()` carries
+ * the TYPE (so `tsc` sees the full shape) without re-validating every trajectory point. A field
+ * renamed INSIDE a `Shot`, a `Track`, or `coverage` is therefore NOT caught here. The reason is
+ * deliberate and its cost is measured: a real document carries hundreds of thousands of points,
+ * and walking them one by one on every load would cost more than the JSON decode itself. The
+ * DEEP shape has its own keeper, on the producer side: the reflected fingerprint of
+ * `ReplayDocument` (`replay/document_shape_test.go`), which refuses a shape change without a
+ * `SchemaVersion` bump.
  *
- * Les TABLES de libellés (`weaponLabels`, `abilityLabels`, `vehicleLabels`, `killEffects`) ne
- * sont pas strictes non plus, et ne peuvent pas l'être : leurs clés SONT la donnée (un
- * identifiant d'arme par entrée). Seule la nature de leur valeur y est tenue.
+ * The LABEL TABLES (`weaponLabels`, `abilityLabels`, `vehicleLabels`, `killEffects`) are not
+ * strict either, and cannot be: their keys ARE the data (a weapon identifier per entry). Only
+ * the kind of their value is enforced there.
  *
- * # CE QUI EMPÊCHE CE SCHÉMA DE DÉRIVER DU CONTRAT
+ * # WHAT KEEPS THIS SCHEMA FROM DRIFTING FROM THE CONTRACT
  *
- * Les types des éléments sont DÉDUITS de `ReplayDocument` (cf. `Elem` / `Valeur` ci-dessous) :
- * il n'y a aucun nom de type à tenir en phase. Ce qui est écrit à la main, c'est le NOM de
- * chaque clé et sa NATURE — et les deux sont confrontés au contrat généré par des assertions
- * de type dans `replayDocumentSchema.test.ts`, qui font tomber `tsc -b` avant tout test.
+ * The element types are DERIVED from `ReplayDocument` (see `Elem` / `Valeur` below): there is
+ * no type name to keep in phase. What is written by hand is the NAME of each key and its KIND —
+ * and both are confronted with the generated contract by type assertions in
+ * `replayDocumentSchema.test.ts`, which make `tsc -b` fail before any test.
  */
 import { z } from 'zod'
 
 import type { ReplayDocument } from '@/lib/api/types'
 
-/** Le type d'un ÉLÉMENT du tableau porté par la clé `K` du contrat. */
+/** The type of an ELEMENT of the array carried by the contract's key `K`. */
 type Elem<K extends keyof ReplayDocument> =
   NonNullable<ReplayDocument[K]> extends readonly (infer E)[] ? E : never
 
-/** Le type d'une VALEUR de la table portée par la clé `K` du contrat. */
+/** The type of a VALUE of the table carried by the contract's key `K`. */
 type Valeur<K extends keyof ReplayDocument> =
   NonNullable<ReplayDocument[K]> extends Record<string, infer V> ? V : never
 
 /**
- * Un tableau FACULTATIF et NULLABLE : `E[] | null | undefined`. C'est la forme de tout slice Go
- * sous `omitempty` — la vingtaine de calques du document.
+ * An OPTIONAL and NULLABLE array: `E[] | null | undefined`. This is the shape of every Go slice
+ * under `omitempty` — the document's twenty-odd layers.
  */
 function calque<E>() {
   return z.array(z.custom<E>()).nullish()
 }
 
-/** Un objet FACULTATIF : présent, il doit être un objet ; absent, c'est un silence légitime. */
+/** An OPTIONAL object: present, it must be an object; absent, that is a legitimate silence. */
 function bloc<T>() {
   return z.custom<T>((v) => typeof v === 'object' && v !== null).optional()
 }
 
-/** Une table FACULTATIVE clé -> valeur (les catalogues de libellés ; cf. en-tête). */
+/** An OPTIONAL key -> value table (the label catalogs; see header). */
 function table<V>() {
   return z.record(z.string(), z.custom<V>()).optional()
 }
 
 /**
- * Les bornes du monde. Validées POUR DE VRAI (et pas par `z.custom`) parce que tout le rendu
- * en dépend : une borne manquante ou non numérique fait une scène de taille NaN, c'est-à-dire
- * une page blanche sans message. STRICTES pour la même raison que la racine : une borne
- * renommée est une borne absente, et le silence est le pire des deux.
+ * The world bounds. Validated FOR REAL (not by `z.custom`) because the whole render depends on
+ * them: a missing or non-numeric bound makes a NaN-sized scene, that is a blank page with no
+ * message. STRICT for the same reason as the root: a renamed bound is a missing bound, and the
+ * silence is the worst of the two.
  */
 const bornes = z.strictObject({
   maxX: z.number(),
@@ -92,12 +92,12 @@ const bornes = z.strictObject({
 })
 
 /**
- * replayDocumentSchema — les 72 clés de la racine, dans l'ordre du contrat généré.
+ * replayDocumentSchema — the root's 72 keys, in the generated contract's order.
  *
- * L'ORDRE EST CELUI DU CONTRAT, et ce n'est pas de la coquetterie : c'est ce qui rend la
- * confrontation lisible en revue quand le contrat gagne une clé.
+ * THE ORDER IS THE CONTRACT'S, and that is not a matter of vanity: it is what makes the
+ * confrontation readable in review when the contract gains a key.
  *
- * STRICT : toute clé hors de cette liste est un manquement nommé (cf. en-tête).
+ * STRICT: any key outside this list is a named failure (see header).
  */
 export const replayDocumentSchema = z.strictObject({
   abilities: calque<Elem<'abilities'>>(),
@@ -137,10 +137,10 @@ export const replayDocumentSchema = z.strictObject({
   actions: calque<Elem<'actions'>>(),
   carriedEquipment: calque<Elem<'carriedEquipment'>>(),
   riftPoses: calque<Elem<'riftPoses'>>(),
-  // `layers` : nom de calque -> révision de la couche qui l'a produit (schéma 62). MÊME FORME
-  // que `killEffects` — une table plate de chaînes — et MÊME RÉGIME que `coverage` : l'objet
-  // garde le droit d'être ABSENT (artefact antérieur à 62), et une entrée absente dans un objet
-  // présent veut dire « ce calque n'a pas été produit ». Il n'est jamais comblé.
+  // `layers`: layer name -> revision of the layer that produced it (schema 62). SAME SHAPE as
+  // `killEffects` — a flat string table — and the SAME REGIME as `coverage`: the object keeps
+  // the right to be ABSENT (artifact predating 62), and an entry absent in a present object
+  // means "this layer was not produced". It is never filled in.
   layers: z.record(z.string(), z.string()).optional(),
   loadouts: calque<Elem<'loadouts'>>(),
   mapObjectives: bloc<NonNullable<ReplayDocument['mapObjectives']>>(),
@@ -163,16 +163,16 @@ export const replayDocumentSchema = z.strictObject({
   structureBounds: bornes.optional(),
   t0FilmMs: z.number().optional(),
   titleSlug: z.string(),
-  // `tracks` est le SEUL tableau que le contrat déclare REQUIS (nullable, mais présent) : sans
-  // trajectoire il n'y a pas de rejeu, et la cuisson refuse déjà un document qui n'en porte
-  // aucune (`validateArtifact`, côté Go).
+  // `tracks` is the ONLY array the contract declares REQUIRED (nullable, but present): without
+  // trajectories there is no replay, and the bake already refuses a document that carries none
+  // (`validateArtifact`, on the Go side).
   tracks: z.array(z.custom<Elem<'tracks'>>()).nullable(),
   translocations: calque<Elem<'translocations'>>(),
   vehicleCycles: calque<Elem<'vehicleCycles'>>(),
   vehicleLabels: table<Valeur<'vehicleLabels'>>(),
-  // Verdict de décor de carte (lot M7), résolu à la requête.
+  // Map scenery verdict (lot M7), resolved at the request.
   vehicleScenery: bloc<NonNullable<ReplayDocument['vehicleScenery']>>(),
-  // Registre des armes de véhicule employées par les tirs (schéma 69), résolu à la requête.
+  // Register of the vehicle weapons used by the shots (schema 69), resolved at the request.
   vehicleWeapons: table<Valeur<'vehicleWeapons'>>(),
   vehicles: calque<Elem<'vehicles'>>(),
   vipCrown: calque<Elem<'vipCrown'>>(),
@@ -183,24 +183,25 @@ export const replayDocumentSchema = z.strictObject({
   zoneStates: calque<Elem<'zoneStates'>>(),
 })
 
-/** Le document tel que le schéma le décrit — confronté au contrat généré dans son test. */
+/** The document as the schema describes it — confronted with the generated contract in its test. */
 export type ReplayDocumentFromSchema = z.infer<typeof replayDocumentSchema>
 
 /**
- * ReplayContractIssue — LE MANQUEMENT, EN DONNÉES ET NON EN PHRASE.
+ * ReplayContractIssue — THE FAILURE, IN DATA AND NOT IN A SENTENCE.
  *
- * POURQUOI CE TYPE EXISTE (2026-09-13, ronde 2 de la revue, constat R2-2). Cette fonction
- * rendait une PHRASE, et cette phrase était française : en locale anglaise, le badge affichait
- * `contract violated (cle(s) inconnue(s) : shotz)` — un fragment FR écrit hors d'`i18n.ts`,
- * inséré au milieu d'une phrase EN. La règle n° 1 du dépôt veut toute chaîne d'interface en FR
- * ET en EN, tenue par le typage de parité ; une phrase fabriquée ici ne peut pas l'être.
+ * WHY THIS TYPE EXISTS (2026-09-13, review round 2, finding R2-2). This function used to return
+ * a SENTENCE, and that sentence was French: in the English locale, the badge showed
+ * `contract violated (cle(s) inconnue(s) : shotz)` — a FR fragment written outside `i18n.ts`,
+ * inserted in the middle of an EN sentence. Repo rule no. 1 wants every interface string in FR
+ * AND in EN, held by the parity typing; a sentence manufactured here cannot be.
  *
- * Ce module rend donc ce qu'il SAIT (quel genre de manquement, quelle clé, quel chemin) et
- * laisse l'interface le DIRE (`REPLAY_TEXT[locale].contract*`, cf. `ReplaySchemaBadge`).
+ * This module therefore returns what it KNOWS (which kind of failure, which key, which path) and
+ * leaves it to the interface to SAY it (`REPLAY_TEXT[locale].contract*`, see
+ * `ReplaySchemaBadge`).
  *
- * `detail` reste le texte de zod, en anglais et non traduit : c'est un diagnostic technique
- * destiné à un administrateur (« expected number, received string »), pas une phrase de
- * produit. Le traduire exigerait de réécrire la table d'erreurs de la bibliothèque.
+ * `detail` stays zod's text, in English and untranslated: it is a technical diagnostic meant for
+ * an administrator ("expected number, received string"), not a product sentence. Translating it
+ * would require rewriting the library's error table.
  */
 export type ReplayContractIssue =
   | { kind: 'unknownKeys'; keys: string[] }
@@ -208,16 +209,16 @@ export type ReplayContractIssue =
   | { kind: 'malformed' }
 
 /**
- * validateReplayDocument rend `null` si le document respecte le contrat, sinon le PREMIER
- * manquement, en données.
+ * validateReplayDocument returns `null` if the document honors the contract, otherwise the FIRST
+ * failure, in data.
  *
- * IL NE LÈVE JAMAIS, ET NE JETTE JAMAIS LE DOCUMENT. Un contrat violé est un signal pour
- * l'exploitant (le badge admin le montre), pas une raison de refuser d'afficher : le rendu
- * dégrade déjà champ par champ, et une page blanche apprendrait moins qu'un rejeu incomplet.
+ * IT NEVER THROWS, AND NEVER DISCARDS THE DOCUMENT. A violated contract is a signal for the
+ * operator (the admin badge shows it), not a reason to refuse to display: the render already
+ * degrades field by field, and a blank page would teach less than an incomplete replay.
  *
- * LA CLÉ INCONNUE EST PORTÉE À PART : zod la range dans `issue.keys` et non dans le chemin, si
- * bien qu'un manquement construit sur le seul chemin dirait « racine » sans jamais dire QUOI —
- * c'est-à-dire sans donner le nom du champ renommé, la seule information utile de ce cas.
+ * THE UNKNOWN KEY IS CARRIED APART: zod files it in `issue.keys` and not in the path, so a
+ * failure built on the path alone would say "root" without ever saying WHAT — that is, without
+ * giving the name of the renamed field, the only useful information in this case.
  */
 export function validateReplayDocument(raw: unknown): ReplayContractIssue | null {
   const r = replayDocumentSchema.safeParse(raw)

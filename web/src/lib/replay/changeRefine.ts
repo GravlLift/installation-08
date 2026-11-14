@@ -1,45 +1,45 @@
 /**
- * changeRefine.ts — LA DATATION FINE des lectures de fiche (schémas 24 et 25).
+ * changeRefine.ts — FINE DATING of card readings (schemas 24 and 25).
  *
- * LE PROBLÈME QU'IL RÉSOUT, ET IL EST MESURÉ. Les armes portées et la capacité d'armure se
- * lisent aux IMAGES-CLÉS du film, une toutes les ~20 s : sur les 21 899 fiches d'un match,
- * l'âge médian de la lecture d'armes est de 8,4 s, et 7,1 % seulement ont moins d'une seconde
- * (cf. `LoadoutReading`). Entre deux images-clés, la fiche montre donc l'état d'AVANT, estompé
- * pour le dire — c'est honnête, mais c'est tout ce qu'on savait.
+ * THE PROBLEM IT SOLVES, AND IT IS MEASURED. Carried weapons and the armor ability are read
+ * at the film's KEYFRAMES, one every ~20 s: across the 21 899 cards of a match, the median
+ * age of the weapon reading is 8.4 s, and only 7.1 % are under one second (see
+ * `LoadoutReading`). Between two keyframes, the card therefore shows the BEFORE state, dimmed
+ * to say so — that is honest, but it is all we knew.
  *
- * CE QUE LES DEUX NOUVEAUX CALQUES APPORTENT : le flux delta transmet le composant d'état
- * d'arme (schéma 25) et celui d'équipement (schéma 26) AU CHANGEMENT, datés à la milliseconde.
- * Là où une image-clé dit un ÉTAT échantillonné, ces événements datent la TRANSITION. La fiche
- * peut donc basculer À LA FRAME où le joueur a changé d'arme, au lieu d'attendre le prochain
- * relevé.
+ * WHAT THE TWO NEW OVERLAYS BRING: the delta stream transmits the weapon-state component
+ * (schema 25) and the equipment one (schema 26) AT THE CHANGE, dated to the millisecond.
+ * Where a keyframe states a SAMPLED STATE, these events date the TRANSITION. The card can
+ * therefore flip AT THE FRAME where the player changed weapon, instead of waiting for the next
+ * reading.
  *
- * LA LECTURE D'IMAGE-CLÉ RESTE LA BASE, ET CE N'EST PAS UN DÉTAIL : le canal delta est JUSTE
- * (sur 5 627 tirs de trois films, il ne retire jamais une arme encore utilisée) mais sa
- * COMPLÉTUDE n'est pas prouvée — rien ne dit qu'il voit TOUTES les prises (cf.
- * document_weapon_changes.go). Reconstruire l'état à partir des seuls événements dériverait à
- * la première émission manquée. On part donc du relevé, et on n'applique QUE ce qui s'est passé
- * APRÈS lui : la prochaine image-clé resynchronise tout, quoi qu'il arrive.
+ * THE KEYFRAME READING STAYS THE BASE, AND THAT IS NOT A DETAIL: the delta channel is RIGHT
+ * (over 5 627 shots from three films, it never removes a still-in-use weapon) but its
+ * COMPLETENESS is not proven — nothing says it sees ALL the pickups (see
+ * document_weapon_changes.go). Rebuilding state from the events alone would drift at the first
+ * missed emission. So we start from the reading, and apply ONLY what happened AFTER it: the
+ * next keyframe re-synchronizes everything, whatever happens.
  *
- * LES SUBSTITUTIONS D'IDENTITÉ s'appliquent toujours — `from` connue ET présente dans la rangée
- * lue, `w` non vide. Elles ne changent NI la longueur de la rangée NI l'ordre de ses
- * emplacements : c'est la seule transformation qui ne peut pas désaligner le sélecteur
- * d'emplacement dégainé (`Inventory.d`, lu à une AUTRE image-clé, avec son propre âge).
+ * IDENTITY SUBSTITUTIONS always apply — `from` known AND present in the read row, `w` non-empty.
+ * They change NEITHER the row's length NOR the order of its slots: that is the only
+ * transformation that cannot misalign the drawn-slot selector (`Inventory.d`, read at ANOTHER
+ * keyframe, with its own age).
  *
- * LES FAMILLES SE COMPARENT PAR LEUR ÉCRITURE CANONIQUE (schéma 69, lot M3.3). La rangée vient de
- * `loadouts[].w` (`0x%08X`), les changements de `weaponChanges[]` (`%08x`) : comparées telles
- * quelles, elles ne s'égalaient JAMAIS, et aucune substitution ne s'appliquait sur un artefact
- * réel — les tests de ce module écrivaient les deux côtés dans la même casse.
+ * FAMILIES COMPARE BY THEIR CANONICAL FORM (schema 69, lot M3.3). The row comes from
+ * `loadouts[].w` (`0x%08X`), the changes from `weaponChanges[]` (`%08x`): compared as-is, they
+ * were NEVER equal, and no substitution applied on a real artifact — this module's tests wrote
+ * both sides in the same case.
  *
- * LES LÂCHERS ET LES PRISES SUR EMPLACEMENT VIDE ne s'appliquent QUE sur une rangée SITUÉE — une
- * dotation de naissance, qui porte l'emplacement de chaque arme (`k`) — et par un changement qui
- * porte le sien (`weaponChanges[].k`, schéma 69). Même alors, seulement aux bords, pour que la
- * rangée reste contiguë et donc alignée sur le sélecteur : une prise sur l'emplacement qui SUIT
- * le dernier occupé, un lâcher du DERNIER. Ailleurs — et sur un relevé d'image-clé, qui ne situe
- * pas ses familles —, l'abstention d'avant reste la règle : une arme lâchée reste affichée,
- * estompée, jusqu'au prochain relevé, et aucune troisième arme n'est inventée.
+ * DROPS AND PICKUPS ON AN EMPTY SLOT apply ONLY to a PLACED row — a birth loadout, which carries
+ * each weapon's slot (`k`) — and by a change that carries its own (`weaponChanges[].k`, schema
+ * 69). Even then, only at the edges, so the row stays contiguous and therefore aligned on the
+ * selector: a pickup on the slot that FOLLOWS the last occupied one, a drop of the LAST one.
+ * Elsewhere — and on a keyframe reading, which does not place its families —, the prior
+ * abstention remains the rule: a dropped weapon stays displayed, dimmed, until the next
+ * reading, and no third weapon is invented.
  *
- * Tout ce fichier est PUR : aucun React, aucun document, donc testable sans monter quoi que ce
- * soit — même partage que `equippedLogic.ts` et `weaponPadTime.ts`.
+ * This whole file is PURE: no React, no document, hence testable without mounting anything —
+ * same sharing as `equippedLogic.ts` and `weaponPadTime.ts`.
  */
 import {
   REPLAY_NO_ABILITY_RANK,
@@ -48,29 +48,29 @@ import {
 } from '@/lib/api/types'
 
 /**
- * La PROVENANCE d'une lecture de capacité venue du calque des changements.
+ * The PROVENANCE of an ability reading that comes from the changes overlay.
  *
- * TROISIÈME VALEUR À CÔTÉ DE `kf` et `delta` (les deux canaux d'`abilities`), et elle dit une
- * chose qu'aucune des deux ne dit : ce n'est pas une LECTURE de ce que le joueur porte, c'est un
- * ÉVÉNEMENT daté qui l'a fait changer. Un appelant qui voudrait les distinguer le peut.
+ * A THIRD VALUE ALONGSIDE `kf` and `delta` (the two `abilities` channels), and it says
+ * something neither of them says: it is not a READING of what the player carries, it is a
+ * DATED EVENT that made them change. A caller that wants to distinguish them can.
  */
 export const ABILITY_SRC_CHANGE = 'chg'
 
-/** Une lecture d'armes portées : la rangée et l'âge du relevé qui la fonde. */
+/** A carried-weapons reading: the row and the age of the reading that grounds it. */
 export interface WeaponsReading {
   weapons: string[]
   age: number
-  /** Provenance du relevé : `birth` = la dotation de naissance (schéma 69) ; absent = image-clé. */
+  /** Provenance of the reading: `birth` = the birth loadout (schema 69); absent = keyframe. */
   src?: string
-  /** Emplacement de chaque arme de `weapons`, quand le relevé le situe (dotation de naissance). */
+  /** Slot of each weapon of `weapons`, when the reading places it (birth loadout). */
   k?: number[]
 }
 
 /**
- * familyKey — l'écriture CANONIQUE d'une famille d'arme (`0x%08X`), celle de `loadouts[].w` et
- * des clés de `weaponLabels`. SECONDE COPIE de la règle de `weaponLabelKeyOf`
- * (`features/match-replay/layers/useReplayWeaponPads.ts`) : `lib/` ne dépend jamais de
- * `features/`. Une troisième copie se centralise, avec son garde-rail (règle n°6 du dépôt).
+ * familyKey — the CANONICAL FORM of a weapon family (`0x%08X`), the one of `loadouts[].w` and
+ * the keys of `weaponLabels`. SECOND COPY of `weaponLabelKeyOf`'s rule
+ * (`features/match-replay/layers/useReplayWeaponPads.ts`): `lib/` never depends on
+ * `features/`. A third copy gets centralized, with its guardrail (repo rule no. 6).
  */
 function familyKey(w: string): string {
   const hex = w.startsWith('0x') || w.startsWith('0X') ? w.slice(2) : w
@@ -79,15 +79,16 @@ function familyKey(w: string): string {
 }
 
 /**
- * refineWeaponsReading rejoue, sur une rangée lue à l'image-clé, les CHANGEMENTS D'ARME datés
- * du même slot survenus depuis — et rend la rangée à jour, avec l'âge de la dernière preuve.
+ * refineWeaponsReading replays, on a row read at the keyframe, the DATED WEAPON CHANGES of the
+ * same slot that happened since — and returns the row up to date, with the age of the last
+ * evidence.
  *
- * `readFrame` est l'image du relevé (`frame - age`). Les événements qui la précèdent sont déjà
- * DANS le relevé : les rejouer reviendrait à appliquer deux fois la même transition.
+ * `readFrame` is the reading's frame (`frame - age`). The events that precede it are already
+ * IN the reading: replaying them would apply the same transition twice.
  *
- * UNE LECTURE À VENIR NE SE RAFFINE PAS. Avant la première image-clé d'une vie, le relevé rendu
- * est le plus proche À VENIR et son âge est NÉGATIF (cf. `nearestReading`) : lui appliquer des
- * événements PASSÉS ferait remonter le temps. L'appelant reçoit alors sa lecture inchangée.
+ * A FUTURE READING IS NOT REFINED. Before a life's first keyframe, the returned reading is the
+ * nearest FUTURE one and its age is NEGATIVE (see `nearestReading`): applying PAST events to
+ * it would run time backwards. The caller then gets its reading unchanged.
  */
 export function refineWeaponsReading(
   base: WeaponsReading,
@@ -99,9 +100,9 @@ export function refineWeaponsReading(
   const readFrame = frame - base.age
   const rangee: Rangee = { weapons: [...base.weapons], k: base.k ? [...base.k] : undefined }
   let applied = -1
-  // L'ORDRE CHRONOLOGIQUE EST OBLIGATOIRE, et la liste du document ne le garantit pas : deux
-  // substitutions sur le même emplacement doivent s'enchaîner dans l'ordre où elles ont eu
-  // lieu, sans quoi la fiche montrerait l'avant-dernière arme.
+  // CHRONOLOGICAL ORDER IS MANDATORY, and the document's list does not guarantee it: two
+  // substitutions on the same slot must chain in the order they happened, otherwise the card
+  // would show the second-to-last weapon.
   const utiles = changes
     .filter((c) => c.slot === slot && c.t > readFrame && c.t <= frame)
     .sort((a, b) => a.t - b.t)
@@ -109,29 +110,29 @@ export function refineWeaponsReading(
     if (appliquerChangement(rangee, c)) applied = c.t
   }
   if (applied < 0) return base
-  // LA PROVENANCE NE SURVIT PAS À UN CHANGEMENT APPLIQUÉ (revue adverse du lot M3.3, 2026-09-24) :
-  // la rangée n'est plus la dotation de naissance, c'est elle PLUS ce qui s'est passé depuis —
-  // l'infobulle ne doit plus dire « Dotation de naissance ». `k` reste : la rangée reste située.
+  // PROVENANCE DOES NOT SURVIVE AN APPLIED CHANGE (adversarial review of lot M3.3, 2026-09-24):
+  // the row is no longer the birth loadout, it is that PLUS what has happened since — the
+  // tooltip must no longer say "Birth loadout". `k` stays: the row stays placed.
   return { weapons: rangee.weapons, age: frame - applied, ...(rangee.k ? { k: rangee.k } : {}) }
 }
 
-/** La rangée en cours de raffinement : ses armes et, quand elle est située, leurs emplacements. */
+/** The row being refined: its weapons and, when it is placed, their slots. */
 interface Rangee {
   weapons: string[]
   k: number[] | undefined
 }
 
 /**
- * appliquerChangement applique UN changement à la rangée et dit s'il l'a fait (cf. l'en-tête :
- * substitutions partout, prises et lâchers aux seuls bords d'une rangée située).
+ * appliquerChangement applies ONE change to the row and says whether it did (see the header:
+ * substitutions everywhere, pickups and drops only at the edges of a placed row).
  */
 function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
   const { weapons, k } = r
   if (c.w && c.from) {
-    // LA RANGÉE DOIT NOMMER L'ARME QU'ON REMPLACE. Sinon les deux lectures sont désappariées
-    // (le relevé ne portait pas cette arme) et on s'abstient — même honnêteté que la mise en
-    // valeur « en main », qui refuse de désigner un emplacement que le loadout ne porte pas.
-    // L'emplacement du changement, quand la rangée est située, départage deux armes égales.
+    // THE ROW MUST NAME THE WEAPON BEING REPLACED. Otherwise the two readings are mismatched
+    // (the reading did not carry this weapon) and we abstain — the same honesty as the
+    // "in hand" highlight, which refuses to designate a slot the loadout does not carry.
+    // The change's slot, when the row is placed, breaks the tie between two equal weapons.
     const from = familyKey(c.from)
     const situe = k && c.k !== undefined ? k.indexOf(c.k) : -1
     const at = situe >= 0 && familyKey(weapons[situe]) === from
@@ -143,13 +144,13 @@ function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
   }
   if (!k || c.k === undefined) return false
   if (c.w) {
-    // Prise sur emplacement vide : seulement celui qui SUIT le dernier occupé.
+    // Pickup on an empty slot: only the one that FOLLOWS the last occupied one.
     if (k.includes(c.k) || c.k !== weapons.length || k.some((e, i) => e !== i)) return false
     weapons.push(familyKey(c.w))
     k.push(c.k)
     return true
   }
-  // Lâcher : seulement le DERNIER emplacement, et seulement l'arme que le changement nomme.
+  // Drop: only the LAST slot, and only the weapon the change names.
   const at = k.indexOf(c.k)
   if (at < 0 || at !== weapons.length - 1) return false
   if (c.from && familyKey(weapons[at]) !== familyKey(c.from)) return false
@@ -158,7 +159,7 @@ function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
   return true
 }
 
-/** Une lecture de capacité : le rang de palette, l'âge du relevé, et son canal. */
+/** An ability reading: the palette rank, the reading's age, and its channel. */
 export interface AbilityRankReading {
   rank: number
   age: number
@@ -166,29 +167,29 @@ export interface AbilityRankReading {
 }
 
 /**
- * refineAbilityReading départage la lecture d'`abilities` et le dernier CHANGEMENT D'ÉQUIPEMENT
- * du même slot : la plus RÉCENTE des deux gagne.
+ * refineAbilityReading settles the `abilities` reading against the last EQUIPMENT CHANGE of the
+ * same slot: the most RECENT of the two wins.
  *
- * MÊME DOCTRINE QUE LES DEUX CANAUX D'`abilities` (« la lecture la plus récente gagne, quel que
- * soit son canal ») : les deux disent la même grandeur — le rang de palette porté —, l'une par
- * échantillonnage, l'autre par événement daté.
+ * SAME DOCTRINE AS THE TWO `abilities` CHANNELS ("the most recent reading wins, whatever its
+ * channel"): both state the same quantity — the palette rank carried —, one by sampling, the
+ * other by dated event.
  *
- * UNE CONSOMMATION REND `null`, ET C'EST UNE MESURE. Le document publie `r` à
- * `REPLAY_NO_ABILITY_RANK` sur un `spent` : le joueur ne porte plus rien. La mesure est solide —
- * sur les 17 émissions à porte ouverte du corpus, aucune ne tombe dans la dernière seconde de la
- * vie, ce n'est donc jamais la mort qui vide l'emplacement. Rendre `null` fait DISPARAÎTRE la
- * vignette de la fiche, ce qui est exactement ce qu'il faut montrer ; la garder jusqu'au
- * prochain relevé affichait un équipement déjà dépensé.
+ * A CONSUMPTION RETURNS `null`, AND THAT IS A MEASUREMENT. The document publishes `r` at
+ * `REPLAY_NO_ABILITY_RANK` on a `spent`: the player carries nothing anymore. The measurement is
+ * solid — of the 17 open-door emissions in the corpus, none falls in the life's last second, so
+ * it is never death that empties the slot. Returning `null` makes the card's VIGNETTE
+ * DISAPPEAR, which is exactly what should be shown; keeping it until the next reading displayed
+ * equipment already spent.
  *
- * UN ÉVÉNEMENT À VENIR N'EST JAMAIS LU (`c.t <= frame`) : le rejeu connaît la suite, la fiche
- * n'a pas le droit de s'en servir.
+ * A FUTURE EVENT IS NEVER READ (`c.t <= frame`): the replay knows what follows, the card is not
+ * allowed to use it.
  *
- * `lifeStart` BORNE AUSSI LE PASSÉ (correctif du 2026-09-06) — SITE FRÈRE DU MÊME DÉFAUT QUE
- * `nearestReading` (`rosterLogic.ts`) : avant ce correctif, seul `c.t <= frame` bornait la
- * recherche, et un `spent` de la vie PRÉCÉDENTE du même slot (recyclé) restait « le dernier
- * changement », faisant DISPARAÎTRE la vignette d'une vie neuve qui n'avait pourtant rien
- * consommé. `lifeStart` (le début de la vie couvrant `frame`) écarte tout changement antérieur
- * — une lecture hors de cette vie n'est jamais candidate.
+ * `lifeStart` ALSO BOUNDS THE PAST (fix of 2026-09-06) — SISTER SITE OF THE SAME FLAW AS
+ * `nearestReading` (`rosterLogic.ts`): before this fix, only `c.t <= frame` bounded the
+ * search, and a `spent` from the PREVIOUS life of the same slot (recycled) stayed "the last
+ * change", making the VIGNETTE DISAPPEAR on a fresh life that had consumed nothing. `lifeStart`
+ * (the start of the life covering `frame`) rules out any earlier change — a reading outside that
+ * life is never a candidate.
  */
 export function refineAbilityReading(
   base: AbilityRankReading | null,
@@ -204,9 +205,9 @@ export function refineAbilityReading(
   }
   if (!last) return base
   const age = frame - last.t
-  // LE RELEVÉ GAGNE À ÉGALITÉ ET AU-DELÀ : une lecture d'image-clé postérieure à l'événement a
-  // déjà vu son effet, et une lecture À VENIR (âge négatif) n'a jamais le droit de primer une
-  // information passée — d'où la comparaison sur l'âge et non sur l'instant.
+  // THE READING WINS AT EQUALITY AND BEYOND: a keyframe reading later than the event has
+  // already seen its effect, and a FUTURE reading (negative age) is never allowed to outrank
+  // past information — hence the comparison on the age and not on the instant.
   if (base && base.age >= 0 && base.age <= age) return base
   if (last.r === REPLAY_NO_ABILITY_RANK) return null
   return { rank: last.r, age, src: ABILITY_SRC_CHANGE }

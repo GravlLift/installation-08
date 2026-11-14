@@ -1,55 +1,54 @@
 /**
- * replayCamps.ts — LES CAMPS DU REJEU : qui y entre (le FILM), et comment ils s'appellent (la
- * FEUILLE de match).
+ * replayCamps.ts — THE REPLAY'S CAMPS: who gets in (the FILM), and what they are called (the
+ * match SHEET).
  *
- * # L'ÉQUIPE EST CELLE DU FILM, ET D'AUCUNE AUTRE SOURCE
+ * # THE TEAM IS THE FILM'S, AND NO OTHER SOURCE'S
  *
- * Décision du 2026-10-06 (« une section sans équipe n'existe pas ; un joueur ne peut pas ne pas
- * avoir d'équipe dans un match »), dans la ligne de l'ADR 0034 D-9 (« équipe = le film seul ») et
- * de la règle « les vies anonymes n'existent pas ». Le désignateur que le roster publie
- * (`roster[].team`, schéma 57) est posé UNE FOIS sur chaque joueur par `buildPlayers`
- * (`ReplayPlayer.team`) ; `groupByCamp` en tire les camps de TOUS les regroupements du rejeu :
- * colonnes de fiches (`groupSeatsByTeam`), menu de point de vue de la frise et tables de l'onglet
- * Arsenal (`groupByTeam`).
+ * Decision of 2026-10-06 ("a section without a team does not exist; a player cannot fail to
+ * have a team in a match"), in line with ADR 0034 D-9 ("team = the film alone") and the rule
+ * "anonymous lives do not exist". The designator the roster publishes (`roster[].team`, schema
+ * 57) is set ONCE on each player by `buildPlayers` (`ReplayPlayer.team`); `groupByCamp` draws
+ * from it the camps of ALL the replay's groupings: card columns (`groupSeatsByTeam`), the
+ * timeline's viewpoint menu, and the Arsenal tab's tables (`groupByTeam`).
  *
- * UN JOUEUR DONT LE FILM TAIT L'ÉQUIPE N'ENTRE DANS AUCUN CAMP. Ce n'est ni un camp de plus ni
- * un groupe « à part » : c'est un défaut de SOURCE, compté par la cuisson
- * (`coverage.seats.sansEquipe`) et corrigé là-bas. Aucun repli ne le range par la feuille.
+ * A PLAYER WHOSE TEAM THE FILM HIDES GETS INTO NO CAMP. That is neither an extra camp nor a
+ * "set-apart" group: it is a SOURCE defect, counted by the bake (`coverage.seats.sansEquipe`)
+ * and fixed there. No fallback files them by the sheet.
  *
- * # LA FEUILLE NE FAIT QUE NOMMER
+ * # THE SHEET ONLY NAMES
  *
- * Le côté de feuille (`team_side`, `t{N}`) que portent les membres d'un camp lui donne son NOM
- * (`campLabel` : Eagle, Cobra, ou le `team_name` d'un titre qui le publie), et rien d'autre : il
- * ne décide ni de l'appartenance, ni de l'encre allié / adverse, qui vient elle aussi du film
- * (`filmAllegiance.ts`, 2026-10-06). Ce module est le seul du rejeu à le lire — garde-rail
- * `replayCamps.guard.test.ts`.
+ * The sheet side (`team_side`, `t{N}`) that a camp's members carry gives it its NAME
+ * (`campLabel`: Eagle, Cobra, or the `team_name` of a title that publishes one), and nothing
+ * else: it decides neither the membership nor the ally/enemy ink, which also comes from the
+ * film (`filmAllegiance.ts`, 2026-10-06). This module is the replay's only one to read it —
+ * guardrail `replayCamps.guard.test.ts`.
  */
 import type { MatchScoreboardRow } from '@/lib/api/types'
 import { resolveKnownTeamLabel, type TeamNamingText } from '@/lib/halo/teamLabel'
 
-/** Un camp : le désignateur du film qui le DÉCIDE, le côté de feuille qui le NOMME. */
+/** A camp: the film's designator that DECIDES it, the sheet side that NAMES it. */
 export interface ReplayCamp {
-  /** Le désignateur d'équipe que le film écrit (`roster[].team`) : la clé du camp, la seule. */
+  /** The team designator the film writes (`roster[].team`): the camp's key, the only one. */
   team: number
   /**
-   * Le côté de feuille (`t{N}`) de ses membres qui ont une ligne — celui de la majorité d'entre
-   * eux (`campSideOf`). Il NOMME le camp, rien d'autre ; `null` quand aucun membre n'a de
-   * ligne. Il ne décide ni qui est dans le camp, ni de son encre (`filmAllegiance.ts`).
+   * The sheet side (`t{N}`) of its members that have a row — the majority's side among them
+   * (`campSideOf`). It NAMES the camp, nothing else; `null` when no member has a row. It
+   * decides neither who is in the camp nor its ink (`filmAllegiance.ts`).
    */
   side: string | null
 }
 
-/** Ce que ce module lit d'une ligne de feuille : son côté, et le nom qu'elle donne à l'équipe. */
+/** What this module reads from a sheet row: its side, and the name it gives the team. */
 export type CampSheetRow = Pick<MatchScoreboardRow, 'team_side' | 'team_name'>
 
 /**
- * groupByCamp — range des éléments par camp du FILM.
+ * groupByCamp — files elements by CAMP of the FILM.
  *
- * L'ORDRE DES CAMPS EST CELUI DES DÉSIGNATEURS (0, 1, …), stable d'une image et d'une cuisson à
- * l'autre ; dans un camp, l'ordre d'entrée est gardé. Un élément sans désignateur n'entre dans
- * AUCUN camp, et aucun camp n'est créé pour lui (cf. l'en-tête). `rowsOf` rend les lignes de
- * feuille d'un élément — un joueur en a une ou aucune, une place celles de ses occupants — et ne
- * sert qu'à NOMMER le camp (`side`).
+ * THE ORDER OF CAMPS IS THAT OF THE DESIGNATORS (0, 1, …), stable from one frame and one bake
+ * to the next; within a camp, entry order is kept. An element without a designator gets into
+ * NO CAMP, and no camp is created for it (see the header). `rowsOf` returns an element's
+ * sheet rows — a player has one or none, a seat those of its occupants — and serves only to
+ * NAME the camp (`side`).
  */
 export function groupByCamp<T>(
   items: readonly T[],
@@ -70,13 +69,12 @@ export function groupByCamp<T>(
 }
 
 /**
- * campSideOf — le côté de feuille d'un camp : celui que porte la MAJORITÉ des lignes données ;
- * à égalité, celui qui a atteint ce compte le premier. `null` quand aucune ligne n'a de côté
- * (une chaîne vide est une absence : le DTO l'écrit pour un camp non résolu).
+ * campSideOf — a camp's sheet side: the one carried by the MAJORITY of the given rows; on a
+ * tie, the one that reached that count first. `null` when no row has a side (an empty string
+ * is an absence: the DTO writes it for an unresolved camp).
  *
- * UNE MAJORITÉ, PAS LE PREMIER VENU : la feuille peut contredire le film sur un joueur (la
- * cuisson le compte, `coverage.teams.contradiction`), et ce joueur-là ne doit pas renommer son
- * camp.
+ * A MAJORITY, NOT THE FIRST COMER: the sheet can contradict the film on a player (the bake
+ * counts it, `coverage.teams.contradiction`), and that player must not rename their camp.
  */
 export function campSideOf(rows: ReadonlyArray<CampSheetRow | undefined>): string | null {
   const comptes = new Map<string, number>()
@@ -96,13 +94,13 @@ export function campSideOf(rows: ReadonlyArray<CampSheetRow | undefined>): strin
 }
 
 /**
- * campLabel — le NOM d'un camp, tel que toutes les surfaces du rejeu l'écrivent.
+ * campLabel — the NAME of a camp, as every replay surface writes it.
  *
- * La cascade du dépôt (`resolveKnownTeamLabel`) sur les lignes de feuille DE SON CÔTÉ — le
- * `team_name` publié, sinon le nom officiel du côté (Eagle, Cobra…), sinon « Équipe N » du
- * côté —, et pour PLANCHER « Équipe N » du DÉSIGNATEUR : un camp du film a toujours un numéro,
- * il n'est jamais « sans équipe ». `rows` peut être la feuille entière ou les lignes des seuls
- * membres : seules celles du côté du camp sont lues.
+ * The repo's cascade (`resolveKnownTeamLabel`) on the sheet rows OF ITS SIDE — the published
+ * `team_name`, else the side's official name (Eagle, Cobra…), else the side's "Team N" —, with
+ * the FLOOR the DESIGNATOR's "Team N": a film camp always has a number, it is never "without a
+ * team". `rows` can be the whole sheet or only the members' rows: only those of the camp's
+ * side are read.
  */
 export function campLabel(
   camp: ReplayCamp,

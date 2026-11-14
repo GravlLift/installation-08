@@ -1,32 +1,32 @@
 /**
- * replayFullRate.ts — LA VIE AU DÉBIT DU FILM (schéma 109), relue à la frontière.
+ * replayFullRate.ts — THE LIFE AT THE FILM'S RATE (schema 109), re-read at the boundary.
  *
- * Le serveur publie, à côté des points de la grille (`tracks[].points`, un par image), TOUS les
- * échantillons de position et de visée que le film réplique pour la vie (`tracks[].fullRate`), en
- * colonnes DIFFÉRENTIELLES d'entiers : la première valeur d'une colonne est absolue, chaque suivante
- * est l'écart à la précédente. Le producteur en décrit l'encodage
- * (`libs/film/replay/tracks_plein_debit.go`) ; ce module en est le SEUL lecteur.
+ * The server publishes, alongside the grid points (`tracks[].points`, one per frame), ALL the
+ * position and aim samples the film replicates for the life (`tracks[].fullRate`), as
+ * DIFFERENTIAL integer columns: a column's first value is absolute, each following one is the
+ * gap from the previous. The producer describes its encoding
+ * (`libs/film/replay/tracks_plein_debit.go`); this module is its ONLY reader.
  *
- * CE QUE LA LECTURE REND, dans les unités du reste du document :
- *  - `t`, `aimT` : l'IMAGE FRACTIONNAIRE de chaque échantillon (millisecondes / `frameIntervalMs`),
- *    sur le même axe que `points[].t` — sa partie entière est l'image où la grille le range ;
- *  - `x`, `y`, `z` : unités monde, les valeurs de `points[]` (centièmes) ;
- *  - `h`, `p` : degrés, mêmes conventions que `points[].h` / `points[].p`, au quantum du film
- *    (cap 360/4096, élévation 360/2048) au lieu du dixième de degré arrondi ;
- *  - `gaps` : les indices des échantillons qu'une LACUNE précède (la règle de `points[].g`) — on
- *    tient la position jusqu'à eux, on n'interpole pas au travers.
+ * WHAT THE READING RETURNS, in the units of the rest of the document:
+ *  - `t`, `aimT`: each sample's FRACTIONAL FRAME (milliseconds / `frameIntervalMs`), on the
+ *    same axis as `points[].t` — its whole part is the frame the grid files it under;
+ *  - `x`, `y`, `z`: world units, the values of `points[]` (centi-units);
+ *  - `h`, `p`: degrees, same conventions as `points[].h` / `points[].p`, at the film's quantum
+ *    (heading 360/4096, elevation 360/2048) instead of the rounded tenth of a degree;
+ *  - `gaps`: the indices of the samples a GAP precedes (the rule of `points[].g`) — we hold
+ *    the position up to them, we do not interpolate across.
  *
- * Position et visée gardent CHACUNE leurs instants : la visée n'arrive pas sur chaque record de
- * position, et la lecture ne rééchantillonne pas l'une sur l'autre.
+ * Position and aim keep EACH of their own instants: aim does not arrive on every position
+ * record, and the reading does not resample one onto the other.
  */
 import type { ReplayFullRateTrack } from '@/lib/api/types'
 
-/** Quanta du cap de visée sur un tour (R(12) du composant i21). */
+/** Heading quanta per turn (R(12) of the i21 component). */
 export const FULL_RATE_HEADING_QUANTA = 4096
-/** Quanta de l'élévation sur un tour, centrée sur la moitié (R(11) du composant i21). */
+/** Elevation quanta per turn, centered on the half (R(11) of the i21 component). */
 export const FULL_RATE_PITCH_QUANTA = 2048
 
-/** La vie au débit du film, relue : cf. l'en-tête du module. */
+/** The life at the film's rate, re-read: see the module header. */
 export interface ReplayFullRateReady {
   t: number[]
   x: number[]
@@ -39,9 +39,9 @@ export interface ReplayFullRateReady {
 }
 
 /**
- * Somme cumulée d'une colonne différentielle, divisée par `divisor` (null = colonne vide). La somme
- * reste ENTIÈRE et la division vient en dernier : `1234 / 100` rend exactement le nombre que
- * `JSON.parse("12.34")` rend pour le point de la grille.
+ * Cumulative sum of a differential column, divided by `divisor` (null = empty column). The sum
+ * stays INTEGER and the division comes last: `1234 / 100` returns exactly the number
+ * `JSON.parse("12.34")` returns for the grid point.
  */
 function cumulate(col: readonly number[] | null | undefined, divisor: number): number[] {
   const values = col ?? []
@@ -55,8 +55,8 @@ function cumulate(col: readonly number[] | null | undefined, divisor: number): n
 }
 
 /**
- * decodeFullRate relit la piste au plein débit d'une vie. `frameIntervalMs` est celui du document
- * (`frameIntervalMs`), qui fixe l'échelle de l'image.
+ * decodeFullRate re-reads a life's full-rate track. `frameIntervalMs` is the document's
+ * (`frameIntervalMs`), which fixes the frame scale.
  */
 export function decodeFullRate(raw: ReplayFullRateTrack, frameIntervalMs: number): ReplayFullRateReady {
   const hq = cumulate(raw.h, 1)

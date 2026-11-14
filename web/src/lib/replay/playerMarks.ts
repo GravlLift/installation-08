@@ -1,37 +1,36 @@
 /**
- * playerMarks.ts — QUI EST « MOI », QUI EST UN AMI, sur la page de rejeu. Pur, testable.
+ * playerMarks.ts — WHO IS "ME" AND WHO IS A FRIEND, on the replay page. Pure, testable.
  *
- * DEUX MARQUES, UNE GRAMMAIRE SUR LES TROIS PANNEAUX (carte, fiches, fil — décision D5 du
- * plan d'habillage, 2026-08-16) :
- *   - `me`     : LE POINT DE VUE de la page de rejeu, qui vaut le joueur de la page par
- *                défaut (décision 13 du plan « frise, point de vue », 2026-09-06) — pas le
- *                compte connecté. Le disque cerclé de la carte dit « celui qu'on regarde » ;
- *                le jour où l'on regarde par les yeux d'un autre, il le suit ;
- *   - `friend` : un gamertag de la liste d'amis du joueur consulté, apparié
- *                par la même clé que les charts de la Match View (`normalizeGamertagKey`).
- * Celui qu'on regarde n'est jamais marqué ami de lui-même. Un ami ADVERSE est marqué
- * aussi : la marque dit l'identité, pas le camp — le camp, c'est la couleur.
+ * TWO MARKS, ONE GRAMMAR ACROSS THE THREE PANELS (map, cards, feed — decision D5 of the
+ * dressing plan, 2026-08-16):
+ *   - `me`     : THE POINT OF VIEW of the replay page, which defaults to the page's player
+ *                (decision 13 of the "timeline, point of view" plan, 2026-09-06) — not the
+ *                connected account. The ringed disc on the map says "the one being watched";
+ *                the day we look through someone else's eyes, it follows them;
+ *   - `friend` : a gamertag from the consulted player's friend list, matched
+ *                by the same key as the Match View charts (`normalizeGamertagKey`).
+ * The one being watched is never marked a friend of themselves. An ENEMY friend is marked
+ * too: the mark says the identity, not the camp — the camp is the color.
  *
- * Aucune marque pour un xuid absent du scoreboard : sans ligne, on ne sait rien de lui.
+ * No mark for a xuid absent from the scoreboard: without a row, we know nothing about them.
  */
 import type { MatchScoreboardRow } from '@/lib/api/types'
 import { normalizeGamertagKey } from '@/lib/players/displayName'
 
 export type PlayerMarkKind = 'me' | 'friend'
 
-/** Référence STABLE pour « aucune marque » : évite un `new Map()` à chaque rendu. */
+/** STABLE reference for "no mark": avoids a `new Map()` on every render. */
 export const NO_MARKS: ReadonlyMap<string, PlayerMarkKind> = new Map()
 
 /**
- * buildPlayerMarks rend, par xuid, la marque à porter. `friendGamertags` = la liste des
- * réglages, telle quelle (la normalisation est faite ici).
+ * buildPlayerMarks returns, per xuid, the mark to wear. `friendGamertags` = the settings
+ * list, as-is (normalization is done here).
  *
- * `meXUID` (2026-09-06) désigne QUI porte la marque `me` : le point de vue de la page de
- * rejeu. Absent, la marque retombe sur la ligne `is_me` du tableau de score — le comportement
- * d'avant le point de vue, que la caractérisation L2a fixe et que les appelants qui ne
- * connaissent pas de point de vue continuent d'obtenir. Un `meXUID` qui n'a pas de ligne au
- * tableau de score ne fait porter la marque à PERSONNE : pas de repli sur `is_me`, sinon le
- * disque cerclé désignerait quelqu'un d'autre que ce qu'on regarde.
+ * `meXUID` (2026-09-06) designates WHO wears the `me` mark: the point of view of the replay
+ * page. Absent, the mark falls back to the `is_me` row of the scoreboard — the pre-point-of-view
+ * behavior, which the L2a characterization locks in and which callers that know no point of view
+ * keep getting. A `meXUID` that has no row in the scoreboard makes the mark worn by NO ONE: no
+ * fallback to `is_me`, otherwise the ringed disc would point at someone other than what we watch.
  */
 export function buildPlayerMarks(
   scoreboard: readonly MatchScoreboardRow[],
