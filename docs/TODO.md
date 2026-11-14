@@ -7,10 +7,9 @@ are in [PARITY.md](PARITY.md).
 
 ## Migration (still open)
 
-- Transport bar: the full transport (the reference's `ReplayTransport`) and film export.
-  The match-time readout, the 16:9 player and the fullscreen button are done.
+- Film export: not checked since the UI redesign (the transport bar itself is done).
 - English translation pass of the lifted French comments and strings.
-- Packaging and an installer.
+- Installer: the release package builds (`tools\package.ps1`); the installer path is unchecked.
 
 ## Other open work
 
@@ -29,16 +28,33 @@ are in [PARITY.md](PARITY.md).
 ## After migration (owner's queue, in this order)
 
 1. Reload sounds are inconsistent between weapons.
-2. Announcer (the in-game voice calls).
-3. Equipment animations and effects.
+2. Announcer (the in-game voice calls). DONE: lines repacked from the installed game in
+   pure Go. Objective calls (flag, bomb, hill) not yet checked in a match.
+3. Equipment animations and effects. DONE for grapple, repulsor and shroud screen. Thruster
+   and drop wall are built but not yet seen on screen (no stored match has a drop wall);
+   the shroud has no ground band, no animation, and an opaque inside view.
 4. Weapon pads (new): the pads the game places should render as pads.
-5. Red reticle (new): the hit reticle should turn red on a valid target.
+5. Red reticle (new): the hit reticle should turn red on a valid target. DONE: fixed red,
+   per-weapon range from the weapon tags. The zoomed range (unscoped times magnification)
+   is inferred.
 6. Two ground pads that should not render: object #214, type -877512201, materials
    `mat_b3dcd79c`, shader `6eb5a1b6`.
 7. Map builder: zero-color gradient layers (shaders `47b5f7e5`, `2aaf6012`, `377bfad9`,
    `ff2a209d`). Fixing these also lets the glass workaround go.
 8. CTF flags are a primitive pole and triangle (same as in the reference); they should use
    the game's flag model and stand.
+
+## Viewer UI (open)
+
+- 2D view: floors above the followed player are cut away entirely (players there float over
+  black; draw other floors faintly), skylight patches are overexposed, the map sits under
+  the header and the control bar, and there is no corner minimap yet.
+- Camera controls live in three places: the 1st person / 3rd person / Free view switch on
+  the scene, `3D | 2D` and the POV picker in the control bar. Move them into one group; in
+  free view the first-person weapon stays on screen.
+- The settings drawer covers the right-hand transport buttons while open; fullscreen is
+  unchecked since the redesign.
+- Home screen: Settings and Quit rows, gamepad input, live 3D backdrops.
 
 ## Ideas for later
 
