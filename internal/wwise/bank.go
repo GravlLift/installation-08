@@ -108,6 +108,23 @@ func (bk *Bank) EventMedia(eventID uint32) []uint32 {
 	return out
 }
 
+// EventTargetTypes returns the HIRC type of each object an event's Play actions target, in
+// action order: a caller tells a random container (each media one take, HircRandomSeq) from a
+// layer or switch container whose media are not interchangeable.
+func (bk *Bank) EventTargetTypes(eventID uint32) []byte {
+	ev, ok := bk.Objects[eventID]
+	if !ok || ev.Type != HircEvent {
+		return nil
+	}
+	var out []byte
+	for _, act := range bk.eventActions(ev.Body) {
+		if target, ok := bk.playTarget(act); ok {
+			out = append(out, bk.Objects[target].Type)
+		}
+	}
+	return out
+}
+
 // eventActions reads an event's action list (v135: u8 count, then ids; older banks: u32 count),
 // keeping the reading whose every id is an Action of this bank.
 func (bk *Bank) eventActions(b []byte) []uint32 {
