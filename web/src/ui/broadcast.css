@@ -1,0 +1,96 @@
+/**
+ * broadcast.css — the broadcast look of the menu pages (docs/UI-DESIGN.md, ported from
+ * docs/design/ui-mockup.html). Every class is `bc-` prefixed so it cannot collide with
+ * Tailwind utilities or the lifted 3D view, and every value comes from the tokens in
+ * `index.css`. Pages render these classes; a page carries no colors, sizes or inline style
+ * values of its own except a dynamic `background-image`.
+ */
+
+/* Backdrop: the treated map image, two layers for the cross-fade. */
+.bc-backdrop { position: fixed; inset: -4%; z-index: 0; }
+.bc-backdrop .bc-layer { position: absolute; inset: 0; background-size: cover; background-position: center;
+  filter: blur(9px) saturate(1.25) brightness(0.8); opacity: 0; transition: opacity 600ms ease;
+  animation: bc-drift 40s ease-in-out infinite alternate; }
+.bc-backdrop .bc-layer.on { opacity: 1; }
+.bc-backdrop.sharp .bc-layer { filter: blur(2px) saturate(1.15) brightness(0.8); }
+@keyframes bc-drift { from { transform: scale(1.04) translate(-1%, -0.5%); } to { transform: scale(1.12) translate(1.5%, 1%); } }
+.bc-backdrop::after { content: ''; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.14) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 55% 45%, transparent 35%, rgba(3,6,10,0.7) 100%),
+    linear-gradient(90deg, rgba(5,8,13,0.7), rgba(5,8,13,0.1) 45%),
+    linear-gradient(180deg, rgba(8,16,26,0.5), rgba(5,8,13,0.05) 25%, rgba(5,8,13,0.8)); }
+
+/* Page frame. */
+.bc-stage { position: fixed; inset: 0; z-index: 1; display: grid; grid-template-rows: auto 1fr auto; }
+.bc-view { min-height: 0; padding: 28px 36px 8px; animation: bc-wipe 260ms ease-out; }
+@keyframes bc-wipe { from { opacity: 0; clip-path: polygon(0 0, 0 0, -8% 100%, 0 100%); } to { opacity: 1; clip-path: polygon(0 0, 110% 0, 100% 100%, 0 100%); } }
+
+/* Top bar */
+.bc-topbar { display: flex; align-items: center; gap: 20px; padding: 18px 36px; }
+.bc-mark { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; letter-spacing: 0.22em; text-transform: uppercase; }
+.bc-mark b { color: var(--air); font-weight: 700; }
+.bc-onair { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; padding: 3px 10px 2px; background: var(--air-hot); color: #1a1000;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); font-weight: 700; }
+.bc-crumb { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; color: var(--ink-dim); }
+.bc-topbar .bc-spacer { flex: 1; }
+.bc-who { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
+.bc-who b { color: var(--ink); font-weight: 600; }
+.bc-signin { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12px;
+  font-weight: 700; padding: 6px 18px 5px; color: var(--air); border: 1px solid var(--air-deep);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.bc-rule { height: 1px; margin: 0 36px; background: linear-gradient(90deg, var(--air) 0, rgba(111,211,255,0.25) 22%, rgba(255,255,255,0.08) 100%); }
+
+/* Ticker */
+.bc-ticker { display: flex; align-items: center; gap: 28px; padding: 10px 36px; font-size: 12px; color: var(--ink-dim);
+  background: linear-gradient(180deg, transparent, rgba(3,6,10,0.7)); font-family: var(--display); letter-spacing: 0.14em; text-transform: uppercase; }
+.bc-ticker .bc-keys { margin-left: auto; display: flex; gap: 18px; }
+.bc-key { display: inline-block; min-width: 22px; padding: 1px 6px; margin-right: 6px; border: 1px solid var(--ink-faint); border-radius: 3px; color: var(--ink); text-align: center; font-size: 11px; }
+.bc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--win); margin-right: 8px; }
+.bc-dot.bad { background: var(--loss); }
+
+/* Shared type */
+.bc-eyebrow { font-family: var(--display); font-stretch: 75%; font-size: 12px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--air); }
+.bc-title { font-family: var(--display); font-stretch: 75%; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; line-height: 0.95; margin: 6px 0 0; }
+
+/* Focus list: game-menu rows */
+.bc-list { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; padding-right: 10px;
+  scrollbar-width: thin; scrollbar-color: var(--studio-700) transparent; }
+.bc-row { position: relative; display: grid; align-items: center; text-align: left; width: 100%;
+  padding: 12px 22px 12px 26px; background: linear-gradient(90deg, rgba(17,26,38,0.82), rgba(17,26,38,0.45));
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+  border-left: 3px solid transparent; transition: background 120ms, transform 120ms, border-color 120ms; }
+.bc-row .bc-name { font-family: var(--display); font-stretch: 75%; font-size: 19px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.bc-row .bc-sub { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.06em; margin-top: 2px; }
+.bc-row.bc-focus { background: linear-gradient(90deg, rgba(111,211,255,0.95), rgba(111,211,255,0.62)); color: #04121c; border-left-color: #fff; transform: translateX(8px); }
+.bc-row.bc-focus .bc-sub { color: #0b2c40; }
+
+/* Plates */
+.bc-plate { position: relative; background: linear-gradient(135deg, rgba(10,16,24,0.92), rgba(17,26,38,0.78)); padding: 18px 26px 18px 22px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--slant)), calc(100% - var(--slant)) 100%, 0 100%); border-left: 3px solid var(--air); }
+.bc-shot { position: relative; aspect-ratio: 16 / 9; background: var(--studio-800) center / cover no-repeat;
+  clip-path: polygon(var(--slant) 0, 100% 0, 100% 100%, 0 100%, 0 var(--slant)); box-shadow: 0 0 0 1px rgba(111,211,255,0.25) inset; }
+.bc-shot::before, .bc-shot::after { content: ''; position: absolute; width: 26px; height: 26px; border: 2px solid var(--air); }
+.bc-shot::before { right: 10px; top: 10px; border-left: 0; border-bottom: 0; }
+.bc-shot::after { right: 10px; bottom: 10px; border-left: 0; border-top: 0; }
+.bc-facts { display: grid; grid-template-columns: repeat(4, auto); gap: 6px 28px; justify-content: start; margin-top: 12px; }
+.bc-fact span { display: block; font-family: var(--display); font-size: 10px; letter-spacing: 0.24em; color: var(--ink-faint); text-transform: uppercase; }
+.bc-fact b { font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+
+/* Home: the broadcast desk. */
+.bc-home { display: grid; grid-template-columns: minmax(320px, 26vw) 1fr; gap: 4vw; align-items: center; }
+.bc-home .bc-row { padding: 16px 26px 16px 30px; }
+.bc-home .bc-row .bc-name { font-size: 26px; }
+.bc-home .bc-row .bc-sub { font-size: 13px; }
+.bc-home .bc-feature { display: flex; flex-direction: column; align-items: flex-start; justify-self: end; width: min(100%, 118vh); }
+.bc-home .bc-feature .bc-shot { width: 100%; }
+.bc-home .bc-feature .bc-plate { margin: -84px 0 0 -28px; z-index: 1; min-width: 56%; padding: 20px 44px 22px 26px; }
+.bc-home .bc-title { font-size: clamp(48px, 5.4vw, 92px); }
+.bc-home .bc-facts b { font-size: 21px; }
+.bc-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; padding: 9px 26px 8px 18px; font-family: var(--display); font-stretch: 75%; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; background: var(--air); color: #04121c; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
+
+/* Reduced motion: the drift, the cross-fade and the page wipe stop. */
+@media (prefers-reduced-motion: reduce) {
+  .bc-backdrop .bc-layer, .bc-view { animation: none; }
+}
