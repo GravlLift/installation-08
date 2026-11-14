@@ -1,59 +1,59 @@
 /**
- * placementTeleport — LES USAGES DU TRANSLOCATEUR QUANTIQUE, lus dans l'ÉVÉNEMENT DU FILM.
+ * placementTeleport — THE USAGES OF THE QUANTUM TRANSLOCATOR, read in the EVENT OF THE FILM.
  *
- * CE FICHIER A CHANGÉ DE FONDATION LE 2026-09-03, et c'est le point à comprendre avant d'y
- * toucher. Il portait jusque-là DEUX lectures indirectes, toutes deux abandonnées :
+ * THIS FILE CHANGED FOUNDATION ON 2026-09-03, and that is the point to understand before
+ * touching it. It carried until then TWO indirect readings, both abandoned:
  *
- *  - une HEURISTIQUE SPATIALE (`riftTeleports`) qui cherchait, dans les pistes, un joueur se
- *    déplaçant de plus de 12 m en moins de 3 images. Elle rendait 4 détections sur 39 films,
- *    et surtout : tout seuil de distance INVENTE une règle — une téléportation peut faire
- *    50 cm (mesuré : un saut de 3,24 m sur `1b2d9e08`, invisible à tous les seuils). Décision
- *    utilisateur du 2026-09-03 (« je ne veux pas de choix ou de règle arbitraire, je veux de
- *    la lecture fiable ») : SUPPRIMÉE, avec ses tests et ses imports (CLAUDE.md n°7) ;
- *  - le `spent` du calque d'équipement (`spentTranslocations`), qui date la FIN de
- *    l'équipement et non son usage : la mesure des modes de fin donne jusqu'à 16,5 s de
- *    retard, et trois `spent` du corpus n'ont aucun usage connu. Il ne subsiste QUE comme
- *    repli daté des artefacts antérieurs au schéma 38 (cf. `spentTranslocations`).
+ *  - a SPATIAL HEURISTIC (`riftTeleports`) that looked, in the tracks, for a player moving
+ *    more than 12 m in less than 3 frames. It yielded 4 detections out of 39 films,
+ *    and above all: any distance threshold INVENTS a rule — a teleportation can be
+ *    50 cm (measured: a jump of 3.24 m on `1b2d9e08`, invisible to all thresholds). Decision
+ *    of the user of 2026-09-03 (« I do not want a choice or an arbitrary rule, I want
+ *    reliable reading »): DELETED, with its tests and its imports (CLAUDE.md no. 7);
+ *  - the `spent` of the equipment overlay (`spentTranslocations`), which dates the END of
+ *    the equipment and not its usage: the measurement of the end modes gives up to 16.5 s of
+ *    delay, and three `spent` of the corpus have no known usage. It subsists ONLY as
+ *    dated fallback of the artifacts prior to schema 38 (cf. `spentTranslocations`).
  *
- * CE QUI LES REMPLACE : `translocations[]` (schéma 38). Chaque usage émet un événement type
- * 117 dans la bobine — précision 18/18, rappel 8/8 sur 5 films (rapport R1 §4) — et sa charge
- * porte les DEUX positions du saut, lues dans l'exécutable et validées à 0,00-0,26 m
- * (rapport R6 §1). Plus aucune dérivation : l'événement EST la mesure.
+ * WHAT REPLACES THEM: `translocations[]` (schema 38). Each usage emits an event of type
+ * 117 in the reel — precision 18/18, recall 8/8 on 5 films (report R1 §4) — and its payload
+ * carries the TWO positions of the jump, read in the executable and validated to 0.00-0.26 m
+ * (report R6 §1). No more derivation: the event IS the measurement.
  *
- * LA SÉMANTIQUE EST UN VA-ET-VIENT, et elle gouverne tout ce que le rendu affirme : la balise
- * ÉCHANGE sa position avec le joueur à chaque usage — l'arrivée d'un saut est le départ du
- * précédent, à 0,09 m près sur la mesure. Après un échange, la faille est donc au point de
- * DÉPART (`fx/fy`). Où elle se trouve AVANT le premier échange n'est lisible d'AUCUN canal
- * (négatif mesuré sur trois : R1 §1-3 et R6 §1.4) : on ne dessine donc rien avant lui — voir
- * `riftStations.ts`, qui porte cette partie.
+ * THE SEMANTICS IS A ROUND TRIP, and it governs everything the render asserts: the beacon
+ * EXCHANGES its position with the player at each usage — the arrival of a jump is the start of
+ * the previous one, to within 0.09 m on the measurement. After an exchange, the rift is therefore at the point of
+ * DEPARTURE (`fx/fy`). Where it is located BEFORE the first exchange is readable from NO channel
+ * (negative measured on three: R1 §1-3 and R6 §1.4): one therefore draws nothing before it — see
+ * `riftStations.ts`, which carries this part.
  */
 import { allTexts } from '@/lib/i18n/pickText'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { XY } from '../../../lib/replay/replayLogic'
 
 /**
- * Rang du translocateur quantique dans la palette de capacités du film — FAMILLE A SEULEMENT.
- * Le rang est établi côté serveur (`internal/games/halo_infinite/film/grammar/translocateur_test.go`) et le
- * document le confirme : `abilityLabels` associe 11 à « translocateur quantique ». C'est le
- * REPLI des documents sans table de libellés ; partout ailleurs, `translocatorRanks` lit la
- * table — un film famille B (rangs 19-22) rendrait ce littéral muet (bug du 2026-09-02 :
- * la reconnaissance était fausse partout hors famille A, silencieusement).
+ * Rank of the quantum translocator in the film's ability palette — FAMILY A ONLY.
+ * The rank is established on the server side (`internal/games/halo_infinite/film/grammar/translocateur_test.go`) and the
+ * document confirms it: `abilityLabels` associates 11 to « quantum translocator ». It is the
+ * FALLBACK of the documents without label table; everywhere else, `translocatorRanks` reads the
+ * table — a family B film (ranks 19-22) would make this literal silent (bug of 2026-09-02:
+ * the recognition was false everywhere outside family A, silently).
  */
 const RANG_TRANSLOCATEUR = 11
 
 /**
- * translocatorRanks — les rangs de palette qui NOMMENT le translocateur dans CE document.
+ * translocatorRanks — the palette ranks that NAME the translocator in THIS document.
  *
- * La table `abilityLabels` est la seule correspondance rang→objet que l'artefact publie, et
- * elle suit la famille de palette du film (A : 11 ; B : un rang de 19-22) — la lire est donc
- * le seul chemin qui couvre les deux familles sans deviner. La reconnaissance se fait sur la
- * RACINE du mot (`transloc`), présente dans les deux locales publiées (« Translocateur
- * quantique » / « Quantum Translocator ») : comparer un libellé entier serait cassé à la
- * première retouche de traduction. Sans table, ou sans rang reconnu : le repli famille A.
+ * The `abilityLabels` table is the only rank→object correspondence the artifact publishes, and
+ * it follows the palette family of the film (A: 11; B: a rank of 19-22) — reading it is therefore
+ * the only path that covers both families without guessing. The recognition is done on the
+ * ROOT of the word (`transloc`), present in the two published locales (« Translocateur
+ * quantique » / « Quantum Translocator »): comparing a whole label would be broken at the
+ * first rework of the translation. Without table, or without recognized rank: the family A fallback.
  *
- * ELLE NE SERT PLUS À RECONNAÎTRE UN USAGE — l'événement 117 s'en charge — mais à lire le
- * calque d'ÉQUIPEMENT : la FIN de l'équipement (`riftStations.ts`) et le repli des artefacts
- * antérieurs au schéma 38 (`spentTranslocations`) y passent tous deux par un rang.
+ * IT IS NO LONGER USED TO RECOGNIZE A USAGE — the event 117 takes care of it — but to read the
+ * EQUIPMENT overlay: the END of the equipment (`riftStations.ts`) and the fallback of the artifacts
+ * prior to schema 38 (`spentTranslocations`) both pass through a rank there.
  */
 export function translocatorRanks(
   labels: ReplayDocumentReady['abilityLabels'],
@@ -68,39 +68,39 @@ export function translocatorRanks(
 }
 
 /**
- * Un moment de translocation réduit à ce que la FICHE consomme : quelle vie, quelle image.
- * `TeleportLink` en est la version SITUÉE (le lien sur la carte a besoin des deux bouts) ;
- * une translocation dont la charge n'a pas été lue n'a que ce couple-là.
+ * A moment of translocation reduced to what the CARD consumes: which life, which frame.
+ * `TeleportLink` is its SITUATED version (the link on the map needs both ends);
+ * a translocation whose payload was not read has only that pair.
  */
 export interface TranslocationMoment {
   slot: number
   frame: number
   /**
-   * Vrai pour la POSE de la faille (et non un passage par elle) : le geste qui la dépose, daté par
-   * `riftPoses`. La fiche porte le même éclat, mais ne dit pas « passage » d'un geste qui n'en est pas un.
+   * True for the POSE of the rift (and not a pass through it): the gesture that places it, dated by
+   * `riftPoses`. The card carries the same glint, but does not say « pass » of a gesture that is not one.
    */
   pose?: true
 }
 
-/** Un va-et-vient MESURÉ : la vie, l'image, le point quitté et le point atteint. */
+/** A MEASURED round trip: the life, the frame, the point left and the point reached. */
 export interface TeleportLink extends TranslocationMoment {
-  /** Position quittée — c'est là que la balise se retrouve après l'échange. */
+  /** Position left — that is where the beacon is found after the exchange. */
   from: XY
-  /** Position atteinte par le joueur. */
+  /** Position reached by the player. */
   to: XY
 }
 
-/** Une téléportation du document, telle que le calque la publie. */
+/** A teleportation of the document, as the overlay publishes it. */
 type Translocation = ReplayDocumentReady['translocations'][number]
 
 /**
- * planarJump — les deux bouts du saut d'une translocation, ou `null` quand la charge n'a pas
- * été lue.
+ * planarJump — the two ends of the jump of a translocation, or `null` when the payload was
+ * not read.
  *
- * LES SIX COORDONNÉES SONT SOLIDAIRES au contrat (armées ensemble ou pas du tout,
- * cf. `document_translocations.go`) ; le plan n'en consomme que quatre, et on les vérifie
- * toutes les quatre plutôt que de faire confiance à la solidarité — `0` est une valeur
- * légitime, `undefined` ne l'est pas, et un `?? 0` dessinerait un saut vers l'origine du monde.
+ * THE SIX COORDINATES ARE JOINTLY BOUND by contract (armed together or not at all,
+ * cf. `document_translocations.go`); the plane consumes only four of them, and one checks
+ * all four rather than trusting the solidarity — `0` is a legitimate
+ * value, `undefined` is not, and a `?? 0` would draw a jump to the origin of the world.
  */
 function planarJump(t: Translocation): { from: XY; to: XY } | null {
   const { fx, fy, tx, ty } = t
@@ -109,10 +109,10 @@ function planarJump(t: Translocation): { from: XY; to: XY } | null {
 }
 
 /**
- * translocationMoments — l'INSTANT de chaque usage publié, avec ou sans position.
+ * translocationMoments — the INSTANT of each published usage, with or without position.
  *
- * C'est la source de l'éclat de fiche : une translocation sans va-et-vient lisible reste un
- * usage MESURÉ (l'événement l'atteste), seule sa géométrie manque.
+ * That is the source of the card glint: a translocation without readable round trip stays a
+ * MEASURED usage (the event attests it), only its geometry is missing.
  */
 export function translocationMoments(
   translocations: readonly Translocation[],
@@ -121,10 +121,10 @@ export function translocationMoments(
 }
 
 /**
- * translocationLinks — les va-et-vient SITUÉS, dans l'ordre des images.
+ * translocationLinks — the SITUATED round trips, in the order of the frames.
  *
- * Une translocation sans positions n'en produit AUCUN : on date le geste sur la fiche, on ne
- * trace aucun lien sur la carte. `coverage.translocations.positioned` dit combien en portent.
+ * A translocation without positions produces NONE: one dates the gesture on the card, one draws
+ * no link on the map. `coverage.translocations.positioned` says how many of them carry one.
  */
 export function translocationLinks(
   translocations: readonly Translocation[],
@@ -140,31 +140,31 @@ export function translocationLinks(
 }
 
 /**
- * hasTranslocationLayer — CE DOCUMENT A-T-IL ÉTÉ LU POUR LE CALQUE DES TÉLÉPORTATIONS ?
+ * hasTranslocationLayer — HAS THIS DOCUMENT BEEN READ FOR THE TELEPORTATION OVERLAY?
  *
- * DEUX PREUVES, ET LA PREMIÈRE EST LA SEULE QUI COUVRE LE SILENCE. La couverture est posée
- * SANS CONDITION par le constructeur du schéma 38 (`build.go` :
- * `doc.Coverage.Translocations = &trCov`, y compris à zéro événement) : sa présence sépare
- * exactement « le calque a tourné, il n'a rien trouvé » de « l'artefact est antérieur au
- * schéma 38 ». Une téléportation publiée est l'autre preuve — un artefact antérieur ne peut
- * pas en porter — et elle sert de filet si un producteur servait le calque sans sa couverture.
+ * TWO PROOFS, AND THE FIRST IS THE ONLY ONE THAT COVERS THE SILENCE. The coverage is set
+ * UNCONDITIONALLY by the schema 38 builder (`build.go`:
+ * `doc.Coverage.Translocations = &trCov`, including at zero event): its presence separates
+ * exactly « the overlay ran, it found nothing » from « the artifact is prior to
+ * schema 38 ». A published teleportation is the other proof — a prior artifact cannot
+ * carry one — and it serves as a net if a producer served the overlay without its coverage.
  */
 export function hasTranslocationLayer(doc: ReplayDocumentReady): boolean {
   return doc.coverage?.translocations !== undefined || doc.translocations.length > 0
 }
 
 /**
- * identityIsUnknown — le rang PRÉCÉDENT annoncé par cette émission est-il hors d'usage ?
+ * identityIsUnknown — is the PREVIOUS rank announced by this emission out of use?
  *
- * `gap > 0` = n émissions manquent ENCORE juste avant elle, après récupération (schéma 38,
- * décision D3). `from` n'est alors ni vrai ni faux : il est INCONNU, et tout consommateur doit
- * le traiter comme tel. Le cas mesuré est le `spent` de JGtm sur `1b2d9e08`, qui porte
- * `from = 4` (le grappin) parce que sa PRISE du translocateur a été manquée : une seule
- * émission perdue aveugle le filtre.
+ * `gap > 0` = n emissions are STILL missing just before it, after recovery (schema 38,
+ * decision D3). `from` is then neither true nor false: it is UNKNOWN, and every consumer must
+ * treat it as such. The measured case is the `spent` of JGtm on `1b2d9e08`, which carries
+ * `from = 4` (the grapnel) because its PICKING UP of the translocator was missed: a single
+ * lost emission blinds the filter.
  *
- * FOYER UNIQUE DE LA RÈGLE (CLAUDE.md n°6) : `spentTranslocations` et `riftStations` la lisent
- * ici, jamais chacun la sienne. Un artefact antérieur au schéma 38 ne publie pas `gap` — la
- * porte est alors ouverte, ce qui est exactement le comportement d'avant.
+ * SINGLE HEARTH OF THE RULE (CLAUDE.md no. 6): `spentTranslocations` and `riftStations` read it
+ * here, never each its own. An artifact prior to schema 38 does not publish `gap` — the
+ * door is then open, which is exactly the previous behavior.
  */
 export function identityIsUnknown(
   change: ReplayDocumentReady['equipmentChanges'][number],
@@ -173,23 +173,23 @@ export function identityIsUnknown(
 }
 
 /**
- * spentTranslocations — REPLI DES ARTEFACTS ANTÉRIEURS AU SCHÉMA 38, et rien d'autre.
+ * spentTranslocations — FALLBACK OF THE ARTIFACTS PRIOR TO SCHEMA 38, and nothing else.
  *
- * KILL-SWITCH DATÉ (modèle `platform/duckdb/shared_reader_legacy.go`) :
- *   - bascule du défaut : 2026-09-03 — depuis le schéma 38, l'éclat vient de
- *     `translocations[]` (l'ÉVÉNEMENT), et cette fonction n'est plus jamais appelée sur un
- *     artefact qui porte ce calque (cf. `teleportMoments`) ;
- *   - retrait cible : 2026-12-01 ;
- *   - critère mesurable : plus aucun artefact servi sans `coverage.translocations`
- *     (`hasTranslocationLayer` vrai partout), c'est-à-dire re-cuisson complète du parc.
+ * DATED KILL-SWITCH (model `platform/duckdb/shared_reader_legacy.go`):
+ *   - switch of the default: 2026-09-03 — since schema 38, the glint comes from
+ *     `translocations[]` (the EVENT), and this function is no longer called on a
+ *     artifact that carries this overlay (cf. `teleportMoments`);
+ *   - target removal: 2026-12-01;
+ *   - measurable criterion: no more artifact served without `coverage.translocations`
+ *     (`hasTranslocationLayer` true everywhere), i.e. complete re-baking of the fleet.
  *
- * CE QU'IL VAUT, DIT SANS FARD. Le `spent` date la FIN de l'équipement, pas l'usage : jusqu'à
- * 16,5 s de retard mesuré, et trois `spent` du corpus n'ont aucun usage connu. Il reste
- * néanmoins le SEUL signal daté d'un artefact ancien — le supprimer éteindrait l'éclat sur
- * tout le parc en production tant que la re-cuisson n'a pas eu lieu.
+ * WHAT IT IS WORTH, SAID WITHOUT VARNISH. The `spent` dates the END of the equipment, not the usage: up to
+ * 16.5 s of delay measured, and three `spent` of the corpus have no known usage. It remains
+ * nonetheless the ONLY dated signal of an old artifact — removing it would extinguish the glint on
+ * the whole fleet in production until the re-baking has taken place.
  *
- * IL S'ABSTIENT SUR UNE IDENTITÉ INCONNUE (`identityIsUnknown`) : un éclat AFFIRME un geste,
- * et on n'affirme pas sur un `from` que le témoin de compteur dit hors d'usage.
+ * IT REFRAINS ON AN UNKNOWN IDENTITY (`identityIsUnknown`): a glint ASSERTS a gesture,
+ * and one does not assert on a `from` that the counter witness says out of use.
  */
 export function spentTranslocations(
   changes: ReplayDocumentReady['equipmentChanges'],
@@ -204,22 +204,22 @@ export function spentTranslocations(
 }
 
 /**
- * riftPoseMoments — l'INSTANT de chaque POSE de la faille (schéma 95 : l'énergie du translocateur
- * porté tombe à zéro). Un geste distinct du passage : la fiche s'éclaire à la pose, pas seulement à
- * la première téléportation qui la suit.
+ * riftPoseMoments — the INSTANT of each POSE of the rift (schema 95: the energy of the translocator
+ * carried falls to zero). A gesture distinct from the pass: the card lights at the pose, not only at
+ * the first teleportation that follows it.
  */
 export function riftPoseMoments(doc: ReplayDocumentReady): TranslocationMoment[] {
   return doc.riftPoses.map((p) => ({ slot: p.slot, frame: p.t, pose: true }))
 }
 
 /**
- * teleportMoments — LES INSTANTS que la fiche fait scintiller, par le meilleur canal
- * disponible pour CE document : les passages par la faille, puis les poses de la faille.
+ * teleportMoments — THE INSTANTS that the card makes shimmer, by the best channel
+ * available for THIS document: the passes through the rift, then the poses of the rift.
  *
- * UN SEUL CANAL À LA FOIS POUR LES PASSAGES, ET C'EST LA RÈGLE : mélanger l'événement et le
- * `spent` ferait scintiller deux fois le même usage (l'un à l'instant vrai, l'autre jusqu'à
- * 16,5 s plus tard). Le calque publié gagne dès qu'il existe, le repli ne sert que là où il
- * n'existe pas. Les POSES sont un autre geste, daté par son propre calque : elles s'y ajoutent.
+ * ONE CHANNEL AT A TIME FOR THE PASSES, AND IT IS THE RULE: mixing the event and the
+ * `spent` would make the same usage shimmer twice (one at the true instant, the other up to
+ * 16.5 s later). The published overlay wins as soon as it exists, the fallback serves only where it
+ * does not exist. The POSES are another gesture, dated by its own overlay: they are added to it.
  */
 export function teleportMoments(doc: ReplayDocumentReady): TranslocationMoment[] {
   const passages = hasTranslocationLayer(doc)
@@ -229,12 +229,12 @@ export function teleportMoments(doc: ReplayDocumentReady): TranslocationMoment[]
 }
 
 /**
- * lastTeleportAge — l'âge (en frames) du passage le plus RÉCENT d'un SLOT à cette image,
- * ou -1 s'il n'en a aucun d'advenu.
+ * lastTeleportAge — the age (in frames) of the most RECENT pass of a SLOT at this frame,
+ * or -1 if it has none that has happened.
  *
- * La recherche porte sur le slot — une vie — comme tout report de lecture : un passage ne
- * peut pas survivre à son porteur, donc une fiche morte n'en portera jamais l'éclat. Un
- * passage À VENIR ne compte pas : l'éclat date un événement advenu, jamais annoncé.
+ * The search is on the slot — a life — like every reading report: a pass cannot
+ * survive its carrier, so a dead card will never carry its glint. A
+ * FUTURE PASS does not count: the glint dates an event that has happened, never announced.
  */
 export function lastTeleportAge(
   teleports: readonly TranslocationMoment[],
@@ -245,9 +245,9 @@ export function lastTeleportAge(
 }
 
 /**
- * lastTeleport — le moment le plus RÉCENT d'un slot à cette image : son âge en frames, et s'il
- * s'agit de la pose de la faille (`pose`) ou d'un passage. `null` si rien n'est advenu. À âge égal,
- * le passage l'emporte sur la pose (c'est le geste qui téléporte).
+ * lastTeleport — the most RECENT moment of a slot at this frame: its age in frames, and whether
+ * it is the pose of the rift (`pose`) or a pass. `null` if nothing has happened. At equal age,
+ * the pass outranks the pose (that is the gesture that teleports).
  */
 export function lastTeleport(
   teleports: readonly TranslocationMoment[],

@@ -24,9 +24,9 @@ export function marqueImpact(ageMs: number, dureeMs: number): number {
   return ageMs >= 0 && ageMs < dureeMs ? 1 - ageMs / dureeMs : 0
 }
 
-/** L'horloge du HUD en première personne : quand la limite de temps du match est connue, elle
- * compte à rebours depuis elle et se borne à zéro ; limite inconnue (`null`) = le temps écoulé,
- * comme la frise. */
+/** The first-person HUD clock: when the match's time limit is known, it
+ * counts down from it and is bounded at zero; unknown limit (`null`) = the elapsed time,
+ * like the timeline. */
 export function horlogeHud(limitMs: number | null, elapsedMs: number): number {
   return limitMs == null ? elapsedMs : Math.max(0, limitMs - elapsedMs)
 }
@@ -47,7 +47,7 @@ export function preparerAth(doc: ReplayDocumentReady, xuid: string, kills: reado
   return { doc, xuid, allegeance, fil, score: scoreTimelineOf(doc), joueur: joueurs.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, munitions: suivreMunitions(doc) }
 }
 
-/** Les munitions d'un emplacement d'arme d'une vie au fil du film : chaque lecture reporte ce qu'elle ne dit pas. */
+/** The ammo of a weapon slot of a life across the film: each read carries forward what it does not say. */
 export interface SuiviMunitions {
   ms: number[]
   mag: (number | undefined)[]
@@ -56,7 +56,7 @@ export interface SuiviMunitions {
 
 const cleMunitions = (slot: number, w: number) => slot * 8 + w
 
-/** suivreMunitions range `doc.ammoReads` (déjà trié par instant) par vie et emplacement d'arme. */
+/** suivreMunitions buckets `doc.ammoReads` (already sorted by instant) by life and weapon slot. */
 export function suivreMunitions(doc: ReplayDocumentReady): Map<number, SuiviMunitions> {
   const suivis = new Map<number, SuiviMunitions>()
   for (const lecture of doc.ammoReads) {
@@ -71,7 +71,7 @@ export function suivreMunitions(doc: ReplayDocumentReady): Map<number, SuiviMuni
   return suivis
 }
 
-/** munitionsA : la dernière lecture de l'emplacement à l'instant `ms`, null avant la première. */
+/** munitionsA: the last read of the slot at instant `ms`, null before the first. */
 export function munitionsA(suivi: SuiviMunitions | undefined, ms: number): { mag?: number; res?: number } | null {
   if (!suivi) return null
   let debut = 0
@@ -108,7 +108,7 @@ export function lireAth(source: ReturnType<typeof preparerAth>, frame: number, l
   const arme = tenue
   const etiquette = arme ? doc.weaponLabels?.[arme.id] : undefined
   const image = enMain != null ? inventaire?.state.am?.[enMain] : undefined
-  // L'axe `ammoReads` suit le chargeur tir par tir ; l'image-clé de l'inventaire sert sans lui.
+  // The `ammoReads` axis tracks the magazine per shot; the inventory keyframe stands in without it.
   const fine = enMain != null ? munitionsA(source.munitions.get(cleMunitions(slot, enMain)), maintenant) : null
   const munitions = fine ? { ...image, mag: fine.mag ?? image?.mag, res: fine.res ?? image?.res } : image
   const boite = grenadeBoxAt(doc, slot, frame, inventaire)
@@ -119,25 +119,25 @@ export function lireAth(source: ReturnType<typeof preparerAth>, frame: number, l
   return { bouclier: etat.shield?.value ?? null, armeId: arme?.id, etiquette, munitions, grenades, forme: formeReticule(etiquette?.key), touche, elimination }
 }
 
-/** Fenêtre de vie d'une élimination du joueur regardé dans la popup du HUD 3D, en secondes. */
+/** Life window of an elimination of the followed player in the 3D HUD popup, in seconds. */
 export const KILL_POPUP_SECONDS = 4
 
-/** La dérive linéaire de l'opacité démarre à la dernière seconde de la fenêtre. */
+/** The linear drift of the opacity starts at the last second of the window. */
 const KILL_POPUP_FADE_MS = 1000
 
-/** Une élimination du joueur regardé en attente d'affichage, avec son opacité propre. */
+/** An elimination of the followed player waiting to be displayed, with its own opacity. */
 export interface KillPopup {
-  /** Le kill (victime et médailles, dans l'ordre du fil). */
+  /** The kill (victim and medals, in feed order). */
   kill: ReplayKill
-  /** 1 pendant la fenêtre, puis chute linéaire à 0 sur sa dernière seconde. */
+  /** 1 during the window, then a linear drop to 0 over its last second. */
   opacite: number
 }
 
 /**
- * lirePopupsAth : les éliminations du joueur regardé à afficher au côté du réticule — celles
- * survenues au plus tard à la frame courante, dans la fenêtre de KILL_POPUP_SECONDS, les plus
- * récentes en tête, deux au maximum. Fonction pure de la frame : un retour en arrière rejoue
- * exactement ce que la lecture montrait, et rien n'est montré avant son instant.
+ * lirePopupsAth: the eliminations of the followed player to display beside the reticle — those
+ * that happened at the latest by the current frame, within the KILL_POPUP_SECONDS window, the most
+ * recent first, two at most. Pure function of the frame: a rewind replays
+ * exactly what playback showed, and nothing is shown before its instant.
  */
 export function lirePopupsAth(source: ReturnType<typeof preparerAth>, frame: number): KillPopup[] {
   const ms = frameToMs(frame, source.doc)
@@ -153,7 +153,7 @@ export function lirePopupsAth(source: ReturnType<typeof preparerAth>, frame: num
     })
 }
 
-/** Le fil est borné par l'instant du film, indépendamment du sens de lecture. */
+/** The feed is bounded by the instant of the film, independently of the direction of playback. */
 export function lireFilAth(source: ReturnType<typeof preparerAth>, frame: number) {
   const ms = frameToMs(frame, source.doc)
   let debut = 0
@@ -170,14 +170,14 @@ export function lireFilAth(source: ReturnType<typeof preparerAth>, frame: number
       tueur: source.allegeance.ofXuid(kill.xuid), victime: source.allegeance.ofXuid(kill.victimXuid) }))
 }
 
-/** L'équipe de GAUCHE du bandeau 3D : le jeu range par identifiant d'équipe, le plus petit à
- * gauche. Inconnu ou égal : l'équipe alliée reste à gauche. */
+/** The LEFT team of the 3D banner: the game sorts by team identifier, the smallest on
+ * the left. Unknown or equal: the ally team stays on the left. */
 export function campAGauche(allyId: number | null | undefined, enemyId: number | null | undefined): boolean {
   if (allyId == null || enemyId == null) return true
   return allyId <= enemyId
 }
 
-/** La lecture du bandeau de score du HUD 3D : les deux camps, et quel camp se pose à gauche. */
+/** The reading of the 3D HUD score banner: the two camps, and which camp sits on the left. */
 export function lireScoreAth(source: ReturnType<typeof preparerAth>, frame: number): (ScoreBannerReading & { allieAGauche: boolean }) | null {
   const lecture = readScoreBanner(source.score, source.allegeance, frame)
   if (!lecture) return null

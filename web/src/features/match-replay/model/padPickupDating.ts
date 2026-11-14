@@ -1,57 +1,57 @@
 /**
- * padPickupDating.ts — LE RAMASSAGE D'UN SOCLE, DATÉ PAR L'ÉVÉNEMENT NATIF QUAND LE FILM LE DIT.
+ * padPickupDating.ts — THE PICKUP OF A PAD, DATED BY THE NATIVE EVENT WHEN THE FILM SAYS IT.
  *
- * CORRIGÉ LE 2026-10-22 (lot detonations, item 2, suite du contrôle n° 21 des contrôles v8 : un
- * socle de power-up vu « incertain » alors qu'un joueur venait tout juste de passer). Le serveur
- * publie `padPickups[].t`/`.xuid` — l'instant exact et le ramasseur — pour toute occupation que le
- * ramassage natif (`biped_pickup`) date sans ambiguïté, ARME COMME POWER-UP depuis le même lot
- * (`pad_pickup_dating.go`, jointure par le slug canonique côté power-up). Ce module applique CETTE
- * date à la fenêtre `[tLow, tHigh]` de l'occupation qu'elle désigne — avant même le raffinement par
- * proximité (`padPresenceRefine.ts`), qui reste le repli des occupations qu'aucun ramassage natif
- * ne couvre : LA GRAMMAIRE PRIME SUR L'HEURISTIQUE.
+ * FIXED ON 2026-10-22 (detonations batch, item 2, continuation of control no. 21 of the v8
+ * controls: a power-up pad seen as « uncertain » while a player had just passed). The server
+ * publishes `padPickups[].t`/`.xuid` — the exact instant and the picker — for any occupation that the
+ * native pickup (`biped_pickup`) dates unambiguously, WEAPON AS WELL AS POWER-UP since the same batch
+ * (`pad_pickup_dating.go`, join on the canonical slug on the power-up side). This module applies THIS
+ * date to the `[tLow, tHigh]` window of the occupation it designates — before even the refinement by
+ * proximity (`padPresenceRefine.ts`), which stays the fallback of the occupations no native pickup
+ * covers: THE GRAMMAR OUTRANKS THE HEURISTIC.
  *
- * LA FENÊTRE COLLAPSE, ELLE NE DISPARAÎT PAS : `tLow` ET `tHigh` prennent la valeur datée, séparés
- * de [PAD_BETWEEN_FRAMES] pour ne jamais atteindre le sentinel « jamais vidé » de `padStateAt`
- * (`tHigh <= tLow`) — même garantie, même raison que `padPresenceRefine.ts`. L'état passe donc de
- * PLEIN à VIDE en une fraction de frame (au pire une image peinte « incertain », invisible en
- * pratique), là où il restait incertain jusqu'à vingt secondes — et `padStateAt`/`padRespawnAt`
- * n'ont besoin d'aucun autre changement : ils lisent déjà `tLow`/`tHigh` sans savoir d'où ils
- * viennent.
+ * THE WINDOW COLLAPSES, IT DOES NOT DISAPPEAR: `tLow` AND `tHigh` take the dated value, separated
+ * by [PAD_BETWEEN_FRAMES] so as never to reach the « never emptied » sentinel of `padStateAt`
+ * (`tHigh <= tLow`) — same guarantee, same reason as `padPresenceRefine.ts`. The state therefore goes from
+ * FULL to EMPTY in a fraction of a frame (at worst one frame painted « uncertain », invisible in
+ * practice), where it stayed uncertain up to twenty seconds — and `padStateAt`/`padRespawnAt`
+ * need no other change: they already read `tLow`/`tHigh` without knowing where they
+ * come from.
  *
- * CE QUE CE MODULE NE FAIT PAS : dater une occupation que le serveur n'a pas datée. Une occupation
- * sans `padPickups[].t` correspondant traverse INCHANGÉE — elle reste au raffinement par
- * proximité, ou à l'intervalle brut si rien ne l'approche.
+ * WHAT THIS MODULE DOES NOT DO: date an occupation the server did not date. An occupation
+ * without a matching `padPickups[].t` passes UNCHANGED — it stays on the refinement by
+ * proximity, or on the raw interval if nothing approaches it.
  *
- * LE RAMASSEUR (`pickupXuid`) EST CAPTURÉ, SANS LECTEUR POUR L'INSTANT. L'infobulle du socle
- * (`ReplayWeaponPadTip.tsx`) garde sa décision « deux lignes au plus » (retour utilisateur du
- * 2026-08-28) et l'ancienne surface qui devait le montrer (le tableau « Contrôle des armes
- * spéciales ») a été retirée le 2026-10-07 : aucune page ne nomme donc encore ce ramasseur. Le
- * champ reste sur l'occupation, testé, pour que ce ne soit pas à refaire le jour où une surface
- * l'affichera — pas un calcul mort, une donnée mesurée sans lecteur.
+ * THE PICKER (`pickupXuid`) IS CAPTURED, WITHOUT A READER FOR NOW. The pad's tooltip
+ * (`ReplayWeaponPadTip.tsx`) keeps its « two lines at most » decision (user feedback of
+ * 2026-08-28) and the old surface that was to show it (the table « Control of special
+ * weapons ») was removed on 2026-10-07: no page names this picker yet. The
+ * field stays on the occupation, tested, so that it need not be redone the day a surface
+ * shows it — not a dead computation, a measured datum without a reader.
  *
- * Pur : aucune dépendance React, aucun canvas.
+ * Pure: no React dependency, no canvas.
  */
 import type { ReplayDocumentReady, ReplayWeaponPadReady } from '../../../lib/replay/replayNormalize'
 import { PAD_BETWEEN_FRAMES } from './padPresenceRefine'
 
-/** Une occupation dont l'instant vient d'un ramassage natif porte en plus son ramasseur. */
+/** An occupation whose instant comes from a native pickup carries its picker in addition. */
 export type DatedPadPresence = ReplayWeaponPadReady['presence'][number] & {
-  /** XUID du ramasseur, décimal — même forme que Track.xuid. Absent si le ramassage natif
-   *  n'a pas nommé de joueur (vie non pontée), présent même sans joueur résolu sinon jamais. */
+  /** XUID of the picker, decimal — same shape as Track.xuid. Absent if the native pickup
+   *  did not name a player (life not bridged), present even without a resolved player, otherwise never. */
   pickupXuid?: string
 }
 
-/** clePickup — la clé de jointure PadPickup <-> occupation : (index de socle, tLow, tHigh). */
+/** clePickup — the join key PadPickup <-> occupation: (pad index, tLow, tHigh). */
 function clePickup(pad: number, tLow: number, tHigh: number): string {
   return `${pad}|${tLow}|${tHigh}`
 }
 
 /**
- * applyPadPickupDating — les mêmes socles, dont les occupations que `padPickups` date portent
- * désormais l'instant EXACT (fenêtre collapsée) et le ramasseur.
+ * applyPadPickupDating — the same pads, of which the occupations `padPickups` dates carry
+ * now the EXACT instant (collapsed window) and the picker.
  *
- * RÉFÉRENCE PRÉSERVÉE QUAND RIEN NE CHANGE, même convention que `refinePadPresence` : un socle
- * sans occupation datée est rendu TEL QUEL.
+ * REFERENCE PRESERVED WHEN NOTHING CHANGES, same convention as `refinePadPresence`: a pad
+ * without a dated occupation is returned AS IS.
  */
 export function applyPadPickupDating(
   pads: readonly ReplayWeaponPadReady[],

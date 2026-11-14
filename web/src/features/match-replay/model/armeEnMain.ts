@@ -4,16 +4,16 @@ import { LOADOUT_SRC_BIRTH, currentLifeOf, loadoutAt, type LoadoutReading } from
 import { inventoryAt, type InventoryReading } from './inventoryReading'
 import { covers } from './replaySpans'
 
-/** L'emplacement d'arme en main d'une vie au fil du film : instants triés et emplacement (0 ou 1). */
+/** The in-hand weapon slot of a life across the film: sorted instants and slot (0 or 1). */
 export interface SuiviMain {
   ms: number[]
   w: number[]
 }
 
 /**
- * suivreMain date l'arme en main par vie, plus finement que l'image-clé de l'inventaire : chaque
- * bascule du sélecteur (`drawnWeapons`) et chaque lecture de chargeur tir par tir (un chargeur qui
- * bouge est celui de l'arme en main) affirment l'emplacement à leur instant.
+ * suivreMain dates the in-hand weapon per life, more finely than the inventory keyframe: each
+ * selector flip (`drawnWeapons`) and each per-shot magazine read (a magazine that moves is the
+ * one of the in-hand weapon) assert the slot at its instant.
  */
 export function suivreMain(doc: ReplayDocumentReady): Map<number, SuiviMain> {
   const faits = new Map<number, { ms: number; w: number }[]>()
@@ -35,13 +35,13 @@ export function suivreMain(doc: ReplayDocumentReady): Map<number, SuiviMain> {
 const suivis = new WeakMap<ReplayDocumentReady, Map<number, SuiviMain>>()
 
 /**
- * L'arme tenue, départagée par les lectures datées et bornée à la vie courante. Avant la première
- * lecture datée de la vie, l'emplacement vient de `avantPremiereLecture`.
+ * The held weapon, settled by the dated reads and bounded to the current life. Before the first
+ * dated read of the life, the slot comes from `avantPremiereLecture`.
  *
- * UNE LECTURE D'INVENTAIRE À VENIR NE SITUE PAS LA MAIN : une lecture datée passée de la vie
- * (sélecteur, chargeur) la prime, et sans celle-ci l'emplacement emprunté au futur n'est admis
- * que s'il porte une arme de la dotation de naissance — le joueur l'a dès le spawn, jamais une
- * prise qui arrive plus tard dans la vie.
+ * A FUTURE INVENTORY READ DOES NOT LOCATE THE HAND: a past dated read of the life
+ * (selector, magazine) takes precedence, and without it the slot borrowed from the future is
+ * admitted only if it holds a weapon of the birth loadout — the player has it from spawn, never a
+ * pickup that arrives later in the life.
  */
 export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
   const life = currentLifeOf(doc, slot, frame)
@@ -67,8 +67,8 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
   const invFutur = inv != null && inv.age < 0
   let d: number | undefined
   if (invFutur) {
-    // Lecture d'inventaire à venir : une lecture datée passée de la vie la prime ; sans elle,
-    // seul un emplacement de la dotation de naissance est emprunté au futur.
+    // Future inventory read: a past dated read of the life takes precedence; without it,
+    // only a slot of the birth loadout is borrowed from the future.
     d = eventMs !== -Infinity ? events!.w[index] : inv && !inv.empty && dansLaDotation(lo, inv) ? inv.state.d : undefined
   } else {
     d = eventMs >= invMs && eventMs !== -Infinity ? events!.w[index] : inv && !inv.empty ? inv.state.d : undefined
@@ -77,7 +77,7 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
     const id = armeDeLEmplacement(doc, slot, frame, lo, d)
     if (id) return { id, slotArme: d }
   }
-  // Une lecture passée de la vie qui ne situe pas la main la laisse vide.
+  // A past read of the life that does not locate the hand leaves it empty.
   if (eventMs !== -Infinity || (inv && inv.age >= 0)) return null
   const suivante = events && debut < events.ms.length && events.ms[debut] <= frameToMs(vie.end, doc)
     ? { ms: events.ms[debut], w: events.w[debut] }
@@ -89,8 +89,8 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
 }
 
 /**
- * L'arme de l'emplacement `d` dans la rangée lue, ou à défaut la prise datée la plus récente de
- * cet emplacement depuis le relevé de la rangée.
+ * The weapon of slot `d` in the read row, or failing that the most recent dated pickup of
+ * that slot since the row's read.
  */
 function armeDeLEmplacement(doc: ReplayDocumentReady, slot: number, frame: number, lo: LoadoutReading, d: number): string | undefined {
   const id = lo.weapons[d]
@@ -101,16 +101,16 @@ function armeDeLEmplacement(doc: ReplayDocumentReady, slot: number, frame: numbe
   return /^[0-9a-f]{8}$/i.test(w) ? `0x${w.toUpperCase()}` : w
 }
 
-/** Un changement d'arme du slot est-il daté entre l'image `de` et l'instant `aMs`, bornes comprises ? */
+/** Is a weapon change of the slot dated between frame `de` and instant `aMs`, bounds included? */
 function changementEntre(doc: ReplayDocumentReady, slot: number, de: number, aMs: number): boolean {
   return doc.weaponChanges.some((c) => c.slot === slot && c.t >= de && frameToMs(c.t, doc) <= aMs)
 }
 
 /**
- * dansLaDotation — l'emplacement désigné par une lecture d'inventaire À VENIR porte-t-il une arme
- * de la dotation de naissance ? C'est l'emprunt du futur que la main accepte : une arme que le
- * joueur a dès le spawn, jamais une prise qui arrive plus tard dans la vie. La rangée de naissance
- * est seule admissible : un relevé raffiné par une prise a perdu sa provenance `birth`.
+ * dansLaDotation — does the slot designated by a FUTURE inventory read hold a weapon
+ * of the birth loadout? This is the borrowing from the future that the hand accepts: a weapon the
+ * player has from spawn, never a pickup that arrives later in the life. Only the birth row
+ * is admissible: a read refined by a pickup has lost its `birth` provenance.
  */
 function dansLaDotation(lo: LoadoutReading, inv: InventoryReading): boolean {
   const d = inv.state.d
@@ -118,15 +118,15 @@ function dansLaDotation(lo: LoadoutReading, inv: InventoryReading): boolean {
 }
 
 /**
- * avantPremiereLecture : l'emplacement en main d'une vie qu'aucune lecture datée (sélecteur,
- * chargeur, inventaire) n'a encore situé à `frame`. Un joueur ne quitte son arme qu'au prix d'un
- * événement, d'où deux preuves seulement, dans cet ordre :
- *   1. la première lecture datée À VENIR de la même vie (`suivante`), quand aucun changement
- *      d'arme du slot n'est daté entre la naissance et elle : la main tient depuis la naissance
- *      l'emplacement que cette lecture affirme ;
- *   2. l'arme UNIQUE de la rangée, quand aucun changement d'arme n'est daté entre la naissance et
- *      l'image (ou le relevé de la rangée, s'il est à venir) : une seule arme portée est en main.
- * Sans l'une ou l'autre, la main reste vide : aucune arme que le document ne situe pas.
+ * avantPremiereLecture: the in-hand slot of a life that no dated read (selector,
+ * magazine, inventory) has located yet at `frame`. A player only leaves their weapon at the price of an
+ * event, so there are only two proofs, in this order:
+ *   1. the first FUTURE dated read of the same life (`suivante`), when no weapon change
+ *      of the slot is dated between the birth and it: the hand has been holding since birth
+ *      the slot that this read asserts;
+ *   2. the UNIQUE weapon of the row, when no weapon change is dated between the birth and
+ *      the frame (or the row's read, if it is in the future): a single carried weapon is in hand.
+ * Without one or the other, the hand stays empty: no weapon that the document does not locate.
  */
 function avantPremiereLecture(
   doc: ReplayDocumentReady,
@@ -144,14 +144,14 @@ function avantPremiereLecture(
   return (k === 0 || k === 1) && !changementEntre(doc, vie.slot, vie.naissance, releve) ? k : undefined
 }
 
-/** L'emplacement d'arme des objets portés (crâne), à côté des deux armes de la rangée. */
+/** The weapon slot of carried objects (skull), next to the two weapons of the row. */
 const EMPLACEMENT_OBJET = 2
 
 /**
- * craneEnMain : le crâne d'Oddball que la vie `slot` porte à `frame`, sous son identifiant d'arme ;
- * null hors portage. L'identifiant vient de la prise la plus récente de l'emplacement d'objet par
- * cette vie, à défaut d'une prise quelconque du match (le portage est daté par le score, sa prise
- * peut le suivre de quelques images).
+ * craneEnMain: the Oddball skull that life `slot` carries at `frame`, under its weapon identifier;
+ * null outside carrying. The identifier comes from the most recent pickup of the object slot by
+ * this life, failing that any pickup of the match (the carrying is dated by the score, its pickup
+ * can follow it by a few frames).
  */
 export function craneEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
   const life = currentLifeOf(doc, slot, frame)

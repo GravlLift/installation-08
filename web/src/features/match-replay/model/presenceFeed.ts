@@ -1,28 +1,28 @@
 /**
- * presenceFeed — QUI A REJOINT, QUI A QUITTÉ. L'API d'abord, le film en repli.
+ * presenceFeed — WHO HAS JOINED, WHO HAS LEFT. The API first, the film as fallback.
  *
- * DEUX SOURCES, UNE HIÉRARCHIE (retour user 2026-09-02 : « l'API nous dit précisément
- * quand le joueur a rejoint et quand il est parti ») :
+ * TWO SOURCES, ONE HIERARCHY (user feedback 2026-09-02: « the API tells us precisely
+ * when the player joined and when they left »):
  *
- *   API   `PlayerParticipationInfo` du match — `joined_in_progress` / `left_in_progress`
- *         et leurs horodatages ABSOLUS (`first_joined_time` / `last_leave_time`, RFC3339
- *         UTC, bug TZ des matchs anciens corrigé en base le 2026-05-29). C'est la source
- *         PRÉCISE et AFFIRMATIVE : les drapeaux disent le fait, pas une déduction — un
- *         drapeau à `false` fait TAIRE ce joueur, ce n'est pas une absence de donnée.
- *         Le recalage vers l'axe du rejeu est CELUI DES MÉDIAS (replayMediaLogic) :
- *         replayMs = (absolu − header.start_time) − origine du film — une seule doctrine,
- *         portée par l'horloge de la page (`model/replayClock`).
+ *   API   the match's `PlayerParticipationInfo` — `joined_in_progress` / `left_in_progress`
+ *         and their ABSOLUTE timestamps (`first_joined_time` / `last_leave_time`, RFC3339
+ *         UTC, TZ bug of old matches fixed in the database on 2026-05-29). This is the
+ *         PRECISE and AFFIRMATIVE source: the flags say the fact, not a deduction — a
+ *         flag at `false` SILENCES this player, it is not an absence of data.
+ *         The re-anchoring to the replay axis is THAT OF THE MEDIA (replayMediaLogic):
+ *         replayMs = (absolute − header.start_time) − origin of the film — a single doctrine,
+ *         carried by the clock of the page (`model/replayClock`).
  *
- *   FILM  le repli, quand les drapeaux manquent (matchs d'avant les colonnes, en-tête
- *         absent) : les bornes de vie. Première vie bien après le coup d'envoi = entrée ;
- *         dernière vie bien avant la fin = « a quitté la partie » — le film ne distingue
- *         pas un départ d'une élimination définitive, l'infobulle du repli porte la
- *         réserve. Les marges (10 s / 20 s, >2x la réapparition
- *         médiane mesurée 8,0 s) n'existent QUE sur ce chemin.
+ *   FILM  the fallback, when the flags are missing (matches from before the columns, header
+ *         absent): the life bounds. First life well after the start = entry;
+ *         last life well before the end = « left the game » — the film does not distinguish
+ *         a departure from a definitive elimination, the tooltip of the fallback carries the
+ *         reservation. The margins (10 s / 20 s, >2x the median
+ *         respawn measured at 8.0 s) exist ONLY on this path.
  *
- * SEULES LA PREMIÈRE ET LA DERNIÈRE VIE PARLENT côté film : un trou ENTRE deux vies
- * n'émet rien (rester mort entre deux manches d'élimination est normal). L'API, elle,
- * n'a pas ce problème — ses drapeaux sont par match.
+ * ON THE FILM SIDE ONLY THE FIRST AND THE LAST LIFE SPEAK: a hole BETWEEN two lives
+ * emits nothing (staying dead between two elimination rounds is normal). The API, it,
+ * has no such problem — its flags are per match.
  */
 import { stripBotSuffix } from '@/lib/players/displayName'
 
@@ -33,51 +33,51 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { ReplayWindowBounds } from './replayWindow'
 import { playerName, type ReplayPlayer } from '../../../lib/replay/rosterLogic'
 
-/** REPLI FILM : première vie qui commence au-delà = un arrivant (flottement du départ). */
+/** FILM FALLBACK: first life starting beyond this = an arriver (wobble of the departure). */
 export const PRESENCE_ARRIVE_MS = 10_000
-/** REPLI FILM : dernière vie qui s'achève plus tôt que ça avant la fin = a quitté la partie (infobulle : départ ou élimination définitive). */
+/** FILM FALLBACK: last life ending earlier than this before the end = left the game (tooltip: departure or definitive elimination). */
 export const PRESENCE_DEPART_MS = 20_000
 
 /**
- * Ce que le rejeu lit de l'en-tête de la vue match : l'origine ABSOLUE de l'axe du match
- * (présence, relais de siège), et — depuis le 2026-09-06 — la CATÉGORIE DE MODE, qui décide
- * du gabarit des fiches (`model/cardDensity.ts`, décision D1 : compacte si `BTB`). C'est un
- * sous-ensemble de `MatchViewHeader` : la page passe l'en-tête entier, le type ne nomme que
- * ce qui est lu.
+ * What the replay reads of the match view header: the ABSOLUTE origin of the match axis
+ * (presence, siege relay), and — since 2026-09-06 — the MODE CATEGORY, which decides
+ * the mold of the cards (`model/cardDensity.ts`, decision D1: compact if `BTB`). It is a
+ * subset of `MatchViewHeader`: the page passes the whole header, the type names only
+ * what is read.
  */
 export interface PresenceHeader {
   start_time?: string | null
   mode_category?: string | null
 }
 
-/** Une ligne de présence du fil : qui, dans quel sens, et par quelle source. */
+/** A presence row of the feed: who, in which direction, and by which source. */
 export interface PresenceEvent {
   kind: 'joined' | 'left'
   /**
-   * LE XUID DE BASE quand la jointure au tableau de score a abouti, la clé du FILM sinon
-   * (`bot:<nom>`, schéma 36) — corrigé le 2026-09-07 (revue F3).
+   * THE BASE XUID when the join to the scoreboard succeeded, the key of the FILM otherwise
+   * (`bot:<name>`, schema 36) — fixed on 2026-09-07 (review F3).
    *
-   * POURQUOI CE N'EST PAS LA CLÉ DU ROSTER. Tout ce qui apparie une ligne de présence à
-   * quelqu'un est clé sur le xuid de BASE : le point de vue (résolu contre le tableau de
-   * score), `identity`, `marks`, la liste des coéquipiers. Un BOT porte deux identités — la
-   * clé film `bot:<nom>` et le xuid de base `bid(N.0)` — et cette ligne portait la PREMIÈRE.
-   * L'ombrage de la frise et les paliers de la piste Coéquipiers ne trouvaient donc JAMAIS un
-   * bot : sur le match témoin, où le bot EST le remplaçant, sa piste n'avait ni ombre ni porte
-   * pendant que le fil, deux centimètres à droite, écrivait « a rejoint ». Le fil y gagne du
-   * même coup sa couleur d'équipe, qu'il servait à l'encre de repli.
+   * WHY THIS IS NOT THE ROSTER KEY. Everything that pairs a presence row to
+   * someone is keyed on the BASE xuid: the point of view (resolved against the scoreboard),
+   * `identity`, `marks`, the teammate list. A BOT carries two identities — the
+   * film key `bot:<name>` and the base xuid `bid(N.0)` — and this row carried the FIRST.
+   * The shading of the timeline and the notches of the Teammates track therefore NEVER found a
+   * bot: on the witness match, where the bot IS the substitute, its track had neither shadow nor door
+   * while the feed, two centimeters to the right, was writing « joined ». The feed gains from
+   * the same stroke its team color, which it served to the fallback ink.
    */
   xuid: string
   name: string
   bot: boolean
-  /** `api` = drapeaux de participation (précis) ; `film` = dérivé des bornes de vie. */
+  /** `api` = participation flags (precise); `film` = derived from the life bounds. */
   source: 'api' | 'film'
 }
 
 /**
- * presenceEntries — les lignes d'entrée/sortie, prêtes à fusionner dans le fil.
+ * presenceEntries — the entry/exit rows, ready to be merged into the feed.
  *
- * Rendues comme des `ReplayFeedEntry` (kill/medal/death à null, `presence` posé) : le fil
- * les trie et les fenêtre exactement comme les autres lignes, aucun second axe de temps.
+ * Rendered as `ReplayFeedEntry` (kill/medal/death at null, `presence` set): the feed
+ * sorts them and windows them exactly like the other rows, no second time axis.
  */
 export function presenceEntries(
   players: readonly ReplayPlayer[],
@@ -85,9 +85,9 @@ export function presenceEntries(
   doc: ReplayDocumentReady,
   header?: PresenceHeader | null,
 ): ReplayFeedEntry[] {
-  // LE MÊME VERDICT QUE LE RESTE DE LA PAGE (`model/replayClock`) : sans horloge établie, une
-  // ligne d'entrée serait posée à un instant faux de 3,6 à 50,8 s. La fenêtre de gameplay
-  // n'existe d'ailleurs pas non plus dans ce cas — les deux portes disent la même chose.
+  // THE SAME VERDICT AS THE REST OF THE PAGE (`model/replayClock`): without an established clock, an
+  // entry row would be set at a time off by 3.6 to 50.8 s. The gameplay window
+  // does not exist at all in this case either — the two doors say the same thing.
   const clock = replayClock(doc)
   if (!playWindow || !clock) return []
   const matchStartMs = parseInstant(header?.start_time)
@@ -95,12 +95,12 @@ export function presenceEntries(
   for (const p of players) {
     const rawName = playerName(p)
     if (!rawName) continue
-    // Suffixe « [bot] » = marqueur de donnée killsource (schéma 36), retiré avant
-    // d'entrer dans la ligne de présence (« a rejoint » / « a quitté »).
+    // Suffix « [bot] » = killsource data marker (schema 36), removed before
+    // entering the presence row (« joined » / « left »).
     const name = stripBotSuffix(rawName)
-    // LE CHEMIN API NE DEMANDE AUCUNE VIE : un remplaçant dont le pont n'a pas pu nommer
-    // les vies (bot du match témoin 1b2d9e08) a quand même rejoint la partie — la base le
-    // date, la ligne s'affiche. Seul le REPLI film exige des vies : il n'a rien d'autre.
+    // THE API PATH ASKS FOR NO LIFE: a substitute whose bridge could not name
+    // the lives (bot of the witness match 1b2d9e08) still joined the game — the database dates it,
+    // the row displays. Only the FILM FALLBACK demands lives: it has nothing else.
     const api = apiPresence(p, name, matchStartMs, clock, playWindow)
     if (api) {
       out.push(...api)
@@ -112,11 +112,11 @@ export function presenceEntries(
 }
 
 /**
- * apiPresence — le chemin PRÉCIS. Rend `null` quand la participation n'est pas décidable
- * (ligne de scoreboard absente, drapeaux NULL, ou en-tête sans heure de début — sans elle
- * un horodatage absolu ne se pose pas sur l'axe) : le repli film prend alors la main.
- * Rend `[]` quand l'API DIT que le joueur n'a ni rejoint ni quitté en cours : silence
- * AFFIRMATIF, le film n'a pas à le contredire.
+ * apiPresence — the PRECISE path. Returns `null` when participation is not decidable
+ * (scoreboard row absent, flags NULL, or header without start time — without it
+ * an absolute timestamp cannot be set on the axis): the film fallback then takes over.
+ * Returns `[]` when the API SAYS that the player neither joined nor left in progress: silence
+ * AFFIRMATIVE, the film has not to contradict it.
  */
 function apiPresence(
   p: ReplayPlayer,
@@ -135,8 +135,8 @@ function apiPresence(
   }
   if (b.joined_in_progress) {
     const ms = toReplayMs(b.first_joined_time)
-    // Un drapeau vrai sans horodatage lisible ne pose rien : une entrée à un instant
-    // inventé serait pire que son absence.
+    // A true flag without a readable timestamp sets nothing: an entry at an
+    // invented time would be worse than its absence.
     if (ms !== null) out.push(entry('joined', 'api', p, name, clamp(ms, playWindow)))
   }
   if (b.left_in_progress) {
@@ -146,7 +146,7 @@ function apiPresence(
   return out
 }
 
-/** filmPresence — le REPLI : les bornes de vie, avec leurs marges (cf. en-tête). */
+/** filmPresence — the FALLBACK: the life bounds, with their margins (cf. header). */
 function filmPresence(
   p: ReplayPlayer,
   name: string,
@@ -167,7 +167,7 @@ function filmPresence(
   return out
 }
 
-/** L'instant API, borné à la fenêtre de gameplay : une ligne hors axe ne se lirait pas. */
+/** The API time, bounded to the gameplay window: an off-axis row would not be readable. */
 function clamp(ms: number, w: ReplayWindowBounds): number {
   return Math.min(Math.max(ms, w.startMs), w.endMs)
 }
@@ -185,9 +185,9 @@ function entry(
   name: string,
   replayMs: number,
 ): ReplayFeedEntry {
-  // LE XUID DE BASE D'ABORD (2026-09-07, revue F3) : c'est la clé sur laquelle s'apparient le
-  // point de vue, les marques et les coéquipiers. La clé du film ne sert que faute de ligne de
-  // tableau de score — auquel cas rien ne s'apparie de toute façon, et le fil nomme quand même.
+  // THE BASE XUID FIRST (2026-09-07, review F3): it is the key on which the
+  // point of view, the marks and the teammates pair. The film key serves only for lack of a scoreboard
+  // row — in which case nothing pairs anyway, and the feed names anyway.
   const xuid = p.board?.xuid ?? p.xuid
   return {
     key: `p-${kind}-${xuid}-${replayMs}`,
@@ -199,7 +199,7 @@ function entry(
   }
 }
 
-/** Fusionne le fil et les lignes de présence, retriés sur l'axe commun. */
+/** Merges the feed and the presence rows, re-sorted on the common axis. */
 export function mergeFeedWithPresence(
   feed: readonly ReplayFeedEntry[],
   presence: readonly ReplayFeedEntry[],

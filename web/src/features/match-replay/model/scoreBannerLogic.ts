@@ -1,72 +1,72 @@
 /**
- * scoreBannerLogic — CE QUE LE BANDEAU DE SCORE A LE DROIT D'AFFICHER, au frame lu.
+ * scoreBannerLogic — WHAT THE SCORE BANNER HAS THE RIGHT TO DISPLAY, at the frame read.
  *
- * Le bandeau tient au-dessus du terrain : `[ barre alliée ] — [ horloge ] — [ barre adverse ]`.
- * Ce module rend la LECTURE (deux camps, deux scores, deux fractions, la manche) ; le
- * composant n'en fait que du JSX. Les briques de lecture au frame courant viennent de
- * `lib/replay/scoreTimeline.ts`, déjà éprouvées par les trois témoins re-cuits (Slayer 43/50,
- * CTF 3-0, Oddball total 200/121). Ce fichier CHOISIT laquelle appliquer : sur un mode à
- * manches, le bandeau affiche la MANCHE COURANTE (`teamRoundScoreAtFrame`, remis à 0 à chaque
- * manche — ex. Oddball M1 100/78 puis M2 100/43), et non le cumul du match. Le total 200/121,
- * lui, reste la grandeur de `teamScoreAtFrame` et de la courbe « Score dans le temps » de la
- * vue match. Ce que le bandeau, et lui seul, doit trancher : QUELS SONT LES DEUX CAMPS, LEQUEL
- * EST À GAUCHE, QUELLE MANCHE EST EN COURS, et JUSQU'OÙ VA LA BARRE.
+ * The banner holds above the field: `[ ally bar ] — [ clock ] — [ enemy bar ]`.
+ * This module returns the READING (two camps, two scores, two fractions, the round); the
+ * component turns it into JSX only. The reading bricks at the current frame come from
+ * `lib/replay/scoreTimeline.ts`, already proven by the three re-baked witnesses (Slayer 43/50,
+ * CTF 3-0, Oddball total 200/121). This file CHOOSES which one to apply: on a
+ * round-based mode, the banner displays the CURRENT ROUND (`teamRoundScoreAtFrame`, reset to 0 at each
+ * round — e.g. Oddball M1 100/78 then M2 100/43), and not the cumulative of the match. The total 200/121,
+ * for its part, remains the quantity of `teamScoreAtFrame` and of the « Score over time » curve of the
+ * match view. What the banner, and it alone, must rule: WHAT ARE THE TWO CAMPS, WHICH ONE
+ * IS ON THE LEFT, WHICH ROUND IS IN PROGRESS, and HOW FAR THE BAR GOES.
  *
- * LES CAMPS SE LISENT AU ROSTER DU FILM, PAS DANS LE CALQUE DE SCORE — et c'est le piège que ce
- * module doit éviter. Une équipe qui n'a jamais marqué n'émet AUCUNE série : le témoin CTF
- * `530820e5` (3-0) ne publie qu'un seul camp sur les deux. Compter les camps dans
- * `timeline.teams` ferait donc disparaître le bandeau du match où l'écart est le plus net.
- * Les camps sont les désignateurs que le film écrit à son roster (`FilmAllegiance.camps`, les
- * mêmes que les colonnes de fiches — décision du 2026-10-06 : l'équipe est celle du film), et le
- * score de chacun vient de `teamScoreAtFrame`, qui rend 0 pour un camp sans série — la vérité du
- * film, pas une lacune.
+ * THE CAMPS ARE READ FROM THE ROSTER OF THE FILM, NOT FROM THE SCORE LAYER — and it is the trap this
+ * module must avoid. A team that has never scored emits NO series at all: the CTF witness
+ * `530820e5` (3-0) publishes only one camp out of the two. Counting the camps in
+ * `timeline.teams` would therefore make the banner disappear from the match where the gap is the clearest.
+ * The camps are the designators that the film writes to its roster (`FilmAllegiance.camps`, the
+ * same as the card columns — decision of 2026-10-06: the team is the one of the film), and the
+ * score of each comes from `teamScoreAtFrame`, which returns 0 for a camp without series — the truth of the
+ * film, not a gap.
  *
- * MAIS UN FILM QUI NE PUBLIE AUCUNE SÉRIE NE DIT PAS « 0 — 0 » : il ne dit rien. Sans le
- * moindre camp dans le calque (artefact antérieur au schéma 12, mode sans compteur, horloge
- * non recalée), deux barres à zéro se liraient comme une mesure alors que personne n'a
- * compté. Le bandeau est alors absent — même doctrine qu'en tête de colonne
+ * BUT A FILM THAT PUBLISHES NO SERIES SAYS NOTHING, NOT « 0 — 0 ». Without the
+ * slightest camp in the layer (artifact prior to schema 12, mode without counter, clock
+ * not rescaled), two bars at zero would be read as a measurement while no one has
+ * counted. The banner is then absent — same doctrine as in the column header
  * (`ReplayTeamHeader`).
  *
- * UNE SÉRIE SANS CAMP LE TAIT AUSSI (retours du rejeu 2026-09-23, lot L1.2). Quand le film n'a
- * pas su dire quel camp porte une série (`coverage.score.teamIdentity = "unresolved"`), aucun
- * des deux camps ne la retrouve : le bandeau affichait « 0 — 0 » tout le match (7 documents
- * du parc, dont fb1a1a72). Dès qu'une série publiée n'a pas de camp, il est absent.
+ * A SERIES WITHOUT A CAMP IS ALSO KEPT SILENT (replay feedback 2026-09-23, lot L1.2). When the film has
+ * not been able to say which camp carries a series (`coverage.score.teamIdentity = "unresolved"`), none
+ * of the two camps can find it again: the banner displayed « 0 — 0 » for the whole match (7 documents
+ * of the park, including fb1a1a72). As soon as a published series has no camp, it is absent.
  *
- * DEUX CAMPS, PAS UN DE PLUS, PAS UN DE MOINS. La forme demandée n'a que deux barres ; elle
- * ne peut donc pas dire un mode à trois camps sans nommer arbitrairement UN adversaire parmi
- * plusieurs, ni un FFA, où chacun joue pour soi. Dans ces cas la lecture est `null` et le
- * bandeau ne se rend pas : une barre absente ne ment pas, une barre qui désigne le mauvais
- * camp si.
+ * TWO CAMPS, NOT ONE MORE, NOT ONE LESS. The requested shape has only two bars; it
+ * can therefore not say a three-camp mode without naming arbitrarily ONE opponent among
+ * several, nor a FFA, where each plays for themselves. In these cases the reading is `null` and the
+ * banner does not render: an absent bar does not lie, a bar that designates the wrong
+ * camp does.
  *
- * « ALLIÉ » EST UNE NOTION RELATIVE, ET SON ABSENCE EST DISQUALIFIANTE ICI. « Allié » veut dire
- * « du camp du FILM du joueur regardé » (`FilmAllegiance.ofTeam`, la même allégeance que les
- * pions et les colonnes). Quand elle n'est pas connue — joueur regardé absent du film, ou dont
- * le film tait l'équipe — le bandeau n'a NI côté NI couleur : il ne se rend pas. C'est la
- * doctrine des deux autres panneaux (« un camp sans allégeance connue n'emprunte aucune des
- * deux couleurs ») poussée à sa conséquence pour une surface dont le camp EST toute la
+ * « ALLY » IS A RELATIVE NOTION, AND ITS ABSENCE IS DISQUALIFYING HERE. « Ally » means
+ * « of the camp of the FILM of the watched player » (`FilmAllegiance.ofTeam`, the same allegiance as the
+ * pieces and the columns). When it is not known — watched player absent from the film, or of whom
+ * the film keeps the team silent — the banner has NEITHER side NOR color: it does not render. This is
+ * the doctrine of the two other panels (« a camp without known allegiance borrows none of the
+ * two colors ») pushed to its consequence for a surface whose camp IS the whole
  * structure.
  *
- * LE DÉNOMINATEUR EST LE PLAFOND DE LA MANCHE, PAS LA CIBLE DU MATCH (demande utilisateur du
- * 2026-08-24 : « pleine quand le match est fini parce que le score de la victoire est atteint,
- * c'est ça le dénominateur »). Sur un mode à manches, le numérateur repart de zéro à chaque
- * manche, donc le dénominateur qui l'accompagne est celui d'UNE manche (100 pour Oddball),
- * constant de la manche 1 à la manche N — sinon la barre paraîtrait deux fois moins pleine à
- * la seconde. Le film ne le porte pas ; c'est l'artefact qui le publie
- * (`scoreTimeline.targetScore`) depuis la table MESURÉE de la variante
- * (config regulation.toml [score_target], plateaux du score du vainqueur au registre). Une
- * victoire AU CHRONO s'affiche donc juste : 43/50, jamais une barre pleine à 43.
+ * THE DENOMINATOR IS THE CEILING OF THE ROUND, NOT THE TARGET OF THE MATCH (user request of
+ * 2026-08-24: « full when the match is over because the winning score is reached,
+ * that is the denominator »). On a round-based mode, the numerator restarts from zero at each
+ * round, so the denominator that accompanies it is that of ONE round (100 for Oddball),
+ * constant from round 1 to round N — otherwise the bar would appear half as full at
+ * the second. The film does not carry it; it is the artifact that publishes it
+ * (`scoreTimeline.targetScore`) from the MEASURED table of the variant
+ * (config regulation.toml [score_target], plates of the winner score in the register). A
+ * victory ON THE CLOCK is therefore displayed correctly: 43/50, never a full bar at 43.
  *
- * À DÉFAUT (artefact antérieur au champ, variante hors table, table périmée que le
- * producteur a tue), le repli sur un mode à manches est le plus haut dernier-palier de toutes
- * les manches (`roundTargetOf`) ; sur un mode à manche unique, celui du moteur de comeback
- * (`internal/analysis/comeback.go`) : `max(scoreFinalA, scoreFinalB)` — dans une partie
- * gagnée à la cible, le score final du vainqueur EST la cible. Dans tous les cas le
- * dénominateur est CONSTANT sur toute la lecture : une barre ne recule JAMAIS (la version
- * relative au camp d'en face au frame lu se vidait quand l'adversaire marquait — refusée
- * par l'utilisateur). Le nombre écrit dans la barre reste la mesure — c'est lui qui fait
- * foi.
+ * AS A FALLBACK (artifact prior to the field, variant out of table, table
+ * expired that the producer killed), the fallback on a round-based mode is the highest last-step of all
+ * the rounds (`roundTargetOf`); on a single-round mode, that of the comeback engine
+ * (`internal/analysis/comeback.go`): `max(scoreFinalA, scoreFinalB)` — in a game
+ * won at the target, the final score of the winner IS the target. In all cases the
+ * denominator is CONSTANT over the whole reading: a bar NEVER goes back (the version
+ * relative to the camp across at the frame read emptied when the opponent scored — refused
+ * by the user). The number written in the bar remains the measurement — it is the one that carries
+ * the authority.
  *
- * Module PUR : ni React, ni DOM, ni couleur.
+ * PURE module: no React, no DOM, no color.
  */
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import {
@@ -79,57 +79,57 @@ import {
 import { currentRoundAtFrame, roundDots, type CurrentRound, type RoundDot } from './roundsLogic'
 
 /**
- * Ce qu'il faut savoir d'un camp pour dessiner sa barre.
+ * What it takes to know about a camp to draw its bar.
  *
- * `fill` est une fraction 0..1 RELATIVE à l'autre camp (cf. en-tête) ; `score` est la mesure.
+ * `fill` is a fraction 0..1 RELATIVE to the other camp (cf. header); `score` is the measurement.
  */
 export interface ScoreBannerSide {
-  /** Identifiant d'équipe du film — sert de clé de rendu, jamais de libellé. */
+  /** Team identifier of the film — serves as render key, never as a label. */
   teamId: number
   /**
-   * Score de la MANCHE COURANTE au frame lu, remis à 0 à chaque manche ; == le total du match
-   * sur un mode à manche unique. (Le total cumulé, lui, alimente la courbe « Score dans le
-   * temps » de la vue match, pas ce bandeau.)
+   * Score of the CURRENT ROUND at the frame read, reset to 0 at each round; == the total of the match
+   * on a single-round mode. (The cumulative total, for its part, feeds the « Score over
+   * time » curve of the match view, not this banner.)
    */
   score: number
-  /** Part de barre remplie, dans [0,1]. */
+  /** Part of bar filled, in [0,1]. */
   fill: number
 }
 
-/** La manche en cours, quand le mode en a plusieurs — sinon le bandeau n'en parle pas. */
+/** The round in progress, when the mode has several — otherwise the banner does not speak of it. */
 export interface ScoreBannerRound {
-  /** Rang d'affichage à partir de 1 (« Manche 2 »). */
+  /** Display rank from 1 (« Round 2 »). */
   index: number
-  /** Nombre de manches publiées. */
+  /** Number of rounds published. */
   count: number
 }
 
-/** La lecture complète du bandeau à un frame donné. */
+/** The complete reading of the banner at a given frame. */
 export interface ScoreBannerReading {
   ally: ScoreBannerSide
   enemy: ScoreBannerSide
   round: ScoreBannerRound | null
   /**
-   * Une pastille par manche JOUÉE, à l'image lue — pleine au camp gagnant quand la manche est
-   * tranchée, vide sinon (`roundsLogic`). Vide sur un mode à manche unique. Le camp est déjà
-   * traduit en allié / adverse : le rendu n'a qu'à teinter.
+   * A dot per PLAYED round, at the frame read — full to the winning camp when the round is
+   * decided, empty otherwise (`roundsLogic`). Empty on a single-round mode. The camp is already
+   * translated to ally / enemy: the render only has to tint.
    */
   dots: RoundDot[]
 }
 
-/** Ce que le bandeau lit de l'allégeance du film : les camps du match, et le côté de chacun. */
+/** What the banner reads from the allegiance of the film: the camps of the match, and the side of each. */
 export type ScoreBannerFilm = Pick<FilmAllegiance, 'camps' | 'ofTeam'>
 
 /**
- * readScoreBanner rend la lecture du bandeau, ou `null` quand il ne doit pas se rendre :
- * calque sans aucun camp, série publiée sans camp, mode qui n'oppose pas exactement deux camps, ou côté allié
- * indéterminable (cf. en-tête).
+ * readScoreBanner returns the reading of the banner, or `null` when it must not render:
+ * layer without any camp, series published without camp, mode that does not oppose exactly two camps, or ally side
+ * indeterminable (cf. header).
  *
- * TROIS LECTEURS, UNE RÈGLE (revue RR-L1-PARC-01, 2026-09-23) : le bandeau
- * (`ReplayScoreBanner`), le panneau de victoire (`ReplayVictoryOverlay`, ligne de score finale)
- * et l'export vidéo (`buildOverlayPanelSource`). Ces deux derniers ne lisent le calque qu'à
- * défaut du score servi par l'API ; sur une série publiée sans camp, ils taisent donc la ligne
- * de score au lieu d'écrire « 0 — 0 », comme le bandeau (6 documents au parc du 23/09).
+ * THREE READERS, ONE RULE (review RR-L1-PARC-01, 2026-09-23): the banner
+ * (`ReplayScoreBanner`), the victory panel (`ReplayVictoryOverlay`, final score line)
+ * and the video export (`buildOverlayPanelSource`). These last two read the layer only as
+ * a fallback to the score served by the API; on a series published without camp, they therefore keep silent the line
+ * of score instead of writing « 0 — 0 », like the banner (6 documents in the park of 23/09).
  */
 export function readScoreBanner(
   timeline: ReplayScoreTimelineReady | undefined,
@@ -144,9 +144,9 @@ export function readScoreBanner(
   if (allyIdx === null) return null
   const allyId = camps[allyIdx]
   const enemyId = camps[1 - allyIdx]
-  // La manche courante commande TOUT le bandeau : le numérateur (score de la manche, remis à
-  // zéro à chaque manche) ET le dénominateur (plafond de manche). `cur === null` — aucune
-  // manche ventilée — retombe sur le total du match : dégradation gracieuse, pas un contresens.
+  // The current round commands the WHOLE banner: the numerator (round score, reset to
+  // zero at each round) AND the denominator (round ceiling). `cur === null` — no
+  // round ventilated — falls back to the total of the match: graceful degradation, not a misreading.
   const cur = currentRoundAtFrame(timeline, frame)
   const allyScore = cur
     ? teamRoundScoreAtFrame(timeline, allyId, cur.round, frame)
@@ -164,19 +164,19 @@ export function readScoreBanner(
 }
 
 /**
- * victoryTarget — le dénominateur des deux barres, CONSTANT sur toute la lecture (c'est ce
- * qui garantit qu'une barre ne recule jamais). Deux sources, dans l'ordre :
+ * victoryTarget — the denominator of the two bars, CONSTANT over the whole reading (it is
+ * what guarantees that a bar never goes back). Two sources, in order:
  *
- *  1. `timeline.targetScore` — la CIBLE DE VICTOIRE du mode, publiée par l'artefact depuis
- *     la table mesurée de la variante (regulation.toml [score_target]). C'est la seule
- *     lecture juste sur une victoire AU CHRONO : un Slayer arrêté à 43 affiche 43/50, pas
- *     une barre pleine (retour utilisateur du 2026-08-24). Le producteur garantit
- *     cible >= finals ; un artefact antérieur au champ n'en porte pas.
- *  2. le score FINAL du vainqueur, à défaut (cf. en-tête — dans une partie gagnée à la
- *     cible, c'est la cible ; au chrono, c'est une borne basse assumée, faute de donnée).
+ *  1. `timeline.targetScore` — the WINNING TARGET of the mode, published by the artifact from
+ *     the measured table of the variant (regulation.toml [score_target]). It is the only
+ *     correct reading on a victory ON THE CLOCK: a Slayer stopped at 43 displays 43/50, not
+ *     a full bar (user feedback of 2026-08-24). The producer guarantees
+ *     target >= finals; an artifact prior to the field carries none.
+ *  2. the FINAL score of the winner, as a fallback (cf. header — in a game won at the
+ *     target, it is the target; on the clock, it is an accepted lower bound, lacking data).
  *
- * Le `1` tient le cas dégénéré d'un match sans le moindre point : 0 sur 0 remplirait une
- * barre entière alors que personne n'a marqué.
+ * The `1` covers the degenerate case of a match without a single point: 0 on 0 would fill
+ * a whole bar while no one has scored.
  */
 function victoryTarget(
   timeline: ReplayScoreTimelineReady,
@@ -187,30 +187,30 @@ function victoryTarget(
   return Math.max(finalScoreOf(timeline, allyId), finalScoreOf(timeline, enemyId), 1)
 }
 
-/** Le score de FIN DE MATCH d'un camp : son dernier palier, 0 sans série (camp muet). */
+/** The END-OF-MATCH score of a camp: its last step, 0 without series (silent camp). */
 function finalScoreOf(timeline: ReplayScoreTimelineReady, teamId: number): number {
   const total = teamSeriesFor(timeline, teamId)?.total ?? []
   return total.length > 0 ? total[total.length - 1].v : 0
 }
 
-/** fillOf — la part de barre d'un camp : son score au frame lu, rapporté à la cible. */
+/** fillOf — the part of bar of a camp: its score at the frame read, reported to the target. */
 function fillOf(score: number, target: number): number {
   return Math.min(score / target, 1)
 }
 
 /**
- * roundTargetOf — le dénominateur des barres SUR UN MODE À MANCHES : le plafond d'UNE manche,
- * pas la cible du match. Le numérateur repart de zéro à chaque manche, donc le dénominateur
- * doit être celui de la manche, sinon la barre paraîtrait deux fois moins pleine à la seconde.
+ * roundTargetOf — the denominator of the bars ON A ROUND-BASED MODE: the ceiling of ONE round,
+ * not the target of the match. The numerator restarts from zero at each round, so the denominator
+ * must be that of the round, otherwise the bar would appear half as full at the second.
  *
- * Deux sources, dans l'ordre — comme `victoryTarget` :
- *  1. `timeline.targetScore` : le plafond de manche publié par l'artefact (100 pour Oddball).
- *  2. à défaut, le PLUS HAUT dernier-palier de toutes les manches des deux camps — dans une
- *     manche gagnée au plafond, ce dernier palier EST le plafond ; borné à 1 pour ne jamais
- *     diviser par zéro (match sans le moindre point).
+ * Two sources, in order — like `victoryTarget`:
+ *  1. `timeline.targetScore`: the round ceiling published by the artifact (100 for Oddball).
+ *  2. as a fallback, the HIGHEST last-step of all the rounds of the two camps — in a
+ *     round won at the ceiling, this last step IS the ceiling; bounded to 1 to never
+ *     divide by zero (match without a single point).
  *
- * CONSTANT sur toute la lecture (ne dépend pas du frame) : une barre ne recule jamais, et le
- * plafond est le même de la manche 1 à la manche N.
+ * CONSTANT over the whole reading (does not depend on the frame): a bar never goes back, and the
+ * ceiling is the same from round 1 to round N.
  */
 function roundTargetOf(timeline: ReplayScoreTimelineReady): number {
   if (timeline.targetScore != null && timeline.targetScore > 0) return timeline.targetScore
@@ -225,8 +225,8 @@ function roundTargetOf(timeline: ReplayScoreTimelineReady): number {
 }
 
 /**
- * allySideIndex dit LEQUEL des deux camps est celui du joueur regardé (0 ou 1), ou `null` quand
- * le film ne le dit pas : joueur regardé absent du film, sans équipe, ou d'aucun des deux camps.
+ * allySideIndex says WHICH of the two camps is that of the watched player (0 or 1), or `null` when
+ * the film does not say it: watched player absent from the film, without team, or of neither of the two camps.
  */
 function allySideIndex(film: ScoreBannerFilm, camps: readonly number[]): 0 | 1 | null {
   if (film.ofTeam(camps[0]) === true) return 0
@@ -235,13 +235,13 @@ function allySideIndex(film: ScoreBannerFilm, camps: readonly number[]): 0 | 1 |
 }
 
 /**
- * roundOf rend la manche en cours, et `null` sur un mode à manche unique — où l'indicateur
- * ne dirait rien que le total ne dise déjà.
+ * roundOf returns the round in progress, and `null` on a single-round mode — where the indicator
+ * would say nothing that the total does not already say.
  *
- * Reçoit la manche courante DÉJÀ LUE (`currentRoundAtFrame`), la même qui commande le
- * numérateur : « Manche N » et le score affiché désignent ainsi forcément la MÊME manche.
- * La borne partagée de `currentRoundAtFrame` couvre déjà le cas d'un camp qui n'a marqué dans
- * aucune manche (témoin CTF), qui aurait sous-déclaré le compte.
+ * Receives the current round ALREADY READ (`currentRoundAtFrame`), the same one that commands the
+ * numerator: « Round N » and the displayed score thus always designate the SAME round.
+ * The shared bound of `currentRoundAtFrame` already covers the case of a camp that has scored in
+ * no round (CTF witness), which would have under-declared the count.
  */
 function roundOf(cur: CurrentRound | null): ScoreBannerRound | null {
   if (!cur || cur.count <= 1) return null

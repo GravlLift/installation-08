@@ -1,47 +1,47 @@
 /**
- * objectiveMark.ts — QUI PORTE L'OBJECTIF, à une image donnée. Logique pure, pas de React.
+ * objectiveMark.ts — WHO CARRIES THE OBJECTIVE, at a given frame. Pure logic, no React.
  *
- * CE QUE LA FICHE NE DISAIT PAS. La carte montre depuis longtemps le drapeau porté, le crâne
- * d'Oddball et la couronne VIP — mais sur leur MARQUEUR, au milieu des traces. La colonne des
- * fiches, elle, ne disait rien : on lisait « qui est vivant », jamais « qui tient l'objet qui
- * décide de la manche ». Ce module répond à cette question, et lui seule ; l'habillage
- * (filigrane, encre) vit dans `ReplayObjectiveMark.tsx`, la phrase d'infobulle dans
+ * WHAT THE CARD WAS NOT SAYING. The map has long shown the carried flag, the Oddball skull
+ * and the VIP crown — but on their MARKER, among the tracks. The column of
+ * cards, it, said nothing: one read « who is alive », never « who holds the object that
+ * decides the round ». This module answers that question, and that one alone; the dressing
+ * (watermark, ink) lives in `ReplayObjectiveMark.tsx`, the tooltip sentence in
  * `playerCardFx.titleOf`.
  *
- * DEUX RÉGIMES, PARCE QUE LA DONNÉE EN A DEUX (décision utilisateur du 2026-08-29) :
+ * TWO REGIMES, BECAUSE THE DATA HAS TWO (user decision of 2026-08-29):
  *
- *  - un PORTAGE est une PÉRIODE attribuée — `flagCarries[].spans[]` (schéma 15),
- *    `skullCarries[]` (23), `vipCrown[]` (22) portent tous un `xuid` et un intervalle. La
- *    marque dure exactement l'intervalle : c'est un état, il se lit comme tel.
- *  - un ÉVÉNEMENT INSTANTANÉ n'a PAS de période attribuée. `zoneStates[].spans[]` ne publie
- *    que le propriétaire (une ÉQUIPE) et la jauge — aucun xuid ; seuls les ÉVÉNEMENTS
- *    `zone_captures` et `zone_secures` ont un auteur. La marque est alors un INSTANT tenu
- *    quelques secondes, jamais un « est en train de capturer » : le déduire de la position
- *    serait affirmer ce que le film ne dit pas (règle « une valeur non lue s'affiche comme
- *    une lacune »).
+ *  - a CARRY is a PERIOD attributed — `flagCarries[].spans[]` (schema 15),
+ *    `skullCarries[]` (23), `vipCrown[]` (22) all carry an `xuid` and an interval. The
+ *    mark lasts exactly the interval: it is a state, it is read as such.
+ *  - an INSTANTANEOUS EVENT has NO attributed period. `zoneStates[].spans[]` publishes
+ *    only the owner (a TEAM) and the gauge — no xuid; only the EVENTS
+ *    `zone_captures` and `zone_secures` have an author. The mark is then an INSTANT held
+ *    a few seconds, never a « is in the process of capturing »: deducing it from the position
+ *    would assert what the film does not say (rule « a value not read is displayed as
+ *    a gap »).
  *
- * LA BOMBE A LES DEUX RÉGIMES depuis le schéma 30 : le PORT est une période attribuée
- * (`bombCarries[]`, canal des armes tenues — jusque-là « rien n'attribue le PORT de la
- * bombe » était vrai, et ne l'est plus), et l'EXPLOSION reste l'instant `bomb_detonations`
- * (le point de mode d'Assaut). Le portage prime, comme partout : un porteur marqué reste
- * marqué pendant tout son portage, l'explosion tient sa marque quelques secondes après le
- * geste — même glyphe, deux moments d'un même enjeu.
+ * THE BOMB HAS BOTH REGIMES since schema 30: the CARRY is an attributed period
+ * (`bombCarries[]`, channel of the weapons held — until then « nothing attributes the CARRY of the
+ * bomb » was true, and no longer is), and the EXPLOSION stays the instant `bomb_detonations`
+ * (the mode point of Assault). The carry outranks, as everywhere: a marked carrier stays
+ * marked during his whole carry, the explosion holds its mark a few seconds after the
+ * gesture — same glyph, two moments of a same stake.
  *
- * KOTH EST PRÊT ET ATTEND SA SOURCE. Le mode n'a AUCUNE donnée attribuée aujourd'hui : les
- * emplacements de statistiques `hill` ne sont pas encore nommés — `NamedEvents` rend `nil`
- * pour KOTH — et les périodes de colline du document sont, comme les zones, au niveau de
- * l'équipe. Le genre `hill` existe donc ici avec son glyphe, son encre, son libellé et son
- * test (il passe par le MÊME résolveur de périodes que le crâne et le VIP, `markFromPeriods`),
- * mais sa source est vide : le jour où le décodage KOTH publiera des occupations par joueur,
- * c'est UNE ligne à ajouter dans `carrySourcesOf` — rien d'autre à écrire.
+ * KOTH IS READY AND AWAITS ITS SOURCE. The mode has NO attributed data today: the
+ * statistic placements `hill` are not yet named — `NamedEvents` returns `nil`
+ * for KOTH — and the hill periods of the document are, like the zones, at the level of
+ * the team. The `hill` kind therefore exists here with its glyph, its ink, its
+ * label and its test (it goes through the SAME periods resolver as the skull and the VIP, `markFromPeriods`),
+ * but its source is empty: the day the KOTH decoding will publish occupations per player,
+ * it is ONE line to add in `carrySourcesOf` — nothing else to write.
  *
- * UNE SEULE ENCRE POUR LES SIX (règle color-tokens) : `extreme`, « rare et intense », le
- * sommet d'une rampe d'intensité — et le seul token de la palette qu'AUCUN autre effet de
- * fiche n'emploie (`legendary` est le surbouclier, `success` le champ de réparation,
- * `destructive` le capteur et la mort, `info` la jauge de bouclier). Porter l'objectif est un
- * état de jeu, pas un camp : c'est le GLYPHE qui dit lequel des six, pas la couleur. La carte,
- * elle, garde l'encre d'ÉQUIPE sur ses glyphes — elle doit distinguer deux drapeaux sur un même
- * fond, quand une fiche n'a jamais qu'un seul porteur.
+ * ONE SINGLE INK FOR THE SIX (color-tokens rule): `extreme`, « rare and intense », the
+ * top of an intensity ramp — and the only token of the palette that NO other card effect
+ * uses (`legendary` is the over-shield, `success` the repair field,
+ * `destructive` the sensor and the death, `info` the shield gauge). Carrying the objective is a
+ * game state, not a camp: it is the GLYPH that says which of the six, not the color. The map,
+ * for its part, keeps the TEAM ink on its glyphs — it must distinguish two flags on a same
+ * background, when a card never has but one single carrier.
  */
 import { filmClockTrusted } from '@/lib/replay/scoreTimeline'
 
@@ -50,46 +50,46 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { covers } from './replaySpans'
 
 /**
- * Les six marques, nommées par l'OBJET porté, l'endroit tenu ou le geste qui vient d'être fait
- * — jamais par le mode : un même objet se retrouve d'un mode à l'autre, et la fiche ne connaît
- * pas le mode.
+ * The six marks, named by the OBJECT carried, the place held or the gesture just done
+ * — never by the mode: a same object is found from one mode to the other, and the card does not know
+ * the mode.
  */
 export type ObjectiveMarkKind = 'flag' | 'skull' | 'vip' | 'hill' | 'zone' | 'bomb'
 
 /**
- * Les états de `flagCarries[].spans[].state` qui veulent dire PORTÉ. `carried_open` est le
- * drapeau porté « à découvert » (le porteur est visible de tous) : c'est un portage, avec la
- * même conséquence pour qui lit la fiche. `dropped` et `home` n'ont pas de porteur — leur
- * `xuid` est celui du DERNIER porteur, et le prendre pour un portage collerait le drapeau à un
- * joueur qui ne l'a plus.
+ * The states of `flagCarries[].spans[].state` that mean CARRIED. `carried_open` is the
+ * flag carried « in the open » (the carrier is visible to all): it is a carry, with the
+ * same consequence for who reads the card. `dropped` and `home` have no carrier — their
+ * `xuid` is that of the LAST carrier, and taking it for a carry would stick the flag to a
+ * player who no longer has it.
  */
 const CARRIED_STATES = new Set(['carried', 'carried_open'])
 
 /**
- * Tenue de la marque de PRISE DE BASE, en temps réel — un instant qui doit se voir sans
- * s'installer. 2,5 s : le temps de lire un nom sur une colonne de huit fiches, bien au-delà de
- * l'onde de capture du drapeau (600 ms, `flagCaptureFx`) qui, elle, est peinte SUR la carte à
- * l'endroit où l'œil regarde déjà. Déclarée en millisecondes, jamais en images : la cadence du
- * film peut changer au build sans que la lecture change (même règle que `useReplayTiming`).
+ * Hold of the BASE CAPTURE mark, in real time — an instant that must be seen without
+ * settling in. 2.5 s: the time to read a name on a column of eight cards, well beyond
+ * the capture wave of the flag (600 ms, `flagCaptureFx`) which, it, is painted ON the map at
+ * the place the eye is already looking. Declared in milliseconds, never in frames: the cadence of
+ * the film may change at the build without the reading changing (same rule as `useReplayTiming`).
  */
 export const ZONE_MARK_HOLD_MS = 2_500
 
 /**
- * Les ÉVÉNEMENTS INSTANTANÉS attribués à un joueur, par genre de marque (cf.
- * objectiveevents/named.go). Ce sont les seuls modes dont la donnée ne publie AUCUNE période :
- * la marque est un instant tenu quelques secondes, jamais un état.
+ * The INSTANTANEOUS EVENTS attributed to a player, by kind of mark (cf.
+ * objectiveevents/named.go). These are the only modes whose data publishes NO period:
+ * the mark is an instant held a few seconds, never a state.
  *
- * `bomb_detonations` (Assaut, depuis le 2026-08-31) : le point de mode d'une manche d'Assaut
- * vaut une EXPLOSION, et rien d'autre ne fait bouger le score. Le joueur crédité est celui que
- * le moteur crédite ; le film ne distingue pas l'armement de la détonation, et la fiche ne
- * l'affirme donc pas.
+ * `bomb_detonations` (Assault, since 2026-08-31): the mode point of an Assault round
+ * is worth an EXPLOSION, and nothing else moves the score. The credited player is the one that
+ * the engine credits; the film does not distinguish the arming from the detonation, and the card does
+ * not assert it therefore.
  */
 const EVENT_STATS: Record<'zone' | 'bomb', ReadonlySet<string>> = {
   zone: new Set(['zone_captures', 'zone_secures']),
   bomb: new Set(['bomb_detonations']),
 }
 
-/** Une période de portage attribuée : la forme commune du crâne, du VIP et (demain) de la colline. */
+/** An attributed carry period: the common shape of the skull, the VIP and (tomorrow) the hill. */
 interface CarryPeriod {
   xuid: string
   t0: number
@@ -97,10 +97,10 @@ interface CarryPeriod {
 }
 
 /**
- * markFromPeriods — le résolveur de PÉRIODES, partagé par tous les portages à intervalle plat.
+ * markFromPeriods — the PERIODS resolver, shared by all the carries with flat interval.
  *
- * Bornes INCLUSES aux deux bouts, comme `skullPresenceAt` : une période d'une seule image
- * (prise et perte dans le même pas) doit se voir, et c'est la convention de tout le rejeu.
+ * Bounds INCLUDED at both ends, like `skullPresenceAt`: a period of a single frame
+ * (capture and loss in the same step) must be seen, and that is the convention of the whole replay.
  */
 function markFromPeriods(
   periods: readonly CarryPeriod[],
@@ -114,9 +114,9 @@ function markFromPeriods(
 }
 
 /**
- * Les sources de PORTAGE du document, dans l'ordre où elles se disputent la fiche. L'ordre est
- * arbitraire dans les faits — aucun mode ne publie deux de ces listes à la fois — mais il est
- * FIXE, pour qu'un document mal formé rende toujours la même marque plutôt qu'une au hasard.
+ * The CARRY sources of the document, in the order in which they dispute the card. The order is
+ * arbitrary in fact — no mode publishes two of these lists at once — but it is
+ * FIXED, so that a malformed document always renders the same mark rather than one at random.
  */
 function carrySourcesOf(
   doc: ReplayDocumentReady,
@@ -124,18 +124,18 @@ function carrySourcesOf(
   return [
     { kind: 'skull', periods: doc.skullCarries },
     { kind: 'vip', periods: doc.vipCrown },
-    // LA BOMBE PORTÉE (schéma 30) : le même résolveur que le crâne — le kind `bomb` sert
-    // aussi l'ÉVÉNEMENT d'explosion (EVENT_STATS), et le portage prime par construction :
-    // les périodes se lisent AVANT les événements dans `objectiveMarkAt`.
+    // THE CARRIED BOMB (schema 30): the same resolver as the skull — the `bomb` kind serves
+    // the EXPLOSION EVENT too (EVENT_STATS), and the carry outranks by construction:
+    // the periods are read BEFORE the events in `objectiveMarkAt`.
     { kind: 'bomb', periods: doc.bombCarries },
-    // KOTH : la source manque encore (cf. l'en-tête). Une ligne `{ kind: 'hill', periods: ... }`
-    // ici, et le filigrane de colline s'allume — tout le reste est déjà en place.
+    // KOTH: the source is still missing (cf. the header). A line `{ kind: 'hill', periods: ... }`
+    // here, and the hill watermark lights up — everything else is already in place.
   ]
 }
 
 /**
- * flagCarriedBy dit si CE joueur tient un drapeau à cette image, quel que soit le camp du
- * drapeau : sur une fiche, le camp est déjà dit par la colonne.
+ * flagCarriedBy says if THIS player holds a flag at this frame, whatever the camp of
+ * the flag: on a card, the camp is already said by the column.
  */
 function flagCarriedBy(doc: ReplayDocumentReady, xuid: string, frame: number): boolean {
   for (const carry of doc.flagCarries) {
@@ -149,13 +149,13 @@ function flagCarriedBy(doc: ReplayDocumentReady, xuid: string, frame: number): b
 }
 
 /**
- * eventMarkedBy dit si ce joueur a accompli l'un des événements du genre donné dans la fenêtre
- * qui précède cette image.
+ * eventMarkedBy says if this player accomplished one of the events of the given kind in the window
+ * that precedes this frame.
  *
- * LA GARDE D'HORLOGE EST LA MÊME QUE CELLE DE L'ONDE DE CAPTURE (`flagCaptureFx`) : les
- * `objectives[]` sont datés par l'horloge du FILM puis recalés sur la grille du document ; sans
- * origine résolue, l'écart est inconnu (mesuré de 3,6 s à 50,8 s) et la marque s'allumerait sur
- * la mauvaise image. Muet vaut mieux que faux.
+ * THE CLOCK GUARD IS THE SAME AS THAT OF THE CAPTURE WAVE (`flagCaptureFx`): the
+ * `objectives[]` are dated by the clock of the FILM then aligned on the grid of the document; without
+ * resolved origin, the gap is unknown (measured from 3.6 s to 50.8 s) and the mark would light on
+ * the wrong frame. Silent is better than false.
  */
 function eventMarkedBy(
   doc: ReplayDocumentReady,
@@ -175,15 +175,15 @@ function eventMarkedBy(
 }
 
 /**
- * objectiveMarkAt — la marque d'objectif d'un joueur à une image, ou `null` s'il n'en porte
- * aucune.
+ * objectiveMarkAt — the objective mark of a player at a frame, or `null` if he carries
+ * none.
  *
- * LE PORTAGE PRIME SUR L'ÉVÉNEMENT : un porteur de drapeau qui vient de sécuriser une base
- * garde le drapeau à l'écran — c'est l'état qui dure qui décide de la manche, l'instant est
- * déjà passé.
+ * THE CARRY OUTRANKS THE EVENT: a flag carrier who just secured a base
+ * keeps the flag on screen — it is the state that lasts that decides the round, the instant is
+ * already past.
  *
- * L'APPELANT NE L'APPELLE QUE POUR UNE FICHE VIVANTE (même règle que les zones et l'équipement) :
- * une fiche morte ne porte que la mort, et un mort a lâché ce qu'il tenait.
+ * THE CALLER CALLS IT ONLY FOR A LIVING CARD (same rule as the zones and the equipment):
+ * a dead card carries only the death, and a dead one has dropped what he was holding.
  */
 export function objectiveMarkAt(
   doc: ReplayDocumentReady,
@@ -201,9 +201,9 @@ export function objectiveMarkAt(
 }
 
 /**
- * Exporté POUR LE GENRE `hill` ET SON TEST, le temps que la source KOTH existe : c'est ce qui
- * fait de la colline un genre réellement résolu par le même code que les autres, et non un
- * décor qui divergerait avant d'avoir servi. À l'arrivée de la source, `carrySourcesOf` s'en
- * sert comme des deux autres et cet export perd sa raison d'être.
+ * Exported FOR THE `hill` KIND AND ITS TEST, until the KOTH source exists: that is what
+ * makes the hill a kind truly resolved by the same code as the others, and not a
+ * dressing that would diverge before having served. On the arrival of the source, `carrySourcesOf` uses
+ * it like the two others and this export loses its reason for being.
  */
 export { markFromPeriods as objectiveMarkFromPeriods }

@@ -1,91 +1,91 @@
 /**
- * placementDropped.ts — CE QU'UN JOUEUR LAISSE AU SOL EN MOURANT, et le peu qui mérite d'être vu.
+ * placementDropped.ts — WHAT A PLAYER LEAVES ON THE GROUND IN DYING, and the little that deserves to be seen.
  *
- * LA RÈGLE R2/W4 DISAIT « RIEN », ET ELLE AVAIT RAISON POUR L'ESSENTIEL. Près de neuf poses
- * sur dix du corpus sont des LÂCHERS À LA MORT (`origin: dropped`, mesure du 2026-08-18,
- * 11 films, 3 661 poses à poseur mesuré) : les dessiner toutes noierait le mur et le capteur
- * sous des centaines de points qui ne disent rien du terrain. C'est pour cela que le calque
- * ne montre que les objets DÉPLOYÉS.
+ * THE R2/W4 RULE SAID « NOTHING », AND IT WAS RIGHT FOR THE ESSENTIAL. Close to nine placements
+ * out of ten of the corpus are DROPS ON DEATH (`origin: dropped`, measurement of 2026-08-18,
+ * 11 films, 3 661 placements with measured placer): drawing them all would drown the wall and the sensor
+ * under hundreds of points that say nothing about the terrain. That is why the overlay
+ * shows only the DEPLOYED objects.
  *
- * L'UTILISATEUR A AMENDÉ CETTE RÈGLE LE 2026-08-18, et l'amendement est étroit :
- * « hors Fiesta c'est tactiquement interessant (power-ups, armes de puissance, equipements
- * laches a la mort) ». Un surbouclier au sol change ce que vaut le prochain échange ; une
- * grenade à fragmentation au sol, non. Ce fichier porte la LISTE de ce qui vaut le coup, et
- * rien d'autre.
+ * THE USER AMENDED THIS RULE ON 2026-08-18, and the amendment is narrow:
+ * « outside Fiesta it is tactically interesting (power-ups, power weapons, equipment
+ * dropped on death) ». An over-shield on the ground changes what the next exchange is worth; a
+ * fragmentation grenade on the ground, no. This file carries the LIST of what is worth it, and
+ * nothing else.
  *
- * LA RESTRICTION « HORS FIESTA » A ÉTÉ LEVÉE LE 2026-08-20 : elle masquait 26 lâchers bien
- * réels sur le témoin Fiesta `000d5950` (11 murs, 15 capteurs), et l'utilisateur veut les
- * voir. Le réglage « Objets lâchés au sol » gouverne seul, dans tous les modes ; plus aucune
- * garde de mode ne le croise.
+ * THE « EXCEPT FIESTA » RESTRICTION WAS LIFTED ON 2026-08-20: it was hiding 26 drops quite
+ * real on the Fiesta witness `000d5950` (11 walls, 15 sensors), and the user wants to
+ * see them. The « Objects dropped on the ground » setting alone governs, in all modes; no more
+ * mode guard crosses it.
  *
- * LES ARMES LÂCHÉES N'Y SONT PAS, ET CE N'EST PAS UN OUBLI. `equipmentPlacements` est un canal
- * d'ÉQUIPEMENT (tag `eqip`) ; `weaponPads` est un canal de SOCLES (position où une arme
- * REPARAÎT), pas de lâchers. Aucun champ du document ne dit « telle arme est au sol en (x, y)
- * depuis telle image ». Les armes de puissance lâchées demandent donc une publication de
- * données supplémentaire, côté serveur — c'est un report écrit au registre, pas un manque ici.
+ * THE DROPPED WEAPONS ARE NOT IN IT, AND IT IS NOT AN OVERSIGHT. `equipmentPlacements` is a
+ * EQUIPMENT channel (tag `eqip`); `weaponPads` is a PAD channel (position where a weapon
+ * REAPPEARS), not of drops. No field of the document says « such weapon is on the ground at (x, y)
+ * since such frame ». The dropped power weapons therefore ask for an additional publication of
+ * data, on the server side — that is a report written in the register, not a gap here.
  *
- * UN LÂCHER N'EST PAS L'OBJET ACTIF, et la mesure le prouve : sur le témoin `000d5950`, les
- * 11 poses `wall/dropped` portent l'identifiant de l'APPAREIL (`0x8e2dc574`), jamais celui des
- * PANNEAUX (`0x528fce46`) que le déploiement produit. Un mur au sol est l'appareil que son
- * porteur n'a pas eu le temps d'utiliser : il n'a ni arc, ni orientation, ni portée. D'où une
- * forme unique et discrète pour tous les lâchers (cf. `drawDroppedObject`), jamais la forme
- * de la famille.
+ * A DROP IS NOT THE ACTIVE OBJECT, and the measurement proves it: on the witness `000d5950`, the
+ * 11 placements `wall/dropped` carry the identifier of the DEVICE (`0x8e2dc574`), never that of the
+ * PANELS (`0x528fce46`) that the deployment produces. A wall on the ground is the device that its
+ * carrier did not have time to use: it has no arc, no orientation, no range. Hence a
+ * unique and discreet shape for all the drops (cf. `drawDroppedObject`), never the shape
+ * of the family.
  */
 import type { ReplayEquipmentPlacement } from '@/lib/api/types'
 
 import { PAD_EQUIPMENT_FAMILIES } from './weaponPadFamilies'
 
 /**
- * L'origine « lâché à la mort ». Identifiant STABLE du document (schéma 10), jamais un libellé.
+ * The « dropped on death » origin. STABLE identifier of the document (schema 10), never a label.
  *
- * Le vocabulaire publié est `deployed` / `dropped` / `unknown`. `unknown` NE COMPTE PAS comme
- * un lâcher : ce sont les poses sans poseur mesuré et les artefacts antérieurs au schéma 10,
- * encore sur disque et en production. Les traiter en lâchers ferait apparaître, sur tout ce
- * parc, des objets dont rien n'établit qu'ils sont tombés.
+ * The published vocabulary is `deployed` / `dropped` / `unknown`. `unknown` DOES NOT COUNT as
+ * a drop: those are the placements without measured placer and the artifacts prior to schema 10,
+ * still on disk and in production. Treating them as drops would make appear, over all that
+ * fleet, objects of which nothing establishes that they fell.
  */
 export const PLACEMENT_ORIGIN_DROPPED = 'dropped'
 
 /**
- * LES ÉQUIPEMENTS DÉPLOYABLES du manifeste — ceux dont le lâcher se dessine.
+ * THE DEPLOYABLE EQUIPMENTS of the manifest — those of which the drop is drawn.
  *
- * Ce sont exactement les familles auxquelles `PLACEMENT_RENDER` donne une forme d'objet ACTIF,
- * `other` excepté : si un objet mérite d'être vu quand il est posé, il mérite d'être vu quand
- * il traîne au sol, ramassable. `other` en est écarté parce que sa bascule est un outil de
- * diagnostic (« un objet est ici, sa nature n'est pas établie ») : promouvoir en objet de
- * puissance ce qu'on ne sait pas nommer affirmerait un enjeu que rien n'établit — même
- * raisonnement que le défaut `classic` des socles.
+ * Those are exactly the families to which `PLACEMENT_RENDER` gives a shape of ACTIVE object,
+ * `other` excepted: if an object deserves to be seen when it is placed, it deserves to be seen when
+ * it lingers on the ground, pickable. `other` is set apart from it because its toggle is a
+ * diagnostic tool (« an object is here, its nature is not established »): promoting to power object
+ * what one cannot name would assert a stake that nothing establishes — same
+ * reasoning as the `classic` default of the pads.
  *
- * LA LISTE EST ÉCRITE ET NON DÉDUITE de `PLACEMENT_RENDER`, pour une raison de dépendances :
- * ce module est lu PAR le calque, le déduire créerait un cycle. Un garde-rail rejoue donc la
- * correspondance dans les deux sens (`placementDropped.guard.test.ts`) — c'est le patron
- * « helper + garde-rail » de CLAUDE.md n°6, pas une seconde vérité.
+ * THE LIST IS WRITTEN AND NOT DEDUCED from `PLACEMENT_RENDER`, for a reason of dependencies:
+ * this module is read BY the overlay, deducing it would create a cycle. A guard-rail therefore replays the
+ * correspondence in both directions (`placementDropped.guard.test.ts`) — that is the pattern
+ * « helper + guard-rail » of CLAUDE.md no. 6, not a second truth.
  */
 export const DROPPED_EQUIPMENT_FAMILIES: readonly string[] = [
   'wall',
   'sensor',
   'translocator_beacon',
-  // L ECRAN OCCULTANT entre ici le 2026-08-27, en meme temps qu il gagne sa forme posee. Le
-  // garde-rail l exige et il a raison : une famille qui se dessine DEPLOYEE doit se dessiner
-  // LACHEE, sinon elle disparait de la carte a la mort de son porteur.
+  // THE SHROUD SCREEN joins here on 2026-08-27, at the same time as it gains its placed shape. The
+  // guard-rail demands it and it is right: a family that is drawn DEPLOYED must be drawn
+  // DROPPED, otherwise it disappears from the map at the death of its carrier.
   'shroud_screen',
   'threat_seeker',
   'repair_field',
 ]
 
 /**
- * TOUTES LES FAMILLES DE PUISSANCE dont le lâcher se dessine : les équipements déployables,
- * plus les POWER-UPS.
+ * ALL THE POWER FAMILIES of which the drop is drawn: the deployable equipments,
+ * plus the POWER-UPS.
  *
- * LES POWER-UPS VIENNENT DE `PAD_EQUIPMENT_FAMILIES`, ils ne sont PAS recopiés. C'est la liste
- * EXPLICITE que l'utilisateur a demandée le 2026-08-18 pour les socles (« liste EXPLICITE »),
- * et elle vit déjà à deux endroits de `weaponPadFamilies.ts` (la table des vignettes et
- * `POWER_PAD_KEYS`). Une troisième copie serait la copie de trop (CLAUDE.md n°6) — et la
- * première à diverger le jour où le titre ajoutera un power-up.
+ * THE POWER-UPS COME FROM `PAD_EQUIPMENT_FAMILIES`, they are NOT recopied. It is the
+ * EXPLICIT list that the user asked for on 2026-08-18 for the pads (« EXPLICIT list »),
+ * and it already lives in two places of `weaponPadFamilies.ts` (the table of thumbnails and
+ * `POWER_PAD_KEYS`). A third copy would be the copy too much (CLAUDE.md no. 6) — and the
+ * first to diverge the day the title adds a power-up.
  *
- * NE SONT PAS LÀ, ET C'EST LA MOITIÉ DE LA RÈGLE : les quatre grenades (59 à 63 % des poses
- * du corpus) et les trois capacités (`grapple`, `thruster`, `repulsor`). Les unes et les
- * autres sont à `null` dans `PLACEMENT_RENDER` — la décision de ne pas les dessiner est déjà
- * prise, mesurée et écrite ; ce lot ne la rouvre pas.
+ * NOT THERE, AND IT IS THE HALF OF THE RULE: the four grenades (59 to 63 % of the placements
+ * of the corpus) and the three abilities (`grapple`, `thruster`, `repulsor`). The one and the
+ * others are at `null` in `PLACEMENT_RENDER` — the decision not to draw them is already
+ * taken, measured and written; this batch does not reopen it.
  */
 export const PLACEMENT_DROPPED_FAMILIES: readonly string[] = [
   ...DROPPED_EQUIPMENT_FAMILIES,
@@ -93,16 +93,16 @@ export const PLACEMENT_DROPPED_FAMILIES: readonly string[] = [
 ]
 
 /**
- * placementIsDroppedPower — cette pose est-elle un objet de PUISSANCE tombé au sol ?
+ * placementIsDroppedPower — is this placement a POWER object fallen on the ground?
  *
- * DEUX CONDITIONS, ET AUCUNE N'EST DÉDUITE DE L'AUTRE : l'origine mesurée est un lâcher, et
- * la famille figure dans la liste ci-dessus. Une pose d'origine inconnue n'en est jamais une
- * (cf. `PLACEMENT_ORIGIN_DROPPED`), et une grenade lâchée non plus, quelle que soit sa netteté.
+ * TWO CONDITIONS, AND NEITHER IS DEDUCED FROM THE OTHER: the measured origin is a drop, and
+ * the family figures in the list above. A placement of unknown origin is never one
+ * (cf. `PLACEMENT_ORIGIN_DROPPED`), and a dropped grenade neither, whatever its sharpness.
  *
- * L'IDENTIFIANT N'EST PAS TESTÉ, contrairement au mur déployé (`WALL_PANEL_IDS`). C'est
- * délibéré et mesuré : le déploiement d'un mur publie DEUX poses (l'appareil qui vole et ses
- * panneaux), d'où le filtre côté déployé ; un lâcher n'en publie qu'une, celle de l'appareil.
- * Il n'y a rien à dédoublonner.
+ * THE IDENTIFIER IS NOT TESTED, unlike the deployed wall (`WALL_PANEL_IDS`). It is
+ * deliberate and measured: the deployment of a wall publishes TWO placements (the flying device and its
+ * panels), hence the filter on the deployed side; a drop publishes only one, that of the device.
+ * There is nothing to de-duplicate.
  */
 export function placementIsDroppedPower(p: ReplayEquipmentPlacement): boolean {
   if (p.origin !== PLACEMENT_ORIGIN_DROPPED) return false

@@ -1,66 +1,66 @@
 /**
- * replayWindow — LA FENÊTRE DE GAMEPLAY : où commence et où finit le MATCH sur l'axe du film.
+ * replayWindow — THE GAMEPLAY WINDOW: where the MATCH starts and where it ends on the axis of the film.
  *
- * LE FILM DÉBORDE LE MATCH DES DEUX CÔTÉS. Avant, il porte le countdown d'avant-match (les
- * joueurs sont déjà là, figés à leur apparition) ; après, il garde une queue de 5 à 6 secondes
- * (mesuré : 6,1 / 6,1 / 6,1 / 5,2 s sur les quatre témoins) — pas l'outro complète, juste ce
- * que l'enregistrement a eu le temps de prendre. Lu de bout en bout, le rejeu commençait donc
- * sur des statues et se terminait sur une scène qui n'appartient plus au match.
+ * THE FILM OVERFLOWS THE MATCH ON BOTH SIDES. Before, it carries the pre-match countdown (the
+ * players are already there, frozen at their appearance); after, it keeps a tail of 5 to 6 seconds
+ * (measured: 6.1 / 6.1 / 6.1 / 5.2 s on the four witnesses) — not the complete outro, just what
+ * the recording had time to catch. Read end to end, the replay therefore started
+ * on statues and ended on a scene that no longer belongs to the match.
  *
- * DEUX AXES, ET C'EST TOUTE LA DIFFICULTÉ. Le film compte en IMAGES depuis son premier paquet
- * de position (l'ORIGINE que porte l'horloge de la page — schéma >= 4 — dit à quel instant du
- * match cette image zéro tombe) ; le match, lui, compte en ms depuis son `start_time` (`header.t0_ms` =
- * coup d'envoi, `header.playable_duration_seconds` = durée de jeu). Passer de l'un à l'autre
- * est une soustraction, et les deux bornes en découlent :
+ * TWO AXES, AND IT IS THE WHOLE DIFFICULTY. The film counts in FRAMES since its first packet
+ * of position (the ORIGIN that the clock of the page carries — schema >= 4 — says at what time of
+ * the match this frame zero falls); the match, it, counts in ms since its `start_time` (`header.t0_ms` =
+ * kickoff, `header.playable_duration_seconds` = game duration). Going from one to the other
+ * is a subtraction, and the two bounds follow from it:
  *
- *     début = max(0, t0_ms − originMs)                     (clamp, cf. plus bas)
- *     fin   = t0_ms + playable_duration_seconds × 1000 − originMs
+ *     start = max(0, t0_ms − originMs)                     (clamp, cf. below)
+ *     end   = t0_ms + playable_duration_seconds × 1000 − originMs
  *
- * LA FIN RESTE JUSTE SANS `t0_ms`, et ce n'est pas une chance : le serveur calcule
- * `playable_duration_seconds` comme `duration_seconds − t0_ms/1000` quand le T0 est connu
- * (match_view_builders_header.go), donc l'ancrage se compense de lui-même — l'erreur
- * résiduelle est la troncature à la seconde. Un match sans T0 garde donc sa fin cadrée, et
- * démarre au premier paquet.
+ * THE END STAYS RIGHT WITHOUT `t0_ms`, and it is not luck: the server computes
+ * `playable_duration_seconds` as `duration_seconds − t0_ms/1000` when the T0 is known
+ * (match_view_builders_header.go), so the anchoring compensates itself — the
+ * residual error is the truncation to the second. A match without T0 therefore keeps its framed end, and
+ * starts at the first packet.
  *
- * LE CLAMP DU DÉBUT N'EST PAS DÉFENSIF : sur le témoin e94163af, le premier paquet de position
- * arrive 4,5 s APRÈS le coup d'envoi (originMs 39 772 > t0_ms 35 238). Le film n'a rien à
- * montrer avant sa propre image zéro.
+ * THE CLAMP OF THE START IS NOT DEFENSIVE: on the witness e94163af, the first position packet
+ * arrives 4.5 s AFTER the kickoff (originMs 39 772 > t0_ms 35 238). The film has nothing to
+ * show before its own frame zero.
  *
- * DEUX SOURCES POUR LE COUP D'ENVOI, ET LE FILM PASSE DEVANT (D5 du plan T0-film, 2026-09-02).
- * `header.t0_ms` est ESTIMÉ des `first_joined_time` de l'API : dégénéré (~0 ms) sur 10 à 15 %
- * des matchs, et décalé d'une heure entière sur une part du corpus (dette TZ historique).
- * `doc.t0FilmMs` est MESURÉ dans le film — l'instant du premier mouvement réel des joueurs,
- * détecté par match, sans constante en dur. La mesure tranche : dispersion 9 752 ms pour le
- * film contre 12 764 ms pour l'API sur le même corpus de 101 matchs, et aucune valeur
- * invraisemblable côté film. Le champ est donc préféré PARTOUT où il existe ; son absence
- * (artefact antérieur au schéma 36, ou refus du détecteur) fait retomber sur l'API, sans
- * dégradation par rapport à avant ce lot.
+ * TWO SOURCES FOR THE KICKOFF, AND THE FILM COMES FIRST (D5 of the T0-film plan, 2026-09-02).
+ * `header.t0_ms` is ESTIMATED from the `first_joined_time` of the API: degenerate (~0 ms) on 10 to 15 %
+ * of the matches, and offset by a full hour on a share of the corpus (historical TZ debt).
+ * `doc.t0FilmMs` is MEASURED in the film — the instant of the first real movement of the players,
+ * detected per match, without a hard constant. The measurement decides: dispersion 9 752 ms for the
+ * film against 12 764 ms for the API on the same corpus of 101 matches, and no
+ * implausible value on the film side. The field is therefore preferred EVERYWHERE where it exists; its absence
+ * (artifact prior to schema 36, or refusal of the detector) falls back to the API, without
+ * degradation compared to before this batch.
  *
- * LA BORNE DE FIN, ELLE, RESTE SUR `header.t0_ms`, et ce n'est pas une inconséquence : sa
- * justesse ne vient pas de l'ancrage mais de la COMPENSATION décrite plus haut — le serveur
- * a soustrait CE t0-là pour produire `playable_duration_seconds`. Y substituer le T0 film
- * casserait l'annulation et déplacerait la fin de l'écart entre les deux horloges.
+ * THE END BOUND, IT, STAYS ON `header.t0_ms`, and it is not an inconsistency: its
+ * correctness does not come from the anchoring but from the COMPENSATION described above — the server
+ * subtracted THAT t0 to produce `playable_duration_seconds`. Substituting the film T0
+ * there would break the cancellation and move the end by the gap between the two clocks.
  *
- * LE PRÉAMBULE (`leadInFrame`) EST UN CONFORT DE LECTURE, PAS UN CADRAGE (D3, user 02/09) :
- * la lecture se pose UNE seconde avant le coup d'envoi, le temps de poser les yeux sur la
- * scène avant que l'action parte. Rien d'autre ne bouge — l'horloge affichée, la frise et les
- * bornes d'export restent sur `startMs` / `startFrame`, et l'horloge lit donc 0:00 pendant ce
- * préambule (plancher de `displayClockMs`).
+ * THE PREAMBLE (`leadInFrame`) IS A COMFORT OF READING, NOT A FRAMING (D3, user 02/09):
+ * the reading sets ONE second before the kickoff, in time to set the eyes on the
+ * scene before the action starts. Nothing else moves — the displayed clock, the timeline and the
+ * export bounds stay on `startMs` / `startFrame`, and the clock therefore reads 0:00 during this
+ * preamble (floor of `displayClockMs`).
  *
- * LA BORNE DE FIN N'UTILISE JAMAIS LE CALQUE DE SCORE, et c'est une mesure, pas une opinion :
- * le dernier point du score tombe 1,5 à 1,6 s avant la fin déclarée sur les trois témoins
- * gagnés au score — mais 133 s avant sur 64e8adfa, qui s'est terminé AU TEMPS. Une borne tirée
- * du score amputerait deux minutes de jeu sur ce match-là sans qu'aucun test ne rougisse.
+ * THE END BOUND NEVER USES THE SCORE LAYER, and it is a measurement, not an opinion:
+ * the last point of the score falls 1.5 to 1.6 s before the declared end on the three witnesses
+ * won on the score — but 133 s before on 64e8adfa, which ended ON TIME. A bound drawn
+ * from the score would amputate two minutes of play on that match without any test going red.
  *
- * SANS DONNÉE, PAS DE CADRAGE (D-A3) : un artefact dont l'horloge n'est pas établie
- * (`model/replayClock` — pas d'origine publiée, pas d'échelle temporelle, moins de deux
- * images) ou un en-tête sans durée jouable rend `null`, et tout ce qui lit cette fenêtre
- * retombe alors sur le comportement d'avant ce lot — film entier, horloge du film. Une
- * fenêtre incohérente (fin avant début) rend `null` pour la même raison : mieux vaut le film
- * entier qu'une lecture d'une seule image.
+ * NO DATA, NO FRAMING (D-A3): an artifact whose clock is not established
+ * (`model/replayClock` — no published origin, no time scale, fewer than two
+ * frames) or a header without playable duration renders `null`, and everything that reads this window
+ * then falls back to the behavior of before this batch — whole film, film clock. An
+ * incoherent window (end before start) renders `null` for the same reason: better the whole film
+ * than a reading of a single frame.
  *
- * L'ORIGINE NE SE LIT PLUS ICI (2026-09-05, P0-5) : elle vient de `replayClock`, le verdict
- * unique de la page — le même que celui du fil, des médias, de la présence et des sièges.
+ * THE ORIGIN IS NO LONGER READ HERE (2026-09-05, P0-5): it comes from `replayClock`, the verdict
+ * unique to the page — the same as that of the feed, the media, the presence and the seats.
  */
 import type { MatchViewHeader } from '@/lib/api/types'
 
@@ -68,45 +68,45 @@ import { replayClock } from './replayClock'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
-/** Ce que la fenêtre lit de l'en-tête du match : les deux bornes de l'axe du MATCH. */
+/** What the window reads of the match header: the two bounds of the MATCH axis. */
 export type ReplayWindowHeader = Pick<MatchViewHeader, 't0_ms' | 'playable_duration_seconds'>
 
 /**
- * PRÉAMBULE DE LECTURE, en millisecondes AVANT le coup d'envoi (D3, user 2026-09-02).
+ * READING PREAMBLE, in milliseconds BEFORE the kickoff (D3, user 2026-09-02).
  *
- * Une seconde : de quoi voir la scène s'installer avant que l'action parte, sans jamais
- * redonner à voir le countdown d'avant-match. Ce n'est PAS un déplacement du cadrage — la
- * fenêtre de gameplay, l'horloge et l'export ne connaissent que `startMs` / `startFrame`.
+ * One second: enough to see the scene settle before the action starts, without ever
+ * giving back to see the pre-match countdown. It is NOT a displacement of the framing — the
+ * gameplay window, the clock and the export only know `startMs` / `startFrame`.
  */
 export const LEAD_IN_MS = 1000
 
-/** La fenêtre de gameplay, dans les deux unités du rejeu (images pour la frise, ms pour l'horloge). */
+/** The gameplay window, in the two units of the replay (frames for the timeline, ms for the clock). */
 export interface ReplayWindowBounds {
   /**
-   * Première image du gameplay : la borne basse de la FRISE, l'origine de l'horloge affichée
-   * et le début de la plage d'export. Ce n'est plus l'endroit où la lecture SE POSE — celui-là
-   * est `leadInFrame`, une seconde plus tôt.
+   * First frame of the gameplay: the lower bound of the TIMELINE, the origin of the displayed clock
+   * and the start of the export range. It is no longer the place where the reading SETS — that one
+   * is `leadInFrame`, one second earlier.
    */
   startFrame: number
   /**
-   * OÙ LA LECTURE SE POSE, une seconde en deçà du coup d'envoi (`LEAD_IN_MS`) — jamais avant
-   * l'image zéro du film. C'est la SEULE borne que le préambule déplace : la frise part
-   * toujours de `startFrame`, et l'horloge affiche 0:00 tant que la lecture est en deçà.
+   * WHERE THE READING SETS, one second below the kickoff (`LEAD_IN_MS`) — never before
+   * frame zero of the film. It is the ONLY bound that the preamble moves: the timeline starts
+   * always from `startFrame`, and the clock displays 0:00 as long as the reading is below it.
    */
   leadInFrame: number
-  /** Dernière image du gameplay : la lecture s'y arrête, la frise n'en sort pas. */
+  /** Last frame of the gameplay: the reading stops there, the timeline does not go out of it. */
   endFrame: number
-  /** Instant du coup d'envoi sur l'axe du film, en ms — l'origine de l'horloge AFFICHÉE. */
+  /** Time of the kickoff on the axis of the film, in ms — the origin of the DISPLAYED clock. */
   startMs: number
-  /** Instant de la fin déclarée sur l'axe du film, en ms, borné par la durée réelle du film. */
+  /** Time of the declared end on the axis of the film, in ms, bounded by the real duration of the film. */
   endMs: number
 }
 
 /**
- * replayWindow rend la fenêtre de gameplay du document, ou `null` quand elle n'est pas
- * établie (cf. l'en-tête : artefact sans origine, en-tête sans durée jouable, bornes
- * incohérentes). Les images sont ARRONDIES à l'image la plus proche : à 100 ms d'intervalle,
- * tronquer coûterait jusqu'à une image de gameplay à chaque bout.
+ * replayWindow returns the gameplay window of the document, or `null` when it is not
+ * established (cf. the header: artifact without origin, header without playable duration, bounds
+ * incoherent). The frames are ROUNDED to the nearest frame: at a 100 ms interval,
+ * truncating would cost up to one frame of gameplay at each end.
  */
 export function replayWindow(
   doc: ReplayDocumentReady,
@@ -115,14 +115,14 @@ export function replayWindow(
   const clock = replayClock(doc, header)
   const playableSeconds = header?.playable_duration_seconds
   if (!clock || playableSeconds == null) return null
-  // L'horloge garantit au moins deux images : la dernière existe donc.
+  // The clock guarantees at least two frames: the last one therefore exists.
   const lastFrame = clock.frameCount - 1
 
-  // LE T0 DE L'API sert la borne de FIN, et elle seule : c'est lui que le serveur a soustrait
-  // pour produire `playable_duration_seconds` (cf. l'en-tête, § de la compensation).
+  // THE T0 OF THE API serves the END bound, and it alone: it is it that the server subtracted
+  // to produce `playable_duration_seconds` (cf. the header, § of the compensation).
   const apiT0Ms = clock.t0Ms
-  // LE T0 DU DÉBUT PRÉFÈRE LE FILM : mesuré au premier mouvement, contre estimé des
-  // `first_joined_time`. Les deux sont sur l'axe du MATCH, la soustraction est la même.
+  // THE T0 OF THE START PREFERS THE FILM: measured at the first movement, against estimated from the
+  // `first_joined_time`. Both are on the axis of the MATCH, the subtraction is the same.
   const startT0Ms = clock.t0FilmMs ?? apiT0Ms
   const startMs = Math.max(0, clock.filmMsOfMatchMs(startT0Ms))
   const filmEndMs = frameToMs(lastFrame, doc)
@@ -135,17 +135,17 @@ export function replayWindow(
 }
 
 /**
- * displayClockMs recale un instant de l'axe du film sur l'HORLOGE DU GAMEPLAY (D-A2) : le
- * coup d'envoi se lit 0:00, et le countdown d'avant-match ne se compte plus. Plancher à zéro
- * — un événement d'avant le coup d'envoi (une mort en pré-match) s'affiche à 0:00 plutôt qu'en
- * négatif. Sans fenêtre, l'identité : l'axe interne du rejeu ne change pas, seul l'affichage.
+ * displayClockMs re-scales a time of the axis of the film onto the GAMEPLAY CLOCK (D-A2): the
+ * kickoff reads 0:00, and the pre-match countdown is no longer counted. Floor at zero
+ * — an event from before the kickoff (a death in pre-match) displays at 0:00 rather than in
+ * negative. Without a window, the identity: the internal axis of the replay does not change, only the display.
  */
 export function displayClockMs(ms: number, playWindow: ReplayWindowBounds | null): number {
   if (!playWindow) return ms
   return Math.max(0, ms - playWindow.startMs)
 }
 
-/** Borne une image dans le film : ni avant l'image zéro, ni après la dernière. */
+/** Bounds a frame in the film: neither before frame zero, nor after the last one. */
 function clampFrame(frame: number, lastFrame: number): number {
   return Math.min(Math.max(frame, 0), lastFrame)
 }

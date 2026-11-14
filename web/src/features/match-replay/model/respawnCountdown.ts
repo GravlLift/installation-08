@@ -1,65 +1,65 @@
 /**
- * respawnCountdown.ts — LE COMPTE À REBOURS D'UN LIEU QUI RÉAPPROVISIONNE, et l'ORDRE DE SES
- * DEUX SOURCES.
+ * respawnCountdown.ts — THE COUNTDOWN OF A PLACE THAT RESTOCKS, and the ORDER OF ITS
+ * TWO SOURCES.
  *
- * POURQUOI CE FICHIER EXISTE (CLAUDE.md n°6, et la demande du lot 5.8). Deux calques posent la
- * MÊME question au document : « ce lieu est vide, dans combien de temps son objet revient-il ? ».
- * Les SOCLES D'ARME la posent depuis le 2026-08-27 (`weaponPadTime.padRespawnAt`) ; les
- * EMPLACEMENTS DE NAISSANCE DE VÉHICULE la posent depuis le schéma 63 (`vehicleCycleTime`). La
- * règle de réponse est la même à la virgule près, et deux copies auraient divergé au premier
- * réglage — l'écart étant invisible (un chiffre plausible reste plausible).
+ * WHY THIS FILE EXISTS (CLAUDE.md no. 6, and the request of batch 5.8). Two layers ask the
+ * SAME question to the document: « this place is empty, in how long does its object come back? ».
+ * The WEAPON PADS ask it since 2026-08-27 (`weaponPadTime.padRespawnAt`); the
+ * VEHICLE SPAWN SLOTS ask it since schema 63 (`vehicleCycleTime`). The
+ * answer rule is the same down to the comma, and two copies would have diverged at the first
+ * adjustment — the gap being invisible (a plausible number stays plausible).
  *
- * L'ORDRE DES SOURCES EST LA RÈGLE, ET IL VIENT D'UNE MESURE (D3, retour utilisateur du
- * 2026-08-27 : « compteur pas toujours visible ») : LE REJEU CONNAÎT LA SUITE DU FILM, donc une
- * apparition DÉJÀ VUE l'emporte toujours sur ce qu'un cycle PRÉDIT. Le cycle ne sert que pour le
- * DERNIER trou, celui qu'aucune apparition ne referme.
+ * THE ORDER OF THE SOURCES IS THE RULE, AND IT COMES FROM A MEASUREMENT (D3, user feedback of
+ * 2026-08-27: « counter not always visible »): THE REPLAY KNOWS THE REST OF THE FILM, so a
+ * spawn ALREADY SEEN always beats what a cycle PREDICTS. The cycle serves only for the
+ * LAST hole, the one that no spawn re-closes.
  *
- * SANS SOURCE, RIEN — ni zéro, ni tiret : un tiret suggérerait qu'on sait (verdict du calque des
- * socles, repris tel quel).
+ * WITHOUT SOURCE, NOTHING — neither zero nor dash: a dash would suggest that one knows (verdict of the pads layer,
+ * taken as is).
  *
- * CE FICHIER NE CONNAÎT NI SOCLE NI VÉHICULE, et c'est ce qui le rend partageable : il ne lit
- * que trois nombres. La question « ce lieu est-il vide ? » et celle de « depuis quand » restent
- * chez l'appelant, qui seul sait ce qu'occuper veut dire pour son objet.
+ * THIS FILE KNOWS NEITHER PAD NOR VEHICLE, and it is what makes it shareable: it only reads
+ * three numbers. The question « is this place empty? » and that of « since when » stay
+ * on the caller side, which alone knows what occupying means for its object.
  */
 
 /**
- * Le compte à rebours ET SA PROVENANCE.
+ * The countdown AND ITS PROVENANCE.
  *
- * `measured` distingue deux chiffres que rien ne séparait à l'écran : la prochaine apparition
- * VUE DANS LE FILM (exacte) et celle que le CYCLE prédit (une moyenne, qui peut tomber à côté).
- * La carte n'en fait rien — un lieu vide reste un lieu vide — mais l'infobulle le dit, et c'est
- * là que la réserve doit se lire (le « ≈ » des libellés).
+ * `measured` distinguishes two figures that nothing separated on the screen: the next spawn
+ * SEEN IN THE FILM (exact) and the one the CYCLE predicts (an average, which can fall off).
+ * The card does nothing with it — an empty place stays an empty place — but the tooltip says it, and it is
+ * there that the reservation must be read (the « ≈ » of the labels).
  */
 export interface Respawn {
   seconds: number
   measured: boolean
 }
 
-/** Les trois nombres dont la règle a besoin, et rien de plus. */
+/** The three numbers the rule needs, and nothing more. */
 export interface RespawnSources {
   /**
-   * L'image de la PROCHAINE apparition que le film montre, ou `null` quand aucune ne referme le
-   * trou. Une valeur qui ne serait pas dans le futur de l'image courante est ignorée : le compte
-   * mesuré est toujours positif, jamais un nombre négatif déguisé.
+   * The frame of the NEXT spawn that the film shows, or `null` when none re-closes the
+   * hole. A value that would not be in the future of the current frame is ignored: the
+   * measured count is always positive, never a disguised negative number.
    */
   nextSpawn: number | null
   /**
-   * L'image DEPUIS LAQUELLE le lieu est vide, et elle doit être DATÉE par la source. Pour un
-   * socle c'est `tHigh`, la borne HAUTE de la disparition (partir de `tLow` avancerait la
-   * prédiction d'un intervalle que le film ne date pas) ; pour un véhicule c'est `tEnd`, la seule
-   * fin que le film écrive. `null` : rien à prédire depuis.
+   * The frame SINCE WHICH the place is empty, and it must be DATED by the source. For a
+   * pad it is `tHigh`, the HIGH bound of the disappearance (starting from `tLow` would advance the
+   * prediction by an interval that the film does not date); for a vehicle it is `tEnd`, the only
+   * end that the film writes. `null`: nothing to predict from.
    */
   emptySince: number | null
-  /** La médiane du cycle, en secondes, quand il est ÉTABLI. `undefined` sinon. */
+  /** The median of the cycle, in seconds, when it is ESTABLISHED. `undefined` otherwise. */
   medianS: number | undefined
 }
 
 /**
- * respawnAt — les secondes restantes avant la réapparition, et leur provenance, ou `null`.
+ * respawnAt — the seconds remaining before the respawn, and their provenance, or `null`.
  *
- * L'APPELANT A DÉJÀ TRANCHÉ QUE LE LIEU EST VIDE : cette fonction ne le vérifie pas, elle ne
- * saurait pas comment. Elle refuse en revanche une durée d'image nulle ou négative (un document
- * sans cadence) et un compte épuisé — dans les deux cas il n'y a rien à annoncer.
+ * THE CALLER HAS ALREADY RULLED THAT THE PLACE IS EMPTY: this function does not verify it, it would
+ * not know how. It refuses in return a null or negative frame duration (a document
+ * without cadence) and an exhausted count — in both cases there is nothing to announce.
  */
 export function respawnAt(frame: number, frameMs: number, src: RespawnSources): Respawn | null {
   if (!(frameMs > 0)) return null

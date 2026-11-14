@@ -1,66 +1,70 @@
 /**
- * vehiclesLayer.ts — LES VÉHICULES sur la carte du rejeu (schéma 39) : la géométrie et les
- * règles, sans une ligne de canvas.
+ * vehiclesLayer.ts — THE VEHICLES on the replay map (schema 39): the geometry and the
+ * rules, without a line of canvas.
  *
- * SUR LE NUMÉRO DE SCHÉMA. Le chantier véhicules s'est écrit en annonçant « schéma 29 », puis
- * 30, puis 31, au fil de ses lots. AUCUN de ces artefacts n'a existé : le calque a été livré
- * d'un seul tenant et le document est passé de 38 à 39. Ces numéros ont été corrigés partout
- * le 2026-09-05 (revue adversariale de branche) — un lecteur qui chercherait un artefact de
- * schéma 30 pour comprendre une dégradation ne trouverait rien, et conclurait à un bug.
+ * ON THE SCHEMA NUMBER. The vehicles work was written announcing "schema 29", then 30,
+ * then 31, across its lots. NONE of these artifacts existed: the layer was delivered as
+ * a single unit and the document went from 38 to 39. These numbers were corrected
+ * everywhere on 2026-09-05 (adversarial branch review) — a reader looking for a schema
+ * 30 artifact to understand a degradation would find nothing, and conclude it was a bug.
  *
- * CE QUE CE CALQUE AFFIRME. Une entrée de `doc.vehicles` est LA VIE D'UN VÉHICULE : où il naît,
- * sa trajectoire échantillonnée avec son cap, ses épisodes d'occupation (qui est à bord et
- * quand), et jusqu'à quelle frame l'afficher. La fin est une BORNE DE RECENSEMENT — `end` vaut
- * AUJOURD'HUI toujours `unknown` côté document, et dans ce cas le sprite s'efface NETTEMENT à
- * `t1max`, sans aucun effet de destruction.
+ * WHAT THIS LAYER ASSERTS. An entry of `doc.vehicles` is THE LIFE OF A VEHICLE: where it
+ * is born, its sampled trajectory with its heading, its occupation episodes (who is
+ * aboard and when), and until which frame to display it. The end is a CENSUS BOUND —
+ * `end` is TODAY always `unknown` on the document side, and in that case the sprite
+ * clears SHARPLY at `t1max`, without any destruction effect.
  *
- * DEPUIS LE 2026-09-03 (schéma 39, EN AVANCE DE PHASE — cf. `ReplayVehicleTrack` dans
- * `lib/api/types.ts`), CE N'EST PLUS LE SEUL RÉGIME : quand `end` publie `"destroyed"` avec
- * `tEnd` (`vehicleDestructionFrame`), la fin devient une PREUVE au lieu d'une borne — le sprite
- * cesse à `tEnd` (qui prend alors l'autorité sur `t1max`, cf. `vehicleVisibleAt`) et
- * `vehiclesPaint.ts` y ancre l'explosion demandée par l'utilisateur (« il faut aussi la
- * destruction et un effet UI »). AUCUN artefact actuel ne porte ce régime — tant que le Go ne
- * mesure pas la destruction, ce texte ne change RIEN à ce qui s'affiche.
+ * SINCE 2026-09-03 (schema 39, IN ADVANCE OF PHASE — cf. `ReplayVehicleTrack` in
+ * `lib/api/types.ts`), THIS IS NO LONGER THE ONLY REGIME: when `end` publishes
+ * `"destroyed"` with `tEnd` (`vehicleDestructionFrame`), the end becomes a PROOF
+ * instead of a bound — the sprite stops at `tEnd` (which then takes authority over
+ * `t1max`, cf. `vehicleVisibleAt`) and `vehiclesPaint.ts` anchors there the explosion
+ * requested by the user ("the destruction and a UI effect are also needed"). NO current
+ * artifact carries this regime — until the Go measures the destruction, this text
+ * changes NOTHING on what is displayed.
  *
- * SIX RESPONSABILITÉS PURES, TESTABLES SANS CANVAS : le REFUS DU DÉCOR (`vehicleIsDecor`,
- * `vehicleIsScenery` — le décor de carte déclaré par le serveur —, `vehicleIsHidden`,
- * `vehicleCanEmbark`), l'ORIENTATION (`vehicleHeadingAt`, `vehicleScreenAngle`,
- * `vehicleAimAngle`), la TAILLE (`vehicleSpriteScale`, ancrée sur le pion), l'OCCUPATION
- * (`vehicleActiveRides`, `vehicleDriverAt`, `vehicleColorAt`), le PRÉDICAT EMBARQUÉ
- * (`buildEmbarkedPredicate`, consommé par `replayMarkers.drawTracksLayer` pour supprimer le pion
- * d'un occupant) et la DESTRUCTION (`vehicleDestructionFrame`, `vehicleExplosionKindOf`). LE
- * TRACÉ CANVAS EST À CÔTÉ (`vehiclesPaint.ts`, extrait le 2026-09-02 quand le cône du conducteur
- * a fait franchir à ce fichier le seuil de taille du dépôt) : il ne fait qu'assembler ces six
- * réponses image par image.
+ * SIX PURE RESPONSIBILITIES, TESTABLE WITHOUT CANVAS: the REJECTION OF SCENERY
+ * (`vehicleIsDecor`, `vehicleIsScenery` — the map scenery declared by the server —,
+ * `vehicleIsHidden`, `vehicleCanEmbark`), the ORIENTATION (`vehicleHeadingAt`,
+ * `vehicleScreenAngle`, `vehicleAimAngle`), the SIZE (`vehicleSpriteScale`, anchored on
+ * the piece), the OCCUPATION (`vehicleActiveRides`, `vehicleDriverAt`, `vehicleColorAt`),
+ * the EMBARKED PREDICATE (`buildEmbarkedPredicate`, consumed by
+ * `replayMarkers.drawTracksLayer` to remove the piece of an occupant) and the
+ * DESTRUCTION (`vehicleDestructionFrame`, `vehicleExplosionKindOf`). THE CANVAS STROKE
+ * IS NEXT DOOR (`vehiclesPaint.ts`, extracted 2026-09-02 when the driver's cone made
+ * this file cross the repo's size threshold): it only assembles these six answers image
+ * by image.
  *
- * UNE SEPTIÈME EST À CÔTÉ AUSSI (`vehiclesAim.ts`, extrait le 2026-09-03 pour la même raison de
- * taille) : LA VISÉE MESURÉE DE CHAQUE OCCUPANT (schéma 39, `vehicleOccupantAimAt`). Elle
- * s'appuie sur `vehicleAimAngle`/`vehicleHeadingAt` de ce fichier — le cap du châssis n'est plus
- * la direction du cône, il n'en est que le REPLI.
+ * A SEVENTH IS NEXT DOOR TOO (`vehiclesAim.ts`, extracted 2026-09-03 for the same size
+ * reason): THE MEASURED AIM OF EVERY OCCUPANT (schema 39, `vehicleOccupantAimAt`). It
+ * rests on `vehicleAimAngle`/`vehicleHeadingAt` of this file — the chassis heading is
+ * no longer the direction of the cone, it is only its FALLBACK.
  *
- * CE QUE CE CALQUE REFUSE DE DESSINER — LES FAMILLES NON JOUABLES (verdict utilisateur du
- * 2026-09-02, après visionnage réel, amendé le 2026-09-24 : le Falcon en est sorti). Voir
- * `FAMILLES_NON_JOUABLES` : ce sont des entités de DÉCOR, pas des véhicules de la partie, et elles
- * ne doivent NI se dessiner, NI nommer quiconque, NI faire disparaître un pion.
+ * WHAT THIS LAYER REFUSES TO DRAW — THE UNPLAYABLE FAMILIES (user verdict of
+ * 2026-09-02, after real viewing, amended 2026-09-24: the Falcon was removed). See
+ * `FAMILLES_NON_JOUABLES`: they are SCENERY entities, not vehicles of the game, and
+ * they must NEITHER draw, NOR name anyone, NOR make a piece disappear.
  *
- * ORIENTATION — LA CONSTANTE D'ÉCART D'ÉCRAN (GATE C6). Les échantillons portent un cap MONDE
- * (`VehicleSample.h`, convention `Point.h` : 0° = +X, 90° = +Y, sens `atan2(y,x)`), mais les
- * sprites sont dessinés NEZ EN HAUT — c'est-à-dire nez vers l'axe -Y LOCAL de l'image, jamais
- * vers +X comme les formes directionnelles du calque de tirs (`muzzleFlash.ts`, qui n'a besoin
- * que d'inverser le signe : `-h`). Un sprite « nez en haut » a donc besoin d'UN QUART DE TOUR DE
- * PLUS que cette inversion : la projection écran inverse l'axe Y du monde, donc le cap-écran
- * pour ORIENTER UNE IMAGE NEZ-HAUT est `(90° - h) `, converti en radians pour `ctx.rotate`.
- * Vérifié par `vehiclesLayer.test.ts` sur les quatre points cardinaux (est/nord/ouest/sud)
- * et RECOUPÉ sur données réelles (artefact `0d76e8f1` : cap publié 272,7° vs 273,2° recalculé
- * sur le déplacement, écart 0,5°). La preuve VISUELLE en jeu reste le gate D1 (utilisateur).
+ * ORIENTATION — THE SCREEN GAP CONSTANT (GATE C6). The samples carry a WORLD heading
+ * (`VehicleSample.h`, `Point.h` convention: 0° = +X, 90° = +Y, `atan2(y,x)` sense), but
+ * the sprites are drawn NOSE UP — that is nose toward the -Y LOCAL axis of the image,
+ * never toward +X like the directional shapes of the shots layer (`muzzleFlash.ts`,
+ * which only needs to flip the sign: `-h`). A "nose up" sprite therefore needs ONE
+ * QUARTER TURN MORE than that inversion: the screen projection flips the world Y axis,
+ * so the screen heading to ORIENT A NOSE-UP IMAGE is `(90° - h)`, converted to radians
+ * for `ctx.rotate`. Verified by `vehiclesLayer.test.ts` on the four cardinal points
+ * (east/north/west/south) and CROSS-CHECKED on real data (artifact `0d76e8f1`:
+ * published heading 272.7° vs 273.2° recomputed on the movement, gap 0.5°). The
+ * VISUAL proof in game remains gate D1 (user).
  *
- * TAILLE — DÉCISION DE CADRAGE DU PLAN (2026-09-02, utilisateur) : proportionnelle au monde
- * ENTRE véhicules (longueur de sprite en pixels × mm/px du manifeste), en pixels ÉCRAN FIXES
- * vis-à-vis du zoom (comme les pions), ancrée sur le Mongoose (≈ 1,5-2 pions de long). LE
- * MANIFESTE (`index.json`, servi par le lot A) NE GARANTIT AUJOURD'HUI l'échelle QUE DES
- * FAMILLES WARTHOG/MONGOOSE — les 12 autres portent la même valeur en attendant un re-rendu
- * mesuré (note explicite de la tâche de ce lot) : la règle lit le manifeste tel quel, et
- * DEVIENDRA JUSTE POUR CHAQUE FAMILLE quand SA valeur le sera, sans changement de code ici.
+ * SIZE — FRAMING DECISION OF THE PLAN (2026-09-02, user): proportional to the world
+ * BETWEEN vehicles (sprite length in pixels × mm/px of the manifest), in FIXED SCREEN
+ * pixels with respect to zoom (like the pieces), anchored on the Mongoose (≈ 1.5-2
+ * pieces long). THE MANIFEST (`index.json`, served by lot A) GUARANTEES TODAY THE
+ * SCALE OF THE WARTHOG/MONGOOSE FAMILIES ONLY — the other 12 carry the same value
+ * awaiting a measured re-render (explicit note of the task of this lot): the rule
+ * reads the manifest as is, and WILL BECOME RIGHT FOR EACH FAMILY when ITS value is,
+ * without a code change here.
  */
 import type { ReplayVehicleRide } from '@/lib/api/types'
 
@@ -70,44 +74,47 @@ import type { ReplayVehicleTrackReady } from '../../../lib/replay/replayNormaliz
 import { covers } from './replaySpans'
 import { headingTowardNext } from './headingInterp'
 
-// --- FAMILLES REFUSÉES ------------------------------------------------------------------------
+// --- REJECTED FAMILIES ------------------------------------------------------------------------
 
 /**
- * FAMILLES_NON_JOUABLES — les familles que ce calque IGNORE ENTIÈREMENT.
+ * FAMILLES_NON_JOUABLES — the families this layer IGNORES ENTIRELY.
  *
- * SOURCE : verdict utilisateur du 2026-09-02 après visionnage réel du rejeu (« sur Behemoth,
- * des falcon apparaissent alors que la partie n'en avait aucun »), recoupé sur l'artefact
- * `0d76e8f1` — le châssis `0x0000254b` est bien le modèle du Falcon, mais il est porté par des
- * entités de DÉCOR : vitesse moyenne 0,3-0,8 m/s sur toute leur vie (l'une n'a parcouru
- * strictement aucune distance), vivantes du début à la fin du film. Le Pelican, le Phantom et le
- * Skiff ne sont PAS pilotables en multijoueur Halo Infinite : une entité qui porte leur modèle est
- * un élément de mise en scène, jamais un véhicule de la partie.
+ * SOURCE: user verdict of 2026-09-02 after real viewing of the replay ("on Behemoth,
+ * falcons appear while the game had none of them"), cross-checked on artifact
+ * `0d76e8f1` — the chassis `0x0000254b` is indeed the Falcon model, but it is carried by
+ * SCENERY entities: average speed 0.3-0.8 m/s over their whole life (one covered
+ * strictly no distance), alive from the beginning to the end of the film. The Pelican,
+ * the Phantom and the Skiff are NOT drivable in Halo Infinite multiplayer: an entity
+ * carrying their model is a staging element, never a vehicle of the game.
  *
- * LE FALCON EN EST SORTI LE 2026-09-24 (décision utilisateur : « les Pelican c'est toujours du
- * décor ; le Falcon ça dépend »). Il est pilotable en multijoueur, avec ses artilleurs : sa famille
- * ne refuse plus ses occupants, et il se dessine comme tout véhicule pilotable (même sortie côté
- * Go, `vehicleFamillesNonPilotables`). Ce qui tient désormais les FAUX épisodes du 2026-09-02,
- * c'est le serveur, par deux gardes générales : la montée à bord d'un artilleur reporté se voit
- * près du porteur, et un épisode s'arrête à la naissance de la vie suivante du même joueur
- * (`film/replay/vehicle_turrets_boarding.go`, `vehicle_rides_next_life.go`).
+ * THE FALCON LEFT IT ON 2026-09-24 (user decision: "the Pelicans are always scenery;
+ * the Falcon depends"). It is drivable in multiplayer, with its gunners: its family no
+ * longer refuses its occupants, and it draws like any drivable vehicle (same output on
+ * the Go side, `vehicleFamillesNonPilotables`). What now holds the FALSE episodes of
+ * 2026-09-02 is the server, by two general guards: the boarding of a reported gunner is
+ * seen near the carrier, and an episode ends at the birth of the next life of the same
+ * player (`film/replay/vehicle_turrets_boarding.go`, `vehicle_rides_next_life.go`).
  *
- * LE DÉCOR DU FALCON EST DÉCIDÉ PAR LE SERVEUR (`vehicleIsScenery`, 2026-10-02). Les Falcon de
- * Behemoth en Super Fiesta nés aux bornes sud montent seuls de 2,2 m et restent en vol
- * stationnaire, jamais occupés : la règle générale « tenu en l'air à vide » les masque. Ceux des
- * bornes nord, posés au sol, restent dessinés (au parc, 9 vies y sont pilotées).
+ * THE SCENERY OF THE FALCON IS DECIDED BY THE SERVER (`vehicleIsScenery`, 2026-10-02).
+ * The Falcons of Behemoth in Super Fiesta born at the south bounds climb alone by
+ * 2.2 m and remain in hovering flight, never occupied: the general rule "held in the
+ * air empty" masks them. Those of the north bounds, set on the ground, remain drawn
+ * (in the park, 9 lives are driven on them).
  *
- * CE N'EST PAS UNE CORRECTION DU DOCUMENT. Le serveur a raison de publier ces vies : il recense
- * ce que le film contient (archétype ti=40), et le châssis EST celui d'un Falcon. C'est
- * l'AFFICHAGE qui doit se taire — d'où un ensemble tenu ici, côté calque, et pas un filtre Go.
+ * THIS IS NOT A CORRECTION OF THE DOCUMENT. The server is right to publish these
+ * lives: it catalogs what the film contains (archetype ti=40), and the chassis IS
+ * that of a Falcon. It is the DISPLAY that must stay silent — hence a set kept here,
+ * on the layer side, and not a Go filter.
  *
- * TROIS CONSÉQUENCES, TOUTES NÉCESSAIRES :
- *  1. AUCUN DESSIN — ni sprite, ni marqueur de repli : un décor ne se montre pas comme un
- *     véhicule (c'est la plainte initiale).
- *  2. AUCUN NOM — les noms d'occupants ne sont écrits que sur des véhicules réels.
- *  3. AUCUNE PARTICIPATION AU PRÉDICAT EMBARQUÉ — et c'était le dégât le plus grave : le liant
- *     « trou de position » a prêté à un de ces props TROIS épisodes d'occupation (slot 771 de
- *     l'artefact cité, un Falcon), ce qui ESCAMOTAIT le pion des joueurs passés à côté. Un faux
- *     embarquement efface un joueur bien réel de la carte ; le refus doit donc porter d'abord ici.
+ * THREE CONSEQUENCES, ALL NECESSARY:
+ *  1. NO DRAWING — no sprite, no fallback marker: scenery does not show itself like a
+ *     vehicle (that was the initial complaint).
+ *  2. NO NAME — occupant names are written only on real vehicles.
+ *  3. NO PARTICIPATION IN THE EMBARKED PREDICATE — and that was the gravest damage:
+ *     the "position gap" binder lent ONE of these props THREE occupation episodes
+ *     (slot 771 of the cited artifact, a Falcon), which HID the piece of the players
+ *     passing by. A false embarking erases a very real player from the map; the
+ *     refusal must therefore carry here first.
  */
 export const FAMILLES_NON_JOUABLES: ReadonlySet<string> = new Set([
   'pelican',
@@ -116,140 +123,153 @@ export const FAMILLES_NON_JOUABLES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * vehicleIsDecor — vrai quand la famille est refusée par `FAMILLES_NON_JOUABLES`. Une famille
- * VIDE (châssis non résolu) n'est PAS du décor : on ne sait pas ce que c'est, et le losange
- * neutre continue de le dire.
+ * vehicleIsDecor — true when the family is refused by `FAMILLES_NON_JOUABLES`. An
+ * EMPTY family (unresolved chassis) is NOT scenery: it is not known what it is, and
+ * the neutral diamond keeps saying it.
  */
 export function vehicleIsDecor(family: string | undefined): boolean {
   return family !== undefined && FAMILLES_NON_JOUABLES.has(family)
 }
 
 /**
- * vehicleIsScenery — vrai quand le SERVEUR a déclaré la vie VÉHICULE DE DÉCOR de la carte
- * (`doc.vehicleScenery.hidden`, posé à la requête — lot M7 des retours du rejeu, 2026-09-24 ;
- * replié sur chaque vie en `track.scenery` par `normalizeReplayDocument`).
+ * vehicleIsScenery — true when the SERVER declared the life MAP SCENERY VEHICLE
+ * (`doc.vehicleScenery.hidden`, set on request — lot M7 of the replay feedback,
+ * 2026-09-24; folded on each life into `track.scenery` by `normalizeReplayDocument`).
  *
- * LA RÈGLE VIT CÔTÉ GO (`internal/service/replay_vehicle_scenery_rule.go` ; la forme publiée dans
- * `film/replay/vehicle_scenery.go`), PLUS ICI. Elle a quitté ce fichier par son propre critère de
- * retrait (lot L1.3 : « quand le producteur publie lui-même le décor de carte, ce prédicat lit ce
- * marqueur et ses conditions disparaissent d'ici »), parce que la décision utilisateur du
- * 2026-09-24 lui ajoute une condition que le client ne sait pas lire : la vie doit être POSÉE par
- * la carte (un seul échantillon, à sa naissance à la frame 0, vie jusqu'à la fin du film, aucun
- * occupant) ET HORS DE LA ZONE JOUABLE — la matière praticable du fond de carte publié, en plan,
- * et le sol foulé du match (la plus basse altitude où un joueur est resté), en hauteur. Sur
- * Behemoth, des Mongoose posés dans l'aire de jeu que personne ne touche restent donc dessinés.
+ * THE RULE LIVES ON THE GO SIDE (`internal/service/replay_vehicle_scenery_rule.go`;
+ * the form published in `film/replay/vehicle_scenery.go`), NO LONGER HERE. It left
+ * this file by its own removal criterion (lot L1.3: "when the producer publishes the
+ * map scenery itself, this predicate reads that marker and its conditions disappear
+ * from here"), because the user decision of 2026-09-24 adds to it a condition the
+ * client cannot read: the life must be SET by the map (a single sample, at its birth
+ * on frame 0, alive until the end of the film, no occupant) AND OUTSIDE THE PLAYABLE
+ * ZONE — the walkable matter of the published map floor, in plan, and the ground
+ * trodden by the match (the lowest altitude where a player stayed), in height. On
+ * Behemoth, Mongoose set in the play area that no one touches therefore remain drawn.
  *
- * Le film réplique la POSE du décor avant l'origine du match (7 à 117 records, sonde C2) ; la
- * publication n'en garde qu'un échantillon, ramené à la naissance : c'est lui que la règle lit.
+ * The film replicates the PLACEMENT of the scenery before the origin of the match
+ * (7 to 117 records, probe C2); the publication keeps only one sample of it, reduced
+ * to the birth: that is what the rule reads.
  *
- * UNE SECONDE RÈGLE, AUSSI CÔTÉ GO (2026-10-02, `replay_vehicle_scenery_aloft.go`) : une vie que
- * personne n'occupe et qui ne se pose jamais à la hauteur de sa naissance mais seulement au moins
- * 1,2 m au-dessus, sans s'en éloigner de plus de 8 m, est tenue en l'air par la carte — c'est le
- * Falcon des bornes sud de Behemoth en Super Fiesta (raison `aloft_unoccupied`).
+ * A SECOND RULE, ALSO ON THE GO SIDE (2026-10-02,
+ * `replay_vehicle_scenery_aloft.go`): a life that no one occupies and that never
+ * comes down to the height of its birth but only stays at least 1.2 m above it,
+ * without moving more than 8 m from it, is held in the air by the map — that is the
+ * Falcon of the south bounds of Behemoth in Super Fiesta (reason
+ * `aloft_unoccupied`).
  *
- * Verdict absent (aucune vie de décor, document servi sans ce calque) : rien n'est masqué. Une
- * carte sans zone connue ne masque rien par la pose ; le serveur compte ce repli
- * (`vehicleScenery.zoneUnknown`) ; le client ne le devine jamais.
+ * Verdict absent (no scenery life, document served without this layer): nothing is
+ * masked. A map without a known zone masks nothing by placement; the server counts
+ * that fallback (`vehicleScenery.zoneUnknown`); the client never guesses it.
  */
 export function vehicleIsScenery(track: ReplayVehicleTrackReady): boolean {
   return track.scenery === true
 }
 
 /**
- * vehicleIsHidden — la vie ne se montre pas : famille non jouable (`vehicleIsDecor`) OU véhicule
- * de décor de la carte (`vehicleIsScenery`). Le seul prédicat du DESSIN et de la disponibilité du
- * calque ; l'embarquement le reprend par `vehicleCanEmbark`.
+ * vehicleIsHidden — the life does not show itself: unplayable family
+ * (`vehicleIsDecor`) OR map scenery vehicle (`vehicleIsScenery`). The only predicate
+ * of the DRAWING and of the availability of the layer; embarking re-takes it through
+ * `vehicleCanEmbark`.
  */
 export function vehicleIsHidden(track: ReplayVehicleTrackReady): boolean {
   return vehicleIsDecor(track.family) || vehicleIsScenery(track) || vehicleIsMountedPart(track)
 }
 
 /**
- * VEHICLE_PART_TURRET — la seule valeur de `track.part` (schéma 69, côté Go : `VehiclePartTurret`,
- * `film/replay/vehicle_turrets.go`). Nommée pour la même raison que `VEHICLE_END_DESTROYED`.
+ * VEHICLE_PART_TURRET — the only value of `track.part` (schema 69, on the Go side:
+ * `VehiclePartTurret`, `film/replay/vehicle_turrets.go`). Named for the same reason as
+ * `VEHICLE_END_DESTROYED`.
  */
 export const VEHICLE_PART_TURRET = 'turret'
 
 /**
- * vehicleIsMountedPart — vrai quand la vie est une PIÈCE MONTÉE (tourelle de Warthog, du Falcon,
- * du Wraith, canon du Scorpion) : un objet que le film crée à part mais qui ne se déplace pas seul
- * — il n'a aucun échantillon de position, et le dessiner le laisserait à sa NAISSANCE pendant que
- * son véhicule roule (médiane 44,7 m au parc, retours du 2026-09-23). DÉCISION UTILISATEUR Q12 :
- * l'artilleur se dessine SUR le véhicule porteur, sans marqueur de tourelle séparé. Le serveur a
- * déjà reporté ses occupants et posé ses tirs sur le porteur (`carrier`) : la pièce ne se dessine
- * plus, n'embarque personne, et ne compte pas dans la disponibilité du calque.
+ * vehicleIsMountedPart — true when the life is a MOUNTED PART (turret of the Warthog,
+ * the Falcon, the Wraith, cannon of the Scorpion): an object the film creates
+ * separately but that does not move on its own — it has no position sample, and
+ * drawing it would leave it at its BIRTH while its vehicle rolls (median 44.7 m in
+ * the park, feedback of 2026-09-23). USER DECISION Q12: the gunner is drawn ON the
+ * carrier vehicle, without a separate turret marker. The server already reported its
+ * occupants and placed its shots on the carrier (`carrier`): the part no longer
+ * draws, embarks no one, and does not count in the availability of the layer.
  */
 export function vehicleIsMountedPart(track: ReplayVehicleTrackReady): boolean {
   return track.part === VEHICLE_PART_TURRET
 }
 
 /**
- * vehicleSpriteFamily — la famille dont le SPRITE se dessine : la VARIANTE quand le document la
- * nomme (schéma 69 : `rockethog` par sa tourelle, `gungoose` par son arme), la famille sinon. La
- * famille, elle, garde tout le reste (moteur, explosion, classe d'arme) — une variante n'est pas un
- * autre véhicule.
+ * vehicleSpriteFamily — the family from which the SPRITE is drawn: the VARIANT when
+ * the document names it (schema 69: `rockethog` by its turret, `gungoose` by its
+ * weapon), the family otherwise. The family, for its part, keeps everything else
+ * (engine, explosion, weapon class) — a variant is not another vehicle.
  */
 export function vehicleSpriteFamily(track: Pick<ReplayVehicleTrackReady, 'family' | 'variant'>): string | undefined {
   return track.variant || track.family
 }
 
-// --- ÉLÉMENTS DE CARTE (schéma 1.9.9 — EN AVANCE DE PHASE, cf. ReplayVehicleLabel) ------------
+// --- MAP ELEMENTS (schema 1.9.9 — IN ADVANCE OF PHASE, cf. ReplayVehicleLabel) ------------
 
 /**
- * VEHICLE_KIND_MAP_ELEMENT — LA SEULE valeur de `vehicleLabels[famille].kind` que ce calque
- * traite, et elle veut dire : **ce n'est pas un véhicule de la partie, c'est un objet de la
- * carte**. Nommée plutôt que semée en littéral, même raison que `VEHICLE_END_DESTROYED`.
+ * VEHICLE_KIND_MAP_ELEMENT — THE ONLY value of `vehicleLabels[family].kind` this
+ * layer handles, and it means: **this is not a vehicle of the game, it is an object
+ * of the map**. Named rather than sown as a literal, same reason as
+ * `VEHICLE_END_DESTROYED`.
  *
- * ELLE NE SE CONFOND PAS AVEC `FAMILLES_NON_JOUABLES`, ET LA DIFFÉRENCE EST LE POINT DU LOT.
- * Le décor (Pelican, Phantom, Skiff) ne se dessine PAS : c'est la plainte de l'utilisateur du
- * 2026-09-02, des transports scriptés qui passaient pour des véhicules de la partie. Un élément
- * de carte, LUI, SE DESSINE — décision utilisateur du 2026-09-14 : « ce sont des éléments de la
- * map ». Ce qu'il ne fait pas, c'est porter un occupant ou passer pour un châssis non résolu.
+ * IT IS NOT CONFUSED WITH `FAMILLES_NON_JOUABLES`, AND THE DIFFERENCE IS THE POINT OF
+ * THE LOT. The scenery (Pelican, Phantom, Skiff) does NOT draw: that was the user
+ * complaint of 2026-09-02, scripted transports that passed for vehicles of the game.
+ * A map element, FOR ITS PART, DRAWS — user decision of 2026-09-14: "these are
+ * elements of the map". What it does not do is carry an occupant or pass for an
+ * unresolved chassis.
  */
 export const VEHICLE_KIND_MAP_ELEMENT = 'map_element'
 
 /**
- * VehicleMapElementGlyph — LE PICTOGRAMME d'un élément de carte. Une famille, une forme : le
- * dessin doit dire CE QUE l'objet est, pas seulement « quelque chose est là » (c'est tout ce que
- * disait le losange neutre, et c'est ce que l'utilisateur a vu comme une image manquante).
+ * VehicleMapElementGlyph — THE PICTOGRAM of a map element. One family, one shape:
+ * the drawing must say WHAT the object is, not just "something is there" (that is
+ * all the neutral diamond said, and that is what the user saw as a missing image).
  */
 export type VehicleMapElementGlyph = 'turret'
 
 /**
- * VEHICLE_MAP_ELEMENT_RENDER — LA TABLE PAR FAMILLE, unique porte d'entrée du rendu des éléments
- * de carte. Mêmes conventions que `PLACEMENT_RENDER` (equipmentPlacementsLayer.ts) : les clés
- * sont les identifiants STABLES publiés par le document (`family`), jamais des libellés.
+ * VEHICLE_MAP_ELEMENT_RENDER — THE TABLE BY FAMILY, the only entry point of the
+ * rendering of map elements. Same conventions as `PLACEMENT_RENDER`
+ * (equipmentPlacementsLayer.ts): the keys are the STABLE identifiers published by
+ * the document (`family`), never labels.
  *
- * UNE FAMILLE ABSENTE N'A PAS DE FORME DÉCIDÉE : le calque retombe alors sur le marqueur neutre,
- * qui reste honnête (« un objet est là, on ne sait pas lequel »). Ce qui est interdit, c'est le
- * marqueur neutre sur une famille que le titre A qualifiée et que cette table nomme.
+ * AN ABSENT FAMILY HAS NO DECIDED SHAPE: the layer then falls back on the neutral
+ * marker, which stays honest ("an object is there, it is not known which one"). What
+ * is forbidden is the neutral marker on a family the title HAS qualified and this
+ * table names.
  */
 export const VEHICLE_MAP_ELEMENT_RENDER: Readonly<Record<string, VehicleMapElementGlyph>> = {
-  // LA TOURELLE AUTOMATIQUE BANNIE (châssis `0x038df01a`) : neuf exemplaires immobiles sur
-  // `bfecd02b`, un par entrée de la zone de jeu, vivants tout le match. L'utilisateur veut les
-  // voir (« ce sont des éléments de la map ») et ne possède aucun asset pour elles : le
-  // pictogramme tient la place jusqu'au jour où il en fournira un, et ce jour-là seule la table
-  // d'assets change (`static/vehicles-assets/{slug}/replay/index.json` + `sprite = true` dans
-  // `replay_labels.toml`) — pas une ligne d'ici.
+  // THE BANISHED AUTOMATIC TURRET (chassis `0x038df01a`): nine immobile instances on
+  // `bfecd02b`, one per entry of the play zone, alive the whole match. The user wants
+  // to see them ("these are elements of the map") and owns no asset for them: the
+  // pictogram holds the place until the day one is provided, and that day only the
+  // assets table changes (`static/vehicles-assets/{slug}/replay/index.json` +
+  // `sprite = true` in `replay_labels.toml`) — not a line here.
   tourelle_auto_bannie: 'turret',
-  // LA TOURELLE FIXE (châssis `0x3a8060e2`, retours du rejeu lot M6.2, 2026-09-24) : les tourelles
-  // gatling / mortier de Takamanohara, que les joueurs OCCUPENT. Même pictogramme faute d'asset ;
-  // sa nature (`fixed_turret`) la laisse embarquer son occupant.
+  // THE FIXED TURRET (chassis `0x3a8060e2`, replay feedback lot M6.2, 2026-09-24):
+  // the gatling / mortar turrets of Takamanohara, which the players OCCUPY. Same
+  // pictogram for lack of an asset; its nature (`fixed_turret`) leaves it embark
+  // its occupant.
   tourelle_fixe: 'turret',
 }
 
 /**
- * VEHICLE_KIND_FIXED_TURRET — la nature publiée d'une TOURELLE FIXE posée par la carte et OCCUPÉE
- * par un joueur (côté Go : `mappings.VehicleFamilyKindFixedTurret`, lot M6.2 du 2026-09-24). Elle
- * se DESSINE comme un élément de carte (le pictogramme de sa famille), mais elle EMBARQUE : c'est
- * le poste de tir d'un joueur, pas un objet inerte.
+ * VEHICLE_KIND_FIXED_TURRET — the published nature of a FIXED TURRET set by the map
+ * and OCCUPIED by a player (on the Go side:
+ * `mappings.VehicleFamilyKindFixedTurret`, lot M6.2 of 2026-09-24). It DRAWS like a
+ * map element (the pictogram of its family), but it EMBARKS: it is the gunning
+ * station of a player, not an inert object.
  */
 export const VEHICLE_KIND_FIXED_TURRET = 'fixed_turret'
 
 /**
- * VEHICLE_GLYPH_KINDS — les natures publiées qui se dessinent par le pictogramme de leur famille
- * (`VEHICLE_MAP_ELEMENT_RENDER`) quand aucun asset n'est servi. L'embarquement, lui, reste décidé
- * par la seule nature `map_element` (`vehicleCanEmbark`).
+ * VEHICLE_GLYPH_KINDS — the published natures that draw by the pictogram of their
+ * family (`VEHICLE_MAP_ELEMENT_RENDER`) when no asset is served. Embarking, for its
+ * part, stays decided by the `map_element` nature alone (`vehicleCanEmbark`).
  */
 const VEHICLE_GLYPH_KINDS: ReadonlySet<string> = new Set([
   VEHICLE_KIND_MAP_ELEMENT,
@@ -257,12 +277,12 @@ const VEHICLE_GLYPH_KINDS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * vehicleMapElementGlyph — le pictogramme à dessiner pour cette famille, ou `null`.
+ * vehicleMapElementGlyph — the pictogram to draw for this family, or `null`.
  *
- * DEUX CONDITIONS, LES DEUX NÉCESSAIRES : le DOCUMENT doit dire que la famille est un élément de
- * carte (`kind`, posé par le serveur depuis le manifeste du titre) ET cette table doit lui
- * connaître une forme. Le document seul ne suffit pas — il ne sait pas dessiner ; la table seule
- * non plus — elle affirmerait une nature que le serveur n'a pas publiée.
+ * TWO CONDITIONS, BOTH NECESSARY: the DOCUMENT must say the family is a map element
+ * (`kind`, set by the server from the title manifest) AND this table must know it a
+ * shape. The document alone is not enough — it cannot draw; the table alone neither —
+ * it would assert a nature the server did not publish.
  */
 export function vehicleMapElementGlyph(
   family: string | undefined,
@@ -273,27 +293,28 @@ export function vehicleMapElementGlyph(
 }
 
 /**
- * VehiclePaintInks — les deux encres « sans occupant » que la règle de teinte départage.
- * `neutral` est celle d'un véhicule sans occupant résolu ; `mapElement` celle d'un objet de la
- * carte (gris « aucun camp »). Toutes deux sont résolues par l'appelant (règle color-tokens).
+ * VehiclePaintInks — the two "no occupant" inks the tint rule discriminates.
+ * `neutral` is that of a vehicle without a resolved occupant; `mapElement` that of
+ * a map object (gray "no camp"). Both are resolved by the caller (color-tokens rule).
  */
 export interface VehiclePaintInks {
   neutral: string
   mapElement: string
 }
 
-/** vehicleIsMapElement — la nature publiée dit-elle « objet de la carte, non jouable » ? */
+/** vehicleIsMapElement — does the published nature say "map object, unplayable"? */
 export function vehicleIsMapElement(kind: string | undefined): boolean {
   return kind === VEHICLE_KIND_MAP_ELEMENT
 }
 
 /**
- * vehiclePaintColor — L'ENCRE D'UN VÉHICULE À `frame`, règle unique de ce calque.
+ * vehiclePaintColor — THE INK OF A VEHICLE AT `frame`, the single rule of this layer.
  *
- * UN ÉLÉMENT DE CARTE (nature `map_element`, non jouable) se peint à l'encre grise
- * `inks.mapElement`, sans condition : il n'a pas de camp, et le bleu neutre de l'allié le ferait
- * passer pour un poste de tir allié. TOUT AUTRE véhicule prend la couleur de son occupant
- * (`vehicleColorAt`) et, à défaut, `inks.neutral` — la tourelle fixe, jouable, y compris.
+ * A MAP ELEMENT (nature `map_element`, unplayable) is painted with the gray ink
+ * `inks.mapElement`, without condition: it has no camp, and the neutral blue of the
+ * ally would make it pass for an allied gunning station. EVERY OTHER vehicle takes
+ * the color of its occupant (`vehicleColorAt`) and, failing that, `inks.neutral` —
+ * the fixed turret, playable, included.
  */
 export function vehiclePaintColor(
   track: ReplayVehicleTrackReady,
@@ -306,26 +327,28 @@ export function vehiclePaintColor(
   return vehicleColorAt(track, frame, ink) ?? inks.neutral
 }
 
-// --- DESTRUCTION (schéma 39 — EN AVANCE DE PHASE, cf. ReplayVehicleTrack dans types.ts) --------
+// --- DESTRUCTION (schema 39 — IN ADVANCE OF PHASE, cf. ReplayVehicleTrack in types.ts) --------
 
 /**
- * VEHICLE_END_DESTROYED — LA SEULE valeur de `track.end` que ce calque traite comme une preuve
- * de destruction. Nommée plutôt que semée en littéral (même raison que `FAMILLES_NON_JOUABLES`) :
- * un seul endroit à changer si le Go choisit un autre mot. Toute AUTRE valeur — `"unknown"`
- * aujourd'hui, systématiquement — est lue comme « fin non affirmée » : rien ne se dessine.
+ * VEHICLE_END_DESTROYED — THE ONLY value of `track.end` this layer treats as a proof of
+ * destruction. Named rather than sown as a literal (same reason as
+ * `FAMILLES_NON_JOUABLES`): a single place to change if the Go picks another word.
+ * Every OTHER value — `"unknown"` today, systematically — is read as "end not
+ * affirmed": nothing draws.
  */
 export const VEHICLE_END_DESTROYED = 'destroyed'
 
 /**
- * vehicleDestructionFrame — l'index de frame de la destruction, ou `null` quand elle n'est PAS
- * établie. DEUX CONDITIONS, LES DEUX NÉCESSAIRES (demande explicite du lot) : `end` doit valoir
- * `VEHICLE_END_DESTROYED` ET `tEnd` doit être publié. Un document qui affirmerait l'un sans
- * l'autre (mesure Go partielle) ne déclenche rien plutôt que de deviner une frame — même
- * prudence que `vehiclePositionAt` refusant d'inventer une position.
+ * vehicleDestructionFrame — the frame index of the destruction, or `null` when it is
+ * NOT established. TWO CONDITIONS, BOTH NECESSARY (explicit request of the lot): `end`
+ * must equal `VEHICLE_END_DESTROYED` AND `tEnd` must be published. A document asserting
+ * one without the other (partial Go measurement) triggers nothing rather than guessing
+ * a frame — the same caution as `vehiclePositionAt` refusing to invent a position.
  *
- * TANT QUE LE GO NE PUBLIE QUE `end: "unknown"` (l'état actuel de CHAQUE artefact existant),
- * cette fonction rend TOUJOURS `null` : zéro changement visible, et c'est le comportement
- * attendu de ce lot — il rend le calque PRÊT, il n'invente pas la mesure.
+ * AS LONG AS THE GO PUBLISHES ONLY `end: "unknown"` (the current state of EVERY
+ * existing artifact), this function returns `null` ALWAYS: zero visible change, and
+ * that is the expected behavior of this lot — it makes the layer READY, it does not
+ * invent the measurement.
  */
 export function vehicleDestructionFrame(track: ReplayVehicleTrackReady): number | null {
   if (track.end !== VEHICLE_END_DESTROYED) return null
@@ -333,25 +356,27 @@ export function vehicleDestructionFrame(track: ReplayVehicleTrackReady): number 
 }
 
 /**
- * VehicleExplosionKind — LES DEUX MISES EN SCÈNE DEMANDÉES PAR L'UTILISATEUR, mot pour mot :
- * « explosion plasma et explosion "normale" pour les véhicules humains ».
+ * VehicleExplosionKind — THE TWO STAGINGS REQUESTED BY THE USER, word for word:
+ * "plasma explosion and 'normal' explosion for the human vehicles".
  */
 export type VehicleExplosionKind = 'plasma' | 'normal'
 
 /**
- * VEHICLE_PLASMA_FAMILIES — TABLE FACTION -> EFFET (nommée et commentée, comme demandé) : les
- * châssis Bannis (le Covenant du multijoueur de Halo Infinite), à énergie, reçoivent l'explosion
- * PLASMA, ROUGE (`plasma_hot`, cf. `drawVehicleDestructionFx`) — Ghost, Banshee, Wraith, Chopper,
- * Shade, sans exception : la faction décide de la couleur, pas le châssis. Les Bannis sans rendu
- * (Phantom, Skiff : `FAMILLES_NON_JOUABLES`) n'explosent jamais à l'écran. La Shade (tourelle montée
- * Covenant, immobile — cf. `VEHICLE_DEFAULT_HEADING_DEG`) reste une énergie Covenant même sans
- * jamais se déplacer, elle entre donc ici et pas dans la table humaine ci-dessous.
+ * VEHICLE_PLASMA_FAMILIES — FACTION -> EFFECT TABLE (named and commented, as requested):
+ * the Banished chassis (the Covenant of Halo Infinite multiplayer), energy-based,
+ * receive the PLASMA, RED explosion (`plasma_hot`, cf. `drawVehicleDestructionFx`) —
+ * Ghost, Banshee, Wraith, Chopper, Shade, no exception: the faction decides the color,
+ * not the chassis. The Banished without rendering (Phantom, Skiff:
+ * `FAMILLES_NON_JOUABLES`) never explode on screen. The Shade (mounted Covenant
+ * turret, immobile — cf. `VEHICLE_DEFAULT_HEADING_DEG`) stays a Covenant energy even
+ * without ever moving, it therefore enters here and not in the human table below.
  *
- * TOUTE AUTRE FAMILLE — y compris VIDE (châssis non résolu) ou inconnue de ce calque — REÇOIT LE
- * REPLI NORMAL (`vehicleExplosionKindOf`) : c'est un choix NEUTRE et documenté, jamais une
- * affirmation Covenant par défaut. La liste humaine (`VEHICLE_HUMAN_FAMILIES`) n'est donc pas
- * consultée par le code — elle n'existe QUE pour documenter la couverture de la demande
- * utilisateur et sert de fixture aux tests (vehiclesLayer.test.ts / vehiclesPaint.test.ts).
+ * EVERY OTHER FAMILY — including EMPTY (unresolved chassis) or unknown to this layer —
+ * RECEIVES THE NORMAL FALLBACK (`vehicleExplosionKindOf`): that is a NEUTRAL and
+ * documented choice, never a default Covenant assertion. The human list
+ * (`VEHICLE_HUMAN_FAMILIES`) is therefore not consulted by the code — it exists ONLY
+ * to document the coverage of the user request and serves as fixture to the tests
+ * (vehiclesLayer.test.ts / vehiclesPaint.test.ts).
  */
 export const VEHICLE_PLASMA_FAMILIES: ReadonlySet<string> = new Set([
   'ghost',
@@ -362,11 +387,11 @@ export const VEHICLE_PLASMA_FAMILIES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * VEHICLE_HUMAN_FAMILIES — LES CHÂSSIS UNSC/HUMAINS explicitement cités par la demande
- * utilisateur : ils reçoivent l'explosion NORMALE, mais par le REPLI (« toute famille qui n'est
- * pas dans `VEHICLE_PLASMA_FAMILIES` »), pas par une seconde table consultée au rendu — deux
- * tables actives auraient pu diverger (une famille absente des deux, par exemple un futur
- * châssis) sans qu'aucun test ne le voie.
+ * VEHICLE_HUMAN_FAMILIES — THE UNSC/HUMAN CHASSIS explicitly cited by the user request:
+ * they receive the NORMAL explosion, but through the FALLBACK ("any family that is not
+ * in `VEHICLE_PLASMA_FAMILIES`"), not through a second table consulted at rendering —
+ * two active tables could have diverged (a family absent from both, for example a
+ * future chassis) without any test seeing it.
  */
 export const VEHICLE_HUMAN_FAMILIES: ReadonlySet<string> = new Set([
   'warthog',
@@ -381,31 +406,36 @@ export const VEHICLE_HUMAN_FAMILIES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * FAMILLES_ARME_FIXE — LES CHÂSSIS DONT L'ARME EST SOLIDAIRE DU CORPS, et dont le nez suit donc
- * ce que le CONDUCTEUR vise.
+ * FAMILLES_ARME_FIXE — THE CHASSIS WHOSE WEAPON IS RIGID WITH THE BODY, and whose nose
+ * therefore follows what the DRIVER aims.
  *
- * LA DÉCISION EST DE L'UTILISATEUR (2026-09-20) : « le châssis s'oriente là où l'ARME pointe ».
- * Elle tranche un problème que la mesure a fermé dans l'autre sens — le lot 5.2-B a RÉFUTÉ
- * l'orientation propre du film : le composant candidat de `ti=40` (`i2`) est un vecteur HAUT,
- * pas un avant (médianes de 54 à 105 degrés contre la vélocité). Le cap du châssis ne viendra
- * donc pas du film ; il vient de la seule direction MESURÉE que le véhicule porte en propre, la
- * visée de son conducteur (`rides[].aim`, schéma 31 — justesse 0,2 à 0,5 degré contre la
- * référence publiée, couverture 35 épisodes attestés sur 35).
+ * THE DECISION IS THE USER'S (2026-09-20): « le châssis s'oriente là où l'ARME pointe »
+ * [the chassis orients where the WEAPON points]. It settles a problem the
+ * measurement closed in the other direction — lot 5.2-B REFUTED the film's proper
+ * orientation: the candidate component of `ti=40` (`i2`) is a UP vector, not a
+ * forward one (medians of 54 to 105 degrees against the velocity). The chassis
+ * heading will therefore not come from the film; it comes from the only MEASURED
+ * direction the vehicle carries of its own, the aim of its driver (`rides[].aim`,
+ * schema 31 — accuracy 0.2 to 0.5 degrees against the published reference, coverage
+ * 35 attested episodes out of 35).
  *
- * POURQUOI CES DIX FAMILLES, ET PAS LES AUTRES. Sur un Ghost, une Banshee, un Wraith, une Wasp,
- * un Chopper, une Shade, une tourelle montée ou fixe, l'arme NE TOURNE PAS par rapport au corps :
- * viser, c'est tourner le véhicule, donc la visée EST l'avant du châssis. Le Mongoose et le
- * Gungoose n'ont pas d'arme de conducteur mais leur avant suit le conducteur de la même façon.
+ * WHY THESE TEN FAMILIES, AND NOT THE OTHERS. On a Ghost, a Banshee, a Wraith, a Wasp,
+ * a Chopper, a Shade, a mounted or fixed turret, the weapon DOES NOT ROTATE relative
+ * to the body: aiming is turning the vehicle, so the aim IS the front of the chassis.
+ * The Mongoose and the Gungoose have no driver weapon but their front follows the
+ * driver the same way.
  *
- * TOUTE AUTRE FAMILLE EST À TOURELLE, ET REÇOIT LE REPLI — c'est-à-dire la vélocité, comme
- * avant : Warthog (et ses variantes Gauss et rockethog), Razorback, Scorpion, Falcon, Pélican,
- * Phantom, Skiff. Sur ces châssis le tireur n'est pas le pilote et l'arme tourne seule : prêter
- * la visée au corps le ferait pivoter à chaque balayage de tourelle.
+ * EVERY OTHER FAMILY IS TURRET, AND RECEIVES THE FALLBACK — that is the velocity, as
+ * before: Warthog (and its Gauss and rockethog variants), Razorback, Scorpion,
+ * Falcon, Pelican, Phantom, Skiff. On these chassis the shooter is not the pilot and
+ * the weapon rotates on its own: lending the aim to the body would make it pivot at
+ * every turret sweep.
  *
- * UNE SEULE TABLE ACTIVE, et c'est la même doctrine que `VEHICLE_PLASMA_FAMILIES` : la liste à
- * tourelle est ÉCRITE ci-dessus mais n'est pas consultée par le code — deux tables actives
- * pourraient diverger (une famille absente des deux, par exemple un futur châssis) sans qu'aucun
- * test ne le voie. Une famille inconnue de ce calque reçoit donc la vélocité, le repli neutre.
+ * A SINGLE ACTIVE TABLE, and it is the same doctrine as `VEHICLE_PLASMA_FAMILIES`:
+ * the turret list is WRITTEN above but is not consulted by the code — two active
+ * tables could diverge (a family absent from both, for example a future chassis)
+ * without any test seeing it. A family unknown to this layer therefore receives the
+ * velocity, the neutral fallback.
  */
 export const FAMILLES_ARME_FIXE: ReadonlySet<string> = new Set([
   'ghost',
@@ -415,71 +445,76 @@ export const FAMILLES_ARME_FIXE: ReadonlySet<string> = new Set([
   'chopper',
   'shade',
   'tourelle_montee',
-  // La TOURELLE FIXE de Takamanohara (lot M6.2, 2026-09-24) : viser, c'est tourner la tourelle.
+  // The FIXED TURRET of Takamanohara (lot M6.2, 2026-09-24): aiming is turning the turret.
   'tourelle_fixe',
   'mongoose',
   'gungoose',
 ])
 
 /**
- * vehicleExplosionKindOf — LA FACTION DE LA DÉFLAGRATION. `undefined`/`''` (châssis non résolu)
- * et toute famille absente de `VEHICLE_PLASMA_FAMILIES` (y compris une famille future, inconnue
- * de ce calque) reçoivent `'normal'` — le repli neutre documenté ci-dessus.
+ * vehicleExplosionKindOf — THE FACTION OF THE DETONATION. `undefined`/`''` (unresolved
+ * chassis) and every family absent from `VEHICLE_PLASMA_FAMILIES` (including a future
+ * family, unknown to this layer) receive `'normal'` — the neutral fallback documented
+ * above.
  */
 export function vehicleExplosionKindOf(family: string | undefined): VehicleExplosionKind {
   return family !== undefined && VEHICLE_PLASMA_FAMILIES.has(family) ? 'plasma' : 'normal'
 }
 
 /**
- * vehicleCanEmbark — une vie de véhicule peut-elle faire DISPARAÎTRE le pion d'un joueur ?
+ * vehicleCanEmbark — can a vehicle life make DISAPPEAR the piece of a player?
  *
- * DEUX REFUS, POUR LA MÊME RAISON : un pion supprimé est un joueur qu'on n'affiche plus, et cela
- * ne se justifie que si le véhicule qui le porte est, lui, affiché et certain. Le décor est
- * refusé (cf. `FAMILLES_NON_JOUABLES`), et le CHÂSSIS NON RÉSOLU aussi : un épisode d'occupation
- * posé sur une famille inconnue peut porter sur n'importe quoi — dont un autre prop — et le prix
- * de l'erreur (un joueur effacé) est plus lourd que celui de l'abstention (un pion de trop
- * pendant qu'il conduit).
+ * TWO REFUSALS, FOR THE SAME REASON: a removed piece is a player no longer displayed,
+ * and that is only justified if the vehicle carrying it is, for its part, displayed
+ * and certain. The scenery is refused (cf. `FAMILLES_NON_JOUABLES`), and the
+ * UNRESOLVED CHASSIS too: an occupation episode placed on an unknown family can point
+ * to anything — including another prop — and the price of the error (a player erased)
+ * is heavier than that of the abstention (one piece too many while driving).
  */
 export function vehicleCanEmbark(track: ReplayVehicleTrackReady, kind?: string): boolean {
   if (track.family === undefined || track.family === '' || vehicleIsHidden(track)) return false
-  // UN TROISIÈME REFUS DEPUIS LE 2026-09-16 (lot 1.9.9), pour la MÊME raison que les deux
-  // autres : un ÉLÉMENT DE CARTE ne porte personne. Le serveur ne lui attribue déjà aucun
-  // épisode (`vehicleFamillesNonPilotables`, côté Go) ; la garde est ici AUSSI parce que le prix
-  // de l'erreur est un joueur réel effacé de la carte — exactement ce qu'ont produit les trois
-  // faux épisodes du prop Falcon de `0d76e8f1` (2026-09-02, quand le Falcon était encore refusé
-  // par sa famille), et on ne laisse pas un seul verrou sur ce chemin-là.
+  // A THIRD REFUSAL SINCE 2026-09-16 (lot 1.9.9), for the SAME reason as the two
+  // others: a MAP ELEMENT carries no one. The server already attributes it no episode
+  // (`vehicleFamillesNonPilotables`, on the Go side); the guard is here TOO because
+  // the price of the error is a real player erased from the map — exactly what the
+  // three false episodes of the Falcon prop of `0d76e8f1` produced (2026-09-02, when
+  // the Falcon was still refused by its family), and no single lock is left on that
+  // path.
   return kind !== VEHICLE_KIND_MAP_ELEMENT
 }
 
 // --- ORIENTATION ----------------------------------------------------------------------------
 
 /**
- * VEHICLE_DEFAULT_HEADING_DEG — le cap MONDE d'un véhicule dont AUCUN échantillon ne porte de
- * cap : ni mort (la tourelle Shade et la tourelle montée ne translatent jamais — décision de
- * cadrage « TOURELLES »), ni pas-encore-mobile. Choisi à 90° (monde +Y) précisément parce que
- * `vehicleScreenAngle(90) === 0` : AUCUNE rotation supplémentaire n'est appliquée, et le sprite
- * reste NEZ VERS LE HAUT DE L'ÉCRAN tel qu'il est dessiné — exactement la règle demandée.
+ * VEHICLE_DEFAULT_HEADING_DEG — the WORLD heading of a vehicle of which NO sample
+ * carries a heading: neither dead (the Shade turret and the mounted turret never
+ * translate — framing decision "TURRETS"), nor not-yet-mobile. Chosen at 90° (world
+ * +Y) precisely because `vehicleScreenAngle(90) === 0`: NO additional rotation is
+ * applied, and the sprite stays NOSE TOWARD THE TOP OF THE SCREEN as it is drawn —
+ * exactly the rule requested.
  */
 export const VEHICLE_DEFAULT_HEADING_DEG = 90
 
 /**
- * vehicleHeadingAt — le cap MONDE du véhicule à `frame`, degrés, MÊME convention que `Point.h`.
+ * vehicleHeadingAt — the WORLD heading of the vehicle at `frame`, in degrees, SAME
+ * convention as `Point.h`.
  *
- * TROIS RÉGIMES, DANS L'ORDRE DE LA DÉCISION DE CADRAGE :
- *  1. EN MOUVEMENT / À L'ARRÊT — le dernier échantillon connu AU PLUS TARD à `frame` qui porte
- *     un cap (`h !== undefined`) : le serveur y écrit déjà la direction de la vélocité en
- *     mouvement, et REPORTE ce même cap sur les échantillons immobiles qui suivent (cf.
- *     `VehicleSample.H`) — chercher EN ARRIÈRE depuis `frame` couvre donc les deux à la fois.
- *     ENTRE deux échantillons, le cap TOURNE vers le suivant par le plus court chemin angulaire
- *     (`headingTowardNext`, contrôles v8 du 2026-10-21 : tenu au dernier échantillon, il
- *     faisait pivoter le sprite par saccades de 100 ms alors que sa position glissait) ; jamais
- *     au travers d'un silence de réplication, jamais sur plus d'une seconde.
- *  2. AVANT LE PREMIER MOUVEMENT — aucun échantillon EN ARRIÈRE ne porte de cap (le véhicule est
- *     encore à quai) : le cap du PREMIER échantillon mobile À VENIR, pour que le véhicule
- *     s'oriente déjà dans le sens qu'il va prendre plutôt que de pivoter brutalement au premier
- *     mouvement.
- *  3. JAMAIS MOBILE — aucun échantillon, nulle part, ne porte de cap (véhicule jamais conduit,
- *     ou tourelle qui ne translate pas) : `VEHICLE_DEFAULT_HEADING_DEG`, nez vers le haut.
+ * THREE REGIMES, IN THE ORDER OF THE FRAMING DECISION:
+ *  1. IN MOVEMENT / STOPPED — the last sample known AT LATEST at `frame` that carries
+ *     a heading (`h !== undefined`): the server already writes in it the direction of
+ *     the velocity in movement, and REPORTS that same heading on the immobile samples
+ *     that follow (cf. `VehicleSample.H`) — looking BACKWARD from `frame` therefore
+ *     covers both at once. BETWEEN two samples, the heading TURNS toward the next one
+ *     by the shortest angular path (`headingTowardNext`, v8 controls of 2026-10-21:
+ *     held at the last sample, it made the sprite pivot in 100 ms jerks while its
+ *     position slid); never across a replication silence, never over more than one
+ *     second.
+ *  2. BEFORE THE FIRST MOVEMENT — no BACKWARD sample carries a heading (the vehicle is
+ *     still berthed): the heading of the FIRST mobile sample AHEAD, so that the
+ *     vehicle is already oriented in the direction it is going to take rather than
+ *     pivoting abruptly on the first movement.
+ *  3. NEVER MOBILE — no sample, anywhere, carries a heading (vehicle never driven, or
+ *     turret that does not translate): `VEHICLE_DEFAULT_HEADING_DEG`, nose upward.
  */
 export function vehicleHeadingAt(track: ReplayVehicleTrackReady, frame: number): number {
   const samples = track.samples
@@ -496,42 +531,46 @@ export function vehicleHeadingAt(track: ReplayVehicleTrackReady, frame: number):
 }
 
 /**
- * vehicleScreenAngle — LA CONSTANTE D'ÉCART D'ÉCRAN (gate C6) : convertit un cap MONDE en
- * radians CANEVAS pour un sprite dessiné NEZ EN HAUT. Voir l'en-tête du fichier pour la dérivation
- * complète ; le résultat tient en une ligne : `(90° − cap) → radians`.
+ * vehicleScreenAngle — THE SCREEN GAP CONSTANT (gate C6): converts a WORLD heading to
+ * CANVAS radians for a sprite drawn NOSE UP. See the file header for the full
+ * derivation; the result fits in one line: `(90° − heading) → radians`.
  */
 export function vehicleScreenAngle(headingDeg: number): number {
   return ((90 - headingDeg) * Math.PI) / 180
 }
 
 /**
- * vehicleAimAngle — LE MÊME CAP, mais pour le CÔNE DE VISÉE, et ce n'est PAS le même angle.
+ * vehicleAimAngle — THE SAME HEADING, but for the AIM CONE, and it is NOT the same
+ * angle.
  *
- * `vehicleScreenAngle` oriente une IMAGE dessinée nez-en-haut : elle porte le quart de tour qui
- * rattrape la convention du sprite. Le cône, lui, est une forme tracée à l'angle nu — comme le
- * cône des pions (`replayAimCone` : « monde -> canevas, l'axe Y est inversé, donc l'angle l'est
- * aussi »), il n'a besoin QUE de l'inversion de signe. Confondre les deux ferait pointer le cône
- * à 90° du nez du véhicule : d'où deux fonctions nommées, et pas une constante partagée.
+ * `vehicleScreenAngle` orients an IMAGE drawn nose-up: it carries the quarter turn
+ * that catches up with the sprite convention. The cone, for its part, is a shape
+ * traced at the bare angle — like the cone of the pieces (`replayAimCone`: "world ->
+ * canvas, the Y axis is inverted, so the angle is too"), it only needs the sign
+ * inversion. Confusing the two would make the cone point 90° off the nose of the
+ * vehicle: hence two named functions, and no shared constant.
  */
 export function vehicleAimAngle(headingDeg: number): number {
   return (-headingDeg * Math.PI) / 180
 }
 
-// --- POSITION ET FENÊTRE D'AFFICHAGE ---------------------------------------------------------
+// --- POSITION AND DISPLAY WINDOW ---------------------------------------------------------
 
 /**
- * vehicleVisibleAt — `t1max` est une PREUVE D'ABSENCE (cf. `document_vehicles.go`) : la franchir
- * affirmerait une présence que le film réfute. Décision de cadrage : « disparition NETTE » —
- * aucun estompage entre `t1`/`t1max` (à la différence des armes au sol) : le véhicule est plein
- * jusqu'à `t1max` inclus, rien après.
+ * vehicleVisibleAt — `t1max` is a PROOF OF ABSENCE (cf. `document_vehicles.go`):
+ * crossing it would assert a presence the film refutes. Framing decision: "SHARP
+ * disappearance" — no fading between `t1`/`t1max` (unlike the ground weapons): the
+ * vehicle is full up to `t1max` inclusive, nothing after.
  *
- * `tEnd` FAIT AUTORITÉ SUR `t1max` QUAND LA DESTRUCTION EST ÉTABLIE (schéma 39, cf.
- * `vehicleDestructionFrame`) : la demande utilisateur du lot (« il faut aussi la destruction et
- * un effet UI ») veut que le SPRITE cesse au moment exact de la destruction, pas à la dernière
- * preuve de présence du recensement — l'explosion (`vehiclesPaint.ts`) prend ensuite le relais à
- * la MÊME frame, sur SA propre fenêtre, indépendamment de cette visibilité. Tant que le document
- * ne publie que `end: "unknown"` (aujourd'hui, toujours), `vehicleDestructionFrame` rend `null`
- * et ce repli sur `t1max` est donc EXACTEMENT le comportement actuel — zéro changement visible.
+ * `tEnd` TAKES AUTHORITY OVER `t1max` WHEN THE DESTRUCTION IS ESTABLISHED (schema 39,
+ * cf. `vehicleDestructionFrame`): the user request of the lot ("the destruction and a
+ * UI effect are also needed") wants the SPRITE to stop at the exact moment of the
+ * destruction, not at the last proof of presence of the census — the explosion
+ * (`vehiclesPaint.ts`) then takes over at the SAME frame, on ITS OWN window,
+ * independently of this visibility. As long as the document publishes only
+ * `end: "unknown"` (today, always), `vehicleDestructionFrame` returns `null` and this
+ * fallback on `t1max` is therefore EXACTLY the current behavior — zero visible
+ * change.
  */
 export function vehicleVisibleAt(track: ReplayVehicleTrackReady, frame: number): boolean {
   const lastFrame = vehicleDestructionFrame(track) ?? track.t1max
@@ -539,18 +578,19 @@ export function vehicleVisibleAt(track: ReplayVehicleTrackReady, frame: number):
 }
 
 /**
- * vehiclePositionAt — la position MONDE à `frame`, ou `null` (rien à dessiner).
+ * vehiclePositionAt — the WORLD position at `frame`, or `null` (nothing to draw).
  *
- * `positionAt` (replayLogic.ts) tient déjà l'interpolation entre échantillons et le maintien de
- * la dernière position connue une fois le dernier échantillon dépassé — LA MÊME logique que pour
- * une trajectoire de joueur, réutilisée telle quelle (`VehicleSample` a le même sous-ensemble de
- * champs que `Point`). Y COMPRIS LA LACUNE (schéma 69, lot M1 des retours du rejeu) : un
- * échantillon qui porte `g > 0` suit un silence de réplication, et le véhicule est TENU à sa
- * dernière position au travers — il ne se déplace pas pendant un silence (repli F-2 côté Go).
- * Avant, un Mongoose immobile « partait seul » pendant 70 s vers un échantillon lointain. Elle rend `null` AVANT le premier échantillon : c'est alors le SPAWN qui
- * répond (la naissance, seule chose connue tant que personne n'a conduit le véhicule). Ni l'un
- * ni l'autre : le record de création n'a pas été lu ET aucun échantillon n'existe — rien ne se
- * dessine, plutôt que d'inventer une position.
+ * `positionAt` (replayLogic.ts) already holds the interpolation between samples and
+ * the holding of the last known position once the last sample is passed — THE SAME
+ * logic as for a player trajectory, reused as is (`VehicleSample` has the same
+ * subset of fields as `Point`). INCLUDING THE GAP (schema 69, lot M1 of the replay
+ * feedback): a sample carrying `g > 0` follows a replication silence, and the
+ * vehicle is HELD at its last position across it — it does not move during a
+ * silence (fallback F-2 on the Go side). Before, an immobile Mongoose "went off on
+ * its own" for 70 s toward a distant sample. It returns `null` BEFORE the first
+ * sample: that is when the SPAWN answers (the birth, the only thing known as long
+ * as no one has driven the vehicle). Neither: the creation record was not read AND
+ * no sample exists — nothing draws, rather than inventing a position.
  */
 export function vehiclePositionAt(track: ReplayVehicleTrackReady, frame: number): XY | null {
   const fromSamples = track.samples.length > 0 ? positionAt(track.samples, frame) : null
@@ -558,33 +598,35 @@ export function vehiclePositionAt(track: ReplayVehicleTrackReady, frame: number)
   return track.spawn ? { x: track.spawn.x, y: track.spawn.y } : null
 }
 
-// --- TAILLE (taille réelle si l'échelle le permet, minimum d'écran sinon) --------------------
+// --- SIZE (real size if the scale allows it, screen minimum otherwise) --------------------
 //
-// LE MODÈLE ET SES CONSTANTES VIVENT DANS `lib/replay/screenSizes.ts` — un seul fichier pour toutes
-// les familles dessinées sur la carte, avec la décision de l'utilisateur du 2026-09-19, ses
-// mesures et l'inventaire des familles qui n'ont pas de longueur monde. Ce qui suit ne fait que
-// l'appliquer aux véhicules, la seule famille dont la longueur monde EST mesurée.
+// THE MODEL AND ITS CONSTANTS LIVE IN `lib/replay/screenSizes.ts` — a single file for
+// all the families drawn on the map, with the user decision of 2026-09-19, its
+// measurements and the inventory of the families that have no world length. What
+// follows only applies it to the vehicles, the only family whose world length IS
+// measured.
 
 /**
- * vehicleScreenLengthPx — la longueur d'écran (pixels CSS, avant densité `k`) d'un véhicule à
- * l'échelle de cadrage courante.
+ * vehicleScreenLengthPx — the screen length (CSS pixels, before density `k`) of a
+ * vehicle at the current framing scale.
  *
- * `naturalHeightPx` est la hauteur NATIVE du sprite chargé (nez-en-haut : la hauteur EST l'axe
- * de longueur du véhicule) ; `mmPerPx` vient du manifeste (`index.json`) pour SA famille ; les
- * deux ensemble donnent la longueur MONDE. `scalePxPerM` est l'échelle du cadrage
- * (`scaleOf(view)`).
+ * `naturalHeightPx` is the NATIVE height of the loaded sprite (nose-up: the height IS
+ * the length axis of the vehicle); `mmPerPx` comes from the manifest (`index.json`)
+ * for ITS family; the two together give the WORLD length. `scalePxPerM` is the
+ * framing scale (`scaleOf(view)`).
  *
- * CE QUI A CHANGÉ LE 2026-09-20 : cette longueur dépend désormais de l'ÉCHELLE DE LA CARTE,
- * PLANCHÉE à l'ancien cadrage +20 % (`PX_PAR_MM_MINIMUM_ECRAN`). Elle était constante — la même
- * à l'écran sur une carte de 54 m et sur une de 273 m —, ce qui rendait le véhicule trop petit
- * sur les grandes (retour utilisateur du 2026-09-19) et hors de proportion sur les petites. Le
- * plancher porte sur l'ÉCHELLE, pas sur la taille : les dix-huit familles le franchissent
- * ENSEMBLE et restent donc proportionnelles à toute échelle. Détail et mesures :
+ * WHAT CHANGED ON 2026-09-20: this length now depends on the MAP SCALE, FLOORED at
+ * the old framing +20% (`PX_PAR_MM_MINIMUM_ECRAN`). It was constant — the same on
+ * screen on a 54 m map and on a 273 m one —, which made the vehicle too small on the
+ * large ones (user feedback of 2026-09-19) and out of proportion on the small ones.
+ * The floor applies to the SCALE, not to the size: the eighteen families cross it
+ * TOGETHER and therefore stay proportional at any scale. Detail and measurements:
  * `lib/replay/screenSizes.ts`.
  *
- * `ceilPx` : le plafond doux de la TOILE (`vehicleCeilPx`, contrôles v8 du 2026-10-21) — absent,
- * le plafond historique. Le même plafond doit servir au sprite, à son explosion et à l'ancre des
- * armes, sans quoi un tir quitterait un sprite qui n'a pas la taille qu'il suppose.
+ * `ceilPx`: the soft ceiling of the CANVAS (`vehicleCeilPx`, v8 controls of
+ * 2026-10-21) — absent, the historical ceiling. The same ceiling must serve the
+ * sprite, its explosion and the anchor of the weapons, otherwise a shot would leave
+ * a sprite that does not have the size it assumes.
  */
 export function vehicleScreenLengthPx(
   naturalHeightPx: number,
@@ -597,9 +639,9 @@ export function vehicleScreenLengthPx(
 }
 
 /**
- * vehicleSpriteScale — le facteur multiplicatif à donner à `drawRotatedSprite` (avant densité
- * `k`, que l'appelant applique en plus) pour que le sprite atteigne `vehicleScreenLengthPx` sur
- * son axe de hauteur, aspect ratio préservé.
+ * vehicleSpriteScale — the multiplicative factor to give to `drawRotatedSprite`
+ * (before density `k`, which the caller applies in addition) so that the sprite
+ * reaches `vehicleScreenLengthPx` on its height axis, aspect ratio preserved.
  */
 export function vehicleSpriteScale(
   naturalHeightPx: number,
@@ -614,10 +656,10 @@ export function vehicleSpriteScale(
 // --- OCCUPATION -------------------------------------------------------------------------------
 
 /**
- * vehicleActiveRides — les épisodes d'occupation qui couvrent `frame`, TRIÉS conducteur
- * d'abord (siège 0) puis sièges croissants (décision de cadrage C7). Un siège NON LU (`seat`
- * absent) passe en dernier, à égalité entre eux dans l'ordre du document — jamais avant un
- * siège connu, dont la place est, elle, affirmée.
+ * vehicleActiveRides — the occupation episodes that cover `frame`, SORTED driver
+ * first (seat 0) then ascending seats (framing decision C7). A NOT-READ seat (`seat`
+ * absent) goes last, tied among themselves in the order of the document — never
+ * before a known seat, whose place is, for its part, affirmed.
  */
 export function vehicleActiveRides(
   track: ReplayVehicleTrackReady,
@@ -629,16 +671,18 @@ export function vehicleActiveRides(
 }
 
 /**
- * vehicleDriverAt — L'ÉPISODE DU CONDUCTEUR à `frame` (siège 0), ou `null`.
+ * vehicleDriverAt — THE DRIVER'S EPISODE at `frame` (seat 0), or `null`.
  *
- * SEUL LE SIÈGE 0 COMPTE, et un siège NON LU ne fait pas l'affaire : c'est le conducteur, et lui
- * seul, dont le CAP DU CHÂSSIS approche la direction du regard (décision utilisateur du
- * chantier : « à l'arrêt on assume qu'il regarde devant lui ; en mouvement, la direction du
- * déplacement »).
+ * ONLY SEAT 0 COUNTS, and a NOT-READ seat does not do: it is the driver, and only
+ * the driver, whose CHASSIS HEADING approximates the direction of the gaze (user
+ * decision of the work: « à l'arrêt on assume qu'il regarde devant lui ; en mouvement,
+ * la direction du déplacement » [when stopped one assumes he is looking in front of
+ * him; in motion, the direction of travel]).
  *
- * CE N'EST PLUS LA PORTE DU CÔNE DEPUIS LE SCHÉMA 31 (`vehicleOccupantAimAt`) : chaque occupant
- * porte désormais SA visée mesurée, y compris l'artilleur et le passager. Cette fonction reste
- * l'accès au conducteur pour tout ce qui le concerne LUI (teinte du véhicule, ordre des noms).
+ * IT IS NO LONGER THE GATE OF THE CONE SINCE SCHEMA 31 (`vehicleOccupantAimAt`):
+ * every occupant now carries THEIR OWN measured aim, including the gunner and the
+ * passenger. This function remains the access to the driver for everything that
+ * concerns HIM (vehicle tint, order of the names).
  */
 export function vehicleDriverAt(
   track: ReplayVehicleTrackReady,
@@ -648,13 +692,15 @@ export function vehicleDriverAt(
 }
 
 /**
- * VehicleInk — LES DEUX SOURCES DE LA COULEUR D'UN OCCUPANT, dans leur ordre de priorité.
+ * VehicleInk — THE TWO SOURCES OF THE COLOR OF AN OCCUPANT, in their priority order.
  *
- * `colorOfXuid` LIT CE QUE LE DOCUMENT AFFIRME : l'épisode d'occupation porte le xuid de son
- * occupant, et c'est ce que son contrat serveur promet (« c'est lui qui donne sa couleur au
- * véhicule », `document_vehicles.go`). `colorOfSlot` est le PONT slot->joueur, qui répond « qui
- * occupe ce slot à cette image » — muet pendant l'épisode quand la trace du bipède n'a pas été
- * jointe à un joueur. Le pont reste donc le REPLI, exactement comme pour le nom.
+ * `colorOfXuid` READS WHAT THE DOCUMENT AFFIRMS: the occupation episode carries
+ * the xuid of its occupant, and that is what its server contract promises (« c'est
+ * lui qui donne sa couleur au véhicule » [it is he who gives his color to the
+ * vehicle], `document_vehicles.go`). `colorOfSlot` is the slot->player BRIDGE,
+ * which answers "who occupies this slot on this image" — silent during the episode
+ * when the biped trace has not been joined to a player. The bridge therefore stays
+ * the FALLBACK, exactly as for the name.
  */
 export interface VehicleInk {
   colorOfXuid: (xuid: string) => string | null
@@ -662,7 +708,8 @@ export interface VehicleInk {
 }
 
 /**
- * vehicleRideColor — la couleur d'UN occupant : le xuid du document d'abord, le pont ensuite.
+ * vehicleRideColor — the color of ONE occupant: the document's xuid first, the
+ * bridge next.
  */
 export function vehicleRideColor(
   ride: ReplayVehicleRide,
@@ -674,10 +721,11 @@ export function vehicleRideColor(
 }
 
 /**
- * vehicleColorAt — la teinte du véhicule à `frame` (décision de cadrage C7) : la couleur du
- * CONDUCTEUR (siège 0) quand il est actif et son identité résolue ; À DÉFAUT, celle de
- * N'IMPORTE QUEL occupant actif dont l'identité est connue ; sinon `null` (neutre — l'appelant
- * y pose son encre de thème, ce fichier ne connaît aucun token, cf. règle color-tokens).
+ * vehicleColorAt — the tint of the vehicle at `frame` (framing decision C7): the
+ * color of the DRIVER (seat 0) when he is active and his identity resolved; IN THE
+ * ABSENCE OF THAT, that of ANY active occupant whose identity is known; otherwise
+ * `null` (neutral — the caller lays its theme ink there, this file knows no token,
+ * cf. the color-tokens rule).
  */
 export function vehicleColorAt(
   track: ReplayVehicleTrackReady,
@@ -698,25 +746,28 @@ export function vehicleColorAt(
 }
 
 /**
- * buildEmbarkedPredicate — LE PRÉDICAT « EMBARQUÉ À T » (C7, rappel utilisateur explicite :
- * MULTI-PASSAGERS). Regroupe TOUS les épisodes d'occupation de TOUS les véhicules du document
- * par slot de bipède UNE SEULE FOIS, puis répond en O(occupations de ce slot) — quelques
- * unités par joueur sur un match entier, jamais un balayage de tous les véhicules par image.
+ * buildEmbarkedPredicate — THE PREDICATE "EMBARKED AT T" (C7, user's explicit
+ * reminder: MULTI-PASSENGERS). Groups ALL the occupation episodes of ALL the
+ * vehicles of the document by biped slot ONCE, then answers in O(occupations of
+ * this slot) — a few units per player over a whole match, never a sweep of all
+ * vehicles per image.
  *
- * SORTIES INDÉPENDANTES PAR CONSTRUCTION : chaque `VehicleRide` porte SON PROPRE `[t0,t1]`, donc
- * deux occupants du MÊME véhicule (conducteur + passagers, Warthog 3 places, Razorback 4...)
- * reprennent leur pion chacun à SA frame de sortie, sans dépendre l'un de l'autre — c'est le sens
- * même de « plusieurs épisodes SIMULTANÉS », pas une propriété qu'il faut recoder ici.
+ * INDEPENDENT EXITS BY CONSTRUCTION: each `VehicleRide` carries ITS OWN `[t0,t1]`,
+ * so two occupants of the SAME vehicle (driver + passengers, Warthog 3 seats,
+ * Razorback 4...) each take their piece back at THEIR own exit frame, without
+ * depending on one another — that is the very meaning of "several SIMULTANEOUS
+ * episodes", not a property to recode here.
  *
- * SEULES LES VIES QUI PASSENT `vehicleCanEmbark` Y ENTRENT (2026-09-02) : ni décor, ni châssis
- * non résolu. Un épisode posé sur l'un ou l'autre effacerait un joueur bien réel de la carte,
- * sans rien montrer à sa place — c'est exactement ce qu'ont produit les trois faux épisodes du
- * prop Falcon de l'artefact `0d76e8f1` (2026-09-02 ; le Falcon n'est plus refusé depuis le
- * 2026-09-24, ce sont les gardes du serveur qui tiennent ces faux épisodes).
+ * ONLY THE LIVES THAT PASS `vehicleCanEmbark` ENTER (2026-09-02): neither
+ * decoration nor unresolved chassis. An episode laid on one or the other would
+ * erase a very real player from the map, without showing anything in their place
+ * — that is exactly what the three false episodes of the Falcon prop of the
+ * artifact `0d76e8f1` produced (2026-09-02; the Falcon is no longer refused since
+ * 2026-09-24, it is the server's guards that hold these false episodes).
  */
 export function buildEmbarkedPredicate(
   tracks: readonly ReplayVehicleTrackReady[],
-  /** NATURE d'une famille (`vehicleLabels[famille].kind`) : un élément de carte n'embarque pas. */
+  /** NATURE of a family (`vehicleLabels[family].kind`): a map element does not embark. */
   kindOf?: (family: string) => string | undefined,
 ): (slot: number, frame: number) => boolean {
   const bySlot = new Map<number, ReplayVehicleRide[]>()

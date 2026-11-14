@@ -1,40 +1,40 @@
 /**
- * carrierPosition.ts — OÙ SE DESSINE LE GLYPHE D'UN PORTEUR D'OBJECTIF, et rien d'autre.
+ * carrierPosition.ts — WHERE THE GLYPH OF AN OBJECTIVE CARRIER IS DRAWN, and nothing else.
  *
- * LE FAIT, MESURÉ CÔTÉ SERVEUR. Un joueur attaché à un véhicule CESSE DE RÉPLIQUER SA POSITION
- * MONDE (précondition écrite de `replay/vehicle_rides.go:12-15`) : sa trajectoire de bipède n'a
- * plus d'échantillon entre l'embarquement et la descente. `positionAt` (replayLogic.ts) fait
- * alors ce qu'on lui demande — elle INTERPOLE LINÉAIREMENT entre le dernier point avant
- * l'embarquement et le premier point après la descente. Le pion, lui, est déjà supprimé pendant
- * l'épisode (`replayMarkers.ts`, `MarkerStyle.embarkedAtSlot`) ; le GLYPHE porté, non : bombe,
- * crâne, drapeau porté et couronne VIP traversaient donc le décor en ligne droite, seuls.
+ * THE FACT, MEASURED ON THE SERVER SIDE. A player attached to a vehicle STOPS REPLICATING ITS
+ * WORLD POSITION (written precondition of `replay/vehicle_rides.go:12-15`): its bipode trajectory
+ * no longer has a sample between boarding and dismounting. `positionAt` (replayLogic.ts) then
+ * does what it is asked to do — it LINEARLY INTERPOLATES between the last point before
+ * boarding and the first point after dismounting. The piece, for its part, is already removed during
+ * the episode (`replayMarkers.ts`, `MarkerStyle.embarkedAtSlot`); the CARRIED GLYPH, not so: bomb,
+ * skull, carried flag and VIP crown were thus crossing the scenery in a straight line, alone.
  *
- * LA DÉCISION PRODUIT (utilisateur, 2026-09-05, « option 1 ») : pendant l'épisode, le glyphe se
- * dessine SUR LE VÉHICULE — il suit la trajectoire de la monture, à la MÊME interpolation que le
- * sprite (`vehiclePositionAt`, l'unique écriture de la position d'un véhicule à une image), pour
- * que le glyphe et le véhicule coïncident à l'écran au pixel près.
+ * THE SHIPPED DECISION (user, 2026-09-05, « option 1 »): during the episode, the glyph is
+ * drawn ON THE VEHICLE — it follows the mount's trajectory, at the SAME interpolation as the
+ * sprite (`vehiclePositionAt`, the single writing of a vehicle's position at a frame), so
+ * that the glyph and the vehicle coincide on screen down to the pixel.
  *
- * LA CLÉ EST LE XUID, parce que c'est celle que les calques d'objectif tiennent déjà : une
- * période de portage nomme son porteur par son xuid, jamais par un slot de bipède. Et l'épisode
- * d'occupation le nomme de la même façon (`VehicleRide.xuid`) — c'est même la SOURCE PRIORITAIRE
- * de son identité pour la teinte et le nom du véhicule, pour la raison exacte qui nous occupe
- * ici : pendant l'épisode, le pont slot->joueur est muet. UN ÉPISODE SANS XUID NE DÉPLACE AUCUN
- * GLYPHE : le repli est la position de bipède, c'est-à-dire le comportement d'avant ce lot —
- * jamais une position inventée, jamais un second pont d'identité à entretenir.
+ * THE KEY IS THE XUID, because it is the one the objective layers already hold: a
+ * carrying period names its carrier by its xuid, never by a bipode slot. And the episode
+ * of occupation names it the same way (`VehicleRide.xuid`) — it is even the PRIORITY SOURCE
+ * of its identity for the vehicle's tint and name, for the exact reason that concerns us
+ * here: during the episode, the slot->player bridge is silent. AN EPISODE WITHOUT XUID MOVES NO
+ * GLYPH: the fallback is the bipode position, that is, the pre-this-batch behavior —
+ * never an invented position, never a second identity bridge to maintain.
  *
- * INDÉPENDANT DE LA BASCULE DU CALQUE DES VÉHICULES (contrat, et c'est une décision) : le glyphe
- * suit le véhicule même quand l'utilisateur a éteint ce calque. La position d'un porteur est un
- * FAIT DU DOCUMENT, pas une décoration du calque ; la bascule ne commande que ce qui se DESSINE.
- * Elle diverge donc volontairement de `Vehicles.isEmbarkedAt` — lui suit la bascule, parce que
- * cacher un pion sans montrer son véhicule ferait disparaître un joueur sans réglage pour le
- * récupérer (revue adversariale du 2026-09-02, point 7). Ici l'arbitrage est inverse : calque
- * éteint, le pion revient à SA position interpolée (fausse, mais c'est le régime assumé de la
- * bascule) tandis que le glyphe garde la seule position vraie dont on dispose.
+ * INDEPENDENT OF THE VEHICLE LAYER'S TOGGLE (contract, and it is a decision): the glyph
+ * follows the vehicle even when the user has turned off that layer. The position of a carrier is a
+ * FACT OF THE DOCUMENT, not a decoration of the layer; the toggle only commands what is DRAWN.
+ * It therefore deliberately diverges from `Vehicles.isEmbarkedAt` — that one follows the toggle, because
+ * hiding a piece without showing its vehicle would make a player disappear with no setting to
+ * bring it back (adversarial review of 2026-09-02, point 7). Here the call is the reverse: layer
+ * off, the piece returns to ITS interpolated position (false, but that is the accepted regime of the
+ * toggle) while the glyph keeps the only true position at our disposal.
  *
- * UN SEUL CHEMIN POUR CINQ CALQUES. Les cinq consommateurs (bombe portée, couronne VIP, crâne
- * d'Oddball, drapeau porté, déflagration d'Assaut) appellent `useCarrierPosAt` et rien d'autre :
- * la règle « embarqué -> véhicule, sinon bipède » est écrite ICI, une fois
- * (`positionOfCarrierAt`), et `carrierPosition.guard.test.ts` interdit qu'elle se recopie.
+ * ONE PATH FOR FIVE LAYERS. The five consumers (carried bomb, VIP crown,
+ * Oddball skull, carried flag, Assault blast) call `useCarrierPosAt` and nothing else:
+ * the rule « embarked -> vehicle, otherwise bipode » is written HERE, once
+ * (`positionOfCarrierAt`), and `carrierPosition.guard.test.ts` forbids it being copied elsewhere.
  */
 import { useMemo } from 'react'
 
@@ -43,10 +43,10 @@ import type { XY } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayVehicleTrackReady } from '../../../lib/replay/replayNormalize'
 import { vehicleCanEmbark, vehiclePositionAt } from './vehiclesLayer'
 
-/** La position d'un joueur EMBARQUÉ à une image, ou `null` (il ne l'est pas, ou on l'ignore). */
+/** The position of an EMBARKED player at a frame, or `null` (it is not embarked, or it is unknown). */
 export type EmbarkedPosAt = (xuid: string, frame: number) => XY | null
 
-/** Un épisode d'occupation réduit à ce dont la position a besoin : sa fenêtre et sa monture. */
+/** An occupation episode reduced to what the position needs: its window and its mount. */
 interface EmbarkedEpisode {
   t0: number
   t1: number
@@ -54,18 +54,18 @@ interface EmbarkedEpisode {
 }
 
 /**
- * buildEmbarkedPosAt — l'index des épisodes d'occupation PAR XUID, puis la position de la monture.
+ * buildEmbarkedPosAt — the index of occupation episodes BY XUID, then the mount's position.
  *
- * Même construction et même filtre que `buildEmbarkedPredicate` (vehiclesLayer.ts) : les épisodes
- * de TOUS les véhicules sont regroupés UNE fois, et seules les vies qui passent `vehicleCanEmbark`
- * y entrent — ni décor, ni châssis non résolu. Le filtre doit rester le MÊME que celui du prédicat
- * du pion, sans quoi un faux épisode déplacerait un glyphe là où il ne cache aucun pion (les trois
- * épisodes prêtés au prop Falcon de l'artefact `0d76e8f1`, le 2026-09-02, quand le Falcon était
- * encore refusé par sa famille ; depuis le 2026-09-24 ce sont les gardes du serveur qui tiennent
- * ces faux épisodes).
+ * Same construction and same filter as `buildEmbarkedPredicate` (vehiclesLayer.ts): the episodes
+ * of ALL vehicles are gathered ONCE, and only the lives that pass `vehicleCanEmbark`
+ * enter it — no scenery, no unresolved chassis. The filter must stay the SAME as the one of the
+ * piece's predicate, otherwise a false episode would move a glyph to where it hides no piece (the three
+ * episodes lent to the Falcon prop of artifact `0d76e8f1`, on 2026-09-02, while the Falcon was
+ * still refused by its family; since 2026-09-24 it is the server's guards that hold
+ * these false episodes).
  *
- * Le prédicat, lui, indexe par SLOT : c'est ce que le calque des pions tient. Ici c'est le xuid —
- * deux clés pour deux appelants, pas deux règles d'occupation.
+ * The predicate, for its part, indexes by SLOT: that is what the piece layer holds. Here it is the xuid —
+ * two keys for two callers, not two rules of occupation.
  */
 export function buildEmbarkedPosAt(
   vehicles: readonly ReplayVehicleTrackReady[],
@@ -95,12 +95,12 @@ export function buildEmbarkedPosAt(
 }
 
 /**
- * positionOfCarrierAt — LA RÈGLE, en une seule écriture : embarqué -> la position du véhicule ;
- * sinon -> la position du bipède, telle que les calques la lisaient jusqu'ici.
+ * positionOfCarrierAt — THE RULE, in a single writing: embarked -> the vehicle's position;
+ * otherwise -> the bipode's position, as the layers were reading it until now.
  *
- * Le repli couvre trois cas, tous « comportement d'avant ce lot » : le joueur n'est pas à bord,
- * l'épisode ne le nomme pas, ou la monture n'a AUCUNE position à cette image (ni échantillon ni
- * naissance lue — `vehiclePositionAt` refuse d'en inventer une).
+ * The fallback covers three cases, all « pre-this-batch behavior »: the player is not aboard,
+ * the episode does not name it, or the mount has NO position at this frame (neither a sample nor a
+ * read birth — `vehiclePositionAt` refuses to invent one).
  */
 export function positionOfCarrierAt(
   embarkedAt: EmbarkedPosAt,
@@ -111,14 +111,14 @@ export function positionOfCarrierAt(
   return embarkedAt(xuid, frame) ?? bipedAt(xuid, frame)
 }
 
-/** buildCarrierPosAt — la relecture complète d'un document, pour les constructeurs hors React. */
+/** buildCarrierPosAt — the full rereading of a document, for non-React builders. */
 export function buildCarrierPosAt(doc: ReplayDocumentReady): PlayerPosAt {
   const embarkedAt = buildEmbarkedPosAt(doc.vehicles)
   const bipedAt = buildPlayerPosAt(doc)
   return (xuid, frame) => positionOfCarrierAt(embarkedAt, bipedAt, xuid, frame)
 }
 
-/** useCarrierPosAt — la même relecture, mémoïsée pour les hooks de calque. */
+/** useCarrierPosAt — the same rereading, memoized for the layer hooks. */
 export function useCarrierPosAt(doc: ReplayDocumentReady): PlayerPosAt {
   return useMemo(() => buildCarrierPosAt(doc), [doc])
 }

@@ -1,62 +1,62 @@
 /**
- * edgeClamp.ts — LA GÉOMÉTRIE PURE DU BORNAGE HORS CADRE (chantier B, plan escouade hors
- * cadre, 2026-09-10).
+ * edgeClamp.ts — THE PURE GEOMETRY OF OFFSCREEN CLAMPING (worksite B, offscreen squad
+ * plan, 2026-09-10).
  *
- * POURQUOI. `worldToCanvas` (`lib/replay/replayLogic.ts`, exposé ici via `projectTo`) est une
- * projection affine SANS bornage : un point hors des bornes du cadrage se projette hors de la
- * toile, le bitmap du canvas l'écrête, et le marqueur disparaît sans repère. À zoom serré
- * (2x/3x), c'est la position de tout un joueur qui se perd. `edgeMarkFor` répond à une seule
- * question, sans rien dessiner : où poser un repère PLAQUÉ À LA MARGE, dans quelle direction
- * pointe-t-il vers la vraie position, et à quelle distance (en mètres) se trouve-t-elle.
+ * WHY. `worldToCanvas` (`lib/replay/replayLogic.ts`, exposed here via `projectTo`) is an
+ * affine projection WITHOUT clamping: a point outside the framing bounds projects outside the
+ * canvas, the canvas bitmap clips it, and the marker disappears without a reference. At tight zoom
+ * (2x/3x), it is the position of a whole player that is lost. `edgeMarkFor` answers a single
+ * question, without drawing anything: where to place a marker FLUSH TO THE MARGIN, in which direction
+ * does it point toward the true position, and at what distance (in meters) is it located.
  *
- * POURQUOI CE MODULE VIT ICI, ET PAS DANS `lib/replay/` (écart au chemin du plan
- * `PLAN_ESCOUADE_HORS_CADRE_2026-09-09.md`, §4 B0.1, corrigé sur pièce à l'exécution). Le
- * cadrage (`CanvasView`) et sa projection (`projectTo`, `scaleOf`) ne vivent PLUS dans
- * `lib/replay/` depuis le lot K3 (2026-09-05) : ils vivent dans `replayView.ts`, à côté, et
- * c'est cette même page d'en-tête qui interdit « une seconde règle de projection ». Aucun
- * fichier de `lib/replay/` (hors fixtures de test) n'importe quoi que ce soit de la feature —
- * l'inverse casserait la couche basse/haute du dépôt. Ce module respecte donc la même règle
- * que tous les calques (`replayMarkers.ts`, `flagCarriesLayer.ts`…) : il vit dans la feature,
- * à côté du cadrage qu'il consomme, jamais une seconde déclaration.
+ * WHY THIS MODULE LIVES HERE, AND NOT IN `lib/replay/` (deviation from the path of the plan
+ * `PLAN_ESCOUADE_HORS_CADRE_2026-09-09.md`, §4 B0.1, corrected on the spot at execution). The
+ * framing (`CanvasView`) and its projection (`projectTo`, `scaleOf`) no longer LIVE in
+ * `lib/replay/` since batch K3 (2026-09-05): they live in `replayView.ts`, next door, and
+ * it is that same header page that forbids « a second rule of projection ». No
+ * file of `lib/replay/` (outside test fixtures) imports anything from the feature —
+ * the reverse would break the low/high layer of the repository. This module therefore respects the same rule
+ * as all the layers (`replayMarkers.ts`, `flagCarriesLayer.ts`...): it lives in the feature,
+ * next to the framing it consumes, never a second declaration.
  *
- * UNITÉS. `c` est un point MONDE. `margeEcran` est en pixels d'ÉCRAN DE RÉFÉRENCE (avant mise à
- * l'échelle), `echelle` est le même facteur que `style.k` ailleurs dans le rejeu (densité du
- * canevas) — la marge PLAQUÉE suit donc la même convention que toute grandeur qui s'adresse à
- * l'œil dans cette feature. La distance rendue, elle, est en MÈTRES DU MONDE : elle divise
- * l'écart de pixels par `scaleOf(view)`, jamais l'inverse.
+ * UNITS. `c` is a WORLD point. `margeEcran` is in REFERENCE SCREEN pixels (before scaling),
+ * `echelle` is the same factor as `style.k` elsewhere in the replay (density of the
+ * canvas) — the FLUSH margin therefore follows the same convention as every quantity addressed to
+ * the eye in this feature. The distance rendered, for its part, is in WORLD METERS: it divides
+ * the pixel gap by `scaleOf(view)`, never the reverse.
  *
- * `at`/`angle` SONT DANS L'ESPACE CANVAS (post-projection) : l'inversion de Y (monde +Y en
- * haut, toile +Y en bas) est déjà faite par `projectTo` — ce module ne la refait pas, il ne fait
- * que borner et mesurer ce qu'elle a produit.
+ * `at`/`angle` ARE IN CANVAS SPACE (post-projection): the inversion of Y (world +Y
+ * up, canvas +Y down) is already done by `projectTo` — this module does not redo it, it only
+ * clamps and measures what it produced.
  */
 import type { XY } from '../../../lib/replay/replayLogic'
 import { type CanvasView, projectTo, scaleOf } from './replayView'
 
 /**
- * OFFSCREEN_MARGIN_PX — la marge de bornage CANONIQUE du chantier B, en pixels d'écran de
- * référence (avant mise à l'échelle par `k`). Tous les calques qui bornent un glyphe à la
- * marge (joueurs vivants, croix de mort, porteurs d'objectif) la PARTAGENT — jamais une copie
- * locale (CLAUDE.md n°6) : une marge qui diverge d'un calque à l'autre ferait flotter les
- * repères à des distances différentes du bord pour le même cadrage.
+ * OFFSCREEN_MARGIN_PX — the CANONICAL clamping margin of worksite B, in reference screen pixels
+ * (before scaling by `k`). All the layers that clamp a glyph to the
+ * margin (living players, death cross, objective carriers) SHARE it — never a local copy
+ * (CLAUDE.md n°6): a margin that diverges from one layer to another would make the
+ * references float at different distances from the edge for the same framing.
  */
 export const OFFSCREEN_MARGIN_PX = 16
 
-/** Ce que le bornage rend pour un point hors cadre : où le poser, vers où, à quelle distance. */
+/** What the clamping returns for an offscreen point: where to place it, toward which way, at what distance. */
 export interface EdgeMark {
-  /** Position CANVAS où plaquer le repère, bornée à la marge sur les deux axes. */
+  /** CANVAS position where to place the reference, clamped to the margin on both axes. */
   at: XY
-  /** Angle CANVAS (radians), de `at` vers la position réelle projetée. */
+  /** CANVAS angle (radians), from `at` toward the projected real position. */
   angle: number
-  /** Distance entre le bord et la position réelle, en MÈTRES du monde. */
+  /** Distance between the edge and the real position, in WORLD METERS. */
   distanceM: number
 }
 
 /**
- * edgeMarkFor projette `c` et le borne à `margeEcran * echelle` pixels du bord de `view`.
+ * edgeMarkFor projects `c` and clamps it to `margeEcran * echelle` pixels from the edge of `view`.
  *
- * Rend `null` quand la projection tombe DÉJÀ dans le cadre bordé (rien à signaler : le
- * marqueur normal suffit). Un point tout juste sur la marge est considéré DEDANS — la marge
- * est la dernière position valide, pas la première hors cadre.
+ * Returns `null` when the projection falls ALREADY inside the bounded frame (nothing to report: the
+ * normal marker suffices). A point just on the margin is considered INSIDE — the margin
+ * is the last valid position, not the first one offscreen.
  */
 export function edgeMarkFor(
   c: XY,

@@ -1,26 +1,29 @@
 /**
- * vehiclesAim.ts — LA VISÉE D'UN OCCUPANT DE VÉHICULE (schéma 39) : quelle direction, à quelle
- * image, et quand retomber sur le cap du châssis.
+ * vehiclesAim.ts — THE AIM OF A VEHICLE OCCUPANT (schema 39): which direction, at which
+ * image, and when to fall back on the chassis heading.
  *
- * POURQUOI CE FICHIER EXISTE (2026-09-03). `vehiclesLayer.ts` a franchi le seuil de taille du
- * dépôt (CLAUDE.md n°5) en gagnant cette septième responsabilité, et la règle est d'EXTRAIRE
- * plutôt que d'exempter — exactement le geste qui avait déjà séparé `vehiclesPaint.ts` (le canvas)
- * de `vehiclesLayer.ts` (les règles). La couture tombe ici sur une frontière nette : ce fichier ne
- * connaît QUE la visée, et il est le seul à lire `ReplayVehicleRide.aim`.
+ * WHY THIS FILE EXISTS (2026-09-03). `vehiclesLayer.ts` crossed the repo's size threshold
+ * (CLAUDE.md n°5) by gaining this seventh responsibility, and the rule is to EXTRACT
+ * rather than to exempt — exactly the move that had already separated `vehiclesPaint.ts`
+ * (the canvas) from `vehiclesLayer.ts` (the rules). The seam falls here on a clean
+ * boundary: this file knows ONLY the aim, and it is the only one to read
+ * `ReplayVehicleRide.aim`.
  *
- * CE QUE LE SCHÉMA 31 A CHANGÉ, ET C'EST LE POINT DU LOT. Le cône d'un véhicule était dessiné au
- * CAP DU CHÂSSIS (`vehicleHeadingAt`), pour le seul conducteur, faute de mieux : un occupant
- * attaché ne réplique plus sa position, et le dépôt en concluait qu'il ne répliquait plus rien. Le
- * lot V11 a montré que la faute était dans le DÉCODEUR, pas dans le film — la visée de CHAQUE
- * occupant (conducteur, artilleur, passager, chacun sur son propre slot bipède) continue d'être
- * transmise pendant tout l'épisode, dans des records qui ne portent AUCUNE position. Chiffres
- * publiés avec le champ : justesse 0,2 à 0,5 deg contre la référence `Point.h` (témoin par mélange
- * 75,7 à 93,7 deg), couverture 35 épisodes attestés sur 35, et un écart au cap du châssis de 15,7
- * à 21,8 deg en médiane (q3 39,6 à 52,9 deg) — c'est-à-dire l'erreur que faisait l'ancien cône.
+ * WHAT SCHEMA 31 CHANGED, AND THAT IS THE POINT OF THE LOT. A vehicle's cone was drawn at
+ * the CHASSIS HEADING (`vehicleHeadingAt`), for the driver alone, for lack of a better
+ * option: an attached occupant no longer replicates its position, and the repo concluded
+ * it no longer replicated anything. Lot V11 showed the fault was in the DECODER, not in
+ * the film — the aim of EVERY occupant (driver, gunner, passenger, each on their own
+ * biped slot) keeps being transmitted during the whole episode, in records that carry NO
+ * position at all. Figures published with the field: accuracy 0.2 to 0.5 deg against
+ * the `Point.h` reference (shuffled witness 75.7 to 93.7 deg), coverage 35 attested
+ * episodes out of 35, and a gap from the chassis heading of 15.7 to 21.8 deg in median
+ * (q3 39.6 to 52.9 deg) — that is the error the old cone made.
  *
- * CE QUI NE VIENT PAS DE LÀ, réfuté AVEC TÉMOIN au même lot : l'orientation de la TOURELLE en tant
- * qu'objet. L'entité tourelle ne réplique rien du tout (formes de masque plates, sous le plancher
- * de bruit d'une bande fantôme sur un des deux films). Le cône de l'artilleur vient de L'HOMME.
+ * WHAT DOES NOT COME FROM THERE, refuted WITH WITNESS in the same lot: the orientation of
+ * the TURRET as an object. The turret entity replicates nothing at all (flat mask
+ * shapes, under the noise floor of a phantom band on one of the two films). The gunner's
+ * cone comes from THE MAN.
  */
 import type { ReplayVehicleAim, ReplayVehicleRide } from '@/lib/api/types'
 
@@ -36,51 +39,54 @@ import {
 } from './vehiclesLayer'
 
 /**
- * VEHICLE_AIM_HOLD_FRAMES — combien de frames une lecture de visée reste EN VIGUEUR après son
- * instant, avant que le cône ne retombe sur le cap du châssis.
+ * VEHICLE_AIM_HOLD_FRAMES — how many frames an aim reading stays IN EFFECT after its
+ * instant, before the cone falls back on the chassis heading.
  *
- * DIX FRAMES, C'EST-À-DIRE UNE SECONDE, ET LE CHIFFRE VIENT DE LA MESURE : le film réplique la
- * visée d'un occupant à 5 à 46 lectures par seconde (lot V11, 35 épisodes attestés, 5 films) pour
- * 10 frames publiées par seconde — une seconde entière sans la moindre lecture n'est donc pas un
- * défaut d'échantillonnage, c'est une interruption réelle du flux.
+ * TEN FRAMES, THAT IS ONE SECOND, AND THE FIGURE COMES FROM THE MEASUREMENT: the film
+ * replicates an occupant's aim at 5 to 46 readings per second (lot V11, 35 attested
+ * episodes, 5 films) for 10 frames published per second — a whole second without any
+ * reading is therefore not a sampling defect, it is a real interruption of the stream.
  *
- * CE N'EST PAS `TIMING_MS.aimHold` (5 s, le maintien du regard d'un PION), et il ne faut pas les
- * confondre : le pion tient sa visée longtemps parce que son `h` n'est transmis que sur ~44 % de
- * ses points, alors que la série d'un occupant est DENSE par construction. Maintenir 5 s ici
- * afficherait une direction périmée là où le châssis, lui, est connu à l'image près.
+ * THIS IS NOT `TIMING_MS.aimHold` (5 s, the gaze hold of a PIECE), and they must not be
+ * confused: the piece holds its aim a long time because its `h` is transmitted on only
+ * ~44% of its points, while an occupant's series is DENSE by construction. Holding 5 s
+ * here would display an expired direction where the chassis, for its part, is known to
+ * the image.
  */
 export const VEHICLE_AIM_HOLD_FRAMES = 10
 
 /**
- * VehicleOccupantAim — CE QU'UN OCCUPANT REGARDE à une image, prêt à peindre.
+ * VehicleOccupantAim — WHAT AN OCCUPANT LOOKS AT on an image, ready to paint.
  *
- * `measured` n'est PAS décoratif : c'est la différence entre une visée LUE dans le film (0,2 à
- * 0,5 deg d'écart à la référence publiée) et le REPLI sur le cap du châssis, qui se trompe de 15,7
- * à 21,8 deg en médiane et de plus de 40 deg au quartile supérieur. Les tests s'y accrochent, et
- * un rendu futur peut le lire (opacité, style) sans avoir à redécouvrir la règle.
+ * `measured` IS NOT decorative: it is the difference between an aim READ IN THE FILM
+ * (0.2 to 0.5 deg off the published reference) and the FALLBACK on the chassis heading,
+ * which is off by 15.7 to 21.8 deg in median and by more than 40 deg at the upper
+ * quartile. The tests hook onto it, and a future rendering can read it (opacity, style)
+ * without having to rediscover the rule.
  */
 export interface VehicleOccupantAim {
-  /** Angle CANEVAS du cône, en radians (l'inversion monde -> écran est déjà appliquée). */
+  /** CANVAS angle of the cone, in radians (the world -> screen inversion is already applied). */
   ang: number
-  /** Élévation en degrés, positif = vers le haut. 0 = à plat, y compris en repli. */
+  /** Elevation in degrees, positive = upward. 0 = level, including in fallback. */
   pitchDeg: number
-  /** true = visée MESURÉE de cet occupant ; false = repli sur le cap du châssis. */
+  /** true = MEASURED aim of this occupant; false = fallback on the chassis heading. */
   measured: boolean
 }
 
 /**
- * vehicleRideAimReading — la dernière lecture de visée EN VIGUEUR à `frame` pour cet épisode, ou
- * `null` (aucune série, aucune lecture au plus tard à cette image, ou lecture trop ancienne).
+ * vehicleRideAimReading — the last aim reading IN EFFECT at `frame` for this episode, or
+ * `null` (no series, no reading as of at least this image, or reading too old).
  *
- * ENTRE DEUX LECTURES CONSÉCUTIVES (écart d'au plus le maintien), le cap TOURNE de l'une à l'autre
- * par le plus court chemin angulaire (`headingTowardNext`, contrôles v8 du 2026-10-21) : tenu à la
- * dernière lecture, il faisait pivoter le châssis et le cône par saccades de 100 ms. L'élévation
- * (`p`) reste, elle, celle de la dernière lecture. Passé le maintien, aucune lecture n'est inventée :
- * on rend `null`.
+ * BETWEEN TWO CONSECUTIVE READINGS (gap of at most the hold), the heading TURNS from one
+ * to the other by the shortest angular path (`headingTowardNext`, v8 controls of
+ * 2026-10-21): held at the last reading, it made the chassis and the cone rotate in
+ * 100 ms jerks. The elevation (`p`) stays, for its part, that of the last reading. Past
+ * the hold, no reading is invented: it returns `null`.
  *
- * UN POINT SANS `h` EST SAUTÉ. Le contrat serveur publie 360 plutôt que 0 (le PIÈGE omitempty,
- * cf. `headingForJSON` côté Go), donc le cas ne devrait pas exister — mais le champ est optionnel
- * au contrat, et un cône laissé à 0 par défaut pointerait l'est sans que rien ne l'ait mesuré.
+ * A POINT WITHOUT `h` IS SKIPPED. The server contract publishes 360 rather than 0 (the
+ * omitempty TRAP, cf. `headingForJSON` on the Go side), so the case should not exist —
+ * but the field is optional in the contract, and a cone left at 0 by default would point
+ * east without anything having measured it.
  */
 export function vehicleRideAimReading(
   ride: ReplayVehicleRide,
@@ -97,56 +103,61 @@ export function vehicleRideAimReading(
 }
 
 /**
- * vehicleShooterAimAt — LA VISÉE DU TIREUR D'UN TIR EN VÉHICULE, en degrés monde, ou `null`.
+ * vehicleShooterAimAt — THE AIM OF THE SHOOTER OF A VEHICLE SHOT, in world degrees, or
+ * `null`.
  *
- * ## Pourquoi ce n'est PAS une histoire de siège (lot 5.5, 2026-09-21)
+ * ## Why this is NOT a matter of seat (lot 5.5, 2026-09-21)
  *
- * Un tir de TOURELLE (Warthog, Scorpion) partait sans aucune direction : le film ne publie pas
- * l'orientation de la tourelle, et le lot 5.5.1 l'a établi par DEUX négatifs mesurés — les
- * composants `ti=40 i41`/`i42` (`vehicle-seats-override-pitch`/`-yaw`) sont une API de SCRIPT
- * (une paire d'angles en degrés posée par le moteur de mission, pas une valeur par tick) et
- * AUCUN record ne les déclare : 0 sur 253 863 records de véhicule, deux films, alors que le même
- * recensement voit des composants présents à UN SEUL record. Même négatif pour la visée de la
- * tourelle AUTOMATIQUE (`i31`) et pour l'`i21` du véhicule lui-même.
+ * A TURRET shot (Warthog, Scorpion) left with no direction at all: the film does not
+ * publish the turret's orientation, and lot 5.5.1 established it by TWO measured
+ * negatives — the `ti=40 i41`/`i42` components (`vehicle-seats-override-pitch`/`-yaw`)
+ * are a SCRIPT API (a pair of angles in degrees set by the mission engine, not a
+ * per-tick value) and NO record declares them: 0 out of 253,863 vehicle records, two
+ * films, while the same census finds components present on ONE SINGLE record. Same
+ * negative for the AUTOMATIC turret aim (`i31`) and for the `i21` of the vehicle itself.
  *
- * LA SEULE DIRECTION MESURÉE QUI RESTE EST CELLE DU TIREUR, et le document la publie déjà : la
- * visée de CHAQUE occupant voyage pendant tout son épisode (schéma 31, justesse 0,2-0,5 degré).
+ * THE ONLY MEASURED DIRECTION LEFT IS THE SHOOTER'S, and the document already publishes
+ * it: the aim of EVERY occupant travels during the whole episode (schema 31, accuracy
+ * 0.2-0.5 degrees).
  *
- * ## L'APPARIEMENT SE FAIT PAR SLOT, ET C'EST CE QUI REND LA RÈGLE JUSTE
+ * ## THE PAIRING IS DONE BY SLOT, AND THAT IS WHAT MAKES THE RULE RIGHT
  *
- * Un tir porte le slot de son TIREUR (`Shot.slot`, celui qui alimente déjà `heldReading`) et un
- * épisode d'occupation porte le slot de son OCCUPANT (`ReplayVehicleRide.slot`). Les apparier
- * rend l'épisode de CELUI QUI A TIRÉ — donc sa visée — sans jamais supposer quel siège sert quelle
- * arme. C'est indispensable : le tourelleur du Warthog est un passager, alors que le canon du
- * Scorpion est servi par le CONDUCTEUR ; et la mesure a montré que le champ `seat` ne départage
- * pas (sur les 100 tirs de tourelle de `4f77afc1`, l'épisode du tireur se déclare `seat = 0`
- * 84 fois et muet 16 fois — le SIÈGE n'est pas fiable, le SLOT l'est).
+ * A shot carries the slot of its SHOOTER (`Shot.slot`, the one that already feeds
+ * `heldReading`) and an occupation episode carries the slot of its OCCUPANT
+ * (`ReplayVehicleRide.slot`). Pairing them returns the episode of THE ONE WHO FIRED —
+ * hence its aim — without ever assuming which seat serves which weapon. This is
+ * essential: the Warthog's turret gunner is a passenger, while the Scorpion's cannon is
+ * served by the DRIVER; and the measurement showed the `seat` field does not
+ * discriminate (on the 100 turret shots of `4f77afc1`, the shooter's episode declares
+ * `seat = 0` 84 times and stays silent 16 — the SEAT is not reliable, the SLOT is).
  *
- * MESURE (documents cuits, aucun décodage) : sur les 100 tirs de tourelle de `4f77afc1`,
- * l'épisode du tireur est trouvé **100 fois sur 100** et porte une visée EN VIGUEUR **95 fois**.
- * Son écart au cap auquel le châssis est dessiné vaut **43,5 degrés en médiane** (q75 105,1 ;
- * q90 146,7) : ce n'est pas un raffinement, c'est la direction que le rendu ignorait.
+ * MEASUREMENT (baked documents, no decoding): on the 100 turret shots of `4f77afc1`,
+ * the shooter's episode is found **100 times out of 100** and carries an aim IN EFFECT
+ * **95 times**. Its gap from the heading at which the chassis is drawn is **43.5
+ * degrees in median** (q75 105.1; q90 146.7): this is not a refinement, it is the
+ * direction the rendering ignored.
  */
 export function vehicleShooterAimAt(
   track: ReplayVehicleTrackReady,
   shooterSlot: number,
   frame: number,
 ): number | null {
-  // `vehicleActiveRides` PLUTÔT QU'UN FILTRE À LA MAIN : le prédicat « cet épisode couvre-t-il
-  // cette image » vit là-bas et nulle part ailleurs (CLAUDE.md n° 6) — le recopier ici en ferait
-  // une troisième orthographe de la même borne.
+  // `vehicleActiveRides` RATHER THAN A HAND-WRITTEN FILTER: the predicate "does this
+  // episode cover this image" lives there and nowhere else (CLAUDE.md n°6) — recopying it
+  // here would make a third spelling of the same bound.
   const sien = vehicleActiveRides(track, frame).find((r) => r.slot === shooterSlot)
   if (!sien) return null
   return vehicleRideAimReading(sien, frame)?.h ?? null
 }
 
 /**
- * vehicleOccupantAimAt — LA DIRECTION DU CÔNE D'UN OCCUPANT : sa mesure d'abord, le châssis en
- * repli.
+ * vehicleOccupantAimAt — THE DIRECTION OF AN OCCUPANT'S CONE: its measurement first, the
+ * chassis as fallback.
  *
- * LE REPLI RESTE LE CAP DU CHÂSSIS quand l'épisode n'a pas de visée en vigueur à cette image —
- * c'est EXACTEMENT le comportement d'avant la série de visée, si bien qu'un artefact antérieur (aucun `aim`
- * nulle part) rend le même cône qu'avant, sans branche particulière ni test de version.
+ * THE FALLBACK STAYS THE CHASSIS HEADING when the episode has no aim in effect on this
+ * image — that is EXACTLY the behavior before the aim series, so that an earlier
+ * artifact (no `aim` anywhere) renders the same cone as before, without a special branch
+ * or a version test.
  */
 export function vehicleOccupantAimAt(
   track: ReplayVehicleTrackReady,
@@ -157,54 +168,57 @@ export function vehicleOccupantAimAt(
   if (read && read.h !== undefined) {
     return { ang: vehicleAimAngle(read.h), pitchDeg: read.p ?? 0, measured: true }
   }
-  // À PLAT EN REPLI, et c'est une mesure : le cap du châssis est la direction d'un DÉPLACEMENT,
-  // qui est horizontal — lui prêter une élévation inventerait un second angle.
+  // LEVEL IN FALLBACK, and that is a measurement: the chassis heading is the direction of
+  // a MOVEMENT, which is horizontal — lending it an elevation would invent a second angle.
   return { ang: vehicleAimAngle(vehicleHeadingAt(track, frame)), pitchDeg: 0, measured: false }
 }
 /**
- * vehicleChassisHeadingAt — LE CAP AUQUEL LE CHÂSSIS SE DESSINE : la visée du CONDUCTEUR sur les
- * familles à arme fixe, la vélocité partout ailleurs.
+ * vehicleChassisHeadingAt — THE HEADING AT WHICH THE CHASSIS IS DRAWN: the DRIVER's aim on
+ * fixed-weapon families, velocity everywhere else.
  *
- * ## Pourquoi cette fonction existe (2026-09-20)
+ * ## Why this function exists (2026-09-20)
  *
- * LE CHÂSSIS ÉTAIT DESSINÉ À LA DIRECTION DE SA VÉLOCITÉ (`vehicleHeadingAt`) — c'est-à-dire
- * « là où le véhicule se déplace », pas « là où il pointe ». Un véhicule qui recule, dérape,
- * tourne, vole ou est à l'arrêt n'a pas son nez dans cette direction, et 16 à 31 % des points de
- * trajectoire n'en portent aucune (sous le seuil de vitesse du producteur).
+ * THE CHASSIS WAS DRAWN AT THE DIRECTION OF ITS VELOCITY (`vehicleHeadingAt`) — that is
+ * "where the vehicle is moving", not "where it points". A vehicle reversing, skidding,
+ * turning, flying or stopped has its nose nowhere in that direction, and 16 to 31% of
+ * the trajectory points carry none of it (below the producer's speed threshold).
  *
- * L'ORIENTATION PROPRE DU FILM A ÉTÉ RÉFUTÉE, elle ne viendra pas combler ce trou : le lot 5.2-B
- * a mesuré le composant candidat de `ti=40` (`i2`) et c'est un vecteur HAUT, pas un avant —
- * médianes de 54 à 105 degrés contre la vélocité.
+ * THE FILM'S PROPER ORIENTATION HAS BEEN REFUTED, it will not come fill this hole: lot
+ * 5.2-B measured the candidate component of `ti=40` (`i2`) and it is a UP vector, not a
+ * forward one — medians of 54 to 105 degrees against the velocity.
  *
- * LA DÉCISION DE L'UTILISATEUR (2026-09-20) est donc de prendre la seule direction que le
- * véhicule porte en propre ET qui soit mesurée : « le châssis s'oriente là où l'ARME pointe ».
- * Sur une famille à arme fixe, viser C'EST tourner le véhicule — la visée du conducteur est donc
- * l'avant du châssis, à 0,2-0,5 degré près (schéma 31). Sur une famille à tourelle, elle ne l'est
- * pas et le pilote n'est même pas le tireur : le repli reste la vélocité.
+ * THE USER'S DECISION (2026-09-20) is therefore to take the only direction the vehicle
+ * carries of its own AND that is measured: « le châssis s'oriente là où l'ARME pointe »
+ * [the chassis orients where the WEAPON points]. On a fixed-weapon family, aiming IS
+ * turning the vehicle — the driver's aim is therefore the front of the chassis, to within
+ * 0.2-0.5 degrees (schema 31). On a turret family it is not, and the pilot is not even
+ * the shooter: the fallback stays the velocity.
  *
- * ## Les quatre régimes, dans l'ordre
+ * ## The four regimes, in order
  *
- *   1. VISÉE DU CONDUCTEUR — famille à arme fixe (`FAMILLES_ARME_FIXE`), un épisode du SIÈGE 0
- *      en vigueur à cette image, et une lecture de visée en vigueur dessus.
- *   2. VÉLOCITÉ — tout le reste, exactement comme avant : famille à tourelle, siège 0 vide
- *      (véhicule abandonné, ou conduit par personne), ou épisode sans lecture de visée en vigueur.
- *   3. CAP VOISIN — aucun échantillon en arrière ne porte de cap (véhicule encore à quai).
- *   4. DÉFAUT — `VEHICLE_DEFAULT_HEADING_DEG`, nez vers le haut.
+ *   1. DRIVER'S AIM — fixed-weapon family (`FAMILLES_ARME_FIXE`), a SEAT 0 episode in
+ *      effect on this image, and an aim reading in effect on it.
+ *   2. VELOCITY — everything else, exactly as before: turret family, empty seat 0
+ *      (abandoned vehicle, or driven by no one), or episode without an aim reading in
+ *      effect.
+ *   3. NEIGHBOR HEADING — no backward sample carries a heading (vehicle still berthed).
+ *   4. DEFAULT — `VEHICLE_DEFAULT_HEADING_DEG`, nose upward.
  *
- * Les régimes 2 à 4 sont `vehicleHeadingAt` tel quel : cette fonction ne fait qu'AJOUTER le
- * premier devant.
+ * Regimes 2 to 4 are `vehicleHeadingAt` as is: this function only ADDS the first one
+ * in front.
  *
- * ## Pourquoi ici et pas dans `vehiclesLayer`
+ * ## Why here and not in `vehiclesLayer`
  *
- * Ce module est le SEUL à lire `ReplayVehicleRide.aim` (cf. l'en-tête), et `vehiclesLayer` ne
- * l'importe pas — l'y poser créerait un cycle entre les deux fichiers. La TABLE des familles,
- * elle, reste chez les autres tables de familles (`FAMILLES_ARME_FIXE`).
+ * This module is the ONLY one to read `ReplayVehicleRide.aim` (cf. the header), and
+ * `vehiclesLayer` does not import it — putting it there would create a cycle between
+ * the two files. The TABLE of families, for its part, stays with the other family
+ * tables (`FAMILLES_ARME_FIXE`).
  *
- * ## Ce que cette fonction NE change PAS
+ * ## What this function does NOT change
  *
- * Le REPLI DU CÔNE de visée (`vehicleOccupantAimAt`) garde `vehicleHeadingAt`, la vélocité nue :
- * ce repli est marqué `measured: false`, et lui donner la visée d'un AUTRE occupant ferait passer
- * une mesure d'autrui pour une approximation de soi.
+ * The CONE FALLBACK of the aim (`vehicleOccupantAimAt`) keeps `vehicleHeadingAt`, the
+ * bare velocity: that fallback is marked `measured: false`, and giving it the aim of
+ * ANOTHER occupant would pass off someone else's measurement as one's own approximation.
  */
 export function vehicleChassisHeadingAt(
   track: ReplayVehicleTrackReady,

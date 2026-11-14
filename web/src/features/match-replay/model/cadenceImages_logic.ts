@@ -1,16 +1,16 @@
 /**
- * cadenceImages_logic.ts — la cadence des images de l'écran, mesurée sur la boucle de rendu.
+ * cadenceImages_logic.ts — the frame rate of the screen, measured on the render loop.
  *
- * Module pur (ni React ni three.js) : un anneau fixe de durées d'images, écrit par la boucle
- * à chaque image, lu par le petit affichage du coin quatre fois par seconde. `noterImage`
- * n'alloue rien : la boucle tourne à la cadence de l'écran, pas la mesure qui la ralentit.
+ * Pure module (neither React nor three.js): a fixed ring of frame durations, written by the loop
+ * at each frame, read by the small corner display four times a second. `noterImage`
+ * allocates nothing: the loop runs at the screen's frame rate, not the measurement that would slow it down.
  */
 
-/** La taille de l'anneau : les 120 dernières images, soit deux secondes à 60 images/s. */
+/** The size of the ring: the last 120 frames, i.e. two seconds at 60 frames/s. */
 const TAILLE_ANNEAU = 120
-/** En dessous, pas encore assez d'images pour une moyenne qui signifie quelque chose. */
+/** Below that, not enough frames yet for an average that means something. */
 const MINIMUM_ECHANTILLONS = 10
-/** Un écart plus grand : l'onglet était caché (ou l'app en arrière-plan), on ne le compte pas. */
+/** A larger gap: the tab was hidden (or the app in the background), it is not counted. */
 const MAXI_CREUX_MS = 1000
 
 export interface EtatCadence {
@@ -18,48 +18,48 @@ export interface EtatCadence {
   indice: number
   compteur: number
   derniereMs: number
-  /** Le temps de calcul d'une image côté script (pose de la scène + envoi du rendu), lissé, en ms. */
+  /** The compute time of a frame on the script side (scene setup + render submission), smoothed, in ms. */
   travailMs: number
 }
 
-/** Le poids d'une nouvelle mesure dans la moyenne lissée du temps de calcul. */
+/** The weight of a new measurement in the smoothed average of the compute time. */
 const LISSAGE_TRAVAIL = 0.1
 
-/** Note le temps de calcul de l'image (ms) : moyenne lissée, sans allocation. */
+/** Records the compute time of the frame (ms): smoothed average, no allocation. */
 export function noterTravail(etat: EtatCadence, dureeMs: number): void {
   if (!(dureeMs >= 0)) return
   etat.travailMs = etat.travailMs + (dureeMs - etat.travailMs) * LISSAGE_TRAVAIL
 }
 
-/** Crée l'état : l'anneau est prêt, la première image appelée sert de point de départ. */
+/** Creates the state: the ring is ready, the first frame called serves as the starting point. */
 export function nouvelleCadence(): EtatCadence {
   return { anneau: new Float32Array(TAILLE_ANNEAU), indice: 0, compteur: 0, derniereMs: NaN, travailMs: 0 }
 }
 
 /**
- * Note l'image du `maintenantMs` donné : la durée depuis l'image précédente entre dans
- * l'anneau. La première image ne compte pas (pas de durée), ni un écart au-delà du
- * maxi (l'onglet était caché) : le point de départ repart de cette image-là.
+ * Records the frame at the given `maintenantMs`: the duration since the previous frame goes into
+ * the ring. The first frame does not count (no duration), nor a gap beyond the
+ * maximum (the tab was hidden): the starting point restarts from that frame.
  */
 export function noterImage(etat: EtatCadence, maintenantMs: number): void {
   const duree = maintenantMs - etat.derniereMs
   etat.derniereMs = maintenantMs
-  // `!(duree > 0)` écarte aussi la première image, dont la durée n'est pas un nombre.
+  // `!(duree > 0)` also excludes the first frame, whose duration is not a number.
   if (!(duree > 0) || duree > MAXI_CREUX_MS) return
   etat.anneau[etat.indice] = duree
   etat.indice = (etat.indice + 1) % TAILLE_ANNEAU
   etat.compteur = Math.min(etat.compteur + 1, TAILLE_ANNEAU)
 }
 
-/** La lecture de la cadence : null tant qu'on n'a pas le minimum d'images. */
+/** The reading of the frame rate: null until we have the minimum of frames. */
 export interface LectureCadence {
-  /** Images par seconde : 1000 sur la durée moyenne, entier. */
+  /** Frames per second: 1000 over the average duration, integer. */
   ips: number
-  /** La pire image de la fenêtre, en millisecondes, une décimale. */
+  /** The worst frame of the window, in milliseconds, one decimal. */
   pireMs: number
-  /** La durée moyenne, en millisecondes, une décimale. */
+  /** The average duration, in milliseconds, one decimal. */
   moyenneMs: number
-  /** Le temps de calcul côté script par image, en millisecondes, une décimale. */
+  /** The compute time on the script side per frame, in milliseconds, one decimal. */
   travailMs: number
 }
 

@@ -1,23 +1,23 @@
 /**
- * fovLogic.ts — LE CHAMP DE VISION du rejeu 3D, fonctions pures de l'image.
+ * fovLogic.ts — THE FIELD OF VIEW of the 3D replay, pure functions of the frame.
  *
- * Le réglage du jeu (70 à 120) est un angle HORIZONTAL à 16:9 : le jeu garde l'angle vertical
- * quand la fenêtre est plus étroite (les côtés sont rognés). La caméra 3D porte l'angle
- * VERTICAL équivalent, calculé ici ; le zoom de lunette multiplie depuis cette base
- * (`scopeLogic`), et le rig première personne (`brasPremierePersonne3d`) se contre-échelle à
- * sa base de réglage (`viewmodelScale`) pour garder la taille d'arme posée à l'œil.
+ * The game setting (70 to 120) is a HORIZONTAL angle at 16:9: the game keeps the vertical angle
+ * when the window is narrower (the sides are cropped). The 3D camera carries the
+ * VERTICAL equivalent angle, computed here; the scope zoom multiplies from this base
+ * (`scopeLogic`), and the first-person rig (`brasPremierePersonne3d`) counter-scales to
+ * its setting base (`viewmodelScale`) to keep the weapon size placed at the eye.
  */
 
-/** La borne basse du réglage de champ du jeu, en degrés horizontaux à 16:9. */
+/** The lower bound of the game field setting, in horizontal degrees at 16:9. */
 export const GAME_FOV_MIN = 70
-/** La borne haute du réglage de champ du jeu, en degrés horizontaux à 16:9. */
+/** The upper bound of the game field setting, in horizontal degrees at 16:9. */
 export const GAME_FOV_MAX = 120
-/** Le réglage de champ par défaut, en degrés horizontaux à 16:9. */
+/** The default field setting, in horizontal degrees at 16:9. */
 export const GAME_FOV_DEFAULT = 100
 
 /**
- * verticalFovOf donne l'angle VERTICAL en degrés du champ horizontal `gameFovDeg` à 16:9 :
- * les demi-champs se comparent par tangente, et le rapport des demi-champs est 16 : 9.
+ * verticalFovOf gives the VERTICAL angle in degrees of the horizontal field `gameFovDeg` at 16:9:
+ * the half-fields compare by tangent, and the ratio of the half-fields is 16:9.
  */
 export function verticalFovOf(gameFovDeg: number): number {
   const demi = (gameFovDeg * Math.PI) / 360
@@ -25,9 +25,9 @@ export function verticalFovOf(gameFovDeg: number): number {
 }
 
 /**
- * viewmodelScale donne le facteur d'échelle d'un rig réglé à un champ vertical
- * `viewmodelFovDeg` pour le porter sous un champ vertical `cameraFovDeg` : la taille projetée
- * d'un objet à distance fixe suit le demi-champ (tangente).
+ * viewmodelScale gives the scale factor of a rig set to a vertical field
+ * `viewmodelFovDeg` to carry it under a vertical field `cameraFovDeg`: the projected size
+ * of an object at fixed distance follows the half-field (tangent).
  */
 export function viewmodelScale(cameraFovDeg: number, viewmodelFovDeg: number): number {
   return Math.tan((cameraFovDeg * Math.PI) / 360) / Math.tan((viewmodelFovDeg * Math.PI) / 360)

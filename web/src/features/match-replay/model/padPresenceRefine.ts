@@ -1,90 +1,90 @@
 /**
- * padPresenceRefine.ts — L'ÉTAT INCERTAIN D'UN SOCLE, RAMENÉ À CE QU'UN JOUEUR A PU FAIRE.
+ * padPresenceRefine.ts — THE UNCERTAIN STATE OF A PAD, BROUGHT BACK TO WHAT A PLAYER COULD HAVE DONE.
  *
- * LA DÉCISION EST DE L'UTILISATEUR (2e passe du 2026-08-27) : « j'ai vu un rejeu où un socle
- * était incertain alors que tous les joueurs étaient à l'autre bout de la map. Pas logique. »
- * Personne ne ramasse une arme sans passer dessus : tant qu'AUCUN joueur n'est passé près du
- * socle, il n'y a aucune raison d'afficher un doute — le socle reste PLEIN.
+ * THE DECISION IS THE USER'S (2nd pass of 2026-08-27): « I saw a replay where a pad
+ * was uncertain while all the players were at the other end of the map. Not logical. »
+ * No one picks up a weapon without passing over it: as long as NO player passed near the
+ * pad, there is no reason to display a doubt — the pad stays FULL.
  *
- * CE QUE CE FICHIER FAIT, ET RIEN D'AUTRE : il REMONTE `tLow`, la borne à partir de laquelle
- * l'écran cesse d'affirmer la présence, jusqu'à la première APPROCHE d'un joueur dans la fenêtre
- * d'incertitude. `t0`, `tHigh`, `spawns` et `cycle` sont INTOUCHÉS — la preuve d'absence, le
- * basculement « vide » et le compte à rebours restent exactement ceux de la mesure.
+ * WHAT THIS FILE DOES, AND NOTHING ELSE: it RAISES `tLow`, the bound from which
+ * the screen stops asserting the presence, up to the first APPROACH of a player in the window
+ * of uncertainty. `t0`, `tHigh`, `spawns` and `cycle` are TOUCHED NOT AT ALL — the proof of absence, the
+ * « empty » flip and the countdown remain exactly those of the measurement.
  *
- * POURQUOI LA MESURE A-2 NE RÉFUTAIT PAS CETTE RÈGLE, alors qu'elle la contredisait à 31 %.
- * L'oracle était CIRCULAIRE. A-2 comparait la règle à la preuve d'absence de l'ARTEFACT, or
- * cette preuve est le RECENSEMENT des images-clés — et le recensement est lui-même vraisembla-
- * blement borné par la proximité des joueurs. Dans une fenêtre sans aucune approche, ce qui
- * disparaît est probablement l'objet DU RECENSEMENT, pas l'objet du terrain. La répartition le
- * dit : les deux films qui portent ~75 % des contradictions sont les deux BTB à 24-25 joueurs,
- * avec des distances minimales médianes de 18 à 25 m ; les arènes sont entre 0 et 10 %. Le
- * négatif d'A-2 reste vrai tel qu'il est écrit — l'artefact ne confirme pas la règle là-bas —
- * mais il ne la réfute pas.
+ * WHY MEASUREMENT A-2 DID NOT REFUTE THIS RULE, even though it contradicted it at 31 %.
+ * The oracle was CIRCULAR. A-2 compared the rule to the proof of absence of the ARTIFACT, but
+ * this proof is the CENSUS of the keyframes — and the census is itself probab-
+ * ly bounded by the proximity of the players. In a window with no approach at all, what
+ * disappears is probably the object OF THE CENSUS, not the object of the terrain. The distribution
+ * says so: the two films that carry ~75 % of the contradictions are the two BTB with 24-25 players,
+ * with median minimal distances of 18 to 25 m; the arenas are between 0 and 10 %. The
+ * negative of A-2 stays true as written — the artifact does not confirm the rule there —
+ * but it does not refute it.
  *
- * LE COÛT EST ASSUMÉ, et il faut l'écrire : une VRAIE disparition sans approche (mécanisme
- * inconnu — objet retiré par le moteur, arme ramassée par un joueur dont la trace manque) sera
- * désormais affichée PLEINE jusqu'à `tHigh`, là où « incertain » n'affirmait rien. On échange un
- * doute honnête mais illisible contre une affirmation utile et rarement fausse. C'est une
- * décision produit, pas un résultat de mesure.
+ * THE COST IS ACCEPTED, and it must be written: a TRUE disappearance without approach (mechanism
+ * unknown — object removed by the engine, weapon picked up by a player whose track is missing) will
+ * from now on be displayed FULL up to `tHigh`, where « uncertain » asserted nothing. We exchange an
+ * honest but unreadable doubt for a useful assertion and rarely false. It is a
+ * product decision, not a measurement result.
  *
- * CONDITION DE REPRISE : l'enquête sur la population de socles des artefacts BTB (les deux films
- * suspects, socles jamais approchés de tout le film) est ouverte. Si elle montre que ces socles sont des
- * artefacts de mesure, ce fichier n'aura plus rien à corriger ; si elle montre l'inverse, c'est
- * le rayon ou la règle qui devront bouger.
+ * RESUMPTION CONDITION: the inquiry into the population of pads of the BTB artifacts (the two films
+ * in question, pads never approached the whole film long) is open. If it shows that these pads are
+ * measurement artifacts, this file will have nothing left to correct; if it shows the opposite, it is
+ * the radius or the rule that will have to move.
  *
- * Pur : aucune dépendance React, aucun canvas. La mémoïsation est chez l'appelant.
+ * Pure: no React dependency, no canvas. The memoization is on the caller side.
  */
 import type { ReplayTrackReady, ReplayWeaponPadReady } from '../../../lib/replay/replayNormalize'
 
 /**
- * LE RAYON D'APPROCHE, en mètres monde, et d'où il vient.
+ * THE APPROACH RADIUS, in world meters, and where it comes from.
  *
- * MESURÉ (instrument A-2, `pads_proximity_research_test.go`), et TOUS LES CHIFFRES QUI SUIVENT
- * VIENNENT DU MÊME DÉNOMINATEUR — les 1 064 occupations achevées que l'artefact publie
- * (`padPickups`, 30 artefacts). Les mélanger avec ceux de la base de contrôle reconstruite
- * depuis `Presence` (992 occupations, plus étroite) est l'erreur que la revue de la mesure a
- * déjà fait corriger une fois : à 2 m, **69,1 %** des occupations achevées portent au moins une
- * approche (100 − 30,92), et le passage le plus proche a une distance médiane de **0,36 m**.
+ * MEASURED (instrument A-2, `pads_proximity_research_test.go`), and ALL THE NUMBERS THAT FOLLOW
+ * COME FROM THE SAME DENOMINATOR — the 1 064 completed occupations the artifact publishes
+ * (`padPickups`, 30 artifacts). Mixing them with those of the control base reconstructed
+ * from `Presence` (992 occupations, narrower) is the error the measurement review
+ * has already had corrected once: at 2 m, **69.1 %** of the completed occupations carry at least one
+ * approach (100 − 30.92), and the closest pass has a median distance of **0.36 m**.
  *
- * LA DISTRIBUTION EST BIMODALE, et c'est elle qui rend le choix PEU SENSIBLE : soit un joueur
- * passe à moins d'un mètre, soit il n'y a personne à des dizaines de mètres. Ouvrir le rayon de
- * 1 m à 10 m ne gagne qu'une DIZAINE de points (contradiction 33,18 % → 23,21 %) : il n'existe
- * pas de rayon « bien réglé » à trouver, tout l'intervalle raisonnable donne le même résultat.
- * 2 m est assez large pour couvrir un ramassage en courant (un joueur parcourt ~0,6 m entre
- * deux images) sans jamais atteindre le second mode.
+ * THE DISTRIBUTION IS BIMODAL, and that is what makes the choice LITTLE SENSITIVE: either a player
+ * passes at less than a meter, or there is no one tens of meters away. Opening the radius from
+ * 1 m to 10 m gains only a DOZEN points (contradiction 33.18 % → 23.21 %): there is
+ * no « well tuned » radius to find, the whole reasonable interval gives the same result.
+ * 2 m is wide enough to cover a pickup while running (a player travels ~0.6 m between
+ * two frames) without ever reaching the second mode.
  */
 export const PAD_APPROACH_RADIUS_M = 2
 
 /**
- * LA LAME « PERSONNE N'EST PASSÉ » : de combien la borne se pose AVANT `tHigh`, en images.
+ * THE SLIVER « NO ONE PASSED »: by how much the bound settles BEFORE `tHigh`, in frames.
  *
- * POURQUOI PAS `tLow = tHigh` TOUT ROND, qui serait l'écriture évidente : `padStateAt` lit déjà
- * `tHigh <= tLow` comme le SENTINEL « aucune absence n'a jamais été prouvée », et rend alors
- * PLEIN pour toujours — y compris APRÈS `tHigh`. Le socle ne basculerait plus jamais à vide et
- * son compte à rebours disparaîtrait, alors que la preuve d'absence, elle, n'a pas bougé. Il
- * faut donc que `tLow` reste STRICTEMENT sous `tHigh`, d'où cette lame.
+ * WHY NOT `tLow = tHigh` PLAIN AND SIMPLE, which would be the obvious writing: `padStateAt` already reads
+ * `tHigh <= tLow` as the SENTINEL « no absence has ever been proven », and renders then
+ * FULL forever — including AFTER `tHigh`. The pad would never flip to empty again and
+ * its countdown would disappear, while the proof of absence, it, has not moved. So
+ * `tLow` must stay STRICTLY under `tHigh`, hence this sliver.
  *
- * ELLE EST VISIBLE, ET IL FAUT L'ÉCRIRE (revue adversariale du 2026-08-27). On a d'abord cru
- * qu'une lame d'une demi-image ne coûtait rien parce que « les images sont entières » : c'est
- * FAUX au tracé. `useReplayPlayback` avance l'image de `dt × fps` SANS arrondi, et le calque
- * comme le survol lisent cette valeur FRACTIONNAIRE. L'intervalle `[tHigh - lame ; tHigh)` est
- * donc atteignable : à une demi-image il durait 50 ms de film (100 ms de montre à 0,5x), soit
- * environ trois images peintes de halo « incertain » juste avant chaque bascule — et l'état s'y
- * FIGEAIT si le lecteur mettait pause dedans.
+ * IT IS VISIBLE, AND IT MUST BE WRITTEN (adversarial review of 2026-08-27). We first thought
+ * that a sliver of a half-frame cost nothing because « the frames are whole »: that is
+ * FALSE on the draw. `useReplayPlayback` advances the frame by `dt × fps` WITHOUT rounding, and the overlay
+ * as well as the hover read this FRACTIONAL value. The interval `[tHigh - sliver ; tHigh)` is
+ * therefore reachable: at a half-frame it lasted 50 ms of film (100 ms of watch at 0.5x), i.e.
+ * about three frames painted with an « uncertain » halo just before each flip — and the state
+ * FROZE there if the reader paused inside it.
  *
- * `1/64` D'IMAGE RAMÈNE LA LAME À ~1,6 ms de film (une image de 100 ms) : au pire UNE image
- * peinte isolée de temps en temps, et une pause qui tomberait pile dedans devient de l'ordre de
- * 0,008 % de l'axe. La lame ne DISPARAÎT pas — elle ne peut pas, `tHigh > tLow` est la
- * condition qui garde le sentinel libre — elle devient invisible en pratique. Puissance de deux
- * choisie exprès : exacte en binaire, donc aucune dérive d'arrondi en comparant à une image
- * fractionnaire.
+ * `1/64` OF A FRAME BRINGS THE SLIVER BACK TO ~1.6 ms of film (a frame of 100 ms): at worst ONE
+ * painted isolated frame from time to time, and a pause that would fall exactly inside it becomes on the order of
+ * 0.008 % of the axis. The sliver does NOT DISAPPEAR — it cannot, `tHigh > tLow` is the
+ * condition that keeps the sentinel free — it becomes invisible in practice. Power of two
+ * chosen on purpose: exact in binary, so no rounding drift when comparing to a frame
+ * fractional.
  *
- * EXPORTÉE parce qu'elle est une CLAUSE de ce module, pas un détail : un test qui la recopierait
- * en littéral ne verrait pas son changement.
+ * EXPORTED because it is a CLAUSE of this module, not a detail: a test that would recopy it
+ * as a literal would not see its change.
  */
 export const PAD_BETWEEN_FRAMES = 1 / 64
 
-/** Le socle et la fenêtre d'incertitude d'une de ses occupations : ce qu'on interroge. */
+/** The pad and the uncertainty window of one of its occupations: what is queried. */
 interface PadWindow {
   cx: number
   cy: number
@@ -93,13 +93,13 @@ interface PadWindow {
 }
 
 /**
- * refinePadPresence — les mêmes socles, avec leur incertitude ramenée aux instants où quelqu'un
- * a PU prendre l'arme.
+ * refinePadPresence — the same pads, with their uncertainty brought back to the instants when someone
+ * COULD have taken the weapon.
  *
- * RÉFÉRENCE PRÉSERVÉE QUAND RIEN NE CHANGE : un socle dont aucune occupation ne bouge est rendu
- * TEL QUEL, et le tableau lui-même n'est recréé que si au moins un socle a changé. Les appelants
- * mémoïsent sur l'identité du tableau ; en recréer un à chaque appel ferait repeindre la scène
- * pour rien.
+ * REFERENCE PRESERVED WHEN NOTHING CHANGES: a pad of which no occupation moves is returned
+ * AS IS, and the array itself is recreated only if at least one pad has changed. The callers
+ * memoize on the identity of the array; recreating one on each call would repaint the scene
+ * for nothing.
  */
 export function refinePadPresence(
   pads: readonly ReplayWeaponPadReady[],
@@ -117,11 +117,11 @@ export function refinePadPresence(
 }
 
 /**
- * refineOccupancies rend les occupations d'UN socle, ou le tableau d'origine si aucune ne bouge.
+ * refineOccupancies renders the occupations of ONE pad, or the original array if none moves.
  *
- * UNE FENÊTRE JAMAIS FERMÉE RESTE INTOUCHÉE (`tHigh <= tLow`) : il n'y a rien à raffiner là où
- * aucune absence n'a été prouvée — le socle est déjà plein jusqu'au bout, et y toucher
- * réécrirait le sentinel que `padStateAt` lit.
+ * A WINDOW NEVER CLOSED STAYS TOUCHED NOT AT ALL (`tHigh <= tLow`): there is nothing to refine where
+ * no absence has been proven — the pad is already full to the end, and touching it
+ * would rewrite the sentinel that `padStateAt` reads.
  */
 function refineOccupancies(
   pad: ReplayWeaponPadReady,
@@ -140,50 +140,50 @@ function refineOccupancies(
 }
 
 /**
- * refinedLow — la nouvelle borne de présence prouvée pour une fenêtre ouverte.
+ * refinedLow — the new bound of proven presence for an open window.
  *
- * AUCUNE APPROCHE : la borne se pose juste avant `tHigh` (cf. PAD_BETWEEN_FRAMES) — le socle
- * reste plein jusqu'à la preuve d'absence, qui garde tous ses droits.
+ * NO APPROACH: the bound settles just before `tHigh` (cf. PAD_BETWEEN_FRAMES) — the pad
+ * stays full up to the proof of absence, which keeps all its rights.
  *
- * UNE APPROCHE À `t` : la borne devient la DERNIÈRE IMAGE AVANT `t`. Elle ne DESCEND jamais —
- * raffiner ne peut qu'ajouter de la certitude, jamais en retirer.
+ * AN APPROACH AT `t`: the bound becomes the LAST FRAME BEFORE `t`. It never DESCENDS —
+ * refining can only add certainty, never remove any.
  */
 function refinedLow(win: PadWindow, tracks: readonly ReplayTrackReady[]): number {
   const t = firstApproach(win, tracks)
   if (t === null) return win.hi - PAD_BETWEEN_FRAMES
-  // `Math.ceil(t) - 1` est le plus grand entier STRICTEMENT inférieur à `t` : à cette image, le
-  // joueur n'est pas encore au socle. C'est une image de prudence (l'approche a lieu APRÈS
-  // elle), et elle va dans le bon sens : on n'affirme jamais une présence à une image où le
-  // ramassage a pu commencer.
+  // `Math.ceil(t) - 1` is the greatest integer STRICTLY less than `t`: at this frame, the
+  // player is not yet at the pad. It is a frame of caution (the approach happens AFTER
+  // it), and it goes in the right direction: one never asserts a presence at a frame where the
+  // pickup could have started.
   //
-  // AUCUN PLAFOND À ÉCRIRE, et c'en est un de moins qui mentirait (revue adversariale du
-  // 2026-08-27) : `t` vient d'un segment COUPÉ à la fenêtre, donc `t <= hi` ; les bornes étant
-  // entières au contrat, `ceil(t) - 1 <= hi - 1`. Un `Math.min(..., win.hi)` était donc
-  // inatteignable — et pire, il aurait silencieusement rendu `hi` (le sentinel « jamais vidé »)
-  // le jour où le clip disparaîtrait, au lieu de laisser la régression se voir. Le cas de test
-  // « un segment qui ne touche qu'APRÈS la fenêtre » est le filet qui garde le clip en place.
+  // NO CEILING TO WRITE, and that is one less that would lie (adversarial review of
+  // 2026-08-27): `t` comes from a segment CUT to the window, so `t <= hi`; the bounds being
+  // integers by contract, `ceil(t) - 1 <= hi - 1`. A `Math.min(..., win.hi)` was therefore
+  // unreachable — and worse, it would have silently returned `hi` (the sentinel « never emptied »)
+  // the day the clip would disappear, instead of letting the regression be seen. The test case
+  // « a segment that touches only AFTER the window » is the net that keeps the clip in place.
   return Math.max(win.lo, Math.ceil(t) - 1)
 }
 
 /**
- * firstApproach — l'instant (en images, interpolé) où un joueur entre le premier dans le rayon
- * du socle pendant la fenêtre, ou null si personne n'y entre.
+ * firstApproach — the instant (in frames, interpolated) at which a player enters first within the radius
+ * of the pad during the window, or null if no one enters it.
  *
- * LES POINTS D'UNE TRACE SONT ÉCHANTILLONNÉS, et c'est tout le piège : tester la seule distance
- * AUX POINTS laisse passer le joueur qui traverse le socle entre deux échantillons. On teste
- * donc le SEGMENT entre deux points consécutifs — la trajectoire telle que le rejeu la dessine.
+ * THE POINTS OF A TRACK ARE SAMPLED, and that is the whole trap: testing the distance
+ * AT THE POINTS ONLY lets through the player who crosses the pad between two samples. One tests
+ * then the SEGMENT between two consecutive points — the trajectory as the replay draws it.
  *
- * LE TROU DE RÉPLICATION TOMBE SOUS LE MÊME ARGUMENT (revue adversariale du 2026-08-27). Quand
- * une vie survit à un long trou (jusqu'à ~5 s sans position répliquée), le segment trace une
- * CORDE DROITE que le joueur n'a pas forcément parcourue — et cette corde peut frôler un socle
- * sans passage réel. On ne corrige pas, et la raison est la cohérence de l'écran : le rejeu
- * DESSINE cette même corde, le marqueur du joueur la parcourt sous les yeux du lecteur. Dire
- * « incertain » là où l'écran montre quelqu'un qui passe est cohérent ; l'inverse serait un
- * doute invisible. Fréquence non mesurée — consignée en Découvertes.
+ * THE REPLICATION HOLE FALLS UNDER THE SAME ARGUMENT (adversarial review of 2026-08-27). When
+ * a life survives a long hole (up to ~5 s without replicated position), the segment traces a
+ * STRAIGHT CHORD that the player did not necessarily travel — and this chord can graze a pad
+ * without a real pass. One does not correct, and the reason is the coherence of the screen: the replay
+ * DRAWS this same chord, the player's marker travels it under the reader's eyes. Saying
+ * « uncertain » where the screen shows someone passing is coherent; the opposite would be an
+ * invisible doubt. Frequency not measured — recorded in Findings.
  *
- * LA RECHERCHE EST BORNÉE PAR LA FENÊTRE : les points d'une trace sont triés, une dichotomie
- * donne le premier de la fenêtre, et on remonte d'UN point pour attraper le segment qui y ENTRE.
- * C'est ce qui rend la passe tenable — une fenêtre dure quelques secondes, une trace tout un
+ * THE SEARCH IS BOUNDED BY THE WINDOW: the points of a track are sorted, a dichotomy
+ * gives the first of the window, and one goes back ONE point to catch the segment that ENTERS it.
+ * That is what makes the pass tractable — a window lasts a few seconds, a track a whole
  * match.
  */
 function firstApproach(win: PadWindow, tracks: readonly ReplayTrackReady[]): number | null {
@@ -199,7 +199,7 @@ function firstApproach(win: PadWindow, tracks: readonly ReplayTrackReady[]): num
       continue
     }
     let i = lowerBound(pts, win.lo)
-    if (i > 0) i -= 1 // le segment qui ENTRE dans la fenêtre part du point précédent
+    if (i > 0) i -= 1 // the segment that ENTERS the window starts from the previous point
     for (; i + 1 < pts.length && pts[i].t <= win.hi; i++) {
       const t = segmentTouch(pts[i], pts[i + 1], win)
       if (t !== null && (best === null || t < best)) best = t
@@ -208,7 +208,7 @@ function firstApproach(win: PadWindow, tracks: readonly ReplayTrackReady[]): num
   return best
 }
 
-/** lowerBound — le rang du premier point dont l'instant atteint `t` (dichotomie). */
+/** lowerBound — the rank of the first point whose instant reaches `t` (dichotomy). */
 function lowerBound(pts: ReplayTrackReady['points'], t: number): number {
   let lo = 0
   let hi = pts.length
@@ -220,17 +220,17 @@ function lowerBound(pts: ReplayTrackReady['points'], t: number): number {
   return lo
 }
 
-/** withinRadius — le point est-il dans le rayon d'approche (distance 2D, monde) ? */
+/** withinRadius — is the point within the approach radius (2D distance, world)? */
 function withinRadius(dx: number, dy: number): boolean {
   return dx * dx + dy * dy <= PAD_APPROACH_RADIUS_M * PAD_APPROACH_RADIUS_M
 }
 
 /**
- * segmentTouch — le premier instant où le segment [a, b], COUPÉ à la fenêtre, entre dans le
- * rayon du socle, ou null.
+ * segmentTouch — the first instant at which the segment [a, b], CUT to the window, enters the
+ * radius of the pad, or null.
  *
- * LE SEGMENT EST COUPÉ AVANT D'ÊTRE TESTÉ : un joueur qui frôle le socle une seconde APRÈS la
- * preuve d'absence ne dit rien de la disparition, et le compter avancerait la borne à tort.
+ * THE SEGMENT IS CUT BEFORE BEING TESTED: a player who grazes the pad one second AFTER the
+ * proof of absence says nothing about the disappearance, and counting it would advance the bound wrongly.
  */
 function segmentTouch(
   a: ReplayTrackReady['points'][number],
@@ -247,7 +247,7 @@ function segmentTouch(
   return u === null ? null : d0 + u * (d1 - d0)
 }
 
-/** pointAt — la position sur le segment [p, q] à l'instant `t`. Durée nulle : le départ. */
+/** pointAt — the position on the segment [p, q] at the instant `t`. Zero duration: the start. */
 function pointAt(
   p: ReplayTrackReady['points'][number],
   q: ReplayTrackReady['points'][number],
@@ -259,10 +259,10 @@ function pointAt(
 }
 
 /**
- * firstWithin — le plus petit `u` de [0, 1] pour lequel `p + u·d` est dans le rayon, ou null.
+ * firstWithin — the smallest `u` of [0, 1] for which `p + u·d` is within the radius, or null.
  *
- * C'EST UNE ÉQUATION DU SECOND DEGRÉ, et il faut sa PREMIÈRE racine, pas la distance minimale :
- * ce qu'on date est l'ENTRÉE dans le rayon, pas le point le plus proche du passage.
+ * IT IS A SECOND DEGREE EQUATION, and it is its FIRST root that is needed, not the minimal distance:
+ * what is dated is the ENTRY into the radius, not the closest point of the pass.
  */
 function firstWithin(px: number, py: number, dx: number, dy: number): number | null {
   const a = dx * dx + dy * dy

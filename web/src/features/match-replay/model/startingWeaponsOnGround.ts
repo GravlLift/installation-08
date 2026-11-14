@@ -1,23 +1,23 @@
 /**
- * startingWeaponsOnGround — QUELLES ARMES AU SOL LE REJEU MONTRE PAR DÉFAUT.
+ * startingWeaponsOnGround — WHICH GROUND WEAPONS THE REPLAY SHOWS BY DEFAULT.
  *
- * Tout le monde apparaît avec les mêmes armes : celles qu'un joueur lâche en mourant n'apportent
- * rien à la lecture tactique. Par défaut, une arme LÂCHÉE (`origin = "dropped"`) dont le modèle
- * est une arme de départ du match est donc masquée ; une option les réaffiche.
+ * Everyone spawns with the same weapons: the ones a player drops on death add nothing to the
+ * tactical reading. By default a DROPPED weapon (`origin = "dropped"`) whose model is a starting
+ * weapon of the match is therefore masked; an option shows them again.
  *
- * - Une arme POSÉE PAR LA CARTE (`origin = "spawned"` : râtelier, socle) reste TOUJOURS
- *   affichée, même si son modèle est celui d'une arme de départ : c'est un lieu, pas un reliquat.
- * - Une arme de départ = un modèle présent dans une dotation `loadouts[]` de `src = "birth"`,
- *   lue DANS LE DOCUMENT, match par match. Aucune liste d'armes ni nom de mode en dur.
- * - Un document sans dotation de naissance ne masque rien.
- * - Les identifiants sont normalisés : `loadouts[].w` s'écrit « 0xABCD1234 », `groundWeapons[].w`
- *   « abcd1234 » (`weaponLabelKeyOf`).
+ * - A weapon PLACED BY THE MAP (`origin = "spawned"`: rack, pedestal) stays VISIBLE always,
+ *   even if its model is that of a starting weapon: it is a place, not a leftover.
+ * - A starting weapon = a model present in a `loadouts[]` entry with `src = "birth"`, read IN
+ *   THE DOCUMENT, match by match. No hardcoded weapon list nor mode name.
+ * - A document without a birth loadout masks nothing.
+ * - The identifiers are normalized: `loadouts[].w` is written as "0xABCD1234",
+ *   `groundWeapons[].w` as "abcd1234" (`weaponLabelKeyOf`).
  */
 import type { ReplayGroundWeapon } from '@/lib/api/types'
 
 import { weaponLabelKeyOf } from '../layers/useReplayWeaponPads'
 
-/** La source des dotations d'apparition dans `loadouts[].src`. */
+/** The source of spawn loadouts in `loadouts[].src`. */
 const LOADOUT_SOURCE_BIRTH = 'birth'
 
 interface BirthLoadout {
@@ -25,7 +25,7 @@ interface BirthLoadout {
   w?: readonly string[]
 }
 
-/** startingWeaponKeys — les modèles (clé canonique) portés à l'apparition, par n'importe quel slot. */
+/** startingWeaponKeys — the models (canonical key) carried at spawn, from any slot. */
 export function startingWeaponKeys(loadouts: readonly BirthLoadout[] | undefined): ReadonlySet<string> {
   const keys = new Set<string>()
   for (const lo of loadouts ?? []) {
@@ -36,8 +36,8 @@ export function startingWeaponKeys(loadouts: readonly BirthLoadout[] | undefined
 }
 
 /**
- * visibleGroundWeapons — filtre les armes au sol. `includeStarting` vrai : tout est gardé.
- * Rend le tableau d'entrée tel quel quand rien n'est retiré (référence stable pour les memos).
+ * visibleGroundWeapons — filters the ground weapons. `includeStarting` true: everything is kept.
+ * Returns the input array as is when nothing is removed (stable reference for the memos).
  */
 export function visibleGroundWeapons<T extends Pick<ReplayGroundWeapon, 'w' | 'origin'>>(
   items: readonly T[],

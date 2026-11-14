@@ -1,40 +1,40 @@
 /**
- * weaponPadTime.ts — CE QUE LE FILM DIT D'UN SOCLE À UN INSTANT : son occupation, son état, et
- * le temps qui reste avant le retour de l'arme.
+ * weaponPadTime.ts — WHAT THE FILM SAYS ABOUT A PEDESTAL AT AN INSTANT: its occupancy, its
+ * state, and the time left before the weapon comes back.
  *
- * POURQUOI CE FICHIER EXISTE, séparé du calque : cette lecture est du TEMPS PUR, pas du dessin.
- * Elle sert au tracé, au survol et à l'infobulle — trois appelants pour une seule règle — et
- * elle n'a besoin ni d'un canvas, ni d'une encre, ni d'une densité de pixels. Extraite de
- * `weaponPadsLayer.ts` le 2026-08-27, quand le compte à rebours a gagné sa seconde source (D3)
- * et que le calque a dépassé le seuil de taille du dépôt.
+ * WHY THIS FILE EXISTS, separate from the layer: this reading is PURE TIME, not drawing.
+ * It serves the stroke, the hover and the tooltip — three callers for a single rule — and
+ * it needs no canvas, no ink, no pixel density. Extracted from `weaponPadsLayer.ts` on
+ * 2026-08-27, when the countdown gained its second source (D3) and the layer had passed the
+ * repo's size threshold.
  *
- * TROIS ÉTATS, ET LE TROISIÈME EST L'HONNÊTETÉ DE LA MESURE. Une occupation publie trois
- * instants : `t0` l'apparition (mesurée), `tLow` le dernier instant où l'arme est PROUVÉE
- * présente, `tHigh` le premier où son absence est prouvée. Entre les deux, le film ne dit rien —
- * les images-clés sont espacées de ~20 s. Un état qui basculerait pile à un instant affirmerait
- * une datation que la source n'a pas : l'intervalle s'appelle donc INCERTAIN et se lit comme tel
- * à l'écran.
+ * THREE STATES, AND THE THIRD IS THE HONESTY OF THE MEASUREMENT. An occupancy publishes
+ * three instants: `t0` the appearance (measured), `tLow` the last instant where the weapon
+ * is PROVEN present, `tHigh` the first where its absence is proven. Between the two, the
+ * film says nothing — the keyframes are spaced ~20 s apart. A state that would flip exactly
+ * at an instant would assert a dating the source does not have: the interval is therefore
+ * called UNCERTAIN and reads as such on screen.
  *
- * LE RAMASSEUR N'EST PAS ICI, et il ne le sera pas : le champ existe au contrat
- * (`padPickups[].xuid`) et est PUBLIÉ depuis le schéma 30 (2026-08-31) — l'événement natif le
- * porte. Ce module ne le lit pas : il ne calcule que des instants.
- * Aucune ligne de ce fichier ne le lit.
+ * THE PICKER IS NOT HERE, and it will not be: the field exists in the contract
+ * (`padPickups[].xuid`) and has been PUBLISHED since schema 30 (2026-08-31) — the native
+ * event carries it. This module does not read it: it only computes instants.
+ * No line of this file reads it.
  */
 import type { ReplayWeaponPadReady } from '../../../lib/replay/replayNormalize'
 import { respawnAt, type Respawn } from './respawnCountdown'
 
 /**
- * L'état d'un socle à un instant : plein (présence prouvée), incertain (le film ne dit rien),
- * vide (absence prouvée). `empty` couvre aussi l'avant-première-apparition.
+ * The state of a pedestal at an instant: full (presence proven), uncertain (the film says
+ * nothing), empty (absence proven). `empty` also covers the before-first-appearance.
  */
 export type PadState = 'full' | 'uncertain' | 'empty'
 
 /**
- * padOccupancyIndexAt — le RANG de l'occupation en cours, ou -1 avant la première.
+ * padOccupancyIndexAt — the RANK of the current occupancy, or -1 before the first.
  *
- * LE RANG ET NON L'OCCUPATION, parce que le compte à rebours a besoin de la SUIVANTE : depuis
- * D3 (2026-08-27) il vise la prochaine apparition MESURÉE, et on ne l'atteint qu'en sachant où
- * l'on est dans la liste.
+ * THE RANK AND NOT THE OCCUPANCY, because the countdown needs the NEXT one: since D3
+ * (2026-08-27) it targets the next MEASURED appearance, and it is only reached knowing
+ * where one is in the list.
  */
 function padOccupancyIndexAt(pad: ReplayWeaponPadReady, frame: number): number {
   let found = -1
@@ -46,8 +46,9 @@ function padOccupancyIndexAt(pad: ReplayWeaponPadReady, frame: number): number {
 }
 
 /**
- * padOccupancyAt — l'occupation en cours à cette image, c'est-à-dire la DERNIÈRE dont
- * l'apparition a eu lieu. Null avant la première : le socle n'a alors rien porté du tout.
+ * padOccupancyAt — the current occupancy at this frame, that is the LAST one whose
+ * appearance has taken place. Null before the first: the pedestal then carried nothing at
+ * all.
  */
 export function padOccupancyAt(
   pad: ReplayWeaponPadReady,
@@ -58,15 +59,15 @@ export function padOccupancyAt(
 }
 
 /**
- * padStateAt — l'état du socle à cette image.
+ * padStateAt — the state of the pedestal at this frame.
  *
- * L'ordre des comparaisons EST la règle : plein tant que la présence est prouvée, incertain
- * tant que l'absence ne l'est pas, vide ensuite.
+ * THE ORDER OF THE COMPARISONS IS the rule: full while the presence is proven, uncertain
+ * while the absence is not, empty afterwards.
  *
- * LE CAS « JAMAIS VIDÉ » EST À PART, et il est fréquent (8 occupations sur 28 sur un des
- * témoins) : quand l'arme est encore recensée à la DERNIÈRE image-clé, `tHigh` ne dépasse pas
- * `tLow` — aucune absence n'a jamais été prouvée. Le socle reste alors PLEIN jusqu'au bout.
- * L'écrire vide, fût-ce une image, affirmerait un ramassage que rien n'a observé.
+ * THE "NEVER EMPTY" CASE IS APART, and it is frequent (8 occupancies out of 28 on one of
+ * the witnesses): when the weapon is still recorded at the LAST keyframe, `tHigh` does not
+ * exceed `tLow` — no absence has ever been proven. The pedestal then stays FULL to the end.
+ * Writing it empty, even for one frame, would assert a pickup that nothing observed.
  */
 export function padStateAt(pad: ReplayWeaponPadReady, frame: number): PadState {
   const occ = padOccupancyAt(pad, frame)
@@ -76,32 +77,36 @@ export function padStateAt(pad: ReplayWeaponPadReady, frame: number): PadState {
 }
 
 /**
- * Le compte à rebours, ET D'OÙ IL VIENT — la seconde moitié de l'information (D3, 2026-08-27).
+ * The countdown, AND WHERE IT COMES FROM — the second half of the information (D3,
+ * 2026-08-27).
  *
- * `measured` distingue deux chiffres que rien ne séparait à l'écran : la prochaine apparition
- * VUE DANS LE FILM (exacte, le rejeu connaît la suite) et celle que le CYCLE prédit (une
- * moyenne, qui peut tomber à côté). Le calque n'en fait rien — un socle vide reste un socle
- * vide — mais l'infobulle le dit, et c'est là que la réserve doit se lire.
+ * `measured` distinguishes two figures that nothing separated on screen: the next
+ * appearance SEEN IN THE FILM (exact, the replay knows the rest) and the one the CYCLE
+ * predicts (an average, which can land off). The layer does nothing with it — an empty
+ * pedestal stays an empty pedestal — but the tooltip says it, and that is where the
+ * reservation must be read.
  */
 export type PadRespawn = Respawn
 
 /**
- * padRespawnAt — les secondes restantes avant la réapparition, et leur provenance, ou null.
+ * padRespawnAt — the seconds remaining before the re-appearance, and their provenance, or
+ * null.
  *
- * L'ORDRE DES SOURCES EST LA RÈGLE (D3, retour utilisateur du 2026-08-27 : « compteur pas
- * toujours visible ») : le rejeu connaît LA SUITE DU FILM, donc la prochaine apparition mesurée
- * l'emporte toujours sur la prédiction. Le cycle ne sert plus que pour le DERNIER trou, celui
- * qu'aucune apparition ne ferme. Sans l'un ni l'autre : rien — un tiret suggérerait qu'on sait.
+ * THE ORDER OF THE SOURCES IS THE RULE (D3, user feedback of 2026-08-27: « compteur pas
+ * toujours visible » [counter not always visible]): the replay knows THE REST OF THE FILM,
+ * so the next measured appearance always beats the prediction. The cycle now serves only
+ * for the LAST hole, the one no appearance closes. Without one or the other: nothing — a
+ * dash would suggest one knows.
  *
- * CE QUE ÇA CHANGE, ET C'ÉTAIT LE DÉFAUT SIGNALÉ : le compte s'affichait UNIQUEMENT sur les
- * socles à cycle établi (24 sur 57 n'en portent pas), donc jamais sur la moitié de la carte,
- * alors même que le film montrait l'arme revenir. Il s'affiche désormais sur TOUS les trous
- * refermés par une apparition, cycle ou pas.
+ * WHAT THAT CHANGES, AND IT WAS THE REPORTED DEFECT: the count was displayed ONLY on the
+ * pedestals with an established cycle (24 out of 57 do not carry one), so never on half
+ * the map, even when the film showed the weapon coming back. It is now displayed on ALL
+ * holes closed by an appearance, cycle or not.
  *
- * DEUX CONDITIONS INCHANGÉES : le socle est VIDE (avant `tHigh`, rien n'est fini) et le compte
- * n'est pas épuisé. Pour le repli prédictif, le départ reste `tHigh`, la borne HAUTE de la
- * disparition : partir de `tLow` avancerait la prédiction d'un intervalle que la source ne date
- * pas.
+ * TWO UNCHANGED CONDITIONS: the pedestal is EMPTY (before `tHigh`, nothing is over) and
+ * the count is not exhausted. For the predictive fallback, the start stays `tHigh`, the
+ * UPPER bound of the disappearance: starting from `tLow` would advance the prediction by
+ * an interval the source does not date.
  */
 export function padRespawnAt(
   pad: ReplayWeaponPadReady,
@@ -111,14 +116,14 @@ export function padRespawnAt(
   if (padStateAt(pad, frame) !== 'empty') return null
   const i = padOccupancyIndexAt(pad, frame)
   if (i < 0) return null
-  // LA RÈGLE ELLE-MÊME VIT DANS `respawnCountdown.ts` DEPUIS LE LOT 5.8 : les emplacements de
-  // naissance de véhicule (schéma 63) posent la MÊME question au document, et deux copies de
-  // l'ordre des sources auraient divergé sans qu'aucun écran ne le montre (CLAUDE.md n°6). Ce
-  // qui reste ici est ce que ce fichier seul sait dire : ce qu'« occupé » veut dire pour un
-  // socle, et de quels champs viennent les trois nombres.
+  // THE RULE ITSELF LIVES IN `respawnCountdown.ts` SINCE LOT 5.8: the vehicle spawn
+  // placements (schema 63) ask the document the SAME question, and two copies of the order
+  // of the sources would have diverged without any screen showing it (CLAUDE.md n°6). What
+  // remains here is what this file alone knows how to say: what "occupied" means for a
+  // pedestal, and which fields the three numbers come from.
   //
-  // `next.t0 > frame` PAR CONSTRUCTION (l'occupation courante est la dernière dont l'apparition
-  // a eu lieu) : le compte mesuré est toujours positif.
+  // `next.t0 > frame` BY CONSTRUCTION (the current occupancy is the last one whose
+  // appearance has taken place): the measured count is always positive.
   return respawnAt(frame, frameMs, {
     nextSpawn: pad.presence[i + 1]?.t0 ?? null,
     emptySince: pad.presence[i].tHigh,

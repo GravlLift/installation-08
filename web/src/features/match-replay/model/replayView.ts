@@ -1,37 +1,37 @@
 /**
- * replayView — LE CADRAGE DU REJEU, ET CE QU'IL SAIT FAIRE.
+ * replayView — THE FRAMING OF THE REPLAY, AND WHAT IT CAN DO.
  *
- * POURQUOI CE MODULE EXISTE (registre 2026-09-05, K3). Le cadrage — les bornes du monde, la
- * taille de la toile, la marge — était un objet que RIEN ne savait projeter : son type était
- * redéclaré NEUF fois à l'identique dans la feature, et le passage monde → canvas se réécrivait
- * à chaque site en dépaquetant les quatre champs à la main :
+ * WHY THIS MODULE EXISTS (register 2026-09-05, K3). The framing — the bounds of the world, the
+ * size of the canvas, the margin — was an object that NOTHING knew to project: its type was
+ * re-declared NINE times identically in the feature, and the world → canvas passage was rewritten
+ * at each site by unpacking the four fields by hand:
  *
  *     worldToCanvas(p, view.bounds, view.width, view.height, view.pad)
  *
- * Vingt-neuf fois, dans vingt-deux fichiers. Chaque nouvelle écriture était une occasion de se
- * tromper d'ordre entre `width` et `height` — deux nombres du même type, que le compilateur ne
- * peut pas départager — et la faute se serait vue non pas en erreur, mais en calque étiré.
+ * Twenty-nine times, in twenty-two files. Each new writing was an occasion to get
+ * the order wrong between `width` and `height` — two numbers of the same type, that the compiler cannot
+ * arbitrate — and the fault would have shown not as an error, but as a stretched layer.
  *
- * LE CADRAGE SAIT DÉSORMAIS PROJETER. `projectTo(view, p)` et `scaleOf(view)` prennent le
- * cadrage ENTIER : il n'y a plus d'ordre à retenir, et le type ne se déclare qu'ici.
+ * THE FRAMING NOW KNOWS TO PROJECT. `projectTo(view, p)` and `scaleOf(view)` take the
+ * WHOLE framing: there is no longer an order to remember, and the type is declared only here.
  *
- * UNE SEULE FORME, ET PAS DE PROJECTEUR PRÉ-LIÉ. Les calques qui projettent en boucle gardent
- * un raccourci local (`const px = (p: XY) => projectTo(view, p)`) : c'est de la brièveté au
- * point d'appel, pas une seconde règle de projection — la règle, elle, n'est écrite qu'ici.
+ * ONE SINGLE FORM, AND NO PRE-BOUND PROJECTOR. The layers that project in a loop keep
+ * a local shortcut (`const px = (p: XY) => projectTo(view, p)`): it is brevity at the
+ * call site, not a second rule of projection — the rule, it, is written only here.
  *
- * IL NE PEUT PAS VIVRE DANS `replayLogic`, et c'est structurel : `worldToCanvas` y est défini,
- * donc l'y appeler ferait un cycle. `layerOffset` (replayLogic) est le seul site qui garde
- * l'écriture longue, pour cette raison-là et pour elle seule.
+ * IT CANNOT LIVE IN `replayLogic`, and it is structural: `worldToCanvas` is defined there,
+ * so calling it there would make a cycle. `layerOffset` (replayLogic) is the only site that keeps
+ * the long writing, for that reason and for it alone.
  */
 import type { ReplayBounds } from '@/lib/api/types'
 
 import { canvasScale, worldToCanvas, type XY } from '../../../lib/replay/replayLogic'
 
 /**
- * Le CADRAGE : quelle portion du monde on montre, dans quelle toile, avec quelle marge.
+ * THE FRAMING: which portion of the world we show, in which canvas, with what margin.
  *
- * C'est la seule déclaration de ce type dans la feature — les huit copies locales (dont
- * plusieurs écrivaient `bounds` en littéral plutôt qu'en `ReplayBounds`) l'importent.
+ * It is the only declaration of this type in the feature — the eight local copies (of which
+ * several wrote `bounds` as a literal rather than as `ReplayBounds`) import it.
  */
 export interface CanvasView {
   bounds: ReplayBounds
@@ -41,22 +41,22 @@ export interface CanvasView {
 }
 
 /**
- * projectTo projette une position MONDE dans la toile, selon le cadrage.
+ * projectTo projects a WORLD position into the canvas, according to the framing.
  *
- * Y EST INVERSÉ (le monde a +Y vers le haut, la toile vers le bas), l'ajustement préserve le
- * ratio et centre — tout cela vit dans `worldToCanvas`, que cette fonction ne fait qu'alimenter
- * avec le cadrage entier.
+ * Y IS INVERTED (the world has +Y up, the canvas down), the fit preserves the
+ * ratio and centers — all of this lives in `worldToCanvas`, which this function only feeds
+ * with the whole framing.
  */
 export function projectTo(view: CanvasView, p: XY): XY {
   return worldToCanvas(p, view.bounds, view.width, view.height, view.pad)
 }
 
 /**
- * scaleOf rend le facteur MÈTRES → PIXELS du cadrage.
+ * scaleOf returns the METERS → PIXELS factor of the framing.
  *
- * C'est lui qui convertit une grandeur du monde (un rayon d'explosion, la maille d'une carte de
- * chaleur, la portée d'un capteur) en pixels de la toile. Même raison d'être que `projectTo` :
- * il prenait les quatre champs un par un, sept fois.
+ * It is what converts a magnitude of the world (an explosion radius, the mesh of a heat
+ * map, the range of a sensor) into pixels of the canvas. Same reason for being as `projectTo`:
+ * it took the four fields one by one, seven times.
  */
 export function scaleOf(view: CanvasView): number {
   return canvasScale(view.bounds, view.width, view.height, view.pad)

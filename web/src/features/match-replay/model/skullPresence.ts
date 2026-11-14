@@ -1,42 +1,44 @@
 /**
- * skullPresence.ts — LA RÈGLE DE PRÉSENCE DU CRÂNE d'Oddball (schéma 23), pure.
+ * skullPresence.ts — THE PRESENCE RULE OF Oddball's SKULL (schema 23), pure.
  *
- * POURQUOI CE MODULE. Le crâne libre (`objectiveObjects`) et le crâne porté (`skullCarries`)
- * sont DEUX couches disjointes : la première publie des positions réellement émises, la
- * seconde des intervalles de portage. Entre les deux, il reste des TROUS DE REPOS — le crâne
- * pose sur son socle et n'émet qu'un INSTANT UNIQUE (une vie où t0 == t1, un seul point). Le
- * primitif `objectiveObjectAt` ne réplique que dans [t0, t1] : une vie-socle clignote alors une
- * image puis disparaît, et le crâne devient invisible au repos (un tiers du film mesuré).
+ * WHY THIS MODULE. The free skull (`objectiveObjects`) and the carried skull (`skullCarries`)
+ * are TWO disjoint layers: the first publishes positions actually emitted, the second carrying
+ * intervals. Between the two remain REST HOLES — the skull sits on its pedestal and emits only
+ * a SINGLE INSTANT (one life where t0 == t1, one point). The primitive `objectiveObjectAt`
+ * only replicates inside [t0, t1]: a pedestal life then blinks for one frame and vanishes,
+ * and the skull becomes invisible at rest (a third of the film as measured).
  *
- * Ce module compose les deux couches en une PRÉSENCE UNIQUE par image, sans jamais dessiner à
- * deux endroits (présence unique + précédence du portage). Il ne connaît ni React, ni le DOM,
- * ni la couleur, ni le moindre libellé : l'encre et le tracé sont résolus par l'appelant.
+ * This module composes the two layers into a SINGLE PRESENCE per frame, never drawing in two
+ * places (unique presence + carrying precedence). It knows neither React, nor the DOM, nor
+ * the color, nor the slightest label: the ink and the strokes are resolved by the caller.
  *
- * LA RÈGLE EST LE TEST DU PROCHAIN ÉVÉNEMENT, et c'est la SEULE correcte (une formule naïve
- * « tenir jusqu'à la prochaine prise » garerait le crâne au point de chute-dans-le-vide pendant
- * le cooldown de respawn). Un repos n'est tenu que si une PRISE le corrobore : le porteur arrive
- * SUR la position tenue. Un repos suivi d'une VIE (respawn au socle, lâcher qui roule) NE tient
- * pas la position précédente — pas de fantôme à la mauvaise place.
+ * THE RULE IS THE TEST OF THE NEXT EVENT, and it is the ONLY correct one (a naive formula
+ * "hold until the next pickup" would park the skull at the drop-into-the-void point during
+ * the respawn cooldown). A rest is held only if a PICKUP corroborates it: the carrier arrives
+ * ON the held position. A rest followed by a LIFE (respawn on the pedestal, a drop that rolls)
+ * does NOT hold the previous position — no ghost at the wrong place.
  *
- * MAIS LE CRÂNE N'EST JAMAIS NULLE PART : quand il n'est ni porté, ni au sol en jeu, il est
- * RENTRÉ SUR SON SOCLE (son point de réapparition). Là où la règle disait `absent` (avant sa
- * première émission, pendant un cooldown de respawn hors-zone), on le pose sur son socle si on
- * sait où il est — et on le sait : `skullSocle` le lit comme le MODE des vies-instant (le crâne
- * y réapparaît en boucle, une chute dans le vide n'y émet qu'un instant isolé). Sans socle
- * identifiable (artefact trop court), on retombe sur `absent`.
+ * BUT THE SKULL IS NEVER NOWHERE: when it is neither carried nor on the ground in play, it is
+ * PARKED ON ITS PEDESTAL (its respawn point). Where the rule said `absent` (before its first
+ * emission, during an out-of-zone respawn cooldown), it is placed on its pedestal when one
+ * knows where it is — and one knows: `skullSocle` reads it as the MODE of the instant lives
+ * (the skull respawns there in a loop, a drop into the void emits only a single isolated
+ * instant there). Without an identifiable pedestal (artifact too short), it falls back on
+ * `absent`.
  *
- * LA PRÉCÉDENCE DU PORTAGE EST CONDITIONNÉE À UNE POSITION DU PORTEUR (audit du 2026-09-10,
- * causes C9/C10 ; lot 6.7 phase B2). Le portage est un INTERVALLE, la trajectoire du bipède une
- * suite d'échantillons qui peut s'interrompre : sur 694 images du parc Oddball (7,0 %, rapport
- * 6.2 §2.1) le portage est vrai mais le porteur n'a PAS de position. Rendre `carried` là-dessus
- * faisait taire ce module pendant que `skullCarrierLayer` ne dessinait rien faute de position —
- * le crâne DISPARAISSAIT. La règle commune aux trois glyphes portés (`carriedGlyphPlace.ts`) le
- * rend désormais LIBRE à sa dernière position connue : celle du porteur, à défaut le dernier
- * repos, à défaut le socle. Un seul glyphe à l'écran, jamais zéro, jamais deux.
+ * CARRYING PRECEDENCE IS CONDITIONED ON A POSITION OF THE CARRIER (audit of 2026-09-10,
+ * causes C9/C10; lot 6.7 phase B2). The carrying is an INTERVAL, the biped's trajectory a
+ * run of samples that can break off: on 694 frames of the Oddball park (7.0%, report
+ * 6.2 section 2.1) the carrying is true but the carrier has NO position. Returning `carried`
+ * on that basis used to silence this module while `skullCarrierLayer` drew nothing for lack
+ * of a position — the skull DISAPPEARED. The rule common to the three carried glyphs
+ * (`carriedGlyphPlace.ts`) now renders it FREE at its last known position: that of the
+ * carrier, failing that the last rest, failing that the pedestal. One glyph on screen, never
+ * zero, never two.
  *
- * DÉGRADATION : avec `carries: []` (artefacts antérieurs au schéma 23), aucune prise ne suit
- * jamais un repos → le maintien ne se déclenche pas → la présence retombe EXACTEMENT sur le
- * comportement historique (vie active seule, muet ailleurs).
+ * DEGRADATION: with `carries: []` (artifacts prior to schema 23), no pickup ever follows a
+ * rest -> the hold never triggers -> the presence falls back EXACTLY on the historical
+ * behavior (active life only, silent elsewhere).
  */
 import { objectiveObjectAt } from '../layers/objectiveObjectsLayer'
 
@@ -45,27 +47,27 @@ import type { XY } from '../../../lib/replay/replayLogic'
 import type { ReplayObjectiveObjectReady, ReplaySkullCarry } from '../../../lib/replay/replayNormalize'
 import { covers } from './replaySpans'
 
-/** SkullPresence — ce que le crâne montre à une image donnée, en une seule réponse. */
+/** SkullPresence — what the skull shows at a given frame, in a single answer. */
 export type SkullPresence =
-  /** Quelqu'un le porte : le calque libre se tait, `skullCarrierLayer` le dessine. */
+  /** Someone carries it: the free layer falls silent, `skullCarrierLayer` draws it. */
   | { state: 'carried' }
-  /** Il est au sol à `at` ; `rolling` s'il bouge encore (un point suit dans sa vie). */
+  /** It is on the ground at `at`; `rolling` if it is still moving (a point follows in its life). */
   | { state: 'free'; at: XY; rolling: boolean }
-  /** Il n'a pas de position honnête à cette image (pré-émission, respawn, retombée). */
+  /** It has no honest position at this frame (pre-emission, respawn, fall-back). */
   | { state: 'absent' }
 
 /**
- * skullPresenceAt applique le test du prochain événement à l'image servie.
+ * skullPresenceAt applies the test of the next event to the frame served.
  *
- * 1. Une CARRY couvre F → `carried`, MAIS SEULEMENT SI SON PORTEUR A UNE POSITION À CETTE IMAGE
- *    (cf. l'en-tête, précédence conditionnée). Sinon le crâne est LIBRE à sa dernière position
- *    connue — celle du porteur, à défaut le dernier repos, à défaut le socle.
- * 2. Sinon une VIE ACTIVE couvre F → `free` au dernier point émis (= `objectiveObjectAt`).
- * 3. Sinon (TROU DE REPOS) : `lastRest` = la vie de plus grand `t1 <= F`. Aucune → `absent`.
- *    Sinon on regarde le PROCHAIN début strictement > F (toutes vies ET carries) :
- *      - une PRISE (carry.t0) → `free` TENU au dernier repos de `lastRest`, `rolling:false` ;
- *      - une VIE (life.t0), ou aucun → `absent`.
- *    Égalité vie/carry au même début : la VIE l'emporte (choix sûr, évite le fantôme).
+ * 1. A CARRY covers F → `carried`, BUT ONLY IF ITS CARRIER HAS A POSITION AT THIS FRAME
+ *    (cf. the header, conditioned precedence). Otherwise the skull is FREE at its last position
+ *    known — that of the carrier, if not the last rest, if not the socle.
+ * 2. Otherwise an ACTIVE LIFE covers F → `free` at the last point emitted (= `objectiveObjectAt`).
+ * 3. Otherwise (REST HOLE): `lastRest` = the life with the largest `t1 <= F`. None → `absent`.
+ *    Otherwise one looks at the NEXT beginning strictly > F (all lives AND carries):
+ *      - a PICKUP (carry.t0) → `free` HELD at the last rest of `lastRest`, `rolling:false`;
+ *      - a LIFE (life.t0), or none → `absent`.
+ *    Tie life/carry at the same beginning: the LIFE wins (safe choice, avoids the ghost).
  */
 export function skullPresenceAt(
   lives: readonly ReplayObjectiveObjectReady[],
@@ -76,13 +78,13 @@ export function skullPresenceAt(
 ): SkullPresence {
   for (const carry of carries) {
     if (!covers(carry, frame)) continue
-    // SANS LECTEUR DE POSITION, la précédence du portage reste entière : c'est la dégradation
-    // des appelants qui ne relisent pas les trajectoires (et le comportement d'avant ce lot).
+    // WITHOUT A POSITION READER, the precedence of the carrying stays entire: it is the degradation
+    // of the callers that do not re-read the trajectories (and the behavior before this lot).
     if (!posOf) return { state: 'carried' }
     const place = carriedGlyphPlaceAt(posOf, carry, frame, lastRestPointOf(lives, frame) ?? socle)
     if (place.state === 'carried') return { state: 'carried' }
-    // Le crâne LIBRE au dernier point connu : il ne ROULE pas — cette position est un repos
-    // constaté, pas un échantillon de trajectoire en cours.
+    // The skull FREE at the last known point: it does not ROLL — this position is a rest
+    // observed, not a sample of trajectory in progress.
     return place.state === 'free' ? { state: 'free', at: place.at, rolling: false } : { state: 'absent' }
   }
   for (const life of lives) {
@@ -91,8 +93,8 @@ export function skullPresenceAt(
   }
   const lastRest = lastRestOf(lives, frame)
   if (lastRest === null) return restOnSocle(socle)
-  // Prochain début > F : les vies posent le seuil, une carry ne l'emporte que STRICTEMENT
-  // plus tôt (une carry ex æquo avec une vie ne prend pas le pas — la vie gagne l'égalité).
+  // Next beginning > F: the lives set the threshold, a carry wins only STRICTLY
+  // earlier (a carry tied with a life does not take precedence — the life wins the tie).
   let nextStart = Infinity
   let nextIsCarry = false
   for (const life of lives) {
@@ -113,8 +115,8 @@ export function skullPresenceAt(
 }
 
 /**
- * lastRestOf — la vie de plus grand `t1 <= frame` qui ait émis au moins un point, ou `null`.
- * C'est le DERNIER ENDROIT OÙ LE CRÂNE A ÉTÉ VU au sol avant l'image servie.
+ * lastRestOf — the life with the largest `t1 <= frame` that has emitted at least one point, or `null`.
+ * It is the LAST PLACE WHERE THE SKULL WAS SEEN on the ground before the frame served.
  */
 function lastRestOf(
   lives: readonly ReplayObjectiveObjectReady[],
@@ -129,7 +131,7 @@ function lastRestOf(
   return lastRest
 }
 
-/** Le dernier point émis du dernier repos, ou `null` — le repli de position de l'objet lui-même. */
+/** The last point emitted of the last rest, or `null` — the position fallback of the object itself. */
 function lastRestPointOf(
   lives: readonly ReplayObjectiveObjectReady[],
   frame: number,
@@ -141,21 +143,22 @@ function lastRestPointOf(
 }
 
 /**
- * restOnSocle — le crâne au REPOS est sur son SOCLE. Quand la présence est autrement `absent`
- * (avant sa première émission, pendant un cooldown de respawn hors-zone), le crâne n'a pas
- * disparu : il est rentré sur son socle. On l'y pose SI le socle est connu ; sinon, faute de
- * position honnête, `absent` (comportement historique, artefact sans socle identifiable).
+ * restOnSocle — the skull at REST is on its SOCLE. When the presence is otherwise `absent`
+ * (before its first emission, during an out-of-zone respawn cooldown), the skull has not
+ * disappeared: it has retreated onto its socle. It is placed there IF the socle is known; otherwise, lacking
+ * an honest position, `absent` (historical behavior, artifact without identifiable socle).
  */
 function restOnSocle(socle: XY | null): SkullPresence {
   return socle ? { state: 'free', at: socle, rolling: false } : { state: 'absent' }
 }
 
 /**
- * skullSocle rend la position du SOCLE du crâne, ou `null`. Le socle est là où le crâne
- * RÉAPPARAÎT : ses vies-instant (t0 == t1, un seul point) s'y répètent, tandis qu'une chute
- * dans le vide n'émet son instant qu'UNE fois, ailleurs. Le socle est donc le MODE des positions
- * de vies-instant, au mètre. On exige une RÉCURRENCE (≥ 2) : un instant unique isolé est plus
- * probablement une chute qu'un socle. Se calcule UNE fois par document (l'appelant mémoïse).
+ * skullSocle returns the position of the skull's PEDESTAL, or `null`. The pedestal is where
+ * the skull REAPPEARS: its instant lives (t0 == t1, one point) repeat there, while a drop
+ * into the void emits its instant only ONCE, elsewhere. The pedestal is therefore the MODE
+ * of the instant-lives' positions, to the meter. A RECURRENCE (>= 2) is required: a single
+ * isolated instant is more likely a drop than a pedestal. Computed ONCE per document
+ * (the caller memoizes).
  */
 export function skullSocle(lives: readonly ReplayObjectiveObjectReady[]): XY | null {
   const tally = new Map<string, { at: XY; n: number }>()

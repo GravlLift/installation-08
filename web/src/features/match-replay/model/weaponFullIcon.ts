@@ -1,53 +1,54 @@
 /**
- * weaponFullIcon.ts — LA VERSION PLEINE d'une icône d'arme, pour les fiches joueur.
+ * weaponFullIcon.ts — THE FULL VERSION of a weapon icon, for the player cards.
  *
- * POURQUOI CE MODULE EXISTE. Le document du rejeu porte une vignette par arme
- * (`weaponLabels[id].img`, cuite dans l'artefact au build) : c'est l'atlas `contour` —
- * le trait de l'arme, à vide. La maquette retenue (option 2a du handoff 2026-08-27)
- * dessine les fiches avec la version PLEINE, celle du kill feed du jeu : l'atlas
- * `silhouette`, extrait du même binaire, indexé À L'IDENTIQUE — `silhouette-XX` est la
- * même arme que `contour-XX`, mêmes tags `weap` (vérifié 40/40 par le garde-rail
- * `weaponFullIcon.guard.test.ts` sur `jeu/index.json`). L'échange est donc une simple
- * substitution de stem dans l'URL.
+ * WHY THIS MODULE EXISTS. The replay document carries one thumbnail per weapon
+ * (`weaponLabels[id].img`, baked into the artifact at build): it is the `contour`
+ * atlas — the outline of the weapon, empty. The chosen mockup (option 2a of the 2026-08-27
+ * handoff) draws the cards with the FULL version, the one of the game's kill feed: the
+ * `silhouette` atlas, extracted from the same binary, indexed IDENTICALLY — `silhouette-XX`
+ * is the same weapon as `contour-XX`, same `weap` tags (verified 40/40 by the guard-rail
+ * `weaponFullIcon.guard.test.ts` on `jeu/index.json`). The swap is therefore a simple
+ * stem substitution in the URL.
  *
- * IL SE RÉSOUT CÔTÉ CLIENT, ET C'EST DÉLIBÉRÉ : l'URL est FIGÉE DANS L'ARTEFACT au moment
- * du build — servir la silhouette depuis le Go n'atteindrait que les artefacts recuits,
- * c'est-à-dire aucun de ceux déjà servis, tant que le re-build de masse n'a pas eu lieu.
+ * IT RESOLVES ON THE CLIENT, AND THAT IS DELIBERATE: the URL is BAKED INTO THE ARTIFACT at
+ * build time — serving the silhouette from the Go would only reach rebaked artifacts,
+ * that is none of the ones already served, until the mass re-build has happened.
  *
- * LE MIROIR. Les atlas `contour` et `silhouette` pointent vers la GAUCHE ; le kill feed
- * du jeu — et la maquette — vers la DROITE. L'icône échangée se rend donc retournée
- * (`scaleX(-1)`), et SEULEMENT elle : une vignette hors atlas (les deux PNG dessinés à la
- * main, les concepts) garde son URL et son sens — retourner un dessin fini n'a pas de
- * fondement dans le jeu.
+ * THE MIRROR. The `contour` and `silhouette` atlases point LEFT; the game's kill feed
+ * — and the mockup — point RIGHT. The swapped icon is therefore rendered flipped
+ * (`scaleX(-1)`), and ONLY it: an off-atlas thumbnail (the two hand-drawn PNGs, the
+ * concepts) keeps its URL and its orientation — flipping a finished drawing has no
+ * basis in the game.
  *
- * LES SOCLES DE LA CARTE PASSENT PAR ICI DEPUIS LE 2026-08-28 (retour utilisateur : « pour les
- * armes il faut utiliser les icônes comme pour les fiches de joueurs et le kill feed »). Ils
- * gardaient le `contour` par périmètre de lot, et c'était le mauvais choix à leur échelle : un
- * trait d'arme à vide, à 8 px, sur un fond de carte en niveaux de gris déjà cerné de noir, ne se
- * distingue pas. La forme PLEINE, elle, tient. Le miroir vaut pour eux aussi — une même arme ne
- * peut pas pointer à droite sur la fiche et à gauche sur la carte —, mais il est cuit dans le
- * canvas hors écran (`tintedIconCanvas`) et non posé en CSS : un canvas n'a pas de `transform`.
+ * THE MAP'S PEDESTALS GO THROUGH HERE SINCE 2026-08-28 (user feedback: « pour les armes il
+ * faut utiliser les icônes comme pour les fiches de joueurs et le kill feed » [for weapons,
+ * the icons used for the player cards and the kill feed must be used]). They kept the
+ * `contour` by lot perimeter, and it was the wrong choice at their scale: an empty weapon
+ * outline, at 8 px, on a grayscale map background already edged in black, does not stand
+ * out. The FULL shape, it, holds. The mirror applies to them too — the same weapon cannot
+ * point right on the card and left on the map —, but it is baked in the offscreen canvas
+ * (`tintedIconCanvas`) and not set in CSS: a canvas has no `transform`.
  */
 import type { CSSProperties } from 'react'
 
-/** Les deux stems d'atlas, tels que `static/weapons-assets/{slug}/jeu/` les nomme. */
+/** The two atlas stems, as `static/weapons-assets/{slug}/jeu/` names them. */
 const CONTOUR_SEG = '/jeu/contour-'
 const SILHOUETTE_SEG = '/jeu/silhouette-'
 
-/** Ce que la fiche a besoin de savoir : l'URL à peindre, et si elle se retourne. */
+/** What the card needs to know: the URL to paint, and whether it is flipped. */
 export interface FullWeaponIcon {
   url: string
-  /** Vrai = icône d'atlas échangée, à rendre en miroir (le sens du kill feed du jeu). */
+  /** True = swapped atlas icon, to render mirrored (the orientation of the game's kill feed). */
   mirrored: boolean
 }
 
-/** Le style du miroir — une seule écriture, partagée par les cellules qui le posent. */
+/** The mirror style — a single writing, shared by the cells that set it. */
 export const MIRROR_STYLE: CSSProperties = { transform: 'scaleX(-1)' }
 
 /**
- * weaponFullIcon échange une URL d'atlas `contour` contre sa `silhouette` (version
- * pleine, à retourner). Toute autre URL — dessin fini, concept, autre titre — est rendue
- * telle quelle, dans son sens.
+ * weaponFullIcon swaps a `contour` atlas URL for its `silhouette` (full version, to be
+ * flipped). Any other URL — finished drawing, concept, other title — is rendered as is,
+ * in its orientation.
  */
 export function weaponFullIcon(url: string): FullWeaponIcon {
   if (url.includes(CONTOUR_SEG)) {

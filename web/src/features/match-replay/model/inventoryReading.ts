@@ -1,18 +1,18 @@
 /**
- * inventoryReading.ts — QUELLE lecture d'inventaire la fiche affiche, et ce qu'elle en dit.
+ * inventoryReading.ts — WHICH inventory reading the card displays, and what it says about it.
  *
- * POURQUOI CE FICHIER EXISTE (2026-08-25, lot 1 « lecture vide »). La règle « la lecture la
- * plus proche <= T » ne suffisait plus. L'artefact publie des lectures VIDES — 17,4 % du total
- * mesuré — et, la plus récente gagnant, une lecture vide EFFAÇAIT la fiche du joueur pendant
- * ~20 s alors qu'une lecture pleine la précédait. Le correctif n'est pas « ignorer les lectures
- * vides » : une lecture vide DIT quelque chose (le schéma 19 dit même quoi, cf. `empty`). C'est
- * « ne pas laisser une lecture vide effacer le dernier état connu, et afficher l'état vide À
- * CÔTÉ ». Les deux informations coexistent, aucune ne remplace l'autre.
+ * WHY THIS FILE EXISTS (2026-08-25, batch 1 « empty reading »). The rule « the nearest
+ * reading <= T » was no longer enough. The artifact publishes EMPTY readings — 17.4% of the
+ * measured total — and, the most recent one winning, an empty reading ERASED the player's card for
+ * ~20 s while a full reading preceded it. The fix is not « ignore empty
+ * readings »: an empty reading SAYS something (schema 19 even says what, cf. `empty`). It is
+ * « do not let an empty reading erase the last known state, and display the empty state BESIDE
+ * it ». The two pieces of information coexist, neither replaces the other.
  *
- * Extrait de `rosterLogic.ts` (seuil de taille du dépôt) : le report de lecture canonique
- * (`nearestReading`) y reste, ce fichier ne fait que le composer.
+ * Extracted from `rosterLogic.ts` (threshold for the size of the store): the canonical reading fallback
+ * (`nearestReading`) stays there, this file only composes it.
  *
- * Tout ce fichier est PUR : aucun React, aucun canvas, donc testable.
+ * This whole file is PURE: no React, no canvas, therefore testable.
  */
 import { catalogText, type CatalogLabel } from '../i18n/catalogLabel'
 import type { REPLAY_TEXT, ReplayLocale } from '../i18n/i18n'
@@ -21,71 +21,71 @@ import type { ReplayDocumentReady, ReplayInventoryReady } from '../../../lib/rep
 import { currentLifeOf, nearestReading } from '../../../lib/replay/rosterLogic'
 
 /**
- * InventoryEmptyKind — POURQUOI la lecture qui couvre cette image ne rend rien.
+ * InventoryEmptyKind — WHY the reading covering this frame renders nothing.
  *
- * Les deux valeurs viennent telles quelles de l'artefact (`inventory[].empty`, schéma 19) :
- *   - 'dead'    : le FIL DES MORTS corrobore — le porteur du slot est mort dans les 8 s ;
- *   - 'unknown' : la lecture est vide et rien ne l'explique.
- * Une valeur inconnue d'un artefact futur est ramenée à 'unknown' : afficher « mort » sur une
- * étiquette qu'on ne comprend pas serait pire que de dire « indisponible ».
+ * The two values come as-is from the artifact (`inventory[].empty`, schema 19):
+ *   - 'dead'    : the THREAD OF DEATHS corroborates — the slot's carrier is dead within 8 s;
+ *   - 'unknown' : the reading is empty and nothing explains it.
+ * An unknown value from a future artifact is brought back to 'unknown': displaying « dead » on a
+ * label one does not understand would be worse than saying « unavailable ».
  */
 export type InventoryEmptyKind = 'dead' | 'unknown'
 
 /**
- * InventoryEmptyState — l'état vide qui couvre l'image courante, et l'âge de CETTE lecture.
+ * InventoryEmptyState — the empty state covering the current frame, and the age of THIS reading.
  *
- * L'ÂGE EST CELUI DE LA LECTURE VIDE, pas celui de l'état affiché à côté : les deux ne datent
- * pas du même instant, et les confondre ferait passer un état de vingt secondes pour frais.
+ * THE AGE IS THAT OF THE EMPTY READING, not that of the state displayed beside it: the two are not
+ * dated at the same instant, and confusing them would make a twenty-second-old state pass for fresh.
  */
 export interface InventoryEmptyState {
   kind: InventoryEmptyKind
   age: number
 }
 
-/** InventoryReading — l'inventaire d'un slot et l'ÂGE de cette lecture, en frames. */
+/** InventoryReading — the inventory of a slot and the AGE of this reading, in frames. */
 export interface InventoryReading {
   state: ReplayInventoryReady
   age: number
   /**
-   * Présent = la lecture qui couvre l'image est VIDE. `state` porte alors la dernière lecture
-   * PLEINE du même slot quand il en existe une ; à défaut, la lecture vide elle-même — et la
-   * fiche n'a qu'un état à montrer, celui-ci.
+   * Present = the reading covering the frame is EMPTY. `state` then carries the last
+   * FULL reading of the same slot when one exists; failing that, the empty reading itself — and the
+   * card has only one state to show, that one.
    */
   empty?: InventoryEmptyState
   /**
-   * true = `state` est une lecture PLEINE substituée à la lecture vide qui couvre l'image.
+   * true = `state` is a FULL reading substituted for the empty reading covering the frame.
    *
-   * CE BOOLÉEN EXISTE POUR QUE L'INFOBULLE NE MENTE PAS. Sans lui, la fiche disait « l'équipement
-   * affiché est la dernière lecture pleine, lue il y a X » y compris quand AUCUNE lecture pleine
-   * n'existait avant cet instant — `state` était alors la lecture vide elle-même, et le X était
-   * l'âge de CETTE lecture vide. Deux situations, une seule phrase, dont une fausse.
+   * THIS BOOLEAN EXISTS SO THE TOOLTIP DOES NOT LIE. Without it, the card said « the equipment
+   * displayed is the last full reading, read X ago » including when NO full reading
+   * existed before that instant — `state` was then the empty reading itself, and the X was
+   * the age of THIS empty reading. Two situations, one sentence, one of them false.
    */
   substituted: boolean
 }
 
 /**
- * inventoryAt rend l'inventaire à afficher pour un SLOT à `frame`.
+ * inventoryAt renders the inventory to display for a SLOT at `frame`.
  *
- * LA RECHERCHE PORTE SUR LE SLOT, PAS SUR LE JOUEUR, et c'est ce qui rend le report SÛR : un
- * slot est réattribué à chaque réapparition, donc une dotation ne peut jamais franchir une
- * mort. Chercher par joueur ferait survivre un inventaire à son porteur.
+ * THE LOOKUP RUNS ON THE SLOT, NOT ON THE PLAYER, and that is what makes the fallback SAFE: a
+ * slot is reattributed at each respawn, so a loadout can never cross a
+ * death. Looking up by player would make an inventory outlive its carrier.
  *
- * AVANT LA PREMIÈRE IMAGE-CLÉ D'UNE VIE, la lecture rendue est la plus proche À VENIR du
- * même slot — même repli que loadoutAt, et même honnêteté : âge NÉGATIF publié tel quel,
- * estompé sur sa valeur absolue, dit « à venir » en infobulle. DÉCISION UTILISATEUR
- * (2026-08-12) : elle va AU-DELÀ du POC, qui refusait la lecture future pour les compteurs
- * (grenades, munitions) au motif qu'ils sont volatils — l'arbitrage produit est qu'une
- * dotation de spawn affichée avec son âge « à venir » informe mieux que vingt secondes de
- * vide. Le repli ne franchit jamais une mort : un slot est une vie.
+ * BEFORE THE FIRST KEYFRAME OF A LIFE, the reading rendered is the nearest UPCOMING one of the
+ * same slot — same fallback as loadoutAt, and same honesty: NEGATIVE age published as is,
+ * faded on its absolute value, says « upcoming » in the tooltip. USER DECISION
+ * (2026-08-12): it goes FURTHER than the POC, which refused the future reading for counters
+ * (grenades, ammo) on the ground that they are volatile — the product call is that a
+ * spawn loadout displayed with its « upcoming » age informs better than twenty seconds of
+ * nothing. The fallback never crosses a death: a slot is a life.
  *
- * QUAND CETTE LECTURE EST VIDE, on ne la jette pas et on ne s'y arrête pas : on rend l'état
- * vide dans `empty` ET la dernière lecture PLEINE du même slot dans `state`. C'est la seule
- * façon de dire les deux choses vraies à la fois — « il portait ceci » et « il est mort ».
+ * WHEN THIS READING IS EMPTY, it is not thrown away and it is not stopped on: the empty
+ * state is rendered in `empty` AND the last FULL reading of the same slot in `state`. It is the only
+ * way to say the two true things at once — « he was carrying this » and « he is dead ».
  *
- * BORNÉE À LA VIE EN COURS DU SLOT (correctif du 2026-09-06, même défaut et même remède que
- * `loadoutAt`) : sans vie couvrante pour ce slot à cette image, `null` — jamais l'inventaire
- * d'une autre vie. `window.start` descend jusqu'à `lastFullBefore`, qui borne à son tour son
- * repli sur la dernière lecture PLEINE.
+ * BOUNDED TO THE SLOT'S CURRENT LIFE (fix of 2026-09-06, same defect and same remedy as
+ * `loadoutAt`): without a covering life for this slot at this frame, `null` — never the inventory
+ * of another life. `window.start` descends to `lastFullBefore`, which in turn bounds its
+ * fallback on the last FULL reading.
  */
 export function inventoryAt(
   doc: ReplayDocumentReady,
@@ -98,30 +98,30 @@ export function inventoryAt(
   const read = nearestReading(doc.inventory ?? [], slot, frame, window)
   if (!read) return null
   if (!read.value.empty) return { state: read.value, age: read.age, substituted: false }
-  // LECTURE VIDE À VENIR (âge négatif) : ne rien affirmer. La mort qu'elle rapporte n'est pas
-  // encore survenue à l'image courante — le badge dirait « Mort » sur un joueur vivant, jusqu'à
-  // ~11 s d'avance mesurées (8 vies sur 90 du film de référence, revue du 2026-08-25). Et le
-  // report `lastFullBefore` chercherait avant `read.t`, donc parmi des lectures FUTURES elles
-  // aussi : il servirait un équipement pas encore ramassé. On rend la lecture comme une lecture
-  // ordinaire « à venir » — même repli que loadoutAt : la fiche n'en tire rien de plein, et
-  // l'infobulle de la ligne dit déjà « dans X s ».
+  // UPCOMING EMPTY READING (negative age): assert nothing. The death it reports has not
+  // yet occurred at the current frame — the badge would say « Dead » on a living player, up to
+  // ~11 s ahead as measured (8 lives out of 90 of the reference film, review of 2026-08-25). And the
+  // fallback `lastFullBefore` would look before `read.t`, hence among FUTURE readings as
+  // well: it would serve equipment not yet picked up. The reading is rendered as an ordinary
+  // « upcoming » reading — same fallback as loadoutAt: the card draws nothing full from it, and
+  // the row's tooltip already says « in X s ».
   if (read.age < 0) return { state: read.value, age: read.age, substituted: false }
   const empty: InventoryEmptyState = {
     kind: read.value.empty === 'dead' ? 'dead' : 'unknown',
     age: read.age,
   }
-  // La dernière lecture PLEINE strictement antérieure à la lecture vide, ET dans la MÊME vie
-  // (`window.start`) : le slot est réattribué à chaque réapparition, une lecture antérieure au
-  // début de cette vie appartient à une AUTRE — jamais un repli valide (correctif P0-2).
+  // The last FULL reading strictly earlier than the empty reading, AND within the SAME life
+  // (`window.start`): the slot is reattributed at each respawn, a reading earlier than
+  // the start of this life belongs to ANOTHER one — never a valid fallback (fix P0-2).
   const full = lastFullBefore(doc.inventory ?? [], slot, read.value.t, window.start)
   if (!full) return { state: read.value, age: read.age, empty, substituted: false }
   return { state: full, age: frame - full.t, empty, substituted: true }
 }
 
 /**
- * lastFullBefore — la lecture PORTEUSE la plus récente d'un slot, strictement avant `t` et pas
- * avant `lifeStart` (correctif P0-2, 2026-09-06) : avant cette borne, la lecture appartient à
- * une AUTRE vie du même slot — jamais un repli valide, même « pleine ».
+ * lastFullBefore — the most recent CARRYING reading of a slot, strictly before `t` and not
+ * before `lifeStart` (fix P0-2, 2026-09-06): before that bound, the reading belongs to
+ * ANOTHER life of the same slot — never a valid fallback, even « full ».
  */
 function lastFullBefore(
   samples: readonly ReplayInventoryReady[],
@@ -138,20 +138,20 @@ function lastFullBefore(
 }
 
 /**
- * inventoryEmptyHint — l'infobulle de l'état vide, en DEUX moitiés qui ne datent pas du même
- * instant. Elle vit ICI et non dans le composant : c'est une composition de texte pure, donc
- * testable sans rendu (même règle que le reste de ce fichier).
+ * inventoryEmptyHint — the tooltip of the empty state, in TWO halves that are not dated at the same
+ * instant. It lives HERE and not in the component: it is a pure text composition, therefore
+ * testable without rendering (same rule as the rest of this file).
  *
- * PREMIÈRE MOITIÉ : pourquoi la lecture est vide, et l'âge de CETTE lecture (`empty.age`) — pas
- * celui de l'équipement affiché à côté. Un joueur mort il y a deux secondes dont l'équipement
- * date de vingt n'est pas la même chose qu'un joueur mort il y a vingt secondes, et un seul âge
- * ne pouvait pas dire les deux.
+ * FIRST HALF: why the reading is empty, and the age of THIS reading (`empty.age`) — not
+ * that of the equipment displayed beside it. A player dead two seconds ago whose equipment
+ * is twenty is not the same as a player dead twenty seconds ago, and a single age
+ * could not say both.
  *
- * SECONDE MOITIÉ : ce que l'écran montre à côté. Elle ne promet « la dernière lecture pleine »
- * que lorsqu'une lecture pleine est RÉELLEMENT substituée (`InventoryReading.substituted`). Sans
- * lecture pleine antérieure, la fiche n'affiche aucun équipement — l'infobulle le dit au lieu
- * d'annoncer un report qui n'a pas eu lieu, avec l'âge de la lecture vide en guise d'âge
- * d'équipement.
+ * SECOND HALF: what the screen shows beside it. It promises « the last full reading »
+ * only when a full reading is ACTUALLY substituted (`InventoryReading.substituted`). Without
+ * an earlier full reading, the card displays no equipment — the tooltip says so instead
+ * of announcing a fallback that did not take place, with the age of the empty reading in place of an
+ * equipment age.
  */
 export function inventoryEmptyHint(
   t: (typeof REPLAY_TEXT)[ReplayLocale],
@@ -167,22 +167,22 @@ export function inventoryEmptyHint(
 }
 
 /**
- * GrenadeSelection — le type ÉQUIPÉ, celui qui partira au prochain lancer, avec sa
- * PROVENANCE. Les trois formes ne se confondent jamais :
- *   - { rank, read: true }  : LU dans le film (sélecteur i47 de l'image-clé) ;
- *   - { rank, read: false } : DÉDUIT — un seul type porté, donc c'est lui ;
- *   - 'indeterminate'       : plusieurs types portés et sélecteur non lu — l'écran doit le
- *     DIRE (« sél. ? »), pas choisir ;
- *   - null                  : rien à désigner (compteurs non lus, ou aucun type porté).
+ * GrenadeSelection — the EQUIPPED type, the one that will go on the next throw, with its
+ * PROVENANCE. The three shapes are never confused:
+ *   - { rank, read: true }  : READ in the film (i47 selector of the keyframe);
+ *   - { rank, read: false } : DEDUCED — only one type carried, so it is that one;
+ *   - 'indeterminate'       : several types carried and selector not read — the screen must say
+ *     so (« sel. ? »), not choose;
+ *   - null                  : nothing to designate (counters not read, or no type carried).
  */
 export type GrenadeSelection = { rank: number; read: boolean } | 'indeterminate' | null
 
 /**
- * GrenadeReading — les grenades portées qui couvrent l'image, et l'ÂGE de cette lecture.
+ * GrenadeReading — the grenades carried that cover the frame, and the AGE of this reading.
  *
- * `src` dit par quel canal elle est arrivée : 'kf' (image-clé, ~20 s) ou 'delta' (paquet
- * delta, transmis AU CHANGEMENT). La fiche ne l'affiche pas ; elle sert au diagnostic et aux
- * tests — un canal qui se tairait ne se verrait autrement nulle part.
+ * `src` says through which channel it arrived: 'kf' (keyframe, ~20 s) or 'delta' (delta
+ * packet, sent ON CHANGE). The card does not display it; it serves diagnostics and the
+ * tests — a channel that would go silent would be seen nowhere else.
  */
 export interface GrenadeReading {
   g: number[]
@@ -192,25 +192,25 @@ export interface GrenadeReading {
 }
 
 /**
- * grenadeReadingAt — LA lecture de grenades à afficher pour ce slot à cette image.
+ * grenadeReadingAt — THE grenade reading to display for this slot at this frame.
  *
- * POURQUOI UN AXE À PART, ET POURQUOI LA FICHE LE PRÉFÈRE (schéma 20, lot 4.4 du suivi delta).
- * L'inventaire est lu aux images-clés, soit toutes les ~20 s ; entre deux, la fiche affichait
- * la dernière lecture connue, d'âge médian 10,00 s. Les paquets DELTA transmettent les mêmes
- * compteurs AU CHANGEMENT — un ramassage, un lancer — donc exactement là où l'état bouge.
- * `doc.grenadeReads` porte les DEUX canaux sur la même grandeur ; la plus récente gagne, et
- * l'âge médian tombe à 8,09 s (mesure sur 70 films, 28 confrontables).
+ * WHY A SEPARATE AXIS, AND WHY THE CARD PREFERS IT (schema 20, batch 4.4 of the delta tracking).
+ * The inventory is read at keyframes, that is every ~20 s; in between, the card displayed
+ * the last known reading, median age 10.00 s. The DELTA packets transmit the same
+ * counters ON CHANGE — a pickup, a throw — hence exactly where the state moves.
+ * `doc.grenadeReads` carries the TWO channels on the same quantity; the most recent one wins, and
+ * the median age falls to 8.09 s (measurement on 70 films, 28 comparable).
  *
- * ON NE DÉPARTAGE PAS LES DEUX CANAUX QUAND ILS DIVERGENT : on ne sait pas lequel aurait tort.
- * Ce que la mesure dit, c'est qu'ils divergent peu — 714 accords sur 729 couples confrontables,
- * soit 97,94 %.
+ * THE TWO CHANNELS ARE NOT TIED-BROKEN WHEN THEY DIVERGE: it is not known which one would be wrong.
+ * What the measurement says is that they diverge little — 714 agreements out of 729 comparable pairs,
+ * that is 97.94%.
  *
- * RETOUR À NULL = l'artefact ne porte pas cet axe (antérieur au schéma 20) ou le film n'en
- * transmet rien. L'appelant retombe alors sur `inventory`, exactement comme avant : un artefact
- * ancien continue de s'afficher, il est seulement moins frais.
+ * RETURN TO NULL = the artifact does not carry this axis (predating schema 20) or the film does
+ * transmit nothing of it. The caller then falls back on `inventory`, exactly as before: an old
+ * artifact continues to display, it is just less fresh.
  *
- * BORNÉE À LA VIE EN COURS DU SLOT (correctif P0-2, 2026-09-06, même défaut et même remède
- * que `loadoutAt`) : sans vie couvrante, `null` — jamais les grenades d'une autre vie.
+ * BOUNDED TO THE SLOT'S CURRENT LIFE (fix P0-2, 2026-09-06, same defect and same remedy
+ * as `loadoutAt`): without a covering life, `null` — never the grenades of another life.
  */
 export function grenadeReadingAt(
   doc: ReplayDocumentReady,
@@ -230,11 +230,11 @@ export function grenadeReadingAt(
 }
 
 /**
- * GrenadeBox — CE QUE LA BOÎTE DE GRENADES AFFICHE, et l'ÂGE de la lecture qui le porte.
+ * GrenadeBox — WHAT THE GRENADE BOX DISPLAYS, and the AGE of the reading carrying it.
  *
- * L'ÂGE EST CELUI DE LA LECTURE RETENUE, jamais celui de l'inventaire : c'est toute la raison
- * d'être du type. La boîte s'estompe et s'explique sur SON âge, exactement comme la cellule de
- * capacité, dont la lecture ne tombe pas non plus sur les images-clés de l'inventaire.
+ * THE AGE IS THAT OF THE RETAINED READING, never that of the inventory: that is the whole reason
+ * for the type to exist. The box fades and explains itself on ITS age, exactly like the capacity cell,
+ * whose reading does not land on the keyframes of the inventory either.
  */
 export interface GrenadeBox {
   g: readonly number[]
@@ -243,30 +243,30 @@ export interface GrenadeBox {
 }
 
 /**
- * grenadeBoxAt compose les DEUX sources de la boîte de grenades — l'axe `grenadeReads`
- * (schéma 20) et la lecture d'inventaire — et tranche laquelle s'affiche.
+ * grenadeBoxAt composes the TWO sources of the grenade box — the `grenadeReads` axis
+ * (schema 20) and the inventory reading — and decides which one is displayed.
  *
- * UNE LECTURE À VENIR NE PRIME JAMAIS UNE INFORMATION PASSÉE. C'est la MÊME doctrine que la
- * « lecture vide À VENIR » ci-dessus (inventoryAt), et elle est ici née du même défaut mesuré :
- * `nearestReading` se replie sur la lecture la plus proche À VENIR quand aucune ne précède
- * l'image, et la boîte préférait cette lecture sans regarder le signe de son âge. Résultat
- * observé au slot 554 du film de référence : une plasma affichée ~60 s AVANT sa première
- * mesure, à pleine opacité, sous une infobulle « lu il y a X ». La boîte affirmait l'avenir au
- * passé.
+ * AN UPCOMING READING NEVER OUTRANKS PAST INFORMATION. It is the SAME doctrine as the
+ * « UPCOMING empty reading » above (inventoryAt), and here it was born of the same measured defect:
+ * `nearestReading` falls back on the nearest UPCOMING reading when none precedes
+ * the frame, and the box preferred that reading without looking at the sign of its age. Result
+ * observed at slot 554 of the reference film: a plasma displayed ~60 s BEFORE its first
+ * measurement, at full opacity, under a tooltip « read X ago ». The box asserted the future in the
+ * past.
  *
- * LA RÈGLE, DONC :
- *   - grenadeRead d'âge >= 0 : elle gagne — c'est le gain du lot (âge médian 10,00 s -> 8,09 s),
- *     l'axe portant les deux canaux (image-clé et delta) sur la même grandeur ;
- *   - grenadeRead à VENIR et lecture d'inventaire PASSÉE porteuse de compteurs : les compteurs
- *     passés gagnent, avec l'âge de LEUR lecture ;
- *   - grenadeRead à VENIR et RIEN de passé : la lecture à venir s'affiche, mais ASSUMÉE — son
- *     âge négatif voyage tel quel, et l'infobulle dit « dans X s », comme le fait la rangée.
- *     Un affichage à venir déguisé en passé serait pire qu'une boîte vide ;
- *   - aucun axe (artefact antérieur au schéma 20) : la lecture d'inventaire, telle quelle.
+ * THE RULE, THEREFORE:
+ *   - grenadeRead of age >= 0: it wins — that is the gain of the batch (median age 10.00 s -> 8.09 s),
+ *     the axis carrying both channels (keyframe and delta) on the same quantity;
+ *   - upcoming grenadeRead and PAST inventory reading carrying counters: the past
+ *     counters win, with the age of THEIR reading;
+ *   - upcoming grenadeRead and NOTHING past: the upcoming reading is displayed, but ACCEPTED as such — its
+ *     negative age travels as is, and the tooltip says « in X s », as the row does.
+ *     An upcoming display disguised as past would be worse than an empty box;
+ *   - no axis (artifact predating schema 20): the inventory reading, as is.
  *
- * `g` VIDE = COMPTEURS NON LUS, pas « aucune grenade » (cf. `grenadesCarriedFrom`) : une
- * lecture d'inventaire sans compteurs n'est donc pas une information passée sur les grenades,
- * et ne peut pas départager quoi que ce soit.
+ * EMPTY `g` = COUNTERS NOT READ, not « no grenade » (cf. `grenadesCarriedFrom`): an
+ * inventory reading without counters is therefore not a past piece of information about grenades,
+ * and cannot tie-break anything.
  */
 export function grenadeBoxAt(
   doc: ReplayDocumentReady,
@@ -286,11 +286,11 @@ export function grenadeBoxAt(
 }
 
 /**
- * grenadeBoxHint — l'infobulle de la boîte : ce qu'elle montre, puis QUAND ça a été lu.
+ * grenadeBoxHint — the tooltip of the box: what it shows, then WHEN it was read.
  *
- * ELLE VIT ICI, comme le reste des compositions de texte de ce fichier : une infobulle bâtie
- * dans le composant ne se teste qu'au travers d'un rendu. Un âge négatif est une lecture À
- * VENIR et se dit comme telle — même honnêteté que `abilityAgeTitle` et que la rangée.
+ * IT LIVES HERE, like the rest of the text compositions of this file: a tooltip built
+ * in the component is only tested through a render. A negative age is an UPCOMING
+ * reading and is said as such — same honesty as `abilityAgeTitle` and as the row.
  */
 export function grenadeBoxHint(
   t: (typeof REPLAY_TEXT)[ReplayLocale],
@@ -305,15 +305,15 @@ export function grenadeBoxHint(
 }
 
 /**
- * grenadesCarriedFrom rend les types de grenade PORTÉS, avec leur nom et leur compteur, à
- * partir des COMPTEURS BRUTS — d'où qu'ils viennent (axe `grenadeReads` ou inventaire).
+ * grenadesCarriedFrom renders the grenade types CARRIED, with their name and their counter, from
+ * the RAW COUNTERS — wherever they come from (`grenadeReads` axis or inventory).
  *
- * LES COMPTEURS À ZÉRO SONT ÉCARTÉS DE L'AFFICHAGE mais pas de la lecture : le tableau publié
- * est complet, et un zéro y signifie « ce type, aucune en réserve ». Montrer quatre types dont
- * trois à zéro noierait celui qui compte. Un tableau VIDE, lui, dit « compteurs NON LUS ».
+ * THE ZERO COUNTERS ARE SET ASIDE FROM THE DISPLAY but not from the reading: the published
+ * array is complete, and a zero in it means « that type, none in reserve ». Showing four types three
+ * of which at zero would drown the one that counts. An EMPTY array, for its part, says « counters NOT READ ».
  *
- * Sans table de noms, le RANG s'affiche tel quel : c'est ce que le document dit, et c'est vrai.
- * Inventer un nom serait pire (cf. catalogLabel.ts).
+ * Without a name table, the RANK is displayed as is: that is what the document says, and it is true.
+ * Inventing a name would be worse (cf. catalogLabel.ts).
  */
 export function grenadesCarriedFrom(
   counts: readonly number[],
@@ -323,20 +323,20 @@ export function grenadesCarriedFrom(
   const out: { rank: number; name: string; count: number }[] = []
   counts.forEach((count, rank) => {
     if (count <= 0) return
-    out.push({ rank, name: catalogText(labels?.[rank], locale) ?? `rang ${rank}`, count })
+    out.push({ rank, name: catalogText(labels?.[rank], locale) ?? `rank ${rank}`, count })
   })
   return out
 }
 
 /**
- * selectedGrenadeFrom désigne le type ÉQUIPÉ à partir des COMPTEURS BRUTS et du sélecteur lu.
+ * selectedGrenadeFrom designates the EQUIPPED type from the RAW COUNTERS and the read selector.
  *
- * LA LECTURE PRIME LA DÉDUCTION : le sélecteur du film (`gs`) est publié sous garde de
- * cohérence (masque == compteurs, unanimité) — quand il est là, c'est lui.
+ * THE READING OUTRANKS THE DEDUCTION: the film's selector (`gs`) is published under a
+ * consistency guard (mask == counters, unanimity) — when it is there, it is it.
  *
- * La règle ne change pas d'un canal à l'autre : une sélection lue et cohérente avec les
- * compteurs gagne ; un seul type porté se DÉDUIT ; plusieurs types sans sélection lue restent
- * indéterminés — on ne devine pas laquelle partira.
+ * The rule does not change from one channel to the other: a read selection consistent with the
+ * counters wins; a single type carried is DEDUCED; several types with no read selection remain
+ * indeterminate — one does not guess which one will go.
  */
 export function selectedGrenadeFrom(
   counts: readonly number[],

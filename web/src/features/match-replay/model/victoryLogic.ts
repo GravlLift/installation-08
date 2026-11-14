@@ -1,118 +1,122 @@
 /**
- * victoryLogic — COMMENT CE MATCH S'EST TERMINÉ POUR CELUI QU'ON REGARDE.
+ * victoryLogic — HOW THIS MATCH ENDED FOR THE ONE BEING WATCHED.
  *
- * POUR QUI, EXACTEMENT : par défaut le joueur de la page, et depuis le 2026-09-06 le POINT DE
- * VUE quand l'appelant en passe un (plan « frise, point de vue », décisions 3 et 12). L'écran
- * de fin et l'export vidéo suivent ce qu'on regarde ; le SON et la voix de fin, eux, restent
- * ancrés sur le joueur de la page — inspecter un adversaire ne doit pas jouer « Défaite » sur
- * un match gagné. Les deux surfaces partagent donc cette lecture, mais lui passent un sujet
- * DIFFÉRENT et explicite : voir `readVictory`.
+ * FOR WHOM, EXACTLY: by default the page player, and since 2026-09-06 the POINT OF VIEW
+ * when the caller passes one (plan "frise, point de vue", decisions 3 and 12). The end
+ * screen and the video export follow what is being watched; the SOUND and the end voice,
+ * for their part, stay anchored on the page player — inspecting an opponent must not
+ * play "Defeat" on a won match. The two surfaces therefore share this reading, but pass
+ * it a DIFFERENT and explicit subject: see `readVictory`.
  *
- * L'ÉCRAN DE FIN EST LE SIEN, PAS CELUI DU VAINQUEUR (amendement utilisateur du 2026-08-26,
- * en cours de lot). Comme dans le jeu, l'écran de fin porte les couleurs et le logo de VOTRE
- * équipe, que vous ayez gagné ou perdu — on ne se fait pas afficher l'emblème de l'adversaire
- * parce qu'il a gagné. Ce module rend donc TROIS choses distinctes : l'ISSUE (victoire, défaite,
- * égalité, du point de vue du joueur de la page), SON équipe (celle qui habille l'écran), et
- * l'équipe qui GAGNE (que l'écran peut nommer). En victoire les deux dernières coïncident ; en
- * défaite elles diffèrent, et c'est tout l'intérêt de les séparer.
+ * THE END SCREEN IS YOURS, NOT THE WINNER'S (user amendment of 2026-08-26, in progress of
+ * lot). As in the game, the end screen carries the colors and the logo of YOUR team,
+ * whether you won or lost — you are not shown the opponent's emblem because it won. This
+ * module therefore returns THREE distinct things: the ISSUE (win, loss, tie, from the
+ * point of view of the page player), THEIR team (the one that dresses the screen), and
+ * the team that WINS (which the screen can name). In a win the two last coincide; in a
+ * loss they differ, and that is the whole point of separating them.
  *
- * L'ISSUE SE LIT DANS L'EN-TÊTE, JAMAIS DANS LE SCORE (décision D-B2). L'en-tête publie
- * `outcome_code`, qui est le verdict du joueur DE LA PAGE (2 = victoire, 3 = défaite,
- * 1 = égalité) : c'est une donnée servie, pas une déduction. Déduire le vainqueur du calque de
- * score serait faux au moins deux fois — un mode sans compteur ne publie aucune série, et un
- * match gagné au CHRONO peut finir sur un score à égalité (témoin 64e8adfa, 2-2). Le code de
- * l'en-tête sait dire « gagné 2-2 » ; deux nombres non.
+ * THE ISSUE IS READ IN THE HEADER, NEVER IN THE SCORE (decision D-B2). The header
+ * publishes `outcome_code`, which is the verdict of the PAGE PLAYER (2 = win, 3 = loss,
+ * 1 = tie): it is served data, not a deduction. Deducing the winner from the score layer
+ * would be wrong at least twice over — a mode without a counter publishes no series, and
+ * a match won on the CLOCK can end on a tied score (witness 64e8adfa, 2-2). The header's
+ * code knows how to say "won 2-2"; two numbers do not.
  *
- * DE « MON RÉSULTAT » À « L'ÉQUIPE QUI GAGNE » IL FAUT UN PONT, et c'est le FILM qui le fait
- * (2026-10-06 : l'équipe d'un joueur est celle du film) : l'équipe du film du joueur de la page
- * donne mon camp, et entre exactement deux camps « j'ai perdu » suffit à nommer l'autre. Quand
- * le film ne situe pas le joueur de la page — absent, ou dont il tait l'équipe —, la question n'a
- * pas de réponse sûre : `null`, et l'écran ne se rend pas. Ce pont est aussi ce qui donne à
- * l'écran son habillage : pas de camp connu, pas d'identité à porter.
+ * FROM "MY RESULT" TO "THE TEAM THAT WINS" A BRIDGE IS NEEDED, and the FILM is what makes
+ * it (2026-10-06: a player's team is the film's): the film team of the page player gives
+ * my camp, and between exactly two camps "I lost" is enough to name the other. When the
+ * film does not locate the page player — absent, or its team left unspoken —, the
+ * question has no safe answer: `null`, and the screen does not render. This bridge is
+ * also what gives the screen its dressing: no known camp, no identity to carry.
  *
- * DEUX CAMPS, PAS UN DE PLUS, PAS UN DE MOINS (décision D-B1), y compris pour l'égalité. La
- * même doctrine que le bandeau de score (`scoreBannerLogic.ts`) : un FFA n'a pas d'« équipe
- * gagnante » à nommer, et un mode à trois camps désignerait arbitrairement un adversaire parmi
- * plusieurs. Le panneau d'égalité, lui, ne nomme personne — mais il annonce la fin d'un match
- * OPPOSANT DEUX CAMPS, et l'afficher sur un FFA laisserait croire que les huit joueurs ont fini
- * à égalité. Une lecture absente ne ment pas, une lecture qui invente un cadre si.
+ * TWO CAMPS, NOT ONE MORE, NOT ONE LESS (decision D-B1), including for the tie. The same
+ * doctrine as the score banner (`scoreBannerLogic.ts`): an FFA has no "winning team" to
+ * name, and a three-camp mode would arbitrarily designate an opponent among several.
+ * The tie panel, for its part, names no one — but it announces the end of a match
+ * OPPOSING TWO CAMPS, and showing it on an FFA would suggest the eight players ended in
+ * a tie. An absent reading does not lie, a reading that invents a frame does.
  *
- * L'ÉGALITÉ NE REND AUCUNE ÉQUIPE, et c'est délibéré : elle ne désigne personne (décision
- * D-B1), donc le panneau reste neutre. Rendre `null` pour les deux équipes rend cette
- * neutralité IMPOSSIBLE À CONTOURNER par mégarde à l'écran, plutôt que de la confier à une
- * discipline de rendu.
+ * THE TIE RETURNS NO TEAM, and that is deliberate: it designates no one (decision D-B1),
+ * so the panel stays neutral. Returning `null` for both teams makes this neutrality
+ * IMPOSSIBLE TO CIRCUMVENT by accident on screen, rather than entrusting it to a
+ * rendering discipline.
  *
- * LE CODE HORS CONTRAT NE FABRIQUE RIEN. Le mapping code→issue est celui du dépôt,
- * `lib/outcome.ts` (source unique, garde-rail `outcome.guard.test.ts`) : un code absent, nul ou
- * hors 1..4 y rend `null`. Le DNF (code 4) rend bien une issue, mais pas un écran de fin : un
- * match quitté ne se conclut pas (D-B1).
+ * AN OUT-OF-CONTRACT CODE BUILDS NOTHING. The code→issue mapping is the one of the repo,
+ * `lib/outcome.ts` (single source, guard-rail `outcome.guard.test.ts`): an absent, null
+ * or out-of-1..4 code returns `null` there. The DNF (code 4) does return an issue, but
+ * no end screen: a match left does not conclude (D-B1).
  *
- * Module PUR : ni React, ni DOM, ni couleur, ni libellé.
+ * PURE module: no React, no DOM, no color, no label.
  */
 import { outcomeCodeToValue } from '@/lib/outcome'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import type { ReplayCamp } from '@/lib/replay/replayCamps'
 
 /**
- * Ce que ce module lit du FILM : les camps du match (désignateurs, nommés par la feuille) et
- * l'équipe d'un joueur désigné par son xuid de base. `FilmAllegiance` s'y conforme — la
- * référence qu'elle porte n'est PAS lue ici : le joueur de la page et le sujet sont passés.
+ * What this module reads from the FILM: the camps of the match (designators, named by
+ * the sheet) and the team of a player designated by their base xuid. `FilmAllegiance`
+ * conforms to it — the reference it carries is NOT read here: the page player and the
+ * subject are passed.
  */
 export type VictoryFilm = Pick<FilmAllegiance, 'camps' | 'teamOfXuid'>
 
-/** L'issue du match POUR LE SUJET de la lecture — le joueur de la page à défaut de point de vue. */
+/** The issue of the match FOR THE SUBJECT of the reading — the page player in the absence of a point of view. */
 export type VictoryOutcome = 'win' | 'loss' | 'tie'
 
-/** Une équipe désignée par la lecture : de quoi la nommer, la teinter et la coiffer. */
+/** A team designated by the reading: enough to name it, tint it and dress it. */
 export interface VictoryTeam {
-  /** Le désignateur d'équipe du film — clé du logo. */
+  /** The film's team designator — key of the logo. */
   teamID: number
   /**
-   * Le côté de feuille qui NOMME le camp (`ReplayCamp.side`, format `t{N}`) — ce que la cascade de
-   * libellé attend ; `null` quand aucun de ses membres n'a de ligne (le libellé retombe alors
-   * sur « Équipe N » du désignateur).
+   * The sheet side that NAMES the camp (`ReplayCamp.side`, format `t{N}`) — what the
+   * label cascade expects; `null` when none of its members has a row (the label then
+   * falls back on the designator's "Team N").
    */
   teamSide: string | null
-  /** `true` si c'est l'équipe du SUJET (le joueur de la page à défaut de point de vue). */
+  /** `true` if it is the team of the SUBJECT (the page player in the absence of a point of view). */
   ally: boolean
 }
 
-/** La lecture de fin de match : l'issue, l'équipe qui habille l'écran, celle qui gagne. */
+/** The end-of-match reading: the issue, the team that dresses the screen, the one that wins. */
 export interface VictoryReading {
   outcome: VictoryOutcome
   /**
-   * L'ÉQUIPE DU SUJET — l'habillage de l'écran. `null` sur une égalité.
+   * THE SUBJECT'S TEAM — the dressing of the screen. `null` on a tie.
    *
-   * « Du joueur de la page » jusqu'au 2026-09-06 : c'était vrai tant que `readVictory` devinait
-   * son sujet. Depuis qu'il le reçoit en paramètre, c'est l'équipe de CELUI QU'ON REGARDE — le
-   * joueur de la page quand aucun sujet n'est passé, ce que fait toujours la fin de partie
-   * sonore (décision 3 du plan).
+   * "Of the page player" until 2026-09-06: that was true as long as `readVictory`
+   * guessed its subject. Since it receives it as a parameter, it is the team of THE
+   * ONE BEING WATCHED — the page player when no subject is passed, which is what the
+   * sound end-of-game always does (decision 3 of the plan).
    */
   mine: VictoryTeam | null
-  /** L'équipe qui remporte le match. `null` sur une égalité, qui ne désigne personne. */
+  /** The team that wins the match. `null` on a tie, which designates no one. */
   winner: VictoryTeam | null
 }
 
 /**
- * readVictory rend la lecture de fin de match, ou `null` quand aucun écran ne doit s'afficher :
- * match qui n'oppose pas exactement deux camps du film, résultat non publié ou hors contrat,
- * abandon, ou joueur de la page que le film ne situe pas (cf. l'en-tête du module).
+ * readVictory returns the end-of-match reading, or `null` when no screen should be
+ * shown: a match that does not oppose exactly two film camps, an unpublished or
+ * out-of-contract result, an abandon, or a page player the film does not locate (cf.
+ * the module header).
  *
- * `page` : le xuid de base du joueur de la page (`meXUIDOf`) — celui dont `outcomeCode` est le
- * verdict. Le module ne le cherche pas lui-même : il le reçoit, comme le sujet.
+ * `page`: the base xuid of the page player (`meXUIDOf`) — the one of which
+ * `outcomeCode` is the verdict. The module does not look it up itself: it receives
+ * it, like the subject.
  *
- * `subject` (2026-09-06, plan « frise, point de vue ») : PAR LES YEUX DE QUI cette fin se lit.
+ * `subject` (2026-09-06, plan "frise, point de vue"): THROUGH WHOSE EYES this ending
+ * is read.
  *
- * ATTENTION À L'ASYMÉTRIE DES DEUX ENTRÉES, c'est tout le sujet. `outcomeCode` est le verdict
- * DU JOUEUR DE LA PAGE, servi par l'en-tête — il n'en existe pas d'autre, l'API ne publie pas
- * le résultat vu d'un adversaire. Quand `subject` désigne quelqu'un de l'AUTRE camp, la lecture
- * se retourne donc : ce que le joueur de la page a gagné, lui l'a perdu. On calcule la lecture
- * de la page, puis on la permute. Sujet du même camp : rigoureusement identique. Égalité : elle
- * l'est pour tout le monde, rien à permuter. Sujet que le film ne situe pas : `null` — aucun
- * écran plutôt qu'un écran faux.
+ * MIND THE ASYMMETRY OF THE TWO INPUTS, that is the whole subject. `outcomeCode` is
+ * the verdict OF THE PAGE PLAYER, served by the header — no other exists, the API does
+ * not publish the result seen from an opponent. When `subject` designates someone of
+ * the OTHER camp, the reading is therefore turned around: what the page player won,
+ * they lost. The page reading is computed, then permuted. Subject of the same camp:
+ * rigorously identical. Tie: it is one for everyone, nothing to permute. Subject the
+ * film does not locate: `null` — no screen rather than a wrong one.
  *
- * `subject` absent : le joueur de la page, comportement d'origine — c'est ce que passe la fin
- * de partie SONORE (décision 3), qui reste ancrée sur lui.
+ * `subject` absent: the page player, original behavior — that is what the SOUND
+ * end-of-game passes (decision 3), which stays anchored on it.
  */
 export function readVictory(
   film: VictoryFilm,
@@ -140,26 +144,30 @@ export function readVictory(
 }
 
 /**
- * victoryIsFlipped — LA LECTURE A-T-ELLE ÉTÉ RETOURNÉE ? (2026-09-07)
+ * victoryIsFlipped — WAS THE READING TURNED AROUND? (2026-09-07)
  *
- * `true` quand le sujet est du camp OPPOSÉ à celui du joueur de la page : ce que la page a
- * gagné, lui l'a perdu, et `readVictory` a permuté en conséquence. `false` partout ailleurs —
- * sans sujet, sujet du même camp, sujet non situable, match qui n'oppose pas deux camps.
+ * `true` when the subject is of the camp OPPOSED to that of the page player: what the
+ * page won, they lost, and `readVictory` permuted accordingly. `false` everywhere else —
+ * no subject, subject of the same camp, subject that cannot be located, match that does
+ * not oppose two camps.
  *
- * C'EST LE PRÉDICAT DU SCORE : `finalScoreFromHeader` l'appelle pour savoir s'il doit échanger
- * les deux nombres servis par l'en-tête, qui valent pour le joueur de la page. Une seule
- * définition de « l'autre camp », plutôt que la même triple comparaison sous un autre nom.
+ * THIS IS THE PREDICATE OF THE SCORE: `finalScoreFromHeader` calls it to know whether
+ * it must swap the two numbers served by the header, which hold for the page player.
+ * A single definition of "the other camp", rather than the same triple comparison under
+ * a different name.
  *
- * IL A SERVI UN TEMPS AU MOT DU VERDICT, et n'y sert plus : l'écran de fin et le panneau de
- * l'export choisissaient entre `header.outcome_label` (le mot du backend, valable pour le
- * joueur de la page) et le libellé canonique de l'issue permutée. Depuis que les deux titres
- * viennent d'`outcomes.toml` sur l'issue LUE, il n'y a plus de branche à ouvrir — le mot suit
- * la permutation tout seul. Le score, lui, n'a pas d'équivalent : les nombres de l'en-tête ne
- * portent pas de point de vue, d'où ce prédicat toujours vivant.
+ * IT SERVED THE VERDICT WORD FOR A WHILE, and no longer does: the end screen and the
+ * export panel chose between `header.outcome_label` (the backend's word, valid for the
+ * page player) and the canonical label of the permuted issue. Since the two titles
+ * come from `outcomes.toml` on the issue READ, there is no longer a branch to open —
+ * the word follows the permutation on its own. The score, for its part, has no
+ * equivalent: the header's numbers carry no point of view, hence this still living
+ * predicate.
  *
- * POURQUOI UNE FONCTION ET NON UN CHAMP DE `VictoryReading` : l'ajouter à l'objet aurait fait
- * rougir les quatorze cas de `victoryLogic.test.ts`, qui fixent la lecture ENTIÈRE par égalité
- * profonde — la caractérisation n'accepte que des ajouts, et un champ de plus n'en est pas un.
+ * WHY A FUNCTION AND NOT A FIELD OF `VictoryReading`: adding it to the object would
+ * have made the fourteen cases of `victoryLogic.test.ts` red, which pin the reading
+ * in its ENTIRETY by deep equality — the characterization only accepts additions, and
+ * one more field is not one.
  */
 export function victoryIsFlipped(
   film: VictoryFilm,
@@ -175,11 +183,12 @@ export function victoryIsFlipped(
 }
 
 /**
- * subjectCampIndex dit dans lequel des deux camps se trouve le point de vue, ou `null` quand le
- * film ne le situe pas (absent du film, équipe tue, camp hors des deux retenus).
+ * subjectCampIndex says in which of the two camps the point of view is, or `null` when
+ * the film does not locate it (absent from the film, team unspoken, camp outside the
+ * two kept).
  *
- * Sans sujet, la réponse est le camp du joueur de la page, déjà calculé : on ne le recherche
- * pas deux fois, et surtout on ne peut pas diverger de lui.
+ * Without a subject, the answer is the camp of the page player, already computed: it is
+ * not looked up twice, and above all it cannot diverge from it.
  */
 function subjectCampIndex(
   film: VictoryFilm,
@@ -191,8 +200,9 @@ function subjectCampIndex(
 }
 
 /**
- * campIndex dit LEQUEL des deux camps du film porte ce désignateur (0 ou 1), ou `null` : équipe
- * inconnue (le film la tait), aucune (`-1`), ou hors des deux camps.
+ * campIndex says WHICH of the two film camps carries this designator (0 or 1), or
+ * `null`: unknown team (the film leaves it unspoken), none (`-1`), or outside the two
+ * camps.
  */
 function campIndex(camps: readonly ReplayCamp[], team: number | null): 0 | 1 | null {
   if (team === null) return null
@@ -202,15 +212,16 @@ function campIndex(camps: readonly ReplayCamp[], team: number | null): 0 | 1 | n
 }
 
 /**
- * Le score FINAL du match, dans l'ordre du SUJET : son camp d'abord, l'autre ensuite. Sans
- * sujet, c'est l'ordre du joueur de la page — celui dans lequel l'API le publie.
+ * The FINAL score of the match, in the order of the SUBJECT: their camp first, the
+ * other after. Without a subject, it is the order of the page player — the one in
+ * which the API publishes it.
  */
 export interface FinalScoreReading {
   ally: number
   enemy: number
 }
 
-/** Ce que l'écran de fin lit de l'en-tête de la vue match pour connaître le score final. */
+/** What the end screen reads from the match view header to know the final score. */
 export interface FinalScoreHeader {
   score_kind?: string
   score_mine?: number
@@ -218,49 +229,52 @@ export interface FinalScoreHeader {
 }
 
 /**
- * finalScoreFromHeader rend le score final SERVI PAR L'API, et `null` quand l'en-tête n'en
- * publie pas — auquel cas l'écran de fin garde sa lecture du calque du film.
+ * finalScoreFromHeader returns the final score SERVED BY THE API, and `null` when the
+ * header does not publish one — in which case the end screen keeps its reading of the
+ * film layer.
  *
- * POURQUOI L'API ICI, ALORS QUE TOUT LE RESTE DU REJEU VIENT DU FILM. La lecture du calque à
- * la borne de fin rend, sur un mode à manches, les points de la DERNIÈRE MANCHE (Oddball :
- * « 100 - 43 ») présentés comme le score du match. C'est faux : le match s'est joué en deux
- * manches à une. L'écran de fin annonce un RÉSULTAT, et le résultat est celui que toute
- * l'app affiche par ailleurs — le prendre de l'en-tête garantit que les deux surfaces ne
- * peuvent pas dire deux nombres différents du même match.
+ * WHY THE API HERE, WHEN ALL THE REST OF THE REPLAY COMES FROM THE FILM. The layer
+ * reading at the end bound returns, on a round mode, the points of the LAST ROUND
+ * (Oddball: "100 - 43") presented as the score of the match. That is wrong: the match
+ * was played in two one-round games. The end screen announces a RESULT, and the result
+ * is the one the whole app displays elsewhere — taking it from the header guarantees
+ * the two surfaces cannot say two different numbers of the same match.
  *
- * IL NE FAUT PAS LE RESTREINDRE AUX SEULES LECTURES EN MANCHES : quand le serveur publie
- * `score_kind = "points"` (variante non déclarée, match à une seule manche, manches
- * inconnues), filtrer sur « rounds » renverrait l'écran de fin vers le calque, donc vers les
- * points de la dernière manche, pendant que la vue match affiche le total. Le critère est
- * donc la PRÉSENCE des deux nombres, jamais leur nature.
+ * IT MUST NOT BE RESTRICTED TO ROUND READINGS ONLY: when the server publishes
+ * `score_kind = "points"` (undeclared variant, single-round match, unknown rounds),
+ * filtering on "rounds" would send the end screen back to the layer, hence to the
+ * points of the last round, while the match view displays the total. The criterion is
+ * therefore the PRESENCE of the two numbers, never their nature.
  *
- * Le pendant vivant — les pastilles de manche qui se remplissent pendant la lecture — reste
- * dérivé du film : il doit suivre la position de lecture, ce que l'en-tête ne sait pas faire
+ * The living pendant — the round dots that fill up during playback — stays derived
+ * from the film: it must follow the playback position, which the header cannot do
  * (cf. `roundDots`).
  *
- * # LE SUJET, ET POURQUOI IL A FALLU L'AJOUTER (2026-09-07, lot L3)
+ * # THE SUBJECT, AND WHY IT HAD TO BE ADDED (2026-09-07, lot L3)
  *
- * `score_mine` / `score_theirs` sont ANCRÉS SUR LE JOUEUR DE LA PAGE — l'API ne publie pas le
- * score vu d'un adversaire, exactement comme elle ne publie qu'un seul `outcome_code`. Tant que
- * la page n'avait qu'un point de vue, l'ordre était juste par construction. Depuis L2b il ne
- * l'est plus : `ReplayVictoryOverlay` donne à cette lecture la PRIORITÉ sur celle du calque
- * (`readScoreBanner`), qui, elle, suit le point de vue. Vu depuis un adversaire, l'écran
- * annonçait donc l'issue permutée (`readVictory` le fait) et le score dans l'ordre du joueur de
- * la page : « Défaite, 3 - 1 ». Faux, en plein cadre, et parfaitement silencieux.
+ * `score_mine` / `score_theirs` are ANCHORED ON THE PAGE PLAYER — the API does not
+ * publish the score seen from an opponent, exactly as it publishes only one
+ * `outcome_code`. As long as the page had a single point of view, the order was right
+ * by construction. Since L2b it is no longer: `ReplayVictoryOverlay` gives this
+ * reading PRIORITY over that of the layer (`readScoreBanner`), which, for its part,
+ * follows the point of view. Seen from an opponent, the screen therefore announced the
+ * permuted issue (`readVictory` does it) and the score in the order of the page
+ * player: "Defeat, 3 - 1". Wrong, in full frame, and perfectly silent.
  *
- * La règle est celle de `readVictory` : sujet de l'AUTRE camp, on permute. Sujet du même camp,
- * rigoureusement identique.
+ * The rule is that of `readVictory`: subject of the OTHER camp, permute. Subject of
+ * the same camp, rigorously identical.
  *
- * SUJET NON SITUABLE (que le film ne range dans aucun des deux camps, match qui n'oppose pas
- * exactement deux camps) : on rend l'ordre du JOUEUR DE LA PAGE, pas `null`. Deux raisons. D'abord il n'y
- * a rien à permuter — sans camp, « l'autre camp » n'existe pas, et l'ordre de l'API est le seul
- * sens que ces deux nombres aient. Ensuite aucun score faux ne peut atteindre l'écran par ce
- * chemin : les deux seules surfaces qui l'affichent (l'écran de fin et le panneau de l'export)
- * ne se rendent qu'à condition que `readVictory` rende une lecture — et celui-ci rend `null`
- * dans exactement les mêmes cas. Rendre `null` ici n'effacerait donc rien de visible, mais
- * priverait un futur lecteur d'un score que l'API publie bel et bien.
+ * SUBJECT THAT CANNOT BE LOCATED (that the film places in none of the two camps, match
+ * that does not oppose exactly two camps): the order of the PAGE PLAYER is returned,
+ * not `null`. Two reasons. First there is nothing to permute — without a camp, "the
+ * other camp" does not exist, and the API's order is the only sense these two numbers
+ * have. Then no wrong score can reach the screen by this path: the only two surfaces
+ * that display it (the end screen and the export panel) render only on the condition
+ * that `readVictory` returns a reading — and it returns `null` in exactly the same
+ * cases. Returning `null` here would therefore erase nothing visible, but would deprive
+ * a future reader of a score the API does in fact publish.
  *
- * `subject` absent : comportement d'origine, à la ligne près (cf. `victoryLogic.test.ts`).
+ * `subject` absent: original behavior, to the line (cf. `victoryLogic.test.ts`).
  */
 export function finalScoreFromHeader(
   header: FinalScoreHeader | undefined,
@@ -271,9 +285,10 @@ export function finalScoreFromHeader(
   if (!header || header.score_mine == null || header.score_theirs == null) return null
   const parLaPage = { ally: header.score_mine, enemy: header.score_theirs }
   if (!film) return parLaPage
-  // MÊME DÉFINITION DE « L'AUTRE CAMP » QUE L'ISSUE (2026-09-07) : ce test était écrit ici en
-  // quatre gardes, recopiées de `readVictory`. Elles vivent désormais dans `victoryIsFlipped`,
-  // que l'écran de fin appelle aussi pour choisir son MOT — les trois ne peuvent plus diverger.
+  // SAME DEFINITION OF "THE OTHER CAMP" AS THE ISSUE (2026-09-07): this test was
+  // written here as four guards, copied from `readVictory`. They now live in
+  // `victoryIsFlipped`, which the end screen also calls to choose its WORD — the three
+  // can no longer diverge.
   return victoryIsFlipped(film, page ?? null, subject)
     ? { ally: parLaPage.enemy, enemy: parLaPage.ally }
     : parLaPage
