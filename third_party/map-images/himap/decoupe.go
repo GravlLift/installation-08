@@ -48,6 +48,10 @@ var rolesDecoupe = map[uint32]roleDecoupe{
 	0x14499d29: {196, -1},
 	0x5a4ba711: {196, -1},
 	0x9337a7cc: {196, -1},
+	// LOCAL-CHANGE (infinite-theater-3d): terrain decorators (grass clumps, couches_noms.go):
+	// the cutout is the alpha of the map at slot 76 (`surface_normal_map`).
+	0xbd7bb1c4: {76, -1},
+	0xd313108e: {76, -1},
 }
 
 // postprocessLu : le premier enregistrement d'un bloc postprocess. `textures` : emplacement ->

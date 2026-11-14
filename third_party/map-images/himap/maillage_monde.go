@@ -68,6 +68,9 @@ type MaillageMonde struct {
 	// Objets : les objets poses d'une couche de variante (CollecteMaillageVariante), vide pour une
 	// carte. Le GLB les publie (glb_objets.go).
 	Objets []ObjetPose
+	// Decorateurs (LOCAL-CHANGE (infinite-theater-3d)): the grass clumps a terrain scatters,
+	// one carpet per decorator mesh, published as GPU instances (decorateurs_pose.go).
+	Decorateurs []TapisDecorateur
 }
 
 // GroupeMaillage est une soupe indexee : `Sommets` porte x,y,z a la suite, `UV[j]` u,v du jeu
@@ -158,11 +161,12 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 		ParcourtInstances(ctx, idx, autre, ajoute)
 	}
 	out.posePlacements(ctx, idx, opts)
-	terrain, matieresTerrain, texturesTerrain, err := collecteTerrains(idx, opts)
+	terrain, matieresTerrain, texturesTerrain, decorateurs, err := collecteTerrains(idx, opts)
 	if err != nil {
 		return nil, b, fmt.Errorf("terrain : %w", err)
 	}
 	out.Terrain = terrain
+	out.Decorateurs = decorateurs
 	if out.Structure.Triangles()+out.Terrain.Triangles() == 0 {
 		return nil, b, fmt.Errorf("aucun triangle de structure sur %d instances des %d structures", len(bsp.Instances), len(bsps))
 	}
@@ -235,7 +239,11 @@ func (m *MaillageMonde) resoutMateriaux(opts OptionsCuisson, idxGeo *ModuleIndex
 func (m *MaillageMonde) lisMateriaux(idxMat, idxGeo *ModuleIndex) {
 	vus := map[uint32]bool{}
 	var ids []uint32
-	for _, g := range []*GroupeMaillage{&m.Structure, &m.Decor, &m.Ombre} {
+	groupes := []*GroupeMaillage{&m.Structure, &m.Decor, &m.Ombre}
+	for i := range m.Decorateurs {
+		groupes = append(groupes, &m.Decorateurs[i].Maillage)
+	}
+	for _, g := range groupes {
 		for id := range g.Indices {
 			if id != 0 && !vus[id] {
 				vus[id] = true
