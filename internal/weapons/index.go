@@ -6,6 +6,7 @@ package weapons
 // grenade projectile rank (grenade0, grenade1, ...), or the Spartan body (spartan).
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -83,10 +84,27 @@ type Index struct {
 	// Coatings: the coating table of the library (coatings.json), nil when the
 	// build had no Ekur reference: the weapons then stay in their neutral paint.
 	Coatings *spartanpieces.CoatingsIndex `json:"coatings,omitempty"`
+	// ReticleRanges: per weapon model key, the red-reticle range read from its `weap` tag
+	// (reticle.go). A weapon absent from it has no range: its reticle never turns red. Always
+	// written, empty included: an index without the field predates it and is stale.
+	ReticleRanges map[string]ReticleRange `json:"reticle_ranges"`
 }
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
-	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan}
+	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
+		ReticleRanges: map[string]ReticleRange{}}
+}
+
+// IndexHasReticleRanges says whether a library index.json carries the reticle_ranges field: a
+// library built before the field existed is stale (its rebuild adds it).
+func IndexHasReticleRanges(raw []byte) bool {
+	var idx struct {
+		ReticleRanges json.RawMessage `json:"reticle_ranges"`
+	}
+	if err := json.Unmarshal(raw, &idx); err != nil {
+		return false
+	}
+	return len(idx.ReticleRanges) > 0 && string(idx.ReticleRanges) != "null"
 }

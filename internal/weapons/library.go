@@ -2,9 +2,9 @@ package weapons
 
 // library.go builds the weapon model library on demand: one GLB per model key (every weapon in
 // the catalog, the game's grenade projectiles, and the Spartan body), into the weapons folder of
-// the data directory, then writes index.json. It reuses the same per-model builders the
-// build-weapon and build-spartan commands use (mapmesh), so the GLBs are byte-compatible with
-// what a single-weapon build produces.
+// the data directory, then writes index.json (with each weapon's red-reticle range, reticle.go).
+// It reuses the same per-model builders the build-weapon and build-spartan commands use (mapmesh),
+// so the GLBs are byte-compatible with what a single-weapon build produces.
 
 import (
 	"bytes"
@@ -110,17 +110,8 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		res.Bytes += n
 	}
 	announce("building grenade projectiles")
-	for _, rank := range grenadeRanks(ctx, a) {
-		n, err := buildGrenadeModel(ctx, a, rank, dir)
-		if err != nil {
-			if errors.Is(err, himap.ErrSansModele) {
-				res.Skipped++
-				continue
-			}
-			return res, fmt.Errorf("grenade %d: %w", rank, err)
-		}
-		res.Built++
-		res.Bytes += n
+	if err := buildGrenades(ctx, a, dir, &res); err != nil {
+		return res, err
 	}
 	announce("building spartan body")
 	if n, err := buildSpartanModel(ctx, gameRoot, module, dir); err != nil {
@@ -130,8 +121,12 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		res.Bytes += n
 	}
 
+	announce("reading red reticle ranges")
 	idx := NewIndex(opts.Catalog.Keys, generatorLibrary)
 	idx.EkurStamp = stamp
+	if idx.ReticleRanges, err = readReticleRanges(ctx, gameRoot, module, opts.Catalog.Keys); err != nil {
+		return res, fmt.Errorf("red reticle ranges: %w", err)
+	}
 	if coats != nil {
 		idx.Coatings, err = coats.Finish(ctx, a, dir)
 		if err != nil {
@@ -160,6 +155,24 @@ func buildWeaponModel(ctx context.Context, a *himap.Arsenal, key, dir string, co
 		return 0, err
 	}
 	return writeModelGLB(ctx, dir, key, m, coats, generatorWeapon, map[string]any{"weap": key})
+}
+
+// buildGrenades writes every grenade projectile's GLB, counting them into res (a projectile
+// without a model is skipped, not an error).
+func buildGrenades(ctx context.Context, a *himap.Arsenal, dir string, res *Result) error {
+	for _, rank := range grenadeRanks(ctx, a) {
+		n, err := buildGrenadeModel(ctx, a, rank, dir)
+		if err != nil {
+			if errors.Is(err, himap.ErrSansModele) {
+				res.Skipped++
+				continue
+			}
+			return fmt.Errorf("grenade %d: %w", rank, err)
+		}
+		res.Built++
+		res.Bytes += n
+	}
+	return nil
 }
 
 // buildGrenadeModel writes one grenade projectile's GLB and returns its byte size.

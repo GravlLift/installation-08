@@ -73,7 +73,7 @@ func (h serverHandlers) handleCoatingStatus(w http.ResponseWriter, r *http.Reque
 		stamp, ok := recordedEkurStamp(dataDir, module)
 		libraries[key] = coatingsLibraryStatus{
 			Built:            ok,
-			Stale:            ok && current != "" && stamp != current,
+			Stale:            ok && ((current != "" && stamp != current) || !libraryIndexCurrent(dataDir, module)),
 			MaterialsMissing: materialsMissing(dataDir, module),
 		}
 	}

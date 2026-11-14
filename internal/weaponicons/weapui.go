@@ -48,7 +48,10 @@ var sizeTab = map[string]int{
 }
 
 type pfield struct {
-	name  string
+	name string
+	// path is the name prefixed by the inline structs that hold it ("aim assist/autoaim
+	// range/Base Value"); it equals name for a field at the walked level.
+	path  string
 	off   int
 	block bool
 	node  xnode
@@ -58,14 +61,19 @@ type pfield struct {
 // same offset space. `_40` are arrays: their position is noted and it does NOT recurse
 // (their fields live in another data block).
 func walkFields(n xnode, off int, out *[]pfield) int {
+	return walkFieldsIn(n, off, "", out)
+}
+
+// walkFieldsIn is walkFields with the path prefix of the inline struct being walked.
+func walkFieldsIn(n xnode, off int, prefix string, out *[]pfield) int {
 	for _, c := range n.Nodes {
 		name := c.XMLName.Local
 		switch name {
 		case "_40":
-			*out = append(*out, pfield{name: c.V, off: off, block: true, node: c})
+			*out = append(*out, pfield{name: c.V, path: prefix + c.V, off: off, block: true, node: c})
 			off += 20
 		case "_38":
-			off = walkFields(c, off, out)
+			off = walkFieldsIn(c, off, prefix+c.V+"/", out)
 		case "Flag", "":
 			// enum value / comment: not a field.
 		default:
@@ -75,7 +83,7 @@ func walkFields(n xnode, off int, out *[]pfield) int {
 					l = sizeTab[name]
 				}
 			}
-			*out = append(*out, pfield{name: c.V, off: off, node: c})
+			*out = append(*out, pfield{name: c.V, path: prefix + c.V, off: off, node: c})
 			off += l
 		}
 	}
