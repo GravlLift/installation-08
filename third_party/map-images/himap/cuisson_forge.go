@@ -619,7 +619,8 @@ func modeleParType(ctx context.Context, objets []mapvar.Object,
 			slog.DebugContext(ctx, "tag food illisible", "typeID", o.TypeID, "err", err)
 			continue
 		}
-		if refs := refsInlineDuGroupe(tag, idx, GroupeRtgo); len(refs) > 0 {
+		// LOCAL-CHANGE (infinite-theater-3d): the food's own references are typed (refs_typees.go).
+		if refs := refsTypeesDuGroupe(tag, idx, GroupeRtgo); len(refs) > 0 {
 			out[o.TypeID] = refModele{id: refs[0], groupe: GroupeRtgo}
 			continue
 		}
@@ -651,7 +652,7 @@ var groupesSautForge = []string{GroupeBloc, "scen", "mach"}
 // contre l'index, la methode qui a ferme F1 (`sonde_forge_saut_research_test.go`).
 func modeleParSaut(ctx context.Context, idx *ModuleIndex, tagFood []byte) (refModele, bool) {
 	for _, groupe := range groupesSautForge {
-		for _, hObjet := range refsInlineDuGroupe(tagFood, idx, groupe) {
+		for _, hObjet := range refsTypeesDuGroupe(tagFood, idx, groupe) { // LOCAL-CHANGE (infinite-theater-3d)
 			objet, err := idx.Extract(hObjet)
 			if err != nil {
 				slog.DebugContext(ctx, "tag de saut illisible", "groupe", groupe, "id", hObjet, "err", err)
