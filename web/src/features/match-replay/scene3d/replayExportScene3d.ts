@@ -4,6 +4,7 @@ import type { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { Export3dSetup, ExportTag3d } from '../export/replay3dExportStore'
 import type { CameraMode3d } from './replayScene3d'
+import type { SceneView3d } from './topDownLogic'
 import type { Avatar } from './avatar3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { PostFx3d } from './postFx3d'
@@ -21,6 +22,7 @@ interface ExportScene {
   readonly action: ActionScene3d | null
   readonly hasTracks: boolean
   mode: CameraMode3d
+  view: SceneView3d
   readonly povXuid: string | null
   lastFrame: number
   applyPov(xuid: string | null): void
@@ -35,6 +37,8 @@ interface HeldView {
   mode: CameraMode3d
   /** La caméra avant l'export : un changement demandé pendant l'export se rejoue au retour. */
   modeBefore: CameraMode3d
+  /** The drawing view before the export; a change asked mid-export is replayed on return. */
+  view: SceneView3d
   pov: string | null
   width: number
   height: number
@@ -60,6 +64,7 @@ export class ReplayExportScene3d {
     this.held = {
       mode: this.scene.mode,
       modeBefore: this.scene.mode,
+      view: this.scene.view,
       pov: this.scene.povXuid,
       width: size.x,
       height: size.y,
@@ -123,6 +128,7 @@ export class ReplayExportScene3d {
     this.scene.post.composer.setPixelRatio(held.pixelRatio)
     this.applySize(held.width, held.height, true)
     this.scene.applyPov(held.pov)
+    this.scene.view = held.view
     this.scene.camera.position.copy(held.position)
     this.scene.camera.quaternion.copy(held.quaternion)
     this.scene.orbit.target.copy(held.target)
