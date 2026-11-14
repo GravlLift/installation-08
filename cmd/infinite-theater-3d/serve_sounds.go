@@ -2,20 +2,25 @@ package main
 
 // serve_sounds.go — the replay sound route.
 //
-// The viewer addresses /static/sounds/halo_infinite/<stem>.ogg. That set cannot
-// be rebuilt from the game install: the files are hand-produced and their
-// inputs are lost. It therefore lands in the gitignored data directory by the
-// `import-sounds` subcommand, and this route serves only what the import
-// wrote. A request never imports or enqueues anything: a missing file is a
-// 404, and the startup (serve.go) logs one line naming the import command.
+// The viewer addresses /static/sounds/halo_infinite/<stem>.ogg. The set is
+// built into the binary (internal/sounds, from JGtm's LevelUp), so the viewer
+// is not silent on a fresh install. The route serves a file from the user's
+// data directory when it is there, so an imported file wins over the built-in
+// one; otherwise it answers from the embedded set. A request never imports or
+// enqueues anything: a name that is in neither set, or that would escape the
+// folder, is a 404.
 
 import (
+	"bytes"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/llampwall/infinite-theater-3d/internal/sounds"
 )
 
 // soundsDir is the replay sound folder below the data directory.
@@ -24,15 +29,21 @@ func soundsDir(dataDir string) string {
 }
 
 // soundFile is a file name the sound route may serve: an .ogg file of the
-// imported set. A name that passes this check but is not on disk still gets
-// a 404, and a name that would escape the folder is refused by joinInside.
+// sound set. A name that passes this check but is in neither the data
+// directory nor the built-in set still gets a 404, and a name that would
+// escape the folder is refused by joinInside.
 func soundFile(name string) bool {
 	return strings.HasSuffix(name, ".ogg")
 }
 
-// handleSoundFile answers GET /static/sounds/halo_infinite/{file} with one
-// imported sound (range-capable via http.ServeContent). A file the import
-// did not write, a name that is not an .ogg, or a name that would escape the
+// embeddedSounds is the built-in sound set the route falls back to. It is
+// open once: the set is compiled into the binary and never changes.
+var embeddedSounds = sounds.Open()
+
+// handleSoundFile answers GET /static/sounds/halo_infinite/{file} with the
+// sound, range-capable via http.ServeContent: the file in the data directory
+// when it exists (an imported file wins), otherwise the built-in one. A name
+// in neither set, a name that is not an .ogg, or a name that would escape the
 // set's folder is a 404. Nothing is imported or enqueued here.
 func (h serverHandlers) handleSoundFile(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
@@ -46,43 +57,37 @@ func (h serverHandlers) handleSoundFile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	f, err := os.Open(full)
-	if err != nil {
-		if os.IsNotExist(err) {
-			http.NotFound(w, r)
-			return
-		}
+	if err != nil && !os.IsNotExist(err) {
 		slog.Error("open sound", "err", err, "file", name)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	defer f.Close()
-	w.Header().Set("Content-Type", "audio/ogg")
-	http.ServeContent(w, r, name, time.Time{}, f)
-}
-
-// soundsPresent says whether the sound folder holds at least one top-level
-// .ogg file (the shape the route serves). A missing folder is false.
-func soundsPresent(dataDir string) bool {
-	entries, err := os.ReadDir(soundsDir(dataDir))
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if !e.IsDir() && soundFile(e.Name()) {
-			return true
-		}
-	}
-	return false
-}
-
-// logSoundsMissing is the serve startup check: when the sound folder holds
-// no .ogg, it logs one line saying the replay sounds are missing and naming
-// the import command. It never copies anything and never enqueues a job.
-func logSoundsMissing(dataDir string) {
-	if soundsPresent(dataDir) {
+	if f != nil {
+		defer f.Close()
+		w.Header().Set("Content-Type", "audio/ogg")
+		http.ServeContent(w, r, name, time.Time{}, f)
 		return
 	}
-	slog.Info("replay sounds missing; import them to hear the replay",
-		"dir", soundsDir(dataDir),
-		"command", "infinite-theater-3d import-sounds --from <sounds-dir>")
+	serveEmbeddedSound(w, r, name)
+}
+
+// serveEmbeddedSound answers a sound request from the built-in set: the named
+// file's bytes, range-capable via http.ServeContent (an in-memory reader, the
+// same capability as the data-directory path), or a 404 when the set has no
+// such name.
+func serveEmbeddedSound(w http.ResponseWriter, r *http.Request, name string) {
+	f, err := embeddedSounds.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	raw, err := io.ReadAll(f)
+	_ = f.Close()
+	if err != nil {
+		slog.Error("read embedded sound", "err", err, "file", name)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "audio/ogg")
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(raw))
 }
