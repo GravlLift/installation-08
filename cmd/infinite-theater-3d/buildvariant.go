@@ -20,6 +20,7 @@ func runBuildVariant(args []string) error {
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (LEVELUP_HALO_DEPLOY, Steam, Xbox)")
 	forgeMaterials := fs.String("forge-materials", "", "reference catalog of Forge material tints (JSON); empty uses the catalog embedded in this binary")
 	forgeObjects := fs.String("forge-objects", "", "reference catalog of Forge object visibility (JSON); empty uses the catalog embedded in this binary")
+	mode := fs.String("mode", "", "match's game variant name (for example Ranked:Slayer): the layer holds the objects that mode creates; empty holds none of the mode-only objects")
 	out := fs.String("out", "", "GLB file to write")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -31,7 +32,7 @@ func runBuildVariant(args []string) error {
 	ctx := context.Background()
 	opts := meshbuild.BuildVariantOptions{
 		Map: *mapKey, Mvar: *mvar, GameRoot: *gameRoot,
-		ForgeMaterials: *forgeMaterials, ForgeObjects: *forgeObjects,
+		ForgeMaterials: *forgeMaterials, ForgeObjects: *forgeObjects, Mode: *mode,
 	}
 	summary, err := meshbuild.BuildVariant(ctx, opts, *out, func(step mapmesh.Step) {
 		slog.InfoContext(ctx, "build step", "map", *mapKey, "step", step)

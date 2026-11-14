@@ -36,6 +36,9 @@ type VariantTarget struct {
 	// ForgeObjects is a reference catalog of Forge object visibility (JSON), resolved by the
 	// caller; nil keeps every placed object visible, including Forge's own editor-only markers.
 	ForgeObjects []byte
+	// Mode is the match's game variant name ("Ranked:Slayer"): the layer holds the objects that
+	// mode creates (ModeFilters). Empty builds the layer of a match without a known mode.
+	Mode string
 }
 
 // BuildVariant writes the variant's object-layer GLB to `path`, built in-process from the local
@@ -56,6 +59,7 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	}
 	m, bilan, err := himap.CollecteMaillageVariante(ctx, himap.OptionsVariante{
 		RacineDeploy: gameRoot, CheminModule: t.Module, Objets: t.Objects, Teintes: tints, Invisibles: invisible,
+		Filtres: ModeFilters(t.Mode),
 	})
 	if err != nil {
 		return Summary{}, err
