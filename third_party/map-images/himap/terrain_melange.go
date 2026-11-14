@@ -262,7 +262,7 @@ func evalueProgramme(prog []uint32, entree func(slot int) float32) (float32, boo
 			pile = append(pile, entree(slot))
 			continue
 		case 0x0a:
-			pile = append(pile, demiFlottant(uint16(arg)))
+			pile = append(pile, demiFlottant32(uint16(arg)))
 			continue
 		case 0x12:
 			if v = pop(1); v != nil {
@@ -318,8 +318,8 @@ func bande(x, bas, haut, sous, sur float32) float32 {
 	return lisse(bas-sous, bas, x) * (1 - lisse(haut, haut+sur, x))
 }
 
-// demiFlottant decodes an IEEE half float.
-func demiFlottant(h uint16) float32 {
+// demiFlottant32 decodes an IEEE half float.
+func demiFlottant32(h uint16) float32 {
 	signe := uint32(h>>15) << 31
 	exp := int(h>>10) & 0x1f
 	man := uint32(h & 0x3ff)

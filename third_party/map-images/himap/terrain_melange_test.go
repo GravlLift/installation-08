@@ -9,8 +9,8 @@ func proche32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
 func TestDemiFlottantLitLesConstantesDesProgrammes(t *testing.T) {
 	for h, want := range map[uint16]float32{0x3c00: 1, 0x3800: 0.5, 0x3266: 0.2, 0x38cd: 0.6, 0x3d00: 1.25, 0x0000: 0, 0xbc00: -1} {
-		if got := demiFlottant(h); !proche32(got, want) {
-			t.Errorf("demiFlottant(%#x) = %v, want %v", h, got, want)
+		if got := demiFlottant32(h); !proche32(got, want) {
+			t.Errorf("demiFlottant32(%#x) = %v, want %v", h, got, want)
 		}
 	}
 }
