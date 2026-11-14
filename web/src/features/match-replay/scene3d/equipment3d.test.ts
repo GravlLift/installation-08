@@ -8,13 +8,13 @@ import { riftStations, riftStationsAt } from '../model/riftStations'
 import { testReplayDoc } from '../test/testDoc'
 import {
   equipmentTime3d,
-  grappleShownAt,
   knockbackArrow,
   knockbackShownAt,
   placementDrawn,
   placementShownAt,
   placementSpans3d,
 } from './equipment3d'
+import { grapplePhaseAt } from './grapple3d_logic'
 
 /** 100 ms par image : les durées de la 2D se lisent directement en images. */
 const FRAME_MS = 100
@@ -96,13 +96,13 @@ describe('equipment3d — failles, câbles et poussées', () => {
     expect(riftStationsAt(stations, 261)).toEqual([])
   })
 
-  it('le câble est tendu pendant la traction mesurée, jamais sur une traction vide', () => {
+  it('the cable shows during the measured pull, never on an empty pull', () => {
     const [line, empty] = doc.grappleLines
-    expect(grappleShownAt(line, 29)).toBe(false)
-    expect(grappleShownAt(line, 30)).toBe(true)
-    expect(grappleShownAt(line, 40)).toBe(true)
-    expect(grappleShownAt(line, 41)).toBe(false)
-    expect(grappleShownAt(empty, 50)).toBe(false)
+    expect(grapplePhaseAt(line, 29, FRAME_MS)).toBeNull()
+    expect(grapplePhaseAt(line, 30, FRAME_MS)).not.toBeNull()
+    expect(grapplePhaseAt(line, 40, FRAME_MS)).not.toBeNull()
+    expect(grapplePhaseAt(line, 41, FRAME_MS)).toBeNull()
+    expect(grapplePhaseAt(empty, 50, FRAME_MS)).toBeNull()
   })
 
   it('la poussée dure l effet 2D (520 ms)', () => {
@@ -121,9 +121,9 @@ describe('equipment3d — failles, câbles et poussées', () => {
     expect(knockbackArrow(doc.knockbacks[2])).toBeNull()
   })
 
-  it('repère des formes des poses éteint : seuls capteur et champ de réparation restent', () => {
-    for (const kind of ['sensor', 'field'] as const) expect(placementDrawn(kind, false)).toBe(true)
-    for (const kind of ['wall', 'rift', 'shroud', 'seeker', 'unnamed', 'dropped'] as const) {
+  it('placement shapes aid off: the drop wall, the sensor and the repair field stay, as in the game', () => {
+    for (const kind of ['wall', 'sensor', 'field'] as const) expect(placementDrawn(kind, false)).toBe(true)
+    for (const kind of ['rift', 'shroud', 'seeker', 'unnamed', 'dropped'] as const) {
       expect(placementDrawn(kind, false)).toBe(false)
       expect(placementDrawn(kind, true)).toBe(true)
     }

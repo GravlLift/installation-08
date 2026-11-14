@@ -178,7 +178,7 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
       },
       placementShapes: {
         label: 'Formes des poses',
-        hint: 'Mur, écran occultant, traqueur, failles du translocateur et objets lâchés. Le capteur et le champ de réparation restent affichés.',
+        hint: 'Écran occultant, traqueur, failles du translocateur et objets lâchés. Le mur, le capteur et le champ de réparation restent affichés.',
       },
       allNameTags: {
         label: 'Tous les noms',
@@ -280,7 +280,7 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
       },
       placementShapes: {
         label: 'Placement shapes',
-        hint: 'Drop wall, shroud screen, threat seeker, translocator rifts and dropped items. The threat sensor and repair field stay shown.',
+        hint: 'Shroud screen, threat seeker, translocator rifts and dropped items. The drop wall, threat sensor and repair field stay shown.',
       },
       allNameTags: {
         label: 'All name tags',
