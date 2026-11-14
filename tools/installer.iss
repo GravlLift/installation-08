@@ -29,6 +29,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={localappdata}\Programs\Infinite Theater 3D
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+LicenseFile={#PackageDir}\LICENSE
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist

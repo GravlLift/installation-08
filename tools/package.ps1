@@ -124,7 +124,7 @@ if ($Installer) {
         }
     }
     if (-not $iscc) {
-        throw "ISCC.exe (Inno Setup 6) not found: put it on PATH or install it to '$(Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6' or '${env:ProgramFiles(x86)}\Inno Setup 6')"
+        throw "ISCC.exe (Inno Setup 6) not found on PATH or in: $($candidates -join ', ')"
     }
     Write-Host "Compiling installer with $iscc ..."
     & $iscc "/DVersion=$Version" "/DPackageDir=$pkgDir" (Join-Path $scriptDir 'installer.iss')
