@@ -1,0 +1,141 @@
+/**
+ * HomeScreen — the broadcast desk (docs/UI-DESIGN.md 4.1, brief 123): the main menu as a
+ * FocusList on the left, the featured game on the right (a sharp map still with its plate
+ * over the lower left), the TopBar with the sign-in state and the Ticker with the server
+ * state, the stored-match count and the coatings notice.
+ *
+ * The featured match is the most recently played stored match; the pure picks and
+ * formatting live in `homeScreenModel.ts`. There is no match-select page yet, so every
+ * menu row goes to the match list (`#/matches`), where the account panel and the stored
+ * list live.
+ */
+import { useCallback, useEffect, useState } from 'react'
+
+import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
+import { FocusList } from '../ui/FocusList'
+import { Plate } from '../ui/Plate'
+import { Screen } from '../ui/Screen'
+import { TickerDot } from '../ui/Ticker'
+import { useAuthState } from './useAuthState'
+import { useCoatingsNotice } from './useCoatingsNotice'
+import {
+  featuredFacts,
+  featuredMatch,
+  homeMenu,
+  tickerItems,
+  type FeaturedFacts,
+} from './homeScreenModel'
+
+type MatchesState = { phase: 'loading' } | { phase: 'ready'; matches: MatchSummary[] }
+
+function navigate(path: string): void {
+  window.location.hash = path
+}
+
+export function HomeScreen() {
+  const [state, setState] = useState<MatchesState>({ phase: 'loading' })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        const matches = await fetchMatches(controller.signal)
+        if (controller.signal.aborted) return
+        setState({ phase: 'ready', matches })
+      } catch {
+        if (controller.signal.aborted) return
+        setState({ phase: 'ready', matches: [] })
+      }
+    })()
+    return () => controller.abort()
+  }, [])
+
+  const auth = useAuthState()
+  const coatings = useCoatingsNotice()
+  const signedIn = auth.phase.phase === 'signed_in'
+  const gamertag = auth.phase.phase === 'signed_in' ? auth.phase.gamertag : null
+
+  const onMenuSelect = useCallback((index: number) => {
+    const item = homeMenu(signedIn)[index]
+    if (item) navigate(item.route)
+  }, [signedIn])
+
+  const onWatch = useCallback(() => navigate('/matches'), [])
+  const onSignIn = useCallback(() => navigate('/matches'), [])
+
+  const matches = state.phase === 'ready' ? state.matches : []
+  const featured = featuredMatch(matches)
+  const facts: FeaturedFacts | null = featured ? featuredFacts(featured) : null
+  const backdropUrl = featured?.mapImageUrl ?? null
+
+  const tickerText = tickerItems(matches.length, coatings.notice)
+
+  return (
+    <Screen
+      id="home"
+      gamertag={gamertag}
+      onSignIn={onSignIn}
+      backdropUrl={backdropUrl}
+      items={[
+        <span key="server">
+          <TickerDot bad={state.phase === 'loading'} />
+          {state.phase === 'loading' ? 'Connecting to server' : 'Server connected'}
+        </span>,
+        ...tickerText.map((text) => <span key={text}>{text}</span>),
+      ]}
+      keys={[['Up/Down', 'Move'], ['Enter', 'Select']]}
+    >
+      <div className="bc-home">
+        <div>
+          <div className="bc-eyebrow">Main menu</div>
+          <div style={{ marginTop: 14 }}>
+            <FocusList
+              items={homeMenu(signedIn).map((m) => ({ name: m.name, sub: m.sub }))}
+              onSelect={onMenuSelect}
+            />
+          </div>
+        </div>
+        <div className="bc-feature">
+          {featured ? (
+            <>
+              <div
+                className="bc-shot"
+                style={backdropUrl ? { backgroundImage: `url("${backdropUrl}")` } : undefined}
+              />
+              <Plate eyebrow="Featured game" title={facts?.mapName ?? ''}>
+                <div className="bc-facts">
+                  {facts?.facts.map((f) => (
+                    <div className="bc-fact" key={f.label}>
+                      <span>{f.label}</span>
+                      <b>{f.value}</b>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="bc-cta" onClick={onWatch}>
+                  &#9654; Watch
+                </button>
+              </Plate>
+            </>
+          ) : (
+            <Plate eyebrow="Featured game" title="No matches yet">
+              <div className="bc-facts">
+                <div className="bc-fact">
+                  <span>Step 1</span>
+                  <b>Sign in</b>
+                </div>
+                <div className="bc-fact">
+                  <span>Step 2</span>
+                  <b>Fetch a match</b>
+                </div>
+                <div className="bc-fact">
+                  <span>Step 3</span>
+                  <b>Watch</b>
+                </div>
+              </div>
+            </Plate>
+          )}
+        </div>
+      </div>
+    </Screen>
+  )
+}
