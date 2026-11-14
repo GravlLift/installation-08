@@ -17,6 +17,7 @@ import {
   indexOfRow,
   localMatchIdSet,
   mergeMatchRows,
+  playerTopMeta,
   previewOf,
   rostersOf,
   scoreLabel,
@@ -142,6 +143,35 @@ describe('formatDuration and formatPlayedAt', () => {
   it('formats an instant as a locale date, keeping an unparseable one raw', () => {
     expect(formatPlayedAt('not-a-date')).toBe('not-a-date')
     expect(formatPlayedAt('2026-11-10T18:00:00Z')).toMatch(/\d{4}/)
+  })
+})
+
+describe('playerTopMeta', () => {
+  it('prefers the stored summary mode and start time', () => {
+    const meta = playerTopMeta(
+      stored({ modeName: 'SLC', startTime: '2026-11-09T20:00:00Z' }),
+      remote(),
+    )
+    expect(meta).toBe(`SLC · ${formatPlayedAt('2026-11-09T20:00:00Z')}`)
+  })
+
+  it('falls back to the remote row when the summary has no mode or start time', () => {
+    const meta = playerTopMeta(stored({}), remote({ mode: 'SLC', time: '2026-11-11T12:00:00Z' }))
+    expect(meta).toBe(`SLC · ${formatPlayedAt('2026-11-11T12:00:00Z')}`)
+  })
+
+  it('mixes: a stored mode with a remote time', () => {
+    const meta = playerTopMeta(stored({ modeName: 'SLC' }), remote({ mode: 'FFA' }))
+    expect(meta).toBe(`SLC · ${formatPlayedAt('2026-11-11T12:00:00Z')}`)
+  })
+
+  it('falls back to the import date when nothing else gives a time', () => {
+    const meta = playerTopMeta(stored({}), null)
+    expect(meta).toBe(`Imported ${formatPlayedAt('2026-11-10T18:00:00Z')}`)
+  })
+
+  it('is empty when nothing is known', () => {
+    expect(playerTopMeta(null, null)).toBe('')
   })
 })
 

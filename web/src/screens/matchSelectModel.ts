@@ -116,6 +116,20 @@ export function eyebrowOf(match: MatchSummary): string {
   return [match.playlistName, match.modeName].filter(Boolean).join(' / ')
 }
 
+/** The meta line of the player's top strip (brief 127): the mode and when the match was
+ *  played. The stored summary wins (`modeName`, `startTime`); then the remote row
+ *  (`mode`, `time`); then the import date. `''` when nothing is known. */
+export function playerTopMeta(summary: MatchSummary | null, remote: RemoteMatch | null): string {
+  const mode = summary?.modeName || remote?.mode || ''
+  const time = summary?.startTime || remote?.time || ''
+  const played = time
+    ? formatPlayedAt(time)
+    : summary
+      ? `Imported ${formatPlayedAt(summary.importedAt)}`
+      : ''
+  return [mode, played].filter(Boolean).join(' · ')
+}
+
 /** One fact cell of the preview plate: a label and its value. */
 export interface SelectFact {
   label: string
