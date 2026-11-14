@@ -280,13 +280,14 @@ export class Objectives3dLayer implements ActionLayer3d {
   }
 
   /**
-   * Les drapeaux hors de la main : le modèle du jeu debout au sol. Celui d'un porteur que la 3D
-   * pose est dans sa main (`heldWeapon3d`) ; un porteur qu'elle ne pose pas le laisse au sol sous
-   * son point 2D. Tant que le modèle n'est pas chargé, rien.
+   * Les drapeaux hors de la main : le modèle du jeu debout au sol, with its team's banner
+   * (`flagBanner3d`). Celui d'un porteur que la 3D pose est dans sa main (`heldWeapon3d`) ; un
+   * porteur qu'elle ne pose pas le laisse au sol sous son point 2D. Tant que le modèle n'est pas
+   * chargé, rien. The standing pose is measured on the bare model (the banner hangs above its foot).
    */
   private paintFlags(frame: number): void {
     const model = this.flagModel()
-    if (!model) return
+    if (!model || !this.flagId) return
     if (this.flagPose?.model !== model) this.flagPose = { model, pose: standingWeaponPose(model) }
     const { pose } = this.flagPose
     for (const f of this.flags) {
@@ -295,7 +296,7 @@ export class Objectives3dLayer implements ActionLayer3d {
       const at = place.on === 'floor' ? this.floorAt(place.at, place.hint) : this.floorUnderCarrier(place.xuid, frame)
       if (!at) continue
       at.y += pose.lift
-      this.flagModels.add(model, at, pose.rotation)
+      this.flagModels.add(this.ctx.flagModel(this.flagId, f.carry.team) ?? model, at, pose.rotation)
     }
   }
 

@@ -163,12 +163,30 @@ export function carriedObjectAt(
 ): CarriedObject | null {
   if (!xuid) return null
   if (doc.skullCarries.some((c) => c.xuid === xuid && covers(c, frame))) return 'skull'
+  return carriedFlagOf(doc, xuid, frame) ? 'flag' : null
+}
+
+/** carriedFlagOf: the flag whose spans name player `xuid` as its carrier at `frame`, null when none. */
+function carriedFlagOf(
+  doc: Pick<ReplayDocumentReady, 'flagCarries'>,
+  xuid: string,
+  frame: number,
+): ReplayDocumentReady['flagCarries'][number] | null {
   for (const f of doc.flagCarries) {
     for (const sp of f.spans) {
-      if (sp.xuid === xuid && (sp.state === 'carried' || sp.state === 'carried_open') && covers(sp, frame)) return 'flag'
+      if (sp.xuid === xuid && (sp.state === 'carried' || sp.state === 'carried_open') && covers(sp, frame)) return f
     }
   }
   return null
+}
+
+/**
+ * flagTeamInHand: the team of the flag that life `slot` carries at `frame` (the team whose banner
+ * the flag shows), null when it carries no flag.
+ */
+export function flagTeamInHand(doc: ReplayDocumentReady, slot: number, frame: number): number | null {
+  const life = currentLifeOf(doc, slot, frame)
+  return life?.xuid ? (carriedFlagOf(doc, life.xuid, frame)?.team ?? null) : null
 }
 
 /**

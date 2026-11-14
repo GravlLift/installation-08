@@ -43,10 +43,13 @@ are in [PARITY.md](PARITY.md).
    `ff2a209d`). Fixing these also lets the glass workaround go.
 8. CTF flags are a primitive pole and triangle (same as in the reference); they should use
    the game's flag model and stand. DONE for the model (weap `2a392328`): on its stand at
-   home, in hand in third and first person, upright where it was dropped. Not done: the team
-   banner, which the game draws as per-team particle effects at markers of the flag model
-   (no particle renderer here), and the cloth (`clwd`), which attaches at a marker the
-   Infinite flag model does not have.
+   home, in hand in third and first person, upright where it was dropped. DONE for the team
+   banner: the per-team effects the flag attaches (one per team permutation) are single
+   long-lived particle quads; the viewer draws their cloth (first image of the waving sheet)
+   and the team's emblem layer, statically, in the effects' own white. Not done: the banner
+   on the first-person rig (the rig is a separate model with no marker read for it), the
+   cloth flutter (flipbook rate not read), the remaining effect layers (glow strips, grids,
+   lens and light), and the dropped flag's tilt (the film carries no rotation for it).
 
 ## Viewer UI (open)
 

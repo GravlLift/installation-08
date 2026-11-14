@@ -85,6 +85,7 @@ describe('buildDeaths3d', () => {
       },
       slotState: (slot, frame) => tracks.sampleSlot(slot, frame),
       weaponModel: () => null,
+      flagModel: () => null,
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,

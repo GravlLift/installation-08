@@ -224,6 +224,7 @@ describe('Pickups3dLayer', () => {
       playerFeet: () => null,
       slotState: () => null,
       weaponModel,
+      flagModel: () => null,
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,

@@ -9,7 +9,7 @@ import type { ReplayDocument } from '@/lib/api/types'
 import { heldWeaponAt } from '../scene3d/heldWeapon3d'
 import { CARRIED_OBJECT_CLASS } from '../scene3d/weaponClass3d'
 import { testReplayDoc } from '../test/testDoc'
-import { armeEnMain, carriedObjectAt, flagObjectIdOf, objetEnMain } from './armeEnMain'
+import { armeEnMain, carriedObjectAt, flagObjectIdOf, flagTeamInHand, objetEnMain } from './armeEnMain'
 
 const FLAG = '2a392328'
 
@@ -73,6 +73,15 @@ describe('the flag in hand', () => {
   it('takes the identifier of any object pickup of the match when the carrier has none of his own', () => {
     const doc = ctfDoc({ weaponChanges: [{ t: 90, slot: 513, kind: 'taken', w: FLAG, k: 2 }] })
     expect(objetEnMain(doc, 512, 30)?.id).toBe('0x2A392328')
+  })
+
+  it('carries the team of the flag held (its banner), and no team with a weapon in hand', () => {
+    const doc = ctfDoc()
+    expect(flagTeamInHand(doc, 512, 30)).toBe(1)
+    expect(flagTeamInHand(doc, 512, 50)).toBeNull()
+    expect(flagTeamInHand(doc, 513, 30)).toBeNull()
+    expect(heldWeaponAt(doc, 512, 30, 'en')?.flagTeam).toBe(1)
+    expect(heldWeaponAt(doc, 512, 50, 'en')).not.toHaveProperty('flagTeam')
   })
 
   it('holds nothing when no object pickup names the object', () => {

@@ -58,6 +58,11 @@ export interface ActionContext {
   slotState(slot: number, frame: number): PlayerState3d | null
   /** Le modèle du jeu de l'arme `id` (à cloner), null tant qu'il n'est pas chargé (`weaponModels3d`). */
   weaponModel(id: string): THREE.Object3D | null
+  /**
+   * The game's model of the flag `id` (to clone) dressed with the banner of team `team`, the bare
+   * model while the banner is not known, null until the model is loaded (`weaponModels3d.flagModel`).
+   */
+  flagModel(id: string, team: number | null): THREE.Object3D | null
   /** Le modèle du jeu du projectile de la grenade de rang `rank` (à cloner), null tant qu'il n'est pas chargé. */
   grenadeModel(rank: number): THREE.Object3D | null
   /** Le Spartan à peau du jeu (à cloner par `SkeletonUtils`), null tant qu'il n'est pas chargé. */
@@ -209,7 +214,7 @@ export class ActionScene3d {
     return {
       name: w.name,
       color: this.ctx.ink.of(fx.tint[w.tint] || fx.core),
-      model: this.ctx.weaponModel(w.id),
+      model: w.flagTeam === undefined ? this.ctx.weaponModel(w.id) : this.ctx.flagModel(w.id, w.flagTeam),
       key: weaponModelKey(w.id),
       recoil: this.recoil.at(slot, frame, w.id, recoil),
     }
