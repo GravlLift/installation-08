@@ -2,7 +2,8 @@
  * topDownView3d.ts — the top-down view of the replay scene: the same scene, drawn from
  * straight above with an orthographic camera, cut at a height that follows the followed player
  * (`topDownLogic.CutFollower`), with a marker per player, framed between the page's chrome and
- * zoomed and panned by the viewer (`topDownNavLogic`, gestures in `topDownInput3d`).
+ * zoomed and panned by the viewer (`topDownNavLogic`, gestures in `topDownInput3d`). It also owns
+ * the corner minimap drawn over the 3D view (`topDownMinimap3d`), which shares its staging and ghost.
  *
  * The camera rides `TOP_LIFT` above the cut and its near plane sits on the cut, so every slab
  * over the followed player's head is not drawn; its far plane sits under the lowest walked
@@ -30,6 +31,7 @@ import { PlayerMarkers3d, type DeadPose, type MarkerPose } from './playerMarkers
 import { TopDownGhost } from './topDownGhost3d'
 import { TopDownInput } from './topDownInput3d'
 import { CUT_HEADROOM, CutFollower, highestDrawn, lowestDrawn } from './topDownLogic'
+import { TopDownMinimap, type MinimapDraw } from './topDownMinimap3d'
 import { NAV_HOME, NO_INSETS, followed, frameOf, insetsFrom, panBy, screenAt, zoomAt, type Insets, type NavContext, type NavState, type Span, type TopDownBounds, type Viewport } from './topDownNavLogic'
 import { TOP_LIFT, TopDownStage } from './topDownStage3d'
 
@@ -72,6 +74,7 @@ export class TopDownView3d {
   private readonly stage: TopDownStage
   private readonly ghost: TopDownGhost
   private readonly markers: PlayerMarkers3d
+  private readonly minimap: TopDownMinimap
   private readonly input: TopDownInput
   private readonly lowestY: number
   private readonly bounds: TopDownBounds
@@ -92,6 +95,7 @@ export class TopDownView3d {
     this.ghost = new TopDownGhost(s.scene, area, highestDrawn(s.heights), this.lowestY)
     this.markers = new PlayerMarkers3d(s.scene)
     this.cut = new CutFollower(this.lowestY)
+    this.minimap = new TopDownMinimap({ renderer: s.renderer, stage: this.stage, ghost: this.ghost, lowestY: this.lowestY })
     this.input = new TopDownInput(s.renderer.domElement, {
       zoom: (x, y, factor) => (this.nav = zoomAt(this.navContext(), x, y, factor)),
       pan: (dx, dy) => (this.nav = panBy(this.navContext(), dx, dy)),
@@ -103,6 +107,7 @@ export class TopDownView3d {
   sync(sky: THREE.Object3D | null, roots: readonly THREE.Object3D[]): void {
     this.stage.sync(sky, roots)
     this.ghost.invalidate()
+    this.minimap.invalidate()
   }
 
   /** The 3D view draws: the markers go, the cut restarts from the target at the next top draw. */
@@ -110,6 +115,16 @@ export class TopDownView3d {
     this.markers.hide()
     this.cut.reset()
     this.input.active = false
+  }
+
+  /** Show or hide the corner minimap over the 3D view. */
+  setMinimap(on: boolean): void {
+    this.minimap.enabled = on
+  }
+
+  /** Draw the corner minimap over the 3D frame just drawn (nothing when it is off or has no player). */
+  drawMinimap(d: MinimapDraw): void {
+    this.minimap.draw(d, this.viewport(), this.readInsets())
   }
 
   /** Draw the scene straight down, cut over the followed player, with the player markers. */
@@ -136,6 +151,7 @@ export class TopDownView3d {
   dispose(): void {
     this.input.dispose()
     this.markers.dispose(this.scene)
+    this.minimap.dispose()
     this.ghost.dispose(this.scene)
   }
 

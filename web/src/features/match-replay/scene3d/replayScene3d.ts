@@ -4,7 +4,7 @@
  * It owns no time: the page's player advances its image and the view calls `render(frame)`
  * once per screen frame. Cameras: first and third person on the followed player (the page's
  * viewpoint), free (orbit around it), and the orthographic top-down view (`topDownView3d`)
- * drawing the same scene straight down, cut over the followed player.
+ * drawing the same scene straight down, cut over the followed player; it also draws the 3D view's corner minimap.
  *
  * The replay and the map are in Halo world units (1 u = 3.048 m), not meters: measured
  * median run speed 2.3 u/s, that of a Spartan. All sizes below are in u.
@@ -101,7 +101,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private view: SceneView3d = '3d'
   /** The top-down view, built when the map is attached; null without a map. */
   private top: TopDownView3d | null = null
-  private topPlayers: MarkerPose[] = []; private topDead: DeadPose[] = [] // the living and the dead, posed for the top-down view
+  private topPlayers: MarkerPose[] = []; private topDead: DeadPose[] = [] // the living and the dead, posed for the top-down view and the minimap
   /** The player the top-down view follows and rings: the page's viewpoint, null in free camera. */
   private topFollowed: string | null = null
   private povXuid: string | null = null
@@ -301,6 +301,8 @@ export class ReplayScene3d implements Replay3DExportSource {
 
   /** setTopFollowed: the player the top-down view's cut follows; null (free camera): the living players' median. */
   setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
+  /** setMinimap shows or hides the corner minimap over the 3D view (first and third person). */
+  setMinimap(on: boolean): void { this.top?.setMinimap(on) }
 
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return
@@ -347,7 +349,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
     t = marquer(p, 3, t)
     if (top) top.draw({ composer: this.post.composer, players: this.topPlayers, dead: this.topDead, followed: this.topFollowed })
-    else { this.top?.idle(); this.post.composer.render() }
+    else { this.top?.idle(); this.post.composer.render(); this.top?.drawMinimap({ players: this.topPlayers, followed: this.mode === 'free' ? null : this.povXuid }) }
     t = marquer(p, 4, t)
     this.labels.render(this.scene, top ? top.camera : this.camera)
     marquer(p, 5, t)
