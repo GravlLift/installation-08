@@ -2,7 +2,8 @@ package main
 
 // serve_sounds.go — the replay sound route.
 //
-// The viewer addresses /static/sounds/halo_infinite/<stem>.ogg. The set is
+// The viewer addresses /static/sounds/halo_infinite/<stem>.ogg, and the announcer
+// manifest /static/sounds/halo_infinite/announcer.json. The set is
 // built into the binary (internal/sounds, from JGtm's LevelUp), so the viewer
 // is not silent on a fresh install. The route serves a file from the user's
 // data directory when it is there, so an imported file wins over the built-in
@@ -20,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/sounds"
 )
 
@@ -29,11 +31,20 @@ func soundsDir(dataDir string) string {
 }
 
 // soundFile is a file name the sound route may serve: an .ogg file of the
-// sound set. A name that passes this check but is in neither the data
+// sound set, or the announcer manifest (announcer.json, written by build-sounds
+// into the data directory only). A name that passes this check but is in neither the data
 // directory nor the built-in set still gets a 404, and a name that would
 // escape the folder is refused by joinInside.
 func soundFile(name string) bool {
-	return strings.HasSuffix(name, ".ogg")
+	return strings.HasSuffix(name, ".ogg") || name == announcer.ManifestName
+}
+
+// soundContentType is the media type of a sound route file.
+func soundContentType(name string) string {
+	if name == announcer.ManifestName {
+		return "application/json"
+	}
+	return "audio/ogg"
 }
 
 // embeddedSounds is the built-in sound set the route falls back to. It is
@@ -64,7 +75,7 @@ func (h serverHandlers) handleSoundFile(w http.ResponseWriter, r *http.Request) 
 	}
 	if f != nil {
 		defer f.Close()
-		w.Header().Set("Content-Type", "audio/ogg")
+		w.Header().Set("Content-Type", soundContentType(name))
 		http.ServeContent(w, r, name, time.Time{}, f)
 		return
 	}

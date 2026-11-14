@@ -1,6 +1,8 @@
 // Film-code to English name mapping measured by LevelUp in libs/film/medalname.
 package build
 
+import "sort"
+
 type medalKey struct {
 	typeHint  int
 	medalType int
@@ -136,4 +138,18 @@ var table = map[medalKey]string{
 func MedalName(typeHint, medalType int) (string, bool) {
 	name, ok := table[medalKey{typeHint: typeHint, medalType: medalType}]
 	return name, ok
+}
+
+// MedalNames returns every English medal name of the table, once each, sorted.
+func MedalNames() []string {
+	set := map[string]bool{}
+	for _, n := range table {
+		set[n] = true
+	}
+	out := make([]string, 0, len(set))
+	for n := range set {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
