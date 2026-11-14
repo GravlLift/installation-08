@@ -10,9 +10,11 @@ The source files below are as of 2026-11-13, with the documented changes noted p
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
 
-`vgmstream/` holds no code: only the license texts and the notice of the vgmstream decoder
-the packaged build carries (r2168, pinned and hash-checked by `tools/package.ps1`, run as a
-separate program by the announcer build). See [vgmstream/NOTICE.md](vgmstream/NOTICE.md).
+`ww2ogg/` holds no code: only the license text and the notice of ww2ogg by hcs
+(https://github.com/hcs64/ww2ogg, commit `14ed9b0`, BSD-3-Clause style), which
+`internal/wwvorbis` ports to Go to repack the announcer's Wwise Vorbis voice lines into Ogg,
+and whose aoTuV packed codebook library it embeds unmodified. See
+[ww2ogg/NOTICE.md](ww2ogg/NOTICE.md).
 
 ## Changes from upstream v1.3.6 (film-decoder)
 

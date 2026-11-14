@@ -16,14 +16,8 @@
             LICENSE
             NOTICE.md
             README.md
-            tools\vgmstream\<vgmstream-cli.exe and the DLLs it imports>
             <third-party license texts from third_party\>
         dist\infinite-theater-3d-<version>-windows-amd64.zip
-
-    The announcer build decodes the game's voice with vgmstream-cli. The script takes the
-    pinned official release (third_party\vgmstream\NOTICE.md): -VgmstreamZip names a local
-    copy, otherwise it is downloaded once into dist\cache\. Either way the zip is refused
-    unless its SHA-256 matches, and only the files the decoder needs are copied out of it.
 
     Any failing step stops the script with a non-zero exit and a clear message.
 #>
@@ -35,21 +29,8 @@ param(
 
     [switch]$Installer,
 
-    # A local copy of the pinned vgmstream release zip (offline builds); its hash is checked.
-    [string]$VgmstreamZip,
-
     # Where the exe, the release folder and the zip are written (default: dist\ in the repo).
     [string]$OutDir
-)
-
-# The pinned vgmstream release and the files of it the package carries: vgmstream-cli.exe and
-# every DLL it imports (swresample is imported by nothing). See third_party\vgmstream\NOTICE.md.
-$vgmstreamUrl = 'https://github.com/vgmstream/vgmstream/releases/download/r2168/vgmstream-win64.zip'
-$vgmstreamSha256 = '692D45070852A35C1FA42726AA3C9DE528E44EEC925D37D99B1074256B99A229'
-$vgmstreamFiles = @(
-    'vgmstream-cli.exe', 'libvorbis.dll', 'libmpg123-0.dll', 'libspeex-1.dll',
-    'libcelt-0061.dll', 'libcelt-0110.dll',
-    'avcodec-vgmstream-63.dll', 'avformat-vgmstream-63.dll', 'avutil-vgmstream-61.dll'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -126,36 +107,6 @@ Get-ChildItem -LiteralPath $tp -Recurse -File |
         New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
         Copy-Item -LiteralPath $_.FullName -Destination $dest
     }
-# The announcer decoder: the pinned vgmstream zip (the given copy, or the cached download),
-# checked against its SHA-256, then the needed files into tools\vgmstream.
-$vgZip = $VgmstreamZip
-if (-not $vgZip) {
-    $cache = Join-Path $outDir 'cache'
-    New-Item -ItemType Directory -Force -Path $cache | Out-Null
-    $vgZip = Join-Path $cache 'vgmstream-r2168-win64.zip'
-    if (-not (Test-Path $vgZip) -or (Get-FileHash -LiteralPath $vgZip -Algorithm SHA256).Hash -ne $vgmstreamSha256) {
-        Write-Host "Downloading $vgmstreamUrl ..."
-        Invoke-WebRequest -Uri $vgmstreamUrl -OutFile $vgZip
-    }
-}
-if (-not (Test-Path $vgZip)) { throw "vgmstream zip not found: $vgZip" }
-$vgHash = (Get-FileHash -LiteralPath $vgZip -Algorithm SHA256).Hash
-if ($vgHash -ne $vgmstreamSha256) {
-    throw "vgmstream zip $vgZip has SHA-256 $vgHash, want $vgmstreamSha256 (refusing it)"
-}
-$vgDir = Join-Path (Join-Path $pkgDir 'tools') 'vgmstream'
-New-Item -ItemType Directory -Force -Path $vgDir | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $vgZip).Path)
-try {
-    foreach ($f in $vgmstreamFiles) {
-        $entry = $archive.GetEntry($f)
-        if (-not $entry) { throw "vgmstream zip has no $f" }
-        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $vgDir $f), $true)
-    }
-}
-finally { $archive.Dispose() }
-
 $zip = Join-Path $outDir "$name.zip"
 if (Test-Path $zip) { Remove-Item -LiteralPath $zip }
 Compress-Archive -Path $pkgDir -DestinationPath $zip

@@ -92,7 +92,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB | `--map <key> --mvar <file.mvar> --out <file.glb>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
-| `build-sounds` | the announcer's voice lines (168 calls, decoded to WAV into `<data>/assets/sounds/halo_infinite/` with `announcer.json`) | `--lang en\|fr`, `--data <dir>`, `--decoder <vgmstream-cli>` |
+| `build-sounds` | the announcer's voice lines (168 calls, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json`) | `--lang en\|fr`, `--data <dir>` |
 | `build-firstperson-library` | the whole first-person rig library (one rig per first-person-capable weapon, shared texture depot, `index.json`) | `--data <dir>`, `--map <module-key>` |
 | `build-spartan` | the Spartan body with its game animations, to one GLB | `--map <module-key>`, `--out <file.glb>` |
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
@@ -174,12 +174,13 @@ hand:
 .\infinite-theater-3d.exe build-sounds [--lang en|fr] [--data <dir>] [--game <deploy-root>]
 ```
 
-The game stores the voice as Wwise Vorbis; `vgmstream-cli` decodes it to WAV, which the
-viewer plays as is (no second tool). The packaged build carries the decoder in
-`tools\vgmstream\` next to the exe and finds it with no flag; from a source build, put
-`vgmstream-cli` on `PATH` or pass `--decoder <path>`. The 168 lines are 168 files, about
-50 MB of 48 kHz stereo WAV (a match loads only the lines it calls). Without an extraction
-`announcer.json` is a `404` and only the built-in round-over voice speaks.
+The game stores the voice as Wwise Vorbis. The program rebuilds each line's standard Ogg
+Vorbis headers and pages around the game's own audio packets, without decoding or
+re-encoding (`internal/wwvorbis`, a port of ww2ogg; no other program runs). The 168 lines are
+168 `.ogg` files, about 5.4 MB of 48 kHz stereo. A rebuild removes the take files of an
+earlier extraction that the new `announcer.json` no longer lists (`announcer_<line>_<nn>`
+`.ogg` or `.wav` only). Without an extraction `announcer.json` is a `404` and only the
+built-in round-over voice speaks.
 
 ## Other commands
 
@@ -212,17 +213,11 @@ dist\infinite-theater-3d-<version>-windows-amd64\
     LICENSE
     NOTICE.md
     README.md
-    tools\vgmstream\...   (the announcer decoder, see below)
     third_party\...
 dist\infinite-theater-3d-<version>-windows-amd64.zip
 ```
 
-The announcer decoder is the official vgmstream r2168 Windows release, pinned by URL and
-SHA-256 in the script: it is downloaded once into `dist\cache\` (or taken from
-`-VgmstreamZip <file>` for an offline build), refused if its hash differs, and only
-`vgmstream-cli.exe` and the eight DLLs it imports are copied. Their licenses, versions and
-the LGPL source note are in [third_party/vgmstream/NOTICE.md](third_party/vgmstream/NOTICE.md);
-the license texts ship in the release's `third_party\vgmstream\`. `-OutDir <dir>` writes
+The exe needs nothing beside it, the announcer extraction included. `-OutDir <dir>` writes
 the exe, the folder and the zip somewhere other than `dist\`.
 
 The exe is a single file: double-click it (or run it with no arguments) and it serves
