@@ -199,8 +199,24 @@ dist\infinite-theater-3d-<version>-windows-amd64.zip
 
 The exe is a single file: double-click it (or run it with no arguments) and it serves
 and opens the viewer in the default browser. A `version` subcommand prints the build
-version. Sounds and the Ekur export are still user-supplied per the sections above;
-pass `--data <dir>` and `--game <deploy-root>` if the defaults do not apply.
+version. The sound set is built in (see Replay sounds above); the Ekur export is still
+user-supplied; pass `--data <dir>` and `--game <deploy-root>` if the defaults do not
+apply.
+
+With `-Installer` the script additionally compiles a Windows installer (Inno Setup 6)
+from `tools\installer.iss` and writes `dist\infinite-theater-3d-<version>-setup.exe`:
+
+```powershell
+tools\package.ps1 -Version 0.1.0 -Installer
+```
+
+The installer is per-user (no administrator prompt) and installs the whole release
+folder to `%LOCALAPPDATA%\Programs\Infinite Theater 3D`: it shows the license, offers a
+Start menu shortcut (always) and a desktop shortcut (optional, off by default), and asks
+whether to launch the program at the end. Uninstalling removes the installed files only;
+the data folder (`%LOCALAPPDATA%\infinite-theater-3d`) is never touched. The script
+finds `ISCC.exe` on `PATH` or in the usual Inno Setup 6 install locations and fails
+with a clear message when it is not there.
 
 ## Web viewer
 

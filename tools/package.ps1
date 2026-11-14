@@ -25,7 +25,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [switch]$SkipWeb
+    [switch]$SkipWeb,
+
+    [switch]$Installer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,8 +108,36 @@ $zip = Join-Path $outDir "$name.zip"
 if (Test-Path $zip) { Remove-Item -LiteralPath $zip }
 Compress-Archive -Path $pkgDir -DestinationPath $zip
 
+# --- 6. The installer (only with -Installer): compile tools\installer.iss with Inno
+# Setup 6 (ISCC.exe), found on PATH first, then the usual per-user and system install
+# locations. The script takes the version and the release folder as /D defines; the
+# output lands in dist\ as infinite-theater-3d-<version>-setup.exe.
+if ($Installer) {
+    $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+    if (-not $iscc) {
+        $candidates = @(
+            (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')
+        )
+        foreach ($c in $candidates) {
+            if ($c -and (Test-Path $c)) { $iscc = $c; break }
+        }
+    }
+    if (-not $iscc) {
+        throw "ISCC.exe (Inno Setup 6) not found: put it on PATH or install it to '$(Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6' or '${env:ProgramFiles(x86)}\Inno Setup 6')"
+    }
+    Write-Host "Compiling installer with $iscc ..."
+    & $iscc "/DVersion=$Version" "/DPackageDir=$pkgDir" (Join-Path $scriptDir 'installer.iss')
+    if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit $LASTEXITCODE)" }
+    $setup = Join-Path $outDir "infinite-theater-3d-$Version-setup.exe"
+    if (-not (Test-Path $setup)) { throw "installer was not produced: $setup" }
+}
+
 Write-Host ''
 Write-Host "Packaged build ${name}:"
 Write-Host "  exe:  $exe ($((Get-Item $exe).Length) bytes)"
 Write-Host "  zip:  $zip ($((Get-Item $zip).Length) bytes)"
+if ($Installer) {
+    Write-Host "  installer: $setup ($((Get-Item $setup).Length) bytes)"
+}
 Write-Host "  folder: $pkgDir"
