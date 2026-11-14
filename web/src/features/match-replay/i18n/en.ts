@@ -77,6 +77,7 @@ export const EN_TEXT = {
     grenade: 'Grenades',
     melee: 'Melee',
     equipment: 'Equipment',
+    announcer: 'Announcer',
   },
   captureImage: 'Capture image',
   recordVideo: 'Record video',

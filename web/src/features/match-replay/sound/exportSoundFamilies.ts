@@ -12,13 +12,13 @@ import {
   END_FFA_WIN_VOICE_STEMS,
   END_MUSIC_STEMS,
   END_VOICE_STEMS,
-  endMatchSounds,
+  endMatchSoundsOf,
   type EndMatchSoundSpec,
 } from './endMatchSound'
 import type { ReplayLocale } from '../i18n/i18n'
+import { announcerStems } from './announcerSound'
 import { INTRO_MUSIC_STEM } from './introSound'
 import { seededRandom } from './replayAudioMix'
-import { ROUND_OVER_SOUND_STEMS } from './roundOverSound'
 
 /**
  * endMatchSoundsFor — the end takes THAT THE EXPORT WILL PLAY, seeded draw.
@@ -28,7 +28,7 @@ import { ROUND_OVER_SOUND_STEMS } from './roundOverSound'
  */
 export function endMatchSoundsFor(spec: EndMatchSoundSpec | null): string[] {
   if (!spec) return []
-  return endMatchSounds(spec.outcome, spec.ffa, spec.locale, seededRandom(spec.outcome.length))
+  return endMatchSoundsOf(spec, seededRandom(spec.outcome.length))
 }
 
 /**
@@ -38,18 +38,19 @@ export function endMatchSoundsFor(spec: EndMatchSoundSpec | null): string[] {
  * hold whatever the draw, and an extra stem in the list costs nothing (nothing will
  * play it).
  *
- * THE ROUND-END VOICE IS OF THE VOICE. It lives in the track, mixed in with the sound effects, and
- * it is the only voice a mid-match excerpt can contain.
+ * THE ANNOUNCER'S CALLS ARE OF THE VOICE (`announcerStems`, today the round-end voice). They live
+ * in the track, mixed in with the sound effects, and they are the only voice a mid-match excerpt
+ * can contain.
  *
  * THE INTRO MUSIC IS OF THE MUSIC, even if the export does not play it (decision D-8): the
  * classification says what a stem is, not whether it sounds in the clip.
  */
 export function soundFamiliesFor(
   spec: EndMatchSoundSpec | null,
-  /** Missing (old calls), the round-end voice is not in the track either. */
+  /** Missing (old calls), the announcer is not in the track either. */
   locale: ReplayLocale | undefined,
 ): { voice: readonly string[]; music: readonly string[] } {
-  const voice: string[] = locale ? [ROUND_OVER_SOUND_STEMS[locale]] : []
+  const voice: string[] = locale ? announcerStems(locale) : []
   const music: string[] = [INTRO_MUSIC_STEM]
   if (spec) {
     voice.push(...END_FFA_WIN_VOICE_STEMS[spec.locale])

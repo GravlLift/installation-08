@@ -115,6 +115,8 @@ export interface EndMatchSoundSpec {
    */
   ffa: boolean
   locale: ReplayLocale
+  /** `false` = the announcer category is cut in the settings drawer: the fanfare plays alone. */
+  voiced?: false
 }
 
 /**
@@ -167,6 +169,15 @@ export function endMatchSounds(
     return [pickTake(END_FFA_WIN_VOICE_STEMS[locale], rand), END_MUSIC_STEMS.win]
   }
   return [pickTake(END_VOICE_STEMS[outcome][locale], rand), END_MUSIC_STEMS[outcome]]
+}
+
+/**
+ * endMatchSoundsOf — `endMatchSounds` for a spec, honoring the announcer toggle: an unvoiced spec
+ * keeps the fanfare only (the voice is always the first of the pair).
+ */
+export function endMatchSoundsOf(spec: EndMatchSoundSpec, rand: () => number = Math.random): string[] {
+  const sounds = endMatchSounds(spec.outcome, spec.ffa, spec.locale, rand)
+  return spec.voiced === false ? sounds.slice(1) : sounds
 }
 
 /**

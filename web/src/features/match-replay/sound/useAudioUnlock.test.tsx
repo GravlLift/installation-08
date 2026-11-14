@@ -22,7 +22,7 @@ import { type FakeContext, flushAudio, installFakeAudio } from '../test/fakeAudi
 import { testReplayDoc } from '../test/testDoc'
 import { useReplaySound, type ReplaySoundContext } from './useReplaySound'
 
-const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined }
+const NO_CONTEXT: ReplaySoundContext = { allegiance: NO_ALLEGIANCE, endMatch: null, locale: undefined, followed: null, medals: [] }
 
 let ctx: FakeContext
 let fetchMock: ReturnType<typeof vi.fn>
