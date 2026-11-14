@@ -43,11 +43,13 @@ func TestRigPremierePersonneBR75(t *testing.T) {
 		}
 	}
 	for _, nom := range []string{"idle", "fire_1", "fire_1:var1", "reload_full", "reload_empty", "ready", "put_away", "melee_strike_1",
-		"throw_grenade", "sprint_loop", "moving", "jump", "crouch"} {
+		"throw_grenade", "sprint_loop", "moving", "jump", "crouch", "evade_front", "evade_back", "evade_left", "evade_right",
+		"grapple_hook_deploy", NomActionDuJeu(JeuRepulseur, ActionUsageEquipement), NomActionDuJeu(JeuCapteurMenace, ActionUsageEquipement)} {
 		if clips[nom] == nil {
 			t.Errorf("clip %s absent", nom)
 		}
 	}
+	verifiePousseeGauche(t, r, clips[NomActionDuJeu(JeuRepulseur, ActionUsageEquipement)])
 	if pos, avant, ok := r.ArmeEnAttente(); !ok || pos[0] < 0.03 || avant[0] < 0.95 || r.Modele.Noeuds[r.RacineArme].Name != noeudRacineArme {
 		t.Errorf("arme en attente : %v %v (%v)", pos, avant, ok)
 	} else {
@@ -59,6 +61,47 @@ func TestRigPremierePersonneBR75(t *testing.T) {
 	verifieTenueEnAttente(t, r, clips["idle"])
 	verifieChargeur(t, r, modeNoeuds(t, a, r.Arme.Mode), clips["reload_empty"])
 	verifieGLBDuRig(t, r)
+}
+
+// Le geste du repulseur, mesure sur le BR75 (2026-11-14) : a son avancee la plus forte (image 3 sur
+// 41), la main gauche est a +0,04 u vers l'avant, +0,06 vers la gauche et +0,09 vers le haut de sa
+// premiere image (0,11 u) ; la main droite avance de 0,02 u au plus.
+const (
+	// courseGaucheMin : le deplacement minimal (unites du jeu) de la main gauche depuis la premiere image.
+	courseGaucheMin = 0.08
+	// avanceeGaucheMin : l'avancee minimale (+X du rig) de la main gauche au meme moment.
+	avanceeGaucheMin = 0.02
+)
+
+// verifiePousseeGauche : dans le clip de l'usage du repulseur, le bras gauche monte et pousse
+// l'appareil de l'avant-bras vers l'avant : la main gauche se deplace d'au moins courseGaucheMin,
+// en avancant d'au moins avanceeGaucheMin, et plus que la main droite (qui tient l'arme).
+func verifiePousseeGauche(t *testing.T, r *RigPremierePersonne, c *ClipAnimation) {
+	if c == nil {
+		return
+	}
+	rang := map[string]int{}
+	for i, n := range r.Modele.Noms {
+		rang[n] = i
+	}
+	course := func(os string) (float64, float64, int) {
+		p0 := r.Modele.PoseRig(c, 0)[rang[os]].Trans
+		best, avant, k := 0.0, 0.0, 0
+		for i := 0; i < c.Animation.Images; i++ {
+			p := r.Modele.PoseRig(c, i)[rang[os]].Trans
+			if d := math.Hypot(math.Hypot(p[0]-p0[0], p[1]-p0[1]), p[2]-p0[2]); d > best {
+				best, avant, k = d, p[0]-p0[0], i
+			}
+		}
+		return best, avant, k
+	}
+	gauche, avant, image := course("b_l_hand")
+	droite, _, _ := course("b_r_hand")
+	t.Logf("repulseur : main gauche %.3f u (avant %+.3f) a l'image %d sur %d, main droite %.3f u", gauche, avant, image, c.Animation.Images, droite)
+	if gauche < courseGaucheMin || avant < avanceeGaucheMin || gauche <= droite {
+		t.Errorf("repulseur : main gauche %.3f u (avant %+.3f), droite %.3f : attendu au moins %.2f u dont %.2f vers l'avant, et plus que la droite",
+			gauche, avant, droite, courseGaucheMin, avanceeGaucheMin)
+	}
 }
 
 // verifieOsDeVisee : `b_pedestal` est la seule racine ; `b_base` (noeud_68e467f9) porte les deux mains ;

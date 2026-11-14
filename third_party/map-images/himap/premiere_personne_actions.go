@@ -2,7 +2,7 @@
 // a la premiere personne d'une arme.
 //
 // L'arbre des modes d'un graphe FP n'a que des niveaux `any` hors l'action (sauf une posture
-// alternative et les jeux de l'equipement, non lus ici) : une action se cherche au chemin
+// alternative, non lue ici, et les jeux de l'equipement, lus par ClipsDeLActionDuJeu) : une action se cherche au chemin
 // `any / any / any / any / <action>`, par le StringID de son nom, sans dependre du vocabulaire. C'est
 // l'arbre qui fait foi : le nom d'une animation n'est pas toujours celui de l'action qui la designe
 // (l'action `fire_1` du BR75 designe une animation qui ne s'appelle pas `first_person:fire_1`). Les
@@ -64,6 +64,29 @@ func (gs *GraphesAnimation) ClipsDeLAction(action string, parNom bool) ([]ClipAc
 		return nil, nil
 	}
 	return chaineDeVariantes(action, source, g, rang), nil
+}
+
+// ClipsDeLActionDuJeu rend les animations de l'action `action` sous le jeu `jeu` (chemin
+// `any / any / any / <jeu> / <action>`) et leurs variantes ; l'action des clips rendus est
+// NomActionDuJeu(jeu, action). Vide quand l'arbre ne la porte pas.
+func (gs *GraphesAnimation) ClipsDeLActionDuJeu(jeu, action string) ([]ClipAction, error) {
+	chemin := [NiveauxModes]string{"any", "any", "any", fmt.Sprintf("#%08x", NomAnimation(jeu)), fmt.Sprintf("#%08x", NomAnimation(action))}
+	nom := NomActionDuJeu(jeu, action)
+	g, rang, err := gs.designeeSurchargee(chemin)
+	if err != nil {
+		return nil, fmt.Errorf("action %q : %w", nom, err)
+	}
+	if g == nil {
+		return nil, nil
+	}
+	return chaineDeVariantes(nom, SourceArbre, g, rang), nil
+}
+
+// NomDuJeuPremierePersonne rend le nom du jeu de l'animation qu'une action d'un jeu designe : les
+// cinq niveaux du chemin, `any` compris (`any:any:any:knockback:equipment_activate`, verifie par
+// son StringID sur les graphes FP).
+func NomDuJeuPremierePersonne(jeu, action string) string {
+	return "any:any:any:" + jeu + ":" + action
 }
 
 // designeeSurchargee rend l'animation que `chemin` designe dans l'arbre du premier graphe de la chaine
