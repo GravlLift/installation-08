@@ -709,7 +709,7 @@ export function buildSoundTimeline(
   // and the round ends, scheduled on one line so that no two calls overlap. The "round ended"
   // voice lives there since 2026-11-13. Doctrine: `announcerSound.ts`.
   if (categories.announcer && announcer) {
-    out.push(...announcerSoundEvents({ doc, sideOfXuid, ...announcer }, announcer.locale))
+    out.push(...announcerSoundEvents({ doc, sideOfXuid, allyTeam, ...announcer }, announcer.locale))
   }
   return out.sort((a, b) => a.ms - b.ms)
 }

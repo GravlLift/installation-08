@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest'
 import type { ReplayFeedEntry } from '../model/killFeedLogic'
 import { testReplayDoc } from '../test/testDoc'
 import {
-  ANNOUNCER_LINES,
   ANNOUNCER_MAX_WAIT_MS,
   announcerCalls,
   announcerSoundEvents,
@@ -17,9 +16,10 @@ import {
   medalsOfFeed,
   objectiveCallKey,
   scheduleAnnouncer,
+  takeIndex,
   type AnnouncerCall,
-  type AnnouncerLines,
 } from './announcerSound'
+import { tableVoice, type AnnouncerLines, type AnnouncerVoice } from './announcerVoice'
 import type { ObjectiveSide } from './objectiveSound'
 
 /** A 10 Hz document whose score layer has two rounds: the transition falls at frame 10 = 1,000 ms. */
@@ -43,7 +43,9 @@ const LINES: AnnouncerLines = {
   'objective.flag_captures.theirs': { en: { stem: 'flag_captured_theirs_en', durationMs: 1_500 } },
 }
 
-const durationIn = (lines: AnnouncerLines) => (key: string) => lines[key]?.en?.durationMs
+const durationIn = (lines: AnnouncerLines) => (c: AnnouncerCall) => lines[c.key]?.en?.durationMs
+const VOICE = tableVoice(LINES)
+const keysOf = (cues: { timeMs: number; call: AnnouncerCall }[]) => cues.map((c) => [c.timeMs, c.call.key])
 
 const sides: Record<string, ObjectiveSide> = { me: 'ally', mate: 'ally', foe: 'enemy' }
 const sideOfXuid = (xuid: string): ObjectiveSide => sides[xuid] ?? 'unknown'
@@ -94,9 +96,9 @@ describe('scheduleAnnouncer — one line, no overlap', () => {
 
   it('a call that comes while another plays waits for its end', () => {
     const cues = scheduleAnnouncer([call(0, 'medal.double_kill', 'medal'), call(400, 'medal.triple_kill', 'medal')], durationIn(LINES))
-    expect(cues).toEqual([
-      { timeMs: 0, soundKey: 'medal.double_kill' },
-      { timeMs: 1_000, soundKey: 'medal.triple_kill' },
+    expect(keysOf(cues)).toEqual([
+      [0, 'medal.double_kill'],
+      [1_000, 'medal.triple_kill'],
     ])
   })
 
@@ -105,7 +107,7 @@ describe('scheduleAnnouncer — one line, no overlap', () => {
       [call(0, 'medal.double_kill', 'medal'), call(200, 'medal.triple_kill', 'medal'), call(300, 'round_over', 'round')],
       durationIn(LINES),
     )
-    expect(cues.map((c) => [c.timeMs, c.soundKey])).toEqual([
+    expect(keysOf(cues)).toEqual([
       [0, 'medal.double_kill'],
       [1_000, 'round_over'],
       [2_700, 'medal.triple_kill'],
@@ -119,31 +121,53 @@ describe('scheduleAnnouncer — one line, no overlap', () => {
       1_700,
     )
     // round 0..1700, the objective call (waited 1,600 ms) plays 1700..3200; the medal would wait 3,000 ms > 1,700.
-    expect(cues.map((c) => c.soundKey)).toEqual(['round_over', 'objective.flag_captures.ours'])
+    expect(cues.map((c) => c.call.key)).toEqual(['round_over', 'objective.flag_captures.ours'])
     expect(ANNOUNCER_MAX_WAIT_MS).toBeGreaterThan(0)
   })
 
   it('a call without a file never delays an audible one', () => {
     const cues = scheduleAnnouncer([call(0, 'medal.perfect', 'medal'), call(100, 'medal.double_kill', 'medal')], durationIn(LINES))
-    expect(cues).toEqual([{ timeMs: 100, soundKey: 'medal.double_kill' }])
+    expect(keysOf(cues)).toEqual([[100, 'medal.double_kill']])
   })
 })
 
 describe('announcerSoundEvents — the track events', () => {
   it('flat announcer events (no position), in the interface language', () => {
-    const events = announcerSoundEvents({ doc: twoRoundDoc(), followed: null, medals: [] }, 'en', LINES)
+    const events = announcerSoundEvents({ doc: twoRoundDoc(), followed: null, medals: [], voice: VOICE }, 'en')
     expect(events).toEqual([{ ms: 1_000, stem: 'round_over_en', announcer: true }])
   })
 
   it('no language, no voice', () => {
-    expect(announcerSoundEvents({ doc: twoRoundDoc(), followed: null, medals: [] }, undefined, LINES)).toEqual([])
+    expect(announcerSoundEvents({ doc: twoRoundDoc(), followed: null, medals: [], voice: VOICE }, undefined)).toEqual([])
   })
 
   it('the bundled set: the round end plays in both languages, medals stay silent (no file)', () => {
     const input = { doc: twoRoundDoc(), followed: 'me', medals: [{ ms: 1_200, xuid: 'me', name: 'Double Kill' }] }
     expect(announcerSoundEvents(input, 'fr').map((e) => e.stem)).toEqual(['round_over_fr'])
     expect(announcerSoundEvents(input, 'en').map((e) => e.stem)).toEqual(['round_over_en'])
-    expect(announcerStems('fr', ANNOUNCER_LINES)).toEqual(['round_over_fr'])
+    expect(announcerStems('fr')).toEqual(['round_over_fr'])
+  })
+})
+
+describe('announcerSoundEvents — the takes', () => {
+  const twoTakes: AnnouncerVoice = {
+    takes: (key) => (key === 'medal.double_kill' ? [{ stem: 'dk_01', durationMs: 900 }, { stem: 'dk_02', durationMs: 1_100 }] : []),
+    stems: () => ['dk_01', 'dk_02'],
+  }
+
+  it('a line with several takes plays the one its moment picks, and the same one every time', () => {
+    const input = (ms: number) => ({ doc: testReplayDoc(), followed: 'me', medals: [{ ms, xuid: 'me', name: 'Double Kill' }], voice: twoTakes })
+    expect(announcerSoundEvents(input(0), 'en').map((e) => e.stem)).toEqual(['dk_01'])
+    expect(announcerSoundEvents(input(100), 'en').map((e) => e.stem)).toEqual(['dk_02'])
+    expect(announcerSoundEvents(input(100), 'en')).toEqual(announcerSoundEvents(input(100), 'en'))
+    expect(takeIndex(250, 3)).toBe(2)
+    expect(takeIndex(5, 0)).toBe(0)
+  })
+
+  it('the extracted voice adds to the bundled one: the round end stays bundled, the medal is extracted', () => {
+    const input = { doc: twoRoundDoc(), followed: 'me', medals: [{ ms: 5_000, xuid: 'me', name: 'Double Kill' }], voice: twoTakes }
+    expect(announcerSoundEvents(input, 'en').map((e) => [e.ms, e.stem])).toEqual([[1_000, 'round_over_en'], [5_000, 'dk_01']])
+    expect(announcerStems('en', twoTakes)).toEqual(['round_over_en', 'dk_01', 'dk_02'])
   })
 })
 
@@ -153,6 +177,9 @@ describe('keys and the feed', () => {
     expect(medalCallKey("Odin's Raven")).toBe('medal.odin_s_raven')
     expect(medalCallKey('360')).toBe('medal.360')
     expect(objectiveCallKey('flag_captures', 'enemy')).toBe('objective.flag_captures.theirs')
+    expect(medalCallKey('Fire & Forget')).toBe('medal.fire_and_forget')
+    expect(objectiveCallKey('zone_captures', 'ally', 'King of the Hill')).toBe('objective.hill_captures.ours')
+    expect(objectiveCallKey('zone_captures', 'ally', 'Strongholds')).toBe('objective.zone_captures.ours')
   })
 
   it('medalsOfFeed keeps an attached medal offset from its kill, and a lone medal at its line', () => {

@@ -168,7 +168,7 @@ func TestSoundRouteViaMux(t *testing.T) {
 	}
 }
 
-// TestSoundFile — the name filter: an .ogg passes, anything else does not.
+// TestSoundFile — the name filter: an .ogg and the announcer manifest pass, anything else does not.
 func TestSoundFile(t *testing.T) {
 	cases := map[string]bool{
 		"gunshot_battle_rifle.ogg": true,
@@ -177,10 +177,31 @@ func TestSoundFile(t *testing.T) {
 		"a.oggx":                   false,
 		"a":                        false,
 		"index.json":               false,
+		"announcer.json":           true,
+		"announcer.JSON":           false,
 	}
 	for name, want := range cases {
 		if ok := soundFile(name); ok != want {
 			t.Errorf("soundFile(%q) = %v, want %v", name, ok, want)
 		}
+	}
+}
+
+// TestSoundRouteAnnouncerManifest — the manifest build-sounds writes is served as JSON from
+// the data directory; without an extraction it is a 404 (the built-in set has none), which
+// the viewer reads as "no announcer lines".
+func TestSoundRouteAnnouncerManifest(t *testing.T) {
+	root := newFakeStore(t)
+	h := newTestHandlers(root, nil)
+	if rec := get(t, h, soundRoute+"announcer.json", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("no extraction: status = %d, want 404", rec.Code)
+	}
+	soundFixture(t, root.Dir())
+	if err := os.WriteFile(filepath.Join(soundsDir(root.Dir()), "announcer.json"), []byte(`{"version":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, h, soundRoute+"announcer.json", nil)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" || rec.Body.String() != `{"version":1}` {
+		t.Fatalf("status = %d, Content-Type = %q, body = %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
 	}
 }

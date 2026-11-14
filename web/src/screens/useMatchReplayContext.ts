@@ -45,6 +45,8 @@ export function useMatchReplayContext(matchId: string, doc: ReplayDocumentReady)
   }, [matchId, xuid])
 
   return useMemo(() => {
+    const playWindow = replayWindow(doc, context?.header)
+    const timeLimitMs = context?.regulation_seconds != null ? context.regulation_seconds * 1000 : null
     const identity = new Map((context?.scoreboard ?? []).map((row) => [row.xuid, { ally: false }]))
     const events = context?.highlight_events ?? []
     const feed = buildFeedEntries(collectKillEvents(events, identity), collectMedalEvents(events), context?.header.t0_ms ?? 0, doc)
@@ -54,8 +56,10 @@ export function useMatchReplayContext(matchId: string, doc: ReplayDocumentReady)
       // carries keep the kill feed and kill markers drawn.
       kills: context ? killsOfFeed(feed) : buildKillsFromDocument(doc),
       medals: medalsOfFeed(feed),
-      playWindow: replayWindow(doc, context?.header),
-      timeLimitMs: context?.regulation_seconds != null ? context.regulation_seconds * 1000 : null,
+      playWindow,
+      timeLimitMs,
+      // What the announcer reads of the match: its mode's name, its clock, whether it went to overtime.
+      announcerMatch: { mode: context?.header.mode_ui || null, timeLimitMs, playWindow, overtime: context?.header.is_overtime === true },
     }
   }, [context, doc])
 }
