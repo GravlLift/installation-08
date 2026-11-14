@@ -144,18 +144,23 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
 
 ## Replay sounds
 
-The viewer plays the match's sounds from `<data>/assets/sounds/halo_infinite/` (one
-`.ogg` per stem). That set cannot be rebuilt from a game installation: it was hand-produced
-for a replay player (decoded, assembled and picked by ear), and its source material no
-longer exists. Copy it into the data directory:
+The sound set is built into the program: the viewer plays the match's sounds straight from
+`/static/sounds/halo_infinite/` on a fresh install, no setup needed. The set (183 `.ogg`
+files, one per stem) cannot be rebuilt from a game installation: it was hand-produced for a
+replay player (decoded, assembled and picked by ear) by JGtm's
+[LevelUp](https://github.com/JGtm/LevelUp) and ships in `internal/sounds`, embedded in the
+binary (see [NOTICE.md](NOTICE.md)).
+
+To replace individual files with your own versions, copy them into the data directory:
 
 ```powershell
 .\infinite-theater-3d.exe import-sounds --from <sounds-dir> [--data <dir>]
 ```
 
 The import copies every `.ogg` file (subfolders kept), skips files already present and
-identical, and replaces a changed one. Until the import has run, `serve` logs one line at
-startup naming this command, and the route answers `404` for every sound.
+identical, and replaces a changed one. The route serves a file from
+`<data>/assets/sounds/halo_infinite/` when it exists there, otherwise from the built-in
+set; a name in neither set is a `404`.
 
 ## Other commands
 
