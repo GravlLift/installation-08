@@ -36,6 +36,11 @@ const (
 	// puTestMur est un identifiant d'equipement du MEME catalogue qui n'est PAS un power-up :
 	// c'est le temoin negatif du filtre de famille.
 	puTestMur = uint32(0x8e2dc574)
+	// LOCAL-CHANGE (infinite-theater-3d): equipment pads. The carried wall above now IS a pad
+	// item (a Drop Wall pad); the negative witnesses are a grenade and a DEPLOYED wall.
+	puTestRepulsor   = uint32(0x7ca85adc)
+	puTestFrag       = uint32(0xbcabbe43)
+	puTestMurDeploye = uint32(0x528fce46)
 )
 
 // puTestFamilies est la table d'identite `eqip` que la voie consomme, reduite a ce que ces
@@ -45,13 +50,16 @@ func puTestFamilies() map[uint32]string {
 		puTestOvershield: "powerup_overshield",
 		puTestCamo:       "powerup_camo",
 		puTestMur:        "wall",
+		puTestRepulsor:   "repulsor",
+		puTestFrag:       "grenade_frag",
+		puTestMurDeploye: "wall",
 	}
 }
 
 // puTestCatalogs rend les deux tables d'identite de la chaine, avec la seule voie `ti=37`
 // renseignee.
 func puTestCatalogs() padCatalogs {
-	return padCatalogs{EquipmentFamilies: puTestFamilies()}
+	return padCatalogs{EquipmentFamilies: puTestFamilies(), DeployedEquipment: map[uint32]bool{puTestMurDeploye: true}}
 }
 
 // puTestScan monte le cas de reference de la voie `ti=37` : TROIS creations du meme power-up au
@@ -189,7 +197,9 @@ func TestPowerupPadsFamilleInconnueNeDonneRien(t *testing.T) {
 		id  uint32
 	}{
 		{"identite hors manifeste", 0xdeadbeef},
-		{"famille connue mais pas un power-up", puTestMur},
+		// LOCAL-CHANGE (infinite-theater-3d): a grenade and a deployed wall never sit on a pad.
+		{"grenade", puTestFrag},
+		{"mur pose", puTestMurDeploye},
 	} {
 		t.Run(cas.nom, func(t *testing.T) {
 			pads, _, cov, _ := buildWeaponPads(
@@ -208,6 +218,24 @@ func TestPowerupPadsFamilleInconnueNeDonneRien(t *testing.T) {
 					cov.PowerupAccepted)
 			}
 		})
+	}
+}
+
+// TestEquipmentPadsGrappeUnSocle (LOCAL-CHANGE (infinite-theater-3d)): three creations of the
+// same carried equipment at one spot make ONE pad, published under its manifest family, with
+// one presence per spawn, exactly like a power-up pad.
+func TestEquipmentPadsGrappeUnSocle(t *testing.T) {
+	pads, _, cov, _ := buildWeaponPads(
+		PadScans{Powerups: puTestScan(puTestRepulsor, 10, 10)}, gwTestPositions(nil, 0, 0),
+		gwTestClock(), puTestCatalogs())
+	if len(pads) != 1 || pads[0].Weapon != "repulsor" {
+		t.Fatalf("1 equipment pad `repulsor` expected: %+v", pads)
+	}
+	if len(pads[0].Spawns) != 3 || len(pads[0].Presence) != 3 {
+		t.Errorf("3 spawns and presences expected: %+v", pads[0])
+	}
+	if !cov.Balanced() {
+		t.Errorf("unbalanced coverage: %+v", cov)
 	}
 }
 
@@ -273,7 +301,7 @@ func TestPowerupPadRuleSuitLeManifesteDuTitre(t *testing.T) {
 	if len(familles) == 0 {
 		t.Skip("catalogue d'identite `eqip` vide : le manifeste du titre n'a pas ete lu")
 	}
-	rule := powerupPadRule(familles)
+	rule := powerupPadRule(familles, nil)
 	for id, veut := range map[uint32]string{
 		puTestOvershield: "powerup_overshield",
 		puTestCamo:       "powerup_camo",
@@ -284,8 +312,17 @@ func TestPowerupPadRuleSuitLeManifesteDuTitre(t *testing.T) {
 				" change d'identifiant ?", id, got, ok, veut)
 		}
 	}
-	if _, ok := rule.Family(puTestMur); ok {
-		t.Errorf("%#08x (%q) est accepte comme power-up", puTestMur, familles[puTestMur])
+	// LOCAL-CHANGE (infinite-theater-3d): carried equipment is a pad item, grenades are not.
+	for id, veut := range map[uint32]string{puTestMur: "wall", puTestRepulsor: "repulsor"} {
+		if got, ok := rule.Family(id); !ok || got != veut {
+			t.Errorf("%#08x : la regle rend (%q, %t), attendu (%q, true)", id, got, ok, veut)
+		}
+	}
+	if _, ok := rule.Family(puTestFrag); ok {
+		t.Errorf("%#08x (%q) est accepte comme objet de socle", puTestFrag, familles[puTestFrag])
+	}
+	if _, ok := powerupPadRule(familles, map[uint32]bool{puTestMurDeploye: true}).Family(puTestMurDeploye); ok {
+		t.Errorf("%#08x (mur pose) est accepte comme objet de socle", puTestMurDeploye)
 	}
 	// LA REGLE EST UN PREFIXE, PAS UNE LISTE DE DEUX : tout power-up que le manifeste ajoutera
 	// doit passer sans qu'on revienne ici. Ce controle le verifie sur le catalogue reel.

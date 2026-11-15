@@ -85,6 +85,11 @@ func TestLabelCatalogEmbedded(t *testing.T) {
 	if len(cat.EquipmentFamilies) < 20 {
 		t.Fatalf("equipment families = %d, want >= 20", len(cat.EquipmentFamilies))
 	}
+	// Deployed equipment: the two placed Drop Wall objects, never a carried item.
+	if !cat.DeployedEquipment[0x528fce46] || !cat.DeployedEquipment[0x686b40c9] ||
+		cat.DeployedEquipment[0x7ca85adc] || len(cat.DeployedEquipment) != 2 {
+		t.Fatalf("deployed equipment = %v, want the two deployed walls", cat.DeployedEquipment)
+	}
 
 	// Objective objects: flag and ball.
 	if len(cat.ObjectiveObjects) != 2 {

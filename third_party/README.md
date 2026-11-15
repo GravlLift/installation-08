@@ -64,6 +64,14 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   `map.mvar`. The viewer holds a `rack` spawner's weapon still in that orientation. The field
   sits in a request-time layer, so the baked fingerprint and `SchemaVersion` do not move; the
   shape golden (`replay/testdata/document_shape.golden`) was regenerated for the stored shape.
+- Equipment pads (`replay/powerup_pads.go`, `ground_weapon_pads.go`, `build_ground_weapons.go`,
+  `catalog.go`, LOCAL-CHANGE): the `ti=37` pad lane kept only `powerup_*` families, so a pad
+  holding a carried equipment (Repulsor, Translocator, Drop Wall...) was never published. The
+  rule now keeps every manifest family except grenades and the objects the manifest marks
+  `deployed` (new `LabelCatalog.DeployedEquipment`, set by `internal/refdata`). Such a pad
+  publishes its family in `weaponPads[].weapon` (`repulsor`), with presence, cycle and dated
+  `padPickups` from the same machinery as power-up pads. The document shape and `SchemaVersion`
+  do not change; a stored document gains its equipment pads when it is rebuilt.
 
 ## Omitted upstream files
 

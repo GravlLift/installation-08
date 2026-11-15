@@ -204,6 +204,7 @@ func Labels() replay.LabelCatalog {
 	cat.Impacts = replayLabels.ShotImpact
 	cat.Roles = rolesByKey
 	cat.EquipmentFamilies = buildEquipmentFamilies()
+	cat.DeployedEquipment = buildDeployedEquipment()
 	cat.AbilityImpulseFamilies = replayLabels.AbilityImpulseFamilies
 	cat.AbilityChargeFamilies = replayLabels.AbilityChargeFamilies
 	cat.ObjectiveObjects, cat.ObjectiveFamilies = buildObjectiveObjects()
@@ -295,6 +296,25 @@ func buildEquipmentFamilies() map[uint32]string {
 			continue
 		}
 		out[uint32(id)] = e.Family
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// buildDeployedEquipment returns the equipment objects the manifest marks `deployed` (the
+// placed form of an item, such as a standing Drop Wall). The pad chain excludes them so a
+// placed item is never read as an item waiting on a pad.
+func buildDeployedEquipment() map[uint32]bool {
+	out := map[uint32]bool{}
+	for _, e := range replayLabels.EquipmentObjects {
+		if e.Kind != "deployed" {
+			continue
+		}
+		if id, err := strconv.ParseUint(e.ID, 0, 32); err == nil {
+			out[uint32(id)] = true
+		}
 	}
 	if len(out) == 0 {
 		return nil

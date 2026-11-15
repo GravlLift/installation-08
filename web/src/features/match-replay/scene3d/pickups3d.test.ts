@@ -388,6 +388,50 @@ describe('Pickups3dLayer', () => {
     layer.dispose()
   })
 
+  // Live Fire's Repulsor pad: the map's equipment spawn point the server crossed the film pad with.
+  const REPULSOR_AT = { x: 6.82, y: 35.87, z: -0.99 }
+  const equipmentCross = {
+    catalogN: 0,
+    pads: [{ ...REPULSOR_AT, pad: 0, family: 'equipment' }],
+  } as ReplayDocumentReady['mapWeaponPads']
+
+  it('floats and turns an equipment pad item over its spawner, hidden once taken', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.1))
+    const ids: string[] = []
+    const { layer, counts, root } = calque(
+      { ...show, groundWeapons: false },
+      (id) => {
+        ids.push(id)
+        return id === 'repulsor' ? model : null
+      },
+      { weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { floorY: () => REPULSOR_AT.z },
+    )
+    const read = () => (window as unknown as { __it3dPickups?: unknown }).__it3dPickups
+    layer.update(15)
+    const copie = root.children[2]
+    expect(copie).toBeDefined()
+    expect(ids).toContain('repulsor')
+    // At the spawner (not the film's centroid), lifted like any floor pad item.
+    expect(copie.position.x).toBeCloseTo(REPULSOR_AT.x)
+    expect(copie.position.z).toBeCloseTo(-REPULSOR_AT.y)
+    expect(copie.position.y).toBeCloseTo(REPULSOR_AT.z + 0.28 + 0.04)
+    expect(read()).toEqual([
+      expect.objectContaining({ pad: 0, family: 'equipment', weaponKey: 'repulsor', state: 'full', visible: true, drawn: 'model', modelLoaded: true }),
+    ])
+    const q = copie.quaternion.clone()
+    layer.update(19)
+    expect(copie.quaternion.angleTo(q)).toBeGreaterThan(0.01)
+    // Uncertain: a ghost box; taken: nothing.
+    layer.update(25)
+    expect(counts()).toEqual([0, 1])
+    layer.update(60)
+    expect(counts()).toEqual([0, 0])
+    expect(copie.visible).toBe(false)
+    expect(read()).toEqual([expect.objectContaining({ family: 'equipment', state: 'empty', visible: false, drawn: null })])
+    layer.dispose()
+  })
+
   it('answers window.__it3dPickups with what each pad drew, until disposed', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
     const { layer } = calque(

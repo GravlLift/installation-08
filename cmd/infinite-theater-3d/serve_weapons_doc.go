@@ -90,10 +90,11 @@ func mapWeaponPadsFor(ctx context.Context, id string, keys matchMapKeys, variant
 		return nil
 	}
 	spots := mapvar.PadSpots(variant)
-	if len(spots) == 0 {
+	points := mapvar.SpawnPoints(variant)
+	if len(spots) == 0 && len(points) == 0 {
 		return nil
 	}
-	out := buildMapWeaponPads(spots, pads)
+	out := buildMapWeaponPads(spots, points, pads)
 	if out == nil {
 		slog.WarnContext(ctx, "map weapon pads: none confirmed although the match has pads",
 			"id", id, "map_id", keys.mapID, "map_pads", len(spots), "match_pads", len(pads))
@@ -102,11 +103,23 @@ func mapWeaponPadsFor(ctx context.Context, id string, keys matchMapKeys, variant
 	return out
 }
 
+// padFamilyEquipment is the family an EQUIPMENT pad publishes: a round floor pad whose item is
+// a carried equipment (Repulsor, Threat Sensor, Drop Wall, Translocator...), drawn like a
+// weapon pad (the item floats and turns above it).
+const padFamilyEquipment = "equipment"
+
 // buildMapWeaponPads crosses the map's pad locations with the match's pads: a location
 // leaves only when a match pad confirms it within a metre (the nearest unclaimed one).
 // Returns nil when nothing is confirmed, so the document's field stays absent.
 // Ported from LevelUp's libs/film/replay BuildMapWeaponPads (map_weapon_pads.go).
-func buildMapWeaponPads(spots []mapvar.PadSpot, pads []replay.WeaponPad) *replay.MapWeaponPads {
+//
+// EQUIPMENT PADS. The map variant places them two ways, both measured on Live Fire: on the
+// powerup pad type (`0x5E86D110`, the Translocator pad) and on the equipment spawn point type
+// (`0xE42158DF`, the Repulsor pad, which `PadSpots` does not list). So a match pad whose item is
+// an equipment family is published as `equipment` whatever pad type confirmed it, and the
+// map's pickup spawn points (`SpawnPoints`, grenade points excepted) confirm the equipment pads
+// no pad location claimed. CatalogN still counts the pad locations only.
+func buildMapWeaponPads(spots []mapvar.PadSpot, points []mapvar.SpawnPoint, pads []replay.WeaponPad) *replay.MapWeaponPads {
 	out := &replay.MapWeaponPads{CatalogN: len(spots)}
 	taken := make([]bool, len(pads))
 	for _, s := range spots {
@@ -115,16 +128,51 @@ func buildMapWeaponPads(spots []mapvar.PadSpot, pads []replay.WeaponPad) *replay
 			continue // off: the film never saw it, it does not leave.
 		}
 		taken[i] = true
+		family := string(s.Family)
+		if isEquipmentPadItem(pads[i].Weapon) {
+			family = padFamilyEquipment
+		}
 		out.Pads = append(out.Pads, replay.MapWeaponPadDTO{
 			X: float32(s.Pos.X), Y: float32(s.Pos.Y), Z: float32(s.Pos.Z),
-			Pad: i, Family: string(s.Family),
+			Pad: i, Family: family,
 			Forward: axisOf(s.Forward), Up: axisOf(s.Up),
+		})
+	}
+	// Only equipment pads may be confirmed by a spawn point: a weapon or power-up pad the pad
+	// locations did not confirm keeps its film position, as before.
+	for i, p := range pads {
+		if !isEquipmentPadItem(p.Weapon) {
+			taken[i] = true
+		}
+	}
+	for _, s := range points {
+		if s.Kind == mapvar.SpawnKindGrenade {
+			continue
+		}
+		i := confirmBy(s.Pos, pads, taken)
+		if i < 0 {
+			continue
+		}
+		taken[i] = true
+		out.Pads = append(out.Pads, replay.MapWeaponPadDTO{
+			X: float32(s.Pos.X), Y: float32(s.Pos.Y), Z: float32(s.Pos.Z),
+			Pad: i, Family: padFamilyEquipment,
 		})
 	}
 	if len(out.Pads) == 0 {
 		return nil
 	}
 	return out
+}
+
+// isEquipmentPadItem says whether a match pad's item is a carried equipment: neither a weapon
+// family (eight hex digits, `replay.PadWeaponFamilyKey`) nor a power-up (`powerup_*`).
+func isEquipmentPadItem(weapon string) bool {
+	if weapon == "" || strings.HasPrefix(weapon, "powerup_") {
+		return false
+	}
+	_, isWeapon := replay.PadWeaponFamilyKey(weapon)
+	return !isWeapon
 }
 
 // axisOf publishes an object axis as [x, y, z], or nil for a zero vector (an object the

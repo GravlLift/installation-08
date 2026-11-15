@@ -208,7 +208,7 @@ func buildWeaponPads(
 	cov.Dropped, cov.Spawned, cov.AtRest = wc.dropped, wc.spawned, wc.atRest
 	cov.Clusters, cov.Pads = wc.clusters, wc.pads
 	pu, puPicks, pc, _ := buildPadChain(
-		scans.Powerups, powerupPadRule(cat.EquipmentFamilies), in, cov)
+		scans.Powerups, powerupPadRule(cat.EquipmentFamilies, cat.DeployedEquipment), in, cov) // LOCAL-CHANGE (infinite-theater-3d)
 	cov.PowerupKept, cov.PowerupPads = pc.kept, pc.pads
 	// L ORIGINE `dropped` DES DEUX VOIES EST DECIDEE PAR LA FENETRE DE FIN DE VIE ([gwPadsClass]) :
 	// un repli nomme, compte ici une fois par apparition ainsi classee (lot J8.3, constat RB2-8).
