@@ -103,20 +103,66 @@ describe('PeintureRig3d', () => {
   })
 
   it('abandonne une peinture invalidée sans interrompre un autre rig', async () => {
-    const a = brasRig(), b = brasRig()
+    const a = brasRig(), b = brasRig(), piece = brasRig()
     const attente: Array<(coat: Coat | null) => void> = []
     const armurerie = { dress: () => habit, peindreBras: () => new Promise<Coat | null>((r) => attente.push(r)) } as unknown as SpartanArmory
     const habit = {} as Dress
     const peinture = peintureDe(a.root, armurerie, preparationDe(null))
     peinture.actualiser('a', a.root)
     peinture.actualiser('b', b.root)
+    a.root.add(piece.root.children[0]) // the piece lands while the coat is in flight
     peinture.invalider('a')
-    attente[0](coatDe(a.materiau))
+    attente[0](coatDe(a.materiau)) // computed on the undressed rig: it no longer covers
     attente[1](coatDe(b.materiau))
     await tick()
     expect((a.root.children[0] as THREE.Mesh).material).toBe(a.materiau)
     expect((b.root.children[0] as THREE.Mesh).material).not.toBe(b.materiau)
+    expect(peinture.enCours('a')).toBe(false)
     expect(peinture.enCours('b')).toBe(false)
+  })
+
+  it('scope then reload of a coated weapon: the weapon is never shown uncoated', async () => {
+    // The painted weapon is scoped out, and while the rig is hidden a late arm piece lands:
+    // invalidation starts a repaint. The scope is left (the rig shown again) while the repaint
+    // is in flight: no frame shows the weapon with its neutral material. The fresh coat lands
+    // on the dressed rig and replaces the kept copies.
+    const { root, materiau } = brasRig()
+    const arme = new THREE.MeshStandardMaterial()
+    arme.userData.surfaceBrute = {}
+    arme.userData.style = {}
+    arme.userData.rigWeapon = true
+    const maillageArme = new THREE.Mesh(new THREE.BoxGeometry(), arme)
+    root.add(maillageArme)
+    const armurerie = armurerieDe({} as Dress)
+    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
+    peinture.actualiser('rig1', root)
+    armurerie.resoudre(new Map([...coatDe(materiau), ...coatDe(arme)]))
+    await tick()
+    expect(peinture.enCours('rig1')).toBe(false)
+    const copieArme = maillageArme.material as THREE.Material
+    expect(copieArme).not.toBe(arme)
+    const disposeCopieArme = vi.spyOn(copieArme, 'dispose')
+    // Scope: the rig is hidden. While hidden, the late piece lands: invalidation + repaint.
+    root.visible = false
+    const piece = brasRig()
+    root.add(piece.root.children[0])
+    peinture.invalider('rig1')
+    peinture.actualiser('rig1', root) // `termine`, on the piece landing
+    expect(peinture.enCours('rig1')).toBe(true)
+    // Scope left, the rig is shown again, the repaint is still in flight: the weapon keeps its
+    // painted copy (before the fix it was the neutral material here).
+    root.visible = true
+    expect(maillageArme.material).toBe(copieArme)
+    expect(disposeCopieArme).not.toHaveBeenCalled()
+    // The fresh coat, computed on the dressed rig, lands and replaces the kept copies.
+    armurerie.resoudre(new Map([...coatDe(materiau), ...coatDe(arme), ...coatDe(piece.materiau)]))
+    await tick()
+    expect(peinture.enCours('rig1')).toBe(false)
+    expect(maillageArme.material).not.toBe(arme)
+    expect(maillageArme.material).not.toBe(copieArme)
+    expect((root.children[2] as THREE.Mesh).material).not.toBe(piece.materiau)
+    expect(disposeCopieArme).toHaveBeenCalledOnce()
+    peinture.changerJoueur()
   })
 
   it('pose le revêtement préparé sans attente, et garde le couple (fichier, habit)', () => {

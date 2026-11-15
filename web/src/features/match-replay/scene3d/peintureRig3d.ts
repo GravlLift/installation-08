@@ -9,6 +9,10 @@
  * quand il est prêt ; sinon la peinture se calcule en fond. `invalider` force un repeintage : les
  * pièces venues d'arriver portent des matériaux que la peinture posée ne couvre pas. L'arme du rig
  * se peint de son propre revêtement : `cleArmeDe` nomme sa clé de modèle à `peindreBras`.
+ * Le revêtement posé reste sur le rig PENDANT le calcul du suivant : l'arme en main n'est jamais
+ * montrée sans revêtement (le rig est souvent caché — lunette — quand le repeintage démarre, et se
+ * remontre avant l'arrivée du nouveau). Seule l'absence d'habit (ou le changement de joueur) efface
+ * le précédent.
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
@@ -36,10 +40,11 @@ export interface SourcePeinture {
 
 /**
  * PeintureRig3d : pose la peinture du joueur suivi sur les rigs de première personne ; `changerJoueur`
- * abandonne la peinture en cours et restaure les matériaux d'origine.
+ * abandonne la peinture en cours et restaure les matériaux d'origine. `invalider` marque le rig à
+ * refaire SANS effacer le revêtement posé : le suivant le remplace à son arrivée.
  */
 export class PeintureRig3d {
-  private readonly rigs = new Map<string, { racine: THREE.Object3D; habit: Dress | null; enCours: boolean; copies: Map<THREE.Material, THREE.Material> }>()
+  private readonly rigs = new Map<string, { racine: THREE.Object3D; habit: Dress | null; enCours: boolean; stale: boolean; copies: Map<THREE.Material, THREE.Material> }>()
   private generation = 0
   private readonly copies = new Map<THREE.Material, THREE.Material>()
   private readonly source: SourcePeinture
@@ -57,10 +62,14 @@ export class PeintureRig3d {
   /** Les copies peintes posées (rien sans peinture) : la sonde d'environnement s'y attache. */
   materiauxPeints(): THREE.Material[] { return [...this.copies.keys()] }
 
-  /** Les pièces de bras viennent d'arriver : la peinture posée ne les couvre plus, elle se refait. */
+  /**
+   * Les pièces de bras viennent d'arriver : la peinture posée ne les couvre plus, elle se refait au
+   * prochain `actualiser`. Le revêtement posé reste en place jusqu'à l'arrivée du suivant : l'arme
+   * du rig (souvent cachée par la lunette ici) n'est jamais montrée au matériau neutre.
+   */
   invalider(fichier: string): void {
     const rig = this.rigs.get(fichier)
-    if (rig) { this.retirer(rig); this.rigs.delete(fichier) }
+    if (rig) rig.stale = true
   }
 
   /** Le joueur change (ou la vue se libère) : abandonne la peinture en cours et restaure les matériaux. */
@@ -72,20 +81,28 @@ export class PeintureRig3d {
 
   /**
    * actualiser pose la peinture du joueur suivi sur le rig `fichier` : rien si le couple (fichier,
-   * habit) est déjà posé, ou sans habit. Le revêtement préparé se pose sans attente ; sinon la
-   * peinture se calcule en fond, abandonnée si le joueur change avant.
+   * habit) est déjà posé et le rig non invalide, ou sans habit. Le revêtement préparé se pose sans
+   * attente ; sinon la peinture se calcule en fond, abandonnée si le joueur change avant. Le
+   * revêtement posé auparavant reste sur le rig pendant ce calcul : il est remplacé à l'arrivée
+   * du suivant, jamais effacé avant (l'arme en main ne se montre jamais sans revêtement).
    */
   actualiser(fichier: string, racine: THREE.Object3D): void {
     const xuid = this.source.xuid()
     const habit = xuid ? this.source.armurerie()?.dress(xuid) ?? null : null
     const precedent = this.rigs.get(fichier)
-    if (precedent && memePeinture(fichier, fichier, habit, precedent.habit)) return
-    if (precedent) this.retirer(precedent)
-    const rig = { racine, habit, enCours: false, copies: new Map<THREE.Material, THREE.Material>() }
-    this.rigs.set(fichier, rig)
+    if (precedent && !precedent.stale && memePeinture(fichier, fichier, habit, precedent.habit)) return
     const armurerie = this.source.armurerie()
-    if (!habit || !armurerie || !xuid) return
-    const materiaux = materiauxPeinturables(racine)
+    const repeindre = !!habit && !!armurerie && !!xuid
+    if (precedent) {
+      // Sans nouveau revêtement à poser, le rig revient au neutre ; sinon le revêtement posé
+      // attend son remplaçant (les copies héritées sont disposées quand celui-ci arrive).
+      if (!repeindre) this.retirer(precedent)
+      this.rigs.delete(fichier)
+    }
+    const rig = { racine, habit, enCours: false, stale: false, copies: new Map<THREE.Material, THREE.Material>(precedent && repeindre ? precedent.copies : []) }
+    this.rigs.set(fichier, rig)
+    if (!repeindre) return
+    const materiaux = materiauxPeinturables(racine, (m) => this.materiauSource(m))
     if (!materiaux.length) return
     const coatPreparé = this.source.preparation.coat(fichier)
     // Le revêtement préparé ne sert que s'il couvre EXACTEMENT les matériaux à peindre : les
@@ -107,8 +124,9 @@ export class PeintureRig3d {
         // and landing the stale coat would paint the old materials and leave the new ones
         // neutral. The guard keeps the last known-good coat on the rig meanwhile.
         if (!coat || generation !== this.generation || this.rigs.get(fichier) !== rig) return
-        const materiaux = materiauxPeinturables(racine)
+        const materiaux = materiauxPeinturables(racine, (m) => this.materiauSource(m))
         if (!materiaux.every((m) => coat.has(m))) return
+        rig.stale = false
         this.appliquer(rig, coat)
       })
       .catch((erreur: unknown) => console.warn('rejeu 3D : peinture des bras indisponible', erreur))
@@ -129,43 +147,65 @@ export class PeintureRig3d {
     rig.copies.clear()
   }
 
-  /** appliquer pose les copies peintes sur les maillages dont le matériau est dans `coat`. */
+  /**
+   * appliquer pose les copies peintes sur les maillages dont le matériau est dans `coat`. Les copies
+   * posées auparavant (héritées, le revêtement qui attendait son remplaçant) cessent d'être
+   * référencées : elles sont disposées.
+   */
   private appliquer(rig: { racine: THREE.Object3D; copies: Map<THREE.Material, THREE.Material> }, coat: Coat): void {
+    const précédentes = [...rig.copies.keys()]
     // The weapon's energy fields (the sword's blade) glow in the emissive swatch of the weapon's
     // own paint, never the armor's (`energyField3d`).
     const teinte = energyTintOf(coat, (m) => !!m.userData.rigWeapon)
     rig.racine.traverse((objet) => {
       if (!(objet instanceof THREE.Mesh)) return
       const peindre = (m: THREE.Material) => {
-        const peinture = coat.get(m)
-        if (!peinture && teinte && isEnergized(m)) {
-          const champ = energyCopy(m, teinte)
-          this.copies.set(champ, m)
-          rig.copies.set(champ, m)
+        // Le rig peut porter le revêtement précédent : le revêtement se lit sur le matériau
+        // d'origine (les clés du coat sont les originaux).
+        const original = this.materiauSource(m)
+        const peinture = coat.get(original)
+        if (!peinture && teinte && isEnergized(original)) {
+          const champ = energyCopy(original, teinte)
+          this.copies.set(champ, original)
+          rig.copies.set(champ, original)
           return champ
         }
-        if (!peinture || !(m instanceof THREE.MeshStandardMaterial)) return m
-        const copie = armorMaterial(m, peinture)
+        if (!peinture || !(original instanceof THREE.MeshStandardMaterial)) return m
+        const copie = armorMaterial(original, peinture)
         this.source.baked?.apply(copie)
-        this.copies.set(copie, m)
-        rig.copies.set(copie, m)
+        this.copies.set(copie, original)
+        rig.copies.set(copie, original)
         return copie
       }
       objet.material = Array.isArray(objet.material) ? objet.material.map(peindre) : peindre(objet.material)
     })
+    // Les copies remplacées ne sont plus sur le rig : elles sont disposées. Celles qui restent sur
+    // un maillage invisible (bras embarqués masqués par une pièce, hors du revêtement) sont
+    // gardées : leur matériau source est peint, elles se disposent au retrait du rig.
+    for (const ancienne of précédentes) {
+      let enUsage = false
+      rig.racine.traverse((objet) => {
+        if (enUsage || !(objet instanceof THREE.Mesh)) return
+        for (const m of Array.isArray(objet.material) ? objet.material : [objet.material]) if (m === ancienne) { enUsage = true; return }
+      })
+      if (!enUsage) { this.copies.delete(ancienne); rig.copies.delete(ancienne); ancienne.dispose() }
+    }
   }
 }
 
 /**
  * materiauxPeinturables : les matériaux de bras de la racine (masques bruts, style) visibles, une
- * fois chacun : ceux du rig et ceux des pièces posées.
+ * fois chacun : ceux du rig et ceux des pièces posées. `source` ramène une copie posée à son
+ * matériau d'origine (le revêtement se calcule sur les originaux, même si le rig porte encore le
+ * revêtement précédent).
  */
-function materiauxPeinturables(racine: THREE.Object3D): THREE.Material[] {
+function materiauxPeinturables(racine: THREE.Object3D, source: (m: THREE.Material) => THREE.Material = (m) => m): THREE.Material[] {
   const result: THREE.Material[] = []
   racine.traverse((objet) => {
     if (!(objet instanceof THREE.Mesh) || !objet.visible) return
     for (const m of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-      if (estMateriauPeint(m) && m.userData.style && !result.includes(m)) result.push(m)
+      const original = source(m)
+      if (estMateriauPeint(original) && original.userData.style && !result.includes(original)) result.push(original)
     }
   })
   return result
