@@ -283,15 +283,19 @@ func coucheEchantillon(styles LecteurStyles, ech, couleur uint32) *Couches {
 		}
 	}
 	ve := vo + i*mwswTailleVar
+	// The swatch's gradient map is not a color: its red channel is the index into the variant's
+	// bottom / middle / top colors (Ekur, addon/src/nodes/layer.py: Gradient Map -> Separate
+	// Color -> R is "Gradient Out", B feeds roughness). Painted as a color map, it drew the
+	// map itself (the lime and cyan mottling of every layered Forge surface).
 	k := Couche{
-		Sorte:   CoucheCouleur,
-		Bitmap:  degrade,
-		Transfo: transfoNeutre,
-		Teinte:  [3]float32{1, 1, 1},
-		Opacite: 1,
-		Haut:    rgb32(wt.tag, ve+mwswOffHaut),
-		Milieu:  rgb32(wt.tag, ve+mwswOffMilieu),
-		Bas:     rgb32(wt.tag, ve+mwswOffBas),
+		Sorte:       CoucheDegrade,
+		IndiceRouge: true,
+		Bitmap:      degrade,
+		Transfo:     transfoNeutre,
+		Opacite:     1,
+		Haut:        rgb32(wt.tag, ve+mwswOffHaut),
+		Milieu:      rgb32(wt.tag, ve+mwswOffMilieu),
+		Bas:         rgb32(wt.tag, ve+mwswOffBas),
 	}
 	if normale := uint32(u32(wt.tag, ra+mwswOffNormale)); normale != 0 {
 		k.Normale = normale
