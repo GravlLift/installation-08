@@ -274,6 +274,11 @@ func (e *ecrivainMateriaux) rang(id uint32) int {
 	if r, ok := e.rangs[id]; ok {
 		return r
 	}
+	if s, ok := e.m.surfacesSombres[id]; ok { // LOCAL-CHANGE (infinite-theater-3d)
+		e.rangs[id] = len(e.doc.Materials)
+		e.doc.Materials = append(e.doc.Materials, surfaceSombreGLTF(id, s))
+		return e.rangs[id]
+	}
 	source := id
 	if t, ok := e.m.teintesForge[id]; ok {
 		source = t.source

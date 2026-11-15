@@ -39,6 +39,9 @@ type MaillageMonde struct {
 	teintesForge map[uint32]materiauTeinte
 	// stylesForge (LOCAL-CHANGE (infinite-theater-3d)): the variant's Forge styles by style id.
 	stylesForge map[int32]*StyleForge
+	// surfacesSombres (LOCAL-CHANGE (infinite-theater-3d)): the stand-in materials of the glass
+	// panes the game shows dark (vitres_sombres.go), by their allocated GlobalID.
+	surfacesSombres map[uint32]surfaceSombre
 	// MateriauxIllisibles compte les GlobalID references que les modules ne resolvent pas.
 	MateriauxIllisibles int
 	// Masques : les textures des decoupes des materiaux, par GlobalID de bitmap. Un materiau
@@ -143,6 +146,9 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 			b.EcarteesDecor++
 		} else {
 			b.Dessinees++
+		}
+		if !horsPasse {
+			in = out.assombrit(in) // LOCAL-CHANGE (infinite-theater-3d)
 		}
 		g.Instances++
 		out.HorsBoite += g.ajoute(m, in, MargeBornageInstance)
@@ -249,7 +255,8 @@ func (m *MaillageMonde) lisMateriaux(idxMat, idxGeo *ModuleIndex) {
 	}
 	for _, g := range groupes {
 		for id := range g.Indices {
-			if id != 0 && !vus[id] {
+			_, sombre := m.surfacesSombres[id] // LOCAL-CHANGE (infinite-theater-3d): no `mat ` tag
+			if id != 0 && !vus[id] && !sombre {
 				vus[id] = true
 				ids = append(ids, id)
 			}
