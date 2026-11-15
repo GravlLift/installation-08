@@ -27,10 +27,15 @@ type fetchSnapshot struct {
 	Done    int    `json:"done"`
 	Total   int    `json:"total"`
 	Error   string `json:"error,omitempty"`
+	// Position is the 1-based place a queued id has in the FIFO queue (1 = next);
+	// zero and omitted for every non-queued state.
+	Position int `json:"position,omitempty"`
 }
 type remoteJobs struct {
-	mu     sync.Mutex
-	active bool
+	mu sync.Mutex
+	// queue is the FIFO of queued match ids; the head is fetched when it becomes free.
+	// Fetches run one at a time: one runner drains the queue, the rest wait in it.
+	queue  []string
 	states map[string]fetchSnapshot
 	client func(context.Context) (*haloapi.Client, haloauth.Credentials, error)
 	fetch  func(context.Context, *store.Root, *haloapi.Client, string, fetchProgress) error
@@ -180,20 +185,80 @@ func (h serverHandlers) startFetch(w http.ResponseWriter, r *http.Request) {
 	}
 	j := h.remote
 	j.mu.Lock()
-	if j.active {
-		j.mu.Unlock()
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "fetch already in progress"})
-		return
-	}
-	j.active = true
 	if j.states == nil {
 		j.states = make(map[string]fetchSnapshot)
 	}
-	state := fetchSnapshot{State: "queued", MatchID: id}
-	j.states[id] = state
+	s := j.states[id]
+	switch s.State {
+	case "queued":
+		// Already in the queue: answer with its current position, add no duplicate.
+		s.Position = queuePosition(j.queue, id)
+	case "downloading", "building":
+		// In flight: the snapshot already says so.
+	default:
+		// Never fetched, ready, or failed: (re)queue it at the back of the FIFO.
+		wasEmpty := len(j.queue) == 0
+		s = fetchSnapshot{State: "queued", MatchID: id, Position: len(j.queue) + 1}
+		j.queue = append(j.queue, id)
+		j.states[id] = s
+		j.mu.Unlock()
+		if wasEmpty {
+			// The queue went from empty to non-empty: start the runner that drains it.
+			go h.drainRemoteFetchQueue()
+		}
+		writeJSON(w, http.StatusAccepted, s)
+		return
+	}
 	j.mu.Unlock()
-	go h.runRemoteFetch(id)
-	writeJSON(w, http.StatusAccepted, state)
+	writeJSON(w, http.StatusAccepted, s)
+}
+
+// queuePosition is the id's 1-based position in the FIFO queue, 0 when it is not queued.
+func queuePosition(queue []string, id string) int {
+	for i, q := range queue {
+		if q == id {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// drainRemoteFetchQueue fetches the queued ids one at a time, in FIFO order. It runs while
+// the queue is non-empty and exits when the last id leaves it. The id being fetched stays at
+// the head of the queue while it runs, so the queued ids behind it report stable positions
+// ("Queued (2)" keeps meaning what it says until the head is done).
+func (h serverHandlers) drainRemoteFetchQueue() {
+	id, ok := h.remote.peekHead()
+	for ok {
+		h.runRemoteFetch(id)
+		id, ok = h.remote.popHead()
+	}
+}
+
+// peekHead is the id at the head of the queue, or false when the queue is empty.
+func (j *remoteJobs) peekHead() (string, bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if len(j.queue) == 0 {
+		return "", false
+	}
+	return j.queue[0], true
+}
+
+// popHead drops the head of the queue once its fetch has finished and returns the next
+// head, or false when the queue is now empty. Popping and deciding to stop happen under one
+// lock: a startFetch that finds the queue empty starts a new runner, so the runner that saw
+// it empty must already be on its way out (two runners would fetch the same id).
+func (j *remoteJobs) popHead() (string, bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if len(j.queue) > 0 {
+		j.queue = j.queue[1:]
+	}
+	if len(j.queue) == 0 {
+		return "", false
+	}
+	return j.queue[0], true
 }
 func (h serverHandlers) runRemoteFetch(id string) {
 	j := h.remote
@@ -225,7 +290,6 @@ func (h serverHandlers) runRemoteFetch(id string) {
 		s.State = "ready"
 	}
 	j.states[id] = s
-	j.active = false
 }
 
 // fetchFailureReason logs a failed fetch (match id, failing step, cause) and returns the
@@ -252,6 +316,10 @@ func (h serverHandlers) fetchState(w http.ResponseWriter, r *http.Request) {
 	}
 	h.remote.mu.Lock()
 	s, ok := h.remote.states[id]
+	// A queued id's position moves as the queue advances; report its current place.
+	if ok && s.State == "queued" {
+		s.Position = queuePosition(h.remote.queue, id)
+	}
 	h.remote.mu.Unlock()
 	if !ok {
 		s = fetchSnapshot{State: "idle", MatchID: id}

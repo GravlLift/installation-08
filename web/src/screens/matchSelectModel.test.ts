@@ -265,7 +265,8 @@ describe('storedAside', () => {
 describe('fetchStateLabel', () => {
   it('labels every state of the queue', () => {
     expect(fetchStateLabel({ phase: 'idle' })).toBe('Fetch')
-    expect(fetchStateLabel({ phase: 'queued' })).toBe('Queued…')
+    expect(fetchStateLabel({ phase: 'queued', position: 1 })).toBe('Queued…')
+    expect(fetchStateLabel({ phase: 'queued', position: 2 })).toBe('Queued (2)…')
     expect(fetchStateLabel({ phase: 'downloading', done: 3, total: 10 })).toBe('Downloading… 3/10')
     expect(fetchStateLabel({ phase: 'building' })).toBe('Building…')
     expect(fetchStateLabel({ phase: 'ready' })).toBe('Ready')

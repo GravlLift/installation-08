@@ -1,14 +1,15 @@
 /**
- * useMatchFetchQueue — drives the "Fetch" button on each remote-match row: starts the server's
- * one-at-a-time fetch-and-build job, polls its state every `pollMs` while it is in flight, and
- * reports when a match becomes `ready` so the caller can refresh the local list.
+ * useMatchFetchQueue — drives the "Fetch" button on each remote-match row: queues the server's
+ * fetch-and-build job and polls every in-flight row's state every `pollMs`, reporting when a
+ * match becomes `ready` so the caller can refresh the local list.
  *
- * Single-flight, client side: `start` no-ops while any row is already active (`activeMatchId`
- * set), same contract as `useMeshBuild.ts`'s `build()`. A 409 from the server (someone else —
- * another tab, or a job this client lost track of — is already fetching) is not surfaced as an
- * error: the row becomes `blocked` and polls the SAME per-match state route, which reports real
- * progress if it turns out to be this match after all, or keeps reading `idle` if it is some
- * other match. Either way the row has something true to show instead of a raw 409.
+ * Several rows can be queued at once; the server downloads them one after another (FIFO) and
+ * each queued row shows its position. One job per row: `start` on a row that is already
+ * queued, downloading, or blocked no-ops. A 409 from an OLDER server (which refuses a second
+ * fetch) is not surfaced as an error: the row becomes `blocked` and polls the SAME per-match
+ * state route, which reports real progress if it turns out to be this match after all, or keeps
+ * reading `idle` if it is some other match. Either way the row has something true to show
+ * instead of a raw 409.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -22,7 +23,7 @@ import {
 
 export type FetchRowPhase =
   | { phase: 'idle' }
-  | { phase: 'queued' }
+  | { phase: 'queued'; position: number }
   | { phase: 'downloading'; done: number; total: number }
   | { phase: 'building' }
   | { phase: 'ready' }
@@ -41,7 +42,7 @@ export function phaseOfFetchState(body: FetchStateBody): FetchRowPhase {
     case 'idle':
       return IDLE_PHASE
     case 'queued':
-      return { phase: 'queued' }
+      return { phase: 'queued', position: body.position ?? 1 }
     case 'downloading':
       return { phase: 'downloading', done: body.done, total: body.total }
     case 'building':
@@ -73,11 +74,9 @@ function errorMessage(err: unknown): string {
 }
 
 export interface UseMatchFetchQueueResult {
-  /** The match id currently being fetched (or suspected to be, after a conflict), if any. */
-  activeMatchId: string | null
   /** This row's phase; `idle` for every match id with no job tracked. */
   phaseOf: (matchId: string) => FetchRowPhase
-  /** Starts fetching `matchId`. No-op while another row is already active. */
+  /** Queues `matchId` for fetching. No-op if that row already has a job in flight. */
   start: (matchId: string) => void
 }
 
@@ -87,38 +86,44 @@ export function useMatchFetchQueue(
   onReady: (matchId: string) => void,
   pollMs: number = MATCH_FETCH_POLL_MS,
 ): UseMatchFetchQueueResult {
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [rows, setRows] = useState<Record<string, FetchRowPhase>>({})
-  const activeMatchIdRef = useRef(activeMatchId)
-  activeMatchIdRef.current = activeMatchId
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
   const onReadyRef = useRef(onReady)
   onReadyRef.current = onReady
 
+  // The joined list of in-flight row ids. A tick that only updates `done`/`total`/`position`
+  // leaves it unchanged, so the polling interval is not torn down and restarted; it restarts
+  // exactly when a row joins or leaves the in-flight set.
+  const inFlightKey = Object.keys(rows)
+    .filter((id) => isFetchRowInFlight(rows[id]))
+    .join(',')
+
   useEffect(() => {
-    const id = activeMatchId
-    if (id === null) return
-    const current = rows[id]
-    if (!current || !isFetchRowInFlight(current)) return
+    if (inFlightKey === '') return
+    const ids = inFlightKey.split(',')
     const controller = new AbortController()
-    // EXACTLY ONE pending poll at a time, same guard as `useMeshBuild.ts`.
+    // EXACTLY ONE pending poll round at a time, same guard as `useMeshBuild.ts`.
     let polling = false
     const timer = setInterval(() => {
       if (polling) return
       polling = true
       void (async () => {
         try {
-          const body = await fetchFetchState(id, controller.signal)
-          if (controller.signal.aborted) return
-          const nextPhase = phaseOfFetchState(body)
-          setRows((prev) => ({ ...prev, [id]: nextPhase }))
-          if (nextPhase.phase === 'ready' || nextPhase.phase === 'failed') {
-            setActiveMatchId(null)
-            if (nextPhase.phase === 'ready') onReadyRef.current(id)
-          }
-        } catch (err) {
-          if (controller.signal.aborted) return
-          setRows((prev) => ({ ...prev, [id]: { phase: 'failed', error: errorMessage(err) } }))
-          setActiveMatchId(null)
+          await Promise.all(
+            ids.map(async (id) => {
+              try {
+                const body = await fetchFetchState(id, controller.signal)
+                if (controller.signal.aborted) return
+                const nextPhase = phaseOfFetchState(body)
+                setRows((prev) => ({ ...prev, [id]: nextPhase }))
+                if (nextPhase.phase === 'ready') onReadyRef.current(id)
+              } catch (err) {
+                if (controller.signal.aborted) return
+                setRows((prev) => ({ ...prev, [id]: { phase: 'failed', error: errorMessage(err) } }))
+              }
+            }),
+          )
         } finally {
           polling = false
         }
@@ -128,17 +133,15 @@ export function useMatchFetchQueue(
       clearInterval(timer)
       controller.abort()
     }
-    // Keyed on the row's phase TAG, not the row object or the whole `rows` map: a tick that only
-    // updates `done`/`total` must not tear this interval down and restart it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMatchId, rows[activeMatchId ?? '']?.phase, pollMs])
+  }, [inFlightKey, pollMs])
 
   const start = useCallback((matchId: string) => {
-    if (activeMatchIdRef.current !== null) return
-    // Set the single-flight lock immediately (disables every other row's button right away);
-    // `rows[matchId]` is set once the POST actually answers, below — not optimistically, so the
-    // polling effect never races a guessed state against the real one.
-    setActiveMatchId(matchId)
+    // One job per row: a row that is already queued, downloading, or being chased after a 409
+    // gets no duplicate POST. `rows[matchId]` is set once the POST actually answers, below —
+    // not optimistically, so the polling effect never races a guessed state against the real
+    // one.
+    const current = rowsRef.current[matchId]
+    if (current && isFetchRowInFlight(current)) return
     void (async () => {
       try {
         const body = await startMatchFetch(matchId)
@@ -151,12 +154,11 @@ export function useMatchFetchQueue(
           return
         }
         setRows((prev) => ({ ...prev, [matchId]: { phase: 'failed', error: errorMessage(err) } }))
-        setActiveMatchId(null)
       }
     })()
   }, [])
 
   const phaseOf = useCallback((matchId: string) => rows[matchId] ?? IDLE_PHASE, [rows])
 
-  return { activeMatchId, phaseOf, start }
+  return { phaseOf, start }
 }
