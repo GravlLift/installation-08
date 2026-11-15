@@ -20,7 +20,8 @@ import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { checkMesh, fetchReplayDocument, MatchNotFoundError, MeshNotBuiltError } from '../lib/api/standalone'
 import { normalizeReplayDocument } from '../lib/replay/replayNormalize'
 import { useMatchSummary } from './useMatchSummary'
-import { useMeshBuild } from './useMeshBuild'
+import { MESH_BUILD_POLL_MS, useMeshBuild } from './useMeshBuild'
+import { useTextureQuality, type TextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { useAuthState } from './useAuthState'
 import { cleanMapName } from './matchSelectModel'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
@@ -51,7 +52,7 @@ type PreGameState =
  *  and the viewer mounts the moment the map is built (no re-fetch, no reload). A 404 on the
  *  document is `missing`: the match is not stored on this install (a shared link), and the page
  *  offers to fetch it. `attempt` re-runs the load once that fetch is done. */
-function useMatchDocument(matchId: string, attempt: number): PreGameState {
+function useMatchDocument(matchId: string, attempt: number, quality: TextureQuality): PreGameState {
   const [state, setState] = useState<PreGameState>({ phase: 'document' })
   useEffect(() => {
     const controller = new AbortController()
@@ -63,7 +64,7 @@ function useMatchDocument(matchId: string, attempt: number): PreGameState {
         if (controller.signal.aborted) return
         doc = normalizeReplayDocument(raw)
         setState({ phase: 'mesh' })
-        await checkMesh(matchId, controller.signal)
+        await checkMesh(matchId, controller.signal, quality)
         if (controller.signal.aborted) return
         setState({ phase: 'ready', doc })
       } catch (err) {
@@ -80,7 +81,7 @@ function useMatchDocument(matchId: string, attempt: number): PreGameState {
       }
     })()
     return () => controller.abort()
-  }, [matchId, attempt])
+  }, [matchId, attempt, quality])
   return state
 }
 
@@ -88,15 +89,20 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   // Bumped when a shared match link's fetch completes: the document loads again, in place.
   const [attempt, setAttempt] = useState(0)
   const onFetched = useCallback(() => setAttempt((n) => n + 1), [])
-  const state = useMatchDocument(matchId, attempt)
+  // The texture-quality preference: the pre-game checks and builds the map at this quality, so
+  // the viewer the screen hands off to loads the same files it was told were ready.
+  const { quality } = useTextureQuality()
+  const state = useMatchDocument(matchId, attempt, quality)
   const summary = useMatchSummary(matchId, attempt)
   const auth = useAuthState()
   const gamertag = auth.phase.phase === 'signed_in' ? auth.phase.gamertag : null
 
   // The map build: `useMeshBuild` untouched, this screen renders its phase and keeps its
-  // build/cancel behavior exactly.
+  // build/cancel behavior exactly — now for the chosen quality.
   const { phase: buildPhase, build, cancel, cancelling } = useMeshBuild(
     state.phase === 'build' ? matchId : '',
+    MESH_BUILD_POLL_MS,
+    quality,
   )
 
   // The map is ready when the document state says `ready` (mesh check passed) OR when the

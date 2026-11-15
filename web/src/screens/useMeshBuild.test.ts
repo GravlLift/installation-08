@@ -6,7 +6,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MeshStateBody } from '../lib/api/standalone'
+import type { MeshQuality, MeshStateBody } from '../lib/api/standalone'
 import { isMeshBuildInFlight, phaseOfMeshState, useMeshBuild } from './useMeshBuild'
 
 function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500): Response {
@@ -173,6 +173,55 @@ describe('useMeshBuild', () => {
       await vi.advanceTimersByTimeAsync(20_000)
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-checks state at the new quality when the quality switches', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ state: 'ready', moduleKey: 'mod-g' })) // standard check
+      .mockResolvedValueOnce(jsonResponse({ state: 'absent', moduleKey: 'mod-g' })) // high check
+
+    const { result, rerender } = renderHook(({ quality }) => useMeshBuild('match-7', 1000, quality), {
+      initialProps: { quality: undefined as MeshQuality | undefined },
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.phase).toEqual({ phase: 'ready', moduleKey: 'mod-g' })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/matches/match-7/mesh/state')
+
+    rerender({ quality: 'high' })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.phase).toEqual({ phase: 'absent', moduleKey: 'mod-g' })
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/match-7/mesh/state?quality=high')
+  })
+
+  it('sends the quality to build and cancel requests', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ state: 'absent', moduleKey: 'mod-h' })) // high check
+      .mockResolvedValueOnce(jsonResponse({ state: 'building', moduleKey: 'mod-h' })) // POST build
+      .mockResolvedValueOnce(jsonResponse({ state: 'cancelled', moduleKey: 'mod-h' })) // POST cancel
+
+    const { result } = renderHook(() => useMeshBuild('match-8', 1000, 'high'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.phase).toEqual({ phase: 'absent', moduleKey: 'mod-h' })
+
+    act(() => result.current.build())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.phase).toEqual({ phase: 'building', moduleKey: 'mod-h' })
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/match-8/mesh/build?quality=high')
+
+    act(() => result.current.cancel())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.phase).toEqual({ phase: 'cancelled', moduleKey: 'mod-h' })
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/matches/match-8/mesh/cancel?quality=high')
   })
 
   it('restarts its check when matchId changes', async () => {

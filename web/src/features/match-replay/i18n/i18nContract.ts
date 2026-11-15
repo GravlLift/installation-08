@@ -1004,4 +1004,14 @@ export interface ReplayText {
   exportTrackSfx: string
   exportTrackVoice: string
   exportTrackMusic: string
+  /**
+   * The texture-quality setting (settings drawer, part 2): the VIEWER's choice — Standard
+   * (the default) or High — which changes the map and variant files the server serves
+   * (`?quality=` parameter), not a display layer. The High label carries the reserve: about
+   * 4x graphics memory, and a larger map file built on first use.
+   */
+  textureQualityTitle: string
+  textureQualityStandard: string
+  textureQualityHigh: string
+  textureQualityHighHint: string
 }

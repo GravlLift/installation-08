@@ -425,4 +425,9 @@ export const EN_TEXT = {
     'Keyframe reading with no grenade and no ammo, which the kill feed does not explain — taken',
   inventoryFallbackHint: 'the gear shown is the last full reading, taken',
   inventoryNoPriorHint: 'no inventory reading before this moment',
+  textureQualityTitle: 'Texture quality',
+  textureQualityStandard: 'Standard',
+  textureQualityHigh: 'High',
+  textureQualityHighHint:
+    'Uses about 4x graphics memory and builds a larger map file the first time.',
 } satisfies ReplayText

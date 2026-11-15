@@ -430,4 +430,9 @@ export const FR_TEXT = {
     'Lecture d’image-clé sans grenade ni munition, que le fil des éliminations n’explique pas — lue il y a',
   inventoryFallbackHint: 'l’équipement affiché est la dernière lecture pleine, lue il y a',
   inventoryNoPriorHint: 'aucune lecture d’inventaire avant cet instant',
+  textureQualityTitle: 'Qualité des textures',
+  textureQualityStandard: 'Standard',
+  textureQualityHigh: 'Haute',
+  textureQualityHighHint:
+    'Utilise environ 4x la mémoire graphique et construit un fichier de carte plus volumineux à la première utilisation.',
 } satisfies ReplayText

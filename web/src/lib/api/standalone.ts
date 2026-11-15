@@ -135,9 +135,21 @@ export async function fetchReplayDocument(
   return (await res.json()) as ReplayDocument
 }
 
+/**
+ * The mesh's texture quality, as the server's `?quality=` query answers it. `standard` is the
+ * default and sends no parameter at all (its URL is byte-for-byte the pre-quality URL); `high`
+ * is a separate, larger cached file that the server builds on first request.
+ */
+export type MeshQuality = 'standard' | 'high'
+
+/** The `?quality=` query a mesh/variant route carries: `high` only; standard is the absence. */
+export function qualityQuery(quality?: MeshQuality): string {
+  return quality === 'high' ? '?quality=high' : ''
+}
+
 /** The URL of a match's map mesh GLB — relative, so it goes through the same proxy/origin. */
-export function meshUrl(matchId: string): string {
-  return `/api/matches/${encodeURIComponent(matchId)}/mesh.glb`
+export function meshUrl(matchId: string, quality?: MeshQuality): string {
+  return `/api/matches/${encodeURIComponent(matchId)}/mesh.glb${qualityQuery(quality)}`
 }
 
 /** ambienceUrl is the match's map ambient bed (a looping Ogg); a 404 when the map has none yet. */
@@ -155,12 +167,13 @@ export function calloutsUrl(matchId: string): string {
  * (`MeshNotBuiltError`) apart from "will stream fine" before the 3D view starts a full GET
  * through three.js's loader (which cannot distinguish the two on its own).
  */
-export async function checkMesh(matchId: string, signal?: AbortSignal): Promise<void> {
-  const res = await fetch(meshUrl(matchId), { method: 'HEAD', signal })
+export async function checkMesh(matchId: string, signal?: AbortSignal, quality?: MeshQuality): Promise<void> {
+  const url = meshUrl(matchId, quality)
+  const res = await fetch(url, { method: 'HEAD', signal })
   if (res.ok) return
   if (res.status === 404) {
     // HEAD carries no body; re-fetch with GET to read the typed error JSON (the body is tiny).
-    const getRes = await fetch(meshUrl(matchId), { signal })
+    const getRes = await fetch(url, { signal })
     const body = (await readErrorBody(getRes)) as MeshNotBuiltBody | { error?: string; id?: string } | null
     if (body && (body as MeshNotBuiltBody).error === 'mesh_not_built') {
       throw new MeshNotBuiltError((body as MeshNotBuiltBody).moduleKey ?? '')
@@ -183,8 +196,8 @@ function throwMeshError(res: Response, body: unknown, matchId: string, label: st
 
 /** `GET /api/matches/{id}/mesh/state` — the module's current build state, polled by the build
  *  panel while a build is queued or running. */
-export async function fetchMeshState(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
-  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/state`, { signal })
+export async function fetchMeshState(matchId: string, signal?: AbortSignal, quality?: MeshQuality): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/state${qualityQuery(quality)}`, { signal })
   const body = await readErrorBody(res)
   if (!res.ok) throwMeshError(res, body, matchId, 'GET .../mesh/state')
   return body as MeshStateBody
@@ -192,8 +205,8 @@ export async function fetchMeshState(matchId: string, signal?: AbortSignal): Pro
 
 /** `POST /api/matches/{id}/mesh/build` — starts or joins the module's build; answers 202 with
  *  the queued/building state, or 200 with the ready state when the mesh already exists. */
-export async function requestMeshBuild(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
-  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/build`, {
+export async function requestMeshBuild(matchId: string, signal?: AbortSignal, quality?: MeshQuality): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/build${qualityQuery(quality)}`, {
     method: 'POST',
     signal,
   })
@@ -202,8 +215,8 @@ export async function requestMeshBuild(matchId: string, signal?: AbortSignal): P
   return body as MeshStateBody
 }
 
-export async function cancelMeshBuild(matchId: string, signal?: AbortSignal): Promise<MeshStateBody> {
-  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/cancel`, { method: 'POST', signal })
+export async function cancelMeshBuild(matchId: string, signal?: AbortSignal, quality?: MeshQuality): Promise<MeshStateBody> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/mesh/cancel${qualityQuery(quality)}`, { method: 'POST', signal })
   const body = await readErrorBody(res)
   if (!res.ok) throwMeshError(res, body, matchId, 'POST .../mesh/cancel')
   return body as MeshStateBody

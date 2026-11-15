@@ -18,6 +18,7 @@ import { framesPerSecond } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { ambienceUrl, meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
+import { useTextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
 import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
@@ -31,6 +32,9 @@ import { useCameraChoice } from './useCameraChoice'
 import { usePlayerChromeInsets } from './usePlayerChromeInsets'
 import { usePlayerMarks } from './usePlayerMarks'
 import { useVariantSource } from './useVariantLayer'
+import { MESH_BUILD_POLL_MS, useMeshBuild } from './useMeshBuild'
+import { buildLineOf } from './preGameModel'
+import { ProgressLine } from './ProgressLine'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
@@ -131,7 +135,19 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
-  const variant = useVariantSource(matchId)
+  // The texture-quality preference: which map and variant files the server serves this viewer.
+  const { quality } = useTextureQuality()
+  // The mesh build gate for the chosen quality: on a first open it is already `ready` (Standard
+  // was checked and built by the pre-game), so the scene mounts at once; when the quality is
+  // switched to a not-yet-built file it re-checks and, if absent, runs the same build flow and
+  // progress the pre-game used, so "done" means the chosen files are actually ready to load.
+  const gate = useMeshBuild(matchId, MESH_BUILD_POLL_MS, quality)
+  const qualityAtMount = useRef(quality)
+  const qualitySwitched = quality !== qualityAtMount.current
+  const meshReady =
+    gate.phase.phase === 'ready' || (!qualitySwitched && gate.phase.phase === 'checking')
+  const buildLine = buildLineOf(gate.phase, gate.cancelling)
+  const variant = useVariantSource(matchId, quality)
   const replayContext = useMatchReplayContext(matchId, doc)
   const inks = useReplayInks(0)
   const identity = useMemo(
@@ -300,28 +316,32 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
       <div className="bc-player-stage">
         <div ref={boxRef} className="bc-player-box">
           <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
-            <Replay3DView
-              meshPath={meshUrl(matchId)}
-              variantPath={variant.path}
-              variantPending={variant.pending}
-              weaponsPath="/api/weapons"
-              armor={armor}
-              doc={doc}
-              frameRef={frameRef}
-              viewpoint={viewpoint}
-              colorOfXuid={identity.colorOfXuid}
-              locale="en"
-              width={size.width}
-              height={size.height}
-              action={action}
-              playWindow={replayContext.playWindow}
-              timeLimitMs={replayContext.timeLimitMs}
-              soundListenerRef={sound.listener}
-              onLoadState={onLoadState}
-              view={view}
-              onMinimapClick={() => setView('top')}
-              cameraMode={camera.mode}
-            />
+            {meshReady ? (
+              <Replay3DView
+                meshPath={meshUrl(matchId, quality)}
+                variantPath={variant.path}
+                variantPending={variant.pending}
+                weaponsPath="/api/weapons"
+                armor={armor}
+                doc={doc}
+                frameRef={frameRef}
+                viewpoint={viewpoint}
+                colorOfXuid={identity.colorOfXuid}
+                locale="en"
+                width={size.width}
+                height={size.height}
+                action={action}
+                playWindow={replayContext.playWindow}
+                timeLimitMs={replayContext.timeLimitMs}
+                soundListenerRef={sound.listener}
+                onLoadState={onLoadState}
+                view={view}
+                onMinimapClick={() => setView('top')}
+                cameraMode={camera.mode}
+              />
+            ) : (
+              <MeshBuildGate line={buildLine} build={gate.build} cancel={gate.cancel} cancelling={gate.cancelling} />
+            )}
             {scoreboardHeld && (
               <ReplayScoreboardOverlay
                 reading={scoreboardReading}
@@ -389,6 +409,38 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
           rootRef={barRef}
         />
       </div>
+    </div>
+  )
+}
+
+/** The in-viewer mesh gate: shown while the chosen quality's map is not ready (a quality
+ *  switched to a not-yet-built file). It renders `useMeshBuild`'s line and the same build,
+ *  retry and cancel actions the pre-game offers, so a High switch runs the real build flow
+ *  with its progress before the scene loads the new files. */
+function MeshBuildGate({
+  line,
+  build,
+  cancel,
+  cancelling,
+}: {
+  line: { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null }
+  build: () => void
+  cancel: () => void
+  cancelling: boolean
+}) {
+  return (
+    <div data-testid="mesh-build-gate" className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+      <ProgressLine label={line.text} fraction={null} />
+      {line.action && line.actionLabel ? (
+        <button
+          type="button"
+          className={line.action === 'cancel' ? 'bc-signout' : 'bc-cta'}
+          onClick={line.action === 'cancel' ? cancel : build}
+          disabled={line.action === 'cancel' ? cancelling : false}
+        >
+          {line.actionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }
