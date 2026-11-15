@@ -3,7 +3,8 @@
  *
  * Les matériaux sont standard (rugosité, métal). Un soleil porte des ombres ; sa carte d'ombre se
  * recalcule à chaque nouvelle image du rejeu, pour que les joueurs et les véhicules en portent
- * (rien à l'arrêt). L'environnement (reflets et lumière indirecte) est la carte elle-même,
+ * (rien à l'arrêt). The map's own casters are drawn into it once and kept (shadowSplit3d): each
+ * frame redraws only what moves. L'environnement (reflets et lumière indirecte) est la carte elle-même,
  * capturée en cube depuis plusieurs points joués puis préfiltrée : chaque surface prend la sonde
  * la plus proche (`probes3d`). Les lampes posées de la carte éclairent directement, sans ombre,
  * par une grille mondiale (`clusteredLights`). Les éclairs brefs de l'action (bouches,
@@ -18,6 +19,7 @@ import * as THREE from 'three'
 
 import type { BakedLight } from './bakedLightShader'
 import { FlashLights } from './flash3d'
+import { ShadowSplit } from './shadowSplit3d'
 import type { Look3d } from './look3d'
 import { chooseProbes, nearestProbe } from './probes3d'
 import { graftTopShade } from './topDownShade3d'
@@ -108,6 +110,10 @@ export class Lighting {
   private gameLight = true
   private readonly renderer: THREE.WebGLRenderer
   private readonly scene: THREE.Scene
+  /** The static map's casters, kept; what moves is redrawn over them (shadowSplit3d). */
+  readonly split: ShadowSplit
+  /** Off: the shadow map is no longer updated (it keeps its last state), for A/B measurements. */
+  shadowUpdates = true
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
     this.renderer = renderer
@@ -124,6 +130,7 @@ export class Lighting {
     this.sun.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE)
     this.sun.shadow.bias = SHADOW_BIAS
     scene.add(this.hemi, this.sun, this.sun.target)
+    this.split = new ShadowSplit(renderer, scene, this.sun)
     scene.fog = this.haze
     // Avant toute compilation : le nombre de lumières entre dans les programmes.
     this.flashes = new FlashLights(scene)
@@ -170,6 +177,7 @@ export class Lighting {
     // near au soleil : ce qui dépasse de la boîte vers lui (décor haut) porte encore son ombre.
     Object.assign(cam, { left: lo.x, right: hi.x, bottom: lo.y, top: hi.y, near: 0.1, far: -lo.z })
     cam.updateProjectionMatrix()
+    this.split.invalidate()
     this.renderer.shadowMap.needsUpdate = true
   }
 
@@ -258,9 +266,24 @@ export class Lighting {
     }
   }
 
+  /**
+   * setStaticCasters: the roots whose casters never move (the map and its layer), drawn once into
+   * the kept shadow map; the map is redone at the next update.
+   */
+  setStaticCasters(roots: readonly THREE.Object3D[]): void {
+    this.split.setStatic(roots)
+    this.shadowFrame = Number.NaN
+  }
+
+  /** invalidateStaticShadows: the static casters changed (visibility), the kept map is redone. */
+  invalidateStaticShadows(): void {
+    this.split.invalidate()
+    this.shadowFrame = Number.NaN
+  }
+
   /** updateShadows : la carte d'ombre suit l'image `frame` (joueurs, véhicules) ; rien à l'arrêt. */
   updateShadows(frame: number): void {
-    if (!this.shadows || frame === this.shadowFrame) return
+    if (!this.shadows || !this.shadowUpdates || frame === this.shadowFrame) return
     this.shadowFrame = frame
     this.renderer.shadowMap.needsUpdate = true
   }
@@ -269,6 +292,7 @@ export class Lighting {
     for (const t of this.probes) t.dispose()
     for (const m of this.copies) m.dispose()
     this.sun.shadow.map?.dispose()
+    this.split.dispose()
     this.flashes.dispose()
   }
 

@@ -164,6 +164,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.model = model
     this.tracks = tracks
     this.scene.add(model.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.setSunStrength(model.sunStrength)
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
@@ -265,6 +266,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.detachLayer()
     this.layer = layer
     this.scene.add(layer.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
@@ -277,6 +279,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!layer) return
     this.layer = null
     this.scene.remove(layer.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
