@@ -57,6 +57,13 @@ import {
   planEngineSegments,
   type EngineSegment,
 } from './vehicleEngineMix'
+import {
+  planShieldSegments,
+  shieldTailSeconds,
+  type ShieldMixSource,
+  type ShieldSegment,
+} from './shieldMix'
+import { SHIELD_SOUND_STEMS } from './shieldSound'
 import type { EnginePlan } from './vehicleEngineSound'
 import { staticAssetURL } from '@/lib/staticAssets'
 
@@ -149,6 +156,13 @@ export interface MixOptions {
    * SOUND EFFECTS (family `sfx`) and do not count in the voice ceiling, as in live.
    */
   engines?: readonly EnginePlan[]
+  /**
+   * THE SHIELD of the followed player (`followedShieldReader`, a first-person export only: the
+   * bar's alarms are his own, the page plays them for whoever is followed). Its loops and
+   * one-shots are placed by `shieldMix.ts` with the SAME cues, rise pick and bus as the
+   * real-time playback. Like the engines, it is a SOUND EFFECT and counts in no voice ceiling.
+   */
+  shield?: ShieldMixSource
   /**
    * THE LISTENER of the clip, a function of the moment in milliseconds: who listens to the mix (the
    * position and the bearing of the followed player in a 3D export, cf. `soundListenerOf`). Each
@@ -389,15 +403,17 @@ export async function mixReplayAudio(
   if (typeof OfflineAudioContext !== 'function') return null
   const planned = planAudioMix(timeline, bounds, options)
   const enginePlans = options.engines ?? []
-  // "Nothing to mix" counts the ENGINES: a match without an event but with a vehicle
-  // occupied in the range has well a sound track to render.
-  if (planned.length === 0 && enginePlans.length === 0) return null
+  // "Nothing to mix" counts the ENGINES and the SHIELD: a match without an event but with a
+  // vehicle occupied in the range, or a followed Spartan with a low bar, has well a sound
+  // track to render.
+  if (planned.length === 0 && enginePlans.length === 0 && !options.shield) return null
   const durationMs = bounds.endMs - bounds.startMs
   // A THROWAWAY CONTEXT FOR THE SOLE DECODING: `decodeAudioData` needs a context, but
   // not the one that will render the mixing — whose length depends precisely on the decoded durations.
   const probe = new OfflineAudioContext(MIX_CHANNELS, 1, MIX_SAMPLE_RATE)
   const buffers = await decodeMixSources(
-    [...planned.map((s) => s.stem), ...engineStemsOf(enginePlans)],
+    // The shield's files too: unloaded, every shield segment reads as "file absent" and skips.
+    [...planned.map((s) => s.stem), ...engineStemsOf(enginePlans), ...(options.shield ? SHIELD_SOUND_STEMS : [])],
     options.urlOf,
     probe,
   )
@@ -405,30 +421,43 @@ export async function mixReplayAudio(
   const kept = applyVoiceCap(planned, durOf)
   // THE ENGINE SEGMENTS: same bounds as the page, bounded to the range. Out of the voice ceiling.
   const engineSegments = enginePlans.flatMap((p) => planEngineSegments(p, bounds, durOf))
-  if (kept.length === 0 && engineSegments.length === 0) return null
+  // THE SHIELD SEGMENTS: the followed Spartan's bar, first person only, out of the voice ceiling.
+  const shieldSegments = options.shield ? planShieldSegments(options.shield, bounds, durOf) : []
+  if (kept.length === 0 && engineSegments.length === 0 && shieldSegments.length === 0) return null
   // THE DURATION IS THAT OF THE COMPLETE MIXING FOR ALL TRACKS: tracks of different
   // lengths would offset in playback in a montage. The tail takes the longest of the
-  // two worlds — the last enveloped event, or an engine `exit` engraved that overflows.
+  // worlds — the last enveloped event, an engine `exit` engraved, or a shield one-shot
+  // that goes out near the bound.
   const tail = Math.max(
     tailSeconds(kept, buffers, durationMs),
     engineTailSeconds(engineSegments, durOf, durationMs / 1000),
+    shieldTailSeconds(shieldSegments, durOf, durationMs / 1000),
   )
   const total = durationMs + (options.trimToBounds ? 0 : tail * 1000)
   const level = { volume: options.volume, distancePercent: options.distancePercent ?? 0 }
-  return renderTracks(trackJobs(kept, engineSegments), (job, hooks) => renderAudioMix(job, buffers, total, level, hooks), options.hooks)
+  return renderTracks(trackJobs(kept, engineSegments, shieldSegments), (job, hooks) => renderAudioMix(job, buffers, total, level, hooks), options.hooks)
 }
 
 /** One track to render: its family (`null` = the complete mixing) and what it mixes. */
 type TrackJob = MixJob & { family: SoundFamily | null }
 
 /** The complete mixing first, then the NON-EMPTY families in `FAMILY_ORDER`. */
-function trackJobs(kept: readonly MixedSound[], engines: readonly EngineSegment[]): TrackJob[] {
-  const jobs: TrackJob[] = [{ family: null, sounds: kept, engines }]
+function trackJobs(
+  kept: readonly MixedSound[],
+  engines: readonly EngineSegment[],
+  shields: readonly ShieldSegment[],
+): TrackJob[] {
+  const jobs: TrackJob[] = [{ family: null, sounds: kept, engines, shields }]
   for (const family of FAMILY_ORDER) {
     const sounds = kept.filter((s) => s.family === family)
-    // The engines are SOUND EFFECTS: they come out in the `sfx` track, like in the mixing.
-    const familyEngines = family === 'sfx' ? engines : []
-    if (sounds.length > 0 || familyEngines.length > 0) jobs.push({ family, sounds, engines: familyEngines })
+    // The engines and the shield are SOUND EFFECTS: they come out in the `sfx` track, like in
+    // the mixing.
+    const sfx = family === 'sfx'
+    const familyEngines = sfx ? engines : []
+    const familyShields = sfx ? shields : []
+    if (sounds.length > 0 || familyEngines.length > 0 || familyShields.length > 0) {
+      jobs.push({ family, sounds, engines: familyEngines, shields: familyShields })
+    }
   }
   return jobs
 }

@@ -22,6 +22,7 @@
 import { soundEnvelopeOf } from './replayAudio'
 import type { MixedSound } from './replayAudioMix'
 import { engineSegmentPlacements, type EngineSegment } from './vehicleEngineMix'
+import { shieldSegmentPlacements, type ShieldSegment } from './shieldMix'
 import { distanceChain, gainFromDb } from './weaponSoundLogic'
 
 /** Sampling frequency of the mixing. 48 kHz: the native rate of the delivered assets. */
@@ -162,10 +163,11 @@ export function renderScheduled(
   })
 }
 
-/** What one render mixes: the kept sounds and the engine segments. */
+/** What one render mixes: the kept sounds, the engine segments and the shield segments. */
 export interface MixJob {
   sounds: readonly MixedSound[]
   engines: readonly EngineSegment[]
+  shields: readonly ShieldSegment[]
 }
 
 /**
@@ -204,6 +206,7 @@ export function renderAudioMix(
   const items = [
     ...soundPlacements(ctx, master, job.sounds, buffers),
     ...engineSegmentPlacements(ctx, master, job.engines, buffers),
+    ...shieldSegmentPlacements(ctx, master, job.shields, buffers),
   ]
   return renderScheduled(ctx, items, hooks)
 }

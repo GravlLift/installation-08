@@ -78,6 +78,7 @@ import {
 } from './exportOverlayPanels'
 import { paintOverlayPanel, type OverlayFonts, type OverlayInk } from './overlayPaint'
 import { mixReplayAudio, soundUrlOf, type MixedTracks, type SoundFamily } from '../sound/replayAudioMix'
+import { followedShieldReader } from '../sound/shieldSound'
 import type { RenderHooks } from '../sound/mixRender'
 import { listenerAtOfPlayer } from '../sound/soundListenerOf'
 import { formatClock, frameToMs } from '../../../lib/replay/replayLogic'
@@ -836,6 +837,11 @@ async function mixExportAudio(
   // chaque instant, cf. `soundListenerOf`) — le son du clip doit entendre ce que ses images
   // montrent. Un export 2D n'a pas d'auditeur, comme la page en 2D : le mix reste tel qu'avant.
   const pov = view3d ? (view3d.pov ?? o.viewpoint) : null
+  // LE BOUCLIER DU JOUEUR SUIVI : les alarmes de SA propre barre, que la page joue en PREMIÈRE
+  // PERSONNE. Le clip les porte donc seulement quand il le suit de son œil : un export en
+  // tierce personne ou en caméra libre n'a pas de barre à sonner.
+  // The followed player is `pov`: an export of the default player has no `view3d.pov`.
+  const shield = view3d?.camera === 'fp' && pov ? followedShieldReader(o.doc, pov) : null
   const startMs = frameToMs(bounds.startFrame, o.doc)
   return mixReplayAudio(
     track.timeline,
@@ -849,6 +855,7 @@ async function mixExportAudio(
       endMatchStems: reachesMatchEnd(o, bounds) ? track.endMatchStems : [],
       families: track.families,
       engines: track.engines,
+      ...(shield ? { shield: { reader: shield, frameMs: frameToMs(1, o.doc) } } : {}),
       listenerAt: pov ? listenerAtOfPlayer(o.doc, pov) : undefined,
       volume: o.soundVolume ?? 1,
       urlOf: soundUrlOf,
