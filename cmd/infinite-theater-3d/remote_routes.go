@@ -231,6 +231,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("POST /api/spartan-pieces/build", h.handleSpartanPiecesBuild)
 	mux.HandleFunc("GET /api/spartan-pieces/{file}", h.handleSpartanPiecesFile)
 	mux.HandleFunc("GET /api/announcer/state", h.handleAnnouncerState)
+	mux.HandleFunc("GET /api/builds", h.handleBuilds)
 	mux.HandleFunc("POST /api/announcer/build", h.handleAnnouncerBuild)
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/jeu/{file}", h.handleWeaponIconFile)
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/hud/{file}", h.handleHudIconFile)

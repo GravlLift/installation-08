@@ -290,6 +290,24 @@ func (r *Runner) Snapshot(module string) Snapshot {
 	return r.snapshotLocked(module)
 }
 
+// Activity returns what the runner is doing right now: the active module's snapshot (nil
+// when nothing builds) and the queued module keys in order, copied under the lock so the
+// caller can read them freely.
+func (r *Runner) Activity() (*Snapshot, []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	queued := append([]string(nil), r.queue...)
+	if r.active == "" {
+		return nil, queued
+	}
+	st := r.started[r.active]
+	s := Snapshot{State: StateBuilding, ModuleKey: r.active, StartedAt: st}
+	if !st.IsZero() {
+		s.ElapsedMs = time.Since(st).Milliseconds()
+	}
+	return &s, queued
+}
+
 // snapshotLocked is Snapshot with the lock already held. It re-derives ready from the
 // store first, so a file built out-of-band reports ready.
 func (r *Runner) snapshotLocked(module string) Snapshot {

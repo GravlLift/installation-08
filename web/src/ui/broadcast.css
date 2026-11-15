@@ -34,6 +34,19 @@
 .bc-topbar .bc-spacer { flex: 1; }
 .bc-who { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
 .bc-who b { color: var(--ink); font-weight: 600; }
+/* The header's build indicator (BuildActivity): it shrinks before the title or the account
+ * control would move; narrower, the queue count goes, then the label shortens. */
+.bc-builds { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; font-family: var(--display); font-size: 12px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); white-space: nowrap; cursor: default; }
+.bc-topbar > .bc-mark, .bc-topbar > .bc-signin, .bc-topbar > .bc-who { flex: none; }
+.bc-builds-full { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bc-builds-short { display: none; }
+.bc-builds-queue { flex: none; color: var(--ink-faint); }
+.bc-builds-mark { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--air); animation: bc-builds-pulse 1.4s ease-in-out infinite; }
+@keyframes bc-builds-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+@media (max-width: 900px) { .bc-builds-queue { display: none; } }
+@media (max-width: 640px) { .bc-builds-full { display: none; } .bc-builds-short { display: inline; } }
+@media (prefers-reduced-motion: reduce) { .bc-builds-mark { animation: none; opacity: 0.8; } }
 .bc-signin { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12px;
   font-weight: 700; padding: 6px 18px 5px; color: var(--air); border: 1px solid var(--air-deep);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
