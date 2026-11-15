@@ -192,6 +192,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     variant's colors. Before this, those materials had no layers and no surface and drew a flat
     tint (the tan, brown and yellow walls of Forge maps). Covered by
     `himap/couches_style_test.go` (new, gamefiles).
+  - `himap/telescopage_forge.go` and `maillage_variante.go` (LOCAL-CHANGE, modified): a
+    telescoping object's stored scale multiplies its type's reference dimensions (`food` root
+    +0xE4), not the extent of the model drawn for it, and where that reference resizes the
+    model the stretch is centred on the model's box. Outlook's I-beams (type -1722685555,
+    reference half their 0.4 x 0.4 x 0.8 model) were drawn twice the game's length from one
+    end: an 8.4 m girder ran 5.9 m out of a base's front and a beam ran along its floor like a
+    curb. Ekur scales by the stored scale too and draws them the same way. Covered by
+    `himap/telescopage_forge_test.go` (modified).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
