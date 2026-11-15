@@ -98,6 +98,7 @@ func buildStored(root *store.Root, matchID string, f importFlags) error {
 		CatalogPath:  f.catalog,
 		MatchID:      matchID,
 		MapName:      f.mapName,
+		MatchMap:     storedMapLink(root, matchID),
 	})
 	if err != nil {
 		return fmt.Errorf("build %s: %w", matchID, err)
@@ -182,6 +183,19 @@ func rosterOf(doc replay.ReplayDocument, statsPath string) []store.Player {
 		out = append(out, pl)
 	}
 	return out
+}
+
+// storedMapLink reads the map the match's stored map-mode pair names (MapLink: asset id and
+// public name; the name may be a plain string or a {"value": ...} object, as the service
+// writes either). A match without that file yields an empty link: the build then resolves
+// the map from the identity table alone.
+func storedMapLink(root *store.Root, matchID string) build.MapLink {
+	link := object(contextReadJSON(variantPath(root, matchID, "map-mode-pair.json"))["MapLink"])
+	name := textValue(link["PublicName"])
+	if name == "" {
+		name = textValue(object(link["PublicName"])["value"])
+	}
+	return build.MapLink{AssetID: textValue(link["AssetId"]), Name: name}
 }
 
 // optionalPath returns a store path, or the empty string when it cannot be computed (the

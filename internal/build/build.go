@@ -18,8 +18,6 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/memguard"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-film-decoder/types"
-
-	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 // Input describes what a standalone decode is given. ChunkDir, CatalogPath and MapName are
@@ -51,6 +49,11 @@ type Input struct {
 	// in the film (chunk_00 match info) is never a catalog key; the catalog keys are
 	// display names (e.g. "Live Fire"). Required.
 	MapName string
+	// MatchMap is the map the match's own metadata names (the stored map-mode pair). When
+	// MapName is empty and the identity table does not hold the film's map asset id, the map
+	// is resolved from it, provided it names that same asset id. Absent: the identity table
+	// alone resolves the map.
+	MatchMap MapLink
 	// ScoreTarget is the variant's victory score (LevelUp regulation.toml [score_target]),
 	// published on the score timeline when the film's final scores do not exceed it.
 	// Absent: the timeline carries no target and the viewer bars stay unfilled.
@@ -216,8 +219,8 @@ func fillMapIdentity(r *Report, in Input, chunk0 []byte) {
 	}
 	r.MapAssetID = guidString(*info.CarteAssetID)
 	if r.MapName == "" {
-		if ident, err := refdata.LookupMapIdentity(r.MapAssetID); err == nil {
-			r.MapName = ident.Name
+		if name, err := mapNameOfAsset(r.MapAssetID, in.MatchMap); err == nil {
+			r.MapName = name
 		}
 	}
 }

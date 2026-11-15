@@ -31,7 +31,49 @@ func TestResolveMatchID(t *testing.T) {
 	}
 }
 
-// TestIsShort8 — the short8 predicate: eight hex characters, both cases, nothing else.
+// TestMapNameOfAsset — the film's map asset id is named by the identity table first; an id
+// the table does not hold is named by the match's own map link when the link names that same
+// id (compared as a GUID, case-insensitively), and is an error otherwise.
+func TestMapNameOfAsset(t *testing.T) {
+	const liveFire = "309253f8-7a75-48ff-83e1-e7fb3db2ac47" // in the identity table
+	const unknown = "a54808fb-9bf5-432a-a3c3-f76cbea944c1"  // a playlist copy the table lacks
+	cases := []struct {
+		name    string
+		asset   string
+		link    MapLink
+		want    string
+		wantErr bool
+	}{
+		{"table wins over the link", liveFire, MapLink{AssetID: liveFire, Name: "Other"}, "Live Fire - Ranked", false},
+		{"link names the unknown id", unknown, MapLink{AssetID: unknown, Name: "Fortress - Ranked"}, "Fortress - Ranked", false},
+		{"link id compared as a GUID", unknown, MapLink{AssetID: " A54808FB-9BF5-432A-A3C3-F76CBEA944C1 ", Name: "Fortress - Ranked"}, "Fortress - Ranked", false},
+		{"link names another id", unknown, MapLink{AssetID: liveFire, Name: "Live Fire - Ranked"}, "", true},
+		{"link without a name", unknown, MapLink{AssetID: unknown}, "", true},
+		{"no link", unknown, MapLink{}, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := mapNameOfAsset(tc.asset, tc.link)
+			if (err != nil) != tc.wantErr || got != tc.want {
+				t.Fatalf("mapNameOfAsset = %q, %v; want %q, error %v", got, err, tc.want, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestMatchMapNameFindsBounds — a playlist copy named by the match metadata resolves to the
+// bounds of its map: the catalog lookup normalizes the "- Ranked" suffix away.
+func TestMatchMapNameFindsBounds(t *testing.T) {
+	entry, err := resolveMapEntry(Input{MapName: "Fortress - Ranked"})
+	if err != nil {
+		t.Fatalf("resolveMapEntry(Fortress - Ranked): %v", err)
+	}
+	if entry.Module == "" {
+		t.Fatal("Fortress bounds entry carries no module")
+	}
+}
+
+// TestIsShort8 —the short8 predicate: eight hex characters, both cases, nothing else.
 func TestIsShort8(t *testing.T) {
 	yes := []string{"7d798138", "ABCDEF01"}
 	no := []string{"7d79813", "7d7981381", "7d7981z8", "7d7981-8", "7d 98138"}
