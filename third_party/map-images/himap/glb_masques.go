@@ -99,14 +99,23 @@ func encodeMasque(w *bytes.Buffer, t Texture, d *Decoupe) error {
 	return png.Encode(w, dst)
 }
 
-// alphaNul (LOCAL-CHANGE (infinite-theater-3d)) : every pixel of img has a zero alpha.
-func alphaNul(img *image.NRGBA) bool {
+// alphaTranche (LOCAL-CHANGE (infinite-theater-3d)) : img's alpha crosses the cut threshold
+// `seuil` (0..1): some pixels are thrown away and some kept. An alpha entirely on one side cuts
+// nothing, or the whole surface (an unused channel: Fortress's Forge walls carry an ASG alpha of
+// 0 to 4 out of 255).
+func alphaTranche(img *image.NRGBA, seuil float32) bool {
+	jetes, gardes := false, false
 	for i := 3; i < len(img.Pix); i += 4 {
-		if img.Pix[i] != 0 {
-			return false
+		if float32(img.Pix[i])/255 < seuil {
+			jetes = true
+		} else {
+			gardes = true
+		}
+		if jetes && gardes {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func alphaPlein(img *image.NRGBA) bool {

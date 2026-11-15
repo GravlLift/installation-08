@@ -319,11 +319,12 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 	aDecoupe := mat.Decoupe != nil
 	var masque *Texture
 	if aDecoupe {
-		// LOCAL-CHANGE (infinite-theater-3d): a Forge ASG cut on a texture without transparency
-		// cuts nothing; the material stays opaque. A format without alpha reads a full alpha (Ekur
-		// exports it without "_t" and its use_alpha is off); a zero alpha (an unused channel)
-		// would cut the whole surface, so it stays opaque too.
-		if t, ok := e.m.Masques[mat.Decoupe.Bitmap]; ok && !(mat.Decoupe.AlphaSeul && (t.Monocanal || alphaPlein(t.Image) || alphaNul(t.Image))) {
+		// LOCAL-CHANGE (infinite-theater-3d): an alpha-only cut (a Forge ASG, a foliage atlas) on
+		// a texture without transparency cuts nothing; the material stays opaque. A format without
+		// alpha reads a full alpha (Ekur exports it without "_t" and its use_alpha is off); an
+		// alpha that never crosses the threshold (an unused channel, near zero) would cut nothing
+		// or the whole surface, so it stays opaque too.
+		if t, ok := e.m.Masques[mat.Decoupe.Bitmap]; ok && !(mat.Decoupe.AlphaSeul && (t.Monocanal || !alphaTranche(t.Image, mat.Decoupe.Seuil))) {
 			masque = &t
 		}
 	}

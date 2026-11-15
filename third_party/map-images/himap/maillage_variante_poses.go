@@ -137,6 +137,19 @@ func (pv *PosesVariante) geometrie(a *RuntimeGeoAsset, maillages []int, ombre bo
 	return len(pv.Geometries) - 1, true
 }
 
+// avecJeuMacro (LOCAL-CHANGE (infinite-theater-3d)) returns m, or a copy of it whose missing UV1 is its UV0. A Forge material reads
+// its style mask, ASG and normal on UV1 (glb_couches.go), but Ekur keeps the active map when a
+// mesh has no UV1; foliage cards (Fortress's ivy, plants and shrubs) have none, and a zero-filled
+// UV1 read their cut and maps at one texel.
+func avecJeuMacro(m *Mesh) *Mesh {
+	if m.UV[jeuUVMacro] != nil || m.UV[0] == nil {
+		return m
+	}
+	c := *m
+	c.UV[jeuUVMacro] = c.UV[0]
+	return &c
+}
+
 // geometrieLocale reads meshes `maillages` of `a` in the model's own frame, each triangle filed
 // under its part's material rank + 1 (see GeometrieVariante).
 func geometrieLocale(a *RuntimeGeoAsset, maillages []int) GroupeMaillage {
@@ -147,7 +160,7 @@ func geometrieLocale(a *RuntimeGeoAsset, maillages []int) GroupeMaillage {
 		if mesh == nil {
 			continue
 		}
-		meshes = append(meshes, mesh)
+		meshes = append(meshes, avecJeuMacro(mesh))
 		for _, p := range mesh.Parts {
 			rangs = max(rangs, p.Materiau+1)
 		}
