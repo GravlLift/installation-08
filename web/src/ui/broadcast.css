@@ -30,8 +30,6 @@
 .bc-topbar { display: flex; align-items: center; gap: 20px; padding: 18px 36px; }
 .bc-mark { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; letter-spacing: 0.22em; text-transform: uppercase; }
 .bc-mark b { color: var(--air); font-weight: 700; }
-.bc-onair { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; padding: 3px 10px 2px; background: var(--air-hot); color: #1a1000;
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); font-weight: 700; }
 .bc-crumb { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; color: var(--ink-dim); }
 .bc-topbar .bc-spacer { flex: 1; }
 .bc-who { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
@@ -91,6 +89,19 @@
  * bottom of the desk, just above the ticker; while it shows, the ticker drops its copy of
  * the notice. */
 .bc-home .bc-coatings { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; }
+/* The home's ring-world backdrop (RingBackdrop): fixed behind the page, inside the stage's own stacking context. */
+.bc-ring { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: block; }
+/* Signed out: the home is one sign-in plate, centered across the desk. */
+.bc-home .bc-home-signin { grid-column: 1 / -1; justify-self: center; width: min(100%, 640px); }
+.bc-home-signin-text { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-dim); max-width: 46ch; }
+/* The first-start "Getting ready" plate: across the desk, above the coatings row. */
+.bc-home .bc-firstrun { grid-column: 1 / -1; justify-self: center; width: min(100%, 720px); }
+.bc-home .bc-firstrun .bc-title { font-size: clamp(26px, 2.6vw, 40px); }
+.bc-progress { height: 8px; margin-top: 14px; background: var(--studio-700); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.bc-progress-fill { height: 100%; background: linear-gradient(90deg, var(--air-deep), var(--air)); transition: width 400ms ease; }
+.bc-firstrun-step { margin-top: 10px; font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.bc-firstrun-error { margin-top: 8px; font-size: 13px; color: var(--loss); }
+.bc-firstrun-note { margin-top: 6px; font-size: 13px; color: var(--ink-dim); letter-spacing: 0.04em; }
 .bc-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; padding: 9px 26px 8px 18px; font-family: var(--display); font-stretch: 75%; font-weight: 700;
   letter-spacing: 0.2em; text-transform: uppercase; background: var(--air); color: #04121c; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 
@@ -223,7 +234,38 @@
 .bc-player-action { flex: none; font-family: var(--display); font-stretch: 75%; letter-spacing: 0.14em; text-transform: uppercase;
   font-size: 11px; font-weight: 700; padding: 4px 12px 3px; color: var(--ink); border: 1px solid var(--studio-700);
   clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%); }
-.bc-player-action:hover, .bc-player-action:focus-visible { border-color: var(--air); }
+
+/* Slanted outline buttons. Their clip-path cuts a corner, and with it the 1px border there (the
+ * right edge and the end of the bottom edge vanished): `::after` draws the cut edge along the
+ * slant, over the border box's 8px corner strip, as a 1.5px band on the inner side of the 50%
+ * line of a `to bottom right` gradient (that line joins the strip's top-right and bottom-left
+ * corners, exactly the slant). The edge color is `--bc-edge`, so the hover and keyboard-focus
+ * states recolor the whole outline. */
+.bc-signin, .bc-signout, .bc-signin-btn, .bc-player-back, .bc-player-action {
+  --bc-edge: var(--studio-700); position: relative; border-color: var(--bc-edge); cursor: pointer;
+  transition: color 120ms, background-color 120ms; }
+.bc-signin { --bc-edge: var(--air-deep); }
+.bc-signin::after, .bc-signout::after, .bc-signin-btn::after, .bc-player-back::after,
+.bc-player-action::after { content: ''; position: absolute; top: -1px; width: 8px; height: calc(100% + 2px); pointer-events: none; }
+/* Bottom-right cut: the inside is the top-left side of the line. */
+.bc-signin::after, .bc-signout::after, .bc-signin-btn::after, .bc-player-back::after { right: -1px;
+  background: linear-gradient(to bottom right, transparent calc(50% - 1.5px), var(--bc-edge) calc(50% - 1.5px), var(--bc-edge) 50%, transparent 50%); }
+/* Top-left cut: the inside is the bottom-right side of the line. */
+.bc-player-action::after { left: -1px;
+  background: linear-gradient(to bottom right, transparent 50%, var(--bc-edge) 50%, var(--bc-edge) calc(50% + 1.5px), transparent calc(50% + 1.5px)); }
+.bc-signin:hover, .bc-signout:hover, .bc-signin-btn:hover, .bc-player-back:hover, .bc-player-action:hover,
+.bc-signin:focus-visible, .bc-signout:focus-visible, .bc-signin-btn:focus-visible, .bc-player-back:focus-visible,
+.bc-player-action:focus-visible { --bc-edge: var(--air); color: var(--ink); background-color: rgba(111,211,255,0.1); outline: none; }
+.bc-signout:disabled, .bc-signin-btn:disabled, .bc-player-action:disabled { cursor: default; opacity: 0.5; --bc-edge: var(--studio-700); background-color: transparent; }
+
+/* Home: every selectable thing says so. Menu rows focus on hover (FocusList) and show the
+ * keyboard's focus the same way (`bc-focus`). */
+.bc-row { cursor: pointer; }
+.bc-cta { cursor: pointer; transition: filter 120ms; }
+/* The clip-path would cut an outline: the states are a brighter fill and a white base bar. */
+.bc-cta:hover, .bc-cta:focus-visible { filter: brightness(1.15); box-shadow: inset 0 -3px 0 #fff; outline: none; }
+.bc-cta:disabled { cursor: default; filter: none; box-shadow: none; opacity: 0.5; }
+.bc-signin-link:hover, .bc-signin-link:focus-visible { color: var(--ink); }
 
 /* Transport: the lower third (the mockup's `.transport`). */
 .bc-player-transport { container-type: inline-size; padding: 8px 14px 8px 10px; background: linear-gradient(90deg, rgba(10,16,24,0.94), rgba(17,26,38,0.82));

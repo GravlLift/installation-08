@@ -120,12 +120,11 @@ func (h serverHandlers) handleWeaponBuild(w http.ResponseWriter, r *http.Request
 	writeJSON(w, status, meshStateJSON(snap))
 }
 
-// handleWeaponState answers GET /api/weapons/state with the weapon library build state.
+// handleWeaponState answers GET /api/weapons/state with the weapon library build state. It
+// reports the job even when the route's catalog has no map key (a fresh install with no match
+// stored): the startup build resolves the first installed map itself, and the home screen's
+// first-start progress follows it here.
 func (h serverHandlers) handleWeaponState(w http.ResponseWriter, r *http.Request) {
-	if h.weapKeys.Map == "" {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module"})
-		return
-	}
 	if h.jobs == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return

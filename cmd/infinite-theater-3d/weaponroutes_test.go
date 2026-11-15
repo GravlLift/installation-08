@@ -214,17 +214,18 @@ func TestWeaponCoatingFiles(t *testing.T) {
 	}
 }
 
-// TestWeaponStateNoMap — with no map key in the catalog, state and build are 409.
+// TestWeaponStateNoMap — with no map key in the catalog (a fresh install), the state still
+// reports the job (the startup build resolves its own map); the build is 409.
 func TestWeaponStateNoMap(t *testing.T) {
 	root, err := store.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	h := newServerHandlers(root, "", weaponTestRunner(t, root), weapons.Catalog{}, testLabelCatalog)
 
 	rec := get(t, h, "/api/weapons/state", nil)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("no-map state = %d, want 409", rec.Code)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"absent"`) {
+		t.Fatalf("no-map state = %d %s, want 200 absent", rec.Code, rec.Body.String())
 	}
 	rec2 := postMesh(t, h, "/api/weapons/build", nil)
 	if rec2.Code != http.StatusConflict {

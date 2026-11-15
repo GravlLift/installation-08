@@ -11,6 +11,7 @@ import {
   featuredMatch,
   formatPlayedAt,
   homeMenu,
+  homeMode,
   matchPlayTime,
   resultLabel,
   scoreLabel,
@@ -151,6 +152,21 @@ describe('homeMenu', () => {
 
   it('points the watch rows at the match select page', () => {
     expect(homeMenu(true).every((m) => m.route === '/matches')).toBe(true)
+  })
+
+  it('offers no Sign in row on a read-only server', () => {
+    expect(homeMenu(false, true).map((m) => m.name)).toEqual(['Watch'])
+  })
+})
+
+describe('homeMode', () => {
+  it('is a sign-in page signed out, the desk signed in or read-only, nothing while loading', () => {
+    expect(homeMode('signed_out', false)).toBe('signin')
+    expect(homeMode('pending', false)).toBe('signin')
+    expect(homeMode('failed', false)).toBe('signin')
+    expect(homeMode('signed_in', false)).toBe('desk')
+    expect(homeMode('signed_out', true)).toBe('desk')
+    expect(homeMode('loading', false)).toBe('loading')
   })
 })
 

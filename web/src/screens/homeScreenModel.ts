@@ -91,16 +91,33 @@ export function featuredFacts(m: MatchSummary): FeaturedFacts {
 /** The main menu, exactly the rows the page can do: Watch always; Recent matches when
  *  signed in (the match select page carries the account's rows); Sign in when signed out
  *  (brief 124, item 6: it goes straight to the device-code plate on that page). */
-export function homeMenu(signedIn: boolean): HomeMenuItem[] {
+export function homeMenu(signedIn: boolean, readOnly = false): HomeMenuItem[] {
   const menu: HomeMenuItem[] = [
     { name: 'Watch', sub: 'Pick a stored match and play it', route: '/matches' },
   ]
   if (signedIn) {
     menu.push({ name: 'Recent matches', sub: 'Fetch games from your account', route: '/matches' })
-  } else {
-    menu.push({ name: 'Sign in', sub: 'Connect your Xbox account', route: '/matches?signin=1' })
+  } else if (!readOnly) {
+    menu.push({ name: 'Sign in', sub: 'Connect your Xbox account', route: SIGN_IN_ROUTE })
   }
   return menu
+}
+
+/** The existing sign-in flow: the match select page opens its device-code plate directly. */
+export const SIGN_IN_ROUTE = '/matches?signin=1'
+
+/** What the home page shows for a sign-in state. */
+export type HomeMode = 'loading' | 'signin' | 'desk'
+
+/**
+ * homeMode: signed out, the home is a sign-in page (no Watch row, no featured card); signed in,
+ * the desk. A read-only server never signs in (`readOnly` from its auth state), so it keeps the
+ * desk with the Watch list. 'loading' until the first auth read answers (no flash of either).
+ */
+export function homeMode(phase: 'loading' | 'signed_out' | 'pending' | 'signed_in' | 'failed', readOnly: boolean): HomeMode {
+  if (phase === 'signed_in' || readOnly) return 'desk'
+  if (phase === 'loading') return 'loading'
+  return 'signin'
 }
 
 /** The ticker's left-hand items: the stored-match count, and the coatings notice when

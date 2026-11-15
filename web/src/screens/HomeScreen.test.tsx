@@ -4,7 +4,7 @@
  * drops its copy of the notice; when it cannot (the IT3D_EKUR_DIR override wins), the notice
  * stays in the ticker with no button. `fetch` is mocked by route; nothing reaches a server.
  */
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HomeScreen } from './HomeScreen'
@@ -15,12 +15,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 /** A fetch mock that answers the home screen's routes: the match list, the auth state,
  *  the coating status (`override` toggles whether setup can fix it), and the setup state. */
-function routeFetch(override: boolean) {
+function routeFetch(override: boolean, auth: unknown = { state: 'signed_out' }) {
   return vi.fn(async (url: string) => {
     if (url === '/api/matches') {
       return jsonResponse([{ matchId: 'm', mapName: 'Recharge', importedAt: '2026-11-01T12:00:00Z' }])
     }
-    if (url === '/api/auth/state') return jsonResponse({ state: 'signed_out' })
+    if (url === '/api/auth/state') return jsonResponse(auth)
     if (url === '/api/coatings/status') return jsonResponse({ export: 'not_set', override })
     if (url === '/api/coatings/setup/state') return jsonResponse({ state: 'idle' })
     return jsonResponse({ error: 'not found' }, 404)
@@ -60,5 +60,32 @@ describe('HomeScreen', () => {
     expect(screen.queryByTestId('coatings-setup-button')).toBeNull()
     // One copy of the notice, the ticker's.
     expect(screen.getAllByText(NOTICE)).toHaveLength(1)
+  })
+
+  it('is a sign-in page when signed out: one call to action, no Watch row or featured card', async () => {
+    vi.stubGlobal('fetch', routeFetch(true))
+    render(<HomeScreen />)
+    await screen.findByText('Sign in with Xbox')
+    expect(screen.getByText(/never sees your password/)).toBeTruthy()
+    expect(screen.queryByText('Watch')).toBeNull()
+    expect(screen.queryByText('Featured game')).toBeNull()
+    fireEvent.click(screen.getByText('Sign in with Xbox'))
+    expect(window.location.hash).toBe('#/matches?signin=1')
+  })
+
+  it('shows the desk once signed in', async () => {
+    vi.stubGlobal('fetch', routeFetch(true, { state: 'signed_in', gamertag: 'Chief' }))
+    render(<HomeScreen />)
+    await screen.findByText('Recent matches')
+    expect(screen.getByText('Watch')).toBeTruthy()
+    expect(screen.queryByText('Sign in with Xbox')).toBeNull()
+  })
+
+  it('keeps the Watch list on a read-only server, without any sign-in', async () => {
+    vi.stubGlobal('fetch', routeFetch(true, { state: 'signed_out', signedIn: false, readOnly: true }))
+    render(<HomeScreen />)
+    await screen.findByText('Watch')
+    expect(screen.queryByText('Sign in with Xbox')).toBeNull()
+    expect(screen.queryByRole('option', { name: /Sign in/ })).toBeNull()
   })
 })

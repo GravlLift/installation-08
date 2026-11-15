@@ -213,6 +213,8 @@ export interface AuthStateBody {
   userCode?: string
   expiresAt?: string
   error?: string
+  /** True from a `--read-only` server, which never signs in. */
+  readOnly?: boolean
 }
 
 /** The server's older `/api/auth/state` shape (`{signedIn, gamertag?}`), read only so this

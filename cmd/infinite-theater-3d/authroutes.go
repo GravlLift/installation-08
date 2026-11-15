@@ -211,8 +211,9 @@ func (h serverHandlers) loginFailed(message string) {
 func (h serverHandlers) authStateRoute(w http.ResponseWriter, r *http.Request) {
 	if h.readOnly {
 		// A shared server never exposes the owner's account, even if the data folder holds a
-		// sign-in: answer the signed-out shape without reading the auth store.
-		writeJSON(w, http.StatusOK, map[string]any{"state": "signed_out", "signedIn": false})
+		// sign-in: answer the signed-out shape without reading the auth store. readOnly tells the
+		// viewer sign-in is impossible here (its home keeps the Watch list, no sign-in page).
+		writeJSON(w, http.StatusOK, map[string]any{"state": "signed_out", "signedIn": false, "readOnly": true})
 		return
 	}
 	s := h.auth
