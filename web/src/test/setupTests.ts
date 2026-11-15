@@ -42,6 +42,12 @@ if (typeof sessionStorage === 'undefined' || typeof sessionStorage.setItem !== '
   })
 }
 
+// jsdom does not implement Element.prototype.scrollIntoView (FocusList scrolls its focused
+// row into view).
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // jsdom does not implement window.matchMedia.
 if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   Object.defineProperty(window, 'matchMedia', {

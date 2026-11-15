@@ -2,7 +2,10 @@
  * HomeScreen — the broadcast desk (docs/UI-DESIGN.md 4.1, brief 123): the main menu as a
  * FocusList on the left, the featured game on the right (a sharp map still with its plate
  * over the lower left), the TopBar with the sign-in state and the Ticker with the server
- * state, the stored-match count and the coatings notice.
+ * state and the stored-match count. When coatings are off and the in-app setup can fix it,
+ * the "Set up coatings" control (the match viewer's `CoatingsSetupControl`) takes a stable
+ * row above the ticker and the ticker drops its copy of the notice; otherwise the notice
+ * sits in the ticker as before.
  *
  * The featured match is the most recently played stored match; the pure picks and
  * formatting live in `homeScreenModel.ts`. There is no match-select page yet, so every
@@ -12,6 +15,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
+import { CoatingsSetupControl } from './CoatingsSetupControl'
 import { FocusList } from '../ui/FocusList'
 import { Plate } from '../ui/Plate'
 import { Screen } from '../ui/Screen'
@@ -80,7 +84,9 @@ export function HomeScreen() {
   const facts: FeaturedFacts | null = featured ? featuredFacts(featured) : null
   const backdropUrl = featured?.mapImageUrl ?? null
 
-  const tickerText = tickerItems(matches.length, coatings.notice)
+  // With the "Set up coatings" control showing, the ticker drops its copy of the notice
+  // (the control carries the same text next to its button).
+  const tickerText = tickerItems(matches.length, coatings.notice, coatings.canSetUp)
 
   return (
     <Screen
@@ -147,6 +153,11 @@ export function HomeScreen() {
             </Plate>
           )}
         </div>
+        {coatings.notice && coatings.canSetUp && (
+          <div className="bc-coatings">
+            <CoatingsSetupControl notice={coatings.notice} />
+          </div>
+        )}
       </div>
     </Screen>
   )

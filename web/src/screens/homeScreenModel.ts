@@ -104,9 +104,11 @@ export function homeMenu(signedIn: boolean): HomeMenuItem[] {
 }
 
 /** The ticker's left-hand items: the stored-match count, and the coatings notice when
- *  there is one. The server-state item (dot + text) is the page's to render. */
-export function tickerItems(matchCount: number, coatingsNotice: string | null): string[] {
+ *  there is one and the page does not show the "Set up coatings" control for it (the control
+ *  carries the same text next to its button, so the ticker would repeat it). The server-state
+ *  item (dot + text) is the page's to render. */
+export function tickerItems(matchCount: number, coatingsNotice: string | null, canSetUp: boolean): string[] {
   const items: string[] = [`${matchCount} match${matchCount === 1 ? '' : 'es'} stored`]
-  if (coatingsNotice) items.push(coatingsNotice)
+  if (coatingsNotice && !canSetUp) items.push(coatingsNotice)
   return items
 }
