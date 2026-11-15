@@ -123,6 +123,10 @@ type LabelCatalog struct {
 	// (diagonale 85 % contre le rang de capacité du poseur) vit dans le TOML, avec ses
 	// chiffres : c'est là qu'on juge, pas ici.
 	EquipmentFamilies map[uint32]string
+	// DeployedEquipment (LOCAL-CHANGE (infinite-theater-3d)) is the set of `eqip` GlobalIDs the
+	// manifest marks `deployed` (a placed Drop Wall): the pad chain must not treat them as pad
+	// items. Set by the title layer, like EquipmentFamilies.
+	DeployedEquipment map[uint32]bool
 	// ObjectiveObjects est la table GlobalID de tag `ti=42` -> NOM D'UN OBJET D'OBJECTIF PORTÉ,
 	// telle que le manifeste du titre la donne. Posée par la COUCHE TITRE après NewLabelCatalog,
 	// comme Icons, Tints et EquipmentFamilies : elle n'entre dans aucune jointure de construction.

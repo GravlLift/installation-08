@@ -74,6 +74,9 @@ type MapWeaponPadDTO struct {
 	//
 	// Un socle du match qu'AUCUN emplacement ne confirme n'a pas d'entrée ici du tout : son
 	// niveau est « non classé », et c'est l'absence qui le dit (2,95 % des prises du parc).
+	//
+	// LOCAL-CHANGE (infinite-theater-3d): `equipment` too, for a pad whose item is a carried
+	// equipment (served by cmd/infinite-theater-3d/serve_weapons_doc.go).
 	Family string `json:"family"`
 	// Forward and Up (LOCAL-CHANGE (infinite-theater-3d)) are the spawner object's own axes,
 	// world frame, as the map variant places it. A `rack` holds its weapon in this

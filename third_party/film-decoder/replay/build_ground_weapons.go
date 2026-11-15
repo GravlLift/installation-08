@@ -188,7 +188,8 @@ func attachWeaponPads(ctx context.Context,
 	var objs []gwPickupObject
 	doc.WeaponPads, doc.PadPickups, doc.Coverage.GroundWeapons, objs = buildWeaponPads(
 		scans, positions, clock,
-		padCatalogs{ObjectiveObjects: cat.ObjectiveObjects, EquipmentFamilies: cat.EquipmentFamilies})
+		padCatalogs{ObjectiveObjects: cat.ObjectiveObjects, EquipmentFamilies: cat.EquipmentFamilies,
+			DeployedEquipment: cat.DeployedEquipment}) // LOCAL-CHANGE (infinite-theater-3d)
 	logGroundWeaponCoverage(ctx, doc.Coverage.GroundWeapons)
 	return objs
 }

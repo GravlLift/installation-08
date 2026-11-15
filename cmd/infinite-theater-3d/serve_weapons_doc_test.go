@@ -126,6 +126,68 @@ func TestMapWeaponPadsFor(t *testing.T) {
 	}
 }
 
+// TestMapWeaponPadsForEquipment — equipment pads, as Live Fire places them: one on the map's
+// equipment spawn point type (0xE42158DF, the Repulsor), one on the powerup pad type (the
+// Translocator). Both leave as `equipment`; a power-up keeps `powerup`; a weapon pad near a
+// spawn point is never claimed by it, and a grenade spawn point confirms nothing.
+func TestMapWeaponPadsForEquipment(t *testing.T) {
+	ids := []uint32{0xE42158DF, 0xADEEE6D8}
+	equipmentSpawn, grenadeSpawn := int32(ids[0]), int32(ids[1])
+	if k, ok := mapvar.SpawnKindOf(equipmentSpawn); !ok || k != mapvar.SpawnKindEquipment {
+		t.Fatalf("0xE42158DF is not an equipment spawn point: %v %v", k, ok)
+	}
+	if k, ok := mapvar.SpawnKindOf(grenadeSpawn); !ok || k != mapvar.SpawnKindGrenade {
+		t.Fatalf("0xADEEE6D8 is not a grenade spawn point: %v %v", k, ok)
+	}
+	variant := &mapvar.Variant{Objects: []mapvar.Object{
+		{Pos: mapvar.Vec3{X: 6.82, Y: 35.87, Z: -0.99}, TypeID: equipmentSpawn},
+		testPadObject(mapvar.Vec3{X: 17.7, Y: 16.9, Z: -1}, mapvar.PadFamilyPowerup),
+		testPadObject(mapvar.Vec3{X: 7.6, Y: 44.6, Z: 1.14}, mapvar.PadFamilyPowerup),
+		{Pos: mapvar.Vec3{X: 30, Y: 30, Z: 0}, TypeID: equipmentSpawn},
+		{Pos: mapvar.Vec3{X: 40, Y: 40, Z: 0}, TypeID: grenadeSpawn},
+	}}
+	pads := []replay.WeaponPad{
+		{X: 6.815, Y: 35.867, Z: -0.995, Weapon: "repulsor"},
+		{X: 17.699, Y: 16.903, Z: -0.995, Weapon: "translocator_beacon"},
+		{X: 7.603, Y: 44.587, Z: 1.14, Weapon: "powerup_camo"},
+		{X: 30.2, Y: 30, Z: 0, Weapon: "0xF408190F"}, // a weapon pad next to a spawn point
+		{X: 40.1, Y: 40, Z: 0, Weapon: "thruster"},   // an equipment pad on a grenade point
+	}
+	out := mapWeaponPadsFor(context.Background(), "abc", matchMapKeys{mapID: "livefire"}, variant, pads)
+	if out == nil {
+		t.Fatal("no pads confirmed")
+	}
+	got := map[int]replay.MapWeaponPadDTO{}
+	for _, p := range out.Pads {
+		got[p.Pad] = p
+	}
+	if p, ok := got[0]; !ok || p.Family != "equipment" || p.X != 6.82 {
+		t.Fatalf("repulsor pad on the equipment spawn point: %+v (ok %v)", p, ok)
+	}
+	if p, ok := got[1]; !ok || p.Family != "equipment" || p.X != 17.7 || len(p.Up) != 3 {
+		t.Fatalf("translocator pad on the powerup pad type: %+v (ok %v)", p, ok)
+	}
+	if p, ok := got[2]; !ok || p.Family != "powerup" {
+		t.Fatalf("camo pad: %+v (ok %v)", p, ok)
+	}
+	if p, ok := got[3]; ok {
+		t.Fatalf("a weapon pad was claimed by a spawn point: %+v", p)
+	}
+	if p, ok := got[4]; ok {
+		t.Fatalf("a grenade spawn point confirmed a pad: %+v", p)
+	}
+	if out.CatalogN != 2 {
+		t.Fatalf("catalogN = %d, want the 2 pad locations", out.CatalogN)
+	}
+	for w, want := range map[string]bool{
+		"repulsor": true, "wall": true, "powerup_camo": false, "0xF408190F": false, "f408190f": false, "": false,
+	} {
+		if isEquipmentPadItem(w) != want {
+			t.Errorf("isEquipmentPadItem(%q) = %v, want %v", w, !want, want)
+		}
+	}
+}
+
 // TestWeaponTiersFor — the tiers step: a random-start mode is named, a regular mode is not,
 // and an unknown mode asserts nothing (nil).
 func TestWeaponTiersFor(t *testing.T) {

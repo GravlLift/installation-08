@@ -61,18 +61,40 @@ const padPowerupPrefix = "powerup_"
 // (`powerup_overshield` `0xb781197a`, `powerup_camo` `0xe7be9f5c`) ; câbler les deux
 // identifiants ici en ferait une troisième écriture de ce que le TOML dit déjà, et un power-up
 // ajouté au manifeste resterait invisible sans que rien ne le signale.
-func powerupPadRule(families map[uint32]string) padRule {
+//
+// LOCAL-CHANGE (infinite-theater-3d): EQUIPMENT PADS. The same `ti=37` lane also carries the
+// equipment items that sit on round floor pads (Repulsor, Threat Sensor, Drop Wall, Grapple,
+// Thruster, Translocator...). They were filtered out by the `powerup_` prefix, so the viewer
+// never saw an equipment pad. Measured on Live Fire `abb84d42`: the Repulsor pickups at
+// frames 2869, 9698 and 17220 all sit within 0.8 m of the map's equipment spawn point
+// (`0xE42158DF`), and the translocator pickups cluster on the map's second powerup-type pad.
+// The rule now keeps every manifest family that a player CARRIES, except grenades (they lie on
+// the floor at grenade spawn points, not on pads) and the DEPLOYED forms of an item (a placed
+// Drop Wall is at rest and named `wall` too; two walls placed on the same spot would otherwise
+// form a fake pad). The at-rest and recurrence guards below still apply unchanged.
+func powerupPadRule(families map[uint32]string, deployed map[uint32]bool) padRule {
 	return padRule{
 		Kind: gwPadKindPowerup,
 		Family: func(id uint32) (string, bool) {
 			f := families[id]
-			if !strings.HasPrefix(f, padPowerupPrefix) {
+			if !padItemFamily(f) || deployed[id] {
 				return "", false
 			}
 			return f, true
 		},
 	}
 }
+
+// padItemFamily says whether a manifest equipment family can sit on a pad: a power-up
+// (`padPowerupPrefix`) or a carried equipment item, never a grenade
+// (LOCAL-CHANGE (infinite-theater-3d)).
+func padItemFamily(f string) bool {
+	return f != "" && !strings.HasPrefix(f, padGrenadePrefix)
+}
+
+// padGrenadePrefix is the manifest prefix of grenade families (`grenade_frag`, ...), which
+// never sit on a pad (LOCAL-CHANGE (infinite-theater-3d)).
+const padGrenadePrefix = "grenade_"
 
 // padCatalogs porte les DEUX tables d'identité que la chaîne des socles consomme — une par voie.
 // Elles voyagent ensemble parce que l'assemblage les prend ensemble (règle des 5 paramètres).
@@ -85,6 +107,9 @@ type padCatalogs struct {
 	// ne se résout, et le calque publie zéro socle de power-up en silence (le compteur
 	// `powerupKept` de la couverture est le témoin qui rompt ce silence).
 	EquipmentFamilies map[uint32]string
+	// DeployedEquipment (LOCAL-CHANGE (infinite-theater-3d)) is the set of `eqip` GlobalIDs that
+	// are the PLACED form of an item (a deployed Drop Wall). They never sit on a pad.
+	DeployedEquipment map[uint32]bool
 }
 
 // PadScans porte les DEUX lectures du film que la chaîne des socles consomme : les ARMES AU SOL

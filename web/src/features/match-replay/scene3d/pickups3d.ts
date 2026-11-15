@@ -18,7 +18,9 @@
  *    ramenée à ce qu'un joueur a pu faire (`useReplayWeaponPads`).
  *  - Le MODÈLE DU JEU de l'arme (`weaponModels3d`) remplace la boîte pleine dès qu'il est chargé.
  *    A power-up pad names its item by equipment family (`powerup_camo`); the library resolves the
- *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way.
+ *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way. An
+ *    EQUIPMENT pad (`repulsor`, `translocator_beacon`..., crossed as `equipment`) is the same: its
+ *    item floats and turns above the pad while it is there and is gone once taken.
  *  - Une ARME AU SOL est la même boîte, couchée au sol, à l'encre de sa nature ; dans sa fenêtre de
  *    disparition non datée (`vanishing`), elle passe au lot fantôme (`groundWeaponPresenceAt`). Les
  *    filtres du tiroir (armes spéciales seulement, armes de départ) sont ceux de
@@ -198,7 +200,10 @@ export interface RackMount {
   up: GameAxis
 }
 
-/** The map spawner a match pad was crossed with: its kind (`rack`, `power`, `powerup`) and axes. */
+/**
+ * The map spawner a match pad was crossed with: its kind (`rack`, `power`, `powerup`,
+ * `equipment`) and axes.
+ */
 export interface CrossedSlot extends RackMount {
   family: string
 }
@@ -290,7 +295,7 @@ interface PadSpot {
 /** One row of `window.__it3dPickups`: what a pad holds and what the view drew for it. */
 export interface PickupDebugRow {
   pad: number
-  /** The spawner kind from the map (`rack`, `power`, `powerup`), `film` for a film-only pad. */
+  /** The spawner kind from the map (`rack`, `power`, `powerup`, `equipment`), `film` for a film-only pad. */
   family: string
   weaponKey: string
   state: PadState | null
