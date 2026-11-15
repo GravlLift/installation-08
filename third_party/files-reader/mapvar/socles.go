@@ -93,6 +93,10 @@ type PadSpot struct {
 	// puisse le DIRE plutôt que de le taire — il n'a jamais été levé sur les cartes
 	// mesurées, et c'est une mesure, pas une garantie.
 	Mixed bool
+	// Forward and Up (LOCAL-CHANGE (infinite-theater-3d)) are the representative object's own
+	// axes, world frame: a weapon rack holds its weapon in the rack's orientation.
+	Forward Vec3
+	Up      Vec3
 }
 
 // PadSpots rend les emplacements de socle d'une variante, dans un ordre DÉTERMINISTE.
@@ -126,6 +130,7 @@ func PadSpots(v *Variant) []PadSpot {
 		}
 		out = append(out, PadSpot{
 			Pos: o.Pos, TypeID: o.TypeID, Family: fam, InstanceID: o.InstanceID, Objects: 1,
+			Forward: o.Forward, Up: o.Up, // LOCAL-CHANGE (infinite-theater-3d)
 		})
 	}
 	return out

@@ -75,6 +75,12 @@ type MapWeaponPadDTO struct {
 	// Un socle du match qu'AUCUN emplacement ne confirme n'a pas d'entrée ici du tout : son
 	// niveau est « non classé », et c'est l'absence qui le dit (2,95 % des prises du parc).
 	Family string `json:"family"`
+	// Forward and Up (LOCAL-CHANGE (infinite-theater-3d)) are the spawner object's own axes,
+	// world frame, as the map variant places it. A `rack` holds its weapon in this
+	// orientation, still; absent (a catalog without them, an earlier server) the client keeps
+	// the rack upright and faces it along +X.
+	Forward []float32 `json:"forward,omitempty"`
+	Up      []float32 `json:"up,omitempty"`
 }
 
 // BuildMapWeaponPads croise les emplacements d'une carte avec les socles d'un match.

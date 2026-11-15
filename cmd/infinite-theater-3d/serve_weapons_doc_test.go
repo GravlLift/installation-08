@@ -111,6 +111,13 @@ func TestMapWeaponPadsFor(t *testing.T) {
 	if out.Pads[0].Pad != 0 || out.Pads[0].Family != "rack" {
 		t.Fatalf("confirmed pad: %+v", out.Pads[0])
 	}
+	// The spawner's own axes travel with it: a rack holds its weapon in this orientation.
+	if f, u := out.Pads[0].Forward, out.Pads[0].Up; len(f) != 3 || f[0] != 1 || len(u) != 3 || u[2] != 1 {
+		t.Fatalf("confirmed pad axes: forward %v up %v", f, u)
+	}
+	if axisOf(mapvar.Vec3{}) != nil {
+		t.Fatal("a zero axis must stay absent")
+	}
 	if got := mapWeaponPadsFor(context.Background(), "abc", matchMapKeys{}, variant, pads); got != nil {
 		t.Fatal("pads without a map id")
 	}
