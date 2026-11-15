@@ -117,6 +117,8 @@ func runServe(args []string) error {
 	h.readOnly = f.readOnly
 	// The job is shared by pointer, so the routes the mux already bound see the game root.
 	h.coatingsSetup.game = f.game
+	h.callouts.game = f.game
+	h.callouts.cache.Persist = !f.readOnly
 	// The startup starts the coatings setup through the same job the POST route uses, so a
 	// run is single-flight whichever way it is started.
 	runServeStartup(h.jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game, func() { h.startCoatingsSetup() })
@@ -173,6 +175,8 @@ type serverHandlers struct {
 	listCache *matchlistCache
 	// coatingsSetup is the in-app coatings setup job (serve_coatings_setup.go).
 	coatingsSetup *coatingsSetupJob
+	// callouts reads and caches the maps' named areas (serve_callouts.go).
+	callouts *calloutsSource
 }
 
 // readOnlyHandler is the one middleware the read-only mode wraps the top-level handler in:

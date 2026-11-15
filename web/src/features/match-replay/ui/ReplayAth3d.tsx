@@ -19,6 +19,8 @@ import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 import type { HudLevel } from '../model/hudLevel'
+import { buildLivesByXuid } from '../model/livesPosition'
+import { calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
 
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
@@ -31,12 +33,13 @@ function BandeauScore({ locale, frame, doc, playWindow, timeLimitMs, coteGauche,
   return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>
 }
 
-export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full' }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel }) {
+export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full', callouts = null }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel; callouts?: PreparedCallouts | null }) {
   const [frame, setFrame] = useState(0)
   const [onEnemy, setOnEnemy] = useState(false)
   // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
   const heldRef = useRef<HeldWeapon | null>(null)
   const source = useMemo(() => preparerAth(doc, xuid, kills), [doc, xuid, kills])
+  const lives = useMemo(() => buildLivesByXuid(doc.tracks), [doc])
   useEffect(() => {
     let raf = 0
     const lire = () => {
@@ -87,6 +90,8 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   if (hud === 'score') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{bandeau}</div>
   if (hud === 'spectator') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}><ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />{bandeau}</div>
   const aim = hud === 'full'
+  // The place name under the game's motion tracker (mapCallouts): bottom left, under the kill feed.
+  const lieu = calloutName(calloutOfLivesAt(callouts, lives.get(xuid), frame), locale)
   return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {bandeau}
@@ -104,6 +109,7 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
       </svg>
     ))}
     <ReplayKillPopup3d popups={popups} locale={locale} />
+    {lieu && <div data-hud-callout style={{ position: 'absolute', left: '3%', bottom: '6%', fontSize: '0.42em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1 }}>{lieu}</div>}
     {/* Le coin bas droit du jeu : grenades au-dessus, puis chargeur | réserve et l'arme à leur droite, canon vers la gauche (le sens natif de l'atlas ; un dessin hors atlas est retourné). */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
       <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.equipement && <EquipementAth3d doc={doc} rank={ath.equipement.rank} uses={ath.equipement.uses} locale={locale} />}{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>
