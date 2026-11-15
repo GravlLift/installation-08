@@ -80,6 +80,9 @@ type OptionsVariante struct {
 	StylesMvar     map[int32][]mapvar.StyleLayer
 	SaletesMvar    map[int32]mapvar.StyleGrime
 	CatalogueForge []byte
+	// TextureCaps (LOCAL-CHANGE (infinite-theater-3d)): les cotes de lecture du build (TextureCaps),
+	// comme OptionsCuisson.TextureCaps ; zero = les cotes standard (la sortie d'avant).
+	TextureCaps TextureCaps
 }
 
 // BilanVariante compte le sort des objets d'une variante.
@@ -216,7 +219,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	modeles := modelesDesTypes(ctx, objets, idx, forge, assets)
 	representations := modelesDesRepresentations(ctx, objets, idx, forge, assets)
 	b.Types = len(modeles)
-	out := &MaillageMonde{Poses: &PosesVariante{}}
+	out := &MaillageMonde{Poses: &PosesVariante{}, textureCaps: textureCapsOf(opts.TextureCaps)}
 	poses := out.poseVarianteTeinte(opts, modeles, representations, &b)
 	trianglesPoses, trianglesUniques := out.Poses.Triangles()
 	if trianglesPoses == 0 {

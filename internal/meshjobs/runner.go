@@ -11,6 +11,7 @@ package meshjobs
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -76,6 +77,51 @@ const (
 type BuildResult struct {
 	Bytes     int64
 	Triangles int
+}
+
+// Quality is a map mesh's texture quality. Standard reads the map textures at the standard
+// caps (today's output, byte-identical); high reads them at double the side. A map and a Forge
+// variant each carry their own quality: the two are separate builds with separate files.
+type Quality string
+
+// The two qualities a mesh build can be requested in.
+const (
+	QualityStandard Quality = "standard"
+	QualityHigh     Quality = "high"
+)
+
+// qualitySuffix is appended to a module key (and, with .glb, to a map file name) for a high
+// build, so a high build of a module is a separate job and file from its standard build.
+const qualitySuffix = ".high"
+
+// ParseQuality validates a quality name from a query parameter or a flag. An empty value is
+// standard (the default); any other name is refused (ok false).
+func ParseQuality(s string) (q Quality, ok bool) {
+	switch s {
+	case "", string(QualityStandard):
+		return QualityStandard, true
+	case string(QualityHigh):
+		return QualityHigh, true
+	default:
+		return QualityStandard, false
+	}
+}
+
+// JobKey is the runner's key for a module's build of quality q: the module key unchanged for
+// standard, the key with the high suffix for high (a distinct job from standard).
+func JobKey(module string, q Quality) string {
+	if q == QualityHigh {
+		return module + qualitySuffix
+	}
+	return module
+}
+
+// SplitQuality inverts JobKey: the high suffix names the high quality, its absence the standard.
+func SplitQuality(key string) (module string, q Quality) {
+	if m, ok := strings.CutSuffix(key, qualitySuffix); ok {
+		return m, QualityHigh
+	}
+	return key, QualityStandard
 }
 
 // Builder builds one map module's mesh to the file named by out. ctx is the job's context:

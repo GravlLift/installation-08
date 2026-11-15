@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 )
 
 // TestMatchIDValid — the match-id guard: hex and dashes are legal, anything else (a
@@ -101,7 +103,7 @@ func matchPaths(r *Root, id string) (map[string]string, error) {
 			return nil, e
 		}
 	}
-	mesh, e6 := r.MeshPath("sgh_interlock")
+	mesh, e6 := r.MeshPath("sgh_interlock", meshjobs.QualityStandard)
 	if e6 != nil {
 		return nil, e6
 	}
@@ -123,8 +125,31 @@ func TestPathTraversal(t *testing.T) {
 			t.Errorf("MatchMetaPath(%q) succeeded, want an error", id)
 		}
 	}
-	if _, err := root.MeshPath("../evil"); err == nil {
+	if _, err := root.MeshPath("../evil", meshjobs.QualityStandard); err == nil {
 		t.Error("MeshPath with a traversal succeeded, want an error")
+	}
+}
+
+// TestMeshPathQuality — standard keeps the <module>.glb name, high gets its own file
+// (<module>.high.glb) beside it.
+func TestMeshPathQuality(t *testing.T) {
+	root, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	std, err := root.MeshPath("sgh_interlock", meshjobs.QualityStandard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root.MapsDir(), "sgh_interlock.glb"); std != want {
+		t.Errorf("standard path = %q, want %q", std, want)
+	}
+	high, err := root.MeshPath("sgh_interlock", meshjobs.QualityHigh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root.MapsDir(), "sgh_interlock.high.glb"); high != want {
+		t.Errorf("high path = %q, want %q", high, want)
 	}
 }
 

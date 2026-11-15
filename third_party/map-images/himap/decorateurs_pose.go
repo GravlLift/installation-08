@@ -154,7 +154,7 @@ func hauteurMonde(tuiles map[[2]int]tuileTerrain, p plageTerrain, params paramet
 
 // poseDecorateurs scatters the terrain's decorators over the tiles read. Returns one carpet per
 // decorator mesh; none when the terrain declares no placement or no decorator decodes.
-func poseDecorateurs(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles []tuileTerrain, params parametresTerrain, id uint32) []TapisDecorateur {
+func poseDecorateurs(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles []tuileTerrain, params parametresTerrain, id uint32, caps TextureCaps) []TapisDecorateur {
 	mel, ok := litMelangeTerrain(s)
 	poses := litPoses(s)
 	if !ok || len(poses) == 0 {
@@ -169,7 +169,7 @@ func poseDecorateurs(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles [
 		return nil
 	}
 	cache := newDecodeCache(mod, ressources)
-	gpu := echantillonneurGPU(idx, mel)
+	gpu := echantillonneurGPU(idx, mel, caps)
 	parTuile := map[[2]int]tuileTerrain{}
 	for _, t := range tuiles {
 		parTuile[[2]int{t.X, t.Y}] = t

@@ -38,7 +38,7 @@ func idsSynthetiques(terrain uint32) (masque, blanc uint32) {
 // cuitMelangeTerrain evaluates every node's weight programs over the tiles read, groups the
 // palette into at most four looks and bakes the sequential mask. ok=false when the terrain has
 // no readable blend (the caller then keeps the single palette color).
-func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles []tuileTerrain, noeuds []int, id uint32) (melangeCuit, bool) {
+func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles []tuileTerrain, noeuds []int, id uint32, caps TextureCaps) (melangeCuit, bool) {
 	var out melangeCuit
 	mel, ok := litMelangeTerrain(s)
 	if !ok || len(tuiles) == 0 {
@@ -53,7 +53,7 @@ func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuile
 		return out, false
 	}
 	lit := newDecodeCache(mod, ressources).lit
-	echantillonGPU := echantillonneurGPU(idx, mel)
+	echantillonGPU := echantillonneurGPU(idx, mel, caps)
 	tx, ty := p.x1-p.x0+1, p.y1-p.y0+1
 	W, H := tx*terrainCellules, ty*terrainCellules
 	np := len(mel.palette)
@@ -226,8 +226,9 @@ func (c *cacheEntrees) lit(r, canaux int) *image.NRGBA {
 }
 
 // echantillonneurGPU samples a channel of a shared interpreter bitmap at a world position,
-// tiled by its UV scale.
-func echantillonneurGPU(idx *ModuleIndex, mel melangeTerrain) func(i, canal int, wx, wy float64) float32 {
+// tiled by its UV scale. The bitmap is read at the build's layer side (LOCAL-CHANGE
+// (infinite-theater-3d)).
+func echantillonneurGPU(idx *ModuleIndex, mel melangeTerrain, caps TextureCaps) func(i, canal int, wx, wy float64) float32 {
 	gpu := map[int]*image.NRGBA{}
 	return func(i, canal int, wx, wy float64) float32 {
 		if i < 0 || i >= len(mel.partagesGPU) {
@@ -235,7 +236,7 @@ func echantillonneurGPU(idx *ModuleIndex, mel melangeTerrain) func(i, canal int,
 		}
 		img, ok := gpu[i]
 		if !ok {
-			if t, err := LitBitmap(idx, mel.partagesGPU[i].id, coteCouche); err == nil {
+			if t, err := LitBitmap(idx, mel.partagesGPU[i].id, caps.Couche); err == nil { // LOCAL-CHANGE (infinite-theater-3d)
 				img = t.Image
 			}
 			gpu[i] = img

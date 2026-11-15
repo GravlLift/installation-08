@@ -36,6 +36,10 @@ type MaillageMonde struct {
 	// Materiaux : les materiaux lus, par GlobalID. Un ID de `GroupeMaillage.Indices` absent de
 	// la table (illisible, ou 0 = rang hors liste) se dessine comme opaque.
 	Materiaux    map[uint32]Materiau
+	// textureCaps (LOCAL-CHANGE (infinite-theater-3d)): les cotes de lecture du build, posees par
+	// la collecte (CollecteMaillageMonde/Variante). Zero = le build n'en donne aucune (armes et
+	// autres collectes non monde) : la lecture se fait aux cotes standard, comme avant.
+	textureCaps TextureCaps
 	teintesForge map[uint32]materiauTeinte
 	// stylesForge (LOCAL-CHANGE (infinite-theater-3d)): the variant's Forge styles by style id.
 	stylesForge map[int32]*StyleForge
@@ -118,6 +122,13 @@ func (g *GroupeMaillage) Borne() (lo, hi [3]float32, ok bool) {
 	return lo, hi, true
 }
 
+// capsFor rend les cotes de lecture du build : celles posee par la collecte, ou les cotes
+// standard quand le maillage n'en porte aucune (armes, pieces, rig et autres collectes non
+// monde, qui lisent comme avant).
+func (m *MaillageMonde) capsFor() TextureCaps {
+	return textureCapsOf(m.textureCaps)
+}
+
 // CollecteMaillageMonde lit la geometrie d'une carte NATIVE (meme module, meme bsp que
 // `CuitCarteNative` avec les memes options) et la rend en repere monde.
 func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageMonde, BilanCuisson, error) {
@@ -135,7 +146,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 		return nil, b, err
 	}
 	defer func() { _ = idx.Close() }()
-	out := &MaillageMonde{BSP: bsp.GlobalID}
+	out := &MaillageMonde{BSP: bsp.GlobalID, textureCaps: textureCapsOf(opts.TextureCaps)}
 	bsp, out.HorsCadre = bsp.dansCadre(opts.CadreMaillage)
 	ajoute := func(m *Mesh, in Instance, estDecor, horsPasse bool) {
 		g := &out.Structure

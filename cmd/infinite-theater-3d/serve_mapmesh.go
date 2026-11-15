@@ -40,16 +40,16 @@ func forgeMeshMatch(root *store.Root, key string) (store.Match, bool) {
 	return store.Match{}, false
 }
 
-// buildMapMesh builds the world mesh of `key` into `out`: a Forge map from a stored match's map
-// variant, a native map from its installed module.
-func buildMapMesh(ctx context.Context, root *store.Root, key, game, out string) (meshjobs.BuildResult, error) {
+// buildMapMesh builds the world mesh of `key` of texture quality `quality` into `out`: a Forge
+// map from a stored match's map variant, a native map from its installed module.
+func buildMapMesh(ctx context.Context, root *store.Root, key, game, out string, quality meshjobs.Quality) (meshjobs.BuildResult, error) {
 	var summary mapmesh.Summary
 	var err error
 	if m, ok := forgeMeshMatch(root, key); ok {
-		opts := meshbuild.ForgeMapOptions{Key: key, Names: []string{m.MapName}, Mvar: variantPath(root, m.MatchID, "map.mvar"), GameRoot: game}
+		opts := meshbuild.ForgeMapOptions{Key: key, Names: []string{m.MapName}, Mvar: variantPath(root, m.MatchID, "map.mvar"), GameRoot: game, Quality: quality}
 		summary, err = meshbuild.BuildForgeMap(ctx, opts, out, nil)
 	} else {
-		summary, err = meshbuild.BuildMap(ctx, key, game, out, nil)
+		summary, err = meshbuild.BuildMap(ctx, key, quality, game, out, nil)
 	}
 	if err != nil {
 		return meshjobs.BuildResult{}, err

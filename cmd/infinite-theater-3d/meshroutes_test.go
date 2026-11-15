@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -62,7 +63,8 @@ func meshTestRunner(t *testing.T, root *store.Root) *meshjobs.Runner {
 		t.Fatal(err)
 	}
 	r.SetDest(func(module string) string {
-		p, err := root.MeshPath(module)
+		module, quality := meshjobs.SplitQuality(module)
+		p, err := root.MeshPath(module, quality)
 		if err != nil {
 			return module + ".glb"
 		}
@@ -220,6 +222,72 @@ func TestMeshStateTransitions(t *testing.T) {
 	body := waitMeshReady(t, h, statePath)
 	if !strings.Contains(body, `"moda"`) {
 		t.Fatalf("ready state missing moduleKey: %s", body)
+	}
+}
+
+// TestMeshQualityRoutes — ?quality=high is a separate job and file from standard (the
+// standard path is unchanged), and an unknown quality name is a 400 on every mesh route.
+func TestMeshQualityRoutes(t *testing.T) {
+	root := meshTestStore(t)
+	jobs := meshTestRunner(t, root)
+	h := newTestHandlers(root, jobs)
+
+	// Unknown quality: 400 on GET (mesh + state) and POST build.
+	for _, path := range []string{
+		"/api/matches/abc/mesh.glb?quality=ultra",
+		"/api/matches/abc/mesh/state?quality=ultra",
+	} {
+		rec := get(t, h, path, nil)
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "unknown_quality") {
+			t.Fatalf("%s: status=%d body=%s, want 400 unknown_quality", path, rec.Code, rec.Body.String())
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/matches/abc/mesh/build?quality=ultra", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "unknown_quality") {
+		t.Fatalf("build?quality=ultra: status=%d body=%s, want 400", rec.Code, rec.Body.String())
+	}
+
+	// High: a separate job and file; the standard path is untouched until it is built.
+	std, err := root.MeshPath("moda", meshjobs.QualityStandard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hi, err := root.MeshPath("moda", meshjobs.QualityHigh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec = postMesh(t, h, "/api/matches/abc/mesh/build?quality=high", nil)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("high build status = %d, want 202; body=%s", rec.Code, rec.Body.String())
+	}
+	body := waitMeshReady(t, h, "/api/matches/abc/mesh/state?quality=high")
+	if !strings.Contains(body, `"quality":"high"`) {
+		t.Fatalf("high state = %s, want quality high", body)
+	}
+	if _, err := os.Stat(hi); err != nil {
+		t.Fatalf("high file missing: %v", err)
+	}
+	if _, err := os.Stat(std); !os.IsNotExist(err) {
+		t.Fatalf("standard file created by a high build: %v", err)
+	}
+	// Standard is still a separate, not-yet-run job.
+	rec = get(t, h, "/api/matches/abc/mesh/state", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"absent"`) {
+		t.Fatalf("standard state after high build = %d %s, want absent", rec.Code, rec.Body.String())
+	}
+	postMesh(t, h, "/api/matches/abc/mesh/build", nil)
+	waitMeshReady(t, h, "/api/matches/abc/mesh/state")
+	if _, err := os.Stat(std); err != nil {
+		t.Fatalf("standard file missing: %v", err)
+	}
+	// Both files now serve.
+	if rec := get(t, h, "/api/matches/abc/mesh.glb", nil); rec.Code != http.StatusOK {
+		t.Fatalf("standard mesh status = %d", rec.Code)
+	}
+	if rec := get(t, h, "/api/matches/abc/mesh.glb?quality=high", nil); rec.Code != http.StatusOK {
+		t.Fatalf("high mesh status = %d", rec.Code)
 	}
 }
 

@@ -30,8 +30,9 @@ import (
 // startup step and the runner use it, so a build whose output is already on disk is never
 // queued by either.
 func jobModuleReady(root *store.Root, module string) bool {
+	module, quality := meshjobs.SplitQuality(module)
 	if id, ok := variantJobID(module); ok {
-		_, err := os.Stat(variantPath(root, id, "variant.glb"))
+		_, err := os.Stat(variantPath(root, id, variantGLBName(quality)))
 		return err == nil
 	}
 	switch module {
@@ -48,7 +49,7 @@ func jobModuleReady(root *store.Root, module string) bool {
 	case meshjobs.JobAnnouncer:
 		return announcerReady(root.Dir())
 	}
-	p, err := root.MeshPath(module)
+	p, err := root.MeshPath(module, quality)
 	if err != nil {
 		return false
 	}
@@ -182,8 +183,9 @@ func coatingLibraryFolder(module string) (string, bool) {
 func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) (*meshjobs.Runner, error) {
 	ready := func(module string) bool { return jobModuleReady(root, module) }
 	dest := func(module string) string {
+		module, quality := meshjobs.SplitQuality(module)
 		if id, ok := variantJobID(module); ok {
-			return variantPath(root, id, "variant.glb")
+			return variantPath(root, id, variantGLBName(quality))
 		}
 		switch module {
 		case meshjobs.JobWeapons:
@@ -203,15 +205,16 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		case meshjobs.JobAnnouncer:
 			return soundsDir(root.Dir())
 		}
-		p, err := root.MeshPath(module)
+		p, err := root.MeshPath(module, quality)
 		if err != nil {
 			return module + ".glb"
 		}
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		module, quality := meshjobs.SplitQuality(module)
 		if id, ok := variantJobID(module); ok {
-			result, err := buildMatchVariant(ctx, root, id, game, out)
+			result, err := buildMatchVariant(ctx, root, id, game, out, quality)
 			if err != nil {
 				slog.Warn("variant build failed", "id", id, "err", err)
 			}
@@ -235,7 +238,7 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		case meshjobs.JobAnnouncer:
 			return buildAnnouncer(ctx, root, game)
 		}
-		return buildMapMesh(ctx, root, module, game, out)
+		return buildMapMesh(ctx, root, module, game, out, quality)
 	}
 	r, err := meshjobs.New(build, gameRoot, ready)
 	if err != nil {

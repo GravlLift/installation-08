@@ -16,6 +16,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/mapref"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -51,6 +52,9 @@ type BuildVariantOptions struct {
 	// Mode is the match's game variant name; the layer holds the objects that mode creates
 	// (mapmesh.ModeFilters). Empty builds it for a match without a known mode.
 	Mode string
+	// Quality is the texture quality to read at (meshjobs.Quality); standard is the default
+	// (today's output).
+	Quality meshjobs.Quality
 }
 
 // BuildVariant builds a map variant's object-layer GLB and writes it to `out`.
@@ -86,7 +90,7 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 	}
 	target := mapmesh.VariantTarget{
 		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles, StyleGrimes: v.StyleGrimes,
-		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode,
+		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode, TextureCaps: capsOfQuality(opts.Quality),
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)
 }
