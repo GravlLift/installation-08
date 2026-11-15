@@ -33,6 +33,20 @@ export function faceMountOffset(model: THREE.Object3D, rotation: THREE.Quaternio
   return new THREE.Vector3(-center.x, -center.y, face - bounds.min.z).applyQuaternion(rotation)
 }
 
+/**
+ * centerOffset — where a model's origin goes, in the model's own frame, so that the center of its
+ * bounds sits on the mount point: an equipment pickup floating above its pad, whose model's origin
+ * is not on the item (the Drop Wall pickup's mesh sits about 0.4 u above its origin).
+ */
+export function centerOffset(model: THREE.Object3D): THREE.Vector3 {
+  const copy = model.clone()
+  copy.position.set(0, 0, 0)
+  copy.quaternion.identity()
+  copy.updateMatrixWorld(true)
+  const bounds = new THREE.Box3().setFromObject(copy, true)
+  return bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3()).negate()
+}
+
 /** liftToFloor : de combien l'origine du modèle tourné de `rotation` se lève pour que son dessous soit au sol. */
 function liftToFloor(model: THREE.Object3D, rotation: THREE.Quaternion): number {
   const copy = model.clone()
