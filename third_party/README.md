@@ -161,6 +161,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     pieces are centre-pivot, many props corner-pivot. A type whose `mode` is missing or has
     another box keeps the base rule. Covered by `himap/origine_forge_test.go` (new) and
     `himap/maillage_variante_test.go` (modified).
+  - `himap/origine_forge.go`, `maillage_variante_representation.go` and `kits_forge.go`
+    (LOCAL-CHANGE): the `mode` an `rtgo` representation is measured against draws that
+    representation's own permutation (the sections whose permutation, else region, carries the
+    representation name), the rule of Ekur's Forge map import (TheHaloArchive,
+    GPL-3.0-or-later). Fortress's type -960331706 keeps a 2.29 m default and a 2.20 m "forge"
+    permutation; its "forge" `rtgo` was compared with the default, failed the same-box test and
+    sat 1 m off in X and Y (721 player samples inside it, 3 now). Covered by
+    `himap/origine_forge_test.go` (modified).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

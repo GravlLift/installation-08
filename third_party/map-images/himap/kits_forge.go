@@ -224,7 +224,7 @@ func modeleObjetKit(ctx context.Context, idx *ModuleIndex, o objetKit, assets ma
 	}
 	if ref.groupe == GroupeRtgo {
 		mv.sansPalette = true
-		mv.origine = origineDuRtgo(a, mv.maillages, modeDuObjet(ctx, idx, objet, assets))
+		mv.origine = origineDuRtgo(a, mv.maillages, modeDuObjet(ctx, idx, objet, assets, 0))
 	}
 	return mv
 }

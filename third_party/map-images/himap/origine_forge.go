@@ -94,19 +94,20 @@ func modeDuType(ctx context.Context, idx *ModuleIndex, forge *himodule.Module, f
 	if err != nil {
 		return nil
 	}
-	return modeDuFood(ctx, idx, tag, assets)
+	return modeDuFood(ctx, idx, tag, assets, 0)
 }
 
 // modeDuFood returns the own render model of a Forge definition: the first `mode` its
-// `bloc`/`scen`/`mach` objects reach through their `hlmt`; nil without one.
-func modeDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[uint32]*RuntimeGeoAsset) *modelePose {
+// `bloc`/`scen`/`mach` objects reach through their `hlmt`, drawn as representation `nom`
+// (maillagesDeLaRepresentation; 0: the model's default); nil without one.
+func modeDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[uint32]*RuntimeGeoAsset, nom uint32) *modelePose {
 	for _, groupe := range groupesSautForge {
 		for _, h := range refsTypeesDuGroupe(food, idx, groupe) {
 			objet, err := idx.Extract(h)
 			if err != nil {
 				continue
 			}
-			if mp := modeDuObjet(ctx, idx, objet, assets); mp != nil {
+			if mp := modeDuObjet(ctx, idx, objet, assets, nom); mp != nil {
 				return mp
 			}
 		}
@@ -114,8 +115,55 @@ func modeDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[u
 	return nil
 }
 
-// modeDuObjet returns the first `mode` the `hlmt` models of an object tag reference; nil without.
-func modeDuObjet(ctx context.Context, idx *ModuleIndex, objet []byte, assets map[uint32]*RuntimeGeoAsset) *modelePose {
+// maillagesDeLaRepresentation returns the sections of `mode` tag `tag` that Forge representation
+// `nom` draws: those of the permutations named `nom`, else those of the regions named `nom`;
+// nil when neither exists (the caller keeps the model's default).
+//
+// Translated from Ekur's Forge map import (TheHaloArchive, addon/src/operators/
+// forge_map_operator.py, ForgeMapOperator.execute; Copyright (c) 2026 The Halo Archive,
+// GPL-3.0-or-later): a Forge object draws the sections of its `mode` whose permutation, else
+// whose region, carries the object's representation name. A `mode` that serves several
+// representations keeps each in its own permutation: Fortress's type -960331706 has a
+// 2.29 m default permutation and a 2.20 m "forge" one (528041935), which the `rtgo` of
+// representation 528041935 re-centres.
+func maillagesDeLaRepresentation(tag []byte, nom uint32) []int {
+	if nom == 0 {
+		return nil
+	}
+	regions, err := ModeRegions(tag)
+	if err != nil {
+		return nil
+	}
+	return sectionsDeLaRepresentation(regions, nom)
+}
+
+// sectionsDeLaRepresentation is maillagesDeLaRepresentation on a `mode`'s regions.
+func sectionsDeLaRepresentation(regions []Region, nom uint32) []int {
+	var parPermutation, parRegion []int
+	for _, r := range regions {
+		for _, p := range r.Permutations {
+			if p.SectionIndex < 0 {
+				continue
+			}
+			for k := 0; k < p.SectionCount; k++ {
+				if p.Name == nom {
+					parPermutation = append(parPermutation, p.SectionIndex+k)
+				}
+				if r.Name == nom {
+					parRegion = append(parRegion, p.SectionIndex+k)
+				}
+			}
+		}
+	}
+	if len(parPermutation) > 0 {
+		return parPermutation
+	}
+	return parRegion
+}
+
+// modeDuObjet returns the first `mode` the `hlmt` models of an object tag reference, drawn as
+// representation `nom` (maillagesDeLaRepresentation); nil without.
+func modeDuObjet(ctx context.Context, idx *ModuleIndex, objet []byte, assets map[uint32]*RuntimeGeoAsset, nom uint32) *modelePose {
 	for _, hModele := range refsInlineDuGroupe(objet, idx, GroupeHlmt) {
 		hlmt, err := idx.Extract(hModele)
 		if err != nil {
@@ -129,6 +177,9 @@ func modeDuObjet(ctx context.Context, idx *ModuleIndex, objet []byte, assets map
 			}
 			if a != nil {
 				mp := lisModelePose(a, GroupeMode, nil)
+				if s := maillagesDeLaRepresentation(a.info.tag, nom); s != nil {
+					mp.maillages = s
+				}
 				return &mp
 			}
 		}

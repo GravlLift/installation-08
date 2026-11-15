@@ -2,6 +2,7 @@
 package himap
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -28,6 +29,34 @@ func TestOrigineRtgo(t *testing.T) {
 				t.Errorf("%s: %v, want %v", c.nom, got, c.veut)
 				break
 			}
+		}
+	}
+}
+
+// TestSectionsDeLaRepresentation: a representation draws the permutation named after it (the
+// "forge" permutation of Fortress's -960331706), else the region named after it, else nothing
+// (the caller keeps the default permutations).
+func TestSectionsDeLaRepresentation(t *testing.T) {
+	const defaut, forge, autre = 1120495519, 528041935, 77
+	regions := []Region{
+		{Name: defaut, Permutations: []Permutation{
+			{Name: defaut, SectionIndex: 0, SectionCount: 2},
+			{Name: forge, SectionIndex: 2, SectionCount: 2},
+		}},
+		{Name: autre, Permutations: []Permutation{{Name: defaut, SectionIndex: 4, SectionCount: 1}, {Name: 9, SectionIndex: -1}}},
+	}
+	cas := []struct {
+		nom  uint32
+		veut []int
+	}{
+		{forge, []int{2, 3}},
+		{defaut, []int{0, 1, 4}},
+		{autre, []int{4}},
+		{12345, nil},
+	}
+	for _, c := range cas {
+		if got := sectionsDeLaRepresentation(regions, c.nom); fmt.Sprint(got) != fmt.Sprint(c.veut) {
+			t.Errorf("representation %d: sections %v, want %v", c.nom, got, c.veut)
 		}
 	}
 }
