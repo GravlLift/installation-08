@@ -82,6 +82,13 @@ describe('specLunette', () => {
     expect(specLunette('0a1992bc', 'hinf_skewer')).toEqual({ kind: 'scope' })
   })
 
+  it('gives the Skewer a scope so the first-person gun is hidden while zoomed', () => {
+    // The Skewer's model key is not in the model table, so it resolves through the label table.
+    // It is a `scope` (not a `smartLink`): in game the zoomed Skewer is fully out of focus at
+    // center (the overlay's red haze stands for it), so the sharp hip weapon must leave the screen.
+    expect(specLunette('0d20c469', 'hinf_skewer')).toEqual({ kind: 'scope' })
+  })
+
   it('falls back to the default scope for a weapon no table lists', () => {
     expect(specLunette('6b049244', null)).toEqual({ kind: 'smartLink' })
   })

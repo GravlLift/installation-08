@@ -38,11 +38,14 @@ const LUNETTES = {
   stalker: { kind: 'scope' },
   // The Vestige Carbine's ADS capture (2026-11-15) shows no weapon on screen when zoomed.
   vestige: { kind: 'scope' },
-  // The Skewer keeps its weapon on screen when zoomed: its `weap` tag leaves "hide FP weapon when in
-  // iron sights" (root flags, bit 14) clear, where the S7's and the Shock Rifle's set it (read
-  // 2026-11-15). As a scope, the arms left the screen and its zoomed shots (21 of the 32 Skewer
-  // shots of match 05dfe4e9 are fired at zoom level 1) showed no fire animation.
-  skewer: { kind: 'smartLink' },
+  // The Skewer HIDES its first-person weapon and arms when zoomed, like a scoped rifle. Its `weap`
+  // tag leaves "hide FP weapon when in iron sights" (root flags, bit 14) clear, so an earlier reading
+  // kept a sharp weapon on screen — but the user's in-game capture of 2026-11-15 (skewer_1.jpg /
+  // skewer_2.jpg) shows no sharp gun anywhere, in particular nothing at the hip: the Skewer is
+  // raised to the screen center and drawn fully out of focus, a soft red haze the overlay
+  // (`design: 'skewer'`) stands for. A sharp hip weapon was wrong; the kind is `scope` so the arms
+  // leave while zoomed, and the overlay keeps the Skewer's own red reticle.
+  skewer: { kind: 'scope' },
   br75: { kind: 'scope' },
   vk78: { kind: 'scope' },
   bandit: { kind: 'bandit' },
