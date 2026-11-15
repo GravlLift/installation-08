@@ -11,10 +11,14 @@ import { describe, expect, it } from 'vitest'
 import {
   ENCODE_QUEUE_MAX,
   EXPORT_FPS,
+  EXPORT_FPS_3D,
   KEYFRAME_EVERY,
   avcLevelFor,
   canExportVideo,
+  chooseExportFps,
   evenSize,
+  frameDurationUs,
+  frameTimestampUs,
   isKeyFrame,
   shouldDrain,
   videoBitrate,
@@ -110,6 +114,74 @@ describe('contre-pression et images-clés', () => {
     expect(isKeyFrame(1)).toBe(false)
     expect(isKeyFrame(KEYFRAME_EVERY)).toBe(true)
     expect(KEYFRAME_EVERY).toBe(60)
+  })
+})
+
+describe('the 3D export at 60 fps', () => {
+  it('the 3D rate is 60, the 2D rate stays 30', () => {
+    expect(EXPORT_FPS_3D).toBe(60)
+    expect(EXPORT_FPS).toBe(30)
+  })
+
+  it('keyframes stay every 2 seconds of clip at 60: every 120 frames', () => {
+    expect(isKeyFrame(0, 60)).toBe(true)
+    expect(isKeyFrame(60, 60)).toBe(false)
+    expect(isKeyFrame(119, 60)).toBe(false)
+    expect(isKeyFrame(120, 60)).toBe(true)
+  })
+
+  it('1080p60 asks level 4.2 and 720p60 level 3.2, each holding its macroblock rate', () => {
+    const hd = videoEncoderConfig(1920, 1080, 60)
+    expect(hd).toMatchObject({ codec: 'avc1.64002a', width: 1920, height: 1080, framerate: 60 })
+    // 120x68 MB x 60 = 489 600 MB/s: over 4.0 (245 760), within 4.2 (522 240, 8704 MB).
+    expect(hd.bitrate).toBe(12_441_600)
+    const sd = videoEncoderConfig(1280, 720, 60)
+    // 80x45 MB x 60 = 216 000 MB/s: exactly 3.2's ceiling.
+    expect(sd).toMatchObject({ codec: 'avc1.640020', framerate: 60, bitrate: 5_529_600 })
+  })
+
+  it('the bitrate doubles with the rate: same bits per pixel and frame', () => {
+    expect(videoBitrate(1920, 1080, 60)).toBe(2 * videoBitrate(1920, 1080, 30))
+  })
+
+  it('timestamps come from the index: one minute at 60 ends at exactly 60 s, no drift', () => {
+    expect(frameTimestampUs(0, 60)).toBe(0)
+    expect(frameTimestampUs(1, 60)).toBe(16_667)
+    expect(frameTimestampUs(2, 60)).toBe(33_333)
+    expect(frameTimestampUs(3600, 60)).toBe(60_000_000)
+    expect(frameTimestampUs(36_000, 60)).toBe(600_000_000)
+    // Durations tile: each frame ends where the next starts.
+    let end = 0
+    for (let i = 0; i < 600; i++) {
+      expect(frameTimestampUs(i, 60)).toBe(end)
+      end += frameDurationUs(i, 60)
+    }
+    expect(end).toBe(10_000_000)
+  })
+
+  it('chooseExportFps keeps 60 when the browser accepts it', async () => {
+    const asked: number[] = []
+    const fps = await chooseExportFps(1920, 1080, 60, 30, async (c) => {
+      asked.push(c.framerate ?? 0)
+      return true
+    })
+    expect(fps).toBe(60)
+    expect(asked).toEqual([60])
+  })
+
+  it('chooseExportFps falls back to 30 only when 60 is refused, and probes the 30 config', async () => {
+    const asked: string[] = []
+    const fps = await chooseExportFps(1920, 1080, 60, 30, async (c) => {
+      asked.push(`${c.codec}@${c.framerate}`)
+      return c.framerate === 30
+    })
+    expect(fps).toBe(30)
+    expect(asked).toEqual(['avc1.64002a@60', 'avc1.640028@30'])
+  })
+
+  it('chooseExportFps returns null when nothing is accepted, or 60 is refused without fallback', async () => {
+    expect(await chooseExportFps(1920, 1080, 60, 30, async () => false)).toBeNull()
+    expect(await chooseExportFps(1920, 1080, 60, undefined, async (c) => c.framerate === 30)).toBeNull()
   })
 })
 

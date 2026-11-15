@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import { KILL_POPUP_SECONDS, campAGauche, formeReticule, horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, marqueImpact, preparerAth } from './ath3d_logic'
 import { testReplayDoc } from '../test/testDoc'
+import { buildExportPlan } from '../export/replayExportPlan'
+import { frameToMs } from '@/lib/replay/replayLogic'
 
 describe('HUD 3D display', () => {
   it('chooses reticle shapes by weapon key and class', () => {
@@ -231,5 +233,61 @@ describe('HUD 3D score banner: enemy bar first when followed player is team 1', 
     expect(reading?.allieAGauche).toBe(false)
     expect(reading?.ally.teamId).toBe(1)
     expect(reading?.enemy.teamId).toBe(0)
+  })
+})
+
+describe('HUD 3D at the 60 fps export steps (half film frames)', () => {
+  // A ~30 Hz film, as Halo's (33.3 ms per frame): the 60 fps export samples it at half frames.
+  const doc = () => testReplayDoc({ frameIntervalMs: 100 / 3, frameCount: 400 })
+  const kill = (replayMs: number, xuid: string, victimXuid: string) => ({
+    replayMs, tMs: replayMs, xuid, victimXuid, victimGamertag: victimXuid, teamID: 0,
+    weaponKey: '', weaponLabel: '', weaponImageUrl: '', weaponTinted: false,
+    assistState: '' as const, assistGamertag: '', assistTeamID: null, killerDamagePct: null, assistDamagePct: null, medals: [],
+  })
+  // Two kills 10 ms apart (closer than one 16.7 ms step), one on a half frame, one past the clip.
+  const kills = [kill(1000, 'A', 'B'), kill(1010, 'C', 'D'), kill(2016.6, 'A', 'E'), kill(20_000, 'A', 'F')]
+  const plan = buildExportPlan({ startFrame: 0, endFrame: 300 }, doc(), 60)
+  const sampleMs = (i: number) => frameToMs(plan.frames[i], doc())
+
+  it('each kill enters the feed exactly once, at the first sample at or after it, and stays contiguous', () => {
+    const source = preparerAth(doc(), 'A', kills)
+    const seen = new Map<number, number[]>()
+    plan.frames.forEach((frame, i) => {
+      const feed = lireFilAth(source, frame).map((e) => e.kill.replayMs)
+      // No kill twice in one frame's feed.
+      expect(new Set(feed).size).toBe(feed.length)
+      for (const ms of feed) seen.set(ms, [...(seen.get(ms) ?? []), i])
+    })
+    for (const k of kills.slice(0, 3)) {
+      const at = seen.get(k.replayMs) ?? []
+      const first = plan.frames.findIndex((_, i) => sampleMs(i) >= k.replayMs - 1e-6)
+      expect(at[0]).toBe(first)
+      // One run of consecutive samples: never shown, hidden, then shown again.
+      expect(at).toEqual(at.map((_, j) => first + j))
+    }
+    // The kill past the clip's end is never shown.
+    expect(seen.has(20_000)).toBe(false)
+  })
+
+  it('the followed player\'s kill popups follow the same rule', () => {
+    const source = preparerAth(doc(), 'A', kills)
+    const runs = new Map<number, number[]>()
+    plan.frames.forEach((frame, i) => {
+      for (const p of lirePopupsAth(source, frame)) runs.set(p.kill.replayMs, [...(runs.get(p.kill.replayMs) ?? []), i])
+    })
+    for (const ms of [1000, 2016.6]) {
+      const at = runs.get(ms) ?? []
+      expect(at.length).toBeGreaterThan(0)
+      expect(at).toEqual(at.map((_, j) => at[0] + j))
+    }
+    // Not the followed player's kill: no popup.
+    expect(runs.has(1010)).toBe(false)
+  })
+
+  it('a reading depends on the frame alone: the same sample read twice, in any order, is identical', () => {
+    const source = preparerAth(doc(), 'A', kills)
+    const forward = plan.frames.map((f) => lireFilAth(source, f).map((e) => e.kill.replayMs))
+    const backward = [...plan.frames].reverse().map((f) => lireFilAth(source, f).map((e) => e.kill.replayMs)).reverse()
+    expect(backward).toEqual(forward)
   })
 })

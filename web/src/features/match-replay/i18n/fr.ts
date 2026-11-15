@@ -413,6 +413,7 @@ export const FR_TEXT = {
   exportEtaFmt: (clock) => `environ ${clock} restantes`,
   exportDoneFmt: (filename) => `Fichier déposé : ${filename}`,
   exportMutedFallback: "Clip MUET : ce navigateur a refusé la piste sonore.",
+  exportFpsFallbackFmt: (fps) => `Clip à ${fps} im/s : ce navigateur ne sait pas encoder 60 im/s à cette taille.`,
   exportTrackMix: 'Mixage complet',
   exportTrackSfx: 'Bruitages',
   exportTrackVoice: 'Voix',

@@ -109,6 +109,8 @@ export interface ActionContext {
 
 export interface ActionLayer3d {
   update(frame: number): void
+  /** Finish the deferred work frame `frame` needs before it is drawn (`ActionScene3d.settle`). */
+  settle?(frame: number): void
   prepareCorpses?(): THREE.Object3D[]
   /** Les étiquettes du calque (repeintes dans l'image exportée). */
   readonly labels?: LabelPool
@@ -203,6 +205,15 @@ export class ActionScene3d {
     this.ctx.flashes.begin()
     for (const l of this.layers) l.update(frame)
     this.ctx.flashes.end()
+  }
+
+  /**
+   * settle finishes, before frame `frame` is drawn, the work a layer otherwise spreads over the
+   * frames of the view (the ragdoll bakes of the bodies visible there). The video export calls it
+   * on each frame so that no encoded frame shows a stopgap; the screen never does.
+   */
+  settle(frame: number): void {
+    for (const l of this.layers) l.settle?.(frame)
   }
 
   prepareCorpses(): THREE.Object3D[] {

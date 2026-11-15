@@ -988,6 +988,8 @@ export interface ReplayText {
   exportDoneFmt: (filename: string) => string
   /** Le son etait demande, le navigateur l'a refuse : le clip est muet, et on le DIT. */
   exportMutedFallback: string
+  /** A 3D clip meant for 60 fps that the browser could only encode at `fps`: said, never silent. */
+  exportFpsFallbackFmt: (fps: number) => string
   /**
    * LES NOMS DES PISTES SONORES du clip. Ils sont ECRITS DANS LE FICHIER : c'est ce qu'un
    * montage affiche dans sa liste de pistes, et la seule chose qui distingue « bruitages » de

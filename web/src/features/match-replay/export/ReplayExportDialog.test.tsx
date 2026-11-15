@@ -191,6 +191,7 @@ describe('ReplayExportDialog — la vue 3D', () => {
       beginExport: vi.fn(),
       exportFrame: vi.fn(),
       exportTags: vi.fn(() => []),
+      exportPendingLoads: () => null,
       endExport: vi.fn(),
     }
     release = registerReplay3DExport({ source, live, camera: 'tp', pov: 'x1' })

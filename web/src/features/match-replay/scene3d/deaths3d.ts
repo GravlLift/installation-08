@@ -91,11 +91,7 @@ export class Deaths3dLayer implements ActionLayer3d {
     this.crosses.begin()
     this.links.begin()
     this.corpses.begin(this.ctx.spartanModel())
-    if (inputs.kills !== this.source) {
-      this.source = inputs.kills
-      this.deaths = buildDeaths3d(this.ctx, inputs.kills)
-      this.bakery.setDeaths(this.deaths)
-    }
+    this.syncDeaths()
     const hold = Math.max(1, inputs.deathHoldFrames)
     const fps = Math.max(1, inputs.framesPerSecond)
     for (let i = firstFrom(this.deaths, (d) => d.frame, frame - hold); i < this.deaths.length; i++) {
@@ -109,6 +105,21 @@ export class Deaths3dLayer implements ActionLayer3d {
     this.links.end()
     this.corpses.end()
     this.bakery.pump(frame, hold, performance.now() + FRAME_BUDGET_MS)
+  }
+
+  /** settle bakes, to completion, the bodies visible at `frame` (the video export, `ActionScene3d.settle`). */
+  settle(frame: number): void {
+    this.syncDeaths()
+    this.bakery.bakeVisible(frame, Math.max(1, this.ctx.inputs().deathHoldFrames))
+  }
+
+  /** syncDeaths rebuilds the deaths when the page's kill list changed. */
+  private syncDeaths(): void {
+    const kills = this.ctx.inputs().kills
+    if (kills === this.source) return
+    this.source = kills
+    this.deaths = buildDeaths3d(this.ctx, kills)
+    this.bakery.setDeaths(this.deaths)
   }
 
   /** Prépare une copie de chaque victime possible avec la teinte du calque. */

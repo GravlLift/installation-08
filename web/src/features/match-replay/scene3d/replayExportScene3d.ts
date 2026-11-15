@@ -28,8 +28,11 @@ interface ExportScene {
   applyPov(xuid: string | null): void
   applyMode(mode: CameraMode3d): void
   placeAvatars(frame: number): void
-  placeCamera(frame: number): void
+  /** `dt`: seconds of MATCH since the previous exported frame (the spring arm's ease). */
+  placeCamera(frame: number, dt: number): void
   placeFirstPerson(frame: number): void
+  /** Drives the clouds from match time (seconds), or hands them back to the wall clock (null). */
+  setSkyClock?(seconds: number | null): void
 }
 
 /** La vue d'écran pendant un export : ce qu'elle avait, et ce qu'elle demande depuis. */
@@ -48,12 +51,22 @@ interface HeldView {
   target: THREE.Vector3
 }
 
+/**
+ * exportStepSeconds: the MATCH seconds between two exported frames (`frameMs` per document
+ * frame). Never negative: the first frame, and a held last frame, step by zero.
+ */
+export function exportStepSeconds(previous: number, frame: number, frameMs: number): number {
+  return Math.max(0, frame - previous) * Math.max(0, frameMs) / 1000
+}
+
 /** Gère la prise de la scène et la restitution de la vue d'écran. */
 export class ReplayExportScene3d {
   /** La vue d'écran retenue pendant l'export, ou null hors export. */
   held: HeldView | null = null
 
   private readonly scene: ExportScene
+  /** The previous exported frame, and the match duration of a document frame (ms). */
+  private clock = { previous: 0, frameMs: 0 }
 
   constructor(scene: ExportScene) { this.scene = scene }
 
@@ -73,6 +86,7 @@ export class ReplayExportScene3d {
       quaternion: this.scene.camera.quaternion.clone(),
       target: this.scene.orbit.target.clone(),
     }
+    this.clock = { previous: setup.frame, frameMs: setup.frameMs }
     // Le fichier a sa propre taille : la densité de l'écran n'entre pas dans le rendu.
     this.scene.renderer.setPixelRatio(1)
     this.scene.post.composer.setPixelRatio(1)
@@ -85,12 +99,23 @@ export class ReplayExportScene3d {
     this.scene.orbit.enabled = false
   }
 
-  /** Dessine une image vidéo sans rendre les étiquettes HTML. */
+  /**
+   * Dessine une image vidéo sans rendre les étiquettes HTML. Everything posed here is a function
+   * of `frame` and of MATCH time: the export renders far slower or faster than real time, so a
+   * wall-clock step would change the motion with the machine's load.
+   */
   exportFrame(frame: number): HTMLCanvasElement {
+    const dt = exportStepSeconds(this.clock.previous, frame, this.clock.frameMs)
+    this.clock.previous = frame
     this.scene.lastFrame = frame
+    this.scene.setSkyClock?.((frame * this.clock.frameMs) / 1000)
     if (this.scene.hasTracks) {
+      // Bodies visible at this frame are baked to completion FIRST (the death camera reads them
+      // too): on screen a body falls by the game's clips until its bake is ready; a video frame
+      // does not encode that stopgap.
+      this.scene.action?.settle(frame)
       this.scene.placeAvatars(frame)
-      this.scene.placeCamera(frame)
+      this.scene.placeCamera(frame, dt)
       this.scene.placeFirstPerson(frame)
       this.scene.action?.update(frame)
     }
@@ -124,6 +149,7 @@ export class ReplayExportScene3d {
     const held = this.held
     if (!held) return
     this.held = null
+    this.scene.setSkyClock?.(null)
     this.scene.renderer.setPixelRatio(held.pixelRatio)
     this.scene.post.composer.setPixelRatio(held.pixelRatio)
     this.applySize(held.width, held.height, true)

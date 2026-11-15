@@ -23,6 +23,12 @@ export interface Export3dSetup {
   pov: string | null
   /** La première image du clip : la caméra libre prise pour l'export se pose là. */
   frame: number
+  /**
+   * Milliseconds of match per document frame (`doc.frameIntervalMs`). During the export the
+   * scene's time-based motion (third-person spring arm, clouds) runs on MATCH time derived from
+   * the posed frames, never on the wall clock, which in an offline export measures render cost.
+   */
+  frameMs: number
 }
 
 /** Une étiquette de joueur projetée dans l'image exportée, en pixels du fichier. */
@@ -43,6 +49,13 @@ export interface Replay3DExportSource {
   exportFrame(frame: number): HTMLCanvasElement
   /** Les étiquettes visibles de la dernière image rendue. */
   exportTags(): readonly ExportTag3d[]
+  /**
+   * Null when nothing the scene draws is still loading; otherwise a promise that resolves once
+   * the pending loads (weapon models, armor, first-person rigs a frame just asked for) settled,
+   * with `true` if it gave up waiting. The export then renders the frame AGAIN, so that no frame
+   * is encoded with a model missing because it was still in flight.
+   */
+  exportPendingLoads(): Promise<boolean> | null
   /** Rend la scène à la vue d'écran (taille, caméra, joueur suivi). */
   endExport(): void
 }

@@ -94,6 +94,22 @@ export class RagdollBakery {
     }
   }
 
+  /**
+   * bakeVisible finishes, with no time budget, the bakes of the bodies visible at `frame`, and
+   * only those: the video export must not encode a body falling by the clips stopgap, and it can
+   * afford to wait where the screen cannot. Bodies further away keep the budgeted path.
+   */
+  bakeVisible(frame: number, hold: number): void {
+    this.playhead = frame
+    this.hold = hold
+    if (!this.validate()) return
+    for (;;) {
+      const d = this.next()
+      if (!d || !this.visible(d)) return
+      this.advance(d, Infinity)
+    }
+  }
+
   stats(): BakeryStats {
     return { ...this.totals }
   }
@@ -140,14 +156,18 @@ export class RagdollBakery {
     let bestKey = Infinity
     for (const d of this.deaths) {
       if (!d.body || this.bakes.has(this.keys.get(d) ?? '')) continue
-      const visible = d.body.start <= this.playhead && this.playhead - d.frame < this.hold
-      const key = (visible ? 0 : 1e9) + Math.abs(d.body.start - this.playhead)
+      const key = (this.visible(d) ? 0 : 1e9) + Math.abs(d.body.start - this.playhead)
       if (key < bestKey) {
         bestKey = key
         best = d
       }
     }
     return best
+  }
+
+  /** visible: is the body of death `d` drawn at the playhead? */
+  private visible(d: Death3d): boolean {
+    return !!d.body && d.body.start <= this.playhead && this.playhead - d.frame < this.hold
   }
 
   /** validate : le Spartan et la carte sont-ils ceux des cuissons ? Sinon tout est oublié. Faux sans Spartan. */

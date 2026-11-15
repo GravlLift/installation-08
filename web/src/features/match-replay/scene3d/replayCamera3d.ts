@@ -38,6 +38,8 @@ export class ReplayCamera3d {
   /** The third-person spring arm length in u; -1 until the first placement, which starts at full length. */
   private armLength = -1
   private lastClock = 0
+  /** The match step of the current placement (export), or null on screen (wall clock). */
+  private matchDt: number | null = null
 
   constructor(state: CameraState) { this.state = state }
 
@@ -55,8 +57,13 @@ export class ReplayCamera3d {
     return { state: tracks.firstLifeAfter(povXuid, f), status: 'unspawned' }
   }
 
-  /** placeCamera pose la caméra sur le joueur suivi (cf. povState) ; la caméra libre reste où elle est. */
-  placeCamera(f: number): PovStatus {
+  /**
+   * placeCamera pose la caméra sur le joueur suivi (cf. povState) ; la caméra libre reste où elle est.
+   * `dt`: the seconds of MATCH since the previous placement, given by the video export; absent,
+   * the wall clock (the screen plays in real time).
+   */
+  placeCamera(f: number, dt?: number): PovStatus {
+    this.matchDt = dt ?? null
     const { state: s, status } = this.povState(f)
     if (!s || this.state.mode === 'free') return status
     // En 1re personne, un joueur mort suit son corps inerte en 3e, ou garde son dernier œil.
@@ -95,8 +102,16 @@ export class ReplayCamera3d {
     this.state.camera.position.copy(eye).addScaledVector(this.tmpArm, this.armLength)
   }
 
-  /** deltaTime: seconds since the previous placement, clamped so a pause does not skip the ease. */
+  /**
+   * deltaTime: seconds since the previous placement, clamped so a pause does not skip the ease.
+   * During an export, the match step it was given: the wall clock there measures render cost.
+   */
   private deltaTime(): number {
+    if (this.matchDt !== null) {
+      // The screen's clock restarts from zero after the export instead of seeing one long step.
+      this.lastClock = 0
+      return Math.min(Math.max(this.matchDt, 0), 0.1)
+    }
     const now = performance.now()
     const dt = this.lastClock === 0 ? 0 : (now - this.lastClock) / 1000
     this.lastClock = now
