@@ -32,7 +32,6 @@
 import * as THREE from 'three'
 
 import { msToFrames } from '@/lib/replay/replayLogic'
-import { decodeFullRateFlight, type ReplayFullRateFlightRaw } from '@/lib/replay/replayFullRate'
 import type { ReplayProjectileReady } from '@/lib/replay/replayReadyTypes'
 
 import { fxTintOf, type FxTint } from '../layers/fxInk'
@@ -289,17 +288,13 @@ function buildFlights(ctx: ActionContext): Flight[] {
     // series (one point per film record, ~16.7 ms) for the head's position and trail; the grid
     // points (`p`/`z`) stay the fallback for artifacts before 127. The native series carries the
     // same arc and bounces, at the film's own rate, so the head moves smoothly between grid frames.
-    // `fullRate` may arrive in differential form (the document's raw shape) or already decoded
-    // (a normalized document): detect by whether `t` is all non-negative (decoded) or has
-    // negative deltas (differential). The decoder is idempotent on already-decoded input only if
-    // the columns are absolute, so we re-read the raw differential form here when it is.
-    const rawFullRate = (pr as { fullRate?: ReplayFullRateFlightRaw }).fullRate
-    const fr = rawFullRate && ctx.doc.frameIntervalMs
-      ? decodeFullRateFlight(rawFullRate, ctx.doc.frameIntervalMs)
-      : undefined
-    // `fr.t` is in RELATIVE frames (from the flight's start); add `pr.t0` to get absolute frames,
-    // the same axis as the grid path's `at` (`pr.t0 + st[0]`).
-    const at = fr ? fr.t.map((t) => pr.t0 + t) : pr.p.map((st) => pr.t0 + st[0])
+    // The document is normalized: `pr.fullRate` is already the decoded flight
+    // (`ReplayFullRateFlightReady`, one decode at the boundary, `replayNormalize.ts`), so read it
+    // as is. Its `t` is ABSOLUTE fractional frames (ms since the GRID ORIGIN / frameIntervalMs,
+    // the same axis as the grid path's `pr.t0 + st[0]` — `ajouter` in `projectiles.go` divides
+    // each sample's film timestamp by the grid origin, not the flight's), so no `t0` is added.
+    const fr = pr.fullRate
+    const at = fr ? fr.t : pr.p.map((st) => pr.t0 + st[0])
     const pts = fr
       ? fr.t.map((_, k) => new THREE.Vector3(...toThree(fr.x[k], fr.y[k], fr.z[k])))
       : pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
