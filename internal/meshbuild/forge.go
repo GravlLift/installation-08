@@ -19,11 +19,13 @@ package meshbuild
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
+	"github.com/llampwall/infinite-theater-3d/internal/mapref"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -73,7 +75,41 @@ func BuildForgeMap(ctx context.Context, opts ForgeMapOptions, out string, announ
 	if err != nil {
 		return mapmesh.Summary{}, err
 	}
+	catalog, err := mapref.DefaultForgeMaterials()
+	if err != nil {
+		return mapmesh.Summary{}, err
+	}
+	if target.SunIntensity, target.SunColor, err = forgeSun(v.Lighting, catalog); err != nil {
+		return mapmesh.Summary{}, err
+	}
 	return mapmesh.Build(ctx, gameRoot, target, out, generatorTagForge, announce)
+}
+
+// forgeSun returns the sun a Forge map's own lighting options set over its canvas's: the
+// Sunlight intensity, and the Sunlight color override when it is switched on (mapvar.Lighting),
+// resolved in the Forge globals' color list (`catalog`, forge_materials.json "colors") and scaled
+// to a peak of 1 (the scenario suns' convention; the intensity carries the strength). nil for
+// what the variant does not set.
+func forgeSun(l *mapvar.Lighting, catalog []byte) (*float64, *[3]float64, error) {
+	if l == nil {
+		return nil, nil, nil
+	}
+	var color *[3]float64
+	if l.SunColorSwitch == mapvar.SunColorOverrideOn {
+		var doc struct {
+			Colors [][3]float64 `json:"colors"`
+		}
+		if err := json.Unmarshal(catalog, &doc); err != nil {
+			return nil, nil, fmt.Errorf("forge colors: %w", err)
+		}
+		if i := l.SunColorIndex; i >= 0 && i < len(doc.Colors) {
+			c := doc.Colors[i]
+			if peak := max(c[0], c[1], c[2]); peak > 0 {
+				color = &[3]float64{c[0] / peak, c[1] / peak, c[2] / peak}
+			}
+		}
+	}
+	return l.SunIntensity, color, nil
 }
 
 // ResolveForgeTarget resolves the world-mesh target of the Forge map whose variant is `v`: its
