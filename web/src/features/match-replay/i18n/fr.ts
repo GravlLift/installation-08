@@ -150,6 +150,12 @@ export const FR_TEXT = {
   padEquipmentFamily: {
     powerup_overshield: 'Surbouclier',
     powerup_camo: 'Camouflage actif',
+    repulsor: 'Répulseur',
+    translocator_beacon: 'Translocateur',
+    wall: 'Mur déployable',
+    grapple: 'Grappin',
+    sensor: 'Détecteur de menaces',
+    thruster: 'Propulseur',
   },
   layerModeObjectives: 'Objectifs du mode',
   layerModeObjectivesHint:

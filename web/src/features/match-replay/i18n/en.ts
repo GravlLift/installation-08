@@ -148,6 +148,12 @@ export const EN_TEXT = {
   padEquipmentFamily: {
     powerup_overshield: 'Overshield',
     powerup_camo: 'Active camouflage',
+    repulsor: 'Repulsor',
+    translocator_beacon: 'Translocator',
+    wall: 'Drop wall',
+    grapple: 'Grappleshot',
+    sensor: 'Threat sensor',
+    thruster: 'Thruster',
   },
   layerModeObjectives: 'Mode objectives',
   layerModeObjectivesHint:

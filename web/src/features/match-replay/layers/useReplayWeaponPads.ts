@@ -46,6 +46,7 @@ import { frameToMs, type XY } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayWeaponPadReady } from '../../../lib/replay/replayNormalize'
 import {
   PAD_EQUIPMENT_FAMILIES,
+  displayKeyOf,
   padEquipmentFamilyOf,
   padFamilyOf,
   padScaleOf,
@@ -119,7 +120,7 @@ export function padScaleFor(weapon: string, labels: PadLabels): PadScale {
  *
  * 1. a known equipment family returns its local bilingual label (`padEquipmentFamily`);
  * 2. otherwise the bilingual label of the document, if it names this identifier;
- * 3. otherwise the identifier itself — and that is INTENDED for a weapon off the catalog of
+ * 3. otherwise the IDENTIFIER ITSELF — and that is INTENDED for a weapon off the catalog of
  *    the title: the hexadecimal is then the only true thing one can write.
  *    THE EXAMPLE CITED HERE UNTIL 2026-09-13 WAS FALSE. The family `0xD7915565` (Mutilator)
  *    was not an "off-catalog" weapon: it had been named since April, and only its identifier
@@ -128,6 +129,12 @@ export function padScaleFor(weapon: string, labels: PadLabels): PadScale {
  *    a game weapon that falls to step 3 is a shortage to handle, not a fatality.
  *    An equipment family, for its part, can never fall in this case: it is named at step 1
  *    or it is not in the table.
+ *
+ * 4. A NON-HEX IDENTIFIER that none of the steps above named (an equipment key the
+ *    table does not carry yet) is not served RAW: the raw key is a defect marker, and the
+ *    tooltip shows its readable writing instead (`displayKeyOf`: underscores become
+ *    spaces, words title-cased). The hexadecimal keeps its exact form: it is the identity
+ *    of the weapon, and dressing it would lose information.
  */
 export function padNameFor(
   weapon: string,
@@ -137,7 +144,20 @@ export function padNameFor(
 ): string {
   const family = padEquipmentFamilyOf(weapon)
   if (family) return t.padEquipmentFamily[family]
-  return catalogText(labels?.[weaponLabelKeyOf(weapon)], locale) ?? weapon
+  const named = catalogText(labels?.[weaponLabelKeyOf(weapon)], locale)
+  if (named) return named
+  return isWeaponHexIdentifier(weapon) ? weapon : displayKeyOf(weapon)
+}
+
+/**
+ * isWeaponHexIdentifier — the IDENTIFIER OF A WEAPON as the film writes it: an optional
+ * `0x` prefix over one to eight hexadecimal digits. These identifiers fall through to the
+ * RAW form in step 3 of `padNameFor`; everything else is a family-style key, which takes
+ * the readable writing of step 4.
+ */
+export function isWeaponHexIdentifier(w: string): boolean {
+  const hex = w.startsWith('0x') || w.startsWith('0X') ? w.slice(2) : w
+  return /^[0-9a-fA-F]{1,8}$/.test(hex)
 }
 
 /** A vignette to load: its URL, its mode (mask to tint or finished image), its orientation. */
