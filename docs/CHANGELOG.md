@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-test.12
+
+Changes since 0.1.0-test.11.
+
+- The export dialog's start and end times now match the playback bar (they counted from gameplay start, so they disagreed by the pre-game length).
+- The first-person weapon keeps its paint when the arms are repainted, for example after zooming and reloading. It could show plain grey for a moment before.
+
 ## 0.1.0-test.11
 
 Changes since 0.1.0-test.10.
