@@ -8,7 +8,7 @@ type Pass = { children: THREE.Object3D[]; scene: THREE.Object3D }
 /** A stand-in renderer whose stock shadow pass records what it walks and makes a map like three. */
 function fakeRenderer(sun: THREE.DirectionalLight) {
   const passes: Pass[] = []
-  const merges: { kept: unknown; into: unknown }[] = []
+  const merges: { kept: unknown; into: unknown; autoClear: boolean; scene: THREE.Object3D }[] = []
   let target: THREE.WebGLRenderTarget | null = null
   let made = 0
   const shadowMap = {
@@ -24,13 +24,17 @@ function fakeRenderer(sun: THREE.DirectionalLight) {
   }
   const renderer = {
     shadowMap,
+    autoClear: true,
     getRenderTarget: () => target,
     getActiveCubeFace: () => 0,
     getActiveMipmapLevel: () => 0,
     setRenderTarget: (t: THREE.WebGLRenderTarget | null) => { target = t },
-    renderBufferDirect: (_c: unknown, _s: unknown, _g: unknown, material: THREE.ShaderMaterial) => {
-      merges.push({ kept: material.uniforms.tStatic.value, into: target })
+    // Only a scene render uploads a geometry's buffers: the merge must come through here, its quad in the scene.
+    render(scene: THREE.Object3D) {
+      const quad = scene.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | undefined
+      if (quad) merges.push({ kept: quad.material.uniforms.tStatic.value, into: target, autoClear: this.autoClear, scene })
     },
+    renderBufferDirect: () => { throw new Error('renderBufferDirect draws without uploading the geometry') },
   }
   return { renderer: renderer as unknown as THREE.WebGLRenderer, shadowMap, passes, merges }
 }
@@ -65,6 +69,17 @@ describe('ShadowSplit', () => {
     t.update()
     expect(t.passes.slice(2).map((p) => p.children)).toEqual([[t.sun, t.player], [t.sun, t.player]])
     expect(t.merges.map((m) => m.kept)).toEqual([kept, kept, kept])
+    expect(t.renderer.getRenderTarget()).toBeNull()
+  })
+
+  it('merges through a scene render without clearing the moving casters, then gives autoClear back', () => {
+    const t = setup()
+    t.split.setStatic([t.map])
+    t.update()
+    expect(t.merges).toHaveLength(1)
+    expect(t.merges[0].scene).not.toBe(t.scene)
+    expect(t.merges[0].autoClear).toBe(false)
+    expect(t.renderer.autoClear).toBe(true)
     expect(t.renderer.getRenderTarget()).toBeNull()
   })
 

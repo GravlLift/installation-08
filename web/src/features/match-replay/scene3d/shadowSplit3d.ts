@@ -73,6 +73,7 @@ export class ShadowSplit {
     })
     this.quad = new THREE.Mesh(geometry, material)
     this.quad.frustumCulled = false
+    this.quadScene.add(this.quad)
   }
 
   /** setStatic: the roots whose casters never move (map, variant layer); the kept map is redone. */
@@ -130,12 +131,30 @@ export class ShadowSplit {
     this.stock(lights, this.movingPart, camera)
     const map = shadow.map
     if (!map || !this.kept) return
-    const target = this.renderer.getRenderTarget()
-    const face = this.renderer.getActiveCubeFace()
-    const mip = this.renderer.getActiveMipmapLevel()
-    this.quad.material.uniforms.tStatic.value = this.kept.texture
-    this.renderer.setRenderTarget(map)
-    this.renderer.renderBufferDirect(this.quadCamera, this.quadScene, this.quad.geometry, this.quad.material, this.quad, null)
-    this.renderer.setRenderTarget(target, face, mip)
+    this.merge(map, this.kept)
+  }
+
+  /**
+   * merge draws the kept static map into `map` (the moving casters just drawn) through a nested
+   * `renderer.render` of the quad's own scene: three uploads a geometry's buffers only while it
+   * walks a scene (`renderBufferDirect` alone drew the quad with no vertex buffer, so nothing, and
+   * every static shadow was lost). No clear: `map` keeps the moving casters. The render target and
+   * `autoClear` are given back after it.
+   */
+  private merge(map: THREE.WebGLRenderTarget, kept: THREE.WebGLRenderTarget): void {
+    const r = this.renderer
+    const target = r.getRenderTarget()
+    const face = r.getActiveCubeFace()
+    const mip = r.getActiveMipmapLevel()
+    const autoClear = r.autoClear
+    this.quad.material.uniforms.tStatic.value = kept.texture
+    r.setRenderTarget(map)
+    r.autoClear = false
+    try {
+      r.render(this.quadScene, this.quadCamera)
+    } finally {
+      r.autoClear = autoClear
+      r.setRenderTarget(target, face, mip)
+    }
   }
 }
