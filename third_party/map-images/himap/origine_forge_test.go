@@ -3,6 +3,7 @@ package himap
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"testing"
 )
@@ -30,6 +31,72 @@ func TestOrigineRtgo(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+// TestOrigineParmi: an `rtgo` takes the pivot of the first candidate `mode` of its own size, not
+// the first candidate (Origin's rock type -1241957150: Small, Medium and Large `bloc`s, a Medium
+// `rtgo` centred on its position); no candidate of its size keeps the base on the position.
+func TestOrigineParmi(t *testing.T) {
+	rmn, rmx := [3]float64{-10.67, -4.44, -3.99}, [3]float64{10.75, 4.43, 4.00}
+	petit := [2][3]float64{{-2.15, -0.89, -0.81}, {2.16, 0.91, 0.80}}
+	moyen := [2][3]float64{{-10.76, -4.46, -4.07}, {10.77, 4.56, 4.00}}
+	grand := [2][3]float64{{-17.22, -7.14, -6.50}, {17.23, 7.30, 6.40}}
+	boites := func(l ...[2][3]float64) iter.Seq2[[3]float64, [3]float64] {
+		return func(yield func([3]float64, [3]float64) bool) {
+			for _, b := range l {
+				if !yield(b[0], b[1]) {
+					return
+				}
+			}
+		}
+	}
+	base := [3]float64{0, 0, 3.99}
+	cas := []struct {
+		nom    string
+		modes  iter.Seq2[[3]float64, [3]float64]
+		veut   [3]float64
+		pivots int
+	}{
+		{"second candidate of the rtgo's size", boites(petit, moyen, grand), [3]float64{-0.09, -0.02, -0.08}, 2},
+		{"first candidate of the rtgo's size", boites(moyen, petit), [3]float64{-0.09, -0.02, -0.08}, 1},
+		{"no candidate of the rtgo's size", boites(petit, grand), base, 2},
+		{"no candidate", boites(), base, 0},
+	}
+	for _, c := range cas {
+		lus := 0
+		compte := func(yield func([3]float64, [3]float64) bool) {
+			for mn, mx := range c.modes {
+				lus++
+				if !yield(mn, mx) {
+					return
+				}
+			}
+		}
+		got := origineParmi(rmn, rmx, compte)
+		for k := range 3 {
+			if math.Abs(got[k]-c.veut[k]) > 1e-9 {
+				t.Errorf("%s: %v, want %v", c.nom, got, c.veut)
+				break
+			}
+		}
+		if lus != c.pivots {
+			t.Errorf("%s: %d candidates read, want %d (stop at the first match)", c.nom, lus, c.pivots)
+		}
+	}
+}
+
+// TestUnMode: one candidate, or none for nil.
+func TestUnMode(t *testing.T) {
+	n := 0
+	for range unMode(nil) {
+		n++
+	}
+	for range unMode(&modelePose{}) {
+		n++
+	}
+	if n != 1 {
+		t.Errorf("%d candidates, want 1", n)
 	}
 }
 

@@ -13,11 +13,13 @@
 // height: on Outlook it raised the rock columns under the centre platform by half their scaled
 // height (up to 10 m), through the floor (14 881 player positions inside them, 0 with this rule).
 // A type whose own `mode` is not found, or whose box differs from the `rtgo`'s, keeps the earlier
-// rule (base on the position).
+// rule (base on the position). A definition that reaches several `mode`s (one per size) is held
+// against the one of the `rtgo`'s size (origineParmi).
 package himap
 
 import (
 	"context"
+	"iter"
 	"math"
 
 	"github.com/JGtm/halo-infinite-files-reader/himodule"
@@ -72,47 +74,75 @@ func memeBoite(amin, amax, bmin, bmax [3]float64) bool {
 	return true
 }
 
-// origineDuRtgo returns the offset of `rtgo` meshes `maillages` (origineRtgo) against `mode`
-// (nil: not found).
-func origineDuRtgo(rtgo *RuntimeGeoAsset, maillages []int, mode *modelePose) [3]float64 {
+// origineParmi returns the offset of an `rtgo` box (origineRtgo) against the first of `modes`
+// (boxes, in order) that describes the same box; the earlier rule when none does.
+//
+// A definition can reach several `mode`s: Origin's rock type -1241957150 has one `bloc` per
+// size (Small 4.3 m, Medium 21.5 m, Large 34.5 m) and its `rtgo`s are the Medium geometry. Only
+// the `mode` of the same geometry places the `rtgo`'s pivot; held against the first one (Small),
+// the rock fell back to the base rule and was lifted by half its scaled height, through a base.
+func origineParmi(rtgoMin, rtgoMax [3]float64, modes iter.Seq2[[3]float64, [3]float64]) [3]float64 {
+	for mmn, mmx := range modes {
+		if memeBoite(rtgoMin, rtgoMax, mmn, mmx) {
+			return origineRtgo(rtgoMin, rtgoMax, mmn, mmx, true)
+		}
+	}
+	return origineRtgo(rtgoMin, rtgoMax, [3]float64{}, [3]float64{}, false)
+}
+
+// origineDuRtgo returns the offset of `rtgo` meshes `maillages` (origineParmi) against the
+// candidate `mode`s, read only until one matches.
+func origineDuRtgo(rtgo *RuntimeGeoAsset, maillages []int, modes iter.Seq[*modelePose]) [3]float64 {
 	rmn, rmx, ok := boiteDesMaillages(rtgo, maillages)
 	if !ok {
 		return [3]float64{}
 	}
-	var mmn, mmx [3]float64
-	lu := false
-	if mode != nil {
-		mmn, mmx, lu = boiteDesMaillages(mode.asset, mode.maillages)
-	}
-	return origineRtgo(rmn, rmx, mmn, mmx, lu)
+	return origineParmi(rmn, rmx, func(yield func([3]float64, [3]float64) bool) {
+		for mode := range modes {
+			if mmn, mmx, lu := boiteDesMaillages(mode.asset, mode.maillages); lu && !yield(mmn, mmx) {
+				return
+			}
+		}
+	})
 }
 
-// modeDuType returns the own render model of the Forge definition `food` (modeDuFood); nil when
+// unMode returns the candidate sequence of one `mode` (none when nil).
+func unMode(mode *modelePose) iter.Seq[*modelePose] {
+	return func(yield func(*modelePose) bool) {
+		if mode != nil {
+			yield(mode)
+		}
+	}
+}
+
+// modesDuType returns the render models of the Forge definition `food` (modesDuFood); none when
 // the definition is unreadable.
-func modeDuType(ctx context.Context, idx *ModuleIndex, forge *himodule.Module, food himodule.File, assets map[uint32]*RuntimeGeoAsset) *modelePose {
+func modesDuType(ctx context.Context, idx *ModuleIndex, forge *himodule.Module, food himodule.File, assets map[uint32]*RuntimeGeoAsset) iter.Seq[*modelePose] {
 	tag, err := forge.Extract(food)
 	if err != nil {
-		return nil
+		return unMode(nil)
 	}
-	return modeDuFood(ctx, idx, tag, assets, 0)
+	return modesDuFood(ctx, idx, tag, assets, 0)
 }
 
-// modeDuFood returns the own render model of a Forge definition: the first `mode` its
-// `bloc`/`scen`/`mach` objects reach through their `hlmt`, drawn as representation `nom`
-// (maillagesDeLaRepresentation; 0: the model's default); nil without one.
-func modeDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[uint32]*RuntimeGeoAsset, nom uint32) *modelePose {
-	for _, groupe := range groupesSautForge {
-		for _, h := range refsTypeesDuGroupe(food, idx, groupe) {
-			objet, err := idx.Extract(h)
-			if err != nil {
-				continue
-			}
-			if mp := modeDuObjet(ctx, idx, objet, assets, nom); mp != nil {
-				return mp
+// modesDuFood returns the render models of a Forge definition, in order: the first `mode` each of
+// its `bloc`/`scen`/`mach` objects reaches through its `hlmt`, drawn as representation `nom`
+// (maillagesDeLaRepresentation; 0: the model's default). Each is opened when the consumer asks
+// for it.
+func modesDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[uint32]*RuntimeGeoAsset, nom uint32) iter.Seq[*modelePose] {
+	return func(yield func(*modelePose) bool) {
+		for _, groupe := range groupesSautForge {
+			for _, h := range refsTypeesDuGroupe(food, idx, groupe) {
+				objet, err := idx.Extract(h)
+				if err != nil {
+					continue
+				}
+				if mp := modeDuObjet(ctx, idx, objet, assets, nom); mp != nil && !yield(mp) {
+					return
+				}
 			}
 		}
 	}
-	return nil
 }
 
 // maillagesDeLaRepresentation returns the sections of `mode` tag `tag` that Forge representation

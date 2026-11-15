@@ -245,7 +245,7 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		}
 		if ref.groupe == GroupeRtgo {
 			mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, foodParID[uint32(ty)], ref.id)
-			mv.origine = origineDuRtgo(a, mv.maillages, modeDuType(ctx, idx, forge, foodParID[uint32(ty)], assets))
+			mv.origine = origineDuRtgo(a, mv.maillages, modesDuType(ctx, idx, forge, foodParID[uint32(ty)], assets))
 		}
 		// LOCAL-CHANGE (infinite-theater-3d): how a telescoping type sizes its model.
 		mv.telescopage.rapport = [3]float64{1, 1, 1}
