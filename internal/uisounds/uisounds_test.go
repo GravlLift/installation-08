@@ -46,11 +46,21 @@ func TestManifestStatus(t *testing.T) {
 	}
 }
 
-// TestStemsAreServable — every stem names an .ogg file the sound route serves (a bare file name).
+// TestStemsAreServable — every stem names an .ogg file the sound route serves (a bare file name),
+// once: two sounds on one stem would overwrite each other's file.
 func TestStemsAreServable(t *testing.T) {
+	seen := map[string]bool{}
 	for _, s := range Sounds {
-		if s.Stem == "" || filepath.Base(s.Stem) != s.Stem || s.Event == "" {
+		if s.Stem == "" || filepath.Base(s.Stem) != s.Stem || s.Event == "" || seen[s.Stem] {
 			t.Errorf("bad sound %+v", s)
 		}
+		seen[s.Stem] = true
+	}
+}
+
+// TestSoundsDefaultToTheInterfaceBank — a sound without a bank is in the interface bank.
+func TestSoundsDefaultToTheInterfaceBank(t *testing.T) {
+	if (Sound{}).bankOf() != BankName || (Sound{Bank: SpartanBank}).bankOf() != SpartanBank {
+		t.Fatal("bankOf")
 	}
 }

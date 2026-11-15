@@ -67,7 +67,8 @@ func runBuildSounds(args []string) error {
 }
 
 // buildUISounds is the interface sound extraction both build-sounds and the server's sound job
-// run: the sounds the viewer plays outside the replay track (the pre-game countdown tick).
+// run: the sounds the viewer plays outside the replay track (the pre-game countdown tick, the
+// followed Spartan's shield alarms).
 func buildUISounds(ctx context.Context, gameRoot, dataDir string) (*uisounds.Result, error) {
 	root, err := deployRootFor(gameRoot)
 	if err != nil {
