@@ -5,10 +5,18 @@
  * right stays in view. Behind it is a drawn space field with faint stars, shown while the
  * image is absent and as the fallback if it fails to load. A dark shade over the menu side
  * keeps the text readable.
+ *
+ * On a fresh install the background job builds the image a little after the page first
+ * loads, so the first request can 404: the image then retries every 5 s with a
+ * cache-busting query until it exists (about ten minutes), the star field showing meanwhile.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const BACKDROP_SRC = '/api/backdrop/home'
+/** The retry interval (ms): the background build finishes seconds after a first load. */
+export const RETRY_MS = 5000
+/** Retries before giving up: about ten minutes of them. */
+export const MAX_RETRIES = 120
 
 /** A few faint stars at fixed places (a tiny seeded generator, so every render is the same). */
 function stars(count: number): { x: number; y: number; r: number; o: number }[] {
@@ -27,9 +35,20 @@ function stars(count: number): { x: number; y: number; r: number; o: number }[] 
 
 export function RingBackdrop() {
   const field = useMemo(() => stars(70), [])
-  // 'loading' until the image has loaded: the drawn field shows in the meantime, and it
-  // stays (the fallback) if the image fails to load.
+  // 'loading' until the image has loaded: the drawn field shows in the meantime. On a failed
+  // load (a fresh install, the image not built yet) it retries until it exists, then gives up
+  // and the field stays (the fallback).
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    if (state !== 'error' || attempt >= MAX_RETRIES) return
+    const timer = setTimeout(() => {
+      setState('loading')
+      setAttempt((a) => a + 1)
+    }, RETRY_MS)
+    return () => clearTimeout(timer)
+  }, [state, attempt])
+  const src = attempt === 0 ? BACKDROP_SRC : `${BACKDROP_SRC}?t=${attempt}`
   return (
     <>
       <svg className="bc-ring" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
@@ -47,7 +66,7 @@ export function RingBackdrop() {
       </svg>
       <img
         className="bc-ring-img"
-        src={BACKDROP_SRC}
+        src={src}
         alt=""
         aria-hidden="true"
         hidden={state !== 'ok'}

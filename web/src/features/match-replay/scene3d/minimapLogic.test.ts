@@ -6,12 +6,15 @@ import {
   MINIMAP_SPAN_U,
   MIN_RENDER_INTERVAL_MS,
   RECENTER_SHARE,
+  SCREEN_UP_HEADING_DEG,
   minimapAngle,
+  minimapHit,
   minimapPoint,
   minimapRect,
   minimapStale,
   minimapUvRows,
   type MinimapPose,
+  type MinimapRect,
 } from './minimapLogic'
 import { dirOf } from './playerMarkers3d_logic'
 
@@ -36,6 +39,25 @@ describe('minimapPoint — heading-up: the player faces the minimap up', () => {
     const p = minimapPoint({ center: [0, 0], heading: 90 }, 3, 0)
     expect(p[0]).toBeCloseTo(3 / MINIMAP_SPAN_U)
     expect(p[1]).toBeCloseTo(0)
+  })
+})
+
+describe('minimap — fixed north-up orientation, the map does not turn with the followed player', () => {
+  const pose: MinimapPose = { center: [0, 0], heading: SCREEN_UP_HEADING_DEG }
+
+  it('maps scene right to the minimap right and scene -Z to its up, whatever the followed heading would be', () => {
+    const [rx, ry] = minimapPoint(pose, 10, 0)
+    expect(rx).toBeCloseTo(10 / MINIMAP_SPAN_U)
+    expect(ry).toBeCloseTo(0)
+    const [ux, uy] = minimapPoint(pose, 0, -10)
+    expect(ux).toBeCloseTo(0)
+    expect(uy).toBeCloseTo(10 / MINIMAP_SPAN_U)
+  })
+
+  it('turns a player wedge on his own heading against the fixed north', () => {
+    expect(minimapAngle(pose, SCREEN_UP_HEADING_DEG)).toBeCloseTo(0) // facing north: wedge up
+    expect(minimapAngle(pose, 0)).toBeCloseTo(-Math.PI / 2) // facing scene +X (right): wedge right
+    expect(minimapAngle(pose, 180)).toBeCloseTo(Math.PI / 2) // facing scene -X (left): wedge left
   })
 })
 
@@ -79,6 +101,24 @@ describe('minimapUvRows — the minimap quad reads its turned square out of the 
       expect(right).toBeCloseTo(mu - 0.5)
       expect(up).toBeCloseTo(mv - 0.5)
     }
+  })
+})
+
+describe('minimapHit — a canvas point on the minimap square', () => {
+  const rect: MinimapRect = { left: 1000, top: 50, side: 200 }
+
+  it('is true inside the square, false just outside it', () => {
+    expect(minimapHit(rect, 1000, 50)).toBe(true)
+    expect(minimapHit(rect, 1100, 150)).toBe(true)
+    expect(minimapHit(rect, 999, 150)).toBe(false)
+    expect(minimapHit(rect, 1200, 150)).toBe(false)
+    expect(minimapHit(rect, 1100, 49)).toBe(false)
+    expect(minimapHit(rect, 1100, 250)).toBe(false)
+  })
+
+  it('excludes the right and bottom edges (the square is [left, left+side))', () => {
+    expect(minimapHit(rect, rect.left + rect.side, rect.top)).toBe(false)
+    expect(minimapHit(rect, rect.left, rect.top + rect.side)).toBe(false)
   })
 })
 

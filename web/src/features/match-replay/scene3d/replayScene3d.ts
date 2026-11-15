@@ -309,6 +309,10 @@ export class ReplayScene3d implements Replay3DExportSource {
   setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
   /** setMinimap shows or hides the corner minimap over the 3D view (first and third person). */
   setMinimap(on: boolean): void { this.top?.setMinimap(on) }
+  /** minimapHit — a canvas point (x, y in CSS px from the canvas's top left) on the corner minimap, while it is drawn. */
+  minimapHit(x: number, y: number): boolean { return this.top?.minimapHit(x, y) ?? false }
+  /** The canvas the renderer draws to; the page lays its chrome over it. */
+  get canvas(): HTMLCanvasElement { return this.renderer.domElement }
 
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return

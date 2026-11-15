@@ -1,8 +1,8 @@
 /**
  * minimapLogic.ts — pure math of the corner minimap over the 3D view: a square of fixed world size
- * centered on the followed player and turned with him (heading-up, his facing is the minimap's up,
- * as the game's own motion tracker turns), its place on screen, and when its cached top-down image
- * of the map around him must be redone.
+ * centered on the followed player with a fixed north-up orientation (screen up is scene -Z, the
+ * axes the 2D top-down view draws the map in), its place on screen, and when its cached top-down
+ * image of the map around him must be redone.
  *
  * The image is rendered at a low rate over a square twice the minimap's span, centered where the
  * player was; between renders the minimap reads its turned square out of it around where he is now.
@@ -34,6 +34,11 @@ export const MIN_RENDER_INTERVAL_MS = 500
 /** The minimap's side as a share of the view's height, and its distance from the right edge (CSS px). */
 export const MINIMAP_SCREEN_SHARE = 0.24
 export const MINIMAP_RIGHT_PX = 16
+/**
+ * The yaw (degrees) facing screen up (scene -Z): the minimap's fixed orientation, the same axes
+ * the 2D top-down view frames the map in (`topDownView3d` sets the camera's up to scene -Z).
+ */
+export const SCREEN_UP_HEADING_DEG = 90
 
 /** The cached image: the square it covers (center, scene X/Z), the cut it was drawn at, when, and for whom. */
 export interface MinimapImage {
@@ -111,4 +116,9 @@ export interface MinimapRect {
 export function minimapRect(view: Viewport, insets: Insets): MinimapRect {
   const side = Math.round(view.height * MINIMAP_SCREEN_SHARE)
   return { left: view.width - MINIMAP_RIGHT_PX - side, top: Math.max(insets.top, INSET_GAP_PX), side }
+}
+
+/** minimapHit — a canvas point (x, y in CSS px from the canvas's top left) on the minimap's square. */
+export function minimapHit(rect: MinimapRect, x: number, y: number): boolean {
+  return x >= rect.left && x < rect.left + rect.side && y >= rect.top && y < rect.top + rect.side
 }

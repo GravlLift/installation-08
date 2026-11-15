@@ -305,6 +305,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
               soundListenerRef={sound.listener}
               onLoadState={onLoadState}
               view={view}
+              onMinimapClick={() => setView('top')}
               cameraMode={camera.mode}
             />
             {scoreboardHeld && (
