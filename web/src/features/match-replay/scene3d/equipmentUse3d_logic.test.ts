@@ -65,6 +65,7 @@ describe('firstPersonUses', () => {
       { frame: 30, action: FP_USE_ACTION.repulsor },
       { frame: 60, action: FP_USE_ACTION.sensor },
       { frame: 75, action: FP_GRAPPLE_FIRE_ACTION },
+      { frame: 90, action: FP_USE_ACTION.shroud_screen },
       { frame: 100, action: fpEvadeAction('back') },
       { frame: 120, action: FP_USE_ACTION.repulsor },
     ])
@@ -88,5 +89,29 @@ describe('useAt', () => {
     expect(useAt(list, 10)?.action).toBe('a')
     expect(useAt(list, 19.5)?.action).toBe('a')
     expect(useAt(list, 25)?.action).toBe('b')
+  })
+})
+
+describe('FP_USE_ACTION sets', () => {
+  it('plays the set the game data names for each family, shared sets included', () => {
+    expect(FP_USE_ACTION.shroud_screen).toBe(FP_USE_ACTION.sensor)
+    expect(FP_USE_ACTION.threat_seeker).toBe(FP_USE_ACTION.sensor)
+    expect(FP_USE_ACTION.powerup_overshield).toBe('camo:equipment_activate')
+    expect(FP_USE_ACTION.wall).toBe('#6132b1e2:equipment_activate')
+    expect(FP_USE_ACTION.repair_field).toBe(FP_USE_ACTION.wall)
+    // The grapple and the thruster have no set: their uses come from the grapple lines and the bursts.
+    expect(FP_USE_ACTION.grapple).toBeUndefined()
+    expect(FP_USE_ACTION.thruster).toBeUndefined()
+  })
+
+  it('gives every equipment family of a document its use clip, by its palette rank', () => {
+    const families = ['wall', 'repair_field', 'threat_seeker', 'powerup_overshield']
+    const d = doc({
+      abilityLabels: Object.fromEntries(families.map((family, r) => [String(r), { en: family, fr: family, family }])),
+      carriedEquipment: families.map((_, r) => ({ slot: 4, r, t0: 0, energy: [], uses: [10 * (r + 1)], tracked: [] })),
+    } as Partial<Doc>)
+    expect(firstPersonUses(d, new Map()).get(4)).toEqual(
+      families.map((family, r) => ({ frame: 10 * (r + 1), action: FP_USE_ACTION[family] })),
+    )
   })
 })

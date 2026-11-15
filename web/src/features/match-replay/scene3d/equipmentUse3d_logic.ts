@@ -23,9 +23,22 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import type { ThrusterBurst } from './thruster3d_logic'
 
-/** The first-person clip of each carried equipment's activation, by palette family. */
+/**
+ * The first-person clip of each carried equipment's activation, by palette family. The set is the
+ * game's: the item `eqip` of each ability names it (field root +0x904, word +0x338), read on the
+ * whole family A palette (`premiere_personne_jeux_gamefiles_test.go`). Several equipment share a
+ * set: the shroud screen and the threat seeker play the threat sensor's `location`, the overshield
+ * plays active camo's `camo`, the drop wall and the repair field play the fifth set, whose text is
+ * unknown and which the library bakes under its StringID form `#6132b1e2`. The grapple and the
+ * thruster have no set: they play `grapple_hook_deploy` and `evade_*` (below).
+ */
 export const FP_USE_ACTION: Readonly<Record<string, string>> = {
   repulsor: 'knockback:equipment_activate',
+  wall: '#6132b1e2:equipment_activate',
+  repair_field: '#6132b1e2:equipment_activate',
+  shroud_screen: 'location:equipment_activate',
+  threat_seeker: 'location:equipment_activate',
+  powerup_overshield: 'camo:equipment_activate',
   sensor: 'location:equipment_activate',
   powerup_camo: 'camo:equipment_activate',
   translocator_beacon: 'quantum:equipment_activate',

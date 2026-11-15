@@ -52,6 +52,16 @@ func NomActionDuJeu(jeu, action string) string {
 	return jeu + ":" + action
 }
 
+// JeuMurDeploye (LOCAL-CHANGE) is the FP tree's fifth equipment set, whose text no dictionary has
+// found (1.9 million two-word candidates tried), so it is named by its StringID form. The game picks
+// an equipment's set from the item `eqip` its ability (`sofa`) references: field root +0x904, word
+// +0x338 of that block. Read on the family A palette (sofd d91958af), that word is this set for the
+// drop wall (rank 2, eqip c12e5469; rank 19, 37c87a13) and the repair field (rank 23, 5c8e2316).
+// The same word names `location` for the threat sensor, shroud screen and threat seeker, `camo`
+// for active camo and overshield, `knockback` and `quantum` for the repulsor and translocator
+// (TestJeuxPremierePersonneDesEquipements).
+const JeuMurDeploye = "#6132b1e2"
+
 // ActionsPremierePersonne : les actions cuites dans chaque rig, quand le graphe de l'arme les porte.
 var ActionsPremierePersonne = []ActionPremierePersonne{
 	{Nom: "idle"}, {Nom: "fire_1"}, {Nom: "fire_2"}, {Nom: "overcharged"},
@@ -68,6 +78,7 @@ var ActionsPremierePersonne = []ActionPremierePersonne{
 	{Nom: "evade_front", Surcouche: true}, {Nom: "evade_back", Surcouche: true}, {Nom: "evade_left", Surcouche: true},
 	{Nom: "evade_right", Surcouche: true}, {Nom: "grapple_hook_deploy", Surcouche: true},
 	// L'usage des equipements portes.
+	{Nom: ActionUsageEquipement, Jeu: JeuMurDeploye},
 	{Nom: ActionUsageEquipement, Jeu: JeuRepulseur}, {Nom: ActionUsageEquipement, Jeu: JeuCapteurMenace},
 	{Nom: ActionUsageEquipement, Jeu: JeuCamo}, {Nom: ActionUsageEquipement, Jeu: JeuTranslocateur},
 }

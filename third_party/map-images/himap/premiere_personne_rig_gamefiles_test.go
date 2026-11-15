@@ -44,7 +44,8 @@ func TestRigPremierePersonneBR75(t *testing.T) {
 	}
 	for _, nom := range []string{"idle", "fire_1", "fire_1:var1", "reload_full", "reload_empty", "ready", "put_away", "melee_strike_1",
 		"throw_grenade", "sprint_loop", "moving", "jump", "crouch", "evade_front", "evade_back", "evade_left", "evade_right",
-		"grapple_hook_deploy", NomActionDuJeu(JeuRepulseur, ActionUsageEquipement), NomActionDuJeu(JeuCapteurMenace, ActionUsageEquipement)} {
+		"grapple_hook_deploy", NomActionDuJeu(JeuRepulseur, ActionUsageEquipement), NomActionDuJeu(JeuCapteurMenace, ActionUsageEquipement),
+		NomActionDuJeu(JeuMurDeploye, ActionUsageEquipement)} {
 		if clips[nom] == nil {
 			t.Errorf("clip %s absent", nom)
 		}
