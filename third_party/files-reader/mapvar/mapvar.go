@@ -101,6 +101,50 @@ type Variant struct {
 
 	// StyleGrimes (LOCAL-CHANGE (infinite-theater-3d)): each style's grime, by style id.
 	StyleGrimes map[int32]StyleGrime
+
+	// Lighting (LOCAL-CHANGE (infinite-theater-3d)): the variant's own "Lights & Atmosphere"
+	// options, root[1][39]; nil when absent.
+	Lighting *Lighting
+}
+
+// Lighting (LOCAL-CHANGE (infinite-theater-3d)) is the part of a variant's "Lights & Atmosphere"
+// options (root[1][39]) read so far. MEASURED: field 0 is the Sunlight intensity (0 to 100), the
+// value the level's own sun declares when the variant keeps it (Recharge: 9 in both); Forge maps
+// set their own (Fortress 25 on a canvas whose sun is 5). Field 1 is the Sunlight color override,
+// an index into the Forge globals' color list; field 18 reads 1 on the maps whose override is a
+// sun color (Fortress, Vacancy, Origin: warm oranges) and 2 where it would not be (Solitude's
+// dark green, Outlook's grey): inferred to be the override's switch.
+type Lighting struct {
+	SunIntensity *float64
+	// SunColorIndex is field 1 (0 when absent); SunColorSwitch is field 18 (0 when absent).
+	SunColorIndex  int
+	SunColorSwitch int
+}
+
+// SunColorOverrideOn is the Lighting.SunColorSwitch value of an active sun color override.
+const SunColorOverrideOn = 1
+
+func readLighting(root Value) *Lighting {
+	hdr, ok := root.Field(1)
+	if !ok {
+		return nil
+	}
+	opts, ok := hdr.Field(39)
+	if !ok || opts.Fields == nil {
+		return nil
+	}
+	l := &Lighting{}
+	if f, ok := opts.Field(0); ok {
+		v := f.Float
+		l.SunIntensity = &v
+	}
+	if f, ok := opts.Field(1); ok {
+		l.SunColorIndex = int(f.Int)
+	}
+	if f, ok := opts.Field(18); ok {
+		l.SunColorSwitch = int(f.Int)
+	}
+	return l
 }
 
 // Parse décode un .mvar complet.
@@ -109,7 +153,7 @@ func Parse(buf []byte) (*Variant, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mapvar: %w", err)
 	}
-	v := &Variant{Styles: readStyles(root), StyleGrimes: readStyleGrimes(root)}
+	v := &Variant{Styles: readStyles(root), StyleGrimes: readStyleGrimes(root), Lighting: readLighting(root)}
 	if hdr, ok := root.Field(1); ok {
 		if sub, ok2 := hdr.Field(0); ok2 {
 			if id, ok3 := sub.Field(0); ok3 {

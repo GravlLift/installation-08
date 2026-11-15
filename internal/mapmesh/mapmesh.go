@@ -40,6 +40,10 @@ type Target struct {
 	// Frame is the world-space rectangle (minX, minY, maxX, maxY) outside which instances are
 	// dropped (see FrameOf). Zero means the whole bsp's geometry.
 	Frame [4]float64
+	// SunIntensity and SunColor, when set, replace the scenario sun's intensity and color: a Forge
+	// map's own lighting options (mapvar.Lighting) override its canvas's sun.
+	SunIntensity *float64
+	SunColor     *[3]float64
 }
 
 // Frame margins, in world units. The 3D view exists to follow the game, not to admire the
@@ -181,10 +185,25 @@ func readLighting(ctx context.Context, t Target, m *himap.MaillageMonde) {
 		return
 	}
 	m.Soleil = sunOf(ctx, t.Key, src)
+	overrideSun(m.Soleil, t)
 	m.Sondes = probesOf(ctx, t.Key, src)
 	if m.Lumieres, err = himap.LitLumieres(src); err != nil {
 		slog.ErrorContext(ctx, "placed lights unreadable, mesh written without them", "map", t.Key, "err", err)
 		m.Lumieres = nil
+	}
+}
+
+// overrideSun applies the target's own sun intensity and color (Target.SunIntensity, SunColor)
+// to the scenario's sun `s` (nil: nothing to override, the direction is the scenario's).
+func overrideSun(s *himap.Soleil, t Target) {
+	if s == nil {
+		return
+	}
+	if t.SunIntensity != nil {
+		s.Intensite, s.AvecIntensite = *t.SunIntensity, true
+	}
+	if t.SunColor != nil {
+		s.Couleur, s.AvecCouleur = *t.SunColor, true
 	}
 }
 
