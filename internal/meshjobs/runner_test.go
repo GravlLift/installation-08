@@ -278,3 +278,31 @@ func TestRunnerNewRequiresArgs(t *testing.T) {
 		t.Fatal("nil ready should be rejected")
 	}
 }
+
+// TestRunnerActivity — idle: no active module and an empty queue; while one builds, the
+// active snapshot names it and the queue lists the rest in order (a copy the caller owns).
+func TestRunnerActivity(t *testing.T) {
+	f := newFakeStore(t)
+	f.delay = 200 * time.Millisecond
+	r := runnerOf(t, f)
+	if a, q := r.Activity(); a != nil || len(q) != 0 {
+		t.Fatalf("idle activity = %v %v, want nil and empty", a, q)
+	}
+	r.Start()
+	defer r.Stop(2 * time.Second)
+	r.Enqueue("alpha")
+	waitBuilding(t, r, "alpha")
+	r.Enqueue("beta")
+	r.Enqueue("gamma")
+	a, q := r.Activity()
+	if a == nil || a.ModuleKey != "alpha" || a.State != StateBuilding || a.StartedAt.IsZero() {
+		t.Fatalf("active = %+v, want alpha building with a start time", a)
+	}
+	if len(q) != 2 || q[0] != "beta" || q[1] != "gamma" {
+		t.Fatalf("queued = %v, want [beta gamma]", q)
+	}
+	q[0] = "mutated"
+	if _, q2 := r.Activity(); q2[0] != "beta" {
+		t.Fatalf("the queue copy aliases the runner's: %v", q2)
+	}
+}
