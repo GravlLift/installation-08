@@ -49,6 +49,10 @@ func (m *MaillageMonde) resoutTextures(ctx context.Context, idx *ModuleIndex) {
 				charge(m.TexturesCouches, &m.TexturesCouchesIllisibles, id, coteSurface, "surface dure")
 			}
 		}
+		if mat.Emissif != nil {
+			// LOCAL-CHANGE (infinite-theater-3d): the texture that masks the material's light.
+			charge(m.TexturesCouches, &m.TexturesCouchesIllisibles, mat.Emissif.Bitmap, coteCouche, "emission")
+		}
 		if mat.Couches == nil {
 			continue
 		}

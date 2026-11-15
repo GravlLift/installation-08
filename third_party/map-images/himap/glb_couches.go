@@ -208,6 +208,9 @@ func baseGenerique(g *gltfMaterial, k Couche, tex, jeu int) {
 // texture rend l'index de texture glTF de (bitmap, role), en ecrivant l'image la premiere fois ;
 // pasDeTexture pour un bitmap absent ou non lu.
 func (cg *couchesGLB) texture(doc *gltfDoc, bin *tamponGLB, cle cleImage, textures map[uint32]Texture) (int, error) {
+	if cg.images == nil { // LOCAL-CHANGE (infinite-theater-3d): also called for a light's mask, before any layer
+		cg.images = map[cleImage]int{}
+	}
 	if tex, ok := cg.images[cle]; ok {
 		return tex, nil
 	}
