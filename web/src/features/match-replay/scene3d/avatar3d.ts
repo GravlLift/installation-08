@@ -22,6 +22,7 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { TAG_CLASS } from './actionKit'
 import type { Coat } from './armorCoat3d'
 import { armorMaterial } from './armorMaterial3d'
+import { energyCopy, energyTintOf, isEnergized } from './energyField3d'
 import type { Dress } from './armory3d'
 import type { BakedLight } from './bakedLightShader'
 import { AIM_HEIGHT, BODY_CENTER, BODY_LENGTH, BODY_RADIUS, CROUCH_DROP, EYE_HEIGHT } from './body3d'
@@ -282,12 +283,20 @@ function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object
  */
 function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
   const copies = new Map<THREE.Material, THREE.Material>()
+  // The energy fields (the sword's blade) glow in the weapon's own emissive swatch (`energyField3d`).
+  const teinte = energyTintOf(coat)
   model.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const liste = Array.isArray(o.material) ? o.material : [o.material]
     const neufs: THREE.Material[] = []
     for (const m of liste) {
       const paint = coat.get(m)
+      if (!paint && teinte && isEnergized(m)) {
+        let champ = copies.get(m)
+        if (!champ) { champ = energyCopy(m, teinte); copies.set(m, champ) }
+        neufs.push(champ)
+        continue
+      }
       if (!paint) { neufs.push(m); continue }
       let copie = copies.get(m)
       if (!copie) { copie = armorMaterial(m as THREE.MeshStandardMaterial, paint); copies.set(m, copie) }

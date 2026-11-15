@@ -391,6 +391,30 @@ describe('SpartanArmory armes', () => {
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
+  it('peindreBras : a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
+    const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
+    const base = manifest('h5')
+    const m: SpartanArmorManifest = {
+      ...base,
+      body: { ...base.body, left_arm: 'Half' },
+      coating: { path: 'c', style_id: 1, style_key: '2c5251bc' },
+      regions: [...base.regions, { region: 0, permutation: 0, region_key: '0b7e328b', permutation_key: '16a12dd4', source: 'prosthetic_left_arm' }],
+    }
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: m }])
+    armory.dress('1')
+    await settle()
+    const habit = armory.dress('1')
+    if (!habit) throw new Error('habit absent')
+    // The arm piece's style region (0b7e328b) is a prosthetic region of the manifest.
+    const bras = [...habit.coat.keys()][0]
+    const paint = await armory.peindreBras('1', habit, [bras])
+    expect(paint).not.toBeNull()
+    // Same paint as the third-person coat: the coating's style, its gradient loaded.
+    expect(Array.from(paint!.get(bras)!.paint.data)).toEqual(Array.from(habit.coat.get(bras)!.paint.data))
+    expect(Array.from(paint!.get(bras)!.paint.data.slice(0, 2))).toEqual([1, 0])
+    expect(loadSwatch).toHaveBeenCalled()
+  })
+
   it('peindreBras : without an entry for the rig weapon, it wears the default style of each list', async () => {
     const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)

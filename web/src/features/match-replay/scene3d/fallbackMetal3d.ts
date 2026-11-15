@@ -5,18 +5,15 @@
  * de repli, presque blanche. Dans le jeu ces pièces (mécanique, articulations, dessous d'armure)
  * sont en métal sombre : `darkMetalFallback` leur donne cette matière, et un verre sombre aux
  * pièces translucides sans texture (lunette, viseur). Ne sont pas touchés : un matériau texturé
- * ou lumineux (voyant).
+ * ou lumineux (voyant). An untextured alpha-blended field that is not glass (the Energy Sword's
+ * blade) is energized instead (`energyField3d`).
  */
 import * as THREE from 'three'
 
+import { energize } from './energyField3d'
+
 /** Le gris métal (linéaire, légèrement bleuté), sa part de métal et sa rugosité. */
 export const DARK_METAL = { r: 0.15, g: 0.16, b: 0.18, metalness: 0.55, roughness: 0.5 } as const
-
-/**
- * Le gunmetal clair : la teinte de base des membres prosthétiques en première personne. La teinte
- * sombre (`DARK_METAL`) y apparaît là où porte le rouge de leur masque 0 (`brasProsthesique3d`).
- */
-export const LIGHT_METAL = { r: 0.22, g: 0.23, b: 0.25, metalness: 0.6, roughness: 0.45 } as const
 
 /**
  * Le verre sombre des optiques sans texture (lunette, viseur, écran d'arme) : le jeu y affiche une
@@ -42,6 +39,9 @@ export function isUntextured(m: THREE.Material): m is THREE.MeshStandardMaterial
  * opaque s'il est translucide et sans texture ; vrai s'il a été changé.
  */
 export function darkMetalFallback(m: THREE.Material): boolean {
+  // An energy field (the Energy Sword's blade: alpha blended, untextured, not glass) is a
+  // self-lit field, not dark glass (`energyField3d`).
+  if (energize(m)) return true
   // `isPlain` and `isUntextured` are both type predicates to the same type; negating the
   // second after the first narrows to `never` under this TypeScript/@types/three
   // combination. The cast is a type-only fix — `plain` is exactly `m` once `isPlain` holds.

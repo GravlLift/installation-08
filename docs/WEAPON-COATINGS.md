@@ -81,6 +81,11 @@ reported stale by `/api/coatings/status` and rebuilt in place by the normal buil
   look in the game (the Standard Issue coating picks the same styles).
 - An empty `style_key` (coating file absent from the gamecms cache, unreadable, or naming no style)
   paints the model with those same default styles; the match data itself is unchanged.
+- Energy fields (the Energy Sword's blade: alpha blended, untextured, not glass; its shader's
+  parameters are read by neither the reader nor Ekur) are drawn as a self-lit additive field
+  (`energyField3d.ts`) lit in the brightest emissive swatch of the weapon's own paint (the sword's
+  default style: blue, emission 16). Unpainted (ground models, no coating table), they keep the
+  GLB's tint.
 - Weapons on the ground (pads, drops) are drawn from the raw model and never painted.
 - A weapons library built without an Ekur reference has no `coatings.json`: every weapon material
   falls back neutral (`coatings_unavailable`, named in the report).
