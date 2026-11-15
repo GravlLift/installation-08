@@ -4229,3 +4229,14 @@ package replay
 //	CE QUI MONTE    `SchemaVersion` 124 -> 125 seule : ni la grammaire ni les faits ne changent.
 //
 //	LE PARC         un artefact 124 dont les faits sont sur disque : verdict `a republier`.
+
+// v126 (2026-11-15, LOCAL-CHANGE infinite-theater-3d) : projectiles publish the height of each point.
+//
+//	`projectiles[].z`  the height of each point of `p`, same index, same axis as `tracks[].points[].z`,
+//	                 rounded to the centimeter. The decoded sample always carried it; the 3D viewer drew a
+//	                 grenade as a straight slide to its end point because only (x, y) was published.
+//	                 Absent on an older artifact: the client keeps its interpolated height.
+//
+//	CE QUI MONTE    `SchemaVersion` 125 -> 126 only: neither the grammar nor the facts change.
+//
+//	LE PARC         a 125 artifact whose facts are on disk: verdict `a republier`.

@@ -1541,8 +1541,10 @@ func TestStructureIsOptionalInDocument(t *testing.T) {
 	// - 125 (2026-11-11) : `shots[].o`, le decale du tir dans sa frame en millisecondes (le reste du
 	//   partage de son horodatage par le pas de la grille) : un v124 se lit « a republier ».
 	//   Detail : chronique.
-	if SchemaVersion != 125 {
-		t.Fatalf("SchemaVersion = %d, attendu 125 : incrémenter exige une raison écrite ci-dessus "+
+	// - 126 (2026-11-15, LOCAL-CHANGE) : `projectiles[].z`, the height of each point of a flight, so the
+	//   3D viewer draws the arc and the bounces : a v125 reads « a republier ». Detail : chronique.
+	if SchemaVersion != 126 {
+		t.Fatalf("SchemaVersion = %d, attendu 126 : incrémenter exige une raison écrite ci-dessus "+
 			"(un champ optionnel de plus n'en est pas une)", SchemaVersion)
 	}
 }

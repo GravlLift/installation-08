@@ -262,7 +262,12 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
     // l'entrée du calque (normalizeMapObjectives), comme celle des callouts.
     // `as` sur l'arité seule : le contenu est celui du contrat, seule la longueur fixe du
     // tuple que JSON Schema ne sait pas dire est réaffirmée (cf. en-tête).
-    projectiles: (raw.projectiles ?? []).map((pr) => ({ ...pr, p: (pr.p ?? []) as ReplayStep[] })),
+    // `z` (schema 126) is the height of each point of `p`: kept only when it matches `p` point for
+    // point. An older artifact has none, and the 3D viewer falls back to an interpolated height.
+    projectiles: (raw.projectiles ?? []).map((pr) => {
+      const p = (pr.p ?? []) as ReplayStep[]
+      return { ...pr, p, z: pr.z && pr.z.length === p.length ? pr.z : undefined }
+    }),
     // LA PRÉSENCE DE CHAQUE OCCUPANT (schéma 69) : les intervalles pendant lesquels il TIENT sa
     // place. Comblée à VIDE quand elle manque — un artefact antérieur au schéma 69 n'en publie
     // aucune, et `seatLogic.publieDesPresences` le lit au niveau du DOCUMENT pour retomber sur
