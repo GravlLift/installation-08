@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { ReplayAth3d } from './ReplayAth3d'
 import type { HudLevel } from '../model/hudLevel'
 import { testReplayDoc } from '../test/testDoc'
+import { prepareCallouts } from '../model/mapCallouts'
 
 const frameRef = { current: 0 } as const
 
@@ -27,9 +28,11 @@ function hudDoc() {
   })
 }
 
-function renderHud(hud?: HudLevel) {
+const callouts = prepareCallouts({ version: 1, source: 'level', zones: [{ en: 'Overhang', polygon: [[-1, -1], [1, -1], [1, 1], [-1, 1]], zBottom: -1, zTop: 2 }] })
+
+function renderHud(hud?: HudLevel, withCallouts = false) {
   return render(
-    <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} />,
+    <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} callouts={withCallouts ? callouts : null} />,
   ).container
 }
 
@@ -69,6 +72,14 @@ describe('ReplayAth3d at each HUD level', () => {
     const container = renderHud('score')
     expect(container.textContent).not.toContain('13')
     expect(container.querySelector('[role="list"]')).toBeNull()
+  })
+
+  it('first and third person: the place name under the motion tracker, none without areas', () => {
+    for (const hud of ['full', 'noReticle'] as const) {
+      expect(renderHud(hud, true).querySelector('[data-hud-callout]')?.textContent).toBe('Overhang')
+      expect(renderHud(hud).querySelector('[data-hud-callout]')).toBeNull()
+    }
+    expect(renderHud('spectator', true).querySelector('[data-hud-callout]')).toBeNull()
   })
 
   it('free view keeps the kill feed', () => {

@@ -50,6 +50,7 @@ import { listenerOfCamera } from '../scene3d/soundListener3d'
 import type { SoundListener } from '../sound/soundSpatial'
 import { ReplayCadence3d } from './ReplayCadence3d'
 import { ReplayChargement3d } from './ReplayChargement3d'
+import { useMapCallouts } from './useMapCallouts'
 import { useMinimap3d } from './useMinimap3d'
 import { useSurfaceProbe } from './useSurfaceProbe'
 import { useViewGripTuner } from './useViewGripTuner'
@@ -410,13 +411,14 @@ export function Replay3DView({
   }, [ready, active, frameRef, meterRef, soundListenerRef])
 
   useMinimap3d(sceneRef, ready && !compact)
+  const callouts = useMapCallouts(doc.matchId)
   const surface = useSurfaceProbe(sceneRef)
   const viewGrip = useViewGripTuner(sceneRef, ready && mode === 'fp')
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
       {/* How much of the HUD each view draws: `hudLevelOf` (first person all, third person no aim, free view score and feed, 2D score). */}
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} />}
+      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} callouts={callouts} />}
       {surface.probe && (
         <button
           type="button"

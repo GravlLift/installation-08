@@ -145,6 +145,11 @@ export function ambienceUrl(matchId: string): string {
   return `/api/matches/${encodeURIComponent(matchId)}/ambience.ogg`
 }
 
+/** calloutsUrl is the match's map named areas (`MapCallouts`); a JSON 404 when they cannot be read. */
+export function calloutsUrl(matchId: string): string {
+  return `/api/matches/${encodeURIComponent(matchId)}/callouts`
+}
+
 /**
  * checkMesh issues a lightweight `HEAD` against the mesh route to tell "not built yet"
  * (`MeshNotBuiltError`) apart from "will stream fine" before the 3D view starts a full GET
