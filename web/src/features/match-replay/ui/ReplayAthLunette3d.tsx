@@ -18,6 +18,34 @@ const SHADE = ink('shade')
 const DARK = ink('ink')
 const WHITE = ink('white')
 
+/**
+ * Where an overlay prints the magazine count (`spec.ammo`): its baseline point, anchor, size,
+ * opacity, weight and `--replay-ads-*` ink. The video export prints the same text at the same
+ * place (`export/adsOverlayRaster`), the count being the one value that changes every shot.
+ */
+export interface AdsAmmoText {
+  x: number
+  y: number
+  anchor: 'middle' | 'end'
+  size: number
+  opacity: number
+  weight: number
+  ink: string
+}
+
+export const ADS_AMMO_TEXT: Readonly<Partial<Record<AdsDesign, AdsAmmoText>>> = {
+  smartLink: { x: 152, y: -119, anchor: 'middle', size: 17, opacity: 0.85, weight: 400, ink: 'smartlink' },
+  commando: { x: 155, y: -117, anchor: 'middle', size: 17, opacity: 1, weight: 600, ink: 'white' },
+  bandit: { x: 340, y: 13, anchor: 'end', size: 29, opacity: 1, weight: 500, ink: 'amber' },
+}
+
+/** AmmoText: the magazine count of the overlay `design`, at its `ADS_AMMO_TEXT` place. */
+function AmmoText({ design, ammo }: { design: AdsDesign; ammo: string | null }) {
+  const t = ADS_AMMO_TEXT[design]
+  if (!t || !ammo) return null
+  return <text x={t.x} y={t.y} textAnchor={t.anchor} style={textStyle(ink(t.ink), t.size, t.opacity, t.weight)}>{ammo}</text>
+}
+
 /** The outer box every shade covers, well past any screen. */
 const OUTER = 'M-2200,-1100H2200V1100H-2200Z'
 
@@ -122,7 +150,7 @@ function SmartLink({ level, ammo }: DrawProps) {
       <path d="M-208,-166H-130 M130,-166H208 M-180,-141H-138 M138,-141H180 M-153,-111H-138 M138,-111H153" style={thin} />
       <path d="M-108,-146H-100 M100,-146H108" style={line(c, 3, 0.35)} />
       {level.label && <text x={-116} y={-119} textAnchor="middle" style={textStyle(c, 17, 0.85, 400)}>{level.label}</text>}
-      {ammo && <text x={152} y={-119} textAnchor="middle" style={textStyle(c, 17, 0.85, 400)}>{ammo}</text>}
+      <AmmoText design="smartLink" ammo={ammo} />
       {/* The side columns with their end caps. */}
       <path d="M-231,-71V66 M-235,-71H-227 M-235,66H-227 M231,-71V66 M227,-71H235 M227,66H235" style={thin} />
       <path d="M-223,-55V52 M223,-55V52" style={line(c, 0.9, 0.35)} />
@@ -188,7 +216,7 @@ function Commando({ id, level, ammo, reticle }: DrawProps) {
       <text x={-150} y={-140} textAnchor="middle" style={textStyle(amber, 6, 0.8)}>MAG</text>
       {level.label && <text x={-184} y={-117} style={textStyle(amber, 17)}>{level.label}</text>}
       <text x={153} y={-140} textAnchor="middle" style={textStyle(WHITE, 6, 0.75)}>AMMO</text>
-      {ammo && <text x={155} y={-117} textAnchor="middle" style={textStyle(WHITE, 17)}>{ammo}</text>}
+      <AmmoText design="commando" ammo={ammo} />
       {/* Amber range bars and the dark ladder on the center row. */}
       <path d="M-189,0H-133 M-105,0H-100 M100,0H105 M133,0H189" filter={blur(id, 2)} style={line(amber, 3, 0.5)} />
       <path d="M-189,0H-133 M-105,0H-100 M100,0H105 M133,0H189" style={line(amber, 1.6, 0.95)} />
@@ -218,7 +246,7 @@ function Bandit({ id, level, ammo, reticle }: DrawProps) {
       <text x={-327} y={-29} textAnchor="middle" style={textStyle(amber, 8, 0.85)}>MAG</text>
       {level.label && <text x={-341} y={13} style={textStyle(amber, 29, 1, 500)}>{level.label}</text>}
       <text x={322} y={-29} textAnchor="middle" style={textStyle(amber, 8, 0.85)}>AMMO</text>
-      {ammo && <text x={340} y={13} textAnchor="end" style={textStyle(amber, 29, 1, 500)}>{ammo}</text>}
+      <AmmoText design="bandit" ammo={ammo} />
       {/* The parentheses around the reticle and the corner marks. */}
       <path d="M-43,-36C-56,-24 -60,-12 -60,0C-60,12 -56,24 -43,36 M-60,0H-57 M43,-36C56,-24 60,-12 60,0C60,12 56,24 43,36 M60,0H57" style={line(amber, 1.6, 0.9)} />
       <path d="M-98,-64V-68H-93 M95,-64V-68H90 M-98,61V65H-93 M95,61V65H90" style={line(amber, 1.2, 0.7)} />

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { KillEvent } from '../../match-view/_momentum'
 import { toReplayKills } from '../model/killFeedLogic'
+import { prepareCallouts } from '../model/mapCallouts'
 import { testReplayDoc } from '../test/testDoc'
 import { createExportHud } from './exportHud'
 
@@ -145,6 +146,126 @@ function recordingCtxFull() {
   }) as unknown as CanvasRenderingContext2D
   return { ctx, fills, fillRects, strokes, gradientStops }
 }
+
+/** A recording context: every method call and every property write, in order. */
+function callRecorder() {
+  const state: Record<string, unknown> = {}
+  const calls: { name: string; args: unknown[] }[] = []
+  const sets: { prop: string; value: unknown }[] = []
+  const ctx = new Proxy(state, {
+    get(target, prop) {
+      if (prop === 'measureText') return () => ({ width: 8 })
+      if (prop === 'createLinearGradient') return () => ({ addColorStop: () => {} })
+      if (typeof prop === 'string' && prop in target) return target[prop]
+      return (...args: unknown[]) => { calls.push({ name: String(prop), args }) }
+    },
+    set(target, prop, value) {
+      sets.push({ prop: String(prop), value })
+      target[prop as string] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  const named = (name: string) => calls.filter((c) => c.name === name)
+  return { ctx, calls, sets, named }
+}
+
+const S7 = '0x0A1992BC42C9679F'
+const MA40 = '0x33334444AAAABBBB'
+
+/** 'A' holding `weapon` (label `key`), zoomed to `level` the whole life, with 4 in the magazine. */
+function aimDoc(level: number, weapon = S7, key = 'hinf_s7_sniper') {
+  return testReplayDoc({
+    frameIntervalMs: 20,
+    tracks: [{ slot: 512, xuid: 'A', team: -1, startFrame: 0, endFrame: 1000, points: [{ t: 0, x: 0, y: 0, z: 0, h: 0, s: level }, { t: 1000, x: 0, y: 0, z: 0, h: 0, s: level }] }],
+    inventory: [{ t: 0, slot: 512, d: 0, am: [{ mag: 4, res: 20 }], g: [] }],
+    loadouts: [{ t: 0, slot: 512, w: [weapon] }],
+    roster: [{ filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 }],
+    weaponLabels: { [weapon]: { en: key, fr: key, key } },
+  })
+}
+
+/** A loader that "rasterizes" an overlay to an object carrying its SVG. */
+const fakeLoad = vi.fn(async (svg: string) => ({ svg }) as unknown as CanvasImageSource)
+
+describe('the first-person aim and the place label', () => {
+  const VIEW_FILE = { width: 960, height: 540 }
+
+  beforeEach(() => {
+    fakeLoad.mockClear()
+    document.documentElement.style.setProperty('--reticle-hostile', '#ff1100')
+    document.documentElement.style.setProperty('--replay-hud-on-dark', '#eaf2f5')
+  })
+
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--reticle-hostile')
+    document.documentElement.style.removeProperty('--replay-hud-on-dark')
+  })
+
+  it('S7 scoped: the S7 overlay over the whole frame, faded with the zoom, no hip reticle', async () => {
+    const hud = await createExportHud(aimDoc(1), 'A', [], null, null, 'en', { aim: true, loadSvg: fakeLoad })
+    const rec = callRecorder()
+    hud(rec.ctx, VIEW_FILE, 50)
+    const draws = rec.named('drawImage')
+    expect(draws).toHaveLength(1)
+    expect((draws[0].args[0] as { svg: string }).svg).toContain('data-ads="s7"')
+    expect(draws[0].args.slice(1)).toEqual([0, 0, 960, 540])
+    // The S7's own reticle replaces the hip one: no arc at the center.
+    expect(rec.named('arc')).toHaveLength(0)
+  })
+
+  it('at the hip: the weapon hip reticle at the center, no overlay', async () => {
+    const hud = await createExportHud(aimDoc(0), 'A', [], null, null, 'en', { aim: true, loadSvg: fakeLoad })
+    const rec = callRecorder()
+    hud(rec.ctx, VIEW_FILE, 50)
+    expect(rec.named('drawImage')).toHaveLength(0)
+    // The S7 hip reticle is a dot ('point'): one arc at the center.
+    const arcs = rec.named('arc')
+    expect(arcs).toHaveLength(1)
+    expect(arcs[0].args.slice(0, 2)).toEqual([480, 270])
+  })
+
+  it('smart link zoomed: the frame, its magazine count, and the hip reticle kept', async () => {
+    const hud = await createExportHud(aimDoc(1, MA40, 'hinf_ma40_ar'), 'A', [], null, null, 'en', { aim: true, loadSvg: fakeLoad })
+    const rec = callRecorder()
+    hud(rec.ctx, VIEW_FILE, 50)
+    expect((rec.named('drawImage')[0].args[0] as { svg: string }).svg).toContain('data-ads="smartLink"')
+    const u = 540 / 720
+    expect(rec.named('fillText').some((c) => c.args[0] === '04' && c.args[1] === 480 + 152 * u && c.args[2] === 270 - 119 * u)).toBe(true)
+    expect(rec.named('arc').length).toBeGreaterThan(0)
+  })
+
+  it('third person: no reticle and no overlay, nothing rasterized', async () => {
+    const hud = await createExportHud(aimDoc(1), 'A', [], null, null, 'en', { aim: false, loadSvg: fakeLoad })
+    const rec = callRecorder()
+    hud(rec.ctx, VIEW_FILE, 50)
+    expect(fakeLoad).not.toHaveBeenCalled()
+    expect(rec.named('drawImage')).toHaveLength(0)
+    expect(rec.named('arc')).toHaveLength(0)
+  })
+
+  it('over an enemy: the hip reticle turns hostile red, and the red overlays are loaded', async () => {
+    const redReticle = vi.fn(() => true)
+    const hud = await createExportHud(aimDoc(0, MA40, 'hinf_ma40_ar'), 'A', [], null, null, 'en', { aim: true, loadSvg: fakeLoad, redReticle })
+    expect(fakeLoad.mock.calls.some(([svg]) => svg.includes('#ff1100'))).toBe(true)
+    const rec = callRecorder()
+    hud(rec.ctx, VIEW_FILE, 50)
+    expect(redReticle).toHaveBeenCalledWith(50, expect.anything(), { weaponId: MA40, zoomLevel: 0 })
+    expect(rec.sets.filter((s) => s.prop === 'strokeStyle').map((s) => s.value)).toContain('#ff1100')
+  })
+
+  it('the place label bottom left, in capitals, only inside a named area', async () => {
+    const zone = (x: number) => prepareCallouts({ version: 1, source: 'level', zones: [{ en: 'Overhang', polygon: [[x - 1, -1], [x + 1, -1], [x + 1, 1], [x - 1, 1]], zBottom: -1, zTop: 2 }] })
+    const inside = await createExportHud(aimDoc(0), 'A', [], null, null, 'en', { callouts: zone(0) })
+    const rec = callRecorder()
+    inside(rec.ctx, VIEW_FILE, 50)
+    const label = rec.named('fillText').find((c) => c.args[0] === 'OVERHANG')
+    expect(label?.args.slice(1)).toEqual([960 * 0.03, 540 * 0.94])
+    const outside = await createExportHud(aimDoc(0), 'A', [], null, null, 'en', { callouts: zone(50) })
+    const none = callRecorder()
+    outside(none.ctx, VIEW_FILE, 50)
+    expect(none.named('fillText').some((c) => c.args[0] === 'OVERHANG')).toBe(false)
+  })
+})
 
 describe('createExportHud', () => {
   it('paints the kill feed with the team colors current at paint time', async () => {

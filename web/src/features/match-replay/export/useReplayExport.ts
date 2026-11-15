@@ -444,7 +444,17 @@ async function framePainter(
       return canvas
     }
   }
-  const hud = scene3d.view3d.pov ? await createExportHud(o.doc, scene3d.view3d.pov, o.kills ?? [], o.playWindow, o.timeLimitMs ?? null, o.locale) : null
+  // The followed player's HUD at the screen's level (`hudLevel`): first person draws the aim
+  // (reticle, ADS overlays); both draw the place label from the areas the view already loaded.
+  const scene = scene3d.scene
+  const hud = scene3d.view3d.pov
+    ? await createExportHud(o.doc, scene3d.view3d.pov, o.kills ?? [], o.playWindow, o.timeLimitMs ?? null, o.locale, {
+        aim: scene3d.view3d.camera === 'fp',
+        callouts: replay3DExportEntry()?.callouts ?? null,
+        redReticle: scene.redReticle ? (frame, allegiance, held) => scene.redReticle?.(frame, allegiance, held) ?? false : undefined,
+        frameSize: { width: scene3d.format.width, height: scene3d.format.height },
+      })
+    : null
   const painter = make3dPainter({
     source: scene3d.scene,
     format: scene3d.format,

@@ -378,12 +378,14 @@ export function Replay3DView({
   useEffect(() => {
     sceneRef.current?.resize(width, height)
   }, [ready, width, height])
+  // The map's named areas: the HUD's place label, and the export HUD's (lent with the scene).
+  const callouts = useMapCallouts(doc.matchId)
   // La scène chargée se prête à l'export vidéo ; l'état de l'écran sert de défaut à son dialogue.
   useEffect(() => {
     const scene = sceneRef.current
     if (!ready || !scene) return
-    return registerReplay3DExport({ source: scene, live: active, camera: mode, pov })
-  }, [ready, active, mode, pov])
+    return registerReplay3DExport({ source: scene, live: active, camera: mode, pov, callouts })
+  }, [ready, active, mode, pov, callouts])
 
   // LA BOUCLE D'IMAGES : la scène se pose à l'image courante du lecteur, à la cadence de l'écran.
   useEffect(() => {
@@ -411,7 +413,6 @@ export function Replay3DView({
   }, [ready, active, frameRef, meterRef, soundListenerRef])
 
   useMinimap3d(sceneRef, ready && !compact)
-  const callouts = useMapCallouts(doc.matchId)
   const surface = useSurfaceProbe(sceneRef)
   const viewGrip = useViewGripTuner(sceneRef, ready && mode === 'fp')
   return (
