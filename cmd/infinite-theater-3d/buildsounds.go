@@ -10,6 +10,7 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 
+	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
@@ -19,9 +20,10 @@ import (
 // announcerLanguages maps the viewer's language codes to the game's sound language folders.
 var announcerLanguages = map[string]string{"en": "English(US)", "fr": "French(France)"}
 
-// runBuildSounds extracts the multiplayer announcer's voice lines and the weapons' reload sounds
-// from the installed game into the replay sound folder (<data>/assets/sounds/halo_infinite),
-// with the announcer.json and reloads.json manifests the viewer reads. The game stores them as
+// runBuildSounds extracts the multiplayer announcer's voice lines, the weapons' reload sounds and
+// the maps' ambient beds from the installed game into the replay sound folder
+// (<data>/assets/sounds/halo_infinite), with the announcer.json, reloads.json and ambience.json
+// manifests the server and the viewer read. The game stores them as
 // Wwise Vorbis, which is repacked into the Ogg Vorbis files the viewer plays without decoding
 // (internal/wwvorbis): no other program runs.
 func runBuildSounds(args []string) error {
@@ -49,7 +51,27 @@ func runBuildSounds(args []string) error {
 	}
 	fmt.Printf("reloads built into %s: %d weapons, %d files, %d bytes; %d old take files removed\n",
 		soundsDir(dir), len(reloads.Manifest.Weapons), reloads.Files, reloads.Bytes, reloads.Removed)
+	beds, err := buildAmbienceSounds(context.Background(), *gameRoot, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("ambience built into %s: %d maps, %d files, %d bytes; %d old take files removed; skipped %v\n",
+		soundsDir(dir), len(beds.Manifest.Maps), beds.Files, beds.Bytes, beds.Removed, beds.Skipped)
 	return nil
+}
+
+// buildAmbienceSounds is the ambience extraction both build-sounds and the server's sound job
+// run: every multiplayer map's main ambient bed, into the data directory's sound folder.
+func buildAmbienceSounds(ctx context.Context, gameRoot, dataDir string) (*ambience.Result, error) {
+	root, err := deployRootFor(gameRoot)
+	if err != nil {
+		return nil, err
+	}
+	res, err := ambience.Build(ctx, ambience.Options{GameRoot: root, OutDir: soundsDir(dataDir)})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, nil
 }
 
 // buildReloadSounds is the reload extraction both build-sounds and the server's sound job run:

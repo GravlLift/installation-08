@@ -149,7 +149,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB, each distinct model written once and placed by node transform | `--map <key> --mvar <file.mvar> --out <file.glb>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
-| `build-sounds` | the announcer's voice lines (168 calls) and every weapon's reload sounds, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json` and `reloads.json` | `--lang en\|fr`, `--data <dir>` |
+| `build-sounds` | the announcer's voice lines (168 calls), every weapon's reload sounds and every multiplayer map's ambient bed, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json`, `reloads.json` and `ambience.json` | `--lang en\|fr`, `--data <dir>` |
 | `build-firstperson-library` | the whole first-person rig library (one rig per first-person-capable weapon, shared texture depot, `index.json`) | `--data <dir>`, `--map <module-key>` |
 | `build-spartan` | the Spartan body with its game animations, to one GLB | `--map <module-key>`, `--out <file.glb>` |
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
@@ -196,9 +196,11 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   `POST /api/first-person/build`; `GET /api/first-person/{file}` (a rig or texture).
 - Spartan piece library: `GET /api/spartan-pieces/{file}`, `POST /api/spartan-pieces/build`,
   `GET /api/spartan-pieces/state`.
-- Announcer and reload sounds: `GET /api/announcer/state` (the job state plus `built` and
-  `stale`, true when both manifests are there and when either is of an older format, which is
-  rebuilt), `POST /api/announcer/build` (one job extracts both).
+- Announcer, reload and ambience sounds: `GET /api/announcer/state` (the job state plus `built`
+  and `stale`, true when all three manifests are there and when any is of an older format, which
+  is rebuilt), `POST /api/announcer/build` (one job extracts all three).
+  `GET /api/matches/{id}/ambience.ogg` is the match's map bed (range-capable), a JSON `404`
+  `ambience_not_built` when the map has none yet.
 - `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
   per coating library whether it is built, stale, and how many of its materials the export
   does not know (`materials_missing`), plus `override` (true when `IT3D_EKUR_DIR` names the
@@ -258,6 +260,16 @@ plays each sound at its frame after the film's reload action, cancels the rest o
 the player's death, weapon change, melee, throw, shot or next reload, and brings every reload's
 loudest sound to one level (`web/src/features/match-replay/sound/reloadLoudness.ts`). Without an
 extraction `reloads.json` is a `404` and no reload sounds.
+
+The same command extracts every multiplayer map's ambient bed (its "room tone"). A map's level
+tag (`levl`) holds a palette of background sounds, one per acoustic zone (1 or 2 on the Forge
+maps, 9 to 45 on the native ones); each names a looping sound tag (`lsnd`) whose Wwise play
+event plays one quad loop of 8 to 78 s. The build keeps, per map, the loop the most zones name
+and writes it as `ambience_<media id>.ogg` (34 files, about 65 MB, for the 31 maps of the
+install), with `ambience.json`. The viewer loops the bed quietly under the replay while it plays,
+with sound on, through the same volume and mute as every other sound; the pause fades it out and
+the resume picks it up where it stopped. It is one non-positional bed per map: the game also
+switches beds between zones and places positional emitters, which the viewer does not play.
 
 ## Other commands
 
