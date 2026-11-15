@@ -422,6 +422,16 @@
 /* Its switch takes the icon buttons' 30 px seat. */
 .bc-ctl .bc-sound button { width: 30px; height: 30px; }
 .bc-sound input[type="range"] { accent-color: var(--air); width: 48px; }
+/* The volume track: a thin light line, filled in the HUD light blue up to the thumb (`--played`,
+ * set by `ReplaySoundControls`). The control's own gradient named a `--input` token the theme
+ * does not define, so the browser dropped it and the track did not show. Chrome/Edge paint the
+ * fill with the track gradient; Firefox has its own progress pseudo-element. */
+.bc-sound input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--air) 0 var(--played, 0%), rgba(238,244,248,0.28) var(--played, 0%) 100%); }
+.bc-sound input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(238,244,248,0.28); }
+.bc-sound input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--air); }
+.bc-sound input[type="range"]::-webkit-slider-thumb { background: var(--ink); }
+.bc-sound input[type="range"]::-moz-range-thumb { background: var(--ink); }
 
 /* Reduced motion: the drift, the cross-fade, the page wipe and the count scale stop. */
 @media (prefers-reduced-motion: reduce) {
