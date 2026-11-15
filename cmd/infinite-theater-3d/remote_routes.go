@@ -187,7 +187,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: fetchMatch}, listCache: newMatchlistCache()}
+	}, fetch: fetchMatch}, listCache: newMatchlistCache(), coatingsSetup: &coatingsSetupJob{}}
 	h.mux = h.buildMux()
 	return h
 }
@@ -205,6 +205,8 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/matches/{id}/fetch/state", h.fetchState)
 	mux.HandleFunc("GET /api/health", h.handleHealth)
 	mux.HandleFunc("GET /api/coatings/status", h.handleCoatingStatus)
+	mux.HandleFunc("GET /api/coatings/setup/state", h.handleCoatingsSetupState)
+	mux.HandleFunc("POST /api/coatings/setup", h.handleCoatingsSetup)
 	mux.HandleFunc("GET /api/matches", h.handleMatches)
 	mux.HandleFunc("GET /api/matches/{id}/replay", h.handleReplay)
 	mux.HandleFunc("GET /api/matches/{id}/spartans", h.handleMatchSpartans)
