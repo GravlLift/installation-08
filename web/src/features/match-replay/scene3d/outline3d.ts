@@ -1,21 +1,21 @@
 /**
  * outline3d.ts — LE CONTOUR D'ÉQUIPE : une ligne pleine, à la couleur du camp (allié ou adverse vu
  * du joueur de la page), autour de la silhouette entière de chaque joueur en vie, arme en main
- * comprise, d'épaisseur constante à l'écran et cachée par la carte, comme le jeu la trace.
+ * comprise, d'épaisseur constante à l'écran et tracée à travers la carte, en rayons X, comme dans
+ * le théâtre du jeu.
  *
  * Deux passes du compositeur :
- *  1. LE MASQUE, juste après le rendu de la scène (dont il lit la profondeur) : une cible à elle, à
- *     demi-résolution, où chaque texel couvert porte (allié, adverse, éclat, profondeur du joueur).
- *     Les joueurs y sont rendus avec un matériau de masque (os et poses ceux de l'image), un pixel
- *     caché par la carte est jeté : seule la part visible d'un joueur entre au masque. Un joueur hors
- *     du champ n'y entre pas ; un joueur lointain y entre par sa silhouette en bâtons posée sur ses
- *     os (`outlineStand3d`, un appel de dessin au lieu des pièces de son armure et de son arme), sa
- *     silhouette n'y faisant que quelques texels (`maskDrawOf`).
+ *  1. LE MASQUE, juste après le rendu de la scène : une cible à elle, à demi-résolution, où chaque
+ *     texel couvert porte (allié, adverse, éclat, profondeur du joueur). Les joueurs y sont rendus
+ *     avec un matériau de masque (os et poses ceux de l'image), carte ou non : un joueur caché par
+ *     un mur y entre tout de même. Un joueur hors du champ n'y entre pas ; un joueur lointain y
+ *     entre par sa silhouette en bâtons posée sur ses os (`outlineStand3d`, un appel de dessin au
+ *     lieu des pièces de son armure et de son arme), sa silhouette n'y faisant que quelques texels
+ *     (`maskDrawOf`).
  *  2. LA LIGNE, en dernier (après le passage aux couleurs de l'écran, pour que la couleur du camp
  *     sorte telle que les réglages la donnent), à pleine résolution, depuis le bord lissé du masque
- *     (`outlineShaders3d`) : un pixel hors silhouette prend la couleur du joueur le plus proche dans
- *     le rayon de la ligne, si ce qu'il montre est derrière ce joueur (un mur devant ne reçoit pas
- *     de ligne).
+ *     (`outlineShaders3d`) : un pixel hors silhouette prend la couleur du joueur le plus proche
+ *     dans le rayon de la ligne, un mur devant compris.
  *
  * L'éclat du bouclier touché (`BodyFxState.shield`) épaissit et éclaircit la ligne du joueur ; la
  * coque d'énergie (`bodyShell3d`) inonde son corps de la même couleur. Rien n'est gardé d'une image
@@ -125,9 +125,6 @@ export class Outline3d {
         uniforms: {
           tDiffuse: { value: null },
           tMask: { value: this.mask.texture },
-          tDepth: { value: null },
-          uNear: { value: 0 },
-          uFar: { value: 1 },
           uTexel: { value: new THREE.Vector2() },
           uBase: { value: 1 },
           uFlare: { value: 1 },
@@ -223,13 +220,9 @@ export class Outline3d {
   }
 
   private drawMask(renderer: THREE.WebGLRenderer, read: THREE.WebGLRenderTarget): void {
-    const depth = read.depthTexture
-    if (!depth) return
     const w = Math.max(1, Math.ceil(read.width / MASK_SCALE))
     const h = Math.max(1, Math.ceil(read.height / MASK_SCALE))
     if (this.mask.width !== w || this.mask.height !== h) this.mask.setSize(w, h)
-    // La ligne lit la profondeur de la scène à pleine résolution (le compositeur la garde intacte jusque-là, `postFx3d`).
-    ;(this.lineQuad.material as THREE.ShaderMaterial).uniforms.tDepth.value = depth
     const before = renderer.getRenderTarget()
     const autoClear = renderer.autoClear
     renderer.getClearColor(this.clear)
@@ -244,7 +237,7 @@ export class Outline3d {
       for (let i = 0; i < this.count; i++) {
         if (plan[i] === 'skip') continue
         const s = this.subjects[i]
-        const m = this.materialOf(i, depth)
+        const m = this.materialOf(i)
         if (plan[i] === 'stand') {
           this.placeStand(stands++, s.skeleton as THREE.Skeleton, m)
           continue
@@ -265,8 +258,6 @@ export class Outline3d {
     const u = (this.lineQuad.material as THREE.ShaderMaterial).uniforms
     const ratio = renderer.getPixelRatio()
     u.tDiffuse.value = read.texture
-    u.uNear.value = this.camera.near
-    u.uFar.value = this.camera.far
     ;(u.uTexel.value as THREE.Vector2).set(1 / read.width, 1 / read.height)
     u.uBase.value = OUTLINE_PX * ratio
     u.uFlare.value = FLARE_PX * ratio
@@ -276,13 +267,9 @@ export class Outline3d {
   }
 
   /** materialOf : le matériau de masque du joueur `i` de l'image, à son camp et à son éclat. */
-  private materialOf(i: number, depth: THREE.DepthTexture): THREE.ShaderMaterial {
+  private materialOf(i: number): THREE.ShaderMaterial {
     const m = this.materials[i] ?? (this.materials[i] = subjectMaterial())
     const s = this.subjects[i]
-    m.uniforms.tDepth.value = depth
-    m.uniforms.uSize.value.set(this.mask.width, this.mask.height)
-    m.uniforms.uNear.value = this.camera.near
-    m.uniforms.uFar.value = this.camera.far
     m.uniforms.uSide.value.set(s.ally ? 1 : 0, s.ally ? 0 : 1, s.flare)
     return m
   }
@@ -325,17 +312,13 @@ export class Outline3d {
   }
 }
 
-/** subjectMaterial : le matériau de masque d'un joueur (os de l'image, profondeur de la scène). */
+/** subjectMaterial : le matériau de masque d'un joueur (os et poses de l'image). */
 function subjectMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader: SUBJECT_VERTEX,
     fragmentShader: SUBJECT_FRAGMENT,
     uniforms: {
-      tDepth: { value: null },
-      uSize: { value: new THREE.Vector2(1, 1) },
       uSide: { value: new THREE.Vector3() },
-      uNear: { value: 0 },
-      uFar: { value: 1 },
     },
     side: THREE.DoubleSide,
     blending: THREE.NoBlending,

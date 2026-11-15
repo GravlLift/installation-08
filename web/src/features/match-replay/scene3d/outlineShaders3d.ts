@@ -1,6 +1,9 @@
 /**
  * outlineShaders3d.ts — LES NUANCEURS DU CONTOUR D'ÉQUIPE (`outline3d`).
  *
+ * Le contour est en rayons X : il traverse la carte, comme dans le théâtre du jeu. Aucun des deux
+ * nuanceurs ne lit la profondeur de la scène ; un joueur caché par un mur est tracé tout de même.
+ *
  * Le masque est une cible à demi-résolution, lue en filtrage linéaire : chaque texel couvert porte
  * (allié, adverse, éclat, profondeur du joueur), un texel vide (0, 0, 0, 0). Lu entre les texels, il
  * donne une couverture douce (allié + adverse) dont la ligne de niveau 0,5 est le bord de la
@@ -14,14 +17,6 @@ const FLARE_WHITE = 0.45
 /** Directions et anneaux échantillonnés autour d'un pixel (le pas suit l'épaisseur au plus fort). */
 const DIRS = 12
 const RINGS = 5
-
-const PACKING = /* glsl */ `
-#include <packing>
-uniform float uNear;
-uniform float uFar;
-float viewDepth(float d) {
-  return d >= 1.0 ? 1e6 : -perspectiveDepthToViewZ(d, uNear, uFar);
-}`
 
 export const QUAD_VERTEX = /* glsl */ `
 varying vec2 vUv;
@@ -42,31 +37,24 @@ void main() {
   vDepth = -mvPosition.z;
 }`
 
-/** Le joueur au masque : son camp, son éclat, sa profondeur ; rien là où la carte le cache. */
+/** Le joueur au masque : son camp, son éclat, sa profondeur ; le masque le garde, même caché. */
 export const SUBJECT_FRAGMENT = /* glsl */ `
-uniform sampler2D tDepth;
-uniform vec2 uSize;
 uniform vec3 uSide;
 varying float vDepth;
-${PACKING}
 void main() {
-  // Caché par la carte (ou par un autre corps) : hors du masque.
-  float scene = viewDepth(texture2D(tDepth, gl_FragCoord.xy / uSize).x);
-  if (vDepth > scene + 0.01 + 0.004 * vDepth) discard;
   gl_FragColor = vec4(uSide, vDepth);
 }`
 
 /**
- * La ligne, à pleine résolution. Hors de la silhouette : dans chaque direction, le premier
- * échantillon couvert donne le bord (interpolé entre lui et le précédent), la portée du joueur
- * (épaisseur + éclat) et sa profondeur ; la direction la plus couvrante dont le joueur est devant ce
- * que montre le pixel l'emporte. Dans la silhouette, le bord intérieur de la ligne s'efface sur
+ * La ligne, à pleine résolution, par-dessus l'image (en rayons X, un mur devant ne l'arrête pas).
+ * Hors de la silhouette : dans chaque direction, le premier échantillon couvert donne le bord
+ * (interpolé entre lui et le précédent) et la portée du joueur (épaisseur + éclat) ; la direction
+ * la plus couvrante l'emporte. Dans la silhouette, le bord intérieur de la ligne s'efface sur
  * `uSoft` : il couvre l'escalier du corps sans le mordre.
  */
 export const LINE_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform sampler2D tMask;
-uniform sampler2D tDepth;
 uniform vec2 uTexel;
 uniform float uBase;
 uniform float uFlare;
@@ -75,10 +63,6 @@ uniform float uMaskPx;
 uniform vec3 uAlly;
 uniform vec3 uEnemy;
 varying vec2 vUv;
-${PACKING}
-bool inFront(float scene, float z) {
-  return scene > z - 0.02 - 0.01 * z;
-}
 vec3 inkOf(vec4 q) {
   float c = q.r + q.g;
   vec3 ink = q.r >= q.g ? uAlly : uEnemy;
@@ -89,12 +73,11 @@ void main() {
   gl_FragColor = base;
   vec4 here = texture2D(tMask, vUv);
   float c0 = here.r + here.g;
-  float scene = viewDepth(texture2D(tDepth, vUv).x);
   if (c0 >= 0.5) {
     // La couverture monte de 0 à 1 sur un texel du masque (uMaskPx pixels).
     float inside = (c0 - 0.5) * uMaskPx;
     float a = clamp(1.0 - inside / uSoft, 0.0, 1.0);
-    if (a > 0.0 && inFront(scene, here.a / c0)) gl_FragColor = vec4(mix(base.rgb, inkOf(here), a), base.a);
+    if (a > 0.0) gl_FragColor = vec4(mix(base.rgb, inkOf(here), a), base.a);
     return;
   }
   float step = (uBase + uFlare) / float(${RINGS});
@@ -115,8 +98,7 @@ void main() {
       float edge = d - step * (c - 0.5) / max(c - prev, 1e-3);
       float reach = uBase + uFlare * q.b / c;
       float a = clamp((reach - edge) / uSoft + 0.5, 0.0, 1.0);
-      // Un décor devant ce joueur : rien dans cette direction.
-      if (a > best && inFront(scene, q.a / c)) {
+      if (a > best) {
         best = a;
         hit = q;
       }

@@ -8,6 +8,7 @@ import type { ActionContext } from './actionScene3d'
 import { BodyFx3d } from './bodyFx3d'
 import type { BodyFxState } from './bodyShell3d'
 import { FLARE_PX, maskDrawOf, Outline3d, OUTLINE_PX, projectedHeightPx, STAND_BELOW_PX } from './outline3d'
+import { LINE_FRAGMENT, SUBJECT_FRAGMENT } from './outlineShaders3d'
 import { skeletonOf, STAND_LIMBS, StandFigure } from './outlineStand3d'
 import { NO_SHIELD_FX } from './shields3d'
 
@@ -114,6 +115,18 @@ describe('Outline3d — qui entre au masque, et comment', () => {
     for (const g of [behind, near, far, capsule]) o.add(g, fx(false))
     expect(o.plan(440)).toEqual(['skip', 'whole', 'stand', 'whole'])
     o.dispose()
+  })
+})
+
+describe('le contour en rayons X — il traverse la carte', () => {
+  it('le masque garde le joueur caché : aucun échantillon de profondeur de scène, aucun pixel jeté', () => {
+    expect(SUBJECT_FRAGMENT).not.toContain('tDepth')
+    expect(SUBJECT_FRAGMENT).not.toContain('discard')
+  })
+
+  it('la ligne ignore la profondeur de la scène, un mur devant compris', () => {
+    expect(LINE_FRAGMENT).not.toContain('tDepth')
+    expect(LINE_FRAGMENT).not.toContain('inFront')
   })
 })
 
