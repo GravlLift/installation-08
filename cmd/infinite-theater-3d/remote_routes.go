@@ -339,7 +339,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: fetchMatch}, listCache: newMatchlistCache(), coatingsSetup: &coatingsSetupJob{}}
+	}, fetch: fetchMatch}, listCache: newMatchlistCache(), coatingsSetup: &coatingsSetupJob{}, callouts: newCalloutsSource(root.Dir())}
 	h.mux = h.buildMux()
 	return h
 }
@@ -365,6 +365,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/matches/{id}/context", h.handleContext)
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
 	mux.HandleFunc("GET /api/matches/{id}/ambience.ogg", h.handleAmbience)
+	mux.HandleFunc("GET /api/matches/{id}/callouts", h.handleCallouts)
 	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/cancel", h.handleMeshCancel)

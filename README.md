@@ -201,6 +201,11 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   is rebuilt), `POST /api/announcer/build` (one job extracts all three).
   `GET /api/matches/{id}/ambience.ogg` is the match's map bed (range-capable), a JSON `404`
   `ambience_not_built` when the map has none yet.
+- `GET /api/matches/{id}/callouts`: the named areas of the match's map (the place name the HUD
+  shows under the motion tracker), `{version, source, zones: [{en, fr, polygon, zBottom, zTop}]}`
+  in game world meters, read at runtime from the installed game (a native map's level tag, a
+  Forge map's variant) and cached under `<data>/assets/callouts`; a JSON `404`
+  `callouts_unavailable` with a `reason` when the map cannot be read.
 - `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
   per coating library whether it is built, stale, and how many of its materials the export
   does not know (`materials_missing`), plus `override` (true when `IT3D_EKUR_DIR` names the
