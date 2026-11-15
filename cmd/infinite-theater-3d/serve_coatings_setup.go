@@ -126,8 +126,11 @@ func (h serverHandlers) runCoatingsSetup() {
 	err := run(context.Background(), progress)
 	if err == nil {
 		progress(ekursetup.StageQueuing)
-		h.queueCoatingRebuilds()
 	}
+	// Queue the coating libraries either way: after a success they rebuild with coatings;
+	// after a failure they still build (without coatings), because the startup leaves them
+	// to this step whenever it started the setup.
+	h.queueCoatingRebuilds()
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if err != nil {

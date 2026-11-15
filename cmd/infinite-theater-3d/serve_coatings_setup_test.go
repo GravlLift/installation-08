@@ -156,7 +156,8 @@ func TestCoatingsSetupRoute(t *testing.T) {
 }
 
 // TestCoatingsSetupFailure — a failed run reports failed with the setup's own message and
-// queues no rebuild.
+// still queues the coating libraries once (they build without coatings), because a startup
+// that started the setup leaves their queuing to it.
 func TestCoatingsSetupFailure(t *testing.T) {
 	t.Setenv(spartanpieces.EkurEnv, "")
 	counter, jobs := newBuildCounter(t, "")
@@ -172,10 +173,13 @@ func TestCoatingsSetupFailure(t *testing.T) {
 	if s := setupState(t, h); !strings.Contains(s.Error, "exited with code 3") {
 		t.Fatalf("failure message = %q", s.Error)
 	}
+	for _, module := range coatingLibraryModules {
+		waitForSetup(t, module+" build after a failed setup", func() bool { return counter.count(module) >= 1 })
+	}
 	time.Sleep(20 * time.Millisecond)
 	for _, module := range coatingLibraryModules {
-		if n := counter.count(module); n != 0 {
-			t.Fatalf("%s built %d times after a failed setup", module, n)
+		if n := counter.count(module); n != 1 {
+			t.Fatalf("%s built %d times after a failed setup, want 1", module, n)
 		}
 	}
 	// A failed run frees the job: the next POST starts a new one.
