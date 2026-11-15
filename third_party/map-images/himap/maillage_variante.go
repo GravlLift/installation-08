@@ -105,6 +105,9 @@ type modeleVariante struct {
 	// pieces (LOCAL-CHANGE (infinite-theater-3d)): the objects of the type's Forge kit, posed
 	// in the object's frame (kits_forge.go); empty for a type that has its own model.
 	pieces []pieceKit
+	// fixes (LOCAL-CHANGE (infinite-theater-3d)): the model axes a telescoping object of the
+	// type does not stretch (telescopage_forge.go).
+	fixes [3]bool
 }
 
 // ecartVariante dit pourquoi un objet de variante n'est pas pose.
@@ -222,6 +225,7 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		foodParID[f.GlobalID] = f
 	}
 	out := map[int32]*modeleVariante{}
+	telescopiques := typesTelescopiques(objets)
 	for ty, ref := range modeleParType(ctx, objets, idx, forge) {
 		a, deja := assets[ref.id]
 		if !deja {
@@ -238,6 +242,12 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		if ref.groupe == GroupeRtgo {
 			mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, foodParID[uint32(ty)], ref.id)
 			mv.origine = origineDuRtgo(a, mv.maillages, modeDuType(ctx, idx, forge, foodParID[uint32(ty)], assets))
+		}
+		// LOCAL-CHANGE (infinite-theater-3d): the axes a telescoping type does not stretch.
+		if telescopiques[ty] {
+			if tag, err := forge.Extract(foodParID[uint32(ty)]); err == nil {
+				mv.fixes = axesFixesDuFood(ctx, idx, tag, assets)
+			}
 		}
 		out[ty] = mv
 	}
@@ -267,6 +277,11 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 		}
 		if !compteEcart(ecartDeVariante(o, opts.Filtres), b) {
 			continue
+		}
+		// LOCAL-CHANGE (infinite-theater-3d): a telescoping object keeps its type's fixed axes
+		// unscaled (telescopage_forge.go).
+		if d := modeles[o.TypeID]; d != nil {
+			o = echelleTelescopique(o, d.fixes)
 		}
 		mv, repli := selectionRepresentation(o, modeles[o.TypeID], representations)
 		if repli {

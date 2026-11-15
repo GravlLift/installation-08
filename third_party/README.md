@@ -169,6 +169,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     permutation; its "forge" `rtgo` was compared with the default, failed the same-box test and
     sat 1 m off in X and Y (721 player samples inside it, 3 now). Covered by
     `himap/origine_forge_test.go` (modified).
+  - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
+    mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
+  - `himap/telescopage_forge.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): a
+    telescoping Forge object leaves its scale at 1 on the axes where every size of its type
+    has the same extent. Outlook's ring plates (all sizes 0.41 m thick) stored 5.09 there and
+    stood 2.09 m tall through the floor; the base door frames (all 0.41 m deep) stored 15.4 and
+    made a 6.2 m tunnel (10,893 player samples inside both, 0 now). Ekur does not handle
+    telescoping. Covered by `himap/telescopage_forge_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
