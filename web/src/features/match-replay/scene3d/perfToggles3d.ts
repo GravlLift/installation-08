@@ -17,6 +17,7 @@
  *  - shadows: the shadow map follows the replay (off: it keeps its last state)
  *  - shadowSplit: the static map is kept in the shadow map (`shadowSplit3d`; off: every caster each update)
  *  - labels: the HTML name tags
+ *  - fogCull: off by default; on, the variant's batches leave out what lies past the fog (`layerBatch3d`)
  *  - pixelRatio: a number forces the drawing buffer's pixel ratio; null keeps the view's own
  */
 
@@ -32,6 +33,7 @@ export interface PerfToggles {
   shadows: boolean
   shadowSplit: boolean
   labels: boolean
+  fogCull: boolean
   pixelRatio: number | null
 }
 
@@ -47,10 +49,11 @@ export const PERF_TOGGLES_DEFAULT: Readonly<PerfToggles> = Object.freeze({
   shadows: true,
   shadowSplit: true,
   labels: true,
+  fogCull: false,
   pixelRatio: null,
 })
 
-const FLAGS = ['outline', 'ao', 'smaa', 'postFx', 'minimap', 'map', 'variant', 'backFaces', 'shadows', 'shadowSplit', 'labels'] as const
+const FLAGS = ['outline', 'ao', 'smaa', 'postFx', 'minimap', 'map', 'variant', 'backFaces', 'shadows', 'shadowSplit', 'labels', 'fogCull'] as const
 
 /** The pixel ratios accepted from the console. */
 const RATIO_MIN = 0.25

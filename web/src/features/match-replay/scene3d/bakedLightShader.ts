@@ -52,6 +52,20 @@ export function packBakedRegions(regions: readonly BakedRegion[]): Float32Array 
   return out
 }
 
+/**
+ * The vertex's world position: through the batch's or the instance's matrix first when the mesh is
+ * a `BatchedMesh` or an `InstancedMesh` (the variant layer's batches, `layerBatch3d`), as three's
+ * own `worldpos_vertex` does.
+ */
+const BAKED_WORLD = /* glsl */ `vec4 bakedLocal = vec4(transformed, 1.0);
+#ifdef USE_BATCHING
+bakedLocal = batchingMatrix * bakedLocal;
+#endif
+#ifdef USE_INSTANCING
+bakedLocal = instanceMatrix * bakedLocal;
+#endif
+vBakedWorld = (modelMatrix * bakedLocal).xyz;`
+
 const VERTEX_HEAD = /* glsl */ `
 varying vec3 vBakedWorld;`
 
@@ -208,7 +222,7 @@ export class BakedLight {
       Object.assign(shader.uniforms, this.uniforms)
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>${VERTEX_HEAD}`)
-        .replace('#include <project_vertex>', '#include <project_vertex>\nvBakedWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+        .replace('#include <project_vertex>', `#include <project_vertex>\n${BAKED_WORLD}`)
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>${FRAGMENT_HEAD}`)
         .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>${FRAGMENT_APPLY}`)

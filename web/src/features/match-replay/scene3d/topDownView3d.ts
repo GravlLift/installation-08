@@ -98,7 +98,7 @@ export class TopDownView3d {
     this.bounds = { minX: area.min.x, minZ: area.min.z, maxX: area.max.x, maxZ: area.max.z }
     this.markers = new PlayerMarkers3d(s.scene)
     this.cut = new CutFollower(this.lowestY)
-    this.minimap = new TopDownMinimap({ renderer: s.renderer, stage: this.stage, topY: this.topY, lowestY: this.lowestY })
+    this.minimap = new TopDownMinimap({ renderer: s.renderer, stage: this.stage, topY: this.topY, lowestY: this.lowestY, bounds: this.bounds })
     this.input = new TopDownInput(s.renderer.domElement, {
       zoom: (x, y, factor) => (this.nav = zoomAt(this.navContext(), x, y, factor)),
       pan: (dx, dy) => (this.nav = panBy(this.navContext(), dx, dy)),

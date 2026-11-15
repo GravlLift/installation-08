@@ -51,6 +51,11 @@ export interface ArrayLimits {
  * texels de côté. Le plan qui les tient vaut sur toute machine, sans interroger le contexte.
  */
 export const WEBGL2_LIMITS: ArrayLimits = { maxLayers: 256, maxArrays: 16 - 4, maxRows: 2048 }
+/**
+ * The limits of a model whose merged surfaces are drawn as batches (layerBatch3d, the variant layer):
+ * a batched draw reads its instance matrices and draw ids from two more textures, so two arrays fewer.
+ */
+export const BATCHED_LIMITS: ArrayLimits = { ...WEBGL2_LIMITS, maxArrays: WEBGL2_LIMITS.maxArrays - 2 }
 
 /** Ce qui range une carte : sa taille, et ses réglages (espace de couleur, filtres, répétition...). */
 export interface TextureFacts {

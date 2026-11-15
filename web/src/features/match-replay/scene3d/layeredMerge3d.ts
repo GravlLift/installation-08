@@ -20,7 +20,7 @@ import { IMAGE_LIBEREE, LayeredAtlas, mergedMaterial } from './layeredArrays3d'
 import { layeredComposition, usesMaskSet, UV_NAMES, type LayeredComposition } from './layeredMaterial'
 import {
   MASK_SLOT, ROW_TEXELS, WEBGL2_LIMITS, assignVertexRows, colorSlot, controlSlot, foldMaskSets, normalSlot, packRow, planArrays,
-  type Slot, type TextureFacts,
+  type ArrayLimits, type Slot, type TextureFacts,
 } from './layeredPlan3d'
 
 /**
@@ -231,11 +231,11 @@ function retire(replaced: ReadonlySet<THREE.Material>, owned: THREE.Material[], 
  * les fusionnées). Met à jour `owned` (matériaux remplacés retirés, fusionnés ajoutés). Rend null si
  * rien n'a pu fusionner.
  */
-export function convertLayered(drawn: readonly THREE.Mesh[], all: readonly THREE.Mesh[], owned: THREE.Material[]): LayeredMerge | null {
+export function convertLayered(drawn: readonly THREE.Mesh[], all: readonly THREE.Mesh[], owned: THREE.Material[], limits: ArrayLimits = WEBGL2_LIMITS): LayeredMerge | null {
   const start = performance.now()
   const { rows, members } = collect(drawn)
   if (rows.length === 0) return null
-  const plan = planArrays(rows.map((r) => r.slots), textureFacts, WEBGL2_LIMITS)
+  const plan = planArrays(rows.map((r) => r.slots), textureFacts, limits)
   if (plan.rejected.length > 0) {
     console.warn('rejeu 3D : compositions en couches hors des limites des tableaux, laissées à leur matériau', plan.rejected.length)
   }
