@@ -138,6 +138,32 @@ describe('usePreGameCountdown', () => {
     expect(onDone).toHaveBeenCalledOnce()
   })
 
+  it('ticks once per number as it appears (the countdown beep), never before it starts or after a skip', () => {
+    vi.useFakeTimers()
+    const onDone = vi.fn()
+    const onTick = vi.fn()
+    const { rerender } = renderHook(({ started }) => usePreGameCountdown(onDone, started, onTick), {
+      initialProps: { started: false },
+    })
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(onTick).not.toHaveBeenCalled()
+    rerender({ started: true })
+    expect(onTick.mock.calls).toEqual([[3]])
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(onTick.mock.calls).toEqual([[3], [2]])
+    act(() => {
+      vi.advanceTimersByTime(COUNTDOWN_SKIP_GUARD_MS)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      vi.advanceTimersByTime(2000)
+    })
+    expect(onTick.mock.calls).toEqual([[3], [2]])
+    expect(onDone).toHaveBeenCalledOnce()
+  })
+
   it('ignores the key press that opened the match, and Escape', () => {
     vi.useFakeTimers()
     const onDone = vi.fn()

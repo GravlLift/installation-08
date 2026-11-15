@@ -51,6 +51,7 @@ import { useSoundTimeline } from './useSoundTimeline'
 import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
 import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
+import { COUNTDOWN_TICK_STEM } from './countdownSound'
 import { ReplayAudioPlayer, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { distanceChain, drawVariation, withEventGain } from './weaponSoundLogic'
@@ -157,6 +158,9 @@ export interface ReplaySound {
   /** THE INTRO MUSIC (item 7, `introSound.ts`): at the departure from the preamble, by the
    * ordinary route — sound off or speed beyond SOUND_MAX_SPEED, silence. Never in the export. */
   intro: () => void
+  /** THE PRE-GAME COUNTDOWN TICK (`countdownSound.ts`), played on the number `n` (3, 2, 1) the
+   * countdown shows. Sound off, player not born yet, or tick not extracted: silence. */
+  countdownTick: (n: number) => void
   /**
    * THE AUDIO TRACK TO JOIN TO A RECORDED VIDEO, or `null`.
    *
@@ -291,7 +295,7 @@ export function useReplaySound(
   // The takes of the END enter the preload with the track: the drawing only takes place
   // at the arrival at the end, and a file requested at that moment would sound after the silence.
   const urls = useMemo(
-    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, ...engine.stems]),
+    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, COUNTDOWN_TICK_STEM, ...engine.stems]),
     [timeline, endMatch, engine.stems],
   )
 
@@ -522,6 +526,13 @@ export function useReplaySound(
     if (url && player && onRef.current && soundPlaysAtSpeed(speed)) void playIntroAligned(player, url, speed)
   }, [])
 
+  // THE COUNTDOWN TICK: the same beep on each number (no per-number take exists in the game).
+  const countdownTick = useCallback((n: number) => {
+    void n
+    const [url, player] = [urlsRef.current.get(COUNTDOWN_TICK_STEM), playerRef.current]
+    if (url && player && onRef.current) player.playConclusion(url)
+  }, [])
+
   // THE TRACK FOR THE EXPORT IS READ AT THE CALL, NEVER AT THE RENDER — same pattern as
   // `recordingTrack` just above, and for the same reason: `variationPercentRef` is a
   // REF (instance setting of the admin page). Reading it during the render would give an arbitrary
@@ -571,6 +582,7 @@ export function useReplaySound(
     setTransportPlaying,
     endMatch: playEndMatch,
     intro: playIntro,
+    countdownTick,
     recordingTrack,
     exportTrack,
     listener,

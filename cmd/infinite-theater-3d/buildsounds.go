@@ -14,14 +14,16 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
+	"github.com/llampwall/infinite-theater-3d/internal/uisounds"
 )
 
 // announcerLanguages maps the viewer's language codes to the game's sound language folders.
 var announcerLanguages = map[string]string{"en": "English(US)", "fr": "French(France)"}
 
-// runBuildSounds extracts the multiplayer announcer's voice lines and the weapons' reload sounds
-// from the installed game into the replay sound folder (<data>/assets/sounds/halo_infinite),
-// with the announcer.json and reloads.json manifests the viewer reads. The game stores them as
+// runBuildSounds extracts the multiplayer announcer's voice lines, the weapons' reload sounds and
+// the interface sounds (the pre-game countdown tick) from the installed game into the replay sound
+// folder (<data>/assets/sounds/halo_infinite), with the announcer.json, reloads.json and ui.json
+// manifests. The game stores them as
 // Wwise Vorbis, which is repacked into the Ogg Vorbis files the viewer plays without decoding
 // (internal/wwvorbis): no other program runs.
 func runBuildSounds(args []string) error {
@@ -49,7 +51,26 @@ func runBuildSounds(args []string) error {
 	}
 	fmt.Printf("reloads built into %s: %d weapons, %d files, %d bytes; %d old take files removed\n",
 		soundsDir(dir), len(reloads.Manifest.Weapons), reloads.Files, reloads.Bytes, reloads.Removed)
+	ui, err := buildUISounds(context.Background(), *gameRoot, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("interface sounds built into %s: %d files, %d bytes; missing %v\n", soundsDir(dir), ui.Files, ui.Bytes, ui.Missing)
 	return nil
+}
+
+// buildUISounds is the interface sound extraction both build-sounds and the server's sound job
+// run: the sounds the viewer plays outside the replay track (the pre-game countdown tick).
+func buildUISounds(ctx context.Context, gameRoot, dataDir string) (*uisounds.Result, error) {
+	root, err := deployRootFor(gameRoot)
+	if err != nil {
+		return nil, err
+	}
+	res, err := uisounds.Build(ctx, uisounds.Options{DeployRoot: root, OutDir: soundsDir(dataDir)})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, nil
 }
 
 // buildReloadSounds is the reload extraction both build-sounds and the server's sound job run:

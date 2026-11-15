@@ -149,7 +149,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB, each distinct model written once and placed by node transform | `--map <key> --mvar <file.mvar> --out <file.glb>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
-| `build-sounds` | the announcer's voice lines (168 calls) and every weapon's reload sounds, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json` and `reloads.json` | `--lang en\|fr`, `--data <dir>` |
+| `build-sounds` | the announcer's voice lines (168 calls), every weapon's reload sounds and the interface sounds (the pre-game countdown tick), repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json`, `reloads.json` and `ui.json` | `--lang en\|fr`, `--data <dir>` |
 | `build-firstperson-library` | the whole first-person rig library (one rig per first-person-capable weapon, shared texture depot, `index.json`) | `--data <dir>`, `--map <module-key>` |
 | `build-spartan` | the Spartan body with its game animations, to one GLB | `--map <module-key>`, `--out <file.glb>` |
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
