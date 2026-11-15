@@ -87,6 +87,10 @@
 .bc-home .bc-feature .bc-plate { margin: -84px 0 0 -28px; z-index: 1; min-width: 56%; padding: 20px 44px 22px 26px; }
 .bc-home .bc-title { font-size: clamp(48px, 5.4vw, 92px); }
 .bc-home .bc-facts b { font-size: 21px; }
+/* The coatings setup control (notice + "Set up coatings" button): a stable row across the
+ * bottom of the desk, just above the ticker; while it shows, the ticker drops its copy of
+ * the notice. */
+.bc-home .bc-coatings { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; }
 .bc-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; padding: 9px 26px 8px 18px; font-family: var(--display); font-stretch: 75%; font-weight: 700;
   letter-spacing: 0.2em; text-transform: uppercase; background: var(--air); color: #04121c; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 

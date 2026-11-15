@@ -156,15 +156,19 @@ describe('homeMenu', () => {
 
 describe('tickerItems', () => {
   it('counts matches with the right plural', () => {
-    expect(tickerItems(0, null)).toEqual(['0 matches stored'])
-    expect(tickerItems(1, null)).toEqual(['1 match stored'])
-    expect(tickerItems(3, null)).toEqual(['3 matches stored'])
+    expect(tickerItems(0, null, false)).toEqual(['0 matches stored'])
+    expect(tickerItems(1, null, false)).toEqual(['1 match stored'])
+    expect(tickerItems(3, null, false)).toEqual(['3 matches stored'])
   })
 
-  it('adds the coatings notice when there is one', () => {
-    expect(tickerItems(2, 'Coatings off: no Ekur export found')).toEqual([
+  it('adds the coatings notice when there is one and no setup control shows it', () => {
+    expect(tickerItems(2, 'Coatings off: no Ekur export found', false)).toEqual([
       '2 matches stored',
       'Coatings off: no Ekur export found',
     ])
+  })
+
+  it('omits the coatings notice when the setup control shows it', () => {
+    expect(tickerItems(2, 'Coatings off: no Ekur export found', true)).toEqual(['2 matches stored'])
   })
 })
