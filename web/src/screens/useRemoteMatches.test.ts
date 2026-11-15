@@ -105,6 +105,77 @@ describe('useRemoteMatches', () => {
     expect(result.current.localIds.size).toBe(0)
   })
 
+  it('re-requests the list once after 5 s when an entry lacks its map picture', async () => {
+    const missing = [{ id: 'r1', map: 'Recharge', mode: 'Slayer', time: 'x', mapAssetId: 'a1' }]
+    const withImage = missing.map((m) => ({ ...m, mapImageUrl: '/static/maps/halo_infinite/a1.png' }))
+    let answer: typeof missing = missing
+    const remoteCalls: number[] = []
+    const fetchMock = routedFetch({
+      '/api/remote/matches': () => {
+        remoteCalls.push(1)
+        return jsonResponse(answer)
+      },
+      '/api/matches': () => jsonResponse([]),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useRemoteMatches(true))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(remoteCalls.length).toBe(1)
+    expect(result.current.state).toEqual({ phase: 'ready', matches: missing })
+
+    // Nothing happens before the follow-up delay.
+    act(() => {
+      vi.advanceTimersByTime(4999)
+    })
+    expect(remoteCalls.length).toBe(1)
+
+    // The single follow-up re-requests the list; the server now answers with the image.
+    answer = withImage
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(remoteCalls.length).toBe(2)
+    expect(result.current.state).toEqual({ phase: 'ready', matches: withImage })
+
+    // It is a single follow-up: with every entry now carrying its picture, time passes
+    // and no third request is made.
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(remoteCalls.length).toBe(2)
+  })
+
+  it('does not follow up when every entry already carries its map picture', async () => {
+    const withImage = [{ id: 'r1', map: 'Recharge', mode: 'Slayer', time: 'x', mapAssetId: 'a1', mapImageUrl: '/static/maps/halo_infinite/a1.png' }]
+    const remoteCalls: number[] = []
+    const fetchMock = routedFetch({
+      '/api/remote/matches': () => {
+        remoteCalls.push(1)
+        return jsonResponse(withImage)
+      },
+      '/api/matches': () => jsonResponse([]),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderHook(() => useRemoteMatches(true))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(remoteCalls.length).toBe(1)
+  })
+
   it('refresh() reloads both routes', async () => {
     const fetchMock = routedFetch({
       '/api/remote/matches': () => jsonResponse([]),
