@@ -201,6 +201,40 @@ func TestZonesStyleCouches(t *testing.T) {
 	}
 }
 
+// TestZonesStyleBaseVide : a material whose base zone draws nothing (a Forge cloth or decal plane,
+// its surface on Mask0 R) takes the style's first layer on its first lit zone, which then covers
+// the surface; the empty base stays off. Fortress's red and blue team banners drew the material's
+// own brown Mask0 R swatch over the style's color laid on the empty base.
+func TestZonesStyleBaseVide(t *testing.T) {
+	zs := zonesTest()
+	zs.zones[0].k = nil
+	if got := zs.premiereZone(); got != 1 {
+		t.Fatalf("premiereZone = %d, want 1", got)
+	}
+	c := zs.couches(nil)
+	if c == nil || len(c.Couches) != 3 || c.Couches[0].Bitmap != 0x20 || c.Couches[1].Bitmap != 0x30 {
+		t.Fatalf("own couches %+v", c)
+	}
+	rouge := &Couche{Sorte: CoucheDegrade, Bitmap: 0x60, Transfo: transfoNeutre, Haut: [3]float32{0.45, 0.01, 0.01}}
+	s := &StyleForge{Salete: &Couche{Sorte: CoucheDegrade, Bitmap: 0x50, Transfo: transfoNeutre}, QuantiteSalete: 0.5}
+	s.Zones[0] = rouge
+	c = zs.couches(s)
+	if c == nil || len(c.Couches) != 3 {
+		t.Fatalf("styled couches %+v", c)
+	}
+	if c.Couches[0].Bitmap != 0x60 || c.Couches[0].Haut != rouge.Haut || c.Couches[1].Bitmap != 0x30 || c.Couches[2].Bitmap != 0x50 {
+		t.Errorf("styled = %+v", c.Couches)
+	}
+	if c.Style == nil || c.Style.Canaux != [3]SourcePoids{poidsMasque0V, poidsSalete, poidsAucun} {
+		t.Errorf("mask %+v", c.Style)
+	}
+	// The style's second layer paints the next lit zone (Mask0 G).
+	s.Zones[1] = &Couche{Sorte: CoucheDegrade, Bitmap: 0x70, Transfo: transfoNeutre}
+	if c = zs.couches(s); c.Couches[1].Bitmap != 0x70 {
+		t.Errorf("second layer = %+v", c.Couches[1])
+	}
+}
+
 // TestZonesStyleTronque : the viewer composes four layers; the zones past the third mask channel
 // (and the grime after them) are dropped, never the base.
 func TestZonesStyleTronque(t *testing.T) {

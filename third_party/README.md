@@ -280,6 +280,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       record names (+0x44), not the first palette after its `rtgo`; an empty slot keeps the
       default palette's material. Eroded Terrain E's ten representations share one `rtgo` and
       name eight palettes; Fortress's choice (-437051236) drew the "Default" one.
+    - `himap/couches_style.go` (`ZonesStyle.premiereZone`, `couches`): an object's Forge style
+      layers start at the material's first lit zone. Forge's cloth and decal planes (shader
+      0x7705398e: Fortress's team banners, moss and stain planes) have an empty base zone and
+      draw their surface on Mask0 R; the style's red or blue landed on the empty base, under the
+      material's own brown Mask0 R swatch.
     Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
     `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Variant.Lighting` reads the variant's
