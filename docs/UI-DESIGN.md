@@ -176,7 +176,9 @@ Sparse on purpose: the 3D view takes all the room the chrome leaves.
   above the top one.
 - Fullscreen takes the whole player (scene, strip, bar, panels).
 - No auto-play toggle.
-- The settings drawer and the scoreboard keep their functions and take the new tokens.
+- The settings drawer and the scoreboard keep their functions and take the new tokens. The
+  scoreboard is one connected panel in the light-blue HUD style, the teams as its columns,
+  each team header striped with its in-game team color.
 - Back returns to match select with the same row focused.
 
 ## 5. Components

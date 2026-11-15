@@ -313,6 +313,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
                 reading={scoreboardReading}
                 sheet={scoreboardSheet}
                 followedXuid={camera.followed}
+                teamColorOfXuid={identity.colorOfXuid}
               />
             )}
             <canvas ref={exportCanvasRef} hidden />
