@@ -43,7 +43,9 @@ func reticleRangeOf(a weaponicons.AimAssist) (ReticleRange, bool) {
 	if a.AutoaimRange <= 0 {
 		return ReticleRange{}, false
 	}
-	var mags []float64
+	// mags is an empty (not nil) list when the weapon has no zoom level: it marshals as []
+	// rather than null, so a freshly built index is always current (IndexCurrent).
+	mags := []float64{}
 	for _, mag := range a.Magnifications {
 		mags = append(mags, roundRange(mag))
 	}
