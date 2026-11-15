@@ -1,5 +1,9 @@
 # Notice
 
+Infinite Theater 3D: Copyright (C) 2026 Jordan Hewitt (https://github.com/llampwall). The
+upstream code it builds on keeps its own authors' copyright, listed below and in
+`third_party/README.md`; the git history records who wrote what and when.
+
 This project is licensed under the GNU Affero General Public License, version 3. It builds on JGtm's LevelUp project and published halo-infinite-film-decoder, halo-infinite-map-images, halo-infinite-files-reader, and halo-api modules. See `third_party/README.md` and the upstream license and notice files for provenance.
 
 The files-reader module includes the GPL-3.0 `ooz` decompressor; see `third_party/files-reader/ooz/NOTICE.md`. No game assets are distributed. Game-derived assets (map meshes) are built from the user's own installation.
