@@ -94,7 +94,7 @@ import {
 } from './replayExportPlan'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { EXPORT_FPS, EXPORT_FPS_3D, canExportVideo, openVideoExport, type VideoExportSink } from './replayVideoEncoder'
-import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
+import type { ReplayWindowBounds } from '../model/replayWindow'
 import {
   exportFormatOf,
   exportLayoutFor,
@@ -269,10 +269,9 @@ export interface ReplayExport {
   zoomLevel: number
   cancel: () => void
   /**
-   * L'HORLOGE DE MATCH d'une image, prête à afficher. Portée par l'export et non par le
-   * dialogue : le recalage sur la fenêtre de gameplay demande le document ET la fenêtre, que
-   * le dialogue n'a aucune raison de recevoir — et qui coûteraient deux props au canvas, déjà
-   * à son plafond de taille.
+   * The PLAYBACK time of a frame, ready to show: the same clock as the transport bar
+   * (`PlayerTransport`, `ScrubBar`), counted from the film's first frame. Not the match clock:
+   * the user picks a range against the bar they just scrubbed.
    */
   clockOf: (frame: number) => string
   /** La durée du CLIP pour ces bornes, formatée. Même raison, même endroit. */
@@ -703,8 +702,8 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
   )
 
   const clockOf = useCallback(
-    (frame: number) => formatClock(displayClockMs(frameToMs(frame, o.doc), o.playWindow)),
-    [o.doc, o.playWindow],
+    (frame: number) => formatClock(frameToMs(frame, o.doc)),
+    [o.doc],
   )
   const lengthClock = useCallback(
     (b: ExportBounds) => formatClock(frameToMs(b.endFrame, o.doc) - frameToMs(b.startFrame, o.doc)),
