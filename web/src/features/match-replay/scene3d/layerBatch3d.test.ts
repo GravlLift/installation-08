@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { describe, expect, it, vi } from 'vitest'
 
 import { BACK_FACE_NAME } from './backFaces3d'
-import { batchLayer, compactGeometry, kindOf, LAYER_BATCH_NAME } from './layerBatch3d'
+import { batchCulling, batchLayer, compactGeometry, fogCullDistance, kindOf, LAYER_BATCH_NAME } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
 
 /** A geometry reading `count` triangles out of a shared vertex buffer of 100 vertices, from `first`. */
@@ -102,6 +102,46 @@ describe('layerBatch3d', () => {
       result.dispose()
       expect(result.meshes.every((m) => m.parent === null)).toBe(true)
     } finally {
+      info.mockRestore()
+    }
+  })
+
+  it('puts the fog cull where the haze leaves under half a color level, and nowhere without fog', () => {
+    const d = fogCullDistance(new THREE.FogExp2(0x000000, 0.02))!
+    expect(1 - Math.exp(-((0.02 * d) ** 2))).toBeGreaterThan(1 - 1 / 512)
+    expect(d).toBeGreaterThan(120)
+    expect(d).toBeLessThan(140)
+    expect(fogCullDistance(new THREE.Fog(0x000000, 60, 220))).toBe(220)
+    expect(fogCullDistance(null)).toBeNull()
+    expect(fogCullDistance(new THREE.FogExp2(0x000000, 0))).toBeNull()
+  })
+
+  it('culls a batch against the fog only when asked, and never in the shadow pass', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const seen: number[] = []
+    // The batch's wrapper binds the prototype's method when it is built: spy first.
+    const spy = vi.spyOn(THREE.BatchedMesh.prototype, 'onBeforeRender').mockImplementation((_r, _s, camera) => {
+      seen.push((camera as THREE.PerspectiveCamera).far)
+    })
+    try {
+      const { position, uv } = buffers()
+      const root = new THREE.Group()
+      place(root, sharedGeometry(position, uv, 0, 2), new THREE.MeshStandardMaterial(), 0)
+      const b = batchLayer(root).meshes[0] as THREE.BatchedMesh
+      const scene = new THREE.Scene()
+      scene.fog = new THREE.FogExp2(0x000000, 0.02)
+      const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 700)
+      const draw = (s: THREE.Scene | null) => b.onBeforeRender({} as THREE.WebGLRenderer, s as THREE.Scene, camera, b.geometry, b.material as THREE.Material, null as unknown as THREE.Group)
+      draw(scene)
+      batchCulling.fog = true
+      draw(scene)
+      draw(null) // the shadow pass
+      expect(seen[0]).toBe(700)
+      expect(seen[1]).toBeCloseTo(fogCullDistance(scene.fog)!)
+      expect(seen[2]).toBe(700)
+    } finally {
+      batchCulling.fog = false
+      spy.mockRestore()
       info.mockRestore()
     }
   })

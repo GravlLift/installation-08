@@ -17,6 +17,12 @@
  *    instanced and not would switch programs at every draw);
  *  - anything else (transparent, multi-material, ordered) stays as it is.
  *
+ * Off by default, a batch can also leave out the placements wholly past the fog (`fogCullDistance`,
+ * `batchCulling.fog`, the console's `fogCull` knob): beyond it the haze covers a surface to within
+ * half a color level (three's fog, like the far plane, measures depth along the view axis). It is not
+ * invisible: a fogged object still stands out against the sky in the haze's color, and culled, the
+ * sky shows instead. The camera's far plane stays (the sky needs it).
+ *
  * The original surfaces stay in the layer, hidden: they keep the ray index (ground, bodies, reticle),
  * the inspector's tag (`markDrawnBy`, so the inspector and the top-down rules follow the batch) and
  * their materials (probes, reflections, game light apply to the shared material). The batches answer
@@ -31,6 +37,47 @@ import { drawnBy, markDrawnBy, surfaceFamily } from './surfaceProbe3d'
 
 /** The attributes a merged layered material reads (`layeredArrays3d`). */
 const MERGED_ATTRIBUTES = ['position', 'cMacro', 'cUv', 'cRow']
+/** What the fog leaves of a surface at the cull distance: under half an 8-bit color level. */
+const FOG_RESIDUAL = 1 / 1024
+
+/**
+ * fogCullDistance — the view depth (u) past which `fog` leaves less than FOG_RESIDUAL of a surface's
+ * color; null without fog (top-down renders, probe captures) or with a fog that never closes.
+ */
+export function fogCullDistance(fog: THREE.Fog | THREE.FogExp2 | null): number | null {
+  if (!fog) return null
+  if ((fog as THREE.FogExp2).isFogExp2) {
+    const density = (fog as THREE.FogExp2).density
+    return density > 0 ? Math.sqrt(Math.log(1 / FOG_RESIDUAL)) / density : null
+  }
+  return (fog as THREE.Fog).far > 0 ? (fog as THREE.Fog).far : null
+}
+
+/** The batches' optional culling: `fog`, the fog distance (see the header). */
+export const batchCulling = { fog: false }
+
+const cullCamera = new THREE.PerspectiveCamera()
+
+/** cullCameraOf: camera with its far plane at the fog's cull distance, for a batch's culling; the camera itself when that would not cut. */
+function cullCameraOf(scene: THREE.Scene | null, camera: THREE.Camera): THREE.Camera {
+  const p = camera as THREE.PerspectiveCamera
+  const far = scene && batchCulling.fog ? fogCullDistance(scene.fog as THREE.Fog | THREE.FogExp2 | null) : null
+  if (!p.isPerspectiveCamera || far === null || far >= p.far || far <= p.near) return camera
+  const c = cullCamera
+  c.fov = p.fov
+  c.aspect = p.aspect
+  c.near = p.near
+  c.far = far
+  c.zoom = p.zoom
+  c.filmGauge = p.filmGauge
+  c.filmOffset = p.filmOffset
+  c.view = p.view
+  c.updateProjectionMatrix()
+  c.matrixWorld.copy(p.matrixWorld)
+  c.matrixWorldInverse.copy(p.matrixWorldInverse)
+  return c
+}
+
 /** The name of the batches, for the console and the scene graph. */
 export const LAYER_BATCH_NAME = 'calque-lot'
 
@@ -179,6 +226,9 @@ export function batchLayer(root: THREE.Object3D): LayerBatches {
         const id = batch.addInstance(ids.get(mesh.geometry) as number)
         batch.setMatrixAt(id, matrix.multiplyMatrices(toRoot, mesh.matrixWorld))
       }
+      // Culled against the fog's distance as well as the view (the shadow pass passes no scene: unchanged).
+      const cull = batch.onBeforeRender.bind(batch)
+      batch.onBeforeRender = (renderer, scene, camera, geometry, material, group) => cull(renderer, scene, cullCameraOf(scene, camera), geometry, material, group)
       drawer = batch
     } else {
       const inst = new THREE.InstancedMesh(first.geometry, first.material, members.length)

@@ -45,7 +45,7 @@ import { buildPostFx, PASS_NAMES, type PostFx3d } from './postFx3d'
 import { currentPerfToggles, installPerfToggles, PERF_TOGGLES_DEFAULT, type PerfToggles } from './perfToggles3d'
 import { GpuTimer } from './gpuTimer3d'
 import { BACK_FACE_NAME } from './backFaces3d'
-import { batchLayer, type LayerBatches } from './layerBatch3d'
+import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
@@ -440,6 +440,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post.smaa.enabled = fx && k.smaa
     this.lighting.shadowUpdates = k.shadows
     this.lighting.split.split = k.shadowSplit
+    batchCulling.fog = k.fogCull
     if (this.model && this.model.root.visible !== k.map) { this.model.root.visible = k.map; this.lighting.invalidateStaticShadows() }
     if (this.layer && this.layer.root.visible !== k.variant) { this.layer.root.visible = k.variant; this.lighting.invalidateStaticShadows() }
     if (k.backFaces !== this.backFacesShown) {
