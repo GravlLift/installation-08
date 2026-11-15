@@ -143,6 +143,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     host.appendChild(this.labels.domElement)
     this.scene.background = new THREE.Color(SKY_TINT)
     this.scene.fog = new THREE.Fog(SKY_TINT, FOG_NEAR, FOG_FAR)
+    // The scene never moves: without its own update each frame, reezeStatic roots are skipped by the matrix walk.
+    this.scene.matrixAutoUpdate = false
     this.lighting = new Lighting(this.renderer, this.scene)
     this.camera = new THREE.PerspectiveCamera(verticalFovOf(GAME_FOV_DEFAULT), 1, 0.02, 700)
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement)
@@ -197,6 +199,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.top?.sync(this.ciel, this.mapRoots())
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
+    freezeStatic(model.root)
     for (const p of tracks.players) {
       const a = makeAvatar(this.scene, p.name, colorOf(p.xuid))
       a.group.visible = false; this.avatars.set(p.xuid, a)
@@ -278,6 +281,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(layer.root)
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    freezeStatic(layer.root)
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     return true
@@ -582,6 +586,15 @@ export class ReplayScene3d implements Replay3DExportSource {
   private groundSurfaces(): THREE.Mesh[] {
     return [...(this.model?.pickables ?? []), ...(this.layer?.pickables ?? [])]
   }
+}
+
+/**
+ * freezeStatic: a root that never moves (the map, a variant layer) gets its world matrices once, and
+ * three's per-render matrix walk skips it (Fortress's layer: about ten thousand objects per frame).
+ */
+function freezeStatic(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true)
+  root.matrixWorldAutoUpdate = false
 }
 
 /** feetOf: a player's feet in three axes, `drop` below his published origin. */
