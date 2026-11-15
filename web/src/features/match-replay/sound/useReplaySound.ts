@@ -70,6 +70,7 @@ import {
 import { useReplayEngineSound } from './useReplayEngineSound'
 import { useAudioUnlock } from './useAudioUnlock'
 import { useReplayAmbience } from './useReplayAmbience'
+import { useReplayShieldSound } from './useReplayShieldSound'
 import { ambienceAudible } from './ambienceBed'
 import type { EnginePlan } from './vehicleEngineSound'
 
@@ -286,6 +287,8 @@ export function useReplaySound(
   const engine = useReplayEngineSound(doc)
   // THE MAP'S AMBIENT BED (`ambienceBed.ts`): a loop under the replay, same gating as the engines.
   const ambience = useReplayAmbience(context.ambienceUrl)
+  // THE FOLLOWED SPARTAN'S SHIELD ALARMS (`shieldSound.ts`): loops and one-shots of his own bar.
+  const shields = useReplayShieldSound(doc, context.followed)
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
@@ -301,8 +304,8 @@ export function useReplaySound(
   // The takes of the END enter the preload with the track: the drawing only takes place
   // at the arrival at the end, and a file requested at that moment would sound after the silence.
   const urls = useMemo(
-    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, COUNTDOWN_TICK_STEM, ...engine.stems]),
-    [timeline, endMatch, engine.stems],
+    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, COUNTDOWN_TICK_STEM, ...engine.stems, ...shields.stems]),
+    [timeline, endMatch, engine.stems, shields.stems],
   )
 
   const cursorRef = useRef<SoundCursor>({ ms: 0, idx: 0 })
@@ -363,11 +366,12 @@ export function useReplaySound(
     }
     engine.attach(player)
     ambience.attach(player)
+    shields.attach(player)
     player.resume()
     player.setVolume(level)
     player.preload(urlsRef.current.values())
     resyncRef.current = true
-  }, [tuning, engine.attach, ambience.attach])
+  }, [tuning, engine.attach, ambience.attach, shields.attach])
 
   /**
    * wake — WHAT A TRANSPORT GESTURE DOES WHEN THE PREFERENCE IS ALREADY AT "ENABLED".
@@ -415,10 +419,11 @@ export function useReplaySound(
       // held bursts too.
       engine.stop()
       ambience.setAudible(false)
+      shields.stop()
       playerRef.current?.stopHeld()
     }
     setOn(next)
-  }, [openPlayer, engine.stop, ambience.setAudible])
+  }, [openPlayer, engine.stop, ambience.setAudible, shields.stop])
 
   const setVolume = useCallback((v: number) => {
     const clamped = Math.min(Math.max(v, 0), 1)
@@ -449,6 +454,7 @@ export function useReplaySound(
       // "sound cut by speed", and an engine that would continue would make it lie. The
       // held bursts too (schema 71).
       engine.stop()
+      shields.stop()
       player?.stopHeld()
       return
     }
@@ -459,6 +465,10 @@ export function useReplaySound(
     // that nothing would turn off (the pause already happened), a vehicle idling on a fixed frame.
     if (playingRef.current) engine.sync(ms)
     else engine.stop()
+    // The shield loops sound while the replay PLAYS (a frame step is a jump: no beep on a still
+    // image); a reseeding step continues nothing, so it fires no break or recharge.
+    if (playingRef.current) shields.sync(ms, !resyncRef.current)
+    else shields.stop()
     if (resyncRef.current) {
       resyncRef.current = false
       cursorRef.current = resyncSoundCursor(tl, ms)
@@ -495,7 +505,7 @@ export function useReplaySound(
         placeOf(listener.current, e),
       )
     }
-  }, [tuning.variationPercentRef, engine.stop, engine.sync, ambience.setAudible])
+  }, [tuning.variationPercentRef, engine.stop, engine.sync, ambience.setAudible, shields.stop, shields.sync])
 
   /**
    * seek — THE PATH OF THE JUMPS: it raises the reseeding flag then beats once.
@@ -571,11 +581,12 @@ export function useReplaySound(
       if (playing) return
       engine.stop()
       ambience.setAudible(false)
+      shields.stop()
       // EVERYTHING that is in flight is turned off with it: held bursts, explosions, lines — a stopped frame
       // no longer pulls and no longer resonates (the match conclusion, by contrast, is spared).
       playerRef.current?.stopAll()
     },
-    [engine.stop, ambience.setAudible],
+    [engine.stop, ambience.setAudible, shields.stop],
   )
 
   return {
