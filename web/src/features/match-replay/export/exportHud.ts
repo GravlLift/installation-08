@@ -17,7 +17,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   const urls = new Set<string>()
   for (const label of Object.values(doc.weaponLabels ?? {})) if (label.img) urls.add(weaponFullIcon(label.img).url)
   for (const label of Object.values(doc.grenadeLabels ?? {})) if (label.img) urls.add(label.img)
-  for (const kill of kills) if (kill.weaponImageUrl) urls.add(kill.weaponImageUrl)
+  for (const kill of kills) if (kill.weaponImageUrl) urls.add(weaponFullIcon(kill.weaponImageUrl).url)
   const images = new Map<string, HTMLImageElement>()
   await Promise.all([...urls].map((url) => new Promise<void>((resolve) => {
     const img = new Image()
@@ -112,7 +112,10 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       let x = w * 0.03
       ctx.fillStyle = color; ctx.fillText(killer, x, y); x += ctx.measureText(killer).width + size * 0.2
       const width = size * 0.96, height = size * 0.48
-      if (icon(ctx, kill.weaponImageUrl, color, !!kill.weaponTinted, false, x, y - height / 2, width, height)) x += width + size * 0.2
+      // The game's kill feed draws the FULL weapon pointing at the victim: the silhouette,
+      // mirrored (the atlases point left).
+      const feedIcon = kill.weaponImageUrl ? weaponFullIcon(kill.weaponImageUrl) : null
+      if (feedIcon && icon(ctx, feedIcon.url, color, !!kill.weaponTinted, feedIcon.mirrored, x, y - height / 2, width, height)) x += width + size * 0.2
       else {
         const label = (kill.weaponLabel || REPLAY_TEXT[locale].killFeedUnknownWeapon).split(/\s*\/\s*/)[0]
         ctx.fillText(label, x, y); x += ctx.measureText(label).width + size * 0.2
