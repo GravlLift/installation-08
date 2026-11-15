@@ -323,13 +323,14 @@ describe('SpartanArmory armes', () => {
     expect(console.info).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreArme : sans revêtement pour l’arme, null en cache, sans lire la bibliothèque des armes', async () => {
-    const { io, fetchJson } = fakeIO()
+  it('peindreArme : without a coating for the weapon (no core), the default style of each list, cached', async () => {
+    const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }], undefined, '/armes', io)
     const scene = weaponScene()
-    expect(await armory.peindreArme('1', '11111111', scene)).toBeNull()
-    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
-    expect(fetchJson.mock.calls.every(([url]) => !String(url).includes('/armes/'))).toBe(true)
+    const coat = await armory.peindreArme('1', '11111111', scene)
+    expect(coat?.size).toBe(1)
+    expect(Array.from([...coat!.values()][0].paint.data.slice(0, 2))).toEqual([1, -1])
+    expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
   })
 
   it('peindreArme : sans bibliothèque des armes, null', async () => {
@@ -390,8 +391,8 @@ describe('SpartanArmory armes', () => {
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreBras : sans entrée pour l’arme, son matériau reste sans peinture', async () => {
-    const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
+  it('peindreBras : without an entry for the rig weapon, it wears the default style of each list', async () => {
+    const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
     armory.dress('1')
     await settle()
@@ -401,7 +402,7 @@ describe('SpartanArmory armes', () => {
     const arme = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
     const paint = await armory.peindreBras('1', habit, [bras, arme], '99999999')
     expect(paint).not.toBeNull()
-    expect(paint!.has(arme)).toBe(false)
+    expect(Array.from(paint!.get(arme)!.paint.data.slice(0, 2))).toEqual([1, -1])
   })
 })
 

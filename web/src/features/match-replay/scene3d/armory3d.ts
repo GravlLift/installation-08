@@ -159,7 +159,8 @@ export class SpartanArmory {
 
   /**
    * peindreArme prépare en fond la peinture de l'arme `modelKey` du joueur `xuid`, sur les
-   * matériaux peints du modèle ; null sans revêtement lu pour cette arme (tout neutre).
+   * matériaux peints du modèle : son revêtement, ou sans revêtement lu pour cette arme le style par
+   * défaut de chaque liste ; null sans bibliothèque des armes (tout neutre).
    */
   peindreArme(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
@@ -208,12 +209,14 @@ export class SpartanArmory {
   private async peindreArmeFond(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
     const entree = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === modelKey) ?? null
-    const libArme = entree && this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
-    if (!entree || !libArme) {
+    const libArme = this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
+    if (!libArme) {
       this.armesCaches.set(key, null)
       return null
     }
-    const { coat, issues } = await construirePeintureArme(materiauxArmesDe(model), entree.style_key || null, libArme)
+    // Without a coating entry for this weapon (a weapon with no core: Fuel Rod, Skewer, Energy
+    // Sword), the default style of each list (`weaponCoat3d`).
+    const { coat, issues } = await construirePeintureArme(materiauxArmesDe(model), entree?.style_key || null, libArme)
     if (this.disposed) return null
     reportArme(xuid, modelKey, coat, issues)
     this.armesCaches.set(key, coat)
