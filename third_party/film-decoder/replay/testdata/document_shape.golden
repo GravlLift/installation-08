@@ -1,9 +1,9 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
-schema 125
-empreinte-stockee 7b9fe1f1ff52c39d
-empreinte-servie 7b9fe1f1ff52c39d
-empreinte-cuite 467acfe598095bcc
+schema 126
+empreinte-stockee 17c944ee06c07900
+empreinte-servie 17c944ee06c07900
+empreinte-cuite 70d6b590df259e35
 empreinte-cuite-regle 4
 
 AbilityCharge
@@ -962,6 +962,7 @@ Projectile
   Rest json:"rest,omitempty" bool
   Shot json:"shot,omitempty" *int
   T0 json:"t0" int
+  Z json:"z,omitempty" []float32
 ProjectileCoverage
   Published json:"published" int
   ShotAmbiguous json:"shotAmbiguous" int

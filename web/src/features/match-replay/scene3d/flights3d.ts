@@ -8,10 +8,15 @@
  * (`buildRestFx` : grenades par type, projectiles de tir dont l'arme détone), à la même image
  * (explosion, nappe Dynamo, halo).
  *
- * LA HAUTEUR D'UN VOL N'EST PAS PUBLIÉE : le film donne (x, y) point par point. Elle est INTERPOLÉE
- * le long du chemin parcouru, de la main du lanceur (son emplacement au départ du vol) jusqu'au sol
- * sous le point d'explosion, cherché sous la hauteur de départ. Un vol en cloche se lit donc en
- * ligne droite inclinée : la courbe que l'on dessinerait serait inventée.
+ * THE HEIGHT OF A FLIGHT IS PUBLISHED since schema 126 (`Projectile.z`, one height per point of
+ * `p`): the film replicates the object's position on all three axes at ~60 Hz, and the document keeps
+ * the first sample of each frame. A flight is drawn THROUGH those points, so the arc, every bounce
+ * off the floor or a wall, and the roll to rest are the game's own. Between two points the head
+ * moves in a straight line (`flightPointAt`): at one frame per point a ballistic sag is under a
+ * centimeter, and a smoothing spline would round off each bounce and dip through the floor.
+ *
+ * An artifact older than schema 126 has no height: it is INTERPOLATED along the distance
+ * travelled, from the thrower's hand to the floor under the detonation point (`heightsAlong`).
  *
  * Une détonation se joue comme dans le jeu, en moins d'une seconde (`explosionFx3d`, posée par
  * `explosions3d`) : éclair, boule de feu en bouffées, étincelles, voile de fumée, et une lumière brève
@@ -27,6 +32,7 @@
 import * as THREE from 'three'
 
 import { msToFrames } from '@/lib/replay/replayLogic'
+import type { ReplayProjectileReady } from '@/lib/replay/replayReadyTypes'
 
 import { fxTintOf, type FxTint } from '../layers/fxInk'
 import { DYNAMO_REST_HOLD_MS, GRENADE_REST_HOLD_MS, restKindOf, type GrenadeRestFx } from '../model/grenadeFx'
@@ -58,8 +64,9 @@ const DETONATION_LIGHT_RANGE = 6
 // La couleur de cette lumière : la teinte de la déflagration mêlée de blanc incandescent.
 const DETONATION_CORE_MIX = 0.35
 
-// La grenade tournoie en vol (rad/s), autour d'un axe incliné.
-const GRENADE_SPIN = 4 * Math.PI
+// The grenade tumbles by the distance it travels (rad per unit, about two turns a second at a
+// throw's ~12 u/s), around a tilted axis: it stops turning once it lies still.
+const GRENADE_SPIN_PER_UNIT = (4 * Math.PI) / 12
 const SPIN_AXIS = new THREE.Vector3(1, 0, 0.4).normalize()
 
 interface Flight {
@@ -67,6 +74,8 @@ interface Flight {
   /** Image absolue de chaque point. */
   at: number[]
   pts: THREE.Vector3[]
+  /** The distance travelled up to each point (u), for the tumble. */
+  dist: number[]
   end: number
   /** Image de l'explosion publiée (`Projectile.detoT`). */
   detoT: number
@@ -193,17 +202,14 @@ export class Flights3dLayer implements ActionLayer3d {
     if (frame > f.end) {
       // Posée avant de détoner : la grenade attend l'explosion au bout de son vol.
       if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps)
-      else if (model && frame <= f.detoT) this.models.add(model, f.pts[f.pts.length - 1], this.spin(f.end - f.t0, fps))
+      else if (model && frame <= f.detoT) this.models.add(model, f.pts[f.pts.length - 1], this.spin(f.dist[f.dist.length - 1]))
       return
     }
     // La tête : interpolée entre le dernier point passé et le suivant.
-    const a = f.pts[i - 1]
-    const b = f.pts[Math.min(i, f.pts.length - 1)]
-    const span = (f.at[Math.min(i, f.at.length - 1)] - f.at[i - 1]) || 1
-    const head = this.p.lerpVectors(a, b, Math.min(1, Math.max(0, (frame - f.at[i - 1]) / span)))
-    if (paths) this.trails.add(a, head, TRAIL_RADIUS, color)
+    const head = flightPointAt(f.at, f.pts, frame, this.p)
+    if (paths) this.trails.add(f.pts[i - 1], head, TRAIL_RADIUS, color)
     if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps)
-    else if (model) this.models.add(model, head, this.spin(frame - f.t0, fps))
+    else if (model) this.models.add(model, head, this.spin(flightValueAt(f.at, f.dist, frame)))
     else this.heads.add(head, null, HEAD_RADIUS, color)
   }
 
@@ -222,9 +228,9 @@ export class Flights3dLayer implements ActionLayer3d {
     this.plasmaHalo.add(at, null, f.orbRadius * PLASMA_HALO_MULT, this.orbHalo)
   }
 
-  /** spin : l'orientation de la grenade `frames` images après son départ. */
-  private spin(frames: number, fps: number): THREE.Quaternion {
-    return this.q.setFromAxisAngle(SPIN_AXIS, (frames / fps) * GRENADE_SPIN)
+  /** spin : the grenade's orientation once it has travelled `dist` units. */
+  private spin(dist: number): THREE.Quaternion {
+    return this.q.setFromAxisAngle(SPIN_AXIS, dist * GRENADE_SPIN_PER_UNIT)
   }
 
   /** drawBlast : la nappe Dynamo ou le halo d'une fin de vol sans détonation, `u` dans [0, 1] sur sa durée. */
@@ -276,16 +282,14 @@ function buildFlights(ctx: ActionContext): Flight[] {
   ctx.doc.projectiles.forEach((pr, i) => {
     if (pr.p.length < 2) return
     const owner = owners.get(i)
-    const [x0, y0] = [pr.p[0][1], pr.p[0][2]]
-    const s = owner ? ctx.slotState(owner.slot, pr.t0) : null
-    const start = s ? s.z - ctx.originAboveFloor + MUZZLE_HEIGHT : (ctx.ground.floorY(x0, y0, null) ?? 0) + MUZZLE_HEIGHT
     const last = pr.p[pr.p.length - 1]
-    const end = (ctx.ground.floorY(pr.detoX, pr.detoY, start) ?? start - MUZZLE_HEIGHT) + REST_LIFT
     const orbRadius = owner?.key !== undefined ? SHOT_ORB_RADIUS[owner.key] : undefined
+    const pts = pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
     out.push({
       t0: pr.t0,
       at: pr.p.map((st) => pr.t0 + st[0]),
-      pts: heightsAlong(pr.p, start, end),
+      pts,
+      dist: distancesAlong(pts),
       end: pr.t0 + last[0],
       detoT: pr.detoT,
       grenade: owner?.grenade ?? null,
@@ -295,6 +299,65 @@ function buildFlights(ctx: ActionContext): Flight[] {
     })
   })
   return out
+}
+
+/** publishedPoints : the points of a flight in three axes, at their published heights (schema 126). */
+export function publishedPoints(steps: readonly (readonly number[])[], z: readonly number[]): THREE.Vector3[] {
+  return steps.map((st, i) => new THREE.Vector3(...toThree(st[1], st[2], z[i])))
+}
+
+/**
+ * guessedPoints : the points of a flight from an artifact without heights (before schema 126), the
+ * height spread along the distance travelled from the thrower's hand to the floor under the
+ * detonation point, searched below the start height.
+ */
+function guessedPoints(ctx: ActionContext, pr: ReplayProjectileReady, owner: FlightOwner | undefined): THREE.Vector3[] {
+  const [x0, y0] = [pr.p[0][1], pr.p[0][2]]
+  const s = owner ? ctx.slotState(owner.slot, pr.t0) : null
+  const start = s ? s.z - ctx.originAboveFloor + MUZZLE_HEIGHT : (ctx.ground.floorY(x0, y0, null) ?? 0) + MUZZLE_HEIGHT
+  const end = (ctx.ground.floorY(pr.detoX, pr.detoY, start) ?? start - MUZZLE_HEIGHT) + REST_LIFT
+  return heightsAlong(pr.p, start, end)
+}
+
+/** distancesAlong : the distance travelled up to each point (u). */
+function distancesAlong(pts: readonly THREE.Vector3[]): number[] {
+  const out = [0]
+  for (let i = 1; i < pts.length; i++) out.push(out[i - 1] + pts[i].distanceTo(pts[i - 1]))
+  return out
+}
+
+/** segmentAt : the index `i` of the point the flight left last at `frame` (`at[i] <= frame`), and the fraction toward `i + 1`. */
+function segmentAt(at: readonly number[], frame: number): { i: number; u: number } {
+  let lo = 0
+  let hi = at.length - 1
+  if (frame <= at[0]) return { i: 0, u: 0 }
+  if (frame >= at[hi]) return { i: hi, u: 0 }
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (at[mid] <= frame) lo = mid
+    else hi = mid
+  }
+  const span = at[lo + 1] - at[lo]
+  return { i: lo, u: span > 0 ? (frame - at[lo]) / span : 0 }
+}
+
+/**
+ * flightPointAt : where the flight is at `frame` (fractional frames allowed), written to `out`. A
+ * PURE function of the points and the frame, so a seek lands exactly where playing forward does.
+ * Straight between two points: a bounce falls between two published points, and only a linear
+ * step keeps both sides of it where the game put them (a spline overshoots into the floor).
+ */
+export function flightPointAt(at: readonly number[], pts: readonly THREE.Vector3[], frame: number, out: THREE.Vector3): THREE.Vector3 {
+  const { i, u } = segmentAt(at, frame)
+  if (u === 0 || i + 1 >= pts.length) return out.copy(pts[i])
+  return out.lerpVectors(pts[i], pts[i + 1], u)
+}
+
+/** flightValueAt : a per-point value (the distance travelled) at `frame`, on the same segments as `flightPointAt`. */
+function flightValueAt(at: readonly number[], values: readonly number[], frame: number): number {
+  const { i, u } = segmentAt(at, frame)
+  if (u === 0 || i + 1 >= values.length) return values[i]
+  return values[i] + (values[i + 1] - values[i]) * u
 }
 
 /** heightsAlong : les points du vol en axes three, la hauteur répartie sur la distance parcourue. */

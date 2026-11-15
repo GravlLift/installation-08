@@ -47,6 +47,12 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   quantization catalog from its bytes, not a file path: the standalone embeds its reference
   catalog in the binary (`go:embed`, `internal/refdata`). It lives in the facade so the
   `profile` layer, whose sources are fingerprinted, stays identical to upstream.
+- `replay/projectiles.go` (LOCAL-CHANGE): `Projectile.Z` publishes the height of each
+  flight point (`projectiles[].z`, parallel to `p`), which the decoded sample always carried;
+  the 3D viewer draws grenade arcs and bounces through it. `SchemaVersion` 125 -> 126 with its
+  chronicle entry (`replay/document_chronicle.go`), the `structure_test.go` reason, the
+  regenerated `replay/testdata/document_shape.golden`, and the two size caps it moves in
+  `internal/depottest/taille_test.go`.
 - `replay.ScoreTarget` (new file `replay/score_target_table.go`, LOCAL-CHANGE):
   the `[score_target]` table of LevelUp's `regulation.toml`, measured per variant, ported
   verbatim. The LevelUp application injects the table into `ScoreInput.TargetScore`; the

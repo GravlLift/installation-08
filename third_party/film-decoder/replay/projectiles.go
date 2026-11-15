@@ -42,6 +42,13 @@ type Projectile struct {
 	// Format compact : une trajectoire porte des dizaines de points sur une seconde, et
 	// répéter l'index absolu à chaque point doublerait le poids du document pour rien.
 	P [][3]float32 `json:"p"`
+	// LOCAL-CHANGE (infinite-theater-3d): Z is the HEIGHT of each point of P, same index, same
+	// axis as Track points' z. The decoded sample already carries it (object-position-component
+	// quantizes all three axes at the map widths, like ground weapons and placements, which
+	// publish theirs); without it the 3D viewer could only slide a grenade in a straight line
+	// to its end point, losing the arc and every bounce. A parallel array, not a fourth element
+	// of P, so every [dt, x, y] reader stays valid. Absent on artifacts built before it.
+	Z []float32 `json:"z,omitempty"`
 	// Rest signale que le dernier point porte `projectile-at-rest-state` — le seul champ qui
 	// CERTIFIE une fin de vol (78 fois sur 79 sur le film de référence). Sans lui, le vol
 	// s'arrête parce que la réplication s'arrête, ce qui n'est pas la même chose.
@@ -152,7 +159,7 @@ func buildProjectiles(tracks []types.ProjectileTrack, origin, step uint64,
 		if len(vol.pts) < 2 { // une trajectoire d'un seul point de grille ne se dessine pas
 			continue
 		}
-		proj := Projectile{T0: vol.t0, P: vol.pts, t0US: tr.Pts[0].TimestampUS,
+		proj := Projectile{T0: vol.t0, P: vol.pts, Z: vol.z, t0US: tr.Pts[0].TimestampUS,
 			// `Rest` CERTIFIE une fin de vol : un vol coupé n'a pas la sienne, et le dire
 			// serait affirmer qu'on a vu le projectile s'immobiliser là.
 			Rest: !vol.coupe && tr.Pts[len(tr.Pts)-1].AtRest}
@@ -188,6 +195,8 @@ type vol struct {
 	// t0 est l'image du premier point ; pts la suite [dt, x, y] (dt en images depuis t0).
 	t0  int
 	pts [][3]float32
+	// z is the height of each point of pts (LOCAL-CHANGE, see Projectile.Z).
+	z []float32
 	// dernier est l'échantillon BRUT du dernier point retenu (sa hauteur, son instant) ; coupe dit que
 	// le vol s'arrête à un pas impossible.
 	dernier types.ProjectileSample
@@ -227,6 +236,7 @@ func volPublie(tr types.ProjectileTrack, origin, step uint64) (v vol, lu bool) {
 		}
 		last, v.dernier = f, p
 		v.pts = append(v.pts, [3]float32{float32(f - v.t0), round2(p.X), round2(p.Y)})
+		v.z = append(v.z, round2(p.Z))
 	}
 	return v, true
 }

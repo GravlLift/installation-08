@@ -11190,6 +11190,8 @@ export interface components {
             shot?: number;
             /** Format: int64 */
             t0: number;
+            /** Height of each point of `p` (schema 126); absent on older artifacts. */
+            z?: number[] | null;
         };
         ProjectileCoverage: {
             /** Format: int64 */
