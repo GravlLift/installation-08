@@ -5,19 +5,18 @@ engineering backlog; this page keeps only the user-visible parts of it.
 
 ## Forge maps
 
-Forge support is a work in progress.
-
-- Weapon, power-up, equipment and grenade pads render the game's own pad kit, but a pad does
-  not yet show the incoming-weapon hologram or the glow color for its current state.
-- Forge objects take their colors from the game's own style tables and from each object's own
-  Forge material, but the material's color and intensity are blended with a guessed rule
-  (Ekur does not draw them) and scratches are not drawn yet. A few map surfaces (zero-color gradient layers on some
-  shaders) still render as a plain color instead of their real gradient texture.
+- Pads and racks show the item they hold, but not the incoming-weapon hologram, the refill
+  timer bar, the glow color for their current state, or rack doors opening.
+- Forge object colors follow the game's own styles. How a style's color and intensity blend
+  with its material is our own rule (Ekur does not draw them), so a few pieces can read
+  slightly paler or darker than in game. Scratches are not drawn yet. A few surfaces
+  (zero-color gradient layers on some shaders) render as a plain color instead of their
+  gradient texture.
 - Live Fire's horizon is missing the distant snowy mountains the game shows, and its clouds
   read flatter than in-game. It is unclear whether three of Live Fire's extra structures (266
   MB) are ever visible to a player; they have not yet been removed or thinned.
 - Terrain material blending, its hole mask, and the Aquarius table's side color still don't
-  match the game exactly, and light/shadow contrast is generally weaker than in-game.
+  match the game exactly.
 - Map files are large: 600–900 MB per map, mostly texture data. There is no lower-detail
   build option yet.
 - A stored match built before a recent fix may still show the old (incorrect) version of a
@@ -63,11 +62,9 @@ Forge support is a work in progress.
 
 ## Export
 
-- Exporting a whole match with sound can sit in "Preparing" for several minutes; the longer
-  mix does not report progress, and Cancel only takes effect once the mix finishes rather than
-  immediately.
-- Film export has not been rechecked since the transport bar's UI redesign, though the
-  redesigned transport bar itself works.
+- A 3D export renders every frame in full, so a long match at 1080p 60 fps can take somewhat
+  longer than the match itself.
+- Cancel during "Preparing" takes effect once the sound mix finishes rather than immediately.
 
 ## Packaging
 

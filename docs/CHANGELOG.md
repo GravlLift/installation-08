@@ -4,6 +4,17 @@
 
 Changes since 0.1.0-test.9.
 
+Highlights:
+- Forge maps now show their real colors and lighting.
+- The game's shield bar and shield sounds.
+- Callouts for the area you are in.
+- Scope overlays per weapon.
+- Floating equipment and weapon pads.
+- Darker, more dramatic lighting.
+- Smooth 60 fps grenades.
+- 60 fps video exports with the full first-person HUD.
+- Shared match links.
+
 ### Video export
 - 3D exports are encoded at 60 frames per second (30 only if the browser refuses 60, and the dialog says so).
 - Fixed: a 3D export could repeat one early frame for the whole clip when the tab was in the background. Each frame is now read straight from the renderer.
