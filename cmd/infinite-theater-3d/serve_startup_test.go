@@ -82,9 +82,9 @@ func newRecordingRunner(t *testing.T, ready func(string) bool) *recordingRunner 
 func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	matches := []startupMatch{
-		{MatchID: "aaaa", MapModule: "moda"},
-		{MatchID: "bbbb", MapModule: "moda"}, // same module as aaaa: queued once
-		{MatchID: "cccc", MapModule: "modb"},
+		{MatchID: "aaaa", MeshKey: "moda"},
+		{MatchID: "bbbb", MeshKey: "moda"}, // same module as aaaa: queued once
+		{MatchID: "cccc", MeshKey: "modb"},
 	}
 	// bbbb shares aaaa's map module but has a variant of its own: its variant is still queued.
 	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
@@ -104,9 +104,9 @@ func TestStartupBuildsSkipsReady(t *testing.T) {
 	ready := map[string]bool{meshjobs.JobWeaponIcons: true, "modb": true, "variant:bbbb": true}
 	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
 	matches := []startupMatch{
-		{MatchID: "aaaa", MapModule: "moda"},
-		{MatchID: "bbbb", MapModule: "moda"},
-		{MatchID: "cccc", MapModule: "modb"},
+		{MatchID: "aaaa", MeshKey: "moda"},
+		{MatchID: "bbbb", MeshKey: "moda"},
+		{MatchID: "cccc", MeshKey: "modb"},
 	}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" })
 	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons, meshjobs.JobFirstPerson,

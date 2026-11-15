@@ -16,7 +16,6 @@ import (
 	"sync"
 
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
-	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
@@ -218,11 +217,7 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		case meshjobs.JobAnnouncer:
 			return buildAnnouncer(ctx, root, game)
 		}
-		summary, err := meshbuild.BuildMap(ctx, module, game, out, nil)
-		if err != nil {
-			return meshjobs.BuildResult{}, err
-		}
-		return meshjobs.BuildResult{Bytes: summary.Bytes, Triangles: summary.Triangles}, nil
+		return buildMapMesh(ctx, root, module, game, out)
 	}
 	r, err := meshjobs.New(build, gameRoot, ready)
 	if err != nil {

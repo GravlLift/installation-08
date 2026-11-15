@@ -156,7 +156,7 @@ func TestHudRouteViaMux(t *testing.T) {
 // weapon-icon job, before the rank badge job and the weapon library.
 func TestHudStartupOrder(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
-	matches := []startupMatch{{MatchID: "aaaa", MapModule: "moda"}}
+	matches := []startupMatch{{MatchID: "aaaa", MeshKey: "moda"}}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
@@ -171,7 +171,7 @@ func TestHudStartupOrder(t *testing.T) {
 func TestHudStartupSkipsReady(t *testing.T) {
 	ready := map[string]bool{meshjobs.JobHudIcons: true}
 	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
-	matches := []startupMatch{{MatchID: "aaaa", MapModule: "moda"}}
+	matches := []startupMatch{{MatchID: "aaaa", MeshKey: "moda"}}
 	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
 	want := []string{meshjobs.JobWeaponIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
 		meshjobs.JobSpartanPieces, "moda"}

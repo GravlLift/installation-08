@@ -339,8 +339,8 @@ func originAllowed(r *http.Request) bool {
 }
 
 // handleMeshBuild answers POST /api/matches/{id}/mesh/build: it starts or joins the build
-// for the match's module and answers 202 with the state JSON. A match whose mesh is already
-// on disk answers 200 ready. A non-loopback Origin is refused with 403.
+// for the match's world mesh (meshKeyOf) and answers 202 with the state JSON. A match whose
+// mesh is already on disk answers 200 ready. A non-loopback Origin is refused with 403.
 func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) {
 	if !originAllowed(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
@@ -369,7 +369,7 @@ func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
 		return
 	}
-	snap := h.jobs.Enqueue(meta.MapModule)
+	snap := h.jobs.Enqueue(meshKeyOf(meta))
 	status := http.StatusAccepted
 	if snap.Ready() {
 		status = http.StatusOK
@@ -377,7 +377,7 @@ func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, status, meshStateJSON(snap))
 }
 
-// handleMeshCancel cancels the running build for the match's map module.
+// handleMeshCancel cancels the running build of the match's world mesh (meshKeyOf).
 func (h serverHandlers) handleMeshCancel(w http.ResponseWriter, r *http.Request) {
 	if !originAllowed(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
@@ -406,14 +406,14 @@ func (h serverHandlers) handleMeshCancel(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
 		return
 	}
-	if !h.jobs.Cancel(meta.MapModule) {
+	if !h.jobs.Cancel(meshKeyOf(meta)) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "build_not_running"})
 		return
 	}
-	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meta.MapModule)))
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meshKeyOf(meta))))
 }
 
-// handleMeshState answers GET /api/matches/{id}/mesh/state with the module's build state.
+// handleMeshState answers GET /api/matches/{id}/mesh/state with the build state of the match's world mesh.
 func (h serverHandlers) handleMeshState(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !store.MatchIDValid(id) {
@@ -438,8 +438,7 @@ func (h serverHandlers) handleMeshState(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	snap := h.jobs.Snapshot(meta.MapModule)
-	writeJSON(w, http.StatusOK, meshStateJSON(snap))
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meshKeyOf(meta))))
 }
 
 // meshStateJSON is the state JSON the build and state routes hand out. Fields that do not
@@ -485,18 +484,19 @@ func (h serverHandlers) handleMesh(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": ""})
 		return
 	}
-	path, err := h.root.MeshPath(meta.MapModule)
+	key := meshKeyOf(meta)
+	path, err := h.root.MeshPath(key)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": meta.MapModule})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": key})
 		return
 	}
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": meta.MapModule})
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": key})
 			return
 		}
-		slog.Error("open mesh", "err", err, "module", meta.MapModule)
+		slog.Error("open mesh", "err", err, "module", key)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
