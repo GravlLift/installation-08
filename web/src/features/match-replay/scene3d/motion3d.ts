@@ -18,7 +18,7 @@ import { carriedObjectAt } from '../model/armeEnMain'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { covers } from '../model/replaySpans'
 import type { ActionContext } from './actionScene3d'
-import { actionsParSlot, sautDepuisAction } from './actionsFilm3d'
+import { actionsParSlot, rechargementsParSlot, sautDepuisAction } from './actionsFilm3d'
 import { spartanClipsOf, type SpartanClips } from './clips3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
 import {
@@ -60,6 +60,8 @@ export class Motion3d {
   private readonly held: (slot: number, frame: number) => HeldWeapon3d | null
   private readonly stances = new Map<number, MotionStances>()
   private readonly rechargements: Map<number, number[]>
+  /** Les instants où les mains quittent l'arme (`reloadStarts`) : un rechargement en cours s'y arrête. */
+  private readonly coupuresRechargement: Map<number, number[]>
   private readonly coups: Map<number, number[]>
   private readonly grenades = new Map<number, number[]>()
   private readonly swaps = new Map<number, readonly WeaponSwap[]>()
@@ -91,7 +93,9 @@ export class Motion3d {
       }
       ;(byKind[kind] as Span[]).push(postureFilm(s, ctx.doc))
     }
-    this.rechargements = actionsParSlot(ctx.doc, 'reload')
+    const rechargements = rechargementsParSlot(ctx.doc)
+    this.rechargements = rechargements.debuts
+    this.coupuresRechargement = rechargements.coupures
     this.coups = actionsParSlot(ctx.doc, 'melee')
     for (const [slot, debuts] of actionsParSlot(ctx.doc, 'jump')) {
       let postures = this.stances.get(slot)
@@ -225,7 +229,7 @@ export class Motion3d {
     return fusion
   }
 
-  /** Un rechargement ne traverse ni une mort ni un changement d'arme. */
+  /** Un rechargement ne traverse ni une mort, ni un changement d'arme, ni un instant où les mains quittent l'arme. */
   private rechargement(xuid: string, vie: LifeView, frame: number): readonly number[] {
     const list = this.rechargements.get(vie.slot) ?? NO_FRAMES
     const t = list.findLast((f) => f <= frame)
@@ -237,6 +241,7 @@ export class Motion3d {
     if (!vie || this.ctx.tracks.life(xuid, t) !== vie) return false
     const swaps = this.swapsOf(vie.slot)
     for (let i = 0; i < swaps.length; i++) if (swaps[i].t > t && swaps[i].t <= frame) return false
+    if ((this.coupuresRechargement.get(vie.slot) ?? NO_FRAMES).some((c) => c > t && c <= frame)) return false
     const avant = this.held(vie.slot, t)
     return !!avant && avant.id === this.held(vie.slot, frame)?.id
   }

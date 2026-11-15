@@ -70,8 +70,14 @@ describe('reloadSoundEvents', () => {
     expect(events[1].at?.y).toBe(2)
   })
 
-  it('the same action written twice at one instant is one reload', () => {
-    expect(at(reloadSoundEvents(doc({ actions: [reload(30), reload(30)] }), LIBRARY))).toEqual([1000, 1600, 2400])
+  it('the same action written twice at one instant (an equipment use, a melee, a slide) is no reload', () => {
+    expect(reloadSoundEvents(doc({ actions: [reload(30), reload(30)] }), LIBRARY)).toEqual([])
+  })
+
+  it('a repeated reload message after a reload started cuts it there (the hands leave the weapon)', () => {
+    const events = reloadSoundEvents(doc({ actions: [reload(30), reload(45), reload(45)] }), LIBRARY)
+    expect(at(events)).toEqual([1000])
+    expect(events[0].cutMs).toBeDefined()
   })
 
   it('a weapon without a reload in the library is silent: battery weapons, and no library at all', () => {

@@ -9,18 +9,19 @@
  * ravager, stalker rifle: the game vents them, it has no reload animation for them), the melee
  * weapons and anything the extraction did not reach stay quiet, without a list of names here.
  *
- * WHAT THE FILM WRITES, measured on the seven stored matches (2026-11-14): the same action twice
- * at the same millisecond is frequent (the second is dropped), and a reload action often lands
- * at the very instant of a melee or a grenade throw, after which the magazine keeps emptying: no
- * reload took place. The cancellation rule below silences those without a special case.
+ * WHAT THE FILM WRITES, measured on the seven stored matches (2026-11-14): the same action two or
+ * more times at the same millisecond starts no reload (an equipment activation, a melee, a slide:
+ * `model/reloadStarts.ts`), it ends the one under way; a single reload action can still land
+ * at the very instant of a melee or a grenade throw, after which the magazine keeps emptying. The
+ * cancellation rule below silences those without a special case.
  *
  * THE TIMING IS THE ANIMATION'S. Each sound plays at its frame of the reload animation after the
  * action (`atMs`), its whole take; the stance at the action picks the crouched animation when the
  * player is crouched and the weapon has one.
  *
  * A RELOAD IS CANCELLED, at the earliest of: the end of the life; the hand leaving the weapon (a
- * selector flip to the other slot, or a pickup or drop); a melee or a throw by the player, from
- * the same instant on; a shot by the player after the action; the player's next reload. The
+ * selector flip to the other slot, or a pickup or drop); a melee, a throw or a repeated reload
+ * message (an equipment use, a slide) by the player, from the same instant on; a shot by the player after the action; the player's next reload. The
  * sounds the animation would post after that instant do not play, and a take still sounding is
  * cut there.
  */
@@ -28,6 +29,7 @@ import { frameToMs, msToFrames, positionAt, trackWindow } from '../../../lib/rep
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { currentLifeOf } from '../../../lib/replay/rosterLogic'
 import { armeEnMain } from '../model/armeEnMain'
+import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
 import { weaponTagOf, type ReloadClip, type ReloadLibrary } from './reloadManifest'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -118,10 +120,11 @@ function factsBySlot(doc: ReplayDocumentReady): Map<number, SlotFacts> {
     if (!f) by.set(slot, (f = { reloads: [], interrupts: [], shots: [], changes: [], hands: [] }))
     return f
   }
-  for (const a of doc.actions) {
-    if (a.kind === 'reload') of(a.slot).reloads.push(a.ms)
-    else if (INTERRUPTING_ACTIONS.has(a.kind)) of(a.slot).interrupts.push(a.ms)
+  for (const [slot, r] of reloadReadings(doc)) {
+    of(slot).reloads.push(...r.starts)
+    of(slot).interrupts.push(...r.cuts)
   }
+  for (const a of doc.actions) if (INTERRUPTING_ACTIONS.has(a.kind)) of(a.slot).interrupts.push(a.ms)
   for (const s of doc.shots) by.get(s.slot)?.shots.push(frameToMs(s.t, doc))
   for (const c of doc.weaponChanges) by.get(c.slot)?.changes.push(frameToMs(c.t, doc))
   for (const d of doc.drawnWeapons) if (d.d != null) by.get(d.slot)?.hands.push({ ms: frameToMs(d.t, doc), d: d.d })
