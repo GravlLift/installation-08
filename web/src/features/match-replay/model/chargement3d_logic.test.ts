@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { LOAD_COSTS_3D, LoadProgress3d, type LoadState } from './chargement3d_logic'
+import { LoadProgress3d, type LoadState } from './chargement3d_logic'
 
 const MB = 1024 * 1024
 
