@@ -408,6 +408,7 @@ export const EN_TEXT = {
   exportEtaFmt: (clock) => `about ${clock} remaining`,
   exportDoneFmt: (filename) => `File saved: ${filename}`,
   exportMutedFallback: 'MUTED clip: this browser refused the audio track.',
+  exportFpsFallbackFmt: (fps) => `${fps} fps clip: this browser cannot encode 60 fps at this size.`,
   exportTrackMix: 'Full mix',
   exportTrackSfx: 'Sound effects',
   exportTrackVoice: 'Voice',

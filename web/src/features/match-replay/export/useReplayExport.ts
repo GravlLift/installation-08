@@ -52,7 +52,11 @@
  * La vue 3D chargée de la page se prête à l'export (`replay3dExportStore`) : la scène rend chaque
  * image à la taille du fichier, avec la caméra et le joueur suivi choisis, et `export3dFrame` la
  * compose avec les étiquettes des joueurs, la mini-carte 2D en option et les mêmes panneaux de
- * fin. Le plan d'images, les horodatages et le son sont ceux de la 2D.
+ * fin. Le plan d'images, les horodatages et le son sont ceux de la 2D, at 60 frames per second of
+ * match instead of 30 (`EXPORT_FPS_3D`; 30 only when the browser refuses 60, and then the dialog
+ * says so). Each 3D frame is rendered to completion before it is encoded: visible ragdolls baked
+ * (`ActionScene3d.settle`), and any model the frame asked for loaded, then the frame rendered
+ * again (`exportPendingLoads`).
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
@@ -88,7 +92,7 @@ import {
   type ExportPlan,
 } from './replayExportPlan'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { EXPORT_FPS, canExportVideo, openVideoExport, type VideoExportSink } from './replayVideoEncoder'
+import { EXPORT_FPS, EXPORT_FPS_3D, canExportVideo, openVideoExport, type VideoExportSink } from './replayVideoEncoder'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import {
   exportFormatOf,
@@ -222,6 +226,13 @@ export interface ReplayExportState {
   mutedFallback?: boolean
   /** Le message technique de l'echec, pour la console et pour l'utilisateur averti. */
   message?: string
+  /** The rate the clip is encoded at, once the encoder is open (`encode` and `done`). */
+  fps?: number
+  /**
+   * `true` = the 3D clip was meant for 60 fps and the browser refused that rate at this size: it
+   * is encoded at 30, and the dialog SAYS so.
+   */
+  fpsFallback?: boolean
   /**
    * In `prepare`, once the sound work starts: which step runs (the offline MIX, then the AAC
    * ENCODING of its tracks) and its share done, 0..100. Kept apart from `pct`, which counts
@@ -362,8 +373,34 @@ function paintPanel(
   if (panel) paintOverlayPanel(ctx, view, panel, paint.fonts, paint.ink)
 }
 
-/** Peint l'image `frame` et rend la toile à encoder. */
-type FramePainter = (frame: number) => HTMLCanvasElement
+/** Peint l'image `frame` et rend la toile à encoder, once that frame is completely drawn. */
+type FramePainter = (frame: number) => HTMLCanvasElement | Promise<HTMLCanvasElement>
+
+/**
+ * How many times one 3D frame may wait for loads and render again. A frame normally waits once
+ * at most (a model it asked for); the bound only stops a loader that keeps starting new loads.
+ */
+const MAX_LOAD_WAITS = 4
+
+/**
+ * renderComplete renders the 3D frame `frame` and, while the scene still has loads in flight
+ * that this frame asked for, waits for them and renders it AGAIN: a model landing one frame late
+ * would otherwise pop in mid-clip. A timed-out wait is reported and the frame is kept.
+ */
+export async function renderComplete(
+  paint: (frame: number) => HTMLCanvasElement,
+  scene: Pick<Replay3DExportSource, 'exportPendingLoads'>,
+  frame: number,
+): Promise<HTMLCanvasElement> {
+  let canvas = paint(frame)
+  for (let i = 0; i < MAX_LOAD_WAITS; i++) {
+    const pending = scene.exportPendingLoads()
+    if (!pending) return canvas
+    if (await pending) console.warn(`[replay-export] 3D loads still pending at frame ${frame}, encoding it as is`)
+    canvas = paint(frame)
+  }
+  return canvas
+}
 
 /** La scène 3D prise pour l'export, et ce qu'on lui demande. */
 interface Scene3dRun {
@@ -376,7 +413,7 @@ interface Scene3dRun {
  * take3dScene prend la scène 3D de la page pour l'export (cf. `replay3dExportStore`). Lève si la
  * 3D demandée n'est plus chargée : l'export le dit, il ne sort pas une 2D à la place.
  */
-function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: number): Replay3DExportSource {
+function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: number, frameMs: number): Replay3DExportSource {
   const entry = replay3DExportEntry()
   if (!entry) throw new Error('3D view is not loaded')
   entry.source.beginExport({
@@ -385,6 +422,7 @@ function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: numbe
     camera: view3d.camera,
     pov: view3d.pov,
     frame,
+    frameMs,
   })
   return entry.source
 }
@@ -424,7 +462,7 @@ async function framePainter(
   return (frame) => {
     // L'image courante avance aussi en 3D : la barre de lecture et la carte 2D la suivent.
     o.frameRef.current = frame
-    return painter(frame)
+    return renderComplete(painter, scene3d.scene, frame)
   }
 }
 
@@ -465,15 +503,18 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
       // L'IMAGE D'AVANT L'EXPORT est mise de côté MAINTENANT : la boucle va écrire `frameRef`
       // des milliers de fois, et l'utilisateur doit retrouver son rejeu où il l'avait laissé.
       const resume = o.frameRef.current
+      const format = exportFormatOf(options?.format)
+      const view3d = options?.view3d ?? null
+      // THE RATE: 60 for the 3D view, 30 for the 2D map (cf. `EXPORT_FPS_3D`). The encoder may
+      // refuse 60 at this size; it then falls back to 30 and the dialog says so.
+      const wantedFps = view3d ? EXPORT_FPS_3D : EXPORT_FPS
       // Un premier plan SANS maintien : il donne la duree de la plage, dont le mixage a besoin.
-      let plan = buildExportPlan(bounds, o.doc)
+      let plan = buildExportPlan(bounds, o.doc, wantedFps)
       // PHASE 1 : la preparation. La barre n'affiche pas « image 0 » — elle dit ce qu'on fait.
       setState({ phase: 'prepare', done: 0, total: plan.frames.length, pct: 0 })
       let sink: VideoExportSink | null = null
       // La scène 3D prise pour l'export, rendue à l'écran dans le `finally`.
       let scene3d: Replay3DExportSource | null = null
-      const format = exportFormatOf(options?.format)
-      const view3d = options?.view3d ?? null
       try {
         // LA TOILE EST TENUE DÈS LE DÉBUT DE LA PRÉPARATION (décision D7) : la demande éteint les
         // gestes de cadrage et le survol tout de suite, pas seulement une fois les sons décodés —
@@ -502,13 +543,13 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
           progress: prepareProgress(setState, plan.frames.length, 'mix'),
         })
         if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix reads it at each step and stops): stop before encoding; `finally` restores.
-        // LE MAINTIEN SE CALCULE UNE FOIS LE SON CONNU (cf. `holdMsFor`), et le plan se refait :
-        // la derniere image doit tenir assez longtemps pour qu'on lise le verdict, et au moins
-        // aussi longtemps que le son continue.
-        plan = buildExportPlan(bounds, o.doc, EXPORT_FPS, holdMsFor(o, bounds, plan, mix))
+        // Le maintien (cf. `holdMsFor`) ne dépend que de durées : il se calcule sur le premier plan.
+        const holdMs = holdMsFor(o, bounds, plan, mix)
         sink = await openVideoExport({
           width: format.width,
           height: format.height,
+          fps: wantedFps,
+          fallbackFps: view3d ? EXPORT_FPS : undefined,
           audioTracks: mix ? trackNames(mix, o.locale) : undefined,
         })
         if (!sink) {
@@ -518,6 +559,13 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
           fail(setState, 'Video configuration rejected by the browser')
           return
         }
+        // LE PLAN SE REFAIT À LA CADENCE QUE L'ENCODEUR A ACCEPTÉE, avec le maintien : la
+        // derniere image doit tenir assez longtemps pour qu'on lise le verdict, et au moins
+        // aussi longtemps que le son continue. The file timestamps are `index / fps`, so the plan
+        // and the encoder MUST share one rate, or the clip would play at the wrong speed.
+        const fps = sink.fps
+        const fpsFallback = sink.fpsFallback
+        plan = buildExportPlan(bounds, o.doc, fps, holdMs)
         // LE SON DEMANDE MAIS IMPOSSIBLE NE SE TAIT PAS : le navigateur peut avoir l'API et
         // REFUSER la configuration AAC. Le clip sort muet — mieux qu'un export perdu — et la
         // phase finale le dit.
@@ -528,7 +576,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         }
         // La scène 3D n'est prise qu'ici, au dernier moment : la vue d'écran reste vivante pendant
         // la préparation.
-        if (view3d) scene3d = take3dScene(view3d, format, bounds.startFrame)
+        if (view3d) scene3d = take3dScene(view3d, format, bounds.startFrame, frameToMs(1, o.doc))
         const painter = await framePainter(
           canvas,
           o,
@@ -539,7 +587,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // chose, et que le temps restant peut s'estimer.
         const total = plan.frames.length
         const debut = performance.now()
-        setState({ phase: 'encode', done: 0, total, pct: 0 })
+        setState({ phase: 'encode', done: 0, total, pct: 0, fps, fpsFallback })
         const ok = await encodeAll(painter, plan.frames, {
           cancelled: () => cancelRef.current,
           progress: (done) =>
@@ -549,6 +597,8 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
               total,
               pct: exportProgressPct(done, total),
               etaMs: etaFor(done, total, performance.now() - debut),
+              fps,
+              fpsFallback,
             }),
           sink,
         })
@@ -563,7 +613,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         if (clip && liveRef.current) triggerDownload(clip, filename)
         // PHASE 3 : le fichier est depose, et on le DIT avec son nom. Une annulation, elle,
         // ramene au formulaire — il n'y a rien a annoncer d'un geste qu'on vient de faire.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, mutedFallback: muet } : IDLE)
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, mutedFallback: muet, fps, fpsFallback } : IDLE)
       } catch (err) {
         // JAMAIS D'ÉCHEC MUET (règle 3 du dépôt : logger AVANT toute dégradation). Sans ce
         // bloc, une panne d'encodeur faisait disparaître la barre de progression sans un mot,
@@ -672,7 +722,9 @@ async function encodeAll(
 ): Promise<boolean> {
   for (let i = 0; i < frames.length; i++) {
     if (hooks.cancelled()) return false
-    await hooks.sink.addFrame(paint(frames[i]), i)
+    // The frame is complete before it is handed over (`renderComplete` in 3D): `addFrame` reads
+    // the canvas as it is, and the index alone gives its timestamp.
+    await hooks.sink.addFrame(await paint(frames[i]), i)
     if (i % PROGRESS_EVERY !== 0) continue
     hooks.progress(i)
     // LA MAIN REVIENT À LA PAGE ICI, et par le canal non bridé : sans cela la barre de

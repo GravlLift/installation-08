@@ -77,7 +77,16 @@ export function creerCiel(sun: { azimuth: number; elevation: number }, texture: 
   ciel.onBeforeRender = (_renderer, _scene, camera) => {
     ciel.position.copy(camera.position)
     ciel.updateMatrixWorld()
-    if (texture) ciel.material.uniforms.cloudTime.value = performance.now() * 0.001 * VITESSE_NUAGES
+    const seconds = (ciel.userData.cloudClockS as number | null | undefined) ?? performance.now() * 0.001
+    if (texture) ciel.material.uniforms.cloudTime.value = seconds * VITESSE_NUAGES
   }
   return ciel
+}
+
+/**
+ * setCloudClock drives the clouds from `seconds` of match time (the video export, which renders
+ * off real time), or hands them back to the wall clock (`null`).
+ */
+export function setCloudClock(ciel: THREE.Object3D, seconds: number | null): void {
+  ciel.userData.cloudClockS = seconds
 }
