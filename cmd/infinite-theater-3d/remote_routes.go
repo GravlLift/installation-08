@@ -189,13 +189,10 @@ func queuePosition(queue []string, id string) int {
 // the head of the queue while it runs, so the queued ids behind it report stable positions
 // ("Queued (2)" keeps meaning what it says until the head is done).
 func (h serverHandlers) drainRemoteFetchQueue() {
-	for {
-		id, ok := h.remote.peekHead()
-		if !ok {
-			return
-		}
+	id, ok := h.remote.peekHead()
+	for ok {
 		h.runRemoteFetch(id)
-		h.remote.popHead()
+		id, ok = h.remote.popHead()
 	}
 }
 
@@ -209,13 +206,20 @@ func (j *remoteJobs) peekHead() (string, bool) {
 	return j.queue[0], true
 }
 
-// popHead drops the head of the queue once its fetch has finished.
-func (j *remoteJobs) popHead() {
+// popHead drops the head of the queue once its fetch has finished and returns the next
+// head, or false when the queue is now empty. Popping and deciding to stop happen under one
+// lock: a startFetch that finds the queue empty starts a new runner, so the runner that saw
+// it empty must already be on its way out (two runners would fetch the same id).
+func (j *remoteJobs) popHead() (string, bool) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if len(j.queue) > 0 {
 		j.queue = j.queue[1:]
 	}
+	if len(j.queue) == 0 {
+		return "", false
+	}
+	return j.queue[0], true
 }
 func (h serverHandlers) runRemoteFetch(id string) {
 	j := h.remote

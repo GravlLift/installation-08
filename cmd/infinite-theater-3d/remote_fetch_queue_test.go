@@ -42,9 +42,10 @@ func TestRemoteFetchQueue(t *testing.T) {
 	h.remote.fetch = func(_ context.Context, _ *store.Root, _ *haloapi.Client, id string, progress fetchProgress) error {
 		orderMu.Lock()
 		order = append(order, id)
+		gate := gates[id]
 		orderMu.Unlock()
 		progress("downloading", 0, 1)
-		<-gates[id]
+		<-gate
 		if id == "b" {
 			return errors.New("boom")
 		}
@@ -124,12 +125,16 @@ func TestRemoteFetchQueue(t *testing.T) {
 	close(gates["c"])
 	waitForState("c", "ready")
 	// A failed id may be queued again; it goes to the back and runs in order.
+	// The new gate is in place before the POST: the fetch reads it as soon as it starts.
+	regate := make(chan struct{})
+	orderMu.Lock()
+	gates["b"] = regate
+	orderMu.Unlock()
 	if s := post("b"); s.State != "queued" || s.Position != 1 {
 		t.Fatal(s)
 	}
-	gates["b"] = make(chan struct{})
 	waitForState("b", "downloading")
-	close(gates["b"])
+	close(regate)
 	waitForState("b", "failed")
 
 	orderMu.Lock()
