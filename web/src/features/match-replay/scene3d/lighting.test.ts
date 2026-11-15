@@ -1,6 +1,24 @@
+import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { glowLevel } from './lighting'
+import { captureSkyScale, ENV_INTENSITY, glowLevel, SKY_FILL_SHARE } from './lighting'
+
+describe('captureSkyScale', () => {
+  const sky = new THREE.Color(0x9fb4c8)
+  const luminance = 0.2126 * sky.r + 0.7152 * sky.g + 0.0722 * sky.b
+  it('lights an open-sky surface with a share of the sun’s diffuse light', () => {
+    const sun = 3.2 * (5 / 8) // Fortress: intensity 5 against the reference 8
+    const fill = luminance * captureSkyScale(sun, sky) * ENV_INTENSITY
+    expect(fill).toBeCloseTo((SKY_FILL_SHARE * sun) / Math.PI, 6)
+    expect(captureSkyScale(sun, sky)).toBeLessThan(0.3)
+  })
+  it('follows the sun, never brightens the background, and stays dark without sky or sun', () => {
+    expect(captureSkyScale(0.8, sky)).toBeLessThan(captureSkyScale(2, sky))
+    expect(captureSkyScale(1000, sky)).toBe(1)
+    expect(captureSkyScale(2, new THREE.Color(0x000000))).toBe(0)
+    expect(captureSkyScale(0, sky)).toBe(0)
+  })
+})
 
 describe('glowLevel', () => {
   it('comprime les forces du jeu sans en inverser l’ordre', () => {
