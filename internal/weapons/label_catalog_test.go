@@ -6,6 +6,8 @@ package weapons
 import (
 	"strings"
 	"testing"
+
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 )
 
 // levelUpRegistryFamilies is the family to key projection of LevelUp's
@@ -97,5 +99,20 @@ func TestModelKeysForWeaponName(t *testing.T) {
 	}
 	if got := cat.ModelKeysForWeaponName("NoSuchWeapon"); got != nil {
 		t.Fatalf("NoSuchWeapon: got %v, want nil", got)
+	}
+}
+
+// TestHeatwaveShotsAreASpread: the Heatwave's shots render as a fan of bolts (`spread`), not as
+// the Sentinel Beam's continuous `light` ray, in both tables the documents are completed from.
+func TestHeatwaveShotsAreASpread(t *testing.T) {
+	c, err := LoadLabelCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.LabelCatalog.Weapons[mustParseFamily("2ac9c2ff")].Fx; got != "spread" {
+		t.Errorf("weapon table: Heatwave fx = %q, want spread", got)
+	}
+	if got := refdata.Labels().Weapons[mustParseFamily("2ac9c2ff")].Fx; got != "spread" {
+		t.Errorf("replay labels: Heatwave fx = %q, want spread", got)
 	}
 }

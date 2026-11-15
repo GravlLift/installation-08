@@ -249,6 +249,27 @@ export class Ground {
     this.ray.far = far
     return this.ray.intersectObjects(this.pickables, false)[0]?.point ?? null
   }
+
+  /**
+   * hitFace : le premier impact le long d'un rayon et la normale du décor touché (monde, tournée
+   * vers le rayon), ou null au-delà de `far`. What a ricochet needs.
+   */
+  hitFace(from: THREE.Vector3, dir: THREE.Vector3, far: number): { point: THREE.Vector3; normal: THREE.Vector3 } | null {
+    this.ray.set(from, dir)
+    this.ray.far = far
+    const h = this.ray.intersectObjects(this.pickables, false)[0]
+    if (!h) return null
+    const normal = h.face ? h.face.normal.clone() : dir.clone().negate()
+    if (h.face) {
+      if (h.object instanceof THREE.InstancedMesh && h.instanceId !== undefined) {
+        h.object.getMatrixAt(h.instanceId, scratch.m)
+        normal.transformDirection(scratch.m)
+      }
+      normal.transformDirection(h.object.matrixWorld)
+    }
+    if (normal.dot(dir) > 0) normal.negate()
+    return { point: h.point.clone(), normal }
+  }
 }
 
 const DOWN = new THREE.Vector3(0, -1, 0)
