@@ -465,19 +465,39 @@ type zoneStyle struct {
 	source SourcePoids
 }
 
+// premiereZone : the number of the material's first lit zone, the one an object's Forge style
+// layer 1 paints; 0 when no zone is lit. MEASURED (Fortress, dea65712): every material whose base
+// zone is unlit is a Forge cloth or decal plane (shader 0x7705398e, Mask0 R = its ASG cut
+// silhouette, Mask0 G empty: the banners, moss and stain planes), and its styles name only their
+// first layer; the team banners are solid red or blue in game, which the style's first layer on
+// the base zone hid under the material's own Mask0 R swatch.
+func (zs *ZonesStyle) premiereZone() int {
+	for _, z := range zs.zones {
+		if z.k != nil {
+			return z.numero
+		}
+	}
+	return 0
+}
+
 // couches emits the layers the zones draw, repainted by s (nil: the material's own style): the
 // first zone lit covers the surface; the next ones, then the grime, are laid over it by the mask,
 // three at most (the viewer composes four layers). nil when no zone is lit.
+//
+// The style's layers start at the material's first lit zone (premiereZone): a material whose base
+// zone draws nothing (Forge's cloth and decal planes, base swatch empty, their surface on Mask0 R)
+// takes the style's first layer on that zone, not on the empty base.
 func (zs *ZonesStyle) couches(s *StyleForge) *Couches {
 	type allumee struct {
 		k      Couche
 		source SourcePoids
 	}
 	var lues []allumee
+	decalage := zs.premiereZone()
 	for _, z := range zs.zones {
 		k := z.k
-		if s != nil && z.numero < len(s.Zones) && s.Zones[z.numero] != nil {
-			k = s.Zones[z.numero]
+		if r := z.numero - decalage; s != nil && r >= 0 && r < len(s.Zones) && s.Zones[r] != nil {
+			k = s.Zones[r]
 		}
 		if k != nil {
 			lues = append(lues, allumee{zs.params.adapte(*k), z.source})
