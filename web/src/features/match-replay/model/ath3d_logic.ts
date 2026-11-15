@@ -8,6 +8,7 @@ import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from './killFeedLogic'
 import { armeEnMain } from './armeEnMain'
+import { equipmentSlotAt } from './equipmentSlotHud'
 import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
 
@@ -116,7 +117,8 @@ export function lireAth(source: ReturnType<typeof preparerAth>, frame: number, l
   if (!grenades.some((g) => g.rank === 0)) grenades.unshift({ rank: 0, name: catalogText(doc.grenadeLabels?.[0], locale) ?? REPLAY_TEXT[locale].soundCategory.grenade, count: boite?.g[0] ?? 0 })
   const touche = derniereMarque(source.impacts.get(slot) ?? [], maintenant, 150)
   const elimination = derniereMarque(source.eliminations, maintenant, 400)
-  return { bouclier: etat.shield?.value ?? null, armeId: arme?.id, etiquette, munitions, grenades, forme: formeReticule(etiquette?.key), touche, elimination }
+  const equipement = equipmentSlotAt(doc, slot, frame)
+  return { bouclier: etat.shield?.value ?? null, armeId: arme?.id, etiquette, munitions, grenades, equipement, forme: formeReticule(etiquette?.key), touche, elimination }
 }
 
 /** Life window of an elimination of the followed player in the 3D HUD popup, in seconds. */
