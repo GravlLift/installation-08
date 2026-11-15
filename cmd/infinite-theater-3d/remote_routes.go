@@ -364,6 +364,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/matches/{id}/spartans", h.handleMatchSpartans)
 	mux.HandleFunc("GET /api/matches/{id}/context", h.handleContext)
 	mux.HandleFunc("GET /api/matches/{id}/mesh.glb", h.handleMesh)
+	mux.HandleFunc("GET /api/matches/{id}/ambience.ogg", h.handleAmbience)
 	mux.HandleFunc("GET /api/matches/{id}/mesh/state", h.handleMeshState)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/build", h.handleMeshBuild)
 	mux.HandleFunc("POST /api/matches/{id}/mesh/cancel", h.handleMeshCancel)

@@ -140,6 +140,11 @@ export function meshUrl(matchId: string): string {
   return `/api/matches/${encodeURIComponent(matchId)}/mesh.glb`
 }
 
+/** ambienceUrl is the match's map ambient bed (a looping Ogg); a 404 when the map has none yet. */
+export function ambienceUrl(matchId: string): string {
+  return `/api/matches/${encodeURIComponent(matchId)}/ambience.ogg`
+}
+
 /**
  * checkMesh issues a lightweight `HEAD` against the mesh route to tell "not built yet"
  * (`MeshNotBuiltError`) apart from "will stream fine" before the 3D view starts a full GET

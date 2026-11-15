@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/sounds"
@@ -33,8 +34,8 @@ func soundsDir(dataDir string) string {
 }
 
 // soundFile is a file name the sound route may serve: an .ogg file (the sound
-// set, an announcer take or a reload take), or the announcer.json and reloads.json
-// manifests of the extractions (written by build-sounds or the announcer job into
+// set, an announcer, reload or ambience take), or the announcer.json, reloads.json
+// and ambience.json manifests of the extractions (written by build-sounds or the announcer job into
 // the data directory only). A name that passes this check but is in neither the
 // data directory nor the built-in set still gets a 404, and a name that would
 // escape the folder is refused by joinInside.
@@ -44,7 +45,7 @@ func soundFile(name string) bool {
 
 // soundManifest says whether name is one of the extractions' manifests.
 func soundManifest(name string) bool {
-	return name == announcer.ManifestName || name == reloadsounds.ManifestName
+	return name == announcer.ManifestName || name == reloadsounds.ManifestName || name == ambience.ManifestName
 }
 
 // soundContentType is the media type of a sound route file.

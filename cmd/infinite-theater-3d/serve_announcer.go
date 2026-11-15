@@ -1,7 +1,8 @@
 package main
 
 // serve_announcer.go — the extracted sound library (the announcer's voice lines, the weapons'
-// reload sounds and the interface sounds): the build job's body (the same extractions build-sounds runs), its readiness,
+// reload sounds, the interface sounds and the maps' ambient beds): the build job's body (the same
+// extractions build-sounds runs), its readiness,
 // and the state/build route pair. The job shares the mesh build runner's queue with the other
 // one-time builds; the Origin loopback check and the state JSON are the mesh routes' own.
 
@@ -10,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
@@ -22,8 +24,8 @@ import (
 const announcerJobLanguage = "en"
 
 // announcerReady is the sound library's readiness: the announcer's, the reloads' and the
-// interface sounds' manifests are all in the sound folder and none is stale (a manifest of an
-// older format version, or one missing, has the job run again).
+// interface sounds' and the ambience's manifests are all in the sound folder and none is stale (a
+// manifest of an older format version, or one missing, has the job run again).
 func announcerReady(dataDir string) bool {
 	built, stale := soundLibraryStatus(soundsDir(dataDir))
 	return built && !stale
@@ -32,7 +34,7 @@ func announcerReady(dataDir string) bool {
 // soundLibraryStatus is built when every manifest of the sound library is there, stale when any is old.
 func soundLibraryStatus(dir string) (built, stale bool) {
 	built, stale = true, false
-	for _, status := range []func(string) (bool, bool){announcer.ManifestStatus, reloadsounds.ManifestStatus, uisounds.ManifestStatus} {
+	for _, status := range []func(string) (bool, bool){announcer.ManifestStatus, reloadsounds.ManifestStatus, uisounds.ManifestStatus, ambience.ManifestStatus} {
 		b, s := status(dir)
 		built = built && b
 		stale = stale || s
@@ -40,8 +42,8 @@ func soundLibraryStatus(dir string) (built, stale bool) {
 	return built, stale
 }
 
-// buildAnnouncer runs the announcer and reload extractions into the store's sound folder. It
-// is the announcer job's body in the mesh build runner.
+// buildAnnouncer runs the announcer, reload, interface and ambience extractions into the store's
+// sound folder. It is the announcer job's body in the mesh build runner.
 func buildAnnouncer(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
 	res, folder, err := buildAnnouncerSounds(ctx, gameRoot, root.Dir(), announcerJobLanguage)
 	if err != nil {
@@ -56,7 +58,11 @@ func buildAnnouncer(ctx context.Context, root *store.Root, gameRoot string) (mes
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
-	return meshjobs.BuildResult{Bytes: res.Bytes + reloads.Bytes + ui.Bytes, Triangles: 0}, nil
+	beds, err := buildAmbienceSounds(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: res.Bytes + reloads.Bytes + ui.Bytes + beds.Bytes, Triangles: 0}, nil
 }
 
 // handleAnnouncerState answers GET /api/announcer/state with the sound library's build state,
