@@ -30,6 +30,8 @@
 //	[4][0][0]  StringId de lieu (zones nommées) — voir readLocationID
 //	[23][0][0] échelle vec3 par axe local (avant, gauche, haut) — ABSENTE quand l'objet garde
 //	           l'échelle de son type
+//	[24][0]    [0] Forge mode int (3 telescoping), [1][0] representation hash
+//	           (LOCAL-CHANGE (infinite-theater-3d): the mode is read)
 //
 // Le hash de label est un murmur3_x86_32(seed=0) du nom snake_case du label
 // (CRAQUÉ : murmur3("stockpile_socket") == 2110778921, valeur observée telle quelle
@@ -47,6 +49,10 @@ type Vec3 struct {
 
 // TeamUnset marque un objet sans index d'équipe.
 const TeamUnset = -1
+
+// ModeForgeTelescopique (LOCAL-CHANGE (infinite-theater-3d)): the Object.ModeForge of a
+// telescoping object, which fits one of its type's sizes to its scale.
+const ModeForgeTelescopique = 3
 
 // Object est un objet placé par la variante de carte.
 type Object struct {
@@ -81,6 +87,9 @@ type Object struct {
 	// Scale : l'échelle de l'objet par axe local (X avant, Y gauche, Z haut), au chemin
 	// `#8/23[0]/0`. nil quand l'objet n'en porte pas : il garde l'échelle unitaire de son type.
 	Scale *Vec3
+	// ModeForge (LOCAL-CHANGE (infinite-theater-3d)): the object's Forge mode at `#8/24[0]/0`
+	// (1 dynamic, 2 static, 3 telescoping, 4 kit, as Ekur's add-on names them); 0 when absent.
+	ModeForge int
 }
 
 // Variant est une variante de carte décodée.
@@ -153,6 +162,9 @@ func readGameplayBag(o *Object, bag Value) {
 	o.LocationID = readLocationID(bag)
 	o.Scale = readScale(bag)
 	if liste, ok := bag.Field(24); ok && len(liste.Items) > 0 {
+		if mode, ok := liste.Items[0].Field(0); ok { // LOCAL-CHANGE (infinite-theater-3d)
+			o.ModeForge = int(mode.Int)
+		}
 		if ref, ok := liste.Items[0].Field(1); ok {
 			if id, ok := ref.Field(0); ok {
 				n := int32(id.Int)

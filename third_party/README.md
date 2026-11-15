@@ -154,6 +154,29 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     (`OptionsVariante.Filtres`, `BilanVariante.HorsMode`). Zone markers, flag stands, oddball
     spawns of other modes no longer draw. Covered by `himap/filtres_mode_test.go`,
     `himap/kits_forge_test.go` and `himap/kits_forge_gamefiles_test.go` (new).
+  - `himap/origine_forge.go` (new, LOCAL-CHANGE) with `maillage_variante.go`,
+    `maillage_variante_representation.go` and `kits_forge.go` (modified): a Forge object drawn
+    from an `rtgo` is offset by its own `mode`'s box corner minus the `rtgo`'s (the `rtgo` is the
+    same geometry re-centred), instead of being lifted onto its base. Rock columns and terrain
+    pieces are centre-pivot, many props corner-pivot. A type whose `mode` is missing or has
+    another box keeps the base rule. Covered by `himap/origine_forge_test.go` (new) and
+    `himap/maillage_variante_test.go` (modified).
+  - `himap/origine_forge.go`, `maillage_variante_representation.go` and `kits_forge.go`
+    (LOCAL-CHANGE): the `mode` an `rtgo` representation is measured against draws that
+    representation's own permutation (the sections whose permutation, else region, carries the
+    representation name), the rule of Ekur's Forge map import (TheHaloArchive,
+    GPL-3.0-or-later). Fortress's type -960331706 keeps a 2.29 m default and a 2.20 m "forge"
+    permutation; its "forge" `rtgo` was compared with the default, failed the same-box test and
+    sat 1 m off in X and Y (721 player samples inside it, 3 now). Covered by
+    `himap/origine_forge_test.go` (modified).
+  - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
+    mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
+  - `himap/telescopage_forge.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): a
+    telescoping Forge object leaves its scale at 1 on the axes where every size of its type
+    has the same extent. Outlook's ring plates (all sizes 0.41 m thick) stored 5.09 there and
+    stood 2.09 m tall through the floor; the base door frames (all 0.41 m deep) stored 15.4 and
+    made a 6.2 m tunnel (10,893 player samples inside both, 0 now). Ekur does not handle
+    telescoping. Covered by `himap/telescopage_forge_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

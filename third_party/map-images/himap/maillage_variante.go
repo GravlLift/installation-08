@@ -16,8 +16,9 @@
 //     references `mat ` que les parts du maillage indexent par rang, comme la liste d'une
 //     instance de sbsp. La premiere palette est retenue : le style que l'objet choisit n'est pas
 //     lu, l'objet sort dans le style par defaut de son type.
-//   - la HAUTEUR : le `.mvar` donne la position de la BASE de l'objet ; un `rtgo` est centre sur
-//     son origine, il se leve donc de sa demi-hauteur (socle). Un `mode` a sa base a l'origine.
+//   - l'ORIGINE (LOCAL-CHANGE (infinite-theater-3d): origine_forge.go) : le `.mvar` donne la
+//     position de l'origine du `mode` propre de l'objet ; un `rtgo` est recentre sur la sienne, il
+//     se decale donc du coin de la boite du `mode` moins le sien.
 //   - les maillages que le jeu ne dessine pas a l'ecran (horsPasseVisible) vont au groupe Ombre,
 //     comme ceux de la carte.
 //
@@ -98,13 +99,15 @@ type modeleVariante struct {
 	modelePose
 	ombre       map[int]bool
 	sansPalette bool
-	// socle : la hauteur locale dont l'objet se leve pour poser sa base sur sa position. Un
-	// `rtgo` est centre sur son origine alors que le `.mvar` donne la position de sa base ; un
-	// `mode` a deja sa base a l'origine (socle nul).
-	socle float64
+	// origine (LOCAL-CHANGE (infinite-theater-3d)): the model-frame offset that puts the
+	// object's pivot on its position (origine_forge.go); zero for a `mode`.
+	origine [3]float64
 	// pieces (LOCAL-CHANGE (infinite-theater-3d)): the objects of the type's Forge kit, posed
 	// in the object's frame (kits_forge.go); empty for a type that has its own model.
 	pieces []pieceKit
+	// fixes (LOCAL-CHANGE (infinite-theater-3d)): the model axes a telescoping object of the
+	// type does not stretch (telescopage_forge.go).
+	fixes [3]bool
 }
 
 // ecartVariante dit pourquoi un objet de variante n'est pas pose.
@@ -222,6 +225,7 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		foodParID[f.GlobalID] = f
 	}
 	out := map[int32]*modeleVariante{}
+	telescopiques := typesTelescopiques(objets)
 	for ty, ref := range modeleParType(ctx, objets, idx, forge) {
 		a, deja := assets[ref.id]
 		if !deja {
@@ -237,7 +241,13 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		}
 		if ref.groupe == GroupeRtgo {
 			mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, foodParID[uint32(ty)], ref.id)
-			mv.socle = -basDuModele(a, mv.maillages)
+			mv.origine = origineDuRtgo(a, mv.maillages, modeDuType(ctx, idx, forge, foodParID[uint32(ty)], assets))
+		}
+		// LOCAL-CHANGE (infinite-theater-3d): the axes a telescoping type does not stretch.
+		if telescopiques[ty] {
+			if tag, err := forge.Extract(foodParID[uint32(ty)]); err == nil {
+				mv.fixes = axesFixesDuFood(ctx, idx, tag, assets)
+			}
 		}
 		out[ty] = mv
 	}
@@ -248,21 +258,6 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 		}
 	}
 	return out
-}
-
-// basDuModele rend la plus basse cote locale des maillages poses (leurs bornes de rendu),
-// zero sans borne lisible.
-func basDuModele(a *RuntimeGeoAsset, maillages []int) float64 {
-	bas, lu := math.Inf(1), false
-	for _, k := range maillages {
-		if mn, _, ok := a.BornesRendu(k); ok {
-			bas, lu = math.Min(bas, mn[2]), true
-		}
-	}
-	if !lu {
-		return 0
-	}
-	return bas
 }
 
 // typePose : ce qu'un type d'objet a pose, pour le journal.
@@ -282,6 +277,11 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 		}
 		if !compteEcart(ecartDeVariante(o, opts.Filtres), b) {
 			continue
+		}
+		// LOCAL-CHANGE (infinite-theater-3d): a telescoping object keeps its type's fixed axes
+		// unscaled (telescopage_forge.go).
+		if d := modeles[o.TypeID]; d != nil {
+			o = echelleTelescopique(o, d.fixes)
 		}
 		mv, repli := selectionRepresentation(o, modeles[o.TypeID], representations)
 		if repli {
@@ -338,14 +338,11 @@ func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante, te
 		m.Poses = &PosesVariante{}
 	}
 	debut := len(m.Poses.Poses)
-	m.Poses.pose(i, mv, instanceVariante(o, mv.materiaux, mv.socle), nil, mv.materiaux, teinte)
-	// LOCAL-CHANGE (infinite-theater-3d): the kit's objects, each lifted from its own base.
+	m.Poses.pose(i, mv, instanceVariante(o, mv.materiaux, mv.origine), nil, mv.materiaux, teinte)
+	// LOCAL-CHANGE (infinite-theater-3d): the kit's objects, each placed by its own pivot.
 	for _, p := range mv.pieces {
-		local := p.pose
-		for a := range local.Position {
-			local.Position[a] += local.Up[a] * p.mv.socle * local.Scale[2]
-		}
-		m.Poses.pose(i, p.mv, instanceVariante(o, nil, 0), &local, p.mv.materiaux, teinte)
+		local := p.pose.decale(p.mv.origine)
+		m.Poses.pose(i, p.mv, instanceVariante(o, nil, [3]float64{}), &local, p.mv.materiaux, teinte)
 	}
 	poses := m.Poses.Poses[debut:]
 	triangles := 0
@@ -360,15 +357,12 @@ func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante, te
 	return triangles
 }
 
-// instanceVariante rend la pose d'un objet de variante (InstanceForge) levee de son socle le long
-// de son axe haut, sa liste de materiaux et une boite monde illimitee : le maillage d'un objet
-// pose n'a pas de boite declaree a laquelle le confronter (meme regle que
-// PlacementScenario.Instance).
-func instanceVariante(o mapvar.Object, materiaux []uint32, socle float64) Instance {
-	in := InstanceForge(o)
-	for a := range in.Position {
-		in.Position[a] += in.Up[a] * socle * in.Scale[2]
-	}
+// instanceVariante rend la pose d'un objet de variante (InstanceForge) decalee de l'origine de son
+// modele (LOCAL-CHANGE (infinite-theater-3d): origine_forge.go), sa liste de materiaux et une
+// boite monde illimitee : le maillage d'un objet pose n'a pas de boite declaree a laquelle le
+// confronter (meme regle que PlacementScenario.Instance).
+func instanceVariante(o mapvar.Object, materiaux []uint32, origine [3]float64) Instance {
+	in := InstanceForge(o).decale(origine)
 	inf := math.Inf(1)
 	in.AABBMin = [3]float64{-inf, -inf, -inf}
 	in.AABBMax = [3]float64{inf, inf, inf}
