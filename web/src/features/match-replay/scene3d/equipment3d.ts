@@ -134,7 +134,10 @@ export function knockbackArrow(k: Knockback): { dir: THREE.Vector3; length: numb
 }
 
 interface PlacementItem extends PlacementSpan3d {
-  /** Le point au sol (axes three) ; null quand ni le sol ni la hauteur publiée ne le situent. */
+  /**
+   * Le point au sol (axes three) ; null quand ni le sol ni la hauteur publiée ne le situent.
+   * Re-read whenever the ground's surfaces change (`resolveHeights`).
+   */
   at: THREE.Vector3 | null
   /** Cap du mur (degrés Halo), null sans source ; inutilisé hors mur et faille. */
   heading: number | null
@@ -144,6 +147,8 @@ interface PlacementItem extends PlacementSpan3d {
 
 interface RiftItem {
   s: RiftStation
+  /** The height hint the floor is searched under (Halo z), null without one. */
+  z: number | null
   at: THREE.Vector3 | null
   heading: number
 }
@@ -168,11 +173,14 @@ export class Equipment3dLayer implements ActionLayer3d {
   private readonly thruster: Thruster3d
   private readonly pools: readonly { begin(): void; end(): void; dispose(): void }[]
   private readonly scratch = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3() }
+  /** The ground's surfaces version the heights were read on (`Ground.version`). */
+  private groundVersion: number | undefined
 
   constructor(ctx: ActionContext) {
     this.ctx = ctx
     const doc = ctx.doc
     this.time = equipmentTime3d(doc)
+    this.groundVersion = ctx.ground.version
     this.placements = placementSpans3d(doc, this.time).map((s) => this.placementItem(s))
     this.rifts = this.riftItems(doc)
     this.grapples = doc.grappleLines.filter((l) => l.t1 > l.t0).map((l) => ({ l, anchor: this.anchorOf(l) }))
@@ -187,6 +195,7 @@ export class Equipment3dLayer implements ActionLayer3d {
   }
 
   update(frame: number): void {
+    if (this.ctx.ground.version !== this.groundVersion) this.resolveHeights()
     const inputs = this.ctx.inputs()
     for (const p of this.pools) p.begin()
     if (inputs.show.placements) {
@@ -204,6 +213,23 @@ export class Equipment3dLayer implements ActionLayer3d {
   }
 
   // --- Préparation (une fois par document) -------------------------------------------------------
+
+  /**
+   * resolveHeights — re-read every floor under the equipment once the ground's surfaces change.
+   *
+   * WHY: the layer is built with the map (`enableAction`), and a Forge map's floor arrives later
+   * with the variant layer (`useVariantLayer` -> `attachLayer` -> `Ground.setPickables`). Read once
+   * at construction, the floor under a drop wall on such a map was the canvas far below (Outlook:
+   * 50 u, out of the search window), so the wall stood on its published height instead: the panel
+   * object's origin, 0.26 to 0.63 u above its planter's feet (38 walls of match 05dfe4e9), which
+   * is how it hovered.
+   */
+  private resolveHeights(): void {
+    this.groundVersion = this.ctx.ground.version
+    for (const it of this.placements) it.at = this.floorAt(it.p.x, it.p.y, it.p.z ?? null)
+    for (const r of this.rifts) r.at = this.floorAt(r.s.x, r.s.y, r.z)
+    for (const g of this.grapples) g.anchor = this.anchorOf(g.l)
+  }
 
   /** floorAt — le sol sous (x, y) Halo, sous la hauteur `z` quand elle est connue ; à défaut `z`. */
   private floorAt(x: number, y: number, z: number | null): THREE.Vector3 | null {
@@ -235,7 +261,7 @@ export class Equipment3dLayer implements ActionLayer3d {
     return riftStations(doc).map((s) => {
       const carrier = this.ctx.slotState(s.slot, s.t0)
       const z = zOf.get(`${s.slot}:${s.t0}`) ?? carrier?.z ?? null
-      return { s, at: this.floorAt(s.x, s.y, z), heading: carrier?.h ?? 0 }
+      return { s, z, at: this.floorAt(s.x, s.y, z), heading: carrier?.h ?? 0 }
     })
   }
 
@@ -286,7 +312,7 @@ export class Equipment3dLayer implements ActionLayer3d {
           this.shapes.rift(it.at, it.heading ?? 0, rift)
           break
         case 'sensor':
-          this.shapes.sensor(it.at, ageMs, this.ownerInk(it.p, inputs))
+          this.shapes.sensor(this.sensorCenter(it, it.at), ageMs, this.ownerInk(it.p, inputs))
           break
         case 'seeker':
           this.shapes.seeker(it.at, ageMs, this.ownerInk(it.p, inputs))
@@ -298,6 +324,14 @@ export class Equipment3dLayer implements ActionLayer3d {
           this.shapes.dropped(it.at, this.ownerInk(it.p, inputs))
       }
     }
+  }
+
+  /**
+   * sensorCenter — the threat sensor's device and the center of its sphere: its published position
+   * (it sticks to the floor or a wall where it lands), the ground point under it without a height.
+   */
+  private sensorCenter(it: PlacementItem, at: THREE.Vector3): THREE.Vector3 {
+    return it.p.z != null ? this.scratch.c.set(...toThree(it.p.x, it.p.y, it.p.z)) : at
   }
 
   /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { WALL_OPENING_RAD, WALL_RADIUS_M } from '../layers/placementWall'
-import { WALL_DISSOLVE_MS, WALL_PANEL_COUNT, WALL_RISE_MS, wallPanels, wallPhaseAt } from './dropWall3d_logic'
+import { WALL_DISSOLVE_MS, WALL_PANEL_COUNT, WALL_RADIUS_U, WALL_RISE_MS, wallPanels, wallPhaseAt } from './dropWall3d_logic'
 
 const FRAME_MS = 50
 
@@ -40,9 +40,15 @@ describe('wallPanels — the 2D arc cut into flat panels facing away from the pl
     expect(panels).toHaveLength(WALL_PANEL_COUNT)
     const step = WALL_OPENING_RAD / WALL_PANEL_COUNT
     for (const p of panels) {
-      expect(p.width).toBeCloseTo(2 * WALL_RADIUS_M * Math.sin(step / 2))
-      expect(Math.hypot(p.x - 10, p.y - 20)).toBeCloseTo(WALL_RADIUS_M * Math.cos(step / 2))
+      expect(p.width).toBeCloseTo(2 * WALL_RADIUS_U * Math.sin(step / 2))
+      expect(Math.hypot(p.x - 10, p.y - 20)).toBeCloseTo(WALL_RADIUS_U * Math.cos(step / 2))
     }
+  })
+
+  it('takes the 2D radius as meters: a 2.6 m chord, about 0.85 u, not 2.6 u', () => {
+    expect(WALL_RADIUS_U).toBeCloseTo(WALL_RADIUS_M / 3.048)
+    const chord = 2 * WALL_RADIUS_U * Math.sin(WALL_OPENING_RAD / 2)
+    expect(chord * 3.048).toBeCloseTo(2.62, 1)
   })
 
   it('puts the middle panel in front of the planter, along the heading, the others symmetric', () => {
