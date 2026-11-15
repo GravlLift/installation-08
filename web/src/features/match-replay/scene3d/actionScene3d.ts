@@ -28,7 +28,7 @@ import type { ClipMix } from './clipSample3d'
 import type { FlashLights } from './flash3d'
 import type { HeldWeapon3d } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
-import { actionsParSlot } from './actionsFilm3d'
+import { actionsParSlot, rechargementsParSlot } from './actionsFilm3d'
 import { indexShotTimes, type SlotShots } from './recoilShots3d'
 import { preparerEvenementsPremierePersonne } from './evenementsPremierePersonne3d'
 import type { ChangementArme, EvenementsPremierePersonne } from './actionsPremierePersonne3d'
@@ -164,7 +164,7 @@ export class ActionScene3d {
     this.ctx = ctx
     this.layers = layers
     this.held = held
-    this.rechargements = actionsParSlot(ctx.doc, 'reload')
+    this.rechargements = rechargementsParSlot(ctx.doc).debuts
     this.coups = actionsParSlot(ctx.doc, 'melee')
     this.premieres = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
     this.body = new BodyFx3d(ctx)

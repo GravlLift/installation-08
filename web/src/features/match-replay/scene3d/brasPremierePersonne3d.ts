@@ -22,6 +22,7 @@ import { PeintureRig3d } from './peintureRig3d'
 import type { Recoil } from './recoil3d'
 import { pivotDuRecul, poserReculRig } from './reculPremierePersonne3d'
 import { fpCableStart } from './grapple3d_logic'
+import { CamouflageRig3d } from './camouflageRig3d'
 
 // La bouche du canon : en repère du porteur (`bouche`, `axe`, pour `boucheVue`) et, pour suivre le
 // rig animé, en repère LOCAL de l'objet qui la porte (`porteurLocal` / `point` / `axeLocale`).
@@ -122,6 +123,8 @@ export class BrasPremierePersonne3d {
   private readonly chargeurPieces: BrasPieces3d
   private indexPrêt = false
   private readonly pose = nouvellePosePremierePersonne()
+  /** The followed player's active camo on the visible rig (`camouflageRig3d`). */
+  private readonly camouflage = new CamouflageRig3d()
 
   constructor(scene: THREE.Scene, dossier: string, gate?: LoadGate, baked?: BakedLight | null, probeAt?: (position: THREE.Vector3) => THREE.Texture | null) {
     this.dossier = dossier
@@ -221,9 +224,10 @@ export class BrasPremierePersonne3d {
   /**
    * montrer pose le rig de l'arme `cleArme` à l'image (`evenements`) sous la caméra, puis le recul
    * de l'image `recul` (`reculPremierePersonne3d`) autour de la poignée, ou de la bouche mesurée
-   * quand l'index ne donne pas la pose de l'arme. Faux sans rig prêt à montrer.
+   * quand l'index ne donne pas la pose de l'arme. Faux sans rig prêt à montrer. `camo` : la force du
+   * camouflage actif du joueur (0 visible, 1 entier), qui efface aussi ses bras et son arme.
    */
-  montrer(camera: THREE.PerspectiveCamera, cleArme: string | null, evenements: EvenementsPremierePersonne, recul: Recoil | null): boolean {
+  montrer(camera: THREE.PerspectiveCamera, cleArme: string | null, evenements: EvenementsPremierePersonne, recul: Recoil | null, camo = 0): boolean {
     this.cacher()
     const rig = cleArme && this.armes.get(cleArme)
     if (!rig) return false
@@ -237,6 +241,7 @@ export class BrasPremierePersonne3d {
     entree.root.visible = true
     this.visible = entree.root
     this.cleVisible = cleArme
+    this.camouflage.apply(entree.root, camo)
     const pose = posePremierePersonne(entree.rig, evenements, this.pose)
     for (let i = 0; i < entree.listeActions.length; i++) entree.listeActions[i].weight = 0
     const idle = entree.actions.get(entree.clip.name)!

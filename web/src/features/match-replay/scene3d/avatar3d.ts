@@ -160,8 +160,13 @@ export function cloak(materials: readonly THREE.Material[], camo: number): void 
       m.depthWrite = !see
       m.needsUpdate = true
     }
-    m.opacity = 1 - (1 - CAMO_OPACITY) * camo
+    m.opacity = cloakOpacity(camo)
   }
+}
+
+/** cloakOpacity : l'opacité de l'armure sous un camouflage de force `camo` (0 visible, 1 entier). */
+export function cloakOpacity(camo: number): number {
+  return 1 - (1 - CAMO_OPACITY) * camo
 }
 
 /**

@@ -20,6 +20,10 @@ function hudDoc() {
     inventory: [{ t: 0, slot: 512, d: 0, am: [{ mag: 13, res: 42 }], g: [2] }],
     loadouts: [{ t: 0, slot: 512, w: ['hinf_ma40_ar'] }],
     roster: [{ filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 }],
+    abilityLabels: { '12': { en: 'Threat Seeker', fr: 'traqueur de menaces', family: 'threat_seeker' } },
+    abilities: [{ t: 0, slot: 512, r: 12, src: 'i48' }],
+    equipmentChanges: [{ t: 0, slot: 512, kind: 'taken', r: 12, from: -1 }],
+    carriedEquipment: [{ slot: 512, r: 12, t0: 0, t1: 100, energy: [{ t: 0, e: 1, n: 2, tag: true }], uses: [] }],
   })
 }
 
@@ -41,6 +45,13 @@ describe('ReplayAth3d at each HUD level', () => {
     const container = renderHud('noReticle')
     expect(container.textContent).toContain('13')
     expect(container.textContent).toContain('42')
+  })
+
+  it('first and third person: the equipment slot beside the grenades, with its uses left', () => {
+    for (const hud of ['full', 'noReticle'] as const) {
+      expect(renderHud(hud).querySelector('[data-hud-equipment="threat_seeker"]')?.getAttribute('aria-label')).toBe('Threat Seeker 2')
+    }
+    expect(renderHud('spectator').querySelector('[data-hud-equipment]')).toBeNull()
   })
 
   it('third person: no reticle', () => {

@@ -180,6 +180,14 @@ describe('Motion3d', () => {
     expect(names(over(motion(true, sidekick, catalogue).at('A', 81.5, false, newClipMix()) as ClipMix))).toContain(extra[1].name)
     const plasma = testReplayDoc({ ...film, loadouts: [{ t: 0, slot: 1, w: ['0xc3542946'] }], inventory: [{ t: 0, slot: 1, d: 0 }] })
     expect(names(over(motion(true, plasma, catalogue).at('A', 70.75, false, newClipMix()) as ClipMix))).not.toContain('combat:rifle:reload_1')
+    // The film writes the message twice at an equipment use: no reload starts there, and the one under way stops.
+    const usage = { kind: 'reload', slot: 1, t: 73, ms: 7325 }
+    const coupe = testReplayDoc({ ...film, actions: [{ kind: 'reload', slot: 1, t: 70, ms: 7025 }, usage, usage] })
+    const m2 = motion(true, coupe, catalogue)
+    expect(names(over(m2.at('A', 72.5, false, newClipMix()) as ClipMix))).toContain(extra[0].name)
+    expect(names(over(m2.at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
+    const seul = testReplayDoc({ ...film, actions: [usage, usage] })
+    expect(names(over(motion(true, seul, catalogue).at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
   })
 
   it('ajoute les coups non mortels et conserve le calage du coup mortel voisin', () => {

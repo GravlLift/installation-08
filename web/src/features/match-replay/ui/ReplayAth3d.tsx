@@ -97,7 +97,7 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     <ReplayKillPopup3d popups={popups} locale={locale} />
     {/* Le coin bas droit du jeu : grenades au-dessus, puis chargeur | réserve et l'arme à leur droite, canon vers la gauche (le sens natif de l'atlas ; un dessin hors atlas est retourné). */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
-      <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>
+      <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.equipement && <EquipementAth3d doc={doc} rank={ath.equipement.rank} uses={ath.equipement.uses} locale={locale} />}{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em' }}>
         <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{ath.munitions?.mag}</span>
         {ath.munitions?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.munitions.res}</span>}
@@ -105,6 +105,19 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
       </div>
     </div>}
   </div>
+}
+
+/**
+ * The game's equipment slot, left of the grenades: the carried equipment's icon and its uses left
+ * (`equipmentSlotHud`); spent down to zero uses, the icon dims until the equipment is gone.
+ */
+function EquipementAth3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady; rank: number; uses: number | null; locale: ReplayLocale }) {
+  const label = doc.abilityLabels?.[String(rank)]
+  const name = catalogText(label, locale) ?? `rank ${rank}`
+  return <span role="img" aria-label={uses === null ? name : `${name} ${uses}`} data-hud-equipment={label?.family ?? rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', opacity: uses === 0 ? 0.45 : 1 }}>
+    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} width="1.3em" height="1.3em" /> : name}
+    {uses !== null && <span>{uses}</span>}
+  </span>
 }
 
 /** Le cadre du Bandit assombrit l'extérieur sans masquer le réticule. */

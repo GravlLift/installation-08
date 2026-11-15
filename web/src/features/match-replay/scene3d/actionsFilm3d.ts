@@ -2,6 +2,8 @@
 import { framesPerSecond, msToFrames } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
+import { reloadReadings } from '../model/reloadStarts'
+
 import type { Span } from './clipSelect3d'
 import type { Tracks3d } from './tracks3d'
 
@@ -15,6 +17,20 @@ export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<numb
   }
   for (const list of out.values()) list.sort((a, b) => a - b)
   return out
+}
+
+/**
+ * rechargementsParSlot: each life's reload starts and reload cuts on the frame grid
+ * (`reloadStarts`: a repeated instant starts no reload, it ends the one under way).
+ */
+export function rechargementsParSlot(doc: ReplayDocumentReady): { debuts: Map<number, number[]>; coupures: Map<number, number[]> } {
+  const debuts = new Map<number, number[]>()
+  const coupures = new Map<number, number[]>()
+  for (const [slot, r] of reloadReadings(doc)) {
+    if (r.starts.length > 0) debuts.set(slot, r.starts.map((ms) => msToFrames(ms, doc)))
+    if (r.cuts.length > 0) coupures.set(slot, r.cuts.map((ms) => msToFrames(ms, doc)))
+  }
+  return { debuts, coupures }
 }
 
 /** Durée d'un palier vertical qui vaut réception quand aucune descente ne l'a précédé (sommet exclu). */
