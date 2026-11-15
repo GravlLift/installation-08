@@ -21,6 +21,44 @@ type materiauTeinte struct {
 	couches *Couches
 }
 
+// completeTeintesForge (LOCAL-CHANGE (infinite-theater-3d)) adds to `teintes` the flat tint of
+// each style the catalog left out but whose first swatch `ech` resolves (the game's Forge
+// palette, echantillonsPaletteJeu), by LitMateriauxForge's rule: the swatch's middle color times
+// the layer's tint. nil `ech` returns `teintes` unchanged.
+func completeTeintesForge(teintes map[int32]TeinteForge, ech echantillonForge, styles map[int32][]mapvar.StyleLayer) map[int32]TeinteForge {
+	if ech == nil {
+		return teintes
+	}
+	out := make(map[int32]TeinteForge, len(teintes))
+	for id, t := range teintes {
+		out[id] = t
+	}
+	for id, layers := range styles {
+		if _, ok := out[id]; ok || len(layers) == 0 {
+			continue
+		}
+		l := layers[0]
+		k, ok := ech(l.Hash)
+		if !ok || k == nil {
+			continue
+		}
+		t := TeinteForge{Couleur: k.Milieu, Rugosite: 1}
+		if k.Matiere != nil {
+			t.Metal = max(0, min(1, k.Matiere.Metal))
+		}
+		if l.Tint != nil && l.Scalar > 0 {
+			t.Couleur[0] *= float32(l.Tint.X)
+			t.Couleur[1] *= float32(l.Tint.Y)
+			t.Couleur[2] *= float32(l.Tint.Z)
+		}
+		for i, c := range t.Couleur {
+			t.Couleur[i] = float32(math.Round(float64(max(0, min(1, c)))*64) / 64)
+		}
+		out[id] = t
+	}
+	return out
+}
+
 // LitMateriauxForge résout la première couche de chaque style dans la bibliothèque fournie.
 func LitMateriauxForge(data []byte, styles map[int32][]mapvar.StyleLayer) (map[int32]TeinteForge, error) {
 	var doc struct {
