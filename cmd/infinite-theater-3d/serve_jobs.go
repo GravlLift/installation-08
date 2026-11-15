@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/llampwall/infinite-theater-3d/internal/backdrop"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
@@ -42,6 +43,8 @@ func jobModuleReady(root *store.Root, module string) bool {
 		return weaponicons.HudSetReady(root.Dir())
 	case meshjobs.JobRanks:
 		return rankicons.SetReady(root.Dir())
+	case meshjobs.JobBackdrop:
+		return backdrop.SetReady(root.Dir())
 	case meshjobs.JobAnnouncer:
 		return announcerReady(root.Dir())
 	}
@@ -194,6 +197,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return weaponicons.HudOutDir(root.Dir())
 		case meshjobs.JobRanks:
 			return rankicons.OutDir(root.Dir())
+		case meshjobs.JobBackdrop:
+			return backdrop.OutDir(root.Dir())
 		case meshjobs.JobAnnouncer:
 			return soundsDir(root.Dir())
 		}
@@ -224,6 +229,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 			return buildHudIcons(ctx, root, game)
 		case meshjobs.JobRanks:
 			return buildRanks(ctx, root, game)
+		case meshjobs.JobBackdrop:
+			return buildBackdrop(ctx, root, game)
 		case meshjobs.JobAnnouncer:
 			return buildAnnouncer(ctx, root, game)
 		}
@@ -320,6 +327,17 @@ func buildRanks(ctx context.Context, root *store.Root, gameRoot string) (meshjob
 		return meshjobs.BuildResult{}, err
 	}
 	slog.InfoContext(ctx, "rank badges built", "files", files, "bytes", n)
+	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
+}
+
+// buildBackdrop runs the home backdrop build into the store's data directory. It is the
+// backdrop job's body in the mesh build runner.
+func buildBackdrop(ctx context.Context, root *store.Root, gameRoot string) (meshjobs.BuildResult, error) {
+	files, n, err := backdrop.Build(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	slog.InfoContext(ctx, "ring backdrop built", "files", files, "bytes", n)
 	return meshjobs.BuildResult{Bytes: int64(n), Triangles: 0}, nil
 }
 

@@ -39,6 +39,11 @@ const JobHudIcons = "hud-icons"
 // runner's queue with the map builds, so at most one heavy build runs at a time.
 const JobRanks = "ranks"
 
+// JobBackdrop is the module key the runner uses for the single home backdrop build (the
+// ring space scene decoded from the game install). Like the other icon jobs it shares the
+// runner's queue with the map builds, so at most one heavy build runs at a time.
+const JobBackdrop = "backdrop"
+
 // JobAnnouncer is the module key the runner uses for the single announcer sound build (the
 // announcer's voice lines decoded from the game install into the replay sound folder, with
 // their announcer.json manifest). Like the icon jobs it shares the runner's queue with the map

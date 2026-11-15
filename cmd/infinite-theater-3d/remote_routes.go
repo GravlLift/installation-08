@@ -236,6 +236,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/jeu/{file}", h.handleWeaponIconFile)
 	mux.HandleFunc("GET /static/weapons-assets/halo_infinite/hud/{file}", h.handleHudIconFile)
 	mux.HandleFunc("GET /static/ranks/halo_infinite/{file}", h.handleRankIconFile)
+	mux.HandleFunc("GET /api/backdrop/home", h.handleBackdropHome)
 	mux.HandleFunc("GET /static/sounds/halo_infinite/{file}", h.handleSoundFile)
 	return mux
 }

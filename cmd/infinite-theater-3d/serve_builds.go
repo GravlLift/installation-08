@@ -21,6 +21,7 @@ var libraryLabels = map[string]string{
 	meshjobs.JobWeaponIcons:   "Weapon icons",
 	meshjobs.JobHudIcons:      "HUD icons",
 	meshjobs.JobRanks:         "Rank badges",
+	meshjobs.JobBackdrop:      "Home backdrop",
 }
 
 // buildLabeler names build keys, reading the stored matches at most once per request.
