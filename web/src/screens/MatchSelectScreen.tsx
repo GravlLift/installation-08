@@ -10,7 +10,7 @@
  * list, `useAuthState`, `useRemoteMatches` and `useMatchFetchQueue` for the account's side.
  * The pure logic (merge, tabs, rows, preview, fetch labels) lives in `matchSelectModel.ts`.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 
 import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
 import { FocusList } from '../ui/FocusList'
@@ -31,6 +31,7 @@ import {
   type MatchRow,
   type MatchTab,
 } from './matchSelectModel'
+import { listCaption, loadSavedGamertag, normalizeGamertag, saveGamertag, searchedRows } from './gamertagSearch'
 import { SignInPlate } from './SignInPlate'
 import { useAuthState } from './useAuthState'
 import { useMatchFetchQueue } from './useMatchFetchQueue'
@@ -165,7 +166,47 @@ export function MatchSelectScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authPhase.phase])
 
-  const remote = useRemoteMatches(signedIn)
+  // The gamertag search: the input's text (prefilled with the last search) and the gamertag
+  // whose matches the list shows (null: the account's own, the default on every visit).
+  const [gamertagDraft, setGamertagDraft] = useState(loadSavedGamertag)
+  const [searched, setSearched] = useState<string | null>(null)
+  const [searchHint, setSearchHint] = useState<string | null>(null)
+
+  const remote = useRemoteMatches(signedIn, searched)
+
+  const onSearch = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault()
+      const gt = normalizeGamertag(gamertagDraft)
+      if (!gt) {
+        setSearchHint('Enter a gamertag: up to 16 letters, digits, spaces or #.')
+        return
+      }
+      setSearchHint(null)
+      setGamertagDraft(gt)
+      saveGamertag(gt)
+      setFocusId(null)
+      setTab('All')
+      // The same gamertag again reloads it; a new one reloads through the hook.
+      if (gt === searched) remote.refresh()
+      else setSearched(gt)
+      // Hand the keyboard back to the list (Up/Down, Enter to fetch).
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    },
+    [gamertagDraft, searched, remote],
+  )
+
+  const onClearSearch = useCallback(() => {
+    setGamertagDraft('')
+    setSearchHint(null)
+    saveGamertag(null)
+    setFocusId(null)
+    setSearched(null)
+  }, [])
+
+  const onSearchKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') event.currentTarget.blur()
+  }, [])
 
   const onFetchReady = useCallback(() => {
     remote.refresh()
@@ -176,8 +217,15 @@ export function MatchSelectScreen() {
 
   // The list's rows and the focused row, from the model.
   const stored = matches.phase === 'ready' ? matches.matches : []
-  const remoteMatches = remote.state.phase === 'ready' ? remote.state.matches : []
-  const rows = mergeMatchRows(stored, remoteMatches, remote.localIds)
+  // The remote state counts only when it answers for the list being asked for (the first
+  // render after a new search still holds the previous answer).
+  const remoteState = remote.loadedFor === searched ? remote.state : ({ phase: 'loading' } as const)
+  const remoteMatches = remoteState.phase === 'ready' ? remoteState.matches : []
+  // A gamertag search lists that player's matches only; the default merges the stored
+  // library with the account's own recent matches.
+  const rows = searched
+    ? searchedRows(stored, remoteMatches, remote.localIds)
+    : mergeMatchRows(stored, remoteMatches, remote.localIds)
   const filtered = filterByTab(rows, tab, signedIn)
   const tabs = visibleTabs(signedIn)
   const focusIndex = indexOfRow(filtered, focusId)
@@ -237,10 +285,22 @@ export function MatchSelectScreen() {
           : `${stored.length} match${stored.length === 1 ? '' : 'es'} stored`}
     </span>,
   ]
-  if (remote.state.phase === 'loading') ticker.push(<span key="recent">Loading recent matches…</span>)
-  if (remote.state.phase === 'error') {
-    ticker.push(<span key="recent">Could not load recent matches: {remote.state.message}</span>)
+  const recentLabel = searched ? listCaption(searched) : 'recent matches'
+  if (remoteState.phase === 'loading') ticker.push(<span key="recent">Loading {recentLabel}…</span>)
+  if (remoteState.phase === 'error') {
+    ticker.push(<span key="recent">Could not load {recentLabel}: {remoteState.message}</span>)
   }
+
+  // What the list area shows while a search runs: its own loading, error and empty states
+  // (the list is that player's matches alone, so it waits on them).
+  const searchStatus: ReactNode =
+    searched === null ? null : remoteState.phase === 'loading' || remoteState.phase === 'idle' ? (
+      <div className="bc-empty">Loading {listCaption(searched)}…</div>
+    ) : remoteState.phase === 'error' ? (
+      <div className="bc-empty bc-empty-bad">{remoteState.message}</div>
+    ) : filtered.length === 0 ? (
+      <div className="bc-empty">No recent matches for {searched} in this list.</div>
+    ) : null
 
   const keys = (
     [
@@ -287,41 +347,80 @@ export function MatchSelectScreen() {
           ) : null}
         </div>
 
-        <div className="bc-list-wrap">
-          {matches.phase === 'loading' && <div className="bc-empty">Loading matches…</div>}
-          {matches.phase === 'unreachable' && (
-            <div className="bc-empty bc-empty-bad">
-              Could not reach the server: {matches.message}
-              <br />
-              Is `it3d.exe serve` running on 127.0.0.1:8177?
-            </div>
-          )}
-          {matches.phase === 'ready' && filtered.length === 0 && (
-            <div className="bc-empty">
-              {signedIn ? (
-                <div>No matches in this list.</div>
-              ) : (
-                <div>
-                  No matches yet.
-                  <br />
-                  Sign in, fetch a match, then watch it.
+        <div className={'bc-list-wrap' + (signedIn ? ' bc-has-search' : '')}>
+          {signedIn ? (
+            <div className="bc-list-head">
+              <form className="bc-gt-search" role="search" onSubmit={onSearch}>
+                <div className="bc-gt-field">
+                  <input
+                    className="bc-gt-input"
+                    type="text"
+                    value={gamertagDraft}
+                    onChange={(e) => setGamertagDraft(e.target.value)}
+                    onKeyDown={onSearchKeyDown}
+                    placeholder="Any player's gamertag"
+                    aria-label="Gamertag"
+                    maxLength={32}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  {gamertagDraft || searched ? (
+                    <button
+                      type="button"
+                      className="bc-gt-clear"
+                      aria-label="Back to my matches"
+                      title="Back to my matches"
+                      onClick={onClearSearch}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
-              )}
+                <button type="submit" className="bc-gt-submit">
+                  Search
+                </button>
+              </form>
+              {searchHint ? <div className="bc-gt-hint">{searchHint}</div> : null}
+              <div className="bc-eyebrow bc-list-caption">{listCaption(searched)}</div>
             </div>
-          )}
-          {matches.phase === 'ready' && filtered.length > 0 && (
-            <FocusList
-              className="bc-select-list"
-              items={filtered.map((r) => listItemOf(r, fetchQueue.phaseOf))}
-              onSelect={onMenuSelect}
-              onBack={onBack}
-              index={focusIndex}
-              onIndexChange={onFocusChange}
-            />
-          )}
+          ) : null}
+          <div className="bc-list-body">
+            {matches.phase === 'loading' && <div className="bc-empty">Loading matches…</div>}
+            {matches.phase === 'unreachable' && (
+              <div className="bc-empty bc-empty-bad">
+                Could not reach the server: {matches.message}
+                <br />
+                Is `it3d.exe serve` running on 127.0.0.1:8177?
+              </div>
+            )}
+            {matches.phase === 'ready' && searchStatus}
+            {matches.phase === 'ready' && searched === null && filtered.length === 0 && (
+              <div className="bc-empty">
+                {signedIn ? (
+                  <div>No matches in this list.</div>
+                ) : (
+                  <div>
+                    No matches yet.
+                    <br />
+                    Sign in, fetch a match, then watch it.
+                  </div>
+                )}
+              </div>
+            )}
+            {matches.phase === 'ready' && searchStatus === null && filtered.length > 0 && (
+              <FocusList
+                className="bc-select-list"
+                items={filtered.map((r) => listItemOf(r, fetchQueue.phaseOf))}
+                onSelect={onMenuSelect}
+                onBack={onBack}
+                index={focusIndex}
+                onIndexChange={onFocusChange}
+              />
+            )}
+          </div>
         </div>
 
-        {matches.phase === 'ready' && focused ? (
+        {matches.phase === 'ready' && searchStatus === null && focused ? (
           <Preview row={focused} gamertag={gamertag} />
         ) : null}
       </div>

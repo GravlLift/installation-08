@@ -136,6 +136,26 @@
   font-weight: 700; padding: 6px 18px 5px; color: var(--ink-dim); border: 1px solid var(--studio-700);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 .bc-list-wrap { display: grid; min-height: 0; }
+.bc-list-wrap.bc-has-search { grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.bc-list-body { display: grid; min-height: 0; }
+/* The gamertag search above the list: a field with its clear mark, the Search button, and
+ * the caption naming whose matches the list shows. */
+.bc-gt-search { display: flex; align-items: stretch; gap: 8px; }
+.bc-gt-field { position: relative; flex: 1; min-width: 0; display: flex; }
+.bc-gt-input { flex: 1; min-width: 0; padding: 7px 34px 6px 14px; font-family: var(--display); font-size: 14px; letter-spacing: 0.08em;
+  color: var(--ink); background: rgba(10,16,24,0.82); border: 1px solid var(--studio-700); border-left: 3px solid var(--studio-700);
+  transition: border-color 120ms, background-color 120ms; }
+.bc-gt-input::placeholder { color: var(--ink-faint); }
+.bc-gt-input:hover { border-color: var(--air-deep); }
+.bc-gt-input:focus, .bc-gt-input:focus-visible { border-color: var(--air); background: rgba(17,26,38,0.92); outline: none; }
+.bc-gt-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; line-height: 1;
+  font-size: 18px; color: var(--ink-dim); background: transparent; cursor: pointer; transition: color 120ms, background-color 120ms; }
+.bc-gt-clear:hover, .bc-gt-clear:focus-visible { color: var(--ink); background-color: rgba(111,211,255,0.1); outline: none; }
+.bc-gt-submit { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12px;
+  font-weight: 700; padding: 6px 18px 5px; color: var(--air); border: 1px solid var(--air-deep);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.bc-gt-hint { margin-top: 6px; font-size: 12px; color: var(--loss); }
+.bc-list-caption { margin-top: 10px; }
 .bc-select-list { min-height: 0; align-content: start; }
 .bc-select-list .bc-row { grid-template-columns: 1fr auto; column-gap: 16px; }
 .bc-empty { color: var(--ink-dim); padding: 30px 0; font-size: 14px; }
@@ -259,21 +279,22 @@
  * line of a `to bottom right` gradient (that line joins the strip's top-right and bottom-left
  * corners, exactly the slant). The edge color is `--bc-edge`, so the hover and keyboard-focus
  * states recolor the whole outline. */
-.bc-signin, .bc-signout, .bc-signin-btn, .bc-player-back, .bc-player-action {
+.bc-signin, .bc-signout, .bc-signin-btn, .bc-player-back, .bc-player-action, .bc-gt-submit {
   --bc-edge: var(--studio-700); position: relative; border-color: var(--bc-edge); cursor: pointer;
   transition: color 120ms, background-color 120ms; }
-.bc-signin { --bc-edge: var(--air-deep); }
+.bc-signin, .bc-gt-submit { --bc-edge: var(--air-deep); }
 .bc-signin::after, .bc-signout::after, .bc-signin-btn::after, .bc-player-back::after,
-.bc-player-action::after { content: ''; position: absolute; top: -1px; width: 8px; height: calc(100% + 2px); pointer-events: none; }
+.bc-player-action::after, .bc-gt-submit::after { content: ''; position: absolute; top: -1px; width: 8px; height: calc(100% + 2px); pointer-events: none; }
 /* Bottom-right cut: the inside is the top-left side of the line. */
-.bc-signin::after, .bc-signout::after, .bc-signin-btn::after, .bc-player-back::after { right: -1px;
+.bc-signin::after, .bc-signout::after, .bc-signin-btn::after, .bc-player-back::after, .bc-gt-submit::after { right: -1px;
   background: linear-gradient(to bottom right, transparent calc(50% - 1.5px), var(--bc-edge) calc(50% - 1.5px), var(--bc-edge) 50%, transparent 50%); }
 /* Top-left cut: the inside is the bottom-right side of the line. */
 .bc-player-action::after { left: -1px;
   background: linear-gradient(to bottom right, transparent 50%, var(--bc-edge) 50%, var(--bc-edge) calc(50% + 1.5px), transparent calc(50% + 1.5px)); }
 .bc-signin:hover, .bc-signout:hover, .bc-signin-btn:hover, .bc-player-back:hover, .bc-player-action:hover,
+.bc-gt-submit:hover,
 .bc-signin:focus-visible, .bc-signout:focus-visible, .bc-signin-btn:focus-visible, .bc-player-back:focus-visible,
-.bc-player-action:focus-visible { --bc-edge: var(--air); color: var(--ink); background-color: rgba(111,211,255,0.1); outline: none; }
+.bc-player-action:focus-visible, .bc-gt-submit:focus-visible { --bc-edge: var(--air); color: var(--ink); background-color: rgba(111,211,255,0.1); outline: none; }
 .bc-signout:disabled, .bc-signin-btn:disabled, .bc-player-action:disabled { cursor: default; opacity: 0.5; --bc-edge: var(--studio-700); background-color: transparent; }
 
 /* Home: every selectable thing says so. Menu rows focus on hover (FocusList) and show the

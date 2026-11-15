@@ -6,7 +6,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useRemoteMatches } from './useRemoteMatches'
+import { GAMERTAG_NOT_FOUND, useRemoteMatches } from './useRemoteMatches'
 
 function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500): Response {
   return {
@@ -204,6 +204,96 @@ describe('useRemoteMatches', () => {
       vi.advanceTimersByTime(60_000)
     })
     expect(remoteCalls.length).toBe(1)
+  })
+
+  it("loads a searched player's matches through ?gamertag= and reloads when it changes", async () => {
+    const urls: string[] = []
+    const fetchMock = vi.fn((url: string) => {
+      urls.push(url)
+      if (url.startsWith('/api/remote/matches')) {
+        const id = url.includes('gamertag=') ? decodeURIComponent(url.split('gamertag=')[1]) : 'own'
+        return Promise.resolve(jsonResponse([{ id, map: 'Streets', mode: 'Slayer', time: 'x' }]))
+      }
+      return Promise.resolve(jsonResponse([]))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result, rerender } = renderHook(({ gt }) => useRemoteMatches(true, gt), {
+      initialProps: { gt: null as string | null },
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.loadedFor).toBeNull()
+    expect(result.current.state).toEqual({ phase: 'ready', matches: [{ id: 'own', map: 'Streets', mode: 'Slayer', time: 'x' }] })
+
+    rerender({ gt: 'Other Player' })
+    expect(result.current.state).toEqual({ phase: 'loading' })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(urls).toContain('/api/remote/matches?gamertag=Other%20Player')
+    expect(result.current.loadedFor).toBe('Other Player')
+    expect(result.current.state).toEqual({
+      phase: 'ready',
+      matches: [{ id: 'Other Player', map: 'Streets', mode: 'Slayer', time: 'x' }],
+    })
+
+    // Clearing the search goes back to the account's own list.
+    rerender({ gt: null })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(urls[urls.length - 2]).toBe('/api/remote/matches')
+    expect(result.current.loadedFor).toBeNull()
+  })
+
+  it('words a 404 for a searched gamertag as "Gamertag not found"', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch({
+        '/api/remote/matches': () => jsonResponse({ error: 'gamertag not found' }, false, 404),
+        '/api/matches': () => jsonResponse([]),
+      }),
+    )
+    const { result } = renderHook(() => useRemoteMatches(true, 'Nobody'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.state).toEqual({ phase: 'error', message: GAMERTAG_NOT_FOUND })
+    expect(result.current.loadedFor).toBe('Nobody')
+  })
+
+  it('keeps the ready list on screen while refresh() reloads it', async () => {
+    const remote = [{ id: 'r1', map: 'Recharge', mode: 'Slayer', time: 'x' }]
+    let release: () => void = () => {}
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.startsWith('/api/remote/matches')) {
+          calls++
+          if (calls === 1) return Promise.resolve(jsonResponse(remote))
+          return new Promise<Response>((resolve) => {
+            release = () => resolve(jsonResponse(remote))
+          })
+        }
+        return Promise.resolve(jsonResponse([]))
+      }),
+    )
+    const { result } = renderHook(() => useRemoteMatches(true, 'Other'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.state.phase).toBe('ready')
+    act(() => result.current.refresh())
+    expect(result.current.state).toEqual({ phase: 'ready', matches: remote })
+    await act(async () => {
+      release()
+      await Promise.resolve()
+    })
+    expect(calls).toBe(2)
+    expect(result.current.state).toEqual({ phase: 'ready', matches: remote })
   })
 
   it('refresh() reloads both routes', async () => {
