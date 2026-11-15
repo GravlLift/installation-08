@@ -33,6 +33,22 @@
   --replay-hud-weapon: #a9dcff;
   --replay-export-backdrop: #000;
 
+  /* Aim-down-sights overlays (ui/ReplayAthLunette3d.tsx): colors read off the in-game ADS
+     captures (1280x720). `shade` darkens outside a scope window; `ink` is the dark etched reticle. */
+  --replay-ads-shade: #000;
+  --replay-ads-ink: #101214;
+  --replay-ads-white: #f4f8fa;
+  --replay-ads-smartlink: #d2f1ff;
+  --replay-ads-s7: #8fd3ff;
+  --replay-ads-s7-far: #8ff0d8;
+  --replay-ads-amber: #ffd34a;
+  --replay-ads-glass: #a9c3ff;
+  --replay-ads-orange: #ff9e5c;
+  --replay-ads-red: #ff4b3e;
+  --replay-ads-violet: #8a4dff;
+  --replay-ads-magenta: #ff52d9;
+  --replay-ads-green: #43d35e;
+
   /* Shot effect tints (fxInk.ts): one per discharge nature the server publishes in
      weaponLabels[].tint. Diegetic colors (what the game shows), saturated because effects draw
      additively and mix toward the white core; a missing one draws the effect colorless. */
