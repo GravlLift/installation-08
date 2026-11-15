@@ -186,11 +186,10 @@
  * light text on it. */
 .bc-player { color-scheme: dark; }
 .bc-player option { background: var(--studio-800); color: var(--ink); }
-/* When the window is taller than the box needs, the box sits on the transport (the black goes
- * under the strip), as a video sits on its controls. */
-.bc-player-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: end center; container-type: size; }
-.bc-player-full .bc-player-stage { place-items: center; }
-.bc-player-box { position: relative; width: min(100cqw, 100cqh * 16 / 9); height: min(100cqh, 100cqw * 9 / 16);
+/* The box takes all the room between the strip and the transport, at whatever shape the window
+ * gives it: no letterbox. */
+.bc-player-stage { position: relative; flex: 1; min-height: 0; display: grid; container-type: size; }
+.bc-player-box { position: relative; width: 100cqw; height: 100cqh;
   overflow: hidden; background: var(--studio-950); }
 
 /* The auto-hide fade of the strip and the transport (fullscreen only). */
