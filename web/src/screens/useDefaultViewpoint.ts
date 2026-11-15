@@ -20,6 +20,12 @@ export function xuidOfGamertag(roster: readonly RosterName[], gamertag: string):
   return entry ? entry.xuid : null
 }
 
+/** The gamertag a match link asks to follow (`#/matches/<id>?player=<gamertag>`), or ''. */
+export function requestedPlayer(hash: string): string {
+  const query = hash.split('?')[1] ?? ''
+  return new URLSearchParams(query).get('player') ?? ''
+}
+
 export function useDefaultViewpoint(
   roster: readonly RosterName[],
 ): [string | null, (xuid: string | null) => void] {
@@ -30,7 +36,10 @@ export function useDefaultViewpoint(
 
   useEffect(() => {
     if (chosen.current) return
-    const own = xuidOfGamertag(roster, gamertag)
+    // A match opened from another player's list follows that player; otherwise the
+    // signed-in account's own player when they played in it.
+    const requested = xuidOfGamertag(roster, requestedPlayer(window.location.hash))
+    const own = requested ?? xuidOfGamertag(roster, gamertag)
     if (own) setViewpoint(own)
   }, [roster, gamertag])
 

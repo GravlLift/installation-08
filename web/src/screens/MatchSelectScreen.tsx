@@ -257,7 +257,9 @@ export function MatchSelectScreen() {
       const row = filtered[index]
       if (!row) return
       if (row.kind === 'stored') {
-        navigate(`/matches/${encodeURIComponent(row.id)}`)
+        // From another player's list, the match opens following that player.
+        const player = searched ? `?player=${encodeURIComponent(searched)}` : ''
+        navigate(`/matches/${encodeURIComponent(row.id)}${player}`)
       } else {
         readyRef.current = row.id
         fetchQueue.start(row.id)
