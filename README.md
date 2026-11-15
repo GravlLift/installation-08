@@ -18,6 +18,47 @@ $env:CGO_ENABLED = '1'
 go build -o infinite-theater-3d.exe ./cmd/infinite-theater-3d
 ```
 
+## First run (downloaded release)
+
+This is the path for someone who downloaded the release zip, not someone building from
+source.
+
+- **Requirements**: Windows, and Halo Infinite installed through Steam or the Xbox app. The
+  app auto-detects a Steam install (the default Steam install, or any Steam library
+  `libraryfolders.vdf` declares) and an Xbox app install
+  (`<drive>:\XboxGames\Halo Infinite\Content\deploy`) on any drive letter. If your install is
+  somewhere else, set `LEVELUP_HALO_DEPLOY` to that install's `deploy` folder before starting
+  (see `third_party/map-images/himap/deploy_root.go` for the exact search order). Without a
+  detected install, map, weapon, icon and sound builds cannot run, but sign-in and fetching
+  matches still work.
+- **Start**: double-click `infinite-theater-3d.exe`, or run it with no arguments. It starts
+  the local server and opens the web viewer in your default browser.
+- **Sign-in**: click Sign in on the home page. The server shows a short code and a link
+  (Microsoft's own device-code flow); open the link in any browser, sign in with your own
+  Microsoft/Xbox account, and enter the code there. The app only asks for Xbox Live sign-in
+  and offline access (OAuth scopes `Xboxlive.signin Xboxlive.offline_access`); it never sees
+  your password, and the resulting tokens are stored DPAPI-encrypted for your Windows user
+  under `auth` in the data directory (`logout` removes them, no route ever returns one).
+- **First match fetch**: open Recent matches and click Fetch on one. The server downloads
+  that match's film, stats, map variant file, and every participant's public customization,
+  then builds the replay document.
+- **First map build**: opening a match queues a build of its map mesh from your local game
+  files if it isn't built yet. This can take several minutes on a first run (unmeasured
+  precisely; the UI itself warns a first build "can take minutes", see
+  `docs/UI-DESIGN.md`), and the finished map file is large: existing map GLBs run 600–900 MB
+  on disk, mostly texture data (`docs/TODO.md`). Builds happen in the data directory, not the
+  install folder.
+- **Ekur reference (optional)**: this is the [TheHaloArchive/ekur](https://github.com/TheHaloArchive/ekur)
+  Blender add-on's JSON export of the game's materials, used only as a lookup table for armor,
+  weapon and first-person paint coatings. Point `IT3D_EKUR_DIR` at a full export (or place it
+  at `<data>/ekur`) to have coatings render in their real colors. Without it, coated materials
+  render in a neutral color and the viewer's top bar shows "Coatings off"; with an export too
+  old to know some newer armor or weapons, those pieces stay neutral and the bar shows
+  "Coatings incomplete: N pieces are missing from the Ekur export". Nothing else about the
+  export reaches the viewer (no path, no environment value).
+
+See [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) for what is still rough at this release.
+
 ## Day-to-day: serve, fetch, watch
 
 The normal path is the web viewer over the local server.
@@ -277,3 +318,25 @@ the open list.
 Based on JGtm's [LevelUp](https://github.com/JGtm/LevelUp) and published Halo modules. See
 [NOTICE.md](NOTICE.md) and [third_party/README.md](third_party/README.md). Licensed under
 AGPL-3.0.
+
+## Credits
+
+- **[JGtm](https://github.com/JGtm)**: [LevelUp](https://github.com/JGtm/LevelUp) and its
+  published modules this project vendors and builds on:
+  [halo-infinite-film-decoder](https://github.com/JGtm/halo-infinite-film-decoder),
+  [halo-infinite-map-images](https://github.com/JGtm/halo-infinite-map-images), and
+  [halo-infinite-files-reader](https://github.com/JGtm/halo-infinite-files-reader) (AGPL-3.0;
+  `files-reader`'s vendored `ooz` decompressor is GPL-3.0), plus
+  [halo-api](https://github.com/JGtm/halo-api) (used directly as a Go module, not vendored).
+  See [third_party/README.md](third_party/README.md) for versions and the changes made here.
+- **[TheHaloArchive](https://github.com/TheHaloArchive)**: the
+  [ekur](https://github.com/TheHaloArchive/ekur) Blender add-on, whose JSON export of the
+  game is used as the optional reference for armor, weapon and first-person coatings (see
+  "Ekur reference" above).
+- **[Gravemind2401](https://github.com/Gravemind2401)**: [Reclaimer](https://github.com/Gravemind2401/Reclaimer)
+  (GPL-3.0): several tag layouts and rules in the vendored `map-images` module were first
+  read from Reclaimer's sources, then independently re-measured on game files and
+  reimplemented in Go. No Reclaimer code is included; see
+  `third_party/map-images/NOTICE.md`.
+- **[hcs](https://github.com/hcs64)**: [ww2ogg](https://github.com/hcs64/ww2ogg): the basis
+  for `internal/wwvorbis`'s Go port that repacks the game's Wwise Vorbis voice lines to Ogg.
