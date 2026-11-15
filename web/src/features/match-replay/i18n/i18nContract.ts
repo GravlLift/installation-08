@@ -978,6 +978,10 @@ export interface ReplayText {
    * charge en sons, et la barre y resterait sinon a zero sans rien expliquer.
    */
   exportPreparing: string
+  /** The preparation while the sound track mixes, with its share done: « Mixing sound… 42 % ». */
+  exportMixingFmt: (pct: number) => string
+  /** The next step: the AAC encoding of the mixed tracks, « Encoding sound… 50 % ». */
+  exportSoundEncodingFmt: (pct: number) => string
   /** « ~1:20 restantes » — l'estimation, absente tant qu'elle danserait. */
   exportEtaFmt: (clock: string) => string
   /** « Fichier depose : rejeu-....mp4 » — la fin se dit, avec le nom du fichier. */

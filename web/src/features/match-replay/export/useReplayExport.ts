@@ -74,6 +74,7 @@ import {
 } from './exportOverlayPanels'
 import { paintOverlayPanel, type OverlayFonts, type OverlayInk } from './overlayPaint'
 import { mixReplayAudio, soundUrlOf, type MixedTracks, type SoundFamily } from '../sound/replayAudioMix'
+import type { RenderHooks } from '../sound/mixRender'
 import { listenerAtOfPlayer } from '../sound/soundListenerOf'
 import { formatClock, frameToMs } from '../../../lib/replay/replayLogic'
 import { buildCaptureFilename, triggerDownload } from './replayCapture'
@@ -195,6 +196,12 @@ export interface ExportRunOptions {
  */
 export type ExportPhase = 'idle' | 'prepare' | 'encode' | 'done' | 'failed'
 
+/** The sound step of the preparation, with its share done (`ReplayExportState.prepareStep`). */
+export interface PrepareStep {
+  stage: 'mix' | 'audio'
+  pct: number
+}
+
 export interface ReplayExportState {
   phase: ExportPhase
   done: number
@@ -215,6 +222,12 @@ export interface ReplayExportState {
   mutedFallback?: boolean
   /** Le message technique de l'echec, pour la console et pour l'utilisateur averti. */
   message?: string
+  /**
+   * In `prepare`, once the sound work starts: which step runs (the offline MIX, then the AAC
+   * ENCODING of its tracks) and its share done, 0..100. Kept apart from `pct`, which counts
+   * encoded frames only.
+   */
+  prepareStep?: PrepareStep
 }
 
 export interface ReplayExport {
@@ -484,8 +497,11 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // React : on ATTEND que la toile soit reellement au format avant d'ouvrir l'encodeur —
         // d'ou l'ordre : demande, attente, ouverture.
         await waitForExportLayout(canvas, format, o.redraw)
-        const mix = options?.sound === false ? null : await mixExportAudio(o, bounds, plan, view3d)
-        if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix of a long range takes minutes): stop before encoding; `finally` restores.
+        const mix = options?.sound === false ? null : await mixExportAudio(o, bounds, plan, view3d, {
+          cancelled: () => cancelRef.current,
+          progress: prepareProgress(setState, plan.frames.length, 'mix'),
+        })
+        if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix reads it at each step and stops): stop before encoding; `finally` restores.
         // LE MAINTIEN SE CALCULE UNE FOIS LE SON CONNU (cf. `holdMsFor`), et le plan se refait :
         // la derniere image doit tenir assez longtemps pour qu'on lise le verdict, et au moins
         // aussi longtemps que le son continue.
@@ -507,7 +523,9 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // phase finale le dit.
         const muet = mix !== null && !sink.audioEnabled
         if (muet) console.warn('[replay-export] Audio track rejected by the browser, clip is silent')
-        if (mix && sink.audioEnabled) await sink.addAudioTracks(exportTracks(mix, o.locale))
+        if (mix && sink.audioEnabled) {
+          await sink.addAudioTracks(exportTracks(mix, o.locale), prepareProgress(setState, plan.frames.length, 'audio'))
+        }
         // La scène 3D n'est prise qu'ici, au dernier moment : la vue d'écran reste vivante pendant
         // la préparation.
         if (view3d) scene3d = take3dScene(view3d, format, bounds.startFrame)
@@ -593,6 +611,24 @@ function fail(setState: (s: ReplayExportState) => void, message: string): void {
 }
 
 /**
+ * prepareProgress publishes a sound step's progress in the `prepare` phase, once per whole
+ * percent: the mix reports every two seconds of track, far more often than the bar can show.
+ */
+function prepareProgress(
+  setState: (s: ReplayExportState) => void,
+  total: number,
+  stage: PrepareStep['stage'],
+): (fraction: number) => void {
+  let shown = -1
+  return (fraction) => {
+    const pct = Math.min(100, Math.floor(fraction * 100))
+    if (pct === shown) return
+    shown = pct
+    setState({ phase: 'prepare', done: 0, total, pct: 0, prepareStep: { stage, pct } })
+  }
+}
+
+/**
  * etaFor estime le temps restant depuis la cadence DEJA constatee.
  *
  * `undefined` sous `ETA_MIN_FRAMES` : une estimation batie sur trois images danserait d'un
@@ -675,6 +711,7 @@ async function mixExportAudio(
   bounds: ExportBounds,
   plan: ExportPlan,
   view3d: Export3dOptions | null,
+  hooks: RenderHooks,
 ): Promise<MixedTracks | null> {
   // LA PISTE SE LIT ICI, au lancement : elle porte des reglages d'instance qui vivent dans des
   // refs, et les lire au rendu rendrait des valeurs arbitraires.
@@ -702,6 +739,7 @@ async function mixExportAudio(
       volume: o.soundVolume ?? 1,
       urlOf: soundUrlOf,
       trimToBounds: !reachesMatchEnd(o, bounds),
+      hooks,
     },
   )
 }

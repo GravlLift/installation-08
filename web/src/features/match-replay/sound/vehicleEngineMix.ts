@@ -31,6 +31,7 @@ import {
   type EnginePlan,
   type EngineSpan,
 } from './vehicleEngineSound'
+import type { TimedPlacement } from './mixRender'
 
 /** An engine source placed on the axis of the CLIP (seconds). */
 export interface EngineSegment {
@@ -155,36 +156,53 @@ export function engineTailSeconds(
 }
 
 /**
- * scheduleEngineMix places the segments in the offline context, behind the engine bus
- * (0.85 — the same restraint as the page, user decision of 2026-09-04).
+ * engineSegmentPlacements — the segments as placements for the just-in-time render
+ * (`mixRender.renderScheduled`), behind the engine bus (0.85, the same restraint as the page,
+ * user decision of 2026-09-04). The bus is the only node placed up front.
  */
-export function scheduleEngineMix(
+export function engineSegmentPlacements(
   ctx: BaseAudioContext,
   destination: AudioNode,
   segments: readonly EngineSegment[],
   buffers: ReadonlyMap<string, AudioBuffer | null>,
-): void {
-  if (segments.length === 0) return
+): TimedPlacement[] {
+  if (segments.length === 0) return []
   const bus = ctx.createGain()
   bus.gain.value = VEHICLE_ENGINE_BUS_GAIN
   bus.connect(destination)
   const curves = equalPowerCurves()
+  const out: TimedPlacement[] = []
   for (const s of segments) {
     const buf = buffers.get(s.stem)
     if (!buf) continue
     const at = Math.max(s.atS, 0)
-    const gain = ctx.createGain()
-    gain.gain.setValueAtTime(s.fadeInS ? 0 : 1, at)
-    if (s.fadeInS) gain.gain.setValueCurveAtTime(curves.fadeIn, at, s.fadeInS)
-    if (s.stopS !== undefined && s.fadeOutS) {
-      gain.gain.setValueCurveAtTime(curves.fadeOut, Math.max(s.stopS - s.fadeOutS, at), s.fadeOutS)
-    }
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-    src.loop = s.loop
-    src.connect(gain)
-    gain.connect(bus)
-    src.start(at)
-    if (s.stopS !== undefined) src.stop(Math.max(s.stopS, at))
+    // A loop without a forced end plays to the end of the track; an exit plays its whole file.
+    const endS = s.stopS !== undefined ? Math.max(s.stopS, at) : s.loop ? Infinity : at + buf.duration
+    out.push({ startS: at, endS, place: () => placeEngineSegment(ctx, bus, s, { buf, curves }) })
   }
+  return out
+}
+
+/** Wires one segment with its constant-power fades; returns its gain, the node on the bus. */
+function placeEngineSegment(
+  ctx: BaseAudioContext,
+  bus: AudioNode,
+  s: EngineSegment,
+  audio: { buf: AudioBuffer; curves: ReturnType<typeof equalPowerCurves> },
+): AudioNode {
+  const at = Math.max(s.atS, 0)
+  const gain = ctx.createGain()
+  gain.gain.setValueAtTime(s.fadeInS ? 0 : 1, at)
+  if (s.fadeInS) gain.gain.setValueCurveAtTime(audio.curves.fadeIn, at, s.fadeInS)
+  if (s.stopS !== undefined && s.fadeOutS) {
+    gain.gain.setValueCurveAtTime(audio.curves.fadeOut, Math.max(s.stopS - s.fadeOutS, at), s.fadeOutS)
+  }
+  const src = ctx.createBufferSource()
+  src.buffer = audio.buf
+  src.loop = s.loop
+  src.connect(gain)
+  gain.connect(bus)
+  src.start(at)
+  if (s.stopS !== undefined) src.stop(Math.max(s.stopS, at))
+  return gain
 }
