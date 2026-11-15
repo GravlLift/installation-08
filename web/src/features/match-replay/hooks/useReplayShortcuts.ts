@@ -171,26 +171,36 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
   useEffect(() => {
     liveZoom.current = zoom
   }, [zoom])
+  // THE HANDLERS BY REFERENCE TOO: several of them (the event stepper, togglePlay) are rebuilt on
+  // every render, and a render happens every frame during playback. With them as effect
+  // dependencies the window listener was removed and re-added every frame, and a Space pressed
+  // during that churn could be lost (Jordan: "the spacebar plays but doesnt pause"). The
+  // listener is now registered once per `enabled` and reads the current handlers at key time.
+  const live = useRef({ togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds })
+  useEffect(() => {
+    live.current = { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds }
+  })
   useEffect(() => {
     if (!enabled) return
-    const camera = (action: PlayerKeyAction) => () => { const mode = CAMERA_KEY_MODE[action]; if (mode) setCameraMode?.(mode) }
+    const camera = (action: PlayerKeyAction) => () => { const mode = CAMERA_KEY_MODE[action]; if (mode) live.current.setCameraMode?.(mode) }
     const actions: Record<PlayerKeyAction, () => void> = {
-      play: togglePlay,
-      back: () => seekBy(-skipSeconds),
-      forward: () => seekBy(skipSeconds),
-      previousFrame: () => stepFrames(-1),
-      nextFrame: () => stepFrames(1),
-      sound: toggleSound,
-      restart,
-      fullscreen: toggleFullscreen,
-      view: toggleView ?? (() => {}),
+      play: () => live.current.togglePlay(),
+      back: () => live.current.seekBy(-live.current.skipSeconds),
+      forward: () => live.current.seekBy(live.current.skipSeconds),
+      previousFrame: () => live.current.stepFrames(-1),
+      nextFrame: () => live.current.stepFrames(1),
+      sound: () => live.current.toggleSound(),
+      restart: () => live.current.restart(),
+      fullscreen: () => live.current.toggleFullscreen(),
+      view: () => live.current.toggleView?.(),
       cameraFirst: camera('cameraFirst'),
       cameraThird: camera('cameraThird'),
       cameraFree: camera('cameraFree'),
-      previousEvent: () => stepEvent?.(-1),
-      nextEvent: () => stepEvent?.(1),
+      previousEvent: () => live.current.stepEvent?.(-1),
+      nextEvent: () => live.current.stepEvent?.(1),
     }
     function onKeyDown(e: KeyboardEvent) {
+      const { toggleView, setCameraMode, stepEvent } = live.current
       if (e.ctrlKey || e.metaKey || e.altKey) return
       if (isTypingTarget(e.target)) return
       // MAJ + FLÈCHE DÉPLACE LE CADRAGE, et ce court-circuit vient AVANT les touches du
@@ -224,5 +234,5 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds])
+  }, [enabled])
 }
