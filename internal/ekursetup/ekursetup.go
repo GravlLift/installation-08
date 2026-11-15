@@ -18,6 +18,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -146,7 +147,8 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	// (same volume, so the swap is a rename). The port writes only the five parts the
 	// builders read, so there is nothing to prune.
 	stage(StageExtracting)
-	tmp, err := os.MkdirTemp(opts.DataDir, "ekur.setup-")
+	removeStaleTemps(opts.DataDir, log)
+	tmp, err := os.MkdirTemp(opts.DataDir, tempPrefix)
 	if err != nil {
 		return Result{}, fmt.Errorf("ekursetup: temporary export folder: %w", err)
 	}
@@ -186,6 +188,37 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 // or junction.
 func removeTree(path, what string) error {
 	return safefs.RemoveTree(path, what)
+}
+
+// tempPrefix names the temporary export folders a run writes beside <data>/ekur.
+const tempPrefix = "ekur.setup-"
+
+// staleTempAge is how long a temporary export folder must have gone unmodified before a
+// new run treats it as left behind by a run that was killed (its window closed mid-setup).
+// A live run finishes in well under a minute.
+const staleTempAge = 10 * time.Minute
+
+// removeStaleTemps removes the temporary export folders a killed run left in dataDir (a
+// clean failure removes its own). A folder modified within staleTempAge may belong to a run
+// in another process and is kept. Refused removals are logged and left behind.
+func removeStaleTemps(dataDir string, log io.Writer) {
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), tempPrefix) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || time.Since(info.ModTime()) < staleTempAge {
+			continue
+		}
+		p := filepath.Join(dataDir, e.Name())
+		if err := removeTree(p, "stale temporary export"); err != nil {
+			fmt.Fprintf(log, "[%s] could not remove a stale temporary export %s: %v\n", time.Now().Format(time.RFC3339), e.Name(), err)
+		}
+	}
 }
 
 // previousSuffix names the folder the old export is moved to while the new one takes its

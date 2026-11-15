@@ -254,6 +254,42 @@ func TestPortInUseOpensExisting(t *testing.T) {
 	}
 }
 
+// TestPortInUseByCopyWithoutViewer: a copy of this program that serves no viewer (a
+// development server, whose page is served by Vite) holds the address: no browser opens on
+// its 404, and the error says how to get past it.
+func TestPortInUseByCopyWithoutViewer(t *testing.T) {
+	copyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "version": "dev", "viewer": "false"})
+	}))
+	t.Cleanup(copyServer.Close)
+	urls := withFakeOpenBrowser(t)
+	err := openOnExisting(copyServer.Listener.Addr().String(), errors.New("address in use"))
+	if err == nil || !strings.Contains(err.Error(), "--addr") {
+		t.Fatalf("err = %v, want an error naming --addr", err)
+	}
+	if got := readUrls(urls); len(got) != 0 {
+		t.Fatalf("opened %v, want no browser open", got)
+	}
+}
+
+// TestHealthReportsViewer: /api/health says whether this server serves the viewer.
+func TestHealthReportsViewer(t *testing.T) {
+	health := func(h serverHandlers) string {
+		rec := httptest.NewRecorder()
+		h.handleHealth(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+		return rec.Body.String()
+	}
+	h := newTestHandlers(newFakeStore(t), nil)
+	h.web, h.webFS = "", nil
+	if body := health(h); !strings.Contains(body, `"viewer":"false"`) {
+		t.Fatalf("no viewer: body = %s", body)
+	}
+	h.webFS = embeddedViewer()
+	if body := health(h); !strings.Contains(body, `"viewer":"true"`) {
+		t.Fatalf("embedded viewer: body = %s", body)
+	}
+}
+
 // TestPortInUseByAnotherProgram: when something that is not this program holds the
 // address, the listen error is returned and no browser opens.
 func TestPortInUseByAnotherProgram(t *testing.T) {

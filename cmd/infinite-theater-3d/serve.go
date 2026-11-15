@@ -15,7 +15,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,6 +38,7 @@ var Version = "0.1.0-dev"
 // serveFlags is the parsed form of the `serve` arguments.
 type serveFlags struct {
 	addr     string
+	addrSet  bool // --addr was given: never replaced by a fallback port
 	web      string
 	open     bool
 	readOnly bool
@@ -62,6 +62,11 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	if err != nil {
 		return f, err
 	}
+	fs.Visit(func(fl *flag.Flag) {
+		if fl.Name == "addr" {
+			f.addrSet = true
+		}
+	})
 	return f, nil
 }
 
@@ -76,6 +81,23 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Launch order (serve_launch.go): claim the data folder, then an address, and only then
+	// touch the data. A launch that cannot claim either exits before writing anything.
+	claim, err := claimDataDir(dataDir)
+	if errors.Is(err, errDataDirBusy) {
+		return onDataDirBusy(dataDir, f.open)
+	}
+	if err != nil {
+		return err
+	}
+	defer claim.release()
+	ln, err := listenServe(f)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
+	addr := ln.Addr().String()
+	claim.recordAddr(addr)
 	root, err := store.New(dataDir)
 	if err != nil {
 		return err
@@ -105,15 +127,6 @@ func runServe(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	ln, err := net.Listen("tcp", f.addr)
-	if err != nil {
-		if f.open {
-			// The address is taken: when another running copy holds it, open the browser
-			// on that copy and exit cleanly.
-			return openOnExisting(f.addr, err)
-		}
-		return fmt.Errorf("listen %s: %w", f.addr, err)
-	}
 	// A pending device-code login dies with the server (its wait fires, the session ends
 	// failed; no goroutine is left polling Microsoft).
 	defer h.stopPendingLogin()
@@ -123,11 +136,12 @@ func runServe(args []string) error {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("infinite-theater-3d serving", "addr", f.addr, "data", dataDir)
+		slog.Info("infinite-theater-3d serving", "addr", addr, "data", dataDir)
 		errCh <- srv.Serve(ln)
 	}()
 	if f.open {
-		openOnListen(ctx, f.addr)
+		fmt.Printf("\nInfinite Theater 3D is running at %s\nKeep this window open while you use the viewer. Close it to stop.\n\n", urlForAddr(addr))
+		openOnListen(ctx, addr)
 	}
 	select {
 	case <-ctx.Done():
@@ -241,7 +255,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 // handleHealth answers /api/health.
 func (h serverHandlers) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "version": Version})
+	viewer := "false"
+	if h.web != "" || h.webFS != nil {
+		viewer = "true"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true", "version": Version, "viewer": viewer})
 }
 
 // handleMatches answers /api/matches with the match summaries, newest first, enriched with
