@@ -18,6 +18,7 @@ import type { Dress, SpartanArmory } from './armory3d'
 import { estMateriauPeint, memePeinture } from './brasPremierePersonne3d'
 import type { BakedLight } from './bakedLightShader'
 import type { Coat } from './armorCoat3d'
+import { energyCopy, energyTintOf, isEnergized } from './energyField3d'
 import type { PreparationRig3d } from './preparationRig3d'
 
 /** Ce que la peinture lit dans `BrasPremierePersonne3d`. */
@@ -121,10 +122,19 @@ export class PeintureRig3d {
 
   /** appliquer pose les copies peintes sur les maillages dont le matériau est dans `coat`. */
   private appliquer(rig: { racine: THREE.Object3D; copies: Map<THREE.Material, THREE.Material> }, coat: Coat): void {
+    // The weapon's energy fields (the sword's blade) glow in the emissive swatch of the weapon's
+    // own paint, never the armor's (`energyField3d`).
+    const teinte = energyTintOf(coat, (m) => !!m.userData.rigWeapon)
     rig.racine.traverse((objet) => {
       if (!(objet instanceof THREE.Mesh)) return
       const peindre = (m: THREE.Material) => {
         const peinture = coat.get(m)
+        if (!peinture && teinte && isEnergized(m)) {
+          const champ = energyCopy(m, teinte)
+          this.copies.set(champ, m)
+          rig.copies.set(champ, m)
+          return champ
+        }
         if (!peinture || !(m instanceof THREE.MeshStandardMaterial)) return m
         const copie = armorMaterial(m, peinture)
         this.source.baked?.apply(copie)
