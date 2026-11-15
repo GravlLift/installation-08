@@ -295,11 +295,13 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     if (teinte && (teinte[0] + teinte[1] + teinte[2]) / 3 >= 0.25) o.material = ctx.verreTeint(teinte)
   }
   if (extras.teinte && !extras.couches && key !== 'seeThrough' && !emits(source)) o.material = ctx.tintCopy(ctx.mats[key], source, extras.teinte)
-  if (extras.couches && key !== 'seeThrough' && prepareLayerUVs(o.geometry, extras.couches)) {
+  // A light masked by a texture stays on its lit copy (`glowCopy`): the layered shader's thirteen
+  // samplers plus the lighting maps leave no texture unit for the mask under WebGL 2's sixteen.
+  if (extras.couches && key !== 'seeThrough' && !source.emissiveMap && prepareLayerUVs(o.geometry, extras.couches)) {
     // Un matériau à couches par composition distincte (famille, couches, lumière propre, découpe)
     // : les surfaces de même composition le partagent, et le dessin ne change de matériau qu'entre
     // elles.
-    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${source.emissiveMap?.uuid ?? ''}` : ''
+    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}` : ''
     const alphaTest = source.alphaTest > 0 ? `|a${source.alphaTest}` : ''
     const signature = `${key}|${glow}|${alphaTest}|${JSON.stringify(extras.couches)}`
     let shared = ctx.layered.get(signature)
@@ -341,6 +343,11 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     if (!m) {
       m = base.clone()
       applyGlow(m, source)
+      if (source.emissiveMap) {
+        // Its game color under the mask: the glTF base color, the material's first layer.
+        m.map = source.map
+        m.color.copy(source.color)
+      }
       owned.push(m)
       glowing.set(source, m)
     }
