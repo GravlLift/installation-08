@@ -100,8 +100,8 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 			if ref.groupe == GroupeRtgo {
 				mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, food, ref.id)
 				// LOCAL-CHANGE (infinite-theater-3d): placed by the type's own pivot, the `mode`
-				// permutation of the same representation (origine_forge.go).
-				mv.origine = origineDuRtgo(a, mv.maillages, modeDuFood(ctx, idx, tag, assets, uint32(nom)))
+				// permutation of the same representation, of the `rtgo`'s size (origine_forge.go).
+				mv.origine = origineDuRtgo(a, mv.maillages, modesDuFood(ctx, idx, tag, assets, uint32(nom)))
 			}
 			out[cleRepresentation{ty, nom}] = mv
 		}

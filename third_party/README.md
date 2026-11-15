@@ -180,6 +180,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     permutation; its "forge" `rtgo` was compared with the default, failed the same-box test and
     sat 1 m off in X and Y (721 player samples inside it, 3 now). Covered by
     `himap/origine_forge_test.go` (modified).
+  - `himap/origine_forge.go`, `maillage_variante.go`, `maillage_variante_representation.go` and
+    `kits_forge.go` (LOCAL-CHANGE): an `rtgo` is measured against the first `mode` of its own
+    size among those its definition reaches (one per `bloc`/`scen`/`mach`), not only the first
+    one. Origin's rock type -1241957150 has Small, Medium and Large `bloc`s (4.3, 21.5 and
+    34.5 m) and Medium-sized `rtgo`s: held against Small, it kept the base rule and sat half its
+    scaled height off its centre pivot, through a base (4 308 player samples inside object
+    #1221's box, 6 now). Covered by `himap/origine_forge_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
     mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
   - `files-reader/mapvar/socles.go` (LOCAL-CHANGE): `PadSpot.Forward` and `PadSpot.Up` carry
