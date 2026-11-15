@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
@@ -119,7 +118,7 @@ func (h serverHandlers) handleVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	http.ServeContent(w, r, "variant.glb", time.Time{}, f)
+	serveRevalidated(w, r, "variant.glb", f)
 }
 
 func (h serverHandlers) handleVariantState(w http.ResponseWriter, r *http.Request) {

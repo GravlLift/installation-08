@@ -69,4 +69,21 @@ func TestVariantRoutes(t *testing.T) {
 	if rec.Code != 200 || rec.Body.String() != "glTF" {
 		t.Fatal(rec.Code, rec.Body)
 	}
+	// The browser keeps the built file and revalidates it: same file, 304 with no body.
+	etag := rec.Header().Get("ETag")
+	if etag == "" || rec.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("validators: etag %q, cache-control %q", etag, rec.Header().Get("Cache-Control"))
+	}
+	rec = get(t, h, base+".glb", map[string]string{"If-None-Match": etag})
+	if rec.Code != http.StatusNotModified || rec.Body.Len() != 0 {
+		t.Fatal(rec.Code, rec.Body.Len())
+	}
+	// A rebuild changes the file, so the old validator gets the new bytes.
+	if err := root.WriteFile(variantPath(root, "abc", "variant.glb"), []byte("glTF2")); err != nil {
+		t.Fatal(err)
+	}
+	rec = get(t, h, base+".glb", map[string]string{"If-None-Match": etag})
+	if rec.Code != 200 || rec.Body.String() != "glTF2" {
+		t.Fatal(rec.Code, rec.Body)
+	}
 }

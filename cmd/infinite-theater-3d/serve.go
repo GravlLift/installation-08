@@ -529,7 +529,21 @@ func (h serverHandlers) handleMesh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	http.ServeContent(w, r, "mesh.glb", time.Time{}, file)
+	serveRevalidated(w, r, "mesh.glb", file)
+}
+
+// serveRevalidated serves a built model file (a map mesh, a Forge variant) so the browser keeps
+// it in its cache and asks again on every load: a 304 when the file is the one it holds, the
+// whole file after a rebuild. The validators are the file's size and modification time, which a
+// rebuild always changes. Without them every load re-downloaded hundreds of MB.
+func serveRevalidated(w http.ResponseWriter, r *http.Request, name string, f *os.File) {
+	var mod time.Time
+	if st, err := f.Stat(); err == nil {
+		mod = st.ModTime()
+		w.Header().Set("ETag", fmt.Sprintf(`"%x-%x"`, st.Size(), mod.UnixNano()))
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	http.ServeContent(w, r, name, mod, f)
 }
 
 // serveStaticDir serves a file from the web directory, falling back to index.html for a
