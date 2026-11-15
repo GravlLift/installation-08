@@ -41,6 +41,16 @@ func Discover(ctx context.Context, mapKey, gameRoot string) (Catalog, error) {
 		}
 		gameRoot = root
 	}
+	if mapKey == "" {
+		// A fresh install has no stored match to name a map: any installed map's index covers
+		// the `globals`/`common` modules, as the first-person and armor libraries already do.
+		key, ok := firstInstalledMap(gameRoot)
+		if !ok {
+			return Catalog{}, fmt.Errorf("no installed map found under %s", gameRoot)
+		}
+		slog.InfoContext(ctx, "no map given; using the first installed map", "map", key)
+		mapKey = key
+	}
 	module, ok := installedModule(gameRoot, mapKey)
 	if !ok {
 		return Catalog{}, fmt.Errorf("map %q is not installed", mapKey)
@@ -64,6 +74,23 @@ func Discover(ctx context.Context, mapKey, gameRoot string) (Catalog, error) {
 	}
 	sort.Strings(keys)
 	return Catalog{Keys: keys, Map: mapKey}, nil
+}
+
+// firstInstalledMap is the first map folder (directory order) whose module is installed.
+func firstInstalledMap(gameRoot string) (string, bool) {
+	entries, err := os.ReadDir(filepath.Join(gameRoot, "pc", "levels", "multi"))
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, ok := installedModule(gameRoot, e.Name()); ok {
+			return e.Name(), true
+		}
+	}
+	return "", false
 }
 
 // installedModule says whether the installed map `key`'s `.module` is present, and returns its
