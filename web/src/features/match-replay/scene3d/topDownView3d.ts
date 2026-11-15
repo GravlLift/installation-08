@@ -32,7 +32,7 @@ import { TopDownGhost } from './topDownGhost3d'
 import { TopDownInput } from './topDownInput3d'
 import { CUT_HEADROOM, CutFollower, highestDrawn, lowestDrawn } from './topDownLogic'
 import { TopDownMinimap, type MinimapDraw } from './topDownMinimap3d'
-import { NAV_HOME, NO_INSETS, followed, frameOf, insetsFrom, panBy, screenAt, zoomAt, type Insets, type NavContext, type NavState, type Span, type TopDownBounds, type Viewport } from './topDownNavLogic'
+import { NAV_HOME, NO_INSETS, followed, frameOf, highestBar, insetsFrom, panBy, screenAt, zoomAt, type Insets, type NavContext, type NavState, type Span, type TopDownBounds, type Viewport } from './topDownNavLogic'
 import { TOP_LIFT, TopDownStage } from './topDownStage3d'
 
 /** Margin around the walked X/Z area in the frame (u): the walls just past the last footstep. */
@@ -41,6 +41,8 @@ const TOP_MARGIN = 3
 const CAMERA_AGNOSTIC = [RenderPass, OutputPass, ShaderPass, SMAAPass]
 /** How often the chrome's place is read from the page (ms): it moves only on a resize or a font load. */
 const INSETS_EVERY_MS = 500
+/** The elements over the canvas's bottom the map keeps clear of, besides the transport bar (the HUD's score strip). */
+const BOTTOM_INSET = '[data-map-inset="bottom"]'
 
 /** cameraAgnostic — a composer pass that needs no perspective camera. */
 function cameraAgnostic(pass: Pass): boolean {
@@ -170,9 +172,10 @@ export class TopDownView3d {
   }
 
   /**
-   * The page's chrome over the canvas (`insetsFrom`): the player's top strip and transport bar,
-   * found by their classes in the player around the canvas, re-read every `INSETS_EVERY_MS`. Their
-   * place is kept while they fade out, so the map does not jump when the chrome hides.
+   * The page's chrome over the canvas (`insetsFrom`): the player's top strip, and the highest of its
+   * transport bar and the elements over the canvas's bottom that ask for room (`[data-map-inset="bottom"]`,
+   * the HUD's score strip), found in the player around the canvas, re-read every `INSETS_EVERY_MS`.
+   * Their place is kept while they fade out, so the map does not jump when the chrome hides.
    */
   private readInsets(): Insets {
     const now = performance.now()
@@ -185,7 +188,8 @@ export class TopDownView3d {
       const r = el.getBoundingClientRect()
       return { top: r.top, bottom: r.bottom }
     }
-    this.insets = insetsFrom(span(canvas) as Span, span(player?.querySelector('.bc-player-top')), span(player?.querySelector('.bc-player-transport')))
+    const bottoms = [player?.querySelector('.bc-player-transport'), ...Array.from(player?.querySelectorAll(BOTTOM_INSET) ?? [])]
+    this.insets = insetsFrom(span(canvas) as Span, span(player?.querySelector('.bc-player-top')), highestBar(bottoms.map(span)))
     return this.insets
   }
 

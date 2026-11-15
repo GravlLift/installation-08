@@ -199,6 +199,16 @@ export interface Span {
 }
 
 /**
+ * highestBar — of the elements docked at the canvas's bottom (the transport bar, the HUD's score
+ * strip), the one whose top edge is highest on the page: the map fits over all of them; null if none.
+ */
+export function highestBar(spans: readonly (Span | null | undefined)[]): Span | null {
+  let best: Span | null = null
+  for (const s of spans) if (s && (best === null || s.top < best.top)) best = s
+  return best
+}
+
+/**
  * insetsFrom — the chrome insets of a canvas: the top strip's bottom edge below the canvas top and
  * the transport bar's top edge above the canvas bottom, each plus `INSET_GAP_PX`; 0 for a missing
  * element or one outside the canvas.
