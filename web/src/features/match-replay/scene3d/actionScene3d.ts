@@ -28,10 +28,11 @@ import type { ClipMix } from './clipSample3d'
 import type { FlashLights } from './flash3d'
 import type { HeldWeapon3d } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
-import { actionsParSlot, rechargementsParSlot } from './actionsFilm3d'
+import { actionsParSlot, episodesRechargementParSlot } from './actionsFilm3d'
 import { indexShotTimes, type SlotShots } from './recoilShots3d'
 import { preparerEvenementsPremierePersonne } from './evenementsPremierePersonne3d'
 import type { ChangementArme, EvenementsPremierePersonne } from './actionsPremierePersonne3d'
+import type { EpisodeRechargement } from './rechargementPremierePersonne3d'
 import type { ShotFxEntry } from '../model/shotFx'
 import { newRecoil, type Recoil } from './recoil3d'
 import { ShooterRecoil } from './recoilShots3d'
@@ -136,6 +137,7 @@ export interface HeldShown {
 /** L'ensemble des calques d'action d'une scène. */
 const VIDE: readonly number[] = []
 const SANS_CHANGEMENT: readonly ChangementArme[] = []
+const SANS_RECHARGEMENT: readonly EpisodeRechargement[] = []
 
 export class ActionScene3d {
   private readonly ctx: ActionContext
@@ -144,7 +146,7 @@ export class ActionScene3d {
   private readonly body: BodyFx3d
   private readonly moves: Motion3d
   private readonly recoil: ShooterRecoil
-  private readonly rechargements: Map<number, number[]>
+  private readonly rechargements: Map<number, EpisodeRechargement[]>
   private readonly coups: Map<number, number[]>
   private readonly premieres: ReturnType<typeof preparerEvenementsPremierePersonne>
   private sourceTirs: readonly ShotFxEntry[] | null = null
@@ -164,7 +166,7 @@ export class ActionScene3d {
     this.ctx = ctx
     this.layers = layers
     this.held = held
-    this.rechargements = rechargementsParSlot(ctx.doc).debuts
+    this.rechargements = episodesRechargementParSlot(ctx.doc)
     this.coups = actionsParSlot(ctx.doc, 'melee')
     this.premieres = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
     this.body = new BodyFx3d(ctx)
@@ -180,7 +182,7 @@ export class ActionScene3d {
     }
     this.xuidPremierePersonne = xuid
     const e = this.evenements
-    e.rechargements = this.rechargements.get(slot) ?? VIDE
+    e.rechargements = this.rechargements.get(slot) ?? SANS_RECHARGEMENT
     e.coups = this.coups.get(slot) ?? VIDE
     e.tirs = this.tirs.get(slot)?.frames ?? VIDE
     e.grenades = this.premieres.grenades.get(slot) ?? VIDE
