@@ -24,9 +24,10 @@ import type { ActionContext } from './actionScene3d'
 import { FlashLights } from './flash3d'
 import {
   floorUnder,
+  GLOW_EMISSIVE,
+  glowMaterialOf,
   groundBoxLook,
   padBoxLook,
-  padItemCentered,
   padMountOf,
   padOutOfBounds,
   pickupFamilyOf,
@@ -223,13 +224,30 @@ describe('rackWeaponRotation', () => {
   })
 })
 
-describe('padItemCentered', () => {
-  it('centers an item named by equipment family, never a weapon', () => {
-    for (const family of ['wall', 'grapple', 'sensor', 'thruster', 'repulsor', 'powerup_camo']) {
-      expect(padItemCentered(family)).toBe(true)
-    }
-    expect(padItemCentered(SNIPER)).toBe(false)
-    expect(padItemCentered('00000002')).toBe(false)
+describe('glowMaterialOf', () => {
+  it('keeps the base color map, color and shared references, with a faint emissive', () => {
+    const map = new THREE.Texture()
+    const mask = new THREE.Texture()
+    const hook = () => {}
+    const source = new THREE.MeshStandardMaterial({ map, color: 0x6c6f76 })
+    source.userData.armorMaps = { asg: mask, mask0: null, mask1: null }
+    source.onBeforeCompile = hook
+    const glow = glowMaterialOf(source, new THREE.Color(0x9ca3af)) as THREE.MeshStandardMaterial
+    expect(glow).not.toBe(source)
+    expect(glow.map).toBe(map)
+    expect(glow.color.getHex()).toBe(0x6c6f76)
+    // The tint follows the texture instead of a flat wash over it, and stays faint.
+    expect(glow.emissiveMap).toBe(map)
+    expect(glow.emissive.getHex()).toBe(0x9ca3af)
+    expect(glow.emissiveIntensity).toBe(GLOW_EMISSIVE)
+    expect(GLOW_EMISSIVE).toBeLessThanOrEqual(0.15)
+    // `clone` alone would turn the coating masks into plain JSON objects and drop the hook.
+    expect(glow.userData.armorMaps.asg).toBe(mask)
+    expect(glow.onBeforeCompile).toBe(hook)
+    // The source is untouched.
+    expect(source.emissive.getHex()).toBe(0)
+    expect(source.emissiveMap).toBeNull()
+    expect(source.userData.armorMaps.asg).toBe(mask)
   })
 })
 
@@ -424,6 +442,70 @@ describe('Pickups3dLayer', () => {
     layer.update(15)
     const copie = root.children[2]
     expect(copie.position.y).toBeCloseTo(RACK_AT.z + 0.28 + 0.04)
+    layer.dispose()
+  })
+
+  it('keeps a power pad beside a rack floating and turning, never in the rack pose', () => {
+    // Fortress: the S7 power pads stand a few meters from the Commando rack; each pad keeps the
+    // pose of its own spawner kind.
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
+    const POWER_AT = { x: RACK_AT.x + 0.6, y: RACK_AT.y + 0.3, z: RACK_AT.z - 0.2 }
+    const cross = {
+      catalogN: 2,
+      pads: [
+        { ...RACK_AT, pad: 0, family: 'rack', forward: [0, -1, 0], up: [0, 0, 1] },
+        { ...POWER_AT, pad: 1, family: 'power', forward: [0, -1, 0], up: [0, 0, 1] },
+      ],
+    } as ReplayDocumentReady['mapWeaponPads']
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle(RACK_AT), socle(POWER_AT)], mapWeaponPads: cross },
+      { floorY: () => 4.7 },
+    )
+    layer.update(15)
+    // Copies in paint order: the rack weapon, then the power pad item.
+    const rackCopy = root.children[2]
+    const padCopy = root.children[3]
+    expect(new THREE.Vector3(1, 0, 0).applyQuaternion(rackCopy.quaternion).y).toBeCloseTo(1)
+    // Lying level (muzzle horizontal), over its own spawner, lifted off it.
+    expect(new THREE.Vector3(1, 0, 0).applyQuaternion(padCopy.quaternion).y).toBeCloseTo(0)
+    expect(padCopy.position.x).toBeCloseTo(POWER_AT.x)
+    expect(padCopy.position.z).toBeCloseTo(-POWER_AT.y)
+    expect(padCopy.position.y).toBeCloseTo(POWER_AT.z + 0.28 + 0.04)
+    const q = padCopy.quaternion.clone()
+    layer.update(19)
+    expect(padCopy.quaternion.angleTo(q)).toBeGreaterThan(0.01)
+    layer.dispose()
+  })
+
+  it('turns a weapon pad item about its model center, over the pad spawner, not about its grip', () => {
+    // A weapon's origin is its grip: the S7's barrel runs 0.4 u forward of it. Turned about the
+    // grip, the barrel swept past the pad's rim.
+    const model = new THREE.Group()
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.04))
+    body.position.set(0.15, 0.02, 0)
+    model.add(body)
+    const SPAWNER = { x: 56.85, y: -115.2, z: 72.206 }
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      {
+        // The film's pad reading is a few centimeters off the spawner; the spawner wins.
+        weaponPads: [socle({ x: 56.8545, y: -115.1982, z: 72.2092 })],
+        mapWeaponPads: { catalogN: 1, pads: [{ ...SPAWNER, pad: 0, family: 'power', forward: [0, -1, 0], up: [0, 0, 1] }] },
+      },
+      { floorY: () => SPAWNER.z + 0.05 },
+    )
+    for (const frame of [11, 15, 18]) {
+      layer.update(frame)
+      const copie = root.children[2]
+      copie.updateMatrixWorld(true)
+      const c = new THREE.Box3().setFromObject(copie).getCenter(new THREE.Vector3())
+      expect(c.x).toBeCloseTo(SPAWNER.x)
+      expect(c.z).toBeCloseTo(-SPAWNER.y)
+      expect(c.y).toBeCloseTo(SPAWNER.z + 0.28 + 0.04)
+    }
     layer.dispose()
   })
 
