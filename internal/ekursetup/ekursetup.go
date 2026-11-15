@@ -6,8 +6,10 @@
 // and SHA-256 against the constants below, downloads the three ReclaimerFiles lists the
 // dumper reads, runs the dumper against the installed game into a temporary sibling of
 // <data>/ekur, validates the JSON export with the coating builds' own contract
-// (spartanpieces.EkurValid), and only then swaps it into place, so a failed run never
-// leaves a half export where the builds read. Nothing is bundled: the dumper and the lists
+// (spartanpieces.EkurValid), drops everything but the five entries the builds read (the
+// dump is about 9 GB, the kept tables about 140 MB), and only then swaps it into place, so
+// a failed run never leaves a half export where the builds read. A run refuses to start
+// with less than MinFreeBytes free on the data folder's volume. Nothing is bundled: the dumper and the lists
 // are fetched from their publishers and cached under <data>/tools/ekur.
 //
 // Queuing the coating library rebuilds afterwards is the caller's step (the server has the
@@ -84,7 +86,13 @@ var (
 	ErrDumpFailed    = errors.New("the Ekur dumper failed")
 	ErrInvalidOutput = errors.New("the Ekur dump is not a valid export")
 	ErrSwap          = errors.New("the new Ekur export could not be moved into place")
+	ErrDiskSpace     = errors.New("the Ekur dump needs about 10 GB free while it runs (it keeps about 140 MB)")
 )
+
+// MinFreeBytes is the free space the data folder's volume must have before a run: the
+// dumper writes about 9 GB (90,876 files on the Steam install, measured 2026-11-14) before
+// the prune keeps only the coating tables (about 140 MB), so 12 GB leaves a margin.
+const MinFreeBytes = 12 << 30
 
 // Options configure one setup run. DataDir and GameRoot are required; everything else has
 // the production default when left zero (tests point the URLs at a local server).
@@ -101,6 +109,9 @@ type Options struct {
 	Log io.Writer
 	// Progress is called at the start of each stage. nil: no calls.
 	Progress func(Stage)
+	// FreeSpace measures the bytes available on the volume holding a path. nil: the
+	// platform measure (GetDiskFreeSpaceExW on Windows). Tests inject a fixed answer.
+	FreeSpace func(path string) (uint64, error)
 }
 
 // Result is what a successful run produced.
@@ -193,6 +204,19 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		progress(s)
 	}
 
+	// The dump needs about 9 GB while it runs: refuse up front rather than fill the disk
+	// after the downloads. A volume that cannot be measured is not refused (logged).
+	freeSpace := opts.FreeSpace
+	if freeSpace == nil {
+		freeSpace = freeBytes
+	}
+	if free, err := freeSpace(opts.DataDir); err != nil {
+		fmt.Fprintf(log, "free space not measured: %v\n", err)
+	} else if free < MinFreeBytes {
+		fmt.Fprintf(log, "free space %d bytes, need %d\n", free, uint64(MinFreeBytes))
+		return Result{}, fmt.Errorf("%w; %.1f GB free on the data drive", ErrDiskSpace, float64(free)/(1<<30))
+	}
+
 	// Downloading: the dumper (unless the cached copy already verifies) and the lists.
 	stage(StageDownloading)
 	exe := filepath.Join(tools, opts.Exe.Name)
@@ -251,6 +275,9 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		fmt.Fprintf(log, "dump is missing: %v\n", missing)
 		return Result{}, fmt.Errorf("%w: it is missing %v (see %s in the data folder's tools\\ekur)", ErrInvalidOutput, missing, LogName)
 	}
+	// The builds read only the five contract entries: drop the rest (models, anims,
+	// runtime_geo, ... about 9 GB) so <data>/ekur keeps about 140 MB.
+	pruneExport(tmp, log)
 
 	dest := spartanpieces.DataEkurDir(opts.DataDir)
 	if err := swapInto(tmp, dest, log); err != nil {
@@ -272,6 +299,42 @@ func DumperArgs(savePath, modulePath, stringsPath, mapIDsPath, modelIDsPath stri
 		"--modelid-path", modelIDsPath,
 		"--skip-bitmaps",
 	}
+}
+
+// pruneExport removes every top-level entry of the export folder that is not one of the
+// five contract entries (spartanpieces.EkurEntries): folders through the junction-refusing
+// tree removal, files with os.Remove. A removal that fails is logged and left; the export
+// stays valid either way, only larger.
+func pruneExport(folder string, log io.Writer) {
+	keep := make(map[string]bool, len(spartanpieces.EkurEntries))
+	for _, e := range spartanpieces.EkurEntries {
+		keep[e.Name] = true
+	}
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		fmt.Fprintf(log, "prune skipped: %v\n", err)
+		return
+	}
+	removed := 0
+	for _, e := range entries {
+		if keep[e.Name()] {
+			continue
+		}
+		p := filepath.Join(folder, e.Name())
+		var rerr error
+		if e.IsDir() {
+			rerr = removeTree(p, "Ekur export entry "+e.Name())
+		} else {
+			// A file, or a symlink or junction (never a directory to DirEntry): unlink it.
+			rerr = os.Remove(p)
+		}
+		if rerr != nil {
+			fmt.Fprintf(log, "prune: %s left in place: %v\n", e.Name(), rerr)
+			continue
+		}
+		removed++
+	}
+	fmt.Fprintf(log, "pruned %d entries the coating builds do not read\n", removed)
 }
 
 // previousSuffix names the folder the old export is moved to while the new one takes its

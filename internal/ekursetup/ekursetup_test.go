@@ -90,6 +90,11 @@ func fakeDumper(mode string, args []string) int {
 		return 0
 	}
 	writeExport(save)
+	// The rest of a real dump, which the coating builds never read: a folder tree and a
+	// top-level file, for the prune to remove.
+	_ = os.MkdirAll(filepath.Join(save, "models", "sub"), 0o755)
+	_ = os.WriteFile(filepath.Join(save, "models", "sub", "m.bin"), []byte("model"), 0o644)
+	_ = os.WriteFile(filepath.Join(save, "customization_globals.json"), []byte(`{}`), 0o644)
 	fmt.Println("Dumped 1 material")
 	return 0
 }
@@ -170,12 +175,13 @@ func setupFixture(t *testing.T, mode string) (*fakeHost, Options, *[]Stage) {
 	}
 	var stages []Stage
 	opts := Options{
-		DataDir:  t.TempDir(),
-		GameRoot: game,
-		Client:   host.srv.Client(),
-		Exe:      host.pin,
-		ListsURL: host.srv.URL + "/lists/",
-		Progress: func(s Stage) { stages = append(stages, s) },
+		DataDir:   t.TempDir(),
+		GameRoot:  game,
+		Client:    host.srv.Client(),
+		Exe:       host.pin,
+		ListsURL:  host.srv.URL + "/lists/",
+		Progress:  func(s Stage) { stages = append(stages, s) },
+		FreeSpace: func(string) (uint64, error) { return 100 << 30, nil },
 	}
 	return host, opts, &stages
 }
@@ -275,6 +281,62 @@ func TestRunSuccess(t *testing.T) {
 	}
 	if left := leftovers(t, opts.DataDir); len(left) > 0 {
 		t.Fatalf("folders left after the replacement: %v", left)
+	}
+}
+
+// TestRunPrunesExport — the swapped export keeps only the five contract entries: the dump's
+// other folders and files are gone, and the stamp still reads the pruned folder.
+func TestRunPrunesExport(t *testing.T) {
+	_, opts, _ := setupFixture(t, "ok")
+	res, err := Run(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	entries, err := os.ReadDir(res.ExportDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	slices.Sort(names)
+	want := []string{"globals.json", "materials", "styles", "stylelists", "visor_data.json"}
+	slices.Sort(want)
+	if !slices.Equal(names, want) {
+		t.Fatalf("export entries = %v, want only %v", names, want)
+	}
+	if stamp, err := spartanpieces.EkurStamp(res.ExportDir); err != nil || stamp == "" {
+		t.Fatalf("stamp of the pruned export = %q, %v", stamp, err)
+	}
+}
+
+// TestRunDiskSpace — with less than MinFreeBytes free the run refuses before any download,
+// naming the free space; a volume that cannot be measured is not refused.
+func TestRunDiskSpace(t *testing.T) {
+	host, opts, _ := setupFixture(t, "ok")
+	opts.FreeSpace = func(string) (uint64, error) { return 5 << 30, nil }
+	_, err := Run(context.Background(), opts)
+	if !errors.Is(err, ErrDiskSpace) || !strings.Contains(err.Error(), "5.0 GB free on the data drive") {
+		t.Fatalf("err = %v, want ErrDiskSpace naming 5.0 GB", err)
+	}
+	if n := host.count("/ekur.exe"); n != 0 {
+		t.Fatalf("dumper downloaded %d times without the space", n)
+	}
+	opts.FreeSpace = func(string) (uint64, error) { return 0, errors.New("not measured") }
+	if _, err := Run(context.Background(), opts); err != nil {
+		t.Fatalf("unmeasured volume: %v", err)
+	}
+}
+
+// TestFreeBytes — the platform measure answers for a real folder (the test's temp dir).
+func TestFreeBytes(t *testing.T) {
+	n, err := freeBytes(t.TempDir())
+	if err != nil {
+		t.Skipf("free space not measured here: %v", err)
+	}
+	if n == 0 {
+		t.Fatal("free space 0 on the temp volume")
 	}
 }
 
