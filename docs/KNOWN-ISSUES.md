@@ -59,6 +59,8 @@ engineering backlog; this page keeps only the user-visible parts of it.
 
 - After a successful setup the coating libraries rebuild in the background; the open match
   keeps its neutral paint until it is reopened once they finish.
+- The first-person weapon can show unpainted for a moment, occasionally, after zooming
+  and reloading (seen once with the S7 sniper).
 
 ## Export
 

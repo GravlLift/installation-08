@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0-test.11
+
+Changes since 0.1.0-test.10.
+
+### Video export
+- Much sharper video. Exports are encoded at constant quality, so moving the camera, other players moving and shooting, and explosions no longer turn the picture into blocks. Files are larger as a result. Browsers that refuse constant quality fall back to a higher bitrate than before.
+- Shield sounds are in the exported audio: the low-shield beeping, the shield break and its alarm, and the recharge, for the player followed in first person.
+- A finished export now waits in the dialog with a **Save video** button instead of downloading by itself. Chrome no longer blocks the file as an unrequested download, and if a save fails (for example the file is open in a video player) you can click Save again.
+
+### First person
+- The first-person arms no longer drop to a floating gun while their paint, armor pieces or arm parts are still loading. They keep the previous look until the new one is ready.
+- A coating that finishes loading while the arms are being built is no longer lost.
+
 ## 0.1.0-test.10
 
 Changes since 0.1.0-test.9.
