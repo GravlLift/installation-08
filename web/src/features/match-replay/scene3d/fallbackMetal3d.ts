@@ -16,12 +16,6 @@ import { energize } from './energyField3d'
 export const DARK_METAL = { r: 0.15, g: 0.16, b: 0.18, metalness: 0.55, roughness: 0.5 } as const
 
 /**
- * Le gunmetal clair : la teinte de base des membres prosthétiques en première personne. La teinte
- * sombre (`DARK_METAL`) y apparaît là où porte le rouge de leur masque 0 (`brasProsthesique3d`).
- */
-export const LIGHT_METAL = { r: 0.22, g: 0.23, b: 0.25, metalness: 0.6, roughness: 0.45 } as const
-
-/**
  * Le verre sombre des optiques sans texture (lunette, viseur, écran d'arme) : le jeu y affiche une
  * image que la vue ne rend pas ; une vitre presque noire et lisse s'y fond mieux que la teinte de
  * repli claire.

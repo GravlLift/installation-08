@@ -25,8 +25,6 @@ import type { ReplaySpartan, SpartanArmorManifest, WeaponCoating } from '@/lib/r
 
 import { buildCoat, construirePeintureMateriaux, reportCoat, type Coat } from './armorCoat3d'
 import type { MaterialStyle } from './armorCoating3d'
-import { materiauProsthesique, peintureProsthesique, regionsProsthetiques } from './brasProsthesique3d'
-import { packPaint, type ArmorMaps } from './armorMaterial3d'
 import { ArmorLibrary, type ArmorLibraryIO } from './armorLibrary3d'
 import { planOutfit, type ArmorIndex, type ArmorPose, type OutfitIssue, type PlannedAttachment, type PlannedPiece } from './armorPlan3d'
 import { construirePeintureArme, reportArme } from './weaponCoat3d'
@@ -124,17 +122,18 @@ export class SpartanArmory {
   pending(xuid: string): boolean { return this.dresses.get(xuid) === PENDING }
 
   /**
-   * peindreBras peint les matériaux de bras du joueur ; les membres prosthétiques de son manifeste
-   * ne passent jamais au revêtement d'armure : ils reçoivent la peinture gunmetal
-   * (`brasProsthesique3d`). `cleArme` : la clé du modèle de l'arme du rig, quand l'arme y est
-   * peinte de son propre revêtement (`weaponCoat3d`, bibliothèque des armes).
+   * peindreBras peint les matériaux de bras du joueur de son revêtement d'armure, as his
+   * third-person Spartan is painted. Prosthetic limbs included: their pieces carry their own style
+   * list (`a7d83e8c`), which a coating rarely names (3 of the 824 armor coatings), so they wear that
+   * list's default style (`a7d83e8c_42c9679f`: warm gray and bronze metal, grime and scratches)
+   * unless the player's coating names it, the game's rule for every list. `cleArme` : la clé du
+   * modèle de l'arme du rig, quand l'arme y est peinte de son propre revêtement (`weaponCoat3d`,
+   * bibliothèque des armes).
    */
   async peindreBras(xuid: string, habit: Dress, materiaux: readonly THREE.Material[], cleArme: string | null = null): Promise<Coat | null> {
     const manifeste = this.manifests.get(xuid)
     if (!manifeste || this.dress(xuid) !== habit || this.disposed) return null
-    const prosthetiques = regionsProsthetiques(manifeste.regions)
-    const aPeindre = materiaux.filter((m) => !materiauProsthesique(m, prosthetiques))
-    const { armure, arme } = await this.separerArme(aPeindre, cleArme)
+    const { armure, arme } = await this.separerArme([...materiaux], cleArme)
     const { coat } = await construirePeintureMateriaux(armure, manifeste, this.library)
     if (this.disposed) return null
     const peinture = new Map(coat)
@@ -145,14 +144,6 @@ export class SpartanArmory {
         const { coat: coatArme } = await construirePeintureArme(arme, entree?.style_key || null, libArme)
         for (const [m, p] of coatArme) peinture.set(m, p)
       }
-    }
-    for (const m of materiaux) {
-      if (!materiauProsthesique(m, prosthetiques)) continue
-      peinture.set(m, {
-        maps: m.userData.armorMaps as ArmorMaps,
-        paint: packPaint(peintureProsthesique(), () => undefined, () => {}),
-        gradients: this.library.gradients.uniform,
-      })
     }
     return peinture
   }
