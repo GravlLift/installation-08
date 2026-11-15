@@ -5,6 +5,8 @@
  * hexadécimaux minuscules, même règle que `meshproto.CleArme` côté serveur). Repère du modèle : axes
  * three de la carte (X vers la bouche du canon, Y vers le haut), origine à la poignée, en unités monde.
  * Le projectile de chaque type de grenade lancé a le sien, sous `grenade<rang>` (`meshproto.CleGrenade`).
+ * Each equipment object of the title's manifest has its own, under its `eqip` GlobalID (same form
+ * as a weapon key); a power-up pad names its item by family, resolved by `equipmentKeys3d`.
  * Le Spartan à peau (squelette du jeu, pieds à l'origine) a le sien sous `spartan` (`meshproto.CleSpartan`),
  * avec les animations du jeu, rangées à côté de sa scène (`clips3d.spartanClipsOf`).
  *
@@ -25,6 +27,7 @@ import { isNotFound } from '@/lib/replay/queries'
 import { rawMaps } from './armorLibrary3d'
 import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips } from './clips3d'
 import { measureSyncPhases } from './clipSample3d'
+import { EquipmentKeys } from './equipmentKeys3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
 import { fetchMesh } from './meshFetch'
@@ -58,13 +61,22 @@ export class WeaponModels {
   readonly reticles: ReticleRanges
   /** The team banners of the library's index (the CTF flag's). */
   private readonly banners: FlagBanners
+  /** The model key of each equipment family of the library's index (a power-up pad's item). */
+  private readonly equipment: EquipmentKeys
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
-  constructor(base: string, gate?: LoadGate, reticles: ReticleRanges = new ReticleRanges(base), banners: FlagBanners = new FlagBanners(base)) {
+  constructor(
+    base: string,
+    gate?: LoadGate,
+    reticles: ReticleRanges = new ReticleRanges(base),
+    banners: FlagBanners = new FlagBanners(base),
+    equipment: EquipmentKeys = new EquipmentKeys(base),
+  ) {
     this.base = base
     this.gate = gate
     this.reticles = reticles
     this.banners = banners
+    this.equipment = equipment
   }
 
   /** reticleRange is the red-reticle range of the weapon `id` at `zoomLevel`, null when it has none. */
@@ -73,9 +85,13 @@ export class WeaponModels {
     return key ? this.reticles.range(key, zoomLevel) : null
   }
 
-  /** model rend le modèle (à cloner) de l'arme `id`, null tant qu'il n'est pas là. */
+  /**
+   * model rend le modèle (à cloner) de l'arme `id`, null tant qu'il n'est pas là. An `id` that is
+   * not a weapon identifier is read as an equipment family (a power-up pad's item,
+   * `powerup_camo`) and resolves through the index's equipment table.
+   */
   model(id: string): THREE.Object3D | null {
-    const key = weaponModelKey(id)
+    const key = weaponModelKey(id) ?? this.equipment.key(id)
     return key ? this.byKey(key) : null
   }
 
@@ -121,6 +137,7 @@ export class WeaponModels {
     this.abort.abort()
     this.reticles.dispose()
     this.banners.dispose()
+    this.equipment.dispose()
     for (const root of this.owned) {
       root.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return

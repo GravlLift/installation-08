@@ -49,8 +49,9 @@ func TestIndexReticleRanges(t *testing.T) {
 	for _, old := range []string{
 		`{"schema":1,"weapons":["2b1824d5"]}`,
 		`{"reticle_ranges":null,"banners":{}}`,
-		`{"reticle_ranges":{}}`,                                                      // no banners yet
-		`{"reticle_ranges":{"2b1824d5":{"unscoped":18,"zoomed":[36]}},"banners":{}}`, // no magnifications yet
+		`{"reticle_ranges":{}}`,              // no banners yet
+		`{"reticle_ranges":{},"banners":{}}`, // no equipment yet
+		`{"reticle_ranges":{"2b1824d5":{"unscoped":18,"zoomed":[36]}},"banners":{},"equipment":{}}`, // no magnifications yet
 		`not json`,
 	} {
 		if IndexCurrent([]byte(old)) {

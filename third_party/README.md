@@ -125,6 +125,9 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     machine poses the kit's objects (reference, position, yaw/pitch/roll, per-axis scale), as the
     game does for the weapon, power-up, equipment and grenade pads and the weapon rack. Kits
     without a machine (cameras, podiums, mannequins, capture-zone setups) pose nothing.
+  - `himap/arsenal_equipements.go` (new, LOCAL-CHANGE): `Arsenal.Equipement` reads the model of
+    an equipment object (`eqip`) the way `Arme` reads a weapon's, so the weapon library can build
+    the pickup model a power-up pad holds.
   - `himap/filtres_mode.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): the
     variant layer keeps only the objects the match's mode creates (`<mode>_include` labels
     OR'ed, `<mode>_exclude` labels removing), replacing the Infection-only rule

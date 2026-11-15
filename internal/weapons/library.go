@@ -1,7 +1,8 @@
 package weapons
 
 // library.go builds the weapon model library on demand: one GLB per model key (every weapon in
-// the catalog, the game's grenade projectiles, and the Spartan body), into the weapons folder of
+// the catalog, the game's grenade projectiles, the equipment objects of the title's manifest
+// (equipment.go), and the Spartan body), into the weapons folder of
 // the data directory, then writes index.json (with each weapon's red-reticle range, reticle.go).
 // It reuses the same per-model builders the build-weapon and build-spartan commands use (mapmesh),
 // so the GLBs are byte-compatible with what a single-weapon build produces.
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -93,24 +95,17 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}()
 
 	var res Result
-	for _, key := range opts.Catalog.Keys {
-		announce("building weapon " + key)
-		n, err := buildWeaponModel(ctx, a, key, dir, coats)
-		if err != nil {
-			if errors.Is(err, himap.ErrSansModele) {
-				if merr := writeMarker(dir, key); merr != nil {
-					return res, fmt.Errorf("marker for %s: %w", key, merr)
-				}
-				res.Skipped++
-				continue
-			}
-			return res, fmt.Errorf("weapon %s: %w", key, err)
-		}
-		res.Built++
-		res.Bytes += n
+	w := modelWriter{a: a, dir: dir, coats: coats}
+	if err := buildWeapons(ctx, w, opts.Catalog.Keys, &res, announce); err != nil {
+		return res, err
 	}
 	announce("building grenade projectiles")
 	if err := buildGrenades(ctx, a, dir, &res); err != nil {
+		return res, err
+	}
+	announce("building equipment objects")
+	equipment, err := buildEquipment(ctx, w, planEquipment(refdata.Labels().EquipmentFamilies), &res)
+	if err != nil {
 		return res, err
 	}
 	announce("building spartan body")
@@ -123,6 +118,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 
 	idx := NewIndex(opts.Catalog.Keys, generatorLibrary)
 	idx.EkurStamp = stamp
+	idx.Equipment = equipment
 	if err := readTagFields(ctx, a, tagSource{gameRoot, module, dir}, &idx, announce); err != nil {
 		return res, err
 	}
@@ -155,6 +151,36 @@ func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *In
 	announce("reading team banners")
 	if idx.Banners, err = readBanners(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
 		return fmt.Errorf("team banners: %w", err)
+	}
+	return nil
+}
+
+// modelWriter names where a build reads its models (the arsenal) and how it writes their GLBs
+// (the library folder, the coating work, nil accepted).
+type modelWriter struct {
+	a     *himap.Arsenal
+	dir   string
+	coats *spartanpieces.CoatingWork
+}
+
+// buildWeapons writes the GLB of each weapon of keys, counting them into res (a weapon whose
+// model cannot be read is marked with an empty <key>.none file, not an error).
+func buildWeapons(ctx context.Context, w modelWriter, keys []string, res *Result, announce func(string)) error {
+	for _, key := range keys {
+		announce("building weapon " + key)
+		n, err := buildWeaponModel(ctx, w.a, key, w.dir, w.coats)
+		if errors.Is(err, himap.ErrSansModele) {
+			if merr := writeMarker(w.dir, key); merr != nil {
+				return fmt.Errorf("marker for %s: %w", key, merr)
+			}
+			res.Skipped++
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("weapon %s: %w", key, err)
+		}
+		res.Built++
+		res.Bytes += n
 	}
 	return nil
 }
@@ -225,7 +251,7 @@ func grenadeRanks(ctx context.Context, a *himap.Arsenal) []int {
 	return ranks
 }
 
-// parseKey parses a weapon model key into its `weap` tag GlobalID.
+// parseKey parses a weapon or equipment model key into its `weap` or `eqip` tag GlobalID.
 func parseKey(key string) (uint32, error) {
 	id, err := strconv.ParseUint(key, 16, 32)
 	if err != nil {
@@ -280,8 +306,9 @@ func resolveGameRoot(gameRoot string) (string, error) {
 
 // generator tags name the chain that produced each GLB, in its extras.
 const (
-	generatorLibrary = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, weapon library)"
-	generatorWeapon  = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, weapon model)"
-	generatorGrenade = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, grenade projectile)"
-	generatorSpartan = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, spartan body)"
+	generatorLibrary   = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, weapon library)"
+	generatorWeapon    = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, weapon model)"
+	generatorGrenade   = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, grenade projectile)"
+	generatorEquipment = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, equipment object)"
+	generatorSpartan   = "cmd/infinite-theater-3d build-weapons (halo-infinite-map-images, spartan body)"
 )

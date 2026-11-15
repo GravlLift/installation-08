@@ -137,7 +137,7 @@ func recordedEkurStamp(dataDir, module string) (string, bool) {
 
 // libraryIndexCurrent says whether a coating library's index carries every field the view reads
 // from it: the weapon library's index must carry its red-reticle ranges with the per-level zoom
-// magnifications, and its team banners (weapons.IndexCurrent), so a library built before them is
+// magnifications, its team banners and its equipment families (weapons.IndexCurrent), so a library built before them is
 // stale and its rebuild, in place, adds them. The other libraries have no such field.
 func libraryIndexCurrent(dataDir, module string) bool {
 	if module != meshjobs.JobWeapons {
