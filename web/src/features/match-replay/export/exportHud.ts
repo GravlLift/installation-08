@@ -3,11 +3,22 @@ import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { horlogeHud, lireAth, lireFilAth, lireScoreAth, preparerAth } from '../model/ath3d_logic'
+import { shieldFlash } from '../model/shieldHud'
+import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { weaponFullIcon } from '../model/weaponFullIcon'
 import { tintedIconCanvas } from '../layers/replayDraw'
 import { REPLAY_TEXT } from '../i18n/i18n'
+
+/** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
+function mixSrgb(hex: string, amount: number): string {
+  const h = hex.replace(/^#/, '')
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const r = parseInt(full.slice(0, 2), 16), g = parseInt(full.slice(2, 4), 16), b = parseInt(full.slice(4, 6), 16)
+  const mix = (c: number) => Math.round(c * amount)
+  return `#${[mix(r), mix(g), mix(b)].map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
 
 export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale) {
   const source = preparerAth(doc, xuid, kills)
@@ -71,10 +82,72 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       }
     }
     if (ath) {
-      if (ath.bouclier !== null) {
-        const bar = Math.min(h * 0.5, w * 0.9), x = (w - bar) / 2, y = h * 0.08
-        ctx.strokeRect(x, y, bar, Math.max(8, h * 0.032))
-        ctx.fillStyle = resolveToken('info'); ctx.fillRect(x, y, bar * Math.max(0, Math.min(1, ath.bouclier)), Math.max(8, h * 0.032)); ctx.fillStyle = white
+      if (ath.bouclierEtat) {
+        // The shield bar, the same glass bar as `ShieldBar3d`: drawn in its 1000x74 unit box,
+        // scaled and centered where the export already put the old bar.
+        const bw = Math.min(h * 0.5, w * 0.9), bh = bw * SHIELD_BAR_H / SHIELD_BAR_W
+        const ox = (w - bw) / 2, oy = h * 0.08
+        const s = bw / SHIELD_BAR_W
+        const state = ath.bouclierEtat.state
+        const low = state === 'low'
+        const alert = low || state === 'broken'
+        const flash = shieldFlash(frameToMs(ath.bouclierEtat.since, doc), frameToMs(frame, doc))
+        const pulse = alert ? 0.35 + 0.65 * flash : 1
+        const alertInk = resolveToken('replay-hud-shield-alert')
+        const mainInk = low ? alertInk : resolveToken('replay-hud-shield')
+        const deepInk = low ? mixSrgb(alertInk, 0.65) : resolveToken('replay-hud-shield-deep')
+        const trackInk = resolveToken('replay-hud-shield-track')
+        const rimInk = resolveToken('replay-hud-shield-rim')
+        const half = SHIELD_CENTER * Math.max(0, Math.min(1, ath.bouclierEtat.fraction))
+        const toX = (u: number) => ox + u * s
+        const toY = (v: number) => oy + v * s
+        // The bar's glass: track fill under the bar outline.
+        ctx.beginPath()
+        ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
+        ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
+        ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
+        ctx.lineTo(toX(0), toY(40)); ctx.closePath()
+        ctx.fillStyle = trackInk; ctx.fill()
+        if (state === 'broken') { ctx.fillStyle = alertInk; ctx.globalAlpha = 0.18 * flash; ctx.fill(); ctx.globalAlpha = 1 }
+        if (half > 0) {
+          // The fill: the center band, clipped to the bar, with the gradient bright at the center.
+          const grad = ctx.createLinearGradient(toX(0), 0, toX(1000), 0)
+          grad.addColorStop(0, deepInk); grad.addColorStop(0.5, mainInk); grad.addColorStop(1, deepInk)
+          ctx.save()
+          ctx.clip()
+          ctx.globalAlpha = low ? 0.45 + 0.45 * flash : 0.82
+          ctx.fillStyle = grad
+          ctx.fillRect(toX(SHIELD_CENTER - half), oy, 2 * half * s, bh)
+          ctx.globalAlpha = 1
+          // The glass light: a gloss line under the top edge and two faint streaks.
+          ctx.beginPath()
+          ctx.moveTo(toX(24), toY(11)); ctx.quadraticCurveTo(toX(500), toY(39), toX(976), toY(11))
+          ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.45; ctx.lineWidth = 6 * s; ctx.stroke()
+          ctx.globalAlpha = 0.1; ctx.lineWidth = 3 * s
+          ctx.beginPath()
+          ctx.moveTo(toX(0), toY(30)); ctx.quadraticCurveTo(toX(500), toY(58), toX(1000), toY(30))
+          ctx.moveTo(toX(0), toY(44)); ctx.quadraticCurveTo(toX(500), toY(72), toX(1000), toY(44))
+          ctx.stroke()
+          ctx.globalAlpha = 1
+          // `recharging`: the fill's growing edges, marked with the rim color.
+          if (state === 'recharging' && half < SHIELD_CENTER) {
+            ctx.globalAlpha = 0.9
+            ctx.strokeStyle = rimInk; ctx.lineWidth = 2
+            ctx.beginPath(); ctx.moveTo(toX(SHIELD_CENTER - half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER - half), toY(SHIELD_BAR_H))
+            ctx.moveTo(toX(SHIELD_CENTER + half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER + half), toY(SHIELD_BAR_H))
+            ctx.stroke()
+            ctx.globalAlpha = 1
+          }
+          ctx.restore()
+        }
+        // The rim: the bar outline, pale blue at rest, pulsing red when low or broken.
+        ctx.beginPath()
+        ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
+        ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
+        ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
+        ctx.lineTo(toX(0), toY(40)); ctx.closePath()
+        ctx.strokeStyle = alert ? alertInk : rimInk; ctx.lineWidth = 1.25; ctx.lineJoin = 'round'; ctx.globalAlpha = alert ? pulse : 0.9; ctx.stroke()
+        ctx.globalAlpha = 1
       }
       ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.max(8, h * 0.025), 0, Math.PI * 2); ctx.stroke()
       ctx.beginPath(); ctx.arc(w / 2, h / 2, 1.5, 0, Math.PI * 2); ctx.fill()
