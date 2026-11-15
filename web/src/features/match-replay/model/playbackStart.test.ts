@@ -29,6 +29,20 @@ describe('firstSpawnFrame', () => {
     expect(firstSpawnFrame({ frameCount: 500, tracks: [track(10, null)] })).toBe(0)
   })
 
+  it('skips the frozen pre-match stretch: a second before the first player moves', () => {
+    const frozen = (moveAt: number) => ({
+      startFrame: 0,
+      points: [{ t: 0, x: 5, y: 5 }, { t: 300, x: 5, y: 5 }, { t: moveAt, x: 5.5, y: 5 }],
+    })
+    expect(firstSpawnFrame({ frameCount: 5000, tracks: [frozen(679), frozen(700)] })).toBe(649)
+  })
+
+  it('never starts before the first spawn, and ignores jitter under the threshold', () => {
+    const jitter = { startFrame: 0, points: [{ t: 0, x: 1, y: 1 }, { t: 50, x: 1.01, y: 1 }] }
+    expect(firstSpawnFrame({ frameCount: 500, tracks: [jitter] })).toBe(0)
+    expect(firstSpawnFrame({ frameCount: 500, tracks: [track(85, 85)] })).toBe(85)
+  })
+
   it('stays inside the film', () => {
     expect(firstSpawnFrame({ frameCount: 100, tracks: [track(250, 250)] })).toBe(99)
     expect(firstSpawnFrame({ frameCount: 100, tracks: [track(-3, -3)] })).toBe(0)
