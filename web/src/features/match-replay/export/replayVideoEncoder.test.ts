@@ -12,10 +12,13 @@ import {
   ENCODE_QUEUE_MAX,
   EXPORT_FPS,
   EXPORT_FPS_3D,
+  EXPORT_QP,
   KEYFRAME_EVERY,
   avcLevelFor,
   canExportVideo,
   chooseExportFps,
+  chooseExportRateMode,
+  encodeOptionsFor,
   evenSize,
   frameDurationUs,
   frameTimestampUs,
@@ -24,6 +27,7 @@ import {
   videoBitrate,
   videoEncoderConfig,
 } from './replayVideoEncoder'
+import type { ExportRateMode } from './replayVideoEncoder'
 
 describe('evenSize — H.264 refuse les dimensions impaires', () => {
   it('laisse un nombre pair intact', () => {
@@ -82,19 +86,81 @@ describe('videoBitrate — borné aux deux bouts', () => {
 })
 
 describe('videoEncoderConfig — ce qu’on présente au navigateur', () => {
-  it('assemble codec, dimensions paires, cadence et débit', () => {
+  it('assemble codec, dimensions paires, cadence et débit (le mode variable est le repli)', () => {
     expect(videoEncoderConfig(1281, 721)).toEqual({
       codec: 'avc1.64001f',
       width: 1280,
       height: 720,
       framerate: EXPORT_FPS,
       bitrate: 6_912_000,
+      bitrateMode: 'variable',
       avc: { format: 'avc' },
     })
   })
 
   it('la cadence par défaut est celle de l’export', () => {
     expect(videoEncoderConfig(640, 360).framerate).toBe(30)
+  })
+
+  it('le mode quantizer demande la qualité, pas le débit', () => {
+    // Pas de `bitrate` : en mode quantizer, le QP EST le réglage, et le demander aussi
+    // ferait ment la console sur ce qui est demandé à l'encodeur.
+    const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer')
+    expect(config).toEqual({
+      codec: 'avc1.64001f',
+      width: 1280,
+      height: 720,
+      framerate: EXPORT_FPS,
+      bitrateMode: 'quantizer',
+      avc: { format: 'avc' },
+    })
+    expect('bitrate' in config).toBe(false)
+  })
+
+  it('le mode constant vise le même débit borné que variable', () => {
+    const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'constant')
+    expect(config.bitrateMode).toBe('constant')
+    expect(config.bitrate).toBe(videoBitrate(1280, 720, EXPORT_FPS))
+  })
+})
+
+describe('chooseExportRateMode — la sonde décide, rien n’est supposé', () => {
+  // La sonde fake lit le mode de la config qu'on lui présente : c'est elle qui décide.
+  const probeFor = (supported: ExportRateMode[]) => async (c: VideoEncoderConfig) =>
+    supported.includes((c.bitrateMode ?? 'variable') as ExportRateMode)
+
+  it("prend le quantizer quand la sonde l'accepte", async () => {
+    expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['quantizer', 'constant', 'variable']))).toBe('quantizer')
+  })
+
+  it('prend le constant quand seul lui est accepté', async () => {
+    expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['constant', 'variable']))).toBe('constant')
+  })
+
+  it("retombe sur le variable quand rien d'autre ne l'est", async () => {
+    expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['variable']))).toBe('variable')
+  })
+
+  it('ne sonde pas le constant quand le quantizer est déjà accepté', async () => {
+    const asked: string[] = []
+    const fps = await chooseExportFps(1920, 1080, 60, 30, async (c) => {
+      asked.push(`${c.bitrateMode ?? 'variable'}@${c.framerate}`)
+      return true
+    }, 'quantizer')
+    expect(fps).toBe(60)
+    expect(asked).toEqual(['quantizer@60'])
+  })
+})
+
+describe('encodeOptionsFor — le QP ne voyage que dans le mode quantizer', () => {
+  it('porte avc.quantizer dans le mode quantizer, image-clé et autres images de même', () => {
+    expect(encodeOptionsFor('quantizer', true)).toEqual({ keyFrame: true, avc: { quantizer: EXPORT_QP } })
+    expect(encodeOptionsFor('quantizer', false)).toEqual({ keyFrame: false, avc: { quantizer: EXPORT_QP } })
+  })
+
+  it('ne porte que la clé dans les modes de débit : le QP serait ignoré, et la console mentirait', () => {
+    expect(encodeOptionsFor('constant', true)).toEqual({ keyFrame: true })
+    expect(encodeOptionsFor('variable', false)).toEqual({ keyFrame: false })
   })
 })
 
