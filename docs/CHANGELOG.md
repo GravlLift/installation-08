@@ -19,10 +19,9 @@ Changes since 0.1.0-test.9.
 
 ### Look of the maps
 - Lighting: dark areas are dark again and skylight shadow patterns show on the ground. Recharge's roof over the overhang is dark instead of clear glass.
-- Forge maps:
-  - They use their own sun instead of the base map's, so Fortress is warm and sunny.
-  - They no longer come out washed out and grey.
-  - Style colors are drawn in the game's Forge palette, including fixed red and blue banners and colored wall pieces.
+- Forge maps now look like the game, with their real colors:
+  - Every piece is drawn with its own Forge style in the game's Forge palette, so the maps are no longer washed out and grey. That includes the fixed red and blue banners, wood, moss, sand and stonework.
+  - Each map uses its own sun and sky settings instead of its base map's, so Fortress is warm and sunny.
   - Foliage cutouts are correct.
 
 ### Weapons, pads and racks
