@@ -178,7 +178,11 @@ Sparse on purpose: the 3D view takes all the room the chrome leaves.
 - No auto-play toggle.
 - The settings drawer and the scoreboard keep their functions and take the new tokens. The
   scoreboard is one connected panel in the light-blue HUD style, the teams as its columns,
-  each team header striped with its in-game team color.
+  each team header striped with its in-game team color. Columns follow the game's in-match
+  scoreboard: Score, K, D, A (the film's counters at the current time, each only when the
+  film records it), then the mode's stat from the match stats: Caps in CTF, Ball time in
+  Oddball, Hill time in Strongholds and King of the Hill. The mode stat is a match total
+  (the film has no per-player series for it) and the panel says so; rows rank by score.
 - Back returns to match select with the same row focused.
 
 ## 5. Components
