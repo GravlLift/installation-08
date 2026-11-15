@@ -3,7 +3,8 @@ import { buildFilmAllegiance } from '@/lib/replay/filmAllegiance'
 import { scoreTimelineOf } from '@/lib/replay/scoreTimeline'
 import { readScoreBanner, type ScoreBannerReading } from './scoreBannerLogic'
 import { frameToMs } from '@/lib/replay/replayLogic'
-import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
+import type { ReplayDocumentReady, ReplayTrackReady } from '@/lib/replay/replayNormalize'
+import { shieldHudAt, shieldHudTrackOf, type ShieldHudTrack } from './shieldHud'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from './killFeedLogic'
@@ -45,7 +46,14 @@ export function preparerAth(doc: ReplayDocumentReady, xuid: string, kills: reado
   const joueurs = buildPlayers(doc, [])
   const allegeance = buildFilmAllegiance(joueurs, xuid)
   const fil = [...kills].sort((a, b) => a.replayMs - b.replayMs)
-  return { doc, xuid, allegeance, fil, score: scoreTimelineOf(doc), joueur: joueurs.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, munitions: suivreMunitions(doc) }
+  return { doc, xuid, allegeance, fil, score: scoreTimelineOf(doc), joueur: joueurs.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, munitions: suivreMunitions(doc), boucliers: new Map<ReplayTrackReady, ShieldHudTrack>() }
+}
+
+/** The shield bar of a life (`shieldHud`), built on its first read and kept for the source's life. */
+function barreBouclier(source: ReturnType<typeof preparerAth>, vie: ReplayTrackReady): ShieldHudTrack {
+  let piste = source.boucliers.get(vie)
+  if (!piste) source.boucliers.set(vie, (piste = shieldHudTrackOf(vie.points, frameToMs(1, source.doc), vie.points[0]?.t)))
+  return piste
 }
 
 /** The ammo of a weapon slot of a life across the film: each read carries forward what it does not say. */
@@ -118,7 +126,9 @@ export function lireAth(source: ReturnType<typeof preparerAth>, frame: number, l
   const touche = derniereMarque(source.impacts.get(slot) ?? [], maintenant, 150)
   const elimination = derniereMarque(source.eliminations, maintenant, 400)
   const equipement = equipmentSlotAt(doc, slot, frame)
-  return { bouclier: etat.shield?.value ?? null, armeId: arme?.id, etiquette, munitions, grenades, equipement, forme: formeReticule(etiquette?.key), touche, elimination }
+  // The shield bar: smooth recharge, instant drops (`shieldHud`); null when the film carries no shield.
+  const bouclierEtat = etat.shield ? shieldHudAt(barreBouclier(source, etat.life), frame) : null
+  return { bouclier: bouclierEtat?.fraction ?? null, bouclierEtat, armeId: arme?.id, etiquette, munitions, grenades, equipement, forme: formeReticule(etiquette?.key), touche, elimination }
 }
 
 /** Life window of an elimination of the followed player in the 3D HUD popup, in seconds. */

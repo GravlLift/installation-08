@@ -32,6 +32,14 @@
   --replay-hud-shadow: rgba(0, 0, 0, 0.8);
   --replay-hud-weapon: #a9dcff;
   --replay-export-backdrop: #000;
+  /* First-person shield bar (ui/ShieldBar3d.tsx): the glassy light steel blue read off the in-game
+     captures (brighter at the center, deeper at the ends, a pale rim). The alert red and the empty
+     track are design choices: the captures show only a full bar. */
+  --replay-hud-shield: #c2e3f8;
+  --replay-hud-shield-deep: #86a7c4;
+  --replay-hud-shield-rim: #dcefff;
+  --replay-hud-shield-track: rgba(8, 16, 26, 0.35);
+  --replay-hud-shield-alert: #ff4b3e;
 
   /* Aim-down-sights overlays (ui/ReplayAthLunette3d.tsx): colors read off the in-game ADS
      captures (1280x720). `shade` darkens outside a scope window; `ink` is the dark etched reticle. */
