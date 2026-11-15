@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
@@ -59,6 +60,50 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, remoteMatchesWithImages(h.root, matches))
+	// The response is out; now fetch the missing map pictures in the background so the
+	// next list request (the page follows up when a row came back without its image)
+	// finds them stored.
+	h.startMapImageDownloads(api, matches)
+}
+
+var (
+	mapImageFlightMu sync.Mutex
+	mapImageInFlight = map[string]bool{} // asset ids whose image download is running
+)
+
+// startMapImageDownloads downloads the map image for each listed match whose image is not
+// stored yet, in the background and once per asset while a download is in flight. It never
+// blocks the caller: the list response has already been written.
+func (h serverHandlers) startMapImageDownloads(api *haloapi.Client, matches []haloapi.Match) {
+	seen := map[string]bool{}
+	for _, m := range matches {
+		id := m.MapAssetID
+		if id == "" || seen[id] || m.MapImageURL != "" {
+			continue
+		}
+		seen[id] = true
+		go downloadListedMapImage(h.root, api, id, m.MapAssetVersion)
+	}
+}
+
+func downloadListedMapImage(root *store.Root, api *haloapi.Client, assetID, version string) {
+	mapImageFlightMu.Lock()
+	if mapImageInFlight[assetID] {
+		mapImageFlightMu.Unlock()
+		return
+	}
+	mapImageInFlight[assetID] = true
+	mapImageFlightMu.Unlock()
+	defer func() {
+		mapImageFlightMu.Lock()
+		delete(mapImageInFlight, assetID)
+		mapImageFlightMu.Unlock()
+	}()
+	// A detached context with its own deadline, never the list request's (which is
+	// already done and must not be cancelled or cancel this).
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	fetchMapImage(ctx, root, api, assetID, version)
 }
 
 // remoteMatchesWithImages adds the stored map image URL to each remote match entry (empty

@@ -22,6 +22,10 @@ function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : String(err)
 }
 
+// The server downloads a missing map picture in the background after the first list
+// answer; this is how long the page waits before asking once more for the list.
+const mapImageFollowUpDelayMs = 5000
+
 export interface UseRemoteMatchesResult {
   state: RemoteMatchesState
   localIds: Set<string>
@@ -33,7 +37,9 @@ export function useRemoteMatches(signedIn: boolean): UseRemoteMatchesResult {
   const [localIds, setLocalIds] = useState<Set<string>>(new Set())
   const controllerRef = useRef<AbortController | null>(null)
 
-  const load = useCallback((signal: AbortSignal) => {
+  // followUp marks the single scheduled follow-up itself, so it never schedules another:
+  // a map whose image never downloads must not turn this into a 5 s polling loop.
+  const load = useCallback((signal: AbortSignal, followUp = false) => {
     setState({ phase: 'loading' })
     void (async () => {
       try {
@@ -41,6 +47,13 @@ export function useRemoteMatches(signedIn: boolean): UseRemoteMatchesResult {
         if (signal.aborted) return
         setLocalIds(localMatchIdSet(local))
         setState({ phase: 'ready', matches: remote })
+        // A single follow-up, not a polling loop: when an entry came back without its map
+        // picture (the server is downloading it), re-request the list once about 5 s later.
+        if (!followUp && remote.some((m) => m.mapAssetId && !m.mapImageUrl)) {
+          setTimeout(() => {
+            if (!signal.aborted) load(signal, true)
+          }, mapImageFollowUpDelayMs)
+        }
       } catch (err) {
         if (signal.aborted) return
         setState({ phase: 'error', message: errorMessage(err) })

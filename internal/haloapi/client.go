@@ -137,15 +137,17 @@ func blobURL(prefix, rel string) string {
 }
 
 // Match is one row of the service's match history: the match id, the map and mode display
-// names, the start time, and the map's asset id (the service's own key for the map
-// variant, present when the response names it).
+// names, the start time, and the map's asset id and version (the service's own keys for
+// the map variant, present when the response names it). The version is server-side only
+// (it feeds the map image download); it is not part of the list response.
 type Match struct {
-	ID          string `json:"id"`
-	Map         string `json:"map"`
-	Mode        string `json:"mode"`
-	Time        string `json:"time"`
-	MapAssetID  string `json:"mapAssetId,omitempty"`
-	MapImageURL string `json:"mapImageUrl,omitempty"`
+	ID              string `json:"id"`
+	Map             string `json:"map"`
+	Mode            string `json:"mode"`
+	Time            string `json:"time"`
+	MapAssetID      string `json:"mapAssetId,omitempty"`
+	MapAssetVersion string `json:"-"`
+	MapImageURL     string `json:"mapImageUrl,omitempty"`
 }
 type matchInfo struct {
 	Start string   `json:"StartTime"`
@@ -170,7 +172,8 @@ func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, 
 	out := make([]Match, 0, len(result.Results))
 	for _, row := range result.Results {
 		info := row.Info
-		out = append(out, Match{ID: row.ID, Map: c.assetName(ctx, kindMap, info.Map), Mode: c.assetName(ctx, kindMode, info.Mode), Time: info.Start, MapAssetID: info.Map.ID})
+		out = append(out, Match{ID: row.ID, Map: c.assetName(ctx, kindMap, info.Map), Mode: c.assetName(ctx, kindMode, info.Mode), Time: info.Start,
+			MapAssetID: info.Map.ID, MapAssetVersion: info.Map.Version})
 	}
 	return out, nil
 }
