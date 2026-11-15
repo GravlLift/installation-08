@@ -129,7 +129,7 @@ type Step = 'materials' | 'index'
  * total connu (images décodées pour `materials`, index de rayons bâtis pour `index`). Sans compte,
  * l'étape n'est qu'un repère (début de bande).
  */
-type StepCallback = (step: Step, done?: number, total?: number) => void
+export type StepCallback = (step: Step, done?: number, total?: number) => void
 
 /** Un GLB décodé, ses surfaces rangées par famille et les matériaux de la vue qu'il possède. */
 interface Prepared {
@@ -212,10 +212,10 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback): P
  * comme elle. Il n'a pas de lumière propre : la lumière cuite de la carte (`light`, null si elle
  * n'en porte pas) est greffée sur ses matériaux, et reste à la carte qui la libère.
  */
-export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null): Promise<SurfaceModel> {
-  const prepared = await prepareSurfaces(buffer, quiet)
+export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet): Promise<SurfaceModel> {
+  const prepared = await prepareSurfaces(buffer, onStep)
   if (light) for (const m of prepared.owned) light.apply(m, true)
-  return indexSurfaces(prepared, quiet)
+  return indexSurfaces(prepared, onStep)
 }
 
 function quiet(): void {}

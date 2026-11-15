@@ -4,7 +4,7 @@ import { testReplayDoc } from '../features/match-replay/test/testDoc'
 import { ReplayViewer } from './MatchViewScreen'
 
 vi.mock('../features/match-replay/ui/Replay3DView', () => ({ Replay3DView: () => <div>3D view</div> }))
-vi.mock('./useVariantLayer', () => ({ useVariantLayer: () => null }))
+vi.mock('./useVariantLayer', () => ({ useVariantLayer: () => null, useVariantSource: () => ({ path: null, pending: false }) }))
 vi.mock('./useMatchReplayContext', () => ({ useMatchReplayContext: () => ({ kills: [], medals: [], context: null, playWindow: null, timeLimitMs: null }) }))
 vi.mock('./useMatchSummary', () => ({ useMatchSummary: () => null, useRemoteMatch: () => null }))
 vi.mock('../features/match-replay/sound/useReplaySound', () => ({ useReplaySound: () => ({ available: false, setTransportPlaying: vi.fn(), seek: vi.fn(), wake: vi.fn(), intro: vi.fn() }) }))

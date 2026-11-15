@@ -109,8 +109,10 @@ Replaces the fetch and map-build progress panels.
 - Full-screen map image with the match plate: map, mode, teams listed against each other
   as in the game's pre-match screen.
 - A single progress line with the real step name (fetching film, building map, building
-  variant layer). Real progress, never a fake bar.
-- When everything is ready: a short countdown (3, 2, 1) in the game's style, then the
+  variant layer). Real progress, never a fake bar: the 3D scene's phases (both GLB
+  downloads, decode, geometry, map objects, models, shader compile, first frame) are
+  weighted by cost (`chargement3d_logic.ts`), and the phase with its count shows under the bar.
+- When everything is ready (the bar reaches 100% and holds a moment): a short countdown (3, 2, 1) in the game's style, then the
   replay starts. Any key skips the countdown.
 - A long first build (minutes) says so plainly and keeps the page interesting: rosters,
   the scoreboard of the match, medals.

@@ -29,7 +29,7 @@ import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScore
 import { useCameraChoice } from './useCameraChoice'
 import { usePlayerChromeInsets } from './usePlayerChromeInsets'
 import { usePlayerMarks } from './usePlayerMarks'
-import { useVariantLayer } from './useVariantLayer'
+import { useVariantSource } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
@@ -124,7 +124,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
-  const variantPath = useVariantLayer(matchId)
+  const variant = useVariantSource(matchId)
   const replayContext = useMatchReplayContext(matchId, doc)
   const inks = useReplayInks(0)
   const identity = useMemo(
@@ -289,7 +289,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
           <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
             <Replay3DView
               meshPath={meshUrl(matchId)}
-              variantPath={variantPath}
+              variantPath={variant.path}
+              variantPending={variant.pending}
               weaponsPath="/api/weapons"
               armor={armor}
               doc={doc}

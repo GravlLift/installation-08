@@ -14,15 +14,23 @@ import { fetchMesh } from './meshFetch'
 
 function noProgress(): void {}
 
-/** loadVariantLayer rend le calque prêt à poser, éclairé par la lumière cuite de la carte (`light`). */
-export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null): Promise<SurfaceModel | null> {
-  let buffer: ArrayBuffer
+/** fetchVariantBuffer downloads the layer's GLB (`onProgress`: bytes received, announced size); null when absent (404). */
+export async function fetchVariantBuffer(
+  path: string,
+  signal: AbortSignal,
+  onProgress: (loaded: number, total: number) => void = noProgress,
+): Promise<ArrayBuffer | null> {
   try {
-    buffer = await fetchMesh(path, noProgress, signal)
+    return await fetchMesh(path, onProgress, signal)
   } catch (err) {
     if (!isNotFound(err)) throw err
     console.debug('rejeu 3D : pas de calque des objets de la variante', path)
     return null
   }
-  return loadLayerModel(buffer, light)
+}
+
+/** loadVariantLayer rend le calque prêt à poser, éclairé par la lumière cuite de la carte (`light`). */
+export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null): Promise<SurfaceModel | null> {
+  const buffer = await fetchVariantBuffer(path, signal)
+  return buffer ? loadLayerModel(buffer, light) : null
 }

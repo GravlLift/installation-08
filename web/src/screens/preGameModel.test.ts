@@ -197,14 +197,17 @@ describe('usePreGameCountdown', () => {
 })
 
 describe('sceneStepOf', () => {
-  it('names each stage of the scene load with its real fraction', () => {
-    expect(sceneStepOf({ kind: 'download', loaded: 0, total: 0 }).label).toBe('Loading the map')
-    expect(sceneStepOf({ kind: 'materials', done: 1, total: 2 }).label).toBe('Preparing the map')
-    expect(sceneStepOf({ kind: 'assets' }).label).toBe('Loading players and weapons')
+  const MB = 1024 * 1024
+  it('names each phase of the scene load with its count and the overall fraction', () => {
+    expect(sceneStepOf({ kind: 'loading', phase: 'download', fraction: 0.2, done: 42 * MB, total: 130 * MB }))
+      .toEqual({ label: 'Downloading the map 42 / 130 MB', fraction: 0.2 })
+    expect(sceneStepOf({ kind: 'loading', phase: 'download', fraction: 0, done: 3 * MB, total: 0 }).label).toBe('Downloading the map 3 MB')
+    expect(sceneStepOf({ kind: 'loading', phase: 'decode', fraction: 0.3, done: 12, total: 40 }).label).toBe('Decoding textures 12 / 40')
+    expect(sceneStepOf({ kind: 'loading', phase: 'index', fraction: 0.4, done: 0, total: 0 }).label).toBe('Preparing geometry')
+    expect(sceneStepOf({ kind: 'loading', phase: 'variant-build', fraction: 0.4, done: 0, total: 0 }).label).toBe('Building the map objects')
+    expect(sceneStepOf({ kind: 'loading', phase: 'assets', fraction: 0.6, done: 5, total: 9 }).label).toBe('Loading players and weapons 5 / 9')
+    expect(sceneStepOf({ kind: 'loading', phase: 'warmup', fraction: 0.9, done: 0, total: 0 }).label).toBe('Compiling shaders')
     expect(sceneStepOf({ kind: 'ready' })).toEqual({ label: 'Ready', fraction: 1 })
-    const half = sceneStepOf({ kind: 'materials', done: 1, total: 2 }).fraction ?? 0
-    expect(half).toBeGreaterThan(0)
-    expect(half).toBeLessThan(1)
   })
   it('claims no progress when the scene failed', () => {
     expect(sceneStepOf({ kind: 'error' }).fraction).toBeNull()
