@@ -9,6 +9,7 @@ import type { Avatar } from './avatar3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { PostFx3d } from './postFx3d'
 import type { Lighting } from './lighting'
+import { ExportReadback3d } from './exportReadback3d'
 
 /** Les éléments de scène utilisés par l'export et les opérations qui conservent son état. */
 interface ExportScene {
@@ -33,6 +34,8 @@ interface ExportScene {
   placeFirstPerson(frame: number): void
   /** Drives the clouds from match time (seconds), or hands them back to the wall clock (null). */
   setSkyClock?(seconds: number | null): void
+  /** Takes the top-down view's markers out of the scene (what the screen does when the 3D view draws). */
+  hideTopDown?(): void
 }
 
 /** La vue d'écran pendant un export : ce qu'elle avait, et ce qu'elle demande depuis. */
@@ -67,6 +70,8 @@ export class ReplayExportScene3d {
   private readonly scene: ExportScene
   /** The previous exported frame, and the match duration of a document frame (ms). */
   private clock = { previous: 0, frameMs: 0 }
+  /** Copies each rendered frame out of WebGL (`exportFrame`). */
+  private readonly readback = new ExportReadback3d()
 
   constructor(scene: ExportScene) { this.scene = scene }
 
@@ -91,6 +96,11 @@ export class ReplayExportScene3d {
     this.scene.renderer.setPixelRatio(1)
     this.scene.post.composer.setPixelRatio(1)
     this.applySize(setup.width, setup.height, false)
+    // A video is always the perspective view: exported from the 2D (top-down) view, the followed
+    // player's own body and the top-down markers filled the first-person frame. `endExport`
+    // gives the screen its view back.
+    this.scene.view = '3d'
+    this.scene.hideTopDown?.()
     this.scene.applyPov(setup.pov)
     // La caméra libre déjà choisie à l'écran garde son cadrage ; prise pour l'export, elle part
     // derrière le joueur suivi à la première image du clip et n'en bouge plus.
@@ -121,7 +131,10 @@ export class ReplayExportScene3d {
     }
     this.scene.lighting.updateShadows(frame)
     this.scene.post.composer.render()
-    return this.scene.renderer.domElement
+    // The frame is read out of the drawing buffer HERE, never through the WebGL canvas: a hidden
+    // tab serves the canvas's last composited image (cf. `exportReadback3d`).
+    this.scene.renderer.setRenderTarget(null)
+    return this.readback.read(this.scene.renderer.getContext())
   }
 
   /** Projette les étiquettes visibles dans le format vidéo. */
@@ -149,6 +162,7 @@ export class ReplayExportScene3d {
     const held = this.held
     if (!held) return
     this.held = null
+    this.readback.dispose()
     this.scene.setSkyClock?.(null)
     this.scene.renderer.setPixelRatio(held.pixelRatio)
     this.scene.post.composer.setPixelRatio(held.pixelRatio)
