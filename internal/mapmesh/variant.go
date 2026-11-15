@@ -65,10 +65,16 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	if err != nil {
 		return Summary{}, err
 	}
-	m, bilan, err := himap.CollecteMaillageVariante(ctx, himap.OptionsVariante{
+	opts := himap.OptionsVariante{
 		RacineDeploy: gameRoot, CheminModule: t.Module, Objets: t.Objects, Teintes: tints, Invisibles: invisible,
 		StylesForge: styles, Filtres: ModeFilters(t.Mode),
-	})
+	}
+	if t.ForgeMaterials != nil {
+		// The game's own Forge palette resolves every style swatch; the catalog only fills the
+		// swatches it does not name (it is a lossy export of that palette).
+		opts.StylesMvar, opts.SaletesMvar, opts.CatalogueForge = t.Styles, t.StyleGrimes, t.ForgeMaterials
+	}
+	m, bilan, err := himap.CollecteMaillageVariante(ctx, opts)
 	if err != nil {
 		return Summary{}, err
 	}

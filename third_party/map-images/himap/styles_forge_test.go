@@ -78,6 +78,85 @@ func TestLitStylesForge(t *testing.T) {
 	}
 }
 
+// TestResoutStylesForgeChaine : the game's palette resolves a swatch first, the catalog only the
+// swatches the game does not name; a swatch the game knows but disables is not taken from the
+// catalog; each zone keeps its rank and its style layer's tint.
+func TestResoutStylesForgeChaine(t *testing.T) {
+	k := func(b uint32) *Couche {
+		return &Couche{Sorte: CoucheDegrade, Bitmap: b, Transfo: transfoNeutre, Haut: [3]float32{1, 1, 1}, Milieu: [3]float32{0.5, 0.5, 0.5}}
+	}
+	jeu := echantillonForge(func(nom int32) (*Couche, bool) {
+		switch nom {
+		case 1:
+			return k(0x10), true
+		case 2:
+			return nil, true // known, disabled
+		}
+		return nil, false
+	})
+	catalogue := echantillonForge(func(nom int32) (*Couche, bool) {
+		switch nom {
+		case 1, 2:
+			return k(0x90), true
+		case 3:
+			return k(0x30), true
+		}
+		return nil, false
+	})
+	rouge := &mapvar.Vec3{X: 1, Y: 0, Z: 0}
+	styles := map[int32][]mapvar.StyleLayer{
+		7: {{Hash: 0}, {Hash: 1, Tint: rouge, Scalar: 1}, {Hash: 2}, {Hash: 3}},
+		8: {{Hash: 99}},
+	}
+	got := resoutStylesForge(enChaine(jeu, nil, catalogue), styles, map[int32]mapvar.StyleGrime{7: {Hash: 3, Amount: 0.4}})
+	if len(got) != 1 || got[7] == nil {
+		t.Fatalf("styles %v, want only style 7", got)
+	}
+	s := got[7]
+	if s.Zones[0] != nil || s.Zones[2] != nil {
+		t.Errorf("empty or disabled zone drawn: %+v / %+v", s.Zones[0], s.Zones[2])
+	}
+	if s.Zones[1] == nil || s.Zones[1].Bitmap != 0x10 || !procheRGB(s.Zones[1].Haut, [3]float32{1, 0, 0}) || !procheRGB(s.Zones[1].Milieu, [3]float32{1, 0, 0}) {
+		t.Errorf("zone 2 = %+v, want the game's swatch tinted red", s.Zones[1])
+	}
+	if s.Zones[3] == nil || s.Zones[3].Bitmap != 0x30 {
+		t.Errorf("zone 4 = %+v, want the catalog's swatch", s.Zones[3])
+	}
+	if s.Salete == nil || s.Salete.Bitmap != 0x30 || s.QuantiteSalete != 0.4 {
+		t.Errorf("grime %+v amount %v", s.Salete, s.QuantiteSalete)
+	}
+}
+
+// TestCompleteTeintesForge : a style the catalog left without a flat tint takes the game
+// swatch's middle color times its tint; a catalog tint is kept.
+func TestCompleteTeintesForge(t *testing.T) {
+	jeu := echantillonForge(func(nom int32) (*Couche, bool) {
+		if nom == 5 {
+			return &Couche{Milieu: [3]float32{0.5, 0.25, 1}, Matiere: &MatiereCouche{Metal: 0.75}}, true
+		}
+		return nil, false
+	})
+	teintes := map[int32]TeinteForge{1: {Couleur: [3]float32{0.25, 0.25, 0.25}, Rugosite: 1}}
+	styles := map[int32][]mapvar.StyleLayer{
+		1: {{Hash: 5}},
+		2: {{Hash: 5, Tint: &mapvar.Vec3{X: 1, Y: 1, Z: 0.5}, Scalar: 0.3}},
+		3: {{Hash: 6}},
+	}
+	got := completeTeintesForge(teintes, jeu, styles)
+	if got[1] != teintes[1] {
+		t.Errorf("catalog tint replaced: %+v", got[1])
+	}
+	if want := (TeinteForge{Couleur: [3]float32{0.5, 0.25, 0.5}, Rugosite: 1, Metal: 0.75}); got[2] != want {
+		t.Errorf("style 2 = %+v, want %+v", got[2], want)
+	}
+	if _, ok := got[3]; ok {
+		t.Errorf("unknown swatch tinted: %+v", got[3])
+	}
+	if len(teintes) != 1 {
+		t.Errorf("input map modified: %v", teintes)
+	}
+}
+
 // zonesTest : a three-zone material (base, Mask0 R, Mask0 G) with its own normal, masks and ASG,
 // and a grime.
 func zonesTest() *ZonesStyle {

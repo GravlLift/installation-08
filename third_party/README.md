@@ -262,6 +262,26 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       alpha of 0 to 4, which the coverage reading above would otherwise cut away entirely.
     Covered by `himap/styles_forge_test.go` (new), `himap/decoupe_feuillage_test.go` (new) and
     `himap/couches_style_test.go` (modified, gamefiles).
+  - Forge styles and representation palettes from the game's own tags:
+    - `himap/styles_forge.go`, `forge_teintes.go`, `maillage_variante.go` (`OptionsVariante`
+      `StylesMvar`, `SaletesMvar`, `CatalogueForge`), and `internal/mapmesh/variant.go`: an
+      object's Forge material resolves its swatches in the game's Forge palette (mwpl
+      0x4FD73754, Ekur's FORGE_PALETTE) through the material-style swatch reader
+      (`echantillonBrut`), the embedded catalog only filling swatches the game does not name.
+      The catalog is Ekur's export of that palette keyed by each entry's notes string, so
+      entries sharing one overwrite each other (324 entries, 318 kept). Fortress's sandstone
+      (-1773215225, 136 style layers) and moss (-422696516, 77) swatches were among the lost,
+      and the Human Brutalist walls naming them drew their default pale concrete (visible
+      triangles with a pale low-chroma base layer: 16.0% before, 2.2% after). Flat tints gain
+      the styles the game resolves (`completeTeintesForge`).
+    - `himap/maillage_variante_representation.go` (`palettesRepresentations`,
+      `paletteDeRepresentation`), `maillage_variante_palette.go`
+      (`listeMateriauxPaletteTrous`): an `rtgo` representation draws the palette its food
+      record names (+0x44), not the first palette after its `rtgo`; an empty slot keeps the
+      default palette's material. Eroded Terrain E's ten representations share one `rtgo` and
+      name eight palettes; Fortress's choice (-437051236) drew the "Default" one.
+    Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
+    `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
   - Foliage atlas cuts, `himap/decoupe.go` (`decoupeAtlasFeuillage`), `materiaux.go`: a shader
     that binds a leaf atlas color map (`0xca775400`, or 669c3e5e's slot 4) is cut by that map's
     alpha, the leaves' coverage. Fortress's pine clusters, bushes, firs and root clusters drew as

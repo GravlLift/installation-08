@@ -15,7 +15,10 @@
 //     `food` reference, a la suite de chaque `rtgo`, ses PALETTES (`rtmp`), chacune une liste de
 //     references `mat ` que les parts du maillage indexent par rang, comme la liste d'une
 //     instance de sbsp. La premiere palette est retenue : le style que l'objet choisit n'est pas
-//     lu, l'objet sort dans le style par defaut de son type.
+//     lu, l'objet sort dans le style par defaut de son type. LOCAL-CHANGE (infinite-theater-3d):
+//     an object's representation draws the palette its food record names
+//     (palettesRepresentations), and its Forge material comes from the game's Forge palette
+//     (StylesForgeJeu).
 //   - l'ORIGINE (LOCAL-CHANGE (infinite-theater-3d): origine_forge.go) : le `.mvar` donne la
 //     position de l'origine du `mode` propre de l'objet ; un `rtgo` est recentre sur la sienne, il
 //     se decale donc du coin de la boite du `mode` moins le sien.
@@ -70,6 +73,13 @@ type OptionsVariante struct {
 	// StylesForge (LOCAL-CHANGE (infinite-theater-3d)): the objects' Forge styles by style id
 	// (LitStylesForge), which repaint their layered materials; nil draws the materials' own.
 	StylesForge map[int32]*StyleForge
+	// StylesMvar and SaletesMvar (LOCAL-CHANGE (infinite-theater-3d)): the variant's raw styles
+	// (mapvar.Variant.Styles, StyleGrimes). When set, the styles are resolved from the game's own
+	// Forge palette (StylesForgeJeu), CatalogueForge filling only the swatches the game does not
+	// name, and they replace StylesForge; the flat Teintes gain the styles the game resolves.
+	StylesMvar     map[int32][]mapvar.StyleLayer
+	SaletesMvar    map[int32]mapvar.StyleGrime
+	CatalogueForge []byte
 }
 
 // BilanVariante compte le sort des objets d'une variante.
@@ -189,6 +199,17 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
 	}
 	defer func() { _ = forge.Close() }()
+	// LOCAL-CHANGE (infinite-theater-3d): the objects' Forge styles from the game's own palette.
+	if opts.StylesMvar != nil {
+		styles := lecteurStyles(idx)
+		jeu, err := StylesForgeJeu(styles, opts.CatalogueForge, opts.StylesMvar, opts.SaletesMvar)
+		if err != nil {
+			return nil, b, err
+		}
+		slog.InfoContext(ctx, "styles Forge resolus", "styles", len(opts.StylesMvar), "jeu", len(jeu), "catalogue", len(opts.StylesForge))
+		opts.StylesForge = jeu
+		opts.Teintes = completeTeintesForge(opts.Teintes, echantillonsPaletteJeu(styles), opts.StylesMvar)
+	}
 
 	objets := objetsVisibles(opts.Objets, opts.Invisibles, &b)
 	assets := map[uint32]*RuntimeGeoAsset{}
