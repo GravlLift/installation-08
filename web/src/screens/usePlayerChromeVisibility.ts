@@ -2,10 +2,11 @@
  * usePlayerChromeVisibility — the auto-hide rule of the player's chrome (top strip and
  * transport, docs/UI-DESIGN.md 4.4).
  *
- * The chrome hides 3 s after the last activity while the replay PLAYS, and stays visible
- * whenever one of these holds:
- *   - the replay is paused,
+ * Windowed, the chrome sits above and below the scene and never covers it, so it never hides.
+ * In fullscreen it is laid over the scene, and it hides 3 s after the last activity, paused or
+ * playing, so it never sits on the HUD for good. It stays visible whenever one of these holds:
  *   - a menu of the chrome's own is open (speed, export, settings, scoreboard),
+ *   - the scrub bar is being dragged,
  *   - the pointer is over the chrome,
  *   - any key press, mouse move, click or focus anywhere just happened (the 3 s window).
  * Every activity re-shows the chrome and re-arms the hide timer; leaving the chrome while it
@@ -17,14 +18,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export const CHROME_HIDE_DELAY_MS = 3000
 
 export interface UsePlayerChromeVisibilityParams {
-  playing: boolean
+  /** The chrome is laid over the scene (fullscreen): only then does it hide. */
+  overlay: boolean
   /** A menu of the chrome's own is open. */
   menuOpen: boolean
   /** The scrub bar is being dragged: the chrome must stay up. */
   scrubbing?: boolean
 }
 
-export function usePlayerChromeVisibility({ playing, menuOpen, scrubbing }: UsePlayerChromeVisibilityParams): {
+export function usePlayerChromeVisibility({ overlay, menuOpen, scrubbing }: UsePlayerChromeVisibilityParams): {
   visible: boolean
   scopeRef: React.RefObject<HTMLElement | null>
   onScopeEnter: () => void
@@ -36,7 +38,7 @@ export function usePlayerChromeVisibility({ playing, menuOpen, scrubbing }: UseP
   const hoverRef = useRef(false)
 
   // Whether the chrome must stay up regardless of the idle window.
-  const alwaysOn = !playing || menuOpen || !!scrubbing
+  const alwaysOn = !overlay || menuOpen || !!scrubbing
 
   // Refs read by the listeners: the hook must not re-subscribe on every frame tick.
   const alwaysRef = useRef(alwaysOn)
@@ -57,7 +59,7 @@ export function usePlayerChromeVisibility({ playing, menuOpen, scrubbing }: UseP
     armHide()
   }, [armHide])
 
-  // Pausing, opening a menu or any activity keeps the chrome up; hiding it starts here.
+  // Leaving the overlay, opening a menu or any activity keeps the chrome up; hiding starts here.
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current)
     if (alwaysOn) {
@@ -70,8 +72,7 @@ export function usePlayerChromeVisibility({ playing, menuOpen, scrubbing }: UseP
   // Mouse moves, key presses, clicks and focus re-show the chrome and re-arm the timer.
   useEffect(() => {
     const onActivity = (event: Event) => {
-      // A mouse move only counts inside the chrome's scope, otherwise a camera drag on the
-      // 3D view would keep it up forever.
+      // A mouse move only counts inside the chrome's scope (the player).
       if (event.type === 'mousemove') {
         const scope = scopeRef.current
         const target = event.target

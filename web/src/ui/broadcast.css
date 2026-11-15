@@ -175,25 +175,36 @@
 .bc-pregame-actions { display: flex; gap: 12px; margin-top: 8px; }
 .bc-pregame-error { color: var(--loss); font-size: 14px; max-width: 480px; margin: 8px 0 0; }
 
-/* Player chrome (brief 126): the 3D view fills the window on black; a slim strip rides the
- * top, the transport is the lower third, both inside the 16:9 box and both auto-hiding. */
-.bc-player { position: fixed; inset: 0; z-index: 1; display: grid; place-items: center; background: #000; }
+/* Player chrome. Windowed: a vertical stack on black that fills the window without scrolling:
+ * the top strip, the stage (the 16:9 scene box, as large as fits, centered), the transport.
+ * Nothing covers the scene, so its HUD shows whole. Fullscreen (`.bc-player-full`): the box
+ * fills the screen and the strip and the transport are laid over it, auto-hiding
+ * (`usePlayerChromeVisibility`). */
+.bc-player { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; background: #000; }
 /* The player is dark: native controls (selects, checkboxes, ranges, and the option lists the
  * browser draws) take the dark scheme and our colors, or an open list comes up white with our
  * light text on it. */
 .bc-player { color-scheme: dark; }
 .bc-player option { background: var(--studio-800); color: var(--ink); }
-.bc-player-box { position: relative; aspect-ratio: 16 / 9; width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+/* When the window is taller than the box needs, the box sits on the transport (the black goes
+ * under the strip), as a video sits on its controls. */
+.bc-player-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: end center; container-type: size; }
+.bc-player-full .bc-player-stage { place-items: center; }
+.bc-player-box { position: relative; width: min(100cqw, 100cqh * 16 / 9); height: min(100cqh, 100cqw * 9 / 16);
   overflow: hidden; background: var(--studio-950); }
 
-/* The auto-hide fade of the strip and the transport. */
+/* The auto-hide fade of the strip and the transport (fullscreen only). */
 .bc-chrome { transition: opacity 200ms ease; }
 .bc-chrome.bc-hidden { opacity: 0; pointer-events: none; }
 
 /* Top strip: back, map, mode, date, coatings notice. */
-.bc-player-top { position: absolute; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 14px;
-  padding: 10px 16px; font-family: var(--display); font-stretch: 75%;
+.bc-player-top { position: relative; z-index: 20; display: flex; align-items: center; gap: 14px;
+  padding: 6px 16px; font-family: var(--display); font-stretch: 75%; }
+.bc-player-full .bc-player-top { position: absolute; top: 0; left: 0; right: 0; padding: 10px 16px;
   background: linear-gradient(180deg, rgba(3,6,10,0.82), rgba(3,6,10,0.55) 70%, transparent); }
+/* The transport's seat: under the stage windowed, over the scene's bottom in fullscreen. */
+.bc-player-bottom { position: relative; z-index: 20; padding: 4px 6px 6px; }
+.bc-player-full .bc-player-bottom { position: absolute; left: 16px; right: 16px; bottom: 12px; padding: 0; }
 .bc-player-back { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase;
   font-size: 12px; font-weight: 700; padding: 5px 14px 4px; color: var(--ink); border: 1px solid var(--studio-700);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
@@ -203,8 +214,7 @@
 .bc-player-notice { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
 
 /* Transport: the lower third (the mockup's `.transport`). */
-.bc-player-transport { position: absolute; left: 16px; right: 16px; bottom: 12px; z-index: 20;
-  padding: 10px 20px 10px 16px; background: linear-gradient(90deg, rgba(10,16,24,0.94), rgba(17,26,38,0.82));
+.bc-player-transport { container-type: inline-size; padding: 8px 14px 8px 10px; background: linear-gradient(90deg, rgba(10,16,24,0.94), rgba(17,26,38,0.82));
   clip-path: polygon(0 0, calc(100% - var(--slant)) 0, 100% var(--slant), 100% 100%, 0 100%); border-left: 3px solid var(--air); }
 
 /* Scrub bar: our own slider (not a range input), with the played part, the head and the
@@ -241,45 +251,51 @@
 .bc-scrub-mark:hover .bc-scrub-mark-tip { display: block; }
 
 /* Controls row, left to right (the mockup's `.ctl`). It is made of groups that never break
- * inside; when the row does not fit, whole groups wrap to a second row. */
-.bc-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 6px; margin-top: 8px; font-family: var(--display); font-stretch: 75%;
-  letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; color: var(--ink); }
-.bc-ctl-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+ * inside, and it stays on one row down to a 1280 px window: when it is short of room the POV
+ * picker shrinks first (its name ellipsized). Only in a narrower bar do whole groups wrap to a
+ * second row. */
+.bc-ctl { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 10px; margin-top: 6px; font-family: var(--display); font-stretch: 75%;
+  letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: var(--ink); white-space: nowrap; }
+@container (max-width: 1210px) { .bc-ctl { flex-wrap: wrap; } }
+.bc-ctl-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+/* The camera group gives way first: below its natural width its POV picker shrinks. */
+.bc-ctl-group.bc-camera { min-width: 0; }
 .bc-seg button:disabled { opacity: 0.4; cursor: default; }
 .bc-ctl button, .bc-ctl select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .bc-ctl .bc-play { width: 38px; height: 30px; background: var(--air); color: #04121c; font-size: 14px;
   display: inline-flex; align-items: center; justify-content: center;
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
 .bc-ctl .bc-play:hover { background: var(--ink); }
-.bc-ctl .bc-ctl-btn { padding: 5px 9px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); }
+.bc-ctl .bc-ctl-btn { padding: 5px 7px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); }
 .bc-ctl .bc-ctl-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
 .bc-ctl .bc-ctl-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--air-deep); }
-.bc-ctl .bc-time { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600; margin: 0 14px 0 8px;
+.bc-ctl .bc-time { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; margin: 0 4px 0 6px;
   letter-spacing: 0.06em; text-transform: none; }
 .bc-ctl .bc-time i { color: var(--ink-faint); font-style: normal; }
 .bc-seg { display: flex; }
-.bc-seg button { padding: 5px 12px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
-  font-size: 12px; letter-spacing: 0.16em; }
+.bc-seg button { padding: 5px 7px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
+  font-size: 12px; letter-spacing: 0.08em; }
 .bc-seg button:not(.on):not(:disabled):hover { color: var(--ink); }
 .bc-seg button.on { color: #04121c; background: var(--ink); border-color: var(--ink); font-weight: 700; }
 .bc-ctl .bc-gap { flex: 1; }
-.bc-ctl .bc-lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.22em; margin: 0 8px 0 16px; }
-.bc-pov { padding: 5px 14px 4px; border-left: 3px solid var(--team-ally); background: var(--studio-800);
-  font-size: 13px; letter-spacing: 0.1em; }
+.bc-ctl .bc-lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.16em; margin: 0 4px 0 0; }
+.bc-pov { flex: 0 1 auto; min-width: 72px; max-width: 160px; padding: 5px 8px 4px; border-left: 3px solid var(--team-ally);
+  background: var(--studio-800); font-size: 12px; letter-spacing: 0.04em; text-overflow: ellipsis; }
 .bc-pov:hover { color: var(--ink); }
 /* The open list's colors come from `.bc-player option`; the bar's caps and tracking stop here. */
 .bc-pov option { text-transform: none; letter-spacing: 0; }
-/* A panel opened from the bar (settings, export): on the right, between the top strip and the
- * bar (the safe insets `usePlayerChromeInsets` publishes on the box), never over either; it
- * sits at the bottom of that slot, and its content scrolls when taller than the slot. */
+/* A panel opened from the bar (settings, export): on the right inside the scene's box, and in
+ * fullscreen between the strip and the bar laid over it (the safe insets
+ * `usePlayerChromeInsets` publishes on the box, 0 windowed), never over either; it sits at the
+ * bottom of that slot, and its content scrolls when taller than the slot. */
 .bc-panel { position: absolute; right: 16px; left: 16px; z-index: 25; pointer-events: none;
-  top: calc(var(--bc-chrome-top, 48px) + 8px); bottom: calc(var(--bc-chrome-bottom, 96px) + 8px);
+  top: calc(var(--bc-chrome-top, 0px) + 8px); bottom: calc(var(--bc-chrome-bottom, 0px) + 8px);
   display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; }
 .bc-panel > * { pointer-events: auto; max-height: 100%; max-width: 100%; }
 
 /* The sound control keeps its own behavior; the chrome only gives it a seat in the row. */
 .bc-sound { display: inline-flex; align-items: center; gap: 8px; }
-.bc-sound input[type="range"] { accent-color: var(--air); }
+.bc-sound input[type="range"] { accent-color: var(--air); width: 48px; }
 
 /* Reduced motion: the drift, the cross-fade, the page wipe and the count scale stop. */
 @media (prefers-reduced-motion: reduce) {
