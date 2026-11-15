@@ -547,6 +547,11 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
       if (!canvas || runningRef.current || !canExportVideo()) return
       runningRef.current = true
       cancelRef.current = false
+      // Un clip de l'export PRÉCÉDENT peut être encore retenu (dialogue fermé sans Sauver ni
+      // Refermer, puis un nouvel export) : le rendre maintenant, sinon l'ancien blob fuirait en
+      // mémoire jusqu'à la fermeture de l'onglet.
+      pendingRef.current?.release()
+      pendingRef.current = null
       o.pause()
       // L'IMAGE D'AVANT L'EXPORT est mise de côté MAINTENANT : la boucle va écrire `frameRef`
       // des milliers de fois, et l'utilisateur doit retrouver son rejeu où il l'avait laissé.

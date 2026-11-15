@@ -151,18 +151,33 @@ describe('holdDownload — le téléchargement attend un clic', () => {
     create.mockRestore()
   })
 
-  it('le `save` ne révoque PAS l’URL au retour du clic, mais plus tard', () => {
+  it('le `save` ne révoque JAMAIS l’URL, même après coup : un second clic doit pouvoir re-la lire', () => {
     vi.useFakeTimers()
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
     const ancre = document.createElement('a')
     vi.spyOn(ancre, 'click').mockImplementation(() => {})
     const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
     pending.save()
-    expect(revoked).toEqual([])
     vi.runAllTimers()
-    expect(revoked).toEqual(['blob:replay-test'])
+    // Pas de minuteur propre : le `save` de `holdDownload` laisse l'URL en place, pour que le
+    // clic RETENTÉ de « Sauvegarder » (le premier a échoué) puisse encore lire le blob.
+    expect(revoked).toEqual([])
     create.mockRestore()
     vi.useRealTimers()
+  })
+
+  it('le `save` peut être retenté : un second clic pose l’ancre et clique encore', () => {
+    const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
+    const ancre = document.createElement('a')
+    const clic = vi.spyOn(ancre, 'click')
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    pending.save()
+    pending.save()
+    // DeUX clics : le premier téléchargement a échoué (fichier verrouillé par ailleurs), le
+    // second part — c'est tout l'objet de `save` qui ne révoque ni ne s'éteint pas.
+    expect(clic).toHaveBeenCalledTimes(2)
+    expect(revoked).toEqual([])
+    create.mockRestore()
   })
 
   it('le `release` révoque l’URL SANS poser d’ancre : le clip ne descend pas', () => {
@@ -174,18 +189,25 @@ describe('holdDownload — le téléchargement attend un clic', () => {
     expect(document.querySelector('a[download]')).toBeNull()
   })
 
-  it('le `release` après un `save` ne révoque PAS une deuxième fois', () => {
-    vi.useFakeTimers()
+  it('le `release` ne révoque PAS une deuxième fois', () => {
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
+    pending.release()
+    pending.release()
+    expect(revoked).toEqual(['blob:replay-test'])
+  })
+
+  it('`triggerDownload` — à usage unique — révoque l’URL après `URL_RELEASE_MS`', () => {
+    // La capture d'image n'a pas de bouton « Sauvegarder » : c'est un MINUTEUR PROPRE qui
+    // révoque, sinon un clip de plusieurs méga-octets resterait retenu jusqu'à la fermeture
+    // de l'onglet.
+    vi.useFakeTimers()
     const ancre = document.createElement('a')
     vi.spyOn(ancre, 'click').mockImplementation(() => {})
     const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
-    pending.save()
+    triggerDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
+    expect(revoked).toEqual([])
     vi.runAllTimers()
-    // Le `save` a déjà révoqué (via le minuteur). Le `release` ne doit PAS révoquer deux fois.
-    const avant = revoked.length
-    pending.release()
-    expect(revoked.length).toBe(avant)
+    expect(revoked).toEqual(['blob:replay-test'])
     create.mockRestore()
     vi.useRealTimers()
   })

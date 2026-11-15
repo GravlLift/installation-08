@@ -101,27 +101,34 @@ const URL_RELEASE_MS = 1000
  * Le `release` rend la main : il révoque l'URL et rend le blob au collecteur. À
  * appeler quand l'utilisateur ferme le dialogue SANS avoir sauvé — un blob que plus
  * personne ne peut sauver doit être rendu (cf. `useReplayExport`, la phase `done`).
+ *
+ * `save` et `release` jouent des rôles asymétriques, et c'est voulu : `save` peut être
+ * appelé autant de fois qu'on veut, `release` n'a de sens qu'une fois. Un premier
+ * téléchargement peut ÉCHOUER (Chrome ne peut pas écraser un fichier que l'autre
+ * programme a ouvert), et le clic sur « Sauvegarder » doit pouvoir être RETENTÉ — un
+ * `save` qui révoquerait son URL au bout d'une seconde rendrait ce second clic muet.
  */
 export interface PendingDownload {
-  /** Déclenche le téléchargement. À appeler UNIQUEMENT depuis le clic d'un utilisateur. */
+  /** Déclenche le téléchargement. À appeler depuis le clic d'un utilisateur, aussi souvent que nécessaire. */
   save: () => void
-  /** Révoque l'URL d'objet et rend le blob au collecteur. Le blob ne descendra pas. */
+  /** Révoque l'URL d'objet et rend le blob au collecteur. À appeler une fois, en fermant sans sauver. */
   release: () => void
 }
 
 /**
  * holdDownload prépare un téléchargement sans le déclencher.
  *
- * L'URL d'objet est créée à l'appel : elle vit dans ce que le retour porte, et c'est
- * `release` — pas un minuteur — qui la révoque. Tant que l'utilisateur n'a ni sauvé
- * ni fermé, le blob reste lisible et rien ne part.
+ * L'URL d'objet est créée à l'appel : elle vit dans ce que le retour porte. `save` pose
+ * l'ancre et clique, sans JAMAIS révoquer — l'URL doit survivre à tous les clics de
+ * « Sauvegarder » (le premier peut échouer, le second doit marcher). C'est `release` —
+ * et lui seul — qui la révoque. Tant que l'utilisateur n'a ni fermé, le blob reste
+ * lisible.
  */
 export function holdDownload(blob: Blob, filename: string): PendingDownload {
   const url = URL.createObjectURL(blob)
   let released = false
   return {
     save() {
-      if (released) return
       const a = document.createElement('a')
       a.href = url
       a.download = filename
@@ -132,14 +139,9 @@ export function holdDownload(blob: Blob, filename: string): PendingDownload {
       try {
         a.click()
       } finally {
-        // L'ANCRE PART TOUT DE SUITE, l'URL non : le clic est traité, le blob se lit encore
-        // (cf. `URL_RELEASE_MS`), et on n'a plus besoin de la retenir ensuite.
+        // L'ANCRE PART TOUT DE SUITE. L'URL, elle, EST LAISSÉE : un second clic de
+        // « Sauvegarder » doit pouvoir re-la lire, et c'est `release` qui la rend.
         a.remove()
-        setTimeout(() => {
-          if (released) return
-          released = true
-          URL.revokeObjectURL(url)
-        }, URL_RELEASE_MS)
       }
     },
     release() {
@@ -160,9 +162,15 @@ export function holdDownload(blob: Blob, filename: string): PendingDownload {
  *
  * L'ancre est ATTACHÉE au document le temps du clic : un clic sur un nœud détaché est
  * ignoré par certains navigateurs, et le téléchargement n'y part alors jamais.
+ *
+ * CETTE VOIE EST À USAGE UNIQUE : `save` ne révoque plus, donc il faut un MINUTEUR PROPRE
+ * qui révoque l'URL au bout de `URL_RELEASE_MS` (le temps que le blob soit lu), sinon un
+ * clip de plusieurs méga-octets resterait retenu jusqu'à la fermeture de l'onglet.
  */
 export function triggerDownload(blob: Blob, filename: string): void {
-  holdDownload(blob, filename).save()
+  const pending = holdDownload(blob, filename)
+  pending.save()
+  setTimeout(pending.release, URL_RELEASE_MS)
 }
 
 /**

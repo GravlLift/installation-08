@@ -54,20 +54,23 @@ vi.mock('../sound/replayAudioMix', async (orig) => {
   const vrai = await orig<typeof import('../sound/replayAudioMix')>()
   return { ...vrai, mixReplayAudio: vi.fn(async () => null) }
 })
+const releases = vi.hoisted(() => [] as { blob: Blob; filename: string }[])
+
 vi.mock('./replayCapture', async (orig) => {
   const vrai = await orig<typeof import('./replayCapture')>()
   // LE HOOK N'APPELLE PLUS `triggerDownload` DIRECTEMENT : il appelle `holdDownload`, et c'est
   // le `save` de ce dernier — porté par le clic de l'utilisateur — qui part le dépôt. On double
   // donc les deux : `holdDownload` rend un `{save, release}`, et `save` transmet au
   // `triggerDownload` espionné (jsdom n'a pas `URL.createObjectURL`, le vrai `holdDownload`
-  // y lèverait).
+  // y lèverait). Chaque `release` est noté dans `releases` pour vérifier qu'un clip retenu
+  // est bien rendu quand un nouvel export commence.
   const triggerDownload = vi.fn()
   return {
     ...vrai,
     triggerDownload,
     holdDownload: vi.fn((blob: Blob, filename: string) => ({
       save: () => triggerDownload(blob, filename),
-      release: () => {},
+      release: () => { releases.push({ blob, filename }) },
     })),
   }
 })
@@ -146,6 +149,7 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   audioOk.value = true
   vi.mocked(triggerDownload).mockClear()
+  releases.length = 0
   // Le mock du mixage est PARTAGE entre les tests : sans ce nettoyage, `mock.calls[0]`
   // rendrait l'appel d'un test precedent.
   vi.mocked(mixReplayAudio).mockClear()
@@ -268,6 +272,19 @@ describe('useReplayExport', () => {
     })
     // Le clic sur « Sauvegarder » porte le dépôt : le fichier descend, nommé sur ses bornes.
     expect(triggerDownload).toHaveBeenCalledWith(expect.any(Blob), 'replay-m-0m00s-0m00s.mp4')
+  })
+
+  it('un second export REND le clip du premier, retenu sans être sauvé', async () => {
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(hook.result.current.state.phase).toBe('done')
+    // Le clip est encore retenu en mémoire, personne n'a sauvé ni fermé : rien n'a été rendu.
+    expect(releases).toHaveLength(0)
+    // Un NOUVEL export commence : le clip précédent doit être rendu, sinon l'ancien blob
+    // fuirait en mémoire jusqu'à la fermeture de l'onglet.
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(releases).toHaveLength(1)
+    expect(hook.result.current.state.phase).toBe('done')
   })
 
   it('numérote les images du FICHIER en continu, à partir de zéro', async () => {
