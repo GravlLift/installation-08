@@ -169,6 +169,36 @@ describe('PeintureRig3d', () => {
     expect((retard.root.children[0] as THREE.Mesh).material).toBe(retard.materiau)
   })
 
+  it('ne rejette pas un revêtement calculé sur un rig déjà habillé quand la pièce arrive en retard', async () => {
+    // The arm piece lands while the coat is still computing: `invalider` drops the in-flight coat,
+    // `actualiser` recomputes it once on the dressed rig. Before the fix the fresh coat was
+    // discarded because the rig was already registered as computed (enCours false), so the arms
+    // kept their neutral material until the next repaint — the first-person arms vanishing on
+    // coat-ready, and again on every weapon switch while a coat was still loading.
+    const { root, materiau } = brasRig()
+    const piece = brasRig()
+    root.add(piece.root.children[0]) // the piece lands while the coat is in flight
+    const armurerie = armurerieDe({} as Dress)
+    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
+    peinture.actualiser('rig1', root)
+    expect(peinture.enCours('rig1')).toBe(true)
+    // The coat was computed on the UNDRESSED rig and then invalidated: it must not land.
+    armurerie.resoudre(coatDe(materiau))
+    await tick()
+    expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
+    expect(peinture.enCours('rig1')).toBe(false)
+    // The repaint, computed on the dressed rig, lands and is kept.
+    const armurerie2 = armurerieDe({} as Dress)
+    const peinture2 = peintureDe(root, armurerie2.armurerie, preparationDe(null))
+    peinture2.actualiser('rig1', root)
+    expect(peinture2.enCours('rig1')).toBe(true)
+    armurerie2.resoudre(new Map([...coatDe(materiau), ...coatDe(piece.materiau)]))
+    await tick()
+    expect(peinture2.enCours('rig1')).toBe(false)
+    expect((root.children[0] as THREE.Mesh).material).not.toBe(materiau)
+    expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.materiau)
+  })
+
   it('invalider force un repeintage au prochain actualiser', async () => {
     const { root, materiau } = brasRig()
     const armurerie = armurerieDe({} as Dress)

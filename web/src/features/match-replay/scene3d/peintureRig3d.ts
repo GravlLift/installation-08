@@ -99,7 +99,13 @@ export class PeintureRig3d {
     const chargement = armurerie
       .peindreBras(xuid, habit, materiaux, this.source.cleArmeDe(fichier))
       .then((coat) => {
+        // A coat computed on an undressed rig lands on the dressed one only: the piece that
+        // arrived while it was in flight invalidated it, the repaint recomputes it on the dressed
+        // rig. Accepting it here (the rig, registered in this call, already says enCours false)
+        // would paint the pieces with the old coat and leave the armed meshes neutral.
         if (!coat || generation !== this.generation || this.rigs.get(fichier) !== rig) return
+        const materiaux = materiauxPeinturables(racine)
+        if (!materiaux.every((m) => coat.has(m))) return
         this.appliquer(rig, coat)
       })
       .catch((erreur: unknown) => console.warn('rejeu 3D : peinture des bras indisponible', erreur))
