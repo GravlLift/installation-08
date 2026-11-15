@@ -50,6 +50,17 @@ describe('step reduction', () => {
     expect(currentStep(steps)?.label).toBe('Building armor')
     expect(currentStep(firstRunStepsOf({ firstPerson: { state: 'queued' } }))?.label).toBe('Building first-person arms')
   })
+
+  it('counts the coating libraries as still ahead while the coatings setup runs', () => {
+    const steps = firstRunStepsOf({
+      coatings: { state: 'extracting' },
+      announcer: READY,
+      weapons: { state: 'absent' },
+      armor: READY,
+      firstPerson: { state: 'absent' },
+    })
+    expect(steps.map((s) => s.status)).toEqual(['running', 'done', 'pending', 'pending', 'pending'])
+  })
 })
 
 describe('FirstRunPanel', () => {
@@ -63,7 +74,9 @@ describe('FirstRunPanel', () => {
     }))
     render(<Harness />)
     await waitFor(() => expect(screen.getByTestId('first-run-step').textContent).toBe('Reading coatings from the game'))
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('2')
+    // Only the announcer is finished: the first-person library reads "absent" but the coatings
+    // setup has not queued it yet.
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('1')
     expect(screen.getByTestId('first-run-panel').textContent).toContain('You can use the viewer meanwhile')
     await waitFor(() => expect(screen.getByTestId('first-run-step').textContent).toBe('Building weapons'))
     await waitFor(() => expect(screen.getByTestId('first-run-panel').textContent).toContain('Ready'))

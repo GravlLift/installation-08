@@ -59,8 +59,21 @@ export function stepStatusOf(body: FirstRunBody): Pick<FirstRunStep, 'status' | 
 
 /** firstRunStepsOf: the five steps from their route bodies, in `FIRST_RUN_STEPS` order. */
 export function firstRunStepsOf(bodies: Partial<Record<FirstRunStepKey, FirstRunBody>>): FirstRunStep[] {
-  return FIRST_RUN_STEPS.map(({ key, label }) => ({ key, label, ...stepStatusOf(bodies[key] ?? null) }))
+  const steps = FIRST_RUN_STEPS.map(({ key, label }) => ({ key, label, ...stepStatusOf(bodies[key] ?? null) }))
+  // The coatings setup queues the three coating libraries when it ends, so while it runs they
+  // are still ahead even though their routes read "absent" (not queued yet) or "ready" (an
+  // old build the setup will redo): they count as pending, never as done.
+  const coatings = steps.find((s) => s.key === 'coatings')
+  if (coatings && !isFinished(coatings)) {
+    for (const s of steps) {
+      if (COATING_LIBRARY_STEPS.has(s.key) && s.status === 'done') s.status = 'pending'
+    }
+  }
+  return steps
 }
+
+/** The steps the coatings setup queues when it ends. */
+const COATING_LIBRARY_STEPS: ReadonlySet<FirstRunStepKey> = new Set(['weapons', 'armor', 'firstPerson'])
 
 /** isFinished: a step that holds nothing open (done or failed). */
 export function isFinished(step: FirstRunStep): boolean {
