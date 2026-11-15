@@ -5,12 +5,19 @@
 // two decisions that later pieces depend on, and nothing else: which modules to open, and
 // which copy of a duplicated tag to keep.
 //
-// It walks the deploy folder and opens every .module exactly the way Ekur does
+// It walks the deploy folder and opens every .module the way Ekur does
 // (crates/ekur/src/utils.rs load_modules, GPL-3.0-or-later, Copyright (c) 2026 The
 // Halo Archive): a recursive walk of regular files whose name ends in ".module", skipping
 // any path that contains the substring "ds" (Ekur's way of dropping the dedicated-server
 // build under deploy/ds). A module that cannot be opened is an error, never a silent skip:
 // Ekur propagates the open failure up the whole load (utils.rs load_modules uses `?`).
+//
+// One deliberate deviation from Ekur: the "ds" test is applied to each path relative to
+// the deploy root, not to the full path. Ekur's full-path test drops every module when the
+// install location itself contains "ds" (a drive folder like D:\, a user name like
+// "Edson", D:\Games\Mods), so real users would index nothing. The relative test keeps the
+// set of modules opened inside the deploy identical to Ekur's; only <deploy>\ds is
+// dropped. See isModulePath in walk.go.
 //
 // For a tag duplicated across modules Ekur keeps the LAST copy it sees: get_tags walks the
 // modules in order and overwrites a HashMap keyed by tag id (utils.rs:33-51). This index
