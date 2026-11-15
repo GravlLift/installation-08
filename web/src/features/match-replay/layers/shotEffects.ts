@@ -37,6 +37,7 @@ export type ShotFamily =
   | 'bomb'
   | 'melee'
   | 'needles'
+  | 'spread'
   | 'plain'
 
 /**
@@ -61,6 +62,7 @@ const DRAWN_FAMILIES: Record<string, ShotFamily> = {
   bomb: 'bomb',
   melee: 'melee',
   needles: 'needles',
+  spread: 'spread',
 }
 
 /**
@@ -151,6 +153,9 @@ export function drawShotEffect(
         break
       case 'needles':
         drawNeedles(ctx, s)
+        break
+      case 'spread':
+        drawSpread(ctx, s)
         break
       default:
         drawPlain(ctx, s)
@@ -380,6 +385,26 @@ function drawNeedles(ctx: CanvasRenderingContext2D, s: Oriented): void {
     ctx.beginPath()
     ctx.arc(ex, ey, 4 + 15 * ((s.advance - 0.55) / 0.45), 0, Math.PI * 2)
     ctx.lineWidth = 1.2
+    ctx.stroke()
+  }
+}
+
+/**
+ * drawSpread — a FAN OF BOLTS (the Heatwave's line of hard-light bolts): five short dashes that
+ * leave together and open out as they fly. The film dates the pull, not the bolts: their end is
+ * never drawn as an impact.
+ */
+function drawSpread(ctx: CanvasRenderingContext2D, s: Oriented): void {
+  const k = Math.sqrt(Math.max(0, s.fade))
+  ctx.globalAlpha = 0.9 * k
+  ctx.lineWidth = 2
+  for (let i = 0; i < 5; i++) {
+    const a = s.angle + ((i - 2) / 2) * 0.09
+    const head = s.length * (0.25 + 0.75 * s.advance)
+    const tail = Math.max(0, head - 7)
+    ctx.beginPath()
+    ctx.moveTo(s.x + Math.cos(a) * tail, s.y + Math.sin(a) * tail)
+    ctx.lineTo(s.x + Math.cos(a) * head, s.y + Math.sin(a) * head)
     ctx.stroke()
   }
 }

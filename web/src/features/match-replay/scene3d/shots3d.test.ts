@@ -80,6 +80,10 @@ describe('formeVol', () => {
     expect(formeVol('explosive')).toBe('tracer')
     expect(formeVol('plain')).toBe('tracer')
   })
+
+  it('the spread shot (Heatwave) has its own form', () => {
+    expect(formeVol('spread')).toBe('spread')
+  })
 })
 
 describe('beamFade', () => {

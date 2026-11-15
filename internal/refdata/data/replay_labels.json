@@ -171,7 +171,7 @@
     "hinf_pulse_carbine": "plasma",
     "hinf_ravager": "plasma",
     "hinf_sentinel_beam": "light",
-    "hinf_heatwave": "light",
+    "hinf_heatwave": "spread",
     "hinf_disruptor": "shock",
     "hinf_shock_rifle": "shock",
     "hinf_m41_spnkr": "explosive",

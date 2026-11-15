@@ -14,12 +14,15 @@
  * crack one by one: they stand whole until the end, then go together.
  *
  * The geometry is the 2D arc (`placementWall`: radius and opening, the concave side toward the
- * planter), cut into flat panels; the height is the 3D wall's existing on-screen height.
+ * planter), cut into flat panels, at the 2D's radius IN METERS (1.6 m, a 2.6 m chord calibrated on the
+ * game's wall) converted to world units: drawn as 1.6 u it was a barrier 8 m wide standing 5 m beyond
+ * the panel's position, over whatever floor lay there. The height is the 3D wall's on-screen height.
  * A function of the frame alone: seeking gives the same picture.
  */
 import type { XY } from '@/lib/replay/replayLogic'
 
 import { WALL_OPENING_RAD, WALL_RADIUS_M } from '../layers/placementWall'
+import { metersToU } from './tracks3d'
 
 /** The barrier's rise from the ground at deployment (ms). ESTIMATE; the true value is the deploy animation of the game's drop wall. */
 export const WALL_RISE_MS = 250
@@ -27,6 +30,8 @@ export const WALL_RISE_MS = 250
 export const WALL_DISSOLVE_MS = 300
 /** The flat panels the arc is cut into. ESTIMATE of the game's segmented barrier; the true count is its model, not in the app. */
 export const WALL_PANEL_COUNT = 5
+/** The arc's radius in world units: the 2D's `WALL_RADIUS_M`, a length in meters. */
+export const WALL_RADIUS_U = metersToU(WALL_RADIUS_M)
 
 /** The wall at one frame. */
 export interface WallPhase {
@@ -67,8 +72,8 @@ export interface WallPanel {
 export function wallPanels(center: XY, headingDeg: number): WallPanel[] {
   const step = WALL_OPENING_RAD / WALL_PANEL_COUNT
   const first = (headingDeg * Math.PI) / 180 - WALL_OPENING_RAD / 2
-  const offset = WALL_RADIUS_M * Math.cos(step / 2)
-  const width = 2 * WALL_RADIUS_M * Math.sin(step / 2)
+  const offset = WALL_RADIUS_U * Math.cos(step / 2)
+  const width = 2 * WALL_RADIUS_U * Math.sin(step / 2)
   const out: WallPanel[] = []
   for (let i = 0; i < WALL_PANEL_COUNT; i++) {
     const a = first + step * (i + 0.5)

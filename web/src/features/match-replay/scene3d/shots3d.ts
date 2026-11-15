@@ -15,6 +15,11 @@
  * Un tir de projectile d'énergie (familles de `BOLT_SPEED` : plasma, aiguilles) n'a pas de trait :
  * un point de feu file à sa vitesse, plus lente, jusqu'au mur.
  *
+ * The spread shot (family `spread`, the Heatwave) is a fan of energy bolts, each a short glowing
+ * streak that flies at its projectile speed, ricochets once off the scenery and sparks where it ends
+ * (`spreadShots3d`). As a `light` tracer (the 0.4 mm wire of a bullet, at a bullet's speed) it was
+ * not seen at all.
+ *
  * Le tir de choc (famille `shock`) n'a ni balle ni trait : un faisceau instantané, l'arc entier
  * de la bouche au mur, plein à l'instant du tir et fondu linéairement sur `BEAM_SECONDS`.
  *
@@ -46,6 +51,7 @@ import { MuzzleProbe, muzzleOfModel, viewMuzzle } from './muzzle3d'
 import { flashPetals, muzzleFlashSite, muzzleFlashStrength, rigFlashSite, type FlashPetal } from './muzzleFlash3d'
 import { newRecoil, type Recoil } from './recoil3d'
 import { recoilPoint } from './recoilPose3d'
+import { boltEndAge, boltPath, boltStreak, spreadDirections, SPREAD_BOUNCE_RANGE, SPREAD_RANGE, SPREAD_SPEED, type BoltPath } from './spreadShots3d'
 import { ShooterRecoil } from './recoilShots3d'
 import { aimDirThree, toThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
@@ -101,9 +107,11 @@ export const BEAM_SECONDS = 0.25
 // La ligne de tir (repère d'analyse) : un fil un peu plus épais que la balle, assourdi.
 const LINE_RADIUS = 0.004
 const LINE_DIM = 0.6
+// The spread's bolt: a streak this thick, and its glow around it at the beam's multiple and dim.
+export const SPREAD_BOLT_RADIUS = 0.012
 // La vie la plus longue d'un tir : vol du projectile le plus lent jusqu'à la portée, puis l'étincelle.
 const SLOWEST = Math.min(TRACER_SPEED, ...Object.values(BOLT_SPEED))
-const LIFE_SECONDS = (TRACER_RANGE + TRACER_LENGTH) / SLOWEST + IMPACT_SECONDS
+const LIFE_SECONDS = Math.max((TRACER_RANGE + TRACER_LENGTH) / SLOWEST, (SPREAD_RANGE + SPREAD_BOUNCE_RANGE) / SPREAD_SPEED) + IMPACT_SECONDS
 
 interface ShotPath {
   from: THREE.Vector3
@@ -144,11 +152,12 @@ export function shotLineShown(age: number, holdSeconds: number): boolean {
  * point de feu lent (projectile d'énergie, familles de `BOLT_SPEED`), ou un trait court qui file
  * à la vitesse de la balle.
  */
-export type ShotFlightForm = 'beam' | 'bolt' | 'tracer'
+export type ShotFlightForm = 'beam' | 'bolt' | 'tracer' | 'spread'
 
 /** formeVol : la forme du vol d'une famille de tir. */
 export function formeVol(fam: ShotFamily): ShotFlightForm {
   if (fam === 'shock') return 'beam'
+  if (fam === 'spread') return 'spread'
   return BOLT_SPEED[fam] !== undefined ? 'bolt' : 'tracer'
 }
 
@@ -194,6 +203,8 @@ export class Shots3dLayer implements ActionLayer3d {
   private source: readonly ShotFxEntry[] | null = null
   private sorted: ShotFxEntry[] = []
   private readonly paths = new Map<ShotFxEntry, ShotPath | null>()
+  /** The spread's bolts of each flight, traced once. */
+  private readonly spreads = new WeakMap<ShotPath, BoltPath[]>()
   private readonly fromMuzzle = new Map<ShotFxEntry, ShotPath | null>()
   private readonly fromView = new Map<ShotFxEntry, ShotPath | null>()
   /** L'arme en main de chaque tir (identifiant), lue une fois. */
@@ -287,6 +298,10 @@ export class Shots3dLayer implements ActionLayer3d {
     if (k > 0) this.flash(path, k, tint, core, shot)
     if (!path.to) return
     if (shotLineShown(age, shot.hold)) this.lines.add(path.from, path.to, LINE_RADIUS, this.lineInk.copy(tint).multiplyScalar(LINE_DIM))
+    if (formeVol(shot.fam) === 'spread') {
+      this.drawSpread(path, path.to, age, tint)
+      return
+    }
     if (formeVol(shot.fam) === 'beam') {
       // Le tir de choc n'a pas de balle : l'arc entier, de la bouche au mur, plein à l'instant du
       // tir et fondu linéairement ; son impact est à distance nulle, l'étincelle naît au tir.
@@ -313,6 +328,28 @@ export class Shots3dLayer implements ActionLayer3d {
     }
     const spark = path.hit ? impactAge(path.length, age, speed) : null
     if (spark !== null) this.dots.add(path.to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
+  }
+
+  /**
+   * drawSpread : the spread's bolts on their flights (fanned around the shot's aim, one ricochet
+   * each), a core streak and its glow, and the spark where a bolt ends on the scenery.
+   */
+  private drawSpread(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color): void {
+    let bolts = this.spreads.get(path)
+    if (!bolts) {
+      const dir = this.b.subVectors(to, path.from).normalize()
+      const hitFace = (from: THREE.Vector3, d: THREE.Vector3, far: number) => this.ctx.ground.hitFace(from, d, far)
+      bolts = spreadDirections(dir).map((d) => boltPath(path.from, d, hitFace))
+      this.spreads.set(path, bolts)
+    }
+    for (const bolt of bolts) {
+      if (boltStreak(bolt, age, this.a, this.b)) {
+        this.lines.add(this.a, this.b, SPREAD_BOLT_RADIUS, tint)
+        this.lines.add(this.a, this.b, SPREAD_BOLT_RADIUS * BEAM_GLOW_MULT, this.lineInk.copy(tint).multiplyScalar(BEAM_GLOW_DIM))
+      }
+      const spark = bolt.hit ? age - boltEndAge(bolt) : -1
+      if (spark >= 0 && spark < IMPACT_SECONDS) this.dots.add(bolt.points[bolt.points.length - 1], null, IMPACT_RADIUS * 2 * (1 - spark / IMPACT_SECONDS), tint)
+    }
   }
 
   /**

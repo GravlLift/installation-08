@@ -128,6 +128,8 @@ export function drawMuzzleFlash(
         drawFlame(ctx, s)
         break
       case 'plasma':
+      case 'spread':
+        // The spread's bolts are energy projectiles: the bloom of a discharge, like plasma.
         drawBloom(ctx, s)
         break
       case 'light':

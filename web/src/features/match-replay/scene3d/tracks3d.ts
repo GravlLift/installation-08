@@ -22,6 +22,14 @@ import { NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSa
 
 export type Vec3 = [number, number, number]
 
+/** Meters per world unit of the replay and the map. */
+export const M_PER_U = 3.048
+
+/** metersToU — a length declared in METERS (a 2D screen choice calibrated on the game), in world units. */
+export function metersToU(m: number): number {
+  return m / M_PER_U
+}
+
 export function toThree(x: number, y: number, z: number): Vec3 {
   return [x, z, -y]
 }
