@@ -598,8 +598,11 @@ export class ReplayScene3d implements Replay3DExportSource {
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null // the camo fades his own first-person arms and weapon too
-      if (firstPerson && !rider && p.xuid === this.povXuid && this.brasJoueurPrêt !== p.xuid) this.brasJoueurPrêt = p.xuid, this.bras?.preparerJoueur(p.xuid)
-    const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
+      if (firstPerson && !rider && p.xuid === this.povXuid && this.brasJoueurPrêt !== p.xuid) {
+        this.brasJoueurPrêt = p.xuid
+        this.bras?.preparerJoueur(p.xuid)
+      }
+      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
       const modelArme = rigVisible ? null : held?.model ?? null
       const cleArme = held?.key ? weaponModelKey(held.key) : null
       if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
