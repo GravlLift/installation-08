@@ -224,8 +224,11 @@ export class BrasPremierePersonne3d {
   /**
    * montrer pose le rig de l'arme `cleArme` à l'image (`evenements`) sous la caméra, puis le recul
    * de l'image `recul` (`reculPremierePersonne3d`) autour de la poignée, ou de la bouche mesurée
-   * quand l'index ne donne pas la pose de l'arme. Faux sans rig prêt à montrer. `camo` : la force du
-   * camouflage actif du joueur (0 visible, 1 entier), qui efface aussi ses bras et son arme.
+   * quand l'index ne donne pas la pose de l'arme. Faux sans rig chargé — et seulement sans rig
+   * chargé : l'habillage des pièces et la peinture en cours se posent sur le rig À SON ARRIVÉE
+   * (le revêtement retarde n'efface jamais le précédent), le rig se montre donc tel qu'il est à
+   * l'instant — jamais replié sur le modèle statique tant que le fichier est chargé. `camo` : la
+   * force du camouflage actif du joueur (0 visible, 1 entier), qui efface aussi ses bras et son arme.
    */
   montrer(camera: THREE.PerspectiveCamera, cleArme: string | null, evenements: EvenementsPremierePersonne, recul: Recoil | null, camo = 0): boolean {
     this.cacher()
@@ -235,9 +238,7 @@ export class BrasPremierePersonne3d {
     const entree = this.entrees.get(rig.file)
     if (!entree) return false
     this.habillage.actualiser(rig.file, entree.root)
-    if (this.habillage.enCours(rig.file)) return false
     this.peinture.actualiser(rig.file, entree.root)
-    if (this.peinture.enCours(rig.file) || (this.xuid && this.armurerie?.pending(this.xuid))) return false
     entree.root.visible = true
     this.visible = entree.root
     this.cleVisible = cleArme
@@ -290,6 +291,25 @@ export class BrasPremierePersonne3d {
    */
   rigCharge(cleArme: string | null): boolean {
     return !!(cleArme && this.armes.get(cleArme))
+  }
+
+  /**
+   * cleRigDe : la clé de modèle d'arme du rig de fichier `fichier`, null sans index chargé (le
+   * préchargement en demande les clés pour le joueur suivi, `preparerJoueur`).
+   */
+  cleRigDe(fichier: string): string | null {
+    return this.fichiersArmes.get(fichier) ?? null
+  }
+
+  /**
+   * preparerJoueur : le joueur `xuid` est suivi en 1re personne — commence l'habillage des pièces et
+   * la peinture de CHAQUE rig chargé (celui tenu et les autres, pour que les bascules d'arme
+   * trouvent leur revêtement prêt au lieu de replier les bras sur le modèle statique). Le préchauffage
+   * fait le même travail sur l'écran de chargement pour tous les joueurs.
+   */
+  preparerJoueur(xuid: string): void {
+    this.suivre(this.armurerie, xuid)
+    this.preparerRig()
   }
 
   /**

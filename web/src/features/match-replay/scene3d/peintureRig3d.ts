@@ -88,18 +88,27 @@ export class PeintureRig3d {
     const materiaux = materiauxPeinturables(racine)
     if (!materiaux.length) return
     const coatPreparé = this.source.preparation.coat(fichier)
-    // Le revêtement préparé ne sert que s'il couvre tous les matériaux à peindre : les pièces de
-    // bras posées après sa préparation portent leurs propres matériaux, qu'il ne connaît pas.
-    if (coatPreparé && materiaux.every((m) => coatPreparé.has(m))) {
+    // Le revêtement préparé ne sert que s'il couvre EXACTEMENT les matériaux à peindre : les
+    // pièces posées après sa préparation portent leurs propres matériaux (le revêtement ne les
+    // connaît pas), ou un rig déjà peint les a rendus invisibles (le revêtement les porte encore).
+    // Dans les deux cas il est obsolète : la peinture se recalcule.
+    if (coatPreparé && materiaux.length > 0 && materiaux.every((m) => coatPreparé.has(m)) && [...coatPreparé.keys()].every((m) => materiaux.includes(m))) {
       this.appliquer(rig, coatPreparé)
       return
     }
+    if (coatPreparé) this.source.preparation.abandonner(fichier)
     const generation = this.generation
     rig.enCours = true
     const chargement = armurerie
       .peindreBras(xuid, habit, materiaux, this.source.cleArmeDe(fichier))
       .then((coat) => {
+        // A computed coat lands only if it still covers EVERY paintable material of the rig: the
+        // piece that arrived while it was in flight replaced the materials it was computed on,
+        // and landing the stale coat would paint the old materials and leave the new ones
+        // neutral. The guard keeps the last known-good coat on the rig meanwhile.
         if (!coat || generation !== this.generation || this.rigs.get(fichier) !== rig) return
+        const materiaux = materiauxPeinturables(racine)
+        if (!materiaux.every((m) => coat.has(m))) return
         this.appliquer(rig, coat)
       })
       .catch((erreur: unknown) => console.warn('rejeu 3D : peinture des bras indisponible', erreur))

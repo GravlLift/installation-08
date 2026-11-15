@@ -43,6 +43,12 @@ export class PreparationRig3d {
   /** Le revêtement préparé pour un fichier de rig, null sinon (la peinture se calcule à la bascule). */
   coat(fichier: string): Coat | null { return this.coats.get(fichier) ?? null }
 
+  /**
+   * abandonner : le revêtement préparé ne couvre plus les matériaux du rig (une pièce est venue
+   * s'y poser depuis sa préparation) — il ne se pose plus, la peinture se recalcule à la bascule.
+   */
+  abandonner(fichier: string): void { this.coats.delete(fichier) }
+
   /** Le joueur suivi change : prépare ses rigs chargés, et ceux qui chargeront après. */
   changerJoueur(): void {
     this.generation++

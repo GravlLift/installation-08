@@ -94,7 +94,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   readonly warmUp = serialiser(async () => {
     try {
       this.prepareAvatars()
-      this.bras?.preparerRig()
+      this.prechaufferJoueur()
       await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.action?.prepareCorpses() ?? []), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
   })
@@ -121,6 +121,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly cameraPlacement: ReplayCamera3d
   private action: ActionScene3d | null = null
   private bras: BrasPremierePersonne3d | null = null
+  /** The first-person prep (`bras.preparerJoueur`) already started for the followed player. */
+  private brasJoueurPrêt: string | null = null
   private doc: ReplayDocumentReady | null = null
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
   private fps = 30
@@ -258,6 +260,20 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** prechargerRigs: start loading the rigs of the weapons the match carries, for the loading screen. */
   private prechargerRigs() { if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc)) }
 
+  /**
+   * prechaufferJoueur: starts the first-person prep (piece loads, then the arm paint) for EVERY
+   * weapon rig the followed player carries during the film, not only the one in hand, so a
+   * weapon switch finds its coat ready instead of dropping the arms to the static gun for the
+   * whole compute. The loading screen waits on the gate anyway: the prep runs under it, so this
+   * adds no load time.
+   */
+  prechaufferJoueur(): void {
+    const bras = this.bras
+    const xuid = this.povXuid
+    if (!bras || !xuid) return
+    bras.preparerJoueur(xuid)
+  }
+
   /** setWeaponModels poses the source of the weapon and Spartan models (the previous one, and the Spartans copying it, is released); null: none. */
   setWeaponModels(models: WeaponModels | null): void {
     for (const a of this.avatars.values()) wearSpartan(a, null)
@@ -266,6 +282,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.bras?.dispose()
     this.bras = models ? new BrasPremierePersonne3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p)) : null
     if (this.bras) { const loading = this.bras.charger(); void (models?.gate?.track(loading) ?? loading) }
+    this.brasJoueurPrêt = null
     this.prechargerRigs()
     this.prepareAvatars()
   }
@@ -502,6 +519,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (xuid === this.povXuid) return
     this.povXuid = xuid
     this.originAboveFloor = xuid && this.tracks ? measureOriginAboveFloor(this.tracks.allPoints(xuid), this.model, this.raycaster) : 0
+    this.brasJoueurPrêt = null
   }
 
   /** applyMode changes camera. The free camera starts from the current view, pulled behind the followed player and turned to it: a fixed point above him put it in the roof as soon as he was inside. */
@@ -581,6 +599,10 @@ export class ReplayScene3d implements Replay3DExportSource {
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null // the camo fades his own first-person arms and weapon too
+      if (firstPerson && !rider && p.xuid === this.povXuid && this.brasJoueurPrêt !== p.xuid) {
+        this.brasJoueurPrêt = p.xuid
+        this.bras?.preparerJoueur(p.xuid)
+      }
       const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
       const modelArme = rigVisible ? null : held?.model ?? null
       const cleArme = held?.key ? weaponModelKey(held.key) : null
