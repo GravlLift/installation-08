@@ -43,7 +43,7 @@ func buildOptions(ctx context.Context, matchID string, film *decfilm.Film, death
 		RosterXUIDs:      roster,
 		Participants:     participantsOf(stats),
 		ScoreboardTeams:  teams,
-		Score:            scoreInput(recs, lines, teams, stats),
+		Score:            scoreInput(recs, lines, teams, stats, in.ScoreTarget),
 		Flag:             replay.EntreeDuDrapeau(recs, bursts, pont),
 		Vip:              replay.EntreeDeLaCouronne(recs, gates.VIP),
 		Skull:            replay.EntreeDuCrane(recs, gates.Crane, pont),
