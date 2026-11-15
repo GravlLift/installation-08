@@ -107,8 +107,9 @@ export const BEAM_SECONDS = 0.25
 // La ligne de tir (repère d'analyse) : un fil un peu plus épais que la balle, assourdi.
 const LINE_RADIUS = 0.004
 const LINE_DIM = 0.6
-// The spread's bolt: a streak this thick, and its glow around it at the beam's multiple and dim.
-export const SPREAD_BOLT_RADIUS = 0.012
+// The spread's bolt: a streak this thick (~9 cm, an ESTIMATE of the game's glowing bar), and its
+// glow around it at the beam's multiple and dim.
+export const SPREAD_BOLT_RADIUS = 0.03
 // La vie la plus longue d'un tir : vol du projectile le plus lent jusqu'à la portée, puis l'étincelle.
 const SLOWEST = Math.min(TRACER_SPEED, ...Object.values(BOLT_SPEED))
 const LIFE_SECONDS = Math.max((TRACER_RANGE + TRACER_LENGTH) / SLOWEST, (SPREAD_RANGE + SPREAD_BOUNCE_RANGE) / SPREAD_SPEED) + IMPACT_SECONDS
