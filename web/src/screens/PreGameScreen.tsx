@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import { checkMesh, fetchReplayDocument, MeshNotBuiltError } from '../lib/api/standalone'
+import { checkMesh, fetchReplayDocument, MatchNotFoundError, MeshNotBuiltError } from '../lib/api/standalone'
 import { normalizeReplayDocument } from '../lib/replay/replayNormalize'
 import { useMatchSummary } from './useMatchSummary'
 import { useMeshBuild } from './useMeshBuild'
@@ -33,6 +33,8 @@ import {
   usePreGameCountdown,
 } from './preGameModel'
 import { ReplayViewer } from './MatchViewScreen'
+import { MatchNotFetched } from './MatchNotFetched'
+import { ProgressLine } from './ProgressLine'
 import { Screen } from '../ui/Screen'
 import { TickerDot } from '../ui/Ticker'
 
@@ -41,12 +43,15 @@ type PreGameState =
   | { phase: 'mesh' }
   | { phase: 'build'; doc: ReplayDocumentReady }
   | { phase: 'ready'; doc: ReplayDocumentReady }
+  | { phase: 'missing' }
   | { phase: 'error'; message: string }
 
 /** Fetches the match's replay document, checks the map mesh, and lands on one of the states
  *  above. `MeshNotBuiltError` keeps the already-fetched document so the build can run here
- *  and the viewer mounts the moment the map is built (no re-fetch, no reload). */
-function useMatchDocument(matchId: string): PreGameState {
+ *  and the viewer mounts the moment the map is built (no re-fetch, no reload). A 404 on the
+ *  document is `missing`: the match is not stored on this install (a shared link), and the page
+ *  offers to fetch it. `attempt` re-runs the load once that fetch is done. */
+function useMatchDocument(matchId: string, attempt: number): PreGameState {
   const [state, setState] = useState<PreGameState>({ phase: 'document' })
   useEffect(() => {
     const controller = new AbortController()
@@ -67,33 +72,24 @@ function useMatchDocument(matchId: string): PreGameState {
           setState({ phase: 'build', doc })
           return
         }
+        if (err instanceof MatchNotFoundError && !doc) {
+          setState({ phase: 'missing' })
+          return
+        }
         setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     })()
     return () => controller.abort()
-  }, [matchId])
+  }, [matchId, attempt])
   return state
 }
 
-/** The one progress line: the real step name and, when the state carries a fraction, the
- *  determinate bar; otherwise the bar indeterminate. Nothing invents a percentage. */
-function ProgressLine({ label, fraction }: { label: string; fraction: number | null }) {
-  return (
-    <div className="bc-progress">
-      <div className="bc-bar">
-        <i
-          className={fraction === null ? 'indeterminate' : ''}
-          style={fraction === null ? undefined : { width: `${Math.round(fraction * 100)}%` }}
-        />
-      </div>
-      <div className="bc-step">{label}</div>
-    </div>
-  )
-}
-
 export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: () => void }) {
-  const state = useMatchDocument(matchId)
-  const summary = useMatchSummary(matchId)
+  // Bumped when a shared match link's fetch completes: the document loads again, in place.
+  const [attempt, setAttempt] = useState(0)
+  const onFetched = useCallback(() => setAttempt((n) => n + 1), [])
+  const state = useMatchDocument(matchId, attempt)
+  const summary = useMatchSummary(matchId, attempt)
   const auth = useAuthState()
   const gamertag = auth.phase.phase === 'signed_in' ? auth.phase.gamertag : null
 
@@ -176,6 +172,9 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
     case 'ready':
       stepLabel = 'Loading the map'
       break
+    case 'missing':
+      stepLabel = 'Match not stored here'
+      break
     case 'error':
       stepLabel = 'Failed to load the match'
       break
@@ -201,13 +200,17 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
       items={[
         <span key="server">
           <TickerDot bad={state.phase === 'error'} />
-          {state.phase === 'error' ? 'Failed to load the match' : 'Match loading'}
+          {state.phase === 'error' ? 'Failed to load the match' : state.phase === 'missing' ? stepLabel : 'Match loading'}
         </span>,
       ]}
       keys={counting ? [['Any key', 'Skip'], ['Esc', 'Back']] : [['Esc', 'Back']]}
     >
       <div className="bc-pregame">
         <div className="bc-pregame-panel">
+          {state.phase === 'missing' ? (
+            <MatchNotFetched matchId={matchId} auth={auth} onFetched={onFetched} onBack={onBack} />
+          ) : (
+          <>
           {eyebrow ? <div className="bc-eyebrow">{eyebrow}</div> : null}
           <h1 className="bc-title">{mapName}</h1>
           {roster ? (
@@ -258,6 +261,8 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
                 </div>
               ) : null}
             </>
+          )}
+          </>
           )}
         </div>
       </div>

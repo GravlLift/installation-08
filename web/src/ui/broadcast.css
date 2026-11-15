@@ -227,6 +227,11 @@
 @keyframes bc-count-tick { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .bc-pregame-actions { display: flex; gap: 12px; margin-top: 8px; }
 .bc-pregame-error { color: var(--loss); font-size: 14px; max-width: 480px; margin: 8px 0 0; }
+/* A shared match link whose match is not stored here (MatchNotFetched): the id stands in for
+ * the map name, so it is set much smaller and may wrap anywhere. */
+.bc-not-fetched { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.bc-pregame .bc-title.bc-title-id { font-size: clamp(22px, 3vw, 40px); overflow-wrap: anywhere; max-width: min(720px, 90vw); }
+.bc-not-fetched .bc-signin-text { max-width: 480px; font-size: 14px; }
 
 /* Player chrome. Windowed: a vertical stack on black that fills the window without scrolling:
  * the top strip, the stage (the 16:9 scene box, as large as fits, centered), the transport.
