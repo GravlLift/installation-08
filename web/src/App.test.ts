@@ -16,6 +16,8 @@ describe('parseHash', () => {
   it('parses the match list route', () => {
     expect(parseHash('#/matches')).toEqual({ name: 'list' })
     expect(parseHash('#/matches/')).toEqual({ name: 'list' })
+    // The home's sign-in link carries a query the match select page reads.
+    expect(parseHash('#/matches?signin=1')).toEqual({ name: 'list' })
   })
 
   it('parses a match route and decodes its id', () => {

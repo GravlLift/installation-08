@@ -13,7 +13,9 @@ import { MatchViewScreen } from './screens/MatchViewScreen'
 export type Route = { name: 'home' } | { name: 'list' } | { name: 'match'; matchId: string }
 
 export function parseHash(hash: string): Route {
-  const path = hash.replace(/^#/, '') || '/'
+  // A query on the route (the sign-in link's `?signin=1`) is read by the page itself, not
+  // matched here: without dropping it, `#/matches?signin=1` fell through to Home.
+  const path = hash.replace(/^#/, '').split('?')[0] || '/'
   const match = /^\/matches\/([^/]+)\/?$/.exec(path)
   if (match) return { name: 'match', matchId: decodeURIComponent(match[1]) }
   if (/^\/matches\/?$/.test(path)) return { name: 'list' }
