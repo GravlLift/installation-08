@@ -361,7 +361,6 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
           view={view}
           onSetView={setView}
           onScrub={onScrub}
-          onSeekBy={seekBy}
           onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
           scoreboardOn={scoreboardHeld}
           onToggleSettings={() => togglePanel('settings')}

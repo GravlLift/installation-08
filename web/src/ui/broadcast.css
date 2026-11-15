@@ -322,37 +322,64 @@
 .bc-scrub-mark-tip.bc-scrub-mark-tip-end { left: auto; right: 0; transform: none; }
 .bc-scrub-mark:hover .bc-scrub-mark-tip { display: block; }
 
-/* Controls row, left to right (the mockup's `.ctl`). It is made of groups that never break
- * inside, and it stays on one row down to a 1280 px window: when it is short of room the POV
- * picker shrinks first (its name ellipsized). Only in a narrower bar do whole groups wrap to a
- * second row. */
-.bc-ctl { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 10px; margin-top: 6px; font-family: var(--display); font-stretch: 75%;
+/* Controls row (the mockup's `.ctl`): three columns, `1fr auto 1fr`, so the clock is dead
+ * center whatever the sides hold. Left: the camera group (POV picker at the far left), then the
+ * playback buttons hugging the clock. Right: the speed segments hugging the clock, then sound and
+ * the icon buttons at the far right. When a side is short of room the POV picker shrinks first
+ * (its name ellipsized). In a narrow bar the clock takes its own centered row and the two sides
+ * share the row under it. Every control is 30 px tall. */
+.bc-ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 16px; row-gap: 6px;
+  margin-top: 6px; font-family: var(--display); font-stretch: 75%;
   letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: var(--ink); white-space: nowrap; }
-@container (max-width: 1210px) { .bc-ctl { flex-wrap: wrap; } }
+.bc-ctl-side { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bc-ctl-left .bc-ctl-play, .bc-ctl-right .bc-ctl-tools { margin-left: auto; }
+@container (max-width: 980px) {
+  .bc-ctl { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .bc-ctl .bc-time { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+  .bc-ctl-side { flex-wrap: wrap; row-gap: 6px; }
+}
 .bc-ctl-group { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
 /* The camera group gives way first: below its natural width its POV picker shrinks. */
-.bc-ctl-group.bc-camera { min-width: 0; }
+.bc-ctl-group.bc-camera { min-width: 0; gap: 8px; }
+.bc-ctl-tools { gap: 2px; }
 .bc-seg button:disabled { opacity: 0.4; cursor: default; }
 .bc-ctl button, .bc-ctl select { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-.bc-ctl .bc-play { width: 38px; height: 30px; background: var(--air); color: #04121c; font-size: 14px;
-  display: inline-flex; align-items: center; justify-content: center;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
-.bc-ctl .bc-play:hover { background: var(--ink); }
-.bc-ctl .bc-ctl-btn { padding: 5px 7px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); }
-.bc-ctl .bc-ctl-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
-.bc-ctl .bc-ctl-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--air-deep); }
-.bc-ctl .bc-time { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; margin: 0 4px 0 6px;
+.bc-ctl .bc-time { font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 600;
   letter-spacing: 0.06em; text-transform: none; }
 .bc-ctl .bc-time i { color: var(--ink-faint); font-style: normal; }
 .bc-seg { display: flex; }
-.bc-seg button { padding: 5px 7px 4px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
+.bc-seg button { height: 30px; padding: 0 8px; color: var(--ink-dim); border: 1px solid var(--studio-700); margin-left: -1px;
   font-size: 12px; letter-spacing: 0.08em; }
 .bc-seg button:not(.on):not(:disabled):hover { color: var(--ink); }
 .bc-seg button.on { color: #04121c; background: var(--ink); border-color: var(--ink); font-weight: 700; }
-.bc-ctl .bc-gap { flex: 1; }
-.bc-ctl .bc-lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.16em; margin: 0 4px 0 0; }
-.bc-pov { flex: 0 1 auto; min-width: 72px; max-width: 160px; padding: 5px 8px 4px; border-left: 3px solid var(--team-ally);
+.bc-pov { flex: 0 1 auto; min-width: 72px; max-width: 180px; height: 30px; padding: 0 8px; border-left: 3px solid var(--team-ally);
   background: var(--studio-800); font-size: 12px; letter-spacing: 0.04em; text-overflow: ellipsis; }
+
+/* Icon buttons (`IconButton`): a 30 px square, the glyph in the ink color, the air color when
+ * pressed. The tooltip is the button's `data-tip`, shown above it on hover and keyboard focus
+ * (below it the transport's clipped edge would cut it); at the bar's right end it is anchored
+ * to the button's right edge (`.bc-tip-end`) so it stays inside the bar. */
+.bc-ctl .bc-icon-btn { position: relative; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-dim); border-radius: 2px; transition: color 120ms, background-color 120ms; }
+.bc-ctl .bc-icon-btn:not(:disabled):hover, .bc-ctl .bc-icon-btn:focus-visible { color: var(--ink); background-color: rgba(111,211,255,0.12); }
+.bc-ctl .bc-icon-btn:focus-visible { outline: 1px solid var(--air); outline-offset: 0; }
+.bc-ctl .bc-icon-btn[aria-pressed="true"] { color: var(--air); background-color: rgba(111,211,255,0.16); box-shadow: inset 0 -2px 0 var(--air); }
+.bc-ctl .bc-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.bc-icon-btn[data-tip]::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  padding: 3px 8px; font-family: var(--display); font-stretch: 75%; font-size: 12px; font-weight: 500; line-height: 1.35;
+  letter-spacing: 0.04em; text-transform: none; white-space: nowrap; color: var(--ink);
+  background: var(--studio-950); border: 1px solid var(--studio-700); border-bottom-color: var(--air-deep);
+  opacity: 0; visibility: hidden; transition: opacity 100ms; pointer-events: none; z-index: 3; }
+.bc-icon-btn.bc-tip-end[data-tip]::after { left: auto; right: 0; transform: none; }
+.bc-icon-btn[data-tip]:hover::after, .bc-icon-btn[data-tip]:focus-visible::after { opacity: 1; visibility: visible; transition-delay: 250ms; }
+/* Play/pause: the one filled button, a little wider than the rest (no clip-path: it would cut
+ * the tooltip). */
+.bc-ctl .bc-icon-btn.bc-play { width: 38px; color: #04121c; background: var(--air); }
+.bc-ctl .bc-icon-btn.bc-play:hover, .bc-ctl .bc-icon-btn.bc-play:focus-visible { color: #04121c; background: var(--ink); }
+/* A running export: the button fills along its base with the progress. */
+.bc-ctl .bc-icon-btn.bc-exporting { color: var(--air); }
+.bc-ctl .bc-icon-btn.bc-exporting::before { content: ''; position: absolute; left: 3px; bottom: 2px; height: 2px;
+  width: calc((100% - 6px) * var(--bc-progress-ratio, 0)); background: var(--air); }
 .bc-pov:hover { color: var(--ink); }
 /* The open list's colors come from `.bc-player option`; the bar's caps and tracking stop here. */
 .bc-pov option { text-transform: none; letter-spacing: 0; }
@@ -366,7 +393,10 @@
 .bc-panel > * { pointer-events: auto; max-height: 100%; max-width: 100%; }
 
 /* The sound control keeps its own behavior; the chrome only gives it a seat in the row. */
-.bc-sound { display: inline-flex; align-items: center; gap: 8px; }
+.bc-sound { display: inline-flex; align-items: center; gap: 8px; margin-right: 8px; }
+.bc-sound:empty { display: none; }
+/* Its switch takes the icon buttons' 30 px seat. */
+.bc-ctl .bc-sound button { width: 30px; height: 30px; }
 .bc-sound input[type="range"] { accent-color: var(--air); width: 48px; }
 
 /* Reduced motion: the drift, the cross-fade, the page wipe and the count scale stop. */

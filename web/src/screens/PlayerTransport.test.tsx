@@ -29,7 +29,6 @@ function baseProps(): Record<string, unknown> {
     view: '3d',
     onSetView: noop,
     onScrub: noop,
-    onSeekBy: noop,
     onToggleScoreboard: noop,
     scoreboardOn: false,
     onToggleSettings: noop,
@@ -124,13 +123,55 @@ it('calls onSetSpeed with the value of the clicked speed segment', () => {
   expect(onSetSpeed).toHaveBeenCalledWith(2)
 })
 
-it('calls onSeekBy(-10) for back and onSeekBy(10) for forward', () => {
-  const onSeekBy = vi.fn()
-  renderTransport({ onSeekBy })
-  fireEvent.click(screen.getByRole('button', { name: 'Back 10 seconds' }))
-  expect(onSeekBy).toHaveBeenCalledWith(-10)
-  fireEvent.click(screen.getByRole('button', { name: 'Forward 10 seconds' }))
-  expect(onSeekBy).toHaveBeenCalledWith(10)
+it('has no seek buttons (Left and Right seek through the shortcuts)', () => {
+  renderTransport()
+  expect(screen.queryByRole('button', { name: /10 seconds/ })).toBeNull()
+})
+
+it('lays the row out as left side, centered clock, right side', () => {
+  const { utils } = renderTransport()
+  const row = utils.container.querySelector('.bc-ctl')!
+  const cells = [...row.children].map((el) => el.className)
+  expect(cells).toEqual(['bc-ctl-side bc-ctl-left', 'bc-time', 'bc-ctl-side bc-ctl-right'])
+  // The POV picker is the first control at the far left.
+  expect(row.querySelector('.bc-ctl-left select, .bc-ctl-left button')).toHaveClass('bc-pov')
+})
+
+it('draws scoreboard, settings, export and fullscreen as icon buttons with tooltips, in that order', () => {
+  const { utils } = renderTransport({ exportDisabled: false })
+  const tools = [...utils.container.querySelectorAll('.bc-ctl-tools .bc-icon-btn')]
+  expect(tools.map((b) => b.getAttribute('aria-label'))).toEqual(['Scoreboard', 'Settings', 'Export film', 'Fullscreen'])
+  for (const button of tools) {
+    expect(button.textContent).toBe('')
+    expect(button.querySelector('svg')).toBeTruthy()
+    expect(button.getAttribute('data-tip')).toMatch(new RegExp('^' + button.getAttribute('aria-label')))
+  }
+})
+
+it('fires the handler of every icon button', () => {
+  const handlers = {
+    onToggleScoreboard: vi.fn(), onToggleSettings: vi.fn(), onToggleExport: vi.fn(), onToggleFullscreen: vi.fn(),
+    onRestart: vi.fn(), onTogglePlay: vi.fn(),
+  }
+  const settingsRef = { current: null as HTMLButtonElement | null }
+  renderTransport({ ...handlers, settingsRef, exportDisabled: false })
+  for (const name of ['Scoreboard', 'Settings', 'Export film', 'Fullscreen', 'Restart', 'Play']) {
+    fireEvent.click(screen.getByRole('button', { name }))
+  }
+  for (const handler of Object.values(handlers)) expect(handler).toHaveBeenCalledOnce()
+  expect(settingsRef.current).toBe(screen.getByRole('button', { name: 'Settings' }))
+})
+
+it('reflects the scoreboard and fullscreen states in the icon buttons', () => {
+  renderTransport({ scoreboardOn: true, fullscreenActive: true, playing: true })
+  expect(screen.getByRole('button', { name: 'Scoreboard' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Exit fullscreen' })).toHaveAttribute('data-tip', 'Exit fullscreen (F)')
+  expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+})
+
+it('disables the export button when export is unavailable', () => {
+  renderTransport({ exportDisabled: true })
+  expect(screen.getByRole('button', { name: 'Export film' })).toBeDisabled()
 })
 
 it('groups view, camera mode and POV under one Camera label', () => {

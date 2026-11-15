@@ -132,9 +132,12 @@ Sparse on purpose: the 3D view takes all the room the chrome leaves.
   (`usePlayerChromeVisibility`).
 - Top: a thin score bug (teams, score, clock), broadcast style, already present as the HUD
   overlays; restyled to the system, not redesigned in behavior.
-- Bottom: our own transport as a lower third. Play/pause, -10 / +10, previous / next
-  event, a scrub bar, time, speed, the camera group, sound, scoreboard, settings, film
-  export, fullscreen.
+- Bottom: our own transport as a lower third: the scrub bar, and under it a three-column
+  row with the time dead center. Left: the camera group with the POV picker at the far
+  left, then view and camera mode; then restart, previous event, play/pause and next event
+  next to the time. Right: speed next to the time; at the far right sound, then
+  scoreboard, settings, film export and fullscreen as icon buttons with hover tooltips.
+  No seek buttons: Left and Right seek 10 s from the keyboard.
 - The scrub bar marks the selected player's events only, as the game's theater does: his
   kills, deaths and medals (the selected player is the followed one, or in free view the
   last one followed; no player, no marks). One lane per kind so none hides another:
@@ -143,7 +146,7 @@ Sparse on purpose: the 3D view takes all the room the chrome leaves.
   whose tooltip lists every event (`screens/scrubMarks.ts`). Clicking a mark seeks 2 s
   before its event and never starts a track drag; hovering shows what it is and its clock
   ("Kill: X (BR75) 2:36", "Death: by Y 2:54", "Double Kill 2:36"). The bar stays one tab
-  stop: `[` and `]` (and the ‹ › buttons) step to the previous and next event. It fades
+  stop: `[` and `]` (and the previous / next event buttons) step to the previous and next event. It fades
   only in fullscreen, with the rest of the chrome (see Layout, fullscreen).
 - The camera group is the one home of every camera choice, under one "Camera" label: view
   (`3D | 2D`), camera mode (1st person, 3rd person, Free view, shown short as
