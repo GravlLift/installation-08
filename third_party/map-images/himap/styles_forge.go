@@ -165,6 +165,9 @@ func resoutStylesForge(ech echantillonForge, styles map[int32][]mapvar.StyleLaye
 			}
 			if k, ok := ech(l.Hash); ok {
 				s.Zones[z] = teinteCouche(k, l)
+				if k == nil && l.Tint != nil {
+					s.Zones[z] = coucheUnie(l)
+				}
 				nomme = true
 			}
 		}
@@ -178,6 +181,19 @@ func resoutStylesForge(ech echantillonForge, styles map[int32][]mapvar.StyleLaye
 		}
 	}
 	return out
+}
+
+// coucheUnie : the flat layer of a style layer whose swatch is the empty one (Forge's "Blank",
+// -656357566: no gradient or normal map) with a color of its own: the color alone, at full
+// strength, as there is no swatch color to blend it with. It has no bitmap (Bitmap 0): the zone
+// it repaints lends its maps (ZonesStyle.couches). Fortress's Forerunner Platform panels name
+// Blank with a near-black brown on their Mask0 R zone and drew the material's own pale blue-grey.
+func coucheUnie(l mapvar.StyleLayer) *Couche {
+	c := [3]float32{float32(l.Tint.X), float32(l.Tint.Y), float32(l.Tint.Z)}
+	for i := range c {
+		c[i] = min(max(c[i], 0), 1)
+	}
+	return &Couche{Sorte: CoucheDegrade, IndiceRouge: true, Transfo: transfoNeutre, Opacite: 1, Haut: c, Milieu: c, Bas: c}
 }
 
 // teinteCouche : a copy of layer k with its colors tinted by the style layer l (rgbCatalogue);
