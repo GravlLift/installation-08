@@ -41,7 +41,10 @@ import { creerCiel } from './ciel3d'
 import type { Look3d } from './look3d'
 import type { BakedLight } from './bakedLightShader'
 import type { MapModel, SurfaceModel } from './mapModel'
-import { buildPostFx, type PostFx3d } from './postFx3d'
+import { buildPostFx, PASS_NAMES, type PostFx3d } from './postFx3d'
+import { currentPerfToggles, installPerfToggles, PERF_TOGGLES_DEFAULT, type PerfToggles } from './perfToggles3d'
+import { GpuTimer } from './gpuTimer3d'
+import { BACK_FACE_NAME } from './backFaces3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
@@ -124,6 +127,15 @@ export class ReplayScene3d implements Replay3DExportSource {
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
   readonly profil = nouveauProfil()
+  /** The console's performance knobs (perfToggles3d), read at each frame. */
+  private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
+  private knobRatio: number | null = null
+  private lookOcclusion = true
+  private readonly gpu: GpuTimer
+  private readonly minimapCost = { calls: 0, triangles: 0 }
+  /** The back-face meshes of the map and layer (the `backFaces` knob), found when a root is attached. */
+  private backFaces: THREE.Object3D[] = []
+  private backFacesShown = true
   constructor(host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -135,11 +147,15 @@ export class ReplayScene3d implements Replay3DExportSource {
     host.appendChild(this.labels.domElement)
     this.scene.background = new THREE.Color(SKY_TINT)
     this.scene.fog = new THREE.Fog(SKY_TINT, FOG_NEAR, FOG_FAR)
+    // The scene never moves: without its own update each frame, `freezeStatic` roots are skipped by the matrix walk.
+    this.scene.matrixAutoUpdate = false
     this.lighting = new Lighting(this.renderer, this.scene)
     this.camera = new THREE.PerspectiveCamera(verticalFovOf(GAME_FOV_DEFAULT), 1, 0.02, 700)
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement)
     this.orbit.enabled = false
     this.post = buildPostFx(this.renderer, this.scene, this.camera)
+    this.gpu = new GpuTimer(this.renderer)
+    installPerfToggles()
     const self = this
     this.cameraPlacement = new ReplayCamera3d({
       get tracks() { return self.tracks }, get povXuid() { return self.povXuid }, get mode() { return self.mode },
@@ -164,6 +180,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.model = model
     this.tracks = tracks
     this.scene.add(model.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.setSunStrength(model.sunStrength)
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
@@ -186,6 +203,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.top?.sync(this.ciel, this.mapRoots())
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
+    freezeStatic(model.root)
+    this.findBackFaces()
     for (const p of tracks.players) {
       const a = makeAvatar(this.scene, p.name, colorOf(p.xuid))
       a.group.visible = false; this.avatars.set(p.xuid, a)
@@ -265,7 +284,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.detachLayer()
     this.layer = layer
     this.scene.add(layer.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    freezeStatic(layer.root)
+    this.findBackFaces()
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     return true
@@ -277,6 +299,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!layer) return
     this.layer = null
     this.scene.remove(layer.root)
+    this.lighting.setStaticCasters(this.mapRoots())
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
@@ -286,6 +309,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion. */
   setLook(look: Look3d): void {
     this.lighting.setLook(look)
+    this.lookOcclusion = look.ambientOcclusion
     this.post.gtao.enabled = look.ambientOcclusion
   }
 
@@ -340,6 +364,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     let status: PovStatus = 'none'
     const p = this.profil
     let t = performance.now(); this.renderer.info.reset()
+    const knobs = this.applyKnobs()
+    this.post.resetCosts()
+    const shadowCost = this.lighting.split.cost
+    shadowCost.calls = shadowCost.triangles = 0
     if (this.tracks) {
       this.placeAvatars(frame)
       t = marquer(p, 0, t)
@@ -358,15 +386,88 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.orbit.enabled = this.mode === 'free' && !top // the top-down view has its own gestures on the canvas
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
     t = marquer(p, 3, t)
+    this.gpu.begin()
+    const minimap = this.minimapCost
+    minimap.calls = minimap.triangles = 0
     if (top) top.draw({ composer: this.post.composer, players: this.topPlayers, dead: this.topDead, followed: this.topFollowed })
-    else { this.top?.idle(); this.post.composer.render(); this.top?.drawMinimap({ players: this.topPlayers, followed: this.mode === 'free' ? null : this.povXuid }) }
+    else {
+      this.top?.idle()
+      this.post.composer.render()
+      const calls = this.renderer.info.render.calls
+      const triangles = this.renderer.info.render.triangles
+      if (knobs.minimap) this.top?.drawMinimap({ players: this.topPlayers, followed: this.mode === 'free' ? null : this.povXuid })
+      minimap.calls = this.renderer.info.render.calls - calls
+      minimap.triangles = this.renderer.info.render.triangles - triangles
+    }
+    this.gpu.end()
     t = marquer(p, 4, t)
-    this.labels.render(this.scene, top ? top.camera : this.camera)
+    this.labels.domElement.style.display = knobs.labels ? '' : 'none'
+    if (knobs.labels) this.labels.render(this.scene, top ? top.camera : this.camera)
     marquer(p, 5, t)
+    this.notePassCosts(minimap)
+    p.gpuMs = this.gpu.ms
     p.appels = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
+    p.geometries = this.renderer.info.memory.geometries
+    p.textures = this.renderer.info.memory.textures
+    p.pixelRatio = this.renderer.getPixelRatio()
+    p.width = this.renderer.domElement.width
+    p.height = this.renderer.domElement.height
     this.lastStatus = status
     return status
+  }
+
+  /**
+   * applyKnobs reads the console's knobs (perfToggles3d) and applies them: passes, layers, shadow
+   * updates, pixel ratio. At their defaults the view draws as it always does.
+   */
+  private applyKnobs(): PerfToggles {
+    const k = currentPerfToggles(this.knobs)
+    const fx = k.postFx
+    this.post.outline.maskPass.enabled = fx && k.outline
+    this.post.outline.linePass.enabled = fx && k.outline
+    this.post.gtao.enabled = fx && k.ao && this.lookOcclusion
+    this.post.output.enabled = fx
+    this.post.grade.enabled = fx
+    this.post.smaa.enabled = fx && k.smaa
+    this.lighting.shadowUpdates = k.shadows
+    this.lighting.split.split = k.shadowSplit
+    if (this.model && this.model.root.visible !== k.map) { this.model.root.visible = k.map; this.lighting.invalidateStaticShadows() }
+    if (this.layer && this.layer.root.visible !== k.variant) { this.layer.root.visible = k.variant; this.lighting.invalidateStaticShadows() }
+    if (k.backFaces !== this.backFacesShown) {
+      this.backFacesShown = k.backFaces
+      for (const o of this.backFaces) o.visible = k.backFaces
+    }
+    if (k.pixelRatio !== this.knobRatio) {
+      this.knobRatio = k.pixelRatio
+      const ratio = k.pixelRatio ?? Math.min(window.devicePixelRatio, 2)
+      this.renderer.setPixelRatio(ratio)
+      this.post.composer.setPixelRatio(ratio)
+    }
+    return k
+  }
+
+  /** findBackFaces lists the back-face meshes under the map and layer roots, shown as the knob says. */
+  private findBackFaces(): void {
+    this.backFaces = []
+    for (const root of this.mapRoots()) root.traverse((o) => { if (o.name === BACK_FACE_NAME) this.backFaces.push(o) })
+    for (const o of this.backFaces) o.visible = this.backFacesShown
+  }
+
+  /** notePassCosts copies what each pass drew this frame into the profile (the shadow updates out of the scene pass). */
+  private notePassCosts(minimap: { calls: number; triangles: number }): void {
+    const passes = this.profil.passes
+    const shadow = this.lighting.split.cost
+    for (const name of PASS_NAMES) {
+      const cost = this.post.costs[name]
+      const out = passes[name]
+      out.calls = cost.calls - (name === 'scene' ? shadow.calls : 0)
+      out.triangles = cost.triangles - (name === 'scene' ? shadow.triangles : 0)
+    }
+    passes.shadow.calls = shadow.calls
+    passes.shadow.triangles = shadow.triangles
+    passes.minimap.calls = minimap.calls
+    passes.minimap.triangles = minimap.triangles
   }
 
   beginExport(setup: Export3dSetup): void { this.exportScene.beginExport(setup) }
@@ -419,6 +520,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.doc = null
     this.lighting.dispose()
     this.post.dispose()
+    this.gpu.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()
     this.labels.domElement.remove()
@@ -501,6 +603,15 @@ export class ReplayScene3d implements Replay3DExportSource {
   private groundSurfaces(): THREE.Mesh[] {
     return [...(this.model?.pickables ?? []), ...(this.layer?.pickables ?? [])]
   }
+}
+
+/**
+ * freezeStatic: a root that never moves (the map, a variant layer) gets its world matrices once, and
+ * three's per-render matrix walk skips it (Fortress's layer: about ten thousand objects per frame).
+ */
+function freezeStatic(root: THREE.Object3D): void {
+  root.updateMatrixWorld(true)
+  root.matrixWorldAutoUpdate = false
 }
 
 /** feetOf: a player's feet in three axes, `drop` below his published origin. */

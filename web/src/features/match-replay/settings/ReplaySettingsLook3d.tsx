@@ -1,7 +1,7 @@
 /**
  * ReplaySettingsLook3d — ported from LevelUp's `settings/ReplaySettingsLook3d.tsx`: the
  * "3D view" section of the drawer (shadows, reflections, ambient occlusion, game lighting,
- * field of view).
+ * field of view, playback meter).
  *
  * Shown only once a 3D map is loaded (same gate as the source). Settings live in
  * `useReplay3dLook`/`useReplay3dFov`, already lifted; the 3D view reads them on its own.
@@ -13,12 +13,14 @@ import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import { SettingsToggle } from './SettingsControls'
 import { useReplay3dFov } from './useReplay3dFov'
 import { useReplay3dLook } from './useReplay3dLook'
+import { useReplay3dMeter } from './useReplay3dMeter'
 
 export function Look3dSection({ locale }: { locale: ReplayLocale }) {
   const t = SCENE3D_TEXT[locale]
   const loaded = useReplay3DExport() !== null
   const { look, toggleShadows, toggleReflections, toggleOcclusion, toggleGameLight } = useReplay3dLook()
   const { fov, setFov } = useReplay3dFov()
+  const [meter, toggleMeter] = useReplay3dMeter()
   if (!loaded) return null
   return (
     <section className="space-y-1">
@@ -43,6 +45,7 @@ export function Look3dSection({ locale }: { locale: ReplayLocale }) {
           onToggle={toggleGameLight}
           hint={t.lookGameLightHint}
         />
+        <SettingsToggle label={t.lookPlaybackFps} pressed={meter} onToggle={toggleMeter} hint={t.lookPlaybackFpsHint} />
         <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground" title={t.lookFovHint}>
           <span className="shrink-0">{t.lookFov}</span>
           <input

@@ -16,11 +16,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 
+import { framesPerSecond } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanArmor'
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
-import { nouvelleCadence, noterImage, noterTravail } from '../model/cadenceImages_logic'
+import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
 import { fractionChargement3d, type LoadState } from '../model/chargement3d_logic'
 import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
@@ -265,8 +266,8 @@ export function Replay3DView({
     warmRef.current = { pov, mode }
   }, [pov, mode])
   const ready = load.kind === 'ready'
-  // La cadence des images de l'écran : la boucle la mesure (sans allocation), le coin la lit.
-  const cadenceRef = useRef(nouvelleCadence())
+  // The playback meter: the loop records each drawn frame (no allocation), the corner reads it.
+  const meterRef = useRef(newPlaybackMeter())
   const lireProfil = useCallback(() => sceneRef.current?.profil ?? null, [])
   useEffect(() => {
     if (ready) sceneRef.current?.setPov(pov)
@@ -353,11 +354,12 @@ export function Replay3DView({
     let raf = 0
     let shown: PovStatus = 'none'
     const step = (instantMs: number) => {
-      noterImage(cadenceRef.current, instantMs)
+      const filmFrame = frameRef.current ?? 0
+      recordFrame(meterRef.current, instantMs, filmFrame)
       const debut = performance.now()
-      const status = sceneRef.current?.render(frameRef.current ?? 0) ?? 'none'
+      const status = sceneRef.current?.render(filmFrame) ?? 'none'
       if (soundListenerRef && sceneRef.current) soundListenerRef.current = listenerOfCamera(sceneRef.current.camera)
-      noterTravail(cadenceRef.current, performance.now() - debut)
+      recordScript(meterRef.current, performance.now() - debut)
       if (status !== shown) {
         shown = status
         setPovStatus(status)
@@ -369,7 +371,7 @@ export function Replay3DView({
       cancelAnimationFrame(raf)
       if (soundListenerRef) soundListenerRef.current = null
     }
-  }, [ready, active, frameRef, cadenceRef, soundListenerRef])
+  }, [ready, active, frameRef, meterRef, soundListenerRef])
 
   useMinimap3d(sceneRef, ready && !compact)
   const surface = useSurfaceProbe(sceneRef)
@@ -399,7 +401,7 @@ export function Replay3DView({
           {povStatus === 'unspawned' ? t.povUnspawned : t.noPov}
         </div>
       )}
-      {ready && active && <ReplayCadence3d etatRef={cadenceRef} profil={lireProfil} locale={locale} />}
+      {ready && active && <ReplayCadence3d meterRef={meterRef} profil={lireProfil} filmFps={framesPerSecond(doc)} locale={locale} />}
     </div>
   )
 }
