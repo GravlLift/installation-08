@@ -138,15 +138,50 @@ export interface PadEquipmentFamily {
 }
 
 /** The NON-WEAPON families known to the pedestals layer. The typing carries the FR/EN parity. */
-export type PadEquipmentFamilyKey = 'powerup_overshield' | 'powerup_camo'
+export type PadEquipmentFamilyKey =
+  | 'powerup_overshield'
+  | 'powerup_camo'
+  | 'repulsor'
+  | 'translocator_beacon'
+  | 'wall'
+  | 'grapple'
+  | 'sensor'
+  | 'thruster'
 
 /**
- * THE TABLE. Its keys are the families published by the document, and they all figure in
- * `POWER_PAD_KEYS` (guard-rail): a pedestal power-up is BIG, without a doubled rule.
+ * THE TABLE. Its keys are the families published by the document, and the POWER-UPS among
+ * them figure in `POWER_PAD_KEYS` (guard-rail): a pedestal power-up is BIG, without a
+ * doubled rule.
+ *
+ * SINCE THE EQUIPMENT REPLAYS (2026-11): the film also mounts the carried equipment on
+ * pedestals, publishing its family (`repulsor`, `translocator_beacon`, `wall`, `grapple`,
+ * `sensor`, `thruster`). Their icons are the SAME HUD masks the title manifest names for
+ * the abilities of the same family (`hud/Repulsor`, `hud/DropWall`, ... in
+ * `replay_labels.toml`) — the manifest declares no icon on its `[[equipment_objects]]`
+ * either, and the delivered files exist under `static/weapons-assets/{slug}/hud/`.
  */
 export const PAD_EQUIPMENT_FAMILIES: Readonly<Record<PadEquipmentFamilyKey, PadEquipmentFamily>> = {
   powerup_overshield: { icon: 'Overshield' },
   powerup_camo: { icon: 'ActiveCamouflage' },
+  repulsor: { icon: 'Repulsor' },
+  translocator_beacon: { icon: 'QuantumTranslocator' },
+  wall: { icon: 'DropWall' },
+  grapple: { icon: 'Grappleshot' },
+  sensor: { icon: 'ThreatSensor' },
+  thruster: { icon: 'Thruster' },
+}
+
+/**
+ * displayKeyOf — the READABLE NAME of a key the document does not name: the key with its
+ * underscores turned into spaces and each word title-cased (`translocator_beacon` ->
+ * `Translocator Beacon`). The raw key is never the final answer of a tooltip: it is a
+ * defect marker, and this shape keeps it recognizable without the machine writing.
+ */
+export function displayKeyOf(key: string): string {
+  return key
+    .split('_')
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ')
 }
 
 /**
