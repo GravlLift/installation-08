@@ -454,13 +454,13 @@ export class ReplayScene3d implements Replay3DExportSource {
       placeBody(a, feet, pose, firstPerson, this.lighting.probeAt(feet))
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
-      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null)
+      const fx = this.action?.bodyFx(p.xuid, f) ?? null // the camo fades his own first-person arms and weapon too
+      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
       const modelArme = rigVisible ? null : held?.model ?? null
       const cleArme = held?.key ? weaponModelKey(held.key) : null
       if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
       const coatArme = modelArme && cleArme ? (this.armory?.coatArme(p.xuid, cleArme, modelArme) ?? null) : null
       showWeapon(a, held, modelArme, firstPerson ? viewGripOf(held?.key ?? null) : null, coatArme)
-      const fx = this.action?.bodyFx(p.xuid, f) ?? null
       showBodyFx(a, fx)
       if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
