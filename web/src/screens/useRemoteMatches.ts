@@ -37,7 +37,9 @@ export function useRemoteMatches(signedIn: boolean): UseRemoteMatchesResult {
   const [localIds, setLocalIds] = useState<Set<string>>(new Set())
   const controllerRef = useRef<AbortController | null>(null)
 
-  const load = useCallback((signal: AbortSignal) => {
+  // followUp marks the single scheduled follow-up itself, so it never schedules another:
+  // a map whose image never downloads must not turn this into a 5 s polling loop.
+  const load = useCallback((signal: AbortSignal, followUp = false) => {
     setState({ phase: 'loading' })
     void (async () => {
       try {
@@ -47,9 +49,9 @@ export function useRemoteMatches(signedIn: boolean): UseRemoteMatchesResult {
         setState({ phase: 'ready', matches: remote })
         // A single follow-up, not a polling loop: when an entry came back without its map
         // picture (the server is downloading it), re-request the list once about 5 s later.
-        if (remote.some((m) => m.mapAssetId && !m.mapImageUrl)) {
+        if (!followUp && remote.some((m) => m.mapAssetId && !m.mapImageUrl)) {
           setTimeout(() => {
-            if (!signal.aborted) load(signal)
+            if (!signal.aborted) load(signal, true)
           }, mapImageFollowUpDelayMs)
         }
       } catch (err) {

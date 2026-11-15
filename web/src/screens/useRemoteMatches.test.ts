@@ -154,6 +154,36 @@ describe('useRemoteMatches', () => {
     expect(remoteCalls.length).toBe(2)
   })
 
+  it('does not follow up again when the follow-up response still lacks the map picture', async () => {
+    // The image never arrives (a failed download, a small-image asset): the list must be
+    // re-requested exactly once, not every 5 s forever.
+    const missing = [{ id: 'r1', map: 'Recharge', mode: 'Slayer', time: 'x', mapAssetId: 'a1' }]
+    const remoteCalls: number[] = []
+    const fetchMock = routedFetch({
+      '/api/remote/matches': () => {
+        remoteCalls.push(1)
+        return jsonResponse(missing)
+      },
+      '/api/matches': () => jsonResponse([]),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderHook(() => useRemoteMatches(true))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(remoteCalls.length).toBe(1)
+
+    // 20 s of fake time: four follow-up delays past. Exactly one follow-up may fire.
+    act(() => {
+      vi.advanceTimersByTime(20_000)
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(remoteCalls.length).toBe(2)
+  })
+
   it('does not follow up when every entry already carries its map picture', async () => {
     const withImage = [{ id: 'r1', map: 'Recharge', mode: 'Slayer', time: 'x', mapAssetId: 'a1', mapImageUrl: '/static/maps/halo_infinite/a1.png' }]
     const remoteCalls: number[] = []
