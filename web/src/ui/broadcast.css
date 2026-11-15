@@ -91,6 +91,14 @@
  * bottom of the desk, just above the ticker; while it shows, the ticker drops its copy of
  * the notice. */
 .bc-home .bc-coatings { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; }
+/* The first-start "Getting ready" plate: across the desk, above the coatings row. */
+.bc-home .bc-firstrun { grid-column: 1 / -1; justify-self: center; width: min(100%, 720px); }
+.bc-home .bc-firstrun .bc-title { font-size: clamp(26px, 2.6vw, 40px); }
+.bc-progress { height: 8px; margin-top: 14px; background: var(--studio-700); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.bc-progress-fill { height: 100%; background: linear-gradient(90deg, var(--air-deep), var(--air)); transition: width 400ms ease; }
+.bc-firstrun-step { margin-top: 10px; font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.bc-firstrun-error { margin-top: 8px; font-size: 13px; color: var(--loss); }
+.bc-firstrun-note { margin-top: 6px; font-size: 13px; color: var(--ink-dim); letter-spacing: 0.04em; }
 .bc-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 16px; padding: 9px 26px 8px 18px; font-family: var(--display); font-stretch: 75%; font-weight: 700;
   letter-spacing: 0.2em; text-transform: uppercase; background: var(--air); color: #04121c; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 

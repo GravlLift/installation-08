@@ -59,8 +59,9 @@ source.
   the export first, then the three coating libraries; no click needed. The `setup-coatings`
   command does the same by hand, and the match viewer's top bar shows a **Set up coatings**
   button only if that automatic step failed (until it succeeds, coated materials render in a
-  neutral color and the bar shows "Coatings off"). Reopen the match once the rebuilds
-  finish. If you already have a full Ekur export, point `IT3D_EKUR_DIR` at it instead: the
+  neutral color and the bar shows "Coatings off"). The home screen's "Getting ready" panel
+  shows the first start's progress (coatings, announcer sounds, weapons, armor, first-person
+  arms) until every step is done. If you already have a full Ekur export, point `IT3D_EKUR_DIR` at it instead: the
   variable always wins over `<data>/ekur`, and while it is set the app never writes its own.
   With an export too old to know some newer armor or weapons, those pieces stay neutral and
   the bar shows "Coatings incomplete: N pieces are missing from the Ekur export". Nothing

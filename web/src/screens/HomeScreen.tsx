@@ -5,7 +5,9 @@
  * state and the stored-match count. When coatings are off and the in-app setup can fix it,
  * the "Set up coatings" control (the match viewer's `CoatingsSetupControl`) takes a stable
  * row above the ticker and the ticker drops its copy of the notice; otherwise the notice
- * sits in the ticker as before.
+ * sits in the ticker as before. While the server's first-start work runs (coatings, announcer,
+ * weapons, armor, first-person arms), the "Getting ready" plate (`FirstRunPanel`) shows its
+ * progress; the coatings control then shows only its button for a failed setup.
  *
  * The featured match is the most recently played stored match; the pure picks and
  * formatting live in `homeScreenModel.ts`. There is no match-select page yet, so every
@@ -16,6 +18,8 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
 import { CoatingsSetupControl } from './CoatingsSetupControl'
+import { FirstRunPanel } from './FirstRunPanel'
+import { useFirstRunProgress } from './useFirstRunProgress'
 import { FocusList } from '../ui/FocusList'
 import { Plate } from '../ui/Plate'
 import { Screen } from '../ui/Screen'
@@ -65,6 +69,7 @@ export function HomeScreen() {
 
   const auth = useAuthState()
   const coatings = useCoatingsNotice()
+  const firstRun = useFirstRunProgress()
   const signedIn = auth.phase.phase === 'signed_in'
   const gamertag = auth.phase.phase === 'signed_in' ? auth.phase.gamertag : null
 
@@ -153,9 +158,10 @@ export function HomeScreen() {
             </Plate>
           )}
         </div>
+        <FirstRunPanel view={firstRun.view} />
         {coatings.notice && coatings.canSetUp && (
           <div className="bc-coatings">
-            <CoatingsSetupControl notice={coatings.notice} />
+            <CoatingsSetupControl notice={coatings.notice} showProgress={false} onStarted={firstRun.refresh} />
           </div>
         )}
       </div>
