@@ -13,7 +13,7 @@
 import * as THREE from 'three'
 
 import { cssColor } from './cssColor'
-import { MINIMAP_IMAGE_SPAN_U, SCREEN_UP_HEADING_DEG, minimapAngle, minimapPoint, minimapRect, minimapStale, minimapUvRows, type MinimapImage, type MinimapPose } from './minimapLogic'
+import { MINIMAP_IMAGE_SPAN_U, SCREEN_UP_HEADING_DEG, minimapAngle, minimapHit, minimapPoint, minimapRect, minimapStale, minimapUvRows, type MinimapImage, type MinimapPose, type MinimapRect } from './minimapLogic'
 import type { MarkerPose } from './playerMarkers3d'
 import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, floorOf } from './playerMarkers3d_logic'
 import { GRADE_GAIN } from './postFx3d'
@@ -82,6 +82,8 @@ export class TopDownMinimap {
   /** Where the minimap looks: the followed player, or where he was last seen alive. */
   private pose: { xuid: string; pose: MinimapPose } | null = null
   private readonly overlay = new THREE.Scene()
+  /** The minimap's square on the canvas (CSS px), set while it draws; null while it is not. */
+  private rect: MinimapRect | null = null
   private readonly camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -1, 1)
   private readonly quad: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>
   private readonly dots = new Map<string, Dot>()
@@ -120,7 +122,10 @@ export class TopDownMinimap {
   /** Draw the minimap in its corner of the screen, over the frame already there. */
   draw(d: MinimapDraw, view: Viewport, insets: Insets): void {
     const pose = this.enabled ? this.poseOf(d) : null
-    if (!pose || !d.followed) return
+    if (!pose || !d.followed) {
+      this.rect = null
+      return
+    }
     const now = performance.now()
     const me = d.players.find((p) => p.xuid === d.followed)
     const cutY = this.cut.step(now, d.followed, me ? me.feet.y : null, d.players.map((p) => p.feet.y))
@@ -128,12 +133,19 @@ export class TopDownMinimap {
     if (minimapStale(this.image, want)) this.renderImage(want)
     const image = this.image as MinimapImage
     const rect = minimapRect(view, insets)
+    this.rect = rect
     this.paint(pose, image, rect.side)
     this.placeDots(d, pose, cutY, rect.side)
     this.renderOverlay(view, rect)
   }
 
+  /** minimapHit — a canvas point (x, y in CSS px from the canvas's top left) on the drawn minimap. */
+  hit(x: number, y: number): boolean {
+    return this.rect !== null && minimapHit(this.rect, x, y)
+  }
+
   dispose(): void {
+    this.rect = null
     this.target.dispose()
     this.quad.geometry.dispose()
     this.quad.material.dispose()

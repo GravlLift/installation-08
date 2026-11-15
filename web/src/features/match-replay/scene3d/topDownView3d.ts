@@ -127,6 +127,11 @@ export class TopDownView3d {
     this.minimap.draw(d, this.viewport(), this.readInsets())
   }
 
+  /** minimapHit — a canvas point (x, y in CSS px from the canvas's top left) on the corner minimap, while it is drawn. */
+  minimapHit(x: number, y: number): boolean {
+    return this.minimap.hit(x, y)
+  }
+
   /** Draw the scene straight down, cut over the followed player, with the player markers. */
   draw(d: TopDownDraw): void {
     this.input.active = true

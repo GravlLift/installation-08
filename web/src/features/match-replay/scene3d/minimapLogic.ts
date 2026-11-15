@@ -117,3 +117,8 @@ export function minimapRect(view: Viewport, insets: Insets): MinimapRect {
   const side = Math.round(view.height * MINIMAP_SCREEN_SHARE)
   return { left: view.width - MINIMAP_RIGHT_PX - side, top: Math.max(insets.top, INSET_GAP_PX), side }
 }
+
+/** minimapHit — a canvas point (x, y in CSS px from the canvas's top left) on the minimap's square. */
+export function minimapHit(rect: MinimapRect, x: number, y: number): boolean {
+  return x >= rect.left && x < rect.left + rect.side && y >= rect.top && y < rect.top + rect.side
+}

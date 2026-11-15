@@ -53,6 +53,8 @@ import { useVariantLayer } from './useVariantLayer'
 
 const NEUTRAL = new THREE.Color(0.8, 0.8, 0.8)
 const MB = 1024 * 1024
+/** How far a pointer may move (CSS px) over the minimap before it is a drag, not a click. */
+const MINIMAP_DRAG_PX = 4
 
 export interface Replay3DViewProps {
   meshPath: string
@@ -87,6 +89,8 @@ export interface Replay3DViewProps {
   soundListenerRef?: RefObject<SoundListener | null>
   /** The drawing view: the perspective 3D view (default) or the orthographic top-down. */
   view?: SceneView3d
+  /** Called on a click inside the corner minimap (while the 3D view draws it): the page opens the 2D view. */
+  onMinimapClick?: () => void
   /** The camera mode, chosen by the page's control bar (`cameraChoiceLogic`). In free view
    *  `viewpoint` is the player followed last: the free camera starts behind him. */
   cameraMode: CameraMode3d
@@ -96,7 +100,7 @@ export interface Replay3DViewProps {
 }
 
 export function Replay3DView({
-  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', cameraMode: mode,
+  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', onMinimapClick, cameraMode: mode,
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -109,6 +113,8 @@ export function Replay3DView({
   const [load, setLoad] = useState<LoadState>({ kind: 'download', loaded: 0, total: 0 })
   const onLoadStateRef = useRef(onLoadState)
   onLoadStateRef.current = onLoadState
+  const onMinimapClickRef = useRef(onMinimapClick)
+  onMinimapClickRef.current = onMinimapClick
   useEffect(() => {
     onLoadStateRef.current?.(load)
   }, [load])
@@ -270,6 +276,52 @@ export function Replay3DView({
   }, [ready, mode])
   useEffect(() => {
     if (ready) sceneRef.current?.setView(view)
+  }, [ready, view])
+  // A click on the corner minimap (a pointerup without a drag inside its square, while the 3D view
+  // draws it) opens the 2D view. Captured on the host, before the canvas's camera gestures see it,
+  // so the click never starts a drag; hovering the square shows a pointer cursor.
+  useEffect(() => {
+    if (!ready || view !== '3d') return
+    const host = hostRef.current
+    const scene = sceneRef.current
+    if (!host || !scene) return
+    let down: { id: number; x: number; y: number } | null = null
+    const canvasPoint = (e: PointerEvent): [number, number] => {
+      const box = scene.canvas.getBoundingClientRect()
+      return [e.clientX - box.left, e.clientY - box.top]
+    }
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return
+      const [x, y] = canvasPoint(e)
+      if (!scene.minimapHit(x, y)) return
+      down = { id: e.pointerId, x, y }
+      e.stopPropagation()
+    }
+    const onMove = (e: PointerEvent) => {
+      const [x, y] = canvasPoint(e)
+      host.style.cursor = scene.minimapHit(x, y) ? 'pointer' : ''
+      if (down && down.id === e.pointerId && Math.hypot(x - down.x, y - down.y) > MINIMAP_DRAG_PX) down = null
+    }
+    const onUp = (e: PointerEvent) => {
+      if (!down || down.id !== e.pointerId) return
+      down = null
+      e.stopPropagation()
+      onMinimapClickRef.current?.()
+    }
+    const onCancel = (e: PointerEvent) => {
+      if (down && down.id === e.pointerId) down = null
+    }
+    host.addEventListener('pointerdown', onDown, true)
+    host.addEventListener('pointermove', onMove, true)
+    host.addEventListener('pointerup', onUp, true)
+    host.addEventListener('pointercancel', onCancel, true)
+    return () => {
+      host.style.cursor = ''
+      host.removeEventListener('pointerdown', onDown, true)
+      host.removeEventListener('pointermove', onMove, true)
+      host.removeEventListener('pointerup', onUp, true)
+      host.removeEventListener('pointercancel', onCancel, true)
+    }
   }, [ready, view])
   // The top-down view follows the chosen viewpoint only: in free camera its cut follows the living players.
   useEffect(() => {
