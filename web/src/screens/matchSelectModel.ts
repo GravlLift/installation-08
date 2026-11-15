@@ -235,7 +235,7 @@ export function fetchStateLabel(phase: FetchRowPhase): string {
     case 'idle':
       return 'Fetch'
     case 'queued':
-      return 'Queued…'
+      return phase.position > 1 ? `Queued (${phase.position})…` : 'Queued…'
     case 'downloading':
       return `Downloading… ${phase.done}/${phase.total}`
     case 'building':

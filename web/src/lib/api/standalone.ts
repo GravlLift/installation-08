@@ -312,10 +312,12 @@ export interface FetchStateBody {
   done: number
   total: number
   error?: string
+  /** The 1-based place a queued id has in the server's FIFO queue (1 = next). */
+  position?: number
 }
 
-/** Thrown by `startMatchFetch` on 409: the server runs one fetch at a time and another one is
- *  already in progress (possibly for a different match, possibly started from another tab). */
+/** Thrown by `startMatchFetch` on 409: an older server runs one fetch at a time and refused
+ *  this one as a duplicate (it never happens with a current server, which queues it). */
 export class FetchConflictError extends ApiError {
   constructor(body: unknown) {
     super('a fetch is already in progress', 409, body)
@@ -331,8 +333,9 @@ export async function fetchFetchState(matchId: string, signal?: AbortSignal): Pr
   return body as FetchStateBody
 }
 
-/** `POST /api/matches/{id}/fetch` — starts downloading and building this match; the server
- *  does one at a time and answers 409 (`FetchConflictError`) when another is already running. */
+/** `POST /api/matches/{id}/fetch` — queues this match for downloading and building; the
+ *  server runs fetches one at a time, in FIFO order, and answers 202 with the match's
+ *  snapshot (queued and its position, or its current state when already queued/in flight). */
 export async function startMatchFetch(matchId: string, signal?: AbortSignal): Promise<FetchStateBody> {
   const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/fetch`, {
     method: 'POST',

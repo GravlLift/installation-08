@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -89,9 +90,10 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 	}
 	entered := make(chan struct{})
 	release := make(chan struct{})
+	var enteredOnce sync.Once
 	h.remote.fetch = func(_ context.Context, _ *store.Root, _ *haloapi.Client, _ string, progress fetchProgress) error {
 		progress("downloading", 1, 2)
-		close(entered)
+		enteredOnce.Do(func() { close(entered) })
 		<-release
 		progress("building", 2, 2)
 		return nil
@@ -111,16 +113,31 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 		t.Fatal(r.Code)
 	}
 	<-entered
-	if r := get("POST", "/api/matches/def/fetch"); r.Code != 409 {
-		t.Fatal(r.Code)
+	// A second fetch is queued, not refused: it waits its turn behind abc.
+	if r := get("POST", "/api/matches/def/fetch"); r.Code != 202 || !strings.Contains(r.Body.String(), `"queued"`) {
+		t.Fatal(r.Code, r.Body.String())
 	}
 	if r := get("GET", "/api/matches/abc/fetch/state"); !strings.Contains(r.Body.String(), "downloading") {
+		t.Fatal(r.Body.String())
+	}
+	if r := get("GET", "/api/matches/def/fetch/state"); !strings.Contains(r.Body.String(), `"queued"`) {
 		t.Fatal(r.Body.String())
 	}
 	close(release)
 	deadline := time.Now().Add(time.Second)
 	for {
 		r := get("GET", "/api/matches/abc/fetch/state")
+		if strings.Contains(r.Body.String(), "ready") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(r.Body.String())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// abc finished, so the queued def now runs and becomes ready too.
+	for {
+		r := get("GET", "/api/matches/def/fetch/state")
 		if strings.Contains(r.Body.String(), "ready") {
 			break
 		}
