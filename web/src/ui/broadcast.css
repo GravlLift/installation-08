@@ -30,8 +30,6 @@
 .bc-topbar { display: flex; align-items: center; gap: 20px; padding: 18px 36px; }
 .bc-mark { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 20px; letter-spacing: 0.22em; text-transform: uppercase; }
 .bc-mark b { color: var(--air); font-weight: 700; }
-.bc-onair { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; padding: 3px 10px 2px; background: var(--air-hot); color: #1a1000;
-  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); font-weight: 700; }
 .bc-crumb { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; color: var(--ink-dim); }
 .bc-topbar .bc-spacer { flex: 1; }
 .bc-who { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
