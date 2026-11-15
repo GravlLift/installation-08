@@ -170,7 +170,9 @@ export function ReplayScoreboardOverlay({
             ))}
           </div>
         )}
-        {reading.modeStat && <p className="bc-sb-note">{reading.modeStat.label}: match totals</p>}
+        {reading.modeStat && !reading.modeStatLive && (
+          <p className="bc-sb-note">{reading.modeStat.label}: match totals</p>
+        )}
       </div>
     </div>
   )

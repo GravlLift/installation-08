@@ -8,9 +8,13 @@
  * score is the camp's `total` series; the per-player counters are the four player series
  * (personal score, kills, deaths, assists).
  *
- * THE MODE'S OWN COLUMN IS THE ONE EXCEPTION (`modeStatOf`): captures, ball time and zone time
- * exist only as match totals in the match stats (the film has no per-player series for them),
- * so that column reads the same at every frame and the overlay says so.
+ * THE MODE'S OWN COLUMN IS READ LIVE FROM THE FILM WHERE THE FILM HAS IT (`liveCapturesAt`,
+ * `liveBallTimeAt`): CTF captures (the flag carries layer joined to the score timeline) and
+ * Oddball ball time (the skull carries layer) are readings at the frame, the way the in-game
+ * scoreboard would read them there. Hill time has no zone-occupancy layer in the film, so it
+ * stays a MATCH TOTAL from the match stats (`modeStatOf`), and the overlay says so under the
+ * table. A mode whose film layer is absent on an older artifact falls back to the match total,
+ * the same as hill time.
  *
  * WHY NOT THE KILL EVENTS. `doc.killCauses` carries kills only (no death channel of its
  * own, no assists at all), and credits the killer the moment the film writes the cause.
@@ -55,8 +59,10 @@ export interface ReplayScoreboardPlayer {
   counters: PlayerCounters | null
   /**
    * The mode's own stat for this player (`ReplayScoreboardReading.modeStat`): a count, or seconds
-   * for a time stat. A MATCH TOTAL from the match stats, not a value at the frame read; `null`
-   * when the sheet has no value for this player or the mode has no stat column.
+   * for a time stat. For captures and ball time it is the LIVE value at the frame read (from the
+   * film); for hill time it is the match total, and likewise a match total when the mode's film
+   * layer is absent on an older artifact. `null` when no value applies: the mode has no stat
+   * column, or the match-total fallback has no sheet value for this player.
    */
   modeValue: number | null
 }
@@ -65,8 +71,10 @@ export interface ReplayScoreboardPlayer {
  * The mode's own scoreboard column, as Halo Infinite's in-match scoreboard adds one: flag
  * captures in CTF, ball carry time in Oddball, zone time in Strongholds and King of the Hill
  * (both modes publish their zone time as `StrongholdOccupationTime`, served as
- * `time_in_zones_seconds`). Read from the match stats' objective block, so it is the match
- * total: the film gives no per-player series for it.
+ * `time_in_zones_seconds`). `modeStatOf` picks the column and its MATCH-TOTAL values from
+ * the match stats' objective block; captures and ball time are then read LIVE at the frame
+ * from the film (`liveCapturesAt`, `liveBallTimeAt`) where the film carries its layer, and
+ * the match total is the fallback (hill time always is: no zone-occupancy layer in the film).
  */
 export type ScoreboardModeStatKind = 'captures' | 'ballTime' | 'zoneTime'
 
@@ -128,8 +136,14 @@ export interface ReplayScoreboardReading {
   /** `true` when the film records personal score at all (the game's Score column, read at the
    *  frame like the other counters) — the column is drawn only then. */
   hasScore: boolean
-  /** The mode's stat column (match totals), or `null` when the mode or the sheet has none. */
+  /** The mode's stat column, or `null` when the mode or the sheet has none. */
   modeStat: ScoreboardModeStat | null
+  /**
+   * `true` when `modeStat` is a LIVE reading at the frame (CTF captures, Oddball ball time):
+   * the overlay drops its "match totals" note then. `false` for hill time and for a mode whose
+   * film layer is absent on an older artifact (the value is then the match total).
+   */
+  modeStatLive: boolean
 }
 
 /** scoreRecorded — does the film record personal score at all? Same rule as assists. */
@@ -167,6 +181,94 @@ function rowOf(
 }
 
 /**
+ * How many frames after a flag carry ends the film may publish the team's +1 before the two
+ * still read as the same event (the Fortress CTF artifact dates the tick exactly 2 frames
+ * after the carry ends; the window absorbs producer variation).
+ */
+const CAPTURE_SCORE_WINDOW_FRAMES = 6
+
+/**
+ * liveCapturesAt — the CTF captures each player has made at `frame`, read from the film:
+ * a `carried` flag span ending in a capture is a dated event the span's own state does not
+ * mark (a span that ends in a drop looks identical to one that ends in a capture), so a
+ * capture is the team score rising within a few frames of a carry's end. Each +1 of a team's
+ * total at or before `frame` is one capture, attributed to that team's latest carry within
+ * the window of the tick. `null` when the film carries no flag-carries layer (older
+ * artifact): the caller falls back to the match total, the note saying so.
+ */
+function liveCapturesAt(
+  doc: Pick<ReplayDocumentReady, 'flagCarries'>,
+  players: readonly ReplayPlayer[],
+  timeline: ReplayScoreTimelineReady,
+  frame: number,
+): Map<string, number> | null {
+  if (doc.flagCarries.length === 0) return null
+  const teamOf = new Map<string, number | undefined>()
+  for (const p of players) teamOf.set(p.xuid, p.team)
+  // Each team's candidate carries: the carried spans that ended at or before `frame`.
+  const carries = new Map<number, { t1: number; xuid: string }[]>()
+  for (const flag of doc.flagCarries) {
+    for (const span of flag.spans) {
+      if (span.state !== 'carried' || span.xuid === null || span.t1 > frame) continue
+      const team = teamOf.get(span.xuid)
+      if (team == null) continue
+      const list = carries.get(team) ?? []
+      list.push({ t1: span.t1, xuid: span.xuid })
+      carries.set(team, list)
+    }
+  }
+  const captures = new Map<string, number>()
+  for (const teamSeries of timeline.teams) {
+    if (teamSeries.teamId == null) continue
+    const teamCarries = carries.get(teamSeries.teamId)
+    if (!teamCarries) continue
+    teamCarries.sort((a, b) => b.t1 - a.t1)
+    const consumed = new Set<number>()
+    let previous = 0
+    for (const tick of teamSeries.total) {
+      if (tick.t > frame) break
+      const delta = Math.max(0, tick.v - previous)
+      previous = tick.v
+      // Each +1 takes the latest unconsumed carry that ended within the window of the tick —
+      // one that ended after it is the NEXT capture, not this one, and stays unconsumed.
+      for (let i = 0; i < delta; i++) {
+        const idx = teamCarries.findIndex(
+          (c, k) => !consumed.has(k) && c.t1 <= tick.t && tick.t - c.t1 <= CAPTURE_SCORE_WINDOW_FRAMES,
+        )
+        if (idx < 0) break
+        consumed.add(idx)
+        const carry = teamCarries[idx]!
+        captures.set(carry.xuid, (captures.get(carry.xuid) ?? 0) + 1)
+      }
+    }
+  }
+  return captures
+}
+
+/**
+ * liveBallTimeAt — the seconds of skull carry time each player has accumulated at `frame`,
+ * read from the film's flat skull-carries periods: the sum of `min(t1, frame) - t0` over the
+ * periods opened at or before `frame`, frames to seconds through the film's time scale. An
+ * open period (`closed: false`) runs to the end of the data, which `min(t1, frame)` already
+ * bounds. `null` when the film carries no skull-carries layer (older artifact) or no usable
+ * time scale: the caller falls back to the match total, the note saying so.
+ */
+function liveBallTimeAt(
+  doc: Pick<ReplayDocumentReady, 'skullCarries' | 'frameIntervalMs'>,
+  frame: number,
+): Map<string, number> | null {
+  if (doc.skullCarries.length === 0) return null
+  const intervalMs = doc.frameIntervalMs
+  if (!intervalMs || !Number.isFinite(intervalMs) || intervalMs <= 0) return null
+  const time = new Map<string, number>()
+  for (const carry of doc.skullCarries) {
+    if (carry.t0 > frame) continue
+    time.set(carry.xuid, (time.get(carry.xuid) ?? 0) + ((Math.min(carry.t1, frame) - carry.t0) * intervalMs) / 1000)
+  }
+  return time
+}
+
+/**
  * readReplayScoreboard — the scoreboard at `frame`.
  *
  * `null` when the score timeline must not be read (absent layer, or the film clock is not
@@ -187,8 +289,32 @@ export function readReplayScoreboard(
   const mode = modeStatOf(scoreboard)
   const hasScore = scoreRecorded(timeline)
   const players = buildPlayers(doc, [...scoreboard])
+
+  // THE MODE'S OWN COLUMN, LIVE WHERE THE FILM HAS ITS LAYER. Captures and ball time are
+  // readings at the frame (the overlay drops its "match totals" note then); hill time has
+  // no zone-occupancy layer in the film, and a mode whose layer is absent on an older
+  // artifact falls back to the match total, the note saying so. In live mode a player with
+  // no value is at zero (a measure), never a gap.
+  let modeValueOf: ((xuid: string) => number | null) | null = mode?.valueOf ?? null
+  let modeStatLive = false
+  if (mode) {
+    if (mode.stat.kind === 'captures') {
+      const live = liveCapturesAt(doc, players, timeline, frame)
+      if (live) {
+        modeValueOf = (xuid) => live.get(xuid) ?? 0
+        modeStatLive = true
+      }
+    } else if (mode.stat.kind === 'ballTime') {
+      const live = liveBallTimeAt(doc, frame)
+      if (live) {
+        modeValueOf = (xuid) => live.get(xuid) ?? 0
+        modeStatLive = true
+      }
+    }
+  }
+
   const rows = new Map<string, ReplayScoreboardPlayer>()
-  for (const p of players) rows.set(p.xuid, rowOf(timeline, p, frame, mode?.valueOf ?? null))
+  for (const p of players) rows.set(p.xuid, rowOf(timeline, p, frame, modeValueOf))
 
   // THE CAMPS OF THE FILM. `groupByTeam` is the one grouping of the whole replay; a player
   // the film withholds an entry (or a team) for is in no camp.
@@ -208,7 +334,7 @@ export function readReplayScoreboard(
       return (a.counters?.deaths ?? 0) - (b.counters?.deaths ?? 0)
     })
 
-  const columns = { hasAssists: assistsRecorded(timeline), hasScore, modeStat: mode?.stat ?? null }
+  const columns = { hasAssists: assistsRecorded(timeline), hasScore, modeStat: mode?.stat ?? null, modeStatLive }
   if (ffa) {
     return {
       ffa: true,

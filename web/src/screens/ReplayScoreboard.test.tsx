@@ -178,3 +178,39 @@ it('adds the Score column and the mode stat, marked as match totals, when the da
   expect([...alpha.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['Alpha', '150', '0', '0', '2'])
   expect(overlay).toHaveTextContent('Caps: match totals')
 })
+
+it('reads caps live from the film and drops the match-totals note', () => {
+  contextValue.value = {
+    header: { t0_ms: 0 },
+    scoreboard: [
+      row({ xuid: 'a', gamertag: 'Alpha', team_side: 't0', objective: { flag_captures: 1 } }),
+      row({ xuid: 'b', gamertag: 'Bravo', team_side: 't1', objective: { flag_captures: 0 } }),
+    ],
+    highlight_events: [],
+    media: { media_items: [] },
+    source_unavailable: false,
+  }
+  const doc = scoreboardDoc()
+  doc.flagCarries = [
+    {
+      team: 0,
+      spans: [
+        { state: 'home', xuid: null, t0: 0, t1: 90, x: 0, y: 0, returnProgress: [] },
+        { state: 'carried', xuid: 'a', t0: 90, t1: 100, x: 0, y: 0, returnProgress: [] },
+        { state: 'home', xuid: null, t0: 102, t1: 200, x: 0, y: 0, returnProgress: [] },
+      ],
+    },
+  ]
+  doc.scoreTimeline!.teams = [
+    { teamId: 0, rounds: [], total: [{ t: 102, v: 1 }] },
+    { teamId: 1, rounds: [], total: [] },
+  ]
+  render(<ReplayViewer matchId="test" doc={doc} onBack={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Scoreboard' }))
+  const overlay = screen.getByTestId('replay-scoreboard')
+  // At the current frame (0) the capture has not happened: caps read live at 0, and the
+  // "match totals" note is gone (the final 1-0 is NOT shown as live).
+  const alpha = [...overlay.querySelectorAll('tr')].find((tr) => tr.textContent?.includes('Alpha'))!
+  expect([...alpha.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['Alpha', '0', '0', '0'])
+  expect(overlay).not.toHaveTextContent('match totals')
+})

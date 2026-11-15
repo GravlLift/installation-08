@@ -215,10 +215,127 @@ it('reads CTF captures from the sheet as match totals, null for a player without
   const ctf = sheet.map((r) => (r.xuid === 'd' ? r : { ...r, objective: { flag_captures: r.xuid === 'a' ? 2 : 0, flag_grabs: 5 } }))
   const reading = readReplayScoreboard(teamDoc(), ctf, 50)
   expect(reading?.modeStat).toEqual({ kind: 'captures', label: 'Caps', seconds: false })
+  // No flag layer in the film: the match total is the value, and the overlay keeps its note.
+  expect(reading?.modeStatLive).toBe(false)
   const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
   expect(value('a')).toBe(2)
   expect(value('b')).toBe(0)
   expect(value('d')).toBeNull()
+})
+
+/**
+ * A CTF document whose film carries the flag layer: A captures at frame 100 (team score +1 at
+ * 102), B captures at 160 (+1 at 162), C's carry at 60 ends in a drop (no score tick).
+ */
+function ctfDoc() {
+  const doc = teamDoc()
+  doc.flagCarries = [
+    {
+      team: 0,
+      spans: [
+        { state: 'home', xuid: null, t0: 0, t1: 90, x: 0, y: 0, returnProgress: [] },
+        { state: 'carried', xuid: 'a', t0: 90, t1: 100, x: 0, y: 0, returnProgress: [] },
+        { state: 'home', xuid: null, t0: 102, t1: 200, x: 0, y: 0, returnProgress: [] },
+        { state: 'carried', xuid: 'b', t0: 140, t1: 160, x: 0, y: 0, returnProgress: [] },
+        { state: 'home', xuid: null, t0: 162, t1: 200, x: 0, y: 0, returnProgress: [] },
+      ],
+    },
+    {
+      team: 1,
+      spans: [
+        { state: 'home', xuid: null, t0: 0, t1: 48, x: 0, y: 0, returnProgress: [] },
+        { state: 'carried', xuid: 'c', t0: 48, t1: 60, x: 0, y: 0, returnProgress: [] },
+        { state: 'dropped', xuid: null, t0: 62, t1: 200, x: 0, y: 0, returnProgress: [] },
+      ],
+    },
+  ]
+  doc.scoreTimeline!.teams = [
+    { teamId: 0, rounds: [], total: [{ t: 102, v: 1 }, { t: 162, v: 2 }] },
+    { teamId: 1, rounds: [], total: [] },
+  ]
+  return doc
+}
+
+const ctfSheet = sheet.map((r) => ({ ...r, objective: { flag_captures: r.xuid === 'a' ? 1 : r.xuid === 'b' ? 1 : 0 } }))
+
+it('reads CTF captures live from the film at the frame', () => {
+  const reading = readReplayScoreboard(ctfDoc(), ctfSheet, 150)
+  expect(reading?.modeStatLive).toBe(true)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  // A's capture has landed; B's carry is still open, C's ended in a drop.
+  expect(value('a')).toBe(1)
+  expect(value('b')).toBe(0)
+  expect(value('c')).toBe(0)
+  expect(value('d')).toBe(0)
+})
+
+it('reads no capture before its carry ends', () => {
+  const reading = readReplayScoreboard(ctfDoc(), ctfSheet, 50)
+  expect(reading?.modeStatLive).toBe(true)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBe(0)
+  expect(value('b')).toBe(0)
+})
+
+it('equals the sheet totals when the live captures are read at the final frame', () => {
+  const live = readReplayScoreboard(ctfDoc(), ctfSheet, 199)
+  const totals = readReplayScoreboard(teamDoc(), ctfSheet, 199)
+  for (const team of live?.teams ?? []) {
+    for (const p of team.players) {
+      const final = totals?.teams.flatMap((t) => t.players).find((q) => q.xuid === p.xuid)?.modeValue
+      expect(p.modeValue).toBe(final)
+    }
+  }
+})
+
+/**
+ * An Oddball document whose film carries the skull layer: A carried 100-150 (closed) and
+ * 180 to the end of data (open), one frame worth 33 ms.
+ */
+function oddballDoc() {
+  const doc = teamDoc()
+  doc.frameIntervalMs = 33
+  doc.skullCarries = [
+    { xuid: 'a', t0: 100, t1: 150, closed: true },
+    { xuid: 'a', t0: 180, t1: 200, closed: false },
+  ]
+  return doc
+}
+
+const oddballSheet = sheet.map((r) => ({
+  ...r,
+  objective: { time_as_skull_carrier_seconds: r.xuid === 'a' ? 2.31 : 0 },
+}))
+
+it('reads Oddball ball time live from the film, open period running to the end of data', () => {
+  // 150-100 = 50 frames closed, plus nothing of the open period yet (180 > 170).
+  const reading = readReplayScoreboard(oddballDoc(), oddballSheet, 170)
+  expect(reading?.modeStatLive).toBe(true)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBeCloseTo(1.65)
+  expect(value('b')).toBe(0)
+})
+
+it('reads ball time while now is inside an open carry period', () => {
+  // 50 closed frames, plus 190-180 = 10 of the open period: (50 + 10) × 33 ms.
+  const reading = readReplayScoreboard(oddballDoc(), oddballSheet, 190)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBeCloseTo(1.98)
+})
+
+it('falls back to the sheet ball time when the film has no skull layer', () => {
+  const reading = readReplayScoreboard(teamDoc(), oddballSheet, 150)
+  expect(reading?.modeStat).toEqual({ kind: 'ballTime', label: 'Ball time', seconds: true })
+  expect(reading?.modeStatLive).toBe(false)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBe(2.31)
+})
+
+it('reads no ball time before a period opens', () => {
+  const reading = readReplayScoreboard(oddballDoc(), oddballSheet, 90)
+  expect(reading?.modeStatLive).toBe(true)
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBe(0)
 })
 
 it('picks ball time in Oddball and hill time in zone modes', () => {
