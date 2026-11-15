@@ -91,6 +91,64 @@ describe('the flag in hand', () => {
   })
 })
 
+describe('the spawn hand', () => {
+  /** A life over frames 0-100 read only from its birth loadout (no keyframe, no inventory read). */
+  function spawnDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 0, slot: 512, w: ['0xAAAA', '0xBBBB'], src: 'birth', k: [0, 1] }],
+      ...over,
+    })
+  }
+
+  it('holds the weapon of emplacement 0 from birth until the first selector flip', () => {
+    const doc = spawnDoc({ drawnWeapons: [{ t: 50, slot: 512, d: 1 }] })
+    expect(armeEnMain(doc, 512, 20)).toEqual({ id: '0xAAAA', slotArme: 0 })
+    expect(armeEnMain(doc, 512, 60)).toEqual({ id: '0xBBBB', slotArme: 1 })
+  })
+
+  it('holds the weapon of emplacement 0 for a whole life no read ever locates', () => {
+    expect(armeEnMain(spawnDoc(), 512, 90)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('does not claim the spawn weapon once a weapon change is dated since birth', () => {
+    const doc = spawnDoc({ weaponChanges: [{ t: 10, slot: 512, kind: 'swapped', w: 'cccccccc', from: 'aaaa', k: 0 }] })
+    expect(armeEnMain(doc, 512, 20)?.id).not.toBe('0xAAAA')
+  })
+
+  it('keeps the old rule for a keyframe row: two weapons and no read leave the hand empty', () => {
+    const doc = spawnDoc({ loadouts: [{ t: 0, slot: 512, w: ['0xAAAA', '0xBBBB'] }] })
+    expect(armeEnMain(doc, 512, 20)).toBeNull()
+  })
+})
+
+describe('a life without any loadout reading', () => {
+  /** A life over frames 0-100, flipped to emplacement 1 at 30, that fires the C weapon at 60. */
+  function bareDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      drawnWeapons: [{ t: 30, slot: 512, d: 1 }],
+      shots: [{ t: 60, slot: 512, x: 0, y: 0, w: '0xCCCCCCCC42C9679F' }],
+      ...over,
+    })
+  }
+
+  it('names the weapon of the emplacement in hand by the shots fired from it', () => {
+    expect(armeEnMain(bareDoc(), 512, 40)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+    expect(armeEnMain(bareDoc(), 512, 90)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+  })
+
+  it('leaves the other emplacement unnamed: before the flip the hand holds emplacement 0', () => {
+    expect(armeEnMain(bareDoc(), 512, 20)).toBeNull()
+  })
+
+  it('ignores a shot fired from a vehicle, and a shot past a weapon change of that emplacement', () => {
+    expect(armeEnMain(bareDoc({ shots: [{ t: 60, slot: 512, x: 0, y: 0, v: 3, w: '0xCCCCCCCC42C9679F' }] }), 512, 40)).toBeNull()
+    const changed = bareDoc({ weaponChanges: [{ t: 70, slot: 512, kind: 'swapped', w: 'dddddddd', from: 'cccccccc', k: 1 }] })
+    expect(armeEnMain(changed, 512, 80)).toBeNull()
+  })
+})
+
 describe('flagObjectIdOf', () => {
   it('is the object the first located carrier holds', () => {
     expect(flagObjectIdOf(ctfDoc())).toBe('0x2A392328')

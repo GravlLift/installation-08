@@ -73,9 +73,15 @@ reported stale by `/api/coatings/status` and rebuilt in place by the normal buil
 ## What is missing
 
 - Weapon cores whose equipped theme is not in the GameCMS cache, or whose weapon name the tables
-  do not know, are left out of `weapon_coatings` (logged once); their weapons stay neutral.
+  do not know, are left out of `weapon_coatings` (logged once); their weapons wear the default
+  style of each of their style lists, not the player's coating.
+- Weapons the game gives no core (the Fuel Rod, the Skewer, the Energy Sword: no customization
+  carries one) never have a `weapon_coatings` entry; the view paints them with the default style
+  of each list (`weaponCoat3d.construirePeintureArme` with no style key), which is the weapon's own
+  look in the game (the Standard Issue coating picks the same styles).
 - An empty `style_key` (coating file absent from the gamecms cache, unreadable, or naming no style)
-  paints the model neutral; the match data itself is unchanged.
+  paints the model with those same default styles; the match data itself is unchanged.
+- Weapons on the ground (pads, drops) are drawn from the raw model and never painted.
 - A weapons library built without an Ekur reference has no `coatings.json`: every weapon material
   falls back neutral (`coatings_unavailable`, named in the report).
 - Weapon materials without raw masks (no `userData.armorMaps` after load) are not painted.

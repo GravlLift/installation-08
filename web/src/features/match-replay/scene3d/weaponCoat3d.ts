@@ -9,6 +9,13 @@
  * Replis nommés, rapportés UNE fois à la console (`reportArme`) : table illisible (tout neutre),
  * revêtement absent de la bibliothèque (style par défaut de chaque liste), dégradé non chargé
  * (neutre), et ceux de `armorCoating3d`.
+ *
+ * A WEAPON THE PLAYER HAS NO COATING FOR WEARS ITS DEFAULT STYLES. The game gives no weapon core to
+ * the Fuel Rod, the Skewer or the Energy Sword (none of the 9 local films' 73 customizations
+ * carries one), so `weapon_coatings` never names them; the game still draws them in their own
+ * look, the default style of each of their style lists (the same style the Standard Issue coating
+ * picks: `4fd2e5a1` for the BR75's list, `983ef04a` for the SPNKr's). Leaving them unpainted drew
+ * the raw model, dark metal with no texture.
  */
 import * as THREE from 'three'
 
@@ -17,16 +24,15 @@ import type { PaintNote } from './armorCoating3d'
 
 /**
  * construirePeintureArme peint les matériaux `materiaux` de l'arme du joueur : `styleKey` null —
- * le joueur ne porte pas de revêtement pour cette arme (pas de peinture, tout neutre) ;
- * `styleKey` lue — le revêtement de sa clé, ou le style par défaut de chaque liste du matériau
- * s'il est absent de la bibliothèque.
+ * le joueur ne porte pas de revêtement pour cette arme (le style par défaut de chaque liste, sans
+ * repli nommé) ; `styleKey` lue — le revêtement de sa clé, ou le style par défaut de chaque liste
+ * du matériau s'il est absent de la bibliothèque.
  */
 export async function construirePeintureArme(
   materiaux: readonly THREE.Material[],
   styleKey: string | null,
   lib: CoatSource,
 ): Promise<{ coat: Coat; issues: CoatIssue[] }> {
-  if (styleKey === null) return { coat: new Map(), issues: [] }
   const counts = new Map<string, CoatIssue>()
   const note: PaintNote = (kind, what) => {
     const k = `${kind} ${what}`
@@ -37,7 +43,7 @@ export async function construirePeintureArme(
   const table = await lib.coatings()
   const coating = table && styleKey ? await lib.coating(styleKey) : null
   if (!table) note('coatings_unavailable', '')
-  else if (!coating) note('coating_unknown', styleKey)
+  else if (!coating && styleKey) note('coating_unknown', styleKey)
   const coat = await paintMaterials(materiaux, table, { coating, visor: null }, lib, note)
   return { coat, issues: [...counts.values()] }
 }

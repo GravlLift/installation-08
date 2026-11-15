@@ -42,29 +42,33 @@ const suivis = new WeakMap<ReplayDocumentReady, Map<number, SuiviMain>>()
  * (selector, magazine) takes precedence, and without it the slot borrowed from the future is
  * admitted only if it holds a weapon of the birth loadout — the player has it from spawn, never a
  * pickup that arrives later in the life.
+ *
+ * THE SPAWN HAND (`mainDeNaissance`): a life read from its birth loadout holds the weapon of
+ * emplacement 0 until its first dated read, as long as no weapon change is dated since birth.
+ * A life with no loadout reading at all is named by its own shots (`armeDesTirs`).
  */
 export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
   const life = currentLifeOf(doc, slot, frame)
   if (!life || carriedObjectAt(doc, life.xuid, frame)) return null
-  const lo = loadoutAt(doc, slot, frame)
-  if (!lo) return null
-  const inv = inventoryAt(doc, slot, frame)
   let suivi = suivis.get(doc)
   if (!suivi) { suivi = suivreMain(doc); suivis.set(doc, suivi) }
   const events = suivi.get(slot)
-  const ms = frameToMs(frame, doc)
   const vie = trackWindow(life)
+  const lo = loadoutAt(doc, slot, frame)
+  if (!lo) return armeDesTirs(doc, { slot, frame, naissance: vie.start }, vie.end, events)
+  const inv = inventoryAt(doc, slot, frame)
+  const ms = frameToMs(frame, doc)
   const start = frameToMs(vie.start, doc)
-  let debut = 0, fin = events?.ms.length ?? 0
-  while (debut < fin) {
-    const milieu = Math.floor((debut + fin) / 2)
-    if (events!.ms[milieu] <= ms) debut = milieu + 1
-    else fin = milieu
-  }
+  const debut = lecturesJusqua(events, ms)
   const index = debut - 1
   const eventMs = index >= 0 && events!.ms[index] >= start ? events!.ms[index] : -Infinity
   const invMs = inv ? frameToMs(inv.empty ? frame - inv.empty.age : inv.state.t, doc) : -Infinity
   const invFutur = inv != null && inv.age < 0
+  if (eventMs === -Infinity && !(inv && inv.age >= 0)) {
+    const k = mainDeNaissance(doc, { slot, frame, naissance: vie.start }, lo)
+    const id = k === undefined ? undefined : lo.weapons[k]
+    if (k !== undefined && id) return { id, slotArme: k }
+  }
   let d: number | undefined
   if (invFutur) {
     // Future inventory read: a past dated read of the life takes precedence; without it,
@@ -86,6 +90,90 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
   if (k === undefined) return null
   const id = armeDeLEmplacement(doc, slot, frame, lo, k)
   return id ? { id, slotArme: k } : null
+}
+
+/** lecturesJusqua: the number of dated hand reads of `events` at or before instant `ms`. */
+function lecturesJusqua(events: SuiviMain | undefined, ms: number): number {
+  let debut = 0, fin = events?.ms.length ?? 0
+  while (debut < fin) {
+    const milieu = Math.floor((debut + fin) / 2)
+    if (events!.ms[milieu] <= ms) debut = milieu + 1
+    else fin = milieu
+  }
+  return debut
+}
+
+/**
+ * EMPLACEMENT_NAISSANCE — the weapon emplacement a Spartan holds when he spawns: the first one of
+ * his birth loadout. Measured on the nine local films of 2026-11-15 (203 lives with a two-weapon
+ * birth loadout): every shot fired before the life's first hand read is the weapon of emplacement
+ * 0 (49/49), every first inventory read says 0 (48/48), and every first selector flip goes to 1
+ * (125/125), away from the spawn weapon.
+ */
+const EMPLACEMENT_NAISSANCE = 0
+
+/**
+ * mainDeNaissance: the index (in the reading's `weapons`) of the spawn weapon, for a life read
+ * from its birth loadout and not yet located by any dated read. Undefined when the reading is
+ * not the birth row with its emplacements, or when a weapon change is dated between the birth and
+ * the frame (the hand may then hold the new weapon).
+ */
+function mainDeNaissance(
+  doc: ReplayDocumentReady,
+  vie: { slot: number; frame: number; naissance: number },
+  lo: LoadoutReading,
+): number | undefined {
+  if (lo.src !== LOADOUT_SRC_BIRTH || !lo.k) return undefined
+  if (changementEntre(doc, vie.slot, vie.naissance, frameToMs(vie.frame, doc))) return undefined
+  const k = lo.k.indexOf(EMPLACEMENT_NAISSANCE)
+  return k >= 0 ? k : undefined
+}
+
+/**
+ * mainA: the emplacement the hand holds at `frame` in a life: the last dated hand read since the
+ * birth (selector flip, per-shot magazine), else the spawn emplacement when no weapon change is
+ * dated between the birth and the frame; undefined otherwise.
+ */
+function mainA(doc: ReplayDocumentReady, vie: { slot: number; frame: number; naissance: number }, events: SuiviMain | undefined): number | undefined {
+  const ms = frameToMs(vie.frame, doc)
+  const index = lecturesJusqua(events, ms) - 1
+  if (index >= 0 && events!.ms[index] >= frameToMs(vie.naissance, doc)) return events!.w[index]
+  return changementEntre(doc, vie.slot, vie.naissance, ms) ? undefined : EMPLACEMENT_NAISSANCE
+}
+
+/**
+ * armeDesTirs: the weapon in hand of a life that NO loadout reading covers (its birth record did
+ * not close and no keyframe fell inside it): a shot names the weapon in hand at its instant, and
+ * the weapon of an emplacement is the one its shots name. The hand's emplacement at `frame` and
+ * at each shot comes from `mainA`; a shot counts only if no weapon change of that emplacement is
+ * dated between it and the frame. On foot only (a vehicle shot names the vehicle's weapon). Null
+ * without such a shot.
+ */
+function armeDesTirs(
+  doc: ReplayDocumentReady,
+  vie: { slot: number; frame: number; naissance: number },
+  fin: number,
+  events: SuiviMain | undefined,
+): { id: string; slotArme: number } | null {
+  const d = mainA(doc, vie, events)
+  if (d !== 0 && d !== 1) return null
+  let best: { id: string; ecart: number } | null = null
+  for (const s of doc.shots) {
+    if (s.slot !== vie.slot || s.v != null || !s.w || s.t < vie.naissance || s.t > fin) continue
+    const ecart = Math.abs(s.t - vie.frame)
+    if (best && ecart >= best.ecart) continue
+    if (mainA(doc, { ...vie, frame: s.t }, events) !== d) continue
+    const [de, a] = s.t <= vie.frame ? [s.t, vie.frame] : [vie.frame, s.t]
+    if (doc.weaponChanges.some((c) => c.slot === vie.slot && c.k === d && c.t > de && c.t <= a)) continue
+    best = { id: familleDe(s.w), ecart }
+  }
+  return best ? { id: best.id, slotArme: d } : null
+}
+
+/** familleDe: the weapon family of a shot's 64-bit weapon id (`0xFFFFFFFFVVVVVVVV` -> `0xFFFFFFFF`), the form of a loadout row. */
+function familleDe(w: string): string {
+  const m = /^0x([0-9a-f]{8})/i.exec(w)
+  return m ? `0x${m[1].toUpperCase()}` : w
 }
 
 /**

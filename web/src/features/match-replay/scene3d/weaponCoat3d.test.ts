@@ -64,12 +64,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('construirePeintureArme', () => {
-  it('styleKey null : aucune peinture, aucune lecture de la bibliothèque', async () => {
+  it('styleKey null (no coating for this weapon): the default style of each list, no fallback named', async () => {
     const { io, fetchJson } = fakeIO()
-    const { coat, issues } = await construirePeintureArme([paintedMaterial()], null, new ArmorLibrary('/armes', io))
-    expect(coat.size).toBe(0)
+    const m = paintedMaterial()
+    const { coat, issues } = await construirePeintureArme([m], null, new ArmorLibrary('/armes', io))
     expect(issues).toEqual([])
-    expect(fetchJson).not.toHaveBeenCalled()
+    // The list's default style has no gradient: zone on, no layer (-1), its own top color.
+    expect(Array.from(coat.get(m)!.paint.data.slice(0, 2))).toEqual([1, -1])
+    expect(Array.from(coat.get(m)!.paint.data.slice(4, 7))).toEqual([expect.closeTo(0.9, 6), expect.closeTo(0.9, 6), expect.closeTo(0.9, 6)])
+    // Only the table is read, never a coating file.
+    expect(fetchJson.mock.calls.map(([url]) => String(url).slice(String(url).lastIndexOf('/') + 1))).toEqual(['coatings.json'])
   })
 
   it('peint les matériaux du revêtement de l’arme, dégradés chargés', async () => {
