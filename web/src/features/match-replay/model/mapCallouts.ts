@@ -34,6 +34,13 @@ export interface MapCallouts {
   zones: CalloutZone[]
 }
 
+/**
+ * The place label's layout in the first-person HUD, shared by the live HUD and the video export:
+ * its left edge and its bottom as shares of the view, its size and letter spacing in HUD ems, bold
+ * small caps (upper case).
+ */
+export const CALLOUT_LABEL = { left: 0.03, bottom: 0.06, em: 0.42, tracking: 0.12, weight: 700 } as const
+
 /** How far above the track's z the area test probes, in meters (see the header). */
 export const CALLOUT_PROBE_ABOVE_M = 0.5
 

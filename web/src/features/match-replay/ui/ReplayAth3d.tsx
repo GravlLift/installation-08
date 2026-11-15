@@ -6,8 +6,9 @@ import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, preparerAth } from '../model/ath3d_logic'
-import { magsPourArme, specLunette, zoomAt } from '../model/scopeLogic'
-import { adsAmmoText, adsLevelIndex, adsOverlayFor } from '../model/adsOverlay'
+import { magsPourArme } from '../model/scopeLogic'
+import { adsAmmoText } from '../model/adsOverlay'
+import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayAthFil3d } from './ReplayAthFil3d'
 import { ReplayAthLunette3d } from './ReplayAthLunette3d'
@@ -20,7 +21,10 @@ import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 import type { HudLevel } from '../model/hudLevel'
 import { buildLivesByXuid } from '../model/livesPosition'
-import { calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
+import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
+
+/** The hip reticle box (`aimHud.reticleBoxPx`, in container units). */
+const RETICLE_CSS_SIZE = `max(${RETICLE_MIN_PX}px, ${RETICLE_HEIGHT_SHARE * 100}cqh)`
 
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
@@ -65,23 +69,20 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const coteDroite = score && (score.allieAGauche
     ? { camp: 'team-enemy' as const, score: score.enemy.score, part: score.enemy.fill }
     : { camp: 'team-ally' as const, score: score.ally.score, part: score.ally.fill })
-  const cle = ath?.armeId?.replace(/^0x/i, '').slice(0, 8).toLowerCase()
-  const spec = specLunette(cle, ath?.etiquette?.key)
+  const cle = heldModelKey(ath?.armeId)
   // The magnification per level comes from the weapon index (the tag's own values); the hand
   // table gives only the kind and the style. A weapon the index has no zoom for does not zoom.
   const mags = magsPourArme(cle, sceneRef?.current?.magnifications(cle ?? '') ?? null)
-  const zoom = zoomAt(doc, xuid, frame, spec, mags)
+  // The weapon's ADS overlay (`adsOverlay`): drawn from the first frame of the zoom, fading with it;
+  // an overlay with its own center reticle replaces the hip reticle past half the fade (`aimHud`,
+  // shared with the video export).
+  const aimState = aimHudAt(doc, xuid, frame, cle, ath?.etiquette?.key, mags)
+  const { zoom, ads } = aimState
   const armeId = ath?.armeId ?? null
   useEffect(() => {
     heldRef.current = armeId ? { weaponId: armeId, zoomLevel: zoom.level } : null
   }, [armeId, zoom.level])
-  // The weapon's ADS overlay (`adsOverlay`): drawn from the first frame of the zoom, fading with it;
-  // an overlay with its own center reticle replaces the hip reticle past half the fade.
-  const ads = adsOverlayFor(cle, ath?.etiquette?.key, spec)
-  const adsVisible = ads !== null && zoom.shownLevel > 0 && zoom.amount > 0
-  const lunetteMontee = adsVisible && ads.ownReticle && zoom.amount > 0.5
-  // Un lien intelligent garde le réticule, réduit de 30 % avec l'amplissée du zoom.
-  const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
+  const reticule = ath ? reticleGeometry(ath.forme, ath.elimination, ath.touche) : null
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
   const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
   const bandeau = score && coteGauche && coteDroite ? <BandeauScore locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} coteGauche={coteGauche} coteDroite={coteDroite} /> : null
@@ -99,17 +100,17 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {ath?.bouclierEtat && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(39cqh, 90%)', minWidth: 160, transform: 'translateX(-50%)' }}>
       <ShieldBar3d fraction={ath.bouclierEtat.fraction} state={ath.bouclierEtat.state} flash={shieldFlash(frameToMs(ath.bouclierEtat.since, doc), frameToMs(frame, doc))} label={REPLAY_TEXT[locale].shieldLabel} />
     </div>}
-    {aim && ath && ads && adsVisible && <ReplayAthLunette3d spec={ads} levelIndex={adsLevelIndex(ads, zoom.shownLevel)} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.munitions?.mag)} />}
-    {aim && ath && (lunetteMontee ? null : (
-      <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
-        {['cercle', 'precision', 'large', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r={ath.forme === 'large' ? 32 : ath.forme === 'precision' ? 15 : 25} />}
-        {['precision', 'pistolet', 'point', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r="1.7" fill="currentColor" stroke="none" />}
-        {['cercle', 'pistolet'].includes(ath.forme) && <path d="M50 18v5 M50 77v5 M18 50h5 M77 50h5" />}
-        {(ath.elimination > 0 || ath.touche > 0) && <path d="M20 20l7 7 M80 20l-7 7 M20 80l7-7 M80 80l-7-7" stroke={ath.elimination > 0 ? tokenCssVar('team-enemy') : 'currentColor'} strokeWidth={ath.elimination > 0 ? 2.5 : 1.5} opacity={ath.elimination || ath.touche} />}
+    {aim && ath && ads && <ReplayAthLunette3d spec={ads} levelIndex={aimState.adsLevel} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.munitions?.mag)} />}
+    {aim && reticule && aimState.reticleShown && (
+      <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: RETICLE_CSS_SIZE, height: RETICLE_CSS_SIZE, left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${aimState.reticleScale})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth={RETICLE_STROKE}>
+        {reticule.ring !== null && <circle cx="50" cy="50" r={reticule.ring} />}
+        {reticule.dot && <circle cx="50" cy="50" r={RETICLE_DOT_R} fill="currentColor" stroke="none" />}
+        {reticule.ticks.length > 0 && <path d={segmentsPath(reticule.ticks)} />}
+        {reticule.hit && <path d={segmentsPath(reticule.hit.segments)} stroke={reticule.hit.kill ? tokenCssVar('team-enemy') : 'currentColor'} strokeWidth={reticule.hit.kill ? RETICLE_KILL_STROKE : RETICLE_STROKE} opacity={reticule.hit.opacity} />}
       </svg>
-    ))}
+    )}
     <ReplayKillPopup3d popups={popups} locale={locale} />
-    {lieu && <div data-hud-callout style={{ position: 'absolute', left: '3%', bottom: '6%', fontSize: '0.42em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1 }}>{lieu}</div>}
+    {lieu && <div data-hud-callout style={{ position: 'absolute', left: `${CALLOUT_LABEL.left * 100}%`, bottom: `${CALLOUT_LABEL.bottom * 100}%`, fontSize: `${CALLOUT_LABEL.em}em`, fontWeight: CALLOUT_LABEL.weight, letterSpacing: `${CALLOUT_LABEL.tracking}em`, textTransform: 'uppercase', lineHeight: 1 }}>{lieu}</div>}
     {/* Le coin bas droit du jeu : grenades au-dessus, puis chargeur | réserve et l'arme à leur droite, canon vers la gauche (le sens natif de l'atlas ; un dessin hors atlas est retourné). */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
       <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.equipement && <EquipementAth3d doc={doc} rank={ath.equipement.rank} uses={ath.equipement.uses} locale={locale} />}{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>

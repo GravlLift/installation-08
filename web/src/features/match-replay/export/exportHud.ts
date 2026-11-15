@@ -10,6 +10,13 @@ import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { weaponFullIcon } from '../model/weaponFullIcon'
 import { tintedIconCanvas } from '../layers/replayDraw'
 import { REPLAY_TEXT } from '../i18n/i18n'
+import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
+import { adsAmmoText } from '../model/adsOverlay'
+import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_KILL_STROKE, RETICLE_STROKE, reticleBoxPx, reticleGeometry, type ReticleGeometry, type Segment } from '../model/aimHud'
+import { buildLivesByXuid } from '../model/livesPosition'
+import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
+import type { HeldWeapon } from '../scene3d/redReticle3d'
+import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
 /** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
 function mixSrgb(hex: string, amount: number): string {
@@ -20,11 +27,33 @@ function mixSrgb(hex: string, amount: number): string {
   return `#${[mix(r), mix(g), mix(b)].map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
-export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale) {
+/** What the export HUD draws beyond the followed player's own state. */
+export interface ExportHudOptions {
+  /**
+   * First person (`hudLevel` 'full'): the aim, i.e. the hip reticle and the ADS overlays. Third
+   * person draws the rest of the HUD without it, as the screen does.
+   */
+  aim?: boolean
+  /** The map's named areas the view already loaded: the place label, bottom left. */
+  callouts?: PreparedCallouts | null
+  /** The scene's red-reticle test at the frame just rendered (`ReplayScene3d.redReticle`). */
+  redReticle?: (frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null) => boolean
+  /** The file's pixel size, the ADS overlays' raster size (defaults to 1920x1080). */
+  frameSize?: { width: number; height: number }
+  /** Loads a rasterized ADS overlay (tests inject one). */
+  loadSvg?: SvgImageLoader
+}
+
+export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale, options: ExportHudOptions = {}) {
   const source = preparerAth(doc, xuid, kills)
   const names = new Map(doc.roster.map((p) => [p.xuid, p.name || p.xuid]))
+  const lives = buildLivesByXuid(doc.tracks)
   const white = '#eaf2f5'
   const weaponInk = resolveToken('replay-hud-weapon')
+  const aimOn = options.aim === true
+  const atlas = aimOn
+    ? await createAdsOverlayAtlas(adsOverlaysOfDoc(doc), options.frameSize ?? { width: 1920, height: 1080 }, { hostile: !!options.redReticle, load: options.loadSvg })
+    : null
   const urls = new Set<string>()
   for (const label of Object.values(doc.weaponLabels ?? {})) if (label.img) urls.add(weaponFullIcon(label.img).url)
   for (const label of Object.values(doc.grenadeLabels ?? {})) if (label.img) urls.add(label.img)
@@ -149,8 +178,44 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         ctx.strokeStyle = alert ? alertInk : rimInk; ctx.lineWidth = 1.25; ctx.lineJoin = 'round'; ctx.globalAlpha = alert ? pulse : 0.9; ctx.stroke()
         ctx.globalAlpha = 1
       }
-      ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.max(8, h * 0.025), 0, Math.PI * 2); ctx.stroke()
-      ctx.beginPath(); ctx.arc(w / 2, h / 2, 1.5, 0, Math.PI * 2); ctx.fill()
+    }
+    paintFeed()
+    // THE STACKING OF THE LIVE HUD (`ReplayAth3d`): the kill feed, the score and the shield sit
+    // under the ADS overlay (a scope's shade darkens them); the reticle, the place label and the
+    // weapon corner sit over it.
+    if (aimOn && ath) {
+      const aim = aimHudAt(doc, xuid, frame, heldModelKey(ath.armeId), ath.etiquette?.key, null)
+      const onEnemy = !!ath.armeId && !!options.redReticle?.(frame, source.allegeance, { weaponId: ath.armeId, zoomLevel: aim.zoom.level })
+      if (aim.ads && atlas) {
+        const raster = atlas.get(aim.ads, aim.adsLevel, onEnemy)
+        if (raster) {
+          ctx.save()
+          ctx.shadowColor = 'transparent'
+          ctx.globalAlpha = aim.zoom.amount
+          ctx.drawImage(raster, 0, 0, w, h)
+          if (aim.ads.ammo) paintAdsAmmo(ctx, view, aim.ads.design, adsAmmoText(ath.munitions?.mag), resolveToken('display'))
+          ctx.restore()
+        }
+      }
+      if (aim.reticleShown) {
+        paintReticle(ctx, view, reticleGeometry(ath.forme, ath.elimination, ath.touche), aim.reticleScale, onEnemy ? resolveToken('reticle-hostile') : resolveToken('replay-hud-on-dark'), enemy)
+      }
+    }
+    // The place name under the game's motion tracker (`mapCallouts`), bottom left.
+    const place = calloutName(calloutOfLivesAt(options.callouts ?? null, lives.get(xuid), frame), locale)
+    if (place) {
+      const fontPx = size * CALLOUT_LABEL.em
+      ctx.save()
+      ctx.globalAlpha = 1
+      ctx.fillStyle = resolveToken('replay-hud-on-dark')
+      ctx.font = `${CALLOUT_LABEL.weight} ${fontPx}px system-ui`
+      ctx.letterSpacing = `${CALLOUT_LABEL.tracking * fontPx}px`
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'bottom'
+      ctx.fillText(place.toLocaleUpperCase(locale), w * CALLOUT_LABEL.left, h * (1 - CALLOUT_LABEL.bottom))
+      ctx.restore()
+    }
+    if (ath) {
       const weapon = ath.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
       const iconWidth = size * 2.8, iconHeight = size * 1.1
       const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.etiquette?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
@@ -175,33 +240,70 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         right -= size * 0.3
       }
     }
-    ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px system-ui`; ctx.textAlign = 'left'
-    const feed = lireFilAth(source, frame)
-    feed.forEach(({ kill, opacite, mien, tueur, victime }, i) => {
-      ctx.globalAlpha = opacite
-      const y = h * 0.78 - (feed.length - i) * size * 0.62
-      if (mien) {
-        // The followed player's own kill: a light wash of his team color behind the row.
-        const rowWidth = ctx.measureText(names.get(kill.xuid) ?? kill.xuid).width + ctx.measureText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '').width + size * 1.6
-        ctx.save(); ctx.globalAlpha = opacite * 0.3; ctx.fillStyle = ally
-        ctx.fillRect(w * 0.03 - size * 0.2, y - size * 0.3, rowWidth + size * 0.4, size * 0.6); ctx.restore()
-      }
-      const color = tueur === true ? ally : tueur === false ? enemy : white
-      const killer = names.get(kill.xuid) ?? kill.xuid
-      let x = w * 0.03
-      ctx.fillStyle = color; ctx.fillText(killer, x, y); x += ctx.measureText(killer).width + size * 0.2
-      const width = size * 0.96, height = size * 0.48
-      // The game's kill feed draws the FULL weapon pointing at the victim: the silhouette,
-      // mirrored (the atlases point left).
-      const feedIcon = kill.weaponImageUrl ? weaponFullIcon(kill.weaponImageUrl) : null
-      if (feedIcon && icon(ctx, feedIcon.url, color, !!kill.weaponTinted, feedIcon.mirrored, x, y - height / 2, width, height)) x += width + size * 0.2
-      else {
-        const label = (kill.weaponLabel || REPLAY_TEXT[locale].killFeedUnknownWeapon).split(/\s*\/\s*/)[0]
-        ctx.fillText(label, x, y); x += ctx.measureText(label).width + size * 0.2
-      }
-      ctx.fillStyle = victime === true ? ally : victime === false ? enemy : white
-      ctx.fillText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '', x, y)
-    })
     ctx.restore()
+
+    /** The kill feed, left, above the place label; leaves the alpha at 1. */
+    function paintFeed() {
+      ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px system-ui`; ctx.textAlign = 'left'
+      const feed = lireFilAth(source, frame)
+      feed.forEach(({ kill, opacite, mien, tueur, victime }, i) => {
+        ctx.globalAlpha = opacite
+        const y = h * 0.78 - (feed.length - i) * size * 0.62
+        if (mien) {
+          // The followed player's own kill: a light wash of his team color behind the row.
+          const rowWidth = ctx.measureText(names.get(kill.xuid) ?? kill.xuid).width + ctx.measureText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '').width + size * 1.6
+          ctx.save(); ctx.globalAlpha = opacite * 0.3; ctx.fillStyle = ally
+          ctx.fillRect(w * 0.03 - size * 0.2, y - size * 0.3, rowWidth + size * 0.4, size * 0.6); ctx.restore()
+        }
+        const color = tueur === true ? ally : tueur === false ? enemy : white
+        const killer = names.get(kill.xuid) ?? kill.xuid
+        let x = w * 0.03
+        ctx.fillStyle = color; ctx.fillText(killer, x, y); x += ctx.measureText(killer).width + size * 0.2
+        const width = size * 0.96, height = size * 0.48
+        // The game's kill feed draws the FULL weapon pointing at the victim: the silhouette,
+        // mirrored (the atlases point left).
+        const feedIcon = kill.weaponImageUrl ? weaponFullIcon(kill.weaponImageUrl) : null
+        if (feedIcon && icon(ctx, feedIcon.url, color, !!kill.weaponTinted, feedIcon.mirrored, x, y - height / 2, width, height)) x += width + size * 0.2
+        else {
+          const label = (kill.weaponLabel || REPLAY_TEXT[locale].killFeedUnknownWeapon).split(/\s*\/\s*/)[0]
+          ctx.fillText(label, x, y); x += ctx.measureText(label).width + size * 0.2
+        }
+        ctx.fillStyle = victime === true ? ally : victime === false ? enemy : white
+        ctx.fillText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '', x, y)
+      })
+      ctx.globalAlpha = 1
+    }
   }
+}
+
+/**
+ * paintReticle draws the hip reticle (`aimHud.reticleGeometry`) the way the live SVG does: its
+ * 100-unit box centered on the view, `reticleBoxPx` wide, scaled by `scale`, lines in `color`, a
+ * kill's hit marker in the enemy color and heavier.
+ */
+export function paintReticle(ctx: CanvasRenderingContext2D, view: { width: number; height: number }, geometry: ReticleGeometry, scale: number, color: string, enemyInk: string): void {
+  const k = (reticleBoxPx(view.height) * scale) / 100
+  const cx = view.width / 2, cy = view.height / 2
+  const at = (u: number, c: number) => c + (u - 50) * k
+  const strokeSegments = (segments: readonly Segment[]) => {
+    ctx.beginPath()
+    for (const [x1, y1, x2, y2] of segments) { ctx.moveTo(at(x1, cx), at(y1, cy)); ctx.lineTo(at(x2, cx), at(y2, cy)) }
+    ctx.stroke()
+  }
+  ctx.save()
+  ctx.shadowColor = 'transparent'
+  ctx.globalAlpha = 1
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = RETICLE_STROKE * k
+  if (geometry.ring !== null) { ctx.beginPath(); ctx.arc(cx, cy, geometry.ring * k, 0, Math.PI * 2); ctx.stroke() }
+  if (geometry.dot) { ctx.beginPath(); ctx.arc(cx, cy, RETICLE_DOT_R * k, 0, Math.PI * 2); ctx.fill() }
+  if (geometry.ticks.length > 0) strokeSegments(geometry.ticks)
+  if (geometry.hit) {
+    ctx.globalAlpha = geometry.hit.opacity
+    ctx.strokeStyle = geometry.hit.kill ? enemyInk : color
+    ctx.lineWidth = (geometry.hit.kill ? RETICLE_KILL_STROKE : RETICLE_STROKE) * k
+    strokeSegments(geometry.hit.segments)
+  }
+  ctx.restore()
 }

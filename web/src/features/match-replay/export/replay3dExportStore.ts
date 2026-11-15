@@ -13,6 +13,10 @@
  */
 import { useSyncExternalStore } from 'react'
 
+import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
+
+import type { PreparedCallouts } from '../model/mapCallouts'
+import type { HeldWeapon } from '../scene3d/redReticle3d'
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 
 /** Le réglage d'un export 3D : la taille du fichier, la caméra et le joueur suivi. */
@@ -58,6 +62,11 @@ export interface Replay3DExportSource {
   exportPendingLoads(): Promise<boolean> | null
   /** Rend la scène à la vue d'écran (taille, caméra, joueur suivi). */
   endExport(): void
+  /**
+   * The red-reticle test (an enemy under the first-person aim) at the frame just rendered, the
+   * same one the live HUD runs: the export HUD paints the reticle hostile red with it.
+   */
+  redReticle?(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean
 }
 
 /** L'inscription de la vue : la scène, et l'état de l'écran qui sert de défaut au dialogue. */
@@ -67,6 +76,8 @@ export interface Replay3DExportEntry {
   live: boolean
   camera: CameraMode3d
   pov: string | null
+  /** The map's named areas the view loaded (`useMapCallouts`): the export HUD's place label. */
+  callouts?: PreparedCallouts | null
 }
 
 let entry: Replay3DExportEntry | null = null
