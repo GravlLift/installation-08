@@ -187,7 +187,8 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
 - `GET /api/matches/{id}/spartans` (per-player armor manifests, including the equipped
   weapon coatings).
 - Auth: `POST /api/auth/login`, `GET /api/auth/state`, `POST /api/auth/logout`,
-  `GET /api/remote/matches?count=N`, `POST /api/matches/{id}/fetch`,
+  `GET /api/remote/matches?count=N[&gamertag=GT]` (the signed-in account's history, or
+  any player's by gamertag; 404 `gamertag not found`), `POST /api/matches/{id}/fetch`,
   `GET /api/matches/{id}/fetch/state`.
 - Weapon library: `GET /api/weapons` (index + coating files), `GET /api/weapons/{file}`
   (one model GLB, range-capable), `POST /api/weapons/build`, `GET /api/weapons/state`.

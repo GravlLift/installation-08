@@ -79,6 +79,56 @@ func TestEndpointsAndFilmGone(t *testing.T) {
 	}
 }
 
+func TestXUIDForGamertag(t *testing.T) {
+	var gotEscaped string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-343-authorization-spartan") != "test-spartan" || r.Header.Get("343-clearance") != "test-clearance" {
+			t.Errorf("missing auth for %s", r.URL.Path)
+		}
+		switch r.URL.Path {
+		case "/users/gt(Some Player)":
+			gotEscaped = r.URL.EscapedPath()
+			fmt.Fprint(w, `{"xuid":"2533274812345678","gamertag":"Some Player","gamerpic":{}}`)
+		case "/users/gt(Numeric)":
+			fmt.Fprint(w, `{"xuid":2533274800000001,"gamertag":"Numeric"}`)
+		case "/users/gt(Wrapped)":
+			fmt.Fprint(w, `{"xuid":"xuid(42)","gamertag":"Wrapped"}`)
+		case "/users/gt(Broken)":
+			fmt.Fprint(w, `{"gamertag":"Broken"}`)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer s.Close()
+	c := New(s.Client(), Endpoints{Profile: s.URL + "/"}, "test-spartan", "test-clearance")
+	c.interval = 0
+	ctx := context.Background()
+	xuid, err := c.XUIDForGamertag(ctx, "  Some Player ")
+	if err != nil || xuid != "2533274812345678" {
+		t.Fatalf("xuid %q err %v", xuid, err)
+	}
+	if gotEscaped != "/users/gt(Some%20Player)" {
+		t.Fatalf("gamertag not path-escaped: %q", gotEscaped)
+	}
+	if xuid, err = c.XUIDForGamertag(ctx, "Numeric"); err != nil || xuid != "2533274800000001" {
+		t.Fatalf("numeric xuid %q err %v", xuid, err)
+	}
+	if xuid, err = c.XUIDForGamertag(ctx, "Wrapped"); err != nil || xuid != "42" {
+		t.Fatalf("wrapped xuid %q err %v", xuid, err)
+	}
+	_, err = c.XUIDForGamertag(ctx, "Nobody")
+	var notFound *GamertagNotFoundError
+	if !errors.As(err, &notFound) || notFound.Gamertag != "Nobody" {
+		t.Fatalf("expected not found: %v", err)
+	}
+	if _, err = c.XUIDForGamertag(ctx, "Broken"); err == nil || errors.As(err, &notFound) {
+		t.Fatalf("expected invalid response: %v", err)
+	}
+	if _, err = c.XUIDForGamertag(ctx, "   "); err == nil {
+		t.Fatal("empty gamertag accepted")
+	}
+}
+
 func TestRetriesAndBlobDoesNotCarryCredentials(t *testing.T) {
 	attempts := 0
 	var base string

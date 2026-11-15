@@ -15,9 +15,11 @@ import (
 	"time"
 )
 
-type Endpoints struct{ Stats, Discovery, Economy, Skill, GameCMS string }
+type Endpoints struct{ Stats, Discovery, Economy, Skill, GameCMS, Profile string }
 
-var DefaultEndpoints = Endpoints{Stats: "https://halostats.svc.halowaypoint.com:443/hi", Discovery: "https://discovery-infiniteugc.svc.halowaypoint.com/hi", Economy: "https://economy.svc.halowaypoint.com/hi", Skill: "https://skill.svc.halowaypoint.com:443/hi", GameCMS: "https://gamecms-hacs.svc.halowaypoint.com/hi"}
+// Profile is the Halo Waypoint profile service (no "/hi" title segment): it resolves a
+// gamertag to its xuid with the same Spartan token and clearance as the other services.
+var DefaultEndpoints = Endpoints{Stats: "https://halostats.svc.halowaypoint.com:443/hi", Discovery: "https://discovery-infiniteugc.svc.halowaypoint.com/hi", Economy: "https://economy.svc.halowaypoint.com/hi", Skill: "https://skill.svc.halowaypoint.com:443/hi", GameCMS: "https://gamecms-hacs.svc.halowaypoint.com/hi", Profile: "https://profile.svc.halowaypoint.com"}
 
 type Client struct {
 	http               *http.Client
@@ -176,6 +178,42 @@ func (c *Client) Matches(ctx context.Context, xuid string, count int) ([]Match, 
 			MapAssetID: info.Map.ID, MapAssetVersion: info.Map.Version})
 	}
 	return out, nil
+}
+
+// GamertagNotFoundError means the profile service knows no player by that gamertag.
+type GamertagNotFoundError struct{ Gamertag string }
+
+func (e *GamertagNotFoundError) Error() string {
+	return fmt.Sprintf("gamertag %q not found", e.Gamertag)
+}
+
+// XUIDForGamertag resolves a gamertag to its xuid through the profile service,
+// GET {Profile}/users/gt({gamertag}), which answers {"xuid": "...", "gamertag": "...", ...}.
+// The gamertag is path-escaped inside the literal gt(...) wrapper. A 404 is a
+// GamertagNotFoundError; the xuid comes back as bare digits (a "xuid(...)" wrapper or a JSON
+// number is accepted too).
+func (c *Client) XUIDForGamertag(ctx context.Context, gamertag string) (string, error) {
+	gamertag = strings.TrimSpace(gamertag)
+	if gamertag == "" {
+		return "", errors.New("gamertag is empty")
+	}
+	var result struct {
+		XUID json.RawMessage `json:"xuid"`
+	}
+	_, err := c.json(ctx, strings.TrimRight(c.endpoints.Profile, "/")+"/users/gt("+segment(gamertag)+")", &result)
+	var status *httpError
+	if errors.As(err, &status) && status.status == 404 {
+		return "", &GamertagNotFoundError{Gamertag: gamertag}
+	}
+	if err != nil {
+		return "", err
+	}
+	xuid := strings.Trim(string(result.XUID), `"`)
+	xuid = strings.TrimSuffix(strings.TrimPrefix(xuid, "xuid("), ")")
+	if xuid == "" || strings.Trim(xuid, "0123456789") != "" {
+		return "", errors.New("invalid profile response")
+	}
+	return xuid, nil
 }
 
 func (c *Client) Stats(ctx context.Context, id string) ([]byte, error) {
