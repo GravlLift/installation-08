@@ -116,6 +116,12 @@ Replaces the fetch and map-build progress panels.
   replay starts. Any key skips the countdown.
 - A long first build (minutes) says so plainly and keeps the page interesting: rosters,
   the scoreboard of the match, medals.
+- A shared match link (`#/matches/<id>`) to a match this install does not store: the page
+  shows the match id and a "Fetch this match" button (the server's fetch by id, the same
+  queue as the match list's Fetch rows), then the fetch's real progress, and loads the
+  replay in place when it is done. Signed out, it offers the existing sign-in plate instead;
+  a busy server (409), a film the service no longer serves, and other failures are said
+  plainly (`MatchNotFetched.tsx`, `matchNotFetchedModel.ts`).
 
 ### 4.4 Player
 

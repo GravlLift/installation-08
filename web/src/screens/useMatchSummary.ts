@@ -10,12 +10,14 @@ import { useEffect, useState } from 'react'
 
 import { fetchMatches, fetchRemoteMatches, type MatchSummary, type RemoteMatch } from '../lib/api/standalone'
 
-/** useRowOf loads a list once per `matchId` and keeps the row whose id matches. */
+/** useRowOf loads a list once per `matchId` (and again when `refreshKey` changes) and keeps
+ *  the row whose id matches. */
 function useRowOf<T>(
   matchId: string,
   load: (signal: AbortSignal) => Promise<T[]>,
   idOf: (row: T) => string,
   label: string,
+  refreshKey: number,
 ): T | null {
   const [row, setRow] = useState<T | null>(null)
 
@@ -36,7 +38,7 @@ function useRowOf<T>(
     return () => controller.abort()
     // load, idOf and label are module-level constants at every call site.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId])
+  }, [matchId, refreshKey])
 
   return row
 }
@@ -44,10 +46,12 @@ function useRowOf<T>(
 const summaryId = (m: MatchSummary) => m.matchId
 const remoteId = (m: RemoteMatch) => m.id
 
-export function useMatchSummary(matchId: string): MatchSummary | null {
-  return useRowOf(matchId, fetchMatches, summaryId, 'useMatchSummary')
+/** `refreshKey` re-reads the list when it changes: the pre-game page bumps it once a shared
+ *  match link's fetch has stored the match, so its header picks up the new row. */
+export function useMatchSummary(matchId: string, refreshKey = 0): MatchSummary | null {
+  return useRowOf(matchId, fetchMatches, summaryId, 'useMatchSummary', refreshKey)
 }
 
 export function useRemoteMatch(matchId: string): RemoteMatch | null {
-  return useRowOf(matchId, fetchRemoteMatches, remoteId, 'useRemoteMatch')
+  return useRowOf(matchId, fetchRemoteMatches, remoteId, 'useRemoteMatch', 0)
 }
