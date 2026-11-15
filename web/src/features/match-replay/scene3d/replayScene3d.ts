@@ -180,6 +180,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame, dt) => this.cameraPlacement.placeCamera(frame, dt),
       placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
+      hideTopDown: () => this.top?.idle(),
     })
   }
   /** attach pose la carte et les joueurs, éclaire l'aire de jeu et capture l'environnement. */

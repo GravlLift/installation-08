@@ -98,6 +98,18 @@ describe('ReplayExportScene3d', () => {
     expect(sky[sky.length - 1]).toBeNull()
   })
 
+  it('exports the perspective view even from the top-down view, and gives the screen its view back', () => {
+    const { exported, scene } = sceneDouble()
+    scene.view = 'top'
+    let hidden = 0
+    Object.assign(scene, { hideTopDown: () => hidden++ })
+    exported.beginExport({ width: 1920, height: 1080, camera: 'fp', pov: null, frame: 10, frameMs: 100 / 3 })
+    expect(scene.view).toBe('3d')
+    expect(hidden).toBe(1) // the top-down markers leave the frame
+    exported.endExport()
+    expect(scene.view).toBe('top')
+  })
+
   it('exportStepSeconds never runs backward', () => {
     expect(exportStepSeconds(10, 9, 33)).toBe(0)
     expect(exportStepSeconds(10, 11, 33)).toBeCloseTo(0.033, 9)

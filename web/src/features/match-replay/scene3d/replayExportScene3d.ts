@@ -34,6 +34,8 @@ interface ExportScene {
   placeFirstPerson(frame: number): void
   /** Drives the clouds from match time (seconds), or hands them back to the wall clock (null). */
   setSkyClock?(seconds: number | null): void
+  /** Takes the top-down view's markers out of the scene (what the screen does when the 3D view draws). */
+  hideTopDown?(): void
 }
 
 /** La vue d'écran pendant un export : ce qu'elle avait, et ce qu'elle demande depuis. */
@@ -94,6 +96,11 @@ export class ReplayExportScene3d {
     this.scene.renderer.setPixelRatio(1)
     this.scene.post.composer.setPixelRatio(1)
     this.applySize(setup.width, setup.height, false)
+    // A video is always the perspective view: exported from the 2D (top-down) view, the followed
+    // player's own body and the top-down markers filled the first-person frame. `endExport`
+    // gives the screen its view back.
+    this.scene.view = '3d'
+    this.scene.hideTopDown?.()
     this.scene.applyPov(setup.pov)
     // La caméra libre déjà choisie à l'écran garde son cadrage ; prise pour l'export, elle part
     // derrière le joueur suivi à la première image du clip et n'en bouge plus.
