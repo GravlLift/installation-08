@@ -21,7 +21,7 @@ func TestReticleRangeOf(t *testing.T) {
 		t.Fatalf("unscaled zoom: %+v, %v", r, ok)
 	}
 	r, ok = reticleRangeOf(weaponicons.AimAssist{AutoaimRange: float64(float32(0.85)), ScalesWithZoom: true})
-	if !ok || r.Unscoped != 0.85 || r.Zoomed == nil || len(r.Zoomed) != 0 || r.Magnifications != nil || len(r.Magnifications) != 0 {
+	if !ok || r.Unscoped != 0.85 || r.Zoomed == nil || len(r.Zoomed) != 0 || len(r.Magnifications) != 0 {
 		t.Fatalf("no zoom: %+v, %v (want 0.85 rounded and empty zoom and magnification lists)", r, ok)
 	}
 	// A float32 magnification carries digits past the tag's precision; the index rounds it the way
@@ -69,5 +69,24 @@ func TestIndexReticleRanges(t *testing.T) {
 	}
 	if err := json.Unmarshal(raw, &back); err != nil || back.R["2b1824d5"].Zoomed[0] != 36 || back.R["2b1824d5"].Magnifications[0] != 2 {
 		t.Fatalf("round trip: %s, %v", raw, err)
+	}
+}
+
+// TestIndexCurrentNoZoomWeapon — an index the current writer builds for a weapon that has an
+// autoaim range but no zoom level (an empty magnifications list, marshalled as [] not null) reads
+// as current; the server no longer rebuilds the library on every start because of it.
+func TestIndexCurrentNoZoomWeapon(t *testing.T) {
+	idx := NewIndex([]string{"f408190f"}, "test")
+	rr, ok := reticleRangeOf(weaponicons.AimAssist{AutoaimRange: 15})
+	if !ok || len(rr.Magnifications) != 0 {
+		t.Fatalf("no-zoom reticle range: %+v, %v", rr, ok)
+	}
+	idx.ReticleRanges["f408190f"] = rr
+	raw, err := json.Marshal(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !IndexCurrent(raw) {
+		t.Fatalf("index with a no-zoom weapon %s: reported stale", raw)
 	}
 }
