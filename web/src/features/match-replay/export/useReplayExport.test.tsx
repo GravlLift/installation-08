@@ -54,10 +54,26 @@ vi.mock('../sound/replayAudioMix', async (orig) => {
   const vrai = await orig<typeof import('../sound/replayAudioMix')>()
   return { ...vrai, mixReplayAudio: vi.fn(async () => null) }
 })
-vi.mock('./replayCapture', async (orig) => ({
-  ...(await orig<typeof import('./replayCapture')>()),
-  triggerDownload: vi.fn(),
-}))
+const releases = vi.hoisted(() => [] as { blob: Blob; filename: string }[])
+
+vi.mock('./replayCapture', async (orig) => {
+  const vrai = await orig<typeof import('./replayCapture')>()
+  // LE HOOK N'APPELLE PLUS `triggerDownload` DIRECTEMENT : il appelle `holdDownload`, et c'est
+  // le `save` de ce dernier — porté par le clic de l'utilisateur — qui part le dépôt. On double
+  // donc les deux : `holdDownload` rend un `{save, release}`, et `save` transmet au
+  // `triggerDownload` espionné (jsdom n'a pas `URL.createObjectURL`, le vrai `holdDownload`
+  // y lèverait). Chaque `release` est noté dans `releases` pour vérifier qu'un clip retenu
+  // est bien rendu quand un nouvel export commence.
+  const triggerDownload = vi.fn()
+  return {
+    ...vrai,
+    triggerDownload,
+    holdDownload: vi.fn((blob: Blob, filename: string) => ({
+      save: () => triggerDownload(blob, filename),
+      release: () => { releases.push({ blob, filename }) },
+    })),
+  }
+})
 
 import { triggerDownload } from './replayCapture'
 import { mixReplayAudio } from '../sound/replayAudioMix'
@@ -133,6 +149,7 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   audioOk.value = true
   vi.mocked(triggerDownload).mockClear()
+  releases.length = 0
   // Le mock du mixage est PARTAGE entre les tests : sans ce nettoyage, `mock.calls[0]`
   // rendrait l'appel d'un test precedent.
   vi.mocked(mixReplayAudio).mockClear()
@@ -227,15 +244,47 @@ describe('useReplayExport', () => {
     expect(pause).toHaveBeenCalled()
   })
 
-  it('pousse une image par entrée du plan, puis remet le fichier', async () => {
+  it('pousse une image par entrée du plan, puis PRÉPARE le fichier — sans le télécharger', async () => {
     const { hook } = setup()
     // 10 images à 50 ms = 500 ms de match, à 30 im/s : 15 pas + la borne de fin.
     await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
     expect(addFrame).toHaveBeenCalledTimes(16)
     expect(finish).toHaveBeenCalledTimes(1)
-    // LE NOM PORTE LES DEUX BORNES (décision D9) : sans la seconde, deux exports de plages
-    // différentes qui partagent leur fin s'écraseraient dans le dossier de téléchargements.
+    // LE CLIP EST PRÊT, MAIS RIEN NE PART : des minutes après le clic d'export, un clic sur
+    // une ancre déposé par le code n'a plus le geste derrière, et Chrome bloque le second
+    // fichier non demandé d'un site. C'est le bouton « Sauvegarder » qui part le dépôt.
+    expect(triggerDownload).not.toHaveBeenCalled()
+    // La phase `done` porte le NOM et le téléchargement prêt : le bouton « Sauvegarder »
+    // du dialogue les lit, et le clic qui part le dépôt vient de l'utilisateur.
+    expect(hook.result.current.state).toMatchObject({
+      phase: 'done',
+      filename: 'replay-m-0m00s-0m00s.mp4',
+    })
+    expect(hook.result.current.state.save).toBeDefined()
+  })
+
+  it('sauver depuis la phase `done` déclenche le dépôt du clip', async () => {
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(hook.result.current.state.phase).toBe('done')
+    await act(() => {
+      hook.result.current.saveDone()
+    })
+    // Le clic sur « Sauvegarder » porte le dépôt : le fichier descend, nommé sur ses bornes.
     expect(triggerDownload).toHaveBeenCalledWith(expect.any(Blob), 'replay-m-0m00s-0m00s.mp4')
+  })
+
+  it('un second export REND le clip du premier, retenu sans être sauvé', async () => {
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(hook.result.current.state.phase).toBe('done')
+    // Le clip est encore retenu en mémoire, personne n'a sauvé ni fermé : rien n'a été rendu.
+    expect(releases).toHaveLength(0)
+    // Un NOUVEL export commence : le clip précédent doit être rendu, sinon l'ancien blob
+    // fuirait en mémoire jusqu'à la fermeture de l'onglet.
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(releases).toHaveLength(1)
+    expect(hook.result.current.state.phase).toBe('done')
   })
 
   it('numérote les images du FICHIER en continu, à partir de zéro', async () => {
@@ -257,7 +306,8 @@ describe('useReplayExport', () => {
     hook.result.current.cancel()
     await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
     // `cancel` avant `run` ne compte pas : la boucle remet le drapeau à plat au démarrage.
-    expect(triggerDownload).toHaveBeenCalled()
+    // Le clip est assemblé, mais RIEN NE PART — même sur ce chemin, le dépôt attend un clic.
+    expect(triggerDownload).not.toHaveBeenCalled()
     expect(frameRef.current).toBe(42)
   })
 

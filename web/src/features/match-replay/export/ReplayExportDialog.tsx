@@ -127,6 +127,8 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
       )}
       {isExportBusy(state) ? (
         <ExportProgress exporter={exporter} locale={locale} />
+      ) : state.phase === 'done' ? (
+        <ExportDone exporter={exporter} t={t} onClose={onClose} />
       ) : (
         <ExportForm
           t={t}
@@ -386,6 +388,45 @@ function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: 
           className="h-8 cursor-pointer rounded-full bg-secondary px-4 text-[12.5px] font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
         >
           {t.exportCancel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * La phase `done` : le clip est prêt, le dialogue reste ouvert, et le dépôt attend un clic.
+ *
+ * POURQUOI LE CLIC, ET PAS LE CODE. Des minutes après le clic d'export, un téléchargement
+ * déclenché par le code n'a plus le geste de l'utilisateur derrière : Chrome bloque le
+ * second fichier non demandé d'un site (« Needs permission to download »), et le film,
+ * c'est précisément le deuxième. Le bouton « Sauvegarder la vidéo » porte donc le clic —
+ * c'est l'utilisateur qui dépose le fichier, pas le code qui le lui jette.
+ *
+ * Fermer SANS sauver rend le clip (`discardDone`) : l'URL d'objet est révoquée, l'état
+ * retombe à l'inertie, et rien ne retient le blob en mémoire. Sauver, lui, ne ferme pas :
+ * l'utilisateur peut encore relire le nom, ou en demander un autre.
+ */
+function ExportDone({ exporter, t, onClose }: { exporter: ReplayExport; t: ReplayText; onClose: () => void }) {
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            exporter.discardDone()
+            onClose()
+          }}
+          className="h-8 cursor-pointer rounded-full px-3 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          {t.exportClose}
+        </button>
+        <button
+          type="button"
+          onClick={exporter.saveDone}
+          className="h-8 cursor-pointer rounded-full bg-primary px-4 text-[12.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          {t.exportSaveVideo}
         </button>
       </div>
     </div>

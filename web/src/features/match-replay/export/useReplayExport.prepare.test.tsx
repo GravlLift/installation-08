@@ -34,7 +34,13 @@ vi.mock('../sound/replayAudioMix', async (orig) => ({
   ...(await orig<typeof import('../sound/replayAudioMix')>()),
   mixReplayAudio: vi.fn(async () => null),
 }))
-vi.mock('./replayCapture', async (orig) => ({ ...(await orig<typeof import('./replayCapture')>()), triggerDownload: vi.fn() }))
+vi.mock('./replayCapture', async (orig) => ({
+  ...(await orig<typeof import('./replayCapture')>()),
+  triggerDownload: vi.fn(),
+  // Le vrai `holdDownload` appellerait `URL.createObjectURL`, absent de jsdom : on le double
+  // par un `{save, release}` inerte — ce test ne vérifie que la préparation, pas le dépôt.
+  holdDownload: vi.fn(() => ({ save: vi.fn(), release: vi.fn() })),
+}))
 
 import { mixReplayAudio } from '../sound/replayAudioMix'
 

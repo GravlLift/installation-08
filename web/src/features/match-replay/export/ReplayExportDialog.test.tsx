@@ -20,6 +20,8 @@ function makeExport(over: Partial<ReplayExport> = {}): ReplayExport {
     state: { phase: 'idle', done: 0, total: 0, pct: 0 },
     defaultBounds: () => ({ startFrame: 0, endFrame: 100 }),
     run: vi.fn(async () => {}),
+    saveDone: vi.fn(),
+    discardDone: vi.fn(),
     cancel: vi.fn(),
     clockOf: (f) => `frame:${f}`,
     lengthClock: (b) => `${b.startFrame}-${b.endFrame}`,
@@ -295,9 +297,32 @@ describe('ReplayExportDialog — les phases du calcul', () => {
     expect(screen.getByText(/Le terrain défile dans le cadre de la vidéo pendant le calcul/)).toBeInTheDocument()
   })
 
-  it('à la FIN, nomme le fichier déposé et rend le formulaire', () => {
+  it('à la FIN, nomme le fichier prêt et rend le bouton « Sauvegarder la vidéo »', () => {
     setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
-    expect(screen.getByText('Fichier déposé : replay-m-0m00s-5m00s.mp4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Exporter' })).toBeInTheDocument()
+    expect(screen.getByText('Fichier prêt : replay-m-0m00s-5m00s.mp4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sauvegarder la vidéo' })).toBeInTheDocument()
+  })
+
+  it('le clic sur « Sauvegarder la vidéo » part le dépôt', async () => {
+    const user = userEvent.setup()
+    const { exporter } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
+    await user.click(screen.getByRole('button', { name: 'Sauvegarder la vidéo' }))
+    expect(exporter.saveDone).toHaveBeenCalled()
+  })
+
+  it('fermer SANS sauver rend le clip : `discardDone` est appelé', async () => {
+    const user = userEvent.setup()
+    const { exporter, onClose } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
+    await user.click(screen.getByRole('button', { name: 'Fermer' }))
+    expect(exporter.discardDone).toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('sauver NE FERME PAS : l’état reste `done`, et le bouton est toujours là', async () => {
+    const user = userEvent.setup()
+    const { onClose } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
+    await user.click(screen.getByRole('button', { name: 'Sauvegarder la vidéo' }))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Sauvegarder la vidéo' })).toBeInTheDocument()
   })
 })
