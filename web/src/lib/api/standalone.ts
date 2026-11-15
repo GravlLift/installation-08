@@ -284,11 +284,19 @@ export interface RemoteMatch {
   mapImageUrl?: string
 }
 
-/** `GET /api/remote/matches` — the signed-in player's recent matches from the Halo service.
- *  401 when not signed in, 502 when the service call itself fails; both carry a typed
- *  `{error: string}` body that becomes this error's message. */
-export async function fetchRemoteMatches(signal?: AbortSignal): Promise<RemoteMatch[]> {
-  const res = await fetch('/api/remote/matches', { signal })
+/** The URL of `GET /api/remote/matches`: the signed-in player's own history, or with a
+ *  `gamertag` any player's (`?gamertag=`, URL-encoded). */
+export function remoteMatchesUrl(gamertag?: string | null): string {
+  return gamertag ? `/api/remote/matches?gamertag=${encodeURIComponent(gamertag)}` : '/api/remote/matches'
+}
+
+/** `GET /api/remote/matches` — recent matches from the Halo service: the signed-in player's,
+ *  or the named player's when `gamertag` is given. 401 when not signed in, 400 for a
+ *  malformed gamertag, 404 (`gamertag not found`) when no player has that gamertag, 502 when
+ *  the service call itself fails; each carries a typed `{error: string}` body that becomes
+ *  this error's message. */
+export async function fetchRemoteMatches(signal?: AbortSignal, gamertag?: string | null): Promise<RemoteMatch[]> {
+  const res = await fetch(remoteMatchesUrl(gamertag), { signal })
   if (!res.ok) {
     const body = await readErrorBody(res)
     const message =

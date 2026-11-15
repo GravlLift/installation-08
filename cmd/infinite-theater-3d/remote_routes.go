@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
@@ -49,12 +51,35 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 		}
 		count = n
 	}
+	gamertag, searched := r.URL.Query().Get("gamertag"), r.URL.Query().Has("gamertag")
+	if searched {
+		gamertag = strings.TrimSpace(gamertag)
+		if !gamertagValid(gamertag) {
+			writeJSON(w, 400, map[string]string{"error": "invalid gamertag"})
+			return
+		}
+	}
 	api, t, err := h.remote.client(r.Context())
 	if err != nil {
 		writeJSON(w, 401, map[string]string{"error": "sign in required"})
 		return
 	}
-	matches, err := api.Matches(r.Context(), t.XUID, count)
+	// Default: the signed-in account's own history. With ?gamertag=, any player's (the
+	// service's match history and films are public across players).
+	xuid := t.XUID
+	if searched {
+		xuid, err = api.XUIDForGamertag(r.Context(), gamertag)
+		var notFound *haloapi.GamertagNotFoundError
+		if errors.As(err, &notFound) {
+			writeJSON(w, 404, map[string]string{"error": "gamertag not found"})
+			return
+		}
+		if err != nil {
+			writeJSON(w, 502, map[string]string{"error": "player lookup unavailable"})
+			return
+		}
+	}
+	matches, err := api.Matches(r.Context(), xuid, count)
 	if err != nil {
 		writeJSON(w, 502, map[string]string{"error": "match history unavailable"})
 		return
@@ -64,6 +89,20 @@ func (h serverHandlers) remoteMatches(w http.ResponseWriter, r *http.Request) {
 	// next list request (the page follows up when a row came back without its image)
 	// finds them stored.
 	h.startMapImageDownloads(api, matches)
+}
+
+// gamertagValid is a loose check on a searched gamertag before it reaches the service:
+// 1 to 16 characters (a modern gamertag is up to 12 plus a "#1234" suffix, a classic one up
+// to 15), letters (any script), digits, spaces and '#'. The service has the final word.
+func gamertagValid(gt string) bool {
+	n := 0
+	for _, r := range gt {
+		n++
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != ' ' && r != '#' {
+			return false
+		}
+	}
+	return n >= 1 && n <= 16
 }
 
 var (

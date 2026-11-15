@@ -131,6 +131,82 @@ func TestRemoteRoutesFetchAndHistory(t *testing.T) {
 	}
 }
 
+// TestRemoteMatchesByGamertag — ?gamertag= resolves the player through the profile service
+// and lists that player's history (not the signed-in account's); an unknown gamertag is a
+// 404 "gamertag not found", a malformed one a 400 before any service call, and the
+// read-only mode still refuses the route as if signed out.
+func TestRemoteMatchesByGamertag(t *testing.T) {
+	var calls []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.URL.Path)
+		switch r.URL.Path {
+		case "/users/gt(Other Player)":
+			fmt.Fprint(w, `{"xuid":"999","gamertag":"Other Player"}`)
+		case "/players/xuid(999)/matches":
+			fmt.Fprint(w, `{"Results":[{"MatchId":"theirs","MatchInfo":{"StartTime":"today","MapVariant":{"PublicName":"Streets"},"UgcGameVariant":{"PublicName":"Slayer"}}}]}`)
+		case "/players/xuid(123)/matches":
+			fmt.Fprint(w, `{"Results":[{"MatchId":"mine","MatchInfo":{"StartTime":"today","MapVariant":{"PublicName":"Arena"},"UgcGameVariant":{"PublicName":"Slayer"}}}]}`)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer s.Close()
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	api := haloapi.New(s.Client(), haloapi.Endpoints{Stats: s.URL, Discovery: s.URL, Economy: s.URL, Profile: s.URL}, "synthetic", "synthetic")
+	h.remote.client = func(context.Context) (*haloapi.Client, haloauth.Credentials, error) {
+		return api, haloauth.Credentials{XUID: "123"}, nil
+	}
+	get := func(url string) *httptest.ResponseRecorder {
+		r := httptest.NewRecorder()
+		h.ServeHTTP(r, httptest.NewRequest("GET", url, nil))
+		return r
+	}
+	if r := get("/api/remote/matches?gamertag=Other%20Player&count=5"); r.Code != 200 || !strings.Contains(r.Body.String(), "theirs") || strings.Contains(r.Body.String(), "mine") {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := get("/api/remote/matches"); r.Code != 200 || !strings.Contains(r.Body.String(), "mine") {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	if r := get("/api/remote/matches?gamertag=Nobody"); r.Code != 404 || !strings.Contains(r.Body.String(), "gamertag not found") {
+		t.Fatal(r.Code, r.Body.String())
+	}
+	before := len(calls)
+	for _, bad := range []string{"", "%20%20", "a/b", "x(1)", "ThisNameIsWayTooLong"} {
+		if r := get("/api/remote/matches?gamertag=" + bad); r.Code != 400 || !strings.Contains(r.Body.String(), "invalid gamertag") {
+			t.Fatalf("%q: %d %s", bad, r.Code, r.Body.String())
+		}
+	}
+	if len(calls) != before {
+		t.Fatalf("an invalid gamertag reached the service: %v", calls[before:])
+	}
+	if r := get("/api/remote/matches?gamertag=Other%20Player&count=0"); r.Code != 400 {
+		t.Fatal(r.Code)
+	}
+	h.readOnly = true
+	r := httptest.NewRecorder()
+	h.readOnlyHandler().ServeHTTP(r, httptest.NewRequest("GET", "/api/remote/matches?gamertag=Other%20Player", nil))
+	if r.Code != 401 {
+		t.Fatal(r.Code, r.Body.String())
+	}
+}
+
+func TestGamertagValid(t *testing.T) {
+	for _, gt := range []string{"A", "Some Player", "Name#1234", "Ünïcødé", "123456789012#123"} {
+		if !gamertagValid(gt) {
+			t.Errorf("%q rejected", gt)
+		}
+	}
+	for _, gt := range []string{"", "a/b", "a?b", "a(b)", "tab\there", "12345678901234567"} {
+		if gamertagValid(gt) {
+			t.Errorf("%q accepted", gt)
+		}
+	}
+}
+
 func TestRemoteFetchExpiredFilm(t *testing.T) {
 	root, err := store.New(t.TempDir())
 	if err != nil {
