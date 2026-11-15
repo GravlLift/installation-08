@@ -46,7 +46,7 @@ const shaderGrade = {
 
 /** buildPostFx pose les passes de la scène `scene` vue par `camera`. */
 export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): PostFx3d {
-  // La profondeur de la scène reste lisible après son rendu : le contour s'y compare.
+  // La profondeur de la scène reste lisible après son rendu : l'occlusion ambiante s'y compare.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(1, 1) })
   const composer = new EffectComposer(renderer, target)
   composer.addPass(new RenderPass(scene, camera))
@@ -58,19 +58,19 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   composer.addPass(gtao)
   const output = new OutputPass()
   // Un quad plein écran n'a rien à tester ni à écrire en profondeur : celle de la scène doit arriver
-  // intacte à la ligne du contour, qui la lit (la cible où il écrit peut être celle de la scène).
+  // intacte à l'occlusion ambiante (la cible où il écrit peut être celle de la scène).
   output.material.depthTest = false
   output.material.depthWrite = false
   composer.addPass(output)
   // Teinte de l'image, entre la sortie et l'anticrénelage : le contour, après, garde sa couleur.
   const grade = new ShaderPass(shaderGrade)
   // Même règle que la sortie : le quad plein écran n'a rien à tester ni à écrire en profondeur,
-  // la profondeur de la scène doit arriver intacte à la ligne du contour.
+  // la profondeur de la scène doit arriver intacte à l'occlusion ambiante.
   grade.material.depthTest = false
   grade.material.depthWrite = false
   composer.addPass(grade)
   // Anticrénelage de l'image aux couleurs de l'écran, avant la ligne du contour (qui doit rester
-  // la dernière passe : elle écrit par-dessus l'image et lit la profondeur de la scène).
+  // la dernière passe : elle écrit par-dessus l'image).
   // Même règle que la sortie : selon les passes actives, sa cible est celle de la scène, dont la
   // profondeur ne doit pas être réécrite par le quad plein écran.
   const smaa = new SMAAPass(1, 1) as SMAAPass & { materialBlend: THREE.ShaderMaterial }
