@@ -179,6 +179,44 @@ func TestEkurDir(t *testing.T) {
 	}
 }
 
+// TestEkurCandidateOverride — the variable is the candidate whenever it is set, even when
+// it names an invalid folder and the data directory holds a valid export (the override
+// wins); unset, the candidate is the data directory's own ekur folder.
+func TestEkurCandidateOverride(t *testing.T) {
+	data := t.TempDir()
+	ekurFixture(t, DataEkurDir(data))
+	t.Setenv(EkurEnv, "")
+	if got, override := EkurCandidate(data); got != DataEkurDir(data) || override {
+		t.Fatalf("unset: candidate = %q override = %v", got, override)
+	}
+	invalid := t.TempDir()
+	t.Setenv(EkurEnv, invalid)
+	if got, override := EkurCandidate(data); got != invalid || !override {
+		t.Fatalf("set: candidate = %q override = %v", got, override)
+	}
+	if got := EkurDir(data); got != "" {
+		t.Fatalf("invalid override fell back to the data export: %q", got)
+	}
+}
+
+// TestEkurMissing — the entries a partial folder lacks, in contract order.
+func TestEkurMissing(t *testing.T) {
+	folder := t.TempDir()
+	ekurFixture(t, folder)
+	if m := EkurMissing(folder); len(m) != 0 {
+		t.Fatalf("valid fixture: missing %v", m)
+	}
+	if err := os.Remove(filepath.Join(folder, "globals.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(folder, "visor_data.json")); err != nil {
+		t.Fatal(err)
+	}
+	if m := EkurMissing(folder); len(m) != 2 || m[0] != "globals.json" || m[1] != "visor_data.json" {
+		t.Fatalf("missing = %v", m)
+	}
+}
+
 // TestEkurStamp — the export digest: empty for an empty argument, stable for the same
 // folder, changed by a material file added, by globals.json changing, and by a style file
 // removed; unchanged by a content-only edit of a file in one of the three directories.

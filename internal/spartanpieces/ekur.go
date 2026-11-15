@@ -38,27 +38,48 @@ var EkurEntries = []struct {
 // EkurValid says whether folder carries the five entries of the Ekur contract,
 // of the expected kinds.
 func EkurValid(folder string) bool {
-	for _, e := range EkurEntries {
-		info, err := os.Stat(filepath.Join(folder, e.Name))
-		if err != nil || info.IsDir() != e.IsDir {
-			return false
-		}
-	}
-	return true
+	return len(EkurMissing(folder)) == 0
 }
 
-// EkurDir resolves the Ekur reference folder: the EkurEnv variable (full
-// path), else the ekur folder of the data directory; empty when the candidate
-// is not valid.
-func EkurDir(dataDir string) string {
-	candidate := os.Getenv(EkurEnv)
-	if candidate == "" {
-		candidate = filepath.Join(dataDir, "ekur")
+// DataEkurDir is the app's own Ekur export folder in the data directory: where
+// the coatings setup (ekursetup) writes its dump, and the candidate EkurDir
+// uses when EkurEnv is unset.
+func DataEkurDir(dataDir string) string {
+	return filepath.Join(dataDir, "ekur")
+}
+
+// EkurCandidate is the one place that decides which folder is the Ekur
+// reference candidate: the EkurEnv variable (full path) when it is set, which
+// always wins (even when it names an invalid folder), else DataEkurDir.
+// override says the candidate came from the variable.
+func EkurCandidate(dataDir string) (folder string, override bool) {
+	if env := os.Getenv(EkurEnv); env != "" {
+		return env, true
 	}
+	return DataEkurDir(dataDir), false
+}
+
+// EkurDir resolves the Ekur reference folder: the EkurCandidate when it is
+// valid, empty otherwise. Every reader of the reference goes through it.
+func EkurDir(dataDir string) string {
+	candidate, _ := EkurCandidate(dataDir)
 	if EkurValid(candidate) {
 		return candidate
 	}
 	return ""
+}
+
+// EkurMissing names the contract entries folder lacks (or carries as the wrong
+// kind), in contract order; empty when EkurValid(folder).
+func EkurMissing(folder string) []string {
+	var missing []string
+	for _, e := range EkurEntries {
+		info, err := os.Stat(filepath.Join(folder, e.Name))
+		if err != nil || info.IsDir() != e.IsDir {
+			missing = append(missing, e.Name)
+		}
+	}
+	return missing
 }
 
 // EkurStamp is a short hex digest of an Ekur reference folder: it changes when

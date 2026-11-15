@@ -19,7 +19,8 @@ import (
 // The export states of the coating status route: "ok" when the resolved folder is a
 // valid Ekur reference, "not_set" when no candidate exists at all (the IT3D_EKUR_DIR
 // variable unset and no <data>/ekur folder), "invalid" when a candidate exists but does
-// not carry the five contract entries.
+// not carry the five contract entries. The candidate is spartanpieces.EkurCandidate, the
+// same resolver every build reads the reference through.
 const (
 	exportOk      = "ok"
 	exportNotSet  = "not_set"
@@ -35,7 +36,11 @@ type coatingsLibraryStatus struct {
 
 // coatingsStatus is the body of GET /api/coatings/status.
 type coatingsStatus struct {
-	Export    string                           `json:"export"`
+	Export string `json:"export"`
+	// Override says the IT3D_EKUR_DIR variable names the export (it always wins over
+	// <data>/ekur), so the in-app coatings setup cannot change what the builds read. Only
+	// the flag is answered, never the variable's value.
+	Override  bool                             `json:"override"`
 	Libraries map[string]coatingsLibraryStatus `json:"libraries"`
 }
 
@@ -44,10 +49,7 @@ type coatingsStatus struct {
 func (h serverHandlers) handleCoatingStatus(w http.ResponseWriter, r *http.Request) {
 	dataDir := h.root.Dir()
 	export := exportOk
-	candidate := os.Getenv(spartanpieces.EkurEnv)
-	if candidate == "" {
-		candidate = filepath.Join(dataDir, "ekur")
-	}
+	candidate, override := spartanpieces.EkurCandidate(dataDir)
 	if !spartanpieces.EkurValid(candidate) {
 		if _, err := os.Stat(candidate); err == nil {
 			export = exportInvalid
@@ -77,7 +79,7 @@ func (h serverHandlers) handleCoatingStatus(w http.ResponseWriter, r *http.Reque
 			MaterialsMissing: materialsMissing(dataDir, module),
 		}
 	}
-	writeJSON(w, http.StatusOK, coatingsStatus{Export: export, Libraries: libraries})
+	writeJSON(w, http.StatusOK, coatingsStatus{Export: export, Override: override, Libraries: libraries})
 }
 
 // materialsMissing reads the "materials_missing" count of a library's index (its coatings
