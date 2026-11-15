@@ -114,11 +114,16 @@ export const KEYFRAME_EVERY = EXPORT_FPS * KEYFRAME_SECONDS
  */
 export const ENCODE_QUEUE_MAX = 2
 
-/** Bits par pixel et par image. Une carte 2D à aplats se compresse bien mieux qu'un film. */
-const BITS_PER_PIXEL = 0.1
+/**
+ * Bits per pixel per frame. At 0.1 a moving 3D camera smeared every textured wall into blocks
+ * (1080p60 got 12.4 Mb/s): a still frame costs nothing, but a pan changes every pixel of stone
+ * and foliage, and the browser's hardware H.264 needs more bits than x264 for the same picture.
+ * 0.25 gives 1080p60 31 Mb/s, inside High 4.2's 62.5 Mb/s ceiling.
+ */
+const BITS_PER_PIXEL = 0.25
 /** Débit plancher et plafond, en bits par seconde : sous 2 Mb/s le texte du HUD bave. */
 const BITRATE_MIN = 2_000_000
-const BITRATE_MAX = 40_000_000
+const BITRATE_MAX = 80_000_000
 
 /**
  * Les niveaux H.264, du plus bas au plus haut, avec ce que chacun accepte : `maxFS` en

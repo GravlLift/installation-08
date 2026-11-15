@@ -68,16 +68,16 @@ describe('avcLevelFor — le PLUS BAS niveau qui accepte l’image', () => {
 
 describe('videoBitrate — borné aux deux bouts', () => {
   it('une petite toile ne descend pas sous le plancher', () => {
-    // 320x180x30x0,1 = 172 800 b/s : le texte du HUD y baverait.
+    // 320x180x30x0.25 = 432 000 b/s : le texte du HUD y baverait.
     expect(videoBitrate(320, 180, 30)).toBe(2_000_000)
   })
 
   it('une toile courante suit la surface', () => {
-    expect(videoBitrate(1280, 720, 30)).toBe(2_764_800)
+    expect(videoBitrate(1280, 720, 30)).toBe(6_912_000)
   })
 
   it('une toile démesurée ne dépasse pas le plafond', () => {
-    expect(videoBitrate(7680, 4320, 60)).toBe(40_000_000)
+    expect(videoBitrate(7680, 4320, 60)).toBe(80_000_000)
   })
 })
 
@@ -88,7 +88,7 @@ describe('videoEncoderConfig — ce qu’on présente au navigateur', () => {
       width: 1280,
       height: 720,
       framerate: EXPORT_FPS,
-      bitrate: 2_764_800,
+      bitrate: 6_912_000,
       avc: { format: 'avc' },
     })
   })
@@ -134,10 +134,10 @@ describe('the 3D export at 60 fps', () => {
     const hd = videoEncoderConfig(1920, 1080, 60)
     expect(hd).toMatchObject({ codec: 'avc1.64002a', width: 1920, height: 1080, framerate: 60 })
     // 120x68 MB x 60 = 489 600 MB/s: over 4.0 (245 760), within 4.2 (522 240, 8704 MB).
-    expect(hd.bitrate).toBe(12_441_600)
+    expect(hd.bitrate).toBe(31_104_000)
     const sd = videoEncoderConfig(1280, 720, 60)
     // 80x45 MB x 60 = 216 000 MB/s: exactly 3.2's ceiling.
-    expect(sd).toMatchObject({ codec: 'avc1.640020', framerate: 60, bitrate: 5_529_600 })
+    expect(sd).toMatchObject({ codec: 'avc1.640020', framerate: 60, bitrate: 13_824_000 })
   })
 
   it('the bitrate doubles with the rate: same bits per pixel and frame', () => {
