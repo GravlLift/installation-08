@@ -55,9 +55,12 @@ source.
   a **Set up coatings** button. The button downloads Ekur's standalone dumper (the pinned
   1.3.1 release, checked against its size and SHA-256 before it runs) and the three
   [ReclaimerFiles](https://github.com/TheHaloArchive/ReclaimerFiles) lists it reads into
-  `<data>/tools/ekur`, runs it against your game install, checks the result, places it at
-  `<data>/ekur`, and queues the rebuild of the three coating libraries. The bar shows each
-  step and, if one fails, why (the dumper's own output is in `<data>/tools/ekur/setup.log`).
+  `<data>/tools/ekur`, runs it against your game install, checks the result, keeps only the
+  coating tables at `<data>/ekur`, and queues the rebuild of the three coating libraries. The
+  extraction takes about 4 minutes on a Steam install and writes about 9 GB while it runs, of
+  which it keeps about 140 MB; the setup refuses to start with less than 12 GB free on the
+  data folder's drive. The bar shows each step and, if one fails, why (the dumper's own
+  output is in `<data>/tools/ekur/setup.log`).
   Reopen the match once the rebuilds finish. The same setup runs from the command line with
   `setup-coatings [--data <dir>] [--game <deploy-root>]` (restart `serve` afterwards so it
   rebuilds the libraries). Nothing is bundled: Ekur is GPL-3.0 and is downloaded from its own
@@ -153,7 +156,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
 | `build-firstperson` | one weapon's first-person rig to one GLB | `--weapon <hex-id> --map <key> --out <file.glb>`, `--no-arms` |
 | `build-weapon` | one weapon's static third-person model to one GLB | `--weapon <hex-id> --map <key> --out <file.glb>` |
-| `setup-coatings` | the Ekur coating reference at `<data>/ekur`: downloads Ekur's pinned dumper and its lists into `<data>/tools/ekur`, runs it on the game install, validates the export and swaps it into place (a failed run leaves the previous export untouched); the next `serve` start rebuilds the coating libraries | `--data <dir>`, `--game <deploy-root>` |
+| `setup-coatings` | the Ekur coating reference at `<data>/ekur`: downloads Ekur's pinned dumper and its lists into `<data>/tools/ekur`, runs it on the game install (about 4 minutes, about 9 GB written; needs 12 GB free), validates the export, trims it to the coating tables (about 140 MB) and swaps it into place (a failed run leaves the previous export untouched); the next `serve` start rebuilds the coating libraries | `--data <dir>`, `--game <deploy-root>` |
 
 A map's module key is its folder name under `<deploy>/pc/levels/multi` (for example
 `sgh_blueprint` for Recharge). `--game` is the game's `deploy` root; omitted, it is

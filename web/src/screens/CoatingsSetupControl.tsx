@@ -18,9 +18,10 @@ export function CoatingsSetupControl({ notice, pollMs }: CoatingsSetupControlPro
   const { phase, start } = useCoatingsSetup(pollMs)
 
   if (phase.phase === 'running') {
+    const text = `Setting up coatings: ${COATINGS_SETUP_STAGE_LABELS[phase.stage] ?? phase.stage}`
     return (
-      <span data-testid="coatings-setup-status" role="status" className="bc-player-notice">
-        Setting up coatings: {COATINGS_SETUP_STAGE_LABELS[phase.stage] ?? phase.stage}
+      <span data-testid="coatings-setup-status" role="status" title={text} className="bc-player-notice bc-player-notice-long">
+        {text}
       </span>
     )
   }

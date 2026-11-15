@@ -56,9 +56,10 @@ Forge support is a work in progress.
 
 ## Coatings
 
-- Set up coatings (and `setup-coatings`) has been tested against a stand-in for Ekur's dumper,
-  not yet against the real dumper on a real install. How long the real extraction takes is
-  unmeasured, and the progress shows only the current step, not a percentage.
+- Set up coatings (and `setup-coatings`) needs 12 GB free on the data folder's drive: Ekur's
+  dumper writes about 9 GB (models, animations, geometry) before the setup trims the export to
+  the 140 MB of coating tables the app reads. The extraction takes about 4 minutes on a Steam
+  install, and the progress shows only the current step, not a percentage.
 - The button is offered only in the match viewer's top bar, not on the home screen.
 - After a successful setup the coating libraries rebuild in the background; the open match
   keeps its neutral paint until it is reopened once they finish.

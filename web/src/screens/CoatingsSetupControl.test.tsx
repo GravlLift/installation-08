@@ -113,6 +113,17 @@ describe('CoatingsSetupControl', () => {
     expect(posts).toHaveLength(0)
   })
 
+  it('sets the expectation for the dump: its length and its disk use', async () => {
+    const { mock } = routeFetch([{ state: 'dumping' }])
+    vi.stubGlobal('fetch', mock)
+    render(<CoatingsSetupControl notice={NOTICE} pollMs={10} />)
+    await waitFor(() => {
+      const text = screen.getByTestId('coatings-setup-status').textContent ?? ''
+      expect(text).toContain('about 4 minutes')
+      expect(text).toContain('about 10 GB')
+    })
+  })
+
   it('words the read-only refusal', async () => {
     const { mock } = routeFetch([{ state: 'idle' }], () => jsonResponse({ error: 'read_only' }, 403))
     vi.stubGlobal('fetch', mock)

@@ -36,8 +36,9 @@ export const COATINGS_SETUP_POLL_MS = 1500
 export const COATINGS_SETUP_STAGE_LABELS: Record<CoatingsSetupStage, string> = {
   downloading: 'downloading Ekur',
   verifying: 'verifying the download',
-  dumping: 'extracting coating data from the game',
-  validating: 'checking the export',
+  // Measured on a Steam install: about 4 minutes and about 9 GB written before the trim.
+  dumping: 'extracting coating data from the game (about 4 minutes, uses about 10 GB of disk while it runs)',
+  validating: 'checking the export and trimming it to the coating tables',
   queuing: 'queuing the coating rebuilds',
 }
 
