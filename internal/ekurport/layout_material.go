@@ -1,0 +1,84 @@
+// Ported from Ekur's ekur_definitions (GPL-3.0-or-later, Copyright (c) 2026 The Halo
+// Archive): material.rs MaterialTag / MaterialStyleInfo.
+//
+// Piece 3 of the Ekur port: the raw struct layout of the "mat " tag's style_info block,
+// decoded into a plain Go struct with no transforms. A "mat " tag's main struct carries
+// the style_info block at offset 0x74 (material.rs MaterialTag); each element is a
+// MaterialStyleInfo (size 0x5C). This reader returns the fields Ekur's material and
+// coating code reads, exactly as stored.
+package ekurport
+
+// MaterialStyleInfo is one element of a "mat " tag's style_info block, raw as stored.
+// Offsets are within the 0x5C element (material.rs MaterialStyleInfo).
+type MaterialStyleInfo struct {
+	// Stylelist is the global id of the material_style tag reference at +0x00 (a null
+	// reference is -1); it names the style list this material uses.
+	Stylelist int32
+	// RegionName is the string id at +0x38.
+	RegionName int32
+	// The seven channel intentions, string ids: base +0x3C, mask0 red/green/blue
+	// +0x40/+0x44/+0x48, mask1 red/green/blue +0x4C/+0x50/+0x54.
+	BaseIntention       int32
+	Mask0RedIntention   int32
+	Mask0GreenIntention int32
+	Mask0BlueIntention  int32
+	Mask1RedIntention   int32
+	Mask1GreenIntention int32
+	Mask1BlueIntention  int32
+	// SupportedLayers is the u8 enum byte at +0x58; RequiresDamage the u8 at +0x59.
+	SupportedLayers uint8
+	RequiresDamage  uint8
+}
+
+// MaterialLayout is the raw decode of a "mat " tag's style_info block.
+type MaterialLayout struct {
+	StyleInfo []MaterialStyleInfo
+}
+
+// ReadMaterial decodes the style_info block of a "mat " tag's main struct.
+func ReadMaterial(root Struct) (*MaterialLayout, error) {
+	blk, err := root.Block(0x74, 0x5C) // style_info, element MaterialStyleInfo 0x5C
+	if err != nil {
+		return nil, err
+	}
+	out := &MaterialLayout{StyleInfo: make([]MaterialStyleInfo, 0, blk.Len())}
+	for i := 0; i < blk.Len(); i++ {
+		e := blk.At(i)
+		var si MaterialStyleInfo
+		if si.Stylelist, err = refID(e, 0x00); err != nil {
+			return nil, err
+		}
+		if si.RegionName, err = sid(e, 0x38); err != nil {
+			return nil, err
+		}
+		if si.BaseIntention, err = sid(e, 0x3C); err != nil {
+			return nil, err
+		}
+		if si.Mask0RedIntention, err = sid(e, 0x40); err != nil {
+			return nil, err
+		}
+		if si.Mask0GreenIntention, err = sid(e, 0x44); err != nil {
+			return nil, err
+		}
+		if si.Mask0BlueIntention, err = sid(e, 0x48); err != nil {
+			return nil, err
+		}
+		if si.Mask1RedIntention, err = sid(e, 0x4C); err != nil {
+			return nil, err
+		}
+		if si.Mask1GreenIntention, err = sid(e, 0x50); err != nil {
+			return nil, err
+		}
+		if si.Mask1BlueIntention, err = sid(e, 0x54); err != nil {
+			return nil, err
+		}
+		if si.SupportedLayers, err = e.U8(0x58); err != nil {
+			return nil, err
+		}
+		if si.RequiresDamage, err = e.U8(0x59); err != nil {
+			return nil, err
+		}
+		out.StyleInfo = append(out.StyleInfo, si)
+	}
+	return out, nil
+}

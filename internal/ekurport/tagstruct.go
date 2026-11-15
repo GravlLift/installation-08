@@ -294,11 +294,13 @@ func (s Struct) TagRef(off int) (globalID int32, group string, ok bool) {
 }
 
 // Block is a resolved tag-block field: the child data block it points to and the byte
-// size of one element in it.
+// size of one element in it. An empty block (struct-table entry with target index -1)
+// resolves to a Block with empty set: Len is 0 and At returns empty structs.
 type Block struct {
 	tag    *Tag
 	block  uint32
 	stride int // byte size of one element, from the element type's definition
+	empty  bool
 }
 
 // Block resolves the tag-block field at offset off to its child data block. elemStride is
@@ -309,18 +311,22 @@ type Block struct {
 //
 // The element count is not stored in the tag: on real tags the u32 at off+0x10 (the
 // FieldBlock "size") is a header field that happens to sit there, not the count. The
-// count is the child block's byte size divided by elemStride.
+// count is the child block's byte size divided by elemStride. An empty field (struct-
+// table target index -1) resolves to a Block with Len 0.
 func (s Struct) Block(off, elemStride int) (Block, error) {
 	absOff := s.off + off
-	var child int32 = -1
+	var child int32 = -2 // -2 means no struct-table entry at this field at all
 	for _, st := range s.tag.structs {
-		if st.structType == structBlock && st.fieldBlock == int32(s.block) && int(st.fieldOffset) == absOff && st.targetIndex != -1 {
+		if st.structType == structBlock && st.fieldBlock == int32(s.block) && int(st.fieldOffset) == absOff {
 			child = st.targetIndex
 			break
 		}
 	}
-	if child == -1 {
+	if child == -2 {
 		return Block{}, fmt.Errorf("ekurport: no tag-block struct for block %d at offset 0x%x", s.block, absOff)
+	}
+	if child == -1 { // null block pointer: the field holds no elements
+		return Block{tag: s.tag, stride: elemStride, empty: true}, nil
 	}
 	return Block{tag: s.tag, block: uint32(child), stride: elemStride}, nil
 }
@@ -328,7 +334,7 @@ func (s Struct) Block(off, elemStride int) (Block, error) {
 // Len returns the element count of the block (child block byte size / element stride); 0
 // when the stride is 0.
 func (b Block) Len() int {
-	if b.stride == 0 {
+	if b.stride == 0 || b.empty {
 		return 0
 	}
 	abs, end, err := b.tag.blockRange(b.block)
@@ -344,7 +350,7 @@ func (b Block) Stride() int { return b.stride }
 // At returns element i as a Struct view at offset i*Stride() in the child block. A
 // negative i returns an empty struct whose reads fail.
 func (b Block) At(i int) Struct {
-	if i < 0 {
+	if i < 0 || b.empty {
 		return Struct{}
 	}
 	return Struct{tag: b.tag, block: b.block, off: i * b.stride}
