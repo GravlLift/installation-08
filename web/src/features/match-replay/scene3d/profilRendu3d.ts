@@ -21,12 +21,20 @@ export interface ProfilRendu {
   pixelRatio: number
   width: number
   height: number
+  /** What each pass drew at the last frame: the shadow updates, the composer's passes (the scene without its shadows), the minimap. */
+  passes: Record<PassCostName, { calls: number; triangles: number }>
+  /** The GPU time of the last measured frame's draws (ms, smoothed); null without a GPU timer. */
+  gpuMs: number | null
 }
+
+/** The passes the profile breaks the draws into. */
+export const PASS_COST_NAMES = ['shadow', 'scene', 'outlineMask', 'ao', 'output', 'grade', 'smaa', 'outlineLine', 'minimap'] as const
+export type PassCostName = (typeof PASS_COST_NAMES)[number]
 
 const LISSAGE = 0.1
 
 export function nouveauProfil(): ProfilRendu {
-  return { ms: new Float32Array(ETAPES_PROFIL.length), appels: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1, width: 0, height: 0 }
+  return { ms: new Float32Array(ETAPES_PROFIL.length), appels: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1, width: 0, height: 0, passes: Object.fromEntries(PASS_COST_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as ProfilRendu['passes'], gpuMs: null }
 }
 
 /** marquer clôt l'étape `etape` commencée à `debut` (ms) et rend l'instant de clôture, début de la suivante. */

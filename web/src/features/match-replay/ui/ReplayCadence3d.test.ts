@@ -14,6 +14,14 @@ describe('ReplayCadence3d meter lines', () => {
     expect(cost).toBe('77.5 ms · worst 150.0 ms · js 9.3 ms · 812 calls · 16.20M tri · 1234 geo · 345 tex')
   })
 
+  it('lists the passes that drew, shadows apart from the scene', () => {
+    const passes = { ...nouveauProfil().passes, shadow: { calls: 30, triangles: 400_000 }, scene: { calls: 421, triangles: 5_400_000 }, ao: { calls: 3, triangles: 3 } }
+    const snap = snapshotOf({ displayedFps: 30, frameMsAvg: 33, frameMsWorst: 40, realtime: 1, scriptMs: 5 }, 30, { ...profil, passes, gpuMs: 21.34 }, 0)
+    const [, cost, , line] = meterLines(snap, SCENE3D_TEXT.en)
+    expect(cost).toContain('js 5.0 ms · gpu 21.3 ms · 812 calls')
+    expect(line).toBe('shadow 0.40M/30 · scene 5.40M/421 · ao 0.00M/3')
+  })
+
   it('says paused when the film does not advance', () => {
     const snap = snapshotOf({ displayedFps: 60, frameMsAvg: 16.7, frameMsWorst: 17, realtime: 0, scriptMs: 2 }, 30, profil, 0)
     expect(meterLines(snap, SCENE3D_TEXT.en)[0]).toBe('60 / 30 fps · paused')

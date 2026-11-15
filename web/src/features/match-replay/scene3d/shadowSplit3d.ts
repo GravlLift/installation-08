@@ -33,6 +33,8 @@ void main() {
 export class ShadowSplit {
   /** Off: every shadow update draws every caster (the stock pass), for A/B measurements. */
   split = true
+  /** What the shadow updates drew since the scene last reset it (`renderer.info`), for the playback meter. */
+  readonly cost = { calls: 0, triangles: 0 }
   private readonly renderer: THREE.WebGLRenderer
   private readonly scene: THREE.Scene
   private readonly sun: THREE.DirectionalLight
@@ -96,6 +98,17 @@ export class ShadowSplit {
   private render(lights: THREE.Light[], scene: THREE.Object3D, camera: THREE.Camera): void {
     const shadowMap = this.renderer.shadowMap
     if (!shadowMap.enabled || (!shadowMap.autoUpdate && !shadowMap.needsUpdate)) return
+    const info = this.renderer.info?.render
+    const calls = info?.calls ?? 0
+    const triangles = info?.triangles ?? 0
+    try { this.update(lights, scene, camera) } finally {
+      this.cost.calls += (info?.calls ?? 0) - calls
+      this.cost.triangles += (info?.triangles ?? 0) - triangles
+    }
+  }
+
+  private update(lights: THREE.Light[], scene: THREE.Object3D, camera: THREE.Camera): void {
+    const shadowMap = this.renderer.shadowMap
     if (!this.split || scene !== this.scene || this.statics.length === 0 || lights.length !== 1 || lights[0] !== this.sun) {
       this.stock(lights, scene, camera)
       return

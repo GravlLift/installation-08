@@ -2,7 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 
 import { readPlayback, type PlaybackMeter, type PlaybackReading } from '../model/playbackMeter_logic'
-import { ETAPES_PROFIL, type ProfilRendu } from '../scene3d/profilRendu3d'
+import { ETAPES_PROFIL, PASS_COST_NAMES, type PassCostName, type ProfilRendu } from '../scene3d/profilRendu3d'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import { useReplay3dMeter } from '../settings/useReplay3dMeter'
@@ -34,6 +34,10 @@ export interface PerfSnapshot {
   pixelRatio: number
   width: number
   height: number
+  /** The GPU time of the frame's draws (ms, smoothed); null without the timer extension. */
+  gpuMs: number | null
+  /** What each pass drew at the last frame (the scene pass without the shadow updates). */
+  passes: Record<PassCostName, { calls: number; triangles: number }>
 }
 
 declare global {
@@ -61,6 +65,8 @@ export function snapshotOf(r: PlaybackReading, filmFps: number, p: ProfilRendu |
     pixelRatio: p?.pixelRatio ?? 1,
     width: p?.width ?? 0,
     height: p?.height ?? 0,
+    gpuMs: p?.gpuMs == null ? null : round1(p.gpuMs),
+    passes: Object.fromEntries(PASS_COST_NAMES.map((n) => [n, { calls: p?.passes[n].calls ?? 0, triangles: p?.passes[n].triangles ?? 0 }])) as PerfSnapshot['passes'],
   }
 }
 
@@ -68,13 +74,14 @@ function round1(v: number): number {
   return Math.round(v * 10) / 10
 }
 
-/** meterLines: the headline (« 13 / 30 fps · 1.00x ») and the two smaller lines (frame time and render cost, stages). */
-export function meterLines(s: PerfSnapshot, t: (typeof SCENE3D_TEXT)[ReplayLocale]): [string, string, string] {
+/** meterLines: the headline (« 13 / 30 fps · 1.00x ») and the smaller lines (frame time and render cost, stages, passes). */
+export function meterLines(s: PerfSnapshot, t: (typeof SCENE3D_TEXT)[ReplayLocale]): [string, string, string, string] {
   const ratio = s.realtime > 0 ? `${s.realtime.toFixed(2)}x` : t.cadencePaused
   const head = `${Math.round(s.playbackFps)} / ${s.filmFps} ${t.cadenceIps} · ${ratio}`
-  const cost = `${s.frameMsAvg.toFixed(1)} ms · ${t.cadencePire} ${s.frameMsWorst.toFixed(1)} ms · js ${s.scriptMs.toFixed(1)} ms · ${s.calls} calls · ${(s.triangles / 1e6).toFixed(2)}M tri · ${s.geometries} geo · ${s.textures} tex`
+  const cost = `${s.frameMsAvg.toFixed(1)} ms · ${t.cadencePire} ${s.frameMsWorst.toFixed(1)} ms · js ${s.scriptMs.toFixed(1)} ms${s.gpuMs === null ? '' : ` · gpu ${s.gpuMs.toFixed(1)} ms`} · ${s.calls} calls · ${(s.triangles / 1e6).toFixed(2)}M tri · ${s.geometries} geo · ${s.textures} tex`
   const stages = `${ETAPES_PROFIL.map((name) => `${name} ${s.stagesMs[name].toFixed(1)}`).join(' · ')} · x${s.pixelRatio} ${s.width}x${s.height}`
-  return [head, cost, stages]
+  const passes = PASS_COST_NAMES.filter((n) => s.passes[n].calls > 0).map((n) => `${n} ${(s.passes[n].triangles / 1e6).toFixed(2)}M/${s.passes[n].calls}`).join(' · ')
+  return [head, cost, stages, passes]
 }
 
 /**
@@ -96,6 +103,7 @@ export function ReplayCadence3d({ meterRef, profil, filmFps, locale }: { meterRe
   const headRef = useRef<HTMLDivElement>(null)
   const costRef = useRef<HTMLDivElement>(null)
   const stagesRef = useRef<HTMLDivElement>(null)
+  const passesRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== METER_KEY_STROKE || e.ctrlKey || e.altKey || e.metaKey || typing(e.target)) return
@@ -116,11 +124,12 @@ export function ReplayCadence3d({ meterRef, profil, filmFps, locale }: { meterRe
       }
       const snap = snapshotOf(r, filmFps, profil(), now)
       window.__it3dPerf = Object.freeze(snap)
-      if (!box || !headRef.current || !costRef.current || !stagesRef.current) return
-      const [head, cost, stages] = meterLines(snap, t)
+      if (!box || !headRef.current || !costRef.current || !stagesRef.current || !passesRef.current) return
+      const [head, cost, stages, passes] = meterLines(snap, t)
       headRef.current.textContent = head
       costRef.current.textContent = cost
       stagesRef.current.textContent = stages
+      passesRef.current.textContent = passes
       box.style.visibility = 'visible'
     }
     read()
@@ -145,6 +154,7 @@ export function ReplayCadence3d({ meterRef, profil, filmFps, locale }: { meterRe
       <div ref={headRef} className="text-sm font-semibold" />
       <div ref={costRef} className="text-[10px] opacity-90" />
       <div ref={stagesRef} className="text-[10px] opacity-75" />
+      <div ref={passesRef} className="text-[10px] opacity-75" />
     </div>
   )
 }

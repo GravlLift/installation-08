@@ -22,9 +22,19 @@ export interface PostFx3d {
   composer: EffectComposer
   gtao: GTAOPass
   grade: ShaderPass
+  output: OutputPass
+  smaa: SMAAPass
   outline: Outline3d
+  /** What each pass drew at the last frames since `resetCosts` (`renderer.info`), for the playback meter. */
+  costs: Record<PassName, PassCost>
+  resetCosts(): void
   dispose(): void
 }
+
+/** The composer's passes, in order, as the playback meter names them. */
+export const PASS_NAMES = ['scene', 'outlineMask', 'ao', 'output', 'grade', 'smaa', 'outlineLine'] as const
+export type PassName = (typeof PASS_NAMES)[number]
+export interface PassCost { calls: number; triangles: number }
 
 /**
  * Gain par canal (rouge, vert, bleu) en espace écran : appliqué après la sortie, il refroidit
@@ -49,7 +59,8 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // La profondeur de la scène reste lisible après son rendu : l'occlusion ambiante s'y compare.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(1, 1) })
   const composer = new EffectComposer(renderer, target)
-  composer.addPass(new RenderPass(scene, camera))
+  const scenePass = new RenderPass(scene, camera)
+  composer.addPass(scenePass)
   const outline = new Outline3d(camera)
   composer.addPass(outline.maskPass)
   const gtao = new GtaoScenePass(scene, camera)
@@ -78,11 +89,18 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   smaa.materialBlend.depthWrite = false
   composer.addPass(smaa)
   composer.addPass(outline.linePass)
+  const costs = meterPasses(renderer, [scenePass, outline.maskPass, gtao, output, grade, smaa, outline.linePass])
   return {
     composer,
     gtao,
     grade,
+    output,
+    smaa,
     outline,
+    costs,
+    resetCosts() {
+      for (const name of PASS_NAMES) costs[name].calls = costs[name].triangles = 0
+    },
     dispose() {
       outline.dispose()
       gtao.dispose()
@@ -90,6 +108,27 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
       composer.dispose()
     },
   }
+}
+
+/**
+ * meterPasses wraps each pass's `render` to add what it drew (`renderer.info`, which the scene
+ * resets once per frame) to its entry; the passes are in `PASS_NAMES` order.
+ */
+function meterPasses(renderer: THREE.WebGLRenderer, passes: readonly { render: (...args: never[]) => void }[]): Record<PassName, PassCost> {
+  const costs = Object.fromEntries(PASS_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as Record<PassName, PassCost>
+  passes.forEach((pass, i) => {
+    const cost = costs[PASS_NAMES[i]]
+    const render = pass.render.bind(pass) as (...args: unknown[]) => void
+    pass.render = ((...args: unknown[]) => {
+      const info = renderer.info.render
+      const calls = info.calls
+      const triangles = info.triangles
+      render(...args)
+      cost.calls += info.calls - calls
+      cost.triangles += info.triangles - triangles
+    }) as never
+  })
+  return costs
 }
 
 /**
