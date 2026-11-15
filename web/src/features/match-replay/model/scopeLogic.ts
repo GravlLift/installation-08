@@ -109,9 +109,19 @@ export function styleLunette(spec: ScopeSpec): ScopeStyle {
   return spec.style ?? 'cercle'
 }
 
+/**
+ * The family (first eight hex digits, lowercase) of a `weaponLabels` key, whatever its
+ * spelling: the cooked artifacts write the keys `0x%08X` (uppercase, prefixed), the model
+ * key is written lowercase without the prefix — both writings denote the same family.
+ */
+function cleFamille(id: string): string {
+  const hex = id.startsWith('0x') || id.startsWith('0X') ? id.slice(2) : id
+  return /^[0-9a-fA-F]{8,}$/.test(hex) ? hex.slice(0, 8).toLowerCase() : id
+}
+
 /** The label key of the weapon whose model key is `cleModele` (first eight digits of the identifier). */
 export function etiquetteDe(doc: ReplayDocumentReady, cleModele: string): string | null {
-  const identifiant = Object.keys(doc.weaponLabels ?? {}).find((id) => id.startsWith(cleModele))
+  const identifiant = Object.keys(doc.weaponLabels ?? {}).find((id) => cleFamille(id) === cleModele.toLowerCase())
   return identifiant ? (doc.weaponLabels?.[identifiant]?.key ?? null) : null
 }
 
