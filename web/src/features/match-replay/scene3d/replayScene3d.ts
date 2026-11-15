@@ -4,7 +4,7 @@
  * It owns no time: the page's player advances its image and the view calls `render(frame)`
  * once per screen frame. Cameras: first and third person on the followed player (the page's
  * viewpoint), free (orbit around it), and the orthographic top-down view (`topDownView3d`)
- * drawing the same scene straight down, cut over the followed player; it also draws the 3D view's corner minimap.
+ * drawing the same scene straight down as one fixed map picture; it also draws the 3D view's corner minimap.
  *
  * The replay and the map are in Halo world units (1 u = 3.048 m), not meters: measured
  * median run speed 2.3 u/s, that of a Spartan. All sizes below are in u.
@@ -305,7 +305,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** setView chooses the drawing view: the perspective 3D view or the orthographic top-down. */
   setView(view: SceneView3d) { if (this.exportScene.held) this.exportScene.held.view = view; else this.view = view }
 
-  /** setTopFollowed: the player the top-down view's cut follows; null (free camera): the living players' median. */
+  /** setTopFollowed: the player the top-down view rings and tells floors against; null (free camera): the living players' median. */
   setTopFollowed(xuid: string | null): void { this.topFollowed = xuid }
   /** setMinimap shows or hides the corner minimap over the 3D view (first and third person). */
   setMinimap(on: boolean): void { this.top?.setMinimap(on) }

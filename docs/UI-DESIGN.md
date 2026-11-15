@@ -256,30 +256,25 @@ the grass, which read as a usable map straight away.
   own painted materials; nothing is swapped for flat colors.
 - **Roofs** are the problem: seen from above, most of a map is rooftop and the floors
   people fight on are hidden.
-- **Chosen approach: a cut that follows the player.** Everything higher than a head and a
-  clearance over the followed player's feet is not drawn (the camera's near plane), so his
-  floor shows with the floors under it through openings, faded by depth; the cut height is
-  smoothed over time so jumps and stairs do not flicker it. In free camera it follows the
-  median living player. The first idea, height bands clustered from the walked heights,
-  failed on Recharge: ramps make the walked heights continuous, so the whole map was one
-  band and the view showed its roof (`topDownLogic.ts`).
-- **Floors above the cut, faintly** (`topDownGhost3d.ts`): the cut opens the solid structure
-  the upper floors stand on, whose inside is not drawn, so players upstairs used to float
-  over the studio color. The whole map seen from above, cut a headroom over the highest
-  walked floor (so no roof), is rendered once into an image and laid flat under the cut
-  view at the bottom of its depth range: the current floor and the floors seen below it
-  cover it, and where the cut view has nothing the floor above shows through, dimmed and
-  half transparent. The map's outline is always there, a player upstairs stands on
-  something, and the current floor stays the clear one. Not shown: a floor that overhangs
-  the current one (a bridge over a hall) is not drawn over it. Cost: one image render per
-  scene graph (about 6 ms on Recharge, once) and one textured quad per frame.
-- **Lighting** (`topDownStage3d.ts`): the 3D view's low sun is put out for every top-down
-  render; the floors take the sky, the capture probes and the game's baked light only,
-  so materials keep their colors without the sunlit pools under skylights and the shadow
-  bands under beams. A soft overhead sun was tried and dropped: a light straight down seen
-  straight down puts its specular peak on every flat floor and the metal floors read white.
-  The 3D lighting is untouched (the swap is per render) and the shadow map is not redrawn
+- **Chosen approach: one fixed picture of the whole map.** The camera cuts a headroom over
+  the match's highest walked floor (so no roof over it) and stops under its lowest one, both
+  fixed for the match (`topDownLogic.ts`), so the map's pixels never change during playback:
+  it only pans and zooms. A cut that followed the followed player (his floor shown, every
+  slab over his head cut away, the floors above as a faint ghost image) was tried and
+  dropped on 2026-11-15: the map changed shape as he moved, which looked wrong and did not
+  help. Height bands clustered from the walked heights failed earlier on Recharge: ramps
+  make the walked heights continuous.
+- **Lighting and height** (`topDownShade3d.ts`, `topDownStage3d.ts`): every map surface drops
+  the sun, the game's lamps and baked light and the probes' reflections for one flat light
+  (full on floors, 0.6 on walls, metals reflecting the same flat value), so there are no hot
+  spots or skylight pools. Levels read by an absolute height shading over the match's walked
+  span: its highest floor at full light, its lowest at 0.6 with a cool tint. The swap is one
+  shared uniform per render; the 3D lighting is untouched and the shadow map is not redrawn
   while the top-down view shows.
+- **Left out** (`hiddenFromTop` in `topDownLogic.ts`): grass and foliage clumps, the coarse
+  `decor*` nodes, every see-through or blended surface (decals, light cards, glass), every
+  alpha-tested cutout of the Forge object layer (ivy, plants, shrubs, leaves), and map
+  cutouts that do not lie flat (foliage cards; a flat grate or mesh floor stays).
 - **Framing** (`topDownNavLogic.ts`, `topDownInput3d.ts`): the walked area fits the scene box,
   and in fullscreen between the top strip and transport bar laid over it (read from the
   page; their place is kept while they fade out). Wheel zooms toward the cursor (up to 8x), a drag pans, both clamped to the
@@ -289,16 +284,16 @@ the grass, which read as a usable map straight away.
 - **Players** (`playerMarkers3d.ts`): a disc in team color at the feet with a facing wedge,
   a fixed size on screen at any zoom, drawn over the map on a light edge and a dark halo
   (ink and studio tokens) so it reads on dark and bright floors; a ring on the followed
-  player; players above the cut or well below his floor are dimmed and their tag carries
-  an up or down arrow. A dead player waiting to respawn is a cross in his team color where
+  player; every living player is drawn, and a player on another floor than the followed
+  one (over his head, or well below his feet) is dimmed to 0.75 with an up or down arrow
+  in his disc and on his tag. A dead player waiting to respawn is a cross in his team color where
   he fell. Name tags do not pile up: in rank order (the followed player, then the drawn
   floor, then the other floors) each tag goes over its marker, else under it, else is
   hidden.
 - **Corner minimap** (`topDownMinimap3d.ts`, `minimapLogic.ts`): in first and third person,
-  a square at the top right (the kill feed holds the bottom left) with the same painted,
-  cut map around the followed player, 40 u across, heading-up as the game's motion
-  tracker turns, with a dot per living player. The map around him is rendered into a
-  cached image twice the minimap's span, redone only when he strays from its center or
-  changes floor, at most twice a second; each frame only draws the turned square and the
-  dots. `N` shows or hides it (`M` is the sound key); the choice is remembered.
+  a square at the top right (the kill feed holds the bottom left) with the same fixed map
+  picture around the followed player, 40 u across, with a dot per living player. The map
+  around him is rendered into a cached image twice the minimap's span, redone only when he
+  strays from its center, at most twice a second; each frame only draws the turned square
+  and the dots. `N` shows or hides it (`M` is the sound key); the choice is remembered.
 - **Not decided**: what objectives, weapons on the ground and kills look like on it.

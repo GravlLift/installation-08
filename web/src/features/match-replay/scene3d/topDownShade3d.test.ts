@@ -2,8 +2,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
 import { guardMaterial } from './lighting'
-import { CUT_HEADROOM } from './topDownLogic'
-import { ABOVE_LIFT, BELOW_SHADE, BELOW_TINT, SHADE_DEPTH, SHADE_START, TOP_SHADE_UNIFORMS, flatTopLight, graftTopShade, heightShade } from './topDownShade3d'
+import { LOW_SHADE, LOW_TINT, MIN_SPAN, TOP_SHADE_UNIFORMS, flatTopLight, graftTopShade, heightShade } from './topDownShade3d'
 
 const fragment = '#include <common>\nvoid main() {\n#include <lights_fragment_begin>\n#include <lights_fragment_maps>\n#include <lights_fragment_end>\n}'
 
@@ -40,50 +39,53 @@ describe('graftTopShade — the flat light of the top-down views', () => {
   })
 })
 
-describe('heightShade — levels read by height around the followed floor', () => {
+describe('heightShade — levels read by world height, fixed for the match', () => {
   const lum = (c: readonly number[]) => (c[0] + c[1] + c[2]) / 3
+  const span = { low: -2, high: 10 }
 
-  it('is full on his floor and a few steps down', () => {
-    expect(heightShade(10, 10)).toEqual([1, 1, 1])
-    expect(lum(heightShade(10 - SHADE_START, 10))).toBeCloseTo(1)
+  it('is full on the highest walked floor and over it', () => {
+    expect(heightShade(10, span)).toEqual([1, 1, 1])
+    expect(heightShade(30, span)).toEqual([1, 1, 1])
   })
 
-  it('darkens each floor below a step more, down to the floor of the ramp', () => {
-    const one = lum(heightShade(10 - 3, 10))
-    const two = lum(heightShade(10 - 6, 10))
-    expect(one).toBeLessThan(1)
-    expect(two).toBeLessThan(one)
-    const deep = heightShade(10 - 50, 10)
-    expect(deep[0]).toBeCloseTo(BELOW_SHADE * BELOW_TINT[0])
-    expect(deep[2]).toBeCloseTo(BELOW_SHADE * BELOW_TINT[2])
-    expect(heightShade(10 - SHADE_START - SHADE_DEPTH, 10)).toEqual(deep)
+  it('is the low shade, cool, on the lowest walked floor and under it', () => {
+    const low = heightShade(-2, span)
+    expect(low[0]).toBeCloseTo(LOW_SHADE * LOW_TINT[0])
+    expect(low[2]).toBeCloseTo(LOW_SHADE * LOW_TINT[2])
+    expect(heightShade(-40, span)).toEqual(low)
   })
 
-  it('keeps a lower floor clearly visible', () => {
-    expect(lum(heightShade(-100, 0))).toBeGreaterThan(0.35)
+  it('steps each floor between by its height', () => {
+    expect(lum(heightShade(2, span))).toBeLessThan(lum(heightShade(6, span)))
+    expect(lum(heightShade(-2, span))).toBeLessThan(lum(heightShade(2, span)))
   })
 
-  it('lifts what stands over his floor a little, up to the cut', () => {
-    const top = heightShade(CUT_HEADROOM, 0)
-    expect(top[0]).toBeCloseTo(1 + ABOVE_LIFT)
-    expect(heightShade(CUT_HEADROOM * 3, 0)).toEqual(top)
-    expect(heightShade(CUT_HEADROOM / 2, 0)[0]).toBeLessThan(top[0])
+  it('keeps the lowest floor clearly visible', () => {
+    expect(lum(heightShade(-2, span))).toBeGreaterThan(0.5)
   })
 
-  it('is even without a floor (the ghost of the floors above)', () => {
+  it('depends on the height alone: the same at every frame', () => {
+    expect(heightShade(4, span)).toEqual(heightShade(4, { ...span }))
+  })
+
+  it('is even without a span, or on a one-level map', () => {
     expect(heightShade(-20, null)).toEqual([1, 1, 1])
+    expect(heightShade(0, { low: 0, high: MIN_SPAN / 2 })).toEqual([1, 1, 1])
   })
 })
 
 describe('flatTopLight — on only while a top-down image is drawn', () => {
-  it('shades by height around the floor it is given, and not without one', () => {
+  it('shades by the span it is given, and not without one or on a one-level map', () => {
     const u = TOP_SHADE_UNIFORMS
-    const restore = flatTopLight(4.5)
-    expect([u.uTopRamp.value, u.uTopFloorY.value]).toEqual([1, 4.5])
-    const ghost = flatTopLight(null)
+    const restore = flatTopLight({ low: 1, high: 9 })
+    expect([u.uTopRamp.value, u.uTopLow.value, u.uTopHigh.value]).toEqual([1, 1, 9])
+    const none = flatTopLight(null)
     expect(u.uTopRamp.value).toBe(0)
-    ghost()
-    expect([u.uTopRamp.value, u.uTopFloorY.value]).toEqual([1, 4.5])
+    none()
+    const thin = flatTopLight({ low: 0, high: MIN_SPAN / 2 })
+    expect(u.uTopRamp.value).toBe(0)
+    thin()
+    expect([u.uTopRamp.value, u.uTopLow.value, u.uTopHigh.value]).toEqual([1, 1, 9])
     restore()
     expect([u.uTopFlat.value, u.uTopRamp.value]).toEqual([0, 0])
   })
