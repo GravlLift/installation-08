@@ -19,6 +19,7 @@ package main
 // harmless enqueue when something is missing.
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -125,9 +126,13 @@ func runServeStartup(jobs interface {
 		return
 	}
 	if !weaponicons.GameRootFound(gameRoot) {
-		if gameRoot != "" {
-			slog.Warn("game install not found, one-time builds not started", "game", gameRoot, "env", himap.DeployRootEnv)
-		}
+		slog.Warn("game install not found, one-time builds not started", "game", gameRoot, "env", himap.DeployRootEnv)
+		// The console is the one place a double-click user reads: say it plainly, with the way out.
+		fmt.Fprintf(os.Stderr, "\nHalo Infinite was not found on this PC, so maps, weapons and coatings cannot be built.\n"+
+			"Searched: every Steam library, and <drive>:\\XboxGames\\Halo Infinite\\Content\\deploy on each drive.\n"+
+			"If the game is installed elsewhere, close this window and start the app from a command prompt with\n"+
+			"  infinite-theater-3d.exe serve --open --game \"<the game's deploy folder>\"\n"+
+			"or set %s to that folder.\n\n", himap.DeployRootEnv)
 		return
 	}
 	// Start the coatings setup when the override is unset and the app's own export is not
