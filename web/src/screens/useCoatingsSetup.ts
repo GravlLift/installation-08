@@ -34,11 +34,9 @@ export const COATINGS_SETUP_POLL_MS = 1500
 
 /** What each stage tells the viewer. */
 export const COATINGS_SETUP_STAGE_LABELS: Record<CoatingsSetupStage, string> = {
-  downloading: 'downloading Ekur',
-  verifying: 'verifying the download',
-  // Measured on a Steam install: about 4 minutes and about 9 GB written before the trim.
-  dumping: 'extracting coating data from the game (about 4 minutes, uses about 10 GB of disk while it runs)',
-  validating: 'checking the export and trimming it to the coating tables',
+  // Measured on a Steam install: about half a minute.
+  extracting: 'reading coating data from the game (about half a minute)',
+  validating: 'checking the export',
   queuing: 'queuing the coating rebuilds',
 }
 
@@ -143,7 +141,7 @@ export function useCoatingsSetup(pollMs: number = COATINGS_SETUP_POLL_MS): UseCo
           // the 409 names.
           const stage = (err.body as { state?: string } | null)?.state
           const known = stage !== undefined && stage in COATINGS_SETUP_STAGE_LABELS
-          setPhase({ phase: 'running', stage: known ? (stage as CoatingsSetupStage) : 'downloading' })
+          setPhase({ phase: 'running', stage: known ? (stage as CoatingsSetupStage) : 'extracting' })
           return
         }
         setPhase({ phase: 'failed', error: setupRequestError(err) })

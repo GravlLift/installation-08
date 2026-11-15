@@ -1,106 +1,24 @@
 package ekursetup
 
-// ekursetup_test.go — the setup end to end against fakes only: a local httptest server
-// stands in for GitHub (it serves this test binary as the "dumper" and three small lists),
-// and the test binary re-executed with fakeDumperEnv set plays the dumper (TestMain). No
-// test reaches the network or a game install.
+// ekursetup_test.go — the setup end to end against a fake export only: an injectable
+// export function writes a minimal valid export (or a broken one) into the temporary folder,
+// so no test reaches a game install or the network.
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
+	"github.com/llampwall/infinite-theater-3d/internal/ekurport"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 )
 
-// fakeDumperEnv switches the test binary into the fake dumper: "ok" writes a full export,
-// "fail" prints an error and exits 3, "partial" writes only materials/.
-const fakeDumperEnv = "EKURSETUP_FAKE_DUMPER"
-
-// fakeArgsEnv names a file the fake dumper writes its command line to (one arg per line).
-const fakeArgsEnv = "EKURSETUP_FAKE_ARGS_OUT"
-
-func TestMain(m *testing.M) {
-	if mode := os.Getenv(fakeDumperEnv); mode != "" {
-		os.Exit(fakeDumper(mode, os.Args[1:]))
-	}
-	os.Exit(m.Run())
-}
-
-// fakeDumper is the dumper's stand-in: it checks the command line the way Ekur reads it
-// (every path flag present and readable, --skip-bitmaps given, --is-campaign never) and
-// then behaves as mode says.
-func fakeDumper(mode string, args []string) int {
-	if out := os.Getenv(fakeArgsEnv); out != "" {
-		_ = os.WriteFile(out, []byte(strings.Join(args, "\n")), 0o644)
-	}
-	flags := map[string]string{}
-	skipBitmaps := false
-	for i := 0; i < len(args); i++ {
-		switch a := args[i]; a {
-		case "--skip-bitmaps":
-			skipBitmaps = true
-		case "--is-campaign":
-			fmt.Fprintln(os.Stderr, "fake dumper: --is-campaign must never be passed")
-			return 9
-		default:
-			if !strings.HasPrefix(a, "--") || i+1 >= len(args) {
-				fmt.Fprintln(os.Stderr, "fake dumper: bad argument", a)
-				return 8
-			}
-			flags[a] = args[i+1]
-			i++
-		}
-	}
-	for _, f := range []string{"--save-path", "--module-path", "--strings-path", "--mapid-path", "--modelid-path"} {
-		if flags[f] == "" {
-			fmt.Fprintln(os.Stderr, "fake dumper: missing", f)
-			return 7
-		}
-	}
-	if !skipBitmaps {
-		fmt.Fprintln(os.Stderr, "fake dumper: --skip-bitmaps missing")
-		return 6
-	}
-	for _, f := range []string{"--strings-path", "--mapid-path", "--modelid-path"} {
-		if _, err := os.ReadFile(flags[f]); err != nil {
-			fmt.Fprintln(os.Stderr, "fake dumper: list unreadable:", err)
-			return 5
-		}
-	}
-	save := flags["--save-path"]
-	fmt.Println("Loading modules")
-	switch mode {
-	case "fail":
-		fmt.Fprintln(os.Stderr, "error: could not open module index")
-		return 3
-	case "partial":
-		_ = os.MkdirAll(filepath.Join(save, "materials"), 0o755)
-		fmt.Println("Dumped 0 styles")
-		return 0
-	}
-	writeExport(save)
-	// The rest of a real dump, which the coating builds never read: a folder tree and a
-	// top-level file, for the prune to remove.
-	_ = os.MkdirAll(filepath.Join(save, "models", "sub"), 0o755)
-	_ = os.WriteFile(filepath.Join(save, "models", "sub", "m.bin"), []byte("model"), 0o644)
-	_ = os.WriteFile(filepath.Join(save, "customization_globals.json"), []byte(`{}`), 0o644)
-	fmt.Println("Dumped 1 material")
-	return 0
-}
-
-// writeExport lays down the five contract entries in folder.
-func writeExport(folder string) {
+// writeExport lays down the five contract entries in dir.
+func writeExport(dir string) {
 	for rel, body := range map[string]string{
 		"materials/123.json":     `{}`,
 		"stylelists/456.json":    `{}`,
@@ -108,82 +26,36 @@ func writeExport(folder string) {
 		"globals.json":           `{"entries":{}}`,
 		"visor_data.json":        `{"patterns":{},"colors":{}}`,
 	} {
-		p := filepath.Join(folder, filepath.FromSlash(rel))
-		_ = os.MkdirAll(filepath.Dir(p), 0o755)
-		_ = os.WriteFile(p, []byte(body), 0o644)
-	}
-}
-
-// fakeHost is the stand-in for GitHub: the dumper at /ekur.exe and the lists under /lists/.
-type fakeHost struct {
-	srv      *httptest.Server
-	pin      Pin
-	mu       sync.Mutex
-	requests map[string]int
-	missing  map[string]bool // paths answered 404
-}
-
-func newFakeHost(t *testing.T) *fakeHost {
-	t.Helper()
-	self, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	exe, err := os.ReadFile(self)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(exe)
-	h := &fakeHost{requests: map[string]int{}, missing: map[string]bool{}}
-	h.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.mu.Lock()
-		h.requests[r.URL.Path]++
-		gone := h.missing[r.URL.Path]
-		h.mu.Unlock()
-		switch {
-		case gone:
-			http.NotFound(w, r)
-		case r.URL.Path == "/ekur.exe":
-			_, _ = w.Write(exe)
-		case strings.HasPrefix(r.URL.Path, "/lists/"):
-			fmt.Fprintf(w, "list %s\n", strings.TrimPrefix(r.URL.Path, "/lists/"))
-		default:
-			http.NotFound(w, r)
+		p := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			panic(err)
 		}
-	}))
-	t.Cleanup(h.srv.Close)
-	h.pin = Pin{URL: h.srv.URL + "/ekur.exe", Name: PinnedExe.Name, Size: int64(len(exe)), SHA256: hex.EncodeToString(sum[:])}
-	return h
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			panic(err)
+		}
+	}
 }
 
-func (h *fakeHost) count(path string) int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.requests[path]
-}
+// statsFor is the ExportStats a full fake export reports: one file per part.
+var statsFor = ekurport.ExportStats{Globals: 1, Visor: 1, StyleLists: 1, Styles: 1, Materials: 1, Bytes: 100}
 
 // setupFixture is one test's data directory, game folder (with its pc module folder) and
-// options pointed at the fake host, the fake dumper in mode.
-func setupFixture(t *testing.T, mode string) (*fakeHost, Options, *[]Stage) {
+// options wired to the given export function.
+func setupFixture(t *testing.T, export func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error)) (Options, *[]Stage) {
 	t.Helper()
 	t.Setenv(spartanpieces.EkurEnv, "")
-	t.Setenv(fakeDumperEnv, mode)
-	host := newFakeHost(t)
 	game := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(game, "pc"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	var stages []Stage
 	opts := Options{
-		DataDir:   t.TempDir(),
-		GameRoot:  game,
-		Client:    host.srv.Client(),
-		Exe:       host.pin,
-		ListsURL:  host.srv.URL + "/lists/",
-		Progress:  func(s Stage) { stages = append(stages, s) },
-		FreeSpace: func(string) (uint64, error) { return 100 << 30, nil },
+		DataDir:  t.TempDir(),
+		GameRoot: game,
+		Export:   export,
+		Progress: func(s Stage) { stages = append(stages, s) },
 	}
-	return host, opts, &stages
+	return opts, &stages
 }
 
 // leftovers lists the temporary export folders a run left in the data directory.
@@ -202,22 +74,23 @@ func leftovers(t *testing.T, dataDir string) []string {
 	return out
 }
 
-// TestRunSuccess — the full run: downloads, verifies, dumps with the right command line,
-// validates and swaps the export into <data>/ekur, with the stages in order and the dumper's
-// output in the run log. A second run reuses the cached dumper and lists and replaces the
-// export without leaving the previous one behind.
+// TestRunSuccess — the full run: writes the export straight from the game, validates it and
+// swaps it into <data>/ekur, with the stages in order and the export stats in the run log.
+// A second run replaces the export in place without leaving the previous one behind.
 func TestRunSuccess(t *testing.T) {
-	host, opts, stages := setupFixture(t, "ok")
-	argsOut := filepath.Join(t.TempDir(), "args.txt")
-	t.Setenv(fakeArgsEnv, argsOut)
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		writeExport(dir)
+		return statsFor, nil
+	}
+	opts, stages := setupFixture(t, export)
 
 	res, err := Run(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	want := spartanpieces.DataEkurDir(opts.DataDir)
-	if res.ExportDir != want || res.Reused {
-		t.Fatalf("result = %+v, want export %s, not reused", res, want)
+	if res.ExportDir != want {
+		t.Fatalf("result = %+v, want export %s", res, want)
 	}
 	if !spartanpieces.EkurValid(want) {
 		t.Fatal("<data>/ekur is not a valid export after the run")
@@ -228,53 +101,21 @@ func TestRunSuccess(t *testing.T) {
 	if left := leftovers(t, opts.DataDir); len(left) > 0 {
 		t.Fatalf("temporary folders left: %v", left)
 	}
-	if !slices.Equal(*stages, []Stage{StageDownloading, StageVerifying, StageDumping, StageValidating}) {
+	if !slices.Equal(*stages, []Stage{StageExtracting, StageValidating}) {
 		t.Fatalf("stages = %v", *stages)
 	}
 
-	raw, err := os.ReadFile(argsOut)
+	logText, err := os.ReadFile(filepath.Join(ToolsDir(opts.DataDir), LogName))
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := strings.Split(string(raw), "\n")
-	tools := ToolsDir(opts.DataDir)
-	wantArgs := []string{
-		"--module-path", opts.GameRoot,
-		"--strings-path", filepath.Join(tools, StringsList),
-		"--mapid-path", filepath.Join(tools, MapIDsList),
-		"--modelid-path", filepath.Join(tools, ModelIDsList),
-	}
-	for i := 0; i < len(wantArgs); i += 2 {
-		j := slices.Index(args, wantArgs[i])
-		if j < 0 || j+1 >= len(args) || args[j+1] != wantArgs[i+1] {
-			t.Fatalf("dumper args %v: want %s %s", args, wantArgs[i], wantArgs[i+1])
-		}
-	}
-	if !slices.Contains(args, "--skip-bitmaps") || slices.Contains(args, "--is-campaign") {
-		t.Fatalf("dumper args %v: want --skip-bitmaps and never --is-campaign", args)
+	if !strings.Contains(string(logText), "exported 5 files, 100 bytes") {
+		t.Fatalf("run log lacks the export stats line:\n%s", logText)
 	}
 
-	logText, err := os.ReadFile(filepath.Join(tools, LogName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(logText), "Dumped 1 material") {
-		t.Fatalf("run log lacks the dumper's output:\n%s", logText)
-	}
-
-	// The second run: cached dumper and lists, export replaced in place.
-	res, err = Run(context.Background(), opts)
-	if err != nil {
+	// The second run replaces the export in place.
+	if _, err = Run(context.Background(), opts); err != nil {
 		t.Fatalf("second Run: %v", err)
-	}
-	if !res.Reused {
-		t.Fatal("second run downloaded the dumper again")
-	}
-	if n := host.count("/ekur.exe"); n != 1 {
-		t.Fatalf("dumper downloaded %d times, want 1", n)
-	}
-	if n := host.count("/lists/" + StringsList); n != 1 {
-		t.Fatalf("strings list downloaded %d times, want 1", n)
 	}
 	if !spartanpieces.EkurValid(want) {
 		t.Fatal("export invalid after the second run")
@@ -284,10 +125,14 @@ func TestRunSuccess(t *testing.T) {
 	}
 }
 
-// TestRunPrunesExport — the swapped export keeps only the five contract entries: the dump's
-// other folders and files are gone, and the stamp still reads the pruned folder.
-func TestRunPrunesExport(t *testing.T) {
-	_, opts, _ := setupFixture(t, "ok")
+// TestRunExportOnlyFiveParts — the swapped export keeps exactly the five contract entries
+// (the port writes only those, so there is nothing to prune) and still stamps.
+func TestRunExportOnlyFiveParts(t *testing.T) {
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		writeExport(dir)
+		return statsFor, nil
+	}
+	opts, _ := setupFixture(t, export)
 	res, err := Run(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -301,76 +146,22 @@ func TestRunPrunesExport(t *testing.T) {
 		names = append(names, e.Name())
 	}
 	slices.Sort(names)
-	want := []string{"globals.json", "materials", "styles", "stylelists", "visor_data.json"}
-	slices.Sort(want)
+	want := []string{"globals.json", "materials", "stylelists", "styles", "visor_data.json"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("export entries = %v, want only %v", names, want)
 	}
 	if stamp, err := spartanpieces.EkurStamp(res.ExportDir); err != nil || stamp == "" {
-		t.Fatalf("stamp of the pruned export = %q, %v", stamp, err)
+		t.Fatalf("stamp of the export = %q, %v", stamp, err)
 	}
 }
 
-// TestRunDiskSpace — with less than MinFreeBytes free the run refuses before any download,
-// naming the free space; a volume that cannot be measured is not refused.
-func TestRunDiskSpace(t *testing.T) {
-	host, opts, _ := setupFixture(t, "ok")
-	opts.FreeSpace = func(string) (uint64, error) { return 5 << 30, nil }
-	_, err := Run(context.Background(), opts)
-	if !errors.Is(err, ErrDiskSpace) || !strings.Contains(err.Error(), "5.0 GB free on the data drive") {
-		t.Fatalf("err = %v, want ErrDiskSpace naming 5.0 GB", err)
+// TestRunExportFailed — an export that fails leaves the previous export untouched, fails the
+// run with the export's error, and leaves no temporary folder behind.
+func TestRunExportFailed(t *testing.T) {
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		return ekurport.ExportStats{}, errors.New("could not open module index")
 	}
-	if n := host.count("/ekur.exe"); n != 0 {
-		t.Fatalf("dumper downloaded %d times without the space", n)
-	}
-	opts.FreeSpace = func(string) (uint64, error) { return 0, errors.New("not measured") }
-	if _, err := Run(context.Background(), opts); err != nil {
-		t.Fatalf("unmeasured volume: %v", err)
-	}
-}
-
-// TestFreeBytes — the platform measure answers for a real folder (the test's temp dir).
-func TestFreeBytes(t *testing.T) {
-	n, err := freeBytes(t.TempDir())
-	if err != nil {
-		t.Skipf("free space not measured here: %v", err)
-	}
-	if n == 0 {
-		t.Fatal("free space 0 on the temp volume")
-	}
-}
-
-// TestRunHashMismatch — a dumper that does not match the pin (wrong SHA-256, or wrong size)
-// is deleted and the run fails before anything runs; no export appears.
-func TestRunHashMismatch(t *testing.T) {
-	for name, mutate := range map[string]func(*Pin){
-		"sha256": func(p *Pin) { p.SHA256 = strings.Repeat("0", 64) },
-		"size":   func(p *Pin) { p.Size-- },
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, opts, stages := setupFixture(t, "ok")
-			mutate(&opts.Exe)
-			_, err := Run(context.Background(), opts)
-			if !errors.Is(err, ErrHashMismatch) {
-				t.Fatalf("err = %v, want ErrHashMismatch", err)
-			}
-			if _, statErr := os.Stat(filepath.Join(ToolsDir(opts.DataDir), opts.Exe.Name)); statErr == nil {
-				t.Fatal("mismatched dumper left on disk")
-			}
-			if _, statErr := os.Stat(spartanpieces.DataEkurDir(opts.DataDir)); statErr == nil {
-				t.Fatal("an export appeared despite the mismatch")
-			}
-			if slices.Contains(*stages, StageDumping) {
-				t.Fatalf("stages %v reached the dump", *stages)
-			}
-		})
-	}
-}
-
-// TestRunNonZeroExit — a dumper that exits non-zero fails the run with its exit code and
-// last output line; the previous export is left untouched and no temporary folder remains.
-func TestRunNonZeroExit(t *testing.T) {
-	_, opts, _ := setupFixture(t, "fail")
+	opts, _ := setupFixture(t, export)
 	prev := spartanpieces.DataEkurDir(opts.DataDir)
 	writeExport(prev)
 	marker := filepath.Join(prev, "materials", "previous.json")
@@ -378,11 +169,8 @@ func TestRunNonZeroExit(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := Run(context.Background(), opts)
-	if !errors.Is(err, ErrDumpFailed) {
-		t.Fatalf("err = %v, want ErrDumpFailed", err)
-	}
-	if msg := err.Error(); !strings.Contains(msg, "exited with code 3") || !strings.Contains(msg, "could not open module index") {
-		t.Fatalf("message %q lacks the exit code or the dumper's last line", msg)
+	if !strings.Contains(err.Error(), "could not open module index") {
+		t.Fatalf("err = %v, want the export's error", err)
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatal("previous export touched by a failed run")
@@ -392,10 +180,20 @@ func TestRunNonZeroExit(t *testing.T) {
 	}
 }
 
-// TestRunInvalidOutput — a dump that lacks contract entries fails validation, names what is
-// missing, and never replaces <data>/ekur.
+// TestRunInvalidOutput — an export that lacks contract entries fails validation, names what
+// is missing, and never replaces <data>/ekur.
 func TestRunInvalidOutput(t *testing.T) {
-	_, opts, stages := setupFixture(t, "partial")
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		// Only materials: globals.json, visor_data.json, stylelists/, styles/ are absent.
+		if err := os.MkdirAll(filepath.Join(dir, "materials"), 0o755); err != nil {
+			return ekurport.ExportStats{}, err
+		}
+		if err := os.WriteFile(filepath.Join(dir, "materials", "123.json"), []byte(`{}`), 0o644); err != nil {
+			return ekurport.ExportStats{}, err
+		}
+		return ekurport.ExportStats{}, nil
+	}
+	opts, stages := setupFixture(t, export)
 	_, err := Run(context.Background(), opts)
 	if !errors.Is(err, ErrInvalidOutput) {
 		t.Fatalf("err = %v, want ErrInvalidOutput", err)
@@ -404,7 +202,7 @@ func TestRunInvalidOutput(t *testing.T) {
 		t.Fatalf("message %q does not name the missing entries", err)
 	}
 	if _, statErr := os.Stat(spartanpieces.DataEkurDir(opts.DataDir)); statErr == nil {
-		t.Fatal("an invalid dump was moved into place")
+		t.Fatal("an invalid export was moved into place")
 	}
 	if left := leftovers(t, opts.DataDir); len(left) > 0 {
 		t.Fatalf("temporary folders left: %v", left)
@@ -414,37 +212,33 @@ func TestRunInvalidOutput(t *testing.T) {
 	}
 }
 
-// TestRunDownloadFailed — a list the host does not serve fails the run as a download error
-// and leaves no partial file.
-func TestRunDownloadFailed(t *testing.T) {
-	host, opts, _ := setupFixture(t, "ok")
-	host.missing["/lists/"+MapIDsList] = true
-	_, err := Run(context.Background(), opts)
-	if !errors.Is(err, ErrDownload) || !strings.Contains(err.Error(), "HTTP 404") {
-		t.Fatalf("err = %v, want ErrDownload with HTTP 404", err)
-	}
-	if _, statErr := os.Stat(filepath.Join(ToolsDir(opts.DataDir), MapIDsList+".part")); statErr == nil {
-		t.Fatal("partial download left on disk")
-	}
-}
-
-// TestRunOverride — with IT3D_EKUR_DIR set the run refuses before any download (the
-// override would hide the app's own export from every build).
+// TestRunOverride — with IT3D_EKUR_DIR set the run refuses before any export (the override
+// would hide the app's own export from every build).
 func TestRunOverride(t *testing.T) {
-	host, opts, _ := setupFixture(t, "ok")
+	exports := 0
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		exports++
+		return statsFor, nil
+	}
+	opts, _ := setupFixture(t, export)
 	t.Setenv(spartanpieces.EkurEnv, t.TempDir())
 	if _, err := Run(context.Background(), opts); !errors.Is(err, ErrOverride) {
 		t.Fatalf("err = %v, want ErrOverride", err)
 	}
-	if n := host.count("/ekur.exe"); n != 0 {
-		t.Fatalf("dumper downloaded %d times under the override", n)
+	if exports != 0 {
+		t.Fatalf("export ran %d times under the override", exports)
 	}
 }
 
 // TestRunNoGame — no game folder, or one without its pc module folder, fails as ErrNoGame
-// before any download.
+// before any export.
 func TestRunNoGame(t *testing.T) {
-	host, opts, _ := setupFixture(t, "ok")
+	exports := 0
+	export := func(ctx context.Context, deployRoot, dir string) (ekurport.ExportStats, error) {
+		exports++
+		return statsFor, nil
+	}
+	opts, _ := setupFixture(t, export)
 	opts.GameRoot = ""
 	if _, err := Run(context.Background(), opts); !errors.Is(err, ErrNoGame) {
 		t.Fatalf("no game: err = %v, want ErrNoGame", err)
@@ -453,8 +247,21 @@ func TestRunNoGame(t *testing.T) {
 	if _, err := Run(context.Background(), opts); !errors.Is(err, ErrNoGame) {
 		t.Fatalf("no pc folder: err = %v, want ErrNoGame", err)
 	}
-	if n := host.count("/ekur.exe"); n != 0 {
-		t.Fatalf("dumper downloaded %d times without a game", n)
+	if exports != 0 {
+		t.Fatalf("export ran %d times without a game", exports)
+	}
+}
+
+// TestRunDefaultExport — a run with no injected export uses the game port, which fails
+// cleanly on a game folder that is not a real install (no crash, no half export).
+func TestRunDefaultExport(t *testing.T) {
+	opts, _ := setupFixture(t, nil)
+	_, err := Run(context.Background(), opts)
+	if err == nil {
+		t.Fatal("the game port ran on an empty game folder")
+	}
+	if _, statErr := os.Stat(spartanpieces.DataEkurDir(opts.DataDir)); statErr == nil {
+		t.Fatal("an export appeared from the game port on an empty install")
 	}
 }
 
@@ -473,17 +280,5 @@ func TestResolveGameRootExplicit(t *testing.T) {
 	}
 	if got, err := ResolveGameRoot(deploy); err != nil || got != deploy {
 		t.Fatalf("deploy: got %q, %v", got, err)
-	}
-}
-
-// TestPinnedRelease — the production pin is the Ekur 1.3.1 release asset.
-func TestPinnedRelease(t *testing.T) {
-	if PinnedExe.URL != "https://github.com/TheHaloArchive/ekur/releases/download/1.3.1/ekur-1.3.1.exe" ||
-		PinnedExe.Name != "ekur-1.3.1.exe" || PinnedExe.Size != 1890304 ||
-		PinnedExe.SHA256 != "cfc436523d3e9637d85c60d7e07f8f83ac293576a87c9c6dfa0927a838440c32" {
-		t.Fatalf("pin = %+v", PinnedExe)
-	}
-	if ListsURL+StringsList != "https://github.com/TheHaloArchive/ReclaimerFiles/raw/refs/heads/master/strings.txt" {
-		t.Fatalf("lists URL = %s", ListsURL)
 	}
 }

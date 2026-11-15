@@ -410,9 +410,7 @@ export async function fetchCoatingsStatus(signal?: AbortSignal): Promise<Coating
  *  means no setup ran in this server process. */
 export type CoatingsSetupJobState =
   | 'idle'
-  | 'downloading'
-  | 'verifying'
-  | 'dumping'
+  | 'extracting'
   | 'validating'
   | 'queuing'
   | 'ready'
@@ -442,8 +440,9 @@ export async function fetchCoatingsSetupState(signal?: AbortSignal): Promise<Coa
   return body as CoatingsSetupStateBody
 }
 
-/** `POST /api/coatings/setup` — starts the coatings setup (download Ekur's dumper, extract the
- *  game's coating data, queue the coating library rebuilds). 409 is `CoatingsSetupConflictError`. */
+/** `POST /api/coatings/setup` — starts the coatings setup (write the Ekur export straight from
+ *  the installed game, validate it, queue the coating library rebuilds). 409 is
+ *  `CoatingsSetupConflictError`. */
 export async function startCoatingsSetup(signal?: AbortSignal): Promise<CoatingsSetupStateBody> {
   const res = await fetch('/api/coatings/setup', { method: 'POST', signal })
   const body = await readErrorBody(res)

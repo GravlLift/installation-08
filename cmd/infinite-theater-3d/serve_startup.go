@@ -24,6 +24,7 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
@@ -48,12 +49,14 @@ func hasMatchMvar(root *store.Root, id string) bool {
 // that match's map mesh and variant layer (each
 // distinct map module once, in the store's listing order). ready is the runner's own
 // readiness check, so an output that is already on disk is skipped; variantExists says
-// which matches have a stored map variant to build. It enqueues through jobs (its own
-// Enqueue, so a recording wrapper is used transparently), never blocks, and logs one line
-// naming what it queued (or "nothing"). A nil jobs or ready is a no-op.
+// which matches have a stored map variant to build. skipCoatingLibs leaves the three
+// coating libraries unqueued: the coatings setup being run this startup queues them (with
+// coatings) in its own completion step. It enqueues through jobs (its own Enqueue, so a
+// recording wrapper is used transparently), never blocks, and logs one line naming what it
+// queued (or "nothing"). A nil jobs or ready is a no-op.
 func enqueueStartupBuilds(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready func(string) bool, matches []startupMatch, variantExists func(id string) bool) {
+}, ready func(string) bool, matches []startupMatch, variantExists func(id string) bool, skipCoatingLibs bool) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -74,9 +77,14 @@ func enqueueStartupBuilds(jobs interface {
 	if !ready(meshjobs.JobAnnouncer) {
 		enqueue(meshjobs.JobAnnouncer)
 	}
-	for _, module := range coatingLibraryModules {
-		if !ready(module) {
-			enqueue(module)
+	// The three coating libraries read the Ekur export. When the coatings setup is being
+	// run this startup, its own completion step queues them (with coatings), so the
+	// startup leaves them out here.
+	if !skipCoatingLibs {
+		for _, module := range coatingLibraryModules {
+			if !ready(module) {
+				enqueue(module)
+			}
 		}
 	}
 	seen := map[string]bool{}
@@ -112,7 +120,7 @@ func enqueueStartupBuilds(jobs interface {
 // going to the listen.
 func runServeStartup(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready func(string) bool, root *store.Root, gameRoot string) {
+}, ready func(string) bool, root *store.Root, gameRoot string, startCoatingsSetup func()) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -121,6 +129,19 @@ func runServeStartup(jobs interface {
 			slog.Warn("game install not found, one-time builds not started", "game", gameRoot, "env", himap.DeployRootEnv)
 		}
 		return
+	}
+	// Start the coatings setup when the override is unset and the app's own export is not
+	// a valid one: the setup's own completion step queues the three coating libraries (with
+	// coatings), so the startup leaves them out of the one-time builds. The override always
+	// wins (never run the setup); a missing install (above) leaves today's behavior in place.
+	skipCoatingLibs := false
+	if startCoatingsSetup != nil {
+		_, override := spartanpieces.EkurCandidate(root.Dir())
+		if !override && !spartanpieces.EkurValid(spartanpieces.DataEkurDir(root.Dir())) {
+			slog.Info("serve startup: no valid Ekur export, starting the coatings setup (it queues the coating libraries)")
+			startCoatingsSetup()
+			skipCoatingLibs = true
+		}
 	}
 	renameStaleCoatingLibraries(root.Dir())
 	ms, err := root.ListMatches()
@@ -134,7 +155,7 @@ func runServeStartup(jobs interface {
 	}
 	enqueueStartupBuilds(jobs, ready, matches, func(id string) bool {
 		return hasMatchMvar(root, id)
-	})
+	}, skipCoatingLibs)
 }
 
 // renameStaleCoatingLibraries moves each stale coating library aside (one log line each,
