@@ -21,7 +21,8 @@
  *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way. An
  *    EQUIPMENT pad (`repulsor`, `wall`, `grapple`, `sensor`, `thruster`..., crossed as `equipment`)
  *    is the same: its item floats and turns above the pad while it is there and is gone once
- *    taken. An item named by family turns about the center of its model (`padItemCentered`).
+ *    taken. Every floating pad item, weapon or not, turns about the center of its model, over the
+ *    pad's center (`centerOffset`).
  *  - Une ARME AU SOL est la même boîte, couchée au sol, à l'encre de sa nature ; dans sa fenêtre de
  *    disparition non datée (`vanishing`), elle passe au lot fantôme (`groundWeaponPresenceAt`). Les
  *    filtres du tiroir (armes spéciales seulement, armes de départ) sont ceux de
@@ -88,12 +89,13 @@ const POOL_CAP = 400
 /** Opacité du lot fantôme (incertain, en disparition). */
 const GHOST_OPACITY = 0.35
 /**
- * Emissive strength of the glow on a floating pad item: a self-lit tint in its family ink so it
- * reads at a distance. The scene's outline is the team line (ally/enemy mask channels of
+ * Emissive strength of the glow on a floating pad item: a faint self-lit tint in its family ink so
+ * it reads at a distance. The scene's outline is the team line (ally/enemy mask channels of
  * `outline3d`); a pad item would need a third category in those shaders, so the glow stays a
- * one-time material clone with no extra draw call.
+ * one-time material clone with no extra draw call. At 0.35 a flat ink over the weapons' untextured
+ * dark metal drowned their shading: Fortress's S7 drew as a pale flat silhouette.
  */
-const GLOW_EMISSIVE = 0.35
+export const GLOW_EMISSIVE = 0.1
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
 
@@ -277,6 +279,30 @@ interface RackPose {
   offset?: THREE.Vector3
 }
 
+/**
+ * glowMaterialOf — the glow copy of a pad item's material: the same material (color, color map,
+ * normal map, its compile hooks and its `userData` by reference, as `lighting.copyPerProbe` does:
+ * `clone` copies `userData` through JSON, which turns the coating masks' textures into plain
+ * objects, and drops `onBeforeCompile`), plus a faint emissive in `ink`. A textured material glows
+ * through its own color map, so the tint follows the texture instead of washing over it.
+ */
+export function glowMaterialOf(source: THREE.Material, ink: THREE.Color): THREE.Material {
+  const { userData } = source
+  source.userData = {}
+  const copy = source.clone()
+  source.userData = userData
+  copy.userData = userData
+  copy.onBeforeCompile = source.onBeforeCompile
+  copy.customProgramCacheKey = source.customProgramCacheKey
+  const std = copy as THREE.MeshStandardMaterial
+  if (std.emissive instanceof THREE.Color) {
+    std.emissive.copy(ink)
+    std.emissiveIntensity = GLOW_EMISSIVE
+    if (std.map && !std.emissiveMap) std.emissiveMap = std.map
+  }
+  return copy
+}
+
 /** What the last `update` drew for a pad, for the debug hook. */
 interface PadDrawn {
   state: PadState
@@ -298,17 +324,8 @@ interface PadSpot {
   rack?: RackPose
   phase: number
   last?: PadDrawn
-  /** A centered pad item (`padItemCentered`): its loaded model and that model's center offset. */
+  /** A floating pad item, turned about its model center: its loaded model and that center offset. */
   item?: { model: THREE.Object3D; offset: THREE.Vector3 }
-}
-
-/**
- * padItemCentered — whether a floor pad's item turns about the center of its model rather than
- * its origin: an item named by equipment family (`powerup_camo`, `wall`, `grapple`), whose
- * pickup model's origin need not lie on the item. A weapon keeps turning about its grip.
- */
-export function padItemCentered(weapon: string): boolean {
-  return weaponModelKey(weapon) === null
 }
 
 /** One row of `window.__it3dPickups`: what a pad holds and what the view drew for it. */
@@ -464,7 +481,10 @@ export class Pickups3dLayer implements ActionLayer3d {
           const standing = this.standingOf(model)
           q.multiply(standing.rotation)
           p.sub(c.copy(standing.center).applyQuaternion(q))
-        } else if (padItemCentered(spot.pad.weapon)) {
+        } else {
+          // Every floating item turns about its model center, over the pad's center: a weapon
+          // turned about its grip swept its barrel past the pad's rim (the S7 on Fortress reached
+          // 0.4 u off the kit), and from above read as lying on the floor beside the pad.
           if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
           p.add(this.scratch.o.copy(spot.item.offset).applyQuaternion(q))
         }
@@ -496,12 +516,7 @@ export class Pickups3dLayer implements ActionLayer3d {
     if (!glow) {
       glow = model.clone()
       const tint = (m: THREE.Material) => {
-        const c = m.clone()
-        const std = c as THREE.MeshStandardMaterial
-        if (std.emissive instanceof THREE.Color) {
-          std.emissive.copy(ink)
-          std.emissiveIntensity = GLOW_EMISSIVE
-        }
+        const c = glowMaterialOf(m, ink)
         this.glowMaterials.push(c)
         return c
       }
