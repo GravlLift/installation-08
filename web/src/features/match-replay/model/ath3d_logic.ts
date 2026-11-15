@@ -169,6 +169,8 @@ export function lireFilAth(source: ReturnType<typeof preparerAth>, frame: number
     .filter((k) => ms - k.replayMs < 6000)
     .map((kill) => ({ kill, opacite: Math.min(1, (6000 - (ms - kill.replayMs)) / 1000),
       implique: kill.xuid === source.xuid || kill.victimXuid === source.xuid,
+      // A kill by the followed player: the feed highlights it with his team color.
+      mien: kill.xuid === source.xuid,
       tueur: source.allegeance.ofXuid(kill.xuid), victime: source.allegeance.ofXuid(kill.victimXuid) }))
 }
 

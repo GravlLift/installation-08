@@ -104,9 +104,15 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     }
     ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px system-ui`; ctx.textAlign = 'left'
     const feed = lireFilAth(source, frame)
-    feed.forEach(({ kill, opacite, tueur, victime }, i) => {
+    feed.forEach(({ kill, opacite, mien, tueur, victime }, i) => {
       ctx.globalAlpha = opacite
-      const y = h * 0.88 - (feed.length - i) * size * 0.62
+      const y = h * 0.78 - (feed.length - i) * size * 0.62
+      if (mien) {
+        // The followed player's own kill: a light wash of his team color behind the row.
+        const rowWidth = ctx.measureText(names.get(kill.xuid) ?? kill.xuid).width + ctx.measureText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '').width + size * 1.6
+        ctx.save(); ctx.globalAlpha = opacite * 0.3; ctx.fillStyle = ally
+        ctx.fillRect(w * 0.03 - size * 0.2, y - size * 0.3, rowWidth + size * 0.4, size * 0.6); ctx.restore()
+      }
       const color = tueur === true ? ally : tueur === false ? enemy : white
       const killer = names.get(kill.xuid) ?? kill.xuid
       let x = w * 0.03
