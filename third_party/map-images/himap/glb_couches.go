@@ -495,8 +495,8 @@ func (cg *couchesGLB) masqueStyle(doc *gltfDoc, bin *tamponGLB, ms MasqueStyle, 
 }
 
 // composeMasqueStyle : the weights of ms's channels at the size of its largest texture, and in
-// alpha the opacity of a cut, 1 - the ASG's alpha (opaque otherwise); nil when none of its
-// textures is read. A missing texture weighs 0.
+// alpha the opacity of a cut, the ASG's alpha (opaque otherwise); nil when none of its textures
+// is read. A missing texture weighs 0.
 func composeMasqueStyle(ms MasqueStyle, textures map[uint32]Texture) *image.NRGBA {
 	var srcs [3]*image.NRGBA
 	w, h := 0, 0
@@ -524,7 +524,9 @@ func composeMasqueStyle(ms MasqueStyle, textures map[uint32]Texture) *image.NRGB
 			}
 			dst.Pix[o+3] = 255
 			if ms.Decoupe && srcs[2] != nil {
-				dst.Pix[o+3] = 255 - px[2][3]
+				// LOCAL-CHANGE (infinite-theater-3d): the ASG alpha is the coverage (high on an
+				// ivy leaf, low between leaves), so it is the opacity as is, not inverted.
+				dst.Pix[o+3] = px[2][3]
 			}
 		}
 	}
