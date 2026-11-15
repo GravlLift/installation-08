@@ -12,6 +12,8 @@
  *    avec les emplacements de la carte, datés par les ramassages natifs, puis leur incertitude
  *    ramenée à ce qu'un joueur a pu faire (`useReplayWeaponPads`).
  *  - Le MODÈLE DU JEU de l'arme (`weaponModels3d`) remplace la boîte pleine dès qu'il est chargé.
+ *    A power-up pad names its item by equipment family (`powerup_camo`); the library resolves the
+ *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way.
  *  - Une ARME AU SOL est la même boîte, couchée au sol, à l'encre de sa nature ; dans sa fenêtre de
  *    disparition non datée (`vanishing`), elle passe au lot fantôme (`groundWeaponPresenceAt`). Les
  *    filtres du tiroir (armes spéciales seulement, armes de départ) sont ceux de
