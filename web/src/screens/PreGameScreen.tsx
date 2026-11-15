@@ -2,17 +2,19 @@
  * PreGameScreen — the pre-game page (docs/UI-DESIGN.md 4.3, brief 125): the match's map image
  * sharp as the backdrop, the playlist and mode as the eyebrow, the map name large, the two
  * rosters against each other with "VS" between, and one progress line carrying the real step
- * name. It replaces the three pre-viewer states of `MatchViewScreen`: the document fetch,
- * the mesh check and the map build (same `useMeshBuild`, same messages, restyled). When the
- * document and the map are ready it counts down 3, 2, 1 and then the viewer plays: any key
- * or a click skips the countdown, Escape at any time goes back to match select.
+ * name (the scene's load phase and count under the bar). It replaces the three pre-viewer
+ * states of `MatchViewScreen`: the document fetch, the mesh check and the map build (same
+ * `useMeshBuild`, same messages, restyled). When the document and the map are ready (every load phase over, the first frame drawn) the bar
+ * completes, holds a moment, and it counts down 3, 2, 1 and then the viewer plays: any key
+ * or a click skips the countdown, Escape at any time goes back to match select. Each number
+ * plays the game's countdown beep (`countdownSound.ts`) through the viewer's sound player.
  *
  * The viewer mounts as soon as the document is ready (the scene loads while the rosters are
  * on screen); the countdown ends on the viewer, which starts playing from frame 0. The pure
  * part (step labels, roster split, build line, countdown sequence) is `preGameModel.ts`,
  * tested there.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import { checkMesh, fetchReplayDocument, MeshNotBuiltError } from '../lib/api/standalone'
@@ -23,6 +25,7 @@ import { useAuthState } from './useAuthState'
 import { cleanMapName } from './matchSelectModel'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import {
+  READY_HOLD_MS,
   buildLineOf,
   preGameStepOfDocument,
   sceneStepOf,
@@ -112,8 +115,19 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   const [sceneLoad, setSceneLoad] = useState<LoadState | null>(null)
   const [viewerLive, setViewerLive] = useState(false)
   const sceneReady = sceneLoad?.kind === 'ready'
+  // The full bar stays on screen a moment (its fill animates to 100%) before the countdown
+  // replaces it: the countdown never appears over a bar that has not finished.
+  const [barDone, setBarDone] = useState(false)
+  useEffect(() => {
+    if (!sceneReady) return
+    const timer = setTimeout(() => setBarDone(true), READY_HOLD_MS)
+    return () => clearTimeout(timer)
+  }, [sceneReady])
   const onCountdownDone = useCallback(() => setViewerLive(true), [])
-  const countdown = usePreGameCountdown(onCountdownDone, sceneReady)
+  // The game's countdown beep on each number, through the mounted viewer's sound player.
+  const countdownTickRef = useRef<((n: number) => void) | null>(null)
+  const onCountdownTick = useCallback((n: number) => countdownTickRef.current?.(n), [])
+  const countdown = usePreGameCountdown(onCountdownDone, barDone, onCountdownTick)
 
   // Escape goes back at any time before the replay starts.
   useEffect(() => {
@@ -134,6 +148,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
         onBack={onBack}
         held={!viewerLive}
         onLoadState={setSceneLoad}
+        countdownTickRef={countdownTickRef}
       />
     ) : null
   if (viewerLive) return viewer
@@ -171,7 +186,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
     stepLabel = scene.label
     fraction = scene.fraction
   }
-  const counting = sceneReady && countdown.value !== null
+  const counting = barDone && countdown.value !== null
 
   return (
     <>

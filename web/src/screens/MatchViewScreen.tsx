@@ -2,7 +2,7 @@
  * MatchViewScreen — fetches one match's replay document from the standalone server, checks
  * its map mesh is built, and mounts the lifted 3D view with its match context.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 
 import { Replay3DView } from '../features/match-replay/ui/Replay3DView'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
@@ -29,7 +29,7 @@ import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScore
 import { useCameraChoice } from './useCameraChoice'
 import { usePlayerChromeInsets } from './usePlayerChromeInsets'
 import { usePlayerMarks } from './usePlayerMarks'
-import { useVariantLayer } from './useVariantLayer'
+import { useVariantSource } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
@@ -92,9 +92,12 @@ export interface ReplayViewerProps {
   onBack: () => void
   held?: boolean
   onLoadState?: (load: LoadState) => void
+  /** Filled with the replay sound's countdown tick while mounted: the pre-game countdown calls it
+   *  on each number, through this viewer's player (sound settings and volume included). */
+  countdownTickRef?: MutableRefObject<((n: number) => void) | null>
 }
 
-export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }: ReplayViewerProps) {
+export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, countdownTickRef }: ReplayViewerProps) {
   const frameRef = useRef(0)
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(!held)
@@ -124,7 +127,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const { show, toggle } = useAction3dShow()
   const fullscreen = useReplayFullscreen(viewerRef)
   const fps = framesPerSecond(doc)
-  const variantPath = useVariantLayer(matchId)
+  const variant = useVariantSource(matchId)
   const replayContext = useMatchReplayContext(matchId, doc)
   const inks = useReplayInks(0)
   const identity = useMemo(
@@ -166,6 +169,11 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
   const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [held, playing, sound.wake, sound.intro])
+  useEffect(() => {
+    if (!countdownTickRef) return
+    countdownTickRef.current = sound.countdownTick
+    return () => { countdownTickRef.current = null }
+  }, [countdownTickRef, sound.countdownTick])
   const wasHeld = useRef(held)
   useEffect(() => {
     if (wasHeld.current && !held) { sound.wake(); if (frameRef.current === 0) sound.intro(); setPlaying(true) }
@@ -289,7 +297,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
           <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
             <Replay3DView
               meshPath={meshUrl(matchId)}
-              variantPath={variantPath}
+              variantPath={variant.path}
+              variantPending={variant.pending}
               weaponsPath="/api/weapons"
               armor={armor}
               doc={doc}

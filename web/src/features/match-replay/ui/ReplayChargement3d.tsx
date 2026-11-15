@@ -1,47 +1,34 @@
-import { useEffect, useState, type RefObject } from 'react'
-
 import type { Scene3dText } from '../i18n/scene3dText'
-import { fractionChargement3d, monterSeulement, type LoadState } from '../model/chargement3d_logic'
-import type { LoadGate } from '../scene3d/loadGate3d'
+import type { LoadState } from '../model/chargement3d_logic'
 
 const MB = 1024 * 1024
 
 function loadMessage(load: LoadState, t: Scene3dText): string {
-  switch (load.kind) {
+  if (load.kind === 'error') return t.loadFailed
+  if (load.kind === 'ready') return ''
+  switch (load.phase) {
     case 'download':
       return load.total > 0
-        ? t.loadingFmt(Math.floor((100 * load.loaded) / load.total), Math.round(load.total / MB))
-        : t.loadingFmt(0, Math.round(load.loaded / MB))
-    case 'materials': return t.loadingMaterials
-    case 'index': return t.loadingIndex
+        ? t.loadingFmt(Math.floor((100 * load.done) / load.total), Math.round(load.total / MB))
+        : t.loadingFmt(0, Math.round(load.done / MB))
+    case 'decode': return t.loadingMaterials
+    case 'index':
+    case 'variant-build':
+    case 'variant-prepare': return t.loadingIndex
     case 'assets': return t.loadingAssets
-    case 'warmup': return t.loadingWarmup
-    case 'error': return t.loadFailed
-    case 'ready': return ''
+    case 'warmup':
+    case 'first-frame': return t.loadingWarmup
   }
 }
 
-export function ReplayChargement3d({ load, t, compact, gateRef }: {
+/** The in-view loading overlay: the phase message and the scene's overall, monotonic fraction. */
+export function ReplayChargement3d({ load, t, compact }: {
   load: LoadState
   t: Scene3dText
   compact: boolean
-  gateRef: RefObject<LoadGate | null>
 }) {
-  const [progress, setProgress] = useState(0)
-  useEffect(() => {
-    const gate = gateRef.current
-    const update = () => setProgress((prev) => monterSeulement(prev, fractionChargement3d(load, gate?.started, gate?.finished)))
-    update()
-    if (load.kind !== 'assets' || !gate) return
-    let frame = 0
-    const unsubscribe = gate.subscribe(() => {
-      if (!frame) frame = requestAnimationFrame(() => { frame = 0; update() })
-    })
-    return () => { unsubscribe(); if (frame) cancelAnimationFrame(frame) }
-  }, [load, gateRef])
-
   const message = loadMessage(load, t)
-  const percent = Math.round(progress * 100)
+  const percent = Math.round((load.kind === 'loading' ? load.fraction : load.kind === 'ready' ? 1 : 0) * 100)
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
       <div>{message}</div>

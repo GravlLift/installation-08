@@ -10,8 +10,11 @@
  * garde aussi three.js hors du paquet de la page. Une fois ouverte, elle reste montée quand on
  * revient à la 2D (`active` faux : plus aucun rendu), pour se rallumer sans recharger la carte.
  *
- * Le calque des objets de la variante du match (`variantPath`) se charge APRÈS la carte posée et
- * s'y ajoute sans la retarder (`useVariantLayer`) ; il arrive aussi plus tard, une fois construit.
+ * Le calque des objets de la variante du match (`variantPath`) se télécharge avec la carte et se
+ * prépare une fois la carte posée (`useVariantLayer`). The load is one honest progress
+ * (`LoadProgress3d`): map and variant downloads, decode, ray index, variant preparation, models,
+ * shader warm-up (with the variant posed, so its shaders compile too) and a first drawn frame.
+ * The view reports `ready` only when all of them are over.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
@@ -22,7 +25,7 @@ import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanA
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
 import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
-import { fractionChargement3d, type LoadState } from '../model/chargement3d_logic'
+import { LoadProgress3d, type LoadState } from '../model/chargement3d_logic'
 import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
@@ -61,6 +64,8 @@ export interface Replay3DViewProps {
   meshPath: string
   /** Le calque des objets de la variante, posé sur la carte une fois chargée ; null sans calque. */
   variantPath: string | null
+  /** True while the server still checks or builds the variant layer: the load waits for it. */
+  variantPending?: boolean
   /** Le dossier servi des modèles d'arme (`weaponModels3d`), chargés à la demande ; null sans modèles. */
   weaponsPath: string | null
   /** L'armure des joueurs du match (manifeste et bibliothèque des pièces), posée à son arrivée ; null sans armure. */
@@ -101,7 +106,7 @@ export interface Replay3DViewProps {
 }
 
 export function Replay3DView({
-  meshPath, variantPath, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', onMinimapClick, cameraMode: mode,
+  meshPath, variantPath, variantPending = false, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', onMinimapClick, cameraMode: mode,
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -111,7 +116,9 @@ export function Replay3DView({
   const armoryRef = useRef<SpartanArmory | null>(null)
   // La scène dont la carte est posée : ce que le calque de la variante attend pour se charger.
   const [mapScene, setMapScene] = useState<ReplayScene3d | null>(null)
-  const [load, setLoad] = useState<LoadState>({ kind: 'download', loaded: 0, total: 0 })
+  // One progress per map and document: the loaders report into it, the view shows its snapshot.
+  const progress = useMemo(() => new LoadProgress3d(), [meshPath, doc])
+  const [load, setLoad] = useState<LoadState>(() => progress.snapshot())
   const onLoadStateRef = useRef(onLoadState)
   onLoadStateRef.current = onLoadState
   const onMinimapClickRef = useRef(onMinimapClick)
@@ -119,6 +126,22 @@ export function Replay3DView({
   useEffect(() => {
     onLoadStateRef.current?.(load)
   }, [load])
+  // One render per visible change (a tenth of a percent, the phase, the count), not one per chunk.
+  useEffect(() => {
+    let shown = ''
+    const push = () => {
+      const next = progress.snapshot()
+      const key = next.kind === 'loading'
+        ? `${next.phase}|${Math.floor(next.fraction * 1000)}|${next.phase === 'download' ? Math.floor(next.done / MB) : next.done}|${next.total}`
+        : next.kind
+      if (key === shown) return
+      shown = key
+      if (next.kind === 'ready') console.info('rejeu 3D : chargement', progress.report())
+      setLoad(next)
+    }
+    push()
+    return progress.subscribe(push)
+  }, [progress])
   const [loadId, setLoadId] = useState(0)
   const [povStatus, setPovStatus] = useState<PovStatus>('none')
   // Le premier joueur publié : le suivi par défaut quand la page n'a pas de point de vue.
@@ -144,46 +167,35 @@ export function Replay3DView({
     const scene = new ReplayScene3d(host)
     gateRef.current = new LoadGate()
     setLoadId((id) => id + 1)
-    setLoad({ kind: 'download', loaded: 0, total: 0 })
     const abort = new AbortController()
     let alive = true
-    // Un rendu par point de progression, pas un par morceau reçu (des milliers).
-    let shownPercent = -1
     const onProgress = (loaded: number, total: number) => {
-      const percent = total > 0 ? Math.floor((100 * loaded) / total) : Math.floor(loaded / MB)
-      if (!alive || percent === shownPercent) return
-      shownPercent = percent
-      setLoad({ kind: 'download', loaded, total })
+      if (alive) progress.mapBytes(loaded, total)
     }
-    // Le décodage rapporte sa progression (images décodées, index bâtis) : la barre ne bouge que
-    // d'un point de pourcentage global à la fois, pas à chaque unité.
-    let shownStepPercent = -1
     const onStep = (step: 'materials' | 'index', done = 0, total = 0) => {
-      if (!alive) return
-      const percent = Math.floor(fractionChargement3d({ kind: step, done, total }) * 100)
-      if (percent === shownStepPercent) return
-      shownStepPercent = percent
-      setLoad({ kind: step, done, total })
+      if (alive) progress.step(step === 'materials' ? 'decode' : 'index', done, total)
     }
     void (async () => {
       try {
         const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
+        if (alive) progress.mapDownloaded()
         const model = await loadMapModel(buffer, onStep)
         if (!alive) {
           model.dispose()
           return
         }
+        progress.finish('decode')
+        progress.finish('index')
         const tracks = buildTracks3d(doc)
         scene.attach(model, tracks, (xuid) => cssColor(colorRef.current(xuid), NEUTRAL))
         scene.enableAction(doc, () => actionRef.current)
         sceneRef.current = scene
         setMapScene(scene)
         setFallbackPov(tracks.players[0]?.xuid ?? null)
-        setLoad({ kind: 'assets' })
       } catch (err) {
         if (!alive) return
         console.error('rejeu 3D : chargement de la carte', err)
-        setLoad({ kind: 'error' })
+        progress.fail()
       }
     })()
     return () => {
@@ -193,8 +205,8 @@ export function Replay3DView({
       setMapScene(null)
       scene.dispose()
     }
-  }, [meshPath, doc])
-  useVariantLayer(mapScene, variantPath)
+  }, [meshPath, doc, progress])
+  const variantSettled = useVariantLayer(mapScene, variantPath, variantPending, progress)
   const spartansQuery = useReplaySpartans(armor)
   const spartans = spartansQuery.data
   const piecesPath = armor?.piecesPath ?? null
@@ -221,11 +233,17 @@ export function Replay3DView({
     preloadAssets3d(doc, null, armory)
     return () => { armoryRef.current = null; mapScene.setSpartanArmory(null) }
   }, [mapScene, piecesPath, spartans, doc, weaponsPath])
+  // The models (weapons, armor, arms): counted by the gate, over when it stays idle.
+  const [assetsFor, setAssetsFor] = useState<ReplayScene3d | null>(null)
   useEffect(() => {
     if (!mapScene) return
     const gate = gateRef.current!
     const abort = new AbortController()
     const deadline = performance.now() + 20_000
+    // The step is over only when the gate stays idle (`finish` below): more models may follow.
+    const count = () => progress.step('assets', gate.finished, gate.started)
+    const unsubscribe = gate.subscribe(count)
+    count()
     void (async () => {
       preloadAssets3d(doc, weaponsRef.current, null)
       while (waitingArmor.current && performance.now() < deadline && !abort.signal.aborted) {
@@ -236,31 +254,49 @@ export function Replay3DView({
       await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
       if (abort.signal.aborted) return
       // Une image d'essai, sous l'écran de chargement : elle demande ce que la vue montre d'abord
-      // (les bras du joueur suivi, leur peinture) et compile les matières, puis on attend encore.
+      // (les bras du joueur suivi, leur peinture), puis on attend encore.
       mapScene.setPov(warmRef.current.pov)
       mapScene.setMode(warmRef.current.mode)
       mapScene.render(frameRef.current ?? 0)
       mapScene.render(frameRef.current ?? 0)
       const result = await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
       if (abort.signal.aborted) return
-      setLoad({ kind: 'warmup' })
-      await new Promise<void>((resolve) => {
-        const finish = () => {
-          clearTimeout(timeout)
-          abort.signal.removeEventListener('abort', finish)
-          resolve()
-        }
-        const timeout = setTimeout(finish, Math.max(0, deadline - performance.now()))
-        abort.signal.addEventListener('abort', finish, { once: true })
-        void mapScene.warmUp().then(finish)
-      })
-      if (abort.signal.aborted) return
       if (result.timedOut || waitingArmor.current) console.warn('rejeu 3D : délai de chargement dépassé', gate.pending + Number(waitingArmor.current))
-      setLoad({ kind: 'ready' })
+      progress.finish('assets')
+      setAssetsFor(mapScene)
+    })()
+    return () => { unsubscribe(); abort.abort() }
+  }, [mapScene, doc, frameRef, progress])
+  // With the models loaded and the variant posed (or absent): the shaders compile, then one frame
+  // is drawn and presented. Only then is the scene ready.
+  const assetsReady = !!mapScene && assetsFor === mapScene
+  useEffect(() => {
+    if (!mapScene || !assetsReady || !variantSettled) return
+    const abort = new AbortController()
+    const bounded = (work: Promise<unknown>, ms: number) => new Promise<void>((resolve) => {
+      const finish = () => {
+        clearTimeout(timeout)
+        abort.signal.removeEventListener('abort', finish)
+        resolve()
+      }
+      const timeout = setTimeout(finish, ms)
+      abort.signal.addEventListener('abort', finish, { once: true })
+      void work.then(finish, finish)
+    })
+    void (async () => {
+      mapScene.setPov(warmRef.current.pov)
+      mapScene.setMode(warmRef.current.mode)
+      await bounded(mapScene.warmUp(), 20_000)
+      if (abort.signal.aborted) return
+      progress.finish('warmup')
+      mapScene.render(frameRef.current ?? 0)
+      // Two animation frames: the drawn frame has gone to the screen (bounded: a hidden tab has none).
+      await bounded(new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))), 500)
+      if (abort.signal.aborted) return
+      progress.finish('first-frame')
     })()
     return () => abort.abort()
-  }, [mapScene, doc, frameRef])
-
+  }, [mapScene, assetsReady, variantSettled, frameRef, progress])
   const pov = viewpoint ?? fallbackPov
   useEffect(() => {
     warmRef.current = { pov, mode }
@@ -395,7 +431,7 @@ export function Replay3DView({
           {viewGrip.line} {viewGrip.copied ? `(${t.probeCopied})` : ''}
         </div>
       )}
-      {!ready && <ReplayChargement3d key={loadId} load={load} t={t} compact={compact} gateRef={gateRef} />}
+      {!ready && <ReplayChargement3d key={loadId} load={load} t={t} compact={compact} />}
       {ready && mode !== 'free' && povStatus !== 'alive' && povStatus !== 'dead' && (
         <div className={`pointer-events-none absolute inset-x-0 top-[45%] text-center font-semibold text-muted-foreground ${compact ? 'text-xs' : 'text-sm'}`}>
           {povStatus === 'unspawned' ? t.povUnspawned : t.noPov}

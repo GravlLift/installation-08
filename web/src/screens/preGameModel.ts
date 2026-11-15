@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fractionChargement3d, type LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import { displayPlayerName } from '../lib/players/displayName'
 
 /** A player as the summary carries it: a name and the team that owns the slot. */
@@ -89,38 +89,57 @@ export const COUNTDOWN_STEPS = [3, 2, 1] as const
 /**
  * usePreGameCountdown — the 3, 2, 1 before the replay starts, one number per second,
  * skipping straight to done on any key press or a click, and calling `onDone` exactly once
- * when the last number has been shown for a second. The effect binds once and reads the
- * latest `onDone` through a ref; the unmount and skip both clear the timer, so a page
+ * when the last number has been shown for a second, and `onTick(n)` as each number appears
+ * (the countdown beep). The effect binds once and reads the latest `onDone` and `onTick`
+ * through refs; the unmount and skip both clear the timer, so a page
  * change mid-count never fires the callback.
  */
 /** How long after the countdown starts a key or click cannot skip it yet. */
 export const COUNTDOWN_SKIP_GUARD_MS = 400
 
-/** The progress line for the 3D scene's own load: the step name and the scene's real
- *  overall fraction (null when the scene failed, so no bar claims progress). */
-export function sceneStepOf(load: LoadState): { label: string; fraction: number | null } {
-  switch (load.kind) {
-    case 'download':
-      return { label: 'Loading the map', fraction: fractionChargement3d(load) }
-    case 'materials':
-    case 'index':
-      return { label: 'Preparing the map', fraction: fractionChargement3d(load) }
-    case 'assets':
-    case 'warmup':
-      return { label: 'Loading players and weapons', fraction: fractionChargement3d(load) }
-    case 'ready':
-      return { label: 'Ready', fraction: 1 }
-    case 'error':
-      return { label: 'The map could not be loaded', fraction: null }
-  }
+/** How long the full bar stays on screen before the countdown replaces it. */
+export const READY_HOLD_MS = 600
+
+const MB = 1024 * 1024
+
+function megabytes(bytes: number): string {
+  return String(Math.round(bytes / MB))
 }
 
-export function usePreGameCountdown(onDone: () => void, started: boolean = true) {
+function counted(label: string, done: number, total: number): string {
+  return total > 0 ? `${label} ${Math.min(done, total)} / ${total}` : label
+}
+
+/** The progress line for the 3D scene's own load: the phase in plain words (with its count when
+ *  the phase has one) and the scene's real overall fraction (null when the scene failed, so no
+ *  bar claims progress). */
+export function sceneStepOf(load: LoadState): { label: string; fraction: number | null } {
+  if (load.kind === 'ready') return { label: 'Ready', fraction: 1 }
+  if (load.kind === 'error') return { label: 'The map could not be loaded', fraction: null }
+  const { fraction, done, total } = load
+  switch (load.phase) {
+    case 'download':
+      return {
+        label: total > 0 ? `Downloading the map ${megabytes(done)} / ${megabytes(total)} MB` : `Downloading the map ${megabytes(done)} MB`,
+        fraction,
+      }
+    case 'decode': return { label: counted('Decoding textures', done, total), fraction }
+    case 'index': return { label: counted('Preparing geometry', done, total), fraction }
+    case 'variant-build': return { label: 'Building the map objects', fraction }
+    case 'variant-prepare': return { label: counted('Preparing the map objects', done, total), fraction }
+    case 'assets': return { label: counted('Loading players and weapons', done, total), fraction }
+    case 'warmup': return { label: 'Compiling shaders', fraction }
+    case 'first-frame': return { label: 'Drawing the first frame', fraction }
+  }
+}
+export function usePreGameCountdown(onDone: () => void, started: boolean = true, onTick?: (n: number) => void) {
   const [value, setValue] = useState<number | null>(COUNTDOWN_STEPS[0] ?? null)
   const [tick, setTick] = useState(0)
   const doneRef = useRef(false)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
+  const onTickRef = useRef(onTick)
+  onTickRef.current = onTick
 
   useEffect(() => {
     if (!started || doneRef.current) return
@@ -144,7 +163,10 @@ export function usePreGameCountdown(onDone: () => void, started: boolean = true)
     window.addEventListener('pointerdown', onPointer, true)
     const step = (i: number) => {
       if (i >= COUNTDOWN_STEPS.length) return finish()
-      setValue(COUNTDOWN_STEPS[i] ?? null)
+      const n = COUNTDOWN_STEPS[i]
+      setValue(n ?? null)
+      // The game's countdown beep, on each number as it appears (a skip cuts the rest).
+      if (n !== undefined) onTickRef.current?.(n)
       setTick((t) => t + 1)
       timer = setTimeout(() => step(i + 1), 1000)
     }

@@ -83,7 +83,7 @@ describe('useAudioUnlock — preference "enabled", no player (reload)', () => {
     fireEvent.click(document.body)
     await act(async () => { await flushAudio() })
     expect(ctx.resumed).toBe(1)
-    expect(fetchMock).toHaveBeenCalledTimes(2) // the kill + the intro excerpt (item 7)
+    expect(fetchMock).toHaveBeenCalledTimes(3) // the kill + the intro excerpt (item 7) + the countdown tick
     playKill(result)
     expect(ctx.sources).toHaveLength(1)
     fireEvent.click(document.body)

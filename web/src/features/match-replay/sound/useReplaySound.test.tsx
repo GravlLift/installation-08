@@ -111,10 +111,12 @@ describe('useReplaySound — activation', () => {
     await act(async () => { await flushAudio() })
     expect(result.current.on).toBe(true)
     expect(ctx.resumed).toBe(1)
-    // The kill of the match, and the intro excerpt that any match can play at the start (item 7).
+    // The kill of the match, the intro excerpt that any match can play at the start (item 7),
+    // and the pre-game countdown tick (`countdownSound.ts`).
     expect(fetchMock.mock.calls.map((c) => String(c[0]))).toEqual([
       '/static/sounds/halo_infinite/hinf_br75.ogg',
       '/static/sounds/halo_infinite/intro_music_01.ogg',
+      '/static/sounds/halo_infinite/ui_countdown_tick.ogg',
     ])
   })
 
@@ -440,7 +442,7 @@ describe('useReplaySound — the end of match', () => {
     const { result } = mountWithEnd(null)
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
-    expect(fetchMock).toHaveBeenCalledTimes(2) // the only sound of the match (the BR kill) + the intro
+    expect(fetchMock).toHaveBeenCalledTimes(3) // the only sound of the match (the BR kill) + the intro + the countdown tick
     act(() => result.current.endMatch())
     expect(ctx.sources).toHaveLength(0)
   })
