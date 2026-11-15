@@ -76,6 +76,20 @@ func listeMateriauxPalette(tag []byte, estMateriau func(uint32) bool) []uint32 {
 	return nil
 }
 
+// listeMateriauxPaletteTrous (LOCAL-CHANGE (infinite-theater-3d)) is listeMateriauxPalette where
+// a slot may be empty (0xffffffff, kept as is): a representation's palette leaves the slots it
+// does not change empty (Eroded Terrain E's b80dd738: [empty, 58c9bf17, 5c4e80ac]). nil without
+// a list naming at least one material.
+func listeMateriauxPaletteTrous(tag []byte, estMateriau func(uint32) bool) []uint32 {
+	l := listeMateriauxPalette(tag, func(id uint32) bool { return id == 0xffffffff || estMateriau(id) })
+	for _, id := range l {
+		if id != 0xffffffff {
+			return l
+		}
+	}
+	return nil
+}
+
 func tousMateriaux(ids []uint32, estMateriau func(uint32) bool) bool {
 	for _, id := range ids {
 		if !estMateriau(id) {

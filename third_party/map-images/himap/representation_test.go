@@ -30,6 +30,24 @@ func TestSelectionRepresentation(t *testing.T) {
 	}
 }
 
+// TestCombleTrous (LOCAL-CHANGE (infinite-theater-3d)): a representation palette's empty slot
+// keeps the type's default material at that rank.
+func TestCombleTrous(t *testing.T) {
+	got := combleTrous([]uint32{0xffffffff, 0x20, 0x30, 0xffffffff}, []uint32{0x1, 0x2, 0x3})
+	want := []uint32{0x1, 0x20, 0x30, 0}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("combleTrous = %x, want %x", got, want)
+		}
+	}
+	if combleTrous(nil, []uint32{1}) != nil {
+		t.Fatal("nil list filled")
+	}
+	if len(palettesRepresentations(make([]byte, 16))) != 0 {
+		t.Fatal("invalid tag read")
+	}
+}
+
 func TestRefsRepresentationsInvalides(t *testing.T) {
 	tag := make([]byte, 128)
 	binary.LittleEndian.PutUint32(tag[0x28:], 128)
