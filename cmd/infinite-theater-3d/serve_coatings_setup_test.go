@@ -4,8 +4,7 @@ package main
 // loopback and read-only refusals, the single-flight 409, the failure message, the coating
 // library rebuilds queued after a successful run (including one whose build was running
 // when the export changed), and the IT3D_EKUR_DIR override. The setup itself is a fake
-// (internal/ekursetup has its own tests against a fake dumper); nothing here downloads or
-// runs a program.
+// (internal/ekursetup has its own tests); nothing here writes from a real game install.
 
 import (
 	"context"
@@ -96,7 +95,7 @@ func setupState(t *testing.T, h http.Handler) coatingsSetupState {
 // write failure as its error rather than through t.
 func fakeSetupRun(dataDir string) func(context.Context, func(ekursetup.Stage)) error {
 	return func(_ context.Context, progress func(ekursetup.Stage)) error {
-		for _, s := range []ekursetup.Stage{ekursetup.StageDownloading, ekursetup.StageVerifying, ekursetup.StageDumping, ekursetup.StageValidating} {
+		for _, s := range []ekursetup.Stage{ekursetup.StageExtracting, ekursetup.StageValidating} {
 			progress(s)
 		}
 		dir := spartanpieces.DataEkurDir(dataDir)
@@ -157,14 +156,15 @@ func TestCoatingsSetupRoute(t *testing.T) {
 }
 
 // TestCoatingsSetupFailure — a failed run reports failed with the setup's own message and
-// queues no rebuild.
+// still queues the coating libraries once (they build without coatings), because a startup
+// that started the setup leaves their queuing to it.
 func TestCoatingsSetupFailure(t *testing.T) {
 	t.Setenv(spartanpieces.EkurEnv, "")
 	counter, jobs := newBuildCounter(t, "")
 	h := newTestHandlers(newFakeStore(t), jobs)
 	h.coatingsSetup.run = func(_ context.Context, progress func(ekursetup.Stage)) error {
-		progress(ekursetup.StageDumping)
-		return fmt.Errorf("%w: it exited with code 3", ekursetup.ErrDumpFailed)
+		progress(ekursetup.StageExtracting)
+		return fmt.Errorf("setup failed: it exited with code 3")
 	}
 	if rec := postMesh(t, h, "/api/coatings/setup", nil); rec.Code != http.StatusAccepted {
 		t.Fatalf("setup = %d, want 202", rec.Code)
@@ -173,10 +173,13 @@ func TestCoatingsSetupFailure(t *testing.T) {
 	if s := setupState(t, h); !strings.Contains(s.Error, "exited with code 3") {
 		t.Fatalf("failure message = %q", s.Error)
 	}
+	for _, module := range coatingLibraryModules {
+		waitForSetup(t, module+" build after a failed setup", func() bool { return counter.count(module) >= 1 })
+	}
 	time.Sleep(20 * time.Millisecond)
 	for _, module := range coatingLibraryModules {
-		if n := counter.count(module); n != 0 {
-			t.Fatalf("%s built %d times after a failed setup", module, n)
+		if n := counter.count(module); n != 1 {
+			t.Fatalf("%s built %d times after a failed setup, want 1", module, n)
 		}
 	}
 	// A failed run frees the job: the next POST starts a new one.
@@ -199,14 +202,14 @@ func TestCoatingsSetupConflict(t *testing.T) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		progress(ekursetup.StageDumping)
+		progress(ekursetup.StageExtracting)
 		<-release
 		return errors.New("stopped")
 	}
 	if rec := postMesh(t, h, "/api/coatings/setup", nil); rec.Code != http.StatusAccepted {
 		t.Fatalf("setup = %d, want 202", rec.Code)
 	}
-	waitForSetup(t, "dumping", func() bool { return setupState(t, h).State == string(ekursetup.StageDumping) })
+	waitForSetup(t, "extracting", func() bool { return setupState(t, h).State == string(ekursetup.StageExtracting) })
 	if rec := postMesh(t, h, "/api/coatings/setup", nil); rec.Code != http.StatusConflict {
 		t.Fatalf("second setup = %d, want 409", rec.Code)
 	}
@@ -242,7 +245,7 @@ func TestCoatingsSetupRequeuesRunningBuild(t *testing.T) {
 }
 
 // TestCoatingsSetupOverride — with IT3D_EKUR_DIR set, the status route says so (without the
-// value) and the real setup refuses before resolving the game or downloading anything.
+// value) and the real setup refuses before resolving the game.
 func TestCoatingsSetupOverride(t *testing.T) {
 	envDir := t.TempDir()
 	t.Setenv(spartanpieces.EkurEnv, envDir)

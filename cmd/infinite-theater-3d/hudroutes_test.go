@@ -157,7 +157,7 @@ func TestHudRouteViaMux(t *testing.T) {
 func TestHudStartupOrder(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	matches := []startupMatch{{MatchID: "aaaa", MeshKey: "moda"}}
-	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
+	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false }, false)
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
 		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, "moda",
@@ -172,7 +172,7 @@ func TestHudStartupSkipsReady(t *testing.T) {
 	ready := map[string]bool{meshjobs.JobHudIcons: true}
 	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
 	matches := []startupMatch{{MatchID: "aaaa", MeshKey: "moda"}}
-	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false })
+	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return false }, false)
 	want := []string{meshjobs.JobWeaponIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
 		meshjobs.JobSpartanPieces, "moda"}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {

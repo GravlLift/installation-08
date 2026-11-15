@@ -87,7 +87,6 @@ func runServe(args []string) error {
 	}
 	jobs.Start()
 	defer jobs.Stop(5 * time.Second)
-	runServeStartup(jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game)
 	labelCat, err := weapons.LoadLabelCatalog()
 	if err != nil {
 		return err
@@ -96,6 +95,9 @@ func runServe(args []string) error {
 	h.readOnly = f.readOnly
 	// The job is shared by pointer, so the routes the mux already bound see the game root.
 	h.coatingsSetup.game = f.game
+	// The startup starts the coatings setup through the same job the POST route uses, so a
+	// run is single-flight whichever way it is started.
+	runServeStartup(h.jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game, func() { h.startCoatingsSetup() })
 	if f.readOnly {
 		slog.Info("read-only mode: state-changing requests are refused")
 	}

@@ -1,12 +1,13 @@
 package main
 
 // serve_coatings_setup.go — the in-app coatings setup: POST /api/coatings/setup starts the
-// server's one setup job (internal/ekursetup: download and verify Ekur's dumper, dump the
-// game's coating data, validate it, swap it into <data>/ekur), GET /api/coatings/setup/state
-// reports its stage, and a successful run queues the coating library rebuilds the way the
-// startup does when it finds a new export. The job runs only on explicit request, never at
-// startup. Like every state-changing route it accepts loopback origins only, and the
-// read-only mode refuses it (readOnlyHandler refuses every POST).
+// server's one setup job (internal/ekursetup: write the export straight from the game,
+// validate it, swap it into <data>/ekur), GET /api/coatings/setup/state reports its stage,
+// and a successful run queues the coating library rebuilds the way the startup does when it
+// finds a new export. The job runs on explicit request and, once at startup, when the
+// app's own export is not valid yet (serve_startup.go). Like every state-changing route it
+// accepts loopback origins only, and the read-only mode refuses it (readOnlyHandler refuses
+// every POST).
 //
 // The state never carries a path or an environment value: the stage word and, on failure,
 // the setup's own message.
@@ -23,9 +24,8 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 )
 
-// The setup states besides the ekursetup stages (downloading, verifying, dumping,
-// validating, queuing): idle before any run in this process, ready after a successful one,
-// failed after a failed one.
+// The setup states besides the ekursetup stages (extracting, validating, queuing): idle
+// before any run in this process, ready after a successful one, failed after a failed one.
 const (
 	setupIdle   = "idle"
 	setupReady  = "ready"
@@ -66,20 +66,30 @@ func (h serverHandlers) handleCoatingsSetup(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	j := h.coatingsSetup
-	j.mu.Lock()
-	if j.active {
-		state := j.state
-		j.mu.Unlock()
+	state, started := h.startCoatingsSetup()
+	if !started {
 		writeJSON(w, http.StatusConflict, map[string]any{"error": "setup_in_progress", "state": state.State})
 		return
 	}
-	j.active = true
-	j.state = coatingsSetupState{State: string(ekursetup.StageDownloading)}
-	state := j.state
-	j.mu.Unlock()
-	go h.runCoatingsSetup()
 	writeJSON(w, http.StatusAccepted, state)
+}
+
+// startCoatingsSetup begins the one setup run: it marks the job active, sets its first
+// state, and runs it in a goroutine (runCoatingsSetup). It returns the first state and
+// false when a run is already in progress (the caller answers with that state). Both the
+// POST route and the serve startup start the setup through it, so a run is single-flight
+// whichever way it is started.
+func (h serverHandlers) startCoatingsSetup() (coatingsSetupState, bool) {
+	j := h.coatingsSetup
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.active {
+		return j.state, false
+	}
+	j.active = true
+	j.state = coatingsSetupState{State: string(ekursetup.StageExtracting)}
+	go h.runCoatingsSetup()
+	return j.state, true
 }
 
 // handleCoatingsSetupState answers GET /api/coatings/setup/state with the setup job's
@@ -100,7 +110,7 @@ func (h serverHandlers) handleCoatingsSetupState(w http.ResponseWriter, r *http.
 
 // runCoatingsSetup is the job body: the setup, then (on success) the coating library
 // rebuilds, then the final state. One log line per stage and one for the outcome; the
-// dumper's own output goes to the run log in <data>/tools/ekur.
+// export's own output goes to the run log in <data>/tools/ekur.
 func (h serverHandlers) runCoatingsSetup() {
 	j := h.coatingsSetup
 	progress := func(s ekursetup.Stage) {
@@ -116,8 +126,11 @@ func (h serverHandlers) runCoatingsSetup() {
 	err := run(context.Background(), progress)
 	if err == nil {
 		progress(ekursetup.StageQueuing)
-		h.queueCoatingRebuilds()
 	}
+	// Queue the coating libraries either way: after a success they rebuild with coatings;
+	// after a failure they still build (without coatings), because the startup leaves them
+	// to this step whenever it started the setup.
+	h.queueCoatingRebuilds()
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if err != nil {

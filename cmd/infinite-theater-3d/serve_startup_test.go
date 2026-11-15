@@ -12,11 +12,34 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
+
+// writeEkurExport writes the five entries of the Ekur contract into dir, making it a valid
+// export (spartanpieces.EkurValid).
+func writeEkurExport(t *testing.T, dir string) {
+	t.Helper()
+	for _, e := range spartanpieces.EkurEntries {
+		p := filepath.Join(dir, e.Name)
+		if e.IsDir {
+			if err := os.MkdirAll(p, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("{}"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
 
 // startupTestStore builds a temp store with three matches: "aaaa" and "bbbb" share the map
 // module "moda" (bbbb stores a map variant), "cccc" is on "modb". Neither module has a mesh
@@ -88,7 +111,7 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	}
 	// bbbb shares aaaa's map module but has a variant of its own: its variant is still queued.
 	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
-	enqueueStartupBuilds(rr, rr.ready, matches, variantExists)
+	enqueueStartupBuilds(rr, rr.ready, matches, variantExists, false)
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
 		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces,
@@ -108,7 +131,7 @@ func TestStartupBuildsSkipsReady(t *testing.T) {
 		{MatchID: "bbbb", MeshKey: "moda"},
 		{MatchID: "cccc", MeshKey: "modb"},
 	}
-	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" })
+	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" }, false)
 	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer, meshjobs.JobWeapons, meshjobs.JobFirstPerson,
 		meshjobs.JobSpartanPieces, "moda"}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
@@ -122,7 +145,7 @@ func TestStartupBuildsNoInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", filepath.Join(t.TempDir(), "absent"))
-	runServeStartup(rr, rr.ready, root, "")
+	runServeStartup(rr, rr.ready, root, "", nil)
 	if got := rr.modules(); len(got) != 0 {
 		t.Fatalf("queued = %v, want nothing (no install)", got)
 	}
@@ -135,7 +158,7 @@ func TestStartupBuildsFoundInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", t.TempDir())
-	runServeStartup(rr, rr.ready, root, "")
+	runServeStartup(rr, rr.ready, root, "", nil)
 	// The seven libraries lead, in order; the two distinct map modules and the one stored
 	// variant follow (their relative order is the store's listing order, newest import
 	// first, a tie broken by id).
@@ -155,6 +178,69 @@ func TestStartupBuildsFoundInstall(t *testing.T) {
 		}
 		if !found {
 			t.Fatalf("queued = %v, want %q among the map builds", got, want)
+		}
+	}
+}
+
+// TestStartupStartsCoatingsSetup — with a found install, no valid export and no override,
+// the startup starts the coatings setup and leaves the three coating libraries unqueued
+// (the setup's own completion step queues them).
+func TestStartupStartsCoatingsSetup(t *testing.T) {
+	root := startupTestStore(t)
+	rr := newRecordingRunner(t, func(string) bool { return false })
+	deploy := t.TempDir()
+	started := false
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	if !started {
+		t.Fatal("the coatings setup was not started (no valid export, no override, install found)")
+	}
+	for _, module := range coatingLibraryModules {
+		if slices.Contains(rr.modules(), module) {
+			t.Fatalf("queued = %v: the startup enqueued coating library %s; the setup must queue it", rr.modules(), module)
+		}
+	}
+	// The other one-time builds are still enqueued.
+	for _, module := range []string{meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobAnnouncer} {
+		if !slices.Contains(rr.modules(), module) {
+			t.Fatalf("queued = %v, want %s enqueued", rr.modules(), module)
+		}
+	}
+}
+
+// TestStartupValidExportSkipsSetup — with a valid export in <data>/ekur the startup does
+// not run the setup and enqueues the three coating libraries as today.
+func TestStartupValidExportSkipsSetup(t *testing.T) {
+	root := startupTestStore(t)
+	writeEkurExport(t, spartanpieces.DataEkurDir(root.Dir()))
+	rr := newRecordingRunner(t, func(string) bool { return false })
+	deploy := t.TempDir()
+	started := false
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	if started {
+		t.Fatal("the setup ran with a valid export in place")
+	}
+	for _, module := range coatingLibraryModules {
+		if !slices.Contains(rr.modules(), module) {
+			t.Fatalf("queued = %v, want the coating library %s enqueued", rr.modules(), module)
+		}
+	}
+}
+
+// TestStartupOverrideSkipsSetup — with the override variable set the startup never runs
+// the setup and enqueues the three coating libraries as today.
+func TestStartupOverrideSkipsSetup(t *testing.T) {
+	root := startupTestStore(t)
+	rr := newRecordingRunner(t, func(string) bool { return false })
+	deploy := t.TempDir()
+	t.Setenv(spartanpieces.EkurEnv, t.TempDir())
+	started := false
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	if started {
+		t.Fatal("the setup ran under the override")
+	}
+	for _, module := range coatingLibraryModules {
+		if !slices.Contains(rr.modules(), module) {
+			t.Fatalf("queued = %v, want the coating library %s enqueued", rr.modules(), module)
 		}
 	}
 }

@@ -2,10 +2,9 @@ package main
 
 // setup_coatings.go — the `setup-coatings` subcommand: the same setup the viewer's
 // "Set up coatings" button starts (internal/ekursetup), run from the command line. It
-// downloads Ekur's pinned dumper and its lists into <data>/tools/ekur, dumps the installed
-// game's coating data, and swaps the validated export into <data>/ekur. There is no build
-// queue here: the next `serve` start finds the new export and rebuilds the coating
-// libraries.
+// writes the export straight from the installed game (no download, no external tool),
+// validates it, and swaps it into <data>/ekur. There is no build queue here: the next
+// `serve` start finds the new export and rebuilds the coating libraries.
 
 import (
 	"context"

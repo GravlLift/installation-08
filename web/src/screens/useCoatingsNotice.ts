@@ -22,7 +22,7 @@ export const COATING_NOTICE_TOOLTIP =
 
 /** The tooltip of the notice beside the "Set up coatings" button. */
 export const COATINGS_SETUP_TOOLTIP =
-  "Set up coatings downloads Ekur's dumper and extracts the coating data from your game install. If you already have a full Ekur export, set IT3D_EKUR_DIR to it and restart the server instead."
+  'Set up coatings reads the coating data straight from your game install and writes the Ekur export. If you already have a full Ekur export, set IT3D_EKUR_DIR to it and restart the server instead.'
 
 /** Whether the viewer offers the in-app coatings setup: only when coatings are off (no export,
  *  or an invalid one) and the export is the app's own (`IT3D_EKUR_DIR` unset; when it is set it
