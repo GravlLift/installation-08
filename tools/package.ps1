@@ -16,6 +16,7 @@
             LICENSE
             NOTICE.md
             README.md
+            docs\KNOWN-ISSUES.md
             <third-party license texts from third_party\>
         dist\infinite-theater-3d-<version>-windows-amd64.zip
 
@@ -97,6 +98,10 @@ Copy-Item -LiteralPath $exe -Destination (Join-Path $pkgDir 'infinite-theater-3d
 foreach ($f in 'LICENSE', 'NOTICE.md', 'README.md') {
     Copy-Item -LiteralPath (Join-Path $repo $f) -Destination $pkgDir
 }
+# The README links the known-issues list by its repo path.
+$pkgDocs = Join-Path $pkgDir 'docs'
+New-Item -ItemType Directory -Force -Path $pkgDocs | Out-Null
+Copy-Item -LiteralPath (Join-Path (Join-Path $repo 'docs') 'KNOWN-ISSUES.md') -Destination $pkgDocs
 # Third-party license texts the repo already carries.
 $tp = Join-Path $repo 'third_party'
 Get-ChildItem -LiteralPath $tp -Recurse -File |
