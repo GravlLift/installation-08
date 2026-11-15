@@ -15,6 +15,7 @@ import {
   exportProgressPct,
 } from './replayExportPlan'
 import { testReplayDoc } from '../test/testDoc'
+import { frameToMs } from '../../../lib/replay/replayLogic'
 
 /** Un film à 20 images par seconde : 50 ms par image, 200 images, soit 10 s de match. */
 const DOC = testReplayDoc({ frameIntervalMs: 50, frameCount: 200 })
@@ -171,5 +172,55 @@ describe('etaLabel — une estimation qui ne dit rien ne s’affiche pas', () =>
   it('passe en m:ss au-delà de la minute', () => {
     expect(etaLabel(80_000)).toBe('1:20')
     expect(etaLabel(605_000)).toBe('10:05')
+  })
+})
+
+describe('buildExportPlan at 60 fps (the 3D export)', () => {
+  // Halo's film grid: 33.3 ms per frame, so one 60 fps step is half a film frame.
+  const FILM = testReplayDoc({ frameIntervalMs: 100 / 3, frameCount: 3000 })
+
+  it('one minute of match is 3600 steps plus the exact end bound: 3601 frames', () => {
+    const plan = buildExportPlan({ startFrame: 0, endFrame: 1800 }, FILM, 60)
+    expect(plan.fps).toBe(60)
+    expect(plan.durationMs).toBeCloseTo(60_000, 6)
+    expect(plan.frames).toHaveLength(3601)
+    expect(plan.frames[3600]).toBe(1800)
+  })
+
+  it('posts frames at exact 1/60 s steps of match time: half film frames, from the start bound', () => {
+    const plan = buildExportPlan({ startFrame: 120, endFrame: 1920 }, FILM, 60)
+    for (const i of [0, 1, 2, 3, 59, 60, 1799, 3599]) {
+      expect(plan.frames[i]).toBeCloseTo(120 + i / 2, 9)
+      expect(frameToMs(plan.frames[i], FILM) - frameToMs(120, FILM)).toBeCloseTo((i * 1000) / 60, 6)
+    }
+  })
+
+  it('every step is strictly forward: no frame posed twice, none skipped', () => {
+    const plan = buildExportPlan({ startFrame: 0, endFrame: 1800 }, FILM, 60)
+    for (let i = 1; i < plan.frames.length; i++) {
+      const step = plan.frames[i] - plan.frames[i - 1]
+      expect(step).toBeGreaterThan(0)
+      expect(step).toBeLessThanOrEqual(0.5 + 1e-9)
+    }
+  })
+
+  it('twice the frames of the 30 fps plan for the same range, same duration', () => {
+    const at30 = buildExportPlan({ startFrame: 0, endFrame: 900 }, FILM, 30)
+    const at60 = buildExportPlan({ startFrame: 0, endFrame: 900 }, FILM, 60)
+    expect(at60.durationMs).toBe(at30.durationMs)
+    expect(at60.frames.length - 1).toBe(2 * (at30.frames.length - 1))
+  })
+
+  it('the end hold lasts the same time at 60: twice the held frames', () => {
+    const plan = buildExportPlan({ startFrame: 0, endFrame: 300 }, FILM, 60, 3000)
+    const held = plan.frames.slice(601)
+    expect(held).toHaveLength(180)
+    expect(held.every((f) => f === 300)).toBe(true)
+  })
+
+  it('the last frame sits within the range: the clip never outlasts its sound', () => {
+    // A range not a multiple of 1/60 s (10.01 s): frame i's file time i/60 stays <= the range.
+    const plan = buildExportPlan({ startFrame: 0, endFrame: 300.3 }, FILM, 60)
+    expect((plan.frames.length - 1) / 60).toBeLessThanOrEqual(plan.durationMs / 1000)
   })
 })

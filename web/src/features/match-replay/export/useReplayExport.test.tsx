@@ -19,6 +19,7 @@ import { readInk } from '../layers/canvasInk'
 import { canvasPixelRatio, isExportActive, isExportLayoutApplied, useExportLayout } from './exportLayoutStore'
 import { testReplayDoc } from '../test/testDoc'
 import { NO_ALLEGIANCE } from '@/lib/replay/filmAllegiance'
+import { registerReplay3DExport } from './replay3dExportStore'
 
 // La SIGNATURE est portee par le TYPE du mock, pas par des parametres nommes : sans elle,
 // `mock.calls` est un tuple vide et l'assertion sur l'indice d'image ne compile pas ; avec des
@@ -33,15 +34,20 @@ const nomsDeclares: string[] = []
 const dimsOuvertes: { width: number; height: number }[] = []
 /** Le navigateur accepte-t-il la piste sonore ? Pilote par test (cf. le repli muet). */
 const audioOk = { value: true }
+/** The rates asked at each opening, and the rate the simulated browser grants (null: the one asked). */
+const fpsDemandes: { fps?: number; fallbackFps?: number }[] = []
+const fpsAccorde: { value: number | null } = { value: null }
 
 vi.mock('./replayVideoEncoder', async (orig) => ({
   ...(await orig<typeof import('./replayVideoEncoder')>()),
   canExportVideo: () => true,
-  openVideoExport: async (o: { width: number; height: number; audioTracks?: readonly string[] }) => {
+  openVideoExport: async (o: { width: number; height: number; fps?: number; fallbackFps?: number; audioTracks?: readonly string[] }) => {
     dimsOuvertes.push({ width: o.width, height: o.height })
+    fpsDemandes.push({ fps: o.fps, fallbackFps: o.fallbackFps })
     nomsDeclares.length = 0
     nomsDeclares.push(...(o.audioTracks ?? []))
-    return { addFrame, addAudioTracks, finish, abort, audioEnabled: audioOk.value }
+    const fps = fpsAccorde.value ?? o.fps ?? 30
+    return { addFrame, addAudioTracks, finish, abort, audioEnabled: audioOk.value, fps, fpsFallback: fps !== (o.fps ?? 30) }
   },
 }))
 vi.mock('../sound/replayAudioMix', async (orig) => {
@@ -121,6 +127,8 @@ beforeEach(() => {
   abort.mockClear()
   addAudioTracks.mockClear()
   dimsOuvertes.length = 0
+  fpsDemandes.length = 0
+  fpsAccorde.value = null
   // jsdom n'a pas de contexte 2D : sans ce double, chaque image ecrirait « Not implemented ».
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
   audioOk.value = true
@@ -130,6 +138,85 @@ beforeEach(() => {
   vi.mocked(mixReplayAudio).mockClear()
   // jsdom ne fournit pas `document.fonts` : la boucle l'attend avant la première image.
   Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, writable: true })
+})
+
+/** A 2D context double: every method a no-op, `measureText` a width. Enough for the 3D composition. */
+function contexteSimule(): CanvasRenderingContext2D {
+  return new Proxy({} as Record<string | symbol, unknown>, {
+    get: (t, k) => (k in t ? t[k] : k === 'measureText' ? () => ({ width: 10 }) : () => {}),
+    set: (t, k, v) => { t[k] = v; return true },
+  }) as unknown as CanvasRenderingContext2D
+}
+
+/** Registers a 3D view double; `pendingOnce` makes its first frame wait for one load. */
+function load3d(pendingOnce: boolean) {
+  const rendered: number[] = []
+  const begun: { frameMs?: number }[] = []
+  let pending = pendingOnce
+  const source = {
+    players: [],
+    beginExport: vi.fn((s: { frameMs: number }) => { begun.push(s) }),
+    exportFrame: vi.fn((f: number) => { rendered.push(f); return document.createElement('canvas') }),
+    exportTags: () => [],
+    exportPendingLoads: () => {
+      if (!pending) return null
+      pending = false
+      return Promise.resolve(false)
+    },
+    endExport: vi.fn(),
+  }
+  const release = registerReplay3DExport({ source, live: true, camera: 'tp', pov: null })
+  return { rendered, begun, release }
+}
+
+describe('useReplayExport, 3D at 60 fps', () => {
+  const VIEW3D = { camera: 'tp' as const, pov: null, minimap: false }
+
+  it('opens the encoder at 60 with 30 as the fallback, and encodes one frame per 1/60 s', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(contexteSimule() as never)
+    const { release, begun } = load3d(false)
+    const { hook } = setup()
+    // 10 frames at 50 ms = 500 ms of match, at 60 fps: 30 steps + the end bound.
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: VIEW3D }))
+    release()
+    expect(fpsDemandes).toEqual([{ fps: 60, fallbackFps: 30 }])
+    expect(addFrame).toHaveBeenCalledTimes(31)
+    expect(addFrame.mock.calls.map((c) => c[1])).toEqual(Array.from({ length: 31 }, (_, i) => i))
+    // The scene's match clock: the document's duration of a frame.
+    expect(begun[0].frameMs).toBe(50)
+    expect(hook.result.current.state).toMatchObject({ phase: 'done', fps: 60, fpsFallback: false })
+  })
+
+  it('the 2D map export stays at 30, with no fallback', async () => {
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+    expect(fpsDemandes).toEqual([{ fps: 30, fallbackFps: undefined }])
+  })
+
+  it('a browser refusing 60 gets a 30 fps plan, and the state SAYS so', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(contexteSimule() as never)
+    fpsAccorde.value = 30
+    const { release } = load3d(false)
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: VIEW3D }))
+    release()
+    // The plan follows the GRANTED rate: 15 steps + the end bound, or the clip would play slow.
+    expect(addFrame).toHaveBeenCalledTimes(16)
+    expect(hook.result.current.state).toMatchObject({ phase: 'done', fps: 30, fpsFallback: true })
+  })
+
+  it('a frame that asked for a model waits for it and is rendered again before it is encoded', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(contexteSimule() as never)
+    const { release, rendered } = load3d(true)
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: VIEW3D }))
+    release()
+    // Frame 0 twice (before and after its load), then each later frame once.
+    expect(rendered.slice(0, 3)).toEqual([0, 0, rendered[2]])
+    expect(rendered[2]).toBeGreaterThan(0)
+    expect(rendered).toHaveLength(32)
+    expect(addFrame).toHaveBeenCalledTimes(31)
+  })
 })
 
 describe('useReplayExport', () => {

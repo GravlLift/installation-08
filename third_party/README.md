@@ -287,6 +287,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       material's own brown Mask0 R swatch.
     Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
     `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
+  - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Variant.Lighting` reads the variant's
+    "Lights & Atmosphere" options at root[1][39]: field 0 the Sunlight intensity (Recharge: 9,
+    its scenario sun's; Fortress: 25 over its canvas's 5), field 1 the Sunlight color override
+    (a Forge globals color index) and field 18 its switch (1 on, inferred from the maps that
+    carry a warm sun color there). Covered by `mapvar/lighting_test.go` (new).
   - Foliage atlas cuts, `himap/decoupe.go` (`decoupeAtlasFeuillage`), `materiaux.go`: a shader
     that binds a leaf atlas color map (`0xca775400`, or 669c3e5e's slot 4) is cut by that map's
     alpha, the leaves' coverage. Fortress's pine clusters, bushes, firs and root clusters drew as

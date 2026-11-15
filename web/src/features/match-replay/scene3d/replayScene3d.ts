@@ -37,7 +37,7 @@ import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
 import { FreeFly } from './freeFly3d'
 import { Lighting } from './lighting'
-import { creerCiel } from './ciel3d'
+import { creerCiel, setCloudClock } from './ciel3d'
 import type { Look3d } from './look3d'
 import type { BakedLight } from './bakedLightShader'
 import type { MapModel, SurfaceModel } from './mapModel'
@@ -77,6 +77,8 @@ const SUN_FALLBACK = { azimuth: 217, elevation: 58 }
 const SKY_TINT = 0x9fb4c8
 const FOG_NEAR = 60
 const FOG_FAR = 220
+/** How long the video export waits, per frame, for a model a frame asked for (ms). */
+const EXPORT_LOAD_WAIT_MS = 20_000
 export class ReplayScene3d implements Replay3DExportSource {
   private readonly renderer: THREE.WebGLRenderer
   private readonly labels = new CSS2DRenderer()
@@ -175,8 +177,9 @@ export class ReplayScene3d implements Replay3DExportSource {
       get povXuid() { return self.povXuid }, set lastFrame(value) { self.lastFrame = value },
       get lastFrame() { return self.lastFrame },
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
-      placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame) => this.cameraPlacement.placeCamera(frame),
+      placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame, dt) => this.cameraPlacement.placeCamera(frame, dt),
       placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
+      setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
     })
   }
   /** attach pose la carte et les joueurs, éclaire l'aire de jeu et capture l'environnement. */
@@ -485,6 +488,12 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
+  /** Loads still in flight (one gate counts the weapon models, armor and rigs, cf. `loadGate3d`). */
+  exportPendingLoads(): Promise<boolean> | null {
+    const gate = this.weaponModels?.gate
+    if (!gate || gate.pending === 0) return null
+    return gate.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut)
+  }
   endExport(): void { this.exportScene.endExport() }
 
   private applyPov(xuid: string | null): void {

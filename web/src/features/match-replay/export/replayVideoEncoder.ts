@@ -76,18 +76,36 @@ import { yieldToEvents } from './eventLoopYield'
  * une image tous les 1/30 de seconde de MATCH, ni plus ni moins. Les fusionner ferait croire
  * qu'un réglage de l'un vaut pour l'autre.
  *
- * 30 et pas 60 : ce que montre le rejeu, ce sont des points qui glissent sur une carte. Doubler
- * la cadence doublerait le poids du fichier et le temps de calcul pour un œil qui n'y verrait
- * rien.
+ * This is the 2D MAP export's rate: points sliding on a map gain nothing visible past 30, and
+ * doubling the rate would double the file weight and the compute time. The 3D export has its
+ * own rate (`EXPORT_FPS_3D`).
  */
 export const EXPORT_FPS = 30
+
+/**
+ * THE 3D EXPORT'S RATE: 60 frames per second of MATCH, guaranteed by construction. The export is
+ * offline: each frame is posed at an exact 1/60 s step of match time, rendered to completion,
+ * and stamped `index / 60` s, so the rate never depends on how fast the machine renders.
+ *
+ * 60 and not 30 because the 3D view is a first/third-person camera on players whose motion is
+ * recorded at ~60 Hz (`tr.fullRate`, `fineTracks3d`); at 30 a camera pan judders, and the clips
+ * are cut into videos played at 60. The film's own frame grid (~30 Hz) is not a ceiling: the
+ * scene poses fractional frames and interpolates, as on screen at the monitor's refresh rate.
+ *
+ * If the browser cannot encode 60 at the chosen size, the export falls back to `EXPORT_FPS` and
+ * SAYS so (`VideoExportSink.fpsFallback`): never a silent 30.
+ */
+export const EXPORT_FPS_3D = 60
 
 /**
  * Une image-clé toutes les 2 secondes de match. C'est ce qui rend le clip NAVIGABLE : sans
  * image-clé régulière, déplacer le curseur dans le fichier oblige le lecteur à tout rejouer
  * depuis le début. Plus serré gonflerait le fichier sans servir personne.
  */
-export const KEYFRAME_EVERY = EXPORT_FPS * 2
+export const KEYFRAME_SECONDS = 2
+
+/** The keyframe interval at the 2D rate, in frames (kept for the 2D callers and tests). */
+export const KEYFRAME_EVERY = EXPORT_FPS * KEYFRAME_SECONDS
 
 /**
  * Profondeur de file au-delà de laquelle la boucle attend. Deux images de marge : assez pour
@@ -191,9 +209,52 @@ export function shouldDrain(queueSize: number): boolean {
   return queueSize > ENCODE_QUEUE_MAX
 }
 
-/** isKeyFrame : l'image `index` (0 = la première) ouvre-t-elle un nouveau point d'entrée ? */
-export function isKeyFrame(index: number): boolean {
-  return index % KEYFRAME_EVERY === 0
+/**
+ * isKeyFrame : l'image `index` (0 = la première) ouvre-t-elle un nouveau point d'entrée ? Every
+ * `KEYFRAME_SECONDS` of clip at the rate `fps`: a keyframe every 60 frames at 30, every 120 at 60.
+ */
+export function isKeyFrame(index: number, fps: number = EXPORT_FPS): boolean {
+  return index % Math.max(1, Math.round(fps * KEYFRAME_SECONDS)) === 0
+}
+
+/**
+ * frameTimestampUs: the file instant of frame `index` at the rate `fps`, in microseconds.
+ * COMPUTED FROM THE INDEX, never accumulated from a rounded duration: `round(1e6 / 60)` is
+ * 16667 us, and summing it drifted the video 1.2 ms per minute ahead of the sound.
+ */
+export function frameTimestampUs(index: number, fps: number): number {
+  return Math.round((index * 1_000_000) / fps)
+}
+
+/** frameDurationUs: how long frame `index` lasts, so that consecutive frames tile exactly. */
+export function frameDurationUs(index: number, fps: number): number {
+  return frameTimestampUs(index + 1, fps) - frameTimestampUs(index, fps)
+}
+
+/**
+ * chooseExportFps picks the encoding rate: `wanted` if this browser accepts the configuration at
+ * that rate, else `fallback` if it accepts that one, else null. PURE over its probe, which is
+ * `VideoEncoder.isConfigSupported` in the browser and a stub in tests.
+ */
+export async function chooseExportFps(
+  width: number,
+  height: number,
+  wanted: number,
+  fallback: number | undefined,
+  probe: (config: VideoEncoderConfig) => Promise<boolean>,
+): Promise<number | null> {
+  if (await probe(videoEncoderConfig(width, height, wanted))) return wanted
+  if (fallback === undefined || fallback === wanted) return null
+  return (await probe(videoEncoderConfig(width, height, fallback))) ? fallback : null
+}
+
+/** The browser probe: a throw (invalid configuration) is an answer, not a failure. */
+async function browserSupports(config: VideoEncoderConfig): Promise<boolean> {
+  try {
+    return (await VideoEncoder.isConfigSupported(config)).supported === true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -282,12 +343,24 @@ export interface VideoExportSink {
   addAudioTracks: (tracks: readonly AudioTrackInput[], progress?: (fraction: number) => void) => Promise<void>
   /** Referme tout sans rien rendre (annulation, erreur). Ne lève jamais. */
   abort: () => void
+  /** The rate the file is actually encoded at: the frame plan must be built at this rate. */
+  fps: number
+  /**
+   * `true` = the requested rate was refused by this browser and the clip is encoded at
+   * `VideoExportOptions.fallbackFps` instead. The caller must SAY it.
+   */
+  fpsFallback: boolean
 }
 
 export interface VideoExportOptions {
   width: number
   height: number
   fps?: number
+  /**
+   * The rate to fall back to when `fps` is refused by this browser (`chooseExportFps`). Absent:
+   * a refused `fps` is a refused export (`null`), as before.
+   */
+  fallbackFps?: number
   /**
    * COMBIEN de pistes sonores le clip portera. Declare a l'ouverture ou jamais : le conteneur
    * ecrit sa table des pistes une fois pour toutes. `0` = clip muet, ce qui reste un resultat.
@@ -336,10 +409,15 @@ const MIX_TRACK_SHAPE: AudioTrackShape = { sampleRate: 48_000, numberOfChannels:
 
 export async function openVideoExport(o: VideoExportOptions): Promise<VideoExportSink | null> {
   if (!canExportVideo()) return null
-  const fps = o.fps ?? EXPORT_FPS
+  const wanted = o.fps ?? EXPORT_FPS
+  const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports)
+  if (fps === null) return null
+  const fpsFallback = fps !== wanted
+  if (fpsFallback) {
+    // LOUD, NOT SILENT: the caller also shows it in the dialog (`ReplayExportState.fpsFallback`).
+    console.warn(`[replay-export] ${o.width}x${o.height} at ${wanted} fps refused by this browser's encoder, encoding at ${fps} fps`)
+  }
   const config = videoEncoderConfig(o.width, o.height, fps)
-  const support = await VideoEncoder.isConfigSupported(config)
-  if (!support.supported) return null
   const noms = o.audioTracks ?? []
   // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `audioTrackUsable`) : le
   // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
@@ -387,10 +465,11 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     },
   })
   encoder.configure(config)
-  return makeSink(encoder, output, videoSource, audioSources, fps, () => failure, () => ecritures, {
+  const sink = makeSink(encoder, output, videoSource, audioSources, fps, () => failure, () => ecritures, {
     width: config.width,
     height: config.height,
   })
+  return { ...sink, fpsFallback }
 }
 
 /**
@@ -408,9 +487,8 @@ function makeSink(
   /** La chaine des ecritures de paquets video, a attendre avant de finaliser. */
   ecrituresEnCours: () => Promise<unknown>,
   size: { width: number; height: number },
-): VideoExportSink {
+): Omit<VideoExportSink, 'fpsFallback'> {
   let closed = false
-  const frameDurationUs = Math.round(1_000_000 / fps)
 
   const addFrame = async (canvas: HTMLCanvasElement, index: number) => {
     const failed = failureOf()
@@ -419,8 +497,8 @@ function makeSink(
     // L'HORODATAGE EST CALCULÉ, JAMAIS MESURÉ (cf. l'en-tête) : c'est ce qui rend la durée du
     // clip indépendante du temps de calcul.
     const frame = new VideoFrame(canvas, {
-      timestamp: index * frameDurationUs,
-      duration: frameDurationUs,
+      timestamp: frameTimestampUs(index, fps),
+      duration: frameDurationUs(index, fps),
       // LE RECADRAGE EST EXPLICITE. Une toile d'une autre taille que la config (impaire, ou pas
       // encore au format) ne doit pas passer implicitement : sans `visibleRect`, on pousse une image
       // 1919x601 dans un encodeur configuré en 1918x600, et le comportement dépend alors de la
@@ -428,7 +506,7 @@ function makeSink(
       visibleRect: { x: 0, y: 0, width: size.width, height: size.height },
     })
     try {
-      encoder.encode(frame, { keyFrame: isKeyFrame(index) })
+      encoder.encode(frame, { keyFrame: isKeyFrame(index, fps) })
     } finally {
       // TOUJOURS, même si `encode` lève : une `VideoFrame` non fermée retient sa mémoire GPU,
       // et il en passe trente par seconde de match.
@@ -490,7 +568,7 @@ function makeSink(
     }
   }
 
-  return { addFrame, addAudioTracks, audioEnabled: audioSources.length > 0, finish, abort }
+  return { addFrame, addAudioTracks, audioEnabled: audioSources.length > 0, finish, abort, fps }
 }
 
 

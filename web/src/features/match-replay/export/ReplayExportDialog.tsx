@@ -119,6 +119,12 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
           {state.mutedFallback ? <span className="block text-muted-foreground">{t.exportMutedFallback}</span> : null}
         </p>
       )}
+      {/* A 3D clip encoded at 30 instead of 60 is SAID, while it encodes and once it is saved. */}
+      {state.fpsFallback && (state.phase === 'encode' || state.phase === 'done') && (
+        <p role="alert" className="mt-2 text-[12.5px] text-destructive">
+          {t.exportFpsFallbackFmt(state.fps ?? 30)}
+        </p>
+      )}
       {isExportBusy(state) ? (
         <ExportProgress exporter={exporter} locale={locale} />
       ) : (

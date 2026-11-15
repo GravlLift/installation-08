@@ -11,7 +11,9 @@
  * DEUX AXES DE TEMPS, ET IL NE FAUT JAMAIS LES CONFONDRE :
  *
  * - l'axe du DOCUMENT, en images du film (`frameIntervalMs` donne leur durée réelle) ;
- * - l'axe du FICHIER, en microsecondes, à cadence fixe (30 im/s, cf. `EXPORT_FPS`).
+ * - l'axe du FICHIER, en microsecondes, à cadence fixe (30 im/s for the 2D map, `EXPORT_FPS`;
+ *   60 im/s for the 3D view, `EXPORT_FPS_3D`). Frame `i` sits at exactly `i / fps` s of match
+ *   after the start, on both axes: that is what keeps the sound, mixed on match time, in sync.
  *
  * Les deux ne tombent PAS l'un sur l'autre : un film à 24,7 images par seconde exporté à 30
  * demande des images entre les images. Ce n'est pas un problème — `draw()` accepte une image

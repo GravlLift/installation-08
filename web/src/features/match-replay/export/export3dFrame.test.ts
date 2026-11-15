@@ -9,6 +9,7 @@ const source: Replay3DExportSource = {
   beginExport: vi.fn(),
   exportFrame: vi.fn(),
   exportTags: () => [],
+  exportPendingLoads: () => null,
   endExport: vi.fn(),
 }
 
