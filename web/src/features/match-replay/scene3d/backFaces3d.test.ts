@@ -85,6 +85,26 @@ describe('buildBackFaces', () => {
     backs.dispose()
   })
 
+  it('a geometry placed in several spots (shared by copies of a mesh) gets one back geometry, each copy its own transform', () => {
+    const root = new THREE.Group()
+    const position = new THREE.BufferAttribute(POSITIONS, 3)
+    const slab = surface(position, [4, 6, 5, 4, 7, 6], front())
+    const copy = slab.clone()
+    copy.position.set(10, 0, 0)
+    root.add(slab, copy)
+    let tightened = 0
+    const backs = buildBackFaces(root, [slab, copy], () => tightened++)
+
+    expect(backs.covered).toBe(2)
+    expect(backs.meshes).toHaveLength(2)
+    expect(backs.meshes[0].geometry).toBe(backs.meshes[1].geometry)
+    expect(tightened).toBe(1)
+    root.updateMatrixWorld(true)
+    expect(backs.meshes[1].matrixWorld.equals(copy.matrixWorld)).toBe(true)
+    backs.dispose()
+    expect(slab.geometry.getAttribute('position')).toBe(position)
+  })
+
   it('sans envers : découpe, translucide, double face, cachée, sans index', () => {
     const root = new THREE.Group()
     const position = new THREE.BufferAttribute(POSITIONS, 3)

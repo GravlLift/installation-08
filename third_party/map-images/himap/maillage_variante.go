@@ -4,7 +4,9 @@
 // accessoires, que ni son sbsp ni son scenario ne posent. Une carte Forge n'a qu'elle, sur son
 // canevas. La couche se collecte a part du maillage de la carte, parce que deux variantes d'une
 // meme carte different : meme `MaillageMonde`, meme GLB (`EcritGLB`), sans soleil ni lumiere (ce
-// sont ceux de la carte).
+// sont ceux de la carte). LOCAL-CHANGE (infinite-theater-3d): its objects are not baked into
+// world-space groups but kept as shared models placed by transform (`MaillageMonde.Poses`,
+// maillage_variante_poses.go).
 //
 // LA CHAINE est celle du fond Forge vu du dessus (cuisson_forge.go) : type_id -> `food` -> modele
 // (`rtgo` direct, ou saut `bloc`/`scen`/`mach` -> `hlmt` -> `rtgo`/`mode`), pose par
@@ -183,15 +185,17 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	defer func() { _ = forge.Close() }()
 
 	objets := objetsVisibles(opts.Objets, opts.Invisibles, &b)
-	modeles := modelesDesTypes(ctx, objets, idx, forge)
-	representations := modelesDesRepresentations(ctx, objets, idx, forge)
+	assets := map[uint32]*RuntimeGeoAsset{}
+	modeles := modelesDesTypes(ctx, objets, idx, forge, assets)
+	representations := modelesDesRepresentations(ctx, objets, idx, forge, assets)
 	b.Types = len(modeles)
-	out := &MaillageMonde{}
+	out := &MaillageMonde{Poses: &PosesVariante{}}
 	poses := out.poseVarianteTeinte(opts, modeles, representations, &b)
-	if out.Structure.Triangles() == 0 {
+	trianglesPoses, trianglesUniques := out.Poses.Triangles()
+	if trianglesPoses == 0 {
 		return nil, b, fmt.Errorf("aucun triangle pose sur %d objets de variante", len(opts.Objets))
 	}
-	if err := out.resoutMateriaux(OptionsCuisson{RacineDeploy: opts.RacineDeploy, CheminModule: opts.CheminModule}, idx); err != nil {
+	if err := out.resoutMateriauxPoses(OptionsCuisson{RacineDeploy: opts.RacineDeploy, CheminModule: opts.CheminModule}, idx); err != nil {
 		return nil, b, err
 	}
 	out.resoutTextures(ctx, idx)
@@ -199,7 +203,8 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	slog.InfoContext(ctx, "objets de la variante poses", "objets", b.Objets, "poses", b.Poses,
 		"invisibles", b.Invisibles, "sansModele", b.SansModele, "volumesDeMort", b.VolumesDeMort, "volumes", b.Volumes, "reperes", b.Reperes, "horsMode", b.HorsMode,
 		"sansPalette", b.SansPalette, "repliRepresentation", b.RepliRepresentation, "types", b.Types,
-		"triangles", out.Structure.Triangles(), "trianglesOmbre", out.Ombre.Triangles(),
+		"triangles", trianglesPoses, "trianglesUniques", trianglesUniques,
+		"geometries", len(out.Poses.Geometries), "placements", len(out.Poses.Poses),
 		"materiaux", len(out.Materiaux), "materiauxIllisibles", out.MateriauxIllisibles,
 		"masques", len(out.Masques), "masquesIllisibles", out.MasquesIllisibles,
 		"texturesCouches", len(out.TexturesCouches), "texturesCouchesIllisibles", out.TexturesCouchesIllisibles,
@@ -208,14 +213,14 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 }
 
 // modelesDesTypes ouvre une fois le modele de chaque type d'objet, avec ses materiaux. Un type
-// sans modele lisible est absent de la table.
+// sans modele lisible est absent de la table. `assets` met les modeles ouverts en commun (avec
+// les representations : un modele partage n'a qu'une geometrie, PosesVariante).
 func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
-	idx *ModuleIndex, forge *himodule.Module) map[int32]*modeleVariante {
+	idx *ModuleIndex, forge *himodule.Module, assets map[uint32]*RuntimeGeoAsset) map[int32]*modeleVariante {
 	foodParID := map[uint32]himodule.File{}
 	for _, f := range forge.Files("food") {
 		foodParID[f.GlobalID] = f
 	}
-	assets := map[uint32]*RuntimeGeoAsset{}
 	out := map[int32]*modeleVariante{}
 	for ty, ref := range modeleParType(ctx, objets, idx, forge) {
 		a, deja := assets[ref.id]
@@ -289,28 +294,13 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 		if mv.sansPalette {
 			b.SansPalette++
 		}
-		avant := m.Structure.Triangles()
-		var avantIndices map[uint32]int
-		var teinte TeinteForge
-		var colore bool
+		var teinte *TeinteForge
 		if o.StyleID != nil {
-			teinte, colore = opts.Teintes[*o.StyleID]
-		}
-		if colore {
-			avantIndices = map[uint32]int{}
-			for id, ix := range m.Structure.Indices {
-				avantIndices[id] = len(ix)
+			if t, colore := opts.Teintes[*o.StyleID]; colore {
+				teinte = &t
 			}
 		}
-		m.poseObjet(i, o, mv)
-		if colore {
-			for id, ix := range m.Structure.Indices {
-				debut := avantIndices[id]
-				if len(ix) > debut {
-					m.plagesForge = append(m.plagesForge, plageForge{id, debut, len(ix), teinte})
-				}
-			}
-		}
+		triangles := m.poseObjet(i, o, mv, teinte)
 		b.Poses++
 		tp := poses[o.TypeID]
 		if tp == nil {
@@ -318,7 +308,7 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 			poses[o.TypeID] = tp
 		}
 		tp.objets++
-		tp.triangles += m.Structure.Triangles() - avant
+		tp.triangles += triangles
 	}
 	return poses
 }
@@ -340,48 +330,34 @@ func compteEcart(e ecartVariante, b *BilanVariante) bool {
 	return false
 }
 
-// poseObjet pose les maillages de l'objet de rang i et range sa boite monde dans `Objets`.
-func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante) {
-	debutS, debutO := len(m.Structure.Sommets), len(m.Ombre.Sommets)
-	m.poseMaillagesVariante(mv, instanceVariante(o, mv.materiaux, mv.socle))
+// poseObjet place les modeles de l'objet de rang i (LOCAL-CHANGE (infinite-theater-3d): en
+// placements de geometries partagees, PosesVariante), range sa boite monde dans `Objets` et rend
+// les triangles dessines qu'il pose.
+func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante, teinte *TeinteForge) int {
+	if m.Poses == nil {
+		m.Poses = &PosesVariante{}
+	}
+	debut := len(m.Poses.Poses)
+	m.Poses.pose(i, mv, instanceVariante(o, mv.materiaux, mv.socle), nil, mv.materiaux, teinte)
 	// LOCAL-CHANGE (infinite-theater-3d): the kit's objects, each lifted from its own base.
 	for _, p := range mv.pieces {
 		local := p.pose
 		for a := range local.Position {
 			local.Position[a] += local.Up[a] * p.mv.socle * local.Scale[2]
 		}
-		in := composeInstance(instanceVariante(o, nil, 0), local)
-		in.Materiaux = p.mv.materiaux
-		m.poseMaillagesVariante(p.mv, in)
+		m.Poses.pose(i, p.mv, instanceVariante(o, nil, 0), &local, p.mv.materiaux, teinte)
 	}
-	m.Structure.Instances++
-	mnS, mxS, okS := boiteDesSommets(m.Structure.Sommets[debutS:])
-	mnO, mxO, okO := boiteDesSommets(m.Ombre.Sommets[debutO:])
-	switch {
-	case okS && okO:
-		mnS, mxS = uneBoite(mnS, mxS, mnO, mxO)
-	case okO:
-		mnS, mxS = mnO, mxO
-	case !okS:
-		return
-	}
-	m.Objets = append(m.Objets, ObjetPose{Index: i, Type: o.TypeID, Min: mnS, Max: mxS})
-}
-
-// poseMaillagesVariante ajoute les maillages d'un modele a l'instance `in` : a la structure, ou aux
-// ombres pour une section que le jeu ne dessine pas a l'ecran.
-func (m *MaillageMonde) poseMaillagesVariante(mv *modeleVariante, in Instance) {
-	for _, k := range mv.maillages {
-		mesh := mv.asset.Mesh(k)
-		if mesh == nil {
-			continue
+	poses := m.Poses.Poses[debut:]
+	triangles := 0
+	for _, p := range poses {
+		if g := m.Poses.Geometries[p.Geometrie]; !g.Ombre {
+			triangles += g.Maillage.Triangles()
 		}
-		g := &m.Structure
-		if mv.ombre[k] {
-			g = &m.Ombre
-		}
-		g.ajoute(mesh, in, 0)
 	}
+	if mn, mx, ok := m.Poses.boite(poses); ok {
+		m.Objets = append(m.Objets, ObjetPose{Index: i, Type: o.TypeID, Min: mn, Max: mx})
+	}
+	return triangles
 }
 
 // instanceVariante rend la pose d'un objet de variante (InstanceForge) levee de son socle le long

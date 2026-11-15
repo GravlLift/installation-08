@@ -29,10 +29,10 @@ import (
 )
 
 // startupMatch is the listing projection enqueueStartupBuilds needs from a store match:
-// the id (the variant job's key) and the map module (the mesh job's key).
+// the id (the variant job's key) and the key of its world mesh (meshKeyOf, the mesh job's key).
 type startupMatch struct {
-	MatchID   string
-	MapModule string
+	MatchID string
+	MeshKey string
 }
 
 // hasMatchMvar says whether the match's map variant file is in the store (the variant
@@ -85,10 +85,10 @@ func enqueueStartupBuilds(jobs interface {
 	}
 	seen := map[string]bool{}
 	for _, m := range matches {
-		if m.MapModule != "" && !seen[m.MapModule] {
-			seen[m.MapModule] = true
-			if !ready(m.MapModule) {
-				enqueue(m.MapModule)
+		if m.MeshKey != "" && !seen[m.MeshKey] {
+			seen[m.MeshKey] = true
+			if !ready(m.MeshKey) {
+				enqueue(m.MeshKey)
 			}
 		}
 		// The variant layer is per match: two matches on one map each get theirs.
@@ -134,7 +134,7 @@ func runServeStartup(jobs interface {
 	}
 	matches := make([]startupMatch, 0, len(ms))
 	for _, m := range ms {
-		matches = append(matches, startupMatch{MatchID: m.MatchID, MapModule: m.MapModule})
+		matches = append(matches, startupMatch{MatchID: m.MatchID, MeshKey: meshKeyOf(m)})
 	}
 	enqueueStartupBuilds(jobs, ready, matches, func(id string) bool {
 		return hasMatchMvar(root, id)
@@ -173,8 +173,8 @@ func (h serverHandlers) enqueueMatchBuilds(id string) {
 	if err != nil {
 		return
 	}
-	if meta.MapModule != "" {
-		h.jobs.Enqueue(meta.MapModule)
+	if key := meshKeyOf(meta); key != "" {
+		h.jobs.Enqueue(key)
 	}
 	if hasMatchMvar(h.root, id) {
 		h.jobs.Enqueue(variantPrefix + id)

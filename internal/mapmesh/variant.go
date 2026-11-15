@@ -4,7 +4,8 @@ package mapmesh
 // object layer, the crates, cover and accessories a `.mvar` places that neither the map's own
 // structure nor its scenario do. A native map ships with its own variant; a Forge map has only
 // this layer on its canvas. Same MaillageMonde, same writer (himap.EcritGLB) as the map mesh,
-// without a sun or lighting: those are the map's own (see mapmesh.go, sky.go).
+// without a sun or lighting: those are the map's own (see mapmesh.go, sky.go). Its objects are
+// shared models placed by transform (himap.PosesVariante): each model is written once.
 
 import (
 	"context"
@@ -70,9 +71,11 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	if err != nil {
 		return Summary{}, err
 	}
-	s := Summary{Triangles: m.Structure.Triangles(), Bytes: n}
+	placed, unique := m.Poses.Triangles()
+	s := Summary{Triangles: placed, Bytes: n}
 	slog.InfoContext(ctx, "variant object layer written", "mapId", t.Key, "objects", bilan.Poses,
-		"triangles", s.Triangles, "bytes", n, "file", filepath.Base(path))
+		"triangles", placed, "uniqueTriangles", unique, "models", len(m.Poses.Geometries),
+		"bytes", n, "file", filepath.Base(path))
 	return s, nil
 }
 

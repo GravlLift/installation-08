@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"slices"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 )
@@ -17,11 +16,6 @@ type TeinteForge struct {
 type materiauTeinte struct {
 	source uint32
 	teinte TeinteForge
-}
-type plageForge struct {
-	source     uint32
-	debut, fin int
-	teinte     TeinteForge
 }
 
 // LitMateriauxForge résout la première couche de chaque style dans la bibliothèque fournie.
@@ -78,72 +72,4 @@ func LitMateriauxForge(data []byte, styles map[int32][]mapvar.StyleLayer) (map[i
 		out[id] = t
 	}
 	return out, nil
-}
-
-// appliqueTeintes sépare les indices des placements dont le matériau n'a aucune couche publiée.
-func (m *MaillageMonde) appliqueTeintes() {
-	if len(m.plagesForge) == 0 {
-		return
-	}
-	groupes := map[uint32][]plageForge{}
-	for _, p := range m.plagesForge {
-		groupes[p.source] = append(groupes[p.source], p)
-	}
-	reserves := map[uint32]bool{}
-	for _, g := range []*GroupeMaillage{&m.Structure, &m.Decor, &m.Ombre} {
-		for id := range g.Indices {
-			reserves[id] = true
-		}
-	}
-	type cle struct {
-		source uint32
-		teinte TeinteForge
-	}
-	ids := map[cle]uint32{}
-	m.teintesForge = map[uint32]materiauTeinte{}
-	prochain := ^uint32(0)
-	sources := make([]uint32, 0, len(groupes))
-	for source := range groupes {
-		sources = append(sources, source)
-	}
-	slices.Sort(sources) // ordre stable : deux exports de la même variante rendent le même fichier
-	for _, source := range sources {
-		plages := groupes[source]
-		mat := m.Materiaux[source]
-		couche := false
-		if mat.Couches != nil && mat.Opaque() {
-			for _, c := range mat.Couches.Couches {
-				if _, ok := m.TexturesCouches[c.Bitmap]; ok {
-					couche = true
-					break
-				}
-			}
-		}
-		if couche {
-			continue
-		}
-		original := m.Structure.Indices[source]
-		garde := 0
-		position := 0
-		for _, p := range plages {
-			garde += copy(original[garde:], original[position:p.debut])
-			key := cle{source, p.teinte}
-			id, ok := ids[key]
-			if !ok {
-				for reserves[prochain] {
-					prochain--
-				}
-				id = prochain
-				reserves[id] = true
-				prochain--
-				ids[key] = id
-				m.teintesForge[id] = materiauTeinte{source, p.teinte}
-			}
-			m.Structure.Indices[id] = append(m.Structure.Indices[id], original[p.debut:p.fin]...)
-			position = p.fin
-		}
-		garde += copy(original[garde:], original[position:])
-		m.Structure.Indices[source] = original[:garde]
-	}
-	m.plagesForge = nil
 }

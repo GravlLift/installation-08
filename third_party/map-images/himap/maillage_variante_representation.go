@@ -40,7 +40,9 @@ func refsRepresentations(tag []byte) map[int32]uint32 {
 	return out
 }
 
-func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx *ModuleIndex, forge *himodule.Module) map[cleRepresentation]*modeleVariante {
+// modelesDesRepresentations ouvre le modele de chaque representation demandee ; `assets` met les
+// modeles ouverts en commun avec modelesDesTypes.
+func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx *ModuleIndex, forge *himodule.Module, assets map[uint32]*RuntimeGeoAsset) map[cleRepresentation]*modeleVariante {
 	foods := map[uint32]himodule.File{}
 	for _, f := range forge.Files("food") {
 		foods[f.GlobalID] = f
@@ -55,7 +57,6 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 		}
 	}
 	out := map[cleRepresentation]*modeleVariante{}
-	assets := map[uint32]*RuntimeGeoAsset{}
 	for ty, noms := range demandes {
 		food, ok := foods[uint32(ty)]
 		if !ok {

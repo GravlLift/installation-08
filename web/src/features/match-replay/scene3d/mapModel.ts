@@ -441,21 +441,30 @@ export function tightenBounds(geometry: THREE.BufferGeometry): void {
   geometry.boundingSphere = sphere
 }
 
+/**
+ * geometriesOf rend les géométries distinctes de `meshes` : les objets d'une variante posent une
+ * même géométrie à plusieurs endroits (des nœuds qui partagent un maillage glTF), et son index de
+ * rayons comme ses bornes, pris dans son repère propre, valent pour toutes ses poses.
+ */
+export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometry[] {
+  return [...new Set(meshes.map((m) => m.geometry))]
+}
+
 /** indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle. */
 async function indexSurfaces({ scene, groups, owned }: Prepared, onStep: StepCallback): Promise<SurfaceModel> {
-  const bvh = [...groups.structure, ...groups.seeThrough]
+  const bvh = geometriesOf([...groups.structure, ...groups.seeThrough])
   onStep('index', 0, bvh.length)
   await new Promise((r) => setTimeout(r, 0))
-  // Un index de rayons par maillage : la construction se compte, et un passage au navigateur tous
-  // les quelques maillages laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
+  // Un index de rayons par géométrie : la construction se compte, et un passage au navigateur tous
+  // les quelques géométries laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
   // plus pour toute la carte).
   const pas = Math.max(1, Math.ceil(bvh.length / 19))
   for (let i = 0; i < bvh.length; i++) {
-    bvh[i].geometry.computeBoundsTree()
+    bvh[i].computeBoundsTree()
     onStep('index', i + 1, bvh.length)
     if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
   }
-  for (const m of [...groups.structure, ...groups.decor, ...groups.seeThrough]) tightenBounds(m.geometry)
+  for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
   const shadows = buildShadowProxies(scene, [...groups.structure, ...groups.decor])
   // Après la fusion des matériaux : l'envers lit les sommets et les index définitifs des surfaces.
   const backs = buildBackFaces(scene, groups.structure, tightenBounds)
@@ -468,11 +477,14 @@ async function indexSurfaces({ scene, groups, owned }: Prepared, onStep: StepCal
     dispose() {
       shadows.dispose()
       backs.dispose()
+      const geometries = new Set<THREE.BufferGeometry>()
       scene.traverse((o) => {
-        if (!(o instanceof THREE.Mesh)) return
-        o.geometry.disposeBoundsTree?.()
-        o.geometry.dispose()
+        if (o instanceof THREE.Mesh) geometries.add(o.geometry)
       })
+      for (const g of geometries) {
+        g.disposeBoundsTree?.()
+        g.dispose()
+      }
       for (const m of owned) {
         const layerTextures = (m.userData.textures ?? []) as THREE.Texture[]
         for (const v of [...Object.values(m), ...layerTextures]) if (v instanceof THREE.Texture) v.dispose()
