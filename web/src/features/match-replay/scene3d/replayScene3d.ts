@@ -45,6 +45,8 @@ import { buildPostFx, PASS_NAMES, type PostFx3d } from './postFx3d'
 import { currentPerfToggles, installPerfToggles, PERF_TOGGLES_DEFAULT, type PerfToggles } from './perfToggles3d'
 import { GpuTimer } from './gpuTimer3d'
 import { BACK_FACE_NAME } from './backFaces3d'
+import { batchLayer, type LayerBatches } from './layerBatch3d'
+import { drawnBy } from './surfaceProbe3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
@@ -97,6 +99,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private model: MapModel | null = null
   private ciel: ReturnType<typeof creerCiel> | null = null
   private layer: SurfaceModel | null = null
+  /** The posed layer's batches (layerBatch3d), released with it. */
+  private layerBatches: LayerBatches | null = null
   private ground: Ground | null = null
   private tracks: Tracks3d | null = null
   private mode: CameraMode3d = 'fp'
@@ -286,6 +290,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(layer.root)
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    // After the probes chose each surface's material: the batches share it.
+    this.layerBatches = batchLayer(layer.root)
     freezeStatic(layer.root)
     this.findBackFaces()
     this.ground?.setPickables(this.groundSurfaces())
@@ -298,6 +304,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     const layer = this.layer
     if (!layer) return
     this.layer = null
+    this.layerBatches?.dispose()
+    this.layerBatches = null
     this.scene.remove(layer.root)
     this.lighting.setStaticCasters(this.mapRoots())
     this.ground?.setPickables(this.groundSurfaces())
@@ -450,7 +458,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** findBackFaces lists the back-face meshes under the map and layer roots, shown as the knob says. */
   private findBackFaces(): void {
     this.backFaces = []
-    for (const root of this.mapRoots()) root.traverse((o) => { if (o.name === BACK_FACE_NAME) this.backFaces.push(o) })
+    for (const root of this.mapRoots()) root.traverse((o) => { if (o.name === BACK_FACE_NAME && !drawnBy(o)) this.backFaces.push(o) })
     for (const o of this.backFaces) o.visible = this.backFacesShown
   }
 
