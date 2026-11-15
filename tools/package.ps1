@@ -17,6 +17,7 @@
             NOTICE.md
             README.md
             docs\KNOWN-ISSUES.md
+            docs\CHANGELOG.md
             <third-party license texts from third_party\>
         dist\infinite-theater-3d-<version>-windows-amd64.zip
 
@@ -102,6 +103,7 @@ foreach ($f in 'LICENSE', 'NOTICE.md', 'README.md') {
 $pkgDocs = Join-Path $pkgDir 'docs'
 New-Item -ItemType Directory -Force -Path $pkgDocs | Out-Null
 Copy-Item -LiteralPath (Join-Path (Join-Path $repo 'docs') 'KNOWN-ISSUES.md') -Destination $pkgDocs
+Copy-Item -LiteralPath (Join-Path (Join-Path $repo 'docs') 'CHANGELOG.md') -Destination $pkgDocs
 # Third-party license texts the repo already carries.
 $tp = Join-Path $repo 'third_party'
 Get-ChildItem -LiteralPath $tp -Recurse -File |
