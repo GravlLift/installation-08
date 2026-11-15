@@ -34,6 +34,16 @@ export function grenadeLookOf(rank: number): GrenadeLook {
 
 /** Le rayon du cœur de l'orbe (u) : celui de la tête d'une frag. */
 export const PLASMA_CORE_RADIUS = 0.02
+
+/**
+ * The weapon shots whose projectile flies as a glowing orb in the shot's tint (the plasma
+ * grenade's look), by weapon key, with the orb's core radius (u). The Fuel Rod SPNKr fires one
+ * large green fuel rod: the radius (0.06 u, about 18 cm, halo twice that) is an ESTIMATE read off
+ * the game's look, not a value from its tags. Any other shot projectile keeps the small head.
+ */
+export const SHOT_ORB_RADIUS: Readonly<Record<string, number>> = {
+  hinf_fuel_rod_spnkr: 0.06,
+}
 /** Le halo : un second lobe à ce multiple du rayon du cœur. */
 export const PLASMA_HALO_MULT = 2
 /** Le halo, à cette fraction de l'intensité du cœur. */

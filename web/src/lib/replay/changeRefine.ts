@@ -30,6 +30,10 @@
  * were NEVER equal, and no substitution applied on a real artifact — this module's tests wrote
  * both sides in the same case.
  *
+ * A PICKUP ONTO AN OCCUPIED SLOT (`taken`, its slot `k` already held in the row) is a
+ * substitution too: the slot's previous weapon left without a dated drop, and the picked one
+ * takes its index. It keeps the row's length and order like any substitution.
+ *
  * DROPS AND PICKUPS ON AN EMPTY SLOT apply ONLY to a PLACED row — a birth loadout, which carries
  * each weapon's slot (`k`) — and by a change that carries its own (`weaponChanges[].k`, schema
  * 69). Even then, only at the edges, so the row stays contiguous and therefore aligned on the
@@ -141,6 +145,19 @@ function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
     if (at < 0) return false
     weapons[at] = familyKey(c.w)
     return true
+  }
+  if (c.w && c.k !== undefined) {
+    // A PICKUP ONTO AN OCCUPIED SLOT replaces what the row says that slot held: the film emits
+    // `taken` (no `from`) when the slot's previous weapon left without a dated drop, such as a
+    // power weapon the game discards once it is empty. A placed row finds the slot by `k`; a
+    // keyframe row is in slot order (measured 2026-11-15 on the nine local films: 13 of the 13
+    // such pickups whose next keyframe shows the slot hold the picked weapon at index `k`).
+    // Same transformation as a substitution: the row keeps its length and its order.
+    const at = k ? k.indexOf(c.k) : c.k < weapons.length ? c.k : -1
+    if (at >= 0) {
+      weapons[at] = familyKey(c.w)
+      return true
+    }
   }
   if (!k || c.k === undefined) return false
   if (c.w) {

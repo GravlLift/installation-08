@@ -24,6 +24,7 @@ const ENCRE: Record<string, THREE.Color> = {
   orange: new THREE.Color(1, 0.4, 0),
   blanc: new THREE.Color(1, 1, 1),
   info: new THREE.Color(0.2, 0.5, 1),
+  vert: new THREE.Color(0, 1, 0),
 }
 
 /**
@@ -40,18 +41,29 @@ function documentGrenade(rank: number): unknown {
   }
 }
 
-function calque(rank: number): { layer: Flights3dLayer; root: THREE.Group } {
+/** A film of one weapon shot of label `key` whose projectile flies from frame 100 to 140. */
+function documentTir(key: string, tint: string): unknown {
+  return {
+    frameIntervalMs: 1000 / 60,
+    projectiles: [{ t0: 100, p: [[0, 0, 0], [20, 2, 0], [40, 4, 0]], detoT: 140, detoX: 4, detoY: 0, shot: 0 }],
+    grenades: [],
+    shots: [{ t: 100, slot: 1, x: 0, y: 0, w: '0xAAAA' }],
+    weaponLabels: { '0xAAAA': { en: key, fr: key, key, tint } },
+  }
+}
+
+function calque(rank: number, doc: unknown = documentGrenade(rank)): { layer: Flights3dLayer; root: THREE.Group } {
   const root = new THREE.Group()
   const inputs = {
     framesPerSecond: 60,
     inks: {
-      fx: { tint: { plasma_cool: 'blue', blast: 'orange', neutral: 'orange' }, core: 'blanc' },
+      fx: { tint: { plasma_cool: 'blue', plasma_green: 'vert', blast: 'orange', neutral: 'orange' }, core: 'blanc' },
       grenade: 'info',
     },
     aids: { projectilePaths: false, blastRadius: false },
   } as unknown as Action3dInputs
   const ctx: ActionContext = {
-    doc: documentGrenade(rank) as unknown as ReplayDocumentReady,
+    doc: doc as unknown as ReplayDocumentReady,
     tracks: {} as Tracks3d,
     ground: { floorY: () => 0 } as unknown as Ground,
     ink: { of: (css: string | null | undefined) => ENCRE[css ?? ''] ?? new THREE.Color(1, 1, 1) } as unknown as InkCache,
@@ -115,5 +127,30 @@ describe('Flights3dLayer — le look d une grenade', () => {
       else expect(r).toBeGreaterThan(b)
       layer.dispose()
     }
+  })
+})
+
+describe('Flights3dLayer — the fuel rod', () => {
+  it('flies as a large green orb, and leaves nothing behind once its flight ends', () => {
+    const { layer, root } = calque(0, documentTir('hinf_fuel_rod_spnkr', 'plasma_green'))
+    layer.update(120)
+    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 1, 1])
+    const core = root.children[2] as THREE.InstancedMesh
+    const m = new THREE.Matrix4()
+    core.getMatrixAt(0, m)
+    expect(new THREE.Vector3().setFromMatrixScale(m).x).toBeGreaterThan(0.04)
+    const c = new THREE.Color()
+    core.getColorAt(0, c)
+    expect(c.g).toBeGreaterThan(c.b)
+    layer.update(143)
+    expect([compte(root, 2), compte(root, 3)]).toEqual([0, 0])
+    layer.dispose()
+  })
+
+  it('keeps the small head for a rocket of the regular SPNKr', () => {
+    const { layer, root } = calque(0, documentTir('hinf_m41_spnkr', 'blast'))
+    layer.update(120)
+    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([1, 0, 0])
+    layer.dispose()
   })
 })
