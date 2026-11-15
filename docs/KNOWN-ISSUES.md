@@ -9,10 +9,10 @@ Forge support is a work in progress.
 
 - Weapon, power-up, equipment and grenade pads render the game's own pad kit, but a pad does
   not yet show the incoming-weapon hologram or the glow color for its current state.
-- Forge objects take their colors from the game's own style tables, but only each surface's
-  base layer is read so far: some surfaces are missing colors or detail they have in game.
-  A few map surfaces (zero-color gradient layers on some shaders) still render as a plain
-  color instead of their real gradient texture.
+- Forge objects take their colors from the game's own style tables and from each object's own
+  Forge material, but the material's color and intensity are blended with a guessed rule
+  (Ekur does not draw them) and scratches are not drawn yet. A few map surfaces (zero-color gradient layers on some
+  shaders) still render as a plain color instead of their real gradient texture.
 - Live Fire's horizon is missing the distant snowy mountains the game shows, and its clouds
   read flatter than in-game. It is unclear whether three of Live Fire's extra structures (266
   MB) are ever visible to a player; they have not yet been removed or thinned.
