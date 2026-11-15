@@ -115,6 +115,19 @@ export const KEYFRAME_EVERY = EXPORT_FPS * KEYFRAME_SECONDS
 export const ENCODE_QUEUE_MAX = 2
 
 /**
+ * THE QUANTIZER FOR CONSTANT-QUALITY ENCODING (`bitrateMode: 'quantizer'`), in H.264 QP
+ * (0-51, lower is better). The browser's own rate control starves frames under a hard target:
+ * a 1080p60 export asked for 31 Mb/s averaged 10.1 Mb/s, and its keyframes ranged from 12.7 KB
+ * to 230 KB — a 12.7 KB 1080p keyframe is a screen of 16x16 blocks, and the user sees them
+ * whenever another player moves or shoots. A fixed QP trades the opposite way: every frame
+ * gets the quality asked for, and the rate floats. QP 20 is the classic "visually clean" point
+ * for hardware H.264: at 1080p60 it lands near the 31 Mb/s the old target aimed at, and a
+ * still frame stays small instead of burning its quota. Keyframes and other frames take the
+ * SAME QP: a keyframe at QP 14 next to 20 P-frames made the step between them visible.
+ */
+export const EXPORT_QP = 20
+
+/**
  * Bits per pixel per frame. At 0.1 a moving 3D camera smeared every textured wall into blocks
  * (1080p60 got 12.4 Mb/s): a still frame costs nothing, but a pan changes every pixel of stone
  * and foliage, and the browser's hardware H.264 needs more bits than x264 for the same picture.
@@ -183,27 +196,70 @@ export function videoBitrate(width: number, height: number, fps: number): number
 }
 
 /**
+ * THE RATE MODE OF THE FILE: constant quality (`'quantizer'`) first, then constant bitrate
+ * (`'constant'`), then the browser's own rate control (`'variable'`). Decided by the probe in
+ * `chooseExportRateMode`; `openVideoExport` records it where it records the fps fallback and
+ * says it once at export start.
+ */
+export type ExportRateMode = 'quantizer' | 'constant' | 'variable'
+
+/**
  * videoEncoderConfig assemble la configuration complète. PURE : c'est elle qu'on teste, et
  * c'est elle qu'on passe à `VideoEncoder.isConfigSupported` avant d'ouvrir quoi que ce soit.
  *
  * Les dimensions reçues sont celles de la TOILE ; celles qui sortent sont paires.
+ *
+ * Le MODE est choisi par l'appelant (`chooseExportRateMode`), qui l'a PROUVE par la même
+ * fonction : `'quantizer'` encode à qualité constante (QP `EXPORT_QP`, pas de `bitrate`),
+ * `'constant'` et `'variable'` visent le débit borné de `videoBitrate`.
  */
 export function videoEncoderConfig(
   width: number,
   height: number,
   fps: number = EXPORT_FPS,
+  mode: ExportRateMode = 'variable',
 ): VideoEncoderConfig {
   const w = evenSize(width)
   const h = evenSize(height)
-  return {
+  const config: VideoEncoderConfig = {
     codec: avcLevelFor(w, h, fps),
     width: w,
     height: h,
     framerate: fps,
-    bitrate: videoBitrate(w, h, fps),
     // `avc` et non `annexb` : c'est la forme que le conteneur MP4 attend.
     avc: { format: 'avc' },
   }
+  if (mode === 'quantizer') {
+    // Pas de `bitrate` : en mode quantizer, la qualité EST le réglage.
+    config.bitrateMode = 'quantizer'
+  } else {
+    config.bitrate = videoBitrate(w, h, fps)
+    config.bitrateMode = mode
+  }
+  return config
+}
+
+/**
+ * chooseExportRateMode picks the rate mode, PURE over its probe (`VideoEncoder.isConfigSupported`
+ * in the browser, a stub in tests): `'quantizer'` if the probe accepts a config in that mode at
+ * this size and rate, else `'constant'` if it accepts that one, else `'variable'` — the mode the
+ * browser always accepts. The probe answer decides; nothing is assumed.
+ */
+export async function chooseExportRateMode(
+  width: number,
+  height: number,
+  fps: number,
+  probe: (config: VideoEncoderConfig) => Promise<boolean>,
+): Promise<ExportRateMode> {
+  if (await probe(videoEncoderConfig(width, height, fps, 'quantizer'))) return 'quantizer'
+  if (await probe(videoEncoderConfig(width, height, fps, 'constant'))) return 'constant'
+  return 'variable'
+}
+
+/** The encode options of one frame: `avc.quantizer` in quantizer mode, and only there. */
+export function encodeOptionsFor(mode: ExportRateMode, keyFrame: boolean): VideoEncoderEncodeOptions {
+  if (mode === 'quantizer') return { keyFrame, avc: { quantizer: EXPORT_QP } }
+  return { keyFrame }
 }
 
 /**
@@ -237,9 +293,11 @@ export function frameDurationUs(index: number, fps: number): number {
 }
 
 /**
- * chooseExportFps picks the encoding rate: `wanted` if this browser accepts the configuration at
- * that rate, else `fallback` if it accepts that one, else null. PURE over its probe, which is
- * `VideoEncoder.isConfigSupported` in the browser and a stub in tests.
+ * chooseExportFps picks the encoding rate IN THE MODE ALREADY CHOSEN (`mode`): `wanted` if this
+ * browser accepts the configuration at that rate in that mode, else `fallback` if it accepts
+ * that one, else null. PURE over its probe, which is `VideoEncoder.isConfigSupported` in the
+ * browser and a stub in tests. The mode is fixed first (`chooseExportRateMode`) so the fps
+ * fallback probes the config that will actually be opened, not a variable-rate one.
  */
 export async function chooseExportFps(
   width: number,
@@ -247,10 +305,11 @@ export async function chooseExportFps(
   wanted: number,
   fallback: number | undefined,
   probe: (config: VideoEncoderConfig) => Promise<boolean>,
+  mode: ExportRateMode = 'variable',
 ): Promise<number | null> {
-  if (await probe(videoEncoderConfig(width, height, wanted))) return wanted
+  if (await probe(videoEncoderConfig(width, height, wanted, mode))) return wanted
   if (fallback === undefined || fallback === wanted) return null
-  return (await probe(videoEncoderConfig(width, height, fallback))) ? fallback : null
+  return (await probe(videoEncoderConfig(width, height, fallback, mode))) ? fallback : null
 }
 
 /** The browser probe: a throw (invalid configuration) is an answer, not a failure. */
@@ -355,6 +414,12 @@ export interface VideoExportSink {
    * `VideoExportOptions.fallbackFps` instead. The caller must SAY it.
    */
   fpsFallback: boolean
+  /**
+   * The rate mode the file is encoded in, decided by the probe (`chooseExportRateMode`).
+   * `'quantizer'` = constant quality at `EXPORT_QP`; the others target `videoBitrate`.
+   * Recorded next to the fps fallback; `openVideoExport` already said it at export start.
+   */
+  rateMode: ExportRateMode
 }
 
 export interface VideoExportOptions {
@@ -415,14 +480,20 @@ const MIX_TRACK_SHAPE: AudioTrackShape = { sampleRate: 48_000, numberOfChannels:
 export async function openVideoExport(o: VideoExportOptions): Promise<VideoExportSink | null> {
   if (!canExportVideo()) return null
   const wanted = o.fps ?? EXPORT_FPS
-  const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports)
+  // LE MODE SE PROUVE D'ABORD : c'est lui qui décide de la config, et la sonde de cadence
+  // (le repli 60->30) probe ensuite la config qui sera réellement ouverte.
+  const mode = await chooseExportRateMode(o.width, o.height, wanted, browserSupports)
+  const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports, mode)
   if (fps === null) return null
   const fpsFallback = fps !== wanted
   if (fpsFallback) {
     // LOUD, NOT SILENT: the caller also shows it in the dialog (`ReplayExportState.fpsFallback`).
     console.warn(`[replay-export] ${o.width}x${o.height} at ${wanted} fps refused by this browser's encoder, encoding at ${fps} fps`)
   }
-  const config = videoEncoderConfig(o.width, o.height, fps)
+  const config = videoEncoderConfig(o.width, o.height, fps, mode)
+  // ON DIT LE MODE UNE FOIS, avec la config : le reviewer vérifie dans la console ce qui a été
+  // demandé à l'encodeur, sans avoir à deviner quel mode a gagné la sonde.
+  console.info(`[replay-export] rate mode ${mode} —`, JSON.stringify(config))
   const noms = o.audioTracks ?? []
   // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `audioTrackUsable`) : le
   // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
@@ -470,11 +541,11 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     },
   })
   encoder.configure(config)
-  const sink = makeSink(encoder, output, videoSource, audioSources, fps, () => failure, () => ecritures, {
+  const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, () => failure, () => ecritures, {
     width: config.width,
     height: config.height,
   })
-  return { ...sink, fpsFallback }
+  return { ...sink, fpsFallback, rateMode: mode }
 }
 
 /**
@@ -488,6 +559,7 @@ function makeSink(
   videoSource: EncodedVideoPacketSource,
   audioSources: readonly AudioBufferSource[],
   fps: number,
+  mode: ExportRateMode,
   failureOf: () => Error | null,
   /** La chaine des ecritures de paquets video, a attendre avant de finaliser. */
   ecrituresEnCours: () => Promise<unknown>,
@@ -511,7 +583,9 @@ function makeSink(
       visibleRect: { x: 0, y: 0, width: size.width, height: size.height },
     })
     try {
-      encoder.encode(frame, { keyFrame: isKeyFrame(index, fps) })
+      // `avc.quantizer` only in quantizer mode: the browser ignores it in the rate modes, and
+      // sending it there would make the console log lie about what was asked.
+      encoder.encode(frame, encodeOptionsFor(mode, isKeyFrame(index, fps)))
     } finally {
       // TOUJOURS, même si `encode` lève : une `VideoFrame` non fermée retient sa mémoire GPU,
       // et il en passe trente par seconde de match.
@@ -573,7 +647,7 @@ function makeSink(
     }
   }
 
-  return { addFrame, addAudioTracks, audioEnabled: audioSources.length > 0, finish, abort, fps }
+  return { addFrame, addAudioTracks, audioEnabled: audioSources.length > 0, finish, abort, fps, rateMode: mode }
 }
 
 
