@@ -1,7 +1,25 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { groundWeaponPose, standingWeaponPose } from './groundWeaponPose3d'
+import { centerOffset, groundWeaponPose, standingWeaponPose } from './groundWeaponPose3d'
+
+describe('centerOffset', () => {
+  it('moves the center of an off-origin model onto the mount point, in its own frame', () => {
+    const model = new THREE.Group()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.07))
+    mesh.position.set(-0.045, 0.4, 0.08)
+    model.add(mesh)
+    model.position.set(9, 9, 9) // the source's own placement is ignored
+    const o = centerOffset(model)
+    expect(o.x).toBeCloseTo(0.045)
+    expect(o.y).toBeCloseTo(-0.4)
+    expect(o.z).toBeCloseTo(-0.08)
+  })
+
+  it('is zero for an empty model', () => {
+    expect(centerOffset(new THREE.Group()).lengthSq()).toBe(0)
+  })
+})
 
 describe('groundWeaponPose', () => {
   it('pose un modèle décentré sur le sol et conserve un cap horizontal stable', () => {

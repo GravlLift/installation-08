@@ -19,8 +19,9 @@
  *  - Le MODÈLE DU JEU de l'arme (`weaponModels3d`) remplace la boîte pleine dès qu'il est chargé.
  *    A power-up pad names its item by equipment family (`powerup_camo`); the library resolves the
  *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way. An
- *    EQUIPMENT pad (`repulsor`, `translocator_beacon`..., crossed as `equipment`) is the same: its
- *    item floats and turns above the pad while it is there and is gone once taken.
+ *    EQUIPMENT pad (`repulsor`, `wall`, `grapple`, `sensor`, `thruster`..., crossed as `equipment`)
+ *    is the same: its item floats and turns above the pad while it is there and is gone once
+ *    taken. An item named by family turns about the center of its model (`padItemCentered`).
  *  - Une ARME AU SOL est la même boîte, couchée au sol, à l'encre de sa nature ; dans sa fenêtre de
  *    disparition non datée (`vanishing`), elle passe au lot fantôme (`groundWeaponPresenceAt`). Les
  *    filtres du tiroir (armes spéciales seulement, armes de départ) sont ceux de
@@ -50,7 +51,7 @@ import { InstancePool, type Ground } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
-import { faceMountOffset, groundWeaponPose } from './groundWeaponPose3d'
+import { centerOffset, faceMountOffset, groundWeaponPose } from './groundWeaponPose3d'
 
 /** La boîte d'arme : longueur, hauteur, largeur (u). */
 const BOX_LENGTH = 0.5
@@ -290,6 +291,17 @@ interface PadSpot {
   rack?: RackPose
   phase: number
   last?: PadDrawn
+  /** A centered pad item (`padItemCentered`): its loaded model and that model's center offset. */
+  item?: { model: THREE.Object3D; offset: THREE.Vector3 }
+}
+
+/**
+ * padItemCentered — whether a floor pad's item turns about the center of its model rather than
+ * its origin: an item named by equipment family (`powerup_camo`, `wall`, `grapple`), whose
+ * pickup model's origin need not lie on the item. A weapon keeps turning about its grip.
+ */
+export function padItemCentered(weapon: string): boolean {
+  return weaponModelKey(weapon) === null
 }
 
 /** One row of `window.__it3dPickups`: what a pad holds and what the view drew for it. */
@@ -374,7 +386,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   private readonly ghostBoxes: InstancePool
   /** Les modèles du jeu, pleins seulement : un incertain reste une boîte fantôme. */
   private readonly models: WeaponModelPool
-  private readonly scratch = { p: new THREE.Vector3(), q: new THREE.Quaternion() }
+  private readonly scratch = { p: new THREE.Vector3(), q: new THREE.Quaternion(), o: new THREE.Vector3() }
   private filterKey = ''
   private shownGround: GroundSpot[] = []
 
@@ -430,8 +442,13 @@ export class Pickups3dLayer implements ActionLayer3d {
       p.copy(spot.feet).setY(spot.feet.y + PAD_BOX_LIFT + BOX_HEIGHT / 2)
       q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
       const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
-      if (model) this.models.add(model, p, q)
-      else this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
+      if (model) {
+        if (padItemCentered(spot.pad.weapon)) {
+          if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
+          p.add(this.scratch.o.copy(spot.item.offset).applyQuaternion(q))
+        }
+        this.models.add(model, p, q)
+      } else this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
       Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone() })
     }
   }

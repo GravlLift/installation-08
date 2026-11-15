@@ -34,6 +34,28 @@ describe('EquipmentKeys', () => {
   })
 })
 
+describe('EquipmentKeys, the equipment pad items', () => {
+  it('maps each family an equipment pad publishes to its pickup model', async () => {
+    // The table the library build wrote from the installed game (2026-11-15).
+    const equipment = {
+      grapple: '273fe0eb',
+      powerup_camo: 'e7be9f5c',
+      powerup_overshield: 'b781197a',
+      repulsor: '7ca85adc',
+      sensor: '72199cba',
+      thruster: '430dda48',
+      translocator_beacon: '730dc70f',
+      wall: '2974c233',
+    }
+    const keys = new EquipmentKeys('/api/weapons', () => Promise.resolve<unknown>({ equipment }))
+    expect(keys.key('wall')).toBeNull() // read on first use
+    await flush()
+    for (const [family, key] of Object.entries(equipment)) expect(keys.key(family)).toBe(key)
+    expect(keys.key('unknown_item')).toBeNull()
+    keys.dispose()
+  })
+})
+
 describe('WeaponModels.model', () => {
   it('resolves an identifier that is not a weapon through the equipment table', () => {
     const equipment = new EquipmentKeys('/api/weapons', () => new Promise(() => {}))

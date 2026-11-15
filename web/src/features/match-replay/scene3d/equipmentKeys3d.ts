@@ -1,10 +1,10 @@
 /**
  * equipmentKeys3d.ts — THE MODEL KEY OF AN EQUIPMENT FAMILY, read from the weapon library index
- * (`equipment`, written by the server from the title's equipment manifest: each family the manifest
- * names by a single `eqip` object maps to that object's GlobalID, the key of its model in the
- * library).
+ * (`equipment`, written by the server from the title's equipment manifest: each family whose pickup
+ * `eqip` objects share one model maps to the GlobalID of one of them, the key of its model in the
+ * library; the two grapples, walls, sensors and thrusters each share one).
  *
- * A power-up pad publishes its item by family (`powerup_camo`, `weaponPads[].weapon`), not by a
+ * A power-up or equipment pad publishes its item by family (`powerup_camo`, `wall`, `weaponPads[].weapon`), not by a
  * tag identifier: this table is how the view finds the game's model of that item. A family absent
  * from it has no model. While the index cannot be read (`indexField3d`) no family has one.
  */

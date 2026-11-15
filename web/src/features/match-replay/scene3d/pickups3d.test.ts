@@ -26,6 +26,7 @@ import {
   floorUnder,
   groundBoxLook,
   padBoxLook,
+  padItemCentered,
   padMountOf,
   padOutOfBounds,
   pickupFamilyOf,
@@ -218,6 +219,16 @@ describe('rackWeaponRotation', () => {
     const q = rackWeaponRotation({ forward: undefined, up: null })
     expect(axis(q, 1, 0, 0).distanceTo(new THREE.Vector3(0, 1, 0))).toBeCloseTo(0)
     expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(1, 0, 0))).toBeCloseTo(0)
+  })
+})
+
+describe('padItemCentered', () => {
+  it('centers an item named by equipment family, never a weapon', () => {
+    for (const family of ['wall', 'grapple', 'sensor', 'thruster', 'repulsor', 'powerup_camo']) {
+      expect(padItemCentered(family)).toBe(true)
+    }
+    expect(padItemCentered(SNIPER)).toBe(false)
+    expect(padItemCentered('00000002')).toBe(false)
   })
 })
 
@@ -429,6 +440,33 @@ describe('Pickups3dLayer', () => {
     expect(counts()).toEqual([0, 0])
     expect(copie.visible).toBe(false)
     expect(read()).toEqual([expect.objectContaining({ family: 'equipment', state: 'empty', visible: false, drawn: null })])
+    layer.dispose()
+  })
+
+  it('turns an equipment item whose model is off its origin about the model center (the Drop Wall)', () => {
+    // The Drop Wall pickup's mesh sits about 0.4 u above its origin and off to one side.
+    const model = new THREE.Group()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.07))
+    mesh.position.set(-0.045, 0.4, 0.08)
+    model.add(mesh)
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      (id) => (id === 'wall' ? model : null),
+      { weaponPads: [socle({ weapon: 'wall', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { floorY: () => REPULSOR_AT.z },
+    )
+    const center = (frame: number) => {
+      layer.update(frame)
+      const copie = root.children[2]
+      copie.updateMatrixWorld(true)
+      return new THREE.Box3().setFromObject(copie).getCenter(new THREE.Vector3())
+    }
+    for (const frame of [15, 18]) {
+      const c = center(frame)
+      expect(c.x).toBeCloseTo(REPULSOR_AT.x)
+      expect(c.z).toBeCloseTo(-REPULSOR_AT.y)
+      expect(c.y).toBeCloseTo(REPULSOR_AT.z + 0.28 + 0.04)
+    }
     layer.dispose()
   })
 
