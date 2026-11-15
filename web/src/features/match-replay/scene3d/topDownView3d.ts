@@ -148,7 +148,7 @@ export class TopDownView3d {
     this.markers.update(d.players, d.dead, { cutY, followed: d.followed, unitsPerPx: frame.unitsPerPx, halo: this.stage.studioColor(), edge: this.edgeColor(), toScreen })
     this.ghost.fill.visible = true
     try {
-      this.stage.run({ mapOnly: false }, () => this.renderComposer(d.composer))
+      this.stage.run({ mapOnly: false, floorY: cutY - CUT_HEADROOM }, () => this.renderComposer(d.composer))
     } finally {
       this.ghost.fill.visible = false
     }

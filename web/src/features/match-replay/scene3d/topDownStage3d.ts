@@ -19,12 +19,16 @@ import { BACK_FACE_NAME } from './backFaces3d'
 import { cssColor } from './cssColor'
 import { drawnBy, surfaceFamily } from './surfaceProbe3d'
 import { CUT_HEADROOM, hiddenFromTop } from './topDownLogic'
-import { flatTopLight } from './topDownShade3d'
+import { SHADE_DEPTH, SHADE_START, flatTopLight } from './topDownShade3d'
 
 /** The lift of a top-down camera above its cut, keeps the near plane positive (u). */
 export const TOP_LIFT = 2
-/** The fog under the drawn floor: where it starts below it, and the depth it takes to full (u). */
-const FADE_START = 0.5
+/**
+ * The fog under the drawn floor: where it starts below it, and the depth it takes to full (u). It
+ * starts where the height shading (`topDownShade3d`) bottoms out, so the floors within a few storeys
+ * keep their shape and only the deep ones fade into the studio color.
+ */
+const FADE_START = SHADE_START + SHADE_DEPTH
 const FADE_DEPTH = 12
 /** Helper meshes not drawn in the top-down view (the sky is passed separately to `sync`). */
 const HIDDEN_NAMES = new Set([BACK_FACE_NAME])
@@ -32,12 +36,14 @@ const HIDDEN_NAMES = new Set([BACK_FACE_NAME])
 /**
  * One top-down render: `mapOnly` also hides everything but the map, its lights and `keep` (for a
  * cached map image, which must not hold a player); `clear` false leaves the background empty, so
- * the image's alpha tells where the map is.
+ * the image's alpha tells where the map is; `floorY` the followed player's floor (scene Y), around
+ * which the map is shaded by height, none for an even image (the ghost).
  */
 export interface StageRun {
   mapOnly: boolean
   keep?: readonly THREE.Object3D[]
   clear?: boolean
+  floorY?: number | null
 }
 
 interface Saved {
@@ -101,7 +107,7 @@ export class TopDownStage {
     const states = hidden.map((h) => ({ obj: h.obj, visible: h.obj.visible }))
     for (const h of hidden) h.obj.visible = false
     const restoreLight = this.sunOut()
-    const restoreFlat = flatTopLight()
+    const restoreFlat = flatTopLight(how.floorY ?? null)
     try {
       draw()
     } finally {
