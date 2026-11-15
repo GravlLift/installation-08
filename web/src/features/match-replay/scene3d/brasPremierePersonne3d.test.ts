@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import type { Dress } from './armory3d'
 import { verticalFovOf, viewmodelScale } from '../model/fovLogic'
 import { BrasPremierePersonne3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './brasPremierePersonne3d'
+import type { EvenementsPremierePersonne } from './actionsPremierePersonne3d'
+import type { RigPremierePersonne } from './premierePersonne3d'
 
 describe('estMateriauBras', () => {
   it('reconnaît la surface brute sans remplacer les matériaux de l’arme', () => {
@@ -86,6 +88,77 @@ describe('racinesChargees', () => {
     interne.entrees.clear()
     bras.dispose()
     silence.mockRestore()
+  })
+})
+
+describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèle statique en attente de peinture", () => {
+  /** Une image nulle : `montrer` ne lit que la caméra et le rig. */
+  const evenements = {
+    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
+    slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
+    rechargementValide: () => false,
+  } as unknown as EvenementsPremierePersonne
+
+  /** Le rig chargé : une racine avec un matériau de bras et un clip idle jouable. */
+  function rigCharge(fichier: string, bras: BrasPremierePersonne3d): THREE.Group {
+    const materiau = new THREE.MeshStandardMaterial()
+    materiau.userData.surfaceBrute = {}
+    const racine = new THREE.Group()
+    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), materiau))
+    const clip = {
+      name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
+      frameCount: 60, frameRate: 30, durationSeconds: 2,
+    }
+    const rig = { file: fichier, bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as RigPremierePersonne
+    const idle = { time: 0, weight: 1 }
+    const interne = bras as unknown as {
+      entrees: Map<string, unknown>
+      armes: Map<string, unknown>
+      fichiersArmes: Map<string, string>
+      habillage: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f?: string) => boolean }
+      peinture: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f?: string) => boolean }
+      xuid: string | null
+      armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null
+    }
+    interne.entrees.set(fichier, { root: racine, materiaux: [materiau], mixer: { update: () => {} }, rig, actions: new Map([[clip.name, idle]]), listeActions: [idle], clip })
+    interne.armes.set('arme', rig)
+    interne.fichiersArmes.set(fichier, 'arme')
+    return racine
+  }
+
+  function brasDeScene(): { bras: BrasPremierePersonne3d; interne: { habillage: { enCours: (f?: string) => boolean }; peinture: { enCours: (f?: string) => boolean }; xuid: string | null; armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null } } {
+    const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const bras = new BrasPremierePersonne3d(new THREE.Scene(), '/premiere-personne')
+    const interne = bras as unknown as ReturnType<typeof brasDeScene>['interne']
+    ;(bras as unknown as { dispose: () => void }).dispose = () => { silence.mockRestore() }
+    return { bras, interne }
+  }
+
+  it('montre le rig (vrai) pendant que la peinture est en cours, avec le revêtement posé', () => {
+    const { bras, interne } = brasDeScene()
+    const racine = rigCharge('a.glb', bras)
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    interne.peinture.enCours = () => true
+    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
+    expect(racine.visible).toBe(true)
+  })
+
+  it('montre le rig (vrai) pendant que les pièces sont en cours, avec les bras embarqués', () => {
+    const { bras, interne } = brasDeScene()
+    const racine = rigCharge('a.glb', bras)
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    interne.habillage.enCours = () => true
+    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
+    expect(racine.visible).toBe(true)
+  })
+
+  it('montre le rig (vrai) sans armure chargée, sans attendre l’armurerie', () => {
+    const { bras, interne } = brasDeScene()
+    rigCharge('a.glb', bras)
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    interne.xuid = '1'
+    interne.armurerie = { pending: () => true, regions: () => null, dress: () => null }
+    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
   })
 })
 
