@@ -246,6 +246,46 @@ func TestContextKillDetails(t *testing.T) {
 	}
 }
 
+// TestContextKillfeedIcons — every kill whose source the build named gets the game's kill
+// feed sprite: melee (sprite, no weapon key), a grenade from a kill-details.json written
+// before the sprite field (weapon key only, sprite from the killicon rules), a registry
+// weapon (the kill feed sprite wins over the contour); a sprite the set lacks and no key
+// get no icon.
+func TestContextKillfeedIcons(t *testing.T) {
+	root := newFakeStore(t)
+	path, _ := root.MatchReplayPath("abc")
+	if err := root.WriteFile(path, gzipJSON(t, []byte(`{"killCauses":[{"feedMs":30000,"killer":"1","victim":"2"},{"feedMs":31000,"killer":"1","victim":"3"},{"feedMs":32000,"killer":"1","victim":"4"},{"feedMs":33000,"killer":"1","victim":"5"}]}`))); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.WriteFile(variantPath(root, "abc", "kill-details.json"), []byte(`[{"time_ms":30000,"killer":"1","killfeed_sprite":"killfeed-65"},{"time_ms":31000,"killer":"1","weapon_key":"hinf_frag_grenade"},{"time_ms":32000,"killer":"1","weapon_key":"hinf_br75","killfeed_sprite":"killfeed-00"},{"time_ms":33000,"killer":"1","killfeed_sprite":"killfeed-99"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.WriteFile(filepath.Join(weaponicons.OutDir(root.Dir()), "index.json"), []byte(`[{"index":0,"style":"contour","file":"contour-00.png","arme":"hinf_br75"},{"index":0,"style":"killfeed","file":"killfeed-00.png"},{"index":46,"style":"killfeed","file":"killfeed-46.png"},{"index":65,"style":"killfeed","file":"killfeed-65.png"}]`)); err != nil {
+		t.Fatal(err)
+	}
+	result, err := buildContext(root, "abc", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := result["highlight_events"].([]contextJSON)
+	if len(events) != 4 {
+		t.Fatalf("events: %v", events)
+	}
+	const prefix = "/static/weapons-assets/halo_infinite/jeu/"
+	for i, want := range []string{prefix + "killfeed-65.png", prefix + "killfeed-46.png", prefix + "killfeed-00.png", ""} {
+		got, _ := events[i]["weapon_image_url"].(string)
+		if got != want {
+			t.Errorf("kill %d: icon %q, want %q (%v)", i, got, want, events[i])
+		}
+		if (want != "") != (events[i]["weapon_image_tinted"] == true) {
+			t.Errorf("kill %d: tinted flag %v", i, events[i]["weapon_image_tinted"])
+		}
+	}
+	if events[0]["weapon_key"] != nil {
+		t.Errorf("melee carries no weapon key: %v", events[0])
+	}
+}
+
 // TestContextKillDetailsAbsent pins the d01ba030 regression: a match whose film decode
 // left no kill-details.json (stored before the build wrote it, or an unpublishable
 // killsource) must still serve 200 with its kills, minus the weapon fields, and not

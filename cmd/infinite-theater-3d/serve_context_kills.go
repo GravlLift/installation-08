@@ -33,10 +33,13 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 		slog.Info("kill feed details absent, serving kills without weapon", "match_id", id)
 		return nil
 	}
-	// The weapon_key -> icon file map through the built index.json. A set that is not
-	// built yet has no index.json: the kills keep their label and get no icon URL, the
-	// same fallback as a key the index does not name.
-	iconBy, _ := weaponicons.WeaponKeyContourFile(root.Dir())
+	details = refreshLegacyKillDetails(root, id, details)
+	// The icon files through the built index.json. A set that is not built yet has no
+	// index.json: the kills keep their label and get no icon URL, the same fallback as a
+	// source the index does not name.
+	icons := killIcons{}
+	icons.feed, _ = weaponicons.KillfeedFiles(root.Dir())
+	icons.contour, _ = weaponicons.WeaponKeyContourFile(root.Dir())
 	byKey := map[contextKillKey]build.KillDetail{}
 	conflicts := map[contextKillKey]bool{}
 	for _, d := range details {
@@ -57,12 +60,12 @@ func decorateContextKills(root *store.Root, id string, events, rows []contextJSO
 		}
 		if detail.WeaponKey != "" {
 			event["weapon_key"] = detail.WeaponKey
-			// The icon is a white mask carried by the alpha (the build drops the RGB),
-			// tinted to the killer's team color client-side: always tinted when served.
-			if file, ok := iconBy[detail.WeaponKey]; ok {
-				event["weapon_image_url"] = weaponIconURLPrefix + file
-				event["weapon_image_tinted"] = true
-			}
+		}
+		// The icon is a white mask carried by the alpha (the build drops the RGB), tinted
+		// to the killer's team color client-side: always tinted when served.
+		if url := icons.url(detail); url != "" {
+			event["weapon_image_url"] = url
+			event["weapon_image_tinted"] = true
 		}
 		if detail.WeaponLabel != "" {
 			event["weapon_label"] = detail.WeaponLabel

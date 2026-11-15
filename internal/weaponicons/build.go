@@ -234,6 +234,28 @@ func WeaponKeyContourFile(dataDir string) (map[string]string, error) {
 	return out, nil
 }
 
+// KillfeedFiles lists the kill feed atlas sprites of the built set: stem (`killfeed-NN`,
+// the name the killicon bridge gives) -> file. Unlike contour and silhouette, these
+// sprites already point toward the victim, as the game draws them. A set that is not
+// built yet is an error and the caller falls back to no icon.
+func KillfeedFiles(dataDir string) (map[string]string, error) {
+	raw, err := os.ReadFile(filepath.Join(OutDir(dataDir), "index.json"))
+	if err != nil {
+		return nil, err
+	}
+	var entries []iconEntry
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, e := range entries {
+		if e.Style == "killfeed" && strings.HasSuffix(e.File, ".png") {
+			out[strings.TrimSuffix(e.File, ".png")] = e.File
+		}
+	}
+	return out, nil
+}
+
 // writeIndex sorts the entries and writes index.json next to the PNGs.
 func writeIndex(out string, entries []iconEntry) error {
 	sort.Slice(entries, func(i, j int) bool {
