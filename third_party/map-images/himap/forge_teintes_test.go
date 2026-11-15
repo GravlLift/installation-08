@@ -17,13 +17,33 @@ func TestTeintesForge(t *testing.T) {
 		t.Fatalf("teintes: %+v", got)
 	}
 }
+
+// TestTeintesForgeScindeMateriaux (LOCAL-CHANGE (infinite-theater-3d): placements): two tints of
+// a flat material give two materials of their own; a material whose layers carry a read texture
+// keeps its layers; an untinted placement and an `ombre` geometry keep their source material.
 func TestTeintesForgeScindeMateriaux(t *testing.T) {
 	a := TeinteForge{Couleur: [3]float32{.25, .5, .75}, Rugosite: .6, Metal: .2}
 	b := TeinteForge{Couleur: [3]float32{.5, .5, .5}, Rugosite: 1}
-	m := MaillageMonde{Structure: GroupeMaillage{Indices: map[uint32][]uint32{4: {0, 1, 2, 3, 4, 5, 6, 7, 8}, 5: {0, 1, 2}}}, Materiaux: map[uint32]Materiau{4: {Shader: 17}, 5: {Couches: &Couches{Couches: []Couche{{Bitmap: 12}}}}}, TexturesCouches: map[uint32]Texture{12: {}}, plagesForge: []plageForge{{4, 0, 3, a}, {4, 3, 6, b}, {5, 0, 3, a}}}
+	geo := GroupeMaillage{Indices: map[uint32][]uint32{1: {0, 1, 2}, 2: {0, 1, 2}}}
+	pv := &PosesVariante{Geometries: []GeometrieVariante{{Maillage: geo}, {Maillage: geo, Ombre: true}}}
+	mats := []uint32{4, 5}
+	pv.Poses = []PoseVariante{
+		{Geometrie: 0, Materiaux: mats, Teinte: &a},
+		{Geometrie: 0, Materiaux: mats, Teinte: &b},
+		{Geometrie: 0, Materiaux: mats},
+		{Geometrie: 1, Materiaux: mats, Teinte: &a},
+	}
+	m := MaillageMonde{Poses: pv, Materiaux: map[uint32]Materiau{4: {Shader: 17}, 5: {Couches: &Couches{Couches: []Couche{{Bitmap: 12}}}}}, TexturesCouches: map[uint32]Texture{12: {}}}
 	m.appliqueTeintes()
-	if len(m.teintesForge) != 2 || len(m.Structure.Indices[4]) != 3 || len(m.Structure.Indices[5]) != 3 {
-		t.Fatalf("indices: %+v", m.Structure.Indices)
+	if len(m.teintesForge) != 2 {
+		t.Fatalf("materiaux teintes : %+v", m.teintesForge)
+	}
+	ta, tb := pv.materiauDe(pv.Poses[0], 1), pv.materiauDe(pv.Poses[1], 1)
+	if ta == 4 || tb == 4 || ta == tb {
+		t.Errorf("teintes du materiau plat : %d %d", ta, tb)
+	}
+	if pv.materiauDe(pv.Poses[0], 2) != 5 || pv.materiauDe(pv.Poses[2], 1) != 4 || pv.materiauDe(pv.Poses[3], 1) != 4 {
+		t.Error("couches, placement sans teinte ou ombre teintes")
 	}
 	doc := &gltfDoc{}
 	e := ecrivainMateriaux{doc: doc, m: &m, rangs: map[uint32]int{}}

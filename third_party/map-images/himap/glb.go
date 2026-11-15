@@ -101,6 +101,9 @@ type gltfNode struct {
 	Translation *[3]float32 `json:"translation,omitempty"`
 	Rotation    *[4]float32 `json:"rotation,omitempty"`
 	Scale       *[3]float32 `json:"scale,omitempty"`
+	// Matrix (LOCAL-CHANGE (infinite-theater-3d)): the placement of a variant object's shared
+	// model, column-major, in glTF axes (glb_poses.go).
+	Matrix *[16]float32 `json:"matrix,omitempty"`
 	// Extensions (LOCAL-CHANGE (infinite-theater-3d)): EXT_mesh_gpu_instancing for scattered
 	// decorators (glb_decorateurs.go).
 	Extensions map[string]any `json:"extensions,omitempty"`
@@ -173,11 +176,24 @@ func EcritGLB(w io.Writer, m *MaillageMonde, generateur string, extras map[strin
 	if err != nil {
 		return err
 	}
-	racines := make([]int, len(doc.Nodes))
-	for i := range racines {
-		racines[i] = i
+	return termineGLB(w, doc, bin, racinesGLB(doc.Nodes))
+}
+
+// racinesGLB rend les noeuds qu'aucun autre ne porte en enfant : les racines de la scene.
+func racinesGLB(noeuds []gltfNode) []int {
+	enfant := make([]bool, len(noeuds))
+	for _, n := range noeuds {
+		for _, c := range n.Children {
+			enfant[c] = true
+		}
 	}
-	return termineGLB(w, doc, bin, racines)
+	racines := make([]int, 0, len(noeuds))
+	for i := range noeuds {
+		if !enfant[i] {
+			racines = append(racines, i)
+		}
+	}
+	return racines
 }
 
 // documentGLB assemble le document d'un maillage : un noeud par groupe non vide, les materiaux et
@@ -199,6 +215,7 @@ func documentGLB(m *MaillageMonde, generateur string, extras map[string]any) (*g
 		ajouteGroupe(doc, bin, gr.nom, gr.g, mats.rang)
 	}
 	ajouteDecorateurs(doc, bin, m.Decorateurs, mats.rang)
+	ajoutePosesVariante(doc, bin, m.Poses, mats.rang)
 	if mats.err != nil {
 		return nil, nil, fmt.Errorf("textures des materiaux : %w", mats.err)
 	}
@@ -340,6 +357,23 @@ func materiauGLTF(id uint32, table map[uint32]Materiau) gltfMaterial {
 // ajouteGroupe verse un groupe dans le tampon binaire : sommets convertis en axes glTF, puis
 // les indices de chaque materiau, chacun aligne sur 4 octets.
 func ajouteGroupe(doc *gltfDoc, bin *tamponGLB, nom string, g *GroupeMaillage, rangMateriau func(uint32) int) {
+	attributs := ecritSommetsGroupe(doc, bin, g)
+	ids, indices := ecritIndicesGroupe(doc, bin, g)
+	mesh := gltfMesh{Name: nom}
+	for k, id := range ids {
+		mesh.Primitives = append(mesh.Primitives, gltfPrimitive{
+			Attributes: attributs, Indices: indices[k],
+			Material: rangMateriau(id), Mode: glTriangles,
+		})
+	}
+	doc.Meshes = append(doc.Meshes, mesh)
+	rangMesh := len(doc.Meshes) - 1
+	doc.Nodes = append(doc.Nodes, gltfNode{Name: nom, Mesh: &rangMesh})
+}
+
+// ecritSommetsGroupe verse les sommets d'un groupe (convertis en axes glTF), ses normales et ses
+// jeux de coordonnees, et rend les attributs de ses primitives.
+func ecritSommetsGroupe(doc *gltfDoc, bin *tamponGLB, g *GroupeMaillage) map[string]int {
 	lo := []float32{float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(1))}
 	hi := []float32{float32(math.Inf(-1)), float32(math.Inf(-1)), float32(math.Inf(-1))}
 	offSommets := bin.Len()
@@ -369,7 +403,12 @@ func ajouteGroupe(doc *gltfDoc, bin *tamponGLB, nom string, g *GroupeMaillage, r
 		doc.Accessors = append(doc.Accessors, gltfAccessor{BufferView: len(doc.BufferViews) - 1,
 			ComponentType: glComponentF32, Count: len(uv) / 2, Type: "VEC2"})
 	}
+	return attributs
+}
 
+// ecritIndicesGroupe verse les indices de chaque cle d'un groupe, chacun aligne sur 4 octets, dans
+// l'ordre des cles, et rend les cles et l'accesseur de chacune.
+func ecritIndicesGroupe(doc *gltfDoc, bin *tamponGLB, g *GroupeMaillage) ([]uint32, []int) {
 	ids := make([]uint32, 0, len(g.Indices))
 	for id, ix := range g.Indices {
 		if len(ix) > 0 {
@@ -377,7 +416,7 @@ func ajouteGroupe(doc *gltfDoc, bin *tamponGLB, nom string, g *GroupeMaillage, r
 		}
 	}
 	slices.Sort(ids) // ordre stable : deux exports de la meme carte rendent le meme fichier
-	mesh := gltfMesh{Name: nom}
+	accesseurs := make([]int, 0, len(ids))
 	for _, id := range ids {
 		offIndices := bin.Len()
 		_ = binary.Write(bin, binary.LittleEndian, g.Indices[id])
@@ -385,14 +424,9 @@ func ajouteGroupe(doc *gltfDoc, bin *tamponGLB, nom string, g *GroupeMaillage, r
 			gltfBufferView{ByteOffset: offIndices, ByteLength: bin.Len() - offIndices, Target: glIndexBuffer})
 		doc.Accessors = append(doc.Accessors, gltfAccessor{BufferView: len(doc.BufferViews) - 1,
 			ComponentType: glComponentU32, Count: len(g.Indices[id]), Type: "SCALAR"})
-		mesh.Primitives = append(mesh.Primitives, gltfPrimitive{
-			Attributes: attributs, Indices: len(doc.Accessors) - 1,
-			Material: rangMateriau(id), Mode: glTriangles,
-		})
+		accesseurs = append(accesseurs, len(doc.Accessors)-1)
 	}
-	doc.Meshes = append(doc.Meshes, mesh)
-	rangMesh := len(doc.Meshes) - 1
-	doc.Nodes = append(doc.Nodes, gltfNode{Name: nom, Mesh: &rangMesh})
+	return ids, accesseurs
 }
 
 // ecritConteneurGLB ecrit l'en-tete et les deux blocs, chacun complete a 4 octets (espaces

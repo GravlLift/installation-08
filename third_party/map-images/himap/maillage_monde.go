@@ -37,7 +37,6 @@ type MaillageMonde struct {
 	// la table (illisible, ou 0 = rang hors liste) se dessine comme opaque.
 	Materiaux    map[uint32]Materiau
 	teintesForge map[uint32]materiauTeinte
-	plagesForge  []plageForge
 	// MateriauxIllisibles compte les GlobalID references que les modules ne resolvent pas.
 	MateriauxIllisibles int
 	// Masques : les textures des decoupes des materiaux, par GlobalID de bitmap. Un materiau
@@ -68,6 +67,9 @@ type MaillageMonde struct {
 	// Objets : les objets poses d'une couche de variante (CollecteMaillageVariante), vide pour une
 	// carte. Le GLB les publie (glb_objets.go).
 	Objets []ObjetPose
+	// Poses (LOCAL-CHANGE (infinite-theater-3d)): a variant layer's objects as shared models
+	// placed by transform (maillage_variante_poses.go), nil for a map.
+	Poses *PosesVariante
 	// Decorateurs (LOCAL-CHANGE (infinite-theater-3d)): the grass clumps a terrain scatters,
 	// one carpet per decorator mesh, published as GPU instances (decorateurs_pose.go).
 	Decorateurs []TapisDecorateur
