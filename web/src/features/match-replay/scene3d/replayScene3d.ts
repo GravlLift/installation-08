@@ -59,7 +59,7 @@ import { TopDownView3d } from './topDownView3d'
 import type { DeadPose, MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
-import { etiquetteDe, specLunette } from '../model/scopeLogic'
+import { etiquetteDe, magsPourArme, specLunette } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
 import { readRedReticle, type HeldWeapon } from './redReticle3d'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
@@ -611,7 +611,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     const cle = this.inView?.key ?? null
     const spec = specLunette(cle, cle ? etiquetteDe(doc, cle) : null)
-    const mags = cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null
+    // The same resolution the HUD uses (`magsPourArme`): the index's own zoom when it carries one,
+    // else the hand table. The Shock Rifle and both Bandits carry [1] in the index, so reading the
+    // raw values left the camera unzoomed while the HUD showed 1.6x / 2.5x.
+    const mags = magsPourArme(cle, cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null)
     if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec, mags)) this.bras?.cacher()
   }
 
