@@ -63,12 +63,41 @@ func mapNameFromFilm(in Input) (string, error) {
 	if info.CarteAssetID == nil {
 		return "", fmt.Errorf("the film carries no map asset id: pass --map with the display name of the map")
 	}
-	id := guidString(*info.CarteAssetID)
-	ident, err := refdata.LookupMapIdentity(id)
+	name, err := mapNameOfAsset(guidString(*info.CarteAssetID), in.MatchMap)
 	if err != nil {
 		return "", fmt.Errorf("cannot resolve the map from the film (pass --map with the display name): %w", err)
 	}
-	return ident.Name, nil
+	return name, nil
+}
+
+// MapLink is the map the match's own metadata names: the map asset id and its public display
+// name, as the service's map-mode pair (MapLink) publishes them for the match.
+type MapLink struct {
+	AssetID string
+	Name    string
+}
+
+// mapNameOfAsset names the film's map asset id: the identity table first, then the match's
+// own map link when it names that same asset id. The table cannot list every published asset
+// (each playlist republishes a map under a new asset id, e.g. its "- Ranked" copy), while the
+// match metadata always names the map it was played on; the bounds catalog lookup that
+// follows normalizes the name, so a playlist copy finds the bounds of its map. An id neither
+// source names is an error.
+func mapNameOfAsset(assetID string, link MapLink) (string, error) {
+	ident, err := refdata.LookupMapIdentity(assetID)
+	if err == nil {
+		return ident.Name, nil
+	}
+	if link.AssetID == "" {
+		return "", err
+	}
+	if !strings.EqualFold(strings.TrimSpace(link.AssetID), assetID) {
+		return "", fmt.Errorf("%w (the match metadata names map asset %s, not the film's)", err, link.AssetID)
+	}
+	if link.Name == "" {
+		return "", fmt.Errorf("%w (the match metadata gives no name for it)", err)
+	}
+	return link.Name, nil
 }
 
 // readChunk0 loads chunk_00 from the chunks folder (with the manifest index when it is

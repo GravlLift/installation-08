@@ -153,14 +153,35 @@ func fetchPipeline(ctx context.Context, root *store.Root, api *haloapi.Client, i
 	}
 	total, err := fetchChunks(ctx, root, api, id, progress)
 	if err != nil {
-		return err
+		return &fetchStepError{Step: fetchStepFilm, Err: err}
 	}
 	if err = fetchArtifacts(ctx, root, api, id); err != nil {
-		return err
+		return &fetchStepError{Step: fetchStepMatchData, Err: err}
 	}
 	progress("building", total, total)
-	return opts.build(root, id)
+	if err = opts.build(root, id); err != nil {
+		return &fetchStepError{Step: fetchStepBuild, Err: err}
+	}
+	return nil
 }
+
+// The steps of a match fetch, in order, as a failure names them.
+const (
+	fetchStepSignIn    = "sign-in"
+	fetchStepFilm      = "film download"
+	fetchStepMatchData = "match data download"
+	fetchStepBuild     = "replay build"
+)
+
+// fetchStepError is a failed fetch: the step that failed and its cause. Its message is what
+// the fetch state route reports and the server logs, so it names the step, not just "failed".
+type fetchStepError struct {
+	Step string
+	Err  error
+}
+
+func (e *fetchStepError) Error() string { return e.Step + " failed: " + e.Err.Error() }
+func (e *fetchStepError) Unwrap() error { return e.Err }
 func fetchChunks(ctx context.Context, root *store.Root, api *haloapi.Client, id string, progress fetchProgress) (int, error) {
 	m, _, err := api.Manifest(ctx, id)
 	if err != nil {

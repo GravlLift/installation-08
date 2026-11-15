@@ -4,7 +4,41 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
+
+// TestStoredMapLink — the build's map link comes from the stored map-mode pair's MapLink (a
+// plain or a {"value": ...} public name); a match without the file yields an empty link.
+func TestStoredMapLink(t *testing.T) {
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := storedMapLink(root, "abc"); got != (build.MapLink{}) {
+		t.Fatalf("no pair file: link = %+v, want empty", got)
+	}
+	write := func(id, body string) {
+		t.Helper()
+		p := filepath.Join(root.MatchesDir(), id, "map-mode-pair.json")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("abc", `{"MapLink":{"AssetId":"a54808fb-9bf5-432a-a3c3-f76cbea944c1","PublicName":"Fortress - Ranked"},"PublicName":"Ranked:CTF 3 Captures on Fortress - Ranked"}`)
+	want := build.MapLink{AssetID: "a54808fb-9bf5-432a-a3c3-f76cbea944c1", Name: "Fortress - Ranked"}
+	if got := storedMapLink(root, "abc"); got != want {
+		t.Fatalf("link = %+v, want %+v", got, want)
+	}
+	write("def", `{"MapLink":{"AssetId":"id","PublicName":{"value":"Streets - Ranked"}}}`)
+	if got := storedMapLink(root, "def"); got != (build.MapLink{AssetID: "id", Name: "Streets - Ranked"}) {
+		t.Fatalf("value-object name: link = %+v", got)
+	}
+}
 
 // TestParseImportFlagsRequired — the chunks folder is required; the map name is optional
 // (resolved from the film when absent), and the other inputs (manifest, stats, match,

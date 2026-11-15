@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -118,7 +119,9 @@ func (h serverHandlers) runRemoteFetch(id string) {
 		j.mu.Unlock()
 	}
 	api, _, err := j.client(context.Background())
-	if err == nil {
+	if err != nil {
+		err = &fetchStepError{Step: fetchStepSignIn, Err: err}
+	} else {
 		update("downloading", 0, 0)
 		err = j.fetch(context.Background(), h.root, api, id, update)
 		if err == nil {
@@ -133,16 +136,29 @@ func (h serverHandlers) runRemoteFetch(id string) {
 	s := j.states[id]
 	if err != nil {
 		s.State = "failed"
-		s.Error = "fetch failed"
-		var gone *haloapi.FilmUnavailableError
-		if errors.As(err, &gone) {
-			s.Error = "film not available"
-		}
+		s.Error = fetchFailureReason(id, err)
 	} else {
 		s.State = "ready"
 	}
 	j.states[id] = s
 	j.active = false
+}
+
+// fetchFailureReason logs a failed fetch (match id, failing step, cause) and returns the
+// reason the fetch state route reports: "film not available" for a film the service no
+// longer serves (the viewer words that one itself), the step and its cause otherwise.
+func fetchFailureReason(id string, err error) string {
+	step := "fetch"
+	var stepErr *fetchStepError
+	if errors.As(err, &stepErr) {
+		step = stepErr.Step
+	}
+	slog.Error("match fetch failed", "match_id", id, "step", step, "err", err)
+	var gone *haloapi.FilmUnavailableError
+	if errors.As(err, &gone) {
+		return "film not available"
+	}
+	return err.Error()
 }
 func (h serverHandlers) fetchState(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

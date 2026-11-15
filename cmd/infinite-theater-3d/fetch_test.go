@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -188,6 +189,17 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 	full, err := os.ReadFile(filepath.Join(root.MatchesDir(), "abc", "stats-full.json"))
 	if err != nil || !bytes.Contains(full, []byte(`"PlayerId":"xuid(123)"`)) {
 		t.Fatalf("full stats not saved: %s, %v", full, err)
+	}
+	// A build that fails after a complete download names its step and keeps its cause.
+	cause := errors.New("no bounds")
+	opts.build = func(*store.Root, string) error { return cause }
+	err = fetchPipeline(context.Background(), root, api, "abc", opts)
+	var stepErr *fetchStepError
+	if !errors.As(err, &stepErr) || stepErr.Step != fetchStepBuild || !errors.Is(err, cause) {
+		t.Fatalf("build failure = %v, want the %q step wrapping its cause", err, fetchStepBuild)
+	}
+	if err.Error() != "replay build failed: no bounds" {
+		t.Fatalf("message = %q", err.Error())
 	}
 }
 
