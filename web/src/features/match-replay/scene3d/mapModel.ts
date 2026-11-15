@@ -157,6 +157,8 @@ function applyGlow(target: THREE.MeshStandardMaterial, source: THREE.MeshStandar
   if (!emits(source)) return
   target.emissive.copy(source.emissive)
   target.emissiveIntensity = glowLevel(source.emissiveIntensity)
+  // The game's self-illumination texture masks the light (weapon pads: thin strips on a dark pad).
+  target.emissiveMap = source.emissiveMap
 }
 
 /**
@@ -297,7 +299,7 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     // Un matériau à couches par composition distincte (famille, couches, lumière propre, découpe)
     // : les surfaces de même composition le partagent, et le dessin ne change de matériau qu'entre
     // elles.
-    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}` : ''
+    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${source.emissiveMap?.uuid ?? ''}` : ''
     const alphaTest = source.alphaTest > 0 ? `|a${source.alphaTest}` : ''
     const signature = `${key}|${glow}|${alphaTest}|${JSON.stringify(extras.couches)}`
     let shared = ctx.layered.get(signature)

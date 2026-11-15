@@ -21,6 +21,22 @@ import (
 type Emissif struct {
 	Couleur [3]float32
 	Force   float32
+	// Bitmap (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture that masks the
+	// light (diffuse_emissive slot 244, on the color map's coordinates); 0 when none. When the
+	// modules do not hold it (an engine default), the light stays uniform.
+	Bitmap uint32
+}
+
+// emplacementEmissif (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture slot of
+// a shader, from Ekur's diffuse_emissive handler.
+var emplacementEmissif = map[uint32]int{0x3c7906af: 244}
+
+// bitmapEmissif rend la texture d'auto-illumination liee du shader, 0 sans elle.
+func bitmapEmissif(shader uint32, textures map[int]uint32) uint32 {
+	if o, ok := emplacementEmissif[shader]; ok {
+		return textures[o]
+	}
+	return 0
 }
 
 // specEmissif : octets des constantes ; quantite < 0 = pas de quantite (force = intensite).

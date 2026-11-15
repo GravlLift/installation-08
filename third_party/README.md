@@ -125,8 +125,15 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     postprocess record. The +60 read before is the element count of its `function parameters`
     block, so a material with an animated parameter (the weapon pads' glow) read as additive and
     drew as translucent blue. The byte matches Ekur's `alpha_blend_mode` on all 47,832 materials of
-    its export. Decal modes (19, 23, 68, 69) keep the opaque drawing they had, and the GLB writes
-    `melange` 0 for them. Covered by `himap/materiaux_melange_test.go` (new).
+    its export. Decal modes (19, 23, 68, 69) and alpha-blended materials with layers keep the
+    opaque layered drawing they had, and the GLB writes `melange` 0 for them; on Aquarius only
+    the `diffuse_emissive` glow materials change. Covered by `himap/materiaux_melange_test.go` (new).
+  - `himap/emissif.go`, `himap/materiaux.go`, `himap/textures_monde.go`, `himap/glb.go`,
+    `himap/glb_couches.go` (LOCAL-CHANGE): `diffuse_emissive` materials carry their
+    self-illumination texture (slot 244, from Ekur) as the glTF `emissiveTexture` on the color
+    map's coordinates, so the light shows only where the game masks it (the pads' thin strips).
+    A texture absent from the modules (an engine default) leaves the light uniform. Covered by
+    `himap/emissif_texture_test.go` (new).
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the

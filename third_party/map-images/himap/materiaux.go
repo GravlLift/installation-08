@@ -111,17 +111,23 @@ type Decoupe struct {
 
 // Opaque dit si le materiau masque ce qui est derriere lui. Un materiau illisible compte
 // comme opaque : c'est l'hypothese qui ne fait pas disparaitre de mur.
+// LOCAL-CHANGE (infinite-theater-3d): decals, and alpha-blended materials that carry layers
+// (grime, stains), draw with their layers like an opaque material: the viewer reads no alpha for
+// them, and its see-through drawing is a glass placeholder.
 func (m Materiau) Opaque() bool {
 	switch m.Melange {
 	case MelangeOpaque, melangeInconnuBrut,
-		melangeDecalAlpha, melangeDecalOpaque, melangeDecalAoOpaque, melangeDecalAoAlpha: // LOCAL-CHANGE (infinite-theater-3d)
+		melangeDecalAlpha, melangeDecalOpaque, melangeDecalAoOpaque, melangeDecalAoAlpha:
 		return true
+	case MelangeAlpha, MelangeAlphaPremultiplie:
+		return m.Couches != nil
 	}
 	return false
 }
 
 // melangeEcrit (LOCAL-CHANGE (infinite-theater-3d)): the blend mode the GLB carries, where a
-// viewer draws any non-zero mode as see-through; a decal writes 0, as when the mode was misread.
+// viewer draws any non-zero mode as see-through; a material drawn opaque writes 0, as when the
+// mode was misread.
 func (m Materiau) melangeEcrit() int {
 	if m.Melange != melangeInconnuBrut && m.Opaque() {
 		return 0
@@ -189,6 +195,9 @@ func litPostprocess(m *Materiau, ti tagInfo, tag []byte, cible int, shaders Lect
 	m.Decoupe = decoupeDuShader(m.Shader, pp.textures, pp.constantes)
 	m.Couches = couchesDuMateriau(m.Shader, shaders, pp)
 	m.Emissif = emissifDuShader(m.Shader, pp.constantes)
+	if m.Emissif != nil {
+		m.Emissif.Bitmap = bitmapEmissif(m.Shader, pp.textures) // LOCAL-CHANGE (infinite-theater-3d)
+	}
 	m.Pochoir = pochoirDuShader(m.Shader, shaders(m.Shader), pp.constantes)
 	m.Surface = surfaceDureDuShader(m.Shader, pp.textures)
 }

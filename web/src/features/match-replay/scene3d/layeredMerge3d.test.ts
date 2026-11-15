@@ -76,6 +76,16 @@ describe('convertLayered', () => {
     expect(Array.from(params.slice((ROW_TEXELS + GLOW_TEXEL) * 4, (ROW_TEXELS + GLOW_TEXEL) * 4 + 4))).toEqual([2, 1, 0, 0])
   })
 
+  it('laisse à son matériau une lumière masquée par une texture', async () => {
+    const { a, b, glass, owned } = await scene()
+    const classicB = b.material as THREE.MeshStandardMaterial
+    classicB.emissiveMap = new THREE.Texture()
+    const merge = convertLayered([a, b], [a, b, glass], owned)
+    expect(merge?.stats).toMatchObject({ materialsBefore: 1, meshes: 1, rows: 1 })
+    expect(b.material).toBe(classicB)
+    expect(isMergedMaterial(a.material)).toBe(true)
+  })
+
   it('remplace les cartes du shader par des tableaux lus à la ligne du sommet', async () => {
     const { a, b, glass, owned } = await scene()
     convertLayered([a, b], [a, b, glass], owned)

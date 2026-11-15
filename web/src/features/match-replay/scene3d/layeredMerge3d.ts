@@ -84,7 +84,8 @@ function collect(meshes: readonly THREE.Mesh[]): { rows: Row[]; members: Member[
     const classic = mesh.material
     if (Array.isArray(classic) || !(classic instanceof THREE.MeshStandardMaterial)) continue
     const composition = layeredComposition(classic)
-    if (!composition || classic.transparent || classic.alphaTest > 0 || !mesh.geometry.index) continue
+    // A light masked by a texture keeps its own material: the merged rows carry one glow color each.
+    if (!composition || classic.transparent || classic.alphaTest > 0 || classic.emissiveMap || !mesh.geometry.index) continue
     const e = classic.emissive
     const glow: [number, number, number] = [e.r * classic.emissiveIntensity, e.g * classic.emissiveIntensity, e.b * classic.emissiveIntensity]
     const signature = `${glow.join(',')}|${JSON.stringify(composition.info)}`

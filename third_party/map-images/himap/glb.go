@@ -129,6 +129,8 @@ type gltfMaterial struct {
 	PBR         gltfPBR  `json:"pbrMetallicRoughness"`
 	// Emission : cf. glb_emissif.go.
 	EmissiveFactor *[3]float32 `json:"emissiveFactor,omitempty"`
+	// EmissiveTexture (LOCAL-CHANGE (infinite-theater-3d)): the mask of the light, cf. glb_emissif.go.
+	EmissiveTexture *gltfTextureInfo `json:"emissiveTexture,omitempty"`
 	// NormalTexture : cf. glb_surface.go.
 	NormalTexture *gltfTextureInfo `json:"normalTexture,omitempty"`
 	Extensions    map[string]any   `json:"extensions,omitempty"`
@@ -298,6 +300,16 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 	}
 	if mat.Emissif != nil {
 		appliqueEmissif(e.doc, g, *mat.Emissif)
+		// LOCAL-CHANGE (infinite-theater-3d): the light's mask, on the color map's coordinates.
+		jeu := jeuUVDiffus
+		if mat.Couches != nil {
+			jeu = mat.Couches.JeuUV
+		}
+		tex, err := e.couches.texture(e.doc, e.bin, cleImage{mat.Emissif.Bitmap, imageCouleur}, e.m.TexturesCouches)
+		garde(err)
+		if tex != pasDeTexture && g.EmissiveFactor != nil {
+			g.EmissiveTexture = &gltfTextureInfo{Index: tex, TexCoord: jeu}
+		}
 	}
 	aDecoupe := mat.Decoupe != nil
 	var masque *Texture
