@@ -76,13 +76,13 @@ func TestInstanceVariante(t *testing.T) {
 		Up:      mapvar.Vec3{Z: 1},
 		Forward: mapvar.Vec3{Y: 2},
 	}
-	in := instanceVariante(o, []uint32{0xA, 0xB}, 0)
+	in := instanceVariante(o, []uint32{0xA, 0xB}, [3]float64{})
 	if in.Position != [3]float64{27.7, -3.6, 2.2} {
 		t.Errorf("position %v", in.Position)
 	}
 	o.Scale = &mapvar.Vec3{X: 1, Y: 1, Z: 2}
-	if p := instanceVariante(o, nil, 0.4).Position; math.Abs(p[2]-3.0) > 1e-9 {
-		t.Errorf("socle leve a l'echelle : z %v, attendu 3,0", p[2])
+	if p := instanceVariante(o, nil, [3]float64{0, 0, 0.4}).Position; math.Abs(p[2]-3.0) > 1e-9 {
+		t.Errorf("origine decalee a l'echelle : z %v, attendu 3,0", p[2])
 	}
 	if in.Forward != [3]float64{0, 1, 0} || in.Left != [3]float64{-1, 0, 0} {
 		t.Errorf("base avant %v gauche %v", in.Forward, in.Left)

@@ -154,6 +154,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     (`OptionsVariante.Filtres`, `BilanVariante.HorsMode`). Zone markers, flag stands, oddball
     spawns of other modes no longer draw. Covered by `himap/filtres_mode_test.go`,
     `himap/kits_forge_test.go` and `himap/kits_forge_gamefiles_test.go` (new).
+  - `himap/origine_forge.go` (new, LOCAL-CHANGE) with `maillage_variante.go`,
+    `maillage_variante_representation.go` and `kits_forge.go` (modified): a Forge object drawn
+    from an `rtgo` is offset by its own `mode`'s box corner minus the `rtgo`'s (the `rtgo` is the
+    same geometry re-centred), instead of being lifted onto its base. Rock columns and terrain
+    pieces are centre-pivot, many props corner-pivot. A type whose `mode` is missing or has
+    another box keeps the base rule. Covered by `himap/origine_forge_test.go` (new) and
+    `himap/maillage_variante_test.go` (modified).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

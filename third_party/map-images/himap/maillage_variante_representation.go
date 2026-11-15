@@ -99,7 +99,8 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 			}
 			if ref.groupe == GroupeRtgo {
 				mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, food, ref.id)
-				mv.socle = -basDuModele(a, mv.maillages)
+				// LOCAL-CHANGE (infinite-theater-3d): placed by the type's own pivot (origine_forge.go).
+				mv.origine = origineDuRtgo(a, mv.maillages, modeDuFood(ctx, idx, tag, assets))
 			}
 			out[cleRepresentation{ty, nom}] = mv
 		}
