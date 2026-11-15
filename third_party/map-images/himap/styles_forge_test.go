@@ -134,8 +134,8 @@ func TestZonesStyleTronque(t *testing.T) {
 }
 
 // TestDecoupeMasqueStyle : a transparent base intention cuts on UV1: the composed mask carries the
-// opacity (1 - ASG alpha) in its alpha, the GLB says so (`decoupeMasque`) and flags the maps laid
-// on the mask's coordinates; no color copy is written.
+// opacity (the ASG alpha, cut where it is low) in its alpha, the GLB says so (`decoupeMasque`)
+// and flags the maps laid on the mask's coordinates; no color copy is written.
 func TestDecoupeMasqueStyle(t *testing.T) {
 	zs := zonesTest()
 	zs.decoupe = true
@@ -151,7 +151,7 @@ func TestDecoupeMasqueStyle(t *testing.T) {
 	}
 	tex[0xA1] = Texture{Image: img([4]uint8{200, 100, 0, 255})}
 	tex[0xA2] = Texture{Image: img([4]uint8{255, 0, 255, 64})}
-	if got := composeMasqueStyle(MasqueStyle{Masque0: 0xA1, ASG: 0xA2, Canaux: c.Style.Canaux, Salete: 1, Decoupe: true}, tex); got.Pix[3] != 191 || got.Pix[7] != 64 || got.Pix[0] != 200 || got.Pix[1] != 100 || got.Pix[2] != 255 {
+	if got := composeMasqueStyle(MasqueStyle{Masque0: 0xA1, ASG: 0xA2, Canaux: c.Style.Canaux, Salete: 1, Decoupe: true}, tex); got.Pix[3] != 64 || got.Pix[7] != 191 || got.Pix[0] != 200 || got.Pix[1] != 100 || got.Pix[2] != 255 {
 		t.Fatalf("mask pixels %v", got.Pix)
 	}
 	d := &Decoupe{Bitmap: 0xA2, Echelle: [2]float32{1, 1}, Puissance: 1, Seuil: 0.5, AlphaSeul: true}

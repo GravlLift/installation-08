@@ -206,8 +206,8 @@ type MasqueStyle struct {
 	Masque0, Masque1, ASG uint32
 	Canaux                [3]SourcePoids
 	Salete                float32
-	// Decoupe : the mask's alpha is the opacity of a transparent base intention, 1 - the ASG's
-	// alpha (Decoupe.AlphaSeul).
+	// Decoupe : the mask's alpha is the opacity of a transparent base intention, the ASG's
+	// alpha (Decoupe.AlphaSeul): the surface is cut where that alpha is low.
 	Decoupe bool
 }
 

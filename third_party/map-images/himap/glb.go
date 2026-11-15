@@ -321,7 +321,8 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 	if aDecoupe {
 		// LOCAL-CHANGE (infinite-theater-3d): a Forge ASG cut on a texture without transparency
 		// cuts nothing; the material stays opaque. A format without alpha reads a full alpha (Ekur
-		// exports it without "_t" and its use_alpha is off); a zero alpha is opaque throughout.
+		// exports it without "_t" and its use_alpha is off); a zero alpha (an unused channel)
+		// would cut the whole surface, so it stays opaque too.
 		if t, ok := e.m.Masques[mat.Decoupe.Bitmap]; ok && !(mat.Decoupe.AlphaSeul && (t.Monocanal || alphaPlein(t.Image) || alphaNul(t.Image))) {
 			masque = &t
 		}

@@ -206,8 +206,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       material, not only its base: zones 2 to 4 weighted by Mask0 R, G, B (zones 5 to 7 by
       Mask1), the style's grime by clamp(ASG.B + amount - 1), the material's own normal map and
       ASG occlusion on each zone (`Couche.NormaleObjet`, `Couche.ControleASG`), and a
-      transparent base intention cut by 1 - ASG alpha when the ASG has an alpha
-      (`Decoupe.AlphaSeul`). Fortress's 7705398e decals drew as a near-black slab.
+      transparent base intention cut where the ASG alpha is low (the alpha is the opacity)
+      when the ASG has an alpha (`Decoupe.AlphaSeul`). Fortress's 7705398e decals drew as a
+      near-black slab. The cut was first written as 1 - ASG alpha, which drew Fortress's ivy
+      and plant clumps as dark sheets with leaf-shaped holes; their ASG alpha is high on the
+      leaves (`glb_couches.go` `composeMasqueStyle`).
     - `himap/styles_forge.go` (new), `files-reader/mapvar/mapvar.go` (`Variant.StyleGrimes`,
       style fields 8 and 10), `maillage_variante.go`, `maillage_variante_poses.go`,
       `maillage_monde.go`, `forge_teintes.go`: an object's own Forge material (`.mvar` root
