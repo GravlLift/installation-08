@@ -1,6 +1,6 @@
 /**
  * The spread shot (the Heatwave): a level fan of bolts around the aim, each flying to the first
- * face, ricocheting once, and drawn as a streak at its projectile speed.
+ * face, ricocheting once, and drawn as a fading trail at its projectile speed.
  */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
@@ -10,14 +10,15 @@ import { formeVol } from './shots3d'
 import {
   boltEndAge,
   boltPath,
-  boltStreak,
+  boltTrail,
   spreadDirections,
   SPREAD_BOLTS,
   SPREAD_BOUNCE_RANGE,
   SPREAD_HALF_ANGLE_DEG,
   SPREAD_RANGE,
   SPREAD_SPEED,
-  SPREAD_STREAK,
+  SPREAD_TRAIL,
+  SPREAD_TRAIL_PIECES,
   type FaceHit,
 } from './spreadShots3d'
 
@@ -73,31 +74,49 @@ describe('boltPath — to the first face, one ricochet', () => {
   })
 })
 
-describe('boltStreak — a streak at the projectile speed', () => {
+describe('boltTrail — a fading trail at the projectile speed', () => {
   const p = boltPath(new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), wall)
-  const tail = new THREE.Vector3()
-  const head = new THREE.Vector3()
+  const pieces = (age: number) => {
+    const out: { tail: THREE.Vector3; head: THREE.Vector3; k: number }[] = []
+    const shown = boltTrail(p, age, (tail, head, k) => out.push({ tail: tail.clone(), head: head.clone(), k }))
+    return { shown, out }
+  }
 
   it('nothing before the pull', () => {
-    expect(boltStreak(p, -0.01, tail, head)).toBe(false)
+    expect(pieces(-0.01).shown).toBe(false)
   })
 
-  it('flies out at its speed, its tail a streak behind', () => {
-    expect(boltStreak(p, 0.1, tail, head)).toBe(true)
-    expect(head.x).toBeCloseTo(0.1 * SPREAD_SPEED)
-    expect(head.x - tail.x).toBeCloseTo(SPREAD_STREAK)
+  it('flies out at its speed, bright at the head and fading toward the tail', () => {
+    const { shown, out } = pieces(0.1)
+    expect(shown).toBe(true)
+    expect(out).toHaveLength(SPREAD_TRAIL_PIECES)
+    expect(out[0].head.x).toBeCloseTo(0.1 * SPREAD_SPEED)
+    expect(out[0].k).toBe(1)
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i].k).toBeLessThan(out[i - 1].k)
+      expect(out[i].head.x).toBeCloseTo(out[i - 1].tail.x)
+    }
+    expect(out[0].head.x - out.at(-1)!.tail.x).toBeCloseTo(SPREAD_TRAIL)
   })
 
-  it('comes back off the wall after the ricochet, its tail not bent around it', () => {
-    const age = (10 + 0.2) / SPREAD_SPEED
-    expect(boltStreak(p, age, tail, head)).toBe(true)
-    expect(head.x).toBeCloseTo(9.8)
-    expect(tail.x).toBeCloseTo(10)
-    boltStreak(p, (10 + 1) / SPREAD_SPEED, tail, head)
-    expect(tail.x - head.x).toBeCloseTo(SPREAD_STREAK)
+  it('is shorter just after the pull, starting at the muzzle', () => {
+    const { out } = pieces(0.5 / SPREAD_SPEED)
+    expect(out.at(-1)!.tail.x).toBeCloseTo(0)
+    expect(out[0].head.x).toBeCloseTo(0.5)
   })
 
-  it('is gone at the end of its flight', () => {
-    expect(boltStreak(p, boltEndAge(p) + 1e-6, tail, head)).toBe(false)
+  it('bends at the ricochet: no piece cuts the corner', () => {
+    const { out } = pieces((10 + 0.5) / SPREAD_SPEED)
+    expect(out[0].head.x).toBeCloseTo(9.5)
+    for (const piece of out) expect(Math.max(piece.head.x, piece.tail.x)).toBeLessThanOrEqual(10 + 1e-9)
+    expect(out.some((piece) => Math.abs(piece.tail.x - 10) < 1e-6 || Math.abs(piece.head.x - 10) < 1e-6)).toBe(true)
+    const length = out.reduce((n, piece) => n + piece.head.distanceTo(piece.tail), 0)
+    expect(length).toBeCloseTo(SPREAD_TRAIL)
+  })
+
+  it('drains into the end of the flight, then is gone', () => {
+    const end = boltEndAge(p)
+    expect(pieces(end + 0.5 / SPREAD_SPEED).shown).toBe(true)
+    expect(pieces(end + (SPREAD_TRAIL + 1e-3) / SPREAD_SPEED).shown).toBe(false)
   })
 })

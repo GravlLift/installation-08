@@ -51,7 +51,7 @@ import { MuzzleProbe, muzzleOfModel, viewMuzzle } from './muzzle3d'
 import { flashPetals, muzzleFlashSite, muzzleFlashStrength, rigFlashSite, type FlashPetal } from './muzzleFlash3d'
 import { newRecoil, type Recoil } from './recoil3d'
 import { recoilPoint } from './recoilPose3d'
-import { boltEndAge, boltPath, boltStreak, spreadDirections, SPREAD_BOUNCE_RANGE, SPREAD_RANGE, SPREAD_SPEED, type BoltPath } from './spreadShots3d'
+import { boltEndAge, boltPath, boltTrail, spreadDirections, SPREAD_BOUNCE_RANGE, SPREAD_RANGE, SPREAD_SPEED, SPREAD_TRAIL, type BoltPath } from './spreadShots3d'
 import { ShooterRecoil } from './recoilShots3d'
 import { aimDirThree, toThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
@@ -112,7 +112,7 @@ const LINE_DIM = 0.6
 export const SPREAD_BOLT_RADIUS = 0.03
 // La vie la plus longue d'un tir : vol du projectile le plus lent jusqu'à la portée, puis l'étincelle.
 const SLOWEST = Math.min(TRACER_SPEED, ...Object.values(BOLT_SPEED))
-const LIFE_SECONDS = Math.max((TRACER_RANGE + TRACER_LENGTH) / SLOWEST, (SPREAD_RANGE + SPREAD_BOUNCE_RANGE) / SPREAD_SPEED) + IMPACT_SECONDS
+const LIFE_SECONDS = Math.max((TRACER_RANGE + TRACER_LENGTH) / SLOWEST, (SPREAD_RANGE + SPREAD_BOUNCE_RANGE + SPREAD_TRAIL) / SPREAD_SPEED) + IMPACT_SECONDS
 
 interface ShotPath {
   from: THREE.Vector3
@@ -236,7 +236,8 @@ export class Shots3dLayer implements ActionLayer3d {
       depthWrite: false,
     })
     this.tracers = new SegmentPool(ctx.root, glow(), CAPACITY)
-    this.lines = new SegmentPool(ctx.root, glow(), CAPACITY)
+    // Twice the others: a Heatwave pull alone draws 7 bolts of 5 trail pieces, each with its glow.
+    this.lines = new SegmentPool(ctx.root, glow(), CAPACITY * 2)
     this.dots = new InstancePool(ctx.root, new THREE.SphereGeometry(1, 8, 6), glow(), CAPACITY)
     const petal = glow()
     petal.vertexColors = true
@@ -344,10 +345,11 @@ export class Shots3dLayer implements ActionLayer3d {
       this.spreads.set(path, bolts)
     }
     for (const bolt of bolts) {
-      if (boltStreak(bolt, age, this.a, this.b)) {
-        this.lines.add(this.a, this.b, SPREAD_BOLT_RADIUS, tint)
-        this.lines.add(this.a, this.b, SPREAD_BOLT_RADIUS * BEAM_GLOW_MULT, this.lineInk.copy(tint).multiplyScalar(BEAM_GLOW_DIM))
-      }
+      // The trail: bright at the head, fading along its length, its glow fading with it.
+      boltTrail(bolt, age, (tail, head, k) => {
+        this.lines.add(tail, head, SPREAD_BOLT_RADIUS, this.lineInk.copy(tint).multiplyScalar(k))
+        this.lines.add(tail, head, SPREAD_BOLT_RADIUS * BEAM_GLOW_MULT, this.lineInk.copy(tint).multiplyScalar(BEAM_GLOW_DIM * k))
+      })
       const spark = bolt.hit ? age - boltEndAge(bolt) : -1
       if (spark >= 0 && spark < IMPACT_SECONDS) this.dots.add(bolt.points[bolt.points.length - 1], null, IMPACT_RADIUS * 2 * (1 - spark / IMPACT_SECONDS), tint)
     }
