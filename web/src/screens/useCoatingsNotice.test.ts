@@ -7,12 +7,13 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CoatingsStatusBody } from '../lib/api/standalone'
-import { coatingNoticeOf, useCoatingsNotice } from './useCoatingsNotice'
+import { coatingNoticeOf, coatingsSetupOffered, useCoatingsNotice } from './useCoatingsNotice'
 
 /** Builds a coating status body with sensible defaults, so a test names only what it changes. */
 function status(overrides: Partial<CoatingsStatusBody> = {}): CoatingsStatusBody {
   return {
     export: 'ok',
+    override: false,
     libraries: {
       spartan_pieces: { built: true, stale: false, materialsMissing: 0 },
       weapons: { built: true, stale: false, materialsMissing: 0 },
@@ -67,6 +68,21 @@ describe('coatingNoticeOf', () => {
   })
 })
 
+describe('coatingsSetupOffered', () => {
+  it('offers the setup when coatings are off and the export is the app own', () => {
+    expect(coatingsSetupOffered(status({ export: 'not_set' }))).toBe(true)
+    expect(coatingsSetupOffered(status({ export: 'invalid' }))).toBe(true)
+  })
+
+  it('does not offer it when the export is ok, even with missing materials', () => {
+    expect(coatingsSetupOffered(status())).toBe(false)
+  })
+
+  it('does not offer it when IT3D_EKUR_DIR overrides the export', () => {
+    expect(coatingsSetupOffered(status({ export: 'invalid', override: true }))).toBe(false)
+  })
+})
+
 describe('useCoatingsNotice', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
@@ -98,6 +114,7 @@ describe('useCoatingsNotice', () => {
     })
     expect(result.current.notice).toBe('Coatings off: the Ekur export is invalid')
     expect(result.current.ready).toBe(true)
+    expect(result.current.canSetUp).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0][0]).toBe('/api/coatings/status')
   })

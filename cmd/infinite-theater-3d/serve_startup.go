@@ -74,14 +74,10 @@ func enqueueStartupBuilds(jobs interface {
 	if !ready(meshjobs.JobAnnouncer) {
 		enqueue(meshjobs.JobAnnouncer)
 	}
-	if !ready(meshjobs.JobWeapons) {
-		enqueue(meshjobs.JobWeapons)
-	}
-	if !ready(meshjobs.JobFirstPerson) {
-		enqueue(meshjobs.JobFirstPerson)
-	}
-	if !ready(meshjobs.JobSpartanPieces) {
-		enqueue(meshjobs.JobSpartanPieces)
+	for _, module := range coatingLibraryModules {
+		if !ready(module) {
+			enqueue(module)
+		}
 	}
 	seen := map[string]bool{}
 	for _, m := range matches {
@@ -146,18 +142,29 @@ func runServeStartup(jobs interface {
 // so the normal build job rebuilds each one before the routes serve it. Never a downgrade:
 // with no valid export, existing libraries are left in place.
 func renameStaleCoatingLibraries(dataDir string) {
+	for _, module := range coatingLibraryModules {
+		moveCoatingLibraryAsideIfStale(dataDir, module)
+	}
+}
+
+// coatingLibraryModules are the three libraries that read the Ekur export, in the order the
+// startup enqueues them.
+var coatingLibraryModules = []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces}
+
+// moveCoatingLibraryAsideIfStale moves one coating library aside when its recorded stamp
+// differs from the current export's (one log line naming both stamps). Never a downgrade:
+// with no valid export, the library is left in place.
+func moveCoatingLibraryAsideIfStale(dataDir, module string) {
 	cur, ok := currentEkurStamp(dataDir)
 	if !ok || cur == "" {
 		return
 	}
-	for _, module := range []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces} {
-		stamp, ok := recordedEkurStamp(dataDir, module)
-		if !ok || stamp == cur {
-			continue
-		}
-		slog.Info("coating library stale", "library", module, "old_stamp", stamp, "new_stamp", cur)
-		moveStaleCoatingLibrary(dataDir, module)
+	stamp, ok := recordedEkurStamp(dataDir, module)
+	if !ok || stamp == cur {
+		return
 	}
+	slog.Info("coating library stale", "library", module, "old_stamp", stamp, "new_stamp", cur)
+	moveStaleCoatingLibrary(dataDir, module)
 }
 
 // enqueueMatchBuilds enqueues one match's map mesh and, when its map variant file is

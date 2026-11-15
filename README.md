@@ -48,14 +48,28 @@ source.
   `docs/UI-DESIGN.md`), and the finished map file is large: existing map GLBs run 600–900 MB
   on disk, mostly texture data (`docs/TODO.md`). Builds happen in the data directory, not the
   install folder.
-- **Ekur reference (optional)**: this is the [TheHaloArchive/ekur](https://github.com/TheHaloArchive/ekur)
-  Blender add-on's JSON export of the game's materials, used only as a lookup table for armor,
-  weapon and first-person paint coatings. Point `IT3D_EKUR_DIR` at a full export (or place it
-  at `<data>/ekur`) to have coatings render in their real colors. Without it, coated materials
-  render in a neutral color and the viewer's top bar shows "Coatings off"; with an export too
-  old to know some newer armor or weapons, those pieces stay neutral and the bar shows
-  "Coatings incomplete: N pieces are missing from the Ekur export". Nothing else about the
-  export reaches the viewer (no path, no environment value).
+- **Coatings (optional, one click)**: armor, weapon and first-person paint coatings need an
+  Ekur export: the JSON tables [TheHaloArchive/ekur](https://github.com/TheHaloArchive/ekur)
+  extracts from the game, used only as a lookup table for the coatings. Without it, coated
+  materials render in a neutral color and the match viewer's top bar shows "Coatings off" with
+  a **Set up coatings** button. The button downloads Ekur's standalone dumper (the pinned
+  1.3.1 release, checked against its size and SHA-256 before it runs) and the three
+  [ReclaimerFiles](https://github.com/TheHaloArchive/ReclaimerFiles) lists it reads into
+  `<data>/tools/ekur`, runs it against your game install, checks the result, keeps only the
+  coating tables at `<data>/ekur`, and queues the rebuild of the three coating libraries. The
+  extraction takes about 4 minutes on a Steam install and writes about 9 GB while it runs, of
+  which it keeps about 140 MB; the setup refuses to start with less than 12 GB free on the
+  data folder's drive. The bar shows each step and, if one fails, why (the dumper's own
+  output is in `<data>/tools/ekur/setup.log`).
+  Reopen the match once the rebuilds finish. The same setup runs from the command line with
+  `setup-coatings [--data <dir>] [--game <deploy-root>]` (restart `serve` afterwards so it
+  rebuilds the libraries). Nothing is bundled: Ekur is GPL-3.0 and is downloaded from its own
+  release page only when you ask. No Blender is needed. If you already have a full Ekur
+  export, point `IT3D_EKUR_DIR` at it instead: the variable always wins over `<data>/ekur`
+  (the button is not offered while it is set). With an export too old to know some newer
+  armor or weapons, those pieces stay neutral and the bar shows "Coatings incomplete: N pieces
+  are missing from the Ekur export". Nothing else about the export reaches the viewer (no
+  path, no environment value).
 
 See [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) for what is still rough at this release.
 
@@ -113,16 +127,19 @@ Films expire on the service, and a film still being finalized must be tried agai
 The heavy assets are all built once from the local game installation into the data
 directory, either at `serve` startup or by hand. When a coating is involved (armor pieces,
 weapon coatings, first-person arm painting), the build reads the Ekur coating reference:
-set `IT3D_EKUR_DIR` to the folder that holds it, or put it in `<data>/ekur`. Without it,
-coated materials render in their neutral color.
+`IT3D_EKUR_DIR` when it is set (it always wins), otherwise `<data>/ekur` when that folder is
+a valid export. Without one, coated materials render in their neutral color.
 
-The Ekur reference is the community Blender plugin's JSON export of the game (its
-`materials/`, `stylelists/` and `styles/` folders plus `globals.json` and
-`visor_data.json`). Use a full export of the installed game: an older export lacks newer
-armor and weapons, which then render neutral. The three coating libraries (Spartan pieces,
+The Ekur reference is the JSON export Ekur's dumper writes from the game (its `materials/`,
+`stylelists/` and `styles/` folders plus `globals.json` and `visor_data.json`; nothing else in
+it is read). The viewer's **Set up coatings** button and the `setup-coatings` command make it
+for you at `<data>/ekur` (see First run); an export made with the Ekur Blender add-on works
+too. Use a full export of the installed game: an older export lacks newer armor and weapons,
+which then render neutral. The three coating libraries (Spartan pieces,
 weapons, first person) record a short stamp of the export in their `index.json`; when the
-export changes, `serve` moves the stale library aside at its next start, rebuilds it, and
-removes the old copy once the rebuild succeeds. With no export set, existing libraries are
+export changes, `serve` moves the stale library aside at its next start (or right after Set
+up coatings wrote a new export), rebuilds it, and removes the old copy once the rebuild
+succeeds. With no export set, existing libraries are
 kept. The viewer shows a quiet notice in its top bar when the export is missing or invalid
 ("Coatings off") or when some materials are absent from it ("Coatings incomplete: N pieces
 are missing from the Ekur export"); when everything is fine it shows nothing.
@@ -139,6 +156,7 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 | `build-piece` | one Spartan armor piece (a region's permutation) to one GLB | `--region <hex-id> --permutation <hex-id> --map <key> --out <file.glb>` |
 | `build-firstperson` | one weapon's first-person rig to one GLB | `--weapon <hex-id> --map <key> --out <file.glb>`, `--no-arms` |
 | `build-weapon` | one weapon's static third-person model to one GLB | `--weapon <hex-id> --map <key> --out <file.glb>` |
+| `setup-coatings` | the Ekur coating reference at `<data>/ekur`: downloads Ekur's pinned dumper and its lists into `<data>/tools/ekur`, runs it on the game install (about 4 minutes, about 9 GB written; needs 12 GB free), validates the export, trims it to the coating tables (about 140 MB) and swaps it into place (a failed run leaves the previous export untouched); the next `serve` start rebuilds the coating libraries | `--data <dir>`, `--game <deploy-root>` |
 
 A map's module key is its folder name under `<deploy>/pc/levels/multi` (for example
 `sgh_blueprint` for Recharge). `--game` is the game's `deploy` root; omitted, it is
@@ -183,7 +201,12 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   rebuilt), `POST /api/announcer/build` (one job extracts both).
 - `GET /api/coatings/status`: whether the Ekur export is `ok`, `not_set` or `invalid`, and
   per coating library whether it is built, stale, and how many of its materials the export
-  does not know (`materials_missing`). It never carries a path or an environment value.
+  does not know (`materials_missing`), plus `override` (true when `IT3D_EKUR_DIR` names the
+  export). It never carries a path or an environment value.
+- Coatings setup: `POST /api/coatings/setup` starts the one setup job (202, or 409 while one
+  runs; never started automatically), `GET /api/coatings/setup/state` reports its `state`
+  (`idle`, `downloading`, `verifying`, `dumping`, `validating`, `queuing`, `ready` or `failed`
+  with an `error` message).
 - Static assets: `GET /static/weapons-assets/halo_infinite/jeu/{file}` (weapon icons),
   `.../hud/{file}` (HUD equipment and grenade icons), `GET /static/ranks/halo_infinite/{file}`
   (rank badges), `GET /static/sounds/halo_infinite/{file}` (replay sounds).
@@ -277,9 +300,9 @@ the exe, the folder and the zip somewhere other than `dist\`.
 The exe is a single file: double-click it (or run it with no arguments) and it serves
 and opens the viewer in the default browser. A `version` subcommand prints the build
 version. The sound set is built in and the announcer is extracted at first start (see
-Replay sounds above); the Ekur export is still
-user-supplied; pass `--data <dir>` and `--game <deploy-root>` if the defaults do not
-apply.
+Replay sounds above); the Ekur export is made on request by the viewer's Set up coatings
+button (or `setup-coatings`), which downloads Ekur's dumper then, so it is not in the zip;
+pass `--data <dir>` and `--game <deploy-root>` if the defaults do not apply.
 
 With `-Installer` the script additionally compiles a Windows installer (Inno Setup 6)
 from `tools\installer.iss` and writes `dist\infinite-theater-3d-<version>-setup.exe`:
@@ -329,10 +352,11 @@ AGPL-3.0.
   `files-reader`'s vendored `ooz` decompressor is GPL-3.0), plus
   [halo-api](https://github.com/JGtm/halo-api) (used directly as a Go module, not vendored).
   See [third_party/README.md](third_party/README.md) for versions and the changes made here.
-- **[TheHaloArchive](https://github.com/TheHaloArchive)**: the
-  [ekur](https://github.com/TheHaloArchive/ekur) Blender add-on, whose JSON export of the
-  game is used as the optional reference for armor, weapon and first-person coatings (see
-  "Ekur reference" above).
+- **[TheHaloArchive](https://github.com/TheHaloArchive)**: [ekur](https://github.com/TheHaloArchive/ekur)
+  (GPL-3.0), whose JSON export of the game is the optional reference for armor, weapon and
+  first-person coatings, and [ReclaimerFiles](https://github.com/TheHaloArchive/ReclaimerFiles),
+  the lists Ekur's dumper reads. Set up coatings downloads both from their publishers at the
+  user's request; neither is bundled (see "Coatings" in First run).
 - **[Gravemind2401](https://github.com/Gravemind2401)**: [Reclaimer](https://github.com/Gravemind2401/Reclaimer)
   (GPL-3.0): several tag layouts and rules in the vendored `map-images` module were first
   read from Reclaimer's sources, then independently re-measured on game files and

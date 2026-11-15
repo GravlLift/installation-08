@@ -94,6 +94,8 @@ func runServe(args []string) error {
 	}
 	h := newServerHandlers(root, f.web, jobs, weaponKeys, labelCat)
 	h.readOnly = f.readOnly
+	// The job is shared by pointer, so the routes the mux already bound see the game root.
+	h.coatingsSetup.game = f.game
 	if f.readOnly {
 		slog.Info("read-only mode: state-changing requests are refused")
 	}
@@ -153,6 +155,8 @@ type serverHandlers struct {
 	remote    *remoteJobs
 	auth      *authSession
 	listCache *matchlistCache
+	// coatingsSetup is the in-app coatings setup job (serve_coatings_setup.go).
+	coatingsSetup *coatingsSetupJob
 }
 
 // readOnlyHandler is the one middleware the read-only mode wraps the top-level handler in:

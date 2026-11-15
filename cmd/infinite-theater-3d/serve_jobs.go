@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
+	"github.com/llampwall/infinite-theater-3d/internal/safefs"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
@@ -83,12 +83,22 @@ func coatingLibraryReady(dataDir, module string) bool {
 // ekurStampCache holds the current export's stamp per data directory, computed once per
 // process: readiness runs on every build-state poll (under the runner's lock), and reading a
 // full export's tens of thousands of names each time would stall it. An export change takes
-// effect at the next start, which is also when stale libraries are moved aside.
+// effect at the next start, which is also when stale libraries are moved aside, or right
+// away when the in-app coatings setup wrote it (forgetEkurStamps).
 var ekurStampCache sync.Map // export folder ("" for none) -> ekurStampEntry
 
 type ekurStampEntry struct {
 	stamp string
 	ok    bool
+}
+
+// forgetEkurStamps drops every cached export stamp: the coatings setup calls it once it has
+// swapped a new export into <data>/ekur, so readiness sees the new stamp without a restart.
+func forgetEkurStamps() {
+	ekurStampCache.Range(func(k, _ any) bool {
+		ekurStampCache.Delete(k)
+		return true
+	})
 }
 
 // currentEkurStamp is the stamp of the export EkurDir resolves for dataDir: "" with true
@@ -381,65 +391,10 @@ func restoreStaleCoatingLibrary(dataDir, module string) {
 // removeTreeRefusingSymlinks removes path (a library folder set aside by the startup) and
 // everything under it, refusing to follow a symlink or a directory junction: any reparse
 // point found in the walk leaves the tree untouched and its own error says so. It is the
-// only code that deletes a .stale folder, and it never deletes anything outside it.
+// only code that deletes a .stale folder, and it never deletes anything outside it. The
+// removal itself is safefs.RemoveTree, shared with the coatings setup.
 func removeTreeRefusingSymlinks(path, what string) error {
-	info, err := os.Lstat(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	if !info.Mode().IsDir() {
-		// A symlink or a junction is not a directory (neither is a file): remove the link
-		// itself, never what it points at.
-		return os.Remove(path)
-	}
-	// The first walk only inspects: a symlink or junction anywhere leaves the tree
-	// untouched (WalkDir reports its error, which stops the walk at that entry).
-	if err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		// Since Go 1.23 a Windows junction reports ModeIrregular rather than ModeSymlink:
-		// refuse both, and any other reparse point.
-		if d.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-			return errors.New(what + " contains a symlink or junction (" + d.Name() + "); refusing to follow it")
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	// The second walk deletes: files first, then each directory once it is empty
-	// (bottom-up, because WalkDir visits a directory before its children).
-	if err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			return os.Remove(p)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	// Remove the now-empty directories, deepest first (the reverse of the walk order).
-	var dirs []string
-	_ = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() && p != path {
-			dirs = append(dirs, p)
-		}
-		return nil
-	})
-	for i := len(dirs) - 1; i >= 0; i-- {
-		if err := os.Remove(dirs[i]); err != nil {
-			return err
-		}
-	}
-	return os.Remove(path)
+	return safefs.RemoveTree(path, what)
 }
 
 // firstMapModule is the first map module key in the store, or "" when the store holds no

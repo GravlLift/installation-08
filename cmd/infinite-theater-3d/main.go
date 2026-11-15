@@ -28,7 +28,8 @@ const usage = `usage: infinite-theater-3d <command> [flags]
   build-piece --region <hex-id> --permutation <hex-id> --map <key> [--game <root>] [--ekur <dir>] --out <file.glb>
   build-firstperson --weapon <hex-id> --map <key> [--game <root>] [--no-arms] [--ekur <dir>] --out <file.glb>
   build-firstperson-library [--game <root>] [--data <dir>] [--map <key>]
-  build-icons [--data <dir>] [--game <root>]`
+  build-icons [--data <dir>] [--game <root>]
+  setup-coatings [--data <dir>] [--game <root>]`
 
 // commands maps each subcommand to its entry point; every entry takes the arguments that
 // follow the subcommand name.
@@ -53,6 +54,7 @@ var commands = map[string]func([]string) error{
 	"build-firstperson":         runBuildFirstPerson,
 	"build-firstperson-library": runBuildFirstPersonLibrary,
 	"build-icons":               runBuildIcons,
+	"setup-coatings":            runSetupCoatings,
 }
 
 func run(args []string) error {

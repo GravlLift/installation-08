@@ -33,6 +33,7 @@ import { useVariantLayer } from './useVariantLayer'
 import { PreGameScreen } from './PreGameScreen'
 import { useMatchSummary, useRemoteMatch } from './useMatchSummary'
 import { useCoatingsNotice, COATING_NOTICE_TOOLTIP } from './useCoatingsNotice'
+import { CoatingsSetupControl } from './CoatingsSetupControl'
 import { useReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
@@ -275,7 +276,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
         {mapName && <span className="bc-player-map">{mapName}</span>}
         {meta && <span className="bc-player-meta">{meta}</span>}
         <span className="bc-spacer" />
-        {coatings.notice && (
+        {coatings.notice && coatings.canSetUp && <CoatingsSetupControl notice={coatings.notice} />}
+        {coatings.notice && !coatings.canSetUp && (
           <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
             {coatings.notice}
           </span>
