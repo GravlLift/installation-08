@@ -60,6 +60,25 @@ const GROUND_TINT = 0x3a3530
 const HAZE_TINT = 0x4a5a66
 const HAZE_DENSITY = 0.02
 
+// Share of the sun's diffuse light the open sky adds, on a map without baked light (Forge
+// canvases publish no probes). The view's background (a display color, linear luminance about
+// 0.44) was captured into the probes as radiance: under ENV_INTENSITY an open-sky surface took
+// about 0.65 x albedo of flat blue-grey fill, as much as Fortress's sun gives (5/8 of SUN_INTENSITY,
+// 0.64 x albedo x cos): the walls, the floor and the first-person weapon came out washed out and
+// desaturated. A clear sky adds a fraction of the sun.
+export const SKY_FILL_SHARE = 0.25
+
+/**
+ * captureSkyScale: the factor on the background color `sky` while the probes are captured, so
+ * that an open sky lights a surface with SKY_FILL_SHARE of the sun's diffuse light (intensity
+ * `sunIntensity`); at most 1 (never brighter than the background shown). 0 for a black sky.
+ */
+export function captureSkyScale(sunIntensity: number, sky: THREE.Color): number {
+  const luminance = 0.2126 * sky.r + 0.7152 * sky.g + 0.0722 * sky.b
+  if (!(luminance > 0) || !(sunIntensity > 0)) return 0
+  return Math.min(1, (SKY_FILL_SHARE * sunIntensity) / Math.PI / (luminance * ENV_INTENSITY))
+}
+
 const guarded = new WeakSet<THREE.Material>()
 
 /**
@@ -193,9 +212,16 @@ export class Lighting {
     this.scene.environment = null
     // Et sans brume : elle appartient à l'œil, pas à la lumière renvoyée.
     this.scene.fog = null
+    // Without baked light, the sky seen by the probes is the sky's share of the sun's light, not
+    // the background's display color (SKY_FILL_SHARE).
+    const background = this.scene.background
+    if (!(this.baked && this.baked.regions.length > 0) && background instanceof THREE.Color) {
+      this.scene.background = background.clone().multiplyScalar(captureSkyScale(this.sun.intensity, background))
+    }
     const pmrem = new THREE.PMREMGenerator(this.renderer)
     this.probes = this.spots.map((spot) => this.capture(spot, pmrem))
     pmrem.dispose()
+    this.scene.background = background
     this.scene.fog = this.haze
     if (this.probes.length === 0) return 0
     this.assignProbes(meshes)
