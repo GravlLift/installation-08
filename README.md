@@ -1,5 +1,8 @@
 # Infinite Theater 3D
 
+By Jordan Hewitt ([llampwall](https://github.com/llampwall)), built on JGtm's LevelUp. See
+[Credits](#credits).
+
 A standalone Halo Infinite 3D theater viewer. You sign in to your own Xbox account, pick one
 of your recent matches, and the app fetches the match film, builds the map's 3D mesh from
 your local game installation, and plays the replay in a 3D scene you can drive from first
@@ -355,6 +358,10 @@ AGPL-3.0.
   follows the tag reading approach of infinite-rs 0.13.2 (Surasia, Unlicense OR MIT).
   GPL-3.0-or-later can be combined with this project's AGPL-3.0; the ReclaimerFiles lists are
   no longer used (see "Coatings" in First run).
+- **[Den Delimarsky](https://github.com/dend)**: [OpenSpartan](https://github.com/OpenSpartan)'s
+  libfilmshell (MIT), the Rust decoder of the match film format whose vocabulary the vendored
+  `film-decoder` maps to (`third_party/film-decoder/GLOSSARY.md`). No libfilmshell code is
+  included.
 - **[Gravemind2401](https://github.com/Gravemind2401)**: [Reclaimer](https://github.com/Gravemind2401/Reclaimer)
   (GPL-3.0): several tag layouts and rules in the vendored `map-images` module were first
   read from Reclaimer's sources, then independently re-measured on game files and
