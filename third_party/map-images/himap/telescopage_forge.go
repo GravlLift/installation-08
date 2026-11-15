@@ -16,6 +16,8 @@
 // tunnel (376 samples inside), unscaled none. Every other mapping of the stored components
 // onto the axes keeps samples inside one family or the other.
 //
+// The stored scale multiplies the type's reference dimensions, not its model (telescopage).
+//
 // Ekur (TheHaloArchive, addon/src/operators/forge_map_operator.py) reads the mode for the
 // object's name only and scales every object by its stored scale: it does not handle
 // telescoping, and its export carries the same slabs.
@@ -27,6 +29,115 @@ import (
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 )
+
+// telescopage (LOCAL-CHANGE (infinite-theater-3d)): how a telescoping type turns an object's
+// stored scale into the size of the model the layer draws.
+//
+// SIZE. The `.mvar` scale multiplies the type's REFERENCE dimensions, the three floats at
+// +0xE4 of its `food` root (after the default, minimum and maximum scales at +0xC0, +0xCC,
+// +0xD8), not the extent of the model drawn in its place: the game stretches the size it picks
+// to reference x scale. Most types' reference is their default model's box; not all of them.
+// MEASURED (Outlook, fo13_frost): type -1722685555 (I-beam, sizes 4x8x4 to 8x32x8) has a
+// reference of 0.20 x 0.20 x 0.40 against a 0.40 x 0.40 x 0.80 default model, and the trims of
+// type -1593549433 have 0.20 x 0.40 x 0.80 against 0.20 x 0.60 x 0.80. Scaling the model
+// instead drew the I-beams twice as long as the game: 8.4 m beams ran 5.9 m out of a base's
+// front and along its floor (5 264 player feet samples inside them; with the reference and the
+// centre rule below, 12), and the trims' height stood 0.23 m above the floor (1 556 feet samples
+// inside, 0 with the reference, and the trims hold 4.7 times more standing samples).
+//
+// PIVOT. On an axis where the reference resizes the model (rapportDifferent), the stretched
+// size is centred where the model's box is centred; on the others the scale applies about the
+// model's origin, as for any object. MEASURED (Outlook): an I-beam's origin is one end of its
+// model (Z from 0); scaled about it, a beam still ran 1.7 m out of a base's front, through a
+// player falling at x -21.5 (replay slot 678), and mirrored pairs (objects 1274 and 1276,
+// 5085/5089, 5084/5081) pointed opposite ways; about the centre each pair is symmetric and
+// spans the base's front between its inner wall and its edge (feet samples inside 1 481 -> 12).
+// The door frames (690293631, reference = model) keep their origin: centred, their lintels
+// came down 0.77 m onto players walking through them (0 -> 6 torso samples inside).
+type telescopage struct {
+	// fixes: the model axes the type does not stretch (axesFixes).
+	fixes [3]bool
+	// rapport: per model axis, reference dimension / model extent (1 when unknown).
+	rapport [3]float64
+	// centre: the centre of the model's box, in the frame the layer scales (model + origine).
+	centre [3]float64
+}
+
+// toleranceRapport: a reference within this fraction of the model's extent does not resize it.
+const toleranceRapport = 0.05
+
+// rapportDifferent reports whether reference ratio r resizes the model (rapportsReference).
+func rapportDifferent(r float64) bool {
+	return r != 0 && math.Abs(r-1) > toleranceRapport
+}
+
+// Root layout of a `food` tag (dimensionsReference): default, minimum and maximum scale, then
+// the reference dimensions.
+const (
+	foodRacineEchelle    = 0xC0
+	foodRacineReference  = 0xE4
+	foodRacineTailleMini = 0xF0
+)
+
+// dimensionsReference returns the reference dimensions of the Forge definition `food`; false
+// when its root does not carry a unit default scale followed by positive dimensions.
+func dimensionsReference(food []byte) ([3]float64, bool) {
+	for _, ti := range tagCandidates(food) {
+		rb, err := ti.rootBlockIndex()
+		if err != nil {
+			continue
+		}
+		start, size := ti.blockAbs(rb)
+		if start < 0 || size < foodRacineTailleMini || start+foodRacineTailleMini > len(food) {
+			continue
+		}
+		var dims [3]float64
+		for a := range 3 {
+			if math.Abs(f32(food, start+foodRacineEchelle+4*a)-1) > 1e-3 {
+				return dims, false
+			}
+			dims[a] = f32(food, start+foodRacineReference+4*a)
+			if !(dims[a] > 0) || dims[a] > 1e4 {
+				return dims, false
+			}
+		}
+		return dims, true
+	}
+	return [3]float64{}, false
+}
+
+// rapportsReference returns, per axis, reference / model extent for model box (mn, mx); 1 on an
+// axis without a usable ratio (reference unread, flat model, ratio outside [0.1, 10]).
+func rapportsReference(ref [3]float64, lu bool, mn, mx [3]float64) [3]float64 {
+	out := [3]float64{1, 1, 1}
+	if !lu {
+		return out
+	}
+	for a := range 3 {
+		if e := mx[a] - mn[a]; e > 1e-6 {
+			if r := ref[a] / e; r >= 0.1 && r <= 10 {
+				out[a] = r
+			}
+		}
+	}
+	return out
+}
+
+// telescopageDuFood reads how the type of Forge definition `food` telescopes, its default model
+// drawing meshes `maillages` of `a`.
+func telescopageDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map[uint32]*RuntimeGeoAsset, a *RuntimeGeoAsset, maillages []int) telescopage {
+	t := telescopage{fixes: axesFixesDuFood(ctx, idx, food, assets), rapport: [3]float64{1, 1, 1}}
+	mn, mx, ok := boiteDesMaillages(a, maillages)
+	if !ok {
+		return t
+	}
+	ref, lu := dimensionsReference(food)
+	t.rapport = rapportsReference(ref, lu, mn, mx)
+	for k := range 3 {
+		t.centre[k] = (mn[k] + mx[k]) / 2
+	}
+	return t
+}
 
 // typesTelescopiques returns the types with at least one telescoping object.
 func typesTelescopiques(objets []mapvar.Object) map[int32]bool {
@@ -98,22 +209,32 @@ func axesFixes(boites [][2][3]float64) [3]bool {
 	return fixes
 }
 
-// echelleTelescopique returns `o` with its scale left at 1 on axes `fixes` when it is a
-// telescoping object; any other object unchanged.
-func echelleTelescopique(o mapvar.Object, fixes [3]bool) mapvar.Object {
+// echelleTelescopique returns a telescoping object `o` with the scale its model is drawn at: 1 on
+// the axes `t.fixes`, stored x `t.rapport` on the others; and the model-frame offset (to add to
+// the model's origin, Instance.decale) that keeps the model's box centre where it is at scale 1
+// on the axes the reference resizes (rapportDifferent), none on the others. Any other object is
+// returned unchanged, with no offset.
+func echelleTelescopique(o mapvar.Object, t telescopage) (mapvar.Object, [3]float64) {
+	var decalage [3]float64
 	if o.ModeForge != mapvar.ModeForgeTelescopique || o.Scale == nil {
-		return o
+		return o, decalage
 	}
-	s := *o.Scale
-	if fixes[0] {
-		s.X = 1
+	stockee := [3]float64{o.Scale.X, o.Scale.Y, o.Scale.Z}
+	var e [3]float64
+	for a := range 3 {
+		e[a] = 1
+		if !t.fixes[a] {
+			r := t.rapport[a]
+			if r == 0 {
+				r = 1
+			}
+			e[a] = stockee[a] * r
+		}
+		// v' = c + e(v - c) = e(v + c(1-e)/e): the offset is applied before the scale.
+		if e[a] != 0 && !t.fixes[a] && rapportDifferent(t.rapport[a]) {
+			decalage[a] = t.centre[a] * (1 - e[a]) / e[a]
+		}
 	}
-	if fixes[1] {
-		s.Y = 1
-	}
-	if fixes[2] {
-		s.Z = 1
-	}
-	o.Scale = &s
-	return o
+	o.Scale = &mapvar.Vec3{X: e[0], Y: e[1], Z: e[2]}
+	return o, decalage
 }

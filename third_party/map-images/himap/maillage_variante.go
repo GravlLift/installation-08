@@ -105,9 +105,9 @@ type modeleVariante struct {
 	// pieces (LOCAL-CHANGE (infinite-theater-3d)): the objects of the type's Forge kit, posed
 	// in the object's frame (kits_forge.go); empty for a type that has its own model.
 	pieces []pieceKit
-	// fixes (LOCAL-CHANGE (infinite-theater-3d)): the model axes a telescoping object of the
-	// type does not stretch (telescopage_forge.go).
-	fixes [3]bool
+	// telescopage (LOCAL-CHANGE (infinite-theater-3d)): how a telescoping object of the type
+	// sizes its model (telescopage_forge.go).
+	telescopage telescopage
 }
 
 // ecartVariante dit pourquoi un objet de variante n'est pas pose.
@@ -243,10 +243,14 @@ func modelesDesTypes(ctx context.Context, objets []mapvar.Object,
 			mv.materiaux, mv.sansPalette = paletteDuType(ctx, idx, forge, foodParID[uint32(ty)], ref.id)
 			mv.origine = origineDuRtgo(a, mv.maillages, modeDuType(ctx, idx, forge, foodParID[uint32(ty)], assets))
 		}
-		// LOCAL-CHANGE (infinite-theater-3d): the axes a telescoping type does not stretch.
+		// LOCAL-CHANGE (infinite-theater-3d): how a telescoping type sizes its model.
+		mv.telescopage.rapport = [3]float64{1, 1, 1}
 		if telescopiques[ty] {
 			if tag, err := forge.Extract(foodParID[uint32(ty)]); err == nil {
-				mv.fixes = axesFixesDuFood(ctx, idx, tag, assets)
+				mv.telescopage = telescopageDuFood(ctx, idx, tag, assets, a, mv.maillages)
+				for k := range 3 {
+					mv.telescopage.centre[k] += mv.origine[k]
+				}
 			}
 		}
 		out[ty] = mv
@@ -278,12 +282,18 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 		if !compteEcart(ecartDeVariante(o, opts.Filtres), b) {
 			continue
 		}
-		// LOCAL-CHANGE (infinite-theater-3d): a telescoping object keeps its type's fixed axes
-		// unscaled (telescopage_forge.go).
-		if d := modeles[o.TypeID]; d != nil {
-			o = echelleTelescopique(o, d.fixes)
+		// LOCAL-CHANGE (infinite-theater-3d): a telescoping object's model is sized from its
+		// type's reference dimensions, about the model's box centre on the axes the reference
+		// resizes (telescopage_forge.go).
+		// A representation's own model keeps only the fixed axes.
+		var decalage [3]float64
+		d := modeles[o.TypeID]
+		mv, repli := selectionRepresentation(o, d, representations)
+		if d != nil && mv == d {
+			o, decalage = echelleTelescopique(o, d.telescopage)
+		} else if d != nil {
+			o, _ = echelleTelescopique(o, telescopage{fixes: d.telescopage.fixes})
 		}
-		mv, repli := selectionRepresentation(o, modeles[o.TypeID], representations)
 		if repli {
 			b.RepliRepresentation++
 		}
@@ -300,7 +310,7 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 				teinte = &t
 			}
 		}
-		triangles := m.poseObjet(i, o, mv, teinte)
+		triangles := m.poseObjet(i, o, mv, teinte, decalage)
 		b.Poses++
 		tp := poses[o.TypeID]
 		if tp == nil {
@@ -332,13 +342,15 @@ func compteEcart(e ecartVariante, b *BilanVariante) bool {
 
 // poseObjet place les modeles de l'objet de rang i (LOCAL-CHANGE (infinite-theater-3d): en
 // placements de geometries partagees, PosesVariante), range sa boite monde dans `Objets` et rend
-// les triangles dessines qu'il pose.
-func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante, teinte *TeinteForge) int {
+// les triangles dessines qu'il pose. LOCAL-CHANGE (infinite-theater-3d): `decalage` is added to
+// the model's origin (a telescoping object's centre offset, echelleTelescopique).
+func (m *MaillageMonde) poseObjet(i int, o mapvar.Object, mv *modeleVariante, teinte *TeinteForge, decalage [3]float64) int {
 	if m.Poses == nil {
 		m.Poses = &PosesVariante{}
 	}
 	debut := len(m.Poses.Poses)
-	m.Poses.pose(i, mv, instanceVariante(o, mv.materiaux, mv.origine), nil, mv.materiaux, teinte)
+	origine := [3]float64{mv.origine[0] + decalage[0], mv.origine[1] + decalage[1], mv.origine[2] + decalage[2]}
+	m.Poses.pose(i, mv, instanceVariante(o, mv.materiaux, origine), nil, mv.materiaux, teinte)
 	// LOCAL-CHANGE (infinite-theater-3d): the kit's objects, each placed by its own pivot.
 	for _, p := range mv.pieces {
 		local := p.pose.decale(p.mv.origine)
