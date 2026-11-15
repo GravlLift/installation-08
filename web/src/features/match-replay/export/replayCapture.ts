@@ -88,29 +88,81 @@ function stampOf(now: Date): string {
 const URL_RELEASE_MS = 1000
 
 /**
- * triggerDownload remet un blob au navigateur sous le nom donné.
+ * holdDownload garde un blob prêt à descendre dans le dossier de téléchargements : l'URL
+ * d'objet est créée MAINTENANT, le clic part plus tard, à la main.
  *
- * DEUX PRÉCAUTIONS, ET AUCUNE N'EST DÉCORATIVE. L'ancre est ATTACHÉE au document le temps du
- * clic : un clic sur un nœud détaché est ignoré par certains navigateurs, et le
- * téléchargement n'y part alors jamais. Et l'URL d'objet se relâche PLUS TARD, jamais au
- * retour du clic (cf. `URL_RELEASE_MS`).
+ * POURQUOI UN TOUT AUTRE GESTE QUE `triggerDownload`. Un clic sur une ancre `download`
+ * déposé par le CODE, des minutes après le dernier geste de l'utilisateur, n'a plus le
+ * geste derrière : Chrome bloque le SECOND fichier non demandé d'un site (« Needs
+ * permission to download »). Le premier passe, le deuxième non — et le film, c'est le
+ * deuxième. Le clic qui déclenche le téléchargement doit donc venir de l'utilisateur,
+ * sur un bouton visible ; ce que le code prépare d'avance, c'est seulement l'URL.
+ *
+ * Le `release` rend la main : il révoque l'URL et rend le blob au collecteur. À
+ * appeler quand l'utilisateur ferme le dialogue SANS avoir sauvé — un blob que plus
+ * personne ne peut sauver doit être rendu (cf. `useReplayExport`, la phase `done`).
+ */
+export interface PendingDownload {
+  /** Déclenche le téléchargement. À appeler UNIQUEMENT depuis le clic d'un utilisateur. */
+  save: () => void
+  /** Révoque l'URL d'objet et rend le blob au collecteur. Le blob ne descendra pas. */
+  release: () => void
+}
+
+/**
+ * holdDownload prépare un téléchargement sans le déclencher.
+ *
+ * L'URL d'objet est créée à l'appel : elle vit dans ce que le retour porte, et c'est
+ * `release` — pas un minuteur — qui la révoque. Tant que l'utilisateur n'a ni sauvé
+ * ni fermé, le blob reste lisible et rien ne part.
+ */
+export function holdDownload(blob: Blob, filename: string): PendingDownload {
+  const url = URL.createObjectURL(blob)
+  let released = false
+  return {
+    save() {
+      if (released) return
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.rel = 'noopener'
+      // Invisible et hors flux : l'ancre ne doit pas déplacer d'un pixel la page qu'elle traverse.
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      try {
+        a.click()
+      } finally {
+        // L'ANCRE PART TOUT DE SUITE, l'URL non : le clic est traité, le blob se lit encore
+        // (cf. `URL_RELEASE_MS`), et on n'a plus besoin de la retenir ensuite.
+        a.remove()
+        setTimeout(() => {
+          if (released) return
+          released = true
+          URL.revokeObjectURL(url)
+        }, URL_RELEASE_MS)
+      }
+    },
+    release() {
+      if (released) return
+      released = true
+      URL.revokeObjectURL(url)
+    },
+  }
+}
+
+/**
+ * triggerDownload remet un blob au navigateur sous le nom donné, d'un seul geste.
+ *
+ * À réserver aux chemins où le clic de l'utilisateur EST le téléchargement — la capture
+ * d'image, où le geste et le dépôt sont la même action. Pour un fichier qui existe des
+ * minutes après le clic (l'export), le clic final doit venir de l'utilisateur : c'est
+ * `holdDownload`, qui prépare l'URL et attend le bouton « Sauvegarder ».
+ *
+ * L'ancre est ATTACHÉE au document le temps du clic : un clic sur un nœud détaché est
+ * ignoré par certains navigateurs, et le téléchargement n'y part alors jamais.
  */
 export function triggerDownload(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  // Invisible et hors flux : l'ancre ne doit pas déplacer d'un pixel la page qu'elle traverse.
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  try {
-    a.click()
-  } finally {
-    // L'ANCRE PART TOUT DE SUITE, l'URL non : le clic est traité, le blob se lit encore.
-    a.remove()
-    setTimeout(() => URL.revokeObjectURL(url), URL_RELEASE_MS)
-  }
+  holdDownload(blob, filename).save()
 }
 
 /**

@@ -81,7 +81,7 @@ import { mixReplayAudio, soundUrlOf, type MixedTracks, type SoundFamily } from '
 import type { RenderHooks } from '../sound/mixRender'
 import { listenerAtOfPlayer } from '../sound/soundListenerOf'
 import { formatClock, frameToMs } from '../../../lib/replay/replayLogic'
-import { buildCaptureFilename, triggerDownload } from './replayCapture'
+import { buildCaptureFilename, holdDownload, type PendingDownload } from './replayCapture'
 import { tintedIconCanvas } from '../layers/replayDraw'
 import {
   END_HOLD_MS,
@@ -217,8 +217,10 @@ export interface ReplayExportState {
    * un dessin dont la charge ne depend pas de l'instant du match.
    */
   etaMs?: number
-  /** Le nom du fichier depose, en phase `done`. */
+  /** Le nom du fichier prêt à descendre, en phase `done`. */
   filename?: string
+  /** Le téléchargement prêt : le clip, son URL et le `save` qui part d'un clic. Absent hors `done`. */
+  save?: PendingDownload
   /**
    * `true` = le son etait demande mais le navigateur a REFUSE la piste : le clip est muet, et
    * il faut le dire. Un clip silencieux qu'on croyait sonore se decouvre au montage.
@@ -248,6 +250,20 @@ export interface ReplayExport {
   /** La plage proposée par défaut : la fenêtre de gameplay entière. */
   defaultBounds: () => ExportBounds
   run: (bounds: ExportBounds, options?: ExportRunOptions) => Promise<void>
+  /**
+   * Dépose le clip de la phase `done` dans le dossier de téléchargements. Le CUIRE doit
+   * l'appeler d'un clic : un clic sur une ancre déposé par le code, des minutes après le
+   * dernier geste de l'utilisateur, n'a plus le geste derrière, et Chrome bloque le
+   * second fichier non demandé d'un site. `no-op` hors `done` (rien à sauver, rien à
+   * révoquer).
+   */
+  saveDone: () => void
+  /**
+   * Rend le clip sans le déposer : révocation de l'URL d'objet et retour à l'état inerte.
+   * Appelé quand l'utilisateur ferme le dialogue sans avoir sauvé — un blob que plus
+   * personne ne peut sauver doit être rendu au collecteur, pas retenu en mémoire.
+   */
+  discardDone: () => void
   /** Le palier de zoom de l'écran, relayé pour le dialogue (cf. `ReplayExportOptions.zoomLevel`). */
   zoomLevel: number
   cancel: () => void
@@ -480,6 +496,10 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
   const [state, setState] = useState<ReplayExportState>(IDLE)
   const cancelRef = useRef(false)
   const runningRef = useRef(false)
+  // LE CLIP DE LA PHASE `done`, prêt à descendre mais PAS ENCORE DÉPOSÉ : le clic qui part
+  // le téléchargement doit venir de l'utilisateur (cf. `saveDone`), et c'est `releaseDone`
+  // qui le rend si le dialogue se ferme sans lui.
+  const pendingRef = useRef<PendingDownload | null>(null)
   // LE DÉMONTAGE ANNULE, ET NE TÉLÉCHARGE RIEN. Même invariant que l'enregistrement temps réel
   // juste à côté (`useReplayCapture`, `liveRef`) : quitter la page d'un match pendant un export
   // ne doit pas déposer, trois minutes plus tard, le fichier d'un match qu'on a quitté.
@@ -489,12 +509,30 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
     return () => {
       liveRef.current = false
       cancelRef.current = true
+      // Un clip en attente d'être sauvé, sur une page qui se démonte : rendu, pas retenu.
+      pendingRef.current?.release()
+      pendingRef.current = null
     }
   }, [])
 
   const cancel = useCallback(() => {
     cancelRef.current = true
   }, [])
+
+  /** Rend le clip en attente : révocation de l'URL et retour à l'état inerte. */
+  const releaseDone = useCallback(() => {
+    pendingRef.current?.release()
+    pendingRef.current = null
+    setState(IDLE)
+  }, [])
+
+  const saveDone = useCallback(() => {
+    pendingRef.current?.save()
+  }, [])
+
+  const discardDone = useCallback(() => {
+    releaseDone()
+  }, [releaseDone])
 
   const defaultBounds = useCallback(
     () => defaultExportBounds(o.doc, o.playWindow),
@@ -620,10 +658,19 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // LE DÉMONTAGE NE TÉLÉCHARGE PAS : le clip est assemblé (l'encodeur doit être vidé
         // proprement quoi qu'il arrive) mais il ne part pas vers un onglet qui a changé de page.
         const filename = exportFilename(o, bounds)
-        if (clip && liveRef.current) triggerDownload(clip, filename)
-        // PHASE 3 : le fichier est depose, et on le DIT avec son nom. Une annulation, elle,
+        // LE CLIP EST ASSEMBLÉ, MAIS RIEN NE PART : des minutes après le clic d'export, un
+        // clic sur une ancre déposé par le code n'a plus le geste derrière, et Chrome bloque
+        // le second fichier non demandé d'un site. Le clip attend le bouton « Sauvegarder »
+        // de la phase `done` — et c'est la fermeture du dialogue, PAS ce `finally`, qui le
+        // rend s'il n'est pas sauvé. Le `finally` ne rend que ce qui est encore EN ATTENTE
+        // d'un export en cours (erreur, annulation) : en finir ici, sur le chemin réussi,
+        // tuerait le téléchargement enclenché par un clic qui vient de se produire.
+        if (clip) pendingRef.current = liveRef.current ? holdDownload(clip, filename) : null
+        if (!clip) pendingRef.current?.release()
+        if (!clip) pendingRef.current = null
+        // PHASE 3 : le fichier est PRÊT, et on le DIT avec son nom. Une annulation, elle,
         // ramene au formulaire — il n'y a rien a annoncer d'un geste qu'on vient de faire.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, mutedFallback: muet, fps, fpsFallback } : IDLE)
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, mutedFallback: muet, fps, fpsFallback } : IDLE)
       } catch (err) {
         // JAMAIS D'ÉCHEC MUET (règle 3 du dépôt : logger AVANT toute dégradation). Sans ce
         // bloc, une panne d'encodeur faisait disparaître la barre de progression sans un mot,
@@ -659,7 +706,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
   )
 
   const zoomLevel = o.zoomLevel ?? 1
-  return { supported: canExportVideo(), state, defaultBounds, run, cancel, clockOf, lengthClock, zoomLevel }
+  return { supported: canExportVideo(), state, defaultBounds, run, saveDone, discardDone, cancel, clockOf, lengthClock, zoomLevel }
 }
 
 /**

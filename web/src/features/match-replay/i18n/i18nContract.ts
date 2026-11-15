@@ -984,8 +984,10 @@ export interface ReplayText {
   exportSoundEncodingFmt: (pct: number) => string
   /** « ~1:20 restantes » — l'estimation, absente tant qu'elle danserait. */
   exportEtaFmt: (clock: string) => string
-  /** « Fichier depose : rejeu-....mp4 » — la fin se dit, avec le nom du fichier. */
+  /** « Fichier pret : rejeu-....mp4 » — la fin se dit, avec le nom du fichier, avant qu'il descende. */
   exportDoneFmt: (filename: string) => string
+  /** Le bouton qui dépose le clip : il part d'un clic, pas du code. */
+  exportSaveVideo: string
   /** Le son etait demande, le navigateur l'a refuse : le clip est muet, et on le DIT. */
   exportMutedFallback: string
   /** A 3D clip meant for 60 fps that the browser could only encode at `fps`: said, never silent. */
