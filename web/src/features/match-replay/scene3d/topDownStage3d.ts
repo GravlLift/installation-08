@@ -6,17 +6,18 @@
  *
  * The light: the 3D view's low sun and its shadow map make sunlit pools under every skylight and
  * dark bands under every beam, readable from eye height but not from above, where they read as the
- * map's colors. Seen from above the sun is put out: the floors take the sky, the probes' and the
- * game's baked light only (the ambient and environment terms), so every material keeps its own
- * color and the floors are evenly lit. A soft overhead sun was tried and dropped: a light straight
- * down, seen straight down, puts its specular peak on every flat floor, and the metal floors read
- * white (the "white slab" the map read as when the shadows alone were off, with the low sun).
+ * map's colors; the game's lamps and baked light and the probes' reflections do the same with hot
+ * spots and skylight pools. Seen from above the map takes one flat light instead (`topDownShade3d`),
+ * so every floor is evenly lit and keeps its own color, and the sun is put out for what is not the
+ * map (the players' bodies). A soft overhead sun was tried and dropped: a light straight down, seen
+ * straight down, puts its specular peak on every flat floor, and the metal floors read white.
  */
 import * as THREE from 'three'
 
 import { BACK_FACE_NAME } from './backFaces3d'
 import { cssColor } from './cssColor'
 import { CUT_HEADROOM } from './topDownLogic'
+import { flatTopLight } from './topDownShade3d'
 
 /** The lift of a top-down camera above its cut, keeps the near plane positive (u). */
 export const TOP_LIFT = 2
@@ -94,9 +95,11 @@ export class TopDownStage {
     const states = hidden.map((h) => ({ obj: h.obj, visible: h.obj.visible }))
     for (const h of hidden) h.obj.visible = false
     const restoreLight = this.sunOut()
+    const restoreFlat = flatTopLight()
     try {
       draw()
     } finally {
+      restoreFlat()
       restoreLight()
       for (const s of states) s.obj.visible = s.visible
       scene.fog = saved.fog

@@ -20,6 +20,7 @@ import type { BakedLight } from './bakedLightShader'
 import { FlashLights } from './flash3d'
 import type { Look3d } from './look3d'
 import { chooseProbes, nearestProbe } from './probes3d'
+import { graftTopShade } from './topDownShade3d'
 
 const SHADOW_SIZE = 4096
 // Sondes d'environnement : au plus PROBE_MAX, espacées d'au moins PROBE_SPACING (u).
@@ -67,6 +68,7 @@ const guarded = new WeakSet<THREE.Material>()
  * - Pixel non fini écrit en noir : des triangles dégénérés du jeu donnent une normale en facette
  *   NaN ; invisibles à l'écran, quelques-uns dans la capture d'environnement suffisent à
  *   empoisonner tout le préfiltrage, donc tous les reflets.
+ * - The flat light of the top-down views (`topDownShade3d`), off outside them.
  */
 export function guardMaterial(material: THREE.Material | undefined): void {
   if (!material || guarded.has(material)) return
@@ -76,6 +78,7 @@ export function guardMaterial(material: THREE.Material | undefined): void {
   const previous = material.onBeforeCompile
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer)
+    graftTopShade(shader)
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <dithering_fragment>',
       '#include <dithering_fragment>\nif (any(isnan(gl_FragColor)) || any(isinf(gl_FragColor))) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
