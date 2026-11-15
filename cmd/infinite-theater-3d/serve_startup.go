@@ -45,8 +45,9 @@ func hasMatchMvar(root *store.Root, id string) bool {
 }
 
 // enqueueStartupBuilds enqueues every one-time build that is not ready yet, in this order:
-// the weapon icon set, the HUD icon set, the rank badge set, the announcer sounds, the weapon
-// library, the first-person library, the Spartan piece library, then, for every match in the store,
+// the weapon icon set, the HUD icon set, the rank badge set, the home backdrop, the announcer
+// sounds, the weapon library, the first-person library, the Spartan piece library, then, for every
+// match in the store,
 // that match's map mesh and variant layer (each
 // distinct map module once, in the store's listing order). ready is the runner's own
 // readiness check, so an output that is already on disk is skipped; variantExists says
@@ -74,6 +75,9 @@ func enqueueStartupBuilds(jobs interface {
 	}
 	if !ready(meshjobs.JobRanks) {
 		enqueue(meshjobs.JobRanks)
+	}
+	if !ready(meshjobs.JobBackdrop) {
+		enqueue(meshjobs.JobBackdrop)
 	}
 	if !ready(meshjobs.JobAnnouncer) {
 		enqueue(meshjobs.JobAnnouncer)
