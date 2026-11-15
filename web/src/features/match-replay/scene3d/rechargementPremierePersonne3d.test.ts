@@ -123,3 +123,36 @@ describe('staged first-person reloads', () => {
     expect(pose.base?.name).toBe('melee_strike_1')
   })
 })
+
+// The Ravager's own clips (first-person library, 2026-11-15): no reload clip, a vent.
+const RAVAGER: ClipsRechargement = {
+  plein: null, vide: null, entree: null, boucle: null, boucleVide: null, sortie: null,
+  vent: { entree: clip('vent_enter', 0.3), boucle: clip('vent_loop', 0.933), sortie: clip('vent_exit', 0.6) },
+}
+
+describe('the vent of a heat weapon', () => {
+  // Match 05dfe4e9, TasteThePainbow's Ravager: reload messages at 7:56.8 and 7:57.4 (606 ms apart).
+  const episodes = episodesRechargement([f(0), f(606)], [], FPS)
+
+  it('plays the vent clips from the film reload message: enter, loop, exit', () => {
+    expect(nom(RAVAGER, episodes, 100)).toBe('vent_enter')
+    expect(nom(RAVAGER, episodes, 700)).toBe('vent_loop')
+    expect(nom(RAVAGER, episodes, 1300)).toBe('vent_exit')
+    expect(nom(RAVAGER, episodes, 1900)).toBeNull()
+  })
+
+  it('holds the loop until the last message of a longer vent', () => {
+    const long = episodesRechargement([f(0), f(800), f(1600)], [], FPS)
+    expect(nom(RAVAGER, long, 1500)).toBe('vent_loop')
+    expect(nom(RAVAGER, long, 1700)).toBe('vent_exit')
+  })
+
+  it('ends at a shot fired after the vent starts', () => {
+    expect(nom(RAVAGER, episodes, 700, f(500))).toBeNull()
+  })
+
+  it('leaves a weapon with reload clips on its reload', () => {
+    const ma40: ClipsRechargement = { plein: clip('reload_full', 2.33), vide: null, entree: null, boucle: null, boucleVide: null, sortie: null, vent: RAVAGER.vent }
+    expect(nom(ma40, episodes, 700)).toBe('reload_full')
+  })
+})

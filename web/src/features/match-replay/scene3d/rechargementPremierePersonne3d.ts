@@ -77,6 +77,20 @@ export interface ClipsRechargement {
   boucle: ClipPremierePersonne | null
   boucleVide: ClipPremierePersonne | null
   sortie: ClipPremierePersonne | null
+  /** The rig's vent clips (`vent_enter`, `vent_loop`, `vent_exit`), for a heat weapon with no reload clip. */
+  vent?: ClipsVent | null
+}
+
+/**
+ * The vent of a heat weapon. The Ravager, Plasma Pistol, Pulse Carbine and Stalker Rifle rigs carry no
+ * reload clip but `vent_enter`, `vent_loop` and `vent_exit` (read from the first-person library,
+ * 2026-11-15): their reload input vents the heat, and the film writes that as the same `weapon_reload`
+ * message (match 05dfe4e9, TasteThePainbow's Ravager: two messages at 7:56.8 and 7:57.4, no shot after).
+ */
+export interface ClipsVent {
+  entree: ClipPremierePersonne
+  boucle: ClipPremierePersonne
+  sortie: ClipPremierePersonne | null
 }
 
 /** The reload clip at a frame: its time, its weight, and the frame from which the reload must still be valid. */
@@ -128,6 +142,7 @@ export function phaseRechargement(
   if (!ep || fps <= 0) return null
   const debut = ep.etapes[0].t
   if (debut < depuis) return null
+  if (!clips.plein && !clips.vide && !clips.entree && clips.vent) return phaseVent(clips.vent, ep, frame, fps, tir)
   const boucle = ep.vide ? clips.boucleVide ?? clips.boucle : clips.boucle ?? clips.boucleVide
   if (!clips.entree || !boucle || boucle.durationSeconds <= 0) {
     const clip = (ep.vide ? clips.vide ?? clips.plein : clips.plein ?? clips.vide) ?? clips.entree
@@ -136,6 +151,28 @@ export function phaseRechargement(
     return { clip, temps, poids: null, depuis: debut }
   }
   return phaseEtagee(clips.entree, boucle, clips.sortie, ep.etapes, frame, fps, tir)
+}
+
+/**
+ * A vent: the enter clip from the episode's first message, the loop held until the later of the
+ * episode's last message and one full loop (the game's own clip lengths, from its animation tags), then
+ * the exit clip. A shot after the vent starts ends it.
+ */
+function phaseVent(vent: ClipsVent, ep: EpisodeRechargement, frame: number, fps: number, tir: number): PhaseRechargement | null {
+  const debut = ep.etapes[0].t
+  if (tir > debut) return null
+  const t = (frame - debut) / fps
+  const entree = vent.entree.durationSeconds
+  if (t < entree) return { clip: vent.entree, temps: dans(vent.entree, t), poids: Math.min(1, t / FONDU_S), depuis: debut }
+  const finBoucle = Math.max((ep.etapes[ep.etapes.length - 1].t - debut) / fps, entree + vent.boucle.durationSeconds)
+  if (t < finBoucle) {
+    const d = vent.boucle.durationSeconds
+    return { clip: vent.boucle, temps: d > 0 ? dans(vent.boucle, (t - entree) % d) : 0, poids: 1, depuis: debut }
+  }
+  const sortie = vent.sortie
+  const u = t - finBoucle
+  if (!sortie || u >= sortie.durationSeconds) return null
+  return { clip: sortie, temps: dans(sortie, u), poids: Math.min(1, (sortie.durationSeconds - u) / FONDU_S), depuis: debut }
 }
 
 /** A staged reload: the enter clip, one round clip per stage fitted to the stage, then the closing clip. */
