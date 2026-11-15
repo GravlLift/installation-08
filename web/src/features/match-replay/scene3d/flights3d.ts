@@ -33,7 +33,7 @@ import { DYNAMO_REST_HOLD_MS, GRENADE_REST_HOLD_MS, restKindOf, type GrenadeRest
 import { buildRestFx } from '../model/shotImpactFx'
 import { vehicleShotStyleOf } from '../model/vehicleWeaponRegistry'
 import { InstancePool, SegmentPool, firstFrom } from './actionKit'
-import { grenadeLookOf, plasmaPulse, PLASMA_CORE_MIX, PLASMA_CORE_RADIUS, PLASMA_HALO_DIM, PLASMA_HALO_MULT, PLASMA_PULSE_DEPTH, type GrenadeFlightLook } from './grenadeLook3d'
+import { grenadeLookOf, plasmaPulse, PLASMA_CORE_MIX, PLASMA_CORE_RADIUS, PLASMA_HALO_DIM, PLASMA_HALO_MULT, PLASMA_PULSE_DEPTH, SHOT_ORB_RADIUS, type GrenadeFlightLook } from './grenadeLook3d'
 import { blastLight, blastStyleOf } from './explosionFx3d'
 import { Explosions3d } from './explosions3d'
 import { WeaponModelPool } from './weaponModels3d'
@@ -74,6 +74,8 @@ interface Flight {
   grenade: number | null
   /** La forme du vol (`grenadeLook3d`) : le modèle du jeu, ou l'orbe plasma. */
   look: GrenadeFlightLook
+  /** Le rayon du cœur de l'orbe (u), quand le vol en est une. */
+  orbRadius: number
   tint: FxTint
 }
 
@@ -190,7 +192,7 @@ export class Flights3dLayer implements ActionLayer3d {
     }
     if (frame > f.end) {
       // Posée avant de détoner : la grenade attend l'explosion au bout de son vol.
-      if (f.look === 'orb') this.drawPlasmaOrb(f.pts[f.pts.length - 1], frame, fps)
+      if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps)
       else if (model && frame <= f.detoT) this.models.add(model, f.pts[f.pts.length - 1], this.spin(f.end - f.t0, fps))
       return
     }
@@ -200,23 +202,24 @@ export class Flights3dLayer implements ActionLayer3d {
     const span = (f.at[Math.min(i, f.at.length - 1)] - f.at[i - 1]) || 1
     const head = this.p.lerpVectors(a, b, Math.min(1, Math.max(0, (frame - f.at[i - 1]) / span)))
     if (paths) this.trails.add(a, head, TRAIL_RADIUS, color)
-    if (f.look === 'orb') this.drawPlasmaOrb(head, frame, fps)
+    if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps)
     else if (model) this.models.add(model, head, this.spin(frame - f.t0, fps))
     else this.heads.add(head, null, HEAD_RADIUS, color)
   }
 
   /**
    * drawPlasmaOrb : la grenade plasma, en vol ou posée — un cœur bleu-blanc et un halo bleu
-   * saturé, additifs, pulsés par le temps (`grenadeLook3d.plasmaPulse`).
+   * saturé, additifs, pulsés par le temps (`grenadeLook3d.plasmaPulse`). A shot projectile drawn
+   * as an orb (`SHOT_ORB_RADIUS`, the fuel rod) takes its own tint and radius, in flight only.
    */
-  private drawPlasmaOrb(at: THREE.Vector3, frame: number, fps: number): void {
+  private drawPlasmaOrb(f: Flight, at: THREE.Vector3, frame: number, fps: number): void {
     const fx = this.ctx.inputs().inks.fx
     const gain = 1 - PLASMA_PULSE_DEPTH / 2 + PLASMA_PULSE_DEPTH * plasmaPulse(frame / fps)
-    this.orbTint.copy(this.ctx.ink.of(fx.tint.plasma_cool))
+    this.orbTint.copy(this.ctx.ink.of(fx.tint[f.tint] || fx.tint.plasma_cool))
     this.orbCore.copy(this.orbTint).lerp(this.ctx.ink.of(fx.core), PLASMA_CORE_MIX)
     this.orbHalo.copy(this.orbTint).multiplyScalar(PLASMA_HALO_DIM * gain)
-    this.plasmaCore.add(at, null, PLASMA_CORE_RADIUS * gain, this.orbCore)
-    this.plasmaHalo.add(at, null, PLASMA_CORE_RADIUS * PLASMA_HALO_MULT, this.orbHalo)
+    this.plasmaCore.add(at, null, f.orbRadius * gain, this.orbCore)
+    this.plasmaHalo.add(at, null, f.orbRadius * PLASMA_HALO_MULT, this.orbHalo)
   }
 
   /** spin : l'orientation de la grenade `frames` images après son départ. */
@@ -242,6 +245,8 @@ interface FlightOwner {
   /** Le rang de la grenade lancée, null pour un tir. */
   grenade: number | null
   tint: FxTint
+  /** The weapon key of the shot (`WeaponLabel.key`), undefined for a grenade. */
+  key?: string
 }
 
 /** lastFrame : la dernière image où un vol se dessine (sa traîne, ou sa grenade posée). */
@@ -257,7 +262,7 @@ function ownersOf(ctx: ActionContext): Map<number, FlightOwner> {
     if (!shot) return
     const label = shot.w ? doc.weaponLabels?.[shot.w] : undefined
     const tint = fxTintOf(label?.tint ?? vehicleShotStyleOf(doc, shot.w)?.tint)
-    owners.set(i, { slot: shot.slot, grenade: null, tint })
+    owners.set(i, { slot: shot.slot, grenade: null, tint, key: label?.key })
   })
   for (const g of doc.grenades) {
     if (g.proj !== undefined) owners.set(g.proj, { slot: g.slot, grenade: g.rank, tint: grenadeLookOf(g.rank).tint })
@@ -276,6 +281,7 @@ function buildFlights(ctx: ActionContext): Flight[] {
     const start = s ? s.z - ctx.originAboveFloor + MUZZLE_HEIGHT : (ctx.ground.floorY(x0, y0, null) ?? 0) + MUZZLE_HEIGHT
     const last = pr.p[pr.p.length - 1]
     const end = (ctx.ground.floorY(pr.detoX, pr.detoY, start) ?? start - MUZZLE_HEIGHT) + REST_LIFT
+    const orbRadius = owner?.key !== undefined ? SHOT_ORB_RADIUS[owner.key] : undefined
     out.push({
       t0: pr.t0,
       at: pr.p.map((st) => pr.t0 + st[0]),
@@ -283,7 +289,8 @@ function buildFlights(ctx: ActionContext): Flight[] {
       end: pr.t0 + last[0],
       detoT: pr.detoT,
       grenade: owner?.grenade ?? null,
-      look: owner && owner.grenade !== null ? grenadeLookOf(owner.grenade).flight : 'model',
+      look: owner && owner.grenade !== null ? grenadeLookOf(owner.grenade).flight : orbRadius !== undefined ? 'orb' : 'model',
+      orbRadius: orbRadius ?? PLASMA_CORE_RADIUS,
       tint: owner?.tint ?? 'neutral',
     })
   })

@@ -2,7 +2,7 @@ import { clipDuRig, type ClipPremierePersonne, type RigPremierePersonne } from '
 import { useAt, type UseShot } from './equipmentUse3d_logic'
 import type { IntervalleSprint } from './evenementsPremierePersonne3d'
 import { firstAbove } from './recoilShots3d'
-import { phaseRechargement, type ClipsRechargement, type EpisodeRechargement } from './rechargementPremierePersonne3d'
+import { phaseRechargement, type ClipsRechargement, type ClipsVent, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 
 /**
  * ChangementArme : le changement de l'arme en main de l'emplacement à la frame, avec la clé de
@@ -73,12 +73,19 @@ interface ClipsRig {
 
 const clipsParRig = new WeakMap<RigPremierePersonne, ClipsRig>()
 
+/** clipsVentDuRig: the rig's vent clips (`ClipsVent`), null when it lacks the enter or the loop. */
+function clipsVentDuRig(rig: RigPremierePersonne): ClipsVent | null {
+  const entree = clipDuRig(rig, 'vent_enter')
+  const boucle = clipDuRig(rig, 'vent_loop')
+  return entree && boucle ? { entree, boucle, sortie: clipDuRig(rig, 'vent_exit') } : null
+}
+
 function clipsDuRig(rig: RigPremierePersonne) {
   let clips = clipsParRig.get(rig)
   if (!clips) {
     clips = { recharge: { plein: clipDuRig(rig, 'reload_full'), vide: clipDuRig(rig, 'reload_empty'), entree: clipDuRig(rig, 'reload_enter'),
       boucle: clipDuRig(rig, 'reload_continue_full'), boucleVide: clipDuRig(rig, 'reload_continue_empty'),
-      sortie: clipDuRig(rig, 'reload_exit') ?? clipDuRig(rig, 'chamber_1') },
+      sortie: clipDuRig(rig, 'reload_exit') ?? clipDuRig(rig, 'chamber_1'), vent: clipsVentDuRig(rig) },
       coup: clipDuRig(rig, 'melee_strike_1'), tir: clipDuRig(rig, 'fire_1'),
       grenade: clipDuRig(rig, 'throw_grenade'), changement: clipDuRig(rig, 'ready'),
       mise: clipDuRig(rig, 'put_away'), sprint: clipDuRig(rig, 'sprint_loop'),

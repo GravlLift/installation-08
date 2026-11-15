@@ -6,11 +6,21 @@
  * horizontally or vertically (the player toggles it), that bounce off surfaces. That is the shape
  * drawn here: a fan, the bolts as short glowing streaks, one ricochet each.
  *
+ * WHAT IS MEASURED. The bolts' SPEED, from the film's own damage events: on match 05dfe4e9, nine
+ * Heatwave pulls whose first hit lands within 0.3 s, at 3.7 to 9.8 u from the shooter, put the hit
+ * (d - d0) / v later with v = 43 u/s by least squares (single-hit ratios 50 to 56 u/s at 9 u and
+ * beyond). The film dates the hit to the frame, so the speed is good to about 15 %.
+ *
  * WHAT IS NOT READ, AND IS THEREFORE A NAMED ESTIMATE. The film carries one shot event per pull
- * (position, heading, pitch), never the bolts, their count, their speed, nor the spread mode; the
+ * (position, heading, pitch), never the bolts, their count, their size, nor the spread mode; the
  * app reads no weapon tag that would give them (the Ekur export carries none). The count, the fan
- * angle, the speed and the ricochet range below are eyeballed on the game. The mode is not in the
- * film: the fan is drawn HORIZONTAL, the weapon's default.
+ * angle, the streak and the ricochet range below are eyeballed on the game.
+ *
+ * THE MODE IS NOT IN THE FILM. The player toggles the fan vertical with the zoom input, but no
+ * Heatwave carrier of match 05dfe4e9 has a single `unit_zoom` message in his life (0 of the 528
+ * the film carries, read at every position of the event lists, against eight for the Fuel Rod
+ * SPNKr life that zoomed), and the shot event has no mode field. The fan is drawn HORIZONTAL, the
+ * weapon's default.
  *
  * A function of the age alone: seeking gives the same picture.
  */
@@ -20,14 +30,14 @@ import * as THREE from 'three'
 export const SPREAD_BOLTS = 7
 /** Half-angle of the fan, degrees. ESTIMATE: the line opens to about 1.7 m at 10 m. */
 export const SPREAD_HALF_ANGLE_DEG = 5
-/** Bolt speed, u/s (~210 m/s). ESTIMATE: slower than a bullet (300 u/s), the bolts are seen in flight. */
-export const SPREAD_SPEED = 70
+/** Bolt speed, u/s (~130 m/s). MEASURED from the film's hit times (see the header). */
+export const SPREAD_SPEED = 43
 /** Range of a bolt before it hits anything, u (~120 m). */
 export const SPREAD_RANGE = 40
 /** Range of the ricochet, u: the bolt flies on after its one bounce, then dies out. */
 export const SPREAD_BOUNCE_RANGE = 8
-/** Length of a bolt's streak, u (~1 m). */
-export const SPREAD_STREAK = 0.35
+/** Length of a bolt's streak, u (~1.5 m). ESTIMATE of the game's glowing bar. */
+export const SPREAD_STREAK = 0.5
 
 /** What a bolt's flight needs of the scenery: the first face hit along a ray. */
 export type FaceHit = (from: THREE.Vector3, dir: THREE.Vector3, far: number) => { point: THREE.Vector3; normal: THREE.Vector3 } | null
