@@ -434,6 +434,11 @@
   color: var(--air); text-align: right; }
 .bc-sb td { padding: 0.3em 0.8em; text-align: right; font-variant-numeric: tabular-nums; border-top: 1px solid rgba(111,211,255,0.1); }
 .bc-sb .bc-sb-name { min-width: 9em; max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+/* Score leads the stats, the mode's own stat closes them; both a shade brighter. */
+.bc-sb td.bc-sb-points, .bc-sb td.bc-sb-mode { color: #fff; font-weight: 600; }
+.bc-sb .bc-sb-mode { padding-left: 1.1em; }
+.bc-sb-note { margin: 0; padding: 0.35em 0.8em 0.45em; font-size: 0.68em; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-dim); border-top: 1px solid rgba(111,211,255,0.3); text-align: right; }
 .bc-sb-followed td { color: #fff; background: rgba(111,211,255,0.24); }
 .bc-sb-followed td:first-child { box-shadow: inset 3px 0 0 var(--air); }
 

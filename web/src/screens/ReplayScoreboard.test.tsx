@@ -155,3 +155,26 @@ it('renders nothing before the match sheet has loaded', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Scoreboard' }))
   expect(screen.queryByTestId('replay-scoreboard')).toBeNull()
 })
+
+it('adds the Score column and the mode stat, marked as match totals, when the data has them', () => {
+  contextValue.value = {
+    header: { t0_ms: 0 },
+    scoreboard: [
+      row({ xuid: 'a', gamertag: 'Alpha', team_side: 't0', objective: { flag_captures: 2 } }),
+      row({ xuid: 'b', gamertag: 'Bravo', team_side: 't1', objective: { flag_captures: 0 } }),
+    ],
+    highlight_events: [],
+    media: { media_items: [] },
+    source_unavailable: false,
+  }
+  const doc = scoreboardDoc()
+  doc.scoreTimeline!.players[0]!.score = series([{ t: 0, v: 150 }])
+  render(<ReplayViewer matchId="test" doc={doc} onBack={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Scoreboard' }))
+  const overlay = screen.getByTestId('replay-scoreboard')
+  const heads = [...overlay.querySelectorAll('.bc-sb-cols')][0]!
+  expect([...heads.querySelectorAll('th')].map((th) => th.textContent)).toEqual(['Player', 'Score', 'K', 'D', 'Caps'])
+  const alpha = [...overlay.querySelectorAll('tr')].find((tr) => tr.textContent?.includes('Alpha'))!
+  expect([...alpha.querySelectorAll('td')].map((td) => td.textContent)).toEqual(['Alpha', '150', '0', '0', '2'])
+  expect(overlay).toHaveTextContent('Caps: match totals')
+})

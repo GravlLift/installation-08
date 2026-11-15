@@ -1,6 +1,6 @@
 import type { MatchScoreboardRow } from '@/lib/api/types'
 import { testReplayDoc } from '../test/testDoc'
-import { readReplayScoreboard } from './replayScoreboardLogic'
+import { modeStatOf, readReplayScoreboard } from './replayScoreboardLogic'
 
 /** A scoreboard sheet row, with only the fields the model reads. */
 function row(over: Partial<MatchScoreboardRow> & { xuid: string }): MatchScoreboardRow {
@@ -96,7 +96,7 @@ it('keeps the last step held at the final frame', () => {
   expect(a?.counters?.kills).toBe(4)
 })
 
-it('orders a team by kills descending, then deaths ascending', () => {
+it('orders a team by score descending when the film records score', () => {
   const reading = readReplayScoreboard(teamDoc(), sheet, 150)
   expect(reading).not.toBeNull()
   if (!reading) return
@@ -184,4 +184,48 @@ it('leaves a player the film does not publish at null, never zeros', () => {
   expect(reading).not.toBeNull()
   const d = reading?.teams[1].players.find((p) => p.xuid === 'd')
   expect(d?.counters).toBeNull()
+})
+
+it('orders by kills, then deaths, when the film records no score', () => {
+  const doc = teamDoc()
+  for (const p of doc.scoreTimeline!.players) p.score.total = []
+  doc.scoreTimeline!.players[1]!.kills.total = [{ t: 100, v: 9 }]
+  const reading = readReplayScoreboard(doc, sheet, 150)
+  expect(reading?.hasScore).toBe(false)
+  expect(reading?.teams[0].players.map((p) => p.xuid)).toEqual(['b', 'a'])
+})
+
+it('ranks by score over kills', () => {
+  const doc = teamDoc()
+  // B: fewer kills (2) but more score than A once B scores 500.
+  doc.scoreTimeline!.players[1]!.score.total = [{ t: 100, v: 500 }]
+  const reading = readReplayScoreboard(doc, sheet, 150)
+  expect(reading?.hasScore).toBe(true)
+  expect(reading?.teams[0].players.map((p) => p.xuid)).toEqual(['b', 'a'])
+  expect(reading?.teams[0].players[0]?.counters?.score).toBe(500)
+})
+
+it('adds no mode column for a sheet without objective stats', () => {
+  const reading = readReplayScoreboard(teamDoc(), sheet, 150)
+  expect(reading?.modeStat).toBeNull()
+  expect(reading?.teams[0].players.every((p) => p.modeValue === null)).toBe(true)
+})
+
+it('reads CTF captures from the sheet as match totals, null for a player without one', () => {
+  const ctf = sheet.map((r) => (r.xuid === 'd' ? r : { ...r, objective: { flag_captures: r.xuid === 'a' ? 2 : 0, flag_grabs: 5 } }))
+  const reading = readReplayScoreboard(teamDoc(), ctf, 50)
+  expect(reading?.modeStat).toEqual({ kind: 'captures', label: 'Caps', seconds: false })
+  const value = (xuid: string) => reading?.teams.flatMap((t) => t.players).find((p) => p.xuid === xuid)?.modeValue
+  expect(value('a')).toBe(2)
+  expect(value('b')).toBe(0)
+  expect(value('d')).toBeNull()
+})
+
+it('picks ball time in Oddball and hill time in zone modes', () => {
+  expect(modeStatOf([row({ xuid: 'a', objective: { time_as_skull_carrier_seconds: 83.4, skull_grabs: 3 } })])?.stat)
+    .toEqual({ kind: 'ballTime', label: 'Ball time', seconds: true })
+  const zones = modeStatOf([row({ xuid: 'a', objective: { time_in_zones_seconds: 83.4, zone_captures: 0 } })])
+  expect(zones?.stat).toEqual({ kind: 'zoneTime', label: 'Hill time', seconds: true })
+  expect(zones?.valueOf('a')).toBe(83.4)
+  expect(modeStatOf([row({ xuid: 'a', objective: { vip_kills: 2 } })])).toBeNull()
 })

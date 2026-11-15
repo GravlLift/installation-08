@@ -5,7 +5,12 @@
  * player the kills, deaths and assists the film has recorded up to that frame. Every
  * counter comes from the score timeline (`lib/replay/scoreTimeline`, schema 12) — the
  * film's own statborg records, the same source the 2D player cards read live. The team
- * score is the camp's `total` series; the per-player counters are the four player series.
+ * score is the camp's `total` series; the per-player counters are the four player series
+ * (personal score, kills, deaths, assists).
+ *
+ * THE MODE'S OWN COLUMN IS THE ONE EXCEPTION (`modeStatOf`): captures, ball time and zone time
+ * exist only as match totals in the match stats (the film has no per-player series for them),
+ * so that column reads the same at every frame and the overlay says so.
  *
  * WHY NOT THE KILL EVENTS. `doc.killCauses` carries kills only (no death channel of its
  * own, no assists at all), and credits the killer the moment the film writes the cause.
@@ -48,6 +53,54 @@ export interface ReplayScoreboardPlayer {
    * this player (never zeros — see the module header).
    */
   counters: PlayerCounters | null
+  /**
+   * The mode's own stat for this player (`ReplayScoreboardReading.modeStat`): a count, or seconds
+   * for a time stat. A MATCH TOTAL from the match stats, not a value at the frame read; `null`
+   * when the sheet has no value for this player or the mode has no stat column.
+   */
+  modeValue: number | null
+}
+
+/**
+ * The mode's own scoreboard column, as Halo Infinite's in-match scoreboard adds one: flag
+ * captures in CTF, ball carry time in Oddball, zone time in Strongholds and King of the Hill
+ * (both modes publish their zone time as `StrongholdOccupationTime`, served as
+ * `time_in_zones_seconds`). Read from the match stats' objective block, so it is the match
+ * total: the film gives no per-player series for it.
+ */
+export type ScoreboardModeStatKind = 'captures' | 'ballTime' | 'zoneTime'
+
+export interface ScoreboardModeStat {
+  kind: ScoreboardModeStatKind
+  /** The column head. */
+  label: string
+  /** `true` for a time in seconds (shown m:ss), `false` for a count. */
+  seconds: boolean
+}
+
+const MODE_STATS: ReadonlyArray<ScoreboardModeStat & { field: 'flag_captures' | 'time_as_skull_carrier_seconds' | 'time_in_zones_seconds' }> = [
+  { kind: 'captures', label: 'Caps', seconds: false, field: 'flag_captures' },
+  { kind: 'ballTime', label: 'Ball time', seconds: true, field: 'time_as_skull_carrier_seconds' },
+  { kind: 'zoneTime', label: 'Hill time', seconds: true, field: 'time_in_zones_seconds' },
+]
+
+/**
+ * modeStatOf — the mode's stat column, from the first objective field any sheet row carries
+ * (the server fills only the played mode's block). `null` for a mode without one (Slayer) or a
+ * sheet without objective stats: the column is left out then, never filled with zeros.
+ */
+export function modeStatOf(
+  scoreboard: ReadonlyArray<MatchScoreboardRow>,
+): { stat: ScoreboardModeStat; valueOf: (xuid: string) => number | null } | null {
+  for (const { field, ...stat } of MODE_STATS) {
+    const values = new Map<string, number>()
+    for (const row of scoreboard) {
+      const v = row.objective?.[field]
+      if (typeof v === 'number' && Number.isFinite(v)) values.set(row.xuid, v)
+    }
+    if (values.size > 0) return { stat, valueOf: (xuid) => values.get(xuid) ?? null }
+  }
+  return null
 }
 
 /** One team's panel: its members and the team score at the frame read. */
@@ -72,6 +125,16 @@ export interface ReplayScoreboardReading {
   players: ReplayScoreboardPlayer[]
   /** `true` when the film records assists at all — the column is drawn only then. */
   hasAssists: boolean
+  /** `true` when the film records personal score at all (the game's Score column, read at the
+   *  frame like the other counters) — the column is drawn only then. */
+  hasScore: boolean
+  /** The mode's stat column (match totals), or `null` when the mode or the sheet has none. */
+  modeStat: ScoreboardModeStat | null
+}
+
+/** scoreRecorded — does the film record personal score at all? Same rule as assists. */
+export function scoreRecorded(timeline: ReplayScoreTimelineReady | undefined): boolean {
+  return !!timeline?.players.some((p) => p.score.total.length > 0)
 }
 
 
@@ -88,16 +151,18 @@ export function assistsRecorded(timeline: ReplayScoreTimelineReady | undefined):
   return false
 }
 
-/** rowOf — one player's row at `frame`: name and the film's counters. */
+/** rowOf — one player's row at `frame`: name, the film's counters and the mode's stat. */
 function rowOf(
   timeline: ReplayScoreTimelineReady,
   player: ReplayPlayer,
   frame: number,
+  modeValueOf: ((xuid: string) => number | null) | null,
 ): ReplayScoreboardPlayer {
   return {
     xuid: player.xuid,
     name: playerName(player) ?? '',
     counters: playerCountersAt(timeline, player.xuid, frame),
+    modeValue: modeValueOf ? modeValueOf(player.xuid) : null,
   }
 }
 
@@ -108,7 +173,8 @@ function rowOf(
  * trusted — `scoreTimelineOf` carries the guard): an uncalibrated score is worse than no
  * score, it reads as true.
  *
- * Rows are sorted the game's way: kills descending, then deaths ascending.
+ * Rows are sorted the game's way: score descending when the film records score, then kills
+ * descending, then deaths ascending.
  */
 export function readReplayScoreboard(
   doc: ReplayDocumentReady,
@@ -118,9 +184,11 @@ export function readReplayScoreboard(
   const timeline = scoreTimelineOf(doc)
   if (!timeline) return null
 
+  const mode = modeStatOf(scoreboard)
+  const hasScore = scoreRecorded(timeline)
   const players = buildPlayers(doc, [...scoreboard])
   const rows = new Map<string, ReplayScoreboardPlayer>()
-  for (const p of players) rows.set(p.xuid, rowOf(timeline, p, frame))
+  for (const p of players) rows.set(p.xuid, rowOf(timeline, p, frame, mode?.valueOf ?? null))
 
   // THE CAMPS OF THE FILM. `groupByTeam` is the one grouping of the whole replay; a player
   // the film withholds an entry (or a team) for is in no camp.
@@ -129,18 +197,24 @@ export function readReplayScoreboard(
 
   const sortRows = (list: readonly ReplayScoreboardPlayer[]): ReplayScoreboardPlayer[] =>
     [...list].sort((a, b) => {
+      if (hasScore) {
+        const sa = a.counters?.score ?? 0
+        const sb = b.counters?.score ?? 0
+        if (sb !== sa) return sb - sa
+      }
       const ka = a.counters?.kills ?? 0
       const kb = b.counters?.kills ?? 0
       if (kb !== ka) return kb - ka
       return (a.counters?.deaths ?? 0) - (b.counters?.deaths ?? 0)
     })
 
+  const columns = { hasAssists: assistsRecorded(timeline), hasScore, modeStat: mode?.stat ?? null }
   if (ffa) {
     return {
       ffa: true,
       teams: [],
       players: sortRows(players.map((p) => rows.get(p.xuid)!)),
-      hasAssists: assistsRecorded(timeline),
+      ...columns,
     }
   }
 
@@ -150,5 +224,5 @@ export function readReplayScoreboard(
     score: teamScoreAtFrame(timeline, team, frame),
     players: sortRows(members.map((p) => rows.get(p.xuid)!)),
   }))
-  return { ffa: false, teams: teamPanels, players: [], hasAssists: assistsRecorded(timeline) }
+  return { ffa: false, teams: teamPanels, players: [], ...columns }
 }
