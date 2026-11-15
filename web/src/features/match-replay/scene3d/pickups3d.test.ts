@@ -31,6 +31,8 @@ import {
   pickupFamilyOf,
   Pickups3dLayer,
   prepareWeaponPads,
+  rackMountsOf,
+  rackWeaponRotation,
   shownGroundWeapons,
   type GroundSources,
 } from './pickups3d'
@@ -174,6 +176,51 @@ describe('padOutOfBounds', () => {
   })
 })
 
+describe('rackMountsOf', () => {
+  it('keeps only the rack spawners, first citation of a pad wins', () => {
+    const cross = {
+      catalogN: 4,
+      pads: [
+        { x: 0, y: 0, pad: 0, family: 'rack', forward: [1, 0, 0], up: [0, 0, 1] },
+        { x: 0, y: 0, pad: 1, family: 'power' },
+        { x: 0, y: 0, pad: 2, family: 'powerup' },
+        { x: 0, y: 0, pad: 1, family: 'rack' },
+      ],
+    } as ReplayDocumentReady['mapWeaponPads']
+    const mounts = rackMountsOf(cross)
+    expect([...mounts.keys()]).toEqual([0])
+    expect(mounts.get(0)).toEqual({ forward: [1, 0, 0], up: [0, 0, 1] })
+  })
+
+  it('names no rack without a crossing', () => {
+    expect(rackMountsOf(undefined).size).toBe(0)
+  })
+})
+
+describe('rackWeaponRotation', () => {
+  const axis = (q: THREE.Quaternion, x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyQuaternion(q)
+
+  it('stands the weapon muzzle up with its side facing out along the rack forward', () => {
+    // Game forward -Y is three +Z (toThree(x, y, z) = [x, z, -y]).
+    const q = rackWeaponRotation({ forward: [0, -1, 0], up: [0, 0, 1] })
+    expect(axis(q, 1, 0, 0).distanceTo(new THREE.Vector3(0, 1, 0))).toBeCloseTo(0)
+    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(0, 0, 1))).toBeCloseTo(0)
+  })
+
+  it('follows a diagonal rack and squares a tilted forward against up', () => {
+    const q = rackWeaponRotation({ forward: [0.71, -0.71, 0.2], up: [0, 0, 1] })
+    const side = axis(q, 0, 0, 1)
+    expect(side.y).toBeCloseTo(0)
+    expect(side.distanceTo(new THREE.Vector3(1, 0, 1).normalize())).toBeCloseTo(0)
+  })
+
+  it('stays upright facing +X without published axes', () => {
+    const q = rackWeaponRotation({ forward: undefined, up: null })
+    expect(axis(q, 1, 0, 0).distanceTo(new THREE.Vector3(0, 1, 0))).toBeCloseTo(0)
+    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(1, 0, 0))).toBeCloseTo(0)
+  })
+})
+
 describe('Pickups3dLayer', () => {
   const show: Action3dShow = {
     shots: false,
@@ -191,7 +238,7 @@ describe('Pickups3dLayer', () => {
   }
 
   /** Le sol par défaut est plat ; un test passe le sien pour placer un râtelier mural. */
-  type SurDoc = { weaponPads?: ReplayWeaponPadReady[] }
+  type SurDoc = { weaponPads?: ReplayWeaponPadReady[]; mapWeaponPads?: ReplayDocumentReady['mapWeaponPads'] }
   function calque(
     montrer: Action3dShow,
     weaponModel: ActionContext['weaponModel'] = () => null,
@@ -265,6 +312,59 @@ describe('Pickups3dLayer', () => {
     const copie = root.children[2]
     expect(copie).toBeDefined()
     expect(copie.position.y).toBeCloseTo(4.936)
+    layer.dispose()
+  })
+
+  // Recharge's rack at (20, -12.03, 4.92), forward -Y: the kit stands on the floor at 4.70, so the
+  // floor-pad branch used to lift the weapon over the rack top and spin it.
+  const RACK_AT = { x: 20, y: -12.03, z: 4.92 }
+  const rackCross = (family: string) =>
+    ({ catalogN: 1, pads: [{ ...RACK_AT, pad: 0, family, forward: [0, -1, 0], up: [0, 0, 1] }] }) as ReplayDocumentReady['mapWeaponPads']
+
+  it('holds a rack weapon still at the spawner, upright in the rack frame, by the pad state', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
+    const { layer, counts, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('rack') },
+      { floorY: () => 4.7 },
+    )
+    layer.update(15)
+    const copie = root.children[2]
+    expect(copie).toBeDefined()
+    const pose = { p: copie.position.clone(), q: copie.quaternion.clone() }
+    // At the spawner, not lifted off the floor under the rack.
+    expect(pose.p.distanceTo(new THREE.Vector3(RACK_AT.x, RACK_AT.z, -RACK_AT.y))).toBeCloseTo(0)
+    // Upright: the muzzle (model X) runs along world up.
+    expect(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.q).y).toBeCloseTo(1)
+    layer.update(19)
+    expect(root.children[2]).toBe(copie)
+    expect(copie.visible).toBe(true)
+    expect(copie.position.equals(pose.p)).toBe(true)
+    expect(copie.quaternion.angleTo(pose.q)).toBeCloseTo(0)
+    // Uncertain: a still ghost box at the spawner; empty: nothing.
+    layer.update(25)
+    expect(counts()).toEqual([0, 1])
+    layer.update(60)
+    expect(counts()).toEqual([0, 0])
+    expect(copie.visible).toBe(false)
+    layer.dispose()
+  })
+
+  it('keeps a power pad floating and turning', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('power') },
+      { floorY: () => 4.7 },
+    )
+    layer.update(15)
+    const copie = root.children[2]
+    const q = copie.quaternion.clone()
+    expect(copie.position.y).toBeGreaterThan(4.7 + 0.28)
+    layer.update(19)
+    expect(copie.quaternion.angleTo(q)).toBeGreaterThan(0.01)
     layer.dispose()
   })
 

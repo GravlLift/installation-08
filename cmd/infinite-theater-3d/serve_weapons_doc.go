@@ -118,12 +118,22 @@ func buildMapWeaponPads(spots []mapvar.PadSpot, pads []replay.WeaponPad) *replay
 		out.Pads = append(out.Pads, replay.MapWeaponPadDTO{
 			X: float32(s.Pos.X), Y: float32(s.Pos.Y), Z: float32(s.Pos.Z),
 			Pad: i, Family: string(s.Family),
+			Forward: axisOf(s.Forward), Up: axisOf(s.Up),
 		})
 	}
 	if len(out.Pads) == 0 {
 		return nil
 	}
 	return out
+}
+
+// axisOf publishes an object axis as [x, y, z], or nil for a zero vector (an object the
+// variant gives no orientation), so the field stays absent rather than claiming one.
+func axisOf(v mapvar.Vec3) []float32 {
+	if v.X == 0 && v.Y == 0 && v.Z == 0 {
+		return nil
+	}
+	return []float32{float32(v.X), float32(v.Y), float32(v.Z)}
 }
 
 // confirmBy returns the index of the closest unclaimed match pad within mapWeaponPadMatchM,

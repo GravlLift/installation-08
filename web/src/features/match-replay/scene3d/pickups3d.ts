@@ -6,8 +6,11 @@
  *  - The pad itself (floor pad, wall rack) is the game's own model, drawn by the variant object
  *    layer (`variantLayer.ts`); this layer draws only the weapon it holds. Full, a weapon box in its
  *    family ink (`padFamilyOf`) floats above the pad and turns slowly; uncertain, the box is a ghost;
- *    empty, nothing is drawn (`padStateAt`). On a MOUNTED pad (a wall rack, above the floor,
- *    `padMountOf`) only the game's weapon model is posed, at its height. Un socle hors des bornes de la carte
+ *    empty, nothing is drawn (`padStateAt`). A WEAPON RACK (the map spawner the server crossed the
+ *    pad with is a `rack`, `rackMountsOf`) holds its weapon still, inside its frame, in the rack's
+ *    own orientation (`rackWeaponRotation`): no lift, no spin, same full / uncertain / empty states.
+ *    Without that crossing, a pad above the floor (`padMountOf`) keeps the earlier fallback: only
+ *    the game's weapon model is posed, at its height. Un socle hors des bornes de la carte
  *    (`padOutOfBounds`) n'est pas dessiné du tout. Les socles sont préparés comme en 2D : croisés
  *    avec les emplacements de la carte, datés par les ramassages natifs, puis leur incertitude
  *    ramenée à ce qu'un joueur a pu faire (`useReplayWeaponPads`).
@@ -43,7 +46,7 @@ import { InstancePool, type Ground } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool } from './weaponModels3d'
-import { groundWeaponPose } from './groundWeaponPose3d'
+import { centeredOffset, groundWeaponPose } from './groundWeaponPose3d'
 
 /** La boîte d'arme : longueur, hauteur, largeur (u). */
 const BOX_LENGTH = 0.5
@@ -178,13 +181,77 @@ export function padOutOfBounds(
   )
 }
 
+/** A game-axes vector as the server publishes it: [x, y, z]. */
+type GameAxis = readonly number[] | null | undefined
+
+/** The rack spawner a match pad was crossed with: its own axes (game frame), when published. */
+export interface RackMount {
+  forward: GameAxis
+  up: GameAxis
+}
+
+/**
+ * rackMountsOf — per match pad index, the WEAPON RACK spawner that confirmed it. The map variant
+ * names the spawner's kind (`family`, from its type_id): `rack` is the rack that holds its weapon,
+ * `power` and `powerup` are floor pads, whose weapon floats and turns. The first citation of a pad
+ * wins, as in `crossedWeaponPads`. Without crossing (map off-catalog, an earlier answer), nothing is
+ * a rack and every pad keeps its earlier drawing.
+ */
+export function rackMountsOf(cross: ReplayDocumentReady['mapWeaponPads']): Map<number, RackMount> {
+  const out = new Map<number, RackMount>()
+  const seen = new Set<number>()
+  for (const spot of cross?.pads ?? []) {
+    if (seen.has(spot.pad)) continue
+    seen.add(spot.pad)
+    if (spot.family === 'rack') out.set(spot.pad, { forward: spot.forward, up: spot.up })
+  }
+  return out
+}
+
+/** threeAxis — a published game axis in three axes, normalized; null when absent or degenerate. */
+function threeAxis(v: GameAxis): THREE.Vector3 | null {
+  if (!v || v.length < 3) return null
+  const out = new THREE.Vector3(...toThree(v[0], v[1], v[2]))
+  return out.lengthSq() > 1e-8 ? out.normalize() : null
+}
+
+/**
+ * rackWeaponRotation — the still pose of a weapon on a rack. The weapon model's frame is three's
+ * (X toward the muzzle, Y up); on the rack it stands upright, muzzle along the rack's up, its side
+ * facing out along the rack's forward, so it fills the rack's tall, narrow frame (the kit's box is
+ * 0.46 u tall, 0.25 u wide, 0.17 u deep on every measured map). Without published axes the rack is
+ * upright and faces +X.
+ */
+export function rackWeaponRotation(mount: RackMount): THREE.Quaternion {
+  const up = threeAxis(mount.up) ?? new THREE.Vector3(0, 1, 0)
+  let forward = threeAxis(mount.forward)
+  if (forward) forward.addScaledVector(up, -forward.dot(up))
+  if (!forward || forward.lengthSq() < 1e-8) {
+    forward = new THREE.Vector3(1, 0, 0).addScaledVector(up, -up.x)
+    if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1).addScaledVector(up, -up.z)
+  }
+  forward.normalize()
+  // Model X (muzzle) -> rack up, model Z (side) -> rack forward, model Y -> forward x up.
+  const top = new THREE.Vector3().crossVectors(forward, up)
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(up, top, forward))
+}
+
+/** The still pose of a rack weapon: its rotation, and the centering offset of its loaded model. */
+interface RackPose {
+  rotation: THREE.Quaternion
+  model?: THREE.Object3D
+  offset?: THREE.Vector3
+}
+
 /** Un socle cuit : sa donnée, sa nature, son pied (axes three), son type (sol ou râtelier mural). */
 interface PadSpot {
   pad: ReplayWeaponPadReady
   family: PadFamily
   feet: THREE.Vector3
-  /** Wall rack: only the weapon model is posed, at its height. */
+  /** Fallback wall rack (no crossing): only the weapon model is posed, at its height. */
   mounted: boolean
+  /** A weapon rack: the weapon is held still at the spawner (feet), in this pose. */
+  rack?: RackPose
   phase: number
 }
 
@@ -206,10 +273,19 @@ function feetOf(ground: Ground, x: number, y: number, z: number | undefined): TH
 
 function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): PadSpot[] {
   const out: PadSpot[] = []
+  const racks = rackMountsOf(ctx.doc.mapWeaponPads)
   pads.forEach((pad, i) => {
     if (padOutOfBounds(ctx.doc.bounds, pad.x, pad.y)) return
     const family = pickupFamilyOf(pad.weapon, ctx.doc.weaponLabels)
     const phase = i * PAD_SPIN_PHASE
+    const rack = racks.get(i)
+    if (rack) {
+      // The crossed position IS the spawner's, and the game creates the weapon there (median
+      // 0.01 m): the weapon is held at that point, never snapped to the floor under the rack.
+      const feet = pad.z !== undefined ? new THREE.Vector3(...toThree(pad.x, pad.y, pad.z)) : feetOf(ctx.ground, pad.x, pad.y, pad.z)
+      if (feet) out.push({ pad, family, feet, mounted: true, rack: { rotation: rackWeaponRotation(rack) }, phase })
+      return
+    }
     const floor = ctx.ground.floorY(pad.x, pad.y, pad.z ?? null)
     const mounted = padMountOf(pad.z, floor) === 'mounted'
     // Un râtelier tient au z publié (la boîte du socle est absente) ; un socle au sol se cale sur le sol.
@@ -277,6 +353,10 @@ export class Pickups3dLayer implements ActionLayer3d {
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {
     const { p, q } = this.scratch
     for (const spot of this.pads) {
+      if (spot.rack) {
+        this.paintRack(spot, spot.rack, frame, ink)
+        continue
+      }
       if (spot.mounted) {
         // A wall rack: only the game's weapon model is posed, at its height.
         const model = this.ctx.weaponModel(spot.pad.weapon)
@@ -293,6 +373,23 @@ export class Pickups3dLayer implements ActionLayer3d {
       if (model) this.models.add(model, p, q)
       else this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
     }
+  }
+
+  /** A weapon rack: the weapon held still in the rack's pose, by the pad's state; no lift, no spin. */
+  private paintRack(spot: PadSpot, rack: RackPose, frame: number, ink: Readonly<Record<PadFamily, string>>): void {
+    const look = padBoxLook(padStateAt(spot.pad, frame))
+    if (!look) return
+    const { p } = this.scratch
+    const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
+    if (model) {
+      if (rack.model !== model || !rack.offset) {
+        rack.model = model
+        rack.offset = centeredOffset(model, rack.rotation)
+      }
+      this.models.add(model, p.copy(spot.feet).add(rack.offset), rack.rotation)
+      return
+    }
+    this.poolOf(look).add(p.copy(spot.feet), rack.rotation, 1, this.ctx.ink.of(ink[spot.family]))
   }
 
   private paintGround(

@@ -53,6 +53,11 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   standalone has no config file, so the values live in this module and
   `internal/build` sets the input from the match variant. An absent variant returns no
   target (the timeline's safe fallback).
+- `replay.MapWeaponPadDTO.Forward` / `.Up` (`replay/map_weapon_pads.go`, LOCAL-CHANGE): the
+  spawner's own axes, optional, filled at request time by the standalone from the match's
+  `map.mvar`. The viewer holds a `rack` spawner's weapon still in that orientation. The field
+  sits in a request-time layer, so the baked fingerprint and `SchemaVersion` do not move; the
+  shape golden (`replay/testdata/document_shape.golden`) was regenerated for the stored shape.
 
 ## Omitted upstream files
 
@@ -171,6 +176,9 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     `himap/origine_forge_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
     mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
+  - `files-reader/mapvar/socles.go` (LOCAL-CHANGE): `PadSpot.Forward` and `PadSpot.Up` carry
+    the representative object's own axes, so the served `mapWeaponPads` can pose a weapon rack's
+    weapon in the rack's orientation.
   - `himap/telescopage_forge.go` (new, LOCAL-CHANGE) and `maillage_variante.go` (modified): a
     telescoping Forge object leaves its scale at 1 on the axes where every size of its type
     has the same extent. Outlook's ring plates (all sizes 0.41 m thick) stored 5.09 there and
