@@ -52,6 +52,16 @@ describe('ScopeView3d', () => {
     expect(view.montee).toBe(false)
   })
 
+  it('le Skewer masque les bras quand il est zoomé, comme un fusil à lunette', () => {
+    // The Skewer resolves through the label table to a `scope` kind, so a zoom mounts it and the
+    // first-person weapon and arms leave the screen (the overlay's red haze stands for the defocused gun).
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    const view = new ScopeView3d(55)
+    expect(view.montee).toBe(false)
+    expect(view.appliquer(camera, docAvecCran(), 'A', 6, specLunette('0d20c469', 'hinf_skewer'), [1.4])).toBe(true)
+    expect(view.montee).toBe(true)
+  })
+
   it('changerBase fait suivre la base au réglage du jeu', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     const view = new ScopeView3d(55)
