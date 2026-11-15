@@ -281,7 +281,7 @@ function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object
  * matériau (`armorMaterial3d`) par matériau source peint, posée sur les maillages ; rend la
  * correspondance source vers copie (vide sans matériau peint).
  */
-function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
+export function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
   const copies = new Map<THREE.Material, THREE.Material>()
   // The energy fields (the sword's blade) glow in the weapon's own emissive swatch (`energyField3d`).
   const teinte = energyTintOf(coat)

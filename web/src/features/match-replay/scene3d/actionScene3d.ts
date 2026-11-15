@@ -19,7 +19,7 @@ import type { Action3dInputs } from './action3dInputs'
 import type { Ground, InkCache, LabelPool } from './actionKit'
 import { flagBannerInk } from './flagBanner3d'
 import type { Aids3d } from './aids3d'
-import type { Dress } from './armory3d'
+import type { Dress, SpartanArmory } from './armory3d'
 import type { DrawnWeapon } from './avatar3d'
 import { BodyFx3d } from './bodyFx3d'
 import type { BodyFxState } from './bodyShell3d'
@@ -72,6 +72,12 @@ export interface ActionContext {
   spartanModel(): THREE.Object3D | null
   /** L'habit du joueur `xuid` (`armory3d`), null tant qu'il n'est pas prêt ou sans armure servie. */
   dressOf(xuid: string): Dress | null
+  /**
+   * The match's armory (held weapons' coatings, and the default-style paint of the map objects:
+   * the pad, rack and ground weapons, `armory3d.peindreObjet`/`coatObjet`); null until it is posed
+   * (the action layers may be built before the armor query answers).
+   */
+  armurerie?: () => SpartanArmory | null
   /**
    * L'arme que la scène dessine dans la main du joueur `xuid` à l'image posée (`avatar3d.drawnWeapon`),
    * null sans arme dessinée : l'éclair de bouche se pose au bout de son canon.
