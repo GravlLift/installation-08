@@ -54,6 +54,15 @@ Forge support is a work in progress.
 - Fullscreen could not be checked by automated browser testing (the browser refused the
   synthetic click); it is covered only by unit tests and code review, not by seeing it run.
 
+## Coatings
+
+- Set up coatings (and `setup-coatings`) has been tested against a stand-in for Ekur's dumper,
+  not yet against the real dumper on a real install. How long the real extraction takes is
+  unmeasured, and the progress shows only the current step, not a percentage.
+- The button is offered only in the match viewer's top bar, not on the home screen.
+- After a successful setup the coating libraries rebuild in the background; the open match
+  keeps its neutral paint until it is reopened once they finish.
+
 ## Export
 
 - Exporting a whole match with sound can sit in "Preparing" for several minutes; the longer
