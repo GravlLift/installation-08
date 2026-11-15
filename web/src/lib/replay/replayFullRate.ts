@@ -72,3 +72,37 @@ export function decodeFullRate(raw: ReplayFullRateTrack, frameIntervalMs: number
     p: pq.map((q) => ((q + 0.5) * 360) / FULL_RATE_PITCH_QUANTA - 180),
   }
 }
+
+/**
+ * The flight AT THE FILM'S RATE (schema 127, `Projectile.fullRate`), re-read: every raw sample
+ * at its own instant, differential integer columns (the projectile twin of `FullRateTrack`).
+ * `t` in fractional frames (ms / `frameIntervalMs`), `x`/`y`/`z` in world units (centi-units).
+ */
+export interface ReplayFullRateFlightReady {
+  t: number[]
+  x: number[]
+  y: number[]
+  z: number[]
+}
+
+/** The raw shape of `Projectile.fullRate` (schema 127): differential integer columns. */
+export interface ReplayFullRateFlightRaw {
+  t?: number[] | null
+  x?: number[] | null
+  y?: number[] | null
+  z?: number[] | null
+}
+
+/**
+ * decodeFullRateFlight re-reads a projectile's full-rate flight. `frameIntervalMs` is the
+ * document's, which fixes the frame scale. The flight has no aim or stick (a projectile
+ * carries neither), so only `t`, `x`, `y`, `z` are read.
+ */
+export function decodeFullRateFlight(raw: ReplayFullRateFlightRaw, frameIntervalMs: number): ReplayFullRateFlightReady {
+  return {
+    t: cumulate(raw.t, frameIntervalMs),
+    x: cumulate(raw.x, 100),
+    y: cumulate(raw.y, 100),
+    z: cumulate(raw.z, 100),
+  }
+}

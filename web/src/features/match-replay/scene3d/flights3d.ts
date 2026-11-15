@@ -284,10 +284,23 @@ function buildFlights(ctx: ActionContext): Flight[] {
     const owner = owners.get(i)
     const last = pr.p[pr.p.length - 1]
     const orbRadius = owner?.key !== undefined ? SHOT_ORB_RADIUS[owner.key] : undefined
-    const pts = pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
+    // THE FLIGHT AT THE FILM'S RATE (schema 127): when `fullRate` is present, sample the native
+    // series (one point per film record, ~16.7 ms) for the head's position and trail; the grid
+    // points (`p`/`z`) stay the fallback for artifacts before 127. The native series carries the
+    // same arc and bounces, at the film's own rate, so the head moves smoothly between grid frames.
+    // The document is normalized: `pr.fullRate` is already the decoded flight
+    // (`ReplayFullRateFlightReady`, one decode at the boundary, `replayNormalize.ts`), so read it
+    // as is. Its `t` is ABSOLUTE fractional frames (ms since the GRID ORIGIN / frameIntervalMs,
+    // the same axis as the grid path's `pr.t0 + st[0]` — `ajouter` in `projectiles.go` divides
+    // each sample's film timestamp by the grid origin, not the flight's), so no `t0` is added.
+    const fr = pr.fullRate
+    const at = fr ? fr.t : pr.p.map((st) => pr.t0 + st[0])
+    const pts = fr
+      ? fr.t.map((_, k) => new THREE.Vector3(...toThree(fr.x[k], fr.y[k], fr.z[k])))
+      : pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
     out.push({
       t0: pr.t0,
-      at: pr.p.map((st) => pr.t0 + st[0]),
+      at,
       pts,
       dist: distancesAlong(pts),
       end: pr.t0 + last[0],
