@@ -18,6 +18,39 @@ export function standingWeaponPose(model: THREE.Object3D): { rotation: THREE.Qua
 }
 
 /**
+ * standingItemCorrection — the pose correction of an equipment item, whose GLB is not authored
+ * with the weapon's up (a Repulsor disc arrives lying flat, its thin axis up): the item is turned
+ * so its thinnest bounding-box axis is HORIZONTAL (a disc stands on its edge, facing the viewer)
+ * and the tallest of the two remaining axes is world up, whatever its native axes. The item's
+ * center in its own space is returned so the caller can center it on its float height. Identity
+ * (and a zero center) when the box is empty. The correction is applied BEFORE the spin about
+ * world up, which then turns the item in place.
+ */
+export function standingItemCorrection(model: THREE.Object3D): { rotation: THREE.Quaternion; center: THREE.Vector3 } {
+  const copy = model.clone()
+  copy.position.set(0, 0, 0)
+  copy.quaternion.identity()
+  copy.updateMatrixWorld(true)
+  const bounds = new THREE.Box3().setFromObject(copy, true)
+  if (bounds.isEmpty()) return { rotation: new THREE.Quaternion(), center: new THREE.Vector3() }
+  const s = [bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z]
+  const a = s[0] <= s[1] && s[0] <= s[2] ? 0 : s[1] <= s[2] ? 1 : 2
+  const rest = [0, 1, 2].filter((k) => k !== a)
+  const b = s[rest[0]] >= s[rest[1]] ? rest[0] : rest[1]
+  const c = rest[0] + rest[1] - b
+  // The frame must stay right-handed: the thin axis goes along +X, the tall one along +Y; when
+  // a, b, c are a left-handed triple the thin axis takes -X instead (the rotation stays proper).
+  const even = (a - b) * (b - c) * (c - a) > 0
+  // Columns of the rotation: the image of each local axis (thin -> X, up -> +Y, the rest -> +Z).
+  const col = (k: number) =>
+    k === a ? new THREE.Vector3(even ? 1 : -1, 0, 0) : k === b ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1)
+  return {
+    rotation: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(col(0), col(1), col(2))),
+    center: bounds.getCenter(new THREE.Vector3()),
+  }
+}
+
+/**
  * faceMountOffset — where a model's origin goes so that, turned by `rotation`, the model is centered
  * on its mount point in its own X and Y and its back (the min of its own Z) sits `face` in front of
  * it along its own +Z: a weapon hung on the front of a rack, whatever its grip origin.

@@ -51,7 +51,7 @@ import { InstancePool, type Ground } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
-import { centerOffset, faceMountOffset, groundWeaponPose } from './groundWeaponPose3d'
+import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 
 /** La boîte d'arme : longueur, hauteur, largeur (u). */
 const BOX_LENGTH = 0.5
@@ -87,6 +87,13 @@ const PAD_OUT_OF_BOUNDS_MARGIN = 5
 const POOL_CAP = 400
 /** Opacité du lot fantôme (incertain, en disparition). */
 const GHOST_OPACITY = 0.35
+/**
+ * Emissive strength of the glow on a floating pad item: a self-lit tint in its family ink so it
+ * reads at a distance. The scene's outline is the team line (ally/enemy mask channels of
+ * `outline3d`); a pad item would need a third category in those shaders, so the glow stays a
+ * one-time material clone with no extra draw call.
+ */
+const GLOW_EMISSIVE = 0.35
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
 
@@ -386,7 +393,13 @@ export class Pickups3dLayer implements ActionLayer3d {
   private readonly ghostBoxes: InstancePool
   /** Les modèles du jeu, pleins seulement : un incertain reste une boîte fantôme. */
   private readonly models: WeaponModelPool
-  private readonly scratch = { p: new THREE.Vector3(), q: new THREE.Quaternion(), o: new THREE.Vector3() }
+  private readonly scratch = { p: new THREE.Vector3(), q: new THREE.Quaternion(), o: new THREE.Vector3(), c: new THREE.Vector3() }
+  /** Per source model: the standing correction of an equipment item (its thinnest axis horizontal). */
+  private readonly standings = new Map<THREE.Object3D, { rotation: THREE.Quaternion; center: THREE.Vector3 }>()
+  /** Per source model: the glow copy (its materials cloned and emissive); drawn for floating pad items. */
+  private readonly glows = new Map<THREE.Object3D, THREE.Object3D>()
+  /** The glow materials, disposed with the layer (shared by a glow copy's pool clones). */
+  private readonly glowMaterials: THREE.Material[] = []
   private filterKey = ''
   private shownGround: GroundSpot[] = []
 
@@ -419,7 +432,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {
-    const { p, q } = this.scratch
+    const { p, q, c } = this.scratch
     for (const spot of this.pads) {
       const state = padStateAt(spot.pad, frame)
       const last: PadDrawn = { state, drawn: null, pos: null }
@@ -429,11 +442,12 @@ export class Pickups3dLayer implements ActionLayer3d {
         continue
       }
       if (spot.mounted) {
-        // A wall rack: only the game's weapon model is posed, at its height.
+        // A wall rack: only the game's weapon model is posed, at its height; the glow marks it
+        // as a floating item (a rack's own weapon is drawn bare and still, in `paintRack`).
         const model = this.ctx.weaponModel(spot.pad.weapon)
         if (!model) continue
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
-        this.models.add(model, p.copy(spot.feet), q)
+        this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p.copy(spot.feet), q)
         Object.assign(last, { drawn: 'model', pos: p.clone() })
         continue
       }
@@ -443,14 +457,61 @@ export class Pickups3dLayer implements ActionLayer3d {
       q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
       const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
       if (model) {
-        if (padItemCentered(spot.pad.weapon)) {
+        if (spot.slot === 'equipment') {
+          // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
+          // bounding-box edge (a disc stands on its edge) BEFORE the spin about world up, and
+          // center it on the float height.
+          const standing = this.standingOf(model)
+          q.multiply(standing.rotation)
+          p.sub(c.copy(standing.center).applyQuaternion(q))
+        } else if (padItemCentered(spot.pad.weapon)) {
           if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
           p.add(this.scratch.o.copy(spot.item.offset).applyQuaternion(q))
         }
-        this.models.add(model, p, q)
-      } else this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
+        this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q)
+      } else {
+        this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
+      }
       Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone() })
     }
+  }
+
+  /** standingOf — the standing correction of an equipment model, measured once per source model. */
+  private standingOf(model: THREE.Object3D): { rotation: THREE.Quaternion; center: THREE.Vector3 } {
+    let s = this.standings.get(model)
+    if (!s) {
+      s = standingItemCorrection(model)
+      this.standings.set(model, s)
+    }
+    return s
+  }
+
+  /**
+   * glowOf — the glow copy of `model`: its materials cloned and self-lit in the family ink, so a
+   * floating pad item reads at a distance. The source model keeps its own materials: a power-up
+   * pad sharing the model (and a rack weapon) is drawn bare.
+   */
+  private glowOf(model: THREE.Object3D, ink: THREE.Color): THREE.Object3D {
+    let glow = this.glows.get(model)
+    if (!glow) {
+      glow = model.clone()
+      const tint = (m: THREE.Material) => {
+        const c = m.clone()
+        const std = c as THREE.MeshStandardMaterial
+        if (std.emissive instanceof THREE.Color) {
+          std.emissive.copy(ink)
+          std.emissiveIntensity = GLOW_EMISSIVE
+        }
+        this.glowMaterials.push(c)
+        return c
+      }
+      glow.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return
+        o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material)
+      })
+      this.glows.set(model, glow)
+    }
+    return glow
   }
 
   /**
@@ -550,6 +611,8 @@ export class Pickups3dLayer implements ActionLayer3d {
     this.solidBoxes.dispose()
     this.ghostBoxes.dispose()
     this.models.dispose()
+    for (const m of this.glowMaterials) m.dispose()
+    this.glowMaterials.length = 0
   }
 }
 

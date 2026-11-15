@@ -37,6 +37,7 @@ import {
   shownGroundWeapons,
   type GroundSources,
 } from './pickups3d'
+import { standingItemCorrection } from './groundWeaponPose3d'
 import type { Tracks3d } from './tracks3d'
 
 const SNIPER = '0x00000001'
@@ -232,6 +233,32 @@ describe('padItemCentered', () => {
   })
 })
 
+describe('standingItemCorrection', () => {
+  const axis = (q: THREE.Quaternion, v: THREE.Vector3) => v.clone().applyQuaternion(q)
+
+  it('stands a disc on its edge: the thin axis (up) goes horizontal', () => {
+    const disc = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3))
+    const { rotation } = standingItemCorrection(disc)
+    const thin = axis(rotation, new THREE.Vector3(0, 1, 0))
+    expect(thin.y).toBeCloseTo(0)
+    expect(Math.abs(thin.x)).toBeCloseTo(1)
+  })
+
+  it('keeps the tallest remaining axis up for a tall item thin in Z', () => {
+    const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.1))
+    const { rotation } = standingItemCorrection(beacon)
+    expect(axis(rotation, new THREE.Vector3(0, 1, 0)).y).toBeCloseTo(1)
+    expect(axis(rotation, new THREE.Vector3(0, 0, 1)).y).toBeCloseTo(0)
+  })
+
+  it('is a proper rotation and reports the model-space center', () => {
+    const disc = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3))
+    const { rotation, center } = standingItemCorrection(disc)
+    expect(center).toEqual(new THREE.Vector3(0, 0, 0))
+    expect(new THREE.Matrix4().makeRotationFromQuaternion(rotation).determinant()).toBeCloseTo(1)
+  })
+})
+
 describe('Pickups3dLayer', () => {
   const show: Action3dShow = {
     shots: false,
@@ -255,6 +282,7 @@ describe('Pickups3dLayer', () => {
     weaponModel: ActionContext['weaponModel'] = () => null,
     surDoc: SurDoc = {},
     sol: Pick<Ground, 'floorY'> = SOL_PLAT,
+    encre: THREE.Color = new THREE.Color(0xff8c1a),
   ): { layer: Pickups3dLayer; counts: () => number[]; root: THREE.Group } {
     const root = new THREE.Group()
     const doc = {
@@ -275,7 +303,7 @@ describe('Pickups3dLayer', () => {
       doc,
       tracks: {} as Tracks3d,
       ground: sol as Ground,
-      ink: { of: () => new THREE.Color() } as unknown as InkCache,
+      ink: { of: () => encre } as unknown as InkCache,
       root,
       originAboveFloor: 0,
       inputs: () => inputs,
@@ -467,6 +495,56 @@ describe('Pickups3dLayer', () => {
       expect(c.z).toBeCloseTo(-REPULSOR_AT.y)
       expect(c.y).toBeCloseTo(REPULSOR_AT.z + 0.28 + 0.04)
     }
+    layer.dispose()
+  })
+
+  it('stands an equipment item on its thinnest edge and spins it about world up', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3))
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { floorY: () => REPULSOR_AT.z },
+    )
+    layer.update(11)
+    const copie = root.children[2]
+    // The disc's thin axis (model Y) lies in the horizontal plane: it stands on its edge.
+    const thin = new THREE.Vector3(0, 1, 0).applyQuaternion(copie.quaternion)
+    expect(thin.y).toBeCloseTo(0)
+    layer.update(19)
+    // The spin keeps it horizontal and turns it in place about world up.
+    const thin2 = new THREE.Vector3(0, 1, 0).applyQuaternion(copie.quaternion)
+    expect(thin2.y).toBeCloseTo(0)
+    expect(thin2.angleTo(thin)).toBeGreaterThan(0.1)
+    layer.dispose()
+  })
+
+  it('glows a floating pad item in its family ink and leaves a rack weapon bare', () => {
+    const mat = new THREE.MeshStandardMaterial()
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3), mat)
+    const cross = {
+      catalogN: 0,
+      pads: [
+        { ...REPULSOR_AT, pad: 0, family: 'equipment' },
+        { ...RACK_AT, pad: 1, family: 'rack', forward: [0, -1, 0], up: [0, 0, 1] },
+      ],
+    } as ReplayDocumentReady['mapWeaponPads']
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      {
+        weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }), socle(RACK_AT)],
+        mapWeaponPads: cross,
+      },
+    )
+    layer.update(15)
+    // Copies come after the box pools, in paint order: the floating equipment item, then the rack.
+    const floating = root.children[2] as THREE.Mesh
+    const rackCopy = root.children[3] as THREE.Mesh
+    expect(floating.material).not.toBe(mat)
+    expect((floating.material as THREE.MeshStandardMaterial).emissive.getHex()).not.toBe(0)
+    expect(mat.emissive.getHex()).toBe(0) // the source keeps its own material
+    expect(rackCopy.material).toBe(mat) // a rack weapon is bare
     layer.dispose()
   })
 
