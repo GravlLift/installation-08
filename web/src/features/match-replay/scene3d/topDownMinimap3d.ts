@@ -1,7 +1,8 @@
 /**
  * topDownMinimap3d.ts — the corner minimap over the 3D view: the painted top-down map around the
- * followed player, heading-up, with a dot per living player, in a square at the top right, under
- * the top strip's place (`minimapRect`). The math is `minimapLogic`.
+ * followed player, north-up like the 2D top-down view (`SCREEN_UP_HEADING_DEG`), with a dot per
+ * living player, in a square at the top right, under the top strip's place (`minimapRect`). The
+ * math is `minimapLogic`.
  *
  * It never renders the map at the screen's rate: the map around the player is rendered into a
  * cached image, staged like the top-down view (cut over his feet, the floors above as a ghost, the
@@ -12,7 +13,7 @@
 import * as THREE from 'three'
 
 import { cssColor } from './cssColor'
-import { MINIMAP_IMAGE_SPAN_U, minimapAngle, minimapPoint, minimapRect, minimapStale, minimapUvRows, type MinimapImage, type MinimapPose } from './minimapLogic'
+import { MINIMAP_IMAGE_SPAN_U, SCREEN_UP_HEADING_DEG, minimapAngle, minimapPoint, minimapRect, minimapStale, minimapUvRows, type MinimapImage, type MinimapPose } from './minimapLogic'
 import type { MarkerPose } from './playerMarkers3d'
 import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, floorOf } from './playerMarkers3d_logic'
 import { GRADE_GAIN } from './postFx3d'
@@ -37,7 +38,7 @@ const ORDER_DOT = 2
 export interface MinimapDraw {
   /** One pose per living player. */
   players: readonly MarkerPose[]
-  /** The player it centers on and turns with; null hides it (no player, free camera). */
+  /** The player it centers on; null hides it (no player, free camera). */
   followed: string | null
 }
 
@@ -146,7 +147,8 @@ export class TopDownMinimap {
   private poseOf(d: MinimapDraw): MinimapPose | null {
     if (!d.followed) return null
     const me = d.players.find((p) => p.xuid === d.followed)
-    if (me) this.pose = { xuid: me.xuid, pose: { center: [me.feet.x, me.feet.z], heading: me.heading } }
+    // North-up, like the 2D top-down view: the map does not turn with him; his own wedge does.
+    if (me) this.pose = { xuid: me.xuid, pose: { center: [me.feet.x, me.feet.z], heading: SCREEN_UP_HEADING_DEG } }
     return this.pose?.xuid === d.followed ? this.pose.pose : null
   }
 
@@ -180,7 +182,7 @@ export class TopDownMinimap {
     u.frame.value = FRAME_PX / Math.max(side, 1)
   }
 
-  /** Pose a dot per living player inside the square: heading-up, dimmed off the drawn floor. */
+  /** Pose a dot per living player inside the square: north-up, each wedge on its own heading, dimmed off the drawn floor. */
   private placeDots(d: MinimapDraw, pose: MinimapPose, cutY: number, side: number): void {
     const radius = (MARKER_RADIUS_PX * DOT_SHARE) / Math.max(side, 1)
     for (const dot of this.dots.values()) dot.halo.visible = dot.disc.visible = dot.wedge.visible = false
