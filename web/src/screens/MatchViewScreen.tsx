@@ -16,7 +16,7 @@ import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import { meshUrl } from '../lib/api/standalone'
+import { ambienceUrl, meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
@@ -136,7 +136,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     [doc, viewpoint, inks],
   )
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
-  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: camera.followed, medals: replayContext.medals, match: replayContext.announcerMatch })
+  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: camera.followed, medals: replayContext.medals, match: replayContext.announcerMatch, ambienceUrl: ambienceUrl(matchId) })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
   const exportCanvasRef = useRef<HTMLCanvasElement>(null)
   const exportLayout = useExportLayout()

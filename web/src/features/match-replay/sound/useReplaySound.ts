@@ -68,6 +68,8 @@ import {
 } from './replaySoundCursor'
 import { useReplayEngineSound } from './useReplayEngineSound'
 import { useAudioUnlock } from './useAudioUnlock'
+import { useReplayAmbience } from './useReplayAmbience'
+import { ambienceAudible } from './ambienceBed'
 import type { EnginePlan } from './vehicleEngineSound'
 
 /** Persisted preferences — shared pattern (replayPreferences.ts), born here. */
@@ -251,6 +253,8 @@ export interface ReplaySoundContext extends AnnouncerContext {
    * replay never guesses a side, same rule as the ink of the layers. */
   allegiance: FilmAllegiance
   endMatch: EndMatchSoundSpec | null
+  /** The map's ambient bed for this match (`ambienceBed.ts`); absent or `null`, no bed. */
+  ambienceUrl?: string | null
 }
 
 export function useReplaySound(
@@ -276,6 +280,8 @@ export function useReplaySound(
   // THE VEHICLE ENGINES (dedicated sub-hook, same size reason as the other two):
   // continuous states, not events — they go neither through the track nor through the cursor.
   const engine = useReplayEngineSound(doc)
+  // THE MAP'S AMBIENT BED (`ambienceBed.ts`): a loop under the replay, same gating as the engines.
+  const ambience = useReplayAmbience(context.ambienceUrl)
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
@@ -352,11 +358,12 @@ export function useReplaySound(
       tuning.apply(player)
     }
     engine.attach(player)
+    ambience.attach(player)
     player.resume()
     player.setVolume(level)
     player.preload(urlsRef.current.values())
     resyncRef.current = true
-  }, [tuning, engine.attach])
+  }, [tuning, engine.attach, ambience.attach])
 
   /**
    * wake — WHAT A TRANSPORT GESTURE DOES WHEN THE PREFERENCE IS ALREADY AT "ENABLED".
@@ -403,10 +410,11 @@ export function useReplaySound(
       // keep turning in silence and restart at the next volume setting — we cut it. The
       // held bursts too.
       engine.stop()
+      ambience.setAudible(false)
       playerRef.current?.stopHeld()
     }
     setOn(next)
-  }, [openPlayer, engine.stop])
+  }, [openPlayer, engine.stop, ambience.setAudible])
 
   const setVolume = useCallback((v: number) => {
     const clamped = Math.min(Math.max(v, 0), 1)
@@ -427,6 +435,8 @@ export function useReplaySound(
   const tick = useCallback((ms: number) => {
     const tl = timelineRef.current
     const player = playerRef.current
+    // The bed plays while the replay plays, sound on, at a speed that keeps sound (`ambienceAudible`).
+    ambience.setAudible(ambienceAudible({ on: onRef.current && !!player, playing: playingRef.current, speedKeepsSound: soundPlaysAtSpeed(speedRef.current) }))
     // The cursor ALWAYS follows the playback, even muted: on returning to 1x, we restart
     // from the current moment and not from a crossed past.
     if (!onRef.current || !player || !soundPlaysAtSpeed(speedRef.current)) {
@@ -481,7 +491,7 @@ export function useReplaySound(
         placeOf(listener.current, e),
       )
     }
-  }, [tuning.variationPercentRef, engine.stop, engine.sync])
+  }, [tuning.variationPercentRef, engine.stop, engine.sync, ambience.setAudible])
 
   /**
    * seek — THE PATH OF THE JUMPS: it raises the reseeding flag then beats once.
@@ -549,11 +559,12 @@ export function useReplaySound(
       playingRef.current = playing
       if (playing) return
       engine.stop()
+      ambience.setAudible(false)
       // EVERYTHING that is in flight is turned off with it: held bursts, explosions, lines — a stopped frame
       // no longer pulls and no longer resonates (the match conclusion, by contrast, is spared).
       playerRef.current?.stopAll()
     },
-    [engine.stop],
+    [engine.stop, ambience.setAudible],
   )
 
   return {
