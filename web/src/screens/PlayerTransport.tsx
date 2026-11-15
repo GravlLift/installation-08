@@ -1,19 +1,24 @@
 /**
  * PlayerTransport — the lower third of the player: the scrub bar (`ScrubBar`, with the selected
- * player's kills, deaths and medals as marks) and the controls row: play/pause, back and
- * forward 10 s, previous and next event, restart, the clock, the speed segments, the camera group
- * (view 3D / 2D, camera mode, POV picker: the one home of every camera choice), sound,
- * scoreboard, settings, film export and fullscreen.
+ * player's kills, deaths and medals as marks) and the controls row under it.
  *
- * The row is made of groups that never break inside. It stays on one row down to a 1280 px
- * window (the camera modes show short names, the POV picker shrinks first); in a narrower bar
- * whole groups wrap to a second row.
+ * The row is three columns, `1fr auto 1fr`, so the clock sits dead center whatever the sides
+ * hold:
+ *  - left: the camera group, the POV picker first at the far left, then view (3D / 2D) and
+ *    camera mode (the one home of every camera choice); then, hugging the clock, restart,
+ *    previous event, play/pause and next event;
+ *  - center: the clock;
+ *  - right: hugging the clock, the speed segments; at the far right, sound, then scoreboard,
+ *    settings, film export and fullscreen as icon buttons with hover tooltips.
+ * In a narrow bar the clock takes a row of its own (still centered) and the two sides share the
+ * row under it.
  *
+ * There are no seek buttons: Left and Right seek from anywhere through the viewer's shortcuts.
  * It owns no playback state: every control calls back into the viewer. Left and Right are not
- * handled on the slider because the viewer's shortcuts already seek on those keys from anywhere
- * (handling them here too would seek twice); the slider adds Home and End.
+ * handled on the slider because those shortcuts already seek on them (handling them here too
+ * would seek twice); the slider adds Home and End.
  */
-import type { RefObject } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 
 import { formatClock, frameToMs } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
@@ -26,6 +31,19 @@ import type { ReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { displayPlayerName } from '../lib/players/displayName'
 import { ScrubBar } from './ScrubBar'
 import type { PlayerEvent } from './scrubMarks'
+import {
+  ExitFullscreenIcon,
+  ExportIcon,
+  FullscreenIcon,
+  IconButton,
+  NextEventIcon,
+  PauseIcon,
+  PlayIcon,
+  PrevEventIcon,
+  RestartIcon,
+  ScoreboardIcon,
+  SettingsIcon,
+} from './PlayerTransportIcons'
 
 export interface PlayerTransportProps {
   doc: ReplayDocumentReady
@@ -48,7 +66,6 @@ export interface PlayerTransportProps {
   view: SceneView3d
   onSetView: (view: SceneView3d) => void
   onScrub: (frame: number) => void
-  onSeekBy: (seconds: number) => void
   onToggleScoreboard: () => void
   scoreboardOn: boolean
   onToggleSettings: () => void
@@ -78,13 +95,25 @@ type CameraGroupProps = Pick<
   'doc' | 'viewpoint' | 'cameraMode' | 'onSetCameraMode' | 'onSetViewpoint' | 'view' | 'onSetView'
 >
 
-/** The camera group: view (3D / 2D), camera mode, POV. In 2D the mode segment is disabled (kept
- *  in place, so the bar does not jump); the POV picker still chooses whom the 2D cut follows. */
+/** The camera group: POV (at the bar's far left), view (3D / 2D), camera mode. In 2D the mode
+ *  segment is disabled (kept in place, so the bar does not jump); the POV picker still chooses
+ *  whom the 2D cut follows. */
 function CameraGroup({ doc, viewpoint, cameraMode, onSetCameraMode, onSetViewpoint, view, onSetView }: CameraGroupProps) {
   const in2d = view === 'top'
   return (
     <div className="bc-ctl-group bc-camera" role="group" aria-label={CAMERA_TEXT.cameraGroup}>
-      <span className="bc-lbl">{CAMERA_TEXT.cameraGroup}</span>
+      <select
+        className="bc-pov"
+        value={viewpoint ?? ''}
+        onChange={(event) => onSetViewpoint(event.target.value || null)}
+        aria-label="Viewpoint"
+        title="The followed player; Free camera follows no one"
+      >
+        <option value="">Free camera</option>
+        {doc.roster.map((entry) => (
+          <option key={entry.xuid} value={entry.xuid}>{displayPlayerName(entry.name, entry.xuid)}</option>
+        ))}
+      </select>
       <div className="bc-seg" role="group" aria-label="View" title="View (V)">
         <button type="button" className={view === '3d' ? 'on' : ''} aria-pressed={view === '3d'} onClick={() => onSetView('3d')}>3D</button>
         <button type="button" className={in2d ? 'on' : ''} aria-pressed={in2d} onClick={() => onSetView('top')}>2D</button>
@@ -105,18 +134,6 @@ function CameraGroup({ doc, viewpoint, cameraMode, onSetCameraMode, onSetViewpoi
           </button>
         ))}
       </div>
-      <select
-        className="bc-pov"
-        value={viewpoint ?? ''}
-        onChange={(event) => onSetViewpoint(event.target.value || null)}
-        aria-label="Viewpoint"
-        title="The followed player; Free camera follows no one"
-      >
-        <option value="">Free camera</option>
-        {doc.roster.map((entry) => (
-          <option key={entry.xuid} value={entry.xuid}>{displayPlayerName(entry.name, entry.xuid)}</option>
-        ))}
-      </select>
     </div>
   )
 }
@@ -126,6 +143,10 @@ export function PlayerTransport(props: PlayerTransportProps) {
   const clock = formatClock(frameToMs(frame, doc))
   const total = formatClock(frameToMs(doc.frameCount - 1, doc))
   const exporting = props.exportProgress != null
+  const exportPct = Math.round(props.exportProgress ?? 0)
+  const exportLabel = exporting ? `Exporting ${exportPct}%` : 'Export film'
+  const noEvents = props.events.length === 0
+  const fullscreenLabel = props.fullscreenActive ? 'Exit fullscreen' : 'Fullscreen'
   return (
     <div ref={props.rootRef} className="bc-player-transport">
       <ScrubBar
@@ -136,44 +157,61 @@ export function PlayerTransport(props: PlayerTransportProps) {
         onScrubbingChange={props.onScrubbingChange}
       />
       <div className="bc-ctl">
-        <div className="bc-ctl-group">
-          <button type="button" className="bc-play" onClick={props.onTogglePlay} aria-label={playing ? 'Pause' : 'Play'} title="Play or pause (Space)">
-            {playing ? '❚❚' : '▶'}
-          </button>
-          <button type="button" className="bc-ctl-btn" onClick={() => props.onSeekBy(-10)} aria-label="Back 10 seconds" title="Back 10 s (Left)">-10</button>
-          <button type="button" className="bc-ctl-btn" onClick={() => props.onSeekBy(10)} aria-label="Forward 10 seconds" title="Forward 10 s (Right)">+10</button>
-          <button type="button" className="bc-ctl-btn" onClick={() => props.onStepEvent(-1)} disabled={props.events.length === 0} aria-label="Previous event" title="Previous kill, death or medal of the selected player ([)">‹</button>
-          <button type="button" className="bc-ctl-btn" onClick={() => props.onStepEvent(1)} disabled={props.events.length === 0} aria-label="Next event" title="Next kill, death or medal of the selected player (])">›</button>
-          <button type="button" className="bc-ctl-btn" onClick={props.onRestart} aria-label="Restart" title="Restart (R)">↺</button>
-          <span className="bc-time">{clock} <i>/</i> {total}</span>
+        <div className="bc-ctl-side bc-ctl-left">
+          <CameraGroup
+            doc={doc}
+            viewpoint={props.viewpoint}
+            cameraMode={props.cameraMode}
+            onSetCameraMode={props.onSetCameraMode}
+            onSetViewpoint={props.onSetViewpoint}
+            view={props.view}
+            onSetView={props.onSetView}
+          />
+          <div className="bc-ctl-group bc-ctl-play" role="group" aria-label="Playback">
+            <IconButton label="Restart" tip="Restart (R)" onClick={props.onRestart}><RestartIcon /></IconButton>
+            <IconButton label="Previous event" tip="Previous kill, death or medal ([)" disabled={noEvents} onClick={() => props.onStepEvent(-1)}>
+              <PrevEventIcon />
+            </IconButton>
+            <IconButton label={playing ? 'Pause' : 'Play'} tip={`${playing ? 'Pause' : 'Play'} (Space)`} className="bc-play" onClick={props.onTogglePlay}>
+              {playing ? <PauseIcon /> : <PlayIcon />}
+            </IconButton>
+            <IconButton label="Next event" tip="Next kill, death or medal (])" disabled={noEvents} onClick={() => props.onStepEvent(1)}>
+              <NextEventIcon />
+            </IconButton>
+          </div>
         </div>
-        <div className="bc-seg" role="group" aria-label="Speed">
-          {SPEED_MULTIPLIERS.map((value) => (
-            <button key={value} type="button" className={value === speed ? 'on' : ''} aria-pressed={value === speed} onClick={() => props.onSetSpeed(value)}>
-              {value}×
-            </button>
-          ))}
-        </div>
-        <CameraGroup
-          doc={doc}
-          viewpoint={props.viewpoint}
-          cameraMode={props.cameraMode}
-          onSetCameraMode={props.onSetCameraMode}
-          onSetViewpoint={props.onSetViewpoint}
-          view={props.view}
-          onSetView={props.onSetView}
-        />
-        <span className="bc-gap" />
-        <div className="bc-ctl-group">
-          <span className="bc-sound"><ReplaySoundControls sound={sound} locale="en" /></span>
-          <button type="button" className="bc-ctl-btn" aria-pressed={props.scoreboardOn} onClick={props.onToggleScoreboard} title="Scoreboard (hold Tab)">Scoreboard</button>
-          <button ref={props.settingsRef} type="button" className="bc-ctl-btn" onClick={props.onToggleSettings}>Settings</button>
-          <button type="button" className="bc-ctl-btn" onClick={props.onToggleExport} disabled={props.exportDisabled && !exporting}>
-            {exporting ? `Exporting ${Math.round(props.exportProgress ?? 0)}%` : 'Export film'}
-          </button>
-          <button type="button" className="bc-ctl-btn" onClick={props.onToggleFullscreen} title="Fullscreen (F)">
-            {props.fullscreenActive ? 'Exit fullscreen' : 'Fullscreen'}
-          </button>
+        <span className="bc-time">{clock} <i>/</i> {total}</span>
+        <div className="bc-ctl-side bc-ctl-right">
+          <div className="bc-seg bc-speed" role="group" aria-label="Speed">
+            {SPEED_MULTIPLIERS.map((value) => (
+              <button key={value} type="button" className={value === speed ? 'on' : ''} aria-pressed={value === speed} onClick={() => props.onSetSpeed(value)}>
+                {value}×
+              </button>
+            ))}
+          </div>
+          <div className="bc-ctl-group bc-ctl-tools">
+            <span className="bc-sound"><ReplaySoundControls sound={sound} locale="en" /></span>
+            <IconButton label="Scoreboard" tip="Scoreboard (hold Tab)" pressed={props.scoreboardOn} onClick={props.onToggleScoreboard}>
+              <ScoreboardIcon />
+            </IconButton>
+            <IconButton label="Settings" tip="Settings" buttonRef={props.settingsRef} onClick={props.onToggleSettings}>
+              <SettingsIcon />
+            </IconButton>
+            <IconButton
+              label={exportLabel}
+              tip={exportLabel}
+              tipEnd
+              className={exporting ? 'bc-exporting' : undefined}
+              style={exporting ? ({ '--bc-progress-ratio': exportPct / 100 } as CSSProperties) : undefined}
+              disabled={props.exportDisabled && !exporting}
+              onClick={props.onToggleExport}
+            >
+              <ExportIcon />
+            </IconButton>
+            <IconButton label={fullscreenLabel} tip={`${fullscreenLabel} (F)`} tipEnd onClick={props.onToggleFullscreen}>
+              {props.fullscreenActive ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+            </IconButton>
+          </div>
         </div>
       </div>
     </div>

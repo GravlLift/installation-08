@@ -313,6 +313,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
                 reading={scoreboardReading}
                 sheet={scoreboardSheet}
                 followedXuid={camera.followed}
+                teamColorOfXuid={identity.colorOfXuid}
               />
             )}
             <canvas ref={exportCanvasRef} hidden />
@@ -361,7 +362,6 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
           view={view}
           onSetView={setView}
           onScrub={onScrub}
-          onSeekBy={seekBy}
           onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
           scoreboardOn={scoreboardHeld}
           onToggleSettings={() => togglePanel('settings')}

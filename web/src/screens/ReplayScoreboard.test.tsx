@@ -131,10 +131,23 @@ it('highlights the followed player', () => {
   const overlay = screen.getByTestId('replay-scoreboard')
   const followed = overlay.querySelector('td')!
   expect(followed.textContent).toBe('Alpha')
-  expect(followed.closest('tr')).toHaveClass('bg-accent/60')
+  expect(followed.closest('tr')).toHaveClass('bc-sb-followed')
   const rows = [...overlay.querySelectorAll('tr')]
   const otherRow = rows.find((tr) => tr.textContent?.includes('Bravo'))!
-  expect(otherRow).not.toHaveClass('bg-accent/60')
+  expect(otherRow).not.toHaveClass('bc-sb-followed')
+})
+
+it('draws the teams as columns of one connected panel, each header striped with its team color', () => {
+  renderViewer(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Scoreboard' }))
+  const overlay = screen.getByTestId('replay-scoreboard')
+  const panels = overlay.querySelectorAll('.bc-sb')
+  expect(panels).toHaveLength(1)
+  const teams = panels[0].querySelectorAll('.bc-sb-teams > .bc-sb-team')
+  expect(teams).toHaveLength(2)
+  expect(teams[0]).toHaveTextContent('Alpha')
+  expect(teams[1]).toHaveTextContent('Bravo')
+  for (const team of teams) expect((team as HTMLElement).style.getPropertyValue('--bc-sb-team')).not.toBe('')
 })
 
 it('renders nothing before the match sheet has loaded', () => {

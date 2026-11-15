@@ -134,14 +134,16 @@ function ReplayAthBandit3d({ amount, label }: { amount: number; label: string })
 }
 
 /**
- * BarreScore : le score d'un camp à la manière du jeu, une barre à sa couleur remplie de `part`
- * (0..1) et le nombre posé à son bout intérieur. `versCentre` : barre de gauche, remplie depuis
- * le centre de l'écran.
+ * BarreScore: one camp's score the way the game draws it, a bar filled by `part` (0..1) with the
+ * number at its inner end. The track is a dark shade of the camp's color and the fill is the
+ * camp's own color (both follow the in-game team color the tokens carry). `versCentre`: the left
+ * bar, filled from the screen's center.
  */
 function BarreScore({ camp, score, part, versCentre = false }: { camp: 'team-ally' | 'team-enemy'; score: number; part: number; versCentre?: boolean }) {
   const cote = versCentre ? 'right' : 'left'
-  return <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: versCentre ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: 'var(--replay-hud-shadow)', [versCentre ? 'borderRight' : 'borderLeft']: `2px solid ${tokenCssVar(camp)}` }}>
-    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [cote]: 0, width: `${Math.max(0, Math.min(1, part)) * 100}%`, background: tokenCssVar(camp), opacity: 0.7 }} />
+  const couleur = tokenCssVar(camp)
+  return <span data-score-bar={camp} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: versCentre ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: `color-mix(in srgb, ${couleur} 28%, #000)`, [versCentre ? 'borderRight' : 'borderLeft']: `2px solid ${couleur}` }}>
+    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [cote]: 0, width: `${Math.max(0, Math.min(1, part)) * 100}%`, background: couleur }} />
     <span style={{ position: 'relative' }}>{score}</span>
   </span>
 }
