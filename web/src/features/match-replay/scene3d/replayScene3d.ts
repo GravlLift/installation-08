@@ -44,6 +44,7 @@ import type { MapModel, SurfaceModel } from './mapModel'
 import { buildPostFx, PASS_NAMES, type PostFx3d } from './postFx3d'
 import { currentPerfToggles, installPerfToggles, PERF_TOGGLES_DEFAULT, type PerfToggles } from './perfToggles3d'
 import { GpuTimer } from './gpuTimer3d'
+import { BACK_FACE_NAME } from './backFaces3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
@@ -132,6 +133,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   private lookOcclusion = true
   private readonly gpu: GpuTimer
   private readonly minimapCost = { calls: 0, triangles: 0 }
+  /** The back-face meshes of the map and layer (the `backFaces` knob), found when a root is attached. */
+  private backFaces: THREE.Object3D[] = []
+  private backFacesShown = true
   constructor(host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -143,7 +147,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     host.appendChild(this.labels.domElement)
     this.scene.background = new THREE.Color(SKY_TINT)
     this.scene.fog = new THREE.Fog(SKY_TINT, FOG_NEAR, FOG_FAR)
-    // The scene never moves: without its own update each frame, reezeStatic roots are skipped by the matrix walk.
+    // The scene never moves: without its own update each frame, `freezeStatic` roots are skipped by the matrix walk.
     this.scene.matrixAutoUpdate = false
     this.lighting = new Lighting(this.renderer, this.scene)
     this.camera = new THREE.PerspectiveCamera(verticalFovOf(GAME_FOV_DEFAULT), 1, 0.02, 700)
@@ -200,6 +204,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
     model.batchDraws()
     freezeStatic(model.root)
+    this.findBackFaces()
     for (const p of tracks.players) {
       const a = makeAvatar(this.scene, p.name, colorOf(p.xuid))
       a.group.visible = false; this.avatars.set(p.xuid, a)
@@ -282,6 +287,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
     freezeStatic(layer.root)
+    this.findBackFaces()
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     return true
@@ -428,6 +434,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lighting.split.split = k.shadowSplit
     if (this.model && this.model.root.visible !== k.map) { this.model.root.visible = k.map; this.lighting.invalidateStaticShadows() }
     if (this.layer && this.layer.root.visible !== k.variant) { this.layer.root.visible = k.variant; this.lighting.invalidateStaticShadows() }
+    if (k.backFaces !== this.backFacesShown) {
+      this.backFacesShown = k.backFaces
+      for (const o of this.backFaces) o.visible = k.backFaces
+    }
     if (k.pixelRatio !== this.knobRatio) {
       this.knobRatio = k.pixelRatio
       const ratio = k.pixelRatio ?? Math.min(window.devicePixelRatio, 2)
@@ -435,6 +445,13 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.post.composer.setPixelRatio(ratio)
     }
     return k
+  }
+
+  /** findBackFaces lists the back-face meshes under the map and layer roots, shown as the knob says. */
+  private findBackFaces(): void {
+    this.backFaces = []
+    for (const root of this.mapRoots()) root.traverse((o) => { if (o.name === BACK_FACE_NAME) this.backFaces.push(o) })
+    for (const o of this.backFaces) o.visible = this.backFacesShown
   }
 
   /** notePassCosts copies what each pass drew this frame into the profile (the shadow updates out of the scene pass). */

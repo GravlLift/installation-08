@@ -13,6 +13,7 @@
  *    straight to the screen, tone mapped by the renderer (no AO, no grade, no SMAA)
  *  - minimap: the corner minimap (its image and its square)
  *  - map, variant: the map's and the variant layer's meshes (drawn and shadow casting)
+ *  - backFaces: the dark back faces of the map's and layer's structure (`backFaces3d`)
  *  - shadows: the shadow map follows the replay (off: it keeps its last state)
  *  - shadowSplit: the static map is kept in the shadow map (`shadowSplit3d`; off: every caster each update)
  *  - labels: the HTML name tags
@@ -27,6 +28,7 @@ export interface PerfToggles {
   minimap: boolean
   map: boolean
   variant: boolean
+  backFaces: boolean
   shadows: boolean
   shadowSplit: boolean
   labels: boolean
@@ -41,13 +43,14 @@ export const PERF_TOGGLES_DEFAULT: Readonly<PerfToggles> = Object.freeze({
   minimap: true,
   map: true,
   variant: true,
+  backFaces: true,
   shadows: true,
   shadowSplit: true,
   labels: true,
   pixelRatio: null,
 })
 
-const FLAGS = ['outline', 'ao', 'smaa', 'postFx', 'minimap', 'map', 'variant', 'shadows', 'shadowSplit', 'labels'] as const
+const FLAGS = ['outline', 'ao', 'smaa', 'postFx', 'minimap', 'map', 'variant', 'backFaces', 'shadows', 'shadowSplit', 'labels'] as const
 
 /** The pixel ratios accepted from the console. */
 const RATIO_MIN = 0.25
