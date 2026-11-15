@@ -18,6 +18,7 @@ Highlights:
 ### Video export
 - 3D exports are encoded at 60 frames per second (30 only if the browser refuses 60, and the dialog says so).
 - Fixed: a 3D export could repeat one early frame for the whole clip when the tab was in the background. Each frame is now read straight from the renderer.
+- Fixed: a first-person export started from the 2D view showed the player's own body and the map markers. The export now renders the 3D view and returns to 2D when it ends.
 - The exported first-person HUD now matches the live one: the weapon reticle (red over an enemy), the zoomed scope overlays, the area name, and the new shield bar.
 
 ### First-person HUD and sound
@@ -59,4 +60,5 @@ Highlights:
 - Map pictures for the recent-matches list download up front.
 
 ### Performance
+- Reopening a map is faster: the browser keeps map and Forge variant files and only downloads them again after a rebuild.
 - The static map renders into the sun's shadow map once. Forge object layers draw in batches. The minimap's map image renders once per scene.
