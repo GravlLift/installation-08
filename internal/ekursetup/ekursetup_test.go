@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/ekurport"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
@@ -280,5 +281,39 @@ func TestResolveGameRootExplicit(t *testing.T) {
 	}
 	if got, err := ResolveGameRoot(deploy); err != nil || got != deploy {
 		t.Fatalf("deploy: got %q, %v", got, err)
+	}
+}
+
+// TestRemoveStaleTemps: a temporary export left by a killed run (unmodified for longer than
+// staleTempAge) is removed; a recent one, which may be a live run in another process, and
+// any other folder are kept.
+func TestRemoveStaleTemps(t *testing.T) {
+	data := t.TempDir()
+	mk := func(name string, age time.Duration) string {
+		p := filepath.Join(data, name)
+		if err := os.MkdirAll(filepath.Join(p, "styles"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "globals.json"), []byte(`{}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-age)
+		if err := os.Chtimes(p, old, old); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	stale := mk(tempPrefix+"111", staleTempAge+time.Minute)
+	live := mk(tempPrefix+"222", time.Minute)
+	other := mk("ekur", staleTempAge+time.Hour)
+	var log strings.Builder
+	removeStaleTemps(data, &log)
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("stale temp still there (err %v); log: %s", err, log.String())
+	}
+	for _, p := range []string{live, other} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("%s was removed: %v", filepath.Base(p), err)
+		}
 	}
 }

@@ -72,35 +72,43 @@ func openOnListen(ctx context.Context, addr string) {
 // existingCopyTimeout bounds the health probe of the address a listen failed on.
 const existingCopyTimeout = 2 * time.Second
 
-// isRunningCopy reports whether the server answering on addr is this program: its
-// /api/health answers 200 with ok "true". Any other program holding the port fails it.
-func isRunningCopy(addr string) bool {
+// isRunningCopy reports whether the server answering on addr is this program (its
+// /api/health answers 200 with ok "true"; any other program holding the port fails it) and
+// whether that copy serves the viewer. A copy older than the "viewer" field counts as
+// serving it, as every packaged build does.
+func isRunningCopy(addr string) (running, viewer bool) {
 	base := urlForAddr(addr)
 	if base == "" {
-		return false
+		return false, false
 	}
 	client := http.Client{Timeout: existingCopyTimeout}
 	resp, err := client.Get(base + "/api/health")
 	if err != nil {
-		return false
+		return false, false
 	}
 	defer resp.Body.Close()
 	var health struct {
-		OK string `json:"ok"`
+		OK     string `json:"ok"`
+		Viewer string `json:"viewer"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&health) != nil {
-		return false
+		return false, false
 	}
-	return health.OK == "true"
+	return health.OK == "true", health.Viewer != "false"
 }
 
 // openOnExisting handles a listen failure of a run that opens the browser. When the
-// address is held by another running copy of this program, it opens the browser on that
-// copy and reports no error, so a second double-click exits cleanly. When anything else
-// holds the address, it returns the listen error.
+// address is held by another running copy of this program that serves the viewer, it
+// opens the browser on that copy and reports no error, so a second double-click exits
+// cleanly. A copy without the viewer (a development server) or anything else holding the
+// address returns an error naming the way out, and no browser opens on a page that 404s.
 func openOnExisting(addr string, listenErr error) error {
-	if !isRunningCopy(addr) {
+	running, viewer := isRunningCopy(addr)
+	if !running {
 		return fmt.Errorf("listen %s: %w", addr, listenErr)
+	}
+	if !viewer {
+		return fmt.Errorf("%s is held by another copy of this program that does not serve the viewer (a development server); stop it, or start this one with --addr 127.0.0.1:<another port>", addr)
 	}
 	slog.Info("already running, opening the browser on the existing server", "addr", addr)
 	if err := openBrowser(urlForAddr(addr)); err != nil {

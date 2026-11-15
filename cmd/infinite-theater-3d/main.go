@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -77,6 +78,13 @@ func run(args []string) error {
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if len(os.Args) == 1 {
+			// A double-click launch owns its console window, which closes as soon as the
+			// process exits: keep the reason on screen until the user has read it. With no
+			// console input (redirected or closed) the read returns at once.
+			fmt.Fprintln(os.Stderr, "\nPress Enter to close this window.")
+			_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+		}
 		os.Exit(1)
 	}
 }
