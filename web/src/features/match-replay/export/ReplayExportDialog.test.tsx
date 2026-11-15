@@ -258,6 +258,18 @@ describe('ReplayExportDialog — les phases du calcul', () => {
     expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow')
   })
 
+  it('while the sound MIXES, the bar moves and says which step runs', () => {
+    setup({ state: { phase: 'prepare', done: 0, total: 1200, pct: 0, prepareStep: { stage: 'mix', pct: 42 } } })
+    expect(screen.getByText('Mixage du son… 42 %')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
+  })
+
+  it('then while its tracks ENCODE', () => {
+    setup({ state: { phase: 'prepare', done: 0, total: 1200, pct: 0, prepareStep: { stage: 'audio', pct: 50 } } })
+    expect(screen.getByText('Encodage du son… 50 %')).toBeInTheDocument()
+    expect(screen.queryByText(/Image 0/)).not.toBeInTheDocument()
+  })
+
   it('en ENCODAGE, compte les images ET annonce le temps restant', () => {
     setup({ state: { phase: 'encode', done: 300, total: 1200, pct: 25, etaMs: 80_000 } })
     expect(screen.getByText('Image 300 / 1200')).toBeInTheDocument()

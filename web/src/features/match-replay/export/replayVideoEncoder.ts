@@ -279,7 +279,7 @@ export interface VideoExportSink {
    * Remet les tampons rendus, DANS L'ORDRE des noms declares a l'ouverture. A n'appeler QUE si
    * `audioEnabled`, et une seule fois.
    */
-  addAudioTracks: (tracks: readonly AudioTrackInput[]) => Promise<void>
+  addAudioTracks: (tracks: readonly AudioTrackInput[], progress?: (fraction: number) => void) => Promise<void>
   /** Referme tout sans rien rendre (annulation, erreur). Ne lève jamais. */
   abort: () => void
 }
@@ -448,12 +448,16 @@ function makeSink(
    *
    * `AudioBufferSource.close()` est appele apres chaque tampon : sans lui, la piste reste
    * ouverte et `output.finalize()` attendrait indefiniment de quoi la remplir.
+   *
+   * `progress` receives the share of the tracks already encoded, 0..1, after each one: on a full
+   * match each track takes seconds of AAC encoding.
    */
-  const addAudioTracks = async (tracks: readonly AudioTrackInput[]) => {
+  const addAudioTracks = async (tracks: readonly AudioTrackInput[], progress?: (fraction: number) => void) => {
     for (let i = 0; i < audioSources.length; i++) {
       const piste = tracks[i]
       if (piste) await audioSources[i].add(piste.buffer)
       audioSources[i].close()
+      progress?.((i + 1) / audioSources.length)
     }
   }
 

@@ -397,6 +397,8 @@ export const EN_TEXT = {
   exportLengthFmt: (clock) => `Exported range: ${clock}`,
   exportFailed: 'The export failed. Nothing was downloaded.',
   exportPreparing: 'Preparing sound and frames…',
+  exportMixingFmt: (pct) => `Mixing sound… ${pct} %`,
+  exportSoundEncodingFmt: (pct) => `Encoding sound… ${pct} %`,
   exportEtaFmt: (clock) => `about ${clock} remaining`,
   exportDoneFmt: (filename) => `File saved: ${filename}`,
   exportMutedFallback: 'MUTED clip: this browser refused the audio track.',

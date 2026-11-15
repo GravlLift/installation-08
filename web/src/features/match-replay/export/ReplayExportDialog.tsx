@@ -334,14 +334,17 @@ function BoundSlider({
  */
 function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: ReplayLocale }) {
   const t = REPLAY_TEXT[locale]
-  const { phase, done, total, pct, etaMs } = exporter.state
-  const preparing = phase === 'prepare'
+  const { phase, done, total, pct, etaMs, prepareStep } = exporter.state
+  // The preparation is INDETERMINATE until a sound step reports its share; then the bar moves.
+  const step = phase === 'prepare' ? prepareStep : undefined
+  const preparing = phase === 'prepare' && !step
+  const shownPct = step ? step.pct : pct
   const eta = etaLabel(etaMs)
   return (
     <div className="mt-3">
       <div
         role="progressbar"
-        aria-valuenow={preparing ? undefined : Math.round(pct)}
+        aria-valuenow={preparing ? undefined : Math.round(shownPct)}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={t.exportDialogTitle}
@@ -349,12 +352,16 @@ function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: 
       >
         <div
           className={`h-full rounded-full bg-primary ${preparing ? 'animate-pulse' : 'transition-[width]'}`}
-          style={{ width: preparing ? '100%' : `${pct}%` }}
+          style={{ width: preparing ? '100%' : `${shownPct}%` }}
         />
       </div>
       <p className="mt-2 text-[11.5px] text-muted-foreground">
         {preparing ? (
           t.exportPreparing
+        ) : step ? (
+          <span className="font-mono tabular-nums">
+            {step.stage === 'mix' ? t.exportMixingFmt(step.pct) : t.exportSoundEncodingFmt(step.pct)}
+          </span>
         ) : (
           <>
             <span className="font-mono tabular-nums">{t.exportProgressFmt(done, total)}</span>
