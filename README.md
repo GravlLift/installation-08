@@ -321,7 +321,7 @@ AGPL-3.0.
 
 ## Credits
 
-- **[JGtm](https://github.com/JGtm)** — [LevelUp](https://github.com/JGtm/LevelUp) and its
+- **[JGtm](https://github.com/JGtm)**: [LevelUp](https://github.com/JGtm/LevelUp) and its
   published modules this project vendors and builds on:
   [halo-infinite-film-decoder](https://github.com/JGtm/halo-infinite-film-decoder),
   [halo-infinite-map-images](https://github.com/JGtm/halo-infinite-map-images), and
@@ -329,14 +329,14 @@ AGPL-3.0.
   `files-reader`'s vendored `ooz` decompressor is GPL-3.0), plus
   [halo-api](https://github.com/JGtm/halo-api) (used directly as a Go module, not vendored).
   See [third_party/README.md](third_party/README.md) for versions and the changes made here.
-- **[TheHaloArchive](https://github.com/TheHaloArchive)** — the
+- **[TheHaloArchive](https://github.com/TheHaloArchive)**: the
   [ekur](https://github.com/TheHaloArchive/ekur) Blender add-on, whose JSON export of the
   game is used as the optional reference for armor, weapon and first-person coatings (see
   "Ekur reference" above).
-- **[Gravemind2401](https://github.com/Gravemind2401)** — [Reclaimer](https://github.com/Gravemind2401/Reclaimer)
+- **[Gravemind2401](https://github.com/Gravemind2401)**: [Reclaimer](https://github.com/Gravemind2401/Reclaimer)
   (GPL-3.0): several tag layouts and rules in the vendored `map-images` module were first
   read from Reclaimer's sources, then independently re-measured on game files and
   reimplemented in Go. No Reclaimer code is included; see
   `third_party/map-images/NOTICE.md`.
-- **[hcs](https://github.com/hcs64)** — [ww2ogg](https://github.com/hcs64/ww2ogg): the basis
+- **[hcs](https://github.com/hcs64)**: [ww2ogg](https://github.com/hcs64/ww2ogg): the basis
   for `internal/wwvorbis`'s Go port that repacks the game's Wwise Vorbis voice lines to Ogg.
