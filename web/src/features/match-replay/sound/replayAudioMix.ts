@@ -63,6 +63,7 @@ import {
   type ShieldMixSource,
   type ShieldSegment,
 } from './shieldMix'
+import { SHIELD_SOUND_STEMS } from './shieldSound'
 import type { EnginePlan } from './vehicleEngineSound'
 import { staticAssetURL } from '@/lib/staticAssets'
 
@@ -411,7 +412,8 @@ export async function mixReplayAudio(
   // not the one that will render the mixing — whose length depends precisely on the decoded durations.
   const probe = new OfflineAudioContext(MIX_CHANNELS, 1, MIX_SAMPLE_RATE)
   const buffers = await decodeMixSources(
-    [...planned.map((s) => s.stem), ...engineStemsOf(enginePlans)],
+    // The shield's files too: unloaded, every shield segment reads as "file absent" and skips.
+    [...planned.map((s) => s.stem), ...engineStemsOf(enginePlans), ...(options.shield ? SHIELD_SOUND_STEMS : [])],
     options.urlOf,
     probe,
   )
