@@ -23,6 +23,7 @@ import { TeamColorsSection } from './ReplaySettingsTeamColors'
 import { SettingsToggle } from './SettingsControls'
 import { SOUND_CATEGORIES } from '../sound/replaySound'
 import type { ReplaySound } from '../sound/useReplaySound'
+import { TEXTURE_QUALITIES, useTextureQuality } from './useTextureQuality'
 
 const PANEL_WIDTH = 360
 
@@ -64,6 +65,39 @@ function useDrawerDismiss(
   }, [panelRef, triggerRef, onClose])
 }
 
+/** The texture-quality section: the viewer's choice of which map and variant files the server
+ *  serves (Standard the default, High about 4x graphics memory). It is a viewer preference,
+ *  not a display layer — switching it re-requests the mesh and variant at the new quality. */
+function TextureQualitySection({ locale }: { locale: ReplayLocale }) {
+  const t = REPLAY_TEXT[locale]
+  const { quality, setQuality } = useTextureQuality()
+  return (
+    <section className="space-y-1">
+      <h3 className="text-xs font-medium text-muted-foreground">{t.textureQualityTitle}</h3>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5" role="radiogroup" aria-label={t.textureQualityTitle}>
+        {TEXTURE_QUALITIES.map((q) => (
+          <button
+            key={q}
+            type="button"
+            role="radio"
+            aria-checked={quality === q}
+            data-testid={`texture-quality-${q}`}
+            onClick={() => setQuality(q)}
+            className={`rounded px-2 py-1 text-left text-xs transition-colors ${
+              quality === q
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {q === 'high' ? t.textureQualityHigh : t.textureQualityStandard}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{t.textureQualityHighHint}</p>
+    </section>
+  )
+}
+
 export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef, sound }: ReplaySettingsDrawerProps) {
   const t = REPLAY_TEXT[locale]
   const panelRef = useRef<HTMLDivElement>(null)
@@ -94,6 +128,7 @@ export function ReplaySettingsDrawer({ locale, onClose, show, toggle, triggerRef
       <TeamColorsSection />
       <Look3dSection locale={locale} />
       <Aids3dSection locale={locale} />
+      <TextureQualitySection locale={locale} />
       <section className="space-y-1">
         <h3 className="text-xs font-medium text-muted-foreground">{t.soundCategoriesTitle}</h3>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">

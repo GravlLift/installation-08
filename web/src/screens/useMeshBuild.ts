@@ -14,6 +14,7 @@ import {
   requestMeshBuild,
   cancelMeshBuild,
   type MeshStateBody,
+  type MeshQuality,
 } from '../lib/api/standalone'
 
 export type MeshBuildPhase =
@@ -65,7 +66,11 @@ export interface UseMeshBuildResult {
   cancelling: boolean
 }
 
-export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_MS): UseMeshBuildResult {
+export function useMeshBuild(
+  matchId: string,
+  pollMs: number = MESH_BUILD_POLL_MS,
+  quality?: MeshQuality,
+): UseMeshBuildResult {
   const [phase, setPhase] = useState<MeshBuildPhase>({ phase: 'checking' })
   const [cancelling, setCancelling] = useState(false)
   // Read inside the interval callback without making it a dependency that would restart polling.
@@ -77,7 +82,7 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
     setPhase({ phase: 'checking' })
     void (async () => {
       try {
-        const body = await fetchMeshState(matchId, controller.signal)
+        const body = await fetchMeshState(matchId, controller.signal, quality)
         if (controller.signal.aborted) return
         setPhase(phaseOfMeshState(body))
       } catch (err) {
@@ -90,7 +95,7 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
       }
     })()
     return () => controller.abort()
-  }, [matchId])
+  }, [matchId, quality])
 
   useEffect(() => {
     if (!isMeshBuildInFlight(phase)) return
@@ -105,7 +110,7 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
       polling = true
       void (async () => {
         try {
-          const body = await fetchMeshState(matchId, controller.signal)
+          const body = await fetchMeshState(matchId, controller.signal, quality)
           if (controller.signal.aborted) return
           setPhase(phaseOfMeshState(body))
         } catch (err) {
@@ -127,7 +132,7 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
     // `phase.phase` (not the whole object) is the dependency: queuePosition/elapsedMs tick on
     // every poll response and must not tear down and restart this interval each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, phase.phase, pollMs])
+  }, [matchId, phase.phase, pollMs, quality])
 
   const build = useCallback(() => {
     if (isMeshBuildInFlight(phaseRef.current)) return
@@ -135,7 +140,7 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
     setPhase((prev) => ({ phase: 'queued', moduleKey: moduleKeyOf(prev) }))
     void (async () => {
       try {
-        const body = await requestMeshBuild(matchId, controller.signal)
+        const body = await requestMeshBuild(matchId, controller.signal, quality)
         setPhase(phaseOfMeshState(body))
       } catch (err) {
         setPhase({
@@ -145,18 +150,18 @@ export function useMeshBuild(matchId: string, pollMs: number = MESH_BUILD_POLL_M
         })
       }
     })()
-  }, [matchId])
+  }, [matchId, quality])
 
   const cancel = useCallback(() => {
     if (phaseRef.current.phase !== 'building' || cancelling) return
     setCancelling(true)
-    void cancelMeshBuild(matchId).then((body) => {
+    void cancelMeshBuild(matchId, undefined, quality).then((body) => {
       setPhase(phaseOfMeshState(body))
     }).catch((err: unknown) => {
       setPhase({ phase: 'failed', moduleKey: moduleKeyOf(phaseRef.current), error: err instanceof Error ? err.message : String(err) })
       setCancelling(false)
     })
-  }, [matchId, cancelling])
+  }, [matchId, cancelling, quality])
 
   useEffect(() => {
     if (phase.phase !== 'building') setCancelling(false)

@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react'
 
+import { qualityQuery, type MeshQuality } from '../lib/api/standalone'
+
 /**
  * useVariantSource — the match's variant layer as the server has it: its URL once built, and
  * `pending` while the state is still being checked or the layer is queued or building (an absent
  * layer is built on the spot). Not pending without a URL: the match has no layer, or it could not
- * be checked or built.
+ * be checked or built. The variant route takes the same `?quality=` as the mesh route, so a
+ * `high` layer is a separate file the server builds on first request; standard sends no
+ * parameter (the URL stays the pre-quality one).
  */
-export function useVariantSource(matchId: string): { path: string | null; pending: boolean } {
+export function useVariantSource(matchId: string, quality?: MeshQuality): { path: string | null; pending: boolean } {
   const [result, setResult] = useState<{ id: string; url: string | null; pending: boolean } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
-    const base = `/api/matches/${encodeURIComponent(matchId)}/variant`
+    const base = `/api/matches/${encodeURIComponent(matchId)}/variant${qualityQuery(quality)}`
+    // The result is keyed by match AND quality, so a quality switch reads as a fresh request
+    // (pending) until the new quality's check settles, not as a stale standard layer.
+    const key = `${matchId}:${quality ?? 'standard'}`
     let timer: ReturnType<typeof setTimeout> | undefined
-    const settle = (url: string | null) => setResult({ id: matchId, url, pending: false })
+    const settle = (url: string | null) => setResult({ id: key, url, pending: false })
     const check = async (build = false) => {
       try {
         const response = await fetch(`${base}/${build ? 'build' : 'state'}`, {
@@ -34,8 +41,8 @@ export function useVariantSource(matchId: string): { path: string | null; pendin
     }
     void check()
     return () => { controller.abort(); if (timer) clearTimeout(timer) }
-  }, [matchId])
-  if (result?.id !== matchId) return { path: null, pending: true }
+  }, [matchId, quality])
+  if (result?.id !== `${matchId}:${quality ?? 'standard'}`) return { path: null, pending: true }
   return { path: result.url, pending: result.pending }
 }
 
