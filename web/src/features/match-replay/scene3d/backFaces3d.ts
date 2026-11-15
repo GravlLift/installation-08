@@ -59,14 +59,29 @@ function backFaceMaterial(): THREE.MeshBasicMaterial {
   return material
 }
 
-/** backMesh pose sous `root` le maillage d'envers d'un groupe (même attribut de sommets, même transformation). */
-function backMesh(group: readonly THREE.Mesh[], material: THREE.Material, toRoot: THREE.Matrix4, tighten: (g: THREE.BufferGeometry) => void): THREE.Mesh {
+/**
+ * backGeometry rend la géométrie d'envers d'un groupe : ses index mis bout à bout sur son attribut de
+ * sommets. Des groupes qui lisent les mêmes index (un objet posé à plusieurs endroits : des surfaces
+ * qui partagent leur géométrie, sous des transformations différentes) partagent la leur, bâtie une
+ * fois et gardée dans `shared`.
+ */
+function backGeometry(group: readonly THREE.Mesh[], shared: Map<string, THREE.BufferGeometry>, idOf: (o: object) => number, tighten: (g: THREE.BufferGeometry) => void): THREE.BufferGeometry {
   const position = group[0].geometry.getAttribute('position')
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', position)
-  const parts = group.map((m) => (m.geometry.index as THREE.BufferAttribute).array)
-  geometry.setIndex(new THREE.BufferAttribute(concatIndices(parts, position.count), 1))
-  tighten(geometry)
+  const indices = group.map((m) => m.geometry.index as THREE.BufferAttribute)
+  const key = `${idOf(position)}|${indices.map(idOf).join(',')}`
+  let geometry = shared.get(key)
+  if (!geometry) {
+    geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', position)
+    geometry.setIndex(new THREE.BufferAttribute(concatIndices(indices.map((i) => i.array), position.count), 1))
+    tighten(geometry)
+    shared.set(key, geometry)
+  }
+  return geometry
+}
+
+/** backMesh pose sous `root` le maillage d'envers d'un groupe (même attribut de sommets, même transformation). */
+function backMesh(group: readonly THREE.Mesh[], geometry: THREE.BufferGeometry, material: THREE.Material, toRoot: THREE.Matrix4): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = BACK_FACE_NAME
   mesh.matrixAutoUpdate = false
@@ -99,17 +114,18 @@ export function buildBackFaces(root: THREE.Object3D, meshes: readonly THREE.Mesh
   }
   const material = backFaceMaterial()
   const toRoot = root.matrixWorld.clone().invert()
-  const backs = [...groups.values()].map((group) => backMesh(group, material, toRoot, tighten))
+  const shared = new Map<string, THREE.BufferGeometry>()
+  const backs = [...groups.values()].map((group) => backMesh(group, backGeometry(group, shared, idOf, tighten), material, toRoot))
   for (const mesh of backs) root.add(mesh)
   return {
     meshes: backs,
     covered,
     dispose() {
-      for (const mesh of backs) {
-        mesh.removeFromParent()
+      for (const mesh of backs) mesh.removeFromParent()
+      for (const geometry of shared.values()) {
         // Seul l'index est à ce maillage : libérer la géométrie entière libérerait les sommets partagés.
-        mesh.geometry.deleteAttribute('position')
-        mesh.geometry.dispose()
+        geometry.deleteAttribute('position')
+        geometry.dispose()
       }
       material.dispose()
     },
