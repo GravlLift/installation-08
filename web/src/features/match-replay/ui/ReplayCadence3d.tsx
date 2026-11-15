@@ -74,10 +74,12 @@ function round1(v: number): number {
   return Math.round(v * 10) / 10
 }
 
-/** meterLines: the headline (« 13 / 30 fps · 1.00x ») and the smaller lines (frame time and render cost, stages, passes). */
+/** meterLines: the headline (« 13 fps · 1.00x ») and the smaller lines (frame time and render cost, stages, passes).
+ *  The document's sample rate is not shown next to the fps: it is not a target (playback interpolates
+ *  between samples) and not the game's own recording rate. */
 export function meterLines(s: PerfSnapshot, t: (typeof SCENE3D_TEXT)[ReplayLocale]): [string, string, string, string] {
   const ratio = s.realtime > 0 ? `${s.realtime.toFixed(2)}x` : t.cadencePaused
-  const head = `${Math.round(s.playbackFps)} / ${s.filmFps} ${t.cadenceIps} · ${ratio}`
+  const head = `${Math.round(s.playbackFps)} ${t.cadenceIps} · ${ratio}`
   const cost = `${s.frameMsAvg.toFixed(1)} ms · ${t.cadencePire} ${s.frameMsWorst.toFixed(1)} ms · js ${s.scriptMs.toFixed(1)} ms${s.gpuMs === null ? '' : ` · gpu ${s.gpuMs.toFixed(1)} ms`} · ${s.calls} calls · ${(s.triangles / 1e6).toFixed(2)}M tri · ${s.geometries} geo · ${s.textures} tex`
   const stages = `${ETAPES_PROFIL.map((name) => `${name} ${s.stagesMs[name].toFixed(1)}`).join(' · ')} · x${s.pixelRatio} ${s.width}x${s.height}`
   const passes = PASS_COST_NAMES.filter((n) => s.passes[n].calls > 0).map((n) => `${n} ${(s.passes[n].triangles / 1e6).toFixed(2)}M/${s.passes[n].calls}`).join(' · ')
