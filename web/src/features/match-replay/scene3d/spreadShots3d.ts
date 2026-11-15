@@ -4,7 +4,8 @@
  *
  * WHAT IS THE GAME'S. The Heatwave (Forerunner shotgun) fires a line of hard-light bolts, spread
  * horizontally or vertically (the player toggles it), that bounce off surfaces. That is the shape
- * drawn here: a fan, the bolts as short glowing streaks, one ricochet each.
+ * drawn here: a fan, each bolt a glowing trail (bright at its head, fading along its length), one
+ * ricochet each.
  *
  * WHAT IS MEASURED. The bolts' SPEED, from the film's own damage events: on match 05dfe4e9, nine
  * Heatwave pulls whose first hit lands within 0.3 s, at 3.7 to 9.8 u from the shooter, put the hit
@@ -36,8 +37,6 @@ export const SPREAD_SPEED = 43
 export const SPREAD_RANGE = 40
 /** Range of the ricochet, u: the bolt flies on after its one bounce, then dies out. */
 export const SPREAD_BOUNCE_RANGE = 8
-/** Length of a bolt's streak, u (~1.5 m). ESTIMATE of the game's glowing bar. */
-export const SPREAD_STREAK = 0.5
 
 /** What a bolt's flight needs of the scenery: the first face hit along a ray. */
 export type FaceHit = (from: THREE.Vector3, dir: THREE.Vector3, far: number) => { point: THREE.Vector3; normal: THREE.Vector3 } | null
@@ -107,20 +106,49 @@ function legOf(p: BoltPath, s: number): number {
   return p.points.length - 1
 }
 
+/** Length of a bolt's glowing trail, u (~4.5 m). ESTIMATE: long enough for the fan to read on screen. */
+export const SPREAD_TRAIL = 1.5
+/** Pieces of the trail, each dimmer than the one ahead of it. */
+export const SPREAD_TRAIL_PIECES = 5
+
 /**
- * boltStreak — the streak of the bolt `age` seconds after the pull: its head at `age * speed`
- * along the flight, its tail `SPREAD_STREAK` behind ON THE SAME LEG (it does not bend around the
- * ricochet), or null before the pull and once the head has reached the end.
+ * boltTrail — the bolt's glowing trail `age` seconds after the pull: `SPREAD_TRAIL_PIECES` pieces
+ * along the flight (bending at the ricochet), from the head backwards, each handed to `visit` with
+ * its brightness (1 at the head, falling linearly toward the tail). Once the head reaches the end
+ * of the flight, the trail drains into it. False before the pull and once the trail has drained.
  */
-export function boltStreak(p: BoltPath, age: number, tail: THREE.Vector3, head: THREE.Vector3, speed = SPREAD_SPEED): boolean {
+export function boltTrail(
+  p: BoltPath,
+  age: number,
+  visit: (tail: THREE.Vector3, head: THREE.Vector3, brightness: number) => void,
+  speed = SPREAD_SPEED,
+): boolean {
   const total = p.at[p.at.length - 1]
   const s = age * speed
-  if (age < 0 || s >= total) return false
-  const leg = legOf(p, s)
-  pointAt(p, s, head)
-  pointAt(p, Math.max(p.at[leg - 1], s - SPREAD_STREAK), tail)
+  if (age < 0 || s - SPREAD_TRAIL >= total) return false
+  const piece = SPREAD_TRAIL / SPREAD_TRAIL_PIECES
+  for (let i = 0; i < SPREAD_TRAIL_PIECES; i++) {
+    const front = Math.min(s - i * piece, total)
+    const back = Math.max(0, Math.min(s - (i + 1) * piece, total))
+    if (front <= back) continue
+    // A piece across the ricochet is cut at it, so the trail bends with the flight.
+    const k = 1 - i / SPREAD_TRAIL_PIECES
+    let hi = front
+    while (hi > back) {
+      const lo = Math.max(back, p.at[legOf(p, hi) - 1])
+      pointAt(p, hi, trailHead)
+      pointAt(p, lo, trailTail)
+      visit(trailTail, trailHead, k)
+      if (lo <= 0) break
+      hi = lo - 1e-9
+      if (hi - back < 1e-6) break
+    }
+  }
   return true
 }
+
+const trailHead = new THREE.Vector3()
+const trailTail = new THREE.Vector3()
 
 /** boltEndAge — the age (s) at which the bolt reaches the end of its flight. */
 export function boltEndAge(p: BoltPath, speed = SPREAD_SPEED): number {
