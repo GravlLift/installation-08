@@ -267,6 +267,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     alpha, the leaves' coverage. Fortress's pine clusters, bushes, firs and root clusters drew as
     dark angular cards (the atlas's dilated padding) because their shaders are not in the cutout
     table. Covered by `himap/decoupe_feuillage_test.go` (new).
+  - `himap/vitres_sombres.go` (new, LOCAL-CHANGE), `maillage_monde.go` and `glb.go` (modified):
+    a glass pane the game shows dark is drawn as a dark grey opaque material, keyed by the
+    pane's geometry (`rtgo`) because its glass material also draws real windows. Recharge's
+    roof pane over the batteries (rtgo `1a27c1cf`, glass `0x4faa9c4f`, 230 triangles) drew as
+    the clear glass placeholder and showed bright sky through the girder lattice, where the
+    game shows dark grey; the long hall's windows (rtgo `43ec8b62`, same glass) stay glass.
+    The stand-in material carries `extras.vitreSombre` (the glass GlobalID) and `teinte`.
+    Covered by `himap/vitres_sombres_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
