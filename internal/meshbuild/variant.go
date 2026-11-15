@@ -85,7 +85,7 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 		return mapmesh.Summary{}, err
 	}
 	target := mapmesh.VariantTarget{
-		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles,
+		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles, StyleGrimes: v.StyleGrimes,
 		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode,
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)

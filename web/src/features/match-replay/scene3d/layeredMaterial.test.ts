@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import { describe, expect, it } from 'vitest'
 
-import { LAYER_ROWS, layeredMaterial, packLayers, type LayerInfo } from './layeredMaterial'
+import { LAYER_ROWS, layeredMaterial, packLayers, prepareLayerUVs, type LayerInfo } from './layeredMaterial'
 
 const row = (data: Float32Array, k: number, i: number) => Array.from(data.slice((k * LAYER_ROWS + i) * 4, (k * LAYER_ROWS + i) * 4 + 4))
 
@@ -45,6 +45,13 @@ describe('packLayers', () => {
     expect(row(data, 0, 7)[3]).toBe(0)
     expect(row(data, 1, 7)[3]).toBe(1)
     expect(row(data, 2, 7)[3]).toBe(3)
+  })
+
+  it('marks a normal or control laid on the mask coordinates with 2', () => {
+    const data = packLayers([{ sorte: 'degrade', normaleMacro: true, controleMacro: true }, { sorte: 'degrade', controleMacro: true }], [true, false], [true, false])
+    expect(row(data, 0, 7)).toEqual([2, 0, 2, 0])
+    // A flag without a loaded map stays 0.
+    expect(row(data, 1, 7)).toEqual([0, 0, 0, 1])
   })
 
   it('donne leurs défauts aux champs absents et aux couches absentes', () => {
@@ -94,6 +101,41 @@ describe('layeredMaterial', () => {
     expect(arrays.map(([name]) => name)).toEqual(['uLayer'])
     expect(row(shader.uniforms.uLayer.value as Float32Array, 0, 7)).toEqual([1, 0, 0, 0])
     expect(shader.fragmentShader).toContain(`uniform vec4 uLayer[4 * LAYER_ROWS];`)
-    expect(m.customProgramCacheKey()).toBe('couches-v5')
+    expect(m.customProgramCacheKey()).toBe('couches-v6')
+  })
+})
+
+describe('prepareLayerUVs', () => {
+  const uv = (v: number) => new THREE.Float32BufferAttribute([v, v, v, v], 2)
+  const geometry = (sets: number) => {
+    const g = new THREE.BufferGeometry()
+    ;['uv', 'uv1'].slice(0, sets).forEach((name, k) => g.setAttribute(name, uv(k)))
+    return g
+  }
+  const flagged = { couches: [{ sorte: 'degrade' as const, controleMacro: true }], masque: -1, jeuMasque: 1, jeuCouches: 0 }
+
+  it('binds the mask set for a map laid on it, without a mask', () => {
+    const g = geometry(2)
+    expect(prepareLayerUVs(g, flagged)).toBe(true)
+    expect(g.getAttribute('cMacro')).toBe(g.getAttribute('uv1'))
+    expect(g.getAttribute('cUv')).toBe(g.getAttribute('uv'))
+  })
+
+  it('falls back to the layer set when the geometry lacks the mask set', () => {
+    const g = geometry(1)
+    expect(prepareLayerUVs(g, flagged)).toBe(true)
+    expect(g.getAttribute('cMacro')).toBe(g.getAttribute('uv'))
+  })
+})
+
+describe('layeredMaterial cutout on the mask', () => {
+  it('reads the cut from the mask alpha when decoupeMasque is set', async () => {
+    const parser = { getDependency: async () => new THREE.Texture() } as unknown as GLTFParser
+    const info = { couches: [{ sorte: 'degrade' as const, texture: 0 }], masque: 1, jeuMasque: 1, jeuCouches: 0, decoupeMasque: true }
+    const m = await layeredMaterial(new THREE.MeshStandardMaterial(), info, parser)
+    const shader = { uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '', fragmentShader: '#include <common>\n#include <map_fragment>' }
+    m.onBeforeCompile(shader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
+    expect(shader.uniforms.uMaskCut.value).toBe(1)
+    expect(shader.fragmentShader).toContain('uMaskCut > 0.5 ? texture2D(uMask, vMacro).a')
   })
 })

@@ -200,6 +200,30 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     end: an 8.4 m girder ran 5.9 m out of a base's front and a beam ran along its floor like a
     curb. Ekur scales by the stored scale too and draws them the same way. Covered by
     `himap/telescopage_forge_test.go` (modified).
+  - Forge style materials drawn as Ekur's HIMS shader does (`hims.py`, `layered_shader.py`,
+    `infinite_masking_sorter.py`, `forge_map_operator.py`; TheHaloArchive, GPL-3.0-or-later):
+    - `himap/couches_style.go` (modified), `couches.go`, `materiaux.go`: every zone of a style
+      material, not only its base: zones 2 to 4 weighted by Mask0 R, G, B (zones 5 to 7 by
+      Mask1), the style's grime by clamp(ASG.B + amount - 1), the material's own normal map and
+      ASG occlusion on each zone (`Couche.NormaleObjet`, `Couche.ControleASG`), and a
+      transparent base intention cut by 1 - ASG alpha when the ASG has an alpha
+      (`Decoupe.AlphaSeul`). Fortress's 7705398e decals drew as a near-black slab.
+    - `himap/styles_forge.go` (new), `files-reader/mapvar/mapvar.go` (`Variant.StyleGrimes`,
+      style fields 8 and 10), `maillage_variante.go`, `maillage_variante_poses.go`,
+      `maillage_monde.go`, `forge_teintes.go`: an object's own Forge material (`.mvar` root
+      field 8) repaints the zones it names, from the embedded catalog of Ekur layers, and
+      replaces the grime. Each (material, style) pair gets its own GLB material; before this a
+      layered material dropped the object's style and drew its default colors (flat white
+      walls, flat yellow sandbags). The style's color moves the swatch colors toward it by its
+      intensity; Ekur reads these but never draws them, so that rule is ours.
+    - `himap/glb_couches.go`, `glb.go`, `glb_masques.go`, `textures_monde.go`: Ekur's Forge
+      import makes UV1 the active map, which the HIMS masks, ASG and normal read, while the
+      swatches read UV0. The composed mask (`MasqueStyle`) is written on UV1, the layers flag
+      the normal and control maps laid there (`normaleMacro`, `controleMacro`), and a cut lives
+      in the mask's alpha (`decoupeMasque`). Read on UV0 they streaked across scaled blocks.
+      Swatches only a style draws are read at 256 (`coteEchantillon`).
+    Covered by `himap/styles_forge_test.go` (new) and `himap/couches_style_test.go`
+    (modified, gamefiles).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

@@ -67,6 +67,9 @@ type OptionsVariante struct {
 	// Filtres (LOCAL-CHANGE (infinite-theater-3d)): the labels the match's mode activates
 	// (filtres_mode.go); the zero value builds the layer of a match without a known mode.
 	Filtres FiltresMode
+	// StylesForge (LOCAL-CHANGE (infinite-theater-3d)): the objects' Forge styles by style id
+	// (LitStylesForge), which repaint their layered materials; nil draws the materials' own.
+	StylesForge map[int32]*StyleForge
 }
 
 // BilanVariante compte le sort des objets d'une variante.
@@ -201,6 +204,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	if err := out.resoutMateriauxPoses(OptionsCuisson{RacineDeploy: opts.RacineDeploy, CheminModule: opts.CheminModule}, idx); err != nil {
 		return nil, b, err
 	}
+	out.stylesForge = opts.StylesForge // LOCAL-CHANGE (infinite-theater-3d)
 	out.resoutTextures(ctx, idx)
 	out.appliqueTeintes()
 	slog.InfoContext(ctx, "objets de la variante poses", "objets", b.Objets, "poses", b.Poses,
@@ -310,7 +314,14 @@ func (m *MaillageMonde) poseVarianteTeinte(opts OptionsVariante, modeles map[int
 				teinte = &t
 			}
 		}
+		debut := len(m.Poses.Poses)
 		triangles := m.poseObjet(i, o, mv, teinte, decalage)
+		// LOCAL-CHANGE (infinite-theater-3d): the object's Forge style, for its layered materials.
+		if o.StyleID != nil && opts.StylesForge[*o.StyleID] != nil {
+			for p := debut; p < len(m.Poses.Poses); p++ {
+				m.Poses.Poses[p].Style = o.StyleID
+			}
+		}
 		b.Poses++
 		tp := poses[o.TypeID]
 		if tp == nil {

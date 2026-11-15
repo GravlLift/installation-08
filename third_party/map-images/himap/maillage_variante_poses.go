@@ -50,6 +50,9 @@ type PoseVariante struct {
 	Materiaux []uint32
 	// Teinte is the object's style tint, nil without a style or a resolved tint.
 	Teinte *TeinteForge
+	// Style (LOCAL-CHANGE (infinite-theater-3d)) is the object's Forge style id, when the variant
+	// resolved it (OptionsVariante.StylesForge): it repaints the placement's layered materials.
+	Style *int32
 }
 
 type cleGeometrie struct {
@@ -60,6 +63,22 @@ type cleGeometrie struct {
 type cleTeinte struct {
 	source uint32
 	teinte TeinteForge
+	// style, aStyle (LOCAL-CHANGE (infinite-theater-3d)): a source repainted by a Forge style.
+	style  int32
+	aStyle bool
+}
+
+// cleDe (LOCAL-CHANGE (infinite-theater-3d)) returns the key of what placement p draws for source
+// material `source`: repainted by its Forge style when the source has style zones, else tinted;
+// false when the source is drawn as it is.
+func (m *MaillageMonde) cleDe(p PoseVariante, source uint32) (cleTeinte, bool) {
+	if p.Style != nil && m.Materiaux[source].Zones != nil {
+		return cleTeinte{source: source, style: *p.Style, aStyle: true}, true
+	}
+	if p.Teinte != nil {
+		return cleTeinte{source: source, teinte: *p.Teinte}, true
+	}
+	return cleTeinte{}, false
 }
 
 // Monde returns the placement's world pose.
@@ -199,8 +218,17 @@ func (p PoseVariante) sourceDe(cle uint32) uint32 {
 // or the tinted material appliqueTeintes allocated for it.
 func (pv *PosesVariante) materiauDe(p PoseVariante, cle uint32) uint32 {
 	id := p.sourceDe(cle)
-	if p.Teinte != nil && !pv.Geometries[p.Geometrie].Ombre {
-		if t, ok := pv.teintes[cleTeinte{id, *p.Teinte}]; ok {
+	if pv.Geometries[p.Geometrie].Ombre {
+		return id
+	}
+	// LOCAL-CHANGE (infinite-theater-3d): a style-repainted source first, then a tinted one.
+	if p.Style != nil {
+		if t, ok := pv.teintes[cleTeinte{source: id, style: *p.Style, aStyle: true}]; ok {
+			return t
+		}
+	}
+	if p.Teinte != nil {
+		if t, ok := pv.teintes[cleTeinte{source: id, teinte: *p.Teinte}]; ok {
 			return t
 		}
 	}
@@ -244,7 +272,10 @@ func (m *MaillageMonde) resoutMateriauxPoses(opts OptionsCuisson, idxGeo *Module
 // appliqueTeintes gives each tinted placement's drawn triangles a material of their own per
 // (source material, tint): the tint is the material's flat color, written by the GLB's material
 // writer (teintesForge). A source material whose layers carry a published texture keeps its
-// layers and takes no tint. Needs the materials and their textures resolved.
+// layers and takes no tint. LOCAL-CHANGE (infinite-theater-3d): a source with Forge style zones
+// drawn by a placement with a Forge style gets a material per (source, style) instead: its
+// layers repainted by the style (ZonesStyle.couches). Needs the materials and their textures
+// resolved.
 func (m *MaillageMonde) appliqueTeintes() {
 	pv := m.Poses
 	var cles []cleTeinte
@@ -255,28 +286,37 @@ func (m *MaillageMonde) appliqueTeintes() {
 		for cle := range g.Maillage.Indices {
 			source := p.sourceDe(cle)
 			reserves[source] = true
-			k := cleTeinte{source, TeinteForge{}}
-			if p.Teinte != nil {
-				k.teinte = *p.Teinte
-			}
-			if p.Teinte == nil || g.Ombre || vues[k] || m.garderCouches(source) {
+			k, ok := m.cleDe(p, source)
+			if !ok || g.Ombre || vues[k] || (!k.aStyle && m.garderCouches(source)) {
 				continue
 			}
 			vues[k] = true
 			cles = append(cles, k)
 		}
 	}
-	slices.SortStableFunc(cles, func(a, b cleTeinte) int { return cmp.Compare(a.source, b.source) })
+	slices.SortStableFunc(cles, func(a, b cleTeinte) int {
+		if c := cmp.Compare(a.source, b.source); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.style, b.style)
+	})
 	pv.teintes = map[cleTeinte]uint32{}
 	m.teintesForge = map[uint32]materiauTeinte{}
 	prochain := ^uint32(0)
 	for _, k := range cles {
+		t := materiauTeinte{source: k.source, teinte: k.teinte}
+		if k.aStyle {
+			t.couches = m.Materiaux[k.source].Zones.couches(m.stylesForge[k.style])
+			if t.couches == nil {
+				continue // nothing lit: the source is drawn as it is
+			}
+		}
 		for reserves[prochain] {
 			prochain--
 		}
 		reserves[prochain] = true
 		pv.teintes[k] = prochain
-		m.teintesForge[prochain] = materiauTeinte{k.source, k.teinte}
+		m.teintesForge[prochain] = t
 	}
 }
 

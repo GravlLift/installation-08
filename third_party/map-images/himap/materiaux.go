@@ -95,6 +95,9 @@ type Materiau struct {
 	Pochoir *Pochoir
 	// Surface : les images d'un materiau de surface dure (surface_dure.go). nil pour un autre shader.
 	Surface *SurfaceDure
+	// Zones (LOCAL-CHANGE (infinite-theater-3d)): a Forge style material's zones, which an
+	// object's own Forge style repaints (couches_style.go, styles_forge.go); nil otherwise.
+	Zones *ZonesStyle
 }
 
 // Decoupe est un masque de decoupe alpha : la texture, sa transformation de coordonnees
@@ -107,6 +110,12 @@ type Decoupe struct {
 	Puissance float32
 	Ajout     float32
 	Seuil     float32
+	// AlphaSeul (LOCAL-CHANGE (infinite-theater-3d)): a Forge ASG cut: the texture's alpha is the
+	// transparency, the opacity is 1 - alpha (Ekur's default "Flip Alpha", layered_shader.py and
+	// hims.py), applied only when the texture has an alpha (Ekur's use_alpha: a format without
+	// one reads a full alpha here); a full or zero alpha cuts nothing and the material stays
+	// opaque (glb.go). Drawn only through the composed style mask (glb_couches.go).
+	AlphaSeul bool
 }
 
 // Opaque dit si le materiau masque ce qui est derriere lui. Un materiau illisible compte
@@ -173,6 +182,7 @@ func LitMateriau(id uint32, tag []byte, shaders LecteurShaders, styles LecteurSt
 		}
 		_, m.Verre = shaders(m.Shader)[nomVerre]
 		styleAbs, styleSize := -1, 0
+		var params parametresStyle
 		for i, o := range offs {
 			switch o {
 			case matOffPostprocess:
@@ -181,12 +191,22 @@ func LitMateriau(id uint32, tag []byte, shaders LecteurShaders, styles LecteurSt
 				if a, s := ti.blockAbs(targets[i]); a >= 0 && s >= 4 && a+s <= len(tag) {
 					styleAbs, styleSize = a, s
 				}
+			case matOffParametres: // LOCAL-CHANGE (infinite-theater-3d)
+				if targets[i] >= 0 {
+					if a, s := ti.blockAbs(targets[i]); a >= 0 && a+s <= len(tag) {
+						params = litParametresStyle(tag, a, s)
+					}
+				}
 			}
 		}
 		// LOCAL-CHANGE (infinite-theater-3d) : un materiau sans aucune surface liee (ni couche
-		// du shader, ni surface dure) lit sa couche de base dans ses styles (couches_style.go).
+		// du shader, ni surface dure) lit ses couches dans ses styles (couches_style.go).
 		if m.Couches == nil && m.Surface == nil && m.Opaque() && styleAbs >= 0 && styles != nil {
-			m.Couches = couchesStyle(ti, rAbs, styleAbs, styleSize, styles)
+			var decoupe *Decoupe
+			m.Couches, decoupe, m.Zones = couchesStyle(ti, rAbs, styleAbs, styleSize, styles, params)
+			if m.Decoupe == nil {
+				m.Decoupe = decoupe
+			}
 		}
 		return m, nil
 	}

@@ -98,6 +98,9 @@ type Variant struct {
 	Styles  map[int32][]StyleLayer
 	Names   []string // root[10][1] : chaînes lisibles, ordre du fichier
 	LevelID int32    // root[1][0][0]
+
+	// StyleGrimes (LOCAL-CHANGE (infinite-theater-3d)): each style's grime, by style id.
+	StyleGrimes map[int32]StyleGrime
 }
 
 // Parse décode un .mvar complet.
@@ -106,7 +109,7 @@ func Parse(buf []byte) (*Variant, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mapvar: %w", err)
 	}
-	v := &Variant{Styles: readStyles(root)}
+	v := &Variant{Styles: readStyles(root), StyleGrimes: readStyleGrimes(root)}
 	if hdr, ok := root.Field(1); ok {
 		if sub, ok2 := hdr.Field(0); ok2 {
 			if id, ok3 := sub.Field(0); ok3 {
@@ -310,6 +313,40 @@ func readStyles(root Value) map[int32][]StyleLayer {
 			layers = append(layers, layer)
 		}
 		out[int32(id.Int)] = layers
+	}
+	return out
+}
+
+// StyleGrime (LOCAL-CHANGE (infinite-theater-3d)) is a style's grime: the swatch it lays over the
+// style's layers (Hash, 0 when absent) and how much (Amount), style fields 8 and 10 as Ekur's
+// add-on reads them (forge_level_reader.py, ForgeMat.grime and grime_amount).
+type StyleGrime struct {
+	Hash   int32
+	Amount float64
+}
+
+func readStyleGrimes(root Value) map[int32]StyleGrime {
+	out := map[int32]StyleGrime{}
+	styles, _ := root.Field(8)
+	for _, style := range styles.Items {
+		ident, ok := style.Field(1)
+		if !ok {
+			continue
+		}
+		id, ok := ident.Field(0)
+		if !ok {
+			continue
+		}
+		var g StyleGrime
+		if f, ok := style.Field(8); ok {
+			if h, ok := f.Field(0); ok {
+				g.Hash = int32(h.Int)
+			}
+		}
+		if f, ok := style.Field(10); ok {
+			g.Amount = f.Float
+		}
+		out[int32(id.Int)] = g
 	}
 	return out
 }

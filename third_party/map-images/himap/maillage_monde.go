@@ -37,6 +37,8 @@ type MaillageMonde struct {
 	// la table (illisible, ou 0 = rang hors liste) se dessine comme opaque.
 	Materiaux    map[uint32]Materiau
 	teintesForge map[uint32]materiauTeinte
+	// stylesForge (LOCAL-CHANGE (infinite-theater-3d)): the variant's Forge styles by style id.
+	stylesForge map[int32]*StyleForge
 	// MateriauxIllisibles compte les GlobalID references que les modules ne resolvent pas.
 	MateriauxIllisibles int
 	// Masques : les textures des decoupes des materiaux, par GlobalID de bitmap. Un materiau
