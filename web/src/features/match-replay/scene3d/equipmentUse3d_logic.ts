@@ -8,7 +8,8 @@
  *     `any / any / any / <set> / equipment_activate`, game name `any:any:any:<set>:equipment_activate`,
  *     both StringIDs checked by murmur3 on 79 FP graphs out of 79). The repulsor's set is
  *     `knockback` (its ability is `ability_knockback`), the threat sensor's is `location`
- *     (`ability_location_sensor`). The first-person library bakes them as `<set>:equipment_activate`.
+ *     (`ability_location_sensor`), the active camo's is `camo` and the translocator's is `quantum`.
+ *     The first-person library bakes them as `<set>:equipment_activate`.
  *   - first person, thruster: `first_person:evade_front|back|left|right`; grapple fire:
  *     `first_person:grapple_hook_deploy` (in every FP graph).
  *   - third person, thruster: `combat:<class>:dodge_front|back|left|right`, already in the Spartan
@@ -26,6 +27,8 @@ import type { ThrusterBurst } from './thruster3d_logic'
 export const FP_USE_ACTION: Readonly<Record<string, string>> = {
   repulsor: 'knockback:equipment_activate',
   sensor: 'location:equipment_activate',
+  powerup_camo: 'camo:equipment_activate',
+  translocator_beacon: 'quantum:equipment_activate',
 }
 
 /** The first-person clip of the grapple fire. */

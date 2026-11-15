@@ -15,7 +15,10 @@ type Doc = Parameters<typeof firstPersonUses>[0]
 function doc(over: Partial<Doc> = {}): Doc {
   return {
     carriedEquipment: [],
-    abilityLabels: { '3': { family: 'repulsor' }, '5': { family: 'shroud_screen' }, '7': { family: 'sensor' } },
+    abilityLabels: {
+      '3': { family: 'repulsor' }, '5': { family: 'shroud_screen' }, '7': { family: 'sensor' },
+      '9': { family: 'powerup_camo' }, '11': { family: 'translocator_beacon' },
+    },
     grappleLines: [],
     ...over,
   } as Doc
@@ -46,12 +49,14 @@ describe('dodgeShots', () => {
 })
 
 describe('firstPersonUses', () => {
-  it('names the game clip of each repulsor and threat sensor activation, the grapple fire and the thruster', () => {
+  it('names the game clip of each carried equipment activation, the grapple fire and the thruster', () => {
     const d = doc({
       carriedEquipment: [
         { slot: 1, r: 3, t0: 0, energy: [], uses: [120, 30], tracked: [] },
         { slot: 1, r: 7, t0: 0, energy: [], uses: [60], tracked: [] },
         { slot: 1, r: 5, t0: 0, energy: [], uses: [90], tracked: [] },
+        { slot: 2, r: 9, t0: 0, energy: [], uses: [45], tracked: [] },
+        { slot: 2, r: 11, t0: 0, energy: [], uses: [15], tracked: [] },
       ],
       grappleLines: [{ slot: 1, t0: 75, t1: 80, ax: 0, ay: 0, az: 0 }],
     } as Partial<Doc>)
@@ -63,7 +68,16 @@ describe('firstPersonUses', () => {
       { frame: 100, action: fpEvadeAction('back') },
       { frame: 120, action: FP_USE_ACTION.repulsor },
     ])
+    // Active camo and the translocator activate through their own clips, sorted with the rest.
+    expect(uses.get(2)).toEqual([
+      { frame: 15, action: FP_USE_ACTION.translocator_beacon },
+      { frame: 45, action: FP_USE_ACTION.powerup_camo },
+    ])
+    // The clip names are the baked actions, `<set>:equipment_activate`.
     expect(FP_USE_ACTION.repulsor).toBe('knockback:equipment_activate')
+    expect(FP_USE_ACTION.sensor).toBe('location:equipment_activate')
+    expect(FP_USE_ACTION.powerup_camo).toBe('camo:equipment_activate')
+    expect(FP_USE_ACTION.translocator_beacon).toBe('quantum:equipment_activate')
   })
 })
 
