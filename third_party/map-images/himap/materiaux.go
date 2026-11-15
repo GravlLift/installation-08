@@ -27,7 +27,12 @@ const (
 	matOffShader       = 16  // reference de tag du shader de materiau (GlobalID a +8)
 	matOffPostprocess  = 64  // tag-block `postprocess definitions`
 	postprocessStride  = 160 // un enregistrement de ce bloc
-	postOffMelange     = 60  // `alpha blend mode`, entier 32 bits
+	// postOffMelange (LOCAL-CHANGE (infinite-theater-3d)): `alpha blend mode` is the byte at +84 of
+	// the postprocess record (also at +0x68 of the root). +60, read before, is the element count
+	// of the `function parameters` block: materials with an animated parameter (the weapon pads'
+	// glow) read as additive. The byte at +84 matches Ekur's alpha_blend_mode on all 47,832
+	// materials of its export.
+	postOffMelange     = 84
 	melangeInconnuBrut = -1
 	// matOffDrapeaux : drapeaux de rendu du root (u16). Le bit drapeauPasseTransparente marque
 	// les materiaux que le moteur dessine dans sa passe transparente : vitres refractives (dont le
@@ -53,6 +58,16 @@ const (
 	MelangeDoubleMultiplie
 	MelangeAlphaPremultiplie
 	MelangeMaximum
+)
+
+// Decal ranks of the enum (LOCAL-CHANGE (infinite-theater-3d), names from Ekur's export). Their
+// blending is not read: they keep the opaque drawing they had while the blend mode was misread
+// as zero.
+const (
+	melangeDecalAlpha    ModeMelange = 19
+	melangeDecalOpaque   ModeMelange = 23
+	melangeDecalAoOpaque ModeMelange = 68
+	melangeDecalAoAlpha  ModeMelange = 69
 )
 
 // Materiau est ce qu'on sait lire d'un tag `mat `.
@@ -96,7 +111,23 @@ type Decoupe struct {
 
 // Opaque dit si le materiau masque ce qui est derriere lui. Un materiau illisible compte
 // comme opaque : c'est l'hypothese qui ne fait pas disparaitre de mur.
-func (m Materiau) Opaque() bool { return m.Melange == MelangeOpaque || m.Melange == melangeInconnuBrut }
+func (m Materiau) Opaque() bool {
+	switch m.Melange {
+	case MelangeOpaque, melangeInconnuBrut,
+		melangeDecalAlpha, melangeDecalOpaque, melangeDecalAoOpaque, melangeDecalAoAlpha: // LOCAL-CHANGE (infinite-theater-3d)
+		return true
+	}
+	return false
+}
+
+// melangeEcrit (LOCAL-CHANGE (infinite-theater-3d)): the blend mode the GLB carries, where a
+// viewer draws any non-zero mode as see-through; a decal writes 0, as when the mode was misread.
+func (m Materiau) melangeEcrit() int {
+	if m.Melange != melangeInconnuBrut && m.Opaque() {
+		return 0
+	}
+	return int(m.Melange)
+}
 
 // Vitre dit si le materiau est une vitre : le constat en jeu s'il y en a un
 // (`vitresConstatees`), sinon son shader est une vitre constatee (`shadersVitres`) ou declare
@@ -153,7 +184,7 @@ func litPostprocess(m *Materiau, ti tagInfo, tag []byte, cible int, shaders Lect
 	if abs < 0 || size < postprocessStride || size%postprocessStride != 0 || abs+size > len(tag) {
 		return
 	}
-	m.Melange = ModeMelange(i32(tag, abs+postOffMelange))
+	m.Melange = ModeMelange(tag[abs+postOffMelange]) // LOCAL-CHANGE (infinite-theater-3d): one byte
 	pp := ti.postprocess(cible)
 	m.Decoupe = decoupeDuShader(m.Shader, pp.textures, pp.constantes)
 	m.Couches = couchesDuMateriau(m.Shader, shaders, pp)

@@ -340,7 +340,7 @@ func materiauGLTF(id uint32, table map[uint32]Materiau) gltfMaterial {
 	if !connu {
 		return g
 	}
-	g.Extras["shader"], g.Extras["melange"] = mat.Shader, int(mat.Melange)
+	g.Extras["shader"], g.Extras["melange"] = mat.Shader, mat.melangeEcrit() // LOCAL-CHANGE (infinite-theater-3d)
 	if mat.Pochoir != nil {
 		g.Extras["pochoir"] = mat.Pochoir
 	}

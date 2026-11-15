@@ -121,6 +121,12 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     height blend index of the template layer. Before this, layer 4 read layer 3's mask channel
     (empty on those boulders) and the dirt never showed. Covered by
     `himap/couches_rang_test.go` (new).
+  - `himap/materiaux.go`, `himap/glb.go` (LOCAL-CHANGE): the blend mode is the byte at +84 of the
+    postprocess record. The +60 read before is the element count of its `function parameters`
+    block, so a material with an animated parameter (the weapon pads' glow) read as additive and
+    drew as translucent blue. The byte matches Ekur's `alpha_blend_mode` on all 47,832 materials of
+    its export. Decal modes (19, 23, 68, 69) keep the opaque drawing they had, and the GLB writes
+    `melange` 0 for them. Covered by `himap/materiaux_melange_test.go` (new).
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the
