@@ -24,6 +24,7 @@ type CommonStyleInfo struct {
 	Mask1GreenIntention int32      `json:"mask1_green_intention"`
 	Mask1BlueIntention  int32      `json:"mask1_blue_intention"`
 	SupportedLayers     int        `json:"supported_layers"`
+	EnableDamage        bool       `json:"enable_damage"`
 }
 
 // CommonMaterial is one materials/<id>.json entry, limited to the fields the builders
@@ -70,6 +71,7 @@ func ProcessMaterial(lay *MaterialLayout) (CommonMaterial, error) {
 			return CommonMaterial{}, err
 		}
 		info.SupportedLayers = layers
+		info.EnableDamage = style.RequiresDamage != 0
 		si = &info
 		out.StyleInfo = si
 	}
