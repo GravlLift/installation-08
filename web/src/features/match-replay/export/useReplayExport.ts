@@ -788,7 +788,8 @@ async function mixExportAudio(
   // LE BOUCLIER DU JOUEUR SUIVI : les alarmes de SA propre barre, que la page joue en PREMIÈRE
   // PERSONNE. Le clip les porte donc seulement quand il le suit de son œil : un export en
   // tierce personne ou en caméra libre n'a pas de barre à sonner.
-  const shield = view3d && view3d.camera === 'fp' && view3d.pov ? followedShieldReader(o.doc, view3d.pov) : null
+  // The followed player is `pov`: an export of the default player has no `view3d.pov`.
+  const shield = view3d?.camera === 'fp' && pov ? followedShieldReader(o.doc, pov) : null
   const startMs = frameToMs(bounds.startFrame, o.doc)
   return mixReplayAudio(
     track.timeline,
