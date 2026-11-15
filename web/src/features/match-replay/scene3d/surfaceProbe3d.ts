@@ -64,6 +64,11 @@ export function markDrawnBy(mesh: THREE.Object3D, drawer: THREE.Object3D): void 
   drawers.set(mesh, drawer)
 }
 
+/** drawnBy — the merged mesh that draws the hidden surface `mesh` (`markDrawnBy`), null if it draws itself. */
+export function drawnBy(mesh: THREE.Object3D): THREE.Object3D | null {
+  return drawers.get(mesh) ?? null
+}
+
 function visible(o: THREE.Object3D): boolean {
   const drawn = drawers.get(o) ?? o
   for (let n: THREE.Object3D | null = drawn; n; n = n.parent) if (!n.visible) return false

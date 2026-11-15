@@ -1,6 +1,7 @@
 /**
  * topDownLogic.ts — pure logic of the top-down view: the cut height (everything above it is
- * not drawn), its smoothing over time, and the lowest and highest drawn heights. The framing
+ * not drawn), its smoothing over time, the lowest and highest drawn heights, and which map
+ * surfaces the top-down views leave out (`hiddenFromTop`). The framing
  * (zoom, pan, chrome) is `topDownNavLogic`.
  *
  * The cut follows a player, not a floor table: on a map whose floors are joined by ramps the
@@ -104,6 +105,31 @@ export class CutFollower {
     this.at = nowMs
     return this.cut
   }
+}
+
+/** What the top-down view knows of one map surface to decide whether it draws. */
+export interface TopSurface {
+  /** The view's family (`tagSurface`): 'structure', 'decor', 'seeThrough'; null when untagged. */
+  family: string | null
+  /** One mesh drawn many times (a terrain's grass and foliage clumps). */
+  instanced: boolean
+  /** Its material blends over what is behind it (decals, light cards, glass). */
+  transparent: boolean
+}
+
+/**
+ * hiddenFromTop — whether a map surface is left out of the top-down views (2D view, its ghost, the
+ * minimap): the layout reads without what only dresses it. Out: the scattered foliage clumps, the
+ * coarse decor (the `decor*` nodes, told by the grain of their mesh, which the map-images top-down
+ * renderer drops too: `EstDecorGrossier`), and everything laid over the surface behind it (decals,
+ * light cards, glass).
+ * The structure, the terrain and the match's placed objects stay. An untagged mesh (a helper) is
+ * not this rule's to decide.
+ */
+export function hiddenFromTop(s: TopSurface): boolean {
+  if (s.instanced) return true
+  if (s.family === null) return false
+  return s.family === 'decor' || s.family === 'seeThrough' || s.transparent
 }
 
 /** lowestDrawn — the lowest height drawn: the lowest walked height minus the floor margin. */
