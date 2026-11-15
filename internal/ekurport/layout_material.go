@@ -1,11 +1,14 @@
 // Ported from Ekur's ekur_definitions (GPL-3.0-or-later, Copyright (c) 2026 The Halo
-// Archive): material.rs MaterialTag / MaterialStyleInfo.
+// Archive): material.rs MaterialTag / MaterialStyleInfo / MaterialParameter /
+// MaterialPostProcessing.
 //
-// Piece 3 of the Ekur port: the raw struct layout of the "mat " tag's style_info block,
-// decoded into a plain Go struct with no transforms. A "mat " tag's main struct carries
-// the style_info block at offset 0x74 (material.rs MaterialTag); each element is a
-// MaterialStyleInfo (size 0x5C). This reader returns the fields Ekur's material and
-// coating code reads, exactly as stored.
+// Piece 3 of the Ekur port: the raw struct layout of the "mat " tag's style_info,
+// material_parameters, and post_process_definition blocks, decoded into plain Go structs
+// with no transforms. A "mat " tag's main struct carries the material_parameters block
+// at offset 0x2C (element MaterialParameter, size 0x9C), the post_process_definition
+// block at 0x40 (element MaterialPostProcessing, size 0xA0), and the style_info block at
+// 0x74 (element MaterialStyleInfo, size 0x5C), per material.rs MaterialTag. This reader
+// returns the fields Ekur's material and coating code reads, exactly as stored.
 package ekurport
 
 // MaterialStyleInfo is one element of a "mat " tag's style_info block, raw as stored.
@@ -30,18 +33,75 @@ type MaterialStyleInfo struct {
 	RequiresDamage  uint8
 }
 
-// MaterialLayout is the raw decode of a "mat " tag's style_info block.
-type MaterialLayout struct {
-	StyleInfo []MaterialStyleInfo
+// MaterialParameter is one element of a "mat " tag's material_parameters block, raw as
+// stored (material.rs MaterialParameter, size 0x9C): the fields Ekur's collect_textures
+// reads.
+type MaterialParameter struct {
+	// Name is the parameter_name string id at +0x00.
+	Name int32
+	// Bitmap is the bitmap reference's global id at +0x10 (the FieldReference sits at
+	// +0x08; a null reference is -1).
+	Bitmap int32
+	// Real is the real field f32 at +0x34.
+	Real float32
+	// VectorX/VectorY/VectorZ are the vector field components (FieldRealVector3D) at
+	// +0x38/+0x3C/+0x40.
+	VectorX float32
+	VectorY float32
+	VectorZ float32
 }
 
-// ReadMaterial decodes the style_info block of a "mat " tag's main struct.
+// MaterialLayout is the raw decode of a "mat " tag's material_parameters,
+// post_process_definition, and style_info blocks.
+type MaterialLayout struct {
+	StyleInfo   []MaterialStyleInfo
+	Parameters  []MaterialParameter
+	PostProcess int // element count of the post_process_definition block
+}
+
+// ReadMaterial decodes the material_parameters, post_process_definition, and style_info
+// blocks of a "mat " tag's main struct.
 func ReadMaterial(root Struct) (*MaterialLayout, error) {
+	paramBlk, err := root.Block(0x2C, 0x9C) // material_parameters, element MaterialParameter 0x9C
+	if err != nil {
+		return nil, err
+	}
+	postBlk, err := root.Block(0x40, 0xA0) // post_process_definition, element MaterialPostProcessing 0xA0
+	if err != nil {
+		return nil, err
+	}
 	blk, err := root.Block(0x74, 0x5C) // style_info, element MaterialStyleInfo 0x5C
 	if err != nil {
 		return nil, err
 	}
-	out := &MaterialLayout{StyleInfo: make([]MaterialStyleInfo, 0, blk.Len())}
+	out := &MaterialLayout{
+		StyleInfo:   make([]MaterialStyleInfo, 0, blk.Len()),
+		Parameters:  make([]MaterialParameter, 0, paramBlk.Len()),
+		PostProcess: postBlk.Len(),
+	}
+	for i := 0; i < paramBlk.Len(); i++ {
+		e := paramBlk.At(i)
+		var p MaterialParameter
+		if p.Name, err = sid(e, 0x00); err != nil {
+			return nil, err
+		}
+		if p.Bitmap, err = refID(e, 0x08); err != nil {
+			return nil, err
+		}
+		if p.Real, err = e.F32(0x34); err != nil {
+			return nil, err
+		}
+		if p.VectorX, err = e.F32(0x38); err != nil {
+			return nil, err
+		}
+		if p.VectorY, err = e.F32(0x3C); err != nil {
+			return nil, err
+		}
+		if p.VectorZ, err = e.F32(0x40); err != nil {
+			return nil, err
+		}
+		out.Parameters = append(out.Parameters, p)
+	}
 	for i := 0; i < blk.Len(); i++ {
 		e := blk.At(i)
 		var si MaterialStyleInfo
