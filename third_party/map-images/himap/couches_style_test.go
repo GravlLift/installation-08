@@ -44,8 +44,13 @@ func TestCouchesStyle(t *testing.T) {
 	if m.Shader != 0xdb8cbebb {
 		t.Fatalf("shader = %#x, attendu 0xdb8cbebb", m.Shader)
 	}
-	if m.Couches == nil || len(m.Couches.Couches) != 1 {
+	// LOCAL-CHANGE (infinite-theater-3d): the base zone first, then the zones and grime its style
+	// lays with the composed mask.
+	if m.Couches == nil || len(m.Couches.Couches) == 0 {
 		t.Fatalf("couches = %v, attendu une couche de base", m.Couches)
+	}
+	if len(m.Couches.Couches) > 1 && (m.Couches.Style == nil || m.Couches.Couches[1].Rang != 1) {
+		t.Fatalf("couches = %+v, attendu le masque de style", m.Couches)
 	}
 	c := m.Couches.Couches[0]
 	if c.Bitmap == 0 {

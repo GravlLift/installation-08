@@ -152,6 +152,8 @@ ${LAYER_COMPOSE}
 // Les dérivées écran des coordonnées des couches, prises hors de tout branchement.
 vec2 gDx;
 vec2 gDy;
+vec2 gMx;
+vec2 gMy;
 
 // L'échantillon de la carte à l'emplacement slot (tableau, couche) ; tableau négatif : pas de carte.
 vec4 fromArray(vec2 slot, vec2 uv, vec2 dx, vec2 dy) {
@@ -163,6 +165,10 @@ ${branches}
 }
 
 vec4 layerSample(vec2 slot, vec4 xf) { return fromArray(slot, at(xf), gDx * xf.xy, gDy * xf.xy); }
+// A map flagged 2 lies on the mask's coordinates (see atOn).
+vec4 layerSampleOn(vec2 slot, vec4 xf, float on) {
+  return on > 1.5 ? fromArray(slot, atOn(xf, on), gMx * xf.xy, gMy * xf.xy) : layerSample(slot, xf);
+}
 
 vec3 layerColor(int k) {
   return colorOf(layerSample(P_TEXEL(${SLOT_TEXEL} + 2 * k).xy, L_XFORM(k)), k);
@@ -170,12 +176,12 @@ vec3 layerColor(int k) {
 
 vec3 layerNormal(int k) {
   if (L_HAS_NRM(k) < 0.5) return vec3(0.0, 0.0, 1.0);
-  return normalOf(layerSample(P_TEXEL(${SLOT_TEXEL} + 2 * k).zw, L_NXFORM(k)).rg, k);
+  return normalOf(layerSampleOn(P_TEXEL(${SLOT_TEXEL} + 2 * k).zw, L_NXFORM(k), L_HAS_NRM(k)).rg, k);
 }
 
 vec3 layerControl(int k) {
   if (L_HAS_CTL(k) < 0.5) return vec3(1.0, ROUGH_DEFAULT, 0.0);
-  return controlOf(layerSample(P_TEXEL(${SLOT_TEXEL} + 2 * k + 1).xy, L_CXFORM(k)).rgb, k);
+  return controlOf(layerSampleOn(P_TEXEL(${SLOT_TEXEL} + 2 * k + 1).xy, L_CXFORM(k), L_HAS_CTL(k)).rgb, k);
 }
 
 Surface layered() {
@@ -184,6 +190,8 @@ Surface layered() {
   gDy = dFdy(vCouche);
   vec2 mdx = dFdx(vMacro);
   vec2 mdy = dFdy(vMacro);
+  gMx = mdx;
+  gMy = mdy;
   vec4 head = P_TEXEL(${HEAD_TEXEL});
   int count = int(head.x + 0.5);
   vec4 m = head.y > 0.5 ? fromArray(head.zw, vMacro, mdx, mdy) : vec4(0.0);
@@ -230,6 +238,6 @@ export function mergedMaterial(base: THREE.MeshStandardMaterial, atlas: LayeredA
       shader.fragmentShader.replace('#include <common>', `#include <common>${head}`),
     )
   }
-  m.customProgramCacheKey = () => `couches-tableaux-v2-${atlas.arrays.length}`
+  m.customProgramCacheKey = () => `couches-tableaux-v3-${atlas.arrays.length}`
   return m
 }

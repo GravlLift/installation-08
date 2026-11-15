@@ -279,10 +279,15 @@ func (e *ecrivainMateriaux) rang(id uint32) int {
 		source = t.source
 	}
 	g := materiauGLTF(source, e.m.Materiaux)
+	t, teinte := e.m.teintesForge[id]
 	if mat, connu := e.m.Materiaux[source]; connu {
+		if teinte && t.couches != nil {
+			// LOCAL-CHANGE (infinite-theater-3d): the source's layers repainted by a Forge style.
+			mat.Couches = t.couches
+		}
 		e.appliqueImages(&g, mat, e.m.SurfacesBrutes || e.m.SurfacesBrutesDe[source])
 	}
-	if t, ok := e.m.teintesForge[id]; ok {
+	if teinte && t.couches == nil {
 		g.PBR.BaseColorFactor = [4]float32{t.teinte.Couleur[0], t.teinte.Couleur[1], t.teinte.Couleur[2], 1}
 		g.PBR.RoughnessFactor, g.PBR.MetallicFactor = t.teinte.Rugosite, t.teinte.Metal
 		g.Extras["teinte"] = t.teinte.Couleur
@@ -314,7 +319,10 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 	aDecoupe := mat.Decoupe != nil
 	var masque *Texture
 	if aDecoupe {
-		if t, ok := e.m.Masques[mat.Decoupe.Bitmap]; ok {
+		// LOCAL-CHANGE (infinite-theater-3d): a Forge ASG cut on a texture without transparency
+		// cuts nothing; the material stays opaque. A format without alpha reads a full alpha (Ekur
+		// exports it without "_t" and its use_alpha is off); a zero alpha is opaque throughout.
+		if t, ok := e.m.Masques[mat.Decoupe.Bitmap]; ok && !(mat.Decoupe.AlphaSeul && (t.Monocanal || alphaPlein(t.Image) || alphaNul(t.Image))) {
 			masque = &t
 		}
 	}

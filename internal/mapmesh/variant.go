@@ -30,6 +30,9 @@ type VariantTarget struct {
 	// Styles are the variant's style layers (mapvar.Parse), resolved against ForgeMaterials for
 	// material tints.
 	Styles map[int32][]mapvar.StyleLayer
+	// StyleGrimes are the variant's style grimes (mapvar.Parse), resolved with Styles against
+	// ForgeMaterials into the styles that repaint the objects' layered materials.
+	StyleGrimes map[int32]mapvar.StyleGrime
 	// ForgeMaterials is a reference catalog of Forge material tints (JSON), resolved by the
 	// caller (embedded default or a --forge-materials override); nil skips tinting (objects come
 	// out in their default material color).
@@ -54,13 +57,17 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	if err != nil {
 		return Summary{}, err
 	}
+	styles, err := forgeStyles(t.ForgeMaterials, t.Styles, t.StyleGrimes)
+	if err != nil {
+		return Summary{}, err
+	}
 	invisible, err := forgeInvisible(t.ForgeObjects)
 	if err != nil {
 		return Summary{}, err
 	}
 	m, bilan, err := himap.CollecteMaillageVariante(ctx, himap.OptionsVariante{
 		RacineDeploy: gameRoot, CheminModule: t.Module, Objets: t.Objects, Teintes: tints, Invisibles: invisible,
-		Filtres: ModeFilters(t.Mode),
+		StylesForge: styles, Filtres: ModeFilters(t.Mode),
 	})
 	if err != nil {
 		return Summary{}, err
@@ -86,6 +93,15 @@ func forgeTints(data []byte, styles map[int32][]mapvar.StyleLayer) (map[int32]hi
 		return nil, nil
 	}
 	return himap.LitMateriauxForge(data, styles)
+}
+
+// forgeStyles resolves the variant's Forge styles (layers and grime) in the Forge material
+// catalog, for its objects' layered materials; nil data skips them (nil, nil).
+func forgeStyles(data []byte, styles map[int32][]mapvar.StyleLayer, grimes map[int32]mapvar.StyleGrime) (map[int32]*himap.StyleForge, error) {
+	if data == nil {
+		return nil, nil
+	}
+	return himap.LitStylesForge(data, styles, grimes)
 }
 
 // forgeInvisible resolves the Forge object visibility catalog (see VariantTarget.ForgeObjects);

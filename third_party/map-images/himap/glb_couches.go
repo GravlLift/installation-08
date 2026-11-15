@@ -23,7 +23,10 @@
 // hauteur est dans l'alpha quand les parametres de hauteur sont declares. Une couche `rohg` pointe la meme image en `texture` et en `controle`.
 //
 // Masque macro sur `TEXCOORD_1`, couches sur le jeu `jeuCouches` (`TEXCOORD_2` pour un shader de
-// niveau, `TEXCOORD_0` pour un diffus). Pour un lecteur generique, la
+// niveau, `TEXCOORD_0` pour un diffus). LOCAL-CHANGE (infinite-theater-3d): a layer's
+// `normaleMacro` / `controleMacro` lays its normal / control map on the mask's set, and
+// `decoupeMasque` takes the cutout's alpha from the mask's alpha (Forge style materials,
+// couches_style.go). Pour un lecteur generique, la
 // couleur de base est la premiere couche seule : sa carte et sa teinte, ou le milieu de son
 // degrade.
 package himap
@@ -57,6 +60,9 @@ const (
 	imageMacro                          // canaux V, B, A ranges en R, V, B
 	imageControleHauteur
 	imageMacroHauteur
+	// imageASG (LOCAL-CHANGE (infinite-theater-3d)): a Forge ASG texture read as a control map:
+	// its red (ambient occlusion) in green, a middle roughness in blue, no metal.
+	imageASG
 )
 
 // pasDeTexture : index de texture d'une carte absente dans `extras.couches`.
@@ -78,6 +84,18 @@ type descImage struct {
 // couchesGLB accumule les images de couche d'un export.
 type couchesGLB struct {
 	images map[cleImage]int
+	// styles (LOCAL-CHANGE (infinite-theater-3d)): the composed masks of Forge style materials.
+	styles map[MasqueStyle]int
+	// decoupees (LOCAL-CHANGE (infinite-theater-3d)): the color images with a cut's alpha
+	// (couleurMasque), written once per (layer bitmap, cut): the materials a Forge style repaints
+	// share them.
+	decoupees map[cleDecoupee]int
+}
+
+// cleDecoupee (LOCAL-CHANGE (infinite-theater-3d)): a layer's color bitmap and the cut laid on it.
+type cleDecoupee struct {
+	couleur uint32
+	decoupe Decoupe
 }
 
 // applique ajoute a g les couches c. Une couche dont la texture n'a pas ete lue est omise ;
@@ -91,6 +109,13 @@ func (cg *couchesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, c 
 	var descs []descImage
 	if len(c.Couches) == 0 {
 		return nil
+	}
+	// LOCAL-CHANGE (infinite-theater-3d): a Forge style material's cut (the ASG alpha) lives on
+	// UV1 with its masks: it goes in the composed mask's alpha (`decoupeMasque`), not in a copy
+	// of the first layer's color, which repeats on the layers' coordinates.
+	decoupeMasque := false
+	if dp, ok := d.(decoupePose); ok && c.Style != nil && dp.decoupe.AlphaSeul {
+		decoupeMasque, d = true, sansDecoupe{}
 	}
 	for _, k := range c.Couches {
 		if _, ok := textures[k.Bitmap]; !ok {
@@ -121,6 +146,15 @@ func (cg *couchesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, c 
 	if err != nil {
 		return err
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): a Forge style material's mask is composed from its own
+	// textures, on the layers' coordinates (couches_style.go).
+	if c.Style != nil {
+		ms := *c.Style
+		ms.Decoupe = decoupeMasque
+		if masqueMacro, err = cg.masqueStyle(doc, bin, ms, textures); err != nil {
+			return err
+		}
+	}
 	// La couleur de base porte la decoupe : les vues qui lisaient l'image d'origine lisent la
 	// copie avec masque (les images du tampon ne sont jamais reecrites, uniquement ajoutees).
 	first := descs[0]
@@ -134,8 +168,12 @@ func (cg *couchesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, c 
 	for i, desc := range descs {
 		couches[i] = desc.couche
 	}
-	g.Extras["couches"] = map[string]any{"masque": masqueMacro, "couches": couches,
+	extra := map[string]any{"masque": masqueMacro, "couches": couches,
 		"jeuMasque": jeuUVMacro, "jeuCouches": c.JeuUV}
+	if decoupeMasque && masqueMacro != pasDeTexture {
+		extra["decoupeMasque"] = true
+	}
+	g.Extras["couches"] = extra
 	return nil
 }
 
@@ -157,6 +195,9 @@ func (cg *couchesGLB) couche(doc *gltfDoc, bin *tamponGLB, k Couche, textures ma
 		if k.Sorte == CoucheDegrade {
 			role = imageControleHauteur
 		}
+	}
+	if k.ControleASG { // LOCAL-CHANGE (infinite-theater-3d)
+		roleControle = imageASG
 	}
 	tex, err := cg.texture(doc, bin, cleImage{k.Bitmap, role}, textures)
 	if err != nil {
@@ -181,13 +222,30 @@ func (cg *couchesGLB) couche(doc *gltfDoc, bin *tamponGLB, k Couche, textures ma
 	if k.Hauteur != nil {
 		out["hauteur"] = []float32{k.Hauteur.Echelle, k.Hauteur.Plage, k.Hauteur.Accumulation}
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): a Forge material's own normal and ASG are read on the
+	// mask's coordinates (UV1), not the layer's.
+	if k.NormaleObjet && normale != pasDeTexture {
+		out["normaleMacro"] = true
+	}
+	if k.ControleASG && controle != pasDeTexture {
+		out["controleMacro"] = true
+	}
 	if k.Matiere != nil {
 		out["matiere"] = []float32{k.Matiere.Blanc, k.Matiere.Noir, k.Matiere.Metal}
 	}
 	masqueTex := pasDeTexture
 	if premier {
 		if dp, ok := d.(decoupePose); ok {
-			masqueTex = couleurMasque(doc, bin, textures, k, dp)
+			cle := cleDecoupee{k.Bitmap, *dp.decoupe}
+			if t, deja := cg.decoupees[cle]; deja {
+				masqueTex = t
+			} else {
+				masqueTex = couleurMasque(doc, bin, textures, k, dp)
+				if cg.decoupees == nil {
+					cg.decoupees = map[cleDecoupee]int{}
+				}
+				cg.decoupees[cle] = masqueTex
+			}
 		}
 	}
 	return descImage{couche: out, tex: tex, masqueTex: masqueTex}, nil
@@ -245,6 +303,8 @@ func (cg *couchesGLB) texture(doc *gltfDoc, bin *tamponGLB, cle cleImage, textur
 		err = png.Encode(&buf, img)
 	case imageMacro:
 		err = png.Encode(&buf, canauxMacro(t.Image))
+	case imageASG:
+		err = png.Encode(&buf, canauxASG(t))
 	}
 	if err != nil {
 		return 0, fmt.Errorf("image du bitmap %08x : %w", cle.bitmap, err)
@@ -353,10 +413,13 @@ func couleurMasque(doc *gltfDoc, bin *tamponGLB, textures map[uint32]Texture, k 
 		return pasDeTexture
 	}
 	// Copie des canaux couleur : l'alpha est remplace par le masque, sans toucher l'image d'origine.
+	// LOCAL-CHANGE (infinite-theater-3d): a mask of another size is read at the same place.
 	nrgba := image.NewNRGBA(t.Image.Rect)
 	copy(nrgba.Pix, t.Image.Pix)
-	for i := 0; i+3 < len(nrgba.Pix) && i+3 < len(d.masque.Image.Pix); i += 4 {
-		a := float64(d.masque.Image.Pix[i+can]) / 255
+	w, h := t.Image.Rect.Dx(), t.Image.Rect.Dy()
+	for i := 0; i+3 < len(nrgba.Pix); i += 4 {
+		p := i / 4
+		a := float64(pixelA(d.masque.Image, p%w, p/w, w, h)[can]) / 255
 		a = math.Pow(a, float64(d.decoupe.Puissance)) + float64(d.decoupe.Ajout)
 		nrgba.Pix[i+3] = uint8(math.Round(255 * min(max(a, 0), 1)))
 	}
@@ -381,4 +444,103 @@ func ajouteImage(doc *gltfDoc, bin *tamponGLB, data []byte, mime string) int {
 	doc.Images = append(doc.Images, gltfImage{BufferView: len(doc.BufferViews) - 1, MimeType: mime})
 	doc.Textures = append(doc.Textures, gltfTexture{Sampler: 0, Source: len(doc.Images) - 1})
 	return len(doc.Textures) - 1
+}
+
+// pixelA (LOCAL-CHANGE (infinite-theater-3d)) : the pixel of img at the place of pixel (x, y) of
+// a w x h image (nearest), as R, G, B, A.
+func pixelA(img *image.NRGBA, x, y, w, h int) [4]uint8 {
+	iw, ih := img.Rect.Dx(), img.Rect.Dy()
+	if iw == 0 || ih == 0 {
+		return [4]uint8{255, 255, 255, 255}
+	}
+	sx, sy := x*iw/max(w, 1), y*ih/max(h, 1)
+	o := sy*img.Stride + sx*4
+	return [4]uint8{img.Pix[o], img.Pix[o+1], img.Pix[o+2], img.Pix[o+3]}
+}
+
+// canauxASG (LOCAL-CHANGE (infinite-theater-3d)) : a Forge ASG texture as a control map: the
+// ambient occlusion (its red) in green, a middle roughness in blue; a one-channel format gives
+// its channel as the occlusion.
+func canauxASG(t Texture) *image.NRGBA {
+	src := t.Image
+	dst := image.NewNRGBA(src.Rect)
+	for i := 0; i+3 < len(src.Pix); i += 4 {
+		copy(dst.Pix[i:i+4], []uint8{0, src.Pix[i], 128, 255})
+	}
+	return dst
+}
+
+// masqueStyle (LOCAL-CHANGE (infinite-theater-3d)) rend l'index de texture du masque compose
+// d'un materiau de style Forge (MasqueStyle), ecrit une fois par composition : R, V, B = poids
+// des couches 2, 3, 4. pasDeTexture quand aucune de ses textures n'est lue.
+func (cg *couchesGLB) masqueStyle(doc *gltfDoc, bin *tamponGLB, ms MasqueStyle, textures map[uint32]Texture) (int, error) {
+	if cg.styles == nil {
+		cg.styles = map[MasqueStyle]int{}
+	}
+	if tex, ok := cg.styles[ms]; ok {
+		return tex, nil
+	}
+	img := composeMasqueStyle(ms, textures)
+	if img == nil {
+		cg.styles[ms] = pasDeTexture
+		return pasDeTexture, nil
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return 0, fmt.Errorf("masque de style : %w", err)
+	}
+	tex := ajouteImage(doc, bin, buf.Bytes(), mimePNG)
+	cg.styles[ms] = tex
+	return tex, nil
+}
+
+// composeMasqueStyle : the weights of ms's channels at the size of its largest texture, and in
+// alpha the opacity of a cut, 1 - the ASG's alpha (opaque otherwise); nil when none of its
+// textures is read. A missing texture weighs 0.
+func composeMasqueStyle(ms MasqueStyle, textures map[uint32]Texture) *image.NRGBA {
+	var srcs [3]*image.NRGBA
+	w, h := 0, 0
+	for i, id := range []uint32{ms.Masque0, ms.Masque1, ms.ASG} {
+		if t, ok := textures[id]; ok && id != 0 && t.Image != nil {
+			srcs[i] = t.Image
+			w, h = max(w, t.Image.Rect.Dx()), max(h, t.Image.Rect.Dy())
+		}
+	}
+	if w == 0 || h == 0 {
+		return nil
+	}
+	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			var px [3][4]uint8
+			for i, s := range srcs {
+				if s != nil {
+					px[i] = pixelA(s, x, y, w, h)
+				}
+			}
+			o := y*dst.Stride + x*4
+			for c, src := range ms.Canaux {
+				dst.Pix[o+c] = poidsStyle(src, px, ms.Salete)
+			}
+			dst.Pix[o+3] = 255
+			if ms.Decoupe && srcs[2] != nil {
+				dst.Pix[o+3] = 255 - px[2][3]
+			}
+		}
+	}
+	return dst
+}
+
+// poidsStyle : the weight `src` reads in the pixels of Mask0, Mask1 and ASG.
+func poidsStyle(src SourcePoids, px [3][4]uint8, salete float32) uint8 {
+	switch src {
+	case poidsMasque0R, poidsMasque0V, poidsMasque0B:
+		return px[0][src-poidsMasque0R]
+	case poidsMasque1R, poidsMasque1V, poidsMasque1B:
+		return px[1][src-poidsMasque1R]
+	case poidsSalete:
+		g := float64(px[2][2])/255 + float64(salete) - 1
+		return uint8(math.Round(255 * min(max(g, 0), 1)))
+	}
+	return 0
 }

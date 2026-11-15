@@ -99,6 +99,16 @@ func encodeMasque(w *bytes.Buffer, t Texture, d *Decoupe) error {
 	return png.Encode(w, dst)
 }
 
+// alphaNul (LOCAL-CHANGE (infinite-theater-3d)) : every pixel of img has a zero alpha.
+func alphaNul(img *image.NRGBA) bool {
+	for i := 3; i < len(img.Pix); i += 4 {
+		if img.Pix[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func alphaPlein(img *image.NRGBA) bool {
 	for i := 3; i < len(img.Pix); i += 4 {
 		if img.Pix[i] != 255 {

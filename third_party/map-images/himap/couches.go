@@ -76,6 +76,12 @@ type Couche struct {
 	// and 4); the macro mask channel and the height blend index follow the template number, not
 	// the position in Couches. 0 for forms outside the template.
 	Rang int
+	// ControleASG (LOCAL-CHANGE (infinite-theater-3d)): `Controle` is a Forge material's ASG
+	// texture (ambient occlusion in red), not a level control map (couches_style.go).
+	ControleASG bool
+	// NormaleObjet (LOCAL-CHANGE (infinite-theater-3d)): `Normale` is a Forge material's own
+	// normal map, unwrapped once over the object on UV1 like its masks, not a repeated detail map.
+	NormaleObjet bool
 }
 
 // Couches : le masque macro (0 : absent, la premiere couche couvre tout) et les couches dans
@@ -85,6 +91,9 @@ type Couches struct {
 	Couches []Couche
 	// JeuUV : le jeu de coordonnees des couches (2 pour un shader de niveau, 0 pour un diffus).
 	JeuUV int
+	// Style (LOCAL-CHANGE (infinite-theater-3d)): a Forge style material's mask, composed from
+	// its own textures on the layers' coordinates (couches_style.go); `Masque` is then unused.
+	Style *MasqueStyle
 }
 
 // Jeux de coordonnees des couches : shaders de niveau sur le 3e, diffus sur le 1er (ekur ne

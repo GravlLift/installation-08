@@ -16,6 +16,9 @@ type TeinteForge struct {
 type materiauTeinte struct {
 	source uint32
 	teinte TeinteForge
+	// couches (LOCAL-CHANGE (infinite-theater-3d)): the source's layers repainted by an object's
+	// Forge style (styles_forge.go), drawn instead of the flat tint; nil for a tint.
+	couches *Couches
 }
 
 // LitMateriauxForge résout la première couche de chaque style dans la bibliothèque fournie.

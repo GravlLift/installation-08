@@ -51,6 +51,12 @@ export interface LayerInfo {
    * picks the macro mask channel and the height blend index.
    */
   rang?: number
+  /**
+   * The normal / control map is the object's own (a Forge material's normal map and ASG), unwrapped
+   * once on the mask's coordinates (`jeuMasque`), not repeated on the layer's.
+   */
+  normaleMacro?: boolean
+  controleMacro?: boolean
 }
 
 /** La composition d'un matériau (`extras.couches`). */
@@ -59,6 +65,13 @@ export interface LayeredInfo {
   masque: number
   jeuMasque: number
   jeuCouches: number
+  /** The cutout's alpha is the mask's alpha, on its coordinates (a Forge style decal). */
+  decoupeMasque?: boolean
+}
+
+/** usesMaskSet : the composition reads the mask's coordinates (a mask, or a map laid on them). */
+export function usesMaskSet(info: LayeredInfo): boolean {
+  return info.masque >= 0 || info.couches.some((l) => l.normaleMacro || l.controleMacro)
 }
 
 /** Les attributs et varyings des couches, communs au shader par matériau et au shader fusionné. */
@@ -83,6 +96,7 @@ uniform sampler2D uCtl1;
 uniform sampler2D uCtl2;
 uniform sampler2D uCtl3;
 uniform float uHasMask;
+uniform float uMaskCut;
 uniform int uCount;
 // Les constantes des couches, LAYER_ROWS vec4 par couche (cf. packLayers).
 #define LAYER_ROWS ${LAYER_ROWS}
@@ -122,6 +136,8 @@ float maskWeight(vec4 m, int k) {
 }
 
 vec2 at(vec4 x) { return vCouche * x.xy + x.zw; }
+// A map flagged 2 (has-normal / has-control row) lies on the mask's coordinates.
+vec2 atOn(vec4 x, float on) { return (on > 1.5 ? vMacro : vCouche) * x.xy + x.zw; }
 
 // Couleur d'une couche à partir de l'échantillon de sa carte. A gradient runs from the bottom
 // color (0) through the middle (0.5) to the top (1), as Ekur's ColorMixer node does.
@@ -204,12 +220,12 @@ vec3 layerColor(sampler2D t, int k) {
 
 vec3 layerNormal(sampler2D t, int k) {
   if (L_HAS_NRM(k) < 0.5) return vec3(0.0, 0.0, 1.0);
-  return normalOf(texture2D(t, at(L_NXFORM(k))).rg, k);
+  return normalOf(texture2D(t, atOn(L_NXFORM(k), L_HAS_NRM(k))).rg, k);
 }
 
 vec3 layerControl(sampler2D t, int k) {
   if (L_HAS_CTL(k) < 0.5) return vec3(1.0, ROUGH_DEFAULT, 0.0);
-  return controlOf(texture2D(t, at(L_CXFORM(k))).rgb, k);
+  return controlOf(texture2D(t, atOn(L_CXFORM(k), L_HAS_CTL(k))).rgb, k);
 }
 
 Surface layered() {
@@ -230,10 +246,10 @@ const FRAGMENT_HEAD = UNIFORMS_HEAD + LAYER_COMPOSE + PER_MATERIAL_SAMPLING
  * des couches (`layered()`) à la place de la couleur, de la rugosité, du métal et de la normale.
  */
 export const LAYER_INJECTIONS: readonly (readonly [string, string])[] = [
-  ['#include <map_fragment>', '#include <map_fragment>\nSurface surf = layered();\ndiffuseColor.rgb = surf.color * surf.ctl.x;\n#ifdef USE_ALPHATEST\ndiffuseColor.a = texture2D(uTex0, at(L_XFORM(0))).a;\n#endif'],
+  ['#include <map_fragment>', '#include <map_fragment>\nSurface surf = layered();\ndiffuseColor.rgb = surf.color * surf.ctl.x;\n#ifdef USE_ALPHATEST\ndiffuseColor.a = uMaskCut > 0.5 ? texture2D(uMask, vMacro).a : texture2D(uTex0, at(L_XFORM(0))).a;\n#endif'],
   ['#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = surf.ctl.y;'],
   ['#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = surf.ctl.z;'],
-  ['#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = perturb(normal, -vViewPosition, vCouche, surf.normal);'],
+  ['#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = perturb(normal, -vViewPosition, L_HAS_NRM(0) > 1.5 ? vMacro : vCouche, surf.normal);'],
 ]
 
 /** Noms des jeux de coordonnées chez GLTFLoader (TEXCOORD_n). */
@@ -242,11 +258,13 @@ export const UV_NAMES: readonly string[] = ['uv', 'uv1', 'uv2']
 /**
  * prepareLayerUVs expose le jeu du masque macro et celui des couches (`jeuMasque`,
  * `jeuCouches`) sous des noms propres au shader, pour ne pas croiser les attributs de three.
- * Sans masque, le jeu du masque n'est pas lu (il peut manquer).
+ * Sans masque, le jeu du masque n'est pas lu (il peut manquer). A map laid on the mask's set reads
+ * the layer's set on a geometry without it (Ekur keeps the active map when UV1 is missing).
  */
 export function prepareLayerUVs(geometry: THREE.BufferGeometry, info: LayeredInfo): boolean {
   const layer = geometry.getAttribute(UV_NAMES[info.jeuCouches] ?? '')
-  const macro = info.masque >= 0 ? geometry.getAttribute(UV_NAMES[info.jeuMasque] ?? '') : layer
+  const own = usesMaskSet(info) ? geometry.getAttribute(UV_NAMES[info.jeuMasque] ?? '') : undefined
+  const macro = info.masque >= 0 ? own : (own ?? layer)
   if (!macro || !layer) return false
   geometry.setAttribute('cMacro', macro)
   geometry.setAttribute('cUv', layer)
@@ -271,7 +289,8 @@ const rgb = (c?: [number, number, number]) => c ?? [0, 0, 0]
  * - 0 : échelle.xy, décalage.xy de la couleur ; 1 : idem de la normale ; 2 : idem du contrôle ;
  * - 3 : teinte.rgb, sorte (0 couleur, 1 dégradé) ; 4 : haut.rgb, mélange ;
  * - 5 : milieu.rgb, opacité ; 6 : bas.rgb, intensité de la normale ;
- * - 7 : a une normale, mode de normale, a un contrôle, rang du gabarit (`rang`, à défaut k) ;
+ * - 7 : a une normale, mode de normale, a un contrôle, rang du gabarit (`rang`, à défaut k) ; a
+ *   normal or control laid on the mask's coordinates (`normaleMacro`, `controleMacro`) counts 2 ;
  * - 8 : hauteur ; 9 : matière.
  * Une couche absente vaut transformations neutres (1, 1, 0, 0) et zéro partout ailleurs.
  * `hasNormal[k]` / `hasControl[k]` : la carte de la couche k est chargée.
@@ -293,7 +312,7 @@ export function packLayers(layers: readonly LayerInfo[], hasNormal: readonly boo
       ...rgb(l.haut), l.melange ?? 0,
       ...rgb(l.milieu), l.opacite ?? 0,
       ...rgb(l.bas), l.intensiteNormale ?? 1,
-      hasNormal[k] ? 1 : 0, l.melangeNormale ?? 0, hasControl[k] ? 1 : 0, l.rang ?? k,
+      hasNormal[k] ? (l.normaleMacro ? 2 : 1) : 0, l.melangeNormale ?? 0, hasControl[k] ? (l.controleMacro ? 2 : 1) : 0, l.rang ?? k,
       ...(l.hauteur ?? [0, 0, 0]), l.hauteur ? 1 : 0,
       ...(l.matiere ?? [0, 0, 0]), l.matiere ? 1 : 0,
     ], o)
@@ -322,6 +341,7 @@ export async function layeredMaterial(
   const uniforms: Record<string, THREE.IUniform> = {
     uMask: { value: mask },
     uHasMask: { value: mask ? 1 : 0 },
+    uMaskCut: { value: mask && info.decoupeMasque ? 1 : 0 },
     uCount: { value: layers.length },
     // Un seul tableau déjà à plat : three l'envoie tel quel à chaque changement de matériau (un
     // tableau d'uniforme n'a pas de cache, chaque tableau coûte un envoi).
@@ -348,7 +368,7 @@ export async function layeredMaterial(
       shader.fragmentShader.replace('#include <common>', `#include <common>${FRAGMENT_HEAD}`),
     )
   }
-  m.customProgramCacheKey = () => 'couches-v5'
+  m.customProgramCacheKey = () => 'couches-v6'
   compositions.set(m, { info, layers, maps, normals, controls, mask })
   return m
 }

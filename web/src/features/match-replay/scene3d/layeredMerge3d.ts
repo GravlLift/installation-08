@@ -17,7 +17,7 @@
 import * as THREE from 'three'
 
 import { IMAGE_LIBEREE, LayeredAtlas, mergedMaterial } from './layeredArrays3d'
-import { layeredComposition, UV_NAMES, type LayeredComposition } from './layeredMaterial'
+import { layeredComposition, usesMaskSet, UV_NAMES, type LayeredComposition } from './layeredMaterial'
 import {
   MASK_SLOT, ROW_TEXELS, WEBGL2_LIMITS, assignVertexRows, colorSlot, controlSlot, foldMaskSets, normalSlot, packRow, planArrays,
   type Slot, type TextureFacts,
@@ -172,7 +172,7 @@ function assignMaterials(members: readonly Member[], rows: readonly Row[], atlas
   const fold = new Map<unknown, Map<number, number>>()
   const setsOf = (m: Member) => {
     const info = rows[m.row].composition.info
-    return { layer: info.jeuCouches, mask: info.masque >= 0 ? info.jeuMasque : null }
+    return { layer: info.jeuCouches, mask: usesMaskSet(info) ? info.jeuMasque : null }
   }
   for (const m of members) {
     const position = m.mesh.geometry.getAttribute('position')
