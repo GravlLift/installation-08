@@ -368,6 +368,9 @@ export interface CoatingsLibraryRaw {
  *  the export does not know. */
 export interface CoatingsStatusBody {
   export: CoatingsExportState
+  /** True when the `IT3D_EKUR_DIR` variable names the export (it always wins over the app's
+   *  own `<data>/ekur`), so the in-app coatings setup cannot change what the builds read. */
+  override: boolean
   libraries: {
     spartan_pieces: CoatingsLibraryStatus
     weapons: CoatingsLibraryStatus
@@ -384,6 +387,7 @@ export async function fetchCoatingsStatus(signal?: AbortSignal): Promise<Coating
   if (!res.ok) throw new ApiError(`GET /api/coatings/status: HTTP ${res.status}`, res.status, body)
   const raw = body as {
     export?: CoatingsExportState
+    override?: boolean
     libraries?: Record<string, CoatingsLibraryRaw>
   }
   const libraries = raw.libraries ?? {}
@@ -393,10 +397,57 @@ export async function fetchCoatingsStatus(signal?: AbortSignal): Promise<Coating
   }
   return {
     export: raw.export ?? 'not_set',
+    override: raw.override ?? false,
     libraries: {
       spartan_pieces: norm('spartan_pieces'),
       weapons: norm('weapons'),
       first_person: norm('first_person'),
     },
   }
+}
+
+/** The stages of the in-app coatings setup job, in order, then its two outcomes. `idle`
+ *  means no setup ran in this server process. */
+export type CoatingsSetupJobState =
+  | 'idle'
+  | 'downloading'
+  | 'verifying'
+  | 'dumping'
+  | 'validating'
+  | 'queuing'
+  | 'ready'
+  | 'failed'
+
+/** The body of `GET /api/coatings/setup/state` and of the 202 from `POST /api/coatings/setup`
+ *  (see `coatingsSetupState` in `cmd/infinite-theater-3d/serve_coatings_setup.go`). `error`
+ *  is the server's own message, present only when the state is `failed`. */
+export interface CoatingsSetupStateBody {
+  state: CoatingsSetupJobState
+  error?: string
+}
+
+/** Thrown by `startCoatingsSetup` on 409: a setup is already running (another tab started
+ *  it, or this page lost track of it). The caller polls the state route instead. */
+export class CoatingsSetupConflictError extends ApiError {
+  constructor(body: unknown) {
+    super('a coatings setup is already in progress', 409, body)
+  }
+}
+
+/** `GET /api/coatings/setup/state` — the setup job's current stage, polled while it runs. */
+export async function fetchCoatingsSetupState(signal?: AbortSignal): Promise<CoatingsSetupStateBody> {
+  const res = await fetch('/api/coatings/setup/state', { signal })
+  const body = await readErrorBody(res)
+  if (!res.ok) throw new ApiError(`GET /api/coatings/setup/state: HTTP ${res.status}`, res.status, body)
+  return body as CoatingsSetupStateBody
+}
+
+/** `POST /api/coatings/setup` — starts the coatings setup (download Ekur's dumper, extract the
+ *  game's coating data, queue the coating library rebuilds). 409 is `CoatingsSetupConflictError`. */
+export async function startCoatingsSetup(signal?: AbortSignal): Promise<CoatingsSetupStateBody> {
+  const res = await fetch('/api/coatings/setup', { method: 'POST', signal })
+  const body = await readErrorBody(res)
+  if (res.status === 409) throw new CoatingsSetupConflictError(body)
+  if (!res.ok) throw new ApiError(`POST /api/coatings/setup: HTTP ${res.status}`, res.status, body)
+  return body as CoatingsSetupStateBody
 }

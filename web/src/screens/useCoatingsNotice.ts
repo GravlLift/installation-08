@@ -15,9 +15,21 @@ import { fetchCoatingsStatus, type CoatingsStatusBody } from '../lib/api/standal
 /** The three texts the notice can carry; `null` says render nothing. */
 export type CoatingsNotice = string | null
 
-/** The tooltip the notice button carries when it has a text. */
+/** The tooltip the plain notice carries when it has a text (no setup offered: the export is
+ *  incomplete, or IT3D_EKUR_DIR names it). */
 export const COATING_NOTICE_TOOLTIP =
-  'Set IT3D_EKUR_DIR to a full Ekur export and restart the server to paint every piece.'
+  'Coatings come from a full Ekur export of your game. Point IT3D_EKUR_DIR at one and restart the server, or unset it to use Set up coatings.'
+
+/** The tooltip of the notice beside the "Set up coatings" button. */
+export const COATINGS_SETUP_TOOLTIP =
+  "Set up coatings downloads Ekur's dumper and extracts the coating data from your game install. If you already have a full Ekur export, set IT3D_EKUR_DIR to it and restart the server instead."
+
+/** Whether the viewer offers the in-app coatings setup: only when coatings are off (no export,
+ *  or an invalid one) and the export is the app's own (`IT3D_EKUR_DIR` unset; when it is set it
+ *  wins over anything the setup could write). Pure, so it is tested without the network. */
+export function coatingsSetupOffered(body: CoatingsStatusBody): boolean {
+  return (body.export === 'not_set' || body.export === 'invalid') && !body.override
+}
 
 /** Reduces one coating status body to the notice text (or `null` when everything is fine).
  *  Pure, so it is tested without the network. Precedence: a missing or invalid export wins
@@ -41,12 +53,16 @@ export interface UseCoatingsNoticeResult {
   notice: CoatingsNotice
   /** Whether the status has been fetched and reduced yet (false while loading). */
   ready: boolean
+  /** Whether to offer the "Set up coatings" button (`coatingsSetupOffered`); false while
+   *  loading and when the fetch fails. */
+  canSetUp: boolean
 }
 
 /** Fetches the coating status once and reduces it to the notice text. */
 export function useCoatingsNotice(): UseCoatingsNoticeResult {
   const [notice, setNotice] = useState<CoatingsNotice>(null)
   const [ready, setReady] = useState(false)
+  const [canSetUp, setCanSetUp] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -55,11 +71,13 @@ export function useCoatingsNotice(): UseCoatingsNoticeResult {
         const body = await fetchCoatingsStatus(controller.signal)
         if (controller.signal.aborted) return
         setNotice(coatingNoticeOf(body))
+        setCanSetUp(coatingsSetupOffered(body))
       } catch (err) {
         // Signed out, server down, or an older server without the route: the viewer renders
         // nothing rather than show a guess.
         if (controller.signal.aborted) return
         setNotice(null)
+        setCanSetUp(false)
       } finally {
         if (!controller.signal.aborted) setReady(true)
       }
@@ -67,5 +85,5 @@ export function useCoatingsNotice(): UseCoatingsNoticeResult {
     return () => controller.abort()
   }, [])
 
-  return { notice, ready }
+  return { notice, ready, canSetUp }
 }
