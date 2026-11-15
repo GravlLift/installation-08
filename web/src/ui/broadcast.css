@@ -104,6 +104,11 @@
 .bc-home .bc-coatings { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; }
 /* The home's ring-world backdrop (RingBackdrop): fixed behind the page, inside the stage's own stacking context. */
 .bc-ring { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; display: block; }
+/* The extracted ring photo, full-cover over the drawn field. Same z-index as the field, so
+   DOM order (field, photo, shade) gives the layering; the ring sits right of center. */
+.bc-ring-img { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; object-fit: cover; object-position: 70% 50%; pointer-events: none; }
+/* Readability shade over the menu side, kept above the photo. */
+.bc-ring-shade { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(to right, rgba(4, 7, 12, 0.82) 0%, rgba(4, 7, 12, 0.3) 45%, rgba(4, 7, 12, 0.15) 100%); }
 /* Signed out: the home is one sign-in plate, centered across the desk. */
 .bc-home .bc-home-signin { grid-column: 1 / -1; justify-self: center; width: min(100%, 640px); }
 .bc-home-signin-text { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-dim); max-width: 46ch; }
