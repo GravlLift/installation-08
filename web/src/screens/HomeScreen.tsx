@@ -9,6 +9,9 @@
  * weapons, armor, first-person arms), the "Getting ready" plate (`FirstRunPanel`) shows its
  * progress; the coatings control then shows only its button for a failed setup.
  *
+ * The page's backdrop is the ring-world art (RingBackdrop), not the featured map, which
+ * stays in the featured card.
+ *
  * Signed out, the home is a sign-in page: one plate saying what signing in does, wired to the
  * match select page's device-code flow (SIGN_IN_ROUTE); a read-only server never signs in,
  * so it keeps the desk with the Watch list (homeMode).
@@ -26,6 +29,7 @@ import { FirstRunPanel } from './FirstRunPanel'
 import { useFirstRunProgress } from './useFirstRunProgress'
 import { FocusList } from '../ui/FocusList'
 import { Plate } from '../ui/Plate'
+import { RingBackdrop } from '../ui/RingBackdrop'
 import { Screen } from '../ui/Screen'
 import { TickerDot } from '../ui/Ticker'
 import { useAuthState } from './useAuthState'
@@ -106,7 +110,7 @@ export function HomeScreen() {
       id="home"
       gamertag={gamertag}
       onSignIn={onSignIn}
-      backdropUrl={backdropUrl}
+      backdropUrl={null}
       items={[
         <span key="server">
           <TickerDot bad={state.phase !== 'ready'} />
@@ -116,6 +120,7 @@ export function HomeScreen() {
       ]}
       keys={[['Up/Down', 'Move'], ['Enter', 'Select']]}
     >
+      <RingBackdrop />
       <div className="bc-home">
         {mode === 'signin' && (
           <div className="bc-home-signin">
