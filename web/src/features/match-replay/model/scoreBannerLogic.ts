@@ -70,6 +70,7 @@
  */
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import {
+  scoreAtFrame,
   teamRoundScoreAtFrame,
   teamScoreAtFrame,
   teamSeriesFor,
@@ -92,7 +93,8 @@ export interface ScoreBannerSide {
    * time » curve of the match view, not this banner.)
    */
   score: number
-  /** Part of bar filled, in [0,1]. */
+  /** Part of bar filled, in [0,1]: the score over the target, or on a hill mode with its hold
+   * series, the current hill's hold progress (`hillHoldFill`). */
   fill: number
 }
 
@@ -155,9 +157,12 @@ export function readScoreBanner(
     ? teamRoundScoreAtFrame(timeline, enemyId, cur.round, frame)
     : teamScoreAtFrame(timeline, enemyId, frame)
   const target = cur ? roundTargetOf(timeline) : victoryTarget(timeline, allyId, enemyId)
+  // A hill mode (King of the Hill) whose artifact carries the hold series: the bar is the
+  // current hill's hold progress, as in the game, and the number stays the hills scored.
+  const hold = hasHillHold(timeline)
   return {
-    ally: { teamId: allyId, score: allyScore, fill: fillOf(allyScore, target) },
-    enemy: { teamId: enemyId, score: enemyScore, fill: fillOf(enemyScore, target) },
+    ally: { teamId: allyId, score: allyScore, fill: hold ? hillHoldFill(timeline, allyId, frame) : fillOf(allyScore, target) },
+    enemy: { teamId: enemyId, score: enemyScore, fill: hold ? hillHoldFill(timeline, enemyId, frame) : fillOf(enemyScore, target) },
     round: roundOf(cur),
     dots: roundDots(timeline, allyId, enemyId, frame),
   }
@@ -196,6 +201,41 @@ function finalScoreOf(timeline: ReplayScoreTimelineReady, teamId: number): numbe
 /** fillOf — the part of bar of a camp: its score at the frame read, reported to the target. */
 function fillOf(score: number, target: number): number {
   return Math.min(score / target, 1)
+}
+
+/**
+ * hasHillHold — the artifact publishes the hill hold bar: the series per camp AND its
+ * threshold (the decoder publishes both or neither; an artifact before the field, or a mode
+ * that is not a hill mode, has neither, and the bar keeps the score / target reading).
+ */
+export function hasHillHold(timeline: ReplayScoreTimelineReady): boolean {
+  return timeline.holdTicks.length > 0 && (timeline.holdTicksPerPoint ?? 0) > 0
+}
+
+/**
+ * hillHoldFill — the King of the Hill bar of a camp at `frame`: the hold it has taken on the
+ * CURRENT hill, over the ticks a hill is worth (`holdTicksPerPoint`, measured in the film).
+ *
+ * The hold series is cumulative over the match; the game's bar restarts at zero at EVERY
+ * point, whoever scored it (the hill moves). So the reading is
+ * `(hold(frame) - hold(last point)) / holdTicksPerPoint`, where the last point is the latest
+ * step of any camp's score at or before `frame`. The interval is `]last point, frame]`: on the
+ * very frame of a point both bars are empty, the decoder's own bound (hill_hold_threshold.go).
+ * A camp without a hold series has taken nothing: 0.
+ */
+export function hillHoldFill(timeline: ReplayScoreTimelineReady, teamId: number, frame: number): number {
+  const perPoint = timeline.holdTicksPerPoint ?? 0
+  if (perPoint <= 0) return 0
+  const series = timeline.holdTicks.find((h) => h.teamId === teamId)?.ticks ?? []
+  let lastPoint = -1
+  for (const team of timeline.teams) {
+    for (const k of team.total) {
+      if (k.t > frame) break
+      if (k.t > lastPoint) lastPoint = k.t
+    }
+  }
+  const taken = scoreAtFrame(series, frame) - (lastPoint < 0 ? 0 : scoreAtFrame(series, lastPoint))
+  return Math.max(0, Math.min(taken / perPoint, 1))
 }
 
 /**
