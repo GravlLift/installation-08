@@ -43,6 +43,9 @@ type VariantTarget struct {
 	// Mode is the match's game variant name ("Ranked:Slayer"): the layer holds the objects that
 	// mode creates (ModeFilters). Empty builds the layer of a match without a known mode.
 	Mode string
+	// TextureCaps is the build's texture read sizes (himap.TextureCaps); zero is the standard
+	// caps (himap.CapsStandard), today's output.
+	TextureCaps himap.TextureCaps
 }
 
 // BuildVariant writes the variant's object-layer GLB to `path`, built in-process from the local
@@ -67,7 +70,7 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	}
 	opts := himap.OptionsVariante{
 		RacineDeploy: gameRoot, CheminModule: t.Module, Objets: t.Objects, Teintes: tints, Invisibles: invisible,
-		StylesForge: styles, Filtres: ModeFilters(t.Mode),
+		StylesForge: styles, Filtres: ModeFilters(t.Mode), TextureCaps: t.TextureCaps,
 	}
 	if t.ForgeMaterials != nil {
 		// The game's own Forge palette resolves every style swatch; the catalog only fills the

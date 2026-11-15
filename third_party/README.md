@@ -317,6 +317,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     game shows dark grey; the long hall's windows (rtgo `43ec8b62`, same glass) stay glass.
     The stand-in material carries `extras.vitreSombre` (the glass GlobalID) and `teinte`.
     Covered by `himap/vitres_sombres_test.go` (new).
+  - `himap/textures_monde.go` (new, LOCAL-CHANGE) and `cuisson.go`, `maillage_monde.go`,
+    `maillage_variante.go`, `terrain_collecte.go`, `terrain_melange_bake.go`,
+    `decorateurs_pose.go` (modified): the four map texture side constants become a per-build
+    `TextureCaps` value (`OptionsCuisson.TextureCaps` / `OptionsVariante.TextureCaps`, zero =
+    `CapsStandard` 512/512/256/256, the pre-change output; `CapsHigh` doubles each side)
+    threaded through the world mesh and terrain texture reads. `coteSurface` (hard-surface,
+    256) is outside the choice. Covered by `himap/textures_monde_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

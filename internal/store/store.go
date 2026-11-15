@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 )
 
 // Root is the data directory and the operations over it.
@@ -127,13 +129,18 @@ func (r *Root) MatchMetaPath(id string) (string, error) {
 	return filepath.Join(d, "match.json"), nil
 }
 
-// MeshPath is a map's geometry file, maps\<moduleKey>.glb. The module key is validated so
-// it cannot escape the data directory either.
-func (r *Root) MeshPath(moduleKey string) (string, error) {
+// MeshPath is a map's geometry file for a texture quality: maps\<moduleKey>.glb for standard,
+// maps\<moduleKey>.high.glb for high (a separate file, so a standard build stays valid beside a
+// high one). The module key is validated so it cannot escape the data directory either.
+func (r *Root) MeshPath(moduleKey string, q meshjobs.Quality) (string, error) {
 	if !ModuleKeyValid(moduleKey) {
 		return "", fmt.Errorf("invalid map module key %q", moduleKey)
 	}
-	return filepath.Join(r.MapsDir(), moduleKey+".glb"), nil
+	name := moduleKey + "." + string(q) + ".glb"
+	if q == meshjobs.QualityStandard {
+		name = moduleKey + ".glb"
+	}
+	return filepath.Join(r.MapsDir(), name), nil
 }
 
 // WriteFile writes data to path atomically (a temp file in the same directory, then

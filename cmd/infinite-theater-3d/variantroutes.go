@@ -23,12 +23,28 @@ func variantJobID(key string) (string, bool) {
 	return id, ok && store.MatchIDValid(id)
 }
 
+// variantJobKey is a match variant's build key for a texture quality: variant:<id> for standard,
+// variant:<id>.high for high (a separate job from standard).
+func variantJobKey(id string, quality meshjobs.Quality) string {
+	return variantPrefix + meshjobs.JobKey(id, quality)
+}
+
+// variantGLBName is a match variant's layer file for a texture quality: variant.glb for
+// standard, variant.high.glb for high (a separate file, so a standard build stays valid beside
+// a high one).
+func variantGLBName(quality meshjobs.Quality) string {
+	if quality == meshjobs.QualityHigh {
+		return "variant.high.glb"
+	}
+	return "variant.glb"
+}
+
 func variantPath(root *store.Root, id, name string) string {
 	meta, _ := root.MatchMetaPath(id)
 	return filepath.Join(filepath.Dir(meta), name)
 }
 
-func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out string) (meshjobs.BuildResult, error) {
+func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out string, quality meshjobs.Quality) (meshjobs.BuildResult, error) {
 	meta, err := root.MatchMeta(id)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
@@ -40,7 +56,7 @@ func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out stri
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
-	opts := meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game, Mode: mode}
+	opts := meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game, Mode: mode, Quality: quality}
 	summary, err := meshbuild.BuildVariant(ctx, opts, out, nil)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
@@ -105,7 +121,12 @@ func (h serverHandlers) handleVariant(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	f, err := os.Open(variantPath(h.root, id, "variant.glb"))
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	name := variantGLBName(quality)
+	f, err := os.Open(variantPath(h.root, id, name))
 	if errors.Is(err, os.ErrNotExist) {
 		if h.variantHasMvar(w, id) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "variant_not_built", "id": id})
@@ -118,7 +139,7 @@ func (h serverHandlers) handleVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	serveRevalidated(w, r, "variant.glb", f)
+	serveRevalidated(w, r, name, f)
 }
 
 func (h serverHandlers) handleVariantState(w http.ResponseWriter, r *http.Request) {
@@ -126,14 +147,18 @@ func (h serverHandlers) handleVariantState(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, err := os.Stat(variantPath(h.root, id, "variant.glb")); errors.Is(err, os.ErrNotExist) && !h.variantHasMvar(w, id) {
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	if _, err := os.Stat(variantPath(h.root, id, variantGLBName(quality))); errors.Is(err, os.ErrNotExist) && !h.variantHasMvar(w, id) {
 		return
 	}
 	if h.jobs == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(variantPrefix+id)))
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(variantJobKey(id, quality))))
 }
 
 func (h serverHandlers) handleVariantBuild(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +170,10 @@ func (h serverHandlers) handleVariantBuild(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if !h.variantHasMvar(w, id) {
 		return
 	}
@@ -152,7 +181,7 @@ func (h serverHandlers) handleVariantBuild(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	snap := h.jobs.Enqueue(variantPrefix + id)
+	snap := h.jobs.Enqueue(variantJobKey(id, quality))
 	status := http.StatusAccepted
 	if snap.Ready() {
 		status = http.StatusOK

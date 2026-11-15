@@ -177,6 +177,9 @@ type OptionsCuisson struct {
 	// CibleCadrePx demande une echelle AUTOMATIQUE quand Echelle est nulle : voir
 	// EchellePourCadre (echelle_cible.go). Zero = echelle de production.
 	CibleCadrePx int
+	// TextureCaps (LOCAL-CHANGE (infinite-theater-3d)) : les cotes de lecture des textures du
+	// build (textures_monde.go). Zero = les cotes standard (la sortie d'avant).
+	TextureCaps TextureCaps
 }
 
 // BilanCuisson chiffre ce que la cuisson a fait. Il est publie avec l'asset : un fond de carte

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
@@ -36,7 +37,7 @@ func newFakeStore(t *testing.T) *store.Root {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	mesh, _ := root.MeshPath("moda")
+	mesh, _ := root.MeshPath("moda", meshjobs.QualityStandard)
 	if err := root.WriteFile(mesh, []byte("glTF-fake-mesh-bytes")); err != nil {
 		t.Fatal(err)
 	}

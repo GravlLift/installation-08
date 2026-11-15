@@ -44,6 +44,9 @@ type Target struct {
 	// map's own lighting options (mapvar.Lighting) override its canvas's sun.
 	SunIntensity *float64
 	SunColor     *[3]float64
+	// TextureCaps is the build's texture read sizes (himap.TextureCaps); zero is the standard
+	// caps (himap.CapsStandard), today's output.
+	TextureCaps himap.TextureCaps
 }
 
 // Frame margins, in world units. The 3D view exists to follow the game, not to admire the
@@ -109,6 +112,7 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 		CheminModuleCarte: t.MapModule,
 		Ancres:            t.Anchors,
 		CadreMaillage:     t.Frame,
+		TextureCaps:       t.TextureCaps,
 	})
 	if err != nil {
 		return Summary{}, err

@@ -397,7 +397,11 @@ func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
 		return
 	}
-	snap := h.jobs.Enqueue(meshKeyOf(meta))
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	snap := h.jobs.Enqueue(meshjobs.JobKey(meshKeyOf(meta), quality))
 	status := http.StatusAccepted
 	if snap.Ready() {
 		status = http.StatusOK
@@ -434,11 +438,16 @@ func (h serverHandlers) handleMeshCancel(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "no_map_module", "id": id})
 		return
 	}
-	if !h.jobs.Cancel(meshKeyOf(meta)) {
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	key := meshjobs.JobKey(meshKeyOf(meta), quality)
+	if !h.jobs.Cancel(key) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "build_not_running"})
 		return
 	}
-	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meshKeyOf(meta))))
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(key)))
 }
 
 // handleMeshState answers GET /api/matches/{id}/mesh/state with the build state of the match's world mesh.
@@ -466,13 +475,34 @@ func (h serverHandlers) handleMeshState(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meshKeyOf(meta))))
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, meshStateJSON(h.jobs.Snapshot(meshjobs.JobKey(meshKeyOf(meta), quality))))
+}
+
+// meshQualityFromRequest reads the ?quality= query parameter of a mesh or variant route:
+// absent or standard is the default (today's behavior), high names the high-quality build,
+// any other value is a 400. ok false (the answer already written) on a refused value.
+func meshQualityFromRequest(w http.ResponseWriter, r *http.Request) (meshjobs.Quality, bool) {
+	s := r.URL.Query().Get("quality")
+	q, ok := meshjobs.ParseQuality(s)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown_quality", "quality": s})
+		return "", false
+	}
+	return q, true
 }
 
 // meshStateJSON is the state JSON the build and state routes hand out. Fields that do not
-// apply for the state are omitted (an empty string, a zero, or an unset time).
+// apply for the state are omitted (an empty string, a zero, or an unset time); quality is
+// present only for a high-quality build (standard is the unnamed default).
 func meshStateJSON(s meshjobs.Snapshot) map[string]any {
 	out := map[string]any{"state": string(s.State), "moduleKey": s.ModuleKey}
+	if _, quality := meshjobs.SplitQuality(s.ModuleKey); quality == meshjobs.QualityHigh {
+		out["quality"] = string(quality)
+	}
 	if s.Error != "" {
 		out["error"] = s.Error
 	}
@@ -512,8 +542,12 @@ func (h serverHandlers) handleMesh(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": ""})
 		return
 	}
-	key := meshKeyOf(meta)
-	path, err := h.root.MeshPath(key)
+	quality, ok := meshQualityFromRequest(w, r)
+	if !ok {
+		return
+	}
+	key := meshjobs.JobKey(meshKeyOf(meta), quality)
+	path, err := h.root.MeshPath(meshKeyOf(meta), quality)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh_not_built", "moduleKey": key})
 		return

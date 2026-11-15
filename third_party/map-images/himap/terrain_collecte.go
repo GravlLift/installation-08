@@ -14,6 +14,8 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 	matieres := map[uint32]Materiau{}
 	synthetiques := map[uint32]Texture{}
 	var decorateurs []TapisDecorateur
+	// LOCAL-CHANGE (infinite-theater-3d): the build's texture caps, shared with the bake.
+	caps := textureCapsOf(opts.TextureCaps)
 	refs, err := terrainsDuScenario(opts.moduleScenario())
 	if err != nil {
 		return out, nil, nil, nil, err
@@ -40,7 +42,7 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 		}
 		params := parametresTerrain{Resolution: s.resolution, Pas: plage.pas, Origine: [3]float64{plage.origine[0], plage.origine[1], s.position[2]}, Amplitude: s.taille[2]}
 		var mat Materiau
-		if cuit, ok := cuitMelangeTerrain(idx, s, plage, tuiles, noeuds, ref.ID); ok {
+		if cuit, ok := cuitMelangeTerrain(idx, s, plage, tuiles, noeuds, ref.ID, caps); ok {
 			mat = cuit.materiau
 			params.Atlas = cuit.atlas
 			for id, t := range cuit.textures {
@@ -59,7 +61,7 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 			return out, nil, nil, nil, err
 		}
 		ajouteGroupeTerrain(&out, g)
-		decorateurs = append(decorateurs, poseDecorateurs(idx, s, plage, tuiles, params, ref.ID)...)
+		decorateurs = append(decorateurs, poseDecorateurs(idx, s, plage, tuiles, params, ref.ID, caps)...)
 		out.Instances += len(tuiles)
 		matieres[mat.ID] = mat
 	}
@@ -116,7 +118,7 @@ func (m *MaillageMonde) resoutTexturesTerrain(ctx context.Context, idx *ModuleIn
 				if _, ok := m.TexturesCouches[b]; ok || b == 0 {
 					continue
 				}
-				t, err := LitBitmap(idx, b, coteCouche)
+				t, err := LitBitmap(idx, b, m.capsFor().Couche) // LOCAL-CHANGE (infinite-theater-3d)
 				if err != nil {
 					slog.WarnContext(ctx, "texture de terrain illisible", "bitmap", fmt.Sprintf("%08x", b), "err", err)
 					m.TexturesCouchesIllisibles++

@@ -9,6 +9,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 )
 
 // runBuildMesh builds one map's world mesh from the local game installation and writes it to a
@@ -20,9 +21,14 @@ func runBuildMesh(args []string) error {
 	mvar := fs.String("mvar", "", "a Forge map's variant file (.mvar): build its canvas around its objectives")
 	name := fs.String("name", "", "with --mvar, the map's displayed name, published in the GLB")
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (LEVELUP_HALO_DEPLOY, Steam, Xbox)")
+	quality := fs.String("texture-quality", "standard", "texture quality to read at: standard (default, today's output) or high (bigger textures)")
 	out := fs.String("out", "", "GLB file to write")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	q, ok := meshjobs.ParseQuality(*quality)
+	if !ok {
+		return fmt.Errorf("build-mesh: unknown --texture-quality %q (standard or high)", *quality)
 	}
 	if *mapKey == "" || *out == "" {
 		return fmt.Errorf("build-mesh: --map and --out are required")
@@ -39,10 +45,10 @@ func runBuildMesh(args []string) error {
 		if *name != "" {
 			names = []string{*name}
 		}
-		opts := meshbuild.ForgeMapOptions{Key: *mapKey, Names: names, Mvar: *mvar, GameRoot: *gameRoot}
+		opts := meshbuild.ForgeMapOptions{Key: *mapKey, Names: names, Mvar: *mvar, GameRoot: *gameRoot, Quality: q}
 		summary, err = meshbuild.BuildForgeMap(ctx, opts, *out, announce)
 	} else {
-		summary, err = meshbuild.BuildMap(ctx, *mapKey, *gameRoot, *out, announce)
+		summary, err = meshbuild.BuildMap(ctx, *mapKey, q, *gameRoot, *out, announce)
 	}
 	if err != nil {
 		if nb, ok := meshbuild.AsNotBuildable(err); ok {
