@@ -1,13 +1,14 @@
 /**
  * minimapLogic.ts — pure math of the corner minimap over the 3D view: a square of fixed world size
  * centered on the followed player with a fixed north-up orientation (screen up is scene -Z, the
- * axes the 2D top-down view draws the map in), its place on screen, and when its cached top-down
- * image of the map around him must be redone.
+ * axes the 2D top-down view draws the map in), its place on screen, and the cached top-down image
+ * of the map it reads from.
  *
- * The image is rendered at a low rate over a square twice the minimap's span, centered where the
- * player was; between renders the minimap reads its turned square out of it around where he is now.
- * The turned square reaches `SPAN * sqrt(2) / 2` from him, so he may stray `RECENTER_SHARE * SPAN`
- * from the image center (plus what he covers between two renders) and the square stays inside it.
+ * The image is the whole walked area at the picture's fixed cut, rendered once (and again only when
+ * the scene graph changes): the minimap reads its square out of it around the player at every frame,
+ * so playing never re-renders the map (each re-render of a moving 80 u image was a whole-map draw,
+ * the worst frames of a heavy variant layer). The image reaches `SPAN * sqrt(2) / 2` past the walked
+ * area on every side, so the square, even turned, stays inside it.
  *
  * Axes: scene X/Z on the floor (screen right is +X, screen down is +Z in an image seen from above);
  * yaw in degrees, the tracks' convention (`dirOf`).
@@ -17,20 +18,11 @@ import { INSET_GAP_PX, type Insets, type Viewport } from './topDownNavLogic'
 
 /** The world span across the minimap (u, ~120 m): most of an arena, a neighborhood of a team map. */
 export const MINIMAP_SPAN_U = 40
-/** The cached image's span: twice the minimap's, room for the turned square and the player's drift. */
-export const MINIMAP_IMAGE_SPAN_U = 2 * MINIMAP_SPAN_U
-/** How far (share of the span) the player strays from the image center before it is redone. */
-export const RECENTER_SHARE = 0.15
-/**
- * How far the cut moves (u) before the image is redone: half a storey (Halo storeys are ~2 u apart),
- * so a jump, which lifts the smoothed cut by a fraction of a unit, does not redo it.
- */
-export const CUT_STEP_U = 1
-/**
- * The image is redone at most this often (ms), a moved player or cut waiting for it: one render of
- * the whole map costs about a top-down frame (Recharge: 9 to 26 ms measured on a loaded machine).
- */
-export const MIN_RENDER_INTERVAL_MS = 500
+/** The cached image's density (px per u): sharp on the minimap at a pixel ratio of 2. */
+export const MINIMAP_IMAGE_PX_PER_U = 12.8
+/** The cached image's side bounds (px): a wide walked area gets a softer image, not a larger one. */
+export const MINIMAP_IMAGE_MIN_PX = 512
+export const MINIMAP_IMAGE_MAX_PX = 2048
 /** The minimap's side as a share of the view's height, and its distance from the right edge (CSS px). */
 export const MINIMAP_SCREEN_SHARE = 0.24
 export const MINIMAP_RIGHT_PX = 16
@@ -40,20 +32,26 @@ export const MINIMAP_RIGHT_PX = 16
  */
 export const SCREEN_UP_HEADING_DEG = 90
 
-/** The cached image: the square it covers (center, scene X/Z), the cut it was drawn at, when, and for whom. */
+/** The cached image: the square it covers (center, scene X/Z, and side, u) and its side in pixels. */
 export interface MinimapImage {
   center: [number, number]
-  cutY: number
-  at: number
-  followed: string
+  side: number
+  px: number
 }
 
-/** minimapStale — whether the cached image must be redone for the player at `center` (scene X/Z) and the cut `cutY`. */
-export function minimapStale(img: MinimapImage | null, now: MinimapImage): boolean {
-  if (!img || img.followed !== now.followed) return true
-  if (now.at - img.at < MIN_RENDER_INTERVAL_MS) return false
-  const drift = Math.hypot(now.center[0] - img.center[0], now.center[1] - img.center[1])
-  return drift > RECENTER_SHARE * MINIMAP_SPAN_U || Math.abs(now.cutY - img.cutY) > CUT_STEP_U
+/** The walked area seen from above (scene X/Z). */
+export interface MinimapBounds {
+  minX: number
+  minZ: number
+  maxX: number
+  maxZ: number
+}
+
+/** minimapImageOf — the cached image of the walked area `b`: a square around it with room for the minimap's turned square. */
+export function minimapImageOf(b: MinimapBounds): MinimapImage {
+  const side = Math.max(b.maxX - b.minX, b.maxZ - b.minZ, 0) + MINIMAP_SPAN_U * Math.SQRT2
+  const px = Math.min(MINIMAP_IMAGE_MAX_PX, Math.max(MINIMAP_IMAGE_MIN_PX, Math.ceil(side * MINIMAP_IMAGE_PX_PER_U)))
+  return { center: [(b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2], side, px }
 }
 
 /** Where the minimap looks: the player's feet (scene X/Z) and his yaw (degrees). */
@@ -90,11 +88,11 @@ export function minimapAngle(pose: MinimapPose, heading: number): number {
  * minimapUvRows — the affine map from the minimap quad's (u, v) in [0, 1] (v up) to the cached
  * image's (u, v) (v = 0 on its +Z edge), as two rows [a, b, c] with image = a * u + b * v + c.
  */
-export function minimapUvRows(pose: MinimapPose, image: [number, number]): [[number, number, number], [number, number, number]] {
+export function minimapUvRows(pose: MinimapPose, image: Pick<MinimapImage, 'center' | 'side'>): [[number, number, number], [number, number, number]] {
   const { f, r } = axesOf(pose.heading)
-  const k = MINIMAP_SPAN_U / MINIMAP_IMAGE_SPAN_U
-  const ox = (pose.center[0] - image[0]) / MINIMAP_IMAGE_SPAN_U
-  const oz = (pose.center[1] - image[1]) / MINIMAP_IMAGE_SPAN_U
+  const k = MINIMAP_SPAN_U / image.side
+  const ox = (pose.center[0] - image.center[0]) / image.side
+  const oz = (pose.center[1] - image.center[1]) / image.side
   return [
     [k * r[0], k * f[0], 0.5 + ox - (k * (r[0] + f[0])) / 2],
     [-k * r[1], -k * f[1], 0.5 - oz + (k * (r[1] + f[1])) / 2],

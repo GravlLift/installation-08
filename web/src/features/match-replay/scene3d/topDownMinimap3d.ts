@@ -4,17 +4,17 @@
  * living player, in a square at the top right, under the top strip's place (`minimapRect`). The
  * math is `minimapLogic`.
  *
- * It never renders the map at the screen's rate: the map around the player is rendered into a
- * cached image, staged like the 2D view's picture (the same fixed cut over the highest walked
- * floor, the same flat light and height shading by world height), only when he has strayed from
- * its center, at most twice a second (`minimapStale`). The map it shows is the same picture
- * wherever he goes; only the window moves. Each frame draws one textured square that reads its
+ * It never renders the map while the replay plays: the whole walked area is rendered once into a
+ * cached image (`minimapImageOf`), staged like the 2D view's picture (the same fixed cut over the
+ * highest walked floor, the same flat light and height shading by world height), and again only
+ * when the scene graph changes (`invalidate`: a layer posed or removed). The map it shows is the
+ * same picture wherever he goes; only the window moves. Each frame draws one textured square that reads its
  * turned window out of that image, and the dots, in the corner of the screen after the 3D frame.
  */
 import * as THREE from 'three'
 
 import { cssColor } from './cssColor'
-import { MINIMAP_IMAGE_SPAN_U, SCREEN_UP_HEADING_DEG, minimapAngle, minimapHit, minimapPoint, minimapRect, minimapStale, minimapUvRows, type MinimapImage, type MinimapPose, type MinimapRect } from './minimapLogic'
+import { SCREEN_UP_HEADING_DEG, minimapAngle, minimapHit, minimapImageOf, minimapPoint, minimapRect, minimapUvRows, type MinimapBounds, type MinimapImage, type MinimapPose, type MinimapRect } from './minimapLogic'
 import type { MarkerPose } from './playerMarkers3d'
 import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, floorOf } from './playerMarkers3d_logic'
 import { GRADE_GAIN } from './postFx3d'
@@ -23,8 +23,6 @@ import { CutFollower } from './topDownLogic'
 import type { Insets, Viewport } from './topDownNavLogic'
 import type { TopDownStage } from './topDownStage3d'
 
-/** The cached image's side (px): about 13 px per unit, sharp on the minimap at a pixel ratio of 2. */
-const IMAGE_PX = 1024
 /** A dot's radius on the minimap, as a share of the top-down view's marker (CSS px). */
 const DOT_SHARE = 0.6
 /** The dark halo under a dot, in dot radii. */
@@ -50,6 +48,8 @@ export interface MinimapSetup {
   /** The picture's fixed cut and bottom (scene Y), the 2D view's. */
   topY: number
   lowestY: number
+  /** The walked area (scene X/Z) the cached image covers. */
+  bounds: MinimapBounds
 }
 
 interface Dot {
@@ -77,7 +77,8 @@ export class TopDownMinimap {
   /** Shown over the 3D view (the viewer's setting). */
   enabled = false
   private readonly s: MinimapSetup
-  private readonly target = topTarget(IMAGE_PX)
+  /** The cached image's target, made at its size on the first render. */
+  private target: THREE.WebGLRenderTarget | null = null
   private readonly imageCamera = new THREE.OrthographicCamera()
   private image: MinimapImage | null = null
   private readonly cut: CutFollower
@@ -99,7 +100,7 @@ export class TopDownMinimap {
     this.cut = new CutFollower(s.lowestY)
     const material = new THREE.ShaderMaterial({
       uniforms: {
-        map: { value: this.target.texture },
+        map: { value: null },
         rowU: { value: new THREE.Vector3() },
         rowV: { value: new THREE.Vector3() },
         studio: { value: new THREE.Color() },
@@ -132,9 +133,7 @@ export class TopDownMinimap {
     const me = d.players.find((p) => p.xuid === d.followed)
     // His floor only dims the dots of players on another one; the picture keeps its fixed cut.
     const cutY = this.cut.step(now, d.followed, me ? me.feet.y : null, d.players.map((p) => p.feet.y))
-    const want: MinimapImage = { center: pose.center, cutY: this.s.topY, at: now, followed: d.followed }
-    if (minimapStale(this.image, want)) this.renderImage(want)
-    const image = this.image as MinimapImage
+    const image = this.image ?? this.renderImage()
     const rect = minimapRect(view, insets)
     this.rect = rect
     this.paint(pose, image, rect.side)
@@ -149,7 +148,7 @@ export class TopDownMinimap {
 
   dispose(): void {
     this.rect = null
-    this.target.dispose()
+    this.target?.dispose()
     this.quad.geometry.dispose()
     this.quad.material.dispose()
     for (const dot of this.dots.values()) dot.material.dispose()
@@ -167,17 +166,24 @@ export class TopDownMinimap {
     return this.pose?.xuid === d.followed ? this.pose.pose : null
   }
 
-  /** Render the map around the player into the cached image (map only, at the picture's fixed cut). */
-  private renderImage(want: MinimapImage): void {
-    const { renderer, stage, lowestY } = this.s
-    renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: want.center, side: MINIMAP_IMAGE_SPAN_U }, cutY: want.cutY, lowestY, clear: true })
-    this.image = want
+  /** Render the walked area into the cached image (map only, at the picture's fixed cut). */
+  private renderImage(): MinimapImage {
+    const { renderer, stage, lowestY, topY } = this.s
+    const image = minimapImageOf(this.s.bounds)
+    if (!this.target || this.target.width !== image.px) {
+      this.target?.dispose()
+      this.target = topTarget(image.px)
+      this.quad.material.uniforms.map.value = this.target.texture
+    }
+    renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: image.center, side: image.side }, cutY: topY, lowestY, clear: true })
+    this.image = image
+    return image
   }
 
   /** Set the square's uniforms: the turned window of the image, the colors, the frame width. */
   private paint(pose: MinimapPose, image: MinimapImage, side: number): void {
     const u = this.quad.material.uniforms
-    const [rowU, rowV] = minimapUvRows(pose, image.center)
+    const [rowU, rowV] = minimapUvRows(pose, image)
     ;(u.rowU.value as THREE.Vector3).set(...rowU)
     ;(u.rowV.value as THREE.Vector3).set(...rowV)
     const studio = this.s.stage.studioColor()
