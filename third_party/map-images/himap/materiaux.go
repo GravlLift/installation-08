@@ -24,9 +24,9 @@ const GroupeMateriau = "mat "
 
 // Offsets du tag `mat `.
 const (
-	matOffShader       = 16  // reference de tag du shader de materiau (GlobalID a +8)
-	matOffPostprocess  = 64  // tag-block `postprocess definitions`
-	postprocessStride  = 160 // un enregistrement de ce bloc
+	matOffShader      = 16  // reference de tag du shader de materiau (GlobalID a +8)
+	matOffPostprocess = 64  // tag-block `postprocess definitions`
+	postprocessStride = 160 // un enregistrement de ce bloc
 	// postOffMelange (LOCAL-CHANGE (infinite-theater-3d)): `alpha blend mode` is the byte at +84 of
 	// the postprocess record (also at +0x68 of the root). +60, read before, is the element count
 	// of the `function parameters` block: materials with an animated parameter (the weapon pads'
@@ -151,7 +151,9 @@ func (m Materiau) Vitre() bool {
 type LecteurShaders func(shader uint32) ParametresShader
 
 // LitMateriau decode un tag `mat ` deja decompresse.
-func LitMateriau(id uint32, tag []byte, shaders LecteurShaders) (Materiau, error) {
+// LOCAL-CHANGE (infinite-theater-3d): `styles` resout les tables de style (mwsy, mwpl, mwsw)
+// pour les materiaux sans couche declaree ; nil saute ce cheminement.
+func LitMateriau(id uint32, tag []byte, shaders LecteurShaders, styles LecteurStyles) (Materiau, error) {
 	for _, ti := range tagCandidates(tag) {
 		offs, targets, err := ti.rootBlockRefs()
 		if err != nil {
@@ -170,10 +172,21 @@ func LitMateriau(id uint32, tag []byte, shaders LecteurShaders) (Materiau, error
 			m.PasseTransparente = u16(tag, rAbs+matOffDrapeaux)&drapeauPasseTransparente != 0
 		}
 		_, m.Verre = shaders(m.Shader)[nomVerre]
+		styleAbs, styleSize := -1, 0
 		for i, o := range offs {
-			if o == matOffPostprocess {
+			switch o {
+			case matOffPostprocess:
 				litPostprocess(&m, ti, tag, targets[i], shaders)
+			case styleOffRef: // LOCAL-CHANGE (infinite-theater-3d) : bloc style_info (FieldBlock)
+				if a, s := ti.blockAbs(targets[i]); a >= 0 && s >= 4 && a+s <= len(tag) {
+					styleAbs, styleSize = a, s
+				}
 			}
+		}
+		// LOCAL-CHANGE (infinite-theater-3d) : un materiau sans aucune surface liee (ni couche
+		// du shader, ni surface dure) lit sa couche de base dans ses styles (couches_style.go).
+		if m.Couches == nil && m.Surface == nil && m.Opaque() && styleAbs >= 0 && styles != nil {
+			m.Couches = couchesStyle(ti, rAbs, styleAbs, styleSize, styles)
 		}
 		return m, nil
 	}
@@ -231,6 +244,7 @@ func CheminsMateriaux(deployRoot, moduleCarte string) ([]string, error) {
 func LitMateriaux(idx, idxShaders *ModuleIndex, ids []uint32) (table map[uint32]Materiau, illisibles int) {
 	table = make(map[uint32]Materiau, len(ids))
 	shaders := lecteurShaders(idxShaders)
+	styles := lecteurStyles(idx) // LOCAL-CHANGE (infinite-theater-3d)
 	for _, id := range ids {
 		if g, _, ok := idx.Lookup(id); !ok || g != GroupeMateriau {
 			illisibles++
@@ -241,7 +255,7 @@ func LitMateriaux(idx, idxShaders *ModuleIndex, ids []uint32) (table map[uint32]
 			illisibles++
 			continue
 		}
-		m, err := LitMateriau(id, tag, shaders)
+		m, err := LitMateriau(id, tag, shaders, styles)
 		if err != nil {
 			illisibles++
 			continue

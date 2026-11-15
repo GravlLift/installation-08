@@ -184,6 +184,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     real FP graph. It had no first-person rig and its gun floated without arms; no other
     weapon changes (91 to 92 rigs). Covered by
     `himap/premiere_personne_dependances_gamefiles_test.go` (new).
+  - `himap/couches_style.go` (new, LOCAL-CHANGE) and `materiaux.go` (modified): a material of a
+    layered shader (`0xdb8cbebb` and family) binds no color map; its look comes from the
+    `style_info` block of its `mat ` tag, resolved through the game's style tables (mwsy style
+    list, default style; palette mwpl; region and base intention; swatch mwsw) the way Ekur's
+    `material_coating.rs` does. The base layer carries the gradient color map and the chosen
+    variant's colors. Before this, those materials had no layers and no surface and drew a flat
+    tint (the tan, brown and yellow walls of Forge maps). Covered by
+    `himap/couches_style_test.go` (new, gamefiles).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
