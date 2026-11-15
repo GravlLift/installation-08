@@ -10,6 +10,7 @@ import type { PageAction3dInputs } from '../features/match-replay/scene3d/action
 import { useReplayInks } from '../features/match-replay/layers/useReplayInks'
 import { normalizeMapObjectives } from '../features/match-replay/layers/objectivesLayer'
 import { buildShotFx } from '../features/match-replay/model/shotFx'
+import { atPlaybackStart, firstSpawnFrame } from '../features/match-replay/model/playbackStart'
 import { displayPlayerName } from '../lib/players/displayName'
 import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
@@ -95,8 +96,11 @@ export interface ReplayViewerProps {
 }
 
 export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }: ReplayViewerProps) {
-  const frameRef = useRef(0)
-  const [frame, setFrame] = useState(0)
+  // Playback begins at the first spawn, not at frame zero (`playbackStart.ts`): the film opens
+  // before anyone is on the map. The timeline still reaches frame zero.
+  const startFrame = useMemo(() => firstSpawnFrame(doc), [doc])
+  const frameRef = useRef(startFrame)
+  const [frame, setFrame] = useState(startFrame)
   const [playing, setPlaying] = useState(!held)
   const [speed, setSpeed] = useState(1)
   const camera = useCameraChoice(doc.roster)
@@ -165,13 +169,14 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     [doc.frameCount, fps, sound.seek],
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
-  const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && frameRef.current === 0) sound.intro(); setPlaying((p) => !p) }, [held, playing, sound.wake, sound.intro])
+  const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && atPlaybackStart(frameRef.current, startFrame)) sound.intro(); setPlaying((p) => !p) }, [held, playing, startFrame, sound.wake, sound.intro])
   const wasHeld = useRef(held)
   useEffect(() => {
-    if (wasHeld.current && !held) { sound.wake(); if (frameRef.current === 0) sound.intro(); setPlaying(true) }
+    if (wasHeld.current && !held) { sound.wake(); if (atPlaybackStart(frameRef.current, startFrame)) sound.intro(); setPlaying(true) }
     wasHeld.current = held
-  }, [held, sound.wake, sound.intro])
-  const restart = useCallback(() => { sound.wake(); stepFrames(-Infinity) }, [stepFrames, sound.wake])
+  }, [held, startFrame, sound.wake, sound.intro])
+  // Restart returns to the start of playback (the first spawn); scrubbing still reaches frame zero.
+  const restart = useCallback(() => { sound.wake(); stepFrames(startFrame - frameRef.current) }, [stepFrames, startFrame, sound.wake])
 
   useEffect(() => {
     const host = hostRef.current
