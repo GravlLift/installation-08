@@ -73,6 +73,10 @@ export class SpartanArmory {
   private readonly armesPretes = new Map<string, Promise<Coat | null>>()
   /** La peinture des armes prête, par joueur et clé de modèle (null : pas de revêtement). */
   private readonly armesCaches = new Map<string, Coat | null>()
+  /** La peinture des objets de la carte (socles, râteliers, sol) : le style par défaut de chaque
+   * liste (aucun joueur n'y porte de revêtement), une fois par clé de modèle. */
+  private readonly objetsPretes = new Map<string, Promise<Coat | null>>()
+  private readonly objetsCaches = new Map<string, Coat | null>()
   private disposed = false
 
   /**
@@ -149,6 +153,34 @@ export class SpartanArmory {
   }
 
   /**
+   * peindreObjet prepare en fond la default-style paint of a MAP object's weapon model (a pad or
+   * rack item, a ground weapon): no player coat applies to it, so its style key is null (the
+   * default style of each of its style lists). One coat per model key: ten pads of the same weapon
+   * paint once. null without the weapon library (all neutral).
+   */
+  peindreObjet(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+    let p = this.objetsPretes.get(modelKey)
+    if (!p) {
+      p = this.peindreObjetFond(modelKey, model).catch((erreur: unknown) => {
+        console.warn('rejeu 3D : peinture de l’objet indisponible', erreur)
+        return null
+      })
+      this.objetsPretes.set(modelKey, p)
+    }
+    return p
+  }
+
+  /**
+   * coatObjet : the default-style paint of the map object model `modelKey`, ready and covering its
+   * painted materials ; null while pending, or without the weapon library.
+   */
+  coatObjet(modelKey: string, model: THREE.Object3D): Coat | null {
+    const coat = this.objetsCaches.get(modelKey)
+    if (coat == null) return null
+    return materiauxArmesDe(model).every((m) => coat.has(m)) ? coat : null
+  }
+
+  /**
    * peindreArme prépare en fond la peinture de l'arme `modelKey` du joueur `xuid`, sur les
    * matériaux peints du modèle : son revêtement, ou sans revêtement lu pour cette arme le style par
    * défaut de chaque liste ; null sans bibliothèque des armes (tout neutre).
@@ -180,6 +212,8 @@ export class SpartanArmory {
     this.dresses.clear()
     this.armesPretes.clear()
     this.armesCaches.clear()
+    this.objetsPretes.clear()
+    this.objetsCaches.clear()
     this.libraryArme?.dispose()
     this.libraryArme = null
     this.library.dispose()
@@ -211,6 +245,20 @@ export class SpartanArmory {
     if (this.disposed) return null
     reportArme(xuid, modelKey, coat, issues)
     this.armesCaches.set(key, coat)
+    return coat
+  }
+
+  private async peindreObjetFond(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+    const libArme = this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
+    if (!libArme) {
+      this.objetsCaches.set(modelKey, null)
+      return null
+    }
+    // A map item wears the default style of each of its style lists: no player coat applies to it.
+    const { coat, issues } = await construirePeintureArme(materiauxArmesDe(model), null, libArme)
+    if (this.disposed) return null
+    reportArme('carte', modelKey, coat, issues)
+    this.objetsCaches.set(modelKey, coat)
     return coat
   }
 

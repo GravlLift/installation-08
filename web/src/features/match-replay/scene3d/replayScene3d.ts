@@ -243,6 +243,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       grenadeModel: (rank) => this.weaponModels?.grenade(rank) ?? null,
       spartanModel: () => this.weaponModels?.spartan() ?? null,
       dressOf: (xuid) => this.armory?.dress(xuid) ?? null,
+      armurerie: () => this.armory,
       drawnWeapon: (xuid) => drawnWeapon(this.avatars.get(xuid)),
       firstPersonSlot: (f) => (this.mode === 'fp' && this.povXuid ? tracks.sample(this.povXuid, f)?.slot ?? null : null),
       rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,

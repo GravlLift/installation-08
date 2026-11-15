@@ -354,6 +354,35 @@ describe('SpartanArmory armes', () => {
     expect(armory.coatArme('1', '11111111', scene)).toBeNull()
   })
 
+  it('peindreObjet : the default style of each list, one coat per model key, cached', async () => {
+    const { io, fetchJson } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), [], undefined, '/armes', io)
+    const sceneA = weaponScene()
+    const sceneB = weaponScene()
+    const p = armory.peindreObjet('11111111', sceneA)
+    // Null while pending, ready once the coat covers the model.
+    expect(armory.coatObjet('11111111', sceneA)).toBeNull()
+    const coat = await p
+    expect(coat?.size).toBe(1)
+    // The default style of the list (no gradient in the test table): zone lit, layer -1.
+    expect(Array.from([...coat!.values()][0].paint.data.slice(0, 2))).toEqual([1, -1])
+    expect(armory.coatObjet('11111111', sceneA)).toBe(coat)
+    // A second request for the same key reuses the coat (one fetch of the table) ; a different
+    // key paints its own model.
+    expect(armory.peindreObjet('11111111', sceneB)).toBe(p)
+    expect(fetchJson).toHaveBeenCalledTimes(1)
+    const p2 = armory.peindreObjet('22222222', sceneB)
+    expect(p2).not.toBe(p)
+    expect((await p2)?.size).toBe(1)
+  })
+
+  it('peindreObjet : sans bibliothèque des armes, null', async () => {
+    const { io } = fakeIO()
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), [])
+    expect(await armory.peindreObjet('11111111', weaponScene())).toBeNull()
+    expect(armory.coatObjet('11111111', weaponScene())).toBeNull()
+  })
+
   /** Le revêtement d'arme `2c5251bc` : la liste `f00dface` prend le style `036e9dd8` de la table. */
   function coatingArmes(): CoatingFile {
     return { style: '2c5251bc', lists: { f00dface: '036e9dd8' }, styles: {} }

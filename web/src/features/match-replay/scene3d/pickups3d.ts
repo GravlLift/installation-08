@@ -53,6 +53,7 @@ import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
+import { poserRevêtementArme } from './avatar3d'
 
 /** La boîte d'arme : longueur, hauteur, largeur (u). */
 const BOX_LENGTH = 0.5
@@ -419,6 +420,14 @@ export class Pickups3dLayer implements ActionLayer3d {
   private readonly glowMaterials: THREE.Material[] = []
   private filterKey = ''
   private shownGround: GroundSpot[] = []
+  /** The model keys this layer has already asked to paint (one request per model key, armory-side and layer-side). */
+  private readonly peintsDemandes = new Set<string>()
+  /** The painted map-item model per source model (its default-style coat, `armurerie.coatObjet`); null while the coat is pending. */
+  private readonly painted = new Map<THREE.Object3D, THREE.Object3D | null>()
+  /** The painted copies (owned by this layer, with their painted materials). */
+  private readonly paintedModels: THREE.Object3D[] = []
+  /** The painted materials, disposed with the layer (a painted model's and its glow copy's clones share them). */
+  private readonly paintedMaterials: THREE.Material[] = []
 
   constructor(ctx: ActionContext) {
     this.ctx = ctx
@@ -436,8 +445,45 @@ export class Pickups3dLayer implements ActionLayer3d {
     installDebugHook(this)
   }
 
+  /**
+   * objetPeint — the painted form of a loaded map-item `model` (its default-style coat, one per
+   * model key, `armurerie.coatObjet`); the bare model while the coat is pending. A map item is
+   * painted before its glow copy, so the glow keeps the paint's shader hooks. Equipment objects
+   * and a scene with no weapon library stay bare.
+   */
+  private objetPeint(id: string, model: THREE.Object3D): THREE.Object3D {
+    const armurerie = this.ctx.armurerie?.()
+    const key = weaponModelKey(id)
+    const coat = armurerie && key ? armurerie.coatObjet(key, model) : null
+    if (!coat) return model
+    const cache = this.painted.get(model)
+    if (cache) return cache
+    const copie = model.clone()
+    for (const m of poserRevêtementArme(copie, coat).values()) this.paintedMaterials.push(m)
+    this.paintedModels.push(copie)
+    this.painted.set(model, copie)
+    return copie
+  }
+
+  /**
+   * sansOmbre — a weapon pad and rack item casts no shadow (`castShadow = false` on every mesh,
+   * the glow copy included): a camera-following light casts its dark copy on the floor behind the
+   * item, and the floating weapon reads as lying on the ground. The painted copy is shared per
+   * source model, so the flag is set once per copy; `receiveShadow` stays.
+   */
+  private sansOmbre(item: THREE.Object3D): THREE.Object3D {
+    item.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.castShadow = false
+    })
+    return item
+  }
+
   update(frame: number): void {
     const { show, inks } = this.ctx.inputs()
+    // Les objets de la carte chargés se peignent en fond de leur style par défaut (une fois par
+    // clé de modèle) ; l'image les montre nus tant que la peinture n'est pas prête.
+    for (const spot of this.pads) this.preparerObjet(spot.pad.weapon)
+    for (const spot of this.groundSpots.values()) this.preparerObjet(spot.item.w)
     this.solidBoxes.begin()
     this.ghostBoxes.begin()
     this.models.begin()
@@ -446,6 +492,23 @@ export class Pickups3dLayer implements ActionLayer3d {
     if (show.groundWeapons) this.paintGround(frame, inks.pad, show.groundWeaponsSpecialOnly, show.groundWeaponsStarting)
     this.solidBoxes.end()
     this.ghostBoxes.end()
+  }
+
+  /**
+   * preparerObjet demande en fond la peinture du style par défaut de l'objet `id` quand son
+   * modèle est chargé : l'armurerie cache la peinture par clé de modèle (dix socles de la même
+   * arme se peignent une fois). Objet d'équipement (pas de clé de modèle) ou scène sans
+   * bibliothèque des armes : rien.
+   */
+  private preparerObjet(id: string): void {
+    const armurerie = this.ctx.armurerie?.()
+    const key = weaponModelKey(id)
+    if (!armurerie || !key) return
+    if (this.peintsDemandes.has(key)) return
+    const model = this.ctx.weaponModel(id)
+    if (!model) return
+    this.peintsDemandes.add(key)
+    void armurerie.peindreObjet(key, model)
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {
@@ -461,8 +524,9 @@ export class Pickups3dLayer implements ActionLayer3d {
       if (spot.mounted) {
         // A wall rack: only the game's weapon model is posed, at its height; the glow marks it
         // as a floating item (a rack's own weapon is drawn bare and still, in `paintRack`).
-        const model = this.ctx.weaponModel(spot.pad.weapon)
-        if (!model) continue
+        const source = this.ctx.weaponModel(spot.pad.weapon)
+        if (!source) continue
+        const model = this.sansOmbre(this.objetPeint(spot.pad.weapon, source))
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p.copy(spot.feet), q)
         Object.assign(last, { drawn: 'model', pos: p.clone() })
@@ -472,7 +536,9 @@ export class Pickups3dLayer implements ActionLayer3d {
       if (!look) continue
       p.copy(spot.feet).setY(spot.feet.y + PAD_BOX_LIFT + BOX_HEIGHT / 2)
       q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
-      const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
+      const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
+      let model: THREE.Object3D | null = null
+      if (source) model = this.sansOmbre(this.objetPeint(spot.pad.weapon, source))
       if (model) {
         if (spot.slot === 'equipment') {
           // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
@@ -522,6 +588,7 @@ export class Pickups3dLayer implements ActionLayer3d {
       }
       glow.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return
+        o.castShadow = false
         o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material)
       })
       this.glows.set(model, glow)
@@ -544,7 +611,8 @@ export class Pickups3dLayer implements ActionLayer3d {
     const look = padBoxLook(state)
     if (!look) return
     const { p } = this.scratch
-    const model = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
+    const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
+    const model = source ? this.sansOmbre(this.objetPeint(spot.pad.weapon, source)) : null
     if (model) {
       if (rack.model !== model || !rack.offset) {
         rack.model = model
@@ -590,7 +658,8 @@ export class Pickups3dLayer implements ActionLayer3d {
       if (!look) continue
       // Une arme au sol garde son modèle jusqu'au bout, disparition non datée comprise : la boîte
       // n'est que le repli d'un modèle absent.
-      const model = this.ctx.weaponModel(spot.item.w)
+      const source = this.ctx.weaponModel(spot.item.w)
+      const model = source ? this.objetPeint(spot.item.w, source) : null
       if (model) {
         if (spot.model !== model || !spot.pose) {
           spot.model = model
@@ -628,6 +697,13 @@ export class Pickups3dLayer implements ActionLayer3d {
     this.models.dispose()
     for (const m of this.glowMaterials) m.dispose()
     this.glowMaterials.length = 0
+    // Les modèles peints (et leurs copies posées) sont les nôtres ; les matériaux peints aussi
+    // (les clones des copies partagent ceux de la copie peinte).
+    for (const painted of this.paintedModels) this.ctx.root.remove(painted)
+    this.paintedModels.length = 0
+    for (const m of this.paintedMaterials) m.dispose()
+    this.paintedMaterials.length = 0
+    this.painted.clear()
   }
 }
 

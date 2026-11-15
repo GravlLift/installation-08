@@ -13,7 +13,7 @@
  *  - interrupteur éteint : les lots restent vides.
  */
 import * as THREE from 'three'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { ReplayGroundWeapon } from '@/lib/api/types'
 import type { ReplayDocumentReady, ReplayWeaponPadReady } from '@/lib/replay/replayNormalize'
@@ -21,6 +21,7 @@ import type { ReplayDocumentReady, ReplayWeaponPadReady } from '@/lib/replay/rep
 import type { Action3dInputs, Action3dShow } from './action3dInputs'
 import type { Ground, InkCache } from './actionKit'
 import type { ActionContext } from './actionScene3d'
+import type { Coat } from './armorCoat3d'
 import { FlashLights } from './flash3d'
 import {
   floorUnder,
@@ -294,13 +295,14 @@ describe('Pickups3dLayer', () => {
   }
 
   /** Le sol par défaut est plat ; un test passe le sien pour placer un râtelier mural. */
-  type SurDoc = { weaponPads?: ReplayWeaponPadReady[]; mapWeaponPads?: ReplayDocumentReady['mapWeaponPads'] }
+  type SurDoc = { weaponPads?: ReplayWeaponPadReady[]; mapWeaponPads?: ReplayDocumentReady['mapWeaponPads']; groundWeapons?: ReplayDocumentReady['groundWeapons'] }
   function calque(
     montrer: Action3dShow,
     weaponModel: ActionContext['weaponModel'] = () => null,
     surDoc: SurDoc = {},
     sol: Pick<Ground, 'floorY'> = SOL_PLAT,
     encre: THREE.Color = new THREE.Color(0xff8c1a),
+    armurerie: ActionContext['armurerie'] = () => null,
   ): { layer: Pickups3dLayer; counts: () => number[]; root: THREE.Group } {
     const root = new THREE.Group()
     const doc = {
@@ -332,6 +334,7 @@ describe('Pickups3dLayer', () => {
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,
+      armurerie,
       drawnWeapon: () => null,
       firstPersonSlot: () => null,
       flashes: new FlashLights(new THREE.Scene()),
@@ -627,6 +630,151 @@ describe('Pickups3dLayer', () => {
     expect((floating.material as THREE.MeshStandardMaterial).emissive.getHex()).not.toBe(0)
     expect(mat.emissive.getHex()).toBe(0) // the source keeps its own material
     expect(rackCopy.material).toBe(mat) // a rack weapon is bare
+    layer.dispose()
+  })
+
+  /** The fake armory: the default-style coat of `key` (its painted materials) once the coat is ready. */
+  function armurerieFausse(mat: THREE.MeshStandardMaterial, key = '00000001') {
+    // A painted material, as `armorMaterial` builds it: the raw masks by reference and the
+    // shader hook the glow copy must keep.
+    const uniforms: Record<string, unknown> = {}
+    const painted: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial()
+    painted.userData = { ...mat.userData, armorUniforms: uniforms }
+    painted.onBeforeCompile = (shader: { uniforms: Record<string, unknown> }) => {
+      Object.assign(shader.uniforms, uniforms)
+    }
+    const paint = {
+      maps: { asg: null, mask0: null, mask1: null },
+      paint: { data: new Float32Array(8 * 6 * 4), globals: [0, 0, 1, 1] as [number, number, number, number], offset: [0, 0] as [number, number] },
+      gradients: { value: new THREE.DataArrayTexture(new Uint8Array(4), 1, 1, 1) },
+    }
+    let promise: Promise<Coat | null> | null = null
+    let resolveCoat: (c: Coat | null) => void = () => {}
+    let ready = false
+    const coat = new Map<THREE.Material, typeof paint>([[mat, paint]])
+    return {
+      // The coat stays pending until `ready` is called: the items are drawn bare in between.
+      ready: () => { ready = true; resolveCoat(coat) },
+      painted,
+      peindreObjet: vi.fn((k: string, _model: THREE.Object3D) => {
+        if (k !== key) return Promise.resolve(null)
+        if (!promise) promise = new Promise<Coat | null>((resolve) => { resolveCoat = resolve })
+        return promise
+      }),
+      coatObjet: (k: string, _model: THREE.Object3D): Coat | null => {
+        if (k !== key || !ready) return null
+        const mats = new Set<THREE.Material>()
+        _model.traverse((o) => { if (o instanceof THREE.Mesh && (o.material as THREE.Material).userData.armorMaps) mats.add(o.material as THREE.Material) })
+        return [...mats].every((m) => m === mat) ? coat : null
+      },
+    }
+  }
+
+  it('pads and ground weapons wear their default-style paint: one coat per model key, glow keeps it', async () => {
+    // A model whose painted materials (raw masks + style) the armory knows.
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6c6f76 })
+    mat.userData.armorMaps = { asg: null, mask0: null, mask1: null }
+    mat.userData.style = { stylelist: 'f00dface', region: '0b7e328b', intentions: ['229d91fa'], layers: 1, texel_density: [1, 1], offset: [0, 0] }
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02), mat)
+    const fake = armurerieFausse(mat)
+    expect(fake.painted.onBeforeCompile).toBeInstanceOf(Function)
+    const cross = {
+      catalogN: 0,
+      pads: [
+        { ...RACK_AT, pad: 0, family: 'power', forward: [0, -1, 0], up: [0, 0, 1] },
+      ],
+    } as ReplayDocumentReady['mapWeaponPads']
+    // The pad holds a hex weapon whose family key is `00000001`, the same key the ground weapon
+    // carries: one coat per model key, shared between the pad and the ground.
+    const hexSniper = '0x00000001'
+    const { layer, root } = calque(
+      show,
+      () => model,
+      {
+        weaponPads: [socle({ ...RACK_AT, weapon: hexSniper })],
+        mapWeaponPads: cross,
+        groundWeapons: [arme({ w: SNIPER })],
+      },
+      { floorY: () => 4.7 },
+      new THREE.Color(0xff8c1a),
+      () => fake as unknown as import('./armory3d').SpartanArmory,
+    )
+    // The pad and the ground weapon name the same model key: ONE request for the default-style
+    // coat (ten pads of the same weapon paint once).
+    layer.update(15)
+    expect(fake.peindreObjet).toHaveBeenCalledTimes(1)
+    expect(fake.peindreObjet.mock.calls[0][0]).toBe('00000001')
+    // While the coat is pending the items are drawn from the bare model: the ground weapon wears
+    // its source material, and the pad's glow copy tints that same bare material (the pad item is
+    // always a glow copy, so its material is a glow tint, not the source).
+    const barePad = root.children[2] as THREE.Mesh
+    const bareGround = root.children[3] as THREE.Mesh
+    expect(bareGround.material).toBe(mat) // the ground weapon is bare (no glow on the ground)
+    const barePadGlow = barePad.material as THREE.MeshStandardMaterial
+    expect(barePadGlow.emissiveIntensity).toBe(GLOW_EMISSIVE) // the pad item is the glow copy
+    // Unpainted: the glow tint is over the bare material (not a paint material, no armor uniforms).
+    expect(barePadGlow).not.toBe(mat)
+    expect(barePadGlow.userData.armorUniforms).toBeUndefined()
+    await new Promise((r) => setTimeout(r, 5))
+    fake.ready()
+    // The painted model is swapped in: the layer caches one painted copy per source model, so the
+    // item objects are stable and the swap is their material (no flicker loop: one request per
+    // model key). The ground weapon wears the painted material directly; the pad's glow tints it.
+    layer.update(19)
+    expect(fake.peindreObjet).toHaveBeenCalledTimes(1)
+    // The painted copies are swapped in: the ground weapon wears the painted material directly,
+    // and the pad's glow tints it. Select the painted items by their coat (armor uniforms), not
+    // by index (the pool reuses hidden bare objects, so the painted copies sit at fresh indices).
+    const painted = root.children.filter((c) => {
+      const m = (c as THREE.Mesh).material as THREE.Material | undefined
+      return m && !!(m.userData as { armorUniforms?: unknown }).armorUniforms
+    }) as THREE.Mesh[]
+    const ground = painted.find((c) => (c.material as THREE.MeshStandardMaterial).emissiveIntensity !== GLOW_EMISSIVE)
+    const glow = painted.find((c) => (c.material as THREE.MeshStandardMaterial).emissiveIntensity === GLOW_EMISSIVE)
+    expect(ground).toBeDefined() // the ground weapon wears the painted material
+    expect((ground!.material as THREE.Material).userData.armorUniforms).toBeDefined()
+    expect((ground!.material as THREE.Material).userData.armorMaps).toBeDefined()
+    expect(glow).toBeDefined() // the pad's glow tints the painted material
+    expect((glow!.material as THREE.Material).userData.armorUniforms).toBeDefined()
+    expect((glow!.material as THREE.MeshStandardMaterial).emissiveIntensity).toBe(GLOW_EMISSIVE)
+    layer.dispose()
+  })
+
+  it('a pad item and its glow cast no shadow, a rack weapon either (the camera light cast a dark copy on the floor behind them)', () => {
+    const mat = new THREE.MeshStandardMaterial()
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02), mat)
+    model.castShadow = true // the game's GLB casts; the layer must switch it off
+    const cross = {
+      catalogN: 0,
+      pads: [
+        { ...RACK_AT, pad: 0, family: 'equipment', forward: [0, -1, 0], up: [0, 0, 1] },
+        { ...RACK_AT, family: 'rack', forward: [0, -1, 0], up: [0, 0, 1] },
+      ],
+    } as ReplayDocumentReady['mapWeaponPads']
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      {
+        weaponPads: [
+          socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }),
+          socle(RACK_AT),
+        ],
+        mapWeaponPads: cross,
+      },
+    )
+    layer.update(15)
+    // Copies come after the box pools, in paint order: the floating equipment item (a glow copy),
+    // then the rack weapon (bare).
+    for (const child of root.children.slice(2)) {
+      const meshes: THREE.Mesh[] = []
+      child.traverse((o) => { if (o instanceof THREE.Mesh) meshes.push(o) })
+      expect(meshes.length).toBeGreaterThan(0)
+      for (const mesh of meshes) expect(mesh.castShadow).toBe(false)
+    }
+    // The glow copy never casts either.
+    const floating = root.children[2] as THREE.Mesh
+    expect(floating.castShadow).toBe(false)
+    expect((floating.material as THREE.MeshStandardMaterial).emissive.getHex()).not.toBe(0)
     layer.dispose()
   })
 
