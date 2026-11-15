@@ -89,6 +89,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     geometry index through an `Arsenal` method because no external package can, mirroring the
     existing `Grenade` pattern. Serves the standalone weapon-library build
     (`cmd/infinite-theater-3d build-weapons`).
+  - `himap/premiere_personne_actions.go`, `himap/premiere_personne_rig.go` (LOCAL-CHANGE): the
+    first-person rig also bakes the fifth equipment set's `equipment_activate` (drop wall and
+    repair field), named by its StringID form `#6132b1e2` because no dictionary has found its text
+    (`JeuMurDeploye`); `ClipsDeLActionDuJeu` accepts a label in that form
+    (`EtiquetteCherchee`). Covered by `himap/premiere_personne_actions_test.go` (new) and
+    `himap/premiere_personne_jeux_gamefiles_test.go` (new), which reads each family A ability's
+    item set field (eqip root +0x904, word +0x338).
   - `himap/terrain_melange.go`, `himap/terrain_melange_bake.go` (new, LOCAL-CHANGE) and
     `terrain_collecte.go`, `terrain_maillage.go`, `maillage_monde.go` (modified): an `rtrn`
     terrain now publishes its palette blend instead of one palette color. Each node's weight

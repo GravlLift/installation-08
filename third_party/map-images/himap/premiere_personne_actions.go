@@ -13,7 +13,11 @@
 // meme action (`moving` -> `moving:var1` -> `moving:var2`) ; l'action designe la premiere.
 package himap
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // PrefixeNomPremierePersonne : le nom du jeu d'une animation FP est ce prefixe suivi de l'action.
 const PrefixeNomPremierePersonne = "first_person:"
@@ -68,9 +72,10 @@ func (gs *GraphesAnimation) ClipsDeLAction(action string, parNom bool) ([]ClipAc
 
 // ClipsDeLActionDuJeu rend les animations de l'action `action` sous le jeu `jeu` (chemin
 // `any / any / any / <jeu> / <action>`) et leurs variantes ; l'action des clips rendus est
-// NomActionDuJeu(jeu, action). Vide quand l'arbre ne la porte pas.
+// NomActionDuJeu(jeu, action). Vide quand l'arbre ne la porte pas. `jeu` is a label text or, for a
+// label whose text is unknown, its StringID form `#<8 hex digits>` (EtiquetteCherchee).
 func (gs *GraphesAnimation) ClipsDeLActionDuJeu(jeu, action string) ([]ClipAction, error) {
-	chemin := [NiveauxModes]string{"any", "any", "any", fmt.Sprintf("#%08x", NomAnimation(jeu)), fmt.Sprintf("#%08x", NomAnimation(action))}
+	chemin := [NiveauxModes]string{"any", "any", "any", EtiquetteCherchee(jeu), EtiquetteCherchee(action)}
 	nom := NomActionDuJeu(jeu, action)
 	g, rang, err := gs.designeeSurchargee(chemin)
 	if err != nil {
@@ -80,6 +85,18 @@ func (gs *GraphesAnimation) ClipsDeLActionDuJeu(jeu, action string) ([]ClipActio
 		return nil, nil
 	}
 	return chaineDeVariantes(nom, SourceArbre, g, rang), nil
+}
+
+// EtiquetteCherchee (LOCAL-CHANGE) returns the `#<StringID>` form Cherche matches for a mode-tree
+// label: `nom` itself when it already is that form (a label whose text no dictionary has found),
+// the StringID of its text otherwise.
+func EtiquetteCherchee(nom string) string {
+	if len(nom) == 9 && nom[0] == '#' {
+		if _, err := strconv.ParseUint(nom[1:], 16, 32); err == nil {
+			return strings.ToLower(nom)
+		}
+	}
+	return fmt.Sprintf("#%08x", NomAnimation(nom))
 }
 
 // NomDuJeuPremierePersonne rend le nom du jeu de l'animation qu'une action d'un jeu designe : les
