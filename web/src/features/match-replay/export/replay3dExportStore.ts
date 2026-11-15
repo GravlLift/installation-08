@@ -49,7 +49,11 @@ export interface Replay3DExportSource {
   readonly players: readonly { xuid: string; name: string }[]
   /** Prend la scène : rendu à la taille du fichier, caméra et joueur suivi posés, vue d'écran muette. */
   beginExport(setup: Export3dSetup): void
-  /** Pose l'image `frame` et la rend. La toile rendue ne se lit que dans la même tâche. */
+  /**
+   * Poses frame `frame`, renders it and returns a 2D canvas read out of the drawing buffer right
+   * after the render (`exportReadback3d`), valid until the next call. Never the WebGL canvas: in a
+   * hidden tab that one kept serving the first exported image.
+   */
   exportFrame(frame: number): HTMLCanvasElement
   /** Les étiquettes visibles de la dernière image rendue. */
   exportTags(): readonly ExportTag3d[]

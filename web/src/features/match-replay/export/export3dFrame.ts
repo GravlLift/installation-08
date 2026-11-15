@@ -1,5 +1,5 @@
 /** Compose the rendered 3D scene, player labels, optional minimap, and overlays into a video frame.
- * Copy the WebGL canvas in the same task as rendering because its drawing buffer is not preserved.
+ * The 3D image is a 2D canvas the scene filled from its drawing buffer (`exportReadback3d`), valid until its next frame.
  * Both export formats use the same 960x540 logical layout at their respective pixel densities. */
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 import type { ExportFormat } from './exportFormats'

@@ -9,6 +9,7 @@ import type { Avatar } from './avatar3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { PostFx3d } from './postFx3d'
 import type { Lighting } from './lighting'
+import { ExportReadback3d } from './exportReadback3d'
 
 /** Les éléments de scène utilisés par l'export et les opérations qui conservent son état. */
 interface ExportScene {
@@ -67,6 +68,8 @@ export class ReplayExportScene3d {
   private readonly scene: ExportScene
   /** The previous exported frame, and the match duration of a document frame (ms). */
   private clock = { previous: 0, frameMs: 0 }
+  /** Copies each rendered frame out of WebGL (`exportFrame`). */
+  private readonly readback = new ExportReadback3d()
 
   constructor(scene: ExportScene) { this.scene = scene }
 
@@ -121,7 +124,10 @@ export class ReplayExportScene3d {
     }
     this.scene.lighting.updateShadows(frame)
     this.scene.post.composer.render()
-    return this.scene.renderer.domElement
+    // The frame is read out of the drawing buffer HERE, never through the WebGL canvas: a hidden
+    // tab serves the canvas's last composited image (cf. `exportReadback3d`).
+    this.scene.renderer.setRenderTarget(null)
+    return this.readback.read(this.scene.renderer.getContext())
   }
 
   /** Projette les étiquettes visibles dans le format vidéo. */
@@ -149,6 +155,7 @@ export class ReplayExportScene3d {
     const held = this.held
     if (!held) return
     this.held = null
+    this.readback.dispose()
     this.scene.setSkyClock?.(null)
     this.scene.renderer.setPixelRatio(held.pixelRatio)
     this.scene.post.composer.setPixelRatio(held.pixelRatio)
