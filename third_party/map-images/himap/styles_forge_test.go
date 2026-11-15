@@ -201,6 +201,51 @@ func TestZonesStyleCouches(t *testing.T) {
 	}
 }
 
+// TestStyleBlankUni : a style layer naming the empty swatch (Forge's "Blank") with a color draws
+// that color flat on the zone, with the zone's own maps; without a color it leaves the zone to the
+// material, as before. Fortress's Forerunner Platform panels name Blank with a near-black brown on
+// their Mask0 R zone and drew the material's own pale blue-grey there.
+func TestStyleBlankUni(t *testing.T) {
+	jeu := echantillonForge(func(nom int32) (*Couche, bool) {
+		if nom == 5 {
+			return nil, true // Blank: known, no maps
+		}
+		return nil, false
+	})
+	brun := &mapvar.Vec3{X: 0.055, Y: 0.053, Z: 0.03}
+	styles := map[int32][]mapvar.StyleLayer{
+		7: {{Hash: 5}, {Hash: 5, Tint: brun, Scalar: 0.6}},
+	}
+	got := resoutStylesForge(jeu, styles, nil)
+	s := got[7]
+	if s == nil || s.Zones[0] != nil {
+		t.Fatalf("style %+v: an uncolored Blank must leave its zone to the material", s)
+	}
+	u := s.Zones[1]
+	want := [3]float32{0.055, 0.053, 0.03}
+	if u == nil || u.Bitmap != 0 || !procheRGB(u.Haut, want) || !procheRGB(u.Milieu, want) || !procheRGB(u.Bas, want) {
+		t.Fatalf("Blank layer = %+v, want flat %v", u, want)
+	}
+
+	zs := zonesTest()
+	c := zs.couches(s) // the style names no grime: the material's is replaced by none
+	if c == nil || len(c.Couches) != 3 {
+		t.Fatalf("couches %+v", c)
+	}
+	if k := c.Couches[0]; k.Bitmap != 0x10 {
+		t.Errorf("base = %+v, want the material's own", k)
+	}
+	if k := c.Couches[1]; k.Bitmap != 0x20 || !procheRGB(k.Milieu, want) || !procheRGB(k.Haut, want) || k.Normale != 0xA0 {
+		t.Errorf("Mask0 R zone = %+v, want the zone's maps in flat %v", k, want)
+	}
+
+	// A flat layer on a zone with no swatch of its own borrows the first lit zone's maps.
+	zs.zones[1].k = nil
+	if k := zs.couches(s).Couches[1]; k.Bitmap != 0x10 || !procheRGB(k.Milieu, want) {
+		t.Errorf("borrowed = %+v", k)
+	}
+}
+
 // TestZonesStyleBaseVide : a material whose base zone draws nothing (a Forge cloth or decal plane,
 // its surface on Mask0 R) takes the style's first layer on its first lit zone, which then covers
 // the surface; the empty base stays off. Fortress's red and blue team banners drew the material's

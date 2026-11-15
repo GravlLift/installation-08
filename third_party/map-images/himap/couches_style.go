@@ -465,6 +465,28 @@ type zoneStyle struct {
 	source SourcePoids
 }
 
+// unie : a style layer k as the zone draws it. A flat layer (coucheUnie, no bitmap) takes the
+// maps of the zone's own swatch `propre`, else of the material's first lit zone, with its single
+// color on all three gradient stops; without any swatch to lend maps it draws nothing (nil).
+func (zs *ZonesStyle) unie(k, propre *Couche) *Couche {
+	if k == nil || k.Bitmap != 0 {
+		return k
+	}
+	preteur := propre
+	for _, z := range zs.zones {
+		if preteur != nil {
+			break
+		}
+		preteur = z.k
+	}
+	if preteur == nil {
+		return nil
+	}
+	u := *preteur
+	u.Haut, u.Milieu, u.Bas = k.Haut, k.Milieu, k.Bas
+	return &u
+}
+
 // premiereZone : the number of the material's first lit zone, the one an object's Forge style
 // layer 1 paints; 0 when no zone is lit. MEASURED (Fortress, dea65712): every material whose base
 // zone is unlit is a Forge cloth or decal plane (shader 0x7705398e, Mask0 R = its ASG cut
@@ -497,7 +519,7 @@ func (zs *ZonesStyle) couches(s *StyleForge) *Couches {
 	for _, z := range zs.zones {
 		k := z.k
 		if r := z.numero - decalage; s != nil && r >= 0 && r < len(s.Zones) && s.Zones[r] != nil {
-			k = s.Zones[r]
+			k = zs.unie(s.Zones[r], z.k)
 		}
 		if k != nil {
 			lues = append(lues, allumee{zs.params.adapte(*k), z.source})

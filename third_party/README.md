@@ -291,6 +291,12 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       0x7705398e: Fortress's team banners, moss and stain planes) have an empty base zone and
       draw their surface on Mask0 R; the style's red or blue landed on the empty base, under the
       material's own brown Mask0 R swatch.
+    - `himap/styles_forge.go` (`coucheUnie`), `couches_style.go` (`ZonesStyle.unie`): a style
+      layer naming the empty swatch (Forge's "Blank", -656357566) with a color draws that color
+      flat on its zone, with the zone's own maps (or the first lit zone's). It used to resolve to
+      nothing and leave the zone to the material: Fortress's Forerunner Platform panels in the
+      blue tower name Blank in near-black brown on Mask0 R and drew the material's pale
+      blue-grey there. A Blank layer without a color still leaves the zone to the material.
     Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
     `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Variant.Lighting` reads the variant's
