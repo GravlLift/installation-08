@@ -1,7 +1,7 @@
 /**
  * playerMarkers3d_logic.ts — pure geometry of the top-down player markers: which way each
  * living player's disc faces, how a player on another floor than the drawn one is dimmed and
- * chevroned, the marker's size on screen, and where each name tag goes so tags do not pile up.
+ * given a level arrow, the marker's size on screen, and where each name tag goes so tags do not pile up.
  *
  * Scene axes: X/Z on the floor, Y up (three.js). A marker keeps a fixed size in screen pixels
  * whatever the map's extent or the zoom, so it reads the same on a small arena and on a big team map.
@@ -10,8 +10,11 @@ import { CUT_HEADROOM } from './topDownLogic'
 
 /** Radius of a marker disc on screen (CSS px). */
 export const MARKER_RADIUS_PX = 9
-/** Opacity of a marker (and its tag) on another floor than the drawn one. */
-export const DIMMED_MARKER_OPACITY = 0.45
+/**
+ * Opacity of a marker (and its tag) on another floor than the drawn one: a modest step down, so a
+ * player upstairs or downstairs still reads at a glance; his level arrow (`levelArrow`) says which.
+ */
+export const DIMMED_MARKER_OPACITY = 0.75
 /**
  * How far under the followed player's floor (u) a player stands before he counts as on a
  * lower floor: past a flight of stairs, short of the next storey (Halo storeys are ~2 u apart).
@@ -59,6 +62,15 @@ export function topDownMarkers(players: readonly TopDownPlayerInput[], cutY: num
     const chevron = floorOf(p.y, cutY)
     return { opacity: chevron ? DIMMED_MARKER_OPACITY : 1, chevron, dirX, dirZ }
   })
+}
+
+/**
+ * levelArrow — the arrow drawn inside the marker disc of a player on another floor: its direction
+ * on the scene's Z axis, which is the screen's vertical in the top-down view (scene -Z is screen up):
+ * -1 points up (his floor is above the drawn one), 1 points down (below it), 0 draws no arrow.
+ */
+export function levelArrow(chevron: MarkerGeometry['chevron']): -1 | 0 | 1 {
+  return chevron === 'above' ? -1 : chevron === 'below' ? 1 : 0
 }
 
 /** dirOf — a yaw (degrees) as a unit XZ direction on the floor, in three axes. */

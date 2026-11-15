@@ -7,7 +7,7 @@
  * from straight above, cut a headroom over the highest walked floor (so no roof), is rendered once
  * into an image (`renderTopImage`), and that image lies flat under everything the cut view draws, at
  * the bottom of its depth range. The current floor and the floors seen below it through openings
- * cover it, fully painted; where the cut view has nothing, the floor above shows through, dimmed and
+ * cover it, fully painted; where the cut view has nothing, the floor above shows through, light and
  * half transparent over the studio color, so the map's whole outline is always there and a player
  * upstairs stands on something. A floor that overhangs the current one (a bridge over a hall) is not
  * drawn over it: the current floor stays the clear one.
@@ -22,9 +22,13 @@ import { TOP_LIFT } from './topDownStage3d'
 
 /** The ghost image's side (px): about 50 px per unit on an arena (Recharge, ~43 u across), 7 on a 300 u team map. */
 const GHOST_PX = 2048
-/** The ghost's color share and opacity over the studio color: the floor above, clearly subordinate. */
-const GHOST_TINT = 0.45
-const GHOST_OPACITY = 0.6
+/**
+ * The ghost's tint and opacity over the studio color: the floor above as a light, cool, translucent
+ * layer, its layout plain (it is drawn in the flat light) but clearly not the floor being followed,
+ * which is fully painted and shaded around his height.
+ */
+const GHOST_TINT: readonly [number, number, number] = [0.9, 0.95, 1]
+const GHOST_OPACITY = 0.5
 /** How far over the bottom of the cut view's depth range the ghost lies (u). */
 const GHOST_LIFT = 0.02
 
@@ -54,6 +58,8 @@ export interface TopImage {
   keep?: readonly THREE.Object3D[]
   /** Clear to the studio color (true) or leave the background empty, alpha 0 (false, the default). */
   clear?: boolean
+  /** The followed player's floor (scene Y) the map is shaded around; none for an even image (the ghost). */
+  floorY?: number | null
 }
 
 /** placeTopCamera — an orthographic camera straight down over a square, near plane on the cut. */
@@ -73,7 +79,7 @@ export function renderTopImage(img: TopImage): void {
   const savedTarget = renderer.getRenderTarget()
   const savedAlpha = renderer.getClearAlpha()
   renderer.setClearAlpha(0)
-  img.stage.run({ mapOnly: true, keep: img.keep, clear: img.clear ?? false }, () => {
+  img.stage.run({ mapOnly: true, keep: img.keep, clear: img.clear ?? false, floorY: img.floorY ?? null }, () => {
     renderer.setRenderTarget(target)
     renderer.clear()
     renderer.render(img.stage.scene, img.camera)
@@ -104,7 +110,7 @@ export class TopDownGhost {
     this.lowestY = lowestY
     const material = new THREE.MeshBasicMaterial({
       map: this.target.texture,
-      color: new THREE.Color(GHOST_TINT, GHOST_TINT, GHOST_TINT),
+      color: new THREE.Color(...GHOST_TINT),
       transparent: true,
       opacity: GHOST_OPACITY,
       depthWrite: false,

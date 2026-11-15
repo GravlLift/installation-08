@@ -1,7 +1,9 @@
 /**
  * playerMarkers3d.ts — the top-down player markers: one filled disc at each living player's
- * feet in his team color, a wedge out of it where he is facing, a ring around the followed
- * player, and a cross where a dead player fell, until he is back. Pure geometry
+ * feet in his team color, a wedge out of it where he is facing, a light arrow inside it when he is
+ * on another floor than the drawn one (up or down, `levelArrow`), a ring around the followed
+ * player, and a cross where a dead player fell, until he is back. Every living player gets one,
+ * whatever his floor: the marker is drawn over the scene, never cut or fogged with it. Pure geometry
  * (`playerMarkers3d_logic`) decides facing, dimming, size and tag places; this file owns the pooled
  * meshes and poses them in the scene. Drawn only in the top-down view.
  *
@@ -13,7 +15,7 @@
  * outside the camera's depth range.
  */
 import * as THREE from 'three'
-import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, TAG_OFFSET_PX, declutterTags, floorOf, topDownMarkers, type MarkerGeometry, type TagPlace } from './playerMarkers3d_logic'
+import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, TAG_OFFSET_PX, declutterTags, floorOf, levelArrow, topDownMarkers, type MarkerGeometry, type TagPlace } from './playerMarkers3d_logic'
 import type { Avatar } from './avatar3d'
 
 /** One living player's marker pose at a frame, in scene axes. */
@@ -42,6 +44,10 @@ const WEDGE_HALF = 0.6
 /** Under a disc, in disc radii: the light edge, and the dark halo around it. */
 const EDGE_SCALE = 1.25
 const HALO_SCALE = 1.5
+/** The level arrow inside the disc, in disc radii: its tip and its base from the center, its half width. */
+const ARROW_TIP = 0.7
+const ARROW_BASE = 0.45
+const ARROW_HALF = 0.6
 /** The followed player's ring, inner and outer radius in disc radii. */
 const RING_INNER = 1.6
 const RING_OUTER = 2
@@ -85,11 +91,13 @@ interface MarkerSet {
   edge: THREE.Mesh
   disc: THREE.Mesh
   wedge: THREE.Mesh
+  arrow: THREE.Mesh
   cross: THREE.Mesh
   crossHalo: THREE.Mesh
   material: THREE.MeshBasicMaterial
   haloMaterial: THREE.MeshBasicMaterial
   edgeMaterial: THREE.MeshBasicMaterial
+  arrowMaterial: THREE.MeshBasicMaterial
 }
 
 /** A material drawn over the scene: no depth test or write, no fog, translucent when dimmed. */
@@ -97,18 +105,20 @@ function overlayMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: false, depthWrite: false, fog: false, side: THREE.DoubleSide })
 }
 
-/** The shared unit geometries (disc radius 1, flat on the floor, the wedge along +Z). */
-function unitGeometries(): Record<'disc' | 'wedge' | 'ring' | 'cross', THREE.BufferGeometry> {
+/** The shared unit geometries (disc radius 1, flat on the floor, the wedge along +Z, the arrow along -Z: screen up). */
+function unitGeometries(): Record<'disc' | 'wedge' | 'arrow' | 'ring' | 'cross', THREE.BufferGeometry> {
   const disc = new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2)
   const wedge = new THREE.BufferGeometry()
   wedge.setAttribute('position', new THREE.Float32BufferAttribute([WEDGE_HALF, 0, WEDGE_BASE, -WEDGE_HALF, 0, WEDGE_BASE, 0, 0, WEDGE_TIP], 3))
+  const arrow = new THREE.BufferGeometry()
+  arrow.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -ARROW_TIP, -ARROW_HALF, 0, ARROW_BASE, ARROW_HALF, 0, ARROW_BASE], 3))
   const ring = new THREE.RingGeometry(RING_INNER, RING_OUTER, 40).rotateX(-Math.PI / 2)
   const h = CROSS_ARM / 2
   const w = CROSS_WIDTH / 2
   const arm = (s: number) => [-h, 0, -h * s + w, -h, 0, -h * s - w, h, 0, h * s - w, -h, 0, -h * s + w, h, 0, h * s - w, h, 0, h * s + w]
   const cross = new THREE.BufferGeometry()
   cross.setAttribute('position', new THREE.Float32BufferAttribute([...arm(1), ...arm(-1)], 3))
-  return { disc, wedge, ring, cross }
+  return { disc, wedge, arrow, ring, cross }
 }
 
 export class PlayerMarkers3d {
@@ -124,6 +134,7 @@ export class PlayerMarkers3d {
   constructor(scene: THREE.Scene) {
     this.ring = new THREE.Mesh(this.geo.ring, overlayMaterial(new THREE.Color()))
     this.ring.renderOrder = ORDER_RING
+    this.ring.frustumCulled = false
     this.root.add(this.ring)
     this.root.visible = false
     scene.add(this.root)
@@ -140,7 +151,7 @@ export class PlayerMarkers3d {
   /** Remove the markers from the scene and free their geometry and materials. */
   dispose(scene: THREE.Scene): void {
     scene.remove(this.root)
-    for (const m of this.of.values()) m.material.dispose(), m.haloMaterial.dispose(), m.edgeMaterial.dispose()
+    for (const m of this.of.values()) m.material.dispose(), m.haloMaterial.dispose(), m.edgeMaterial.dispose(), m.arrowMaterial.dispose()
     this.of.clear()
     ;(this.ring.material as THREE.Material).dispose()
     for (const g of Object.values(this.geo)) g.dispose()
@@ -194,18 +205,22 @@ export class PlayerMarkers3d {
     set.halo.visible = at.view.halo !== null
     set.edge.visible = at.view.edge !== null
     set.wedge.rotation.y = Math.atan2(g.dirX, g.dirZ)
+    const arrow = levelArrow(g.chevron)
+    set.arrow.visible = arrow !== 0
+    set.arrow.rotation.y = arrow > 0 ? Math.PI : 0
     const order = g.chevron ? ORDER_DIMMED : ORDER_ON_FLOOR
     set.halo.renderOrder = order
     set.edge.renderOrder = order + ORDER_STEP
     set.disc.renderOrder = order + 2 * ORDER_STEP
     set.wedge.renderOrder = order + 2 * ORDER_STEP
+    set.arrow.renderOrder = order + 3 * ORDER_STEP
   }
 
   /** A dead player's cross where he fell, on its halo, dimmed when that is off the drawn floor. */
   private placeDead(set: MarkerSet, d: DeadPose, at: { radius: number; y: number; view: MarkerView }): void {
     const opacity = floorOf(d.feet.y, at.view.cutY) ? DIMMED_MARKER_OPACITY * DEAD_OPACITY : DEAD_OPACITY
     this.show(set, d.feet, at, opacity)
-    for (const m of [set.halo, set.edge, set.disc, set.wedge]) m.visible = false
+    for (const m of [set.halo, set.edge, set.disc, set.wedge, set.arrow]) m.visible = false
     set.cross.visible = true
     set.crossHalo.visible = at.view.halo !== null
     set.crossHalo.renderOrder = ORDER_DEAD
@@ -218,8 +233,8 @@ export class PlayerMarkers3d {
     set.root.position.set(feet.x, at.y, feet.z)
     set.root.scale.setScalar(at.radius)
     if (at.view.halo) set.haloMaterial.color.copy(at.view.halo)
-    if (at.view.edge) set.edgeMaterial.color.copy(at.view.edge)
-    for (const m of [set.material, set.haloMaterial, set.edgeMaterial]) m.opacity = opacity
+    if (at.view.edge) set.edgeMaterial.color.copy(at.view.edge), set.arrowMaterial.color.copy(at.view.edge)
+    for (const m of [set.material, set.haloMaterial, set.edgeMaterial, set.arrowMaterial]) m.opacity = opacity
   }
 
   /** The followed player's ring, around his disc in his team color. */
@@ -257,6 +272,8 @@ export class PlayerMarkers3d {
       const material = overlayMaterial(avatar.tint)
       const haloMaterial = overlayMaterial(new THREE.Color())
       const edgeMaterial = overlayMaterial(new THREE.Color())
+      // White until the page's ink is known (`show`): light on every team color.
+      const arrowMaterial = overlayMaterial(new THREE.Color(1, 1, 1))
       const root = new THREE.Group()
       const halo = new THREE.Mesh(this.geo.disc, haloMaterial)
       halo.scale.setScalar(HALO_SCALE)
@@ -267,9 +284,12 @@ export class PlayerMarkers3d {
       const crossHalo = new THREE.Mesh(this.geo.cross, haloMaterial)
       crossHalo.scale.setScalar(CROSS_HALO)
       const cross = new THREE.Mesh(this.geo.cross, material)
-      root.add(halo, edge, disc, wedge, crossHalo, cross)
+      const arrow = new THREE.Mesh(this.geo.arrow, arrowMaterial)
+      root.add(halo, edge, disc, wedge, arrow, crossHalo, cross)
+      // Map symbols: always drawn when posed, never culled against the cut camera's depth range.
+      for (const m of root.children) m.frustumCulled = false
       this.root.add(root)
-      set = { root, halo, edge, disc, wedge, cross, crossHalo, material, haloMaterial, edgeMaterial }
+      set = { root, halo, edge, disc, wedge, arrow, cross, crossHalo, material, haloMaterial, edgeMaterial, arrowMaterial }
       this.of.set(xuid, set)
     }
     return set

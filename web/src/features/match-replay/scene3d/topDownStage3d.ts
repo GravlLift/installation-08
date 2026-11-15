@@ -2,26 +2,33 @@
  * topDownStage3d.ts — what every top-down render changes on the shared scene, and gives back after
  * it: the page's studio color as background, a fog in that color that fades the floors under the
  * drawn one with their depth, the helpers that have no place in a map (sky, structure back faces)
- * hidden, and the light of a map seen from above.
+ * hidden, the surfaces that only dress the layout left out (`hiddenFromTop`: foliage, coarse decor,
+ * decals), and the light of a map seen from above.
  *
  * The light: the 3D view's low sun and its shadow map make sunlit pools under every skylight and
  * dark bands under every beam, readable from eye height but not from above, where they read as the
- * map's colors. Seen from above the sun is put out: the floors take the sky, the probes' and the
- * game's baked light only (the ambient and environment terms), so every material keeps its own
- * color and the floors are evenly lit. A soft overhead sun was tried and dropped: a light straight
- * down, seen straight down, puts its specular peak on every flat floor, and the metal floors read
- * white (the "white slab" the map read as when the shadows alone were off, with the low sun).
+ * map's colors; the game's lamps and baked light and the probes' reflections do the same with hot
+ * spots and skylight pools. Seen from above the map takes one flat light instead (`topDownShade3d`),
+ * so every floor is evenly lit and keeps its own color, and the sun is put out for what is not the
+ * map (the players' bodies). A soft overhead sun was tried and dropped: a light straight down, seen
+ * straight down, puts its specular peak on every flat floor, and the metal floors read white.
  */
 import * as THREE from 'three'
 
 import { BACK_FACE_NAME } from './backFaces3d'
 import { cssColor } from './cssColor'
-import { CUT_HEADROOM } from './topDownLogic'
+import { drawnBy, surfaceFamily } from './surfaceProbe3d'
+import { CUT_HEADROOM, hiddenFromTop } from './topDownLogic'
+import { SHADE_DEPTH, SHADE_START, flatTopLight } from './topDownShade3d'
 
 /** The lift of a top-down camera above its cut, keeps the near plane positive (u). */
 export const TOP_LIFT = 2
-/** The fog under the drawn floor: where it starts below it, and the depth it takes to full (u). */
-const FADE_START = 0.5
+/**
+ * The fog under the drawn floor: where it starts below it, and the depth it takes to full (u). It
+ * starts where the height shading (`topDownShade3d`) bottoms out, so the floors within a few storeys
+ * keep their shape and only the deep ones fade into the studio color.
+ */
+const FADE_START = SHADE_START + SHADE_DEPTH
 const FADE_DEPTH = 12
 /** Helper meshes not drawn in the top-down view (the sky is passed separately to `sync`). */
 const HIDDEN_NAMES = new Set([BACK_FACE_NAME])
@@ -29,12 +36,14 @@ const HIDDEN_NAMES = new Set([BACK_FACE_NAME])
 /**
  * One top-down render: `mapOnly` also hides everything but the map, its lights and `keep` (for a
  * cached map image, which must not hold a player); `clear` false leaves the background empty, so
- * the image's alpha tells where the map is.
+ * the image's alpha tells where the map is; `floorY` the followed player's floor (scene Y), around
+ * which the map is shaded by height, none for an even image (the ghost).
  */
 export interface StageRun {
   mapOnly: boolean
   keep?: readonly THREE.Object3D[]
   clear?: boolean
+  floorY?: number | null
 }
 
 interface Saved {
@@ -46,6 +55,8 @@ export class TopDownStage {
   readonly scene: THREE.Scene
   private readonly sun: THREE.DirectionalLight
   private hidden: Saved[] = []
+  /** The map surfaces left out of every top-down render (`clutterOf`); null until the first render after a sync. */
+  private clutter: Saved[] | null = null
   /** The map's roots (map, posed layer): kept by a map-only render. */
   private roots: THREE.Object3D[] = []
   /** The page's studio color, read from its `--studio-950` token once; null if absent. */
@@ -61,6 +72,7 @@ export class TopDownStage {
   /** Collect the helpers to hide (by name) plus the sky, and the map roots; run when the scene graph changes. */
   sync(sky: THREE.Object3D | null, roots: readonly THREE.Object3D[]): void {
     this.hidden = []
+    this.clutter = null
     this.roots = [...roots]
     if (sky) this.hidden.push({ obj: sky, visible: sky.visible })
     this.scene.traverse((obj) => {
@@ -90,18 +102,50 @@ export class TopDownStage {
     const studio = this.studioColor()
     scene.background = how.clear === false ? null : studio
     scene.fog = studio ? this.fadeBelow(studio) : null
-    const hidden = how.mapOnly ? [...this.hidden, ...this.transients(how.keep ?? [])] : this.hidden
+    const always = [...this.hidden, ...this.clutterOf()]
+    const hidden = how.mapOnly ? [...always, ...this.transients(how.keep ?? [])] : always
     const states = hidden.map((h) => ({ obj: h.obj, visible: h.obj.visible }))
     for (const h of hidden) h.obj.visible = false
     const restoreLight = this.sunOut()
+    const restoreFlat = flatTopLight(how.floorY ?? null)
     try {
       draw()
     } finally {
+      restoreFlat()
       restoreLight()
       for (const s of states) s.obj.visible = s.visible
       scene.fog = saved.fog
       scene.background = saved.background
     }
+  }
+
+  /**
+   * The map surfaces a top-down render leaves out (`hiddenFromTop`: foliage, coarse decor, decals,
+   * light cards, glass), collected at the first render after a `sync`, once the map's merged draws
+   * (`layeredBatch3d`) exist: a merged mesh goes with the surfaces it draws, and stays when one of
+   * them stays.
+   */
+  private clutterOf(): Saved[] {
+    if (this.clutter) return this.clutter
+    const out = new Set<THREE.Object3D>()
+    const kept = new Set<THREE.Object3D>()
+    for (const root of this.roots) {
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh
+        if (!mesh.isMesh) return
+        const family = surfaceFamily(mesh)
+        const transparent = [mesh.material].flat().some((m) => m.transparent)
+        const hide = hiddenFromTop({ family, instanced: (mesh as THREE.InstancedMesh).isInstancedMesh === true, transparent })
+        const drawer = drawnBy(mesh)
+        if (hide) {
+          out.add(mesh)
+          if (drawer) out.add(drawer)
+        } else if (drawer && family !== null) kept.add(drawer)
+      })
+    }
+    for (const k of kept) out.delete(k)
+    this.clutter = [...out].map((obj) => ({ obj, visible: obj.visible }))
+    return this.clutter
   }
 
   /** The scene's children a map-only render hides: all but the map roots, the lights and `keep`. */

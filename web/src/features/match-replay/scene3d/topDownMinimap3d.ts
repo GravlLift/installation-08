@@ -18,7 +18,7 @@ import type { MarkerPose } from './playerMarkers3d'
 import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, floorOf } from './playerMarkers3d_logic'
 import { GRADE_GAIN } from './postFx3d'
 import { renderTopImage, topTarget, type TopDownGhost } from './topDownGhost3d'
-import { CutFollower } from './topDownLogic'
+import { CUT_HEADROOM, CutFollower } from './topDownLogic'
 import type { Insets, Viewport } from './topDownNavLogic'
 import type { TopDownStage } from './topDownStage3d'
 
@@ -170,7 +170,7 @@ export class TopDownMinimap {
     ghost.ensure(renderer, stage)
     ghost.fill.visible = true
     try {
-      renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: want.center, side: MINIMAP_IMAGE_SPAN_U }, cutY: want.cutY, lowestY, keep: [ghost.fill], clear: true })
+      renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: want.center, side: MINIMAP_IMAGE_SPAN_U }, cutY: want.cutY, lowestY, keep: [ghost.fill], clear: true, floorY: want.cutY - CUT_HEADROOM })
     } finally {
       ghost.fill.visible = false
     }

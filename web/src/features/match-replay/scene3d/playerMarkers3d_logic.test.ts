@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DIMMED_MARKER_OPACITY, LOWER_FLOOR_DROP, TAG_OFFSET_PX, declutterTags, topDownMarkers, unitsPerPixel } from './playerMarkers3d_logic'
+import { DIMMED_MARKER_OPACITY, LOWER_FLOOR_DROP, TAG_OFFSET_PX, declutterTags, levelArrow, topDownMarkers, unitsPerPixel } from './playerMarkers3d_logic'
 import { CUT_HEADROOM } from './topDownLogic'
 
 /** The cut over a followed player standing at 0. */
@@ -30,9 +30,36 @@ describe('topDownMarkers — dimmed and chevroned on another floor than the draw
     expect(m.chevron).toBe('below')
   })
 
+  it('dims modestly: an off-floor player stays clearly visible', () => {
+    expect(DIMMED_MARKER_OPACITY).toBeGreaterThanOrEqual(0.7)
+    expect(DIMMED_MARKER_OPACITY).toBeLessThan(1)
+  })
+
+  it('marks every living player, whatever his floor', () => {
+    const marks = topDownMarkers([{ y: 40, heading: 0 }, { y: 0, heading: 0 }, { y: -40, heading: 0 }], CUT)
+    expect(marks).toHaveLength(3)
+    for (const m of marks) expect(m.opacity).toBeGreaterThan(0)
+  })
+
   it('keeps the input order', () => {
     const marks = topDownMarkers([{ y: 9, heading: 0 }, { y: 0, heading: 0 }, { y: -9, heading: 0 }], CUT)
     expect(marks.map((m) => m.chevron)).toEqual(['above', null, 'below'])
+  })
+})
+
+describe('levelArrow — the up/down arrow of a player on another floor', () => {
+  it('points screen up (scene -Z) for a player above the drawn floor', () => {
+    expect(levelArrow('above')).toBe(-1)
+  })
+  it('points screen down (scene +Z) for a player below it', () => {
+    expect(levelArrow('below')).toBe(1)
+  })
+  it('draws none on the drawn floor', () => {
+    expect(levelArrow(null)).toBe(0)
+  })
+  it('follows the marker floor test', () => {
+    const marks = topDownMarkers([{ y: 9, heading: 0 }, { y: 0, heading: 0 }, { y: -9, heading: 0 }], CUT)
+    expect(marks.map((m) => levelArrow(m.chevron))).toEqual([-1, 0, 1])
   })
 })
 

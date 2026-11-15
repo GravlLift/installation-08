@@ -8,6 +8,7 @@ import {
   NO_INSETS,
   followed,
   frameOf,
+  highestBar,
   insetsFrom,
   panBy,
   screenAt,
@@ -121,5 +122,18 @@ describe('insetsFrom — the chrome over the canvas', () => {
   it('is 0 without the chrome, or for chrome that does not overlap the canvas', () => {
     expect(insetsFrom({ top: 0, bottom: 800 }, null, null)).toEqual({ top: 0, bottom: 0 })
     expect(insetsFrom({ top: 0, bottom: 800 }, { top: -60, bottom: -10 }, { top: 900, bottom: 950 })).toEqual({ top: 0, bottom: 0 })
+  })
+
+  it('fits over the highest of the bottom elements (score strip over a windowed bar under the canvas)', () => {
+    const canvas = { top: 50, bottom: 850 }
+    const bar = { top: 860, bottom: 910 }
+    const score = { top: 770, bottom: 810 }
+    expect(highestBar([bar, null, score])).toBe(score)
+    expect(insetsFrom(canvas, null, highestBar([bar, score]))).toEqual({ top: 0, bottom: 80 + INSET_GAP_PX })
+  })
+
+  it('has no bottom element when none is found', () => {
+    expect(highestBar([])).toBeNull()
+    expect(highestBar([null, undefined])).toBeNull()
   })
 })
