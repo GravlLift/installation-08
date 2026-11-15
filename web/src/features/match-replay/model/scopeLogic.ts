@@ -43,7 +43,11 @@ const LUNETTES = {
   s7: { kind: 'scope' },
   choc: { kind: 'scope', style: 'holo' },
   stalker: { kind: 'scope' },
-  skewer: { kind: 'scope' },
+  // The Skewer keeps its weapon on screen when zoomed: its `weap` tag leaves "hide FP weapon when in
+  // iron sights" (root flags, bit 14) clear, where the S7's and the Shock Rifle's set it (read
+  // 2026-11-15). As a scope, the arms left the screen and its zoomed shots (21 of the 32 Skewer
+  // shots of match 05dfe4e9 are fired at zoom level 1) showed no fire animation.
+  skewer: { kind: 'smartLink' },
   br75: { kind: 'scope' },
   vk78: { kind: 'scope' },
   bandit: { kind: 'bandit' },

@@ -2,6 +2,7 @@ import { clipDuRig, type ClipPremierePersonne, type RigPremierePersonne } from '
 import { useAt, type UseShot } from './equipmentUse3d_logic'
 import type { IntervalleSprint } from './evenementsPremierePersonne3d'
 import { firstAbove } from './recoilShots3d'
+import { phaseRechargement, type ClipsRechargement, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 
 /**
  * ChangementArme : le changement de l'arme en main de l'emplacement à la frame, avec la clé de
@@ -14,7 +15,8 @@ export interface ChangementArme {
 }
 
 export interface EvenementsPremierePersonne {
-  rechargements: ArrayLike<number>
+  /** The life's reload episodes (`episodesRechargement`), sorted by their start. */
+  rechargements: readonly EpisodeRechargement[]
   coups: ArrayLike<number>
   tirs: ArrayLike<number>
   grenades: ArrayLike<number>
@@ -49,7 +51,7 @@ function dernier(liste: ArrayLike<number>, frame: number): number {
 }
 
 interface ClipsRig {
-  recharge: ClipPremierePersonne | null
+  recharge: ClipsRechargement
   coup: ClipPremierePersonne | null
   tir: ClipPremierePersonne | null
   grenade: ClipPremierePersonne | null
@@ -74,7 +76,9 @@ const clipsParRig = new WeakMap<RigPremierePersonne, ClipsRig>()
 function clipsDuRig(rig: RigPremierePersonne) {
   let clips = clipsParRig.get(rig)
   if (!clips) {
-    clips = { recharge: clipDuRig(rig, 'reload_full') ?? clipDuRig(rig, 'reload_empty') ?? clipDuRig(rig, 'reload_enter'),
+    clips = { recharge: { plein: clipDuRig(rig, 'reload_full'), vide: clipDuRig(rig, 'reload_empty'), entree: clipDuRig(rig, 'reload_enter'),
+      boucle: clipDuRig(rig, 'reload_continue_full'), boucleVide: clipDuRig(rig, 'reload_continue_empty'),
+      sortie: clipDuRig(rig, 'reload_exit') ?? clipDuRig(rig, 'chamber_1') },
       coup: clipDuRig(rig, 'melee_strike_1'), tir: clipDuRig(rig, 'fire_1'),
       grenade: clipDuRig(rig, 'throw_grenade'), changement: clipDuRig(rig, 'ready'),
       mise: clipDuRig(rig, 'put_away'), sprint: clipDuRig(rig, 'sprint_loop'),
@@ -268,9 +272,7 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
   // il ne joue pas sur le rig de celle qui arrive.
   const rangChangement = premierChangementAuDela(e.changements, e.frame) - 1
   const depuis = rangChangement >= 0 ? e.changements[rangChangement].frame : -Infinity
-  const dernierRechargement = dernier(e.rechargements, e.frame)
   const dernierTir = dernier(e.tirs, e.frame)
-  const recharge = dernierRechargement < depuis ? -Infinity : dernierRechargement
   const coup = dernier(e.coups, e.frame)
   const tir = dernierTir < depuis ? -Infinity : dernierTir
   const clips = clipsDuRig(rig)
@@ -296,13 +298,15 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
     pose.base = clips.grenade
     pose.tempsBase = tempsGrenade
   }
-  const clipRecharge = clips.recharge
   const clipCoup = clips.coup
-  const tempsRecharge = (e.frame - recharge) / e.fps
   const tempsCoup = (e.frame - coup) / e.fps
-  if (clipRecharge && tempsRecharge < clipRecharge.durationSeconds && tir <= recharge && e.rechargementValide(recharge, e.frame)) {
-    pose.base = clipRecharge
-    pose.tempsBase = tempsRecharge
+  // A staged reload weighs its own phases (full weight where one stage hands over to the next).
+  let poidsRecharge: number | null = null
+  const recharge = phaseRechargement(clips.recharge, e.rechargements, e.frame, e.fps, tir, depuis)
+  if (recharge && e.rechargementValide(recharge.depuis, e.frame)) {
+    pose.base = recharge.clip
+    pose.tempsBase = recharge.temps
+    poidsRecharge = recharge.poids
   }
   // L'usage d'un équipement, le tir du grappin ou le propulseur coupent le rechargement ; un coup les coupe.
   const usage = useAt(e.usages, e.frame)
@@ -311,13 +315,17 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
   if (clipUsage && tempsUsage < clipUsage.durationSeconds) {
     pose.base = clipUsage
     pose.tempsBase = tempsUsage
+    poidsRecharge = null
   }
   if (clipCoup && tempsCoup < clipCoup.durationSeconds) {
     pose.base = clipCoup
     pose.tempsBase = tempsCoup
+    poidsRecharge = null
   }
   // Le poids du changement d'arme est calculé par la phase (fondu de la mise, fondus du tirage).
-  if (pose.base && pose.base !== clips.changement && pose.base !== clips.mise && pose.base !== deplacement?.clip) {
+  if (poidsRecharge !== null) {
+    pose.poidsBase = poidsRecharge
+  } else if (pose.base && pose.base !== clips.changement && pose.base !== clips.mise && pose.base !== deplacement?.clip) {
     // Le coup part à plein poids : sa frappe tient dans le premier dixième de seconde du clip,
     // qu'un fondu d'entrée effacerait.
     const entree = pose.base === clipCoup ? 1 : pose.tempsBase / 0.1

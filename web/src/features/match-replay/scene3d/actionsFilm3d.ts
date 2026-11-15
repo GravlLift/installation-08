@@ -2,9 +2,11 @@
 import { framesPerSecond, msToFrames } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
+import { magazineAtReload } from '../model/reloadMagazine'
 import { reloadReadings } from '../model/reloadStarts'
 
 import type { Span } from './clipSelect3d'
+import { episodesRechargement, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 import type { Tracks3d } from './tracks3d'
 
 export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<number, number[]> {
@@ -31,6 +33,26 @@ export function rechargementsParSlot(doc: ReplayDocumentReady): { debuts: Map<nu
     if (r.cuts.length > 0) coupures.set(slot, r.cuts.map((ms) => msToFrames(ms, doc)))
   }
   return { debuts, coupures }
+}
+
+/**
+ * episodesRechargementParSlot: each life's reload episodes (`episodesRechargement`) on the frame grid,
+ * each marked with whether the in-hand magazine was empty at its start (`magazineAtReload`).
+ */
+export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<number, EpisodeRechargement[]> {
+  const out = new Map<number, EpisodeRechargement[]>()
+  const fps = framesPerSecond(doc)
+  for (const [slot, r] of reloadReadings(doc)) {
+    const parFrame = new Map(r.starts.map((ms) => [msToFrames(ms, doc), ms]))
+    const vide = (frame: number) => {
+      const ms = parFrame.get(frame)
+      const reste = ms === undefined ? null : magazineAtReload(doc, slot, ms, r.starts)
+      return reste === null ? null : reste === 0
+    }
+    const episodes = episodesRechargement([...parFrame.keys()], r.cuts.map((ms) => msToFrames(ms, doc)), fps, vide)
+    if (episodes.length > 0) out.set(slot, episodes)
+  }
+  return out
 }
 
 /** Durée d'un palier vertical qui vaut réception quand aucune descente ne l'a précédé (sommet exclu). */

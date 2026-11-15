@@ -8,6 +8,7 @@ import {
   type EvenementsPremierePersonne,
 } from './actionsPremierePersonne3d'
 import type { RigPremierePersonne } from './premierePersonne3d'
+import type { EpisodeRechargement } from './rechargementPremierePersonne3d'
 
 function rigAvec(...noms: string[]): RigPremierePersonne {
   return { file: '', bones: 0, triangles: 0, bytes: 0, missingActions: [],
@@ -15,8 +16,10 @@ function rigAvec(...noms: string[]): RigPremierePersonne {
     actions: noms.map((nom) => ({ action: nom, variant: 0, clip: nom })) }
 }
 const rig = rigAvec('reload_full', 'reload_empty', 'reload_enter', 'melee_strike_1', 'fire_1')
+/** A one-message reload episode starting at frame 	. */
+const ep = (t: number, vide: boolean | null = null): EpisodeRechargement => ({ etapes: [{ t, coupe: false }], vide })
 function evenements(): EvenementsPremierePersonne {
-  return { rechargements: [10], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 12, fps: 10, rechargementValide: () => true }
+  return { rechargements: [ep(10)], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 12, fps: 10, rechargementValide: () => true }
 }
 function change(frame: number, avant: string | null = 'a', apres: string | null = 'b'): ChangementArme {
   return { frame, avant, apres }
@@ -151,7 +154,7 @@ describe('actions première personne', () => {
     it('garde les priorites des autres actions pendant le rangement', () => {
       const e = eChange(); e.frame = 95
       e.coups = [94]; expect(lire(rigA, e).base?.action).toBe('melee_strike_1')
-      e.coups = []; e.rechargements = [94]; expect(lire(rigA, e).base?.action).toBe('reload_full')
+      e.coups = []; e.rechargements = [ep(94)]; expect(lire(rigA, e).base?.action).toBe('reload_full')
       e.rechargements = []; e.grenades = [95]; expect(lire(rigA, e).base?.action).toBe('throw_grenade')
       e.grenades = []; expect(lire(rigA, e).base?.action).toBe('put_away')
     })
@@ -189,7 +192,7 @@ describe('actions première personne', () => {
       expect(phaseChangementArme(r, changements, 95, 10, DECALEMENT_CHANGEMENT_ARME)).toEqual({ phase: 'mise', temps: 0.5, poids: 1 })
     })
     it('ne joue pas sur l arme qui arrive un tir ou un rechargement de l arme rangee', () => {
-      const e = eChange(); e.tirs = [99]; e.rechargements = [98]; e.frame = 103
+      const e = eChange(); e.tirs = [99]; e.rechargements = [ep(98)]; e.frame = 103
       const pose = lire(rigB, e)
       expect(pose.base?.action).toBe('ready'); expect(pose.poidsBase).toBe(1); expect(pose.tir).toBeNull()
       e.tirs = [99, 102]
@@ -335,7 +338,7 @@ describe('actions première personne', () => {
     e.sprints = []; e.slides = [{ t0: 10, t1: 40 }]; expect(lire(r, e).base?.action).toBe('slide_loop')
     e.slides = []; e.sprints = [{ t0: 0, t1: 40 }]; e.sauts = [{ t0: 10, t1: 20 }]; expect(lire(r, e).base?.action).toBe('jump')
     e.escalades = [{ t0: 10, t1: 20 }]; expect(lire(r, e).base?.action).toBe('clamber')
-    e.rechargements = [10]; expect(lire(r, e).base?.action).toBe('reload_full')
+    e.rechargements = [ep(10)]; expect(lire(r, e).base?.action).toBe('reload_full')
   })
   it('coupe chaque mouvement au tir et garde le repli sans clip', () => {
     for (const [action, champ, intervalle, frame] of [
