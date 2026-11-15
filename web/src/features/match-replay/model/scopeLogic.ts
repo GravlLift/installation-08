@@ -23,26 +23,21 @@ import { REPLAY_TIMING_MS } from '../hooks/useReplayTiming'
 export type ScopeKind = 'scope' | 'smartLink' | 'bandit'
 
 /**
- * The overlay style of a mounted scope: the sniper circle (black mask + cross)
- * or the holographic frame (side vignette, bands and reticle, no mask).
- */
-export type ScopeStyle = 'cercle' | 'holo'
-
-/**
- * The scope of a weapon: its kind and overlay style. The MAGNIFICATION per level comes from the
- * weapon index (the tag's own values), not from a hand table: the film does not publish a level 2
- * for a one-level scope, so a missing level is read on the last one.
+ * The scope of a weapon: its kind. The MAGNIFICATION per level comes from the weapon index (the
+ * tag's own values), not from a hand table: the film does not publish a level 2 for a one-level
+ * scope, so a missing level is read on the last one. The overlay drawn over the view is
+ * `adsOverlay`'s, by weapon.
  */
 export interface ScopeSpec {
   kind: ScopeKind
-  /** The overlay style; the sniper circle when absent. */
-  style?: ScopeStyle
 }
 
 const LUNETTES = {
   s7: { kind: 'scope' },
-  choc: { kind: 'scope', style: 'holo' },
+  choc: { kind: 'scope' },
   stalker: { kind: 'scope' },
+  // The Vestige Carbine's ADS capture (2026-11-15) shows no weapon on screen when zoomed.
+  vestige: { kind: 'scope' },
   // The Skewer keeps its weapon on screen when zoomed: its `weap` tag leaves "hide FP weapon when in
   // iron sights" (root flags, bit 14) clear, where the S7's and the Shock Rifle's set it (read
   // 2026-11-15). As a scope, the arms left the screen and its zoomed shots (21 of the 32 Skewer
@@ -55,7 +50,7 @@ const LUNETTES = {
 
 /**
  * SINGLE TABLE of the scopes, by MODEL KEY (the first eight digits of the
- * weapon identifier, canonical writing) when the model is known. It gives the KIND and the STYLE;
+ * weapon identifier, canonical writing) when the model is known. It gives the KIND;
  * the magnification per level comes from the weapon index.
  */
 export const SCOPES_PAR_MODELE: Readonly<Record<string, ScopeSpec>> = {
@@ -76,12 +71,12 @@ export const SCOPES_PAR_ETIQUETTE: Readonly<Record<string, ScopeSpec>> = {
   hinf_br75: LUNETTES.br75,
   hinf_vk78_commando: LUNETTES.vk78,
   hinf_bandit: LUNETTES.bandit,
+  hinf_vestige_carbine: LUNETTES.vestige,
 }
 
 /**
  * Any weapon the index gives a zoom to but the table does not list: it zooms like the game, with
- * the default kind (a light smart-link zoom, the weapon stays visible on screen) and the default
- * style (the sniper circle).
+ * the default kind (a light smart-link zoom, the weapon stays visible on screen).
  */
 export const LUNETTE_PAR_DEFAUT: ScopeSpec = { kind: 'smartLink' }
 
@@ -102,11 +97,6 @@ export function specLunette(
     if (parEtiquette) return parEtiquette
   }
   return LUNETTE_PAR_DEFAUT
-}
-
-/** The overlay style of the scope `spec`: the sniper circle when it does not specify one. */
-export function styleLunette(spec: ScopeSpec): ScopeStyle {
-  return spec.style ?? 'cercle'
 }
 
 /**
@@ -132,6 +122,12 @@ export function etiquetteDe(doc: ReplayDocumentReady, cleModele: string): string
 export interface Zoom3d {
   /** The scope level (0, 1 or 2). */
   level: number
+  /**
+   * The level the overlay draws: `level` while zoomed, and while the zoom fades out (level 0,
+   * `amount` > 0) the level it left, so a 10x scope does not flash its 5x face on the way out.
+   * 0 when nothing is shown.
+   */
+  shownLevel: number
   kind: ScopeKind
   /** The smoothed ratio, 0..1: pure function of the frame (cf. file header). */
   amount: number
@@ -262,20 +258,21 @@ function dernierChangement(
 
 export function zoomAt(doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): Zoom3d {
   const vie = vieCouvrante(doc, xuid, frame)
-  if (!vie) return { level: 0, kind: spec.kind, amount: 0, mag: 1 }
+  if (!vie) return { level: 0, shownLevel: 0, kind: spec.kind, amount: 0, mag: 1 }
   const maintien = msToFrames(REPLAY_TIMING_MS.aimHold, doc)
   const lissageFrames = Math.max(1, msToFrames(ZOOM_LISSAGE_MS, doc))
   const level = niveauDe(vie.points, frame, maintien)
   if (level === 0) {
     const c = dernierChangement(vie.points, vie.startFrame ?? 0, frame, maintien)
     const amount = c === null ? 0 : 1 - lissage((frame - c) / lissageFrames)
-    return { level: 0, kind: spec.kind, amount, mag: 1 }
+    const quitte = c === null || amount <= 0 || c - 1 < (vie.startFrame ?? 0) ? 0 : niveauDe(vie.points, c - 1, maintien)
+    return { level: 0, shownLevel: quitte, kind: spec.kind, amount, mag: 1 }
   }
   const c = dernierChangement(vie.points, vie.startFrame ?? 0, frame, maintien)
   const avant = c === null ? level : c - 1 < (vie.startFrame ?? 0) ? 0 : niveauDe(vie.points, c - 1, maintien)
   // From level to level (1 to 2) the ratio stays full: only the passage through 0 is smoothed.
   const amount = c === null ? 1 : avant === 0 ? lissage((frame - c) / lissageFrames) : avant > 0 ? 1 : 0
-  return { level, kind: spec.kind, amount, mag: 1 + (magCran(mags ?? [], level) - 1) * amount }
+  return { level, shownLevel: level, kind: spec.kind, amount, mag: 1 + (magCran(mags ?? [], level) - 1) * amount }
 }
 
 /**

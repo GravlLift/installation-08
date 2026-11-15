@@ -3,11 +3,11 @@ import { WeaponIcon } from '@/components/ui/WeaponIcon'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
-import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, preparerAth } from '../model/ath3d_logic'
-import { magsPourArme, specLunette, styleLunette, zoomAt } from '../model/scopeLogic'
+import { magsPourArme, specLunette, zoomAt } from '../model/scopeLogic'
+import { adsAmmoText, adsLevelIndex, adsOverlayFor } from '../model/adsOverlay'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayAthFil3d } from './ReplayAthFil3d'
 import { ReplayAthLunette3d } from './ReplayAthLunette3d'
@@ -70,7 +70,11 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   useEffect(() => {
     heldRef.current = armeId ? { weaponId: armeId, zoomLevel: zoom.level } : null
   }, [armeId, zoom.level])
-  const lunetteMontee = spec.kind === 'scope' && zoom.amount > 0.5
+  // The weapon's ADS overlay (`adsOverlay`): drawn from the first frame of the zoom, fading with it;
+  // an overlay with its own center reticle replaces the hip reticle past half the fade.
+  const ads = adsOverlayFor(cle, ath?.etiquette?.key, spec)
+  const adsVisible = ads !== null && zoom.shownLevel > 0 && zoom.amount > 0
+  const lunetteMontee = adsVisible && ads.ownReticle && zoom.amount > 0.5
   // Un lien intelligent garde le réticule, réduit de 30 % avec l'amplissée du zoom.
   const reticuleEchelle = spec.kind === 'smartLink' ? 1 - 0.3 * zoom.amount : 1
   const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
@@ -86,8 +90,8 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {bandeau}
     {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
     {ath && ath.bouclier !== null && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(50cqh, 90%)', transform: 'translateX(-50%)', height: '3.2%', minHeight: 8, border: `1px solid ${ath.bouclier <= 0 ? tokenCssVar('destructive') : 'currentColor'}`, clipPath: 'polygon(2% 0, 98% 0, 100% 100%, 0 100%)' }}><div style={{ position: 'absolute', inset: 0, width: `${Math.max(0, Math.min(1, ath.bouclier)) * 100}%`, background: tokenCssVar('info'), opacity: 0.85 }} /></div>}
-    {aim && ath && spec.kind === 'bandit' && zoom.amount > 0.5 && <ReplayAthBandit3d amount={zoom.amount} label={SCENE3D_TEXT[locale].banditZoom} />}
-    {aim && ath && (lunetteMontee ? <ReplayAthLunette3d amount={zoom.amount} style={styleLunette(spec)} reticleColor={reticleColor} /> : (
+    {aim && ath && ads && adsVisible && <ReplayAthLunette3d spec={ads} levelIndex={adsLevelIndex(ads, zoom.shownLevel)} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.munitions?.mag)} />}
+    {aim && ath && (lunetteMontee ? null : (
       <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
         {['cercle', 'precision', 'large', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r={ath.forme === 'large' ? 32 : ath.forme === 'precision' ? 15 : 25} />}
         {['precision', 'pistolet', 'point', 'defaut'].includes(ath.forme) && <circle cx="50" cy="50" r="1.7" fill="currentColor" stroke="none" />}
@@ -119,18 +123,6 @@ function EquipementAth3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady
     {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} width="1.3em" height="1.3em" /> : name}
     {uses !== null && <span>{uses}</span>}
   </span>
-}
-
-/** Le cadre du Bandit assombrit l'extérieur sans masquer le réticule. */
-function ReplayAthBandit3d({ amount, label }: { amount: number; label: string }) {
-  return <div aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: amount }}>
-    <div style={{ position: 'absolute', left: '50%', top: '17%', width: 'min(103cqh, 92%)', transform: 'translateX(-50%)', height: '66%', border: '1px solid currentColor', borderRadius: '3cqh', boxShadow: '0 0 0 200cqmax var(--replay-hud-shadow)' }}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} fill="none" stroke="currentColor" strokeWidth="0.7" vectorEffect="non-scaling-stroke">
-        <path d="M0 12V6 Q0 0 6 0H12 M88 0H94 Q100 0 100 6V12 M0 88V94 Q0 100 6 100H12 M88 100H94 Q100 100 100 94V88" />
-      </svg>
-      <span style={{ position: 'absolute', left: '1%', top: '50%', transform: 'translateY(-50%)', fontSize: '0.45em', fontWeight: 700 }}>{label}</span>
-    </div>
-  </div>
 }
 
 /**

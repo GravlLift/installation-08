@@ -17,8 +17,6 @@ import type { ReplayLocale } from './i18n'
 type ReplayMeshBuildStep = 'geometry' | 'lighting' | 'writing' | 'libraries'
 
 export interface Scene3dText {
-  /** Grossissement affiché dans le cadre du Bandit. */
-  banditZoom: string
   /** Bascule de la carte : vue du dessus. */
   view2d: string
   /** Bascule de la carte : vue 3D. */
@@ -117,7 +115,6 @@ export interface Scene3dText {
 
 export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
   fr: {
-    banditZoom: '1.6X',
     view2d: '2D',
     view3d: '3D',
     viewGroup: 'Vue de la carte',
@@ -225,7 +222,6 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     variantBuildFailed: 'Les objets de la carte n’ont pas pu être construits',
   },
   en: {
-    banditZoom: '1.6X',
     view2d: '2D',
     view3d: '3D',
     viewGroup: 'Map view',
