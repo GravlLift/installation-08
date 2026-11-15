@@ -49,6 +49,15 @@ type Projectile struct {
 	// to its end point, losing the arc and every bounce. A parallel array, not a fourth element
 	// of P, so every [dt, x, y] reader stays valid. Absent on artifacts built before it.
 	Z []float32 `json:"z,omitempty"`
+	// LOCAL-CHANGE (infinite-theater-3d): FullRate is the flight AT THE FILM'S RATE — every raw
+	// sample [ms, x, y, z] the film replicated before the first impossible step, at its own
+	// instant, published the way player lives do (`Track.FullRate`, schema 109): T in absolute
+	// milliseconds since the grid origin (the frame is its whole part, the rest the ms in the
+	// frame), X/Y/Z in centi-units, each column differential, lossless cumulative sum. P and Z
+	// stay the grid view (one point per frame) that every existing reader draws; FullRate is
+	// the same flight at ~16.7 ms, which the 3D viewer interpolates for smooth grenade motion.
+	// Absent on artifacts built before it.
+	FullRate *FullRateFlight `json:"fullRate,omitempty"`
 	// Rest signale que le dernier point porte `projectile-at-rest-state` — le seul champ qui
 	// CERTIFIE une fin de vol (78 fois sur 79 sur le film de référence). Sans lui, le vol
 	// s'arrête parce que la réplication s'arrête, ce qui n'est pas la même chose.
@@ -69,6 +78,60 @@ type Projectile struct {
 	// naissance ambiguë entre deux armes ou deux tireurs (cf. [linkShotsToProjectiles]). Pointeur :
 	// 0 est un index valide, et omitempty l'effacerait.
 	Shot *int `json:"shot,omitempty"`
+}
+
+// FullRateFlight porte, pour UNE trajectoire, tous les échantillons BRUTS que le film a
+// répliqués avant le premier pas impossible, chacun à SON instant — le jumeau projectile de
+// `FullRateTrack` (cf. tracks_plein_debit.go), même encodage : colonnes différentielles
+// d'entiers, la première valeur absolue, chacune des suivantes l'écart à la précédente, somme
+// cumulée sans perte au lecteur.
+//
+//	T   instants en MILLISECONDES depuis l'ORIGINE DE LA GRILLE, celle de Point.T (tronqués,
+//	     cf. `fullRateTimeUnitUS`) : la même unité que `FullRateTrack.T`, si bien que l'image
+//	     fractionnaire d'un échantillon vaut t / frameIntervalMs, comme pour les vies.
+//	X, Y, Z   centièmes d'unité monde, entiers : les MÊMES valeurs que les points de P et Z
+//	     (arrondi au centième), rien de plus fin ni de plus grossier que le contrat existant.
+//
+// LOCAL-CHANGE (infinite-theater-3d) : un échantillon par point ne suffit pas à la 3D — un
+// projectile suit une parabole répliquée à ~60 Hz, et la grille du rejeu (33 ms) y retient un
+// point sur deux. P/Z gardent la vue grille pour tous les lecteurs existants ; cette série
+// est la même trajectoire au débit du film, que le rendu 3D interpole.
+type FullRateFlight struct {
+	T   []int64 `json:"t"`
+	X   []int32 `json:"x"`
+	Y   []int32 `json:"y"`
+	Z   []int32 `json:"z"`
+}
+
+// pleinDebitDeVol accumule la série au débit du film d'un vol : les derniers absolus pour
+// écrire les écarts, rien d'autre (pas de visée, pas de stick — un projectile n'en porte pas).
+type pleinDebitDeVol struct {
+	f   FullRateFlight
+	t   int64
+	x, y, z int32
+	n   int
+}
+
+// ajouter pose un échantillon BRUT à son instant. Les colonnes t, x, y, z ont la même
+// longueur, par construction.
+func (d *pleinDebitDeVol) ajouter(p types.ProjectileSample, origine uint64) {
+	t := int64((p.TimestampUS - origine) / fullRateTimeUnitUS)
+	x, y, z := centiemes(p.X), centiemes(p.Y), centiemes(p.Z)
+	d.f.T = append(d.f.T, t-d.t)
+	d.f.X = append(d.f.X, x-d.x)
+	d.f.Y = append(d.f.Y, y-d.y)
+	d.f.Z = append(d.f.Z, z-d.z)
+	d.t, d.x, d.y, d.z = t, x, y, z
+	d.n++
+}
+
+// rendre rend la série, nil quand le vol n'a reçu aucun échantillon.
+func (d *pleinDebitDeVol) rendre() *FullRateFlight {
+	if d == nil || d.n == 0 {
+		return nil
+	}
+	out := d.f
+	return &out
 }
 
 // projectileMaxSpeedMPS borne la vitesse d'un projectile entre deux échantillons retenus, en mètres
@@ -159,7 +222,7 @@ func buildProjectiles(tracks []types.ProjectileTrack, origin, step uint64,
 		if len(vol.pts) < 2 { // une trajectoire d'un seul point de grille ne se dessine pas
 			continue
 		}
-		proj := Projectile{T0: vol.t0, P: vol.pts, Z: vol.z, t0US: tr.Pts[0].TimestampUS,
+		proj := Projectile{T0: vol.t0, P: vol.pts, Z: vol.z, FullRate: vol.plein.rendre(), t0US: tr.Pts[0].TimestampUS,
 			// `Rest` CERTIFIE une fin de vol : un vol coupé n'a pas la sienne, et le dire
 			// serait affirmer qu'on a vu le projectile s'immobiliser là.
 			Rest: !vol.coupe && tr.Pts[len(tr.Pts)-1].AtRest}
@@ -197,6 +260,9 @@ type vol struct {
 	pts [][3]float32
 	// z is the height of each point of pts (LOCAL-CHANGE, see Projectile.Z).
 	z []float32
+	// plein est la série AU DÉBIT DU FILM (LOCAL-CHANGE, see Projectile.FullRate) : chaque
+	// échantillon lu avant la coupure, à son instant.
+	plein pleinDebitDeVol
 	// dernier est l'échantillon BRUT du dernier point retenu (sa hauteur, son instant) ; coupe dit que
 	// le vol s'arrête à un pas impossible.
 	dernier types.ProjectileSample
@@ -229,6 +295,9 @@ func volPublie(tr types.ProjectileTrack, origin, step uint64) (v vol, lu bool) {
 			v.coupe = true
 			break
 		}
+		// LOCAL-CHANGE : l'échantillon lu entre dans la série au débit du film — AVANT la
+		// décimation, car c'est LUI le point natif ; la coupure au-dessus borne les deux séries.
+		v.plein.ajouter(p, origin)
 		prec, vuPrec = p, true
 		f := int((p.TimestampUS - origin) / step)
 		if f == last {

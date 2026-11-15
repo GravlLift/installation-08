@@ -4240,3 +4240,19 @@ package replay
 //	CE QUI MONTE    `SchemaVersion` 125 -> 126 only: neither the grammar nor the facts change.
 //
 //	LE PARC         a 125 artifact whose facts are on disk: verdict `a republier`.
+
+// v127 (2026-11-15, LOCAL-CHANGE infinite-theater-3d) : le projectile publie son vol au debit du film.
+//
+//	`projectiles[].fullRate`  {t, x, y, z} : TOUS les echantillons bruts de la trajectoire avant le premier
+//	                 pas impossible, chacun a sa milliseconde depuis l origine de la grille, en colonnes
+//	                 differentielles d entiers (centiemes d unite monde) — le meme encodage que
+//	                 `tracks[].fullRate` (schéma 118), dont c est le jumeau projectile (`FullRateFlight`).
+//	                 `p` et `z` ne changent pas : ils restent la vue grille (un point par frame) que tous
+//	                 les lecteurs existants dessinent ; la serie est la meme trajectoire a ~16,7 ms, que la
+//	                 vue 3D interpole pour le mouvement des grenades. Absent sur un artefact ancien : le
+//	                 client dessine `p` comme avant.
+//
+//	CE QUI MONTE    `SchemaVersion` 126 -> 127 seule : ni la grammaire ni les faits ne changent (la piste
+//	AVEC ELLE       brute portait deja chaque echantillon avec son horodatage).
+//
+//	LE PARC         un artefact 126 dont les faits sont sur disque : verdict `a republier`.

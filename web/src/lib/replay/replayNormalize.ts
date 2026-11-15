@@ -22,7 +22,7 @@
  * `replayReadyTypes.ts` depuis le 2026-09-05 : un DÉPLACEMENT, sans une ligne changée, pour
  * repasser sous le seuil de 500 lignes. Ce fichier-ci garde LA FONCTION, et les re-publie.
  */
-import { decodeFullRate } from '@/lib/replay/replayFullRate'
+import { decodeFullRate, decodeFullRateFlight, type ReplayFullRateFlightRaw } from '@/lib/replay/replayFullRate'
 import { normalizeScoreTimeline } from '@/lib/replay/scoreTimeline'
 import { markTranslocationCuts } from '@/lib/replay/translocationCuts'
 import type { ReplayDocument } from '@/lib/api/types'
@@ -266,7 +266,15 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
     // point. An older artifact has none, and the 3D viewer falls back to an interpolated height.
     projectiles: (raw.projectiles ?? []).map((pr) => {
       const p = (pr.p ?? []) as ReplayStep[]
-      return { ...pr, p, z: pr.z && pr.z.length === p.length ? pr.z : undefined }
+      // `fullRate` (schema 127) is the flight at the film's rate, differential integer columns:
+      // re-read it here, once, the way `tracks[].fullRate` is. Absent on artifacts before 127.
+      const rawFullRate = (pr as { fullRate?: ReplayFullRateFlightRaw }).fullRate
+      return {
+        ...pr,
+        p,
+        z: pr.z && pr.z.length === p.length ? pr.z : undefined,
+        ...(rawFullRate && raw.frameIntervalMs ? { fullRate: decodeFullRateFlight(rawFullRate, raw.frameIntervalMs) } : {}),
+      }
     }),
     // LA PRÉSENCE DE CHAQUE OCCUPANT (schéma 69) : les intervalles pendant lesquels il TIENT sa
     // place. Comblée à VIDE quand elle manque — un artefact antérieur au schéma 69 n'en publie

@@ -32,6 +32,7 @@
 import * as THREE from 'three'
 
 import { msToFrames } from '@/lib/replay/replayLogic'
+import { decodeFullRateFlight, type ReplayFullRateFlightRaw } from '@/lib/replay/replayFullRate'
 import type { ReplayProjectileReady } from '@/lib/replay/replayReadyTypes'
 
 import { fxTintOf, type FxTint } from '../layers/fxInk'
@@ -284,10 +285,27 @@ function buildFlights(ctx: ActionContext): Flight[] {
     const owner = owners.get(i)
     const last = pr.p[pr.p.length - 1]
     const orbRadius = owner?.key !== undefined ? SHOT_ORB_RADIUS[owner.key] : undefined
-    const pts = pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
+    // THE FLIGHT AT THE FILM'S RATE (schema 127): when `fullRate` is present, sample the native
+    // series (one point per film record, ~16.7 ms) for the head's position and trail; the grid
+    // points (`p`/`z`) stay the fallback for artifacts before 127. The native series carries the
+    // same arc and bounces, at the film's own rate, so the head moves smoothly between grid frames.
+    // `fullRate` may arrive in differential form (the document's raw shape) or already decoded
+    // (a normalized document): detect by whether `t` is all non-negative (decoded) or has
+    // negative deltas (differential). The decoder is idempotent on already-decoded input only if
+    // the columns are absolute, so we re-read the raw differential form here when it is.
+    const rawFullRate = (pr as { fullRate?: ReplayFullRateFlightRaw }).fullRate
+    const fr = rawFullRate && ctx.doc.frameIntervalMs
+      ? decodeFullRateFlight(rawFullRate, ctx.doc.frameIntervalMs)
+      : undefined
+    // `fr.t` is in RELATIVE frames (from the flight's start); add `pr.t0` to get absolute frames,
+    // the same axis as the grid path's `at` (`pr.t0 + st[0]`).
+    const at = fr ? fr.t.map((t) => pr.t0 + t) : pr.p.map((st) => pr.t0 + st[0])
+    const pts = fr
+      ? fr.t.map((_, k) => new THREE.Vector3(...toThree(fr.x[k], fr.y[k], fr.z[k])))
+      : pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
     out.push({
       t0: pr.t0,
-      at: pr.p.map((st) => pr.t0 + st[0]),
+      at,
       pts,
       dist: distancesAlong(pts),
       end: pr.t0 + last[0],

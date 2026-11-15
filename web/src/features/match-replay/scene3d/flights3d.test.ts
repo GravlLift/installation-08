@@ -231,3 +231,80 @@ describe('Flights3dLayer — the fuel rod', () => {
     layer.dispose()
   })
 })
+
+/**
+ * THE FLIGHT AT THE FILM'S RATE (schema 127): the native series is preferred when present, and
+ * the grid points remain the fallback for artifacts before 127.
+ */
+describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
+  // A flight with 4 grid points (one per frame, 2 frames apart) and 7 native samples (one per
+  // film record, 1 frame apart). The native series carries finer x values that the grid does not.
+  // `fullRate` is in DIFFERENTIAL form (the document's raw shape): each column's first value is
+  // absolute, each following one is the gap from the previous. The decoder cumulative-sums them.
+  const p = [[0, 0, 0], [2, 1, 0], [4, 2, 0], [6, 3, 0]]
+  const z = [1.0, 0.5, 0.2, 0.1]
+  // Absolute values (in the document's units): t in ms = [0,100,200,300,400,500,600],
+  // x in centi-units = [0,100,200,300,400,500,600], y in centi-units = [0,30,70,100,130,170,200],
+  // z in centi-units = [100,85,70,55,40,25,10]. Differential:
+  const fullRate = {
+    t: [0, 100, 100, 100, 100, 100, 100],
+    x: [0, 100, 100, 100, 100, 100, 100],
+    y: [0, 30, 40, 30, 30, 40, 30],
+    z: [100, -15, -15, -15, -15, -15, -15],
+  }
+  // The decoded (cumulative) values, in world units, for the assertions:
+  const decX = [0, 1, 2, 3, 4, 5, 6]
+  const decY = [0, 0.3, 0.7, 1, 1.3, 1.7, 2]
+  const decZ = [1.0, 0.85, 0.7, 0.55, 0.4, 0.25, 0.1]
+
+  function docNative(withFullRate: boolean): unknown {
+    return {
+      frameIntervalMs: 100,
+      projectiles: [{ t0: 100, p, z, ...(withFullRate ? { fullRate } : {}), detoT: 160, detoX: 4, detoY: 0 }],
+      grenades: [{ t: 90, slot: 1, i: 0, x: 0, y: 0, rank: 0, s: 'projectile', proj: 0 }],
+      shots: [],
+      weaponLabels: undefined,
+    }
+  }
+
+  it('samples the native series when present: the head moves through the finer points', () => {
+    const { layer, root } = calque(0, docNative(true))
+    // At frame 101 (1 frame after the start), the native series has a point at x=1, y=0.3, z=0.85.
+    // The grid has no point there (grid point 1 is at frame 102, x=4). The head must be at the
+    // native value, not interpolated between grid points. toThree(x,y,z)=[x,z,-y], so the head
+    // is (fr.x, fr.z, -fr.y).
+    layer.update(101)
+    const head = premiere(root, 1)
+    expect(head.x).toBeCloseTo(decX[1], 6)
+    expect(head.y).toBeCloseTo(decZ[1], 6)
+    expect(head.z).toBeCloseTo(-decY[1], 6)
+    layer.dispose()
+  })
+
+  it('falls back to the grid points when fullRate is absent (no regression on old documents)', () => {
+    const { layer, root } = calque(0, docNative(false))
+    // At frame 101, with no native series, the head is interpolated between grid points 0 and 1
+    // (frames 100 and 102): x = (0+1)/2 = 0.5, y = (1.0+0.5)/2 = 0.75, z = 0 (both grid points
+    // have y=0, so toThree gives z=0).
+    layer.update(101)
+    const head = premiere(root, 1)
+    expect(head.x).toBeCloseTo(0.5, 4)
+    expect(head.y).toBeCloseTo(0.75, 4)
+    expect(head.z).toBeCloseTo(0, 4)
+    layer.dispose()
+  })
+
+  it('lands exactly on each native sample at its frame', () => {
+    const { layer, root } = calque(0, docNative(true))
+    // Each native sample is at its own frame: frame 100+k has the k-th native point.
+    // toThree(x,y,z)=[x,z,-y], so the head is (fr.x, fr.z, -fr.y).
+    for (let k = 0; k < decX.length; k++) {
+      layer.update(100 + k)
+      const head = premiere(root, 1)
+      expect(head.x).toBeCloseTo(decX[k], 6)
+      expect(head.y).toBeCloseTo(decZ[k], 6)
+      expect(head.z).toBeCloseTo(-decY[k], 6)
+    }
+    layer.dispose()
+  })
+})

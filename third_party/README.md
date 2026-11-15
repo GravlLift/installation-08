@@ -53,6 +53,12 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   chronicle entry (`replay/document_chronicle.go`), the `structure_test.go` reason, the
   regenerated `replay/testdata/document_shape.golden`, and the two size caps it moves in
   `internal/depottest/taille_test.go`.
+- `replay/projectiles.go` (LOCAL-CHANGE): `Projectile.FullRate` publishes the flight AT THE
+  FILM'S RATE — every raw sample at its own instant, differential integer columns (the projectile
+  twin of `tracks[].fullRate`, schema 118) — so the 3D viewer interpolates grenade motion at
+  ~60 Hz instead of the 33 ms grid. `SchemaVersion` 126 -> 127 with its chronicle entry, the
+  `structure_test.go` reason, and the regenerated `replay/testdata/document_shape.golden`.
+  Covered by `replay/projectiles_plein_debit_test.go` (new).
 - `replay.ScoreTarget` (new file `replay/score_target_table.go`, LOCAL-CHANGE):
   the `[score_target]` table of LevelUp's `regulation.toml`, measured per variant, ported
   verbatim. The LevelUp application injects the table into `ScoreInput.TargetScore`; the

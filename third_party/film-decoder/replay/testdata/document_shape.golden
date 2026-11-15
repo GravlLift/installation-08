@@ -1,9 +1,9 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
-schema 126
-empreinte-stockee 17c944ee06c07900
-empreinte-servie 17c944ee06c07900
-empreinte-cuite 70d6b590df259e35
+schema 127
+empreinte-stockee cde29a83115e765b
+empreinte-servie cde29a83115e765b
+empreinte-cuite 67353b08458353c9
 empreinte-cuite-regle 4
 
 AbilityCharge
@@ -573,6 +573,11 @@ FlagSpan
   X json:"x" float32
   XUID json:"xuid" *string
   Y json:"y" float32
+FullRateFlight
+  T json:"t" []int64
+  X json:"x" []int32
+  Y json:"y" []int32
+  Z json:"z" []int32
 FullRateTrack
   AimT json:"aimT,omitempty" []int64
   Gaps json:"gaps,omitempty" []int
@@ -958,6 +963,7 @@ Projectile
   DetoT json:"detoT" int
   DetoX json:"detoX" float32
   DetoY json:"detoY" float32
+  FullRate json:"fullRate,omitempty" *FullRateFlight
   P json:"p" [][3]float32
   Rest json:"rest,omitempty" bool
   Shot json:"shot,omitempty" *int

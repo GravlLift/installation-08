@@ -12,7 +12,7 @@
  * Les deux se lisent ensemble ; la doctrine complète est en tête de `replayNormalize.ts`.
  */
 import type { ReplayContractIssue } from '@/lib/replay/replayDocumentSchema'
-import type { ReplayFullRateReady } from '@/lib/replay/replayFullRate'
+import type { ReplayFullRateFlightReady, ReplayFullRateReady } from '@/lib/replay/replayFullRate'
 import { type ReplayScoreTimelineReady } from '@/lib/replay/scoreTimeline'
 import type {
   ReplayDocument,
@@ -72,7 +72,11 @@ type ReplayLoadoutReady = Filled<ReplayLoadout, 'w' | 'k'>
 export type ReplayInventoryReady = Filled<ReplayInventory, 'am' | 'g'>
 export type ReplayGrenadeReadReady = Filled<ReplayGrenadeRead, 'g'>
 export type ReplaySurfaceReady = Omit<ReplaySurface, 'poly'> & { poly: ReplayXY[] }
-export type ReplayProjectileReady = Omit<ReplayProjectile, 'p'> & { p: ReplayStep[] }
+export type ReplayProjectileReady = Omit<ReplayProjectile, 'p'> & {
+  p: ReplayStep[]
+  /** The flight AT THE FILM'S RATE, RELUE (schema 127, `replayFullRate.ts`). Absent: older artifact. */
+  fullRate?: ReplayFullRateFlightReady
+}
 /**
  * ReplayRosterEntryReady — une entrée de roster dont la PRÉSENCE est comblée (schéma 69, lot
  * M2.4). Vide = l'entrée ne tient sa place à aucune image, OU l'artefact est antérieur au schéma
