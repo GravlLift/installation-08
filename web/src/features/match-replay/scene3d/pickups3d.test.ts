@@ -321,7 +321,7 @@ describe('Pickups3dLayer', () => {
   const rackCross = (family: string) =>
     ({ catalogN: 1, pads: [{ ...RACK_AT, pad: 0, family, forward: [0, -1, 0], up: [0, 0, 1] }] }) as ReplayDocumentReady['mapWeaponPads']
 
-  it('holds a rack weapon still at the spawner, upright in the rack frame, by the pad state', () => {
+  it('hangs a rack weapon still on the front of the rack, upright, by the pad state', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
     const { layer, counts, root } = calque(
       { ...show, groundWeapons: false },
@@ -333,8 +333,11 @@ describe('Pickups3dLayer', () => {
     const copie = root.children[2]
     expect(copie).toBeDefined()
     const pose = { p: copie.position.clone(), q: copie.quaternion.clone() }
-    // At the spawner, not lifted off the floor under the rack.
-    expect(pose.p.distanceTo(new THREE.Vector3(RACK_AT.x, RACK_AT.z, -RACK_AT.y))).toBeCloseTo(0)
+    // At the spawner's height, not lifted off the floor under the rack; out in front of the shut
+    // doors (+0.068 u) along the rack forward (game -Y, three +Z): its back 0.073 u out, and its
+    // origin half its 0.02 u thickness further.
+    const spawner = new THREE.Vector3(RACK_AT.x, RACK_AT.z, -RACK_AT.y)
+    expect(pose.p.distanceTo(spawner.clone().add(new THREE.Vector3(0, 0, 0.073 + 0.01)))).toBeCloseTo(0, 5)
     // Upright: the muzzle (model X) runs along world up.
     expect(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.q).y).toBeCloseTo(1)
     layer.update(19)
@@ -366,6 +369,41 @@ describe('Pickups3dLayer', () => {
     layer.update(19)
     expect(copie.quaternion.angleTo(q)).toBeGreaterThan(0.01)
     layer.dispose()
+  })
+
+  it('floats a crossed pad over its spawner even when the floor ray misses its kit', () => {
+    // A Forge map at construction: the variant layer (its floors, the pad kit) is not posed yet and
+    // the only floor under the spawner is the canvas, 4 u down. The pad used to read as a wall rack
+    // and pose its weapon at the spawner, inside the pad kit.
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
+    const { layer, root } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('power') },
+      { floorY: () => RACK_AT.z - 4 },
+    )
+    layer.update(15)
+    const copie = root.children[2]
+    expect(copie.position.y).toBeCloseTo(RACK_AT.z + 0.28 + 0.04)
+    layer.dispose()
+  })
+
+  it('answers window.__it3dPickups with what each pad drew, until disposed', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
+    const { layer } = calque(
+      { ...show, groundWeapons: false },
+      () => model,
+      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('rack') },
+    )
+    const read = () => (window as unknown as { __it3dPickups?: unknown }).__it3dPickups
+    layer.update(15)
+    expect(read()).toEqual([
+      expect.objectContaining({ pad: 0, family: 'rack', weaponKey: '00000001', state: 'full', visible: true, drawn: 'model', modelLoaded: true }),
+    ])
+    layer.update(60)
+    expect(read()).toEqual([expect.objectContaining({ state: 'empty', visible: false, drawn: null })])
+    layer.dispose()
+    expect(read()).toBeUndefined()
   })
 
   it('utilise l’identifiant publié de l’arme au sol et réutilise sa copie', () => {

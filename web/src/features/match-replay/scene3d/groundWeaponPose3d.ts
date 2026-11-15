@@ -18,16 +18,19 @@ export function standingWeaponPose(model: THREE.Object3D): { rotation: THREE.Qua
 }
 
 /**
- * centeredOffset — the offset that puts the middle of the model's bounds, turned by `rotation`, on
- * its mount point: a rack holds the weapon inside its frame, whatever the weapon's grip origin.
+ * faceMountOffset — where a model's origin goes so that, turned by `rotation`, the model is centered
+ * on its mount point in its own X and Y and its back (the min of its own Z) sits `face` in front of
+ * it along its own +Z: a weapon hung on the front of a rack, whatever its grip origin.
  */
-export function centeredOffset(model: THREE.Object3D, rotation: THREE.Quaternion): THREE.Vector3 {
+export function faceMountOffset(model: THREE.Object3D, rotation: THREE.Quaternion, face: number): THREE.Vector3 {
   const copy = model.clone()
   copy.position.set(0, 0, 0)
-  copy.quaternion.copy(rotation)
+  copy.quaternion.identity()
   copy.updateMatrixWorld(true)
   const bounds = new THREE.Box3().setFromObject(copy, true)
-  return bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3()).negate()
+  if (bounds.isEmpty()) return new THREE.Vector3(0, 0, face).applyQuaternion(rotation)
+  const center = bounds.getCenter(new THREE.Vector3())
+  return new THREE.Vector3(-center.x, -center.y, face - bounds.min.z).applyQuaternion(rotation)
 }
 
 /** liftToFloor : de combien l'origine du modèle tourné de `rotation` se lève pour que son dessous soit au sol. */
