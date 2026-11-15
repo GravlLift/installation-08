@@ -110,11 +110,12 @@ type Decoupe struct {
 	Puissance float32
 	Ajout     float32
 	Seuil     float32
-	// AlphaSeul (LOCAL-CHANGE (infinite-theater-3d)): a Forge ASG cut: the texture's alpha is the
-	// transparency, the opacity is 1 - alpha (Ekur's default "Flip Alpha", layered_shader.py and
-	// hims.py), applied only when the texture has an alpha (Ekur's use_alpha: a format without
-	// one reads a full alpha here); a full or zero alpha cuts nothing and the material stays
-	// opaque (glb.go). Drawn only through the composed style mask (glb_couches.go).
+	// AlphaSeul (LOCAL-CHANGE (infinite-theater-3d)): a cut by the texture's alpha alone (a Forge
+	// ASG, a foliage atlas), the alpha being the opacity (high on a leaf: measured on Fortress's
+	// ivy, plants and decals), applied only when the texture has an alpha (Ekur's use_alpha: a
+	// format without one reads a full alpha here) that crosses the threshold; otherwise the
+	// material stays opaque (glb.go). A Forge style material draws it through its composed style
+	// mask (glb_couches.go), any other through its first layer's color.
 	AlphaSeul bool
 }
 
@@ -226,6 +227,9 @@ func litPostprocess(m *Materiau, ti tagInfo, tag []byte, cible int, shaders Lect
 	m.Melange = ModeMelange(tag[abs+postOffMelange]) // LOCAL-CHANGE (infinite-theater-3d): one byte
 	pp := ti.postprocess(cible)
 	m.Decoupe = decoupeDuShader(m.Shader, pp.textures, pp.constantes)
+	if m.Decoupe == nil { // LOCAL-CHANGE (infinite-theater-3d)
+		m.Decoupe = decoupeAtlasFeuillage(m.Shader, shaders(m.Shader), pp.textures)
+	}
 	m.Couches = couchesDuMateriau(m.Shader, shaders, pp)
 	m.Emissif = emissifDuShader(m.Shader, pp.constantes)
 	if m.Emissif != nil {

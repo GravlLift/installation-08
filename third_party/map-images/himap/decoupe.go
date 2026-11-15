@@ -54,6 +54,35 @@ var rolesDecoupe = map[uint32]roleDecoupe{
 	0xd313108e: {76, -1},
 }
 
+// nomAtlasFeuillage (LOCAL-CHANGE (infinite-theater-3d)) : the name of a foliage shader's leaf
+// atlas color map (couches_noms.go, "Atlas de feuillage"). Its alpha is the leaves' coverage
+// (measured on Fortress's bush, pine and branch atlases), so a shader that binds it is cut by
+// that alpha.
+const nomAtlasFeuillage = 0xca775400
+
+// atlasFeuillageParShader (LOCAL-CHANGE (infinite-theater-3d)) : foliage shaders that bind their
+// leaf atlas under another name, by slot. 669c3e5e binds the bush atlas under the panel atlas's
+// name (`0xdaef076c`, slot 4): Fortress's Snow Covered Pine Bush Cluster A MP.
+var atlasFeuillageParShader = map[uint32]int{0x669c3e5e: 4}
+
+// decoupeAtlasFeuillage (LOCAL-CHANGE (infinite-theater-3d)) : the cut by the alpha of the leaf
+// atlas the shader binds (nomAtlasFeuillage, atlasFeuillageParShader); nil when it binds none.
+// An alpha-only cut: an atlas without transparency stays opaque (glb.go).
+func decoupeAtlasFeuillage(shader uint32, params ParametresShader, textures map[int]uint32) *Decoupe {
+	o, ok := atlasFeuillageParShader[shader]
+	if !ok {
+		o, ok = params[nomAtlasFeuillage]
+	}
+	if !ok {
+		return nil
+	}
+	id, ok := textures[o]
+	if !ok {
+		return nil
+	}
+	return &Decoupe{Bitmap: id, Echelle: [2]float32{1, 1}, Puissance: 1, Seuil: seuilDecoupeDefaut, AlphaSeul: true}
+}
+
 // postprocessLu : le premier enregistrement d'un bloc postprocess. `textures` : emplacement ->
 // GlobalID de bitmap ; `transfos` : emplacement -> registre de sa transformation (-1 : aucune).
 type postprocessLu struct {

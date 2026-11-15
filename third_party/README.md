@@ -225,8 +225,19 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       the normal and control maps laid there (`normaleMacro`, `controleMacro`), and a cut lives
       in the mask's alpha (`decoupeMasque`). Read on UV0 they streaked across scaled blocks.
       Swatches only a style draws are read at 256 (`coteEchantillon`).
-    Covered by `himap/styles_forge_test.go` (new) and `himap/couches_style_test.go`
-    (modified, gamefiles).
+    - `himap/maillage_variante_poses.go` (`avecJeuMacro`): a Forge object's mesh without UV1
+      reads its UV0 there, as Ekur keeps the active map when UV1 is missing. Foliage cards have
+      no UV1; zero-filled, their cut, ASG and normal read one texel.
+    - `himap/glb.go`, `glb_masques.go` (`alphaTranche`): an alpha-only cut whose alpha never
+      crosses the threshold leaves the material opaque. Fortress's Forge walls carry an ASG
+      alpha of 0 to 4, which the coverage reading above would otherwise cut away entirely.
+    Covered by `himap/styles_forge_test.go` (new), `himap/decoupe_feuillage_test.go` (new) and
+    `himap/couches_style_test.go` (modified, gamefiles).
+  - Foliage atlas cuts, `himap/decoupe.go` (`decoupeAtlasFeuillage`), `materiaux.go`: a shader
+    that binds a leaf atlas color map (`0xca775400`, or 669c3e5e's slot 4) is cut by that map's
+    alpha, the leaves' coverage. Fortress's pine clusters, bushes, firs and root clusters drew as
+    dark angular cards (the atlas's dilated padding) because their shaders are not in the cutout
+    table. Covered by `himap/decoupe_feuillage_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
