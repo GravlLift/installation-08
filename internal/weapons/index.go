@@ -93,33 +93,48 @@ type Index struct {
 	// Banners: per weapon model key, the team banner its model carries (banners.go). Always
 	// written, empty included: an index without the field predates it and is stale.
 	Banners map[string]Banner `json:"banners"`
-	// Equipment: per equipment family of the title's manifest named by a single object, the model
-	// key of that object (equipment.go), for the items a power-up pad publishes by family. Always
-	// written, empty included: an index without the field predates it and is stale.
+	// Equipment: per equipment family of the title's manifest whose pad items share one model, the
+	// model key of that model (equipment.go), for the items a power-up or equipment pad publishes
+	// by family. Always written, empty included: an index without the field predates it and is
+	// stale.
 	Equipment map[string]string `json:"equipment"`
+	// EquipmentRule: the rule the Equipment table was derived by (EquipmentRuleCurrent). An index
+	// written by an older rule (absent: 0) lacks families the current one maps, and is stale.
+	EquipmentRule int `json:"equipment_rule"`
 }
+
+// EquipmentRuleCurrent is the current Equipment rule: 2 maps a family named by several pickup
+// objects (two grapples, two walls) when their models are the same; 1 (unrecorded) mapped only a
+// family named by a single object.
+const EquipmentRuleCurrent = 2
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
 	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
-		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}, Equipment: map[string]string{}}
+		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}, Equipment: map[string]string{},
+		EquipmentRule: EquipmentRuleCurrent}
 }
 
 // IndexCurrent says whether a library index.json carries every field the view reads from it: the
 // red-reticle table, each entry with its per-level magnifications, the team banners and the
-// equipment families. A library built before one of them existed is stale (its rebuild adds it);
-// a reticle table without entries (no readable weapons) carries nothing more and is current.
+// equipment families by the current rule. A library built before one of them existed is stale (its
+// rebuild adds it); a reticle table without entries (no readable weapons) carries nothing more and
+// is current.
 func IndexCurrent(raw []byte) bool {
 	var idx struct {
 		ReticleRanges *map[string]struct {
 			Magnifications json.RawMessage `json:"magnifications"`
 		} `json:"reticle_ranges"`
-		Banners   *map[string]json.RawMessage `json:"banners"`
-		Equipment *map[string]string          `json:"equipment"`
+		Banners       *map[string]json.RawMessage `json:"banners"`
+		Equipment     *map[string]string          `json:"equipment"`
+		EquipmentRule int                         `json:"equipment_rule"`
 	}
 	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil || idx.Equipment == nil {
 		return false // a field was never written (a library older than it)
+	}
+	if idx.EquipmentRule < EquipmentRuleCurrent {
+		return false // the equipment table was derived by an older rule
 	}
 	for _, r := range *idx.ReticleRanges {
 		if len(r.Magnifications) == 0 || string(r.Magnifications) == "null" {

@@ -104,7 +104,8 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		return res, err
 	}
 	announce("building equipment objects")
-	equipment, err := buildEquipment(ctx, w, planEquipment(refdata.Labels().EquipmentFamilies), &res)
+	labels := refdata.Labels()
+	equipment, err := buildEquipment(ctx, w, planEquipment(labels.EquipmentFamilies, labels.DeployedEquipment), &res)
 	if err != nil {
 		return res, err
 	}
@@ -264,14 +265,26 @@ func parseKey(key string) (uint32, error) {
 // size. coats (nil accepted) puts the coating style on the painted materials before the write.
 func writeModelGLB(ctx context.Context, dir, key string, m *himap.MaillageMonde, coats *spartanpieces.CoatingWork,
 	generator string, extras map[string]any) (int64, error) {
-	glb, err := coats.PaintableGLB(ctx, m, func() ([]byte, error) {
+	glb, err := paintModelGLB(ctx, m, coats, generator, extras)
+	if err != nil {
+		return 0, err
+	}
+	return writeGLB(dir, key, glb)
+}
+
+// paintModelGLB encodes the model's GLB with the axes extras; coats (nil accepted) puts the
+// coating style on the painted materials.
+func paintModelGLB(ctx context.Context, m *himap.MaillageMonde, coats *spartanpieces.CoatingWork,
+	generator string, extras map[string]any) ([]byte, error) {
+	return coats.PaintableGLB(ctx, m, func() ([]byte, error) {
 		var buf bytes.Buffer
 		err := himap.EcritGLB(&buf, m, generator, withAxes(extras))
 		return buf.Bytes(), err
 	}, nil)
-	if err != nil {
-		return 0, err
-	}
+}
+
+// writeGLB writes glb to dir/FileOf(key) atomically and returns its byte size.
+func writeGLB(dir, key string, glb []byte) (int64, error) {
 	return writeFile(filepath.Join(dir, FileOf(key)), func(w ioWriter) error {
 		_, err := w.Write(glb)
 		return err
