@@ -177,6 +177,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     stood 2.09 m tall through the floor; the base door frames (all 0.41 m deep) stored 15.4 and
     made a 6.2 m tunnel (10,893 player samples inside both, 0 now). Ekur does not handle
     telescoping. Covered by `himap/telescopage_forge_test.go` (new).
+  - `himap/premiere_personne.go` (LOCAL-CHANGE): `SourcesArme` falls back to the one indexed
+    `jmad` of the weapon's dependency table when no couple of inline references resolves and
+    the inline graph's GlobalID is indexed by no module. The Vestige Carbine (weap 3e070217)
+    names 78912884, which no installed map indexes; its dependency table carries d7292132, its
+    real FP graph. It had no first-person rig and its gun floated without arms; no other
+    weapon changes (91 to 92 rigs). Covered by
+    `himap/premiere_personne_dependances_gamefiles_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

@@ -120,10 +120,44 @@ func (a *Arsenal) SourcesArme(weap uint32) (SourcesArme, error) {
 			trouves = append(trouves, s)
 		}
 	}
+	if len(trouves) == 0 {
+		trouves = couplesAuGrapheDesDependances(a, weap, raw, modes, graphes)
+	}
 	if len(trouves) != 1 {
 		return SourcesArme{}, fmt.Errorf("%w : %08x porte %d couples de references mode puis jmad", ErrSansPremierePersonne, weap, len(trouves))
 	}
 	return trouves[0], nil
+}
+
+// couplesAuGrapheDesDependances [LOCAL-CHANGE (infinite-theater-3d)]: the first-person block of a
+// weapon whose inline `jmad` reference names a GlobalID no installed module indexes (the Vestige
+// Carbine, weap 3e070217: inline 78912884, absent from every map's index) while its dependency
+// table lists exactly one indexed `jmad` (d7292132: the arm bones and the weapon root under
+// `b_r_hand`, 76 animations, the shape of every other FP graph). The block's `mode` must still
+// resolve; the graph is the one the dependency table carries. Nil otherwise.
+func couplesAuGrapheDesDependances(a *Arsenal, weap uint32, raw []byte, modes, graphes []uint32) []SourcesArme {
+	var indexes []uint32
+	for _, g := range graphes {
+		if a.estDuGroupe(g, GroupeGrapheAnimation) {
+			indexes = append(indexes, g)
+		}
+	}
+	if len(indexes) != 1 {
+		return nil
+	}
+	var out []SourcesArme
+	fMode, fGraphe := fourcc(GroupeMode), fourcc(GroupeGrapheAnimation)
+	for o := 0; o+refTagPas+refTagOffID+4 <= len(raw); o += 4 {
+		if uint32(u32(raw, o)) != fMode || uint32(u32(raw, o+refTagPas)) != fGraphe {
+			continue
+		}
+		mode, inline := uint32(u32(raw, o+refTagOffID)), uint32(u32(raw, o+refTagPas+refTagOffID))
+		if _, _, ok := a.geo.Lookup(inline); ok || !slices.Contains(modes, mode) || !a.estDuGroupe(mode, GroupeMode) {
+			continue
+		}
+		out = append(out, SourcesArme{Arme: weap, Mode: mode, Graphe: indexes[0], Offset: o})
+	}
+	return out
 }
 
 // estDuGroupe dit si le tag `id` est indexe sous le groupe `grp`.
