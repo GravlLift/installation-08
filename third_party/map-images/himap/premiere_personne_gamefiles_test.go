@@ -238,3 +238,46 @@ func TestActionsPremierePersonne(t *testing.T) {
 		}
 	}
 }
+
+// TestJeuxDEquipementPremierePersonne : les quatre jeux d'equipement cuits (repulseur, capteur,
+// camouflage actif, translocateur) designent chacun une animation dans l'arbre des modes du BR75 ;
+// un jeu absent designe rien.
+func TestJeuxDEquipementPremierePersonne(t *testing.T) {
+	ctx := context.Background()
+	a := ouvreArsenalRecharge(t)
+	s, err := a.SourcesArme(0x2b1824d5) // BR75
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs, err := a.GraphesDepuis(ctx, s.Graphe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cas := []struct {
+		jeu   string
+		rangs []int
+	}{
+		{JeuRepulseur, []int{1}},
+		{JeuCapteurMenace, []int{2}},
+		{JeuCamo, []int{0}},
+		{JeuTranslocateur, []int{3}},
+		{"nimporte_quel_jeu_absent", nil},
+	}
+	for _, c := range cas {
+		clips, err := gs.ClipsDeLActionDuJeu(c.jeu, ActionUsageEquipement)
+		if err != nil {
+			t.Errorf("%s : %v", c.jeu, err)
+			continue
+		}
+		var rangs []int
+		for _, x := range clips {
+			rangs = append(rangs, x.Rang)
+			if x.Action != NomActionDuJeu(c.jeu, ActionUsageEquipement) || x.Source != SourceArbre {
+				t.Errorf("%s : clip %+v", c.jeu, x)
+			}
+		}
+		if fmt.Sprint(rangs) != fmt.Sprint(c.rangs) {
+			t.Errorf("%s : rangs %v, attendu %v", c.jeu, rangs, c.rangs)
+		}
+	}
+}

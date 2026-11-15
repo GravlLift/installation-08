@@ -32,13 +32,15 @@ type ActionPremierePersonne struct {
 }
 
 // Jeux d'equipement de l'arbre FP (StringID nommes par murmur3 sur le graphe de chaque arme, 79
-// graphes sur 79) : le repulseur (`ability_knockback`) et le capteur de menace
-// (`ability_location_sensor`). Les jeux `camo` et `quantum` (translocateur) existent aussi ; un
-// cinquieme (#6132b1e2) reste sans nom.
+// graphes sur 79) : le repulseur (`ability_knockback`), le capteur de menace
+// (`ability_location_sensor`), le camouflage actif et le translocateur (`quantum`). Un cinquieme
+// (#6132b1e2) reste sans nom.
 const (
 	ActionUsageEquipement = "equipment_activate"
 	JeuRepulseur          = "knockback"
 	JeuCapteurMenace      = "location"
+	JeuCamo               = "camo"
+	JeuTranslocateur      = "quantum"
 )
 
 // NomActionDuJeu rend le nom d'action d'un rig pour l'action `action` du jeu `jeu` : l'action seule
@@ -67,6 +69,7 @@ var ActionsPremierePersonne = []ActionPremierePersonne{
 	{Nom: "evade_right", Surcouche: true}, {Nom: "grapple_hook_deploy", Surcouche: true},
 	// L'usage des equipements portes.
 	{Nom: ActionUsageEquipement, Jeu: JeuRepulseur}, {Nom: ActionUsageEquipement, Jeu: JeuCapteurMenace},
+	{Nom: ActionUsageEquipement, Jeu: JeuCamo}, {Nom: ActionUsageEquipement, Jeu: JeuTranslocateur},
 }
 
 // RigPremierePersonne : le rig d'une arme.
