@@ -5,9 +5,10 @@
  *
  * The page's sound replay is a PLAYER: a cursor advances with playback and triggers
  * the sounds in passing (`replaySoundCursor.ts`), one by one, at real time. The export has no
- * playback to follow — it knows the whole track in advance and can therefore PLACE it at once:
- * each event at its absolute moment in an `OfflineAudioContext`, which renders the complete mixing
- * much faster than its duration.
+ * playback to follow — it knows the whole track in advance and can therefore PLACE it: each event
+ * at its absolute moment in an `OfflineAudioContext`, which renders the complete mixing much
+ * faster than its duration. The sources enter that context just in time, a step ahead of the
+ * render (`mixRender.ts`): placed all at once, the render of a long range grows with its square.
  *
  * THE TRACK IS NOT RECONSTRUCTED HERE. It comes from `buildSoundTimeline()`, the very one that
  * the page plays — the exported mixing therefore cannot contain a sound the replay would not have
@@ -31,7 +32,15 @@
  * derived from the EVENT itself (its rank and its stem): two exports of the same match sound
  * the same, and two occurrences of the same gesture still sound differently.
  */
-import { distanceChain, drawVariation, gainFromDb, withEventGain, type SoundDraw } from './weaponSoundLogic'
+import { drawVariation, withEventGain, type SoundDraw } from './weaponSoundLogic'
+import {
+  MIX_CHANNELS,
+  MIX_SAMPLE_RATE,
+  renderAudioMix,
+  type MixBuffers,
+  type MixJob,
+  type RenderHooks,
+} from './mixRender'
 import {
   SOUND_MAX_VOICES,
   soundEnvelopeOf,
@@ -46,16 +55,10 @@ import {
   engineStemsOf,
   engineTailSeconds,
   planEngineSegments,
-  scheduleEngineMix,
   type EngineSegment,
 } from './vehicleEngineMix'
 import type { EnginePlan } from './vehicleEngineSound'
 import { staticAssetURL } from '@/lib/staticAssets'
-
-/** Sampling frequency of the mixing. 48 kHz: the native rate of the delivered assets. */
-export const MIX_SAMPLE_RATE = 48_000
-/** Two channels: the sources are mono, the container and the players expect stereo. */
-export const MIX_CHANNELS = 2
 
 /**
  * The extension of the delivered sounds: Opus in Ogg container (encoded by `cmd/sounds-encode`). The sound
@@ -293,9 +296,6 @@ export function applyVoiceCap(
   return kept
 }
 
-/** What the offline render consumes: the buffers already decoded, by stem. */
-export type MixBuffers = ReadonlyMap<string, AudioBuffer | null>
-
 /**
  * decodeMixSources loads and decodes the files the mixing needs.
  *
@@ -326,95 +326,6 @@ export async function decodeMixSources(
     }
   }
   return out
-}
-
-/**
- * scheduleMix places all the sources in an offline context, each with its envelope.
- *
- * That is the EXACT transposition of `ReplayAudioPlayer.play()`: hold gain, plateau, linear
- * fade to zero, and `playbackRate` when the variation demands one. The only
- * difference is the moment — absolute here, "now" there.
- *
- * THE PLACE follows the same rule as the player: the hold gain is MULTIPLIED by the gain of the
- * placement (a spatialized sound is lower according to its distance), and the stereo panner is born
- * only if the placement demands one at a side — without `place`, or `pan` at 0, the wiring stays
- * `source -> gain -> destination`, no node more.
- */
-export function scheduleMix(
-  ctx: BaseAudioContext,
-  destination: AudioNode,
-  sounds: readonly MixedSound[],
-  buffers: MixBuffers,
-): void {
-  for (const s of sounds) {
-    const buf = buffers.get(s.stem)
-    if (!buf) continue
-    const t0 = s.atMs / 1000
-    const { fadeStartS, stopS, loop } = soundEnvelopeOf(buf.duration, s.shape)
-    const tenue = gainFromDb(s.draw.gainDb) * (s.place?.gain ?? 1)
-    const gain = ctx.createGain()
-    gain.gain.setValueAtTime(tenue, t0)
-    gain.gain.setValueAtTime(tenue, t0 + fadeStartS)
-    gain.gain.linearRampToValueAtTime(0, t0 + stopS)
-    const src = ctx.createBufferSource()
-    src.buffer = buf
-    src.loop = loop
-    if (s.draw.playbackRate !== 1) src.playbackRate.value = s.draw.playbackRate
-    src.connect(gain)
-    // The PAN is born only if demanded and at a SIDE: same rule as the player.
-    if (s.place && s.place.pan !== 0) {
-      const panner = ctx.createStereoPanner()
-      panner.pan.value = s.place.pan
-      gain.connect(panner)
-      panner.connect(destination)
-    } else {
-      gain.connect(destination)
-    }
-    src.start(t0)
-    src.stop(t0 + stopS)
-  }
-}
-
-/**
- * renderAudioMix renders the complete track in a buffer.
- *
- * THE DURATION IS THAT OF THE CLIP, plus the TAIL of the last sound: a hard cut at the bound would slice
- * an end-of-match fanfare that lasts eleven seconds and that begins, by definition, at the
- * last frame.
- */
-export async function renderAudioMix(
-  sounds: readonly MixedSound[],
-  buffers: MixBuffers,
-  /** TOTAL duration to render, tail included — the caller computes it once and for all. */
-  durationMs: number,
-  masterGain: number,
-  distancePercent = 0,
-  /** The engine segments to place behind their bus (0.85), with the same buffers. */
-  engineSegments: readonly EngineSegment[] = [],
-): Promise<AudioBuffer> {
-  const frames = Math.max(1, Math.ceil((durationMs / 1000) * MIX_SAMPLE_RATE))
-  const ctx = new OfflineAudioContext(MIX_CHANNELS, frames, MIX_SAMPLE_RATE)
-  const master = ctx.createGain()
-  master.gain.value = Math.min(Math.max(masterGain, 0), 1)
-  // THE DISTANCE CHAIN, SAME RECIPE AS THE PLAYER (`ReplayAudioPlayer.setDistance`):
-  // master -> attenuation -> low-pass -> output. At 0%, `distanceChain` returns `null` and NO
-  // node is placed — the signal path stays the original one, "pure sounds" requirement.
-  const chain = distanceChain(distancePercent)
-  if (chain) {
-    const dist = ctx.createGain()
-    dist.gain.value = gainFromDb(chain.gainDb)
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = chain.cutoffHz
-    master.connect(dist)
-    dist.connect(filter)
-    filter.connect(ctx.destination)
-  } else {
-    master.connect(ctx.destination)
-  }
-  scheduleMix(ctx, master, sounds, buffers)
-  scheduleEngineMix(ctx, master, engineSegments, buffers)
-  return ctx.startRendering()
 }
 
 /**
@@ -465,12 +376,15 @@ const FAMILY_ORDER: readonly SoundFamily[] = ['sfx', 'voice', 'music']
  * exactly the mixing: same draw, same voice ceiling, same moments.
  *
  * `null` when there is nothing to mix — empty track, range without the slightest sound, or browser
- * without `OfflineAudioContext`. The caller then outputs a SILENT clip rather than no clip.
+ * without `OfflineAudioContext` — and when `hooks.cancelled` stopped a render. The caller then
+ * outputs a SILENT clip rather than no clip, or reads its own cancellation.
+ *
+ * `hooks.progress` receives the rendered share of ALL the tracks, 0..1, while they render.
  */
 export async function mixReplayAudio(
   timeline: readonly ReplaySoundEvent[],
   bounds: MixBounds,
-  options: MixOptions & { volume: number; urlOf: (stem: string) => string | undefined; trimToBounds?: boolean },
+  options: MixOptions & { volume: number; urlOf: (stem: string) => string | undefined; trimToBounds?: boolean; hooks?: RenderHooks },
 ): Promise<MixedTracks | null> {
   if (typeof OfflineAudioContext !== 'function') return null
   const planned = planAudioMix(timeline, bounds, options)
@@ -500,16 +414,43 @@ export async function mixReplayAudio(
     engineTailSeconds(engineSegments, durOf, durationMs / 1000),
   )
   const total = durationMs + (options.trimToBounds ? 0 : tail * 1000)
-  const rendre = (sons: readonly MixedSound[], engines: readonly EngineSegment[]) =>
-    renderAudioMix(sons, buffers, total, options.volume, options.distancePercent ?? 0, engines)
-  const full = await rendre(kept, engineSegments)
-  const families: MixedTracks['families'] = []
+  const level = { volume: options.volume, distancePercent: options.distancePercent ?? 0 }
+  return renderTracks(trackJobs(kept, engineSegments), (job, hooks) => renderAudioMix(job, buffers, total, level, hooks), options.hooks)
+}
+
+/** One track to render: its family (`null` = the complete mixing) and what it mixes. */
+type TrackJob = MixJob & { family: SoundFamily | null }
+
+/** The complete mixing first, then the NON-EMPTY families in `FAMILY_ORDER`. */
+function trackJobs(kept: readonly MixedSound[], engines: readonly EngineSegment[]): TrackJob[] {
+  const jobs: TrackJob[] = [{ family: null, sounds: kept, engines }]
   for (const family of FAMILY_ORDER) {
-    const sons = kept.filter((s) => s.family === family)
+    const sounds = kept.filter((s) => s.family === family)
     // The engines are SOUND EFFECTS: they come out in the `sfx` track, like in the mixing.
-    const engines = family === 'sfx' ? engineSegments : []
-    if (sons.length === 0 && engines.length === 0) continue
-    families.push({ family, buffer: await rendre(sons, engines) })
+    const familyEngines = family === 'sfx' ? engines : []
+    if (sounds.length > 0 || familyEngines.length > 0) jobs.push({ family, sounds, engines: familyEngines })
   }
-  return { full, families }
+  return jobs
+}
+
+/**
+ * renderTracks renders the jobs one after the other, the progress of each scaled into the share
+ * of the whole. `null` as soon as one render was cancelled.
+ */
+async function renderTracks(
+  jobs: readonly TrackJob[],
+  render: (job: MixJob, hooks: RenderHooks) => Promise<AudioBuffer | null>,
+  hooks: RenderHooks = {},
+): Promise<MixedTracks | null> {
+  const out: { family: SoundFamily | null; buffer: AudioBuffer }[] = []
+  for (const [i, job] of jobs.entries()) {
+    const buffer = await render(job, {
+      cancelled: hooks.cancelled,
+      progress: (f) => hooks.progress?.((i + f) / jobs.length),
+    })
+    if (!buffer) return null
+    out.push({ family: job.family, buffer })
+  }
+  const families = out.slice(1).flatMap((t) => (t.family ? [{ family: t.family, buffer: t.buffer }] : []))
+  return { full: out[0].buffer, families }
 }

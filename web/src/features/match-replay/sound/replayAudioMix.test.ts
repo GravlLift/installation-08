@@ -16,12 +16,12 @@ import {
   applyVoiceCap,
   mixSeed,
   planAudioMix,
-  scheduleMix,
   seededRandom,
   soundUrlOf,
   tailSeconds,
   type MixedSound,
 } from './replayAudioMix'
+import { soundPlacements } from './mixRender'
 import { ReplayAudioPlayer, SOUND_MAX_VOICES } from './replayAudio'
 import { FakeContext, flushAudio, installFakeAudio } from '../test/fakeAudio'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -155,7 +155,7 @@ describe('planAudioMix — the placement for the clip listener', () => {
   })
 })
 
-describe('scheduleMix — the placement, same wiring as the player', () => {
+describe('soundPlacements — the placement, same wiring as the player', () => {
   const BUFFERS = new Map([['s', { duration: 1 } as AudioBuffer]])
 
   it('multiplies the hold gain by the gain of the placement', () => {
@@ -163,7 +163,7 @@ describe('scheduleMix — the placement, same wiring as the player', () => {
     const sons: MixedSound[] = [
       { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx', place: { gain: 0.25, pan: 0 } },
     ]
-    scheduleMix(ctx as unknown as BaseAudioContext, {} as AudioNode, sons, BUFFERS)
+    for (const p of soundPlacements(ctx as unknown as BaseAudioContext, {} as AudioNode, sons, BUFFERS)) p.place()
     expect(ctx.gains[0].gain.value).toBe(0.25)
     expect(ctx.panners).toHaveLength(0)
     expect(ctx.gains[0].connections).toHaveLength(1)
@@ -174,7 +174,7 @@ describe('scheduleMix — the placement, same wiring as the player', () => {
     const sons: MixedSound[] = [
       { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx', place: { gain: 0.5, pan: 0.4 } },
     ]
-    scheduleMix(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)
+    for (const p of soundPlacements(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)) p.place()
     expect(ctx.panners).toHaveLength(1)
     expect(ctx.panners[0].pan.value).toBe(0.4)
     expect(ctx.gains[0].connections).toEqual([ctx.panners[0]])
@@ -186,7 +186,7 @@ describe('scheduleMix — the placement, same wiring as the player', () => {
     const sons: MixedSound[] = [
       { atMs: 0, stem: 's', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx' },
     ]
-    scheduleMix(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)
+    for (const p of soundPlacements(ctx as unknown as BaseAudioContext, ctx.destination as AudioNode, sons, BUFFERS)) p.place()
     expect(ctx.panners).toHaveLength(0)
     expect(ctx.gains[0].connections).toEqual([ctx.destination])
   })
