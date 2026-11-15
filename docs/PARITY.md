@@ -68,7 +68,7 @@ from the document's own `killCauses`.
 | Surface inspector (alt/click probe) | `ui/useSurfaceProbe.ts`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
 | View-grip tuner overlay | `ui/useViewGripTuner.ts`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
 | Loading screen | `ui/ReplayChargement3d.tsx`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
-| FPS / cadence HUD | `ui/ReplayCadence3d.tsx`, rendered inside `Replay3DView.tsx` | wired: lifted unchanged | none |
+| FPS / cadence HUD | `ui/ReplayCadence3d.tsx`, rendered inside `Replay3DView.tsx` | wired: extended to a playback meter (film fps shown / native, real-time ratio, render cost, `window.__it3dPerf`), toggled from the drawer ("Show playback FPS") or the ` key | none |
 | In-view HUD (health/shield, held-weapon icon, scope zoom overlay, kill popups, medal badges) | `ui/ReplayAth3d.tsx` + `ReplayAthFil3d.tsx`, `ReplayAthLunette3d.tsx`, `ReplayKillPopup3d.tsx`, `MedalBadges.tsx`, `components/ui/WeaponIcon.tsx` | **wired**: the HUD stays visible in third person with pinned ammo behavior (`1e3164c`); health, weapon-in-hand and scope zoom read from the document; kill popups fire for real; medal badges show nothing (no medal source in the document) | medal badges need a medal source |
 
 ## 3. LevelUp API routes the scene/loaders call

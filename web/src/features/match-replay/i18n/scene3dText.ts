@@ -51,10 +51,12 @@ export interface Scene3dText {
   noPov: string
   /** Inspecteur de surfaces (poste de développement) : la ligne est dans le presse-papiers. */
   probeCopied: string
-  /** Lecteur de cadence (coin haut droit) : les images par seconde, « 60 ips ». */
+  /** Playback meter (right, under the minimap): frames per second, « 13 / 30 fps ». */
   cadenceIps: string
-  /** Lecteur de cadence : l'étiquette de la pire image, « pire 22.4 ms ». */
+  /** Playback meter: the worst frame's label, « worst 22.4 ms ». */
   cadencePire: string
+  /** Playback meter: the film is paused (no real-time ratio). */
+  cadencePaused: string
   /** La vue réduite du coin : l'agrandir (selon celle qui y est), la déplacer, la retailler. */
   insetEnlarge2d: string
   insetEnlarge3d: string
@@ -81,6 +83,9 @@ export interface Scene3dText {
   lookOcclusionHint: string
   lookGameLight: string
   lookGameLightHint: string
+  /** The playback meter's toggle (also the ` key). */
+  lookPlaybackFps: string
+  lookPlaybackFpsHint: string
   /** Tiroir des réglages : les repères d'analyse de la vue 3D (`aids3d`), éteints par défaut. */
   aidsTitle: string
   aidsTitleHint: string
@@ -135,6 +140,7 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     probeCopied: 'copié',
     cadenceIps: 'ips',
     cadencePire: 'pire',
+    cadencePaused: 'en pause',
     insetEnlarge2d: 'Agrandir la carte 2D',
     insetEnlarge3d: 'Agrandir la vue 3D',
     insetMove: 'Changer de côté',
@@ -156,6 +162,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookOcclusionHint: 'Assombrit les coins et les recoins. Le plus coûteux des réglages.',
     lookGameLight: 'Lumière du jeu',
     lookGameLightHint: 'La lumière cuite et les lampes de la carte, telles que le jeu les pose.',
+    lookPlaybackFps: 'Afficher les ips de lecture',
+    lookPlaybackFpsHint: "Les images du film affichées par seconde face à sa cadence native, le rapport au temps réel, puis le temps d'image et le coût du rendu. Touche `.",
     aidsTitle: 'Repères d’analyse',
     aidsTitleHint: 'Des traits et des marques que le jeu ne montre pas, pour lire une action. Éteints, la vue ressemble au jeu.',
     aids: {
@@ -240,6 +248,7 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     probeCopied: 'copied',
     cadenceIps: 'fps',
     cadencePire: 'worst',
+    cadencePaused: 'paused',
     insetEnlarge2d: 'Enlarge the 2D map',
     insetEnlarge3d: 'Enlarge the 3D view',
     insetMove: 'Move to the other side',
@@ -261,6 +270,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookOcclusionHint: 'Darkens corners and crevices. The costliest setting.',
     lookGameLight: 'Game lighting',
     lookGameLightHint: "The map's baked light and lamps, as the game places them.",
+    lookPlaybackFps: 'Show playback FPS',
+    lookPlaybackFpsHint: "Film frames shown per second against the film's native rate, the real-time ratio, then frame time and render cost. Key `.",
     aidsTitle: 'Analysis aids',
     aidsTitleHint: 'Lines and marks the game does not show, to read a play. Off, the view looks like the game.',
     aids: {

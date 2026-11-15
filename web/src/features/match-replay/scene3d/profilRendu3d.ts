@@ -14,12 +14,19 @@ export interface ProfilRendu {
   /** Les appels de dessin et les triangles de la dernière image, toutes passes confondues. */
   appels: number
   triangles: number
+  /** The renderer's live geometries and textures (`renderer.info.memory`). */
+  geometries: number
+  textures: number
+  /** The drawing buffer: pixel ratio and size in device pixels. */
+  pixelRatio: number
+  width: number
+  height: number
 }
 
 const LISSAGE = 0.1
 
 export function nouveauProfil(): ProfilRendu {
-  return { ms: new Float32Array(ETAPES_PROFIL.length), appels: 0, triangles: 0 }
+  return { ms: new Float32Array(ETAPES_PROFIL.length), appels: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1, width: 0, height: 0 }
 }
 
 /** marquer clôt l'étape `etape` commencée à `debut` (ms) et rend l'instant de clôture, début de la suivante. */

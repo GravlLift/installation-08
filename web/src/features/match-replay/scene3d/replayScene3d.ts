@@ -365,6 +365,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     marquer(p, 5, t)
     p.appels = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
+    p.geometries = this.renderer.info.memory.geometries
+    p.textures = this.renderer.info.memory.textures
+    p.pixelRatio = this.renderer.getPixelRatio()
+    p.width = this.renderer.domElement.width
+    p.height = this.renderer.domElement.height
     this.lastStatus = status
     return status
   }
