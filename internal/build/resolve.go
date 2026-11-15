@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/JGtm/halo-infinite-film-decoder/decfilm"
@@ -218,16 +219,34 @@ func participantsOf(s Stats) []replay.Participant {
 // scoreInput assembles the score-curve entry. Without match lines the entry is nil: the
 // document then publishes no score layer at all (the decoder's rule for "nothing was
 // provided"), not a curve of empty pairs.
-func scoreInput(recs []types.StatRecord, lines []types.PlayerLine, teams map[string]int, s Stats) *replay.ScoreInput {
+//
+// target is the variant's victory score (0 = unknown): the viewer's score bars use it as
+// their denominator. On a hill mode (King of the Hill) the entry also asks for the hill hold
+// series and its per-point threshold, which the viewer bars show as the current hill's
+// progress; the threshold is measured in the film, at the match's own points.
+func scoreInput(recs []types.StatRecord, lines []types.PlayerLine, teams map[string]int, s Stats, target int) *replay.ScoreInput {
 	if len(recs) == 0 || len(lines) == 0 {
 		return nil
 	}
 	return &replay.ScoreInput{
-		Records:    recs,
-		Lines:      lines,
-		TeamByXUID: teams,
-		TeamScores: s.TeamScores,
+		Records:     recs,
+		Lines:       lines,
+		TeamByXUID:  teams,
+		TeamScores:  s.TeamScores,
+		TargetScore: target,
+		HillScoring: hillScoring(s.GameVariantName),
 	}
+}
+
+var variantNameWords = regexp.MustCompile(`[^a-z0-9]+`)
+
+// hillScoring says whether the game variant scores by holding a hill ("Ranked:King of the
+// Hill", "KOTH:Arena", ...), with the same words as the map's mode filters
+// (internal/mapmesh/mode_filters.go). Strongholds is not one: it scores a point per second
+// held, so it has no per-point hold bar.
+func hillScoring(variant string) bool {
+	name := " " + variantNameWords.ReplaceAllString(strings.ToLower(variant), " ") + " "
+	return strings.Contains(name, " king of the hill ") || strings.Contains(name, " koth ")
 }
 
 // deathInstants translates the death feed into the form the per-round identity bridge expects.

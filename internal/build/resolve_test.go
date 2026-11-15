@@ -126,11 +126,35 @@ func TestParticipantsOf(t *testing.T) {
 // TestScoreInput — the score entry is nil without records or without lines (the document
 // publishes no score layer, not an empty curve).
 func TestScoreInput(t *testing.T) {
-	if scoreInput(nil, nil, nil, Stats{}) != nil {
+	if scoreInput(nil, nil, nil, Stats{}, 0) != nil {
 		t.Fatal("no records, no lines: expected nil score input")
 	}
-	if scoreInput(nil, []types.PlayerLine{{XUID: "1"}}, nil, Stats{}) != nil {
+	if scoreInput(nil, []types.PlayerLine{{XUID: "1"}}, nil, Stats{}, 0) != nil {
 		t.Fatal("no records: expected nil score input")
+	}
+}
+
+// TestScoreInputCarriesTargetAndHillGate — the variant's victory score reaches the decoder
+// (the viewer bars' denominator; it used to be resolved and then dropped), and only a hill
+// mode asks for the hold series.
+func TestScoreInputCarriesTargetAndHillGate(t *testing.T) {
+	recs := []types.StatRecord{{}}
+	lines := []types.PlayerLine{{XUID: "1"}}
+	cases := []struct {
+		variant string
+		target  int
+		hill    bool
+	}{
+		{"Ranked:King of the Hill", 4, true},
+		{"KOTH:Arena", 3, true},
+		{"Ranked:Strongholds", 250, false},
+		{"Ranked:Slayer", 50, false},
+	}
+	for _, c := range cases {
+		in := scoreInput(recs, lines, nil, Stats{GameVariantName: c.variant}, c.target)
+		if in == nil || in.TargetScore != c.target || in.HillScoring != c.hill {
+			t.Fatalf("%s: got %+v, want target %d hill %v", c.variant, in, c.target, c.hill)
+		}
 	}
 }
 

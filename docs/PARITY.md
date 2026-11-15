@@ -144,8 +144,9 @@ builder or context route; **parity** = already equal, no change needed.
 | Oddball `7d798138` | `projectiles` | 372 (schema 116, 100 ms grid) | 539 (schema 122, 33 ms grid) | report: decoder difference, the vendored decoder is newer and denser |
 | Oddball `7d798138` | `stances` / `drawnWeapons` / `ammoReads` / `weaponChanges` | 3260 / 594 / 3413 / 205 | 3266 / 610 / 3416 / 206 | report: same decoder difference |
 | Oddball `7d798138` | `coverage.fallbacks` / `carriedEquipment` / `padPickups` | 30 / 28 / 15 | 21 / 31 / 16 | report: decoder-side counts, not in the builder or context route |
-| Strongholds `19628ee2` | `scoreTimeline` | n/a | present, no `targetScore` | complete (Strongholds is not in `[score_target]`) |
-| King of the Hill `d01ba030` | `scoreTimeline.targetScore` | n/a | 4 (from `[score_target]` "Ranked:King of the Hill" = 4) | fixed: `replay.ScoreTarget` table + `Input.ScoreTarget` |
+| Strongholds `19628ee2` | `scoreTimeline.targetScore` | n/a | 250 (from `[score_target]` "Ranked:Strongholds" = 250) | fixed: same as below |
+| King of the Hill `d01ba030` | `scoreTimeline.targetScore` | n/a | 4 (from `[score_target]` "Ranked:King of the Hill" = 4) | fixed: `replay.ScoreTarget` table + `Input.ScoreTarget`, passed to the decoder's `ScoreInput.TargetScore` (`internal/build/resolve.go` `scoreInput`; until 2026-11-15 it was resolved and then dropped, so no artifact built before carries it) |
+| King of the Hill `d01ba030` | `scoreTimeline.holdTicks` / `holdTicksPerPoint` | n/a | 2 camps / 40 (threshold measured in the film, 6 points, 0 rejected) | fixed: `ScoreInput.HillScoring` set on hill variants (`hillScoring`); the viewer's score bars show the current hill's hold progress |
 | Slayer `a2c79b5e` | `scoreTimeline.targetScore` | n/a | 50 (from `[score_target]` "Ranked:Slayer" = 50) | fixed: same as above |
 | CTF `f9a8ab62` | `scoreTimeline.targetScore` | n/a | from `[score_target]` (the variant's declared capture target) | fixed: same as above |
 
