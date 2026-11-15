@@ -45,9 +45,10 @@ Forge support is a work in progress.
 
 ## Viewer
 
-- The 2D map view is a flat tactical map: it leaves out foliage, coarse decor, decals and
-  every see-through surface (glass included), and the floors above the followed player show
-  only as a light ghost. Its flat light and height shading were tuned on a few maps, not all.
+- The 2D map view is one fixed picture of the whole map, cut over its highest walked floor:
+  interiors under a walked roof are hidden (players there show as markers over the roof).
+  It leaves out foliage, coarse decor, decals and every see-through surface (glass
+  included). Its flat light and height shading were tuned on a few maps, not all.
 - The HUD's bottom strip (score, kill feed, ammo) can sit under the control bar while the bar
   is showing; only the shield indicator currently avoids this.
 - The home screen does not yet have Settings or Quit rows, gamepad input, or live 3D

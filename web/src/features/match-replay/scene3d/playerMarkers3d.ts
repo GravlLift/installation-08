@@ -72,8 +72,10 @@ const ORDER_STEP = 0.25
 
 /** What the view tells the markers each frame. */
 export interface MarkerView {
-  /** The cut height (scene Y): players above it are on a floor not drawn. */
+  /** The followed floor's cut (scene Y, `CutFollower`): players above it or well under its floor are on another floor. */
   cutY: number
+  /** The picture's cut (scene Y): markers and tags are drawn just under it, inside the camera's depth range. */
+  drawY: number
   /** The ringed player, null in free camera. */
   followed: string | null
   /** World units per CSS pixel of the view, so a marker keeps its size on screen. */
@@ -162,7 +164,7 @@ export class PlayerMarkers3d {
     this.root.visible = true
     const before = this.touched
     this.touched = []
-    const at = { radius: MARKER_RADIUS_PX * view.unitsPerPx, y: view.cutY - MARKER_DEPTH, view }
+    const at = { radius: MARKER_RADIUS_PX * view.unitsPerPx, y: view.drawY - MARKER_DEPTH, view }
     const geos = topDownMarkers(poses.map((p) => ({ y: p.feet.y, heading: p.heading })), view.cutY)
     for (const m of this.of.values()) m.root.visible = false
     this.ring.visible = false

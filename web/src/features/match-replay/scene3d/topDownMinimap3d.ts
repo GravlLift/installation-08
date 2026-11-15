@@ -5,10 +5,11 @@
  * math is `minimapLogic`.
  *
  * It never renders the map at the screen's rate: the map around the player is rendered into a
- * cached image, staged like the top-down view (cut over his feet, the floors above as a ghost, the
- * sun out), only when he has strayed from its center or changed floor, at most twice a second
- * (`minimapStale`). Each frame draws one textured square that reads its turned window out
- * of that image, and the dots, in the corner of the screen after the 3D frame.
+ * cached image, staged like the 2D view's picture (the same fixed cut over the highest walked
+ * floor, the same flat light and height shading by world height), only when he has strayed from
+ * its center, at most twice a second (`minimapStale`). The map it shows is the same picture
+ * wherever he goes; only the window moves. Each frame draws one textured square that reads its
+ * turned window out of that image, and the dots, in the corner of the screen after the 3D frame.
  */
 import * as THREE from 'three'
 
@@ -17,8 +18,8 @@ import { MINIMAP_IMAGE_SPAN_U, SCREEN_UP_HEADING_DEG, minimapAngle, minimapHit, 
 import type { MarkerPose } from './playerMarkers3d'
 import { DIMMED_MARKER_OPACITY, MARKER_RADIUS_PX, floorOf } from './playerMarkers3d_logic'
 import { GRADE_GAIN } from './postFx3d'
-import { renderTopImage, topTarget, type TopDownGhost } from './topDownGhost3d'
-import { CUT_HEADROOM, CutFollower } from './topDownLogic'
+import { renderTopImage, topTarget } from './topDownImage3d'
+import { CutFollower } from './topDownLogic'
 import type { Insets, Viewport } from './topDownNavLogic'
 import type { TopDownStage } from './topDownStage3d'
 
@@ -46,7 +47,8 @@ export interface MinimapDraw {
 export interface MinimapSetup {
   renderer: THREE.WebGLRenderer
   stage: TopDownStage
-  ghost: TopDownGhost
+  /** The picture's fixed cut and bottom (scene Y), the 2D view's. */
+  topY: number
   lowestY: number
 }
 
@@ -128,8 +130,9 @@ export class TopDownMinimap {
     }
     const now = performance.now()
     const me = d.players.find((p) => p.xuid === d.followed)
+    // His floor only dims the dots of players on another one; the picture keeps its fixed cut.
     const cutY = this.cut.step(now, d.followed, me ? me.feet.y : null, d.players.map((p) => p.feet.y))
-    const want: MinimapImage = { center: pose.center, cutY, at: now, followed: d.followed }
+    const want: MinimapImage = { center: pose.center, cutY: this.s.topY, at: now, followed: d.followed }
     if (minimapStale(this.image, want)) this.renderImage(want)
     const image = this.image as MinimapImage
     const rect = minimapRect(view, insets)
@@ -164,16 +167,10 @@ export class TopDownMinimap {
     return this.pose?.xuid === d.followed ? this.pose.pose : null
   }
 
-  /** Render the map around the player into the cached image (map only, the ghost under it). */
+  /** Render the map around the player into the cached image (map only, at the picture's fixed cut). */
   private renderImage(want: MinimapImage): void {
-    const { renderer, stage, ghost, lowestY } = this.s
-    ghost.ensure(renderer, stage)
-    ghost.fill.visible = true
-    try {
-      renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: want.center, side: MINIMAP_IMAGE_SPAN_U }, cutY: want.cutY, lowestY, keep: [ghost.fill], clear: true, floorY: want.cutY - CUT_HEADROOM })
-    } finally {
-      ghost.fill.visible = false
-    }
+    const { renderer, stage, lowestY } = this.s
+    renderTopImage({ renderer, stage, camera: this.imageCamera, target: this.target, square: { center: want.center, side: MINIMAP_IMAGE_SPAN_U }, cutY: want.cutY, lowestY, clear: true })
     this.image = want
   }
 

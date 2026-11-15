@@ -1,13 +1,16 @@
 /**
- * topDownLogic.ts — pure logic of the top-down view: the cut height (everything above it is
- * not drawn), its smoothing over time, the lowest and highest drawn heights, and which map
- * surfaces the top-down views leave out (`hiddenFromTop`). The framing
- * (zoom, pan, chrome) is `topDownNavLogic`.
+ * topDownLogic.ts — pure logic of the top-down view: the lowest and highest drawn heights (the
+ * map picture is cut once, a headroom over the highest walked floor, so it never changes during
+ * playback), which map surfaces the top-down views leave out (`hiddenFromTop`), and the followed
+ * player's floor height over time (`CutFollower`), against which the markers tell a player on
+ * another floor (`playerMarkers3d_logic.floorOf`). The framing (zoom, pan, chrome) is
+ * `topDownNavLogic`.
  *
- * The cut follows a player, not a floor table: on a map whose floors are joined by ramps the
- * walked heights are continuous, so no clustering of them can tell one floor from another. The
- * cut sits a head and a clearance above the feet of the followed player, so the floor he stands
- * on shows with what lies below it through openings, and every slab over his head is gone.
+ * The followed floor follows a player, not a floor table: on a map whose floors are joined by
+ * ramps the walked heights are continuous, so no clustering of them can tell one floor from
+ * another. The cut sits a head and a clearance above the feet of the followed player. It used to
+ * cut the map picture too; that made the map change shape as he moved, and it now only places
+ * the markers' floor test.
  *
  * Heights are world units on the SCENE's up axis (three.js Y). The replay document publishes
  * them on its own up axis (Halo Z); `toThree` maps document Z to scene Y, so callers pass
@@ -115,21 +118,79 @@ export interface TopSurface {
   instanced: boolean
   /** Its material blends over what is behind it (decals, light cards, glass). */
   transparent: boolean
+  /** Its material is cut out by its texture's alpha (glTF MASK, `alphaTest`): leaves, ivy, grates. */
+  cutout: boolean
+  /** It belongs to the match's Forge object layer (`variant.glb`), not to the map itself. */
+  objectLayer: boolean
+  /** The share of its area facing straight up or down (`flatShare`); read for a map cutout only. */
+  flat: number
 }
 
 /**
- * hiddenFromTop — whether a map surface is left out of the top-down views (2D view, its ghost, the
- * minimap): the layout reads without what only dresses it. Out: the scattered foliage clumps, the
- * coarse decor (the `decor*` nodes, told by the grain of their mesh, which the map-images top-down
- * renderer drops too: `EstDecorGrossier`), and everything laid over the surface behind it (decals,
- * light cards, glass).
- * The structure, the terrain and the match's placed objects stay. An untagged mesh (a helper) is
+ * The share of a map cutout's area that must lie flat for it to stay: a grate or a mesh floor is
+ * nearly all flat, leaves and branches stand at every angle.
+ */
+export const FLAT_CUTOUT_SHARE = 0.7
+
+/**
+ * hiddenFromTop — whether a map surface is left out of the top-down views (2D view and minimap):
+ * the layout reads without what only dresses it. Out: the scattered foliage clumps, the coarse
+ * decor (the `decor*` nodes, told by the grain of their mesh, which the map-images top-down
+ * renderer drops too: `EstDecorGrossier`), everything laid over the surface behind it (decals,
+ * light cards, glass), every cutout of the Forge object layer (its ivy patches, plants, shrubs and
+ * leaves: a Forge layer's cutout is foliage, its floors are solid), and a map cutout that does not
+ * lie flat (foliage cards in the map, where a flat cutout is a grate or a mesh floor and stays).
+ * The structure, the terrain and the solid placed objects stay. An untagged mesh (a helper) is
  * not this rule's to decide.
  */
 export function hiddenFromTop(s: TopSurface): boolean {
   if (s.instanced) return true
   if (s.family === null) return false
-  return s.family === 'decor' || s.family === 'seeThrough' || s.transparent
+  if (s.family === 'decor' || s.family === 'seeThrough' || s.transparent) return true
+  if (!s.cutout) return false
+  return s.objectLayer || s.flat < FLAT_CUTOUT_SHARE
+}
+
+/** A face counts as flat when its normal is this close to vertical (cosine: about 25 degrees). */
+const FLAT_NORMAL = 0.9
+
+/**
+ * flatShare — the share of a mesh's area whose faces lie flat (normal within ~25 degrees of
+ * vertical, either way up): `positions` are world X, Y, Z triples, `index` three per triangle
+ * (null: the positions taken three by three). 0 for a mesh without area.
+ */
+export function flatShare(positions: ArrayLike<number>, index: ArrayLike<number> | null): number {
+  const count = index ? index.length : positions.length / 3
+  let flat = 0
+  let total = 0
+  for (let t = 0; t + 2 < count; t += 3) {
+    const [a, b, c] = [0, 1, 2].map((k) => 3 * (index ? index[t + k] : t + k))
+    const ux = positions[b] - positions[a], uy = positions[b + 1] - positions[a + 1], uz = positions[b + 2] - positions[a + 2]
+    const vx = positions[c] - positions[a], vy = positions[c + 1] - positions[a + 1], vz = positions[c + 2] - positions[a + 2]
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
+    const area = Math.hypot(nx, ny, nz)
+    if (!(area > 0)) continue
+    total += area
+    if (Math.abs(ny) / area >= FLAT_NORMAL) flat += area
+  }
+  return total > 0 ? flat / total : 0
+}
+
+/** The walked height span of a match (scene Y): its lowest and highest walked heights. */
+export interface HeightSpan {
+  low: number
+  high: number
+}
+
+/** walkedSpan — the lowest and highest walked heights; both 0 without any. */
+export function walkedSpan(heights: readonly number[]): HeightSpan {
+  let low = Infinity
+  let high = -Infinity
+  for (const h of heights) {
+    if (h < low) low = h
+    if (h > high) high = h
+  }
+  return Number.isFinite(low) ? { low, high } : { low: 0, high: 0 }
 }
 
 /** lowestDrawn — the lowest height drawn: the lowest walked height minus the floor margin. */
@@ -139,7 +200,7 @@ export function lowestDrawn(heights: readonly number[]): number {
   return (Number.isFinite(lowest) ? lowest : 0) - FLOOR_MARGIN
 }
 
-/** highestDrawn — the top of the highest walked floor's headroom: what the ghost of the upper floors is cut at. */
+/** highestDrawn — the top of the highest walked floor's headroom: the fixed cut of the top-down map picture. */
 export function highestDrawn(heights: readonly number[]): number {
   let highest = -Infinity
   for (const h of heights) if (h > highest) highest = h

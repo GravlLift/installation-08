@@ -75,6 +75,11 @@ function visible(o: THREE.Object3D): boolean {
   return true
 }
 
+/** inObjectLayer — whether `o` belongs to a layer of placed objects (the match's Forge variant layer). */
+export function inObjectLayer(o: THREE.Object3D): boolean {
+  return placedObjects(o) !== null
+}
+
 /** placedObjects rend la table des objets du calque qui porte `o`, null hors d'un calque d'objets. */
 function placedObjects(o: THREE.Object3D): readonly PlacedObject[] | null {
   for (let n: THREE.Object3D | null = o; n; n = n.parent) {

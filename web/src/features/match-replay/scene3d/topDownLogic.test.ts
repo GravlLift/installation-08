@@ -89,7 +89,7 @@ describe('lowestDrawn — the floor of the drawn depth', () => {
   })
 })
 
-describe('highestDrawn — the cut of the ghost of the upper floors', () => {
+describe('highestDrawn — the fixed cut of the map picture', () => {
   it('is a headroom over the highest walked height', () => {
     expect(highestDrawn([3, -0.02, 5.39])).toBeCloseTo(5.39 + CUT_HEADROOM)
   })

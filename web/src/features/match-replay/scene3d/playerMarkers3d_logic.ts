@@ -51,10 +51,10 @@ export function floorOf(y: number, cutY: number): 'above' | 'below' | null {
 }
 
 /**
- * topDownMarkers — the marker state of each living player, in input order, against the cut
- * height `cutY`. Above the cut (his floor is not drawn) a player is dimmed and chevroned up;
- * more than `LOWER_FLOOR_DROP` under the drawn floor (the cut less its headroom) he is dimmed
- * and chevroned down.
+ * topDownMarkers — the marker state of each living player, in input order, against the followed
+ * player's cut `cutY` (a headroom over his feet). Above it a player is on a floor over his: dimmed
+ * and chevroned up; more than `LOWER_FLOOR_DROP` under his floor (the cut less its headroom) he
+ * is dimmed and chevroned down.
  */
 export function topDownMarkers(players: readonly TopDownPlayerInput[], cutY: number): MarkerGeometry[] {
   return players.map((p) => {
