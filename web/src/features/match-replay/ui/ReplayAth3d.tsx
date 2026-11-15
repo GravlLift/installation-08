@@ -12,6 +12,8 @@ import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayAthFil3d } from './ReplayAthFil3d'
 import { ReplayAthLunette3d } from './ReplayAthLunette3d'
 import { ReplayKillPopup3d } from './ReplayKillPopup3d'
+import { ShieldBar3d } from './ShieldBar3d'
+import { shieldFlash } from '../model/shieldHud'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
@@ -89,7 +91,9 @@ export function ReplayAth3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     <ReplayAthFil3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {bandeau}
     {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
-    {ath && ath.bouclier !== null && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(50cqh, 90%)', transform: 'translateX(-50%)', height: '3.2%', minHeight: 8, border: `1px solid ${ath.bouclier <= 0 ? tokenCssVar('destructive') : 'currentColor'}`, clipPath: 'polygon(2% 0, 98% 0, 100% 100%, 0 100%)' }}><div style={{ position: 'absolute', inset: 0, width: `${Math.max(0, Math.min(1, ath.bouclier)) * 100}%`, background: tokenCssVar('info'), opacity: 0.85 }} /></div>}
+    {ath?.bouclierEtat && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(39cqh, 90%)', minWidth: 160, transform: 'translateX(-50%)' }}>
+      <ShieldBar3d fraction={ath.bouclierEtat.fraction} state={ath.bouclierEtat.state} flash={shieldFlash(frameToMs(ath.bouclierEtat.since, doc), frameToMs(frame, doc))} label={REPLAY_TEXT[locale].shieldLabel} />
+    </div>}
     {aim && ath && ads && adsVisible && <ReplayAthLunette3d spec={ads} levelIndex={adsLevelIndex(ads, zoom.shownLevel)} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.munitions?.mag)} />}
     {aim && ath && (lunetteMontee ? null : (
       <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: 'max(50px, 10cqh)', height: 'max(50px, 10cqh)', left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${reticuleEchelle})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth="1.5">
