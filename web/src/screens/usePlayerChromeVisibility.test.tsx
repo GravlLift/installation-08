@@ -14,8 +14,8 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-it('hides 3 s after the last activity while playing, and comes back on key press', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+it('hides 3 s after the last activity in the overlay (fullscreen), and comes back on key press', () => {
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   expect(result.current.visible).toBe(true)
   act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS) })
   expect(result.current.visible).toBe(false)
@@ -24,7 +24,7 @@ it('hides 3 s after the last activity while playing, and comes back on key press
 })
 
 it('re-arms the hide window on every activity', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS - 1000) })
   act(() => { dispatchKey('a') })
   expect(result.current.visible).toBe(true)
@@ -35,7 +35,7 @@ it('re-arms the hide window on every activity', () => {
 })
 
 it('comes back on a key press and on focus', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS) })
   expect(result.current.visible).toBe(false)
   act(() => { dispatchKey(' ') })
@@ -46,21 +46,30 @@ it('comes back on a key press and on focus', () => {
   expect(result.current.visible).toBe(true)
 })
 
-it('stays visible while paused, even after the idle window', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: false, menuOpen: false }))
+it('never hides when windowed (the chrome is not over the scene)', () => {
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: false, menuOpen: false }))
+  act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS * 2) })
+  expect(result.current.visible).toBe(true)
+})
+
+it('comes back up for good when leaving fullscreen', () => {
+  const { result, rerender } = renderHook(({ overlay }: { overlay: boolean }) => usePlayerChromeVisibility({ overlay, menuOpen: false }), { initialProps: { overlay: true } })
+  act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS) })
+  expect(result.current.visible).toBe(false)
+  act(() => { rerender({ overlay: false }) })
   act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS * 2) })
   expect(result.current.visible).toBe(true)
 })
 
 it('stays visible while one of its own menus is open', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: true }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: true }))
   act(() => { vi.advanceTimersByTime(CHROME_HIDE_DELAY_MS * 2) })
   expect(result.current.visible).toBe(true)
 })
 
 it('hides again when a menu closes and the idle window passes', () => {
   const wrapper = ({ menuOpen }: { menuOpen: boolean }) =>
-    usePlayerChromeVisibility({ playing: true, menuOpen })
+    usePlayerChromeVisibility({ overlay: true, menuOpen })
   const { result, rerender } = renderHook(wrapper, { initialProps: { menuOpen: true } })
   act(() => { rerender({ menuOpen: false }) })
   expect(result.current.visible).toBe(true)
@@ -69,7 +78,7 @@ it('hides again when a menu closes and the idle window passes', () => {
 })
 
 it('keeps the chrome up while the pointer is over its scope, and hides on leave', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   const { onScopeEnter, onScopeLeave } = result.current
 
   act(() => { onScopeEnter() })
@@ -83,7 +92,7 @@ it('keeps the chrome up while the pointer is over its scope, and hides on leave'
 })
 
 it('re-shows on mouse moves inside the chrome scope', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   const scope = document.createElement('div')
   const inner = document.createElement('button')
   scope.appendChild(inner)
@@ -97,7 +106,7 @@ it('re-shows on mouse moves inside the chrome scope', () => {
 })
 
 it('does not re-show from mouse moves outside the chrome scope', () => {
-  const { result } = renderHook(() => usePlayerChromeVisibility({ playing: true, menuOpen: false }))
+  const { result } = renderHook(() => usePlayerChromeVisibility({ overlay: true, menuOpen: false }))
   const scope = document.createElement('div')
   document.body.appendChild(scope)
   ;(result.current.scopeRef as { current: HTMLElement | null }).current = scope

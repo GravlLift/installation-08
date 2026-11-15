@@ -110,7 +110,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   const topRef = useRef<HTMLDivElement>(null)
   const barRef = useRef<HTMLDivElement>(null)
   usePlayerChromeInsets(boxRef, topRef, barRef)
-  // One panel opens from the bar at a time, on the right between the top strip and the bar.
+  // One panel opens from the bar at a time, on the right inside the scene's box (in fullscreen,
+  // between the strip and the bar laid over it).
   const [panel, setPanel] = useState<'settings' | 'export' | null>(null)
   const togglePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : which)), [])
   const closePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : open)), [])
@@ -249,7 +250,10 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
   })
 
   const menuOpen = settingsOpen || exportOpen || scoreboardHeld
-  const chrome = usePlayerChromeVisibility({ playing, menuOpen, scrubbing })
+  // Windowed, the strip and the bar sit above and below the scene; in fullscreen they are laid
+  // over it and auto-hide.
+  const chrome = usePlayerChromeVisibility({ overlay: fullscreen.active, menuOpen, scrubbing })
+  const chromeClass = `bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`
 
   // The top strip content.
   const mapName = summary ? cleanMapName(summary.mapName || summary.mapModule || '') : remote?.map ? cleanMapName(remote.map) : null
@@ -259,10 +263,28 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
     <div
       ref={(el) => { viewerRef.current = el; chrome.scopeRef.current = el }}
       data-testid="replay-viewer"
-      className="bc-player"
+      className={`bc-player ${fullscreen.active ? 'bc-player-full' : ''}`}
     >
-      <div ref={boxRef} className="bc-player-box">
-        <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
+      <div
+        ref={topRef}
+        className={`bc-player-top ${chromeClass}`}
+        onPointerEnter={chrome.onScopeEnter}
+        onPointerLeave={chrome.onScopeLeave}
+      >
+        <button type="button" className="bc-player-back" onClick={onBack}>← Matches</button>
+        {mapName && <span className="bc-player-map">{mapName}</span>}
+        {meta && <span className="bc-player-meta">{meta}</span>}
+        <span className="bc-spacer" />
+        {coatings.notice && (
+          <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
+            {coatings.notice}
+          </span>
+        )}
+      </div>
+
+      <div className="bc-player-stage">
+        <div ref={boxRef} className="bc-player-box">
+          <div ref={hostRef} data-testid="replay-view" className="absolute inset-0">
             <Replay3DView
               meshPath={meshUrl(matchId)}
               variantPath={variantPath}
@@ -291,80 +313,64 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState }
               />
             )}
             <canvas ref={exportCanvasRef} hidden />
-        </div>
+          </div>
 
-        <div
-          ref={topRef}
-          className={`bc-player-top bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
-          onPointerEnter={chrome.onScopeEnter}
-          onPointerLeave={chrome.onScopeLeave}
-        >
-          <button type="button" className="bc-player-back" onClick={onBack}>← Matches</button>
-          {mapName && <span className="bc-player-map">{mapName}</span>}
-          {meta && <span className="bc-player-meta">{meta}</span>}
-          <span className="bc-spacer" />
-          {coatings.notice && (
-            <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
-              {coatings.notice}
-            </span>
+          {(settingsOpen || (exportOpen && exportScene)) && (
+            <div className="bc-panel">
+              {settingsOpen && (
+                <ReplaySettingsDrawer
+                  locale="en"
+                  sound={sound}
+                  show={show}
+                  toggle={toggle}
+                  triggerRef={settingsButtonRef}
+                  onClose={() => closePanel('settings')}
+                />
+              )}
+              {exportOpen && exportScene && capture.videoExport && (
+                <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => closePanel('export')} threeDOnly />
+              )}
+            </div>
           )}
         </div>
+      </div>
 
-        <div
-          className={`bc-chrome ${chrome.visible ? '' : 'bc-hidden'}`}
-          onPointerEnter={chrome.onScopeEnter}
-          onPointerLeave={chrome.onScopeLeave}
-        >
-          <PlayerTransport
-            doc={doc}
-            frame={frame}
-            playing={playing}
-            speed={speed}
-            viewpoint={camera.followed}
-            cameraMode={camera.mode}
-            onSetCameraMode={camera.setMode}
-            events={marks.events}
-            onStepEvent={marks.stepEvent}
-            sound={sound}
-            onTogglePlay={togglePlay}
-            onRestart={restart}
-            onSetSpeed={setSpeed}
-            onSetViewpoint={camera.setPov}
-            view={view}
-            onSetView={setView}
-            onScrub={onScrub}
-            onSeekBy={seekBy}
-            onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
-            scoreboardOn={scoreboardHeld}
-            onToggleSettings={() => togglePanel('settings')}
-            settingsRef={settingsButtonRef}
-            onToggleExport={() => togglePanel('export')}
-            exportDisabled={!exportScene || !capture.videoExport?.supported}
-            exportProgress={capture.videoExport && isExportBusy(capture.videoExport.state) ? capture.videoExport.state.pct : null}
-            onToggleFullscreen={fullscreen.toggle}
-            fullscreenActive={fullscreen.active}
-            onScrubbingChange={setScrubbing}
-            rootRef={barRef}
-          />
-        </div>
-
-        {(settingsOpen || (exportOpen && exportScene)) && (
-          <div className="bc-panel">
-            {settingsOpen && (
-              <ReplaySettingsDrawer
-                locale="en"
-                sound={sound}
-                show={show}
-                toggle={toggle}
-                triggerRef={settingsButtonRef}
-                onClose={() => closePanel('settings')}
-              />
-            )}
-            {exportOpen && exportScene && capture.videoExport && (
-              <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => closePanel('export')} threeDOnly />
-            )}
-          </div>
-        )}
+      <div
+        className={`bc-player-bottom ${chromeClass}`}
+        onPointerEnter={chrome.onScopeEnter}
+        onPointerLeave={chrome.onScopeLeave}
+      >
+        <PlayerTransport
+          doc={doc}
+          frame={frame}
+          playing={playing}
+          speed={speed}
+          viewpoint={camera.followed}
+          cameraMode={camera.mode}
+          onSetCameraMode={camera.setMode}
+          events={marks.events}
+          onStepEvent={marks.stepEvent}
+          sound={sound}
+          onTogglePlay={togglePlay}
+          onRestart={restart}
+          onSetSpeed={setSpeed}
+          onSetViewpoint={camera.setPov}
+          view={view}
+          onSetView={setView}
+          onScrub={onScrub}
+          onSeekBy={seekBy}
+          onToggleScoreboard={() => setScoreboard(!scoreboardHeld)}
+          scoreboardOn={scoreboardHeld}
+          onToggleSettings={() => togglePanel('settings')}
+          settingsRef={settingsButtonRef}
+          onToggleExport={() => togglePanel('export')}
+          exportDisabled={!exportScene || !capture.videoExport?.supported}
+          exportProgress={capture.videoExport && isExportBusy(capture.videoExport.state) ? capture.videoExport.state.pct : null}
+          onToggleFullscreen={fullscreen.toggle}
+          fullscreenActive={fullscreen.active}
+          onScrubbingChange={setScrubbing}
+          rootRef={barRef}
+        />
       </div>
     </div>
   )

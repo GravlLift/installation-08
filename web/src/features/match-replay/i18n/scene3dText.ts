@@ -30,6 +30,10 @@ export interface Scene3dText {
   cameraFirst: string
   cameraThird: string
   cameraFree: string
+  /** The three camera names, short, as the player's control bar shows them (the full names are their tooltips). */
+  cameraFirstShort: string
+  cameraThirdShort: string
+  cameraFreeShort: string
   /** Les commandes de la vue libre, sous les caméras (touches à leur place : QWERTY / AZERTY). */
   cameraFreeHint: string
   /** « Carte 3D : 42 % de 224 Mo » — le téléchargement du maillage. */
@@ -116,6 +120,9 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     cameraFirst: '1re personne',
     cameraThird: '3e personne',
     cameraFree: 'Vue libre',
+  cameraFirstShort: '1re',
+  cameraThirdShort: '3e',
+  cameraFreeShort: 'Libre',
     cameraFreeHint: 'ZQSD : avancer · E / A : monter, descendre · Maj : plus vite · souris : tourner, clic droit : décaler, molette : approcher',
     loadingFmt: (percent, megabytes) => `Carte 3D : ${percent} % de ${megabytes} Mo`,
     loadingMaterials: 'Décodage des matériaux…',
@@ -218,6 +225,9 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     cameraFirst: '1st person',
     cameraThird: '3rd person',
     cameraFree: 'Free view',
+  cameraFirstShort: '1st',
+  cameraThirdShort: '3rd',
+  cameraFreeShort: 'Free',
     cameraFreeHint: 'WASD: fly · E / Q: up, down · Shift: faster · mouse: turn, right-drag: slide, wheel: zoom',
     loadingFmt: (percent, megabytes) => `3D map: ${percent}% of ${megabytes} MB`,
     loadingMaterials: 'Decoding materials…',

@@ -117,8 +117,19 @@ Replaces the fetch and map-build progress panels.
 
 ### 4.4 Player
 
-Sparse on purpose: the 3D view fills the window.
+Sparse on purpose: the 3D view takes all the room the chrome leaves.
 
+- Layout, windowed: a vertical stack that fills the window and never scrolls. The top strip
+  (← Matches, map, mode, date, coatings notice), then the stage, then the transport bar.
+  The stage holds the 16:9 scene box, as large as fits, centered across and sitting on the
+  bar (spare height goes under the strip). Nothing from the strip or the bar is drawn over
+  the scene, so the whole HUD shows, the bottom strip (weapons, grenades, equipment)
+  included, and neither one hides.
+- Layout, fullscreen: the scene box fills the screen and the strip and the bar are laid
+  over it. They hide 3 s after the last activity (mouse move over the player, key, click,
+  focus), paused or playing, and come back on the next one; they stay up while a panel of
+  their own is open, while the scrub bar is dragged and while the pointer is over them
+  (`usePlayerChromeVisibility`).
 - Top: a thin score bug (teams, score, clock), broadcast style, already present as the HUD
   overlays; restyled to the system, not redesigned in behavior.
 - Bottom: our own transport as a lower third. Play/pause, -10 / +10, previous / next
@@ -132,10 +143,12 @@ Sparse on purpose: the 3D view fills the window.
   whose tooltip lists every event (`screens/scrubMarks.ts`). Clicking a mark seeks 2 s
   before its event and never starts a track drag; hovering shows what it is and its clock
   ("Kill: X (BR75) 2:36", "Death: by Y 2:54", "Double Kill 2:36"). The bar stays one tab
-  stop: `[` and `]` (and the ‹ › buttons) step to the previous and next event. It fades out while playing and returns on mouse move or key press;
-  it stays up while paused, while scrubbing and while a panel of its own is open.
+  stop: `[` and `]` (and the ‹ › buttons) step to the previous and next event. It fades
+  only in fullscreen, with the rest of the chrome (see Layout, fullscreen).
 - The camera group is the one home of every camera choice, under one "Camera" label: view
-  (`3D | 2D`), camera mode (1st person, 3rd person, Free view) and the POV picker. In 2D
+  (`3D | 2D`), camera mode (1st person, 3rd person, Free view, shown short as
+  `1st | 3rd | Free` with the full names as tooltips and accessible names) and the POV
+  picker. In 2D
   the mode segment stays in place, disabled, so the bar does not jump.
 - Camera rule (`screens/cameraChoiceLogic.ts`): free view follows no one. The Free
   segment and the picker's "Free camera" entry are the same state. The player followed
@@ -146,15 +159,18 @@ Sparse on purpose: the 3D view fills the window.
   shield, kill feed, kill popups, score strip) without the aim (reticle, scope masks,
   Bandit frame); free view follows no one and keeps the score strip and the kill feed; 2D
   keeps the score strip alone (the kill feed would sit over the map's lower left).
-- When the bar does not fit (a narrow window), its groups wrap to a second row; a group
-  never breaks inside.
-- Panels opened from the bar (settings, export) open one at a time on the right, between
-  the top strip and the bar, never over either; they scroll when taller than that space.
+- The bar stays on one row down to a 1280 px window: when short of room the POV picker
+  shrinks first (to 72 px, its name ellipsized). Only in a bar narrower than 1210 px do its
+  groups wrap to a second row; a group never breaks inside.
+- Panels opened from the bar (settings, export) open one at a time on the right inside the
+  scene box (in fullscreen, between the strip and the bar laid over it), never over either;
+  they scroll when taller than that space.
   The bar's button toggles its panel, Escape and a click outside close the settings
   drawer, and the export button shows the progress of a running export.
-- Safe insets: the player publishes how far its chrome reaches as `--bc-chrome-top` and
-  `--bc-chrome-bottom` on the 16:9 box (`usePlayerChromeInsets`). The bar's panels sit
-  between them and the HUD's shield never goes above the top one.
+- Safe insets: the player publishes how far its chrome reaches into the 16:9 box as
+  `--bc-chrome-top` and `--bc-chrome-bottom` (`usePlayerChromeInsets`): 0 windowed, the
+  overlap in fullscreen. The bar's panels sit between them and the HUD's shield never goes
+  above the top one.
 - Fullscreen takes the whole player (scene, strip, bar, panels).
 - No auto-play toggle.
 - The settings drawer and the scoreboard keep their functions and take the new tokens.
@@ -264,9 +280,9 @@ the grass, which read as a usable map straight away.
   straight down puts its specular peak on every flat floor and the metal floors read white.
   The 3D lighting is untouched (the swap is per render) and the shadow map is not redrawn
   while the top-down view shows.
-- **Framing** (`topDownNavLogic.ts`, `topDownInput3d.ts`): the walked area fits between the
-  page's top strip and transport bar (read from the page; their place is kept while they
-  fade out). Wheel zooms toward the cursor (up to 8x), a drag pans, both clamped to the
+- **Framing** (`topDownNavLogic.ts`, `topDownInput3d.ts`): the walked area fits the scene box,
+  and in fullscreen between the top strip and transport bar laid over it (read from the
+  page; their place is kept while they fade out). Wheel zooms toward the cursor (up to 8x), a drag pans, both clamped to the
   area; a double click or `0` goes back to the whole map. Zoomed in, the view keeps the
   followed player inside its central 60%; a drag hands the framing to the viewer until the
   next reset.

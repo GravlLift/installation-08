@@ -5,8 +5,9 @@
  * (view 3D / 2D, camera mode, POV picker: the one home of every camera choice), sound,
  * scoreboard, settings, film export and fullscreen.
  *
- * The row is made of groups that never break inside; when the row does not fit (a narrow
- * window), whole groups wrap to a second row.
+ * The row is made of groups that never break inside. It stays on one row down to a 1280 px
+ * window (the camera modes show short names, the POV picker shrinks first); in a narrower bar
+ * whole groups wrap to a second row.
  *
  * It owns no playback state: every control calls back into the viewer. Left and Right are not
  * handled on the slider because the viewer's shortcuts already seek on those keys from anywhere
@@ -60,15 +61,16 @@ export interface PlayerTransportProps {
   onToggleFullscreen: () => void
   fullscreenActive: boolean
   onScrubbingChange?: (scrubbing: boolean) => void
-  /** The transport's own element, for the player's safe insets (`usePlayerChromeInsets`). */
+  /** The transport's own element, for the player's safe insets in fullscreen (`usePlayerChromeInsets`). */
   rootRef?: RefObject<HTMLDivElement | null>
 }
 
 const CAMERA_TEXT = SCENE3D_TEXT.en
-const CAMERA_MODES: { mode: CameraMode3d; label: string; title: string }[] = [
-  { mode: 'fp', label: CAMERA_TEXT.cameraFirst, title: `${CAMERA_TEXT.cameraFirst} (1)` },
-  { mode: 'tp', label: CAMERA_TEXT.cameraThird, title: `${CAMERA_TEXT.cameraThird} (2)` },
-  { mode: 'free', label: CAMERA_TEXT.cameraFree, title: `${CAMERA_TEXT.cameraFree} (3). ${CAMERA_TEXT.cameraFreeHint}` },
+/** The bar shows the short name; the full one is the accessible name and leads the tooltip. */
+const CAMERA_MODES: { mode: CameraMode3d; short: string; name: string; title: string }[] = [
+  { mode: 'fp', short: CAMERA_TEXT.cameraFirstShort, name: CAMERA_TEXT.cameraFirst, title: `${CAMERA_TEXT.cameraFirst} (1)` },
+  { mode: 'tp', short: CAMERA_TEXT.cameraThirdShort, name: CAMERA_TEXT.cameraThird, title: `${CAMERA_TEXT.cameraThird} (2)` },
+  { mode: 'free', short: CAMERA_TEXT.cameraFreeShort, name: CAMERA_TEXT.cameraFree, title: `${CAMERA_TEXT.cameraFree} (3). ${CAMERA_TEXT.cameraFreeHint}` },
 ]
 
 type CameraGroupProps = Pick<
@@ -81,24 +83,25 @@ type CameraGroupProps = Pick<
 function CameraGroup({ doc, viewpoint, cameraMode, onSetCameraMode, onSetViewpoint, view, onSetView }: CameraGroupProps) {
   const in2d = view === 'top'
   return (
-    <div className="bc-ctl-group" role="group" aria-label={CAMERA_TEXT.cameraGroup}>
+    <div className="bc-ctl-group bc-camera" role="group" aria-label={CAMERA_TEXT.cameraGroup}>
       <span className="bc-lbl">{CAMERA_TEXT.cameraGroup}</span>
       <div className="bc-seg" role="group" aria-label="View" title="View (V)">
         <button type="button" className={view === '3d' ? 'on' : ''} aria-pressed={view === '3d'} onClick={() => onSetView('3d')}>3D</button>
         <button type="button" className={in2d ? 'on' : ''} aria-pressed={in2d} onClick={() => onSetView('top')}>2D</button>
       </div>
       <div className="bc-seg" role="group" aria-label="Camera mode">
-        {CAMERA_MODES.map(({ mode, label, title }) => (
+        {CAMERA_MODES.map(({ mode, short, name, title }) => (
           <button
             key={mode}
             type="button"
             className={mode === cameraMode ? 'on' : ''}
             aria-pressed={mode === cameraMode}
+            aria-label={name}
             disabled={in2d}
-            title={in2d ? 'Camera modes apply to the 3D view' : title}
+            title={in2d ? `${name}: camera modes apply to the 3D view` : title}
             onClick={() => onSetCameraMode(mode)}
           >
-            {label}
+            {short}
           </button>
         ))}
       </div>

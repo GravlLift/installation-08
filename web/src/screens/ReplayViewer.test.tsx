@@ -21,8 +21,11 @@ it('uses a full-window viewer and requests fullscreen on that container', () => 
   viewer.requestFullscreen = requestFullscreen
   fireEvent.click(screen.getByRole('button', { name: 'Fullscreen' }))
   expect(requestFullscreen).toHaveBeenCalledOnce()
+  // Windowed, the strip and the bar sit outside the scene; fullscreen lays them over it.
+  expect(viewer).not.toHaveClass('bc-player-full')
   Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: viewer })
   fireEvent(document, new Event('fullscreenchange'))
+  expect(viewer).toHaveClass('bc-player-full')
   const exitFullscreen = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen })
   fireEvent.click(screen.getByRole('button', { name: 'Exit fullscreen' }))
