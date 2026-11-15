@@ -310,6 +310,10 @@ func TestServeReadOnlyAuthStateHidesAccount(t *testing.T) {
 	if st["state"] != "signed_out" || st["signedIn"] != false {
 		t.Fatalf("read-only must report signed_out: %v", st)
 	}
+	// The viewer reads readOnly to keep the Watch list instead of a sign-in page.
+	if st["readOnly"] != true {
+		t.Fatalf("read-only must say so: %v", st)
+	}
 }
 
 // TestServeReadOnlyOffUnchanged — with the flag off, a state-changing request is not

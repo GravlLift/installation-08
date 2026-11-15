@@ -89,6 +89,9 @@
  * bottom of the desk, just above the ticker; while it shows, the ticker drops its copy of
  * the notice. */
 .bc-home .bc-coatings { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; }
+/* Signed out: the home is one sign-in plate, centered across the desk. */
+.bc-home .bc-home-signin { grid-column: 1 / -1; justify-self: center; width: min(100%, 640px); }
+.bc-home-signin-text { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-dim); max-width: 46ch; }
 /* The first-start "Getting ready" plate: across the desk, above the coatings row. */
 .bc-home .bc-firstrun { grid-column: 1 / -1; justify-self: center; width: min(100%, 720px); }
 .bc-home .bc-firstrun .bc-title { font-size: clamp(26px, 2.6vw, 40px); }

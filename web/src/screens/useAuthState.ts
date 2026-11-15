@@ -64,10 +64,13 @@ export interface UseAuthStateResult {
   login: () => void
   /** Cancels a pending sign-in, or signs out an already-signed-in account. */
   logout: () => void
+  /** The server is read-only (`--read-only`): sign-in is impossible there. */
+  readOnly: boolean
 }
 
 export function useAuthState(pollMs: number = AUTH_STATE_POLL_MS): UseAuthStateResult {
   const [phase, setPhase] = useState<AuthPhase>({ phase: 'loading' })
+  const [readOnly, setReadOnly] = useState(false)
   // Read inside the login/logout callbacks without making `phase` their dependency.
   const phaseRef = useRef(phase)
   phaseRef.current = phase
@@ -79,6 +82,7 @@ export function useAuthState(pollMs: number = AUTH_STATE_POLL_MS): UseAuthStateR
       try {
         const body = await fetchAuthState(controller.signal)
         if (controller.signal.aborted) return
+        setReadOnly(body.readOnly === true)
         setPhase(phaseOfAuthState(body))
       } catch (err) {
         if (controller.signal.aborted) return
@@ -145,5 +149,5 @@ export function useAuthState(pollMs: number = AUTH_STATE_POLL_MS): UseAuthStateR
     })()
   }, [])
 
-  return { phase, login, logout }
+  return { phase, login, logout, readOnly }
 }
