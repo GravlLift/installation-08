@@ -12,7 +12,14 @@
  *   - rayures : vers la couleur, la rugosité et le métal de rayure des zones, là où le vert de l'ASG
  *     dépasse 1 - quantité de rayures ; salissure : vers son nuancier là où le bleu dépasse
  *     1 - quantité de salissure ; occlusion : le rouge de l'ASG multiplie la couleur.
- *   - Approximé : pas de normales de détail des nuanciers, émission = couleur × quantité.
+ *   - Émission : chaque zone émet sa couleur × sa quantité d'émission, et ces lumières se posent
+ *     l'une sur l'autre par les masques comme les autres propriétés (linéaires dans le masque). Un
+ *     masque doux règle l'éclat : la bobine du Shock Rifle (zone 7, bleu, quantité 6) porte dans
+ *     son masque 1 un dégradé de 0,1 à 0,8 qui fait briller le centre de chaque spire. Le produit
+ *     de la couleur mêlée par la quantité mêlée (lecture d'avant) élevait ce masque au carré et
+ *     teintait la lumière de la zone de base. Usure et salissure ne touchent pas la lumière ;
+ *     l'occlusion (rouge de l'ASG) la multiplie comme la couleur.
+ *   - Approximé : pas de normales de détail des nuanciers.
  *
  * UN programme pour toutes les pièces de tous les joueurs : la peinture vit dans des uniformes
  * (`packPaint`), les dégradés dans la texture à couches de la session (`armorGradients3d`), le cache
@@ -111,7 +118,7 @@ uniform vec4 uPaintGlobal;
 uniform vec2 uPaintOffset;
 varying vec2 vArmorUv;
 
-struct ArmorZone { vec3 col; float rough; float metal; vec3 scol; float srough; float smetal; float emis; };
+struct ArmorZone { vec3 col; float rough; float metal; vec3 scol; float srough; float smetal; vec3 glow; };
 
 vec2 armorGradient(float layer, vec2 uv) {
   if (layer < -0.5) return vec2(0.5);
@@ -126,7 +133,7 @@ ArmorZone armorZone(int k) {
   vec3 col = mix(low, uPaint[o + 3].rgb, clamp(1.0 - 2.0 * g.x, 0.0, 1.0));
   vec4 r = uPaint[o + 5];
   return ArmorZone(col, mix(r.x, r.y, g.y) * uPaint[o + 3].a, uPaint[o + 2].a,
-    uPaint[o + 4].rgb, r.z, uPaint[o + 4].a, uPaint[o + 1].a);
+    uPaint[o + 4].rgb, r.z, uPaint[o + 4].a, col * uPaint[o + 1].a);
 }
 
 void armorStack(inout ArmorZone s, ArmorZone z, float w) {
@@ -136,10 +143,10 @@ void armorStack(inout ArmorZone s, ArmorZone z, float w) {
   s.scol = mix(s.scol, z.scol, w);
   s.srough = mix(s.srough, z.srough, w);
   s.smetal = mix(s.smetal, z.smetal, w);
-  s.emis = mix(s.emis, z.emis, w);
+  s.glow = mix(s.glow, z.glow, w);
 }
 
-#define ARMOR_NEUTRAL ArmorZone(vec3(${ARMURE_NEUTRE}), ${RUGOSITE_ARMURE_NEUTRE}, 0.0, vec3(${ARMURE_NEUTRE}), ${RUGOSITE_ARMURE_NEUTRE}, 0.0, 0.0)
+#define ARMOR_NEUTRAL ArmorZone(vec3(${ARMURE_NEUTRE}), ${RUGOSITE_ARMURE_NEUTRE}, 0.0, vec3(${ARMURE_NEUTRE}), ${RUGOSITE_ARMURE_NEUTRE}, 0.0, vec3(0.0))
 
 ArmorZone armorPaint() {
   vec3 m0 = uArmorHas.y > 0.5 ? texture2D(uArmorMask0, vArmorUv).rgb : vec3(0.0);
@@ -162,11 +169,12 @@ ArmorZone armorPaint() {
     s.metal = mix(s.metal, g.metal, grime);
   }
   s.col *= asg.r;
+  s.glow *= asg.r;
   return s;
 }`
 
 /** Le programme commun : la peinture ne change que des uniformes. */
-const PROGRAM_KEY = 'armure-revetement-v1'
+const PROGRAM_KEY = 'armure-revetement-v2'
 
 /** Ce qu'il faut pour peindre une copie de matériau. */
 export interface ArmorPaintInput {
@@ -206,7 +214,7 @@ export function armorMaterial(base: THREE.MeshStandardMaterial, input: ArmorPain
       .replace('#include <map_fragment>', '#include <map_fragment>\nArmorZone armor = armorPaint();\ndiffuseColor.rgb = armor.col;')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(armor.rough, 0.04, 1.0);')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = clamp(armor.metal, 0.0, 1.0);')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += armor.col * armor.emis;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += armor.glow;')
   }
   m.customProgramCacheKey = () => PROGRAM_KEY
   return m
