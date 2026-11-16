@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+
+import { LOOK3D_DEFAULT } from './look3d'
+import { buildPostFx } from './postFx3d'
 import { ReplayExportScene3d, exportStepSeconds } from './replayExportScene3d'
+import { ReplayScene3d } from './replayScene3d'
 
 /** A scene double that records the calls of an exported frame. */
 function sceneDouble() {
@@ -108,6 +113,33 @@ describe('ReplayExportScene3d', () => {
     expect(hidden).toBe(1) // the top-down markers leave the frame
     exported.endExport()
     expect(scene.view).toBe('top')
+  })
+
+  it("renders the video through the viewer's own composer: bloom in the file exactly when the viewer has it", () => {
+    // The real compositor on a renderer double; every pass but the bloom is switched off so the
+    // composer's own render loop runs without a GL context, and the bloom's draw is recorded.
+    const drawnBloom = vi.spyOn(UnrealBloomPass.prototype, 'render').mockImplementation(() => {})
+    const renderer = { getPixelRatio: () => 1, getRenderTarget: () => null, setRenderTarget: () => {}, info: { render: { calls: 0, triangles: 0 } } }
+    const fx = buildPostFx(renderer as never, new THREE.Scene(), new THREE.PerspectiveCamera())
+    try {
+      for (const pass of fx.composer.passes) pass.enabled = false
+      fx.bloom!.enabled = true
+      const { exported, scene } = sceneDouble()
+      Object.assign(scene, { post: fx })
+      // The viewer's own `setLook` (ambient occlusion off: its pass needs a GL context).
+      const look = (bloom: boolean) => ReplayScene3d.prototype.setLook.call({ lighting: { setLook: () => {} }, post: fx } as never, { ...LOOK3D_DEFAULT, ambientOcclusion: false, bloom })
+      exported.exportFrame(10)
+      expect(drawnBloom).toHaveBeenCalledTimes(1)
+      look(false) // the drawer turns bloom off: the viewer's composer loses the pass, the file too
+      expect(fx.bloom).toBeNull()
+      exported.exportFrame(11)
+      expect(drawnBloom).toHaveBeenCalledTimes(1)
+      look(true)
+      exported.exportFrame(12)
+      expect(drawnBloom).toHaveBeenCalledTimes(2)
+    } finally {
+      fx.dispose()
+    }
   })
 
   it('exportStepSeconds never runs backward', () => {

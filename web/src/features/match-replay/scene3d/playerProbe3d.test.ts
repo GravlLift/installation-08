@@ -102,7 +102,7 @@ describe('Lighting.probeAt', () => {
   it('nulle quand les reflets sont éteints', () => {
     const lighting = scene({ shadowMap: {} })
     sondes(lighting, [new THREE.Vector3(0, 0, 0)])
-    const look: Look3d = { shadows: true, reflections: false, ambientOcclusion: true, gameLight: true }
+    const look: Look3d = { shadows: true, reflections: false, ambientOcclusion: true, gameLight: true, bloom: true }
     lighting.setLook(look)
     expect(lighting.probeAt(new THREE.Vector3(1, 0, 0))).toBeNull()
   })

@@ -14,6 +14,8 @@ export interface Look3d {
   ambientOcclusion: boolean
   /** La lumière du jeu : sondes d'irradiance cuites et lampes posées de la carte. */
   gameLight: boolean
+  /** Bloom: self-lit surfaces (lamps, light strips, energy blades) glow past their edges (`bloom3d`). */
+  bloom: boolean
 }
 
-export const LOOK3D_DEFAULT: Look3d = { shadows: true, reflections: true, ambientOcclusion: true, gameLight: true }
+export const LOOK3D_DEFAULT: Look3d = { shadows: true, reflections: true, ambientOcclusion: true, gameLight: true, bloom: true }

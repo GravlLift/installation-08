@@ -9,7 +9,8 @@
  *  - outline: the team outline's mask and line passes
  *  - ao: the ambient occlusion pass (also off when the drawer turns it off)
  *  - smaa: the antialiasing pass
- *  - postFx: every pass after the scene render (outline, ao, output, grade, smaa): the scene goes
+ *  - bloom: the bloom pass (only while the drawer's Bloom setting has it in the chain)
+ *  - postFx: every pass after the scene render (outline, ao, bloom, output, grade, smaa): the scene goes
  *    straight to the screen, tone mapped by the renderer (no AO, no grade, no SMAA)
  *  - minimap: the corner minimap (its image and its square)
  *  - map, variant: the map's and the variant layer's meshes (drawn and shadow casting)
@@ -25,6 +26,7 @@ export interface PerfToggles {
   outline: boolean
   ao: boolean
   smaa: boolean
+  bloom: boolean
   postFx: boolean
   minimap: boolean
   map: boolean
@@ -41,6 +43,7 @@ export const PERF_TOGGLES_DEFAULT: Readonly<PerfToggles> = Object.freeze({
   outline: true,
   ao: true,
   smaa: true,
+  bloom: true,
   postFx: true,
   minimap: true,
   map: true,
@@ -53,7 +56,7 @@ export const PERF_TOGGLES_DEFAULT: Readonly<PerfToggles> = Object.freeze({
   pixelRatio: null,
 })
 
-const FLAGS = ['outline', 'ao', 'smaa', 'postFx', 'minimap', 'map', 'variant', 'backFaces', 'shadows', 'shadowSplit', 'labels', 'fogCull'] as const
+const FLAGS = ['outline', 'ao', 'smaa', 'bloom', 'postFx', 'minimap', 'map', 'variant', 'backFaces', 'shadows', 'shadowSplit', 'labels', 'fogCull'] as const
 
 /** The pixel ratios accepted from the console. */
 const RATIO_MIN = 0.25
