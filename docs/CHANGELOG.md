@@ -4,6 +4,7 @@
 
 Changes since 0.1.0-test.13.
 
+- CTF announcer: "Flag taken" for both teams and the enemy's flag capture are called, from the game's objective announcer lines (Fortress CTF: 9 calls instead of 4). Takes effect at the server's next start.
 - Texture quality is now a Standard / High toggle on the matches page, and a map's first build asks which quality to build, with the rough time and size of each, so you no longer wait for a Standard build and then a second one for High.
 - Objective announcer: flag captures and returns are called at the right moment in CTF, and an enemy stronghold capture now has its line ("Stronghold lost"). Takes effect at the server's next start.
 - Shock Rifle: blue electric arcs flicker around its open barrel shroud while it is held (third and first person), and each shot fires three jagged electric beams to where it lands instead of one straight line.
