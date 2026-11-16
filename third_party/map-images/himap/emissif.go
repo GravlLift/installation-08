@@ -5,6 +5,8 @@
 //
 //	illum_full       couleur (3 f32) a +0, intensite a +12
 //	diffuse_emissive teinte d'auto-illumination (3 f32) a +224, quantite a +236, intensite a +240
+//	illum            (LOCAL-CHANGE (infinite-theater-3d)) couleur (3 f32) a +32, intensite a +44,
+//	                 masquee par sa carte de couleur (emplacement 0)
 //
 // La force emise est intensite x quantite (diffuse_emissive) ou l'intensite seule (illum_full) :
 // des valeurs HDR du jeu, de 1 a plus de 1 000, qu'une visionneuse comprime. La texture
@@ -28,8 +30,17 @@ type Emissif struct {
 }
 
 // emplacementEmissif (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture slot of
-// a shader, from Ekur's diffuse_emissive handler.
-var emplacementEmissif = map[uint32]int{0x3c7906af: 244}
+// a shader, from Ekur's handlers: diffuse_emissive's emissive map (slot 244), illum's color map
+// (slot 0, `handle_illum` in ekur_materials basic/self_illum.rs).
+var emplacementEmissif = map[uint32]int{0x3c7906af: 244, shaderIllum: 0}
+
+// shaderIllum (LOCAL-CHANGE (infinite-theater-3d)): the `illum` shader (GlobalID -79437929),
+// Ekur's `handle_illum` (ekur_materials basic/self_illum.rs; process.rs maps -79437929 to it): a
+// color map at texture slot 0, its light color at constant +32 (3 f32) and intensity at +44. The
+// shader's declared parameters name those two bytes `si_color` (0x687e0d19) and `si_intensity`
+// (0x652e3d19). The weapons' light strips and screens are drawn by it (68 materials of the
+// weapon library, 303 of the first-person rigs), additive save for 7 opaque ones.
+const shaderIllum = 0xfb43df97
 
 // bitmapEmissif rend la texture d'auto-illumination liee du shader, 0 sans elle.
 func bitmapEmissif(shader uint32, textures map[int]uint32) uint32 {
@@ -47,6 +58,8 @@ var shadersEmissifs = map[uint32]specEmissif{
 	0x779fc911: {couleur: 0, intensite: 12, quantite: -1},
 	// diffuse_emissive
 	0x3c7906af: {couleur: 224, intensite: 240, quantite: 236},
+	// illum (LOCAL-CHANGE (infinite-theater-3d), see shaderIllum)
+	shaderIllum: {couleur: 32, intensite: 44, quantite: -1},
 }
 
 // emissifDuShader : nil si le shader n'emet pas, si ses constantes sont trop courtes, ou si la

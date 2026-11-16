@@ -250,6 +250,16 @@ describe('glowMaterialOf', () => {
     expect(source.emissiveMap).toBeNull()
     expect(source.userData.armorMaps.asg).toBe(mask)
   })
+
+  it('leaves a self-lit surface its own light', () => {
+    const emissiveMap = new THREE.Texture()
+    const source = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(0, 0.178, 1), emissiveIntensity: 5, emissiveMap })
+    source.userData.selfLit = true
+    const glow = glowMaterialOf(source, new THREE.Color(0x9ca3af)) as THREE.MeshStandardMaterial
+    expect(glow.emissive.b).toBe(1)
+    expect(glow.emissiveIntensity).toBe(5)
+    expect(glow.emissiveMap).toBe(emissiveMap)
+  })
 })
 
 describe('standingItemCorrection', () => {

@@ -6,11 +6,13 @@
  * sont en métal sombre : `darkMetalFallback` leur donne cette matière, et un verre sombre aux
  * pièces translucides sans texture (lunette, viseur). Ne sont pas touchés : un matériau texturé
  * ou lumineux (voyant). An untextured alpha-blended field that is not glass (the Energy Sword's
- * blade) is energized instead (`energyField3d`).
+ * blade) is energized instead (`energyField3d`), and a self-lit surface without a color map (a
+ * light strip, an ammo screen) is drawn as light only (`selfLit3d`).
  */
 import * as THREE from 'three'
 
 import { energize } from './energyField3d'
+import { lightSelfLit } from './selfLit3d'
 
 /** Le gris métal (linéaire, légèrement bleuté), sa part de métal et sa rugosité. */
 export const DARK_METAL = { r: 0.15, g: 0.16, b: 0.18, metalness: 0.55, roughness: 0.5 } as const
@@ -42,6 +44,8 @@ export function darkMetalFallback(m: THREE.Material): boolean {
   // An energy field (the Energy Sword's blade: alpha blended, untextured, not glass) is a
   // self-lit field, not dark glass (`energyField3d`).
   if (energize(m)) return true
+  // A self-lit surface (a weapon's light strip, its ammo screen) is light only (`selfLit3d`).
+  if (lightSelfLit(m)) return true
   // `isPlain` and `isUntextured` are both type predicates to the same type; negating the
   // second after the first narrows to `never` under this TypeScript/@types/three
   // combination. The cast is a type-only fix — `plain` is exactly `m` once `isPlain` holds.

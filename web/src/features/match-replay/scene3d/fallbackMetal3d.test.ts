@@ -21,13 +21,18 @@ describe('darkMetalFallback', () => {
     expect(glass.opacity).toBe(1)
   })
 
-  it('laisse un matériau texturé ou lumineux', () => {
+  it('laisse un matériau texturé', () => {
     const textured = new THREE.MeshStandardMaterial({ map: new THREE.Texture() })
-    const light = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(0, 1, 0), emissiveIntensity: 2 })
-    for (const m of [textured, light]) {
-      expect(darkMetalFallback(m)).toBe(false)
-      expect(m.color.r).toBe(1)
-    }
+    expect(darkMetalFallback(textured)).toBe(false)
+    expect(textured.color.r).toBe(1)
     expect(darkMetalFallback(new THREE.MeshBasicMaterial())).toBe(false)
+  })
+
+  it('draws an untextured self-lit material as light only, not dark metal', () => {
+    const light = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(0, 1, 0), emissiveIntensity: 2 })
+    expect(darkMetalFallback(light)).toBe(true)
+    expect(light.color.getHex()).toBe(0)
+    expect(light.emissive.g).toBe(1)
+    expect(light.emissiveIntensity).toBe(2)
   })
 })

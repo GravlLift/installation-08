@@ -285,7 +285,8 @@ interface RackPose {
  * normal map, its compile hooks and its `userData` by reference, as `lighting.copyPerProbe` does:
  * `clone` copies `userData` through JSON, which turns the coating masks' textures into plain
  * objects, and drops `onBeforeCompile`), plus a faint emissive in `ink`. A textured material glows
- * through its own color map, so the tint follows the texture instead of washing over it.
+ * through its own color map, so the tint follows the texture instead of washing over it. A
+ * self-lit surface (`selfLit3d`) keeps its own light.
  */
 export function glowMaterialOf(source: THREE.Material, ink: THREE.Color): THREE.Material {
   const { userData } = source
@@ -296,7 +297,8 @@ export function glowMaterialOf(source: THREE.Material, ink: THREE.Color): THREE.
   copy.onBeforeCompile = source.onBeforeCompile
   copy.customProgramCacheKey = source.customProgramCacheKey
   const std = copy as THREE.MeshStandardMaterial
-  if (std.emissive instanceof THREE.Color) {
+  // A self-lit surface (a light strip, `selfLit3d`) keeps its own light.
+  if (std.emissive instanceof THREE.Color && !userData.selfLit) {
     std.emissive.copy(ink)
     std.emissiveIntensity = GLOW_EMISSIVE
     if (std.map && !std.emissiveMap) std.emissiveMap = std.map
