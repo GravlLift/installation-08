@@ -22,9 +22,11 @@ const ManifestName = "announcer.json"
 // Vorbis stream repacked into an Ogg file, without decoding (internal/wwvorbis). Version 2 takes
 // were PCM WAV decoded by vgmstream, version 1 takes Ogg re-encoded by ffmpeg; a manifest of an
 // older version is stale and the extraction runs again. Version 4 keeps the version 3 format and
-// only widens the name set (the "strongholdlost" line); it is a new version so an install's
-// version 3 manifest goes stale and the extraction runs again with the wider set.
-const ManifestVersion = 4
+// only widens the name set (the "strongholdlost" line). Version 5 keeps the version 4 format and
+// widens the name set again: the stacker bank's CTF and Assault objective lines (the enemy
+// capture, the flag taken, the bomb); an install's version 4 manifest goes stale and the
+// extraction runs again with the wider set.
+const ManifestVersion = 5
 
 // TakeExt is the file extension of an extracted take.
 const TakeExt = ".ogg"

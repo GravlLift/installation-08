@@ -43,11 +43,25 @@ export interface AnnouncerManifest {
 /** Where the sound route serves the manifest. */
 export const ANNOUNCER_MANIFEST_URL = '/static/sounds/halo_infinite/announcer.json'
 
-/** The objective calls, by statistic and side, onto the game's lines. A key absent is silent. */
+/**
+ * The objective calls, by statistic and side, onto the game's lines. A key absent is silent.
+ *
+ * THE CTF AND ASSAULT LINES SPLIT ACROSS THE TWO BANKS. The main bank has the "ours" capture
+ * (`flagcaptured`) and the two flag returns; it has no line for the enemy capture, the flag taken
+ * (a steal), or the bomb. Those live in the stacker bank, named `<subject><verb>ally`/
+ * `<subject><verb>enemy` where "ally"/"enemy" is the side from the followed player's point of
+ * view, so "ours" maps to the "ally" line and "theirs" to the "enemy" one. A grab (picking up a
+ * flag) is not announced in either bank, so `flag_grabs` stays silent.
+ */
 const OBJECTIVE_VOICE: Readonly<Record<string, readonly string[]>> = {
   'objective.flag_captures.ours': ['flagcaptured'],
+  'objective.flag_captures.theirs': ['flagcapturedenemy'],
+  'objective.flag_steals.ours': ['flagtakenally'],
+  'objective.flag_steals.theirs': ['flagtakenenemy'],
   'objective.flag_returns.ours': ['teamflagreturned'],
   'objective.flag_returns.theirs': ['enemyflagreturned'],
+  'objective.bomb_detonations.ours': ['bombdetonatedally'],
+  'objective.bomb_detonations.theirs': ['bombdetonatedenemy'],
   'objective.zone_captures.ours': ['strongholdcaptured'],
   'objective.zone_captures.theirs': ['strongholdlost'],
   'objective.hill_captures.ours': ['hillcontrolled'],
@@ -98,7 +112,7 @@ export function voiceNamesOfCall(key: string): readonly string[] {
 
 /** The manifest version this viewer reads: `ManifestVersion` in `internal/announcer/extract.go`.
  *  An older manifest is refused (silent) until the server's announcer job rebuilds it. */
-const MANIFEST_VERSION = 4
+const MANIFEST_VERSION = 5
 
 /** A take's file: the game's Vorbis stream in an Ogg file, named after its line. */
 const TAKE_FILE = /^[a-z0-9_]+\.ogg$/

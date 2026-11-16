@@ -10,9 +10,12 @@ import (
 // chance match, so the lines were sampled by transcription of the decoded audio (every objective,
 // time, score and the main mode names said what their name says). They are the lines the viewer
 // schedules (web:
-// announcerVoice.ts maps its calls onto them). The game also ships a second, chattier announcer
-// (bank `sb_001_vo_ai_mp_announcerstacker`, names ending in "ally"/"enemy"): its lines are
-// another voice and are left out.
+// announcerVoice.ts maps its calls onto them). The game ships a second, chattier announcer (bank
+// `sb_001_vo_ai_mp_announcerstacker`, names ending in "ally"/"enemy"): the owner hears it in the
+// announcer's voice during matches, so it is the game's CTF and Assault objective chatter. The
+// main bank has the "ours" capture and the flag returns; the stacker fills the rest (the enemy
+// capture, the flag taken, the bomb), named `<subject><verb>ally`/`<subject><verb>enemy` where
+// "ally"/"enemy" is the side from the listener's point of view.
 var (
 	// ModeNames are said when a match starts, one per game mode.
 	ModeNames = []string{
@@ -27,10 +30,13 @@ var (
 	TimeNames = []string{"5minutes", "2minutes", "1minutes", "30seconds", "10seconds"}
 	// ScoreNames are the lead and overtime calls.
 	ScoreNames = []string{"lostlead", "overtime"}
-	// ObjectiveNames are the objective calls.
+	// ObjectiveNames are the objective calls. The main bank covers the "ours" capture and the two
+	// flag returns; the last five are the stacker bank's CTF and Assault lines it does not have
+	// (the enemy capture, the flag taken on both sides, the bomb on both sides).
 	ObjectiveNames = []string{
 		"flagcaptured", "teamflagreturned", "enemyflagreturned", "strongholdcaptured",
 		"strongholdlost", "hillcontrolled", "hillcontrolledenemy", "newvip",
+		"flagcapturedenemy", "flagtakenally", "flagtakenenemy", "bombdetonatedally", "bombdetonatedenemy",
 	}
 )
 

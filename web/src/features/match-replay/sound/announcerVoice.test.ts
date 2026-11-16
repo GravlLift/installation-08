@@ -16,7 +16,7 @@ import {
 } from './announcerVoice'
 
 const MANIFEST: AnnouncerManifest = {
-  version: 4,
+  version: 5,
   language: 'en',
   lines: {
     doublekill: { takes: [{ file: 'announcer_doublekill_01.ogg', durationMs: 900 }] },
@@ -43,7 +43,15 @@ describe('voiceNamesOfCall', () => {
     expect(voiceNamesOfCall('objective.flag_returns.theirs')).toEqual(['enemyflagreturned'])
     expect(voiceNamesOfCall('time.60')).toEqual(['1minutes'])
     expect(voiceNamesOfCall('score.lost_lead')).toEqual(['lostlead'])
-    expect(voiceNamesOfCall('objective.flag_captures.theirs')).toEqual([])
+    // The "ours" capture stays on the main bank; the enemy capture, the flag taken and the bomb
+    // come from the stacker bank, named ally/enemy by side.
+    expect(voiceNamesOfCall('objective.flag_captures.ours')).toEqual(['flagcaptured'])
+    expect(voiceNamesOfCall('objective.flag_captures.theirs')).toEqual(['flagcapturedenemy'])
+    expect(voiceNamesOfCall('objective.flag_steals.ours')).toEqual(['flagtakenally'])
+    expect(voiceNamesOfCall('objective.flag_steals.theirs')).toEqual(['flagtakenenemy'])
+    expect(voiceNamesOfCall('objective.bomb_detonations.theirs')).toEqual(['bombdetonatedenemy'])
+    // A grab is not announced in either bank: silent.
+    expect(voiceNamesOfCall('objective.flag_grabs.ours')).toEqual([])
     expect(voiceNamesOfCall('round_over')).toEqual([])
   })
 })
@@ -70,7 +78,7 @@ describe('manifestVoice', () => {
 describe('parseAnnouncerManifest and loadAnnouncerManifest', () => {
   it('keeps the well-formed takes and refuses another shape', () => {
     const parsed = parseAnnouncerManifest({
-      version: 4,
+      version: 5,
       language: 'en',
       lines: {
         a: { takes: [{ file: '../x.ogg', durationMs: 5 }, { file: 'ok_01.ogg', durationMs: 0 }, { file: 'c_01.wav', durationMs: 5 }] },
