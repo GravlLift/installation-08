@@ -63,6 +63,9 @@ const (
 	// imageASG (LOCAL-CHANGE (infinite-theater-3d)): a Forge ASG texture read as a control map:
 	// its red (ambient occlusion) in green, a middle roughness in blue, no metal.
 	imageASG
+	// imageEmissionAlpha (LOCAL-CHANGE (infinite-theater-3d)): a see-through emitter's picture,
+	// its RGB times its alpha (what an additive blend adds), sRGB.
+	imageEmissionAlpha
 )
 
 // pasDeTexture : index de texture d'une carte absente dans `extras.couches`.
@@ -305,6 +308,9 @@ func (cg *couchesGLB) texture(doc *gltfDoc, bin *tamponGLB, cle cleImage, textur
 		err = png.Encode(&buf, canauxMacro(t.Image))
 	case imageASG:
 		err = png.Encode(&buf, canauxASG(t))
+	case imageEmissionAlpha: // LOCAL-CHANGE (infinite-theater-3d)
+		mime = mimeJPEG
+		err = jpeg.Encode(&buf, couleurFoisAlpha(t), &jpeg.Options{Quality: qualiteJPEG})
 	}
 	if err != nil {
 		return 0, fmt.Errorf("image du bitmap %08x : %w", cle.bitmap, err)
@@ -312,6 +318,24 @@ func (cg *couchesGLB) texture(doc *gltfDoc, bin *tamponGLB, cle cleImage, textur
 	tex := ajouteImage(doc, bin, buf.Bytes(), mime)
 	cg.images[cle] = tex
 	return tex, nil
+}
+
+// couleurFoisAlpha (LOCAL-CHANGE (infinite-theater-3d)): the RGB of a picture times its alpha, opaque;
+// a one-channel format (no alpha of its own) is kept as it is.
+func couleurFoisAlpha(t Texture) *image.NRGBA {
+	src := t.Image
+	dst := image.NewNRGBA(src.Rect)
+	for i := 0; i+3 < len(src.Pix); i += 4 {
+		a := uint32(src.Pix[i+3])
+		if t.Monocanal {
+			a = 255
+		}
+		for k := range 3 {
+			dst.Pix[i+k] = uint8((uint32(src.Pix[i+k])*a + 127) / 255)
+		}
+		dst.Pix[i+3] = 255
+	}
+	return dst
 }
 
 // rugositeMonocanal : la rugosite d'une carte de controle a un canal, qui n'en porte pas.
