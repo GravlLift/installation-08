@@ -176,7 +176,11 @@ function causeOf(
     if (!id) return `read locates emplacement ${d} whose weapon id is absent from the row`
     return `read locates the hand but emplacement ${d} resolves to no usable id`
   }
-  return `read does not designate a weapon emplacement (portees=${portees})`
+  // Emplacement 2 is the film's non-weapon object slot (grammar_inventaire.go: bare hands,
+  // the pre-start state of every player, or an objective object). An empty hand here is the
+  // measured truth, not a gap.
+  if (d === 2) return 'read designates non-weapon emplacement 2 (bare hands / objective object)'
+  return `read does not designate a weapon emplacement (d=${String(d)}, portees=${portees})`
 }
 
 describe.skipIf(!SWEEP)('empty hands sweep', () => {
