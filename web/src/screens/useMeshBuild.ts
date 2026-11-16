@@ -69,16 +69,32 @@ export interface UseMeshBuildResult {
   cancelling: boolean
 }
 
+/** Whether a phase is one a build can start from (nothing built at this quality, a cancelled
+ *  build, or a file in an older format). */
+function canStartBuild(phase: MeshBuildPhase): boolean {
+  return phase.phase === 'absent' || phase.phase === 'cancelled' || phase.phase === 'outdated'
+}
+
+/**
+ * `autoBuild`: when the first state check of a (matchId, quality) pair finds nothing to load
+ * (absent, cancelled or outdated), start the build at once instead of waiting for `build()`.
+ * The pre-game passes it when the user picked a different quality on its quality choice: the
+ * pick already means "build this one", and the check runs inside the same effect, so it never
+ * acts on the previous quality's phase. It is read when the check answers, not a dependency.
+ */
 export function useMeshBuild(
   matchId: string,
   pollMs: number = MESH_BUILD_POLL_MS,
   quality?: MeshQuality,
+  autoBuild: boolean = false,
 ): UseMeshBuildResult {
   const [phase, setPhase] = useState<MeshBuildPhase>({ phase: 'checking' })
   const [cancelling, setCancelling] = useState(false)
   // Read inside the interval callback without making it a dependency that would restart polling.
   const phaseRef = useRef(phase)
   phaseRef.current = phase
+  const autoBuildRef = useRef(autoBuild)
+  autoBuildRef.current = autoBuild
 
   useEffect(() => {
     const controller = new AbortController()
@@ -87,7 +103,15 @@ export function useMeshBuild(
       try {
         const body = await fetchMeshState(matchId, controller.signal, quality)
         if (controller.signal.aborted) return
-        setPhase(phaseOfMeshState(body))
+        const checked = phaseOfMeshState(body)
+        if (matchId && autoBuildRef.current && canStartBuild(checked)) {
+          setPhase({ phase: 'queued', moduleKey: moduleKeyOf(checked) })
+          const started = await requestMeshBuild(matchId, controller.signal, quality)
+          if (controller.signal.aborted) return
+          setPhase(phaseOfMeshState(started))
+          return
+        }
+        setPhase(checked)
       } catch (err) {
         if (controller.signal.aborted) return
         setPhase({

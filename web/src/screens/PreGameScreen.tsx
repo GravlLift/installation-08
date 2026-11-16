@@ -21,13 +21,19 @@ import { checkMesh, fetchReplayDocument, MatchNotFoundError, MeshNotBuiltError }
 import { normalizeReplayDocument } from '../lib/replay/replayNormalize'
 import { useMatchSummary } from './useMatchSummary'
 import { MESH_BUILD_POLL_MS, useMeshBuild } from './useMeshBuild'
-import { useTextureQuality, type TextureQuality } from '../features/match-replay/settings/useTextureQuality'
+import {
+  TEXTURE_QUALITIES,
+  useTextureQuality,
+  type TextureQuality,
+} from '../features/match-replay/settings/useTextureQuality'
 import { useAuthState } from './useAuthState'
 import { cleanMapName } from './matchSelectModel'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
 import {
+  QUALITY_BUILD_COST,
   READY_HOLD_MS,
   buildLineOf,
+  offersQualityChoice,
   preGameStepOfDocument,
   sceneStepOf,
   splitRosters,
@@ -47,42 +53,119 @@ type PreGameState =
   | { phase: 'missing' }
   | { phase: 'error'; message: string }
 
+type DocumentLoad =
+  | { phase: 'document' }
+  | { phase: 'loaded'; doc: ReplayDocumentReady }
+  | { phase: 'missing' }
+  | { phase: 'error'; message: string }
+
+type MeshCheck = {
+  doc: ReplayDocumentReady
+  quality: TextureQuality
+  result: { phase: 'ready' } | { phase: 'build' } | { phase: 'error'; message: string }
+}
+
 /** Fetches the match's replay document, checks the map mesh, and lands on one of the states
  *  above. `MeshNotBuiltError` keeps the already-fetched document so the build can run here
  *  and the viewer mounts the moment the map is built (no re-fetch, no reload). A 404 on the
  *  document is `missing`: the match is not stored on this install (a shared link), and the page
- *  offers to fetch it. `attempt` re-runs the load once that fetch is done. */
+ *  offers to fetch it. `attempt` re-runs the load once that fetch is done.
+ *
+ *  The document and the mesh check are two steps: a new `quality` (a pick on the pre-game's
+ *  quality choice) re-checks the mesh for the same document without fetching it again. A check
+ *  answers only for the document and quality it ran with, so a stale answer never shows. */
 function useMatchDocument(matchId: string, attempt: number, quality: TextureQuality): PreGameState {
-  const [state, setState] = useState<PreGameState>({ phase: 'document' })
+  const [load, setLoad] = useState<DocumentLoad>({ phase: 'document' })
   useEffect(() => {
     const controller = new AbortController()
-    setState({ phase: 'document' })
+    setLoad({ phase: 'document' })
     void (async () => {
-      let doc: ReplayDocumentReady | null = null
       try {
         const raw = await fetchReplayDocument(matchId, controller.signal)
         if (controller.signal.aborted) return
-        doc = normalizeReplayDocument(raw)
-        setState({ phase: 'mesh' })
-        await checkMesh(matchId, controller.signal, quality)
-        if (controller.signal.aborted) return
-        setState({ phase: 'ready', doc })
+        setLoad({ phase: 'loaded', doc: normalizeReplayDocument(raw) })
       } catch (err) {
         if (controller.signal.aborted) return
-        if (err instanceof MeshNotBuiltError && doc) {
-          setState({ phase: 'build', doc })
+        if (err instanceof MatchNotFoundError) {
+          setLoad({ phase: 'missing' })
           return
         }
-        if (err instanceof MatchNotFoundError && !doc) {
-          setState({ phase: 'missing' })
-          return
-        }
-        setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
+        setLoad({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     })()
     return () => controller.abort()
-  }, [matchId, attempt, quality])
-  return state
+  }, [matchId, attempt])
+
+  const doc = load.phase === 'loaded' ? load.doc : null
+  const [check, setCheck] = useState<MeshCheck | null>(null)
+  useEffect(() => {
+    if (!doc) return
+    const controller = new AbortController()
+    void (async () => {
+      try {
+        await checkMesh(matchId, controller.signal, quality)
+        if (controller.signal.aborted) return
+        setCheck({ doc, quality, result: { phase: 'ready' } })
+      } catch (err) {
+        if (controller.signal.aborted) return
+        if (err instanceof MeshNotBuiltError) {
+          setCheck({ doc, quality, result: { phase: 'build' } })
+          return
+        }
+        setCheck({ doc, quality, result: { phase: 'error', message: err instanceof Error ? err.message : String(err) } })
+      }
+    })()
+    return () => controller.abort()
+  }, [matchId, doc, quality])
+
+  if (load.phase !== 'loaded') return load
+  if (!check || check.doc !== load.doc || check.quality !== quality) return { phase: 'mesh' }
+  if (check.result.phase === 'error') return check.result
+  return { phase: check.result.phase, doc: load.doc }
+}
+
+/** The quality choice before a first build: one button per texture quality, each with its
+ *  rough build time and size (`QUALITY_BUILD_COST`), the stored preference marked. A click
+ *  builds that quality and makes it the preference. */
+function QualityChoice({
+  cancelled,
+  preferred,
+  onPick,
+}: {
+  cancelled: boolean
+  preferred: TextureQuality
+  onPick: (quality: TextureQuality) => void
+}) {
+  return (
+    <div className="bc-quality-choice" data-testid="quality-choice">
+      <div className="bc-step">
+        {cancelled ? 'Build cancelled.' : 'This map has not been built yet.'} Pick a texture quality to build it.
+      </div>
+      <div className="bc-quality-options" role="group" aria-label="Texture quality">
+        {TEXTURE_QUALITIES.map((q) => {
+          const cost = QUALITY_BUILD_COST[q]
+          return (
+            <button
+              key={q}
+              type="button"
+              className={'bc-quality-option' + (q === preferred ? ' on' : '')}
+              data-testid={`build-quality-${q}`}
+              onClick={() => onPick(q)}
+            >
+              <b>Build {cost.name}</b>
+              <small>
+                {cost.time}, {cost.size}
+              </small>
+            </button>
+          )
+        })}
+      </div>
+      <p className="bc-quality-note">
+        Approximate, measured on the largest map. You can change the quality later on the matches page or in the
+        player settings.
+      </p>
+    </div>
+  )
 }
 
 export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: () => void }) {
@@ -95,8 +178,14 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   // to handle (its in-viewer build gate). Following it here re-ran the document load, dropped the
   // live viewer while the document reloaded, and a live pre-game renders nothing but that viewer:
   // the whole page went blank and never came back.
-  const { quality: liveQuality } = useTextureQuality()
-  const [quality] = useState(liveQuality)
+  // The one exception is the quality choice this screen offers before a first build (no viewer
+  // is mounted then): a pick sets the stored preference AND this screen's quality, so the map is
+  // checked and built at the picked quality and the viewer later mounts on the same files.
+  const { quality: liveQuality, setQuality: setStoredQuality } = useTextureQuality()
+  const [quality, setQuality] = useState(liveQuality)
+  // The quality picked on the choice when it differs from the one checked: its first state
+  // check starts the build at once (the pick already said "build this one").
+  const [pickedQuality, setPickedQuality] = useState<TextureQuality | null>(null)
   const state = useMatchDocument(matchId, attempt, quality)
   const summary = useMatchSummary(matchId, attempt)
   const auth = useAuthState()
@@ -108,6 +197,21 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
     state.phase === 'build' ? matchId : '',
     MESH_BUILD_POLL_MS,
     quality,
+    pickedQuality === quality,
+  )
+  // A pick on the quality choice: the same quality builds now; another one becomes this
+  // screen's quality (the mesh is checked again at it, and built there if it is not built).
+  const onPickQuality = useCallback(
+    (picked: TextureQuality) => {
+      setStoredQuality(picked)
+      if (picked === quality) {
+        build()
+        return
+      }
+      setPickedQuality(picked)
+      setQuality(picked)
+    },
+    [quality, build, setStoredQuality],
   )
 
   // The map is ready when the document state says `ready` (mesh check passed) OR when the
@@ -198,6 +302,9 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
     fraction = scene.fraction
   }
   const counting = barDone && countdown.value !== null
+  // The map is not built at this quality and nothing is building: the user picks the quality
+  // here, before any build starts, and the pick builds only that quality.
+  const choosing = !viewer && state.phase === 'build' && offersQualityChoice(buildPhase)
 
   return (
     <>
@@ -253,8 +360,16 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
             </>
           ) : (
             <>
-              {counting ? null : <ProgressLine label={stepLabel} fraction={fraction} />}
-              {!viewer && state.phase === 'build' && buildLine?.action ? (
+              {choosing ? (
+                <QualityChoice
+                  cancelled={buildPhase.phase === 'cancelled'}
+                  preferred={quality}
+                  onPick={onPickQuality}
+                />
+              ) : counting ? null : (
+                <ProgressLine label={stepLabel} fraction={fraction} />
+              )}
+              {!choosing && !viewer && state.phase === 'build' && buildLine?.action ? (
                 <div className="bc-pregame-actions">
                   {buildLine.action === 'cancel' ? (
                     <button type="button" className="bc-signout" onClick={cancel} disabled={cancelling}>
