@@ -13,6 +13,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
+
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -46,6 +48,8 @@ type VariantTarget struct {
 	// TextureCaps is the build's texture read sizes (himap.TextureCaps); zero is the standard
 	// caps (himap.CapsStandard), today's output.
 	TextureCaps himap.TextureCaps
+	// Textures is the image format of the written GLB (see Target.Textures).
+	Textures texcompress.Format
 }
 
 // BuildVariant writes the variant's object-layer GLB to `path`, built in-process from the local
@@ -83,14 +87,16 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	}
 	announce(StepWriting)
 	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), axesGLBKey: axesGLB, "objects": bilan.Poses}
-	n, err := writeFile(path, func(w io.Writer) error { return himap.EcritGLB(w, m, generator, extras) })
+	// Read before writing, so the texture pass does not keep the collected layer alive.
+	placed, unique := m.Poses.Triangles()
+	models := len(m.Poses.Geometries)
+	n, err := writeGLB(ctx, path, t.Key, t.Textures, announce, func(w io.Writer) error { return himap.EcritGLB(w, m, generator, extras) })
 	if err != nil {
 		return Summary{}, err
 	}
-	placed, unique := m.Poses.Triangles()
 	s := Summary{Triangles: placed, Bytes: n}
 	slog.InfoContext(ctx, "variant object layer written", "mapId", t.Key, "objects", bilan.Poses,
-		"triangles", placed, "uniqueTriangles", unique, "models", len(m.Poses.Geometries),
+		"triangles", placed, "uniqueTriangles", unique, "models", models,
 		"bytes", n, "file", filepath.Base(path))
 	return s, nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 )
 
 // runBuildMesh builds one map's world mesh from the local game installation and writes it to a
@@ -22,6 +23,7 @@ func runBuildMesh(args []string) error {
 	name := fs.String("name", "", "with --mvar, the map's displayed name, published in the GLB")
 	gameRoot := fs.String("game", "", "game deploy root; empty auto-detects it (LEVELUP_HALO_DEPLOY, Steam, Xbox)")
 	quality := fs.String("texture-quality", "standard", "texture quality to read at: standard (default, today's output) or high (bigger textures)")
+	textures := fs.String("textures", string(texcompress.DefaultFormat), "image format of the GLB's textures: ktx2 (default, GPU-compressed Basis Universal, KHR_texture_basisu) or png (the PNG and JPEG images of earlier builds)")
 	out := fs.String("out", "", "GLB file to write")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -29,6 +31,10 @@ func runBuildMesh(args []string) error {
 	q, ok := meshjobs.ParseQuality(*quality)
 	if !ok {
 		return fmt.Errorf("build-mesh: unknown --texture-quality %q (standard or high)", *quality)
+	}
+	tf, ok := texcompress.ParseFormat(*textures)
+	if !ok {
+		return fmt.Errorf("build-mesh: unknown --textures %q (ktx2 or png)", *textures)
 	}
 	if *mapKey == "" || *out == "" {
 		return fmt.Errorf("build-mesh: --map and --out are required")
@@ -45,10 +51,10 @@ func runBuildMesh(args []string) error {
 		if *name != "" {
 			names = []string{*name}
 		}
-		opts := meshbuild.ForgeMapOptions{Key: *mapKey, Names: names, Mvar: *mvar, GameRoot: *gameRoot, Quality: q}
+		opts := meshbuild.ForgeMapOptions{Key: *mapKey, Names: names, Mvar: *mvar, GameRoot: *gameRoot, Quality: q, Textures: tf}
 		summary, err = meshbuild.BuildForgeMap(ctx, opts, *out, announce)
 	} else {
-		summary, err = meshbuild.BuildMap(ctx, *mapKey, q, *gameRoot, *out, announce)
+		summary, err = meshbuild.BuildMap(ctx, *mapKey, q, tf, *gameRoot, *out, announce)
 	}
 	if err != nil {
 		if nb, ok := meshbuild.AsNotBuildable(err); ok {

@@ -13,7 +13,8 @@ it has no account of its own and stores no data of other players beyond what a m
 roster carries.
 
 Requires Go 1.26 or newer and a C/C++ toolchain for cgo (the upstream files-reader includes
-the `ooz` decompressor). Building a map mesh, a weapon library, or the first-person library
+the `ooz` decompressor, and map textures are compressed with the Basis Universal encoder,
+`internal/basisu`; its first compile takes about a minute). Building a map mesh, a weapon library, or the first-person library
 additionally requires a local Halo Infinite installation.
 
 ```powershell
@@ -145,8 +146,8 @@ are missing from the Ekur export"); when everything is fine it shows nothing.
 
 | Command | What it builds | Key flags |
 |---|---|---|
-| `build-mesh` | one map's world mesh (geometry, sun, light probes, placed lights) to a GLB; a Forge map (`--mvar`) is its canvas framed on the variant's objectives, its objects left to the variant layer | `--map <module-key or Forge map asset id>`, `--out <file.glb>`, `--game <deploy-root>`, `--mvar <file.mvar>`, `--name <map name>` |
-| `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB, each distinct model written once and placed by node transform | `--map <key> --mvar <file.mvar> --out <file.glb>` |
+| `build-mesh` | one map's world mesh (geometry, sun, light probes, placed lights) to a GLB; a Forge map (`--mvar`) is its canvas framed on the variant's objectives, its objects left to the variant layer | `--map <module-key or Forge map asset id>`, `--out <file.glb>`, `--game <deploy-root>`, `--mvar <file.mvar>`, `--name <map name>`, `--texture-quality <standard or high>`, `--textures <ktx2 or png>` (ktx2, the default: GPU-compressed Basis Universal textures, `KHR_texture_basisu`) |
+| `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB, each distinct model written once and placed by node transform | `--map <key> --mvar <file.mvar> --out <file.glb>`, `--texture-quality <standard or high>`, `--textures <ktx2 or png>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with an Ekur reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
 | `build-sounds` | the announcer's voice lines (168 calls), every weapon's reload sounds, the interface sounds (the pre-game countdown tick and the followed Spartan's shield alarms) and every multiplayer map's ambient bed, repacked to Ogg Vorbis into `<data>/assets/sounds/halo_infinite/` with `announcer.json`, `reloads.json`, `ui.json` and `ambience.json` | `--lang en\|fr`, `--data <dir>` |
