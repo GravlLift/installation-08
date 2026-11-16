@@ -111,8 +111,9 @@ const EquipmentRuleCurrent = 2
 // SchemaCurrent is the current library index schema. Bumped when the build output changes
 // (the models the library holds), so a library built by an older version of the app is
 // outdated and rebuilt by the normal build flow; an index without a schema (built before
-// schema versioning) is outdated.
-const SchemaCurrent = 2
+// schema versioning) is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy
+// parts) is read from its declared emissive_intensity and its tint map.
+const SchemaCurrent = 3
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

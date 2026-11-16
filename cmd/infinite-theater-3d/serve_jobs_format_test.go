@@ -14,9 +14,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 // formatGLB is a minimal GLB whose asset.extras carries buildFormat (0: absent) and whose
@@ -169,8 +171,8 @@ func TestJobModuleFormatLibraries(t *testing.T) {
 		cur    int
 		old    int
 	}{
-		{meshjobs.JobWeapons, 2, 1},
-		{meshjobs.JobFirstPerson, 2, 1},
+		{meshjobs.JobWeapons, weapons.SchemaCurrent, weapons.SchemaCurrent - 1},
+		{meshjobs.JobFirstPerson, firstperson.SchemaFirstPerson, firstperson.SchemaFirstPerson - 1},
 		{meshjobs.JobSpartanPieces, 2, 1},
 	}
 	for _, c := range cases {

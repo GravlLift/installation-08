@@ -183,6 +183,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     the `emissiveTexture`. It draws the weapons' light strips and ammo screens. Covered by
     `himap/emissif_test.go` and `himap/emissif_illum_gamefiles_test.go` (new, checks three weapon
     materials against Ekur's export).
+  - `himap/emissif.go` (LOCAL-CHANGE): the energy shader (0xb202b443, the Sentinel Beam's energy
+    parts) joins the self-lit table with `couleurCarte`: its light color is not a constant, it is
+    the one-pixel tint map it binds at texture slot 68 (a white color, the force alone gates the
+    light), and its force is the intensity at its declared `emissive_intensity` (+92). It emits in
+    third and first person alike. Covered by `himap/emissif_test.go` and
+    `himap/emissif_energie_gamefiles_test.go` (new, checks the Sentinel's five energy materials
+    and its tint map's pixel).
   - `himap/emissif.go`, `himap/materiaux.go`, `himap/glb.go`, `himap/glb_couches.go`
     (LOCAL-CHANGE): shaders outside the fixed table emit when their declared parameter NAMES
     match a form of `formesEmissives` (names resolved by hashing candidate texts): holographic

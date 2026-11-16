@@ -7,6 +7,9 @@
 //	diffuse_emissive teinte d'auto-illumination (3 f32) a +224, quantite a +236, intensite a +240
 //	illum            (LOCAL-CHANGE (infinite-theater-3d)) couleur (3 f32) a +32, intensite a +44,
 //	                 masquee par sa carte de couleur (emplacement 0)
+//	energie          (LOCAL-CHANGE (infinite-theater-3d)) intensity at +92 (the declared
+//	                 `emissive_intensity` parameter), the color in its one-pixel tint map
+//	                 (slot 68); the Sentinel Beam's energy parts
 //
 // La force emise est intensite x quantite (diffuse_emissive) ou l'intensite seule (illum_full) :
 // des valeurs HDR du jeu, de 1 a plus de 1 000, qu'une visionneuse comprime. La texture
@@ -43,7 +46,7 @@ type Emissif struct {
 // emplacementEmissif (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture slot of
 // a shader, from Ekur's handlers: diffuse_emissive's emissive map (slot 244), illum's color map
 // (slot 0, `handle_illum` in ekur_materials basic/self_illum.rs).
-var emplacementEmissif = map[uint32]int{0x3c7906af: 244, shaderIllum: 0}
+var emplacementEmissif = map[uint32]int{0x3c7906af: 244, shaderIllum: 0, shaderEnergie: 68}
 
 // shaderIllum (LOCAL-CHANGE (infinite-theater-3d)): the `illum` shader (GlobalID -79437929),
 // Ekur's `handle_illum` (ekur_materials basic/self_illum.rs; process.rs maps -79437929 to it): a
@@ -52,6 +55,13 @@ var emplacementEmissif = map[uint32]int{0x3c7906af: 244, shaderIllum: 0}
 // (0x652e3d19). The weapons' light strips and screens are drawn by it (68 materials of the
 // weapon library, 303 of the first-person rigs), additive save for 7 opaque ones.
 const shaderIllum = 0xfb43df97
+
+// shaderEnergie (LOCAL-CHANGE (infinite-theater-3d)): the energy shader of the Sentinel Beam's
+// energy parts (a0955e9e, fifth-person and first-person alike): it declares `emissive_intensity`
+// (nomEmissiveIntensity) at +92 and no color constant of its own; its light color is the one-pixel
+// tint map bound at texture slot 68 (measured: 0x00002756, pixel (128,128,0) sRGB = the green the
+// game shows).
+const shaderEnergie = 0xb202b443
 
 // bitmapEmissif rend la texture d'auto-illumination liee du shader, 0 sans elle.
 func bitmapEmissif(shader uint32, textures map[int]uint32) uint32 {
@@ -62,7 +72,12 @@ func bitmapEmissif(shader uint32, textures map[int]uint32) uint32 {
 }
 
 // specEmissif : octets des constantes ; quantite < 0 = pas de quantite (force = intensite).
-type specEmissif struct{ couleur, intensite, quantite int }
+// couleurCarte (LOCAL-CHANGE (infinite-theater-3d)) : la couleur n'est pas dans les constantes,
+// elle est dans la carte de teinte liee du shader (couleur blanche, force seule fait la lumiere).
+type specEmissif struct {
+	couleur, intensite, quantite int
+	couleurCarte                 bool
+}
 
 var shadersEmissifs = map[uint32]specEmissif{
 	// illum_full
@@ -71,6 +86,8 @@ var shadersEmissifs = map[uint32]specEmissif{
 	0x3c7906af: {couleur: 224, intensite: 240, quantite: 236},
 	// illum (LOCAL-CHANGE (infinite-theater-3d), see shaderIllum)
 	shaderIllum: {couleur: 32, intensite: 44, quantite: -1},
+	// energie (LOCAL-CHANGE (infinite-theater-3d), see shaderEnergie)
+	shaderEnergie: {couleur: -1, intensite: 92, quantite: -1, couleurCarte: true},
 }
 
 // emissifDuShader : nil si le shader n'emet pas, si ses constantes sont trop courtes, ou si la
@@ -89,13 +106,18 @@ func emissifDuShader(shader uint32, constantes []byte) *Emissif {
 	}
 	var e Emissif
 	var allume bool
-	for k := 0; k < 3; k++ {
-		c, ok := f(s.couleur + 4*k)
-		if !ok || c < 0 {
-			return nil
+	if s.couleurCarte { // LOCAL-CHANGE (infinite-theater-3d) : couleur dans la carte de teinte
+		e.Couleur = [3]float32{1, 1, 1}
+		allume = true
+	} else {
+		for k := 0; k < 3; k++ {
+			c, ok := f(s.couleur + 4*k)
+			if !ok || c < 0 {
+				return nil
+			}
+			e.Couleur[k] = c
+			allume = allume || c > 0
 		}
-		e.Couleur[k] = c
-		allume = allume || c > 0
 	}
 	force, ok := f(s.intensite)
 	if !ok {

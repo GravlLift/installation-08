@@ -20,8 +20,9 @@ import (
 // reads it. Bumped when the build output changes (today: KTX2 textures and the texture
 // read size), so a library built by an older version of the app is outdated and rebuilt
 // by the normal build flow; an index without a schema (built before schema versioning)
-// is outdated.
-const SchemaFirstPerson = 2
+// is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy parts) is read from
+// its declared emissive_intensity and its tint map.
+const SchemaFirstPerson = 3
 
 // FichierIndex is the library's index file; its presence says the build is complete.
 const FichierIndex = "index.json"
