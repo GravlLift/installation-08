@@ -59,6 +59,7 @@ const LUNETTES = {
 export const SCOPES_PAR_MODELE: Readonly<Record<string, ScopeSpec>> = {
   '0a1992bc': LUNETTES.s7,
   '1a22fee6': LUNETTES.choc,
+  'adb78225': LUNETTES.stalker,
   '2b1824d5': LUNETTES.br75,
   'fd98554c': LUNETTES.vk78,
   '6acdc44d': LUNETTES.bandit,

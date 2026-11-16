@@ -48,7 +48,7 @@ var weaponFamilyTable = []weaponFamily{
 	{"hinf_mangler", 0x80977ba5},         // Mangler
 	{"hinf_mutilator", 0xd7915565},       // Mutilator
 	{"hinf_pulse_carbine", 0x30484ea6},   // Pulse Carbine
-	{"hinf_stalker_rifle", 0xdaf193c7},   // Stalker Rifle
+	{"hinf_stalker_rifle", 0xdaf193c7},   // Stalker Rifle (second family: 0xadb78225)
 	{"hinf_vestige_carbine", 0x3e070217}, // Vestige Carbine
 	{"hinf_frag_grenade", 0xb6dbead8},    // Frag Grenade (not a `weap` tag)
 	{"hinf_plasma_grenade", 0xc1e1bab0},  // Plasma Grenade (not a `weap` tag)

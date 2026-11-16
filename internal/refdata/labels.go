@@ -145,6 +145,7 @@ var familyToKey = map[uint32]string{
 	0xd7915565: "hinf_mutilator",
 	0x30484ea6: "hinf_pulse_carbine",
 	0xdaf193c7: "hinf_stalker_rifle",
+	0xadb78225: "hinf_stalker_rifle",
 	0x3e070217: "hinf_vestige_carbine",
 	0xb6dbead8: "hinf_frag_grenade",
 	0xc1e1bab0: "hinf_plasma_grenade",

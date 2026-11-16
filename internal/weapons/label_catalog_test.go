@@ -44,6 +44,7 @@ var levelUpRegistryFamilies = map[string]string{
 	"d7915565": "hinf_mutilator",
 	"30484ea6": "hinf_pulse_carbine",
 	"daf193c7": "hinf_stalker_rifle",
+	"adb78225": "hinf_stalker_rifle",
 	"3e070217": "hinf_vestige_carbine",
 	"b6dbead8": "hinf_frag_grenade",
 	"c1e1bab0": "hinf_plasma_grenade",
@@ -88,6 +89,7 @@ func TestModelKeysForWeaponName(t *testing.T) {
 		"MA40 Assault Rifle": {"48c19d2d"},
 		"M392 Bandit":        {"2fb21c87", "6acdc44d"},
 		"Shock Rifle":        {"1a22fee6", "9387a8b9"},
+		"Stalker Rifle":      {"adb78225", "daf193c7"},
 		"Vestige Carbine":    {"3e070217"},
 		"MK50 Sidekick":      {"f408190f"},
 	}
