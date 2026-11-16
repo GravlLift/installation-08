@@ -80,6 +80,19 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
   if (d === 0 || d === 1) {
     const id = armeDeLEmplacement(doc, slot, frame, lo, d, vie.start)
     if (id) return { id, slotArme: d }
+    // The read designates an emplacement the row does not name, yet the row carries a single
+    // weapon. When NO dated read (selector, per-shot magazine) has located the hand, the
+    // designation is a keyframe inventory pointing at a slot whose magazine the film never
+    // transmitted (`d` off by one): a carried player is never empty-handed, so the hand holds
+    // that one weapon. When a dated read DOES point at the empty slot, the film says the player
+    // draws a weapon the row cannot name and the hand stays empty.
+    if (eventMs === -Infinity) {
+      const k = uniqueWeaponEmplacement(doc, { slot, frame, naissance: vie.start }, lo)
+      if (k !== undefined) {
+        const uid = armeDeLEmplacement(doc, slot, frame, lo, k, vie.start)
+        if (uid) return { id: uid, slotArme: k }
+      }
+    }
   }
   // A past read of the life that does not locate the hand leaves it empty.
   if (eventMs !== -Infinity || (inv && inv.age >= 0)) return null
@@ -231,6 +244,17 @@ function avantPremiereLecture(
   if (suivante && (suivante.w === 0 || suivante.w === 1) && !changementEntre(doc, vie.slot, vie.naissance, suivante.ms)) {
     return suivante.w
   }
+  return uniqueWeaponEmplacement(doc, vie, lo)
+}
+
+/**
+ * uniqueWeaponEmplacement: the emplacement of the row's single carried weapon, admissible only
+ * when no weapon change is dated between the birth and the row's read (the player may then have
+ * dropped or swapped it). The one doctrine shared by `avantPremiereLecture` and the
+ * single-weapon fallback of `armeEnMain`: a carried player who has exactly one named weapon holds
+ * it, whatever slot a disagreeing read points at. Undefined otherwise.
+ */
+function uniqueWeaponEmplacement(doc: ReplayDocumentReady, vie: { slot: number; frame: number; naissance: number }, lo: LoadoutReading): number | undefined {
   const portees = lo.weapons.filter(Boolean)
   if (portees.length !== 1) return undefined
   const releve = frameToMs(Math.max(vie.frame, vie.frame - lo.age), doc)

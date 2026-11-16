@@ -152,6 +152,29 @@ describe('a pickup that the next keyframe row leaves unnamed', () => {
   })
 })
 
+describe('a keyframe row that names one weapon while the inventory points elsewhere', () => {
+  // The player carries a single weapon (emplacement 0) and the film fires it; a keyframe
+  // inventory read designates the other slot (`d` off by one) with no magazine of its own, and no
+  // selector flip has landed. The hand holds the one weapon the row names.
+  function singleDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 81, slot: 512, w: ['0xAAAA'] }],
+      inventory: [{ t: 81, slot: 512, d: 1 }],
+      ...over,
+    })
+  }
+
+  it('holds the single named weapon even when the inventory designates the other slot', () => {
+    expect(armeEnMain(singleDoc(), 512, 90)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('does not claim it once a weapon change is dated since birth', () => {
+    const doc = singleDoc({ weaponChanges: [{ t: 50, slot: 512, kind: 'dropped', w: 'aaaaaa', k: 0 }] })
+    expect(armeEnMain(doc, 512, 90)).toBeNull()
+  })
+})
+
 describe('a life without any loadout reading', () => {
   /** A life over frames 0-100, flipped to emplacement 1 at 30, that fires the C weapon at 60. */
   function bareDoc(over: Partial<ReplayDocument> = {}) {
