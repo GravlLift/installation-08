@@ -97,6 +97,17 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   FormulaA canon (`weaponv3.knownWeaponHigh32`) recognizes its high-32. The model
   library already serves `adb78225.glb` (built from the game's own `weap` tags), so
   no model-key alias is needed.
+- `internal/grammar/projectile_attaches.go` (new, LOCAL-CHANGE) and `recuperations.go` (one
+  field): `ScanProjectileAttaches` returns the raw attach reads of the projectiles that stick
+  (a ti=41 delta record whose `object-parent-state` i10 opens the attached gate: parent
+  handle, node, 3 x R(16) pose, orientation, byte), read by the frame walk, which locates the
+  record list after an event list where the projectile bit scan cannot see it. Not called by
+  the cook: the pose is relative to a node of the parent (a bone) and no single dequantization
+  maps it to the grenade's place, so nothing is published from it
+  (`replay/projectiles_attaches_research_test.go` holds the calibration). Covered by
+  `internal/grammar/projectile_attaches_test.go` (new: the ti=41 i3 width and the i10 read on
+  two captured records) and the research instruments `stick_marche_research_test.go` and
+  `stick_i3_largeur_research_test.go` (new, `research` tag).
 
 ## Omitted upstream files
 
