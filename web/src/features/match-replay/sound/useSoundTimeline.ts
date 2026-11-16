@@ -12,11 +12,19 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { ReplayKill } from '../model/killFeedLogic'
 import type { AnnouncerTrackInput } from './announcerSound'
 import type { ObjectiveSide } from './objectiveSound'
+import { footstepSoundEvents } from './footstepSound'
 import { reloadSoundEvents } from './reloadSound'
 import { buildSoundTimeline, type SoundCategoryFilter } from './replaySound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 import { useAnnouncerTrack, type AnnouncerContext } from './useAnnouncerTrack'
+import { useFootstepTrack } from './useFootstepTrack'
 import { useReloadTrack } from './useReloadTrack'
+
+/**
+ * THE SURFACE the footsteps read until a later task picks it per material: the film carries no
+ * per-frame surface data, so every foot sound draws from the "default" set.
+ */
+const FOOTSTEP_SURFACE = 'default'
 
 /** What the track is built from, besides the film and its kills. */
 export interface SoundTimelineInputs {
@@ -37,10 +45,13 @@ export function useSoundTimeline(
   const { categories, sideOfXuid, allyTeam, on } = inputs
   const announcer = useAnnouncerTrack(inputs.announcer, on)
   const reloads = useReloadTrack(doc, on)
+  const footsteps = useFootstepTrack(on)
+  const followed = inputs.announcer.followed
   const timeline = useMemo(() => {
     const track = buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, announcer)
-    if (!categories.weapon || !reloads) return track
-    return [...track, ...reloadSoundEvents(doc, reloads)].sort((a, b) => a.ms - b.ms)
-  }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, reloads])
+    const withReloads = !categories.weapon || !reloads ? track : [...track, ...reloadSoundEvents(doc, reloads)]
+    if (!footsteps) return withReloads
+    return [...withReloads, ...footstepSoundEvents(footsteps, doc, FOOTSTEP_SURFACE, followed)].sort((a, b) => a.ms - b.ms)
+  }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, reloads, footsteps, followed])
   return { timeline, announcer }
 }
