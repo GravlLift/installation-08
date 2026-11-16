@@ -57,14 +57,16 @@
  */
 import {
   AudioBufferSource,
-  BufferTarget,
   EncodedPacket,
   EncodedVideoPacketSource,
   Mp4OutputFormat,
   Output,
   QUALITY_HIGH,
+  StreamTarget,
 } from 'mediabunny'
+import type { StreamTargetChunk } from 'mediabunny'
 
+import { ExportFileTarget } from './replayExportFileTarget'
 import { yieldToEvents } from './eventLoopYield'
 
 /**
@@ -500,7 +502,25 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // l'encodeur refusera ensuite perd TOUT l'export.
   const audioOk = noms.length > 0 && (await audioTrackUsable(MIX_TRACK_SHAPE))
 
-  const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() })
+  // LE FICHIER EST ECRIT EN FLUX, JAMAIS DANS UN SEUL ArrayBuffer.
+  //
+  // Un match complet en qualité constante peut dépasser plusieurs Go ; un seul ArrayBuffer ne
+  // tient pas ca et l'export mourait en fin de course, apres avoir rendu tout le film. Ici, les
+  // octets sont livres par `StreamTarget` dans un `WritableStream` et rabattus en `Blob` de ~64
+  // Mo par `ExportFileTarget` : le navigateur garde les gros morceaux hors du tas JS.
+  //
+  // `fastStart: false` garde la disposition MP4 ordinaire (moov en fin de fichier). mediabunny
+  // n'y fait alors qu'une seule reecriture in place — le patch de l'en-tete mdat, tout au debut
+  // du fichier — et `ExportFileTarget` la recueille dans son tampon de tete mutable.
+  const fileTarget = new ExportFileTarget()
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: false }),
+    target: new StreamTarget(
+      new WritableStream<StreamTargetChunk>({
+        write: (chunk) => fileTarget.write(chunk),
+      }),
+    ),
+  })
   const videoSource = new EncodedVideoPacketSource('avc')
   output.addVideoTrack(videoSource, { frameRate: fps })
   // Les pistes AUDIO sont ajoutees ICI, vides : leur EXISTENCE et leur ORDRE se declarent avant
@@ -544,7 +564,7 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, () => failure, () => ecritures, {
     width: config.width,
     height: config.height,
-  })
+  }, fileTarget)
   return { ...sink, fpsFallback, rateMode: mode }
 }
 
@@ -564,6 +584,8 @@ function makeSink(
   /** La chaine des ecritures de paquets video, a attendre avant de finaliser. */
   ecrituresEnCours: () => Promise<unknown>,
   size: { width: number; height: number },
+  /** Les octets du fichier, rabattus en `Blob` au fil de l'eau ; `finish` les rend, `abort` les jette. */
+  fileTarget: ExportFileTarget,
 ): Omit<VideoExportSink, 'fpsFallback'> {
   let closed = false
 
@@ -628,16 +650,20 @@ function makeSink(
     // laisse `finalize()` attendre un contenu qui ne viendra pas.
     for (const src of audioSources) src.close()
     videoSource.close()
+    // `finalize()` ferme le flux : tous les octets (y compris le patch mdat et le moov) ont
+    // alors ete livres au target. On les rend tels quels, deja rabattus en `Blob`.
     await output.finalize()
     closed = true
     encoder.close()
-    const buffer = (output.target as BufferTarget).buffer
-    return new Blob([buffer ?? new ArrayBuffer(0)], { type: 'video/mp4' })
+    return fileTarget.finish()
   }
 
   const abort = () => {
     if (closed) return
     closed = true
+    // On jette tout ce qui a ete ecrit jusqu'ici : sans ca, un match annule laisserait des
+    // gigaoctets de `Blob` en attente dans le target.
+    fileTarget.abort()
     // `close()` sur un encodeur déjà en erreur lève : l'annulation ne doit jamais masquer la
     // cause d'un échec par une seconde erreur.
     try {
