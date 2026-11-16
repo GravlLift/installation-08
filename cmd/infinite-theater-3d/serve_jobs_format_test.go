@@ -19,14 +19,18 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
-// formatGLB is a minimal GLB whose asset.extras carries buildFormat (0: absent).
-func formatGLB(t *testing.T, buildFormat int) []byte {
+// formatGLB is a minimal GLB whose asset.extras carries buildFormat (0: absent) and whose
+// extensionsUsed lists KHR_texture_basisu when basisu is set (the KTX2 pass's marker).
+func formatGLB(t *testing.T, buildFormat int, basisu bool) []byte {
 	t.Helper()
 	asset := map[string]any{"version": "2.0"}
 	if buildFormat > 0 {
 		asset["extras"] = map[string]any{"buildFormat": buildFormat, "module": "m"}
 	}
 	doc := map[string]any{"asset": asset}
+	if basisu {
+		doc["extensionsUsed"] = []any{"KHR_texture_basisu"}
+	}
 	js, err := json.Marshal(doc)
 	if err != nil {
 		t.Fatal(err)
@@ -46,29 +50,34 @@ func formatGLB(t *testing.T, buildFormat int) []byte {
 	return buf
 }
 
-// writeGLBAt writes a minimal GLB with the given buildFormat at path.
-func writeGLBAt(t *testing.T, path string, buildFormat int) {
+// writeGLBAt writes a minimal GLB with the given buildFormat (0: absent) and KTX2 marker
+// at path.
+func writeGLBAt(t *testing.T, path string, buildFormat int, basisu bool) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, formatGLB(t, buildFormat), 0o644); err != nil {
+	if err := os.WriteFile(path, formatGLB(t, buildFormat, basisu), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// TestGlbFormatCurrent — the build-format read of a map GLB: the current format is
-// current, an older one is not, a missing one (pre-versioning) is not, and a non-GLB is
+// TestGlbFormatCurrent — the build-format read of a map GLB: the stamped current format
+// is current, an older stamp is not, an unstamped KTX2 GLB (KHR_texture_basisu, built
+// before the stamp existed) is current, an unstamped PNG one is not, and a non-GLB is
 // not.
 func TestGlbFormatCurrent(t *testing.T) {
 	dir := t.TempDir()
-	writeGLBAt(t, filepath.Join(dir, "cur.glb"), mapmesh.BuildFormat)
-	writeGLBAt(t, filepath.Join(dir, "old.glb"), mapmesh.BuildFormat-1)
-	writeGLBAt(t, filepath.Join(dir, "none.glb"), 0)
+	writeGLBAt(t, filepath.Join(dir, "cur.glb"), mapmesh.BuildFormat, false)
+	writeGLBAt(t, filepath.Join(dir, "old.glb"), mapmesh.BuildFormat-1, false)
+	writeGLBAt(t, filepath.Join(dir, "ktx2.glb"), 0, true)
+	writeGLBAt(t, filepath.Join(dir, "none.glb"), 0, false)
 	if err := os.WriteFile(filepath.Join(dir, "junk.glb"), []byte("not a glb"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for name, want := range map[string]bool{"cur.glb": true, "old.glb": false, "none.glb": false, "junk.glb": false} {
+	for name, want := range map[string]bool{
+		"cur.glb": true, "old.glb": false, "ktx2.glb": true, "none.glb": false, "junk.glb": false,
+	} {
 		if got := glbFormatCurrent(filepath.Join(dir, name)); got != want {
 			t.Errorf("glbFormatCurrent(%s) = %v, want %v", name, got, want)
 		}
@@ -83,14 +92,14 @@ func TestJobModuleFormatMapMesh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeGLBAt(t, p, mapmesh.BuildFormat-1)
+	writeGLBAt(t, p, mapmesh.BuildFormat-1, false)
 	if jobModuleReady(root, "moda") {
 		t.Error("old-format map mesh ready")
 	}
 	if !jobModuleOutdated(root, "moda") {
 		t.Error("old-format map mesh not outdated")
 	}
-	writeGLBAt(t, p, mapmesh.BuildFormat)
+	writeGLBAt(t, p, mapmesh.BuildFormat, false)
 	if !jobModuleReady(root, "moda") {
 		t.Error("current map mesh not ready")
 	}
@@ -115,11 +124,11 @@ func TestJobModuleFormatMapMesh(t *testing.T) {
 func TestJobModuleFormatVariant(t *testing.T) {
 	root := meshTestStore(t)
 	key := variantPrefix + "abc"
-	writeGLBAt(t, variantPath(root, "abc", "variant.glb"), mapmesh.BuildFormat-1)
+	writeGLBAt(t, variantPath(root, "abc", "variant.glb"), mapmesh.BuildFormat-1, false)
 	if jobModuleReady(root, key) || !jobModuleOutdated(root, key) {
 		t.Error("old variant: want not ready, outdated")
 	}
-	writeGLBAt(t, variantPath(root, "abc", "variant.glb"), mapmesh.BuildFormat)
+	writeGLBAt(t, variantPath(root, "abc", "variant.glb"), mapmesh.BuildFormat, false)
 	if !jobModuleReady(root, key) || jobModuleOutdated(root, key) {
 		t.Error("current variant: want ready, not outdated")
 	}

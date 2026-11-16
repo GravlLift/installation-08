@@ -98,17 +98,19 @@ func jobModuleOutdated(root *store.Root, module string) bool {
 // glbFormatCurrent says whether the GLB at path records the current build format in its
 // asset.extras (mapmesh.BuildFormat, written by every map and variant build): a header-
 // only read (the GLB's JSON chunk, never the binary chunk). A GLB without the field
-// (built before versioning) is not current.
+// (built before versioning) is current when it lists KHR_texture_basisu in
+// extensionsUsed — the KTX2 pass added it, so it is format 2; without it it is one of
+// the pre-format-2 PNG GLBs and is not current.
 func glbFormatCurrent(path string) bool {
 	extras, err := texcompress.AssetExtras(path)
-	if err != nil || extras == nil {
+	if err != nil {
 		return false
 	}
-	v, ok := extras[mapmesh.BuildFormatKey]
-	if !ok {
-		return false
+	if v, ok := extras[mapmesh.BuildFormatKey]; ok {
+		return fmt.Sprint(v) == fmt.Sprint(mapmesh.BuildFormat)
 	}
-	return fmt.Sprint(v) == fmt.Sprint(mapmesh.BuildFormat)
+	current, err := texcompress.UsesBasisu(path)
+	return err == nil && current
 }
 
 // coatingLibraryOutdated says whether one of the three coating libraries' index is on disk

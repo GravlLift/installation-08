@@ -393,6 +393,38 @@ func TestAssetExtrasHeaderOnly(t *testing.T) {
 	}
 }
 
+// TestUsesBasisu — KHR_texture_basisu in extensionsUsed is read from the header and the
+// JSON chunk only: a GLB the KTX2 pass wrote lists it (with a large binary chunk beside
+// it), a PNG GLB does not, and a non-GLB is an error.
+func TestUsesBasisu(t *testing.T) {
+	dir := t.TempDir()
+	ktx2 := map[string]any{
+		"asset":          map[string]any{"version": "2.0"},
+		"extensionsUsed": []any{extBasisu},
+	}
+	ktx2Path := filepath.Join(dir, "ktx2.glb")
+	if err := os.WriteFile(ktx2Path, minimalGLB(t, ktx2, make([]byte, 1<<20)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := UsesBasisu(ktx2Path); err != nil || !got {
+		t.Errorf("UsesBasisu(ktx2) = %v, %v; want true", got, err)
+	}
+	pngPath := filepath.Join(dir, "png.glb")
+	if err := os.WriteFile(pngPath, minimalGLB(t, map[string]any{"asset": map[string]any{"version": "2.0"}}, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := UsesBasisu(pngPath); err != nil || got {
+		t.Errorf("UsesBasisu(png) = %v, %v; want false", got, err)
+	}
+	junkPath := filepath.Join(dir, "junk.glb")
+	if err := os.WriteFile(junkPath, []byte("definitely not a glb"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UsesBasisu(junkPath); err == nil {
+		t.Error("garbage accepted")
+	}
+}
+
 // TestAssetExtrasSurviveKTX2Pass — the KTX2 pass keeps asset.extras in the output GLB:
 // the build format written before the pass is readable from the file after it (the
 // map/variant builds write their GLB through exactly this path).
