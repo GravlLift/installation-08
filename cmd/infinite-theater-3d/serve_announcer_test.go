@@ -1,4 +1,4 @@
-// serve_announcer_test.go — the extracted sound library: readiness from the three manifests and
+// serve_announcer_test.go — the extracted sound library: readiness from the five manifests and
 // their versions, the state/build route pair over the mesh build runner (a fake build writes the
 // manifests), the read-only refusal.
 
@@ -16,6 +16,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
+	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -34,6 +35,13 @@ func writeAnnouncerManifest(t *testing.T, dataDir string, version int) {
 func writeReloadsManifest(t *testing.T, dataDir string, version int) {
 	t.Helper()
 	writeSoundManifest(t, dataDir, reloadsounds.ManifestName, map[string]any{"version": version, "weapons": map[string]any{}})
+}
+
+// writeFootstepsManifest writes a foot step sounds manifest of the given version into the store's
+// sound folder.
+func writeFootstepsManifest(t *testing.T, dataDir string, version int) {
+	t.Helper()
+	writeSoundManifest(t, dataDir, footstepsounds.ManifestName, map[string]any{"version": version, "feet": map[string]any{}, "movement": map[string]any{}})
 }
 
 // writeAmbienceManifest writes an ambience manifest of the given version into the store's sound folder.
@@ -77,6 +85,7 @@ func announcerTestHandlers(t *testing.T) (serverHandlers, *store.Root) {
 		}
 		writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
 		writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
+		writeFootstepsManifest(t, root.Dir(), footstepsounds.ManifestVersion)
 		writeUIManifest(t, root.Dir(), uisounds.ManifestVersion)
 		writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion)
 		return meshjobs.BuildResult{Bytes: 1}, nil
@@ -110,7 +119,7 @@ func announcerState(t *testing.T, h http.Handler) (state string, built, stale bo
 
 // TestAnnouncerReadiness — absent and version-1 manifests are not ready (the startup queues the
 // job), nor is a current announcer manifest without the reloads', the interface sounds' or the ambience's one;
-// all four current are.
+// all five current are.
 func TestAnnouncerReadiness(t *testing.T) {
 	h, root := announcerTestHandlers(t)
 	if jobModuleReady(root, meshjobs.JobAnnouncer) {
@@ -128,6 +137,10 @@ func TestAnnouncerReadiness(t *testing.T) {
 	}
 	writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
 	if state, built, _ := announcerState(t, h); state != "absent" || built {
+		t.Fatalf("without the foot step sounds: %s built %v", state, built)
+	}
+	writeFootstepsManifest(t, root.Dir(), footstepsounds.ManifestVersion)
+	if state, built, _ := announcerState(t, h); state != "absent" || built {
 		t.Fatalf("without the interface sounds: %s built %v", state, built)
 	}
 	writeUIManifest(t, root.Dir(), uisounds.ManifestVersion)
@@ -139,13 +152,15 @@ func TestAnnouncerReadiness(t *testing.T) {
 		t.Fatalf("current: %s built %v stale %v", state, built, stale)
 	}
 	for name, write := range map[string]func(){
-		"announcer version 1": func() { writeAnnouncerManifest(t, root.Dir(), 1) },
-		"reloads version 0":   func() { writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion-1) },
-		"ui version 0":        func() { writeUIManifest(t, root.Dir(), uisounds.ManifestVersion-1) },
-		"ambience version 0":  func() { writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion-1) },
+		"announcer version 1":  func() { writeAnnouncerManifest(t, root.Dir(), 1) },
+		"reloads version 0":    func() { writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion-1) },
+		"footsteps version 0":  func() { writeFootstepsManifest(t, root.Dir(), footstepsounds.ManifestVersion-1) },
+		"ui version 0":         func() { writeUIManifest(t, root.Dir(), uisounds.ManifestVersion-1) },
+		"ambience version 0":   func() { writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion-1) },
 	} {
 		writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
 		writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
+		writeFootstepsManifest(t, root.Dir(), footstepsounds.ManifestVersion)
 		writeUIManifest(t, root.Dir(), uisounds.ManifestVersion)
 		writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion)
 		write()

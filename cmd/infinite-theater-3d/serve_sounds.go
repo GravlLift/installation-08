@@ -24,6 +24,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
+	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/sounds"
 )
@@ -45,7 +46,7 @@ func soundFile(name string) bool {
 
 // soundManifest says whether name is one of the extractions' manifests.
 func soundManifest(name string) bool {
-	return name == announcer.ManifestName || name == reloadsounds.ManifestName || name == ambience.ManifestName
+	return name == announcer.ManifestName || name == reloadsounds.ManifestName || name == footstepsounds.ManifestName || name == ambience.ManifestName
 }
 
 // soundContentType is the media type of a sound route file.

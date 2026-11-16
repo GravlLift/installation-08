@@ -33,6 +33,37 @@ type Bank struct {
 	Embedded map[uint32][]byte
 	Objects  map[uint32]HircObject
 	Order    []uint32
+	// linked, when set, holds hierarchy objects of sibling banks, resolved after this bank's
+	// own (LinkObjects): an event's Play actions can target containers the runtime loads in a
+	// bank of their own.
+	linked map[uint32]HircObject
+}
+
+// object looks an id up in this bank's objects, then in its linked siblings' (the own bank wins).
+func (bk *Bank) object(id uint32) (HircObject, bool) {
+	if o, ok := bk.Objects[id]; ok {
+		return o, true
+	}
+	if o, ok := bk.linked[id]; ok {
+		return o, true
+	}
+	return HircObject{}, false
+}
+
+// LinkObjects makes the hierarchy walks of this bank also resolve the given tables' object ids
+// (the tables of sibling banks whose containers an event here plays). Ids this bank itself has
+// keep their own object.
+func (bk *Bank) LinkObjects(tables ...map[uint32]HircObject) {
+	for _, t := range tables {
+		for id, o := range t {
+			if _, own := bk.Objects[id]; !own {
+				if bk.linked == nil {
+					bk.linked = map[uint32]HircObject{}
+				}
+				bk.linked[id] = o
+			}
+		}
+	}
 }
 
 // IndexBKHD returns the offset of the bank header in b (a bank may be wrapped in a tag), or -1.
@@ -143,7 +174,7 @@ func (bk *Bank) eventActions(b []byte) []uint32 {
 		ids := make([]uint32, 0, n)
 		for i := 0; i < n; i++ {
 			id := binary.LittleEndian.Uint32(b[start+4*i:])
-			if o, ok := bk.Objects[id]; !ok || o.Type != HircAction {
+			if o, ok := bk.object(id); !ok || o.Type != HircAction {
 				ids = nil
 				break
 			}
@@ -158,13 +189,36 @@ func (bk *Bank) eventActions(b []byte) []uint32 {
 
 // playTarget returns the object a Play action targets (u16 action type, then u32 target id).
 func (bk *Bank) playTarget(actionID uint32) (uint32, bool) {
-	b := bk.Objects[actionID].Body
+	act, ok := bk.object(actionID)
+	if !ok {
+		return 0, false
+	}
+	b := act.Body
 	if len(b) < 6 || byte(binary.LittleEndian.Uint16(b)>>8) != actionPlay {
 		return 0, false
 	}
 	id := binary.LittleEndian.Uint32(b[2:])
-	_, ok := bk.Objects[id]
+	_, ok = bk.object(id)
 	return id, ok
+}
+
+// PlayTargets returns the ids the event's Play actions name, in action order, whether or not
+// the target object lives in this bank (an action names a container in a sibling bank the
+// runtime loads alongside; the action itself is read here).
+func (bk *Bank) PlayTargets(eventID uint32) []uint32 {
+	ev, ok := bk.Objects[eventID]
+	if !ok || ev.Type != HircEvent {
+		return nil
+	}
+	var out []uint32
+	for _, act := range bk.eventActions(ev.Body) {
+		a, ok := bk.object(act)
+		if !ok || len(a.Body) < 6 || byte(binary.LittleEndian.Uint16(a.Body)>>8) != actionPlay {
+			continue
+		}
+		out = append(out, binary.LittleEndian.Uint32(a.Body[2:]))
+	}
+	return out
 }
 
 // collectMedia walks down from an object to its sounds. A Sound's source id sits after its
@@ -175,7 +229,10 @@ func (bk *Bank) collectMedia(id uint32, seen map[uint32]bool, out *[]uint32) {
 		return
 	}
 	seen[id] = true
-	o := bk.Objects[id]
+	o, ok := bk.object(id)
+	if !ok {
+		return
+	}
 	if o.Type == HircSound {
 		if len(o.Body) >= 9 {
 			if src := binary.LittleEndian.Uint32(o.Body[5:]); src != 0 {
@@ -209,7 +266,7 @@ func (bk *Bank) children(b []byte) []uint32 {
 		ids := make([]uint32, 0, n)
 		for i := 0; i < n; i++ {
 			id := binary.LittleEndian.Uint32(b[off+4+4*i:])
-			if _, ok := bk.Objects[id]; !ok {
+			if _, ok := bk.object(id); !ok {
 				ids = nil
 				break
 			}

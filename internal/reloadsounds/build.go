@@ -13,6 +13,7 @@ import (
 	"github.com/JGtm/halo-infinite-map-images/himap"
 
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
+	"github.com/llampwall/infinite-theater-3d/internal/soundtags"
 	"github.com/llampwall/infinite-theater-3d/internal/wwise"
 	"github.com/llampwall/infinite-theater-3d/internal/wwvorbis"
 )
@@ -58,8 +59,8 @@ type Result struct {
 // builder holds what one build reads: the Spartan's graphs, the tag index and the media.
 type builder struct {
 	graphs  *himap.GraphesAnimation
-	tags    tagSource
-	media   *media
+	tags    soundtags.TagSource
+	media   *soundtags.Media
 	out     string
 	parsed  map[uint32]*announcer.Tag
 	takes   map[uint32][]Take // by sound tag
@@ -92,7 +93,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		return nil, fmt.Errorf("reloadsounds: %w", err)
 	}
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Weapons: map[string]map[string]Reload{}}, Silent: map[string][]string{}}
-	b := &builder{graphs: gs, tags: ix, media: newMedia(ix, opts.GameRoot), out: opts.OutDir,
+	b := &builder{graphs: gs, tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
 		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32][]Take{}, written: map[uint32]Take{}, res: res}
 	weapons := ix.EntreesDuGroupe("weap")
 	sort.Slice(weapons, func(i, j int) bool { return weapons[i] < weapons[j] })
@@ -210,11 +211,11 @@ func (b *builder) soundTakes(snd uint32) ([]Take, error) {
 		return nil, err
 	}
 	b.takes[snd] = nil
-	event, bankTag, ok := thirdPersonEvent(tag)
+	event, bankTag, ok := soundtags.Event(tag)
 	if !ok {
 		return nil, nil
 	}
-	bk, err := b.media.bank(bankTag)
+	bk, err := b.media.Bank(bankTag)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +244,7 @@ func (b *builder) extract(bk *wwise.Bank, id uint32) (Take, bool, error) {
 	if t, ok := b.written[id]; ok {
 		return t, true, nil
 	}
-	raw, err := b.media.bytes(bk, id)
+	raw, err := b.media.Bytes(bk, id)
 	if err != nil {
 		return Take{}, false, err
 	}
