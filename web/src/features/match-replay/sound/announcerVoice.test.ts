@@ -16,7 +16,7 @@ import {
 } from './announcerVoice'
 
 const MANIFEST: AnnouncerManifest = {
-  version: 3,
+  version: 4,
   language: 'en',
   lines: {
     doublekill: { takes: [{ file: 'announcer_doublekill_01.ogg', durationMs: 900 }] },
@@ -70,7 +70,7 @@ describe('manifestVoice', () => {
 describe('parseAnnouncerManifest and loadAnnouncerManifest', () => {
   it('keeps the well-formed takes and refuses another shape', () => {
     const parsed = parseAnnouncerManifest({
-      version: 3,
+      version: 4,
       language: 'en',
       lines: {
         a: { takes: [{ file: '../x.ogg', durationMs: 5 }, { file: 'ok_01.ogg', durationMs: 0 }, { file: 'c_01.wav', durationMs: 5 }] },
@@ -81,8 +81,8 @@ describe('parseAnnouncerManifest and loadAnnouncerManifest', () => {
     expect(parseAnnouncerManifest('nope')).toBeNull()
   })
 
-  it('refuses a version-2 manifest (WAV takes): silent until the server rebuilds it', () => {
-    expect(parseAnnouncerManifest({ version: 2, language: 'en', lines: { b: { takes: [{ file: 'b_01.wav', durationMs: 5 }] } } })).toBeNull()
+  it('refuses an older-version manifest (version 3, before the wider objective set): silent until the server rebuilds it', () => {
+    expect(parseAnnouncerManifest({ version: 3, language: 'en', lines: { b: { takes: [{ file: 'b_01.ogg', durationMs: 5 }] } } })).toBeNull()
   })
 
   it('reads the route; a 404, a failure or no fetch at all is null, never a throw', async () => {

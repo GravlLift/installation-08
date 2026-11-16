@@ -21,8 +21,10 @@ const ManifestName = "announcer.json"
 // ManifestVersion is the manifest's format version. Version 3: every take is the game's own
 // Vorbis stream repacked into an Ogg file, without decoding (internal/wwvorbis). Version 2 takes
 // were PCM WAV decoded by vgmstream, version 1 takes Ogg re-encoded by ffmpeg; a manifest of an
-// older version is stale and the extraction runs again.
-const ManifestVersion = 3
+// older version is stale and the extraction runs again. Version 4 keeps the version 3 format and
+// only widens the name set (the "strongholdlost" line); it is a new version so an install's
+// version 3 manifest goes stale and the extraction runs again with the wider set.
+const ManifestVersion = 4
 
 // TakeExt is the file extension of an extracted take.
 const TakeExt = ".ogg"
