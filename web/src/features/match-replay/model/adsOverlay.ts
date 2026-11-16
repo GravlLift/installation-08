@@ -82,6 +82,7 @@ export const ADS_OVERLAYS: Readonly<Record<string, AdsOverlaySpec>> = {
 const LABEL_BY_MODEL: Readonly<Record<string, string>> = {
   '0a1992bc': 'hinf_s7_sniper',
   '1a22fee6': 'hinf_shock_rifle',
+  'adb78225': 'hinf_stalker_rifle',
   '2b1824d5': 'hinf_br75',
   fd98554c: 'hinf_vk78_commando',
   '6acdc44d': 'hinf_bandit',

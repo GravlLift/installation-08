@@ -89,6 +89,14 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   publishes its family in `weaponPads[].weapon` (`repulsor`), with presence, cycle and dated
   `padPickups` from the same machinery as power-up pads. The document shape and `SchemaVersion`
   do not change; a stored document gains its equipment pads when it is rebuilt.
+- `filmshell/catalogue.go` (LOCAL-CHANGE): a second Stalker Rifle family id `0xadb78225`
+  (the standard Stalker Rifle, per the owner's 2026-11-15 correction) joins the weapon
+  catalogue as a second family per weapon, exactly like the Shock Rifle `0x1a22fee6`:
+  its own entry (`Stalker Rifle (standard)`; the bare name stays with `0xdaf193c7`),
+  the Stalker's timing (900/300), and a fusion to the base `Stalker Rifle`, so the
+  FormulaA canon (`weaponv3.knownWeaponHigh32`) recognizes its high-32. The model
+  library already serves `adb78225.glb` (built from the game's own `weap` tags), so
+  no model-key alias is needed.
 
 ## Omitted upstream files
 
