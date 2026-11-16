@@ -25,6 +25,7 @@ export function Screen({
   gamertag,
   onSignIn,
   crumb,
+  topBarControl,
   items,
   keys,
   backdropUrl,
@@ -36,7 +37,7 @@ export function Screen({
       <Backdrop imageUrl={backdropUrl} sharp={sharp} />
       <div className="bc-stage">
         <header>
-          <TopBar gamertag={gamertag} onSignIn={onSignIn} crumb={crumb} />
+          <TopBar gamertag={gamertag} onSignIn={onSignIn} crumb={crumb} topBarControl={topBarControl} />
         </header>
         <main className="bc-main">
           <section key={id} className="bc-view">

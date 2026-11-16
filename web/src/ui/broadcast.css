@@ -134,9 +134,17 @@
 .bc-tab.on { color: var(--ink); border-bottom-color: var(--air); }
 /* The texture-quality toggle in the match select head (TextureQualityToggle): the tabs' look,
  * with a small label in front. */
-.bc-quality { display: flex; align-items: center; gap: 4px; }
-.bc-quality-label { font-family: var(--display); font-stretch: 75%; font-size: 11px; letter-spacing: 0.24em;
-  text-transform: uppercase; color: var(--ink-faint); margin-right: 4px; }
+/* The top bar's texture-quality switch: the label in the account's style, then a two-way
+ * segmented control (not tabs: it is a setting, not a list filter). */
+.bc-quality { display: flex; align-items: center; gap: 10px; flex: none; }
+.bc-quality-label { font-family: var(--display); letter-spacing: 0.12em; font-size: 13px; color: var(--ink-dim); text-transform: uppercase; }
+.bc-seg { display: inline-flex; border: 1px solid var(--studio-700); }
+.bc-seg-opt { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 12px; letter-spacing: 0.16em;
+  text-transform: uppercase; padding: 4px 12px 3px; color: var(--ink-dim); background: transparent; cursor: pointer;
+  transition: color 120ms, background-color 120ms; }
+.bc-seg-opt + .bc-seg-opt { border-left: 1px solid var(--studio-700); }
+.bc-seg-opt.on { color: var(--studio-950); background: var(--air); }
+.bc-seg-opt:not(.on):hover, .bc-seg-opt:focus-visible { color: var(--ink); background-color: rgba(111,211,255,0.12); outline: none; }
 .bc-signout { font-family: var(--display); font-stretch: 75%; letter-spacing: 0.18em; text-transform: uppercase; font-size: 12px;
   font-weight: 700; padding: 6px 18px 5px; color: var(--ink-dim); border: 1px solid var(--studio-700);
   clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }

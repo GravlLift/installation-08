@@ -321,6 +321,7 @@ export function MatchSelectScreen() {
       id="select"
       gamertag={gamertag}
       onSignIn={onSignIn}
+      topBarControl={<TextureQualityToggle />}
       backdropUrl={backdropUrl}
       items={ticker}
       keys={keys}
@@ -345,7 +346,6 @@ export function MatchSelectScreen() {
               </button>
             ))}
           </div>
-          <TextureQualityToggle />
           {gamertag ? (
             <button type="button" className="bc-signout" onClick={onSignOut}>
               Sign out
