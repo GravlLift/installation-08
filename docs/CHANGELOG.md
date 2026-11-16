@@ -9,7 +9,8 @@ Changes since 0.1.0-test.12.
 - At High, armor, arms and weapons no longer lose their textures (they ran out of memory behind the uncompressed map).
 - Long video exports no longer fail at the end with a size error: the file is written in pieces instead of one block of memory.
 - Switching the texture quality during a replay no longer blanks the page; a map not yet built at that quality shows its build button in the viewer.
-- A weapon picked up and held no longer vanishes with the arms and ammo counter when the film's next weapon reading leaves its slot unnamed.
+- The held weapon (and with it the first-person arms and ammo counter) no longer vanishes when the film's weapon readings leave the slot unnamed: picked-up weapons, a single carried weapon, the spawn weapon and weapons named only by their shots are now kept. Across the stored test matches, empty-hand time fell from 7537 frames to 943 (about 0.2% of time alive); what remains is where the film itself says the hands are empty or says nothing.
+- Weapons a player only picked up are named (painted, with their icon and ammo counter).
 - The Stalker Rifle placed on maps such as Streets (a second weapon id) is recognized: painted, with its scope and ammo counter.
 - Spartans, corpses and the first-person arms and weapon are lit by the map's lamps, like the floor they stand on. On night maps such as Streets they read near black on a lamp-lit street before.
 - Bloom: lamps and other self-lit surfaces glow (setting "Bloom", on by default).
