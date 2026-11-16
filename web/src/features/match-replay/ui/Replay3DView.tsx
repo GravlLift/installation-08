@@ -221,7 +221,7 @@ export function Replay3DView({
   const warmRef = useRef<{ pov: string | null; mode: CameraMode3d }>({ pov: null, mode })
   useEffect(() => {
     if (!mapScene || !weaponsPath) return
-    const weapons = new WeaponModels(weaponsPath, gateRef.current ?? undefined)
+    const weapons = new WeaponModels(weaponsPath, gateRef.current ?? undefined, undefined, undefined, undefined, mapScene.textureLoader)
     weaponsRef.current = weapons
     mapScene.setWeaponModels(weapons)
     return () => { weaponsRef.current = null; mapScene.setWeaponModels(null) }

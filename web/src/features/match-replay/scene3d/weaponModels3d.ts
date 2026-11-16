@@ -21,6 +21,7 @@
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js'
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
 import { isNotFound } from '@/lib/replay/queries'
 
@@ -32,6 +33,7 @@ import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
 import { fetchMesh } from './meshFetch'
 import { ReticleRanges } from './reticleRanges3d'
+import { withKtx2 } from './ktx2Textures3d'
 
 /** Délai avant de redemander un modèle absent (ms). */
 const RETRY_MS = 15_000
@@ -63,6 +65,8 @@ export class WeaponModels {
   private readonly banners: FlagBanners
   /** The model key of each equipment family of the library's index (a power-up pad's item). */
   private readonly equipment: EquipmentKeys
+  /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
+  private readonly ktx2: KTX2Loader | null
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
   constructor(
@@ -71,12 +75,14 @@ export class WeaponModels {
     reticles: ReticleRanges = new ReticleRanges(base),
     banners: FlagBanners = new FlagBanners(base),
     equipment: EquipmentKeys = new EquipmentKeys(base),
+    ktx2: KTX2Loader | null = null,
   ) {
     this.base = base
     this.gate = gate
     this.reticles = reticles
     this.banners = banners
     this.equipment = equipment
+    this.ktx2 = ktx2
   }
 
   /** reticleRange is the red-reticle range of the weapon `id` at `zoomLevel`, null when it has none. */
@@ -155,7 +161,7 @@ export class WeaponModels {
     const loading = (async () => {
       try {
         const buffer = await fetchMesh(`${this.base}/${key}.glb`, noProgress, this.abort.signal)
-        const gltf = await new GLTFLoader().parseAsync(buffer, '')
+        const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, '')
         prepareModel(gltf.scene)
         await rawMaps(gltf.scene, gltf.parser).catch((erreur: unknown) => {
           if (!this.abort.signal.aborted) console.warn('rejeu 3D : masques de l’arme indisponibles', key, erreur)

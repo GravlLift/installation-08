@@ -79,9 +79,10 @@ type textureDepot struct {
 // depose stores the image (when this build has not stored it yet) and returns
 // its name, a URI relative to the GLB that names it.
 func (d *textureDepot) depose(data []byte, mime string) (string, error) {
-	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg"}[mime]
+	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
+	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {
-		return "", fmt.Errorf("image of type %q: neither PNG nor JPEG", mime)
+		return "", fmt.Errorf("image of type %q: neither PNG, JPEG nor KTX2", mime)
 	}
 	d.references++
 	digest := sha256.Sum256(data)

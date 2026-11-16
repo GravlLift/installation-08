@@ -22,6 +22,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -88,6 +89,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		return Result{}, err
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): weapon models read hard-surface textures at 512
+	// (the weapon is small on screen; the KTX2 pass keeps GPU memory in check).
+	a.SurfaceCote(512)
 	defer func() {
 		if err := a.Close(); err != nil {
 			slog.WarnContext(ctx, "closing arsenal", "err", err)
@@ -263,11 +267,17 @@ func parseKey(key string) (uint32, error) {
 
 // writeModelGLB writes the model's GLB to dir/FileOf(key) atomically and returns its byte
 // size. coats (nil accepted) puts the coating style on the painted materials before the write.
+// LOCAL-CHANGE (infinite-theater-3d): the GLB's PNG/JPEG textures are compressed to KTX2
+// (Basis UASTC) before the write, the same pass the map build uses.
 func writeModelGLB(ctx context.Context, dir, key string, m *himap.MaillageMonde, coats *spartanpieces.CoatingWork,
 	generator string, extras map[string]any) (int64, error) {
 	glb, err := paintModelGLB(ctx, m, coats, generator, extras)
 	if err != nil {
 		return 0, err
+	}
+	glb, _, err = texcompress.CompressGLB(ctx, glb, texcompress.Options{})
+	if err != nil {
+		return 0, fmt.Errorf("ktx2: %w", err)
 	}
 	return writeGLB(dir, key, glb)
 }

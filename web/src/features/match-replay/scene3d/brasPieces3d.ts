@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
 import { api, API_BASE_URL } from '@/lib/api/client'
 import { darkMetalFallback } from './fallbackMetal3d'
@@ -19,6 +20,7 @@ import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
 import { estMateriauBras, peindreMateriauBras } from './brasPremierePersonne3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
+import { withKtx2 } from './ktx2Textures3d'
 
 /** Le squelette des os de bras (80 noms) commun aux pièces et aux rigs. */
 export interface BrasSkeleton {
@@ -117,10 +119,13 @@ export class BrasPieces3d {
   private indexPromise: Promise<BrasIndex | null> | null = null
   /** Les matériaux de bras chargés, pour la peinture. */
   materiaux: THREE.Material[] = []
+  /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
+  private readonly ktx2: KTX2Loader | null
 
-  constructor(dossier: string, signal: AbortSignal) {
+  constructor(dossier: string, signal: AbortSignal, ktx2: KTX2Loader | null = null) {
     this.dossier = dossier
     this.signal = signal
+    this.ktx2 = ktx2
   }
 
   /** index : le catalogue des pièces, récupéré une fois. */
@@ -162,7 +167,7 @@ export class BrasPieces3d {
   private async charger(fichier: string): Promise<THREE.Object3D | null> {
     try {
       const buffer = await fetchMesh(`${this.dossier}/${encodeURIComponent(fichier)}`, () => {}, this.signal)
-      const gltf = await new GLTFLoader().parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
+      const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
       if (this.signal.aborted) { this.liberer(gltf.scene); return null }
       gltf.scene.traverse((objet) => {
         if (!(objet instanceof THREE.Mesh)) return

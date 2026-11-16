@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
 import { api, API_BASE_URL } from '@/lib/api/client'
 import { viewmodelScale } from '../model/fovLogic'
@@ -23,6 +24,7 @@ import type { Recoil } from './recoil3d'
 import { pivotDuRecul, poserReculRig } from './reculPremierePersonne3d'
 import { fpCableStart } from './grapple3d_logic'
 import { CamouflageRig3d } from './camouflageRig3d'
+import { withKtx2 } from './ktx2Textures3d'
 
 // La bouche du canon : en repère du porteur (`bouche`, `axe`, pour `boucheVue`) et, pour suivre le
 // rig animé, en repère LOCAL de l'objet qui la porte (`porteurLocal` / `point` / `axeLocale`).
@@ -125,12 +127,15 @@ export class BrasPremierePersonne3d {
   private readonly pose = nouvellePosePremierePersonne()
   /** The followed player's active camo on the visible rig (`camouflageRig3d`). */
   private readonly camouflage = new CamouflageRig3d()
+  /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
+  private readonly ktx2: KTX2Loader | null
 
-  constructor(scene: THREE.Scene, dossier: string, gate?: LoadGate, baked?: BakedLight | null, probeAt?: (position: THREE.Vector3) => THREE.Texture | null) {
+  constructor(scene: THREE.Scene, dossier: string, gate?: LoadGate, baked?: BakedLight | null, probeAt?: (position: THREE.Vector3) => THREE.Texture | null, ktx2: KTX2Loader | null = null) {
     this.dossier = dossier
     this.gate = gate
     this.baked = baked
     this.probeAt = probeAt
+    this.ktx2 = ktx2
     scene.add(this.porteur)
     this.porteur.add(this.support)
     this.indexPieces = (async () => {
@@ -143,7 +148,7 @@ export class BrasPremierePersonne3d {
       }
     })()
     this.gate?.track(this.indexPieces)
-    this.chargeurPieces = new BrasPieces3d(dossier, this.abort.signal)
+    this.chargeurPieces = new BrasPieces3d(dossier, this.abort.signal, this.ktx2)
     this.preparation = new PreparationRig3d({
       fichiersCharges: () => [...this.entrees.entries()].filter(([, entree]) => entree).map(([fichier]) => fichier),
       materiauxDe: (fichier) => this.entrees.get(fichier)?.materiaux ?? [],
@@ -440,7 +445,7 @@ export class BrasPremierePersonne3d {
         if (!clip) throw new Error('clip idle absent')
         const chemin = urlRig(this.dossier, rig.file)
         const buffer = await fetchMesh(chemin, () => {}, this.abort.signal)
-        const gltf = await new GLTFLoader().parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
+        const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
         const animation = gltf.animations.find((a) => a.name === clip.name)
         if (!animation) {
           this.liberer(gltf.scene)
