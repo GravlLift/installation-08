@@ -30,6 +30,30 @@ func testWeaponDoc() *replay.ReplayDocument {
 	}
 }
 
+// TestEnrichWeaponLabelsNamesPickedWeapons — a weapon the document knows only from a pickup
+// (a bare 8-hex family in weaponChanges) gets a label, with its key, under the id the client
+// looks up for the hand ("0x" + upper-case family). A drop (empty w) and an unknown family add
+// nothing.
+func TestEnrichWeaponLabelsNamesPickedWeapons(t *testing.T) {
+	doc := testWeaponDoc()
+	doc.WeaponChanges = []replay.WeaponChange{
+		{T: 2, Slot: 1, Kind: "taken", W: "daf193c7"},
+		{T: 3, Slot: 1, Kind: "dropped"},
+		{T: 4, Slot: 1, Kind: "taken", W: "0badf00d"},
+	}
+	enrichWeaponLabels(context.Background(), testLabelCatalog, doc)
+	lbl, ok := doc.WeaponLabels["0xDAF193C7"]
+	if !ok {
+		t.Fatalf("picked weapon not labeled; labels: %v", doc.WeaponLabels)
+	}
+	if lbl.Key != "hinf_stalker_rifle" {
+		t.Fatalf("picked weapon key = %q, want hinf_stalker_rifle", lbl.Key)
+	}
+	if _, ok := doc.WeaponLabels["0x0BADF00D"]; ok {
+		t.Fatal("an unknown family was labeled")
+	}
+}
+
 // TestEnrichWeaponLabels — the label step: completion names the weapon the stored document
 // lacks, and every label gains its key, tint, role, fx and impact from the tables. Stored
 // text and fx are never overwritten.

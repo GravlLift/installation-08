@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
@@ -39,6 +40,7 @@ func enrichWeaponLabels(ctx context.Context, cat weaponsCatalog, doc *replay.Rep
 		slog.InfoContext(ctx, "replay document: weapons named at request (artefact cooked before the registry knew them)",
 			"added", n)
 	}
+	labelPickedWeapons(doc, cat.LabelCatalog)
 	for id, lbl := range doc.WeaponLabels {
 		family, ok := replay.FamilyOfWeaponID(id)
 		if !ok {
@@ -59,6 +61,39 @@ func enrichWeaponLabels(ctx context.Context, cat weaponsCatalog, doc *replay.Rep
 		lbl.Tint = cat.ShotTints[key]
 		lbl.Role = cat.Roles[key]
 		lbl.Impact = cat.ShotImpacts[key]
+		doc.WeaponLabels[id] = lbl
+	}
+}
+
+// labelPickedWeapons names the weapons the document only knows from a pickup or swap
+// (`weaponChanges[].w`, a bare 8-hex family). The completion pass (replay.CompleteWeaponLabels)
+// names loadout, shot and pad ids only, so a weapon a player picked up and held without it ever
+// appearing in a loadout row kept no label under the id the client looks up for the hand
+// (`0x` + the upper-case family): the viewer showed it unpainted, with no ammo counter. On
+// Streets (ee234787) that was the Stalker Rifle 0xadb78225, held for most of a life. Only adds.
+func labelPickedWeapons(doc *replay.ReplayDocument, cat replay.LabelCatalog) {
+	for _, c := range doc.WeaponChanges {
+		if c.W == "" {
+			continue
+		}
+		id := "0x" + strings.ToUpper(strings.TrimPrefix(c.W, "0x"))
+		if _, ok := doc.WeaponLabels[id]; ok {
+			continue
+		}
+		family, ok := replay.FamilyOfWeaponID(id)
+		if !ok {
+			continue
+		}
+		lbl, ok := cat.Weapons[family]
+		if !ok {
+			continue
+		}
+		if ic, ok := cat.Icons[family]; ok {
+			lbl.Img, lbl.Tinted = ic.URL, ic.Tinted
+		}
+		if doc.WeaponLabels == nil {
+			doc.WeaponLabels = map[string]replay.WeaponLabel{}
+		}
 		doc.WeaponLabels[id] = lbl
 	}
 }
