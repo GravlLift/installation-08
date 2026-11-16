@@ -74,9 +74,6 @@ engineering backlog; this page keeps only the user-visible parts of it.
 - A 3D export renders every frame in full, so a long match at 1080p 60 fps can take somewhat
   longer than the match itself.
 - Cancel during "Preparing" takes effect once the sound mix finishes rather than immediately.
-- Player name tags in an exported video are drawn larger than on screen, and which players
-  are named can differ from the live view.
-
 ## Packaging
 
 - The packaged installer (`tools\package.ps1 -Installer`) builds, but the installed-app path

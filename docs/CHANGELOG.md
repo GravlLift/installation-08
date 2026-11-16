@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Changes since 0.1.0-test.13.
+
+- Exported videos name the same players as the screen, with the same fade at distance, and the name tags take the same share of the picture as on screen instead of drawing too large. The tags were chosen against the previous frame's camera, so a varying set appeared.
+
 ## 0.1.0-test.13
 
 Changes since 0.1.0-test.12.
