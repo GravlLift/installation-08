@@ -19,8 +19,19 @@ it('serves the High layer from the quality URL', async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ state: 'ready' }) })
   vi.stubGlobal('fetch', fetchMock)
   const { result } = renderHook(() => useVariantSource('abc', 'high'))
-  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant?quality=high.glb'))
-  expect(fetchMock.mock.calls[0][0]).toBe('/api/matches/abc/variant?quality=high/state')
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb?quality=high'))
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/matches/abc/variant/state?quality=high')
+})
+
+it('builds an absent High layer on the High build route', async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ state: 'absent' }) })
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ state: 'ready' }) })
+  vi.stubGlobal('fetch', fetchMock)
+  const { result } = renderHook(() => useVariantSource('abc', 'high'))
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb?quality=high'))
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/abc/variant/build?quality=high')
+  expect(fetchMock.mock.calls[1][1].method).toBe('POST')
 })
 
 it('re-requests the layer at the new quality when the quality switches', async () => {
@@ -37,8 +48,8 @@ it('re-requests the layer at the new quality when the quality switches', async (
   // The switch reads as a fresh request (pending) until the high check settles.
   rerender({ quality: 'high' })
   expect(result.current).toEqual({ path: null, pending: true })
-  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant?quality=high.glb'))
-  expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/abc/variant?quality=high/state')
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb?quality=high'))
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/abc/variant/state?quality=high')
 })
 
 it('keeps the layer absent when there is no mvar', async () => {

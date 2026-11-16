@@ -14,7 +14,10 @@ export function useVariantSource(matchId: string, quality?: MeshQuality): { path
   const [result, setResult] = useState<{ id: string; url: string | null; pending: boolean } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
-    const base = `/api/matches/${encodeURIComponent(matchId)}/variant${qualityQuery(quality)}`
+    // The quality query goes after the route's last segment (`variant/state?quality=high`,
+    // `variant.glb?quality=high`); placed after `variant` it would swallow the segment.
+    const base = `/api/matches/${encodeURIComponent(matchId)}/variant`
+    const q = qualityQuery(quality)
     // The result is keyed by match AND quality, so a quality switch reads as a fresh request
     // (pending) until the new quality's check settles, not as a stale standard layer.
     const key = `${matchId}:${quality ?? 'standard'}`
@@ -22,14 +25,14 @@ export function useVariantSource(matchId: string, quality?: MeshQuality): { path
     const settle = (url: string | null) => setResult({ id: key, url, pending: false })
     const check = async (build = false) => {
       try {
-        const response = await fetch(`${base}/${build ? 'build' : 'state'}`, {
+        const response = await fetch(`${base}/${build ? 'build' : 'state'}${q}`, {
           method: build ? 'POST' : 'GET', signal: controller.signal,
         })
         if (controller.signal.aborted) return
         if (!response.ok) return settle(null)
         const body = await response.json() as { state: string }
         if (controller.signal.aborted) return
-        if (body.state === 'ready') settle(`${base}.glb`)
+        if (body.state === 'ready') settle(`${base}.glb${q}`)
         else if (body.state === 'absent') void check(true)
         else if (body.state === 'queued' || body.state === 'building') timer = setTimeout(() => void check(), 2000)
         else settle(null)
