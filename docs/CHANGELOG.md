@@ -4,6 +4,7 @@
 
 Changes since 0.1.0-test.13.
 
+- Shock Rifle: blue electric arcs flicker around its open barrel shroud while it is held (third and first person), and each shot fires three jagged electric beams to where it lands instead of one straight line.
 - The Sentinel Beam's energy parts glow, in third and first person. Takes effect once the weapon and first-person libraries rebuild (automatic at the server's next start).
 - The map's self-lit surfaces move as the game animates them: Streets' holographic signs scroll, flicker and change tint, its screens scroll and flicker, and its neon pulses, at the game's own rates, on match time so exports match the screen. A new "Animated lights" switch next to Bloom turns it off. Takes effect once the map is rebuilt.
 - Heat weapons (Stalker Rifle, Plasma Pistol, Pulse Carbine, Ravager and others) sound their vent, timed to the vent animation, in the replay and in exports. Extracted from your install at the server's next start.
