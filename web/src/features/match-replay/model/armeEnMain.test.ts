@@ -152,6 +152,99 @@ describe('a pickup that the next keyframe row leaves unnamed', () => {
   })
 })
 
+describe('a keyframe row that names one weapon while the inventory points elsewhere', () => {
+  // The player carries a single weapon (emplacement 0) and the film fires it; a keyframe
+  // inventory read designates the other slot (`d` off by one) with no magazine of its own, and no
+  // selector flip has landed. The hand holds the one weapon the row names.
+  function singleDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 81, slot: 512, w: ['0xAAAA'] }],
+      inventory: [{ t: 81, slot: 512, d: 1 }],
+      ...over,
+    })
+  }
+
+  it('holds the single named weapon even when the inventory designates the other slot', () => {
+    expect(armeEnMain(singleDoc(), 512, 90)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('does not claim it once a weapon change is dated since birth', () => {
+    const doc = singleDoc({ weaponChanges: [{ t: 50, slot: 512, kind: 'dropped', w: 'aaaaaa', k: 0 }] })
+    expect(armeEnMain(doc, 512, 90)).toBeNull()
+  })
+})
+
+describe('a keyframe row that names a weapon the life never picked up', () => {
+  // The row (read at 1089) names two weapons; the second was picked up at 802, so the first was
+  // carried from the birth at 668, until the first dated read of the life.
+  function derivedSpawnDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 668, 1199)],
+      loadouts: [{ t: 1089, slot: 512, w: ['0xAAAA', '0xBBBB'] }],
+      weaponChanges: [{ t: 802, slot: 512, kind: 'taken', w: 'bbbbbb', k: 1 }],
+      drawnWeapons: [{ t: 802, slot: 512, d: 1 }],
+      ...over,
+    })
+  }
+
+  it('holds the unpicked weapon of the row from the birth to the first read', () => {
+    expect(armeEnMain(derivedSpawnDoc(), 512, 700)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('hands over to the picked weapon once the selector flip lands', () => {
+    expect(armeEnMain(derivedSpawnDoc(), 512, 850)).toEqual({ id: '0xBBBB', slotArme: 1 })
+  })
+
+  it('leaves the hand empty when a drop of the spawn weapon is dated before the frame', () => {
+    const doc = derivedSpawnDoc({
+      weaponChanges: [
+        { t: 802, slot: 512, kind: 'taken', w: 'bbbbbb', k: 1 },
+        { t: 700, slot: 512, kind: 'dropped', k: 0 },
+      ],
+    })
+    expect(armeEnMain(doc, 512, 750)).toBeNull()
+  })
+
+  it('derives no spawn weapon when every weapon of the row was picked up', () => {
+    const doc = derivedSpawnDoc({
+      weaponChanges: [
+        { t: 700, slot: 512, kind: 'taken', w: 'aaaaaa', k: 0 },
+        { t: 802, slot: 512, kind: 'taken', w: 'bbbbbb', k: 1 },
+      ],
+    })
+    expect(armeEnMain(doc, 512, 750)).toBeNull()
+  })
+})
+
+describe('a read that designates an emplacement nothing names', () => {
+  // The selector flips to emplacement 1 at 30; the row never names that emplacement and no
+  // pickup lands in it, but the player fires the C weapon from it, so the hand holds it.
+  function unnamedDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 40, slot: 512, w: ['0xAAAA'] }],
+      drawnWeapons: [{ t: 30, slot: 512, d: 1 }],
+      shots: [{ t: 50, slot: 512, x: 0, y: 0, w: '0xCCCCCCCC42C9679F' }],
+      ...over,
+    })
+  }
+
+  it('names the weapon of the designated emplacement by its shots', () => {
+    expect(armeEnMain(unnamedDoc(), 512, 60)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+  })
+
+  it('keeps the row weapon of the emplacement the hand designates', () => {
+    const doc = unnamedDoc({ drawnWeapons: [{ t: 30, slot: 512, d: 1 }, { t: 55, slot: 512, d: 0 }] })
+    expect(armeEnMain(doc, 512, 60)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('ignores a shot earlier than a drop of the emplacement', () => {
+    const doc = unnamedDoc({ weaponChanges: [{ t: 55, slot: 512, kind: 'dropped', k: 1 }] })
+    expect(armeEnMain(doc, 512, 60)).toBeNull()
+  })
+})
+
 describe('a life without any loadout reading', () => {
   /** A life over frames 0-100, flipped to emplacement 1 at 30, that fires the C weapon at 60. */
   function bareDoc(over: Partial<ReplayDocument> = {}) {
