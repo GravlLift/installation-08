@@ -417,7 +417,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
  *  switched to a not-yet-built file). It renders `useMeshBuild`'s line and the same build,
  *  retry and cancel actions the pre-game offers, so a High switch runs the real build flow
  *  with its progress before the scene loads the new files. */
-function MeshBuildGate({
+export function MeshBuildGate({
   line,
   build,
   cancel,
@@ -429,7 +429,7 @@ function MeshBuildGate({
   cancelling: boolean
 }) {
   return (
-    <div data-testid="mesh-build-gate" className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+    <div data-testid="mesh-build-gate" className="bc-gate absolute inset-0 flex flex-col items-center justify-center gap-4">
       <ProgressLine label={line.text} fraction={null} />
       {line.action && line.actionLabel ? (
         <button
