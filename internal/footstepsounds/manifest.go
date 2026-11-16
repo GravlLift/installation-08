@@ -19,7 +19,7 @@ const ManifestName = "footsteps.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 1
+const ManifestVersion = 2
 
 // takeFile is the name of every take file a manifest lists: foot_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -34,8 +34,8 @@ type Manifest struct {
 	// Feet maps a surface to its foot step sounds, action ("walk", "run", "sprint", "shuffle",
 	// "slide", "land", "landhard") to the takes the game draws one of.
 	Feet map[string]map[string]Footstep `json:"feet"`
-	// Movement maps a movement sound ("land", "landhard", "slide_into", "jumpup") to its takes;
-	// the slide and slide_outof tags are left out on purpose (tags.go says why).
+	// Movement maps a movement sound ("land", "landhard", "slide_into", "slide_outof", "jumpup")
+	// to its takes; the plain slide tag is left out on purpose (tags.go says why).
 	Movement map[string]Footstep `json:"movement"`
 }
 

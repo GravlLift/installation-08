@@ -21,12 +21,12 @@ func soundBody(source uint32) []byte {
 }
 
 // testBank builds a v135 bank: event 100 -> play action 200 -> random container 300 holding
-// sounds 401 (media 9001) and 402 (media 9002); event 101 -> a stop action (no media); and one
-// embedded media 9003.
+// sounds 401 (media 9001) and 402 (media 9002); event 101 -> a non-sound action, a 0x02 stop
+// (no media); and one embedded media 9003.
 func testBank() []byte {
 	play := binary.LittleEndian.AppendUint16(nil, 0x0403)
 	play = le32(play, 300)
-	stop := binary.LittleEndian.AppendUint16(nil, 0x0103)
+	stop := binary.LittleEndian.AppendUint16(nil, 0x0203)
 	stop = le32(stop, 300)
 	container := append([]byte{0, 1, 2, 3}, le32(nil, 2, 401, 402)...)
 	objects := [][]byte{
@@ -81,6 +81,67 @@ func TestParseBankFollowsEventsToMedia(t *testing.T) {
 	}
 	if string(bk.Embedded[9003]) != "xyz" {
 		t.Fatalf("embedded media: %q", bk.Embedded[9003])
+	}
+}
+
+// buildBank assembles a v135 bank from its HIRC objects (no embedded media).
+func buildBank(id uint32, objects [][]byte) []byte {
+	hirc := le32(nil, uint32(len(objects)))
+	for _, o := range objects {
+		hirc = append(hirc, o...)
+	}
+	chunk := func(magic string, body []byte) []byte {
+		return append(le32([]byte(magic), uint32(len(body))), body...)
+	}
+	b := chunk("BKHD", le32(nil, 135, id))
+	return append(b, chunk("HIRC", hirc)...)
+}
+
+// TestEventFollowsSoundActionContainerAcrossBanks is the slide_outof shape: an event whose
+// sound action targets a random sequence container that lives in a sibling bank, one bank per
+// take. The container is resolved only after the sibling's objects are linked into the event's
+// bank; both the 0x01 variant and the 0x04 Play action reach the same media.
+func TestEventFollowsSoundActionContainerAcrossBanks(t *testing.T) {
+	container := append([]byte{0, 1, 2, 3}, le32(nil, 2, 401, 402)...)
+	sibling := buildBank(ID("sb_sibling"), [][]byte{
+		hircObject(HircSound, 401, soundBody(9001)),
+		hircObject(HircSound, 402, soundBody(9002)),
+		hircObject(HircRandomSeq, 300, container),
+	})
+	eventBank := buildBank(ID("sb_event"), [][]byte{
+		hircObject(HircAction, 200, le32(binary.LittleEndian.AppendUint16(nil, 0x0103), 300)),
+		hircObject(HircEvent, 100, append([]byte{1}, le32(nil, 200)...)),
+	})
+	b, err := ParseBank(sibling)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := ParseBank(eventBank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.EventMedia(100); len(got) != 0 {
+		t.Fatalf("before the link, the container is unresolvable: %v", got)
+	}
+	a.LinkObjects(b.Objects)
+	if got := a.EventMedia(100); !reflect.DeepEqual(got, []uint32{9001, 9002}) {
+		t.Fatalf("0x01 action after the link: %v", got)
+	}
+	if got := a.EventTargetTypes(100); !reflect.DeepEqual(got, []byte{HircRandomSeq}) {
+		t.Fatalf("target types: %v", got)
+	}
+	// The 0x04 Play action, targeting the same sibling container, reaches the same media.
+	playBank := buildBank(ID("sb_event2"), [][]byte{
+		hircObject(HircAction, 201, le32(binary.LittleEndian.AppendUint16(nil, 0x0403), 300)),
+		hircObject(HircEvent, 101, append([]byte{1}, le32(nil, 201)...)),
+	})
+	a2, err := ParseBank(playBank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2.LinkObjects(b.Objects)
+	if got := a2.EventMedia(101); !reflect.DeepEqual(got, []uint32{9001, 9002}) {
+		t.Fatalf("0x04 Play action after the link: %v", got)
 	}
 }
 

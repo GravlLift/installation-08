@@ -119,10 +119,18 @@ func ParseBank(b []byte) (*Bank, error) {
 	return bk, nil
 }
 
-// actionPlay is the high byte of a Play action's type: only Play actions make a sound heard.
-const actionPlay = 0x04
+// soundActionTypes are the action types, read as the high byte of the action's type word, that
+// make a sound heard: a Play (0x04) and the 0x01 variant an event can use to reach its per-take
+// containers (measured on the slide_outof movement sound, whose event plays one such container
+// per take, each in a bank of its own). The other action types (stop, state, ...) do not.
+var soundActionTypes = map[byte]bool{0x04: true, 0x01: true}
 
-// EventMedia returns the media ids an event plays: Event -> its Play actions -> their target ->
+// isSoundAction reports whether a parsed action is one of the sound-producing types.
+func isSoundAction(b []byte) bool {
+	return len(b) >= 6 && soundActionTypes[byte(binary.LittleEndian.Uint16(b)>>8)]
+}
+
+// EventMedia returns the media ids an event plays: Event -> its sound actions -> their target ->
 // (through containers) -> Sound -> source id. The ids are in hierarchy order, without repeats.
 func (bk *Bank) EventMedia(eventID uint32) []uint32 {
 	ev, ok := bk.Objects[eventID]
@@ -139,7 +147,7 @@ func (bk *Bank) EventMedia(eventID uint32) []uint32 {
 	return out
 }
 
-// EventTargetTypes returns the HIRC type of each object an event's Play actions target, in
+// EventTargetTypes returns the HIRC type of each object an event's sound actions target, in
 // action order: a caller tells a random container (each media one take, HircRandomSeq) from a
 // layer or switch container whose media are not interchangeable.
 func (bk *Bank) EventTargetTypes(eventID uint32) []byte {
@@ -150,7 +158,9 @@ func (bk *Bank) EventTargetTypes(eventID uint32) []byte {
 	var out []byte
 	for _, act := range bk.eventActions(ev.Body) {
 		if target, ok := bk.playTarget(act); ok {
-			out = append(out, bk.Objects[target].Type)
+			if o, ok := bk.object(target); ok {
+				out = append(out, o.Type)
+			}
 		}
 	}
 	return out
@@ -187,22 +197,21 @@ func (bk *Bank) eventActions(b []byte) []uint32 {
 	return nil
 }
 
-// playTarget returns the object a Play action targets (u16 action type, then u32 target id).
+// playTarget returns the object a sound action targets (u16 action type, then u32 target id).
 func (bk *Bank) playTarget(actionID uint32) (uint32, bool) {
 	act, ok := bk.object(actionID)
 	if !ok {
 		return 0, false
 	}
-	b := act.Body
-	if len(b) < 6 || byte(binary.LittleEndian.Uint16(b)>>8) != actionPlay {
+	if !isSoundAction(act.Body) {
 		return 0, false
 	}
-	id := binary.LittleEndian.Uint32(b[2:])
+	id := binary.LittleEndian.Uint32(act.Body[2:])
 	_, ok = bk.object(id)
 	return id, ok
 }
 
-// PlayTargets returns the ids the event's Play actions name, in action order, whether or not
+// PlayTargets returns the ids the event's sound actions name, in action order, whether or not
 // the target object lives in this bank (an action names a container in a sibling bank the
 // runtime loads alongside; the action itself is read here).
 func (bk *Bank) PlayTargets(eventID uint32) []uint32 {
@@ -213,7 +222,7 @@ func (bk *Bank) PlayTargets(eventID uint32) []uint32 {
 	var out []uint32
 	for _, act := range bk.eventActions(ev.Body) {
 		a, ok := bk.object(act)
-		if !ok || len(a.Body) < 6 || byte(binary.LittleEndian.Uint16(a.Body)>>8) != actionPlay {
+		if !ok || !isSoundAction(a.Body) {
 			continue
 		}
 		out = append(out, binary.LittleEndian.Uint32(a.Body[2:]))

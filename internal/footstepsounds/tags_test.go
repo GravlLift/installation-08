@@ -32,8 +32,8 @@ func TestTheTableListsEverySpartanFootAndMovementSound(t *testing.T) {
 			}
 		}
 	}
-	// Four: the slide and slide_outof tags are left out on purpose (tags.go says why).
-	if got := len(movementIDs); got != 4 {
+	// Five: only the plain slide tag is left out on purpose (tags.go says why).
+	if got := len(movementIDs); got != 5 {
 		t.Errorf("movement sounds %d", got)
 	}
 }
