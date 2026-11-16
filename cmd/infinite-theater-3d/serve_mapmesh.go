@@ -49,7 +49,7 @@ func buildMapMesh(ctx context.Context, root *store.Root, key, game, out string, 
 		opts := meshbuild.ForgeMapOptions{Key: key, Names: []string{m.MapName}, Mvar: variantPath(root, m.MatchID, "map.mvar"), GameRoot: game, Quality: quality}
 		summary, err = meshbuild.BuildForgeMap(ctx, opts, out, nil)
 	} else {
-		summary, err = meshbuild.BuildMap(ctx, key, quality, game, out, nil)
+		summary, err = meshbuild.BuildMap(ctx, key, quality, "", game, out, nil)
 	}
 	if err != nil {
 		return meshjobs.BuildResult{}, err

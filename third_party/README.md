@@ -10,6 +10,17 @@ The source files below are as of 2026-11-13, with the documented changes noted p
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
 
+`basisu/` holds Binomial's Basis Universal encoder and transcoder (https://github.com/BinomialLLC/basis_universal,
+commit `99f52d63aa6799cbdaecfe977111dc5ec3b31d47` of 2026-09-01, Go proxy pseudo-version
+`v0.0.0-20260901040812-99f52d63aa67`, zip hash `h1:A+TqLPfBibFIO6wxZyjb3rYlCk/Rzu+En46WIXQhExA=`,
+Apache-2.0; bundled Zstandard under its BSD license, see `basisu/zstd/LICENSE` and `basisu/LICENSES/`).
+It is not a Go module: `internal/basisu` compiles its translation units with cgo (one `u_*.cpp`
+per upstream `.cpp`, each a single `#include`) and wraps them in a small C surface. Only these
+upstream paths are kept, unmodified: `encoder/`, `transcoder/`, `zstd/zstd.c`, `zstd/zstd.h`,
+`zstd/zstd_errors.h`, `zstd/LICENSE`, `LICENSE`, `NOTICE`, `LICENSES/`, `README.md`. Omitted: the
+command-line tool, examples, the WebGL/WASM and Python builds, OpenCL kernels' build files, test
+images and `zstd/zstddeclib.c`.
+
 `ww2ogg/` holds no code: only the license text and the notice of ww2ogg by hcs
 (https://github.com/hcs64/ww2ogg, commit `14ed9b0`, BSD-3-Clause style), which
 `internal/wwvorbis` ports to Go to repack the announcer's Wwise Vorbis voice lines into Ogg,

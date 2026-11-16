@@ -7,6 +7,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -20,12 +21,20 @@ func capsOfQuality(q meshjobs.Quality) himap.TextureCaps {
 	return himap.CapsStandard
 }
 
+// texturesOf is a build's image format: `f`, or texcompress.DefaultFormat when empty.
+func texturesOf(f texcompress.Format) texcompress.Format {
+	if f == "" {
+		return texcompress.DefaultFormat
+	}
+	return f
+}
+
 // BuildMap builds the native map `module`'s world mesh of texture quality `quality` and writes
-// it to `out`. `gameRoot` is the game's deploy root; empty resolves it the way the game-file
+// it to `out`, its images in `textures` (empty: texcompress.DefaultFormat). `gameRoot` is the game's deploy root; empty resolves it the way the game-file
 // reading chain always does (himap.DeployRoot: the LEVELUP_HALO_DEPLOY environment variable,
 // else auto-detected Steam or Xbox installs). `announce` (nil accepted) receives each build
 // step at its start.
-func BuildMap(ctx context.Context, module string, quality meshjobs.Quality, gameRoot, out string, announce func(mapmesh.Step)) (mapmesh.Summary, error) {
+func BuildMap(ctx context.Context, module string, quality meshjobs.Quality, textures texcompress.Format, gameRoot, out string, announce func(mapmesh.Step)) (mapmesh.Summary, error) {
 	if gameRoot == "" {
 		root, err := himap.DeployRoot()
 		if err != nil {
@@ -39,6 +48,7 @@ func BuildMap(ctx context.Context, module string, quality meshjobs.Quality, game
 		return mapmesh.Summary{}, err
 	}
 	target.TextureCaps = capsOfQuality(quality)
+	target.Textures = texturesOf(textures)
 	return mapmesh.Build(ctx, gameRoot, target, out, generatorTag, announce)
 }
 

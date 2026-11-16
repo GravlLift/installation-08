@@ -18,6 +18,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -47,6 +50,9 @@ type Target struct {
 	// TextureCaps is the build's texture read sizes (himap.TextureCaps); zero is the standard
 	// caps (himap.CapsStandard), today's output.
 	TextureCaps himap.TextureCaps
+	// Textures is the image format of the written GLB (texcompress.Format); empty keeps the
+	// writer's PNG and JPEG images.
+	Textures texcompress.Format
 }
 
 // Frame margins, in world units. The 3D view exists to follow the game, not to admire the
@@ -86,6 +92,8 @@ const (
 	StepGeometry Step = "geometry"
 	StepLighting Step = "lighting"
 	StepWriting  Step = "writing"
+	// StepTextures rewrites the written GLB's images as KTX2 (Textures = texcompress.FormatKTX2).
+	StepTextures Step = "textures"
 )
 
 // Summary summarizes a written mesh.
@@ -128,7 +136,14 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	announce(StepWriting)
 	extras := map[string]any{"module": t.Key, "mapNames": t.Names, axesGLBKey: axesGLB, "frame": t.Frame}
 	sky := skyOf(ctx, gameRoot, t, m)
-	n, err := writeFile(path, func(w io.Writer) error {
+	// The summary is read before writing: the texture pass that follows the writer must not keep
+	// the collected mesh (and its decoded textures) alive.
+	s := Summary{
+		Triangles: m.Structure.Triangles() + m.Terrain.Triangles(), SceneryTris: m.Decor.Triangles(),
+		Sun: m.Soleil != nil, Probes: m.Sondes != nil, Lights: len(m.Lumieres),
+	}
+	outOfBox, outOfFrame := m.HorsBoite, m.HorsCadre
+	n, err := writeGLB(ctx, path, t.Key, t.Textures, announce, func(w io.Writer) error {
 		if err := himap.EcritGLBCiel(w, m, generator, extras, sky); err != nil {
 			return err
 		}
@@ -137,15 +152,39 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	if err != nil {
 		return Summary{}, err
 	}
-	s := Summary{
-		Triangles: m.Structure.Triangles() + m.Terrain.Triangles(), SceneryTris: m.Decor.Triangles(), Bytes: n,
-		Sun: m.Soleil != nil, Probes: m.Sondes != nil, Lights: len(m.Lumieres),
-	}
+	s.Bytes = n
 	slog.InfoContext(ctx, "mesh written", "map", t.Key, "names", t.Names,
-		"triangles", s.Triangles, "sceneryTriangles", s.SceneryTris, "outOfBox", m.HorsBoite, "instancesOutOfFrame", m.HorsCadre,
+		"triangles", s.Triangles, "sceneryTriangles", s.SceneryTris, "outOfBox", outOfBox, "instancesOutOfFrame", outOfFrame,
 		"sun", s.Sun, "probes", s.Probes, "lights", s.Lights,
 		"bytes", n, "file", filepath.Base(path))
 	return s, nil
+}
+
+// writeGLB writes a map or variant GLB to `path` like writeFile. For texcompress.FormatKTX2 the
+// writer's GLB goes to `path + ".src"` first, its images are rewritten into `path`
+// (StepTextures), and the source is removed: `path` only ever holds the finished KTX2 GLB.
+func writeGLB(ctx context.Context, path, key string, format texcompress.Format, announce func(Step), write func(io.Writer) error) (int64, error) {
+	if format != texcompress.FormatKTX2 {
+		return writeFile(path, write)
+	}
+	src := path + ".src"
+	// `write` is not used past this call: the collected mesh its closure holds can be freed
+	// during the pass (the callers read what they report from it beforehand).
+	if _, err := writeFile(src, write); err != nil {
+		return 0, err
+	}
+	defer func() { _ = os.Remove(src) }()
+	if announce != nil {
+		announce(StepTextures)
+	}
+	st, err := texcompress.CompressFile(ctx, src, path, texcompress.Options{})
+	if err != nil {
+		return 0, fmt.Errorf("textures: %w", err)
+	}
+	slog.InfoContext(ctx, "textures compressed", "map", key, "images", st.Encoded,
+		"bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
+		"gpuRGBA8", st.GPURGBA8, "gpuBlocks", st.GPUBlock, "duration", st.Duration.Round(time.Millisecond))
+	return st.BytesOut, nil
 }
 
 // writeFile writes what `write` produces under `path + ".tmp"` then renames it (a reader never

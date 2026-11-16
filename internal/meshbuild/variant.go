@@ -17,6 +17,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/mapref"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -55,6 +56,8 @@ type BuildVariantOptions struct {
 	// Quality is the texture quality to read at (meshjobs.Quality); standard is the default
 	// (today's output).
 	Quality meshjobs.Quality
+	// Textures is the GLB's image format; empty is texcompress.DefaultFormat.
+	Textures texcompress.Format
 }
 
 // BuildVariant builds a map variant's object-layer GLB and writes it to `out`.
@@ -91,6 +94,7 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 	target := mapmesh.VariantTarget{
 		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles, StyleGrimes: v.StyleGrimes,
 		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode, TextureCaps: capsOfQuality(opts.Quality),
+		Textures: texturesOf(opts.Textures),
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)
 }

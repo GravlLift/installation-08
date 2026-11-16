@@ -27,6 +27,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/mapref"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-map-images/himap"
@@ -55,6 +56,8 @@ type ForgeMapOptions struct {
 	// Quality is the texture quality to read at (meshjobs.Quality); standard is the default
 	// (today's output).
 	Quality meshjobs.Quality
+	// Textures is the GLB's image format; empty is texcompress.DefaultFormat.
+	Textures texcompress.Format
 }
 
 // BuildForgeMap builds a Forge map's world mesh (see the file comment) and writes it to `out`.
@@ -87,6 +90,7 @@ func BuildForgeMap(ctx context.Context, opts ForgeMapOptions, out string, announ
 		return mapmesh.Summary{}, err
 	}
 	target.TextureCaps = capsOfQuality(opts.Quality)
+	target.Textures = texturesOf(opts.Textures)
 	return mapmesh.Build(ctx, gameRoot, target, out, generatorTagForge, announce)
 }
 
