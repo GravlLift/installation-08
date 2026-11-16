@@ -32,8 +32,7 @@ engineering backlog; this page keeps only the user-visible parts of it.
 - Weapon reload sounds are extracted from your own game install and timed to each weapon's
   reload animation, but the loudness target across weapons is an estimated guess, not yet
   checked by ear in a real match. Shell-loading weapons (Cindershot, Heatwave, Hydra) play
-  one loading sound per reload regardless of how many shells are loaded; the battery weapons'
-  vent sound is silent.
+  one loading sound per reload regardless of how many shells are loaded.
 - Footsteps all use the game's default surface (no grass, metal or water variants yet), and
   their step rate is estimated from speed. The slide's exit whoosh is silent.
 - The Shock Rifle's blue electric arcs around its open shroud are not drawn.
