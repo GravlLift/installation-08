@@ -93,6 +93,10 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
         if (uid) return { id: uid, slotArme: k }
       }
     }
+    // The read designates an emplacement neither the row nor a pickup names: a shot fired from
+    // that emplacement names its weapon (the same proof as `armeDesTirs`).
+    const uid = armeDuTir(doc, { slot, frame, naissance: vie.start }, d, vie.end, events)
+    if (uid) return { id: uid, slotArme: d }
   }
   // A past read of the life that does not locate the hand leaves it empty.
   if (eventMs !== -Infinity || (inv && inv.age >= 0)) return null
@@ -157,10 +161,8 @@ function mainA(doc: ReplayDocumentReady, vie: { slot: number; frame: number; nai
 /**
  * armeDesTirs: the weapon in hand of a life that NO loadout reading covers (its birth record did
  * not close and no keyframe fell inside it): a shot names the weapon in hand at its instant, and
- * the weapon of an emplacement is the one its shots name. The hand's emplacement at `frame` and
- * at each shot comes from `mainA`; a shot counts only if no weapon change of that emplacement is
- * dated between it and the frame. On foot only (a vehicle shot names the vehicle's weapon). Null
- * without such a shot.
+ * the weapon of an emplacement is the one its shots name. The hand's emplacement at `frame`
+ * comes from `mainA`. Null without a qualifying shot.
  */
 function armeDesTirs(
   doc: ReplayDocumentReady,
@@ -170,6 +172,24 @@ function armeDesTirs(
 ): { id: string; slotArme: number } | null {
   const d = mainA(doc, vie, events)
   if (d !== 0 && d !== 1) return null
+  const id = armeDuTir(doc, vie, d, fin, events)
+  return id ? { id, slotArme: d } : null
+}
+
+/**
+ * armeDuTir: the weapon the shots of the life name for emplacement `d`, the one closest to
+ * `frame`. A shot names the weapon in hand at its instant, so it counts only if the hand
+ * designated `d` at the shot's instant too (`mainA`) and no weapon change of that emplacement is
+ * dated between the shot and the frame. On foot only (a vehicle shot names the vehicle's
+ * weapon). Null without such a shot.
+ */
+function armeDuTir(
+  doc: ReplayDocumentReady,
+  vie: { slot: number; frame: number; naissance: number },
+  d: number,
+  fin: number,
+  events: SuiviMain | undefined,
+): string | null {
   let best: { id: string; ecart: number } | null = null
   for (const s of doc.shots) {
     if (s.slot !== vie.slot || s.v != null || !s.w || s.t < vie.naissance || s.t > fin) continue
@@ -180,7 +200,7 @@ function armeDesTirs(
     if (doc.weaponChanges.some((c) => c.slot === vie.slot && c.k === d && c.t > de && c.t <= a)) continue
     best = { id: familleDe(s.w), ecart }
   }
-  return best ? { id: best.id, slotArme: d } : null
+  return best?.id ?? null
 }
 
 /** familleDe: the weapon family of a shot's 64-bit weapon id (`0xFFFFFFFFVVVVVVVV` -> `0xFFFFFFFF`), the form of a loadout row. */

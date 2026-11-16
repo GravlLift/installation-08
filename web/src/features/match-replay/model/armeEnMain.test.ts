@@ -217,6 +217,34 @@ describe('a keyframe row that names a weapon the life never picked up', () => {
   })
 })
 
+describe('a read that designates an emplacement nothing names', () => {
+  // The selector flips to emplacement 1 at 30; the row never names that emplacement and no
+  // pickup lands in it, but the player fires the C weapon from it, so the hand holds it.
+  function unnamedDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 40, slot: 512, w: ['0xAAAA'] }],
+      drawnWeapons: [{ t: 30, slot: 512, d: 1 }],
+      shots: [{ t: 50, slot: 512, x: 0, y: 0, w: '0xCCCCCCCC42C9679F' }],
+      ...over,
+    })
+  }
+
+  it('names the weapon of the designated emplacement by its shots', () => {
+    expect(armeEnMain(unnamedDoc(), 512, 60)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+  })
+
+  it('keeps the row weapon of the emplacement the hand designates', () => {
+    const doc = unnamedDoc({ drawnWeapons: [{ t: 30, slot: 512, d: 1 }, { t: 55, slot: 512, d: 0 }] })
+    expect(armeEnMain(doc, 512, 60)).toEqual({ id: '0xAAAA', slotArme: 0 })
+  })
+
+  it('ignores a shot earlier than a drop of the emplacement', () => {
+    const doc = unnamedDoc({ weaponChanges: [{ t: 55, slot: 512, kind: 'dropped', k: 1 }] })
+    expect(armeEnMain(doc, 512, 60)).toBeNull()
+  })
+})
+
 describe('a life without any loadout reading', () => {
   /** A life over frames 0-100, flipped to emplacement 1 at 30, that fires the C weapon at 60. */
   function bareDoc(over: Partial<ReplayDocument> = {}) {
