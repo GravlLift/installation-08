@@ -15,6 +15,7 @@ Changes since 0.1.0-test.12.
 - Spartans, corpses and the first-person arms and weapon are lit by the map's lamps, like the floor they stand on. On night maps such as Streets they read near black on a lamp-lit street before.
 - Bloom: lamps and other self-lit surfaces glow (setting "Bloom", on by default).
 - Weapon light strips and ammo screens glow (BR75, Commando, Bandit, Plasma Pistol, Pulse Carbine, Stalker Rifle, Shock Rifle, Needler and others), in third and first person. They drew as black glass before. Takes effect once the weapon and first-person libraries are rebuilt.
+- Sharper weapons: weapon textures are read at twice the size (four times for the first-person weapon and arms) and GPU-compressed, so they still take less graphics memory than before. The first-person library on disk shrinks to about 40% of its size. Takes effect once the weapon and first-person libraries are rebuilt.
 
 ## 0.1.0-test.12
 
