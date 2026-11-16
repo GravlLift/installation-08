@@ -6,6 +6,7 @@ Changes since 0.1.0-test.14.
 
 - The Shock Rifle's shroud arcs added in test.14 are withdrawn: they drew as a pale cloud of flat shards in front of the muzzle instead of arcs on the shroud.
 - Slides end with the game's slide-exit sound (it was silent). The footstep sounds re-extract themselves at the first start after updating.
+- A plasma or spike grenade stuck to a player rides on the part of his body it hit (a foot, the torso, the helmet, a hand) until it explodes, instead of staying where it hit him. Takes effect once the match is rebuilt.
 
 ## 0.1.0-test.14
 

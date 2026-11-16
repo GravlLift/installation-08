@@ -28,6 +28,13 @@
  * elle reste au bout de son vol jusqu'à l'explosion. La grenade plasma n'a pas de modèle : elle
  * montre son ORBE LUMINEUSE (cœur bleu-blanc, halo bleu saturé, pulsé par le temps ;
  * `grenadeLook3d`), en vol comme posée.
+ *
+ * A PROJECTILE THAT STICKS (schema 128, `Projectile.attach`) stops replicating its position: the film
+ * names what it is stuck to instead, a node of the parent and its offset in that node's frame. From
+ * the attach frame until the explosion it rides that bone of the body the scene draws for the parent
+ * (`ActionContext.attachBone`); in first person on him, the arms rig's bone of the same name, or
+ * nothing when the rig has no such bone. A parent the scene draws no body for (a device, a weapon, a
+ * Forge object, a dead player) leaves the projectile at the end of its flight, as before.
  */
 import * as THREE from 'three'
 
@@ -86,6 +93,12 @@ interface Flight {
   /** Le rayon du cœur de l'orbe (u), quand le vol en est une. */
   orbRadius: number
   tint: FxTint
+  /**
+   * Stuck to something (`Projectile.attach`, schema 128): from `from` until the explosion, the
+   * projectile sits on bone `node` of the body drawn for slot `slot`, at `pose` in that bone's
+   * frame (three axes). Null: it does not stick, or an older artifact.
+   */
+  attach: { from: number; slot: number; node: number; pose: THREE.Vector3 } | null
 }
 
 interface Blast {
@@ -117,6 +130,11 @@ export class Flights3dLayer implements ActionLayer3d {
   private readonly maxSpan: number
   private readonly p = new THREE.Vector3()
   private readonly q = new THREE.Quaternion()
+  /** The world matrix of an attached projectile's bone, and its parts (`drawAttached`). */
+  private readonly bone = new THREE.Matrix4()
+  private readonly boneAt = new THREE.Vector3()
+  private readonly boneQ = new THREE.Quaternion()
+  private readonly boneScale = new THREE.Vector3()
   private readonly orbTint = new THREE.Color()
   private readonly orbCore = new THREE.Color()
   private readonly orbHalo = new THREE.Color()
@@ -199,6 +217,7 @@ export class Flights3dLayer implements ActionLayer3d {
     for (; i < f.pts.length && f.at[i] <= frame; i++) {
       if (paths && frame <= f.end + TAIL_FRAMES) this.trails.add(f.pts[i - 1], f.pts[i], TRAIL_RADIUS, color)
     }
+    if (f.attach && frame >= f.attach.from && frame <= f.detoT && this.drawAttached(f, frame, model, color, fps)) return
     if (frame > f.end) {
       // Posée avant de détoner : la grenade attend l'explosion au bout de son vol.
       if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps)
@@ -211,6 +230,25 @@ export class Flights3dLayer implements ActionLayer3d {
     if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps)
     else if (model) this.models.add(model, head, this.spin(flightValueAt(f.at, f.dist, frame)))
     else this.heads.add(head, null, HEAD_RADIUS, color)
+  }
+
+  /**
+   * drawAttached : a projectile stuck to a player, drawn on the bone the film names (`Flight.attach`),
+   * moving with it. True when the scene answered for that bone (drawn there, or hidden in first
+   * person on a bone the arms rig does not carry); false when no body is drawn for the parent, and
+   * the caller keeps the flight's own placement.
+   */
+  private drawAttached(f: Flight, frame: number, model: THREE.Object3D | null, color: THREE.Color, fps: number): boolean {
+    const a = f.attach as NonNullable<Flight['attach']>
+    const where = this.ctx.attachBone?.(a.slot, a.node, this.bone) ?? 'none'
+    if (where === 'none') return false
+    if (where === 'hidden') return true
+    this.bone.decompose(this.boneAt, this.boneQ, this.boneScale)
+    const at = this.p.copy(a.pose).applyMatrix4(this.bone)
+    if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, at, frame, fps)
+    else if (model) this.models.add(model, at, this.boneQ.multiply(this.spin(f.dist[f.dist.length - 1])))
+    else this.heads.add(at, null, HEAD_RADIUS, color)
+    return true
   }
 
   /**
@@ -257,7 +295,7 @@ interface FlightOwner {
 
 /** lastFrame : la dernière image où un vol se dessine (sa traîne, ou sa grenade posée). */
 function lastFrame(f: Flight): number {
-  return Math.max(f.end + TAIL_FRAMES, f.grenade !== null ? f.detoT : 0)
+  return Math.max(f.end + TAIL_FRAMES, f.grenade !== null || f.attach ? f.detoT : 0)
 }
 
 function ownersOf(ctx: ActionContext): Map<number, FlightOwner> {
@@ -309,9 +347,21 @@ function buildFlights(ctx: ActionContext): Flight[] {
       look: owner && owner.grenade !== null ? grenadeLookOf(owner.grenade).flight : orbRadius !== undefined ? 'orb' : 'model',
       orbRadius: orbRadius ?? PLASMA_CORE_RADIUS,
       tint: owner?.tint ?? 'neutral',
+      attach: attachOf(pr),
     })
   })
   return out
+}
+
+/**
+ * attachOf : a flight's attach in three axes. The pose is published in the Halo axes of the bone,
+ * and the GLB's bones carry the same frame converted as the scene is (`halo(x, z, -y)`).
+ */
+function attachOf(pr: ReplayProjectileReady): Flight['attach'] {
+  const a = pr.attach
+  if (!a || a.fromFrame > pr.detoT) return null
+  const [x, y, z] = a.pose
+  return { from: a.fromFrame, slot: a.parentSlot, node: a.node, pose: new THREE.Vector3(x, z, -y) }
 }
 
 /** publishedPoints : the points of a flight in three axes, at their published heights (schema 126). */

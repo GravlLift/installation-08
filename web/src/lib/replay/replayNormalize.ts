@@ -27,7 +27,7 @@ import { normalizeScoreTimeline } from '@/lib/replay/scoreTimeline'
 import { markTranslocationCuts } from '@/lib/replay/translocationCuts'
 import type { ReplayDocument } from '@/lib/api/types'
 
-import type { ReplayDocumentReady, ReplayStep, ReplayXY } from './replayReadyTypes'
+import type { ReplayDocumentReady, ReplayProjectileAttach, ReplayStep, ReplayXY } from './replayReadyTypes'
 
 /**
  * Le pas de grille d'un document qui ne publie pas `frameIntervalMs` : celui du producteur
@@ -274,6 +274,8 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
         p,
         z: pr.z && pr.z.length === p.length ? pr.z : undefined,
         ...(rawFullRate && raw.frameIntervalMs ? { fullRate: decodeFullRateFlight(rawFullRate, raw.frameIntervalMs) } : {}),
+        // `attach` (schema 128): kept only whole; an older artifact has none.
+        attach: attachOf((pr as { attach?: unknown }).attach),
       }
     }),
     // LA PRÉSENCE DE CHAQUE OCCUPANT (schéma 69) : les intervalles pendant lesquels il TIENT sa
@@ -353,4 +355,12 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
 /** La clé d'une VIE de véhicule : `(slot, gen)`, la seule clé d'une vie (cf. `VehicleTrack`). */
 function vehicleLifeKey(slot: number, gen: number): string {
   return `${slot}/${gen}`
+}
+
+/** attachOf: a projectile's published attach (schema 128) when every field is there, undefined otherwise. */
+function attachOf(raw: unknown): ReplayProjectileAttach | undefined {
+  const a = raw as Partial<ReplayProjectileAttach> | undefined
+  if (!a || !Number.isFinite(a.fromFrame) || !Number.isFinite(a.parentSlot) || !Number.isFinite(a.node)) return undefined
+  if (!Array.isArray(a.pose) || a.pose.length !== 3 || !a.pose.every(Number.isFinite)) return undefined
+  return { fromFrame: a.fromFrame as number, parentSlot: a.parentSlot as number, node: a.node as number, pose: [a.pose[0], a.pose[1], a.pose[2]] }
 }

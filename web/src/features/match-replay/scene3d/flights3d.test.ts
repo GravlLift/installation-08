@@ -19,6 +19,7 @@ import type { Ground, InkCache } from './actionKit'
 import { Flights3dLayer, flightPointAt, publishedPoints } from './flights3d'
 import { FlashLights } from './flash3d'
 import type { ActionContext } from './actionScene3d'
+import type { AttachBone } from './avatar3d'
 import type { Tracks3d } from './tracks3d'
 
 const ENCRE: Record<string, THREE.Color> = {
@@ -54,7 +55,7 @@ function documentTir(key: string, tint: string): unknown {
   }
 }
 
-function calque(rank: number, doc: unknown = documentGrenade(rank)): { layer: Flights3dLayer; root: THREE.Group } {
+function calque(rank: number, doc: unknown = documentGrenade(rank), extra: Partial<ActionContext> = {}): { layer: Flights3dLayer; root: THREE.Group } {
   const root = new THREE.Group()
   const inputs = {
     framesPerSecond: 60,
@@ -82,6 +83,7 @@ function calque(rank: number, doc: unknown = documentGrenade(rank)): { layer: Fl
     drawnWeapon: () => null,
     firstPersonSlot: () => null,
     flashes: new FlashLights(new THREE.Scene()),
+    ...extra,
   }
   return { layer: new Flights3dLayer(ctx), root }
 }
@@ -332,6 +334,90 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
     expect(head.x).toBeCloseTo(0.5, 4)
     expect(head.y).toBeCloseTo(0.75, 4)
     expect(head.z).toBeCloseTo(0, 4)
+    layer.dispose()
+  })
+})
+
+/**
+ * A plasma grenade (rank 1) that flies from frame 100 to 140, sticks at 130 to node 22 of the biped
+ * of slot 561 at pose (0.1, 0.2, 0.3) (Halo axes of that node), and explodes at 160.
+ */
+function documentCollee(): unknown {
+  const doc = documentGrenade(1) as { projectiles: Record<string, unknown>[] }
+  doc.projectiles[0].attach = { fromFrame: 130, parentSlot: 561, node: 22, pose: [0.1, 0.2, 0.3] }
+  return doc
+}
+
+describe('Flights3dLayer — a grenade stuck to a player (schema 128)', () => {
+  /** A bone the scene "draws" at `at` (no rotation), and the questions asked of it. */
+  function os(answer: AttachBone = 'drawn') {
+    const at = new THREE.Vector3(5, 1, 2)
+    const asked: [number, number][] = []
+    const attachBone = (slot: number, node: number, out: THREE.Matrix4): AttachBone => {
+      asked.push([slot, node])
+      out.makeTranslation(at.x, at.y, at.z)
+      return answer
+    }
+    return { at, asked, attachBone }
+  }
+
+  it('rides the bone the film names, at the pose in its frame, from the attach to the explosion', () => {
+    const bone = os()
+    const { layer, root } = calque(1, documentCollee(), { attachBone: bone.attachBone })
+    layer.update(150)
+    expect(bone.asked).toEqual([[561, 22]])
+    // Halo (0.1, 0.2, 0.3) in the bone's frame is three (0.1, 0.3, -0.2).
+    const p = premiere(root, 2)
+    expect([p.x, p.y, p.z].map((v) => +v.toFixed(6))).toEqual([5.1, 1.3, 1.8])
+    bone.at.set(6, 0.5, 2) // the foot moves: the grenade with it
+    layer.update(155)
+    const q = premiere(root, 2)
+    expect([q.x, q.y, q.z].map((v) => +v.toFixed(6))).toEqual([6.1, 0.8, 1.8])
+    layer.update(161)
+    expect(compte(root, 2)).toBe(0)
+    layer.dispose()
+  })
+
+  it('turns with the bone', () => {
+    const attachBone = (_slot: number, _node: number, out: THREE.Matrix4): AttachBone => {
+      out.makeRotationY(Math.PI / 2).setPosition(5, 1, 2)
+      return 'drawn'
+    }
+    const { layer, root } = calque(1, documentCollee(), { attachBone })
+    layer.update(150)
+    // three (0.1, 0.3, -0.2) turned a quarter about Y is (-0.2, 0.3, -0.1).
+    const p = premiere(root, 2)
+    expect([p.x, p.y, p.z].map((v) => +v.toFixed(6))).toEqual([4.8, 1.3, 1.9])
+    layer.dispose()
+  })
+
+  it('flies as before until the attach frame', () => {
+    const bone = os()
+    const stuck = calque(1, documentCollee(), { attachBone: bone.attachBone })
+    const plain = calque(1)
+    stuck.layer.update(120)
+    plain.layer.update(120)
+    expect(bone.asked).toEqual([])
+    expect(premiere(stuck.root, 2)).toEqual(premiere(plain.root, 2))
+    stuck.layer.dispose()
+    plain.layer.dispose()
+  })
+
+  it('keeps the end of its flight when no body is drawn for the parent', () => {
+    const stuck = calque(1, documentCollee(), { attachBone: os('none').attachBone })
+    const plain = calque(1)
+    stuck.layer.update(150)
+    plain.layer.update(150)
+    expect(compte(stuck.root, 2)).toBe(1)
+    expect(premiere(stuck.root, 2)).toEqual(premiere(plain.root, 2))
+    stuck.layer.dispose()
+    plain.layer.dispose()
+  })
+
+  it('draws nothing in first person on a bone the arms rig does not carry', () => {
+    const { layer, root } = calque(1, documentCollee(), { attachBone: os('hidden').attachBone })
+    layer.update(150)
+    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 0, 0])
     layer.dispose()
   })
 })

@@ -364,6 +364,20 @@ export class BrasPremierePersonne3d {
     return fpCableStart(this.porteur.position, this.porteur.quaternion, main ? this.mainMonde : null, out)
   }
 
+  /**
+   * osMonde: the world matrix of bone `nom` of the visible rig at the rendered frame, written in
+   * `out`; false without a visible rig or when it has no bone of that name (the arms rig carries the
+   * arms and hands, not the body).
+   */
+  osMonde(nom: string, out: THREE.Matrix4): boolean {
+    if (!this.visible) return false
+    const os = this.visible.getObjectByName(nom)
+    if (!os) return false
+    os.updateWorldMatrix(true, false)
+    out.copy(os.matrixWorld)
+    return true
+  }
+
   cacher(): void {
     if (this.visible) this.visible.visible = false
     this.visible = null

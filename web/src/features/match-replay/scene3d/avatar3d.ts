@@ -250,6 +250,27 @@ export function showWeapon(
 }
 
 /** Le modèle d'arme dessiné dans la main d'un joueur : la copie posée, et le modèle dont elle est la copie. */
+/** Where an attached projectile's bone is (`ActionContext.attachBone`). */
+export type AttachBone = 'drawn' | 'hidden' | 'none'
+
+/**
+ * attachBoneOf: the world matrix of bone `node` of the Spartan drawn for `a` (the skin joint of that
+ * rank, which is the render model's node of that rank), written in `out`, after `placeBody`. In
+ * first person (`firstPerson`), the body is not drawn: the bone of the same name of the first-person
+ * rig (`rigBone`) when it has one, else 'hidden'. 'none' without a drawn Spartan or such a bone.
+ */
+export function attachBoneOf(
+  a: Avatar | undefined, node: number, firstPerson: boolean,
+  rigBone: ((name: string, out: THREE.Matrix4) => boolean) | null, out: THREE.Matrix4,
+): AttachBone {
+  const bone = a?.spartan?.skeletons[0]?.bones[node]
+  if (!a || !bone || !a.group.visible) return 'none'
+  if (firstPerson) return rigBone?.(bone.name, out) ? 'drawn' : 'hidden'
+  bone.updateWorldMatrix(true, false)
+  out.copy(bone.matrixWorld)
+  return 'drawn'
+}
+
 export interface DrawnWeapon {
   model: THREE.Object3D
   source: THREE.Object3D

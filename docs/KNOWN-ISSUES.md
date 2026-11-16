@@ -63,9 +63,10 @@ engineering backlog; this page keeps only the user-visible parts of it.
   interiors under a walked roof are hidden (players there show as markers over the roof).
   It leaves out foliage, coarse decor, decals and every see-through surface (glass
   included). Its flat light and height shading were tuned on a few maps, not all.
-- A plasma or spike grenade that sticks to a player stays where it hit him until it explodes
-  (about a second later) instead of riding on him. The recording names the player it sticks
-  to, but its position on him is relative to a part of his body we cannot place yet.
+- A grenade stuck to a player rides the part of his body it hit, but can sit a few inches off it:
+  his animation is the viewer's reconstruction, not the game's. One stuck to something other than a
+  player (a lift, a weapon, a Forge object) still stays where it hit until it explodes. In first person,
+  a grenade stuck to your own body is not shown unless it is on your arms or hands.
 - The HUD's bottom strip (score, kill feed, ammo) can sit under the control bar while the bar
   is showing; only the shield indicator currently avoids this.
 - The home screen does not yet have Settings or Quit rows, gamepad input, or live 3D
