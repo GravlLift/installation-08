@@ -76,6 +76,20 @@ export type ReplayProjectileReady = Omit<ReplayProjectile, 'p'> & {
   p: ReplayStep[]
   /** The flight AT THE FILM'S RATE, RELUE (schema 127, `replayFullRate.ts`). Absent: older artifact. */
   fullRate?: ReplayFullRateFlightReady
+  /** Where the projectile sits once it sticks (schema 128, `ReplayProjectileAttach`). Absent: it does not stick, or an older artifact. */
+  attach?: ReplayProjectileAttach
+}
+/**
+ * ReplayProjectileAttach — a projectile stuck to something (schema 128): from `fromFrame` until the
+ * projectile's `detoT`, it sits on node `node` of the object of slot `parentSlot` (a player's biped slot,
+ * or another object), at `pose`: its offset in that node's frame, Halo axes, world units. The node is the
+ * render model's node index, the skin joint of the same rank in the Spartan GLB.
+ */
+export interface ReplayProjectileAttach {
+  fromFrame: number
+  parentSlot: number
+  node: number
+  pose: [number, number, number]
 }
 /**
  * ReplayRosterEntryReady — une entrée de roster dont la PRÉSENCE est comblée (schéma 69, lot

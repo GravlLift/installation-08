@@ -103,6 +103,15 @@ func (s *filmScan) balayerPont() {
 	// supplementaire — jamais d'erreur, juste moins de couverture sur un film qui ne les ecrit pas.
 	s.in.Detonations, _ = grammar.ScanProjectileDetonations(s.fc)
 	s.opt.observe(s.ctx, "detonations", s.in.Detonations)
+	// LOCAL-CHANGE (infinite-theater-3d): the attach reads of the projectiles that stick, which the
+	// frame walk already collected. Absence non fatale : the grenades keep their last position.
+	attaches, err := grammar.ScanProjectileAttaches(s.fc)
+	if err != nil {
+		slog.WarnContext(s.ctx, "attaches de projectile illisibles — rejeu sans grenade collee", "err", err, "match_id", s.matchID)
+		attaches = nil
+	}
+	s.in.ProjectileAttaches = attaches
+	s.opt.observe(s.ctx, "projectileAttaches", s.in.ProjectileAttaches)
 	// Messages d action du joueur (vue A : degats, et les genres que la grammaire garde) : meme passe
 	// des tetes, jamais d erreur, juste moins de couverture sur un film qui ne les ecrit pas.
 	s.in.Actions = grammar.ScanFilmActions(s.fc)

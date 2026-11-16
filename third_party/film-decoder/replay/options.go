@@ -75,13 +75,16 @@ type Options struct {
 	Projectiles []types.ProjectileTrack
 	// Detonations : detonations/impacts de projectile de la vue A (genres 5/6). Absente = le repli
 	// repli_detonation_derniere_position_connue sert toujours (cf. projectiles.go).
-	Detonations       []types.ProjectileDetonation
-	Actions           []types.FilmActionMessage  // actions du joueur (schema 107) : messages de la vue A
-	DrawnWeapons      []types.DrawnWeaponRead    // le jeu d armes desire du bipede, `i42` par trame delta
-	DrawnWeaponStats  types.DrawnWeaponStats     // les denominateurs de DrawnWeapons
-	ControlInputs     []types.ControlInputChange // boutons et couple analogique par index de controle (vue C)
-	ControlInputStats types.ControlInputStats    // les denominateurs de ControlInputs
-	KillCauses        []KillCause                // resolues par l appelant depuis killsource, comme NeutralDeaths
+	Detonations []types.ProjectileDetonation
+	// ProjectileAttaches (LOCAL-CHANGE infinite-theater-3d): the attach reads of the projectiles that
+	// stick (grammar.ScanProjectileAttaches). Absent = no projectile publishes an attach.
+	ProjectileAttaches []grammar.ProjectileAttach
+	Actions            []types.FilmActionMessage  // actions du joueur (schema 107) : messages de la vue A
+	DrawnWeapons       []types.DrawnWeaponRead    // le jeu d armes desire du bipede, `i42` par trame delta
+	DrawnWeaponStats   types.DrawnWeaponStats     // les denominateurs de DrawnWeapons
+	ControlInputs      []types.ControlInputChange // boutons et couple analogique par index de controle (vue C)
+	ControlInputStats  types.ControlInputStats    // les denominateurs de ControlInputs
+	KillCauses         []KillCause                // resolues par l appelant depuis killsource, comme NeutralDeaths
 	// Inventory : inventaire complet lu aux memes images-cles que les armes portees
 	// (cf. inventory.go). Entree de DONNEES. Absente = rejeu sans grenades ni munitions.
 	Inventory []types.KeyframeInventory
@@ -473,28 +476,4 @@ type Options struct {
 	// ([niveauDePublication], journal_de_publication.go). NON EXPORTE : aucun appelant hors du paquet ne peut le poser (le compilateur le
 	// tient) ; faux, sa valeur zero, est celui de toute cuisson publiee.
 	documentInterne bool
-}
-
-func (o Options) frameIntervalMS() int {
-	if o.FrameIntervalMS > 0 {
-		return o.FrameIntervalMS
-	}
-	return DefaultFrameIntervalMS
-}
-
-// compteurDeReplis rend le compteur de la cuisson, en creant le sien quand l'appelant n'en a pas
-// fourni. MEME PATRON QUE `frameIntervalMS` / `minPoints` : le defaut vit ici, une seule fois,
-// et l'assemblage n'a pas a le connaitre.
-func (o Options) compteurDeReplis() *fallback.Compteur {
-	if o.Fallbacks != nil {
-		return o.Fallbacks
-	}
-	return fallback.NouveauCompteur()
-}
-
-func (o Options) minPoints() int {
-	if o.MinPoints > 0 {
-		return o.MinPoints
-	}
-	return DefaultMinPoints
 }

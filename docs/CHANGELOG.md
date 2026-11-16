@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Changes since 0.1.0-test.15.
+
+- A plasma or spike grenade stuck to a player rides on the part of the body it hit (a foot, the torso, the helmet, a hand) until it explodes, instead of staying where it hit. Takes effect once the match is rebuilt.
+
 ## 0.1.0-test.15
 
 Changes since 0.1.0-test.14.

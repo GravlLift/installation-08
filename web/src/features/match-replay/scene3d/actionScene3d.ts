@@ -20,7 +20,7 @@ import type { Ground, InkCache, LabelPool } from './actionKit'
 import { flagBannerInk } from './flagBanner3d'
 import type { Aids3d } from './aids3d'
 import type { Dress, SpartanArmory } from './armory3d'
-import type { DrawnWeapon } from './avatar3d'
+import type { AttachBone, DrawnWeapon } from './avatar3d'
 import { BodyFx3d } from './bodyFx3d'
 import type { BodyFxState } from './bodyShell3d'
 import type { BakedLight } from './bakedLightShader'
@@ -100,6 +100,15 @@ export interface ActionContext {
    * left hand (`grapple3d_logic.fpCableStart`), written in `out`; null when the scene has no rig.
    */
   firstPersonLeftHand?: (out: THREE.Vector3) => THREE.Vector3 | null
+  /**
+   * Where bone `node` (the skin joint of that rank: the render model's node) of the body drawn for
+   * the biped of slot `slot` is at the rendered frame, its world matrix written in `out`: 'drawn'.
+   * In first person on that biped, the first-person rig's bone of the same name when it has one,
+   * else 'hidden' (nothing of him is drawn there). 'none' when no body is drawn for that slot
+   * (no such player, out of life, no Spartan model): the caller keeps its own placement.
+   */
+  attachBone?: (slot: number, node: number, out: THREE.Matrix4) => AttachBone
+
   /**
    * La lunette est-elle montée sur la vue 1re personne de l'image rendue (les bras retirés de
    * l'écran), lue à la même image ; `null` quand la scène ne la porte pas.

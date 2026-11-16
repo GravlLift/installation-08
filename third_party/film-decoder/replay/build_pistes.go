@@ -210,6 +210,7 @@ func (a *assemblage) poserTirsProjectilesEtGrenades() {
 	var projTronquees int
 	a.doc.Projectiles, pubProjByRaw, projTronquees = buildProjectiles(a.opt.Projectiles, a.origin, a.step,
 		a.opt.Detonations, a.opt.Fallbacks)
+	poserLesAttaches(a.doc.Projectiles, pubProjByRaw, a.opt.Projectiles, a.opt.ProjectileAttaches, a.origin, a.step) // LOCAL-CHANGE (infinite-theater-3d)
 	// LA COUVERTURE DES PROJECTILES EST CONSTRUITE ICI mais POSEE plus bas : `doc.Coverage`
 	// n'existe qu'apres `buildCoverage`. Nil quand aucune piste n'est fournie — un film sans
 	// projectile ne publie pas trois zeros.

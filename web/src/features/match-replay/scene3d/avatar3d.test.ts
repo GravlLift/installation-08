@@ -6,7 +6,7 @@ import { spartanSkeleton } from '../test/spartanSkeleton'
 import type { Coat } from './armorCoat3d'
 import { neutralPaint } from './armorCoating3d'
 import { ARMURE_NEUTRE, packPaint } from './armorMaterial3d'
-import { makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan } from './avatar3d'
+import { attachBoneOf, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan } from './avatar3d'
 import { packAtlas } from './bakedLight'
 import { BakedLight } from './bakedLightShader'
 import type { BodyFxState } from './bodyShell3d'
@@ -303,5 +303,48 @@ describe('showWeapon avec le revêtement de l’arme', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(a.weaponCoat).toBeNull()
     expect((a.model!.children[0] as THREE.Mesh).material).toBe(mat)
+  })
+})
+
+describe('attachBoneOf — the bone a stuck projectile rides (schema 128)', () => {
+  const POSE = { h: 0, p: 0, crouch: false, dropOeil: 0 }
+  // The test Spartan's skin joints: 0 b_pedestal, 1 b_pelvis, 2-4 b_spine1-3, 5 b_head, 6 b_r_grip.
+  const HEAD = 5
+
+  function placed() {
+    const a = makeAvatar(new THREE.Scene(), 'p', TEAM)
+    wearSpartan(a, spartanSource())
+    placeBody(a, FEET, POSE, false)
+    return a
+  }
+
+  it('third person: the world matrix of the skin joint of that rank, on the posed body', () => {
+    const a = placed()
+    const m = new THREE.Matrix4()
+    expect(attachBoneOf(a, HEAD, false, null, m)).toBe('drawn')
+    const at = new THREE.Vector3().setFromMatrixPosition(m)
+    expect([at.x, at.y, at.z].map((v) => +v.toFixed(6))).toEqual([2, 1.65, 3])
+  })
+
+  it('first person: the arms rig bone of the same name, else hidden', () => {
+    const a = placed()
+    const m = new THREE.Matrix4()
+    const asked: string[] = []
+    const rig = (name: string, out: THREE.Matrix4) => (asked.push(name), out.makeTranslation(9, 9, 9), name === 'b_r_grip')
+    expect(attachBoneOf(a, HEAD, true, rig, m)).toBe('hidden')
+    expect(attachBoneOf(a, 6, true, rig, m)).toBe('drawn')
+    expect(asked).toEqual(['b_head', 'b_r_grip'])
+    expect(new THREE.Vector3().setFromMatrixPosition(m).x).toBe(9)
+    expect(attachBoneOf(a, HEAD, true, null, m)).toBe('hidden')
+  })
+
+  it('none without a drawn Spartan or such a joint', () => {
+    const m = new THREE.Matrix4()
+    expect(attachBoneOf(undefined, HEAD, false, null, m)).toBe('none')
+    expect(attachBoneOf(makeAvatar(new THREE.Scene(), 'q', TEAM), HEAD, false, null, m)).toBe('none')
+    const a = placed()
+    expect(attachBoneOf(a, 95, false, null, m)).toBe('none')
+    a.group.visible = false
+    expect(attachBoneOf(a, HEAD, false, null, m)).toBe('none')
   })
 })

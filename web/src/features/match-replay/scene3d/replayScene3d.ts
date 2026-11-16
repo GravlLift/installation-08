@@ -32,7 +32,7 @@ import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { SpartanArmory } from './armory3d'
-import { drawnWeapon, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
+import { attachBoneOf, drawnWeapon, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
 import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
@@ -117,6 +117,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private view: SceneView3d = '3d'
   /** The top-down view, built when the map is attached; null without a map. */
   private top: TopDownView3d | null = null
+  /** The player drawn for each biped slot at the posed frame, and whether he is the first-person view (ttachBone). */
+  private readonly drawnSlots = new Map<number, { xuid: string; firstPerson: boolean }>()
   private topPlayers: MarkerPose[] = []; private topDead: DeadPose[] = [] // the living and the dead, posed for the top-down view and the minimap
   /** The player the top-down view follows and rings: the page's viewpoint, null in free camera. */
   private topFollowed: string | null = null
@@ -273,6 +275,10 @@ export class ReplayScene3d implements Replay3DExportSource {
       rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,
       rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false, firstPersonLeftHand: (out) => this.bras?.mainGaucheMonde(out) ?? null,
       scopeMounted: () => this.scopeView.montee,
+      attachBone: (slot, node, out) => {
+        const d = this.drawnSlots.get(slot)
+        return d ? attachBoneOf(this.avatars.get(d.xuid), node, d.firstPerson, this.bras ? (name, m) => this.bras?.osMonde(name, m) ?? false : null, out) : 'none'
+      },
       weaponLibrary: () => this.weaponModels?.base ?? null,
       firstPersonEffectAnchor: (key, marker, out) => this.bras?.ancreEffet(key, marker, out) ?? false,
       weaponClipSeconds: (key, action) => this.bras?.dureeClip(key, action) ?? null,
@@ -641,6 +647,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post.outline.begin()
     this.topPlayers.length = 0
     this.topDead.length = 0
+    this.drawnSlots.clear()
     const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position // the name-tag eye: the drawing camera
     for (const p of tracks.players) {
       const a = this.avatars.get(p.xuid)
@@ -660,6 +667,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.buildAvatar(p.xuid, a)
       const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, dropOeil: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
       placeBody(a, feet, pose, firstPerson, this.lighting.probeAt(feet))
+      if (s) this.drawnSlots.set(s.slot, { xuid: p.xuid, firstPerson })
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
       if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null // the camo fades his own first-person arms and weapon too

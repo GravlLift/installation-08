@@ -371,6 +371,20 @@ export class BrasPremierePersonne3d {
   }
 
   /**
+   * osMonde: the world matrix of bone `nom` of the visible rig at the rendered frame, written in
+   * `out`; false without a visible rig or when it has no bone of that name (the arms rig carries the
+   * arms and hands, not the body).
+   */
+  osMonde(nom: string, out: THREE.Matrix4): boolean {
+    if (!this.visible) return false
+    const os = this.visible.getObjectByName(nom)
+    if (!os) return false
+    os.updateWorldMatrix(true, false)
+    out.copy(os.matrixWorld)
+    return true
+  }
+
+  /**
    * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
    * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
    * frame. False when that weapon's rig is not the one shown, or lacks the marker or its bone.
