@@ -272,6 +272,17 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     end: an 8.4 m girder ran 5.9 m out of a base's front and a beam ran along its floor like a
     curb. Ekur scales by the stored scale too and draws them the same way. Covered by
     `himap/telescopage_forge_test.go` (modified).
+  - `himap/telescopage_forge.go` (LOCAL-CHANGE, modified): a type that telescopes on every axis
+    (no axis on which all its sizes agree, `telescopage.libre`) is stretched about its model's
+    box centre on every axis, the reference resizing the model or not. Origin's pad cylinders
+    (type 1720205523) rose 0.5 m through the pads from their foot; centred, their tops are the
+    surfaces players stand on. Measured with `internal/meshbuild/solids_gamefiles_test.go`
+    (players inside placed solids, 15 stored matches): Origin 948 / 150 feet / torso samples
+    -> 12 / 94, Outlook 1861 / 1 -> 3 / 1, Solitude 47 / 100 -> 44 / 96, no map higher.
+    Covered by `himap/telescopage_forge_test.go` (modified).
+  - `himap/maillage_variante.go` (LOCAL-CHANGE, modified): `CollecteSolidesVariante` places a
+    variant's objects without resolving materials or textures (shared with
+    `CollecteMaillageVariante` through `poseGeometrieVariante`), for that measurement.
   - Forge style materials drawn as Ekur's HIMS shader does (`hims.py`, `layered_shader.py`,
     `infinite_masking_sorter.py`, `forge_map_operator.py`; TheHaloArchive, GPL-3.0-or-later):
     - `himap/couches_style.go` (modified), `couches.go`, `materiaux.go`: every zone of a style

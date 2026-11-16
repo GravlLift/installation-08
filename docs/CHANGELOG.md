@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Changes since 0.1.0-test.13.
+
+- Origin's spawn-end pads no longer carry round sand-colored stacks rising half a meter above them: the Forge cylinders under each pad are sized about their center, as the game does, and now form the pad's stepped top where players stand. The same fix lowers two floor blocks on Outlook and a few cylinders on Solitude to the surface players walk on. Takes effect once the Forge layer is rebuilt.
+
 ## 0.1.0-test.13
 
 Changes since 0.1.0-test.12.
