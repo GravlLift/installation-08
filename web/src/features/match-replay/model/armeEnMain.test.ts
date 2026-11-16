@@ -122,6 +122,36 @@ describe('the spawn hand', () => {
   })
 })
 
+describe('a pickup that the next keyframe row leaves unnamed', () => {
+  // The Streets case (ee234787, slot 516): a pickup into emplacement 1 at 30, the selector flips
+  // to it at 30, and every later keyframe row (read at 40) still names only the spawn weapon.
+  function pickupDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 100)],
+      loadouts: [{ t: 40, slot: 512, w: ['0xAAAA'] }],
+      weaponChanges: [{ t: 30, slot: 512, kind: 'taken', w: 'adb78225', k: 1 }],
+      drawnWeapons: [{ t: 30, slot: 512, d: 1 }],
+      ...over,
+    })
+  }
+
+  it('holds the picked weapon after the row is read', () => {
+    expect(armeEnMain(pickupDoc(), 512, 60)).toEqual({ id: '0xADB78225', slotArme: 1 })
+  })
+
+  it('holds it between the pickup and the row read too', () => {
+    expect(armeEnMain(pickupDoc(), 512, 35)).toEqual({ id: '0xADB78225', slotArme: 1 })
+  })
+
+  it('never borrows a pickup from an earlier life', () => {
+    const doc = pickupDoc({
+      tracks: [track(512, 'A', 0, 20), track(512, 'A', 25, 100)],
+      weaponChanges: [{ t: 10, slot: 512, kind: 'taken', w: 'adb78225', k: 1 }],
+    })
+    expect(armeEnMain(doc, 512, 60)).toBeNull()
+  })
+})
+
 describe('a life without any loadout reading', () => {
   /** A life over frames 0-100, flipped to emplacement 1 at 30, that fires the C weapon at 60. */
   function bareDoc(over: Partial<ReplayDocument> = {}) {
