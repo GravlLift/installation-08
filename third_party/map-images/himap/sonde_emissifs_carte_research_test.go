@@ -471,8 +471,277 @@ func TestSondeBilanEmissifs(t *testing.T) {
 		for _, k := range cles {
 			t.Logf("  %s : %d emettent", k, parShader[k].emet)
 		}
+		// Animated parameters of the emitters: per shader, role, kind and function.
+		roles := map[string]int{}
+		animes := map[string]int{}
+		for id, m := range table {
+			if m.Emissif == nil {
+				continue
+			}
+			tag, err := idxMat.Extract(id)
+			if err != nil {
+				continue
+			}
+			pp, _ := sondePostprocess(tag)
+			registre := -1
+			if r, ok := pp.transfos[m.Emissif.octets.emplacement]; ok && m.Emissif.octets.emplacement >= 0 {
+				registre = r
+			}
+			if len(m.Emissif.Animations) > 0 {
+				animes[fmt.Sprintf("%08x", m.Shader)]++
+			}
+			for _, p := range pp.animes {
+				ondes := ""
+				for _, s := range p.Fonction.Periodiques {
+					ondes += fmt.Sprintf("/%d@%.3g", s.Onde, s.Frequence)
+				}
+				k := fmt.Sprintf("%08x %-8s sorte=%d @%d reg%d fn=%d%s", m.Shader, roleAnimation(m.Emissif.octets, registre, p), p.Sorte, p.Octet, registre, p.Fonction.Type, ondes)
+				roles[k]++
+				if r := roleAnimation(m.Emissif.octets, registre, p); r == "couleur" || r == "fonction" {
+					t.Logf("      detail %08x %s : %+v", id, r, p.Fonction)
+				}
+			}
+		}
+		for k, v := range animes {
+			t.Logf("  anime %s : %d materiaux", k, v)
+		}
+		cr := make([]string, 0, len(roles))
+		for k := range roles {
+			cr = append(cr, k)
+		}
+		sort.Strings(cr)
+		for _, k := range cr {
+			t.Logf("    %s : %d", k, roles[k])
+		}
 		_ = idxMat.Close()
 		_ = idxGeo.Close()
+	}
+}
+
+// TestSondeBlocsMateriau dumps, for the materials IT3D_SONDE_MATS (hex ids) of IT3D_SONDE_MODULE,
+// the postprocess record and every block nested under it (field offset, size, section, bytes),
+// recursively, into IT3D_SONDE_OUT.
+func TestSondeBlocsMateriau(t *testing.T) {
+	racine, err := DeployRoot()
+	if err != nil {
+		t.Skip(err)
+	}
+	mod, sortie := os.Getenv("IT3D_SONDE_MODULE"), os.Getenv("IT3D_SONDE_OUT")
+	if mod == "" || sortie == "" || os.Getenv("IT3D_SONDE_MATS") == "" {
+		t.Skip("IT3D_SONDE_MODULE, IT3D_SONDE_OUT, IT3D_SONDE_MATS")
+	}
+	if !filepath.IsAbs(mod) {
+		mod = filepath.Join(racine, mod)
+	}
+	mats, err := CheminsMateriaux(racine, mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, err := NewModuleIndex(mats...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+	var b strings.Builder
+	var dump func(ti tagInfo, bloc, prof int)
+	dump = func(ti tagInfo, bloc, prof int) {
+		// Struct-table entries of another kind under this block (data references...).
+		for i := 0; i < ti.structs; i++ {
+			e := ti.structTab + i*structEntrySize
+			if sorte := u16(ti.tag, e+0x10); sorte != 1 && i32(ti.tag, e+0x18) == bloc {
+				c := i32(ti.tag, e+0x14)
+				fmt.Fprintf(&b, "%s[entree sorte %d, champ +%d, cible %d]", strings.Repeat("  ", prof), sorte, u32(ti.tag, e+0x1C), c)
+				if c >= 0 && c < ti.dataBlocks {
+					abs, size := ti.blockAbsSection(c)
+					fmt.Fprintf(&b, " %d o : %x", size, ti.tag[abs:min(abs+size, len(ti.tag), abs+512)])
+				}
+				b.WriteString("\n")
+			}
+		}
+		// Data references (0x14 o after the struct table: parent struct, ?, target block, field
+		// block, field offset) whose field lives in this block.
+		if h := sondeEnteteH(ti); h > 0 {
+			nRef := u32(ti.tag, h-0x14)
+			tab := ti.structTab + ti.structs*structEntrySize
+			for i := 0; i < nRef && tab+(i+1)*0x14 <= len(ti.tag); i++ {
+				e := tab + i*0x14
+				if i32(ti.tag, e+12) != bloc {
+					continue
+				}
+				c := i32(ti.tag, e+8)
+				fmt.Fprintf(&b, "%s[donnees champ +%d, cible %d]", strings.Repeat("  ", prof), u32(ti.tag, e+16), c)
+				if c >= 0 && c < ti.dataBlocks {
+					abs, size := ti.blockAbsSection(c)
+					fmt.Fprintf(&b, " %d o : %x", size, ti.tag[abs:min(abs+size, len(ti.tag), abs+512)])
+				}
+				b.WriteString("\n")
+			}
+		}
+		sous := ti.sousBlocsParOffset(bloc)
+		offs := make([]int, 0, len(sous))
+		for o := range sous {
+			offs = append(offs, o)
+		}
+		sort.Ints(offs)
+		for _, o := range offs {
+			c := sous[o]
+			if c < 0 || c >= ti.dataBlocks {
+				fmt.Fprintf(&b, "%s+%d -> (vide)\n", strings.Repeat("  ", prof), o)
+				continue
+			}
+			abs, size := ti.blockAbsSection(c)
+			sec := u16(ti.tag, ti.blockTab+c*blockEntrySize+6)
+			fin := min(abs+size, len(ti.tag), abs+1024)
+			fmt.Fprintf(&b, "%s+%d -> bloc %d, %d o, section %d : %x\n", strings.Repeat("  ", prof), o, c, size, sec, ti.tag[abs:fin])
+			dump(ti, c, prof+1)
+		}
+	}
+	for _, h := range strings.Split(os.Getenv("IT3D_SONDE_MATS"), ",") {
+		var id uint32
+		if _, err := fmt.Sscanf(strings.TrimSpace(h), "%x", &id); err != nil {
+			continue
+		}
+		tag, err := idx.Extract(id)
+		if err != nil {
+			fmt.Fprintf(&b, "== %08x : %v\n", id, err)
+			continue
+		}
+		for _, ti := range tagCandidates(tag) {
+			offs, targets, err := ti.rootBlockRefs()
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(&b, "== %08x\n", id)
+			for i, o := range offs {
+				if o != matOffPostprocess || targets[i] < 0 {
+					continue
+				}
+				abs, size := ti.blockAbs(targets[i])
+				fmt.Fprintf(&b, "postprocess %d o : %x\n", size, ti.tag[abs:abs+min(size, postprocessStride)])
+				dump(ti, targets[i], 1)
+			}
+			break
+		}
+	}
+	if err := os.WriteFile(sortie, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// sondeEnteteH: the header byte H where tagCandidates found (headerSize, dataSize); 0 if none.
+func sondeEnteteH(ti tagInfo) int {
+	for h := tagHeaderScanFrom; h <= tagHeaderScanTo && h+8 <= len(ti.tag); h += 4 {
+		if u32(ti.tag, h) == ti.headerSize && u32(ti.tag, h+4) == ti.dataSize && u32(ti.tag, h-0x18) == ti.structs {
+			return h
+		}
+	}
+	return 0
+}
+
+// TestSondeAnimesDossier surveys the emitters of every GLB in the folder IT3D_SONDE_DOSSIER (the
+// weapon library, the first-person pieces), read through Recharge's module and the globals: how
+// many carry animated parameters, by shader and role.
+func TestSondeAnimesDossier(t *testing.T) {
+	racine, err := DeployRoot()
+	if err != nil {
+		t.Skip(err)
+	}
+	dossier := os.Getenv("IT3D_SONDE_DOSSIER")
+	if dossier == "" {
+		t.Skip("IT3D_SONDE_DOSSIER")
+	}
+	glbs, _ := filepath.Glob(filepath.Join(dossier, "*.glb"))
+	vus := map[uint32]bool{}
+	var ids []uint32
+	for _, g := range glbs {
+		for _, m := range sondeLitGLB(t, g) {
+			if !vus[m.Extras.ID] && len(m.Emissive) > 0 {
+				vus[m.Extras.ID] = true
+				ids = append(ids, m.Extras.ID)
+			}
+		}
+	}
+	mod := filepath.Join(racine, "pc", "levels", "multi", "sgh_blueprint", "sgh_blueprint-rtx-new.module")
+	mats, _ := CheminsMateriaux(racine, mod)
+	idxMat, err := NewModuleIndex(mats...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idxMat.Close()
+	geo, _ := GeometrySearchPathMonde(racine, mod)
+	idxGeo, err := NewModuleIndex(geo...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idxGeo.Close()
+	table, illisibles := LitMateriaux(idxMat, idxGeo, ids)
+	roles := map[string]int{}
+	for id, m := range table {
+		if m.Emissif == nil {
+			continue
+		}
+		tag, err := idxMat.Extract(id)
+		if err != nil {
+			continue
+		}
+		pp, _ := sondePostprocess(tag)
+		registre := -1
+		if r, ok := pp.transfos[m.Emissif.octets.emplacement]; ok && m.Emissif.octets.emplacement >= 0 {
+			registre = r
+		}
+		for _, p := range pp.animes {
+			roles[fmt.Sprintf("%08x %-8s sorte=%d @%d fn=%d", m.Shader, roleAnimation(m.Emissif.octets, registre, p), p.Sorte, p.Octet, p.Fonction.Type)]++
+		}
+	}
+	t.Logf("%d GLB, %d emetteurs, %d lus, %d illisibles", len(glbs), len(ids), len(table), illisibles)
+	for k, v := range roles {
+		t.Logf("  %s : %d", k, v)
+	}
+}
+
+// TestSondeNomsCombines hashes prefix + word [+ "_" + word] for the prefixes and words of the
+// files IT3D_SONDE_PREFIXES and IT3D_SONDE_MOTS (one per line) against IT3D_SONDE_CIBLES.
+func TestSondeNomsCombines(t *testing.T) {
+	fp, fm, cibles := os.Getenv("IT3D_SONDE_PREFIXES"), os.Getenv("IT3D_SONDE_MOTS"), os.Getenv("IT3D_SONDE_CIBLES")
+	if fp == "" || fm == "" || cibles == "" {
+		t.Skip("IT3D_SONDE_PREFIXES, IT3D_SONDE_MOTS, IT3D_SONDE_CIBLES")
+	}
+	lignes := func(f string) []string {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, l := range strings.Split(strings.ReplaceAll(string(b), "\r", ""), "\n") {
+			out = append(out, strings.TrimSpace(strings.TrimPrefix(l, string(rune(0xFEFF)))))
+		}
+		return out
+	}
+	cible := map[uint32]bool{}
+	for _, h := range strings.Split(cibles, ",") {
+		var v uint32
+		if _, err := fmt.Sscanf(strings.TrimSpace(h), "%x", &v); err == nil {
+			cible[v] = true
+		}
+	}
+	mots := lignes(fm)
+	essai := func(s string) {
+		if h := uint32(mapvar.LabelHash(s)); cible[h] {
+			t.Logf("%08x = %s", h, s)
+		}
+	}
+	for _, p := range lignes(fp) {
+		for _, a := range mots {
+			if a == "" {
+				continue
+			}
+			essai(p + a)
+			for _, b := range mots {
+				if b != "" {
+					essai(p + a + "_" + b)
+				}
+			}
+		}
 	}
 }
 
@@ -480,8 +749,15 @@ func TestSondeBilanEmissifs(t *testing.T) {
 // on IT3D_SONDE_CIBLES (hex hashes).
 func TestSondeNomsShader(t *testing.T) {
 	noms, cibles := os.Getenv("IT3D_SONDE_NOMS"), os.Getenv("IT3D_SONDE_CIBLES")
+	if f := os.Getenv("IT3D_SONDE_NOMS_FICHIER"); f != "" {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		noms = strings.ReplaceAll(strings.ReplaceAll(string(b), "\r", ""), "\n", ",")
+	}
 	if noms == "" || cibles == "" {
-		t.Skip("IT3D_SONDE_NOMS, IT3D_SONDE_CIBLES")
+		t.Skip("IT3D_SONDE_NOMS (or IT3D_SONDE_NOMS_FICHIER), IT3D_SONDE_CIBLES")
 	}
 	for _, n := range strings.Split(noms, ",") {
 		h := fmt.Sprintf("%08x", uint32(mapvar.LabelHash(strings.TrimSpace(n))))

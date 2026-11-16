@@ -334,6 +334,11 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 		if mat.Emissif.Image && g.EmissiveFactor != nil {
 			g.Extras["emissionImage"] = true
 		}
+		// The game's animated parameters of the light (emissif_fonctions.go): a viewer without
+		// them draws the still light.
+		if len(mat.Emissif.Animations) > 0 && g.EmissiveFactor != nil {
+			g.Extras["emissionAnim"] = mat.Emissif.Animations
+		}
 	}
 	aDecoupe := mat.Decoupe != nil
 	var masque *Texture

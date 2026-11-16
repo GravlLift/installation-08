@@ -196,6 +196,16 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     folded into its color. On Streets, 257 materials emit instead of 35. Covered by
     `himap/emissif_test.go`, `himap/emissif_noms_gamefiles_test.go` (new, eight Streets materials)
     and the probe `himap/sonde_emissifs_carte_research_test.go` (new, `gamefiles research`).
+  - `himap/emissif_fonctions.go` (new), `himap/emissif.go`, `himap/decoupe.go`,
+    `himap/materiaux.go`, `himap/glb.go`, `himap/sbsp.go` (LOCAL-CHANGE): a material's animated
+    parameters (postprocess function block at +24, routing at +44, each function's bytes through
+    the tag's data-reference table, whose count `tagInfo.dataRefs` now keeps) are read, and the
+    time-driven periodic ones that move the light (its intensity, amount or opacity, the
+    transform of its texture's register, its color gradient) are written as
+    `extras.emissionAnim`. Object-driven inputs, constant and spline functions, and functions on
+    the light's other textures (scanlines, noise) are left out. Covered by
+    `himap/emissif_fonctions_test.go` and `himap/emissif_fonctions_gamefiles_test.go` (new, six
+    Streets materials); the probe gains a block dump and a survey of the animated parameters.
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the
