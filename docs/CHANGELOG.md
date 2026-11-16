@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-test.16
 
 Changes since 0.1.0-test.15.
+
+Highlights:
+- Sticky grenades ride the player they hit.
 
 - A plasma or spike grenade stuck to a player rides on the part of the body it hit (a foot, the torso, the helmet, a hand) until it explodes, instead of staying where it hit. Takes effect once the match is rebuilt.
 
