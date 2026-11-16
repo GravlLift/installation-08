@@ -17,8 +17,14 @@ engineering backlog; this page keeps only the user-visible parts of it.
   MB) are ever visible to a player; they have not yet been removed or thinned.
 - Terrain material blending, its hole mask, and the Aquarius table's side color still don't
   match the game exactly.
-- Map files are large: 600–900 MB per map, mostly texture data. There is no lower-detail
-  build option yet.
+- Map files are large: up to about 850 MB per map at Standard and 1.4 GB at High (Streets),
+  mostly texture data. The first build of a large map takes minutes (Streets: about 2 minutes
+  Standard, 8 minutes High), and the first start after an update rebuilds the weapon and
+  first-person libraries in the background.
+- Origin: round sand-colored discs still sit on top of some round metal pads, and its
+  surrounding hills draw snowy where the game shows brown rock and green hills.
+- Signs, screens and holograms are lit but still: their scanlines, flicker and scrolling are
+  not drawn. One Streets sign (BUENA) still draws nothing.
 - A stored match built before a recent fix may still show the old (incorrect) version of a
   map or variant; rebuilding it picks up the fix.
 
@@ -29,6 +35,9 @@ engineering backlog; this page keeps only the user-visible parts of it.
   checked by ear in a real match. Shell-loading weapons (Cindershot, Heatwave, Hydra) play
   one loading sound per reload regardless of how many shells are loaded; the battery weapons'
   vent sound is silent.
+- Footsteps all use the game's default surface (no grass, metal or water variants yet), and
+  their step rate is estimated from speed. The slide's exit whoosh is silent.
+- The Shock Rifle's blue electric arcs around its open shroud are not drawn.
 - The announcer's objective calls (flag, bomb, hill) have not yet been checked in an actual
   match recording.
 
@@ -65,6 +74,8 @@ engineering backlog; this page keeps only the user-visible parts of it.
 - A 3D export renders every frame in full, so a long match at 1080p 60 fps can take somewhat
   longer than the match itself.
 - Cancel during "Preparing" takes effect once the sound mix finishes rather than immediately.
+- Player name tags in an exported video are drawn larger than on screen, and which players
+  are named can differ from the live view.
 
 ## Packaging
 

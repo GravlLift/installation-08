@@ -1,8 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-test.13
 
 Changes since 0.1.0-test.12.
+
+Highlights:
+- Footsteps, slides and landings, from the game's own sounds.
+- Night maps light up: signs, billboards, neon, screens and holograms.
+- Bloom, and Spartans lit by the map's lamps.
+- Glowing weapon light strips and ammo screens, and sharper weapons.
+- Origin and other Forge maps: sunlight, backdrop and Forerunner metal as in game.
+- A High texture quality setting, with GPU-compressed textures at a quarter of the memory.
+- Weapons stay in the players' hands.
+
+After updating, the weapon and first-person libraries and the sounds rebuild themselves in the background at the first start. A map or Forge layer built by an earlier version shows as outdated with a rebuild button, and its build shows its progress; a large map can take several minutes.
 
 - Texture quality setting (Standard / High) in the replay settings. High builds a separate, sharper map file the first time it is chosen.
 - Map and Forge variant textures are GPU-compressed (KTX2 / Basis Universal): about a quarter of the graphics memory. Maps built before keep working; rebuilding one compresses it. Map builds take longer (Streets: about 2 minutes Standard, 7 minutes High).
