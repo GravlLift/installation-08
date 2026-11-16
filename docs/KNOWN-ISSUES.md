@@ -36,8 +36,10 @@ engineering backlog; this page keeps only the user-visible parts of it.
   one loading sound per reload regardless of how many shells are loaded.
 - Footsteps all use the game's default surface (no grass, metal or water variants yet), and
   their step rate is estimated from speed.
-- The Shock Rifle's electricity in its barrel housing is not drawn yet, and its three-beam
-  shots are drawn by the viewer, not from the game's own effect. Other
+- The Shock Rifle's housing electricity comes from the game's own effect, but a few of its
+  details (how the effect loops, how particles spread from their emitters) are read as
+  closely as the data allows rather than exactly. Its three-beam shots are drawn by the
+  viewer, not from the game's own effect. Other
   weapons' particle effects (the Ravager's and Disruptor's glow, plasma impacts) are not
   drawn.
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the
