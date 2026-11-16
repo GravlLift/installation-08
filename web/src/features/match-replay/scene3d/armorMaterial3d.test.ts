@@ -78,28 +78,10 @@ describe('armorMaterial', () => {
     m.onBeforeCompile(shader, {} as THREE.WebGLRenderer)
     expect(shader.fragmentShader).toContain('ArmorZone armor = armorPaint();')
     expect(shader.fragmentShader).toContain('roughnessFactor = clamp(armor.rough')
-    expect(shader.fragmentShader).toContain('totalEmissiveRadiance += armor.glow;')
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance += armor.col * armor.emis;')
     expect(shader.fragmentShader).not.toContain('uRim')
     expect(shader.vertexShader).toContain('vArmorUv = armorUv;')
     expect(Object.keys(shader.uniforms)).toContain('uPaint')
-  })
-
-  it("chaque zone émet sa couleur × sa quantité, et ces lumières se mêlent par le masque (linéaires)", () => {
-    // The Shock Rifle's coil: zone 7 (mask 1 blue) is the default style's blue swatch at emission
-    // 6, its mask a 0.1 to 0.8 falloff per coil turn. The light must follow the mask linearly
-    // (w x 6 x blue), not (mixed color) x (mixed amount), which squares the mask and tints the
-    // light with the base zone.
-    const m = armorMaterial(new THREE.MeshStandardMaterial(), input())
-    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader } as unknown as THREE.WebGLProgramParametersWithUniforms
-    m.onBeforeCompile(shader, {} as THREE.WebGLRenderer)
-    const f = shader.fragmentShader
-    expect(f).toContain('vec3 glow; }')
-    expect(f).toContain('uPaint[o + 4].a, col * uPaint[o + 1].a);')
-    expect(f).toContain('s.glow = mix(s.glow, z.glow, w);')
-    expect(f).toContain('s.glow *= asg.r;')
-    expect(f).not.toMatch(/armor\.col\s*\*\s*armor\.emis/)
-    // The neutral start emits nothing.
-    expect(f).toMatch(/#define ARMOR_NEUTRAL ArmorZone\(.*vec3\(0\.0\)\)/)
   })
 })
 

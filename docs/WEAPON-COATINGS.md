@@ -69,13 +69,6 @@ reported stale by `/api/coatings/status` and rebuilt in place by the normal buil
   table unreadable (all neutral), coating absent from the library (per-list default style), list
   not named by the coating, list unknown to the table (neutral), missing gradient image (neutral
   gradient), plus `armorCoating3d`'s own.
-- Self-lit paint: a swatch's `emissive` amount lights its zone (zone color x amount), blended by the
-  zone's mask like the other properties (`armorMaterial3d`). The Shock Rifle's coil is lit this
-  way and by nothing else: material c56eb325 (layered shader, no self-light of its own) names
-  intention 46ec02bd on its seventh zone (mask 1 blue), which the default style 328bf027 resolves
-  through the common region to a blue swatch at emission 6; its mask is a soft 0.1 to 0.8 falloff
-  per coil turn (`internal/spartanpieces/shockcoil_gamefiles_test.go`). A coating whose style does
-  not name 46ec02bd falls to the global layer (grey, emission 1.5) and the coil barely glows.
 
 ## What is missing
 
