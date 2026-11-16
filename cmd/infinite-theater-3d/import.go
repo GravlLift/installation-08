@@ -152,8 +152,9 @@ func buildStored(root *store.Root, matchID string, f importFlags) error {
 func rosterOf(doc replay.ReplayDocument, statsPath string) []store.Player {
 	var stats struct {
 		Players []struct {
-			Name string `json:"name"`
-			XUID string `json:"xuid"`
+			Name   string `json:"name"`
+			XUID   string `json:"xuid"`
+			TeamID int    `json:"teamId"`
 		} `json:"players"`
 	}
 	if statsPath != "" {
@@ -162,9 +163,11 @@ func rosterOf(doc replay.ReplayDocument, statsPath string) []store.Player {
 		}
 	}
 	byXUID := make(map[string]string, len(stats.Players))
+	teamByXUID := make(map[string]int, len(stats.Players))
 	for _, p := range stats.Players {
 		if p.XUID != "" {
 			byXUID[p.XUID] = p.Name
+			teamByXUID[p.XUID] = p.TeamID
 		}
 	}
 	out := make([]store.Player, 0, len(doc.Roster))
@@ -179,6 +182,10 @@ func rosterOf(doc replay.ReplayDocument, statsPath string) []store.Player {
 		}
 		if e.Team != nil {
 			pl.TeamID = *e.Team
+		} else if t, ok := teamByXUID[e.XUID]; ok && e.XUID != "" {
+			// The film did not name this player's team (27de812c: Mikeyy AB): Halo's own match
+			// stats do. Without this the player defaulted to team 0 and a 4v4 listed as 5v3.
+			pl.TeamID = t
 		}
 		out = append(out, pl)
 	}
