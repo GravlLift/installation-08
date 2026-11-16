@@ -91,7 +91,12 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   const onFetched = useCallback(() => setAttempt((n) => n + 1), [])
   // The texture-quality preference: the pre-game checks and builds the map at this quality, so
   // the viewer the screen hands off to loads the same files it was told were ready.
-  const { quality } = useTextureQuality()
+  // Only the quality AT MOUNT: a switch made later in the viewer's settings is the viewer's own
+  // to handle (its in-viewer build gate). Following it here re-ran the document load, dropped the
+  // live viewer while the document reloaded, and a live pre-game renders nothing but that viewer:
+  // the whole page went blank and never came back.
+  const { quality: liveQuality } = useTextureQuality()
+  const [quality] = useState(liveQuality)
   const state = useMatchDocument(matchId, attempt, quality)
   const summary = useMatchSummary(matchId, attempt)
   const auth = useAuthState()
