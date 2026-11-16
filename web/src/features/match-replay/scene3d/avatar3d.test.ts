@@ -7,6 +7,8 @@ import type { Coat } from './armorCoat3d'
 import { neutralPaint } from './armorCoating3d'
 import { ARMURE_NEUTRE, packPaint } from './armorMaterial3d'
 import { makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan } from './avatar3d'
+import { packAtlas } from './bakedLight'
+import { BakedLight } from './bakedLightShader'
 import type { BodyFxState } from './bodyShell3d'
 import { registerSpartanClips } from './clips3d'
 import { newClipMix } from './clipSample3d'
@@ -98,6 +100,22 @@ describe('wearSpartan', () => {
     showWeapon(a, null, null, null)
     expect(a.body.visible).toBe(false)
     expect(a.spartan?.rig.root.visible).toBe(true)
+  })
+
+  it('éclaire l’armure des lampes de la carte, comme la rue où le joueur se tient', () => {
+    const lamp = { kind: 'omni' as const, position: new THREE.Vector3(), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy: 1, range: 2, cone: [0, 90] as [number, number] }
+    const light = new BakedLight([], packAtlas([]), 1, [lamp])
+    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    wearSpartan(a, spartanSource(), null, light)
+    const armor = (a.spartan?.materials ?? []).filter((m) => m instanceof THREE.MeshStandardMaterial)
+    expect(armor.length).toBeGreaterThan(0)
+    for (const m of armor) {
+      const shader = { uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <lights_pars_begin>\n#include <lights_fragment_begin>\n#include <lights_fragment_maps>' }
+      m.onBeforeCompile(shader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
+      expect(shader.fragmentShader).toContain('RE_Direct(clusteredLamp')
+    }
+    wearSpartan(a, null)
+    light.dispose()
   })
 
   it('double l’armure d’une coque d’énergie au même squelette, éteinte sans effet, libérée avec la copie', () => {

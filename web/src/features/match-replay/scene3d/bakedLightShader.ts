@@ -6,7 +6,8 @@
  * trilinéaire × face × sonde active) pondérée par sa rampe de bord ; ce qu'aucune région ne couvre
  * garde l'éclairage indirect de la vue (ciel, sondes capturées), et une région plus sombre que lui
  * en garde une part (`BAKED_LIFT`). La lumière directe (soleil) n'est
- * pas touchée. Les lampes en grille partagent l'atlas et l'interrupteur sans recompilation.
+ * pas touchée. Les lampes en grille partagent l'atlas et l'interrupteur sans recompilation, et
+ * éclairent tout matériau greffé, la carte comme les Spartans.
  */
 import * as THREE from 'three'
 import { appendLampData, buildLampGrid } from './clusteredLights'
@@ -213,8 +214,14 @@ export class BakedLight {
     }
   }
 
-  /** apply greffe la lumière cuite sur un matériau standard de la carte (à faire avant sa compilation). */
-  apply(material: THREE.Material, lamps = false): void {
+  /**
+   * apply greffe la lumière cuite sur un matériau standard (à faire avant sa compilation) : la
+   * carte, son calque, et tout ce qui s'y tient (Spartans, corps, bras et arme à la première
+   * personne). The map's placed lamps come with it on every material: on a night map (Streets
+   * declares a sun of 0.05 against the 8 of a day map) they are almost all of the light on the
+   * ground, and a Spartan without them stood near black on a lamp-lit street.
+   */
+  apply(material: THREE.Material): void {
     const previous = material.onBeforeCompile
     const previousKey = material.customProgramCacheKey.bind(material)
     material.onBeforeCompile = (shader, renderer) => {
@@ -226,11 +233,11 @@ export class BakedLight {
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', `#include <common>${FRAGMENT_HEAD}`)
         .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>${FRAGMENT_APPLY}`)
-      if (lamps && this.hasLamps) {
+      if (this.hasLamps) {
         shader.fragmentShader = shader.fragmentShader.replace('#include <lights_pars_begin>', `#include <lights_pars_begin>${LAMP_HEAD}`).replace('#include <lights_fragment_begin>', `#include <lights_fragment_begin>${LAMP_APPLY}`)
       }
     }
-    material.customProgramCacheKey = () => `${previousKey()}|cuite-v3|lampes-${lamps && this.hasLamps}`
+    material.customProgramCacheKey = () => `${previousKey()}|cuite-v3|lampes-${this.hasLamps}`
   }
 
   set enabled(on: boolean) {

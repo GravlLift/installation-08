@@ -52,31 +52,43 @@ describe('BakedLight', () => {
   })
 })
 
-it('greffe les lampes seulement sur les matériaux demandés et partage leur interrupteur', () => {
-  const atlas = packAtlas([])
-  const lamps = [{ kind: 'omni' as const, position: new THREE.Vector3(), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy: 1, range: 2, cone: [0, 90] as [number, number] }]
-  const light = new BakedLight([], atlas, 1, lamps)
-  const shader = () => ({ uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <lights_pars_begin>\n#include <lights_fragment_begin>\n#include <lights_fragment_maps>' })
+const lampShader = () => ({ uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <lights_pars_begin>\n#include <lights_fragment_begin>\n#include <lights_fragment_maps>' })
+const oneLamp = () => [{ kind: 'omni' as const, position: new THREE.Vector3(), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy: 1, range: 2, cone: [0, 90] as [number, number] }]
+
+it('greffe les lampes sur chaque matériau, la carte comme un Spartan, et partage leur interrupteur', () => {
+  // A Spartan on a night map is lit by the same lamps as the street it stands on (Streets: the
+  // lamps are 96% of the light on the ground where the 0:39 corpse lies, the baked probes 4%).
+  const light = new BakedLight([], packAtlas([]), 1, oneLamp())
   const map = new THREE.MeshStandardMaterial()
-  const object = new THREE.MeshStandardMaterial()
-  light.apply(map, true)
-  light.apply(object)
-  const mapShader = shader(), objectShader = shader()
+  const spartan = new THREE.MeshStandardMaterial()
+  light.apply(map)
+  light.apply(spartan)
+  const mapShader = lampShader(), spartanShader = lampShader()
   map.onBeforeCompile(mapShader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
-  object.onBeforeCompile(objectShader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
-  expect(mapShader.fragmentShader).toContain('RE_Direct(clusteredLamp')
-  expect(objectShader.fragmentShader).not.toContain('RE_Direct(clusteredLamp')
+  spartan.onBeforeCompile(spartanShader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
+  for (const s of [mapShader, spartanShader]) expect(s.fragmentShader).toContain('RE_Direct(clusteredLamp')
+  expect(spartan.customProgramCacheKey()).toContain('|lampes-true')
   light.enabled = false
   expect(mapShader.uniforms.uBakedOn.value).toBe(0)
-  expect(objectShader.uniforms.uBakedOn.value).toBe(0)
+  expect(spartanShader.uniforms.uBakedOn.value).toBe(0)
+  light.dispose()
+})
+
+it('ne greffe aucune boucle de lampes quand la carte n’en publie pas', () => {
+  const light = new BakedLight([], packAtlas([]), 1)
+  const m = new THREE.MeshStandardMaterial()
+  light.apply(m)
+  const s = lampShader()
+  m.onBeforeCompile(s as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
+  expect(s.fragmentShader).not.toContain('RE_Direct(clusteredLamp')
+  expect(m.customProgramCacheKey()).toContain('|lampes-false')
   light.dispose()
 })
 
 it('crée un atlas pour des lampes sans sondes et aucun shader sans lumière', async () => {
   const parser = { getDependency: async () => new ArrayBuffer(0) }
   expect(await loadBakedLight({}, parser, 1)).toBeNull()
-  const lamps = [{ kind: 'omni' as const, position: new THREE.Vector3(), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy: 1, range: 2, cone: [0, 90] as [number, number] }]
-  const light = await loadBakedLight({}, parser, 1, lamps)
+  const light = await loadBakedLight({}, parser, 1, oneLamp())
   expect(light?.regions).toHaveLength(0)
   expect(light?.atlas.irradiance.type).toBe(THREE.FloatType)
   light?.dispose()
