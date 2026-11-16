@@ -13,6 +13,7 @@ package mapmesh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -47,6 +48,11 @@ type Target struct {
 	// map's own lighting options (mapvar.Lighting) override its canvas's sun.
 	SunIntensity *float64
 	SunColor     *[3]float64
+	// SunAzimuth and SunLatitude, when set, replace the scenario sun's azimuth and latitude
+	// (degrees, himap.DirectionSoleil): a Forge map's Sun Direction (mapvar.SunDirection). The
+	// direction is recomputed with the scenario's own hour angle and season.
+	SunAzimuth  *float64
+	SunLatitude *float64
 	// TextureCaps is the build's texture read sizes (himap.TextureCaps); zero is the standard
 	// caps (himap.CapsStandard), today's output.
 	TextureCaps himap.TextureCaps
@@ -251,8 +257,7 @@ func readLighting(ctx context.Context, t Target, m *himap.MaillageMonde) {
 		slog.ErrorContext(ctx, "scenario unreadable, mesh written without the game's lighting", "map", t.Key, "err", err)
 		return
 	}
-	m.Soleil = sunOf(ctx, t.Key, src)
-	overrideSun(m.Soleil, t)
+	m.Soleil = sunOf(ctx, t, src)
 	m.Sondes = probesOf(ctx, t.Key, src)
 	if m.Lumieres, err = himap.LitLumieres(src); err != nil {
 		slog.ErrorContext(ctx, "placed lights unreadable, mesh written without them", "map", t.Key, "err", err)
@@ -289,17 +294,54 @@ func probesOf(ctx context.Context, key string, src himap.SourcesLumiere) *himap.
 	return &s
 }
 
-// sunOf reads the map's sun. A map with no sun, or an unreadable one, comes out without it (the
-// viewer keeps its own setting).
-func sunOf(ctx context.Context, key string, src himap.SourcesLumiere) *himap.Soleil {
-	s, ok, err := himap.LitSoleil(src)
+// sunOf reads the map's sun, with the target's own settings over the scenario's (targetSun). A
+// map with no sun, or an unreadable one, comes out without it (the viewer keeps its own setting).
+func sunOf(ctx context.Context, t Target, src himap.SourcesLumiere) *himap.Soleil {
+	p, ok, err := sunParams(src)
 	if err != nil {
-		slog.ErrorContext(ctx, "sun unreadable, mesh written without a sun", "map", key, "err", err)
+		slog.ErrorContext(ctx, "sun unreadable, mesh written without a sun", "map", t.Key, "err", err)
 		return nil
 	}
+	if ok {
+		var s himap.Soleil
+		if s, ok = targetSun(p, t); ok {
+			return &s
+		}
+	}
+	slog.InfoContext(ctx, "map without a sun", "map", t.Key)
+	return nil
+}
+
+// sunParams reads the scenario's first dynamic sun as stored, like himap.LitSoleil: ok=false when
+// the scenario names no `dwsg` or the `dwsg` has no sun.
+func sunParams(src himap.SourcesLumiere) (himap.ParametresSoleil, bool, error) {
+	if src.EtatDuMonde == 0 {
+		return himap.ParametresSoleil{}, false, nil
+	}
+	if src.ModuleEtat == "" {
+		return himap.ParametresSoleil{}, false, fmt.Errorf("%s %#x not found", himap.GroupeEtatDuMonde, src.EtatDuMonde)
+	}
+	p, err := himap.LitParametresSoleil(src.ModuleEtat, src.EtatDuMonde)
+	if errors.Is(err, himap.ErrSansSoleil) {
+		return himap.ParametresSoleil{}, false, nil
+	}
+	return p, err == nil, err
+}
+
+// targetSun resolves the scenario sun `p` with the target's own azimuth and latitude (the hour
+// angle and season stay the scenario's), then its own intensity and color (overrideSun). ok=false
+// as himap.ParametresSoleil.Soleil: no described position, a sun switched off, or below the horizon.
+func targetSun(p himap.ParametresSoleil, t Target) (himap.Soleil, bool) {
+	if t.SunAzimuth != nil {
+		p.Azimut = *t.SunAzimuth
+	}
+	if t.SunLatitude != nil {
+		p.Latitude = *t.SunLatitude
+	}
+	s, ok := p.Soleil()
 	if !ok {
-		slog.InfoContext(ctx, "map without a sun", "map", key)
-		return nil
+		return himap.Soleil{}, false
 	}
-	return &s
+	overrideSun(&s, t)
+	return s, true
 }

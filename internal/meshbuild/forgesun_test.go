@@ -25,3 +25,18 @@ func TestForgeSun(t *testing.T) {
 		t.Fatal("nil lighting overrode the sun")
 	}
 }
+
+// TestForgeSunDirection: the variant's yaw and pitch become the sun's azimuth and latitude; no
+// Sun Direction keeps the canvas's.
+func TestForgeSunDirection(t *testing.T) {
+	az, lat := forgeSunDirection(&mapvar.Lighting{SunDirection: &mapvar.SunDirection{Yaw: 0, Pitch: 330}})
+	if az == nil || lat == nil || *az != 0 || *lat != 330 {
+		t.Fatalf("Origin's direction: %v %v", az, lat)
+	}
+	if az, lat := forgeSunDirection(&mapvar.Lighting{}); az != nil || lat != nil {
+		t.Fatal("absent direction overrode the canvas's")
+	}
+	if az, lat := forgeSunDirection(nil); az != nil || lat != nil {
+		t.Fatal("nil lighting overrode the canvas's direction")
+	}
+}

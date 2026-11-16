@@ -5,7 +5,11 @@ import { creerCiel, lireCiel, intensiteSoleil } from './ciel3d'
 describe('lireCiel', () => {
   it('ramène la lumière déclarée au soleil de plein jour, avec repli pour anciens fichiers', () => {
     expect(intensiteSoleil({ levelupSun: { intensity: 9 } })).toBe(1)
-    expect(intensiteSoleil({ levelupSun: { intensity: 0.05 } })).toBeCloseTo(0.05 / 8)
+    // Origin (Forge, fo08_wetland): sun 2, full daylight in game.
+    expect(intensiteSoleil({ levelupSun: { intensity: 2 } })).toBe(1)
+    expect(intensiteSoleil({ levelupSun: { intensity: 1 } })).toBeCloseTo(0.5)
+    // Streets: sun 0.05, night.
+    expect(intensiteSoleil({ levelupSun: { intensity: 0.05 } })).toBeCloseTo(0.05 / 2)
     expect(intensiteSoleil({ ciel: { sunIntensity: 0 } })).toBe(0)
     expect(intensiteSoleil({})).toBe(1)
   })

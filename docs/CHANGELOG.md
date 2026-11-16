@@ -16,6 +16,7 @@ Changes since 0.1.0-test.12.
 - Bloom: lamps and other self-lit surfaces glow (setting "Bloom", on by default).
 - Weapon light strips and ammo screens glow (BR75, Commando, Bandit, Plasma Pistol, Pulse Carbine, Stalker Rifle, Shock Rifle, Needler and others), in third and first person. They drew as black glass before. Takes effect once the weapon and first-person libraries are rebuilt.
 - Sharper weapons: weapon textures are read at twice the size (four times for the first-person weapon and arms) and GPU-compressed, so they still take less graphics memory than before. The first-person library on disk shrinks to about 40% of its size. Takes effect once the weapon and first-person libraries are rebuilt.
+- Forge maps: the sun comes from the map's own Sun Direction, not its base map's, and a weak declared sun no longer turns a daylight map toward night. Origin (sun intensity 2) was dark blue-grey and shadowless; Fortress, Vacancy and Origin take effect once their map is rebuilt. Native maps whose sun is between 2 and 8 (Outlook, Breaker, Forbidden and others) also draw at full daylight now.
 
 ## 0.1.0-test.12
 
