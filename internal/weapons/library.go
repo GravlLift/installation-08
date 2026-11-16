@@ -162,6 +162,10 @@ func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *In
 	if idx.Banners, err = readBanners(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
 		return fmt.Errorf("team banners: %w", err)
 	}
+	announce("reading weapon idle effects")
+	if idx.IdleEffects, err = readIdleEffects(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
+		return fmt.Errorf("idle effects: %w", err)
+	}
 	return nil
 }
 

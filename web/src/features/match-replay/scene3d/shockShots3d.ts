@@ -8,8 +8,8 @@
  * effect, not a projectile flight. The render model's marker set puts a `muzzle_flash` marker at
  * (0.374, 0, 0.043) in model space (X toward the barrel) and a cluster of un-named markers across
  * the shroud zone x ∈ [0.29, 0.40] (55990be4 at 0.306, f674aea6 at 0.368, and ee18be86 with three
- * instances at the front lip, (0.374..0.386, ±0.009, 0.041..0.043)) — the anchors the shroud arcs
- * in `shockArcs3d` hang on. The effect tags' particle colors read as an electric cyan with HDR
+ * instances at the front lip, (0.374..0.386, ±0.009, 0.041..0.043)). The shroud's own electricity
+ * is the weapon's idle effect, read from its tags (`weaponIdleEffects3d`). The effect tags' particle colors read as an electric cyan with HDR
  * channel peaks around 4.0; the exact beam count is NOT in the data the probe read, and the
  * owner confirmed the look from the game: three beams.
  *

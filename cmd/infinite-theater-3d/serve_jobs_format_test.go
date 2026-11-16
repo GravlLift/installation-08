@@ -153,7 +153,7 @@ func libraryIndex(t *testing.T, dir, module, schema string, fields bool) string 
 		body += `,"schema":` + schema
 	}
 	if fields {
-		body += `,"reticle_ranges":{},"banners":{},"equipment":{},"equipment_rule":2`
+		body += `,"reticle_ranges":{},"banners":{},"idle_effects":{},"equipment":{},"equipment_rule":2`
 	}
 	body += `}`
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {

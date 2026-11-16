@@ -93,6 +93,10 @@ type Index struct {
 	// Banners: per weapon model key, the team banner its model carries (banners.go). Always
 	// written, empty included: an index without the field predates it and is stale.
 	Banners map[string]Banner `json:"banners"`
+	// IdleEffects: per weapon model key, the particle effects its model carries while held
+	// (idle_effects.go: the Shock Rifle's electricity). Always written, empty included: an index
+	// without the field predates it and is stale.
+	IdleEffects map[string][]IdleEffect `json:"idle_effects"`
 	// Equipment: per equipment family of the title's manifest whose pad items share one model, the
 	// model key of that model (equipment.go), for the items a power-up or equipment pad publishes
 	// by family. Always written, empty included: an index without the field predates it and is
@@ -112,15 +116,16 @@ const EquipmentRuleCurrent = 2
 // (the models the library holds), so a library built by an older version of the app is
 // outdated and rebuilt by the normal build flow; an index without a schema (built before
 // schema versioning) is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy
-// parts) is read from its declared emissive_intensity and its tint map.
-const SchemaCurrent = 3
+// parts) is read from its declared emissive_intensity and its tint map. 4: the weapons' idle
+// particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files.
+const SchemaCurrent = 4
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
 	return Index{Schema: SchemaCurrent, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
 		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}, Equipment: map[string]string{},
-		EquipmentRule: EquipmentRuleCurrent}
+		IdleEffects: map[string][]IdleEffect{}, EquipmentRule: EquipmentRuleCurrent}
 }
 
 // IndexCurrent says whether a library index.json carries every field the view reads from it: the
@@ -135,10 +140,12 @@ func IndexCurrent(raw []byte) bool {
 			Magnifications json.RawMessage `json:"magnifications"`
 		} `json:"reticle_ranges"`
 		Banners       *map[string]json.RawMessage `json:"banners"`
+		IdleEffects   *map[string]json.RawMessage `json:"idle_effects"`
 		Equipment     *map[string]string          `json:"equipment"`
 		EquipmentRule int                         `json:"equipment_rule"`
 	}
-	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil || idx.Equipment == nil {
+	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil || idx.Equipment == nil ||
+		idx.IdleEffects == nil {
 		return false // a field was never written (a library older than it)
 	}
 	if idx.Schema < SchemaCurrent {

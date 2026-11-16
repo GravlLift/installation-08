@@ -25,6 +25,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
+	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
 // Options names a library build's inputs.
@@ -128,7 +129,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 			res.Skipped++
 			continue
 		}
-		idx.Weapons = append(idx.Weapons, Arme{Weapon: key, File: fichier})
+		idx.Weapons = append(idx.Weapons, Arme{Weapon: key, File: fichier, EffectMarkers: effectMarkers(ctx, a, s)})
 		if !parFichier[fichier] {
 			parFichier[fichier] = true
 			idx.Rigs = append(idx.Rigs, rig)
@@ -264,6 +265,44 @@ func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
 	}
 	for _, ac := range r.Actions {
 		out.Actions = append(out.Actions, Action{Action: ac.Action, Variant: ac.Variante, Clip: ac.Clip})
+	}
+	return out
+}
+
+// effectMarkers reads the markers the weapon's idle effects emit at (the effects its attachments
+// scale by a weapon function, like the weapons library's idle_effects) on its first-person model:
+// the rig carries that model's nodes as bones of the same name, and a bone's local frame is its
+// node's in GLB axes (the rig conjugates every node pose by the axis change). Never nil.
+func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) []EffectMarker {
+	out := []EffectMarker{}
+	raw, err := a.TagArme(s.Arme)
+	if err != nil {
+		return out
+	}
+	atts, err := weaponicons.ReadEffectAttachments(raw)
+	if err != nil {
+		return out
+	}
+	var effets []uint32
+	for _, at := range atts {
+		if at.PrimaryScale != 0 {
+			effets = append(effets, at.Effect)
+		}
+	}
+	noms := a.EmplacementsDesEffets(effets)
+	if len(noms) == 0 {
+		return out
+	}
+	ms, err := a.MarqueursDuModele(s.Mode, noms)
+	if err != nil {
+		slog.WarnContext(ctx, "first-person effect markers unreadable", "weapon", fmt.Sprintf("%08x", s.Arme), "err", err)
+		return out
+	}
+	for _, m := range ms {
+		if m.NomNoeud == "" {
+			continue
+		}
+		out = append(out, EffectMarker{Marker: fmt.Sprintf("%08x", m.Nom), Bone: m.NomNoeud, Position: axesGLTFFirstPerson(m.Translation)})
 	}
 	return out
 }

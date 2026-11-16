@@ -105,6 +105,16 @@ export interface ActionContext {
    * l'écran), lue à la même image ; `null` quand la scène ne la porte pas.
    */
   scopeMounted?: () => boolean
+  /** The served folder of the weapon library (its index and files), null until known. */
+  weaponLibrary?: () => string | null
+  /**
+   * The WORLD frame of the idle-effect marker `marker` of weapon `key` on the visible first-person
+   * rig (its bone's world matrix, then the marker's offset), written in `out`; false when the rig of
+   * that weapon is not shown or does not carry the marker.
+   */
+  firstPersonEffectAnchor?: (key: string, marker: string, out: THREE.Matrix4) => boolean
+  /** The length in seconds of the first-person clip `action` of weapon `key` (its rig index), null without one. */
+  weaponClipSeconds?: (key: string, action: string) => number | null
   /** Les lumières des éclairs brefs : l'ensemble les ouvre et les ferme autour des calques. */
   readonly flashes: FlashLights
   /** La lumière cuite de la carte (`lighting.takeGameLight`), greffée sur les armures des joueurs. */

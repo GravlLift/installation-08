@@ -13,6 +13,7 @@ import { Objectives3dLayer } from './objectives3d'
 import { Pickups3dLayer } from './pickups3d'
 import { Shots3dLayer } from './shots3d'
 import { Vehicles3dLayer } from './vehicles3d'
+import { WeaponIdleEffects3dLayer } from './weaponIdleEffects3d'
 
 export function buildActionScene(ctx: ActionContext): ActionScene3d {
   const layers = [
@@ -30,8 +31,8 @@ export function buildActionScene(ctx: ActionContext): ActionScene3d {
       },
     }),
     new Shots3dLayer(ctx),
-    // The Shock Rifle's shroud arcs (shockArcs3d.ts) are not drawn: the first version floated as a
-    // cloud of flat shards in front of the muzzle (owner, 2026-11-16) and is withdrawn until redone.
+    // The held weapons' idle particle effects (the Shock Rifle's electricity), from their tags.
+    new WeaponIdleEffects3dLayer(ctx),
     new Flights3dLayer(ctx),
     new Deaths3dLayer(ctx),
   ]
