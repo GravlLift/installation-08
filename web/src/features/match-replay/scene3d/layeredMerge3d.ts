@@ -99,13 +99,21 @@ function collect(meshes: readonly THREE.Mesh[]): { rows: Row[]; members: Member[
   return { rows, members }
 }
 
-/** textureFacts : la taille de l'image décodée et les réglages qui la rangent, null sans image lisible. */
-function textureFacts(t: THREE.Texture): TextureFacts | null {
+/**
+ * textureFacts : la taille de l'image décodée et les réglages qui la rangent, null sans image lisible.
+ * A compressed (KTX2) map has no decoded image: its size is its first level's, and it only shares
+ * an array with maps of the same compressed format (in `format`) and level count (they are copied
+ * as they are); one whose levels were already released is not readable.
+ */
+export function textureFacts(t: THREE.Texture): TextureFacts | null {
   const image = t.image as { width?: number; height?: number } | undefined
   if (!image?.width || !image.height) return null
+  const compressed = (t as THREE.CompressedTexture).isCompressedTexture === true
+  const levels = t.mipmaps?.length ?? 0
+  if (compressed && levels === 0) return null
   const settings = [
     t.colorSpace, t.wrapS, t.wrapT, t.magFilter, t.minFilter, t.anisotropy, t.generateMipmaps, t.flipY, t.premultiplyAlpha,
-    t.unpackAlignment, t.format, t.type,
+    t.unpackAlignment, t.format, t.type, compressed ? `compressed${levels}` : 'decoded',
   ].join('|')
   return { width: image.width, height: image.height, settings }
 }

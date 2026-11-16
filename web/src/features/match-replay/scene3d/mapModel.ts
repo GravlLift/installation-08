@@ -15,6 +15,7 @@
 import * as THREE from 'three'
 import { LoadingManager } from 'three'
 import { GLTFLoader, type GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
 import { buildBackFaces } from './backFaces3d'
@@ -24,6 +25,7 @@ import { batchLayered } from './layeredBatch3d'
 import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMaterial'
 import { convertLayered, MERGE_LAYERED, type LayeredMerge } from './layeredMerge3d'
 import { BATCHED_LIMITS, WEBGL2_LIMITS, type ArrayLimits } from './layeredPlan3d'
+import { withKtx2 } from './ktx2Textures3d'
 import { BAKED_INTENSITY, glowLevel, guardMaterial } from './lighting'
 import { dropMarkerObjects } from './markerObjects3d'
 import { readPlacedLights } from './placedLights'
@@ -177,9 +179,12 @@ export function teinteVerreTeint(couches: LayeredInfo): [number, number, number]
   return [somme[0] / couleurs.length, somme[1] / couleurs.length, somme[2] / couleurs.length]
 }
 
-/** loadMapModel décode le GLB de la carte et prépare ses matériaux ; `onStep` dit l'étape en cours. */
-export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback): Promise<MapModel> {
-  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null)
+/**
+ * loadMapModel décode le GLB de la carte et prépare ses matériaux ; `onStep` dit l'étape en cours.
+ * `ktx2`: the renderer's KTX2 loader (`createKtx2Loader`), for a GLB with compressed textures.
+ */
+export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null): Promise<MapModel> {
+  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2)
   const { scene, parser, owned, merge } = prepared
   // Dernière lecture du décodeur : après elle, le modèle n'en retient aucune référence et
   // les données de la pré-fusion qu'il tient (cf. `Prepared.parser`) sont ramassables.
@@ -211,11 +216,12 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback): P
 /**
  * loadLayerModel décode un calque posé sur la carte (les objets de la variante du match), préparé
  * comme elle. Il n'a pas de lumière propre : la lumière cuite de la carte (`light`, null si elle
- * n'en porte pas) est greffée sur ses matériaux, et reste à la carte qui la libère.
+ * n'en porte pas) est greffée sur ses matériaux, et reste à la carte qui la libère. `ktx2`: as for
+ * `loadMapModel`.
  */
-export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet): Promise<SurfaceModel> {
+export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
-  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null)
+  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2)
   if (light) for (const m of prepared.owned) light.apply(m, true)
   return indexSurfaces(prepared, onStep)
 }
@@ -328,14 +334,14 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
  * cachés. `mergeLimits` : les matériaux en couches opaques passent aux matériaux fusionnés
  * (`convertLayered`).
  */
-async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null = null): Promise<Prepared> {
+async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null): Promise<Prepared> {
   // L'étape « matériaux » : le décodage des images du GLB en est l'attente longue. Le gestionnaire
   // de chargement les compte (itemStart / itemEnd, une par image) pour que la barre avance image
   // après image ; sans image, elle reste au début de la bande.
   const manager = new LoadingManager()
   manager.onProgress = (_url, done, total) => onStep('materials', done, total)
   onStep('materials', 0, 0)
-  const gltf = await new GLTFLoader(manager).parseAsync(buffer, '')
+  const gltf = await withKtx2(new GLTFLoader(manager), ktx2).parseAsync(buffer, '')
   dropMarkerObjects(gltf.scene)
   const { mats, groups, owned } = familyMaterials()
   // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.

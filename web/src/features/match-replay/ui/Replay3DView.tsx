@@ -180,7 +180,7 @@ export function Replay3DView({
       try {
         const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
         if (alive) progress.mapDownloaded()
-        const model = await loadMapModel(buffer, onStep)
+        const model = await loadMapModel(buffer, onStep, scene.textureLoader)
         if (!alive) {
           model.dispose()
           return

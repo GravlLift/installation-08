@@ -5,7 +5,9 @@
  * paramètres (une ligne de ROW_TEXELS texels par composition, cf. `packRow`). Les tableaux reçoivent
  * leurs images à la première compilation d'un matériau fusionné, qui seule a le moteur de rendu : three
  * alloue chaque tableau sans transfert (`dataReady` faux), puis chaque image décodée y est copiée par
- * `texSubImage3D` et les niveaux de détail sont générés une fois par tableau.
+ * `texSubImage3D` et les niveaux de détail sont générés une fois par tableau. The maps of a KTX2 GLB
+ * are GPU-compressed: their arrays are compressed arrays of the same format, filled level by level
+ * with `compressedTexSubImage3D` (the levels come from the file, none are generated).
  *
  * Le shader fusionné est celui des couches (`LAYER_COMPOSE`), ses uniformes remplacés par la ligne
  * du sommet (`cRow`) lue dans la texture de paramètres, ses cartes par un tableau choisi par
@@ -16,6 +18,7 @@
  */
 import * as THREE from 'three'
 
+import { releaseTexels } from './ktx2Textures3d'
 import { LAYER_COMPOSE, LAYER_INJECTIONS, LAYER_ROWS, LAYER_VERTEX_HEAD } from './layeredMaterial'
 import { GLOW_TEXEL, HEAD_TEXEL, ROW_TEXELS, SLOT_TEXEL, type PlannedArray } from './layeredPlan3d'
 
@@ -28,23 +31,40 @@ const MERGED_KEY = 'couchesFusionnees'
  */
 export const IMAGE_LIBEREE = 'imageLiberee'
 
-/** closeBitmap ferme l'image de `texture`, une fois, si elle est un ImageBitmap. */
-function closeBitmap(texture: THREE.Texture): void {
+/**
+ * releaseImage frees the CPU copy of `texture`'s pixels, once: an ImageBitmap is closed, a
+ * compressed (KTX2) texture's levels are dropped.
+ */
+function releaseImage(texture: THREE.Texture): void {
   const image = texture.image as ImageBitmap | null | undefined
   if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) {
     image.close()
     texture.image = null
   }
+  releaseTexels(texture)
 }
+
+/** A merged array: decoded images (PNG maps) or encoded levels (KTX2 maps, GPU-compressed). */
+type ArrayTexture = THREE.DataArrayTexture | THREE.CompressedArrayTexture
+
+const isCompressed = (t: THREE.Texture): t is THREE.CompressedTexture => (t as THREE.CompressedTexture).isCompressedTexture === true
 
 /** isMergedMaterial : le matériau est un matériau en couches fusionné (`mergedMaterial`) ou une de ses copies. */
 export function isMergedMaterial(material: THREE.Material | THREE.Material[]): material is THREE.MeshStandardMaterial {
   return !Array.isArray(material) && material.userData?.[MERGED_KEY] === true
 }
 
-function arrayTexture(plan: PlannedArray<THREE.Texture>): THREE.DataArrayTexture {
+function arrayTexture(plan: PlannedArray<THREE.Texture>): ArrayTexture {
   const like = plan.members[0]
-  const t = new THREE.DataArrayTexture(null, plan.width, plan.height, plan.members.length)
+  const depth = plan.members.length
+  // A compressed map cannot be decoded nor have levels generated: its array takes the same format
+  // and as many levels (the plan groups by both), allocated empty, filled by `upload`.
+  const t = isCompressed(like)
+    ? new THREE.CompressedArrayTexture(
+      (like.mipmaps ?? []).map((m) => ({ data: new Uint8Array(0), width: m.width, height: m.height })),
+      plan.width, plan.height, depth, like.format, like.type,
+    )
+    : new THREE.DataArrayTexture(null, plan.width, plan.height, depth)
   Object.assign(t, {
     colorSpace: like.colorSpace,
     wrapS: like.wrapS,
@@ -69,9 +89,47 @@ const MIPMAPPED = new Set<THREE.TextureFilter>([
   THREE.NearestMipmapNearestFilter, THREE.NearestMipmapLinearFilter, THREE.LinearMipmapNearestFilter, THREE.LinearMipmapLinearFilter,
 ])
 
+/** uploadDecoded copies decoded images (PNG maps) into the bound array, then generates its levels. */
+function uploadDecoded(gl: WebGL2RenderingContext, texture: THREE.DataArrayTexture, members: readonly THREE.Texture[]): void {
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, texture.flipY)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, texture.premultiplyAlpha)
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, texture.unpackAlignment)
+  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE)
+  const { width, height } = texture.image
+  members.forEach((t, layer) => {
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, width, height, 1, gl.RGBA, gl.UNSIGNED_BYTE, t.image as TexImageSource)
+  })
+  if (texture.generateMipmaps && MIPMAPPED.has(texture.minFilter)) gl.generateMipmap(gl.TEXTURE_2D_ARRAY)
+}
+
+/**
+ * uploadCompressed copies each member's encoded levels (KTX2 maps, transcoded) into the bound
+ * compressed array, level by level, in the array's GL format: the one three allocated it with
+ * (its format and color space). Compressed uploads take no flip nor premultiplication.
+ */
+function uploadCompressed(
+  renderer: THREE.WebGLRenderer, gl: WebGL2RenderingContext, texture: THREE.CompressedArrayTexture, members: readonly THREE.Texture[],
+): void {
+  const format = new THREE.WebGLUtils(gl, renderer.extensions).convert(texture.format, texture.colorSpace)
+  if (format === null) {
+    console.warn('rejeu 3D : format compressé non pris en charge par le GPU, tableau des couches vide', texture.format, texture.colorSpace)
+    return
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+  const levels = texture.mipmaps?.length ?? 0
+  members.forEach((t, layer) => {
+    const mipmaps = t.mipmaps ?? []
+    for (let level = 0; level < Math.min(levels, mipmaps.length); level++) {
+      const m = mipmaps[level] as THREE.CompressedTextureMipmap
+      gl.compressedTexSubImage3D(gl.TEXTURE_2D_ARRAY, level, 0, 0, layer, m.width, m.height, 1, format, m.data)
+    }
+  })
+}
+
 /** Les cartes fusionnées d'une carte : tableaux de textures et texture de paramètres. */
 export class LayeredAtlas {
-  readonly arrays: THREE.DataArrayTexture[]
+  readonly arrays: ArrayTexture[]
   readonly params: THREE.DataTexture
   private pending: readonly (readonly THREE.Texture[])[] | null
   /** Durée du transfert des images (ms), null tant qu'il n'a pas eu lieu. */
@@ -93,7 +151,8 @@ export class LayeredAtlas {
   /**
    * upload copie les images dans les tableaux, une fois. Les réglages de transfert sont ceux que three
    * pose pour chaque carte d'origine (retournement, prémultiplication, alignement ; aucune conversion
-   * de couleur : sRGB et linéaire ont les primaires de l'espace de travail).
+   * de couleur : sRGB et linéaire ont les primaires de l'espace de travail). A compressed array
+   * receives each map's encoded levels as they are (no decode, no generated levels).
    */
   upload(renderer: THREE.WebGLRenderer): void {
     const pending = this.pending
@@ -109,19 +168,12 @@ export class LayeredAtlas {
         return
       }
       renderer.state.bindTexture(gl.TEXTURE_2D_ARRAY, handle)
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, texture.flipY)
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, texture.premultiplyAlpha)
-      gl.pixelStorei(gl.UNPACK_ALIGNMENT, texture.unpackAlignment)
-      gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE)
-      const { width, height } = texture.image
-      pending[a].forEach((t, layer) => {
-        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, width, height, 1, gl.RGBA, gl.UNSIGNED_BYTE, t.image as TexImageSource)
-      })
-      if (texture.generateMipmaps && MIPMAPPED.has(texture.minFilter)) gl.generateMipmap(gl.TEXTURE_2D_ARRAY)
+      if (isCompressed(texture)) uploadCompressed(renderer, gl, texture, pending[a])
+      else uploadDecoded(gl, texture, pending[a])
       renderer.state.unbindTexture()
     })
     // Les images copiées ne sont plus lues par aucun matériau : on les ferme (cf. IMAGE_LIBEREE).
-    for (const row of pending) for (const t of row) if (t.userData[IMAGE_LIBEREE]) closeBitmap(t)
+    for (const row of pending) for (const t of row) if (t.userData[IMAGE_LIBEREE]) releaseImage(t)
     this.uploadMs = performance.now() - start
   }
 

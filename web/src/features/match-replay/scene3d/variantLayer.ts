@@ -6,6 +6,8 @@
  * noté en débogage seulement. Toute autre erreur (réseau, GLB illisible) remonte à l'appelant, qui
  * garde la carte seule.
  */
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
+
 import { isNotFound } from '@/lib/replay/queries'
 
 import type { BakedLight } from './bakedLightShader'
@@ -29,8 +31,11 @@ export async function fetchVariantBuffer(
   }
 }
 
-/** loadVariantLayer rend le calque prêt à poser, éclairé par la lumière cuite de la carte (`light`). */
-export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null): Promise<SurfaceModel | null> {
+/**
+ * loadVariantLayer rend le calque prêt à poser, éclairé par la lumière cuite de la carte (`light`) ;
+ * `ktx2`: the scene's KTX2 loader, for a layer with compressed textures.
+ */
+export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null, ktx2: KTX2Loader | null = null): Promise<SurfaceModel | null> {
   const buffer = await fetchVariantBuffer(path, signal)
-  return buffer ? loadLayerModel(buffer, light) : null
+  return buffer ? loadLayerModel(buffer, light, undefined, ktx2) : null
 }

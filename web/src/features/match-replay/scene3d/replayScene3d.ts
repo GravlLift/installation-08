@@ -21,6 +21,7 @@ import * as THREE from 'three'
 import { marquer, nouveauProfil } from './profilRendu3d'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { framesPerSecond } from '@/lib/replay/replayLogic'
 import { BrasPremierePersonne3d } from './brasPremierePersonne3d'
 import { dossierPremierePersonne } from './premierePersonne3d'
@@ -36,6 +37,7 @@ import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
 import { FreeFly } from './freeFly3d'
+import { createKtx2Loader } from './ktx2Textures3d'
 import { Lighting } from './lighting'
 import { creerCiel, setCloudClock } from './ciel3d'
 import type { Look3d } from './look3d'
@@ -99,6 +101,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
   })
   private model: MapModel | null = null
+  /** The renderer's KTX2 loader (`textureLoader`), made at the first GLB load; released with the scene. */
+  private ktx2: KTX2Loader | null = null
   private ciel: ReturnType<typeof creerCiel> | null = null
   private layer: SurfaceModel | null = null
   /** The posed layer's batches (layerBatch3d), released with it. */
@@ -300,6 +304,12 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.armory = armory
     this.prepareAvatars()
   }
+
+  /**
+   * textureLoader: the KTX2 loader of this scene's renderer (ktx2Textures3d), shared by the map and
+   * the layers posed on it, for GLBs whose textures are GPU-compressed.
+   */
+  get textureLoader(): KTX2Loader { return (this.ktx2 ??= createKtx2Loader(this.renderer)) }
 
   /** mapLight: the baked light of the posed map that its layers reuse; null without a map or a light. */
   get mapLight(): BakedLight | null { return this.model?.baked ?? null }
@@ -559,6 +569,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lighting.dispose()
     this.post.dispose()
     this.gpu.dispose()
+    this.ktx2?.dispose()
+    this.ktx2 = null
     this.renderer.dispose()
     this.renderer.domElement.remove()
     this.labels.domElement.remove()
