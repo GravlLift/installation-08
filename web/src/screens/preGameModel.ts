@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { REPLAY_TEXT, type ReplayLocale } from '../features/match-replay/i18n/i18n'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { TextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { formatClock } from '../lib/replay/replayLogic'
 import { displayPlayerName } from '../lib/players/displayName'
 
@@ -114,6 +115,27 @@ function buildLineBuilding(
     text += ` — ${t.buildEtaFmt(formatClock(remainingMs))}`
   }
   return { text, action: 'cancel', actionLabel: cancelling ? 'Cancelling…' : 'Cancel', fraction }
+}
+
+/**
+ * The rough cost of building a map at each texture quality, shown on the pre-game's quality
+ * choice so the pick is informed. The server exposes no size for a map before it is built (the
+ * state route's `bytes` exists only once a file does), so these are measured constants, stated
+ * as approximate: Streets, the largest map, built on 2026-11-15 took about 2 minutes and up to
+ * about 850 MB at Standard, and about 8 minutes and up to about 1.4 GB at High. Smaller maps
+ * cost less, which is why the text says "up to".
+ */
+export const QUALITY_BUILD_COST: Record<TextureQuality, { name: string; time: string; size: string }> = {
+  standard: { name: 'Standard', time: 'about 2 min', size: 'up to about 850 MB' },
+  high: { name: 'High', time: 'about 8 min', size: 'up to about 1.4 GB' },
+}
+
+/** Whether the pre-game offers the texture-quality choice before a build: only when the map
+ *  is not built at the current quality and nothing is building (a first build, or a build the
+ *  user cancelled). An outdated map is an update of a file already built at this quality, a
+ *  failed build offers its retry, and an in-flight build shows its progress. */
+export function offersQualityChoice(phase: { phase: string }): boolean {
+  return phase.phase === 'absent' || phase.phase === 'cancelled'
 }
 
 /** The countdown steps, one per second (the mockup's 3, 2, 1). */

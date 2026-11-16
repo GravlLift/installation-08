@@ -4,7 +4,9 @@
  * stored yet), the focused row's map image and caption plate on the right, and the backdrop
  * following the focused row. Tabs above the list filter it; Enter opens a stored match or
  * starts a fetch of a recent one (the row turns into a stored row when it is ready); Escape
- * goes home. The sign-in flow is a plate over the page (brief 124, item 6).
+ * goes home. The sign-in flow is a plate over the page (brief 124, item 6). The head carries
+ * the texture-quality toggle (`TextureQualityToggle`), the same stored preference the player's
+ * settings drawer sets.
  *
  * The data flow is the one `MatchListScreen` had, unchanged: `fetchMatches` for the stored
  * list, `useAuthState`, `useRemoteMatches` and `useMatchFetchQueue` for the account's side.
@@ -33,6 +35,7 @@ import {
 } from './matchSelectModel'
 import { listCaption, loadSavedGamertag, normalizeGamertag, saveGamertag, searchedRows } from './gamertagSearch'
 import { SignInPlate } from './SignInPlate'
+import { TextureQualityToggle } from './TextureQualityToggle'
 import { useAuthState } from './useAuthState'
 import { useMatchFetchQueue } from './useMatchFetchQueue'
 import { useRemoteMatches } from './useRemoteMatches'
@@ -342,6 +345,7 @@ export function MatchSelectScreen() {
               </button>
             ))}
           </div>
+          <TextureQualityToggle />
           {gamertag ? (
             <button type="button" className="bc-signout" onClick={onSignOut}>
               Sign out
