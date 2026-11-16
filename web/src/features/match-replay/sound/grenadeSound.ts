@@ -48,6 +48,7 @@ import { buildRestFx } from '../model/shotImpactFx'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { ReplaySoundEvent } from './replaySound'
+import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 
 /**
  * THROW sound per grenade rank (the index IS the rank, same rule as grenadeLabels:
@@ -105,11 +106,19 @@ export const GRENADE_EXPLOSION_DEDUP_MS = 300
 export function grenadeSoundEvents(
   doc: ReplayDocumentReady,
   killExplosions: readonly ReplaySoundEvent[],
+  // The followed player's own THROW stays without a place — same reasoning as a shot's
+  // muzzle, heard from the hand that makes it. The EXPLOSION, by contrast, always keeps its
+  // place: it lands at the end of flight, a world point away from the thrower, never "inside"
+  // him — a grenade he threw still detonates somewhere else, and that stays spatial for him too.
+  followed: string | null = null,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  const lives = buildLivesBySlot(doc.tracks)
   for (const g of doc.grenades) {
     const stem = THROW_SOUND_STEMS[g.rank ?? -1]
-    if (stem) out.push({ ms: frameToMs(g.t, doc), stem, at: { x: g.x, y: g.y } })
+    if (!stem) continue
+    const own = followed !== null && lifeOfSlotAt(lives, g.slot, g.t)?.xuid === followed
+    out.push(own ? { ms: frameToMs(g.t, doc), stem } : { ms: frameToMs(g.t, doc), stem, at: { x: g.x, y: g.y } })
   }
   const consommes = new Set<number>()
   for (const fx of buildRestFx(doc)) {

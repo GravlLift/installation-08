@@ -20,13 +20,28 @@
  * A burst whose weapon has no sound (silence decided in the registry, weapon absent) stays silent.
  * The moments are those of `model/fireBursts.ts` — the same as the flashes.
  */
-import { frameToMs, positionAt } from '../../../lib/replay/replayLogic'
-import type { ReplayDocumentReady, ReplayFireBurstReady, ReplayTrackReady } from '../../../lib/replay/replayNormalize'
-import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
+import { frameToMs } from '../../../lib/replay/replayLogic'
+import type { ReplayDocumentReady, ReplayFireBurstReady } from '../../../lib/replay/replayNormalize'
+import { buildLivesBySlot, lifeOfSlotAt, soundPositionOfSlot } from '../model/livesPosition'
 import { burstShotFrames } from '../model/fireBursts'
 import { vehicleWeaponOf } from '../model/vehicleWeaponRegistry'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { VEHICLE_SHOT_LOOPS } from './vehicleShotSound'
+
+/**
+ * OTHER_SHOOTER_GAIN_DB — THE GAP BETWEEN "MY GUN" AND "THEIRS" THAT DISTANCE ALONE DOES NOT MAKE.
+ *
+ * Owner's listening note (2026-11-16): another player's shot sounded "nearly as loud" as the
+ * followed player's own. The spatial fall-off (`soundSpatial.ts`) ALREADY attenuates a shooter
+ * beyond `SPATIAL_FULL_RADIUS` (3 map units) — but within it, a close enemy's shot plays at the
+ * SAME full gain as the followed player's own shot, because the file and the base level are
+ * identical: the game does not use one file for "my gun" and another for "theirs", it mixes
+ * the first-person weapon on a hotter bus than the world's. This offset reproduces that bus
+ * gap for every shooter who is NOT the one followed, on top of (never instead of) the distance
+ * fall-off: a close enemy is now always a bit duller than our own shot, and a distant one
+ * additionally fades with range, exactly as the spatial model already does for everyone else.
+ */
+export const OTHER_SHOOTER_GAIN_DB = -4
 
 /**
  * CADENCE_FAISCEAU — beyond (shots per second), the firing is a BEAM: 60/s is one shot per
@@ -42,34 +57,30 @@ const BOUCLES_CONNUES = new Set(Object.values(VEHICLE_SHOT_LOOPS))
 /**
  * fireBurstSoundEvents — the sounds of the document's bursts. `stemOf` resolves the sound of a weapon
  * (`shotSoundStem` of the track: player weapons registry, then vehicle weapons).
+ *
+ * `followed`: the followed player's own burst stays WITHOUT A PLACE (full, centered — the
+ * audio perspective follows the life, not the camera, `soundPositionOfSlot`). Every other
+ * shooter gets its map position AND `OTHER_SHOOTER_GAIN_DB`, so that even a shooter standing
+ * within the full-level radius sounds duller than our own gun.
  */
 export function fireBurstSoundEvents(
   doc: ReplayDocumentReady,
   stemOf: (w: string | undefined) => string | undefined,
+  followed: string | null = null,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   const vies = buildLivesBySlot(doc.tracks)
   for (const b of doc.bursts) {
     const coup = stemOf(b.w)
     if (!coup) continue
-    const at = positionOfSlot(vies, b.slot, b.t0)
+    const own = followed !== null && lifeOfSlotAt(vies, b.slot, b.t0)?.xuid === followed
+    const at = soundPositionOfSlot(vies, b.slot, b.t0, followed)
+    const gainDb = own ? undefined : OTHER_SHOOTER_GAIN_DB
     const boucle = boucleDe(doc, b, coup)
-    if (boucle) out.push(...sonsTenus(doc, b, boucle, boucle === coup ? undefined : coup, at))
-    else out.push(...coupsALaCadence(doc, b, coup, at))
+    if (boucle) out.push(...sonsTenus(doc, b, boucle, boucle === coup ? undefined : coup, at, gainDb))
+    else out.push(...coupsALaCadence(doc, b, coup, at, gainDb))
   }
   return out
-}
-
-/**
- * positionOfSlot — the place where a burst starts: the position of the firing slot, at `t0` (the
- * biped that triggers, shared index of the gesture layers, `livesPosition.ts`). A slot without
- * a living life at that moment gives no place — the sound plays without a place, never invented.
- */
-function positionOfSlot(vies: Map<number, ReplayTrackReady[]>, slot: number, frame: number): { x: number; y: number } | undefined {
-  const vie = lifeOfSlotAt(vies, slot, frame)
-  if (!vie) return undefined
-  const p = positionAt(vie.points, frame)
-  return p ? { x: p.x, y: p.y } : undefined
 }
 
 /** boucleDe — the HELD sound of a burst: the weapon's delivered loop, or its shot if it is a beam. */
@@ -89,18 +100,19 @@ function sonsTenus(
   boucle: string,
   queue: string | undefined,
   at: { x: number; y: number } | undefined,
+  gainDb: number | undefined,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   let debut = b.t0
   for (const h of [...b.holes].sort((x, y) => x.t0 - y.t0)) {
-    if (h.t0 > debut) out.push(tenu(doc, boucle, debut, h.t0, at))
+    if (h.t0 > debut) out.push(tenu(doc, boucle, debut, h.t0, at, gainDb))
     debut = Math.max(debut, h.t1)
   }
   // A single-frame burst still holds one frame: that is the shortest trigger read.
   if (b.t1 > debut || (b.holes.length === 0 && b.t1 === b.t0)) {
-    out.push(tenu(doc, boucle, debut, Math.max(b.t1, debut + 1), at))
+    out.push(tenu(doc, boucle, debut, Math.max(b.t1, debut + 1), at, gainDb))
   }
-  if (queue && b.b1 === 'released') out.push(soundEvent(frameToMs(b.t1, doc), queue, at))
+  if (queue && b.b1 === 'released') out.push(withGain(soundEvent(frameToMs(b.t1, doc), queue, at), gainDb))
   return out
 }
 
@@ -111,9 +123,10 @@ function tenu(
   de: number,
   a: number,
   at: { x: number; y: number } | undefined,
+  gainDb: number | undefined,
 ): ReplaySoundEvent {
   const ms = frameToMs(de, doc)
-  return { ...soundEvent(ms, stem, at), holdMs: frameToMs(a, doc) - ms }
+  return { ...withGain(soundEvent(ms, stem, at), gainDb), holdMs: frameToMs(a, doc) - ms }
 }
 
 /** coupsALaCadence — one shot per simulated shot, cut to the next; the last one sounds in full. */
@@ -122,11 +135,17 @@ function coupsALaCadence(
   b: ReplayFireBurstReady,
   coup: string,
   at: { x: number; y: number } | undefined,
+  gainDb: number | undefined,
 ): ReplaySoundEvent[] {
   const instants = burstShotFrames(b, frameToMs(1, doc)).map((t) => frameToMs(t, doc))
   return instants.map((ms, i) => {
     const suivant = instants[i + 1]
-    const e = soundEvent(ms, coup, at)
+    const e = withGain(soundEvent(ms, coup, at), gainDb)
     return suivant === undefined ? e : { ...e, cutMs: suivant - ms }
   })
+}
+
+/** withGain — attaches the event's level gain (`ReplaySoundEvent.gainDb`), absent = the file's level. */
+function withGain(e: ReplaySoundEvent, gainDb: number | undefined): ReplaySoundEvent {
+  return gainDb === undefined ? e : { ...e, gainDb }
 }

@@ -70,6 +70,12 @@ describe('reloadSoundEvents', () => {
     expect(events[1].at?.y).toBe(2)
   })
 
+  it("the followed player's own reload has no place (bug fixed 2026-11-16: it carried one unconditionally)", () => {
+    const events = reloadSoundEvents(doc({ actions: [reload(30)] }), LIBRARY, 'A')
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every((e) => e.at === undefined)).toBe(true)
+  })
+
   it('the same action written twice at one instant (an equipment use, a melee, a slide) is no reload', () => {
     expect(reloadSoundEvents(doc({ actions: [reload(30), reload(30)] }), LIBRARY)).toEqual([])
   })

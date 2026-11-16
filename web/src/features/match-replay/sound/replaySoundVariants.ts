@@ -49,7 +49,10 @@ export interface ReplaySoundEvent {
   announcer?: true
   /**
    * A LEVEL GAIN of this event, in dB, added to the playback's draw at the page as at the export
-   * (`withEventGain`). Absent = the file's level. Only the reloads carry one (`reloadLoudness.ts`).
+   * (`withEventGain`). Absent = the file's level. The reloads carry one (`reloadLoudness.ts`),
+   * and a shot or a burst of a shooter who is not the followed player carries
+   * `OTHER_SHOOTER_GAIN_DB` (`fireBurstSound.ts`) — the bus gap between "my gun" and "theirs"
+   * that distance alone does not make.
    */
   gainDb?: number
   /**

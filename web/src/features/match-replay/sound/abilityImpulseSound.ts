@@ -27,6 +27,7 @@
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
+import { buildLivesBySlot, soundPositionOfSlot } from '../model/livesPosition'
 
 /**
  * The impulse stems, PER FAMILY of the document.
@@ -34,21 +35,33 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
  * `thruster`: bank `sb_007_abl_evade`, event `307114b6` =
  * `play_007_abl_evade_blast_player` — name broken by templates against a dictionary of
  * 138 886 tokens (expected collision 0.00091, threshold 0.10), and re-closed by the
- * complementary `_player` / `_nonplayer` pair on the same radical. The CASTER's perspective
- * (stereo, not spatialized) is the one the replay serves for all abilities.
+ * complementary `_player` / `_nonplayer` pair on the same radical.
  * Three variants: the game draws one per dash (`replaySoundVariants.ts`).
+ *
+ * POSITIONED AT THE CASTER (`soundPositionOfSlot`, owner directive of 2026-11-16: every sound
+ * tied to a player must fall off with distance). The followed player's own dash is heard "from
+ * inside" — no place — and every other caster's carries its map position. Until then this
+ * played at the caster's perspective UNSPATIALIZED FOR EVERYONE, a staging choice from the
+ * ability's first delivery that predates the distance-dependence requirement.
  */
 export const ABILITY_IMPULSE_SOUND_STEMS: Readonly<Record<string, string>> = {
   thruster: 'thruster_activate',
 }
 
-/** abilityImpulseSoundEvents — one sound per published impulse whose family has a stem. */
-export function abilityImpulseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
+/**
+ * abilityImpulseSoundEvents — one sound per published impulse whose family has a stem, at the
+ * caster's position (absent for the followed player's own cast).
+ */
+export function abilityImpulseSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  const lives = buildLivesBySlot(doc.tracks)
   for (const imp of doc.abilityImpulses) {
     const stem = ABILITY_IMPULSE_SOUND_STEMS[imp.family]
     if (!stem) continue
-    out.push(soundEvent(frameToMs(imp.t, doc), stem))
+    out.push(soundEvent(frameToMs(imp.t, doc), stem, soundPositionOfSlot(lives, imp.slot, imp.t, followed)))
   }
   return out
 }

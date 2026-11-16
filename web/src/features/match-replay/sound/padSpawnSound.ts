@@ -63,7 +63,10 @@ export const EQUIPMENT_PAD_SPAWN_SOUND_STEM = 'equipment_pad_spawn'
 export const PAD_SPAWN_MAX_PAR_MATCH = 300
 
 /**
- * padSpawnSoundEvents — one sound per weapon appearance on a stand, sorted.
+ * padSpawnSoundEvents — one sound per weapon appearance on a stand, sorted, AT THE STAND'S OWN
+ * POSITION (`p.x`/`p.y`, the centroid of its appearances): a pad belongs to no one, so there is
+ * no "own" to exempt — it stays positional for the followed player too, same as any world
+ * sound not tied to a life.
  *
  * No notion of side: a stand belongs to no one. No dependency on the allied side,
  * therefore — unlike the zone state sounds, this one sounds even when the allied team is not
@@ -72,15 +75,15 @@ export const PAD_SPAWN_MAX_PAR_MATCH = 300
 export function padSpawnSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
   const pads = doc.weaponPads ?? []
   if (pads.length === 0) return []
-  const spawns: { t: number; stem: string }[] = []
+  const spawns: { t: number; stem: string; at: { x: number; y: number } }[] = []
   for (const p of pads) {
     const stem = padEquipmentFamilyOf(p.weapon)
       ? EQUIPMENT_PAD_SPAWN_SOUND_STEM
       : PAD_SPAWN_SOUND_STEM
-    for (const t of p.spawns ?? []) spawns.push({ t, stem })
+    for (const t of p.spawns ?? []) spawns.push({ t, stem, at: { x: p.x, y: p.y } })
   }
   spawns.sort((a, b) => a.t - b.t)
   return spawns
     .slice(0, PAD_SPAWN_MAX_PAR_MATCH)
-    .map((s) => soundEvent(frameToMs(s.t, doc), s.stem))
+    .map((s) => soundEvent(frameToMs(s.t, doc), s.stem, s.at))
 }
