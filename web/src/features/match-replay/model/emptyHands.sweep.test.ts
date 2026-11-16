@@ -161,10 +161,21 @@ function causeOf(
       ? 'life without loadout and no shots'
       : 'life without loadout, shots present but hand not named'
   }
+  const invFutur = inv != null && inv.age < 0
   const invPast = inv && inv.age >= 0
-  const readLocates = eventMs !== -Infinity || invPast
-  // The hand is empty: find whether it resolves to an id the catalogue does not carry.
-  const d = eventMs !== -Infinity && events ? events.w[events.ms.indexOf(eventMs)] : invPast && inv ? inv.state.d : undefined
+  const readLocates = eventMs !== -Infinity || invPast || invFutur
+  // Mirror armeEnMain's precedence for the designated slot: a past dated read of the life
+  // (selector, per-shot magazine) wins over the keyframe inventory; a future inventory read is
+  // borrowed only when it designates a slot that holds a row weapon.
+  const invMs = inv ? frameToMs(inv.empty ? ctx.frame - inv.empty.age : inv.state.t, doc) : -Infinity
+  const lastEvent = eventMs !== -Infinity && events ? events.w[events.ms.indexOf(eventMs)] : undefined
+  const d = invFutur
+    ? lastEvent !== undefined
+      ? lastEvent
+      : inv && !inv.empty && (inv.state.d === 0 || inv.state.d === 1) && lo.weapons[inv.state.d] ? inv.state.d : undefined
+    : lastEvent !== undefined && eventMs >= invMs
+      ? lastEvent
+      : invPast && inv && !inv.empty ? inv.state.d : undefined
   const id = d === 0 || d === 1 ? lo.weapons[d] : undefined
   if (id && !doc.weaponLabels?.[id]) return `weapon id with no family: ${id}`
   if (!readLocates) {
@@ -216,7 +227,7 @@ describe.skipIf(!SWEEP)('empty hands sweep', () => {
         docs.set(iv.matchId, doc)
       }
       const { cause, evidence } = diagnose(doc, iv.slot, iv.start)
-      out += `\n[iv.matchId.slice(0,8)] slot ${iv.slot} frames ${iv.start}-${iv.end} (${(iv.lengthMs / 1000).toFixed(1)} s) -> ${cause}\n`
+      out += `\n[${iv.matchId.slice(0, 8)}] slot ${iv.slot} frames ${iv.start}-${iv.end} (${(iv.lengthMs / 1000).toFixed(1)} s) -> ${cause}\n`
       out += `    ${JSON.stringify(evidence)}\n`
     }
     report(out)
