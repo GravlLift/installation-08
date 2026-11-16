@@ -190,6 +190,15 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     third and first person alike. Covered by `himap/emissif_test.go` and
     `himap/emissif_energie_gamefiles_test.go` (new, checks the Sentinel's five energy materials
     and its tint map's pixel).
+  - `himap/emissif_ravager_disruptor_gamefiles_test.go` (new, gamefiles): pins the reading that
+    the Ravager's and the Disruptor's materials are not self-lit. Measured on the game's own
+    parameters: all twelve weapon materials (plus the six shared first-person arm materials) are
+    opaque layered hard-surface materials of shaders `4dac018a`/`a12c98fe`, which declare no
+    emissive parameter, carry no emissive constant (their only non-default values are shared by
+    every material of the shader, glow weapons included) and which Ekur's export classifies as
+    Layered/Opaque with no `illum_info`. The glow the game shows on these weapons is baked diffuse
+    brightness plus engine bloom and particle effects, not a material emission; nothing is added
+    to the reading.
   - `himap/emissif.go`, `himap/materiaux.go`, `himap/glb.go`, `himap/glb_couches.go`
     (LOCAL-CHANGE): shaders outside the fixed table emit when their declared parameter NAMES
     match a form of `formesEmissives` (names resolved by hashing candidate texts): holographic
