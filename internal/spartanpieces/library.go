@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 )
 
 // Options names a library build's inputs.
@@ -62,6 +63,9 @@ type library struct {
 	coatings  *CoatingWork
 	index     Index
 	bytes     int64
+	// ktx2 (LOCAL-CHANGE (infinite-theater-3d)): compress piece textures to KTX2 before
+	// externalising them; set for the first-person arm pieces build, not the 3P main build.
+	ktx2 bool
 }
 
 // Build builds the whole library into <DataDir>/spartan-pieces and writes
@@ -190,6 +194,14 @@ func (b *library) writeGLB(file string, glb []byte) (int64, error) {
 		var err error
 		if glb, err = himap.AnnoteMateriauxGLB(glb, b.coatings.Annotate(b.ctx)); err != nil {
 			return 0, err
+		}
+	}
+	// LOCAL-CHANGE (infinite-theater-3d): first-person arm pieces get KTX2-compressed textures.
+	if b.ktx2 {
+		var err error
+		glb, _, err = texcompress.CompressGLB(b.ctx, glb, texcompress.Options{})
+		if err != nil {
+			return 0, fmt.Errorf("ktx2: %w", err)
 		}
 	}
 	sans, _, err := himap.ExterniseImagesGLB(glb, b.depot.depose)

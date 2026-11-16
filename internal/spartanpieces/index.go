@@ -76,8 +76,9 @@ const idFormat = "%08x"
 
 // libraryFileNames are the only file names the library folder holds, the ones the
 // library route serves: LevelUp's whitelist.
+// LOCAL-CHANGE (infinite-theater-3d): depot textures may also be KTX2 (the KTX2 pass output).
 var libraryFileNames = regexp.MustCompile(`^(index\.json|coatings\.json|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|attachment-[0-9a-f]{8}(-[0-9]+)?\.glb|` +
-	`texture-[0-9a-f]{16}\.(png|jpg)|coating-[0-9a-f]{8}\.json|swatch-[0-9a-f]{8}\.png)$`)
+	`texture-[0-9a-f]{16}\.(png|jpg|ktx2)|coating-[0-9a-f]{8}\.json|swatch-[0-9a-f]{8}\.png)$`)
 
 // LibraryFile says whether name is one of the library's own file names (index,
 // coating table, piece, attachment, shared image, coating file, swatch).
@@ -92,6 +93,9 @@ func FileType(name string) string {
 		return "application/json"
 	case strings.HasSuffix(name, ".png"):
 		return "image/png"
+	case strings.HasSuffix(name, ".ktx2"):
+		// LOCAL-CHANGE (infinite-theater-3d): KTX2 textures.
+		return "image/ktx2"
 	default:
 		return "image/jpeg"
 	}

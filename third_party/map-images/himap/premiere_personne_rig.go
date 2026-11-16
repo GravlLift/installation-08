@@ -207,6 +207,8 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 	if m.Maillage.Structure.Triangles() == 0 {
 		return fmt.Errorf("aucun triangle visible")
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): the arsenal's surface cap for hard-surface textures.
+	m.Maillage.surfaceCote = a.surfaceCote
 	m.Maillage.lisMateriaux(a.mats, a.geo)
 	m.Maillage.resoutTextures(ctx, a.geo)
 	return nil

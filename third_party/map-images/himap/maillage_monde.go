@@ -40,6 +40,10 @@ type MaillageMonde struct {
 	// la collecte (CollecteMaillageMonde/Variante). Zero = le build n'en donne aucune (armes et
 	// autres collectes non monde) : la lecture se fait aux cotes standard, comme avant.
 	textureCaps TextureCaps
+	// surfaceCote (LOCAL-CHANGE (infinite-theater-3d)): la cote de lecture des surfaces dures
+	// (armes, rig). Zero = coteSurface (256, comme avant). Pose par Arsenal.SurfaceCote avant
+	// la collecte de l'arme ou du rig.
+	surfaceCote int
 	teintesForge map[uint32]materiauTeinte
 	// stylesForge (LOCAL-CHANGE (infinite-theater-3d)): the variant's Forge styles by style id.
 	stylesForge map[int32]*StyleForge

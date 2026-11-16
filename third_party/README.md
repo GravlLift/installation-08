@@ -343,6 +343,15 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     `CapsStandard` 512/512/256/256, the pre-change output; `CapsHigh` doubles each side)
     threaded through the world mesh and terrain texture reads. `coteSurface` (hard-surface,
     256) is outside the choice. Covered by `himap/textures_monde_test.go` (new).
+  - `himap/maillage_monde.go` (a `surfaceCote` field), `himap/textures_monde.go` (the
+    `coteSurfaceDure` reader), `himap/armes.go` (an `Arsenal.surfaceCote` field and
+    `Arsenal.SurfaceCote` setter, copied onto each `Arme`/`Grenade`/`Equipement` mesh in
+    `objet`), and `himap/premiere_personne_rig.go` (copied onto the first-person rig's
+    `Maillage`) (all LOCAL-CHANGE): the hard-surface side a weapon-library or first-person-rig
+    build reads its textures at, set per arsenal. A map build leaves it zero and reads
+    `coteSurface` (256, the pre-change output); the weapon library sets 512 and the
+    first-person library sets 1024, so their sharpened hard surfaces stay the map build's
+    unchanged. Covered by `himap/textures_monde_test.go` (`TestCoteSurfaceDure`).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

@@ -26,3 +26,19 @@ func TestTextureCapsSelection(t *testing.T) {
 		t.Fatalf("coteSurface = %d, want 256", coteSurface)
 	}
 }
+
+// TestCoteSurfaceDure (LOCAL-CHANGE (infinite-theater-3d)) : a model built without an arsenal
+// cap reads its hard surfaces at coteSurface (the pre-change output); an arsenal cap is used
+// as set, the weapon library's 512 and the first-person library's 1024.
+func TestCoteSurfaceDure(t *testing.T) {
+	var m MaillageMonde
+	if got := m.coteSurfaceDure(); got != coteSurface {
+		t.Fatalf("no arsenal cap = %d, want coteSurface %d", got, coteSurface)
+	}
+	for _, cote := range []int{512, 1024} {
+		m.surfaceCote = cote
+		if got := m.coteSurfaceDure(); got != cote {
+			t.Fatalf("arsenal cap %d = %d, want %d", cote, got, cote)
+		}
+	}
+}

@@ -43,6 +43,16 @@ func textureCapsOf(c TextureCaps) TextureCaps {
 	return c
 }
 
+// coteSurfaceDure (LOCAL-CHANGE (infinite-theater-3d)) : la cote de lecture des surfaces dures
+// : la surfaceCote posee par l'arsenal (un build d'armes ou de rig), et coteSurface quand
+// elle est absente (un build de carte, la sortie d'avant).
+func (m *MaillageMonde) coteSurfaceDure() int {
+	if m.surfaceCote > 0 {
+		return m.surfaceCote
+	}
+	return coteSurface
+}
+
 // resoutTextures decode les masques de decoupe, les textures de couche et celles des surfaces dures
 // (rangees avec les couches) des materiaux lus, dans
 // l'index de la collecte (GeometrySearchPathMonde : modules de geometrie et objets Forge).
@@ -77,7 +87,7 @@ func (m *MaillageMonde) resoutTextures(ctx context.Context, idx *ModuleIndex) {
 		}
 		if mat.Surface != nil {
 			for _, id := range mat.Surface.bitmaps() {
-				charge(m.TexturesCouches, &m.TexturesCouchesIllisibles, id, coteSurface, "surface dure")
+				charge(m.TexturesCouches, &m.TexturesCouchesIllisibles, id, m.coteSurfaceDure(), "surface dure")
 			}
 		}
 		if mat.Emissif != nil {

@@ -286,7 +286,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.weaponModels?.dispose()
     this.weaponModels = models
     this.bras?.dispose()
-    this.bras = models ? new BrasPremierePersonne3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p)) : null
+    this.bras = models ? new BrasPremierePersonne3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
     if (this.bras) { const loading = this.bras.charger(); void (models?.gate?.track(loading) ?? loading) }
     this.brasJoueurPrêt = null
     this.prechargerRigs()

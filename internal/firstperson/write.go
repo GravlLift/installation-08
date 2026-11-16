@@ -85,9 +85,10 @@ type depot struct {
 // depose écrit l'image (si elle n'est pas déjà écrite) et rend son nom, URI relative au
 // GLB qui la nomme : la vue la résout contre l'URL du rig, sur la même route.
 func (d *depot) depose(data []byte, mime string) (string, error) {
-	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg"}[mime]
+	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
+	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {
-		return "", fmt.Errorf("image de type %q : ni PNG ni JPEG", mime)
+		return "", fmt.Errorf("image de type %q : ni PNG, JPEG ni KTX2", mime)
 	}
 	d.references++
 	nom := fichierTexture(data, extension)

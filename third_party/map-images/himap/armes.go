@@ -32,7 +32,14 @@ var ErrSansModele = errors.New("himap: arme sans modele lisible")
 type Arsenal struct {
 	geo  *ModuleIndex
 	mats *ModuleIndex
+	// surfaceCote (LOCAL-CHANGE (infinite-theater-3d)): la cote de lecture des surfaces dures
+	// des armes et des rigs, posee par SurfaceCote. Zero = coteSurface (256).
+	surfaceCote int
 }
+
+// SurfaceCote (LOCAL-CHANGE (infinite-theater-3d)) : la cote de lecture des surfaces dures
+// des armes et des rigs. Zero ou absent = coteSurface (256, comme avant).
+func (a *Arsenal) SurfaceCote(cote int) { a.surfaceCote = cote }
 
 // OuvreArsenal ouvre les index de geometrie et de materiaux du module de carte `cheminModule`.
 func OuvreArsenal(racineDeploy, cheminModule string) (*Arsenal, error) {
@@ -81,6 +88,8 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 	if m.Structure.Triangles() == 0 {
 		return nil, fmt.Errorf("%w : %08x sans triangle visible", ErrSansModele, id)
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): the arsenal's surface cap for hard-surface textures.
+	m.surfaceCote = a.surfaceCote
 	m.lisMateriaux(a.mats, a.geo)
 	m.resoutTextures(ctx, a.geo)
 	slog.InfoContext(ctx, "objet lu", "groupe", groupe, "id", fmt.Sprintf("%08x", id), "triangles", m.Structure.Triangles(),

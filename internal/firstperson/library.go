@@ -23,6 +23,7 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 )
 
 // Options names a library build's inputs.
@@ -67,6 +68,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		return Result{}, err
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): first-person rigs read hard-surface textures at 1024
+	// (the weapon fills a large part of the screen in first person).
+	a.SurfaceCote(1024)
 	defer func() {
 		if err := a.Close(); err != nil {
 			slog.WarnContext(ctx, "closing arsenal", "err", err)
@@ -193,6 +197,12 @@ func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, d
 	}, func(extras map[string]any) { extras[RigWeaponKey] = true })
 	if err != nil {
 		return "", Rig{}, err
+	}
+	// LOCAL-CHANGE (infinite-theater-3d): compress the rig's textures to KTX2 before externalising
+	// the images, so the depot stores KTX2 (not PNG) and the GLB references KHR_texture_basisu.
+	painted, _, err = texcompress.CompressGLB(ctx, painted, texcompress.Options{})
+	if err != nil {
+		return "", Rig{}, fmt.Errorf("ktx2: %w", err)
 	}
 	glb, _, err := himap.ExterniseImagesGLB(painted, dep.depose)
 	if err != nil {
