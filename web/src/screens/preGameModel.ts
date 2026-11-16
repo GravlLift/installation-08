@@ -126,8 +126,8 @@ function buildLineBuilding(
  * cost less, which is why the text says "up to".
  */
 export const QUALITY_BUILD_COST: Record<TextureQuality, { name: string; time: string; size: string }> = {
-  standard: { name: 'Standard', time: 'about 2 min', size: 'up to about 850 MB' },
-  high: { name: 'High', time: 'about 8 min', size: 'up to about 1.4 GB' },
+  standard: { name: 'Standard', time: 'about 2 min', size: 'up to about 850 MB on disk' },
+  high: { name: 'High', time: 'about 8 min', size: 'up to about 1.4 GB on disk' },
 }
 
 /** Whether the pre-game offers the texture-quality choice before a build: only when the map
