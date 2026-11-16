@@ -78,7 +78,7 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
     d = eventMs >= invMs && eventMs !== -Infinity ? events!.w[index] : inv && !inv.empty ? inv.state.d : undefined
   }
   if (d === 0 || d === 1) {
-    const id = armeDeLEmplacement(doc, slot, frame, lo, d)
+    const id = armeDeLEmplacement(doc, slot, frame, lo, d, vie.start)
     if (id) return { id, slotArme: d }
   }
   // A past read of the life that does not locate the hand leaves it empty.
@@ -88,7 +88,7 @@ export function armeEnMain(doc: ReplayDocumentReady, slot: number, frame: number
     : null
   const k = avantPremiereLecture(doc, { slot, frame, naissance: vie.start }, lo, suivante)
   if (k === undefined) return null
-  const id = armeDeLEmplacement(doc, slot, frame, lo, k)
+  const id = armeDeLEmplacement(doc, slot, frame, lo, k, vie.start)
   return id ? { id, slotArme: k } : null
 }
 
@@ -178,12 +178,18 @@ function familleDe(w: string): string {
 
 /**
  * The weapon of slot `d` in the read row, or failing that the most recent dated pickup of
- * that slot since the row's read.
+ * that slot in the current life (from `naissance` to `frame`).
+ *
+ * THE WHOLE LIFE, NOT ONLY SINCE THE ROW'S READ: a keyframe row read AFTER a pickup can still
+ * leave the picked slot unnamed. On Streets (ee234787, slot 516) a pickup into slot 1 at frame
+ * 918 was followed by rows read at 1089, 1695 and 2301 that all carried only the spawn weapon;
+ * bounding the pickup search to "since the row's read" missed it, and the hand (weapon model,
+ * arms, ammo counter) read empty for a minute while the player shot with the picked weapon.
  */
-function armeDeLEmplacement(doc: ReplayDocumentReady, slot: number, frame: number, lo: LoadoutReading, d: number): string | undefined {
+function armeDeLEmplacement(doc: ReplayDocumentReady, slot: number, frame: number, lo: LoadoutReading, d: number, naissance: number): string | undefined {
   const id = lo.weapons[d]
   if (id) return id
-  const changes = doc.weaponChanges.filter((c) => c.slot === slot && c.k === d && c.t > frame - lo.age && c.t <= frame).sort((a, b) => b.t - a.t)
+  const changes = doc.weaponChanges.filter((c) => c.slot === slot && c.k === d && c.t >= naissance && c.t <= frame).sort((a, b) => b.t - a.t)
   const w = changes[0]?.w
   if (!w) return undefined
   return /^[0-9a-f]{8}$/i.test(w) ? `0x${w.toUpperCase()}` : w
