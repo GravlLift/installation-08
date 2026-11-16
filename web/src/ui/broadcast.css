@@ -418,6 +418,13 @@
   display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; }
 .bc-panel > * { pointer-events: auto; max-height: 100%; max-width: 100%; }
 
+/* The in-viewer mesh build gate (MeshBuildGate): it reuses the pre-game ProgressLine, but the
+ * first-run rule up top sizes `.bc-progress` as the 8px standalone bar and slant-clips it; that
+ * clip swallows the gate's step line and the fixed 8px box leaves the flex column's button
+ * drawn over where the line overflows. In the gate only, let the box size to bar + text and
+ * drop the clip. */
+.bc-gate .bc-progress { height: auto; clip-path: none; }
+
 /* The scoreboard the Scoreboard button (or a held Tab) opens over the scene
  * (`ReplayScoreboardOverlay`): one connected panel in the light-blue HUD style, the teams as
  * columns of it split by a thin rule. Light blue is the chrome (frame, headers, column heads,
