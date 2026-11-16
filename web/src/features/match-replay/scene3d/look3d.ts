@@ -16,6 +16,11 @@ export interface Look3d {
   gameLight: boolean
   /** Bloom: self-lit surfaces (lamps, light strips, energy blades) glow past their edges (`bloom3d`). */
   bloom: boolean
+  /**
+   * Glow animation: the self-lit surfaces move as the game animates them (a sign's scroll and
+   * flicker, a neon's pulse, `glowAnimation3d`), on match time. Off, they stay still.
+   */
+  glowAnimation: boolean
 }
 
-export const LOOK3D_DEFAULT: Look3d = { shadows: true, reflections: true, ambientOcclusion: true, gameLight: true, bloom: true }
+export const LOOK3D_DEFAULT: Look3d = { shadows: true, reflections: true, ambientOcclusion: true, gameLight: true, bloom: true, glowAnimation: true }

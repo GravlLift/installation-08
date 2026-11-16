@@ -20,6 +20,7 @@ import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
 import { buildBackFaces } from './backFaces3d'
 import { intensiteSoleil, lireCiel, sunColorOf } from './ciel3d'
+import { GlowAnimator, readGlowAnim } from './glowAnimation3d'
 import { loadBakedLight, type BakedLight } from './bakedLightShader'
 import { batchLayered } from './layeredBatch3d'
 import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMaterial'
@@ -98,6 +99,10 @@ interface MaterialExtras {
   teinte?: [number, number, number]
   /** Its light is a picture (sign, screen, hologram), not a light mask (`glowOf`). */
   emissionImage?: boolean
+  /** The game's animated parameters of its light (`glowAnimation3d`), absent when it is still. */
+  emissionAnim?: unknown
+  /** The game material's GlobalID. */
+  id?: number
 }
 
 /** Les surfaces d'un GLB de la vue (la carte, ou un calque posé sur elle), matériaux de la vue posés. */
@@ -109,6 +114,8 @@ export interface SurfaceModel {
   seeThrough: THREE.Mesh[]
   /** Toutes les surfaces dessinées : celles que les sondes d'environnement éclairent. */
   surfaces: THREE.Mesh[]
+  /** The self-lit materials whose light the game animates (`glowAnimation3d`); empty for a still map. */
+  glowAnimation: GlowAnimator
   /** Libère géométries, index et matériaux du modèle (pas la lumière cuite qu'il a reprise). */
   dispose(): void
 }
@@ -145,6 +152,7 @@ interface Prepared {
   owned: THREE.Material[]
   /** La fusion des matériaux en couches (`convertLayered`), null sans fusion. */
   merge: LayeredMerge | null
+  glowAnimation: GlowAnimator
   /**
    * Le décodeur du GLB (`GLTFParser`) : la seule référence qui tient les données de la
    * pré-fusion en vie (JSON, chunk binaire, buffer principal, accessors, images décodées).
@@ -315,6 +323,8 @@ interface MaterialContext {
   /** Le décodeur du GLB, lu par les matériaux à couches avant la fin de `prepareSurfaces`. */
   parser: GLTFParser
   glowCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image: boolean): THREE.MeshStandardMaterial
+  /** Registers a view material drawing the light of `source` with the animator, when the game animates it. */
+  animateGlow(material: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial, source: THREE.MeshStandardMaterial, image: boolean): void
   /** A see-through emitter of the game, one per game material (`seeThroughGlowMaterial`). */
   seeThroughGlow(source: THREE.MeshStandardMaterial, extras: MaterialExtras): THREE.MeshBasicMaterial
   tintCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]): THREE.MeshStandardMaterial
@@ -340,6 +350,7 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     m.map = source.map
     m.alphaTest = source.alphaTest
     applyGlow(m, source, image)
+    if (emits(source)) ctx.animateGlow(m, source, image)
     ctx.owned.push(m)
     o.material = m
     return
@@ -369,13 +380,16 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     // Un matériau à couches par composition distincte (famille, couches, lumière propre, découpe)
     // : les surfaces de même composition le partagent, et le dessin ne change de matériau qu'entre
     // elles.
-    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${image}` : ''
+    // An animated light has its own material: its light moves alone (`glowAnimation3d`).
+    const anim = emits(source) && readGlowAnim(extras) ? `:${source.uuid}` : ''
+    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${image}${anim}` : ''
     const alphaTest = source.alphaTest > 0 ? `|a${source.alphaTest}` : ''
     const signature = `${key}|${glow}|${alphaTest}|${JSON.stringify(extras.couches)}`
     let shared = ctx.layered.get(signature)
     if (!shared) {
       shared = layeredMaterial(ctx.mats[key], extras.couches, ctx.parser).then((m) => {
         applyGlow(m, source, image)
+        if (emits(source)) ctx.animateGlow(m, source, image)
         if (source.alphaTest > 0) m.alphaTest = source.alphaTest
         ctx.owned.push(m)
         return m
@@ -406,6 +420,12 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const { mats, groups, owned } = familyMaterials()
   // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.
   const glowing = new Map<THREE.Material, THREE.MeshStandardMaterial>()
+  const glowAnimation = new GlowAnimator()
+  const animateGlow = (material: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial, source: THREE.MeshStandardMaterial, image: boolean) => {
+    const extras = (source.userData ?? {}) as MaterialExtras
+    const specs = readGlowAnim(extras)
+    if (specs) glowAnimation.add(material, source, specs, image, extras.id ?? 0)
+  }
   const glowCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image: boolean) => {
     let m = glowing.get(source)
     if (!m) {
@@ -416,6 +436,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
         m.map = source.map
         m.color.copy(source.color)
       }
+      animateGlow(m, source, image)
       owned.push(m)
       glowing.set(source, m)
     }
@@ -427,6 +448,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     let m = seeThroughGlowing.get(source)
     if (!m) {
       m = seeThroughGlowMaterial(source, extras)
+      animateGlow(m, source, extras.emissionImage === true)
       owned.push(m)
       seeThroughGlowing.set(source, m)
     }
@@ -464,7 +486,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   // Un décalque pochoir par texture, couleur et opacité distinctes.
   const decalStencil = new Map<string, THREE.MeshStandardMaterial>()
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
-  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
+  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
   gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
@@ -502,7 +524,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const drawn = [...groups.structure, ...groups.decor]
   const merge = mergeLimits ? convertLayered(drawn, [...drawn, ...groups.seeThrough], owned, mergeLimits) : null
   for (const m of owned) guardMaterial(m)
-  return { scene: gltf.scene, groups, owned, merge, parser: gltf.parser }
+  return { scene: gltf.scene, groups, owned, merge, parser: gltf.parser, glowAnimation }
 }
 
 /**
@@ -539,7 +561,7 @@ export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometr
 }
 
 /** indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle. */
-async function indexSurfaces({ scene, groups, owned }: Prepared, onStep: StepCallback): Promise<SurfaceModel> {
+async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback): Promise<SurfaceModel> {
   const bvh = geometriesOf([...groups.structure, ...groups.seeThrough])
   onStep('index', 0, bvh.length)
   await new Promise((r) => setTimeout(r, 0))
@@ -562,6 +584,7 @@ async function indexSurfaces({ scene, groups, owned }: Prepared, onStep: StepCal
     pickables: groups.structure,
     seeThrough: groups.seeThrough,
     surfaces: [...groups.structure, ...groups.decor, ...groups.seeThrough],
+    glowAnimation,
     dispose() {
       shadows.dispose()
       backs.dispose()

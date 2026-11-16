@@ -22,7 +22,7 @@ import { marquer, nouveauProfil } from './profilRendu3d'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
-import { framesPerSecond } from '@/lib/replay/replayLogic'
+import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { BrasPremierePersonne3d } from './brasPremierePersonne3d'
 import { dossierPremierePersonne } from './premierePersonne3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
@@ -146,6 +146,10 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
   private knobRatio: number | null = null
   private lookOcclusion = true
+  /** The look's glow animation (`Look3d.glowAnimation`): off, the self-lit surfaces stay still and nothing runs per frame. */
+  private lookGlow = true
+  /** The match duration of a document frame (ms), the glow animation's clock (`frameToMs`). */
+  private frameMs = 1000 / 30
   private readonly gpu: GpuTimer
   /** Frames drawn by `render`, for the bloom's GPU timing on every other one. */
   private frameCount = 0
@@ -192,6 +196,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
       retagTags: () => this.retagTags(),
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
+      setGlowClock: (seconds) => this.animateGlow(seconds),
       hideTopDown: () => this.top?.idle(),
     })
   }
@@ -199,6 +204,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   attach(model: MapModel, tracks: Tracks3d, colorOf: (xuid: string) => THREE.Color): void {
     this.model = model
     this.tracks = tracks
+    model.glowAnimation.setEnabled(this.lookGlow)
     this.scene.add(model.root)
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.setSunStrength(model.sunStrength)
@@ -216,6 +222,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.lighting.setSun(sun.azimuth, sun.elevation)
       this.lighting.takeGameLight(model.baked) // game light active during the probe captures
       this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
+      model.glowAnimation.adoptCopies(model.surfaces) // the probes copied shared materials
       this.playTop = playBox.max.y
       this.top = new TopDownView3d({ scene: this.scene, renderer: this.renderer, sun: this.lighting.sun, heights: playPoints.map((p) => p.y), walked: new THREE.Box3().setFromPoints(playPoints) })
     }
@@ -243,6 +250,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!tracks || !this.model || this.action) return
     this.doc = doc
     this.fps = framesPerSecond(doc)
+    this.frameMs = frameToMs(1, doc)
     this.ground = new Ground(this.groundSurfaces(), this.playTop)
     this.action = buildActionScene({
       doc,
@@ -328,6 +336,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!this.model) return false
     this.detachLayer()
     this.layer = layer
+    layer.glowAnimation.setEnabled(this.lookGlow)
     this.scene.add(layer.root)
     if (this.playCenter) {
       const reach = farthestCorner(new THREE.Box3().setFromObject(layer.root), this.playCenter)
@@ -335,6 +344,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    layer.glowAnimation.adoptCopies(layer.surfaces)
     // After the probes chose each surface's material: the batches share it.
     this.layerBatches = batchLayer(layer.root)
     freezeStatic(layer.root)
@@ -367,6 +377,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post.gtao.enabled = look.ambientOcclusion
     // Off, the pass leaves the composer: the video export (same composer) follows the drawer too.
     this.post.setBloom(look.bloom)
+    // Off, the still light is written back once; the export reads the same flag (`animateGlow`).
+    this.lookGlow = look.glowAnimation
+    this.model?.glowAnimation.setEnabled(look.glowAnimation)
+    this.layer?.glowAnimation.setEnabled(look.glowAnimation)
+  }
+
+  /**
+   * animateGlow poses the game's animated self-lit surfaces at MATCH `seconds` (the screen's frame
+   * and the export's frame alike, never a wall clock); nothing while the look turns it off.
+   */
+  private animateGlow(seconds: number): void {
+    if (!this.lookGlow) return
+    this.model?.glowAnimation.update(seconds)
+    this.layer?.glowAnimation.update(seconds)
   }
 
   /** setFovPreference applies the game's field-of-view setting (horizontal degrees at 16:9): the camera's base vertical field. */
@@ -417,6 +441,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   render(frame: number): PovStatus {
     if (this.exportScene.held) return this.lastStatus
     this.lastFrame = frame
+    this.animateGlow((frame * this.frameMs) / 1000)
     let status: PovStatus = 'none'
     const p = this.profil
     let t = performance.now(); this.renderer.info.reset()

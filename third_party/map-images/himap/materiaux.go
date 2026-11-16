@@ -237,6 +237,9 @@ func litPostprocess(m *Materiau, ti tagInfo, tag []byte, cible int, shaders Lect
 	} else if _, fixe := shadersEmissifs[m.Shader]; !fixe {
 		m.Emissif = emissifParNoms(shaders(m.Shader), pp) // LOCAL-CHANGE (infinite-theater-3d)
 	}
+	if m.Emissif != nil {
+		m.Emissif.Animations = animationsEmissives(m.Emissif, pp) // LOCAL-CHANGE (infinite-theater-3d)
+	}
 	m.Pochoir = pochoirDuShader(m.Shader, shaders(m.Shader), pp.constantes)
 	m.Surface = surfaceDureDuShader(m.Shader, pp.textures)
 }

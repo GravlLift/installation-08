@@ -45,7 +45,9 @@ One package, `himap`, built on `github.com/JGtm/halo-infinite-files-reader`:
 - `Materiau.Emissif` is a material's own light for the two glowing shaders (`illum_full`,
   `diffuse_emissive`, `emissif.go`); the GLB writes it as standard `emissiveFactor` plus
   `KHR_materials_emissive_strength`. (LOCAL-CHANGE (infinite-theater-3d): also `illum`, and the
-  shaders read by parameter names in `formesEmissives`: signs, holograms, screens, neon.)
+  shaders read by parameter names in `formesEmissives`: signs, holograms, screens, neon. The
+  material's animated parameters over time that move that light, its intensity, its texture's
+  transform or its color, are written as `extras.emissionAnim`, `emissif_fonctions.go`.)
 - `LitLumieres` reads a map's placed lights from the same `stlm` tag (active ones, sun excluded);
   set `MaillageMonde.Lumieres` and the GLB publishes omni and spot lights as
   `scenes[0].extras.levelupLights` (Halo axes, beam axis from `DirectionProjecteur`, cones in

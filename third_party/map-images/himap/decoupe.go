@@ -89,6 +89,8 @@ type postprocessLu struct {
 	textures   map[int]uint32
 	transfos   map[int]int
 	constantes []byte
+	// animes (LOCAL-CHANGE (infinite-theater-3d)): the animated parameters (emissif_fonctions.go).
+	animes []ParametreAnime
 }
 
 func (ti tagInfo) postprocess(bloc int) postprocessLu {
@@ -107,6 +109,7 @@ func (ti tagInfo) postprocess(bloc int) postprocessLu {
 	if abs, size, ok := ti.blocValide(sous, postOffConstantes); ok {
 		pp.constantes = ti.tag[abs : abs+size-size%constanteStride]
 	}
+	pp.animes = ti.parametresAnimes(bloc) // LOCAL-CHANGE (infinite-theater-3d)
 	return pp
 }
 

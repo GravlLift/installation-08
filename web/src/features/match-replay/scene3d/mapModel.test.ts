@@ -2,6 +2,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
+import { glowStateAt, type GlowAnimSpec } from './glowAnimation3d'
 import type { LayeredInfo } from './layeredMaterial'
 import { glowLevel, IMAGE_GLOW_MAX, imageGlowLevel } from './lighting'
 import { DECAL_TINT, decalStencilMaterial, loadLayerModel, teinteVerreTeint } from './mapModel'
@@ -244,6 +245,31 @@ describe('self-lit surfaces', () => {
     expect(n.emissive.r).toBeCloseTo(0.745)
     expect(n.emissive.g).toBeCloseTo(0.018)
     expect(n.emissiveIntensity).toBeCloseTo(glowLevel(120))
+    layer.dispose()
+  })
+
+  it('animates the lights the build says the game animates, on match time, and draws the others still', async () => {
+    // Streets' magenta neon 54a851a9: its amount wanders 0.2 Hz (a factor between 1.76 and 0.59).
+    const pulse = { cible: 'force', periode: 1, fonction: { type: 3, min: 1.759288, max: 0.5858429, periodiques: [{ onde: 10, frequence: 0.2, phase: 0, min: 0, max: 1 }] } }
+    const animated = { ...neon, name: 'pulse', extras: { id: 0x54a851a9, emissionAnim: [pulse] } }
+    const layer = await loadLayerModel(glbOf([animated, neon, { ...sign, extras: { ...sign.extras, emissionAnim: [pulse] } }]), null)
+    expect(layer.glowAnimation.size).toBe(2)
+    const n = meshUnder(layer.root, 'n0').material as THREE.MeshStandardMaterial
+    const still = meshUnder(layer.root, 'n1').material as THREE.MeshStandardMaterial
+    expect(n).not.toBe(still)
+    layer.glowAnimation.update(7.5)
+    const factor = glowStateAt([pulse as GlowAnimSpec], [1, 1, 0, 0], 7.5, 0x54a851a9).force
+    expect(n.emissiveIntensity).toBeCloseTo(glowLevel(120 * factor))
+    expect(still.emissiveIntensity).toBeCloseTo(glowLevel(120))
+    // Off: the still light of today, exactly.
+    layer.glowAnimation.setEnabled(false)
+    expect(n.emissiveIntensity).toBe(still.emissiveIntensity)
+    layer.dispose()
+  })
+
+  it('has nothing to animate in a GLB without the animation extras', async () => {
+    const layer = await loadLayerModel(glbOf([sign, freeSign, screen, neon]), null)
+    expect(layer.glowAnimation.size).toBe(0)
     layer.dispose()
   })
 })

@@ -320,6 +320,9 @@ type tagInfo struct {
 	structs    int
 	blockTab   int
 	structTab  int
+	// dataRefs (LOCAL-CHANGE (infinite-theater-3d)): the count of the data-reference table that
+	// follows the struct table (0x14 o per entry, cf. donneesDuChamp).
+	dataRefs int
 }
 
 // tagHeaderScan : bornes du balayage du couple (headerSize, dataSize) dans l'en-tête.
@@ -361,6 +364,7 @@ func tagCandidates(tag []byte) []tagInfo {
 				deps:       u32(tag, H-0x20),
 				dataBlocks: u32(tag, H-0x1C),
 				structs:    u32(tag, H-0x18),
+				dataRefs:   u32(tag, H-0x14), // LOCAL-CHANGE (infinite-theater-3d)
 			}
 			ti.blockTab = H + 0x18 + ti.deps*depEntrySize
 			ti.structTab = ti.blockTab + ti.dataBlocks*blockEntrySize

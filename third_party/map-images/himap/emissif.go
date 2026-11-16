@@ -41,6 +41,12 @@ type Emissif struct {
 	// hologram's emblem) rather than a light mask: a viewer keeps its brightness readable instead of
 	// letting it bloom (formesEmissives).
 	Image bool
+	// Animations (LOCAL-CHANGE (infinite-theater-3d)): how the game moves this light over time
+	// (emissif_fonctions.go); nil when it is still.
+	Animations []AnimationEmissive
+	// octets (LOCAL-CHANGE (infinite-theater-3d)): the constants the light was read from, for its
+	// animated parameters.
+	octets cibleEmissive
 }
 
 // emplacementEmissif (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture slot of
@@ -134,6 +140,10 @@ func emissifDuShader(shader uint32, constantes []byte) *Emissif {
 		return nil
 	}
 	e.Force = force
+	e.octets = cibleEmissive{couleur: s.couleur, intensite: s.intensite, quantite: s.quantite, emplacement: -1}
+	if o, ok := emplacementEmissif[shader]; ok {
+		e.octets.emplacement = o
+	}
 	return &e
 }
 
@@ -230,14 +240,17 @@ func emissifParNoms(params ParametresShader, pp postprocessLu) *Emissif {
 			allume = allume || e.Couleur[k] > 0
 		}
 		e.Force = c.f(oi)
+		e.octets = cibleEmissive{couleur: oc, intensite: oi, quantite: -1, emplacement: -1}
 		if o, ok := octetParam(params, f.quantite); ok && o+4 <= len(pp.constantes) {
 			e.Force *= c.f(o)
+			e.octets.quantite = o
 		}
 		if !allume || !(e.Force > 0) {
 			return nil
 		}
 		if o, ok := octetParam(params, f.carte); ok {
 			if id, lie := pp.textures[o]; lie {
+				e.octets.emplacement = o
 				e.Bitmap = id
 				t := pp.transfo(o, c)
 				e.Transfo = &t

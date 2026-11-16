@@ -14,6 +14,7 @@ function sceneDouble() {
   const calls: string[] = []
   const steps: number[] = []
   const sky: (number | null)[] = []
+  const glow: number[] = []
   const canvas = document.createElement('canvas')
   // The drawing buffer: one byte value per render, read back by `readPixels`.
   let drawn = 0
@@ -43,11 +44,12 @@ function sceneDouble() {
     placeFirstPerson: () => calls.push('arms'),
     retagTags: () => calls.push('retag'),
     setSkyClock: (s: number | null) => sky.push(s),
+    setGlowClock: (s: number) => glow.push(s),
     action: { settle: () => calls.push('settle'), update: () => calls.push('effects') },
     lighting: { updateShadows: () => calls.push('shadows') },
     post: { composer: { render: () => { drawn++; calls.push('render') }, setPixelRatio: () => {}, setSize: () => {} } },
   }
-  return { exported: new ReplayExportScene3d(scene as never), calls, steps, sky, canvas, scene }
+  return { exported: new ReplayExportScene3d(scene as never), calls, steps, sky, glow, canvas, scene }
 }
 
 /** jsdom has no ImageData nor 2D context: doubles that keep the first byte put into the canvas. */
@@ -143,6 +145,18 @@ describe('ReplayExportScene3d', () => {
     expect(steps[2]).toBeCloseTo(1 / 60, 9)
     expect(steps[3]).toBe(0)
     expect(sky[1]).toBeCloseTo((100.5 * 100) / 3 / 1000, 9)
+    exported.endExport()
+    expect(sky[sky.length - 1]).toBeNull()
+  })
+
+  it('poses the animated self-lit surfaces at the frame\'s match time, as the screen does', () => {
+    const { exported, glow, sky } = sceneDouble()
+    exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 100, frameMs: 100 / 3 })
+    exported.exportFrame(100)
+    exported.exportFrame(100.5)
+    exported.exportFrame(100.5)
+    const at = (frame: number) => (frame * (100 / 3)) / 1000 // the exporter's own formula, bit for bit
+    expect(glow).toEqual([at(100), at(100.5), at(100.5)])
     exported.endExport()
     expect(sky[sky.length - 1]).toBeNull()
   })
