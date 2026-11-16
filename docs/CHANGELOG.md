@@ -5,6 +5,7 @@
 Changes since 0.1.0-test.14.
 
 - The Shock Rifle's shroud arcs added in test.14 are withdrawn: they drew as a pale cloud of flat shards in front of the muzzle instead of arcs on the shroud.
+- Slides end with the game's slide-exit sound (it was silent). The footstep sounds re-extract themselves at the first start after updating.
 
 ## 0.1.0-test.14
 
