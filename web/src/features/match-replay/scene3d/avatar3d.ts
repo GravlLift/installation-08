@@ -86,6 +86,8 @@ export interface Avatar {
   /** La coque d'énergie du Spartan (`bodyShell3d`), null sans Spartan. */
   shell: BodyShell | null
   tag: CSS2DObject
+  /** `tag`'s opacity as placed by `placeTag` for the last frame; the export paints it (0: hidden). */
+  tagOpacity: number
   name: string
   color: string
   /** La teinte de l'équipe, qui multiplie les couleurs du Spartan. */
@@ -118,7 +120,7 @@ export function makeAvatar(scene: THREE.Scene, name: string, color: THREE.Color)
   return {
     group, body, aim, gun, model: null, modelSource: null, weaponCoat: null, weaponCoatFor: null,
     spartan: null, spartanSource: null, dress: null, shell: null,
-    tag, name, color: color.getStyle(), tint: color.clone(), mix: newClipMix(),
+    tag, tagOpacity: 0, name, color: color.getStyle(), tint: color.clone(), mix: newClipMix(),
   }
 }
 

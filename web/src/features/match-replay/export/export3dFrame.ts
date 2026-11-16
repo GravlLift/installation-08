@@ -22,13 +22,24 @@ const MINIMAP_MARGIN = 16
 const MINIMAP_ALPHA = 0.8
 /** Corner radius matching rounded-md. */
 const MINIMAP_RADIUS = 6
-/** Label dimensions matching the on-screen styles. */
+/** Label dimensions in CSS px, matching the on-screen tag's styles (`text-xs` font, `px-1`, `border-l-[3px]`, `rounded`, `bg-background/70`). */
 const TAG_FONT_PX = 12
 const TAG_PAD_X = 4
 const TAG_HEIGHT = 16
 const TAG_BORDER = 3
 const TAG_RADIUS = 4
 const TAG_ALPHA = 0.7
+/**
+ * The typical viewer's viewport height in CSS px (a 1080p screen with taskbar and browser
+ * chrome). On screen a tag is a fixed CSS size in a viewport that tall; the export gives it the
+ * same share of the frame height it has there, at whatever the file's height is.
+ */
+export const TAG_VIEWER_CSS_HEIGHT = 900
+
+/** One CSS px in logical export px: the tag keeps its on-screen share of a frame `formatHeight` tall. */
+export function tagScale(formatHeight: number, pixelRatio: number): number {
+  return formatHeight / TAG_VIEWER_CSS_HEIGHT / pixelRatio
+}
 
 /** Frame colors resolved in the export theme. */
 export interface Export3dInk {
@@ -98,30 +109,37 @@ function paintMinimap(
   ctx.drawImage(map, box.x, box.y, box.width, box.height)
 }
 
-/** Center player labels on their projected points, as the screen renderer does. */
-function paintTags(
+/**
+ * Center player labels on their projected points, as the screen renderer does. The box and font
+ * are the on-screen CSS sizes scaled to the frame's share (`tagScale`), and the tag's distance
+ * opacity is painted (background at its 70%, text and border at full).
+ */
+export function paintTags(
   ctx: CanvasRenderingContext2D,
   tags: readonly ExportTag3d[],
   pixelRatio: number,
-  d: Pick<Paint3dDeps, 'ink' | 'font'>,
+  d: Pick<Paint3dDeps, 'ink' | 'font' | 'format'>,
 ): void {
   if (tags.length === 0) return
+  const s = tagScale(d.format.height, pixelRatio)
   ctx.textBaseline = 'middle'
   ctx.textAlign = 'left'
   for (const tag of tags) {
-    ctx.font = `${TAG_FONT_PX}px ${d.font}`
-    const width = TAG_BORDER + 2 * TAG_PAD_X + ctx.measureText(tag.name).width
+    ctx.font = `${TAG_FONT_PX * s}px ${d.font}`
+    const width = TAG_BORDER * s + 2 * TAG_PAD_X * s + ctx.measureText(tag.name).width
+    const h = TAG_HEIGHT * s
     const x = tag.x / pixelRatio - width / 2
-    const y = tag.y / pixelRatio - TAG_HEIGHT / 2
-    ctx.globalAlpha = TAG_ALPHA
+    const y = tag.y / pixelRatio - h / 2
+    ctx.globalAlpha = TAG_ALPHA * tag.opacity
     ctx.fillStyle = d.ink.background
     ctx.beginPath()
-    ctx.roundRect(x, y, width, TAG_HEIGHT, TAG_RADIUS)
+    ctx.roundRect(x, y, width, h, TAG_RADIUS * s)
     ctx.fill()
-    ctx.globalAlpha = 1
+    ctx.globalAlpha = tag.opacity
     ctx.fillStyle = tag.color
-    ctx.fillRect(x, y, TAG_BORDER, TAG_HEIGHT)
+    ctx.fillRect(x, y, TAG_BORDER * s, h)
     ctx.fillStyle = d.ink.foreground
-    ctx.fillText(tag.name, x + TAG_BORDER + TAG_PAD_X, y + TAG_HEIGHT / 2)
+    ctx.fillText(tag.name, x + TAG_BORDER * s + TAG_PAD_X * s, y + h / 2)
   }
+  ctx.globalAlpha = 1
 }
