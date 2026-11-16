@@ -244,7 +244,38 @@ function avantPremiereLecture(
   if (suivante && (suivante.w === 0 || suivante.w === 1) && !changementEntre(doc, vie.slot, vie.naissance, suivante.ms)) {
     return suivante.w
   }
+  const k = spawnWeaponEmplacement(doc, vie, lo)
+  if (k !== undefined) return k
   return uniqueWeaponEmplacement(doc, vie, lo)
+}
+
+/**
+ * spawnWeaponEmplacement: the emplacement, in a keyframe row, of the weapon the player carried
+ * from the birth. A row weapon that no pickup of THIS life (bounded to the row's read) explains
+ * was carried since the birth: a weapon only leaves an emplacement at the price of an event, and
+ * a drop would remove it from the row. Admissible only when exactly one such emplacement exists
+ * and no drop or swap of it is dated between the birth and the frame (the hand was set down).
+ */
+function spawnWeaponEmplacement(
+  doc: ReplayDocumentReady,
+  vie: { slot: number; frame: number; naissance: number },
+  lo: LoadoutReading,
+): number | undefined {
+  const naissanceMs = frameToMs(vie.naissance, doc)
+  const releveMs = frameToMs(Math.max(vie.frame, vie.frame - lo.age), doc)
+  const candidates = lo.weapons
+    .map((id, k) => ({ id, k }))
+    .filter((x) => (x.k === 0 || x.k === 1) && x.id)
+    .filter((x) => !doc.weaponChanges.some((c) =>
+      c.slot === vie.slot && c.kind === 'taken' && c.k === x.k &&
+      frameToMs(c.t, doc) >= naissanceMs && frameToMs(c.t, doc) <= releveMs))
+  if (candidates.length !== 1) return undefined
+  const k = candidates[0].k
+  const frameMs = frameToMs(vie.frame, doc)
+  return doc.weaponChanges.some((c) =>
+    c.slot === vie.slot && c.k === k && c.kind !== 'taken' &&
+    frameToMs(c.t, doc) >= naissanceMs && frameToMs(c.t, doc) <= frameMs)
+    ? undefined : k
 }
 
 /**
