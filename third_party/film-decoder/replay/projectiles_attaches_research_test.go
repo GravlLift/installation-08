@@ -54,6 +54,8 @@ type attachCase struct {
 	yawAttach  float64    // parent aim yaw (deg) nearest the attach
 	yawDeto    float64
 	parentSeen bool
+	// originUS / stepUS: the document's frame grid (frame = (us - originUS) / stepUS).
+	originUS, stepUS float64
 }
 
 func catalogueDesBornes(t *testing.T) *profile.MapQuantCatalog {
@@ -162,9 +164,15 @@ func casDUnMatch(t *testing.T, cat *profile.MapQuantCatalog, dir string) []attac
 		}
 	}}
 	ctx := context.Background()
-	if _, err := BuildFromFilm(ctx, filepath.Base(dir), "halo_infinite", film, opt); err != nil {
+	doc, err := BuildFromFilm(ctx, filepath.Base(dir), "halo_infinite", film, opt)
+	if err != nil {
 		t.Logf("%s : assemblage : %v", filepath.Base(dir), err)
 		return nil
+	}
+	for i, p := range doc.Projectiles {
+		if p.Attach != nil {
+			t.Logf("PUBLIE %s proj=%d t0=%d detoT=%d attach=%+v", filepath.Base(dir)[:8], i, p.T0, p.DetoT, *p.Attach)
+		}
 	}
 	// The attach reads under a context opened the way the cook opens its own (map entry, then the
 	// world-object widths of the catalog): without those widths the walk desyncs on ti=41.
@@ -186,7 +194,8 @@ func casDUnMatch(t *testing.T, cat *profile.MapQuantCatalog, dir string) []attac
 	}
 	var out []attachCase
 	for _, a := range attaches {
-		c := attachCase{match: filepath.Base(dir)[:8], a: a}
+		c := attachCase{match: filepath.Base(dir), a: a}
+		c.originUS, c.stepUS = grilleDuDocument(doc)
 		for _, tr := range tracks {
 			if tr.Slot != a.Life.Slot || tr.Gen != a.Life.Gen {
 				continue
@@ -224,6 +233,52 @@ func casDUnMatch(t *testing.T, cat *profile.MapQuantCatalog, dir string) []attac
 
 func sq(v float64) float64 { return v * v }
 
+// grilleDuDocument returns the document's frame grid: its origin (us, from a projectile's first
+// full-rate instant, truncated to the millisecond as published) and its step (us).
+func grilleDuDocument(doc ReplayDocument) (origin, step float64) {
+	step = float64(doc.FrameIntervalMS) * 1000
+	for _, p := range doc.Projectiles {
+		if p.FullRate != nil && len(p.FullRate.T) > 0 {
+			return float64(p.t0US) - float64(p.FullRate.T[0])*float64(fullRateTimeUnitUS), step
+		}
+	}
+	return 0, step
+}
+
+// casExporte is one case as the viewer harness reads it (web scene3d, attach calibration): the
+// stored match, the frames on the document grid, the detonation in Halo world axes, the raw read.
+type casExporte struct {
+	Match       string     `json:"match"`
+	AttachFrame float64    `json:"attachFrame"`
+	DetoFrame   float64    `json:"detoFrame"`
+	Deto        [3]float32 `json:"deto"`
+	ParentSlot  uint32     `json:"parentSlot"`
+	Node        uint32     `json:"node"`
+	Pose        [3]uint32  `json:"pose"`
+}
+
+func exporterLesCas(t *testing.T, path string, all []attachCase) {
+	t.Helper()
+	var out []casExporte
+	for _, c := range all {
+		if !c.hasDeto || c.originUS == 0 {
+			continue
+		}
+		out = append(out, casExporte{Match: c.match,
+			AttachFrame: (float64(c.a.TimestampUS) - c.originUS) / c.stepUS,
+			DetoFrame:   (float64(c.deto.TimestampUS) - c.originUS) / c.stepUS,
+			Deto:        [3]float32{c.deto.X, c.deto.Y, c.deto.Z}, ParentSlot: c.a.Parent.Slot, Node: c.a.Node, Pose: c.a.Pose})
+	}
+	raw, err := json.MarshalIndent(out, "", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("EXPORT %d cas -> %s", len(out), path)
+}
+
 // local rotates a world offset into the frame of a parent facing `yawDeg`.
 func local(o [3]float64, yawDeg float64) [3]float64 {
 	r := -yawDeg * math.Pi / 180
@@ -248,6 +303,9 @@ func TestProjectileAttachCalibration(t *testing.T) {
 		}
 	}
 	t.Logf("%d lectures attachees", len(all))
+	if p := os.Getenv("IT3D_ATTACH_EXPORT"); p != "" {
+		exporterLesCas(t, p, all)
+	}
 	var resRigide, resFixe []float64
 	for _, c := range all {
 		if !c.hasDeto || !c.parentSeen || c.last.TimestampUS == 0 || math.IsNaN(c.yawAttach) || math.IsNaN(c.yawDeto) {

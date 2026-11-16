@@ -22,7 +22,10 @@ package grammar
 //	./internal/grammar/ -run TestStickMarche -v   (from third_party/film-decoder)
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/JGtm/halo-infinite-film-decoder/internal/grammar/lecture"
@@ -200,5 +203,93 @@ func TestStickMarche(t *testing.T) {
 			l.st.Quant16, (l.st.Quant16&parentHandleValueMask)+parentHandleBase, l.st.Quant16>>30, l.st.Word16,
 			l.st.HasOpt16, l.st.Opt16, l.st.FlagA, l.st.FlagB, l.st.Mtx, l.st.HasVel, l.st.Vel, l.st.Byte8, l.st.FlagC,
 			l.st.TailSign, l.st.Tail6, l.st.TailBit)
+	}
+}
+
+// canalDesParentsDAttache names the archetype of each parent an attached ti=41 record points at:
+// the type index of the last record the walk read for that slot before the attach (any record kind).
+type canalDesParentsDAttache struct {
+	m      *MarcheDistribuee
+	reg    *Registry
+	lastTI map[uint32]uint32
+	parTI  map[string]int
+	cas    []string
+}
+
+func (c *canalDesParentsDAttache) Interets() []Interet {
+	return []Interet{{Phase: PhaseTrames, TI: ProjectileTypeIndex, Composant: compObjectParentState}}
+}
+func (c *canalDesParentsDAttache) Clore(BilanDeMarche)                          {}
+func (c *canalDesParentsDAttache) Brancher(_ *Observation, m *MarcheDistribuee) { c.m = m }
+func (c *canalDesParentsDAttache) Trame(p *lecture.Paquet) {
+	recs, lus := c.m.recordsDeLaTrame()
+	if !lus && listeAnnoncee(&p.VueA) {
+		recs, lus, _ = c.m.recupererLaListe()
+	}
+	if !lus {
+		return
+	}
+	for i := range recs {
+		r := &recs[i]
+		if r.TypeIndex == ProjectileTypeIndex && r.Type == recDelta && r.DesyncAt == -1 {
+			if st, ok := parentDuRecord(r); ok && st.Attached {
+				parent := (st.Quant16 & parentHandleValueMask) + parentHandleBase
+				nom := "inconnu"
+				if ti, ok := c.lastTI[parent]; ok {
+					nom = fmt.Sprintf("ti=%d", ti)
+					if a, ok := c.reg.Archetype(int(ti)); ok && len(a.Components) > 0 {
+						nom += " (" + a.Components[len(a.Components)-1] + ")"
+					}
+				}
+				c.parTI[nom]++
+				c.cas = append(c.cas, fmt.Sprintf("t=%d proj=%d parent=%d node=%d %s", p.TS, r.Slot, parent, st.Word16, nom))
+			}
+		}
+		c.lastTI[r.Slot] = uint32(r.TypeIndex)
+	}
+}
+
+// TestStickParentArchetypes: what the projectiles that stick are stuck TO, over every stored match.
+//
+// USAGE: IT3D_STICK_MATCHES=<...>\data\matches go test -tags research -run TestStickParentArchetypes ./internal/grammar/
+func TestStickParentArchetypes(t *testing.T) {
+	root := os.Getenv("IT3D_STICK_MATCHES")
+	if root == "" {
+		t.Skip("IT3D_STICK_MATCHES absent : instrument saute")
+	}
+	ents, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := map[string]int{}
+	for _, e := range ents {
+		if !e.IsDir() {
+			continue
+		}
+		film, err := source.LoadDir(filepath.Join(root, e.Name(), "chunks"), nil)
+		if err != nil {
+			continue
+		}
+		fc := contexteDeBobine(film)
+		reg, err := fc.Registry()
+		if err != nil {
+			continue
+		}
+		c := &canalDesParentsDAttache{reg: reg, lastTI: map[uint32]uint32{}, parTI: map[string]int{}}
+		if err := Distribuer(fc, c); err != nil {
+			t.Logf("%s : %v", e.Name(), err)
+			continue
+		}
+		for _, l := range c.cas {
+			if !strings.Contains(l, "ti=35") {
+				t.Logf("%s %s", e.Name()[:8], l)
+			}
+		}
+		for k, v := range c.parTI {
+			total[k] += v
+		}
+	}
+	for k, v := range total {
+		t.Logf("PARENT %s : %d", k, v)
 	}
 }
