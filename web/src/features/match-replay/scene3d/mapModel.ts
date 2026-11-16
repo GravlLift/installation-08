@@ -192,7 +192,7 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
   const cielInfo = lireCiel(scene.userData)
   const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
   const baked = await loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps)
-  if (baked) for (const m of owned) baked.apply(m, true)
+  if (baked) for (const m of owned) baked.apply(m)
   const model = await indexSurfaces(prepared, onStep)
   let unbatch: (() => void) | null = null
   return {
@@ -222,7 +222,7 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
 export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2)
-  if (light) for (const m of prepared.owned) light.apply(m, true)
+  if (light) for (const m of prepared.owned) light.apply(m)
   return indexSurfaces(prepared, onStep)
 }
 
