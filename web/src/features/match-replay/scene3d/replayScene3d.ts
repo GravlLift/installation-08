@@ -38,7 +38,7 @@ import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
 import { FreeFly } from './freeFly3d'
 import { createKtx2Loader } from './ktx2Textures3d'
-import { Lighting } from './lighting'
+import { farthestCorner, Lighting } from './lighting'
 import { creerCiel, setCloudClock } from './ciel3d'
 import type { Look3d } from './look3d'
 import type { BakedLight } from './bakedLightShader'
@@ -105,6 +105,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   private ktx2: KTX2Loader | null = null
   private ciel: ReturnType<typeof creerCiel> | null = null
   private layer: SurfaceModel | null = null
+  /** The play area's center (three axes) and its half diagonal (u), for the haze (`Lighting.fitHaze`). */
+  private playCenter: THREE.Vector3 | null = null
+  private playReach = 0
   /** The posed layer's batches (layerBatch3d), released with it. */
   private layerBatches: LayerBatches | null = null
   private ground: Ground | null = null
@@ -198,12 +201,15 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.scene.add(model.root)
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.setSunStrength(model.sunStrength)
+    this.lighting.setSunColor(model.sunColor)
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
       .map((p) => new THREE.Vector3(...toThree(p.x, p.y, p.z)))
     if (playPoints.length > 0) {
       const playBox = new THREE.Box3().setFromPoints(playPoints).expandByScalar(PLAY_MARGIN)
       playBox.max.y += PLAY_HEADROOM
+      this.playCenter = playBox.getCenter(new THREE.Vector3())
+      this.playReach = farthestCorner(playBox, this.playCenter)
       this.lighting.fit(playBox)
       const sun = model.sun ?? SUN_FALLBACK
       this.lighting.setSun(sun.azimuth, sun.elevation)
@@ -322,6 +328,10 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.detachLayer()
     this.layer = layer
     this.scene.add(layer.root)
+    if (this.playCenter) {
+      const reach = farthestCorner(new THREE.Box3().setFromObject(layer.root), this.playCenter)
+      this.lighting.fitHaze(this.playReach, reach)
+    }
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
     // After the probes chose each surface's material: the batches share it.
@@ -341,6 +351,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.layerBatches?.dispose()
     this.layerBatches = null
     this.scene.remove(layer.root)
+    this.lighting.fitHaze(this.playReach, this.playReach)
     this.lighting.setStaticCasters(this.mapRoots())
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())

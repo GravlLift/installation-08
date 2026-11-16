@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
 import { BLOOM_THRESHOLD } from './bloom3d'
-import { captureSkyScale, ENV_INTENSITY, glowLevel, IMAGE_GLOW_MAX, imageGlowLevel, SKY_FILL_SHARE } from './lighting'
+import { captureSkyScale, ENV_INTENSITY, farthestCorner, glowLevel, hazeDensity, IMAGE_GLOW_MAX, imageGlowLevel, SKY_FILL_SHARE, sunLightColor } from './lighting'
 
 describe('captureSkyScale', () => {
   const sky = new THREE.Color(0x9fb4c8)
@@ -18,6 +18,44 @@ describe('captureSkyScale', () => {
     expect(captureSkyScale(1000, sky)).toBe(1)
     expect(captureSkyScale(2, new THREE.Color(0x000000))).toBe(0)
     expect(captureSkyScale(0, sky)).toBe(0)
+  })
+})
+
+describe('sunLightColor', () => {
+  const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+  const tint = new THREE.Color(0xfff4e5)
+  it('keeps the tuned sun for Recharge’s own color and SUN_TINT without one', () => {
+    const recharge = sunLightColor([1, 0.9098039, 0.8039216])
+    expect(Math.abs(recharge.r - tint.r) + Math.abs(recharge.g - tint.g) + Math.abs(recharge.b - tint.b)).toBeLessThan(0.03)
+    expect(sunLightColor(null).equals(tint)).toBe(true)
+    expect(sunLightColor([0, 0, 0]).equals(tint)).toBe(true)
+  })
+  it('takes Origin’s warm orange hue at the tuned luminance', () => {
+    const origin = sunLightColor([1, 0.712, 0.41])
+    expect(lum(origin)).toBeCloseTo(lum(tint), 6)
+    expect(origin.g / origin.r).toBeCloseTo(0.712, 6)
+    expect(origin.b / origin.r).toBeCloseTo(0.41, 6)
+  })
+})
+
+describe('hazeDensity', () => {
+  it('keeps the native haze when the layer stays inside the play area', () => {
+    expect(hazeDensity(60, 60)).toBe(0.02)
+    expect(hazeDensity(60, 40)).toBe(0.02)
+    expect(hazeDensity(0, 400)).toBe(0.02)
+  })
+  it('thins the haze so a farther layer edge takes the haze the play area edge took', () => {
+    // Origin: the play area reaches about 60 u, its Forge backdrop about 570 u.
+    const d = hazeDensity(60, 570)
+    const haze = (density: number, u: number) => 1 - Math.exp(-((density * u) ** 2))
+    expect(haze(d, 570)).toBeCloseTo(haze(0.02, 60), 6)
+    expect(haze(0.02, 100)).toBeGreaterThan(0.98)
+    expect(haze(d, 100)).toBeLessThan(0.1)
+  })
+  it('measures a world from the play area center', () => {
+    const box = new THREE.Box3(new THREE.Vector3(-3, -1, -4), new THREE.Vector3(1, 2, 2))
+    expect(farthestCorner(box, new THREE.Vector3())).toBeCloseTo(Math.hypot(3, 2, 4), 6)
+    expect(farthestCorner(new THREE.Box3(), new THREE.Vector3())).toBe(0)
   })
 })
 

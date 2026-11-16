@@ -26,15 +26,19 @@ export function intensiteSoleil(extras: unknown): number {
   return typeof valeur === 'number' && Number.isFinite(valeur) && valeur >= 0 ? Math.min(valeur / SOLEIL_REFERENCE, 1) : 1
 }
 
+/** sunColorOf: the game's sun color published with the mesh (linear RGB), null when absent or unreadable. */
+export function sunColorOf(extras: unknown): [number, number, number] | null {
+  const color = (extras as { levelupSun?: { color?: unknown } } | null)?.levelupSun?.color
+  return Array.isArray(color) && color.length === 3 && color.every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0) ? color as [number, number, number] : null
+}
+
 /** Lit la presence du ciel et la texture glTF optionnelle. */
 export function lireCiel(extras: unknown): { texture: number | null; color: [number, number, number] | null } | null {
   if (!extras || typeof extras !== 'object') return null
   const ciel = (extras as { ciel?: unknown }).ciel
   if (!ciel || typeof ciel !== 'object' || Array.isArray(ciel)) return null
   const texture = (ciel as { cloudTexture?: unknown }).cloudTexture
-  const color = (extras as { levelupSun?: { color?: unknown } }).levelupSun?.color
-  return { texture: typeof texture === 'number' && Number.isSafeInteger(texture) && texture >= 0 ? texture : null,
-    color: Array.isArray(color) && color.length === 3 && color.every((v) => typeof v === 'number' && Number.isFinite(v) && v >= 0) ? color as [number, number, number] : null }
+  return { texture: typeof texture === 'number' && Number.isSafeInteger(texture) && texture >= 0 ? texture : null, color: sunColorOf(extras) }
 }
 
 /**
