@@ -20,8 +20,9 @@
  * (`spreadShots3d`). As a `light` tracer (the 0.4 mm wire of a bullet, at a bullet's speed) it was
  * not seen at all.
  *
- * Le tir de choc (famille `shock`) n'a ni balle ni trait : un faisceau instantané, l'arc entier
- * de la bouche au mur, plein à l'instant du tir et fondu linéairement sur `BEAM_SECONDS`.
+ * Le tir de choc (famille `shock`) n'a ni balle ni trait : TROIS faisceaux électriques sains,
+ * de la bouche au mur (`shockShots3d`), pleins à l'instant du tir, agités par bac de jitter et
+ * fondus linéairement sur `SHOCK_BEAM_SECONDS`.
  *
  * L'éclair de bouche se pose au bout de l'arme que la scène DESSINE à l'image affichée
  * (`drawnWeapon`) : en 1re personne, l'arme dessinée est le rig bras + arme, qui n'a pas d'arme en
@@ -52,6 +53,7 @@ import { flashPetals, muzzleFlashSite, muzzleFlashStrength, rigFlashSite, type F
 import { newRecoil, type Recoil } from './recoil3d'
 import { recoilPoint } from './recoilPose3d'
 import { boltEndAge, boltPath, boltTrail, spreadDirections, SPREAD_BOUNCE_RANGE, SPREAD_RANGE, SPREAD_SPEED, SPREAD_TRAIL, type BoltPath } from './spreadShots3d'
+import { shockBeamPaths, shockJitterBucket, SHOCK_BEAM_SECONDS, SHOCK_BEAMS, SHOCK_HD, type ShockBeam } from './shockShots3d'
 import { ShooterRecoil } from './recoilShots3d'
 import { aimDirThree, toThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
@@ -206,6 +208,8 @@ export class Shots3dLayer implements ActionLayer3d {
   private readonly paths = new Map<ShotFxEntry, ShotPath | null>()
   /** The spread's bolts of each flight, traced once. */
   private readonly spreads = new WeakMap<ShotPath, BoltPath[]>()
+  /** Les trois faisceaux du tir de choc, remplis à chaque image (bacs réutilisables). */
+  private readonly shockBeams: ShockBeam[] = Array.from({ length: SHOCK_BEAMS }, () => ({ points: [] }))
   private readonly fromMuzzle = new Map<ShotFxEntry, ShotPath | null>()
   private readonly fromView = new Map<ShotFxEntry, ShotPath | null>()
   /** L'arme en main de chaque tir (identifiant), lue une fois. */
@@ -305,15 +309,9 @@ export class Shots3dLayer implements ActionLayer3d {
       return
     }
     if (formeVol(shot.fam) === 'beam') {
-      // Le tir de choc n'a pas de balle : l'arc entier, de la bouche au mur, plein à l'instant du
-      // tir et fondu linéairement ; son impact est à distance nulle, l'étincelle naît au tir.
-      const fade = beamFade(age)
-      if (fade > 0) {
-        this.lines.add(path.from, path.to, BEAM_RADIUS, this.lineInk.copy(tint).multiplyScalar(fade))
-        this.lines.add(path.from, path.to, BEAM_RADIUS * BEAM_GLOW_MULT, this.lineInk.copy(tint).multiplyScalar(fade * BEAM_GLOW_DIM))
-      }
-      const spark = path.hit ? impactAge(0, age) : null
-      if (spark !== null) this.dots.add(path.to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
+      // Le tir de choc : trois faisceaux, de la bouche au mur ; son impact est à distance nulle,
+      // l'étincelle naît au tir.
+      this.drawShock(path, path.to, age, tint, shot)
       return
     }
     const bolt = BOLT_SPEED[shot.fam]
@@ -353,6 +351,27 @@ export class Shots3dLayer implements ActionLayer3d {
       const spark = bolt.hit ? age - boltEndAge(bolt) : -1
       if (spark >= 0 && spark < IMPACT_SECONDS) this.dots.add(bolt.points[bolt.points.length - 1], null, IMPACT_RADIUS * 2 * (1 - spark / IMPACT_SECONDS), tint)
     }
+  }
+
+  /**
+   * drawShock : the shock shot's THREE jagged beams from the muzzle to the end point (the same end
+   * point the generic flight uses), full at the shot, jitter re-seeded per bucket, faded linearly
+   * over SHOCK_BEAM_SECONDS; a core and a glow per jagged piece, boosted to cross the bloom
+   * threshold. The spark is born at the shot (the impact is at zero range).
+   */
+  private drawShock(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color, shot: ShotLook): void {
+    const fade = beamFade(age, SHOCK_BEAM_SECONDS)
+    if (fade > 0) {
+      const beams = shockBeamPaths(path.from, to, shot.e.seed, shockJitterBucket(age), this.shockBeams)
+      for (const beam of beams) {
+        for (let k = 1; k < beam.points.length; k++) {
+          this.lines.add(beam.points[k - 1], beam.points[k], BEAM_RADIUS, this.lineInk.copy(tint).multiplyScalar(fade * SHOCK_HD))
+          this.lines.add(beam.points[k - 1], beam.points[k], BEAM_RADIUS * BEAM_GLOW_MULT, this.lineInk.copy(tint).multiplyScalar(fade * SHOCK_HD * BEAM_GLOW_DIM))
+        }
+      }
+    }
+    const spark = path.hit ? impactAge(0, age) : null
+    if (spark !== null) this.dots.add(to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
   }
 
   /**
