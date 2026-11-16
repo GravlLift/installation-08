@@ -513,6 +513,12 @@ func meshStateJSON(s meshjobs.Snapshot) map[string]any {
 		out["startedAt"] = s.StartedAt.UTC().Format(time.RFC3339Nano)
 		out["elapsedMs"] = s.ElapsedMs
 	}
+	if s.Progress > 0 {
+		out["progress"] = s.Progress
+	}
+	if s.Stage != "" {
+		out["stage"] = s.Stage
+	}
 	if s.Bytes > 0 || s.Triangles > 0 {
 		out["bytes"] = s.Bytes
 		out["triangles"] = s.Triangles

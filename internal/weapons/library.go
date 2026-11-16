@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
@@ -100,7 +101,11 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 
 	var res Result
 	w := modelWriter{a: a, dir: dir, coats: coats}
-	if err := buildWeapons(ctx, w, opts.Catalog.Keys, &res, announce); err != nil {
+	// The weapon models are the bulk of the library build; report them per unit through the
+	// runner's reporter (nil out of band), leaving the tail (grenades, equipment, Spartan,
+	// index) to the runner's own 1 on success.
+	rep := meshjobs.ProgressFromContext(ctx)
+	if err := buildWeapons(ctx, w, opts.Catalog.Keys, &res, announce, rep); err != nil {
 		return res, err
 	}
 	announce("building grenade projectiles")
@@ -169,9 +174,14 @@ type modelWriter struct {
 }
 
 // buildWeapons writes the GLB of each weapon of keys, counting them into res (a weapon whose
-// model cannot be read is marked with an empty <key>.none file, not an error).
-func buildWeapons(ctx context.Context, w modelWriter, keys []string, res *Result, announce func(string)) error {
-	for _, key := range keys {
+// model cannot be read is marked with an empty <key>.none file, not an error). rep (nil
+// accepted) reports the unit's position as progress.
+func buildWeapons(ctx context.Context, w modelWriter, keys []string, res *Result, announce func(string), rep meshjobs.ProgressReporter) error {
+	total := len(keys)
+	for i, key := range keys {
+		if rep != nil {
+			rep.Report(0.8*float64(i)/float64(total), "weapons")
+		}
 		announce("building weapon " + key)
 		n, err := buildWeaponModel(ctx, w.a, key, w.dir, w.coats)
 		if errors.Is(err, himap.ErrSansModele) {

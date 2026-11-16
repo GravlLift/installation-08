@@ -8,6 +8,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
@@ -15,7 +16,7 @@ import (
 )
 
 // writeCoatingLibraryIndex lays down a library folder for module with an index.json
-// carrying the given ekur_stamp.
+// carrying the given ekur_stamp and the module's current schema (a current build writes it).
 func writeCoatingLibraryIndex(t *testing.T, dataDir, module, stamp string) string {
 	t.Helper()
 	folder, ok := coatingLibraryFolder(module)
@@ -26,7 +27,8 @@ func writeCoatingLibraryIndex(t *testing.T, dataDir, module, stamp string) strin
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(`{"ekur_stamp":"`+stamp+`"}`), 0o644); err != nil {
+	body := `{"ekur_stamp":"` + stamp + `","schema":` + strconv.Itoa(coatingLibrarySchema(module)) + `}`
+	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return dir

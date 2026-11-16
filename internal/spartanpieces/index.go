@@ -25,6 +25,8 @@ import (
 // SchemaPieces is the version of the index format (Index) and the files it names,
 // the same version LevelUp's index carries (raw piece surfaces in
 // extras.surfaceBrute, material styles in extras.style, coatings and swatches).
+// Bumped when the build output changes the way the view reads it (the view's
+// ARMOR_INDEX_SCHEMA must accept it).
 const SchemaPieces = 2
 
 // FileIndex is the library's index file; its presence says the build is complete.

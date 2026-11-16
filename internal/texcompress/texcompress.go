@@ -230,6 +230,60 @@ func openGLB(r io.ReaderAt, size int64) (glbFile, error) {
 	return g, nil
 }
 
+// AssetExtras reads the asset.extras object of the GLB at path: a header-only read (the
+// 20-byte header and the JSON chunk the header sizes; the binary chunk is never read, so
+// a multi-gigabyte GLB costs two small reads). Nil with no error when the GLB has no
+// asset.extras; ErrNotGLB (wrapped) when the file is not a GLB with a readable JSON chunk.
+func AssetExtras(path string) (map[string]any, error) {
+	f, err := os.Open(path) //nolint:gosec // cache path, set by the caller
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	glb, err := openGLB(f, info.Size())
+	if err != nil {
+		return nil, err
+	}
+	asset, _ := glb.doc["asset"].(map[string]any)
+	if asset == nil {
+		return nil, nil
+	}
+	extras, _ := asset["extras"].(map[string]any)
+	return extras, nil
+}
+
+// UsesBasisu says whether the GLB at path lists KHR_texture_basisu in its
+// extensionsUsed: a header-only read (the 20-byte header and the JSON chunk the header
+// sizes; the binary chunk is never read). The KTX2 pass is the only writer that adds the
+// extension, so an unstamped GLB (built before asset.extras.buildFormat existed) that
+// lists it is format 2; the only pre-format-2 GLBs are the PNG ones.
+func UsesBasisu(path string) (bool, error) {
+	f, err := os.Open(path) //nolint:gosec // cache path, set by the caller
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+	glb, err := openGLB(f, info.Size())
+	if err != nil {
+		return false, err
+	}
+	list, _ := glb.doc["extensionsUsed"].([]any)
+	for _, e := range list {
+		if e == extBasisu {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // view is a buffer view's place in the source binary chunk.
 type view struct{ off, n int64 }
 

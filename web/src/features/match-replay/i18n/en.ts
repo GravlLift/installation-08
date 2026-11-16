@@ -430,4 +430,14 @@ export const EN_TEXT = {
   textureQualityHigh: 'High',
   textureQualityHighHint:
     'Uses about 4x graphics memory and builds a larger map file the first time.',
+  buildStage: {
+    geometry: 'Reading the map geometry',
+    lighting: 'Reading the lighting',
+    writing: 'Writing the map file',
+    textures: 'Compressing textures',
+    weapons: 'Building the weapon library',
+    rigs: 'Building the first-person rigs',
+  },
+  buildProgressFmt: (stage, pct) => `${stage}… ${pct} %`,
+  buildEtaFmt: (clock) => `about ${clock} left`,
 } satisfies ReplayText

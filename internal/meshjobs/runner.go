@@ -70,6 +70,10 @@ const (
 	StateReady     State = "ready"
 	StateFailed    State = "failed"
 	StateCancelled State = "cancelled"
+	// StateOutdated: the output is on disk but in an older build format (the version
+	// written with it does not match the current one): the normal build flow rebuilds it
+	// in place, and the viewer reads it as an update, not a first build.
+	StateOutdated State = "outdated"
 )
 
 // BuildResult summarizes one completed build (the byte count and triangle count of the
@@ -142,10 +146,72 @@ type Snapshot struct {
 	ElapsedMs     int64
 	Bytes         int64
 	Triangles     int
+	// Progress is the active build's fraction done, 0..1, reported by the build through the
+	// context reporter. It is zero until the build reports (a queued build, a build that has
+	// not started, and a build whose chain reports no progress all read 0), and it reaches 1
+	// only when the file is written and the build has succeeded (the runner sets it on success).
+	Progress float64
+	// Stage is the build step the build is in ("geometry", "lighting", "writing", "textures"),
+	// as named by the build; empty when none is reported.
+	Stage string
 }
 
 // Ready reports whether the state is one in which the mesh file is present and servable.
 func (s Snapshot) Ready() bool { return s.State == StateReady }
+
+// progressInfo is one module's build progress as the build reports it: a fraction 0..1 and
+// the stage it is in. It is kept per module so a Snapshot can carry it while the build runs.
+type progressInfo struct {
+	frac  float64
+	stage string
+}
+
+// ProgressReporter is what an active build's context carries so the build can report its
+// progress as it works. The build reads it from its context with ProgressFromContext and calls
+// Report with a fraction 0..1 and the stage it is in. The runner stores it (moving only
+// forward) and exposes it in the module's snapshot; it sets the fraction to 1 when the build
+// succeeds, so progress reaches 1 only when the file is written and the state is ready.
+type ProgressReporter interface {
+	Report(frac float64, stage string)
+}
+
+// progressKey is the context key the runner uses to carry a build's ProgressReporter.
+type progressKey struct{}
+
+// ProgressFromContext returns the ProgressReporter of the build that runs under ctx, or nil
+// when ctx is not a runner build (the standalone CLI, tests that build out of band). A nil
+// result means the build should not report progress (there is no one to read it).
+func ProgressFromContext(ctx context.Context) ProgressReporter {
+	rep, _ := ctx.Value(progressKey{}).(ProgressReporter)
+	return rep
+}
+
+// progressReporter is the runner's ProgressReporter for one active build. Report clamps the
+// fraction to [0,1] and moves it only forward (a stage boundary never reports below the last
+// value seen); the stage is overwritten by the latest non-empty name.
+type progressReporter struct {
+	r      *Runner
+	module string
+}
+
+func (p *progressReporter) Report(frac float64, stage string) {
+	if frac < 0 {
+		frac = 0
+	}
+	if frac > 1 {
+		frac = 1
+	}
+	p.r.mu.Lock()
+	defer p.r.mu.Unlock()
+	v := p.r.progress[p.module]
+	if frac > v.frac {
+		v.frac = frac
+	}
+	if stage != "" {
+		v.stage = stage
+	}
+	p.r.progress[p.module] = v
+}
 
 // Runner serializes map builds and tracks each module's state. It is process wide: one
 // build runs at a time, the rest queue in arrival order, and a request for a module that is
@@ -157,7 +223,11 @@ type Runner struct {
 	ready func(module string) bool
 	// dest maps a module key to its store file path, the build's output file (the server
 	// wires it to store.MeshPath). Nil (tests that never build) falls back to a name.
-	dest     func(module string) string
+	dest func(module string) string
+	// outdated says whether the module's output is on disk in an older build format (the
+	// server wires it to the store's build-format check). Nil falls back to no outdated
+	// state (tests that do not check formats).
+	outdated func(module string) bool
 	gameRoot string
 
 	mu          sync.Mutex
@@ -168,6 +238,7 @@ type Runner struct {
 	cancelling  bool
 	started     map[string]time.Time
 	result      map[string]BuildResult
+	progress    map[string]progressInfo // module -> build progress (fraction + stage)
 	cancel      context.CancelFunc // the active build's cancel, or nil
 	pumpStarted bool
 	done        chan struct{}
@@ -192,6 +263,7 @@ func New(build Builder, gameRoot string, ready func(string) bool) (*Runner, erro
 		cancelled: make(map[string]bool),
 		started:   make(map[string]time.Time),
 		result:    make(map[string]BuildResult),
+		progress:  make(map[string]progressInfo),
 		done:      make(chan struct{}),
 		kick:      make(chan struct{}, 1),
 	}, nil
@@ -203,6 +275,15 @@ func (r *Runner) SetDest(f func(string) string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.dest = f
+}
+
+// SetOutdated wires the build-format check in, so a module whose output is on disk in an
+// older build format reports StateOutdated (it is not ready, so Enqueue builds it; the
+// server calls it before Start).
+func (r *Runner) SetOutdated(f func(string) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.outdated = f
 }
 
 // Start launches the runner's pump: the single goroutine that builds one module at a time.
@@ -267,6 +348,10 @@ func (r *Runner) pump() {
 			r.cancelling = false
 			r.started[module] = time.Now()
 			delete(r.failed, module)
+			// Fresh progress for this build: it starts at 0 and only moves forward, reaching 1
+			// solely when the build succeeds (runJob). The build reports through the context.
+			r.progress[module] = progressInfo{}
+			ctx = context.WithValue(ctx, progressKey{}, &progressReporter{r: r, module: module})
 			// Drain a stray kick so we do not spin: it was for the job we just took.
 			select {
 			case <-r.kick:
@@ -303,6 +388,8 @@ func (r *Runner) runJob(ctx context.Context, module string) {
 		r.cancelled[module] = true
 	} else if err == nil {
 		r.result[module] = res
+		// Progress reaches 1 only now: the file is written and the build succeeded.
+		r.progress[module] = progressInfo{frac: 1}
 	} else {
 		r.failed[module] = err.Error()
 	}
@@ -352,7 +439,8 @@ func (r *Runner) Activity() (*Snapshot, []string) {
 		return nil, queued
 	}
 	st := r.started[r.active]
-	s := Snapshot{State: StateBuilding, ModuleKey: r.active, StartedAt: st}
+	p := r.progress[r.active]
+	s := Snapshot{State: StateBuilding, ModuleKey: r.active, StartedAt: st, Progress: p.frac, Stage: p.stage}
 	if !st.IsZero() {
 		s.ElapsedMs = time.Since(st).Milliseconds()
 	}
@@ -360,26 +448,40 @@ func (r *Runner) Activity() (*Snapshot, []string) {
 }
 
 // snapshotLocked is Snapshot with the lock already held. It re-derives ready from the
-// store first, so a file built out-of-band reports ready.
+// store first, so a file built out-of-band reports ready; a file present in an older
+// build format reports StateOutdated (the ready check covers the format, so ready is
+// false here).
 func (r *Runner) snapshotLocked(module string) Snapshot {
-	if r.ready(module) {
-		s := Snapshot{State: StateReady, ModuleKey: module}
-		if res, ok := r.result[module]; ok {
-			s.Bytes = res.Bytes
-			s.Triangles = res.Triangles
-		}
-		return s
-	}
+	// A build of this module in progress (or queued) wins: while it runs the old file is still
+	// on disk, so the outdated check would otherwise mask the building/queued state.
 	if r.active == module {
 		st := r.started[module]
 		elapsed := int64(0)
 		if !st.IsZero() {
 			elapsed = time.Since(st).Milliseconds()
 		}
-		return Snapshot{State: StateBuilding, ModuleKey: module, StartedAt: st, ElapsedMs: elapsed}
+		p := r.progress[module]
+		return Snapshot{State: StateBuilding, ModuleKey: module, StartedAt: st, ElapsedMs: elapsed,
+			Progress: p.frac, Stage: p.stage}
 	}
 	if pos, ok := r.queuePosition(module); ok {
 		return Snapshot{State: StateQueued, ModuleKey: module, QueuePosition: pos}
+	}
+	if r.outdated != nil && r.outdated(module) {
+		return Snapshot{State: StateOutdated, ModuleKey: module}
+	}
+	if r.ready(module) {
+		s := Snapshot{State: StateReady, ModuleKey: module}
+		if res, ok := r.result[module]; ok {
+			s.Bytes = res.Bytes
+			s.Triangles = res.Triangles
+		}
+		// A build that just finished in this process reports its completed fraction (1); a
+		// module ready from disk without a build here has no progress to report.
+		if p := r.progress[module]; p.frac > 0 {
+			s.Progress = p.frac
+		}
+		return s
 	}
 	if r.cancelled[module] {
 		return Snapshot{State: StateCancelled, ModuleKey: module}

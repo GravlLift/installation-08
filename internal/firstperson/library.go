@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 )
@@ -103,7 +104,14 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		slog.WarnContext(ctx, "ekur stamp could not be read", "err", err)
 	}
 	armes, sans := a.ArmesPremierePersonne()
-	for _, s := range armes {
+	// The rigs are the bulk of the library build; report them per unit through the runner's
+	// reporter (nil out of band), leaving the tail (arms, index) to the runner's own 1 on success.
+	rep := meshjobs.ProgressFromContext(ctx)
+	total := len(armes)
+	for i, s := range armes {
+		if rep != nil {
+			rep.Report(0.85*float64(i)/float64(total), "rigs")
+		}
 		key := fmt.Sprintf("%08x", s.Arme)
 		announce("building first-person rig " + key)
 		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)

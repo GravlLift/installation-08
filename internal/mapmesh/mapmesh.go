@@ -84,6 +84,23 @@ const (
 	axesGLBKey = "axes"
 )
 
+// BuildFormat is the build-format number published in every map and variant GLB's
+// asset.extras (under BuildFormatKey). It is bumped when the build output changes
+// (today: KTX2 textures, the texture read sizes, the materials), so a GLB written by an
+// older version of the app is detected as outdated and rebuilt by the normal build flow.
+// A GLB without the field (built before versioning) is outdated.
+const (
+	BuildFormat    = 2
+	BuildFormatKey = "buildFormat"
+)
+
+// commonExtras are the extras every map and variant GLB carries: the axis mapping (the
+// viewer's contract) and the build format (the server's outdated check reads it back
+// header-only). The builds merge these into their own extras.
+func commonExtras() map[string]any {
+	return map[string]any{axesGLBKey: axesGLB, BuildFormatKey: BuildFormat}
+}
+
 // Step is a build step, announced at its start.
 type Step string
 
@@ -113,7 +130,13 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	if announce == nil {
 		announce = func(Step) {}
 	}
-	announce(StepGeometry)
+	prog := progressOf(ctx, t.Textures == texcompress.FormatKTX2)
+	// note announces a step and reports it as progress (the runner's reporter, nil-safe).
+	note := func(s Step) {
+		announce(s)
+		prog.stage(s)
+	}
+	note(StepGeometry)
 	m, _, err := himap.CollecteMaillageMonde(ctx, himap.OptionsCuisson{
 		RacineDeploy:      gameRoot,
 		CheminModule:      t.Module,
@@ -128,13 +151,16 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	if err := ctx.Err(); err != nil {
 		return Summary{}, err
 	}
-	announce(StepLighting)
+	note(StepLighting)
 	readLighting(ctx, t, m)
 	if err := ctx.Err(); err != nil {
 		return Summary{}, err
 	}
-	announce(StepWriting)
-	extras := map[string]any{"module": t.Key, "mapNames": t.Names, axesGLBKey: axesGLB, "frame": t.Frame}
+	note(StepWriting)
+	extras := map[string]any{"module": t.Key, "mapNames": t.Names, "frame": t.Frame}
+	for k, v := range commonExtras() {
+		extras[k] = v
+	}
 	sky := skyOf(ctx, gameRoot, t, m)
 	// The summary is read before writing: the texture pass that follows the writer must not keep
 	// the collected mesh (and its decoded textures) alive.
@@ -143,7 +169,7 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 		Sun: m.Soleil != nil, Probes: m.Sondes != nil, Lights: len(m.Lumieres),
 	}
 	outOfBox, outOfFrame := m.HorsBoite, m.HorsCadre
-	n, err := writeGLB(ctx, path, t.Key, t.Textures, announce, func(w io.Writer) error {
+	n, err := writeGLB(ctx, path, t.Key, t.Textures, prog, func(w io.Writer) error {
 		if err := himap.EcritGLBCiel(w, m, generator, extras, sky); err != nil {
 			return err
 		}
@@ -163,7 +189,7 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 // writeGLB writes a map or variant GLB to `path` like writeFile. For texcompress.FormatKTX2 the
 // writer's GLB goes to `path + ".src"` first, its images are rewritten into `path`
 // (StepTextures), and the source is removed: `path` only ever holds the finished KTX2 GLB.
-func writeGLB(ctx context.Context, path, key string, format texcompress.Format, announce func(Step), write func(io.Writer) error) (int64, error) {
+func writeGLB(ctx context.Context, path, key string, format texcompress.Format, prog progress, write func(io.Writer) error) (int64, error) {
 	if format != texcompress.FormatKTX2 {
 		return writeFile(path, write)
 	}
@@ -174,10 +200,8 @@ func writeGLB(ctx context.Context, path, key string, format texcompress.Format, 
 		return 0, err
 	}
 	defer func() { _ = os.Remove(src) }()
-	if announce != nil {
-		announce(StepTextures)
-	}
-	st, err := texcompress.CompressFile(ctx, src, path, texcompress.Options{})
+	prog.stage(StepTextures)
+	st, err := texcompress.CompressFile(ctx, src, path, texcompress.Options{Progress: prog.texturesDone})
 	if err != nil {
 		return 0, fmt.Errorf("textures: %w", err)
 	}

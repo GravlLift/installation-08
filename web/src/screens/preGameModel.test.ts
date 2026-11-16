@@ -73,7 +73,7 @@ describe('splitRosters', () => {
 describe('buildLineOf', () => {
   it('offers nothing while checking', () => {
     const line = buildLineOf({ phase: 'checking' }, false)
-    expect(line).toEqual({ text: 'Checking build status…', action: null, actionLabel: null })
+    expect(line).toEqual({ text: 'Checking build status…', action: null, actionLabel: null, fraction: null })
   })
 
   it('offers the build with a plain minutes warning when absent', () => {
@@ -81,6 +81,13 @@ describe('buildLineOf', () => {
     expect(line.action).toBe('build')
     expect(line.actionLabel).toBe('Build map')
     expect(line.text).toBe('This map has not been built yet. A first build takes minutes.')
+  })
+
+  it('offers an update, not a first build, when the map is outdated', () => {
+    const line = buildLineOf({ phase: 'outdated' }, false)
+    expect(line.action).toBe('build')
+    expect(line.actionLabel).toBe('Update map')
+    expect(line.text).toBe('This map was built by an older version. Update it to get the new textures.')
   })
 
   it('shows the queue position when the server carries it', () => {
@@ -93,6 +100,35 @@ describe('buildLineOf', () => {
     expect(line.text).toBe('Building… 10s elapsed')
     expect(line.action).toBe('cancel')
     expect(line.actionLabel).toBe('Cancel')
+    expect(line.fraction).toBeNull() // no fraction reported: the bar sweeps
+  })
+
+  it('names the stage with the percentage once the server reports a fraction', () => {
+    const line = buildLineOf({ phase: 'building', elapsedMs: 60000, progress: 0.47, stage: 'textures' }, false)
+    expect(line.text).toBe('Compressing textures… 47 % — about 1:07 left')
+    expect(line.fraction).toBeCloseTo(0.47)
+  })
+
+  it('adds an estimated time left from elapsed time over progress once past 5%', () => {
+    // 60 s elapsed at 25%: ~180 s left, formatted m:ss.
+    const line = buildLineOf({ phase: 'building', elapsedMs: 60000, progress: 0.25, stage: 'textures' }, false)
+    expect(line.text).toBe('Compressing textures… 25 % — about 3:00 left')
+  })
+
+  it('withholds the estimate below 5% (it would dance on the first reports)', () => {
+    const line = buildLineOf({ phase: 'building', elapsedMs: 8000, progress: 0.04, stage: 'geometry' }, false)
+    expect(line.text).toBe('Reading the map geometry… 4 %')
+  })
+
+  it('falls back to the elapsed count for a fraction of zero (an old server that sends the field)', () => {
+    const line = buildLineOf({ phase: 'building', elapsedMs: 9500, progress: 0, stage: 'geometry' }, false)
+    expect(line.text).toBe('Building… 10s elapsed')
+    expect(line.fraction).toBeNull()
+  })
+
+  it('falls back to a plain building name for a stage the table does not know', () => {
+    const line = buildLineOf({ phase: 'building', elapsedMs: 60000, progress: 0.5, stage: 'mystery' }, false)
+    expect(line.text).toBe('Building… 50 % — about 1:00 left')
   })
 
   it('shows the cancelling label while the cancel request is in flight', () => {

@@ -47,6 +47,7 @@ export function stepStatusOf(body: FirstRunBody): Pick<FirstRunStep, 'status' | 
     case 'absent':
     case 'ready':
     case 'cancelled':
+    case 'outdated':
       return { status: 'done' }
     case 'failed':
       return { status: 'failed', error: body?.error || 'it failed' }

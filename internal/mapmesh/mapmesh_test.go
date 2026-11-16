@@ -1,9 +1,16 @@
 package mapmesh
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"path/filepath"
 	"testing"
 
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
+
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
+	"github.com/JGtm/halo-infinite-map-images/himap"
 )
 
 // TestFrameOf: the frame follows the background's convention (origin at the top-left corner, Y
@@ -28,5 +35,40 @@ func TestFrameOf(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+// TestBuildFormatWritten — a GLB written the way the builds write it carries the current
+// build format in asset.extras: the server's readiness check reads it back (header-only) and
+// a GLB without the field, or with an older one, is not current. The extras here are merged
+// exactly as Build and BuildVariant merge them (commonExtras).
+func TestBuildFormatWritten(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "m.glb")
+	m := &himap.MaillageMonde{
+		Structure: himap.GroupeMaillage{
+			Sommets: []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9},
+			Indices: map[uint32][]uint32{0xA: {0, 1, 2}, 0xB: {1, 2, 3}},
+		},
+		Materiaux: map[uint32]himap.Materiau{0xA: {ID: 0xA}, 0xB: {ID: 0xB, Melange: himap.MelangeAlpha}},
+	}
+	extras := map[string]any{"module": "m"}
+	for k, v := range commonExtras() {
+		extras[k] = v
+	}
+	if _, err := writeGLB(context.Background(), path, "m", texcompress.FormatPNG, progress{}, func(w io.Writer) error {
+		return himap.EcritGLB(w, m, "test", extras)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := texcompress.AssetExtras(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(got[BuildFormatKey]) != fmt.Sprint(BuildFormat) {
+		t.Errorf("written buildFormat = %v, want %d", got[BuildFormatKey], BuildFormat)
+	}
+	if got[axesGLBKey] != axesGLB {
+		t.Errorf("written axes = %v, want %q", got[axesGLBKey], axesGLB)
 	}
 }

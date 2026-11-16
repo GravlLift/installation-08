@@ -59,7 +59,13 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	if announce == nil {
 		announce = func(Step) {}
 	}
-	announce(StepGeometry)
+	prog := progressOf(ctx, t.Textures == texcompress.FormatKTX2)
+	// note announces a step and reports it as progress (the runner's reporter, nil-safe).
+	note := func(s Step) {
+		announce(s)
+		prog.stage(s)
+	}
+	note(StepGeometry)
 	tints, err := forgeTints(t.ForgeMaterials, t.Styles)
 	if err != nil {
 		return Summary{}, err
@@ -85,12 +91,15 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	if err != nil {
 		return Summary{}, err
 	}
-	announce(StepWriting)
-	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), axesGLBKey: axesGLB, "objects": bilan.Poses}
+	note(StepWriting)
+	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), "objects": bilan.Poses}
+	for k, v := range commonExtras() {
+		extras[k] = v
+	}
 	// Read before writing, so the texture pass does not keep the collected layer alive.
 	placed, unique := m.Poses.Triangles()
 	models := len(m.Poses.Geometries)
-	n, err := writeGLB(ctx, path, t.Key, t.Textures, announce, func(w io.Writer) error { return himap.EcritGLB(w, m, generator, extras) })
+	n, err := writeGLB(ctx, path, t.Key, t.Textures, prog, func(w io.Writer) error { return himap.EcritGLB(w, m, generator, extras) })
 	if err != nil {
 		return Summary{}, err
 	}

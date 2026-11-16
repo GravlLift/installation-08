@@ -1014,4 +1014,14 @@ export interface ReplayText {
   textureQualityStandard: string
   textureQualityHigh: string
   textureQualityHighHint: string
+  /**
+   * THE MAP BUILD PROGRESS LINE (pre-game and in-viewer quality switch): the server's stage
+   * key for each build step, the line the bar says under it (the stage with its percentage),
+   * and the estimated time left (present only once the progress is past 5%, from
+   * elapsed time over progress). The bar itself fills with the real fraction; nothing in
+   * these strings invents a number the server did not report.
+   */
+  buildStage: Record<'geometry' | 'lighting' | 'writing' | 'textures' | 'weapons' | 'rigs', string>
+  buildProgressFmt: (stage: string, pct: number) => string
+  buildEtaFmt: (clock: string) => string
 }
