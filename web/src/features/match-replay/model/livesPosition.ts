@@ -126,6 +126,31 @@ export function lifeOfSlotAt(
   return (bySlot.get(slot) ?? []).find((l) => isAliveAt(l, frame))
 }
 
+/**
+ * soundPositionOfSlot — the place of a SLOT's gesture at a frame, for a sound event, WITH THE
+ * FOLLOWED PLAYER'S OWN EXEMPTION BUILT IN: `undefined` when the slot has no life at that frame
+ * (nothing invented), AND `undefined` when the life belongs to `followed` — the followed
+ * player's own gestures stay WITHOUT A PLACE, full and centered (`placeOf`), whatever the
+ * camera (first person, third person, free): the audio perspective follows the FOLLOWED LIFE,
+ * never the rendered camera transform. Every OTHER life gets its map position, for the
+ * spatial fall-off (`soundSpatial.ts`).
+ *
+ * `followed === null` (no followed player, e.g. a 2D export) places EVERY life — there is then no
+ * "own" to exempt.
+ */
+export function soundPositionOfSlot(
+  bySlot: ReadonlyMap<number, ReplayTrackReady[]>,
+  slot: number,
+  frame: number,
+  followed: string | null,
+): { x: number; y: number } | undefined {
+  const life = lifeOfSlotAt(bySlot, slot, frame)
+  if (!life) return undefined
+  if (followed !== null && life.xuid === followed) return undefined
+  const p = positionAt(life.points, frame)
+  return p ? { x: p.x, y: p.y } : undefined
+}
+
 /** deathWindowFrames — the post-death window in frames (at least one). */
 export function deathWindowFrames(doc: ReplayDocumentReady): number {
   return Math.max(1, Math.round(msToFrames(KILLPOS_WINDOW_MS, doc)))

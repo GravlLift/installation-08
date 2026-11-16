@@ -14,6 +14,7 @@
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
+import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /** The stem of the rift placement. */
@@ -22,11 +23,21 @@ export const RIFT_POSE_SOUND_STEM = 'translocator_deploy'
 /** Position of the placement HIT in the file, in milliseconds (measured on the in-game recording). */
 export const RIFT_POSE_HIT_OFFSET_MS = 1045
 
-/** riftPoseSoundEvents — one sound per published placement, its hit at the moment of the placement. */
-export function riftPoseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
+/**
+ * riftPoseSoundEvents — one sound per published placement, its hit at the moment of the
+ * placement, at the rift's own position (x/y, when the film reads them) — the followed
+ * player's own placement stays without a place.
+ */
+export function riftPoseSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
+  const lives = buildLivesBySlot(doc.tracks)
   return doc.riftPoses.map((p) => {
     let depart = frameToMs(p.t, doc) - RIFT_POSE_HIT_OFFSET_MS
     if (p.a !== undefined) depart = Math.max(depart, frameToMs(p.a, doc))
-    return soundEvent(Math.max(0, depart), RIFT_POSE_SOUND_STEM)
+    const own = followed !== null && lifeOfSlotAt(lives, p.slot, p.t)?.xuid === followed
+    const at = own || p.x === undefined || p.y === undefined ? undefined : { x: p.x, y: p.y }
+    return soundEvent(Math.max(0, depart), RIFT_POSE_SOUND_STEM, at)
   })
 }

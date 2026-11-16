@@ -27,7 +27,7 @@
  */
 import { frameToMs, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { currentLifeOf } from '../../../lib/replay/rosterLogic'
+import { botKey, currentLifeOf } from '../../../lib/replay/rosterLogic'
 import { armeEnMain } from '../model/armeEnMain'
 import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
@@ -49,21 +49,32 @@ export interface SlotFacts {
   hands: { ms: number; d: number }[]
 }
 
-/** reloadSoundEvents — every reload's sounds, for the weapons the library has a reload for. */
-export function reloadSoundEvents(doc: ReplayDocumentReady, library: ReloadLibrary | undefined): ReplaySoundEvent[] {
+/**
+ * reloadSoundEvents — every reload's sounds, for the weapons the library has a reload for.
+ *
+ * THE FOLLOWED PLAYER IS NON-SPATIAL (bug fixed 2026-11-16, same rule as `ventSound.ts` next
+ * door, which this file never carried despite sharing its `weapon_reload` source): his own
+ * reload is his, without a place. The others are positioned on their life, same fall-off as
+ * every other per-player sound.
+ */
+export function reloadSoundEvents(
+  doc: ReplayDocumentReady,
+  library: ReloadLibrary | undefined,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
   if (!library || library.size === 0) return []
   const facts = factsBySlot(doc)
   const out: ReplaySoundEvent[] = []
   for (const [slot, f] of facts) {
     for (let i = 0; i < f.reloads.length; i++) {
-      out.push(...oneReload(doc, library, slot, f, i))
+      out.push(...oneReload(doc, library, slot, f, i, followed))
     }
   }
   return out.sort((a, b) => a.ms - b.ms)
 }
 
 /** oneReload — the sounds of the i-th reload of a player. */
-function oneReload(doc: ReplayDocumentReady, library: ReloadLibrary, slot: number, f: SlotFacts, i: number): ReplaySoundEvent[] {
+function oneReload(doc: ReplayDocumentReady, library: ReloadLibrary, slot: number, f: SlotFacts, i: number, followed: string | null): ReplaySoundEvent[] {
   const startMs = f.reloads[i]
   const frame = Math.floor(msToFrames(startMs, doc))
   const held = armeEnMain(doc, slot, frame)
@@ -81,6 +92,7 @@ function oneReload(doc: ReplayDocumentReady, library: ReloadLibrary, slot: numbe
     f.hands.find((h) => h.ms > startMs && h.d !== held.slotArme)?.ms ?? Infinity,
   )
   const cancelled = endMs < startMs + clip.durationMs
+  const xuid = trackIdentity(doc, slot)
   const out: ReplaySoundEvent[] = []
   for (const s of clip.sounds) {
     const ms = startMs + s.atMs
@@ -89,10 +101,16 @@ function oneReload(doc: ReplayDocumentReady, library: ReloadLibrary, slot: numbe
     if (s.stems.length > 1) e.variants = s.stems
     if (cancelled) e.cutMs = endMs - ms
     const at = positionAt(life.points, msToFrames(ms, doc))
-    if (at) e.at = { x: at.x, y: at.y }
+    if (at && !(followed !== null && xuid === followed)) e.at = { x: at.x, y: at.y }
     out.push(e)
   }
   return out
+}
+
+/** The xuid a track plays under: its real xuid, or its bot key (same rule as `footstepSound.ts`, `ventSound.ts`). */
+export function trackIdentity(doc: ReplayDocumentReady, slot: number): string {
+  const track = doc.tracks.find((t) => t.slot === slot)
+  return track?.xuid || (track?.bot ? botKey(track.bot) : '')
 }
 
 /** clipAt — the weapon's reload animation in the player's stance: crouched when the film says so and the weapon has one. */

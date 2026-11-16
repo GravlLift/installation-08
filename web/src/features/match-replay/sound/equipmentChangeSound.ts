@@ -27,6 +27,7 @@
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
+import { buildLivesBySlot, soundPositionOfSlot } from '../model/livesPosition'
 
 /**
  * The equipment pickup sound. Bank `sb_007_abl_shared`, event `c73036e4` =
@@ -34,12 +35,19 @@ import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
  */
 export const EQUIPMENT_PICKUP_SOUND_STEM = 'objective_pad_pickup'
 
-/** equipmentChangeSoundEvents — one sound per published pickup, on its frame. */
-export function equipmentChangeSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
+/**
+ * equipmentChangeSoundEvents — one sound per published pickup, on its frame, at the hand that
+ * does it (`soundPositionOfSlot`): the followed player's own pickup stays without a place.
+ */
+export function equipmentChangeSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  const lives = buildLivesBySlot(doc.tracks)
   for (const c of doc.equipmentChanges) {
     if (c.kind !== 'taken') continue
-    out.push(soundEvent(frameToMs(c.t, doc), EQUIPMENT_PICKUP_SOUND_STEM))
+    out.push(soundEvent(frameToMs(c.t, doc), EQUIPMENT_PICKUP_SOUND_STEM, soundPositionOfSlot(lives, c.slot, c.t, followed)))
   }
   return out
 }

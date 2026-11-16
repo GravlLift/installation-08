@@ -13,12 +13,25 @@
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
+import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /** The stem of the teleportation. */
 export const TRANSLOCATION_SOUND_STEM = 'translocator_teleport'
 
-/** translocationSoundEvents — one sound per published teleportation, at its frame. */
-export function translocationSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
-  return doc.translocations.map((t) => soundEvent(frameToMs(t.t, doc), TRANSLOCATION_SOUND_STEM))
+/**
+ * translocationSoundEvents — one sound per published teleportation, at its frame, at the
+ * DEPARTURE point the jump already carries (`fx`/`fy`): the followed player's own jump stays
+ * without a place.
+ */
+export function translocationSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
+  const lives = buildLivesBySlot(doc.tracks)
+  return doc.translocations.map((t) => {
+    const own = followed !== null && lifeOfSlotAt(lives, t.slot, t.t)?.xuid === followed
+    const at = own || t.fx === undefined || t.fy === undefined ? undefined : { x: t.fx, y: t.fy }
+    return soundEvent(frameToMs(t.t, doc), TRANSLOCATION_SOUND_STEM, at)
+  })
 }

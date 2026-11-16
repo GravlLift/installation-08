@@ -19,7 +19,7 @@
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
-import { buildLivesBySlot, lifeOfSlotAt } from '../model/livesPosition'
+import { buildLivesBySlot, lifeOfSlotAt, soundPositionOfSlot } from '../model/livesPosition'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /** The stem of the push: that of the repulsor kill, already delivered. */
@@ -42,9 +42,19 @@ export interface RepulsorKillSound {
  * of the same moment already makes it heard. `repulsorKills` are the repulsor kills ALREADY scheduled
  * (the weapons category cut, there is none, and the push sounds alone).
  */
+/**
+ * knockbackSoundEvents — one sound per published blast, except when the repulsor kill of the same author and
+ * of the same moment already makes it heard. `repulsorKills` are the repulsor kills ALREADY scheduled
+ * (the weapons category cut, there is none, and the push sounds alone).
+ *
+ * POSITIONED AT THE PUSHER (`soundPositionOfSlot`): the blast comes from the repeller's barrel,
+ * not from the pushed player. Falls back to the pushed player's own slot when the film does not
+ * name the author (`coverage.knockbacks.withoutAuthor`) — a position is still better than none.
+ */
 export function knockbackSoundEvents(
   doc: ReplayDocumentReady,
   repulsorKills: readonly RepulsorKillSound[],
+  followed: string | null = null,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   const lastByAuthor = new Map<string, number>()
@@ -60,7 +70,10 @@ export function knockbackSoundEvents(
     const couverte =
       !!xuid &&
       repulsorKills.some((e) => e.xuid === xuid && Math.abs(e.ms - ms) <= KNOCKBACK_KILL_DEDUP_MS)
-    if (!couverte) out.push(soundEvent(ms, KNOCKBACK_SOUND_STEM))
+    if (!couverte) {
+      const at = soundPositionOfSlot(lives, k.by ?? k.slot, k.t, followed)
+      out.push(soundEvent(ms, KNOCKBACK_SOUND_STEM, at))
+    }
   }
   return out
 }

@@ -54,6 +54,7 @@
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
+import { buildLivesBySlot, soundPositionOfSlot } from '../model/livesPosition'
 
 /**
  * The files, by gesture. The `swapped` has no entry: it plays `taken` (cf. the header).
@@ -71,16 +72,23 @@ export const WEAPON_CHANGE_SOUND_STEMS = {
  * No side and no filter: the gesture belongs to the one who does it, and the document
  * already excludes the spawn re-announcements (they are not pickups, cf.
  * document_weapon_changes.go on the Go side).
+ *
+ * POSITIONED AT THE HAND THAT DOES IT (`soundPositionOfSlot`): the followed player's own
+ * pickup or drop stays without a place, every other life's carries its map position.
  */
-export function weaponChangeSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
+export function weaponChangeSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  const lives = buildLivesBySlot(doc.tracks)
   for (const c of doc.weaponChanges) {
     const stem =
       c.kind === 'dropped' ? WEAPON_CHANGE_SOUND_STEMS.dropped : WEAPON_CHANGE_SOUND_STEMS.taken
-    out.push(soundEvent(frameToMs(c.t, doc), stem))
+    out.push(soundEvent(frameToMs(c.t, doc), stem, soundPositionOfSlot(lives, c.slot, c.t, followed)))
   }
   for (const p of nativePickupsNotAlreadyHeard(doc)) {
-    out.push(soundEvent(frameToMs(p.t, doc), WEAPON_CHANGE_SOUND_STEMS.taken))
+    out.push(soundEvent(frameToMs(p.t, doc), WEAPON_CHANGE_SOUND_STEMS.taken, soundPositionOfSlot(lives, p.slot, p.t, followed)))
   }
   return out
 }

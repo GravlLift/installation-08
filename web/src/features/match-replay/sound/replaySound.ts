@@ -182,12 +182,13 @@ import { carriedEndSoundEvents, carriedUseSoundEvents } from './carriedUseSound'
 import { announcerSoundEvents, type AnnouncerTrackInput } from './announcerSound'
 import { skullSoundEvents } from './skullSound'
 import { zoneSoundEvents } from './zoneSound'
-import { fireBurstSoundEvents } from './fireBurstSound'
+import { fireBurstSoundEvents, OTHER_SHOOTER_GAIN_DB } from './fireBurstSound'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 import { vehicleDestructionSound } from './vehicleDestructionSound'
 import { vehicleShotSoundStem } from '../model/vehicleWeaponRegistry'
+import { buildLivesBySlot, lifeOfSlotAt, soundPositionOfSlot } from '../model/livesPosition'
 
 export { pickVariantStem, SOUND_VARIANTS, stemsOf, type ReplaySoundEvent } from './replaySoundVariants'
 export { OBJECTIVE_SOUND_STEMS, objectiveSoundStem, type ObjectiveSide } from './objectiveSound'
@@ -581,18 +582,27 @@ export function buildSoundTimeline(
   announcer?: AnnouncerTrackInput,
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  // THE FOLLOWED PLAYER (from the announcer's own input, the only part of the track that already
+  // carries it): his own shots stay WITHOUT A PLACE — full, centered, the audio perspective
+  // follows the life, not the camera (`soundPositionOfSlot`) — and every other shooter's carries
+  // `OTHER_SHOOTER_GAIN_DB` on top of the distance fall-off (`fireBurstSound.ts`).
+  const followed = announcer?.followed ?? null
+  const shotLives = buildLivesBySlot(doc.tracks)
   if (categories.weapon) {
     for (const s of doc.shots) {
       const stem = shotSoundStem(doc, s)
-      if (stem) out.push(soundEvent(frameToMs(s.t, doc), stem, { x: s.x, y: s.y }))
+      if (!stem) continue
+      const own = followed !== null && lifeOfSlotAt(shotLives, s.slot, s.t)?.xuid === followed
+      const ev = soundEvent(frameToMs(s.t, doc), stem, own ? undefined : { x: s.x, y: s.y })
+      out.push(own ? ev : { ...ev, gainDb: OTHER_SHOOTER_GAIN_DB })
     }
     // THE CONTINUOUS SHOT (schema 71, lot M4b): each burst holds its loop, or replays its shot
     // at the rate of the weapon, and ends on the tail shot. Doctrine: `fireBurstSound.ts`.
-    out.push(...fireBurstSoundEvents(doc, (w) => shotSoundStem(doc, { w })))
+    out.push(...fireBurstSoundEvents(doc, (w) => shotSoundStem(doc, { w }), followed))
     // THE PICKUPS AND DROPS OF WEAPON (schema 25): dated by `weaponChanges`, nothing more to
     // deduce — that is the channel that replaced the rule "at the first shot" removed the same
     // day. Doctrine, sounds and choice of `swapped`: `weaponChangeSound.ts`.
-    out.push(...weaponChangeSoundEvents(doc))
+    out.push(...weaponChangeSoundEvents(doc, followed))
     // The DESTRUCTION of a vehicle (schema 30, lot of 2026-09-05): the SAME signal as
     // the visual effect — `end === VEHICLE_END_DESTROYED` AND `tEnd` published, nothing else.
     // INERT TODAY: every existing artifact publishes `end: "unknown"`, therefore zero
@@ -621,16 +631,18 @@ export function buildSoundTimeline(
   }
   // The "grenades" filter covers the TWO forms of the object, as since 16/08: cutting
   // the category cuts the throws AND the explosions, including those of the kills above.
-  if (categories.grenade) out.push(...grenadeSoundEvents(doc, killExplosions))
+  if (categories.grenade) out.push(...grenadeSoundEvents(doc, killExplosions, followed))
   // The episodes of active equipment: the activation at the start, the deactivation ONLY
   // on a MEASURED end (`endRead`) — an episode closed by the death sounds nothing more,
   // the kill already sounds there and nothing has measured a deactivation.
   if (categories.equipment) {
+    // Positioned at the bearer (cloak hum, overshield chime — a sound of the body, same
+    // reasoning as the shields): the followed player's own episode stays without a place.
     for (const e of doc.equipmentEpisodes) {
       const stems = EQUIPMENT_SOUND_STEMS[e.fam]
       if (!stems) continue
-      out.push(soundEvent(frameToMs(e.t0, doc), stems.activate))
-      if (e.endRead) out.push(soundEvent(frameToMs(e.t1, doc), stems.deactivate))
+      out.push(soundEvent(frameToMs(e.t0, doc), stems.activate, soundPositionOfSlot(shotLives, e.slot, e.t0, followed)))
+      if (e.endRead) out.push(soundEvent(frameToMs(e.t1, doc), stems.deactivate, soundPositionOfSlot(shotLives, e.slot, e.t1, followed)))
     }
     // The PLACEMENTS of equipment (schema 10): the GESTURE sounds, at `t0`, and it alone. The end of life
     // of a wall is not an act — it is the end of a measured duration, and nothing sounds it.
@@ -640,15 +652,20 @@ export function buildSoundTimeline(
     // a "wall deployed" at each death holding a wall — 91 times out of 222 placements of wall, 106 times
     // out of 155 placements of sensor. And a wall really deployed produces TWO placements (the device and
     // its panels): without the panels rule, it would sound twice.
+    //
+    // ALWAYS POSITIONAL, EVEN FOR THE FOLLOWED PLAYER: the device lands a few meters from its
+    // poser (`p.x`/`p.y`, the device's own world position), never "inside" him — same
+    // reasoning as a grenade's explosion.
     for (const p of doc.equipmentPlacements) {
       if (!placementIsDeployedObject(p)) continue
       const stem = EQUIPMENT_PLACEMENT_SOUND_STEMS[p.family]
-      if (stem) out.push(soundEvent(frameToMs(p.t0, doc), stem))
+      if (stem) out.push(soundEvent(frameToMs(p.t0, doc), stem, { x: p.x, y: p.y }))
     }
     // The PULLS of grapple (schema 8): the SHOT sounds at `t0`, one event per pull —
-    // no end sounded, `t1` only closes the window of the layer (`grappleLayer.ts`).
+    // no end sounded, `t1` only closes the window of the layer (`grappleLayer.ts`). Positioned at
+    // the puller (`soundPositionOfSlot`): the followed player's own pull stays without a place.
     for (const g of doc.grappleLines) {
-      out.push(soundEvent(frameToMs(g.t0, doc), GRAPPLE_SOUND_STEM))
+      out.push(soundEvent(frameToMs(g.t0, doc), GRAPPLE_SOUND_STEM, soundPositionOfSlot(shotLives, g.slot, g.t0, followed)))
     }
     // THE PICKUP ON STAND WAS REMOVED ON 2026-08-30, and it must say why rather than
     // leave a silent hole. It sounded at the FIRST SHOT of a stand weapon family, lacking a
@@ -668,20 +685,20 @@ export function buildSoundTimeline(
     // THE PICKUP OF EQUIPMENT (schema 26): dated by `equipmentChanges`. The sound waited for this
     // moment since 2026-08-27; the consumption remains silent (it already sounds by its
     // family). Doctrine: `equipmentChangeSound.ts`.
-    out.push(...equipmentChangeSoundEvents(doc))
+    out.push(...equipmentChangeSoundEvents(doc, followed))
     // THE USE OF A CAPABILITY THAT PROPULSES ITS CASTER (schema 38): the thruster, dated by the
     // film and validated 5/5 against a Theater survey. One sound per published impulse, at its frame;
     // no end sounded — the gesture IS an impulse. Table per family: `abilityImpulseSound.ts`.
-    out.push(...abilityImpulseSoundEvents(doc))
+    out.push(...abilityImpulseSoundEvents(doc, followed))
     // THE PUSH OF THE REPELLER (schema 94) AND THE TELEPORTATION OF THE TRANSPORTER (schema 38): two
     // gestures that the film dates. Doctrine: `knockbackSound.ts`, `translocationSound.ts`.
-    out.push(...knockbackSoundEvents(doc, repulsorKills))
-    out.push(...translocationSoundEvents(doc))
+    out.push(...knockbackSoundEvents(doc, repulsorKills, followed))
+    out.push(...translocationSoundEvents(doc, followed))
     // THE PLACEMENT OF THE RIFT (schema 95): its HIT at the moment of the placement. Doctrine: `riftPoseSound.ts`.
-    out.push(...riftPoseSoundEvents(doc))
+    out.push(...riftPoseSoundEvents(doc, followed))
     // THE USE of the sensor, the seeker, the field and the screen (schema 95), at the frame where the film
     // dates it. Doctrine: `carriedUseSound.ts`.
-    out.push(...carriedUseSoundEvents(doc))
+    out.push(...carriedUseSoundEvents(doc, followed))
     // THE END OF THE REPAIR FIELD: the deletion, written by the film, of the object it spawns.
     out.push(...carriedEndSoundEvents(doc))
   }

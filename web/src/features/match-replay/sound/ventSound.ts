@@ -25,13 +25,13 @@
  */
 import { frameToMs, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { botKey, currentLifeOf } from '../../../lib/replay/rosterLogic'
+import { currentLifeOf } from '../../../lib/replay/rosterLogic'
 import { armeEnMain } from '../model/armeEnMain'
 import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
 import { episodesRechargement, type EpisodeRechargement } from '../scene3d/rechargementPremierePersonne3d'
 import { weaponTagOf, type ReloadClip, type VentLibrary } from './reloadManifest'
-import { factsBySlot, firstAt, type SlotFacts } from './reloadSound'
+import { factsBySlot, firstAt, trackIdentity, type SlotFacts } from './reloadSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 
 /** ventSoundEvents — every vent's sounds, for the weapons the library has a vent for. */
@@ -108,10 +108,4 @@ function ventAt(doc: ReplayDocumentReady, library: VentLibrary, tag: string, slo
   if (!stances) return undefined
   const crouched = doc.stances.some((s) => s.kind === 'crouch' && s.slot === slot && covers(s, frame))
   return (crouched ? stances.crouch : undefined) ?? stances.combat
-}
-
-/** The xuid a track plays under: its real xuid, or its bot key. */
-function trackIdentity(doc: ReplayDocumentReady, slot: number): string {
-  const track = doc.tracks.find((t) => t.slot === slot)
-  return track?.xuid || (track?.bot ? botKey(track.bot) : '')
 }

@@ -25,6 +25,7 @@
  */
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { frameToMs } from '../../../lib/replay/replayLogic'
+import { buildLivesBySlot, soundPositionOfSlot } from '../model/livesPosition'
 import { soundEvent, type ReplaySoundEvent } from './replaySoundVariants'
 
 /** The use stem, per palette family. */
@@ -39,14 +40,21 @@ export const CARRIED_USE_SOUND_STEMS: Readonly<Record<string, string>> = {
   shroud_screen: 'shroud_deploy',
 }
 
-/** carriedUseSoundEvents — one sound per published use of a family in the table, on its frame. */
-export function carriedUseSoundEvents(doc: ReplayDocumentReady): ReplaySoundEvent[] {
+/**
+ * carriedUseSoundEvents — one sound per published use of a family in the table, on its frame,
+ * at the carrier's position (absent for the followed player's own use).
+ */
+export function carriedUseSoundEvents(
+  doc: ReplayDocumentReady,
+  followed: string | null = null,
+): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
+  const lives = buildLivesBySlot(doc.tracks)
   for (const c of doc.carriedEquipment) {
     const family = doc.abilityLabels?.[String(c.r)]?.family
     const stem = family ? CARRIED_USE_SOUND_STEMS[family] : undefined
     if (!stem) continue
-    for (const u of c.uses) out.push(soundEvent(frameToMs(u, doc), stem))
+    for (const u of c.uses) out.push(soundEvent(frameToMs(u, doc), stem, soundPositionOfSlot(lives, c.slot, u, followed)))
   }
   return out
 }
