@@ -31,7 +31,7 @@ func writeCoatingIndexWithCoatings(t *testing.T, dataDir, module, stamp string, 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"ekur_stamp":"` + stamp + `","schema":` + strconv.Itoa(coatingLibrarySchema(module)) + `,"coatings":{"materials_missing":` + strconv.Itoa(missing) + `},"reticle_ranges":{"f408190f":{"unscoped":15,"zoomed":[],"magnifications":[]}},"banners":{},"equipment":{},"equipment_rule":` + strconv.Itoa(weapons.EquipmentRuleCurrent) + `}`
+	body := `{"ekur_stamp":"` + stamp + `","schema":` + strconv.Itoa(coatingLibrarySchema(module)) + `,"coatings":{"materials_missing":` + strconv.Itoa(missing) + `},"reticle_ranges":{"f408190f":{"unscoped":15,"zoomed":[],"magnifications":[]}},"banners":{},"idle_effects":{},"equipment":{},"equipment_rule":` + strconv.Itoa(weapons.EquipmentRuleCurrent) + `}`
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
