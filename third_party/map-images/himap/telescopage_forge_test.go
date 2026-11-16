@@ -46,6 +46,51 @@ func TestEchelleTelescopique(t *testing.T) {
 	}
 }
 
+// TestEchelleTelescopiqueLibre: Origin's top pad cap 5142 (type 1720205523, telescoping on every
+// axis, reference = its 0.2 m model, origin at the foot, placed at z 61.57) stores
+// (5.90, 5.90, 6.12): it is stretched about its box centre, so its top ends at 62.28, under the
+// disc players stand on at 62.30, not at 62.80 above it; its X and Y stay centred on its axis.
+func TestEchelleTelescopiqueLibre(t *testing.T) {
+	s := mapvar.Vec3{X: 5.90, Y: 5.90, Z: 6.12}
+	o := mapvar.Object{ModeForge: mapvar.ModeForgeTelescopique, Scale: &s}
+	cylindre := telescopage{libre: true, rapport: [3]float64{1.0086, 1.0074, 1.0000051}, centre: [3]float64{-0.0005, -0.00016, 0.0994}}
+	got, d := echelleTelescopique(o, cylindre)
+	e := [3]float64{got.Scale.X, got.Scale.Y, got.Scale.Z}
+	// the model's box [-0.0012, 0.2] on Z, offset then scaled, keeps its centre.
+	lo, hi := (-0.0012+d[2])*e[2], (0.2+d[2])*e[2]
+	if math.Abs((lo+hi)/2-0.0994) > 1e-3 || math.Abs(61.57+hi-62.28) > 0.01 {
+		t.Errorf("Z span %.4f..%.4f, top %.3f, want centred on 0.0994 with its top at 62.28", lo, hi, 61.57+hi)
+	}
+	for a := range 2 {
+		if c := (cylindre.centre[a] + d[a]) * e[a]; math.Abs(c-cylindre.centre[a]) > 1e-9 {
+			t.Errorf("axis %d: centre moved to %.5f", a, c)
+		}
+	}
+	// Not free (a fixed axis), the same reference = model keeps the origin: the old top, 62.80.
+	cylindre.libre = false
+	if _, d := echelleTelescopique(o, cylindre); d != [3]float64{} {
+		t.Errorf("not free: offset %v, want none", d)
+	}
+}
+
+// TestEstLibre: free means at least two sizes and no fixed axis.
+func TestEstLibre(t *testing.T) {
+	for _, c := range []struct {
+		fixes   [3]bool
+		tailles int
+		want    bool
+	}{
+		{[3]bool{}, 7, true},
+		{[3]bool{true, false, false}, 5, false},
+		{[3]bool{}, 1, false},
+		{[3]bool{}, 0, false},
+	} {
+		if got := estLibre(c.fixes, c.tailles); got != c.want {
+			t.Errorf("estLibre(%v, %d) = %v, want %v", c.fixes, c.tailles, got, c.want)
+		}
+	}
+}
+
 // TestEchelleTelescopiqueReference: Outlook's I-beam 1276 (type -1722685555, reference half its
 // 0.4 x 0.4 x 0.8 model, origin at one end) stores (1.332, 3.732, 10.547): it is drawn
 // 0.27 x 0.75 x 4.22, centred where the model's box is centred, not 8.44 long from one end.

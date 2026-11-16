@@ -214,13 +214,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 		opts.Teintes = completeTeintesForge(opts.Teintes, echantillonsPaletteJeu(styles), opts.StylesMvar)
 	}
 
-	objets := objetsVisibles(opts.Objets, opts.Invisibles, &b)
-	assets := map[uint32]*RuntimeGeoAsset{}
-	modeles := modelesDesTypes(ctx, objets, idx, forge, assets)
-	representations := modelesDesRepresentations(ctx, objets, idx, forge, assets)
-	b.Types = len(modeles)
-	out := &MaillageMonde{Poses: &PosesVariante{}, textureCaps: textureCapsOf(opts.TextureCaps)}
-	poses := out.poseVarianteTeinte(opts, modeles, representations, &b)
+	out, poses := poseGeometrieVariante(ctx, opts, idx, forge, &b)
 	trianglesPoses, trianglesUniques := out.Poses.Triangles()
 	if trianglesPoses == 0 {
 		return nil, b, fmt.Errorf("aucun triangle pose sur %d objets de variante", len(opts.Objets))
@@ -240,6 +234,46 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 		"masques", len(out.Masques), "masquesIllisibles", out.MasquesIllisibles,
 		"texturesCouches", len(out.TexturesCouches), "texturesCouchesIllisibles", out.TexturesCouchesIllisibles,
 		"typesPoses", resumeTypesPoses(poses))
+	return out, b, nil
+}
+
+// poseGeometrieVariante (LOCAL-CHANGE (infinite-theater-3d)) places the visible objects of the
+// variant, materials and textures unresolved: the part of CollecteMaillageVariante that
+// CollecteSolidesVariante shares.
+func poseGeometrieVariante(ctx context.Context, opts OptionsVariante, idx *ModuleIndex, forge *himodule.Module, b *BilanVariante) (*MaillageMonde, map[int32]*typePose) {
+	objets := objetsVisibles(opts.Objets, opts.Invisibles, b)
+	assets := map[uint32]*RuntimeGeoAsset{}
+	modeles := modelesDesTypes(ctx, objets, idx, forge, assets)
+	representations := modelesDesRepresentations(ctx, objets, idx, forge, assets)
+	b.Types = len(modeles)
+	out := &MaillageMonde{Poses: &PosesVariante{}, textureCaps: textureCapsOf(opts.TextureCaps)}
+	return out, out.poseVarianteTeinte(opts, modeles, representations, b)
+}
+
+// CollecteSolidesVariante (LOCAL-CHANGE (infinite-theater-3d)) places the variant's objects the
+// way CollecteMaillageVariante does, without resolving their materials or textures: the placed
+// geometry alone (MaillageMonde.Poses), to measure it against player positions. Styles are not
+// read; they change no geometry.
+func CollecteSolidesVariante(ctx context.Context, opts OptionsVariante) (*MaillageMonde, BilanVariante, error) {
+	b := BilanVariante{Objets: len(opts.Objets)}
+	if len(opts.Objets) == 0 {
+		return nil, b, ErrSansObjetForge
+	}
+	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
+	if err != nil {
+		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+	}
+	idx, err := NewModuleIndex(chemins...)
+	if err != nil {
+		return nil, b, fmt.Errorf("index des modules : %w", err)
+	}
+	defer func() { _ = idx.Close() }()
+	forge, err := himodule.Open(cheminDefinitionsForge(opts.RacineDeploy))
+	if err != nil {
+		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
+	}
+	defer func() { _ = forge.Close() }()
+	out, _ := poseGeometrieVariante(ctx, opts, idx, forge, &b)
 	return out, b, nil
 }
 

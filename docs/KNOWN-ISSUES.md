@@ -21,8 +21,7 @@ engineering backlog; this page keeps only the user-visible parts of it.
   mostly texture data. The first build of a large map takes minutes (Streets: about 2 minutes
   Standard, 8 minutes High), and the first start after an update rebuilds the weapon and
   first-person libraries in the background.
-- Origin: round sand-colored discs still sit on top of some round metal pads, and its
-  surrounding hills draw snowy where the game shows brown rock and green hills.
+- Origin: its surrounding hills draw snowy where the game shows brown rock and green hills.
 - Signs, screens and holograms are lit but still: their scanlines, flicker and scrolling are
   not drawn. One Streets sign (BUENA) still draws nothing.
 - A stored match built before a recent fix may still show the old (incorrect) version of a
