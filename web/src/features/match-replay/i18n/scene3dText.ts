@@ -83,6 +83,8 @@ export interface Scene3dText {
   lookGameLightHint: string
   lookBloom: string
   lookBloomHint: string
+  lookGlowAnimation: string
+  lookGlowAnimationHint: string
   /** The playback meter's toggle (also the ` key). */
   lookPlaybackFps: string
   lookPlaybackFpsHint: string
@@ -163,6 +165,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookGameLightHint: 'La lumière cuite et les lampes de la carte, telles que le jeu les pose.',
     lookBloom: 'Halo lumineux',
     lookBloomHint: "Les surfaces lumineuses (lampes, bandeaux, lames d'énergie) rayonnent au-delà de leurs bords.",
+    lookGlowAnimation: 'Lumières animées',
+    lookGlowAnimationHint: 'Les enseignes, écrans et néons de la carte défilent et scintillent comme en jeu.',
     lookPlaybackFps: 'Afficher les ips de lecture',
     lookPlaybackFpsHint: "Les images du film affichées par seconde face à sa cadence native, le rapport au temps réel, puis le temps d'image et le coût du rendu. Touche `.",
     aidsTitle: 'Repères d’analyse',
@@ -272,6 +276,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookGameLightHint: "The map's baked light and lamps, as the game places them.",
     lookBloom: 'Bloom',
     lookBloomHint: 'Glowing surfaces (lamps, light strips, energy blades) shine past their edges.',
+    lookGlowAnimation: 'Animated lights',
+    lookGlowAnimationHint: "The map's signs, screens and neon scroll and flicker as in the game.",
     lookPlaybackFps: 'Show playback FPS',
     lookPlaybackFpsHint: "Film frames shown per second against the film's native rate, the real-time ratio, then frame time and render cost. Key `.",
     aidsTitle: 'Analysis aids',

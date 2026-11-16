@@ -36,6 +36,8 @@ interface ExportScene {
   retagTags(): void
   /** Drives the clouds from match time (seconds), or hands them back to the wall clock (null). */
   setSkyClock?(seconds: number | null): void
+  /** Poses the animated self-lit surfaces at match time (seconds), as the screen does (`glowAnimation3d`). */
+  setGlowClock?(seconds: number): void
   /** Takes the top-down view's markers out of the scene (what the screen does when the 3D view draws). */
   hideTopDown?(): void
 }
@@ -121,6 +123,7 @@ export class ReplayExportScene3d {
     this.clock.previous = frame
     this.scene.lastFrame = frame
     this.scene.setSkyClock?.((frame * this.clock.frameMs) / 1000)
+    this.scene.setGlowClock?.((frame * this.clock.frameMs) / 1000)
     if (this.scene.hasTracks) {
       // Bodies visible at this frame are baked to completion FIRST (the death camera reads them
       // too): on screen a body falls by the game's clips until its bake is ready; a video frame
