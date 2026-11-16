@@ -218,7 +218,7 @@ export function footstepReplayEvents(
   for (const e of events) {
     const stems = stemsFor(manifest, surface, e.kind, e.action)
     if (!stems) continue
-    const ev: ReplaySoundEvent = { ms: e.timeMs, stem: pickFootstem(e, stems), gainDb: FOOTSTEP_GAIN_DB }
+    const ev: ReplaySoundEvent = { ms: e.timeMs, stem: pickFootstem(e, stems), gainDb: FOOTSTEP_GAIN_DB, footstep: true }
     if (followed !== null && e.xuid !== followed) ev.at = e.position
     out.push(ev)
   }

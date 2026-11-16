@@ -23,7 +23,7 @@ export interface PlaybackLoopDeps {
   frameRef: { current: number }
   setFrame: (f: number) => void
   setPlaying: (p: boolean) => void
-  tick?: (ms: number) => void
+  tick?: (ms: number, frameMs: number) => void
   onEnded?: () => void
 }
 
@@ -37,7 +37,8 @@ export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, 
       last = now
       const next = Math.min(doc.frameCount - 1, Math.max(0, (frameRef.current ?? 0) + deltaFrames))
       frameRef.current = next
-      tick?.(next * 1000 / fps)
+      // The frame's timestamp travels with its moment: the sound schedules ahead from it.
+      tick?.(next * 1000 / fps, now)
       setFrame(Math.round(next))
       // Exactly one of these two branches runs, and only the first one schedules another tick.
       if (next < doc.frameCount - 1) raf = requestAnimationFrame(step)

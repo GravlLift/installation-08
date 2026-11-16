@@ -56,7 +56,7 @@ func (h serverHandlers) handleWeaponIndex(w http.ResponseWriter, r *http.Request
 func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 	dir := filepath.Join(h.root.Dir(), "weapons")
-	if weapons.CoatingFile(file) || weapons.BannerFile(file) {
+	if weapons.CoatingFile(file) || weapons.BannerFile(file) || weapons.EffectFile(file) {
 		h.serveWeaponFile(w, r, dir, file, map[string]string{"error": "coating_not_available", "file": file})
 		return
 	}

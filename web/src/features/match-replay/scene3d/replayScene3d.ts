@@ -279,6 +279,9 @@ export class ReplayScene3d implements Replay3DExportSource {
         const d = this.drawnSlots.get(slot)
         return d ? attachBoneOf(this.avatars.get(d.xuid), node, d.firstPerson, this.bras ? (name, m) => this.bras?.osMonde(name, m) ?? false : null, out) : 'none'
       },
+      weaponLibrary: () => this.weaponModels?.base ?? null,
+      firstPersonEffectAnchor: (key, marker, out) => this.bras?.ancreEffet(key, marker, out) ?? false,
+      weaponClipSeconds: (key, action) => this.bras?.dureeClip(key, action) ?? null,
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.prechargerRigs()

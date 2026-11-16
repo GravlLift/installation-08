@@ -2,11 +2,25 @@
 
 ## Unreleased
 
+Changes since 0.1.0-test.15.
+
+- A plasma or spike grenade stuck to a player rides on the part of the body it hit (a foot, the torso, the helmet, a hand) until it explodes, instead of staying where it hit. Takes effect once the match is rebuilt.
+
+## 0.1.0-test.15
+
 Changes since 0.1.0-test.14.
 
-- The Shock Rifle's shroud arcs added in test.14 are withdrawn: they drew as a pale cloud of flat shards in front of the muzzle instead of arcs on the shroud.
+Highlights:
+- Shock Rifle electricity from the game's own effect.
+- Sounds land on time in busy fights.
+- Slide-exit sound.
+
+After updating, the weapon and first-person libraries and the footstep sounds rebuild themselves at the first start.
+
+- Shock Rifle: blue electricity crackles inside its barrel housing while it is held, in third and first person, read from the game's own particle effect (its arcs, glowing shell and bolts, textures and blue palette). It goes out while scoped and during a reload. The invented shroud arcs of test.14 are gone. Takes effect once the weapon and first-person libraries rebuild, which happens by itself at the first start after updating.
+- A player whose team the match recording leaves unnamed is placed on their team from the match stats; one stored Origin match showed a 4v4 as 5v3.
 - Slides end with the game's slide-exit sound (it was silent). The footstep sounds re-extract themselves at the first start after updating.
-- A plasma or spike grenade stuck to a player rides on the part of his body it hit (a foot, the torso, the helmet, a hand) until it explodes, instead of staying where it hit him. Takes effect once the match is rebuilt.
+- Sounds no longer come out late or bunched together when the view is busy: they are scheduled slightly ahead and start on their own moment. In crowded fights, the followed player's own sounds and other players' shots now keep priority over distant footsteps.
 
 ## 0.1.0-test.14
 

@@ -439,6 +439,24 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     whole surface: 35% of Origin's layered triangles drew as sand stone where the game shows
     Forerunner metal. The colors' order and the red index are inferred. Covered by
     `himap/couches_forerunner_test.go` (new).
+  - `himap/effet_arme.go` and `himap/modele_particule.go` (new, LOCAL-CHANGE): a weapon's idle
+    particle effect, read down to the values a viewer simulates (the Shock Rifle's electricity,
+    effect 1e471031). `Arsenal.EffetDeParticules` reads an effect's first level of detail: its
+    locations (marker names), events (flags, duration) and particle systems (particle, location,
+    coordinate system, camera mode, flags), each emitter's shape, axis scale, direction, billboard
+    and its 28 properties as mapping functions with their inputs (the multi-spline, type 8,
+    decoded piece by piece: line or cubic pieces, the bytes consumed exactly, else refused), and
+    each particle's shader, bound textures (checked against their slots), blend mode, named shader
+    constants and mesh. The constants' layouts are those of the shaders' DXIL reflection
+    (`dispositionsParticules`, two particle shaders), cross-checked against the shaders' declared
+    parameters. A `pmdf` particle mesh reuses the render-model geometry reader at its own root
+    offsets (Sections +40, bounds +80, resource groups +172), its vertex buffers read from the
+    tag's own data references, a triangle list without an index buffer. `MarqueursDuModele`,
+    `ModeleDeLArme`, `TagArme`, `EmplacementsDesEffets`, `BitmapParticule` and `EspaceBitmap` (a
+    bitmap's curve byte at +13 of its bitmaps record, sRGB = 5, and whether its format is signed)
+    serve the weapon and first-person libraries. Covered by `himap/effet_arme_test.go` (new) and
+    `himap/effet_arme_gamefiles_test.go` (new: the twelve systems, the shader layouts, the three
+    meshes, the markers).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
