@@ -60,6 +60,46 @@ const GROUND_TINT = 0x3a3530
 const HAZE_TINT = 0x4a5a66
 const HAZE_DENSITY = 0.02
 
+/**
+ * sunLightColor: the view's sun color for the game's sun color `game` (linear RGB): its hue, at the
+ * luminance of SUN_TINT, on which the sun's strength is tuned (Recharge's own sun color, (1, 0.91,
+ * 0.80), is SUN_TINT within 3%). A Forge map's Sunlight color override (Origin's warm orange,
+ * (1, 0.712, 0.410)) is the light's hue in game, not only the sun disc's. SUN_TINT when `game` is
+ * null or black.
+ */
+export function sunLightColor(game: readonly [number, number, number] | null): THREE.Color {
+  const tint = new THREE.Color(SUN_TINT)
+  if (!game) return tint
+  const lum = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+  const l = lum(game[0], game[1], game[2])
+  if (!(l > 0)) return tint
+  const k = lum(tint.r, tint.g, tint.b) / l
+  return new THREE.Color().setRGB(game[0] * k, game[1] * k, game[2] * k, THREE.LinearSRGBColorSpace)
+}
+
+/** farthestCorner: the distance from `center` to the farthest corner of `box`; 0 for an empty box. */
+export function farthestCorner(box: THREE.Box3, center: THREE.Vector3): number {
+  if (box.isEmpty()) return 0
+  const dx = Math.max(Math.abs(box.min.x - center.x), Math.abs(box.max.x - center.x))
+  const dy = Math.max(Math.abs(box.min.y - center.y), Math.abs(box.max.y - center.y))
+  const dz = Math.max(Math.abs(box.min.z - center.z), Math.abs(box.max.z - center.z))
+  return Math.hypot(dx, dy, dz)
+}
+
+/**
+ * hazeDensity: the haze's density for a layer that reaches `reach` (u) from the play area's center,
+ * the play area reaching `playReach` (its half diagonal). HAZE_DENSITY is the native maps' haze:
+ * their world mesh is cut to the play area and a margin (mapmesh.FrameOf), and their variant layer
+ * stays inside it. A layer that reaches further thins the haze in proportion, so its edge takes the
+ * haze the play area's edge takes: a Forge map's own backdrop (cliffs and hills, 80 to 91% of the
+ * placed surface area past 100 u on Origin, Fortress and Vacancy) drew as flat haze color (98% haze
+ * at 100 u) where the game shows it sunlit.
+ */
+export function hazeDensity(playReach: number, reach: number): number {
+  if (!(playReach > 0) || !(reach > playReach)) return HAZE_DENSITY
+  return (HAZE_DENSITY * playReach) / reach
+}
+
 // Share of the sun's diffuse light the open sky adds, on a map without baked light (Forge
 // canvases publish no probes). The view's background (a display color, linear luminance about
 // 0.44) was captured into the probes as radiance: under ENV_INTENSITY an open-sky surface took
@@ -166,6 +206,15 @@ export class Lighting {
 
   /** Règle la lumière directe selon l'intensité publiée par la carte. */
   setSunStrength(factor: number): void { this.sun.intensity = SUN_INTENSITY * factor }
+
+  /** setSunColor gives the sun the game's sun color (`sunLightColor`); null keeps SUN_TINT. */
+  setSunColor(game: readonly [number, number, number] | null): void { this.sun.color.copy(sunLightColor(game)) }
+
+  /** fitHaze sets the haze for a layer reaching `reach` (u) from a play area reaching `playReach` (`hazeDensity`). */
+  fitHaze(playReach: number, reach: number): void { this.haze.density = hazeDensity(playReach, reach) }
+
+  /** The haze's current density (per u). */
+  get hazeDensity(): number { return this.haze.density }
 
   /**
    * setSun oriente le soleil (azimut depuis +X vers -Z, élévation, en degrés) et recadre sa

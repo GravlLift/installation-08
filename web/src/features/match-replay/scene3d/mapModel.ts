@@ -19,7 +19,7 @@ import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
 import { buildBackFaces } from './backFaces3d'
-import { intensiteSoleil, lireCiel } from './ciel3d'
+import { intensiteSoleil, lireCiel, sunColorOf } from './ciel3d'
 import { loadBakedLight, type BakedLight } from './bakedLightShader'
 import { batchLayered } from './layeredBatch3d'
 import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMaterial'
@@ -114,6 +114,8 @@ export interface SurfaceModel {
 export interface MapModel extends SurfaceModel {
   ciel: { texture: THREE.Texture | null; color: [number, number, number] | null } | null
   sunStrength: number
+  /** The game's sun color published with the mesh (`sunColorOf`, linear RGB), null when absent. */
+  sunColor: [number, number, number] | null
   /** Le soleil du jeu publié dans le maillage (cf. `sunAngles`), null s'il n'y est pas. */
   sun: { azimuth: number; elevation: number } | null
   /** La lumière cuite du jeu, greffée sur les matériaux de la carte ; null si le GLB n'en porte pas. */
@@ -198,6 +200,7 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
   return {
     ...model,
     sunStrength: intensiteSoleil(scene.userData),
+    sunColor: sunColorOf(scene.userData),
     ciel,
     sun: sunAngles(scene.userData),
     baked,
