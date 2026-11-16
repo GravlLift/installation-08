@@ -384,6 +384,7 @@ export class BrasPremierePersonne3d {
     return true
   }
 
+  /**
    * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
    * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
    * frame. False when that weapon's rig is not the one shown, or lacks the marker or its bone.
