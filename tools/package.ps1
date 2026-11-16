@@ -20,6 +20,7 @@
             docs\CHANGELOG.md
             <third-party license texts from third_party\>
         dist\infinite-theater-3d-<version>-windows-amd64.zip
+        dist\SHA256SUMS.txt          (one SHA-256 per release file; also lists the installer with -Installer)
 
     Any failing step stops the script with a non-zero exit and a clear message.
 #>
@@ -143,6 +144,17 @@ if ($Installer) {
     if (-not (Test-Path $setup)) { throw "installer was not produced: $setup" }
 }
 
+# --- 7. SHA-256 checksums for the release files, so a download can be verified against
+# what was published. Written next to the files in the output dir, in standard sha256sum
+# format: one line per file, "<lowercase hex>  <file name>".
+$releaseFiles = @($zip)
+if ($Installer) { $releaseFiles += $setup }
+$shaLines = foreach ($f in $releaseFiles) {
+    '{0}  {1}' -f (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash.ToLower(), (Split-Path -Leaf $f)
+}
+$shaFile = Join-Path $outDir 'SHA256SUMS.txt'
+Set-Content -LiteralPath $shaFile -Value $shaLines -Encoding utf8
+
 Write-Host ''
 Write-Host "Packaged build ${name}:"
 Write-Host "  exe:  $exe ($((Get-Item $exe).Length) bytes)"
@@ -151,3 +163,5 @@ if ($Installer) {
     Write-Host "  installer: $setup ($((Get-Item $setup).Length) bytes)"
 }
 Write-Host "  folder: $pkgDir"
+Write-Host "  checksums: $shaFile"
+$shaLines | ForEach-Object { Write-Host "      $_" }
