@@ -30,7 +30,7 @@ var (
 	// ObjectiveNames are the objective calls.
 	ObjectiveNames = []string{
 		"flagcaptured", "teamflagreturned", "enemyflagreturned", "strongholdcaptured",
-		"hillcontrolled", "hillcontrolledenemy", "newvip",
+		"strongholdlost", "hillcontrolled", "hillcontrolledenemy", "newvip",
 	}
 )
 

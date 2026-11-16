@@ -49,6 +49,7 @@ const OBJECTIVE_VOICE: Readonly<Record<string, readonly string[]>> = {
   'objective.flag_returns.ours': ['teamflagreturned'],
   'objective.flag_returns.theirs': ['enemyflagreturned'],
   'objective.zone_captures.ours': ['strongholdcaptured'],
+  'objective.zone_captures.theirs': ['strongholdlost'],
   'objective.hill_captures.ours': ['hillcontrolled'],
   'objective.hill_captures.theirs': ['hillcontrolledenemy'],
   'objective.vip_selected.ours': ['newvip'],
@@ -97,7 +98,7 @@ export function voiceNamesOfCall(key: string): readonly string[] {
 
 /** The manifest version this viewer reads: `ManifestVersion` in `internal/announcer/extract.go`.
  *  An older manifest is refused (silent) until the server's announcer job rebuilds it. */
-const MANIFEST_VERSION = 3
+const MANIFEST_VERSION = 4
 
 /** A take's file: the game's Vorbis stream in an Ogg file, named after its line. */
 const TAKE_FILE = /^[a-z0-9_]+\.ogg$/
