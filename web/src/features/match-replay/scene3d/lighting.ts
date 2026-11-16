@@ -51,6 +51,23 @@ const GLOW_SCALE = 0.6
 export function glowLevel(force: number): number {
   return GLOW_SCALE * Math.log2(1 + force)
 }
+
+/**
+ * The ceiling of a picture's light (a sign, a billboard, a screen, a hologram's emblem): under
+ * the bloom threshold (1.5), so the picture stays readable instead of washing out to white. At
+ * 1.4, a saturated yellow texel leaves ACES (exposure 1.15) still yellow.
+ */
+export const IMAGE_GLOW_MAX = 1.4
+
+/**
+ * imageGlowLevel: the three emissive intensity of a picture whose brightest channel emits `peak`
+ * (game color times force), applied to its color brought to a brightest channel of 1. The level
+ * follows the whole light, not the force alone: a sign's dim tint at a high force (0.11 x 59)
+ * reads as lit as a bright tint at a low one.
+ */
+export function imageGlowLevel(peak: number): number {
+  return Math.min(IMAGE_GLOW_MAX, glowLevel(Math.max(0, peak)))
+}
 const HEMI_INTENSITY = 0.25
 // Teintes de la lumière (pas des couleurs d'interface) : soleil chaud, ciel froid, sol brun.
 const SUN_TINT = 0xfff4e5

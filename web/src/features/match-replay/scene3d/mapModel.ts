@@ -26,7 +26,7 @@ import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMat
 import { convertLayered, MERGE_LAYERED, type LayeredMerge } from './layeredMerge3d'
 import { BATCHED_LIMITS, WEBGL2_LIMITS, type ArrayLimits } from './layeredPlan3d'
 import { withKtx2 } from './ktx2Textures3d'
-import { BAKED_INTENSITY, glowLevel, guardMaterial } from './lighting'
+import { BAKED_INTENSITY, glowLevel, guardMaterial, imageGlowLevel } from './lighting'
 import { dropMarkerObjects } from './markerObjects3d'
 import { readPlacedLights } from './placedLights'
 import { sunAngles } from './probes3d'
@@ -96,6 +96,8 @@ interface MaterialExtras {
   pochoir?: Pochoir
   /** Couleur à plat (RVB linéaire) d'un matériau sans couches : l'objet posé d'une variante Forge. */
   teinte?: [number, number, number]
+  /** Its light is a picture (sign, screen, hologram), not a light mask (`glowOf`). */
+  emissionImage?: boolean
 }
 
 /** Les surfaces d'un GLB de la vue (la carte, ou un calque posé sur elle), matériaux de la vue posés. */
@@ -155,13 +157,60 @@ function emits(source: THREE.MeshStandardMaterial): boolean {
   return source.emissive.getHex() !== 0 && source.emissiveIntensity > 0
 }
 
+/**
+ * glowOf: the view's light of a game material that emits. A light mask (neon, strips, lamps) keeps
+ * its color at the compressed force (`glowLevel`); a picture (`image`: a sign, a screen, a
+ * hologram) gets its color brought to a brightest channel of 1, at the level of its whole light,
+ * capped so it stays readable (`imageGlowLevel`).
+ */
+export function glowOf(source: THREE.MeshStandardMaterial, image: boolean): { color: THREE.Color; level: number } {
+  const color = source.emissive.clone()
+  if (!image) return { color, level: glowLevel(source.emissiveIntensity) }
+  const brightest = Math.max(color.r, color.g, color.b)
+  if (!(brightest > 0)) return { color, level: 0 }
+  return { color: color.multiplyScalar(1 / brightest), level: imageGlowLevel(brightest * source.emissiveIntensity) }
+}
+
 /** applyGlow recopie la lumière propre du matériau du jeu, sa force ramenée à l'échelle de la vue. */
-function applyGlow(target: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial): void {
+function applyGlow(target: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image = false): void {
   if (!emits(source)) return
-  target.emissive.copy(source.emissive)
-  target.emissiveIntensity = glowLevel(source.emissiveIntensity)
+  const { color, level } = glowOf(source, image)
+  target.emissive.copy(color)
+  target.emissiveIntensity = level
   // The game's self-illumination texture masks the light (weapon pads: thin strips on a dark pad).
   target.emissiveMap = source.emissiveMap
+}
+
+/** The game's `maximum` blend rank (`alpha blend mode` 6): each channel keeps the brighter of the two. */
+const MELANGE_MAXIMUM = 6
+
+/**
+ * The multiply ranks (`multiply` 2, `double multiply` 4): they darken what is behind, so an
+ * emitter drawn with one keeps the glass placeholder. Every other see-through rank that emits
+ * (additive 1, alpha blends 3 and 5, add-times-alpha 9 of Streets' hologram) is drawn added.
+ */
+const MULTIPLY_BLENDS: ReadonlySet<number> = new Set([2, 4])
+
+/**
+ * seeThroughGlowMaterial: what the game adds over what is behind it (a holographic sign, a
+ * billboard, a hologram's emblem, an additive light strip): its picture (the emissive texture, alpha
+ * already folded in by the build) times its light, added (or kept at the brighter, `maximum` blend)
+ * without lighting, depth writes or fog. Drawn as the glass placeholder, a stack of such planes read
+ * as a solid pale blob.
+ */
+export function seeThroughGlowMaterial(source: THREE.MeshStandardMaterial, extras: { melange?: number; emissionImage?: boolean }): THREE.MeshBasicMaterial {
+  const { color, level } = glowOf(source, extras.emissionImage === true)
+  const m = new THREE.MeshBasicMaterial({ map: source.emissiveMap, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false })
+  m.color.copy(color).multiplyScalar(level)
+  if (extras.melange === MELANGE_MAXIMUM) {
+    m.blending = THREE.CustomBlending
+    m.blendEquation = THREE.MaxEquation
+    m.blendSrc = THREE.OneFactor
+    m.blendDst = THREE.OneFactor
+  } else {
+    m.blending = THREE.AdditiveBlending
+  }
+  return m
 }
 
 /**
@@ -262,7 +311,9 @@ interface MaterialContext {
   jobs: Promise<void>[]
   /** Le décodeur du GLB, lu par les matériaux à couches avant la fin de `prepareSurfaces`. */
   parser: GLTFParser
-  glowCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial
+  glowCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image: boolean): THREE.MeshStandardMaterial
+  /** A see-through emitter of the game, one per game material (`seeThroughGlowMaterial`). */
+  seeThroughGlow(source: THREE.MeshStandardMaterial, extras: MaterialExtras): THREE.MeshBasicMaterial
   tintCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]): THREE.MeshStandardMaterial
   /** La vitre teintée du jeu : elle multiplie ce qui est derrière elle par `teinte`, sans éclairage ni reflet. */
   verreTeint(teinte: [number, number, number]): THREE.MeshBasicMaterial
@@ -278,15 +329,21 @@ interface MaterialContext {
  * de passer par un matériau MASK à part.
  */
 function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras: MaterialExtras, key: Family, ctx: MaterialContext): void {
+  const image = extras.emissionImage === true
   if (source.alphaTest > 0 && source.map && !extras.couches) {
     // Matériau à découpe sans couches (glTF `MASK`) : il garde sa texture, ses trous se voient.
     const m = ctx.mats[key].clone()
     m.color.set(1, 1, 1)
     m.map = source.map
     m.alphaTest = source.alphaTest
-    applyGlow(m, source)
+    applyGlow(m, source, image)
     ctx.owned.push(m)
     o.material = m
+    return
+  }
+  if (key === 'seeThrough' && !extras.vitre && emits(source) && !MULTIPLY_BLENDS.has(extras.melange ?? 0)) {
+    // A see-through emitter (holographic sign, hologram): added over what is behind it, not glass.
+    o.material = ctx.seeThroughGlow(source, extras)
     return
   }
   if (extras.shader !== undefined && STENCIL_DECAL_SHADERS.has(extras.shader) && source.map) {
@@ -296,7 +353,7 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     o.material = ctx.decalStencil(source.map, extras.pochoir)
     return
   }
-  o.material = emits(source) ? ctx.glowCopy(ctx.mats[key], source) : ctx.mats[key]
+  o.material = emits(source) ? ctx.glowCopy(ctx.mats[key], source, image) : ctx.mats[key]
   if (key === 'seeThrough' && extras.vitre && extras.couches && !emits(source)) {
     const teinte = teinteVerreTeint(extras.couches)
     // Below 0.25 linear brightness, multiply blending obscures the view rather than reading as a tint.
@@ -309,13 +366,13 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     // Un matériau à couches par composition distincte (famille, couches, lumière propre, découpe)
     // : les surfaces de même composition le partagent, et le dessin ne change de matériau qu'entre
     // elles.
-    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}` : ''
+    const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${image}` : ''
     const alphaTest = source.alphaTest > 0 ? `|a${source.alphaTest}` : ''
     const signature = `${key}|${glow}|${alphaTest}|${JSON.stringify(extras.couches)}`
     let shared = ctx.layered.get(signature)
     if (!shared) {
       shared = layeredMaterial(ctx.mats[key], extras.couches, ctx.parser).then((m) => {
-        applyGlow(m, source)
+        applyGlow(m, source, image)
         if (source.alphaTest > 0) m.alphaTest = source.alphaTest
         ctx.owned.push(m)
         return m
@@ -346,11 +403,11 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const { mats, groups, owned } = familyMaterials()
   // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.
   const glowing = new Map<THREE.Material, THREE.MeshStandardMaterial>()
-  const glowCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial) => {
+  const glowCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image: boolean) => {
     let m = glowing.get(source)
     if (!m) {
       m = base.clone()
-      applyGlow(m, source)
+      applyGlow(m, source, image)
       if (source.emissiveMap) {
         // Its game color under the mask: the glTF base color, the material's first layer.
         m.map = source.map
@@ -358,6 +415,17 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
       }
       owned.push(m)
       glowing.set(source, m)
+    }
+    return m
+  }
+  // One additive (or maximum) material per game material that emits over what is behind it.
+  const seeThroughGlowing = new Map<THREE.Material, THREE.MeshBasicMaterial>()
+  const seeThroughGlow = (source: THREE.MeshStandardMaterial, extras: MaterialExtras) => {
+    let m = seeThroughGlowing.get(source)
+    if (!m) {
+      m = seeThroughGlowMaterial(source, extras)
+      owned.push(m)
+      seeThroughGlowing.set(source, m)
     }
     return m
   }
@@ -393,7 +461,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   // Un décalque pochoir par texture, couleur et opacité distinctes.
   const decalStencil = new Map<string, THREE.MeshStandardMaterial>()
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
-  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
+  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
   gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return

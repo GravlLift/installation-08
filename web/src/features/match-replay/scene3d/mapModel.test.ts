@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
 import type { LayeredInfo } from './layeredMaterial'
+import { glowLevel, IMAGE_GLOW_MAX, imageGlowLevel } from './lighting'
 import { DECAL_TINT, decalStencilMaterial, loadLayerModel, teinteVerreTeint } from './mapModel'
 
 /** Un carré horizontal de 2 u de côté à la hauteur three `y = 1`. */
@@ -88,6 +89,51 @@ function tinyGlb(glass: LayeredInfo = COUCHES_SOMBRE): ArrayBuffer {
   return out.buffer
 }
 
+/** glbOf: a GLB of one square per material, each under a parent node `n<rank>`. */
+function glbOf(materials: object[]): ArrayBuffer {
+  const bin = new ArrayBuffer(60)
+  new Float32Array(bin, 0, 12).set(SQUARE)
+  new Uint16Array(bin, 48, 6).set(INDICES)
+  const n = materials.length
+  const json = {
+    asset: { version: '2.0' },
+    extensionsUsed: ['KHR_materials_emissive_strength'],
+    scene: 0,
+    scenes: [{ nodes: materials.map((_, i) => i) }],
+    nodes: [
+      ...materials.map((_, i) => ({ name: `n${i}`, children: [n + i] })),
+      ...materials.map((_, i) => ({ mesh: i })),
+    ],
+    meshes: materials.map((_, i) => ({ primitives: [{ attributes: { POSITION: 0 }, indices: 1, material: i }] })),
+    materials,
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [-1, 1, -1], max: [1, 1, 1] },
+      { bufferView: 1, componentType: 5123, count: 6, type: 'SCALAR' },
+    ],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: 48, target: 34962 },
+      { buffer: 0, byteOffset: 48, byteLength: 12, target: 34963 },
+    ],
+    buffers: [{ byteLength: 60 }],
+  }
+  const text = new TextEncoder().encode(JSON.stringify(json))
+  const jsonLength = Math.ceil(text.length / 4) * 4
+  const out = new Uint8Array(12 + 8 + jsonLength + 8 + bin.byteLength)
+  const view = new DataView(out.buffer)
+  view.setUint32(0, 0x46546c67, true)
+  view.setUint32(4, 2, true)
+  view.setUint32(8, out.length, true)
+  view.setUint32(12, jsonLength, true)
+  view.setUint32(16, 0x4e4f534a, true)
+  out.fill(0x20, 20, 20 + jsonLength)
+  out.set(text, 20)
+  const binAt = 20 + jsonLength
+  view.setUint32(binAt, bin.byteLength, true)
+  view.setUint32(binAt + 4, 0x004e4942, true)
+  out.set(new Uint8Array(bin), binAt + 8)
+  return out.buffer
+}
+
 function meshUnder(root: THREE.Object3D, node: string): THREE.Mesh {
   const found = root.getObjectByName(node)?.children[0]
   if (!(found instanceof THREE.Mesh)) throw new Error(`pas de maillage sous ${node}`)
@@ -141,6 +187,63 @@ describe('layered glass', () => {
     expect(material.transparent).toBe(true)
     expect(material.depthWrite).toBe(false)
     expect(material.side).toBe(THREE.DoubleSide)
+    layer.dispose()
+  })
+})
+
+describe('self-lit surfaces', () => {
+  const strength = (value: number) => ({ KHR_materials_emissive_strength: { emissiveStrength: value } })
+  // Streets' NMPD sign: a dim blue tint at a high force (0.114 x 59).
+  const sign = { name: 'sign', alphaMode: 'BLEND', emissiveFactor: [0.008, 0.024, 0.114], extensions: strength(59), extras: { melange: 1, emissionImage: true } }
+  const freeSign = { name: 'free', alphaMode: 'BLEND', emissiveFactor: [0.685, 0.767, 1], extensions: strength(2), extras: { melange: 6, emissionImage: true } }
+  const litGlass = { name: 'glass', alphaMode: 'BLEND', emissiveFactor: [1, 1, 1], extensions: strength(4), extras: { melange: 3, vitre: true } }
+  const screen = { name: 'screen', emissiveFactor: [0.15, 0.15, 0.15], extensions: strength(60), extras: { emissionImage: true } }
+  const neon = { name: 'neon', emissiveFactor: [0.745, 0.018, 0.745], extensions: strength(120), extras: {} }
+
+  it('draws a see-through sign as its added picture, its whole light capped readable', async () => {
+    const layer = await loadLayerModel(glbOf([sign]), null)
+    const m = meshUnder(layer.root, 'n0').material as THREE.MeshBasicMaterial
+    expect(m).toBeInstanceOf(THREE.MeshBasicMaterial)
+    expect(m.blending).toBe(THREE.AdditiveBlending)
+    expect(m.transparent).toBe(true)
+    expect(m.depthWrite).toBe(false)
+    expect(m.fog).toBe(false)
+    expect(m.side).toBe(THREE.DoubleSide)
+    expect(m.color.b).toBeCloseTo(IMAGE_GLOW_MAX)
+    expect(m.color.r).toBeCloseTo((0.008 / 0.114) * IMAGE_GLOW_MAX)
+    layer.dispose()
+  })
+
+  it('keeps the brighter of picture and background for the maximum blend', async () => {
+    const layer = await loadLayerModel(glbOf([freeSign]), null)
+    const m = meshUnder(layer.root, 'n0').material as THREE.MeshBasicMaterial
+    expect(m.blending).toBe(THREE.CustomBlending)
+    expect(m.blendEquation).toBe(THREE.MaxEquation)
+    expect(m.color.b).toBeCloseTo(imageGlowLevel(2))
+    layer.dispose()
+  })
+
+  it('keeps lit glass and a multiplying emitter on the glass family', async () => {
+    const multiplying = { ...litGlass, name: 'multiply', extras: { melange: 4 } }
+    const layer = await loadLayerModel(glbOf([litGlass, multiplying]), null)
+    for (const node of ['n0', 'n1']) {
+      const m = meshUnder(layer.root, node).material as THREE.MeshStandardMaterial
+      expect(m).toBeInstanceOf(THREE.MeshStandardMaterial)
+      expect(m.transparent).toBe(true)
+      expect(m.emissiveIntensity).toBeCloseTo(glowLevel(4))
+    }
+    layer.dispose()
+  })
+
+  it('caps an opaque screen at a readable level and leaves a neon mask at its compressed force', async () => {
+    const layer = await loadLayerModel(glbOf([screen, neon]), null)
+    const s = meshUnder(layer.root, 'n0').material as THREE.MeshStandardMaterial
+    expect(s.emissive.r).toBeCloseTo(1)
+    expect(s.emissiveIntensity).toBeCloseTo(IMAGE_GLOW_MAX)
+    const n = meshUnder(layer.root, 'n1').material as THREE.MeshStandardMaterial
+    expect(n.emissive.r).toBeCloseTo(0.745)
+    expect(n.emissive.g).toBeCloseTo(0.018)
+    expect(n.emissiveIntensity).toBeCloseTo(glowLevel(120))
     layer.dispose()
   })
 })

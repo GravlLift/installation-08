@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { captureSkyScale, ENV_INTENSITY, glowLevel, SKY_FILL_SHARE } from './lighting'
+import { BLOOM_THRESHOLD } from './bloom3d'
+import { captureSkyScale, ENV_INTENSITY, glowLevel, IMAGE_GLOW_MAX, imageGlowLevel, SKY_FILL_SHARE } from './lighting'
 
 describe('captureSkyScale', () => {
   const sky = new THREE.Color(0x9fb4c8)
@@ -28,5 +29,15 @@ describe('glowLevel', () => {
     for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeGreaterThan(levels[i - 1])
     // 2 000 fois plus fort dans le jeu, moins de 15 fois plus fort à l'écran.
     expect(glowLevel(2000) / glowLevel(1)).toBeLessThan(15)
+  })
+})
+
+describe('imageGlowLevel', () => {
+  it('follows glowLevel for a dim picture and stops under the bloom threshold', () => {
+    expect(imageGlowLevel(1)).toBeCloseTo(glowLevel(1))
+    expect(imageGlowLevel(5)).toBe(IMAGE_GLOW_MAX)
+    expect(imageGlowLevel(800)).toBe(IMAGE_GLOW_MAX)
+    expect(IMAGE_GLOW_MAX).toBeLessThan(BLOOM_THRESHOLD)
+    expect(imageGlowLevel(-1)).toBe(0)
   })
 })
