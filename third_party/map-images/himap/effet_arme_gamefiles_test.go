@@ -129,6 +129,18 @@ func TestEffetFusilChoc(t *testing.T) {
 	}
 }
 
+// TestEspaceBitmapsFusilChoc: every texture of the effect is sampled through an sRGB view but the
+// distortion map, signed and linear.
+func TestEspaceBitmapsFusilChoc(t *testing.T) {
+	a := ouvreArsenalChoc(t)
+	for _, id := range []uint32{0xa119e9dd, 0x399302ae, 0x028aa998, 0x0b5c7ffc, 0x2178e580, 0xb5c0b591} {
+		srgb, signe, err := a.EspaceBitmap(id)
+		if err != nil || srgb == (id == 0x2178e580) || signe != (id == 0x2178e580) {
+			t.Errorf("%08x: srgb %v signed %v (%v)", id, srgb, signe, err)
+		}
+	}
+}
+
 // TestDispositionsParticulesDuShader: every constant of a particle shader layout whose StringID
 // (of its lowercased name) the shader declares sits at the byte the shader declares it at.
 func TestDispositionsParticulesDuShader(t *testing.T) {

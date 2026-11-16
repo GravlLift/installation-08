@@ -639,3 +639,47 @@ func (a *Arsenal) BitmapParticule(id uint32, couche, cote int) (Texture, int, er
 	t, err := LitCoucheBitmap(a.geo, id, couche, cote)
 	return t, prof, err
 }
+
+// bitmapOffCourbe: the `curve` enum of a bitmaps record (plugin: width, height, depth shorts, type
+// byte, pad, format short at +8, flags word at +10, mipmap count at +12, curve byte at +13). 5 is
+// sRGB: the shader samples it through an sRGB view, linear values.
+const (
+	bitmapOffCourbe = 0x0D
+	courbeSRGB      = 5
+)
+
+// formatsSignes: the pixel formats sampled as signed normalized values (-1..1); the decoder writes
+// them as (v + 1) / 2.
+var formatsSignes = map[int]bool{22: true, 37: true, 39: true, 46: true, 48: true}
+
+// EspaceBitmap says how the shader reads the bitmap `id`: through an sRGB view (its curve), and as
+// signed values (its format).
+func (a *Arsenal) EspaceBitmap(id uint32) (srgb, signe bool, err error) {
+	m, f, ok := a.geo.entree(id)
+	if !ok || f.Group != GroupeBitmap {
+		return false, false, fmt.Errorf("himap: bitmap %#x absent des modules indexes", id)
+	}
+	tag, err := m.Extract(f)
+	if err != nil {
+		return false, false, err
+	}
+	if n := f.HeaderSize + f.TagDataSize; n > 0 && n <= len(tag) {
+		tag = tag[:n]
+	}
+	for _, ti := range tagCandidates(tag) {
+		rb, err := ti.rootBlockIndex()
+		if err != nil {
+			continue
+		}
+		c := ti.subBlockTarget(rb, bitmOffBitmaps)
+		if c < 0 || c >= ti.dataBlocks {
+			continue
+		}
+		abs, size := ti.blockAbs(c)
+		if abs < 0 || size < bitmapStride || abs+size > len(tag) {
+			continue
+		}
+		return tag[abs+bitmapOffCourbe] == courbeSRGB, formatsSignes[int(u16(tag, abs+bitmapOffFormat))], nil
+	}
+	return false, false, fmt.Errorf("himap: tag %s illisible", GroupeBitmap)
+}

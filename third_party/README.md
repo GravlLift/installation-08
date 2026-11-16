@@ -432,8 +432,9 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     parameters. A `pmdf` particle mesh reuses the render-model geometry reader at its own root
     offsets (Sections +40, bounds +80, resource groups +172), its vertex buffers read from the
     tag's own data references, a triangle list without an index buffer. `MarqueursDuModele`,
-    `ModeleDeLArme`, `TagArme`, `EmplacementsDesEffets` and `BitmapParticule` serve the weapon and
-    first-person libraries. Covered by `himap/effet_arme_test.go` (new) and
+    `ModeleDeLArme`, `TagArme`, `EmplacementsDesEffets`, `BitmapParticule` and `EspaceBitmap` (a
+    bitmap's curve byte at +13 of its bitmaps record, sRGB = 5, and whether its format is signed)
+    serve the weapon and first-person libraries. Covered by `himap/effet_arme_test.go` (new) and
     `himap/effet_arme_gamefiles_test.go` (new: the twelve systems, the shader layouts, the three
     meshes, the markers).
 

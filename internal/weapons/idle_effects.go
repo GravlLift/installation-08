@@ -93,11 +93,14 @@ type IdleRender struct {
 }
 
 // IdleTexture is a bound texture: its shader name, its file (the layers of an array stacked top to
-// bottom) and its layer count.
+// bottom) and its layer count. SRGB: the shader samples it through an sRGB view (its bitmap's
+// curve), so its texels are decoded to linear; Signed: its format is signed, written (v + 1) / 2.
 type IdleTexture struct {
 	Name   string `json:"name"`
 	File   string `json:"file"`
 	Layers int    `json:"layers"`
+	SRGB   bool   `json:"srgb"`
+	Signed bool   `json:"signed"`
 }
 
 // effectFilePattern names an effect file of the library: fx-<bitmap>.png, fx-<pmdf>.bin.
@@ -272,7 +275,11 @@ func (w effectWriter) render(r himap.RenduParticule) (IdleRender, error) {
 		if err != nil {
 			return IdleRender{}, err
 		}
-		out.Textures = append(out.Textures, IdleTexture{Name: t.Name, File: file, Layers: layers})
+		srgb, signed, err := w.a.EspaceBitmap(t.Bitmap)
+		if err != nil {
+			return IdleRender{}, err
+		}
+		out.Textures = append(out.Textures, IdleTexture{Name: t.Name, File: file, Layers: layers, SRGB: srgb, Signed: signed})
 	}
 	if r.Model != 0 {
 		file, err := w.model(r.Model)

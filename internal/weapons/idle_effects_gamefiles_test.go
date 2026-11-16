@@ -14,8 +14,6 @@ import (
 	"testing"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
-
-	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
 const shockKey = "1a22fee6"
@@ -46,12 +44,6 @@ func TestShockIdleEffectFromGame(t *testing.T) {
 	}
 	es := got[shockKey]
 	if len(es) != 1 {
-		raw, _ := a.TagArme(0x1a22fee6)
-		atts, aerr := weaponicons.ReadEffectAttachments(raw)
-		fns, ferr := weaponicons.ReadObjectFunctions(raw)
-		mode, ok := a.ModeleDeLArme(0x1a22fee6)
-		_, xerr := a.EffetDeParticules(0x1e471031)
-		t.Logf("atts %+v %v fns %d %v mode %08x %v fx %v", atts, aerr, len(fns), ferr, mode, ok, xerr)
 		t.Fatalf("shock rifle: %d idle effects", len(es))
 	}
 	e := es[0]
@@ -82,12 +74,18 @@ func TestShockIdleEffectFromGame(t *testing.T) {
 		t.Errorf("system 0 = %+v", s)
 	}
 	if len(s.Render.Textures) != 3 || s.Render.Textures[0].File != "fx-a119e9dd.png" || s.Render.Textures[0].Layers != 4 ||
-		s.Render.Textures[2].File != "fx-b5c0b591.png" {
+		s.Render.Textures[2].File != "fx-b5c0b591.png" || !s.Render.Textures[0].SRGB || s.Render.Textures[0].Signed {
 		t.Errorf("system 0 textures %+v", s.Render.Textures)
 	}
 	shell := e.Systems[4]
 	if shell.Render.Model != "fx-3c8e80bc.bin" {
 		t.Errorf("shell model %q", shell.Render.Model)
+	}
+	// The shell's distortion map is the one linear, signed texture.
+	for _, tx := range shell.Render.Textures {
+		if tx.Name == "uvDistortionMap" && (tx.SRGB || !tx.Signed) || tx.Name != "uvDistortionMap" && (!tx.SRGB || tx.Signed) {
+			t.Errorf("shell texture %+v", tx)
+		}
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, shell.Render.Model))
 	if err != nil || len(raw) != 2400*3*5*4 {
