@@ -4,8 +4,10 @@
 // a frame, the tag names a Wwise event, and the event draws one of its media. The build writes
 // every media as an Ogg Vorbis take (repacked without decoding, internal/wwvorbis) and a
 // manifest the viewer reads: per weapon tag, per stance, the animation's length and each
-// sound's moment and takes. Nothing is committed to the repo: the files land in the data
-// directory's sound folder, next to the announcer's.
+// sound's moment and takes. The heat weapons (Stalker, Plasma Pistol, Pulse Carbine, Ravager)
+// vent instead of reloading: their `vent_enter`, `vent_loop` and `vent_exit` animations are read
+// the same way into the manifest's `vents`. Nothing is committed to the repo: the files land in
+// the data directory's sound folder, next to the announcer's.
 package reloadsounds
 
 import (
@@ -20,8 +22,8 @@ import (
 const ManifestName = "reloads.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
-// the extraction runs again.
-const ManifestVersion = 1
+// the extraction runs again. Version 2 adds the heat weapons' vents.
+const ManifestVersion = 2
 
 // takeFile is the name of every take file a manifest lists: reload_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -36,6 +38,23 @@ type Manifest struct {
 	Version int `json:"version"`
 	// Weapons maps a weapon tag to its reload animation per stance ("combat", "crouch").
 	Weapons map[string]map[string]Reload `json:"weapons"`
+	// Vents maps a heat weapon tag to its vent per stance: the enter, loop and exit animations,
+	// each with the sounds it posts (the loop posts none in the installed game).
+	Vents map[string]map[string]Vent `json:"vents"`
+}
+
+// Vent is one heat weapon's vent: the animation of each of its phases.
+type Vent struct {
+	Enter VentClip `json:"enter"`
+	Loop  VentClip `json:"loop"`
+	Exit  VentClip `json:"exit"`
+}
+
+// VentClip is one vent animation: its game name, its length, and the sounds it posts.
+type VentClip struct {
+	Animation  string  `json:"animation"`
+	DurationMs int     `json:"durationMs"`
+	Sounds     []Sound `json:"sounds"`
 }
 
 // Reload is one reload animation: its game name, its length, and the sounds it posts.
@@ -92,6 +111,17 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 			for _, s := range r.Sounds {
 				for _, t := range s.Takes {
 					keep[t.File] = true
+				}
+			}
+		}
+	}
+	for _, stances := range m.Vents {
+		for _, v := range stances {
+			for _, c := range []VentClip{v.Enter, v.Loop, v.Exit} {
+				for _, s := range c.Sounds {
+					for _, t := range s.Takes {
+						keep[t.File] = true
+					}
 				}
 			}
 		}

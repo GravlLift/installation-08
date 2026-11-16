@@ -1,11 +1,12 @@
 /**
- * useReloadTrack.ts — the extracted reloads the track plays, measured once.
+ * useReloadTrack.ts — the extracted weapon sounds the track plays, measured once: the reloads
+ * and the heat weapons' vents.
  *
  * The manifest is read ONCE per page (`loadReloadManifestOnce`), and every take is measured once
  * per page (`measureTakeOnce`): decoded in an offline context, whose decoding no user gesture
  * gates, for the level rule of `reloadLoudness.ts`. Only the takes of the weapons the match
  * holds are measured. Nothing is read before the sound is on, the rule of the whole sound chain,
- * and nothing extracted (a 404) leaves the reloads silent.
+ * and nothing extracted (a 404) leaves the reloads and the vents silent.
  */
 import { useEffect, useMemo, useState } from 'react'
 
@@ -17,10 +18,18 @@ import {
   reloadLibrary,
   takeFilesOf,
   takeStem,
+  ventLibrary,
   weaponTagOf,
   type ReloadLibrary,
   type ReloadManifest,
+  type VentLibrary,
 } from './reloadManifest'
+
+/** The match's extracted weapon sounds, ready to play: the reloads and the vents. */
+export interface ReloadTrack {
+  reloads: ReloadLibrary
+  vents: VentLibrary
+}
 
 /** What the hook reads: the manifest, and a take's level. Injectable for the tests. */
 export interface ReloadSources {
@@ -73,12 +82,12 @@ function weaponTagsOf(doc: ReplayDocumentReady): string[] {
   return [...tags]
 }
 
-/** useReloadTrack — the match's reloads with their gains, or `undefined` until they are ready (or none exist). */
-export function useReloadTrack(doc: ReplayDocumentReady, enabled: boolean, sources: ReloadSources = DEFAULT_SOURCES): ReloadLibrary | undefined {
+/** useReloadTrack — the match's reloads and vents with their gains, or `undefined` until ready (or none exist). */
+export function useReloadTrack(doc: ReplayDocumentReady, enabled: boolean, sources: ReloadSources = DEFAULT_SOURCES): ReloadTrack | undefined {
   const tags = useMemo(() => weaponTagsOf(doc), [doc])
-  const [library, setLibrary] = useState<ReloadLibrary | undefined>(undefined)
+  const [track, setTrack] = useState<ReloadTrack | undefined>(undefined)
   useEffect(() => {
-    // A match that names no weapon has no reload to sound: nothing to read.
+    // A match that names no weapon has no reload or vent to sound: nothing to read.
     if (!enabled || tags.length === 0) return
     let live = true
     void (async () => {
@@ -86,11 +95,12 @@ export function useReloadTrack(doc: ReplayDocumentReady, enabled: boolean, sourc
       if (!manifest) return
       const files = takeFilesOf(manifest, tags)
       const measured = new Map(await Promise.all(files.map(async (f) => [f, await sources.measure(f)] as const)))
-      if (live) setLibrary(reloadLibrary(manifest, tags, (f) => measured.get(f)))
+      const levelOf = (f: string) => measured.get(f)
+      if (live) setTrack({ reloads: reloadLibrary(manifest, tags, levelOf), vents: ventLibrary(manifest, tags, levelOf) })
     })()
     return () => {
       live = false
     }
   }, [enabled, tags, sources])
-  return library
+  return track
 }

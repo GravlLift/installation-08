@@ -37,8 +37,11 @@ import type { ReplaySoundEvent } from './replaySoundVariants'
 /** The actions that end a reload from the very instant they share with it. */
 const INTERRUPTING_ACTIONS: ReadonlySet<string> = new Set(['melee', 'throwStart'])
 
-/** A player's dated facts that bear on a reload, each list sorted by ms. */
-interface SlotFacts {
+/**
+ * A player's dated facts that bear on a reload (and a vent, the same `weapon_reload` messages),
+ * each list sorted by ms.
+ */
+export interface SlotFacts {
   reloads: number[]
   interrupts: number[]
   shots: number[]
@@ -112,8 +115,11 @@ export function firstAt(sorted: readonly number[], ms: number, inclusive: boolea
   return lo < sorted.length ? sorted[lo] : Infinity
 }
 
-/** factsBySlot — each player's reloads (one per instant) and the facts that cancel them, sorted. */
-function factsBySlot(doc: ReplayDocumentReady): Map<number, SlotFacts> {
+/**
+ * factsBySlot — each player's reloads (one per instant) and the facts that cancel them, sorted.
+ * The vents read the same facts (`ventSound.ts`).
+ */
+export function factsBySlot(doc: ReplayDocumentReady): Map<number, SlotFacts> {
   const by = new Map<number, SlotFacts>()
   const of = (slot: number) => {
     let f = by.get(slot)
