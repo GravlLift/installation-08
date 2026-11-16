@@ -3,8 +3,13 @@
  * the real objective actions of `05dfe4e9` (Outlook CTF) and `dea65712` (Fortress CTF) go through
  * `announcerCalls`, `scheduleAnnouncer` and the extracted voice, and the test fixes the list of
  * calls the followed player hears (time, line). The durations are the extracted lines' own
- * (`announcer.json` of the install). The Strongholds case fixes the "strongholdlost" call added
- * with the wider objective set: a zone capture by the enemy now has a line where it was silent.
+ * (`announcer.json` of the install). The CTF lines split across the two banks: the "ours" capture
+ * and the returns stay on the main bank, while the steals (the stacker's "flag taken") and the
+ * enemy capture (the stacker's "enemy flag captured") come from the stacker bank, which is where
+ * the game's CTF objective chatter lives. The Strongholds case fixes the "strongholdlost" call
+ * added with the wider objective set: a zone capture by the enemy now has a line where it was
+ * silent. Every list also checks the scheduler's spacing: a call never starts before the one
+ * before it ends, so the chatter does not pile up.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -16,14 +21,23 @@ import type { ObjectiveSide } from './objectiveSound'
 /** One objective action of the film: frame, author, statistic, exact match time. */
 type Action = { t: number; xuid: string; stat: string; timeMs: number }
 
-/** The manifest the install extracts, limited to the objective lines (durations: `announcer.json`). */
+/**
+ * The manifest the install extracts, limited to the objective lines (durations: `announcer.json`).
+ * The stacker bank's CTF and Assault lines (the enemy capture, the flag taken, the bomb) carry
+ * their own measured durations.
+ */
 const MANIFEST: AnnouncerManifest = {
-  version: 4,
+  version: 5,
   language: 'en',
   lines: {
     flagcaptured: { takes: [{ file: 'announcer_flagcaptured_01.ogg', durationMs: 1600 }] },
+    flagcapturedenemy: { takes: [{ file: 'announcer_flagcapturedenemy_01.ogg', durationMs: 5696 }] },
+    flagtakenally: { takes: [{ file: 'announcer_flagtakenally_01.ogg', durationMs: 2901 }] },
+    flagtakenenemy: { takes: [{ file: 'announcer_flagtakenenemy_01.ogg', durationMs: 3861 }] },
     teamflagreturned: { takes: [{ file: 'announcer_teamflagreturned_01.ogg', durationMs: 1195 }] },
     enemyflagreturned: { takes: [{ file: 'announcer_enemyflagreturned_01.ogg', durationMs: 2261 }] },
+    bombdetonatedally: { takes: [{ file: 'announcer_bombdetonatedally_01.ogg', durationMs: 2560 }] },
+    bombdetonatedenemy: { takes: [{ file: 'announcer_bombdetonatedenemy_01.ogg', durationMs: 4779 }] },
     strongholdcaptured: { takes: [{ file: 'announcer_strongholdcaptured_01.ogg', durationMs: 1344 }] },
     strongholdlost: { takes: [{ file: 'announcer_strongholdlost_01.ogg', durationMs: 1600 }] },
     hillcontrolled: { takes: [{ file: 'announcer_hillcontrolled_01.ogg', durationMs: 1557 }] },
@@ -82,29 +96,48 @@ describe('05dfe4e9 — Outlook CTF, followed DrakonReborn (team 1)', () => {
   const doc = testReplayDoc({ frameIntervalMs: 33, originMs: 8906, objectives: ACTIONS })
   const input = { doc, followed: '2535449707262783', medals: [], sideOfXuid: sideOf(ALLEYS), voice: VOICE }
 
-  it('hears the captures and the returns, on the film clock (match time minus origin)', () => {
+  it('hears the takes, the captures and the returns, on the film clock (match time minus origin)', () => {
     const events = announcerSoundEvents(input, 'en')
-    // The two returns at 481717 are one call (deduplicated); the capture by the enemy team
-    // (606794) is silent: the main bank has no "enemy captured your flag" line.
+    // The two returns at 481717 are one call (deduplicated). The steals now say the stacker's
+    // "flag taken" (our team's steals say it on the "ally" line), and the enemy capture at 606794
+    // now says the stacker's "enemy flag captured" where the main bank had no line.
     expect(events.map((e) => [e.ms, e.stem])).toEqual([
+      [79_611, 'announcer_flagtakenally_01'],
       [88_619, 'announcer_enemyflagreturned_01'],
+      [122_092, 'announcer_flagtakenally_01'],
+      [201_755, 'announcer_flagtakenally_01'],
       [214_902, 'announcer_flagcaptured_01'],
+      [216_820, 'announcer_flagtakenally_01'],
+      [268_506, 'announcer_flagtakenally_01'],
+      [316_053, 'announcer_flagtakenally_01'],
       [321_910, 'announcer_flagcaptured_01'],
+      [335_524, 'announcer_flagtakenally_01'],
       [348_086, 'announcer_enemyflagreturned_01'],
+      [465_971, 'announcer_flagtakenenemy_01'],
       [472_811, 'announcer_teamflagreturned_01'],
+      [509_883, 'announcer_flagtakenenemy_01'],
+      [574_881, 'announcer_flagtakenenemy_01'],
+      [597_888, 'announcer_flagcapturedenemy_01'],
+      [690_014, 'announcer_flagtakenally_01'],
       [703_644, 'announcer_enemyflagreturned_01'],
     ])
+    // No pile-up: every call starts on a free line, so each one begins no earlier than the
+    // previous call ended.
+    for (let i = 1; i < events.length; i++) expect(events[i].ms).toBeGreaterThanOrEqual(events[i - 1].ms)
   })
 
-  it('the unmapped CTF statistics (steals, grabs, secures, carriers killed) stay silent: their calls have no line', () => {
-    // A call is made for every dated objective action with a known side; silence is the absence
-    // of a line, which `scheduleAnnouncer` removes before the queue.
-    for (const stat of ['flag_steals', 'flag_grabs', 'flag_secures', 'flag_carriers_killed', 'flag_capture_assists']) {
+  it('the unmapped CTF statistics (grabs, secures, carriers killed) stay silent: their calls have no line', () => {
+    // A grab is not announced in either bank; silence is the absence of a line, which
+    // `scheduleAnnouncer` removes before the queue.
+    for (const stat of ['flag_grabs', 'flag_secures', 'flag_carriers_killed', 'flag_capture_assists']) {
       expect(VOICE.takes(`objective.${stat}.ours`, 'en')).toEqual([])
       expect(VOICE.takes(`objective.${stat}.theirs`, 'en')).toEqual([])
     }
+    // The steals now map to the stacker's "flag taken", on the ally/enemy line by side.
+    expect(VOICE.takes('objective.flag_steals.ours', 'en')[0].stem).toBe('announcer_flagtakenally_01')
+    expect(VOICE.takes('objective.flag_steals.theirs', 'en')[0].stem).toBe('announcer_flagtakenenemy_01')
     // Every dated action makes a call (36 minus the one deduplicated pair); the schedule keeps
-    // only the six that have a line.
+    // only the ones that have a line.
     expect(announcerCalls(input).filter((c) => c.cls === 'objective')).toHaveLength(35)
   })
 })
@@ -158,14 +191,22 @@ describe('dea65712 — Fortress CTF, followed urbanflow1657 (team 1)', () => {
   const doc = testReplayDoc({ frameIntervalMs: 33, originMs: 10173, objectives: ACTIONS })
   const input = { doc, followed: '2535439250209847', medals: [], sideOfXuid: sideOf(ALLEYS), voice: VOICE }
 
-  it('hears the three captures by his team and the one return, on the film clock', () => {
+  it('hears the takes, the three captures by his team and the one return, on the film clock', () => {
     const events = announcerSoundEvents(input, 'en')
+    // The steals now say the stacker's "flag taken"; the captures stay on the main bank's line
+    // and the return on the "ours" return line.
     expect(events.map((e) => [e.ms, e.stem])).toEqual([
+      [84_130, 'announcer_flagtakenally_01'],
       [99_813, 'announcer_flagcaptured_01'],
+      [133_012, 'announcer_flagtakenally_01'],
       [147_764, 'announcer_flagcaptured_01'],
+      [249_808, 'announcer_flagtakenenemy_01'],
       [272_736, 'announcer_teamflagreturned_01'],
+      [291_440, 'announcer_flagtakenenemy_01'],
+      [295_301, 'announcer_flagtakenally_01'],
       [348_247, 'announcer_flagcaptured_01'],
     ])
+    for (let i = 1; i < events.length; i++) expect(events[i].ms).toBeGreaterThanOrEqual(events[i - 1].ms)
   })
 })
 
