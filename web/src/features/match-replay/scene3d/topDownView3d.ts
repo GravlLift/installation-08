@@ -37,7 +37,10 @@ import { TOP_LIFT, TopDownStage } from './topDownStage3d'
 
 /** Margin around the walked X/Z area in the frame (u): the walls just past the last footstep. */
 const TOP_MARGIN = 3
-/** The passes that read no camera: the scene render, the output, the grade, the antialias. */
+/**
+ * The passes that read no camera: the scene render, the output, the grade, the antialias. The
+ * bloom reads none either but stays out: the top-down view is a flat-lit map, not a picture.
+ */
 const CAMERA_AGNOSTIC = [RenderPass, OutputPass, ShaderPass, SMAAPass]
 /** How often the chrome's place is read from the page (ms): it moves only on a resize or a font load. */
 const INSETS_EVERY_MS = 500

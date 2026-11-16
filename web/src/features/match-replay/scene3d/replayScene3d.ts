@@ -144,6 +144,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private knobRatio: number | null = null
   private lookOcclusion = true
   private readonly gpu: GpuTimer
+  /** Frames drawn by `render`, for the bloom's GPU timing on every other one. */
+  private frameCount = 0
   private readonly minimapCost = { calls: 0, triangles: 0 }
   /** The back-face meshes of the map and layer (the `backFaces` knob), found when a root is attached. */
   private backFaces: THREE.Object3D[] = []
@@ -346,11 +348,13 @@ export class ReplayScene3d implements Replay3DExportSource {
     layer.dispose()
   }
 
-  /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion. */
+  /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion, bloom. */
   setLook(look: Look3d): void {
     this.lighting.setLook(look)
     this.lookOcclusion = look.ambientOcclusion
     this.post.gtao.enabled = look.ambientOcclusion
+    // Off, the pass leaves the composer: the video export (same composer) follows the drawer too.
+    this.post.setBloom(look.bloom)
   }
 
   /** setFovPreference applies the game's field-of-view setting (horizontal degrees at 16:9): the camera's base vertical field. */
@@ -426,7 +430,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.orbit.enabled = this.mode === 'free' && !top // the top-down view has its own gestures on the canvas
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
     t = marquer(p, 3, t)
-    this.gpu.begin()
+    // Every other frame with bloom drawn, its pass is timed alone and the frame's timer rests: two
+    // timer queries cannot nest. The frame time still counts the bloom on the frames it measures.
+    const timeBloom = !top && this.post.bloom?.enabled === true && (this.frameCount++ & 1) === 1
+    this.post.timeBloom = timeBloom
+    if (!timeBloom) this.gpu.begin()
     const minimap = this.minimapCost
     minimap.calls = minimap.triangles = 0
     if (top) top.draw({ composer: this.post.composer, players: this.topPlayers, dead: this.topDead, followed: this.topFollowed })
@@ -440,12 +448,14 @@ export class ReplayScene3d implements Replay3DExportSource {
       minimap.triangles = this.renderer.info.render.triangles - triangles
     }
     this.gpu.end()
+    this.post.timeBloom = false
     t = marquer(p, 4, t)
     this.labels.domElement.style.display = knobs.labels ? '' : 'none'
     if (knobs.labels) this.labels.render(this.scene, top ? top.camera : this.camera)
     marquer(p, 5, t)
     this.notePassCosts(minimap)
     p.gpuMs = this.gpu.ms
+    p.bloomGpuMs = this.post.bloom ? this.post.bloomGpu.ms : null
     p.appels = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
     p.geometries = this.renderer.info.memory.geometries
@@ -467,6 +477,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post.outline.maskPass.enabled = fx && k.outline
     this.post.outline.linePass.enabled = fx && k.outline
     this.post.gtao.enabled = fx && k.ao && this.lookOcclusion
+    if (this.post.bloom) this.post.bloom.enabled = fx && k.bloom
     this.post.output.enabled = fx
     this.post.grade.enabled = fx
     this.post.smaa.enabled = fx && k.smaa

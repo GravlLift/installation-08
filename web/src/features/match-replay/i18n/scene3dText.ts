@@ -81,6 +81,8 @@ export interface Scene3dText {
   lookOcclusionHint: string
   lookGameLight: string
   lookGameLightHint: string
+  lookBloom: string
+  lookBloomHint: string
   /** The playback meter's toggle (also the ` key). */
   lookPlaybackFps: string
   lookPlaybackFpsHint: string
@@ -159,6 +161,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookOcclusionHint: 'Assombrit les coins et les recoins. Le plus coûteux des réglages.',
     lookGameLight: 'Lumière du jeu',
     lookGameLightHint: 'La lumière cuite et les lampes de la carte, telles que le jeu les pose.',
+    lookBloom: 'Halo lumineux',
+    lookBloomHint: "Les surfaces lumineuses (lampes, bandeaux, lames d'énergie) rayonnent au-delà de leurs bords.",
     lookPlaybackFps: 'Afficher les ips de lecture',
     lookPlaybackFpsHint: "Les images du film affichées par seconde face à sa cadence native, le rapport au temps réel, puis le temps d'image et le coût du rendu. Touche `.",
     aidsTitle: 'Repères d’analyse',
@@ -266,6 +270,8 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     lookOcclusionHint: 'Darkens corners and crevices. The costliest setting.',
     lookGameLight: 'Game lighting',
     lookGameLightHint: "The map's baked light and lamps, as the game places them.",
+    lookBloom: 'Bloom',
+    lookBloomHint: 'Glowing surfaces (lamps, light strips, energy blades) shine past their edges.',
     lookPlaybackFps: 'Show playback FPS',
     lookPlaybackFpsHint: "Film frames shown per second against the film's native rate, the real-time ratio, then frame time and render cost. Key `.",
     aidsTitle: 'Analysis aids',

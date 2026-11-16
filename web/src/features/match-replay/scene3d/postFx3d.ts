@@ -7,6 +7,10 @@
  * l'éclairage du jeu porte. Elle réutilise la profondeur du passage principal au lieu de
  * re-rendre la scène en matériau de normales : les normales en sont reconstruites, facettes comme
  * dans le GLB sans normales de sommet. Rayon en unités monde (0,6 u ~ 1,8 m), débruitage sur 6 px.
+ *
+ * Bloom (`bloom3d`): the glow of self-lit surfaces, on the HDR image between the ambient
+ * occlusion and the output pass. Present only while the drawer's "Bloom" setting is on
+ * (`setBloom`): off, the pass leaves the chain and its render targets are released.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -16,23 +20,37 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 
+import { GlowBloomPass } from './bloom3d'
+import { GpuTimer } from './gpuTimer3d'
 import { Outline3d } from './outline3d'
 
 export interface PostFx3d {
   composer: EffectComposer
   gtao: GTAOPass
+  /** The bloom pass while the setting is on, null while it is off (out of the chain). */
+  readonly bloom: GlowBloomPass | null
   grade: ShaderPass
   output: OutputPass
   smaa: SMAAPass
   outline: Outline3d
   /** What each pass drew at the last frames since `resetCosts` (`renderer.info`), for the playback meter. */
   costs: Record<PassName, PassCost>
+  /**
+   * The GPU time of the bloom pass alone (ms, smoothed; null until measured, without the timer
+   * extension, or with bloom off). Measured only on frames that set `timeBloom`: a WebGL timer
+   * query cannot run inside the frame's own (`gpuTimer3d`).
+   */
+  readonly bloomGpu: GpuTimer
+  /** True for a frame whose bloom pass is to be timed by `bloomGpu` (the frame's own timer then stays off). */
+  timeBloom: boolean
+  /** setBloom puts the bloom pass in the chain (before the output pass) or takes it out and releases it. */
+  setBloom(on: boolean): void
   resetCosts(): void
   dispose(): void
 }
 
 /** The composer's passes, in order, as the playback meter names them. */
-export const PASS_NAMES = ['scene', 'outlineMask', 'ao', 'output', 'grade', 'smaa', 'outlineLine'] as const
+export const PASS_NAMES = ['scene', 'outlineMask', 'ao', 'bloom', 'output', 'grade', 'smaa', 'outlineLine'] as const
 export type PassName = (typeof PASS_NAMES)[number]
 export interface PassCost { calls: number; triangles: number }
 
@@ -54,8 +72,8 @@ const shaderGrade = {
   fragmentShader: 'uniform sampler2D tDiffuse; uniform vec3 uGain; varying vec2 vUv; void main() { vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(c.rgb * uGain, c.a); }',
 }
 
-/** buildPostFx pose les passes de la scène `scene` vue par `camera`. */
-export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): PostFx3d {
+/** buildPostFx pose les passes de la scène `scene` vue par `camera` ; `bloom` : the bloom pass starts in the chain. */
+export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, bloom = true): PostFx3d {
   // La profondeur de la scène reste lisible après son rendu : l'occlusion ambiante s'y compare.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(1, 1) })
   const composer = new EffectComposer(renderer, target)
@@ -89,46 +107,72 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   smaa.materialBlend.depthWrite = false
   composer.addPass(smaa)
   composer.addPass(outline.linePass)
-  const costs = meterPasses(renderer, [scenePass, outline.maskPass, gtao, output, grade, smaa, outline.linePass])
-  return {
+  const costs = Object.fromEntries(PASS_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as Record<PassName, PassCost>
+  const metered: [PassName, Meterable][] = [['scene', scenePass], ['outlineMask', outline.maskPass], ['ao', gtao], ['output', output], ['grade', grade], ['smaa', smaa], ['outlineLine', outline.linePass]]
+  for (const [name, pass] of metered) meterPass(renderer, pass, costs[name])
+  const bloomGpu = new GpuTimer(renderer)
+  const fx: PostFx3d = {
     composer,
     gtao,
+    bloom: null,
     grade,
     output,
     smaa,
     outline,
     costs,
+    bloomGpu,
+    timeBloom: false,
+    setBloom(on) {
+      const self = fx as { bloom: GlowBloomPass | null }
+      if (on === (self.bloom !== null)) return
+      if (self.bloom) {
+        composer.removePass(self.bloom)
+        self.bloom.dispose()
+        self.bloom = null
+        bloomGpu.ms = null
+        costs.bloom.calls = costs.bloom.triangles = 0
+        return
+      }
+      const pass = new GlowBloomPass()
+      meterPass(renderer, pass, costs.bloom, () => (fx.timeBloom ? bloomGpu : null))
+      composer.insertPass(pass, composer.passes.indexOf(output))
+      self.bloom = pass
+    },
     resetCosts() {
       for (const name of PASS_NAMES) costs[name].calls = costs[name].triangles = 0
     },
     dispose() {
+      fx.setBloom(false)
+      bloomGpu.dispose()
       outline.dispose()
       gtao.dispose()
       grade.dispose()
       composer.dispose()
     },
   }
+  fx.setBloom(bloom)
+  return fx
 }
 
+type Meterable = { render: (...args: never[]) => void }
+
 /**
- * meterPasses wraps each pass's `render` to add what it drew (`renderer.info`, which the scene
- * resets once per frame) to its entry; the passes are in `PASS_NAMES` order.
+ * meterPass wraps a pass's `render` to add what it drew (`renderer.info`, which the scene resets
+ * once per frame) to `cost`; `timer`, when it gives one, times the pass on the GPU.
  */
-function meterPasses(renderer: THREE.WebGLRenderer, passes: readonly { render: (...args: never[]) => void }[]): Record<PassName, PassCost> {
-  const costs = Object.fromEntries(PASS_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as Record<PassName, PassCost>
-  passes.forEach((pass, i) => {
-    const cost = costs[PASS_NAMES[i]]
-    const render = pass.render.bind(pass) as (...args: unknown[]) => void
-    pass.render = ((...args: unknown[]) => {
-      const info = renderer.info.render
-      const calls = info.calls
-      const triangles = info.triangles
-      render(...args)
-      cost.calls += info.calls - calls
-      cost.triangles += info.triangles - triangles
-    }) as never
-  })
-  return costs
+function meterPass(renderer: THREE.WebGLRenderer, pass: Meterable, cost: PassCost, timer?: () => GpuTimer | null): void {
+  const render = pass.render.bind(pass) as (...args: unknown[]) => void
+  pass.render = ((...args: unknown[]) => {
+    const info = renderer.info.render
+    const calls = info.calls
+    const triangles = info.triangles
+    const gpu = timer?.() ?? null
+    gpu?.begin()
+    render(...args)
+    gpu?.end()
+    cost.calls += info.calls - calls
+    cost.triangles += info.triangles - triangles
+  }) as never
 }
 
 /**

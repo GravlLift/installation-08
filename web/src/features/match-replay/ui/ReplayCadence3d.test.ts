@@ -22,6 +22,17 @@ describe('ReplayCadence3d meter lines', () => {
     expect(line).toBe('shadow 0.40M/30 · scene 5.40M/421 · ao 0.00M/3')
   })
 
+  it("shows the bloom's own GPU time next to the frame's, and its draws among the passes", () => {
+    const passes = { ...nouveauProfil().passes, ao: { calls: 3, triangles: 3 }, bloom: { calls: 13, triangles: 13 }, output: { calls: 1, triangles: 1 } }
+    const snap = snapshotOf({ displayedFps: 30, frameMsAvg: 33, frameMsWorst: 40, realtime: 1, scriptMs: 5 }, 30, { ...profil, passes, gpuMs: 21.34, bloomGpuMs: 0.84 }, 0)
+    const [, cost, , line] = meterLines(snap, SCENE3D_TEXT.en)
+    expect(snap.bloomGpuMs).toBe(0.8)
+    expect(cost).toContain('gpu 21.3 ms (bloom 0.8 ms) · 812 calls')
+    expect(line).toBe('ao 0.00M/3 · bloom 0.00M/13 · output 0.00M/1')
+    const off = snapshotOf({ displayedFps: 30, frameMsAvg: 33, frameMsWorst: 40, realtime: 1, scriptMs: 5 }, 30, { ...profil, gpuMs: 21.34, bloomGpuMs: null }, 0)
+    expect(meterLines(off, SCENE3D_TEXT.en)[1]).not.toContain('bloom')
+  })
+
   it('says paused when the film does not advance', () => {
     const snap = snapshotOf({ displayedFps: 60, frameMsAvg: 16.7, frameMsWorst: 17, realtime: 0, scriptMs: 2 }, 30, profil, 0)
     expect(meterLines(snap, SCENE3D_TEXT.en)[0]).toBe('60 fps · paused')

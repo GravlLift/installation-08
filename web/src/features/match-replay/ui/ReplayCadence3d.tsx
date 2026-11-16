@@ -36,6 +36,8 @@ export interface PerfSnapshot {
   height: number
   /** The GPU time of the frame's draws (ms, smoothed); null without the timer extension. */
   gpuMs: number | null
+  /** The GPU time of the bloom pass alone (ms, smoothed); null with bloom off or without the timer extension. */
+  bloomGpuMs: number | null
   /** What each pass drew at the last frame (the scene pass without the shadow updates). */
   passes: Record<PassCostName, { calls: number; triangles: number }>
 }
@@ -66,6 +68,7 @@ export function snapshotOf(r: PlaybackReading, filmFps: number, p: ProfilRendu |
     width: p?.width ?? 0,
     height: p?.height ?? 0,
     gpuMs: p?.gpuMs == null ? null : round1(p.gpuMs),
+    bloomGpuMs: p?.bloomGpuMs == null ? null : round1(p.bloomGpuMs),
     passes: Object.fromEntries(PASS_COST_NAMES.map((n) => [n, { calls: p?.passes[n].calls ?? 0, triangles: p?.passes[n].triangles ?? 0 }])) as PerfSnapshot['passes'],
   }
 }
@@ -80,7 +83,7 @@ function round1(v: number): number {
 export function meterLines(s: PerfSnapshot, t: (typeof SCENE3D_TEXT)[ReplayLocale]): [string, string, string, string] {
   const ratio = s.realtime > 0 ? `${s.realtime.toFixed(2)}x` : t.cadencePaused
   const head = `${Math.round(s.playbackFps)} ${t.cadenceIps} · ${ratio}`
-  const cost = `${s.frameMsAvg.toFixed(1)} ms · ${t.cadencePire} ${s.frameMsWorst.toFixed(1)} ms · js ${s.scriptMs.toFixed(1)} ms${s.gpuMs === null ? '' : ` · gpu ${s.gpuMs.toFixed(1)} ms`} · ${s.calls} calls · ${(s.triangles / 1e6).toFixed(2)}M tri · ${s.geometries} geo · ${s.textures} tex`
+  const cost = `${s.frameMsAvg.toFixed(1)} ms · ${t.cadencePire} ${s.frameMsWorst.toFixed(1)} ms · js ${s.scriptMs.toFixed(1)} ms${s.gpuMs === null ? '' : ` · gpu ${s.gpuMs.toFixed(1)} ms`}${s.bloomGpuMs === null ? '' : ` (bloom ${s.bloomGpuMs.toFixed(1)} ms)`} · ${s.calls} calls · ${(s.triangles / 1e6).toFixed(2)}M tri · ${s.geometries} geo · ${s.textures} tex`
   const stages = `${ETAPES_PROFIL.map((name) => `${name} ${s.stagesMs[name].toFixed(1)}`).join(' · ')} · x${s.pixelRatio} ${s.width}x${s.height}`
   const passes = PASS_COST_NAMES.filter((n) => s.passes[n].calls > 0).map((n) => `${n} ${(s.passes[n].triangles / 1e6).toFixed(2)}M/${s.passes[n].calls}`).join(' · ')
   return [head, cost, stages, passes]
