@@ -1,18 +1,33 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-test.14
 
 Changes since 0.1.0-test.13.
 
-- CTF announcer: "Flag taken" for both teams and the enemy's flag capture are called, from the game's objective announcer lines (Fortress CTF: 9 calls instead of 4). Takes effect at the server's next start.
-- Texture quality is now a Standard / High toggle on the matches page, and a map's first build asks which quality to build, with the rough time and size of each, so you no longer wait for a Standard build and then a second one for High.
-- Objective announcer: flag captures and returns are called at the right moment in CTF, and an enemy stronghold capture now has its line ("Stronghold lost"). Takes effect at the server's next start.
-- Shock Rifle: blue electric arcs flicker around its open barrel shroud while it is held (third and first person), and each shot fires three jagged electric beams to where it lands instead of one straight line.
-- The Sentinel Beam's energy parts glow, in third and first person. Takes effect once the weapon and first-person libraries rebuild (automatic at the server's next start).
+Highlights:
+- Streets' signs, screens and neon animate as in game (switch "Animated lights").
+- Shock Rifle: electric arcs on the shroud and three-beam shots.
+- Sound: other players' sounds come from where they are; vents; CTF announcer calls.
+- Texture quality chosen once, on the matches page or at a map's first build.
+- Better exports: name tags as on screen.
+
+After updating, the sounds and the weapon and first-person libraries rebuild themselves at the first start. To see the animated signs, the Origin pad fix or the Sentinel Beam glow on a map or Forge layer you already built, rebuild it.
+
+### Look
 - The map's self-lit surfaces move as the game animates them: Streets' holographic signs scroll, flicker and change tint, its screens scroll and flicker, and its neon pulses, at the game's own rates, on match time so exports match the screen. A new "Animated lights" switch next to Bloom turns it off. Takes effect once the map is rebuilt.
-- Heat weapons (Stalker Rifle, Plasma Pistol, Pulse Carbine, Ravager and others) sound their vent, timed to the vent animation, in the replay and in exports. Extracted from your install at the server's next start.
-- Exported videos name the same players as the screen, with the same fade at distance, and the name tags take the same share of the picture as on screen instead of drawing too large. The tags were chosen against the previous frame's camera, so a varying set appeared.
+- Shock Rifle: blue electric arcs flicker around its open barrel shroud while it is held (third and first person), and each shot fires three jagged electric beams to where it lands instead of one straight line.
+- The Sentinel Beam's energy parts glow, in third and first person.
 - Origin's spawn-end pads no longer carry round sand-colored stacks rising half a meter above them: the Forge cylinders under each pad are sized about their center, as the game does, and now form the pad's stepped top where players stand. The same fix lowers two floor blocks on Outlook and a few cylinders on Solitude to the surface players walk on. Takes effect once the Forge layer is rebuilt.
+
+### Sound
+- Other players' sounds come from where they are and fade with distance: grenade throws, weapon and equipment pickups, thruster, grapple, repulsor, translocation, equipment use, wall placement and weapon pad spawns played at full volume everywhere before. Your own player's sounds stay full and centered.
+- Other players' gunshots sit clearly below your own: they were as loud as yours up close. Your own reloads no longer move around with the camera.
+- Heat weapons (Stalker Rifle, Plasma Pistol, Pulse Carbine, Ravager and others) sound their vent, timed to the vent animation.
+- CTF announcer: "Flag taken" for both teams and the enemy's flag capture are called, and flag captures and returns land at the right moment (Fortress CTF: 9 calls instead of 4). An enemy stronghold capture has its line ("Stronghold lost").
+
+### Viewer and export
+- Texture quality is a Standard / High switch in the matches page's top bar, and a map's first build asks which quality to build, with the rough time and size of each, so you no longer wait for a Standard build and then a second one for High.
+- Exported videos name the same players as the screen, with the same fade at distance, and the name tags take the same share of the picture as on screen instead of drawing too large.
 
 ## 0.1.0-test.13
 

@@ -22,8 +22,9 @@ engineering backlog; this page keeps only the user-visible parts of it.
   Standard, 8 minutes High), and the first start after an update rebuilds the weapon and
   first-person libraries in the background.
 - Origin: its surrounding hills draw snowy where the game shows brown rock and green hills.
-- Signs, screens and holograms are lit but still: their scanlines, flicker and scrolling are
-  not drawn. One Streets sign (BUENA) still draws nothing.
+- Signs, screens and neon animate with the game's own rates, but their scanline, noise and
+  parallax layers and the holograms' noise and edge glow are not drawn. One Streets sign
+  (BUENA) still draws nothing.
 - A stored match built before a recent fix may still show the old (incorrect) version of a
   map or variant; rebuilding it picks up the fix.
 
@@ -35,7 +36,14 @@ engineering backlog; this page keeps only the user-visible parts of it.
   one loading sound per reload regardless of how many shells are loaded.
 - Footsteps all use the game's default surface (no grass, metal or water variants yet), and
   their step rate is estimated from speed. The slide's exit whoosh is silent.
-- The Shock Rifle's blue electric arcs around its open shroud are not drawn.
+- The Shock Rifle's arcs and beams are drawn by the viewer to match the game's look; the
+  game's own effect is not decoded yet, so their color and size are tuned by eye. Other
+  weapons' particle effects (the Ravager's and Disruptor's glow, plasma impacts) are not
+  drawn.
+- Vehicle engine and destruction sounds are not yet placed in the world (they play at the
+  same level everywhere), and other players' shield alarms are not played.
+- How much quieter other players' guns are than your own (4 dB, plus distance) is an
+  estimate, not yet matched by ear to the game.
 - The announcer's objective calls (flag, bomb, hill) have not yet been checked in an actual
   match recording.
 
