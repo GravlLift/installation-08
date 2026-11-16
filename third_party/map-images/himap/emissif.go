@@ -12,6 +12,10 @@
 // des valeurs HDR du jeu, de 1 a plus de 1 000, qu'une visionneuse comprime. La texture
 // d'auto-illumination de diffuse_emissive (emplacement 244) n'est pas lue : sur Recharge elle
 // designe le plus souvent une texture par defaut du moteur, absente des modules de la carte.
+//
+// LOCAL-CHANGE (infinite-theater-3d): the other shaders that emit are read by the names of their
+// declared parameters (formesEmissives): neon and light strips, screens, holographic signs and
+// hologram projectors.
 package himap
 
 import (
@@ -27,6 +31,13 @@ type Emissif struct {
 	// light (diffuse_emissive slot 244, on the color map's coordinates); 0 when none. When the
 	// modules do not hold it (an engine default), the light stays uniform.
 	Bitmap uint32
+	// Transfo (LOCAL-CHANGE (infinite-theater-3d)): the texture's coordinate transform (scale,
+	// offset) from its register; nil for the shaders read at fixed offsets (no transform read).
+	Transfo *Transfo
+	// Image (LOCAL-CHANGE (infinite-theater-3d)): the texture is a picture (a sign, a screen, a
+	// hologram's emblem) rather than a light mask: a viewer keeps its brightness readable instead of
+	// letting it bloom (formesEmissives).
+	Image bool
 }
 
 // emplacementEmissif (LOCAL-CHANGE (infinite-theater-3d)): the self-illumination texture slot of
@@ -102,6 +113,131 @@ func emissifDuShader(shader uint32, constantes []byte) *Emissif {
 	}
 	e.Force = force
 	return &e
+}
+
+// formeEmissive (LOCAL-CHANGE (infinite-theater-3d)): a family of shaders whose light is read by
+// the NAMES of their declared parameters (couches_noms.go explains names and bytes), for shaders
+// outside `shadersEmissifs`. `exige`: names the shader must declare for the form to apply (they
+// tell the family apart from shaders that share generic names such as `intensity`). The force is
+// intensite x quantite (quantite 0: none). `carte`: the name of the texture's sampler entry, the
+// type-2 parameter declared just before the texture whose byte is the postprocess slot (the
+// texture parameter's own byte is its rank among the textures, not its slot).
+type formeEmissive struct {
+	exige                        []uint32
+	couleur, intensite, quantite uint32
+	carte                        uint32
+	image                        bool
+}
+
+// Parameter names (murmur3 of the text, mapvar.LabelHash), resolved by hashing candidate texts;
+// unresolved names are given by hash with what they were recognized by.
+const (
+	nomEmissiveMapTexture        = 0x1548afe9 // emissive_map_texture
+	nomEmissiveMap               = 0x880e2a6e // its sampler entry (byte = slot), unresolved
+	nomEmissiveColor             = 0xa9fc2fa7 // emissive_color
+	nomEmissiveIntensity         = 0x6d4c7dfd // emissive_intensity
+	nomEmissiveAmount            = 0xca053981 // emissive_amount
+	nomBaseEmissiveIntensity     = 0xbf71c2d3 // base_emissive_intensity
+	nomBaseEmissiveAmount        = 0xd4825134 // base_emissive_amount
+	nomBaseEmissiveColorTint     = 0xa9924c1d // base_emissive_color_tint
+	nomBaseEmissiveMapTexture    = 0x93e33388 // base_emissive_map_texture
+	nomBaseEmissiveMap           = 0x47412ad0 // its sampler entry, unresolved
+	nomBaseEmissiveDetailTexture = 0xc8ddb4d2 // base_emissive_detail_map_texture
+	nomBaseEmissiveDetailMap     = 0x50863f82 // its sampler entry, unresolved
+	nomBaseEmissiveCouleurDetail = 0xf274d4fa // the color right before base_emissive_intensity, unresolved
+	nomScanlineMapTexture        = 0xb4383aa2 // scanline_map_texture
+	nomParallaxDepth             = 0xbd8353b8 // parallax_depth
+	nomColorTint                 = 0xc53790d3 // color_tint
+	nomIntensity                 = 0xd01735ba // intensity
+	nomOpacity                   = 0x0eb8a077 // opacity
+	nomNoiseMapTexture           = 0x287630e5 // noise_map_texture
+	nomFresnelColor              = 0x418401b4 // fresnel_color
+	nomBaseTint                  = 0xd6a12a3d // base_tint
+	nomBaseTintIntensity         = 0x82874d19 // base_tint_intensity
+	nomDiffuseMapIntensity       = 0x294286d0 // diffuse_map_intensity
+	nomDiffuseMap                = 0xa0a664ea // diffuse_map_texture's sampler entry, unresolved
+)
+
+// formesEmissives (LOCAL-CHANGE (infinite-theater-3d)): measured on Streets (sgh_streets), a night
+// map whose signs, screens, neon and hologram were drawn unlit or as glass.
+var formesEmissives = []formeEmissive{
+	// Screens and lit panels (170fd0e8): a picture lit by base_emissive_color_tint.
+	{exige: []uint32{nomBaseEmissiveMapTexture}, couleur: nomBaseEmissiveColorTint, intensite: nomBaseEmissiveIntensity,
+		quantite: nomBaseEmissiveAmount, carte: nomBaseEmissiveMap, image: true},
+	// Neon tubes and light strips (14f680a0, fa04e237, 25a877f0): the light color sits where
+	// diffuse_emissive keeps its own (+224, before the intensity at +236), masked by the detail map
+	// (the same tube mask ec18d5b4 that diffuse_emissive's neon binds as its emissive map).
+	{exige: []uint32{nomBaseEmissiveDetailTexture}, couleur: nomBaseEmissiveCouleurDetail, intensite: nomBaseEmissiveIntensity,
+		quantite: nomBaseEmissiveAmount, carte: nomBaseEmissiveDetailMap},
+	// Holographic signs and billboards (6eb5a1b6, 67a9c589, additive or maximum blend): the
+	// picture times color_tint, intensity and opacity (a multiplier: values up to 3 occur). Its
+	// scanlines, parallax echo and panning are not read.
+	{exige: []uint32{nomScanlineMapTexture, nomParallaxDepth}, couleur: nomColorTint, intensite: nomIntensity,
+		quantite: nomOpacity, carte: nomEmissiveMap, image: true},
+	// Hologram projectors (0dfb07c3, a5b19db2, additive): the emblem (diffuse map) times base_tint,
+	// base_tint_intensity and diffuse_map_intensity. Its noise, fresnel and scanlines are not read.
+	{exige: []uint32{nomNoiseMapTexture, nomFresnelColor}, couleur: nomBaseTint, intensite: nomBaseTintIntensity,
+		quantite: nomDiffuseMapIntensity, carte: nomDiffuseMap, image: true},
+	// The emissive_* block (diffuse_emissive's, also in surface shaders such as 18d8a691): a
+	// colored light masked by its emissive map. Last: the signs declare emissive_map_texture too.
+	{exige: []uint32{nomEmissiveMapTexture}, couleur: nomEmissiveColor, intensite: nomEmissiveIntensity,
+		quantite: nomEmissiveAmount, carte: nomEmissiveMap},
+}
+
+// emissifParNoms (LOCAL-CHANGE (infinite-theater-3d)): the light of a shader outside
+// `shadersEmissifs`, by the first form of formesEmissives its declared parameters match; nil when
+// none matches, when its constants are too short, or when it is dark.
+func emissifParNoms(params ParametresShader, pp postprocessLu) *Emissif {
+	for _, f := range formesEmissives {
+		if !declareTous(params, f.exige) {
+			continue
+		}
+		oc, ok1 := octetParam(params, f.couleur)
+		oi, ok2 := octetParam(params, f.intensite)
+		if !ok1 || !ok2 {
+			continue // another family sharing the required names (signs declare emissive_map_texture)
+		}
+		if oc+12 > len(pp.constantes) || oi+4 > len(pp.constantes) {
+			return nil
+		}
+		c := lecteurConstantes(pp.constantes)
+		var e Emissif
+		allume := false
+		for k := range 3 {
+			e.Couleur[k] = max(c.f(oc+4*k), 0)
+			allume = allume || e.Couleur[k] > 0
+		}
+		e.Force = c.f(oi)
+		if o, ok := octetParam(params, f.quantite); ok && o+4 <= len(pp.constantes) {
+			e.Force *= c.f(o)
+		}
+		if !allume || !(e.Force > 0) {
+			return nil
+		}
+		if o, ok := octetParam(params, f.carte); ok {
+			if id, lie := pp.textures[o]; lie {
+				e.Bitmap = id
+				t := pp.transfo(o, c)
+				e.Transfo = &t
+			}
+		}
+		e.Image = f.image
+		return &e
+	}
+	return nil
+}
+
+// declareTous: the shader declares every name of `noms` (and at least one parameter).
+func declareTous(params ParametresShader, noms []uint32) bool {
+	if len(params) == 0 {
+		return false
+	}
+	for _, n := range noms {
+		if _, ok := params[n]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // Pochoir : couleur RVB lineaire et opacite d'un decalque pochoir.

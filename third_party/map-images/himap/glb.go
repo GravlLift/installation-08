@@ -315,10 +315,24 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 		if mat.Couches != nil {
 			jeu = mat.Couches.JeuUV
 		}
-		tex, err := e.couches.texture(e.doc, e.bin, cleImage{mat.Emissif.Bitmap, imageCouleur}, e.m.TexturesCouches)
+		// A see-through emitter (additive sign, hologram) adds its picture where its alpha covers:
+		// the alpha is folded into the color (glb_couches.go, imageEmissionAlpha).
+		role := imageCouleur
+		if !mat.Opaque() && !mat.Vitre() {
+			role = imageEmissionAlpha
+		}
+		tex, err := e.couches.texture(e.doc, e.bin, cleImage{mat.Emissif.Bitmap, role}, e.m.TexturesCouches)
 		garde(err)
 		if tex != pasDeTexture && g.EmissiveFactor != nil {
 			g.EmissiveTexture = &gltfTextureInfo{Index: tex, TexCoord: jeu}
+			if t := mat.Emissif.Transfo; t != nil {
+				g.EmissiveTexture.Extensions = map[string]any{
+					extTextureTransform: map[string]any{"offset": t.Decalage, "scale": t.Echelle},
+				}
+			}
+		}
+		if mat.Emissif.Image && g.EmissiveFactor != nil {
+			g.Extras["emissionImage"] = true
 		}
 	}
 	aDecoupe := mat.Decoupe != nil

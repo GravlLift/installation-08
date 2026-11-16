@@ -183,6 +183,19 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     the `emissiveTexture`. It draws the weapons' light strips and ammo screens. Covered by
     `himap/emissif_test.go` and `himap/emissif_illum_gamefiles_test.go` (new, checks three weapon
     materials against Ekur's export).
+  - `himap/emissif.go`, `himap/materiaux.go`, `himap/glb.go`, `himap/glb_couches.go`
+    (LOCAL-CHANGE): shaders outside the fixed table emit when their declared parameter NAMES
+    match a form of `formesEmissives` (names resolved by hashing candidate texts): holographic
+    signs (color_tint x intensity x opacity on the emissive map), hologram projectors (base_tint x
+    base_tint_intensity x diffuse_map_intensity on the diffuse map), screens
+    (base_emissive_color_tint x intensity x amount on base_emissive_map), neon and light strips
+    (the color before base_emissive_intensity, on base_emissive_detail_map) and the emissive_*
+    block of other shaders. A texture's slot is the byte of the sampler entry declared before it.
+    `Emissif` gains the texture transform (written as KHR_texture_transform) and `Image` (a
+    picture, written as `extras.emissionImage`); a see-through emitter's texture has its alpha
+    folded into its color. On Streets, 257 materials emit instead of 35. Covered by
+    `himap/emissif_test.go`, `himap/emissif_noms_gamefiles_test.go` (new, eight Streets materials)
+    and the probe `himap/sonde_emissifs_carte_research_test.go` (new, `gamefiles research`).
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the
