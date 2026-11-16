@@ -385,8 +385,8 @@ AGPL-3.0.
   published modules this project vendors and builds on:
   [halo-infinite-film-decoder](https://github.com/JGtm/halo-infinite-film-decoder),
   [halo-infinite-map-images](https://github.com/JGtm/halo-infinite-map-images), and
-  [halo-infinite-files-reader](https://github.com/JGtm/halo-infinite-files-reader) (AGPL-3.0;
-  `files-reader`'s vendored `ooz` decompressor is GPL-3.0), plus
+  [halo-infinite-files-reader](https://github.com/JGtm/halo-infinite-files-reader)
+  (GPL-3.0-only as a whole, with its vendored `ooz` decompressor; the others are AGPL-3.0), plus
   [halo-api](https://github.com/JGtm/halo-api) (used directly as a Go module, not vendored).
   See [third_party/README.md](third_party/README.md) for versions and the changes made here.
 - **[TheHaloArchive](https://github.com/TheHaloArchive)**: [ekur](https://github.com/TheHaloArchive/ekur)
