@@ -4,6 +4,7 @@
 
 Changes since 0.1.0-test.13.
 
+- The Sentinel Beam's energy parts glow, in third and first person. Takes effect once the weapon and first-person libraries rebuild (automatic at the server's next start).
 - Heat weapons (Stalker Rifle, Plasma Pistol, Pulse Carbine, Ravager and others) sound their vent, timed to the vent animation, in the replay and in exports. Extracted from your install at the server's next start.
 - Exported videos name the same players as the screen, with the same fade at distance, and the name tags take the same share of the picture as on screen instead of drawing too large. The tags were chosen against the previous frame's camera, so a varying set appeared.
 - Origin's spawn-end pads no longer carry round sand-colored stacks rising half a meter above them: the Forge cylinders under each pad are sized about their center, as the game does, and now form the pad's stepped top where players stand. The same fix lowers two floor blocks on Outlook and a few cylinders on Solitude to the surface players walk on. Takes effect once the Forge layer is rebuilt.
