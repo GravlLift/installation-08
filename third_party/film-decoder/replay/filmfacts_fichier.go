@@ -260,8 +260,9 @@ const VersionCodecFaits = 2
 // record NEW (`profile.EcritureDuBuild`, `profile-2026-11-12.2`). Relu par `json.Unmarshal`, un profil du schema 21 rendrait ces deux
 // bascules fausses sans erreur, et un profil qui les croit fausses lit un film HI_1_11_0 a HI_1_13_0 comme avant : c est le refus SUR
 // L EN-TETE qui doit le dire. `grammar.Rev` (`grammar-2026-11-12.4`) et `profile.Rev` montent avec ce numero, comme aux schemas 11 et 15.
-// Le SCHEMA 23 (2026-11-13, port) est documente dans filmfacts_schema23.go.
-const SchemaDesFaits = 23
+// Le SCHEMA 23 (2026-11-13, port) est documente dans filmfacts_schema23.go, le SCHEMA 24 (LOCAL-CHANGE
+// infinite-theater-3d, 2026-11-16, attaches de projectile) dans filmfacts_attaches.go.
+const SchemaDesFaits = 24
 
 // Identifiants de section. Ils ne se reutilisent JAMAIS : un identifiant retire reste retire, sinon
 // un vieux fichier se relit comme une section qui n est pas la sienne.
@@ -459,41 +460,4 @@ func lireSectionJSON(charge []byte, cible any, libelle string) error {
 		return fmt.Errorf("faits de film : section %s : %w", libelle, err)
 	}
 	return nil
-}
-
-// encodeComplementDesEntrees / decodeComplementDesEntrees : ce que la section 1 porte APRES le blob
-// des entrees, dans l ORDRE du format — une seule ecriture, une seule lecture (les tests qui
-// fabriquent une section 1 passent par elles).
-//
-//	canaux gardes     `FlagMarks`, `ZoneReads`/`ZoneScanned`/`ZoneKeyReads`, la jauge, `BombReads`
-//	entites           les occupants du match (lot M2.2)
-//	temoin            l inventaire NUL (illisible) ou non (lot J3.6, RA1-2) : le blob relit toute
-//	d inventaire      liste en tranche VIDE, or `Inventory == nil` est une garde de calque
-//	poussees          les poussees d equipement et leurs denominateurs (schema des faits 12)
-//	equipement porte  les lectures des objets portes et leurs denominateurs (schema des faits 13)
-//	actions           le jeu d armes desire et les messages d action de la vue A (schema des faits 19)
-//	boutons           les boutons de controle et le couple analogique (schema des faits 20)
-//	verdict           le verdict du fil des morts (lot M8), EN DERNIER
-func encodeComplementDesEntrees(w *gwriter, g *FilmFacts) {
-	encodeGardesDeMode(w, g.FilmInputs)
-	encodeEntitesDesJoueurs(w, g.PlayerEntities)
-	w.bool8(g.Inventory != nil)
-	encodePoussees(w, g.Knockbacks, g.KnockbackStats)
-	encodeEquipementPorte(w, g.CarriedEquipment, g.CarriedEquipmentStats)
-	encodeActionsDuJoueur(w, g.DrawnWeapons, g.DrawnWeaponStats, g.Actions)
-	encodeBoutonsDeControle(w, g.ControlInputs, g.ControlInputStats)
-	encodeVerdictDuFilDesMorts(w, g.DeathsFeed)
-}
-
-func decodeComplementDesEntrees(r *greader, g *FilmFacts) {
-	decodeGardesDeMode(r, &g.FilmInputs)
-	g.PlayerEntities = decodeEntitesDesJoueurs(r)
-	if !r.bool8() {
-		g.Inventory = nil
-	}
-	g.Knockbacks, g.KnockbackStats = decodePoussees(r)
-	g.CarriedEquipment, g.CarriedEquipmentStats = decodeEquipementPorte(r)
-	g.DrawnWeapons, g.DrawnWeaponStats, g.Actions = decodeActionsDuJoueur(r)
-	g.ControlInputs, g.ControlInputStats = decodeBoutonsDeControle(r)
-	g.DeathsFeed = decodeVerdictDuFilDesMorts(r)
 }

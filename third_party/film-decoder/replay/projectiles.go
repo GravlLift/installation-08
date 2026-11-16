@@ -78,6 +78,10 @@ type Projectile struct {
 	// naissance ambiguë entre deux armes ou deux tireurs (cf. [linkShotsToProjectiles]). Pointeur :
 	// 0 est un index valide, et omitempty l'effacerait.
 	Shot *int `json:"shot,omitempty"`
+	// LOCAL-CHANGE (infinite-theater-3d): Attach is where the projectile sits from Attach.FromFrame
+	// until DetoT when it sticks to something (projectiles_attache.go). Absent: it does not stick, or
+	// the artifact was built before it.
+	Attach *ProjectileAttach `json:"attach,omitempty"`
 }
 
 // FullRateFlight porte, pour UNE trajectoire, tous les échantillons BRUTS que le film a

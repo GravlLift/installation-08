@@ -212,6 +212,10 @@ func ScanMarcheDesTramesAvec(fc *FilmContext, l LecturesDeLaMarche) (MarcheDesTr
 	if fc.recup.equipementPorte == nil {
 		canaux = append(canaux, nouveauCanalDeLEquipementPorte(fc))
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): the stuck projectiles' attach reads ([ScanProjectileAttaches]).
+	if fc.recup.projectilesAttaches == nil {
+		canaux = append(canaux, nouveauCanalDesProjectilesAttaches(fc))
+	}
 	var morts *canalDesMorts
 	if l.Morts || (l.MortsSiVehicules && len(ScanWorldObjectKeyframes(fc, VehicleTypeIndex).Band) > 0) {
 		morts = nouveauCanalDesMorts(reg)

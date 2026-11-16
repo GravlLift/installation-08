@@ -18,10 +18,12 @@ package grammar
 // WHAT THIS CHANNEL RETURNS: the raw attach reads, one per ti=41 record whose i10 opens the attached
 // gate, in stream order. No interpretation of the pose happens here.
 //
-// WHY THE COOK DOES NOT CALL IT (measured 2026-11-16, replay/projectiles_attaches_research_test.go):
-// the pose is relative to a NODE of the parent (`Node` groups the detonation heights by body part),
-// and no single dequantization of it fits the grenade's observed place on the parent. Composing the
-// world position needs that node's transform, which the record does not carry.
+// THE POSE IS IN THE FRAME OF A NODE of the parent: `Node` is the render model's node index (22 is
+// the right foot, 26 the torso, 95 the right grip), and no dequantization of it fits the grenade's
+// place relative to the parent's ORIGIN (replay/projectiles_attaches_research_test.go). The cook
+// collects these reads on its shared walk ([ScanMarcheDesTramesAvec]); `replay` publishes them with
+// the pose dequantized in that node's frame (replay/projectiles_attache.go), and the viewer composes
+// the world position on its animated skeleton.
 
 import (
 	"cmp"

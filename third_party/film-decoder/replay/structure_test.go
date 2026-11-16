@@ -1546,8 +1546,10 @@ func TestStructureIsOptionalInDocument(t *testing.T) {
 	// - 127 (2026-11-15, LOCAL-CHANGE) : `projectiles[].fullRate`, the flight AT THE FILM'S RATE — every raw
 	//   sample at its own instant, differential integer columns (the projectile twin of `tracks[].fullRate`,
 	//   schema 118) : a v126 reads « a republier ». Detail : chronique.
-	if SchemaVersion != 127 {
-		t.Fatalf("SchemaVersion = %d, attendu 127 : incrémenter exige une raison écrite ci-dessus "+
+	// - 128 (2026-11-16, LOCAL-CHANGE) : `projectiles[].attach`, where a projectile that sticks sits until it
+	//   explodes (parent slot, node, pose in that node's frame) : a v127 reads « a republier ». Detail : chronique.
+	if SchemaVersion != 128 {
+		t.Fatalf("SchemaVersion = %d, attendu 128 : incrémenter exige une raison écrite ci-dessus "+
 			"(un champ optionnel de plus n'en est pas une)", SchemaVersion)
 	}
 }

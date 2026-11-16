@@ -4256,3 +4256,22 @@ package replay
 //	AVEC ELLE       brute portait deja chaque echantillon avec son horodatage).
 //
 //	LE PARC         un artefact 126 dont les faits sont sur disque : verdict `a republier`.
+
+// v128 (2026-11-16, LOCAL-CHANGE infinite-theater-3d) : le projectile qui colle publie OU il est colle.
+//
+//	`projectiles[].attach`  {fromFrame, parentSlot, node, pose} : la premiere lecture « attachee » de
+//	                 `object-parent-state-component` (i10) du projectile (`grammar.ScanProjectileAttaches`,
+//	                 la marche des trames) : l image de la lecture, l emplacement du PARENT (celui des
+//	                 pistes de bipede quand c est un joueur), le NOEUD du parent (rang du noeud du modele de
+//	                 rendu, l os de meme rang du GLB du Spartan) et la POSE dans le repere de ce noeud, axes
+//	                 Halo, unites monde : trois R(16) dequantifies au point milieu sur [-2, 2] (plage MESUREE
+//	                 sur 36 grenades collees a un joueur, projectiles_attache.go). Le document ne compose
+//	                 aucune position monde : la place du noeud est l animation du client. Absent sur un
+//	                 artefact ancien et pour un projectile qui ne colle pas : le client garde la derniere
+//	                 position du vol jusqu a l explosion, comme avant.
+//
+//	CE QUI MONTE    `SchemaVersion` 127 -> 128 et `SchemaDesFaits` 23 -> 24 (les lectures d attache entrent
+//	AVEC ELLE       au complement de la section 1, filmfacts_attaches.go). La marche porte un canal de plus ;
+//	                `grammar.Rev` ne bouge pas.
+//
+//	LE PARC         un artefact 127 : verdict `a republier` ; ses faits du schema 23 sont refuses sur l en-tete.

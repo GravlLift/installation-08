@@ -163,6 +163,9 @@ type FilmInputs struct {
 	Projectiles []types.ProjectileTrack
 	// Detonations sont les messages de detonation/impact de projectile lus dans la vue A.
 	Detonations []types.ProjectileDetonation
+	// ProjectileAttaches are the attach reads of the projectiles that stick (LOCAL-CHANGE
+	// infinite-theater-3d, grammar.ScanProjectileAttaches).
+	ProjectileAttaches []grammar.ProjectileAttach
 	// Actions sont les messages d action du joueur lus dans la vue A (`grammar.ScanFilmActions`).
 	Actions []types.FilmActionMessage
 	// Deaths est le fil des morts : il NOMME les vies et fonde tout le rattachement.
@@ -259,6 +262,7 @@ func (in FilmInputs) applyTo(opt *Options) {
 	opt.Grenades = in.Grenades
 	opt.Projectiles = in.Projectiles
 	opt.Detonations = in.Detonations
+	opt.ProjectileAttaches = in.ProjectileAttaches
 	opt.Actions = in.Actions
 	opt.Deaths = in.Deaths
 	opt.DeathsFeed = in.DeathsFeed.Verdict
