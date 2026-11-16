@@ -83,6 +83,13 @@ describe('buildLineOf', () => {
     expect(line.text).toBe('This map has not been built yet. A first build takes minutes.')
   })
 
+  it('offers an update, not a first build, when the map is outdated', () => {
+    const line = buildLineOf({ phase: 'outdated' }, false)
+    expect(line.action).toBe('build')
+    expect(line.actionLabel).toBe('Update map')
+    expect(line.text).toBe('This map was built by an older version. Update it to get the new textures.')
+  })
+
   it('shows the queue position when the server carries it', () => {
     expect(buildLineOf({ phase: 'queued', queuePosition: 2 }, false).text).toBe('Queued (position 2)…')
     expect(buildLineOf({ phase: 'queued' }, false).text).toBe('Queued…')

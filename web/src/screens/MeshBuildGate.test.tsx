@@ -25,6 +25,14 @@ const absentLine = {
   actionLabel: 'Build map',
 }
 
+// The `outdated` build line, exactly what buildLineOf returns for that phase: the map is on
+// disk in an older build format, so the gate offers an update, not a first build.
+const outdatedLine = {
+  text: 'This map was built by an older version. Update it to get the new textures.',
+  action: 'build' as const,
+  actionLabel: 'Update map',
+}
+
 it('renders the message and the build button for the absent phase', () => {
   render(<MeshBuildGate line={absentLine} build={vi.fn()} cancel={vi.fn()} cancelling={false} />)
 
@@ -32,4 +40,12 @@ it('renders the message and the build button for the absent phase', () => {
   expect(gate).toHaveClass('bc-gate')
   expect(screen.getByText('This map has not been built yet. A first build takes minutes.')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Build map' })).toBeInTheDocument()
+})
+
+it('offers the update, not a first build, for the outdated phase', () => {
+  render(<MeshBuildGate line={outdatedLine} build={vi.fn()} cancel={vi.fn()} cancelling={false} />)
+
+  expect(screen.getByText('This map was built by an older version. Update it to get the new textures.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Update map' })).toBeInTheDocument()
+  expect(screen.queryByText('This map has not been built yet. A first build takes minutes.')).not.toBeInTheDocument()
 })

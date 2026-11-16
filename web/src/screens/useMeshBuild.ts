@@ -25,6 +25,7 @@ export type MeshBuildPhase =
   | { phase: 'ready'; moduleKey: string }
   | { phase: 'failed'; moduleKey: string; error: string }
   | { phase: 'cancelled'; moduleKey: string }
+  | { phase: 'outdated'; moduleKey: string }
 
 /** Default polling interval while a build is queued or running. */
 export const MESH_BUILD_POLL_MS = 2000
@@ -43,6 +44,8 @@ export function phaseOfMeshState(body: MeshStateBody): MeshBuildPhase {
       return { phase: 'ready', moduleKey: body.moduleKey }
     case 'cancelled':
       return { phase: 'cancelled', moduleKey: body.moduleKey }
+    case 'outdated':
+      return { phase: 'outdated', moduleKey: body.moduleKey }
     case 'failed':
       return { phase: 'failed', moduleKey: body.moduleKey, error: body.error ?? 'unknown error' }
   }

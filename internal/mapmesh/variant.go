@@ -86,7 +86,10 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 		return Summary{}, err
 	}
 	announce(StepWriting)
-	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), axesGLBKey: axesGLB, "objects": bilan.Poses}
+	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), "objects": bilan.Poses}
+	for k, v := range commonExtras() {
+		extras[k] = v
+	}
 	// Read before writing, so the texture pass does not keep the collected layer alive.
 	placed, unique := m.Poses.Triangles()
 	models := len(m.Poses.Geometries)

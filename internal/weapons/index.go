@@ -108,21 +108,28 @@ type Index struct {
 // family named by a single object.
 const EquipmentRuleCurrent = 2
 
+// SchemaCurrent is the current library index schema. Bumped when the build output changes
+// (the models the library holds), so a library built by an older version of the app is
+// outdated and rebuilt by the normal build flow; an index without a schema (built before
+// schema versioning) is outdated.
+const SchemaCurrent = 2
+
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
-	return Index{Schema: 1, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
+	return Index{Schema: SchemaCurrent, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
 		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}, Equipment: map[string]string{},
 		EquipmentRule: EquipmentRuleCurrent}
 }
 
 // IndexCurrent says whether a library index.json carries every field the view reads from it: the
 // red-reticle table, each entry with its per-level magnifications, the team banners and the
-// equipment families by the current rule. A library built before one of them existed is stale (its
-// rebuild adds it); a reticle table without entries (no readable weapons) carries nothing more and
-// is current.
+// equipment families by the current rule, at the current schema. A library built before one of
+// them existed (an older schema, or no schema at all) is stale (its rebuild adds it); a reticle
+// table without entries (no readable weapons) carries nothing more and is current.
 func IndexCurrent(raw []byte) bool {
 	var idx struct {
+		Schema        int `json:"schema"`
 		ReticleRanges *map[string]struct {
 			Magnifications json.RawMessage `json:"magnifications"`
 		} `json:"reticle_ranges"`
@@ -132,6 +139,9 @@ func IndexCurrent(raw []byte) bool {
 	}
 	if err := json.Unmarshal(raw, &idx); err != nil || idx.ReticleRanges == nil || idx.Banners == nil || idx.Equipment == nil {
 		return false // a field was never written (a library older than it)
+	}
+	if idx.Schema < SchemaCurrent {
+		return false // built by an older version (or before schemas existed)
 	}
 	if idx.EquipmentRule < EquipmentRuleCurrent {
 		return false // the equipment table was derived by an older rule

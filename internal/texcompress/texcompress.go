@@ -230,6 +230,32 @@ func openGLB(r io.ReaderAt, size int64) (glbFile, error) {
 	return g, nil
 }
 
+// AssetExtras reads the asset.extras object of the GLB at path: a header-only read (the
+// 20-byte header and the JSON chunk the header sizes; the binary chunk is never read, so
+// a multi-gigabyte GLB costs two small reads). Nil with no error when the GLB has no
+// asset.extras; ErrNotGLB (wrapped) when the file is not a GLB with a readable JSON chunk.
+func AssetExtras(path string) (map[string]any, error) {
+	f, err := os.Open(path) //nolint:gosec // cache path, set by the caller
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	glb, err := openGLB(f, info.Size())
+	if err != nil {
+		return nil, err
+	}
+	asset, _ := glb.doc["asset"].(map[string]any)
+	if asset == nil {
+		return nil, nil
+	}
+	extras, _ := asset["extras"].(map[string]any)
+	return extras, nil
+}
+
 // view is a buffer view's place in the source binary chunk.
 type view struct{ off, n int64 }
 

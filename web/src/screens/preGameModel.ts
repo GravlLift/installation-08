@@ -60,6 +60,8 @@ export function buildLineOf(
       return { text: 'Checking build status…', action: null, actionLabel: null }
     case 'absent':
       return { text: 'This map has not been built yet. A first build takes minutes.', action: 'build', actionLabel: 'Build map' }
+    case 'outdated':
+      return { text: 'This map was built by an older version. Update it to get the new textures.', action: 'build', actionLabel: 'Update map' }
     case 'queued':
       return {
         text: typeof phase.queuePosition === 'number' ? `Queued (position ${phase.queuePosition})…` : 'Queued…',

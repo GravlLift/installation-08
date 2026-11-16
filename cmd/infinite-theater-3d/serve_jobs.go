@@ -16,24 +16,32 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/backdrop"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
+	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/rankicons"
 	"github.com/llampwall/infinite-theater-3d/internal/safefs"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
 
 // jobModuleReady is the runner's own readiness check: it reports whether a module's output
-// is on disk (a map's mesh file, or a library's index, or a match's variant layer). The
-// startup step and the runner use it, so a build whose output is already on disk is never
-// queued by either.
+// is on disk (a map's mesh file, or a library's index, or a match's variant layer) in the
+// current build format (a map and variant GLB records its build format in asset.extras; a
+// library index carries its schema): an output in an older format is not ready, so the
+// existing build flow rebuilds it after an app upgrade. The startup step and the runner
+// use it, so a build whose output is already on disk and current is never queued by
+// either.
 func jobModuleReady(root *store.Root, module string) bool {
 	module, quality := meshjobs.SplitQuality(module)
 	if id, ok := variantJobID(module); ok {
-		_, err := os.Stat(variantPath(root, id, variantGLBName(quality)))
-		return err == nil
+		p := variantPath(root, id, variantGLBName(quality))
+		if _, err := os.Stat(p); err != nil {
+			return false
+		}
+		return glbFormatCurrent(p)
 	}
 	switch module {
 	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces:
@@ -53,8 +61,69 @@ func jobModuleReady(root *store.Root, module string) bool {
 	if err != nil {
 		return false
 	}
-	_, err = os.Stat(p)
-	return err == nil
+	if _, err := os.Stat(p); err != nil {
+		return false
+	}
+	return glbFormatCurrent(p)
+}
+
+// jobModuleOutdated reports whether a module's output is on disk in an older build
+// format: the file is present, its recorded build format (the map and variant GLB's
+// asset.extras buildFormat, the library index's schema) is not the current one, so the
+// runner shows "outdated" (the viewer reads it as an update) and the build flow rebuilds
+// it in place.
+func jobModuleOutdated(root *store.Root, module string) bool {
+	module, quality := meshjobs.SplitQuality(module)
+	if id, ok := variantJobID(module); ok {
+		p := variantPath(root, id, variantGLBName(quality))
+		if _, err := os.Stat(p); err != nil {
+			return false
+		}
+		return !glbFormatCurrent(p)
+	}
+	switch module {
+	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces:
+		return coatingLibraryOutdated(root.Dir(), module)
+	}
+	p, err := root.MeshPath(module, quality)
+	if err != nil {
+		return false
+	}
+	if _, err := os.Stat(p); err != nil {
+		return false
+	}
+	return !glbFormatCurrent(p)
+}
+
+// glbFormatCurrent says whether the GLB at path records the current build format in its
+// asset.extras (mapmesh.BuildFormat, written by every map and variant build): a header-
+// only read (the GLB's JSON chunk, never the binary chunk). A GLB without the field
+// (built before versioning) is not current.
+func glbFormatCurrent(path string) bool {
+	extras, err := texcompress.AssetExtras(path)
+	if err != nil || extras == nil {
+		return false
+	}
+	v, ok := extras[mapmesh.BuildFormatKey]
+	if !ok {
+		return false
+	}
+	return fmt.Sprint(v) == fmt.Sprint(mapmesh.BuildFormat)
+}
+
+// coatingLibraryOutdated says whether one of the three coating libraries' index is on disk
+// but in an older build format (its schema below the library's current one, or missing a
+// field the view reads): the normal build job rebuilds it in place.
+func coatingLibraryOutdated(dataDir, module string) bool {
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(dataDir, folder, "index.json"))
+	if err != nil {
+		return false
+	}
+	return !coatingLibraryIndexCurrent(raw, module)
 }
 
 // staleSuffix marks a library folder the startup moved aside because its index no longer
@@ -64,11 +133,11 @@ func jobModuleReady(root *store.Root, module string) bool {
 const staleSuffix = ".stale"
 
 // coatingLibraryReady is the readiness of the three coating libraries (weapons,
-// first-person, spartan-pieces): the index is present and its recorded Ekur stamp matches
-// the current export (or the current export is absent, which never downgrades a library).
-// A library without a recorded stamp (built before stamps existed) is ready only when no
-// export is available: an export that appears later rebuilds it. An index missing a field the
-// view reads (libraryIndexCurrent) is never ready.
+// first-person, spartan-pieces): the index is present, it is in the current build format
+// (coatingLibraryIndexCurrent), and its recorded Ekur stamp matches the current export
+// (or the current export is absent, which never downgrades a library). A library without a
+// recorded stamp (built before stamps existed) is ready only when no export is available:
+// an export that appears later rebuilds it.
 func coatingLibraryReady(dataDir, module string) bool {
 	stamp, ok := recordedEkurStamp(dataDir, module)
 	if !ok || !libraryIndexCurrent(dataDir, module) {
@@ -148,17 +217,52 @@ func recordedEkurStamp(dataDir, module string) (string, bool) {
 	return idx.EkurStamp, true
 }
 
-// libraryIndexCurrent says whether a coating library's index carries every field the view reads
-// from it: the weapon library's index must carry its red-reticle ranges with the per-level zoom
-// magnifications, its team banners and its equipment families by the current rule
-// (weapons.IndexCurrent), so a library built before them is
-// stale and its rebuild, in place, adds them. The other libraries have no such field.
+// libraryIndexCurrent says whether a coating library's index is in the current build
+// format: its schema is the library's current one (bumped when the build output changes,
+// so a library built by an older version of the app is outdated) and it carries every
+// field the view reads from it (for the weapon library, weapons.IndexCurrent). An index
+// without a schema (built before schema versioning) is not current.
 func libraryIndexCurrent(dataDir, module string) bool {
-	if module != meshjobs.JobWeapons {
-		return true
+	folder, ok := coatingLibraryFolder(module)
+	if !ok {
+		return false
 	}
-	raw, err := os.ReadFile(filepath.Join(dataDir, "weapons", "index.json"))
-	return err == nil && weapons.IndexCurrent(raw)
+	raw, err := os.ReadFile(filepath.Join(dataDir, folder, "index.json"))
+	if err != nil {
+		return false
+	}
+	return coatingLibraryIndexCurrent(raw, module)
+}
+
+// coatingLibraryIndexCurrent is libraryIndexCurrent over an index already read.
+func coatingLibraryIndexCurrent(raw []byte, module string) bool {
+	var idx struct {
+		Schema int `json:"schema"`
+	}
+	if err := json.Unmarshal(raw, &idx); err != nil {
+		return false
+	}
+	if idx.Schema < coatingLibrarySchema(module) {
+		return false
+	}
+	switch module {
+	case meshjobs.JobWeapons:
+		return weapons.IndexCurrent(raw)
+	}
+	return true
+}
+
+// coatingLibrarySchema is the current index schema of one of the three coating libraries.
+func coatingLibrarySchema(module string) int {
+	switch module {
+	case meshjobs.JobWeapons:
+		return weapons.SchemaCurrent
+	case meshjobs.JobFirstPerson:
+		return firstperson.SchemaFirstPerson
+	case meshjobs.JobSpartanPieces:
+		return spartanpieces.SchemaPieces
+	}
+	return 0
 }
 
 // coatingLibraryFolder is the data-directory folder of a coating library module key, and
@@ -245,6 +349,7 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return nil, err
 	}
 	r.SetDest(dest)
+	r.SetOutdated(func(module string) bool { return jobModuleOutdated(root, module) })
 	return r, nil
 }
 

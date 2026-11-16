@@ -82,8 +82,10 @@ export class NoMapModuleError extends ApiError {
   }
 }
 
-/** The lifecycle of a module's mesh build job, as `GET`/`POST .../mesh/state`/`build` answer it. */
-export type MeshBuildState = 'absent' | 'queued' | 'building' | 'ready' | 'failed' | 'cancelled'
+/** The lifecycle of a module's mesh build job, as `GET`/`POST .../mesh/state`/`build` answer it.
+ *  `outdated`: the output is on disk but in an older build format (built by an older version of
+ *  the app); the build flow rebuilds it in place and the viewer reads it as an update. */
+export type MeshBuildState = 'absent' | 'queued' | 'building' | 'ready' | 'failed' | 'cancelled' | 'outdated'
 
 /** The JSON body of `GET /api/matches/{id}/mesh/state` and `POST .../mesh/build` (see
  *  `meshStateJSON` in `cmd/infinite-theater-3d/serve.go`). Fields that do not apply to the

@@ -17,8 +17,11 @@ import (
 )
 
 // SchemaFirstPerson is the version of the index.json and the GLBs it names, as the view
-// reads it.
-const SchemaFirstPerson = 1
+// reads it. Bumped when the build output changes (today: KTX2 textures and the texture
+// read size), so a library built by an older version of the app is outdated and rebuilt
+// by the normal build flow; an index without a schema (built before schema versioning)
+// is outdated.
+const SchemaFirstPerson = 2
 
 // FichierIndex is the library's index file; its presence says the build is complete.
 const FichierIndex = "index.json"

@@ -320,6 +320,122 @@ func TestParseFormat(t *testing.T) {
 	}
 }
 
+// minimalGLB is a GLB with the given document and, when non-nil, a binary chunk of bin.
+func minimalGLB(t *testing.T, doc map[string]any, bin []byte) []byte {
+	t.Helper()
+	js, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(js)%4 != 0 {
+		js = append(js, ' ')
+	}
+	var out bytes.Buffer
+	le := binary.LittleEndian
+	w32 := func(v uint32) { _ = binary.Write(&out, le, v) }
+	total := 12 + 8 + len(js)
+	if bin != nil {
+		total += 8 + len(bin)
+	}
+	w32(glbMagic)
+	w32(2)
+	w32(uint32(total))
+	w32(uint32(len(js)))
+	w32(glbChunkJSON)
+	out.Write(js)
+	if bin != nil {
+		w32(uint32(len(bin)))
+		w32(glbChunkBIN)
+		out.Write(bin)
+	}
+	return out.Bytes()
+}
+
+// TestAssetExtrasHeaderOnly — asset.extras comes back from the header and the JSON chunk
+// only: a GLB with no binary chunk at all is read, and a GLB whose binary chunk is large
+// relative to the JSON chunk is read with the same result (the binary chunk is never
+// touched).
+func TestAssetExtrasHeaderOnly(t *testing.T) {
+	extras := map[string]any{"buildFormat": 2, "module": "streets"}
+	doc := map[string]any{"asset": map[string]any{"version": "2.0", "extras": extras}}
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "plain.glb")
+	if err := os.WriteFile(plain, minimalGLB(t, doc, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withBin := filepath.Join(dir, "withbin.glb")
+	if err := os.WriteFile(withBin, minimalGLB(t, doc, make([]byte, 1<<20)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{plain, withBin} {
+		got, err := AssetExtras(p)
+		if err != nil {
+			t.Fatalf("AssetExtras(%s): %v", p, err)
+		}
+		if got["module"] != "streets" || got["buildFormat"] != json.Number("2") {
+			t.Errorf("AssetExtras(%s) = %v", p, got)
+		}
+	}
+	// A GLB without asset.extras answers nil with no error; a non-GLB is an error.
+	noExtras := filepath.Join(dir, "noextras.glb")
+	if err := os.WriteFile(noExtras, minimalGLB(t, map[string]any{"asset": map[string]any{"version": "2.0"}}, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := AssetExtras(noExtras); err != nil || got != nil {
+		t.Errorf("no extras: %v, %v", got, err)
+	}
+	junk := filepath.Join(dir, "junk.glb")
+	if err := os.WriteFile(junk, []byte("definitely not a glb"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AssetExtras(junk); err == nil {
+		t.Error("garbage accepted")
+	}
+}
+
+// TestAssetExtrasSurviveKTX2Pass — the KTX2 pass keeps asset.extras in the output GLB:
+// the build format written before the pass is readable from the file after it (the
+// map/variant builds write their GLB through exactly this path).
+func TestAssetExtrasSurviveKTX2Pass(t *testing.T) {
+	in, _ := synthGLB(t)
+	le := binary.LittleEndian
+	lj := int(le.Uint32(in[12:]))
+	var doc map[string]any
+	if err := json.Unmarshal(in[20:20+lj], &doc); err != nil {
+		t.Fatal(err)
+	}
+	asset := doc["asset"].(map[string]any)
+	asset["extras"] = map[string]any{"buildFormat": 2, "module": "streets", "axes": "gltf(x, y, z) = halo(x, z, -y)"}
+	js, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(js)%4 != 0 {
+		js = append(js, ' ')
+	}
+	old := in
+	in = append(append([]byte{}, old[:20]...), js...)
+	in = append(in, old[20+lj:]...)
+	le.PutUint32(in[8:], uint32(len(in)))
+	le.PutUint32(in[12:], uint32(len(js)))
+	path := filepath.Join(t.TempDir(), "map.glb")
+	if err := os.WriteFile(path, in, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompressFile(context.Background(), path, path, Options{Workers: 2}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := AssetExtras(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]any{"buildFormat": json.Number("2"), "module": "streets"} {
+		if got[k] != want {
+			t.Errorf("after the KTX2 pass, extras[%q] = %v, want %v", k, got[k], want)
+		}
+	}
+}
+
 func TestGPUSizes(t *testing.T) {
 	// 4x4: 64 + 16 + 4 texels of RGBA8; blocks: one 16-byte block per level (3 levels).
 	if n := gpuRGBA8(4, 4); n != (16+4+1)*4 {

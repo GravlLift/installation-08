@@ -70,6 +70,10 @@ const (
 	StateReady     State = "ready"
 	StateFailed    State = "failed"
 	StateCancelled State = "cancelled"
+	// StateOutdated: the output is on disk but in an older build format (the version
+	// written with it does not match the current one): the normal build flow rebuilds it
+	// in place, and the viewer reads it as an update, not a first build.
+	StateOutdated State = "outdated"
 )
 
 // BuildResult summarizes one completed build (the byte count and triangle count of the
@@ -157,7 +161,11 @@ type Runner struct {
 	ready func(module string) bool
 	// dest maps a module key to its store file path, the build's output file (the server
 	// wires it to store.MeshPath). Nil (tests that never build) falls back to a name.
-	dest     func(module string) string
+	dest func(module string) string
+	// outdated says whether the module's output is on disk in an older build format (the
+	// server wires it to the store's build-format check). Nil falls back to no outdated
+	// state (tests that do not check formats).
+	outdated func(module string) bool
 	gameRoot string
 
 	mu          sync.Mutex
@@ -203,6 +211,15 @@ func (r *Runner) SetDest(f func(string) string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.dest = f
+}
+
+// SetOutdated wires the build-format check in, so a module whose output is on disk in an
+// older build format reports StateOutdated (it is not ready, so Enqueue builds it; the
+// server calls it before Start).
+func (r *Runner) SetOutdated(f func(string) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.outdated = f
 }
 
 // Start launches the runner's pump: the single goroutine that builds one module at a time.
@@ -360,16 +377,12 @@ func (r *Runner) Activity() (*Snapshot, []string) {
 }
 
 // snapshotLocked is Snapshot with the lock already held. It re-derives ready from the
-// store first, so a file built out-of-band reports ready.
+// store first, so a file built out-of-band reports ready; a file present in an older
+// build format reports StateOutdated (the ready check covers the format, so ready is
+// false here).
 func (r *Runner) snapshotLocked(module string) Snapshot {
-	if r.ready(module) {
-		s := Snapshot{State: StateReady, ModuleKey: module}
-		if res, ok := r.result[module]; ok {
-			s.Bytes = res.Bytes
-			s.Triangles = res.Triangles
-		}
-		return s
-	}
+	// A build of this module in progress (or queued) wins: while it runs the old file is still
+	// on disk, so the outdated check would otherwise mask the building/queued state.
 	if r.active == module {
 		st := r.started[module]
 		elapsed := int64(0)
@@ -380,6 +393,17 @@ func (r *Runner) snapshotLocked(module string) Snapshot {
 	}
 	if pos, ok := r.queuePosition(module); ok {
 		return Snapshot{State: StateQueued, ModuleKey: module, QueuePosition: pos}
+	}
+	if r.outdated != nil && r.outdated(module) {
+		return Snapshot{State: StateOutdated, ModuleKey: module}
+	}
+	if r.ready(module) {
+		s := Snapshot{State: StateReady, ModuleKey: module}
+		if res, ok := r.result[module]; ok {
+			s.Bytes = res.Bytes
+			s.Triangles = res.Triangles
+		}
+		return s
 	}
 	if r.cancelled[module] {
 		return Snapshot{State: StateCancelled, ModuleKey: module}

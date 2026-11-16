@@ -84,6 +84,23 @@ const (
 	axesGLBKey = "axes"
 )
 
+// BuildFormat is the build-format number published in every map and variant GLB's
+// asset.extras (under BuildFormatKey). It is bumped when the build output changes
+// (today: KTX2 textures, the texture read sizes, the materials), so a GLB written by an
+// older version of the app is detected as outdated and rebuilt by the normal build flow.
+// A GLB without the field (built before versioning) is outdated.
+const (
+	BuildFormat    = 2
+	BuildFormatKey = "buildFormat"
+)
+
+// commonExtras are the extras every map and variant GLB carries: the axis mapping (the
+// viewer's contract) and the build format (the server's outdated check reads it back
+// header-only). The builds merge these into their own extras.
+func commonExtras() map[string]any {
+	return map[string]any{axesGLBKey: axesGLB, BuildFormatKey: BuildFormat}
+}
+
 // Step is a build step, announced at its start.
 type Step string
 
@@ -134,7 +151,10 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 		return Summary{}, err
 	}
 	announce(StepWriting)
-	extras := map[string]any{"module": t.Key, "mapNames": t.Names, axesGLBKey: axesGLB, "frame": t.Frame}
+	extras := map[string]any{"module": t.Key, "mapNames": t.Names, "frame": t.Frame}
+	for k, v := range commonExtras() {
+		extras[k] = v
+	}
 	sky := skyOf(ctx, gameRoot, t, m)
 	// The summary is read before writing: the texture pass that follows the writer must not keep
 	// the collected mesh (and its decoded textures) alive.

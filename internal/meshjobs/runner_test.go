@@ -269,6 +269,58 @@ func TestRunnerAbsentAndReady(t *testing.T) {
 	}
 }
 
+// TestRunnerOutdated — a module whose output is on disk in an older build format (not
+// ready, outdated) reports StateOutdated; Enqueue builds it; when the format check turns
+// current the module reports ready.
+func TestRunnerOutdated(t *testing.T) {
+	f := newFakeStore(t)
+	f.delay = 30 * time.Millisecond // slow enough to observe the building state
+	var mu sync.Mutex
+	stale := true
+	ready := func(module string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return !stale && f.files[module]
+	}
+	outdated := func(module string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return stale && f.files[module]
+	}
+	r, err := New(f.build, "", ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetDest(f.path)
+	r.SetOutdated(outdated)
+	r.Start()
+	defer r.Stop(2 * time.Second)
+
+	// An old-format file is on disk.
+	f.mu.Lock()
+	f.files["old"] = true
+	f.mu.Unlock()
+	if err := os.WriteFile(f.path("old"), []byte("glTF"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if s := r.Snapshot("old"); s.State != StateOutdated {
+		t.Fatalf("old = %s, want outdated", s.State)
+	}
+	// Not ready, so the build flow rebuilds it.
+	r.Enqueue("old")
+	waitBuilding(t, r, "old")
+	mu.Lock()
+	stale = false
+	mu.Unlock()
+	waitState(t, r, "old", StateReady)
+	f.mu.Lock()
+	n := f.builds["old"]
+	f.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("old builds = %d, want 1", n)
+	}
+}
+
 // TestRunnerNewRequiresArgs — New rejects a nil build or ready.
 func TestRunnerNewRequiresArgs(t *testing.T) {
 	if _, err := New(nil, "", func(string) bool { return false }); err == nil {
