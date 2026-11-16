@@ -52,7 +52,7 @@ import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
 import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
 import { COUNTDOWN_TICK_STEM } from './countdownSound'
-import { ReplayAudioPlayer, soundShapeOf } from './replayAudio'
+import { ReplayAudioPlayer, SOUND_LOOKAHEAD_S, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { distanceChain, drawVariation, withEventGain } from './weaponSoundLogic'
 import { WEAPON_SOUND_VARIATIONS } from './weaponSoundVariations'
@@ -133,8 +133,13 @@ export interface ReplaySound {
   /** Category filter (settings drawer, phase 2): `true` = category audible. */
   categories: SoundCategoryFilter
   toggleCategory: (category: SoundCategory) => void
-  /** To call at each animation step with the current moment of the replay, in ms. */
-  tick: (ms: number) => void
+  /**
+   * To call at each animation step with the current moment of the replay, in ms, and the frame's
+   * time on the page clock (the `requestAnimationFrame` timestamp; absent = `performance.now()`):
+   * the sounds scheduled ahead are placed from it, so the work done before the beat in the same
+   * frame does not delay them.
+   */
+  tick: (ms: number, frameMs?: number) => void
   /**
    * seek — A JUMP, NOT A PLAYBACK: the cursor is PLACED at this moment without playing anything.
    *
@@ -421,6 +426,7 @@ export function useReplaySound(
       ambience.setAudible(false)
       shields.stop()
       playerRef.current?.stopHeld()
+      playerRef.current?.cancelPending()
     }
     setOn(next)
   }, [openPlayer, engine.stop, ambience.setAudible, shields.stop])
@@ -441,7 +447,7 @@ export function useReplaySound(
     return playerRef.current?.recordingTrack() ?? null
   }, [])
 
-  const tick = useCallback((ms: number) => {
+  const tick = useCallback((ms: number, frameMs: number = performance.now()) => {
     const tl = timelineRef.current
     const player = playerRef.current
     // The bed plays while the replay plays, sound on, at a speed that keeps sound (`ambienceAudible`).
@@ -456,6 +462,7 @@ export function useReplaySound(
       engine.stop()
       shields.stop()
       player?.stopHeld()
+      player?.cancelPending()
       return
     }
     // The engines follow the moment BEFORE the drawing of the events: a jump is reconciled
@@ -472,12 +479,20 @@ export function useReplaySound(
     if (resyncRef.current) {
       resyncRef.current = false
       cursorRef.current = resyncSoundCursor(tl, ms)
-      // A JUMP turns off the held burst: it belonged to the moment left.
+      // A JUMP turns off the held burst, and drops what was scheduled ahead: both belonged to the
+      // moment left (and, at a track change, to the track left).
       player.stopHeld()
+      player.cancelPending()
       return
     }
-    const { cursor, fire } = advanceSoundCursor(tl, cursorRef.current, ms)
+    // PLAYING, THE TRACK IS SCHEDULED AHEAD (`SOUND_LOOKAHEAD_S`) on the audio clock: each sound
+    // starts at its own moment, not at the beat that reads it — a long frame no longer delays the
+    // sounds it holds, nor piles them on one instant. A frame step (stopped) plays what it crosses, now.
+    const speed = speedRef.current
+    const aheadMs = playingRef.current ? SOUND_LOOKAHEAD_S * 1000 * speed : 0
+    const { cursor, fire, jumped } = advanceSoundCursor(tl, cursorRef.current, ms, aheadMs)
     cursorRef.current = cursor
+    if (jumped) player.cancelPending()
     for (const e of fire) {
       // THE VARIANT DRAWING TAKES PLACE HERE, not at the construction of the track: a track is
       // built once for the whole match, drawing there would make replay the same file at each
@@ -489,10 +504,14 @@ export function useReplaySound(
       // At the stop (no frame, jump to a landmark), a short sound lands with the frame, but
       // a held burst (up to ten seconds) would pull on a frame that no longer moves.
       if (!playingRef.current && shape?.holdS !== undefined) continue
+      // ITS MOMENT on the page clock, while the playback runs: the beat's frame time plus the
+      // event's distance from it, at the playback speed (already past, the first beat after a
+      // jump: now). A frame step at the stop has no such clock: it plays what it crosses now.
+      const when = playingRef.current ? player.timeAt(frameMs + (e.ms - ms) / speed) : undefined
       // AN ANNOUNCER VOICE passes out of ceiling, without variation (rule `soundOccupiesVoice`), and
       // the pause turns it off like any sound in flight (rule `soundSurvivesPause`): two distinct questions.
       if (e.announcer) {
-        player.playAnnouncer(url)
+        player.playAnnouncer(url, when)
         continue
       }
       // The variation drawing only concerns WEAPONS: the table is keyed by weapon
@@ -503,6 +522,7 @@ export function useReplaySound(
         withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[stem], tuning.variationPercentRef.current), e),
         shape,
         placeOf(listener.current, e),
+        { when, footstep: e.footstep === true },
       )
     }
   }, [tuning.variationPercentRef, engine.stop, engine.sync, ambience.setAudible, shields.stop, shields.sync])
@@ -585,6 +605,10 @@ export function useReplaySound(
       // EVERYTHING that is in flight is turned off with it: held bursts, explosions, lines — a stopped frame
       // no longer pulls and no longer resonates (the match conclusion, by contrast, is spared).
       playerRef.current?.stopAll()
+      // What was SCHEDULED AHEAD of the stopped frame was dropped with it: the cursor steps back to
+      // the frame, so the resume schedules those sounds again instead of skipping them.
+      const c = cursorRef.current
+      cursorRef.current = resyncSoundCursor(timelineRef.current, c.at ?? c.ms)
     },
     [engine.stop, ambience.setAudible, shields.stop],
   )

@@ -38,14 +38,19 @@ export function soundPlaysAtSpeed(multiplier: number): boolean {
   return multiplier <= SOUND_MAX_SPEED
 }
 
-/** The sound playback cursor: last moment served, index of the next event. */
+/**
+ * The sound playback cursor: last moment SERVED (`ms`, which runs ahead of the playback when the
+ * page schedules ahead), index of the next event, and the playback moment of the last beat
+ * (`at`; absent = `ms`, a cursor that never ran ahead).
+ */
 export interface SoundCursor {
   ms: number
   idx: number
+  at?: number
 }
 
 /** resyncSoundCursor sets the cursor AT the given moment: nothing before it will play. */
-export function resyncSoundCursor(timeline: ReplaySoundEvent[], ms: number): SoundCursor {
+export function resyncSoundCursor(timeline: readonly ReplaySoundEvent[], ms: number): SoundCursor {
   // First index strictly after `ms` (binary search, timeline sorted).
   let lo = 0
   let hi = timeline.length
@@ -54,29 +59,34 @@ export function resyncSoundCursor(timeline: ReplaySoundEvent[], ms: number): Sou
     if (timeline[mid].ms <= ms) lo = mid + 1
     else hi = mid
   }
-  return { ms, idx: lo }
+  return { ms, idx: lo, at: ms }
 }
 
 /**
  * advanceSoundCursor advances the cursor to `nowMs` and returns the events to play.
  *
- * Continuous playback (short advance): every event in (cursor.ms, nowMs] goes out ONCE.
- * Backward move or long jump: silent reseeding — the sound follows the playback, it does not
- * narrate what was crossed.
+ * Continuous playback (short advance): every event in (cursor.ms, nowMs + aheadMs] goes out ONCE
+ * — `aheadMs` is the stretch of the track the page schedules AHEAD of the playback (lookahead,
+ * `SOUND_LOOKAHEAD_S`), 0 for a cursor that plays what it crosses. Backward move or long jump of
+ * the PLAYBACK (not of the served moment): silent reseeding, `jumped` — the sound follows the
+ * playback, it does not narrate what was crossed.
  */
 export function advanceSoundCursor(
-  timeline: ReplaySoundEvent[],
+  timeline: readonly ReplaySoundEvent[],
   cursor: SoundCursor,
   nowMs: number,
-): { cursor: SoundCursor; fire: ReplaySoundEvent[] } {
-  if (nowMs < cursor.ms || nowMs - cursor.ms > SOUND_RESYNC_JUMP_MS) {
-    return { cursor: resyncSoundCursor(timeline, nowMs), fire: [] }
+  aheadMs = 0,
+): { cursor: SoundCursor; fire: ReplaySoundEvent[]; jumped: boolean } {
+  const at = cursor.at ?? cursor.ms
+  if (nowMs < at || nowMs - at > SOUND_RESYNC_JUMP_MS) {
+    return { cursor: resyncSoundCursor(timeline, nowMs), fire: [], jumped: true }
   }
+  const served = Math.max(cursor.ms, nowMs + Math.max(0, aheadMs))
   const fire: ReplaySoundEvent[] = []
   let idx = cursor.idx
-  while (idx < timeline.length && timeline[idx].ms <= nowMs) {
+  while (idx < timeline.length && timeline[idx].ms <= served) {
     fire.push(timeline[idx])
     idx++
   }
-  return { cursor: { ms: nowMs, idx }, fire }
+  return { cursor: { ms: served, idx, at: nowMs }, fire, jumped: false }
 }

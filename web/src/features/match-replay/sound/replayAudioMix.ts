@@ -42,11 +42,13 @@ import {
   type RenderHooks,
 } from './mixRender'
 import {
-  SOUND_MAX_VOICES,
+  admitVoice,
   soundEnvelopeOf,
   soundOccupiesVoice,
   soundShapeOf,
+  voiceLevelOf,
   type SoundShape,
+  type VoiceSlot,
 } from './replayAudio'
 import { WEAPON_SOUND_VARIATIONS } from './weaponSoundVariations'
 import { pickVariantStem, type ReplaySoundEvent } from './replaySoundVariants'
@@ -120,6 +122,8 @@ export interface MixedSound {
    * is, exactly as without a listener.
    */
   place?: SoundPlacement
+  /** A foot or movement sound: it takes only another such sound's slot (`admitVoice`), as in live. */
+  footstep?: boolean
 }
 
 /** The exported range, on the replay's axis. */
@@ -240,6 +244,7 @@ export function planAudioMix(
       ...(shape ? { shape } : {}),
       ...(e.announcer ? { announcer: true } : {}),
       ...(place ? { place } : {}),
+      ...(e.footstep ? { footstep: true } : {}),
     })
   }
   // THE CONCLUSION IS PLACED ON THE END BOUND, and the caller provides it ONLY if the range
@@ -271,9 +276,9 @@ function familyOf(stem: string, familles: MixOptions['families']): SoundFamily {
 /**
  * applyVoiceCap replays THE SAME voice accounting as the real-time player.
  *
- * The player counts the living sources and refuses those that exceed `SOUND_MAX_VOICES`.
- * Offline, the same rule is computed in advance: a source occupies a voice from its moment
- * until the end of its envelope. Without that, the export would stack everything and sound louder
+ * The player and the export apply ONE rule, `admitVoice` (`replayAudio.ts`): a source occupies a
+ * voice from its moment until the end of its envelope, and at the ceiling a louder sound takes the
+ * slot of the quietest voice (whose cut is written here into its shape, `stealS`). Without that, the export would stack everything and sound louder
  * and more confused than the page — measured on the local corpus: 28.7% of sources are refused
  * in live on a sustained exchange.
  *
@@ -290,8 +295,8 @@ export function applyVoiceCap(
   durationOf: (stem: string) => number | null,
 ): MixedSound[] {
   const kept: MixedSound[] = []
-  /** Release moments of the occupied voices, in ms on the clip axis. */
-  let busy: number[] = []
+  /** The occupied voices, on the clip axis in seconds, with the index of their sound in `kept`. */
+  let busy: Array<VoiceSlot & { keptAt: number }> = []
   for (const s of sounds) {
     const seconds = durationOf(s.stem)
     if (seconds === null) continue
@@ -301,10 +306,22 @@ export function applyVoiceCap(
       kept.push(s)
       continue
     }
-    busy = busy.filter((endsAt) => endsAt > s.atMs)
-    if (busy.length >= SOUND_MAX_VOICES) continue
-    const { stopS } = soundEnvelopeOf(seconds, s.shape)
-    busy.push(s.atMs + stopS * 1000)
+    const atS = s.atMs / 1000
+    busy = busy.filter((v) => v.endS > atS)
+    const level = voiceLevelOf(s.draw, s.place)
+    // THE SAME RULE AS THE PAGE (`admitVoice`): at the ceiling, a louder sound takes the slot of
+    // the quietest voice, which then fades out there — the cut is written into its shape.
+    const footstep = s.footstep === true
+    const verdict = admitVoice(busy, atS, level, footstep)
+    if (!verdict.admit) continue
+    if (verdict.steal) {
+      const v = verdict.steal as VoiceSlot & { keptAt: number }
+      const victim = kept[v.keptAt]
+      kept[v.keptAt] = { ...victim, shape: { ...victim.shape, stealS: atS - victim.atMs / 1000 } }
+      busy = busy.filter((b) => b !== v)
+    }
+    const { fadeStartS, stopS } = soundEnvelopeOf(seconds, s.shape)
+    busy.push({ endS: atS + stopS, fadeStartS: atS + fadeStartS, level, footstep, keptAt: kept.length })
     kept.push(s)
   }
   return kept

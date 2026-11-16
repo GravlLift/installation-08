@@ -145,6 +145,8 @@ describe('footstepReplayEvents — the take and the place', () => {
     const b = footstepReplayEvents(MANIFEST, 'default', timed, null)
     expect(a.map((e) => e.stem)).toEqual(b.map((e) => e.stem))
     expect(a.every((e) => e.gainDb === FOOTSTEP_GAIN_DB)).toBe(true)
+    // Marked for the voice ceiling: a step takes only a step's slot (`admitVoice`).
+    expect(a.every((e) => e.footstep === true)).toBe(true)
   })
 
   it('draws across takes deterministically when there are several', () => {
@@ -191,5 +193,6 @@ describe('the mix', () => {
     const mixed = planAudioMix(events, { startMs: 0, endMs: events[events.length - 1].ms + 1000 }, { variationPercent: 0 })
     expect(mixed.length).toBeGreaterThan(0)
     expect(mixed.every((s) => s.family === 'sfx')).toBe(true)
+    expect(mixed.every((s) => s.footstep === true)).toBe(true)
   })
 })

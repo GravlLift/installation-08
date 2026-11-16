@@ -44,10 +44,11 @@ describe('usePlaybackLoop', () => {
     const tick = vi.fn()
     const onEnded = vi.fn()
     renderHook(() => usePlaybackLoop({ doc, playing: true, speed: 2, fps: 30, frameRef: { current: 0 }, setFrame: vi.fn(), setPlaying: vi.fn(), tick, onEnded }))
+    // The moment, and the frame's timestamp the sound schedules ahead from.
     act(() => flushOneTick(250))
-    expect(tick).toHaveBeenLastCalledWith(500)
+    expect(tick).toHaveBeenLastCalledWith(500, 250)
     act(() => flushOneTick(250))
-    expect(tick).toHaveBeenLastCalledWith(1000)
+    expect(tick).toHaveBeenLastCalledWith(1000, 500)
     expect(onEnded).toHaveBeenCalledOnce()
     expect(pending).toHaveLength(0)
   })

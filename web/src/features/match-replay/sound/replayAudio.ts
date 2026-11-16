@@ -79,6 +79,9 @@ export const SOUND_FADE_S = 0.25
  * always 1.2 s. Only the explosions and the equipment now hold up to 4 s,
  * and they are the rarest events of the track — a grenade kill, a
  * cloak episode. The ceiling stays unchanged (decision of lot R2.1).
+ *
+ * WHICH sounds it keeps once full is `admitVoice`'s rule (the louder takes the quietest's slot),
+ * since the footsteps of every Spartan made them the bulk of the track.
  */
 export const SOUND_MAX_VOICES = 8
 
@@ -114,6 +117,93 @@ interface SoundKind {
   survitALaPause: boolean
 }
 
+/**
+ * A VOICE as the ceiling sees it, on the AUDIO clock (seconds): when it frees its slot (`endS`),
+ * when its own fade begins (`fadeStartS`), and the LEVEL it plays at — the linear hold gain of the
+ * sound (event gain x variation x distance), the master left out.
+ */
+export interface VoiceSlot {
+  endS: number
+  fadeStartS: number
+  level: number
+  /** A foot or movement sound (`ReplaySoundEvent.footstep`). */
+  footstep?: boolean
+}
+
+/**
+ * voiceLevelOf — THE LEVEL a sound plays at, the one quantity the ceiling ranks voices by. Shared
+ * by the page player and the export so both rank a voice the same.
+ */
+export function voiceLevelOf(draw?: { gainDb: number }, place?: { gain: number }): number {
+  return (draw ? gainFromDb(draw.gainDb) : 1) * (place?.gain ?? 1)
+}
+
+/**
+ * admitVoice — THE SINGLE RULE of the voice ceiling, on the audio clock, for the page player and
+ * the export alike (`applyVoiceCap`).
+ *
+ * A slot is busy from its sound's start until its envelope ends (`endS`), measured on the clock
+ * the sound plays on — never on the moment the browser happens to deliver `onended`, which a
+ * busy main thread delays and which then held slots for sounds long finished.
+ *
+ * Under the ceiling, the sound passes. At the ceiling, it TAKES THE SLOT OF THE QUIETEST voice in
+ * flight if that voice is strictly quieter than it, and is refused otherwise. Since the footsteps
+ * of every Spartan entered the track (measured on d01ba030, the busiest 30 s of combat: 89% of the
+ * events are footsteps, the ceiling sat full in the median second, and a first-come ceiling
+ * refused 20-29% of the followed player's own sounds and 28-32% of the others' shots while 230
+ * distant footsteps played), "first come" handed the slots to whatever was most frequent, not to
+ * what is heard: the level is what the listener hears, so it is the rank. The followed player's
+ * own sounds play at full level and outrank every placed sound; a far footstep is the first to go.
+ *
+ * A FOOTSTEP TAKES ONLY A FOOTSTEP'S SLOT. The footsteps are what fills the ceiling (92% of the
+ * events of the busiest two minutes of the same match), they are the shortest and the most
+ * redundant sounds of the track (one per stride), and they sit at -3 dB where the others' shots sit
+ * at -4 dB: by level alone, a Spartan's step would cut the tail of a shot fired where he stands. So
+ * a footstep competes with footsteps; a shot, a throw or an equipment takes any quieter slot.
+ *
+ * Only a voice still on its plateau (`fadeStartS` after the moment) can be taken: one already
+ * fading frees its slot on its own, and cutting into a ramp would click.
+ */
+export function admitVoice(
+  slots: readonly VoiceSlot[],
+  atS: number,
+  level: number,
+  footstep = false,
+): { admit: false } | { admit: true; steal?: VoiceSlot } {
+  let busy = 0
+  let victim: VoiceSlot | undefined
+  for (const v of slots) {
+    if (v.endS <= atS) continue
+    busy++
+    if (footstep && !v.footstep) continue
+    if (v.fadeStartS > atS && (!victim || v.level < victim.level)) victim = v
+  }
+  if (busy < SOUND_MAX_VOICES) return { admit: true }
+  if (victim && victim.level < level) return { admit: true, steal: victim }
+  return { admit: false }
+}
+
+/**
+ * Duration of the fade of a voice whose slot is taken (`admitVoice`), in seconds: the same short
+ * ramp as the volume (`VOLUME_RAMP_S`), long enough not to click.
+ */
+export const SOUND_STEAL_FADE_S = 0.02
+
+/**
+ * SOUND_LOOKAHEAD_S — how far ahead of the playback the page schedules its sounds, in seconds of
+ * real time, on the AUDIO clock (`start(when)`).
+ *
+ * The beat that reads the track runs in the animation loop: a sound used to start at the beat that
+ * crossed it, so it came out as late as the frame was long, and every sound of a long frame came
+ * out at the same instant. Measured on d01ba030 (busiest 30 s, beats 30-50 ms apart): median 25 ms
+ * late, 90th percentile 44 ms, 10% of the sounds bunched on another's instant; with a 250 ms frame
+ * every 5 s, 99th percentile 180 ms. Scheduled ahead, a sound starts at its own moment as long as
+ * no gap between two beats exceeds the lookahead: 100 ms covers twice the slowest beat of that
+ * measurement and a 10 fps stall, and is short enough that a jump or a pause cancels at most a
+ * tenth of a second of sounds that had not started.
+ */
+export const SOUND_LOOKAHEAD_S = 0.1
+
 /** soundKindOf — the two rules above for an ordinary sound, an announcement or a conclusion. */
 function soundKindOf(sound: { conclusion?: boolean; announcer?: boolean }): SoundKind {
   return { voix: soundOccupiesVoice(sound), survitALaPause: soundSurvivesPause(sound) }
@@ -147,6 +237,12 @@ export function soundEnvelope(durationS: number): { fadeStartS: number; stopS: n
 export interface SoundShape {
   holdS?: number
   cutS?: number
+  /**
+   * The moment its slot was TAKEN by a louder sound (`admitVoice`), in seconds from its start: the
+   * sound fades out there over `SOUND_STEAL_FADE_S`. Set by the export's ceiling only; the page
+   * player cuts the voice in flight the same way.
+   */
+  stealS?: number
 }
 
 /**
@@ -164,6 +260,16 @@ export function soundEnvelopeOf(
   durationS: number,
   shape?: SoundShape,
 ): { fadeStartS: number; stopS: number; loop: boolean } {
+  const env = shapedEnvelope(durationS, shape)
+  const steal = shape?.stealS
+  if (steal !== undefined && steal >= 0 && steal < env.fadeStartS) {
+    return { fadeStartS: steal, stopS: steal + SOUND_STEAL_FADE_S, loop: env.loop }
+  }
+  return env
+}
+
+/** shapedEnvelope — the envelope of a held, cut or ordinary sound, before any taken slot. */
+function shapedEnvelope(durationS: number, shape?: SoundShape): { fadeStartS: number; stopS: number; loop: boolean } {
   if (shape?.holdS !== undefined && shape.holdS > 0) {
     const hold = Math.min(shape.holdS, SOUND_CUT_MAX_S)
     return { fadeStartS: hold, stopS: hold + SOUND_HOLD_RELEASE_S, loop: true }
@@ -182,6 +288,16 @@ export function soundShapeOf(e: { holdMs?: number; cutMs?: number }): SoundShape
   return undefined
 }
 
+/** A sound of the player, in flight or scheduled: its nodes and its slot on the audio clock. */
+interface LiveVoice extends VoiceSlot {
+  src: AudioBufferSourceNode
+  gain: GainNode
+  startS: number
+  survitALaPause: boolean
+  voix: boolean
+  loop: boolean
+}
+
 /**
  * ReplayAudioPlayer — context, master volume, buffer cache, enveloped playback.
  *
@@ -194,16 +310,15 @@ export class ReplayAudioPlayer {
   private buffers = new Map<string, AudioBuffer | null>()
   /** URL -> loading in progress: one request per URL, and a promise we can await. */
   private loading = new Map<string, Promise<void>>()
-  private voices = 0
-  /** The HELD sounds in flight (full-auto fire bursts), which the pause and the jump cut off. */
-  private held = new Set<{ src: AudioBufferSourceNode; gain: GainNode }>()
   /**
-   * ALL the sounds in flight (a pause cuts everything off, not only the held bursts).
-   * `survitALaPause` is true only for a CONCLUSION of match (fanfare, end announcer): it
-   * goes out at the very moment playback stops by itself at the bound, and the pause that follows must not
-   * cut it (`soundSurvivesPause`).
+   * ALL the sounds in flight or scheduled (a pause cuts everything off, not only the held
+   * bursts), with their slot on the audio clock. `survitALaPause` is true only for a CONCLUSION
+   * of match (fanfare, end announcer): it goes out at the very moment playback stops by itself at
+   * the bound, and the pause that follows must not cut it (`soundSurvivesPause`). `voix` says
+   * whether it holds a slot of the ceiling; `loop` marks a HELD sound (full-auto fire burst),
+   * which the jump cuts too.
    */
-  private live = new Set<{ src: AudioBufferSourceNode; gain: GainNode; survitALaPause: boolean }>()
+  private live = new Set<LiveVoice>()
   /** Distance chain (instance setting, admin page). Null = NO node added:
    *  the signal path stays the original one, source -> envelope -> master. */
   private distGain: GainNode | null = null
@@ -352,12 +467,14 @@ export class ReplayAudioPlayer {
   }
 
   /**
-   * play plays an already loaded URL: full hold then fade (soundEnvelope). Not yet
-   * loaded (scrub before the end of the preload) or absent: silence, never a wait — a
-   * sound late on its image is worse than a missed sound.
+   * play plays an already loaded URL: full hold then fade (soundEnvelope), at `slot.when` on the
+   * audio clock (`timeAt`), or now when it is absent or already past; `slot.footstep` marks a foot
+   * sound for the ceiling (`admitVoice`). Not yet loaded (scrub
+   * before the end of the preload) or absent: silence, never a wait — a sound late on its image is
+   * worse than a missed sound.
    */
-  play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement): void {
-    this.start(url, soundKindOf({}), { draw, shape, place })
+  play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement, slot: { when?: number; footstep?: boolean } = {}): void {
+    this.start(url, soundKindOf({}), { draw, shape, place, when: slot.when, footstep: slot.footstep })
   }
 
   /**
@@ -371,9 +488,21 @@ export class ReplayAudioPlayer {
   /**
    * playAnnouncer plays a TRACK ANNOUNCER'S VOICE ("round ended"): same envelope as
    * `play`, OUTSIDE THE CEILING and without counting a voice — rule and reason: `soundOccupiesVoice`.
+   * `when` as for `play`.
    */
-  playAnnouncer(url: string): void {
-    this.start(url, soundKindOf({ announcer: true }))
+  playAnnouncer(url: string, when?: number): void {
+    this.start(url, soundKindOf({ announcer: true }), { when })
+  }
+
+  /**
+   * timeAt — THE AUDIO-CLOCK MOMENT of a page moment (`performance.now()` milliseconds): what
+   * `play(…, when)` takes. The page's animation loop dates its frames on the page clock, the
+   * sources start on the audio clock; the two are read together here, so a sound scheduled ahead
+   * lands at its frame's moment whatever the beat that scheduled it. A past moment reads as now.
+   */
+  timeAt(pageMs: number, nowPageMs: number = performance.now()): number {
+    const t = this.ctx.currentTime
+    return Math.max(t, t + (pageMs - nowPageMs) / 1000)
   }
 
   /** Is the URL decoded (buffer ready, not a memorized absent)? */
@@ -397,23 +526,34 @@ export class ReplayAudioPlayer {
   }
 
   /** start places an enveloped source; `kind` says whether it submits to the ceiling (and holds it) and whether the pause cuts it. */
-  private start(url: string, kind: SoundKind, opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement } = {}): void {
+  private start(
+    url: string,
+    kind: SoundKind,
+    opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement; when?: number; footstep?: boolean } = {},
+  ): void {
+    const footstep = opts.footstep === true
     const { draw, shape, place } = opts
     const offsetS = opts.offsetS ?? 0
     const { voix, survitALaPause } = kind
     const buf = this.buffers.get(url)
-    if (!buf || (voix && this.voices >= SOUND_MAX_VOICES)) {
+    if (!buf) {
       if (buf === undefined) this.preload([url])
       return
     }
-    const t0 = this.ctx.currentTime
+    const now = this.ctx.currentTime
+    const t0 = Math.max(now, opts.when ?? now)
     const env = soundEnvelopeOf(buf.duration, shape)
     const [fadeStartS, stopS, loop] = [env.fadeStartS - offsetS, env.stopS - offsetS, env.loop]
     // The VARIATION of this playback (the game's RANGED ranges, drawn upstream): a gain
     // of start and a playback speed. Without a draw, the hold is at 1 — unchanged. The PLACE
     // (`place`) multiplies it: a spatialized sound is lower according to its distance, at the same
-    // wiring as a non-spatialized sound when we do not ask for one.
-    const tenue = (draw ? gainFromDb(draw.gainDb) : 1) * (place?.gain ?? 1)
+    // wiring as a non-spatialized sound when we do not ask for one. It is also the voice's rank.
+    const tenue = voiceLevelOf(draw, place)
+    if (voix) {
+      const verdict = admitVoice(this.slotsAt(now), t0, tenue, footstep)
+      if (!verdict.admit) return
+      if (verdict.steal) this.cut(verdict.steal as LiveVoice, t0, SOUND_STEAL_FADE_S)
+    }
     const gain = this.ctx.createGain()
     gain.gain.setValueAtTime(tenue, t0)
     gain.gain.setValueAtTime(tenue, t0 + fadeStartS)
@@ -434,17 +574,17 @@ export class ReplayAudioPlayer {
     } else {
       gain.connect(this.master)
     }
-    if (voix) this.voices++
-    // A HELD SOUND is held back: the pause and the jump cut it (`stopHeld`), otherwise a burst of
-    // ten seconds would keep firing on a stopped image.
-    const tenu = loop ? { src, gain } : null
-    if (tenu) this.held.add(tenu)
-    const enVol = { src, gain, survitALaPause }
-    this.live.add(enVol)
+    // A HELD SOUND (`loop`) is held back: the pause and the jump cut it (`stopHeld`), otherwise a
+    // burst of ten seconds would keep firing on a stopped image.
+    const voice: LiveVoice = {
+      src, gain, survitALaPause, voix, loop,
+      startS: t0, fadeStartS: t0 + fadeStartS, endS: t0 + stopS, level: tenue, footstep,
+    }
+    this.live.add(voice)
+    // `onended` only RELEASES THE NODES: the slot is already free on the audio clock (`endS`),
+    // whenever the browser gets round to delivering this event.
     src.onended = () => {
-      if (voix) this.voices--
-      if (tenu) this.held.delete(tenu)
-      this.live.delete(enVol)
+      this.live.delete(voice)
       src.disconnect()
       gain.disconnect()
       if (panner) panner.disconnect()
@@ -453,33 +593,67 @@ export class ReplayAudioPlayer {
     src.stop(t0 + stopS)
   }
 
-  /** stopHeld cuts off the HELD sounds in flight (volume ramp), at the pause and the jump. */
-  stopHeld(): void {
-    const t0 = this.ctx.currentTime
-    for (const { src, gain } of this.held) {
-      gain.gain.cancelScheduledValues(t0)
-      gain.gain.setValueAtTime(gain.gain.value, t0)
-      gain.gain.linearRampToValueAtTime(0, t0 + VOLUME_RAMP_S)
-      src.stop(t0 + VOLUME_RAMP_S)
-    }
-    this.held.clear()
+  /** slotsAt — the voices that hold a slot of the ceiling and have not ended by `t` (audio clock). */
+  private slotsAt(t: number): LiveVoice[] {
+    const out: LiveVoice[] = []
+    for (const v of this.live) if (v.voix && v.endS > t) out.push(v)
+    return out
   }
 
   /**
-   * stopAll cuts off EVERYTHING that is in flight (volume ramp), conclusion excepted
+   * cut fades a voice out from `atS` over `fadeS` (no click) and frees its slot there. A voice
+   * scheduled to start after `atS` never sounds. `atS` is never before now.
+   */
+  private cut(v: LiveVoice, atS: number, fadeS: number): void {
+    const g = v.gain.gain
+    g.cancelScheduledValues(atS)
+    if (atS < v.startS) {
+      g.setValueAtTime(0, atS)
+      v.src.stop(atS)
+    } else {
+      // On its plateau (or already fading): hold the level it has at `atS`, then ramp down.
+      g.setValueAtTime(atS < v.fadeStartS ? v.level : g.value, atS)
+      g.linearRampToValueAtTime(0, atS + fadeS)
+      v.src.stop(atS + fadeS)
+    }
+    v.endS = Math.min(v.endS, atS)
+    v.fadeStartS = Math.min(v.fadeStartS, atS)
+  }
+
+  /** stopHeld cuts off the HELD sounds in flight (volume ramp), at the pause and the jump. */
+  stopHeld(): void {
+    const t0 = this.ctx.currentTime
+    for (const v of this.live) {
+      if (!v.loop || v.endS <= t0) continue
+      this.cut(v, t0, VOLUME_RAMP_S)
+      this.live.delete(v)
+    }
+  }
+
+  /**
+   * cancelPending drops the sounds SCHEDULED AHEAD that have not started yet (`SOUND_LOOKAHEAD_S`):
+   * at a jump, they belong to the moment left. What already sounds plays out, as before.
+   */
+  cancelPending(): void {
+    const t0 = this.ctx.currentTime
+    for (const v of this.live) {
+      if (v.startS <= t0) continue
+      this.cut(v, t0, VOLUME_RAMP_S)
+      this.live.delete(v)
+    }
+  }
+
+  /**
+   * stopAll cuts off EVERYTHING that is in flight or scheduled (volume ramp), conclusion excepted
    * (`soundSurvivesPause`): that is the PAUSE. A vehicle explosion, a line, the voice of
    * round or the intro excerpt do not end on a stopped image; stopHeld only covered
    * the held bursts.
    */
   stopAll(): void {
-    this.stopHeld()
     const t0 = this.ctx.currentTime
     for (const v of this.live) {
       if (v.survitALaPause) continue
-      v.gain.gain.cancelScheduledValues(t0)
-      v.gain.gain.setValueAtTime(v.gain.gain.value, t0)
-      v.gain.gain.linearRampToValueAtTime(0, t0 + VOLUME_RAMP_S)
-      v.src.stop(t0 + VOLUME_RAMP_S)
+      this.cut(v, t0, VOLUME_RAMP_S)
       this.live.delete(v)
     }
   }

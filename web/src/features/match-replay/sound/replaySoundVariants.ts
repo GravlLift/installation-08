@@ -61,6 +61,11 @@ export interface ReplaySoundEvent {
    * listener.
    */
   at?: { x: number; y: number }
+  /**
+   * A FOOT OR MOVEMENT SOUND (`footstepSound.ts`): at a full voice ceiling it may take only another
+   * such sound's slot (`admitVoice`), never a shot's. Absent = any other sound.
+   */
+  footstep?: true
 }
 
 /**
