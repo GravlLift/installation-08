@@ -35,9 +35,9 @@ engineering backlog; this page keeps only the user-visible parts of it.
   checked by ear in a real match. Shell-loading weapons (Cindershot, Heatwave, Hydra) play
   one loading sound per reload regardless of how many shells are loaded.
 - Footsteps all use the game's default surface (no grass, metal or water variants yet), and
-  their step rate is estimated from speed. The slide's exit whoosh is silent.
-- The Shock Rifle's arcs and beams are drawn by the viewer to match the game's look; the
-  game's own effect is not decoded yet, so their color and size are tuned by eye. Other
+  their step rate is estimated from speed.
+- The Shock Rifle's electricity in its barrel housing is not drawn yet, and its three-beam
+  shots are drawn by the viewer, not from the game's own effect. Other
   weapons' particle effects (the Ravager's and Disruptor's glow, plasma impacts) are not
   drawn.
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the

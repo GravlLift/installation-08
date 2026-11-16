@@ -8,8 +8,8 @@
  *
  * THE MANIFEST IS KEYED BY SURFACE ("default", "dirt", "sand", …), then by the FOOT ACTION the
  * game plays for it ("walk", "run", "sprint", "shuffle", "slide", "land", "landhard" — grasstall
- * and rock have no slide). The MOVEMENT sounds ("land", "landhard", "slide_into", "jumpup") are a
- * flat map alongside. Each entry is a set of takes, one of which the viewer draws.
+ * and rock have no slide). The MOVEMENT sounds ("land", "landhard", "slide_into", "slide_outof",
+ * "jumpup") are a flat map alongside. Each entry is a set of takes, one of which the viewer draws.
  */
 
 /** The surfaces the extraction knows. */
@@ -34,7 +34,7 @@ export type FootstepSurface =
 export type FootstepAction = 'walk' | 'run' | 'sprint' | 'shuffle' | 'slide' | 'land' | 'landhard'
 
 /** The movement sounds. */
-export type FootstepMovement = 'land' | 'landhard' | 'slide_into' | 'jumpup'
+export type FootstepMovement = 'land' | 'landhard' | 'slide_into' | 'slide_outof' | 'jumpup'
 
 /** One extracted media, as the manifest writes it. */
 export interface FootstepTake {

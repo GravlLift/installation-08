@@ -11,13 +11,15 @@ import "encoding/binary"
 //
 // The action vocabulary the game uses is walk, run, sprint, shuffle, slide, land and landhard.
 // Two combinations do not exist in the game and are left out of the table: grasstall_slide and
-// rock_slide. Two movement tags are left out of movementIDs on purpose, the build has no takes
-// for them, and the sliding is carried by slide_into and the surface slide sounds:
+// rock_slide. One movement tag is left out of movementIDs on purpose: it plays nothing in the
+// installed game:
 //   - 006_chm_un_spartan_slide (0x9E732DC4): both its events are empty no-ops in the installed
 //     game; it plays nothing.
-//   - 006_chm_un_spartan_slide_outof (0x2A52684E): its event's Play actions target random
-//     sequence containers that live in sibling banks, one per take; the build does not follow
-//     those cross-bank containers, so the event resolves to no media.
+//
+// 006_chm_un_spartan_slide_outof (0x2A52684E) is in the table: its event's sound actions target
+// a random sequence container per take, and each container lives in a sibling bank of its own.
+// The resolver follows those cross-bank containers (internal/wwise links the sibling's objects
+// into the event's bank), so it resolves to its takes like the other movement sounds.
 
 // feetIDs maps a surface to its foot step sounds, action to tag id.
 var feetIDs = map[string]map[string]uint32{
@@ -40,10 +42,11 @@ var feetIDs = map[string]map[string]uint32{
 
 // movementIDs maps a movement sound to its tag id.
 var movementIDs = map[string]uint32{
-	land:      0x0929E52F,
-	landhard:  0xE51D4EFE,
-	slideInto: 0xDE97BC60,
-	jumpUp:    0xE329C6F6,
+	land:       0x0929E52F,
+	landhard:   0xE51D4EFE,
+	slideInto:  0xDE97BC60,
+	slideOutof: 0x2A52684E,
+	jumpUp:     0xE329C6F6,
 }
 
 const (
@@ -54,8 +57,9 @@ const (
 	slide     = "slide"
 	land      = "land"
 	landhard  = "landhard"
-	slideInto = "slide_into"
-	jumpUp    = "jumpup"
+	slideInto  = "slide_into"
+	slideOutof = "slide_outof"
+	jumpUp     = "jumpup"
 )
 
 // tagID swaps a tagnames.txt id (big-endian) to the module index's address (byte-swapped).

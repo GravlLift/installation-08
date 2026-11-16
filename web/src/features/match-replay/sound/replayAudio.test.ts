@@ -14,11 +14,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  admitVoice,
   ReplayAudioPlayer,
   SOUND_CUT_MAX_S,
   SOUND_FADE_S,
   SOUND_MAX_VOICES,
+  SOUND_STEAL_FADE_S,
   soundEnvelope,
+  soundEnvelopeOf,
+  voiceLevelOf,
   VOLUME_RAMP_S,
 } from './replayAudio'
 import {
@@ -249,6 +253,155 @@ describe('ReplayAudioPlayer — voices and volume', () => {
     const p = new ReplayAudioPlayer(1)
     p.dispose()
     expect(ctx.closed).toBe(1)
+  })
+})
+
+/**
+ * SCHEDULED AHEAD ON THE AUDIO CLOCK (fix of 2026-11-16, "sounds come out late, jammed up"). A
+ * sound started at the beat that read it came out as late as the frame was long, and every sound
+ * of a long frame came out on one instant. What breaks silently: a `when` ignored (the sound starts
+ * now, late again), a past `when` honored (a start in the past), a jump that leaves the sounds
+ * scheduled ahead to play on the new moment.
+ */
+describe('ReplayAudioPlayer — scheduling ahead', () => {
+  it('play(…, when) starts the source AT `when`, envelope included', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    p.play('/a.ogg', undefined, undefined, undefined, { when: ctx.currentTime + 0.08 })
+    const at = ctx.currentTime + 0.08
+    expect(ctx.sources[0].started).toBeCloseTo(at, 9)
+    expect(ctx.sources[0].stopped).toBeCloseTo(at + 3, 9)
+    const voice = ctx.gains[ctx.gains.length - 1]
+    expect(voice.gain.calls[0]).toEqual(['set', 1, at])
+  })
+
+  it('a `when` already past starts now, never in the past', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    p.play('/a.ogg', undefined, undefined, undefined, { when: ctx.currentTime - 0.5 })
+    expect(ctx.sources[0].started).toBe(ctx.currentTime)
+  })
+
+  it('timeAt maps a page moment onto the audio clock, a past one onto now', () => {
+    const p = new ReplayAudioPlayer(1)
+    expect(p.timeAt(1_080, 1_000)).toBeCloseTo(ctx.currentTime + 0.08, 9)
+    expect(p.timeAt(900, 1_000)).toBe(ctx.currentTime)
+  })
+
+  it('cancelPending drops what has not started, and leaves what sounds', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    p.play('/a.ogg') // sounding
+    p.play('/a.ogg', undefined, undefined, undefined, { when: ctx.currentTime + 0.05 }) // scheduled ahead
+    p.cancelPending()
+    expect(ctx.sources[0].stopped).toBeCloseTo(ctx.currentTime + 3, 9)
+    // Stopped before its start: it never sounds.
+    expect(ctx.sources[1].stopped!).toBeLessThanOrEqual(ctx.sources[1].started!)
+  })
+
+  it('the pause (stopAll) drops the sounds scheduled ahead too', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    p.play('/a.ogg', undefined, undefined, undefined, { when: ctx.currentTime + 0.05 })
+    p.stopAll()
+    expect(ctx.sources[0].stopped!).toBeLessThanOrEqual(ctx.sources[0].started!)
+  })
+})
+
+/**
+ * THE CEILING ON THE AUDIO CLOCK, AND WHO KEEPS A SLOT. A slot used to be returned when the
+ * browser delivered `onended`, which a busy main thread delays; and a full ceiling refused
+ * whatever came last, so the far footsteps of seven Spartans held the slots against the followed
+ * player's own shots (measured on d01ba030: 20-29% of his sounds refused).
+ */
+describe('ReplayAudioPlayer — the ceiling keeps the loudest', () => {
+  const far = { gain: 0.1, pan: 0 }
+
+  it('a slot frees at its sound\'s END on the audio clock, without waiting for `onended`', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    for (let i = 0; i < SOUND_MAX_VOICES; i++) p.play('/a.ogg')
+    ctx.currentTime += 3 // the eight have ended; no `onended` delivered yet
+    p.play('/a.ogg')
+    expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 1)
+  })
+
+  it('full of far sounds, a louder one takes the quietest slot, which fades out without a click', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    for (let i = 0; i < SOUND_MAX_VOICES - 1; i++) p.play('/a.ogg', undefined, undefined, { gain: 0.3, pan: 0 })
+    p.play('/a.ogg', undefined, undefined, far) // the quietest, the last one in
+    const victim = ctx.sources[SOUND_MAX_VOICES - 1]
+    const victimGain = ctx.gains[ctx.gains.length - 1]
+    p.play('/a.ogg') // the followed player's own sound: full level
+    expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES + 1)
+    const t0 = ctx.currentTime
+    expect(victim.stopped).toBeCloseTo(t0 + SOUND_STEAL_FADE_S, 9)
+    expect(victimGain.gain.calls.slice(-2)).toEqual([['set', 0.1, t0], ['ramp', 0, t0 + SOUND_STEAL_FADE_S]])
+    // The others keep their whole file.
+    expect(ctx.sources[0].stopped).toBeCloseTo(t0 + 3, 9)
+  })
+
+  it('a sound no louder than every voice in flight is refused, as before', async () => {
+    const p = new ReplayAudioPlayer(1)
+    p.preload(['/a.ogg'])
+    await flush()
+    for (let i = 0; i < SOUND_MAX_VOICES; i++) p.play('/a.ogg', undefined, undefined, far)
+    p.play('/a.ogg', undefined, undefined, far) // same level: no slot taken
+    expect(ctx.sources).toHaveLength(SOUND_MAX_VOICES)
+    expect(ctx.sources.every((s) => s.stopped === ctx.currentTime + 3)).toBe(true)
+  })
+})
+
+describe('admitVoice — the single rule of the ceiling', () => {
+  const slot = (level: number, endS = 10, fadeStartS = 9) => ({ level, endS, fadeStartS })
+
+  it('under the ceiling: admitted, nothing taken', () => {
+    expect(admitVoice([slot(1)], 0, 0.01)).toEqual({ admit: true })
+  })
+
+  it('ended slots do not count', () => {
+    const full = Array.from({ length: SOUND_MAX_VOICES }, () => slot(1, 2))
+    expect(admitVoice(full, 2, 0.01)).toEqual({ admit: true })
+  })
+
+  it('full: takes the QUIETEST, only if strictly quieter than the newcomer', () => {
+    const full = [...Array.from({ length: SOUND_MAX_VOICES - 2 }, () => slot(0.5)), slot(0.2), slot(0.05)]
+    expect(admitVoice(full, 0, 0.3)).toEqual({ admit: true, steal: full[SOUND_MAX_VOICES - 1] })
+    expect(admitVoice(full, 0, 0.05)).toEqual({ admit: false })
+  })
+
+  it('a FOOTSTEP takes only a footstep\'s slot, never a shot\'s, even a quieter one', () => {
+    const shots = Array.from({ length: SOUND_MAX_VOICES - 1 }, () => slot(0.1))
+    const withFoot = [...shots, { ...slot(0.2), footstep: true }]
+    // Louder than every shot, but a step: it may only take the step's slot, and only if louder.
+    expect(admitVoice([...shots, slot(0.1)], 0, 0.7, true)).toEqual({ admit: false })
+    expect(admitVoice(withFoot, 0, 0.7, true)).toEqual({ admit: true, steal: withFoot[SOUND_MAX_VOICES - 1] })
+    // A shot takes any quieter slot, a step's included.
+    expect(admitVoice(withFoot, 0, 0.5)).toEqual({ admit: true, steal: shots[0] })
+  })
+
+  it('a voice already in its fade is never taken: it frees its slot on its own', () => {
+    const full = [...Array.from({ length: SOUND_MAX_VOICES - 1 }, () => slot(0.5)), slot(0.01, 10, 1)]
+    expect(admitVoice(full, 2, 0.3)).toEqual({ admit: false })
+  })
+
+  it('voiceLevelOf: event gain x distance, the level the voice plays at', () => {
+    expect(voiceLevelOf()).toBe(1)
+    expect(voiceLevelOf({ gainDb: -6 }, { gain: 0.5 })).toBeCloseTo(0.5 * 10 ** (-6 / 20), 9)
+  })
+
+  it('a taken slot cuts the envelope where it is taken (the export writes it into the shape)', () => {
+    expect(soundEnvelopeOf(3, { stealS: 1 })).toEqual({ fadeStartS: 1, stopS: 1 + SOUND_STEAL_FADE_S, loop: false })
+    // Taken during its own fade: nothing changes.
+    expect(soundEnvelopeOf(3, { stealS: 2.9 })).toEqual(soundEnvelopeOf(3))
+    expect(soundEnvelopeOf(1, { holdS: 5, stealS: 2 }).loop).toBe(true)
   })
 })
 

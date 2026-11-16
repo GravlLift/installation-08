@@ -224,6 +224,15 @@ describe('applyVoiceCap — the same accounting as the real-time player', () => 
     )
   })
 
+  it('full of far sounds, a louder one takes the quietest slot: the cut is written into its shape', () => {
+    const far = simultanes(SOUND_MAX_VOICES, 0).map((s, i) => ({ ...s, place: { gain: i === 3 ? 0.05 : 0.2, pan: 0 } }))
+    const own: MixedSound = { atMs: 400, stem: 'own', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx' }
+    const out = applyVoiceCap([...far, own], UNE_SECONDE)
+    expect(out.map((s) => s.stem)).toContain('own')
+    expect(out[3].shape?.stealS).toBeCloseTo(0.4, 9)
+    expect(out.filter((s) => s.shape?.stealS !== undefined)).toHaveLength(1)
+  })
+
   it('an absent asset is a silence, and occupies NO voice', () => {
     const sons = [...simultanes(2, 0), { atMs: 0, stem: 'absent', draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx' as const }]
     const out = applyVoiceCap(sons, (stem) => (stem === 'absent' ? null : 1))
@@ -261,6 +270,43 @@ describe('the conclusion — same rule at the page and at the export', () => {
     expect(exportes).toHaveLength(SOUND_MAX_VOICES + 2)
     expect(exportes).toContain('fanfare')
     expect(joues).toEqual(exportes)
+  })
+})
+
+/**
+ * PARITY GUARDRAIL (2026-11-16): the ceiling now ranks voices by level. The page and the export
+ * must keep and cut the SAME sounds, or the clip would not be the page's faithful trace.
+ */
+describe('the loudest keep their slot — same rule at the page and at the export', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('a mixed-level saturated stretch: same sounds kept, same one cut', async () => {
+    const levels = [0.2, 0.05, 0.6, 0.3, 0.1, 0.4, 0.25, 0.15, 1, 0.08, 0.5, 0.7, 0.9]
+    // Footsteps among them: they take only footsteps' slots, on both sides.
+    const steps = new Set([1, 4, 11, 12])
+    const sons: MixedSound[] = levels.map((g, i) => ({
+      atMs: i * 10, stem: `s${i}`, draw: { gainDb: 0, playbackRate: 1 }, family: 'sfx', place: { gain: g, pan: 0 },
+      ...(steps.has(i) ? { footstep: true } : {}),
+    }))
+    const exportes = applyVoiceCap(sons, () => 1)
+
+    const { ctx } = installFakeAudio(1)
+    const p = new ReplayAudioPlayer(1)
+    p.preload(sons.map((s) => `/${s.stem}.ogg`))
+    await flushAudio()
+    const t0 = ctx.currentTime
+    const joues: string[] = []
+    for (const s of sons) {
+      const avant = ctx.sources.length
+      p.play(`/${s.stem}.ogg`, s.draw, undefined, s.place, { when: t0 + s.atMs / 1000, footstep: s.footstep })
+      if (ctx.sources.length > avant) joues.push(s.stem)
+    }
+    expect(joues).toEqual(exportes.map((s) => s.stem))
+    // The cut ones: those the page stopped before their end are those the export shaped.
+    const coupesPage = ctx.sources.flatMap((src, i) => (src.stopped! < src.started! + 1 - 1e-6 ? [joues[i]] : []))
+    const coupesExport = exportes.filter((s) => s.shape?.stealS !== undefined).map((s) => s.stem)
+    expect(coupesPage).toEqual(coupesExport)
+    expect(coupesExport.length).toBeGreaterThan(0)
   })
 })
 

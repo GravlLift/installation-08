@@ -116,6 +116,8 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
       } else if (p.z !== undefined && (peakZ === null || p.z > peakZ)) {
         peakZ = p.z
       }
+      // The slide span ends at the take-off: the slide_outof.
+      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: { x: p.x, y: p.y } })
       stepAcc = 0
       slideAcc = 0
       sliding = false
@@ -148,6 +150,8 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
         out.push({ timeMs, kind: 'slide', action: 'slide', xuid, position: { x: p.x, y: p.y } })
       }
     } else {
+      // The slide ends: the slide_outof, at the last sliding frame.
+      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: { x: p.x, y: p.y } })
       sliding = false
       if (speed >= MIN_STEP_SPEED) {
         const gait = gaitOf(speed)
@@ -170,7 +174,9 @@ function stemsFor(manifest: FootstepManifest, surface: string, kind: FootstepTim
     case 'step':
       return footStems(manifest, surface, action)
     case 'slide':
-      return action === 'slide_into' ? movementStems(manifest, 'slide_into') : footStems(manifest, surface, 'slide')
+      if (action === 'slide_into') return movementStems(manifest, 'slide_into')
+      if (action === 'slide_outof') return movementStems(manifest, 'slide_outof')
+      return footStems(manifest, surface, 'slide')
     case 'land':
       return movementStems(manifest, action)
     case 'jump':
@@ -212,7 +218,7 @@ export function footstepReplayEvents(
   for (const e of events) {
     const stems = stemsFor(manifest, surface, e.kind, e.action)
     if (!stems) continue
-    const ev: ReplaySoundEvent = { ms: e.timeMs, stem: pickFootstem(e, stems), gainDb: FOOTSTEP_GAIN_DB }
+    const ev: ReplaySoundEvent = { ms: e.timeMs, stem: pickFootstem(e, stems), gainDb: FOOTSTEP_GAIN_DB, footstep: true }
     if (followed !== null && e.xuid !== followed) ev.at = e.position
     out.push(ev)
   }
