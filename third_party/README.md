@@ -361,6 +361,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     `coteSurface` (256, the pre-change output); the weapon library sets 512 and the
     first-person library sets 1024, so their sharpened hard surfaces stay the map build's
     unchanged. Covered by `himap/textures_monde_test.go` (`TestCoteSurfaceDure`).
+  - `himap/couches_forerunner.go` (new, LOCAL-CHANGE) and `couches_noms.go` (modified): the
+    Forerunner level shaders of Forge's "MP" pieces (9e8651c8, 55e97350, 71c12c90 and five
+    others on Origin) declare the template's layers 2 to 4 but name their base outside it: a
+    control map (0x8fd3629f), a normal map (0xfe080e52) and three blue-grey colors (0x0a1b7f9b,
+    0xaf44c1b5, 0x16855291). Without that base the next layer, a 31.6% sand dust, covered the
+    whole surface: 35% of Origin's layered triangles drew as sand stone where the game shows
+    Forerunner metal. The colors' order and the red index are inferred. Covered by
+    `himap/couches_forerunner_test.go` (new).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

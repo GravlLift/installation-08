@@ -168,6 +168,13 @@ func couchesDeNiveau(params ParametresShader, pp postprocessLu) *Couches {
 	if len(out.Couches) == 0 {
 		return nil
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): a Forerunner level shader names its base outside the
+	// template (couches_forerunner.go); without it the next layer would cover the whole surface.
+	if out.Couches[0].Rang > 0 {
+		if k, ok := baseForerunner(params, pp, c); ok {
+			out.Couches = append([]Couche{k}, out.Couches...)
+		}
+	}
 	return out
 }
 
