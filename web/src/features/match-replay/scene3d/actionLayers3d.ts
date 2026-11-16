@@ -12,7 +12,6 @@ import { HeldWeapons3d } from './heldWeapon3d'
 import { Objectives3dLayer } from './objectives3d'
 import { Pickups3dLayer } from './pickups3d'
 import { Shots3dLayer } from './shots3d'
-import { ShockArcs3dLayer } from './shockArcs3d'
 import { Vehicles3dLayer } from './vehicles3d'
 
 export function buildActionScene(ctx: ActionContext): ActionScene3d {
@@ -31,8 +30,8 @@ export function buildActionScene(ctx: ActionContext): ActionScene3d {
       },
     }),
     new Shots3dLayer(ctx),
-    // L'arc de la cagoule du fusil de choc, sur toute arme dessinée qui en est une.
-    new ShockArcs3dLayer(ctx),
+    // The Shock Rifle's shroud arcs (shockArcs3d.ts) are not drawn: the first version floated as a
+    // cloud of flat shards in front of the muzzle (owner, 2026-11-16) and is withdrawn until redone.
     new Flights3dLayer(ctx),
     new Deaths3dLayer(ctx),
   ]

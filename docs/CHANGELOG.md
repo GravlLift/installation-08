@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Changes since 0.1.0-test.14.
+
+- The Shock Rifle's shroud arcs added in test.14 are withdrawn: they drew as a pale cloud of flat shards in front of the muzzle instead of arcs on the shroud.
+
 ## 0.1.0-test.14
 
 Changes since 0.1.0-test.13.
