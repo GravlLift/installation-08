@@ -14,6 +14,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
+	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/reloadsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/uisounds"
 )
@@ -21,10 +22,11 @@ import (
 // announcerLanguages maps the viewer's language codes to the game's sound language folders.
 var announcerLanguages = map[string]string{"en": "English(US)", "fr": "French(France)"}
 
-// runBuildSounds extracts the multiplayer announcer's voice lines, the weapons' reload sounds and
-// the interface sounds (the pre-game countdown tick) and the maps' ambient beds from the installed
-// game into the replay sound folder (<data>/assets/sounds/halo_infinite), with the announcer.json,
-// reloads.json, ui.json and ambience.json manifests the server and the viewer read. The game stores them as
+// runBuildSounds extracts the multiplayer announcer's voice lines, the weapons' reload sounds,
+// the Spartan's foot and movement sounds and the interface sounds (the pre-game countdown tick)
+// and the maps' ambient beds from the installed game into the replay sound folder
+// (<data>/assets/sounds/halo_infinite), with the announcer.json, reloads.json, footsteps.json,
+// ui.json and ambience.json manifests the server and the viewer read. The game stores them as
 // Wwise Vorbis, which is repacked into the Ogg Vorbis files the viewer plays without decoding
 // (internal/wwvorbis): no other program runs.
 func runBuildSounds(args []string) error {
@@ -52,6 +54,12 @@ func runBuildSounds(args []string) error {
 	}
 	fmt.Printf("reloads built into %s: %d weapons, %d files, %d bytes; %d old take files removed\n",
 		soundsDir(dir), len(reloads.Manifest.Weapons), reloads.Files, reloads.Bytes, reloads.Removed)
+	footsteps, err := buildFootstepSounds(context.Background(), *gameRoot, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("foot steps built into %s: %d surfaces, %d movement sounds, %d files, %d bytes; %d old take files removed; silent %v\n",
+		soundsDir(dir), len(footsteps.Manifest.Feet), len(footsteps.Manifest.Movement), footsteps.Files, footsteps.Bytes, footsteps.Removed, footsteps.Silent)
 	ui, err := buildUISounds(context.Background(), *gameRoot, dir)
 	if err != nil {
 		return err
@@ -64,6 +72,21 @@ func runBuildSounds(args []string) error {
 	fmt.Printf("ambience built into %s: %d maps, %d files, %d bytes; %d old take files removed; skipped %v\n",
 		soundsDir(dir), len(beds.Manifest.Maps), beds.Files, beds.Bytes, beds.Removed, beds.Skipped)
 	return nil
+}
+
+// buildFootstepSounds is the foot step extraction both build-sounds and the server's sound job
+// run: every Spartan foot and movement sound the game has, into the data directory's sound
+// folder.
+func buildFootstepSounds(ctx context.Context, gameRoot, dataDir string) (*footstepsounds.Result, error) {
+	root, module, err := firstperson.ResolveModule(ctx, firstperson.Options{GameRoot: gameRoot})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	res, err := footstepsounds.Build(ctx, footstepsounds.Options{GameRoot: root, Module: module, OutDir: soundsDir(dataDir)})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, nil
 }
 
 // buildUISounds is the interface sound extraction both build-sounds and the server's sound job
