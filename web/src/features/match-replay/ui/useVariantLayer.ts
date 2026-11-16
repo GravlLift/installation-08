@@ -71,7 +71,7 @@ export function useVariantLayer(
         if (!buffer) progress.variantNone()
         else {
           const layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
-            progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total))
+            progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader)
           if (!alive || !scene.attachLayer(layer)) layer.dispose()
         }
       } catch (err) {
