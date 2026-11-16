@@ -27,6 +27,13 @@ go build -o infinite-theater-3d.exe ./cmd/infinite-theater-3d
 This is the path for someone who downloaded the release zip, not someone building from
 source.
 
+**Windows SmartScreen.** The release is not code-signed, so the first time you run
+`infinite-theater-3d.exe` Windows shows "Windows protected your PC". Click **More info**,
+then **Run anyway**. This is the standard prompt for unsigned software, not a Defender
+quarantine: a real quarantine says "threat found" and removes the file, which is a different
+problem you should report rather than work around. The source is open, so you can also build
+it yourself (see [Packaged build](#packaged-build)).
+
 - **Requirements**: Windows, and Halo Infinite installed through Steam or the Xbox app. The
   app auto-detects a Steam install (the default Steam install, or any Steam library
   `libraryfolders.vdf` declares) and an Xbox app install
@@ -310,10 +317,22 @@ dist\infinite-theater-3d-<version>-windows-amd64\
     README.md
     third_party\...
 dist\infinite-theater-3d-<version>-windows-amd64.zip
+dist\SHA256SUMS.txt
 ```
 
 The exe needs nothing beside it, the announcer extraction included. `-OutDir <dir>` writes
 the exe, the folder and the zip somewhere other than `dist\`.
+
+The script also writes `SHA256SUMS.txt` next to the zip (and the installer, with
+`-Installer`): one SHA-256 per release file, in standard `sha256sum` format
+(`<lowercase hex>  <file name>`). To verify a download, hash the file and compare the result
+with its line in `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash .\infinite-theater-3d-0.1.0-windows-amd64.zip -Algorithm SHA256
+```
+
+A matching hash means the file is byte-for-byte the one that was published.
 
 The exe is a single file: double-click it (or run it with no arguments) and it serves
 and opens the viewer in the default browser. A `version` subcommand prints the build
