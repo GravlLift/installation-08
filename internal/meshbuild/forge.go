@@ -89,12 +89,13 @@ func BuildForgeMap(ctx context.Context, opts ForgeMapOptions, out string, announ
 	if target.SunIntensity, target.SunColor, err = forgeSun(v.Lighting, catalog); err != nil {
 		return mapmesh.Summary{}, err
 	}
+	target.SunAzimuth, target.SunLatitude = forgeSunDirection(v.Lighting)
 	target.TextureCaps = capsOfQuality(opts.Quality)
 	target.Textures = texturesOf(opts.Textures)
 	return mapmesh.Build(ctx, gameRoot, target, out, generatorTagForge, announce)
 }
 
-// forgeSun returns the sun a Forge map's own lighting options set over its canvas's: the
+// forgeSun returns the sun strength a Forge map's own lighting options set over its canvas's: the
 // Sunlight intensity, and the Sunlight color override when it is switched on (mapvar.Lighting),
 // resolved in the Forge globals' color list (`catalog`, forge_materials.json "colors") and scaled
 // to a peak of 1 (the scenario suns' convention; the intensity carries the strength). nil for
@@ -119,6 +120,18 @@ func forgeSun(l *mapvar.Lighting, catalog []byte) (*float64, *[3]float64, error)
 		}
 	}
 	return l.SunIntensity, color, nil
+}
+
+// forgeSunDirection returns the azimuth and latitude a Forge map's Sun Direction sets over its
+// canvas's sun (mapvar.SunDirection: yaw and pitch); nil, nil when the variant sets none. Origin
+// (yaw 0, pitch 330) on fo08_wetland (231.8, 71.6) moves its sun from 41.8 degrees of elevation
+// at azimuth 141.8 to 36.6 degrees at azimuth 90.
+func forgeSunDirection(l *mapvar.Lighting) (azimuth, latitude *float64) {
+	if l == nil || l.SunDirection == nil {
+		return nil, nil
+	}
+	yaw, pitch := l.SunDirection.Yaw, l.SunDirection.Pitch
+	return &yaw, &pitch
 }
 
 // ResolveForgeTarget resolves the world-mesh target of the Forge map whose variant is `v`: its

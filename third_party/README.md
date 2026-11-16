@@ -328,6 +328,10 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     its scenario sun's; Fortress: 25 over its canvas's 5), field 1 the Sunlight color override
     (a Forge globals color index) and field 18 its switch (1 on, inferred from the maps that
     carry a warm sun color there). Covered by `mapvar/lighting_test.go` (new).
+    `Lighting.SunDirection` (and the `SunDirection` type) reads field 2, the Sun Direction
+    {0: yaw, 1: pitch}: the level `dwsg` sun's azimuth and latitude (native variants store their
+    scenario's: Recharge 250/28, Live Fire 138/52, Streets 220/22, Aquarius 60/40). Covered by
+    `TestReadSunDirection`.
   - Foliage atlas cuts, `himap/decoupe.go` (`decoupeAtlasFeuillage`), `materiaux.go`: a shader
     that binds a leaf atlas color map (`0xca775400`, or 669c3e5e's slot 4) is cut by that map's
     alpha, the leaves' coverage. Fortress's pine clusters, bushes, firs and root clusters drew as

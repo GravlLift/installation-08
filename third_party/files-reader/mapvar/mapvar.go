@@ -114,11 +114,25 @@ type Variant struct {
 // an index into the Forge globals' color list; field 18 reads 1 on the maps whose override is a
 // sun color (Fortress, Vacancy, Origin: warm oranges) and 2 where it would not be (Solitude's
 // dark green, Outlook's grey): inferred to be the override's switch.
+//
+// Field 2 is the Sun Direction, {0: yaw, 1: pitch} in degrees, the level's sun azimuth and
+// latitude as its `dwsg` names them: native variants store their scenario's values there
+// (Recharge 250/28, Live Fire 138/52, Streets 220/22, Aquarius 60/40, all equal to their `dwsg`),
+// Forge maps their own (Fortress 60/30, Vacancy 50/20, Origin 0/330 over canvases at 222/40 and
+// 231.8/71.6). A sub-field left out holds the default, 0 (Origin's yaw).
 type Lighting struct {
 	SunIntensity *float64
 	// SunColorIndex is field 1 (0 when absent); SunColorSwitch is field 18 (0 when absent).
 	SunColorIndex  int
 	SunColorSwitch int
+	// SunDirection is field 2, nil when absent (LOCAL-CHANGE (infinite-theater-3d)).
+	SunDirection *SunDirection
+}
+
+// SunDirection (LOCAL-CHANGE (infinite-theater-3d)) is a variant's Sun Direction: Yaw is the sun
+// azimuth and Pitch its latitude, in the `dwsg` sense (himap.DirectionSoleil), in degrees.
+type SunDirection struct {
+	Yaw, Pitch float64
 }
 
 // SunColorOverrideOn is the Lighting.SunColorSwitch value of an active sun color override.
@@ -143,6 +157,16 @@ func readLighting(root Value) *Lighting {
 	}
 	if f, ok := opts.Field(18); ok {
 		l.SunColorSwitch = int(f.Int)
+	}
+	if f, ok := opts.Field(2); ok && f.Fields != nil {
+		d := &SunDirection{}
+		if c, ok := f.Field(0); ok {
+			d.Yaw = c.Float
+		}
+		if c, ok := f.Field(1); ok {
+			d.Pitch = c.Float
+		}
+		l.SunDirection = d
 	}
 	return l
 }
