@@ -14,6 +14,7 @@ Changes since 0.1.0-test.12.
 - The Stalker Rifle placed on maps such as Streets (a second weapon id) is recognized: painted, with its scope and ammo counter.
 - Spartans, corpses and the first-person arms and weapon are lit by the map's lamps, like the floor they stand on. On night maps such as Streets they read near black on a lamp-lit street before.
 - Bloom: lamps and other self-lit surfaces glow (setting "Bloom", on by default).
+- Weapon light strips and ammo screens glow (BR75, Commando, Bandit, Plasma Pistol, Pulse Carbine, Stalker Rifle, Shock Rifle, Needler and others), in third and first person. They drew as black glass before. Takes effect once the weapon and first-person libraries are rebuilt.
 
 ## 0.1.0-test.12
 

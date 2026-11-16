@@ -37,6 +37,21 @@ func TestEmissifDuShader(t *testing.T) {
 	if e := emissifDuShader(0x12345678, illum); e != nil {
 		t.Fatalf("shader inconnu : %+v", e)
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): illum, the BR75's light strip (Ekur's export).
+	bande := constantesAvec(112, map[int]float32{0: 9, 12: 9, 32: 0, 36: 0.178, 40: 1, 44: 5})
+	if e := emissifDuShader(shaderIllum, bande); e == nil || e.Couleur != [3]float32{0, 0.178, 1} || e.Force != 5 {
+		t.Fatalf("illum : %+v", e)
+	}
+	if e := emissifDuShader(shaderIllum, constantesAvec(112, map[int]float32{32: 1, 36: 1, 40: 1})); e != nil {
+		t.Fatalf("illum eteint : %+v", e)
+	}
+}
+
+// TestBitmapEmissifIllum (LOCAL-CHANGE (infinite-theater-3d)): illum's light is its color map.
+func TestBitmapEmissifIllum(t *testing.T) {
+	if got := bitmapEmissif(shaderIllum, map[int]uint32{0: 0xC, 48: 10098}); got != 0xC {
+		t.Fatalf("illum : %#x", got)
+	}
 }
 
 // TestEcritGLBEmissif : couleur ramenee dans [0, 1], excedent dans la force, extension declaree

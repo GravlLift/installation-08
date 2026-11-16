@@ -178,6 +178,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     map's coordinates, so the light shows only where the game masks it (the pads' thin strips).
     A texture absent from the modules (an engine default) leaves the light uniform. Covered by
     `himap/emissif_texture_test.go` (new).
+  - `himap/emissif.go` (LOCAL-CHANGE): the `illum` shader (0xfb43df97, Ekur's `handle_illum`)
+    joins the self-lit table: color at constant +32, intensity at +44, its color map (slot 0) as
+    the `emissiveTexture`. It draws the weapons' light strips and ammo screens. Covered by
+    `himap/emissif_test.go` and `himap/emissif_illum_gamefiles_test.go` (new, checks three weapon
+    materials against Ekur's export).
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the
