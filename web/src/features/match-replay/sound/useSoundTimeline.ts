@@ -49,9 +49,10 @@ export function useSoundTimeline(
   const followed = inputs.announcer.followed
   const timeline = useMemo(() => {
     const track = buildSoundTimeline(doc, kills, categories, sideOfXuid, allyTeam, announcer)
-    const withReloads = !categories.weapon || !reloads ? track : [...track, ...reloadSoundEvents(doc, reloads)]
-    if (!footsteps) return withReloads
-    return [...withReloads, ...footstepSoundEvents(footsteps, doc, FOOTSTEP_SURFACE, followed)].sort((a, b) => a.ms - b.ms)
+    const extras: ReplaySoundEvent[] = []
+    if (categories.weapon && reloads) extras.push(...reloadSoundEvents(doc, reloads))
+    if (footsteps) extras.push(...footstepSoundEvents(footsteps, doc, FOOTSTEP_SURFACE, followed))
+    return extras.length === 0 ? track : [...track, ...extras].sort((a, b) => a.ms - b.ms)
   }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, reloads, footsteps, followed])
   return { timeline, announcer }
 }

@@ -4,8 +4,9 @@
  * player's own steps are unplaced, the others' are.
  */
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ReplayKill } from '../model/killFeedLogic'
 import { testReplayDoc } from '../test/testDoc'
 import type { FootstepManifest } from './footstepManifest'
 import { SOUND_CATEGORIES_DEFAULT } from './replaySound'
@@ -17,8 +18,19 @@ const MANIFEST = vi.hoisted((): FootstepManifest => ({
   movement: {},
 }))
 
+// A single reload sound placed EARLY (ms 1): it only sorts to the front of the track when the
+// merged timeline is sorted. A non-empty library is enough for `useSoundTimeline` to append it.
+const RELOAD = vi.hoisted(() => [{ ms: 1, stem: 'reload_x' }])
+const state = vi.hoisted(() => ({ footstep: true, reloads: false }))
+
 vi.mock('./useFootstepTrack', () => ({
-  useFootstepTrack: () => MANIFEST,
+  useFootstepTrack: () => (state.footstep ? MANIFEST : undefined),
+}))
+vi.mock('./useReloadTrack', () => ({
+  useReloadTrack: () => (state.reloads ? new Map() : undefined),
+}))
+vi.mock('./reloadSound', () => ({
+  reloadSoundEvents: () => (state.reloads ? RELOAD : []),
 }))
 
 function inputs(followed: string | null): SoundTimelineInputs {
@@ -41,7 +53,21 @@ function walkingDoc(): Parameters<typeof useSoundTimeline>[0] {
   })
 }
 
+/** A kill at 2,000 ms: a base-track event that sorts AFTER the early reload. */
+const KILL: ReplayKill = {
+  replayMs: 2_000, tMs: 2_000, xuid: 'K', teamID: 0, medals: [],
+  weaponKey: 'hinf_br75', weaponLabel: 'BR75', weaponImageUrl: '', weaponTinted: false,
+  assistState: '', assistGamertag: '', assistTeamID: null,
+  killerDamagePct: null, assistDamagePct: null,
+  victimXuid: 'V', victimGamertag: 'Victim',
+}
+
 describe('useSoundTimeline — footsteps', () => {
+  beforeEach(() => {
+    state.footstep = true
+    state.reloads = false
+  })
+
   it('a manifest puts foot steps into the track', () => {
     const { result } = renderHook(() => useSoundTimeline(walkingDoc(), [], inputs('ME')))
     const footsteps = result.current.timeline.filter((e) => e.stem === 'foot_walk')
@@ -55,4 +81,14 @@ describe('useSoundTimeline — footsteps', () => {
     expect(footsteps.some((e) => e.at !== undefined)).toBe(true)
   })
 
+  it('reloads present, footsteps null -> the timeline is sorted by ms', () => {
+    state.reloads = true
+    state.footstep = false
+    const { result } = renderHook(() => useSoundTimeline(walkingDoc(), [KILL], inputs('ME')))
+    const timeline = result.current.timeline
+    expect(timeline.some((e) => e.stem === 'reload_x')).toBe(true)
+    expect(timeline.map((e) => e.ms)).toEqual([...timeline].sort((a, b) => a.ms - b.ms).map((e) => e.ms))
+    // The early reload sorts to the front, before the kill.
+    expect(timeline[0].ms).toBe(1)
+  })
 })
