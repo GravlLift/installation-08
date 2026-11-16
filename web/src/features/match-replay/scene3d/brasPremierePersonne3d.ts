@@ -10,7 +10,7 @@ import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
 import { nouvellePosePremierePersonne, posePremierePersonne, type EvenementsPremierePersonne } from './actionsPremierePersonne3d'
-import { clipDuRig, ROTATION_RIG_CAMERA, tempsDuClip, urlRig, type ClipPremierePersonne, type IndexPremierePersonne, type RigPremierePersonne } from './premierePersonne3d'
+import { clipDuRig, ROTATION_RIG_CAMERA, tempsDuClip, urlRig, type ClipPremierePersonne, type IndexPremierePersonne, type MarqueurEffetRig, type RigPremierePersonne } from './premierePersonne3d'
 import { rigGripOf, type ViewGrip } from './viewGrip3d'
 import { BrasPieces3d, type BrasIndex } from './brasPieces3d'
 import { boucheMondeRig, boucheRig, boucheRigCamera, boucheRigLocale, type BoucheLocale } from './boucheRig3d'
@@ -49,6 +49,7 @@ const BAC_BOCHE_VUE = new THREE.Vector3()
 const BAC_ORIGINE = new THREE.Vector3()
 const BAC_IDENTITE = new THREE.Quaternion()
 const BAC_AXE_RIG = new THREE.Vector3()
+const BAC_MARQUEUR = new THREE.Matrix4()
 
 /**
  * appliquerTenueRig : pose la tenue réglée du rig (viewGrip3d) sur la position et l'orientation
@@ -108,6 +109,10 @@ export class BrasPremierePersonne3d {
   private readonly armes = new Map<string, RigPremierePersonne>()
   /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
   private readonly fichiersArmes = new Map<string, string>()
+  /** The idle-effect markers of each weapon's rig (the index's `effectMarkers`), by weapon key. */
+  private readonly marqueursEffets = new Map<string, readonly MarqueurEffetRig[]>()
+  /** The bones the markers hang on, found once per loaded rig root. */
+  private readonly osEffets = new WeakMap<THREE.Object3D, Map<string, THREE.Object3D | null>>()
   private visible: THREE.Object3D | null = null
   private readonly mainMonde = new THREE.Vector3()
   private cleVisible: string | null = null
@@ -189,6 +194,7 @@ export class BrasPremierePersonne3d {
         if (rig) {
           this.armes.set(arme.weapon.toLowerCase(), rig)
           this.fichiersArmes.set(rig.file, arme.weapon.toLowerCase())
+          if (arme.effectMarkers?.length) this.marqueursEffets.set(arme.weapon.toLowerCase(), arme.effectMarkers)
         }
       }
     } catch (erreur) {
@@ -362,6 +368,31 @@ export class BrasPremierePersonne3d {
       main.getWorldPosition(this.mainMonde)
     }
     return fpCableStart(this.porteur.position, this.porteur.quaternion, main ? this.mainMonde : null, out)
+  }
+
+  /**
+   * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
+   * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
+   * frame. False when that weapon's rig is not the one shown, or lacks the marker or its bone.
+   */
+  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4): boolean {
+    if (!this.visible || this.cleVisible !== cle) return false
+    const m = this.marqueursEffets.get(cle)?.find((x) => x.marker === marqueur)
+    if (!m) return false
+    let os = this.osEffets.get(this.visible)
+    if (!os) this.osEffets.set(this.visible, (os = new Map()))
+    if (!os.has(m.bone)) os.set(m.bone, this.visible.getObjectByName(m.bone) ?? null)
+    const bone = os.get(m.bone)
+    if (!bone) return false
+    bone.updateWorldMatrix(true, false)
+    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.makeTranslation(m.position[0], m.position[1], m.position[2]))
+    return true
+  }
+
+  /** dureeClip: the length (s) of the clip the rig of weapon `cle` plays for `action`, null without one. */
+  dureeClip(cle: string, action: string): number | null {
+    const rig = this.armes.get(cle)
+    return rig ? clipDuRig(rig, action)?.durationSeconds ?? null : null
   }
 
   cacher(): void {

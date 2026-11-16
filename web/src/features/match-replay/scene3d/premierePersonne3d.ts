@@ -22,9 +22,16 @@ export interface RigPremierePersonne {
   missingActions: unknown[]
 }
 
+/** A marker a weapon's idle effect emits at, on the rig: its bone and its offset in that bone's frame (GLB axes). */
+export interface MarqueurEffetRig {
+  marker: string
+  bone: string
+  position: [number, number, number]
+}
+
 export interface IndexPremierePersonne {
   schema: number
-  weapons: { weapon: string; file: string }[]
+  weapons: { weapon: string; file: string; effectMarkers?: MarqueurEffetRig[] }[]
   rigs: RigPremierePersonne[]
   failures: unknown[]
   textures: unknown

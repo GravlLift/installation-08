@@ -273,6 +273,9 @@ export class ReplayScene3d implements Replay3DExportSource {
       rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,
       rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false, firstPersonLeftHand: (out) => this.bras?.mainGaucheMonde(out) ?? null,
       scopeMounted: () => this.scopeView.montee,
+      weaponLibrary: () => this.weaponModels?.base ?? null,
+      firstPersonEffectAnchor: (key, marker, out) => this.bras?.ancreEffet(key, marker, out) ?? false,
+      weaponClipSeconds: (key, action) => this.bras?.dureeClip(key, action) ?? null,
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.prechargerRigs()
