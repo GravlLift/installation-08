@@ -46,12 +46,31 @@ func TestEmissifDuShader(t *testing.T) {
 	if e := emissifDuShader(shaderIllum, constantesAvec(112, map[int]float32{32: 1, 36: 1, 40: 1})); e != nil {
 		t.Fatalf("illum eteint : %+v", e)
 	}
+	// energie (LOCAL-CHANGE (infinite-theater-3d)): force seule, couleur dans la carte de teinte.
+	energie := constantesAvec(96, map[int]float32{92: 20})
+	if e := emissifDuShader(shaderEnergie, energie); e == nil || e.Couleur != [3]float32{1, 1, 1} || e.Force != 20 {
+		t.Fatalf("energie : %+v", e)
+	}
+	if e := emissifDuShader(shaderEnergie, constantesAvec(96, map[int]float32{92: 0})); e != nil {
+		t.Fatalf("energie eteinte : %+v", e)
+	}
+	if e := emissifDuShader(shaderEnergie, constantesAvec(92, nil)); e != nil {
+		t.Fatalf("energie trop courte : %+v", e)
+	}
 }
 
 // TestBitmapEmissifIllum (LOCAL-CHANGE (infinite-theater-3d)): illum's light is its color map.
 func TestBitmapEmissifIllum(t *testing.T) {
 	if got := bitmapEmissif(shaderIllum, map[int]uint32{0: 0xC, 48: 10098}); got != 0xC {
 		t.Fatalf("illum : %#x", got)
+	}
+}
+
+// TestBitmapEmissifEnergie (LOCAL-CHANGE (infinite-theater-3d)): the energy shader's tint map
+// sits at its slot 68.
+func TestBitmapEmissifEnergie(t *testing.T) {
+	if got := bitmapEmissif(shaderEnergie, map[int]uint32{68: 0x2756, 32: 0x2772}); got != 0x2756 {
+		t.Fatalf("energie : %#x", got)
 	}
 }
 
