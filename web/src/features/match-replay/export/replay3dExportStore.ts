@@ -35,13 +35,15 @@ export interface Export3dSetup {
   frameMs: number
 }
 
-/** Une étiquette de joueur projetée dans l'image exportée, en pixels du fichier. */
+/** A player tag projected into the exported image, in file pixels. */
 export interface ExportTag3d {
   x: number
   y: number
   name: string
-  /** Couleur du joueur, déjà résolue en chaîne CSS (une toile ne lit pas les variables du thème). */
+  /** The player's color, resolved to a CSS string (a canvas does not read theme variables). */
   color: string
+  /** Opacity the screen's distance rule gave it (1 full, a fade between, 0 never painted). */
+  opacity: number
 }
 
 /** Ce que la scène prête à l'export. */

@@ -32,6 +32,8 @@ interface ExportScene {
   /** `dt`: seconds of MATCH since the previous exported frame (the spring arm's ease). */
   placeCamera(frame: number, dt: number): void
   placeFirstPerson(frame: number): void
+  /** Recomputes name tags from the camera as placed for the last exported frame (they were tagged before it moved). */
+  retagTags(): void
   /** Drives the clouds from match time (seconds), or hands them back to the wall clock (null). */
   setSkyClock?(seconds: number | null): void
   /** Takes the top-down view's markers out of the scene (what the screen does when the 3D view draws). */
@@ -127,6 +129,9 @@ export class ReplayExportScene3d {
       this.scene.placeAvatars(frame)
       this.scene.placeCamera(frame, dt)
       this.scene.placeFirstPerson(frame)
+      // The tags were posed against the PREVIOUS camera; recompute them now the camera sits where
+      // this frame's image sees from (visibility AND opacity, the screen's own rule).
+      this.scene.retagTags()
       this.scene.action?.update(frame)
     }
     this.scene.lighting.updateShadows(frame)
@@ -149,10 +154,11 @@ export class ReplayExportScene3d {
       tags.push({ x: ((p.x + 1) / 2) * size.x, y: ((1 - p.y) / 2) * size.y, ...tag })
     }
     for (const a of this.scene.avatars.values()) {
-      if (a.tag.visible) push(a.tag.position, { name: a.name, color: a.color })
+      if (a.tag.visible) push(a.tag.position, { name: a.name, color: a.color, opacity: a.tagOpacity })
     }
     for (const pool of this.scene.action?.labelPools() ?? []) {
-      for (const l of pool.shown()) push(l.position, { name: l.text, color: l.color })
+      // Event labels have no distance fade: full opacity.
+      for (const l of pool.shown()) push(l.position, { name: l.text, color: l.color, opacity: 1 })
     }
     return tags
   }

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { LOOK3D_DEFAULT } from './look3d'
 import { buildPostFx } from './postFx3d'
+import { placeTag } from './nameTags3d'
 import { ReplayExportScene3d, exportStepSeconds } from './replayExportScene3d'
 import { ReplayScene3d } from './replayScene3d'
 
@@ -39,6 +41,7 @@ function sceneDouble() {
     placeAvatars: () => calls.push('avatars'),
     placeCamera: (_f: number, dt: number) => { calls.push('camera'); steps.push(dt) },
     placeFirstPerson: () => calls.push('arms'),
+    retagTags: () => calls.push('retag'),
     setSkyClock: (s: number | null) => sky.push(s),
     action: { settle: () => calls.push('settle'), update: () => calls.push('effects') },
     lighting: { updateShadows: () => calls.push('shadows') },
@@ -67,10 +70,51 @@ describe('ReplayExportScene3d', () => {
     vi.restoreAllMocks()
   })
 
-  it('settles the bodies, then places the camera and first-person rig before updating effects', () => {
+  it('settles the bodies, places the camera and first-person rig, retags, then updates effects', () => {
     const { exported, calls } = sceneDouble()
     exported.exportFrame(42)
-    expect(calls).toEqual(['settle', 'avatars', 'camera', 'arms', 'effects', 'shadows', 'render', 'screen', 'read'])
+    expect(calls).toEqual(['settle', 'avatars', 'camera', 'arms', 'retag', 'effects', 'shadows', 'render', 'screen', 'read'])
+  })
+
+  it('exports the tags the SCREEN shows at the frame\'s camera: full at 8 u, faded at 12 u, gone at 15 u, the followed player always', () => {
+    // Four players directly in front of a camera that the frame moves to the origin. The export
+    // poses the avatars FIRST (tags measured from the previous, far camera) and places the camera
+    // SECOND: without the retag the exported set would be the stale one.
+    const camera = new THREE.PerspectiveCamera()
+    camera.position.set(0, 0, -1000)
+    const at = (name: string, xuid: string, z: number) => ({
+      name, xuid,
+      tag: new CSS2DObject(document.createElement('div')),
+      tagOpacity: 0,
+      color: '#fff',
+      feet: new THREE.Vector3(0, 0, z),
+    })
+    const players = [at('P8', '8', -8), at('P12', '12', -12), at('P15', '15', -15), at('PF', 'f', -15)]
+    const avatars = new Map(players.map((p) => [p.xuid, p]))
+    const pose = {
+      placeAvatars: () => { for (const p of players) p.tagOpacity = placeTag(p.tag, p.feet, camera.position, false) },
+      placeCamera: () => { camera.position.set(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld() },
+      retagTags: () => { for (const p of players) p.tagOpacity = placeTag(p.tag, p.feet, camera.position, p.xuid === 'f') },
+    }
+    const exported = new ReplayExportScene3d({
+      hasTracks: true,
+      renderer: { getSize: (v: THREE.Vector2) => v.set(100, 50) },
+      camera,
+      avatars,
+      povXuid: 'f',
+      ...pose,
+    } as never)
+    // The export's own order: avatars posed (tags measured from the previous camera), then the
+    // camera, then the retag, then the tags are read.
+    pose.placeAvatars()
+    pose.placeCamera()
+    pose.retagTags()
+    const tags = exported.exportTags()
+    expect(tags.map((t) => t.name)).toEqual(['P8', 'P12', 'PF']) // the 15 u player is absent
+    expect(tags[0].opacity).toBe(1) // 8 u: full
+    expect(tags[1].opacity).toBeGreaterThan(0.4)
+    expect(tags[1].opacity).toBeLessThan(0.6) // 12 u: mid-fade
+    expect(tags[2].opacity).toBe(1) // followed at 15 u: always
   })
 
   it('hands out the drawing buffer read right after its render, never the WebGL canvas (frozen export, 2026-11-15)', () => {

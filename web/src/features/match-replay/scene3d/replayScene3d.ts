@@ -190,6 +190,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
       placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame, dt) => this.cameraPlacement.placeCamera(frame, dt),
       placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
+      retagTags: () => this.retagTags(),
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
       hideTopDown: () => this.top?.idle(),
     })
@@ -429,6 +430,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       status = this.cameraPlacement.placeCamera(frame)
       this.placerLunette(frame)
       this.bras?.placer(this.camera)
+      this.retagTags() // tags must measure from the camera now placed, not the previous frame's
       t = marquer(p, 1, t)
       this.action?.update(frame)
     }
@@ -647,8 +649,24 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
       a.group.visible = !(firstPerson && rider) // aboard in first person: no weapon shown
-      placeTag(a.tag, feet, firstPerson ? null : eye, this.view === 'top' || p.xuid === this.povXuid || !!this.action?.aids().allNameTags) // top: every tag, a map key
+      a.tagOpacity = placeTag(a.tag, feet, firstPerson ? null : eye, this.view === 'top' || p.xuid === this.povXuid || !!this.action?.aids().allNameTags) // top: every tag, a map key
       this.topPlayers.push({ xuid: p.xuid, feet, heading: h, avatar: a })
+    }
+  }
+
+  /**
+   * retagTags recomputes each name tag's visibility and opacity from the camera AS PLACED FOR
+   * `frame`. `placeAvatars` must run first (it poses the bodies the camera follows, so the camera
+   * cannot be placed first), and it tags against the PREVIOUS frame's camera: fine on screen,
+   * where the camera creeps, but in an export the camera moves fast or jumps between frames, and
+   * the stale distances made a random assortment of tags appear. The followed player in first
+   * person keeps the null eye (no self tag).
+   */
+  private retagTags(): void {
+    const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position
+    for (const m of this.topPlayers) {
+      const firstPerson = m.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
+      m.avatar.tagOpacity = placeTag(m.avatar.tag, m.feet, firstPerson ? null : eye, this.view === 'top' || m.xuid === this.povXuid || !!this.action?.aids().allNameTags)
     }
   }
 

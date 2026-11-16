@@ -31,10 +31,11 @@ export function nameTagOpacity(distance: number, always: boolean): number {
 }
 
 /**
- * placeTag — pose l'étiquette au-dessus des pieds `feet` et règle sa visibilité. `eye` : la
- * position de la caméra, null quand l'étiquette ne se montre pas (soi-même en 1re personne).
+ * placeTag — pose l'étiquette au-dessus des pieds `feet` et règle sa visibilité ; renvoie
+ * l'opacité posée (l'export la peint, l'écran la porte dans le style). `eye` : la position de
+ * la caméra, null quand l'étiquette ne se montre pas (soi-même en 1re personne).
  */
-export function placeTag(tag: CSS2DObject, feet: THREE.Vector3, eye: THREE.Vector3 | null, always: boolean): void {
+export function placeTag(tag: CSS2DObject, feet: THREE.Vector3, eye: THREE.Vector3 | null, always: boolean): number {
   tag.position.set(feet.x, feet.y + TAG_HEIGHT, feet.z)
   // Au centième : une étiquette qui s'écrirait « 0 » est cachée, pas posée transparente.
   const opacity = eye ? Math.round(nameTagOpacity(tag.position.distanceTo(eye), always) * 100) / 100 : 0
@@ -42,4 +43,5 @@ export function placeTag(tag: CSS2DObject, feet: THREE.Vector3, eye: THREE.Vecto
   // Une valeur vide rend l'opacité du style de la pastille : pas d'écriture tant qu'elle ne change pas.
   const css = opacity >= 1 ? '' : String(opacity)
   if (tag.element.style.opacity !== css) tag.element.style.opacity = css
+  return opacity
 }
