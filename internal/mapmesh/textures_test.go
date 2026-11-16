@@ -58,7 +58,7 @@ func TestWriteGLBTextures(t *testing.T) {
 	dir := t.TempDir()
 
 	pngPath := filepath.Join(dir, "png.glb")
-	if _, err := writeGLB(context.Background(), pngPath, "k", texcompress.FormatPNG, nil, write); err != nil {
+	if _, err := writeGLB(context.Background(), pngPath, "k", texcompress.FormatPNG, progress{}, write); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(pngPath); !bytes.Equal(got, src) {
@@ -67,7 +67,12 @@ func TestWriteGLBTextures(t *testing.T) {
 
 	ktxPath := filepath.Join(dir, "ktx2.glb")
 	var steps []Step
-	n, err := writeGLB(context.Background(), ktxPath, "k", texcompress.FormatKTX2, func(s Step) { steps = append(steps, s) }, write)
+	rec := recProgress{add: func(frac float64, stage string) {
+		if stage != "" {
+			steps = append(steps, Step(stage))
+		}
+	}}
+	n, err := writeGLB(context.Background(), ktxPath, "k", texcompress.FormatKTX2, progress{rep: rec, ktx2: true}, write)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,8 +83,14 @@ func TestWriteGLBTextures(t *testing.T) {
 	if int64(len(got)) != n || !bytes.Contains(got, []byte(texcompress.MimeKTX2)) || !bytes.Contains(got, []byte("KHR_texture_basisu")) {
 		t.Errorf("KTX2 build: %d bytes (reported %d), KTX2 image %v", len(got), n, bytes.Contains(got, []byte(texcompress.MimeKTX2)))
 	}
-	if len(steps) != 1 || steps[0] != StepTextures {
-		t.Errorf("steps %v, want [%s]", steps, StepTextures)
+	if len(steps) == 0 {
+		t.Errorf("no step reported, want %s", StepTextures)
+	}
+	for _, s := range steps {
+		// The texture stage is reported at its start and again per compressed image.
+		if s != StepTextures {
+			t.Errorf("step %s reported, want only %s", s, StepTextures)
+		}
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 2 {

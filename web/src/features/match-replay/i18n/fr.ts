@@ -435,4 +435,14 @@ export const FR_TEXT = {
   textureQualityHigh: 'Haute',
   textureQualityHighHint:
     'Utilise environ 4x la mémoire graphique et construit un fichier de carte plus volumineux à la première utilisation.',
+  buildStage: {
+    geometry: 'Lecture de la géométrie de la carte',
+    lighting: 'Lecture de l’éclairage',
+    writing: 'Écriture du fichier de la carte',
+    textures: 'Compression des textures',
+    weapons: 'Construction de la bibliothèque d’armes',
+    rigs: 'Construction des rigs en première personne',
+  },
+  buildProgressFmt: (stage, pct) => `${stage}… ${pct} %`,
+  buildEtaFmt: (clock) => `environ ${clock} restantes`,
 } satisfies ReplayText

@@ -331,6 +331,99 @@ func TestRunnerNewRequiresArgs(t *testing.T) {
 	}
 }
 
+// TestProgressReporterMovesOnlyForward — Report clamps to [0,1] and moves the fraction only
+// forward; the stage is the latest non-empty name.
+func TestProgressReporterMovesOnlyForward(t *testing.T) {
+	r, err := New(func(context.Context, string, string, string) (BuildResult, error) { return BuildResult{}, nil }, "", func(string) bool { return false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep := &progressReporter{r: r, module: "moda"}
+	rep.Report(0.5, "geometry")
+	rep.Report(0.2, "textures") // a backwards fraction is ignored
+	rep.Report(0.7, "textures")
+	rep.Report(1.5, "") // clamped; empty stage keeps the last
+	rep.Report(-0.5, "")
+	r.mu.Lock()
+	v := r.progress["moda"]
+	r.mu.Unlock()
+	if v.frac != 1 {
+		t.Fatalf("frac = %v, want 1 (0.7 kept, then clamped 1.5)", v.frac)
+	}
+	if v.stage != "textures" {
+		t.Fatalf("stage = %q, want textures", v.stage)
+	}
+}
+
+// TestRunnerProgress — an active build reports through its context; the snapshot carries the
+// fraction and stage, the fraction reaches 1 only when the build is ready, and a failed build
+// never reads 1.
+func TestRunnerProgress(t *testing.T) {
+	f := newFakeStore(t)
+	r, err := New(func(ctx context.Context, module, gameRoot, out string) (BuildResult, error) {
+		rep := ProgressFromContext(ctx)
+		if rep == nil {
+			return BuildResult{}, errors.New("build under the runner has no progress reporter")
+		}
+		rep.Report(0.2, "geometry")
+		time.Sleep(20 * time.Millisecond)
+		rep.Report(0.6, "textures")
+		if f.fail[module] != nil {
+			f.mu.Lock()
+			delete(f.fail, module)
+			f.mu.Unlock()
+			return BuildResult{}, errors.New("boom")
+		}
+		f.mu.Lock()
+		f.files[module] = true
+		f.mu.Unlock()
+		if err := os.WriteFile(out, []byte("glTF"), 0o644); err != nil {
+			return BuildResult{}, err
+		}
+		return BuildResult{Bytes: 4}, nil
+	}, "", f.ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetDest(f.path)
+	r.Start()
+	defer r.Stop(2 * time.Second)
+
+	r.Enqueue("moda")
+	// While the build runs, the snapshot shows a sub-1 fraction and a stage.
+	var building *Snapshot
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s := r.Snapshot("moda")
+		if s.State == StateBuilding && s.Progress > 0 {
+			building = &s
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	if building == nil {
+		t.Fatal("never saw a building snapshot with progress")
+	}
+	if building.Progress >= 1 {
+		t.Fatalf("building progress = %v, want < 1 (1 is ready's)", building.Progress)
+	}
+	if building.Stage == "" {
+		t.Fatalf("building snapshot has no stage: %+v", building)
+	}
+	s := waitState(t, r, "moda", StateReady)
+	if s.Progress != 1 {
+		t.Fatalf("ready progress = %v, want 1", s.Progress)
+	}
+
+	// A failed build never reads 1.
+	f.fail["crash"] = errors.New("boom")
+	r.Enqueue("crash")
+	waitState(t, r, "crash", StateFailed)
+	if got := r.Snapshot("crash"); got.Progress >= 1 {
+		t.Fatalf("failed progress = %v, want < 1", got.Progress)
+	}
+}
+
 // TestRunnerActivity — idle: no active module and an empty queue; while one builds, the
 // active snapshot names it and the queue lists the rest in order (a copy the caller owns).
 func TestRunnerActivity(t *testing.T) {

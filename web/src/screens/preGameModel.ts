@@ -8,7 +8,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { REPLAY_TEXT, type ReplayLocale } from '../features/match-replay/i18n/i18n'
 import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
+import { formatClock } from '../lib/replay/replayLogic'
 import { displayPlayerName } from '../lib/players/displayName'
 
 /** A player as the summary carries it: a name and the team that owns the slot. */
@@ -49,40 +51,69 @@ export function splitRosters(
   return { own, other, ally, enemy }
 }
 
-/** The one build line: the status text (the hook's own words, restyled) plus the action the
- *  state offers, if any. `checking` offers nothing yet (the state route still answers). */
+/** The one build line: the status text (the hook's own words, restyled), the real fraction
+ *  the bar fills with (null while the server has not reported any, so the bar sweeps), and
+ *  the action the state offers, if any. `checking` offers nothing yet (the state route
+ *  still answers). While a build reports progress, the text names its stage with the
+ *  percentage and an estimated time left once the progress is past 5% (from the elapsed
+ *  time over the progress). */
 export function buildLineOf(
-  phase: { phase: string; queuePosition?: number; elapsedMs?: number; error?: string },
+  phase: { phase: string; queuePosition?: number; elapsedMs?: number; error?: string; progress?: number; stage?: string },
   cancelling: boolean,
-): { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null } {
+  locale: ReplayLocale = 'en',
+): { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null; fraction: number | null } {
   switch (phase.phase) {
     case 'checking':
-      return { text: 'Checking build status…', action: null, actionLabel: null }
+      return { text: 'Checking build status…', action: null, actionLabel: null, fraction: null }
     case 'absent':
-      return { text: 'This map has not been built yet. A first build takes minutes.', action: 'build', actionLabel: 'Build map' }
+      return { text: 'This map has not been built yet. A first build takes minutes.', action: 'build', actionLabel: 'Build map', fraction: null }
     case 'outdated':
-      return { text: 'This map was built by an older version. Update it to get the new textures.', action: 'build', actionLabel: 'Update map' }
+      return { text: 'This map was built by an older version. Update it to get the new textures.', action: 'build', actionLabel: 'Update map', fraction: null }
     case 'queued':
       return {
         text: typeof phase.queuePosition === 'number' ? `Queued (position ${phase.queuePosition})…` : 'Queued…',
         action: null,
         actionLabel: null,
+        fraction: null,
       }
     case 'building':
-      return {
-        text: typeof phase.elapsedMs === 'number' ? `Building… ${Math.round(phase.elapsedMs / 1000)}s elapsed` : 'Building…',
-        action: 'cancel',
-        actionLabel: cancelling ? 'Cancelling…' : 'Cancel',
-      }
+      return buildLineBuilding(phase, cancelling, locale)
     case 'ready':
-      return { text: 'Map built, loading…', action: null, actionLabel: null }
+      return { text: 'Map built, loading…', action: null, actionLabel: null, fraction: null }
     case 'failed':
-      return { text: `Build failed: ${phase.error ?? 'unknown error'}`, action: 'retry', actionLabel: 'Retry' }
+      return { text: `Build failed: ${phase.error ?? 'unknown error'}`, action: 'retry', actionLabel: 'Retry', fraction: null }
     case 'cancelled':
-      return { text: 'Build cancelled.', action: 'build', actionLabel: 'Build map' }
+      return { text: 'Build cancelled.', action: 'build', actionLabel: 'Build map', fraction: null }
     default:
-      return { text: 'Checking build status…', action: null, actionLabel: null }
+      return { text: 'Checking build status…', action: null, actionLabel: null, fraction: null }
   }
+}
+
+// buildLineBuilding is the `building` arm of buildLineOf: the elapsed count while the server
+// has not reported a fraction yet (the bar sweeps), the stage with its percentage once it has
+// (the bar fills), and the estimated time left once the progress is past 5%.
+function buildLineBuilding(
+  phase: { phase: string; elapsedMs?: number; progress?: number; stage?: string },
+  cancelling: boolean,
+  locale: ReplayLocale,
+): { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null; fraction: number | null } {
+  const fraction = typeof phase.progress === 'number' && phase.progress > 0 ? phase.progress : null
+  if (fraction === null) {
+    return {
+      text: typeof phase.elapsedMs === 'number' ? `Building… ${Math.round(phase.elapsedMs / 1000)}s elapsed` : 'Building…',
+      action: 'cancel',
+      actionLabel: cancelling ? 'Cancelling…' : 'Cancel',
+      fraction: null,
+    }
+  }
+  const t = REPLAY_TEXT[locale]
+  const stage = phase.stage && phase.stage in t.buildStage ? t.buildStage[phase.stage as keyof typeof t.buildStage] : 'Building'
+  let text = t.buildProgressFmt(stage, Math.round(fraction * 100))
+  if (fraction > 0.05 && typeof phase.elapsedMs === 'number') {
+    const remainingMs = (phase.elapsedMs * (1 - fraction)) / fraction
+    text += ` — ${t.buildEtaFmt(formatClock(remainingMs))}`
+  }
+  return { text, action: 'cancel', actionLabel: cancelling ? 'Cancelling…' : 'Cancel', fraction }
 }
 
 /** The countdown steps, one per second (the mockup's 3, 2, 1). */

@@ -146,7 +146,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
   const qualitySwitched = quality !== qualityAtMount.current
   const meshReady =
     gate.phase.phase === 'ready' || (!qualitySwitched && gate.phase.phase === 'checking')
-  const buildLine = buildLineOf(gate.phase, gate.cancelling)
+  const buildLine = buildLineOf(gate.phase, gate.cancelling, 'en')
   const variant = useVariantSource(matchId, quality)
   const replayContext = useMatchReplayContext(matchId, doc)
   const inks = useReplayInks(0)
@@ -423,14 +423,14 @@ export function MeshBuildGate({
   cancel,
   cancelling,
 }: {
-  line: { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null }
+  line: { text: string; action: 'build' | 'retry' | 'cancel' | null; actionLabel: string | null; fraction?: number | null }
   build: () => void
   cancel: () => void
   cancelling: boolean
 }) {
   return (
     <div data-testid="mesh-build-gate" className="bc-gate absolute inset-0 flex flex-col items-center justify-center gap-4">
-      <ProgressLine label={line.text} fraction={null} />
+      <ProgressLine label={line.text} fraction={line.fraction ?? null} />
       {line.action && line.actionLabel ? (
         <button
           type="button"

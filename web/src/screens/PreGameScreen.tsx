@@ -176,8 +176,9 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
       stepLabel = preGameStepOfDocument('mesh')
       break
     case 'build': {
-      buildLine = buildLineOf(buildPhase, cancelling)
+      buildLine = buildLineOf(buildPhase, cancelling, 'en')
       stepLabel = buildLine.text
+      fraction = buildLine.fraction
       break
     }
     case 'ready':

@@ -99,6 +99,10 @@ export interface MeshStateBody {
   elapsedMs?: number
   bytes?: number
   triangles?: number
+  /** The active build's fraction done, 0..1 (omitted until the build reports one; 1 on ready). */
+  progress?: number
+  /** The build step the build is in ("geometry", "lighting", "writing", "textures", …). */
+  stage?: string
 }
 
 async function readErrorBody(res: Response): Promise<unknown> {

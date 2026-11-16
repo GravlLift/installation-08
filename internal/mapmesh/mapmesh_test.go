@@ -56,7 +56,7 @@ func TestBuildFormatWritten(t *testing.T) {
 	for k, v := range commonExtras() {
 		extras[k] = v
 	}
-	if _, err := writeGLB(context.Background(), path, "m", texcompress.FormatPNG, nil, func(w io.Writer) error {
+	if _, err := writeGLB(context.Background(), path, "m", texcompress.FormatPNG, progress{}, func(w io.Writer) error {
 		return himap.EcritGLB(w, m, "test", extras)
 	}); err != nil {
 		t.Fatal(err)
