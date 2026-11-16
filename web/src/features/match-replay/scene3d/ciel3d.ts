@@ -12,9 +12,12 @@ const EXPOSITION_CIEL = '0.3'
 const ECLAT_NUAGES = '0.95'
 // Teinte du ciel sans lumière directe (bleu nuit, pas une couleur d'interface), plus claire vers l'horizon.
 const CIEL_NUIT = 'vec3(0.006, 0.009, 0.02)'
-// Intensité de soleil déclarée par les cartes de plein jour sur lesquelles la lumière directe
-// de la vue a été réglée : à cette valeur ou au-dessus, le soleil de la vue garde toute sa force.
-const SOLEIL_REFERENCE = 8
+// The weakest sun intensity a full-daylight map declares: from this value up, the view's sun keeps
+// its full strength (tuned on Recharge, 9) and the sky stays day; below it both fade toward night.
+// The game exposes each map for its own light, so a declared intensity is not a brightness: Origin
+// (Forge, fo08_wetland, 2) is bright and sunlit in game, and Fortress at its canvas's 5 drew too
+// dark under the former reference of 8. Streets (0.05) stays a night.
+const SOLEIL_REFERENCE = 2
 
 /** Facteur de lumière directe : intensité du jeu ramenée à celle d'une carte de plein jour. */
 export function intensiteSoleil(extras: unknown): number {
