@@ -27,7 +27,7 @@ vi.mock('./useFootstepTrack', () => ({
   useFootstepTrack: () => (state.footstep ? MANIFEST : undefined),
 }))
 vi.mock('./useReloadTrack', () => ({
-  useReloadTrack: () => (state.reloads ? new Map() : undefined),
+  useReloadTrack: () => (state.reloads ? { reloads: new Map(), vents: new Map() } : undefined),
 }))
 vi.mock('./reloadSound', () => ({
   reloadSoundEvents: () => (state.reloads ? RELOAD : []),

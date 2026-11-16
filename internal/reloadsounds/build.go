@@ -27,6 +27,15 @@ var Stances = []string{"combat", "crouch"}
 // none) gets no entry, and the viewer stays silent on its reloads.
 const reloadAction = "reload_1"
 
+// The heat weapons' vent actions, in the order the game plays them: enter, a held loop, and exit.
+// They live in the same Spartan third-person graph as the reloads; the enter and exit post sound
+// events, the loop posts none (measured on the installed game, 2026-11-15).
+const (
+	ventEnter = "vent_enter"
+	ventLoop  = "vent_loop"
+	ventExit  = "vent_exit"
+)
+
 // Reasons a weapon tag with an animation class gets no reload, counted in Result.Silent.
 const (
 	SilentNoType      = "no_type"          // the weapon has an animation class but no type
@@ -92,7 +101,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reloadsounds: %w", err)
 	}
-	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Weapons: map[string]map[string]Reload{}}, Silent: map[string][]string{}}
+	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Weapons: map[string]map[string]Reload{}, Vents: map[string]map[string]Vent{}}, Silent: map[string][]string{}}
 	b := &builder{graphs: gs, tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
 		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32][]Take{}, written: map[uint32]Take{}, res: res}
 	weapons := ix.EntreesDuGroupe("weap")
@@ -115,7 +124,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	if res.Removed, err = removeStaleTakes(opts.OutDir, res.Manifest); err != nil {
 		return nil, err
 	}
-	slog.InfoContext(ctx, "reload sounds extracted", "weapons", len(res.Manifest.Weapons), "files", res.Files, "removed", res.Removed)
+	slog.InfoContext(ctx, "reload sounds extracted", "weapons", len(res.Manifest.Weapons), "vents", len(res.Manifest.Vents), "files", res.Files, "removed", res.Removed)
 	return res, nil
 }
 
@@ -151,12 +160,61 @@ func (b *builder) weapon(id uint32, labels himap.EtiquettesArme) error {
 	}
 	switch {
 	case !animated:
-		return b.silent(SilentNoAnimation, key)
+		b.silent(SilentNoAnimation, key)
 	case len(stances) == 0:
-		return b.silent(SilentNoSounds, key)
+		b.silent(SilentNoSounds, key)
 	}
-	b.res.Manifest.Weapons[key] = stances
+	if len(stances) > 0 {
+		// The film plays a weapon's reload whenever it has one, vent clip or not: no vent entry.
+		b.res.Manifest.Weapons[key] = stances
+		return nil
+	}
+	// The heat weapons vent where the others reload: read their vent clips, if they have any.
+	vents, err := b.vent(key, class, typ)
+	if err != nil {
+		return err
+	}
+	if len(vents) > 0 {
+		b.res.Manifest.Vents[key] = vents
+	}
 	return nil
+}
+
+// vent reads one heat weapon's vent clips (enter, loop, exit) in every stance, or none. A clip
+// the graph does not carry is left empty; a stance with no vent clip at all gets no entry.
+func (b *builder) vent(key, class, typ string) (map[string]Vent, error) {
+	vents := map[string]Vent{}
+	for _, stance := range Stances {
+		v := Vent{}
+		any := false
+		for _, action := range []struct {
+			name string
+			clip *VentClip
+		}{
+			{ventEnter, &v.Enter},
+			{ventLoop, &v.Loop},
+			{ventExit, &v.Exit},
+		} {
+			name := stance + ":" + class + ":" + typ + ":" + action.name
+			g, rang, err := b.graphs.Nommee(name)
+			if err != nil {
+				return nil, fmt.Errorf("reloadsounds: %w", err)
+			}
+			if g == nil {
+				continue
+			}
+			any = true
+			r, err := b.reload(g, rang, name)
+			if err != nil {
+				return nil, fmt.Errorf("reloadsounds: %s: %w", name, err)
+			}
+			*action.clip = VentClip{Animation: r.Animation, DurationMs: r.DurationMs, Sounds: r.Sounds}
+		}
+		if any {
+			vents[stance] = v
+		}
+	}
+	return vents, nil
 }
 
 // silent records a weapon tag left without a reload.

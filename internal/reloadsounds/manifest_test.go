@@ -33,18 +33,20 @@ func TestManifestStatus(t *testing.T) {
 
 func TestRemoveStaleTakesRemovesOnlyUnlistedTakes(t *testing.T) {
 	dir := t.TempDir()
-	kept, stale := takeName(0x10), takeName(0x20)
+	kept, ventKept, stale := takeName(0x10), takeName(0x20), takeName(0x30)
 	others := []string{"announcer.json", "announcer_doublekill_1.ogg", "reload_notes.txt", "hinf_br75.ogg"}
-	for _, name := range append([]string{kept, stale}, others...) {
+	for _, name := range append([]string{kept, ventKept, stale}, others...) {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.Mkdir(filepath.Join(dir, takeName(0x30)), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, takeName(0x40)), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	m := &Manifest{Version: ManifestVersion, Weapons: map[string]map[string]Reload{
 		"2b1824d5": {"combat": {Sounds: []Sound{{Takes: []Take{{File: kept}}}}}},
+	}, Vents: map[string]map[string]Vent{
+		"daf193c7": {"combat": {Enter: VentClip{Sounds: []Sound{{Takes: []Take{{File: ventKept}}}}}}},
 	}}
 	removed, err := removeStaleTakes(dir, m)
 	if err != nil || removed != 1 {
@@ -53,7 +55,7 @@ func TestRemoveStaleTakesRemovesOnlyUnlistedTakes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, stale)); !os.IsNotExist(err) {
 		t.Fatalf("the unlisted take is still there (%v)", err)
 	}
-	for _, name := range append([]string{kept, takeName(0x30)}, others...) {
+	for _, name := range append([]string{kept, ventKept, takeName(0x40)}, others...) {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("%s was touched: %v", name, err)
 		}

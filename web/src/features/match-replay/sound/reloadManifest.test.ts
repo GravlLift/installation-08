@@ -11,12 +11,28 @@ import {
   parseReloadManifest,
   reloadLibrary,
   takeFilesOf,
+  ventLibrary,
   weaponTagOf,
   type ReloadManifest,
 } from './reloadManifest'
 
+/** The Stalker's vent: an enter whoosh, a silent loop, an exit whoosh (the installed game's shape). */
+const STALKER_VENT = {
+  enter: {
+    animation: 'combat:pistol:stalker:vent_enter',
+    durationMs: 700,
+    sounds: [{ atMs: 0, takes: [{ file: 'reload_00000010.ogg', durationMs: 400 }, { file: 'reload_00000011.ogg', durationMs: 410 }] }],
+  },
+  loop: { animation: 'combat:pistol:stalker:vent_loop', durationMs: 500, sounds: [] },
+  exit: {
+    animation: 'combat:pistol:stalker:vent_exit',
+    durationMs: 400,
+    sounds: [{ atMs: 50, takes: [{ file: 'reload_00000012.ogg', durationMs: 300 }] }],
+  },
+} as const
+
 const MANIFEST: ReloadManifest = {
-  version: 1,
+  version: 2,
   weapons: {
     '2b1824d5': {
       combat: {
@@ -35,6 +51,9 @@ const MANIFEST: ReloadManifest = {
     },
     '0a1992bc': { combat: { animation: 'combat:rifle:sr:reload_1', durationMs: 2167, sounds: [{ atMs: 0, takes: [{ file: 'reload_00000009.ogg', durationMs: 300 }] }] } },
   },
+  vents: {
+    daf193c7: { combat: STALKER_VENT },
+  },
 }
 
 describe('weaponTagOf', () => {
@@ -49,10 +68,17 @@ describe('weaponTagOf', () => {
 describe('parseReloadManifest', () => {
   it('accepts the manifest the build writes, refuses anything else', () => {
     expect(parseReloadManifest(MANIFEST)).toBe(MANIFEST)
-    expect(parseReloadManifest({ ...MANIFEST, version: 0 })).toBeNull()
-    expect(parseReloadManifest({ version: 1 })).toBeNull()
-    expect(parseReloadManifest({ version: 1, weapons: { x: { combat: { sounds: [] } } } })).toBeNull()
+    expect(parseReloadManifest({ ...MANIFEST, version: 1 })).toBeNull()
+    expect(parseReloadManifest({ version: 2 })).toBeNull()
+    expect(parseReloadManifest({ version: 2, weapons: { x: { combat: { sounds: [] } } } })).toBeNull()
     expect(parseReloadManifest('nope')).toBeNull()
+  })
+
+  it('refuses a vent that is not three clips', () => {
+    const bad = { ...MANIFEST, vents: { daf193c7: { combat: { ...STALKER_VENT, loop: { durationMs: 500 } } } } }
+    expect(parseReloadManifest(bad)).toBeNull()
+    // A vent entry with no stances is valid: the weapon simply plays nothing.
+    expect(parseReloadManifest({ ...MANIFEST, vents: { daf193c7: {} } })).not.toBeNull()
   })
 
   it('a 404 or a failed fetch reads as nothing extracted', async () => {
@@ -88,5 +114,25 @@ describe('reloadLibrary', () => {
   it('a take without a level still plays, and counts for nothing in the gain', () => {
     const lib = reloadLibrary(MANIFEST, ['0a1992bc'], () => null)
     expect(lib.get('0a1992bc')?.combat).toMatchObject({ gainDb: 0, sounds: [{ atMs: 0, stems: ['reload_00000009'] }] })
+  })
+})
+
+describe('ventLibrary', () => {
+  it('keeps the match heat weapons only, each phase with its stems and one gain', () => {
+    expect(takeFilesOf(MANIFEST, ['daf193c7'])).toEqual(['reload_00000010.ogg', 'reload_00000011.ogg', 'reload_00000012.ogg'])
+    const levels: Record<string, { rmsDb: number; peakDb: number }> = {
+      'reload_00000010.ogg': { rmsDb: -18, peakDb: -3 },
+      'reload_00000011.ogg': { rmsDb: -18, peakDb: -3 },
+      'reload_00000012.ogg': { rmsDb: -22, peakDb: -6 },
+    }
+    const lib = ventLibrary(MANIFEST, ['daf193c7', '2b1824d5'], (f) => levels[f])
+    expect([...lib.keys()]).toEqual(['daf193c7'])
+    const combat = lib.get('daf193c7')?.combat
+    expect(combat?.enter.durationMs).toBe(700)
+    expect(combat?.enter.sounds).toEqual([{ atMs: 0, stems: ['reload_00000010', 'reload_00000011'] }])
+    expect(combat?.enter.gainDb).toBeCloseTo(RELOAD_LEVEL_TARGET_DB + 18)
+    expect(combat?.loop.durationMs).toBe(500)
+    expect(combat?.loop.sounds).toEqual([])
+    expect(combat?.exit.sounds).toEqual([{ atMs: 50, stems: ['reload_00000012'] }])
   })
 })

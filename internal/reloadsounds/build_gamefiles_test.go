@@ -41,13 +41,56 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 			t.Errorf("%s is not silent for want of a reload animation", w)
 		}
 	}
+	ventKeys := make([]string, 0, len(res.Manifest.Vents))
+	for w := range res.Manifest.Vents {
+		ventKeys = append(ventKeys, w)
+	}
+	slices.Sort(ventKeys)
+	t.Logf("vent entries: %v", ventKeys)
+	for _, w := range ventKeys {
+		if _, ok := res.Manifest.Weapons[w]; ok {
+			t.Errorf("%s has both a reload and a vent", w)
+		}
+	}
+	// The heat weapons vent: the standing vent of each has an enter and an exit with takes, and
+	// a loop the game posts no sound on.
+	for _, w := range []string{"daf193c7", "c3542946", "30484ea6", "c30d87c7"} { // stalker, plasma pistol, pulse carbine, ravager
+		v, ok := res.Manifest.Vents[w]["combat"]
+		if !ok {
+			t.Errorf("%s: no standing vent (%+v)", w, res.Manifest.Vents[w])
+			continue
+		}
+		if len(v.Enter.Sounds) == 0 || v.Enter.DurationMs <= 0 {
+			t.Errorf("%s: vent enter has no sound (%+v)", w, v.Enter)
+		}
+		if len(v.Exit.Sounds) == 0 || v.Exit.DurationMs <= 0 {
+			t.Errorf("%s: vent exit has no sound (%+v)", w, v.Exit)
+		}
+		if len(v.Loop.Sounds) != 0 {
+			t.Errorf("%s: vent loop posts sounds in the installed game (%d)", w, len(v.Loop.Sounds))
+		}
+	}
+	takeOk := func(w, what string, tk Take) {
+		raw, err := os.ReadFile(filepath.Join(dir, tk.File))
+		if err != nil || !bytes.HasPrefix(raw, []byte("OggS")) || tk.DurationMs <= 0 {
+			t.Errorf("%s: %s take %s (%d ms): %v", w, what, tk.File, tk.DurationMs, err)
+		}
+	}
 	for w, stances := range res.Manifest.Weapons {
 		for _, r := range stances {
 			for _, s := range r.Sounds {
 				for _, tk := range s.Takes {
-					raw, err := os.ReadFile(filepath.Join(dir, tk.File))
-					if err != nil || !bytes.HasPrefix(raw, []byte("OggS")) || tk.DurationMs <= 0 {
-						t.Errorf("%s: take %s (%d ms): %v", w, tk.File, tk.DurationMs, err)
+					takeOk(w, "reload", tk)
+				}
+			}
+		}
+	}
+	for w, stances := range res.Manifest.Vents {
+		for _, v := range stances {
+			for _, c := range []VentClip{v.Enter, v.Loop, v.Exit} {
+				for _, s := range c.Sounds {
+					for _, tk := range s.Takes {
+						takeOk(w, "vent", tk)
 					}
 				}
 			}
