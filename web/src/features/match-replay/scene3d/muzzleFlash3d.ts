@@ -1,54 +1,54 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * muzzleFlash3d.ts — L'ÉCLAIR DE BOUCHE d'un tir : une gerbe de pétales au bout du canon du modèle
- * d'arme DESSINÉ, le temps d'une à deux images à 60 Hz.
+ * muzzleFlash3d.ts — A SHOT'S MUZZLE FLASH: a burst of petals at the end of the DRAWN weapon
+ * model's barrel, lasting one to two frames at 60 Hz.
  *
- * La gerbe a deux couronnes de pétales (`petalGeometry` : cœur blanc, bords noirs, en mélange
- * additif) : des pétales longs dans des plans qui contiennent le canon (le cône vu de profil), et une
- * étoile de pétales courts autour de la bouche, ouverte vers l'avant (vue de derrière, en 1re
- * personne, l'étoile). Le tout tourne autour du canon d'un angle tiré du germe du tir (`flashRoll`) :
- * deux tirs voisins n'ont pas la même gerbe, et la même image rend toujours la même.
+ * The burst has two rings of petals (`petalGeometry`: white core, black edges, additive blend):
+ * long petals in planes that contain the barrel (the cone seen in profile), and a star of short
+ * petals around the muzzle, opening forward (seen from behind, in first person, the star). The
+ * whole thing rotates around the barrel by an angle drawn from the shot's seed (`flashRoll`): two
+ * neighboring shots do not get the same burst, and the same frame always renders the same one.
  *
- * L'éclair ne se dessine qu'au bout d'une arme dessinée (`muzzleFlashSite`) : sans modèle d'arme en
- * main (pas chargé, joueur caché, tir d'un véhicule), pas de gerbe. En 1re personne, l'arme
- * dessinée est le rig bras + arme, qui n'a pas de modèle en main du Spartan : la gerbe y est alors
- * à la bouche du rig dont le vol est parti (`rigFlashSite`), le long de la direction du tir. Rien
- * n'est jamais posé à l'œil.
+ * The flash only draws at the end of a drawn weapon (`muzzleFlashSite`): with no held weapon
+ * model (not loaded, player hidden, a vehicle's shot), no burst. In first person, the drawn
+ * weapon is the arms+weapon rig, which has no Spartan held-weapon model: the burst is then at the
+ * muzzle of the rig the shot's flight left from (`rigFlashSite`), along the shot's direction.
+ * Nothing is ever placed at the eye.
  */
 import * as THREE from 'three'
 
 import type { DrawnWeapon } from './avatar3d'
 import { drawnMuzzle } from './muzzle3d'
 
-/** La durée de l'éclair : deux images à 60 Hz. */
+/** The flash's duration: two frames at 60 Hz. */
 export const MUZZLE_FLASH_SECONDS = 2 / 60
-// Ce que la gerbe perd de sa force jusqu'à sa fin (la seconde image est plus faible que la première).
+// How much strength the burst loses by its end (the second frame is weaker than the first).
 const FADE = 0.6
-// Les pétales le long du canon (u, ~24 cm sur ~7) et leur nombre : vus de profil, ils dépassent du
-// corps du tireur ; vus de derrière (1re personne), ils filent vers le centre et ne masquent rien.
+// The petals along the barrel (u, ~24cm by ~7) and their count: seen in profile, they stick out
+// past the shooter's body; seen from behind (first person), they run toward the center and hide nothing.
 const SIDE_LENGTH = 0.08
 const SIDE_WIDTH = 0.024
 const SIDE_PETALS = 3
-// L'étoile autour de la bouche (u, ~9 cm sur ~4), ouverte de STAR_TILT vers l'avant.
+// The star around the muzzle (u, ~9cm by ~4), opening by STAR_TILT toward the front.
 const STAR_LENGTH = 0.03
 const STAR_WIDTH = 0.013
 const STAR_PETALS = 5
 const STAR_TILT = THREE.MathUtils.degToRad(35)
-// Chaque pétale varie de longueur autour de sa taille (± JITTER / 2), au germe du tir.
+// Each petal's length varies around its size (± JITTER / 2), from the shot's seed.
 const JITTER = 0.5
-// La gerbe naît un peu plus petite à sa dernière image.
+// The burst is born a bit smaller on its last frame.
 const SHRINK = 0.3
 
 /**
- * muzzleFlashStrength : la force de l'éclair (0..1) `age` secondes après le tir : pleine au tir,
- * affaiblie à la seconde image, éteinte au-delà de `MUZZLE_FLASH_SECONDS` ; 0 avant le tir.
+ * muzzleFlashStrength: the flash's strength (0..1) `age` seconds after the shot: full at the
+ * shot, weaker on the second frame, off past `MUZZLE_FLASH_SECONDS`; 0 before the shot.
  */
 export function muzzleFlashStrength(age: number): number {
   if (age < 0 || age >= MUZZLE_FLASH_SECONDS) return 0
   return 1 - FADE * (age / MUZZLE_FLASH_SECONDS)
 }
 
-/** unitHash : un nombre de [0, 1) tiré de l'entier `n` (mélange entier : voisins sans parenté). */
+/** unitHash: a number in [0, 1) drawn from integer `n` (integer mixing: neighbors are unrelated). */
 function unitHash(n: number): number {
   let h = Math.floor(n) | 0
   h = Math.imul(h ^ (h >>> 16), 0x45d9f3b)
@@ -57,15 +57,15 @@ function unitHash(n: number): number {
   return (h >>> 0) / 4294967296
 }
 
-/** flashRoll : l'angle (radians, [0, 2π)) dont la gerbe du tir de germe `seed` tourne autour du canon. */
+/** flashRoll: the angle (radians, [0, 2π)) the burst of a shot seeded `seed` rotates around the barrel. */
 export function flashRoll(seed: number): number {
   return unitHash(seed) * 2 * Math.PI
 }
 
 /**
- * muzzleFlashSite : où la gerbe d'un tir se dessine, écrit dans `pos` (bouche, monde) et `barrel`
- * (axe du canon, monde, unitaire) : au bout de l'arme dessinée `drawn` ; faux (pas de gerbe) sans
- * arme dessinée ou pour un tir de véhicule.
+ * muzzleFlashSite: where a shot's burst draws, written to `pos` (muzzle, world) and `barrel`
+ * (barrel axis, world, unit length): at the end of drawn weapon `drawn`; false (no burst) with no
+ * drawn weapon or for a vehicle's shot.
  */
 export function muzzleFlashSite(vehicleShot: boolean, drawn: DrawnWeapon | null, pos: THREE.Vector3, barrel: THREE.Vector3): boolean {
   if (vehicleShot || !drawn) return false
@@ -74,12 +74,12 @@ export function muzzleFlashSite(vehicleShot: boolean, drawn: DrawnWeapon | null,
 }
 
 /**
- * rigFlashSite : où se dessine la gerbe d'un tir de 1re personne dont l'arme dessinée est le rig
- * (pas d'arme en main du Spartan, `muzzleFlashSite` ne donne rien) : à la bouche du rig dont le vol
- * est parti (`from`, mesurée sur le même rig que l'origine du vol), le long de la direction du tir
- * (`to`). `rigDrawn` : le tir est celui du joueur suivi en 1re personne, hors véhicule, et le rig
- * de son arme est chargé. Faux sans rig dessiné ou sans direction de vol (`to` null) : aucune gerbe
- * hors d'une bouche dessinée.
+ * rigFlashSite: where a first-person shot's burst draws when the drawn weapon is the rig (no
+ * Spartan held-weapon, `muzzleFlashSite` gives nothing): at the muzzle of the rig the shot's
+ * flight left from (`from`, measured on the same rig as the flight's origin), along the shot's
+ * direction (`to`). `rigDrawn`: the shot belongs to the player tracked in first person, outside a
+ * vehicle, and their weapon's rig is loaded. False with no drawn rig or no flight direction (`to`
+ * null): no burst outside a drawn muzzle.
  */
 export function rigFlashSite(
   rigDrawn: boolean,
@@ -93,7 +93,7 @@ export function rigFlashSite(
   return true
 }
 
-/** Un pétale de la gerbe : son orientation (Y du pétale = sa pointe) et sa taille (X largeur, Y longueur). */
+/** A petal of the burst: its orientation (the petal's Y = its tip) and its size (X width, Y length). */
 export interface FlashPetal {
   rotation: THREE.Quaternion
   size: THREE.Vector3
@@ -109,11 +109,11 @@ const UP = new THREE.Vector3(0, 1, 0)
 const EAST = new THREE.Vector3(1, 0, 0)
 
 /**
- * flashPetals : les pétales de la gerbe d'un tir de germe `seed`, canon le long de `barrel`
- * (unitaire), à la force `k` ; `out` est réécrit (ses pétales sont réutilisés d'un appel à l'autre).
+ * flashPetals: the petals of a shot's burst seeded `seed`, barrel along `barrel` (unit length),
+ * at strength `k`; `out` is overwritten (its petals are reused from one call to the next).
  */
 export function flashPetals(barrel: THREE.Vector3, k: number, seed: number, out: FlashPetal[]): FlashPetal[] {
-  // Une perpendiculaire au canon, d'où part l'angle de la gerbe.
+  // A perpendicular to the barrel, from which the burst's angle starts.
   across.crossVectors(barrel, Math.abs(barrel.y) < 0.9 ? UP : EAST).normalize()
   const roll = flashRoll(seed)
   const grow = 1 - SHRINK * (1 - k)
@@ -126,14 +126,14 @@ export function flashPetals(barrel: THREE.Vector3, k: number, seed: number, out:
     n++
   }
   for (let i = 0; i < SIDE_PETALS; i++) {
-    // Un plan qui contient le canon : la largeur du pétale y est perpendiculaire.
+    // A plane that contains the barrel: the petal's width is perpendicular within it.
     width.copy(across).applyAxisAngle(barrel, roll + (i * Math.PI) / SIDE_PETALS)
     put(barrel, width, SIDE_LENGTH, SIDE_WIDTH)
   }
   for (let i = 0; i < STAR_PETALS; i++) {
     side.copy(across).applyAxisAngle(barrel, roll + (i * 2 * Math.PI) / STAR_PETALS)
     tip.copy(side).multiplyScalar(Math.cos(STAR_TILT)).addScaledVector(barrel, Math.sin(STAR_TILT))
-    // La largeur, perpendiculaire au canon et au pétale : l'étoile fait face à qui regarde le long du canon.
+    // The width, perpendicular to both barrel and petal: the star faces anyone looking along the barrel.
     width.crossVectors(barrel, side).normalize()
     put(tip, width, STAR_LENGTH, STAR_WIDTH)
   }
