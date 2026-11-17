@@ -20,6 +20,8 @@
 // variante : `scenes[0].extras.levelupObjects` (glb_objets.go).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"encoding/binary"
@@ -219,10 +221,10 @@ func documentGLB(m *MaillageMonde, generateur string, extras map[string]any) (*g
 	ajouteDecorateurs(doc, bin, m.Decorateurs, mats.rang)
 	ajoutePosesVariante(doc, bin, m.Poses, mats.rang)
 	if mats.err != nil {
-		return nil, nil, fmt.Errorf("textures des materiaux : %w", mats.err)
+		return nil, nil, fmt.Errorf("material textures: %w", mats.err)
 	}
 	if len(doc.Nodes) == 0 {
-		return nil, nil, fmt.Errorf("maillage vide")
+		return nil, nil, fmt.Errorf("empty mesh")
 	}
 	scene := extrasSoleil(m.Soleil)
 	if scene == nil {
@@ -250,7 +252,7 @@ func termineGLB(w io.Writer, doc *gltfDoc, bin *tamponGLB, racines []int) error 
 	doc.Buffers = []gltfBuffer{{ByteLength: bin.Len()}}
 	js, err := json.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("json glTF : %w", err)
+		return fmt.Errorf("glTF json: %w", err)
 	}
 	return ecritConteneurGLB(w, js, bin)
 }

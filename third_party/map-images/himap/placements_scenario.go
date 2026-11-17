@@ -67,15 +67,15 @@ type PlacementScenario struct {
 func LitPlacementsScenario(m *himodule.Module) ([]PlacementScenario, error) {
 	levls := m.Files(GroupeNiveau)
 	if len(levls) != 1 {
-		return nil, fmt.Errorf("himap: %d tag(s) %s dans le module (attendu 1)", len(levls), GroupeNiveau)
+		return nil, fmt.Errorf("himap: %d %s tag(s) in the module (1 expected)", len(levls), GroupeNiveau)
 	}
 	tag, err := m.Extract(levls[0])
 	if err != nil {
-		return nil, fmt.Errorf("himap: extraire le %s : %w", GroupeNiveau, err)
+		return nil, fmt.Errorf("himap: extract the %s: %w", GroupeNiveau, err)
 	}
 	ti, err := meilleurTagInfo(tag)
 	if err != nil {
-		return nil, fmt.Errorf("himap: en-tete du %s : %w", GroupeNiveau, err)
+		return nil, fmt.Errorf("himap: %s header: %w", GroupeNiveau, err)
 	}
 	root, err := ti.rootBlockIndex()
 	if err != nil {

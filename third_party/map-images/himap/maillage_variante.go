@@ -192,16 +192,16 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, b, fmt.Errorf("index des modules : %w", err)
+		return nil, b, fmt.Errorf("module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	forge, err := himodule.Open(cheminDefinitionsForge(opts.RacineDeploy))
 	if err != nil {
-		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
+		return nil, b, fmt.Errorf("Forge objects module: %w", err)
 	}
 	defer func() { _ = forge.Close() }()
 	// LOCAL-CHANGE (infinite-theater-3d): the objects' Forge styles from the game's own palette.
@@ -219,7 +219,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	out, poses := poseGeometrieVariante(ctx, opts, idx, forge, &b)
 	trianglesPoses, trianglesUniques := out.Poses.Triangles()
 	if trianglesPoses == 0 {
-		return nil, b, fmt.Errorf("aucun triangle pose sur %d objets de variante", len(opts.Objets))
+		return nil, b, fmt.Errorf("no triangle placed out of %d variant objects", len(opts.Objets))
 	}
 	if err := out.resoutMateriauxPoses(OptionsCuisson{RacineDeploy: opts.RacineDeploy, CheminModule: opts.CheminModule}, idx); err != nil {
 		return nil, b, err
@@ -263,16 +263,16 @@ func CollecteSolidesVariante(ctx context.Context, opts OptionsVariante) (*Mailla
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, b, fmt.Errorf("index des modules : %w", err)
+		return nil, b, fmt.Errorf("module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	forge, err := himodule.Open(cheminDefinitionsForge(opts.RacineDeploy))
 	if err != nil {
-		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
+		return nil, b, fmt.Errorf("Forge objects module: %w", err)
 	}
 	defer func() { _ = forge.Close() }()
 	out, _ := poseGeometrieVariante(ctx, opts, idx, forge, &b)

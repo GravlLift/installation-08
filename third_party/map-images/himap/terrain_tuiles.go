@@ -1,12 +1,14 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
 	"math"
 )
 
-var errTerrainNoeudAbsent = errors.New("terrain : noeud sans image")
+var errTerrainNoeudAbsent = errors.New("terrain: node without image")
 
 type plageTerrain struct {
 	niveau, x0, x1, y0, y1 int
@@ -34,13 +36,13 @@ func choisitPlageTerrain(s sourceTerrain, cadre [4]float64) (plageTerrain, error
 			return p, nil
 		}
 	}
-	return p, fmt.Errorf("terrain : budget de triangles depasse")
+	return p, fmt.Errorf("terrain: triangle budget exceeded")
 }
 
 func litTuilesTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain) ([]tuileTerrain, []int, error) {
 	mod, file, ok := idx.entree(s.bitmap)
 	if !ok || file.Group != GroupeBitmap {
-		return nil, nil, fmt.Errorf("terrain : bitmap %08x absent", s.bitmap)
+		return nil, nil, fmt.Errorf("terrain: bitmap %08x absent", s.bitmap)
 	}
 	tag, err := mod.Extract(file)
 	if err != nil {
@@ -51,7 +53,7 @@ func litTuilesTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain) ([]tuil
 		return nil, nil, err
 	}
 	if ent.format != 32 || ent.larg != s.resolution+1 || ent.haut != s.resolution+1 {
-		return nil, nil, fmt.Errorf("terrain : bitmap %08x format=%d taille=%dx%d", s.bitmap, ent.format, ent.larg, ent.haut)
+		return nil, nil, fmt.Errorf("terrain: bitmap %08x format=%d size=%dx%d", s.bitmap, ent.format, ent.larg, ent.haut)
 	}
 	resources, err := mod.Ressources(file)
 	if err != nil {
@@ -60,7 +62,7 @@ func litTuilesTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain) ([]tuil
 	a, size := s.info.blockAbs(s.blocNoeuds)
 	count := size / terrainPasNoeud
 	if a < 0 || a+size > len(s.info.tag) {
-		return nil, nil, fmt.Errorf("terrain : noeuds invalides")
+		return nil, nil, fmt.Errorf("terrain: invalid nodes")
 	}
 	cote := 1 << uint(p.niveau)
 	premier := (cote*cote - 1) / 3
@@ -70,19 +72,19 @@ func litTuilesTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain) ([]tuil
 		for x := p.x0; x <= p.x1; x++ {
 			node := premier + y*cote + x
 			if node >= count {
-				return nil, nil, fmt.Errorf("terrain : noeud %d absent", node)
+				return nil, nil, fmt.Errorf("terrain: node %d absent", node)
 			}
 			b := s.info.subBlockTarget(s.blocNoeuds, node*terrainPasNoeud+terrainChampImages)
 			if b < 0 {
-				return nil, nil, fmt.Errorf("%w : %d", errTerrainNoeudAbsent, node)
+				return nil, nil, fmt.Errorf("%w: %d", errTerrainNoeudAbsent, node)
 			}
 			pos, n := s.info.blockAbs(b)
 			if pos < 0 || n < 4 || pos+n > len(s.info.tag) {
-				return nil, nil, fmt.Errorf("terrain : images du noeud %d invalides", node)
+				return nil, nil, fmt.Errorf("terrain: node %d images invalid", node)
 			}
 			k := u32(s.info.tag, pos)
 			if k >= len(resources) {
-				return nil, nil, fmt.Errorf("terrain : image %d absente", k)
+				return nil, nil, fmt.Errorf("terrain: image %d absent", k)
 			}
 			data, err := mod.Extract(resources[k])
 			if err != nil {

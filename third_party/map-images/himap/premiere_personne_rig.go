@@ -147,20 +147,20 @@ func (a *Arsenal) rigPremierePersonne(ctx context.Context, weap uint32, armure V
 	if armure == nil && !sansBras {
 		def, err := armureParDefaut(ctx, a.geo, ModeSpartan)
 		if err != nil {
-			return nil, fmt.Errorf("%w : armure par defaut : %w", ErrSansPremierePersonne, err)
+			return nil, fmt.Errorf("%w: default armor: %w", ErrSansPremierePersonne, err)
 		}
 		armure = def.Variante
 	}
 	gs, err := a.GraphesDepuis(ctx, src.Graphe)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansPremierePersonne, weap, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansPremierePersonne, weap, err)
 	}
 	r := &RigPremierePersonne{Arme: src, Bras: bras}
 	if err := r.assemble(ctx, a, gs.Propre, armure, sansBras); err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansPremierePersonne, weap, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansPremierePersonne, weap, err)
 	}
 	if err := r.litClips(gs); err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansPremierePersonne, weap, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansPremierePersonne, weap, err)
 	}
 	slog.InfoContext(ctx, "first-person rig read", "weapon", fmt.Sprintf("%08x", weap), "os", len(r.Modele.Noeuds),
 		"osSansPose", len(r.OsSansPose), "triangles", r.Modele.Maillage.Structure.Triangles(), "clips", len(r.Clips),
@@ -172,15 +172,15 @@ func (a *Arsenal) rigPremierePersonne(ctx context.Context, weap uint32, armure V
 func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *GrapheAnimation, armure VarianteModele, sansBras bool) error {
 	brasTag, brasBlob, err := a.geo.ExtractWithResources(r.Bras.Mode)
 	if err != nil {
-		return fmt.Errorf("bras %08x : %w", r.Bras.Mode, err)
+		return fmt.Errorf("arms %08x: %w", r.Bras.Mode, err)
 	}
 	brasAsset, err := NewRenderModelAsset(brasTag, brasBlob)
 	if err != nil {
-		return fmt.Errorf("bras %08x : %w", r.Bras.Mode, err)
+		return fmt.Errorf("arms %08x: %w", r.Bras.Mode, err)
 	}
 	osBras, err := ModeNodes(brasTag)
 	if err != nil {
-		return fmt.Errorf("squelette des bras : %w", err)
+		return fmt.Errorf("arms skeleton: %w", err)
 	}
 	arme, err := modeleDeLArme(ctx, a, r.Arme)
 	if err != nil {
@@ -188,7 +188,7 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 	}
 	osArme, err := ModeNodes(arme.asset.info.tag)
 	if err != nil || len(osArme) == 0 {
-		return fmt.Errorf("squelette de l'arme (%d noeuds) : %w", len(osArme), err)
+		return fmt.Errorf("weapon skeleton (%d nodes): %w", len(osArme), err)
 	}
 	m := &ModeleAPeau{Maillage: &MaillageMonde{SurfacesBrutesDe: map[uint32]bool{}}}
 	m.Noeuds, m.Noms, r.OsSansPose = squeletteDuGraphe(g, osBras, osArme)
@@ -196,7 +196,7 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 	if !sansBras {
 		selBras := lisModelePose(brasAsset, GroupeMode, armure)
 		if err := m.versePieces(ctx, brasAsset, &selBras, osBras); err != nil {
-			return fmt.Errorf("bras : %w", err)
+			return fmt.Errorf("arms: %w", err)
 		}
 		r.SommetsBras = len(m.Maillage.Structure.Sommets) / 3
 		for _, id := range selBras.materiaux {
@@ -204,10 +204,10 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 		}
 	}
 	if err := m.versePieces(ctx, arme.asset, arme, osArme); err != nil {
-		return fmt.Errorf("arme : %w", err)
+		return fmt.Errorf("weapon: %w", err)
 	}
 	if m.Maillage.Structure.Triangles() == 0 {
-		return fmt.Errorf("aucun triangle visible")
+		return fmt.Errorf("no visible triangle")
 	}
 	// LOCAL-CHANGE (infinite-theater-3d): the arsenal's surface cap for hard-surface textures.
 	m.Maillage.surfaceCote = a.surfaceCote
@@ -222,7 +222,7 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 func modeleDeLArme(ctx context.Context, a *Arsenal, src SourcesArme) (*modelePose, error) {
 	raw, err := a.geo.Extract(src.Arme)
 	if err != nil {
-		return nil, fmt.Errorf("arme : %w", err)
+		return nil, fmt.Errorf("weapon: %w", err)
 	}
 	if id, _, ok := RefModeleVehicule(ctx, a.geo, raw); ok && id == src.Mode {
 		if mp := modeleDuPlacement(ctx, a.geo, src.Arme, varianteDefaut); mp != nil {
@@ -231,7 +231,7 @@ func modeleDeLArme(ctx context.Context, a *Arsenal, src SourcesArme) (*modelePos
 	}
 	asset := ouvreAsset(ctx, a.geo, src.Mode, GroupeMode)
 	if asset == nil {
-		return nil, fmt.Errorf("modele %08x de l'arme illisible", src.Mode)
+		return nil, fmt.Errorf("unreadable weapon model %08x", src.Mode)
 	}
 	slog.InfoContext(ctx, "first-person rig: FP model distinct from 3P model", "weapon", fmt.Sprintf("%08x", src.Arme),
 		"mode", fmt.Sprintf("%08x", src.Mode))
@@ -268,7 +268,7 @@ func (m *ModeleAPeau) versePieces(ctx context.Context, asset *RuntimeGeoAsset, s
 	for i, n := range source {
 		j := NoeudParNom(m.Noeuds, n.Name)
 		if j < 0 {
-			return fmt.Errorf("noeud %s absent du graphe", NomDuNoeud(n.Name))
+			return fmt.Errorf("node %s absent from the graph", NomDuNoeud(n.Name))
 		}
 		vers[i] = uint16(j)
 	}
@@ -282,7 +282,7 @@ func (m *ModeleAPeau) versePieces(ctx context.Context, asset *RuntimeGeoAsset, s
 		mesh := asset.Mesh(k)
 		inf, err := asset.PeauDeSection(k, len(source))
 		if err == nil && (mesh == nil || len(inf) != len(mesh.Vertices)) {
-			err = fmt.Errorf("%w : section %d, maillage illisible ou de taille differente", ErrPeauIllisible, k)
+			err = fmt.Errorf("%w: section %d, unreadable mesh or different size", ErrPeauIllisible, k)
 		}
 		if err != nil {
 			return err
@@ -290,7 +290,7 @@ func (m *ModeleAPeau) versePieces(ctx context.Context, asset *RuntimeGeoAsset, s
 		for v := range inf {
 			for c := 0; c < OsParSommet; c++ {
 				if int(inf[v].Os[c]) >= len(vers) {
-					return fmt.Errorf("%w : section %d, os %d hors des %d noeuds", ErrPeauIllisible, k, inf[v].Os[c], len(vers))
+					return fmt.Errorf("%w: section %d, bone %d outside the %d nodes", ErrPeauIllisible, k, inf[v].Os[c], len(vers))
 				}
 				inf[v].Os[c] = vers[inf[v].Os[c]]
 			}
@@ -326,7 +326,7 @@ func (r *RigPremierePersonne) litClips(gs *GraphesAnimation) error {
 				nom = NomClipPremierePersonne(c.Action, c.Variante)
 				decode, err := c.Graphe.Decode(c.Rang)
 				if err != nil {
-					return fmt.Errorf("action %s variante %d : %w", c.Action, c.Variante, err)
+					return fmt.Errorf("action %s variant %d: %w", c.Action, c.Variante, err)
 				}
 				if c.Graphe != gs.Propre {
 					decode = pistesSurSquelette(decode, c.Graphe.Os, gs.Propre.Os)

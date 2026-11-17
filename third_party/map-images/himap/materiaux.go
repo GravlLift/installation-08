@@ -213,7 +213,7 @@ func LitMateriau(id uint32, tag []byte, shaders LecteurShaders, styles LecteurSt
 		}
 		return m, nil
 	}
-	return Materiau{}, fmt.Errorf("himap: tag %s %#x illisible", GroupeMateriau, id)
+	return Materiau{}, fmt.Errorf("himap: unreadable tag %s %#x", GroupeMateriau, id)
 }
 
 // litPostprocess verse dans m le bloc postprocess `cible` du tag (melange, decoupe, couches,
@@ -264,7 +264,7 @@ func CheminsMateriaux(deployRoot, moduleCarte string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("modules de materiaux : %w", err)
+		return nil, fmt.Errorf("material modules: %w", err)
 	}
 	return out, nil
 }

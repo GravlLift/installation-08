@@ -68,7 +68,7 @@ func (a *Arsenal) ThemesDuModele(ctx context.Context, mode uint32) ([]ThemeArmur
 		}
 		return themes, nil
 	}
-	return nil, fmt.Errorf("aucune globale de personnalisation (%s) ne porte le mode %08x", GroupePersonnalisation, mode)
+	return nil, fmt.Errorf("no customization global (%s) carries mode %08x", GroupePersonnalisation, mode)
 }
 
 // themesDeLOcgd rend les themes de l'enregistrement du `mode` de l'ocgd ; faux quand il ne le porte pas.
@@ -137,7 +137,7 @@ func baseDeLOcur(ocur []byte) ([]CleArmure, uint32, error) {
 		}
 		abs, taille := ti.blockAbs(cibles[i])
 		if abs < 0 || taille%ocurRegionStride != 0 {
-			return nil, 0, fmt.Errorf("regions de personnalisation sur %d o", taille)
+			return nil, 0, fmt.Errorf("customization regions over %d bytes", taille)
 		}
 		sous := ti.sousBlocsParOffset(cibles[i])
 		var base []CleArmure
@@ -162,7 +162,7 @@ func baseDeLOcur(ocur []byte) ([]CleArmure, uint32, error) {
 		}
 		return base, propre, nil
 	}
-	return nil, 0, fmt.Errorf("pas de regions de personnalisation a la racine +%d", ocurOffRegions)
+	return nil, 0, fmt.Errorf("no customization regions at root +%d", ocurOffRegions)
 }
 
 // blocDe rend l'adresse et la taille du sous-bloc du champ `off` ; (-1, 0) sans sous-bloc.
