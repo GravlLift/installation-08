@@ -131,6 +131,8 @@ export class BrasPremierePersonne3d {
   private readonly probeAt?: (position: THREE.Vector3) => THREE.Texture | null
   private readonly habillage: HabillageRig3d
   private readonly clesPrechargees = new Set<string>()
+  /** The deferred preload is armed: set once the load gate is idle (the loading screen is gone). */
+  private prechargeArme = false
   private readonly indexPieces: Promise<BrasIndex | null>
   private readonly chargeurPieces: BrasPieces3d
   private indexPrêt = false
@@ -206,17 +208,30 @@ export class BrasPremierePersonne3d {
       if (!this.abort.signal.aborted) console.warn('rejeu 3D : index première personne indisponible', erreur)
     }
     this.indexPrêt = true
-    for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
-    this.clesPrechargees.clear()
+    this.lancerPrecharge()
   }
 
-  /** precharger : le chargement des rigs des clés de modèle `cles` commence sans attendre `montrer` ; sans index chargé, les clés attendent son arrivée. */
+  /**
+   * precharger: record the model keys `cles` whose rigs should be preloaded. Recording does not
+   * start a download; the downloads begin only once the preload is armed (`demarrerPrecharge`),
+   * so the eager preload does not compete with the gated loads for the loading screen.
+   */
   precharger(cles: readonly string[]): void {
-    if (!this.indexPrêt) {
-      for (const cle of cles) this.clesPrechargees.add(cle)
-      return
-    }
-    for (const cle of cles) this.chargerRigDe(cle)
+    for (const cle of cles) this.clesPrechargees.add(cle)
+    this.lancerPrecharge()
+  }
+
+  /** demarrerPrecharge: arm the deferred preload; start it now if the index is already ready. Called when the load gate goes idle. */
+  demarrerPrecharge(): void {
+    this.prechargeArme = true
+    this.lancerPrecharge()
+  }
+
+  /** lancerPrecharge: start the recorded rig loads once armed and the index is ready, once. */
+  private lancerPrecharge(): void {
+    if (!this.prechargeArme || !this.indexPrêt) return
+    for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
+    this.clesPrechargees.clear()
   }
 
   private chargerRigDe(cle: string): void {

@@ -8,7 +8,8 @@ import type { EvenementsPremierePersonne } from './actionsPremierePersonne3d'
 import type { RigPremierePersonne } from './premierePersonne3d'
 
 // A rig download that never settles: a rig left mid-load stays in-flight, which the gate test needs.
-vi.mock('./meshFetch', () => ({ fetchMesh: () => new Promise<void>(() => {}) }))
+const { fetchMesh } = vi.hoisted(() => ({ fetchMesh: vi.fn(() => new Promise<void>(() => {})) }))
+vi.mock('./meshFetch', () => ({ fetchMesh }))
 
 describe('estMateriauBras', () => {
   it('reconnaît la surface brute sans remplacer les matériaux de l’arme', () => {
@@ -166,16 +167,14 @@ describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèl
   })
 })
 
-describe('gate: a preloaded rig is ungated until it is shown', () => {
+describe('gate: first-person rig loading', () => {
   const evenements = {
     rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
     slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
     rechargementValide: () => false,
   } as unknown as EvenementsPremierePersonne
 
-  it('a rig preloaded without the gate does not hold gate.idle; montrer for it while loading does', () => {
-    const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const gate = new LoadGate()
+  function brasArme(gate: LoadGate): { bras: BrasPremierePersonne3d; interne: { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexPrêt: boolean } } {
     const bras = new BrasPremierePersonne3d(new THREE.Scene(), '/premiere-personne', gate)
     const clip = {
       name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
@@ -186,18 +185,35 @@ describe('gate: a preloaded rig is ungated until it is shown', () => {
     interne.armes.set('arme', rig)
     interne.fichiersArmes.set('a.glb', 'arme')
     interne.indexPrêt = true
+    return { bras, interne }
+  }
 
+  it('does not start the preload until it is armed (the gate idle)', () => {
+    const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const gate = new LoadGate()
+    const { bras } = brasArme(gate)
+    fetchMesh.mockClear()
+    // Recording the preload starts no download...
+    bras.precharger(['arme'])
+    expect(fetchMesh).not.toHaveBeenCalled()
+    // ...until the gate-idle trigger arms it.
+    bras.demarrerPrecharge()
+    expect(fetchMesh).toHaveBeenCalledTimes(1)
+    bras.dispose()
+    silence.mockRestore()
+  })
+
+  it('shows a rig gated, even if the preload only recorded it', () => {
+    const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const gate = new LoadGate()
+    const { bras } = brasArme(gate)
+    bras.precharger(['arme'])
     // The constructor already tracks the bras.json index load, so measure the rig's delta.
     const base = gate.pending
-    // Eager preload is ungated: the in-flight load adds nothing to the gate.
-    bras.precharger(['arme'])
-    expect(gate.pending - base).toBe(0)
-
-    // Showing the rig while it is still loading promotes the load to gated.
+    // Showing the rig loads it, gated.
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     expect(bras.montrer(camera, 'arme', evenements, null)).toBe(false)
     expect(gate.pending - base).toBe(1)
-
     bras.dispose()
     silence.mockRestore()
   })
