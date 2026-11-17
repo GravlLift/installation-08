@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // ioWriter is the slice of the write target writeFile needs.
@@ -82,6 +83,11 @@ type depot struct {
 	fichiers   int
 	octets     int64
 	references int
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel rig build pool calls depose from
+	// several goroutines at once; it guards vues/fichiers/octets/references and the dedup
+	// write below, so the depot's counts (and index.Textures, read from them) are exact
+	// however many rigs run at once.
+	mu sync.Mutex
 }
 
 // depose écrit l'image (si elle n'est pas déjà écrite) et rend son nom, URI relative au
@@ -92,8 +98,10 @@ func (d *depot) depose(data []byte, mime string) (string, error) {
 	if extension == "" {
 		return "", fmt.Errorf("image de type %q : ni PNG, JPEG ni KTX2", mime)
 	}
-	d.references++
 	nom := fichierTexture(data, extension)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.references++
 	if d.vues[nom] {
 		return nom, nil
 	}

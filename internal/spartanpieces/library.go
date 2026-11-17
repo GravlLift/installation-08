@@ -25,9 +25,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/parallel"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 )
 
@@ -65,6 +68,11 @@ type library struct {
 	coatings  *CoatingWork
 	index     Index
 	bytes     int64
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): guards bytes, the one field writeGLB mutates
+	// that the parallel piece build pool (writePieces) can reach from several goroutines at
+	// once; index.Pieces/index.Failures are appended only in the single-threaded merge after
+	// the pool, so they need no lock.
+	mu sync.Mutex
 	// ktx2 (LOCAL-CHANGE (infinite-theater-3d)): compress piece textures to KTX2 before
 	// externalising them; set for the first-person arm pieces build, not the 3P main build.
 	ktx2 bool
@@ -154,17 +162,47 @@ func (b *library) result() Result {
 		Textures: b.depot.fichiers, Coatings: coats, Bytes: b.bytes}
 }
 
-// writePieces writes each piece of the armory.
+// pieceOutcome is one piece's result from the parallel build pool, keyed by its position in
+// the armory's piece list (never by completion order), so the merge after the pool appends to
+// index.Pieces/index.Failures in that same original order regardless of dispatch order.
+type pieceOutcome struct {
+	key    string
+	piece  PieceIndex
+	failed bool
+	err    error
+}
+
+// writePieces writes every piece of the armory on a bounded worker pool (internal/parallel): a
+// piece that cannot be written is recorded in index.Failures (not a pool-level error) and the
+// build continues, as it did sequentially.
 func (b *library) writePieces(r *himap.Armurerie, announce func(string)) {
-	for _, c := range r.Pieces() {
-		key := PieceKey(Identifier(c.Region), Identifier(c.Permutation))
-		p, err := b.writePiece(r, c, key)
+	pieces := r.Pieces()
+	total := len(pieces)
+	outcomes := make([]pieceOutcome, total)
+	rep := meshjobs.ProgressFromContext(b.ctx)
+	keyOf := func(i int) string { return PieceKey(Identifier(pieces[i].Region), Identifier(pieces[i].Permutation)) }
+	order := parallel.PriorityOrder(total, keyOf, meshjobs.PriorityFromContext(b.ctx))
+	_ = parallel.Run(b.ctx, order, parallel.Workers(), func(done int) {
+		if rep != nil {
+			rep.Report(0.7*float64(done)/float64(total), fmt.Sprintf("%d/%d", done, total))
+		}
+	}, func(ctx context.Context, i int) error {
+		key := keyOf(i)
+		announce("building piece " + key)
+		p, err := b.writePiece(r, pieces[i], key)
 		if err != nil {
-			b.failure(key, err)
+			outcomes[i] = pieceOutcome{key: key, failed: true, err: err}
+			return nil // a piece that cannot be written is recorded, never fatal to the build
+		}
+		outcomes[i] = pieceOutcome{key: key, piece: p}
+		return nil
+	})
+	for _, o := range outcomes {
+		if o.failed {
+			b.failure(o.key, o.err)
 			continue
 		}
-		b.index.Pieces = append(b.index.Pieces, p)
-		announce("building piece " + key)
+		b.index.Pieces = append(b.index.Pieces, o.piece)
 	}
 }
 
@@ -217,7 +255,9 @@ func (b *library) writeGLB(file string, glb []byte) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	b.mu.Lock()
 	b.bytes += n
+	b.mu.Unlock()
 	return n, nil
 }
 

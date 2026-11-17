@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // axesGLB is the axis mapping published in every GLB's extras, under the
@@ -76,6 +77,10 @@ type textureDepot struct {
 	fichiers   int
 	octets     int64
 	references int
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel piece build pool calls depose from
+	// several goroutines at once; it guards vues/fichiers/octets/references and the dedup
+	// write below.
+	mu sync.Mutex
 }
 
 // depose stores the image (when this build has not stored it yet) and returns
@@ -86,9 +91,11 @@ func (d *textureDepot) depose(data []byte, mime string) (string, error) {
 	if extension == "" {
 		return "", fmt.Errorf("image of type %q: neither PNG, JPEG nor KTX2", mime)
 	}
-	d.references++
 	digest := sha256.Sum256(data)
 	name := fileTexture(digest, extension)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.references++
 	if d.vues[name] {
 		return name, nil
 	}

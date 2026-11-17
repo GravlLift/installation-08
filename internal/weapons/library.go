@@ -23,6 +23,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/parallel"
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
@@ -179,29 +180,57 @@ type modelWriter struct {
 	coats *spartanpieces.CoatingWork
 }
 
-// buildWeapons writes the GLB of each weapon of keys, counting them into res (a weapon whose
-// model cannot be read is marked with an empty <key>.none file, not an error). rep (nil
-// accepted) reports the unit's position as progress.
+// weaponOutcome is one weapon's result from the parallel build pool, keyed by its position in
+// the keys slice given to buildWeapons (never by completion order), so the merge after the
+// pool sums res.Built/res.Skipped/res.Bytes exactly as the old sequential loop did regardless
+// of dispatch order.
+type weaponOutcome struct {
+	bytes   int64
+	skipped bool
+}
+
+// buildWeapons writes the GLB of each weapon of keys on a bounded worker pool
+// (internal/parallel), counting them into res (a weapon whose model cannot be read is marked
+// with an empty <key>.none file, not an error; any other error is fatal and stops the whole
+// build, as it did sequentially). rep (nil accepted) reports progress; a weapon key recorded
+// through Runner.Prioritize (meshjobs.PriorityFromContext) is dispatched first, so a match the
+// viewer just opened gets its own weapons sooner — the library's index is unaffected, since it
+// is built from keys in its own given order (NewIndex), never from build order.
 func buildWeapons(ctx context.Context, w modelWriter, keys []string, res *Result, announce func(string), rep meshjobs.ProgressReporter) error {
 	total := len(keys)
-	for i, key := range keys {
+	outcomes := make([]weaponOutcome, total)
+	order := parallel.PriorityOrder(total, func(i int) string { return keys[i] }, meshjobs.PriorityFromContext(ctx))
+	err := parallel.Run(ctx, order, parallel.Workers(), func(done int) {
 		if rep != nil {
-			rep.Report(0.8*float64(i)/float64(total), "weapons")
+			rep.Report(0.8*float64(done)/float64(total), fmt.Sprintf("%d/%d", done, total))
 		}
+	}, func(ctx context.Context, i int) error {
+		key := keys[i]
 		announce("building weapon " + key)
 		n, err := buildWeaponModel(ctx, w.a, key, w.dir, w.coats)
 		if errors.Is(err, himap.ErrSansModele) {
 			if merr := writeMarker(w.dir, key); merr != nil {
 				return fmt.Errorf("marker for %s: %w", key, merr)
 			}
-			res.Skipped++
-			continue
+			outcomes[i] = weaponOutcome{skipped: true}
+			return nil
 		}
 		if err != nil {
 			return fmt.Errorf("weapon %s: %w", key, err)
 		}
+		outcomes[i] = weaponOutcome{bytes: n}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, o := range outcomes {
+		if o.skipped {
+			res.Skipped++
+			continue
+		}
 		res.Built++
-		res.Bytes += n
+		res.Bytes += o.bytes
 	}
 	return nil
 }
@@ -291,7 +320,10 @@ func writeModelGLB(ctx context.Context, dir, key string, m *himap.MaillageMonde,
 	if err != nil {
 		return 0, err
 	}
-	glb, _, err = texcompress.CompressGLB(ctx, glb, texcompress.Options{})
+	// LOCAL-CHANGE (infinite-theater-3d): Workers: 1 — buildWeapons already runs many weapons
+	// at once on its own worker pool; texcompress's own internal pool (its default, half the
+	// logical CPUs) would otherwise oversubscribe the same cores underneath it.
+	glb, _, err = texcompress.CompressGLB(ctx, glb, texcompress.Options{Workers: 1})
 	if err != nil {
 		return 0, fmt.Errorf("ktx2: %w", err)
 	}

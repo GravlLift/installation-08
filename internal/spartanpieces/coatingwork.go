@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -34,6 +35,12 @@ type CoatingWork struct {
 	loaded    map[uint32]*ekurMaterial
 	lists     map[string]bool
 	gradients map[uint32]bool
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): one CoatingWork is shared by every piece/weapon/
+	// rig of a library build, and the parallel build pool calls PaintableGLB (so material,
+	// below) from several goroutines at once. Everything that reads or mutates loaded, lists,
+	// gradients or index.* in this file holds mu; Finish and writeSwatches run after the pool
+	// has drained (no concurrent caller left), so they do not need it.
+	mu sync.Mutex
 }
 
 // OpenCoatingWork validates the reference folder; nil, nil when it is not
@@ -154,6 +161,8 @@ func (a *CoatingWork) PaintableGLB(ctx context.Context, m *himap.MaillageMonde, 
 // material returns the reference's material id (read once, counted once); nil
 // when it is missing.
 func (a *CoatingWork) material(ctx context.Context, id uint32, raw map[string]any) *ekurMaterial {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if m, seen := a.loaded[id]; seen {
 		return m
 	}
