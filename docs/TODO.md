@@ -79,6 +79,23 @@ are in [PARITY.md](PARITY.md).
   in unit tests and by code reading.
 - Home screen: Settings and Quit rows, gamepad input, live 3D backdrops.
 
+## App window and load speed (owner's queue, 2026-11-17)
+
+- Window shell: per-monitor DPI awareness (the window renders soft at display scaling above
+  100% because neither the exe nor go-webview2 declares it), an app icon and version
+  resource, a menu bar (File: open data folder, open log, exit; Help: GitHub, about), the
+  window's size and position remembered, F11 full screen, a guard on closing during an export.
+- Serve the viewer's files to the window in-process (WebView2 resource interception) instead
+  of over HTTP, measured against HTTP.
+- Confirm compiled shaders persist across launches in the window's fixed profile (second
+  launch load against first), and keep it that way.
+- Keep parsed models, textures and the map loaded between matches (a session cache with a
+  memory cap), so the second match and a reopened map load fast.
+- Save each map's collision index (three-mesh-bvh serialize) into the map build, so no map
+  builds it at load time. Every map benefits, not only Streets. Also consider merging a map's
+  small static pieces at build time (Streets has about 2,000).
+- Update checker (GitHub releases), once the repo is public.
+
 ## Ideas for later
 
 - Programmed camera for film export: a timeline with automation lanes for the camera, so a
