@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * adsOverlayRaster.ts — THE ADS OVERLAYS IN THE VIDEO FILE. The live HUD draws each weapon's
- * aim-down-sights overlay as SVG (`ui/ReplayAthLunette3d`), which never reaches the exported file.
+ * aim-down-sights overlay as SVG (`ui/ReplayHudScope3d`), which never reaches the exported file.
  * Rather than keep a second, canvas copy of every overlay's geometry, the export renders THE SAME
  * component to markup, resolves its CSS variables (an SVG image cannot read the page's theme),
  * and loads it as an image at the file's pixel size, before the first frame. The paint is then
@@ -23,7 +23,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { ADS_MINIMAL, adsOverlayFor, type AdsDesign, type AdsOverlaySpec } from '../model/adsOverlay'
 import { heldModelKey } from '../model/aimHud'
 import { specLunette } from '../model/scopeLogic'
-import { ADS_AMMO_TEXT, ReplayAthLunette3d } from '../ui/ReplayAthLunette3d'
+import { ADS_AMMO_TEXT, ReplayHudScope3d } from '../ui/ReplayHudScope3d'
 
 /** Loads an SVG document as an image; null when it cannot be decoded. */
 export type SvgImageLoader = (svg: string) => Promise<CanvasImageSource | null>
@@ -63,7 +63,7 @@ type RenderMarkup = (element: ReturnType<typeof createElement>) => string
  * pixels, its `var(--token)` colors and font resolved, without the magazine count.
  */
 export function adsOverlaySvg(render: RenderMarkup, spec: AdsOverlaySpec, levelIndex: number, hostile: boolean, width: number, height: number): string {
-  const markup = render(createElement(ReplayAthLunette3d, {
+  const markup = render(createElement(ReplayHudScope3d, {
     spec,
     levelIndex,
     amount: 1,

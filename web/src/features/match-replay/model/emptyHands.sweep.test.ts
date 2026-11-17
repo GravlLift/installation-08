@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * emptyHands.sweep.test.ts — measure, classify and (for the longest cases) explain the frames in
- * which a living player carries no weapon in hand (`armeEnMain` returns null, no carried object).
+ * which a living player carries no weapon in hand (`weaponInHand` returns null, no carried object).
  *
  * GATED: runs only when `IT3D_SWEEP=1` (never in CI). It fetches every stored match from the
  * local server, normalizes each replay, scans every living slot every 3rd frame, collects each
@@ -22,7 +22,7 @@ import { frameToMs, isAliveAt, trackWindow } from '@/lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { currentLifeOf, loadoutAt } from '@/lib/replay/rosterLogic'
 
-import { armeEnMain, carriedObjectAt, suivreMain } from './armeEnMain'
+import { weaponInHand, carriedObjectAt, suivreMain } from './weaponInHand'
 import { inventoryAt } from './inventoryReading'
 
 const BASE = 'http://127.0.0.1:8177'
@@ -68,7 +68,7 @@ function scanMatch(doc: ReplayDocumentReady): { alive: number; empty: number; in
       if (!isAliveAt(track, f)) continue
       alive++
       if (carriedObjectAt(doc, track.xuid, f)) continue // carrier holds an object, not a weapon
-      if (armeEnMain(doc, track.slot, f) == null) {
+      if (weaponInHand(doc, track.slot, f) == null) {
         empty++
         const cur = open.get(track.slot)
         if (cur) cur.end = f
@@ -116,7 +116,7 @@ function drawnInLife(doc: ReplayDocumentReady, slot: number, start: number, end:
 
 /**
  * The evidence that decides the cause of an empty hand at `frame`, and a cause label for it.
- * Mirrors `armeEnMain`'s decision so the label names the branch that left the hand empty.
+ * Mirrors `weaponInHand`'s decision so the label names the branch that left the hand empty.
  */
 function diagnose(doc: ReplayDocumentReady, slot: number, frame: number): { cause: string; evidence: Record<string, unknown> } {
   const life = currentLifeOf(doc, slot, frame)
@@ -165,7 +165,7 @@ function causeOf(
   const invFutur = inv != null && inv.age < 0
   const invPast = inv && inv.age >= 0
   const readLocates = eventMs !== -Infinity || invPast || invFutur
-  // Mirror armeEnMain's precedence for the designated slot: a past dated read of the life
+  // Mirror weaponInHand's precedence for the designated slot: a past dated read of the life
   // (selector, per-shot magazine) wins over the keyframe inventory; a future inventory read is
   // borrowed only when it designates a slot that holds a row weapon.
   const invMs = inv ? frameToMs(inv.empty ? ctx.frame - inv.empty.age : inv.state.t, doc) : -Infinity

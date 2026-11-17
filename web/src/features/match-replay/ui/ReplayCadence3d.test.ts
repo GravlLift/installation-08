@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
-import { nouveauProfil } from '../scene3d/profilRendu3d'
+import { nouveauProfil } from '../scene3d/renderProfile3d'
 import { meterLines, snapshotOf } from './ReplayCadence3d'
 
 describe('ReplayCadence3d meter lines', () => {

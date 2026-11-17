@@ -30,12 +30,12 @@ import * as THREE from 'three'
 import { api } from '@/lib/api/client'
 import { frameToMs } from '@/lib/replay/replayLogic'
 
-import { armeEnMain } from '../model/armeEnMain'
-import { episodesRechargementParSlot } from './actionsFilm3d'
+import { weaponInHand } from '../model/weaponInHand'
+import { episodesRechargementParSlot } from './filmActions3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
-import { dureeAttendue, finNaturelle, type EpisodeRechargement } from './rechargementPremierePersonne3d'
+import { dureeAttendue, finNaturelle, type EpisodeRechargement } from './firstPersonReload3d'
 import {
   effectScales,
   magazineFraction,
@@ -501,7 +501,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const reloading = !!line && reloadingAt(line.reloads, f, fps, clipS('reload_full'), line.shots)
       const seed = this.slotSeed.get(track.slot) ?? 0
       // The magazine of the weapon in hand: full at spawn, then the film's readings, shots and reloads.
-      const hand = armeEnMain(this.ctx.doc, track.slot, f)
+      const hand = weaponInHand(this.ctx.doc, track.slot, f)
       const atMs = frameToMs(f, this.ctx.doc)
       const magazine = hand && line ? this.magazineEvents(line, hand.slotArme, clipS, atMs, fps) : []
       if (drawn) drawn.model.updateWorldMatrix(true, false)
@@ -659,7 +659,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     }
     for (const [slot, eps] of episodesRechargementParSlot(doc)) {
       line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
-      line(slot).episodes = eps.map((ep) => ({ ep, w: armeEnMain(doc, slot, ep.etapes[0].t)?.slotArme ?? null }))
+      line(slot).episodes = eps.map((ep) => ({ ep, w: weaponInHand(doc, slot, ep.etapes[0].t)?.slotArme ?? null }))
     }
     const magazine = (slot: number, w: number) => {
       const m = line(slot).magazines
@@ -668,7 +668,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     }
     for (const s of doc.shots) {
       line(s.slot).shots.push(s.t)
-      const w = armeEnMain(doc, s.slot, s.t)?.slotArme
+      const w = weaponInHand(doc, s.slot, s.t)?.slotArme
       if (w != null) magazine(s.slot, w).push({ ms: frameToMs(s.t, doc) + (s.o ?? 0), kind: 'shot' })
     }
     for (const r of doc.ammoReads) if (r.mag != null) magazine(r.slot, r.w).push({ ms: r.ms, kind: 'read', rounds: r.mag })

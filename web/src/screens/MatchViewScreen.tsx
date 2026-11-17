@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 
 import { Replay3DView } from '../features/match-replay/ui/Replay3DView'
-import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { LoadState } from '../features/match-replay/model/loading3d_logic'
 import type { PageAction3dInputs } from '../features/match-replay/scene3d/action3dInputs'
 import { useReplayInks } from '../features/match-replay/layers/useReplayInks'
 import { normalizeMapObjectives } from '../features/match-replay/layers/objectivesLayer'

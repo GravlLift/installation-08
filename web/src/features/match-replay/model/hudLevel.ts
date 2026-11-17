@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * hudLevel — how much of the HUD (`ReplayAth3d`) a view draws, from the drawing view and the
+ * hudLevel — how much of the HUD (`ReplayHud3d`) a view draws, from the drawing view and the
  * camera mode:
  *   - 'full'      first person: everything (reticle and scope overlays included);
  *   - 'noReticle' third person, following a player: his whole HUD (weapon corner, grenades,

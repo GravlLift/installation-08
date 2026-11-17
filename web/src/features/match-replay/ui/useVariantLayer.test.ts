@@ -3,7 +3,7 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { LoadProgress3d } from '../model/chargement3d_logic'
+import { LoadProgress3d } from '../model/loading3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { sessionAssetCache } from '../scene3d/sessionAssetCache3d'
 import { useVariantLayer } from './useVariantLayer'

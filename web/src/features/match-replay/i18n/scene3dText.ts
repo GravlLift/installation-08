@@ -12,7 +12,7 @@ import type { ReplayLocale } from './i18n'
  * Standalone port note: LevelUp's build-step union lives in `lib/replay/meshBuild`, a
  * TanStack Query module (API client, query keys, app store) this viewer does not lift —
  * there is no "build the 3D map from your own game files" flow here. The union is kept
- * literally so `buildSteps` below still type-checks; `ReplayChargement3d` never reads it.
+ * literally so `buildSteps` below still type-checks; `ReplayLoading3d` never reads it.
  */
 type ReplayMeshBuildStep = 'geometry' | 'lighting' | 'writing' | 'libraries'
 

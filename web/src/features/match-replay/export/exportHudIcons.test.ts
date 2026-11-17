@@ -4,7 +4,7 @@ import { testReplayDoc } from '../test/testDoc'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { createExportHud } from './exportHud'
 
-vi.mock('../model/ath3d_logic', () => ({
+vi.mock('../model/hud3d_logic', () => ({
   preparerAth: () => ({}),
   lireScoreAth: () => null,
   horlogeHud: () => 0,

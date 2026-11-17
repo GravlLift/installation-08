@@ -4,7 +4,7 @@
  *
  * THE SOURCE IS THE FILM'S RELOAD ACTION (`doc.actions`, kind `reload`, the game's
  * `weapon_reload` input), the same for every weapon. It names no weapon: the weapon is the one in
- * hand at that instant (`armeEnMain`), and its tag picks the reload animation the game plays for
+ * hand at that instant (`weaponInHand`), and its tag picks the reload animation the game plays for
  * it (`reloadManifest.ts`). ONE RULE FOR EVERY CLASS: a weapon whose tag has no reload in the
  * manifest stays silent, and that is how the battery weapons (plasma pistol, pulse carbine,
  * ravager, stalker rifle: the game vents them, it has no reload animation for them), the melee
@@ -29,7 +29,7 @@
 import { frameToMs, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { botKey, currentLifeOf } from '../../../lib/replay/rosterLogic'
-import { armeEnMain } from '../model/armeEnMain'
+import { weaponInHand } from '../model/weaponInHand'
 import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
 import { weaponTagOf, type ReloadClip, type ReloadLibrary } from './reloadManifest'
@@ -78,7 +78,7 @@ export function reloadSoundEvents(
 function oneReload(doc: ReplayDocumentReady, library: ReloadLibrary, slot: number, f: SlotFacts, i: number, followed: string | null): ReplaySoundEvent[] {
   const startMs = f.reloads[i]
   const frame = Math.floor(msToFrames(startMs, doc))
-  const held = armeEnMain(doc, slot, frame)
+  const held = weaponInHand(doc, slot, frame)
   const tag = held ? weaponTagOf(held.id) : null
   const life = currentLifeOf(doc, slot, frame)
   const clip = tag && life ? clipAt(doc, library, tag, slot, frame) : undefined

@@ -5,7 +5,7 @@
  * The game setting (70 to 120) is a HORIZONTAL angle at 16:9: the game keeps the vertical angle
  * when the window is narrower (the sides are cropped). The 3D camera carries the
  * VERTICAL equivalent angle, computed here; the scope zoom multiplies from this base
- * (`scopeLogic`), and the first-person rig (`brasPremierePersonne3d`) counter-scales to
+ * (`scopeLogic`), and the first-person rig (`firstPersonArms3d`) counter-scales to
  * its setting base (`viewmodelScale`) to keep the weapon size placed at the eye.
  */
 

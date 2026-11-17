@@ -2,14 +2,14 @@
 /**
  * aimHud.ts — THE FIRST-PERSON AIM of the HUD as data: the hip reticle's geometry and, at a frame,
  * which ADS overlay is drawn and whether the hip reticle stays. One source for the live HUD
- * (`ui/ReplayAth3d`, SVG) and the video export (`export/exportHud`, canvas 2D), so the file shows
+ * (`ui/ReplayHud3d`, SVG) and the video export (`export/exportHud`, canvas 2D), so the file shows
  * the aim the screen shows.
  *
  * THE RETICLE BOX is 100 units square, centered on the screen, `max(50px, 10 % of the height)`.
  */
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { adsLevelIndex, adsOverlayFor, type AdsOverlaySpec } from './adsOverlay'
-import type { formeReticule } from './ath3d_logic'
+import type { formeReticule } from './hud3d_logic'
 import { specLunette, zoomAt, type ScopeSpec, type Zoom3d } from './scopeLogic'
 
 /** The hip reticle family of a weapon (`formeReticule`). */

@@ -3,7 +3,7 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { horlogeHud, lireAth, lireFilAth, lireScoreAth, preparerAth } from '../model/ath3d_logic'
+import { horlogeHud, lireAth, lireFilAth, lireScoreAth, preparerAth } from '../model/hud3d_logic'
 import { shieldFlash } from '../model/shieldHud'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
@@ -181,7 +181,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       }
     }
     paintFeed()
-    // THE STACKING OF THE LIVE HUD (`ReplayAth3d`): the kill feed, the score and the shield sit
+    // THE STACKING OF THE LIVE HUD (`ReplayHud3d`): the kill feed, the score and the shield sit
     // under the ADS overlay (a scope's shade darkens them); the reticle, the place label and the
     // weapon corner sit over it.
     if (aimOn && ath) {

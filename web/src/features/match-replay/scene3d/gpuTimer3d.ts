@@ -2,7 +2,7 @@
 /**
  * gpuTimer3d.ts — the GPU time of the 3D view's draws, from `EXT_disjoint_timer_query_webgl2`.
  *
- * The script time of a frame (`profilRendu3d`) only covers submitting the draws; a frame bound by
+ * The script time of a frame (`renderProfile3d`) only covers submitting the draws; a frame bound by
  * the GPU (fill, triangles, shadow maps) shows its cost here. One TIME_ELAPSED query wraps the
  * frame's draws (shadows, composer, minimap); results arrive a few frames later and are smoothed.
  * Without the extension (some browsers expose it only behind a flag) `ms` stays null.

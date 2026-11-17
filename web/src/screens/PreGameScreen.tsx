@@ -36,7 +36,7 @@ import {
 } from '../features/match-replay/settings/useTextureQuality'
 import { useAuthState } from './useAuthState'
 import { cleanMapName } from './matchSelectModel'
-import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { LoadState } from '../features/match-replay/model/loading3d_logic'
 import {
   QUALITY_BUILD_COST,
   READY_HOLD_MS,

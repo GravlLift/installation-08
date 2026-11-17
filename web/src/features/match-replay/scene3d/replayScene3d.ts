@@ -19,12 +19,12 @@
  * and `render` draws nothing while it runs.
  */
 import * as THREE from 'three'
-import { marquer, nouveauProfil } from './profilRendu3d'
+import { marquer, nouveauProfil } from './renderProfile3d'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
-import { BrasPremierePersonne3d } from './brasPremierePersonne3d'
+import { firstPersonArms3d } from './firstPersonArms3d'
 import { dossierPremierePersonne } from './premierePersonne3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { Export3dSetup, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
@@ -50,7 +50,7 @@ import { GpuTimer } from './gpuTimer3d'
 import { BACK_FACE_NAME } from './backFaces3d'
 import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
-import { prechauffer3d } from './prechauffage3d'
+import { prechauffer3d } from './warmup3d'
 import { serialiser } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
@@ -134,7 +134,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly exportScene: ReplayExportScene3d
   private readonly cameraPlacement: ReplayCamera3d
   private action: ActionScene3d | null = null
-  private bras: BrasPremierePersonne3d | null = null
+  private bras: firstPersonArms3d | null = null
   /** The first-person prep (`bras.preparerJoueur`) already started for the followed player. */
   private brasJoueurPrêt: string | null = null
   /** The hidden corpse copies have been fronted (`prepCorpses`); they are otherwise made lazily per death. */
@@ -345,7 +345,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     for (const a of this.avatars.values()) wearSpartan(a, null)
     this.weaponModels = models
     this.bras?.dispose()
-    this.bras = models ? new BrasPremierePersonne3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
+    this.bras = models ? new firstPersonArms3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
     if (this.bras) { const loading = this.bras.charger(); void (models?.gate?.track(loading) ?? loading) }
     this.brasJoueurPrêt = null
     this.prechargerRigs()

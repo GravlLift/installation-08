@@ -8,7 +8,7 @@
  * son canon (radians). C'est pourquoi la touche J (+x de la table) la déplace à l'écran vers la
  * gauche, droite du cône.
  *
- * `RIG_GRIPS` : le rig animé bras + arme (brasPremierePersonne3d). La tenue est dans le repère de
+ * `RIG_GRIPS` : le rig animé bras + arme (firstPersonArms3d). La tenue est dans le repère de
  * la caméra avant la rotation du rig : x positif = à DROITE à l'écran, y positif = EN HAUT,
  * z positif = LOIN de l'œil, `roll` = rotation autour de l'axe de la visée (radians). Les touches
  * font ce qu'elles disent à l'écran : Alt + J à gauche, L à droite, I en haut, K en bas, N vers

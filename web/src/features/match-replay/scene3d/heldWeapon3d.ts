@@ -12,7 +12,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayLocale } from '../i18n/i18n'
 import { fxTintOf, type FxTint } from '../layers/fxInk'
-import { armeEnMain, flagTeamInHand, objetEnMain } from '../model/armeEnMain'
+import { weaponInHand, flagTeamInHand, objetEnMain } from '../model/weaponInHand'
 
 export interface HeldWeapon3d {
   id: string
@@ -55,7 +55,7 @@ export function heldWeaponAt(
   locale: ReplayLocale,
 ): HeldWeapon3d | null {
   // The carrier of the skull or of a flag holds it in hand: the weapon reading leaves it out (the HUD shows none), the 3D view shows it.
-  const weapon = armeEnMain(doc, slot, frame)
+  const weapon = weaponInHand(doc, slot, frame)
   const held = weapon ?? objetEnMain(doc, slot, frame)
   if (!held) return null
   const label = doc.weaponLabels?.[held.id]

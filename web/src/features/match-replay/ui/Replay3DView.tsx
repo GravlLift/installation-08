@@ -26,7 +26,7 @@ import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanA
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
 import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
-import { LOAD_STALL_MS, LoadProgress3d, sceneLoadSignal, type LoadState } from '../model/chargement3d_logic'
+import { LOAD_STALL_MS, LoadProgress3d, sceneLoadSignal, type LoadState } from '../model/loading3d_logic'
 import { reportClientError } from '@/lib/clientLog'
 import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
@@ -54,11 +54,11 @@ import { useReplay3dAids } from '../settings/useReplay3dAids'
 import { useReplay3dFov } from '../settings/useReplay3dFov'
 import { useReplay3dLook } from '../settings/useReplay3dLook'
 import type { ReplayWindowBounds } from '../model/replayWindow'
-import { ReplayAth3d } from './ReplayAth3d'
+import { ReplayHud3d } from './ReplayHud3d'
 import { listenerOfCamera } from '../scene3d/soundListener3d'
 import type { SoundListener } from '../sound/soundSpatial'
 import { ReplayCadence3d } from './ReplayCadence3d'
-import { ReplayChargement3d } from './ReplayChargement3d'
+import { ReplayLoading3d } from './ReplayLoading3d'
 import { useMapCallouts } from './useMapCallouts'
 import { useMinimap3d } from './useMinimap3d'
 import { useSurfaceProbe } from './useSurfaceProbe'
@@ -555,7 +555,7 @@ export function Replay3DView({
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
       {/* How much of the HUD each view draws: `hudLevelOf` (first person all, third person no aim, free view score and feed, 2D score). */}
-      {ready && active && pov && <ReplayAth3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} callouts={callouts} />}
+      {ready && active && pov && <ReplayHud3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} callouts={callouts} />}
       {surface.probe && (
         <button
           type="button"
@@ -570,7 +570,7 @@ export function Replay3DView({
           {viewGrip.line} {viewGrip.copied ? `(${t.probeCopied})` : ''}
         </div>
       )}
-      {!ready && <ReplayChargement3d key={loadId} load={load} t={t} compact={compact} />}
+      {!ready && <ReplayLoading3d key={loadId} load={load} t={t} compact={compact} />}
       {ready && mode !== 'free' && povStatus !== 'alive' && povStatus !== 'dead' && (
         <div className={`pointer-events-none absolute inset-x-0 top-[45%] text-center font-semibold text-muted-foreground ${compact ? 'text-xs' : 'text-sm'}`}>
           {povStatus === 'unspawned' ? t.povUnspawned : t.noPov}

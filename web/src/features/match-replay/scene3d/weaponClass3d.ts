@@ -10,7 +10,7 @@
  * sont pas des armes de la rangée : leur porteur prend la classe de l'objet par son portage
  * (`carriedObjectAt`), pas par cette table (`CARRIED_OBJECT_CLASS`).
  */
-import type { CarriedObject } from '../model/armeEnMain'
+import type { CarriedObject } from '../model/weaponInHand'
 
 export type WeaponClass = 'rifle' | 'pistol' | 'missile' | 'sword' | 'hammer' | 'ball' | 'turret'
 

@@ -5,7 +5,7 @@
  * Halo Infinite draws its scope screens as CUI (2D UI screens), so the game files hold no scope
  * bitmap to extract. Each overlay is therefore redrawn procedurally from the in-game captures of the
  * real ADS view (1280x720, horizontal FOV 108, the viewer's default FOV). This module only says WHICH
- * overlay a weapon shows and what each zoom level prints; the drawing (`ui/ReplayAthLunette3d`)
+ * overlay a weapon shows and what each zoom level prints; the drawing (`ui/ReplayHudScope3d`)
  * holds the geometry, in units of 1/720 of the screen height with the origin at the screen center.
  *
  * A weapon nobody captured gets no copy of another weapon's overlay: a scoped one (a weapon whose

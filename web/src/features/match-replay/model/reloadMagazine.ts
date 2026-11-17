@@ -2,7 +2,7 @@
 /**
  * reloadMagazine.ts: THE ROUNDS LEFT IN THE HELD WEAPON'S MAGAZINE WHEN A RELOAD STARTS, from the film.
  *
- * The magazine is the last `ammoReads` read of the in-hand weapon slot (`armeEnMain`) at or before the
+ * The magazine is the last `ammoReads` read of the in-hand weapon slot (`weaponInHand`) at or before the
  * reload, minus the shots the player fired with that weapon after the read. Measured 2026-11-15 on the
  * nine stored matches: in the eight matches with per-shot reads (`src: delta`), every reload start has a
  * read before it, the median read is 0.8 to 1.5 s old and 1 to 16 starts per match have a shot after it.
@@ -13,7 +13,7 @@
 import { frameToMs, msToFrames } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
-import { armeEnMain } from './armeEnMain'
+import { weaponInHand } from './weaponInHand'
 
 /** The model key of a weapon id: its first eight hex digits, lower case. */
 function cleModele(id: string | undefined): string {
@@ -27,7 +27,7 @@ function cleModele(id: string | undefined): string {
  */
 export function magazineAtReload(doc: ReplayDocumentReady, slot: number, ms: number, debuts: readonly number[]): number | null {
   const frame = msToFrames(ms, doc)
-  const main = armeEnMain(doc, slot, frame)
+  const main = weaponInHand(doc, slot, frame)
   if (!main) return null
   let lecture: ReplayDocumentReady['ammoReads'][number] | null = null
   for (const r of doc.ammoReads) {

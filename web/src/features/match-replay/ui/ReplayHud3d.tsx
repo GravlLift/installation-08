@@ -1,0 +1,153 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { WeaponIcon } from '@/components/ui/WeaponIcon'
+import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
+import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
+import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
+import { catalogText } from '../i18n/catalogLabel'
+import type { ReplayKill } from '../model/killFeedLogic'
+import { horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, preparerAth } from '../model/hud3d_logic'
+import { magsPourArme } from '../model/scopeLogic'
+import { adsAmmoText } from '../model/adsOverlay'
+import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
+import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
+import { ReplayHudFeed3d } from './ReplayHudFeed3d'
+import { ReplayHudScope3d } from './ReplayHudScope3d'
+import { ReplayKillPopup3d } from './ReplayKillPopup3d'
+import { ShieldBar3d } from './ShieldBar3d'
+import { shieldFlash } from '../model/shieldHud'
+import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
+import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
+import type { ReplayScene3d } from '../scene3d/replayScene3d'
+import type { HeldWeapon } from '../scene3d/redReticle3d'
+import type { HudLevel } from '../model/hudLevel'
+import { buildLivesByXuid } from '../model/livesPosition'
+import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
+
+/** The hip reticle box (`aimHud.reticleBoxPx`, in container units). */
+const RETICLE_CSS_SIZE = `max(${RETICLE_MIN_PX}px, ${RETICLE_HEIGHT_SHARE * 100}cqh)`
+
+const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
+
+/**
+ * BandeauScore — the match score and clock, bottom center: drawn at every HUD level (`hudLevel`),
+ * the 2D view's 'score' level keeps it alone.
+ */
+function BandeauScore({ locale, frame, doc, playWindow, timeLimitMs, coteGauche, coteDroite }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; coteGauche: { camp: 'team-ally' | 'team-enemy'; score: number; part: number }; coteDroite: { camp: 'team-ally' | 'team-enemy'; score: number; part: number } }) {
+  // `data-map-inset`: the 2D view's map fits over it (`topDownView3d.readInsets`).
+  return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><BarreScore camp={coteGauche.camp} score={coteGauche.score} part={coteGauche.part} versCentre /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><BarreScore camp={coteDroite.camp} score={coteDroite.score} part={coteDroite.part} /></div>
+}
+
+export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full', callouts = null }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel; callouts?: PreparedCallouts | null }) {
+  const [frame, setFrame] = useState(0)
+  const [onEnemy, setOnEnemy] = useState(false)
+  // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
+  const heldRef = useRef<HeldWeapon | null>(null)
+  const source = useMemo(() => preparerAth(doc, xuid, kills), [doc, xuid, kills])
+  const lives = useMemo(() => buildLivesByXuid(doc.tracks), [doc])
+  useEffect(() => {
+    let raf = 0
+    const lire = () => {
+      const frame = frameRef.current ?? 0
+      setFrame(frame)
+      setOnEnemy(hud === 'full' && (sceneRef?.current?.redReticle(frame, source.allegeance, heldRef.current) ?? false))
+      raf = requestAnimationFrame(lire)
+    }
+    raf = requestAnimationFrame(lire)
+    return () => cancelAnimationFrame(raf)
+  }, [frameRef, sceneRef, source, hud])
+  const ath = lireAth(source, frame, locale)
+  const fil = lireFilAth(source, frame)
+  const popups = lirePopupsAth(source, frame)
+  const score = lireScoreAth(source, frame)
+  // Mort ou pas encore apparu (`ath` nul), le joueur garde le score, l'horloge et le fil : seuls
+  // le bouclier, le réticule et le coin de l'arme appartiennent à une vie.
+  // Le jeu range les barres par identifiant d'équipe, pas par allégeance : le camp à gauche
+  // porte `versCentre`, et l'encre (`camp`) reste celle de l'allégeance de chaque équipe.
+  const coteGauche = score && (score.allieAGauche
+    ? { camp: 'team-ally' as const, score: score.ally.score, part: score.ally.fill }
+    : { camp: 'team-enemy' as const, score: score.enemy.score, part: score.enemy.fill })
+  const coteDroite = score && (score.allieAGauche
+    ? { camp: 'team-enemy' as const, score: score.enemy.score, part: score.enemy.fill }
+    : { camp: 'team-ally' as const, score: score.ally.score, part: score.ally.fill })
+  const cle = heldModelKey(ath?.armeId)
+  // The magnification per level comes from the weapon index (the tag's own values); the hand
+  // table gives only the kind and the style. A weapon the index has no zoom for does not zoom.
+  const mags = magsPourArme(cle, sceneRef?.current?.magnifications(cle ?? '') ?? null)
+  // The weapon's ADS overlay (`adsOverlay`): drawn from the first frame of the zoom, fading with it;
+  // an overlay with its own center reticle replaces the hip reticle past half the fade (`aimHud`,
+  // shared with the video export).
+  const aimState = aimHudAt(doc, xuid, frame, cle, ath?.etiquette?.key, mags)
+  const { zoom, ads } = aimState
+  const armeId = ath?.armeId ?? null
+  useEffect(() => {
+    heldRef.current = armeId ? { weaponId: armeId, zoomLevel: zoom.level } : null
+  }, [armeId, zoom.level])
+  const reticule = ath ? reticleGeometry(ath.forme, ath.elimination, ath.touche) : null
+  const icone = ath?.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
+  const reticleColor = ath?.armeId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
+  const bandeau = score && coteGauche && coteDroite ? <BandeauScore locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} coteGauche={coteGauche} coteDroite={coteDroite} /> : null
+  // The levels (`hudLevel`): 2D keeps the score strip, free view adds the kill feed, third person
+  // is the full HUD without the aim (reticle, scope masks, Bandit frame), first person is all of it.
+  if (hud === 'score') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{bandeau}</div>
+  if (hud === 'spectator') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}><ReplayHudFeed3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />{bandeau}</div>
+  const aim = hud === 'full'
+  // The place name under the game's motion tracker (mapCallouts): bottom left, under the kill feed.
+  const lieu = calloutName(calloutOfLivesAt(callouts, lives.get(xuid), frame), locale)
+  return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>
+    <ReplayHudFeed3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
+    {bandeau}
+    {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
+    {ath?.bouclierEtat && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(39cqh, 90%)', minWidth: 160, transform: 'translateX(-50%)' }}>
+      <ShieldBar3d fraction={ath.bouclierEtat.fraction} state={ath.bouclierEtat.state} flash={shieldFlash(frameToMs(ath.bouclierEtat.since, doc), frameToMs(frame, doc))} label={REPLAY_TEXT[locale].shieldLabel} />
+    </div>}
+    {aim && ath && ads && <ReplayHudScope3d spec={ads} levelIndex={aimState.adsLevel} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.munitions?.mag)} />}
+    {aim && reticule && aimState.reticleShown && (
+      <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: RETICLE_CSS_SIZE, height: RETICLE_CSS_SIZE, left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${aimState.reticleScale})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth={RETICLE_STROKE}>
+        {reticule.ring !== null && <circle cx="50" cy="50" r={reticule.ring} />}
+        {reticule.dot && <circle cx="50" cy="50" r={RETICLE_DOT_R} fill="currentColor" stroke="none" />}
+        {reticule.ticks.length > 0 && <path d={segmentsPath(reticule.ticks)} />}
+        {reticule.hit && <path d={segmentsPath(reticule.hit.segments)} stroke={reticule.hit.kill ? tokenCssVar('team-enemy') : 'currentColor'} strokeWidth={reticule.hit.kill ? RETICLE_KILL_STROKE : RETICLE_STROKE} opacity={reticule.hit.opacity} />}
+      </svg>
+    )}
+    <ReplayKillPopup3d popups={popups} locale={locale} />
+    {lieu && <div data-hud-callout style={{ position: 'absolute', left: `${CALLOUT_LABEL.left * 100}%`, bottom: `${CALLOUT_LABEL.bottom * 100}%`, fontSize: `${CALLOUT_LABEL.em}em`, fontWeight: CALLOUT_LABEL.weight, letterSpacing: `${CALLOUT_LABEL.tracking}em`, textTransform: 'uppercase', lineHeight: 1 }}>{lieu}</div>}
+    {/* Le coin bas droit du jeu : grenades au-dessus, puis chargeur | réserve et l'arme à leur droite, canon vers la gauche (le sens natif de l'atlas ; un dessin hors atlas est retourné). */}
+    {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
+      <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.equipement && <EquipementAth3d doc={doc} rank={ath.equipement.rank} uses={ath.equipement.uses} locale={locale} />}{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em' }}>
+        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{ath.munitions?.mag}</span>
+        {ath.munitions?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.munitions.res}</span>}
+        {icone && <WeaponIcon imageUrl={icone.url} tinted={ath.etiquette?.tinted} label={catalogText(ath.etiquette, locale) ?? ''} width="2.8em" height="1.1em" style={icone.mirrored ? undefined : MIRROR_STYLE} />}
+      </div>
+    </div>}
+  </div>
+}
+
+/**
+ * The game's equipment slot, left of the grenades: the carried equipment's icon and its uses left
+ * (`equipmentSlotHud`); spent down to zero uses, the icon dims until the equipment is gone.
+ */
+function EquipementAth3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady; rank: number; uses: number | null; locale: ReplayLocale }) {
+  const label = doc.abilityLabels?.[String(rank)]
+  const name = catalogText(label, locale) ?? `rank ${rank}`
+  return <span role="img" aria-label={uses === null ? name : `${name} ${uses}`} data-hud-equipment={label?.family ?? rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', opacity: uses === 0 ? 0.45 : 1 }}>
+    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} width="1.3em" height="1.3em" /> : name}
+    {uses !== null && <span>{uses}</span>}
+  </span>
+}
+
+/**
+ * BarreScore: one camp's score the way the game draws it, a bar filled by `part` (0..1) with the
+ * number at its inner end. The track is a dark shade of the camp's color and the fill is the
+ * camp's own color (both follow the in-game team color the tokens carry). `versCentre`: the left
+ * bar, filled from the screen's center.
+ */
+function BarreScore({ camp, score, part, versCentre = false }: { camp: 'team-ally' | 'team-enemy'; score: number; part: number; versCentre?: boolean }) {
+  const cote = versCentre ? 'right' : 'left'
+  const couleur = tokenCssVar(camp)
+  return <span data-score-bar={camp} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: versCentre ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: `color-mix(in srgb, ${couleur} 28%, #000)`, [versCentre ? 'borderRight' : 'borderLeft']: `2px solid ${couleur}` }}>
+    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [cote]: 0, width: `${Math.max(0, Math.min(1, part)) * 100}%`, background: couleur }} />
+    <span style={{ position: 'relative' }}>{score}</span>
+  </span>
+}

@@ -10,7 +10,7 @@
  * la vue compacte sans réglage séparé.
  */
 import { displayPlayerName } from '@/lib/players/displayName'
-import type { KillPopup } from '../model/ath3d_logic'
+import type { KillPopup } from '../model/hud3d_logic'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { libelleMedale } from './MedalBadges'
 
