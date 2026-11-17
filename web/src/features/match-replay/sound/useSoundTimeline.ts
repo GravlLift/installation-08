@@ -21,6 +21,7 @@ import type { ReplaySoundEvent } from './replaySoundVariants'
 import { useAnnouncerTrack, type AnnouncerContext } from './useAnnouncerTrack'
 import { useFootstepTrack } from './useFootstepTrack'
 import { useReloadTrack } from './useReloadTrack'
+import { stagedSoundEvents } from './stagedSound'
 import { ventSoundEvents } from './ventSound'
 
 /**
@@ -55,6 +56,7 @@ export function useSoundTimeline(
     const extras: ReplaySoundEvent[] = []
     if (categories.weapon && weaponSounds?.reloads) extras.push(...reloadSoundEvents(doc, weaponSounds.reloads, followed))
     if (categories.weapon && weaponSounds?.vents) extras.push(...ventSoundEvents(doc, weaponSounds.vents, followed))
+    if (categories.weapon && weaponSounds?.staged) extras.push(...stagedSoundEvents(doc, weaponSounds.staged, followed))
     if (footsteps) extras.push(...footstepSoundEvents(footsteps, doc, FOOTSTEP_SURFACE, followed))
     return extras.length === 0 ? track : [...track, ...extras].sort((a, b) => a.ms - b.ms)
   }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, weaponSounds, footsteps, followed])

@@ -214,8 +214,8 @@ function phaseEtagee(
   return { clip: boucle, temps: dans(boucle, temps), poids: Math.min(1, sortieDeFin), depuis: etape.t }
 }
 
-/** The time one round takes in this episode: the previous round's, else the round clip's. */
-function dureeAttendue(etapes: readonly EtapeRechargement[], i: number, boucle: ClipPremierePersonne, fps: number): number {
+/** The time one round takes in this episode: the previous round's, else the round clip's (the staged reload sounds read it too). */
+export function dureeAttendue(etapes: readonly EtapeRechargement[], i: number, boucle: Pick<ClipPremierePersonne, 'durationSeconds'>, fps: number): number {
   return i >= 2 ? (etapes[i].t - etapes[i - 1].t) / fps : boucle.durationSeconds
 }
 
@@ -224,7 +224,7 @@ function dureeAttendue(etapes: readonly EtapeRechargement[], i: number, boucle: 
  * round went in, and the last round lasted most of the expected round time (a cut 0.13 s into a 0.53 s
  * round is an interruption).
  */
-function finNaturelle(etapes: readonly EtapeRechargement[], boucle: ClipPremierePersonne, fps: number): boolean {
+export function finNaturelle(etapes: readonly EtapeRechargement[], boucle: Pick<ClipPremierePersonne, 'durationSeconds'>, fps: number): boolean {
   const n = etapes.length - 1
   if (n < 2) return false
   const derniere = (etapes[n].t - etapes[n - 1].t) / fps
