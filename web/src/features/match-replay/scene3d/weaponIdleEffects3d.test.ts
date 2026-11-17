@@ -135,7 +135,7 @@ describe('WeaponIdleEffects3dLayer', () => {
     fp.layer.update(50)
     expect(fp.drawnCount('fp')).toBe(3)
     expect(fp.drawnCount('tp')).toBe(0)
-    expect(fp.anchor).toHaveBeenCalledWith('1a22fee6', '55990be4', expect.any(THREE.Matrix4))
+    expect(fp.anchor).toHaveBeenCalledWith('1a22fee6', '55990be4', expect.any(THREE.Matrix4), 0)
     fp.layer.dispose()
     const scoped = await layerFor({ firstPerson: true, scoped: true })
     scoped.layer.update(50)

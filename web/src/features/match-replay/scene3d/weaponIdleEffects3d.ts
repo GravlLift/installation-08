@@ -444,7 +444,11 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const readyS = this.ctx.weaponClipSeconds?.(key, 'ready') ?? 0
       const lastChange = line ? lastAtOrBefore(line.changes, f) : -Infinity
       const ready = f - lastChange >= readyS * fps
-      const reloading = !!line && reloadingAt(line.reloads, f, fps, this.ctx.weaponClipSeconds?.(key, 'reload_full') ?? null, line.shots)
+      const clipS = (action: string) => this.ctx.weaponClipSeconds?.(key, action) ?? null
+      const fullS = clipS('reload_full')
+      // A staged reload (no reload_full: the Heatwave) lasts through its closing clip.
+      const closingS = fullS === null ? clipS('reload_exit') ?? clipS('chamber_1') : null
+      const reloading = !!line && reloadingAt(line.reloads, f, fps, fullS, line.shots, closingS)
       const seed = this.slotSeed.get(track.slot) ?? 0
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
@@ -454,10 +458,11 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
           if (!systemShown(s, firstPerson, scoped)) return
           const pool = this.poolOf(`${key}:${ei}:${si}`, s)
           if (!pool) return
-          const anchors = firstPerson ? 1 : (e.markers[s.location]?.length ?? 0)
+          // Every instance of the marker (the Heatwave's vent marker is on both fins), in both views.
+          const anchors = e.markers[s.location]?.length ?? 0
           for (let m = 0; m < anchors; m++) {
             if (firstPerson) {
-              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR)) return
+              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR, m)) return
             } else {
               const at = e.markers[s.location][m]
               ANCHOR.copy(drawn!.model.matrixWorld).multiply(MARKER.makeTranslation(at[0], at[1], at[2]))

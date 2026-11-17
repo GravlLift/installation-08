@@ -86,6 +86,93 @@ describe('weapon idle effect functions', () => {
   })
 })
 
+/**
+ * The Heatwave's functions (2ac9c2ff, the twelve of its `weap` tag, read 2026-11-16 with their
+ * mappings): the vent (effect fd56d1ba) is scaled by `fx_reload`, the ready glow (67537d26) by
+ * `fx_ready`, and both read `fx_camo_off` or the animation-event import as their B scale.
+ */
+const step = (at: number) => ({ type: FN_MULTI_SPLINE, input: 0, rangeInput: 0, min: 0, max: 1, curves: [[{ end: at, coefs: [1 / at, 0] }, { end: MAX, coefs: [0, 1] }]] })
+const HEATWAVE_FUNCTIONS: IdleFunction[] = [
+  { import: '#568b62c5', default: 1, export: '#be38bffe' },
+  { import: 'throttle_forward', default: 1, export: '#efff3c32' },
+  { import: 'animation_event_function_variant_switch', default: 1, export: '#9ef8b167', turnOffWith: '#9f494a78' },
+  { import: 'alt_fire', default: 1, export: '#dc94848c' },
+  { import: 'primary_ammunition', default: 1, export: '#b1abb805', invert: true, mapping: step(0.0325) },
+  { import: 'alt_fire', default: 1, export: '#b83efc2c', mapping: step(0.001) },
+  { import: 'primary_ammunition', default: 1, export: 'fx_ready', turnOffWith: 'ready' },
+  { import: 'in_inventory', default: 1, export: '#ed0bc5c3', invert: true },
+  { import: 'is_reloading', default: 1, export: 'fx_reload', turnOffWith: '#9ef8b167' },
+  { import: 'primary_ammunition', default: 1, export: '#9ef8b167', turnOffWith: 'fx_camo_off', invert: true },
+  { import: 'camo', default: 1, export: 'fx_camo_off', mapping: { type: FN_MULTI_SPLINE, input: 0, rangeInput: 0, min: 0, max: 1, curves: [[{ end: MAX, coefs: [-1, 1] }]] } },
+  { import: 'alt_fire', default: 1, export: '#5fbb5c11', invert: true },
+]
+
+describe('the Heatwave vent functions', () => {
+  const vent = { functions: HEATWAVE_FUNCTIONS, scaleA: 'fx_reload', scaleB: 'animation_event_function_variant_switch' } as IdleEffect
+  const ready = { functions: HEATWAVE_FUNCTIONS, scaleA: 'fx_ready', scaleB: 'fx_camo_off' } as IdleEffect
+
+  it('maps an import through its function before inverting it', () => {
+    const imports = { ready: 1, is_reloading: 0, primary_ammunition: 1, camo: 0 }
+    expect(functionValue(HEATWAVE_FUNCTIONS, imports, 'fx_camo_off')).toBe(1)
+    expect(functionValue(HEATWAVE_FUNCTIONS, { ...imports, camo: 1 }, 'fx_camo_off')).toBe(0)
+    // #b1abb805: 1 - (the magazine past 3.25%), 1 only when empty.
+    expect(functionValue(HEATWAVE_FUNCTIONS, imports, '#b1abb805')).toBe(0)
+    expect(functionValue(HEATWAVE_FUNCTIONS, { ...imports, primary_ammunition: 0 }, '#b1abb805')).toBe(1)
+  })
+
+  it('vents while reloading, the B scale at its importing function default', () => {
+    expect(effectScales(vent, { ready: true, reloading: true })).toEqual({ scaleA: 1, scaleB: 1 })
+    expect(effectScales(vent, { ready: true, reloading: false }).scaleA).toBe(0)
+  })
+
+  it('draws the ready glow at full B while not camouflaged', () => {
+    expect(effectScales(ready, { ready: true, reloading: false })).toEqual({ scaleA: 1, scaleB: 1 })
+    expect(effectScales(ready, { ready: false, reloading: false }).scaleA).toBe(0)
+  })
+
+  it('a turn-off name nothing defines turns nothing off; a defined one at 0 does', () => {
+    expect(functionValue(HEATWAVE_FUNCTIONS, {}, '#9ef8b167')).toBe(1)
+    const fns: IdleFunction[] = [{ import: 'is_reloading', default: 1, export: 'a', turnOffWith: 'b' }, { import: 'camo', default: 1, export: 'b' }]
+    expect(functionValue(fns, { is_reloading: 1, camo: 0 }, 'a')).toBe(0)
+    expect(functionValue(fns, { is_reloading: 1, camo: 1 }, 'a')).toBe(1)
+  })
+})
+
+describe('simulateSystem, a rate below one particle a loop', () => {
+  /** The vent's first-person shell (fd56d1ba system 0), trimmed: 2 a second over 0.35 s loops, 0.8 s lives. */
+  const ventShell = (): IdleSystem => ({
+    location: '8fb04cfa', event: 0, eventFlags: 0x0a, eventDuration: [0.35, 0.35], coordinateSystem: 1,
+    cameraMode: CAMERA_FIRST_PERSON, flags: 0x00c00000, sizeScale: 1, particle: '30d0e6b2',
+    emitter: {
+      flags: 0, appearance: 0, particleFlags: 0, shape: 9, axisScale: [0, 1, 0], direction: [1, 0, 0],
+      startingInterpolant: [0, 0, 0], billboard: 10,
+      properties: {
+        lifespan: { type: FN_CONSTANT, input: 1, rangeInput: 2, min: 0.8, max: 0.8 },
+        emissionRate: { type: FN_IDENTITY, input: 13, rangeInput: 3, min: 0, max: 2 },
+        size: { type: FN_CONSTANT, input: 13, rangeInput: 2, min: 0.01, max: 0.01 },
+      },
+    },
+    render: { appearance: 0, blendMode: 9, shader: '96db07b6', textures: [], constants: {} },
+  })
+
+  it('still emits about rate x lifespan particles, each born once', () => {
+    const on = { scaleA: 1, scaleB: 1, cameraDistance: 0 }
+    let total = 0
+    const ages = new Set<string>()
+    for (let i = 0; i < 100; i++) {
+      const t = 10 + i * 0.05
+      const ps = simulateSystem(ventShell(), t, 1, 0, on, [])
+      total += ps.length
+      for (const p of ps) ages.add((t - p.age).toFixed(3))
+    }
+    // 2 a second x 0.8 s: 1.6 alive on average; over 5 s about 10 births.
+    expect(total / 100).toBeGreaterThan(1.2)
+    expect(total / 100).toBeLessThan(2.0)
+    expect(ages.size).toBeGreaterThanOrEqual(9)
+    expect(ages.size).toBeLessThanOrEqual(12)
+    expect(simulateSystem(ventShell(), 12, 1, 0, { ...on, scaleA: 0 }, [])).toHaveLength(0)
+  })
+})
 describe('simulateSystem', () => {
   const on = { scaleA: 1, scaleB: 1, cameraDistance: 0 }
 

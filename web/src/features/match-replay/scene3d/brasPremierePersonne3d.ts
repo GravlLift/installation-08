@@ -387,11 +387,12 @@ export class BrasPremierePersonne3d {
   /**
    * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
    * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
-   * frame. False when that weapon's rig is not the one shown, or lacks the marker or its bone.
+   * frame. `instance`: which instance of the marker, in the index's order (the Heatwave's vent marker
+   * sits on both fins). False when that weapon's rig is not the one shown, or lacks the marker or its bone.
    */
-  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4): boolean {
+  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4, instance = 0): boolean {
     if (!this.visible || this.cleVisible !== cle) return false
-    const m = this.marqueursEffets.get(cle)?.find((x) => x.marker === marqueur)
+    const m = this.marqueursEffets.get(cle)?.filter((x) => x.marker === marqueur)[instance]
     if (!m) return false
     let os = this.osEffets.get(this.visible)
     if (!os) this.osEffets.set(this.visible, (os = new Map()))
