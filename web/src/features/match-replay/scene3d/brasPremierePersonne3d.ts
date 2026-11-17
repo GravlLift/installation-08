@@ -106,6 +106,8 @@ export class BrasPremierePersonne3d {
   private readonly dossier: string
   private readonly gate?: LoadGate
   private readonly entrees = new Map<string, Entree>()
+  /** Les chargements en cours de rig (null dans `entrees`), avec le flag « gate » du chargement. */
+  private readonly chargements = new Map<string, { p: Promise<void>; gate: boolean }>()
   private readonly abort = new AbortController()
   private readonly armes = new Map<string, RigPremierePersonne>()
   /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
@@ -248,7 +250,8 @@ export class BrasPremierePersonne3d {
     this.cacher()
     const rig = cleArme && this.armes.get(cleArme)
     if (!rig) return false
-    if (!this.entrees.has(rig.file)) this.chargerRig(rig)
+    // Le rig visible retient l'écran de chargement (la première image en montre un) : gate.
+    this.chargerRig(rig, true)
     const entree = this.entrees.get(rig.file)
     if (!entree) return false
     this.habillage.actualiser(rig.file, entree.root)
@@ -498,7 +501,19 @@ export class BrasPremierePersonne3d {
     entree.bouche = st
   }
 
-  private chargerRig(rig: RigPremierePersonne): void {
+  /**
+   * Charger le rig `rig`, une fois par fichier. `gate` : le chargement retient l'écran de
+   * chargement (`gate.idle`) — c'est le cas du rig visible (la première image en montre un),
+   * pas des rigs préchargés en avance (`precharger`), qui se chargent sans bloquer la lecture.
+   * Si un chargement non gated est déjà en cours et qu'on le demande gated, on le passe en gate.
+   */
+  private chargerRig(rig: RigPremierePersonne, gate = false): void {
+    if (this.entrees.get(rig.file)) return
+    const enCours = this.chargements.get(rig.file)
+    if (enCours) {
+      if (gate && !enCours.gate) { enCours.gate = true; this.gate?.track(enCours.p) }
+      return
+    }
     this.entrees.set(rig.file, null)
     const chargement = (async () => {
       try {
@@ -565,8 +580,12 @@ export class BrasPremierePersonne3d {
         if (this.xuid && this.armurerie && !this.armurerie.pending(this.xuid)) this.preparerRig()
       } catch (erreur) {
         if (!this.abort.signal.aborted) console.warn('rejeu 3D : rig première personne indisponible', rig.file, erreur)
+      } finally {
+        this.chargements.delete(rig.file)
       }
     })()
-    void (this.gate?.track(chargement) ?? chargement)
+    this.chargements.set(rig.file, { p: chargement, gate })
+    if (gate) this.gate?.track(chargement)
+    void chargement
   }
 }
