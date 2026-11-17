@@ -81,6 +81,9 @@ func openWindowApp(url string) error {
 	}
 	w.SetTitle(appWindowTitle)
 	hwnd := windows.Handle(w.Window())
+	// webview_go's window class loads the generic system icon (IDI_APPLICATION), not the
+	// exe's own; set the real one explicitly. See window_icon_windows.go.
+	setAppWindowIcon(hwnd)
 	applyWindowPlacement(hwnd, placement)
 	w.Init(externalLinksJS)
 	w.Init(acceleratorJS)
