@@ -10,7 +10,7 @@ import { BLOOM_EXCESS_MAX, BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, GlowBl
 import { buildPostFx, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
 import type { Outline3d } from './outline3d'
 
-/** Renderer factice : le compositeur n'en lit que le ratio de pixels (la cible est fournie). */
+/** Fake renderer: the compositor only reads its pixel ratio from it (the target is supplied). */
 function rendererFactice(): THREE.WebGLRenderer {
   return { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer
 }
@@ -108,8 +108,8 @@ describe('buildPostFx — the bloom pass', () => {
   })
 })
 
-describe('buildPostFx — la chaîne du compositeur', () => {
-  it("la teinte suit la sortie, précède le SMAA, et la ligne du contour reste en dernier", () => {
+describe('buildPostFx — the compositor chain', () => {
+  it("grading follows output, precedes SMAA, and the outline's line stays last", () => {
     const fx = buildPostFx(rendererFactice(), new THREE.Scene(), new THREE.PerspectiveCamera())
     try {
       const passes = fx.composer.passes
@@ -125,7 +125,7 @@ describe('buildPostFx — la chaîne du compositeur', () => {
     }
   })
 
-  it("la teinte n'a ni test ni écriture en profondeur ; son gain est celui de la teinte", () => {
+  it("grading has neither depth test nor depth write; its gain is GRADE_GAIN", () => {
     const fx = buildPostFx(rendererFactice(), new THREE.Scene(), new THREE.PerspectiveCamera())
     try {
       expect(fx.grade.material.depthTest).toBe(false)
