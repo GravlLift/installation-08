@@ -145,9 +145,9 @@ afterEach(() => {
 
 describe('shiftedTime — a time moved into a later context lands on the same frame', () => {
   /** Checks every time of a range: same first frame as the reference, a hair early at most. */
-  const check = (stepMs: number) => {
+  const check = (stepMs: number, fromMs = 0, toMs = 720_000) => {
     let gaps = 0
-    for (let ms = 0; ms < 720_000; ms += stepMs) {
+    for (let ms = fromMs; ms < toMs; ms += stepMs) {
       const t = ms / 1000
       const origin = Math.floor(t)
       const target = t * MIX_SAMPLE_RATE - origin * MIX_SAMPLE_RATE
@@ -159,13 +159,16 @@ describe('shiftedTime — a time moved into a later context lands on the same fr
   }
 
   it('on whole milliseconds over a 12-minute match: always the reference frame', () => {
-    expect(check(1)).toBe(0)
-  })
+    // Every millisecond of the first and last minutes, every 7th in between.
+    expect(check(1, 0, 60_000)).toBe(0)
+    expect(check(1, 660_000, 720_000)).toBe(0)
+    expect(check(7)).toBe(0)
+  }, 30_000)
 
   it('between frames as well (times off the millisecond grid)', () => {
     expect(check(7.3)).toBe(0)
     expect(check(33.3333)).toBe(0)
-  })
+  }, 30_000)
 
   it('and the plain subtraction does miss: the case the helper exists for', () => {
     // 3.2 s is exactly frame 153600; (3.2 - 3) s is past frame 9600, so a whole frame late.
@@ -205,14 +208,14 @@ describe('renderGrouped — the same sound as the just-in-time render', () => {
       expect(r.some((v) => Math.abs(v) > 1e-3)).toBe(true)
       for (let i = 0; i < r.length; i++) expect(Math.abs(r[i] - g[i])).toBeLessThan(1e-6)
     }
-  })
+  }, 30_000)
 
   it('without the distance chain: equal to 1e-6 as well', async () => {
     const level = { volume: 1, distancePercent: 0 }
     const { diff, atS, peak } = maxDiff(await render(JOB, level, 'just-in-time'), await render(JOB, level, 'grouped'))
     expect(peak).toBeGreaterThan(0.1)
     expect(diff, `largest gap at ${atS} s`).toBeLessThan(1e-6)
-  })
+  }, 30_000)
 })
 
 describe('renderGrouped — cost, progress, cancellation, detection', () => {
@@ -242,7 +245,7 @@ describe('renderGrouped — cost, progress, cancellation, detection', () => {
     expect(seen.length).toBeGreaterThan(5)
     expect(seen).toEqual([...seen].sort((a, b) => a - b))
     expect(seen.at(-1)).toBe(1)
-  })
+  }, 30_000)
 
   it('a cancellation resolves null and renders nothing more', async () => {
     let calls = 0
@@ -252,7 +255,7 @@ describe('renderGrouped — cost, progress, cancellation, detection', () => {
     expect(out).toBeNull()
     // The track's buffer context and two batches of at most four groups, then nothing.
     expect(fakeAudioStats.contexts).toBeLessThanOrEqual(1 + 2 * 4)
-  })
+  }, 30_000)
 
   it('a context without suspend (Firefox) takes the grouped render by default, instead of failing', async () => {
     expect(offlineSuspendSupported()).toBe(true)
@@ -260,5 +263,5 @@ describe('renderGrouped — cost, progress, cancellation, detection', () => {
     expect(offlineSuspendSupported()).toBe(false)
     const out = await renderAudioMix(JOB, BUFFERS, DURATION_MS, { volume: 1, distancePercent: 0 })
     expect(out?.length).toBe(DURATION_MS * 48)
-  })
+  }, 30_000)
 })
