@@ -26,6 +26,7 @@ import { GradientAtlas, SWATCH_SIZE, redBlue } from './armorGradients3d'
 import { prepareArmorUVs, type ArmorMaps } from './armorMaterial3d'
 import { ARMOR_INDEX_SCHEMA, type ArmorIndex } from './armorPlan3d'
 import { fetchMesh } from './meshFetch'
+import { withMeshopt } from './meshoptGeometry3d'
 import { prepareModel } from './weaponModels3d'
 
 /** Téléchargements de GLB simultanés au plus. */
@@ -281,7 +282,7 @@ const defaultIO: ArmorLibraryIO = {
   },
   async loadGlb(url, base, textures, signal) {
     const buffer = await fetchMesh(url, noProgress, signal)
-    const loader = new GLTFLoader().register((parser) => new SharedTextures(parser, textures))
+    const loader = withMeshopt(new GLTFLoader()).register((parser) => new SharedTextures(parser, textures))
     const gltf = await loader.parseAsync(buffer, apiUrl(base))
     prepareModel(gltf.scene)
     await rawMaps(gltf.scene, gltf.parser)
