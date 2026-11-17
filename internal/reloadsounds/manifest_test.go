@@ -3,6 +3,7 @@ package reloadsounds
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,46 @@ func TestFramesToMs(t *testing.T) {
 		if got := framesToMs(c.frames, c.fps); got != c.ms {
 			t.Errorf("framesToMs(%d, %d) = %d, want %d", c.frames, c.fps, got, c.ms)
 		}
+	}
+}
+
+// TestManifestWritesEmptySoundsAsList: a silent vent loop (and a missing phase) is written with
+// `"sounds": []`, never null, which the viewer refuses.
+func TestManifestWritesEmptySoundsAsList(t *testing.T) {
+	dir := t.TempDir()
+	m := &Manifest{Version: ManifestVersion,
+		Weapons: map[string]map[string]Reload{"2ac9c2ff": {"combat": {Animation: "a", DurationMs: 400}}},
+		Vents:   map[string]map[string]Vent{"daf193c7": {"combat": {Loop: VentClip{Animation: "combat:pistol:pp:vent_loop", DurationMs: 833}}}}}
+	if err := writeManifest(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ManifestName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); strings.Contains(s, "null") || strings.Count(s, `"sounds": []`) != 4 {
+		t.Fatalf("manifest:\n%s", s)
+	}
+}
+
+func TestRemoveStaleTakesKeepsStagedTakes(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []string{"reload_00000001.ogg", "reload_00000002.ogg"} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := &Manifest{Version: ManifestVersion, Staged: map[string]Staged{"2ac9c2ff": {
+		Enter: VentClip{Sounds: []Sound{{AtMs: 567, Takes: []Take{{File: "reload_00000001.ogg"}}}}},
+	}}}
+	removed, err := removeStaleTakes(dir, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 {
+		t.Errorf("removed %d takes, want 1", removed)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "reload_00000001.ogg")); err != nil {
+		t.Errorf("the staged take was removed: %v", err)
 	}
 }

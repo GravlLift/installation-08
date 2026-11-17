@@ -67,11 +67,22 @@ describe('weaponTagOf', () => {
 
 describe('parseReloadManifest', () => {
   it('accepts the manifest the build writes, refuses anything else', () => {
-    expect(parseReloadManifest(MANIFEST)).toBe(MANIFEST)
+    expect(parseReloadManifest(MANIFEST)).toEqual(MANIFEST)
     expect(parseReloadManifest({ ...MANIFEST, version: 1 })).toBeNull()
     expect(parseReloadManifest({ version: 2 })).toBeNull()
     expect(parseReloadManifest({ version: 2, weapons: { x: { combat: { sounds: [] } } } })).toBeNull()
     expect(parseReloadManifest('nope')).toBeNull()
+  })
+
+  it('reads a silent clip written with null sounds as the empty list, the rest of the manifest kept', () => {
+    // The v2 manifests the server wrote (2026-11-16) carry the silent vent loops as "sounds": null;
+    // refusing them refused the whole manifest and silenced every reload, the Heatwave's among them.
+    const written = JSON.parse(JSON.stringify(MANIFEST).replace('"sounds":[]', '"sounds":null')) as unknown
+    expect(JSON.stringify(written)).toContain('"sounds":null')
+    const m = parseReloadManifest(written)
+    expect(m).toEqual(MANIFEST)
+    expect(m?.vents?.daf193c7.combat?.loop.sounds).toEqual([])
+    expect(reloadLibrary(m!, ['2b1824d5'], () => null).get('2b1824d5')?.combat?.sounds).toHaveLength(2)
   })
 
   it('refuses a vent that is not three clips', () => {

@@ -27,7 +27,31 @@ export interface ReloadManifest {
    * clips. The loop posts no sound in the installed game, so it carries a length only.
    */
   vents?: Readonly<Record<string, Readonly<Partial<Record<ReloadStance, VentManifest>>>>>
+  /**
+   * The staged reloads' first-person clips (manifest v3), per weapon tag: the sounds the rig's enter,
+   * round (full, empty magazine) and closing clips post that no other clip of its graph posts.
+   */
+  staged?: Readonly<Record<string, StagedManifest>>
 }
+
+/** One staged reload's first-person clips in the manifest. */
+export interface StagedManifest {
+  enter: ReloadManifestClip
+  round: ReloadManifestClip
+  roundEmpty: ReloadManifestClip
+  closing: ReloadManifestClip
+}
+
+/** One staged reload's first-person clips as the track plays them. */
+export interface StagedClips {
+  enter: ReloadClip
+  round: ReloadClip
+  roundEmpty: ReloadClip
+  closing: ReloadClip
+}
+
+/** The staged reloads by weapon tag. */
+export type StagedLibrary = ReadonlyMap<string, StagedClips>
 
 export interface ReloadManifestClip {
   animation: string
@@ -84,9 +108,20 @@ export function takeStem(file: string): string {
   return file.replace(/\.ogg$/, '')
 }
 
-/** The shape of one manifest clip: a length and a list of sounds. */
+/**
+ * The shape of one manifest clip: a length and a list of sounds. A clip that posts no sound may carry
+ * `sounds: null`: the server's v2 manifests write a silent vent loop that way (a Go nil list), and
+ * refusing it refused the whole manifest, every reload of every weapon silenced (fixed 2026-11-16).
+ */
 function isClip(clip: unknown): clip is ReloadManifestClip {
-  return !!clip && typeof (clip as ReloadManifestClip).durationMs === 'number' && Array.isArray((clip as ReloadManifestClip).sounds)
+  if (!clip || typeof (clip as ReloadManifestClip).durationMs !== 'number') return false
+  const sounds = (clip as { sounds?: unknown }).sounds
+  return Array.isArray(sounds) || sounds === null
+}
+
+/** withSounds: the clip with a null `sounds` read as the empty list. */
+function withSounds(clip: ReloadManifestClip): ReloadManifestClip {
+  return clip.sounds === null ? { ...clip, sounds: [] } : clip
 }
 
 /** parseReloadManifest checks the manifest's shape; anything else reads as nothing extracted. */
@@ -95,19 +130,36 @@ export function parseReloadManifest(raw: unknown): ReloadManifest | null {
   const m = raw as Partial<ReloadManifest>
   if (typeof m.version !== 'number' || m.version < RELOAD_MANIFEST_VERSION) return null
   if (!m.weapons || typeof m.weapons !== 'object') return null
-  for (const stances of Object.values(m.weapons)) {
-    for (const clip of Object.values(stances ?? {})) {
+  const weapons: Record<string, Partial<Record<ReloadStance, ReloadManifestClip>>> = {}
+  for (const [tag, stances] of Object.entries(m.weapons)) {
+    const out: Partial<Record<ReloadStance, ReloadManifestClip>> = {}
+    for (const [stance, clip] of Object.entries(stances ?? {})) {
       if (!isClip(clip)) return null
+      out[stance as ReloadStance] = withSounds(clip)
     }
+    weapons[tag] = out
   }
+  let vents: Record<string, Partial<Record<ReloadStance, VentManifest>>> | undefined
   if (m.vents) {
-    for (const stances of Object.values(m.vents)) {
-      for (const vent of Object.values(stances ?? {})) {
+    vents = {}
+    for (const [tag, stances] of Object.entries(m.vents)) {
+      const out: Partial<Record<ReloadStance, VentManifest>> = {}
+      for (const [stance, vent] of Object.entries(stances ?? {})) {
         if (!vent || !isClip(vent.enter) || !isClip(vent.loop) || !isClip(vent.exit)) return null
+        out[stance as ReloadStance] = { enter: withSounds(vent.enter), loop: withSounds(vent.loop), exit: withSounds(vent.exit) }
       }
+      vents[tag] = out
     }
   }
-  return m as ReloadManifest
+  let staged: Record<string, StagedManifest> | undefined
+  if (m.staged) {
+    staged = {}
+    for (const [tag, s] of Object.entries(m.staged)) {
+      if (!s || !isClip(s.enter) || !isClip(s.round) || !isClip(s.roundEmpty) || !isClip(s.closing)) return null
+      staged[tag] = { enter: withSounds(s.enter), round: withSounds(s.round), roundEmpty: withSounds(s.roundEmpty), closing: withSounds(s.closing) }
+    }
+  }
+  return { ...(m as ReloadManifest), weapons, ...(vents ? { vents } : {}), ...(staged ? { staged } : {}) }
 }
 
 /** loadReloadManifest reads the manifest from the sound route; `null` when nothing was extracted. */
@@ -131,6 +183,8 @@ export function takeFilesOf(manifest: ReloadManifest, tags: Iterable<string>): s
   for (const tag of tags) {
     const w = manifest.weapons[tag]
     if (w) for (const stance of STANCES) of(w[stance])
+    const st = manifest.staged?.[tag]
+    if (st) for (const c of [st.enter, st.round, st.roundEmpty, st.closing]) of(c)
     const v = manifest.vents?.[tag]
     if (v) {
       for (const stance of STANCES) {
@@ -191,6 +245,21 @@ export function ventLibrary(
       clips[stance] = { enter: clipOf(vent.enter, levelOf), loop: clipOf(vent.loop, levelOf), exit: clipOf(vent.exit, levelOf) }
     }
     if (clips.combat || clips.crouch) out.set(tag, clips)
+  }
+  return out
+}
+
+/** stagedLibrary builds the track's staged first-person reload clips for the given weapon tags, each with its gain. */
+export function stagedLibrary(
+  manifest: ReloadManifest,
+  tags: Iterable<string>,
+  levelOf: (file: string) => TakeLevel | null | undefined,
+): StagedLibrary {
+  const out = new Map<string, StagedClips>()
+  for (const tag of tags) {
+    const s = manifest.staged?.[tag]
+    if (!s) continue
+    out.set(tag, { enter: clipOf(s.enter, levelOf), round: clipOf(s.round, levelOf), roundEmpty: clipOf(s.roundEmpty, levelOf), closing: clipOf(s.closing, levelOf) })
   }
   return out
 }

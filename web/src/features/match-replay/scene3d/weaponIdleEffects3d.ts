@@ -27,13 +27,17 @@
 import * as THREE from 'three'
 
 import { api } from '@/lib/api/client'
+import { frameToMs } from '@/lib/replay/replayLogic'
 
+import { armeEnMain } from '../model/armeEnMain'
 import { episodesRechargementParSlot } from './actionsFilm3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
+import { dureeAttendue, finNaturelle, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 import {
   effectScales,
+  magazineFraction,
   parseIdleEffects,
   reloadingAt,
   simulateSystem,
@@ -42,6 +46,7 @@ import {
   type IdleEffectTable,
   type IdleSystem,
   type LiveParticle,
+  type MagazineEvent,
   type ReloadSpan,
 } from './weaponIdleEffects3dModel'
 import { weaponModelKey } from './weaponModels3d'
@@ -51,6 +56,13 @@ const BLEND_ADD_SRC_ALPHA = 9
 /** The two particle shaders the view draws. */
 const SHADER_SPRITE = '9b1c511e'
 const SHADER_MODEL = '96db07b6'
+/**
+ * Systems not drawn, as weapon key:effect:system, until their model particle's stretch is decoded
+ * (docs/KNOWN-ISSUES.md, the model particles' scale x and scale y). The Heatwave's ready glow (its
+ * scale x is 5) drawn at its size alone shows as a round disc beside the gun in first person.
+ */
+const UNDECODED_SYSTEMS: ReadonlySet<string> = new Set(['2ac9c2ff:67537d26:0'])
+
 /** Billboards a sprite draws with: facing the screen or camera, or perpendicular to its direction. */
 const BILLBOARD_SCREEN = 0
 const BILLBOARD_CAMERA = 1
@@ -374,6 +386,10 @@ interface SlotTimeline {
   reloads: ReloadSpan[]
   shots: number[]
   changes: number[]
+  /** The film's magazine readings and the holder's shots, by weapon slot, sorted by ms. */
+  magazines: Map<number, MagazineEvent[]>
+  /** The reload episodes, with the weapon slot in hand at their start. */
+  episodes: { ep: EpisodeRechargement; w: number | null }[]
 }
 
 const ANCHOR = new THREE.Matrix4()
@@ -381,6 +397,37 @@ const LOCAL = new THREE.Matrix4()
 const WORLD = new THREE.Matrix4()
 const ROOT_INV = new THREE.Matrix4()
 const MARKER = new THREE.Matrix4()
+const MARKER_Q = new THREE.Quaternion()
+const AT = new THREE.Vector3()
+
+/**
+ * One drawn system instance, as the debug hook `window.__it3dIdleEffects` lists it: the weapon, effect,
+ * system and marker instance, the view, how many particles it drew, and its marker's world position.
+ * `window.__it3dIdleEffectsHide` (a list of `weapon:effect:system` keys) leaves those systems out, so a
+ * shape on screen can be traced to the system that draws it.
+ */
+export interface IdleEffectDebugRow {
+  key: string
+  /** The holder: its film slot and player. */
+  slot: number
+  xuid: string
+  location: string
+  instance: number
+  firstPerson: boolean
+  particles: number
+  marker: [number, number, number]
+  /** A first-person system whose rig anchor failed (particles -1): why. */
+  miss?: string
+}
+
+declare global {
+  interface Window {
+    __it3dIdleEffects?: readonly IdleEffectDebugRow[]
+    __it3dIdleEffectsHide?: readonly string[]
+  }
+}
+
+const DEBUG_HOOK = '__it3dIdleEffects'
 const X = new THREE.Vector3()
 const Y = new THREE.Vector3()
 const Z = new THREE.Vector3()
@@ -397,14 +444,19 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
   private timelines: Map<number, SlotTimeline> | null = null
   private slotSeed: Map<number, number> | null = null
   private readonly fetchJson?: FetchJson
+  private readonly debugRows: IdleEffectDebugRow[] = []
 
   constructor(ctx: ActionContext, fetchJson?: FetchJson) {
     this.ctx = ctx
     this.fetchJson = fetchJson
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, DEBUG_HOOK, { configurable: true, enumerable: false, get: () => this.debugRows.slice() })
+    }
   }
 
   update(frame: number): void {
     for (const p of this.pools.values()) if (p) p.n = 0
+    this.debugRows.length = 0
     const inputs = this.ctx.inputs()
     if (inputs.show.shots) this.draw(frame, inputs.framesPerSecond, inputs.locale)
     for (const p of this.pools.values()) {
@@ -444,26 +496,45 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const readyS = this.ctx.weaponClipSeconds?.(key, 'ready') ?? 0
       const lastChange = line ? lastAtOrBefore(line.changes, f) : -Infinity
       const ready = f - lastChange >= readyS * fps
-      const reloading = !!line && reloadingAt(line.reloads, f, fps, this.ctx.weaponClipSeconds?.(key, 'reload_full') ?? null, line.shots)
+      const clipS = (action: string) => this.ctx.weaponClipSeconds?.(key, action) ?? null
+      const reloading = !!line && reloadingAt(line.reloads, f, fps, clipS('reload_full'), line.shots)
       const seed = this.slotSeed.get(track.slot) ?? 0
+      // The magazine of the weapon in hand: full at spawn, then the film's readings, shots and reloads.
+      const hand = armeEnMain(this.ctx.doc, track.slot, f)
+      const atMs = frameToMs(f, this.ctx.doc)
+      const magazine = hand && line ? this.magazineEvents(line, hand.slotArme, clipS, atMs, fps) : []
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
-        const scales = effectScales(e, { ready, reloading })
+        const scales = effectScales(e, { ready, reloading, ammo: magazineFraction(magazine, atMs, e.magazine) })
         if (scales.scaleA <= 0) return
         e.systems.forEach((s, si) => {
           if (!systemShown(s, firstPerson, scoped)) return
+          const debugKey = `${key}:${e.effect}:${si}`
+          if (UNDECODED_SYSTEMS.has(debugKey)) return
+          if (typeof window !== 'undefined' && window.__it3dIdleEffectsHide?.includes(debugKey)) return
           const pool = this.poolOf(`${key}:${ei}:${si}`, s)
           if (!pool) return
-          const anchors = firstPerson ? 1 : (e.markers[s.location]?.length ?? 0)
+          // Every instance of the marker (the Heatwave's vent marker is on both fins), in both views.
+          const anchors = e.markers[s.location]?.length ?? 0
           for (let m = 0; m < anchors; m++) {
             if (firstPerson) {
-              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR)) return
+              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR, m)) {
+                // Listed, with no particles: the rig shown is not this weapon's, or lacks the marker or its bone.
+                this.debugRows.push({ key: debugKey, slot: track.slot, xuid: track.xuid ?? '', location: s.location, instance: m, firstPerson, particles: -1, marker: [0, 0, 0], miss: this.ctx.firstPersonAnchorMiss?.() ?? 'unknown' })
+                return
+              }
             } else {
+              // The marker's frame on the model: its position, then its rotation (the Heatwave's fins turn
+              // their marker a quarter about up, so the vent points out of them).
               const at = e.markers[s.location][m]
-              ANCHOR.copy(drawn!.model.matrixWorld).multiply(MARKER.makeTranslation(at[0], at[1], at[2]))
+              const q = e.markerRotations?.[s.location]?.[m]
+              MARKER.makeRotationFromQuaternion(q ? MARKER_Q.set(q[0], q[1], q[2], q[3]) : MARKER_Q.identity()).setPosition(at[0], at[1], at[2])
+              ANCHOR.copy(drawn!.model.matrixWorld).multiply(MARKER)
             }
             simulateSystem(s, t, seed * 64 + m, ei * 32 + si, { ...scales, cameraDistance: 0 }, this.particles)
             for (const p of this.particles) this.write(pool, p)
+            AT.setFromMatrixPosition(ANCHOR)
+            this.debugRows.push({ key: debugKey, slot: track.slot, xuid: track.xuid ?? '', location: s.location, instance: m, firstPerson, particles: this.particles.length, marker: [AT.x, AT.y, AT.z] })
           }
         })
       })
@@ -538,19 +609,68 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     return pool
   }
 
+  /**
+   * magazineEvents: what changed weapon slot `w`'s magazine up to `atMs`: the film's readings and the
+   * holder's shots, and its reloads as the first-person rig plays them (`clipS`: the clip lengths of the
+   * weapon in hand). A staged reload (`reload_enter` and a round clip, no `reload_full`: the Heatwave,
+   * Cindershot) puts one round in each time a round clip completes: at the next stage, the last one only
+   * when the episode's closing message ends it naturally (`finNaturelle`, the rig's own test), or at the
+   * round's expected end when no message follows; a shot or a swap stops it. A one-clip reload fills the
+   * magazine at the end of its clip (the empty one when the magazine was empty), if nothing stopped it.
+   */
+  private magazineEvents(line: SlotTimeline, w: number, clipS: (action: string) => number | null, atMs: number, fps: number): MagazineEvent[] {
+    const doc = this.ctx.doc
+    const out = (line.magazines.get(w) ?? []).filter((e) => e.ms <= atMs)
+    for (const { ep, w: held } of line.episodes) {
+      const stages = ep.etapes
+      const start = stages[0].t
+      if (held !== w || frameToMs(start, doc) > atMs) continue
+      const stops = Math.min(firstAfter(line.shots, start), firstAfter(line.changes, start))
+      const roundS = ep.vide
+        ? clipS('reload_continue_empty') ?? clipS('reload_continue_full')
+        : clipS('reload_continue_full') ?? clipS('reload_continue_empty')
+      if (clipS('reload_full') === null && clipS('reload_enter') !== null && roundS !== null && roundS > 0) {
+        const round = { durationSeconds: roundS }
+        const last = stages.length - 1
+        const closes = stages[last].coupe
+        const rounds = closes ? last - 1 : last
+        for (let i = 1; i <= rounds; i++) {
+          const done = i < last
+            ? i + 1 === last && closes && !finNaturelle(stages, round, fps) ? null : stages[i + 1].t
+            : stages[i].t + dureeAttendue(stages, i, round, fps) * fps
+          if (done !== null && done < stops) out.push({ ms: frameToMs(done, doc), kind: 'round' })
+        }
+        continue
+      }
+      const s = ep.vide ? clipS('reload_empty') ?? clipS('reload_full') : clipS('reload_full') ?? clipS('reload_empty')
+      if (s !== null && s > 0 && start + s * fps < stops) out.push({ ms: frameToMs(start, doc) + s * 1000, kind: 'full' })
+    }
+    return out.sort((a, b) => a.ms - b.ms)
+  }
   private timelinesOf(): Map<number, SlotTimeline> {
     if (this.timelines) return this.timelines
     const doc = this.ctx.doc
     const out = new Map<number, SlotTimeline>()
     const line = (slot: number) => {
       let l = out.get(slot)
-      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [] }))
+      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [], magazines: new Map(), episodes: [] }))
       return l
     }
     for (const [slot, eps] of episodesRechargementParSlot(doc)) {
       line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
+      line(slot).episodes = eps.map((ep) => ({ ep, w: armeEnMain(doc, slot, ep.etapes[0].t)?.slotArme ?? null }))
     }
-    for (const s of doc.shots) line(s.slot).shots.push(s.t)
+    const magazine = (slot: number, w: number) => {
+      const m = line(slot).magazines
+      if (!m.has(w)) m.set(w, [])
+      return m.get(w)!
+    }
+    for (const s of doc.shots) {
+      line(s.slot).shots.push(s.t)
+      const w = armeEnMain(doc, s.slot, s.t)?.slotArme
+      if (w != null) magazine(s.slot, w).push({ ms: frameToMs(s.t, doc) + (s.o ?? 0), kind: 'shot' })
+    }
+    for (const r of doc.ammoReads) if (r.mag != null) magazine(r.slot, r.w).push({ ms: r.ms, kind: 'read', rounds: r.mag })
     const locale = this.ctx.inputs().locale
     for (const list of [doc.loadouts, doc.inventory, doc.weaponChanges]) {
       for (const r of list) {
@@ -562,6 +682,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     for (const l of out.values()) {
       l.shots.sort((a, b) => a - b)
       l.changes.sort((a, b) => a - b)
+      for (const events of l.magazines.values()) events.sort((a, b) => a.ms - b.ms)
     }
     this.timelines = out
     return out
@@ -577,6 +698,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     this.pools.clear()
     this.quad.dispose()
     this.assets?.dispose()
+    if (typeof window !== 'undefined') delete (window as unknown as Record<string, unknown>)[DEBUG_HOOK]
   }
 }
 
@@ -592,4 +714,10 @@ function lastAtOrBefore(sorted: readonly number[], v: number): number {
 function perpendicularTo(z: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
   const a = Math.abs(z.x) < 0.9 ? X.set(1, 0, 0) : X.set(0, 1, 0)
   return out.crossVectors(a, z).normalize()
+}
+
+/** firstAfter: the first frame of a sorted list strictly after `frame`, or Infinity. */
+function firstAfter(sorted: readonly number[], frame: number): number {
+  for (const t of sorted) if (t > frame) return t
+  return Infinity
 }

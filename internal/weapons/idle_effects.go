@@ -38,9 +38,20 @@ type IdleEffect struct {
 	// Functions: the weapon's object functions the scales read, by name.
 	Functions []IdleFunction `json:"functions"`
 	// Markers: per location name, the marker instances of the weapon's third-person model, model
-	// space, GLB axes (the systems emit at the first instance).
-	Markers map[string][][3]float64 `json:"markers"`
-	Systems []IdleSystem            `json:"systems"`
+	// space at its rest pose (the marker's node chain, then the marker), GLB axes; MarkerRotations:
+	// their rotations, same order, quaternions (x, y, z, w) in GLB axes (the Heatwave's fin markers turn
+	// a quarter about up, so its vent points out of the fins). The systems emit at every instance.
+	Markers         map[string][][3]float64 `json:"markers"`
+	MarkerRotations map[string][][4]float64 `json:"markerRotations"`
+	// ReloadFunctions: the animation functions the weapon's own graph sets through its reload
+	// animations (himap.ReloadFunctions), by name, where every reload animation holds one
+	// value over all its frames (the Heatwave's and the Cindershot's animation_event_function_variant_switch,
+	// 1); the view feeds them while the holder reloads.
+	ReloadFunctions map[string]float64 `json:"reloadFunctions,omitempty"`
+	// Magazine: the rounds the weapon's first magazine holds loaded (its tag's `rounds loaded
+	// maximum`), the denominator of the engine's primary_ammunition; 0 (left out) without one.
+	Magazine int          `json:"magazine,omitempty"`
+	Systems  []IdleSystem `json:"systems"`
 }
 
 // IdleFunction is a weapon object function (weaponicons.ObjectFunction), by name.
@@ -50,6 +61,29 @@ type IdleFunction struct {
 	Export      string  `json:"export"`
 	TurnOffWith string  `json:"turnOffWith,omitempty"`
 	Invert      bool    `json:"invert,omitempty"`
+	// Mapping: the function's mapping of its import (its `default function`, decoded as a particle
+	// property: Min + (Max - Min) x the curve at the import's value); absent for the identity 0..1
+	// and for a mapping of a kind not decoded (logged), which the view reads as the identity.
+	Mapping *himap.FonctionParticule `json:"mapping,omitempty"`
+}
+
+// mappingIdentity is the identity function type (the engine's mapping type 0).
+const mappingIdentity = 0
+
+// mappingOf decodes an object function's mapping; nil for the identity 0..1 (or no mapping), and
+// for a kind not decoded (ok false).
+func mappingOf(b []byte) (m *himap.FonctionParticule, ok bool) {
+	if len(b) == 0 {
+		return nil, true
+	}
+	f, err := himap.DecodeMappingFunction(b)
+	if err != nil {
+		return nil, false
+	}
+	if f.Type == mappingIdentity && !f.Ranged && f.Min == 0 && f.Max == 1 {
+		return nil, true
+	}
+	return &f, true
 }
 
 // IdleSystem is a particle system, its vectors in GLB axes.
@@ -118,7 +152,9 @@ var knownFunctionNames = func() map[uint32]string {
 	out := map[uint32]string{}
 	for _, n := range []string{"ready", "is_reloading", "primary_ammunition", "secondary_ammunition", "camo",
 		"active_camo", "zoom", "secondary_charged", "fx_ready", "fx_reloading", "fx_ammo", "fx_zoom",
-		"illumination", "heat", "primary_charged", "overheated", "power"} {
+		"illumination", "heat", "primary_charged", "overheated", "power",
+		// Cracked from the game binary's strings (the Heatwave's functions, 2ac9c2ff).
+		"fx_reload", "fx_camo_off", "animation_event_function_variant_switch", "alt_fire"} {
 		out[uint32(mapvar.LabelHash(n))] = n
 	}
 	return out
@@ -196,6 +232,11 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 	if !ok {
 		return nil, nil
 	}
+	reloadFns := w.reloadFunctions(ctx, weap)
+	magazine, err := weaponicons.ReadMagazineSize(raw)
+	if err != nil {
+		slog.WarnContext(ctx, "weapon magazine unreadable", "weapon", fmt.Sprintf("%08x", weap), "err", err)
+	}
 	var out []IdleEffect
 	for _, at := range atts {
 		if at.PrimaryScale == 0 {
@@ -210,6 +251,8 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 				"effect", fmt.Sprintf("%08x", at.Effect), "why", s)
 		}
 		e, err := w.effect(at, fns, mode, fx)
+		e.ReloadFunctions = reloadFns
+		e.Magazine = magazine
 		if err != nil {
 			return nil, err
 		}
@@ -223,10 +266,14 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 // effect builds one IdleEffect and writes its files.
 func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.ObjectFunction, mode uint32, fx *himap.EffetParticules) (IdleEffect, error) {
 	e := IdleEffect{Effect: fmt.Sprintf("%08x", at.Effect), ScaleA: functionName(at.PrimaryScale),
-		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}}
+		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}, MarkerRotations: map[string][][4]float64{}}
 	for _, f := range fns {
+		m, ok := mappingOf(f.Mapping)
+		if !ok {
+			slog.Warn("weapon function mapping not decoded, read as the identity", "effect", e.Effect, "export", functionName(f.Export))
+		}
 		e.Functions = append(e.Functions, IdleFunction{Import: functionName(f.Import), Default: f.Default,
-			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert})
+			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert, Mapping: m})
 	}
 	noms := map[uint32]bool{}
 	for _, s := range fx.Systems {
@@ -238,7 +285,9 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 	}
 	for _, m := range ms {
 		k := fmt.Sprintf("%08x", m.Nom)
-		e.Markers[k] = append(e.Markers[k], gltfOf(m.Translation))
+		p, q := markerFrame(m.Model)
+		e.Markers[k] = append(e.Markers[k], p)
+		e.MarkerRotations[k] = append(e.MarkerRotations[k], q)
 	}
 	for _, s := range fx.Systems {
 		loc := fmt.Sprintf("%08x", s.Location)

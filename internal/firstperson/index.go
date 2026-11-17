@@ -22,15 +22,18 @@ import (
 // by the normal build flow; an index without a schema (built before schema versioning)
 // is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy parts) is read from
 // its declared emissive_intensity and its tint map. 4: each weapon's idle-effect markers on the
-// rig (effectMarkers, the Shock Rifle's electricity in first person).
-const SchemaFirstPerson = 4
+// rig (effectMarkers, the Shock Rifle's electricity in first person). 5: their rotation (the
+// Heatwave's fin markers turn a quarter about up: its vent points out of the fins).
+const SchemaFirstPerson = 5
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
-// that carries it (its glTF node name) and its position in the bone's frame, GLB axes.
+// that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the
+// bone's frame, GLB axes.
 type EffectMarker struct {
 	Marker   string     `json:"marker"`
 	Bone     string     `json:"bone"`
 	Position [3]float32 `json:"position"`
+	Rotation [4]float32 `json:"rotation"`
 }
 
 // FichierIndex is the library's index file; its presence says the build is complete.

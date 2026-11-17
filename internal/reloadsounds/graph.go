@@ -34,6 +34,8 @@ const (
 	tagBlockCountOffset = 16
 	structTagBlock      = 1
 	structResource      = 3
+	// noSoundReference: the reference index of a sound event that names no sound.
+	noSoundReference = -1
 )
 
 // postedSound is one sound event of an animation: the `snd!` tags of the referenced entry and
@@ -70,6 +72,9 @@ func animationSounds(t *announcer.Tag, group, member int) ([]postedSound, error)
 	for o := 0; o < len(b); o += soundEventStride {
 		ref := int(int16(binary.LittleEndian.Uint16(b[o:])))
 		frame := int(int16(binary.LittleEndian.Uint16(b[o+2:])))
+		if ref == noSoundReference {
+			continue // an event that names no sound (the Cindershot's first-person graph has one)
+		}
 		if ref < 0 || ref >= len(refs) || frame < 0 {
 			return nil, fmt.Errorf("reloadsounds: sound event (%d, frame %d) outside %d references", ref, frame, len(refs))
 		}

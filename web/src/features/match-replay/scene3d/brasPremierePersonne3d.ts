@@ -50,6 +50,7 @@ const BAC_ORIGINE = new THREE.Vector3()
 const BAC_IDENTITE = new THREE.Quaternion()
 const BAC_AXE_RIG = new THREE.Vector3()
 const BAC_MARQUEUR = new THREE.Matrix4()
+const MARKER_QUAT = new THREE.Quaternion()
 
 /**
  * appliquerTenueRig : pose la tenue réglée du rig (viewGrip3d) sur la position et l'orientation
@@ -116,6 +117,8 @@ export class BrasPremierePersonne3d {
   private visible: THREE.Object3D | null = null
   private readonly mainMonde = new THREE.Vector3()
   private cleVisible: string | null = null
+  /** Why the last `ancreEffet` failed (review: the idle effects console hook), null when it succeeded. */
+  anchorMiss: string | null = null
   private armurerie: SpartanArmory | null = null
   private xuid: string | null = null
   private readonly preparation: PreparationRig3d
@@ -386,20 +389,33 @@ export class BrasPremierePersonne3d {
 
   /**
    * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
-   * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
-   * frame. False when that weapon's rig is not the one shown, or lacks the marker or its bone.
+   * rig, at the rendered frame: its bone's world matrix, then the marker's offset and rotation in that
+   * bone's frame. `instance`: which instance of the marker, in the index's order (the Heatwave's vent marker
+   * sits on both fins). False when that weapon's rig is not the one shown, or lacks the marker or its bone.
    */
-  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4): boolean {
-    if (!this.visible || this.cleVisible !== cle) return false
-    const m = this.marqueursEffets.get(cle)?.find((x) => x.marker === marqueur)
-    if (!m) return false
+  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4, instance = 0): boolean {
+    this.anchorMiss = null
+    if (!this.visible || this.cleVisible !== cle) {
+      this.anchorMiss = `rig shown: ${this.visible ? this.cleVisible : 'none'}`
+      return false
+    }
+    const m = this.marqueursEffets.get(cle)?.filter((x) => x.marker === marqueur)[instance]
+    if (!m) {
+      this.anchorMiss = `no marker ${marqueur} #${instance} on rig ${cle} (${this.marqueursEffets.get(cle)?.length ?? 0} markers)`
+      return false
+    }
     let os = this.osEffets.get(this.visible)
     if (!os) this.osEffets.set(this.visible, (os = new Map()))
     if (!os.has(m.bone)) os.set(m.bone, this.visible.getObjectByName(m.bone) ?? null)
     const bone = os.get(m.bone)
-    if (!bone) return false
+    if (!bone) {
+      this.anchorMiss = `no bone ${m.bone} on rig ${cle}`
+      return false
+    }
     bone.updateWorldMatrix(true, false)
-    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.makeTranslation(m.position[0], m.position[1], m.position[2]))
+    const q = m.rotation
+    BAC_MARQUEUR.makeRotationFromQuaternion(q ? MARKER_QUAT.set(q[0], q[1], q[2], q[3]) : MARKER_QUAT.identity())
+    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.setPosition(m.position[0], m.position[1], m.position[2]))
     return true
   }
 

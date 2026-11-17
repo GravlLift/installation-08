@@ -133,6 +133,9 @@ type membreRessource struct {
 	images, noeuds int
 	tailles        [sectionsParMembre]int
 	blob           []byte
+	// functions: the member's animation function list (LOCAL-CHANGE (infinite-theater-3d),
+	// animation_functions.go), nil without one.
+	functions []byte
 }
 
 // GrapheAnimation : un graphe `jmad` lu.
@@ -286,6 +289,7 @@ func (g *GrapheAnimation) litGroupe(n *navigateurTag, k, rac int) error {
 			if bloc, ok := blobs[m]; ok {
 				mr.blob = n.octets(bloc)
 			}
+			mr.functions = memberFunctions(n, l.cible, o)
 			if len(mr.blob) != somme {
 				return fmt.Errorf("membre %d : blob de %d octets pour %d de sections", m, len(mr.blob), somme)
 			}

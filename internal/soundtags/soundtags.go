@@ -26,6 +26,9 @@ const (
 	ThirdPersonEventOff = 0x14
 	// ThirdPersonBankOff is the offset of that event's bank tag in the tag data.
 	ThirdPersonBankOff = 0x2c
+	// FirstPersonEventOff, FirstPersonBankOff: the first-person event and its bank tag.
+	FirstPersonEventOff = 0x18
+	FirstPersonBankOff  = 0x48
 )
 
 // TagSource is the module index the build reads tags from (himap.ModuleIndex).
@@ -43,12 +46,24 @@ type BankLister interface {
 // Event returns the third-person event of a sound tag and the tag of its bank; false when the
 // sound has no third-person event.
 func Event(t *announcer.Tag) (event, bank uint32, ok bool) {
+	return eventAt(t, ThirdPersonEventOff, ThirdPersonBankOff)
+}
+
+// FirstPersonEvent returns the first-person event of a sound tag (what the camera's own player
+// hears) and the tag of its bank; false when the sound has none.
+func FirstPersonEvent(t *announcer.Tag) (event, bank uint32, ok bool) {
+	return eventAt(t, FirstPersonEventOff, FirstPersonBankOff)
+}
+
+// eventAt reads the event at evOff of the tag data and its bank tag at bankOff, the bank one of
+// the tag's dependencies.
+func eventAt(t *announcer.Tag, evOff, bankOff int) (event, bank uint32, ok bool) {
 	data := t.TagData()
-	if len(data) < ThirdPersonBankOff+4 {
+	if len(data) < bankOff+4 {
 		return 0, 0, false
 	}
-	event = binary.LittleEndian.Uint32(data[ThirdPersonEventOff:])
-	bank = binary.LittleEndian.Uint32(data[ThirdPersonBankOff:])
+	event = binary.LittleEndian.Uint32(data[evOff:])
+	bank = binary.LittleEndian.Uint32(data[bankOff:])
 	for _, d := range t.Deps {
 		if d.Group == announcer.GroupBank && d.GlobalID == bank {
 			return event, bank, event != 0

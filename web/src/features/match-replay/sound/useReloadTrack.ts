@@ -16,12 +16,14 @@ import { levelOf, type TakeLevel } from './reloadLoudness'
 import {
   loadReloadManifest,
   reloadLibrary,
+  stagedLibrary,
   takeFilesOf,
   takeStem,
   ventLibrary,
   weaponTagOf,
   type ReloadLibrary,
   type ReloadManifest,
+  type StagedLibrary,
   type VentLibrary,
 } from './reloadManifest'
 
@@ -29,6 +31,8 @@ import {
 export interface ReloadTrack {
   reloads: ReloadLibrary
   vents: VentLibrary
+  /** The staged reloads' first-person sounds (the followed player's). */
+  staged: StagedLibrary
 }
 
 /** What the hook reads: the manifest, and a take's level. Injectable for the tests. */
@@ -96,7 +100,7 @@ export function useReloadTrack(doc: ReplayDocumentReady, enabled: boolean, sourc
       const files = takeFilesOf(manifest, tags)
       const measured = new Map(await Promise.all(files.map(async (f) => [f, await sources.measure(f)] as const)))
       const levelOf = (f: string) => measured.get(f)
-      if (live) setTrack({ reloads: reloadLibrary(manifest, tags, levelOf), vents: ventLibrary(manifest, tags, levelOf) })
+      if (live) setTrack({ reloads: reloadLibrary(manifest, tags, levelOf), vents: ventLibrary(manifest, tags, levelOf), staged: stagedLibrary(manifest, tags, levelOf) })
     })()
     return () => {
       live = false

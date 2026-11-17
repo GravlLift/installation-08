@@ -22,8 +22,9 @@ import (
 const ManifestName = "reloads.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
-// the extraction runs again. Version 2 adds the heat weapons' vents.
-const ManifestVersion = 2
+// the extraction runs again. Version 2 adds the heat weapons' vents, 3 the staged reloads'
+// first-person sounds (Staged).
+const ManifestVersion = 3
 
 // takeFile is the name of every take file a manifest lists: reload_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -41,6 +42,19 @@ type Manifest struct {
 	// Vents maps a heat weapon tag to its vent per stance: the enter, loop and exit animations,
 	// each with the sounds it posts (the loop posts none in the installed game).
 	Vents map[string]map[string]Vent `json:"vents"`
+	// Staged maps a weapon whose first-person rig reloads in stages (reload_enter, one round per
+	// stage, chamber_1: the Heatwave, Cindershot, Hydra) to the sounds its first-person reload clips
+	// post that no other clip of its graph posts, each from the sound's first-person event.
+	Staged map[string]Staged `json:"staged,omitempty"`
+}
+
+// Staged is one staged reload's first-person clips: the enter, a round (full and empty magazine),
+// and the closing clip. A clip the rig does not carry is left empty.
+type Staged struct {
+	Enter      VentClip `json:"enter"`
+	Round      VentClip `json:"round"`
+	RoundEmpty VentClip `json:"roundEmpty"`
+	Closing    VentClip `json:"closing"`
 }
 
 // Vent is one heat weapon's vent: the animation of each of its phases.
@@ -57,11 +71,31 @@ type VentClip struct {
 	Sounds     []Sound `json:"sounds"`
 }
 
+// MarshalJSON writes a clip that posts no sound (a vent loop) with an empty `sounds` list, never
+// null: the viewer reads a clip as a length and a list, and refused the whole manifest, every
+// reload of every weapon silenced, for the null its first vents wrote (2026-11-16).
+func (c VentClip) MarshalJSON() ([]byte, error) {
+	type plain VentClip
+	if c.Sounds == nil {
+		c.Sounds = []Sound{}
+	}
+	return json.Marshal(plain(c))
+}
+
 // Reload is one reload animation: its game name, its length, and the sounds it posts.
 type Reload struct {
 	Animation  string  `json:"animation"`
 	DurationMs int     `json:"durationMs"`
 	Sounds     []Sound `json:"sounds"`
+}
+
+// MarshalJSON writes an empty `sounds` list as [], as VentClip does.
+func (r Reload) MarshalJSON() ([]byte, error) {
+	type plain Reload
+	if r.Sounds == nil {
+		r.Sounds = []Sound{}
+	}
+	return json.Marshal(plain(r))
 }
 
 // Sound is a sound the animation posts at AtMs after its start; the game draws one of its takes.
@@ -122,6 +156,15 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 					for _, t := range s.Takes {
 						keep[t.File] = true
 					}
+				}
+			}
+		}
+	}
+	for _, s := range m.Staged {
+		for _, c := range []VentClip{s.Enter, s.Round, s.RoundEmpty, s.Closing} {
+			for _, snd := range c.Sounds {
+				for _, t := range snd.Takes {
+					keep[t.File] = true
 				}
 			}
 		}

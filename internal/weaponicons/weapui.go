@@ -141,6 +141,8 @@ type weapTag struct {
 	structTab  int
 	structs    int
 	blocks     int
+	// dataRefCount: the entries of the data reference table, after the struct table.
+	dataRefCount int
 }
 
 func openWeapTag(tag []byte) (weapTag, error) {
@@ -150,7 +152,7 @@ func openWeapTag(tag []byte) (weapTag, error) {
 	}
 	wt := weapTag{
 		tag: tag, headerSize: int(h.HeaderSize),
-		structs: int(h.StructCount), blocks: int(h.BlockCount),
+		structs: int(h.StructCount), blocks: int(h.BlockCount), dataRefCount: int(h.DataRefCnt),
 	}
 	wt.blockTab = tagHdrFixed + int(h.DepCount)*depStride
 	wt.structTab = wt.blockTab + wt.blocks*0x10

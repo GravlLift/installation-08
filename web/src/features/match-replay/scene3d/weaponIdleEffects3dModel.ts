@@ -101,6 +101,8 @@ export interface IdleFunction {
   export: string
   turnOffWith?: string
   invert?: boolean
+  /** The function's mapping of its import (its tag's `default function`); absent: the identity 0..1. */
+  mapping?: ParticleFunction
 }
 
 export interface IdleEffect {
@@ -108,7 +110,17 @@ export interface IdleEffect {
   scaleA: string
   scaleB: string
   functions: IdleFunction[]
+  /** Per location, the marker instances on the third-person model (model space, GLB axes). */
   markers: Record<string, [number, number, number][]>
+  /** Their rotations, same order (quaternions x, y, z, w, GLB axes); absent in an older library: none. */
+  markerRotations?: Record<string, [number, number, number, number][]>
+  /**
+   * The animation functions the weapon's own reload animations set, by name (read from its graph:
+   * the Heatwave's and the Cindershot's `animation_event_function_variant_switch`, 1 over every frame).
+   */
+  reloadFunctions?: Record<string, number>
+  /** The rounds the weapon's magazine holds loaded (its tag's `rounds loaded maximum`); absent in an older library. */
+  magazine?: number
   systems: IdleSystem[]
 }
 
@@ -211,20 +223,40 @@ export function propertyAt(f: ParticleFunction, input: (k: number) => number): n
 }
 
 /**
- * functionValue is the value of the weapon function `name` (an export of `fns`, else an import of
- * `imports`, else 0): the import's value (the function's default without one), inverted when the
- * function says so, and 0 while its turn-off function is 0.
+ * functionValue is the value of the weapon function `name`: an export of `fns` (the LAST that exports
+ * it: the Heatwave exports `#9ef8b167` twice, and the Cindershot, whose effect is gated the same way,
+ * carries only its second, 1 - `primary_ammunition`), else an import the view feeds (`imports`: the Heatwave's vent B scale names
+ * `animation_event_function_variant_switch`, which its weapon's reload animations set, fed while the
+ * holder reloads), else 0. A function's value is its import's (its
+ * default without one) through its mapping (`mapping`, the tag's `default function`: the Heatwave's
+ * `fx_camo_off` is 1 - camo), clamped to [0, 1], inverted when the function says so, and 0 while its
+ * turn-off function is 0.
+ *
+ * INFERRED, not read: the inversion applies to the mapped value (the older engines' tag comment, "the
+ * result of the function is one minus the actual result"); a turn-off name that no function exports
+ * and the view does not feed turns nothing off (the Heatwave's first `#9ef8b167` turns off with
+ * `#9f494a78`, a function of the Shock Rifle's that the Heatwave does not define); of two functions
+ * with one export name, the last is read (see above).
  */
 export function functionValue(fns: readonly IdleFunction[], imports: Readonly<Record<string, number>>, name: string, depth = 0): number {
   if (!name) return 1
-  const f = fns.find((g) => g.export === name)
-  if (!f) return imports[name] ?? 0
+  const f = fns.findLast((g) => g.export === name)
+  if (!f) return name in imports ? imports[name] : 0
   if (depth > MAX_FUNCTION_DEPTH) return 0
   let v = f.import in imports ? imports[f.import] : (fns.some((g) => g.export === f.import) ? functionValue(fns, imports, f.import, depth + 1) : f.default)
   v = Math.min(1, Math.max(0, v))
+  if (f.mapping) {
+    const x = v
+    v = Math.min(1, Math.max(0, propertyAt(f.mapping, () => x)))
+  }
   if (f.invert) v = 1 - v
-  if (f.turnOffWith && functionValue(fns, imports, f.turnOffWith, depth + 1) === 0) return 0
+  if (f.turnOffWith && resolvable(fns, imports, f.turnOffWith) && functionValue(fns, imports, f.turnOffWith, depth + 1) === 0) return 0
   return v
+}
+
+/** resolvable: `name` is a function of `fns` or an import the view feeds. */
+function resolvable(fns: readonly IdleFunction[], imports: Readonly<Record<string, number>>, name: string): boolean {
+  return name in imports || fns.some((g) => g.export === name)
 }
 
 /** unitHash — a deterministic value in [0, 1) of an integer key. */
@@ -310,10 +342,13 @@ export function simulateSystem(s: IdleSystem, t: number, seed: number, rank: num
     const si = sysInput(L)
     const start = Math.max(0, Math.floor(p.startingCount ? propertyAt(p.startingCount, si) : 0))
     const rate = Math.max(0, p.emissionRate ? propertyAt(p.emissionRate, si) : 0)
-    const emitted = Math.min(MAX_PER_SYSTEM, Math.floor(rate * d))
+    // The emission runs on across loops (births at (n + 0.5) / rate of the shifted time), so a rate
+    // below one particle a loop still emits: the Heatwave's vent emits 2 a second over 0.35 s loops.
+    const first = rate > 0 ? Math.ceil(L * d * rate - 0.5) : 0
+    const emitted = rate > 0 ? Math.min(MAX_PER_SYSTEM, Math.max(0, Math.ceil((L + 1) * d * rate - 0.5) - first)) : 0
     const total = Math.min(MAX_PER_SYSTEM, start + emitted)
     for (let k = 0; k < total; k++) {
-      const born = k < start ? 0 : (k - start + 0.5) / rate
+      const born = k < start ? 0 : (first + k - start + 0.5) / rate - L * d
       if (born > tau) break
       const pk = seedOf(seed, rank, L, k)
       const rnd = (j: number) => unitHash(seedOf(pk, j))
@@ -414,11 +449,13 @@ export function systemShown(s: IdleSystem, firstPerson: boolean, scoped: boolean
 export interface WeaponFxState {
   ready: boolean
   reloading: boolean
+  /** The magazine's fraction (`primary_ammunition`, `magazineFraction`); absent: full. */
+  ammo?: number
 }
 
 /** effectScales are the effect's A and B scales for the weapon state `w` (its functions, `functionValue`). */
 export function effectScales(e: IdleEffect, w: WeaponFxState): { scaleA: number; scaleB: number } {
-  const imports = { ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: 1, camo: 0 }
+  const imports = { ...(w.reloading ? e.reloadFunctions : undefined), ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: w.ammo ?? 1, camo: 0 }
   return { scaleA: functionValue(e.functions, imports, e.scaleA), scaleB: functionValue(e.functions, imports, e.scaleB) }
 }
 
@@ -446,4 +483,37 @@ export function reloadingAt(spans: readonly ReloadSpan[], frame: number, fps: nu
   if (frame >= end) return false
   for (const t of shots) if (t > s.start && t <= frame) return false
   return true
+}
+
+/**
+ * What changes a magazine, from the film: a reading (`read`, its rounds), a shot (`shot`, one round), a
+ * round a staged reload puts in (`round`, one round, when its round clip ends: the episode's next
+ * stage), a one-clip reload that completes (`full`, at the end of the rig's reload clip, no shot or
+ * swap before it).
+ */
+export interface MagazineEvent {
+  ms: number
+  kind: 'read' | 'shot' | 'round' | 'full'
+  rounds?: number
+}
+
+/**
+ * magazineFraction is the engine's `primary_ammunition` at `ms`: the magazine replayed from the life's
+ * spawn (full: a player spawns full) through `events` (sorted by ms): a reading sets it, a shot takes a
+ * round (never below 0), a staged round adds one and a completed reload fills it (never above the
+ * weapon's `rounds loaded maximum`, `size`); over `size`, in [0, 1]. The film's readings are sparse
+ * (match 05dfe4e9: keyframes 8.5 s apart): the shots and reloads since carry the answer, as
+ * `magazineAtReload` measured. A weapon of unknown size (an older library, no magazine) reads full.
+ */
+export function magazineFraction(events: readonly MagazineEvent[], ms: number, size: number | undefined): number {
+  if (!size || size <= 0) return 1
+  let rounds = size
+  for (const e of events) {
+    if (e.ms > ms) break
+    if (e.kind === 'read') rounds = e.rounds ?? rounds
+    else if (e.kind === 'shot') rounds = Math.max(0, rounds - 1)
+    else if (e.kind === 'round') rounds = Math.min(size, rounds + 1)
+    else rounds = size
+  }
+  return Math.min(1, Math.max(0, rounds / size))
 }

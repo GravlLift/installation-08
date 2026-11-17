@@ -119,9 +119,12 @@ export interface ActionContext {
   /**
    * The WORLD frame of the idle-effect marker `marker` of weapon `key` on the visible first-person
    * rig (its bone's world matrix, then the marker's offset), written in `out`; false when the rig of
-   * that weapon is not shown or does not carry the marker.
+   * that weapon is not shown or does not carry the marker. `instance`: which of the marker's instances,
+   * in the index's order (0 the first).
    */
-  firstPersonEffectAnchor?: (key: string, marker: string, out: THREE.Matrix4) => boolean
+  firstPersonEffectAnchor?: (key: string, marker: string, out: THREE.Matrix4, instance?: number) => boolean
+  /** Why the last `firstPersonEffectAnchor` call failed, for review (null when it succeeded). */
+  firstPersonAnchorMiss?: () => string | null
   /** The length in seconds of the first-person clip `action` of weapon `key` (its rig index), null without one. */
   weaponClipSeconds?: (key: string, action: string) => number | null
   /** Les lumières des éclairs brefs : l'ensemble les ouvre et les ferme autour des calques. */

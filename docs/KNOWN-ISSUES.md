@@ -42,6 +42,22 @@ engineering backlog; this page keeps only the user-visible parts of it.
   viewer, not from the game's own effect. Other
   weapons' particle effects (the Ravager's and Disruptor's glow, plasma impacts) are not
   drawn.
+- The Heatwave's vent glow on its fins and its ready glow come from the game's own effects.
+  The vent shows while the film says the player reloads, scaled by the value the weapon's own
+  reload animation sets (read from the game), while the magazine is not full (full at spawn,
+  the film's last magazine reading less the shots since, plus one round per stage the reload
+  plays). The first-person reload sounds of the
+  Heatwave, Cindershot and Hydra (fins opening, each round, the closing) play for the followed
+  player only, on top of the Spartan's reload sound, and are not yet checked by ear. Seen from outside, a weapon's own moving parts (the Heatwave's
+  fins, slides, barrels) do not move: weapons are drawn as one rigid piece in third person.
+- Weapon effects drawn as small 3D models (the Heatwave's vent and ready glow, the Shock Rifle's
+  electric shell, the Cindershot's glow) are drawn at their size only. The game also gives each a
+  width and length stretch (the particle's "scale x" and "scale y", offsets 664 and 700 of its
+  properties), and which axes of the model these stretch is not known: neither the tag layouts
+  nor any published documentation says. Read along the model's own long axis, the Heatwave's
+  ready glow would be a 26 cm streak along the barrel; read across it, as the flat effects use
+  them, an 11.5 cm wide disc. Until this is known, the part of the ready glow seen in first person
+  is not drawn (drawn at its size alone, it showed as a round disc beside the gun).
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the
   same level everywhere), and other players' shield alarms are not played.
 - How much quieter other players' guns are than your own (4 dB, plus distance) is an
