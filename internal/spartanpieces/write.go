@@ -73,19 +73,19 @@ func fileTexture(digest [32]byte, extension string) string {
 // textureDepot stores each image once, named by the digest of its content.
 type textureDepot struct {
 	dir        string
-	vues       map[string]bool
-	fichiers   int
-	octets     int64
+	seen       map[string]bool
+	files      int
+	bytes      int64
 	references int
-	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel piece build pool calls depose from
-	// several goroutines at once; it guards vues/fichiers/octets/references and the dedup
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel piece build pool calls store from
+	// several goroutines at once; it guards seen/files/bytes/references and the dedup
 	// write below.
 	mu sync.Mutex
 }
 
-// depose stores the image (when this build has not stored it yet) and returns
+// store stores the image (when this build has not stored it yet) and returns
 // its name, a URI relative to the GLB that names it.
-func (d *textureDepot) depose(data []byte, mime string) (string, error) {
+func (d *textureDepot) store(data []byte, mime string) (string, error) {
 	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
 	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {
@@ -96,7 +96,7 @@ func (d *textureDepot) depose(data []byte, mime string) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.references++
-	if d.vues[name] {
+	if d.seen[name] {
 		return name, nil
 	}
 	n, err := writeFile(filepath.Join(d.dir, name), func(w io.Writer) error {
@@ -106,8 +106,8 @@ func (d *textureDepot) depose(data []byte, mime string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("image %s: %w", name, err)
 	}
-	d.vues[name] = true
-	d.fichiers++
-	d.octets += n
+	d.seen[name] = true
+	d.files++
+	d.bytes += n
 	return name, nil
 }
