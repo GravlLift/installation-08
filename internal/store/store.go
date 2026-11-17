@@ -143,6 +143,21 @@ func (r *Root) MeshPath(moduleKey string, q meshjobs.Quality) (string, error) {
 	return filepath.Join(r.MapsDir(), name), nil
 }
 
+// BVHPath is a map's ray/collision index sidecar for a texture quality, alongside its mesh
+// (maps\<moduleKey>.bvh for standard, maps\<moduleKey>.high.bvh for high — the same split as
+// MeshPath, since each quality's mesh is a different file with its own geometry order). The
+// client (three-mesh-bvh) builds and serializes it; the server only stores and serves the bytes.
+func (r *Root) BVHPath(moduleKey string, q meshjobs.Quality) (string, error) {
+	if !ModuleKeyValid(moduleKey) {
+		return "", fmt.Errorf("invalid map module key %q", moduleKey)
+	}
+	name := moduleKey + "." + string(q) + ".bvh"
+	if q == meshjobs.QualityStandard {
+		name = moduleKey + ".bvh"
+	}
+	return filepath.Join(r.MapsDir(), name), nil
+}
+
 // WriteFile writes data to path atomically (a temp file in the same directory, then
 // rename), creating parent directories. A crash mid-write never leaves a torn file.
 func (r *Root) WriteFile(path string, data []byte) error {

@@ -228,6 +228,45 @@ export async function cancelMeshBuild(matchId: string, signal?: AbortSignal, qua
   return body as MeshStateBody
 }
 
+// --- Ray-index sidecar (`.../mesh/bvh`, `.../variant/bvh`) ----------------------------------
+
+/** bvhUrlOf derives a mesh's or a variant layer's ray-index sidecar URL from its own GLB URL
+ *  (as `meshUrl` or the variant screen's own URL builder give it): `.../mesh.glb?quality=high` ->
+ *  `.../mesh/bvh?quality=high`, same for `.../variant.glb`. The sidecar always lives beside the
+ *  file it indexes, under the same `?quality=` split. */
+export function bvhUrlOf(glbUrl: string): string {
+  return glbUrl.replace(/\/(mesh|variant)\.glb(\?.*)?$/, '/$1/bvh$2')
+}
+
+/**
+ * fetchBVHCache reads a ray-index sidecar; null on a 404 (not built, or stale against the current
+ * file — the server's own check) or on any other failure. The cache is a pure optimization: a
+ * failed fetch here must never stop the map or variant layer from loading, only make it build its
+ * own index as if the sidecar were absent.
+ */
+export async function fetchBVHCache(glbUrl: string, signal?: AbortSignal): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(bvhUrlOf(glbUrl), { signal })
+    if (!res.ok) return null
+    return await res.arrayBuffer()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * uploadBVHCache stores a freshly built ray index beside the file it was built from. Fire-and-
+ * forget: a failed upload (network, server busy, refused as oversize) only means the next load
+ * builds its own index again, never a user-visible error.
+ */
+export async function uploadBVHCache(glbUrl: string, data: ArrayBuffer, signal?: AbortSignal): Promise<void> {
+  try {
+    await fetch(bvhUrlOf(glbUrl), { method: 'PUT', body: data, signal })
+  } catch {
+    // Best-effort upload: see the doc comment above.
+  }
+}
+
 // --- Account sign-in (`/api/auth/*`) ---------------------------------------------------------
 
 /** The four states the sign-in contract defines. Fields that do not apply to a given state are

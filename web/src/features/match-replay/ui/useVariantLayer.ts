@@ -11,13 +11,22 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
+import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
+
 import type { LoadProgress3d } from '../model/chargement3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { loadLayerModel } from '../scene3d/mapModel'
 import { timedSync } from '../scene3d/perf3d'
 import { fetchVariantBuffer } from '../scene3d/variantLayer'
 
-type Prefetch = { path: string; progress: LoadProgress3d; buffer: Promise<ArrayBuffer | null> }
+type Prefetch = {
+  path: string
+  progress: LoadProgress3d
+  buffer: Promise<ArrayBuffer | null>
+  /** The layer's ray-index sidecar, fetched alongside the buffer so a cache hit costs no extra
+   *  round trip; null (never rejects) when absent, stale, or the fetch failed. */
+  bvhCache: Promise<ArrayBuffer | null>
+}
 
 /**
  * `variantPath`: the layer's URL once the server has it; `pending`: true while the server still
@@ -38,7 +47,8 @@ export function useVariantLayer(
     const abort = new AbortController()
     const buffer = fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
     buffer.catch(() => {})
-    const entry = { path: variantPath, progress, buffer }
+    const bvhCache = fetchBVHCache(variantPath, abort.signal)
+    const entry = { path: variantPath, progress, buffer, bvhCache }
     prefetch.current = entry
     return () => {
       abort.abort()
@@ -62,18 +72,21 @@ export function useVariantLayer(
     void (async () => {
       try {
         const entry = prefetch.current
-        const pre = entry && entry.path === variantPath && entry.progress === progress
-          ? entry.buffer
-          : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
-        const buffer = await pre
+        const samePrefetch = entry && entry.path === variantPath && entry.progress === progress
+        const pre = samePrefetch ? entry.buffer : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
+        const bvhPre = samePrefetch ? entry.bvhCache : fetchBVHCache(variantPath, abort.signal)
+        const [buffer, bvhCache] = await Promise.all([pre, bvhPre])
         // The buffer is read once: the layer holds what it needs, the 100+ MB file is released.
         if (prefetch.current?.buffer === pre) prefetch.current = null
         if (!alive) return
         if (!buffer) progress.variantNone()
         else {
           const layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
-            progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader)
+            progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader, bvhCache)
           if (!alive || !timedSync('variant:attach', () => scene.attachLayer(layer))) layer.dispose()
+          // Off the critical path, same as the map's own upload: the layer is already posed (or
+          // dropped) by the time this fires.
+          else if (layer.bvhUpload) void uploadBVHCache(variantPath, layer.bvhUpload, abort.signal)
         }
       } catch (err) {
         if (!alive) return

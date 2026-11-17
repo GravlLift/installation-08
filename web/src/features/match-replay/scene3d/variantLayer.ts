@@ -8,6 +8,7 @@
  */
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
+import { fetchBVHCache } from '@/lib/api/standalone'
 import { isNotFound } from '@/lib/replay/queries'
 
 import type { BakedLight } from './bakedLightShader'
@@ -37,5 +38,9 @@ export async function fetchVariantBuffer(
  */
 export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null, ktx2: KTX2Loader | null = null): Promise<SurfaceModel | null> {
   const buffer = await fetchVariantBuffer(path, signal)
-  return buffer ? loadLayerModel(buffer, light, undefined, ktx2) : null
+  if (!buffer) return null
+  // Best-effort, like the map's: a failed or stale fetch (null) just means the layer builds its
+  // own ray index, as if the sidecar were absent (`fetchBVHCache` never throws).
+  const bvhCache = await fetchBVHCache(path, signal)
+  return loadLayerModel(buffer, light, undefined, ktx2, bvhCache)
 }
