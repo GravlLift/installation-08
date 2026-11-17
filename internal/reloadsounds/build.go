@@ -75,6 +75,11 @@ type builder struct {
 	takes   map[uint32][]Take // by sound tag
 	written map[uint32]Take   // by media id: a media two sound tags share is written once
 	res     *Result
+	// arsenal and ctx read the weapons' first-person graphs (staged); fpTakes caches the takes of
+	// a sound tag's first-person event, as takes does its third-person one.
+	arsenal *himap.Arsenal
+	ctx     context.Context
+	fpTakes map[uint32][]Take
 }
 
 // Build extracts every weapon's reload sounds into opts.OutDir and writes the manifest there,
@@ -103,7 +108,8 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	}
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Weapons: map[string]map[string]Reload{}, Vents: map[string]map[string]Vent{}}, Silent: map[string][]string{}}
 	b := &builder{graphs: gs, tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
-		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32][]Take{}, written: map[uint32]Take{}, res: res}
+		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32][]Take{}, written: map[uint32]Take{}, res: res,
+		arsenal: a, ctx: ctx, fpTakes: map[uint32][]Take{}}
 	weapons := ix.EntreesDuGroupe("weap")
 	sort.Slice(weapons, func(i, j int) bool { return weapons[i] < weapons[j] })
 	for _, id := range weapons {
@@ -167,7 +173,7 @@ func (b *builder) weapon(id uint32, labels himap.EtiquettesArme) error {
 	if len(stances) > 0 {
 		// The film plays a weapon's reload whenever it has one, vent clip or not: no vent entry.
 		b.res.Manifest.Weapons[key] = stances
-		return nil
+		return b.staged(id, key)
 	}
 	// The heat weapons vent where the others reload: read their vent clips, if they have any.
 	vents, err := b.vent(key, class, typ)
@@ -225,6 +231,12 @@ func (b *builder) silent(reason, key string) error {
 
 // reload reads one reload animation: its length and each sound it posts, with the takes.
 func (b *builder) reload(g *himap.GrapheAnimation, rang int, name string) (Reload, error) {
+	return b.reloadOf(g, rang, name, nil, false)
+}
+
+// reloadOf is reload keeping only the sound tags `keep` accepts (nil: all), their takes from the
+// first-person event when `firstPerson`.
+func (b *builder) reloadOf(g *himap.GrapheAnimation, rang int, name string, keep func(uint32) bool, firstPerson bool) (Reload, error) {
 	if rang < 0 || rang >= len(g.Animations) || g.Animations[rang].Rang != rang {
 		return Reload{}, fmt.Errorf("animation %d not at its rank in graph %08x", rang, g.ID)
 	}
@@ -245,7 +257,10 @@ func (b *builder) reload(g *himap.GrapheAnimation, rang int, name string) (Reloa
 	for _, p := range posted {
 		var takes []Take
 		for _, s := range p.Sounds {
-			t, err := b.soundTakes(s)
+			if keep != nil && !keep(s) {
+				continue
+			}
+			t, err := b.takesOf(s, firstPerson)
 			if err != nil {
 				return Reload{}, err
 			}
@@ -260,16 +275,24 @@ func (b *builder) reload(g *himap.GrapheAnimation, rang int, name string) (Reloa
 }
 
 // soundTakes returns the takes of a sound tag's third-person event, extracting each media once.
-func (b *builder) soundTakes(snd uint32) ([]Take, error) {
-	if t, ok := b.takes[snd]; ok {
+func (b *builder) soundTakes(snd uint32) ([]Take, error) { return b.takesOf(snd, false) }
+
+// takesOf returns the takes of a sound tag's third-person event, or of its first-person one when
+// `firstPerson`, extracting each media once.
+func (b *builder) takesOf(snd uint32, firstPerson bool) ([]Take, error) {
+	cache, eventOf := b.takes, soundtags.Event
+	if firstPerson {
+		cache, eventOf = b.fpTakes, soundtags.FirstPersonEvent
+	}
+	if t, ok := cache[snd]; ok {
 		return t, nil
 	}
 	tag, err := b.tag(snd)
 	if err != nil {
 		return nil, err
 	}
-	b.takes[snd] = nil
-	event, bankTag, ok := soundtags.Event(tag)
+	cache[snd] = nil
+	event, bankTag, ok := eventOf(tag)
 	if !ok {
 		return nil, nil
 	}
@@ -293,7 +316,7 @@ func (b *builder) soundTakes(snd uint32) ([]Take, error) {
 			takes = append(takes, t)
 		}
 	}
-	b.takes[snd] = takes
+	cache[snd] = takes
 	return takes, nil
 }
 
@@ -352,4 +375,89 @@ func closeLogged(ctx context.Context, what string, closeFn func() error) {
 	if err := closeFn(); err != nil {
 		slog.WarnContext(ctx, "reloadsounds: closing "+what, "err", err)
 	}
+}
+
+// The first-person clips of a staged reload, by their action names in the rig's graph.
+const (
+	stagedEnter      = "reload_enter"
+	stagedRound      = "reload_continue_full"
+	stagedRoundEmpty = "reload_continue_empty"
+	stagedClosing    = "chamber_1"
+	modeAny          = "any"
+)
+
+// staged reads the first-person sounds of a weapon whose first-person rig reloads in stages (its
+// graph names a reload_enter in mode any): each clip's sounds that no other animation of the graph
+// posts (the handling sounds every clip shares are left to the third-person reload), from their
+// first-person events. A weapon without a first-person rig or a staged reload gets no entry.
+func (b *builder) staged(id uint32, key string) error {
+	src, err := b.arsenal.SourcesArme(id)
+	if err != nil {
+		return nil //nolint:nilerr // a weapon without a first-person block has no first-person reload
+	}
+	gs, err := b.arsenal.GraphesDepuis(b.ctx, src.Graphe)
+	if err != nil {
+		return fmt.Errorf("reloadsounds: first-person graph %08x: %w", src.Graphe, err)
+	}
+	g := gs.Propre
+	actions := map[uint32]string{}
+	for _, a := range []string{stagedEnter, stagedRound, stagedRoundEmpty, stagedClosing} {
+		actions[himap.NomAnimation(a)] = a
+	}
+	anyMode := himap.NomAnimation(modeAny)
+	ranks := map[string]int{}
+	reloadRanks := map[int]bool{}
+	for _, e := range g.Entrees {
+		a, ok := actions[e.Etiquettes[himap.NiveauxModes-1]]
+		if !ok || e.Graphe != -1 {
+			continue
+		}
+		reloadRanks[e.Animation] = true
+		if _, seen := ranks[a]; !seen && e.Etiquettes[0] == anyMode {
+			ranks[a] = e.Animation
+		}
+	}
+	if _, ok := ranks[stagedEnter]; !ok {
+		return nil
+	}
+	tag, err := b.tag(g.ID)
+	if err != nil {
+		return err
+	}
+	shared := map[uint32]bool{}
+	for _, an := range g.Animations {
+		if reloadRanks[an.Rang] {
+			continue
+		}
+		posted, err := animationSounds(tag, an.Groupe, an.Membre)
+		if err != nil {
+			return fmt.Errorf("reloadsounds: first-person graph %08x animation %d: %w", g.ID, an.Rang, err)
+		}
+		for _, p := range posted {
+			for _, s := range p.Sounds {
+				shared[s] = true
+			}
+		}
+	}
+	keep := func(s uint32) bool { return !shared[s] }
+	var st Staged
+	for _, c := range []struct {
+		action string
+		clip   *VentClip
+	}{{stagedEnter, &st.Enter}, {stagedRound, &st.Round}, {stagedRoundEmpty, &st.RoundEmpty}, {stagedClosing, &st.Closing}} {
+		rang, ok := ranks[c.action]
+		if !ok {
+			continue
+		}
+		r, err := b.reloadOf(g, rang, "first_person:"+c.action, keep, true)
+		if err != nil {
+			return fmt.Errorf("reloadsounds: %s %s: %w", key, c.action, err)
+		}
+		*c.clip = VentClip{Animation: r.Animation, DurationMs: r.DurationMs, Sounds: r.Sounds}
+	}
+	if b.res.Manifest.Staged == nil {
+		b.res.Manifest.Staged = map[string]Staged{}
+	}
+	b.res.Manifest.Staged[key] = st
+	return nil
 }

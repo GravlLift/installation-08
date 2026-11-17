@@ -89,3 +89,25 @@ func TestManifestWritesEmptySoundsAsList(t *testing.T) {
 		t.Fatalf("manifest:\n%s", s)
 	}
 }
+
+func TestRemoveStaleTakesKeepsStagedTakes(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []string{"reload_00000001.ogg", "reload_00000002.ogg"} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := &Manifest{Version: ManifestVersion, Staged: map[string]Staged{"2ac9c2ff": {
+		Enter: VentClip{Sounds: []Sound{{AtMs: 567, Takes: []Take{{File: "reload_00000001.ogg"}}}}},
+	}}}
+	removed, err := removeStaleTakes(dir, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed != 1 {
+		t.Errorf("removed %d takes, want 1", removed)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "reload_00000001.ogg")); err != nil {
+		t.Errorf("the staged take was removed: %v", err)
+	}
+}

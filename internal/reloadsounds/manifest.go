@@ -22,8 +22,9 @@ import (
 const ManifestName = "reloads.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
-// the extraction runs again. Version 2 adds the heat weapons' vents.
-const ManifestVersion = 2
+// the extraction runs again. Version 2 adds the heat weapons' vents, 3 the staged reloads'
+// first-person sounds (Staged).
+const ManifestVersion = 3
 
 // takeFile is the name of every take file a manifest lists: reload_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -41,6 +42,19 @@ type Manifest struct {
 	// Vents maps a heat weapon tag to its vent per stance: the enter, loop and exit animations,
 	// each with the sounds it posts (the loop posts none in the installed game).
 	Vents map[string]map[string]Vent `json:"vents"`
+	// Staged maps a weapon whose first-person rig reloads in stages (reload_enter, one round per
+	// stage, chamber_1: the Heatwave, Cindershot, Hydra) to the sounds its first-person reload clips
+	// post that no other clip of its graph posts, each from the sound's first-person event.
+	Staged map[string]Staged `json:"staged,omitempty"`
+}
+
+// Staged is one staged reload's first-person clips: the enter, a round (full and empty magazine),
+// and the closing clip. A clip the rig does not carry is left empty.
+type Staged struct {
+	Enter      VentClip `json:"enter"`
+	Round      VentClip `json:"round"`
+	RoundEmpty VentClip `json:"roundEmpty"`
+	Closing    VentClip `json:"closing"`
 }
 
 // Vent is one heat weapon's vent: the animation of each of its phases.
@@ -142,6 +156,15 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 					for _, t := range s.Takes {
 						keep[t.File] = true
 					}
+				}
+			}
+		}
+	}
+	for _, s := range m.Staged {
+		for _, c := range []VentClip{s.Enter, s.Round, s.RoundEmpty, s.Closing} {
+			for _, snd := range c.Sounds {
+				for _, t := range snd.Takes {
+					keep[t.File] = true
 				}
 			}
 		}
