@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * riggedWeapons3d.ts — LES CLÉS DE MODÈLE DES RIGS DE PREMIÈRE PERSONNE QU'UN MATCH EMPLOIE.
+ * riggedWeapons3d.ts — THE MODEL KEYS OF THE FIRST-PERSON RIGS A MATCH USES.
  *
- * Un rig se charge à la première demande de son arme : pour que l'écran de chargement le couvre,
- * la scène le demande d'avance pour TOUTES les armes portées par un joueur du match (le
- * spectateur change de joueur suivi). Une arme portée l'est dans une dotation (`loadouts`) ou
- * par un changement d'arme (`weaponChanges`, dont `from` nomme l'arme rendue) : c'est l'union
- * complète de ce qui est porté. Les armes tirées ou lâchées l'ont été d'abord ; les socles de
- * carte sont des apparitions, jamais des armes portées, et n'entrent donc pas ici.
+ * A rig loads on its weapon's first request: for the loading screen to cover it, the scene
+ * requests it ahead of time for EVERY weapon carried by a player of the match (the viewer
+ * switches the followed player). A carried weapon is carried either in a loadout (`loadouts`) or
+ * through a weapon change (`weaponChanges`, whose `from` names the weapon given up): this is the
+ * full union of what is carried. Weapons fired or dropped were carried first; map pads are
+ * spawns, never carried weapons, and so do not enter here.
  */
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import { weaponModelKey } from './weaponModels3d'
 
 /**
- * clesRigsRejeu : les clés de modèle (`weaponModelKey`) des armes portées par un joueur du
- * match, sans doublon ; les identifiants sans clé (grenades et autres) sont écartés.
+ * clesRigsRejeu: the model keys (`weaponModelKey`) of weapons carried by a player of the match,
+ * with no duplicate; ids with no key (grenades and others) are dropped.
  */
 export function clesRigsRejeu(doc: ReplayDocumentReady): readonly string[] {
-  const cles = new Set<string>()
-  const ajouter = (id?: string) => { const cle = id && weaponModelKey(id); if (cle) cles.add(cle) }
-  for (const loadout of doc.loadouts) for (const id of loadout.w) ajouter(id)
-  for (const change of doc.weaponChanges) { ajouter(change.w); ajouter(change.from) }
-  return [...cles]
+  const keys = new Set<string>()
+  const add = (id?: string) => { const key = id && weaponModelKey(id); if (key) keys.add(key) }
+  for (const loadout of doc.loadouts) for (const id of loadout.w) add(id)
+  for (const change of doc.weaponChanges) { add(change.w); add(change.from) }
+  return [...keys]
 }

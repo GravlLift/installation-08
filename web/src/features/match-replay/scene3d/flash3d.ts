@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * flash3d.ts — LES ÉCLAIRS BREFS DE L'ACTION : leur lumière (un jeu fixe de lumières ponctuelles)
- * et leur courbe dans le temps.
+ * flash3d.ts — THE ACTION'S BRIEF FLASHES: their light (a fixed set of point lights) and their
+ * curve over time.
  *
- * Une lumière ponctuelle de three éclaire la carte et les Spartans (matériaux standard : la lumière
- * cuite ne remplace que l'indirect). Le nombre de lumières entre dans les programmes compilés :
- * changer ce nombre recompile toute la carte (plusieurs secondes sur Recharge). Le jeu est donc FIXE,
- * posé avec l'éclairage de la scène avant la première compilation ; à chaque image les calques
- * demandent des éclairs (`add`) entre `begin` et `end`, les plus forts prennent les places, les
- * autres places restent éteintes. Aucune ombre : une carte d'ombre par éclair coûterait une passe.
+ * A three point light lights the map and the Spartans (standard materials: baked light only
+ * replaces the indirect term). The light count is baked into the compiled shader programs:
+ * changing that count recompiles the whole map (several seconds on Recharge). The set is therefore
+ * FIXED, placed with the scene's lighting before the first compile; every frame the layers request
+ * flashes (`add`) between `begin` and `end`, the strongest take the slots, the other slots stay off.
+ * No shadow: a shadow map per flash would cost a pass.
  *
- * Chaque éclair est une fonction de son âge (secondes depuis le tir ou la détonation) : la même
- * image rend la même lumière, en avant comme en arrière.
+ * Each flash is a function of its age (seconds since the shot or the detonation): the same frame
+ * renders the same light, forward or backward.
  */
 import * as THREE from 'three'
 
-/** Les places du jeu : quelques éclairs à la fois suffisent, au-delà les plus faibles s'effacent. */
+/** The set's slots: a handful of flashes at once is enough, past that the weakest fade out. */
 export const FLASH_POOL = 4
-// Au plus tant de demandes par image (une rafale de tous les joueurs reste en dessous).
+// At most this many requests per frame (a volley from every player stays under it).
 const MAX_REQUESTS = 128
-// Décroissance de la lumière avec la distance (physique : 2).
+// Light falloff with distance (physical: 2).
 const DECAY = 2
 
 interface Request {
@@ -51,7 +51,7 @@ export class FlashLights {
     this.n = 0
   }
 
-  /** add demande un éclair ; au-delà de `MAX_REQUESTS` par image, la demande est ignorée. */
+  /** add requests a flash; past `MAX_REQUESTS` per frame, the request is ignored. */
   add(position: THREE.Vector3, color: THREE.Color, intensity: number, distance: number): void {
     if (intensity <= 0 || this.n >= MAX_REQUESTS) return
     const r = this.requests[this.n++]
@@ -61,7 +61,7 @@ export class FlashLights {
     r.distance = distance
   }
 
-  /** end donne les places aux éclairs les plus forts de l'image ; les autres places s'éteignent. */
+  /** end gives the slots to the frame's strongest flashes; the other slots turn off. */
   end(): void {
     this.order.length = 0
     for (let i = 0; i < this.n; i++) this.order.push(this.requests[i])
@@ -76,7 +76,7 @@ export class FlashLights {
     })
   }
 
-  /** lit : les places allumées à la dernière image (tests, mesure). */
+  /** lit: the slots lit on the last frame (tests, measurement). */
   lit(): number {
     return this.lights.filter((l) => l.intensity > 0).length
   }
@@ -90,8 +90,8 @@ export class FlashLights {
 }
 
 /**
- * flashCurve : la force d'un éclair (0..1) `age` secondes après son départ, sur `seconds` : pleine
- * au départ, éteinte au bout, décroissance en carré (un éclat, pas un fondu). 0 avant et après.
+ * flashCurve: a flash's strength (0..1) `age` seconds after it started, over `seconds`: full at
+ * the start, off at the end, square falloff (a flare, not a fade). 0 before and after.
  */
 export function flashCurve(age: number, seconds: number): number {
   if (age < 0 || age >= seconds) return 0
@@ -100,14 +100,14 @@ export function flashCurve(age: number, seconds: number): number {
 }
 
 /**
- * petalGeometry : un pétale d'éclair de bouche, losange plat dans le plan XY, du canon (origine) à
- * la pointe (+Y, longueur 1), plus large au tiers ; le cœur est blanc, les bords noirs (en mélange
- * additif, le noir ne peint rien : le pétale s'estompe vers ses bords).
+ * petalGeometry: a muzzle flash petal, a flat diamond in the XY plane, from the barrel (origin) to
+ * the tip (+Y, length 1), widest at a third of the way; the core is white, the edges black (in
+ * additive blending, black paints nothing: the petal fades out toward its edges).
  */
 export function petalGeometry(): THREE.BufferGeometry {
   const core = [1, 1, 1]
   const edge = [0, 0, 0]
-  // Deux triangles par moitié : centre (0, 0.3) blanc, quatre sommets noirs.
+  // Two triangles per half: center (0, 0.3) white, four black vertices.
   const c = [0, 0.3, 0]
   const tail = [0, 0, 0]
   const tip = [0, 1, 0]

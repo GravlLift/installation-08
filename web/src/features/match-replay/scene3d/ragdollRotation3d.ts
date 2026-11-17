@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollRotation3d.ts — LES ROTATIONS DES BLOCS RIGIDES du corps inerte (`ragdollSolver3d`) : la
- * rotation la plus proche d'une matrice d'appariement de forme, par la méthode itérative de Müller et
- * al. (2016), réchauffée par la rotation du pas d'avant, et les quaternions qui la portent.
+ * ragdollRotation3d.ts — ROTATIONS OF THE RAGDOLL'S RIGID CLUSTERS (`ragdollSolver3d`): the
+ * rotation closest to a shape-matching matrix, by Müller et al.'s (2016) iterative method,
+ * warm-started from the previous step's rotation, and the quaternions that carry it.
  */
 
 const len3 = (x: number, y: number, z: number) => Math.sqrt(x * x + y * y + z * z)
-/** Les itérations de l'extraction de rotation : moins, elle ne suit pas les blocs qui tournent vite et le corps s'emballe. */
+/** Rotation-extraction iterations: fewer, and it cannot track fast-spinning clusters and the body runs away. */
 const ROTATION_ITERATIONS = 20
-/** Sous ce pas (radians), la rotation extraite est tenue pour juste. */
+/** Below this step (radians), the extracted rotation is deemed correct. */
 const ROTATION_EPS = 1e-7
 
 const shapeR = new Float64Array(9)
 
-/** extractRotation : la rotation de A (colonnes) par la méthode itérative de Müller, réchauffée par `q`. */
+/** extractRotation: A's (columns) rotation by Müller's iterative method, warm-started from `q`. */
 export function extractRotation(A: Float64Array, q: Float64Array): void {
   const r = shapeR
   for (let it = 0; it < ROTATION_ITERATIONS; it++) {
@@ -39,7 +39,7 @@ export function extractRotation(A: Float64Array, q: Float64Array): void {
   }
 }
 
-/** mulQuat écrit dans `q` le produit a·q, normalisé. */
+/** mulQuat writes into `q` the product a·q, normalized. */
 function mulQuat(ax: number, ay: number, az: number, aw: number, q: Float64Array): void {
   const bx = q[0], by = q[1], bz = q[2], bw = q[3]
   const x = aw * bx + ax * bw + ay * bz - az * by
@@ -53,7 +53,7 @@ function mulQuat(ax: number, ay: number, az: number, aw: number, q: Float64Array
   q[3] = w / l
 }
 
-/** rotationColumns écrit dans `out` la matrice de rotation de `q`, rangée par colonnes. */
+/** rotationColumns writes into `out` `q`'s rotation matrix, stored by columns. */
 export function rotationColumns(q: Float64Array, out: Float64Array): Float64Array {
   const x = q[0], y = q[1], z = q[2], w = q[3]
   out[0] = 1 - 2 * (y * y + z * z)
@@ -70,7 +70,7 @@ export function rotationColumns(q: Float64Array, out: Float64Array): Float64Arra
 
 const rotateR = new Float64Array(9)
 
-/** rotate : le vecteur `v[o..o+2]` tourné par le quaternion `q`. */
+/** rotate: vector `v[o..o+2]` rotated by quaternion `q`. */
 export function rotate(q: Float64Array, v: Float64Array, o: number): number[] {
   const r = rotationColumns(q, rotateR)
   const a = v[o], b = v[o + 1], c = v[o + 2]

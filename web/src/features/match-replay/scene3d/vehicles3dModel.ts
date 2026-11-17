@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * vehicles3dModel.ts — LES VÉHICULES LUS POUR LA VUE 3D : position avec la hauteur, gabarit par
- * famille, place d'un occupant à bord. Aucune ligne de three.js ici : tout se teste sans scène.
+ * vehicles3dModel.ts — VEHICLES READ FOR THE 3D VIEW: position with height, size by family, an
+ * occupant's seat on board. No line of three.js here: everything tests without a scene.
  *
- * Les règles de dessin (refus du décor, fenêtre d'affichage, cap, occupants, teinte) sont celles
- * de la 2D (`model/vehiclesLayer.ts`, `model/vehiclesAim.ts`) ; ce module n'y ajoute que la
- * troisième dimension. Unités monde Halo (1 u = 3,048 m, Z vers le haut, cf. `tracks3d`).
+ * The drawing rules (decor rejection, display window, heading, occupants, tint) are 2D's own
+ * (`model/vehiclesLayer.ts`, `model/vehiclesAim.ts`); this module only adds the third dimension.
+ * Halo world units (1 u = 3.048 m, Z up, see `tracks3d`).
  *
- * HAUTEUR D'UN ÉCHANTILLON. Le `z` publié d'un véhicule est à la hauteur de l'origine d'un bipède
- * debout à côté de lui : à la montée à bord, l'écart médian entre la dernière position du joueur
- * et celle de sa monture tient dans quelques centièmes d'unité pour toutes les familles roulantes.
- * L'échantillon se lit donc comme le BAS du véhicule (son contact au sol, à l'écart près entre
- * l'origine et les pieds d'un bipède), pas comme son centre.
+ * A SAMPLE'S HEIGHT. A vehicle's published `z` is at the origin height of a biped standing next
+ * to it: on boarding, the median gap between the player's last position and their mount's holds
+ * within a few hundredths of a unit for every wheeled family. The sample therefore reads as the
+ * BOTTOM of the vehicle (its ground contact, within the gap between a biped's origin and feet),
+ * not as its center.
  */
 import type { ReplayVehicleRide } from '@/lib/api/types'
 
@@ -19,14 +19,14 @@ import { lastIndexAt } from '../../../lib/replay/replayLogic'
 import type { ReplayVehicleTrackReady } from '../../../lib/replay/replayNormalize'
 import { vehicleActiveRides, vehicleCanEmbark, vehicleVisibleAt } from '../model/vehiclesLayer'
 
-/** Une position monde Halo. */
+/** A Halo world position. */
 export interface VehicleWorld3d {
   x: number
   y: number
   z: number
 }
 
-/** Le gabarit d'une caisse : longueur (axe du cap), largeur, hauteur, en unités Halo. */
+/** A chassis's size: length (heading axis), width, height, in Halo units. */
 export interface VehicleSize3d {
   length: number
   width: number
@@ -36,10 +36,10 @@ export interface VehicleSize3d {
 const box = (length: number, width: number, height: number): VehicleSize3d => ({ length, width, height })
 
 /**
- * VEHICLE_SIZE_3D — le gabarit de la caisse par famille de DESSIN (`vehicleSpriteFamily` : la
- * variante quand le document la nomme). Les clés sont les familles publiées par le document
- * (`film/replay/vehicle_families.go`) et les variantes du schéma 69. Ordres de grandeur du jeu,
- * pas des mesures : la caisse dit « un véhicule de cette classe est là, tourné par là ».
+ * VEHICLE_SIZE_3D — the chassis size by DRAWING family (`vehicleSpriteFamily`: the variant when
+ * the document names it). The keys are the families the document publishes
+ * (`film/replay/vehicle_families.go`) and the variants of schema 69. Game-scale orders of
+ * magnitude, not measurements: the box says "a vehicle of this class is here, facing that way."
  */
 export const VEHICLE_SIZE_3D: Readonly<Record<string, VehicleSize3d>> = {
   warthog: box(1.8, 0.75, 0.6),
@@ -55,38 +55,38 @@ export const VEHICLE_SIZE_3D: Readonly<Record<string, VehicleSize3d>> = {
   falcon: box(3, 2.4, 1),
   scorpion: box(2.6, 1.3, 0.9),
   wraith: box(3, 2, 0.9),
-  // Les postes de tir : une embase à peu près aussi large que longue.
+  // Gun emplacements: a base about as wide as it is long.
   shade: box(0.8, 0.8, 0.7),
   tourelle_montee: box(0.8, 0.8, 0.7),
   tourelle_fixe: box(0.8, 0.8, 0.7),
   tourelle_auto_bannie: box(0.6, 0.6, 0.9),
 }
 
-/** Le gabarit d'un châssis non résolu ou d'une famille absente de la table. */
+/** The size of an unresolved chassis or a family missing from the table. */
 export const VEHICLE_SIZE_UNKNOWN: VehicleSize3d = box(1.5, 0.9, 0.6)
 
 export function vehicleSize3d(family: string | undefined): VehicleSize3d {
   return (family && VEHICLE_SIZE_3D[family]) || VEHICLE_SIZE_UNKNOWN
 }
 
-/** Hauteur minimale du bas de la caisse au-dessus du sol trouvé sous elle (u). */
+/** Minimum height of the chassis bottom above the floor found under it (u). */
 export const VEHICLE_FLOOR_LIFT = 0.1
-/** Hauteur des pieds d'un occupant au-dessus du bas de la caisse (u). */
+/** Height of an occupant's feet above the chassis bottom (u). */
 export const RIDER_ABOVE_BOTTOM = 0.3
 
 type Sample = ReplayVehicleTrackReady['samples'][number]
 
 function worldOf(s: { x: number; y: number; z?: number }): VehicleWorld3d {
-  // Le `z` est omis quand il vaut zéro (sérialisation `omitempty`).
+  // `z` is omitted when it is zero (`omitempty` serialization).
   return { x: s.x, y: s.y, z: s.z ?? 0 }
 }
 
 /**
- * vehicleWorldAt — la position monde du véhicule à `frame`, hauteur comprise, ou null.
+ * vehicleWorldAt — the vehicle's world position at `frame`, height included, or null.
  *
- * Même lecture que la position 2D du véhicule (`vehiclesLayer`) : interpolation entre échantillons, maintien après le
- * dernier, position TENUE au travers d'un silence de réplication (l'échantillon qui le clôt porte
- * `g > 0`), naissance avant le premier échantillon, rien sans l'une ni l'autre.
+ * Same reading as the vehicle's 2D position (`vehiclesLayer`): interpolation between samples,
+ * held after the last one, position HELD across a replication silence (the sample closing it
+ * carries `g > 0`), spawn before the first sample, nothing without either.
  */
 export function vehicleWorldAt(track: ReplayVehicleTrackReady, frame: number): VehicleWorld3d | null {
   const samples = track.samples
@@ -102,18 +102,19 @@ export function vehicleWorldAt(track: ReplayVehicleTrackReady, frame: number): V
 }
 
 /**
- * vehicleBottomY — la hauteur three du bas de la caisse. `sampleY` est la hauteur three de
- * l'échantillon (le bas du véhicule, cf. l'en-tête), `floorY` le sol trouvé sous lui (null si
- * aucun) : la caisse ne s'enfonce jamais dans ce sol, et un véhicule en vol garde sa hauteur.
+ * vehicleBottomY — the three-space height of the chassis bottom. `sampleY` is the sample's
+ * three-space height (the vehicle's bottom, see the header), `floorY` the floor found under it
+ * (null if none): the chassis never sinks into that floor, and an airborne vehicle keeps its
+ * height.
  */
 export function vehicleBottomY(sampleY: number, floorY: number | null): number {
   return floorY === null ? sampleY : Math.max(sampleY, floorY + VEHICLE_FLOOR_LIFT)
 }
 
 /**
- * seatOffset — la place d'un occupant dans le repère du véhicule, en unités Halo : `forward` sur
- * l'axe du cap, `left` à sa gauche. `order` est son rang dans `vehicleActiveRides` (conducteur
- * d'abord) : le premier au centre un peu en arrière, les suivants par rangées de deux derrière lui.
+ * seatOffset — an occupant's seat in the vehicle's frame, in Halo units: `forward` on the
+ * heading axis, `left` to its left. `order` is their rank in `vehicleActiveRides` (driver
+ * first): the first centered slightly back, the next ones in rows of two behind them.
  */
 export function seatOffset(order: number, size: VehicleSize3d): { forward: number; left: number } {
   const driverBack = -0.1 * size.length
@@ -126,7 +127,7 @@ export function seatOffset(order: number, size: VehicleSize3d): { forward: numbe
   }
 }
 
-/** rotateOffset — un décalage du repère du véhicule ramené au monde Halo (cap en degrés). */
+/** rotateOffset — an offset in the vehicle's frame brought back to Halo world space (heading in degrees). */
 export function rotateOffset(off: { forward: number; left: number }, headingDeg: number): { dx: number; dy: number } {
   const h = (headingDeg * Math.PI) / 180
   const c = Math.cos(h)
@@ -134,17 +135,17 @@ export function rotateOffset(off: { forward: number; left: number }, headingDeg:
   return { dx: off.forward * c - off.left * s, dy: off.forward * s + off.left * c }
 }
 
-/** Un épisode d'occupation nommé par son xuid, rattaché à sa monture. */
+/** An occupancy episode named by its xuid, attached to its mount. */
 export interface RiderEpisode {
-  /** Rang de la monture dans la liste passée à `buildRiderIndex`. */
+  /** The mount's rank in the list passed to `buildRiderIndex`. */
   vehicle: number
   ride: ReplayVehicleRide
 }
 
 /**
- * buildRiderIndex — les épisodes PAR XUID, sur les seules vies qui peuvent porter un joueur
- * (`vehicleCanEmbark` : ni décor, ni châssis non résolu, ni élément de carte). Même filtre que le
- * prédicat embarqué et la position d'un porteur en 2D.
+ * buildRiderIndex — the episodes BY XUID, on only the lives that can carry a player
+ * (`vehicleCanEmbark`: not decor, not an unresolved chassis, not a map element). Same filter as
+ * the 2D embarked predicate and a carrier's position.
  */
 export function buildRiderIndex(
   tracks: readonly ReplayVehicleTrackReady[],
@@ -163,16 +164,16 @@ export function buildRiderIndex(
   return byXuid
 }
 
-/** La monture d'un joueur à une image : la vie et son rang parmi les occupants actifs. */
+/** A player's mount at a frame: the life and their rank among the active occupants. */
 export interface RiderSeat {
   vehicle: number
   order: number
 }
 
 /**
- * riderSeatAt — où est assis `xuid` à `frame` : un épisode qui couvre l'image, sur un véhicule
- * dans sa fenêtre d'affichage (`vehicleVisibleAt`), et son rang parmi les occupants actifs ; null
- * s'il n'est à bord de rien.
+ * riderSeatAt — where `xuid` sits at `frame`: an episode covering the frame, on a vehicle within
+ * its display window (`vehicleVisibleAt`), and their rank among the active occupants; null if
+ * they are not aboard anything.
  */
 export function riderSeatAt(
   episodes: readonly RiderEpisode[] | undefined,

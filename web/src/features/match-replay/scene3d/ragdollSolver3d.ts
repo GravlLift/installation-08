@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollSolver3d.ts — LE CORPS INERTE PAS À PAS : dynamique par positions (Verlet), contraintes
- * projetées en un nombre fixe d'itérations, contacts avec le morceau de carte (`ragdollPatch3d`).
+ * ragdollSolver3d.ts — THE RAGDOLL STEP BY STEP: position-based dynamics (Verlet), constraints
+ * projected over a fixed number of iterations, contacts with the map chunk (`ragdollPatch3d`).
  *
- * Choix : un corps de particules (`ragdollBody3d`) plutôt qu'un moteur de corps rigides. Le pas est
- * fixe, les itérations et l'ordre des contraintes aussi : même état de départ, même suite d'états au
- * bit près sur une machine. Rien d'aléatoire ici (l'asymétrie éventuelle est dans l'impulsion).
+ * Choice: a particle body (`ragdollBody3d`) rather than a rigid-body engine. The step is fixed,
+ * and so are the iterations and the constraint order: same starting state, same sequence of
+ * states to the bit on one machine. Nothing random here (any asymmetry lives in the impulse).
  *
- * Un pas : intégration (gravité, traînée), puis `ITERATIONS` passes sur les contraintes ; les contacts
- * avec la carte se résolvent dans certaines passes (balayage des particules rapides d'abord), le
- * frottement s'applique à la fin aux particules en contact. Les blocs rigides tiennent par
- * appariement de forme (rotation extraite par la méthode itérative de Müller et al., 2016,
- * réchauffée par la rotation du pas d'avant) : leur rotation sert aussi à reposer les os.
+ * One step: integration (gravity, drag), then `ITERATIONS` passes over the constraints; contacts
+ * with the map are resolved within certain passes (fast particles swept first), friction is
+ * applied at the end to particles in contact. Rigid clusters hold by shape matching (rotation
+ * extracted by Müller et al.'s (2016) iterative method, warm-started from the previous step's
+ * rotation): their rotation also drives posing the bones back.
  */
 import {
   APART, CHAIN_RANGES, CLUSTER_NAMES, CLUSTERS, HINGES, HIP_CONE, HIP_LEAN, HIPS, P, PARTICLES, RANGES, STICKS,
@@ -20,52 +20,53 @@ import {
 import { MAX_CONTACTS, type TrianglePatch } from './ragdollPatch3d'
 import { extractRotation, rotate, rotationColumns } from './ragdollRotation3d'
 
-/** Le pas fixe de la simulation (s) et ses itérations de contraintes. */
+/** The simulation's fixed step (s) and its constraint iterations. */
 export const STEP_SECONDS = 1 / 120
 const ITERATIONS = 6
-/** La portée de la recherche des plans de contact au-delà du rayon (u) : ce que les contraintes déplacent encore dans un pas. */
+/** How far past the radius contact planes are searched for (u): what the constraints can still move in one step. */
 const CONTACT_MARGIN = 0.05
-/** Un pas plus long que cette part du rayon est balayé avant la recherche des contacts. */
+/** A step longer than this share of the radius is swept before the contact search. */
 const SWEEP_SHARE = 0.5
 /**
- * Aux premiers pas, une particule déjà contre une surface prend la normale du côté du centre du corps
- * (`TrianglePatch.contacts`) : les pieds du film sont parfois un peu sous le sol dessiné.
+ * In the first steps, a particle already against a surface takes the normal from the body
+ * center's side (`TrianglePatch.contacts`): the film's feet are sometimes slightly under the
+ * drawn floor.
  */
 const ANCHOR_STEPS = 12
 /**
- * La gravité (u/s²) : celle de la Terre vaut 3,22 u/s² ; un peu moins pour la chute flottante des
- * corps de Halo.
+ * Gravity (u/s²): Earth's is 3.22 u/s²; a bit less for Halo bodies' floaty fall.
  */
 export const RAGDOLL_GRAVITY = 2.6
-/** La traînée par pas (part de la vitesse perdue) : très faible, les corps volent. */
+/** Drag per step (share of speed lost): very low, the bodies fly. */
 const AIR_DRAG = 0.0015
 /**
- * Couché (au moins `GROUNDED_CONTACTS` particules au contact au pas d'avant), le corps perd bien plus
- * par pas : les balancements (tête, membres en l'air) s'éteignent en une fraction de seconde au lieu
- * d'osciller sans fin, comme le feraient les muscles.
+ * Lying down (at least `GROUNDED_CONTACTS` particles in contact on the previous step), the body
+ * loses much more per step: swinging (head, limbs in the air) dies out within a fraction of a
+ * second instead of oscillating forever, the way muscles would stop it.
  */
 const GROUNDED_CONTACTS = 3
 const GROUND_DRAG = 0.025
-/** Le frottement au contact : part du glissement tangentiel retirée par pas. */
+/** Contact friction: share of tangential slip removed per step. */
 const FRICTION = 0.35
-/** Sous ce glissement (u/s), le frottement statique l'arrête net. */
+/** Below this slip (u/s), static friction stops it dead. */
 const STATIC_SLIP = 0.2
-/** La vitesse au plus d'une particule (u/s) : garde-fou du solveur. */
+/** A particle's maximum speed (u/s): the solver's safety net. */
 const MAX_SPEED = 14
-/** Les distances minimales entre membres et tronc : part de la somme des rayons. */
+/** Minimum distances between limbs and torso: a share of the sum of their radii. */
 const APART_SHARE = 0.9
 /**
- * La raideur des bornes entre blocs rigides (colonne, cou) par itération : sous 1, elles convergent
- * en quelques itérations au lieu d'osciller contre les blocs (ce qui injectait de l'énergie).
+ * The stiffness of the bounds between rigid clusters (spine, neck) per iteration: under 1, they
+ * converge over a few iterations instead of oscillating against the clusters (which injected
+ * energy).
  */
 const RANGE_STIFFNESS = 0.5
 
 interface Cluster {
   idx: readonly number[]
-  /** Décalages de repos (à la mort) au barycentre pondéré, 3 par particule. */
+  /** Rest offsets (at death) from the weighted centroid, 3 per particle. */
   q: Float64Array
   m: Float64Array
-  /** Rotation courante depuis la mort (quaternion x, y, z, w). */
+  /** Current rotation since death (quaternion x, y, z, w). */
   rot: Float64Array
 }
 
@@ -73,10 +74,10 @@ export interface RagdollState {
   n: number
   x: Float64Array
   prev: Float64Array
-  /** Inverse des masses, et les masses. */
+  /** Inverse masses, and the masses. */
   w: Float64Array
   m: Float64Array
-  /** Les pas faits. */
+  /** Steps taken. */
   steps: number
   r: Float64Array
   stick: Float64Array
@@ -86,26 +87,27 @@ export interface RagdollState {
   apart: Float64Array
   hipCone: Float64Array
   clusters: Record<ClusterName, Cluster>
-  /** Axes des charnières et du cône des hanches, à la mort (3 par entrée). */
+  /** Hinge and hip-cone axes, at death (3 per entry). */
   hingeAxis: Float64Array
   hipAxis: Float64Array
-  /** Les plans de contact du pas (6 par plan, `MAX_CONTACTS` par particule) et leur nombre. */
+  /** The step's contact planes (6 per plane, `MAX_CONTACTS` per particle) and their count. */
   planes: Float64Array
-  /** Les plans de chaque particule (vues sur planes). */
+  /** Each particle's planes (views over planes). */
   planeViews: Float64Array[]
   planeCount: Uint8Array
-  /** Normale du dernier contact de chaque particule (3) et si elle touche à ce pas. */
+  /** Each particle's last contact normal (3) and whether it is touching this step. */
   normal: Float64Array
   touching: Uint8Array
 }
 
-/** len3 : la norme d'un vecteur (`Math.hypot` est bien plus lent dans la boucle du solveur). */
+/** len3: a vector's norm (`Math.hypot` is far slower in the solver's loop). */
 const len3 = (x: number, y: number, z: number) => Math.sqrt(x * x + y * y + z * z)
 const dist = (x: Float64Array, a: number, b: number) => len3(x[3 * a] - x[3 * b], x[3 * a + 1] - x[3 * b + 1], x[3 * a + 2] - x[3 * b + 2])
 
 /**
- * createRagdoll : l'état au repos à la mort, particules aux places `x` (3 par particule, axes three),
- * immobile ; les bornes sont relâchées là où la pose de mort les dépasse déjà (aucun saut au départ).
+ * createRagdoll: the resting state at death, particles at positions `x` (3 per particle, three
+ * axes), motionless; bounds are relaxed wherever the death pose already exceeds them (no jump at
+ * the start).
  */
 export function createRagdoll(x: Float64Array): RagdollState {
   const n = PARTICLES.length
@@ -147,7 +149,7 @@ function restCluster(s: RagdollState, idx: readonly number[]): Cluster {
   return { idx, q, m, rot: Float64Array.of(0, 0, 0, 1) }
 }
 
-/** restAxes : les axes des charnières (plan du membre à la mort, sinon le côté du corps) et des hanches. */
+/** restAxes: the hinge axes (the limb's plane at death, else the body's side) and the hip axes. */
 function restAxes(s: RagdollState): void {
   const x = s.x
   const sub = (a: number, b: number) => [x[3 * a] - x[3 * b], x[3 * a + 1] - x[3 * b + 1], x[3 * a + 2] - x[3 * b + 2]]
@@ -175,14 +177,14 @@ function restAxes(s: RagdollState): void {
 }
 
 /**
- * kickRagdoll donne aux particules la vitesse `v` (u/s, 3 par particule) : la place d'avant est
- * reculée d'un pas le long d'elle.
+ * kickRagdoll gives the particles velocity `v` (u/s, 3 per particle): the previous position is
+ * pulled back one step along it.
  */
 export function kickRagdoll(s: RagdollState, v: Float64Array): void {
   for (let i = 0; i < 3 * s.n; i++) s.prev[i] = s.x[i] - v[i] * STEP_SECONDS
 }
 
-/** stepRagdoll avance l'état d'un pas fixe ; `patch` : la carte autour (null : aucun contact). */
+/** stepRagdoll advances the state by one fixed step; `patch`: the map around it (null: no contact). */
 export function stepRagdoll(s: RagdollState, patch: TrianglePatch | null): void {
   integrate(s)
   s.touching.fill(0)
@@ -201,7 +203,7 @@ export function stepRagdoll(s: RagdollState, patch: TrianglePatch | null): void 
   s.steps++
 }
 
-/** broken : l'état a-t-il perdu une valeur finie (garde-fou : la cuisson est alors abandonnée) ? */
+/** broken: has the state lost a finite value (safety net: the bake is then abandoned)? */
 export function broken(s: RagdollState): boolean {
   for (let i = 0; i < s.x.length; i++) if (!Number.isFinite(s.x[i])) return true
   return false
@@ -233,7 +235,7 @@ function integrate(s: RagdollState): void {
   }
 }
 
-/** pull rapproche ou écarte `a` et `b` vers la distance `target`, au prorata des inverses de masse. */
+/** pull moves `a` and `b` closer or apart toward distance `target`, pro-rated by inverse mass. */
 function pull(s: RagdollState, a: number, b: number, target: number, stiffness: number): void {
   const x = s.x
   const dx = x[3 * b] - x[3 * a]
@@ -274,9 +276,9 @@ function solveApart(s: RagdollState): void {
 }
 
 /**
- * shift corrige l'écart relatif `delta` de `b` par rapport à `a` (b - a doit gagner `delta`), réparti
- * au prorata des inverses de masse : la quantité de mouvement du corps est conservée (une correction
- * portée par un seul côté ferait sautiller le corps).
+ * shift corrects `b`'s relative offset `delta` from `a` (b - a must gain `delta`), split
+ * pro-rated by inverse mass: the body's momentum is conserved (a correction carried by only one
+ * side would make the body jitter).
  */
 function shift(s: RagdollState, a: number, b: number, delta: readonly number[]): void {
   const wsum = s.w[a] + s.w[b]
@@ -289,7 +291,7 @@ function shift(s: RagdollState, a: number, b: number, delta: readonly number[]):
   }
 }
 
-/** solveHinges : le milieu d'une charnière (coude, genou) ne plie pas à l'envers ; sinon le bout se redresse. */
+/** solveHinges: a hinge's midpoint (elbow, knee) does not bend backward; else the tip is straightened. */
 function solveHinges(s: RagdollState): void {
   const x = s.x
   HINGES.forEach((h, k) => {
@@ -305,7 +307,7 @@ function solveHinges(s: RagdollState): void {
   })
 }
 
-/** solveHips : la cuisse reste dans le cône de la hanche (le genou est ramené vers l'axe). */
+/** solveHips: the thigh stays within the hip's cone (the knee is pulled back toward the axis). */
 function solveHips(s: RagdollState): void {
   const x = s.x
   const rot = s.clusters.pelvis.rot
@@ -322,14 +324,14 @@ function solveHips(s: RagdollState): void {
   })
 }
 
-/** matchShape ramène un bloc à sa forme de repos tournée de sa rotation la plus proche. */
+/** matchShape brings a cluster back to its rest shape rotated by its closest rotation. */
 const shapeA = new Float64Array(9)
 const shapeC = [0, 0, 0]
 const shapeR = new Float64Array(9)
 
 function matchShape(s: RagdollState, cl: Cluster): void {
   const c = centroid(s.x, cl.idx, cl.m, shapeC)
-  // A = Σ m (x - c) qᵀ, rangée par colonnes.
+  // A = Σ m (x - c) qᵀ, stored by columns.
   const A = shapeA
   A.fill(0)
   for (let k = 0; k < cl.idx.length; k++) {
@@ -367,11 +369,11 @@ function centroid(x: Float64Array, idx: readonly number[], m: Float64Array, out:
 }
 
 /**
- * detect : les contacts du pas, cherchés une fois après l'intégration. Le trajet de chaque particule
- * (de sa place d'avant, hors de la carte, à sa place prédite) est balayé : une particule rapide ne
- * traverse pas un mur fin. Puis les triangles proches donnent chacun un plan (point, normale tournée
- * vers la place d'avant), que chaque itération fait respecter (`enforcePlanes`) : contacts et
- * contraintes convergent ensemble.
+ * detect: the step's contacts, searched for once after integration. Each particle's path (from
+ * its previous position, outside the map, to its predicted position) is swept: a fast particle
+ * does not pass through a thin wall. Then each nearby triangle gives a plane (point, normal
+ * turned toward the previous position), which every iteration enforces (`enforcePlanes`):
+ * contacts and constraints converge together.
  */
 function detect(s: RagdollState, patch: TrianglePatch): void {
   const anchor = s.steps < ANCHOR_STEPS ? centroid(s.x, ALL, s.m, detectC) : null
@@ -386,7 +388,7 @@ function detect(s: RagdollState, patch: TrianglePatch): void {
 const detectC = [0, 0, 0]
 const ALL = PARTICLES.map((_, i) => i)
 
-/** enforcePlanes : chaque particule reste à son rayon au-dessus de ses plans de contact. */
+/** enforcePlanes: each particle stays at its radius above its contact planes. */
 function enforcePlanes(s: RagdollState): void {
   const per = 6 * MAX_CONTACTS
   for (let i = 0; i < s.n; i++) {
@@ -409,8 +411,8 @@ function enforcePlanes(s: RagdollState): void {
 }
 
 /**
- * applyFriction freine le glissement tangentiel des particules en contact : un glissement lent est
- * arrêté net (frottement statique, le corps posé ne rampe pas), un rapide perd `FRICTION`.
+ * applyFriction slows the tangential slip of particles in contact: a slow slip is stopped dead
+ * (static friction, a resting body does not creep), a fast one loses `FRICTION`.
  */
 function applyFriction(s: RagdollState): void {
   for (let i = 0; i < s.n; i++) {
@@ -427,7 +429,7 @@ function applyFriction(s: RagdollState): void {
   }
 }
 
-/** maxStep : le plus grand déplacement d'une particule au dernier pas (u). */
+/** maxStep: the largest displacement of a particle in the last step (u). */
 export function maxStep(s: RagdollState): number {
   let m = 0
   for (let i = 0; i < s.n; i++) {

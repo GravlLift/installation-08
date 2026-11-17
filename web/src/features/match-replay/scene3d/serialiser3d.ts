@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** Une exécution à la fois ; les demandes concurrentes partagent la suivante. */
+/** One run at a time; concurrent requests share the next one. */
 export function serialiser(travail: () => Promise<void>): () => Promise<void> {
   let active: Promise<void> | null = null
-  let suivante: Promise<void> | null = null
-  const lancer = (): Promise<void> => {
+  let next: Promise<void> | null = null
+  const run = (): Promise<void> => {
     if (active) {
-      suivante ??= active.then(() => { suivante = null; return lancer() })
-      return suivante
+      next ??= active.then(() => { next = null; return run() })
+      return next
     }
-    const cours = (async () => travail())()
-    active = cours.finally(() => { active = null })
+    const current = (async () => travail())()
+    active = current.finally(() => { active = null })
     return active
   }
-  return lancer
+  return run
 }
