@@ -470,6 +470,7 @@ func TestRunnerPriority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	r.SetDest(f.path) // writes into f's temp dir, never the package directory
 	r.Start()
 	defer r.Stop(time.Second)
 
