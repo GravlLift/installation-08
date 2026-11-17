@@ -74,46 +74,45 @@ func writeFileIfAbsent(path string, data []byte) (bool, error) {
 	return err == nil, err
 }
 
-// depot range chaque image du rig une fois, nommée par l'empreinte de son contenu : deux
-// rigs qui partagent une image (les masques des bras, les textures de l'arme) partagent
-// le fichier.
+// depot covers each rig image once, named by the digest of its content: two rigs that
+// share an image (the arm masks, the weapon's textures) share the file.
 type depot struct {
 	dir        string
-	vues       map[string]bool
-	fichiers   int
-	octets     int64
+	seen       map[string]bool
+	files      int
+	bytes      int64
 	references int
-	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel rig build pool calls depose from
-	// several goroutines at once; it guards vues/fichiers/octets/references and the dedup
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel rig build pool calls store from
+	// several goroutines at once; it guards seen/files/bytes/references and the dedup
 	// write below, so the depot's counts (and index.Textures, read from them) are exact
 	// however many rigs run at once.
 	mu sync.Mutex
 }
 
-// depose écrit l'image (si elle n'est pas déjà écrite) et rend son nom, URI relative au
-// GLB qui la nomme : la vue la résout contre l'URL du rig, sur la même route.
-func (d *depot) depose(data []byte, mime string) (string, error) {
+// store writes the image (if not already written) and returns its name, a URI relative to
+// the GLB that names it: the view resolves it against the rig's URL, on the same route.
+func (d *depot) store(data []byte, mime string) (string, error) {
 	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
 	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {
-		return "", fmt.Errorf("image de type %q : ni PNG, JPEG ni KTX2", mime)
+		return "", fmt.Errorf("image of type %q: neither PNG, JPEG nor KTX2", mime)
 	}
-	nom := fichierTexture(data, extension)
+	name := textureFile(data, extension)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.references++
-	if d.vues[nom] {
-		return nom, nil
+	if d.seen[name] {
+		return name, nil
 	}
-	octets, err := writeFile(filepath.Join(d.dir, nom), func(w ioWriter) error {
+	written, err := writeFile(filepath.Join(d.dir, name), func(w ioWriter) error {
 		_, werr := w.Write(data)
 		return werr
 	})
 	if err != nil {
-		return "", fmt.Errorf("image %s : %w", nom, err)
+		return "", fmt.Errorf("image %s: %w", name, err)
 	}
-	d.vues[nom] = true
-	d.fichiers++
-	d.octets += octets
-	return nom, nil
+	d.seen[name] = true
+	d.files++
+	d.bytes += written
+	return name, nil
 }

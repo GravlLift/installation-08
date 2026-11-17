@@ -23,6 +23,8 @@
 // emplacements (animations_codec.go).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
@@ -78,7 +80,7 @@ const (
 )
 
 // ErrGrapheIllisible : le tag n'est pas un graphe d'animation lisible.
-var ErrGrapheIllisible = errors.New("himap: graphe d'animation illisible")
+var ErrGrapheIllisible = errors.New("himap: unreadable animation graph")
 
 // TypeAnimation : la sorte d'une animation (champ +8).
 type TypeAnimation uint8
@@ -178,7 +180,7 @@ func LitGrapheAnimation(id uint32, tag []byte) (*GrapheAnimation, error) {
 func (g *GrapheAnimation) litHeritage(n *navigateurTag, r int) error {
 	b, nb, err := n.enregistrements(r, jmadOffHeritage, jmadHeritageStride)
 	if err != nil {
-		return fmt.Errorf("heritage : %w", err)
+		return fmt.Errorf("inheritance: %w", err)
 	}
 	for k := 0; k < nb; k++ {
 		if id := uint32(u32(b, k*jmadHeritageStride+jmadHeritageOffParent)); id != 0 && id != math.MaxUint32 {
@@ -191,7 +193,7 @@ func (g *GrapheAnimation) litHeritage(n *navigateurTag, r int) error {
 func (g *GrapheAnimation) litOs(n *navigateurTag, r int) error {
 	b, nb, err := n.enregistrements(r, jmadOffOs, jmadOsStride)
 	if err != nil {
-		return fmt.Errorf("os : %w", err)
+		return fmt.Errorf("bones: %w", err)
 	}
 	for k := 0; k < nb; k++ {
 		o := k * jmadOsStride
@@ -206,7 +208,7 @@ func (g *GrapheAnimation) litAnimations(n *navigateurTag, r int) error {
 		return fmt.Errorf("animations : %w", err)
 	}
 	if nb > animationsMaxParTag {
-		return fmt.Errorf("%d animations : au-dela des index i16 du graphe", nb)
+		return fmt.Errorf("%d animations: beyond the graph's i16 indices", nb)
 	}
 	for k := 0; k < nb; k++ {
 		o := k * jmadAnimStride
@@ -229,19 +231,19 @@ func (g *GrapheAnimation) litAnimations(n *navigateurTag, r int) error {
 func (g *GrapheAnimation) litPartagees(n *navigateurTag, r int) error {
 	b, nb, err := n.enregistrements(r, jmadOffRotationsPartagees, jmadRotationPartageeOcts)
 	if err != nil {
-		return fmt.Errorf("rotations partagees : %w", err)
+		return fmt.Errorf("shared rotations: %w", err)
 	}
 	for k := 0; k < nb; k++ {
 		g.rotationsPartagees = append(g.rotationsPartagees, quatI16(b, k*jmadRotationPartageeOcts))
 	}
 	if b, nb, err = n.enregistrements(r, jmadOffTranslationsPart, jmadTranslationPartOcts); err != nil {
-		return fmt.Errorf("translations partagees : %w", err)
+		return fmt.Errorf("shared translations: %w", err)
 	}
 	for k := 0; k < nb; k++ {
 		g.translationsPartagees = append(g.translationsPartagees, vec3F32(b, k*jmadTranslationPartOcts))
 	}
 	if b, nb, err = n.enregistrements(r, jmadOffEchellesPartagees, jmadEchellePartageeOcts); err != nil {
-		return fmt.Errorf("echelles partagees : %w", err)
+		return fmt.Errorf("shared scales: %w", err)
 	}
 	for k := 0; k < nb; k++ {
 		g.echellesPartagees = append(g.echellesPartagees, f32(b, k*jmadEchellePartageeOcts))
@@ -255,11 +257,11 @@ func (g *GrapheAnimation) litMembres(n *navigateurTag, r int) error {
 	groupes := n.tagBlock(r, jmadOffGroupes)
 	for _, res := range n.ressources[groupes] {
 		if (res.champ-jmadGroupeOffRessource)%jmadGroupeStride != 0 {
-			return fmt.Errorf("ressource au champ %#x : pas un groupe", res.champ)
+			return fmt.Errorf("resource at field %#x: not a group", res.champ)
 		}
 		k := (res.champ - jmadGroupeOffRessource) / jmadGroupeStride
 		if err := g.litGroupe(n, k, res.cible); err != nil {
-			return fmt.Errorf("groupe %d : %w", k, err)
+			return fmt.Errorf("group %d: %w", k, err)
 		}
 	}
 	return nil
@@ -291,7 +293,7 @@ func (g *GrapheAnimation) litGroupe(n *navigateurTag, k, rac int) error {
 			}
 			mr.functions = memberFunctions(n, l.cible, o)
 			if len(mr.blob) != somme {
-				return fmt.Errorf("membre %d : blob de %d octets pour %d de sections", m, len(mr.blob), somme)
+				return fmt.Errorf("member %d: blob of %d bytes for %d of sections", m, len(mr.blob), somme)
 			}
 			g.membres[[2]int{k, m}] = mr
 		}

@@ -21,6 +21,8 @@
 // (`himap.TestEmpreinteLecteurDeModules`) : memes empreintes avant et apres.
 package himodule
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // projection est une archive projetee en memoire, et de quoi la relacher.
@@ -46,7 +48,7 @@ func (p *projection) ferme() error {
 func projette(chemin string) (*projection, error) {
 	octets, fermer, err := projetteFichier(chemin)
 	if err != nil {
-		return nil, fmt.Errorf("himodule: projection de %s: %w", chemin, err)
+		return nil, fmt.Errorf("himodule: mapping of %s: %w", chemin, err)
 	}
 	return &projection{octets: octets, fermer: fermer}, nil
 }

@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"math"
@@ -24,13 +26,13 @@ type parametresTerrain struct {
 func assembleTerrain(tuiles []tuileTerrain, p parametresTerrain) (GroupeMaillage, error) {
 	g := GroupeMaillage{Indices: map[uint32][]uint32{}}
 	if p.Resolution < 1 || p.Pas[0] <= 0 || p.Pas[1] <= 0 {
-		return g, fmt.Errorf("terrain : grille invalide")
+		return g, fmt.Errorf("terrain: invalid grid")
 	}
 	sommets := map[[2]int]uint32{}
 	for _, tuile := range tuiles {
 		n := p.Resolution + 1
 		if len(tuile.Hauteurs) != n*n*2 {
-			return g, fmt.Errorf("terrain : tuile %d,%d de %d octets", tuile.X, tuile.Y, len(tuile.Hauteurs))
+			return g, fmt.Errorf("terrain: tile %d,%d of %d bytes", tuile.X, tuile.Y, len(tuile.Hauteurs))
 		}
 		for y := 0; y < n; y++ {
 			for x := 0; x < n; x++ {

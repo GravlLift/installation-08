@@ -23,6 +23,8 @@
 // (pose de repos), comme celles d'une section a peau.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"errors"
@@ -62,25 +64,25 @@ type Influences struct {
 }
 
 // ErrPeauIllisible : la peau d'une section n'a pas la forme mesuree (type de sommet, tampons).
-var ErrPeauIllisible = errors.New("himap: peau de section illisible")
+var ErrPeauIllisible = errors.New("himap: unreadable section skin")
 
 // PeauDeSection rend les influences de chaque sommet du maillage `k` (memes sommets que
 // `Mesh(k)`, dans le meme ordre), pour un squelette de `nNoeuds` noeuds.
 func (a *RuntimeGeoAsset) PeauDeSection(k, nNoeuds int) ([]Influences, error) {
 	if k < 0 || k >= a.geo.MeshCount {
-		return nil, fmt.Errorf("%w : section %d hors des %d", ErrPeauIllisible, k, a.geo.MeshCount)
+		return nil, fmt.Errorf("%w: section %d outside the %d", ErrPeauIllisible, k, a.geo.MeshCount)
 	}
 	sAbs, _ := a.info.blockAbs(a.geo.SectionsTarget)
 	rec := a.info.tag[sAbs+k*sectionStride:]
 	rigide, typ := int(rec[sectionOffNoeudRigide]), int(rec[sectionOffTypeSommet])
 	l, ok := a.chooseLOD(k)
 	if !ok {
-		return nil, fmt.Errorf("%w : section %d sans LOD", ErrPeauIllisible, k)
+		return nil, fmt.Errorf("%w: section %d without LOD", ErrPeauIllisible, k)
 	}
 	n := a.vertexDescs[l.vertexBuf].Count
 	if rigide != noeudRigideAucun || typ == TypeSommetRigide {
 		if rigide >= nNoeuds {
-			return nil, fmt.Errorf("%w : section %d rigide au noeud %d sur %d", ErrPeauIllisible, k, rigide, nNoeuds)
+			return nil, fmt.Errorf("%w: section %d rigid at node %d of %d", ErrPeauIllisible, k, rigide, nNoeuds)
 		}
 		out := make([]Influences, n)
 		for i := range out {
@@ -89,16 +91,16 @@ func (a *RuntimeGeoAsset) PeauDeSection(k, nNoeuds int) ([]Influences, error) {
 		return out, nil
 	}
 	if typ != TypeSommetAPeau && typ != TypeSommetAPeauDQ && typ != TypeSommetRigideOsse {
-		return nil, fmt.Errorf("%w : section %d de type de sommet %d", ErrPeauIllisible, k, typ)
+		return nil, fmt.Errorf("%w: section %d of vertex type %d", ErrPeauIllisible, k, typ)
 	}
 	indices, err := a.tamponFusion(l, emplacementIndicesFusion, formatIndicesOctets, n)
 	if err != nil {
-		return nil, fmt.Errorf("section %d, indices : %w", k, err)
+		return nil, fmt.Errorf("section %d, indices: %w", k, err)
 	}
 	var poids []byte
 	if typ != TypeSommetRigideOsse {
 		if poids, err = a.tamponFusion(l, emplacementPoidsFusion, formatPoids101010, n); err != nil {
-			return nil, fmt.Errorf("section %d, poids : %w", k, err)
+			return nil, fmt.Errorf("section %d, weights: %w", k, err)
 		}
 	}
 	return influencesDesTampons(indices, poids, n, nNoeuds)
@@ -109,11 +111,11 @@ func (a *RuntimeGeoAsset) PeauDeSection(k, nNoeuds int) ([]Influences, error) {
 func (a *RuntimeGeoAsset) tamponFusion(l lodEntry, emplacement int, format uint32, n int) ([]byte, error) {
 	v := int(int16(binary.LittleEndian.Uint16(a.info.tag[l.abs+lodOffVertexBuffer+2*emplacement:])))
 	if v < 0 || v >= len(a.vertexDescs) {
-		return nil, fmt.Errorf("%w : emplacement %d vide", ErrPeauIllisible, emplacement)
+		return nil, fmt.Errorf("%w: slot %d empty", ErrPeauIllisible, emplacement)
 	}
 	d := a.vertexDescs[v]
 	if d.Usage != format || d.Stride != pasTamponFusion || d.Count != n || d.Offset < 0 || d.Offset+d.Size > len(a.blob) {
-		return nil, fmt.Errorf("%w : emplacement %d au format %d, pas %d, %d sommets (attendu %d, %d, %d)",
+		return nil, fmt.Errorf("%w: slot %d at format %d, stride %d, %d vertices (expected %d, %d, %d)",
 			ErrPeauIllisible, emplacement, d.Usage, d.Stride, d.Count, format, pasTamponFusion, n)
 	}
 	return a.blob[d.Offset : d.Offset+d.Size], nil
@@ -128,7 +130,7 @@ func influencesDesTampons(indices, poids []byte, n, nNoeuds int) ([]Influences, 
 		for c := 0; c < OsParSommet; c++ {
 			os[c] = int(indices[i*pasTamponFusion+c])
 			if os[c] >= nNoeuds {
-				return nil, fmt.Errorf("%w : sommet %d lie au noeud %d sur %d", ErrPeauIllisible, i, os[c], nNoeuds)
+				return nil, fmt.Errorf("%w: vertex %d bound to node %d of %d", ErrPeauIllisible, i, os[c], nNoeuds)
 			}
 			w[c] = 1
 		}

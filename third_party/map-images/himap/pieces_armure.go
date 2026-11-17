@@ -12,6 +12,8 @@
 // c'est le temoin de l'assemblage des pieces.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -27,7 +29,7 @@ type CleArmure struct {
 func (c CleArmure) String() string { return fmt.Sprintf("%08x-%08x", c.Region, c.Permutation) }
 
 // ErrPieceSansGeometrie : la permutation n'existe pas dans le `mode`, ou n'y dessine aucun triangle.
-var ErrPieceSansGeometrie = errors.New("himap: piece d'armure sans geometrie")
+var ErrPieceSansGeometrie = errors.New("himap: armor piece without geometry")
 
 // Armurerie : le `mode` du Spartan ouvert une fois (son blob de ressources porte toutes les
 // permutations), d'ou se lisent les pieces.
@@ -48,28 +50,28 @@ type Armurerie struct {
 // OuvreArmurerie ouvre le `mode` d'un modele a peau ; ErrSansModele quand il manque ou ne se lit pas.
 func (a *Arsenal) OuvreArmurerie(mode uint32) (*Armurerie, error) {
 	if g, _, ok := a.geo.Lookup(mode); !ok || g != GroupeMode {
-		return nil, fmt.Errorf("%w : %08x n'est pas un tag %q des modules", ErrSansModele, mode, GroupeMode)
+		return nil, fmt.Errorf("%w: %08x is not a %q tag of the modules", ErrSansModele, mode, GroupeMode)
 	}
 	tag, blob, err := a.geo.ExtractWithResources(mode)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansModele, mode, err)
 	}
 	asset, err := NewRenderModelAsset(tag, blob)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansModele, mode, err)
 	}
 	r := &Armurerie{arsenal: a, asset: asset, Mode: mode}
 	if r.Comptes, r.Regions, err = comptesEtRegions(tag); err != nil {
-		return nil, fmt.Errorf("%w : regions du %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: regions of %08x: %w", ErrSansModele, mode, err)
 	}
 	if r.Noeuds, err = ModeNodes(tag); err != nil {
-		return nil, fmt.Errorf("%w : squelette du %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: skeleton of %08x: %w", ErrSansModele, mode, err)
 	}
 	for _, n := range r.Noeuds {
 		r.Noms = append(r.Noms, NomDuNoeud(n.Name))
 	}
 	if r.Marqueurs, err = MarqueursDuMode(tag); err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansModele, mode, err)
 	}
 	r.materiaux = lisModelePose(asset, GroupeMode, nil).materiaux
 	return r, nil
@@ -119,11 +121,11 @@ func (r *Armurerie) permutation(c CleArmure) (Permutation, bool) {
 func (r *Armurerie) Piece(ctx context.Context, c CleArmure) (*ModeleAPeau, error) {
 	p, ok := r.permutation(c)
 	if !ok {
-		return nil, fmt.Errorf("%w : %s absente du mode %08x", ErrPieceSansGeometrie, c, r.Mode)
+		return nil, fmt.Errorf("%w: %s absent from mode %08x", ErrPieceSansGeometrie, c, r.Mode)
 	}
 	sections := r.sectionsVisibles(p)
 	if len(sections) == 0 {
-		return nil, fmt.Errorf("%w : %s sans section visible", ErrPieceSansGeometrie, c)
+		return nil, fmt.Errorf("%w: %s without a visible section", ErrPieceSansGeometrie, c)
 	}
 	return r.modele(ctx, modelePose{asset: r.asset, maillages: sections, materiaux: r.materiaux}, 1)
 }
@@ -156,7 +158,7 @@ func (r *Armurerie) modele(ctx context.Context, mp modelePose, permutations int)
 		PermutationsRetenues: permutations}
 	out.collecte(ctx, r.asset, &mp)
 	if out.Maillage.Structure.Triangles() == 0 {
-		return nil, fmt.Errorf("%w : %d sections, aucun triangle lisible", ErrPieceSansGeometrie, len(mp.maillages))
+		return nil, fmt.Errorf("%w: %d sections, no readable triangle", ErrPieceSansGeometrie, len(mp.maillages))
 	}
 	out.Maillage.lisMateriaux(r.arsenal.mats, r.arsenal.geo)
 	out.Maillage.resoutTextures(ctx, r.arsenal.geo)

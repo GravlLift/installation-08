@@ -17,6 +17,8 @@
 // textures (rang glTF, -1 : absente) et leurs bitmaps du jeu.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"fmt"
@@ -63,7 +65,7 @@ func (sb *surfacesBrutesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMater
 	if !deja {
 		var buf bytes.Buffer
 		if err := png.Encode(&buf, normaleGLTF(t.Image)); err != nil {
-			return fmt.Errorf("normale %08x : %w", s.Normale, err)
+			return fmt.Errorf("normal %08x: %w", s.Normale, err)
 		}
 		n = ajouteImage(doc, bin, buf.Bytes(), mimePNG)
 		sb.normales[s.Normale] = n
@@ -83,7 +85,7 @@ func (sb *surfacesBrutesGLB) image(doc *gltfDoc, bin *tamponGLB, id uint32, text
 	}
 	octets, err := PNGBrut(t)
 	if err != nil {
-		return -1, fmt.Errorf("image brute %08x : %w", id, err)
+		return -1, fmt.Errorf("raw image %08x: %w", id, err)
 	}
 	r := ajouteImage(doc, bin, octets, mimePNG)
 	sb.images[id] = r
@@ -119,7 +121,7 @@ const coteNuancier = 256
 func (a *Arsenal) Nuancier(id uint32) ([]byte, error) {
 	t, err := LitBitmap(a.geo, id, coteNuancier)
 	if err != nil {
-		return nil, fmt.Errorf("nuancier %08x : %w", id, err)
+		return nil, fmt.Errorf("color chart %08x: %w", id, err)
 	}
 	return PNGBrut(t)
 }

@@ -22,6 +22,8 @@
 //	    TestSpartanAPeau : son produit avec NodeModelTransform rend l'identite).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"math"
@@ -75,7 +77,7 @@ func ModeNodes(tag []byte) ([]Noeud, error) {
 		}
 		return ti.parseNodes(abs, size/nodeStride), nil
 	}
-	return nil, fmt.Errorf("himap: bloc noeuds du mode introuvable")
+	return nil, fmt.Errorf("himap: mode nodes block not found")
 }
 
 func (ti tagInfo) parseNodes(abs, n int) []Noeud {

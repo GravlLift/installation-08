@@ -66,7 +66,7 @@ func TestEntierEmpaqueteRefuseLaTroncature(t *testing.T) {
 	if l.err == nil {
 		t.Fatal("un entier tronque devrait remonter une erreur")
 	}
-	if !strings.Contains(l.err.Error(), "tronque") {
+	if !strings.Contains(l.err.Error(), "truncated") {
 		t.Errorf("erreur peu parlante: %v", l.err)
 	}
 }
@@ -79,7 +79,7 @@ func TestDecompresseRefuseUnEnteteFaux(t *testing.T) {
 		motif string
 	}{
 		{"version inconnue", func(b []byte) { binary.BigEndian.PutUint32(b[0:], 3) }, "version"},
-		{"taille annoncee fausse", func(b []byte) { binary.BigEndian.PutUint32(b[4:], 42) }, "annonce"},
+		{"taille annoncee fausse", func(b []byte) { binary.BigEndian.PutUint32(b[4:], 42) }, "announces"},
 	}
 	for _, c := range cas {
 		t.Run(c.nom, func(t *testing.T) {

@@ -15,6 +15,8 @@
 // (headerSize, dataSize) de l'en-tete, comme les comptes de dependances, blocs et structs.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // Liens de la struct-table.
@@ -63,12 +65,12 @@ func nouveauNavigateur(tag []byte) (*navigateurTag, error) {
 	}
 	h := ti.blockTab - enteteOffBlocsDepuisH - ti.deps*depEntrySize
 	if h < enteteOffCompteRefs {
-		return nil, fmt.Errorf("en-tete de tag : table des blocs a %#x, avant le couple de tailles", ti.blockTab)
+		return nil, fmt.Errorf("tag header: block table at %#x, before the size pair", ti.blockTab)
 	}
 	refs := u32(tag, h-enteteOffCompteRefs)
 	debut := ti.structTab + ti.structs*structEntrySize
 	if refs < 0 || debut+refs*refDonneesStride > ti.headerSize {
-		return nil, fmt.Errorf("table des references de donnees (%d) hors de l'en-tete", refs)
+		return nil, fmt.Errorf("data reference table (%d) outside the header", refs)
 	}
 	for i := 0; i < refs; i++ {
 		r := debut + i*refDonneesStride
@@ -122,7 +124,7 @@ func (n *navigateurTag) enregistrements(proprio, champ, pasAttendu int) ([]byte,
 	}
 	b := n.octets(bloc)
 	if len(b) != nb*pasAttendu {
-		return nil, 0, fmt.Errorf("bloc du champ %#x : %d octets pour %d enregistrements de %d", champ, len(b), nb, pasAttendu)
+		return nil, 0, fmt.Errorf("block of field %#x: %d bytes for %d records of %d", champ, len(b), nb, pasAttendu)
 	}
 	return b, nb, nil
 }

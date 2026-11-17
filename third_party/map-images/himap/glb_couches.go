@@ -31,6 +31,8 @@
 // degrade.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"fmt"
@@ -313,7 +315,7 @@ func (cg *couchesGLB) texture(doc *gltfDoc, bin *tamponGLB, cle cleImage, textur
 		err = jpeg.Encode(&buf, couleurFoisAlpha(t), &jpeg.Options{Quality: qualiteJPEG})
 	}
 	if err != nil {
-		return 0, fmt.Errorf("image du bitmap %08x : %w", cle.bitmap, err)
+		return 0, fmt.Errorf("image of bitmap %08x: %w", cle.bitmap, err)
 	}
 	tex := ajouteImage(doc, bin, buf.Bytes(), mime)
 	cg.images[cle] = tex
@@ -511,7 +513,7 @@ func (cg *couchesGLB) masqueStyle(doc *gltfDoc, bin *tamponGLB, ms MasqueStyle, 
 	}
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
-		return 0, fmt.Errorf("masque de style : %w", err)
+		return 0, fmt.Errorf("style mask: %w", err)
 	}
 	tex := ajouteImage(doc, bin, buf.Bytes(), mimePNG)
 	cg.styles[ms] = tex

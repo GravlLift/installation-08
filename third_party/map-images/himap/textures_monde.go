@@ -1,6 +1,8 @@
 // Package himap — textures_monde.go : les textures que le maillage monde emporte.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -68,7 +70,7 @@ func (m *MaillageMonde) resoutTextures(ctx context.Context, idx *ModuleIndex) {
 		}
 		t, err := LitBitmap(idx, id, cote)
 		if err != nil {
-			slog.WarnContext(ctx, "texture illisible", "role", role, "bitmap", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable texture", "role", role, "bitmap", fmt.Sprintf("%08x", id), "err", err)
 			*illisibles++
 			return
 		}

@@ -9,6 +9,8 @@
 // ceux de sa classe.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 )
@@ -30,7 +32,7 @@ type EtiquettesArme struct {
 // `weap` lisible ou ne porte pas l'enregistrement.
 func (a *Arsenal) EtiquettesAnimationArme(weap uint32, gs *GraphesAnimation) (EtiquettesArme, error) {
 	if !a.estDuGroupe(weap, GroupeArme) {
-		return EtiquettesArme{}, fmt.Errorf("%08x n'est pas un tag %q", weap, GroupeArme)
+		return EtiquettesArme{}, fmt.Errorf("%08x is not a %q tag", weap, GroupeArme)
 	}
 	raw, err := a.geo.Extract(weap)
 	if err != nil {
@@ -43,7 +45,7 @@ func (a *Arsenal) EtiquettesAnimationArme(weap uint32, gs *GraphesAnimation) (Et
 			return EtiquettesArme{Classe: c, Type: t}, nil
 		}
 	}
-	return EtiquettesArme{}, fmt.Errorf("%08x : aucun enregistrement classe puis type d'animation", weap)
+	return EtiquettesArme{}, fmt.Errorf("%08x: no class-then-animation-type record", weap)
 }
 
 // classesDesModes rend les etiquettes de classe d'arme (niveau 1 de l'arbre des modes, `any` exclu)

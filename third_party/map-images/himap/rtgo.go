@@ -10,6 +10,8 @@
 // propres tags par le temoin du pas de 144 (cf. ErrPerMeshStride).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -93,13 +95,13 @@ type RuntimeGeo struct {
 
 // ErrPerMeshStride signale que le bloc designe n'est pas un tableau d'enregistrements de
 // 144 octets : l'offset de champ ne designe pas `Per Mesh Data` dans ce tag.
-var ErrPerMeshStride = fmt.Errorf("himap: bloc Per Mesh Data de taille non multiple de %d", perMeshStride)
+var ErrPerMeshStride = fmt.Errorf("himap: Per Mesh Data block of size not a multiple of %d", perMeshStride)
 
 // ReadRuntimeGeoTag decode ce qu'on sait lire d'un tag `rtgo` deja decompresse.
 func ReadRuntimeGeoTag(tag []byte) (RuntimeGeo, error) {
 	cands := tagCandidates(tag)
 	if len(cands) == 0 {
-		return RuntimeGeo{}, fmt.Errorf("himap: en-tête de tag rtgo non reconnu")
+		return RuntimeGeo{}, fmt.Errorf("himap: unrecognized rtgo tag header")
 	}
 	var last error
 	for _, ti := range cands {
@@ -123,12 +125,12 @@ func runtimeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	}
 	cible, ok := parOffset[rtgoOffPerMeshData]
 	if !ok {
-		return RuntimeGeo{}, fmt.Errorf("himap: aucun tag-block a l'offset %d (offsets vus: %v)",
+		return RuntimeGeo{}, fmt.Errorf("himap: no tag-block at offset %d (offsets seen: %v)",
 			rtgoOffPerMeshData, offs)
 	}
 	abs, size := ti.blockAbs(cible)
 	if abs < 0 || size < 0 || abs+size > len(ti.tag) {
-		return RuntimeGeo{}, fmt.Errorf("himap: bloc Per Mesh Data hors borne")
+		return RuntimeGeo{}, fmt.Errorf("himap: Per Mesh Data block out of bounds")
 	}
 	if size%perMeshStride != 0 {
 		return RuntimeGeo{}, fmt.Errorf("%w (taille %d)", ErrPerMeshStride, size)
@@ -161,12 +163,12 @@ func modeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	}
 	sections, ok := parOffset[modeOffSections]
 	if !ok {
-		return RuntimeGeo{}, fmt.Errorf("himap: aucun tag-block Sections a l'offset %d (offsets vus: %v)",
+		return RuntimeGeo{}, fmt.Errorf("himap: no Sections tag-block at offset %d (offsets seen: %v)",
 			modeOffSections, offs)
 	}
 	absS, sizeS := ti.blockAbs(sections)
 	if absS < 0 || sizeS <= 0 || sizeS%sectionStride != 0 || absS+sizeS > len(ti.tag) {
-		return RuntimeGeo{}, fmt.Errorf("himap: bloc Sections de taille %d non multiple de %d", sizeS, sectionStride)
+		return RuntimeGeo{}, fmt.Errorf("himap: Sections block of size %d not a multiple of %d", sizeS, sectionStride)
 	}
 	absB, err := premiereBoite(ti, parOffset, modeOffBoundingBoxes)
 	if err != nil {
@@ -188,11 +190,11 @@ func modeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 func premiereBoite(ti tagInfo, parOffset map[int]int, off int) (int, error) {
 	cible, ok := parOffset[off]
 	if !ok {
-		return -1, fmt.Errorf("himap: aucun tag-block BoundingBoxes a l'offset %d", off)
+		return -1, fmt.Errorf("himap: no BoundingBoxes tag-block at offset %d", off)
 	}
 	abs, size := ti.blockAbs(cible)
 	if abs < 0 || size < bboxStride || size%bboxStride != 0 || abs+bboxStride > len(ti.tag) {
-		return -1, fmt.Errorf("himap: bloc BoundingBoxes de taille %d non multiple de %d", size, bboxStride)
+		return -1, fmt.Errorf("himap: BoundingBoxes block of size %d not a multiple of %d", size, bboxStride)
 	}
 	return abs, nil
 }

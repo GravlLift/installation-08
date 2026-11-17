@@ -10,6 +10,8 @@
 // carte entiere.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -142,7 +144,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	chemins = append(chemins, opts.modulesCarteDeportee()...)
 	idx, bsp, bsps, err := ouvreBSPMonde(&b, opts, chemins)
@@ -172,7 +174,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	// Collecter les autres structures nommees par le scenario.
 	nommes, err := structuresNommees(ctx, opts)
 	if err != nil {
-		slog.WarnContext(ctx, "scenarios illisible : un seul bsp collecte", "erreur", err)
+		slog.WarnContext(ctx, "unreadable scenarios: only one bsp collected", "error", err)
 		nommes = nil
 	}
 	for _, autre := range bsps {
@@ -188,12 +190,12 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	out.posePlacements(ctx, idx, opts)
 	terrain, matieresTerrain, texturesTerrain, decorateurs, err := collecteTerrains(idx, opts)
 	if err != nil {
-		return nil, b, fmt.Errorf("terrain : %w", err)
+		return nil, b, fmt.Errorf("terrain: %w", err)
 	}
 	out.Terrain = terrain
 	out.Decorateurs = decorateurs
 	if out.Structure.Triangles()+out.Terrain.Triangles() == 0 {
-		return nil, b, fmt.Errorf("aucun triangle de structure sur %d instances des %d structures", len(bsp.Instances), len(bsps))
+		return nil, b, fmt.Errorf("no structure triangle out of %d instances of the %d structures", len(bsp.Instances), len(bsps))
 	}
 	if err := out.resoutMateriaux(opts, idx); err != nil {
 		return nil, b, err
@@ -201,7 +203,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	if err := out.resoutTexturesTerrain(ctx, idx, matieresTerrain, texturesTerrain); err != nil {
 		return nil, b, err
 	}
-	slog.InfoContext(ctx, "maillage monde collecte", "instances", b.Dessinees, "decor", b.EcarteesDecor,
+	slog.InfoContext(ctx, "world mesh collected", "instances", b.Dessinees, "scenery", b.EcarteesDecor,
 		"triangles", out.Structure.Triangles(), "trianglesTerrain", out.Terrain.Triangles(), "tuilesTerrain", out.Terrain.Instances, "trianglesDecor", out.Decor.Triangles(), "trianglesOmbre", out.Ombre.Triangles(),
 		"horsBoite", out.HorsBoite, "instancesHorsCadre", out.HorsCadre, "materiaux", len(out.Materiaux), "materiauxIllisibles", out.MateriauxIllisibles,
 		"masques", len(out.Masques), "masquesIllisibles", out.MasquesIllisibles,
@@ -253,7 +255,7 @@ func (m *MaillageMonde) resoutMateriaux(opts OptionsCuisson, idxGeo *ModuleIndex
 	}
 	idx, err := NewModuleIndex(append(chemins, opts.modulesCarteDeportee()...)...)
 	if err != nil {
-		return fmt.Errorf("index des modules de materiaux : %w", err)
+		return fmt.Errorf("material module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	m.lisMateriaux(idx, idxGeo)

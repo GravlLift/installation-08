@@ -27,6 +27,8 @@
 // jamais de repli silencieux sur la taille, qui est precisement le defaut corrige ici.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 
@@ -37,7 +39,7 @@ import (
 // dans le tag de niveau alors que le module porte plusieurs tags sbsp. L'appelant doit
 // s'ARRETER sur cette carte : produire des bornes prises au hasard parmi les candidats est
 // exactement le defaut que ce fichier corrige.
-var ErrRegionBSPIndecidable = fmt.Errorf("himap: ordre des regions de compression illisible")
+var ErrRegionBSPIndecidable = fmt.Errorf("himap: unreadable compression region order")
 
 // BSPQuantification rend le tag sbsp contre lequel le moteur quantifie les positions
 // repliquees de ce module — la region 0 du bloc structure-BSP du scenario — ET la liste
@@ -68,7 +70,7 @@ func BSPQuantification(modulePath string) (BSP, []BSP, error) {
 			return b, bsps, nil
 		}
 	}
-	return BSP{}, bsps, fmt.Errorf("%s: %w (region 0 = %08x, absent des tags sbsp)",
+	return BSP{}, bsps, fmt.Errorf("%s: %w (region 0 = %08x, absent from the sbsp tags)",
 		modulePath, ErrRegionBSPIndecidable, ordre[0])
 }
 
@@ -81,7 +83,7 @@ func ordreRegionsBSP(m *himodule.Module, bsps []BSP) ([]uint32, error) {
 	}
 	levls := m.Files("levl")
 	if len(levls) == 0 {
-		return nil, fmt.Errorf("%w: aucun tag levl", ErrRegionBSPIndecidable)
+		return nil, fmt.Errorf("%w: no levl tag", ErrRegionBSPIndecidable)
 	}
 	var retenu []uint32
 	for _, f := range levls {
@@ -99,13 +101,13 @@ func ordreRegionsBSP(m *himodule.Module, bsps []BSP) ([]uint32, error) {
 				continue
 			}
 			if !memeOrdre(retenu, ordre) {
-				return nil, fmt.Errorf("%w: deux blocs du levl donnent des ordres differents (%08x... / %08x...)",
+				return nil, fmt.Errorf("%w: two levl blocks give different orders (%08x... / %08x...)",
 					ErrRegionBSPIndecidable, retenu[0], ordre[0])
 			}
 		}
 	}
 	if retenu == nil {
-		return nil, fmt.Errorf("%w: aucun bloc du levl ne reference les %d tags sbsp",
+		return nil, fmt.Errorf("%w: no levl block references the %d sbsp tags",
 			ErrRegionBSPIndecidable, len(attendus))
 	}
 	return retenu, nil
@@ -185,7 +187,7 @@ func RegionsBSPLocales(modulePath string) ([]BSP, error) {
 			}
 		}
 		if !trouve {
-			return nil, fmt.Errorf("%s: %w (region %08x absente des tags sbsp)", modulePath, ErrRegionBSPIndecidable, gid)
+			return nil, fmt.Errorf("%s: %w (region %08x absent from the sbsp tags)", modulePath, ErrRegionBSPIndecidable, gid)
 		}
 	}
 	return out, nil
