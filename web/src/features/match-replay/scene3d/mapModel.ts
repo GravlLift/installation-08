@@ -580,7 +580,10 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
   const pas = Math.max(1, Math.ceil(bvh.length / 19))
   for (let i = 0; i < bvh.length; i++) {
     const geoStart = now()
-    bvh[i].computeBoundsTree()
+    // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
+    // so the hit test pays only a little more per ray, while the build drops a level of sorting
+    // for every doubling (Streets: ~3.3 s to ~1.9 s over its two thousand structure geometries).
+    bvh[i].computeBoundsTree({ maxLeafTris: 100 })
     const dt = now() - geoStart
     if (structGeos.has(bvh[i])) structMs += dt
     else seeThroughMs += dt
