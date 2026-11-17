@@ -227,7 +227,7 @@ func buildZoneStates(ctx context.Context, in ZoneInput, c zoneCtx) ([]ZoneState,
 func logZoneOwnerDiscordances(ctx context.Context, matchID string, disc []zoneDiscordance) {
 	for _, d := range disc {
 		slog.WarnContext(ctx, "replay: the fallback rule contradicts a zone channel's name — the name is kept",
-			"match_id", matchID, "zone", d.ref, "channel", d.canal, "canalNomme", d.nomme, "canalAutre", d.autre)
+			"match_id", matchID, "zone", d.ref, "channel", d.canal, "namedChannel", d.nomme, "otherChannel", d.autre)
 	}
 }
 
@@ -238,9 +238,9 @@ func logZoneKeyTally(ctx context.Context, matchID string, lectures int, key zone
 		return
 	}
 	slog.InfoContext(ctx, "replay: initial zone state read at the keyframes",
-		"match_id", matchID, "lecturesImageCle", lectures,
-		"zonesOuvertesParImageCle", key.opened, "imagesClesComparees", key.checked,
-		"imagesClesConcordantes", key.agreed, "imagesClesDiscordantes", key.checked-key.agreed)
+		"match_id", matchID, "keyframeReads", lectures,
+		"zonesOpenedByKeyframe", key.opened, "keyframesCompared", key.checked,
+		"keyframesMatched", key.agreed, "keyframesMismatched", key.checked-key.agreed)
 	if key.checked > key.agreed {
 		slog.WarnContext(ctx, "replay: keyframe states DISCORDANT with the state the delta frames reassemble",
 			"match_id", matchID, "discordant", key.checked-key.agreed, "checked", key.checked)

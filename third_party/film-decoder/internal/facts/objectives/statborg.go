@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package objectives
 
 import (
@@ -86,14 +87,14 @@ func diagnosticsDuStatborg(l signaux.LectureDuStatborg, film *source.Film, match
 	var diag constat.Diagnostics
 	if l.ChunksDatables == 0 {
 		diag.Signaler(constat.Diagnostic{Code: DiagFilmSansManifeste, Niveau: constat.NiveauInfo,
-			Message: "objectives: film sans chunk decrit par le manifeste — rien a dater",
-			Attrs:   []any{"match_id", matchID, "chunks_du_film", filmChunkCount(film)}})
+			Message: "objectives: film with no chunk described by the manifest — nothing to date",
+			Attrs:   []any{"match_id", matchID, "film_chunks", filmChunkCount(film)}})
 	}
 	if l.Tronque {
 		diag.Signaler(constat.Diagnostic{Code: DiagStatborgTronque, Niveau: constat.NiveauWarn,
-			Message: "statborg: plafond d'enregistrements atteint, lecture tronquee",
+			Message: "statborg: record cap reached, reading truncated",
 			Attrs: []any{"match_id", matchID, "records", len(l.Records),
-				"limite", signaux.StatborgEnregistrementsMax, "chunk", l.ChunkTronque}})
+				"limit", signaux.StatborgEnregistrementsMax, "chunk", l.ChunkTronque}})
 	}
 	return diag.Relever()
 }

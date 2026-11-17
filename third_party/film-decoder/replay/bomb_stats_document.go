@@ -126,11 +126,11 @@ func logBombStats(ctx context.Context, matchID string, c BombStatsCoverage, kill
 	slog.InfoContext(ctx, "replay: Assault objective statistics",
 		"match_id", matchID, "players", c.Players, "explosions", c.Detonations,
 		"armings", c.Armings, "attributed", c.ArmingsAttributed,
-		"parLacher", c.ArmingsByDrop, "parRepli", c.ArmingsByActiveCarry,
-		"sansPorteur", c.ArmingsNoCarrier, "sansPont", c.ArmingsNoBridge,
-		"ambiguous", c.ArmingsAmbiguous, "sansHorloge", c.ArmingsNoClock, "periods", c.Periods,
-		"periodesSansPont", c.PeriodsNoBridge, "periodesOuvertes", c.PeriodsOpen,
-		"kills", c.Kills, "killsEcartes", killsEcartes, "killsSurPorteur", c.KillsOnCarrier,
+		"byDrop", c.ArmingsByDrop, "byFallback", c.ArmingsByActiveCarry,
+		"noCarrier", c.ArmingsNoCarrier, "noBridge", c.ArmingsNoBridge,
+		"ambiguous", c.ArmingsAmbiguous, "noClock", c.ArmingsNoClock, "periods", c.Periods,
+		"periodsNoBridge", c.PeriodsNoBridge, "periodsOpen", c.PeriodsOpen,
+		"kills", c.Kills, "killsDiscarded", killsEcartes, "killsOnCarrier", c.KillsOnCarrier,
 		"explosions_read", c.DetonationsRead, "carry_read", c.CarryRead,
 		"armings_read", c.ArmingsRead, "kills_read", c.KillsRead)
 }

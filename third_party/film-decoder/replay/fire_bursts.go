@@ -424,10 +424,10 @@ func logFireBursts(ctx context.Context, cov *ContinuousFireCoverage) {
 	if cov == nil {
 		return
 	}
-	slog.InfoContext(ctx, "replay: sustained fire", "packets", cov.Packets, "vueCFermee", cov.Closed,
+	slog.InfoContext(ctx, "replay: sustained fire", "packets", cov.Packets, "viewCClosed", cov.Closed,
 		"holes", cov.Holes, "read", cov.BurstsRead, "published", cov.Published, "vehicle", cov.OnVehicle,
-		"aPied", cov.OnFoot, "autreBit", cov.OtherInput, "sansJoueur", cov.NoPlayer,
-		"ambiguous", cov.Ambiguous, "montureSansArme", cov.VehicleNoWeapon, "sansPiste", cov.NoTrack,
-		"armeInconnue", cov.WeaponUnknown, "armeNonContinue", cov.NotContinuous, "empty", cov.Empty,
-		"shots", cov.Shots, "tenuTrouS", math.Round(float64(cov.HeldHoleMS)/100)/10)
+		"onFoot", cov.OnFoot, "otherBit", cov.OtherInput, "noPlayer", cov.NoPlayer,
+		"ambiguous", cov.Ambiguous, "mountNoWeapon", cov.VehicleNoWeapon, "noTrack", cov.NoTrack,
+		"unknownWeapon", cov.WeaponUnknown, "notContinuousWeapon", cov.NotContinuous, "empty", cov.Empty,
+		"shots", cov.Shots, "heldHoleS", math.Round(float64(cov.HeldHoleMS)/100)/10)
 }

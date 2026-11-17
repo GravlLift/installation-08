@@ -168,6 +168,6 @@ func attachGrenadeReadCoverage(ctx context.Context, doc *ReplayDocument, built [
 	}
 	doc.Coverage.GrenadeReads = cov
 	slog.InfoContext(ctx, "replay: carried grenade coverage",
-		"imagesCles", cov.FromKeyframe, "delta", cov.FromDelta,
-		"ecarteesSansPiste", cov.Unpublished, "canalMunitionsRefuse", cov.AmmoRefused)
+		"keyframes", cov.FromKeyframe, "delta", cov.FromDelta,
+		"discardedNoTrack", cov.Unpublished, "ammoChannelRefused", cov.AmmoRefused)
 }

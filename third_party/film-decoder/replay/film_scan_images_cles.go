@@ -30,13 +30,13 @@ func (s *filmScan) lireLesImagesCles() {
 	a := s.etats.Admission
 	r := recuperesParMethode(s.etats.Recuperes)
 	slog.InfoContext(s.ctx, "keyframe: full biped state read by the grammar",
-		"match_id", s.matchID, "bipeds", a.Bipedes, "admitted", a.Admis, "sansCorps", a.SansCorps,
-		"refusNiFermeNiI22", a.RefusNiFermeNiI22, "refusT1", a.RefusT1, "refusT2", a.RefusT2,
-		"refusDebordement", a.RefusDebordement,
-		"overflows", a.Debordements, "capaciteHorsDomaine", a.CapaciteHorsDomaine,
-		"selectionHorsMasque", a.SelectionHorsMasque,
-		"recovered", len(s.etats.Recuperes), "recuperesArmes", r.armes,
-		"recuperesInventaire", r.inventaire, "recuperesMarque", r.marque)
+		"match_id", s.matchID, "bipeds", a.Bipedes, "admitted", a.Admis, "noBody", a.SansCorps,
+		"rejectedNeitherClosedNorI22", a.RefusNiFermeNiI22, "t1Rejected", a.RefusT1, "t2Rejected", a.RefusT2,
+		"overflowRejected", a.RefusDebordement,
+		"overflows", a.Debordements, "capacityOutOfRange", a.CapaciteHorsDomaine,
+		"selectionOutOfMask", a.SelectionHorsMasque,
+		"recovered", len(s.etats.Recuperes), "recoveredWeapons", r.armes,
+		"recoveredInventory", r.inventaire, "recoveredMark", r.marque)
 }
 
 // comptesDesRecuperes compte les records recuperes par methode : un record compte dans chaque

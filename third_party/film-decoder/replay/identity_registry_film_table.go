@@ -221,8 +221,8 @@ func (l filmTableLinks) alarmerSurLaTableDuFilm(ctx context.Context, matchID str
 		slog.WarnContext(ctx, "replay: the chunk reading CONTRADICTS the film table on some indexes — outside chains, the "+
 			"film table is authoritative, the gap is counted",
 			"match_id", matchID, "contradictions", c.Contradiction, "agrees", c.Accord,
-			"detail", l.contradictions, "indexDesChunksHorsTable", len(l.indexDesChunks),
-			"indexTenus", l.indexTenus, "membresDeChaine", l.membresDeChaine, "chainesNonResolues", l.chaines)
+			"detail", l.contradictions, "chunksIndexOutOfTable", len(l.indexDesChunks),
+			"heldIndexes", l.indexTenus, "chainMembers", l.membresDeChaine, "unresolvedChains", l.chaines)
 	}
 	if !c.Read {
 		slog.Log(ctx, niveau, "replay: film table NOT USED — the index <-> xuid link falls back "+

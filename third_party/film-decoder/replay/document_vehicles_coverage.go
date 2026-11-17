@@ -104,25 +104,25 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 		return
 	}
 	slog.InfoContext(ctx, "replay: vehicles",
-		"swept", c.Scanned, "viesRecensees", c.Lives, "published", c.Published,
-		"relaisFusionnes", c.Merged,
-		"sansPosition", c.NoPosition, "avecNaissance", c.WithSpawn, "avecChassis", c.WithChassis,
-		"famillesResolues", c.FamilyResolved, "famillesInconnues", c.FamilyUnknown,
-		"samples", c.Samples, "avecCap", c.WithHeading)
+		"swept", c.Scanned, "livesSeen", c.Lives, "published", c.Published,
+		"mergedRelays", c.Merged,
+		"noPosition", c.NoPosition, "withSpawn", c.WithSpawn, "withChassis", c.WithChassis,
+		"resolvedFamilies", c.FamilyResolved, "unknownFamilies", c.FamilyUnknown,
+		"samples", c.Samples, "withHeading", c.WithHeading)
 	// LA PORTE DES POSITIONS (lot M1 des retours du rejeu) : ce qu elle a ecarte, et les silences
 	// avec deplacement qu elle a laisses publies faute de preuve pour trancher.
 	if c.EchantillonsHorsEmprise+c.SpawnsHorsEmprise+c.EchantillonsAuTraversDUnSilence+c.SilencesNonTranches > 0 {
 		slog.InfoContext(ctx, "replay: carrying of vehicle positions",
-			"echantillonsHorsEmprise", c.EchantillonsHorsEmprise, "spawnsHorsEmprise", c.SpawnsHorsEmprise,
-			"echantillonsAuTraversDUnSilence", c.EchantillonsAuTraversDUnSilence,
-			"silencesNonTranches", c.SilencesNonTranches)
+			"samplesOutOfBounds", c.EchantillonsHorsEmprise, "spawnsOutOfBounds", c.SpawnsHorsEmprise,
+			"samplesAcrossASilence", c.EchantillonsAuTraversDUnSilence,
+			"unresolvedSilences", c.SilencesNonTranches)
 	}
 	slog.InfoContext(ctx, "replay: occupation of the vehicles",
-		"episodes", c.Rides, "vehiculesOccupes", c.VehiclesRidden, "occupantsNommes", c.RidesNamed,
-		"read", c.RidesRead, "parProximite", c.RidesProximity,
-		"avecSiege", c.RidesWithSeat, "ambiguous", c.Ambiguous,
-		"lecturesDeViseeBrutes", c.AimReads, "episodesAvecVisee", c.RidesWithAim,
-		"pointsDeVisee", c.AimSamples, "framesDEpisode", c.AimRideFrames)
+		"episodes", c.Rides, "vehiclesRidden", c.VehiclesRidden, "namedOccupants", c.RidesNamed,
+		"read", c.RidesRead, "byProximity", c.RidesProximity,
+		"withSeat", c.RidesWithSeat, "ambiguous", c.Ambiguous,
+		"rawAimReads", c.AimReads, "ridesWithAim", c.RidesWithAim,
+		"aimSamples", c.AimSamples, "episodeFrames", c.AimRideFrames)
 	// LE CYCLE DE REAPPARITION porte ses deux moities de denominateur au journal comme il les
 	// porte a l artefact : `emplacements` et `ecarts` disent ce que le film offrait, `cycles` ce
 	// qui a passe la regle de stabilite, `manques` les occasions perdues faute d une fin datee.
@@ -139,7 +139,7 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 		slog.WarnContext(ctx, "replay: NO occupation episode carries an aim while episodes "+
 			"exist — the position-less aim-record sweep returned nothing, the cone "+
 			"falls back everywhere to the chassis heading",
-			"episodes", c.Rides, "lecturesBrutes", c.AimReads)
+			"episodes", c.Rides, "rawReads", c.AimReads)
 	}
 	// UN CHASSIS INCONNU EST UN AVERTISSEMENT DEPUIS LE LOT 1.9.9 (2026-09-16), une ligne par
 	// chassis et par cuisson. Decision utilisateur du 2026-09-14 : le parc d assets vehicules est
@@ -158,6 +158,6 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 	if c.WithChassis > 0 && c.FamilyResolved == 0 {
 		slog.WarnContext(ctx, "replay: NO vehicle chassis resolved while the identity word was read "+
 			"— family table to complete, or MPP block reading to check",
-			"chassisLus", c.WithChassis)
+			"chassisRead", c.WithChassis)
 	}
 }

@@ -322,16 +322,16 @@ func journaliserLesPlaces(ctx context.Context, matchID string, cov SeatCoverage)
 	journaliserLesBotsSansPlace(ctx, matchID, len(cov.botsEcartes), cov.botsSansPlaceAvecVie)
 	if cov.SansEquipe > 0 {
 		slog.ErrorContext(ctx, "replay: roster entry(ies) present WITHOUT a read TEAM — no tile shows them",
-			"match_id", matchID, "sansEquipe", cov.SansEquipe, "entries", cov.Entrees)
+			"match_id", matchID, "noTeam", cov.SansEquipe, "entries", cov.Entrees)
 	}
 	if cov.BotsRelevesEnJeu > 0 {
 		slog.WarnContext(ctx, "replay: bot(s) whose record passed to the arriving human while the film still gives them "+
-			"a life — reading to verify", "match_id", matchID, "botsRelevesEnJeu", cov.BotsRelevesEnJeu)
+			"a life — reading to verify", "match_id", matchID, "botsRaisedInPlay", cov.BotsRelevesEnJeu)
 	}
 	if cov.SansPlace > 0 || cov.Depassements > 0 || cov.PlacesEnTrop > 0 {
 		slog.WarnContext(ctx, "replay: seats to read — entry without a seat, or team beyond its capacity",
-			"match_id", matchID, "sansPlace", cov.SansPlace, "overruns", cov.Depassements,
-			"placesEnTrop", cov.PlacesEnTrop, "capacity", cov.Capacite)
+			"match_id", matchID, "noSeat", cov.SansPlace, "overruns", cov.Depassements,
+			"extraSeats", cov.PlacesEnTrop, "capacity", cov.Capacite)
 	}
 }
 

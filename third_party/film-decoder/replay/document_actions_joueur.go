@@ -185,11 +185,11 @@ func keepKillCausesOfPublishedTracks(causes []KillCause, published map[string]bo
 // logPlayerActionsCoverage sort la couverture des quatre calques.
 func logPlayerActionsCoverage(ctx context.Context, cov PlayerActionsCoverage, killCausesIn int) {
 	slog.InfoContext(ctx, "replay: player actions",
-		"armesLues", cov.DrawnRead, "armesPubliees", cov.DrawnPublished, "armesSansPiste", cov.DrawnNoTrack,
-		"armesAvantOrigine", cov.DrawnBeforeOrigin, "armesSlotNonLie", cov.DrawnSlotUnbound,
-		"degatsLus", cov.DamagesRead, "degatsPublies", cov.DamagesPublished, "degatsSansPiste", cov.DamagesNoTrack,
-		"degatsAvantOrigine", cov.DamagesBeforeOrigin, "degatsSansAuteur", cov.DamagesWithoutAuthor,
-		"causesRecues", killCausesIn, "causesPubliees", cov.KillCauses, "gestesLus", cov.ActionsRead,
-		"gestesPublies", cov.ActionsPublished, "gestesSansPiste", cov.ActionsNoTrack,
-		"gestesAvantOrigine", cov.ActionsBeforeOrigin)
+		"weaponsRead", cov.DrawnRead, "weaponsPublished", cov.DrawnPublished, "weaponsNoTrack", cov.DrawnNoTrack,
+		"weaponsBeforeOrigin", cov.DrawnBeforeOrigin, "weaponsSlotUnbound", cov.DrawnSlotUnbound,
+		"damagesRead", cov.DamagesRead, "damagesPublished", cov.DamagesPublished, "damagesNoTrack", cov.DamagesNoTrack,
+		"damagesBeforeOrigin", cov.DamagesBeforeOrigin, "damagesNoAuthor", cov.DamagesWithoutAuthor,
+		"causesReceived", killCausesIn, "causesPublished", cov.KillCauses, "actionsRead", cov.ActionsRead,
+		"actionsPublished", cov.ActionsPublished, "actionsNoTrack", cov.ActionsNoTrack,
+		"actionsBeforeOrigin", cov.ActionsBeforeOrigin)
 }

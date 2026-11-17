@@ -281,12 +281,12 @@ func logPlacementCoverage(ctx context.Context, c *EquipmentPlacementCoverage) {
 	slog.InfoContext(ctx, "replay: equipment placements",
 		"swept", c.Scanned, "calibrated", c.Calibrated, "split", c.Widths, "placements", c.Placements,
 		"named", c.Named, "others", c.Other,
-		"avecPoseur", c.WithOwner, "avecCap", c.WithHeading,
-		"deployed", c.Deployed, "dropped", c.Dropped, "origineInconnue", c.Unknown,
-		"finVue", c.EndSeen, "finOuverte", c.EndOpen,
+		"withOwner", c.WithOwner, "withHeading", c.WithHeading,
+		"deployed", c.Deployed, "dropped", c.Dropped, "originUnknown", c.Unknown,
+		"endSeen", c.EndSeen, "endOpen", c.EndOpen,
 		// LA PROVENANCE, AU JOURNAL COMME A L'ARTEFACT (lot 1.9.1) : sans elle, un operateur lit
 		// « 51 deployees » sans savoir si le film l'a dit ou si un repli l'a decide.
-		"events103", c.SpawnEvents, "listesEvenements", c.SpawnLists, "parCause", c.ByCause)
+		"events103", c.SpawnEvents, "eventLists", c.SpawnLists, "byCause", c.ByCause)
 }
 
 // equipmentInputs porte TOUT ce que l'assemblage des poses lit : le balayage, le nuage de

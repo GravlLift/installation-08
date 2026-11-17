@@ -276,7 +276,7 @@ func logFlagOpeningsWithoutBridge(ctx context.Context, slots []int, openings int
 		return
 	}
 	slog.InfoContext(ctx, "replay: flag pickups without an identity bridge",
-		"slots", slots, "sansPont", len(slots), "pickups", openings)
+		"slots", slots, "noBridge", len(slots), "pickups", openings)
 }
 
 // logFlagCarriesCoverage journalise ce que le calque publie — et ce qu'il ecarte.
@@ -296,19 +296,19 @@ func logFlagCarriesCoverage(ctx context.Context, cov *FlagCarriesCoverage) {
 	if cov.ClosedOverlaps > 0 {
 		slog.WarnContext(ctx, "replay: more than two flags carried at once BETWEEN CLOSED CARRIES — "+
 			"the reading contradicts itself", "overruns", cov.ClosedOverlaps,
-			"depassementsTous", cov.Overlaps, "carries", cov.Carries)
+			"allOverlaps", cov.Overlaps, "carries", cov.Carries)
 	}
 	slog.InfoContext(ctx, "replay: flag lives",
 		"pickups", cov.Openings, "carries", cov.Carries, "closed", cov.Closed,
-		"open", cov.Open, "viesLibres", cov.ObjectLives,
-		"fermesParLObjet", cov.ClosedByObject, "lachersRepositionnes", cov.DropsRepositioned,
-		"sansPont", cov.NoBridge, "sansPiste", cov.NoTrack,
-		"horsFenetre", cov.OutOfWindow, "slotsAmbigus", cov.AmbiguousSlot, "marqueurConfirme", cov.MarkerConfirmed,
-		"marqueurObserve", cov.MarkerObserved, "bases", cov.Spawns,
-		"overlaps", cov.Overlaps, "porteursTuesAmbigus", cov.AmbiguousCarrierKills,
-		"porteursTuesNonJuges", cov.UnjudgedCarrierKills,
-		"retoursAmbigus", cov.AmbiguousReturns, "rentreesParLObjet", cov.HomeByObject,
-		"rentreesAmbigues", cov.AmbiguousHomecomings)
+		"open", cov.Open, "freeLives", cov.ObjectLives,
+		"closedByObject", cov.ClosedByObject, "repositionedDrops", cov.DropsRepositioned,
+		"noBridge", cov.NoBridge, "noTrack", cov.NoTrack,
+		"outOfWindow", cov.OutOfWindow, "ambiguousSlot", cov.AmbiguousSlot, "confirmedMarker", cov.MarkerConfirmed,
+		"observedMarker", cov.MarkerObserved, "bases", cov.Spawns,
+		"overlaps", cov.Overlaps, "ambiguousCarrierKills", cov.AmbiguousCarrierKills,
+		"unjudgedCarrierKills", cov.UnjudgedCarrierKills,
+		"ambiguousReturns", cov.AmbiguousReturns, "homeByObject", cov.HomeByObject,
+		"ambiguousHomecomings", cov.AmbiguousHomecomings)
 	// LA JAUGE DE RETOUR porte ses six denominateurs au journal comme elle les porte a
 	// l artefact : ils separent les quatre silences qu un `returnProgress` absent ne distingue
 	// pas (canal non lu, lu sans slot de jauge, slots sans correlation, correlation sans emission
@@ -316,7 +316,7 @@ func logFlagCarriesCoverage(ctx context.Context, cov *FlagCarriesCoverage) {
 	// arriver : le canal parle, et aucune de ses series ne suit les lachers publies.
 	slog.InfoContext(ctx, "replay: flag return gauge",
 		"swept", cov.GaugeScanned, "slots", cov.GaugeSlots, "reads", cov.GaugeReads,
-		"paired", cov.GaugePaired, "lachersAvecJauge", cov.GaugeSpans, "points", cov.GaugePoints)
+		"paired", cov.GaugePaired, "dropsWithGauge", cov.GaugeSpans, "points", cov.GaugePoints)
 	if cov.GaugeScanned && cov.GaugeSlots > 0 && cov.GaugePaired == 0 {
 		slog.WarnContext(ctx, "replay: return gauge READ but NONE correlates to a flag — "+
 			"the published drops and the film's series do not overlap",

@@ -110,8 +110,8 @@ func (c LayerCoverage) warnIfLossy(ctx context.Context, layer string) {
 	for _, cat := range []struct {
 		name string
 		n    int
-	}{{"slotIntrouvable", c.NoSlot}, {"slotAmbigu", c.Ambiguous}, {"horsFenetre", c.OutOfWindow},
-		{"sansTrajectoirePubliee", c.Unpublished}} {
+	}{{"slotNotFound", c.NoSlot}, {"ambiguousSlot", c.Ambiguous}, {"outOfWindow", c.OutOfWindow},
+		{"noPublishedTrajectory", c.Unpublished}} {
 		if float64(cat.n)/float64(c.Available) < rejectSampleThreshold {
 			continue
 		}

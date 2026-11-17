@@ -289,7 +289,7 @@ func attachInventoryCoverage(ctx context.Context, doc *ReplayDocument, decoded [
 	doc.Coverage.Inventory = cov
 	slog.InfoContext(ctx, "replay: inventory coverage",
 		"decoded", cov.Decoded,
-		"ecarteesAvantOrigine", cov.DroppedBeforeOrigin,
-		"ecarteesSansPiste", cov.Unpublished,
+		"discardedBeforeOrigin", cov.DroppedBeforeOrigin,
+		"discardedNoTrack", cov.Unpublished,
 		"published", cov.Published)
 }
