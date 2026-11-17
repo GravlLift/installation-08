@@ -72,8 +72,11 @@ class CompressedMips implements GLTFLoaderPlugin {
   }
 }
 
-/** The part of a loader GLTFLoader calls for an image (`loadImageSource`). */
-type ImageLoader = Pick<KTX2Loader, 'load'>
+/** The loader GLTFLoader is handed for KTX2 images: `load` for an image behind a URL (what
+ *  GLTFLoader calls), `parseBytes` for one embedded in the GLB (what `DirectKtx2Images` calls). */
+interface ImageLoader extends Pick<KTX2Loader, 'load'> {
+  parseBytes(bytes: ArrayBuffer): Promise<THREE.CompressedTexture>
+}
 
 /**
  * countedBy hands `ktx2`'s images to GLTFLoader counted by `manager` from request to transcoded
@@ -81,6 +84,7 @@ type ImageLoader = Pick<KTX2Loader, 'load'>
  * keeps its own manager: the map and the variant layer each count their own images.
  */
 function countedBy(ktx2: KTX2Loader, manager: THREE.LoadingManager): ImageLoader {
+  let embedded = 0
   return {
     load(url, onLoad, onProgress, onError) {
       manager.itemStart(url)
@@ -95,6 +99,64 @@ function countedBy(ktx2: KTX2Loader, manager: THREE.LoadingManager): ImageLoader
         onError?.(err)
       })
     },
+    parseBytes(bytes) {
+      const item = `ktx2-embedded:${embedded++}`
+      manager.itemStart(item)
+      const start = now()
+      return new Promise<THREE.CompressedTexture>((resolve, reject) => {
+        ktx2.parse(bytes, (texture) => {
+          measureSince('ktx2', start)
+          manager.itemEnd(item)
+          resolve(texture as THREE.CompressedTexture)
+        }, (err: unknown) => {
+          manager.itemError(item)
+          manager.itemEnd(item)
+          reject(err)
+        })
+      })
+    },
+  }
+}
+
+/**
+ * DirectKtx2Images: the GLTFLoader plugin that hands each KTX2 image embedded in the GLB (an image
+ * read from a buffer view) to the KTX2 loader as its bytes. GLTFLoader's own path copies the bytes
+ * into a Blob, makes an object URL and has the loader fetch it back: thousands of blobs at once on
+ * a large map (Streets High: 2349 images, 803 MB), past the browser's blob storage limit when it
+ * cannot page blobs to disk (`net::ERR_BLOB_OUT_OF_MEMORY`, the textures then missing), and two
+ * extra copies of every image. The result is the same texture GLTFLoader's path makes: cached per
+ * image (a second use is a clone), the image's extras in userData, its MIME type recorded. An image
+ * behind a URI, or one for another loader, takes GLTFLoader's own path.
+ */
+class DirectKtx2Images implements GLTFLoaderPlugin {
+  readonly name = 'IT3D_direct_ktx2_images'
+  private readonly parser: GLTFParser
+  private readonly images: ImageLoader
+  constructor(parser: GLTFParser, images: ImageLoader) {
+    this.parser = parser
+    this.images = images
+  }
+
+  beforeRoot(): null {
+    const parser = this.parser as GLTFParser & { sourceCache: Record<number, Promise<THREE.Texture>> }
+    const images = this.images
+    const load = parser.loadImageSource.bind(parser)
+    parser.loadImageSource = (sourceIndex, loader) => {
+      const def = (parser.json.images as Array<{ bufferView?: number; mimeType?: string; extras?: unknown }> | undefined)?.[sourceIndex]
+      if ((loader as unknown) !== images || def?.bufferView === undefined) return load(sourceIndex, loader)
+      const cached = parser.sourceCache[sourceIndex]
+      if (cached !== undefined) return cached.then((t) => t.clone())
+      // The buffer view is its own copy (GLTFLoader slices it) and is read once: the transcoder
+      // worker may take it.
+      const promise = parser.getDependency('bufferView', def.bufferView).then((bytes: ArrayBuffer) => images.parseBytes(bytes)).then((texture) => {
+        if (def.extras && typeof def.extras === 'object') Object.assign(texture.userData, def.extras)
+        texture.userData.mimeType = def.mimeType ?? 'image/ktx2'
+        return texture as THREE.Texture
+      })
+      parser.sourceCache[sourceIndex] = promise
+      return promise
+    }
+    return null
   }
 }
 
@@ -107,8 +169,13 @@ export function withKtx2(loader: GLTFLoader, ktx2: KTX2Loader | null): GLTFLoade
   // The same GLBs carry compressed geometry (build format 3): every caller reads it.
   withMeshopt(loader)
   if (!ktx2) return loader
-  // GLTFLoader only calls `load` on it (GLTFParser.loadImageSource).
-  return loader.setKTX2Loader(countedBy(ktx2, loader.manager) as KTX2Loader).register((parser) => new CompressedMips(parser))
+  // GLTFLoader only calls `load` on it (GLTFParser.loadImageSource); embedded images go through
+  // `parseBytes` (DirectKtx2Images).
+  const images = countedBy(ktx2, loader.manager)
+  return loader
+    .setKTX2Loader(images as unknown as KTX2Loader)
+    .register((parser) => new CompressedMips(parser))
+    .register((parser) => new DirectKtx2Images(parser, images))
 }
 
 /**
