@@ -215,8 +215,8 @@ func (b *abilityChargeBuilder) resolve(r types.AbilityCharge) (AbilityCharge, bo
 func logAbilityChargeCoverage(ctx context.Context, cov AbilityChargeCoverage) {
 	slog.InfoContext(ctx, "replay: equipment charges",
 		"reads", cov.Reads, "published", cov.Published,
-		"sansIdentite", cov.NoIdentity, "familleNonMesuree", cov.OtherFamily,
-		"attributionIndisponible", cov.NoResolver,
-		"avantOrigine", cov.BeforeOrigin, "sansPiste", cov.Unpublished,
-		"composantAbsent", cov.ComponentAbsent)
+		"noIdentity", cov.NoIdentity, "otherFamily", cov.OtherFamily,
+		"noResolver", cov.NoResolver,
+		"beforeOrigin", cov.BeforeOrigin, "noTrack", cov.Unpublished,
+		"componentAbsent", cov.ComponentAbsent)
 }

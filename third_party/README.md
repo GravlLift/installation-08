@@ -153,7 +153,7 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   v128, `structure_test.go` reason, regenerated `document_shape.golden`; covered by
   `replay/projectiles_attache_test.go` (new) and `projectiles_attaches_research_test.go`
   (`research` tag, also exports the cases the viewer harness reads).
-- Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged.
+- Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged. Second pass: remaining French slog attribute keys and values (coverage logging call sites the first pass missed), plus `diag.Signaler` diagnostic `Message`/`Attrs` text in `internal/grammar`, `internal/facts/fallback` and `internal/facts/objectives`. Left untranslated and documented in the pass's report: the `repli_*` fallback names (`internal/facts/fallback` registries) — they are published into `coverage.fallbacks[]`, referenced by golden test data and `FORMAT.md`, and renaming them is a wire-format change out of this pass's scope; and `Diagnostic.Code` constants (e.g. `grammar.grenade_couverture`) — structured codes compared in code, not prose.
 ## Omitted upstream files
 
 The upstream notices identify the following as game imagery or Forge assets. They are excluded under this project's no game-derived assets policy, regardless of corpus size:

@@ -40,7 +40,7 @@ func consignerLaTableDuFilm(ctx context.Context, t grammar.FilmPlayerTable, err 
 		return t
 	}
 	slog.InfoContext(ctx, "replay: film player table read", "match_id", matchID, "build", t.Build,
-		"seats", t.Occupied, "vacant", t.Vacant, "vacantIntercale", t.InterleavedVacant)
+		"seats", t.Occupied, "vacant", t.Vacant, "interleavedVacant", t.InterleavedVacant)
 	if t.InterleavedVacant {
 		// Le registre d'identite tranche (identity_registry_vacant_intercale.go) et journalise son
 		// refus quand les records de creation ne confirment pas le rang absolu.

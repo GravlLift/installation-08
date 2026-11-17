@@ -222,7 +222,7 @@ func (c couverturePorte) poserSur(ctx context.Context, tc *TrackCoverage, matchI
 	}
 	// JOURNALISE, JAMAIS AVALE (regle n° 3 du depot) : ces positions ne sont pas publiees.
 	slog.InfoContext(ctx, "replay: carrying of biped positions",
-		"match_id", matchID, "avantCreation", c.AvantCreation,
-		"viesAvantPremiereCreation", c.ViesAvantPremiereCreation, "horsEmprise", c.HorsEmprise,
-		"slotsArmes", c.SlotsArmes, "slotsDesarmes", c.SlotsDesarmes)
+		"match_id", matchID, "beforeCreation", c.AvantCreation,
+		"livesBeforeFirstCreation", c.ViesAvantPremiereCreation, "outOfBounds", c.HorsEmprise,
+		"armedSlots", c.SlotsArmes, "disarmedSlots", c.SlotsDesarmes)
 }

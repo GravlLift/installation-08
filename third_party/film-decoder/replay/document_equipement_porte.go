@@ -368,20 +368,20 @@ func trierLesPoses(p []RiftPose) {
 // logCarriedEquipmentCoverage sort la couverture du calque.
 func logCarriedEquipmentCoverage(ctx context.Context, cov CarriedEquipmentCoverage) {
 	slog.InfoContext(ctx, "replay: carried equipment",
-		"created", cov.Created, "attached", cov.Attached, "published", cov.Published, "sansIdentite", cov.NoIdentity,
-		"avantOrigine", cov.BeforeOrigin, "finisAvantOrigine", cov.EndedBeforeOrigin,
-		"lecturesAvantOrigine", cov.ReadsBeforeOrigin, "sansIdentifiant", cov.NoGlobalID, "grenades", cov.Grenades,
-		"nonResolus", cov.Unresolved, "enDesaccord", cov.Conflicting,
-		"avecCout", cov.WithCost, "horsCatalogue", cov.NoCatalog,
-		"coutAmbigu", cov.AmbiguousCost, "lecturesEnergie", cov.EnergyReads, "usages", cov.Uses,
-		"posesDeFaille", cov.RiftPoses, "situeesParLObjet", cov.PositionedByObject,
-		"situeesParLePorteur", cov.PositionedByCarrier, "sansPosition", cov.Unpositioned,
-		"echangesSansPose", cov.TeleportsWithoutPose,
-		"objetsEngendres", cov.TrackedObjects, "finsLues", cov.TrackedEnds,
-		"objetsSitues", cov.TrackedPositioned, "objetsSansPosition", cov.TrackedUnpositioned,
-		"finsDeFailleLues", cov.RiftEndsRead, "finsDeFailleNonLues", cov.RiftEndsUnread,
-		"effects", cov.TrackedEffects, "finsDEffetLues", cov.TrackedEffectEnds,
-		"effetsAmbigus", cov.TrackedEffectsAmbiguous, "effetsSansLien", cov.TrackedEffectsUnlinked)
+		"created", cov.Created, "attached", cov.Attached, "published", cov.Published, "noIdentity", cov.NoIdentity,
+		"beforeOrigin", cov.BeforeOrigin, "endedBeforeOrigin", cov.EndedBeforeOrigin,
+		"readsBeforeOrigin", cov.ReadsBeforeOrigin, "noGlobalId", cov.NoGlobalID, "grenades", cov.Grenades,
+		"unresolved", cov.Unresolved, "conflicting", cov.Conflicting,
+		"withCost", cov.WithCost, "noCatalog", cov.NoCatalog,
+		"ambiguousCost", cov.AmbiguousCost, "energyReads", cov.EnergyReads, "uses", cov.Uses,
+		"riftPoses", cov.RiftPoses, "positionedByObject", cov.PositionedByObject,
+		"positionedByCarrier", cov.PositionedByCarrier, "unpositioned", cov.Unpositioned,
+		"teleportsWithoutPose", cov.TeleportsWithoutPose,
+		"trackedObjects", cov.TrackedObjects, "trackedEnds", cov.TrackedEnds,
+		"trackedPositioned", cov.TrackedPositioned, "trackedUnpositioned", cov.TrackedUnpositioned,
+		"riftEndsRead", cov.RiftEndsRead, "riftEndsUnread", cov.RiftEndsUnread,
+		"effects", cov.TrackedEffects, "trackedEffectEnds", cov.TrackedEffectEnds,
+		"trackedEffectsAmbiguous", cov.TrackedEffectsAmbiguous, "trackedEffectsUnlinked", cov.TrackedEffectsUnlinked)
 }
 
 // poserLEquipementPorte publie l'équipement porté et les poses de faille : la famille de chaque objet se lit sur

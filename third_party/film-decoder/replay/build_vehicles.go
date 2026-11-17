@@ -132,7 +132,7 @@ func decodeFilmVehicleLayer(ctx context.Context, fc *grammar.FilmContext, matchI
 	kf := grammar.ScanWorldObjectKeyframes(fc, grammar.VehicleTypeIndex)
 	if len(kf.Band) == 0 {
 		slog.InfoContext(ctx, "vehicles: no ti=40 slot in the keyframes — film read, no vehicle",
-			"match_id", matchID, "imagesCles", len(kf.TimesUS))
+			"match_id", matchID, "keyframes", len(kf.TimesUS))
 		return scanBandeVide(kf)
 	}
 	cre, st, err := grammar.ScanVehicleCreationsForBand(fc, wr, kf.Band)
@@ -151,7 +151,7 @@ func decodeFilmVehicleLayer(ctx context.Context, fc *grammar.FilmContext, matchI
 	out.Events = decodeFilmVehicleEvents(ctx, fc, matchID)
 	slog.InfoContext(ctx, "vehicles: ti=40 sweep",
 		"slots", st.Slots, "anchors", st.Anchors, "creationsAcceptees", st.Accepted,
-		"imagesCles", len(kf.TimesUS), "viesRecensees", len(kf.SeenUS),
+		"keyframes", len(kf.TimesUS), "livesSeen", len(kf.SeenUS),
 		"samples", len(pos), "events", len(out.Events))
 	return out
 }
@@ -259,10 +259,10 @@ func logVehicleDeathReads(ctx context.Context, matchID string, tous, vehicules i
 		niveau = slog.LevelWarn
 	}
 	slog.Log(ctx, niveau, "vehicles: reading the written deaths",
-		"match_id", matchID, "mortsToutesEntites", tous, "mortsVehicules", vehicules,
-		"masqueDeclareLeDeadState", declares, "dontDesynchronises", perdus,
-		"recordsAtteints", st.Records[ti], "recordsEntierementPortes", st.CleanRecords[ti],
-		"paquetsAEvenements", st.EventPackets, "paquetsLocalises", st.LocatedPackets)
+		"match_id", matchID, "allEntityDeaths", tous, "vehicleDeaths", vehicules,
+		"deadStateMaskDeclared", declares, "ofWhichDesynced", perdus,
+		"recordsReached", st.Records[ti], "recordsFullyCarried", st.CleanRecords[ti],
+		"eventPackets", st.EventPackets, "locatedPackets", st.LocatedPackets)
 }
 
 // decodeFilmOccupantAims lit la VISEE des bipedes dans les records qui ne portent AUCUNE

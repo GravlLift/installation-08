@@ -403,5 +403,5 @@ func logVehicleShots(ctx context.Context, cov *VehicleCoverage, published int) {
 	}
 	slog.InfoContext(ctx, "replay: vehicle shots",
 		"published", published, "placements", cov.Shots, "ambiguous", cov.ShotsAmbiguous,
-		"sansPosition", cov.ShotsUnplaced, "orphelinsHorsEpisode", cov.ShotsNoRide)
+		"noPosition", cov.ShotsUnplaced, "orphansOutOfRide", cov.ShotsNoRide)
 }

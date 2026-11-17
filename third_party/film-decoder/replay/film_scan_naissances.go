@@ -32,10 +32,10 @@ func (s *filmScan) balayerNaissances() {
 	} else {
 		slog.InfoContext(s.ctx, "birth: loadouts read",
 			"creations", st.Creations, "read", st.Read, "desynchronized", st.Desync,
-			"overflowing", st.Overflow, "nonConfirmees", st.Unconfirmed,
-			"sansEmplacement", st.NoWeaponComponent, "fermeesParDelta", st.ClosedByDelta,
-			"fermeesParNouveauLie", st.ClosedByBoundNew,
-			"fermeesParNouveauAnticipe", st.ClosedByAnticipatedNew, "match_id", s.matchID)
+			"overflowing", st.Overflow, "unconfirmed", st.Unconfirmed,
+			"noWeaponComponent", st.NoWeaponComponent, "closedByDelta", st.ClosedByDelta,
+			"closedByBoundNew", st.ClosedByBoundNew,
+			"closedByAnticipatedNew", st.ClosedByAnticipatedNew, "match_id", s.matchID)
 	}
 	s.in.BirthLoadouts, s.in.BirthLoadoutStats = births, st
 	s.opt.observe(s.ctx, "birthLoadouts", s.in.BirthLoadouts)

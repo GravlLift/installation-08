@@ -460,8 +460,8 @@ func (r creationReport) alarmerSurLesRefus(ctx context.Context, matchID string, 
 	slog.InfoContext(ctx, "replay: direct body -> player link",
 		"match_id", matchID, "records", r.Records, "bodies", r.Slots,
 		"direct", r.Direct, "propagated", r.Propagated, "indexBot", r.IndexBot,
-		"parEntite", r.ParEntite, "parDeclaration", r.ParDeclaration, "slotsRecycles", r.Recycled,
-		"parIndexDesChunks", len(r.parIndexDesChunks), "indexDesChunksRefuses", r.IndexDesChunksRefuses)
+		"byEntity", r.ParEntite, "byDeclaration", r.ParDeclaration, "recycledSlots", r.Recycled,
+		"byChunkIndex", len(r.parIndexDesChunks), "chunkIndexRejected", r.IndexDesChunksRefuses)
 	if causes.IndexOutOfTable > 0 {
 		// `index` porte la piece : chaque index lu des vies restees sans nom, et leur nombre.
 		slog.WarnContext(ctx, "replay: player index READ but absent from the published table — lives NOT "+
@@ -471,7 +471,7 @@ func (r creationReport) alarmerSurLesRefus(ctx context.Context, matchID string, 
 	if causes.DivergentReadings > 0 {
 		slog.WarnContext(ctx, "replay: life earlier than the first record of its RECYCLED slot — no body "+
 			"established at that instant, the sharing stays silent",
-			"match_id", matchID, "lives", causes.DivergentReadings, "slotsRecycles", r.Recycled)
+			"match_id", matchID, "lives", causes.DivergentReadings, "recycledSlots", r.Recycled)
 	}
 	if r.Slots > 0 && causes.NoCreationRecord > 0 {
 		slog.WarnContext(ctx, "replay: biped lives without a creation record on a film that carries them — "+

@@ -109,7 +109,7 @@ func (a *assemblage) poserCapacitesEtTranslocations() {
 	a.doc.AbilityLabels = abilityLabelsUsed(a.doc.Abilities, a.palette)
 	slog.InfoContext(a.ctx, "replay: a.ability palette",
 		"a.palette", paletteIDOrNone(a.palette), "reads", len(a.doc.Abilities),
-		"rangsNommes", len(a.doc.AbilityLabels))
+		"namedRanks", len(a.doc.AbilityLabels))
 	a.poserLEquipementPorte()
 }
 
@@ -173,11 +173,11 @@ func (a *assemblage) clore() {
 	// couverture. Journaliser `shotCov` publierait un compte périmé à côté d'un artefact à jour.
 	shotsPub := a.doc.Coverage.Shots
 	slog.InfoContext(a.ctx, "replay: coverage by layer",
-		"tirsRattaches", shotsPub.Attached, "tirsDisponibles", shotsPub.Available,
-		"tirsSansSlot", shotsPub.NoSlot, "tirsAmbigus", shotsPub.Ambiguous,
-		"tirsHorsFenetre", shotsPub.OutOfWindow, "tirsNonPublies", shotsPub.Unpublished,
-		"grenadesRattachees", a.grenCov.Attached, "grenadesDisponibles", a.grenCov.Available,
-		"verdictTirs", a.doc.Coverage.Verdict["shots"],
+		"shotsAttached", shotsPub.Attached, "shotsAvailable", shotsPub.Available,
+		"shotsNoSlot", shotsPub.NoSlot, "shotsAmbiguous", shotsPub.Ambiguous,
+		"shotsOutOfWindow", shotsPub.OutOfWindow, "shotsUnpublished", shotsPub.Unpublished,
+		"grenadesAttached", a.grenCov.Attached, "grenadesAvailable", a.grenCov.Available,
+		"verdictShots", a.doc.Coverage.Verdict["shots"],
 		"verdictGrenades", a.doc.Coverage.Verdict["grenades"],
 		"verdictPont", a.doc.Coverage.Verdict["bridge"])
 	// Les replis que l appelant apporte en donnees (kill-feed, objectifs, construction) rejoignent
