@@ -22,7 +22,7 @@ import {
 } from './clipSelect3d'
 
 const CAT = motionCatalog()
-/** Les huit directions de `motionCatalog` et leur angle (degrés, + = gauche). */
+/** `motionCatalog`'s eight directions and their angle (degrees, + = left). */
 const DIRS: readonly (readonly [string, number])[] = [
   ['front', 0], ['frontleft', 45], ['left', 90], ['backleft', 135],
   ['back', 180], ['backright', -135], ['right', -90], ['frontright', -45],
@@ -42,7 +42,7 @@ function input(over: Partial<MotionInput> = {}): MotionInput {
   }
 }
 
-/** layers : les couches de base (nom → poids, temps), poids sommés par nom. */
+/** layers: the base layers (name -> weight, time), weights summed by name. */
 function base(mix: ClipMix): Map<string, { weight: number; time: number }> {
   const out = new Map<string, { weight: number; time: number }>()
   for (const l of mix.base.slice(0, mix.baseCount)) {
@@ -57,20 +57,20 @@ const total = (mix: ClipMix) => mix.base.slice(0, mix.baseCount).reduce((s, l) =
 const select = (q: MotionInput) => selectClips(q, CAT, newClipMix())
 
 describe('selectClips : locomotion', () => {
-  it('immobile : l’attente seule, à l’heure de l’image ; à bord aussi', () => {
+  it('stationary: idle alone, timed to the frame; aboard too', () => {
     const m = select(input({ gait: { speed: IDLE_BELOW / 2, rel: 0, phase: 3 } }))
     expect([...base(m).keys()]).toEqual(['combat:rifle:idle'])
     expect(base(m).get('combat:rifle:idle')?.time).toBeCloseTo(10)
     expect([...base(select(input({ gait: null }))).keys()]).toEqual(['combat:rifle:idle'])
   })
 
-  it('les poids font 1 dans chaque état', () => {
+  it('the weights sum to 1 in every state', () => {
     for (const speed of [0, 0.3, 0.8, 1.2, 2, 3]) {
       for (const rel of [0, 30, 100, -170]) expect(total(select(input({ gait: { speed, rel, phase: 1.3 } })))).toBeCloseTo(1, 9)
     }
   })
 
-  it('marche, puis course, mêlées selon la vitesse entre les vitesses propres des clips', () => {
+  it("walk, then run, blended by speed between the clips' own speeds", () => {
     const walkSpeed = 0.94 / (26 / 30)
     const runSpeed = 1.533 / (22 / 30)
     const at = (speed: number) => base(select(input({ gait: { speed, rel: 0, phase: 0 } })))
@@ -82,27 +82,27 @@ describe('selectClips : locomotion', () => {
     expect(at(runSpeed + 1).get('combat:rifle:locomote_run_front')?.weight).toBeCloseTo(1)
   })
 
-  it('le temps d’un clip qui se déplace vient de la phase : même phase, même temps ; à rebours, à rebours', () => {
+  it("a moving clip's time comes from the phase: same phase, same time; reversed, reversed", () => {
     const clip = CAT.get('combat:rifle:locomote_run_front') as SpartanClip
     const t = (phase: number) => base(select(input({ gait: { speed: 2.1, rel: 0, phase } }))).get(clip.name)?.time ?? -1
     expect(t(4.2)).toBe(t(4.2))
     expect(t(4.2)).toBeCloseTo(phaseTime(clip, 4.2))
-    // La phase avance avec la distance : un dixième de cycle plus loin, un dixième de cycle de clip.
+    // Phase advances with distance: a tenth of a cycle further, a tenth of a cycle of clip.
     expect(t(4.3) - t(4.2)).toBeCloseTo(0.1 * clip.cycle)
     expect(t(4.1) - t(4.2)).toBeCloseTo(-0.1 * clip.cycle)
-    // Aucune dépendance à l'image : seule la phase compte.
+    // No dependency on the frame: only the phase matters.
     const other = selectClips(input({ frame: 777, gait: { speed: 2.1, rel: 0, phase: 4.2 } }), CAT, newClipMix())
     expect(base(other).get(clip.name)?.time).toBe(t(4.2))
   })
 
-  it('mixStride : la foulée moyenne des couches qui se déplacent', () => {
+  it('mixStride: the average stride of the moving layers', () => {
     expect(mixStride(select(input({ gait: { speed: 3, rel: 0, phase: 0 } })))).toBeCloseTo(1.533)
     expect(mixStride(select(input({ gait: { speed: 0, rel: 0, phase: 0 } })))).toBe(0)
   })
 })
 
 describe('selectClips : direction', () => {
-  it('les poids des directions font 1 et sont continus sur les huit secteurs', () => {
+  it('direction weights sum to 1 and are continuous across the eight sectors', () => {
     let prev: Map<string, number> | null = null
     for (let rel = -360; rel <= 360; rel += 0.5) {
       const p = dirWeights(CAT, 'rifle', 'run', rel)
@@ -119,7 +119,7 @@ describe('selectClips : direction', () => {
     }
   })
 
-  it('chaque secteur prend son clip, entre deux secteurs les deux voisins', () => {
+  it('each sector takes its own clip, between two sectors the two neighbors', () => {
     for (const [d, a] of DIRS) {
       const p = dirWeights(CAT, 'rifle', 'run', a)
       expect(p.a?.name).toBe(`combat:rifle:locomote_run_${d}`)
@@ -131,7 +131,7 @@ describe('selectClips : direction', () => {
     expect(wrap180(190)).toBe(-170)
   })
 
-  it('le pistolet mêle ses quatre directions ; le marteau garde son avance de face et prend le fusil ailleurs', () => {
+  it('the pistol blends its four directions; the hammer keeps its forward advance and takes the rifle elsewhere', () => {
     const p = dirWeights(CAT, 'pistol', 'run', 45)
     expect([p.a?.name, p.b?.name]).toEqual(['combat:pistol:locomote_run_front', 'combat:pistol:locomote_run_left'])
     expect(p.wa).toBeCloseTo(0.5)
@@ -144,7 +144,7 @@ describe('selectClips : postures', () => {
   const span = (t0: number, t1: number) => [{ t0, t1 }]
   const moving = { speed: 2.1, rel: 0, phase: 0.4 }
 
-  it('sprint : fondu depuis le début de l’intervalle et après sa fin, fonction de l’image', () => {
+  it('sprint: faded from the start of the interval and after its end, a function of the frame', () => {
     const w = (frame: number) => base(select(input({ frame, gait: moving, stances: { ...NONE, sprint: span(100, 120) } }))).get('sprint:rifle:locomote')?.weight ?? 0
     expect(w(99)).toBe(0)
     expect(w(100)).toBe(0)
@@ -152,11 +152,11 @@ describe('selectClips : postures', () => {
     expect(w(110)).toBeCloseTo(1)
     expect(w(121 + (STANCE_FADE * FPS) / 2)).toBeCloseTo(0.5)
     expect(w(125)).toBe(0)
-    // Pur : la même image, quel que soit l'ordre des appels.
+    // Pure: the same frame, whatever the call order.
     expect(w(101)).toBe(w(101))
   })
 
-  it('accroupi : l’attente et la marche accroupies, le reste debout pendant le fondu', () => {
+  it('crouched: idle and walk crouched, the rest standing during the fade', () => {
     const still = base(select(input({ frame: 110, gait: { speed: 0, rel: 0, phase: 0 }, stances: { ...NONE, crouch: span(100, 140) } })))
     expect(still.get('crouch:rifle:idle')?.weight).toBeCloseTo(1)
     const walk = base(select(input({ frame: 110, gait: { speed: 0.66, rel: 90, phase: 0 }, stances: { ...NONE, crouch: span(100, 140) } })))
@@ -166,13 +166,13 @@ describe('selectClips : postures', () => {
     expect(fading.get('combat:rifle:idle')?.weight).toBeCloseTo(0.5)
   })
 
-  it('glissade : le clip depuis le début de l’intervalle, tenu à sa fin', () => {
+  it('slide: the clip since the interval started, held at its end', () => {
     const m = base(select(input({ frame: 104, gait: moving, stances: { ...NONE, slide: span(100, 112) } })))
     expect(m.get('crouch:rifle:slide')?.weight).toBeCloseTo(1)
     expect(m.get('crouch:rifle:slide')?.time).toBeCloseTo(0.4)
   })
 
-  it('escalade : entrée puis sortie étirées sur l’intervalle', () => {
+  it('clamber: entry then exit stretched over the interval', () => {
     const at = (frame: number) => base(select(input({ frame, gait: moving, stances: { ...NONE, clamber: span(100, 105) } })))
     expect(at(101.5).get('combat:rifle:clamber_enter')?.weight).toBeCloseTo(1)
     expect(at(101.5).get('combat:rifle:clamber_enter')?.time).toBeCloseTo((1.5 / 6 / (10 / 22)) * (9 / 30))
@@ -180,7 +180,7 @@ describe('selectClips : postures', () => {
     expect(at(98).has('combat:rifle:clamber_enter')).toBe(false)
   })
 
-  it('saut : en l’air depuis le début, réception depuis la fin, puis la locomotion revient', () => {
+  it('jump: airborne from the start, landing from the end, then locomotion returns', () => {
     const stances = { ...NONE, jump: span(100, 104) }
     const air = base(select(input({ frame: 103, gait: moving, stances })))
     expect(air.get('combat:rifle:airborne_arc')?.weight).toBeCloseTo(1)
@@ -194,17 +194,17 @@ describe('selectClips : postures', () => {
   })
 })
 
-describe('selectClips : actions par-dessus', () => {
-  it('corps à corps : l’impact du clip tombe à l’image du coup', () => {
+describe('selectClips : over actions', () => {
+  it("melee: the clip's impact lands on the hit's frame", () => {
     const at = (frame: number) => over(select(input({ frame, events: { melee: [200], grenade: [], reload: [], swaps: [] } })))
     expect(at(200)[0]).toMatchObject({ name: 'combat:rifle:melee_strike_1', time: expect.closeTo(MELEE_IMPACT, 9), weight: 1 })
     expect(at(200 - (MELEE_IMPACT * FPS) / 2)[0].time).toBeCloseTo(MELEE_IMPACT / 2)
-    // Avant le début du clip, et après sa fin : rien.
+    // Before the clip starts, and after it ends: nothing.
     expect(at(200 - MELEE_IMPACT * FPS - 0.1)).toEqual([])
     expect(at(212)).toEqual([])
   })
 
-  it('grenade : le lâcher tombe à l’image du lancer ; rechargement depuis son image', () => {
+  it("grenade: the release lands on the throw's frame; reload from its own frame", () => {
     expect(THROW_RELEASE).toBe(0.25)
     const g = over(select(input({ frame: 300, events: { melee: [], grenade: [300], reload: [], swaps: [] } })))
     expect(g[0]).toMatchObject({ name: 'combat:rifle:throw_grenade', time: expect.closeTo(THROW_RELEASE, 9) })
@@ -212,7 +212,7 @@ describe('selectClips : actions par-dessus', () => {
     expect(r[0]).toMatchObject({ name: 'combat:rifle:reload_1', time: expect.closeTo(ACTION_FADE_IN, 9), weight: expect.closeTo(1, 9) })
   })
 
-  it('changement d’arme : rangement de l’ancienne classe fini à l’image, dégainage de la nouvelle ensuite', () => {
+  it('weapon change: the old class put-away finished at the frame, the new class ready afterward', () => {
     const swaps = [{ t: 400, from: 'rifle' as const, to: 'pistol' as const }]
     const before = over(select(input({ frame: 399.9, events: { melee: [], grenade: [], reload: [], swaps } })))
     expect(before.map((l) => l.name)).toEqual(['combat:rifle:put_away'])

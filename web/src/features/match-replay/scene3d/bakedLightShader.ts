@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * bakedLightShader.ts — LA LUMIÈRE CUITE DANS LE SHADER DES MATÉRIAUX DE LA CARTE (cf. `bakedLight`).
+ * bakedLightShader.ts — THE BAKED LIGHT IN THE MAP MATERIALS' SHADER (see `bakedLight`).
  *
- * Par pixel : position et normale monde ramenées en axes Halo, puis, des régions les plus
- * prioritaires aux moins prioritaires, l'irradiance de la région (huit sondes voisines, poids
- * trilinéaire × face × sonde active) pondérée par sa rampe de bord ; ce qu'aucune région ne couvre
- * garde l'éclairage indirect de la vue (ciel, sondes capturées), et une région plus sombre que lui
- * en garde une part (`BAKED_LIFT`). La lumière directe (soleil) n'est
- * pas touchée. Les lampes en grille partagent l'atlas et l'interrupteur sans recompilation, et
- * éclairent tout matériau greffé, la carte comme les Spartans.
+ * Per pixel: world position and normal brought into Halo axes, then, from the highest-priority
+ * regions to the lowest, the region's irradiance (eight neighboring probes, trilinear × face ×
+ * active-probe weight) weighted by its blend ramp; what no region covers keeps the view's
+ * indirect lighting (sky, captured probes), and a region darker than it keeps a share of it
+ * (`BAKED_LIFT`). Direct light (sun) is untouched. Gridded lamps share the atlas and the switch
+ * with no recompile, and light every grafted material, the map as much as the Spartans.
  */
 import * as THREE from 'three'
 import { appendLampData, buildLampGrid } from './clusteredLights'
@@ -17,26 +16,26 @@ import type { PlacedLight } from './placedLights'
 
 import { MAX_REGIONS, packAtlas, readBakedRegions, PROBE_INNER, PROBE_TILE, type BakedAtlas, type BakedRegion } from './bakedLight'
 
-// Décalage du point d'échantillonnage le long de la normale (u) : la sonde la plus proche d'un mur
-// ne doit pas être celle de l'autre côté.
+// Offset of the sampling point along the normal (u): the probe nearest a wall must not be the
+// one on its other side.
 const NORMAL_BIAS = 0.15
-// Part de l'indirect de la vue (ciel, sondes capturées) gardée sous une lumière cuite nulle : le
-// jeu rouvre son exposition dans une salle sombre, la vue a une exposition fixe. Une part faible :
-// cet indirect porte la teinte froide du ciel de la vue, et les lampes de la carte éclairent déjà
-// partout où le jeu éclaire.
+// Share of the view's indirect light (sky, captured probes) kept under zero baked light: the
+// game reopens its exposure in a dark room, the view has a fixed exposure. A small share: this
+// indirect light carries the view sky's cool tint, and the map's lamps already light everywhere
+// the game lights.
 export const BAKED_LIFT = 0.3
 
-/** Nombre de vec4 par région dans `uBaked`. */
+/** Number of vec4 per region in `uBaked`. */
 export const BAKED_ROWS = 3
 
 /**
- * packBakedRegions range les régions dans le tableau unique `uBaked` : par région r, trois vec4
- * à partir de r * BAKED_ROWS :
- * - ligne 0 : min.xyz, base (première sonde de la région) ;
- * - ligne 1 : max.xyz, blend.x (fondu horizontal) ;
- * - ligne 2 : grille.xyz (sondes par axe), blend.y (fondu vertical).
- * Les places sans région valent min = max = 0, grille 1, base 0, fondu 1 (jamais lues : le shader
- * s'arrête à `uBakedCount`). Un seul tableau déjà à plat : un seul envoi par changement de matériau.
+ * packBakedRegions packs the regions into the single `uBaked` array: per region r, three vec4
+ * starting at r * BAKED_ROWS:
+ * - row 0: min.xyz, base (the region's first probe);
+ * - row 1: max.xyz, blend.x (horizontal blend);
+ * - row 2: grid.xyz (probes per axis), blend.y (vertical blend).
+ * Slots without a region hold min = max = 0, grid 1, base 0, blend 1 (never read: the shader
+ * stops at `uBakedCount`). A single, already-flat array: one upload per material change.
  */
 export function packBakedRegions(regions: readonly BakedRegion[]): Float32Array {
   const out = new Float32Array(MAX_REGIONS * BAKED_ROWS * 4)
@@ -78,13 +77,13 @@ uniform sampler2D uBakedIrr;
 uniform float uBakedColumns;
 uniform vec2 uBakedSize;
 uniform int uBakedCount;
-// Par région : min.xyz + base, max.xyz + fondu x, grille.xyz + fondu y (cf. packBakedRegions).
+// Per region: min.xyz + base, max.xyz + blend x, grid.xyz + blend y (see packBakedRegions).
 uniform vec4 uBaked[BAKED_REGIONS * BAKED_ROWS];
 uniform float uBakedOn;
 uniform float uBakedIntensity;
 varying vec3 vBakedWorld;
 
-// Le codage octaédrique du jeu, axes Halo : centre = +Z, colonnes +X, lignes +Y.
+// The game's own octahedral encoding, Halo axes: center = +Z, columns +X, rows +Y.
 vec2 bakedOct(vec3 n) {
   n /= abs(n.x) + abs(n.y) + abs(n.z);
   vec2 p = n.xy;
@@ -103,14 +102,14 @@ vec3 bakedProbe(float k, vec2 oct) {
   return mix(a, b, f.y);
 }
 
-// L'alpha de la tuile : 1 sonde active, 0 sonde enfouie.
+// The tile's alpha: 1 active probe, 0 buried probe.
 float bakedActive(float k) {
   ivec2 tile = ivec2(int(mod(k, uBakedColumns)), int(floor(k / uBakedColumns)));
   return texelFetch(uBakedIrr, tile * ${PROBE_TILE} + 1, 0).a;
 }
 
-// Irradiance de la région r au point p (normale n, axes Halo) ; w = sa part (0 hors de la boîte,
-// rampe sur le bord de fondu, 0 si aucune des huit sondes n'est active).
+// Region r's irradiance at point p (normal n, Halo axes); w = its share (0 outside the box,
+// ramps on the blend edge, 0 if none of the eight probes is active).
 vec3 bakedRegion(int r, vec3 p, vec3 n, vec2 oct, out float w) {
   vec4 row0 = uBaked[r * BAKED_ROWS];
   vec4 row1 = uBaked[r * BAKED_ROWS + 1];
@@ -123,7 +122,7 @@ vec3 bakedRegion(int r, vec3 p, vec3 n, vec2 oct, out float w) {
   vec2 b = max(vec2(row1.w, row2.w), vec2(1e-3));
   w = clamp(min(inside.x, inside.y) / b.x, 0.0, 1.0) * clamp(inside.z / b.y, 0.0, 1.0);
   if (w <= 0.0) return vec3(0.0);
-  // Sondes au centre des cellules : la sonde i est à lo + (i + 0.5) * spacing.
+  // Probes at cell centers: probe i is at lo + (i + 0.5) * spacing.
   vec3 spacing = (hi - lo) / c;
   vec3 last = c - 1.0;
   vec3 g = clamp((p - lo) / max(spacing, vec3(1e-4)) - 0.5, vec3(0.0), last);
@@ -152,7 +151,7 @@ vec3 bakedRegion(int r, vec3 p, vec3 n, vec2 oct, out float w) {
   return sum / total;
 }
 
-// Irradiance cuite au point (repère three) ; rest = la part qu'aucune région ne couvre.
+// Baked irradiance at the point (three frame); rest = the share no region covers.
 vec3 bakedIrradiance(vec3 pThree, vec3 nThree, out float rest) {
   vec3 n = normalize(vec3(nThree.x, -nThree.z, nThree.y));
   vec3 p = vec3(pThree.x, -pThree.z, pThree.y) + n * ${NORMAL_BIAS};
@@ -174,7 +173,7 @@ const FRAGMENT_APPLY = /* glsl */ `
 if (uBakedOn > 0.5) {
   float bakedRest;
   vec3 baked = bakedIrradiance(vBakedWorld, inverseTransformDirection(geometryNormal, viewMatrix), bakedRest);
-  // Là où la lumière cuite est plus faible que l'indirect de la vue, la vue en garde une part.
+  // Where the baked light is weaker than the view's indirect light, the view keeps a share of it.
   float dim = clamp(1.0 - luminance(baked) / max(luminance(irradiance + iblIrradiance), 1e-4), 0.0, 1.0);
   float keep = bakedRest + (1.0 - bakedRest) * ${BAKED_LIFT.toFixed(2)} * dim;
   irradiance = baked + keep * irradiance;
@@ -182,7 +181,7 @@ if (uBakedOn > 0.5) {
 }
 #endif`
 
-/** La lumière cuite d'une carte, prête à être greffée sur ses matériaux. */
+/** A map's baked light, ready to be grafted onto its materials. */
 export class BakedLight {
   readonly regions: readonly BakedRegion[]
   readonly atlas: BakedAtlas
@@ -193,7 +192,7 @@ export class BakedLight {
     const grid = buildLampGrid(lamps)
     const offsets = lamps.length ? appendLampData(atlas, grid, lamps) : null
     this.hasLamps = offsets !== null
-    // Les plus prioritaires d'abord : le shader s'arrête quand elles couvrent tout.
+    // Highest priority first: the shader stops once they cover everything.
     this.regions = [...regions].sort((a, b) => b.priority - a.priority).slice(0, MAX_REGIONS)
     this.atlas = atlas
     this.uniforms = {
@@ -205,10 +204,10 @@ export class BakedLight {
       uBakedColumns: { value: atlas.columns },
       uBakedSize: { value: new THREE.Vector2(atlas.irradiance.image.width, atlas.irradiance.image.height) },
       uBakedCount: { value: this.regions.length },
-      // Les régions en un seul tableau à plat : three l'envoie tel quel à chaque changement de
-      // matériau (un tableau d'uniforme n'a pas de cache, chaque tableau coûte un envoi). Pas de
-      // texture : les matériaux à couches occupent déjà les 16 unités de texture d'un GPU courant
-      // avec le reflet et l'ombre du soleil.
+      // The regions as a single flat array: three uploads it as is on every material change (a
+      // uniform array has no cache, every array costs an upload). No texture: layered materials
+      // already occupy all 16 texture units of a typical GPU, with the reflection and the sun's
+      // shadow.
       uBaked: { value: packBakedRegions(this.regions) },
       uBakedOn: { value: 1 },
       uBakedIntensity: { value: intensity },
@@ -216,9 +215,9 @@ export class BakedLight {
   }
 
   /**
-   * apply greffe la lumière cuite sur un matériau standard (à faire avant sa compilation) : la
-   * carte, son calque, et tout ce qui s'y tient (Spartans, corps, bras et arme à la première
-   * personne). The map's placed lamps come with it on every material: on a night map (Streets
+   * apply grafts the baked light onto a standard material (to be done before it compiles): the
+   * map, its layer, and everything standing on it (Spartans, bodies, first-person arms and
+   * weapon). The map's placed lamps come with it on every material: on a night map (Streets
    * declares a sun of 0.05 against the 8 of a day map) they are almost all of the light on the
    * ground, and a Spartan without them stood near black on a lamp-lit street.
    */
@@ -238,7 +237,7 @@ export class BakedLight {
         shader.fragmentShader = shader.fragmentShader.replace('#include <lights_pars_begin>', `#include <lights_pars_begin>${LAMP_HEAD}`).replace('#include <lights_fragment_begin>', `#include <lights_fragment_begin>${LAMP_APPLY}`)
       }
     }
-    material.customProgramCacheKey = () => `${previousKey()}|cuite-v3|lampes-${this.hasLamps}`
+    material.customProgramCacheKey = () => `${previousKey()}|baked-v3|lamps-${this.hasLamps}`
   }
 
   set enabled(on: boolean) {
@@ -250,7 +249,7 @@ export class BakedLight {
   }
 }
 
-/** Lit les sondes et les lampes de la carte ; null si les deux sont absentes. */
+/** Reads the map's probes and lamps; null if both are absent. */
 export async function loadBakedLight(extras: unknown, parser: Parameters<typeof readBakedRegions>[1], intensity: number, lamps: readonly PlacedLight[] = []): Promise<BakedLight | null> {
   const regions = await readBakedRegions(extras, parser)
   if (!regions && !lamps.length) return null
