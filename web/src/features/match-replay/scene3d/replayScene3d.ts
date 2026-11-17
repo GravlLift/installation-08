@@ -51,7 +51,7 @@ import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
-import { timedSync } from './perf3d'
+import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
 import { ScopeView3d } from './scopeView3d'
@@ -214,10 +214,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.model = model
     this.tracks = tracks
     model.glowAnimation.setEnabled(this.lookGlow)
-    this.scene.add(model.root)
-    this.lighting.setStaticCasters(this.mapRoots())
-    this.lighting.setSunStrength(model.sunStrength)
-    this.lighting.setSunColor(model.sunColor)
+    // it3d:map:attach:* splits the attach phase into named parts so the 4.7 s can be read piece by
+    // piece in the Timings track (scene graph add, the probe captures that render the map, the sky,
+    // the batched draw setup, the avatars, and the floor raycast that places the camera).
+    const seg = (name: string, run: () => void): void => {
+      const t0 = now()
+      run()
+      measureDuration(`map:attach:${name}`, now() - t0)
+    }
+    seg('scene', () => {
+      this.scene.add(model.root)
+      this.lighting.setStaticCasters(this.mapRoots())
+      this.lighting.setSunStrength(model.sunStrength)
+      this.lighting.setSunColor(model.sunColor)
+    })
     const playPoints = tracks.players
       .flatMap((p) => tracks.allPoints(p.xuid))
       .map((p) => new THREE.Vector3(...toThree(p.x, p.y, p.z)))
@@ -230,8 +240,10 @@ export class ReplayScene3d implements Replay3DExportSource {
       const sun = model.sun ?? SUN_FALLBACK
       this.lighting.setSun(sun.azimuth, sun.elevation)
       this.lighting.takeGameLight(model.baked) // game light active during the probe captures
-      this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
-      model.glowAnimation.adoptCopies(model.surfaces) // the probes copied shared materials
+      seg('probes', () => {
+        this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
+        model.glowAnimation.adoptCopies(model.surfaces) // the probes copied shared materials
+      })
       this.playTop = playBox.max.y
       this.top = new TopDownView3d({ scene: this.scene, renderer: this.renderer, sun: this.lighting.sun, heights: playPoints.map((p) => p.y), walked: new THREE.Box3().setFromPoints(playPoints) })
     }
@@ -240,16 +252,23 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.scene.add(this.ciel)
     }
     this.top?.sync(this.ciel, this.mapRoots())
-    // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
-    model.batchDraws()
-    freezeStatic(model.root)
-    this.findBackFaces()
-    for (const p of tracks.players) {
-      const a = makeAvatar(this.scene, p.name, colorOf(p.xuid))
-      a.group.visible = false; this.avatars.set(p.xuid, a)
-    }
+    seg('batch', () => {
+      // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
+      model.batchDraws()
+      freezeStatic(model.root)
+      this.findBackFaces()
+    })
+    seg('avatars', () => {
+      for (const p of tracks.players) {
+        const a = makeAvatar(this.scene, p.name, colorOf(p.xuid))
+        a.group.visible = false; this.avatars.set(p.xuid, a)
+      }
+    })
     this.players = tracks.players.map((p) => ({ xuid: p.xuid, name: p.name }))
-    this.feetDrop = measureOriginAboveFloor(tracks.players.flatMap((p) => tracks.allPoints(p.xuid)), this.model, this.raycaster)
+    const allPoints = tracks.players.flatMap((p) => tracks.allPoints(p.xuid))
+    seg('origin', () => {
+      this.feetDrop = measureOriginAboveFloor(allPoints, this.model, this.raycaster)
+    })
     this.scene.add(this.actionRoot); this.prepareAvatars()
   }
 
