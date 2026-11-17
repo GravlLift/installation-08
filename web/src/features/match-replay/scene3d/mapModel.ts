@@ -19,6 +19,7 @@ import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
 import { buildBackFaces } from './backFaces3d'
+import { deserializeBVHCache, serializeBVHCache } from './bvhCache'
 import { intensiteSoleil, lireCiel, sunColorOf } from './ciel3d'
 import { GlowAnimator, readGlowAnim } from './glowAnimation3d'
 import { loadBakedLight, type BakedLight } from './bakedLightShader'
@@ -117,6 +118,12 @@ export interface SurfaceModel {
   surfaces: THREE.Mesh[]
   /** The self-lit materials whose light the game animates (`glowAnimation3d`); empty for a still map. */
   glowAnimation: GlowAnimator
+  /**
+   * The freshly built ray index, packed for upload (`bvhCache.serializeBVHCache`), when
+   * `indexSurfaces` had to build it (no cache was given, or it did not match); null when a
+   * supplied cache was used as-is, so nothing new needs to be stored server-side.
+   */
+  bvhUpload: ArrayBuffer | null
   /** Libère géométries, index et matériaux du modèle (pas la lumière cuite qu'il a reprise). */
   dispose(): void
 }
@@ -243,7 +250,7 @@ export function teinteVerreTeint(couches: LayeredInfo): [number, number, number]
  * loadMapModel décode le GLB de la carte et prépare ses matériaux ; `onStep` dit l'étape en cours.
  * `ktx2`: the renderer's KTX2 loader (`createKtx2Loader`), for a GLB with compressed textures.
  */
-export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null): Promise<MapModel> {
+export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<MapModel> {
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2, 'map')
   const { scene, parser, owned, merge } = prepared
   // Dernière lecture du décodeur : après elle, le modèle n'en retient aucune référence et
@@ -253,7 +260,7 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
   const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
   const baked = await timed('map:baked-light', () => loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps))
   if (baked) for (const m of owned) baked.apply(m)
-  const model = await indexSurfaces(prepared, onStep, 'map')
+  const model = await indexSurfaces(prepared, onStep, 'map', bvhCache)
   let unbatch: (() => void) | null = null
   return {
     ...model,
@@ -280,11 +287,11 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
  * n'en porte pas) est greffée sur ses matériaux, et reste à la carte qui la libère. `ktx2`: as for
  * `loadMapModel`.
  */
-export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null): Promise<SurfaceModel> {
+export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2, 'variant')
   if (light) for (const m of prepared.owned) light.apply(m)
-  return indexSurfaces(prepared, onStep, 'variant')
+  return indexSurfaces(prepared, onStep, 'variant', bvhCache)
 }
 
 function quiet(): void {}
@@ -563,36 +570,48 @@ export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometr
   return [...new Set(meshes.map((m) => m.geometry))]
 }
 
-/** indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle. */
-async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback, label: string): Promise<SurfaceModel> {
+/**
+ * indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle.
+ * `bvhCache`, when given, is tried first (`deserializeBVHCache`): on a match it replaces the whole
+ * build loop below. On any mismatch (format, library version, build options, geometry counts) or
+ * when absent, the index is built as before, and the model's `bvhUpload` carries the freshly built
+ * one, packed for the caller to store server-side; a used cache leaves `bvhUpload` null.
+ */
+async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback, label: string, bvhCache: ArrayBuffer | null = null): Promise<SurfaceModel> {
   const bvhStart = now()
   const bvh = geometriesOf([...groups.structure, ...groups.seeThrough])
   onStep('index', 0, bvh.length)
-  await new Promise((r) => setTimeout(r, 0))
-  // Un index de rayons par géométrie : la construction se compte, et un passage au navigateur tous
-  // les quelques géométries laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
-  // plus pour toute la carte).
-  // Diagnostics: the structure index is the one raycasts query; the see-through one is tallied
-  // apart to see if it earns its build time.
-  const structGeos = new Set(geometriesOf(groups.structure))
-  let structMs = 0
-  let seeThroughMs = 0
-  const pas = Math.max(1, Math.ceil(bvh.length / 19))
-  for (let i = 0; i < bvh.length; i++) {
-    const geoStart = now()
-    // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
-    // so the hit test pays only a little more per ray, while the build drops a level of sorting
-    // for every doubling (Streets: ~3.3 s to ~1.9 s over its two thousand structure geometries).
-    bvh[i].computeBoundsTree({ maxLeafTris: 100 })
-    const dt = now() - geoStart
-    if (structGeos.has(bvh[i])) structMs += dt
-    else seeThroughMs += dt
-    onStep('index', i + 1, bvh.length)
-    if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
+  let bvhUpload: ArrayBuffer | null = null
+  const loadedFromCache = bvhCache ? timedSync(`${label}:bvh-load`, () => deserializeBVHCache(bvhCache, bvh)) : false
+  if (!loadedFromCache) {
+    await new Promise((r) => setTimeout(r, 0))
+    // Un index de rayons par géométrie : la construction se compte, et un passage au navigateur tous
+    // les quelques géométries laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
+    // plus pour toute la carte).
+    // Diagnostics: the structure index is the one raycasts query; the see-through one is tallied
+    // apart to see if it earns its build time.
+    const structGeos = new Set(geometriesOf(groups.structure))
+    let structMs = 0
+    let seeThroughMs = 0
+    const pas = Math.max(1, Math.ceil(bvh.length / 19))
+    for (let i = 0; i < bvh.length; i++) {
+      const geoStart = now()
+      // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
+      // so the hit test pays only a little more per ray, while the build drops a level of sorting
+      // for every doubling (Streets: ~3.3 s to ~1.9 s over its two thousand structure geometries).
+      bvh[i].computeBoundsTree({ maxLeafTris: 100 })
+      const dt = now() - geoStart
+      if (structGeos.has(bvh[i])) structMs += dt
+      else seeThroughMs += dt
+      onStep('index', i + 1, bvh.length)
+      if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
+    }
+    measureSince(`${label}:bvh`, bvhStart)
+    measureDuration(`${label}:bvh-structure`, structMs)
+    measureDuration(`${label}:bvh-see-through`, seeThroughMs)
+    bvhUpload = bvh.length > 0 ? serializeBVHCache(bvh) : null
   }
-  measureSince(`${label}:bvh`, bvhStart)
-  measureDuration(`${label}:bvh-structure`, structMs)
-  measureDuration(`${label}:bvh-see-through`, seeThroughMs)
+  onStep('index', bvh.length, bvh.length)
   timedSync(`${label}:bounds`, () => {
     for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
   })
@@ -606,6 +625,7 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
     seeThrough: groups.seeThrough,
     surfaces: [...groups.structure, ...groups.decor, ...groups.seeThrough],
     glowAnimation,
+    bvhUpload,
     dispose() {
       shadows.dispose()
       backs.dispose()

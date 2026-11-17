@@ -38,6 +38,7 @@ import { loadMapModel } from '../scene3d/mapModel'
 import { LoadGate } from '../scene3d/loadGate3d'
 import { preloadAssets3d } from '../scene3d/preloadAssets3d'
 import { fetchMesh } from '../scene3d/meshFetch'
+import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
 import { ReplayScene3d, type CameraMode3d, type PovStatus } from '../scene3d/replayScene3d'
 import type { SceneView3d } from '../scene3d/topDownLogic'
 import { buildTracks3d } from '../scene3d/tracks3d'
@@ -179,9 +180,14 @@ export function Replay3DView({
     }
     void (async () => {
       try {
-        const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
+        // The sidecar is small next to the GLB: fetched alongside it, never after, so a cache hit
+        // never adds a round trip to the critical path.
+        const [buffer, bvhCache] = await Promise.all([
+          fetchMesh(meshPath, onProgress, abort.signal),
+          fetchBVHCache(meshPath, abort.signal),
+        ])
         if (alive) progress.mapDownloaded()
-        const model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader))
+        const model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader, bvhCache))
         if (!alive) {
           model.dispose()
           return
@@ -194,6 +200,10 @@ export function Replay3DView({
         sceneRef.current = scene
         setMapScene(scene)
         setFallbackPov(tracks.players[0]?.xuid ?? null)
+        // Off the critical path: the map is already shown by the time this fires. A map built
+        // before this shipped has no sidecar yet (`bvhCache` null); this is the lazy upload that
+        // gives it one, read back by every later load of the same build.
+        if (model.bvhUpload) void uploadBVHCache(meshPath, model.bvhUpload, abort.signal)
       } catch (err) {
         if (!alive) return
         console.error('rejeu 3D : chargement de la carte', err)
