@@ -69,6 +69,17 @@ export function drawnBy(mesh: THREE.Object3D): THREE.Object3D | null {
   return drawers.get(mesh) ?? null
 }
 
+/**
+ * clearDrawnBy undoes `markDrawnBy`: `mesh` draws itself again. `batchLayer`'s `dispose()` calls
+ * this for every surface it had hidden into a batch/instance, so a session-cached layer root a
+ * later match reattaches is exactly as `batchLayer` would find a fresh one — without it, a surface
+ * hidden once stays `!visible` forever (`candidate` in `layerBatch3d.ts` skips an already-hidden
+ * mesh), so it is never regrouped and never drawn again on a reused layer.
+ */
+export function clearDrawnBy(mesh: THREE.Object3D): void {
+  drawers.delete(mesh)
+}
+
 function visible(o: THREE.Object3D): boolean {
   const drawn = drawers.get(o) ?? o
   for (let n: THREE.Object3D | null = drawn; n; n = n.parent) if (!n.visible) return false
