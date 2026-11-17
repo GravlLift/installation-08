@@ -42,6 +42,10 @@ engineering backlog; this page keeps only the user-visible parts of it.
   viewer, not from the game's own effect. Other
   weapons' particle effects (the Ravager's and Disruptor's glow, plasma impacts) are not
   drawn.
+- The Heatwave's vent glow on its fins and its ready glow come from the game's own effects.
+  The vent shows for the whole reload; the game times part of it from animation events the
+  viewer does not read yet. Seen from outside, a weapon's own moving parts (the Heatwave's
+  fins, slides, barrels) do not move: weapons are drawn as one rigid piece in third person.
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the
   same level everywhere), and other players' shield alarms are not played.
 - How much quieter other players' guns are than your own (4 dB, plus distance) is an
