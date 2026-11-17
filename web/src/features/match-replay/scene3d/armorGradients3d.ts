@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * armorGradients3d.ts — LES DÉGRADÉS DES REVÊTEMENTS D'UNE SESSION, en UNE texture à couches
- * (`DataArrayTexture`) : un matériau peint nomme jusqu'à huit dégradés (sept zones et la salissure),
- * plus que d'unités de texture libres ; chaque zone lit sa couche par son rang.
+ * armorGradients3d.ts — A SESSION'S COATING GRADIENTS, in ONE layered texture
+ * (`DataArrayTexture`): a painted material names up to eight gradients (seven zones and the
+ * grime), more than there are free texture units; each zone reads its layer by its rank.
  *
- * Une couche par bitmap du jeu (`swatch-<id>.png`), ramenée à `SWATCH_SIZE` de côté, deux canaux :
- * le rouge du dégradé (choix bas, milieu, haut) et son bleu (rugosité). La texture grandit par
- * doublement ; tous les matériaux partagent l'uniforme `uniform`, dont la valeur suit la croissance.
+ * One layer per game bitmap (`swatch-<id>.png`), resized to `SWATCH_SIZE` on a side, two
+ * channels: the gradient's red (choice of low, mid, high) and its blue (roughness). The
+ * texture grows by doubling; every material shares the `uniform`, whose value follows the
+ * growth.
  */
 import * as THREE from 'three'
 
-/** Le côté d'une couche (celui des nuanciers de la bibliothèque, `himap.coteNuancier`). */
+/** The side length of a layer (that of the library's swatches, `himap.coteNuancier`). */
 export const SWATCH_SIZE = 256
-/** Octets d'une couche : deux canaux. */
+/** Bytes of a layer: two channels. */
 export const LAYER_BYTES = SWATCH_SIZE * SWATCH_SIZE * 2
 const FIRST_CAPACITY = 16
 
 export class GradientAtlas {
-  /** L'uniforme commun des matériaux peints : la texture courante. */
+  /** The shared uniform of painted materials: the current texture. */
   readonly uniform: THREE.IUniform<THREE.DataArrayTexture>
   private readonly layers = new Map<string, number>()
   private data: Uint8Array<ArrayBuffer>
@@ -29,21 +30,21 @@ export class GradientAtlas {
     this.uniform = { value: this.texture() }
   }
 
-  /** layer rend la couche du dégradé `id`, undefined s'il n'est pas posé. */
+  /** layer returns the layer of gradient `id`, undefined if it isn't placed. */
   layer(id: string): number | undefined {
     return this.layers.get(id)
   }
 
-  /** bytes : l'empreinte de la texture à couches (capacité actuelle, pas seulement les couches posées). */
+  /** bytes: the footprint of the layered texture (current capacity, not just the placed layers). */
   get bytes(): number {
     return this.data.byteLength
   }
 
-  /** add pose le dégradé `id` (`LAYER_BYTES` octets, rouge et bleu de l'image) ; rend sa couche. */
+  /** add places gradient `id` (`LAYER_BYTES` bytes, the image's red and blue); returns its layer. */
   add(id: string, pixels: Uint8Array): number {
     const known = this.layers.get(id)
     if (known !== undefined) return known
-    if (pixels.length !== LAYER_BYTES) throw new Error(`dégradé ${id} : ${pixels.length} octets`)
+    if (pixels.length !== LAYER_BYTES) throw new Error(`gradient ${id}: ${pixels.length} bytes`)
     const n = this.layers.size
     if (n >= this.capacity) this.grow()
     this.data.set(pixels, n * LAYER_BYTES)
@@ -81,7 +82,7 @@ export class GradientAtlas {
   }
 }
 
-/** redBlue garde le rouge et le bleu de pixels RGBA (`SWATCH_SIZE` de côté). */
+/** redBlue keeps the red and blue of RGBA pixels (`SWATCH_SIZE` on a side). */
 export function redBlue(rgba: Uint8ClampedArray | Uint8Array): Uint8Array {
   const out = new Uint8Array(LAYER_BYTES)
   for (let i = 0, o = 0; o < out.length; i += 4, o += 2) {
