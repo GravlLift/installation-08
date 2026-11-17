@@ -66,6 +66,7 @@ import {
 } from 'mediabunny'
 import type { StreamTargetChunk } from 'mediabunny'
 
+import { repairAvcDescription } from './avcDescription'
 import { ExportFileTarget } from './replayExportFileTarget'
 import { yieldToEvents } from './eventLoopYield'
 
@@ -579,7 +580,8 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
       const packet = EncodedPacket.fromEncodedChunk(chunk)
-      ecritures = ecritures.then(() => videoSource.add(packet, meta))
+      const checked = withRepairedDescription(meta, packet.data)
+      ecritures = ecritures.then(() => videoSource.add(packet, checked))
     },
     error: (err) => {
       failure = err instanceof Error ? err : new Error(String(err))
@@ -591,6 +593,23 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     height: config.height,
   }, fileTarget)
   return { ...sink, fpsFallback, rateMode: mode }
+}
+
+/**
+ * withRepairedDescription hands the muxer a well-formed `avcC`: Firefox's encoder gives a malformed
+ * one (`avcDescription.ts`). Metadata without a description, or with a sound one, passes as is.
+ */
+function withRepairedDescription(
+  meta: EncodedVideoChunkMetadata | undefined,
+  data: Uint8Array,
+): EncodedVideoChunkMetadata | undefined {
+  const desc = meta?.decoderConfig?.description
+  if (!meta?.decoderConfig || !desc) return meta
+  const bytes = ArrayBuffer.isView(desc) ? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength) : new Uint8Array(desc)
+  const repaired = repairAvcDescription(bytes, data)
+  if (!repaired) return meta
+  console.warn('[replay-export] the browser gave a malformed H.264 avcC; rebuilt from the key frame parameter sets')
+  return { ...meta, decoderConfig: { ...meta.decoderConfig, description: repaired } }
 }
 
 /**
