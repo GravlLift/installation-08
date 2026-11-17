@@ -97,8 +97,7 @@ are in [PARITY.md](PARITY.md).
   AdjustWindowRectExForDpi including the menu, shrunk keeping 16:9 and centered if it would not
   fit the work area), and a remembered placement now carries the DPI it was captured at, rescaled
   on restore if the target monitor's DPI differs. DONE 2026-11-17: the display name is
-  Installation 08 with its icon (exe, title bar, taskbar, favicon); the exe name, repo and data
-  folder keep the old name.
+  Installation 08 with its icon (exe, title bar, taskbar, favicon); the exe is installation-08.exe; the repo, Go module and data folder keep the old name.
 - Serve the viewer's files to the window in-process (WebView2 resource interception) instead
   of over HTTP, measured against HTTP.
 - Compiled shaders: they persist across launches in the window's fixed profile with the
@@ -107,7 +106,7 @@ are in [PARITY.md](PARITY.md).
   launch, about 20 s on each later one). The earlier 544 KB reading came from the go-webview2
   builds and did not reproduce. Open: the first-launch Streets load in the window (39.5 s) is
   about twice Chrome's cold load; not yet explained.
-- DONE: one renderer and a capped session cache (1.5 GB) keep the map, variant layer and
+- DONE: one renderer and a capped session cache (3 GB) keep the map, variant layer and
   model libraries between matches. Measured 2026-11-17: a revisited Outlook loads in 5.6 to
   7.2 s (11 s cold), a revisited Streets in 7.1 to 8.4 s (18 to 20 s cold). Open: what remains
   is per-match work, mostly transcoding this match's armor and weapon textures (322 KTX2

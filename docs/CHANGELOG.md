@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.0-test.18
+
+Changes since 0.1.0-test.17.
+
+Highlights:
+- The app is now called Installation 08, with its own icon. The exe is `installation-08.exe`.
+- Opening a second match on a map you already visited is much faster.
+- The window is sharp on high-DPI screens, and its menus work.
+
+- The app's name is Installation 08, with a new icon on the exe, the title bar, the taskbar and the browser tab. The exe is now `installation-08.exe`; delete the old `infinite-theater-3d.exe` after updating. Your matches, maps and settings stay where they were (`%LOCALAPPDATA%\infinite-theater-3d`).
+- Going back to a map you already opened in the same session reuses it: on the test machine a revisited Outlook loads in about 6 to 7 s (11 s the first time) and a revisited Streets in about 7 to 8 s (18 to 20 s the first time). The cache holds up to 3 GB of maps, objects and weapon models.
+- Each map's collision index is saved beside it the first time it opens and loaded after that (Streets: under 0.1 s instead of about 2 s).
+- The window is sharp at any display scaling and on mixed-DPI monitors.
+- The window has a menu bar (File, View, Help) with F11 for full screen and Ctrl+R to reload. It remembers its size and position, opens at 16:9 the first time, and asks before closing while a video export is running.
+- Fixed: a weapon rack could vanish after switching matches.
+
 ## 0.1.0-test.17
 
 Changes since 0.1.0-test.16.
