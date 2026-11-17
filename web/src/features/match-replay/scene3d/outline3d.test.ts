@@ -29,8 +29,8 @@ function fx(ally: boolean | null, over: Partial<BodyFxState> = {}): BodyFxState 
   }
 }
 
-describe('Outline3d — les joueurs tracés à une image', () => {
-  it('chaque joueur avec un camp, à son camp ; ni sans camp ni sous le camouflage', () => {
+describe('Outline3d — the players drawn in one frame', () => {
+  it('every player with a team, at its team; neither with no team nor under camo', () => {
     const o = new Outline3d(new THREE.PerspectiveCamera())
     const [a, b, c, d] = [new THREE.Group(), new THREE.Group(), new THREE.Group(), new THREE.Group()]
     o.begin()
@@ -47,7 +47,7 @@ describe('Outline3d — les joueurs tracés à une image', () => {
     o.dispose()
   })
 
-  it('l éclat du bouclier épaissit la ligne : le plus fort du coup et de la rupture, borné à 1', () => {
+  it("the shield's flare thickens the line: the stronger of the hit and the break, capped at 1", () => {
     const o = new Outline3d(new THREE.PerspectiveCamera())
     const g = new THREE.Group()
     o.begin()
@@ -62,7 +62,7 @@ describe('Outline3d — les joueurs tracés à une image', () => {
   })
 })
 
-/** spartanAt : un groupe posé en `z` portant un squelette aux os de la silhouette en bâtons. */
+/** spartanAt: a group placed at `z` carrying a skeleton with the stick-figure silhouette's bones. */
 function spartanAt(z: number): THREE.Group {
   const names = [...new Set(STAND_LIMBS.flatMap(([a, b]) => [a, b]))]
   const bones = names.map((name, i) => {
@@ -83,25 +83,25 @@ function spartanAt(z: number): THREE.Group {
   return g
 }
 
-describe('Outline3d — qui entre au masque, et comment', () => {
-  it('hors du champ : rien ; loin : en bâtons s il a un squelette ; près : entier', () => {
+describe('Outline3d — who enters the mask, and how', () => {
+  it('out of view: nothing; far: as sticks if it has a skeleton; near: whole', () => {
     expect(maskDrawOf(false, 500, true)).toBe('skip')
     expect(maskDrawOf(true, STAND_BELOW_PX - 1, true)).toBe('stand')
     expect(maskDrawOf(true, STAND_BELOW_PX - 1, false)).toBe('whole')
     expect(maskDrawOf(true, STAND_BELOW_PX, true)).toBe('whole')
   })
 
-  it('la hauteur à l écran décroît avec la distance, infinie derrière l œil', () => {
+  it('the on-screen height decreases with distance, infinite behind the eye', () => {
     const near = projectedHeightPx(2, 55, 440)
     expect(near).toBeGreaterThan(projectedHeightPx(4, 55, 440))
     expect(projectedHeightPx(4, 55, 440)).toBeCloseTo(near / 2)
     expect(projectedHeightPx(2, 55, 880)).toBeCloseTo(2 * near)
     expect(projectedHeightPx(0, 55, 440)).toBe(Infinity)
-    // 0,69 u à 2 u sous 55 degrés sur 440 px : ~146 px.
+    // 0.69 u at 2 u under 55 degrees on 440 px: ~146 px.
     expect(near).toBeCloseTo(145.8, 0)
   })
 
-  it('plan : derrière la caméra rien, près entier, loin en bâtons, sans squelette entier', () => {
+  it('plan: nothing behind the camera, whole near, sticks far, whole with no skeleton', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.02, 700)
     camera.updateMatrixWorld()
     const o = new Outline3d(camera)
@@ -119,20 +119,20 @@ describe('Outline3d — qui entre au masque, et comment', () => {
   })
 })
 
-describe('le contour en rayons X — il traverse la carte', () => {
-  it('le masque garde le joueur caché : aucun échantillon de profondeur de scène, aucun pixel jeté', () => {
+describe('the X-ray outline — it passes through the map', () => {
+  it('the mask keeps the hidden player: no scene depth sample, no pixel discarded', () => {
     expect(SUBJECT_FRAGMENT).not.toContain('tDepth')
     expect(SUBJECT_FRAGMENT).not.toContain('discard')
   })
 
-  it('la ligne ignore la profondeur de la scène, un mur devant compris', () => {
+  it('the line ignores scene depth, a wall in front included', () => {
     expect(LINE_FRAGMENT).not.toContain('tDepth')
     expect(LINE_FRAGMENT).not.toContain('inFront')
   })
 })
 
-describe('StandFigure — la silhouette en bâtons suit les os', () => {
-  it('un segment par paire d os trouvée, centré entre eux et étiré le long d eux', () => {
+describe('StandFigure — the stick-figure silhouette follows the bones', () => {
+  it('one segment per found bone pair, centered between them and stretched along them', () => {
     const g = spartanAt(0)
     const skeleton = skeletonOf(g) as THREE.Skeleton
     expect(skeleton).not.toBeNull()
@@ -154,12 +154,12 @@ describe('StandFigure — la silhouette en bâtons suit les os', () => {
     figure.mesh.dispose()
   })
 
-  it('sans maillage à peau, pas de squelette', () => {
+  it('with no skinned mesh, no skeleton', () => {
     expect(skeletonOf(new THREE.Group())).toBeNull()
   })
 })
 
-describe('BodyFx3d — le camp du contour est celui de la page, pas du joueur suivi', () => {
+describe("BodyFx3d — the outline's team is the page's, not the tracked player's", () => {
   const players = [
     { xuid: 'moi', team: 0 },
     { xuid: 'ami', team: 0 },
@@ -169,7 +169,7 @@ describe('BodyFx3d — le camp du contour est celui de la page, pas du joueur su
   function bodyFxOf(colors: { ally: string; enemy: string }) {
     const inputs = {
       framesPerSecond: 10,
-      // Le point de vue suivi est le rival : son allégeance retournerait les camps.
+      // The tracked viewpoint is the rival: its allegiance would flip the teams.
       allegiance: buildFilmAllegiance(players, 'rival'),
       pageAllegiance: buildFilmAllegiance(players, 'moi'),
       inks: { teamColorOf: (ally: boolean) => (ally ? colors.ally : colors.enemy), fx: { core: 'white' }, body: { overshield: 'lime' } },
@@ -183,7 +183,7 @@ describe('BodyFx3d — le camp du contour est celui de la page, pas du joueur su
     return new BodyFx3d(ctx)
   }
 
-  it('suivre un adversaire ne retourne pas les couleurs ; changer la couleur des réglages la suit', () => {
+  it('tracking an opponent does not flip the colors; changing the settings color follows it', () => {
     const body = bodyFxOf({ ally: 'lime', enemy: 'red' })
     expect(body.at('ami', 5).ally).toBe(true)
     const rival = body.at('rival', 5)
@@ -194,21 +194,21 @@ describe('BodyFx3d — le camp du contour est celui de la page, pas du joueur su
   })
 })
 
-it('prépare les deux chemins du masque et restaure les sujets même si le rendu échoue', () => {
+it('prepares both mask paths and restores the subjects even if the render fails', () => {
   const o = new Outline3d(new THREE.PerspectiveCamera())
-  const ancien = new THREE.Group()
+  const previous = new THREE.Group()
   const prepare = spartanAt(1000)
-  o.add(ancien, fx(false))
+  o.add(previous, fx(false))
   o.maskPass.enabled = false
-  expect(() => o.avecSujetsPrepares([prepare], (dessiner) => {
+  expect(() => o.avecSujetsPrepares([prepare], (draw) => {
     expect(o.maskPass.enabled).toBe(true)
-    dessiner('whole')
+    draw('whole')
     expect(o.plan(1)).toEqual(['whole'])
-    dessiner('stand')
+    draw('stand')
     expect(o.plan(1)).toEqual(['stand'])
-    throw new Error('rendu')
-  })).toThrow('rendu')
-  expect(o.subjectsOf()).toEqual([{ root: ancien, ally: false, flare: 0 }])
+    throw new Error('render')
+  })).toThrow('render')
+  expect(o.subjectsOf()).toEqual([{ root: previous, ally: false, flare: 0 }])
   expect(o.maskPass.enabled).toBe(false)
   o.dispose()
 })

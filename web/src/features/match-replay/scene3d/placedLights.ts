@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** Lampes du GLB, distribuées en grille mondiale sans ombre par clusteredLights. */
+/** GLB lamps, distributed on a shadowless world grid by clusteredLights. */
 import * as THREE from 'three'
 
 export interface PlacedLight {
   kind: 'omni' | 'spot'
-  /** Repère three. */
+  /** three's coordinate frame. */
   position: THREE.Vector3
   direction: THREE.Vector3
   color: THREE.Color
   energy: number
   range: number
-  /** Cônes entiers, en degrés. */
+  /** Full cone angles, in degrees. */
   cone: [number, number]
 }
 
@@ -26,7 +26,7 @@ interface LightExtras {
 
 const halo = (v: number[]) => new THREE.Vector3(v[0], v[2], -v[1])
 
-/** readPlacedLights lit les lampes publiées dans les extras de la scène ; [] sans lampes. */
+/** readPlacedLights reads the lamps published in the scene's extras; [] with no lamps. */
 export function readPlacedLights(extras: unknown): PlacedLight[] {
   const list = (extras as { levelupLights?: LightExtras[] } | null)?.levelupLights
   if (!Array.isArray(list)) return []

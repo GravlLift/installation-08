@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { readPlacedLights } from './placedLights'
 
 describe('readPlacedLights', () => {
-  it('passe des axes Halo au repère three et écarte les entrées inutilisables', () => {
+  it("passes from Halo's axes to three's frame and discards unusable entries", () => {
     const lamps = readPlacedLights({
       levelupLights: [
         { type: 'spot', position: [1, 2, 3], direction: [0, 0, -1], color: [1, 0.5, 0], energy: 5, range: 4, cone: [70, 105] },
@@ -21,7 +21,7 @@ describe('readPlacedLights', () => {
     expect(lamps[1].cone).toEqual([0, 90])
   })
 
-  it('rend une liste vide sans lampes', () => {
+  it('returns an empty list with no lamps', () => {
     expect(readPlacedLights(null)).toEqual([])
     expect(readPlacedLights({})).toEqual([])
   })

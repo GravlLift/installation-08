@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollBody3d.ts — LE CORPS INERTE : ses particules (une par articulation majeure du Spartan, plus
- * trois points d'épaisseur posés devant le bassin, la poitrine et la face), ses blocs rigides et ses
- * contraintes, en unités monde Halo (1 u = 3,048 m).
+ * ragdollBody3d.ts — THE RAGDOLL BODY: its particles (one per major Spartan joint, plus three
+ * thickness points placed in front of the pelvis, chest and face), its rigid clusters and its
+ * constraints, in Halo world units (1 u = 3.048 m).
  *
- * Trois blocs rigides (bassin, buste, tête) tiennent par appariement de forme (`ragdollSolver3d`) :
- * ils donnent aussi l'orientation de ces parties pour reposer les os (`ragdollBones3d`). Les membres
- * sont des segments de longueur fixe ; les limites articulaires sont des bornes de distance (colonne,
- * cou, coudes, genoux, chevilles), des charnières (coudes, genoux ne se plient que d'un côté), un cône
- * à la hanche et des distances minimales qui gardent bras et jambes hors du tronc. Rien de plus
- * strict : le jeu laisse ses corps finir dans des poses étranges, c'est voulu.
+ * Three rigid clusters (pelvis, torso, head) hold together by shape matching
+ * (`ragdollSolver3d`): they also give these parts' orientation to re-pose the bones
+ * (`ragdollBones3d`). The limbs are fixed-length segments; the joint limits are distance
+ * bounds (spine, neck, elbows, knees, ankles), hinges (elbows and knees only bend one way), a
+ * cone at the hip, and minimum distances that keep arms and legs off the torso. Nothing
+ * stricter: the game lets its bodies end up in odd poses, and that is intended.
  */
 
-/** Une particule : son nom, l'os du Spartan qu'elle suit (null : point d'épaisseur), rayon et masse. */
+/** A particle: its name, the Spartan bone it follows (null: a thickness point), radius and mass. */
 export interface ParticleDef {
   name: string
   bone: string | null
@@ -20,7 +20,7 @@ export interface ParticleDef {
   mass: number
 }
 
-/** Les particules, dans l'ordre des tampons de l'état. */
+/** The particles, in the state buffers' order. */
 export const PARTICLES: readonly ParticleDef[] = [
   { name: 'pelvis', bone: 'b_pelvis', radius: 0.055, mass: 3 },
   { name: 'chest', bone: 'b_spine3', radius: 0.065, mass: 3 },
@@ -47,24 +47,24 @@ export const PARTICLES: readonly ParticleDef[] = [
 
 type Name = (typeof PARTICLES)[number]['name']
 const INDEX = new Map(PARTICLES.map((p, i) => [p.name, i]))
-/** P : l'indice d'une particule par son nom. */
+/** P: a particle's index by its name. */
 export function P(name: Name): number {
   const i = INDEX.get(name)
-  if (i === undefined) throw new Error(`particule inconnue ${name}`)
+  if (i === undefined) throw new Error(`unknown particle ${name}`)
   return i
 }
 
 /**
- * Les points d'épaisseur, posés à la mort depuis les os (axes du monde, `ragdollBake3d`) : la tête
- * au-delà de l'os `b_head` le long du cou, le ventre et le sternum devant le bassin et la poitrine,
- * la face devant la tête (u).
+ * The thickness points, placed at death from the bones (world axes, `ragdollBake3d`): the head
+ * beyond the `b_head` bone along the neck, the belly and sternum in front of the pelvis and
+ * chest, the face in front of the head (u).
  */
 export const HEAD_REACH = 0.07
 export const BELLY_FORWARD = 0.07
 export const STERNUM_FORWARD = 0.075
 export const FACE_FORWARD = 0.055
 
-/** Les blocs rigides : particules (le premier de chaque bloc est son pivot pour reposer les os). */
+/** The rigid clusters: particles (each cluster's first is its pivot for re-posing the bones). */
 export const CLUSTERS = {
   pelvis: [P('pelvis'), P('lHip'), P('rHip'), P('belly')],
   chest: [P('chest'), P('neck'), P('lShoulder'), P('rShoulder'), P('sternum'), P('pelvis')],
@@ -73,7 +73,7 @@ export const CLUSTERS = {
 export type ClusterName = keyof typeof CLUSTERS
 export const CLUSTER_NAMES: readonly ClusterName[] = ['pelvis', 'chest', 'head']
 
-/** Les segments de longueur fixe (longueur prise à la mort). */
+/** The fixed-length segments (length taken at death). */
 export const STICKS: readonly (readonly [number, number])[] = [
   [P('lShoulder'), P('lElbow')], [P('lElbow'), P('lWrist')],
   [P('rShoulder'), P('rElbow')], [P('rElbow'), P('rWrist')],
@@ -81,7 +81,7 @@ export const STICKS: readonly (readonly [number, number])[] = [
   [P('rHip'), P('rKnee')], [P('rKnee'), P('rAnkle')], [P('rAnkle'), P('rToe')],
 ]
 
-/** Une borne de distance : entre `lo` et `hi` fois la distance à la mort. */
+/** A distance bound: between `lo` and `hi` times the distance at death. */
 export interface Range {
   a: number
   b: number
@@ -90,9 +90,9 @@ export interface Range {
 }
 
 /**
- * Les bornes : la colonne (ventre-sternum pour la flexion, croisées hanche-épaule pour la torsion et
- * l'inclinaison), le cou (sternum-face, épaules-tête), les coudes et genoux (épaule-poignet,
- * hanche-cheville : de plié au plus à tendu), la cheville (genou-orteil).
+ * The bounds: the spine (belly-sternum for flexion, crossed hip-shoulder for twist and tilt),
+ * the neck (sternum-face, shoulders-head), elbows and knees (shoulder-wrist, hip-ankle: from
+ * fully bent to extended), the ankle (knee-toe).
  */
 export const RANGES: readonly Range[] = [
   { a: P('belly'), b: P('sternum'), lo: 0.78, hi: 1.12 },
@@ -105,7 +105,7 @@ export const RANGES: readonly Range[] = [
   { a: P('rKnee'), b: P('rToe'), lo: 0.85, hi: 1.12 },
 ]
 
-/** Une borne absolue sur une chaîne de deux segments (coude, genou) : fraction de la chaîne tendue. */
+/** An absolute bound on a two-segment chain (elbow, knee): fraction of the chain extended. */
 export interface ChainRange {
   a: number
   mid: number
@@ -120,8 +120,8 @@ export const CHAIN_RANGES: readonly ChainRange[] = [
 ]
 
 /**
- * Les charnières : le milieu (coude, genou) ne passe pas de l'autre côté de la chaîne ; l'axe est pris
- * à la mort et suit le bloc `frame` (le buste pour les bras, le bassin pour les jambes).
+ * The hinges: the middle (elbow, knee) never crosses to the other side of the chain; the axis
+ * is taken at death and follows cluster `frame` (the torso for arms, the pelvis for legs).
  */
 export interface Hinge extends ChainRange {
   frame: ClusterName
@@ -134,8 +134,8 @@ export const HINGES: readonly Hinge[] = [
 ]
 
 /**
- * Le cône de la hanche : la cuisse reste à `HIP_CONE` radians d'un axe pris dans le bassin (le bas,
- * penché vers l'avant de `HIP_LEAN`) : flexion avant large, extension arrière courte.
+ * The hip cone: the thigh stays within `HIP_CONE` radians of an axis taken in the pelvis
+ * (downward, tilted forward by `HIP_LEAN`): wide forward flexion, short backward extension.
  */
 export const HIP_CONE = (80 * Math.PI) / 180
 export const HIP_LEAN = (45 * Math.PI) / 180
@@ -144,7 +144,7 @@ export const HIPS: readonly (readonly [hip: number, knee: number])[] = [
   [P('rHip'), P('rKnee')],
 ]
 
-/** Les paires qui ne s'interpénètrent pas (membres contre tronc et entre eux) : somme des rayons. */
+/** The pairs that don't interpenetrate (limbs against the torso and each other): sum of radii. */
 const TRUNK = [P('pelvis'), P('chest'), P('belly'), P('sternum'), P('head')]
 const ARMS = [P('lElbow'), P('lWrist'), P('rElbow'), P('rWrist')]
 export const APART: readonly (readonly [number, number])[] = [

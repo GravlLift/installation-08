@@ -11,7 +11,7 @@ import { blastSpeed, INHERIT_UP_MAX, kickVelocities, type KickInput, type KickKi
 import { TrianglePatch, type TriangleSource } from './ragdollPatch3d'
 import { createRagdoll, kickRagdoll, stepRagdoll } from './ragdollSolver3d'
 
-/** Un sol plat à la hauteur `y` (deux grands triangles), et une marche haute de `step` en x > 0,3. */
+/** A flat floor at height `y` (two large triangles), and a step `step` tall at x > 0.3. */
 function floor(y = 0, step = 0): TriangleSource {
   const quad = (x0: number, x1: number, h: number) => [x0, h, -20, x1, h, 20, x1, h, -20, x0, h, -20, x0, h, 20, x1, h, 20]
   const riser = (x: number, h0: number, h1: number) => [x, h0, -20, x, h1, 20, x, h1, -20, x, h0, -20, x, h0, 20, x, h1, 20]
@@ -21,7 +21,7 @@ function floor(y = 0, step = 0): TriangleSource {
 
 const NONE: Omit<KickInput, 'kind'> = { velocity: [0, 0, 0], from: null, dir: [1, 0, 0], blast: null, vehicle: null, seed: 7 }
 
-/** Le squelette de test debout aux pieds `feet`, face à +X. */
+/** The test skeleton standing at feet `feet`, facing +X. */
 function standing(feet = new THREE.Vector3()): { root: THREE.Group; bones: THREE.Bone[]; names: string[] } {
   const root = spartanSkeleton()
   root.position.copy(feet)
@@ -33,15 +33,15 @@ function standing(feet = new THREE.Vector3()): { root: THREE.Group; bones: THREE
 function bake(kind: KickKind, world = floor(), over: Partial<KickInput> = {}): RagdollBake {
   const s = standing()
   const job = RagdollJob.start({ bones: s.bones, names: s.names, feet: new THREE.Vector3(), yaw: 0, kick: { ...NONE, kind, ...over }, world })
-  if (!job) throw new Error('cuisson refusée')
+  if (!job) throw new Error('bake refused')
   for (;;) {
     const done = job.advance(Infinity)
     if (done) return done
   }
 }
 
-describe('cuisson du corps inerte', () => {
-  it('même mort, même piste au bit près', () => {
+describe('ragdoll body bake', () => {
+  it('same death, same track bit for bit', () => {
     for (const kind of ['shot', 'blast'] as const) {
       const a = bake(kind)
       const b = bake(kind)
@@ -51,7 +51,7 @@ describe('cuisson du corps inerte', () => {
     }
   })
 
-  it('part de la pose de la mort, sans saut', () => {
+  it('starts from the death pose, with no jump', () => {
     const b = bake('shot')
     const s = standing()
     const before = s.bones.map((bone) => bone.getWorldPosition(new THREE.Vector3()))
@@ -60,7 +60,7 @@ describe('cuisson du corps inerte', () => {
     s.bones.forEach((bone, i) => expect(bone.getWorldPosition(new THREE.Vector3()).distanceTo(before[i])).toBeLessThan(2e-3))
   })
 
-  it('les os gardent leur longueur ; le corps finit couché sur le sol', () => {
+  it('the bones keep their length; the body ends up lying on the floor', () => {
     const b = bake('melee')
     const s = standing()
     const lengths = s.bones.map((bone) => bone.position.length())
@@ -76,7 +76,7 @@ describe('cuisson du corps inerte', () => {
     expect(b.rested).toBe(true)
   })
 
-  it('se rejoue en avant et en arrière : même instant, même pose ; au-delà, la dernière pose tient', () => {
+  it('replays forward and backward: same instant, same pose; beyond it, the last pose holds', () => {
     const b = bake('blast')
     const s = standing()
     const snap = (t: number) => {
@@ -89,7 +89,7 @@ describe('cuisson du corps inerte', () => {
     expect(seen[6]).toEqual(seen[0])
     const end = (b.count - 1) / SAMPLE_RATE
     expect(snap(end + 5)).toEqual(snap(end))
-    // Entre deux échantillons, la pose est entre les deux (bassin interpolé).
+    // Between two samples, the pose is between the two (pelvis interpolated).
     const pelvis = b.index[0]
     const at = (t: number) => snap(t)[7 * pelvis + 5]
     const mid = at(1.5 / SAMPLE_RATE)
@@ -98,7 +98,7 @@ describe('cuisson du corps inerte', () => {
   })
 })
 
-describe('solveur du corps inerte', () => {
+describe('ragdoll body solver', () => {
   const run = (kind: KickKind, world: TriangleSource, seconds = 4) => {
     const s = standing()
     const x0 = particlesOf(s.bones) as Float64Array
@@ -110,7 +110,7 @@ describe('solveur du corps inerte', () => {
     return { st, x0 }
   }
 
-  it('reste stable 4 s pour chaque poussée : fini, au-dessus du sol, segments tenus, au repos', () => {
+  it('stays stable for 4 s for every kick: finite, above the floor, segments held, at rest', () => {
     for (const kind of ['none', 'shot', 'headshot', 'melee', 'blast', 'splatter'] as const) {
       const { st, x0 } = run(kind, floor())
       for (let i = 0; i < PARTICLES.length; i++) {
@@ -127,7 +127,7 @@ describe('solveur du corps inerte', () => {
     }
   })
 
-  it('une marche : le corps reste au-dessus du sol et de la marche', () => {
+  it('a step: the body stays above the floor and the step', () => {
     const { st } = run('melee', floor(0, 0.25))
     for (let i = 0; i < PARTICLES.length; i++) {
       const ground = st.x[3 * i] > 0.3 ? 0.25 : 0
@@ -142,16 +142,16 @@ describe('kickVelocities', () => {
   const v = (kind: KickKind, over: Partial<KickInput> = {}) => kickVelocities({ ...NONE, kind, ...over }, x)
   const at = (vel: Float64Array, name: Parameters<typeof P>[0]) => new THREE.Vector3(vel[3 * P(name)], vel[3 * P(name) + 1], vel[3 * P(name) + 2])
 
-  it('sans tueur : la vitesse héritée seule, bornée', () => {
+  it('with no killer: the inherited velocity alone, capped', () => {
     const still = v('none', { velocity: [1, 0, 0.5] })
     for (let i = 0; i < PARTICLES.length; i++) expect([still[3 * i], still[3 * i + 1], still[3 * i + 2]]).toEqual([1, 0, 0.5])
     expect(at(v('none', { velocity: [30, 0, 0] }), 'pelvis').length()).toBeCloseTo(3)
-    // Un joueur qui escalade monte vite sans être lancé : la part montante est bornée, pas la descente.
+    // A player climbing moves up fast without being launched: the upward share is capped, not the downward one.
     expect(at(v('none', { velocity: [0, 3.3, 0] }), 'pelvis').y).toBeCloseTo(INHERIT_UP_MAX)
     expect(at(v('none', { velocity: [0, -2, 0] }), 'pelvis').y).toBeCloseTo(-2)
   })
 
-  it('balle : poussée modeste le long du tir, portée par le buste ; tir à la tête : par la tête', () => {
+  it('bullet: modest push along the shot, carried by the torso; headshot: by the head', () => {
     const from: [number, number, number] = [-5, 0.62, 0]
     const shot = v('shot', { from })
     expect(at(shot, 'chest').x).toBeGreaterThan(0.6)
@@ -162,14 +162,14 @@ describe('kickVelocities', () => {
     expect(at(head, 'head').x).toBeGreaterThan(at(shot, 'head').x)
   })
 
-  it('mêlée : forte bourrade horizontale depuis le tueur, un peu levée', () => {
+  it('melee: strong horizontal shove from the killer, lifted a little', () => {
     const m = at(v('melee', { from: [0, 0.62, -2] }), 'chest')
     expect(m.z).toBeGreaterThan(2)
     expect(m.y).toBeGreaterThan(0)
     expect(Math.abs(m.x)).toBeLessThan(0.5)
   })
 
-  it('explosion : radiale depuis la détonation, levée, plus forte au plus près', () => {
+  it('explosion: radial from the detonation, lifted, stronger the closer', () => {
     const b = v('blast', { blast: [-0.5, 0.1, 0] })
     expect(at(b, 'pelvis').x).toBeGreaterThan(0)
     expect(at(b, 'pelvis').y).toBeGreaterThan(0)
@@ -179,21 +179,21 @@ describe('kickVelocities', () => {
     expect(at(v('blast', { blast: [-0.5, 0.1, 0] }), 'chest').length()).toBeGreaterThan(at(v('melee'), 'chest').length())
   })
 
-  it('écrasement : la vitesse du véhicule, levée ; sans véhicule, le long de l’impulsion', () => {
+  it('splatter: the vehicle\'s velocity, lifted; with no vehicle, along the impulse', () => {
     const car = at(v('splatter', { vehicle: [0, 0, 5] }), 'pelvis')
     expect(car.z).toBeGreaterThan(4)
     expect(car.y).toBeGreaterThan(0.5)
     expect(at(v('splatter'), 'pelvis').x).toBeGreaterThan(3)
   })
 
-  it('même germe, même torsion', () => {
+  it('same seed, same twist', () => {
     expect(Array.from(v('shot', { seed: 3 }))).toEqual(Array.from(v('shot', { seed: 3 })))
     expect(Array.from(v('shot', { seed: 3 }))).not.toEqual(Array.from(v('shot', { seed: 4 })))
   })
 })
 
 describe('deathKey', () => {
-  it('une même mort d’une liste refaite garde sa clé (et sa cuisson) ; une autre image, non', () => {
+  it('the same death from a rebuilt list keeps its key (and its bake); a different frame, not', () => {
     const body = { start: 12.25, fall: { kind: 'melee' } } as unknown as Parameters<typeof deathKey>[0]['body']
     const a = { victim: 'v', killer: 'k', frame: 12, body }
     expect(deathKey({ ...a })).toBe(deathKey(a))
