@@ -106,7 +106,7 @@ export class BrasPremierePersonne3d {
   private readonly dossier: string
   private readonly gate?: LoadGate
   private readonly entrees = new Map<string, Entree>()
-  /** Les chargements en cours de rig (null dans `entrees`), avec le flag « gate » du chargement. */
+  /** In-flight rig loads (null in `entrees`), each with its gate flag. */
   private readonly chargements = new Map<string, { p: Promise<void>; gate: boolean }>()
   private readonly abort = new AbortController()
   private readonly armes = new Map<string, RigPremierePersonne>()
@@ -250,7 +250,7 @@ export class BrasPremierePersonne3d {
     this.cacher()
     const rig = cleArme && this.armes.get(cleArme)
     if (!rig) return false
-    // Le rig visible retient l'écran de chargement (la première image en montre un) : gate.
+    // The visible rig holds the loading screen (the first frame shows one): gated.
     this.chargerRig(rig, true)
     const entree = this.entrees.get(rig.file)
     if (!entree) return false
@@ -502,10 +502,10 @@ export class BrasPremierePersonne3d {
   }
 
   /**
-   * Charger le rig `rig`, une fois par fichier. `gate` : le chargement retient l'écran de
-   * chargement (`gate.idle`) — c'est le cas du rig visible (la première image en montre un),
-   * pas des rigs préchargés en avance (`precharger`), qui se chargent sans bloquer la lecture.
-   * Si un chargement non gated est déjà en cours et qu'on le demande gated, on le passe en gate.
+   * Load the rig `rig`, once per file. `gate`: the load holds the loading screen
+   * (`gate.idle`) — true for the visible rig (the first frame shows one), false for the
+   * eagerly preloaded rigs (`precharger`), which load without blocking playback. If an
+   * ungated load is already in flight and a gated one is requested, it is promoted to gated.
    */
   private chargerRig(rig: RigPremierePersonne, gate = false): void {
     if (this.entrees.get(rig.file)) return

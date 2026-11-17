@@ -3,8 +3,12 @@ import * as THREE from 'three'
 import type { Dress } from './armory3d'
 import { verticalFovOf, viewmodelScale } from '../model/fovLogic'
 import { BrasPremierePersonne3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './brasPremierePersonne3d'
+import { LoadGate } from './loadGate3d'
 import type { EvenementsPremierePersonne } from './actionsPremierePersonne3d'
 import type { RigPremierePersonne } from './premierePersonne3d'
+
+// A rig download that never settles: a rig left mid-load stays in-flight, which the gate test needs.
+vi.mock('./meshFetch', () => ({ fetchMesh: () => new Promise<void>(() => {}) }))
 
 describe('estMateriauBras', () => {
   it('reconnaît la surface brute sans remplacer les matériaux de l’arme', () => {
@@ -159,6 +163,43 @@ describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèl
     interne.xuid = '1'
     interne.armurerie = { pending: () => true, regions: () => null, dress: () => null }
     expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
+  })
+})
+
+describe('gate: a preloaded rig is ungated until it is shown', () => {
+  const evenements = {
+    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
+    slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
+    rechargementValide: () => false,
+  } as unknown as EvenementsPremierePersonne
+
+  it('a rig preloaded without the gate does not hold gate.idle; montrer for it while loading does', () => {
+    const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const gate = new LoadGate()
+    const bras = new BrasPremierePersonne3d(new THREE.Scene(), '/premiere-personne', gate)
+    const clip = {
+      name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
+      frameCount: 60, frameRate: 30, durationSeconds: 2,
+    }
+    const rig = { file: 'a.glb', bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as RigPremierePersonne
+    const interne = bras as unknown as { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexPrêt: boolean }
+    interne.armes.set('arme', rig)
+    interne.fichiersArmes.set('a.glb', 'arme')
+    interne.indexPrêt = true
+
+    // The constructor already tracks the bras.json index load, so measure the rig's delta.
+    const base = gate.pending
+    // Eager preload is ungated: the in-flight load adds nothing to the gate.
+    bras.precharger(['arme'])
+    expect(gate.pending - base).toBe(0)
+
+    // Showing the rig while it is still loading promotes the load to gated.
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(false)
+    expect(gate.pending - base).toBe(1)
+
+    bras.dispose()
+    silence.mockRestore()
   })
 })
 
