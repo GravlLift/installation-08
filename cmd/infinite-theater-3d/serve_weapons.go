@@ -86,7 +86,29 @@ func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusNotFound, weaponNotFound(file))
 		return
 	}
+	// LOCAL-CHANGE (infinite-theater-3d): a model the viewer wants but the library has not
+	// built yet moves to the front of the weapons job's dispatch order (Runner.Prioritize),
+	// so the match the viewer actually opened gets its own weapons first. Harmless when the
+	// job is not running, not queued, or already past this key.
+	if key, isModel := weaponModelKeyOf(file); isModel && h.jobs != nil {
+		if _, err := os.Stat(full); err != nil {
+			h.jobs.Prioritize(meshjobs.JobWeapons, key)
+		}
+	}
 	h.serveWeaponFile(w, r, file, full, weaponNotFound(file))
+}
+
+// weaponModelKeyOf is the weapon key of a model file name (a bare "<key>.glb", not a coating,
+// banner or effect file), and whether file is one.
+func weaponModelKeyOf(file string) (string, bool) {
+	if weapons.CoatingFile(file) || weapons.BannerFile(file) || weapons.EffectFile(file) {
+		return "", false
+	}
+	key := strings.TrimSuffix(file, ".glb")
+	if !strings.HasSuffix(file, ".glb") || !weapons.ModelKeyValid(key) {
+		return "", false
+	}
+	return key, true
 }
 
 // serveWeaponFile serves one resolved library file (range-capable); a missing file or a
