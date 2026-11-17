@@ -1,83 +1,83 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * oeil3d.ts — LA DESCENTE DE L'ŒIL : quelle hauteur (unités monde) l'œil perd accroupi ou en
- * glissade, en fondu à l'entrée comme à la sortie.
+ * oeil3d.ts — THE EYE'S DROP: how much height (world units) the eye loses crouched or in a slide,
+ * fading in on entry and fading out on exit.
  *
- * Le jeu tient la 1re personne à la même hauteur d'œil accroupi et en glissade : les intervalles
- * des deux postures d'un emplacement se fusionnent, et la descente est leur enveloppe continue —
- * fondu à l'entrée, fondu à la sortie, jamais de saut, jamais au-delà de ce que le fondu d'entrée
- * a atteint. Fonction pure de l'image : rien n'est mémorisé entre deux images, et la même image
- * donne la même descente parcourue en avant comme en arrière.
+ * The game holds first person at the same eye height crouched and in a slide: the spans of both
+ * postures at a slot are merged, and the drop is their continuous envelope — fade in on entry,
+ * fade out on exit, never a jump, never past what the fade-in reached. A pure function of the
+ * frame: nothing is remembered between frames, and the same frame gives the same drop traversed
+ * forward or backward.
  */
 import { CROUCH_DROP } from './body3d'
 
-/** Temps (secondes) du fondu de la descente quand l'accroupissement ou la glissade commence. */
+/** Fade time (seconds) of the drop when crouching or a slide starts. */
 export const DUREE_ENTREE_OEIL = 0.2
-/** Temps (secondes) du retour de l'œil à la hauteur debout quand le dernier intervalle se termine. */
+/** Time (seconds) for the eye to return to standing height once the last span ends. */
 export const DUREE_SORTIE_OEIL = 0.25
 
-/** Un intervalle de descente fusionné : [t0, fin) en images, la fin exclusive. */
+/** A merged drop span: [t0, fin) in frames, the end exclusive. */
 export interface IntervalleOeil {
   t0: number
   fin: number
 }
 
-/** Sans intervalle : la liste vide partagée (aucun allouement par appel de dropOeil). */
+/** No span: the shared empty list (no allocation per `dropOeil` call). */
 export const SANS_INTERVALLE: readonly IntervalleOeil[] = []
 
 /**
- * fusionnerIntervallees trie et unit les intervalles demi-ouverts [t0, fin) : ceux qui se touchent
- * ou se chevauchent n'en font qu'un, sans changer les bornes de l'union.
+ * fusionnerIntervallees sorts and merges the half-open spans [t0, fin): ones that touch or
+ * overlap become one, without changing the union's bounds.
  */
 export function fusionnerIntervallees(liste: readonly IntervalleOeil[]): IntervalleOeil[] {
-  const triees = [...liste].sort((a, b) => a.t0 - b.t0)
-  const fusionnes: IntervalleOeil[] = []
-  for (const it of triees) {
-    const dernier = fusionnes[fusionnes.length - 1]
-    if (dernier && it.t0 <= dernier.fin) {
-      if (it.fin > dernier.fin) dernier.fin = it.fin
-    } else fusionnes.push({ ...it })
+  const sorted = [...liste].sort((a, b) => a.t0 - b.t0)
+  const merged: IntervalleOeil[] = []
+  for (const it of sorted) {
+    const last = merged[merged.length - 1]
+    if (last && it.t0 <= last.fin) {
+      if (it.fin > last.fin) last.fin = it.fin
+    } else merged.push({ ...it })
   }
-  return fusionnes
+  return merged
 }
 
-/** Le smoothstep borné à [0, 1] : 0 en 0, 1/2 au milieu, 1 en 1. */
-function lissage(u: number): number {
+/** The smoothstep clamped to [0, 1]: 0 at 0, 1/2 at the midpoint, 1 at 1. */
+function smoothstep(u: number): number {
   const x = u < 0 ? 0 : u > 1 ? 1 : u
   return x * x * (3 - 2 * x)
 }
 
 /**
- * dropOeil : la descente de l'œil en unités monde à l'image fractionnaire `f` — 0 debout,
- * CROUCH_DROP enfoncé accroupi ou en glissade. Fondu de `entree` images à l'entrée, de `sortie`
- * à la sortie ; pour un intervalle plus court que le fondu, la descente est le fondu d'entrée
- * limité par le fondu de sortie (jamais de saut, jamais au-delà de ce que l'entrée a atteint).
- * `intervallees` : les intervalles fusionnés et triés de l'emplacement (`fusionnerIntervallees`).
+ * dropOeil: the eye's drop in world units at fractional frame `f` — 0 standing, CROUCH_DROP fully
+ * crouched or in a slide. Fades over `entree` frames on entry, `sortie` on exit; for a span
+ * shorter than the fade, the drop is the entry fade capped by the exit fade (never a jump, never
+ * past what the entry reached). `intervallees`: the slot's merged, sorted spans
+ * (`fusionnerIntervallees`).
  */
 export function dropOeil(intervallees: readonly IntervalleOeil[], f: number, entree: number, sortie: number): number {
   if (intervallees.length === 0) return 0
-  // Le dernier intervalle commencé (t0 <= f) ; après lui, rien n'est encore entré.
-  let deb = 0, fin = intervallees.length
-  while (deb < fin) {
-    const m = (deb + fin) >> 1
-    if (intervallees[m].t0 <= f) deb = m + 1
-    else fin = m
+  // The last span started (t0 <= f); after it, nothing has entered yet.
+  let lo = 0, hi = intervallees.length
+  while (lo < hi) {
+    const m = (lo + hi) >> 1
+    if (intervallees[m].t0 <= f) lo = m + 1
+    else hi = m
   }
-  let haut = deb - 1
-  if (haut < 0) return 0
-  // Le premier intervalle dont la queue de sortie couvre encore f ; avant lui, les fondues sont finies.
-  deb = 0; fin = haut + 1
-  while (deb < fin) {
-    const m = (deb + fin) >> 1
-    if (intervallees[m].fin > f - sortie) fin = m
-    else deb = m + 1
+  const high = lo - 1
+  if (high < 0) return 0
+  // The first span whose exit tail still covers f; before it, the fades are done.
+  lo = 0; hi = high + 1
+  while (lo < hi) {
+    const m = (lo + hi) >> 1
+    if (intervallees[m].fin > f - sortie) hi = m
+    else lo = m + 1
   }
   let max = 0
-  for (let i = deb; i <= haut; i++) {
+  for (let i = lo; i <= high; i++) {
     const it = intervallees[i]
-    const entreeOeil = lissage((f - it.t0) / entree)
-    const sortieOeil = 1 - lissage((f - it.fin) / sortie)
-    const v = entreeOeil < sortieOeil ? entreeOeil : sortieOeil
+    const fadeIn = smoothstep((f - it.t0) / entree)
+    const fadeOut = 1 - smoothstep((f - it.fin) / sortie)
+    const v = fadeIn < fadeOut ? fadeIn : fadeOut
     if (v > max) max = v
   }
   return max * CROUCH_DROP

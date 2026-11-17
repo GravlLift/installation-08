@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — pickups3d : LES SOCLES ET LES ARMES AU SOL DE LA 3D SUIVENT LES RÈGLES DE LA 2D.
+ * Tests — pickups3d: 3D's PADS AND GROUND WEAPONS FOLLOW 2D's RULES.
  *
- * CE QUE CE FICHIER VERROUILLE :
- *  - la préparation des socles passe par le croisement avec la carte ;
- *  - la nature d'une arme se lit sous sa clé normalisée, socle comme sol ;
- *  - les filtres du tiroir (spéciales seulement, armes de départ) sont ceux de la 2D ;
- *  - plein = boîte pleine, incertain = boîte fantôme, vide = disque seul ;
- *  - une arme au sol en disparition non datée passe au lot fantôme, puis disparaît ;
- *  - le recalage au sol ne déplace pas un râtelier mural ;
- *  - un socle est MURAL quand il surplombe le sol de plus de 0,25 u : il n'a ni disque ni socle ;
- *  - un socle hors des bornes de la carte (marge de 5 u) n'est pas dessiné ;
- *  - interrupteur éteint : les lots restent vides.
+ * WHAT THIS FILE LOCKS DOWN:
+ *  - pad preparation goes through the crossing with the map;
+ *  - a weapon's nature is read under its normalized key, pad as ground;
+ *  - the drawer's filters (special only, starting weapons) are 2D's own;
+ *  - full = solid box, uncertain = ghost box, empty = disc alone;
+ *  - a ground weapon in undated vanishing moves to the ghost pool, then disappears;
+ *  - snapping to the floor does not move a wall rack;
+ *  - a pad is WALL-MOUNTED when it overhangs the floor by more than 0.25 u: it has neither disc
+ *    nor pad;
+ *  - a pad outside the map's bounds (5 u margin) is not drawn;
+ *  - toggle off: the pools stay empty.
  */
 import * as THREE from 'three'
 import { describe, expect, it, vi } from 'vitest'
@@ -44,15 +45,15 @@ import { standingItemCorrection } from './groundWeaponPose3d'
 import type { Tracks3d } from './tracks3d'
 
 const SNIPER = '0x00000001'
-const FUSIL = '0x00000002'
+const RIFLE = '0x00000002'
 
 const LABELS = {
   [SNIPER]: { fr: 'Sniper', en: 'Sniper', key: 'hinf_s7_sniper', role: 'sniper' },
-  [FUSIL]: { fr: 'Fusil', en: 'Rifle', key: 'hinf_ma40', role: 'rifle' },
+  [RIFLE]: { fr: 'Fusil', en: 'Rifle', key: 'hinf_ma40', role: 'rifle' },
 } as ReplayDocumentReady['weaponLabels']
 
-/** Un socle : plein de 10 à 20, incertain de 20 à 30, vide ensuite. */
-function socle(over: Partial<ReplayWeaponPadReady> = {}): ReplayWeaponPadReady {
+/** A pad: full from 10 to 20, uncertain from 20 to 30, empty after. */
+function padFixture(over: Partial<ReplayWeaponPadReady> = {}): ReplayWeaponPadReady {
   return {
     weapon: SNIPER,
     x: 1,
@@ -64,7 +65,7 @@ function socle(over: Partial<ReplayWeaponPadReady> = {}): ReplayWeaponPadReady {
   }
 }
 
-function arme(over: Partial<ReplayGroundWeapon> = {}): ReplayGroundWeapon {
+function groundWeapon(over: Partial<ReplayGroundWeapon> = {}): ReplayGroundWeapon {
   return {
     t0: 10,
     t1: 40,
@@ -81,102 +82,102 @@ function arme(over: Partial<ReplayGroundWeapon> = {}): ReplayGroundWeapon {
   }
 }
 
-/** Un sol plat à z = 0 sous tout point. */
-const SOL_PLAT: Pick<Ground, 'floorY'> = { floorY: () => 0 }
+/** A flat floor at z = 0 under every point. */
+const FLAT_FLOOR: Pick<Ground, 'floorY'> = { floorY: () => 0 }
 
 describe('prepareWeaponPads', () => {
-  it('pose le socle à l’emplacement de la carte quand le serveur les a croisés', () => {
+  it('places the pad at the map\'s slot when the server crossed them', () => {
     const [pad] = prepareWeaponPads({
-      weaponPads: [socle()],
+      weaponPads: [padFixture()],
       mapWeaponPads: { catalogN: 1, pads: [{ pad: 0, family: SNIPER, x: 7, y: 8, z: 9 }] },
       padPickups: [],
       tracks: [],
     })
     expect([pad.x, pad.y, pad.z]).toEqual([7, 8, 9])
-    expect(pad.presence).toEqual(socle().presence)
+    expect(pad.presence).toEqual(padFixture().presence)
   })
 })
 
 describe('pickupFamilyOf', () => {
-  it('lit la clé d’un socle et celle d’une arme au sol écrite en minuscules', () => {
+  it('reads a pad\'s key and a ground weapon\'s written in lowercase', () => {
     expect(pickupFamilyOf(SNIPER, LABELS)).toBe('power')
     expect(pickupFamilyOf('00000001', LABELS)).toBe('power')
-    expect(pickupFamilyOf(FUSIL, LABELS)).toBe('classic')
+    expect(pickupFamilyOf(RIFLE, LABELS)).toBe('classic')
     expect(pickupFamilyOf('powerup_overshield', LABELS)).toBe('powerup')
     expect(pickupFamilyOf('0xDEADBEEF', undefined)).toBe('classic')
   })
 })
 
 describe('shownGroundWeapons', () => {
-  const sniperAuSol = arme({ w: '00000001' })
-  const fusilDeDepart = arme({ w: '00000002' })
-  const fusilDeCarte = arme({ w: '00000002', origin: 'spawned' })
+  const sniperOnGround = groundWeapon({ w: '00000001' })
+  const startingRifle = groundWeapon({ w: '00000002' })
+  const mapRifle = groundWeapon({ w: '00000002', origin: 'spawned' })
   const doc: GroundSources = {
-    groundWeapons: [sniperAuSol, fusilDeDepart, fusilDeCarte],
+    groundWeapons: [sniperOnGround, startingRifle, mapRifle],
     weaponLabels: LABELS,
-    loadouts: [{ src: 'birth', w: [FUSIL] }] as ReplayDocumentReady['loadouts'],
+    loadouts: [{ src: 'birth', w: [RIFLE] }] as ReplayDocumentReady['loadouts'],
   }
 
-  it('masque par défaut les armes de départ lâchées, jamais celles de la carte', () => {
-    expect(shownGroundWeapons(doc, false, false)).toEqual([sniperAuSol, fusilDeCarte])
-    expect(shownGroundWeapons(doc, false, true)).toEqual([sniperAuSol, fusilDeDepart, fusilDeCarte])
+  it('hides dropped starting weapons by default, never map ones', () => {
+    expect(shownGroundWeapons(doc, false, false)).toEqual([sniperOnGround, mapRifle])
+    expect(shownGroundWeapons(doc, false, true)).toEqual([sniperOnGround, startingRifle, mapRifle])
   })
 
-  it('ne garde que les armes spéciales quand le filtre est allumé', () => {
-    expect(shownGroundWeapons(doc, true, true)).toEqual([sniperAuSol])
+  it('keeps only special weapons when the filter is on', () => {
+    expect(shownGroundWeapons(doc, true, true)).toEqual([sniperOnGround])
   })
 })
 
-describe('padBoxLook et groundBoxLook', () => {
-  it('plein, incertain, vide', () => {
+describe('padBoxLook and groundBoxLook', () => {
+  it('full, uncertain, empty', () => {
     expect(padBoxLook('full')).toBe('solid')
     expect(padBoxLook('uncertain')).toBe('ghost')
     expect(padBoxLook('empty')).toBeNull()
   })
 
-  it('une arme au sol : rien, pleine, fantôme, rien', () => {
-    expect(groundBoxLook(arme(), 9)).toBeNull()
-    expect(groundBoxLook(arme(), 40)).toBe('solid')
-    expect(groundBoxLook(arme(), 45)).toBe('ghost')
-    expect(groundBoxLook(arme(), 51)).toBeNull()
+  it('a ground weapon: nothing, solid, ghost, nothing', () => {
+    expect(groundBoxLook(groundWeapon(), 9)).toBeNull()
+    expect(groundBoxLook(groundWeapon(), 40)).toBe('solid')
+    expect(groundBoxLook(groundWeapon(), 45)).toBe('ghost')
+    expect(groundBoxLook(groundWeapon(), 51)).toBeNull()
   })
 })
 
 describe('floorUnder', () => {
-  it('cherche le sol sous le plafond sans z publié', () => {
-    expect(floorUnder(SOL_PLAT, 0, 0, undefined)).toBe(0)
+  it('searches for the floor under the ceiling without a published z', () => {
+    expect(floorUnder(FLAT_FLOOR, 0, 0, undefined)).toBe(0)
   })
 
-  it('recale un objet proche du sol, garde le z d’un râtelier mural', () => {
-    expect(floorUnder(SOL_PLAT, 0, 0, 0.1)).toBe(0)
-    expect(floorUnder(SOL_PLAT, 0, 0, 1.5)).toBe(1.5)
+  it('snaps an object near the floor, keeps a wall rack\'s z', () => {
+    expect(floorUnder(FLAT_FLOOR, 0, 0, 0.1)).toBe(0)
+    expect(floorUnder(FLAT_FLOOR, 0, 0, 1.5)).toBe(1.5)
   })
 })
 
 describe('padMountOf', () => {
-  it('monte un socle qui surplombe le sol de plus de 0,25 u, laisse le reste au sol', () => {
-    // Les quatre socles de la salle de Recharge, avec la hauteur de sol lue sous chacun.
-    expect(padMountOf(4.936, 4.4)).toBe('mounted') // râtelier mural, 0,54 u au-dessus du sol
-    expect(padMountOf(0.0076, 0.0)).toBe('floor') // power-up posé au sol
-    expect(padMountOf(4.494, 4.4)).toBe('floor') // 0,09 u au-dessus du sol : socle au sol
-    expect(padMountOf(2.769, 2.2)).toBe('mounted') // 0,57 u au-dessus du sol : râtelier mural
+  it('mounts a pad that overhangs the floor by more than 0.25 u, leaves the rest on the floor', () => {
+    // The four pads of Recharge's room, with the floor height read under each.
+    expect(padMountOf(4.936, 4.4)).toBe('mounted') // wall rack, 0.54 u above the floor
+    expect(padMountOf(0.0076, 0.0)).toBe('floor') // power-up resting on the floor
+    expect(padMountOf(4.494, 4.4)).toBe('floor') // 0.09 u above the floor: floor pad
+    expect(padMountOf(2.769, 2.2)).toBe('mounted') // 0.57 u above the floor: wall rack
   })
 
-  it('traite au sol un socle sans z publié ni sol connu', () => {
+  it('treats a pad with no published z and no known floor as on the floor', () => {
     expect(padMountOf(undefined, 4.4)).toBe('floor')
     expect(padMountOf(4.936, null)).toBe('floor')
   })
 })
 
 describe('padOutOfBounds', () => {
-  const bornes = { minX: 0, maxX: 40, minY: 0, maxY: 40 }
+  const bounds = { minX: 0, maxX: 40, minY: 0, maxY: 40 }
 
-  it('exclut un socle hors de la marge de la carte, garde celui dedans', () => {
-    expect(padOutOfBounds(bornes, -240.3, 381.8)).toBe(true) // loin hors de la carte
-    expect(padOutOfBounds(bornes, 13.537, 1.526)).toBe(false) // dans la salle
+  it('excludes a pad outside the map\'s margin, keeps one inside', () => {
+    expect(padOutOfBounds(bounds, -240.3, 381.8)).toBe(true) // far outside the map
+    expect(padOutOfBounds(bounds, 13.537, 1.526)).toBe(false) // inside the room
   })
 
-  it('n’exclut rien sans bornes', () => {
+  it('excludes nothing without bounds', () => {
     expect(padOutOfBounds(undefined, -240.3, 381.8)).toBe(false)
   })
 })
@@ -305,36 +306,36 @@ describe('Pickups3dLayer', () => {
     bombCarrier: false,
   }
 
-  /** Le sol par défaut est plat ; un test passe le sien pour placer un râtelier mural. */
-  type SurDoc = { weaponPads?: ReplayWeaponPadReady[]; mapWeaponPads?: ReplayDocumentReady['mapWeaponPads']; groundWeapons?: ReplayDocumentReady['groundWeapons'] }
-  function calque(
-    montrer: Action3dShow,
+  /** The default floor is flat; a test passes its own to place a wall rack. */
+  type DocOverrides = { weaponPads?: ReplayWeaponPadReady[]; mapWeaponPads?: ReplayDocumentReady['mapWeaponPads']; groundWeapons?: ReplayDocumentReady['groundWeapons'] }
+  function buildLayer(
+    shown: Action3dShow,
     weaponModel: ActionContext['weaponModel'] = () => null,
-    surDoc: SurDoc = {},
-    sol: Pick<Ground, 'floorY'> = SOL_PLAT,
-    encre: THREE.Color = new THREE.Color(0xff8c1a),
-    armurerie: ActionContext['armurerie'] = () => null,
+    docOverrides: DocOverrides = {},
+    floor: Pick<Ground, 'floorY'> = FLAT_FLOOR,
+    ink: THREE.Color = new THREE.Color(0xff8c1a),
+    armory: ActionContext['armurerie'] = () => null,
   ): { layer: Pickups3dLayer; counts: () => number[]; root: THREE.Group } {
     const root = new THREE.Group()
     const doc = {
-      weaponPads: [socle()],
+      weaponPads: [padFixture()],
       mapWeaponPads: undefined,
       padPickups: [],
       tracks: [],
-      groundWeapons: [arme()],
+      groundWeapons: [groundWeapon()],
       weaponLabels: LABELS,
       loadouts: [],
-      ...surDoc,
+      ...docOverrides,
     } as unknown as ReplayDocumentReady
     const inputs = {
-      show: montrer,
+      show: shown,
       inks: { pad: { powerup: 'a', power: 'b', classic: 'c' } },
     } as unknown as Action3dInputs
     const ctx: ActionContext = {
       doc,
       tracks: {} as Tracks3d,
-      ground: sol as Ground,
-      ink: { of: () => encre } as unknown as InkCache,
+      ground: floor as Ground,
+      ink: { of: () => ink } as unknown as InkCache,
       root,
       originAboveFloor: 0,
       inputs: () => inputs,
@@ -345,7 +346,7 @@ describe('Pickups3dLayer', () => {
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,
-      armurerie,
+      armurerie: armory,
       drawnWeapon: () => null,
       firstPersonSlot: () => null,
       flashes: new FlashLights(new THREE.Scene()),
@@ -357,7 +358,7 @@ describe('Pickups3dLayer', () => {
   }
 
   it('paints only the weapon box by pad and ground-weapon state, never a stand-in pad', () => {
-    const { layer, counts, root } = calque(show)
+    const { layer, counts, root } = buildLayer(show)
     expect(root.children.filter((c) => (c as THREE.Mesh).geometry instanceof THREE.CylinderGeometry)).toEqual([])
     layer.update(15)
     expect(counts()).toEqual([2, 0])
@@ -372,10 +373,10 @@ describe('Pickups3dLayer', () => {
 
   it('poses only the weapon model at its height on a wall rack', () => {
     const solSalle = { floorY: () => 4.4 }
-    const { layer, counts, root } = calque(
+    const { layer, counts, root } = buildLayer(
       show,
       () => new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 0.2)),
-      { weaponPads: [socle({ x: 13.537, y: 1.526, z: 4.936 })] },
+      { weaponPads: [padFixture({ x: 13.537, y: 1.526, z: 4.936 })] },
       solSalle,
     )
     layer.update(15)
@@ -394,10 +395,10 @@ describe('Pickups3dLayer', () => {
 
   it('hangs a rack weapon still on the front of the rack, upright, by the pad state', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
-    const { layer, counts, root } = calque(
+    const { layer, counts, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('rack') },
+      { weaponPads: [padFixture(RACK_AT)], mapWeaponPads: rackCross('rack') },
       { floorY: () => 4.7 },
     )
     layer.update(15)
@@ -427,10 +428,10 @@ describe('Pickups3dLayer', () => {
 
   it('keeps a power pad floating and turning', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('power') },
+      { weaponPads: [padFixture(RACK_AT)], mapWeaponPads: rackCross('power') },
       { floorY: () => 4.7 },
     )
     layer.update(15)
@@ -447,10 +448,10 @@ describe('Pickups3dLayer', () => {
     // the only floor under the spawner is the canvas, 4 u down. The pad used to read as a wall rack
     // and pose its weapon at the spawner, inside the pad kit.
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('power') },
+      { weaponPads: [padFixture(RACK_AT)], mapWeaponPads: rackCross('power') },
       { floorY: () => RACK_AT.z - 4 },
     )
     layer.update(15)
@@ -471,10 +472,10 @@ describe('Pickups3dLayer', () => {
         { ...POWER_AT, pad: 1, family: 'power', forward: [0, -1, 0], up: [0, 0, 1] },
       ],
     } as ReplayDocumentReady['mapWeaponPads']
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle(RACK_AT), socle(POWER_AT)], mapWeaponPads: cross },
+      { weaponPads: [padFixture(RACK_AT), padFixture(POWER_AT)], mapWeaponPads: cross },
       { floorY: () => 4.7 },
     )
     layer.update(15)
@@ -501,12 +502,12 @@ describe('Pickups3dLayer', () => {
     body.position.set(0.15, 0.02, 0)
     model.add(body)
     const SPAWNER = { x: 56.85, y: -115.2, z: 72.206 }
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
       {
         // The film's pad reading is a few centimeters off the spawner; the spawner wins.
-        weaponPads: [socle({ x: 56.8545, y: -115.1982, z: 72.2092 })],
+        weaponPads: [padFixture({ x: 56.8545, y: -115.1982, z: 72.2092 })],
         mapWeaponPads: { catalogN: 1, pads: [{ ...SPAWNER, pad: 0, family: 'power', forward: [0, -1, 0], up: [0, 0, 1] }] },
       },
       { floorY: () => SPAWNER.z + 0.05 },
@@ -533,13 +534,13 @@ describe('Pickups3dLayer', () => {
   it('floats and turns an equipment pad item over its spawner, hidden once taken', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.1))
     const ids: string[] = []
-    const { layer, counts, root } = calque(
+    const { layer, counts, root } = buildLayer(
       { ...show, groundWeapons: false },
       (id) => {
         ids.push(id)
         return id === 'repulsor' ? model : null
       },
-      { weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { weaponPads: [padFixture({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
       { floorY: () => REPULSOR_AT.z },
     )
     const read = () => (window as unknown as { __it3dPickups?: unknown }).__it3dPickups
@@ -573,10 +574,10 @@ describe('Pickups3dLayer', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.07))
     mesh.position.set(-0.045, 0.4, 0.08)
     model.add(mesh)
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       (id) => (id === 'wall' ? model : null),
-      { weaponPads: [socle({ weapon: 'wall', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { weaponPads: [padFixture({ weapon: 'wall', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
       { floorY: () => REPULSOR_AT.z },
     )
     const center = (frame: number) => {
@@ -596,10 +597,10 @@ describe('Pickups3dLayer', () => {
 
   it('stands an equipment item on its thinnest edge and spins it about world up', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.3))
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
+      { weaponPads: [padFixture({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 })], mapWeaponPads: equipmentCross },
       { floorY: () => REPULSOR_AT.z },
     )
     layer.update(11)
@@ -625,11 +626,11 @@ describe('Pickups3dLayer', () => {
         { ...RACK_AT, pad: 1, family: 'rack', forward: [0, -1, 0], up: [0, 0, 1] },
       ],
     } as ReplayDocumentReady['mapWeaponPads']
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
       {
-        weaponPads: [socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }), socle(RACK_AT)],
+        weaponPads: [padFixture({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }), padFixture(RACK_AT)],
         mapWeaponPads: cross,
       },
     )
@@ -645,7 +646,7 @@ describe('Pickups3dLayer', () => {
   })
 
   /** The fake armory: the default-style coat of `key` (its painted materials) once the coat is ready. */
-  function armurerieFausse(mat: THREE.MeshStandardMaterial, key = '00000001') {
+  function fakeArmory(mat: THREE.MeshStandardMaterial, key = '00000001') {
     // A painted material, as `armorMaterial` builds it: the raw masks by reference and the
     // shader hook the glow copy must keep.
     const uniforms: Record<string, unknown> = {}
@@ -687,7 +688,7 @@ describe('Pickups3dLayer', () => {
     mat.userData.armorMaps = { asg: null, mask0: null, mask1: null }
     mat.userData.style = { stylelist: 'f00dface', region: '0b7e328b', intentions: ['229d91fa'], layers: 1, texel_density: [1, 1], offset: [0, 0] }
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02), mat)
-    const fake = armurerieFausse(mat)
+    const fake = fakeArmory(mat)
     expect(fake.painted.onBeforeCompile).toBeInstanceOf(Function)
     const cross = {
       catalogN: 0,
@@ -698,13 +699,13 @@ describe('Pickups3dLayer', () => {
     // The pad holds a hex weapon whose family key is `00000001`, the same key the ground weapon
     // carries: one coat per model key, shared between the pad and the ground.
     const hexSniper = '0x00000001'
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       show,
       () => model,
       {
-        weaponPads: [socle({ ...RACK_AT, weapon: hexSniper })],
+        weaponPads: [padFixture({ ...RACK_AT, weapon: hexSniper })],
         mapWeaponPads: cross,
-        groundWeapons: [arme({ w: SNIPER })],
+        groundWeapons: [groundWeapon({ w: SNIPER })],
       },
       { floorY: () => 4.7 },
       new THREE.Color(0xff8c1a),
@@ -762,13 +763,13 @@ describe('Pickups3dLayer', () => {
         { ...RACK_AT, family: 'rack', forward: [0, -1, 0], up: [0, 0, 1] },
       ],
     } as ReplayDocumentReady['mapWeaponPads']
-    const { layer, root } = calque(
+    const { layer, root } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
       {
         weaponPads: [
-          socle({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }),
-          socle(RACK_AT),
+          padFixture({ weapon: 'repulsor', x: 6.815, y: 35.867, z: -0.995 }),
+          padFixture(RACK_AT),
         ],
         mapWeaponPads: cross,
       },
@@ -791,10 +792,10 @@ describe('Pickups3dLayer', () => {
 
   it('answers window.__it3dPickups with what each pad drew, until disposed', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
-    const { layer } = calque(
+    const { layer } = buildLayer(
       { ...show, groundWeapons: false },
       () => model,
-      { weaponPads: [socle(RACK_AT)], mapWeaponPads: rackCross('rack') },
+      { weaponPads: [padFixture(RACK_AT)], mapWeaponPads: rackCross('rack') },
     )
     const read = () => (window as unknown as { __it3dPickups?: unknown }).__it3dPickups
     layer.update(15)
@@ -807,10 +808,10 @@ describe('Pickups3dLayer', () => {
     expect(read()).toBeUndefined()
   })
 
-  it('utilise l’identifiant publié de l’arme au sol et réutilise sa copie', () => {
+  it('uses the published id of the ground weapon and reuses its copy', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 0.2))
     const ids: string[] = []
-    const { layer, root } = calque({ ...show, weaponPads: false }, (id) => {
+    const { layer, root } = buildLayer({ ...show, weaponPads: false }, (id) => {
       ids.push(id)
       return model
     })
@@ -826,8 +827,8 @@ describe('Pickups3dLayer', () => {
     layer.dispose()
   })
 
-  it('laisse les lots vides quand les interrupteurs sont éteints', () => {
-    const { layer, counts } = calque({ ...show, weaponPads: false, groundWeapons: false })
+  it('leaves the pools empty when the toggles are off', () => {
+    const { layer, counts } = buildLayer({ ...show, weaponPads: false, groundWeapons: false })
     layer.update(15)
     expect(counts()).toEqual([0, 0])
     layer.dispose()
