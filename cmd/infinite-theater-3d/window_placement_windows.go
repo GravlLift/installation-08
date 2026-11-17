@@ -300,11 +300,14 @@ func saveWindowPlacement(p windowPlacement) {
 // size is rescaled first (rescaleDimension), so a placement saved at one display scale
 // still looks the same real-world size restored at another. It runs on the main OS
 // thread.
+//
+// The rect is applied twice: when it lands on a monitor of another DPI than the one the
+// window was created on, the first move raises WM_DPICHANGED and webview_go applies the
+// rect Windows suggests, rescaling the already rescaled size a second time; the second call
+// lands on the same monitor and sets the intended size. A maximized placement is moved to
+// its rect first, so it maximizes on the monitor it was saved on and keeps its restored
+// size.
 func applyWindowPlacement(hwnd windows.Handle, p windowPlacement) {
-	if p.Maximized {
-		_, _, _ = procShowWindow.Call(uintptr(hwnd), swMaximize)
-		return
-	}
 	width, height := p.Width, p.Height
 	if p.DPI > 0 {
 		rect := windows.Rect{Left: int32(p.X), Top: int32(p.Y), Right: int32(p.X + p.Width), Bottom: int32(p.Y + p.Height)}
@@ -315,7 +318,12 @@ func applyWindowPlacement(hwnd windows.Handle, p windowPlacement) {
 			}
 		}
 	}
-	_, _, _ = procSetWindowPos.Call(uintptr(hwnd), 0,
-		uintptr(p.X), uintptr(p.Y), uintptr(width), uintptr(height),
-		swpNoZOrder|swpNoActivate)
+	for range 2 {
+		_, _, _ = procSetWindowPos.Call(uintptr(hwnd), 0,
+			uintptr(p.X), uintptr(p.Y), uintptr(width), uintptr(height),
+			swpNoZOrder|swpNoActivate)
+	}
+	if p.Maximized {
+		_, _, _ = procShowWindow.Call(uintptr(hwnd), swMaximize)
+	}
 }
