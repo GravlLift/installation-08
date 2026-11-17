@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplay3dFov — LE RÉGLAGE DE CHAMP DU JEU de la vue 3D (70 à 120, degrés horizontaux à
- * 16:9), persisté comme les réglages d'éclairage (`useReplay3dLook`) et partagé par clé : le
- * tiroir le change, la vue 3D le lit de son côté et le tourne en champ vertical de base
- * (`model/fovLogic`).
+ * useReplay3dFov — the game's FIELD OF VIEW setting for the 3D view (70 to 120, horizontal
+ * degrees at 16:9), persisted like the lighting settings (`useReplay3dLook`) and shared by
+ * key: the drawer changes it, the 3D view reads it on its own side and turns it into a base
+ * vertical field (`model/fovLogic`).
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -12,29 +12,29 @@ import { persistPreference, readStoredNumber, subscribePreference } from './repl
 
 const FOV_KEY = 'replay-3d-fov'
 
-/** Les bornes du réglage, bornes comprises : un nombre entier entre elles est un champ du jeu. */
-function estChampDeJeu(valeur: number): boolean {
-  return valeur >= GAME_FOV_MIN && valeur <= GAME_FOV_MAX
+/** The setting's bounds, inclusive: an integer between them is a valid game field of view. */
+function isGameFov(value: number): boolean {
+  return value >= GAME_FOV_MIN && value <= GAME_FOV_MAX
 }
 
 export interface Replay3dFov {
-  /** Le réglage de champ du jeu, en degrés horizontaux à 16:9. */
+  /** The game's field of view setting, in horizontal degrees at 16:9. */
   fov: number
   setFov: (fov: number) => void
 }
 
 export function useReplay3dFov(): Replay3dFov {
-  const [fov, setFovState] = useState(() => readStoredNumber(FOV_KEY, GAME_FOV_DEFAULT, estChampDeJeu))
-  // L'abonnement rend la clé partageable : le curseur du tiroir et la vue 3D bougent ensemble.
+  const [fov, setFovState] = useState(() => readStoredNumber(FOV_KEY, GAME_FOV_DEFAULT, isGameFov))
+  // The subscription makes the key shareable: the drawer's slider and the 3D view move together.
   useEffect(() => subscribePreference(FOV_KEY, (raw) => {
-    const valeur = Number(raw)
-    if (Number.isFinite(valeur) && estChampDeJeu(valeur)) setFovState(valeur)
+    const value = Number(raw)
+    if (Number.isFinite(value) && isGameFov(value)) setFovState(value)
   }), [])
   const setFov = useCallback((next: number) => {
-    const valeur = Math.round(next)
-    if (!estChampDeJeu(valeur)) return
-    setFovState(valeur)
-    persistPreference(FOV_KEY, String(valeur))
+    const value = Math.round(next)
+    if (!isGameFov(value)) return
+    setFovState(value)
+    persistPreference(FOV_KEY, String(value))
   }, [])
   return { fov, setFov }
 }

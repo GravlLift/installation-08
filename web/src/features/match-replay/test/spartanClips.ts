@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * spartanClips.ts — DES CLIPS DE TEST au format de `clips3d` : de petits clips synthétiques, sans
- * GLB, pour le squelette du jeu de `spartanSkeleton` (os et repos réels).
+ * spartanClips.ts — TEST CLIPS in `clips3d` format: small synthetic clips, with no GLB,
+ * for the game skeleton from `spartanSkeleton` (real bones and rest pose).
  *
- * `fakeClip` fabrique un clip (images, foulée, sens, pistes) ; `fixtureClips` un catalogue qui tient
- * l'arme droit devant à l'attente (la poignée orientée pour que `GRIP_TO_WEAPON` vise l'avant du
- * modèle), balance les cuisses en locomotion (pied gauche devant au quart du cycle), abaisse le
- * bassin accroupi, et couche le corps à l'arrivée au sol de face (+X) et de dos (-X) ;
- * `motionCatalog` le catalogue sans pistes de la sélection (`clipSelect3d`, `motion3d`).
+ * `fakeClip` builds a clip (frames, stride, direction, tracks); `fixtureClips` a catalog
+ * that holds the weapon pointed straight ahead at idle (the grip oriented so `GRIP_TO_WEAPON`
+ * points to the front of the model), swings the thighs during locomotion (left foot forward
+ * at a quarter of the cycle), lowers the pelvis when crouched, and lays the body down on
+ * landing facing forward (+X) and backward (-X);
+ * `motionCatalog` is the trackless catalog for selection (`clipSelect3d`, `motion3d`).
  */
 import * as THREE from 'three'
 
@@ -16,7 +17,7 @@ import { GRIP_TO_WEAPON } from '../scene3d/avatar3d'
 
 const RIGHT = new THREE.Vector3(0, 0, 1)
 
-/** fakeClip : un clip de `frames` images, de foulée `stride` (u par cycle) dans le sens `dir`. */
+/** fakeClip: a clip of `frames` frames, of stride `stride` (units per cycle) in direction `dir`. */
 export function fakeClip(
   name: string,
   frames: number,
@@ -36,7 +37,7 @@ export function fakeClip(
   }
 }
 
-/** fakeCatalog : un catalogue de clips sans pistes, pour la sélection. */
+/** fakeCatalog: a trackless clip catalog, for selection. */
 export function fakeCatalog(clips: readonly SpartanClip[]): SpartanClips {
   return new SpartanClips(clips)
 }
@@ -45,7 +46,7 @@ function named(root: THREE.Object3D, name: string): THREE.Bone {
   return root.getObjectByName(name) as THREE.Bone
 }
 
-/** modelTurn : la rotation locale de `bone` qui le tourne de `q` dans le repère du modèle (racine). */
+/** modelTurn: the local rotation of `bone` that turns it by `q` in the model's (root) frame. */
 function modelTurn(root: THREE.Object3D, bone: THREE.Bone, q: THREE.Quaternion): THREE.Quaternion {
   root.updateMatrixWorld(true)
   const parent = (bone.parent as THREE.Object3D).getWorldQuaternion(new THREE.Quaternion())
@@ -56,14 +57,14 @@ function constant(bone: string, q: THREE.Quaternion): ClipTrack {
   return { bone, size: 4, values: Float32Array.from(q.toArray()), keys: 1 }
 }
 
-/** holdTrack : la poignée droite tournée pour que l'arme portée vise l'avant du modèle, haut en haut. */
+/** holdTrack: the right grip rotated so the held weapon points to the front of the model, upright. */
 export function holdTrack(root: THREE.Object3D): ClipTrack {
   const grip = named(root, 'b_r_grip')
   const parent = (grip.parent as THREE.Object3D).getWorldQuaternion(new THREE.Quaternion())
   return constant('b_r_grip', parent.invert().multiply(GRIP_TO_WEAPON.clone().invert()))
 }
 
-/** swingTracks : les cuisses balancées autour de la droite du modèle, gauche devant au quart du cycle. */
+/** swingTracks: thighs swung around the model's right axis, left forward at a quarter of the cycle. */
 export function swingTracks(root: THREE.Object3D, frames: number, amplitude = 0.5): ClipTrack[] {
   const thigh = (name: string, sign: number): ClipTrack => {
     const bone = named(root, name)
@@ -77,7 +78,7 @@ export function swingTracks(root: THREE.Object3D, frames: number, amplitude = 0.
   return [thigh('b_l_thigh', 1), thigh('b_r_thigh', -1)]
 }
 
-/** lieTracks : le bassin couché vers `sign` × X du modèle et descendu au ras du sol. */
+/** lieTracks: the pelvis laid toward `sign` × X of the model and lowered to ground level. */
 function lieTracks(root: THREE.Object3D, sign: number): ClipTrack[] {
   const pelvis = named(root, 'b_pelvis')
   const turn = new THREE.Quaternion().setFromAxisAngle(RIGHT, -sign * (Math.PI / 2))
@@ -88,7 +89,7 @@ function lieTracks(root: THREE.Object3D, sign: number): ClipTrack[] {
   ]
 }
 
-/** crouchTracks : le bassin descendu de `drop` (u). */
+/** crouchTracks: the pelvis lowered by `drop` (units). */
 function crouchTracks(root: THREE.Object3D, drop: number): ClipTrack[] {
   const p = named(root, 'b_pelvis').position.clone()
   p.y -= drop
@@ -102,9 +103,9 @@ const DIRS: readonly (readonly [string, number])[] = [
 const dirOf = (deg: number): [number, number] => [Math.cos((deg * Math.PI) / 180), -Math.sin((deg * Math.PI) / 180)]
 
 /**
- * motionCatalog : le catalogue de la SÉLECTION (clips sans pistes, images et foulées du GLB) : le
- * fusil complet (huit directions, postures, actions), le pistolet en quatre directions et le
- * marteau à l'avant seul.
+ * motionCatalog: the catalog for SELECTION (trackless clips, frames and strides from the GLB):
+ * the full rifle set (eight directions, stances, actions), the pistol in four directions and
+ * the hammer in front-only.
  */
 export function motionCatalog(): SpartanClips {
   const clips: SpartanClip[] = [
@@ -139,7 +140,7 @@ export function motionCatalog(): SpartanClips {
   return new SpartanClips(clips)
 }
 
-/** fixtureClips : le catalogue de test du squelette `root` (cf. l'en-tête). */
+/** fixtureClips: the test catalog for the skeleton `root` (see the header). */
 export function fixtureClips(root: THREE.Object3D): SpartanClips {
   const hold = holdTrack(root)
   return new SpartanClips([

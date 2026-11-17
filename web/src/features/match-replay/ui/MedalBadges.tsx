@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * MedalBadges — les badges de médaille EN IMAGES (POC) : le badge du jeu se reconnaît d'un
- * coup d'œil, le libellé et la description vivent dans l'infobulle où ils ne coûtent rien.
- * PAS d'inversion ni de teinte : une médaille est une pièce EN COULEUR.
+ * MedalBadges — medal badges AS IMAGES (POC): the game's badge is recognized at a
+ * glance, the label and description live in the tooltip where they cost nothing.
+ * NO inversion or tinting: a medal is a COLORED piece.
  *
- * REPLI : une médaille sans visuel garde son TEXTE — jamais le badge d'une autre.
+ * FALLBACK: a medal with no visual keeps its OWN TEXT — never another medal's badge.
  *
- * Extrait de `ReplayKillFeed.tsx` le 2026-08-16, quand le fil a franchi le seuil de taille
- * du dépôt en recevant les marques d'identité : ce bloc n'a aucun lien avec la ligne qui le
- * porte (il ignore tueur, victime, couleurs d'équipe), c'est donc lui qui sort.
+ * Extracted from `ReplayKillFeed.tsx` on 2026-08-16, when the feed crossed the repo's
+ * size threshold by taking on identity marks: this block has no connection to the row
+ * that carries it (it ignores killer, victim, team colors), so it's the one that moves out.
  */
 import type { MedalEvent } from '../model/killFeedLogic'
 
-/** Côté d'un badge de médaille, en px (option 2a du handoff 2026-08-27 : 16 px). */
+/** Side of a medal badge, in px (option 2a from the 2026-08-27 handoff: 16 px). */
 const MEDAL_PX = 16
 
-/** Le libellé d'affichage d'une médaille : le libellé localisé, sinon le nom anglais du film. */
-export function libelleMedale(medalle: MedalEvent): string {
-  return medalle.label || medalle.name
+/** A medal's display label: the localized label, otherwise the film's English name. */
+export function libelleMedale(medal: MedalEvent): string {
+  return medal.label || medal.name
 }
 
 export function MedalBadges({ medals }: { medals: readonly MedalEvent[] }) {

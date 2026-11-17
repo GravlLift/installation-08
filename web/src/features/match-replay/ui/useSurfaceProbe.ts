@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useSurfaceProbe — l'inspecteur de surfaces de la vue 3D, sur le poste de développement
- * seulement : Alt+clic sur la carte nomme le matériau du jeu sous le pointeur (et l'objet de la
- * variante qui le porte), copie la ligne (`formatProbe`) dans le presse-papiers
- * (useCopyToClipboard) et la journalise.
+ * useSurfaceProbe — the 3D view's surface inspector, on the dev machine only: Alt+click on the
+ * map names the game material under the pointer (and the variant object carrying it), copies
+ * the line (`formatProbe`) to the clipboard (useCopyToClipboard) and logs it.
  */
 import { useCallback, useState, type MouseEvent, type RefObject } from 'react'
 
@@ -29,7 +28,7 @@ export function useSurfaceProbe(sceneRef: RefObject<ReplayScene3d | null>) {
         return
       }
       const next = formatProbe(hit)
-      console.info('rejeu 3D : surface inspectée', next)
+      console.info('3D replay: surface inspected', next)
       setLine(next)
       void copy(next)
     },

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplay3dLook — LES RÉGLAGES D'ÉCLAIRAGE de la vue 3D : ombres, reflets, occlusion ambiante,
- * lumière du jeu, bloom, animation des surfaces lumineuses.
+ * useReplay3dLook — the LIGHTING SETTINGS of the 3D view: shadows, reflections, ambient
+ * occlusion, game light, bloom, animation of glowing surfaces.
  *
- * Persistés comme les calques (`usePersistedFlag`) et partagés par clé : le tiroir les bascule, la
- * vue 3D les lit de son côté, sans que la page les transporte. Tous allumés par défaut : c'est la
- * vue telle qu'elle est réglée ; les éteindre allège le rendu d'une machine modeste (l'occlusion
- * ambiante coûte le plus).
+ * Persisted like the layers (`usePersistedFlag`) and shared by key: the drawer toggles them,
+ * the 3D view reads them on its own side, without the page carrying them. All on by default:
+ * this is the view as it is tuned; turning them off lightens the render on a modest machine
+ * (ambient occlusion costs the most).
  */
 import { useMemo } from 'react'
 

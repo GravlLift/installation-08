@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplay3dAids — LES REPÈRES D'ANALYSE de la vue 3D (`aids3d`) : lignes de tir, croix et
- * étiquettes des morts, trajectoires, rayon des explosions, câbles du grappin, flèches de poussée,
- * formes des poses, étiquettes de tous les joueurs.
+ * useReplay3dAids — the ANALYSIS AIDS of the 3D view (`aids3d`): shot lines, death crosses
+ * and labels, projectile paths, blast radius, grapple cables, knockback arrows, placement
+ * shapes, labels for all players.
  *
- * Persistés comme les réglages d'éclairage (`usePersistedFlag`) et partagés par clé : le tiroir
- * les bascule, la vue 3D les lit de son côté. Éteints par défaut : le jeu ne les montre pas.
+ * Persisted like the lighting settings (`usePersistedFlag`) and shared by key: the drawer
+ * toggles them, the 3D view reads them on its own side. Off by default: the game itself does
+ * not show them.
  */
 import { useMemo } from 'react'
 
@@ -28,7 +29,7 @@ export interface Replay3dAids {
   toggle: Readonly<Record<keyof Aids3d, () => void>>
 }
 
-/** useAidFlag — un repère, à sa clé et à son défaut. */
+/** useAidFlag — one aid, to its key and its default. */
 function useAidFlag(key: keyof Aids3d): [boolean, () => void] {
   return usePersistedFlag(AIDS3D_KEYS[key], AIDS3D_DEFAULT[key])
 }

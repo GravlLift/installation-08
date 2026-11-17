@@ -1,60 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayVideoEncoder.ts — L'ENCODAGE VIDÉO DE L'EXPORT, et rien d'autre.
+ * replayVideoEncoder.ts — THE EXPORT'S VIDEO ENCODING, and nothing else.
  *
- * # POURQUOI PAS `MediaRecorder`, QUI EXISTE DÉJÀ DANS CE DOSSIER
+ * # WHY NOT `MediaRecorder`, WHICH ALREADY EXISTS IN THIS FOLDER
  *
- * `replayRecording.ts` filme la toile PENDANT qu'elle joue : c'est un enregistreur d'écran, et
- * il horodate sur l'horloge murale. On ne peut donc pas le nourrir plus vite que le temps réel
- * — pousser trente images en une seconde produirait une seconde de vidéo, pas une seconde de
- * match. C'est exactement ce que l'export refuse : il RECALCULE le film image par image, aussi
- * vite que la machine suit, et la durée du clip doit rester celle du MATCH.
+ * `replayRecording.ts` films the canvas WHILE it plays: it is a screen recorder, and it
+ * timestamps on the wall clock. It cannot therefore be fed faster than real time — pushing
+ * thirty frames in one second would produce one second of video, not one second of match.
+ * That is exactly what the export refuses: it RECOMPUTES the film frame by frame, as fast as
+ * the machine keeps up, and the clip's duration must stay the MATCH's.
  *
- * WebCodecs est le seul chemin où l'horodatage est un PARAMÈTRE et non une conséquence. Chaque
- * `VideoFrame` porte son instant (en microsecondes de match) ; le muxeur les remet dans l'ordre
- * du fichier. Le temps de calcul n'entre nulle part dans le résultat.
+ * WebCodecs is the only path where the timestamp is a PARAMETER and not a consequence. Each
+ * `VideoFrame` carries its own instant (in microseconds of match); the muxer puts them back
+ * in the file's order. Compute time enters the result nowhere.
  *
- * # POURQUOI `mediabunny` ET PLUS `mp4-muxer` (2026-08-28)
+ * # WHY `mediabunny` AND NOT `mp4-muxer` ANY LONGER (2026-08-28)
  *
- * Les deux viennent du meme auteur, et le second est le successeur du premier. Le changement
- * n'est pas une preference : `mp4-muxer` declare `audio?:` AU SINGULIER — une piste video, une
- * piste audio, pas plus. L'utilisateur veut ses bruitages, ses voix et sa musique SEPARES pour
- * les remonter ; `mediabunny` accepte un nombre illimite de pistes audio en MP4 (verifie :
- * `Mp4OutputFormat.getSupportedTrackCounts()` rend `audio.max = 2^32-1`).
+ * Both come from the same author, and the second is the successor of the first. The switch is
+ * not a preference: `mp4-muxer` declares `audio?:` IN THE SINGULAR — one video track, one
+ * audio track, no more. The user wants their sound effects, voices, and music SEPARATE for
+ * re-editing; `mediabunny` accepts an unlimited number of audio tracks in MP4 (verified:
+ * `Mp4OutputFormat.getSupportedTrackCounts()` returns `audio.max = 2^32-1`).
  *
- * CE QUI N'A PAS CHANGE, ET C'EST DELIBERE : l'encodage VIDEO reste le notre — `VideoEncoder`,
- * notre config, notre contre-pression, nos horodatages. `mediabunny` sait encoder lui-meme,
- * mais tout cela est deja mesure et teste, et une reecriture aurait remis en jeu la seule
- * partie du chantier verifiee de bout en bout dans un navigateur. Seule la couche de MUXAGE
- * change, par `EncodedVideoPacketSource` qui prend nos paquets tels quels.
+ * WHAT DID NOT CHANGE, AND THAT IS DELIBERATE: VIDEO encoding stays ours — `VideoEncoder`, our
+ * config, our backpressure, our timestamps. `mediabunny` can encode by itself, but all of this
+ * is already measured and tested, and a rewrite would have put back in play the one part of
+ * the project verified end to end in a browser. Only the MUXING layer changes, through
+ * `EncodedVideoPacketSource`, which takes our packets as is.
  *
- * L'AUDIO, LUI, PASSE PAR `AudioBufferSource` : on donne un tampon rendu, la bibliotheque
- * encode. C'est ce qui supprime notre `encodeAudioInto` et, avec lui, toute la famille de
- * pieges qu'il portait (configuration AAC refusee de facon asynchrone, `flush()` sur un
- * encodeur ferme, piste declaree mais vide).
+ * AUDIO, however, goes through `AudioBufferSource`: a rendered buffer is handed over, the
+ * library encodes it. That is what removes our own `encodeAudioInto` and, with it, the whole
+ * family of pitfalls it carried (AAC configuration refused asynchronously, `flush()` on a
+ * closed encoder, a track declared but empty).
  *
- * # CE QUE CE MODULE NE FAIT PAS
+ * # WHAT THIS MODULE DOES NOT DO
  *
- * Il ne dessine rien, ne connaît ni le document du rejeu ni React, et n'écrit aucun fichier :
- * il rend un `Blob`. La boucle qui pose les images vit dans `useReplayExport.ts`, la piste
- * sonore dans `replayAudioMix.ts`, le téléchargement dans `replayCapture.ts`. Ici, seulement :
- * quel codec, à quel débit, et comment on ne noie pas l'encodeur.
+ * It draws nothing, knows neither the replay's document nor React, and writes no file: it
+ * returns a `Blob`. The loop that sets the frames lives in `useReplayExport.ts`, the sound
+ * track in `replayAudioMix.ts`, the download in `replayCapture.ts`. Here, only: which codec,
+ * at what rate, and how the encoder is kept from drowning.
  *
- * # LES TROIS DÉCISIONS QUI NE SONT PAS ARBITRAIRES
+ * # THE THREE DECISIONS THAT ARE NOT ARBITRARY
  *
- * 1. LES DIMENSIONS SONT PAIRES. H.264 échantillonne la chrominance à 4:2:0, c'est-à-dire un
- *    demi-pixel sur chaque axe : une largeur impaire n'a pas de représentation, et l'encodeur
- *    la refuse. Depuis le 2026-09-16 l'export ne demande que des formats pairs (`exportFormats.ts`) ;
- *    l'arrondi reste le garde-fou de tout appelant qui passerait une taille de toile brute. On
- *    arrondit VERS LE BAS — rogner une colonne de pixels est invisible, l'étirer ne l'est pas.
- * 2. LE NIVEAU H.264 SE CALCULE, il ne se choisit pas au jugé. Un niveau déclaré trop bas
- *    produit un fichier que les lecteurs stricts refusent ; trop haut, il ferme la porte aux
- *    lecteurs anciens sans rien apporter. `avcLevelFor` prend le plus BAS qui accepte la
- *    surface ET la cadence demandées.
- * 3. LA CONTRE-PRESSION N'EST PAS UNE OPTIMISATION. `encoder.encode()` ne bloque jamais : sur
- *    un match de dix minutes, une boucle qui ne regarde pas `encodeQueueSize` empile dix-huit
- *    mille images dans la file avant que l'encodeur en ait sorti la moitié, et l'onglet meurt.
- *    On attend que la file redescende (cf. `shouldDrain`).
+ * 1. DIMENSIONS ARE EVEN. H.264 samples chrominance at 4:2:0, meaning half a pixel on each
+ *    axis: an odd width has no representation, and the encoder refuses it. Since 2026-09-16
+ *    the export only requests even formats (`exportFormats.ts`); the rounding stays the
+ *    safeguard for any caller that would pass a raw canvas size. Rounding is DOWNWARD —
+ *    trimming a column of pixels is invisible, stretching it is not.
+ * 2. THE H.264 LEVEL IS COMPUTED, it is not picked by eye. A level declared too low produces
+ *    a file strict players refuse; too high, it shuts the door on older players for nothing
+ *    gained. `avcLevelFor` takes the LOWEST level that accepts both the requested surface AND
+ *    rate.
+ * 3. BACKPRESSURE IS NOT AN OPTIMIZATION. `encoder.encode()` never blocks: on a ten-minute
+ *    match, a loop that does not watch `encodeQueueSize` stacks eighteen thousand frames in
+ *    the queue before the encoder has produced half of them, and the tab dies. The loop waits
+ *    for the queue to drain (see `shouldDrain`).
  */
 import {
   AudioBufferSource,
@@ -89,13 +89,13 @@ type ExportVideoEncoderConfig = VideoEncoderConfig & ExportCodecFields
 type ExportVideoEncoderEncodeOptions = VideoEncoderEncodeOptions & ExportCodecFields
 
 /**
- * CADENCE DE L'EXPORT, en images par seconde.
+ * THE EXPORT'S RATE, in frames per second.
  *
- * VOLONTAIREMENT DISTINCTE de `CAPTURE_FPS` (`replayRecording.ts`), qui vaut le même nombre
- * pour une raison qui n'est pas la même : là-bas c'est un DÉBIT DEMANDÉ à un flux de toile,
- * que le navigateur sert au mieux ; ici c'est la définition même de l'axe du temps du fichier —
- * une image tous les 1/30 de seconde de MATCH, ni plus ni moins. Les fusionner ferait croire
- * qu'un réglage de l'un vaut pour l'autre.
+ * DELIBERATELY DISTINCT from `CAPTURE_FPS` (`replayRecording.ts`), which has the same value
+ * for a different reason: there it is a RATE REQUESTED of a canvas stream, served best-effort
+ * by the browser; here it is the very definition of the file's time axis — one frame every
+ * 1/30 of a second of MATCH, no more, no less. Merging them would suggest that a setting on
+ * one applies to the other.
  *
  * This is the 2D MAP export's rate: points sliding on a map gain nothing visible past 30, and
  * doubling the rate would double the file weight and the compute time. The 3D export has its
@@ -119,9 +119,9 @@ export const EXPORT_FPS = 30
 export const EXPORT_FPS_3D = 60
 
 /**
- * Une image-clé toutes les 2 secondes de match. C'est ce qui rend le clip NAVIGABLE : sans
- * image-clé régulière, déplacer le curseur dans le fichier oblige le lecteur à tout rejouer
- * depuis le début. Plus serré gonflerait le fichier sans servir personne.
+ * One keyframe every 2 seconds of match. That is what makes the clip SEEKABLE: without a
+ * regular keyframe, dragging the scrubber in the file forces the player to replay everything
+ * from the start. Tighter would bloat the file without helping anyone.
  */
 export const KEYFRAME_SECONDS = 2
 
@@ -129,9 +129,9 @@ export const KEYFRAME_SECONDS = 2
 export const KEYFRAME_EVERY = EXPORT_FPS * KEYFRAME_SECONDS
 
 /**
- * Profondeur de file au-delà de laquelle la boucle attend. Deux images de marge : assez pour
- * que l'encodeur ne chôme jamais entre deux tracés, assez peu pour que la mémoire retenue reste
- * celle de quelques images et non celle d'un match.
+ * Queue depth beyond which the loop waits. Two frames of margin: enough that the encoder
+ * never idles between two draws, little enough that the memory held stays that of a few
+ * frames, not that of a whole match.
  */
 export const ENCODE_QUEUE_MAX = 2
 
@@ -155,14 +155,14 @@ export const EXPORT_QP = 20
  * 0.25 gives 1080p60 31 Mb/s, inside High 4.2's 62.5 Mb/s ceiling.
  */
 const BITS_PER_PIXEL = 0.25
-/** Débit plancher et plafond, en bits par seconde : sous 2 Mb/s le texte du HUD bave. */
+/** Floor and ceiling bitrate, in bits per second: below 2 Mb/s the HUD text smears. */
 const BITRATE_MIN = 2_000_000
 const BITRATE_MAX = 80_000_000
 
 /**
- * Les niveaux H.264, du plus bas au plus haut, avec ce que chacun accepte : `maxFS` en
- * macroblocs par image, `maxMBps` en macroblocs par seconde (tableau A-1 de la norme, les
- * seuls niveaux qu'un export de rejeu peut atteindre). `hex` est l'octet du nom de codec.
+ * The H.264 levels, lowest to highest, with what each accepts: `maxFS` in macroblocks per
+ * frame, `maxMBps` in macroblocks per second (Table A-1 of the standard, the only levels a
+ * replay export can reach). `hex` is the codec name's byte.
  */
 const AVC_LEVELS: readonly { hex: string; maxFS: number; maxMBps: number }[] = [
   { hex: '1e', maxFS: 1620, maxMBps: 40_500 }, // 3.0
@@ -176,13 +176,13 @@ const AVC_LEVELS: readonly { hex: string; maxFS: number; maxMBps: number }[] = [
   { hex: '3c', maxFS: 139_264, maxMBps: 4_177_920 }, // 6.0
 ]
 
-/** Profil HIGH (`6400`) : le profil que tout lecteur matériel de cette décennie décode. */
+/** HIGH profile (`6400`): the profile every hardware decoder of this decade handles. */
 const AVC_PROFILE = 'avc1.6400'
 
 /**
- * evenSize arrondit VERS LE BAS à un nombre pair, plancher à 2 (cf. décision 1 de l'en-tête).
- * Une dimension nulle ou négative n'a pas de sens pour un encodeur : elle remonte à 2, et
- * l'appelant qui lui a servi ça a un autre problème que l'arrondi.
+ * evenSize rounds DOWN to an even number, floored at 2 (see decision 1 of the header). A
+ * zero or negative dimension makes no sense for an encoder: it is bumped up to 2, and the
+ * caller that passed that has a different problem than rounding.
  */
 export function evenSize(n: number): number {
   const floored = Math.floor(n)
@@ -190,18 +190,18 @@ export function evenSize(n: number): number {
   return floored - (floored % 2)
 }
 
-/** Surface en macroblocs 16x16 : l'unité dans laquelle la norme H.264 compte tout. */
+/** Surface in 16x16 macroblocks: the unit the H.264 standard counts everything in. */
 function frameMacroblocks(width: number, height: number): number {
   return Math.ceil(width / 16) * Math.ceil(height / 16)
 }
 
 /**
- * avcLevelFor rend le nom de codec complet pour cette image et cette cadence : le PLUS BAS
- * niveau qui accepte la surface et le débit de macroblocs (cf. décision 2 de l'en-tête).
+ * avcLevelFor returns the full codec name for this picture and rate: the LOWEST level that
+ * accepts the surface and the macroblock rate (see decision 2 of the header).
  *
- * Au-delà du plus haut niveau du tableau (une toile démesurée), on rend quand même le dernier :
- * un fichier au niveau sous-déclaré reste lisible partout où le décodeur ne vérifie pas, là où
- * refuser l'export ne rendrait service à personne. Le cas ne se produit pas sous 8K.
+ * Beyond the table's highest level (an oversized canvas), the last one is returned anyway: a
+ * file at an under-declared level stays playable wherever the decoder does not check, where
+ * refusing the export would serve no one. The case does not occur below 8K.
  */
 export function avcLevelFor(width: number, height: number, fps: number): string {
   const fs = frameMacroblocks(width, height)
@@ -386,10 +386,11 @@ export function codecStringFor(preset: ExportVideoPreset, width: number, height:
 }
 
 /**
- * videoEncoderConfig assemble la configuration complète. PURE : c'est elle qu'on teste, et
- * c'est elle qu'on passe à `VideoEncoder.isConfigSupported` avant d'ouvrir quoi que ce soit.
+ * videoEncoderConfig assembles the complete configuration. PURE: it is this function that is
+ * tested, and this is what gets passed to `VideoEncoder.isConfigSupported` before anything is
+ * opened.
  *
- * Les dimensions reçues sont celles de la TOILE ; celles qui sortent sont paires.
+ * The dimensions received are the CANVAS's; the ones returned are even.
  *
  * The MODE is chosen by the caller (`chooseExportRateMode`), which PROVED it with the same
  * function: `'quantizer'` encodes at constant quality (the preset's quantizer, no `bitrate`),
@@ -414,12 +415,12 @@ export function videoEncoderConfig(
     framerate: fps,
   }
   if (preset.codec === 'avc') {
-    // `avc` et non `annexb` : c'est la forme que le conteneur MP4 attend. HEVC/AV1 have no
+    // `avc` and not `annexb`: this is the form the MP4 container expects. HEVC/AV1 have no
     // config sub-object: their codec name already does the work.
     config.avc = { format: 'avc' }
   }
   if (mode === 'quantizer') {
-    // Pas de `bitrate` : en mode quantizer, la qualité EST le réglage.
+    // No `bitrate`: in quantizer mode, quality IS the setting.
     config.bitrateMode = 'quantizer'
   } else {
     config.bitrate = videoBitrate(w, h, fps, preset.bitsPerPixel)
@@ -515,15 +516,15 @@ export function encodeOptionsFor(
 }
 
 /**
- * shouldDrain dit si la boucle doit attendre avant de pousser l'image suivante (décision 3).
- * Séparée de la boucle pour être testable sans encodeur.
+ * shouldDrain says whether the loop must wait before pushing the next frame (decision 3).
+ * Kept apart from the loop so it is testable without an encoder.
  */
 export function shouldDrain(queueSize: number): boolean {
   return queueSize > ENCODE_QUEUE_MAX
 }
 
 /**
- * isKeyFrame : l'image `index` (0 = la première) ouvre-t-elle un nouveau point d'entrée ? Every
+ * isKeyFrame: does frame `index` (0 = the first) open a new entry point? Every
  * `KEYFRAME_SECONDS` of clip at the rate `fps`: a keyframe every 60 frames at 30, every 120 at 60.
  */
 export function isKeyFrame(index: number, fps: number = EXPORT_FPS): boolean {
@@ -575,14 +576,14 @@ async function browserSupports(config: VideoEncoderConfig): Promise<boolean> {
 }
 
 /**
- * canExportVideo dit si CE navigateur sait encoder hors temps réel.
+ * canExportVideo says whether THIS browser can encode offline.
  *
- * Les trois conditions sont indissociables : l'encodeur, le type d'image qu'on lui pousse, et
- * la lecture asynchrone de ses capacités. Il en manque une, il n'y a pas d'export possible — et
- * c'est le bouton d'enregistrement TEMPS RÉEL qui reprend la main (repli, décision D5 du plan).
+ * The three conditions are inseparable: the encoder, the frame type pushed into it, and the
+ * asynchronous reading of its capabilities. Missing one means no export is possible — and it
+ * is the REAL-TIME recording button that takes over instead (fallback, plan decision D5).
  *
- * Rend `false` sous jsdom, où rien de tout cela n'existe : c'est ce qui permet aux tests de ce
- * module de rester des tests purs.
+ * Returns `false` under jsdom, where none of this exists: that is what lets this module's
+ * tests stay pure tests.
  */
 export function canExportVideo(): boolean {
   if (typeof VideoEncoder === 'undefined') return false
@@ -591,20 +592,20 @@ export function canExportVideo(): boolean {
 }
 
 /**
- * canExportAudio dit si ce navigateur sait encoder une piste sonore.
+ * canExportAudio says whether this browser can encode a sound track.
  *
- * SE TESTE AVANT D'OUVRIR LE CONTENEUR, jamais après : le MP4 annonce ses pistes une fois pour
- * toutes. Déclarer une piste AAC puis découvrir qu'`AudioEncoder` manque produisait un fichier
- * portant une piste VIDE — selon le lecteur : muette, avertissement, ou refus d'ouvrir.
+ * TESTED BEFORE THE CONTAINER OPENS, never after: the MP4 announces its tracks once and for
+ * all. Declaring an AAC track and then discovering `AudioEncoder` is missing produced a file
+ * carrying an EMPTY track — depending on the player: silent, a warning, or a refusal to open.
  */
 export function canExportAudio(): boolean {
   return typeof AudioEncoder !== 'undefined' && typeof AudioData !== 'undefined'
 }
 
 /**
- * Débit de la piste sonore, en bits par seconde. 128 kb/s en AAC stéréo : au-dessus du seuil
- * où l'oreille distingue encore l'encodage sur des sons courts et secs (tirs, explosions),
- * et sans commune mesure avec le débit vidéo — la piste ne pèse rien dans le fichier.
+ * The sound track's bitrate, in bits per second. 128 kb/s in stereo AAC: above the threshold
+ * where the ear can still tell the encoding apart on short, dry sounds (gunshots,
+ * explosions), and nowhere near the video bitrate — the track weighs nothing in the file.
  */
 const AUDIO_BITRATE = 128_000
 
@@ -665,23 +666,23 @@ async function audioConfigSupported(config: AudioEncoderConfig): Promise<boolean
   }
 }
 
-/** Ce que la boucle d'export reçoit : trois gestes, et aucun état à tenir de son côté. */
+/** What the export loop receives: three gestures, and no state to hold on its own side. */
 export interface VideoExportSink {
-  /** Pousse la toile TELLE QU'ELLE EST à cet instant. Attend si la file est pleine. */
+  /** Pushes the canvas AS IT IS at this instant. Waits if the queue is full. */
   addFrame: (canvas: HTMLCanvasElement, index: number) => Promise<void>
-  /** Vide la file, referme le conteneur, rend le fichier. */
+  /** Drains the queue, closes the container, returns the file. */
   finish: () => Promise<Blob>
   /**
-   * `false` = les pistes sonores demandees n'ont PAS pu etre declarees (encodeur AAC absent ou
-   * configuration refusee). Le clip sortira muet, et l'appelant doit le DIRE.
+   * `false` = the requested sound tracks could NOT be declared (no AAC encoder, or
+   * configuration refused). The clip will come out silent, and the caller must SAY so.
    */
   audioEnabled: boolean
   /**
-   * Remet les tampons rendus, DANS L'ORDRE des noms declares a l'ouverture. A n'appeler QUE si
-   * `audioEnabled`, et une seule fois.
+   * Hands back the rendered buffers, IN THE ORDER of the names declared at opening. Call ONLY
+   * if `audioEnabled`, and only once.
    */
   addAudioTracks: (tracks: readonly AudioTrackInput[], progress?: (fraction: number) => void) => Promise<void>
-  /** Referme tout sans rien rendre (annulation, erreur). Ne lève jamais. */
+  /** Closes everything without returning anything (cancellation, error). Never throws. */
   abort: () => void
   /** The rate the file is actually encoded at: the frame plan must be built at this rate. */
   fps: number
@@ -715,42 +716,42 @@ export interface VideoExportOptions {
    */
   preset?: ExportVideoPresetName
   /**
-   * COMBIEN de pistes sonores le clip portera. Declare a l'ouverture ou jamais : le conteneur
-   * ecrit sa table des pistes une fois pour toutes. `0` = clip muet, ce qui reste un resultat.
+   * HOW MANY sound tracks the clip will carry. Declared at opening or never: the container
+   * writes its track table once and for all. `0` = silent clip, which is still a result.
    *
-   * Les noms sont donnes ici parce qu'ils font partie de la DECLARATION ; les tampons, eux,
-   * arrivent plus tard (`addAudioTracks`), une fois le mixage rendu.
+   * The names are given here because they are part of the DECLARATION; the buffers
+   * themselves arrive later (`addAudioTracks`), once the mix is rendered.
    */
   audioTracks?: readonly string[]
 }
 
-/** La forme d'une piste sonore : ce que le conteneur annonce avant le premier octet. */
+/** A sound track's shape: what the container announces before the first byte. */
 export interface AudioTrackShape {
   sampleRate: number
   numberOfChannels: number
 }
 
 /**
- * Une piste sonore a ecrire dans le clip : son nom, et le tampon deja rendu.
+ * A sound track to write into the clip: its name, and the already-rendered buffer.
  *
- * L'ORDRE DES PISTES N'EST PAS DECORATIF. La PREMIERE est celle que tout lecteur ordinaire
- * joue — un navigateur n'expose pas les autres. C'est donc le MIXAGE COMPLET qui doit venir en
- * premier ; les familles separees suivent, pour qui ouvre le fichier dans un montage. Livrer
- * les familles SANS le mixage ferait entendre les seuls bruitages, sans musique ni voix : une
- * regression pour tout le monde sauf le monteur.
+ * TRACK ORDER IS NOT DECORATIVE. The FIRST one is the one any ordinary player plays — a
+ * browser does not expose the others. The FULL MIX must therefore come first; the separate
+ * families follow, for whoever opens the file in an editor. Delivering the families WITHOUT
+ * the mix would make only the sound effects audible, with no music or voice: a regression for
+ * everyone except the editor.
  */
 export interface AudioTrackInput {
-  /** Nom lisible de la piste (« Mixage », « Bruitages », « Voix », « Musique »). */
+  /** The track's readable name ("Mix", "SFX", "Voice", "Music"). */
   name: string
   buffer: AudioBuffer
 }
 
 /**
- * openVideoExport ouvre l'encodeur et le conteneur, et rend les trois gestes de la boucle.
+ * openVideoExport opens the encoder and the container, and returns the loop's three gestures.
  *
- * `null` = ce navigateur ne sait pas encoder CETTE image (configuration refusée) : l'appelant
- * bascule sur le repli. On ne lève pas — un export impossible n'est pas une panne, c'est une
- * capacité absente, et le plan (D5) veut qu'elle se traite par un autre bouton.
+ * `null` = this browser cannot encode THIS picture (configuration refused): the caller falls
+ * back. No throw — an impossible export is not a failure, it is a missing capability, and the
+ * plan (D5) wants it handled through another button.
  */
 /**
  * The reference shape of the sound tracks: the one the offline mix renders (`replayAudioMix.ts`).
@@ -780,23 +781,23 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // THE PRESET AND THE MODE ARE SAID ONCE, with the config: the reviewer checks in the console
   // what was asked of the encoder, without guessing what won the probe.
   console.info(`[replay-export] preset ${preset.name}, rate mode ${mode} —`, JSON.stringify(config))
-  const noms = o.audioTracks ?? []
+  const names = o.audioTracks ?? []
   // THE SOUND TRACKS ARE PROVEN BEFORE THEY ARE DECLARED (see `chooseAudioCodec`): the container
   // writes its track table once and for all, and a declared track the encoder later refuses
   // loses THE WHOLE export.
-  const audioCodec = noms.length > 0 ? await chooseAudioCodec(MIX_TRACK_SHAPE) : null
+  const audioCodec = names.length > 0 ? await chooseAudioCodec(MIX_TRACK_SHAPE) : null
   if (audioCodec && audioCodec !== 'aac') console.info(`[replay-export] no AAC encoder in this browser, audio encoded as ${audioCodec}`)
 
-  // LE FICHIER EST ECRIT EN FLUX, JAMAIS DANS UN SEUL ArrayBuffer.
+  // THE FILE IS WRITTEN AS A STREAM, NEVER INTO A SINGLE ArrayBuffer.
   //
-  // Un match complet en qualité constante peut dépasser plusieurs Go ; un seul ArrayBuffer ne
-  // tient pas ca et l'export mourait en fin de course, apres avoir rendu tout le film. Ici, les
-  // octets sont livres par `StreamTarget` dans un `WritableStream` et rabattus en `Blob` de ~64
-  // Mo par `ExportFileTarget` : le navigateur garde les gros morceaux hors du tas JS.
+  // A full match at constant quality can exceed several GB; a single ArrayBuffer cannot hold
+  // that, and the export would die at the finish line, after rendering the whole film. Here,
+  // bytes are delivered by `StreamTarget` into a `WritableStream` and folded into ~64 MB
+  // `Blob`s by `ExportFileTarget`: the browser keeps the big chunks off the JS heap.
   //
-  // `fastStart: false` garde la disposition MP4 ordinaire (moov en fin de fichier). mediabunny
-  // n'y fait alors qu'une seule reecriture in place — le patch de l'en-tete mdat, tout au debut
-  // du fichier — et `ExportFileTarget` la recueille dans son tampon de tete mutable.
+  // `fastStart: false` keeps the ordinary MP4 layout (moov at the end of the file). mediabunny
+  // then only does a single in-place rewrite — the mdat header patch, right at the file's
+  // start — and `ExportFileTarget` collects it in its mutable head buffer.
   const fileTarget = new ExportFileTarget()
   const output = new Output({
     format: new Mp4OutputFormat({ fastStart: false }),
@@ -809,10 +810,10 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // The container track declares the preset's codec: `avc`, `hevc` or `av1`.
   const videoSource = new EncodedVideoPacketSource(preset.codec)
   output.addVideoTrack(videoSource, { frameRate: fps })
-  // Les pistes AUDIO sont ajoutees ICI, vides : leur EXISTENCE et leur ORDRE se declarent avant
-  // le premier octet, leur contenu arrive plus tard (`addAudioTracks`).
+  // AUDIO tracks are added HERE, empty: their EXISTENCE and ORDER are declared before the
+  // first byte, their content arrives later (`addAudioTracks`).
   const audioSources = audioCodec
-    ? noms.map((name) => {
+    ? names.map((name) => {
         const src = new AudioBufferSource({ codec: audioCodec, quality: QUALITY_HIGH })
         output.addAudioTrack(src, { name })
         return src
@@ -820,35 +821,36 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     : []
   await output.start()
 
-  // La première erreur gagne et sera relancée par `finish` : une erreur d'encodeur arrive de
-  // façon asynchrone, hors de la pile de l'appelant, et l'avaler rendrait un fichier tronqué
-  // sans que rien ne le dise.
+  // The first error wins and will be rethrown by `finish`: an encoder error arrives
+  // asynchronously, outside the caller's call stack, and swallowing it would produce a
+  // truncated file without a word about it.
   let failure: Error | null = null
   /**
-   * LES ECRITURES DE PAQUETS SONT ENCHAINEES, ET ATTENDUES AVANT LA FINALISATION.
+   * PACKET WRITES ARE CHAINED, AND AWAITED BEFORE FINALIZATION.
    *
-   * `videoSource.add()` est ASYNCHRONE — il rend une promesse — alors que le rappel `output`
-   * d'un `VideoEncoder` est synchrone et ne peut rien attendre. Les lancer sans les suivre
-   * (`void add(...)`) laissait `output.finalize()` fermer le fichier pendant que des paquets
-   * etaient encore en vol : le clip sortait AVEC SON SON ET SANS IMAGE. `encoder.flush()` ne
-   * protege pas de ca — il garantit que les paquets ont ete EMIS, pas qu'ils ont ete ECRITS.
+   * `videoSource.add()` is ASYNCHRONOUS — it returns a promise — while a `VideoEncoder`'s
+   * `output` callback is synchronous and cannot await anything. Firing them without tracking
+   * them (`void add(...)`) let `output.finalize()` close the file while packets were still in
+   * flight: the clip came out WITH ITS SOUND AND WITHOUT ITS PICTURE. `encoder.flush()` does
+   * not protect against this — it guarantees the packets were EMITTED, not that they were
+   * WRITTEN.
    *
-   * L'enchainement preserve aussi l'ORDRE : deux `add` concurrents pourraient s'ecrire dans le
-   * desordre, ce qu'un flux video ne pardonne pas.
+   * Chaining also preserves ORDER: two concurrent `add` calls could write out of order,
+   * which a video stream does not forgive.
    */
-  let ecritures: Promise<unknown> = Promise.resolve()
+  let writes: Promise<unknown> = Promise.resolve()
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
       const packet = EncodedPacket.fromEncodedChunk(chunk)
       const checked = withRepairedDescription(meta, packet.data)
-      ecritures = ecritures.then(() => videoSource.add(packet, checked))
+      writes = writes.then(() => videoSource.add(packet, checked))
     },
     error: (err) => {
       failure = err instanceof Error ? err : new Error(String(err))
     },
   })
   encoder.configure(config)
-  const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, preset, () => failure, () => ecritures, {
+  const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, preset, () => failure, () => writes, {
     width: config.width,
     height: config.height,
   }, fileTarget)
@@ -873,9 +875,9 @@ function withRepairedDescription(
 }
 
 /**
- * makeSink assemble les trois gestes. HORS de `openVideoExport` pour tenir la règle des 80
- * lignes du dépôt, et parce que l'ouverture (asynchrone, faillible) et l'usage (synchrone,
- * répété dix-huit mille fois) n'ont pas la même nature.
+ * makeSink assembles the three gestures. OUTSIDE `openVideoExport` to keep the repo's 80-line
+ * rule, and because opening (asynchronous, fallible) and use (synchronous, repeated eighteen
+ * thousand times) do not have the same nature.
  */
 function makeSink(
   encoder: VideoEncoder,
@@ -886,10 +888,10 @@ function makeSink(
   mode: ExportRateMode,
   preset: ExportVideoPreset,
   failureOf: () => Error | null,
-  /** La chaine des ecritures de paquets video, a attendre avant de finaliser. */
-  ecrituresEnCours: () => Promise<unknown>,
+  /** The chain of video packet writes, to await before finalizing. */
+  pendingWrites: () => Promise<unknown>,
   size: { width: number; height: number },
-  /** Les octets du fichier, rabattus en `Blob` au fil de l'eau ; `finish` les rend, `abort` les jette. */
+  /** The file's bytes, folded into `Blob`s as they stream in; `finish` returns them, `abort` discards them. */
   fileTarget: ExportFileTarget,
 ): Omit<VideoExportSink, 'fpsFallback'> {
   let closed = false
@@ -898,15 +900,15 @@ function makeSink(
     const failed = failureOf()
     if (failed) throw failed
     if (closed) return
-    // L'HORODATAGE EST CALCULÉ, JAMAIS MESURÉ (cf. l'en-tête) : c'est ce qui rend la durée du
-    // clip indépendante du temps de calcul.
+    // THE TIMESTAMP IS COMPUTED, NEVER MEASURED (see the header): that is what makes the
+    // clip's duration independent of compute time.
     const frame = new VideoFrame(canvas, {
       timestamp: frameTimestampUs(index, fps),
       duration: frameDurationUs(index, fps),
-      // LE RECADRAGE EST EXPLICITE. Une toile d'une autre taille que la config (impaire, ou pas
-      // encore au format) ne doit pas passer implicitement : sans `visibleRect`, on pousse une image
-      // 1919x601 dans un encodeur configuré en 1918x600, et le comportement dépend alors de la
-      // version du navigateur — mise à l'échelle implicite ici, erreur d'encodeur ailleurs.
+      // THE CROP IS EXPLICIT. A canvas of a different size than the config (odd, or not yet
+      // at the format) must not pass implicitly: without `visibleRect`, a 1919x601 frame
+      // would be pushed into an encoder configured at 1918x600, and the behavior then
+      // depends on the browser version — implicit scaling here, encoder error elsewhere.
       visibleRect: { x: 0, y: 0, width: size.width, height: size.height },
     })
     try {
@@ -914,13 +916,13 @@ function makeSink(
       // modes the browser ignores it, and sending it would make the console lie.
       encoder.encode(frame, encodeOptionsFor(mode, isKeyFrame(index, fps), preset))
     } finally {
-      // TOUJOURS, même si `encode` lève : une `VideoFrame` non fermée retient sa mémoire GPU,
-      // et il en passe trente par seconde de match.
+      // ALWAYS, even if `encode` throws: an unclosed `VideoFrame` holds its GPU memory, and
+      // thirty of them pass by per second of match.
       frame.close()
     }
     while (shouldDrain(encoder.encodeQueueSize)) {
-      // JAMAIS `setTimeout` ICI (cf. `eventLoopYield.ts`) : bridé à une seconde en onglet
-      // caché, il rendait l'export dix fois plus lent que le temps réel qu'il encode.
+      // NEVER `setTimeout` HERE (see `eventLoopYield.ts`): throttled to one second in a
+      // hidden tab, it made the export ten times slower than the real time it encodes.
       await yieldToEvents()
       const late = failureOf()
       if (late) throw late
@@ -928,18 +930,19 @@ function makeSink(
   }
 
   /**
-   * addAudioTracks remet les tampons rendus, DANS L'ORDRE des noms declares a l'ouverture.
+   * addAudioTracks hands back the rendered buffers, IN THE ORDER of the names declared at
+   * opening.
    *
-   * `AudioBufferSource.close()` est appele apres chaque tampon : sans lui, la piste reste
-   * ouverte et `output.finalize()` attendrait indefiniment de quoi la remplir.
+   * `AudioBufferSource.close()` is called after each buffer: without it, the track stays
+   * open and `output.finalize()` would wait forever for content that will never come.
    *
    * `progress` receives the share of the tracks already encoded, 0..1, after each one: on a full
    * match each track takes seconds of AAC encoding.
    */
   const addAudioTracks = async (tracks: readonly AudioTrackInput[], progress?: (fraction: number) => void) => {
     for (let i = 0; i < audioSources.length; i++) {
-      const piste = tracks[i]
-      if (piste) await audioSources[i].add(piste.buffer)
+      const track = tracks[i]
+      if (track) await audioSources[i].add(track.buffer)
       audioSources[i].close()
       progress?.((i + 1) / audioSources.length)
     }
@@ -947,16 +950,17 @@ function makeSink(
 
   const finish = async (): Promise<Blob> => {
     await encoder.flush()
-    // `flush()` garantit que les paquets ont ete EMIS ; celle-ci, qu'ils ont ete ECRITS.
-    await ecrituresEnCours()
+    // `flush()` guarantees the packets were EMITTED; this guarantees they were WRITTEN.
+    await pendingWrites()
     const failed = failureOf()
     if (failed) throw failed
-    // LES SOURCES SE FERMENT AVANT LA FINALISATION : une piste declaree mais jamais close
-    // laisse `finalize()` attendre un contenu qui ne viendra pas.
+    // SOURCES CLOSE BEFORE FINALIZATION: a track declared but never closed leaves
+    // `finalize()` waiting for content that will not arrive.
     for (const src of audioSources) src.close()
     videoSource.close()
-    // `finalize()` ferme le flux : tous les octets (y compris le patch mdat et le moov) ont
-    // alors ete livres au target. On les rend tels quels, deja rabattus en `Blob`.
+    // `finalize()` closes the stream: all the bytes (including the mdat patch and the moov)
+    // have by then been delivered to the target. They are returned as is, already folded
+    // into a `Blob`.
     await output.finalize()
     closed = true
     encoder.close()
@@ -966,15 +970,15 @@ function makeSink(
   const abort = () => {
     if (closed) return
     closed = true
-    // On jette tout ce qui a ete ecrit jusqu'ici : sans ca, un match annule laisserait des
-    // gigaoctets de `Blob` en attente dans le target.
+    // Everything written so far is discarded: without this, a cancelled match would leave
+    // gigabytes of `Blob` waiting in the target.
     fileTarget.abort()
-    // `close()` sur un encodeur déjà en erreur lève : l'annulation ne doit jamais masquer la
-    // cause d'un échec par une seconde erreur.
+    // `close()` on an encoder already in error throws: cancellation must never mask the
+    // cause of a failure with a second error.
     try {
       encoder.close()
     } catch {
-      // Rien à dire : on annule, il n'y a pas de fichier à rendre ni d'appelant à prévenir.
+      // Nothing to say: this is a cancellation, there is no file to return and no caller to notify.
     }
   }
 

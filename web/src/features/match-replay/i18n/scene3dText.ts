@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * scene3dText.ts — les textes de la VUE 3D du rejeu, FR + EN, parité par typage.
+ * scene3dText.ts — the text for the replay's 3D VIEW, FR + EN, parity by typing.
  *
- * Table à part du dictionnaire du rejeu (`i18nContract.ts`) : la vue 3D n'existe que sur le
- * poste de l'utilisateur (capacité `can_view_replay_3d`), et ses quelques textes se lisent
- * ensemble.
+ * A table separate from the replay dictionary (`i18nContract.ts`): the 3D view only exists on
+ * the user's own machine (`can_view_replay_3d` capability), and its few texts read together
+ * as a group.
  */
 import type { Aids3d } from '../scene3d/aids3d'
 import type { ReplayLocale } from './i18n'
@@ -18,13 +18,13 @@ import type { ReplayLocale } from './i18n'
 type ReplayMeshBuildStep = 'geometry' | 'lighting' | 'writing' | 'libraries'
 
 export interface Scene3dText {
-  /** Bascule de la carte : vue du dessus. */
+  /** Map toggle: top-down view. */
   view2d: string
-  /** Bascule de la carte : vue 3D. */
+  /** Map toggle: 3D view. */
   view3d: string
-  /** Nom accessible du groupe de bascule. */
+  /** Accessible name of the toggle group. */
   viewGroup: string
-  /** Caméras de la vue 3D. */
+  /** 3D view cameras. */
   cameraGroup: string
   cameraFirst: string
   cameraThird: string
@@ -33,22 +33,22 @@ export interface Scene3dText {
   cameraFirstShort: string
   cameraThirdShort: string
   cameraFreeShort: string
-  /** Les commandes de la vue libre, sous les caméras (touches à leur place : QWERTY / AZERTY). */
+  /** Free-view controls, under the cameras (keys match the layout: QWERTY / AZERTY). */
   cameraFreeHint: string
-  /** « Carte 3D : 42 % de 224 Mo » — le téléchargement du maillage. */
+  /** "3D map: 42% of 224 MB" — the mesh download. */
   loadingFmt: (percent: number, megabytes: number) => string
-  /** Étapes après le téléchargement. */
+  /** Steps after the download. */
   loadingMaterials: string
   loadingIndex: string
   loadingAssets: string
   loadingWarmup: string
-  /** Échec du chargement : la vue le dit au lieu de rester noire. */
+  /** Load failure: the view says so instead of staying black. */
   loadFailed: string
-  /** Le joueur suivi n'est pas encore apparu : la caméra attend à sa première apparition. */
+  /** The followed player has not spawned yet: the camera waits for their first spawn. */
   povUnspawned: string
-  /** Aucun point de vue choisi : la caméra libre seule a un sens. */
+  /** No viewpoint chosen: only the free camera makes sense. */
   noPov: string
-  /** Inspecteur de surfaces (poste de développement) : la ligne est dans le presse-papiers. */
+  /** Surface inspector (dev build): the line is now on the clipboard. */
   probeCopied: string
   /** Playback meter (right, under the minimap): frames per second, « 13 / 30 fps ». */
   cadenceIps: string
@@ -56,22 +56,22 @@ export interface Scene3dText {
   cadencePire: string
   /** Playback meter: the film is paused (no real-time ratio). */
   cadencePaused: string
-  /** La vue réduite du coin : l'agrandir (selon celle qui y est), la déplacer, la retailler. */
+  /** The corner inset view: enlarge it (whichever one is there), move it, resize it. */
   insetEnlarge2d: string
   insetEnlarge3d: string
   insetMove: string
   insetResize: string
-  /** Boîte d'export : la vue exportée, et ses réglages en 3D. */
+  /** Export dialog: the exported view, and its 3D-specific settings. */
   exportView: string
   exportView2d: string
   exportView3d: string
-  /** La caméra libre de l'export ne bouge pas pendant le clip. */
+  /** The export's free camera does not move during the clip. */
   exportCameraFreeFixed: string
   exportFollow: string
   exportMinimap: string
-  /** Tiroir des réglages : la section de la vue 3D et ses interrupteurs. */
+  /** Settings drawer: the 3D view section and its toggles. */
   lookTitle: string
-  /** Le réglage de champ du jeu (degrés horizontaux à 16:9), un curseur et non une bascule. */
+  /** The game's field-of-view setting (horizontal degrees at 16:9), a slider rather than a toggle. */
   lookFov: string
   lookFovHint: string
   lookShadows: string
@@ -89,30 +89,30 @@ export interface Scene3dText {
   /** The playback meter's toggle (also the ` key). */
   lookPlaybackFps: string
   lookPlaybackFpsHint: string
-  /** Tiroir des réglages : les repères d'analyse de la vue 3D (`aids3d`), éteints par défaut. */
+  /** Settings drawer: the 3D view's analysis aids (`aids3d`), off by default. */
   aidsTitle: string
   aidsTitleHint: string
   aids: Record<keyof Aids3d, { label: string; hint: string }>
-  /** Panneau de construction de la carte 3D, quand son maillage manque encore sur le poste. */
+  /** 3D map build panel, shown while its mesh is still missing on this machine. */
   buildTitle: string
   buildBody: string
   buildAction: string
-  /** Construction en cours : titre, étapes, démarrage, fin (la vue se charge), attente de la partie. */
+  /** Build in progress: title, steps, start, finish (the view loads), waiting for the match. */
   buildingTitle: string
   buildSteps: Record<ReplayMeshBuildStep, string>
   buildStarting: string
   buildDone: string
   buildWaitingForGame: string
-  /** Échec de la construction, et nouvel essai. */
+  /** Build failure, and retry. */
   buildFailed: string
   buildRetry: string
-  /** Indisponible : Halo Infinite absent du poste, et le remède (l'explication tient lieu d'échec). */
+  /** Unavailable: Halo Infinite not found on this machine, and the fix (the explanation stands in for the failure). */
   buildGameMissing: string
-  /** Indisponible : l'outil de construction manquant, et le remède. */
+  /** Unavailable: the build tool is missing, and the fix. */
   buildToolMissing: string
-  /** Lancement refusé : une autre carte est en construction. */
+  /** Launch refused: another map is already being built. */
   buildBusy: string
-  /** Carte affichée sans le calque des objets de sa variante : le lancer, son avancement, son échec. */
+  /** Map shown without its variant's object layer: launching the build, its progress, its failure. */
   variantBuildAction: string
   variantBuilding: string
   variantBuildFailed: string

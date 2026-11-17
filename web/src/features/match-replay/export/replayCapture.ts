@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayCapture.ts — CE QUI SORT DU REJEU : le nom du fichier, le téléchargement, et l'image
- * du canvas.
+ * replayCapture.ts — WHAT COMES OUT OF THE REPLAY: the file name, the download, and the
+ * canvas image.
  *
- * POURQUOI UN MODULE À PART, et pas trois lignes dans le composant. Les trois opérations
- * ci-dessous sont les seules du chantier de capture qui ne dépendent NI de React, NI de
- * l'état de lecture : nommer, remettre un blob au navigateur, et lire les pixels d'une toile.
- * Les isoler les rend testables sans monter un composant — et le seuil de taille du canvas
- * (`max-lines` eslint, R5) interdit de toute façon d'y loger la moindre logique.
+ * WHY A SEPARATE MODULE, rather than three lines in the component. The three operations below
+ * are the only ones in the capture pipeline that depend on NEITHER React NOR the playback
+ * state: naming, handing a blob to the browser, and reading the pixels off a canvas. Isolating
+ * them makes them testable without mounting a component — and the canvas size limit
+ * (`max-lines` eslint, R5) forbids putting any logic there anyway.
  *
- * # LE NOM DIT L'INSTANT DU MATCH, PAS L'HEURE DE L'ORDINATEUR
+ * # THE NAME SAYS THE MATCH'S MOMENT, NOT THE COMPUTER'S CLOCK
  *
- * Un rejeu se relit à plusieurs, et le fichier voyage : `replay-<match>-12m34s.png` se replace
- * tout seul dans la partie, là où un horodatage local ne dit rien à personne d'autre. C'est
- * pour cela que l'horodatage n'est qu'un REPLI — il n'apparaît que quand le match ou son
- * instant manquent, et il vaut alors mieux qu'un nom qui MENTIRAIT sur l'instant capturé
- * (« 0m00s » se lirait « coup d'envoi »).
+ * A replay gets watched by several people, and the file travels: `replay-<match>-12m34s.png`
+ * places itself in the match on its own, where a local timestamp means nothing to anyone else.
+ * That is why the timestamp is only a FALLBACK — it appears only when the match or its moment
+ * is unknown, and it is then better than a name that would LIE about the captured moment
+ * ("0m00s" would read as "kickoff").
  *
- * L'HORLOGE DU REPLI EST UN PARAMÈTRE, jamais un `Date.now()` enfoui : une fonction de nommage
- * qui lit l'heure du système n'est pas testable, et ce module existe justement pour l'être.
+ * THE FALLBACK CLOCK IS A PARAMETER, never a buried `Date.now()`: a naming function that reads
+ * the system clock is not testable, and testability is this module's whole point.
  */
 
-/** Les caractères qu'un nom de fichier garde ; tout le reste devient un tiret. */
+/** The characters a file name keeps; everything else becomes a dash. */
 const FILENAME_SAFE = /[^A-Za-z0-9._-]+/g
 
 /**
- * buildCaptureFilename rend le nom du fichier téléchargé (décision 8 du plan).
+ * buildCaptureFilename renders the downloaded file's name (plan decision 8).
  *
- * Nominal : `replay-<matchId>-<XmYYs>.<ext>`, où `XmYYs` est le temps de MATCH de l'instant
- * capturé (le début de l'enregistrement, pour une vidéo). Avec une SECONDE borne (export de
- * plage) : `replay-<matchId>-<debut>-<fin>.<ext>`. Repli, quand le match n'est pas identifiable
- * OU que son instant est inconnu : `replay-<AAAAMMJJ-HHMMSS>.<ext>`.
+ * Nominal: `replay-<matchId>-<XmYYs>.<ext>`, where `XmYYs` is the MATCH time of the captured
+ * moment (the start of the recording, for a video). With a SECOND bound (a range export):
+ * `replay-<matchId>-<start>-<end>.<ext>`. Fallback, when the match cannot be identified OR its
+ * moment is unknown: `replay-<YYYYMMDD-HHMMSS>.<ext>`.
  */
 export function buildCaptureFilename(
   matchId: string | null,
@@ -38,10 +38,10 @@ export function buildCaptureFilename(
   ext: string,
   now: Date,
   /**
-   * LA SECONDE BORNE, pour un EXPORT DE PLAGE : le nom devient
-   * `replay-<match>-4m10s-6m30s.mp4`. Absente pour une capture d'image ou un enregistrement,
-   * qui n'ont qu'un instant. SANS ELLE, deux exports de plages differentes qui partagent leur
-   * fin porteraient le MEME nom et s'ecraseraient dans le dossier de telechargements.
+   * THE SECOND BOUND, for a RANGE EXPORT: the name becomes
+   * `replay-<match>-4m10s-6m30s.mp4`. Absent for an image capture or a recording, which only
+   * have one moment. WITHOUT IT, two exports of different ranges sharing the same end would
+   * carry the SAME name and overwrite each other in the downloads folder.
    */
   endMs?: number | null,
 ): string {
@@ -56,14 +56,14 @@ export function buildCaptureFilename(
   return `replay-${id}-${span}.${ext}`
 }
 
-/** `XmYYs` : les minutes sans zéro de tête, les secondes toujours sur deux chiffres. */
+/** `XmYYs`: minutes without a leading zero, seconds always on two digits. */
 function matchClock(ms: number): string {
   const total = Math.max(Math.floor(ms / 1000), 0)
   const sec = total % 60
   return `${Math.floor(total / 60)}m${sec < 10 ? '0' : ''}${sec}s`
 }
 
-/** `AAAAMMJJ-HHMMSS` en heure LOCALE : le repli sert à l'utilisateur, pas à une machine. */
+/** `YYYYMMDD-HHMMSS` in LOCAL time: the fallback is for the user, not for a machine. */
 function stampOf(now: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   const date = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}`
@@ -71,59 +71,57 @@ function stampOf(now: Date): string {
 }
 
 /**
- * DÉLAI AVANT DE RELÂCHER L'URL D'OBJET, en millisecondes.
+ * DELAY BEFORE RELEASING THE OBJECT URL, in milliseconds.
  *
- * CE N'EST PAS UN CONFORT, C'EST LA CONDITION POUR QUE LE FICHIER ARRIVE. Un clic sur une
- * ancre `download` ne COPIE pas le blob : il demande au navigateur d'aller LIRE l'URL, et
- * cette lecture est asynchrone. Révoquer l'URL au retour du clic — ce que faisait ce module
- * jusqu'au 2026-08-28 — coupe la source sous le téléchargement qui vient de démarrer. Une
- * image PNG de quelques centaines de kilo-octets y survivait (elle tenait dans le premier
- * souffle) ; un CLIP VIDÉO de plusieurs dizaines de méga-octets, non — le fichier n'arrivait
- * jamais, sans la moindre erreur pour le dire.
+ * THIS IS NOT A CONVENIENCE, IT IS THE CONDITION FOR THE FILE TO ARRIVE. A click on a
+ * `download` anchor does not COPY the blob: it asks the browser to go READ the URL, and that
+ * read is asynchronous. Revoking the URL right after the click — what this module did until
+ * 2026-08-28 — cuts the source out from under the download that is just starting. A PNG image
+ * a few hundred kilobytes in size survived it (it fit within the first instant); a VIDEO CLIP
+ * of several dozen megabytes did not — the file never arrived, with no error to say why.
  *
- * UNE SECONDE, ET PAS ZÉRO : le tick suivant suffirait à sortir du clic, mais pas à garantir
- * que la lecture du blob est engagée sur une machine chargée. Une seconde est invisible pour
- * l'utilisateur (le fichier est déjà en cours de dépôt) et large pour le navigateur. Ce n'est
- * PAS une fuite : la révocation a bien lieu, elle attend simplement son tour.
+ * ONE SECOND, NOT ZERO: the next tick would be enough to get past the click, but not enough to
+ * guarantee the blob read has actually started on a loaded machine. One second is invisible to
+ * the user (the file is already being delivered) and generous for the browser. This is NOT a
+ * leak: the revocation does happen, it simply waits its turn.
  */
 const URL_RELEASE_MS = 1000
 
 /**
- * holdDownload garde un blob prêt à descendre dans le dossier de téléchargements : l'URL
- * d'objet est créée MAINTENANT, le clic part plus tard, à la main.
+ * holdDownload keeps a blob ready to drop into the downloads folder: the object URL is
+ * created NOW, the click fires later, by hand.
  *
- * POURQUOI UN TOUT AUTRE GESTE QUE `triggerDownload`. Un clic sur une ancre `download`
- * déposé par le CODE, des minutes après le dernier geste de l'utilisateur, n'a plus le
- * geste derrière : Chrome bloque le SECOND fichier non demandé d'un site (« Needs
- * permission to download »). Le premier passe, le deuxième non — et le film, c'est le
- * deuxième. Le clic qui déclenche le téléchargement doit donc venir de l'utilisateur,
- * sur un bouton visible ; ce que le code prépare d'avance, c'est seulement l'URL.
+ * WHY A COMPLETELY DIFFERENT GESTURE FROM `triggerDownload`. A click on a `download` anchor
+ * fired by CODE, minutes after the user's last gesture, no longer has a user gesture behind
+ * it: Chrome blocks the SECOND unrequested download from a site ("Needs permission to
+ * download"). The first one gets through, the second does not — and the second one is the
+ * video. The click that triggers the download must therefore come from the user, on a visible
+ * button; all the code prepares in advance is the URL.
  *
- * Le `release` rend la main : il révoque l'URL et rend le blob au collecteur. À
- * appeler quand l'utilisateur ferme le dialogue SANS avoir sauvé — un blob que plus
- * personne ne peut sauver doit être rendu (cf. `useReplayExport`, la phase `done`).
+ * `release` gives up the hold: it revokes the URL and returns the blob to the collector. Call
+ * it when the user closes the dialog WITHOUT having saved — a blob nobody can save anymore
+ * must be released (see `useReplayExport`, the `done` phase).
  *
- * `save` et `release` jouent des rôles asymétriques, et c'est voulu : `save` peut être
- * appelé autant de fois qu'on veut, `release` n'a de sens qu'une fois. Un premier
- * téléchargement peut ÉCHOUER (Chrome ne peut pas écraser un fichier que l'autre
- * programme a ouvert), et le clic sur « Sauvegarder » doit pouvoir être RETENTÉ — un
- * `save` qui révoquerait son URL au bout d'une seconde rendrait ce second clic muet.
+ * `save` and `release` play asymmetric roles, on purpose: `save` can be called as many times
+ * as wanted, `release` only makes sense once. A first download attempt can FAIL (Chrome
+ * cannot overwrite a file another program has open), and the click on "Save" must be
+ * RETRYABLE — a `save` that revoked its URL after a second would make that second click do
+ * nothing.
  */
 export interface PendingDownload {
-  /** Déclenche le téléchargement. À appeler depuis le clic d'un utilisateur, aussi souvent que nécessaire. */
+  /** Triggers the download. Call from a user's click, as often as needed. */
   save: () => void
-  /** Révoque l'URL d'objet et rend le blob au collecteur. À appeler une fois, en fermant sans sauver. */
+  /** Revokes the object URL and returns the blob to the collector. Call once, when closing without saving. */
   release: () => void
 }
 
 /**
- * holdDownload prépare un téléchargement sans le déclencher.
+ * holdDownload prepares a download without triggering it.
  *
- * L'URL d'objet est créée à l'appel : elle vit dans ce que le retour porte. `save` pose
- * l'ancre et clique, sans JAMAIS révoquer — l'URL doit survivre à tous les clics de
- * « Sauvegarder » (le premier peut échouer, le second doit marcher). C'est `release` —
- * et lui seul — qui la révoque. Tant que l'utilisateur n'a ni fermé, le blob reste
- * lisible.
+ * The object URL is created on the call: it lives in what the return value carries. `save`
+ * places the anchor and clicks it, NEVER revoking — the URL must survive every "Save" click
+ * (the first can fail, the second must work). It is `release` — and only `release` — that
+ * revokes it. As long as the user has not closed, the blob stays readable.
  */
 export function holdDownload(blob: Blob, filename: string): PendingDownload {
   const url = URL.createObjectURL(blob)
@@ -134,14 +132,14 @@ export function holdDownload(blob: Blob, filename: string): PendingDownload {
       a.href = url
       a.download = filename
       a.rel = 'noopener'
-      // Invisible et hors flux : l'ancre ne doit pas déplacer d'un pixel la page qu'elle traverse.
+      // Invisible and out of flow: the anchor must not move the page it crosses by a pixel.
       a.style.display = 'none'
       document.body.appendChild(a)
       try {
         a.click()
       } finally {
-        // L'ANCRE PART TOUT DE SUITE. L'URL, elle, EST LAISSÉE : un second clic de
-        // « Sauvegarder » doit pouvoir re-la lire, et c'est `release` qui la rend.
+        // THE ANCHOR LEAVES RIGHT AWAY. THE URL, THOUGH, IS LEFT IN PLACE: a second "Save"
+        // click must still be able to read it, and it is `release` that gives it up.
         a.remove()
       }
     },
@@ -154,19 +152,19 @@ export function holdDownload(blob: Blob, filename: string): PendingDownload {
 }
 
 /**
- * triggerDownload remet un blob au navigateur sous le nom donné, d'un seul geste.
+ * triggerDownload hands a blob to the browser under the given name, in a single gesture.
  *
- * À réserver aux chemins où le clic de l'utilisateur EST le téléchargement — la capture
- * d'image, où le geste et le dépôt sont la même action. Pour un fichier qui existe des
- * minutes après le clic (l'export), le clic final doit venir de l'utilisateur : c'est
- * `holdDownload`, qui prépare l'URL et attend le bouton « Sauvegarder ».
+ * Reserve this for paths where the user's click IS the download — image capture, where the
+ * gesture and the delivery are the same action. For a file that exists minutes after the
+ * click (export), the final click must come from the user: that's `holdDownload`, which
+ * prepares the URL and waits for the "Save" button.
  *
- * L'ancre est ATTACHÉE au document le temps du clic : un clic sur un nœud détaché est
- * ignoré par certains navigateurs, et le téléchargement n'y part alors jamais.
+ * The anchor is ATTACHED to the document for the duration of the click: a click on a detached
+ * node is ignored by some browsers, and the download then never fires.
  *
- * CETTE VOIE EST À USAGE UNIQUE : `save` ne révoque plus, donc il faut un MINUTEUR PROPRE
- * qui révoque l'URL au bout de `URL_RELEASE_MS` (le temps que le blob soit lu), sinon un
- * clip de plusieurs méga-octets resterait retenu jusqu'à la fermeture de l'onglet.
+ * THIS PATH IS SINGLE-USE: `save` no longer revokes, so a DEDICATED TIMER is needed to revoke
+ * the URL after `URL_RELEASE_MS` (long enough for the blob to be read), otherwise a clip of
+ * several megabytes would stay held in memory until the tab closes.
  */
 export function triggerDownload(blob: Blob, filename: string): void {
   const pending = holdDownload(blob, filename)
@@ -175,15 +173,15 @@ export function triggerDownload(blob: Blob, filename: string): void {
 }
 
 /**
- * captureCanvasImage rend les pixels de la toile en PNG, à sa résolution NATIVE.
+ * captureCanvasImage renders the canvas's pixels as PNG, at its NATIVE resolution.
  *
- * « Native » veut dire le backing store : le canvas du rejeu est dimensionné en px physiques
- * (largeur × devicePixelRatio) et le contexte porte la mise à l'échelle — `toBlob` sort donc
- * l'image en pleine densité sans qu'on ait rien à recalculer ici.
+ * "Native" means the backing store: the replay canvas is sized in physical px (width ×
+ * devicePixelRatio) and the context carries the scaling — `toBlob` therefore produces the
+ * image at full density with nothing left to recompute here.
  *
- * `null` N'EST PAS UNE PANNE À REMONTER : une toile vierge, un contexte perdu ou un navigateur
- * qui refuse rendent `null`, et l'appelant ne télécharge alors rien. Un fichier vide serait
- * pire que pas de fichier.
+ * `null` IS NOT A FAILURE TO REPORT: a blank canvas, a lost context, or a browser that refuses
+ * all render `null`, and the caller then downloads nothing. An empty file would be worse than
+ * no file.
  */
 export function captureCanvasImage(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => {

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * overlayPaint.test.ts — CE QUE LES SURIMPRESSIONS PEIGNENT, sur un contexte espionné.
+ * overlayPaint.test.ts — WHAT THE OVERLAYS PAINT, on a spied context.
  *
- * On ne teste pas des pixels (jsdom n'en produit aucun) mais la SUITE D'APPELS : ce qui est
- * peint, dans quel ordre, et avec quelle encre. C'est ce qui verrouille les décisions qui se
- * verraient à l'œil sur un export — l'ordre fond-vers-texte, le tiret dans l'encre atténuée,
- * le texte JAMAIS dans la couleur de camp, l'absence de panneau quand il n'y a rien à dire.
+ * This does not test pixels (jsdom produces none) but the SEQUENCE OF CALLS: what gets painted,
+ * in which order, and in which ink. That is what locks in the decisions that would be checked
+ * by eye on an export — the background-to-text order, the dash in the muted ink, the text
+ * NEVER in the team color, no panel at all when there is nothing to say.
  *
- * La FIDÉLITÉ au DOM, elle, ne se teste pas ici : elle se prononce à l'œil sur le clip, et
- * c'est le gate de recette utilisateur de l'étape E2 du plan.
+ * FIDELITY to the DOM is not tested here: that is judged by eye on the clip, and is the user
+ * acceptance gate of plan step E2.
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +30,7 @@ const INK: OverlayInk = {
 const FONTS: OverlayFonts = { sans: 'Inter, sans-serif', mono: 'JetBrains Mono, monospace' }
 const VIEW = { width: 800, height: 400 }
 
-/** Un contexte 2D espionné : chaque appel est enregistré avec l'encre courante. */
+/** A spied 2D context: each call is recorded along with the ink in effect at the time. */
 function spyContext() {
   const trace: { op: string; args: unknown[]; fill: string; alpha: number }[] = []
   const ctx = {
@@ -63,8 +63,8 @@ function spyContext() {
       trace.push({
         op,
         args,
-        // Les deux encres sont typées `string | CanvasGradient | CanvasPattern` ; ce peintre
-        // n'emploie que des chaînes, et le test n'a besoin que de celles-là.
+        // Both inks are typed `string | CanvasGradient | CanvasPattern`; this painter only ever
+        // uses strings, and the test only needs those.
         fill: (op === 'stroke' ? ctx.strokeStyle : ctx.fillStyle) as string,
         alpha: ctx.globalAlpha,
       })
@@ -74,102 +74,102 @@ function spyContext() {
   return ctx
 }
 
-const VICTOIRE: OverlayPanel = {
-  status: 'Victoire',
+const VICTORY: OverlayPanel = {
+  status: 'Victory',
   statusStyle: { background: 'rgb(0 90 200)', border: 'rgb(0 120 255)' },
-  label: 'Equipe Eagle',
+  label: 'Team Eagle',
   score: { ally: 50, enemy: 43 },
   veil: true,
 }
 
-describe('paintOverlayPanel — l’écran de fin de match', () => {
-  it('peint le voile en premier, sur toute la toile, à 70 %', () => {
+describe('paintOverlayPanel — the match-end screen', () => {
+  it('paints the veil first, over the whole canvas, at 70%', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    const voile = ctx.__trace[0]
-    expect(voile.op).toBe('fillRect')
-    expect(voile.args).toEqual([0, 0, 800, 400])
-    expect(voile.fill).toBe(INK.background)
-    expect(voile.alpha).toBeCloseTo(0.7)
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    const veil = ctx.__trace[0]
+    expect(veil.op).toBe('fillRect')
+    expect(veil.args).toEqual([0, 0, 800, 400])
+    expect(veil.fill).toBe(INK.background)
+    expect(veil.alpha).toBeCloseTo(0.7)
   })
 
-  it('met le verdict en CAPITALES, comme le fait `uppercase` dans le DOM', () => {
+  it('uppercases the verdict, as `uppercase` does in the DOM', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    const textes = ctx.__trace.filter((e) => e.op === 'fillText').map((e) => e.args[0])
-    expect(textes).toContain('VICTOIRE')
-    expect(textes).toContain('EQUIPE EAGLE')
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    const texts = ctx.__trace.filter((e) => e.op === 'fillText').map((e) => e.args[0])
+    expect(texts).toContain('VICTORY')
+    expect(texts).toContain('TEAM EAGLE')
   })
 
-  it('écrit le texte en `--foreground`, JAMAIS dans la couleur de camp', () => {
+  it('writes the text in `--foreground`, NEVER in the team color', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    const verdict = ctx.__trace.find((e) => e.op === 'fillText' && e.args[0] === 'VICTOIRE')
-    // Une couleur de camp peut être très claire : le contraste ne se négocie pas.
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    const verdict = ctx.__trace.find((e) => e.op === 'fillText' && e.args[0] === 'VICTORY')
+    // A team color can be very light: contrast is not negotiable.
     expect(verdict?.fill).toBe(INK.foreground)
   })
 
-  it('peint la carte du statut au fond et au bord de la couleur de camp', () => {
+  it('paints the status card with the team color as its background and border', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    expect(ctx.__trace.find((e) => e.op === 'fill')?.fill).toBe(VICTOIRE.statusStyle.background)
-    expect(ctx.__trace.find((e) => e.op === 'stroke')?.fill).toBe(VICTOIRE.statusStyle.border)
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    expect(ctx.__trace.find((e) => e.op === 'fill')?.fill).toBe(VICTORY.statusStyle.background)
+    expect(ctx.__trace.find((e) => e.op === 'stroke')?.fill).toBe(VICTORY.statusStyle.border)
   })
 
-  it('met le tiret du score dans l’encre atténuée, et les deux nombres dans l’encre du texte', () => {
+  it('puts the score dash in the muted ink, and both numbers in the text ink', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    const parNombre = (t: string) =>
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    const byNumber = (t: string) =>
       ctx.__trace.find((e) => e.op === 'fillText' && e.args[0] === t)?.fill
-    expect(parNombre('50')).toBe(INK.foreground)
-    expect(parNombre('43')).toBe(INK.foreground)
-    expect(parNombre('-')).toBe(INK.muted)
+    expect(byNumber('50')).toBe(INK.foreground)
+    expect(byNumber('43')).toBe(INK.foreground)
+    expect(byNumber('-')).toBe(INK.muted)
   })
 
-  it('écrit l’allié À GAUCHE de l’adverse — l’ordre du bandeau', () => {
+  it('writes the ally LEFT of the enemy — the order the banner uses', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
     const x = (t: string) =>
       ctx.__trace.find((e) => e.op === 'fillText' && e.args[0] === t)?.args[1] as number
     expect(x('50')).toBeLessThan(x('43'))
   })
 
-  it('pose le filigrane SOUS le texte, et à 20 %', () => {
+  it('places the watermark BELOW the text, and at 20%', () => {
     const ctx = spyContext()
     const logo = {} as CanvasImageSource
-    paintOverlayPanel(ctx, VIEW, { ...VICTOIRE, logo }, FONTS, INK)
+    paintOverlayPanel(ctx, VIEW, { ...VICTORY, logo }, FONTS, INK)
     const iLogo = ctx.__trace.findIndex((e) => e.op === 'drawImage')
-    const iTexte = ctx.__trace.findIndex((e) => e.op === 'fillText')
+    const iText = ctx.__trace.findIndex((e) => e.op === 'fillText')
     expect(iLogo).toBeGreaterThanOrEqual(0)
-    expect(iLogo).toBeLessThan(iTexte)
+    expect(iLogo).toBeLessThan(iText)
     expect(ctx.__trace[iLogo].alpha).toBeCloseTo(0.2)
   })
 
-  it('ne peint AUCUN filigrane tant que le logo n’est pas chargé', () => {
+  it('paints NO watermark at all as long as the logo is not loaded', () => {
     const ctx = spyContext()
-    paintOverlayPanel(ctx, VIEW, VICTOIRE, FONTS, INK)
-    // Le panneau n'a jamais eu besoin du logo pour dire comment le match s'est terminé.
+    paintOverlayPanel(ctx, VIEW, VICTORY, FONTS, INK)
+    // The panel never needed the logo to say how the match ended.
     expect(ctx.__trace.some((e) => e.op === 'drawImage')).toBe(false)
   })
 
-  it('centre la colonne verticalement, score compris', () => {
-    const hautDuBloc = (p: OverlayPanel) => {
+  it('centers the column vertically, score included', () => {
+    const blockTop = (p: OverlayPanel) => {
       const c = spyContext()
       paintOverlayPanel(c, VIEW, p, FONTS, INK)
       return c.__trace.find((e) => e.op === 'roundRect')?.args[1] as number
     }
-    // Une colonne plus haute commence plus haut : c'est ce que fait `items-center`.
-    expect(hautDuBloc(VICTOIRE)).toBeLessThan(hautDuBloc({ ...VICTOIRE, score: null, label: null }))
+    // A taller column starts higher: that is what `items-center` does.
+    expect(blockTop(VICTORY)).toBeLessThan(blockTop({ ...VICTORY, score: null, label: null }))
   })
 })
 
-describe('paintOverlayPanel — l’égalité et le message inter-manche', () => {
-  it('l’égalité n’emprunte ni logo ni nom d’équipe', () => {
+describe('paintOverlayPanel — the tie and the round-break message', () => {
+  it('the tie borrows neither a logo nor a team name', () => {
     const ctx = spyContext()
     paintOverlayPanel(
       ctx,
       VIEW,
-      { status: 'Egalite', statusStyle: neutralStatusStyle(INK), score: { ally: 50, enemy: 50 }, veil: true },
+      { status: 'Tie', statusStyle: neutralStatusStyle(INK), score: { ally: 50, enemy: 50 }, veil: true },
       FONTS,
       INK,
     )
@@ -178,21 +178,21 @@ describe('paintOverlayPanel — l’égalité et le message inter-manche', () =>
     expect(ctx.__trace.find((e) => e.op === 'stroke')?.fill).toBe(INK.border)
   })
 
-  it('le message inter-manche ne pose PAS de voile', () => {
+  it('the round-break message does NOT post a veil', () => {
     const ctx = spyContext()
     paintOverlayPanel(
       ctx,
       VIEW,
-      { status: 'Manche 2 terminee', statusStyle: neutralStatusStyle(INK), veil: false },
+      { status: 'Round 2 over', statusStyle: neutralStatusStyle(INK), veil: false },
       FONTS,
       INK,
     )
-    // Le DOM n'en pose pas non plus : une manche qui s'achève ne masque pas le terrain.
+    // The DOM doesn't post one either: a round ending does not hide the field.
     expect(ctx.__trace.some((e) => e.op === 'fillRect')).toBe(false)
     expect(ctx.__trace.some((e) => e.op === 'fillText')).toBe(true)
   })
 
-  it('ne peint rien du tout quand il n’y a pas de statut à dire', () => {
+  it('paints nothing at all when there is no status to say', () => {
     const ctx = spyContext()
     paintOverlayPanel(ctx, VIEW, { status: '   ', statusStyle: neutralStatusStyle(INK), veil: true }, FONTS, INK)
     expect(ctx.__trace).toHaveLength(0)

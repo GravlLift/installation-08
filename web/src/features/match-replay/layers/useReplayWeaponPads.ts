@@ -272,12 +272,12 @@ export function crossedWeaponPads(
   if (spots.length === 0) return pads
   // FIRST CITATION WINS: two locations cannot move the same pad to two places. The server
   // does not do it, the client does not rely on it.
-  const parSocle = new Map<number, (typeof spots)[number]>()
+  const byPad = new Map<number, (typeof spots)[number]>()
   for (const spot of spots) {
-    if (!parSocle.has(spot.pad)) parSocle.set(spot.pad, spot)
+    if (!byPad.has(spot.pad)) byPad.set(spot.pad, spot)
   }
   return pads.map((pad, i) => {
-    const spot = parSocle.get(i)
+    const spot = byPad.get(i)
     if (!spot) return pad
     return { ...pad, x: spot.x, y: spot.y, z: spot.z ?? pad.z }
   })

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplayTiming — TOUTES LES DURÉES DU REJEU, converties une fois par document.
+ * useReplayTiming — ALL THE REPLAY'S DURATIONS, converted once per document.
  *
- * POURQUOI CE FICHIER EXISTE. Le canvas du rejeu porte une dette de taille GELÉE par un
- * seuil (`max-lines` eslint, R5) : toute addition s'y fait par EXTRACTION, jamais
- * par empilement — c'est la manœuvre que le seuil existe pour imposer, et c'est la
- * quatrième fois qu'elle sert (useReplayInks, les vignettes de grenade, useReplayWeaponPads avant lui).
- * Le lot R3 allonge la croix de mort et devait écrire pourquoi : les réglages temporels et
- * leur conversion partent donc ici, avec leurs justifications.
+ * WHY THIS FILE EXISTS. The replay canvas carries a size debt FROZEN by a threshold
+ * (`max-lines` eslint, R5): any addition there happens by EXTRACTION, never by piling on —
+ * that is the maneuver the threshold exists to enforce, and this is the fourth time it has
+ * served that purpose (useReplayInks, the grenade thumbnails, useReplayWeaponPads before
+ * it). The R3 batch extends the death cross and had to write down why: the timing settings
+ * and their conversion therefore move here, with their justifications.
  *
- * TOUT EST DÉCLARÉ EN TEMPS RÉEL, JAMAIS EN NOMBRE D'IMAGES. La cadence d'échantillonnage du
- * film est choisie au build et peut changer sans que la lecture change : une durée écrite en
- * frames se mettrait à mentir le jour où elle bouge. La conversion vit ici, une fois par
- * document, et personne d'autre ne la refait.
+ * EVERYTHING IS DECLARED IN REAL TIME, NEVER IN FRAME COUNT. The film's sampling rate is
+ * chosen at build time and can change without the playback changing: a duration written in
+ * frames would start lying the day it moves. The conversion lives here, once per document,
+ * and no one else redoes it.
  */
 import { useMemo } from 'react'
 
@@ -22,52 +22,52 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { MarkerTiming } from '../layers/replayMarkers'
 
 /**
- * Rémanences des événements ponctuels, en temps réel — celles du POC, et elles DIFFÈRENT :
- * un TIR est un éclat bref (0,6 s — c'est sa brièveté qui le rend lisible : à 1,4 s le trait
- * traînait dim et se fondait dans la carte, mesure du recalage 2.2), un LANCER et une MORT
- * tiennent 1,4 s parce qu'ils portent plus de sens qu'une détonation.
+ * Afterglows of the one-off events, in real time — the POC's values, and they DIFFER: a
+ * SHOT is a brief flash (0.6 s — its brevity is what makes it readable: at 1.4 s the streak
+ * lingered dim and blended into the map, measurement from recalibration 2.2), a THROW and a
+ * DEATH hold for 1.4 s because they carry more meaning than a detonation.
  */
 const SHOT_HOLD_MS = 600
 const EVENT_HOLD_MS = 1_400
 
 /**
- * Réglages temporels du calque des joueurs. Valeurs reprises du POC, où elles ont été réglées
- * à l'écran ; leur justification mesurée est en tête de replayMarkers.ts.
+ * Timing settings of the players layer. Values carried over from the POC, where they were
+ * tuned on screen; their measured justification is at the top of replayMarkers.ts.
  */
 const TIMING_MS = {
   trail: 7_000,
   aimHold: 5_000,
   /**
-   * LA CROIX DE MORT PERSISTE 2,5 s depuis le 2026-08-18 (A1 : « une persistance plus
-   * longue »). 1,5 s était la valeur du POC : à 4x, une croix vivait moins de dix images et
-   * la mort passait inaperçue. DEUX durées étaient proposées sur la planche (2,5 s et 4 s) ;
-   * la question est TRANCHÉE depuis le 2026-08-20 — 4 s encombre la carte, 2,5 s reste. La
-   * constante qui gardait l'option longue sous la main est retirée avec cette décision.
+   * THE DEATH CROSS PERSISTS FOR 2.5 s since 2026-08-18 (A1: "a longer persistence").
+   * 1.5 s was the POC value: at 4x, a cross lived less than ten frames and the death went
+   * unnoticed. TWO durations were proposed on the board (2.5 s and 4 s); the question has
+   * been SETTLED since 2026-08-20 — 4 s clutters the map, 2.5 s stays. The constant that
+   * kept the longer option on hand is removed along with this decision.
    */
   death: 2_500,
   spawn: 800,
 } as const
 
-/** Les durées de la fin de vol d'une grenade, en frames : halo court, nappe Dynamo longue. */
+/** Durations of a grenade's end of flight, in frames: short halo, long Dynamo field. */
 export interface GrenadeRestWindow {
   holdHalo: number
   holdDynamo: number
 }
 
 export interface ReplayTiming {
-  /** Cadence NATIVE du document, avant multiplicateur de vitesse. */
+  /** NATIVE rate of the document, before the speed multiplier. */
   baseFps: number
-  /** Traînée, maintien du cône, croix de mort, anneau d'apparition — en frames. */
+  /** Trail, aim cone hold, death cross, spawn ring — in frames. */
   timing: MarkerTiming
-  /** Rémanence d'un lancer ou d'une mort, en frames. */
+  /** Afterglow of a throw or a death, in frames. */
   eventHoldFrames: number
-  /** Rémanence d'un tir, en frames. */
+  /** Afterglow of a shot, in frames. */
   shotHoldFrames: number
-  /** Fenêtres de la fin de vol d'une grenade, en frames. */
+  /** Windows of a grenade's end of flight, in frames. */
   restWindow: GrenadeRestWindow
 }
 
-/** useReplayTiming convertit toutes les durées du rejeu pour ce document. */
+/** useReplayTiming converts all of the replay's durations for this document. */
 export function useReplayTiming(doc: ReplayDocumentReady): ReplayTiming {
   return useMemo(
     () => ({
@@ -89,5 +89,5 @@ export function useReplayTiming(doc: ReplayDocumentReady): ReplayTiming {
   )
 }
 
-/** Les durées DÉCLARÉES, en ms — exposées pour les tests et la planche, jamais pour le rendu. */
+/** The DECLARED durations, in ms — exposed for tests and the board, never for rendering. */
 export const REPLAY_TIMING_MS = { ...TIMING_MS, event: EVENT_HOLD_MS, shot: SHOT_HOLD_MS } as const

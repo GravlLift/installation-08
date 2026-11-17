@@ -1,57 +1,57 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — replayCapture (le nom du fichier, le téléchargement, l'image du canvas).
+ * Tests — replayCapture (the file name, the download, the canvas image).
  *
- * CE QU'ILS PROTÈGENT. Trois promesses, et chacune se casse en silence si on ne la tient pas :
- * le nom porte l'INSTANT DU MATCH (un horodatage local ne dit rien à qui reçoit le fichier),
- * le blob remis au navigateur est RÉVOQUÉ tout de suite (sans quoi une vidéo de plusieurs
- * mégaoctets reste retenue jusqu'à la fermeture de l'onglet), et une toile qui ne rend pas
- * d'image ne déclenche AUCUN téléchargement (un fichier vide serait pire que rien).
+ * WHAT THEY PROTECT. Three promises, and each one breaks silently if not kept: the name
+ * carries the MATCH'S MOMENT (a local timestamp means nothing to whoever receives the file),
+ * the blob handed to the browser is RELEASED right away (otherwise a video of several
+ * megabytes stays held in memory until the tab closes), and a canvas that renders no image
+ * triggers NO download at all (an empty file would be worse than nothing).
  *
- * jsdom N'A PAS `canvas.toBlob` (ni `URL.createObjectURL` avant qu'on l'y pose) : ces tests
- * les remplacent par des doublures, exactement comme `useReplayPlayback.test.tsx` remplace la
- * boucle d'animation. Ce n'est pas un contournement — il n'y a rien de RÉEL à mesurer ici, la
- * question posée est « qui est appelé, avec quoi ».
+ * jsdom HAS NO `canvas.toBlob` (nor `URL.createObjectURL` until we put one there): these
+ * tests replace them with stand-ins, exactly as `useReplayPlayback.test.tsx` replaces the
+ * animation loop. This is not a workaround — there is nothing REAL to measure here, the
+ * question being asked is "who gets called, with what".
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildCaptureFilename, captureCanvasImage, holdDownload, triggerDownload } from './replayCapture'
 
-/** Une horloge FIXE pour le repli : le nom ne doit dépendre d'aucune heure réelle. */
-const HORLOGE = new Date(2026, 7, 26, 14, 3, 9)
+/** A FIXED clock for the fallback: the name must not depend on any real-world time. */
+const CLOCK = new Date(2026, 7, 26, 14, 3, 9)
 
-describe('buildCaptureFilename — le nom dit l’instant du match', () => {
-  it('nominal : identifiant du match et temps de match', () => {
-    expect(buildCaptureFilename('abc-123', 74_000, 'png', HORLOGE)).toBe('replay-abc-123-1m14s.png')
+describe('buildCaptureFilename — the name says the match’s moment', () => {
+  it('nominal: match id and match time', () => {
+    expect(buildCaptureFilename('abc-123', 74_000, 'png', CLOCK)).toBe('replay-abc-123-1m14s.png')
   })
 
-  it('les secondes tiennent toujours sur deux chiffres, les minutes jamais', () => {
-    // Le tri alphabétique d'un dossier de captures suit alors l'ordre du match, ce qu'un
-    // « 1m4s » ferait mentir dès la dixième seconde.
-    expect(buildCaptureFilename('m', 4_000, 'png', HORLOGE)).toBe('replay-m-0m04s.png')
+  it('seconds always fit on two digits, minutes never do', () => {
+    // A captures folder's alphabetical sort then follows the match's order, which a
+    // "1m4s" would lie about from the tenth second onward.
+    expect(buildCaptureFilename('m', 4_000, 'png', CLOCK)).toBe('replay-m-0m04s.png')
   })
 
-  it('au-delà de dix minutes, l’heure de match reste lisible', () => {
-    expect(buildCaptureFilename('m', 754_000, 'webm', HORLOGE)).toBe('replay-m-12m34s.webm')
+  it('past ten minutes, the match time stays readable', () => {
+    expect(buildCaptureFilename('m', 754_000, 'webm', CLOCK)).toBe('replay-m-12m34s.webm')
   })
 
-  it('sans identifiant de match : repli horodaté (décision 8)', () => {
-    expect(buildCaptureFilename(null, 74_000, 'mp4', HORLOGE)).toBe('replay-20260826-140309.mp4')
-    expect(buildCaptureFilename('   ', 74_000, 'mp4', HORLOGE)).toBe('replay-20260826-140309.mp4')
+  it('without a match id: timestamped fallback (decision 8)', () => {
+    expect(buildCaptureFilename(null, 74_000, 'mp4', CLOCK)).toBe('replay-20260826-140309.mp4')
+    expect(buildCaptureFilename('   ', 74_000, 'mp4', CLOCK)).toBe('replay-20260826-140309.mp4')
   })
 
-  it('sans instant lisible : repli AUSSI — un nom ne doit pas inventer « 0m00s »', () => {
-    // « 0m00s » se lirait « coup d'envoi » : c'est une affirmation, pas une absence.
-    expect(buildCaptureFilename('abc', null, 'png', HORLOGE)).toBe('replay-20260826-140309.png')
-    expect(buildCaptureFilename('abc', Number.NaN, 'png', HORLOGE)).toBe('replay-20260826-140309.png')
+  it('without a readable moment: fallback ALSO applies — a name must not invent "0m00s"', () => {
+    // "0m00s" would read as "kickoff": that is a claim, not an absence.
+    expect(buildCaptureFilename('abc', null, 'png', CLOCK)).toBe('replay-20260826-140309.png')
+    expect(buildCaptureFilename('abc', Number.NaN, 'png', CLOCK)).toBe('replay-20260826-140309.png')
   })
 
-  it('un identifiant exotique ne s’échappe pas dans le nom de fichier', () => {
-    expect(buildCaptureFilename('a/b c:d', 0, 'png', HORLOGE)).toBe('replay-a-b-c-d-0m00s.png')
+  it('an exotic id does not leak into the file name', () => {
+    expect(buildCaptureFilename('a/b c:d', 0, 'png', CLOCK)).toBe('replay-a-b-c-d-0m00s.png')
   })
 })
 
-describe('triggerDownload — le blob est rendu, puis relâché', () => {
+describe('triggerDownload — the blob is delivered, then released', () => {
   let created: string[] = []
   let revoked: string[] = []
 
@@ -71,34 +71,35 @@ describe('triggerDownload — le blob est rendu, puis relâché', () => {
     vi.unstubAllGlobals()
   })
 
-  it('pose une ancre nommée, l’attache au document, et la déclenche', () => {
-    const ancre = document.createElement('a')
-    const clic = vi.spyOn(ancre, 'click').mockImplementation(() => {
-      // L'ANCRE EST DANS LE DOCUMENT AU MOMENT DU CLIC, et c'est tout l'objet de l'assertion :
-      // un clic sur un nœud détaché est ignoré par certains navigateurs (le téléchargement n'y
-      // part jamais). La vérifier APRÈS coup ne dirait rien — elle est déjà retirée.
-      expect(ancre.isConnected).toBe(true)
+  it('places a named anchor, attaches it to the document, and triggers it', () => {
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click').mockImplementation(() => {
+      // THE ANCHOR IS IN THE DOCUMENT AT THE MOMENT OF THE CLICK, which is the whole point of
+      // this assertion: a click on a detached node is ignored by some browsers (the download
+      // then never starts). Checking it AFTER the fact would say nothing — it's already removed.
+      expect(anchor.isConnected).toBe(true)
     })
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     triggerDownload(new Blob(['xy']), 'replay-m-0m04s.png')
     expect(create).toHaveBeenCalledWith('a')
-    expect(ancre.download).toBe('replay-m-0m04s.png')
-    expect(ancre.href).toBe('blob:replay-test')
-    expect(clic).toHaveBeenCalledTimes(1)
+    expect(anchor.download).toBe('replay-m-0m04s.png')
+    expect(anchor.href).toBe('blob:replay-test')
+    expect(click).toHaveBeenCalledTimes(1)
     expect(created).toHaveLength(1)
-    // ET ELLE REPART : une ancre laissée derrière s'accumulerait à chaque capture.
-    expect(ancre.isConnected).toBe(false)
+    // AND IT LEAVES AGAIN: an anchor left behind would pile up on every capture.
+    expect(anchor.isConnected).toBe(false)
     create.mockRestore()
   })
 
-  it('ne révoque PAS l’URL au retour du clic, mais plus tard', () => {
+  it('does NOT revoke the URL right after the click, but later', () => {
     vi.useFakeTimers()
-    const ancre = document.createElement('a')
-    vi.spyOn(ancre, 'click').mockImplementation(() => {})
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const anchor = document.createElement('a')
+    vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     triggerDownload(new Blob(['xy']), 'replay-m-0m04s.mp4')
-    // LE POINT DU TEST (correctif du 2026-08-28) : révoquer tout de suite coupe la source sous
-    // le téléchargement qui démarre. Un PNG y survivait, un clip vidéo n'arrivait jamais.
+    // THE POINT OF THIS TEST (fix from 2026-08-28): revoking right away cuts the source out
+    // from under the download that is just starting. A PNG survived it, a video clip never
+    // arrived.
     expect(revoked).toEqual([])
     vi.runAllTimers()
     expect(revoked).toEqual(['blob:replay-test'])
@@ -107,7 +108,7 @@ describe('triggerDownload — le blob est rendu, puis relâché', () => {
   })
 })
 
-describe('holdDownload — le téléchargement attend un clic', () => {
+describe('holdDownload — the download waits for a click', () => {
   let created: string[] = []
   let revoked: string[] = []
 
@@ -127,84 +128,83 @@ describe('holdDownload — le téléchargement attend un clic', () => {
     vi.unstubAllGlobals()
   })
 
-  it('crée l’URL à l’appel, mais NE DÉPOSE RIEN avant le clic', () => {
+  it('creates the URL on the call, but DEPOSITS NOTHING before the click', () => {
     holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
-    // L'URL EST PRÊTE : le clip est assemblé, et le bouton « Sauvegarder » n'attend qu'un clic.
+    // THE URL IS READY: the clip is assembled, and the "Save" button only waits for a click.
     expect(created).toEqual(['3'])
-    // MAIS AUCUNE ANCRE N'A ÉTÉ POSÉE : le dépôt n'a pas eu lieu, et rien n'a été cliqué.
-    // C'est ce qui distingue `holdDownload` de `triggerDownload` : le clic vient de
-    // l'utilisateur, pas du code.
+    // BUT NO ANCHOR HAS BEEN PLACED: the delivery has not happened, and nothing was clicked.
+    // This is what distinguishes `holdDownload` from `triggerDownload`: the click comes from
+    // the user, not from the code.
     expect(document.querySelector('a[download]')).toBeNull()
   })
 
-  it('le `save` pose l’ancre, l’attache, la déclenche, et la retire', () => {
+  it('`save` places the anchor, attaches it, triggers it, and removes it', () => {
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
-    const ancre = document.createElement('a')
-    const clic = vi.spyOn(ancre, 'click').mockImplementation(() => {
-      expect(ancre.isConnected).toBe(true)
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click').mockImplementation(() => {
+      expect(anchor.isConnected).toBe(true)
     })
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     pending.save()
-    expect(ancre.download).toBe('replay-m-0m00s-0m00s.mp4')
-    expect(ancre.href).toBe('blob:replay-test')
-    expect(clic).toHaveBeenCalledTimes(1)
-    expect(ancre.isConnected).toBe(false)
+    expect(anchor.download).toBe('replay-m-0m00s-0m00s.mp4')
+    expect(anchor.href).toBe('blob:replay-test')
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(anchor.isConnected).toBe(false)
     create.mockRestore()
   })
 
-  it('le `save` ne révoque JAMAIS l’URL, même après coup : un second clic doit pouvoir re-la lire', () => {
+  it('`save` NEVER revokes the URL, even afterwards: a second click must still be able to read it', () => {
     vi.useFakeTimers()
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
-    const ancre = document.createElement('a')
-    vi.spyOn(ancre, 'click').mockImplementation(() => {})
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const anchor = document.createElement('a')
+    vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     pending.save()
     vi.runAllTimers()
-    // Pas de minuteur propre : le `save` de `holdDownload` laisse l'URL en place, pour que le
-    // clic RETENTÉ de « Sauvegarder » (le premier a échoué) puisse encore lire le blob.
+    // No dedicated timer: `holdDownload`'s `save` leaves the URL in place, so that a RETRIED
+    // "Save" click (the first one failed) can still read the blob.
     expect(revoked).toEqual([])
     create.mockRestore()
     vi.useRealTimers()
   })
 
-  it('le `save` peut être retenté : un second clic pose l’ancre et clique encore', () => {
+  it('`save` can be retried: a second click places the anchor and clicks again', () => {
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
-    const ancre = document.createElement('a')
-    const clic = vi.spyOn(ancre, 'click')
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const anchor = document.createElement('a')
+    const click = vi.spyOn(anchor, 'click')
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     pending.save()
     pending.save()
-    // DeUX clics : le premier téléchargement a échoué (fichier verrouillé par ailleurs), le
-    // second part — c'est tout l'objet de `save` qui ne révoque ni ne s'éteint pas.
-    expect(clic).toHaveBeenCalledTimes(2)
+    // TWO clicks: the first download failed (file locked elsewhere), the second goes through
+    // — that is the whole point of `save` neither revoking nor shutting down.
+    expect(click).toHaveBeenCalledTimes(2)
     expect(revoked).toEqual([])
     create.mockRestore()
   })
 
-  it('le `release` révoque l’URL SANS poser d’ancre : le clip ne descend pas', () => {
+  it('`release` revokes the URL WITHOUT placing an anchor: the clip does not come down', () => {
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
     pending.release()
-    // L'URL EST RÉVOQUÉE : le blob est rendu au collecteur, et rien ne peut plus le lire.
+    // THE URL IS REVOKED: the blob is returned to the collector, and nothing can read it anymore.
     expect(revoked).toEqual(['blob:replay-test'])
-    // AUCUNE ANCRE : le téléchargement n'a jamais eu lieu.
+    // NO ANCHOR: the download never happened.
     expect(document.querySelector('a[download]')).toBeNull()
   })
 
-  it('le `release` ne révoque PAS une deuxième fois', () => {
+  it('`release` does NOT revoke a second time', () => {
     const pending = holdDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
     pending.release()
     pending.release()
     expect(revoked).toEqual(['blob:replay-test'])
   })
 
-  it('`triggerDownload` — à usage unique — révoque l’URL après `URL_RELEASE_MS`', () => {
-    // La capture d'image n'a pas de bouton « Sauvegarder » : c'est un MINUTEUR PROPRE qui
-    // révoque, sinon un clip de plusieurs méga-octets resterait retenu jusqu'à la fermeture
-    // de l'onglet.
+  it('`triggerDownload` — single-use — revokes the URL after `URL_RELEASE_MS`', () => {
+    // Image capture has no "Save" button: it is a DEDICATED TIMER that revokes, otherwise a
+    // clip of several megabytes would stay held in memory until the tab closes.
     vi.useFakeTimers()
-    const ancre = document.createElement('a')
-    vi.spyOn(ancre, 'click').mockImplementation(() => {})
-    const create = vi.spyOn(document, 'createElement').mockReturnValue(ancre)
+    const anchor = document.createElement('a')
+    vi.spyOn(anchor, 'click').mockImplementation(() => {})
+    const create = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
     triggerDownload(new Blob(['mp4']), 'replay-m-0m00s-0m00s.mp4')
     expect(revoked).toEqual([])
     vi.runAllTimers()
@@ -214,8 +214,8 @@ describe('holdDownload — le téléchargement attend un clic', () => {
   })
 })
 
-describe('captureCanvasImage — les pixels, ou rien', () => {
-  it('rend le blob PNG que la toile produit', async () => {
+describe('captureCanvasImage — the pixels, or nothing', () => {
+  it('renders the PNG blob the canvas produces', async () => {
     const blob = new Blob(['png'])
     const canvas = {
       toBlob: (cb: (b: Blob | null) => void, type: string) => {
@@ -226,16 +226,16 @@ describe('captureCanvasImage — les pixels, ou rien', () => {
     await expect(captureCanvasImage(canvas)).resolves.toBe(blob)
   })
 
-  it('une toile qui ne rend rien donne `null` — et non une promesse en suspens', async () => {
+  it('a canvas that renders nothing gives `null` — never a hanging promise', async () => {
     const canvas = {
       toBlob: (cb: (b: Blob | null) => void) => cb(null),
     } as unknown as HTMLCanvasElement
     await expect(captureCanvasImage(canvas)).resolves.toBeNull()
   })
 
-  it('un navigateur sans `toBlob` donne `null` au lieu de lever', async () => {
-    // C'est le cas de jsdom, et ce serait celui d'un très vieux navigateur : la commande
-    // ne doit pas casser la page, elle doit ne rien faire.
+  it('a browser without `toBlob` gives `null` instead of throwing', async () => {
+    // This is jsdom's case, and would be a very old browser's too: the command must not
+    // break the page, it must do nothing.
     await expect(captureCanvasImage({} as HTMLCanvasElement)).resolves.toBeNull()
   })
 })
