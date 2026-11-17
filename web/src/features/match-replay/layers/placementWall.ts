@@ -208,7 +208,7 @@ export function wallRingWorld(
 }
 
 /**
- * poserPointsBefore — the points of the life of the planter PRIOR to the placement, in
+ * pointsBeforePlacement — the points of the life of the planter PRIOR to the placement, in
  * order.
  *
  * BY SLOT AND BY WINDOW: a biped slot is reattributed at each respawn, so several lives can
@@ -216,7 +216,7 @@ export function wallRingWorld(
  * placement; failing that, the longest one that precedes it — that is what the comparison on
  * the number of points retained does.
  */
-function poserPointsBefore(
+function pointsBeforePlacement(
   lives: readonly ReplayTrackReady[],
   owner: number,
   t0: number,
@@ -271,7 +271,7 @@ export function wallHeading(
   lives: readonly ReplayTrackReady[],
 ): WallHeading | null {
   if (p.h !== undefined && p.h !== null) return { deg: p.h, source: 'placement' }
-  const points = poserPointsBefore(lives, p.owner, p.t0)
+  const points = pointsBeforePlacement(lives, p.owner, p.t0)
   const traj = trajectoryHeadingDeg(points)
   if (traj !== null) return { deg: traj, source: 'trajectory' }
   const aim = aimHeadingDeg(points)

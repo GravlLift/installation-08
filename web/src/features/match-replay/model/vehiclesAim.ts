@@ -146,9 +146,9 @@ export function vehicleShooterAimAt(
   // `vehicleActiveRides` RATHER THAN A HAND-WRITTEN FILTER: the predicate "does this
   // episode cover this image" lives there and nowhere else (CLAUDE.md n°6) — recopying it
   // here would make a third spelling of the same bound.
-  const sien = vehicleActiveRides(track, frame).find((r) => r.slot === shooterSlot)
-  if (!sien) return null
-  return vehicleRideAimReading(sien, frame)?.h ?? null
+  const shooterRide = vehicleActiveRides(track, frame).find((r) => r.slot === shooterSlot)
+  if (!shooterRide) return null
+  return vehicleRideAimReading(shooterRide, frame)?.h ?? null
 }
 
 /**

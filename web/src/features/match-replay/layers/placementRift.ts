@@ -170,11 +170,11 @@ function drawRiftWave(
   style: ShapeStyle,
   ink: RiftInk,
 ): void {
-  const reste = 1 - Math.min(1, Math.max(0, progress))
+  const remaining = 1 - Math.min(1, Math.max(0, progress))
   const h = RIFT_HALF_HEIGHT_PX * style.k
   const r = h * (style.reducedMotion ? (RIFT_RING_MIN + RIFT_RING_MAX) / 2 : RIFT_RING_MIN + (RIFT_RING_MAX - RIFT_RING_MIN) * progress)
   ctx.save()
-  ctx.globalAlpha = RIFT_RING_ALPHA * reste
+  ctx.globalAlpha = RIFT_RING_ALPHA * remaining
   ctx.lineWidth = RIFT_RING_WIDTH * style.k
   ctx.strokeStyle = ink.rim
   ctx.beginPath()
@@ -201,8 +201,8 @@ function drawRiftLink(
   ink: RiftInk,
 ): void {
   const { from, to } = link
-  const reste = 1 - Math.min(1, Math.max(0, link.progress))
-  if (reste <= 0) return
+  const remaining = 1 - Math.min(1, Math.max(0, link.progress))
+  if (remaining <= 0) return
   const dx = to.x - from.x
   const dy = to.y - from.y
   // The curvature is carried by the NORMAL to the segment: the arc always sets aside the
@@ -214,7 +214,7 @@ function drawRiftLink(
   ctx.lineCap = 'round'
   ctx.setLineDash([3 * style.k, 3 * style.k])
   ctx.lineWidth = RIFT_LINK_WIDTH * style.k
-  ctx.globalAlpha = RIFT_LINK_ALPHA * reste
+  ctx.globalAlpha = RIFT_LINK_ALPHA * remaining
   ctx.strokeStyle = ink.core
   ctx.beginPath()
   ctx.moveTo(from.x, from.y)
@@ -224,19 +224,19 @@ function drawRiftLink(
   ctx.restore()
   // The two ends: a rift that OPENS (1.6 times its size, falling back) and its wave, at the
   // start as at the arrival. REDUCED MOTION: the ends keep their size.
-  const facteur = style.reducedMotion ? 1 : 1 + RIFT_END_POP * reste * reste
-  const bout: ShapeStyle = { ...style, k: style.k * facteur }
+  const factor = style.reducedMotion ? 1 : 1 + RIFT_END_POP * remaining * remaining
+  const endStyle: ShapeStyle = { ...style, k: style.k * factor }
   ctx.save()
-  ctx.globalAlpha = reste
-  if (link.paintFrom) drawRift(ctx, from, bout, ink)
-  drawRift(ctx, to, bout, ink)
+  ctx.globalAlpha = remaining
+  if (link.paintFrom) drawRift(ctx, from, endStyle, ink)
+  drawRift(ctx, to, endStyle, ink)
   ctx.restore()
   drawRiftWave(ctx, from, link.progress, style, ink)
   drawRiftWave(ctx, to, link.progress, style, ink)
 }
 
 /** A link STILL VISIBLE at this frame, and its fade progress. */
-interface LienActif {
+interface ActiveLink {
   t: TeleportLink
   progress: number
 }
@@ -254,8 +254,8 @@ interface LienActif {
 function activeLinks(
   teleports: readonly TeleportLink[],
   time: { frame: number; frameMs: number },
-): LienActif[] {
-  const out: LienActif[] = []
+): ActiveLink[] {
+  const out: ActiveLink[] = []
   for (const t of teleports) {
     const ageMs = (time.frame - t.frame) * time.frameMs
     if (ageMs < 0 || ageMs > RIFT_LINK_MS) continue
@@ -305,20 +305,20 @@ export function drawRiftLayer(
   ink: RiftInk,
 ): void {
   if (!scene) return
-  const liens = activeLinks(scene.teleports, time)
+  const links = activeLinks(scene.teleports, time)
   const stations = riftStationsAt(scene.rifts, time.frame)
   for (const s of stations) {
     drawRift(ctx, project({ x: s.x, y: s.y }, view), time, ink)
   }
-  for (const { t, progress } of liens) {
-    const tenuParUneStation = stations.some((s) => s.slot === t.slot && s.t0 === t.frame)
+  for (const { t, progress } of links) {
+    const heldByStation = stations.some((s) => s.slot === t.slot && s.t0 === t.frame)
     drawRiftLink(
       ctx,
       {
         from: project({ x: t.from.x, y: t.from.y }, view),
         to: project({ x: t.to.x, y: t.to.y }, view),
         progress,
-        paintFrom: !tenuParUneStation,
+        paintFrom: !heldByStation,
       },
       time,
       ink,

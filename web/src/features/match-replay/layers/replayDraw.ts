@@ -221,12 +221,12 @@ export function drawKillFxLayer(
       // INSTEAD OF THE DEATH: the victim when they are re-read, the origin otherwise (it
       // then equals the position of the killer, within one close-combat step — it is a close
       // combat).
-      const mort =
+      const deathAt =
         e.deathX !== null && e.deathY !== null
           ? projectTo(view, { x: e.deathX, y: e.deathY })
           : c
       const p = meleeStarProgress(age * win.frameMs, style.reducedMotion)
-      if (p !== null) drawMeleeStar(ctx, mort, p, style.k, color)
+      if (p !== null) drawMeleeStar(ctx, deathAt, p, style.k, color)
       continue
     }
     let angle: number | null = null
