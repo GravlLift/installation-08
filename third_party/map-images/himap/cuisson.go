@@ -66,7 +66,7 @@ const MargeBornageInstance = 0.5
 
 // ErrSansAncre : la carte n'a aucune ancre d'objectif au catalogue. Sans ancre il n'y a ni
 // cadre, ni niveau de jeu, ni oracle — la cuisson s'arrete au lieu de deviner.
-var ErrSansAncre = errors.New("himap: aucune ancre d'objectif — pas d'oracle, pas de cadre")
+var ErrSansAncre = errors.New("himap: no objective anchor — no oracle, no frame")
 
 // OptionsCuisson decrit une carte a cuire.
 type OptionsCuisson struct {
@@ -361,7 +361,7 @@ func PeupleDepuisModule(ctx context.Context, r *Rendu, b *BilanCuisson, opts Opt
 	defer func() { _ = idx.Close() }()
 	b.Dessinees, b.EcarteesDecor = PeupleRendu(ctx, r, idx, bsp)
 	if b.Dessinees == 0 {
-		return fmt.Errorf("aucune instance dessinee sur %d du bsp retenu", len(bsp.Instances))
+		return fmt.Errorf("no instance drawn out of %d of the retained bsp", len(bsp.Instances))
 	}
 	return nil
 }
@@ -372,7 +372,7 @@ func PeupleDepuisModule(ctx context.Context, r *Rendu, b *BilanCuisson, opts Opt
 func ouvreBSPRetenu(b *BilanCuisson, opts OptionsCuisson) (*ModuleIndex, BSPInstances, error) {
 	chemins, err := GeometrySearchPath(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, BSPInstances{}, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, BSPInstances{}, fmt.Errorf("geometry paths: %w", err)
 	}
 	return ouvreBSPDans(b, opts, chemins)
 }
@@ -382,12 +382,12 @@ func ouvreBSPRetenu(b *BilanCuisson, opts OptionsCuisson) (*ModuleIndex, BSPInst
 func ouvreBSPDans(b *BilanCuisson, opts OptionsCuisson, chemins []string) (*ModuleIndex, BSPInstances, error) {
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, BSPInstances{}, fmt.Errorf("index des modules : %w", err)
+		return nil, BSPInstances{}, fmt.Errorf("module index: %w", err)
 	}
 	bsps, err := ReadModuleInstances(opts.CheminModule)
 	if err != nil {
 		_ = idx.Close()
-		return nil, BSPInstances{}, fmt.Errorf("instances du module : %w", err)
+		return nil, BSPInstances{}, fmt.Errorf("module instances: %w", err)
 	}
 	bsp := ChoisitBSP(bsps, opts.Ancres)
 	b.BSPs, b.BSPInstances = len(bsps), len(bsp.Instances)
@@ -402,12 +402,12 @@ func ouvreBSPDans(b *BilanCuisson, opts OptionsCuisson, chemins []string) (*Modu
 func ouvreBSPMonde(b *BilanCuisson, opts OptionsCuisson, chemins []string) (*ModuleIndex, BSPInstances, []BSPInstances, error) {
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, BSPInstances{}, nil, fmt.Errorf("index des modules : %w", err)
+		return nil, BSPInstances{}, nil, fmt.Errorf("module index: %w", err)
 	}
 	bsps, err := ReadModuleInstances(opts.CheminModule)
 	if err != nil {
 		_ = idx.Close()
-		return nil, BSPInstances{}, nil, fmt.Errorf("instances du module : %w", err)
+		return nil, BSPInstances{}, nil, fmt.Errorf("module instances: %w", err)
 	}
 	bsp := ChoisitBSP(bsps, opts.Ancres)
 	b.BSPs, b.BSPInstances = len(bsps), len(bsp.Instances)

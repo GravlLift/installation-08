@@ -58,11 +58,11 @@ func CuitCarteNavmesh(ctx context.Context, opts OptionsCuissonNavmesh) (*Rendu, 
 	}
 	m, err := hinavmesh.Decode(opts.Blob)
 	if err != nil {
-		return nil, b, fmt.Errorf("maillage de navigation : %w", err)
+		return nil, b, fmt.Errorf("navigation mesh: %w", err)
 	}
 	tris := m.Triangles()
 	if len(tris) == 0 {
-		return nil, b, fmt.Errorf("maillage de navigation vide")
+		return nil, b, fmt.Errorf("empty navigation mesh")
 	}
 
 	r := CadreSurAncresEchelle(opts.Ancres, EchellePourCadre(opts.Ancres, opts.Echelle, opts.CibleCadrePx))

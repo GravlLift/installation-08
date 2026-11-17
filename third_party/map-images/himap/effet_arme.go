@@ -25,6 +25,8 @@
 // StringID of the lowercased name, at the same byte offset), see dispositionsParticules.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"encoding/binary"
@@ -34,7 +36,7 @@ import (
 )
 
 // ErrSansEffet: the effect has no readable particle system.
-var ErrSansEffet = errors.New("himap: effet sans systeme de particules lisible")
+var ErrSansEffet = errors.New("himap: effect without a readable particle system")
 
 // Layout of the effect (effe), measured (see the header).
 const (
@@ -291,7 +293,7 @@ func (a *Arsenal) EffetDeParticules(id uint32) (*EffetParticules, error) {
 	niveaux := ti.subBlockTarget(rb, effeOffNiveaux)
 	nAbs, nTaille := ti.blockAbs(niveaux)
 	if niveaux < 0 || nTaille < effeTailleNiveau || nAbs+effeTailleNiveau > len(ti.tag) {
-		return nil, fmt.Errorf("%w : %08x sans niveau de detail", ErrSansEffet, id)
+		return nil, fmt.Errorf("%w: %08x without a level of detail", ErrSansEffet, id)
 	}
 	out := &EffetParticules{Effect: id,
 		CameraRange: [2]float32{f32Brut(ti.tag, nAbs+effeOffNiveauPortee), f32Brut(ti.tag, nAbs+effeOffNiveauPortee+4)}}
@@ -326,7 +328,7 @@ func (a *Arsenal) EffetDeParticules(id uint32) (*EffetParticules, error) {
 		}
 	}
 	if len(out.Systems) == 0 {
-		return nil, fmt.Errorf("%w : %08x (%v)", ErrSansEffet, id, out.Skipped)
+		return nil, fmt.Errorf("%w: %08x (%v)", ErrSansEffet, id, out.Skipped)
 	}
 	return out, nil
 }
@@ -335,7 +337,7 @@ func (a *Arsenal) EffetDeParticules(id uint32) (*EffetParticules, error) {
 func (a *Arsenal) litSysteme(ti tagInfo, sys, s, r int, lieux []uint32) (SystemeParticules, error) {
 	lieu := int(u32(ti.tag, r+sysOffEmplacement))
 	if lieu < 0 || lieu >= len(lieux) {
-		return SystemeParticules{}, fmt.Errorf("location %d hors des %d emplacements", lieu, len(lieux))
+		return SystemeParticules{}, fmt.Errorf("location %d outside the %d locations", lieu, len(lieux))
 	}
 	sp := SystemeParticules{
 		Location:   lieux[lieu],
@@ -347,10 +349,10 @@ func (a *Arsenal) litSysteme(ti tagInfo, sys, s, r int, lieux []uint32) (Systeme
 	em := ti.subBlockTarget(sys, s*effeTailleSysteme+effeOffEmetteurs)
 	eAbs, eTaille := ti.blockAbs(em)
 	if em < 0 || eTaille < effeTailleEmetteur || eAbs+effeTailleEmetteur > len(ti.tag) {
-		return SystemeParticules{}, fmt.Errorf("emetteur illisible (%d o)", eTaille)
+		return SystemeParticules{}, fmt.Errorf("unreadable emitter (%d bytes)", eTaille)
 	}
 	if eTaille != effeTailleEmetteur {
-		return SystemeParticules{}, fmt.Errorf("%d emetteurs : un seul est lu", eTaille/effeTailleEmetteur)
+		return SystemeParticules{}, fmt.Errorf("%d emitters: only one is read", eTaille/effeTailleEmetteur)
 	}
 	var err error
 	if sp.Emitter, err = litEmetteur(ti, em, eAbs); err != nil {
@@ -383,7 +385,7 @@ func litEmetteur(ti tagInfo, em, abs int) (EmetteurParticules, error) {
 	for _, p := range proprietesEmetteur {
 		f, err := litProprieteParticule(ti.tag[abs+p.off:abs+p.off+4], donnees[p.off+proprieteOffDonnees])
 		if err != nil {
-			return EmetteurParticules{}, fmt.Errorf("%s : %w", p.nom, err)
+			return EmetteurParticules{}, fmt.Errorf("%s: %w", p.nom, err)
 		}
 		e.Properties[p.nom] = f
 	}
@@ -401,7 +403,7 @@ func DecodeMappingFunction(b []byte) (FonctionParticule, error) {
 func litProprieteParticule(entrees, b []byte) (FonctionParticule, error) {
 	fj, ok := litFonctionJeu(b)
 	if !ok {
-		return FonctionParticule{}, fmt.Errorf("fonction illisible (%d o)", len(b))
+		return FonctionParticule{}, fmt.Errorf("unreadable function (%d bytes)", len(b))
 	}
 	f := FonctionParticule{
 		Input: int(entrees[0]), RangeInput: int(entrees[1]), Modifier: int(entrees[2]), ModifierInput: int(entrees[3]),
@@ -416,11 +418,11 @@ func litProprieteParticule(entrees, b []byte) (FonctionParticule, error) {
 		}
 		courbes, ok := courbesMultiSpline(b[32:32+int(binary.LittleEndian.Uint32(b[28:]))], n)
 		if !ok {
-			return FonctionParticule{}, fmt.Errorf("multi-spline illisible")
+			return FonctionParticule{}, fmt.Errorf("unreadable multi-spline")
 		}
 		f.Curves = courbes
 	default:
-		return FonctionParticule{}, fmt.Errorf("fonction de type %d non lue", fj.Type)
+		return FonctionParticule{}, fmt.Errorf("function of type %d not read", fj.Type)
 	}
 	if fj.nCouleurs == 1 {
 		m := fj.entete[0]
@@ -487,11 +489,11 @@ func courbesMultiSpline(b []byte, n int) ([][]SegmentCourbe, bool) {
 func (a *Arsenal) litRendu(id uint32) (RenduParticule, error) {
 	raw, err := a.geo.Extract(id)
 	if err != nil {
-		return RenduParticule{}, fmt.Errorf("particule %08x : %w", id, err)
+		return RenduParticule{}, fmt.Errorf("particle %08x: %w", id, err)
 	}
 	ti, err := meilleurTagInfo(raw)
 	if err != nil {
-		return RenduParticule{}, fmt.Errorf("particule %08x : %w", id, err)
+		return RenduParticule{}, fmt.Errorf("particle %08x: %w", id, err)
 	}
 	rb, err := ti.rootBlockIndex()
 	if err != nil {
@@ -499,7 +501,7 @@ func (a *Arsenal) litRendu(id uint32) (RenduParticule, error) {
 	}
 	abs, taille := ti.blockAbs(rb)
 	if taille < prt3OffModele+4 {
-		return RenduParticule{}, fmt.Errorf("particule %08x : racine de %d o", id, taille)
+		return RenduParticule{}, fmt.Errorf("particle %08x: root of %d bytes", id, taille)
 	}
 	r := RenduParticule{
 		Particle:   id,
@@ -513,31 +515,31 @@ func (a *Arsenal) litRendu(id uint32) (RenduParticule, error) {
 	}
 	disp, ok := dispositionsParticules[r.Shader]
 	if !ok {
-		return RenduParticule{}, fmt.Errorf("particule %08x : shader %08x sans disposition lue", id, r.Shader)
+		return RenduParticule{}, fmt.Errorf("particle %08x: shader %08x without a read layout", id, r.Shader)
 	}
 	post := ti.subBlockTarget(rb, prt3OffPostprocess)
 	pAbs, pTaille := ti.blockAbs(post)
 	if post < 0 || pTaille != postTaille || pAbs+postTaille > len(ti.tag) {
-		return RenduParticule{}, fmt.Errorf("particule %08x : postprocess de %d o", id, pTaille)
+		return RenduParticule{}, fmt.Errorf("particle %08x: postprocess of %d bytes", id, pTaille)
 	}
 	r.BlendMode = int(ti.tag[pAbs+postOffMelange])
 	sous := ti.sousBlocsParOffset(post)
 	tAbs, tTaille, ok := ti.blocValide(sous, postOffTextures)
 	if !ok || tTaille != len(disp.textures)*postTailleTexture {
-		return RenduParticule{}, fmt.Errorf("particule %08x : %d o de textures pour %d attendues", id, tTaille, len(disp.textures))
+		return RenduParticule{}, fmt.Errorf("particle %08x: %d bytes of textures for %d expected", id, tTaille, len(disp.textures))
 	}
 	// Each texture record names its slot, the byte of its `_texture_textureIndex` constant
 	// (decoupe.go textureOffEmplace): the slot is checked against the shader's layout.
 	for k, nom := range disp.textures {
 		o := tAbs + k*postTailleTexture
 		if slot := int(u16(ti.tag, o+textureOffEmplace)); slot != disp.octetDe(nom+"_texture_textureIndex") {
-			return RenduParticule{}, fmt.Errorf("particule %08x : texture %d a l'emplacement %d, %s attendue", id, k, slot, nom)
+			return RenduParticule{}, fmt.Errorf("particle %08x: texture %d at slot %d, %s expected", id, k, slot, nom)
 		}
 		r.Textures = append(r.Textures, TextureParticule{Name: nom, Bitmap: uint32(u32(ti.tag, o+tagrefOffID))})
 	}
 	cAbs, cTaille, ok := ti.blocValide(sous, postOffConstantes)
 	if !ok {
-		return RenduParticule{}, fmt.Errorf("particule %08x : sans constantes", id)
+		return RenduParticule{}, fmt.Errorf("particle %08x: without constants", id)
 	}
 	for _, c := range disp.constantes {
 		n := 1
@@ -545,7 +547,7 @@ func (a *Arsenal) litRendu(id uint32) (RenduParticule, error) {
 			n = 4
 		}
 		if c.octet+4*n > cTaille {
-			return RenduParticule{}, fmt.Errorf("particule %08x : constante %s hors des %d o", id, c.nom, cTaille)
+			return RenduParticule{}, fmt.Errorf("particle %08x: constant %s outside the %d bytes", id, c.nom, cTaille)
 		}
 		vals := make([]float64, n)
 		for i := range vals {
@@ -605,7 +607,7 @@ func (a *Arsenal) MarqueursDuModele(mode uint32, noms map[uint32]bool) ([]Marque
 // TagArme returns the decompressed `weap` tag `weap` (for the readers of its attachments).
 func (a *Arsenal) TagArme(weap uint32) ([]byte, error) {
 	if g, _, ok := a.geo.Lookup(weap); !ok || g != GroupeArme {
-		return nil, fmt.Errorf("himap: %08x n'est pas un weap", weap)
+		return nil, fmt.Errorf("himap: %08x is not a weap", weap)
 	}
 	return a.geo.Extract(weap)
 }
@@ -641,7 +643,7 @@ func (a *Arsenal) ModeleDeLArme(weap uint32) (uint32, bool) {
 func (a *Arsenal) BitmapParticule(id uint32, couche, cote int) (Texture, int, error) {
 	prof, _, ok := a.profondeurBitmap(id)
 	if !ok {
-		return Texture{}, 0, fmt.Errorf("himap: bitmap %08x illisible", id)
+		return Texture{}, 0, fmt.Errorf("himap: unreadable bitmap %08x", id)
 	}
 	if prof <= 1 {
 		t, err := LitBitmap(a.geo, id, cote)
@@ -668,7 +670,7 @@ var formatsSignes = map[int]bool{22: true, 37: true, 39: true, 46: true, 48: tru
 func (a *Arsenal) EspaceBitmap(id uint32) (srgb, signe bool, err error) {
 	m, f, ok := a.geo.entree(id)
 	if !ok || f.Group != GroupeBitmap {
-		return false, false, fmt.Errorf("himap: bitmap %#x absent des modules indexes", id)
+		return false, false, fmt.Errorf("himap: bitmap %#x absent from the indexed modules", id)
 	}
 	tag, err := m.Extract(f)
 	if err != nil {
@@ -692,5 +694,5 @@ func (a *Arsenal) EspaceBitmap(id uint32) (srgb, signe bool, err error) {
 		}
 		return tag[abs+bitmapOffCourbe] == courbeSRGB, formatsSignes[int(u16(tag, abs+bitmapOffFormat))], nil
 	}
-	return false, false, fmt.Errorf("himap: tag %s illisible", GroupeBitmap)
+	return false, false, fmt.Errorf("himap: unreadable tag %s", GroupeBitmap)
 }

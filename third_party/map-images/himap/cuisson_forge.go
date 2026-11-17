@@ -60,7 +60,7 @@ var TypesVolumesDeMort = map[int32]string{
 }
 
 // ErrSansObjetForge signale un `.mvar` sans objet exploitable.
-var ErrSansObjetForge = errors.New("himap: aucun objet Forge a poser")
+var ErrSansObjetForge = errors.New("himap: no Forge object to place")
 
 // OptionsCuissonForge decrit une carte Forge a cuire.
 type OptionsCuissonForge struct {
@@ -323,7 +323,7 @@ func CuitCarteForge(ctx context.Context, opts OptionsCuissonForge) (*Rendu, Bila
 			"plafond", opts.PlafondObjets, "objets", b.ObjetsAuPlafond)
 	}
 	if b.ObjetsDessines == 0 {
-		return nil, b, fmt.Errorf("aucun des %d objets Forge n'a de modele rtgo", len(opts.Objets))
+		return nil, b, fmt.Errorf("none of the %d Forge objects has an rtgo model", len(opts.Objets))
 	}
 	if opts.SolVuDuDessous {
 		n := r.AdopteSurfaceBasse()
@@ -495,11 +495,11 @@ func indexForge(opts OptionsCuissonForge) (*ModuleIndex, *himodule.Module, error
 
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("index des modules Forge : %w", err)
+		return nil, nil, fmt.Errorf("Forge module index: %w", err)
 	}
 	forge, err := himodule.Open(principal)
 	if err != nil {
-		return nil, nil, fmt.Errorf("module des objets Forge : %w", err)
+		return nil, nil, fmt.Errorf("Forge objects module: %w", err)
 	}
 	return idx, forge, nil
 }

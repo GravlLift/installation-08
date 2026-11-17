@@ -12,6 +12,8 @@
 // texture dans le postprocess nomme son registre (16 o : echelle x, y, decalage x, y).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // GroupeShader : le groupe de tag des shaders de materiau.
@@ -121,7 +123,7 @@ func LitParametresShader(tag []byte) (ParametresShader, error) {
 			}
 			abs, size := ti.blockAbs(targets[i])
 			if abs < 0 || abs+size > len(tag) || size%shdvStrideParametre != 0 {
-				return nil, fmt.Errorf("himap: %s : bloc des parametres de %#x o", GroupeShader, size)
+				return nil, fmt.Errorf("himap: %s: parameter block of %#x bytes", GroupeShader, size)
 			}
 			for k := 0; k < size; k += shdvStrideParametre {
 				out[uint32(u32(tag, abs+k+shdvParamOffNom))] = int(u16(tag, abs+k+shdvParamOffOctet))
@@ -129,7 +131,7 @@ func LitParametresShader(tag []byte) (ParametresShader, error) {
 		}
 		return out, nil
 	}
-	return nil, fmt.Errorf("himap: tag %s illisible", GroupeShader)
+	return nil, fmt.Errorf("himap: unreadable tag %s", GroupeShader)
 }
 
 // couchesParNoms lit les couches d'un shader de niveau, ou a defaut sa surface unique

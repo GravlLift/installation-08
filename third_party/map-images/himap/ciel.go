@@ -1,6 +1,8 @@
 // Package himap : masque de nuages declare par l'etat du monde.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"fmt"
@@ -31,7 +33,7 @@ func LitCiel(src SourcesLumiere, racine, module string) (*Ciel, error) {
 	defer m.Close()
 	f, ok := entreeParID(m, GroupeEtatDuMonde, src.EtatDuMonde)
 	if !ok {
-		return nil, fmt.Errorf("dwsg %#x absent", src.EtatDuMonde)
+		return nil, fmt.Errorf("dwsg %#x missing", src.EtatDuMonde)
 	}
 	ti, err := tagDeEntree(m, f)
 	if err != nil {
@@ -81,7 +83,7 @@ func masqueCiel(ti tagInfo) (uint32, error) {
 	}
 	abs, n := ti.blockAbs(root)
 	if champ+compteTagBlock+4 > n || abs+n > len(ti.tag) {
-		return 0, fmt.Errorf("dwsg racine tronquee")
+		return 0, fmt.Errorf("dwsg root truncated")
 	}
 	count := u32(ti.tag, abs+champ+compteTagBlock)
 	if count == 0 {
@@ -89,11 +91,11 @@ func masqueCiel(ti tagInfo) (uint32, error) {
 	}
 	b := ti.subBlockTarget(root, champ)
 	if b < 0 {
-		return 0, fmt.Errorf("bloc nuages absent")
+		return 0, fmt.Errorf("clouds block missing")
 	}
 	off, size := ti.blockAbs(b)
 	if size != count*taille || off < 0 || off+size > len(ti.tag) {
-		return 0, fmt.Errorf("bloc nuages tronque")
+		return 0, fmt.Errorf("clouds block truncated")
 	}
 	return idReference(ti.tag, off+0x24), nil
 }
