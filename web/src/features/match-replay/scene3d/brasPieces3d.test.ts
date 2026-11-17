@@ -153,6 +153,11 @@ function fakeKtx2() {
       urls.push(url)
       onLoad(compressed())
     },
+    // Embedded images reach the transcoder as bytes (no blob URL); counted like a load.
+    parse(_bytes: ArrayBuffer, onLoad: (t: THREE.CompressedTexture) => void) {
+      urls.push('bytes')
+      onLoad(compressed())
+    },
   }
   return { urls, loader: loader as unknown as KTX2Loader }
 }
