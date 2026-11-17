@@ -20,6 +20,10 @@
 // FRENCH IS NOT REACHABLE AT ALL: this install's French announcer package does not exist
 // (announcer.Discover on the French folder fails, same as the CLI's own --lang fallback), so no
 // _fr_ shipped file can ever be built from it; this package only ever reads the English folder.
+//
+// THE SHIPPED COPY STAYS: an install without the English voice package (a tester's had only
+// French) builds nothing here, so end_defeat_voice_en_01.ogg is kept in internal/sounds as the
+// fallback; the built take wins wherever it exists.
 package endmatchvoice
 
 import (
