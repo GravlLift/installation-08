@@ -28,9 +28,23 @@ export const BASIS_TRANSCODER_FILES = ['basis_transcoder.js', 'basis_transcoder.
 /** What `KTX2Loader.detectSupport` reads from a WebGL renderer. */
 export type Ktx2Renderer = Pick<THREE.WebGLRenderer, 'extensions'>
 
+/**
+ * ktx2WorkerCount sizes the KTX2 decode pool to the machine. three's `KTX2Loader` defaults to four
+ * transcoding workers regardless of core count, which is a floor for a fast machine and a ceiling for
+ * a slow one; here it is the logical cores minus two (the main thread and the headroom the OS keeps),
+ * clamped to [2, 8]: a two-core machine keeps two workers and a many-core one does not flood the
+ * page with transcoding workers.
+ */
+export function ktx2WorkerCount(): number {
+  return Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 2))
+}
+
 /** createKtx2Loader builds the loader of one renderer, its formats chosen for that renderer's GPU. */
 export function createKtx2Loader(renderer: Ktx2Renderer): KTX2Loader {
-  return new KTX2Loader().setTranscoderPath(BASIS_TRANSCODER_PATH).detectSupport(renderer as THREE.WebGLRenderer)
+  return new KTX2Loader()
+    .setTranscoderPath(BASIS_TRANSCODER_PATH)
+    .setWorkerLimit(ktx2WorkerCount())
+    .detectSupport(renderer as THREE.WebGLRenderer)
 }
 
 const MIPMAP_FILTERS = new Set<THREE.TextureFilter>([
