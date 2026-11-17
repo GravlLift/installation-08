@@ -253,15 +253,17 @@ export function Replay3DView({
       }
       if (abort.signal.aborted) return
       preloadAssets3d(doc, null, armoryRef.current)
-      await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
+      await timed('gate-idle-1', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
       // Une image d'essai, sous l'écran de chargement : elle demande ce que la vue montre d'abord
       // (les bras du joueur suivi, leur peinture), puis on attend encore.
-      mapScene.setPov(warmRef.current.pov)
-      mapScene.setMode(warmRef.current.mode)
-      mapScene.render(frameRef.current ?? 0)
-      mapScene.render(frameRef.current ?? 0)
-      const result = await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
+      timedSync('test-render', () => {
+        mapScene.setPov(warmRef.current.pov)
+        mapScene.setMode(warmRef.current.mode)
+        mapScene.render(frameRef.current ?? 0)
+        mapScene.render(frameRef.current ?? 0)
+      })
+      const result = await timed('gate-idle-2', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
       if (result.timedOut || waitingArmor.current) console.warn('rejeu 3D : délai de chargement dépassé', gate.pending + Number(waitingArmor.current))
       progress.finish('assets')
@@ -290,12 +292,12 @@ export function Replay3DView({
     void (async () => {
       mapScene.setPov(warmRef.current.pov)
       mapScene.setMode(warmRef.current.mode)
-      await bounded(mapScene.warmUp(), 20_000)
+      await bounded(timed('warmup', () => mapScene.warmUp()), 20_000)
       if (abort.signal.aborted) return
       progress.finish('warmup')
-      mapScene.render(frameRef.current ?? 0)
+      timedSync('final-render', () => mapScene.render(frameRef.current ?? 0))
       // Two animation frames: the drawn frame has gone to the screen (bounded: a hidden tab has none).
-      await bounded(new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))), 500)
+      await bounded(timed('first-frame-wait', () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))), 500)
       if (abort.signal.aborted) return
       progress.finish('first-frame')
     })()
