@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * tracks3d.ts — LES PISTES DU REJEU LUES POUR LA VUE 3D.
+ * tracks3d.ts — THE REPLAY'S TRACKS READ FOR THE 3D VIEW.
  *
- * Repère : unités monde Halo (1 u = 3,048 m, Z vers le haut). `toThree` convertit en axes
- * three.js / glTF (Y vers le haut) : (x, y, z) Halo -> (x, z, -y), la même conversion que le GLB
- * de carte.
+ * Frame: Halo world units (1 u = 3.048 m, Z up). `toThree` converts to three.js / glTF axes
+ * (Y up): Halo (x, y, z) -> (x, z, -y), the same conversion as the map's GLB.
  *
- * Une piste (`tracks[]`) est UNE vie ; un joueur se reconstitue par son xuid. Un point porte `t`
- * (indice d'image), x/y/z, et quand la visée est répliquée `h` (cap, degrés, 0 = +X, 90 = +Y) et
- * `p` (tangage, degrés, positif vers le haut, absent = à plat). `g` > 0 marque un trou de
- * réplication AVANT le point : on tient la position, on n'interpole pas à travers.
+ * A track (`tracks[]`) is ONE life; a player is reassembled by their xuid. A point carries `t`
+ * (frame index), x/y/z, and, when aim is replicated, `h` (heading, degrees, 0 = +X, 90 = +Y) and
+ * `p` (pitch, degrees, positive upward, absent = level). `g` > 0 marks a replication gap BEFORE
+ * the point: the position holds, it is not interpolated across.
  */
 import { framesPerSecond } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
@@ -52,7 +51,7 @@ export interface LifePoint {
   aim: boolean
 }
 
-/** Une vie telle que la vue la lit : son emplacement, ses points (visée complétée) et leurs distances. */
+/** A life as the view reads it: its slot, its points (aim completed), and their distances. */
 export interface LifeView {
   t1: number
   slot: number
@@ -65,13 +64,13 @@ interface Life extends LifeView {
   t0: number
   t1: number
   pts: LifePoint[]
-  /** La distance au sol cumulée à chaque point (`gait3d.lifeDistances`). */
+  /** The cumulative ground distance at each point (`gait3d.lifeDistances`). */
   dist: number[]
-  /** Les mesures de bouclier de la vie (`shields3d`). */
+  /** The life's shield measurements (`shields3d`). */
   shield: ShieldSamples
 }
 
-/** L'état d'un joueur à une image (fractionnaire). */
+/** A player's state at a (fractional) frame. */
 export interface PlayerState3d {
   x: number
   y: number
@@ -79,9 +78,9 @@ export interface PlayerState3d {
   h: number
   p: number
   crouch: boolean
-  /** La descente de l'œil en unités monde à cette image (accroupi ET glissade, en fondu, `oeil3d`). */
+  /** The eye's drop in world units at this frame (crouch AND slide, faded, `oeil3d`). */
   dropOeil: number
-  /** L'emplacement du bipède de cette vie. */
+  /** This life's biped slot. */
   slot: number
 }
 
@@ -93,23 +92,23 @@ export interface Player3d {
 
 export interface Tracks3d {
   players: Player3d[]
-  /** L'état du joueur à l'image `f`, ou null s'il n'est pas en vie. */
+  /** The player's state at frame `f`, or null if not alive. */
   sample(xuid: string, f: number): PlayerState3d | null
-  /** L'état du bipède de l'emplacement `slot` à l'image `f` (un emplacement sert une vie à la fois). */
+  /** The state of the biped at slot `slot` at frame `f` (a slot serves one life at a time). */
   sampleSlot(slot: number, f: number): PlayerState3d | null
-  /** L'allure du joueur à l'image `f` (vitesse, direction, distance de sa vie), null s'il n'est pas en vie. */
+  /** The player's gait at frame `f` (speed, direction, distance of their life), null if not alive. */
   gait(xuid: string, f: number): Gait | null
-  /** La vie du joueur qui couvre l'image `f` (le même objet à chaque appel), null hors vie. */
+  /** The player's life covering frame `f` (the same object on every call), null outside a life. */
   life(xuid: string, f: number): LifeView | null
-  /** Ce que le corps montre du bouclier à l'image `f` (`shields3d`), rien hors vie ; écrit dans `out`. */
+  /** What the body shows of the shield at frame `f` (`shields3d`), nothing outside a life; written into `out`. */
   shield(xuid: string, f: number, out: ShieldFx): ShieldFx
-  /** L'état à la fin de la dernière vie terminée avant `f` (position de la mort). */
+  /** The state at the end of the last life finished before `f` (the death position). */
   lastLifeBefore(xuid: string, f: number): PlayerState3d | null
-  /** L'image de fin de la dernière vie terminée avant `f`, null s'il n'y en a pas. */
+  /** The end frame of the last life finished before `f`, null if there is none. */
   lifeEndBefore(xuid: string, f: number): number | null
-  /** L'état au début de la première vie qui commence après `f` (première apparition). */
+  /** The state at the start of the first life beginning after `f` (first spawn). */
   firstLifeAfter(xuid: string, f: number): PlayerState3d | null
-  /** Tous les points publiés d'un joueur. */
+  /** All of a player's published points. */
   allPoints(xuid: string): LifePoint[]
 }
 
@@ -117,7 +116,7 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
   const roster = new Map(doc.roster.map((r) => [r.xuid, r]))
   const fps = framesPerSecond(doc)
   const lives = new Map<string, Life[]>()
-  // Par emplacement, toutes les vies publiées, bots compris (ils n'ont pas de xuid mais tirent).
+  // Per slot, every published life, bots included (they have no xuid but they shoot).
   const bySlot = new Map<number, Life[]>()
   for (const tr of doc.tracks) {
     if (tr.points.length === 0) continue
@@ -139,22 +138,22 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
   }
   const crouching = (life: Life, f: number) =>
     (crouchBySlot.get(life.slot) ?? []).some((s) => covers(s.intervalle, f) && f !== s.fin)
-  // L'œil descend accroupi comme en glissade : l'union des deux postures de l'emplacement,
-  // fusionnée une fois par document, lue ensuite par recherche binaire (`oeil3d`).
-  const oeilParSlot = new Map<number, IntervalleOeil[]>()
+  // The eye drops crouched as in a slide: the union of the slot's two postures, merged once per
+  // document, then read by binary search (`oeil3d`).
+  const eyeBySlot = new Map<number, IntervalleOeil[]>()
   for (const s of doc.stances) {
     if (s.kind !== 'crouch' && s.kind !== 'slide') continue
     const film = postureFilm(s, doc)
-    const liste = oeilParSlot.get(s.slot) ?? []
-    // La fin milliseconde est exclusive ; sans millisecondes, l'image de fin est inclusive.
-    liste.push({ t0: film.t0, fin: film.fin ?? film.t1 + 1 })
-    oeilParSlot.set(s.slot, liste)
+    const list = eyeBySlot.get(s.slot) ?? []
+    // The millisecond end is exclusive; without milliseconds, the end frame is inclusive.
+    list.push({ t0: film.t0, fin: film.fin ?? film.t1 + 1 })
+    eyeBySlot.set(s.slot, list)
   }
-  for (const [slot, liste] of oeilParSlot) oeilParSlot.set(slot, fusionnerIntervallees(liste))
-  const entreeOeil = DUREE_ENTREE_OEIL * fps
-  const sortieOeil = DUREE_SORTIE_OEIL * fps
-  const descenteOeil = (slot: number, f: number) =>
-    dropOeil(oeilParSlot.get(slot) ?? SANS_INTERVALLE, f, entreeOeil, sortieOeil)
+  for (const [slot, list] of eyeBySlot) eyeBySlot.set(slot, fusionnerIntervallees(list))
+  const eyeEntry = DUREE_ENTREE_OEIL * fps
+  const eyeExit = DUREE_SORTIE_OEIL * fps
+  const eyeDrop = (slot: number, f: number) =>
+    dropOeil(eyeBySlot.get(slot) ?? SANS_INTERVALLE, f, eyeEntry, eyeExit)
 
   const players = [...lives.keys()].map((xuid) => {
     const r = roster.get(xuid)
@@ -166,13 +165,13 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
     players,
     sample(xuid, f) {
       for (const life of lives.get(xuid) ?? []) {
-        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), descenteOeil(life.slot, f))
+        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDrop(life.slot, f))
       }
       return null
     },
     sampleSlot(slot, f) {
       for (const life of bySlot.get(slot) ?? []) {
-        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), descenteOeil(life.slot, f))
+        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDrop(life.slot, f))
       }
       return null
     },
@@ -208,9 +207,8 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
 }
 
 /**
- * prepareLife complète la visée point par point : un point sans `h` reprend la dernière visée
- * connue (la visée n'est publiée que quand elle est répliquée), les premiers points sans visée
- * prennent la première connue.
+ * prepareLife completes aim point by point: a point without `h` reuses the last known aim (aim
+ * is only published when replicated), the first points with no aim take the first known one.
  */
 function prepareLife(tr: ReplayDocumentReady['tracks'][number]): Life {
   const raw = tr.points.map((p) => ({
@@ -227,7 +225,7 @@ function prepareLife(tr: ReplayDocumentReady['tracks'][number]): Life {
     }
     return { ...q, h, p: pp }
   })
-  // Au débit du film quand le document le porte (schéma 109, `fineTracks3d`), sinon la grille.
+  // At the film's own rate when the document carries it (schema 109, `fineTracks3d`), else the grid.
   if (tr.fullRate) pts = fineLifePoints(tr.fullRate)
   const t0 = tr.startFrame ?? pts[0].t
   const t1 = tr.endFrame ?? pts[pts.length - 1].t

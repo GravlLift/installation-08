@@ -3,24 +3,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { serialiser } from './serialiser3d'
 
 describe('serialiser', () => {
-  it('regroupe les demandes pendant une exécution et attend la dernière', async () => {
-    const fins: (() => void)[] = []
-    const travail = vi.fn(() => new Promise<void>((resolve) => fins.push(resolve)))
-    const lancer = serialiser(travail)
-    const premier = lancer()
-    const suivant = lancer()
-    const dernier = lancer()
-    expect(travail).toHaveBeenCalledTimes(1)
-    fins.shift()!()
-    await premier
+  it('batches requests made during a run and waits for the last one', async () => {
+    const ends: (() => void)[] = []
+    const work = vi.fn(() => new Promise<void>((resolve) => ends.push(resolve)))
+    const run = serialiser(work)
+    const first = run()
+    const next = run()
+    const last = run()
+    expect(work).toHaveBeenCalledTimes(1)
+    ends.shift()!()
+    await first
     await Promise.resolve()
-    expect(travail).toHaveBeenCalledTimes(2)
-    let fini = false
-    void dernier.then(() => { fini = true })
+    expect(work).toHaveBeenCalledTimes(2)
+    let done = false
+    void last.then(() => { done = true })
     await Promise.resolve()
-    expect(fini).toBe(false)
-    fins.shift()!()
-    await Promise.all([suivant, dernier])
-    expect(travail).toHaveBeenCalledTimes(2)
+    expect(done).toBe(false)
+    ends.shift()!()
+    await Promise.all([next, last])
+    expect(work).toHaveBeenCalledTimes(2)
   })
 })
