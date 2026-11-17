@@ -8,7 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BASIS_TRANSCODER_FILES, BASIS_TRANSCODER_PATH, completeMips, createKtx2Loader, releaseTexels, withKtx2 } from './ktx2Textures3d'
+import { BASIS_TRANSCODER_FILES, BASIS_TRANSCODER_PATH, completeMips, createKtx2Loader, ktx2WorkerCount, releaseTexels, withKtx2 } from './ktx2Textures3d'
 import { IMAGE_LIBEREE, isMergedMaterial, LayeredAtlas } from './layeredArrays3d'
 import { layeredComposition, layeredMaterial, type LayeredInfo } from './layeredMaterial'
 import { textureFacts } from './layeredMerge3d'
@@ -133,6 +133,36 @@ describe('createKtx2Loader', () => {
     expect(loader.transcoderPath).toBe(BASIS_TRANSCODER_PATH)
     expect(loader.workerConfig).toMatchObject({ bptcSupported: true, dxtSupported: true, astcSupported: false })
     loader.dispose()
+  })
+
+  it('sizes the decode workers to the machine, two under the core count, clamped to [2, 8]', () => {
+    const cores = vi.spyOn(navigator, 'hardwareConcurrency', 'get')
+    const expectCount = (logicalCores: number, workers: number) => {
+      cores.mockReturnValue(logicalCores)
+      expect(ktx2WorkerCount(), `hardwareConcurrency=${logicalCores}`).toBe(workers)
+    }
+    // Below and at the floor: the clamp keeps two workers even when cores minus two is zero.
+    expectCount(0, 2)   // missing -> falls back to 4, 4 - 2 = 2
+    expectCount(2, 2)   // 2 - 2 = 0 -> clamped up to 2
+    expectCount(3, 2)   // 3 - 2 = 1 -> clamped up to 2
+    // The middle range: cores minus two, unchanged.
+    expectCount(4, 2)
+    expectCount(6, 4)
+    expectCount(10, 8)
+    // Above the ceiling: the clamp caps at eight workers.
+    expectCount(12, 8)  // 12 - 2 = 10 -> clamped down to 8
+    expectCount(32, 8)  // 32 - 2 = 30 -> clamped down to 8
+    cores.mockRestore()
+  })
+
+  it('hands the machine-sized worker limit to the KTX2Loader', () => {
+    const cores = vi.spyOn(navigator, 'hardwareConcurrency', 'get')
+    cores.mockReturnValue(16) // 16 - 2 = 14 -> clamped to 8
+    const renderer = { extensions: { has: (name: string) => name === 'EXT_texture_compression_bptc' } }
+    const loader = createKtx2Loader(renderer as unknown as THREE.WebGLRenderer)
+    expect((loader as unknown as { workerPool: { pool: number } }).workerPool.pool).toBe(8)
+    loader.dispose()
+    cores.mockRestore()
   })
 
   it('names the files three ships, which the Vite build copies into assets/', () => {
