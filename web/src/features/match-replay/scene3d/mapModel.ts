@@ -27,7 +27,7 @@ import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMat
 import { convertLayered, MERGE_LAYERED, type LayeredMerge } from './layeredMerge3d'
 import { BATCHED_LIMITS, WEBGL2_LIMITS, type ArrayLimits } from './layeredPlan3d'
 import { withKtx2 } from './ktx2Textures3d'
-import { measureSince, now, timed, timedSync } from './perf3d'
+import { measureDuration, measureSince, now, timed, timedSync } from './perf3d'
 import { BAKED_INTENSITY, glowLevel, guardMaterial, imageGlowLevel } from './lighting'
 import { dropMarkerObjects } from './markerObjects3d'
 import { readPlacedLights } from './placedLights'
@@ -418,7 +418,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   onStep('materials', 0, 0)
   const gltf = await timed(`${label}:gltf-parse`, () => withKtx2(new GLTFLoader(manager), ktx2).parseAsync(buffer, ''))
   const materialsStart = now()
-  dropMarkerObjects(gltf.scene)
+  timedSync(`${label}:markers`, () => dropMarkerObjects(gltf.scene))
   const { mats, groups, owned } = familyMaterials()
   // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.
   const glowing = new Map<THREE.Material, THREE.MeshStandardMaterial>()
@@ -490,7 +490,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
   const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
-  gltf.scene.traverse((o) => {
+  timedSync(`${label}:traverse`, () => gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const source = o.material as THREE.MeshStandardMaterial
     const extras = (source.userData ?? {}) as MaterialExtras
@@ -516,8 +516,8 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     groups[key].push(o)
     o.castShadow = key !== 'seeThrough'
     o.receiveShadow = true
-  })
-  await Promise.all(ctx.jobs)
+  }))
+  await timed(`${label}:layered`, () => Promise.all(ctx.jobs))
   measureSince(`${label}:materials`, materialsStart)
   // A clump's cards are seen from both sides, as in the game. Their layered materials are theirs
   // alone (the composition names their cutout and gradient).
@@ -572,13 +572,27 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
   // Un index de rayons par géométrie : la construction se compte, et un passage au navigateur tous
   // les quelques géométries laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
   // plus pour toute la carte).
+  // Diagnostics: the structure index is the one raycasts query; the see-through one is tallied
+  // apart to see if it earns its build time.
+  const structGeos = new Set(geometriesOf(groups.structure))
+  let structMs = 0
+  let seeThroughMs = 0
   const pas = Math.max(1, Math.ceil(bvh.length / 19))
   for (let i = 0; i < bvh.length; i++) {
-    bvh[i].computeBoundsTree()
+    const geoStart = now()
+    // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
+    // so the hit test pays only a little more per ray, while the build drops a level of sorting
+    // for every doubling (Streets: ~3.3 s to ~1.9 s over its two thousand structure geometries).
+    bvh[i].computeBoundsTree({ maxLeafTris: 100 })
+    const dt = now() - geoStart
+    if (structGeos.has(bvh[i])) structMs += dt
+    else seeThroughMs += dt
     onStep('index', i + 1, bvh.length)
     if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
   }
   measureSince(`${label}:bvh`, bvhStart)
+  measureDuration(`${label}:bvh-structure`, structMs)
+  measureDuration(`${label}:bvh-see-through`, seeThroughMs)
   timedSync(`${label}:bounds`, () => {
     for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
   })
