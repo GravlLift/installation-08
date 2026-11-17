@@ -66,8 +66,8 @@ func writeGLBAt(t *testing.T, path string, buildFormat int, basisu bool) {
 
 // TestGlbFormatCurrent — the build-format read of a map GLB: the stamped current format
 // is current, an older stamp is not, an unstamped KTX2 GLB (KHR_texture_basisu, built
-// before the stamp existed) is current, an unstamped PNG one is not, and a non-GLB is
-// not.
+// before the stamp existed: format 2) is not since format 3, an unstamped PNG one is not,
+// and a non-GLB is not.
 func TestGlbFormatCurrent(t *testing.T) {
 	dir := t.TempDir()
 	writeGLBAt(t, filepath.Join(dir, "cur.glb"), mapmesh.BuildFormat, false)
@@ -78,7 +78,7 @@ func TestGlbFormatCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, want := range map[string]bool{
-		"cur.glb": true, "old.glb": false, "ktx2.glb": true, "none.glb": false, "junk.glb": false,
+		"cur.glb": true, "old.glb": false, "ktx2.glb": false, "none.glb": false, "junk.glb": false,
 	} {
 		if got := glbFormatCurrent(filepath.Join(dir, name)); got != want {
 			t.Errorf("glbFormatCurrent(%s) = %v, want %v", name, got, want)
@@ -235,3 +235,18 @@ func libraryRoot(t *testing.T) *store.Root {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// TestGLBModule — the map and variant job keys (either quality) build a stamped GLB, the
+// library, icon and sound jobs do not: only the former take the in-place format upgrade.
+func TestGLBModule(t *testing.T) {
+	for _, key := range []string{"moda", meshjobs.JobKey("moda", meshjobs.QualityHigh), variantPrefix + "abc", meshjobs.JobKey(variantPrefix+"abc", meshjobs.QualityHigh)} {
+		if !glbModule(key) {
+			t.Errorf("%s: not a GLB module", key)
+		}
+	}
+	for _, key := range []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer} {
+		if glbModule(key) {
+			t.Errorf("%s: a GLB module", key)
+		}
+	}
+}

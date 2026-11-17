@@ -440,6 +440,7 @@ export const FR_TEXT = {
     lighting: 'Lecture de l’éclairage',
     writing: 'Écriture du fichier de la carte',
     textures: 'Compression des textures',
+    compress: 'Compression de la géométrie',
     weapons: 'Construction de la bibliothèque d’armes',
     rigs: 'Construction des rigs en première personne',
   },

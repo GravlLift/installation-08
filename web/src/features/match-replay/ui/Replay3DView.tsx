@@ -32,6 +32,7 @@ import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import type { Action3dInputs, PageAction3dInputs } from '../scene3d/action3dInputs'
 import { ArmorLibrary } from '../scene3d/armorLibrary3d'
 import { SpartanArmory } from '../scene3d/armory3d'
+import { timed, timedSync } from '../scene3d/perf3d'
 import { cssColor } from '../scene3d/cssColor'
 import { loadMapModel } from '../scene3d/mapModel'
 import { LoadGate } from '../scene3d/loadGate3d'
@@ -180,7 +181,7 @@ export function Replay3DView({
       try {
         const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
         if (alive) progress.mapDownloaded()
-        const model = await loadMapModel(buffer, onStep, scene.textureLoader)
+        const model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader))
         if (!alive) {
           model.dispose()
           return
@@ -188,7 +189,7 @@ export function Replay3DView({
         progress.finish('decode')
         progress.finish('index')
         const tracks = buildTracks3d(doc)
-        scene.attach(model, tracks, (xuid) => cssColor(colorRef.current(xuid), NEUTRAL))
+        timedSync('map:attach', () => scene.attach(model, tracks, (xuid) => cssColor(colorRef.current(xuid), NEUTRAL)))
         scene.enableAction(doc, () => actionRef.current)
         sceneRef.current = scene
         setMapScene(scene)

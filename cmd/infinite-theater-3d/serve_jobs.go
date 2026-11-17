@@ -98,9 +98,9 @@ func jobModuleOutdated(root *store.Root, module string) bool {
 // glbFormatCurrent says whether the GLB at path records the current build format in its
 // asset.extras (mapmesh.BuildFormat, written by every map and variant build): a header-
 // only read (the GLB's JSON chunk, never the binary chunk). A GLB without the field
-// (built before versioning) is current when it lists KHR_texture_basisu in
-// extensionsUsed — the KTX2 pass added it, so it is format 2; without it it is one of
-// the pre-format-2 PNG GLBs and is not current.
+// (built before versioning) that lists KHR_texture_basisu in extensionsUsed is format 2 —
+// the KTX2 pass added it — and so is not current since format 3 (mapmesh.UpgradeFile brings
+// it up in place); without it it is one of the pre-format-2 PNG GLBs.
 func glbFormatCurrent(path string) bool {
 	extras, err := texcompress.AssetExtras(path)
 	if err != nil {
@@ -109,8 +109,8 @@ func glbFormatCurrent(path string) bool {
 	if v, ok := extras[mapmesh.BuildFormatKey]; ok {
 		return fmt.Sprint(v) == fmt.Sprint(mapmesh.BuildFormat)
 	}
-	current, err := texcompress.UsesBasisu(path)
-	return err == nil && current
+	basisu, err := texcompress.UsesBasisu(path)
+	return err == nil && basisu && mapmesh.BuildFormat == 2
 }
 
 // coatingLibraryOutdated says whether one of the three coating libraries' index is on disk
@@ -281,6 +281,21 @@ func coatingLibraryFolder(module string) (string, bool) {
 	return "", false
 }
 
+// glbModule says whether a job key (quality suffix included) builds one map or variant GLB, the
+// outputs mapmesh.BuildFormat stamps (the libraries, icons and sounds are folders).
+func glbModule(key string) bool {
+	module, _ := meshjobs.SplitQuality(key)
+	if _, ok := variantJobID(module); ok {
+		return true
+	}
+	switch module {
+	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, meshjobs.JobWeaponIcons,
+		meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer:
+		return false
+	}
+	return true
+}
+
 // meshJobsFor wires the mesh build runner to the store: the ready callback reports whether a
 // module's output is on disk (a map's mesh file, or the weapon library's index), the
 // destination maps a module to its output file, and the builder runs the real map build for a
@@ -318,6 +333,12 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		if glbModule(module) {
+			// A map or variant GLB of the previous format only needs its geometry encoded.
+			if s, ok, err := mapmesh.UpgradeFile(ctx, dest(module)); ok {
+				return meshjobs.BuildResult{Bytes: s.Bytes, Triangles: s.Triangles}, err
+			}
+		}
 		module, quality := meshjobs.SplitQuality(module)
 		if id, ok := variantJobID(module); ok {
 			result, err := buildMatchVariant(ctx, root, id, game, out, quality)

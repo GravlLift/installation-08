@@ -16,6 +16,9 @@ import * as THREE from 'three'
 import type { GLTFLoader, GLTFLoaderPlugin, GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
+import { withMeshopt } from './meshoptGeometry3d'
+import { measureSince, now } from './perf3d'
+
 /** The folder that serves the Basis transcoder: the build's own assets, at the app's base URL. */
 export const BASIS_TRANSCODER_PATH = `${import.meta.env.BASE_URL}assets/`
 
@@ -81,7 +84,9 @@ function countedBy(ktx2: KTX2Loader, manager: THREE.LoadingManager): ImageLoader
   return {
     load(url, onLoad, onProgress, onError) {
       manager.itemStart(url)
+      const start = now()
       ktx2.load(url, (texture) => {
+        measureSince('ktx2', start)
         manager.itemEnd(url)
         onLoad(texture)
       }, onProgress, (err) => {
@@ -94,11 +99,13 @@ function countedBy(ktx2: KTX2Loader, manager: THREE.LoadingManager): ImageLoader
 }
 
 /**
- * withKtx2 lets `loader` read KTX2 images through `ktx2` (the renderer's loader, `createKtx2Loader`),
+ * withKtx2 lets `loader` read compressed geometry (`withMeshopt`) and KTX2 images through `ktx2` (the renderer's loader, `createKtx2Loader`),
  * counted by `loader`'s manager. Without one, the GLB loads as before (an image that only exists as
  * KTX2 then has no texture). Returns `loader`.
  */
 export function withKtx2(loader: GLTFLoader, ktx2: KTX2Loader | null): GLTFLoader {
+  // The same GLBs carry compressed geometry (build format 3): every caller reads it.
+  withMeshopt(loader)
   if (!ktx2) return loader
   // GLTFLoader only calls `load` on it (GLTFParser.loadImageSource).
   return loader.setKTX2Loader(countedBy(ktx2, loader.manager) as KTX2Loader).register((parser) => new CompressedMips(parser))

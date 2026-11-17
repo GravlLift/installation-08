@@ -6,7 +6,20 @@
  */
 import { api } from '@/lib/api/client'
 
+import { measureSince, now } from './perf3d'
+
 export async function fetchMesh(
+  path: string,
+  onProgress: (loaded: number, total: number) => void,
+  signal: AbortSignal,
+): Promise<ArrayBuffer> {
+  const start = now()
+  const buffer = await download(path, onProgress, signal)
+  measureSince('download', start, { path, bytes: buffer.byteLength })
+  return buffer
+}
+
+async function download(
   path: string,
   onProgress: (loaded: number, total: number) => void,
   signal: AbortSignal,

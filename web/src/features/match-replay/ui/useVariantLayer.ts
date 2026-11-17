@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { LoadProgress3d } from '../model/chargement3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { loadLayerModel } from '../scene3d/mapModel'
+import { timedSync } from '../scene3d/perf3d'
 import { fetchVariantBuffer } from '../scene3d/variantLayer'
 
 type Prefetch = { path: string; progress: LoadProgress3d; buffer: Promise<ArrayBuffer | null> }
@@ -72,7 +73,7 @@ export function useVariantLayer(
         else {
           const layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
             progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader)
-          if (!alive || !scene.attachLayer(layer)) layer.dispose()
+          if (!alive || !timedSync('variant:attach', () => scene.attachLayer(layer))) layer.dispose()
         }
       } catch (err) {
         if (!alive) return

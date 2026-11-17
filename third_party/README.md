@@ -21,6 +21,18 @@ upstream paths are kept, unmodified: `encoder/`, `transcoder/`, `zstd/zstd.c`, `
 command-line tool, examples, the WebGL/WASM and Python builds, OpenCL kernels' build files, test
 images and `zstd/zstddeclib.c`.
 
+`meshoptimizer/` holds Arseny Kapoulkine's meshoptimizer (https://github.com/zeux/meshoptimizer,
+tag `v1.3`, commit `9e1f07b159d3cb777f1c67ed31fc11fd117986f4` of 2026-09-25, MIT), taken from the
+release's source archive `https://github.com/zeux/meshoptimizer/archive/refs/tags/v1.3.tar.gz`
+(SHA-256 `ca4f47d451201593904b9e3067fa54b65db94bc34ab5173864950862b748a145`). It is not a Go
+module: `internal/meshopt` compiles its translation units with cgo (one `u_*.cpp` per upstream
+`.cpp`, each a single `#include`), and `internal/geocompress` uses them to write
+`EXT_meshopt_compression`. Only these upstream paths are kept, unmodified: `src/meshoptimizer.h`,
+`src/allocator.cpp`, `src/vertexcodec.cpp`, `src/indexcodec.cpp`, `src/vertexfilter.cpp`,
+`LICENSE.md`, `README.md`. Omitted: the rest of `src/` (simplifier, clusterizer, optimizers), the
+`gltf/` packer, the JavaScript decoders (the viewer uses the copy three.js ships), `js/`, `demo/`,
+`tools/`, `extern/` and the build files.
+
 `ww2ogg/` holds no code: only the license text and the notice of ww2ogg by hcs
 (https://github.com/hcs64/ww2ogg, commit `14ed9b0`, BSD-3-Clause style), which
 `internal/wwvorbis` ports to Go to repack the announcer's Wwise Vorbis voice lines into Ogg,

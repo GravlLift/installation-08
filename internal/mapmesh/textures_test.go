@@ -50,8 +50,9 @@ func oneImageGLB(t *testing.T) []byte {
 	return out.Bytes()
 }
 
-// TestWriteGLBTextures: a KTX2 build announces the texture step and leaves only the finished
-// GLB at `path`, its image in KTX2; a PNG build writes the writer's bytes unchanged.
+// TestWriteGLBTextures: a KTX2 build announces the texture step, then the geometry step, and
+// leaves only the finished GLB at `path`, its image in KTX2; a PNG build of a GLB without
+// geometry writes the writer's bytes unchanged.
 func TestWriteGLBTextures(t *testing.T) {
 	src := oneImageGLB(t)
 	write := func(w io.Writer) error { _, err := w.Write(src); return err }
@@ -86,10 +87,12 @@ func TestWriteGLBTextures(t *testing.T) {
 	if len(steps) == 0 {
 		t.Errorf("no step reported, want %s", StepTextures)
 	}
-	for _, s := range steps {
-		// The texture stage is reported at its start and again per compressed image.
-		if s != StepTextures {
-			t.Errorf("step %s reported, want only %s", s, StepTextures)
+	for i, s := range steps {
+		// The texture stage is reported at its start and again per compressed image; the geometry
+		// pass follows, last.
+		if last := i == len(steps)-1; (last && s != StepCompress) || (!last && s != StepTextures) {
+			t.Errorf("steps %v, want %s then %s", steps, StepTextures, StepCompress)
+			break
 		}
 	}
 	entries, _ := os.ReadDir(dir)
