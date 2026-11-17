@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollKick3d.ts — CE QUI POUSSE LE CORPS À LA MORT : la vitesse de départ de chaque particule du
- * corps inerte, tirée de la source du kill (`fall3d.fallKindOf`) et de ce que le film dit autour.
+ * ragdollKick3d.ts — WHAT PUSHES THE BODY AT DEATH: the starting velocity of each ragdoll
+ * particle, drawn from the kill's source (`fall3d.fallKindOf`) and what the film says around it.
  *
- * - balle : poussée modeste le long du tir (du tueur vers la poitrine), portée par le buste ;
- * - tir à la tête : la même, plus vive, portée par la tête ;
- * - mêlée : forte bourrade horizontale depuis le tueur, un peu levée ;
- * - explosion : poussée radiale depuis le point de détonation, levée vers le haut, décroissante avec
- *   la distance (chaque particule la sienne : le corps tourne) ;
- * - écrasement : la vitesse du véhicule, levée, plus forte aux jambes ;
- * - sans tueur (chute, suicide) : rien que la vitesse héritée.
- * La victime garde en plus sa vitesse de course (bornée). Une petite torsion tirée d'un germe stable
- * (la mort) casse la symétrie : même mort, même torsion.
+ * - bullet: a modest push along the shot (from the killer toward the chest), carried by the torso;
+ * - headshot: the same, stronger, carried by the head;
+ * - melee: a strong horizontal shove from the killer, slightly lifted;
+ * - explosion: a radial push from the detonation point, lifted upward, decaying with
+ *   distance (each particle gets its own: the body spins);
+ * - splatter: the vehicle's velocity, lifted, stronger at the legs;
+ * - with no killer (a fall, a suicide): nothing but the inherited velocity.
+ * The victim also keeps their running velocity (capped). A small twist drawn from a stable seed
+ * (the death) breaks the symmetry: same death, same twist.
  *
- * Les intensités sont réglées à l'œil vers la sensation de Halo (corps flottants, projetés par les
- * explosions) ; vitesses en u/s (1 u = 3,048 m).
+ * Intensities are tuned by eye toward Halo's own feel (floaty bodies, thrown by explosions);
+ * velocities in u/s (1 u = 3.048 m).
  */
 import type { FallKind } from './fall3d'
 import { P, PARTICLES } from './ragdollBody3d'
@@ -26,43 +26,43 @@ export const SHOT_PUSH = 0.9
 export const HEADSHOT_PUSH = 1.6
 export const MELEE_PUSH = 2.6
 export const MELEE_LIFT = 0.7
-/** Explosion : vitesse au plus près, part gardée au loin, distances (u), levée ajoutée à la direction. */
+/** Explosion: speed at closest range, share kept at range, distances (u), lift added to the direction. */
 export const BLAST_PUSH = 4.2
 export const BLAST_FAR_SHARE = 0.3
 export const BLAST_NEAR = 0.4
 export const BLAST_FAR = 3
 export const BLAST_UP = 0.7
-/** Écrasement : part de la vitesse du véhicule, levée (u/s), vitesse prise sans véhicule relu. */
+/** Splatter: share of the vehicle's velocity, lift (u/s), fallback speed with no vehicle read. */
 export const SPLATTER_SHARE = 1
 export const SPLATTER_LIFT = 1.2
 export const SPLATTER_FALLBACK = 3.5
-/** La vitesse héritée de la victime au plus (u/s). */
+/** The victim's inherited velocity, at most (u/s). */
 export const INHERIT_MAX = 3
 /**
- * La part montante de la vitesse héritée au plus (u/s) : un joueur qui escalade un rebord ou monte
- * une marche est porté par son animation, pas lancé ; sans cette borne le corps s'envole.
+ * The inherited velocity's upward share, at most (u/s): a player climbing a ledge or a step is
+ * carried by their animation, not thrown; without this cap the body flies off.
  */
 export const INHERIT_UP_MAX = 1.2
-/** La torsion de départ (u/s) : opposée entre une épaule et la hanche d'en face. */
+/** The starting twist (u/s): opposite between a shoulder and the hip across from it. */
 export const SPIN = 0.25
 
 export interface KickInput {
   kind: KickKind
-  /** La vitesse de la victime à sa mort (axes three, u/s). */
+  /** The victim's velocity at death (three.js axes, u/s). */
   velocity: Vec3
-  /** L'œil du tueur (axes three), null quand il n'est pas relu. */
+  /** The killer's eye (three.js axes), null when it is not read. */
   from: Vec3 | null
-  /** La direction horizontale unitaire de l'impulsion (du tueur vers la victime, sinon vers son dos). */
+  /** The impulse's horizontal unit direction (from killer to victim, otherwise toward their back). */
   dir: Vec3
-  /** Le point de détonation (axes three), null sans explosion relue près de la mort. */
+  /** The detonation point (three.js axes), null with no explosion read near the death. */
   blast: Vec3 | null
-  /** La vitesse du véhicule de l'écrasement (axes three, u/s), null sans véhicule relu. */
+  /** The splatter's vehicle velocity (three.js axes, u/s), null with no vehicle read. */
   vehicle: Vec3 | null
-  /** Le germe de la torsion. */
+  /** The twist's seed. */
   seed: number
 }
 
-/** Les parts d'une poussée par particule, par nom (les autres : `rest`). */
+/** A push's shares per particle, by name (everything else: `rest`). */
 type Shares = Partial<Record<string, number>> & { rest: number }
 const SHOT_SHARES: Shares = { chest: 1, sternum: 1, neck: 0.7, pelvis: 0.4, belly: 0.4, rest: 0.2 }
 const HEAD_SHARES: Shares = { head: 1, face: 1, neck: 0.6, chest: 0.25, sternum: 0.25, rest: 0.1 }
@@ -71,8 +71,8 @@ const SPLATTER_SHARES: Shares = { lKnee: 1.15, rKnee: 1.15, lAnkle: 1.15, rAnkle
 const SHARE = (s: Shares) => Float64Array.from(PARTICLES, (p) => s[p.name] ?? s.rest)
 
 /**
- * kickVelocities : la vitesse de départ (u/s, 3 par particule) des particules aux places `x` (axes
- * three, celles de la pose de mort).
+ * kickVelocities: the starting velocity (u/s, 3 per particle) of the particles at positions `x`
+ * (three.js axes, the death pose's own).
  */
 export function kickVelocities(k: KickInput, x: Float64Array): Float64Array {
   const n = PARTICLES.length
@@ -107,7 +107,7 @@ export function kickVelocities(k: KickInput, x: Float64Array): Float64Array {
   return v
 }
 
-/** aimed : la direction du tir, de l'œil du tueur vers la particule visée, sinon l'impulsion horizontale. */
+/** aimed: the shot's direction, from the killer's eye to the targeted particle, otherwise the horizontal impulse. */
 function aimed(k: KickInput, x: Float64Array, target: number): Vec3 {
   if (!k.from) return k.dir
   const d = sub(at(x, target), k.from)
@@ -120,13 +120,13 @@ function addAlong(v: Float64Array, shares: Float64Array, dir: Vec3, speed: numbe
   }
 }
 
-/** blastFallback : sans détonation relue, le souffle part d'un peu derrière et sous la victime. */
+/** blastFallback: with no detonation read, the blast starts a bit behind and below the victim. */
 function blastFallback(k: KickInput, x: Float64Array): Vec3 {
   const p = at(x, P('pelvis'))
   return [p[0] - k.dir[0] * 0.8, p[1] - 0.3, p[2] - k.dir[2] * 0.8]
 }
 
-/** blastSpeed : la vitesse donnée par l'explosion à la distance `d` (u). */
+/** blastSpeed: the velocity the explosion gives at distance `d` (u). */
 export function blastSpeed(d: number): number {
   const u = Math.min(1, Math.max(0, (d - BLAST_NEAR) / (BLAST_FAR - BLAST_NEAR)))
   return BLAST_PUSH * (1 - u * (1 - BLAST_FAR_SHARE))
@@ -143,7 +143,7 @@ function addBlast(v: Float64Array, x: Float64Array, origin: Vec3): void {
   }
 }
 
-/** addSpin : une épaule et la hanche d'en face poussées en sens contraires, sens et force tirés du germe. */
+/** addSpin: a shoulder and the hip across from it pushed in opposite directions, sign and strength drawn from the seed. */
 function addSpin(v: Float64Array, k: KickInput): void {
   const r = mulberry32(k.seed)
   const sign = r() < 0.5 ? -1 : 1
@@ -156,7 +156,7 @@ function addSpin(v: Float64Array, k: KickInput): void {
   }
 }
 
-/** mulberry32 : un tirage pseudo-aléatoire reproductible de germe `seed` (dans [0, 1)). */
+/** mulberry32: a reproducible pseudo-random draw seeded by `seed` (in [0, 1)). */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0
   return () => {
@@ -190,7 +190,7 @@ function clampLength(a: Vec3, max: number): Vec3 {
   return l > max ? scale(a, max / l) : a
 }
 
-/** horizontal : `a` à plat, unitaire ; `fallback` s'il est vertical. */
+/** horizontal: `a` flattened, unit length; `fallback` if it is vertical. */
 function horizontal(a: Vec3, fallback: Vec3): Vec3 {
   const l = Math.hypot(a[0], a[2])
   return l > 1e-6 ? [a[0] / l, 0, a[2] / l] : fallback
