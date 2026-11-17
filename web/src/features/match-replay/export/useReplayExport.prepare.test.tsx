@@ -38,8 +38,8 @@ vi.mock('../sound/replayAudioMix', async (orig) => ({
 vi.mock('./replayCapture', async (orig) => ({
   ...(await orig<typeof import('./replayCapture')>()),
   triggerDownload: vi.fn(),
-  // Le vrai `holdDownload` appellerait `URL.createObjectURL`, absent de jsdom : on le double
-  // par un `{save, release}` inerte — ce test ne vérifie que la préparation, pas le dépôt.
+  // The real `holdDownload` would call `URL.createObjectURL`, absent from jsdom: it is doubled
+  // here by an inert `{save, release}` — this test only checks the preparation, not the drop.
   holdDownload: vi.fn(() => ({ save: vi.fn(), release: vi.fn() })),
 }))
 
