@@ -70,7 +70,7 @@ func armureParDefaut(ctx context.Context, idx *ModuleIndex, mode uint32) (Armure
 		}
 		return varianteDuBiped(ctx, idx, ArmureParDefaut{NomVariante: nom, Personnalisation: id}, modele)
 	}
-	return ArmureParDefaut{}, fmt.Errorf("aucune globale de personnalisation (%s) ne porte le mode %08x", GroupePersonnalisation, mode)
+	return ArmureParDefaut{}, fmt.Errorf("no customization global (%s) carries mode %08x", GroupePersonnalisation, mode)
 }
 
 // themeParDefaut rend le nom de variante du theme 0 du modele `mode` de l'ocgd, et les octets de
@@ -97,7 +97,7 @@ func themeParDefaut(ocgd []byte, mode uint32) (uint32, []byte, bool, error) {
 			themes := ti.subBlockTarget(cibles[i], k*ocgdModeleStride+ocgdModeleOffThemes)
 			tAbs, tTaille := ti.blockAbs(themes)
 			if themes < 0 || tAbs < 0 || tTaille < ocgdThemeStride {
-				return 0, nil, false, fmt.Errorf("modele %08x sans theme", mode)
+				return 0, nil, false, fmt.Errorf("model %08x without a theme", mode)
 			}
 			return uint32(u32(ti.tag, tAbs+ocgdThemeOffVariante)), ti.tag[rec : rec+ocgdModeleStride], true, nil
 		}
@@ -131,5 +131,5 @@ func varianteDuBiped(ctx context.Context, idx *ModuleIndex, a ArmureParDefaut, m
 			}
 		}
 	}
-	return a, fmt.Errorf("variante %08x du theme par defaut absente des hlmt du bipd de l'ocgd %08x", a.NomVariante, a.Personnalisation)
+	return a, fmt.Errorf("variant %08x of the default theme missing from the hlmts of ocgd's bipd %08x", a.NomVariante, a.Personnalisation)
 }

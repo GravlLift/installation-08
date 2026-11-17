@@ -13,6 +13,8 @@
 // absent) fait descendre d'un niveau.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
@@ -70,7 +72,7 @@ var formatBitmap = map[int]struct {
 }
 
 // ErrFormatBitmap signale un format de pixels que le decodeur ne lit pas.
-var ErrFormatBitmap = errors.New("himap: format de bitmap non pris en charge")
+var ErrFormatBitmap = errors.New("himap: unsupported bitmap format")
 
 // enteteBitmap : le premier enregistrement du bloc `bitmaps` d'un tag. prof : le nombre de
 // couches d'un tableau de textures (1 pour une texture simple).
@@ -98,7 +100,7 @@ func litEnteteBitmap(tag []byte) (enteteBitmap, error) {
 			nombre: size / bitmapStride,
 		}, nil
 	}
-	return enteteBitmap{}, fmt.Errorf("himap: tag %s illisible", GroupeBitmap)
+	return enteteBitmap{}, fmt.Errorf("himap: unreadable tag %s", GroupeBitmap)
 }
 
 // LitBitmap decode le premier bitmap d'un tag `bitm`, au plus grand niveau de mip dont le plus
@@ -106,7 +108,7 @@ func litEnteteBitmap(tag []byte) (enteteBitmap, error) {
 func LitBitmap(idx *ModuleIndex, id uint32, cote int) (Texture, error) {
 	m, f, ok := idx.entree(id)
 	if !ok || f.Group != GroupeBitmap {
-		return Texture{}, fmt.Errorf("himap: bitmap %#x absent des modules indexes", id)
+		return Texture{}, fmt.Errorf("himap: bitmap %#x absent from the indexed modules", id)
 	}
 	brut, err := m.Extract(f)
 	if err != nil {
@@ -146,7 +148,7 @@ func LitBitmap(idx *ModuleIndex, id uint32, cote int) (Texture, error) {
 // lisNiveaux parcourt les niveaux du plus grand au plus petit, garde le premier qui tient sous
 // la cote et se decode ; le niveau k (en partant du haut) mesure larg>>k x haut>>k.
 func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f bcn.Format, mono bool, cote int) (Texture, error) {
-	derniere := fmt.Errorf("himap: bitmap sans niveau lisible")
+	derniere := fmt.Errorf("himap: bitmap without a readable level")
 	for k := 0; k < len(niveaux); k++ {
 		r := niveaux[len(niveaux)-1-k]
 		l, h := max(e.larg>>k, 1), max(e.haut>>k, 1)
@@ -173,7 +175,7 @@ func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f b
 func decodeNiveau(octets []byte, l, h int, f bcn.Format, mono bool, cote int) (Texture, error) {
 	img, err := bcn.DecodeImage(octets, l, h, f)
 	if err != nil {
-		return Texture{}, fmt.Errorf("himap: decodage %dx%d : %w", l, h, err)
+		return Texture{}, fmt.Errorf("himap: decode %dx%d: %w", l, h, err)
 	}
 	if mono {
 		for i := 0; i+3 < len(img.Pix); i += 4 {

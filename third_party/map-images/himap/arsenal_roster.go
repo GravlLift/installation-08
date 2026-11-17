@@ -14,6 +14,8 @@
 // paquet externe.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -26,7 +28,7 @@ import (
 func (a *Arsenal) RosterArmes(ctx context.Context) ([]uint32, error) {
 	ids := a.geo.EntreesDuGroupe(GroupeArme)
 	if len(ids) == 0 {
-		return nil, fmt.Errorf("%w : aucun tag %q dans les modules installes", ErrSansModele, GroupeArme)
+		return nil, fmt.Errorf("%w: no %q tag in the installed modules", ErrSansModele, GroupeArme)
 	}
 	slices.Sort(ids)
 	return ids, nil

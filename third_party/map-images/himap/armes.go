@@ -28,7 +28,7 @@ const GroupeArme = "weap"
 const varianteDefaut uint32 = 0x42c9679f
 
 // ErrSansModele : le tag n'est pas une arme de ces modules, ou son modele n'est pas lisible.
-var ErrSansModele = errors.New("himap: arme sans modele lisible")
+var ErrSansModele = errors.New("himap: weapon without a readable model")
 
 // Arsenal : les index ouverts sur une carte installee, d'ou se lisent les modeles d'arme.
 type Arsenal struct {
@@ -51,7 +51,7 @@ func OuvreArsenal(racineDeploy, cheminModule string) (*Arsenal, error) {
 	}
 	geo, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, fmt.Errorf("index de geometrie : %w", err)
+		return nil, fmt.Errorf("geometry index: %w", err)
 	}
 	cheminsMat, err := CheminsMateriaux(racineDeploy, cheminModule)
 	if err == nil {
@@ -60,7 +60,7 @@ func OuvreArsenal(racineDeploy, cheminModule string) (*Arsenal, error) {
 			return &Arsenal{geo: geo, mats: mats}, nil
 		}
 	}
-	return nil, errors.Join(fmt.Errorf("index des materiaux : %w", err), geo.Close())
+	return nil, errors.Join(fmt.Errorf("material index: %w", err), geo.Close())
 }
 
 // Close ferme les index.
@@ -77,7 +77,7 @@ func (a *Arsenal) Arme(ctx context.Context, weap uint32) (*MaillageMonde, error)
 // objet rend le maillage du modele de l'objet `id`, un tag du groupe `groupe` (arme, projectile).
 func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*MaillageMonde, error) {
 	if g, _, ok := a.geo.Lookup(id); !ok || g != groupe {
-		return nil, fmt.Errorf("%w : %08x n'est pas un tag %q", ErrSansModele, id, groupe)
+		return nil, fmt.Errorf("%w: %08x is not a %q tag", ErrSansModele, id, groupe)
 	}
 	mp := modeleDuPlacement(ctx, a.geo, id, varianteDefaut)
 	if mp == nil {
@@ -88,7 +88,7 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 	// Les projecteurs d'ombre d'une arme ne servent a aucune vue : la vue projette l'ombre du modele.
 	m.Ombre = GroupeMaillage{}
 	if m.Structure.Triangles() == 0 {
-		return nil, fmt.Errorf("%w : %08x sans triangle visible", ErrSansModele, id)
+		return nil, fmt.Errorf("%w: %08x without a visible triangle", ErrSansModele, id)
 	}
 	// LOCAL-CHANGE (infinite-theater-3d): the arsenal's surface cap for hard-surface textures.
 	m.surfaceCote = a.surfaceCote

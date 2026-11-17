@@ -20,6 +20,8 @@
 // bloc et refuse plutot que de deviner.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -30,7 +32,7 @@ import (
 )
 
 // ErrSansBanniere : l'arme n'attache aucun effet de banniere lisible.
-var ErrSansBanniere = errors.New("himap: arme sans banniere d'equipe")
+var ErrSansBanniere = errors.New("himap: weapon without a team banner")
 
 // AttacheEffet : un effet attache a un marqueur du modele de l'arme (bloc `attachments` du
 // `weap`, lu par l'appelant avec la description du tag).
@@ -131,7 +133,7 @@ func (a *Arsenal) BanniereEquipe(weap uint32, attaches []AttacheEffet) (*Bannier
 	for k := 0; k < len(parCouche); k++ {
 		img, ok := parCouche[k]
 		if !ok {
-			return nil, fmt.Errorf("himap: emblemes de %08x : couche %d absente", weap, k)
+			return nil, fmt.Errorf("himap: emblems of %08x: layer %d missing", weap, k)
 		}
 		b.Emblemes = append(b.Emblemes, img)
 	}
@@ -155,7 +157,7 @@ func (a *Arsenal) emetteursProches(id uint32) ([]emetteur, error) {
 	niveaux := ti.subBlockTarget(rb, effeOffNiveaux)
 	evts := ti.subBlockTarget(niveaux, effeOffEvenements)
 	if niveaux < 0 || evts < 0 {
-		return nil, fmt.Errorf("himap: effet %08x sans evenement", id)
+		return nil, fmt.Errorf("himap: effect %08x without an event", id)
 	}
 	_, taille := ti.blockAbs(evts)
 	var out []emetteur

@@ -6,6 +6,8 @@
 // formats compresses par blocs (taille calculable) et les pixels en ligne sont lus.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 
@@ -27,7 +29,7 @@ func octetsParBloc(f bcn.Format) (int, bool) {
 func enteteDe(idx *ModuleIndex, id uint32) (enteteBitmap, []byte, error) {
 	m, f, ok := idx.entree(id)
 	if !ok || f.Group != GroupeBitmap {
-		return enteteBitmap{}, nil, fmt.Errorf("himap: bitmap %#x absent des modules indexes", id)
+		return enteteBitmap{}, nil, fmt.Errorf("himap: bitmap %#x absent from the indexed modules", id)
 	}
 	brut, err := m.Extract(f)
 	if err != nil {
@@ -64,7 +66,7 @@ func LitCoucheBitmap(idx *ModuleIndex, id uint32, couche, cote int) (Texture, er
 		return Texture{}, err
 	}
 	if couche < 0 || couche >= e.prof {
-		return Texture{}, fmt.Errorf("himap: bitmap %#x : couche %d hors de ses %d", id, couche, e.prof)
+		return Texture{}, fmt.Errorf("himap: bitmap %#x: layer %d outside its %d", id, couche, e.prof)
 	}
 	fm, ok := formatBitmap[e.format]
 	parBloc, compresse := octetsParBloc(fm.f)
@@ -72,12 +74,12 @@ func LitCoucheBitmap(idx *ModuleIndex, id uint32, couche, cote int) (Texture, er
 		return Texture{}, fmt.Errorf("%w : %d", ErrFormatBitmap, e.format)
 	}
 	if donnees == nil {
-		return Texture{}, fmt.Errorf("himap: bitmap %#x : pixels hors du tag, non lus", id)
+		return Texture{}, fmt.Errorf("himap: bitmap %#x: pixels outside the tag, not read", id)
 	}
 	taille := ((e.larg + 3) / 4) * ((e.haut + 3) / 4) * parBloc
 	debut := couche * taille
 	if debut+taille > len(donnees) {
-		return Texture{}, fmt.Errorf("himap: bitmap %#x : couche %d hors des donnees", id, couche)
+		return Texture{}, fmt.Errorf("himap: bitmap %#x: layer %d outside the data", id, couche)
 	}
 	return decodeNiveau(donnees[debut:debut+taille], e.larg, e.haut, fm.f, fm.mono, cote)
 }

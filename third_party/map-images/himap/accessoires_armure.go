@@ -41,7 +41,7 @@ const (
 )
 
 // ErrAccessoireIllisible : le tag n'est pas un `ocad` lisible.
-var ErrAccessoireIllisible = errors.New("himap: accessoire illisible")
+var ErrAccessoireIllisible = errors.New("himap: unreadable accessory")
 
 // MarqueurAccessoire : le marqueur ou se pose une entree, et son decalage dans le repere de
 // l'instance de ce marqueur.
@@ -84,7 +84,7 @@ func LitAccessoire(id uint32, tag []byte) (Accessoire, error) {
 		}
 		abs, taille := ti.blockAbs(cibles[i])
 		if abs < 0 || taille%ocadEntreeStride != 0 || abs+taille > len(ti.tag) {
-			return out, fmt.Errorf("%w : %08x : entrees sur %d o", ErrAccessoireIllisible, id, taille)
+			return out, fmt.Errorf("%w: %08x: entries over %d bytes", ErrAccessoireIllisible, id, taille)
 		}
 		sous := ti.sousBlocsParOffset(cibles[i])
 		for k := 0; k < taille/ocadEntreeStride; k++ {
@@ -98,7 +98,7 @@ func LitAccessoire(id uint32, tag []byte) (Accessoire, error) {
 			if bloc, ok := sous[k*ocadEntreeStride+ocadEntreeOffMarq]; ok && n > 0 {
 				mAbs, mTaille := ti.blockAbs(bloc)
 				if mAbs < 0 || mTaille != n*ocadMarqueurStride || mAbs+mTaille > len(ti.tag) {
-					return out, fmt.Errorf("%w : %08x : %d marqueurs sur %d o", ErrAccessoireIllisible, id, n, mTaille)
+					return out, fmt.Errorf("%w: %08x: %d markers over %d bytes", ErrAccessoireIllisible, id, n, mTaille)
 				}
 				for j := 0; j < n; j++ {
 					e.Marqueurs = append(e.Marqueurs, lisMarqueurAccessoire(ti.tag[mAbs+j*ocadMarqueurStride:]))
@@ -108,7 +108,7 @@ func LitAccessoire(id uint32, tag []byte) (Accessoire, error) {
 		}
 		return out, nil
 	}
-	return out, fmt.Errorf("%w : %08x : pas d'entrees a la racine +%d", ErrAccessoireIllisible, id, ocadOffEntrees)
+	return out, fmt.Errorf("%w: %08x: no entries at root +%d", ErrAccessoireIllisible, id, ocadOffEntrees)
 }
 
 // lisMarqueurAccessoire decode un marqueur d'entree (40 o).
@@ -172,18 +172,18 @@ func portePar(acc Accessoire, noms map[uint32]bool) bool {
 func (a *Arsenal) ModeleAccessoire(ctx context.Context, e EntreeAccessoire) (*MaillageMonde, error) {
 	id, groupe, ok := modeleParHlmtRecursif(ctx, a.geo, e.octets, map[uint32]bool{}, 0)
 	if !ok {
-		return nil, fmt.Errorf("%w : hlmt %08x sans modele", ErrSansModele, e.Modele)
+		return nil, fmt.Errorf("%w: hlmt %08x without a model", ErrSansModele, e.Modele)
 	}
 	asset := ouvreAsset(ctx, a.geo, id, groupe)
 	if asset == nil {
-		return nil, fmt.Errorf("%w : modele %08x du hlmt %08x illisible", ErrSansModele, id, e.Modele)
+		return nil, fmt.Errorf("%w: model %08x of hlmt %08x unreadable", ErrSansModele, id, e.Modele)
 	}
 	mp := lisModelePose(asset, groupe, varianteDuPlacement(ctx, a.geo, e.octets, e.Variante))
 	m := &MaillageMonde{SurfacesBrutes: true}
 	m.poseModele(&mp, PlacementScenario{Echelle: 1}.Instance())
 	m.Ombre = GroupeMaillage{}
 	if m.Structure.Triangles() == 0 {
-		return nil, fmt.Errorf("%w : hlmt %08x sans triangle visible", ErrSansModele, e.Modele)
+		return nil, fmt.Errorf("%w: hlmt %08x without a visible triangle", ErrSansModele, e.Modele)
 	}
 	m.lisMateriaux(a.mats, a.geo)
 	m.resoutTextures(ctx, a.geo)
