@@ -57,6 +57,7 @@ const (
 
 func openWindowApp(url string) error {
 	applyWebViewEnvDefaults()
+	appOrigin := originOf(url)
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath: webviewUserDataFolder(),
 		WindowOptions: webview2.WindowOptions{
@@ -67,6 +68,12 @@ func openWindowApp(url string) error {
 	})
 	if w == nil {
 		return errors.New("the WebView2 runtime could not create the app window")
+	}
+	w.Init(externalLinksJS)
+	bound := func(u string) error { return openExternalURL(u, appOrigin) }
+	if err := w.Bind("it3dOpenExternal", bound); err != nil {
+		w.Destroy()
+		return err
 	}
 	w.Navigate(url)
 	w.Run() // returns when the window closes
