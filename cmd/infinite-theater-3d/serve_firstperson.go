@@ -59,17 +59,23 @@ func (h serverHandlers) handleFirstPersonBras(w http.ResponseWriter, r *http.Req
 	_, _ = w.Write(raw)
 }
 
+// resolveFirstPersonFile resolves name to the full path of one library file (a rig or a shared
+// texture), saying whether it is one of the library's own file names that stays inside the
+// library folder. The GET route and the bundle route both resolve a name through it.
+func resolveFirstPersonFile(root *store.Root, name string) (string, bool) {
+	if !firstperson.NomFichierPremierePersonne(name) || strings.ContainsAny(name, "/\\") {
+		return "", false
+	}
+	return joinInside(firstPersonDir(root), name)
+}
+
 // handleFirstPersonFile answers GET /api/first-person/{file} with one library file (a rig or
 // a shared texture, range-capable). The name must be one of the library's own file names and
 // the resolved path must stay inside the library folder; a missing or foreign file is a JSON
 // 404.
 func (h serverHandlers) handleFirstPersonFile(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
-	if !firstperson.NomFichierPremierePersonne(name) || strings.ContainsAny(name, "/\\") {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "first_person_file_not_available", "file": name})
-		return
-	}
-	full, ok := joinInside(firstPersonDir(h.root), name)
+	full, ok := resolveFirstPersonFile(h.root, name)
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "first_person_file_not_available", "file": name})
 		return

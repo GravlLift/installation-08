@@ -53,29 +53,43 @@ func (h serverHandlers) handleWeaponIndex(w http.ResponseWriter, r *http.Request
 // (range-capable), a coating file (coatings.json, coating-<style>.json, swatch-<gradient>.png,
 // the spartanpieces contract beside the Spartan piece routes) or a team banner image
 // (banner-<key>-cloth.png, banner-<key>-emblem<rank>.png). A missing file is a JSON 404.
-func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request) {
-	file := r.PathValue("file")
-	dir := filepath.Join(h.root.Dir(), "weapons")
+// resolveWeaponFile resolves file to the full path of one weapon-library file (a coating, banner
+// or effect file, or a model GLB), saying whether it is a well-formed library name that stays
+// inside the weapons folder. The GET route and the bundle route both resolve a name through it.
+func resolveWeaponFile(root *store.Root, file string) (string, bool) {
+	dir := filepath.Join(root.Dir(), "weapons")
 	if weapons.CoatingFile(file) || weapons.BannerFile(file) || weapons.EffectFile(file) {
-		h.serveWeaponFile(w, r, dir, file, map[string]string{"error": "coating_not_available", "file": file})
-		return
+		return joinInside(dir, file)
 	}
 	key := strings.TrimSuffix(file, ".glb")
 	if !strings.HasSuffix(file, ".glb") || !weapons.ModelKeyValid(key) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "weapon_model_not_available", "key": key})
-		return
+		return "", false
 	}
-	h.serveWeaponFile(w, r, dir, weapons.FileOf(key), map[string]string{"error": "weapon_model_not_available", "key": key})
+	return joinInside(dir, weapons.FileOf(key))
 }
 
-// serveWeaponFile serves one library file of dir (range-capable); a missing file, a directory,
-// or a path that escapes the folder is the JSON 404 notFound.
-func (h serverHandlers) serveWeaponFile(w http.ResponseWriter, r *http.Request, dir, file string, notFound map[string]string) {
-	full, ok := joinInside(dir, file)
+// weaponNotFound is the JSON 404 a weapon file answer with: a coating, banner or effect file
+// names the coating, a model file names the key.
+func weaponNotFound(file string) map[string]string {
+	if weapons.CoatingFile(file) || weapons.BannerFile(file) || weapons.EffectFile(file) {
+		return map[string]string{"error": "coating_not_available", "file": file}
+	}
+	return map[string]string{"error": "weapon_model_not_available", "key": strings.TrimSuffix(file, ".glb")}
+}
+
+func (h serverHandlers) handleWeaponModel(w http.ResponseWriter, r *http.Request) {
+	file := r.PathValue("file")
+	full, ok := resolveWeaponFile(h.root, file)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, notFound)
+		writeJSON(w, http.StatusNotFound, weaponNotFound(file))
 		return
 	}
+	h.serveWeaponFile(w, r, file, full, weaponNotFound(file))
+}
+
+// serveWeaponFile serves one resolved library file (range-capable); a missing file or a
+// directory is the JSON 404 notFound.
+func (h serverHandlers) serveWeaponFile(w http.ResponseWriter, r *http.Request, file, full string, notFound map[string]string) {
 	info, err := os.Stat(full)
 	if err != nil || info.IsDir() {
 		writeJSON(w, http.StatusNotFound, notFound)
