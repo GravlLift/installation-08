@@ -33,6 +33,7 @@ import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
 import { fetchMesh } from './meshFetch'
 import { ReticleRanges } from './reticleRanges3d'
+import { surfaceModelBytes } from './sessionResourceBytes3d'
 import { withKtx2 } from './ktx2Textures3d'
 
 /** Délai avant de redemander un modèle absent (ms). */
@@ -76,6 +77,10 @@ export class WeaponModels {
   private readonly equipment: EquipmentKeys
   /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
   private readonly ktx2: KTX2Loader | null
+  /** Called after a weapon/Spartan/grenade GLB finishes loading: `loadedBytes()` just grew, so
+   *  this library's session-cache entry (`sessionAssetCache3d.ts`) is stale. The caller re-stores
+   *  it with a fresh count; never called on dispose or a failed/absent load. */
+  private readonly onGrowth?: () => void
 
   /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
   constructor(
@@ -85,6 +90,7 @@ export class WeaponModels {
     banners: FlagBanners = new FlagBanners(base),
     equipment: EquipmentKeys = new EquipmentKeys(base),
     ktx2: KTX2Loader | null = null,
+    onGrowth?: () => void,
   ) {
     this.base = base
     this._gate = gate
@@ -92,6 +98,14 @@ export class WeaponModels {
     this.banners = banners
     this.equipment = equipment
     this.ktx2 = ktx2
+    this.onGrowth = onGrowth
+  }
+
+  /** loadedBytes : l'empreinte estimée des modèles chargés jusqu'ici (voir `ArmorLibrary.loadedBytes`). */
+  loadedBytes(): number {
+    let bytes = 0
+    for (const root of this.owned) bytes += surfaceModelBytes(root)
+    return bytes
   }
 
   /** reticleRange is the red-reticle range of the weapon `id` at `zoomLevel`, null when it has none. */
@@ -178,6 +192,7 @@ export class WeaponModels {
         if (gltf.animations.length > 0) registerClips(gltf)
         this.owned.push(gltf.scene)
         this.entries.set(key, { model: gltf.scene })
+        this.onGrowth?.()
       } catch (err) {
         if (this.abort.signal.aborted) return
         if (!isNotFound(err)) console.warn('rejeu 3D : échec du chargement du modèle d’arme', key, err)

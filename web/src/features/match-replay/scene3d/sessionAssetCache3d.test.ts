@@ -1,13 +1,33 @@
 import * as THREE from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ArmorLibrary, type ArmorLibraryIO } from './armorLibrary3d'
+import { LAYER_BYTES } from './armorGradients3d'
 import {
+  armorLibraryKey,
+  cachedArmorLibrary,
   cachedMapModel,
+  cachedWeaponCoatLibrary,
   mapModelKey,
   sessionAssetCache,
+  storeArmorLibrary,
   storeMapModel,
+  storeWeaponCoatLibrary,
+  weaponCoatLibraryKey,
 } from './sessionAssetCache3d'
 import type { MapModel } from './mapModel'
+
+function fakeArmorIO(): ArmorLibraryIO {
+  return {
+    fetchJson: vi.fn(async () => ({})),
+    loadSwatch: vi.fn(async () => new Uint8Array(LAYER_BYTES)),
+    loadGlb: vi.fn(async () => {
+      const root = new THREE.Group()
+      root.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()))
+      return root
+    }),
+  }
+}
 
 function silence() {
   vi.spyOn(console, 'info').mockImplementation(() => undefined)
@@ -67,5 +87,27 @@ describe('sessionAssetCache3d warm path', () => {
     expect(outlook.dispose).toHaveBeenCalledTimes(1)
     // Streets' own oversized entry survives (kept alone), per the cap-overflow fix.
     expect(cachedMapModel(streetsPath)).toBe(streets)
+  })
+
+  it('storeArmorLibrary sizes the entry by loadedBytes(), updated as the library grows, not a hardcoded 0 that could never be evicted', async () => {
+    silence()
+    const base = '/api/spartan-pieces'
+    const library = new ArmorLibrary(base, fakeArmorIO(), () => storeArmorLibrary(base, library))
+    storeArmorLibrary(base, library) // as Replay3DView.tsx does: once at creation...
+    const before = sessionAssetCache.debugEntries().find((e) => e.key === armorLibraryKey(base))?.bytes
+    await library.file('piece-a.glb') // ...and again (via onGrowth) once it has actually loaded something
+    expect(cachedArmorLibrary(base)).toBe(library) // still the same cached instance, not disposed/replaced
+    const after = sessionAssetCache.debugEntries().find((e) => e.key === armorLibraryKey(base))?.bytes
+    expect(after).toBeGreaterThan(before ?? 0)
+  })
+
+  it('the weapon-coating library has its own key, distinct from armor-lib and weapon-lib for the same base path', () => {
+    silence()
+    const base = '/api/weapons'
+    const library = new ArmorLibrary(base, fakeArmorIO())
+    storeWeaponCoatLibrary(base, library)
+    expect(cachedWeaponCoatLibrary(base)).toBe(library)
+    expect(cachedArmorLibrary(base)).toBeUndefined() // same base path, different kind: no collision
+    expect(weaponCoatLibraryKey(base)).not.toBe(armorLibraryKey(base))
   })
 })

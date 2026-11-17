@@ -33,6 +33,11 @@ export class GradientAtlas {
     return this.layers.get(id)
   }
 
+  /** bytes : l'empreinte de la texture à couches (capacité actuelle, pas seulement les couches posées). */
+  get bytes(): number {
+    return this.data.byteLength
+  }
+
   /** add pose le dégradé `id` (`LAYER_BYTES` octets, rouge et bleu de l'image) ; rend sa couche. */
   add(id: string, pixels: Uint8Array): number {
     const known = this.layers.get(id)

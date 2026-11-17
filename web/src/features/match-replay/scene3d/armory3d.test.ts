@@ -457,6 +457,40 @@ describe('SpartanArmory armes', () => {
     expect(paint).not.toBeNull()
     expect(Array.from(paint!.get(arme)!.paint.data.slice(0, 2))).toEqual([1, -1])
   })
+
+  it('a libraryArme given at construction is used (no own one built) and survives dispose', async () => {
+    const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
+    const given = new ArmorLibrary('/armes', io)
+    const spy = vi.spyOn(given, 'coatings')
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io, true, given)
+    const scene = weaponScene()
+    const coat = await armory.peindreArme('1', '11111111', scene)
+    expect(coat?.size).toBe(1)
+    // The given library answered the request: no second, armory-owned one was built behind it.
+    expect(spy).toHaveBeenCalled()
+    const givenDispose = vi.spyOn(given, 'dispose')
+    armory.dispose()
+    // Session-cached (the caller's `libraryArme`, kept across matches): dispose() must never free it.
+    expect(givenDispose).not.toHaveBeenCalled()
+  })
+
+  it('without a libraryArme, the armory builds and owns its own, and dispose frees it', async () => {
+    const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
+    const protoDispose = vi.spyOn(ArmorLibrary.prototype, 'dispose')
+    try {
+      const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+      const scene = weaponScene()
+      const coat = await armory.peindreArme('1', '11111111', scene)
+      expect(coat?.size).toBe(1)
+      armory.dispose()
+      // Both `library` ('/b') and the armory's own `libraryArme` ('/armes', built lazily since none
+      // was given) are disposed: the old, backward-compatible behavior (one `libraryArme` per
+      // match, owned and thrown away with it).
+      expect(protoDispose).toHaveBeenCalledTimes(2)
+    } finally {
+      protoDispose.mockRestore()
+    }
+  })
 })
 
 describe('dressSpartan', () => {

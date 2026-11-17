@@ -67,8 +67,13 @@ export class SpartanArmory {
   /** Le réseau de la bibliothèque des armes (remplacé dans les tests). */
   private readonly weaponIO?: ArmorLibraryIO
   private readonly weaponCoatings = new Map<string, WeaponCoating[]>()
-  /** La bibliothèque des armes, créée à la première peinture d'arme demandée. */
-  private libraryArme: ArmorLibrary | null = null
+  /**
+   * La bibliothèque des armes (revêtements, dégradés) : celle qu'on nous a donnée (session-cachée,
+   * partagée entre matchs, `ownsLibraryArme = false`), sinon une créée à la première peinture d'arme
+   * demandée et possédée par cette armurerie (compatibilité : les appels sans ce paramètre).
+   */
+  private libraryArme: ArmorLibrary | null
+  private readonly ownsLibraryArme: boolean
   /** La peinture des armes, en cours, par joueur et clé de modèle. */
   private readonly armesPretes = new Map<string, Promise<Coat | null>>()
   /** La peinture des armes prête, par joueur et clé de modèle (null : pas de revêtement). */
@@ -85,14 +90,19 @@ export class SpartanArmory {
    * `players` : l'armure des joueurs du match ; `weaponsPath` : le dossier servi de la bibliothèque
    * des armes (les revêtements d'armes se lisent dessus) ; `weaponIO` : le réseau de cette
    * bibliothèque (remplacé dans les tests) ; `ownsLibrary` (default true): false when `library` is
-   * shared across matches (the caller releases it itself, through the session cache).
+   * shared across matches (the caller releases it itself, through the session cache). `libraryArme`
+   * (optional): a pre-built weapon-coating library, session-cached and shared across matches by its
+   * caller (`Replay3DView.tsx`, keyed by `weaponsPath`) — never disposed here. Without one, this
+   * armory builds and owns its own (the old behavior: one per match, thrown away with it).
    */
-  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true) {
+  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true, libraryArme?: ArmorLibrary) {
     this.library = library
     this.gate = gate
     this.weaponsPath = weaponsPath
     this.weaponIO = weaponIO
     this.ownsLibrary = ownsLibrary
+    this.libraryArme = libraryArme ?? null
+    this.ownsLibraryArme = libraryArme === undefined
     for (const p of players) {
       if (!p.xuid) continue
       if (p.status === 'armor' && p.manifest) this.manifests.set(p.xuid, p.manifest)
@@ -146,7 +156,7 @@ export class SpartanArmory {
     if (this.disposed) return null
     const peinture = new Map(coat)
     if (arme.length > 0) {
-      const libArme = this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
+      const libArme = this.libraryArme ?? this.ownLibraryArme()
       const entree = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === cleArme) ?? null
       if (libArme) {
         const { coat: coatArme } = await construirePeintureArme(arme, entree?.style_key || null, libArme)
@@ -211,7 +221,8 @@ export class SpartanArmory {
 
   /**
    * dispose libère les bibliothèques (géométries, matériaux, images) ; les habits ne servent plus.
-   * `library` is skipped when `ownsLibrary` is false: a session-cached library outlives this match.
+   * `library` is skipped when `ownsLibrary` is false, and `libraryArme` when `ownsLibraryArme` is
+   * false: a session-cached library outlives this match (its caller releases/evicts it instead).
    */
   dispose(): void {
     this.disposed = true
@@ -221,9 +232,20 @@ export class SpartanArmory {
     this.armesCaches.clear()
     this.objetsPretes.clear()
     this.objetsCaches.clear()
-    this.libraryArme?.dispose()
+    if (this.ownsLibraryArme) this.libraryArme?.dispose()
     this.libraryArme = null
     if (this.ownsLibrary) this.library.dispose()
+  }
+
+  /**
+   * ownLibraryArme : la bibliothèque des armes que cette armurerie construit et possède elle-même
+   * (compatibilité, sans `libraryArme` au constructeur) ; null sans dossier des armes. Jamais
+   * appelée quand `this.libraryArme` est déjà la bibliothèque donnée par l'appelant.
+   */
+  private ownLibraryArme(): ArmorLibrary | null {
+    if (!this.weaponsPath) return null
+    this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)
+    return this.libraryArme
   }
 
   /** separerArme sépare les matériaux d'armure (liste dans la table d'armure) de ceux de l'arme. */
@@ -241,7 +263,7 @@ export class SpartanArmory {
   private async peindreArmeFond(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
     const entree = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === modelKey) ?? null
-    const libArme = this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
+    const libArme = this.libraryArme ?? this.ownLibraryArme()
     if (!libArme) {
       this.armesCaches.set(key, null)
       return null
@@ -256,7 +278,7 @@ export class SpartanArmory {
   }
 
   private async peindreObjetFond(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
-    const libArme = this.weaponsPath ? (this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)) : null
+    const libArme = this.libraryArme ?? this.ownLibraryArme()
     if (!libArme) {
       this.objetsCaches.set(modelKey, null)
       return null

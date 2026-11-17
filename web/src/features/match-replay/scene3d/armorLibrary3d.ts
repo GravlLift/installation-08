@@ -27,6 +27,7 @@ import { prepareArmorUVs, type ArmorMaps } from './armorMaterial3d'
 import { ARMOR_INDEX_SCHEMA, type ArmorIndex } from './armorPlan3d'
 import { fetchMesh } from './meshFetch'
 import { withMeshopt } from './meshoptGeometry3d'
+import { surfaceModelBytes } from './sessionResourceBytes3d'
 import { prepareModel } from './weaponModels3d'
 
 /** Téléchargements de GLB simultanés au plus. */
@@ -67,11 +68,27 @@ export class ArmorLibrary {
   private disposed = false
   private readonly base: string
   private readonly io: ArmorLibraryIO
+  /** Called after a piece/accessory GLB or a swatch finishes loading: the library's own byte
+   *  count (`loadedBytes`) just grew, so its session-cache entry (`sessionAssetCache3d.ts`) is
+   *  stale. The caller re-stores it with a fresh count; never called on dispose or a failed load. */
+  private readonly onGrowth?: () => void
 
   /** `base` : le dossier servi de la bibliothèque (`…/replay/spartan-pieces`). */
-  constructor(base: string, io: ArmorLibraryIO = defaultIO) {
+  constructor(base: string, io: ArmorLibraryIO = defaultIO, onGrowth?: () => void) {
     this.base = base
     this.io = io
+    this.onGrowth = onGrowth
+  }
+
+  /**
+   * loadedBytes : l'empreinte estimée de ce qui est chargé jusqu'ici (géométries et textures des
+   * GLB possédés, dégradés) — pour le cache de session (`sessionAssetCache3d.ts`), qui ne connaît
+   * sinon aucune taille (`storeArmorLibrary`'s `knownBytes`) et ne peut jamais évincer la bibliothèque.
+   */
+  loadedBytes(): number {
+    let bytes = this.gradients.bytes
+    for (const root of this.owned) bytes += surfaceModelBytes(root)
+    return bytes
   }
 
   /** index rend l'index de la bibliothèque (une lecture par session), null s'il est illisible. */
@@ -106,7 +123,12 @@ export class ArmorLibrary {
     let p = this.swatches.get(id)
     if (!p) {
       p = this.io.loadSwatch(`${this.base}/swatch-${id}.png`, this.abort.signal).then(
-        (pixels) => (this.disposed ? null : this.gradients.add(id, pixels)),
+        (pixels) => {
+          if (this.disposed) return null
+          const layer = this.gradients.add(id, pixels)
+          this.onGrowth?.()
+          return layer
+        },
         (err: unknown) => {
           if (!this.abort.signal.aborted) console.warn('rejeu 3D : dégradé de revêtement non chargé', id, err)
           return null
@@ -162,6 +184,7 @@ export class ArmorLibrary {
         return null
       }
       this.owned.push(root)
+      this.onGrowth?.()
       return root
     } catch (err) {
       if (!this.abort.signal.aborted) console.warn('rejeu 3D : pièce d’armure non chargée', name, err)
