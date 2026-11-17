@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * rigPaint3d.ts — LA PEINTURE DES BRAS DU RIG DE PREMIÈRE PERSONNE DU JOUEUR SUIVI.
+ * rigPaint3d.ts — PAINTING THE FOLLOWED PLAYER'S FIRST-PERSON RIG ARMS.
  *
- * Le rig chargé est neutre ; `rigPaint3d` y pose la peinture du joueur (revêtement et visière,
- * `SpartanArmory.peindreBras`) par COPIE de matériau, sur les matériaux de bras du rig et ceux des
- * pièces posées par `rigDressing3d` : l'original reste celui du chargeur. Le couple (fichier de
- * rig, habit) évite de repeindre à chaque image ; chaque rig conserve ses copies et une génération abandonne une peinture en retard
- * quand le joueur change. Le revêtement préparé en fond (`rigPreparation3d`) se pose sans attente
- * quand il est prêt ; sinon la peinture se calcule en fond. `invalider` force un repeintage : les
- * pièces venues d'arriver portent des matériaux que la peinture posée ne couvre pas. L'arme du rig
- * se peint de son propre revêtement : `cleArmeDe` nomme sa clé de modèle à `peindreBras`.
- * Le revêtement posé reste sur le rig PENDANT le calcul du suivant : l'arme en main n'est jamais
- * montrée sans revêtement (le rig est souvent caché — lunette — quand le repeintage démarre, et se
- * remontre avant l'arrivée du nouveau). Seule l'absence d'habit (ou le changement de joueur) efface
- * le précédent.
+ * The loaded rig is neutral; `RigPaint3d` applies the player's paint (coating and visor,
+ * `SpartanArmory.peindreBras`) by material COPY, onto the rig's arm materials and those of
+ * pieces placed by `RigDressing3d`: the original stays the loader's. The (rig file, outfit)
+ * pair avoids repainting every frame; each rig keeps its copies, and a generation counter
+ * abandons a late-arriving paint when the player changes. A background-prepared coating
+ * (`RigPreparation3d`) applies with no wait when it's ready; otherwise painting is computed in
+ * the background. `invalider` forces a repaint: pieces that just arrived carry materials the
+ * applied paint doesn't cover. The rig's weapon paints from its own coating: `cleArmeDe` names
+ * its model key to `peindreBras`. The applied coating stays on the rig WHILE the next one is
+ * computed: the held weapon is never shown unpainted (the rig is often hidden — scope — when
+ * repainting starts, and shows again before the new one arrives). Only the absence of an outfit
+ * (or a player change) clears the previous one.
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
@@ -24,27 +24,27 @@ import { estMateriauPeint, memePeinture } from './firstPersonArms3d'
 import type { BakedLight } from './bakedLightShader'
 import type { Coat } from './armorCoat3d'
 import { energyCopy, energyTintOf, isEnergized } from './energyField3d'
-import type { rigPreparation3d } from './rigPreparation3d'
+import type { RigPreparation3d } from './rigPreparation3d'
 
-/** Ce que la peinture lit dans `firstPersonArms3d`. */
+/** What painting reads from `FirstPersonArms3d`. */
 export interface SourcePeinture {
   armurerie(): SpartanArmory | null
   xuid(): string | null
-  /** La clé du modèle de l'arme du rig de fichier `fichier`, null sans modèle chargé pour lui. */
+  /** The weapon model key of the rig with file `fichier`, null with no model loaded for it. */
   cleArmeDe(fichier: string): string | null
-  /** La préparation en fond : le revêtement prêt, par fichier de rig. */
-  preparation: rigPreparation3d
+  /** The background preparation: the ready coating, by rig file. */
+  preparation: RigPreparation3d
   gate?: LoadGate
-  /** La lumière cuite de la carte, greffée sur les copies peintes (elle compose avec le patch du matériau peint). */
+  /** The map's baked light, grafted onto painted copies (it composes with the painted material's patch). */
   baked?: BakedLight | null
 }
 
 /**
- * rigPaint3d : pose la peinture du joueur suivi sur les rigs de première personne ; `changerJoueur`
- * abandonne la peinture en cours et restaure les matériaux d'origine. `invalider` marque le rig à
- * refaire SANS effacer le revêtement posé : le suivant le remplace à son arrivée.
+ * RigPaint3d: applies the followed player's paint onto the first-person rigs; `changerJoueur`
+ * abandons an in-progress paint and restores the original materials. `invalider` marks the rig
+ * to redo WITHOUT clearing the applied coating: the next one replaces it on arrival.
  */
-export class rigPaint3d {
+export class RigPaint3d {
   private readonly rigs = new Map<string, { racine: THREE.Object3D; habit: Dress | null; enCours: boolean; stale: boolean; copies: Map<THREE.Material, THREE.Material> }>()
   private generation = 0
   private readonly copies = new Map<THREE.Material, THREE.Material>()
@@ -54,26 +54,26 @@ export class rigPaint3d {
     this.source = source
   }
 
-  /** La peinture est-elle en cours de calcul (une bascule doit attendre) ? */
+  /** Is the paint currently being computed (a switch must wait)? */
   enCours(fichier?: string): boolean { return fichier ? !!this.rigs.get(fichier)?.enCours : [...this.rigs.values()].some((rig) => rig.enCours) }
 
-  /** Le matériau source d'un matériau posé (sa copie), lui-même s'il n'est pas une copie. */
+  /** A painted material's source material (its copy), itself if it isn't a copy. */
   materiauSource(materiau: THREE.Material): THREE.Material { return this.copies.get(materiau) ?? materiau }
 
-  /** Les copies peintes posées (rien sans peinture) : la sonde d'environnement s'y attache. */
+  /** The applied painted copies (nothing with no paint): the environment probe attaches to them. */
   materiauxPeints(): THREE.Material[] { return [...this.copies.keys()] }
 
   /**
-   * Les pièces de bras viennent d'arriver : la peinture posée ne les couvre plus, elle se refait au
-   * prochain `actualiser`. Le revêtement posé reste en place jusqu'à l'arrivée du suivant : l'arme
-   * du rig (souvent cachée par la lunette ici) n'est jamais montrée au matériau neutre.
+   * Arm pieces just arrived: the applied paint no longer covers them, it is redone on the next
+   * `actualiser`. The applied coating stays in place until the next one arrives: the rig's
+   * weapon (often hidden by the scope here) is never shown with the neutral material.
    */
   invalider(fichier: string): void {
     const rig = this.rigs.get(fichier)
     if (rig) rig.stale = true
   }
 
-  /** Le joueur change (ou la vue se libère) : abandonne la peinture en cours et restaure les matériaux. */
+  /** The player changes (or the view is released): abandons an in-progress paint and restores materials. */
   changerJoueur(): void {
     this.generation++
     for (const rig of this.rigs.values()) this.retirer(rig)
@@ -81,11 +81,12 @@ export class rigPaint3d {
   }
 
   /**
-   * actualiser pose la peinture du joueur suivi sur le rig `fichier` : rien si le couple (fichier,
-   * habit) est déjà posé et le rig non invalide, ou sans habit. Le revêtement préparé se pose sans
-   * attente ; sinon la peinture se calcule en fond, abandonnée si le joueur change avant. Le
-   * revêtement posé auparavant reste sur le rig pendant ce calcul : il est remplacé à l'arrivée
-   * du suivant, jamais effacé avant (l'arme en main ne se montre jamais sans revêtement).
+   * actualiser applies the followed player's paint onto rig `fichier`: nothing if the (file,
+   * outfit) pair is already applied and the rig isn't invalid, or with no outfit. A prepared
+   * coating applies with no wait; otherwise paint is computed in the background, abandoned if
+   * the player changes before it lands. The previously applied coating stays on the rig during
+   * this computation: it is replaced when the next one arrives, never cleared beforehand (the
+   * held weapon is never shown unpainted).
    */
   actualiser(fichier: string, racine: THREE.Object3D): void {
     const xuid = this.source.xuid()
@@ -95,8 +96,8 @@ export class rigPaint3d {
     const armurerie = this.source.armurerie()
     const repeindre = !!habit && !!armurerie && !!xuid
     if (precedent) {
-      // Sans nouveau revêtement à poser, le rig revient au neutre ; sinon le revêtement posé
-      // attend son remplaçant (les copies héritées sont disposées quand celui-ci arrive).
+      // With no new coating to apply, the rig returns to neutral; otherwise the applied coating
+      // waits for its replacement (inherited copies are disposed when it arrives).
       if (!repeindre) this.retirer(precedent)
       this.rigs.delete(fichier)
     }
@@ -106,10 +107,10 @@ export class rigPaint3d {
     const materiaux = materiauxPeinturables(racine, (m) => this.materiauSource(m))
     if (!materiaux.length) return
     const coatPreparé = this.source.preparation.coat(fichier)
-    // Le revêtement préparé ne sert que s'il couvre EXACTEMENT les matériaux à peindre : les
-    // pièces posées après sa préparation portent leurs propres matériaux (le revêtement ne les
-    // connaît pas), ou un rig déjà peint les a rendus invisibles (le revêtement les porte encore).
-    // Dans les deux cas il est obsolète : la peinture se recalcule.
+    // A prepared coating is only used if it covers EXACTLY the materials to paint: pieces
+    // placed after it was prepared carry their own materials (the coating doesn't know them),
+    // or a rig already painted made them invisible (the coating still carries them). Either
+    // way it's stale: the paint is recomputed.
     if (coatPreparé && materiaux.length > 0 && materiaux.every((m) => coatPreparé.has(m)) && [...coatPreparé.keys()].every((m) => materiaux.includes(m))) {
       this.appliquer(rig, coatPreparé)
       return
@@ -130,14 +131,14 @@ export class rigPaint3d {
         rig.stale = false
         this.appliquer(rig, coat)
       })
-      .catch((erreur: unknown) => console.warn('rejeu 3D : peinture des bras indisponible', erreur))
+      .catch((error: unknown) => console.warn('3D replay: arm paint unavailable', error))
       .finally(() => {
         if (generation === this.generation && this.rigs.get(fichier) === rig) rig.enCours = false
       })
     void (this.source.gate?.track(chargement) ?? chargement)
   }
 
-  /** retirer restaure les matériaux d'origine d'un rig et dispose de ses copies peintes. */
+  /** retirer restores a rig's original materials and disposes of its painted copies. */
   private retirer(rig: { racine: THREE.Object3D; copies: Map<THREE.Material, THREE.Material> }): void {
     const original = (m: THREE.Material) => rig.copies.get(m) ?? m
     rig.racine.traverse((objet) => {
@@ -149,9 +150,9 @@ export class rigPaint3d {
   }
 
   /**
-   * appliquer pose les copies peintes sur les maillages dont le matériau est dans `coat`. Les copies
-   * posées auparavant (héritées, le revêtement qui attendait son remplaçant) cessent d'être
-   * référencées : elles sont disposées.
+   * appliquer applies the painted copies onto meshes whose material is in `coat`. Copies applied
+   * before (inherited, the coating that was waiting for its replacement) stop being referenced:
+   * they are disposed.
    */
   private appliquer(rig: { racine: THREE.Object3D; copies: Map<THREE.Material, THREE.Material> }, coat: Coat): void {
     const précédentes = [...rig.copies.keys()]
@@ -161,8 +162,8 @@ export class rigPaint3d {
     rig.racine.traverse((objet) => {
       if (!(objet instanceof THREE.Mesh)) return
       const peindre = (m: THREE.Material) => {
-        // Le rig peut porter le revêtement précédent : le revêtement se lit sur le matériau
-        // d'origine (les clés du coat sont les originaux).
+        // The rig may carry the previous coating: the coating is read against the original
+        // material (the coat's keys are the originals).
         const original = this.materiauSource(m)
         const peinture = coat.get(original)
         if (!peinture && teinte && isEnergized(original)) {
@@ -180,9 +181,9 @@ export class rigPaint3d {
       }
       objet.material = Array.isArray(objet.material) ? objet.material.map(peindre) : peindre(objet.material)
     })
-    // Les copies remplacées ne sont plus sur le rig : elles sont disposées. Celles qui restent sur
-    // un maillage invisible (bras embarqués masqués par une pièce, hors du revêtement) sont
-    // gardées : leur matériau source est peint, elles se disposent au retrait du rig.
+    // Replaced copies are no longer on the rig: they are disposed. Those remaining on an
+    // invisible mesh (default arms hidden by a piece, outside the coating) are kept: their
+    // source material is painted, they're disposed when the rig is removed.
     for (const ancienne of précédentes) {
       let enUsage = false
       rig.racine.traverse((objet) => {
@@ -195,10 +196,9 @@ export class rigPaint3d {
 }
 
 /**
- * materiauxPeinturables : les matériaux de bras de la racine (masques bruts, style) visibles, une
- * fois chacun : ceux du rig et ceux des pièces posées. `source` ramène une copie posée à son
- * matériau d'origine (le revêtement se calcule sur les originaux, même si le rig porte encore le
- * revêtement précédent).
+ * materiauxPeinturables: the root's visible arm materials (raw masks, style), each once: the
+ * rig's and those of placed pieces. `source` maps an applied copy back to its original material
+ * (the coating is computed on originals, even if the rig still carries the previous coating).
  */
 function materiauxPeinturables(racine: THREE.Object3D, source: (m: THREE.Material) => THREE.Material = (m) => m): THREE.Material[] {
   const result: THREE.Material[] = []

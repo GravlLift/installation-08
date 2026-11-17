@@ -3,7 +3,7 @@
  * muzzleRig3d.ts — THE MUZZLE OF THE 1ST-PERSON RIG (animated arms + weapon), once per rig.
  *
  * First-person shots start from the barrel the camera draws: the animated rig, placed by
- * `firstPersonArms3d.place`. Its muzzle point and barrel axis are measured ONCE, at the idle
+ * `FirstPersonArms3d.place`. Its muzzle point and barrel axis are measured ONCE, at the idle
  * pose (the frame where the rig has finished loading), in the HOLDER's frame (the space of
  * `holder`'s children, before the grip and before the camera). `muzzlePoseCamera` then
  * transforms it into CAMERA frame exactly as `applyRigGrip` + `place` do for a camera fixed

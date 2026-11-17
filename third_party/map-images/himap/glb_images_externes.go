@@ -11,6 +11,8 @@
 // l'ecrivain, et tout champ qu'elle ne connait pas passe tel quel.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"encoding/binary"
@@ -23,7 +25,7 @@ import (
 type DepotImage func(donnees []byte, mime string) (uri string, err error)
 
 // ErrGLBIllisible : les octets ne sont pas un GLB a deux blocs (JSON puis binaire).
-var ErrGLBIllisible = errors.New("himap: GLB illisible")
+var ErrGLBIllisible = errors.New("himap: unreadable GLB")
 
 // ExterniseImagesGLB rend le GLB dont chaque image a ete deposee par `depot`, et le nombre d'images
 // deposees. Un GLB sans image est rendu tel quel. Une vue de tampon partagee entre une image et un
@@ -46,7 +48,7 @@ func ExterniseImagesGLB(glb []byte, depot DepotImage) ([]byte, int, error) {
 			continue
 		}
 		if !ok || bv < 0 || bv >= len(vues) {
-			return nil, 0, fmt.Errorf("%w : image %d sans vue de tampon lisible", ErrGLBIllisible, i)
+			return nil, 0, fmt.Errorf("%w: image %d without a readable buffer view", ErrGLBIllisible, i)
 		}
 		donnees, err := octetsDeVue(vues[bv], bin)
 		if err != nil {
@@ -55,7 +57,7 @@ func ExterniseImagesGLB(glb []byte, depot DepotImage) ([]byte, int, error) {
 		mime, _ := img["mimeType"].(string)
 		uri, err := depot(donnees, mime)
 		if err != nil {
-			return nil, 0, fmt.Errorf("depot de l'image %d : %w", i, err)
+			return nil, 0, fmt.Errorf("image %d deposit: %w", i, err)
 		}
 		delete(img, "bufferView")
 		img["uri"] = uri
@@ -78,23 +80,23 @@ func ExterniseImagesGLB(glb []byte, depot DepotImage) ([]byte, int, error) {
 // ouvreGLB rend le document JSON (nombres en texte) et le bloc binaire d'un GLB.
 func ouvreGLB(glb []byte) (map[string]any, []byte, error) {
 	if len(glb) < 20 || binary.LittleEndian.Uint32(glb) != glbMagic {
-		return nil, nil, fmt.Errorf("%w : en-tete", ErrGLBIllisible)
+		return nil, nil, fmt.Errorf("%w: header", ErrGLBIllisible)
 	}
 	lj := int(binary.LittleEndian.Uint32(glb[12:]))
 	if binary.LittleEndian.Uint32(glb[16:]) != glbChunkJSON || 20+lj > len(glb) {
-		return nil, nil, fmt.Errorf("%w : bloc JSON", ErrGLBIllisible)
+		return nil, nil, fmt.Errorf("%w: JSON block", ErrGLBIllisible)
 	}
 	dec := json.NewDecoder(bytes.NewReader(glb[20 : 20+lj]))
 	dec.UseNumber()
 	var doc map[string]any
 	if err := dec.Decode(&doc); err != nil {
-		return nil, nil, fmt.Errorf("%w : %w", ErrGLBIllisible, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrGLBIllisible, err)
 	}
 	var bin []byte
 	if o := 20 + lj; o+8 <= len(glb) {
 		lb := int(binary.LittleEndian.Uint32(glb[o:]))
 		if binary.LittleEndian.Uint32(glb[o+4:]) != glbChunkBIN || o+8+lb > len(glb) {
-			return nil, nil, fmt.Errorf("%w : bloc binaire", ErrGLBIllisible)
+			return nil, nil, fmt.Errorf("%w: binary block", ErrGLBIllisible)
 		}
 		bin = glb[o+8 : o+8+lb]
 	}
@@ -117,7 +119,7 @@ func octetsDeVue(v any, bin []byte) ([]byte, error) {
 	off, _ := entier(vue["byteOffset"])
 	n, ok := entier(vue["byteLength"])
 	if !ok || off < 0 || n < 0 || off+n > len(bin) {
-		return nil, fmt.Errorf("%w : vue de tampon hors du bloc binaire", ErrGLBIllisible)
+		return nil, fmt.Errorf("%w: buffer view outside the binary block", ErrGLBIllisible)
 	}
 	return bin[off : off+n], nil
 }
@@ -129,7 +131,7 @@ func compacteTampon(doc map[string]any, vues []any, bin []byte, retirees map[int
 	for _, a := range accesseurs {
 		acc, _ := a.(map[string]any)
 		if bv, ok := entier(acc["bufferView"]); ok && (retirees[bv] || bv < 0 || bv >= len(vues)) {
-			return nil, fmt.Errorf("%w : vue %d d'accesseur retiree ou hors du document", ErrGLBIllisible, bv)
+			return nil, fmt.Errorf("%w: accessor view %d removed or outside the document", ErrGLBIllisible, bv)
 		}
 	}
 	rang := make([]int, len(vues))
@@ -161,7 +163,7 @@ func compacteTampon(doc map[string]any, vues []any, bin []byte, retirees map[int
 	buffers, _ := doc["buffers"].([]any)
 	tampon, _ := premier(buffers).(map[string]any)
 	if len(buffers) != 1 || tampon == nil {
-		return nil, fmt.Errorf("%w : %d tampons (un attendu)", ErrGLBIllisible, len(buffers))
+		return nil, fmt.Errorf("%w: %d buffers (one expected)", ErrGLBIllisible, len(buffers))
 	}
 	tampon["byteLength"] = json.Number(fmt.Sprint(len(out)))
 	return out, nil
@@ -179,7 +181,7 @@ func premier(l []any) any {
 func ecritGLBGenerique(w *bytes.Buffer, doc map[string]any, bin []byte) error {
 	js, err := json.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("json glTF : %w", err)
+		return fmt.Errorf("glTF json: %w", err)
 	}
 	t := &tamponGLB{}
 	t.ajoute(bin)

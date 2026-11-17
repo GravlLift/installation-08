@@ -42,6 +42,8 @@
 // touche jamais aux fichiers du jeu : il lit le catalogue. Même règle que map_objectives.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -120,29 +122,29 @@ func cheminGlobals(racineDeploy string) string {
 func VocabulaireLieux(racineDeploy string) ([]uint32, error) {
 	m, err := himodule.Open(cheminGlobals(racineDeploy))
 	if err != nil {
-		return nil, fmt.Errorf("himap: globals : %w", err)
+		return nil, fmt.Errorf("himap: globals: %w", err)
 	}
 	defer func() { _ = m.Close() }()
 	fichiers := m.Files("locs")
 	if len(fichiers) != 1 {
-		return nil, fmt.Errorf("himap: %d tag(s) locs, 1 attendu", len(fichiers))
+		return nil, fmt.Errorf("himap: %d locs tag(s), 1 expected", len(fichiers))
 	}
 	tag, err := m.Extract(fichiers[0])
 	if err != nil {
-		return nil, fmt.Errorf("himap: extraire locs : %w", err)
+		return nil, fmt.Errorf("himap: extract locs: %w", err)
 	}
 	ti, err := meilleurTagInfo(tag)
 	if err != nil {
-		return nil, fmt.Errorf("himap: struct-table de locs : %w", err)
+		return nil, fmt.Errorf("himap: locs struct-table: %w", err)
 	}
 	liens := liensBlocs(ti)
 	if len(liens) != 1 {
-		return nil, fmt.Errorf("himap: locs porte %d TagBlock, 1 attendu", len(liens))
+		return nil, fmt.Errorf("himap: locs carries %d TagBlock, 1 expected", len(liens))
 	}
 	n := compteChamp(ti, liens[0])
 	abs, taille := ti.blockAbs(liens[0].target)
 	if n <= 0 || abs != locsOffVocabulaire || taille != n*locsStride {
-		return nil, fmt.Errorf("himap: bloc de locs inattendu (n=%d abs=0x%X taille=%d)", n, abs, taille)
+		return nil, fmt.Errorf("himap: unexpected locs block (n=%d abs=0x%X size=%d)", n, abs, taille)
 	}
 	out := make([]uint32, 0, n)
 	for i := 0; i < n; i++ {
@@ -172,7 +174,7 @@ func LexiqueLieux(racineDeploy string) (map[uint32]map[string]string, error) {
 	}
 	m, err := himodule.Open(cheminGlobals(racineDeploy))
 	if err != nil {
-		return nil, fmt.Errorf("himap: globals : %w", err)
+		return nil, fmt.Errorf("himap: globals: %w", err)
 	}
 	defer func() { _ = m.Close() }()
 	var meilleur map[uint32]map[string]string
@@ -180,7 +182,7 @@ func LexiqueLieux(racineDeploy string) (map[uint32]map[string]string, error) {
 	for _, f := range m.Files("uslg") {
 		lex, err := lexiqueDUnTag(m, f)
 		if err != nil {
-			return nil, fmt.Errorf("himap: tag uslg #%d : %w", f.Index, err)
+			return nil, fmt.Errorf("himap: uslg tag #%d: %w", f.Index, err)
 		}
 		couverture := 0
 		for v := range attendus {
@@ -193,11 +195,11 @@ func LexiqueLieux(racineDeploy string) (map[uint32]map[string]string, error) {
 		}
 	}
 	if meilleur == nil {
-		return nil, fmt.Errorf("himap: aucun tag uslg dans globals")
+		return nil, fmt.Errorf("himap: no uslg tag in globals")
 	}
 	if meilleureCouverture < len(attendus) {
-		return nil, fmt.Errorf("himap: la meilleure liste de chaînes ne couvre que %d des %d "+
-			"noms de lieu déclarés par locs — format changé ?", meilleureCouverture, len(attendus))
+		return nil, fmt.Errorf("himap: the best string list covers only %d of the %d "+
+			"place names declared by locs — format changed?", meilleureCouverture, len(attendus))
 	}
 	return meilleur, nil
 }
@@ -207,7 +209,7 @@ func LexiqueLieux(racineDeploy string) (map[uint32]map[string]string, error) {
 func lexiqueDUnTag(m *himodule.Module, f himodule.File) (map[uint32]map[string]string, error) {
 	tag, err := m.Extract(f)
 	if err != nil {
-		return nil, fmt.Errorf("extraire : %w", err)
+		return nil, fmt.Errorf("extract: %w", err)
 	}
 	langues, err := ordreDesLangues(tag)
 	if err != nil {
@@ -215,7 +217,7 @@ func lexiqueDUnTag(m *himodule.Module, f himodule.File) (map[uint32]map[string]s
 	}
 	blob, err := m.ResourceBlob(f)
 	if err != nil {
-		return nil, fmt.Errorf("blob de ressources : %w", err)
+		return nil, fmt.Errorf("resource blob: %w", err)
 	}
 	out := map[uint32]map[string]string{}
 	p := 0
@@ -243,16 +245,16 @@ func lexiqueDUnTag(m *himodule.Module, f himodule.File) (map[uint32]map[string]s
 func ordreDesLangues(tag []byte) ([]int, error) {
 	ti, err := meilleurTagInfo(tag)
 	if err != nil {
-		return nil, fmt.Errorf("struct-table : %w", err)
+		return nil, fmt.Errorf("struct-table: %w", err)
 	}
 	liens := liensBlocs(ti)
 	if len(liens) == 0 {
-		return nil, fmt.Errorf("aucun TagBlock (bloc des langues attendu)")
+		return nil, fmt.Errorf("no TagBlock (languages block expected)")
 	}
 	n := compteChamp(ti, liens[0])
 	abs, taille := ti.blockAbs(liens[0].target)
 	if n <= 0 || taille < n*4 {
-		return nil, fmt.Errorf("bloc des langues inattendu (n=%d taille=%d)", n, taille)
+		return nil, fmt.Errorf("unexpected languages block (n=%d size=%d)", n, taille)
 	}
 	stride := taille / n
 	out := make([]int, 0, n)
@@ -272,7 +274,7 @@ type enteteUcsh struct {
 // litEnteteUcsh lit et VALIDE l'en-tête d'un sous-fichier à l'offset p.
 func litEnteteUcsh(blob []byte, p int) (enteteUcsh, error) {
 	if p+ucshEnteteFixe > len(blob) || string(blob[p:p+4]) != "ucsh" {
-		return enteteUcsh{}, fmt.Errorf("offset 0x%X : magie `ucsh` attendue", p)
+		return enteteUcsh{}, fmt.Errorf("offset 0x%X: `ucsh` magic expected", p)
 	}
 	u := func(o int) int { return int(binary.LittleEndian.Uint32(blob[p+o:])) }
 	e := enteteUcsh{
@@ -280,16 +282,16 @@ func litEnteteUcsh(blob []byte, p int) (enteteUcsh, error) {
 		nBlocs: u(ucshOffBlocs), nStructs: u(ucshOffStructs), nRefs: u(ucshOffDataRefs),
 	}
 	if e.headerLen <= 0 || e.dataLen < 0 || p+e.headerLen+e.dataLen > len(blob) {
-		return enteteUcsh{}, fmt.Errorf("offset 0x%X : bornes (header %d, data %d)", p, e.headerLen, e.dataLen)
+		return enteteUcsh{}, fmt.Errorf("offset 0x%X: bounds (header %d, data %d)", p, e.headerLen, e.dataLen)
 	}
 	if e.nBlocs < 0 || e.nStructs < 0 || e.nRefs < 0 {
-		return enteteUcsh{}, fmt.Errorf("offset 0x%X : comptes de tables négatifs", p)
+		return enteteUcsh{}, fmt.Errorf("offset 0x%X: negative table counts", p)
 	}
 	e.tabBlocs = p + ucshEnteteFixe + u(ucshOffDeps)*ucshDepStride
 	e.tabStructs = e.tabBlocs + e.nBlocs*ucshBlocStride
 	e.tabRefs = e.tabStructs + e.nStructs*ucshStructStride
 	if e.tabBlocs < p || e.tabRefs+e.nRefs*ucshRefStride > p+e.headerLen {
-		return enteteUcsh{}, fmt.Errorf("offset 0x%X : tables hors de l'en-tête", p)
+		return enteteUcsh{}, fmt.Errorf("offset 0x%X: tables outside the header", p)
 	}
 	return e, nil
 }
@@ -320,7 +322,7 @@ func decodeSousFichierUcsh(blob []byte, p int) (map[uint32]string, int, error) {
 	}
 	idxBloc, err := blocDeLIndex(blob, e.tabStructs, e.nStructs)
 	if err != nil {
-		return nil, 0, fmt.Errorf("offset 0x%X : %w", p, err)
+		return nil, 0, fmt.Errorf("offset 0x%X: %w", p, err)
 	}
 	txtBloc := -1
 	if e.nRefs > 0 {
@@ -368,7 +370,7 @@ func blocDeLIndex(blob []byte, tabStructs, nStructs int) (int, error) {
 		}
 	}
 	if racine == -2 {
-		return 0, fmt.Errorf("aucune structure racine (propriétaire -1)")
+		return 0, fmt.Errorf("no root structure (owner -1)")
 	}
 	for k := 0; k < nStructs; k++ {
 		b := tabStructs + k*ucshStructStride

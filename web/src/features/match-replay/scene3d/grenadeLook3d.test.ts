@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — grenadeLook3d : LE PASSAGE TYPE DE GRENADE -> LOOK, et le pulsé de l'orbe plasma.
+ * Tests — grenadeLook3d: THE GRENADE-TYPE -> LOOK MAPPING, and the plasma orb's pulse.
  *
- * CE QUE CE FICHIER VERROUILLE :
- *  - la grenade plasma porte son propre look (orbe lumineuse, décharge froide) ;
- *  - frag, Dynamo et Spike gardent le look frag pour l'instant (la Spike garde sa nature de
- *    décharge, le cristal) ;
- *  - un rang inconnu retombe sur le look frag, jamais sur celui d'un type voisin ;
- *  - le pulsé est borné et périodique : la même image rend le même orbe.
+ * WHAT THIS FILE LOCKS DOWN:
+ *  - the plasma grenade carries its own look (glowing orb, cold discharge);
+ *  - frag, Dynamo and Spike keep the frag look for now (Spike keeps its own discharge nature,
+ *    the shard);
+ *  - an unknown rank falls back to the frag look, never to a neighboring type's;
+ *  - the pulse is bounded and periodic: the same frame renders the same orb.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -25,35 +25,35 @@ import {
 import { blastStyleOf } from './explosionFx3d'
 
 describe('grenadeLookOf', () => {
-  it('la grenade plasma porte son propre look : l orbe et la décharge froide', () => {
+  it('the plasma grenade carries its own look: the orb and the cold discharge', () => {
     expect(PLASMA_RANK).toBe(1)
     expect(grenadeLookOf(PLASMA_RANK)).toEqual({ flight: 'orb', tint: 'plasma_cool' })
   })
 
-  it('la frag garde le look frag', () => {
+  it('the frag keeps the frag look', () => {
     expect(grenadeLookOf(0)).toEqual({ flight: 'model', tint: 'blast' })
   })
 
-  it('Dynamo et Spike gardent le look frag pour l instant', () => {
+  it('Dynamo and Spike keep the frag look for now', () => {
     expect(grenadeLookOf(2).flight).toBe('model')
     expect(grenadeLookOf(3).flight).toBe('model')
     expect(grenadeLookOf(2).tint).toBe('blast')
     expect(grenadeLookOf(3).tint).toBe('needle')
   })
 
-  it('un rang inconnu retombe sur le look frag', () => {
+  it('an unknown rank falls back to the frag look', () => {
     expect(grenadeLookOf(-1)).toEqual({ flight: 'model', tint: 'blast' })
     expect(grenadeLookOf(42)).toEqual({ flight: 'model', tint: 'blast' })
   })
 
-  it('la détonation de la plasma prend la mise en scène plasma, sans fumée', () => {
+  it("the plasma's detonation takes the plasma staging, with no smoke", () => {
     expect(blastStyleOf(grenadeLookOf(PLASMA_RANK).tint)).toBe('plasma')
     expect(blastStyleOf(grenadeLookOf(0).tint)).toBe('fire')
   })
 })
 
 describe('plasmaPulse', () => {
-  it('est borné entre 0 et 1', () => {
+  it('is bounded between 0 and 1', () => {
     for (let t = -3; t < 10; t += 0.001) {
       const p = plasmaPulse(t)
       expect(p).toBeGreaterThanOrEqual(0)
@@ -61,16 +61,16 @@ describe('plasmaPulse', () => {
     }
   })
 
-  it('est périodique : la même image rend le même orbe, en avant comme en arrière', () => {
-    const periode = 1 / PLASMA_PULSE_RATE
+  it('is periodic: the same frame renders the same orb, forward as much as backward', () => {
+    const period = 1 / PLASMA_PULSE_RATE
     for (const t of [0.11, 0.37, 1.23]) {
-      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t + periode))
-      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t + 5 * periode))
-      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t - periode))
+      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t + period))
+      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t + 5 * period))
+      expect(plasmaPulse(t)).toBeCloseTo(plasmaPulse(t - period))
     }
   })
 
-  it('les constantes dessinent un halo plus large que le cœur, assourdi, et un cœur pas tout à fait blanc', () => {
+  it('the constants draw a halo wider than the core, muted, and a core not quite white', () => {
     expect(PLASMA_CORE_RADIUS).toBeGreaterThan(0)
     expect(PLASMA_HALO_MULT).toBeGreaterThan(1)
     expect(PLASMA_HALO_DIM).toBeGreaterThan(0)

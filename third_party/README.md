@@ -153,7 +153,7 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   v128, `structure_test.go` reason, regenerated `document_shape.golden`; covered by
   `replay/projectiles_attache_test.go` (new) and `projectiles_attaches_research_test.go`
   (`research` tag, also exports the cases the viewer harness reads).
-- Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged.
+- Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged. Second pass: remaining French slog attribute keys and values (coverage logging call sites the first pass missed), plus `diag.Signaler` diagnostic `Message`/`Attrs` text in `internal/grammar`, `internal/facts/fallback` and `internal/facts/objectives`. Left untranslated and documented in the pass's report: the `repli_*` fallback names (`internal/facts/fallback` registries) — they are published into `coverage.fallbacks[]`, referenced by golden test data and `FORMAT.md`, and renaming them is a wire-format change out of this pass's scope; and `Diagnostic.Code` constants (e.g. `grammar.grenade_couverture`) — structured codes compared in code, not prose. Third pass: the `repli_*` registry names still reached server.log as-is through `replay/fallbacks_publication.go`'s "fallback" attribute; `internal/facts/fallback/english_names.go` adds an English snake_case name per registry entry (checked exhaustively by `TestEveryRegistryEntryHasAnEnglishName`) and the log line, plus the "fallback triggered outside the registry" diagnostic, now use it, falling back to the raw name. `coverage.fallbacks[]` and the registry names themselves are unchanged.
 ## Omitted upstream files
 
 The upstream notices identify the following as game imagery or Forge assets. They are excluded under this project's no game-derived assets policy, regardless of corpus size:
@@ -172,6 +172,19 @@ All module testdata totals are below 50 MiB. The decoder includes pseudonymized 
 These two modules are modified copies. The changes come from the LevelUp 3D replay work
 (three-way merge against the LevelUp fork point, no conflicts):
 
+- `himap`: log messages, slog attribute keys, and error/panic strings translated from French
+  to English (LOCAL-CHANGE, ~75 call sites across 24 files: the slog log lines in full, plus a
+  smaller set of error strings in the same files). Comments and Go identifiers are unchanged.
+  The bulk of `himap`'s `fmt.Errorf`-wrapped internal error strings (several hundred, spread
+  across most of the package's ~100 non-test files) were NOT translated in this pass; see the
+  session report for the full list of untouched files.
+- `files-reader`: all user-visible error strings (`errors.New`/`fmt.Errorf` messages) in `ooz`,
+  `mapvar` (`cb2.go`, `containment.go`, `mapvar.go`), `hinavmesh` (`conteneur.go`,
+  `typetable.go`, `tagfile.go`, `enveloppe.go`, `navmesh.go`, `resynchronisation.go`) and
+  `himodule` (`module.go`, `resources.go`, `projection*.go`) translated from French to English
+  (LOCAL-CHANGE). No slog calls exist in this module. Two test assertions in
+  `hinavmesh/conteneur_test.go` that matched on the old French substrings were updated to match
+  the new English wording; sentinel errors compared with `errors.Is` needed no test changes.
 - `files-reader`: module reader additions needed by the world mesh build (10 files).
 - `map-images`: world mesh collection and GLB export for the 3D viewer: structure, decor
   and placed objects, layered materials and height blend, cut-out materials, baked light

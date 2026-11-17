@@ -358,10 +358,10 @@ func (p teamPublication) tableDesEquipesPourLesDrapeaux() map[string]int {
 func logTeamCoverage(ctx context.Context, matchID string, cov TeamCoverage, niveau slog.Level) {
 	slog.InfoContext(ctx, "replay: teams read from the film", "match_id", matchID, "read", cov.Read,
 		"refusal", cov.Refusal, "records", cov.Records, "rejected", cov.Rejected,
-		"divergences", cov.Divergences, "film", cov.Film, "sansEquipe", cov.NoTeam,
-		"nonLus", cov.Unread, "agree", cov.Accord, "contradiction", cov.Contradiction,
-		"silence", cov.Silence, "lives", cov.Tracks, "viesAvecEquipe", cov.TracksNamed,
-		"viesSlotAmbigu", cov.TracksSlotAmbiguous)
+		"divergences", cov.Divergences, "film", cov.Film, "noTeam", cov.NoTeam,
+		"unread", cov.Unread, "agree", cov.Accord, "contradiction", cov.Contradiction,
+		"silence", cov.Silence, "lives", cov.Tracks, "livesWithTeam", cov.TracksNamed,
+		"livesSlotAmbiguous", cov.TracksSlotAmbiguous)
 	if cov.TracksSlotAmbiguous > 0 {
 		slog.WarnContext(ctx, "replay: the slot -> index bridge ABSTAINS on lives whose slot carried two named players, "+
 			"or whose index an occupant of another team — their team stays unknown rather than borrowed from another "+

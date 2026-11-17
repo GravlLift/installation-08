@@ -1,5 +1,7 @@
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // tagfile.go — LE FICHIER-TAG HAVOK, LU PAR SA PROPRE REFLEXION.
 //
 // Un fichier-tag porte la table de ses types : noms de types, noms de champs, taille de
@@ -132,7 +134,7 @@ func (f *fichierTag) nomType(i int) string {
 // racine rend l'objet racine du fichier-tag.
 func (f *fichierTag) racine() (itemHavok, error) {
 	if len(f.items) <= itemRacine {
-		return itemHavok{}, fmt.Errorf("hinavmesh: fichier-tag sans objet racine (%d entrees ITEM)", len(f.items))
+		return itemHavok{}, fmt.Errorf("hinavmesh: tag file without a root object (%d ITEM entries)", len(f.items))
 	}
 	return f.items[itemRacine], nil
 }
@@ -142,28 +144,28 @@ func (f *fichierTag) racine() (itemHavok, error) {
 func (f *fichierTag) tableau(obj itemHavok, nom string) (itemHavok, error) {
 	m, ok := f.types.membre(obj.Type, nom)
 	if !ok {
-		return itemHavok{}, fmt.Errorf("hinavmesh: %s ne declare pas le membre %q", f.nomType(obj.Type), nom)
+		return itemHavok{}, fmt.Errorf("hinavmesh: %s does not declare member %q", f.nomType(obj.Type), nom)
 	}
 	if m.Type <= 0 || m.Type >= len(f.types) {
-		return itemHavok{}, fmt.Errorf("hinavmesh: le membre %q porte le type %d, hors table", nom, m.Type)
+		return itemHavok{}, fmt.Errorf("hinavmesh: member %q carries type %d, outside the table", nom, m.Type)
 	}
 	elem, ok := f.types[m.Type].Modeles[modeleElement]
 	if !ok {
-		return itemHavok{}, fmt.Errorf("hinavmesh: le membre %q est un %s sans parametre de modele %s",
+		return itemHavok{}, fmt.Errorf("hinavmesh: member %q is a %s without model parameter %s",
 			nom, f.nomType(m.Type), modeleElement)
 	}
 	pos := obj.Offset + m.Offset
 	if pos < 0 || pos+8 > len(f.data) {
-		return itemHavok{}, fmt.Errorf("hinavmesh: pointeur du membre %q hors de DATA (offset %d)", nom, pos)
+		return itemHavok{}, fmt.Errorf("hinavmesh: pointer of member %q outside DATA (offset %d)", nom, pos)
 	}
 	idx := int(binary.LittleEndian.Uint64(f.data[pos:]))
 	if idx <= 0 || idx >= len(f.items) {
-		return itemHavok{}, fmt.Errorf("hinavmesh: le membre %q pointe l'item %d, hors des %d entrees",
+		return itemHavok{}, fmt.Errorf("hinavmesh: member %q points to item %d, outside the %d entries",
 			nom, idx, len(f.items))
 	}
 	it := f.items[idx]
 	if it.Type != elem {
-		return itemHavok{}, fmt.Errorf("hinavmesh: le membre %q vise un tableau de %s, %s attendu",
+		return itemHavok{}, fmt.Errorf("hinavmesh: member %q targets an array of %s, %s expected",
 			nom, f.nomType(it.Type), f.nomType(elem))
 	}
 	return it, nil
@@ -172,11 +174,11 @@ func (f *fichierTag) tableau(obj itemHavok, nom string) (itemHavok, error) {
 // octets rend la tranche de DATA d'une entree ITEM, pour un pas donne.
 func (f *fichierTag) octets(it itemHavok, pas int) ([]byte, error) {
 	if pas <= 0 {
-		return nil, fmt.Errorf("hinavmesh: pas nul pour un tableau de %s", f.nomType(it.Type))
+		return nil, fmt.Errorf("hinavmesh: null stride for an array of %s", f.nomType(it.Type))
 	}
 	fin := it.Offset + it.Compte*pas
 	if it.Offset < 0 || it.Compte < 0 || fin > len(f.data) || fin < it.Offset {
-		return nil, fmt.Errorf("hinavmesh: tableau de %d x %s (pas %d) hors de DATA (%d..%d sur %d)",
+		return nil, fmt.Errorf("hinavmesh: array of %d x %s (stride %d) outside DATA (%d..%d of %d)",
 			it.Compte, f.nomType(it.Type), pas, it.Offset, fin, len(f.data))
 	}
 	return f.data[it.Offset:fin], nil
@@ -189,11 +191,11 @@ func lireFichierTag(region []byte) (*fichierTag, error) {
 		return nil, err
 	}
 	if _, ok := sections[sectionTAG0]; !ok {
-		return nil, fmt.Errorf("hinavmesh: region sans section TAG0")
+		return nil, fmt.Errorf("hinavmesh: region without a TAG0 section")
 	}
 	data, ok := sections["DATA"]
 	if !ok {
-		return nil, fmt.Errorf("hinavmesh: fichier-tag sans section DATA")
+		return nil, fmt.Errorf("hinavmesh: tag file without a DATA section")
 	}
 	types, recuperations, err := lireTypes(region, sections)
 	if err != nil {
@@ -211,14 +213,14 @@ func lireFichierTag(region []byte) (*fichierTag, error) {
 // Premiere occurrence gagnante : les etiquettes sont uniques dans un fichier-tag.
 func parcoursSections(buf []byte, debut, fin int, dans map[string][2]int, profondeur int) error {
 	if profondeur > profondeurSectionsMax {
-		return fmt.Errorf("hinavmesh: sections imbriquees au-dela de %d niveaux", profondeurSectionsMax)
+		return fmt.Errorf("hinavmesh: nested sections beyond %d levels", profondeurSectionsMax)
 	}
 	for p := debut; p+8 <= fin; {
 		entete := binary.BigEndian.Uint32(buf[p:])
 		taille := int(entete & 0x3FFFFFFF)
 		etiquette := string(buf[p+4 : p+8])
 		if taille < 8 || p+taille > fin {
-			return fmt.Errorf("hinavmesh: section %q de taille %d a l'offset %d deborde (fin %d)",
+			return fmt.Errorf("hinavmesh: section %q of size %d at offset %d overflows (end %d)",
 				etiquette, taille, p, fin)
 		}
 		if _, vu := dans[etiquette]; !vu {
@@ -238,14 +240,14 @@ func parcoursSections(buf []byte, debut, fin int, dans map[string][2]int, profon
 func lireItems(buf []byte, sections map[string][2]int, nbTypes int) ([]itemHavok, error) {
 	sec, ok := sections["ITEM"]
 	if !ok {
-		return nil, fmt.Errorf("hinavmesh: fichier-tag sans section ITEM")
+		return nil, fmt.Errorf("hinavmesh: tag file without an ITEM section")
 	}
 	items := make([]itemHavok, 0, sec[1]/tailleItem)
 	for p := 0; p+tailleItem <= sec[1]; p += tailleItem {
 		o := sec[0] + p
 		typ := int(binary.LittleEndian.Uint32(buf[o:]) & masqueTypeItem)
 		if typ >= nbTypes {
-			return nil, fmt.Errorf("hinavmesh: entree ITEM %d de type %d, hors des %d types",
+			return nil, fmt.Errorf("hinavmesh: ITEM entry %d of type %d, outside the %d types",
 				len(items), typ, nbTypes)
 		}
 		items = append(items, itemHavok{

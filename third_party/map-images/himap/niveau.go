@@ -17,6 +17,8 @@
 // 0xFFFFFFFF.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"os"
@@ -61,11 +63,11 @@ func LitNiveau(cheminModuleCarte string) (Niveau, error) {
 	defer func() { _ = m.Close() }()
 	levls := m.Files(groupeScenario)
 	if len(levls) != 1 {
-		return Niveau{}, fmt.Errorf("himap: %d tags %s dans %s (attendu 1)", len(levls), groupeScenario, cheminModuleCarte)
+		return Niveau{}, fmt.Errorf("himap: %d %s tags in %s (1 expected)", len(levls), groupeScenario, cheminModuleCarte)
 	}
 	ti, err := tagDeEntree(m, levls[0])
 	if err != nil {
-		return Niveau{}, fmt.Errorf("himap: %s : %w", groupeScenario, err)
+		return Niveau{}, fmt.Errorf("himap: %s: %w", groupeScenario, err)
 	}
 	return litNiveau(ti)
 }
@@ -77,7 +79,7 @@ func litNiveau(ti tagInfo) (Niveau, error) {
 	}
 	rabs, rtaille := ti.blockAbs(racine)
 	if levlOffEtatDuMonde+refOffGlobalID+4 > rtaille {
-		return Niveau{}, fmt.Errorf("himap: %s : bloc racine de %#x o", groupeScenario, rtaille)
+		return Niveau{}, fmt.Errorf("himap: %s: root block of %#x bytes", groupeScenario, rtaille)
 	}
 	out := Niveau{EtatDuMonde: idReference(ti.tag, rabs+levlOffEtatDuMonde)}
 	n := u32(ti.tag, rabs+levlChampStructures+compteTagBlock)
@@ -87,7 +89,7 @@ func litNiveau(ti tagInfo) (Niveau, error) {
 	}
 	abs, taille := ti.blockAbs(cible)
 	if taille != n*levlStrideStructure || abs+taille > len(ti.tag) {
-		return Niveau{}, fmt.Errorf("himap: %s : %d structures sur %#x o, attendu %#x o chacune",
+		return Niveau{}, fmt.Errorf("himap: %s: %d structures over %#x bytes, %#x bytes expected each",
 			groupeScenario, n, taille, levlStrideStructure)
 	}
 	for k := 0; k < n; k++ {
@@ -96,11 +98,11 @@ func litNiveau(ti tagInfo) (Niveau, error) {
 		if u32(ti.tag, o+levlStructureChampLum+compteTagBlock) > 0 {
 			l := ti.subBlockTarget(cible, k*levlStrideStructure+levlStructureChampLum)
 			if l < 0 {
-				return Niveau{}, fmt.Errorf("himap: %s : structure %d sans bloc de lumiere", groupeScenario, k)
+				return Niveau{}, fmt.Errorf("himap: %s: structure %d without a light block", groupeScenario, k)
 			}
 			labs, ltaille := ti.blockAbs(l)
 			if ltaille < levlStrideLumiere || labs+ltaille > len(ti.tag) {
-				return Niveau{}, fmt.Errorf("himap: %s : lumiere de la structure %d sur %#x o", groupeScenario, k, ltaille)
+				return Niveau{}, fmt.Errorf("himap: %s: light of structure %d over %#x bytes", groupeScenario, k, ltaille)
 			}
 			s.LumiereStatique = idReference(ti.tag, labs+levlLumiereOffSTLM)
 		}
@@ -148,7 +150,7 @@ func SourcesLumiereDe(cheminModuleCarte, cheminModuleGeometrie string, bsp uint3
 		}
 	}
 	if !trouve {
-		return SourcesLumiere{}, fmt.Errorf("himap: le scenario de %s ne nomme pas le sbsp %#x", filepath.Base(cheminModuleCarte), bsp)
+		return SourcesLumiere{}, fmt.Errorf("himap: the scenario of %s does not name sbsp %#x", filepath.Base(cheminModuleCarte), bsp)
 	}
 	if out.EtatDuMonde != 0 {
 		out.ModuleEtat = moduleQuiPorte([]string{cheminModuleCarte, cheminModuleGeometrie}, GroupeEtatDuMonde, out.EtatDuMonde)

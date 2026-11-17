@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * explosions3d.ts — LES EXPLOSIONS DANS LA SCÈNE 3D : les éclats de `explosionFx3d` posés en deux
- * appels de dessin quel que soit leur nombre.
+ * explosions3d.ts — EXPLOSIONS IN THE 3D SCENE: the flashes from `explosionFx3d` drawn in two
+ * draw calls no matter how many there are.
  *
- *  - Les éclats ronds (éclair, bouffées de feu, fumée) : UN nuage de points, chaque point un disque
- *    doux et bosselé tracé dans le nuanceur (aucune texture), à taille monde (sa taille à l'écran suit
- *    la distance). Mélange pré-multiplié : un éclat émet sa lumière (`r, g, b`) et cache ce qui est
- *    derrière lui selon son opacité (`a`), d'où une boule de feu qui a du corps et des lueurs qui
- *    n'en ont pas, dans le même lot.
- *  - Les étincelles : un lot de traits fins additifs (`SegmentPool`).
+ *  - The round flashes (flash, fire puffs, smoke): ONE point cloud, each point a soft, bumpy disc
+ *    drawn in the shader (no texture), at world size (its screen size follows distance).
+ *    Premultiplied blending: a flash emits its light (`r, g, b`) and occludes what's behind it
+ *    according to its opacity (`a`), so a fireball with body and glows with none can share the
+ *    same batch.
+ *  - The sparks: a batch of thin additive segments (`SegmentPool`).
  *
- * Chaque image est reposée en entier depuis l'âge des explosions (`begin`, `add`, `end`) : rien n'est
- * simulé, rien n'est créé pendant la lecture.
+ * Every frame is rebuilt entirely from the explosions' age (`begin`, `add`, `end`): nothing is
+ * simulated, nothing is created during playback.
  */
 import * as THREE from 'three'
 
 import { SegmentPool } from './actionKit'
 import { blastAt, type BlastInk, type BlastSink, type BlastStyle } from './explosionFx3d'
 
-/** Au plus autant d'éclats ronds et d'étincelles par image (une dizaine d'explosions simultanées). */
+/** At most this many round flashes and sparks per frame (a dozen simultaneous explosions). */
 const SPRITE_CAPACITY = 1024
 const STREAK_CAPACITY = 1024
-/** L'épaisseur d'une étincelle (u) : ~1,5 cm, un trait blanc fin. */
+/** A spark's thickness (u): ~1.5 cm, a thin white line. */
 const STREAK_RADIUS = 0.005
-/** Le centre de l'explosion au-dessus du point de détonation (u, ~1 m) : la grenade saute en l'air. */
+/** The explosion's center above the detonation point (u, ~1 m): the blast lifts into the air. */
 const BLAST_LIFT = 0.35
 
 const VERTEX = /* glsl */ `
@@ -54,7 +54,7 @@ void main() {
   float lump = 0.1 * sin(a * 5.0 + vSeed * 40.0) + 0.07 * sin(a * 9.0 - vSeed * 23.0);
   float w = 1.0 - smoothstep(0.4 + lump, 1.0 + 0.5 * lump, r);
   if (w <= 0.002) discard;
-  // Le cœur plus chaud que le bord : la lumière décroît plus vite que le corps, qui garde sa masse.
+  // The core is hotter than the edge: light decays faster than the body, which keeps its mass.
   gl_FragColor = vec4(vColor * w * (0.6 + 0.8 * w), vAlpha * sqrt(w));
 }`
 
@@ -93,8 +93,8 @@ export class Explosions3d {
     })
     this.points = new THREE.Points(geometry, this.material)
     this.points.frustumCulled = false
-    // La taille d'un point se donne en pixels : celle de l'unité monde à un mètre de la caméra,
-    // relue au rendu (taille de la cible, export compris).
+    // A point's size is given in pixels: that of the world unit at one meter from the camera,
+    // re-read at render time (target size, export included).
     this.points.onBeforeRender = (renderer, _scene, camera) => {
       renderer.getCurrentViewport(this.viewport)
       this.material.uniforms.uScale.value = (camera.projectionMatrix.elements[5] * this.viewport.w) / 2
@@ -117,9 +117,9 @@ export class Explosions3d {
     this.streaks.begin()
   }
 
-  /** add pose l'explosion de style `style` au point `at` (axes three), `age` secondes après elle. */
+  /** add places the explosion of style `style` at point `at` (three.js axes), `age` seconds after it. */
   add(at: THREE.Vector3, style: BlastStyle, age: number, seed: number, ink: BlastInk): void {
-    // Les éclats sont des disques face à la caméra : posés au sol, le sol en couperait la moitié basse.
+    // Flashes are camera-facing discs: placed at ground level, the ground would clip their bottom half.
     this.center.copy(at).setY(at.y + BLAST_LIFT)
     blastAt(style, age, seed, ink, this.sink)
   }
@@ -131,7 +131,7 @@ export class Explosions3d {
     this.streaks.end()
   }
 
-  /** drawn : les éclats ronds de la dernière image (mesure, tests). */
+  /** drawn: the round flashes of the last frame (measurement, tests). */
   drawn(): number {
     return this.n
   }

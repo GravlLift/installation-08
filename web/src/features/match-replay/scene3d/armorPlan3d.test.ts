@@ -64,7 +64,7 @@ function manifest(over: Partial<SpartanArmorManifest> = {}): SpartanArmorManifes
 }
 
 describe('planOutfit', () => {
-  it('lit la sélection finale du manifeste, une pièce par région, dans l’ordre des étapes du jeu', () => {
+  it('reads the manifest final selection, one piece per region, in the game stage order', () => {
     const plan = planOutfit(manifest(), index())
     expect(plan.pieces.map((p) => [p.key, p.source])).toEqual([
       [`3f91af6a-${CHIMERA}`, 'theme'],
@@ -74,34 +74,34 @@ describe('planOutfit', () => {
     expect(plan.issues).toEqual([])
   })
 
-  it('une clé absente de l’index et hors échecs ne dessine rien : région vide, pas un écart', () => {
+  it('a key missing from the index and outside the failures draws nothing: empty region, not a deviation', () => {
     const plan = planOutfit(manifest(), index())
     expect(plan.empty).toEqual(['006f42a8-1f6b0ea7'])
   })
 
-  it('repli d’une pièce : base du noyau du joueur, puis armure par défaut, jamais elle-même', () => {
+  it('a piece fallback: the player core base, then the default armor, never itself', () => {
     const plan = planOutfit(manifest(), index())
     const helmet = plan.pieces.find((p) => p.source === 'helmet')
     expect(helmet?.fallback).toEqual({ key: `e5f7f02b-${CHIMERA}`, file: `piece-e5f7f02b-${CHIMERA}.glb`, from: 'core' })
-    // La base du noyau est la pièce elle-même : l'armure par défaut prend le repli.
+    // The core base is the piece itself: the default armor takes the fallback.
     const theme = plan.pieces.find((p) => p.source === 'theme')
     expect(theme?.fallback).toEqual({ key: `3f91af6a-${DEFAULT_CORE}`, file: `piece-3f91af6a-${DEFAULT_CORE}.glb`, from: 'default' })
-    // Ni le noyau ni l'armure par défaut ne nomment la région de main.
+    // Neither the core nor the default armor names the hand region.
     expect(plan.pieces.find((p) => p.region === '62059329')?.fallback).toBeNull()
   })
 
-  it('pièce en échec de construction : son repli est posé et l’écart nommé ; sans repli, rien et nommé', () => {
-    const failures = [{ key: 'e5f7f02b-71a1b127', reason: 'section illisible' }, { key: '62059329-16a12dd4', reason: 'x' }]
+  it('a piece whose build failed: its fallback is placed and the deviation named; without a fallback, nothing, named', () => {
+    const failures = [{ key: 'e5f7f02b-71a1b127', reason: 'unreadable section' }, { key: '62059329-16a12dd4', reason: 'x' }]
     const plan = planOutfit(manifest(), index({ failures }))
     expect(plan.pieces.map((p) => p.key)).toEqual([`3f91af6a-${CHIMERA}`, `e5f7f02b-${CHIMERA}`])
     expect(plan.issues).toEqual([
-      { kind: 'piece_build_failed', what: 'e5f7f02b-71a1b127', detail: 'section illisible' },
+      { kind: 'piece_build_failed', what: 'e5f7f02b-71a1b127', detail: 'unreadable section' },
       { kind: 'piece_build_failed', what: '62059329-16a12dd4', detail: 'x' },
-      { kind: 'piece_no_fallback', what: '62059329-16a12dd4', detail: 'aucune pièce de repli pour la région' },
+      { kind: 'piece_no_fallback', what: '62059329-16a12dd4', detail: 'no fallback piece for the region' },
     ])
   })
 
-  it('accessoire : instance du marqueur liée à la permutation portée, à son décalage', () => {
+  it('an accessory: the marker instance tied to the worn permutation, at its offset', () => {
     const plan = planOutfit(manifest(), index())
     expect(plan.attachments).toEqual([{
       key: '906738a5', file: 'attachment-906738a5.glb', slot: 'helmet_attachment', tag: '906738a5', bone: 'b_head',
@@ -109,7 +109,7 @@ describe('planOutfit', () => {
     }])
   })
 
-  it('accessoires non posés, chacun nommé : non résolu, absent, marqueur absent ; les objets non résolus du manifeste aussi', () => {
+  it('accessories not placed, each named: unresolved, absent, marker absent; the manifest unresolved objects too', () => {
     const plan = planOutfit(manifest({
       unresolved: ['p/gloves'],
       attachments: [
@@ -117,12 +117,12 @@ describe('planOutfit', () => {
         { slot: 'chest_attachment', path: 'p/chest', resolved: true, tag_key: '00000001' },
         { slot: 'hip_attachment', path: 'p/hip', resolved: true, tag_key: 'da13a153' },
       ],
-    }), index({ failures: [{ key: '00000001', reason: 'modèle illisible' }] }))
+    }), index({ failures: [{ key: '00000001', reason: 'unreadable model' }] }))
     expect(plan.attachments.map((a) => a.key)).toEqual(['da13a153'])
     expect(plan.issues).toEqual([
-      { kind: 'manifest_unresolved', what: 'p/gloves', detail: 'non résolu par le serveur' },
+      { kind: 'manifest_unresolved', what: 'p/gloves', detail: 'not resolved by the server' },
       { kind: 'attachment_unresolved', what: 'p/wrist', detail: 'wrist_attachment' },
-      { kind: 'attachment_absent', what: '00000001', detail: 'modèle illisible' },
+      { kind: 'attachment_absent', what: '00000001', detail: 'unreadable model' },
       { kind: 'marker_absent', what: 'da13a153-1', detail: 'nope' },
     ])
   })
@@ -130,7 +130,7 @@ describe('planOutfit', () => {
 
 describe('chooseInstance', () => {
   const inst = (region: string, permutation: string, bone: string) => ({ region, permutation, bone })
-  it('la première liée à une région portée (permutation vide : toute permutation), sinon la première sans région', () => {
+  it('the first tied to a worn region (empty permutation: any permutation), else the first without a region', () => {
     const list = [inst('r1', 'p9', 'a'), inst('', '', 'generic'), inst('r1', '', 'any'), inst('r2', 'p2', 'b')]
     expect(chooseInstance(list, new Map([['r1', 'p1']]))?.bone).toBe('any')
     expect(chooseInstance(list, new Map([['r2', 'p2']]))?.bone).toBe('b')
@@ -139,13 +139,13 @@ describe('chooseInstance', () => {
   })
 })
 
-describe('clés', () => {
-  it('variantKey : les 32 bits non signés en 8 chiffres', () => {
+describe('keys', () => {
+  it('variantKey: the unsigned 32 bits as 8 digits', () => {
     expect(variantKey(-436735957)).toBe('e5f7f02b')
     expect(variantKey(0x101f4ba9)).toBe('101f4ba9')
     expect(variantKey(5)).toBe('00000005')
   })
-  it('stageOf : base, pièces, corpulence, prothèses', () => {
+  it('stageOf: base, pieces, build, prosthetics', () => {
     const order = ['prosthetic_left_leg', 'body_type', 'knee_pads', 'theme', 'helmet'].sort((a, b) => stageOf(a) - stageOf(b))
     expect(order).toEqual(['theme', 'helmet', 'knee_pads', 'body_type', 'prosthetic_left_leg'])
   })

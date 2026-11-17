@@ -2,6 +2,8 @@
 // material the viewer draws (LOCAL-CHANGE (infinite-theater-3d), see terrain_melange.go).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"image"
@@ -174,7 +176,7 @@ func cuitMelangeTerrain(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuile
 			parts = append(parts, fmt.Sprintf("%d:%.1f%%>g%d", k, 100*a/tot, groupe[k]))
 		}
 	}
-	slog.Info("terrain melange", "id", fmt.Sprintf("%08x", id), "noeuds", lus, "groupes", reps, "aires", parts)
+	slog.Info("terrain blend", "id", fmt.Sprintf("%08x", id), "nodes", lus, "groups", reps, "areas", parts)
 	return out, true
 }
 

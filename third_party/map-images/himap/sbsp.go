@@ -20,6 +20,8 @@
 // tag-blocks jusqu'à l'encadrement sont conservés entre le plugin et le tag.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	_ "embed"
 	"encoding/binary"
@@ -195,7 +197,7 @@ func bspBoundsFrom(m *himodule.Module, modulePath string) ([]BSP, error) {
 		if firstErr != nil {
 			return nil, firstErr
 		}
-		return nil, fmt.Errorf("%w dans %s", ErrAucunTagSbsp, modulePath)
+		return nil, fmt.Errorf("%w in %s", ErrAucunTagSbsp, modulePath)
 	}
 	return out, nil
 }
@@ -207,7 +209,7 @@ func bspBoundsFrom(m *himodule.Module, modulePath string) ([]BSP, error) {
 // n'est pas la ou celle des 26 autres cartes se trouve. Un producteur d'assets doit pouvoir
 // distinguer « cette carte n'est pas cuisinable, on le sait » d'un echec de chaine, sinon son
 // code de sortie ne veut plus rien dire et plus personne ne le lit.
-var ErrAucunTagSbsp = errors.New("himap: aucun tag sbsp")
+var ErrAucunTagSbsp = errors.New("himap: no sbsp tag")
 
 // ---------------- plugin : ordre des champs ----------------
 
@@ -248,7 +250,7 @@ var (
 func loadPlugin() {
 	var root xnode
 	if err := xml.Unmarshal(sbspPlugin, &root); err != nil {
-		pluginErr = fmt.Errorf("himap: plugin sbsp.xml illisible: %w", err)
+		pluginErr = fmt.Errorf("himap: unreadable sbsp.xml plugin: %w", err)
 		return
 	}
 	var all []pluginField
@@ -263,7 +265,7 @@ func loadPlugin() {
 		}
 	}
 	if pluginWBOff < 0 || len(pluginBlocks) == 0 {
-		pluginErr = fmt.Errorf("himap: `world bounds x` absent du plugin sbsp.xml")
+		pluginErr = fmt.Errorf("himap: `world bounds x` absent from the sbsp.xml plugin")
 	}
 }
 
@@ -410,7 +412,7 @@ func boundsFromTag(tag []byte) (Bounds, int, error) {
 	}
 	cands := tagCandidates(tag)
 	if len(cands) == 0 {
-		return Bounds{}, 0, fmt.Errorf("en-tête de tag non reconnu")
+		return Bounds{}, 0, fmt.Errorf("unrecognized tag header")
 	}
 	var last error
 	for _, ti := range cands {
@@ -435,7 +437,7 @@ func boundsFromTagInfo(ti tagInfo) (Bounds, int, error) {
 	}
 	rootAbs, rootSize := ti.blockAbs(rootBlock)
 	if rootAbs < 0 || fieldOff+24 > rootSize || rootAbs+fieldOff+24 > len(ti.tag) {
-		return Bounds{}, 0, fmt.Errorf("offset hors du root block")
+		return Bounds{}, 0, fmt.Errorf("offset outside the root block")
 	}
 	base := rootAbs + fieldOff
 	var b Bounds
@@ -460,7 +462,7 @@ func rootBlockIndex(ti tagInfo) (int, error) {
 		}
 		return root, nil
 	}
-	return 0, fmt.Errorf("root block introuvable")
+	return 0, fmt.Errorf("root block not found")
 }
 
 // rootTagBlockOffsets rend les field_offsets DISTINCTS des TagBlocks (type 1) référencés
@@ -493,7 +495,7 @@ func rootTagBlockOffsets(ti tagInfo, rootBlock int) []int {
 // donnerait un offset plausible et des bornes fausses, sans que rien ne le signale.
 func worldBoundsFieldOffset(offs []int) (int, error) {
 	if len(offs) > len(pluginBlocks) {
-		return 0, fmt.Errorf("rang incompatible: plugin %d blocs / tag %d refs",
+		return 0, fmt.Errorf("incompatible rank: plugin %d blocks / tag %d refs",
 			len(pluginBlocks), len(offs))
 	}
 	k := -1
@@ -503,11 +505,11 @@ func worldBoundsFieldOffset(offs []int) (int, error) {
 		}
 	}
 	if k < 0 || k+1 >= len(offs) {
-		return 0, fmt.Errorf("`world bounds x` hors encadrement")
+		return 0, fmt.Errorf("`world bounds x` outside the bracketing range")
 	}
 	for i := 0; i <= k; i++ {
 		if pluginBlocks[i+1].off-pluginBlocks[i].off != offs[i+1]-offs[i] {
-			return 0, fmt.Errorf("écart de tag-blocks non conservé au rang %d", i)
+			return 0, fmt.Errorf("tag-blocks gap not preserved at rank %d", i)
 		}
 	}
 	return offs[k] + (pluginWBOff - pluginBlocks[k].off), nil

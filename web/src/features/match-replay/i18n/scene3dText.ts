@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * scene3dText.ts — the texts of the replay's 3D VIEW, typed parity.
+ * scene3dText.ts — the text for the replay's 3D VIEW, typed parity.
  *
- * A table apart from the replay dictionary (`i18nContract.ts`): the 3D view only exists on the
- * user's own machine (capability `can_view_replay_3d`), and its few texts read together.
+ * A table separate from the replay dictionary (`i18nContract.ts`): the 3D view only exists on
+ * the user's own machine (`can_view_replay_3d` capability), and its few texts read together
+ * as a group.
  */
 import type { Aids3d } from '../scene3d/aids3d'
 import type { ReplayLocale } from './i18n'
@@ -32,7 +33,7 @@ export interface Scene3dText {
   cameraFirstShort: string
   cameraThirdShort: string
   cameraFreeShort: string
-  /** The free view's controls, under the cameras (keys placed for QWERTY / AZERTY). */
+  /** Free-view controls, under the cameras (keys match the layout: QWERTY / AZERTY). */
   cameraFreeHint: string
   /** "3D map: 42% of 224 MB" — the mesh download. */
   loadingFmt: (percent: number, megabytes: number) => string
@@ -45,9 +46,9 @@ export interface Scene3dText {
   loadFailed: string
   /** The followed player has not spawned yet: the camera waits for their first spawn. */
   povUnspawned: string
-  /** No point of view chosen: only the free camera makes sense. */
+  /** No viewpoint chosen: only the free camera makes sense. */
   noPov: string
-  /** Surface probe (developer build): the line is in the clipboard. */
+  /** Surface inspector (dev build): the line is now on the clipboard. */
   probeCopied: string
   /** Playback meter (right, under the minimap): frames per second, "13 / 30 fps". */
   cadenceIps: string
@@ -55,12 +56,12 @@ export interface Scene3dText {
   cadencePire: string
   /** Playback meter: the film is paused (no real-time ratio). */
   cadencePaused: string
-  /** The corner inset view: enlarge it (whichever is shown), move it, resize it. */
+  /** The corner inset view: enlarge it (whichever one is there), move it, resize it. */
   insetEnlarge2d: string
   insetEnlarge3d: string
   insetMove: string
   insetResize: string
-  /** Export dialog: the exported view, and its 3D settings. */
+  /** Export dialog: the exported view, and its 3D-specific settings. */
   exportView: string
   exportView2d: string
   exportView3d: string
@@ -92,11 +93,11 @@ export interface Scene3dText {
   aidsTitle: string
   aidsTitleHint: string
   aids: Record<keyof Aids3d, { label: string; hint: string }>
-  /** The 3D map build panel, while its mesh is still missing on this machine. */
+  /** 3D map build panel, shown while its mesh is still missing on this machine. */
   buildTitle: string
   buildBody: string
   buildAction: string
-  /** Build in progress: title, steps, starting, done (the view is loading), waiting for the match. */
+  /** Build in progress: title, steps, start, finish (the view loads), waiting for the match. */
   buildingTitle: string
   buildSteps: Record<ReplayMeshBuildStep, string>
   buildStarting: string
@@ -105,13 +106,13 @@ export interface Scene3dText {
   /** Build failure, and retry. */
   buildFailed: string
   buildRetry: string
-  /** Unavailable: Halo Infinite absent from this machine, and the fix (the explanation stands in for a failure). */
+  /** Unavailable: Halo Infinite not found on this machine, and the fix (the explanation stands in for the failure). */
   buildGameMissing: string
   /** Unavailable: the build tool is missing, and the fix. */
   buildToolMissing: string
   /** Launch refused: another map is already being built. */
   buildBusy: string
-  /** A map shown without its variant's object layer: triggering the build, its progress, its failure. */
+  /** Map shown without its variant's object layer: launching the build, its progress, its failure. */
   variantBuildAction: string
   variantBuilding: string
   variantBuildFailed: string

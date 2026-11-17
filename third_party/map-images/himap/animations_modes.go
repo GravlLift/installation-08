@@ -9,6 +9,8 @@
 // k), animation i16.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"sort"
@@ -60,12 +62,12 @@ func (g *GrapheAnimation) litNiveau(n *navigateurTag, proprio, champ, niv int, c
 	}
 	b := n.octets(bloc)
 	if len(b)%nb != 0 {
-		return fmt.Errorf("niveau %d des modes : %d octets pour %d enregistrements", niv, len(b), nb)
+		return fmt.Errorf("mode level %d: %d bytes for %d records", niv, len(b), nb)
 	}
 	pas := len(b) / nb
 	if niv == NiveauxModes-1 {
 		if pas < actionPasMin {
-			return fmt.Errorf("actions de %d octets", pas)
+			return fmt.Errorf("actions of %d bytes", pas)
 		}
 		for k := 0; k < nb; k++ {
 			o := k * pas
@@ -135,7 +137,7 @@ func (gs *GraphesAnimation) Clip(chemin [NiveauxModes]string) (*ClipAnimation, E
 		return nil, entree, err
 	}
 	if g == nil {
-		return nil, entree, fmt.Errorf("chemin %v absent des arbres des modes", chemin)
+		return nil, entree, fmt.Errorf("path %v absent from the mode trees", chemin)
 	}
 	c, err := g.Decode(rang)
 	return c, entree, err
@@ -155,7 +157,7 @@ func (gs *GraphesAnimation) Designee(chemin [NiveauxModes]string) (*GrapheAnimat
 				return nil, 0, e, err
 			}
 			if trouve != nil && (trouve != g || rangTrouve != rang) {
-				return nil, 0, e, fmt.Errorf("chemin %v ambigu : animations %d du %08x et %d du %08x", chemin, rangTrouve, trouve.ID, rang, g.ID)
+				return nil, 0, e, fmt.Errorf("path %v ambiguous: animations %d of %08x and %d of %08x", chemin, rangTrouve, trouve.ID, rang, g.ID)
 			}
 			trouve, rangTrouve, entree = g, rang, e
 		}
@@ -174,7 +176,7 @@ func (gs *GraphesAnimation) ClipNomme(nom string) (*ClipAnimation, error) {
 		return nil, err
 	}
 	if g == nil {
-		return nil, fmt.Errorf("nom %q (%08x) absent des graphes", nom, NomAnimation(nom))
+		return nil, fmt.Errorf("name %q (%08x) absent from the graphs", nom, NomAnimation(nom))
 	}
 	return g.Decode(rang)
 }
@@ -190,7 +192,7 @@ func (gs *GraphesAnimation) Nommee(nom string) (*GrapheAnimation, int, error) {
 				continue
 			}
 			if rang >= 0 {
-				return nil, 0, fmt.Errorf("nom %q porte par les animations %d et %d du graphe %08x", nom, rang, a.Rang, g.ID)
+				return nil, 0, fmt.Errorf("name %q carried by animations %d and %d of graph %08x", nom, rang, a.Rang, g.ID)
 			}
 			rang = a.Rang
 		}

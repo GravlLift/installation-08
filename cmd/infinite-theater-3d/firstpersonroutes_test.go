@@ -74,8 +74,8 @@ func writeFirstPersonFixtures(dir string) error {
 		return err
 	}
 	files := map[string]string{
-		firstperson.FichierIndex:                      `{"schema":1,"generator":"test","weapons":[{"weapon":"abcdef12","file":"rig-0123456789abcdef.glb"}],"rigs":[{"file":"rig-0123456789abcdef.glb","bones":1,"triangles":1,"bytes":1,"clips":[],"actions":[],"missingActions":[]}],"failures":[],"textures":{"files":1,"bytes":12,"references":1}}`,
-		firstperson.FichierBras:                       `{"schema":2,"skeleton":{"bones":["arm"]},"pieces":[{"key":"62059329-16a12dd4","region":"62059329","permutation":"16a12dd4","file":"piece-62059329-16a12dd4.glb"}],"default":{"62059329":"13d24f1f"},"failures":[]}`,
+		firstperson.IndexFile:                         `{"schema":1,"generator":"test","weapons":[{"weapon":"abcdef12","file":"rig-0123456789abcdef.glb"}],"rigs":[{"file":"rig-0123456789abcdef.glb","bones":1,"triangles":1,"bytes":1,"clips":[],"actions":[],"missingActions":[]}],"failures":[],"textures":{"files":1,"bytes":12,"references":1}}`,
+		firstperson.ArmsFile:                          `{"schema":2,"skeleton":{"bones":["arm"]},"pieces":[{"key":"62059329-16a12dd4","region":"62059329","permutation":"16a12dd4","file":"piece-62059329-16a12dd4.glb"}],"default":{"62059329":"13d24f1f"},"failures":[]}`,
 		"rig-0123456789abcdef.glb":                    "glTF-rig-bytes",
 		"piece-62059329-16a12dd4.glb":                 "arm-piece",
 		"texture-" + strings.Repeat("a", 16) + ".png": "arm-texture",

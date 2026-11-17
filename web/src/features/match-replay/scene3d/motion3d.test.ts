@@ -19,7 +19,7 @@ import { postureFilm } from './posturesFilm3d'
 import { buildTracks3d } from './tracks3d'
 
 const FPS = 10
-/** Le joueur A (emplacement 1) court vers +X à 2 u/s (0,2 u par image), face au déplacement. */
+/** Player A (slot 1) runs toward +X at 2 u/s (0.2 u per frame), facing their direction of travel. */
 const doc = testReplayDoc({
   frameIntervalMs: 1000 / FPS,
   tracks: [{
@@ -58,7 +58,7 @@ const over = (m: ClipMix) => m.over.slice(0, m.overCount).map((l) => ({ name: l.
 const names = (layers: { name: string }[]) => layers.map((l) => l.name)
 
 describe('Motion3d', () => {
-  it('date les accroupissements et glissades aux millisecondes, avec repli sur les images', () => {
+  it('times crouches and slides to the millisecond, falling back to frames', () => {
     const film = testReplayDoc({ ...doc, stances: [
       { kind: 'crouch', slot: 1, t0: 10, t1: 10, ms0: 1020, ms1: 1080 },
       { kind: 'crouch', slot: 1, t0: 20, t1: 21 },
@@ -69,7 +69,7 @@ describe('Motion3d', () => {
       expect(pistes.sample('A', f)?.crouch).toBe(attendu)
     }
     expect(postureFilm(film.stances[2], film)).toMatchObject({ t0: 30.2, t1: 30.8, fin: 31.8 })
-    // Pendant la glissade, l'œil descend en fondu tandis que la pose du corps reste debout.
+    // During the slide, the eye drops in a fade while the body pose stays upright.
     const glissade = pistes.sample('A', 30.7)
     expect(glissade?.crouch).toBe(false)
     expect(glissade?.dropOeil).toBeGreaterThan(0)
@@ -79,28 +79,28 @@ describe('Motion3d', () => {
     expect(poids(10.7, 'crouch:')).toBeGreaterThan(0.3)
     expect(poids(30.7, ':slide')).toBeGreaterThan(0.4)
   })
-  it('rien tant que le Spartan animé n’est pas chargé, ni hors vie', () => {
+  it('nothing while the animated Spartan isn\'t loaded, nor outside their life', () => {
     expect(motion(false).at('A', 20, false, newClipMix())).toBeNull()
     expect(motion().at('A', 150, false, newClipMix())).toBeNull()
     expect(motion().at('B', 20, false, newClipMix())).toBeNull()
   })
 
-  it('court vers l’avant du fusil ; le temps du clip avance de la distance parcourue sur la foulée', () => {
+  it('runs the rifle\'s forward clip; the clip\'s time advances by distance traveled over stride', () => {
     const m = motion()
     const run = CATALOG.get('combat:rifle:locomote_run_front') as SpartanClip
     const at = (f: number) => m.at('A', f, false, newClipMix()) as ClipMix
-    // Entre les images 15 et 35 : vitesse établie, avant le saut (40).
+    // Between frames 15 and 35: speed established, before the jump (40).
     const a = at(15)
     expect(names(base(a))).toContain('combat:rifle:locomote_run_front')
     const stride = mixStride(a)
     const t15 = base(a).find((l) => l.name === run.name)?.time as number
     const t35 = base(at(35)).find((l) => l.name === run.name)?.time as number
-    // 20 images à 0,2 u : 4 u, soit 4 / foulée cycles de plus.
+    // 20 frames at 0.2 u: 4 u, i.e. 4 / stride more cycles.
     const expected = phaseTime(run, t15 / run.cycle - run.sync + 4 / stride)
     expect(t35).toBeCloseTo(expected, 6)
   })
 
-  it('pur : une image rendue après d’autres, en avant comme en arrière, rend le même mélange', () => {
+  it('pure: a frame read after others, forward or backward, gives the same blend', () => {
     const m = motion()
     const first = m.at('A', 37.5, false, newClipMix()) as ClipMix
     const snap = (x: ClipMix) => JSON.stringify([base(x), over(x)])
@@ -111,7 +111,7 @@ describe('Motion3d', () => {
     expect(snap(motion().at('A', 37.5, false, newClipMix()) as ClipMix)).toBe(want)
   })
 
-  it('lit les postures, les grenades et les coups de mêlée mortels du joueur', () => {
+  it('reads the player\'s stances, grenades, and lethal melee strikes', () => {
     const m = motion()
     expect(names(base(m.at('A', 42, false, newClipMix()) as ClipMix))).toContain('combat:rifle:airborne_arc')
     expect(names(over(m.at('A', 60, false, newClipMix()) as ClipMix))).toContain('combat:rifle:throw_grenade')
@@ -120,7 +120,7 @@ describe('Motion3d', () => {
     expect(names(over(m.at('A', hit - 20, false, newClipMix()) as ClipMix))).not.toContain('combat:rifle:melee_strike_1')
   })
 
-  it('un changement d’arme range l’ancienne puis sort la nouvelle, dont la classe prend la suite', () => {
+  it('a weapon change holsters the old one then draws the new, whose class takes over', () => {
     const m = motion()
     expect(names(over(m.at('A', 79.5, false, newClipMix()) as ClipMix))).toContain('combat:rifle:put_away')
     const after = m.at('A', 80.5, false, newClipMix()) as ClipMix
@@ -128,11 +128,11 @@ describe('Motion3d', () => {
     expect(names(base(after)).some((n) => n.startsWith('combat:pistol:'))).toBe(true)
   })
 
-  it('à bord d’un véhicule : l’attente seule', () => {
+  it('aboard a vehicle: idle only', () => {
     const a = motion().at('A', 30, true, newClipMix()) as ClipMix
     expect(base(a).map((l) => [l.name, l.weight])).toEqual([['combat:rifle:idle', 1]])
   })
-  it('déduit le saut de la montée puis du retour au sol et garde le repli publié', () => {
+  it('derives the jump from the rise then the landing and keeps the published fallback', () => {
     const film = testReplayDoc({
       frameIntervalMs: 100, originMs: 12000,
       tracks: [{ slot: 1, team: 0, xuid: 'A', startFrame: 0, endFrame: 100,
@@ -150,7 +150,7 @@ describe('Motion3d', () => {
     expect(sautDepuisAction(film, buildTracks3d(film), 1, 30.25)).toEqual({ t0: 30.25, t1: 44.25 })
   })
 
-  it('recharge à la milliseconde par arme et annule au changement', () => {
+  it('reloads to the millisecond per weapon and cancels on a change', () => {
     const film = testReplayDoc({ ...doc,
       actions: [{ kind: 'reload', slot: 1, t: 70, ms: 7025 }, { kind: 'reload', slot: 2, t: 71, ms: 7100 }],
       loadouts: [{ t: 0, slot: 1, w: ['0x2b1824d5', '0xf408190f'] }],
@@ -191,7 +191,7 @@ describe('Motion3d', () => {
     expect(names(over(motion(true, seul, catalogue).at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
   })
 
-  it('ajoute les coups non mortels et conserve le calage du coup mortel voisin', () => {
+  it('adds non-lethal strikes and keeps the timing of the neighboring lethal strike', () => {
     const film = testReplayDoc({ ...doc, actions: [
       { kind: 'melee', slot: 1, t: 24, ms: 2400 },
       { kind: 'melee', slot: 1, t: 50, ms: 5000 },

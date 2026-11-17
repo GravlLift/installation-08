@@ -15,6 +15,8 @@
 // l'epaule choisie la met). Un noeud hors du squelette (255) est une instance sans noeud.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
@@ -35,7 +37,7 @@ const (
 )
 
 // ErrMarqueursIllisibles : le bloc des marqueurs du `mode` manque ou a une forme inattendue.
-var ErrMarqueursIllisibles = errors.New("himap: marqueurs du mode illisibles")
+var ErrMarqueursIllisibles = errors.New("himap: unreadable mode markers")
 
 // InstanceMarqueur : une pose d'un marqueur, dans le repere de son noeud.
 type InstanceMarqueur struct {
@@ -60,11 +62,11 @@ type GroupeMarqueurs struct {
 func MarqueursDuMode(tag []byte) ([]GroupeMarqueurs, error) {
 	ti, err := meilleurTagInfo(tag)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %w", ErrMarqueursIllisibles, err)
+		return nil, fmt.Errorf("%w: %w", ErrMarqueursIllisibles, err)
 	}
 	offs, cibles, err := ti.rootBlockRefs()
 	if err != nil {
-		return nil, fmt.Errorf("%w : %w", ErrMarqueursIllisibles, err)
+		return nil, fmt.Errorf("%w: %w", ErrMarqueursIllisibles, err)
 	}
 	for i, o := range offs {
 		if o != modeOffMarqueurs {
@@ -72,7 +74,7 @@ func MarqueursDuMode(tag []byte) ([]GroupeMarqueurs, error) {
 		}
 		abs, taille := ti.blockAbs(cibles[i])
 		if abs < 0 || taille%groupeMarqueursStride != 0 || abs+taille > len(ti.tag) {
-			return nil, fmt.Errorf("%w : bloc de %d o", ErrMarqueursIllisibles, taille)
+			return nil, fmt.Errorf("%w: block of %d bytes", ErrMarqueursIllisibles, taille)
 		}
 		sous := ti.sousBlocsParOffset(cibles[i])
 		out := make([]GroupeMarqueurs, 0, taille/groupeMarqueursStride)
@@ -84,7 +86,7 @@ func MarqueursDuMode(tag []byte) ([]GroupeMarqueurs, error) {
 			if n > 0 && ok {
 				iAbs, iTaille := ti.blockAbs(bloc)
 				if iAbs < 0 || iTaille != n*instanceMarqueurStride || iAbs+iTaille > len(ti.tag) {
-					return nil, fmt.Errorf("%w : groupe %08x, %d instances sur %d o", ErrMarqueursIllisibles, grp.Nom, n, iTaille)
+					return nil, fmt.Errorf("%w: group %08x, %d instances over %d bytes", ErrMarqueursIllisibles, grp.Nom, n, iTaille)
 				}
 				for k := 0; k < n; k++ {
 					o := iAbs + k*instanceMarqueurStride
@@ -95,7 +97,7 @@ func MarqueursDuMode(tag []byte) ([]GroupeMarqueurs, error) {
 		}
 		return out, nil
 	}
-	return nil, fmt.Errorf("%w : pas de bloc a la racine +%d", ErrMarqueursIllisibles, modeOffMarqueurs)
+	return nil, fmt.Errorf("%w: no block at root +%d", ErrMarqueursIllisibles, modeOffMarqueurs)
 }
 
 // ChoisitInstance rend l'instance du groupe que porte la selection `sel` (region -> permutation,

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * objectives3dModel.ts — CE QUE LE CALQUE 3D DES OBJECTIFS POSE À UNE IMAGE, sans three.js.
+ * objectives3dModel.ts — WHAT THE 3D OBJECTIVES LAYER PLACES AT A FRAME, with no three.js.
  *
- * Aucune règle n'est réécrite ici : l'état vivant d'une zone, la présence du crâne, la place d'un
- * drapeau, d'une bombe ou d'un objet porté sont ceux de la vue 2D, appelés tels quels. Ce module
- * ne fait que traduire leurs réponses dans le vocabulaire de la 3D :
- *  - une ZONE est visible quand son état le permet, teintée par son propriétaire ;
- *  - un OBJET (drapeau, crâne, bombe) est soit chez son porteur (dans sa main pour le drapeau et
- *    le crâne, au-dessus de lui pour la bombe), soit au sol en un point (x, y) Halo, avec un
- *    indice de hauteur pour chercher le bon étage (`ObjectPlace`).
+ * No rule is rewritten here: a zone's live state, the skull's presence, and the place of a flag,
+ * bomb or carried object are the 2D view's own, called as they are. This module only translates
+ * their answers into 3D's vocabulary:
+ *  - a ZONE is visible when its state allows it, tinted by its owner;
+ *  - an OBJECT (flag, skull, bomb) is either with its carrier (in hand for the flag and the
+ *    skull, above them for the bomb), or on the ground at a Halo (x, y) point, with a height
+ *    hint to find the right floor (`ObjectPlace`).
  *
- * L'indice de hauteur vient du porteur le plus proche dans le temps : les canaux d'objet ne
- * publient que (x, y), et le premier sol sous le plafond serait parfois un toit.
+ * The height hint comes from the carrier closest in time: object channels only publish (x, y),
+ * and the first floor under the ceiling would sometimes be a roof.
  */
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import type { XY } from '@/lib/replay/replayLogic'
@@ -37,11 +37,11 @@ import { covers } from '../model/replaySpans'
 import { skullPresenceAt } from '../model/skullPresence'
 
 // ---------------------------------------------------------------------------------------------
-// Interrupteurs
+// Toggles
 
 /**
- * Les interrupteurs par famille du tiroir 2D : `showFlagCarries`, `showVipCrown`,
- * `showBombCarrier`. Le crâne porté n'a pas de marqueur en 3D : son porteur le tient en main.
+ * The 2D drawer's per-family toggles: `showFlagCarries`, `showVipCrown`, `showBombCarrier`. The
+ * carried skull has no marker in 3D: its carrier holds it in hand.
  */
 export interface Objectives3dFamilies {
   flags: boolean
@@ -49,17 +49,17 @@ export interface Objectives3dFamilies {
   bombCarrier: boolean
 }
 
-/** Ce que le calque montre à cette image, famille par famille. */
+/** What the layer shows at this frame, family by family. */
 export interface Objectives3dShown extends Objectives3dFamilies {
-  /** Zones et marqueurs du mode (`showModeObjectives` en 2D). */
+  /** Mode zones and markers (`showModeObjectives` in 2D). */
   zones: boolean
-  /** Le crâne au sol : la 2D le peint sans interrupteur. */
+  /** The skull on the ground: 2D paints it with no toggle. */
   skullFree: boolean
 }
 
 /**
- * objectivesShown — sans les interrupteurs par famille, `show.objectives` les commande tous ;
- * avec eux, chaque famille suit le sien comme en 2D, et le crâne au sol reste toujours visible.
+ * objectivesShown — without the per-family toggles, `show.objectives` drives all of them; with
+ * them, each family follows its own as in 2D, and the skull on the ground always stays visible.
  */
 export function objectivesShown(objectives: boolean, families: Objectives3dFamilies | null): Objectives3dShown {
   if (!families) {
@@ -69,11 +69,11 @@ export function objectivesShown(objectives: boolean, families: Objectives3dFamil
 }
 
 // ---------------------------------------------------------------------------------------------
-// Encres de camp
+// Side inks
 
 /**
- * sideInkOf — l'encre d'un camp du film vu du point de vue, ou `null` quand l'allégeance ne le
- * situe pas (camp `-1`, joueur regardé hors du film) : l'appelant sert alors son neutre.
+ * sideInkOf — the ink of a film side as seen from the viewpoint, or `null` when allegiance does
+ * not place it (side `-1`, a watched player outside the film): the caller then serves its neutral.
  */
 export function sideInkOf(
   allegiance: Pick<FilmAllegiance, 'ofTeam'>,
@@ -88,12 +88,12 @@ export function sideInkOf(
 // ---------------------------------------------------------------------------------------------
 // Zones
 
-/** Une zone préparée une fois par liste d'objectifs. */
+/** A zone prepared once per objectives list. */
 export interface PreparedZone {
   e: ObjectiveElementReady
-  /** Son état vivant, quand le catalogue est joignable (cf. `zoneCatalogMatches`). */
+  /** Its live state, when the catalog is reachable (see `zoneCatalogMatches`). */
   state: ReplayZoneStateReady | null
-  /** La lettre A-C de la zone, ou null (`zoneLetterOf`). */
+  /** The zone's A-C letter, or null (`zoneLetterOf`). */
   letter: string | null
 }
 
@@ -103,8 +103,8 @@ export interface PreparedObjectives {
 }
 
 /**
- * prepareObjectives — la jointure de `useZoneStates` : les zones dans l'ordre servi (celui que
- * `zoneRef` indexe), et leur état quand le catalogue est joignable.
+ * prepareObjectives — the join `useZoneStates` performs: zones in the served order (the one
+ * `zoneRef` indexes), and their state when the catalog is reachable.
  */
 export function prepareObjectives(
   objectives: readonly ObjectiveElementReady[],
@@ -130,14 +130,14 @@ export function markersToDraw(markers: readonly ObjectiveElementReady[], flagDra
   return flagDrawn ? markers.filter((e) => !FLAG_BASE_ROLES.has(e.role)) : markers
 }
 
-/** Les encres de propriétaire et de zone neutre. */
+/** The owner ink and the neutral zone ink. */
 export interface ZoneInks {
   inkOf: (team: number) => string | null
-  /** L'encre du « aucun camp » des zones (`inks.zone.fill`). */
+  /** The "no side" ink for zones (`inks.zone.fill`). */
   neutral: string
 }
 
-/** Une colline exige un intervalle actif ; une autre zone exige un état mesuré. */
+/** A hill requires an active span; another zone requires a measured state. */
 export function zoneDisplayInkAt(z: PreparedZone, frame: number, k: ZoneInks): string | null {
   const now = z.state?.spans.find((span) => covers(span, frame))
   if (!now || (z.e.role === 'hill' && !now.active)) return null
@@ -145,17 +145,17 @@ export function zoneDisplayInkAt(z: PreparedZone, frame: number, k: ZoneInks): s
 }
 
 // ---------------------------------------------------------------------------------------------
-// Objets portés ou posés
+// Carried or placed objects
 
-/** La hauteur des pieds (z Halo) d'un joueur à une image, ou null. */
+/** A player's feet height (Halo z) at a frame, or null. */
 export type FeetZAt = (xuid: string, frame: number) => number | null
 
-/** Où se pose un objet : au-dessus de son porteur, ou au sol en (x, y) Halo. */
+/** Where an object sits: above its carrier, or on the ground at a Halo (x, y). */
 export type ObjectPlace =
   | { on: 'carrier'; xuid: string }
   | { on: 'floor'; at: XY; hint: number | null }
 
-/** Une période qui nomme son porteur. */
+/** A span that names its carrier. */
 export interface CarrySpan {
   xuid: string
   t0: number
@@ -163,8 +163,8 @@ export interface CarrySpan {
 }
 
 /**
- * carryHintAt — l'indice de hauteur d'un objet posé : les pieds du porteur de la période la plus
- * proche dans le temps, lus à l'image de cette période la plus proche de `frame`.
+ * carryHintAt — a placed object's height hint: the feet of the carrier from the span closest in
+ * time, read at that span's frame closest to `frame`.
  */
 export function carryHintAt(carries: readonly CarrySpan[], frame: number, zOf: FeetZAt): number | null {
   let best: CarrySpan | null = null
@@ -179,13 +179,13 @@ export function carryHintAt(carries: readonly CarrySpan[], frame: number, zOf: F
   return best ? zOf(best.xuid, Math.min(Math.max(frame, best.t0), best.t1)) : null
 }
 
-/** Un drapeau préparé une fois : ses intervalles, et ses portages nommés. */
+/** A flag prepared once: its spans, and its named carries. */
 export interface PreparedFlag {
   carry: ReplayFlagCarryReady
   carries: CarrySpan[]
 }
 
-/** prepareFlag — les portages nommés du drapeau, d'où se lit la hauteur d'un drapeau posé. */
+/** prepareFlag — the flag's named carries, from which a placed flag's height is read. */
 export function prepareFlag(carry: ReplayFlagCarryReady): PreparedFlag {
   const carries: CarrySpan[] = []
   for (const sp of carry.spans) if (sp.xuid) carries.push({ xuid: sp.xuid, t0: sp.t0, t1: sp.t1 })
@@ -193,10 +193,10 @@ export function prepareFlag(carry: ReplayFlagCarryReady): PreparedFlag {
 }
 
 /**
- * flagPlaceAt3d — où est le drapeau à une image (`flagSpanAt`, puis `flagPlaceAt`, la règle
- * commune des objets portés) : dans la main d'un porteur localisé, sinon au sol (sur sa base, là
- * où il est tombé, ou à la dernière place connue d'un porteur perdu). Sans intervalle couvrant
- * l'image, rien : le film ne dit pas où il est.
+ * flagPlaceAt3d — where the flag is at a frame (`flagSpanAt`, then `flagPlaceAt`, the shared rule
+ * for carried objects): in a located carrier's hand, else on the ground (on its base, where it
+ * fell, or at a lost carrier's last known spot). With no span covering the frame, nothing: the
+ * film does not say where it is.
  */
 export function flagPlaceAt3d(f: PreparedFlag, frame: number, posOf: CarrierPosAt, zOf: FeetZAt): ObjectPlace | null {
   const now = flagSpanAt(f.carry, frame)
@@ -207,14 +207,14 @@ export function flagPlaceAt3d(f: PreparedFlag, frame: number, posOf: CarrierPosA
   return { on: 'floor', at: place.at, hint: carryHintAt(f.carries, frame, zOf) }
 }
 
-/** Les sources du crâne : ses vies libres, ses portages, son socle (`skullSocle`). */
+/** The skull's sources: its free lives, its carries, its stand (`skullSocle`). */
 export interface SkullSources {
   lives: readonly ReplayObjectiveObjectReady[]
   carries: readonly ReplaySkullCarry[]
   socle: XY | null
 }
 
-/** skullPlaceAt — la présence unique du crâne (`skullPresenceAt`), posée en 3D. */
+/** skullPlaceAt — the skull's single presence (`skullPresenceAt`), placed in 3D. */
 export function skullPlaceAt(s: SkullSources, frame: number, posOf: CarrierPosAt, zOf: FeetZAt): ObjectPlace | null {
   if (s.lives.length === 0 && s.carries.length === 0) return null
   const presence = skullPresenceAt(s.lives, s.carries, frame, s.socle, posOf)
@@ -225,8 +225,8 @@ export function skullPlaceAt(s: SkullSources, frame: number, posOf: CarrierPosAt
 }
 
 /**
- * bombExplosionsOf — les images des explosions d'Assaut, triées ; `null` sans horloge de
- * confiance : la bombe au sol ne se pose pas (la garde de `useReplayBombCarrier`).
+ * bombExplosionsOf — the frames of Assault's explosions, sorted; `null` without a trusted clock:
+ * the bomb on the ground does not get placed (the guard from `useReplayBombCarrier`).
  */
 export function bombExplosionsOf(
   doc: Pick<ReplayDocumentReady, 'objectives'> & Parameters<typeof filmClockTrusted>[0],
@@ -240,9 +240,9 @@ export function bombExplosionsOf(
 }
 
 /**
- * bombPlaceAt — la règle de `drawBombCarrier` : portée, sur son porteur (libre à sa dernière
- * position connue quand le porteur n'en a plus, `carriedGlyphPlaceAt`) ; sinon au sol, au point
- * de son lâcheur à l'instant du lâcher (`bombGroundAt`).
+ * bombPlaceAt — the rule from `drawBombCarrier`: carried, on its carrier (free at its last known
+ * position once the carrier no longer has one, `carriedGlyphPlaceAt`); else on the ground, at its
+ * dropper's point at the moment of the drop (`bombGroundAt`).
  */
 export function bombPlaceAt(
   carries: readonly ReplayBombCarry[],

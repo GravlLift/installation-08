@@ -12,6 +12,8 @@
 // plausibles mais fausses, ce qui est pire que pas d'objectif du tout.
 package mapvar
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"errors"
@@ -22,7 +24,7 @@ import (
 // ErrCompteHorsBornes : un compte de conteneur, de map ou de chaine annonce plus d elements que
 // les octets restants ne peuvent en porter (lot J2.8, constat RB1-4, 2026-09-26). Le flux est
 // tronque ou corrompu : aucune allocation n est tentee.
-var ErrCompteHorsBornes = errors.New("cb2: compte hors bornes")
+var ErrCompteHorsBornes = errors.New("cb2: count out of bounds")
 
 // Types Bond (BondDataType).
 const (
@@ -81,7 +83,7 @@ type decoder struct {
 
 func (d *decoder) readByte() (byte, error) {
 	if d.pos >= len(d.buf) {
-		return 0, fmt.Errorf("cb2: fin de tampon à %d", d.pos)
+		return 0, fmt.Errorf("cb2: end of buffer at %d", d.pos)
 	}
 	b := d.buf[d.pos]
 	d.pos++
@@ -90,7 +92,7 @@ func (d *decoder) readByte() (byte, error) {
 
 func (d *decoder) readBytes(n int) ([]byte, error) {
 	if n < 0 || d.pos+n > len(d.buf) {
-		return nil, fmt.Errorf("cb2: lecture de %d octets hors bornes à %d", n, d.pos)
+		return nil, fmt.Errorf("cb2: read of %d bytes out of bounds at %d", n, d.pos)
 	}
 	out := d.buf[d.pos : d.pos+n]
 	d.pos += n
@@ -111,7 +113,7 @@ func (d *decoder) readVarint() (uint64, error) {
 		}
 		shift += 7
 		if shift > 63 {
-			return 0, fmt.Errorf("cb2: varint trop long à %d", d.pos)
+			return 0, fmt.Errorf("cb2: varint too long at %d", d.pos)
 		}
 	}
 }
@@ -172,7 +174,7 @@ func (d *decoder) readContainerHeader() (elemType byte, count int, err error) {
 func (d *decoder) borneCompte(c uint64, coutMinimal int) (int, error) {
 	reste := len(d.buf) - d.pos
 	if c > uint64(reste/coutMinimal) {
-		return 0, fmt.Errorf("%w : %d element(s) d au moins %d octet(s) a %d, %d octet(s) restant(s)",
+		return 0, fmt.Errorf("%w: %d element(s) of at least %d byte(s) at %d, %d byte(s) remaining",
 			ErrCompteHorsBornes, c, coutMinimal, d.pos, reste)
 	}
 	return int(c), nil
@@ -231,7 +233,7 @@ func (d *decoder) readValue(typ byte) (Value, error) {
 	case btMap:
 		return d.readMap()
 	default:
-		return Value{}, fmt.Errorf("cb2: type Bond inconnu %d à %d", typ, d.pos)
+		return Value{}, fmt.Errorf("cb2: unknown Bond type %d at %d", typ, d.pos)
 	}
 }
 
@@ -320,7 +322,7 @@ func (d *decoder) readStruct() (Value, error) {
 	// Comparee AVANT la conversion : `int(length)` d un varint >= 2^63 serait negatif et la
 	// fin calculee passerait sous la position courante.
 	if length > uint64(len(d.buf)-d.pos) {
-		return Value{}, fmt.Errorf("%w : struct de %d octets déborde à %d", ErrCompteHorsBornes, length, d.pos)
+		return Value{}, fmt.Errorf("%w: struct of %d bytes overflows at %d", ErrCompteHorsBornes, length, d.pos)
 	}
 	end := d.pos + int(length)
 	out := Value{Type: btStruct, Fields: make(map[uint16]Value)}
@@ -342,7 +344,7 @@ func (d *decoder) readStruct() (Value, error) {
 		out.Fields[id] = val
 	}
 	if d.pos != end {
-		return Value{}, fmt.Errorf("cb2: struct mal terminé (pos %d, fin attendue %d)", d.pos, end)
+		return Value{}, fmt.Errorf("cb2: struct improperly terminated (pos %d, expected end %d)", d.pos, end)
 	}
 	return out, nil
 }
@@ -356,7 +358,7 @@ func DecodeRoot(buf []byte) (Value, error) {
 		return Value{}, err
 	}
 	if d.pos != len(buf) {
-		return Value{}, fmt.Errorf("cb2: %d octets résiduels après la racine", len(buf)-d.pos)
+		return Value{}, fmt.Errorf("cb2: %d residual bytes after the root", len(buf)-d.pos)
 	}
 	return root, nil
 }

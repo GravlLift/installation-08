@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * staticAssets.ts — composition d'URLs d'assets statiques title-scopés côté frontend.
+ * staticAssets.ts — composing title-scoped static asset URLs on the frontend side.
  *
- * Format émis : `/static/{folder}/{titleSlug}/{id}{ext}` (title-scoped) en
- * cohérence avec l'arborescence FS et les URLs émises par le backend Go.
+ * Format emitted: `/static/{folder}/{titleSlug}/{id}{ext}` (title-scoped), consistent
+ * with the FS tree and the URLs emitted by the Go backend.
  *
- * Les composants React doivent utiliser ce module au lieu de hardcoder
- * `/static/...` dans des `src=`.
+ * React components must use this module instead of hardcoding
+ * `/static/...` in a `src=`.
  *
- * Symétrique au backend Go : `internal/assets/static/` (couche 2 pure) +
- * `internal/games/halo_infinite/adapter_asset_urls.go` (couche 3).
+ * Mirrors the Go backend: `internal/assets/static/` (pure layer 2) +
+ * `internal/games/halo_infinite/adapter_asset_urls.go` (layer 3).
  */
 
 const MOUNT_POINT = '/static'
@@ -21,9 +21,9 @@ const FOLDER: Record<StaticKind, string> = {
   weapon: 'weapons-assets',
   commendation: 'commendations',
   vehicle: 'vehicles-assets',
-  // Sons du rejeu 2D (Opus en conteneur Ogg, lot 5 parité rejeu). Composé UNIQUEMENT côté front
-  // (le backend Go n'émet aucune URL de son dans ses payloads — pas de miroir
-  // dans internal/assets/static/layout.go tant que c'est vrai).
+  // 2D replay sounds (Opus in an Ogg container, replay-parity batch 5). Composed ONLY on the
+  // frontend side (the Go backend emits no sound URL in its payloads — no mirror
+  // in internal/assets/static/layout.go as long as that stays true).
   sound: 'sounds',
 }
 
@@ -39,14 +39,14 @@ export type StaticKind =
 export const DEFAULT_TITLE_SLUG = 'halo_infinite'
 
 /**
- * staticAssetURL compose l'URL d'un asset statique title-scopé.
+ * staticAssetURL composes the URL of a title-scoped static asset.
  *
- * @param kind type d'asset (sous-dossier sous /static/)
- * @param id   identifiant pré-encodé (path-safe, sans extension)
- * @param ext  extension fichier (avec point, ex: ".png")
- * @param titleSlug slug du titre (default "halo_infinite")
+ * @param kind asset type (subfolder under /static/)
+ * @param id   pre-encoded identifier (path-safe, no extension)
+ * @param ext  file extension (with dot, e.g. ".png")
+ * @param titleSlug title slug (default "halo_infinite")
  *
- * Format : /static/{folder}/{titleSlug}/{id}{ext}.
+ * Format: /static/{folder}/{titleSlug}/{id}{ext}.
  */
 export function staticAssetURL(
   kind: StaticKind,
@@ -59,8 +59,8 @@ export function staticAssetURL(
 }
 
 /**
- * csrRankImageURL retourne l'URL du badge CSR pour un tier + sub-tier.
- * Cas spécial Onyx : passer subTier=0 ou tier="Onyx" (pas de sub-tier).
+ * csrRankImageURL returns the URL of the CSR badge for a tier + sub-tier.
+ * Special Onyx case: pass subTier=0 or tier="Onyx" (no sub-tier).
  */
 export function csrRankImageURL(tier: string, subTier: number, titleSlug?: string): string {
   if (!tier) return ''
@@ -71,21 +71,21 @@ export function csrRankImageURL(tier: string, subTier: number, titleSlug?: strin
 }
 
 /**
- * unrankedBadgeURL retourne l'URL du badge unranked_0.png (0 placement effectué).
+ * unrankedBadgeURL returns the URL of the unranked_0.png badge (0 placements played).
  */
 export function unrankedBadgeURL(titleSlug?: string): string {
   return staticAssetURL('csr-rank', 'unranked_0', '.png', titleSlug)
 }
 
 /**
- * unrankedBadgeURLForProgress retourne l'URL du badge unranked_N.png proportionnel
- * à une progression de placement (done/total). Miroir CÔTÉ FRONT de la formule
- * backend `unrankedBadgeURLForThreshold` (apps/go-api/internal/platform/duckdb/
- * home_repo_skill_peak.go) : N = done*10/total, clampé [0,9] — les 10 images
- * disponibles (unranked_0..9) sont réutilisées quel que soit le seuil réel
- * (5 pour CSR depuis Season 3, 10 pour LUSR/CSR legacy).
+ * unrankedBadgeURLForProgress returns the URL of the unranked_N.png badge, proportional
+ * to a placement progression (done/total). FRONTEND-SIDE mirror of the backend formula
+ * `unrankedBadgeURLForThreshold` (apps/go-api/internal/platform/duckdb/
+ * home_repo_skill_peak.go): N = done*10/total, clamped to [0,9] — the 10 available
+ * images (unranked_0..9) are reused regardless of the real threshold
+ * (5 for CSR since Season 3, 10 for legacy LUSR/CSR).
  *
- * `total` <= 0 est un garde-fou (donnée incohérente) : retombe sur unranked_0.
+ * `total` <= 0 is a safeguard (inconsistent data): falls back to unranked_0.
  */
 export function unrankedBadgeURLForProgress(done: number, total: number, titleSlug?: string): string {
   if (total <= 0) return unrankedBadgeURL(titleSlug)

@@ -45,12 +45,12 @@ func (a *assemblage) poserLesPosturesDeControle() {
 	a.opt.Fallbacks.DeclencheN(fallback.NomSautDeriveDeLaVitesse, cov.JumpsDerivedKept)
 	slog.InfoContext(a.ctx, "replay: command postures",
 		"read", cov.Read, "presses", cov.Presses, "crouches", cov.Crouches, "slides", cov.Slides,
-		"glissadesApresChute", cov.SlidesAfterFall, "impulsionsDuSaut", cov.JumpPulses, "jumps", cov.Jumps,
-		"sansJoueur", cov.NoPlayer, "sansVie", cov.NoLife, "enVehicule", cov.InVehicle,
-		"sansPosition", cov.NoPosition, "postureLue", cov.ReadByComponent,
-		"sautsDerivesGardes", cov.JumpsDerivedKept, "sautsDerivesRemplaces", cov.JumpsDerivedReplaced,
-		"sautsDerivesContredits", cov.JumpsDerivedContradicted, "silenceMs", cov.SilenceMS,
-		"stick", cov.StickSamples, "stickSansVie", cov.StickNoLife)
+		"slidesAfterFall", cov.SlidesAfterFall, "jumpPulses", cov.JumpPulses, "jumps", cov.Jumps,
+		"noPlayer", cov.NoPlayer, "noLife", cov.NoLife, "inVehicle", cov.InVehicle,
+		"noPosition", cov.NoPosition, "readByComponent", cov.ReadByComponent,
+		"jumpsDerivedKept", cov.JumpsDerivedKept, "jumpsDerivedReplaced", cov.JumpsDerivedReplaced,
+		"jumpsDerivedContradicted", cov.JumpsDerivedContradicted, "silenceMs", cov.SilenceMS,
+		"stick", cov.StickSamples, "stickNoLife", cov.StickNoLife)
 }
 
 // contexteDesPostures rassemble ce que la pose lit du document.

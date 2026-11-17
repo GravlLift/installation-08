@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // registry_fingerprint.go — L'EMPREINTE DU REGISTRE ECS, ET L'ALERTE QUAND ELLE CHANGE.
@@ -134,8 +135,8 @@ func DiagnosticRegistreInconnu(reg *Registry) (constat.Diagnostic, bool) {
 		return constat.Diagnostic{}, false
 	}
 	return constat.Diagnostic{Code: DiagRegistreInconnu, Niveau: constat.NiveauWarn,
-		Message: "empreinte du registre ECS du film INCONNUE — grammaire des composants suspecte " +
-			"(mise a jour du jeu ?) ; le film reste decode",
-		Attrs: []any{"empreinte", reg.fingerprint, "empreinte_connue", KnownRegistryFingerprint,
-			"blocs", len(reg.Archetypes), "slots_non_vides", reg.namedSlots}}, true
+		Message: "film ECS registry fingerprint UNKNOWN — component grammar suspect " +
+			"(game update?); the film stays decoded",
+		Attrs: []any{"fingerprint", reg.fingerprint, "known_fingerprint", KnownRegistryFingerprint,
+			"blocks", len(reg.Archetypes), "non_empty_slots", reg.namedSlots}}, true
 }

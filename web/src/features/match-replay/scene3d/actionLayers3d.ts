@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * actionLayers3d.ts — LES CALQUES D'ACTION d'une scène 3D, dans leur ordre de pose.
+ * actionLayers3d.ts — the ACTION LAYERS of a 3D scene, in their build order.
  *
- * Les véhicules d'abord : ils répondent de la place des joueurs embarqués, que les autres calques
- * (morts, objets portés) relisent dans la même image.
+ * Vehicles come first: they own the position of their embarked players, which other layers
+ * (deaths, held objects) read back in the same frame.
  */
 import { ActionScene3d, type ActionContext } from './actionScene3d'
 import { Deaths3dLayer } from './deaths3d'
@@ -21,7 +21,7 @@ export function buildActionScene(ctx: ActionContext): ActionScene3d {
     new Vehicles3dLayer(ctx),
     new Pickups3dLayer(ctx),
     new Equipment3dLayer(ctx),
-    // L'allégeance et les interrupteurs par famille se relisent à chaque image (point de vue, tiroir).
+    // Allegiance and per-family toggles are re-read every frame (point of view, drawer panel).
     new Objectives3dLayer(ctx, {
       get allegiance() {
         return ctx.inputs().allegiance

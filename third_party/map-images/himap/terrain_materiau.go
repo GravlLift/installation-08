@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"log/slog"
@@ -16,14 +18,14 @@ func couleurTerrain(idx *ModuleIndex, s sourceTerrain, noeuds []int) (Materiau, 
 	images := s.info.subBlockTarget(root, 0xc8)
 	partages := s.info.subBlockTarget(root, 0x104)
 	if palette < 0 || images < 0 || partages < 0 {
-		return vide, fmt.Errorf("terrain : palette absente")
+		return vide, fmt.Errorf("terrain: palette absent")
 	}
 	pa, pn := s.info.blockAbs(palette)
 	ia, in := s.info.blockAbs(images)
 	sa, sn := s.info.blockAbs(partages)
 	tag := s.info.tag
 	if pa < 0 || ia < 0 || sa < 0 || pa+pn > len(tag) || ia+in > len(tag) || sa+sn > len(tag) || pn%40 != 0 || in%32 != 0 || sn%44 != 0 {
-		return vide, fmt.Errorf("terrain : palette invalide")
+		return vide, fmt.Errorf("terrain: invalid palette")
 	}
 	comptes := make([]int, pn/40)
 	for _, node := range noeuds {
@@ -66,11 +68,11 @@ func couleurTerrain(idx *ModuleIndex, s sourceTerrain, noeuds []int) (Materiau, 
 		}
 	}
 	if meilleur < 0 {
-		return vide, fmt.Errorf("terrain : aucune couleur de couche lisible")
+		return vide, fmt.Errorf("terrain: no readable layer color")
 	}
 	// shortcut: sans couleur locale explicite, prendre une couleur de la palette ; lire les poids et les degrades pour la fidelite.
 	if comptes[meilleur] == 0 {
-		slog.Warn("terrain : aucune couleur locale explicite, couleur de la palette utilisee")
+		slog.Warn("terrain: no explicit local color, using palette color")
 	}
 	o := pa + meilleur*40
 	tr := Transfo{Echelle: [2]float32{float32(f32(tag, o+8)), float32(f32(tag, o+12))}}

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * backFaces3d.test.ts — l'envers de la structure : un maillage d'envers par attribut de sommets et
- * transformation, qui reprend les sommets et les index des surfaces, dessiné de dos, reculé en
- * profondeur, sans ombre, sans rayon ni étiquette, et libéré avec son matériau commun une seule fois.
+ * backFaces3d.test.ts — the structure's back side: one back mesh per vertex attribute and
+ * transform, reusing the surfaces' vertices and indices, drawn back-facing, pushed back in
+ * depth, with no shadow, ray, or label, and released with its shared material exactly once.
  */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { BACK_FACE_NAME, BACK_FACE_TINT, buildBackFaces } from './backFaces3d'
 import { surfaceFamily } from './surfaceProbe3d'
 
-/** Deux carrés horizontaux (y = 0 et y = 1) dans un même tampon de sommets. */
+/** Two horizontal squares (y = 0 and y = 1) in the same vertex buffer. */
 const POSITIONS = new Float32Array([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1, -1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1])
 
 function surface(position: THREE.BufferAttribute, index: number[], material: THREE.Material): THREE.Mesh {
@@ -31,7 +31,7 @@ function backsOf(root: THREE.Object3D): THREE.Mesh[] {
 const noTighten = () => {}
 
 describe('buildBackFaces', () => {
-  it('une surface de structure a son envers : mêmes sommets et index, de dos, reculé, sans ombre ni rayon', () => {
+  it('a structure surface gets its back face: same vertices and indices, back-facing, pushed back, with no shadow or ray', () => {
     const root = new THREE.Group()
     const node = new THREE.Group()
     node.position.set(3, 2, -1)
@@ -57,7 +57,7 @@ describe('buildBackFaces', () => {
     expect(m.color.getHex(THREE.LinearSRGBColorSpace)).toBe(BACK_FACE_TINT)
     expect(back.castShadow).toBe(false)
     expect(back.receiveShadow).toBe(false)
-    // Les autres passes l'écartent : contour d'équipe, étiquette de surface (inspecteur, corps inertes), rayons.
+    // Other passes exclude it: team outline, surface label (inspector, ragdolls), rays.
     expect(back.userData.noOutline).toBe(true)
     expect(surfaceFamily(back)).toBeNull()
     root.updateMatrixWorld(true)
@@ -68,7 +68,7 @@ describe('buildBackFaces', () => {
     backs.dispose()
   })
 
-  it('les surfaces de même tampon et même transformation partagent un maillage, les autres en ont un à elles', () => {
+  it('surfaces with the same buffer and the same transform share one mesh, others get their own', () => {
     const root = new THREE.Group()
     const position = new THREE.BufferAttribute(POSITIONS, 3)
     const other = new THREE.BufferAttribute(POSITIONS.slice(), 3)
@@ -106,7 +106,7 @@ describe('buildBackFaces', () => {
     expect(slab.geometry.getAttribute('position')).toBe(position)
   })
 
-  it('sans envers : découpe, translucide, double face, cachée, sans index', () => {
+  it('no back face: cutout, translucent, double-sided, hidden, no index', () => {
     const root = new THREE.Group()
     const position = new THREE.BufferAttribute(POSITIONS, 3)
     const cutout = surface(position, [0, 2, 1], new THREE.MeshStandardMaterial({ alphaTest: 0.5 }))
@@ -123,7 +123,7 @@ describe('buildBackFaces', () => {
     backs.dispose()
   })
 
-  it('la libération retire les envers, libère leur matériau une fois et laisse les sommets aux surfaces', () => {
+  it('disposing removes the back faces, frees their material once, and leaves the vertices to the surfaces', () => {
     const root = new THREE.Group()
     const position = new THREE.BufferAttribute(POSITIONS, 3)
     const other = new THREE.BufferAttribute(POSITIONS.slice(), 3)

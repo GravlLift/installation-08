@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * weaponClass3d.ts — LA CLASSE D'ANIMATION D'UNE ARME : le mot du jeu qui choisit les clips du
- * Spartan (`combat:<classe>:...`, cf. `meshproto.AnimationsSpartan`).
+ * weaponClass3d.ts — A WEAPON'S ANIMATION CLASS: the game's own word that picks the
+ * Spartan's clips (`combat:<class>:...`, see `meshproto.AnimationsSpartan`).
  *
- * Le tag `weap` porte sa classe, que la vue ne lit pas encore (StringID à décalage variable, cf. plan) :
- * la table ci-dessous la donne par la clé stable du libellé d'arme du document (`weaponLabels[id].key`,
- * celle de `config/titles/halo_infinite/mappings/replay_labels.toml`). Une arme absente de la table,
- * sans libellé ou sans clé, se tient comme un fusil. Le crâne de l'Oddball et le drapeau du CTF ne
- * sont pas des armes de la rangée : leur porteur prend la classe de l'objet par son portage
- * (`carriedObjectAt`), pas par cette table (`CARRIED_OBJECT_CLASS`).
+ * The `weap` tag carries its class, which the view does not read yet (a StringID at a
+ * variable offset, see the plan): the table below gives it by the document's weapon label's
+ * stable key (`weaponLabels[id].key`, the one from
+ * `config/titles/halo_infinite/mappings/replay_labels.toml`). A weapon missing from the
+ * table, with no label or no key, is held like a rifle. The Oddball's skull and the CTF's
+ * flag are not rack weapons: their carrier takes the object's class from how it's carried
+ * (`carriedObjectAt`), not from this table (`CARRIED_OBJECT_CLASS`).
  */
 import type { CarriedObject } from '../model/weaponInHand'
 
@@ -22,7 +23,7 @@ export type WeaponClass = 'rifle' | 'pistol' | 'missile' | 'sword' | 'hammer' | 
  */
 export const CARRIED_OBJECT_CLASS: Readonly<Record<CarriedObject, WeaponClass>> = { skull: 'ball', flag: 'hammer' }
 
-/** La classe de repli : celle qui a le jeu de clips complet. */
+/** The fallback class: the one with the full clip set. */
 export const DEFAULT_WEAPON_CLASS: WeaponClass = 'rifle'
 
 const BY_KEY: Readonly<Record<string, WeaponClass>> = {
@@ -54,7 +55,7 @@ const BY_KEY: Readonly<Record<string, WeaponClass>> = {
   hinf_turret_plasma: 'turret',
 }
 
-/** weaponClassOfKey : la classe d'une arme par la clé de son libellé ; le fusil par défaut. */
+/** weaponClassOfKey: a weapon's class by its label's key; a rifle by default. */
 export function weaponClassOfKey(key: string | undefined): WeaponClass {
   return (key !== undefined && BY_KEY[key]) || DEFAULT_WEAPON_CLASS
 }

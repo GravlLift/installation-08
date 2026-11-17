@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * bodyShell3d.ts — LA COQUE D'ÉNERGIE DU SPARTAN : bouclier qui encaisse, qui rompt, qui se
- * recharge, surbouclier qui tient, contour tremblant du camouflage, dessinés sur sa propre géométrie.
+ * bodyShell3d.ts — THE SPARTAN'S ENERGY SHELL: a shield that absorbs hits, breaks, and recharges,
+ * an overshield that holds, a trembling camo outline, all drawn on its own geometry.
  *
- * La coque double chaque maillage à peau de la copie du joueur (même géométrie, même squelette :
- * elle suit la pose sans calcul de plus), avec un matériau additif PAR JOUEUR. Elle se dessine
- * par-dessus l'armure (même profondeur, décalée vers la caméra), ne cache rien, et n'est posée dans
- * la scène que quand un effet est allumé.
+ * The shell doubles each skinned mesh of the player's copy (same geometry, same skeleton: it
+ * follows the pose with no extra computation), with an additive material PER PLAYER. It draws
+ * over the armor (same depth, offset toward the camera), hides nothing, and is only placed in the
+ * scene when an effect is on.
  *
- * Le bouclier parle la couleur du camp (celle du contour d'équipe, `outline3d`) :
- *  - un coup encaissé inonde tout le corps, plus fort au bord (reflet rasant), à la mesure de la
- *    baisse ; un tir soutenu le tient allumé ;
- *  - la rupture est un éclair bref puis des cellules qui crépitent et s'éteignent ;
- *  - la recharge est une bande claire qui remonte le corps une fois, au début de la remontée.
- * Le surbouclier garde sa coque propre (son encre, pâlie de blanc) par-dessus.
+ * The shield speaks the team's color (the same one as the team outline, `outline3d`):
+ *  - an absorbed hit floods the whole body, stronger at the edge (a grazing reflection), scaled to
+ *    the drop; sustained fire keeps it lit;
+ *  - a break is a brief flash, then cells that crackle and go out one by one;
+ *  - a recharge is a bright band that sweeps up the body once, when the recharge begins.
+ * The overshield keeps its own shell (its ink, paled toward white) drawn over the top.
  *
- * Toutes les intensités viennent de `BodyFxState`, fonction de l'image : la coque ne garde rien.
- * Les couleurs viennent des encres du thème (aucune valeur écrite ici).
+ * All intensities come from `BodyFxState`, a function of the frame: the shell keeps no state of
+ * its own. Colors come from the theme's inks (no value is hardcoded here).
  */
 import * as THREE from 'three'
 
@@ -25,20 +25,20 @@ import type { Allegiance } from '@/lib/replay/filmAllegiance'
 import type { EquipFx } from './equip3d'
 import type { ShieldFx } from './shields3d'
 
-/** Ce que la coque montre à une image. */
+/** What the shell shows at one frame. */
 export interface BodyFxState {
   shield: ShieldFx
-  /** Camouflage et surbouclier (`equip3d`). */
+  /** Camo and overshield (`equip3d`). */
   equip: EquipFx
-  /** Le temps du rejeu (s) : le crépitement et le surbouclier bougent avec lui. */
+  /** Replay time (s): the crackle and the overshield move with it. */
   phase: number
-  /** Allié ou adverse vu du joueur de la page (le contour et la coque en prennent la couleur). */
+  /** Ally or enemy as seen by the page's player (the outline and the shell take their color from it). */
   ally: Allegiance
-  /** La couleur du camp (réglages de l'utilisateur), l'encre neutre sans camp. */
+  /** The team's color (user settings), the neutral ink when there is no team. */
   teamColor: THREE.Color
-  /** L'encre du surbouclier (vert pâli de blanc). */
+  /** The overshield's ink (green paled toward white). */
   overshieldColor: THREE.Color
-  /** L'encre du reflet du camouflage. */
+  /** The camo reflection's ink. */
   camoColor: THREE.Color
 }
 
@@ -47,7 +47,7 @@ export interface BodyShell {
   material: THREE.ShaderMaterial
 }
 
-/** La montée de la bande de recharge, des pieds à la tête (s). */
+/** The recharge band's sweep, from feet to head (s). */
 export const RECHARGE_SWEEP_SECONDS = 0.6
 
 const VERTEX = /* glsl */ `
@@ -80,7 +80,7 @@ uniform float uCamo;
 varying vec3 vView;
 varying vec3 vRest;
 
-// La trame : des hexagones de ~6 cm sur le cylindre du corps (angle autour de l'axe, hauteur).
+// The grid: ~6cm hexagons on the body's cylinder (angle around the axis, height).
 const float HEX = 0.022;
 float hexDist(vec2 p) {
   p = abs(p);
@@ -102,29 +102,29 @@ void main() {
   float line = 1.0 - smoothstep(0.0, 0.07, 0.5 - hexDist(gv));
   float cell = hash(floor((uv - gv) * 2.0 + 0.5));
 
-  // Le coup : tout le corps à la couleur du camp, plus fort au bord.
+  // The hit: the whole body in the team's color, stronger at the edge.
   float hit = uHit * (0.3 + 1.6 * rim);
-  // La rupture : un éclair d'un instant, puis des cellules qui crépitent et s'éteignent une à une.
+  // The break: a brief flash, then cells that crackle and go out one by one.
   float flash = max(0.0, 1.0 - uBreakAge / 0.06);
   float crackle = step(cell, uBreak) * (0.4 + 0.6 * line) * (0.5 + 0.5 * sin(uPhase * 90.0 + cell * 40.0));
   float pop = uBreak * (2.5 * flash * (0.6 + rim) + 1.4 * crackle);
-  // La recharge : une bande claire qui remonte le corps.
+  // The recharge: a bright band that sweeps up the body.
   float h = (vRest.y - uSpan.x) / max(1e-4, uSpan.y - uSpan.x);
   float d = (h - (uRechargeAge / ${RECHARGE_SWEEP_SECONDS.toFixed(2)}) * 1.2 + 0.1) / 0.08;
   float charge = uRecharge * exp(-d * d) * (0.5 + 1.2 * rim);
   vec3 col = uTeam * (hit + pop + charge);
-  // Le surbouclier : une coque continue, plus vive au bord, que la trame respire à peine.
+  // The overshield: a continuous shell, brighter at the edge, that the grid barely breathes through.
   float breathe = 0.85 + 0.15 * sin(uPhase * 3.0 + vRest.y * 20.0);
   col += uOvershieldColor * uOvershield * (0.14 + 0.55 * rim) * (0.7 + 0.3 * line) * breathe;
-  // Le camouflage : seul le contour du corps reste, en ondes qui glissent comme un air qui tremble.
+  // The camo: only the body's outline remains, in waves that drift like trembling air.
   float wave = 0.5 + 0.5 * sin(vRest.y * 70.0 + around * 50.0 - uPhase * 5.0);
   col += uCamoColor * uCamo * rim * (0.12 + 0.3 * wave);
   gl_FragColor = vec4(col, 1.0);
 }`
 
 /**
- * makeShell double les maillages à peau de `root` (une copie de Spartan) d'une coque d'énergie.
- * Les maillages de la coque portent `userData.noOutline` : le contour d'équipe ne les trace pas.
+ * makeShell doubles `root`'s skinned meshes (a Spartan copy) with an energy shell.
+ * The shell's meshes carry `userData.noOutline`: the team outline does not trace them.
  */
 export function makeShell(root: THREE.Object3D): BodyShell {
   const material = new THREE.ShaderMaterial({
@@ -174,7 +174,7 @@ export function makeShell(root: THREE.Object3D): BodyShell {
   return { meshes, material }
 }
 
-/** restSpan : la hauteur de repos des pieds à la tête (bas, haut) des maillages `sources`. */
+/** restSpan: the rest height from feet to head (bottom, top) of the `sources` meshes. */
 function restSpan(sources: readonly THREE.SkinnedMesh[]): THREE.Vector2 {
   const box = new THREE.Box3()
   for (const s of sources) {
@@ -184,20 +184,20 @@ function restSpan(sources: readonly THREE.SkinnedMesh[]): THREE.Vector2 {
   return box.isEmpty() ? new THREE.Vector2(0, 1) : new THREE.Vector2(box.min.y, box.max.y)
 }
 
-/** releaseShell retire la coque et libère son matériau (la géométrie est celle de la source). */
+/** releaseShell removes the shell and disposes its material (the geometry belongs to the source). */
 export function releaseShell(shell: BodyShell): void {
   for (const m of shell.meshes) m.removeFromParent()
   shell.material.dispose()
 }
 
-/** shellLit : un effet de la coque est allumé (sinon elle ne se pose pas dans la scène). */
+/** shellLit: one of the shell's effects is on (otherwise it is not placed in the scene). */
 export function shellLit(fx: BodyFxState): boolean {
   const s = fx.shield
   const sweeping = s.recharge > 0 && s.rechargeAge < RECHARGE_SWEEP_SECONDS
   return s.hit > 0 || s.broke > 0 || sweeping || fx.equip.camo > 0 || fx.equip.overshield > 0
 }
 
-/** showShell pose les intensités de l'image `fx` sur la coque, ou l'éteint (null, ou rien d'allumé). */
+/** showShell sets the frame's intensities `fx` on the shell, or turns it off (null, or nothing lit). */
 export function showShell(shell: BodyShell, fx: BodyFxState | null): void {
   const on = fx !== null && shellLit(fx)
   for (const m of shell.meshes) m.visible = on

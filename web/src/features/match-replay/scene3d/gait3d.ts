@@ -1,41 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * gait3d.ts — L'ALLURE D'UN JOUEUR LUE SUR SA PISTE : vitesse au sol, direction du déplacement et
- * distance parcourue depuis le début de sa vie, à une image (fractionnaire).
+ * gait3d.ts — A PLAYER'S GAIT READ FROM THEIR TRACK: ground speed, direction of travel, and
+ * distance traveled since the start of their life, at a (fractional) frame.
  *
- * Tout se tire des points de la vie, sans état : la même image rend la même allure, en avant comme
- * en arrière dans le rejeu. La distance est la longueur du trajet au sol, cumulée point à point
- * (un trou de réplication, `g` > 0, n'en ajoute pas : la position y saute, le joueur n'y marche pas) ;
- * elle fait avancer la phase des clips de locomotion (`motion3d`), qui suit ainsi le sol et non
- * l'horloge. La vitesse
- * se mesure sur une fenêtre (`GAIT_WINDOW`) qui lisse le tremblé des positions publiées.
+ * Everything is derived from the life's points, statelessly: the same frame yields the same
+ * gait, forward or backward through the replay. Distance is the length of the ground path,
+ * accumulated point to point (a replication gap, `g` > 0, adds none: the position jumps there,
+ * the player doesn't walk it); it drives the locomotion clips' phase (`motion3d`), which thus
+ * follows the ground rather than the clock. Speed is measured over a window (`GAIT_WINDOW`) that
+ * smooths the jitter of published positions.
  *
- * Unités du monde Halo (u, X et Y au sol), images du document ; `fps` convertit en secondes.
+ * Halo world units (u, X and Y on the ground), document frames; `fps` converts to seconds.
  */
 
-/** Un point de piste, tel que la vue 3D le tient. */
+/** A track point, as the 3D view holds it. */
 export interface GaitPoint {
   t: number
   x: number
   y: number
-  /** > 0 : trou de réplication AVANT ce point (pas d'interpolation à travers). */
+  /** > 0: replication gap BEFORE this point (no interpolation across it). */
   g: number
 }
 
-/** L'allure d'un joueur à une image. */
+/** A player's gait at one frame. */
 export interface Gait {
-  /** Vitesse au sol (u/s). */
+  /** Ground speed (u/s). */
   speed: number
-  /** Direction du déplacement (degrés, comme le cap : 0 = +X Halo, 90 = +Y). */
+  /** Direction of travel (degrees, like heading: 0 = +X Halo, 90 = +Y). */
   heading: number
-  /** Distance parcourue au sol depuis le début de la vie (u). */
+  /** Ground distance traveled since the start of life (u). */
   distance: number
 }
 
-/** La fenêtre de mesure de la vitesse (s) : deux images à la cadence de 10 images/s des films. */
+/** The speed measurement window (s): two frames at the films' 10 frames/s rate. */
 export const GAIT_WINDOW = 0.2
 
-/** L'intervalle de points qui encadre l'image `f` et la part `u` du chemin de `lo` à `hi`. */
+/** The interval of points bracketing frame `f` and the fraction `u` of the path from `lo` to `hi`. */
 export interface Bracket {
   lo: number
   hi: number
@@ -43,9 +43,8 @@ export interface Bracket {
 }
 
 /**
- * bracketAt : les points qui encadrent l'image `f` (bornée aux extrémités de la vie). Après un trou
- * de réplication, la position tient (`u` = 0) jusqu'au point suivant. Écrit dans `out` quand il est
- * donné.
+ * bracketAt: the points bracketing frame `f` (clamped to the life's ends). After a replication
+ * gap, the position holds (`u` = 0) until the next point. Written into `out` when given.
  */
 export function bracketAt(pts: readonly GaitPoint[], f: number, out?: Bracket): Bracket {
   const br = out ?? { lo: 0, hi: 0, u: 0 }
@@ -68,7 +67,7 @@ export function bracketAt(pts: readonly GaitPoint[], f: number, out?: Bracket): 
   return br
 }
 
-/** lifeDistances : la distance au sol cumulée à chaque point de la vie (u), 0 au premier. */
+/** lifeDistances: the cumulative ground distance at each point of the life (u), 0 at the first. */
 export function lifeDistances(pts: readonly GaitPoint[]): number[] {
   const out = new Array<number>(pts.length)
   let d = 0
@@ -79,20 +78,20 @@ export function lifeDistances(pts: readonly GaitPoint[]): number[] {
   return out
 }
 
-/** lerpAt : la valeur par point `values` à l'intervalle `br`, interpolée. */
+/** lerpAt: the per-point value `values` at interval `br`, interpolated. */
 export function lerpAt(values: ArrayLike<number>, br: Bracket): number {
   return values[br.lo] + (values[br.hi] - values[br.lo]) * br.u
 }
 
-// Les intervalles de `gaitAt`, réécrits à chaque appel.
+// The brackets `gaitAt` uses, rewritten on every call.
 const NOW: Bracket = { lo: 0, hi: 0, u: 0 }
 const THEN: Bracket = { lo: 0, hi: 0, u: 0 }
 
 /**
- * gaitAt : l'allure à l'image `f` d'une vie de points `pts` (distances `dist` de `lifeDistances`),
- * `fps` images par seconde. La vitesse est le déplacement sur la fenêtre, jamais plus que le trajet
- * parcouru dans cette fenêtre : un saut de trou de réplication ne compte pas. Écrite dans `out`
- * quand il est donné (aucune allocation), sinon dans une allure neuve.
+ * gaitAt: the gait at frame `f` of a life of points `pts` (distances `dist` from
+ * `lifeDistances`), `fps` frames per second. Speed is the displacement over the window, never
+ * more than the path traveled within that window: a replication-gap jump doesn't count. Written
+ * into `out` when given (no allocation), otherwise into a fresh gait.
  */
 export function gaitAt(pts: readonly GaitPoint[], dist: readonly number[], f: number, fps: number, out?: Gait): Gait {
   const g = out ?? { speed: 0, heading: 0, distance: 0 }

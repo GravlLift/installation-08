@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -141,9 +142,9 @@ func (w *World) LierParRepliDAnticipation(id uint32) (uint32, bool) {
 		// UN DIAGNOSTIC, PAS UNE LIGNE DE JOURNAL (lot J12.3, ADR 0034 D-4) : il tombe dans les
 		// diagnostics du contexte dont la table est nee, et l orchestrateur le journalise.
 		w.anticipee.diag.Signaler(constat.Diagnostic{Code: DiagAnticipationActive, Niveau: constat.NiveauInfo,
-			Message: "liaison par anticipation : le repli du lot 5.23 est ACTIF sur ce film",
+			Message: "anticipated link: the lot 5.23 fallback is ACTIVE on this film",
 			Attrs: []any{cleDiagSlot, slot, "archetype", ti, "chunk", w.chunkCourant, "declarant", declarant,
-				"cles_de_la_table", w.anticipee.Entrees()}})
+				"table_keys", w.anticipee.Entrees()}})
 	}
 	return ti, true
 }

@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * look3d.ts — LES RÉGLAGES D'ÉCLAIRAGE de la vue 3D, tels que le tiroir les porte.
+ * look3d.ts — the 3D view's LIGHTING SETTINGS, as the drawer carries them.
  *
- * Types seulement : le tiroir et ses préférences les lisent sans tirer three.js dans le paquet
- * de la page.
+ * Types only: the drawer and its preferences read them without pulling three.js into the page's
+ * bundle.
  */
 
 export interface Look3d {
-  /** Ombres portées du soleil : la carte et les joueurs. */
+  /** Sun-cast shadows: the map and the players. */
   shadows: boolean
-  /** Reflets et lumière renvoyée par la carte (sondes d'environnement). */
+  /** Reflections and light bounced off the map (environment probes). */
   reflections: boolean
-  /** Occlusion ambiante à l'écran : l'assombrissement des coins et des recoins. */
+  /** Screen-space ambient occlusion: darkening of corners and crevices. */
   ambientOcclusion: boolean
-  /** La lumière du jeu : sondes d'irradiance cuites et lampes posées de la carte. */
+  /** The game's own light: the map's baked irradiance probes and placed lamps. */
   gameLight: boolean
   /** Bloom: self-lit surfaces (lamps, light strips, energy blades) glow past their edges (`bloom3d`). */
   bloom: boolean

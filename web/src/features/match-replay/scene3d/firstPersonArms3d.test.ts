@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import type { Dress } from './armory3d'
 import { verticalFovOf, viewmodelScale } from '../model/fovLogic'
-import { firstPersonArms3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './firstPersonArms3d'
+import { FirstPersonArms3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './firstPersonArms3d'
 import { LoadGate } from './loadGate3d'
 import type { EvenementsPremierePersonne } from './firstPersonActions3d'
 import type { RigPremierePersonne } from './premierePersonne3d'
@@ -13,7 +13,7 @@ const { fetchMesh } = vi.hoisted(() => ({ fetchMesh: vi.fn(() => new Promise<voi
 vi.mock('./meshFetch', () => ({ fetchMesh }))
 
 describe('estMateriauBras', () => {
-  it('reconnaît la surface brute sans remplacer les matériaux de l’arme', () => {
+  it('recognizes the raw surface without picking up the weapon\'s materials', () => {
     const bras = new THREE.MeshStandardMaterial()
     bras.userData.surfaceBrute = { asg: 0 }
     expect(estMateriauBras(bras)).toBe(true)
@@ -38,12 +38,12 @@ describe('estMateriauBras', () => {
 })
 
 
-describe('contre-échelle du porteur au champ de la caméra', () => {
-  it('garde la projection réglée à 55° et n’échelle pas la profondeur', () => {
-    // Le catalogue de bras est hors de portée en test : on tait l’avertissement de repli.
+describe('counter-scaling the holder to the camera field', () => {
+  it('keeps the projection tuned at 55° and does not scale depth', () => {
+    // The arm catalog is unreachable in tests: silence the fallback warning.
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const scene = new THREE.Scene()
-    const bras = new firstPersonArms3d(scene, '/premiere-personne')
+    const bras = new FirstPersonArms3d(scene, '/premiere-personne')
     const porteur = scene.children[0]
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     bras.placer(camera)
@@ -63,19 +63,19 @@ describe('contre-échelle du porteur au champ de la caméra', () => {
 })
 
 describe('racinesChargees', () => {
-  it('rend les racines des rigs chargés, vide sans rig chargé', () => {
-    // Le catalogue de bras est hors de portée en test : on tait l'avertissement de repli.
+  it('returns the roots of loaded rigs, empty with no rig loaded', () => {
+    // The arm catalog is unreachable in tests: silence the fallback warning.
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const scene = new THREE.Scene()
-    const bras = new firstPersonArms3d(scene, '/premiere-personne')
+    const bras = new FirstPersonArms3d(scene, '/premiere-personne')
     expect(bras.racinesChargees()).toEqual([])
     bras.dispose()
     silence.mockRestore()
   })
 
-  it('prépare tous les rigs chargés et attend les pièces de chacun avant de peindre', () => {
+  it('prepares every loaded rig and waits for each one\'s pieces before painting', () => {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const bras = new firstPersonArms3d(new THREE.Scene(), '/premiere-personne')
+    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne')
     const interne = bras as unknown as {
       entrees: Map<string, { root: THREE.Object3D } | null>
       habillage: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f: string) => boolean }
@@ -97,16 +97,16 @@ describe('racinesChargees', () => {
   })
 })
 
-describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèle statique en attente de peinture", () => {
-  /** Une image nulle : `montrer` ne lit que la caméra et le rig. */
+describe("montrer: the rig shows exactly as it is, never falling back to the static model while painting is pending", () => {
+  /** A null frame: `montrer` only reads the camera and the rig. */
   const evenements = {
     rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
     slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
     rechargementValide: () => false,
   } as unknown as EvenementsPremierePersonne
 
-  /** Le rig chargé : une racine avec un matériau de bras et un clip idle jouable. */
-  function rigCharge(fichier: string, bras: firstPersonArms3d): THREE.Group {
+  /** The loaded rig: a root with an arm material and a playable idle clip. */
+  function rigCharge(fichier: string, bras: FirstPersonArms3d): THREE.Group {
     const materiau = new THREE.MeshStandardMaterial()
     materiau.userData.surfaceBrute = {}
     const racine = new THREE.Group()
@@ -132,15 +132,15 @@ describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèl
     return racine
   }
 
-  function brasDeScene(): { bras: firstPersonArms3d; interne: { habillage: { enCours: (f?: string) => boolean }; peinture: { enCours: (f?: string) => boolean }; xuid: string | null; armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null } } {
+  function brasDeScene(): { bras: FirstPersonArms3d; interne: { habillage: { enCours: (f?: string) => boolean }; peinture: { enCours: (f?: string) => boolean }; xuid: string | null; armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null } } {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const bras = new firstPersonArms3d(new THREE.Scene(), '/premiere-personne')
+    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne')
     const interne = bras as unknown as ReturnType<typeof brasDeScene>['interne']
     ;(bras as unknown as { dispose: () => void }).dispose = () => { silence.mockRestore() }
     return { bras, interne }
   }
 
-  it('montre le rig (vrai) pendant que la peinture est en cours, avec le revêtement posé', () => {
+  it('shows the rig (true) while painting is in progress, with the coating applied', () => {
     const { bras, interne } = brasDeScene()
     const racine = rigCharge('a.glb', bras)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
@@ -149,7 +149,7 @@ describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèl
     expect(racine.visible).toBe(true)
   })
 
-  it('montre le rig (vrai) pendant que les pièces sont en cours, avec les bras embarqués', () => {
+  it('shows the rig (true) while pieces are in progress, with the default embedded arms', () => {
     const { bras, interne } = brasDeScene()
     const racine = rigCharge('a.glb', bras)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
@@ -158,7 +158,7 @@ describe("montrer : le rig se montre tel qu'il est, jamais replié sur le modèl
     expect(racine.visible).toBe(true)
   })
 
-  it('montre le rig (vrai) sans armure chargée, sans attendre l’armurerie', () => {
+  it('shows the rig (true) with no armor loaded, without waiting on the armory', () => {
     const { bras, interne } = brasDeScene()
     rigCharge('a.glb', bras)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
@@ -175,17 +175,17 @@ describe('gate: first-person rig loading', () => {
     rechargementValide: () => false,
   } as unknown as EvenementsPremierePersonne
 
-  function brasArme(gate: LoadGate): { bras: firstPersonArms3d; interne: { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexPrêt: boolean } } {
-    const bras = new firstPersonArms3d(new THREE.Scene(), '/premiere-personne', gate)
+  function brasArme(gate: LoadGate): { bras: FirstPersonArms3d; interne: { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexReady: boolean } } {
+    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne', gate)
     const clip = {
       name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
       frameCount: 60, frameRate: 30, durationSeconds: 2,
     }
     const rig = { file: 'a.glb', bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as RigPremierePersonne
-    const interne = bras as unknown as { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexPrêt: boolean }
+    const interne = bras as unknown as { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexReady: boolean }
     interne.armes.set('arme', rig)
     interne.fichiersArmes.set('a.glb', 'arme')
-    interne.indexPrêt = true
+    interne.indexReady = true
     return { bras, interne }
   }
 
@@ -220,8 +220,8 @@ describe('gate: first-person rig loading', () => {
   })
 })
 
-describe('peinture des bras', () => {
-  it('garde le repli sans habit, style ou masques et écarte les armes', () => {
+describe('arm painting', () => {
+  it('keeps the fallback with no outfit, style, or masks, and excludes weapons', () => {
     const bras = new THREE.MeshStandardMaterial()
     const habit = {} as Dress
     bras.userData.surfaceBrute = {}
@@ -235,7 +235,7 @@ describe('peinture des bras', () => {
     expect(peindreMateriauBras(bras, habit)).toBe(false)
   })
 
-  it('identifie le cache par fichier et identité de l’habit', () => {
+  it('identifies the cache by file and outfit identity', () => {
     const habit = {} as Dress
     expect(memePeinture('a', 'a', habit, habit)).toBe(true)
     expect(memePeinture('a', 'b', habit, habit)).toBe(false)

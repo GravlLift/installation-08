@@ -2,29 +2,29 @@
 import { expect, it, vi } from 'vitest'
 import type { SpartanArmory, Dress } from './armory3d'
 import type { Coat } from './armorCoat3d'
-import { rigPreparation3d } from './rigPreparation3d'
+import { RigPreparation3d } from './rigPreparation3d'
 
-it('abandonne un ancien revêtement même si le joueur garde son xuid', async () => {
-  let resoudre!: (coat: Coat | null) => void
-  const ancien = new Promise<Coat | null>((resolve) => { resoudre = resolve })
-  const peindreBras = vi.fn().mockReturnValueOnce(ancien).mockResolvedValue(null)
-  const armurerie = { regions: () => null, dress: () => ({} as Dress), peindreBras } as unknown as SpartanArmory
-  const preparation = new rigPreparation3d({
+it('abandons an old coat even when the player keeps the same xuid', async () => {
+  let resolveCoat!: (coat: Coat | null) => void
+  const previous = new Promise<Coat | null>((resolve) => { resolveCoat = resolve })
+  const peindreBras = vi.fn().mockReturnValueOnce(previous).mockResolvedValue(null)
+  const armory = { regions: () => null, dress: () => ({} as Dress), peindreBras } as unknown as SpartanArmory
+  const preparation = new RigPreparation3d({
     fichiersCharges: () => ['a'], materiauxDe: () => [], indexPieces: async () => null,
-    piece: async () => null, armurerie: () => armurerie, xuid: () => '1',
+    piece: async () => null, armurerie: () => armory, xuid: () => '1',
     cleArmeDe: () => 'cle-a',
   })
   preparation.changerJoueur()
   await Promise.resolve()
   preparation.changerJoueur()
-  resoudre(new Map())
+  resolveCoat(new Map())
   await new Promise<void>((resolve) => setTimeout(resolve, 0))
   expect(preparation.coat('a')).toBeNull()
   expect(peindreBras).toHaveBeenCalledTimes(2)
 })
 
-it('abandonner retient un revêtement préparé qui ne couvre plus les matériaux du rig', () => {
-  const preparation = new rigPreparation3d({
+it('abandonner keeps a prepared coat that no longer covers the rig\'s materials', () => {
+  const preparation = new RigPreparation3d({
     fichiersCharges: () => ['a'], materiauxDe: () => [], indexPieces: async () => null,
     piece: async () => null, armurerie: () => null, xuid: () => '1',
     cleArmeDe: () => 'cle-a',

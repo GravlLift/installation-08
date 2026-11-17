@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 
-/** La poignée est relevée jusqu'à ce que le modèle couché touche le sol. */
+/** The grip is raised until the model, lying on its side, touches the ground. */
 export function groundWeaponPose(model: THREE.Object3D, yaw: number): { rotation: THREE.Quaternion; lift: number } {
   const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)
     .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2))
@@ -9,9 +9,9 @@ export function groundWeaponPose(model: THREE.Object3D, yaw: number): { rotation
 }
 
 /**
- * standingWeaponPose — un modèle debout dans ses propres axes (haut du modèle vers le haut du
- * monde), relevé jusqu'à ce que son point le plus bas touche le sol : le drapeau planté sur sa
- * base ou là où il est tombé.
+ * standingWeaponPose — a model standing upright in its own axes (the model's top toward the
+ * world's up), raised until its lowest point touches the ground: a flag planted on its base or
+ * wherever it fell.
  */
 export function standingWeaponPose(model: THREE.Object3D): { rotation: THREE.Quaternion; lift: number } {
   const rotation = new THREE.Quaternion()
@@ -81,7 +81,7 @@ export function centerOffset(model: THREE.Object3D): THREE.Vector3 {
   return bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3()).negate()
 }
 
-/** liftToFloor : de combien l'origine du modèle tourné de `rotation` se lève pour que son dessous soit au sol. */
+/** liftToFloor: how much the origin of the model, rotated by `rotation`, must rise so its underside sits on the ground. */
 function liftToFloor(model: THREE.Object3D, rotation: THREE.Quaternion): number {
   const copy = model.clone()
   copy.position.set(0, 0, 0)

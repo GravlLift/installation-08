@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { creerCiel, lireCiel, intensiteSoleil } from './ciel3d'
 
 describe('lireCiel', () => {
-  it('ramène la lumière déclarée au soleil de plein jour, avec repli pour anciens fichiers', () => {
+  it('brings the declared light back to a full-daylight sun, with a fallback for old files', () => {
     expect(intensiteSoleil({ levelupSun: { intensity: 9 } })).toBe(1)
     // Origin (Forge, fo08_wetland): sun 2, full daylight in game.
     expect(intensiteSoleil({ levelupSun: { intensity: 2 } })).toBe(1)
@@ -14,31 +14,31 @@ describe('lireCiel', () => {
     expect(intensiteSoleil({ ciel: { sunIntensity: 0 } })).toBe(0)
     expect(intensiteSoleil({})).toBe(1)
   })
-  it('garde le repli pour les anciens GLB et valide la texture', () => {
+  it('keeps the fallback for old GLBs and validates the texture', () => {
     expect(lireCiel({})).toBeNull()
     expect(lireCiel({ ciel: {} })).toEqual({ texture: null, color: null })
     expect(lireCiel({ ciel: { cloudTexture: 3 }, levelupSun: { color: [1, 0.9, 0.8] } })).toEqual({ texture: 3, color: [1, 0.9, 0.8] })
     expect(lireCiel({ ciel: { cloudTexture: -1 }, levelupSun: { color: [1, 'x', 0] } })).toEqual({ texture: null, color: null })
   })
-  it('place le soleil en axes three et garde le ciel hors profondeur et brouillard', () => {
+  it('places the sun on three.js axes and keeps the sky out of depth and fog', () => {
     const texture = new THREE.Texture()
-    const ciel = creerCiel({ azimuth: 90, elevation: 30 }, texture, [1, 0.9, 0.8], 1)
-    expect(ciel.material.uniforms.sunPosition.value.toArray()).toEqual(expect.arrayContaining([expect.any(Number)]))
-    expect(ciel.material.uniforms.sunPosition.value.y).toBeCloseTo(225000)
-    expect(ciel.material.uniforms.sunPosition.value.z).toBeLessThan(0)
-    expect(ciel.material.uniforms.sunColor.value.toArray()).toEqual([1, 0.9, 0.8])
-    expect(ciel.material.depthTest).toBe(false)
-    expect(ciel.material.depthWrite).toBe(false)
-    expect(ciel.material.fog).toBe(false)
-    expect(ciel.material.uniforms.cloudMask.value).toBe(texture)
-    ciel.geometry.dispose()
-    ciel.material.dispose()
+    const sky = creerCiel({ azimuth: 90, elevation: 30 }, texture, [1, 0.9, 0.8], 1)
+    expect(sky.material.uniforms.sunPosition.value.toArray()).toEqual(expect.arrayContaining([expect.any(Number)]))
+    expect(sky.material.uniforms.sunPosition.value.y).toBeCloseTo(225000)
+    expect(sky.material.uniforms.sunPosition.value.z).toBeLessThan(0)
+    expect(sky.material.uniforms.sunColor.value.toArray()).toEqual([1, 0.9, 0.8])
+    expect(sky.material.depthTest).toBe(false)
+    expect(sky.material.depthWrite).toBe(false)
+    expect(sky.material.fog).toBe(false)
+    expect(sky.material.uniforms.cloudMask.value).toBe(texture)
+    sky.geometry.dispose()
+    sky.material.dispose()
     texture.dispose()
   })
-  it('assombrit ciel et nuages selon la lumière directe de la carte', () => {
-    const nuit = creerCiel({ azimuth: 0, elevation: 10 }, new THREE.Texture(), null, 0.05 / 8)
-    expect(nuit.material.uniforms.jour.value).toBeCloseTo(0.05 / 8)
-    expect(nuit.material.fragmentShader.match(/retColor, jour\), 1\.0 \);/g)).toHaveLength(1)
-    expect(creerCiel({ azimuth: 0, elevation: 10 }, null, null, 4).material.uniforms.jour.value).toBe(1)
+  it('darkens the sky and clouds according to the map\'s direct light', () => {
+    const night = creerCiel({ azimuth: 0, elevation: 10 }, new THREE.Texture(), null, 0.05 / 8)
+    expect(night.material.uniforms.daylight.value).toBeCloseTo(0.05 / 8)
+    expect(night.material.fragmentShader.match(/retColor, daylight\), 1\.0 \);/g)).toHaveLength(1)
+    expect(creerCiel({ azimuth: 0, elevation: 10 }, null, null, 4).material.uniforms.daylight.value).toBe(1)
   })
 })

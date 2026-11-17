@@ -1,43 +1,43 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * firstPersonRecoil3d.ts — LE RECUL DU RIG DE 1RE PERSONNE (bras et arme animés ensemble).
+ * firstPersonRecoil3d.ts — THE FIRST-PERSON RIG'S RECOIL (arms and weapon animated together).
  *
- * L'écart de l'image (`recoil3d`) se pose sur la racine du rig (la scène glTF, enfant du support de
- * `firstPersonArms3d`), après les clips, d'un seul mouvement rigide : les mains restent sur
- * l'arme. Le repère de cette racine est celui du rig, que le support tourne de `ROTATION_RIG_CAMERA`
- * sous la caméra : +X l'avant de la visée (le canon au repos), +Y le haut, +Z la droite. C'est le
- * repère du modèle d'arme de `recoil3d` : la rotation de l'écart (`recoilRotation`) s'y lit telle
- * quelle, le tangage lève la bouche autour de la droite de la vue, le recul tire vers l'arrière (-X).
+ * The frame's offset (`recoil3d`) is applied to the rig's root (the glTF scene, a child of
+ * `FirstPersonArms3d`'s support), after the clips, as a single rigid motion: the hands stay
+ * on the weapon. This root's frame is the rig's own, which the support rotates by
+ * `ROTATION_RIG_CAMERA` under the camera: +X the aim's forward (the barrel at rest), +Y up, +Z
+ * right. This is `recoil3d`'s own weapon-model frame: the offset's rotation (`recoilRotation`)
+ * reads there as is, pitch raises the muzzle around the view's right, recoil pulls backward (-X).
  *
- * Le pivot est près de la poignée (la racine de l'arme à l'idle), pas l'œil : autour de l'œil, la
- * levée ferait balayer l'arme à travers l'écran. La racine est recomposée depuis son repos (l'identité
- * de la scène glTF) à chaque image : rien ne s'accumule, une même image donne la même pose.
+ * The pivot sits near the grip (the weapon's root at idle), not the eye: pivoting around the eye
+ * would sweep the weapon across the screen. The root is recomposed from rest (the glTF scene's
+ * identity) every frame: nothing accumulates, the same frame gives the same pose.
  */
 import * as THREE from 'three'
 
 import { newRecoil, recoilActive, type Recoil } from './recoil3d'
 import { recoilRotation } from './recoilPose3d'
 
-/** Le gain du recul en 1re personne, sur `back` et `pitch` : la caméra y est tout près de l'arme. */
+/** The first-person recoil gain, on `back` and `pitch`: the camera sits right up against the weapon there. */
 export const FP_RECOIL_GAIN = 1.5
 
-// Bacs à sable partagés : la pose tourne à chaque image rendue, sans allocation.
+// Shared scratch values: the pose is rebuilt every rendered frame, with no allocation.
 const BAC_RECUL = newRecoil()
 const BAC_TOUR = new THREE.Quaternion()
 const BAC_PIVOT = new THREE.Vector3()
 
 /**
- * pivotDuRecul : le pivot du recul dans le repère du rig, la racine de l'arme à l'idle
- * (`idleWeapon.position`) ; null sans pose d'arme dans l'index.
+ * pivotDuRecul: the recoil's pivot in the rig's frame, the weapon's root at idle
+ * (`idleWeapon.position`); null with no weapon pose in the index.
  */
 export function pivotDuRecul(idleWeapon: { position: readonly [number, number, number] } | undefined): THREE.Vector3 | null {
   return idleWeapon ? new THREE.Vector3(idleWeapon.position[0], idleWeapon.position[1], idleWeapon.position[2]) : null
 }
 
 /**
- * poserReculRig recompose la racine du rig `racine` depuis son repos : l'écart `recul` (null ou nul :
- * le repos), `back` et `pitch` multipliés par `FP_RECOIL_GAIN`, tourné autour de `pivot` (repère du
- * rig) puis reculé le long de l'avant : x' = R (x - p) + p - back X.
+ * poserReculRig recomposes rig root `racine` from rest: offset `recul` (null or zero: rest),
+ * `back` and `pitch` multiplied by `FP_RECOIL_GAIN`, rotated around `pivot` (rig frame) then
+ * pulled back along forward: x' = R (x - p) + p - back X.
  */
 export function poserReculRig(racine: THREE.Object3D, recul: Recoil | null, pivot: THREE.Vector3): void {
   racine.position.set(0, 0, 0)

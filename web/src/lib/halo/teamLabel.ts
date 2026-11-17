@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * teamLabel.ts — LE LIBELLÉ D'UNE ÉQUIPE, et il n'y en a qu'un.
+ * teamLabel.ts — A TEAM'S LABEL, and there is only one of it.
  *
- * La cascade vivait en deux copies (`MatchScoreboard.tsx`, `MatchObjectivesSection.tsx`) ;
- * les fiches du rejeu 2D en auraient été la troisième (2026-08-16) — règle CLAUDE.md n°6 :
- * centraliser ET poser un garde-rail (`teamLabel.guard.test.ts` : `labelHasTeamWord(` ne
- * s'appelle plus hors de `lib/halo/`).
+ * The cascade lived in two copies (`MatchScoreboard.tsx`, `MatchObjectivesSection.tsx`);
+ * the 2D replay cards would have been the third (2026-08-16) — CLAUDE.md rule #6:
+ * centralize AND add a guard rail (`teamLabel.guard.test.ts`: `labelHasTeamWord(` may no longer
+ * be called outside `lib/halo/`).
  *
- * L'ORDRE DE LA CASCADE, inchangé :
- *   1. libellé fourni par le backend (`team_name` — Halo 5 : « Rouge/Bleu » déjà localisé
- *      côté serveur depuis team_colors) ;
- *   2. sinon nom officiel résolu côté front par `team_side` (Halo Infinite : Eagle / Cobra…) ;
- *   3. un libellé qui contient DÉJÀ le mot « équipe/team » n'est PAS re-préfixé (sinon
- *      « Équipe Équipe Cobra ») ; un nom nu reçoit le préfixe localisé ;
- *   4. sinon « Équipe N » si l'id d'équipe est connu mais hors référentiel ;
- *   5. sinon le DERNIER RECOURS de l'appelant : « Équipe inconnue » pour `resolveTeamLabel`
- *      (Vue match), « Équipe N » de l'identifiant que l'appelant CONNAÎT pour
- *      `resolveKnownTeamLabel` (rejeu : l'équipe y vient du film, elle a toujours un numéro).
- * Décision sur la DONNÉE, jamais sur le slug de titre.
+ * THE CASCADE'S ORDER, unchanged:
+ *   1. the label supplied by the backend (`team_name` — Halo 5: "Red/Blue" already localized
+ *      server-side from team_colors);
+ *   2. otherwise the official name resolved on the frontend from `team_side` (Halo Infinite: Eagle / Cobra…);
+ *   3. a label that ALREADY contains the word "équipe/team" is NOT re-prefixed (otherwise
+ *      "Équipe Équipe Cobra"); a bare name receives the localized prefix;
+ *   4. otherwise "Équipe N" if the team id is known but outside the reference list;
+ *   5. otherwise the caller's LAST RESORT: "Unknown team" for `resolveTeamLabel`
+ *      (Match View), "Équipe N" of the identifier the caller KNOWS for
+ *      `resolveKnownTeamLabel` (replay: the team there comes from the film, it always has a number).
+ * A decision based on the DATA, never on the title slug.
  */
 import type { MatchScoreboardRow } from '@/lib/api/types'
 
 import { labelHasTeamWord, parseTeamSideID, resolveTeamName } from './teamNames'
 
 /**
- * Les deux textes localisés qui NOMMENT une équipe. Le dictionnaire du rejeu les porte et rien
- * de plus : sur sa page, une équipe vient du film et n'est jamais « inconnue » (ADR 0034 D-9).
+ * The two localized texts that NAME a team. The replay dictionary carries them and nothing
+ * more: on its page, a team comes from the film and is never "unknown" (ADR 0034 D-9).
  */
 export interface TeamNamingText {
   teamLabelFmt: (name: string) => string
@@ -33,19 +33,19 @@ export interface TeamNamingText {
 }
 
 /**
- * Les trois textes de la cascade de la Vue match : les deux qui nomment, plus son dernier
- * recours. `MatchViewText` les porte ; ce type structurel évite un couplage entre features.
+ * The Match View cascade's three texts: the two that name, plus its last
+ * resort. `MatchViewText` carries them; this structural type avoids coupling between features.
  */
 export interface TeamLabelText extends TeamNamingText {
   teamUnknown: string
 }
 
-/** Lignes de scoreboard à considérer pour le libellé backend : celles de l'équipe visée. */
+/** Scoreboard rows to consider for the backend label: those of the targeted team. */
 type RowsLike = ReadonlyArray<Pick<MatchScoreboardRow, 'team_name'>>
 
 /**
- * nameFromSheet — les étapes 1 à 4 de la cascade, `null` quand aucune ne nomme l'équipe. Les
- * deux variantes exportées ne diffèrent que par leur dernier recours.
+ * nameFromSheet — steps 1 through 4 of the cascade, `null` when none of them names the team. The
+ * two exported variants only differ in their last resort.
  */
 function nameFromSheet(
   rows: RowsLike,
@@ -62,10 +62,10 @@ function nameFromSheet(
 }
 
 /**
- * resolveTeamLabel rend le libellé d'affichage d'une équipe.
+ * resolveTeamLabel returns a team's display label.
  *
- * `rows` = les lignes de scoreboard DE CETTE ÉQUIPE (le premier `team_name` non vide gagne) ;
- * `teamSide` = le côté au format `t{N}` du backend, `null` si inconnu.
+ * `rows` = the scoreboard rows FOR THIS TEAM (the first non-empty `team_name` wins);
+ * `teamSide` = the backend's `t{N}`-format side, `null` if unknown.
  */
 export function resolveTeamLabel(
   rows: RowsLike,
@@ -76,10 +76,10 @@ export function resolveTeamLabel(
 }
 
 /**
- * resolveKnownTeamLabel — le libellé d'une équipe dont l'IDENTIFIANT est connu de l'appelant :
- * la même cascade, et pour dernier recours « Équipe N » de cet identifiant au lieu
- * d'« Équipe inconnue ». Le rejeu l'emploie partout : l'équipe y est le désignateur du film, et
- * un camp sans ligne de feuille garde un nom (« Équipe 1 ») plutôt qu'un aveu d'ignorance.
+ * resolveKnownTeamLabel — the label of a team whose IDENTIFIER the caller knows:
+ * the same cascade, and as a last resort "Équipe N" of that identifier instead
+ * of "Unknown team". The replay uses it everywhere: the team there is the film's designator, and
+ * a side without a scoreboard row keeps a name ("Équipe 1") rather than an admission of ignorance.
  */
 export function resolveKnownTeamLabel(
   rows: RowsLike,

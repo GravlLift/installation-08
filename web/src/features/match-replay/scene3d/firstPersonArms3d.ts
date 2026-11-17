@@ -38,14 +38,14 @@ type StMuzzle = {
 }
 type Entree = { materiaux: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: RigPremierePersonne; actions: Map<string, THREE.AnimationAction>; listeActions: THREE.AnimationAction[]; clip: ClipPremierePersonne; muzzle?: StMuzzle; pivot: THREE.Vector3 | null; mainGauche: THREE.Object3D | null } | null
 
-// Le champ vertical (degrés) auquel les tenues et la bouche du rig ont été réglées : le
-// porteur se contre-échelle à ce champ (viewmodelScale) pour en garder la projection.
+// The vertical field (degrees) the grips and the rig's muzzle were tuned at: the holder
+// counter-scales to this field (viewmodelScale) to keep its projection.
 const VIEWMODEL_FOV = 55
 const AXE_AVANT = new THREE.Vector3(0, 0, -1)
-// Bacs à sable partagés : `placer` tourne à chaque image rendue, pas d'allocation par frame.
+// Shared scratch values: `placer` runs every rendered frame, no per-frame allocation.
 const BAC_DEPLACEMENT = new THREE.Vector3()
 const BAC_ROULIS = new THREE.Quaternion()
-// Bacs de `boucheVue` et `mesurerBouche` : aucun tir ni image n'alloue.
+// Scratch values for `boucheVue` and `mesurerBouche`: no shot or frame allocates.
 const BAC_BOCHE_VUE = new THREE.Vector3()
 const BAC_ORIGINE = new THREE.Vector3()
 const BAC_IDENTITE = new THREE.Quaternion()
@@ -54,12 +54,11 @@ const BAC_MARQUEUR = new THREE.Matrix4()
 const MARKER_QUAT = new THREE.Quaternion()
 
 /**
- * appliquerTenueRig : pose la tenue réglée du rig (viewGrip3d) sur la position et l'orientation
- * du support rig (repère de la caméra, avant la rotation du rig) : x à droite (+X), y en haut
- * (+Y), z loin de l'œil (-Z) ; le décalage est tourné par le quaternion de la caméra (donné ici,
- * avant le roulis) pour rester collé à la visée quelle que soit l'orientation ; `roll` tourne
- * autour de l'axe de la visée (une multiplication à droite de la rotation du support). Une tenue
- * nulle ne change rien.
+ * appliquerTenueRig: applies the rig's tuned grip (viewGrip3d) to the rig support's position and
+ * orientation (camera frame, before the rig's rotation): x to the right (+X), y up (+Y), z away
+ * from the eye (-Z); the offset is rotated by the camera's quaternion (given here, before roll)
+ * to stay glued to the aim regardless of orientation; `roll` rotates around the aim axis (a
+ * right multiplication of the support's rotation). A null grip changes nothing.
  */
 export function appliquerTenueRig(position: THREE.Vector3, quaternion: THREE.Quaternion, tenue: ViewGrip): void {
   if (tenue.x || tenue.y || tenue.z) {
@@ -93,16 +92,15 @@ export function memePeinture(fichier: string, precedent: string | null, habit: D
 }
 
 /**
- * firstPersonArms3d : les rigs d'arme à la première personne — chargement, pose et placement
- * du rig visible, mesure de la bouche du canon. L'habillage des bras du joueur suivi
- * (`rigDressing3d`) et leur peinture (`rigPaint3d`) sont des modules séparés, coordonnés ici :
- * un rig ne se montre que l'habillage et la peinture posés ; à l'arrivée des pièces, la peinture
- * se refait sur elles.
+ * FirstPersonArms3d: the first-person weapon rigs — loading, pose, and placement of the
+ * visible rig, measuring the weapon muzzle. The followed player's arm dressing (`RigDressing3d`)
+ * and their painting (`RigPaint3d`) are separate modules, coordinated here: a rig only shows
+ * once the dressing and painting are applied; once pieces arrive, painting is redone on them.
  */
-export class firstPersonArms3d {
-  /** Le porteur porte la caméra (position, orientation et contre-échelle au champ). */
+export class FirstPersonArms3d {
+  /** The holder carries the camera (position, orientation, and counter-scale to the field). */
   private readonly porteur = new THREE.Group()
-  /** Le support rig : porte la tenue réglée et la rotation du rig, au-dessus de la contre-échelle. */
+  /** The rig support: carries the tuned grip and the rig's rotation, on top of the counter-scale. */
   private readonly support = new THREE.Group()
   private readonly dossier: string
   private readonly gate?: LoadGate
@@ -111,7 +109,7 @@ export class firstPersonArms3d {
   private readonly chargements = new Map<string, { p: Promise<void>; gate: boolean }>()
   private readonly abort = new AbortController()
   private readonly armes = new Map<string, RigPremierePersonne>()
-  /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
+  /** The weapon model key, by rig file (the weapon paints from its coating, `cleArmeDe`). */
   private readonly fichiersArmes = new Map<string, string>()
   /** The idle-effect markers of each weapon's rig (the index's `effectMarkers`), by weapon key. */
   private readonly marqueursEffets = new Map<string, readonly MarqueurEffetRig[]>()
@@ -124,19 +122,19 @@ export class firstPersonArms3d {
   anchorMiss: string | null = null
   private armurerie: SpartanArmory | null = null
   private xuid: string | null = null
-  private readonly preparation: rigPreparation3d
-  private readonly peinture: rigPaint3d
-  /** La lumière cuite de la carte, greffée sur les copies peintes de l'armure. */
+  private readonly preparation: RigPreparation3d
+  private readonly peinture: RigPaint3d
+  /** The map's baked light, grafted onto the armor's painted copies. */
   private readonly baked?: BakedLight | null
-  /** La sonde d'environnement la plus proche d'un point (reflets éteints : null). */
+  /** The closest environment probe to a point (null: reflections off). */
   private readonly probeAt?: (position: THREE.Vector3) => THREE.Texture | null
-  private readonly habillage: rigDressing3d
+  private readonly habillage: RigDressing3d
   private readonly clesPrechargees = new Set<string>()
   /** The deferred preload is armed: set once the load gate is idle (the loading screen is gone). */
   private prechargeArme = false
   private readonly indexPieces: Promise<BrasIndex | null>
-  private readonly chargeurPieces: armPieces3d
-  private indexPrêt = false
+  private readonly chargeurPieces: ArmPieces3d
+  private indexReady = false
   private readonly pose = nouvellePosePremierePersonne()
   /** The followed player's active camo on the visible rig (`camouflageRig3d`). */
   private readonly camouflage = new CamouflageRig3d()
@@ -155,8 +153,8 @@ export class firstPersonArms3d {
       try {
         const r = await api.getResponse(`${dossier}/bras.json`, { signal: this.abort.signal })
         return (await r.json()) as BrasIndex
-      } catch (erreur: unknown) {
-        if (!this.abort.signal.aborted) console.warn('rejeu 3D : catalogue des bras indisponible', erreur)
+      } catch (error: unknown) {
+        if (!this.abort.signal.aborted) console.warn('3D replay: arm catalog unavailable', error)
         return null
       }
     })()
@@ -205,10 +203,10 @@ export class firstPersonArms3d {
           if (arme.effectMarkers?.length) this.marqueursEffets.set(arme.weapon.toLowerCase(), arme.effectMarkers)
         }
       }
-    } catch (erreur) {
-      if (!this.abort.signal.aborted) console.warn('rejeu 3D : index première personne indisponible', erreur)
+    } catch (error) {
+      if (!this.abort.signal.aborted) console.warn('3D replay: first-person index unavailable', error)
     }
-    this.indexPrêt = true
+    this.indexReady = true
     this.lancerPrecharge()
   }
 
@@ -230,7 +228,7 @@ export class firstPersonArms3d {
 
   /** lancerPrecharge: start the recorded rig loads once armed and the index is ready, once. */
   private lancerPrecharge(): void {
-    if (!this.prechargeArme || !this.indexPrêt) return
+    if (!this.prechargeArme || !this.indexReady) return
     for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
     this.clesPrechargees.clear()
   }
@@ -254,13 +252,14 @@ export class firstPersonArms3d {
   }
 
   /**
-   * montrer pose le rig de l'arme `cleArme` à l'image (`evenements`) sous la caméra, puis le recul
-   * de l'image `recul` (`firstPersonRecoil3d`) autour de la poignée, ou de la bouche mesurée
-   * quand l'index ne donne pas la pose de l'arme. Faux sans rig chargé — et seulement sans rig
-   * chargé : l'habillage des pièces et la peinture en cours se posent sur le rig À SON ARRIVÉE
-   * (le revêtement retarde n'efface jamais le précédent), le rig se montre donc tel qu'il est à
-   * l'instant — jamais replié sur le modèle statique tant que le fichier est chargé. `camo` : la
-   * force du camouflage actif du joueur (0 visible, 1 entier), qui efface aussi ses bras et son arme.
+   * montrer poses the rig for weapon `cleArme` at the frame (`evenements`) under the camera, then
+   * this frame's recoil `recul` (`firstPersonRecoil3d`) around the grip, or the measured
+   * muzzle when the index gives no weapon pose. False without a loaded rig — and only without a
+   * loaded rig: dressing of the pieces and ongoing painting apply to the rig AS IT ARRIVES (a
+   * delayed coating never erases the previous one), so the rig shows exactly as it is at this
+   * instant — never falling back to the static model while the file is loading. `camo`: the
+   * strength of the player's active camouflage (0 visible, 1 full), which also hides their arms
+   * and weapon.
    */
   montrer(camera: THREE.PerspectiveCamera, cleArme: string | null, evenements: EvenementsPremierePersonne, recul: Recoil | null, camo = 0): boolean {
     this.cacher()
@@ -295,11 +294,11 @@ export class firstPersonArms3d {
   }
 
   /**
-   * placer pose le rig sous la caméra : le porteur copie la caméra et s'y contre-échelle
-   * (`viewmodelScale`) dans le plan de la caméra, le support porte la tenue réglée au-dessus.
-   * L'arme garde donc sa taille projetée réglée à `VIEWMODEL_FOV` pour tout champ de la caméra ;
-   * la profondeur (z du porteur) n'est pas échelonnée : la distance à l'œil suit le champ, c'est
-   * voulu. Les décalages de tenue, appliqués dans le repère échelonné, gardent leur projection.
+   * placer poses the rig under the camera: the holder copies the camera and counter-scales to it
+   * (`viewmodelScale`) in the camera's plane, the support carries the tuned grip on top of that.
+   * The weapon thus keeps its projected size tuned at `VIEWMODEL_FOV` for any camera field; depth
+   * (the holder's z) is not scaled: the distance to the eye follows the field, which is intended.
+   * Grip offsets, applied in the scaled frame, keep their projection.
    */
   placer(camera: THREE.PerspectiveCamera): void {
     camera.updateWorldMatrix(true, false)
@@ -311,7 +310,7 @@ export class firstPersonArms3d {
     this.support.quaternion.identity()
     appliquerTenueRig(this.support.position, this.support.quaternion, rigGripOf(this.cleVisible))
     this.support.quaternion.multiply(ROTATION_RIG_CAMERA)
-    // L'armure des bras prend l'environnement de la carte là où se tient le joueur (sonde nulle : reflets éteints).
+    // The arm armor picks up the map's environment where the player stands (null probe: reflections off).
     if (this.probeAt) {
       const sonde = this.probeAt(this.porteur.position)
       for (const m of this.peinture.materiauxPeints()) assignPlayerProbe(m, sonde)
@@ -319,26 +318,26 @@ export class firstPersonArms3d {
   }
 
   /**
-   * rigCharge : le rig de l'arme `cleArme` est-il connu de l'index (donc il chargera) ? Faux sans
-   * index chargé ou pour une arme sans rig : le tir suit alors le modèle statique, pas le rig.
+   * rigCharge: is weapon `cleArme`'s rig known to the index (so it will load)? False without a
+   * loaded index or for a weapon with no rig: the shot then follows the static model, not the rig.
    */
   rigCharge(cleArme: string | null): boolean {
     return !!(cleArme && this.armes.get(cleArme))
   }
 
   /**
-   * cleRigDe : la clé de modèle d'arme du rig de fichier `fichier`, null sans index chargé (le
-   * préchargement en demande les clés pour le joueur suivi, `preparerJoueur`).
+   * cleRigDe: the weapon model key of the rig with file `fichier`, null without a loaded index
+   * (preloading requests these keys for the followed player, `preparerJoueur`).
    */
   cleRigDe(fichier: string): string | null {
     return this.fichiersArmes.get(fichier) ?? null
   }
 
   /**
-   * preparerJoueur : le joueur `xuid` est suivi en 1re personne — commence l'habillage des pièces et
-   * la peinture de CHAQUE rig chargé (celui tenu et les autres, pour que les bascules d'arme
-   * trouvent leur revêtement prêt au lieu de replier les bras sur le modèle statique). Le préchauffage
-   * fait le même travail sur l'écran de chargement pour tous les joueurs.
+   * preparerJoueur: player `xuid` is followed in first person — starts dressing the pieces and
+   * painting EVERY loaded rig (the one held and the others, so weapon switches find their
+   * coating ready instead of falling back to the static model). Prewarming does the same work
+   * on the loading screen for every player.
    */
   preparerJoueur(xuid: string): void {
     this.suivre(this.armurerie, xuid)
@@ -346,10 +345,10 @@ export class firstPersonArms3d {
   }
 
   /**
-   * boucheVue : la bouche du rig en main, en repère CAMÉRA (x à droite, y en haut, -z vers l'avant),
-   * composée comme `placer` pose le porteur pour une caméra à l'origine immobile. Faux sans rig
-   * chargé pour `cleArme` (l'arme n'a pas de rig, ou il n'est pas encore chargé : le tir prend le
-   * modèle statique). `out` est rempli, sans allocation.
+   * boucheVue: the held rig's muzzle, in CAMERA frame (x right, y up, -z forward), composed the
+   * way `placer` poses the holder for a camera fixed at the origin. False without a loaded rig
+   * for `cleArme` (the weapon has no rig, or it isn't loaded yet: the shot uses the static
+   * model). `out` is filled in, allocating nothing.
    */
   boucheVue(cleArme: string | null, out: THREE.Vector3): boolean {
     const rig = cleArme ? this.armes.get(cleArme) : null
@@ -357,17 +356,17 @@ export class firstPersonArms3d {
     const st = entree?.muzzle
     if (!rig || !entree || !st) return false
     out.copy(muzzlePoseCamera(st, rigGripOf(cleArme), BAC_BOCHE_VUE))
-    // Le porteur est contre-échelonné dans le plan de la caméra (`placer`) : la bouche dessinée aussi.
+    // The holder is counter-scaled in the camera's plane (`placer`): the drawn muzzle follows.
     out.x *= this.porteur.scale.x
     out.y *= this.porteur.scale.y
     return true
   }
 
   /**
-   * boucheMonde : la bouche du rig visible en espace MONDE, lue à l'image rendue (la matrice monde
-   * du porteur local est rafraîchie), pour un rig posé par `montrer`. `pos` : la bouche, `axe` : le
-   * canon unitaire, en monde. Faux sans rig visible ou sans bouche mesurée. Aucun tir ni image
-   * n'alloue.
+   * boucheMonde: the visible rig's muzzle in WORLD space, read at the rendered frame (the local
+   * holder's world matrix is refreshed), for a rig posed by `montrer`. `pos`: the muzzle, `axe`:
+   * the unit muzzle direction, in world space. False without a visible rig or a measured muzzle.
+   * No shot or frame allocates.
    */
   boucheMonde(pos: THREE.Vector3, axe: THREE.Vector3): boolean {
     const rig = this.cleVisible ? this.armes.get(this.cleVisible) : null
@@ -450,7 +449,7 @@ export class firstPersonArms3d {
     this.cleVisible = null
   }
 
-  /** preparerRig : prépare chaque rig chargé pour le préchauffage, pièces puis peinture. */
+  /** preparerRig: prepares each loaded rig for prewarming, pieces then painting. */
   preparerRig(): void {
     if (this.xuid && this.armurerie?.pending(this.xuid)) return
     for (const [fichier, entree] of this.entrees) {
@@ -460,7 +459,7 @@ export class firstPersonArms3d {
     }
   }
 
-  /** racinesChargees : les racines des rigs chargés (attachées à la scène), pour la marche des textures du préchauffage. */
+  /** racinesChargees: the roots of loaded rigs (attached to the scene), for prewarming's texture walk. */
   racinesChargees(): THREE.Object3D[] {
     return [...this.entrees.values()].filter((e): e is NonNullable<Entree> => !!e).map((e) => e.root)
   }
@@ -476,21 +475,22 @@ export class firstPersonArms3d {
   }
 
   private liberer(root: THREE.Object3D): void {
-    root.traverse((objet) => {
-      if (!(objet instanceof THREE.Mesh)) return
-      objet.geometry.dispose()
-      for (const materiau of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-        for (const valeur of [...Object.values(materiau), ...Object.values(materiau.userData.armorMaps ?? {})]) if (valeur instanceof THREE.Texture) valeur.dispose()
-        materiau.dispose()
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return
+      object.geometry.dispose()
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        for (const value of [...Object.values(material), ...Object.values(material.userData.armorMaps ?? {})]) if (value instanceof THREE.Texture) value.dispose()
+        material.dispose()
       }
     })
   }
 
   /**
-   * mesurerBouche : mesure UNE FOIS la bouche et l'axe du canon du rig (repère du porteur), à la pose
-   * idle : le rig pose le porteur à l'origine immobile (`placer` sur une caméra à l'origine), pose
-   * l'idle en t=0 (les actions se mélangent à leur poids de repos), et `muzzlePose` lit les sommets
-   * des maillages d'arme dans l'espace du porteur. Sans axe d'index, le canon pointe loin de l'œil.
+   * mesurerBouche: measures the rig's muzzle and barrel axis ONCE (holder frame), at the idle
+   * pose: the rig poses the holder at a fixed origin (`placer` on a camera at the origin), poses
+   * idle at t=0 (actions blend at their resting weight), and `muzzlePose` reads the weapon
+   * meshes' vertices in the holder's space. Without an index axis, the barrel points away from
+   * the eye.
    */
   private mesurerBouche(entree: NonNullable<Entree>): void {
     const support = this.support
@@ -507,7 +507,7 @@ export class firstPersonArms3d {
     const axeRig = idleWeapon ? BAC_AXE_RIG.set(idleWeapon.forward[0], idleWeapon.forward[1], idleWeapon.forward[2]) : null
     const st: StMuzzle = { muzzle: new THREE.Vector3(), axis: new THREE.Vector3() }
     if (!muzzlePose(entree.root, support, (m) => estMateriauBras(this.peinture.materiauSource(m)), axeRig, st)) return
-    // La même bouche en repère LOCAL de son porteur : c'est elle qui suit le rig animé, posé à l'image.
+    // The same muzzle in its holder's LOCAL frame: this one follows the animated rig, posed per frame.
     const locale: MuzzleLocal = { localHolder: entree.root, point: new THREE.Vector3(), axis: new THREE.Vector3() }
     if (muzzleLocalPose(entree.root, support, (m) => estMateriauBras(this.peinture.materiauSource(m)), axeRig, locale)) {
       st.localHolder = locale.localHolder
@@ -534,33 +534,33 @@ export class firstPersonArms3d {
     const chargement = (async () => {
       try {
         const clip = clipDuRig(rig, 'idle')
-        if (!clip) throw new Error('clip idle absent')
+        if (!clip) throw new Error('missing idle clip')
         const chemin = urlRig(this.dossier, rig.file)
         const buffer = await fetchMesh(chemin, () => {}, this.abort.signal)
         const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
         const animation = gltf.animations.find((a) => a.name === clip.name)
         if (!animation) {
           this.liberer(gltf.scene)
-          throw new Error('animation idle absente')
+          throw new Error('missing idle animation')
         }
         if (this.abort.signal.aborted) {
           this.liberer(gltf.scene)
           return
         }
-        gltf.scene.traverse((objet) => {
-          if (!(objet instanceof THREE.Mesh)) return
-          if (objet instanceof THREE.SkinnedMesh) objet.frustumCulled = false
-          for (const materiau of Array.isArray(objet.material) ? objet.material : [objet.material]) {
-            if (!estMateriauPeint(materiau)) {
-              darkMetalFallback(materiau)
+        gltf.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return
+          if (object instanceof THREE.SkinnedMesh) object.frustumCulled = false
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            if (!estMateriauPeint(material)) {
+              darkMetalFallback(material)
               continue
             }
-            materiau.color.setRGB(ARMURE_NEUTRE, ARMURE_NEUTRE, ARMURE_NEUTRE)
-            materiau.roughness = RUGOSITE_ARMURE_NEUTRE
+            material.color.setRGB(ARMURE_NEUTRE, ARMURE_NEUTRE, ARMURE_NEUTRE)
+            material.roughness = RUGOSITE_ARMURE_NEUTRE
           }
         })
         await rawMaps(gltf.scene, gltf.parser, (m) => estMateriauPeint(m) && !!m.userData.style)
-          .catch((erreur: unknown) => console.warn('rejeu 3D : masques des bras indisponibles', erreur))
+          .catch((error: unknown) => console.warn('3D replay: arm masks unavailable', error))
         if (this.abort.signal.aborted) {
           this.liberer(gltf.scene)
           return
@@ -582,20 +582,20 @@ export class firstPersonArms3d {
         this.support.add(gltf.scene)
         const entree: NonNullable<Entree> = { root: gltf.scene, mixer, clip, rig, actions, listeActions, materiaux: [], pivot: pivotDuRecul(rig.idleWeapon), mainGauche: gltf.scene.getObjectByName('b_l_hand') ?? null }
         this.entrees.set(rig.file, entree)
-        // La bouche du canon, une fois, à la pose idle : le rig se repose, c'est sa position de repos.
+        // The weapon muzzle, once, at the idle pose: the rig is at rest, its resting position.
         this.mesurerBouche(entree)
         const materiaux: THREE.Material[] = []
-        gltf.scene.traverse((objet) => {
-          if (!(objet instanceof THREE.Mesh)) return
-          for (const m of Array.isArray(objet.material) ? objet.material : [objet.material]) {
+        gltf.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return
+          for (const m of Array.isArray(object.material) ? object.material : [object.material]) {
             if (estMateriauPeint(m) && m.userData.style && !materiaux.includes(m)) materiaux.push(m)
           }
         })
         entree.materiaux = materiaux
         this.preparation.rigCharge(rig.file)
         if (this.xuid && this.armurerie && !this.armurerie.pending(this.xuid)) this.preparerRig()
-      } catch (erreur) {
-        if (!this.abort.signal.aborted) console.warn('rejeu 3D : rig première personne indisponible', rig.file, erreur)
+      } catch (error) {
+        if (!this.abort.signal.aborted) console.warn('3D replay: first-person rig unavailable', rig.file, error)
       } finally {
         this.chargements.delete(rig.file)
       }

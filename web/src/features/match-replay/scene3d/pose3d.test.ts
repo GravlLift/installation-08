@@ -20,7 +20,7 @@ import { aimDirThree } from './tracks3d'
 const worldQ = (o: THREE.Object3D) => o.getWorldQuaternion(new THREE.Quaternion())
 const named = (root: THREE.Object3D, name: string) => root.getObjectByName(name) as THREE.Bone
 
-/** Le squelette du jeu, lié à ses clips de test. */
+/** The game's skeleton, bound to its test clips. */
 function rigged(): { root: THREE.Group; rig: SpartanRig; mix: ClipMix } {
   const root = spartanSkeleton()
   const clips = fixtureClips(root)
@@ -31,13 +31,13 @@ function rigged(): { root: THREE.Group; rig: SpartanRig; mix: ClipMix } {
   return { root, rig, mix }
 }
 
-/** barrelOf : le canon (monde) de l'arme portée par la poignée droite. */
+/** barrelOf: the (world-space) barrel of the weapon held by the right grip. */
 function barrelOf(root: THREE.Object3D): THREE.Vector3 {
   return new THREE.Vector3(1, 0, 0).applyQuaternion(worldQ(named(root, 'b_r_grip')).multiply(GRIP_TO_WEAPON))
 }
 
 describe('findBones', () => {
-  it('trouve les os par leur nom, null s’il en manque un', () => {
+  it('finds bones by their name, null if any is missing', () => {
     const root = new THREE.Group()
     const a = new THREE.Bone()
     a.name = 'b_a'
@@ -48,7 +48,7 @@ describe('findBones', () => {
 })
 
 describe('spartanYaw', () => {
-  it('tourne la face du modèle vers le cap', () => {
+  it('rotates the model\'s facing toward the heading', () => {
     for (const h of [0, 90, 180, -45, 270]) {
       const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), spartanYaw(h))
       const face = SPARTAN_FORWARD.clone().applyQuaternion(q)
@@ -59,7 +59,7 @@ describe('spartanYaw', () => {
 })
 
 describe('poseSpartan', () => {
-  it('refuse un modèle sans les os du Spartan', () => {
+  it('refuses a model with no Spartan bones', () => {
     const root = new THREE.Group()
     const b = new THREE.Bone()
     b.name = 'b_pelvis'
@@ -67,7 +67,7 @@ describe('poseSpartan', () => {
     expect(rigSpartan(root, null)).toBeNull()
   })
 
-  it('le tangage après le clip : l’arme portée vise la direction de visée, à moins de 0,5° (bornée à PITCH_LIMIT)', () => {
+  it('pitch after the clip: the held weapon aims at the aim direction, within 0.5° (bounded by PITCH_LIMIT)', () => {
     const { root, rig, mix } = rigged()
     for (const h of [0, 75, 210]) {
       for (const p of [-PITCH_LIMIT, -40, 0, 25, 60, PITCH_LIMIT]) {
@@ -82,18 +82,18 @@ describe('poseSpartan', () => {
     expect(barrelOf(root).angleTo(new THREE.Vector3(x, y, z))).toBeLessThan(0.01)
   })
 
-  it('le tangage s’ajoute au clip : la poignée garde la pose du clip relativement au buste', () => {
+  it('pitch adds to the clip: the grip keeps the clip\'s pose relative to the torso', () => {
     const { root, rig, mix } = rigged()
     poseSpartan(rig, { h: 0, p: 0, mix })
     const chest = named(root, 'b_spine3')
     const rel0 = worldQ(chest).invert().multiply(worldQ(named(root, 'b_r_grip')))
     poseSpartan(rig, { h: 0, p: 50, mix })
     const rel1 = worldQ(chest).invert().multiply(worldQ(named(root, 'b_r_grip')))
-    // angleTo passe par acos sur des clés en flottants 32 bits : ~1e-4 rad de bruit.
+    // angleTo goes through acos on 32-bit float inputs: ~1e-4 rad of noise.
     expect(rel1.angleTo(rel0)).toBeLessThan(1e-3)
   })
 
-  it('sans mélange, la copie reste à son repos (le tangage seul)', () => {
+  it('with no mix, the copy stays at rest (pitch alone)', () => {
     const root = spartanSkeleton()
     const rig = rigSpartan(root, null) as SpartanRig
     const pelvis = named(root, 'b_pelvis').quaternion.clone()
@@ -101,7 +101,7 @@ describe('poseSpartan', () => {
     expect(named(root, 'b_pelvis').quaternion.angleTo(pelvis)).toBeLessThan(1e-9)
   })
 
-  it('pure : une pose rejouée après d’autres est identique au bit près', () => {
+  it('pure: a pose replayed after others is bit-for-bit identical', () => {
     const { root, rig, mix } = rigged()
     const all: THREE.Bone[] = []
     root.traverse((o) => {

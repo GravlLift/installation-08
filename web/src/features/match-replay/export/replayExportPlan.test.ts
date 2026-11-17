@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayExportPlan.test.ts — l'échantillonnage de l'export, sans navigateur ni encodeur.
+ * replayExportPlan.test.ts — the export's sampling, without a browser or an encoder.
  *
- * Ce qui se joue ici est la DURÉE du clip et le nombre d'images qu'il faudra peindre : deux
- * nombres qu'on ne peut pas vérifier à l'œil sur un fichier vidéo, et qui décident pourtant de
- * la barre de progression, de la mémoire consommée et de la fin du clip.
+ * What's at stake here is the clip's DURATION and the number of frames it will need to paint:
+ * two numbers that cannot be checked by eye on a video file, and which nonetheless drive the
+ * progress bar, the memory used, and the clip's end.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -18,159 +18,160 @@ import {
 import { testReplayDoc } from '../test/testDoc'
 import { frameToMs } from '../../../lib/replay/replayLogic'
 
-/** Un film à 20 images par seconde : 50 ms par image, 200 images, soit 10 s de match. */
+/** A film at 20 frames per second: 50 ms per frame, 200 frames, i.e. 10 s of match. */
 const DOC = testReplayDoc({ frameIntervalMs: 50, frameCount: 200 })
 
-describe('defaultExportBounds — la plage proposée', () => {
-  it('est la fenêtre de GAMEPLAY quand elle est connue', () => {
-    // `leadInFrame` (le préambule de LECTURE, D3) est ici pour le type : l'export propose la
-    // fenêtre de gameplay, jamais la seconde qui la précède.
+describe('defaultExportBounds — the offered range', () => {
+  it('is the GAMEPLAY window when it is known', () => {
+    // `leadInFrame` (the PLAYBACK preamble, D3) is here for the type: the export offers the
+    // gameplay window, never the second that precedes it.
     const w = { startFrame: 20, leadInFrame: 0, endFrame: 180, startMs: 1000, endMs: 9000 }
     expect(defaultExportBounds(DOC, w)).toEqual({ startFrame: 20, endFrame: 180 })
   })
 
-  it('retombe sur le film entier sans cadrage', () => {
-    // Moins juste (le countdown y est), mais c'est tout ce que le document permet d'affirmer.
+  it('falls back to the whole film without framing', () => {
+    // Less accurate (the countdown is in it), but everything the document allows us to claim.
     expect(defaultExportBounds(DOC, null)).toEqual({ startFrame: 0, endFrame: 199 })
   })
 })
 
-describe('clampExportBounds — deux champs remplis par un humain', () => {
-  const domaine = { startFrame: 20, endFrame: 180 }
+describe('clampExportBounds — two fields filled in by a human', () => {
+  const domain = { startFrame: 20, endFrame: 180 }
 
-  it('laisse une plage valide intacte', () => {
-    expect(clampExportBounds({ startFrame: 50, endFrame: 100 }, domaine)).toEqual({
+  it('leaves a valid range untouched', () => {
+    expect(clampExportBounds({ startFrame: 50, endFrame: 100 }, domain)).toEqual({
       startFrame: 50,
       endFrame: 100,
     })
   })
 
-  it('remet dans l’ordre des bornes croisées', () => {
-    expect(clampExportBounds({ startFrame: 120, endFrame: 60 }, domaine)).toEqual({
+  it('restores the order of crossed bounds', () => {
+    expect(clampExportBounds({ startFrame: 120, endFrame: 60 }, domain)).toEqual({
       startFrame: 60,
       endFrame: 120,
     })
   })
 
-  it('ramène dans le match ce qui en sort', () => {
-    expect(clampExportBounds({ startFrame: -500, endFrame: 9999 }, domaine)).toEqual({
+  it('brings back inside the match what falls outside it', () => {
+    expect(clampExportBounds({ startFrame: -500, endFrame: 9999 }, domain)).toEqual({
       startFrame: 20,
       endFrame: 180,
     })
   })
 })
 
-describe('buildExportPlan — la suite des images', () => {
-  it('échantillonne à la cadence du FICHIER, pas à celle du film', () => {
-    // 2 s de match (frames 0 à 40 d'un film à 20 im/s) exportées à 30 im/s : 60 pas + la borne.
+describe('buildExportPlan — the sequence of frames', () => {
+  it('samples at the FILE rate, not the film’s', () => {
+    // 2 s of match (frames 0 to 40 of a film at 20 fps) exported at 30 fps: 60 steps + the bound.
     const plan = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
     expect(plan.durationMs).toBe(2000)
     expect(plan.frames).toHaveLength(61)
     expect(plan.fps).toBe(30)
   })
 
-  it('avance d’un pas FRACTIONNAIRE quand les deux cadences ne tombent pas juste', () => {
+  it('advances by a FRACTIONAL step when the two rates don’t line up', () => {
     const plan = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
-    // 1/30 s = 33,33 ms = 0,667 image d'un film à 50 ms. Arrondir saccaderait le mouvement.
+    // 1/30 s = 33.33 ms = 0.667 frame of a 50 ms film. Rounding would make the motion jerky.
     expect(plan.frames[1]).toBeCloseTo(0.6667, 3)
     expect(plan.frames[3]).toBeCloseTo(2, 3)
   })
 
-  it('finit EXACTEMENT sur la borne de fin', () => {
-    // L'écran de fin de match ne se peint QU'À cette borne : la manquer, c'est livrer un clip
-    // de fin de match sans son écran de fin.
+  it('ends EXACTLY on the end bound', () => {
+    // The match-end screen is painted ONLY on this bound: missing it means delivering a
+    // match-end clip without its end screen.
     const plan = buildExportPlan({ startFrame: 10, endFrame: 47 }, DOC, 30)
     expect(plan.frames[plan.frames.length - 1]).toBe(47)
   })
 
-  it('part de la borne de début', () => {
+  it('starts from the start bound', () => {
     expect(buildExportPlan({ startFrame: 10, endFrame: 47 }, DOC, 30).frames[0]).toBe(10)
   })
 
-  it('rend UNE image sur une plage vide', () => {
-    // Un arrêt sur image reste un résultat ; un fichier vide se téléchargerait quand même.
+  it('renders ONE frame on an empty range', () => {
+    // A freeze-frame is still a result; an empty file would still get downloaded.
     const plan = buildExportPlan({ startFrame: 30, endFrame: 30 }, DOC, 30)
     expect(plan.frames).toEqual([30])
     expect(plan.durationMs).toBe(0)
   })
 
-  it('un document SANS échelle de temps garde l’axe de repli, et s’exporte quand même', () => {
-    // Sans `frameIntervalMs`, `frameToMs` retombe sur la cadence historique (60 im/s) : l'axe
-    // n'est plus le temps réel du match, mais il reste un axe — l'export n'a pas à le refuser.
-    const sansEchelle = testReplayDoc({ frameCount: 200 })
-    const plan = buildExportPlan({ startFrame: 0, endFrame: 199 }, sansEchelle, 30)
+  it('a document WITHOUT a time scale keeps the fallback axis, and still exports', () => {
+    // Without `frameIntervalMs`, `frameToMs` falls back to the historical rate (60 fps): the
+    // axis is no longer the match's real time, but it remains an axis — the export does not
+    // need to refuse it.
+    const noScale = testReplayDoc({ frameCount: 200 })
+    const plan = buildExportPlan({ startFrame: 0, endFrame: 199 }, noScale, 30)
     expect(plan.frames[0]).toBe(0)
-    // Un pas de 1/30 s vaut 2 images d'un axe à 60 im/s.
+    // A 1/30 s step equals 2 frames of a 60 fps axis.
     expect(plan.frames[1]).toBeCloseTo(2, 6)
     expect(plan.frames[plan.frames.length - 1]).toBe(199)
   })
 
-  it('la durée annoncée est celle de la PLAGE, jamais celle du calcul', () => {
+  it('the announced duration is the RANGE’s, never the computation’s', () => {
     const plan = buildExportPlan({ startFrame: 20, endFrame: 180 }, DOC, 30)
     expect(plan.durationMs).toBe(8000)
   })
 })
 
-describe('exportProgressPct — la barre ne ment pas', () => {
-  it('rend la part parcourue', () => {
+describe('exportProgressPct — the bar does not lie', () => {
+  it('renders the share covered so far', () => {
     expect(exportProgressPct(25, 100)).toBe(25)
   })
 
-  it('ne dépasse jamais 100 %, ni ne descend sous 0', () => {
+  it('never exceeds 100%, nor drops below 0', () => {
     expect(exportProgressPct(200, 100)).toBe(100)
     expect(exportProgressPct(-5, 100)).toBe(0)
   })
 
-  it('rend 0 plutôt qu’une division par zéro', () => {
+  it('renders 0 rather than a division by zero', () => {
     expect(exportProgressPct(0, 0)).toBe(0)
   })
 })
 
-describe('buildExportPlan — le MAINTIEN de la dernière image', () => {
-  it('n’ajoute rien quand on ne le demande pas', () => {
-    const sans = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
-    expect(sans.holdMs).toBe(0)
-    expect(sans.frames[sans.frames.length - 1]).toBe(40)
+describe('buildExportPlan — the HOLD on the last frame', () => {
+  it('adds nothing when not asked for', () => {
+    const without = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
+    expect(without.holdMs).toBe(0)
+    expect(without.frames[without.frames.length - 1]).toBe(40)
   })
 
-  it('répète la dernière image le temps demandé', () => {
-    // Sans ce maintien, l'écran de fin de match — qui ne se peint QU'À la borne — durait une
-    // seule image, soit 1/30 s : un éclair imperceptible.
-    const sans = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
-    const avec = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30, 3000)
-    expect(avec.frames).toHaveLength(sans.frames.length + 90)
-    expect(avec.holdMs).toBe(3000)
+  it('repeats the last frame for the requested duration', () => {
+    // Without this hold, the match-end screen — painted ONLY on the bound — used to last a
+    // single frame, i.e. 1/30 s: an imperceptible flash.
+    const without = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
+    const withHold = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30, 3000)
+    expect(withHold.frames).toHaveLength(without.frames.length + 90)
+    expect(withHold.holdMs).toBe(3000)
   })
 
-  it('les images de maintien sont TOUTES la borne de fin', () => {
-    const avec = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30, 1000)
-    expect(avec.frames.slice(-30)).toEqual(Array.from({ length: 30 }, () => 40))
+  it('the held frames are ALL the end bound', () => {
+    const withHold = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30, 1000)
+    expect(withHold.frames.slice(-30)).toEqual(Array.from({ length: 30 }, () => 40))
   })
 
-  it('la durée annoncée reste celle de la PLAGE, maintien non compris', () => {
-    // Le dialogue annonce « Plage exportée » : le maintien est du rab, pas de la plage.
+  it('the announced duration stays the RANGE’s, hold excluded', () => {
+    // The dialog announces "Plage exportée": the hold is extra, not part of the range.
     expect(buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30, 3000).durationMs).toBe(2000)
   })
 })
 
-describe('etaLabel — une estimation qui ne dit rien ne s’affiche pas', () => {
-  it('se tait tant qu’il n’y a pas d’estimation', () => {
+describe('etaLabel — an estimate that says nothing does not show', () => {
+  it('stays silent as long as there is no estimate', () => {
     expect(etaLabel(undefined)).toBeNull()
   })
 
-  it('se tait sous trois secondes', () => {
-    // Vu en recette : sur un export rapide, « environ 0:00 restantes » s'affichait tout du long
-    // et se lisait « c'est fini » alors que le calcul tournait encore.
+  it('stays silent under three seconds', () => {
+    // Seen in acceptance testing: on a fast export, "environ 0:00 restantes" used to show the
+    // whole time and read as "it's done" while the computation was still running.
     expect(etaLabel(900)).toBeNull()
     expect(etaLabel(2999)).toBeNull()
   })
 
-  it('compte en SECONDES sous la minute — « 7 s » se lit mieux que « 0:07 »', () => {
+  it('counts in SECONDS under a minute — "7 s" reads better than "0:07"', () => {
     expect(etaLabel(7000)).toBe('7 s')
     expect(etaLabel(59_400)).toBe('59 s')
   })
 
-  it('passe en m:ss au-delà de la minute', () => {
+  it('switches to m:ss past a minute', () => {
     expect(etaLabel(80_000)).toBe('1:20')
     expect(etaLabel(605_000)).toBe('10:05')
   })

@@ -8,6 +8,8 @@
 // (glTF attend Y vers le haut de l'image, le jeu l'ecrit vers le bas). Toutes sur `TEXCOORD_0`.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"fmt"
@@ -57,10 +59,10 @@ func (sg *surfacesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, s
 		base, matiere := cuitSurface(lue(textures, s.MasqueA), lue(textures, s.MasqueB), lue(textures, s.ASG))
 		var jb, pm bytes.Buffer
 		if err := jpeg.Encode(&jb, base, &jpeg.Options{Quality: qualiteJPEG}); err != nil {
-			return fmt.Errorf("couleur de la surface %08x : %w", s.ASG, err)
+			return fmt.Errorf("color of surface %08x: %w", s.ASG, err)
 		}
 		if err := png.Encode(&pm, matiere); err != nil {
-			return fmt.Errorf("matiere de la surface %08x : %w", s.ASG, err)
+			return fmt.Errorf("material of surface %08x: %w", s.ASG, err)
 		}
 		tex = [2]int{ajouteImage(doc, bin, jb.Bytes(), mimeJPEG), ajouteImage(doc, bin, pm.Bytes(), mimePNG)}
 		sg.cuites[cle] = tex
@@ -78,7 +80,7 @@ func (sg *surfacesGLB) applique(doc *gltfDoc, bin *tamponGLB, g *gltfMaterial, s
 	if !deja {
 		var buf bytes.Buffer
 		if err := png.Encode(&buf, normaleGLTF(t.Image)); err != nil {
-			return fmt.Errorf("normale %08x : %w", s.Normale, err)
+			return fmt.Errorf("normal %08x: %w", s.Normale, err)
 		}
 		n = ajouteImage(doc, bin, buf.Bytes(), mimePNG)
 		sg.normales[s.Normale] = n

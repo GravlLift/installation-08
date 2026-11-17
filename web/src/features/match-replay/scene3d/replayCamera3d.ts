@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** replayCamera3d.ts — état suivi, placement de caméra et mesure du sol de la carte. */
+/** replayCamera3d.ts — tracked state, camera placement, and measuring the map's floor. */
 import * as THREE from 'three'
 import { EYE_HEIGHT } from './body3d'
 import { deathCameraPose, povSubject, type DeathCameraOpts, type DeathCameraPose } from './deathCamera3d'
@@ -12,10 +12,10 @@ import type { CameraMode3d, PovStatus } from './replayScene3d'
 const TP_DISTANCE = 1.05
 const TP_RISE = 0.2
 const FLOOR_SAMPLES = 400
-/** La caméra de mort : la 3e personne sur le corps inerte (distance, élévation et œil de la caméra 3e). */
+/** The death camera: third person on the ragdoll (distance, rise, and the third-person camera's eye). */
 const DEATH_CAMERA: DeathCameraOpts = { distance: TP_DISTANCE, rise: TP_RISE, eyeHeight: EYE_HEIGHT }
 
-/** Les données nécessaires au placement de la caméra à une image. */
+/** The data needed to place the camera at a frame. */
 interface CameraState {
   tracks: Tracks3d | null
   povXuid: string | null
@@ -28,7 +28,7 @@ interface CameraState {
   raycaster: THREE.Raycaster
 }
 
-/** Calcule l'état suivi et pose la caméra sans modifier le mode choisi. */
+/** Computes the tracked state and places the camera without changing the chosen mode. */
 export class ReplayCamera3d {
   private readonly state: CameraState
   private readonly tmpFeet = new THREE.Vector3()
@@ -45,8 +45,8 @@ export class ReplayCamera3d {
   constructor(state: CameraState) { this.state = state }
 
   /**
-   * povState : l'état du joueur suivi à l'image `f`. Mort, la position où il est tombé ; pas encore
-   * apparu, celle de sa première apparition.
+   * povState: the tracked player's state at frame `f`. Dead, the position where they fell; not
+   * yet spawned, that of their first spawn.
    */
   povState(f: number): { state: PlayerState3d | null; status: PovStatus } {
     const { tracks, povXuid } = this.state
@@ -59,17 +59,17 @@ export class ReplayCamera3d {
   }
 
   /**
-   * placeCamera pose la caméra sur le joueur suivi (cf. povState) ; la caméra libre reste où elle est.
-   * `dt`: the seconds of MATCH since the previous placement, given by the video export; absent,
-   * the wall clock (the screen plays in real time).
+   * placeCamera places the camera on the tracked player (see povState); the free camera stays
+   * where it is. `dt`: the seconds of MATCH since the previous placement, given by the video
+   * export; absent, the wall clock (the screen plays in real time).
    */
   placeCamera(f: number, dt?: number): PovStatus {
     this.matchDt = dt ?? null
     const { state: s, status } = this.povState(f)
     if (!s || this.state.mode === 'free') return status
-    // En 1re personne, un joueur mort suit son corps inerte en 3e, ou garde son dernier œil.
+    // In first person, a dead player follows their ragdoll in third person, or keeps their last eye.
     if (this.state.mode === 'fp' && status === 'dead') { this.placeDead(f, s); return status }
-    // À bord, le bipède ne réplique plus : l'œil suit le véhicule et regarde où il va.
+    // Mounted, the biped no longer replicates: the eye follows the vehicle and looks where it goes.
     const rider = this.state.povXuid ? this.state.action?.riderAt(this.state.povXuid, f) ?? null : null
     const [x, y, z] = toThree(s.x, s.y, s.z)
     const eye = rider
@@ -119,7 +119,7 @@ export class ReplayCamera3d {
     return Math.min(Math.max(dt, 0), 0.1)
   }
 
-  /** placeDead : en 1re personne, un joueur mort suit son corps inerte en 3e, ou garde son dernier œil. */
+  /** placeDead: in first person, a dead player follows their ragdoll in third person, or keeps their last eye. */
   private placeDead(f: number, s: PlayerState3d): void {
     const xuid = this.state.povXuid
     const body = xuid ? this.state.action?.corpseFeet(xuid, f, this.tmpFeet) ?? null : null
@@ -133,7 +133,7 @@ export class ReplayCamera3d {
     this.holdEye(s)
   }
 
-  /** holdEye : sans corps connu, l'œil reste à la dernière image en vie du joueur, regardant où il regardait. */
+  /** holdEye: without a known body, the eye stays at the player's last frame alive, looking where they were looking. */
   private holdEye(s: PlayerState3d): void {
     const [x, y, z] = toThree(s.x, s.y, s.z)
     const eye = new THREE.Vector3(x, y - this.state.originAboveFloor + EYE_HEIGHT - s.dropOeil, z)
@@ -144,9 +144,9 @@ export class ReplayCamera3d {
 }
 
 /**
- * measureOriginAboveFloor : hauteur médiane de l'origine publiée au-dessus du sol, mesurée par
- * lancer de rayon vers le bas sous les points du joueur. Elle fixe où poser l'œil et la capsule.
- * Mesurée sur la structure de la carte seule : la valeur ne dépend pas de l'arrivée du calque.
+ * measureOriginAboveFloor: the published origin's median height above the floor, measured by
+ * raycasting downward under the player's points. It sets where to place the eye and the capsule.
+ * Measured on the map's structure alone: the value does not depend on the layer's arrival.
  */
 export function measureOriginAboveFloor(pts: readonly { x: number; y: number; z: number }[], model: MapModel | null, raycaster: THREE.Raycaster): number {
   if (!model) return 0

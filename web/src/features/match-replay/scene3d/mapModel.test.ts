@@ -8,12 +8,12 @@ import type { LayeredInfo } from './layeredMaterial'
 import { glowLevel, IMAGE_GLOW_MAX, imageGlowLevel } from './lighting'
 import { DECAL_TINT, decalStencilMaterial, loadLayerModel, teinteVerreTeint } from './mapModel'
 
-/** Un carré horizontal de 2 u de côté à la hauteur three `y = 1`. */
+/** A 2u-wide horizontal square at three.js height `y = 1`. */
 const SQUARE = [-1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1]
 const INDICES = [0, 2, 1, 0, 3, 2]
 
-/** La description en couches d'une vitre sombre (RVB linéaire), comme dans le GLB de la carte. */
-const COUCHES_SOMBRE: LayeredInfo = {
+/** The layered description of a dark glass (linear RGB), as in the map's GLB. */
+const DARK_LAYERS: LayeredInfo = {
   couches: [
     { sorte: 'degrade', bas: [0.127, 0.127, 0.127], milieu: [0.095, 0.095, 0.095], haut: [0.091, 0.091, 0.091], opacite: 1 },
   ],
@@ -22,16 +22,15 @@ const COUCHES_SOMBRE: LayeredInfo = {
   jeuCouches: 0,
 }
 
-/** La teinte attendue : la moyenne de `bas`, `milieu` et `haut` de la première couche. */
-const TEINTE_ATTENDUE = (0.127 + 0.095 + 0.091) / 3
+/** The expected tint: the average of the first layer's `bas`, `milieu` and `haut`. */
+const EXPECTED_TINT = (0.127 + 0.095 + 0.091) / 3
 
 /**
- * tinyGlb : un GLB réduit à un carré par nœud parent : deux vitres sombres (mêmes couches), une
- * vitre claire (sans couches), et trois surfaces de structure pour tester la pose du décalque
- * pochoir — un décalque au shader du jeu sans texture, un shader étranger, et une structure de
- * référence.
+ * tinyGlb: a GLB reduced to one square per parent node: two dark glasses (same layers), one clear
+ * glass (no layers), and three structure surfaces to test the stencil decal's placement — a
+ * decal on the game's shader with no texture, a foreign shader, and a reference structure.
  */
-function tinyGlb(glass: LayeredInfo = COUCHES_SOMBRE): ArrayBuffer {
+function tinyGlb(glass: LayeredInfo = DARK_LAYERS): ArrayBuffer {
   const bin = new ArrayBuffer(60)
   new Float32Array(bin, 0, 12).set(SQUARE)
   new Uint16Array(bin, 48, 6).set(INDICES)
@@ -138,22 +137,22 @@ function glbOf(materials: object[]): ArrayBuffer {
 
 function meshUnder(root: THREE.Object3D, node: string): THREE.Mesh {
   const found = root.getObjectByName(node)?.children[0]
-  if (!(found instanceof THREE.Mesh)) throw new Error(`pas de maillage sous ${node}`)
+  if (!(found instanceof THREE.Mesh)) throw new Error(`no mesh under ${node}`)
   return found
 }
 
 describe('teinteVerreTeint', () => {
-  it('moyenne les couleurs de la première couche (bas, milieu, haut)', () => {
-    const teinte = teinteVerreTeint(COUCHES_SOMBRE)
-    expect(teinte).toEqual([TEINTE_ATTENDUE, TEINTE_ATTENDUE, TEINTE_ATTENDUE])
+  it('averages the first layer\'s colors (bas, milieu, haut)', () => {
+    const teinte = teinteVerreTeint(DARK_LAYERS)
+    expect(teinte).toEqual([EXPECTED_TINT, EXPECTED_TINT, EXPECTED_TINT])
   })
 
-  it('n\'inclut que les couleurs présentes', () => {
+  it('includes only the colors present', () => {
     const info: LayeredInfo = { couches: [{ sorte: 'couleur', bas: [0.1, 0.2, 0.3], opacite: 1 }], masque: -1, jeuMasque: 0, jeuCouches: 0 }
     expect(teinteVerreTeint(info)).toEqual([0.1, 0.2, 0.3])
   })
 
-  it('renvoie null sans couche ni couleur', () => {
+  it('returns null with no layer and no color', () => {
     expect(teinteVerreTeint({ couches: [], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
     expect(teinteVerreTeint({ couches: [{ sorte: 'couleur' }], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
   })
@@ -275,8 +274,8 @@ describe('self-lit surfaces', () => {
   })
 })
 
-describe('le décalque pochoir', () => {
-  it('un standard teinté dont alphaMap est la texture, sans map, translucide, en retrait de profondeur', () => {
+describe('the stencil decal', () => {
+  it('a tinted standard material whose alphaMap is the texture, with no map, translucent, depth-offset', () => {
     const texture = new THREE.Texture()
     const m = decalStencilMaterial(texture, new Map())
     expect(m).toBeInstanceOf(THREE.MeshStandardMaterial)
@@ -293,13 +292,13 @@ describe('le décalque pochoir', () => {
     expect(m.side).toBe(THREE.DoubleSide)
   })
 
-  it('deux surfaces qui partagent la texture partagent un matériau', () => {
+  it('two surfaces sharing the texture share one material', () => {
     const texture = new THREE.Texture()
     const cache = new Map<string, THREE.MeshStandardMaterial>()
     expect(decalStencilMaterial(texture, cache)).toBe(decalStencilMaterial(texture, cache))
   })
 
-  it('applique la couleur linéaire et partage par texture, couleur et opacité', () => {
+  it('applies the linear color and shares by texture, color and opacity', () => {
     const texture = new THREE.Texture()
     const cache = new Map<string, THREE.MeshStandardMaterial>()
     const pochoir = { couleur: [0.2, 0.4, 0.8] as [number, number, number], opacite: 0.6 }
@@ -311,13 +310,13 @@ describe('le décalque pochoir', () => {
     expect(decalStencilMaterial(texture, cache, { ...pochoir, couleur: [1, 1, 1] })).not.toBe(m)
     expect(decalStencilMaterial(texture, cache)).not.toBe(m)
   })
-  it('un décalque sans texture et un shader étranger gardent le matériau de famille', async () => {
+  it('a decal with no texture and a foreign shader both keep the family material', async () => {
     const layer = await loadLayerModel(tinyGlb(), null)
     const plain = meshUnder(layer.root, 'structure_plain')
     const decal = meshUnder(layer.root, 'decal_pochoir')
     const autre = meshUnder(layer.root, 'structure_autre')
-    // Ni le décalque sans texture de base ni le shader étranger ne passent au matériau de décalque :
-    // ils partagent le matériau de famille de la structure, sans carte de masque.
+    // Neither the decal with no base texture nor the foreign shader switch to the decal material:
+    // they share the structure's family material, with no mask map.
     expect(decal.material).toBe(plain.material)
     expect(autre.material).toBe(plain.material)
     const m = plain.material as THREE.MeshStandardMaterial

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * spartanArmor3d.ts — L'ARMURE D'UN JOUEUR POSÉE SUR SA COPIE DU SPARTAN : l'armure par défaut de la
- * copie (`spartan3d.copySpartan`) cède la place aux pièces de sa tenue (`armory3d.Outfit`).
+ * spartanArmor3d.ts — A PLAYER'S ARMOR POSED ON THEIR SPARTAN COPY: the copy's default armor
+ * (`spartan3d.copySpartan`) gives way to its outfit's pieces (`armory3d.Outfit`).
  *
- * UN squelette : chaque pièce à peau est un nouveau `SkinnedMesh` sur la géométrie et le matériau
- * de la bibliothèque, lié au squelette de la copie (celui que les clips et le tangage posent) avec
- * la matrice de liaison de sa pièce. Les pièces portent les mêmes os, dans le même ordre, avec les
- * mêmes matrices inverses de liaison que le modèle `spartan` (contrat de `meshproto/pieces_index.go`) :
- * le squelette se recalcule une fois par image pour toute l'armure. Les accessoires sont rigides,
- * enfants de leur os à la pose de leur instance de marqueur, puis à leur décalage.
+ * ONE skeleton: each skinned piece is a new `SkinnedMesh` on the library's geometry and
+ * material, bound to the copy's skeleton (the one the clips and pitch pose) with its piece's
+ * bind matrix. Pieces carry the same bones, in the same order, with the same inverse bind
+ * matrices as the `spartan` model (the contract from `meshproto/pieces_index.go`): the skeleton
+ * is recomputed once per frame for the whole armor. Accessories are rigid, children of their
+ * bone at their marker instance's pose, then at their offset.
  *
- * Rien n'est possédé ici : géométries et matériaux source sont à la bibliothèque, les matériaux
- * teints et le squelette à la copie (`releaseSpartan`).
+ * Nothing is owned here: source geometries and materials belong to the library, the tinted
+ * materials and the skeleton belong to the copy (`releaseSpartan`).
  */
 import * as THREE from 'three'
 
@@ -19,12 +19,12 @@ import type { ArmorPose } from './armorPlan3d'
 import type { Outfit } from './armory3d'
 
 /**
- * dressSpartan habille la copie `root` (squelette `skeleton`) de la tenue `outfit`. Faux, et la
- * copie inchangée, quand les os du squelette ne sont pas ceux de la tenue.
+ * dressSpartan dresses copy `root` (skeleton `skeleton`) in outfit `outfit`. False, and the copy
+ * unchanged, when the skeleton's bones aren't the outfit's.
  */
 export function dressSpartan(root: THREE.Object3D, skeleton: THREE.Skeleton, outfit: Outfit): boolean {
   if (!sameBones(skeleton, outfit.bones)) {
-    console.warn('rejeu 3D : le squelette du Spartan n’est pas celui des pièces d’armure, armure par défaut')
+    console.warn('3D replay: the Spartan\'s skeleton is not the armor pieces\' own, defaulting to the default armor')
     return false
   }
   const defaults: THREE.Object3D[] = []

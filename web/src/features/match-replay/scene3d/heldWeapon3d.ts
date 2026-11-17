@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * heldWeapon3d.ts — L'ARME EN MAIN de chaque joueur, pour la vue 3D.
+ * heldWeapon3d.ts — EACH PLAYER'S HELD WEAPON, for the 3D view.
  *
- * La lecture commune avec l'ATH tient compte des événements datés de la vie.
+ * The reading, shared with the HUD, accounts for the life's dated events.
  *
- * Les lectures ne changent qu'à l'image entière : elles se gardent par image et par emplacement,
- * la vue en demande une par joueur et par image d'écran.
+ * Readings only change on the whole frame: they are cached per frame and per slot, the view
+ * requests one per player per screen frame.
  */
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
@@ -16,9 +16,9 @@ import { weaponInHand, flagTeamInHand, objetEnMain } from '../model/weaponInHand
 
 export interface HeldWeapon3d {
   id: string
-  /** Le nom de l'arme dans la langue du lecteur ; vide quand le catalogue ne le porte pas. */
+  /** The weapon's name in the viewer's language; empty when the catalog does not carry it. */
   name: string
-  /** La nature de décharge de l'arme (la teinte de ses tirs). */
+  /** The weapon's discharge type (the tint of its shots). */
   tint: FxTint
   /** The team of the CTF flag held instead of a weapon (its banner), absent for anything else. */
   flagTeam?: number

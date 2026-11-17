@@ -12,6 +12,8 @@
 // 1 215 materiaux de Recharge, +60 porte un entier de l'enum et +56/+64 le remplissage 0xBC.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"io/fs"
@@ -211,7 +213,7 @@ func LitMateriau(id uint32, tag []byte, shaders LecteurShaders, styles LecteurSt
 		}
 		return m, nil
 	}
-	return Materiau{}, fmt.Errorf("himap: tag %s %#x illisible", GroupeMateriau, id)
+	return Materiau{}, fmt.Errorf("himap: unreadable tag %s %#x", GroupeMateriau, id)
 }
 
 // litPostprocess verse dans m le bloc postprocess `cible` du tag (melange, decoupe, couches,
@@ -262,7 +264,7 @@ func CheminsMateriaux(deployRoot, moduleCarte string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("modules de materiaux : %w", err)
+		return nil, fmt.Errorf("material modules: %w", err)
 	}
 	return out, nil
 }
@@ -308,7 +310,7 @@ func lecteurShaders(idx *ModuleIndex) LecteurShaders {
 				p, err = LitParametresShader(tag)
 			}
 			if err != nil {
-				slog.Warn("shader illisible : materiaux sans couches", "shader", fmt.Sprintf("%08x", id), "err", err)
+				slog.Warn("unreadable shader: materials without layers", "shader", fmt.Sprintf("%08x", id), "err", err)
 			}
 		}
 		lus[id] = p

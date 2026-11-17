@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayVideoEncoder.test.ts — LES DÉCISIONS DE L'ENCODEUR, testées sans navigateur.
+ * replayVideoEncoder.test.ts — THE ENCODER'S DECISIONS, tested with no browser.
  *
- * Ce qui est testé ici ne dépend d'AUCUNE API WebCodecs : ce sont les quatre calculs qui
- * décident du fichier (dimensions paires, niveau H.264, débit, contre-pression). L'ouverture
- * réelle de l'encodeur, elle, n'a rien à faire sous jsdom — elle se vérifie dans le navigateur,
- * et c'est le gate manuel de l'étape E1 du plan.
+ * What is tested here depends on NO WebCodecs API: these are the four computations that
+ * decide the file (even dimensions, H.264 level, bitrate, backpressure). Actually opening the
+ * encoder has no business under jsdom — it is verified in the browser, and that is the plan's
+ * E1 step's manual gate.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,64 +38,64 @@ import {
 } from './replayVideoEncoder'
 import type { ExportRateMode, ExportVideoPreset, ExportVideoPresetName } from './replayVideoEncoder'
 
-describe('evenSize — H.264 refuse les dimensions impaires', () => {
-  it('laisse un nombre pair intact', () => {
+describe('evenSize — H.264 refuses odd dimensions', () => {
+  it('leaves an even number intact', () => {
     expect(evenSize(1280)).toBe(1280)
   })
 
-  it('arrondit VERS LE BAS, jamais vers le haut', () => {
-    // Rogner une colonne est invisible ; étirer l'image d'un pixel ne l'est pas.
+  it('rounds DOWN, never up', () => {
+    // Trimming a column is invisible; stretching the frame by one pixel is not.
     expect(evenSize(1281)).toBe(1280)
   })
 
-  it('tronque une largeur fractionnaire (toile à DPR non entier)', () => {
+  it('truncates a fractional width (canvas at a non-integer DPR)', () => {
     expect(evenSize(1439.7)).toBe(1438)
   })
 
-  it('remonte à 2 tout ce qui n’a pas de sens pour un encodeur', () => {
+  it('bumps up to 2 anything that makes no sense for an encoder', () => {
     expect(evenSize(0)).toBe(2)
     expect(evenSize(-40)).toBe(2)
     expect(evenSize(Number.NaN)).toBe(2)
   })
 })
 
-describe('avcLevelFor — le PLUS BAS niveau qui accepte l’image', () => {
-  it('720p à 30 im/s tient au niveau 3.1', () => {
-    // 80x45 macroblocs = 3600 FS, soit exactement le plafond du niveau 3.1.
+describe('avcLevelFor — the LOWEST level that accepts the picture', () => {
+  it('720p at 30 fps fits level 3.1', () => {
+    // 80x45 macroblocks = 3600 FS, exactly level 3.1's ceiling.
     expect(avcLevelFor(1280, 720, 30)).toBe('avc1.64001f')
   })
 
-  it('1080p à 30 im/s monte au niveau 4.0', () => {
+  it('1080p at 30 fps climbs to level 4.0', () => {
     expect(avcLevelFor(1920, 1080, 30)).toBe('avc1.640028')
   })
 
-  it('la CADENCE compte autant que la surface', () => {
-    // Même image qu'au-dessus : à 60 im/s le débit de macroblocs dépasse le niveau 4.0.
+  it('the RATE counts as much as the surface', () => {
+    // Same picture as above: at 60 fps the macroblock rate exceeds level 4.0.
     expect(avcLevelFor(1920, 1080, 60)).toBe('avc1.64002a')
   })
 
-  it('une toile démesurée rend le niveau le plus haut plutôt que rien', () => {
+  it('an oversized canvas returns the highest level rather than nothing', () => {
     expect(avcLevelFor(16_000, 16_000, 30)).toBe('avc1.64003c')
   })
 })
 
-describe('videoBitrate — borné aux deux bouts', () => {
-  it('une petite toile ne descend pas sous le plancher', () => {
-    // 320x180x30x0.25 = 432 000 b/s : le texte du HUD y baverait.
+describe('videoBitrate — bounded on both ends', () => {
+  it('a small canvas does not drop below the floor', () => {
+    // 320x180x30x0.25 = 432,000 b/s: the HUD text would smear at that rate.
     expect(videoBitrate(320, 180, 30)).toBe(2_000_000)
   })
 
-  it('une toile courante suit la surface', () => {
+  it('an ordinary canvas follows the surface', () => {
     expect(videoBitrate(1280, 720, 30)).toBe(6_912_000)
   })
 
-  it('une toile démesurée ne dépasse pas le plafond', () => {
+  it('an oversized canvas does not exceed the ceiling', () => {
     expect(videoBitrate(7680, 4320, 60)).toBe(80_000_000)
   })
 })
 
-describe('videoEncoderConfig — ce qu’on présente au navigateur', () => {
-  it('assemble codec, dimensions paires, cadence et débit (le mode variable est le repli)', () => {
+describe('videoEncoderConfig — what is presented to the browser', () => {
+  it('assembles codec, even dimensions, rate, and bitrate (variable mode is the fallback)', () => {
     expect(videoEncoderConfig(1281, 721)).toEqual({
       codec: 'avc1.64001f',
       width: 1280,
@@ -107,13 +107,13 @@ describe('videoEncoderConfig — ce qu’on présente au navigateur', () => {
     })
   })
 
-  it('la cadence par défaut est celle de l’export', () => {
+  it('the default rate is the export\'s own', () => {
     expect(videoEncoderConfig(640, 360).framerate).toBe(30)
   })
 
-  it('le mode quantizer demande la qualité, pas le débit', () => {
-    // Pas de `bitrate` : en mode quantizer, le QP EST le réglage, et le demander aussi
-    // ferait ment la console sur ce qui est demandé à l'encodeur.
+  it('quantizer mode requests quality, not a bitrate', () => {
+    // No `bitrate`: in quantizer mode, the QP IS the setting, and requesting one too would
+    // make the console lie about what is being asked of the encoder.
     const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer')
     expect(config).toEqual({
       codec: 'avc1.64001f',
@@ -126,31 +126,31 @@ describe('videoEncoderConfig — ce qu’on présente au navigateur', () => {
     expect('bitrate' in config).toBe(false)
   })
 
-  it('le mode constant vise le même débit borné que variable', () => {
+  it('constant mode targets the same bounded bitrate as variable', () => {
     const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'constant')
     expect(config.bitrateMode).toBe('constant')
     expect(config.bitrate).toBe(videoBitrate(1280, 720, EXPORT_FPS))
   })
 })
 
-describe('chooseExportRateMode — la sonde décide, rien n’est supposé', () => {
-  // La sonde fake lit le mode de la config qu'on lui présente : c'est elle qui décide.
+describe('chooseExportRateMode — the probe decides, nothing is assumed', () => {
+  // The fake probe reads the mode of the config it is presented: it is what decides.
   const probeFor = (supported: ExportRateMode[]) => async (c: VideoEncoderConfig) =>
     supported.includes((c.bitrateMode ?? 'variable') as ExportRateMode)
 
-  it("prend le quantizer quand la sonde l'accepte", async () => {
+  it('takes the quantizer when the probe accepts it', async () => {
     expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['quantizer', 'constant', 'variable']))).toBe('quantizer')
   })
 
-  it('prend le constant quand seul lui est accepté', async () => {
+  it('takes constant when only that is accepted', async () => {
     expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['constant', 'variable']))).toBe('constant')
   })
 
-  it("retombe sur le variable quand rien d'autre ne l'est", async () => {
+  it('falls back to variable when nothing else is', async () => {
     expect(await chooseExportRateMode(1920, 1080, 60, probeFor(['variable']))).toBe('variable')
   })
 
-  it('ne sonde pas le constant quand le quantizer est déjà accepté', async () => {
+  it('does not probe constant when the quantizer is already accepted', async () => {
     const asked: string[] = []
     const fps = await chooseExportFps(1920, 1080, 60, 30, async (c) => {
       asked.push(`${c.bitrateMode ?? 'variable'}@${c.framerate}`)
@@ -161,32 +161,32 @@ describe('chooseExportRateMode — la sonde décide, rien n’est supposé', () 
   })
 })
 
-describe('encodeOptionsFor — le QP ne voyage que dans le mode quantizer', () => {
-  it('porte avc.quantizer dans le mode quantizer, image-clé et autres images de même', () => {
+describe('encodeOptionsFor — the QP only travels in quantizer mode', () => {
+  it('carries avc.quantizer in quantizer mode, keyframe and other frames alike', () => {
     // Without a preset argument, the default preset's quantizer.
     const qp = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET].quantizer
     expect(encodeOptionsFor('quantizer', true)).toEqual({ keyFrame: true, avc: { quantizer: qp } })
     expect(encodeOptionsFor('quantizer', false)).toEqual({ keyFrame: false, avc: { quantizer: qp } })
   })
 
-  it('ne porte que la clé dans les modes de débit : le QP serait ignoré, et la console mentirait', () => {
+  it('only carries the key in the rate modes: the QP would be ignored, and the console would lie', () => {
     expect(encodeOptionsFor('constant', true)).toEqual({ keyFrame: true })
     expect(encodeOptionsFor('variable', false)).toEqual({ keyFrame: false })
   })
 })
 
-describe('contre-pression et images-clés', () => {
-  it('n’attend pas tant que la file reste sous le seuil', () => {
+describe('backpressure and keyframes', () => {
+  it('does not wait while the queue stays under the threshold', () => {
     expect(shouldDrain(0)).toBe(false)
     expect(shouldDrain(ENCODE_QUEUE_MAX)).toBe(false)
   })
 
-  it('attend dès que la file dépasse le seuil', () => {
-    // Sans cette attente, un match de dix minutes empile 18 000 images et l'onglet meurt.
+  it('waits as soon as the queue exceeds the threshold', () => {
+    // Without this wait, a ten-minute match stacks 18,000 frames and the tab dies.
     expect(shouldDrain(ENCODE_QUEUE_MAX + 1)).toBe(true)
   })
 
-  it('ouvre le clip sur une image-clé, puis une toutes les 2 secondes', () => {
+  it('opens the clip on a keyframe, then one every 2 seconds', () => {
     expect(isKeyFrame(0)).toBe(true)
     expect(isKeyFrame(1)).toBe(false)
     expect(isKeyFrame(KEYFRAME_EVERY)).toBe(true)
@@ -262,9 +262,9 @@ describe('the 3D export at 60 fps', () => {
   })
 })
 
-describe('canExportVideo — la capacité du navigateur', () => {
-  it('rend false là où WebCodecs n’existe pas (jsdom)', () => {
-    // C'est ce qui fait retomber l'UI sur l'enregistreur temps réel (décision D5 du plan).
+describe('canExportVideo — the browser\'s capability', () => {
+  it('returns false where WebCodecs does not exist (jsdom)', () => {
+    // This is what makes the UI fall back to the real-time recorder (plan decision D5).
     expect(canExportVideo()).toBe(false)
   })
 })

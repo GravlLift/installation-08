@@ -16,37 +16,37 @@ describe('bodyPosition', () => {
   }
   const out = () => new THREE.Vector3()
 
-  it('cuit : le corps est au repos, à la place de la cuisson', () => {
+  it('baked: the body is at rest, at the bake\'s spot', () => {
     const bake = { feet: new THREE.Vector3(5, 0, 7) } as unknown as RagdollBake
     expect(bodyPosition(corpse, 1, bake, out())).toEqual(new THREE.Vector3(5, 0, 7))
   })
 
-  it('chute : à la mort le corps est aux pieds de la victime', () => {
+  it('falling: at death the body is at the victim\'s feet', () => {
     expect(bodyPosition(corpse, 0, null, out())).toEqual(new THREE.Vector3(2, 0, 3))
   })
 
-  it('chute : au terme de la chute le corps a glissé le long de l impulsion', () => {
-    const slide = 0.08 // `shot` : STYLES.shot.slide
+  it('falling: once the fall ends the body has slid along the impulse', () => {
+    const slide = 0.08 // `shot`: STYLES.shot.slide
     const p = bodyPosition(corpse, fallSeconds('shot'), null, out())
     expect(p).toEqual(new THREE.Vector3(2 + slide, 0, 3))
   })
 })
 
 describe('povSubject', () => {
-  it('en vie : le joueur, en 1re personne', () => {
+  it('alive: the player, in first person', () => {
     expect(povSubject(true, null, 0)).toEqual({ kind: 'fp' })
   })
 
-  it('mort avec un corps : le corps, en 3e personne', () => {
+  it('dead with a body: the body, in third person', () => {
     const body = new THREE.Vector3(1, 0, 2)
     expect(povSubject(false, body, 45)).toEqual({ kind: 'corpse', feet: body, heading: 45 })
   })
 
-  it('mort sans corps : rien, l œil reste où il était', () => {
+  it('dead with no body: nothing, the eye stays where it was', () => {
     expect(povSubject(false, null, 0)).toEqual({ kind: 'hold' })
   })
 
-  it("l'image de réapparition (échantillon rechargé) revient à la 1re personne", () => {
+  it('the respawn frame (reloaded sample) returns to first person', () => {
     expect(povSubject(true, new THREE.Vector3(1, 0, 2), 0)).toEqual({ kind: 'fp' })
   })
 })
@@ -54,7 +54,7 @@ describe('povSubject', () => {
 describe('deathCameraPose', () => {
   const opts = { distance: 1.05, rise: 0.2, eyeHeight: 0.62 }
 
-  it('un corps à l origine, cap 0 : l œil est derrière et au-dessus, le regard porte devant', () => {
+  it('a body at the origin, heading 0: the eye is behind and above, the gaze reaches ahead', () => {
     const pose = deathCameraPose(new THREE.Vector3(0, 0, 0), 0, opts, {
       position: new THREE.Vector3(),
       look: new THREE.Vector3(),
@@ -67,7 +67,7 @@ describe('deathCameraPose', () => {
     expect(pose.look.z).toBeCloseTo(0)
   })
 
-  it('le corps déplacé déplace l œil et le regard d autant', () => {
+  it('moving the body moves the eye and the gaze by the same amount', () => {
     const pose = deathCameraPose(new THREE.Vector3(4, 0, -3), 0, opts, {
       position: new THREE.Vector3(),
       look: new THREE.Vector3(),

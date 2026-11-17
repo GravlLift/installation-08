@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — objectives3dModel : LES OBJECTIFS DE LA 3D SUIVENT LES RÈGLES DE LA 2D.
+ * Tests — objectives3dModel: THE 3D'S OBJECTIVES FOLLOW THE 2D'S RULES.
  *
- * CE QUE CE FICHIER VERROUILLE :
- *  - les interrupteurs : `show.objectives` seul commande tout, les familles suivent le leur ;
- *  - les zones jointes au catalogue suivent leur activité et leur propriétaire ;
- *  - l'indice de hauteur d'un objet posé vient du porteur le plus proche dans le temps ;
- *  - drapeau : dans la main du porteur localisé, au sol sinon ; crâne et bombe : chez le porteur, au sol sinon.
+ * WHAT THIS FILE LOCKS DOWN:
+ *  - the toggles: `show.objectives` alone drives everything, families follow their own;
+ *  - zones joined to the catalog follow their activity and their owner;
+ *  - a placed object's height hint comes from the carrier closest in time;
+ *  - flag: in the hand of the located carrier, on the ground otherwise; skull and bomb: on the
+ *    carrier, on the ground otherwise.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -35,11 +36,11 @@ import {
   type ZoneInks,
 } from './objectives3dModel'
 
-const ALLY = 'encre-allie'
-const ENEMY = 'encre-adverse'
-const NEUTRAL = 'encre-neutre'
+const ALLY = 'ink-ally'
+const ENEMY = 'ink-enemy'
+const NEUTRAL = 'ink-neutral'
 
-/** Le joueur regardé est dans l'équipe 0. */
+/** The viewed player is on team 0. */
 const allegiance = { ofTeam: (t: number | null | undefined) => (t == null || t < 0 ? null : t === 0) }
 const inks: ZoneInks = {
   inkOf: sideInkOf(allegiance, (ally) => (ally ? ALLY : ENEMY)),
@@ -66,19 +67,19 @@ function zoneDoc(states: ReplayZoneStateReady[], catalog: number): Pick<ReplayDo
 }
 
 describe('objectivesShown', () => {
-  it('sans familles, show.objectives commande tout', () => {
+  it('with no families, show.objectives alone drives everything', () => {
     expect(Object.values(objectivesShown(false, null)).every((v) => !v)).toBe(true)
     expect(Object.values(objectivesShown(true, null)).every((v) => v)).toBe(true)
   })
 
-  it('avec familles, chacune suit la sienne et le crâne au sol reste visible', () => {
+  it('with families, each follows its own, and a skull on the ground stays visible', () => {
     const shown = objectivesShown(false, { flags: true, vipCrown: false, bombCarrier: true })
     expect(shown).toEqual({ zones: false, skullFree: true, flags: true, vipCrown: false, bombCarrier: true })
   })
 })
 
 describe('prepareObjectives', () => {
-  it('joint les états par zoneRef et lit la lettre', () => {
+  it('joins states by zoneRef and reads the letter', () => {
     const p = prepareObjectives([zone(), zone({ x: 5 }), MARKER], zoneDoc([state({ zoneRef: 1, letterRank: 1 })], 2))
     expect(p.zones.map((z) => z.state?.zoneRef ?? null)).toEqual([null, 1])
     expect(p.zones.map((z) => z.letter)).toEqual([null, 'B'])
@@ -93,17 +94,17 @@ describe('prepareObjectives', () => {
     expect(markersToDraw(markers, false)).toEqual(markers)
   })
 
-  it('catalogue non joignable : aucun état', () => {
+  it('an unjoinable catalog: no state', () => {
     const p = prepareObjectives([zone()], zoneDoc([state()], 3))
     expect(p.zones[0].state).toBeNull()
   })
 })
 
-/** Les pieds de A sont à z = 3 tant qu'il vit (images 0 à 100), B n'a jamais de hauteur. */
+/** A's feet are at z = 3 as long as they are alive (frames 0 to 100), B never has a height. */
 const zOf = (xuid: string, f: number) => (xuid === 'A' && f >= 0 && f <= 100 ? 3 : null)
 
 describe('carryHintAt', () => {
-  it('lit le porteur le plus proche dans le temps, à la borne la plus proche', () => {
+  it('reads the carrier closest in time, at the nearest bound', () => {
     const seen: number[] = []
     const spy = (x: string, f: number) => {
       seen.push(f)
@@ -151,7 +152,7 @@ describe('flagPlaceAt3d', () => {
 })
 
 describe('skullPlaceAt', () => {
-  /** Deux vies-instant au même point : c'est le socle. */
+  /** Two instant-lives at the same point: that is the pedestal. */
   const instant = (t: number): ReplayObjectiveObjectReady =>
     ({ t0: t, t1: t, pts: [{ t, x: 2, y: 2 }], family: 'skull', fr: '', en: '' })
   const lives = [instant(0), instant(50)]
@@ -159,15 +160,15 @@ describe('skullPlaceAt', () => {
   const sources = { lives, carries, socle: { x: 2, y: 2 } }
   const posOf = (xuid: string): XY | null => (xuid === 'A' ? { x: 7, y: 7 } : null)
 
-  it('porté par un joueur localisé : au-dessus de lui', () => {
+  it('carried by a located player: above them', () => {
     expect(skullPlaceAt(sources, 15, posOf, zOf)).toEqual({ on: 'carrier', xuid: 'A' })
   })
 
-  it('au repos : sur son socle, à la hauteur du porteur voisin', () => {
+  it('at rest: on its pedestal, at the neighboring carrier\'s height', () => {
     expect(skullPlaceAt(sources, 30, posOf, zOf)).toEqual({ on: 'floor', at: { x: 2, y: 2 }, hint: 3 })
   })
 
-  it('sans vie ni portage : rien', () => {
+  it('with no life and no carry: nothing', () => {
     expect(skullPlaceAt({ lives: [], carries: [], socle: null }, 30, posOf, zOf)).toBeNull()
   })
 })
@@ -176,17 +177,17 @@ describe('bombPlaceAt', () => {
   const carries: ReplayBombCarry[] = [{ xuid: 'A', t0: 10, t1: 20, closed: true }]
   const posOf = (xuid: string, f: number): XY | null => (xuid === 'A' && f <= 20 ? { x: 6, y: 6 } : null)
 
-  it('portée : sur son porteur ; lâchée : au sol au point du lâcheur', () => {
+  it('carried: on its carrier; dropped: on the ground at the dropper\'s point', () => {
     expect(bombPlaceAt(carries, [], 15, posOf, zOf)).toEqual({ on: 'carrier', xuid: 'A' })
     expect(bombPlaceAt(carries, [], 30, posOf, zOf)).toEqual({ on: 'floor', at: { x: 6, y: 6 }, hint: 3 })
   })
 
-  it('explosée, ou sans horloge de confiance : plus au sol', () => {
+  it('exploded, or with no trusted clock: no longer on the ground', () => {
     expect(bombPlaceAt(carries, [25], 30, posOf, zOf)).toBeNull()
     expect(bombPlaceAt(carries, null, 30, posOf, zOf)).toBeNull()
   })
 
-  it('les explosions se lisent dans les actions, triées, sous la garde d’horloge', () => {
+  it('explosions are read from actions, sorted, guarded by the clock', () => {
     const objectives = [{ stat: 'bomb_detonations', t: 40 }, { stat: 'kills', t: 5 }, { stat: 'bomb_detonations', t: 12 }]
     const doc = { objectives, coverage: {} } as unknown as ReplayDocumentReady
     expect(bombExplosionsOf(doc)).toEqual([12, 40])
@@ -196,11 +197,11 @@ describe('bombPlaceAt', () => {
 })
 
 
-describe('visibilité et couleur des objectifs 3D', () => {
+describe('visibility and color of 3D objectives', () => {
   const prep = (role: string, st: ReplayZoneStateReady | null) =>
     prepareObjectives([zone({ role })], zoneDoc(st ? [st] : [], 1)).zones[0]
 
-  it('ne dessine une colline que pendant un intervalle actif, avec son propriétaire', () => {
+  it('only draws a hill during an active span, with its owner', () => {
     const st = state({ spans: [
       { t0: 10, t1: 19, owner: null, active: true },
       { t0: 20, t1: 29, owner: 0, active: true },
@@ -216,7 +217,7 @@ describe('visibilité et couleur des objectifs 3D', () => {
     expect(zoneDisplayInkAt(unjoined, 15, inks)).toBeNull()
   })
 
-  it('montre une zone Strongholds mesurée, neutre ou tenue, sans inventer un état absent', () => {
+  it('shows a measured Strongholds zone, neutral or held, without inventing an absent state', () => {
     const st = state({ spans: [{ t0: 0, t1: 9, owner: null, active: false }, { t0: 10, t1: 19, owner: 1, active: false }] })
     const stronghold = prep('zone', st)
     expect(zoneDisplayInkAt(stronghold, 5, inks)).toBe(NEUTRAL)

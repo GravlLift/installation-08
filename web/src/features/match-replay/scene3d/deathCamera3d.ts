@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * deathCamera3d.ts — LA CAMÉRA DE MORT EN 1RE PERSONNE : quand le joueur suivi n'a plus d'échantillon
- * à l'image, l'œil quitte sa tête pour suivre son corps inerte en 3e personne, à la distance et à la
- * hauteur de la caméra 3e, avec le cap du joueur à sa dernière image en vie (le corps ne fait pas
- * tourner la caméra). Sans corps connu, l'œil garde sa dernière image en vie.
+ * deathCamera3d.ts — THE FIRST-PERSON DEATH CAMERA: once the tracked player has no sample at the
+ * frame, the eye leaves their head to follow their ragdoll in third person, at the third-person
+ * camera's distance and height, along the player's heading at their last frame alive (the body
+ * never rotates the camera). With no known body, the eye keeps its last frame alive.
  */
 import * as THREE from 'three'
 
@@ -13,8 +13,8 @@ import type { Corpse } from './corpses3d'
 import type { RagdollBake } from './ragdollBake3d'
 
 /**
- * bodyPosition : les pieds du corps inerte à `t` secondes de la mort, écrits dans `out`. Cuit : le
- * corps est au repos, à la place de la cuisson ; sinon : la chute du jeu (`fallPlacement`).
+ * bodyPosition: the ragdoll's feet at `t` seconds since death, written to `out`. Baked: the body
+ * is at rest, at the bake's spot; otherwise: the game's fall (`fallPlacement`).
  */
 export function bodyPosition(fall: Corpse, t: number, bake: RagdollBake | null, out: THREE.Vector3): THREE.Vector3 {
   if (bake) return out.copy(bake.feet)
@@ -23,16 +23,16 @@ export function bodyPosition(fall: Corpse, t: number, bake: RagdollBake | null, 
   return out
 }
 
-/** Ce que l'œil suit en 1re personne à une image : le joueur (en vie), le corps (mort), ou rien (mort sans corps). */
+/** What the first-person eye follows at a frame: the player (alive), the body (dead), or nothing (dead with no body). */
 export type PovSubject3d =
   | { kind: 'fp' }
   | { kind: 'corpse'; feet: THREE.Vector3; heading: number }
   | { kind: 'hold' }
 
 /**
- * povSubject : le sujet de la caméra de 1re personne à une image. En vie, le joueur ; mort avec un
- * corps connu, le corps suivi en 3e personne au cap `heading` (dernière image en vie) ; mort sans
- * corps, rien (l'œil reste où il était).
+ * povSubject: the first-person camera's subject at a frame. Alive, the player; dead with a known
+ * body, the body followed in third person at heading `heading` (last frame alive); dead with no
+ * body, nothing (the eye stays where it was).
  */
 export function povSubject(alive: boolean, body: THREE.Vector3 | null, heading: number): PovSubject3d {
   if (alive) return { kind: 'fp' }
@@ -40,26 +40,26 @@ export function povSubject(alive: boolean, body: THREE.Vector3 | null, heading: 
   return { kind: 'hold' }
 }
 
-/** Les réglages de la caméra de mort : ceux de la caméra 3e personne. */
+/** The death camera's settings: those of the third-person camera. */
 export interface DeathCameraOpts {
-  /** L'œil reculé de la tête du corps de cette distance (u). */
+  /** The eye pulled back from the body's head by this distance (u). */
   distance: number
-  /** L'œil surélevé de cette hauteur au-dessus de la tête du corps (u). */
+  /** The eye raised by this height above the body's head (u). */
   rise: number
-  /** La hauteur de l'œil au-dessus des pieds du corps (u). */
+  /** The eye's height above the body's feet (u). */
   eyeHeight: number
 }
 
-/** Le placement de la caméra de mort : l'œil (position de la caméra) et son point de visée. */
+/** The death camera's placement: the eye (camera position) and its look-at point. */
 export interface DeathCameraPose {
   position: THREE.Vector3
   look: THREE.Vector3
 }
 
 /**
- * deathCameraPose : l'œil derrière et au-dessus du corps (distance et élévation de la caméra 3e), le
- * long du cap `heading` (constant, le corps ne fait pas tourner la caméra) ; le regard porte devant
- * l'œil. Écrit dans `out`.
+ * deathCameraPose: the eye behind and above the body (the third-person camera's distance and
+ * elevation), along heading `heading` (constant, the body never rotates the camera); the gaze
+ * reaches ahead of the eye. Written to `out`.
  */
 export function deathCameraPose(feet: THREE.Vector3, heading: number, o: DeathCameraOpts, out: DeathCameraPose): DeathCameraPose {
   const eye = TMP_EYE.copy(feet).add(TMP_UP.set(0, o.eyeHeight, 0))

@@ -1,43 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * eventLoopYield.ts — RENDRE LA MAIN À L'ÉVÉNEMENTIEL SANS SE FAIRE BRIDER.
+ * eventLoopYield.ts — YIELDING TO THE EVENT LOOP WITHOUT GETTING THROTTLED.
  *
- * # LE PIÈGE, MESURÉ PLUTÔT QUE SUPPOSÉ (2026-08-28)
+ * # THE TRAP, MEASURED RATHER THAN ASSUMED (2026-08-28)
  *
- * Une boucle de calcul long doit rendre la main entre deux lots, sinon l'onglet se fige. Le
- * geste évident — `await new Promise(r => setTimeout(r, 0))` — est un PIÈGE dès que l'onglet
- * passe en arrière-plan, ce qui est précisément ce que fait un utilisateur pendant un export
- * de plusieurs minutes.
+ * A long computation loop must yield between two batches, or the tab freezes. The obvious
+ * move — `await new Promise(r => setTimeout(r, 0))` — is a TRAP as soon as the tab goes to the
+ * background, which is exactly what a user does during an export lasting several minutes.
  *
- * Mesure faite dans l'onglet du rejeu, `document.hidden === true`, 20 tirages chacun :
+ * Measurement taken in the replay tab, `document.hidden === true`, 20 draws each:
  *
- * | Primitive         | Latence moyenne | Pire cas |
- * |-------------------|-----------------|----------|
- * | `setTimeout(…, 0)`| 673,53 ms       | 1009 ms  |
- * | `MessageChannel`  | 0,06 ms         | 1 ms     |
+ * | Primitive         | Average latency | Worst case |
+ * |-------------------|------------------|------------|
+ * | `setTimeout(…, 0)`| 673.53 ms        | 1009 ms    |
+ * | `MessageChannel`  | 0.06 ms          | 1 ms       |
  *
- * Les navigateurs brident les minuteurs des onglets cachés à une seconde. `requestAnimationFrame`
- * est pire encore : il ne se déclenche PLUS DU TOUT tant que l'onglet n'est pas visible. Le
- * message d'un `MessageChannel`, lui, n'est pas un minuteur : c'est une tâche, et les tâches ne
- * sont pas bridées.
+ * Browsers throttle hidden tabs' timers to one second. `requestAnimationFrame` is worse
+ * still: it does NOT FIRE AT ALL as long as the tab isn't visible. A `MessageChannel`
+ * message, on the other hand, is not a timer: it is a task, and tasks are not throttled.
  *
- * CE QUE ÇA COÛTAIT CONCRÈTEMENT : le premier export d'essai — 30 images sur une toile de test —
- * a pris 10,2 secondes, soit dix fois le temps réel de ce qu'il encodait. Tout ce temps était
- * passé dans les attentes de contre-pression. Avec cette primitive, la même attente est gratuite.
+ * WHAT THIS ACTUALLY COST: the first test export — 30 frames on a test canvas — took 10.2
+ * seconds, ten times the real-time length of what it was encoding. All of that time was spent
+ * in backpressure waits. With this primitive, the same wait is free.
  *
- * # POURQUOI UN MODULE, POUR SI PEU DE LIGNES
+ * # WHY A MODULE, FOR SO FEW LINES
  *
- * Deux consommateurs : la contre-pression de l'encodeur (`replayVideoEncoder.ts`) et la boucle
- * d'export elle-même (`useReplayExport.ts`). Recopier le geste dans les deux, c'est garantir
- * qu'un des deux redeviendra un `setTimeout` à la première relecture distraite — et le bridage
- * ne se voit PAS en développement, où l'onglet est au premier plan.
+ * Two consumers: the encoder's backpressure (`replayVideoEncoder.ts`) and the export loop
+ * itself (`useReplayExport.ts`). Copying the move into both would guarantee that one of them
+ * turns back into a `setTimeout` on the next distracted edit — and the throttling does NOT
+ * show up in development, where the tab stays in the foreground.
  */
 
 /**
- * yieldToEvents rend la main à la boucle d'événements pour une tâche, sans bridage.
+ * yieldToEvents yields to the event loop for one task, without throttling.
  *
- * Repli sur `setTimeout` là où `MessageChannel` n'existe pas (jsdom ancien, environnements de
- * test) : le repli est bridé, mais un test ne tourne pas en onglet caché.
+ * Falls back to `setTimeout` where `MessageChannel` doesn't exist (old jsdom, test
+ * environments): the fallback is throttled, but a test does not run in a hidden tab.
  */
 export function yieldToEvents(): Promise<void> {
   if (typeof MessageChannel !== 'function') {
@@ -46,8 +44,8 @@ export function yieldToEvents(): Promise<void> {
   return new Promise((resolve) => {
     const channel = new MessageChannel()
     channel.port1.onmessage = () => {
-      // LES DEUX PORTS SE FERMENT : un canal laissé ouvert par attente, sur dix-huit mille
-      // images, retient dix-huit mille paires de ports jusqu'au ramasse-miettes.
+      // BOTH PORTS ARE CLOSED: a channel left open per wait, across eighteen thousand
+      // frames, would hold eighteen thousand port pairs until garbage collection.
       channel.port1.close()
       channel.port2.close()
       resolve()

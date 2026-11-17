@@ -38,6 +38,8 @@
 // dans ctf_breaker.mvar). Voir objectives.go pour la table de résolution.
 package mapvar
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // Vec3 est une position ou une direction en repère monde.
@@ -194,7 +196,7 @@ func Parse(buf []byte) (*Variant, error) {
 	}
 	objs, ok := root.Field(3)
 	if !ok {
-		return nil, fmt.Errorf("mapvar: champ racine 3 (objets) absent")
+		return nil, fmt.Errorf("mapvar: root field 3 (objects) missing")
 	}
 	v.Objects = make([]Object, 0, len(objs.Items))
 	for i, raw := range objs.Items {

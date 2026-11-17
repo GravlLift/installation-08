@@ -70,9 +70,9 @@ func (p *ti13Partage) lire(ctx context.Context) {
 	slog.InfoContext(ctx, "replay: ti=13 properties swept",
 		"match_id", p.matchID, "slots", sc.Slots, "records", sc.Records, "walks", sc.Walked,
 		"broken", sc.Broken, "chained", sc.Chained, "reads", len(sc.Reads),
-		"recordsImageCle", sc.KeyRecords, "fermesImageCle", sc.KeyClosed,
-		"cassesImageCle", sc.KeyBroken, "nonProuvesImageCle", sc.KeyUnproven,
-		"refusesImageCle", sc.KeyRefused, "lecturesImageCle", len(sc.KeyReads))
+		"keyframeRecords", sc.KeyRecords, "keyframeClosed", sc.KeyClosed,
+		"keyframeBroken", sc.KeyBroken, "keyframeUnproven", sc.KeyUnproven,
+		"keyframeRefused", sc.KeyRefused, "keyframeReads", len(sc.KeyReads))
 	p.reads, p.keyReads = sc.Reads, sc.KeyReads
 }
 
@@ -145,13 +145,13 @@ func logZoneStatesCoverage(ctx context.Context, matchID string, cov *ZonesCovera
 		// periodes designees que la grappe ne localise pas. La methode voyage donc DANS le
 		// message — sans elle, le meme chiffre se lirait de trois facons.
 		slog.WarnContext(ctx, "replay: pairings DISCARDED — zones absent from the published state",
-			"match_id", matchID, "method", cov.Method, "nonApparies", cov.Unpaired,
+			"match_id", matchID, "method", cov.Method, "unpaired", cov.Unpaired,
 			"paired", cov.Paired, "captures", cov.Captures, "attributed", cov.Attributed)
 	}
 	if cov.OwnerUnpaired > 0 {
 		slog.WarnContext(ctx, "replay: zones WITHOUT an elected owner channel — zones absent from the published state",
-			"match_id", matchID, "sansProprietaire", cov.OwnerUnpaired, "paired", cov.Paired,
-			"seuilAccord", zoneOwnerMinAgreements)
+			"match_id", matchID, "noOwner", cov.OwnerUnpaired, "paired", cov.Paired,
+			"agreementThreshold", zoneOwnerMinAgreements)
 	}
 	if cov.UnknownOwner > 0 {
 		slog.WarnContext(ctx, "replay: UNKNOWN owner values — intervals not opened",
@@ -159,12 +159,12 @@ func logZoneStatesCoverage(ctx context.Context, matchID string, cov *ZonesCovera
 	}
 	slog.InfoContext(ctx, "replay: zone state",
 		"match_id", matchID, "method", cov.Method, "catalog", cov.Catalog,
-		"slots", cov.Slots, "paired", cov.Paired, "nonApparies", cov.Unpaired,
-		"sansProprietaire", cov.OwnerUnpaired, "intervals", cov.Spans,
-		"periodesColline", cov.HillPeriods, "proprietaireVerifie", cov.OwnerChecked,
-		"proprietaireConcordant", cov.OwnerAgreed,
-		"capturesAttribuees", cov.Attributed, "capturesSansPosition", cov.NoPosition,
-		"capturesDehors", cov.Outside, "capturesAmbigues", cov.AmbiguousZone)
+		"slots", cov.Slots, "paired", cov.Paired, "unpaired", cov.Unpaired,
+		"noOwner", cov.OwnerUnpaired, "intervals", cov.Spans,
+		"hillPeriods", cov.HillPeriods, "ownerChecked", cov.OwnerChecked,
+		"ownerAgreed", cov.OwnerAgreed,
+		"attributedCaptures", cov.Attributed, "capturesNoPosition", cov.NoPosition,
+		"outsideCaptures", cov.Outside, "ambiguousCaptures", cov.AmbiguousZone)
 }
 
 // kickoffFrameOf rend la frame du COUP D ENVOI (`T0FilmMs`, sur l horloge d `OriginMs`), et faux

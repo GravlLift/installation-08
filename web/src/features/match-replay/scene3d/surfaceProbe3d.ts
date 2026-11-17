@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * surfaceProbe3d.ts — L'INSPECTEUR DE SURFACES de la vue 3D (poste de développement) : la surface
- * de la carte sous le pointeur, avec le matériau du jeu qui la dessine.
+ * surfaceProbe3d.ts — THE SURFACE INSPECTOR of the 3D view (a developer tool): the map's surface
+ * under the pointer, with the game material that draws it.
  *
- * `loadMapModel` (et `loadLayerModel`, pour les objets de la variante) remplace les matériaux du
- * GLB par ceux de la vue ; il dépose avant cela, sur
- * chaque maillage, le nom du matériau du jeu (`mat_<GlobalID>`), son shader et la famille retenue
- * (`tagSurface`). L'inspecteur relit ce dépôt sur la surface visible la plus proche. Sur le calque
- * des objets, fondu par matériau, il nomme aussi l'objet touché par la table que le GLB publie.
+ * `loadMapModel` (and `loadLayerModel`, for variant objects) replaces the GLB's materials with
+ * the view's own; before that, on every mesh, it deposits the game material's name
+ * (`mat_<GlobalID>`), its shader, and the chosen family (`tagSurface`). The inspector rereads
+ * that deposit on the closest visible surface. On the objects layer, merged by material, it also
+ * names the object hit, through the table the GLB publishes.
  */
 import * as THREE from 'three'
 
 export interface SurfaceTag {
-  /** Nom du matériau dans le GLB : `mat_<GlobalID>` du tag `mat ` du jeu. */
+  /** The material's name in the GLB: `mat_<GlobalID>` from the game's `mat ` tag. */
   material: string
-  /** GlobalID du shader du matériau (hexadécimal), null si le GLB ne le porte pas. */
+  /** The material's shader GlobalID (hex), null if the GLB does not carry one. */
   shader: string | null
-  /** Famille de la vue : structure, décor ou translucide. */
+  /** The view's family: structure, decor, or see-through. */
   family: string
 }
 
-/** Un objet de la variante : son rang dans le `.mvar` et son type. */
+/** A variant object: its rank in the `.mvar` and its type. */
 export interface ProbedObject {
   index: number
   type: number
 }
 
 export interface SurfaceProbe extends SurfaceTag {
-  /** Point touché, en coordonnées du jeu (x, y au sol, z vers le haut). */
+  /** Hit point, in game coordinates (x, y on the ground, z up). */
   halo: [number, number, number]
-  /** L'objet de la variante touché, null hors du calque des objets. */
+  /** The variant object hit, null outside the objects layer. */
   object: ProbedObject | null
 }
 
-/** Un objet posé du calque, tel que le GLB le publie (`scenes[0].extras.levelupObjects`, axes du jeu). */
+/** A layer's placed object, as the GLB publishes it (`scenes[0].extras.levelupObjects`, game axes). */
 export interface PlacedObject extends ProbedObject {
   min: [number, number, number]
   max: [number, number, number]
@@ -41,16 +41,16 @@ export interface PlacedObject extends ProbedObject {
 
 const KEY = 'surface'
 const OBJECTS_KEY = 'levelupObjects'
-// Le point touché est sur la surface d'un objet : sa boîte le contient, à l'arrondi des sommets près.
+// The hit point is on an object's surface: its box contains it, within the vertices' rounding.
 const BOX_SLACK = 0.02
 
-/** tagSurface dépose sur le maillage le matériau du jeu qui le dessine. */
+/** tagSurface deposits on the mesh the game material that draws it. */
 export function tagSurface(mesh: THREE.Mesh, source: THREE.Material, shader: number | undefined, family: string): void {
   const tag: SurfaceTag = { material: source.name, shader: shader === undefined ? null : shader.toString(16).padStart(8, '0'), family }
   mesh.userData[KEY] = tag
 }
 
-/** surfaceFamily : la famille de la vue déposée sur le maillage (`tagSurface`), null s'il n'en porte pas. */
+/** surfaceFamily: the view's family deposited on the mesh (`tagSurface`), null if it carries none. */
 export function surfaceFamily(mesh: THREE.Object3D): string | null {
   return (mesh.userData[KEY] as SurfaceTag | undefined)?.family ?? null
 }
@@ -58,8 +58,8 @@ export function surfaceFamily(mesh: THREE.Object3D): string | null {
 const drawers = new WeakMap<THREE.Object3D, THREE.Object3D>()
 
 /**
- * markDrawnBy : la surface étiquetée `mesh`, cachée, est dessinée par `drawer` (un maillage fusionné
- * qui ne répond pas aux rayons) ; l'inspecteur la juge visible quand `drawer` l'est.
+ * markDrawnBy: the surface tagged `mesh`, hidden, is drawn by `drawer` (a merged mesh that does
+ * not respond to rays); the inspector deems it visible when `drawer` is.
  */
 export function markDrawnBy(mesh: THREE.Object3D, drawer: THREE.Object3D): void {
   drawers.set(mesh, drawer)
@@ -92,7 +92,7 @@ export function inObjectLayer(o: THREE.Object3D): boolean {
   return placedObjects(o) !== null
 }
 
-/** placedObjects rend la table des objets du calque qui porte `o`, null hors d'un calque d'objets. */
+/** placedObjects returns the object table of the layer carrying `o`, null outside an objects layer. */
 function placedObjects(o: THREE.Object3D): readonly PlacedObject[] | null {
   for (let n: THREE.Object3D | null = o; n; n = n.parent) {
     const objects = n.userData[OBJECTS_KEY] as PlacedObject[] | undefined
@@ -101,7 +101,7 @@ function placedObjects(o: THREE.Object3D): readonly PlacedObject[] | null {
   return null
 }
 
-/** objectAt rend l'objet dont la boîte contient le point `p` (axes du jeu), le plus petit s'ils s'emboîtent. */
+/** objectAt returns the object whose box contains point `p` (game axes), the smallest if they nest. */
 export function objectAt(objects: readonly PlacedObject[], p: readonly [number, number, number]): ProbedObject | null {
   let best: PlacedObject | null = null
   let bestVolume = Infinity
@@ -117,8 +117,8 @@ export function objectAt(objects: readonly PlacedObject[], p: readonly [number, 
 }
 
 /**
- * probeSurface rend la première surface visible sous le point `ndc` de l'écran, parmi `roots` (la
- * carte et les calques posés sur elle), avec l'objet de la variante qui la porte.
+ * probeSurface returns the first visible surface under screen point `ndc`, among `roots` (the
+ * map and the layers placed on it), with the variant object that carries it.
  */
 export function probeSurface(roots: readonly THREE.Object3D[], camera: THREE.Camera, ndc: THREE.Vector2): SurfaceProbe | null {
   const ray = new THREE.Raycaster()
@@ -126,7 +126,7 @@ export function probeSurface(roots: readonly THREE.Object3D[], camera: THREE.Cam
   for (const hit of ray.intersectObjects([...roots], true)) {
     const tag = hit.object.userData[KEY] as SurfaceTag | undefined
     if (!tag || !visible(hit.object)) continue
-    // three.js a l'axe Y vers le haut : le jeu est (x, -z, y).
+    // three.js has the Y axis up: the game is (x, -z, y).
     const halo: [number, number, number] = [hit.point.x, -hit.point.z, hit.point.y]
     const objects = placedObjects(hit.object)
     return { ...tag, halo, object: objects && objectAt(objects, halo) }
@@ -134,9 +134,9 @@ export function probeSurface(roots: readonly THREE.Object3D[], camera: THREE.Cam
   return null
 }
 
-/** formatProbe : la ligne copiée dans le presse-papiers. */
+/** formatProbe: the line copied to the clipboard. */
 export function formatProbe(p: SurfaceProbe): string {
   const at = p.halo.map((v) => v.toFixed(2)).join(', ')
-  const object = p.object ? ` objet #${p.object.index} type ${p.object.type}` : ''
+  const object = p.object ? ` object #${p.object.index} type ${p.object.type}` : ''
   return `${p.material} shader ${p.shader ?? '?'} ${p.family} @ (${at})${object}`
 }

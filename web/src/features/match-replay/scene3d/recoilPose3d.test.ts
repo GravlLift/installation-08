@@ -36,30 +36,30 @@ function spartan() {
   return { source, mix }
 }
 
-/** Le repère monde du modèle d'arme dessiné. */
+/** The weapon model's world frame as drawn. */
 function weaponFrame(model: THREE.Object3D): THREE.Matrix4 {
   model.updateWorldMatrix(true, false)
   return model.matrixWorld.clone()
 }
 
-/** La position d'un os dans le repère du modèle d'arme. */
+/** A bone's position in the weapon model's frame. */
 function inWeapon(root: THREE.Object3D, name: string, weapon: THREE.Matrix4): THREE.Vector3 {
   const b = root.getObjectByName(name) as THREE.Object3D
   return b.getWorldPosition(new THREE.Vector3()).applyMatrix4(weapon.clone().invert())
 }
 
-describe('le recul en 3e personne', () => {
+describe('recoil in third person', () => {
   const { source, mix } = spartan()
 
   function pose(recoil: Recoil, gun = rifle()) {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, source)
     placeBody(a, FEET, { h: 120, p: 15, crouch: false, dropOeil: 0, mix }, false)
     showWeapon(a, { color: TEAM, recoil }, gun, null)
     return { a, gun, root: a.spartan?.rig.root as THREE.Object3D, model: a.model as THREE.Object3D }
   }
 
-  it('l’arme recule le long de son canon et lève la bouche, autour de la poignée', () => {
+  it('the weapon pulls back along its barrel and lifts the muzzle, about the grip', () => {
     const rest = pose(REST)
     const kicked = pose(KICK)
     const w0 = weaponFrame(rest.model)
@@ -73,7 +73,7 @@ describe('le recul en 3e personne', () => {
     expect(barrel1.angleTo(barrel0)).toBeGreaterThan(0.9 * KICK.pitch)
   })
 
-  it('les mains suivent l’arme : leur place dans le repère de l’arme ne change pas', () => {
+  it('the hands follow the weapon: their position in the weapon\'s frame does not change', () => {
     const rest = pose(REST)
     const kicked = pose(KICK)
     const w0 = weaponFrame(rest.model)
@@ -81,12 +81,12 @@ describe('le recul en 3e personne', () => {
     for (const hand of ['b_l_hand', 'b_r_hand', 'b_l_forearm', 'b_r_forearm', 'b_l_grip']) {
       expect(inWeapon(kicked.root, hand, w1).distanceTo(inWeapon(rest.root, hand, w0))).toBeLessThan(1e-6)
     }
-    // L'arme reste à sa tenue dans la main : c'est le bras qui bouge, pas l'arme dans la main.
+    // The weapon stays in its grip in the hand: it is the arm that moves, not the weapon in the hand.
     expect(kicked.model.position.length()).toBeLessThan(1e-12)
   })
 
-  it('l’image suivante sans tir repart du repos : rien ne s’accumule', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('the next frame with no shot starts back from rest: nothing accumulates', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, source)
     const gun = rifle()
     const frame = (recoil: Recoil) => {
@@ -101,7 +101,7 @@ describe('le recul en 3e personne', () => {
     expect(after.equals(before)).toBe(true)
   })
 
-  it('la bouche du vol (MuzzleProbe) est la bouche dessinée, recul compris', () => {
+  it('the muzzle flash\'s muzzle (MuzzleProbe) is the drawn muzzle, recoil included', () => {
     const { a, gun } = pose(KICK)
     const drawn = new THREE.Vector3()
     drawnMuzzle({ model: a.model as THREE.Object3D, source: gun }, drawn, new THREE.Vector3())
@@ -113,16 +113,16 @@ describe('le recul en 3e personne', () => {
   })
 })
 
-describe('le recul en 1re personne', () => {
-  it('le modèle seul recule ; l’origine du vol suit la bouche dessinée', () => {
+describe('recoil in first person', () => {
+  it('only the model recoils; the muzzle flash\'s origin follows the drawn muzzle', () => {
     for (const [h, p] of [[0, 0], [75, 30], [210, -45]]) {
-      const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+      const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
       const gun = rifle()
       const view = viewGripOf('1a22fee6')
       placeBody(a, FEET, { h, p, crouch: false, dropOeil: 0 }, true)
       const aimBefore = a.aim.quaternion.clone()
       showWeapon(a, { color: TEAM, recoil: KICK }, gun, view)
-      // Le cône (et la caméra qui le suit) ne bouge pas : la visée du film porte déjà le regard.
+      // The cone (and the camera following it) does not move: the film's aim already carries the look.
       expect(a.aim.quaternion.equals(aimBefore)).toBe(true)
       const drawn = new THREE.Vector3()
       drawnMuzzle({ model: a.model as THREE.Object3D, source: gun }, drawn, new THREE.Vector3())

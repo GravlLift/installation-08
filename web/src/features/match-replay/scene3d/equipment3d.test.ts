@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * L'ÉQUIPEMENT 3D MONTRE CE QUE LA 2D MONTRE, AUX MÊMES IMAGES : poses (mur, capteur, objets
- * lâchés, traqueur), failles, câbles de grappin et poussées, sur un document bâti à la main.
+ * 3D EQUIPMENT SHOWS WHAT 2D SHOWS, ON THE SAME FRAMES: placements (wall, sensor, dropped
+ * objects, seeker), rifts, grapple cables and knockbacks, on a hand-built document.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -17,30 +17,30 @@ import {
 } from './equipment3d'
 import { grapplePhaseAt } from './grapple3d_logic'
 
-/** 100 ms par image : les durées de la 2D se lisent directement en images. */
+/** 100 ms per frame: 2D durations read directly as frames. */
 const FRAME_MS = 100
 
-function vie(slot: number, start: number, end: number) {
+function life(slot: number, start: number, end: number) {
   return { slot, team: 0, startFrame: start, endFrame: end, points: [{ t: start, x: 0, y: 0 }, { t: end, x: 1, y: 0 }] }
 }
 
 const doc = testReplayDoc({
   frameCount: 2000,
   frameIntervalMs: FRAME_MS,
-  tracks: [vie(3, 0, 400), vie(4, 0, 400)],
+  tracks: [life(3, 0, 400), life(4, 0, 400)],
   abilityLabels: { '11': { fr: 'Translocateur quantique', en: 'Quantum Translocator' } },
   equipmentPlacements: [
-    // Les panneaux d'un mur déployé : dessinés, 12,48 s de repli.
+    // A deployed wall's panels: drawn, 12.48 s fallback.
     { family: 'wall', id: '0x528fce46', origin: 'deployed', owner: 3, t0: 100, t1: 105, x: 1, y: 2, z: 0, h: 90 },
-    // L'appareil du même mur : jamais dessiné en déployé (seuls les panneaux le sont).
+    // The device of the same wall: never drawn when deployed (only the panels are).
     { family: 'wall', id: '0x8e2dc574', origin: 'deployed', owner: 3, t0: 100, t1: 101, x: 1, y: 2 },
-    // Un capteur lâché à la mort : objet lâché, jusqu'à la fin du rejeu.
+    // A sensor dropped on death: dropped object, until the end of the replay.
     { family: 'sensor', id: 'x', origin: 'dropped', owner: 3, t0: 401, t1: 402, x: 5, y: 5 },
-    // Une grenade lâchée : jamais dessinée.
+    // A dropped grenade: never drawn.
     { family: 'grenade_frag', id: 'g', origin: 'dropped', owner: 3, t0: 401, t1: 402, x: 5, y: 5 },
-    // Un objet non identifié : bascule éteinte par défaut, rien.
+    // An unidentified object: toggle off by default, nothing.
     { family: 'other', id: 'o', origin: 'deployed', owner: 3, t0: 10, t1: 20, x: 0, y: 0 },
-    // Un traqueur déployé (artefact ancien) : son impulsion seule, 400 ms.
+    // A deployed seeker (legacy artifact): only its pulse, 400 ms.
     { family: 'threat_seeker', id: 's', origin: 'deployed', owner: 4, t0: 50, t1: 51, x: 3, y: 3 },
   ],
   riftPoses: [{ slot: 3, t: 200, t1: 260, x: 7, y: 7, z: 1 }],
@@ -57,10 +57,10 @@ const doc = testReplayDoc({
 
 const time = equipmentTime3d(doc)
 
-describe('equipment3d — les poses suivent la porte du tracé 2D', () => {
+describe('equipment3d — placements follow the 2D trace\'s gate', () => {
   const spans = placementSpans3d(doc, time)
 
-  it('ne retient que les panneaux du mur, le capteur lâché et le traqueur', () => {
+  it('keeps only the wall panels, the dropped sensor and the seeker', () => {
     expect(spans.map((s) => [s.p.family, s.kind])).toEqual([
       ['wall', 'wall'],
       ['sensor', 'dropped'],
@@ -68,7 +68,7 @@ describe('equipment3d — les poses suivent la porte du tracé 2D', () => {
     ])
   })
 
-  it('le mur tient sa durée de repli (12,48 s) depuis sa pose', () => {
+  it('the wall holds its fallback duration (12.48 s) from its placement', () => {
     const wall = spans[0]
     expect(placementShownAt(wall, 99, time)).toBe(false)
     expect(placementShownAt(wall, 100, time)).toBe(true)
@@ -76,11 +76,11 @@ describe('equipment3d — les poses suivent la porte du tracé 2D', () => {
     expect(placementShownAt(wall, 101 + 12_480 / FRAME_MS, time)).toBe(false)
   })
 
-  it('l objet lâché reste jusqu à la fin du rejeu', () => {
+  it('the dropped object stays until the end of the replay', () => {
     expect(placementShownAt(spans[1], 1999, time)).toBe(true)
   })
 
-  it('le traqueur ne montre que son impulsion', () => {
+  it('the seeker only shows its pulse', () => {
     const seeker = spans[2]
     expect(placementShownAt(seeker, 50, time)).toBe(true)
     expect(placementShownAt(seeker, 53, time)).toBe(true)
@@ -88,8 +88,8 @@ describe('equipment3d — les poses suivent la porte du tracé 2D', () => {
   })
 })
 
-describe('equipment3d — failles, câbles et poussées', () => {
-  it('la faille vit de sa pose à sa fin lue', () => {
+describe('equipment3d — rifts, cables and knockbacks', () => {
+  it('the rift lives from its placement to its read end', () => {
     const stations = riftStations(doc)
     expect(riftStationsAt(stations, 199)).toEqual([])
     expect(riftStationsAt(stations, 200)).toHaveLength(1)
@@ -106,7 +106,7 @@ describe('equipment3d — failles, câbles et poussées', () => {
     expect(grapplePhaseAt(empty, 50, FRAME_MS)).toBeNull()
   })
 
-  it('la poussée dure l effet 2D (520 ms)', () => {
+  it('the knockback lasts the 2D effect (520 ms)', () => {
     const k = doc.knockbacks[0]
     expect(knockbackShownAt(k, 119, time)).toBe(false)
     expect(knockbackShownAt(k, 120, time)).toBe(true)
@@ -114,7 +114,7 @@ describe('equipment3d — failles, câbles et poussées', () => {
     expect(knockbackShownAt(k, 125.3, time)).toBe(false)
   })
 
-  it('la flèche suit la vitesse imposée, plafonnée, et rien sans impulsion', () => {
+  it('the arrow follows the published speed, capped, and nothing without a pulse', () => {
     const slow = knockbackArrow(doc.knockbacks[0])
     expect(slow?.length).toBeCloseTo(1.2)
     expect(slow?.dir.toArray()).toEqual([1, 0, -0])

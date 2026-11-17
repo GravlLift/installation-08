@@ -7,6 +7,8 @@
 // specifique — le balayage d'octets contre l'index est title-agnostic et robuste au layout.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"log/slog"
@@ -100,7 +102,7 @@ func modeleParHlmtRecursif(ctx context.Context, idx *ModuleIndex, tag []byte, vu
 		vus[h] = true
 		hlmt, err := idx.Extract(h)
 		if err != nil {
-			slog.DebugContext(ctx, "tag hlmt illisible", "id", h, "err", err)
+			slog.DebugContext(ctx, "unreadable hlmt tag", "id", h, "err", err)
 			continue
 		}
 		if refs := refsVehicule(hlmt, idx, GroupeRtgo); len(refs) > 0 {

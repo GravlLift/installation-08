@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * lighting.ts — L'ÉCLAIRAGE PHYSIQUE DE LA VUE 3D.
+ * lighting.ts — THE 3D VIEW'S PHYSICAL LIGHTING.
  *
- * Les matériaux sont standard (rugosité, métal). Un soleil porte des ombres ; sa carte d'ombre se
- * recalcule à chaque nouvelle image du rejeu, pour que les joueurs et les véhicules en portent
- * (rien à l'arrêt). The map's own casters are drawn into it once and kept (shadowSplit3d): each
- * frame redraws only what moves. L'environnement (reflets et lumière indirecte) est la carte elle-même,
- * capturée en cube depuis plusieurs points joués puis préfiltrée : chaque surface prend la sonde
- * la plus proche (`probes3d`). Les lampes posées de la carte éclairent directement, sans ombre,
- * par une grille mondiale (`clusteredLights`). Les éclairs brefs de l'action (bouches,
- * détonations) ont leur jeu fixe de lumières (`flash3d`), posé dès la construction.
+ * Materials are standard (roughness, metal). A sun casts shadows; its shadow map is recomputed
+ * on every new replay frame, so players and vehicles cast one (nothing while paused). The map's
+ * own casters are drawn into it once and kept (shadowSplit3d): each frame redraws only what
+ * moves. The environment (reflections and indirect light) is the map itself, captured as a cube
+ * from several played points then prefiltered: each surface takes the nearest probe
+ * (`probes3d`). The map's placed lamps light directly, without shadows, through a world grid
+ * (`clusteredLights`). The action's brief flashes (muzzles, detonations) have their own fixed
+ * set of lights (`flash3d`), placed at construction.
  *
- * Les réglages du tiroir (`Look3d`) s'appliquent sans recompiler la carte pour les ombres
- * (intensité de l'ombre à zéro, carte d'ombre figée) et la lumière du jeu (uniforme des sondes
- * cuites, uniforme partagé des lampes) ; les reflets retirent les sondes des matériaux, et le ciel les remplace
- * pour que l'ombre ne tombe pas au noir.
+ * The drawer's settings (`Look3d`) apply without recompiling the map for shadows (shadow
+ * intensity at zero, shadow map frozen) and game light (baked probes' uniform, shared lamps'
+ * uniform); reflections remove materials' probes, and the sky replaces them so shadow doesn't
+ * fall to black.
  */
 import * as THREE from 'three'
 
@@ -26,29 +26,29 @@ import { chooseProbes, nearestProbe } from './probes3d'
 import { graftTopShade } from './topDownShade3d'
 
 const SHADOW_SIZE = 4096
-// Sondes d'environnement : au plus PROBE_MAX, espacées d'au moins PROBE_SPACING (u).
+// Environment probes: at most PROBE_MAX, spaced at least PROBE_SPACING (u) apart.
 const PROBE_MAX = 8
 const PROBE_SPACING = 12
-// Lumière du ciel sans reflets : remplace la lumière renvoyée par la carte.
+// Sky light with no reflections: replaces the light the map gives back.
 const HEMI_BARE_INTENSITY = 0.4
-// Biais de profondeur de la carte d'ombre : le GLB n'a pas de normales de sommet, le biais selon
-// la normale n'a donc aucun effet et seul celui-ci évite l'acné.
+// Shadow map depth bias: the GLB carries no vertex normals, so the normal-based bias has no
+// effect and this one alone avoids shadow acne.
 const SHADOW_BIAS = -0.0002
 const ENV_SIZE = 256
-// Lumière renvoyée par les sondes, et ciel : réglés sur une capture officielle de la salle centrale de
-// Recharge (murs sombres, flaque de soleil sous la verrière). Plus fort, l'intérieur se délave.
+// Light given back by the probes, and the sky: tuned on an official capture of Recharge's
+// central room (dark walls, a sun pool under the skylight). Any stronger and the interior washes out.
 export const ENV_INTENSITY = 1.5
 const EXPOSURE = 1.15
 const SUN_INTENSITY = 3.2
-// Échelles de la lumière du jeu (sondes cuites `bakedLight`, lampes `placedLights`) vers three, à
-// exposition inchangée (le soleil reste réglé sur sa capture) : luminance médiane du cadre, à hauteur
-// d'œil sur des points joués de Recharge, 0,23 contre 0,21 sur les captures du jeu (0,13 à π et 1).
+// Scales from game light (baked probes `bakedLight`, lamps `placedLights`) to three.js, at
+// unchanged exposure (the sun stays tuned on its capture): the frame's median luminance, at eye
+// height on played points of Recharge, 0.23 against 0.21 on the game's own captures (0.13 at π and 1).
 export const BAKED_INTENSITY = 2.5 * Math.PI
-// Lumière propre des matériaux : le jeu déclare des forces de 1 à plus de 1 000 (valeurs HDR) ;
-// la vue les comprime en log2(1 + force) × GLOW_SCALE.
+// Materials' own light: the game declares strengths from 1 to over 1,000 (HDR values); the view
+// compresses them to log2(1 + strength) × GLOW_SCALE.
 const GLOW_SCALE = 0.6
 
-/** glowLevel : l'intensité émissive three d'une force du jeu. */
+/** glowLevel: the three.js emissive intensity for a game strength. */
 export function glowLevel(force: number): number {
   return GLOW_SCALE * Math.log2(1 + force)
 }
@@ -70,11 +70,11 @@ export function imageGlowLevel(peak: number): number {
   return Math.min(IMAGE_GLOW_MAX, glowLevel(Math.max(0, peak)))
 }
 const HEMI_INTENSITY = 0.25
-// Teintes de la lumière (pas des couleurs d'interface) : soleil chaud, ciel froid, sol brun.
+// Light hues (not UI colors): warm sun, cool sky, brown ground.
 const SUN_TINT = 0xfff4e5
 const SKY_TINT = 0xdfe8f0
 const GROUND_TINT = 0x3a3530
-// Brume de distance du jeu : teinte de l'air, et densité (par u, loi exponentielle au carré).
+// The game's distance haze: air hue, and density (per u, squared-exponential law).
 const HAZE_TINT = 0x4a5a66
 const HAZE_DENSITY = 0.02
 
@@ -140,13 +140,13 @@ export function captureSkyScale(sunIntensity: number, sky: THREE.Color): number 
 const guarded = new WeakSet<THREE.Material>()
 
 /**
- * guardMaterial prépare un matériau de la carte à l'éclairage.
- * - Normale de sommet constante : le GLB n'en porte pas, et l'attribut absent vaut (0, 0, 0),
- *   dont la normalisation donne NaN dans la coordonnée d'ombre : tout serait éclairé. Le rendu
- *   en facettes tire ses normales des dérivées écran, pas de cet attribut.
- * - Pixel non fini écrit en noir : des triangles dégénérés du jeu donnent une normale en facette
- *   NaN ; invisibles à l'écran, quelques-uns dans la capture d'environnement suffisent à
- *   empoisonner tout le préfiltrage, donc tous les reflets.
+ * guardMaterial prepares a map material for lighting.
+ * - Constant vertex normal: the GLB carries none, and the missing attribute reads as (0, 0, 0),
+ *   whose normalization yields NaN in the shadow coordinate: everything would be lit. Faceted
+ *   rendering derives its normals from screen-space derivatives, not this attribute.
+ * - A non-finite pixel is written black: degenerate game triangles give a NaN faceted normal;
+ *   invisible on screen, a few of them in the environment capture are enough to poison the
+ *   whole prefilter, and so every reflection.
  * - The flat light of the top-down views (`topDownShade3d`), off outside them.
  */
 export function guardMaterial(material: THREE.Material | undefined): void {
@@ -167,17 +167,17 @@ export function guardMaterial(material: THREE.Material | undefined): void {
 
 export class Lighting {
   readonly sun: THREE.DirectionalLight
-  /** Les éclairs brefs de l'action (bouches, détonations), un jeu fixe de lumières (`flash3d`). */
+  /** The action's brief flashes (muzzles, detonations), a fixed set of lights (`flash3d`). */
   readonly flashes: FlashLights
   private readonly hemi: THREE.HemisphereLight
   private readonly haze = new THREE.FogExp2(HAZE_TINT, HAZE_DENSITY)
   private readonly box = new THREE.Box3()
-  /** Boîte d'un point, pour `probeAt` (une sonde au point, pas à une boîte de surface). */
+  /** A point's box, for `probeAt` (a probe at the point, not at a surface's box). */
   private readonly pointBox = new THREE.Box3()
   private probes: THREE.Texture[] = []
-  /** Les points de capture des sondes (repère three), dans l'ordre de `probes`. */
+  /** The probes' capture points (three.js frame), in the order of `probes`. */
   private spots: THREE.Vector3[] = []
-  /** La sonde de chaque matériau de la carte (copies par sonde comprises). */
+  /** Each map material's probe (copies per probe included). */
   private readonly envOf = new Map<THREE.MeshStandardMaterial, THREE.Texture>()
   private readonly copies: THREE.Material[] = []
   private shadows = true
@@ -209,20 +209,20 @@ export class Lighting {
     scene.add(this.hemi, this.sun, this.sun.target)
     this.split = new ShadowSplit(renderer, scene, this.sun)
     scene.fog = this.haze
-    // Avant toute compilation : le nombre de lumières entre dans les programmes.
+    // Before any compilation: the number of lights enters the shader programs.
     this.flashes = new FlashLights(scene)
   }
 
   /**
-   * fit borne la caméra d'ombre à `box` (repère three). Une carte porte un décor lointain sur des
-   * milliers d'unités : la boîte est celle de l'aire de jeu, pas celle du maillage.
+   * fit bounds the shadow camera to `box` (three.js frame). A map carries distant scenery over
+   * thousands of units: the box is the play area's, not the mesh's.
    */
   fit(box: THREE.Box3): void {
     this.box.copy(box)
     this.box.getCenter(this.sun.target.position)
   }
 
-  /** Règle la lumière directe selon l'intensité publiée par la carte. */
+  /** Sets direct light according to the intensity the map publishes. */
   setSunStrength(factor: number): void { this.sun.intensity = SUN_INTENSITY * factor }
 
   /** setSunColor gives the sun the game's sun color (`sunLightColor`); null keeps SUN_TINT. */
@@ -235,8 +235,8 @@ export class Lighting {
   get hazeDensity(): number { return this.haze.density }
 
   /**
-   * setSun oriente le soleil (azimut depuis +X vers -Z, élévation, en degrés) et recadre sa
-   * caméra d'ombre sur les coins de l'aire de jeu vus depuis lui.
+   * setSun orients the sun (azimuth from +X toward -Z, elevation, in degrees) and reframes its
+   * shadow camera on the play area's corners as seen from it.
    */
   setSun(azDeg: number, elDeg: number): void {
     const az = THREE.MathUtils.degToRad(azDeg)
@@ -260,7 +260,7 @@ export class Lighting {
       lo.min(p)
       hi.max(p)
     }
-    // near au soleil : ce qui dépasse de la boîte vers lui (décor haut) porte encore son ombre.
+    // Near, toward the sun: whatever extends past the box toward it (tall scenery) still casts its shadow.
     Object.assign(cam, { left: lo.x, right: hi.x, bottom: lo.y, top: hi.y, near: 0.1, far: -lo.z })
     cam.updateProjectionMatrix()
     this.split.invalidate()
@@ -268,16 +268,16 @@ export class Lighting {
   }
 
   /**
-   * captureProbes capture la carte en cube depuis des points joués (`eyes`, à hauteur d'œil) et
-   * donne à chaque surface de `meshes` la sonde la plus proche. Un matériau partagé par des
-   * surfaces de sondes différentes est copié par sonde. À appeler une fois, avant de poser les
-   * joueurs. Rend le nombre de sondes.
+   * captureProbes captures the map as a cube from played points (`eyes`, at eye height) and
+   * gives each surface of `meshes` the nearest probe. A material shared by surfaces with
+   * different probes is copied per probe. Call once, before placing players. Returns the
+   * number of probes.
    */
   captureProbes(eyes: readonly THREE.Vector3[], meshes: readonly THREE.Mesh[]): number {
     this.spots = chooseProbes(eyes, PROBE_MAX, PROBE_SPACING)
-    // Toutes les captures voient la carte sans environnement : aucune sonde ne se reflète dans une autre.
+    // Every capture sees the map with no environment: no probe reflects into another.
     this.scene.environment = null
-    // Et sans brume : elle appartient à l'œil, pas à la lumière renvoyée.
+    // And with no haze: it belongs to the eye, not to light given back.
     this.scene.fog = null
     // Without baked light, the sky seen by the probes is the sky's share of the sun's light, not
     // the background's display color (SKY_FILL_SHARE).
@@ -297,9 +297,9 @@ export class Lighting {
   }
 
   /**
-   * lightLayer éclaire un calque posé sur la carte après la capture (les objets de la variante) :
-   * chaque surface prend la sonde la plus proche, et la carte d'ombre se refait. Les sondes déjà
-   * capturées ne voient pas le calque.
+   * lightLayer lights a layer placed on the map after the capture (the variant's objects): each
+   * surface takes the nearest probe, and the shadow map is redone. Already-captured probes
+   * don't see the layer.
    */
   lightLayer(meshes: readonly THREE.Mesh[]): void {
     if (this.probes.length > 0) {
@@ -308,7 +308,7 @@ export class Lighting {
     this.shadowFrame = Number.NaN
   }
 
-  /** releaseLayer retire des sondes les surfaces d'un calque retiré, et libère les copies faites pour lui. */
+  /** releaseLayer removes a removed layer's surfaces from the probes, and frees the copies made for it. */
   releaseLayer(meshes: readonly THREE.Mesh[]): void {
     for (const mesh of meshes) {
       const m = mesh.material
@@ -322,8 +322,8 @@ export class Lighting {
   }
 
   /**
-   * takeGameLight prend la lumière du jeu de la carte (sondes cuites, lampes posées) que le tiroir
-   * allume ou éteint ; une fois, avant le premier rendu.
+   * takeGameLight takes the map's game light (baked probes, placed lamps) that the drawer turns
+   * on or off; once, before the first render.
    */
   takeGameLight(baked: BakedLight | null): void {
     this.baked = baked
@@ -331,9 +331,9 @@ export class Lighting {
   }
 
   /**
-   * probeAt : la sonde la plus proche du point `position` (repère three), comme `assignProbes` pour
-   * une surface — les joueurs y prennent leur environnement ; null si les reflets sont éteints ou
-   * sans capture.
+   * probeAt: the probe nearest point `position` (three.js frame), the same way `assignProbes`
+   * picks one for a surface — players take their environment from it; null if reflections are
+   * off or there's no capture.
    */
   probeAt(position: THREE.Vector3): THREE.Texture | null {
     if (!this.reflections || this.probes.length === 0) return null
@@ -342,7 +342,7 @@ export class Lighting {
     return this.probes[nearestProbe(this.pointBox, this.spots)] ?? null
   }
 
-  /** setLook applique les réglages du tiroir (l'occlusion ambiante est une passe de la scène). */
+  /** setLook applies the drawer's settings (ambient occlusion is a scene pass). */
   setLook(look: Look3d): void {
     if (look.shadows !== this.shadows) {
       this.shadows = look.shadows
@@ -374,7 +374,7 @@ export class Lighting {
     this.shadowFrame = Number.NaN
   }
 
-  /** updateShadows : la carte d'ombre suit l'image `frame` (joueurs, véhicules) ; rien à l'arrêt. */
+  /** updateShadows: the shadow map follows frame `frame` (players, vehicles); nothing while paused. */
   updateShadows(frame: number): void {
     if (!this.shadows || !this.shadowUpdates || frame === this.shadowFrame) return
     this.shadowFrame = frame
@@ -406,8 +406,8 @@ export class Lighting {
   }
 
   /**
-   * assignProbes donne à chaque surface de `meshes` la sonde la plus proche ; un matériau partagé
-   * par des surfaces de sondes différentes est copié par sonde. Rend les matériaux assignés.
+   * assignProbes gives each surface of `meshes` the nearest probe; a material shared by surfaces
+   * with different probes is copied per probe. Returns the assigned materials.
    */
   private assignProbes(meshes: readonly THREE.Mesh[]): Set<THREE.MeshStandardMaterial> {
     const perProbe = new Map<THREE.MeshStandardMaterial, Map<number, THREE.MeshStandardMaterial>>()
@@ -433,7 +433,7 @@ export class Lighting {
     return assigned
   }
 
-  /** reflect pose (ou retire, reflets éteints) la sonde d'un matériau. */
+  /** reflect applies (or removes, reflections off) a material's probe. */
   private reflect(m: THREE.MeshStandardMaterial): void {
     m.envMap = this.reflections ? (this.envOf.get(m) ?? null) : null
     m.needsUpdate = true
@@ -448,12 +448,12 @@ export class Lighting {
 }
 
 /**
- * copyPerProbe : une copie du matériau pour une autre sonde, qui garde sa préparation à la
- * compilation (garde, couches) et partage ses textures sans les recopier.
+ * copyPerProbe: a copy of the material for another probe, which keeps its compile-time
+ * preparation (guard, layers) and shares its textures without recopying them.
  */
 function copyPerProbe(source: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   const { userData } = source
-  // `clone` recopie `userData` par JSON : les textures des couches y vivent.
+  // `clone` copies `userData` through JSON: the layers' textures live there.
   source.userData = {}
   const copy = source.clone()
   source.userData = userData

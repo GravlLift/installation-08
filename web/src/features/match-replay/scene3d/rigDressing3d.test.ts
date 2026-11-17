@@ -3,39 +3,39 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import nyexc from './testdata/nyexc-arms.json'
 
-import { type BrasIndex, type armPieces3d } from './armPieces3d'
+import { type BrasIndex, type ArmPieces3d } from './armPieces3d'
 import type { SpartanArmory } from './armory3d'
-import { rigDressing3d } from './rigDressing3d'
+import { RigDressing3d } from './rigDressing3d'
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0))
 
-/** La racine d'un rig : un os (cible de liaison) et le maillage de bras embarqué (matériau de bras). */
-function rigRacine(osName = 'b_bracelette'): { root: THREE.Group; integre: THREE.Mesh } {
-  const os = new THREE.Bone()
-  os.name = osName
-  const materiauBras = new THREE.MeshStandardMaterial()
-  materiauBras.userData.surfaceBrute = {}
-  const integre = new THREE.Mesh(new THREE.BoxGeometry(), materiauBras)
+/** A rig's root: a bone (bind target) and the default arm mesh (arm material). */
+function rigRoot(boneName = 'b_bracelette'): { root: THREE.Group; builtin: THREE.Mesh } {
+  const bone = new THREE.Bone()
+  bone.name = boneName
+  const armMaterial = new THREE.MeshStandardMaterial()
+  armMaterial.userData.surfaceBrute = {}
+  const builtin = new THREE.Mesh(new THREE.BoxGeometry(), armMaterial)
   const root = new THREE.Group()
-  root.add(os)
-  root.add(integre)
-  return { root, integre }
+  root.add(bone)
+  root.add(builtin)
+  return { root, builtin }
 }
 
-/** La scène d'une pièce : un maillage à peau lié à un os du même nom que celui du rig. */
-function scenePiece(osName: string): THREE.Object3D {
-  const os = new THREE.Bone()
-  os.name = osName
-  const maillage = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
-  maillage.bind(new THREE.Skeleton([os]))
+/** A piece's scene: a skinned mesh bound to a bone of the same name as the rig's. */
+function pieceScene(boneName: string): THREE.Object3D {
+  const bone = new THREE.Bone()
+  bone.name = boneName
+  const mesh = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
+  mesh.bind(new THREE.Skeleton([bone]))
   const scene = new THREE.Group()
-  scene.add(os)
-  scene.add(maillage)
+  scene.add(bone)
+  scene.add(mesh)
   return scene
 }
 
-/** Le catalogue : une région, une pièce (permutation par défaut). */
-function indexPiece(): BrasIndex {
+/** The catalog: one region, one piece (default permutation). */
+function pieceIndex(): BrasIndex {
   return {
     schema: 1,
     skeleton: { bones: ['b_bracelette'] },
@@ -48,135 +48,135 @@ function indexPiece(): BrasIndex {
   }
 }
 
-function habillageDe(
-  chargeur: { piece: (fichier: string) => Promise<THREE.Object3D | null> },
+function makeDressing(
+  loader: { piece: (fichier: string) => Promise<THREE.Object3D | null> },
   invaliderPeinture: () => void,
-): rigDressing3d {
-  const armurerie = { regions: () => null } as unknown as SpartanArmory
-  return new rigDressing3d({
-    indexPieces: Promise.resolve(indexPiece()),
-    chargeur: chargeur as unknown as armPieces3d,
+): RigDressing3d {
+  const armory = { regions: () => null } as unknown as SpartanArmory
+  return new RigDressing3d({
+    indexPieces: Promise.resolve(pieceIndex()),
+    chargeur: loader as unknown as ArmPieces3d,
     signal: new AbortController().signal,
     xuid: () => '1',
-    armurerie: () => armurerie,
+    armurerie: () => armory,
     materiauSource: (m) => m,
     invaliderPeinture,
   })
 }
 
-function piecesDe(root: THREE.Object3D): THREE.SkinnedMesh[] {
+function piecesOf(root: THREE.Object3D): THREE.SkinnedMesh[] {
   return root.children.filter((c): c is THREE.SkinnedMesh => c instanceof THREE.SkinnedMesh)
 }
 
 describe('rigDressing3d', () => {
   it('dresses a rig with the selected Nyexc arm pieces', async () => {
-    const { root, integre } = rigRacine('b_l_forearm')
-    const chargeur = { piece: vi.fn(async () => scenePiece('b_l_forearm')) }
+    const { root, builtin } = rigRoot('b_l_forearm')
+    const loader = { piece: vi.fn(async () => pieceScene('b_l_forearm')) }
     const armory = { regions: () => nyexc.player.regions } as unknown as SpartanArmory
-    const habillage = new rigDressing3d({
+    const dressing = new RigDressing3d({
       indexPieces: Promise.resolve(nyexc.catalog),
-      chargeur: chargeur as unknown as armPieces3d,
+      chargeur: loader as unknown as ArmPieces3d,
       signal: new AbortController().signal,
       xuid: () => nyexc.player.xuid,
       armurerie: () => armory,
       materiauSource: (m) => m,
       invaliderPeinture: vi.fn(),
     })
-    habillage.actualiser('rig', root)
+    dressing.actualiser('rig', root)
     await tick()
-    expect(chargeur.piece).toHaveBeenCalledWith('piece-3f91af6a-16a12dd4.glb')
-    expect(piecesDe(root)).toHaveLength(8)
-    expect(integre.visible).toBe(false)
-    habillage.changerJoueur()
+    expect(loader.piece).toHaveBeenCalledWith('piece-3f91af6a-16a12dd4.glb')
+    expect(piecesOf(root)).toHaveLength(8)
+    expect(builtin.visible).toBe(false)
+    dressing.changerJoueur()
   })
 
-  it('conserve les pièces de deux rigs jusqu’au changement de joueur', async () => {
-    const a = rigRacine(), b = rigRacine()
-    const scene = scenePiece('b_bracelette')
-    const chargeur = { piece: vi.fn(() => Promise.resolve(scene)) }
-    const habillage = habillageDe(chargeur, () => {})
-    habillage.actualiser('a', a.root)
+  it('keeps two rigs their own pieces until the player changes', async () => {
+    const a = rigRoot(), b = rigRoot()
+    const scene = pieceScene('b_bracelette')
+    const loader = { piece: vi.fn(() => Promise.resolve(scene)) }
+    const dressing = makeDressing(loader, () => {})
+    dressing.actualiser('a', a.root)
     await tick()
-    const piece = piecesDe(a.root)[0]
+    const piece = piecesOf(a.root)[0]
     const dispose = vi.spyOn(piece.skeleton, 'dispose')
-    habillage.actualiser('b', b.root)
+    dressing.actualiser('b', b.root)
     await tick()
-    expect(piecesDe(a.root)).toEqual([piece])
+    expect(piecesOf(a.root)).toEqual([piece])
     expect(dispose).not.toHaveBeenCalled()
-    expect(piecesDe(b.root)[0].geometry).toBe(piece.geometry)
-    habillage.actualiser('a', a.root)
-    expect(chargeur.piece).toHaveBeenCalledTimes(2)
-    habillage.changerJoueur()
-    expect(piecesDe(a.root)).toHaveLength(0)
-    expect(piecesDe(b.root)).toHaveLength(0)
-    expect(a.integre.visible && b.integre.visible).toBe(true)
+    expect(piecesOf(b.root)[0].geometry).toBe(piece.geometry)
+    dressing.actualiser('a', a.root)
+    expect(loader.piece).toHaveBeenCalledTimes(2)
+    dressing.changerJoueur()
+    expect(piecesOf(a.root)).toHaveLength(0)
+    expect(piecesOf(b.root)).toHaveLength(0)
+    expect(a.builtin.visible && b.builtin.visible).toBe(true)
   })
-  it('pose la pièce à son arrivée, invalide la peinture et cache le bras embarqué', async () => {
-    const { root, integre } = rigRacine()
-    const chargeur = { piece: vi.fn(() => Promise.resolve(scenePiece('b_bracelette'))) }
-    const invalider = vi.fn()
-    const habillage = habillageDe(chargeur, invalider)
-    habillage.actualiser('rig1', root)
-    expect(habillage.enCours()).toBe(true)
+  it('places the piece on its arrival, invalidates the paint, and hides the default arm', async () => {
+    const { root, builtin } = rigRoot()
+    const loader = { piece: vi.fn(() => Promise.resolve(pieceScene('b_bracelette'))) }
+    const invalidate = vi.fn()
+    const dressing = makeDressing(loader, invalidate)
+    dressing.actualiser('rig1', root)
+    expect(dressing.enCours()).toBe(true)
     await tick()
-    expect(habillage.enCours()).toBe(false)
-    expect(piecesDe(root)).toHaveLength(1)
-    expect(integre.visible).toBe(false)
-    expect(invalider).toHaveBeenCalledTimes(1)
-  })
-
-  it('ne repose rien tant que la clé (rig, joueur, manifeste) est la même', async () => {
-    const { root } = rigRacine()
-    const chargeur = { piece: vi.fn(() => Promise.resolve(scenePiece('b_bracelette'))) }
-    const habillage = habillageDe(chargeur, () => {})
-    habillage.actualiser('rig1', root)
-    await tick()
-    habillage.actualiser('rig1', root)
-    expect(chargeur.piece).toHaveBeenCalledTimes(1)
-    expect(piecesDe(root)).toHaveLength(1)
+    expect(dressing.enCours()).toBe(false)
+    expect(piecesOf(root)).toHaveLength(1)
+    expect(builtin.visible).toBe(false)
+    expect(invalidate).toHaveBeenCalledTimes(1)
   })
 
-  it('abandonne la charge en retard quand le joueur change', async () => {
-    const { root } = rigRacine()
-    let resoudrePiece!: (scene: THREE.Object3D) => void
-    const pieceEnAttente = new Promise<THREE.Object3D>((r) => { resoudrePiece = r })
-    const chargeur = { piece: vi.fn(() => pieceEnAttente) }
-    const invalider = vi.fn()
-    const habillage = habillageDe(chargeur, invalider)
-    habillage.actualiser('rig1', root)
+  it('re-places nothing while the key (rig, player, manifest) stays the same', async () => {
+    const { root } = rigRoot()
+    const loader = { piece: vi.fn(() => Promise.resolve(pieceScene('b_bracelette'))) }
+    const dressing = makeDressing(loader, () => {})
+    dressing.actualiser('rig1', root)
     await tick()
-    habillage.changerJoueur()
-    resoudrePiece(scenePiece('b_bracelette'))
-    await tick()
-    expect(habillage.enCours()).toBe(false)
-    expect(piecesDe(root)).toHaveLength(0)
-    expect(invalider).not.toHaveBeenCalled()
+    dressing.actualiser('rig1', root)
+    expect(loader.piece).toHaveBeenCalledTimes(1)
+    expect(piecesOf(root)).toHaveLength(1)
   })
 
-  it('charge deux rigs indépendamment', async () => {
-    const { root } = rigRacine()
-    const autre = rigRacine().root
-    let resoudrePrecédent!: (scene: THREE.Object3D) => void
-    let appels = 0
-    const chargeur = {
+  it('abandons a late load when the player changes', async () => {
+    const { root } = rigRoot()
+    let resolvePiece!: (scene: THREE.Object3D) => void
+    const pendingPiece = new Promise<THREE.Object3D>((r) => { resolvePiece = r })
+    const loader = { piece: vi.fn(() => pendingPiece) }
+    const invalidate = vi.fn()
+    const dressing = makeDressing(loader, invalidate)
+    dressing.actualiser('rig1', root)
+    await tick()
+    dressing.changerJoueur()
+    resolvePiece(pieceScene('b_bracelette'))
+    await tick()
+    expect(dressing.enCours()).toBe(false)
+    expect(piecesOf(root)).toHaveLength(0)
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('loads two rigs independently', async () => {
+    const { root } = rigRoot()
+    const other = rigRoot().root
+    let resolvePrevious!: (scene: THREE.Object3D) => void
+    let calls = 0
+    const loader = {
       piece: vi.fn(() => {
-        appels++
-        if (appels === 1) return new Promise<THREE.Object3D>((r) => { resoudrePrecédent = r })
-        return Promise.resolve(scenePiece('b_bracelette'))
+        calls++
+        if (calls === 1) return new Promise<THREE.Object3D>((r) => { resolvePrevious = r })
+        return Promise.resolve(pieceScene('b_bracelette'))
       }),
     }
-    const invalider = vi.fn()
-    const habillage = habillageDe(chargeur, invalider)
-    // Le catalogue ne porte qu'une pièce : le premier rig l'attend, le second reçoit la même.
-    habillage.actualiser('rigA', root)
+    const invalidate = vi.fn()
+    const dressing = makeDressing(loader, invalidate)
+    // The catalog carries only one piece: the first rig waits for it, the second gets the same one.
+    dressing.actualiser('rigA', root)
     await tick()
-    habillage.actualiser('rigB', autre)
+    dressing.actualiser('rigB', other)
     await tick()
-    resoudrePrecédent(scenePiece('b_bracelette'))
+    resolvePrevious(pieceScene('b_bracelette'))
     await tick()
-    expect(habillage.enCours()).toBe(false)
-    expect(piecesDe(root)).toHaveLength(1)
-    expect(piecesDe(autre)).toHaveLength(1)
-    expect(invalider).toHaveBeenCalledTimes(2)
+    expect(dressing.enCours()).toBe(false)
+    expect(piecesOf(root)).toHaveLength(1)
+    expect(piecesOf(other)).toHaveLength(1)
+    expect(invalidate).toHaveBeenCalledTimes(2)
   })
 })

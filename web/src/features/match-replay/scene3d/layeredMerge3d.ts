@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * layeredMerge3d.ts — LA FUSION DES MATÉRIAUX EN COUCHES DE LA CARTE, AU CHARGEMENT.
+ * layeredMerge3d.ts — THE MAP'S LAYERED MATERIALS MERGE, AT LOAD TIME.
  *
- * Changer de matériau d'un appel de dessin à l'autre coûte plus, sur une carte, que les dessins
- * eux-mêmes : un millier de matériaux en couches, treize cartes et cent trente constantes chacun. La
- * fusion se fait en deux temps, sans changer le GLB :
- * 1. `convertLayered`, au chargement et avant tout rendu : les matériaux en couches opaques de la carte
- *    cèdent la place à quelques matériaux fusionnés (un par face dessinée et jeux de coordonnées) ;
- *    leurs cartes vont dans des tableaux de textures, leurs constantes dans une ligne d'une texture de
- *    paramètres, la ligne de chaque sommet dans l'attribut `cRow` (un sommet partagé par deux
- *    compositions est dédoublé). Chaque surface reste un maillage : les sondes se capturent et
- *    s'attribuent comme avant, une copie de matériau par sonde.
- * 2. `batchLayered` (layeredBatch3d), après l'attribution des sondes : les surfaces d'un même nœud et
- *    d'un même matériau (sonde comprise) se dessinent en un seul maillage.
- * Une composition que les limites de WebGL 2 ne laissent pas fusionner garde son matériau propre.
+ * Changing material from one draw call to the next costs more, on a map, than the draws
+ * themselves: a thousand layered materials, thirteen maps and a hundred-thirty constants each.
+ * The merge happens in two steps, without changing the GLB:
+ * 1. `convertLayered`, at load time and before any render: the map's opaque layered materials
+ *    give way to a handful of merged materials (one per drawn face and coordinate sets); their
+ *    maps go into texture arrays, their constants into one row of a parameter texture, each
+ *    vertex's row into the `cRow` attribute (a vertex shared by two compositions is
+ *    duplicated). Each surface stays a mesh: probes capture and get assigned as before, one
+ *    material copy per probe.
+ * 2. `batchLayered` (layeredBatch3d), after probe assignment: surfaces of the same node and
+ *    the same material (probe included) are drawn as a single mesh.
+ * A composition that WebGL 2's limits do not allow to merge keeps its own material.
  */
 import * as THREE from 'three'
 
@@ -25,23 +25,24 @@ import {
 } from './layeredPlan3d'
 
 /**
- * Interrupteur de comparaison de la fusion (lu par `loadMapModel` seul) : faux, la carte garde un
- * matériau par composition. Actif par défaut depuis le 2026-11-10 ; à retirer au 2026-12-10, une fois
- * la vue fusionnée jugée identique à l'autre sur Recharge (mêmes captures, appels de dessin comptés).
+ * Comparison switch for the merge (read only by `loadMapModel`): false, the map keeps one
+ * material per composition. On by default since 2026-11-10; remove by 2026-12-10, once the
+ * merged view is judged identical to the other one on Recharge (same captures, draw calls
+ * counted).
  */
 export const MERGE_LAYERED = true
 
-/** Les comptes de la fusion, pour la ligne du chargement. */
+/** The merge's counts, for the load's log line. */
 export interface MergeStats {
-  /** Matériaux en couches remplacés, puis matériaux fusionnés posés. */
+  /** Layered materials replaced, then merged materials placed. */
   materialsBefore: number
   materialsAfter: number
-  /** Surfaces passées aux matériaux fusionnés. */
+  /** Surfaces moved to merged materials. */
   meshes: number
-  /** Compositions (lignes de la texture de paramètres), et compositions laissées à part. */
+  /** Compositions (parameter texture rows), and compositions left apart. */
   rows: number
   rejected: number
-  /** Tableaux bâtis : largeur x hauteur x couches. */
+  /** Arrays built: width x height x layers. */
   arrays: string[]
   duplicated: number
   ms: number
@@ -76,7 +77,7 @@ function slotsOf(c: LayeredComposition): (THREE.Texture | null)[] {
   return Array.from({ length: MASK_SLOT + 1 }, (_, i) => slots[i] ?? null)
 }
 
-/** collect : les surfaces à fusionner (matériau en couches opaque, indexées) et leurs compositions distinctes. */
+/** collect: the surfaces to merge (opaque layered material, indexed) and their distinct compositions. */
 function collect(meshes: readonly THREE.Mesh[]): { rows: Row[]; members: Member[] } {
   const rows: Row[] = []
   const bySignature = new Map<string, number>()
@@ -101,10 +102,10 @@ function collect(meshes: readonly THREE.Mesh[]): { rows: Row[]; members: Member[
 }
 
 /**
- * textureFacts : la taille de l'image décodée et les réglages qui la rangent, null sans image lisible.
- * A compressed (KTX2) map has no decoded image: its size is its first level's, and it only shares
- * an array with maps of the same compressed format (in `format`) and level count (they are copied
- * as they are); one whose levels were already released is not readable.
+ * textureFacts: the decoded image's size and the settings that bucket it, null with no readable
+ * image. A compressed (KTX2) map has no decoded image: its size is its first level's, and it only
+ * shares an array with maps of the same compressed format (in `format`) and level count (they are
+ * copied as they are); one whose levels were already released is not readable.
  */
 export function textureFacts(t: THREE.Texture): TextureFacts | null {
   const image = t.image as { width?: number; height?: number } | undefined
@@ -119,12 +120,12 @@ export function textureFacts(t: THREE.Texture): TextureFacts | null {
   return { width: image.width, height: image.height, settings }
 }
 
-/** extendAttribute : `attribute` suivi des copies des sommets `sources`. */
+/** extendAttribute: `attribute` followed by copies of the `sources` vertices. */
 function extendAttribute(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, sources: Uint32Array): THREE.BufferAttribute {
   const { count, itemSize } = attribute
   const Ctor = (attribute instanceof THREE.InterleavedBufferAttribute ? attribute.data.array : attribute.array).constructor as new (n: number) => THREE.TypedArray
   const out = new THREE.BufferAttribute(new Ctor((count + sources.length) * itemSize), itemSize, attribute.normalized)
-  // Un attribut à plat se recopie d'un bloc ; un attribut entrelacé, sommet par sommet.
+  // A flat attribute is copied as one block; an interleaved one, vertex by vertex.
   const first = attribute instanceof THREE.BufferAttribute ? count : 0
   if (first > 0) out.array.set((attribute as THREE.BufferAttribute).array)
   for (let v = first; v < count + sources.length; v++) {
@@ -135,9 +136,9 @@ function extendAttribute(attribute: THREE.BufferAttribute | THREE.InterleavedBuf
 }
 
 /**
- * applyVertexRows pose `cRow` sur les surfaces fusionnées, par tampon de sommets partagé. Un tampon
- * qui reçoit des copies est remplacé, pour toutes les surfaces qui le lisent (`all`), par sa version
- * prolongée : les index d'origine restent valides. Rend le nombre de sommets copiés.
+ * applyVertexRows sets `cRow` on the merged surfaces, per shared vertex buffer. A buffer that
+ * receives copies is replaced, for every surface that reads it (`all`), by its extended
+ * version: the original indices stay valid. Returns the number of vertices copied.
  */
 function applyVertexRows(members: readonly Member[], rowOf: readonly number[], all: readonly THREE.Mesh[]): number {
   const byBuffer = new Map<THREE.BufferAttribute | THREE.InterleavedBufferAttribute, Member[]>()
@@ -173,9 +174,9 @@ function applyVertexRows(members: readonly Member[], rowOf: readonly number[], a
 }
 
 /**
- * assignMaterials pose sur chaque surface le matériau fusionné de sa face dessinée et de ses jeux de
- * coordonnées. Une composition sans masque prend le jeu de masque de ses voisines (même tampon, même
- * jeu de couches) quand sa géométrie le porte.
+ * assignMaterials sets on each surface the merged material for its drawn face and its
+ * coordinate sets. A composition with no mask takes its neighbors' mask set (same buffer, same
+ * layer set) when its geometry carries it.
  */
 function assignMaterials(members: readonly Member[], rows: readonly Row[], atlas: LayeredAtlas): THREE.MeshStandardMaterial[] {
   const fold = new Map<unknown, Map<number, number>>()
@@ -207,17 +208,17 @@ function assignMaterials(members: readonly Member[], rows: readonly Row[], atlas
   return [...materials.values()]
 }
 
-/** texturesOf : les textures qu'un matériau tient (champs et cartes des couches). */
+/** texturesOf: the textures a material holds (fields and the layers' maps). */
 function texturesOf(m: THREE.Material): THREE.Texture[] {
   const layers = (m.userData.textures ?? []) as THREE.Texture[]
   return [...Object.values(m), ...layers].filter((v): v is THREE.Texture => v instanceof THREE.Texture)
 }
 
 /**
- * retire libère les matériaux en couches que plus aucune surface ne dessine (ils sortent de `owned`)
- * et leurs cartes que plus aucun matériau de `owned` ne tient. Rien n'a encore été envoyé au GPU.
- * Une carte libérée porte `IMAGE_LIBEREE` : l'upload du tableau (le dernier lecteur de son image)
- * ferme l'image, pas l'ici, car le premier rendu la lit encore.
+ * retire releases the layered materials no surface draws anymore (they leave `owned`) and
+ * their maps that no material in `owned` holds anymore. Nothing has been sent to the GPU yet.
+ * A released map carries `IMAGE_LIBEREE`: the array's upload (the last reader of its image)
+ * closes the image, not here, since the first render still reads it.
  */
 function retire(replaced: ReadonlySet<THREE.Material>, owned: THREE.Material[], all: readonly THREE.Mesh[]): number {
   const still = new Set(all.map((m) => m.material))
@@ -235,10 +236,10 @@ function retire(replaced: ReadonlySet<THREE.Material>, owned: THREE.Material[], 
 }
 
 /**
- * convertLayered passe les surfaces `drawn` à matériau en couches opaque aux matériaux fusionnés
- * (cf. en-tête). `all` : toutes les surfaces du modèle (elles partagent des tampons de sommets avec
- * les fusionnées). Met à jour `owned` (matériaux remplacés retirés, fusionnés ajoutés). Rend null si
- * rien n'a pu fusionner.
+ * convertLayered moves `drawn` surfaces with an opaque layered material to merged materials
+ * (see header). `all`: every surface of the model (they share vertex buffers with the merged
+ * ones). Updates `owned` (replaced materials removed, merged ones added). Returns null if
+ * nothing could be merged.
  */
 export function convertLayered(drawn: readonly THREE.Mesh[], all: readonly THREE.Mesh[], owned: THREE.Material[], limits: ArrayLimits = WEBGL2_LIMITS): LayeredMerge | null {
   const start = performance.now()
@@ -246,7 +247,7 @@ export function convertLayered(drawn: readonly THREE.Mesh[], all: readonly THREE
   if (rows.length === 0) return null
   const plan = planArrays(rows.map((r) => r.slots), textureFacts, limits)
   if (plan.rejected.length > 0) {
-    console.warn('rejeu 3D : compositions en couches hors des limites des tableaux, laissées à leur matériau', plan.rejected.length)
+    console.warn('3D replay: layered compositions beyond the arrays\' limits, left to their own material', plan.rejected.length)
   }
   if (plan.accepted.length === 0) return null
   const rowOf: number[] = rows.map(() => -1)

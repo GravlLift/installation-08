@@ -15,7 +15,7 @@ function swatch(gradient?: string): CoatingSwatch {
 const slot = (data: Float32Array, s: number) => Array.from(data.slice(s * VEC4_PER_SLOT * 4, (s + 1) * VEC4_PER_SLOT * 4))
 
 describe('packPaint', () => {
-  it('range chaque zone et la salissure dans leurs emplacements, chaque dégradé à sa couche', () => {
+  it('packs each zone and the grime into their slots, each gradient at its layer', () => {
     const note = vi.fn()
     const p: MaterialPaint = { ...neutralPaint(), zones: [swatch('a'), null, swatch('a'), null, null, null, swatch('b')], grime: swatch(), grimeAmount: 0.55, scratchAmount: 0.5, density: [2, 4], offset: [0.1, 0.2] }
     expect(gradientsOf(p)).toEqual(['a', 'b'])
@@ -30,13 +30,13 @@ describe('packPaint', () => {
     expect(z0.slice(20, 24).map((v) => +v.toFixed(3))).toEqual([0.6, 0.3, 0.15, 0])
     expect(slot(packed.data, 1).every((v) => v === 0)).toBe(true)
     expect(slot(packed.data, 6)[1]).toBe(9)
-    // La salissure, sans dégradé : allumée, dégradé neutre.
+    // The grime, without a gradient: on, neutral gradient.
     expect(slot(packed.data, PAINT_SLOTS - 1).slice(0, 2)).toEqual([1, -1])
     expect([packed.globals, packed.offset]).toEqual([[0.55, 0.5, 2, 4], [0.1, 0.2]])
     expect(note).not.toHaveBeenCalled()
   })
 
-  it('huit dégradés distincts posés ; dégradé non chargé : neutre, nommé ; sans salissure : quantité nulle', () => {
+  it('eight distinct gradients placed; unloaded gradient: neutral, named; without grime: zero amount', () => {
     const note = vi.fn()
     const zones = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((g) => swatch(g))
     const layers: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, f: 5, g: 6 }
@@ -55,7 +55,7 @@ describe('armorMaterial', () => {
     gradients,
   })
 
-  it('une copie sans texture propre, un programme commun, la peinture en uniformes, les dégradés partagés', () => {
+  it("a copy with no texture of its own, a shared program, the paint in uniforms, the gradients shared", () => {
     const base = new THREE.MeshStandardMaterial({ color: 0x808080, map: new THREE.Texture() })
     const a = armorMaterial(base, input())
     const b = armorMaterial(base, input())
@@ -66,14 +66,14 @@ describe('armorMaterial', () => {
     expect(a.customProgramCacheKey()).toBe(b.customProgramCacheKey())
     const u = a.userData.armorUniforms as Record<string, THREE.IUniform>
     expect((u.uArmorHas.value as THREE.Vector4).toArray()).toEqual([1, 0, 1, 0])
-    // Le camp ne se peint pas sur l'armure (le contour d'équipe est tracé après la scène).
+    // Team is not painted onto the armor (the team outline is drawn after the scene).
     expect(u.uRim).toBeUndefined()
-    // L'uniforme des dégradés est celui de la session : sa croissance atteint tous les matériaux.
+    // The gradients uniform is the session's own: its growth reaches every material.
     expect(u.uArmorGradients).toBe(gradients)
     expect((b.userData.armorUniforms as Record<string, THREE.IUniform>).uArmorGradients).toBe(gradients)
   })
 
-  it('le programme lit les masques et la peinture', () => {
+  it('the program reads the masks and the paint', () => {
     const m = armorMaterial(new THREE.MeshStandardMaterial(), input())
     const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader } as unknown as THREE.WebGLProgramParametersWithUniforms
     m.onBeforeCompile(shader, {} as THREE.WebGLRenderer)
@@ -87,7 +87,7 @@ describe('armorMaterial', () => {
 })
 
 describe('prepareArmorUVs', () => {
-  it('expose `uv` sous le nom du matériau, sans copie ; faux sans coordonnées', () => {
+  it("exposes `uv` under the material's name, without a copy; false without coordinates", () => {
     const g = new THREE.BoxGeometry()
     expect(prepareArmorUVs(g)).toBe(true)
     expect(g.getAttribute('armorUv')).toBe(g.getAttribute('uv'))

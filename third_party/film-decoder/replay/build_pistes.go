@@ -284,9 +284,9 @@ func (a *assemblage) poserEpisodesDEquipement() {
 		"swept", a.stanceCov.Scanned, "absent", a.stanceCov.Absent,
 		"records", a.stanceCov.Records, "desyncs", a.stanceCov.Desyncs,
 		"reads", a.stanceCov.Reads, "intervals", a.stanceCov.Intervals,
-		"parGenre", a.stanceCov.ByKind, "lives", a.stanceCov.Lives,
-		"viesPubliees", a.stanceCov.TracksTotal, "rejected", a.stanceCov.Dropped,
-		"largeursCarte", a.stanceCov.MapWidths)
+		"byKind", a.stanceCov.ByKind, "lives", a.stanceCov.Lives,
+		"publishedLives", a.stanceCov.TracksTotal, "rejected", a.stanceCov.Dropped,
+		"mapWidths", a.stanceCov.MapWidths)
 	a.killsRead = attachAllEquipmentKills(a.doc.EquipmentEpisodes, a.opt.Kills, occupantParFrame(a.reg, replayClock{origin: a.origin, step: a.step, fb: a.opt.Fallbacks}), a.doc.OriginMs, a.interval)
 }
 

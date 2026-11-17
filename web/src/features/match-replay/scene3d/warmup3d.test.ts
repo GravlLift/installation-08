@@ -6,7 +6,7 @@ import { Outline3d } from './outline3d'
 import * as THREE from 'three'
 import { avecCamouflage, avecObjetsVisibles, prechauffer3d, texturesDe } from './warmup3d'
 
-it('restaure la visibilité et le filtrage même si le rendu échoue', () => {
+it('restores visibility and culling even if the render fails', () => {
   const parent = new THREE.Group()
   const enfant = new THREE.Group()
   parent.add(enfant)
@@ -22,13 +22,13 @@ it('restaure la visibilité et le filtrage même si le rendu échoue', () => {
 })
 
 describe('texturesDe', () => {
-  it('marche les cartes standard et les uniformes d’armure peinte, sans doublon', () => {
+  it('walks standard maps and painted armor uniforms, with no duplicates', () => {
     const racine = new THREE.Group()
     const map = new THREE.Texture()
     const normalMap = new THREE.Texture()
     const standard = new THREE.MeshStandardMaterial({ map, normalMap })
     racine.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
-    // Deux maillages qui partagent le matériau : la texture compte une seule fois.
+    // Two meshes sharing the material: the texture counts only once.
     racine.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
 
     const asg = new THREE.Texture()
@@ -46,11 +46,11 @@ describe('texturesDe', () => {
     expect(textures).toContain(normalMap)
     expect(textures).toContain(asg)
     expect(textures).toContain(gradients)
-    // Les uniformes qui ne sont pas des textures n'entrent pas.
+    // Uniforms that aren't textures don't go in.
     expect(textures).toHaveLength(4)
   })
 
-  it('marche les uniformes de matériau de shader', () => {
+  it('walks shader material uniforms', () => {
     const racine = new THREE.Group()
     const texture = new THREE.Texture()
     const shader = new THREE.ShaderMaterial({ uniforms: { uImage: { value: texture }, uEchelle: { value: 1 } } })
@@ -59,7 +59,7 @@ describe('texturesDe', () => {
   })
 })
 
-it('camoufle les matériaux réels et restaure leur état même si le rendu échoue', () => {
+it('cloaks the real materials and restores their state even if the render fails', () => {
   const a = new THREE.MeshStandardMaterial({ opacity: 0.7, depthWrite: false })
   const b = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.3 })
   expect(() => avecCamouflage([[a, b]], () => {
@@ -71,7 +71,7 @@ it('camoufle les matériaux réels et restaure leur état même si le rendu éch
   expect([b.transparent, b.opacity, b.depthWrite]).toEqual([true, 0.3, true])
 })
 
-it('restaure la cible et les ombres après un échec du compositeur', async () => {
+it('restores the target and the shadows after a compositor failure', async () => {
   const scene = new THREE.Scene()
   const root = new THREE.Group()
   const material = new THREE.MeshStandardMaterial()

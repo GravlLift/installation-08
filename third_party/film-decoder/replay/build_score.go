@@ -128,8 +128,8 @@ func logScoreCoverage(ctx context.Context, matchID string, cov *ScoreCoverage, t
 			"match_id", matchID, "points", cov.Points)
 	}
 	slog.InfoContext(ctx, "replay: score curve",
-		"match_id", matchID, "identiteEquipes", cov.TeamIdentity, "rounds", cov.Rounds,
-		"modePorte", cov.ModeSupported, "teams", teams, "players", players, "points", cov.Points)
+		"match_id", matchID, "teamIdentity", cov.TeamIdentity, "rounds", cov.Rounds,
+		"modeSupported", cov.ModeSupported, "teams", teams, "players", players, "points", cov.Points)
 }
 
 // logHoldThreshold journalise la lecture du seuil de garde d'un match a colline — le detail que
@@ -139,8 +139,8 @@ func logHoldThreshold(ctx context.Context, matchID string, r *holdThresholdReadi
 		return
 	}
 	attrs := []any{"match_id", matchID, "source", r.source, "film", r.film, "points", r.points,
-		"ecartes", r.rejected, "table", r.table, "tableContredite", r.tableDisagrees,
-		"unTicParPoint", r.oneTickPerPoint}
+		"rejected", r.rejected, "table", r.table, "tableDisagrees", r.tableDisagrees,
+		"oneTickPerPoint", r.oneTickPerPoint}
 	if r.tableDisagrees {
 		slog.WarnContext(ctx, "replay: hill hold threshold — the variant table "+
 			"contradicts the film, the film prevails", attrs...)

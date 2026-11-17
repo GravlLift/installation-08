@@ -7,7 +7,7 @@ import { GradientAtlas, LAYER_BYTES, SWATCH_SIZE, redBlue } from './armorGradien
 const layer = (v: number) => new Uint8Array(LAYER_BYTES).fill(v)
 
 describe('GradientAtlas', () => {
-  it('une couche par dégradé, posée une fois, à son rang ; texture à deux canaux de données', () => {
+  it('one layer per gradient, placed once, at its rank; a two-channel data texture', () => {
     const atlas = new GradientAtlas(2)
     expect(atlas.add('a', layer(1))).toBe(0)
     expect(atlas.add('b', layer(2))).toBe(1)
@@ -19,7 +19,7 @@ describe('GradientAtlas', () => {
     expect([t.format, t.colorSpace, t.wrapS]).toEqual([THREE.RGFormat, THREE.NoColorSpace, THREE.RepeatWrapping])
   })
 
-  it('grandit par doublement : couches gardées, même uniforme, ancienne texture libérée', () => {
+  it('grows by doubling: layers kept, same uniform, old texture released', () => {
     const atlas = new GradientAtlas(2)
     const uniform = atlas.uniform
     const old = uniform.value
@@ -35,13 +35,13 @@ describe('GradientAtlas', () => {
     expect([uniform.value.image.depth, data[0], data[LAYER_BYTES], data[2 * LAYER_BYTES]]).toEqual([4, 1, 2, 3])
   })
 
-  it('refuse une couche de mauvaise taille', () => {
+  it('rejects a layer of the wrong size', () => {
     expect(() => new GradientAtlas().add('a', new Uint8Array(4))).toThrow()
   })
 })
 
 describe('redBlue', () => {
-  it('garde le rouge (choix de couleur) et le bleu (rugosité) de chaque pixel', () => {
+  it('keeps the red (color choice) and the blue (roughness) of each pixel', () => {
     const rgba = new Uint8ClampedArray(SWATCH_SIZE * SWATCH_SIZE * 4)
     rgba.set([10, 20, 30, 255, 40, 50, 60, 255])
     expect(Array.from(redBlue(rgba).slice(0, 4))).toEqual([10, 30, 40, 60])

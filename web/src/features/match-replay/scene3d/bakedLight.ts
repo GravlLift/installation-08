@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * bakedLight.ts — LA LUMIÈRE CUITE DU JEU : ses sondes d'irradiance (`stlm`), publiées dans le GLB
- * par `cmd/mapfond-build --maillage` sous `scenes[0].extras.levelupProbes` (cf.
- * `libs/himap/himap/sondes.go` et `glb_sondes.go`).
+ * bakedLight.ts — THE GAME'S BAKED LIGHT: its irradiance probes (`stlm`), published in the GLB
+ * by `cmd/mapfond-build --maillage` under `scenes[0].extras.levelupProbes` (see
+ * `libs/himap/himap/sondes.go` and `glb_sondes.go`).
  *
- * Chaque région est une boîte découpée en cellules, une sonde au centre de chacune ; chaque sonde,
- * une tuile 8 x 8 de flottants R11G11B10 : un octaèdre 6 x 6 en AXES HALO (centre = haut, colonnes
- * +X, lignes +Y) bordé d'un texel. Les deux conventions sont mesurées, pas supposées
- * (`sondes_gamefiles_test.go`). Les
- * tuiles de toutes les régions sont rangées dans un seul atlas en demi-flottants, que le shader des
- * matériaux de la carte interpole (huit sondes, poids trilinéaire et de face, sondes enfouies
- * écartées) ; les régions emboîtées l'emportent par priorité et cèdent sur leur bord de fondu.
+ * Each region is a box cut into cells, one probe at the center of each; each probe, an 8 x 8
+ * tile of R11G11B10 floats: a 6 x 6 octahedron in HALO AXES (center = up, columns +X, rows +Y)
+ * bordered by one texel. Both conventions are measured, not assumed
+ * (`sondes_gamefiles_test.go`). The
+ * tiles of every region are packed into a single half-float atlas, which the map materials'
+ * shader interpolates (eight probes, trilinear and face weight, buried probes excluded); nested
+ * regions win by priority and yield at their blend edge.
  *
- * Cette irradiance REMPLACE la lumière indirecte de la vue (ciel, part diffuse des sondes
- * capturées) là où une région couvre le point ; ailleurs l'éclairage de repli reste.
+ * This irradiance REPLACES the view's indirect light (sky, diffuse share of captured probes)
+ * wherever a region covers the point; elsewhere the fallback lighting remains.
  */
 import * as THREE from 'three'
 
 const TILE = 8
 const INNER = TILE - 2
 const ATLAS_COLUMNS = 128
-/** Plus de régions que cela : les moins prioritaires sont ignorées (le shader borne sa boucle). */
+/** More regions than this: the least prioritized are ignored (the shader caps its loop). */
 export const MAX_REGIONS = 16
 const HALF_ONE = 0x3c00
 
@@ -33,7 +33,7 @@ interface RegionExtras {
   irradiance: number
 }
 
-/** Une région prête pour le shader : bornes et grille en axes Halo, premier rang dans l'atlas. */
+/** A region ready for the shader: bounds and grid in Halo axes, first rank in the atlas. */
 export interface BakedRegion {
   min: THREE.Vector3
   max: THREE.Vector3
@@ -47,14 +47,14 @@ interface GltfParser {
   getDependency(type: 'bufferView', index: number): Promise<ArrayBuffer>
 }
 
-/** Une région lue du GLB, ses texels encore au format du jeu. */
+/** A region read from the GLB, its texels still in the game's own format. */
 interface RawRegion extends BakedRegion {
   texels: Uint32Array
 }
 
 /**
- * readBakedRegions lit les régions publiées dans les extras de la scène ; null sans sondes ou si
- * un champ manque (carte construite avant leur lecture).
+ * readBakedRegions reads the regions published in the scene's extras; null without probes or if
+ * a field is missing (a map built before they were read).
  */
 export async function readBakedRegions(extras: unknown, parser: GltfParser): Promise<RawRegion[] | null> {
   const probes = (extras as { levelupProbes?: { tile?: number; regions?: RegionExtras[] } } | null)?.levelupProbes
@@ -81,17 +81,17 @@ export async function readBakedRegions(extras: unknown, parser: GltfParser): Pro
 }
 
 /**
- * Un flottant 11 ou 10 bits (5 bits d'exposant, biais 15, sans signe) vers un demi-flottant :
- * même exposant, mantisse recalée à gauche.
+ * An 11- or 10-bit float (5-bit exponent, bias 15, unsigned) to a half-float: same exponent,
+ * mantissa shifted left.
  */
 function toHalf(bits: number, mantissa: number): number {
   return ((bits >>> mantissa) << 10) | ((bits & ((1 << mantissa) - 1)) << (10 - mantissa))
 }
 
 /**
- * L'atlas d'irradiance, RGBA demi-flottant : l'alpha d'une tuile vaut 1 si la sonde est active, 0
- * si elle est enfouie (tout à zéro). Une seule texture : les matériaux en couches de la carte en
- * tiennent déjà 15 sur les 16 d'un shader. Les lampes ajoutent leurs données à cet atlas.
+ * The irradiance atlas, half-float RGBA: a tile's alpha is 1 if the probe is active, 0 if it's
+ * buried (all zero). A single texture: the map's layered materials already hold 15 of a
+ * shader's 16 texture units. Lamps add their data to this atlas.
  */
 export interface BakedAtlas {
   irradiance: THREE.DataTexture
@@ -100,7 +100,7 @@ export interface BakedAtlas {
   total: number
 }
 
-/** packAtlas range les tuiles de toutes les régions, X d'abord puis Y puis Z, dans l'ordre des régions. */
+/** packAtlas packs every region's tiles, X first then Y then Z, in region order. */
 export function packAtlas(regions: readonly RawRegion[]): BakedAtlas {
   const total = regions.reduce((n, r) => n + r.count.x * r.count.y * r.count.z, 0)
   const rows = Math.max(1, Math.ceil(total / ATLAS_COLUMNS))

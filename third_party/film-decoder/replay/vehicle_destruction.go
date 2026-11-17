@@ -341,9 +341,9 @@ func logVehicleDestructions(ctx context.Context, c VehicleDestructionCoverage) {
 	}
 	slog.InfoContext(ctx, "replay: vehicle destructions",
 		"destroyed", c.Destroyed, "pieces", c.Pieces, "published", c.Published,
-		"parHumain", c.ByHuman, "parBot", c.ByBot, "destructeurAbsent", c.KillerAbsent,
-		"destructeurHorsRoster", c.KillerOutOfRoster, "destructeurAmbigu", c.KillerAmbiguous,
-		"cause", c.Cause, "causeNonResolue", c.CauseUnresolved, "causeAbsente", c.CauseAbsent,
-		"avecOccupant", c.Occupant, "avecTues", c.Killed, "killed", c.KilledOccupants,
-		"tuesSansIdentite", c.KilledNoIdentity, "tuesDeNettoyage", c.KilledCleanup)
+		"byHuman", c.ByHuman, "byBot", c.ByBot, "killerAbsent", c.KillerAbsent,
+		"killerOutOfRoster", c.KillerOutOfRoster, "killerAmbiguous", c.KillerAmbiguous,
+		"cause", c.Cause, "causeUnresolved", c.CauseUnresolved, "causeAbsent", c.CauseAbsent,
+		"withOccupant", c.Occupant, "withKills", c.Killed, "killed", c.KilledOccupants,
+		"killedNoIdentity", c.KilledNoIdentity, "killedCleanup", c.KilledCleanup)
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * postFx3d.ts — LE COMPOSITEUR DE LA SCÈNE 3D : rendu de la scène dans une cible qui garde sa
- * profondeur, masque du contour d'équipe (`outline3d`), occlusion ambiante, passage aux couleurs de
- * l'écran, anticrénelage (SMAA), puis la ligne du contour.
+ * postFx3d.ts — THE 3D SCENE'S COMPOSITOR: scene render into a target that keeps its depth, team
+ * outline mask (`outline3d`), ambient occlusion, screen color space conversion, anti-aliasing
+ * (SMAA), then the outline's line.
  *
- * Occlusion ambiante en espace écran (GTAO) : l'assombrissement des coins et des recoins que
- * l'éclairage du jeu porte. Elle réutilise la profondeur du passage principal au lieu de
- * re-rendre la scène en matériau de normales : les normales en sont reconstruites, facettes comme
- * dans le GLB sans normales de sommet. Rayon en unités monde (0,6 u ~ 1,8 m), débruitage sur 6 px.
+ * Screen-space ambient occlusion (GTAO): the darkening of corners and crevices that game
+ * lighting carries. It reuses the main pass's depth instead of re-rendering the scene into a
+ * normal material: normals are reconstructed from it, faceted like the GLB with no vertex
+ * normals. Radius in world units (0.6 u ~ 1.8 m), denoising over 6 px.
  *
  * Bloom (`bloom3d`): the glow of self-lit surfaces, on the HDR image between the ambient
  * occlusion and the output pass. Present only while the drawer's "Bloom" setting is on
@@ -56,13 +56,13 @@ export type PassName = (typeof PASS_NAMES)[number]
 export interface PassCost { calls: number; triangles: number }
 
 /**
- * Gain par canal (rouge, vert, bleu) en espace écran : appliqué après la sortie, il refroidit
- * l'image pour la ramener à celle du jeu (mesurée sur les enregistrements). La ligne du contour
- * passe après, elle garde sa couleur exacte.
+ * Per-channel gain (red, green, blue) in screen space: applied after output, it cools the image
+ * to bring it back to the game's own (measured on recordings). The outline's line passes after,
+ * it keeps its exact color.
  */
 export const GRADE_GAIN = [0.93, 1.02, 1.07]
 
-/** Passe de teinte : multiplie la couleur d'écran par `GRADE_GAIN`. */
+/** Grade pass: multiplies the screen color by `GRADE_GAIN`. */
 const shaderGrade = {
   name: 'Grade',
   uniforms: {
@@ -73,9 +73,9 @@ const shaderGrade = {
   fragmentShader: 'uniform sampler2D tDiffuse; uniform vec3 uGain; varying vec2 vUv; void main() { vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(c.rgb * uGain, c.a); }',
 }
 
-/** buildPostFx pose les passes de la scène `scene` vue par `camera` ; `bloom` : the bloom pass starts in the chain. */
+/** buildPostFx builds the passes for scene `scene` as seen by `camera`; `bloom`: the bloom pass starts in the chain. */
 export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, bloom = true): PostFx3d {
-  // La profondeur de la scène reste lisible après son rendu : l'occlusion ambiante s'y compare.
+  // The scene's depth stays readable after its render: ambient occlusion compares against it.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(1, 1) })
   const composer = new EffectComposer(renderer, target)
   const scenePass = new RenderPass(scene, camera)
@@ -87,22 +87,22 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   gtao.updatePdMaterial({ radius: 6 })
   composer.addPass(gtao)
   const output = new OutputPass()
-  // Un quad plein écran n'a rien à tester ni à écrire en profondeur : celle de la scène doit arriver
-  // intacte à l'occlusion ambiante (la cible où il écrit peut être celle de la scène).
+  // A full-screen quad has nothing to depth-test or depth-write: the scene's depth must reach
+  // ambient occlusion intact (the target it writes to may be the scene's).
   output.material.depthTest = false
   output.material.depthWrite = false
   composer.addPass(output)
-  // Teinte de l'image, entre la sortie et l'anticrénelage : le contour, après, garde sa couleur.
+  // Image grading, between output and anti-aliasing: the outline, after, keeps its color.
   const grade = new ShaderPass(shaderGrade)
-  // Même règle que la sortie : le quad plein écran n'a rien à tester ni à écrire en profondeur,
-  // la profondeur de la scène doit arriver intacte à l'occlusion ambiante.
+  // Same rule as output: the full-screen quad has nothing to depth-test or depth-write, the
+  // scene's depth must reach ambient occlusion intact.
   grade.material.depthTest = false
   grade.material.depthWrite = false
   composer.addPass(grade)
-  // Anticrénelage de l'image aux couleurs de l'écran, avant la ligne du contour (qui doit rester
-  // la dernière passe : elle écrit par-dessus l'image).
-  // Même règle que la sortie : selon les passes actives, sa cible est celle de la scène, dont la
-  // profondeur ne doit pas être réécrite par le quad plein écran.
+  // Anti-aliasing of the image in screen colors, before the outline's line (which must stay the
+  // last pass: it draws over the image).
+  // Same rule as output: depending on which passes are active, its target may be the scene's,
+  // whose depth must not be overwritten by the full-screen quad.
   const smaa = new SMAAPass(1, 1) as SMAAPass & { materialBlend: THREE.ShaderMaterial }
   smaa.materialBlend.depthTest = false
   smaa.materialBlend.depthWrite = false
@@ -177,11 +177,11 @@ function meterPass(renderer: THREE.WebGLRenderer, pass: Meterable, cost: PassCos
 }
 
 /**
- * GtaoScenePass — une passe GTAO qui réutilise la profondeur du passage principal au lieu de
- * re-rendre la scène en matériau de normales : à chaque image on lui tend la profondeur de la
- * cible que le rendu de la scène vient d'écrire (le compositeur échange ses cibles entre les
- * passes), et les normales en sont reconstruites. La cible et le matériau de normales du GTAO,
- * posés pour ce re-rendu, n'ont plus de rôle.
+ * GtaoScenePass — a GTAO pass that reuses the main pass's depth instead of re-rendering the
+ * scene into a normal material: every frame it is handed the depth of the target the scene's
+ * render just wrote (the compositor swaps its targets between passes), and normals are
+ * reconstructed from it. GTAO's own target and normal material, set up for that re-render, no
+ * longer have a role.
  */
 class GtaoScenePass extends GTAOPass {
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {

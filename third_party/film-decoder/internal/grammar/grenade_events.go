@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // L ordre de ces imports entre dans l empreinte de la couche (revision/cadre.go) : ne pas regrouper.
@@ -433,21 +434,21 @@ const bitsTypeIndexBasDuMotif = 5
 func signalerCouvertureGrenades(diag *constat.Diagnostics, g grenadeGrammaire, cov grenadeCouverture) {
 	if !g.amorce.Connue {
 		diag.Signaler(constat.Diagnostic{Code: DiagGrenadeAmorceAbsente, Niveau: constat.NiveauWarn,
-			Message: "lancers de grenade : cle du film ABSENTE de la table d amorce — " +
-				"profil de reference applique (repli_amorce_grenade_profil_de_reference)",
-			Attrs: []any{"amorce_bits", g.amorce.Bits, "type_index", g.ti}})
+			Message: "grenade throws: film key ABSENT from the primer table — " +
+				"reference profile applied (repli_amorce_grenade_profil_de_reference)",
+			Attrs: []any{"primer_bits", g.amorce.Bits, "type_index", g.ti}})
 	}
 	if !g.tiParNom {
 		diag.Signaler(constat.Diagnostic{Code: DiagGrenadeArchetypeNonResolu, Niveau: constat.NiveauWarn,
-			Message: "lancers de grenade : archetype projectile NON RESOLU par le nom " +
-				"de ses composants — archetype de reference applique",
+			Message: "grenade throws: projectile archetype NOT RESOLVED by the name " +
+				"of its components — reference archetype applied",
 			Attrs: []any{"type_index", g.ti}})
 	}
 	diag.Signaler(constat.Diagnostic{Code: DiagGrenadeCouverture, Niveau: constat.NiveauInfo,
-		Message: "lancers de grenade : couverture du balayage",
-		Attrs: []any{"amorceBits", g.amorce.Bits, "indexAuteurBit", g.amorce.IndexAuteurBit,
-			"typeIndexProjectile", g.ti, "motifs", cov.motifs,
-			"naissancesAutresArchetypes", cov.naissancesAutresArchetypes,
-			"naissancesAutresArchetypesAvecIdentifiant", cov.ecartesAvecIdentifiant,
-			"naissancesTypeIndexIndetermine", cov.tiIndetermines, "lancersPublies", cov.publies}})
+		Message: "grenade throws: sweep coverage",
+		Attrs: []any{"primerBits", g.amorce.Bits, "authorBitIndex", g.amorce.IndexAuteurBit,
+			"projectileTypeIndex", g.ti, "patterns", cov.motifs,
+			"otherArchetypeSpawns", cov.naissancesAutresArchetypes,
+			"otherArchetypeSpawnsWithId", cov.ecartesAvecIdentifiant,
+			"undeterminedTypeIndexSpawns", cov.tiIndetermines, "publishedThrows", cov.publies}})
 }

@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * outline3d.ts — LE CONTOUR D'ÉQUIPE : une ligne pleine, à la couleur du camp (allié ou adverse vu
- * du joueur de la page), autour de la silhouette entière de chaque joueur en vie, arme en main
- * comprise, d'épaisseur constante à l'écran et tracée à travers la carte, en rayons X, comme dans
- * le théâtre du jeu.
+ * outline3d.ts — THE TEAM OUTLINE: a solid line, in the team's color (ally or enemy as seen
+ * from the page's player), around each living player's whole silhouette, weapon in hand
+ * included, of constant on-screen thickness, drawn through the map, in X-ray, as in the
+ * game's theater.
  *
- * Deux passes du compositeur :
- *  1. LE MASQUE, juste après le rendu de la scène : une cible à elle, à demi-résolution, où chaque
- *     texel couvert porte (allié, adverse, éclat, profondeur du joueur). Les joueurs y sont rendus
- *     avec un matériau de masque (os et poses ceux de l'image), carte ou non : un joueur caché par
- *     un mur y entre tout de même. Un joueur hors du champ n'y entre pas ; un joueur lointain y
- *     entre par sa silhouette en bâtons posée sur ses os (`outlineStand3d`, un appel de dessin au
- *     lieu des pièces de son armure et de son arme), sa silhouette n'y faisant que quelques texels
- *     (`maskDrawOf`).
- *  2. LA LIGNE, en dernier (après le passage aux couleurs de l'écran, pour que la couleur du camp
- *     sorte telle que les réglages la donnent), à pleine résolution, depuis le bord lissé du masque
- *     (`outlineShaders3d`) : un pixel hors silhouette prend la couleur du joueur le plus proche
- *     dans le rayon de la ligne, un mur devant compris.
+ * Two compositor passes:
+ *  1. THE MASK, right after the scene renders: its own target, at half resolution, where each
+ *     covered texel carries (ally, enemy, flare, player depth). Players are rendered into it
+ *     with a mask material (bones and poses those of the frame), map or not: a player hidden
+ *     by a wall still enters it. A player out of view does not enter it; a distant player
+ *     enters it through its stick-figure silhouette placed on its bones (`outlineStand3d`, one
+ *     draw call instead of its armor and weapon pieces), its silhouette only making a few
+ *     texels (`maskDrawOf`).
+ *  2. THE LINE, last (after the pass to screen colors, so the team color comes out as the
+ *     settings give it), at full resolution, from the mask's smoothed edge
+ *     (`outlineShaders3d`): a pixel outside the silhouette takes the color of the nearest
+ *     player within the line's radius, a wall in front included.
  *
- * L'éclat du bouclier touché (`BodyFxState.shield`) épaissit et éclaircit la ligne du joueur ; la
- * coque d'énergie (`bodyShell3d`) inonde son corps de la même couleur. Rien n'est gardé d'une image
- * à l'autre : la scène redonne les joueurs à chaque image (`begin`, `add`).
+ * The hit shield's flare (`BodyFxState.shield`) thickens and brightens the player's line; the
+ * energy shell (`bodyShell3d`) floods its body with the same color. Nothing is kept from one
+ * frame to the next: the scene re-adds the players every frame (`begin`, `add`).
  */
 import * as THREE from 'three'
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js'
@@ -30,34 +30,35 @@ import type { BodyFxState } from './bodyShell3d'
 import { LINE_FRAGMENT, QUAD_VERTEX, SUBJECT_FRAGMENT, SUBJECT_VERTEX } from './outlineShaders3d'
 import { skeletonOf, StandFigure } from './outlineStand3d'
 
-/** L'épaisseur de la ligne (px CSS) : nette d'un coup d'œil aux distances de jeu. */
+/** The line's thickness (CSS px): crisp at a glance at game distances. */
 export const OUTLINE_PX = 1.5
-/** Ce que l'éclat du bouclier y ajoute au plus fort (px CSS). */
+/** What the shield's flare adds to it at most (CSS px). */
 export const FLARE_PX = 2.5
-/** La largeur du fondu des bords de la ligne (px CSS) : l'anticrénelage. */
+/** The width of the line's edge fade (CSS px): the anti-aliasing. */
 const SOFT_PX = 1
-/** Le masque est rendu à 1 / MASK_SCALE de la résolution de l'écran, de chaque côté. */
+/** The mask is rendered at 1 / MASK_SCALE of the screen's resolution, on each side. */
 const MASK_SCALE = 2
 /**
- * Le rayon de la sphère qui contient un joueur debout (u), centrée sur son groupe (le centre du
- * corps) : les pieds et la tête à `BODY_CENTER`, l'arme tendue, les bras d'un clip.
+ * The radius of the sphere that contains a standing player (u), centered on its group (the
+ * body's center): feet and head at `BODY_CENTER`, weapon extended, arms of a clip.
  */
 export const AVATAR_RADIUS = 0.6
-/** La hauteur d'un joueur debout (u) : la taille qu'il fait à l'écran se mesure sur elle. */
+/** A standing player's height (u): the on-screen size it makes is measured against it. */
 const AVATAR_HEIGHT = 2 * BODY_CENTER
 /**
- * Sous cette hauteur à l'écran (px de la cible), un joueur entre au masque par sa silhouette en
- * bâtons : il y tient en moins de seize texels, où l'armure et les bâtons ne se distinguent plus sous
- * une ligne de 1,5 px. Au-dessus, les bâtons s'écartent de l'armure (arme, buste tordu) : entier.
+ * Below this on-screen height (target px), a player enters the mask through its stick-figure
+ * silhouette: it fits in under sixteen texels there, where armor and sticks no longer stand
+ * apart under a 1.5 px line. Above it, the sticks depart from the armor (weapon, twisted
+ * torso): whole.
  */
 export const STAND_BELOW_PX = 32
 
-/** Comment un joueur entre au masque : pas du tout (hors du champ), en bâtons, ou entier. */
+/** How a player enters the mask: not at all (out of view), as sticks, or whole. */
 export type MaskDraw = 'skip' | 'stand' | 'whole'
 
 /**
- * maskDrawOf : comment entre au masque un joueur dans le champ ou non (`inView`), qui fait `heightPx`
- * de haut à l'écran, avec ou sans squelette pour sa silhouette en bâtons (`hasStand`).
+ * maskDrawOf: how a player in view or not (`inView`), `heightPx` tall on screen, with or
+ * without a skeleton for its stick-figure silhouette (`hasStand`), enters the mask.
  */
 export function maskDrawOf(inView: boolean, heightPx: number, hasStand: boolean): MaskDraw {
   if (!inView) return 'skip'
@@ -65,8 +66,8 @@ export function maskDrawOf(inView: boolean, heightPx: number, hasStand: boolean)
 }
 
 /**
- * projectedHeightPx : la hauteur à l'écran (px) d'un joueur debout à la profondeur `viewDepth` (u,
- * le long de l'axe de la caméra), sous un champ vertical `fovDeg` sur `viewHeightPx` pixels.
+ * projectedHeightPx: the on-screen height (px) of a standing player at depth `viewDepth` (u,
+ * along the camera's axis), under a vertical field of view `fovDeg` on `viewHeightPx` pixels.
  */
 export function projectedHeightPx(viewDepth: number, fovDeg: number, viewHeightPx: number): number {
   if (viewDepth <= 0) return Infinity
@@ -74,8 +75,8 @@ export function projectedHeightPx(viewDepth: number, fovDeg: number, viewHeightP
 }
 
 /**
- * Un joueur à tracer à l'image : sa racine (corps et arme), son squelette (null sans Spartan, relevé
- * par `plan`), son camp, l'éclat de son bouclier.
+ * A player to draw this frame: its root (body and weapon), its skeleton (null without a
+ * Spartan, surveyed by `plan`), its team, its shield's flare.
  */
 interface Subject {
   root: THREE.Object3D
@@ -85,9 +86,9 @@ interface Subject {
 }
 
 export class Outline3d {
-  /** La passe du masque, à poser juste après le rendu de la scène. */
+  /** The mask pass, to place right after the scene renders. */
   readonly maskPass: Pass
-  /** La passe de la ligne, à poser en dernier. */
+  /** The line pass, to place last. */
   readonly linePass: Pass
   private readonly camera: THREE.PerspectiveCamera
   private readonly mask = new THREE.WebGLRenderTarget(1, 1, {
@@ -100,15 +101,15 @@ export class Outline3d {
   private readonly subjects: Subject[] = []
   private count = 0
   private preparedPlan: 'whole' | 'stand' | null = null
-  /** Un matériau de masque par joueur de l'image (le camp et l'éclat sont ses uniformes). */
+  /** One mask material per frame's player (team and flare are its uniforms). */
   private readonly materials: THREE.ShaderMaterial[] = []
   private readonly swapped: { mesh: THREE.Mesh; material: THREE.Mesh['material'] }[] = []
   private readonly hidden: THREE.Object3D[] = []
-  /** Les silhouettes en bâtons des joueurs lointains, rendues ensemble. */
+  /** The distant players' stick-figure silhouettes, rendered together. */
   private readonly stands = new THREE.Group()
   private readonly figures: StandFigure[] = []
   private readonly clear = new THREE.Color()
-  /** Les couleurs des camps, en couleurs d'écran (le compositeur les a déjà converties). */
+  /** The team colors, in screen colors (the compositor has already converted them). */
   private readonly ally = new THREE.Color()
   private readonly enemy = new THREE.Color()
   private readonly frustum = new THREE.Frustum()
@@ -143,18 +144,19 @@ export class Outline3d {
     this.linePass = new OutlinePass((renderer, read, write, screen) => this.drawLine(renderer, read, write, screen), true)
   }
 
-  /** begin vide la liste des joueurs de l'image. */
+  /** begin empties the frame's player list. */
   begin(): void {
     this.count = 0
   }
 
   /**
-   * add trace le joueur de racine `root` à l'état `fx` ; sans camp ou sous le camouflage, rien (le
-   * jeu ne trace pas un joueur invisible). Le joueur doit être visible : un groupe caché ne trace rien.
+   * add draws the player with root `root` at state `fx`; with no team or under camo, nothing
+   * (the game doesn't draw an invisible player). The player must be visible: a hidden group
+   * draws nothing.
    */
   add(root: THREE.Object3D, fx: BodyFxState): void {
     if (fx.ally === null || fx.equip.camo > 0) return
-    // La couleur d'écran du camp : celle des réglages, telle que l'étiquette la montre.
+    // The team's screen color: the settings' own, as the label shows it.
     ;(fx.ally ? this.ally : this.enemy).copy(fx.teamColor).convertLinearToSRGB()
     const s = this.subjects[this.count] ?? (this.subjects[this.count] = { root, skeleton: null, ally: false, flare: 0 })
     s.root = root
@@ -164,32 +166,32 @@ export class Outline3d {
     this.count++
   }
 
-  /** subjectsOf : les joueurs posés à l'image (tests). */
+  /** subjectsOf: the frame's placed players (tests). */
   subjectsOf(): readonly { root: THREE.Object3D; ally: boolean; flare: number }[] {
     return this.subjects.slice(0, this.count).map((s) => ({ root: s.root, ally: s.ally, flare: s.flare }))
   }
 
-  /** Dessine les deux formes du masque pour les racines préparées, puis rend les sujets de l'image. */
-  avecSujetsPrepares(roots: readonly THREE.Object3D[], rendre: (plan: (mode: 'whole' | 'stand') => void) => void): void {
-    const sujets = this.subjects.splice(0)
+  /** Draws the mask's two shapes for the prepared roots, then renders the frame's subjects. */
+  avecSujetsPrepares(roots: readonly THREE.Object3D[], render: (plan: (mode: 'whole' | 'stand') => void) => void): void {
+    const subjects = this.subjects.splice(0)
     const count = this.count
     const enabled = this.maskPass.enabled
-    const visibilites = this.stands.children.map((o) => o.visible)
+    const visibilities = this.stands.children.map((o) => o.visible)
     this.subjects.push(...roots.map((root) => ({ root, skeleton: null, ally: true, flare: 0 })))
     this.count = roots.length
     this.maskPass.enabled = true
-    try { rendre((mode) => { this.preparedPlan = mode }) } finally {
-      this.subjects.splice(0, this.subjects.length, ...sujets)
+    try { render((mode) => { this.preparedPlan = mode }) } finally {
+      this.subjects.splice(0, this.subjects.length, ...subjects)
       this.count = count
       this.maskPass.enabled = enabled
       this.preparedPlan = null
-      this.stands.children.forEach((o, i) => { o.visible = visibilites[i] ?? false })
+      this.stands.children.forEach((o, i) => { o.visible = visibilities[i] ?? false })
     }
   }
 
   /**
-   * plan : comment chaque joueur de l'image entre au masque, vu de la caméra (matrices à jour) sur
-   * une cible de `viewHeightPx` pixels de haut.
+   * plan: how each of the frame's players enters the mask, as seen from the camera (matrices
+   * up to date) on a target `viewHeightPx` pixels tall.
    */
   plan(viewHeightPx: number): MaskDraw[] {
     const cam = this.camera
@@ -267,7 +269,7 @@ export class Outline3d {
     this.lineQuad.render(renderer)
   }
 
-  /** materialOf : le matériau de masque du joueur `i` de l'image, à son camp et à son éclat. */
+  /** materialOf: the frame's player `i`'s mask material, at its team and its flare. */
   private materialOf(i: number): THREE.ShaderMaterial {
     const m = this.materials[i] ?? (this.materials[i] = subjectMaterial())
     const s = this.subjects[i]
@@ -275,7 +277,7 @@ export class Outline3d {
     return m
   }
 
-  /** placeStand pose la silhouette en bâtons de rang `k` sur `skeleton`, au matériau `m`. */
+  /** placeStand places stick-figure silhouette `k` onto `skeleton`, with material `m`. */
   private placeStand(k: number, skeleton: THREE.Skeleton, m: THREE.Material): void {
     let figure = this.figures[k]
     if (!figure) {
@@ -287,8 +289,9 @@ export class Outline3d {
   }
 
   /**
-   * wear habille du matériau de masque les maillages visibles de `root` ; la coque d'énergie
-   * (`noOutline`) est cachée le temps du masque, où son propre nuanceur écrirait sa couleur.
+   * wear dresses `root`'s visible meshes with the mask material; the energy shell
+   * (`noOutline`) is hidden for the mask's duration, where its own shader would write its
+   * color.
    */
   private wear(root: THREE.Object3D, m: THREE.Material): void {
     root.traverseVisible((o) => {
@@ -313,7 +316,7 @@ export class Outline3d {
   }
 }
 
-/** subjectMaterial : le matériau de masque d'un joueur (os et poses de l'image). */
+/** subjectMaterial: a player's mask material (bones and poses of the frame). */
 function subjectMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader: SUBJECT_VERTEX,
@@ -328,7 +331,7 @@ function subjectMaterial(): THREE.ShaderMaterial {
 
 type PassBody = (renderer: THREE.WebGLRenderer, read: THREE.WebGLRenderTarget, write: THREE.WebGLRenderTarget, screen: boolean) => void
 
-/** OutlinePass : une passe du compositeur qui délègue au contour. */
+/** OutlinePass: a compositor pass that delegates to the outline. */
 class OutlinePass extends Pass {
   private readonly body: PassBody
 

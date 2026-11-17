@@ -10,7 +10,7 @@ import { ClipRig, framePosition, measureSyncPhases, newClipMix, type ClipMix } f
 const Y = new THREE.Vector3(0, 1, 0)
 const DEG = Math.PI / 180
 
-/** turn : une piste de rotation de `bone` autour de Y, un angle (degrés) par image. */
+/** turn: a rotation track for `bone` around Y, one angle (degrees) per frame. */
 function turn(bone: string, degrees: readonly number[]): ClipTrack {
   const values = new Float32Array(4 * degrees.length)
   degrees.forEach((d, k) => new THREE.Quaternion().setFromAxisAngle(Y, d * DEG).toArray(values, 4 * k))
@@ -23,7 +23,7 @@ function shift(bone: string, xs: readonly number[]): ClipTrack {
   return { bone, size: 3, values, keys: xs.length }
 }
 
-/** Deux os au repos (rotation nulle, en (0, 0, 0) et (0, 1, 0)). */
+/** Two bones at rest (zero rotation, at (0, 0, 0) and (0, 1, 0)). */
 function bones(): { root: THREE.Group; a: THREE.Bone; b: THREE.Bone } {
   const root = new THREE.Group()
   const a = new THREE.Bone()
@@ -56,7 +56,7 @@ const yaw = (b: THREE.Bone) => (2 * Math.atan2(b.quaternion.y, b.quaternion.w)) 
 
 describe('framePosition', () => {
   const c = fakeClip('c', 10)
-  it('un clip bouclé revient au début après sa dernière image ; joué une fois, il tient ses bords', () => {
+  it('a looping clip wraps to the start after its last frame; played once, it holds its edges', () => {
     expect(framePosition(c, 11 / 30, true)).toBeCloseTo(1)
     expect(framePosition(c, -1 / 30, true)).toBeCloseTo(9)
     expect(framePosition(c, 11 / 30, false)).toBe(9)
@@ -65,7 +65,7 @@ describe('framePosition', () => {
 })
 
 describe('ClipRig.apply', () => {
-  it('échantillonne la pose à la cadence du clip', () => {
+  it("samples the pose at the clip's own frame rate", () => {
     const { root, a } = bones()
     const rapide = { ...fakeClip('rapide', 2, { tracks: [shift('b_a', [0, 2])] }), frameRate: 60 }
     const rig = new ClipRig(root, new SpartanClips([rapide]))
@@ -75,7 +75,7 @@ describe('ClipRig.apply', () => {
     rig.apply(m)
     expect(a.position.x).toBeCloseTo(1)
   })
-  it('mêle les couches de base en moyenne pondérée', () => {
+  it('blends the base layers in a weighted average', () => {
     const { root, a } = bones()
     const rig = new ClipRig(root, CLIPS)
     rig.apply(mix([['a90', 0, 0.5, true], ['a0', 0, 0.5, true]]))
@@ -84,19 +84,19 @@ describe('ClipRig.apply', () => {
     expect(yaw(a)).toBeCloseTo(22.5, 4)
   })
 
-  it('la part de poids qu’aucune couche ne donne revient au repos', () => {
+  it('the weight share no layer gives returns to rest', () => {
     const { root, a, b } = bones()
     const rig = new ClipRig(root, CLIPS)
     rig.apply(mix([['a90', 0, 0.5, true]]))
     expect(yaw(a)).toBeCloseTo(45, 4)
-    // b_b n'est animé que par a90 : à mi-poids, mi-chemin de son repos.
+    // b_b is only animated by a90: at half weight, halfway to its rest pose.
     expect(yaw(b)).toBeCloseTo(15, 4)
     rig.apply(mix([['a0', 0, 1, true]]))
     expect(yaw(b)).toBeCloseTo(0, 6)
     expect(b.position.y).toBe(1)
   })
 
-  it('une couche par-dessus remplace à son poids les os qu’elle anime, les autres gardent la base', () => {
+  it('an over layer replaces, at its weight, the bones it animates; the others keep the base', () => {
     const { root, a, b } = bones()
     const rig = new ClipRig(root, CLIPS)
     rig.apply(mix([['a90', 0, 1, true]], [['a0', 0, 1]]))
@@ -106,7 +106,7 @@ describe('ClipRig.apply', () => {
     expect(yaw(a)).toBeCloseTo(45, 4)
   })
 
-  it('interpole entre deux images ; bouclé, la dernière image rejoint la première', () => {
+  it('interpolates between two frames; looping, the last frame joins the first', () => {
     const { root, a } = bones()
     const rig = new ClipRig(root, CLIPS)
     rig.apply(mix([['sweep', 0.5 / 30, 1, false]]))
@@ -119,7 +119,7 @@ describe('ClipRig.apply', () => {
     expect(yaw(a)).toBeCloseTo(90, 4)
   })
 
-  it('pure : un mélange rejoué après d’autres rend les os au bit près', () => {
+  it('pure: a mix replayed after others renders the bones down to the bit', () => {
     const { root, a, b } = bones()
     const rig = new ClipRig(root, CLIPS)
     const m = mix([['sweep', 0.7 / 30, 0.6, true], ['a90', 0, 0.4, true]], [['a0', 0, 0.3]])
@@ -134,16 +134,16 @@ describe('ClipRig.apply', () => {
 })
 
 describe('measureSyncPhases', () => {
-  it('trouve l’image où le pied gauche mène le plus loin ; les clips sur place restent à 0', () => {
+  it('finds the frame where the left foot leads furthest; stationary clips stay at 0', () => {
     const root = spartanSkeleton()
     const clips = fixtureClips(root)
     for (const name of clips.names()) (clips.get(name) as SpartanClip).sync = 0
     measureSyncPhases(root, clips)
     const run = clips.get('combat:rifle:locomote_run_front') as SpartanClip
-    // Les cuisses de la fixture balancent en sinus : le pied gauche mène au quart du cycle.
+    // The fixture's thighs swing sinusoidally: the left foot leads at a quarter of the cycle.
     expect(Math.abs(run.sync - 0.25)).toBeLessThanOrEqual(1 / run.frames)
     expect(clips.get('combat:rifle:idle')?.sync).toBe(0)
-    // La source n'est jamais posée : ses os gardent leur repos.
+    // The source is never posed: its bones keep their rest pose.
     const fresh = spartanSkeleton()
     expect((root.getObjectByName('b_l_thigh') as THREE.Bone).quaternion.angleTo((fresh.getObjectByName('b_l_thigh') as THREE.Bone).quaternion)).toBe(0)
   })

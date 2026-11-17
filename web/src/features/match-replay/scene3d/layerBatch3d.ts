@@ -80,7 +80,7 @@ function cullCameraOf(scene: THREE.Scene | null, camera: THREE.Camera): THREE.Ca
 }
 
 /** The name of the batches, for the console and the scene graph. */
-export const LAYER_BATCH_NAME = 'calque-lot'
+export const LAYER_BATCH_NAME = 'layer-batch'
 
 export interface LayerBatches {
   /** The batches and instanced meshes posed under the layer's root. */
@@ -258,7 +258,7 @@ export function batchLayer(root: THREE.Object3D): LayerBatches {
   for (const c of compacted.values()) c.dispose()
   const after = before - batched + meshes.length
   const kinds = meshes.reduce((n, m) => n + ((m as THREE.BatchedMesh).isBatchedMesh ? 1 : 0), 0)
-  console.info(`rejeu 3D : lots du calque, ${before} maillages -> ${after} (${kinds} lots, ${meshes.length - kinds} instanciés, ${before - batched} seuls), ${Math.round(performance.now() - start)} ms`)
+  console.info(`3D replay: layer batches, ${before} meshes -> ${after} (${kinds} batches, ${meshes.length - kinds} instanced, ${before - batched} alone), ${Math.round(performance.now() - start)} ms`)
   return {
     meshes,
     batched,

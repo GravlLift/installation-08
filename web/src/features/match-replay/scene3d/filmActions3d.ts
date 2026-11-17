@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** Actions du film converties sur la grille et fin des sauts par la trajectoire verticale. */
+/** Film actions converted onto the grid, and jump endings derived from the vertical trajectory. */
 import { framesPerSecond, msToFrames } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
@@ -27,13 +27,13 @@ export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<numb
  * (`reloadStarts`: a repeated instant starts no reload, it ends the one under way).
  */
 export function rechargementsParSlot(doc: ReplayDocumentReady): { debuts: Map<number, number[]>; coupures: Map<number, number[]> } {
-  const debuts = new Map<number, number[]>()
-  const coupures = new Map<number, number[]>()
+  const starts = new Map<number, number[]>()
+  const cuts = new Map<number, number[]>()
   for (const [slot, r] of reloadReadings(doc)) {
-    if (r.starts.length > 0) debuts.set(slot, r.starts.map((ms) => msToFrames(ms, doc)))
-    if (r.cuts.length > 0) coupures.set(slot, r.cuts.map((ms) => msToFrames(ms, doc)))
+    if (r.starts.length > 0) starts.set(slot, r.starts.map((ms) => msToFrames(ms, doc)))
+    if (r.cuts.length > 0) cuts.set(slot, r.cuts.map((ms) => msToFrames(ms, doc)))
   }
-  return { debuts, coupures }
+  return { debuts: starts, coupures: cuts }
 }
 
 /**
@@ -44,52 +44,52 @@ export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<numbe
   const out = new Map<number, EpisodeRechargement[]>()
   const fps = framesPerSecond(doc)
   for (const [slot, r] of reloadReadings(doc)) {
-    const parFrame = new Map(r.starts.map((ms) => [msToFrames(ms, doc), ms]))
-    const vide = (frame: number) => {
-      const ms = parFrame.get(frame)
-      const reste = ms === undefined ? null : magazineAtReload(doc, slot, ms, r.starts)
-      return reste === null ? null : reste === 0
+    const byFrame = new Map(r.starts.map((ms) => [msToFrames(ms, doc), ms]))
+    const isEmpty = (frame: number) => {
+      const ms = byFrame.get(frame)
+      const remaining = ms === undefined ? null : magazineAtReload(doc, slot, ms, r.starts)
+      return remaining === null ? null : remaining === 0
     }
-    const episodes = episodesRechargement([...parFrame.keys()], r.cuts.map((ms) => msToFrames(ms, doc)), fps, vide)
+    const episodes = episodesRechargement([...byFrame.keys()], r.cuts.map((ms) => msToFrames(ms, doc)), fps, isEmpty)
     if (episodes.length > 0) out.set(slot, episodes)
   }
   return out
 }
 
-/** Durée d'un palier vertical qui vaut réception quand aucune descente ne l'a précédé (sommet exclu). */
-const PALIER_SANS_CHUTE_S = 0.2
+/** Duration of a vertical plateau that counts as a landing when no descent preceded it (peak excluded). */
+const PLATEAU_WITHOUT_FALL_S = 0.2
 
-/** Fin à la stabilisation verticale après mouvement, ou après 1,5 s sans réception observée. */
-export function sautDepuisAction(doc: ReplayDocumentReady, tracks: Tracks3d, slot: number, debut: number): Span {
-  const escalade = doc.stances.filter((s) => s.slot === slot && s.kind === 'clamber' && s.t0 >= debut)
-    .reduce((fin, s) => Math.min(fin, s.t0), Infinity)
-  const limite = Math.min(debut + msToFrames(1500, doc), escalade)
-  const tr = doc.tracks.find((t) => t.slot === slot && t.xuid && (t.startFrame ?? t.points[0]?.t ?? Infinity) <= debut && (t.endFrame ?? t.points.at(-1)?.t ?? -Infinity) >= debut)
-  const vie = tr?.xuid ? tracks.life(tr.xuid, debut) : null
-  const sol = tracks.sampleSlot(slot, debut)?.z
-  if (!vie || sol === undefined) return { t0: debut, t1: limite - 1 }
-  let mouvement = false
-  let chute = false
-  let immobiles = 0
-  let precedent = { t: debut, z: sol }
-  let debutPalier = debut
+/** Ends at vertical stabilization after movement, or after 1.5s with no landing observed. */
+export function sautDepuisAction(doc: ReplayDocumentReady, tracks: Tracks3d, slot: number, start: number): Span {
+  const climb = doc.stances.filter((s) => s.slot === slot && s.kind === 'clamber' && s.t0 >= start)
+    .reduce((end, s) => Math.min(end, s.t0), Infinity)
+  const limit = Math.min(start + msToFrames(1500, doc), climb)
+  const track = doc.tracks.find((t) => t.slot === slot && t.xuid && (t.startFrame ?? t.points[0]?.t ?? Infinity) <= start && (t.endFrame ?? t.points.at(-1)?.t ?? -Infinity) >= start)
+  const life = track?.xuid ? tracks.life(track.xuid, start) : null
+  const ground = tracks.sampleSlot(slot, start)?.z
+  if (!life || ground === undefined) return { t0: start, t1: limit - 1 }
+  let movement = false
+  let falling = false
+  let stillCount = 0
+  let previous = { t: start, z: ground }
+  let plateauStart = start
   const fps = framesPerSecond(doc)
-  for (const p of vie.pts) {
-    if (p.t <= debut) continue
-    if (p.t > limite) break
-    if (p.g) return { t0: debut, t1: precedent.t - 1 }
-    const vitesse = (p.z - precedent.z) * fps / (p.t - precedent.t)
-    if (Math.abs(vitesse) > 0.1) {
-      mouvement = true
-      if (vitesse < 0) chute = true
-      immobiles = 0
-    } else if (mouvement) {
-      if (immobiles++ === 0) debutPalier = precedent.t
-      // Le sommet du saut est lui aussi un palier : sans descente vue, il faut un palier tenu.
-      const tenu = chute ? immobiles >= 2 : p.t - debutPalier >= PALIER_SANS_CHUTE_S * fps
-      if (tenu) return { t0: debut, t1: debutPalier - 1 }
+  for (const p of life.pts) {
+    if (p.t <= start) continue
+    if (p.t > limit) break
+    if (p.g) return { t0: start, t1: previous.t - 1 }
+    const speed = (p.z - previous.z) * fps / (p.t - previous.t)
+    if (Math.abs(speed) > 0.1) {
+      movement = true
+      if (speed < 0) falling = true
+      stillCount = 0
+    } else if (movement) {
+      if (stillCount++ === 0) plateauStart = previous.t
+      // The jump's peak is also a plateau: with no descent seen, a held plateau is required.
+      const held = falling ? stillCount >= 2 : p.t - plateauStart >= PLATEAU_WITHOUT_FALL_S * fps
+      if (held) return { t0: start, t1: plateauStart - 1 }
     }
-    precedent = p
+    previous = p
   }
-  return { t0: debut, t1: Math.min(limite, tr?.endFrame ?? tr?.points.at(-1)?.t ?? limite) - 1 }
+  return { t0: start, t1: Math.min(limit, track?.endFrame ?? track?.points.at(-1)?.t ?? limit) - 1 }
 }

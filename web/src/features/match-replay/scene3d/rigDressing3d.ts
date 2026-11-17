@@ -1,43 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * rigDressing3d.ts — LES PIÈCES DE BRAS DU JOUEUR SUIVI SUR LE RIG DE PREMIÈRE PERSONNE.
+ * rigDressing3d.ts — THE TRACKED PLAYER'S ARM PIECES ON THE FIRST-PERSON RIG.
  *
- * Le rig embarque ses bras par défaut ; `rigDressing3d` les remplace par les pièces du joueur :
- * les scènes (`armPieces3d`) sont liées aux os du rig (`lierPiece`) et posées sur sa racine, les
- * bras embarqués (matériau de bras, lu à travers les copies de `rigPaint3d`) sont masqués. La
- * clé (rig, joueur, manifeste) évite de reposer ; une génération abandonne une charge en retard
- * quand le joueur change. Chaque rig conserve ses pièces jusqu'au changement de joueur.
+ * The rig carries its default arms; `RigDressing3d` replaces them with the player's own
+ * pieces: the scenes (`ArmPieces3d`) are bound to the rig's bones (`lierPiece`) and placed on
+ * its root, the default arms (arm material, read through `RigPaint3d`'s copies) are hidden.
+ * The key (rig, player, manifest) avoids re-placing; a generation abandons a late load when the
+ * player changes. Each rig keeps its pieces until the player changes.
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
 
-import { armPieces3d, lierPiece, planBras, type BrasIndex } from './armPieces3d'
+import { ArmPieces3d, lierPiece, planBras, type BrasIndex } from './armPieces3d'
 import { estMateriauBras } from './firstPersonArms3d'
 import type { SpartanArmory } from './armory3d'
 
-/** Ce que l'habillage lit dans `firstPersonArms3d`. */
+/** What the dressing reads from `FirstPersonArms3d`. */
 export interface SourceHabillage {
-  /** Le catalogue des pièces de bras, récupéré une fois. */
+  /** The arm piece catalog, fetched once. */
   indexPieces: Promise<BrasIndex | null>
-  chargeur: armPieces3d
-  /** L'interruption de la vue : une charge en cours s'abandonne. */
+  chargeur: ArmPieces3d
+  /** The view's abort signal: a load in progress is abandoned. */
   signal: AbortSignal
   armurerie(): SpartanArmory | null
   xuid(): string | null
-  /** Le matériau source d'un matériau posé (les copies de peinture). */
+  /** A placed material's source material (paint copies). */
   materiauSource(materiau: THREE.Material): THREE.Material
-  /** Les pièces sont posées : la peinture du rig doit se refaire. */
+  /** The pieces are placed: the rig's paint must be redone. */
   invaliderPeinture(fichier: string): void
   termine?(fichier: string, racine: THREE.Object3D): void
   gate?: LoadGate
 }
 
 /**
- * rigDressing3d : pose les pièces de bras du joueur suivi sur les rigs de première personne ;
- * `changerJoueur` abandonne la charge en cours, ôte les pièces posées et rend les bras embarqués.
+ * RigDressing3d: places the tracked player's arm pieces on the first-person rigs;
+ * `changerJoueur` abandons the load in progress, removes the placed pieces, and restores the
+ * default arms.
  */
-export class rigDressing3d {
-  private readonly rigs = new Map<string, { cle: string; enCours: boolean; chargees: THREE.SkinnedMesh[]; caches: THREE.Object3D[] }>()
+export class RigDressing3d {
+  private readonly rigs = new Map<string, { key: string; loading: boolean; loaded: THREE.SkinnedMesh[]; hidden: THREE.Object3D[] }>()
   private generation = 0
   private readonly source: SourceHabillage
 
@@ -45,10 +46,10 @@ export class rigDressing3d {
     this.source = source
   }
 
-  /** L'habillage est-il en cours de charge (une bascule doit attendre) ? */
-  enCours(fichier?: string): boolean { return fichier ? !!this.rigs.get(fichier)?.enCours : [...this.rigs.values()].some((rig) => rig.enCours) }
+  /** Is the dressing currently loading (a switch must wait)? */
+  enCours(fichier?: string): boolean { return fichier ? !!this.rigs.get(fichier)?.loading : [...this.rigs.values()].some((rig) => rig.loading) }
 
-  /** Le joueur change (ou la vue se libère) : abandonne la charge en cours et ôte les pièces. */
+  /** The player changes (or the view is released): abandon the load in progress and remove the pieces. */
   changerJoueur(): void {
     this.generation++
     for (const rig of this.rigs.values()) this.retirer(rig)
@@ -56,59 +57,60 @@ export class rigDressing3d {
   }
 
   /**
-   * actualiser pose les pièces du joueur suivi sur le rig `fichier` : rien si la clé (rig, joueur,
-   * manifeste) est déjà posée. Les bras embarqués se cachent avant la pose (mêmes matériaux).
+   * actualiser places the tracked player's pieces on rig `fichier`: nothing if the key (rig,
+   * player, manifest) is already placed. The default arms hide before placement (same
+   * materials).
    */
   actualiser(fichier: string, racine: THREE.Object3D): void {
     const xuid = this.source.xuid()
     const regions = xuid ? this.source.armurerie()?.regions(xuid) ?? null : null
-    const cle = `${fichier}|${xuid ?? ''}|${regions ? 'manifeste' : 'defaut'}`
-    const precedent = this.rigs.get(fichier)
-    if (cle === precedent?.cle) return
-    if (precedent) this.retirer(precedent)
-    const rig = { cle, enCours: true, chargees: [] as THREE.SkinnedMesh[], caches: [] as THREE.Object3D[] }
+    const key = `${fichier}|${xuid ?? ''}|${regions ? 'manifest' : 'default'}`
+    const previous = this.rigs.get(fichier)
+    if (key === previous?.key) return
+    if (previous) this.retirer(previous)
+    const rig = { key, loading: true, loaded: [] as THREE.SkinnedMesh[], hidden: [] as THREE.Object3D[] }
     this.rigs.set(fichier, rig)
     const generation = this.generation
-    const chargement = this.source.indexPieces.then(async (index) => {
+    const loading = this.source.indexPieces.then(async (index) => {
       if (!index || generation !== this.generation || this.rigs.get(fichier) !== rig) return
       const scenes = await Promise.all(planBras(index, regions).map((piece) => this.source.chargeur.piece(piece.file)))
       if (generation !== this.generation || this.rigs.get(fichier) !== rig || this.source.signal.aborted) return
-      const maillages: THREE.SkinnedMesh[] = []
-      for (const scene of scenes) if (scene) maillages.push(...lierPiece(scene, racine))
-      if (!maillages.length) return
-      // Les bras embarqués se cachent AVANT la pose : les pièces portent les mêmes matériaux.
-      this.cacherBrasIntegres(racine, rig.caches)
-      for (const maillage of maillages) racine.add(maillage)
-      rig.chargees = maillages
-      // Les pièces ajoutent des matériaux que la peinture doit couvrir.
+      const meshes: THREE.SkinnedMesh[] = []
+      for (const scene of scenes) if (scene) meshes.push(...lierPiece(scene, racine))
+      if (!meshes.length) return
+      // The default arms hide BEFORE placement: the pieces carry the same materials.
+      this.cacherBrasIntegres(racine, rig.hidden)
+      for (const mesh of meshes) racine.add(mesh)
+      rig.loaded = meshes
+      // The pieces add materials the paint must cover.
       this.source.invaliderPeinture(fichier)
-    }).catch((erreur: unknown) => console.warn('rejeu 3D : pièces de bras indisponibles', erreur))
+    }).catch((error: unknown) => console.warn('3D replay: arm pieces unavailable', error))
       .finally(() => {
         if (generation === this.generation && this.rigs.get(fichier) === rig) {
-          rig.enCours = false
+          rig.loading = false
           this.source.termine?.(fichier, racine)
         }
       })
-    void (this.source.gate?.track(chargement) ?? chargement)
+    void (this.source.gate?.track(loading) ?? loading)
   }
 
-  /** retirer ôte les pièces posées (leurs squelettes sont libérés) et rend leurs bras embarqués. */
-  private retirer(rig: { chargees: THREE.SkinnedMesh[]; caches: THREE.Object3D[] }): void {
-    for (const maillage of rig.chargees) {
-      maillage.removeFromParent()
-      maillage.skeleton.dispose()
+  /** retirer removes the placed pieces (their skeletons are released) and restores their default arms. */
+  private retirer(rig: { loaded: THREE.SkinnedMesh[]; hidden: THREE.Object3D[] }): void {
+    for (const mesh of rig.loaded) {
+      mesh.removeFromParent()
+      mesh.skeleton.dispose()
     }
-    for (const objet of rig.caches) objet.visible = true
+    for (const object of rig.hidden) object.visible = true
   }
 
-  /** cacherBrasIntegres masque les maillages de bras embarqués du rig (matériau de bras). */
-  private cacherBrasIntegres(racine: THREE.Object3D, caches: THREE.Object3D[]): void {
-    racine.traverse((objet) => {
-      if (!(objet instanceof THREE.Mesh) || !objet.visible) return
-      const materiaux = Array.isArray(objet.material) ? objet.material : [objet.material]
-      if (!materiaux.some((m) => estMateriauBras(this.source.materiauSource(m)))) return
-      objet.visible = false
-      caches.push(objet)
+  /** cacherBrasIntegres hides the rig's default arm meshes (arm material). */
+  private cacherBrasIntegres(racine: THREE.Object3D, hidden: THREE.Object3D[]): void {
+    racine.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) return
+      const materials = Array.isArray(object.material) ? object.material : [object.material]
+      if (!materials.some((m) => estMateriauBras(this.source.materiauSource(m)))) return
+      object.visible = false
+      hidden.push(object)
     })
   }
 }

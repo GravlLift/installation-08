@@ -38,11 +38,11 @@ type EffectMarker struct {
 	Rotation [4]float32 `json:"rotation"`
 }
 
-// FichierIndex is the library's index file; its presence says the build is complete.
-const FichierIndex = "index.json"
+// IndexFile is the library's index file; its presence says the build is complete.
+const IndexFile = "index.json"
 
-// FichierBras is the arm pieces catalog the view asks for at the library root.
-const FichierBras = "bras.json"
+// ArmsFile is the arm pieces catalog the view asks for at the library root.
+const ArmsFile = "bras.json"
 
 // prefixeRig prefixes a rig file name with the first 16 hex digits of the sha256 of the rig's
 // content: two weapons on the same rig share one file.
@@ -51,26 +51,26 @@ const prefixeRig = "rig-"
 // LongueurEmpreinteRig is the hex length of the content digest in a rig file name.
 const LongueurEmpreinteRig = 16
 
-// FichierRig rend le nom du GLB d'un rig par l'empreinte de son contenu.
-func FichierRig(glb []byte) string {
+// RigFile returns the name of a rig's GLB from the digest of its content.
+func RigFile(glb []byte) string {
 	e := sha256.Sum256(glb)
 	return prefixeRig + hex.EncodeToString(e[:])[:LongueurEmpreinteRig] + ".glb"
 }
 
-// fichierTexture returns the depot file name of a shared image: texture-<32 hex>.<ext>, the
+// textureFile returns the depot file name of a shared image: texture-<32 hex>.<ext>, the
 // content digest.
-func fichierTexture(data []byte, ext string) string {
+func textureFile(data []byte, ext string) string {
 	e := sha256.Sum256(data)
 	return "texture-" + hex.EncodeToString(e[:]) + "." + ext
 }
 
-// nomFichierPremierePersonne is the only file names the library folder holds: the index, the
+// libraryFileNamePattern is the only file names the library folder holds: the index, the
 // arm catalog, a rig, and a depot texture.
 // LOCAL-CHANGE (infinite-theater-3d): depot textures may also be KTX2 (the KTX2 pass output).
-var nomFichierPremierePersonne = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|texture-([0-9a-f]{16}|[0-9a-f]{64})\.(png|jpg|ktx2))$`)
+var libraryFileNamePattern = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|texture-([0-9a-f]{16}|[0-9a-f]{64})\.(png|jpg|ktx2))$`)
 
-// NomFichierPremierePersonne dit si `nom` est un fichier que la route des rigs sert.
-func NomFichierPremierePersonne(nom string) bool { return nomFichierPremierePersonne.MatchString(nom) }
+// IsLibraryFileName says whether `name` is a file the rigs route serves.
+func IsLibraryFileName(name string) bool { return libraryFileNamePattern.MatchString(name) }
 
 // Index is the first-person/index.json the view reads: the schema marker, the generator tag,
 // the per-weapon rig entries, the per-file rig entries, the failures, and the texture depot
@@ -82,15 +82,15 @@ type Index struct {
 	// EkurStamp: the digest of the Ekur export this build read (spartanpieces.EkurStamp),
 	// "" when the build ran without an export: the server compares it with the current
 	// export and rebuilds the library when the two differ.
-	EkurStamp string   `json:"ekur_stamp"`
-	Weapons   []Arme   `json:"weapons"`
-	Rigs      []Rig    `json:"rigs"`
-	Failures  []Echec  `json:"failures"`
-	Textures  Textures `json:"textures"`
+	EkurStamp string        `json:"ekur_stamp"`
+	Weapons   []WeaponEntry `json:"weapons"`
+	Rigs      []Rig         `json:"rigs"`
+	Failures  []Failure     `json:"failures"`
+	Textures  Textures      `json:"textures"`
 }
 
-// Arme is one weapon and the file of its rig.
-type Arme struct {
+// WeaponEntry is one weapon and the file of its rig.
+type WeaponEntry struct {
 	Weapon string `json:"weapon"`
 	File   string `json:"file"`
 	// EffectMarkers: the markers the weapon's idle particle effects emit at (the weapons library's
@@ -136,8 +136,8 @@ type Action struct {
 	Clip    string `json:"clip"`
 }
 
-// Echec is one weapon whose rig could not be written.
-type Echec struct {
+// Failure is one weapon whose rig could not be written.
+type Failure struct {
 	Weapon string `json:"weapon"`
 	Reason string `json:"reason"`
 }

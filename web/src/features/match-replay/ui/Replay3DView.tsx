@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Replay3DView — LA VUE 3D DU REJEU, posée sur la toile 2D, au même cadre.
+ * Replay3DView — THE REPLAY'S 3D VIEW, laid over the 2D canvas, in the same frame.
  *
- * Elle ne possède pas le temps : la lecture de la page avance `frameRef` (barre de lecture, frise,
- * raccourcis, son) et la vue la lit à chaque image d'écran. Le joueur suivi est le POINT DE VUE de
- * la page ; sans point de vue, le premier joueur du roster.
+ * It doesn't own time: the page's playback advances `frameRef` (scrub bar, timeline,
+ * shortcuts, sound) and the view reads it on every screen frame. The followed player is
+ * the page's POINT OF VIEW; with no point of view, the roster's first player.
  *
- * Le maillage (centaines de Mio, cache local du poste) se télécharge en flux à l'ouverture de la
- * vue, jamais avant : la 2D seule ne le paie pas. Chargée à la demande (`React.lazy`), la vue
- * garde aussi three.js hors du paquet de la page. Une fois ouverte, elle reste montée quand on
- * revient à la 2D (`active` faux : plus aucun rendu), pour se rallumer sans recharger la carte.
+ * The mesh (hundreds of MiB, cached locally on the machine) streams down when the view
+ * opens, never before: the 2D view alone doesn't pay for it. Loaded on demand
+ * (`React.lazy`), the view also keeps three.js out of the page's bundle. Once opened, it
+ * stays mounted when going back to the 2D view (`active` false: no more rendering), so it
+ * can light back up without reloading the map.
  *
- * Le calque des objets de la variante du match (`variantPath`) se télécharge avec la carte et se
- * prépare une fois la carte posée (`useVariantLayer`). The load is one honest progress
+ * The match variant's object layer (`variantPath`) downloads alongside the map and gets
+ * prepared once the map is placed (`useVariantLayer`). The load is one honest progress
  * (`LoadProgress3d`): map and variant downloads, decode, ray index, variant preparation, models,
  * shader warm-up (with the variant posed, so its shaders compile too) and a first drawn frame.
  * The view reports `ready` only when all of them are over.
@@ -72,13 +73,13 @@ const MINIMAP_DRAG_PX = 4
 
 export interface Replay3DViewProps {
   meshPath: string
-  /** Le calque des objets de la variante, posé sur la carte une fois chargée ; null sans calque. */
+  /** The variant's object layer, placed on the map once loaded; null with no layer. */
   variantPath: string | null
   /** True while the server still checks or builds the variant layer: the load waits for it. */
   variantPending?: boolean
-  /** Le dossier servi des modèles d'arme (`weaponModels3d`), chargés à la demande ; null sans modèles. */
+  /** The served folder of weapon models (`weaponModels3d`), loaded on demand; null with no models. */
   weaponsPath: string | null
-  /** L'armure des joueurs du match (manifeste et bibliothèque des pièces), posée à son arrivée ; null sans armure. */
+  /** The match players' armor (manifest and piece library), placed once it arrives; null with no armor. */
   armor: ReplayArmorSource | null
   doc: ReplayDocumentReady
   frameRef: RefObject<number>
@@ -89,19 +90,18 @@ export interface Replay3DViewProps {
   height: number
   /** A reduced corner view: smaller loading and status text. */
   compact?: boolean
-  /** Faux quand la 3D est éteinte : la vue reste montée (carte chargée) mais ne rend plus d'image. */
+  /** False when 3D is turned off: the view stays mounted (map loaded) but renders no more frames. */
   active?: boolean
-  /** Ce que la page a déjà cuit pour dessiner l'action (tirs, morts, encres, tiroir). */
+  /** What the page has already computed to draw the action (shots, deaths, colors, drawer). */
   action: PageAction3dInputs
-  /** La fenêtre de gameplay de la page : elle recale l'horloge du HUD sur le match, comme la frise. */
+  /** The page's gameplay window: it realigns the HUD clock with the match, like the timeline. */
   playWindow: ReplayWindowBounds | null
   /**
-   * La limite de temps du match (en ms, depuis le temps réglementaire du contexte) : l'horloge
-   * du HUD en compte à rebours. `null` = variante sans limite connue : elle affiche le temps
-   * écoulé.
+   * The match's time limit (in ms, from the context's regulation time): the HUD clock counts
+   * down from it. `null` = variant with no known limit: it shows elapsed time instead.
    */
   timeLimitMs: number | null
-  /** L'auditeur du son : la caméra de l'image rendue, `null` quand la vue ne rend pas. */
+  /** The sound listener: the rendered frame's camera, `null` when the view isn't rendering. */
   soundListenerRef?: RefObject<SoundListener | null>
   /** The drawing view: the perspective 3D view (default) or the orthographic top-down. */
   view?: SceneView3d
@@ -124,7 +124,7 @@ export function Replay3DView({
   const gateRef = useRef<LoadGate | null>(null)
   const weaponsRef = useRef<WeaponModels | null>(null)
   const armoryRef = useRef<SpartanArmory | null>(null)
-  // La scène dont la carte est posée : ce que le calque de la variante attend pour se charger.
+  // The scene whose map is placed: what the variant layer waits for before loading.
   const [mapScene, setMapScene] = useState<ReplayScene3d | null>(null)
   // One progress per map and document: the loaders report into it, the view shows its snapshot.
   const progress = useMemo(() => new LoadProgress3d(), [meshPath, doc])
@@ -147,7 +147,7 @@ export function Replay3DView({
       if (key === shown) return
       shown = key
       document.documentElement.dataset.it3dSceneLoad = sceneLoadSignal(next)
-      if (next.kind === 'ready') console.info('rejeu 3D : chargement', progress.report())
+      if (next.kind === 'ready') console.info('3D replay: load', progress.report())
       setLoad(next)
     }
     push()
@@ -174,15 +174,15 @@ export function Replay3DView({
   }, [progress])
   const [loadId, setLoadId] = useState(0)
   const [povStatus, setPovStatus] = useState<PovStatus>('none')
-  // Le premier joueur publié : le suivi par défaut quand la page n'a pas de point de vue.
+  // The first published player: the default follow target when the page has no point of view.
   const [fallbackPov, setFallbackPov] = useState<string | null>(null)
-  // Les encres changent (thème) sans recharger la carte : la construction lit la dernière.
+  // Colors change (theme) without reloading the map: construction reads the latest one.
   const colorRef = useRef(colorOfXuid)
   useEffect(() => {
     colorRef.current = colorOfXuid
   }, [colorOfXuid])
-  // Les calques d'action relisent les entrées à chaque image : le thème et le tiroir changent sans
-  // reconstruire la scène. Les repères d'analyse sont propres à la 3D : la vue les y ajoute.
+  // The action layers re-read their inputs on every frame: theme and drawer change without
+  // rebuilding the scene. Analysis aids are specific to 3D: the view adds them in here.
   const { aids } = useReplay3dAids()
   const inputs = useMemo<Action3dInputs>(() => ({ ...action, aids }), [action, aids])
   const actionRef = useRef(inputs)
@@ -190,7 +190,7 @@ export function Replay3DView({
     actionRef.current = inputs
   }, [inputs])
 
-  // LA SCÈNE, une par maillage et par document : téléchargement, décodage, puis attache.
+  // THE SCENE, one per mesh and per document: download, decode, then attach.
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -265,7 +265,7 @@ export function Replay3DView({
         }
       } catch (err) {
         if (!alive) return
-        console.error('rejeu 3D : chargement de la carte', err)
+        console.error('3D replay: map load', err)
         reportClientError('map-load', err, meshPath)
         progress.fail()
       }
@@ -283,13 +283,13 @@ export function Replay3DView({
   const spartansQuery = useReplaySpartans(armor)
   const spartans = spartansQuery.data
   const piecesPath = armor?.piecesPath ?? null
-  // L'armure encore en route : l'attente des modèles la lit, sans relancer son effet.
+  // The armor still in flight: the model-wait loop reads it, without re-running its effect.
   const waitingArmor = useRef(false)
   const armorLoading = !!armor && spartansQuery.fetchStatus === 'fetching' && !spartans
   useEffect(() => {
     waitingArmor.current = armorLoading
   }, [armorLoading])
-  // Le point de vue et la caméra voulus, lus par l'image d'essai d'avant l'ouverture.
+  // The desired point of view and camera, read by the trial frame before opening.
   const warmRef = useRef<{ pov: string | null; mode: CameraMode3d }>({ pov: null, mode })
   useEffect(() => {
     if (!mapScene || !weaponsPath) return
@@ -390,7 +390,7 @@ export function Replay3DView({
       })
       const result = await timed('gate-idle-2', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
-      if (result.timedOut || waitingArmor.current) console.warn('rejeu 3D : délai de chargement dépassé', gate.pending + Number(waitingArmor.current))
+      if (result.timedOut || waitingArmor.current) console.warn('3D replay: load timeout exceeded', gate.pending + Number(waitingArmor.current))
       progress.finish('assets')
       setAssetsFor(mapScene)
       // The loading screen is gone: start the deferred first-person preload now, off the critical path.
@@ -501,12 +501,12 @@ export function Replay3DView({
   useEffect(() => {
     if (ready) sceneRef.current?.setTopFollowed(mode === 'free' ? null : viewpoint ?? null)
   }, [ready, viewpoint, mode])
-  // L'éclairage suit le tiroir (ombres, reflets, occlusion ambiante).
+  // Lighting follows the drawer (shadows, reflections, ambient occlusion).
   const { look } = useReplay3dLook()
   useEffect(() => {
     if (ready) sceneRef.current?.setLook(look)
   }, [ready, look])
-  // Le réglage de champ du jeu suit le tiroir : le champ vertical de base de la caméra.
+  // The game's field-of-view setting follows the drawer: the camera's base vertical field.
   const { fov } = useReplay3dFov()
   useEffect(() => {
     if (ready) sceneRef.current?.setFovPreference(fov)
@@ -516,14 +516,14 @@ export function Replay3DView({
   }, [ready, width, height])
   // The map's named areas: the HUD's place label, and the export HUD's (lent with the scene).
   const callouts = useMapCallouts(doc.matchId)
-  // La scène chargée se prête à l'export vidéo ; l'état de l'écran sert de défaut à son dialogue.
+  // The loaded scene can be used for video export; screen state serves as its dialog's default.
   useEffect(() => {
     const scene = sceneRef.current
     if (!ready || !scene) return
     return registerReplay3DExport({ source: scene, live: active, camera: mode, pov, callouts })
   }, [ready, active, mode, pov, callouts])
 
-  // LA BOUCLE D'IMAGES : la scène se pose à l'image courante du lecteur, à la cadence de l'écran.
+  // THE FRAME LOOP: the scene is set to the player's current frame, at screen refresh rate.
   useEffect(() => {
     if (!ready || !active) return
     let raf = 0
@@ -531,10 +531,10 @@ export function Replay3DView({
     const step = (instantMs: number) => {
       const filmFrame = frameRef.current ?? 0
       recordFrame(meterRef.current, instantMs, filmFrame)
-      const debut = performance.now()
+      const start = performance.now()
       const status = sceneRef.current?.render(filmFrame) ?? 'none'
       if (soundListenerRef && sceneRef.current) soundListenerRef.current = listenerOfCamera(sceneRef.current.camera)
-      recordScript(meterRef.current, performance.now() - debut)
+      recordScript(meterRef.current, performance.now() - start)
       if (status !== shown) {
         shown = status
         setPovStatus(status)

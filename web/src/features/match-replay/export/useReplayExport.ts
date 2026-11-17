@@ -1,63 +1,63 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplayExport — LA BOUCLE QUI RECALCULE LE FILM, et la couture React autour d'elle.
+ * useReplayExport — THE LOOP THAT RECOMPUTES THE FILM, and the React wiring around it.
  *
- * # LA DIFFÉRENCE AVEC L'ENREGISTREMENT, EN UNE PHRASE
+ * # THE DIFFERENCE WITH RECORDING, IN ONE SENTENCE
  *
- * `useReplayCapture` FILME l'écran : il subit le temps réel. Ce hook RECALCULE le film — il
- * pose une image, la peint, l'encode, et passe à la suivante aussi vite que la machine suit.
- * Un match de dix minutes sort en une minute au lieu de dix, et la durée du fichier ne dépend
- * jamais du temps de calcul (les horodatages sont posés, cf. `replayVideoEncoder.ts`).
+ * `useReplayCapture` FILMS the screen: it is subject to real time. This hook RECOMPUTES the
+ * film — it sets a frame, paints it, encodes it, and moves to the next as fast as the machine
+ * keeps up. A ten-minute match comes out in one minute instead of ten, and the file's duration
+ * never depends on compute time (timestamps are set, see `replayVideoEncoder.ts`).
  *
- * Ce qui rend cela possible est une propriété du canvas, pas une astuce : `draw()` est une
- * FONCTION PURE de `frameRef.current`. Poser l'image puis appeler `draw()` peint exactement
- * cette image, autant de fois qu'on veut, dans n'importe quel ordre.
+ * What makes this possible is a property of the canvas, not a trick: `draw()` is a PURE
+ * FUNCTION of `frameRef.current`. Setting the frame then calling `draw()` paints exactly that
+ * frame, as many times as wanted, in any order.
  *
- * # TROIS PIÈGES, TOUS MESURÉS PLUTÔT QUE SUPPOSÉS
+ * # THREE PITFALLS, ALL MEASURED RATHER THAN ASSUMED
  *
- * 1. NE JAMAIS RENDRE LA MAIN PAR UN MINUTEUR. `setTimeout` et `requestAnimationFrame` sont
- *    bridés en onglet caché — 673 ms de latence moyenne pour le premier, jamais déclenché pour
- *    le second — et un export dure des minutes pendant lesquelles l'utilisateur va ailleurs.
- *    C'est `yieldToEvents()` (cf. `eventLoopYield.ts`), et rien d'autre.
- * 2. LES COULEURS DOIVENT ÊTRE RÉSOLUES AVANT D'ATTEINDRE LA TOILE. Un `fillStyle` qui reçoit
- *    `var(--primary)` est SILENCIEUSEMENT IGNORÉ : le contexte garde la couleur précédente,
- *    sans erreur, et le panneau sort dans une teinte au hasard. Vérifié dans le navigateur le
- *    2026-08-28. D'où `resolveToken` / `readInk` ici, et un peintre qui ne lit rien.
- * 3. LA LECTURE DOIT S'ARRÊTER. La boucle d'animation écrit `frameRef` elle aussi ; les deux
- *    en même temps se disputeraient le curseur et l'export peindrait n'importe quoi.
+ * 1. NEVER YIELD VIA A TIMER. `setTimeout` and `requestAnimationFrame` are throttled in a
+ *    hidden tab — 673 ms average latency for the former, never fired for the latter — and an
+ *    export runs for minutes during which the user goes elsewhere. The answer is
+ *    `yieldToEvents()` (see `eventLoopYield.ts`), and nothing else.
+ * 2. COLORS MUST BE RESOLVED BEFORE THEY REACH THE CANVAS. A `fillStyle` given
+ *    `var(--primary)` is SILENTLY IGNORED: the context keeps the previous color, no error, and
+ *    the panel comes out in a random tint. Verified in the browser on 2026-08-28. Hence
+ *    `resolveToken` / `readInk` here, and a painter that reads nothing itself.
+ * 3. PLAYBACK MUST STOP. The animation loop writes `frameRef` too; the two running at once
+ *    would fight over the cursor and the export would paint whatever was left.
  *
- * # L'ÉCRAN N'EST PAS ÉPARGNÉ, ET C'EST VOULU
+ * # THE SCREEN IS NOT SPARED, AND THAT IS DELIBERATE
  *
- * La boucle peint dans la TOILE VISIBLE. L'utilisateur voit donc le match défiler très vite
- * pendant l'export — ce n'est pas un défaut mais la seule preuve visible que quelque chose se
- * passe, et cela évite une seconde toile de la taille de la première. À la fin, quoi qu'il
- * arrive, l'image d'avant l'export est reposée et repeinte.
+ * The loop paints into the VISIBLE CANVAS. The user therefore sees the match scroll by very
+ * fast during export — not a flaw but the only visible proof that something is happening, and
+ * it avoids a second canvas the size of the first. At the end, whatever happens, the
+ * pre-export frame is restored and repainted.
  *
- * # LE CLIP A TOUJOURS LA MÊME APPARENCE (2026-09-16, décisions D8/D9)
+ * # THE CLIP ALWAYS LOOKS THE SAME (2026-09-16, decisions D8/D9)
  *
- * Fond noir pur, et TOUTES les encres — scène, calques cuits, vignettes, panneaux — lues dans le
- * thème SOMBRE (`layers/themeInk.ts`), sans toucher au thème de la page. La toile VISIBLE montre
- * donc le rendu sombre pendant l'export (y compris en thème clair) : c'est accepté, et tout
- * revient aux encres de la page à la fin, sur tous les chemins.
+ * Pure black background, and ALL inks — map, baked layers, thumbnails, panels — read from the
+ * DARK theme (`layers/themeInk.ts`), without touching the page's own theme. The VISIBLE canvas
+ * therefore shows the dark render during export (even in light theme): that is accepted, and
+ * everything returns to the page's own inks at the end, on every path.
  *
- * # LE FICHIER SORT AU FORMAT CHOISI, PAS À LA TAILLE DE L'ÉCRAN (2026-09-16)
+ * # THE FILE COMES OUT AT THE CHOSEN FORMAT, NOT AT SCREEN SIZE (2026-09-16)
  *
- * Pendant l'export, la toile se MET EN PAGE dans le cadre 16:9 du format (`exportFormats.ts`,
- * `exportLayoutStore.ts`) et se rend à sa densité : 1920x1080 ou 1280x720, quels que soient la
- * fenêtre et le `devicePixelRatio`. À l'écran, la boîte de la toile ne change pas de taille :
- * l'image 16:9 y est inscrite sans déformation (`object-fit: contain`, cf. `ReplayView.screen`),
- * et la page retrouve sa mise en page d'écran à la fin, sur tous les chemins.
+ * During export, the canvas LAYS OUT inside the format's 16:9 frame (`exportFormats.ts`,
+ * `exportLayoutStore.ts`) and renders at its density: 1920x1080 or 1280x720, regardless of the
+ * window and `devicePixelRatio`. On screen, the canvas box does not change size: the 16:9
+ * image is fit into it without distortion (`object-fit: contain`, see `ReplayView.screen`),
+ * and the page returns to its screen layout at the end, on every path.
  *
- * # EN 3D
+ * # IN 3D
  *
- * La vue 3D chargée de la page se prête à l'export (`replay3dExportStore`) : la scène rend chaque
- * image à la taille du fichier, avec la caméra et le joueur suivi choisis, et `export3dFrame` la
- * compose avec les étiquettes des joueurs, la mini-carte 2D en option et les mêmes panneaux de
- * fin. Le plan d'images, les horodatages et le son sont ceux de la 2D, at 60 frames per second of
- * match instead of 30 (`EXPORT_FPS_3D`; 30 only when the browser refuses 60, and then the dialog
- * says so). Each 3D frame is rendered to completion before it is encoded: visible ragdolls baked
- * (`ActionScene3d.settle`), and any model the frame asked for loaded, then the frame rendered
- * again (`exportPendingLoads`).
+ * The page's loaded 3D view lends itself to export (`replay3dExportStore`): the scene renders
+ * each frame at the file's size, with the chosen camera and followed player, and
+ * `export3dFrame` composes it with player labels, the optional 2D minimap, and the same end
+ * panels. The frame plan, timestamps, and sound are the same as the 2D export's, at 60 frames
+ * per second of match instead of 30 (`EXPORT_FPS_3D`; 30 only when the browser refuses 60, and
+ * then the dialog says so). Each 3D frame is rendered to completion before it is encoded:
+ * visible ragdolls baked (`ActionScene3d.settle`), and any model the frame asked for loaded,
+ * then the frame rendered again (`exportPendingLoads`).
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
@@ -131,7 +131,7 @@ declare global {
   }
 }
 
-/** Cadence de publication de la progression, en images encodées. */
+/** How often progress is published, in encoded frames. */
 const PROGRESS_EVERY = 15
 
 /**
@@ -150,87 +150,88 @@ function readExportPresetOverride(): ExportVideoPresetName | undefined {
 
 export interface ReplayExportOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>
-  /** L'image courante, PARTAGÉE avec le dessin : la boucle l'écrit, `draw()` la lit. */
+  /** The current frame, SHARED with drawing: the loop writes it, `draw()` reads it. */
   frameRef: RefObject<number>
-  /** Le tracé d'une image, tel que le canvas le publie. */
+  /** Drawing one frame, as the canvas publishes it. */
   redraw: () => void
-  /** Met la lecture en pause. Appelé AVANT la boucle (cf. piège 3 de l'en-tête). */
+  /** Pauses playback. Called BEFORE the loop (see pitfall 3 of the header). */
   pause: () => void
   doc: ReplayDocumentReady & ReplayScoreDocument
   playWindow: ReplayWindowBounds | null
   scoreboard: readonly MatchScoreboardRow[]
   kills?: readonly ReplayKill[]
   timeLimitMs?: number | null
-  /** L'allégeance lue dans le film, vue du point de vue (`model.allegiance`) : le panneau de fin. */
+  /** The allegiance read from the film, from the viewpoint (`model.allegiance`): the end panel. */
   allegiance: FilmAllegiance
   /**
-   * Le verdict du match, DÉJÀ complété du mot que l'écran montre (`viewedLabel`, résolu par
-   * `useReplayCapture` depuis les mappings du titre). `null` = pas d'écran de fin, comme le DOM.
+   * The match verdict, ALREADY completed with the word the screen shows (`viewedLabel`,
+   * resolved by `useReplayCapture` from the title's mappings). `null` = no end screen, matching
+   * the DOM.
    */
   outcome: ExportOutcome | null
   /**
-   * LE POINT DE VUE de la page (2026-09-06) : l'export rend CE QUE L'ÉCRAN MONTRE (décision 12
-   * du plan « frise, point de vue ») — panneau de victoire compris. La personne qui exporte a
-   * choisi ce qu'elle regarde. `null` : le joueur de la page.
+   * THE PAGE'S VIEWPOINT (2026-09-06): the export renders WHAT THE SCREEN SHOWS (decision 12 of
+   * the "timeline, viewpoint" plan) — including the victory panel. The person exporting chose
+   * what they are watching. `null`: the page's own player.
    *
-   * OBLIGATOIRE DEPUIS LE 2026-09-07 (revue F4, dernier maillon de la chaîne) : `useReplayCapture`
-   * le relaie déjà, mais optionnel ici, l'oubli de ce relais-là restait silencieux — le clip
-   * serait sorti au camp du joueur de la page pendant que l'écran suivait le joueur choisi.
-   * Requis, l'oubli est une erreur de compilation.
+   * MANDATORY SINCE 2026-09-07 (F4 review, the chain's last link): `useReplayCapture` already
+   * relays it, but it being optional here meant forgetting that relay stayed silent — the clip
+   * would come out at the page player's side while the screen followed the chosen player.
+   * Required, the omission is now a compile error.
    */
   viewpoint: string | null
   titleSlug: string
   locale: ReplayLocale
   /**
-   * LA PISTE SONORE DU REJEU, telle que la page la joue (`useReplaySound.exportTrack`). Absente
-   * = clip muet. Elle n'est PAS reconstruite par l'export : c'est ce qui garantit qu'un clip
-   * n'invente aucun son et n'en manque aucun.
+   * THE REPLAY'S SOUND TRACK, as the page plays it (`useReplaySound.exportTrack`). Absent =
+   * silent clip. It is NOT rebuilt by the export: that is what guarantees a clip neither
+   * invents nor drops any sound.
    */
   soundTrack?: () => {
     timeline: readonly ReplaySoundEvent[]
     endMatchStems: readonly string[]
     variationPercent: number
     distancePercent: number
-    /** Quels stems sont de la voix, lesquels de la musique (cf. `useReplaySound.exportTrack`). */
+    /** Which stems are voice, which are music (see `useReplaySound.exportTrack`). */
     families: { voice: readonly string[]; music: readonly string[] }
-    /** Le plan MOTEUR des véhicules — états continus, mixés par `vehicleEngineMix.ts`. */
+    /** The vehicles' ENGINE plan — continuous states, mixed by `vehicleEngineMix.ts`. */
     engines: readonly EnginePlan[]
   }
-  /** Le volume réglé dans la page. Le mixage le suit, même haut-parleurs coupés (décision D6). */
+  /** The volume set in the page. The mix follows it, even with speakers muted (decision D6). */
   soundVolume?: number
   /**
-   * LE PALIER DE ZOOM À L'ÉCRAN (1 = carte entière). Il ne sert qu'au DIALOGUE, qui ne propose le
-   * choix du cadrage que sur une carte zoomée (décision D6 du plan « formats vidéo »). Absent : 1.
+   * THE SCREEN'S ZOOM LEVEL (1 = whole map). Only used by the DIALOG, which only offers a
+   * framing choice on a zoomed map (decision D6 of the "video formats" plan). Absent: 1.
    */
   zoomLevel?: number
 }
 
-/** Ce que l'appelant choisit au moment de lancer. Le son est INCLUS par défaut (décision D6). */
+/** What the caller chooses when launching. Sound is INCLUDED by default (decision D6). */
 export interface ExportRunOptions {
   sound?: boolean
-  /** Le format du fichier ; absent -> le défaut du catalogue (1080p, décision D2). */
+  /** The file's format; absent -> the catalog's default (1080p, decision D2). */
   format?: ExportFormatId
-  /** Le cadrage de la carte ; absent -> « carte entière » (décision D6). */
+  /** The map's framing; absent -> "whole map" (decision D6). */
   framing?: ExportFraming
   /**
-   * Exporter la VUE 3D (scène chargée de la page, cf. `replay3dExportStore`) au lieu de la carte
-   * 2D ; absent -> la 2D. Le son, la plage et les panneaux de fin ne changent pas.
+   * Export the 3D VIEW (the page's loaded scene, see `replay3dExportStore`) instead of the 2D
+   * map; absent -> 2D. Sound, the range, and the end panels do not change.
    */
   view3d?: Export3dOptions | null
 }
 
-/** L'état que le dialogue affiche. `total` vaut 0 tant qu'aucun export n'a démarré. */
+/** The state the dialog shows. `total` is 0 until an export has started. */
 /**
- * LES CINQ ETATS D'UN EXPORT, et pourquoi ils ne se resument pas a « en cours / pas en cours ».
+ * THE FIVE STATES OF AN EXPORT, and why they do not reduce to "running / not running".
  *
- * `prepare` est celui qui manquait et qui coutait le plus cher a l'utilisateur : entre le clic
- * et la premiere image encodee, il faut attendre les polices, charger le logo, DECODER tous les
- * fichiers sons, RENDRE le mixage hors ligne et ENCODER la piste AAC. Sur un match charge en
- * sons, cela fait plusieurs secondes pendant lesquelles la barre affichait « Image 0 / 18000 »
- * sans bouger — c'est-a-dire exactement l'instant ou l'on se demande si ca a plante.
+ * `prepare` is the one that was missing and cost the user the most: between the click and the
+ * first encoded frame, it must wait for fonts, load the logo, DECODE every sound file, RENDER
+ * the offline mix, and ENCODE the AAC track. On a match heavy with sound, that is several
+ * seconds during which the bar showed "Frame 0 / 18000" without moving — exactly the moment
+ * where one wonders whether it crashed.
  *
- * `done` manquait aussi : le dialogue redevenait le formulaire et le fichier tombait dans les
- * telechargements sans qu'un mot ne le dise.
+ * `done` was also missing: the dialog went back to the form and the file dropped into
+ * downloads without a word saying so.
  */
 export type ExportPhase = 'idle' | 'prepare' | 'encode' | 'done' | 'failed'
 
@@ -251,16 +252,16 @@ export interface ReplayExportState {
    * un dessin dont la charge ne depend pas de l'instant du match.
    */
   etaMs?: number
-  /** Le nom du fichier prêt à descendre, en phase `done`. */
+  /** The name of the file ready to download, in the `done` phase. */
   filename?: string
-  /** Le téléchargement prêt : le clip, son URL et le `save` qui part d'un clic. Absent hors `done`. */
+  /** The ready download: the clip, its URL, and the one-click `save`. Absent outside `done`. */
   save?: PendingDownload
   /**
-   * `true` = le son etait demande mais le navigateur a REFUSE la piste : le clip est muet, et
-   * il faut le dire. Un clip silencieux qu'on croyait sonore se decouvre au montage.
+   * `true` = sound was requested but the browser REFUSED the track: the clip is silent, and
+   * that must be said. A silent clip believed to have sound is discovered only at editing time.
    */
   mutedFallback?: boolean
-  /** Le message technique de l'echec, pour la console et pour l'utilisateur averti. */
+  /** The failure's technical message, for the console and for the knowledgeable user. */
   message?: string
   /** The rate the clip is encoded at, once the encoder is open (`encode` and `done`). */
   fps?: number
@@ -278,27 +279,26 @@ export interface ReplayExportState {
 }
 
 export interface ReplayExport {
-  /** `false` = pas de WebCodecs : c'est l'enregistrement temps réel qui reprend la main. */
+  /** `false` = no WebCodecs: real-time recording takes over instead. */
   supported: boolean
   state: ReplayExportState
-  /** La plage proposée par défaut : la fenêtre de gameplay entière. */
+  /** The default proposed range: the whole gameplay window. */
   defaultBounds: () => ExportBounds
   run: (bounds: ExportBounds, options?: ExportRunOptions) => Promise<void>
   /**
-   * Dépose le clip de la phase `done` dans le dossier de téléchargements. Le CUIRE doit
-   * l'appeler d'un clic : un clic sur une ancre déposé par le code, des minutes après le
-   * dernier geste de l'utilisateur, n'a plus le geste derrière, et Chrome bloque le
-   * second fichier non demandé d'un site. `no-op` hors `done` (rien à sauver, rien à
-   * révoquer).
+   * Drops the `done` phase's clip into the downloads folder. The CALLER must invoke it from a
+   * click: a click on an anchor dropped by code, minutes after the user's last gesture, no
+   * longer has a gesture behind it, and Chrome blocks a site's second unrequested file.
+   * `no-op` outside `done` (nothing to save, nothing to revoke).
    */
   saveDone: () => void
   /**
-   * Rend le clip sans le déposer : révocation de l'URL d'objet et retour à l'état inerte.
-   * Appelé quand l'utilisateur ferme le dialogue sans avoir sauvé — un blob que plus
-   * personne ne peut sauver doit être rendu au collecteur, pas retenu en mémoire.
+   * Releases the clip without dropping it: revokes the object URL and returns to the idle
+   * state. Called when the user closes the dialog without saving — a blob nobody can save
+   * anymore must be returned to the collector, not kept in memory.
    */
   discardDone: () => void
-  /** Le palier de zoom de l'écran, relayé pour le dialogue (cf. `ReplayExportOptions.zoomLevel`). */
+  /** The screen's zoom level, relayed for the dialog (see `ReplayExportOptions.zoomLevel`). */
   zoomLevel: number
   cancel: () => void
   /**
@@ -307,16 +307,16 @@ export interface ReplayExport {
    * the user picks a range against the bar they just scrubbed.
    */
   clockOf: (frame: number) => string
-  /** La durée du CLIP pour ces bornes, formatée. Même raison, même endroit. */
+  /** The CLIP's duration for these bounds, formatted. Same reason, same place. */
   lengthClock: (bounds: ExportBounds) => string
 }
 
 const IDLE: ReplayExportState = { phase: 'idle', done: 0, total: 0, pct: 0 }
 
-/** Nombre d'images encodees avant de risquer une estimation : sous ce seuil, elle danserait. */
+/** Number of encoded frames before an estimate is risked: below this, it would jitter. */
 const ETA_MIN_FRAMES = 30
 
-/** Les encres du thème, résolues UNE fois par export (cf. piège 2 de l'en-tête). */
+/** The theme's inks, resolved ONCE per export (see pitfall 2 of the header). */
 function readOverlayInk(): OverlayInk {
   return {
     background: readInk('--background'),
@@ -327,7 +327,7 @@ function readOverlayInk(): OverlayInk {
   }
 }
 
-/** Les familles de police de la page. Le repli n'est atteint que si le thème perd ses vars. */
+/** The page's font families. The fallback is only reached if the theme loses its vars. */
 function readOverlayFonts(): OverlayFonts {
   const root = getComputedStyle(document.documentElement)
   const sans = root.getPropertyValue('--sans').trim()
@@ -335,7 +335,7 @@ function readOverlayFonts(): OverlayFonts {
   return { sans: sans || 'system-ui, sans-serif', mono: mono || 'ui-monospace, monospace' }
 }
 
-/** Charge le filigrane et le TEINTE. `null` partout ailleurs : le panneau reste entier. */
+/** Loads the watermark and TINTS it. `null` everywhere else: the panel stays complete. */
 async function loadTeamLogo(
   titleSlug: string,
   teamID: number | null | undefined,
@@ -346,17 +346,17 @@ async function loadTeamLogo(
   const img = await new Promise<HTMLImageElement | null>((resolve) => {
     const el = new Image()
     el.onload = () => resolve(el)
-    // Un `team_id` sans asset publié répond 404 : silence, pas de filigrane, pas d'erreur.
+    // A `team_id` with no published asset answers 404: silence, no watermark, no error.
     el.onerror = () => resolve(null)
     el.src = src
   })
   return img ? tintedIconCanvas(img, color) : null
 }
 
-/** Prépare tout ce qui ne change pas d'une image à l'autre. Hors React : aucun état ici. */
+/** Prepares everything that stays the same from one frame to the next. Outside React: no state here. */
 async function buildSource(o: ReplayExportOptions, ink: OverlayInk): Promise<OverlayPanelSource> {
-  // LA COULEUR EST CELLE QUE L'UTILISATEUR A RÉGLÉE (décision D1 du DOM) : l'écran de fin est
-  // TOUJOURS celui de son camp, donc toujours `team-ally`, surchargeable par l'accessibilité.
+  // THE COLOR IS THE ONE THE USER SET (DOM decision D1): the end screen is ALWAYS that of
+  // their own side, so always `team-ally`, overridable by accessibility settings.
   const teamColor = resolveToken('team-ally')
   const victory = readVictory(o.allegiance, o.outcome?.code, meXUIDOf(o.scoreboard), o.viewpoint)
   const logo = victory?.mine
@@ -378,13 +378,14 @@ async function buildSource(o: ReplayExportOptions, ink: OverlayInk): Promise<Ove
 }
 
 /**
- * Peint UNE image de l'export : le terrain, la surimpression s'il y en a une, puis le FOND.
+ * Paints ONE export frame: the map, the overlay if there is one, then the BACKDROP.
  *
- * LE FOND SE POSE EN DERNIER, DESSOUS (`destination-over`). Le cadre 16:9 déborde la carte dès
- * que ses proportions diffèrent, et la toile y est TRANSPARENTE : H.264 n'a pas de canal alpha,
- * et ce que devient un pixel transparent dans une `VideoFrame` dépend du navigateur. Le fond est
- * donc PEINT, et il est NOIR PUR quel que soit le thème (`--replay-export-backdrop`, décision
- * D8) : un fichier ne change pas d'apparence selon la préférence d'interface de qui l'exporte.
+ * THE BACKDROP IS LAID DOWN LAST, UNDERNEATH (`destination-over`). The 16:9 frame overflows
+ * the map whenever their proportions differ, and the canvas there is TRANSPARENT: H.264 has no
+ * alpha channel, and what a transparent pixel becomes in a `VideoFrame` depends on the
+ * browser. The backdrop is therefore PAINTED, and it is PURE BLACK regardless of the theme
+ * (`--replay-export-backdrop`, decision D8): a file does not change appearance based on the
+ * interface preference of whoever exported it.
  */
 function paintExportFrame(
   canvas: HTMLCanvasElement,
@@ -397,9 +398,9 @@ function paintExportFrame(
   o.redraw()
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  // LA MISE À L'ÉCHELLE SE REPOSE ICI, elle ne se suppose pas : `draw()` la pose au début de
-  // son tracé, mais rien ne garantit dans quel état ses calques la laissent. MÊME DENSITÉ QUE LE
-  // TRACÉ — celle du format : la surimpression se met en page dans le même cadre logique.
+  // THE SCALING IS RESET HERE, never assumed: `draw()` sets it at the start of its own pass,
+  // but nothing guarantees what state its layers leave it in. SAME DENSITY AS THE MAP'S OWN
+  // DRAW — the format's: the overlay lays out in the same logical frame.
   const dpr = canvasPixelRatio()
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   paintPanel(ctx, { width: canvas.width / dpr, height: canvas.height / dpr }, source, paint, frame)
@@ -410,7 +411,7 @@ function paintExportFrame(
   ctx.globalCompositeOperation = 'source-over'
 }
 
-/** Le panneau de l'image, s'il y en a un, dans le cadre logique (contexte déjà à la densité). */
+/** The frame's panel, if there is one, in the logical frame (context already at density). */
 function paintPanel(
   ctx: CanvasRenderingContext2D,
   view: { width: number; height: number },
@@ -422,7 +423,7 @@ function paintPanel(
   if (panel) paintOverlayPanel(ctx, view, panel, paint.fonts, paint.ink)
 }
 
-/** Peint l'image `frame` et rend la toile à encoder, once that frame is completely drawn. */
+/** Paints frame `frame` and returns the canvas to encode, once that frame is completely drawn. */
 type FramePainter = (frame: number) => HTMLCanvasElement | Promise<HTMLCanvasElement>
 
 /**
@@ -451,7 +452,7 @@ export async function renderComplete(
   return canvas
 }
 
-/** La scène 3D prise pour l'export, et ce qu'on lui demande. */
+/** The 3D scene taken for the export, and what is asked of it. */
 interface Scene3dRun {
   scene: Replay3DExportSource
   format: ExportFormat
@@ -459,8 +460,9 @@ interface Scene3dRun {
 }
 
 /**
- * take3dScene prend la scène 3D de la page pour l'export (cf. `replay3dExportStore`). Lève si la
- * 3D demandée n'est plus chargée : l'export le dit, il ne sort pas une 2D à la place.
+ * take3dScene takes the page's 3D scene for the export (see `replay3dExportStore`). Throws if
+ * the requested 3D view is no longer loaded: the export says so, it does not fall back to a
+ * 2D export instead.
  */
 function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: number, frameMs: number): Replay3DExportSource {
   const entry = replay3DExportEntry()
@@ -477,8 +479,8 @@ function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: numbe
 }
 
 /**
- * framePainter : la toile 2D de la page (carte, panneau, fond), ou la scène 3D composée par
- * `export3dFrame`, avec la carte 2D de la même image en mini-carte si elle est demandée.
+ * framePainter: the page's 2D canvas (map, panel, backdrop), or the 3D scene composed by
+ * `export3dFrame`, with the same frame's 2D map as a minimap when requested.
  */
 async function framePainter(
   canvas: HTMLCanvasElement,
@@ -519,7 +521,7 @@ async function framePainter(
     overlay: (ctx, view, frame) => { hud?.(ctx, view, frame); paintPanel(ctx, view, source, paint, frame) },
   })
   return (frame) => {
-    // L'image courante avance aussi en 3D : la barre de lecture et la carte 2D la suivent.
+    // The current frame advances in 3D too: the transport bar and the 2D map follow it.
     o.frameRef.current = frame
     return renderComplete(painter, scene3d.scene, frame)
   }
@@ -529,20 +531,20 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
   const [state, setState] = useState<ReplayExportState>(IDLE)
   const cancelRef = useRef(false)
   const runningRef = useRef(false)
-  // LE CLIP DE LA PHASE `done`, prêt à descendre mais PAS ENCORE DÉPOSÉ : le clic qui part
-  // le téléchargement doit venir de l'utilisateur (cf. `saveDone`), et c'est `releaseDone`
-  // qui le rend si le dialogue se ferme sans lui.
+  // THE `done` PHASE'S CLIP, ready to download but NOT YET DROPPED: the click that starts
+  // the download must come from the user (see `saveDone`), and it is `releaseDone`
+  // that releases it if the dialog closes without one.
   const pendingRef = useRef<PendingDownload | null>(null)
-  // LE DÉMONTAGE ANNULE, ET NE TÉLÉCHARGE RIEN. Même invariant que l'enregistrement temps réel
-  // juste à côté (`useReplayCapture`, `liveRef`) : quitter la page d'un match pendant un export
-  // ne doit pas déposer, trois minutes plus tard, le fichier d'un match qu'on a quitté.
+  // UNMOUNTING CANCELS, AND DOWNLOADS NOTHING. Same invariant as the real-time recording right
+  // next to it (`useReplayCapture`, `liveRef`): leaving a match's page during an export must
+  // not drop, three minutes later, the file of a match that was left behind.
   const liveRef = useRef(true)
   useEffect(() => {
     liveRef.current = true
     return () => {
       liveRef.current = false
       cancelRef.current = true
-      // Un clip en attente d'être sauvé, sur une page qui se démonte : rendu, pas retenu.
+      // A clip waiting to be saved, on a page that is unmounting: released, not kept.
       pendingRef.current?.release()
       pendingRef.current = null
     }
@@ -558,7 +560,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
     cancelRef.current = true
   }, [])
 
-  /** Rend le clip en attente : révocation de l'URL et retour à l'état inerte. */
+  /** Releases the waiting clip: revokes the URL and returns to the idle state. */
   const releaseDone = useCallback(() => {
     pendingRef.current?.release()
     pendingRef.current = null
@@ -581,61 +583,61 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
   const run = useCallback(
     async (bounds: ExportBounds, options?: ExportRunOptions) => {
       const canvas = o.canvasRef.current
-      // `runningRef` est posé SYNCHRONEMENT, avant le moindre `await` : c'est ce qui rend le
-      // double-clic sur « Exporter » inoffensif.
+      // `runningRef` is set SYNCHRONOUSLY, before the slightest `await`: that is what makes a
+      // double-click on "Export" harmless.
       if (!canvas || runningRef.current || !canExportVideo()) return
       runningRef.current = true
       cancelRef.current = false
-      // Un clip de l'export PRÉCÉDENT peut être encore retenu (dialogue fermé sans Sauver ni
-      // Refermer, puis un nouvel export) : le rendre maintenant, sinon l'ancien blob fuirait en
-      // mémoire jusqu'à la fermeture de l'onglet.
+      // A clip from the PREVIOUS export may still be held (dialog closed without Save or
+      // Discard, then a new export): release it now, or the old blob would leak in memory
+      // until the tab closes.
       pendingRef.current?.release()
       pendingRef.current = null
       o.pause()
-      // L'IMAGE D'AVANT L'EXPORT est mise de côté MAINTENANT : la boucle va écrire `frameRef`
-      // des milliers de fois, et l'utilisateur doit retrouver son rejeu où il l'avait laissé.
+      // THE PRE-EXPORT FRAME is set aside NOW: the loop is about to write `frameRef` thousands
+      // of times, and the user must get their replay back where they left it.
       const resume = o.frameRef.current
       const format = exportFormatOf(options?.format)
       const view3d = options?.view3d ?? null
       // THE RATE: 60 for the 3D view, 30 for the 2D map (cf. `EXPORT_FPS_3D`). The encoder may
       // refuse 60 at this size; it then falls back to 30 and the dialog says so.
       const wantedFps = view3d ? EXPORT_FPS_3D : EXPORT_FPS
-      // Un premier plan SANS maintien : il donne la duree de la plage, dont le mixage a besoin.
+      // A first plan WITHOUT the hold: it gives the range's duration, which the mix needs.
       let plan = buildExportPlan(bounds, o.doc, wantedFps)
-      // PHASE 1 : la preparation. La barre n'affiche pas « image 0 » — elle dit ce qu'on fait.
+      // PHASE 1: preparation. The bar does not show "frame 0" — it says what is happening.
       setState({ phase: 'prepare', done: 0, total: plan.frames.length, pct: 0 })
       let sink: VideoExportSink | null = null
-      // La scène 3D prise pour l'export, rendue à l'écran dans le `finally`.
+      // The 3D scene taken for the export, returned to the screen in the `finally`.
       let scene3d: Replay3DExportSource | null = null
       try {
-        // LA TOILE EST TENUE DÈS LE DÉBUT DE LA PRÉPARATION (décision D7) : la demande éteint les
-        // gestes de cadrage et le survol tout de suite, pas seulement une fois les sons décodés —
-        // un zoom glissé pendant la préparation changerait sinon le cadrage du clip.
+        // THE CANVAS IS CLAIMED AS SOON AS PREPARATION STARTS (decision D7): the request shuts
+        // off framing gestures and hover right away, not only once sounds are decoded — a zoom
+        // dragged during preparation would otherwise change the clip's framing.
         requestExportLayout(exportLayoutFor(format, options?.framing))
-        // Les polices AVANT la première image : sans cette attente, le début du clip écrirait
-        // les surimpressions dans une police de repli, et le reste dans la bonne.
+        // Fonts BEFORE the first frame: without this wait, the clip's start would write
+        // overlays in a fallback font, and the rest in the right one.
         await document.fonts.ready
-        // LES ENCRES SE LISENT APRÈS LA DEMANDE : elles sont alors celles du THÈME SOMBRE (décision
-        // D9, cf. `themeInk.ts`), comme celles de la scène que React re-résout au même moment.
+        // THE INKS ARE READ AFTER THE REQUEST: by then they are the DARK THEME's (decision D9,
+        // see `themeInk.ts`), like the map's own inks that React re-resolves at the same moment.
         const ink = readOverlayInk()
         const fonts = readOverlayFonts()
         const backdrop = readInk('--replay-export-backdrop')
         const source = await buildSource(o, ink)
-        // LE SON SE MIXE AVANT D'OUVRIR LE CONTENEUR : le MP4 annonce ses pistes une fois pour
-        // toutes, donc il faut savoir AVANT s'il y en aura une. Le mixage hors ligne est rapide
-        // (il ne joue rien, il calcule), et il rend `null` s'il n'y a rien a mixer.
-        // LA TOILE PASSE AU FORMAT DU FICHIER (2026-09-16) : mise en page dans le cadre 16:9 du
-        // format et rendu a sa densite (`exportLayoutFor`), l'ecran et son `devicePixelRatio`
-        // n'entrent plus nulle part. La mise en page (demandee en tete du `try`) passe par un rendu
-        // React : on ATTEND que la toile soit reellement au format avant d'ouvrir l'encodeur —
-        // d'ou l'ordre : demande, attente, ouverture.
+        // SOUND IS MIXED BEFORE THE CONTAINER OPENS: the MP4 declares its tracks once and for
+        // all, so it must be known BEFORE whether there will be one. The offline mix is fast
+        // (it plays nothing, it computes), and it returns `null` if there is nothing to mix.
+        // THE CANVAS SWITCHES TO THE FILE'S FORMAT (2026-09-16): laid out in the format's 16:9
+        // frame and rendered at its density (`exportLayoutFor`), the screen and its
+        // `devicePixelRatio` no longer enter anywhere. The layout (requested at the top of the
+        // `try`) goes through a React render: we WAIT for the canvas to actually be at the
+        // format before opening the encoder — hence the order: request, wait, open.
         await waitForExportLayout(canvas, format, o.redraw)
         const mix = options?.sound === false ? null : await mixExportAudio(o, bounds, plan, view3d, {
           cancelled: () => cancelRef.current,
           progress: prepareProgress(setState, plan.frames.length, 'mix'),
         })
         if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix reads it at each step and stops): stop before encoding; `finally` restores.
-        // Le maintien (cf. `holdMsFor`) ne dépend que de durées : il se calcule sur le premier plan.
+        // The hold (see `holdMsFor`) depends only on durations: it is computed from the first plan.
         const holdMs = holdMsFor(o, bounds, plan, mix)
         sink = await openVideoExport({
           width: format.width,
@@ -646,29 +648,28 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
           audioTracks: mix ? trackNames(mix, o.locale) : undefined,
         })
         if (!sink) {
-          // Configuration refusée par le navigateur : ce n'est pas une panne, c'est une
-          // capacité absente — mais l'utilisateur doit le voir, pas regarder une barre
-          // disparaître sans un mot.
+          // Configuration rejected by the browser: not a failure, a missing capability — but
+          // the user must see it, not watch a bar disappear without a word.
           fail(setState, 'Video configuration rejected by the browser')
           return
         }
-        // LE PLAN SE REFAIT À LA CADENCE QUE L'ENCODEUR A ACCEPTÉE, avec le maintien : la
-        // derniere image doit tenir assez longtemps pour qu'on lise le verdict, et au moins
-        // aussi longtemps que le son continue. The file timestamps are `index / fps`, so the plan
-        // and the encoder MUST share one rate, or the clip would play at the wrong speed.
+        // THE PLAN IS REBUILT AT THE RATE THE ENCODER ACCEPTED, with the hold: the last frame
+        // must stay long enough to read the verdict, and at least as long as the sound keeps
+        // playing. The file timestamps are `index / fps`, so the plan and the encoder MUST
+        // share one rate, or the clip would play at the wrong speed.
         const fps = sink.fps
         const fpsFallback = sink.fpsFallback
         plan = buildExportPlan(bounds, o.doc, fps, holdMs)
-        // LE SON DEMANDE MAIS IMPOSSIBLE NE SE TAIT PAS : le navigateur peut avoir l'API et
-        // REFUSER la configuration AAC. Le clip sort muet — mieux qu'un export perdu — et la
-        // phase finale le dit.
-        const muet = mix !== null && !sink.audioEnabled
-        if (muet) console.warn('[replay-export] Audio track rejected by the browser, clip is silent')
+        // SOUND REQUESTED BUT IMPOSSIBLE DOES NOT STAY SILENT ABOUT IT: the browser can have the
+        // API and still REFUSE the AAC configuration. The clip comes out silent — better than a
+        // lost export — and the final phase says so.
+        const muted = mix !== null && !sink.audioEnabled
+        if (muted) console.warn('[replay-export] Audio track rejected by the browser, clip is silent')
         if (mix && sink.audioEnabled) {
           await sink.addAudioTracks(exportTracks(mix, o.locale), prepareProgress(setState, plan.frames.length, 'audio'))
         }
-        // La scène 3D n'est prise qu'ici, au dernier moment : la vue d'écran reste vivante pendant
-        // la préparation.
+        // The 3D scene is only taken here, at the last moment: the screen's own view stays
+        // alive during preparation.
         if (view3d) scene3d = take3dScene(view3d, format, bounds.startFrame, frameToMs(1, o.doc))
         const painter = await framePainter(
           canvas,
@@ -676,10 +677,10 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
           { source, paint: { ink, fonts, backdrop } },
           scene3d && view3d ? { scene: scene3d, format, view3d } : null,
         )
-        // PHASE 2 : l'encodage. C'est seulement ici que le compte d'images veut dire quelque
-        // chose, et que le temps restant peut s'estimer.
+        // PHASE 2: encoding. Only here does the frame count mean something, and the remaining
+        // time can be estimated.
         const total = plan.frames.length
-        const debut = performance.now()
+        const start = performance.now()
         setState({ phase: 'encode', done: 0, total, pct: 0, fps, fpsFallback })
         const ok = await encodeAll(painter, plan.frames, {
           cancelled: () => cancelRef.current,
@@ -689,49 +690,48 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
               done,
               total,
               pct: exportProgressPct(done, total),
-              etaMs: etaFor(done, total, performance.now() - debut),
+              etaMs: etaFor(done, total, performance.now() - start),
               fps,
               fpsFallback,
             }),
           sink,
         })
         const clip = ok ? await sink.finish() : null
-        // `sink` n'est lâché QUE si `finish()` l'a refermé. Sur annulation il reste ici, et
-        // c'est le `finally` qui l'abandonne — sans quoi l'encodeur et son muxeur restaient
-        // ouverts après un clic sur « Annuler ».
+        // `sink` is only released ONCE `finish()` has closed it. On cancellation it stays here,
+        // and it is the `finally` that abandons it — otherwise the encoder and its muxer would
+        // stay open after a click on "Cancel".
         if (ok) sink = null
-        // LE DÉMONTAGE NE TÉLÉCHARGE PAS : le clip est assemblé (l'encodeur doit être vidé
-        // proprement quoi qu'il arrive) mais il ne part pas vers un onglet qui a changé de page.
+        // UNMOUNTING DOES NOT DOWNLOAD: the clip is assembled (the encoder must be drained
+        // cleanly no matter what) but it does not go to a tab that has moved to another page.
         const filename = exportFilename(o, bounds)
-        // LE CLIP EST ASSEMBLÉ, MAIS RIEN NE PART : des minutes après le clic d'export, un
-        // clic sur une ancre déposé par le code n'a plus le geste derrière, et Chrome bloque
-        // le second fichier non demandé d'un site. Le clip attend le bouton « Sauvegarder »
-        // de la phase `done` — et c'est la fermeture du dialogue, PAS ce `finally`, qui le
-        // rend s'il n'est pas sauvé. Le `finally` ne rend que ce qui est encore EN ATTENTE
-        // d'un export en cours (erreur, annulation) : en finir ici, sur le chemin réussi,
-        // tuerait le téléchargement enclenché par un clic qui vient de se produire.
+        // THE CLIP IS ASSEMBLED, BUT NOTHING LEAVES YET: minutes after the export click, a
+        // click on an anchor dropped by code no longer has a gesture behind it, and Chrome
+        // blocks a site's second unrequested file. The clip waits for the "Save" button of the
+        // `done` phase — and it is the dialog's closing, NOT this `finally`, that releases it
+        // if it was not saved. The `finally` only releases what is still PENDING from a
+        // running export (error, cancellation): releasing it here, on the successful path,
+        // would kill the download just triggered by a click that just happened.
         if (clip) pendingRef.current = liveRef.current ? holdDownload(clip, filename) : null
         if (!clip) pendingRef.current?.release()
         if (!clip) pendingRef.current = null
-        // PHASE 3 : le fichier est PRÊT, et on le DIT avec son nom. Une annulation, elle,
-        // ramene au formulaire — il n'y a rien a annoncer d'un geste qu'on vient de faire.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, mutedFallback: muet, fps, fpsFallback } : IDLE)
+        // PHASE 3: the file is READY, and it is SAID, with its name. A cancellation, instead,
+        // returns to the form — there is nothing to announce about a gesture just undone.
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
       } catch (err) {
-        // JAMAIS D'ÉCHEC MUET (règle 3 du dépôt : logger AVANT toute dégradation). Sans ce
-        // bloc, une panne d'encodeur faisait disparaître la barre de progression sans un mot,
-        // sans fichier et sans trace — et laissait l'encodeur ouvert jusqu'à la fermeture de
-        // l'onglet.
+        // NEVER A SILENT FAILURE (repo rule 3: log BEFORE any degradation). Without this
+        // block, an encoder failure made the progress bar disappear without a word, without a
+        // file, and without a trace — and left the encoder open until the tab closed.
         console.error('[replay-export] Export interrupted', err)
         fail(setState, err instanceof Error ? err.message : String(err))
       } finally {
-        // LA MISE EN PAGE D'ECRAN REVIENT, sur TOUS les chemins : laissee en place, la page
-        // resterait dessinee au cadre du format jusqu'au prochain remontage. Le trace ci-dessous
-        // repose l'image d'avant ; le rendu React qui suit la repeint a la taille de l'ecran.
+        // THE SCREEN LAYOUT COMES BACK, on EVERY path: left in place, the page would stay
+        // drawn at the format's frame until the next remount. The draw below restores the
+        // previous frame; the React render that follows repaints it at screen size.
         requestExportLayout(null)
         scene3d?.endExport()
-        // L'ENCODEUR SE REFERME SUR TOUS LES CHEMINS : `sink` n'est remis à `null` qu'une fois
-        // le fichier assemblé. S'il est encore là, c'est qu'on sort par une erreur ou une
-        // annulation, et il retient un muxeur entier en mémoire.
+        // THE ENCODER CLOSES ON EVERY PATH: `sink` is only set back to `null` once the file is
+        // assembled. If it is still here, it is because the function exits via an error or a
+        // cancellation, and it would hold an entire muxer in memory.
         sink?.abort()
         runningRef.current = false
         o.frameRef.current = resume
@@ -755,8 +755,8 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
 }
 
 /**
- * fail pose l'état d'échec. L'export s'arrête, mais le dialogue RESTE ouvert et le dit — c'est
- * la seule différence qui compte entre « ça n'a pas marché » et « il ne s'est rien passé ».
+ * fail sets the failure state. The export stops, but the dialog STAYS open and says so — this
+ * is the only difference that matters between "it did not work" and "nothing happened".
  */
 function fail(setState: (s: ReplayExportState) => void, message: string): void {
   setState({ phase: 'failed', done: 0, total: 0, pct: 0, message })
@@ -781,11 +781,10 @@ function prepareProgress(
 }
 
 /**
- * etaFor estime le temps restant depuis la cadence DEJA constatee.
+ * etaFor estimates the time remaining from the rate ALREADY observed.
  *
- * `undefined` sous `ETA_MIN_FRAMES` : une estimation batie sur trois images danserait d'un
- * facteur dix a chaque rafraichissement, et une estimation qui saute est pire que pas
- * d'estimation.
+ * `undefined` below `ETA_MIN_FRAMES`: an estimate built on three frames would jump by a factor
+ * of ten at every refresh, and an estimate that jumps around is worse than no estimate.
  */
 function etaFor(done: number, total: number, elapsedMs: number): number | undefined {
   if (done < ETA_MIN_FRAMES || elapsedMs <= 0) return undefined
@@ -793,17 +792,17 @@ function etaFor(done: number, total: number, elapsedMs: number): number | undefi
 }
 
 /**
- * Les deux moities de la peinture, REGROUPEES : elles voyagent toujours ensemble, et les
- * separer poussait quatre signatures a six parametres (seuil du depot : cinq).
+ * The two halves of the paint, GROUPED TOGETHER: they always travel together, and separating
+ * them pushed four signatures to six parameters (the repo's threshold: five).
  */
 interface OverlayPaintContext {
   ink: OverlayInk
   fonts: OverlayFonts
-  /** Le fond de la vidéo, sous toute l'image (cf. `paintExportFrame`). */
+  /** The video's backdrop, under the whole frame (see `paintExportFrame`). */
   backdrop: string
 }
 
-/** Ce dont la boucle a besoin en plus des images : où pousser, et quand s'arrêter. */
+/** What the loop needs beyond the frames: where to push, and when to stop. */
 interface EncodeHooks {
   cancelled: () => boolean
   progress: (done: number) => void
@@ -811,11 +810,11 @@ interface EncodeHooks {
 }
 
 /**
- * encodeAll parcourt le plan. HORS du hook (règle des 80 lignes du dépôt) et hors React : elle
- * ne touche à aucun état, elle publie par rappel.
+ * encodeAll walks the plan. OUTSIDE the hook (repo's 80-line rule) and outside React: it
+ * touches no state, it publishes through a callback.
  *
- * Rend `false` si l'utilisateur a annulé — c'est ce qui décide, chez l'appelant, entre remettre
- * un fichier et n'en remettre aucun.
+ * Returns `false` if the user cancelled — that is what decides, for the caller, between
+ * handing back a file and handing back none.
  */
 async function encodeAll(
   paint: FramePainter,
@@ -829,8 +828,8 @@ async function encodeAll(
     await hooks.sink.addFrame(await paint(frames[i]), i)
     if (i % PROGRESS_EVERY !== 0) continue
     hooks.progress(i)
-    // LA MAIN REVIENT À LA PAGE ICI, et par le canal non bridé : sans cela la barre de
-    // progression ne se peindrait jamais, et « Annuler » ne serait jamais lu.
+    // CONTROL RETURNS TO THE PAGE HERE, through the unthrottled channel: without this, the
+    // progress bar would never paint, and "Cancel" would never be read.
     await yieldToEvents()
   }
   hooks.progress(frames.length)
@@ -838,11 +837,11 @@ async function encodeAll(
 }
 
 /**
- * exportFilename nomme le clip sur SES DEUX BORNES (décision D9 du plan).
+ * exportFilename names the clip on BOTH its bounds (plan decision D9).
  *
- * `filenameFor` de la capture ne connaît qu'un instant — celui de `frameRef`, qui vaut la borne
- * de FIN au moment où le fichier part. Deux exports de plages différentes qui partagent leur
- * fin porteraient alors le même nom et s'écraseraient dans le dossier de téléchargements.
+ * The capture's `filenameFor` only knows one instant — `frameRef`'s, which equals the END
+ * bound at the moment the file ships. Two exports of different ranges sharing their end would
+ * then carry the same name and overwrite each other in the downloads folder.
  */
 function exportFilename(o: ReplayExportOptions, bounds: ExportBounds): string {
   return buildCaptureFilename(
@@ -855,10 +854,10 @@ function exportFilename(o: ReplayExportOptions, bounds: ExportBounds): string {
 }
 
 /**
- * mixExportAudio rend la piste sonore de la plage, ou `null` s'il n'y a rien à mixer.
+ * mixExportAudio renders the range's sound track, or `null` if there is nothing to mix.
  *
- * LES BORNES PASSENT EN MILLISECONDES DE FILM, pas en images : la piste sonore est horodatée
- * sur l'horloge du rejeu (celle du fil et des fiches), jamais sur l'axe des images.
+ * THE BOUNDS ARE PASSED IN FILM MILLISECONDS, not in frames: the sound track is timestamped on
+ * the replay's own clock (the one the feed and the sheets use), never on the frame axis.
  */
 async function mixExportAudio(
   o: ReplayExportOptions,
@@ -867,18 +866,19 @@ async function mixExportAudio(
   view3d: Export3dOptions | null,
   hooks: RenderHooks,
 ): Promise<MixedTracks | null> {
-  // LA PISTE SE LIT ICI, au lancement : elle porte des reglages d'instance qui vivent dans des
-  // refs, et les lire au rendu rendrait des valeurs arbitraires.
+  // THE TRACK IS READ HERE, at launch: it carries instance settings that live in refs, and
+  // reading them at render time would yield arbitrary values.
   const track = o.soundTrack?.()
-  // Une piste sans événement mais avec un MOTEUR de véhicule dans la plage se mixe quand même.
+  // A track with no event but with a vehicle ENGINE in the range still gets mixed.
   if (!track || (track.timeline.length === 0 && track.engines.length === 0)) return null
-  // L'AUDITEUR DU MIX : le clip 3D suit un joueur, c'est lui qui écoute (position et cap à
-  // chaque instant, cf. `soundListenerOf`) — le son du clip doit entendre ce que ses images
-  // montrent. Un export 2D n'a pas d'auditeur, comme la page en 2D : le mix reste tel qu'avant.
+  // THE MIX'S LISTENER: the 3D clip follows a player, and that player is the one listening
+  // (position and heading at every instant, see `soundListenerOf`) — the clip's sound must
+  // hear what its frames show. A 2D export has no listener, like the page in 2D: the mix
+  // stays as it was.
   const pov = view3d ? (view3d.pov ?? o.viewpoint) : null
-  // LE BOUCLIER DU JOUEUR SUIVI : les alarmes de SA propre barre, que la page joue en PREMIÈRE
-  // PERSONNE. Le clip les porte donc seulement quand il le suit de son œil : un export en
-  // tierce personne ou en caméra libre n'a pas de barre à sonner.
+  // THE FOLLOWED PLAYER'S SHIELD: the alarms of THEIR OWN bar, which the page plays in FIRST
+  // PERSON. The clip carries them only when it follows that player's own eye: a third-person
+  // or free-camera export has no bar to sound.
   // The followed player is `pov`: an export of the default player has no `view3d.pov`.
   const shield = view3d?.camera === 'fp' && pov ? followedShieldReader(o.doc, pov) : null
   const startMs = frameToMs(bounds.startFrame, o.doc)
@@ -888,9 +888,9 @@ async function mixExportAudio(
     {
       variationPercent: track.variationPercent,
       distancePercent: track.distancePercent,
-      // LA CONCLUSION N'EST FOURNIE QUE SI LA PLAGE ATTEINT VRAIMENT LA FIN DU MATCH. Sans
-      // cette garde, un extrait des minutes 2 a 4 se terminait sur la voix d'annonceur et la
-      // fanfare de victoire : le son affirmait un fait faux sur l'extrait.
+      // THE CONCLUSION IS SUPPLIED ONLY IF THE RANGE TRULY REACHES THE MATCH'S END. Without
+      // this guard, a clip of minutes 2 to 4 would end on the announcer's voice and the
+      // victory fanfare: the sound would assert a fact about the clip that was false.
       endMatchStems: reachesMatchEnd(o, bounds) ? track.endMatchStems : [],
       families: track.families,
       engines: track.engines,
@@ -905,15 +905,15 @@ async function mixExportAudio(
 }
 
 /**
- * holdMsFor — combien de temps la DERNIERE image doit rester a l'ecran, apres la plage.
+ * holdMsFor — how long the LAST frame must stay on screen, after the range ends.
  *
- * DEUX RAISONS, et on prend la plus longue. (1) L'ecran de fin de match ne se peint qu'A la
- * borne : sans maintien, le clip se terminait sur un eclair de 1/30 s de verdict. (2) Le son
- * deborde souvent la borne — une fanfare de fin dure jusqu'a 11 s — et une piste sonore qui
- * joue apres la derniere image laisse le lecteur sur un ecran mort.
+ * TWO REASONS, and the longer one wins. (1) The match's end screen is only painted AT the
+ * bound: without a hold, the clip would end on a 1/30 s flash of the verdict. (2) Sound often
+ * overflows the bound — an ending fanfare can run up to 11 s — and a sound track still playing
+ * after the last frame leaves the viewer on a dead screen.
  *
- * Aucune des deux ne s'applique a un extrait muet de milieu de match : il s'arrete net, ce qui
- * est le comportement attendu d'un extrait.
+ * Neither applies to a silent mid-match clip: it stops cold, which is the expected behavior
+ * for a clip.
  */
 function holdMsFor(
   o: ReplayExportOptions,
@@ -922,16 +922,16 @@ function holdMsFor(
   mix: MixedTracks | null,
 ): number {
   const verdict = reachesMatchEnd(o, bounds) ? END_HOLD_MS : 0
-  const son = mix ? mix.full.duration * 1000 - plan.durationMs : 0
-  return Math.max(verdict, son, 0)
+  const sound = mix ? mix.full.duration * 1000 - plan.durationMs : 0
+  return Math.max(verdict, sound, 0)
 }
 
 /**
- * reachesMatchEnd — la plage va-t-elle jusqu'au bout du MATCH ?
+ * reachesMatchEnd — does the range go all the way to the end of the MATCH?
  *
- * Sans fenetre de gameplay etablie, on ne sait pas ou le match finit : on repond NON. Poser une
- * fanfare de victoire sur une plage dont on ignore si elle est la fin serait affirmer ce qu'on
- * ne sait pas.
+ * Without an established gameplay window, there is no way to know where the match ends: the
+ * answer is NO. Laying a victory fanfare over a range of unknown end-ness would assert
+ * something that is not known.
  */
 function reachesMatchEnd(o: ReplayExportOptions, bounds: ExportBounds): boolean {
   if (!o.playWindow) return false
@@ -939,24 +939,24 @@ function reachesMatchEnd(o: ReplayExportOptions, bounds: ExportBounds): boolean 
 }
 
 /**
- * LE NOM DES PISTES, ET LEUR ORDRE. Le MIXAGE COMPLET EN PREMIER — c'est la seule que joue un
- * lecteur ordinaire, et un navigateur n'expose meme pas les autres. Les familles suivent, pour
- * qui ouvre le clip dans un montage.
+ * THE TRACKS' NAMES, AND THEIR ORDER. THE FULL MIX FIRST — it is the only one an ordinary
+ * player plays, and a browser does not even expose the others. The families follow, for
+ * whoever opens the clip in an editor.
  */
 function exportTracks(mix: MixedTracks, locale: ReplayLocale): { name: string; buffer: AudioBuffer }[] {
   const t = REPLAY_TEXT[locale]
-  const nom: Record<SoundFamily, string> = {
+  const names: Record<SoundFamily, string> = {
     sfx: t.exportTrackSfx,
     voice: t.exportTrackVoice,
     music: t.exportTrackMusic,
   }
   return [
     { name: t.exportTrackMix, buffer: mix.full },
-    ...mix.families.map((f) => ({ name: nom[f.family], buffer: f.buffer })),
+    ...mix.families.map((f) => ({ name: names[f.family], buffer: f.buffer })),
   ]
 }
 
-/** Les seuls NOMS, pour declarer les pistes avant d'avoir quoi que ce soit a y ecrire. */
+/** The NAMES alone, to declare the tracks before there is anything to write into them. */
 function trackNames(mix: MixedTracks, locale: ReplayLocale): string[] {
   return exportTracks(mix, locale).map((p) => p.name)
 }

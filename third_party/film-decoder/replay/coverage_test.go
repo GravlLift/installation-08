@@ -285,7 +285,7 @@ func TestGrenadeLinksItsPublishedProjectile(t *testing.T) {
 // actions d'objectif disparaissaient SANS UNE SEULE LIGNE DE JOURNAL, pour un seuil de 10 %.
 // Une categorie de rejet sans alarme est un rejet avale.
 //
-// MUTATION : retirer `{"sansTrajectoirePubliee", c.Unpublished}` de la liste rougit
+// MUTATION : retirer `{"noPublishedTrajectory", c.Unpublished}` de la liste rougit
 // (« aucun avertissement »).
 func TestWarnIfLossyAlerteAussiSurLesNonPubliees(t *testing.T) {
 	prev := slog.Default()
@@ -296,13 +296,13 @@ func TestWarnIfLossyAlerteAussiSurLesNonPubliees(t *testing.T) {
 	LayerCoverage{Available: 76, Attached: 41, Unpublished: 35}.warnIfLossy(context.Background(), "objectifs")
 
 	out := buf.String()
-	if !strings.Contains(out, "sansTrajectoirePubliee") {
+	if !strings.Contains(out, "noPublishedTrajectory") {
 		t.Errorf("aucun avertissement sur les actions non publiees — journal : %q", out)
 	}
 	// Le seuil reste un SEUIL : sous 10 %, pas de bruit.
 	buf.Reset()
 	LayerCoverage{Available: 100, Attached: 95, Unpublished: 5}.warnIfLossy(context.Background(), "objectifs")
-	if strings.Contains(buf.String(), "sansTrajectoirePubliee") {
+	if strings.Contains(buf.String(), "noPublishedTrajectory") {
 		t.Errorf("avertissement sous le seuil : %q", buf.String())
 	}
 }

@@ -371,8 +371,8 @@ func (idx *abilityRankIndex) rankInLife(slot uint32, at uint64) (int, bool) {
 func logAbilityImpulseCoverage(ctx context.Context, cov AbilityImpulseCoverage) {
 	slog.InfoContext(ctx, "replay: ability impulses",
 		"reads", cov.Reads, "episodes", cov.Episodes, "published", cov.Published,
-		"sansIdentite", cov.NoIdentity, "familleNonMesuree", cov.OtherFamily,
-		"attributionIndisponible", cov.NoResolver,
-		"avantOrigine", cov.BeforeOrigin, "sansPiste", cov.Unpublished,
-		"composantAbsent", cov.ComponentAbsent)
+		"noIdentity", cov.NoIdentity, "otherFamily", cov.OtherFamily,
+		"noResolver", cov.NoResolver,
+		"beforeOrigin", cov.BeforeOrigin, "noTrack", cov.Unpublished,
+		"componentAbsent", cov.ComponentAbsent)
 }

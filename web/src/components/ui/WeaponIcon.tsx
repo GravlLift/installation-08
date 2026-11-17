@@ -1,49 +1,49 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * WeaponIcon — rendu title-agnostic d'une icône d'arme.
+ * WeaponIcon — title-agnostic rendering of a weapon icon.
  *
- * Deux modes, sélectionnés UNIQUEMENT par le champ `tinted` que le back publie
- * (`image_tinted`) — jamais par le titre, jamais par la forme de l'URL :
+ * Two modes, selected ONLY by the `tinted` field the backend publishes
+ * (`image_tinted`) — never by the title, never by the URL's shape:
  *
- *  - MASQUE (`tinted`) : l'icône est un dessin porté par l'alpha, sans couleur
- *    propre (les icônes extraites d'Halo Infinite sont blanches à 100 %). On la
- *    rend comme un `mask-image` sur un aplat de couleur : elle prend alors la
- *    couleur qu'on lui donne, donc reste lisible en thème clair comme en sombre,
- *    et peut porter une couleur d'équipe sans produire un asset par couleur.
- *  - IMAGE (défaut) : visuel fini en couleur (icônes officielles Halo 5, les deux
- *    PNG dessinés à la main d'Infinite) → `<img>` classique. Le teindre
- *    l'aplatirait en silhouette.
+ *  - MASK (`tinted`): the icon is a shape carried by its alpha channel, with no color
+ *    of its own (icons extracted from Halo Infinite are 100% white). It is
+ *    rendered as a `mask-image` over a flat color: it then takes on whatever
+ *    color it is given, so it stays legible in both light and dark theme,
+ *    and can carry a team color without producing one asset per color.
+ *  - IMAGE (default): a finished, colored visual (official Halo 5 icons, Infinite's two
+ *    hand-drawn PNGs) -> a plain `<img>`. Tinting it would
+ *    flatten it into a silhouette.
  *
- * La teinte est soit la couleur de texte héritée (`currentColor` — le thème décide),
- * soit un TOKEN sémantique via `tokenCssVar`. Jamais un hex, jamais une classe
- * Tailwind de couleur. Comme `--ac-team-ally` / `--ac-team-enemy` sont écrasés par
- * la couleur d'équipe choisie en jeu, une icône teintée avec ces tokens suit la
- * VRAIE couleur du joueur, sans produire un asset par couleur.
+ * The tint is either the inherited text color (`currentColor` — the theme decides),
+ * or a semantic TOKEN via `tokenCssVar`. Never a hex value, never a Tailwind
+ * color class. Since `--ac-team-ally` / `--ac-team-enemy` are overridden by
+ * the in-game team color choice, an icon tinted with these tokens follows the
+ * player's TRUE color, without producing one asset per color.
  */
 import type { CSSProperties } from 'react'
 import type { SemanticToken } from '@/lib/accessibility/semantic-tokens'
 import { tokenCssVar } from '@/lib/accessibility'
 
 interface WeaponIconProps {
-  /** URL servie par le back. Vide/absente → le composant ne rend rien. */
+  /** URL served by the backend. Empty/absent -> the component renders nothing. */
   imageUrl?: string | null
-  /** L'icône est un masque à teindre (champ `image_tinted` du back). */
+  /** The icon is a mask to be tinted (backend's `image_tinted` field). */
   tinted?: boolean
-  /** Texte alternatif (nom de l'arme). */
+  /** Alternative text (the weapon's name). */
   label: string
   /**
-   * Token de teinte, ignoré hors mode masque. Absent → `currentColor` : l'icône
-   * prend la couleur de texte héritée, donc suit le thème sans code. Passer un
-   * token (`team-ally`/`team-enemy`…) quand la teinte porte un SENS.
+   * Tint token, ignored outside mask mode. Absent -> `currentColor`: the icon
+   * takes on the inherited text color, so it follows the theme with no code. Pass a
+   * token (`team-ally`/`team-enemy`…) when the tint carries a MEANING.
    */
   token?: SemanticToken
-  /** Largeur du slot : nombre = px, chaîne = valeur CSS telle quelle ('100%'…). */
+  /** Slot width: a number = px, a string = CSS value as-is ('100%'…). */
   width?: number | string
-  /** Hauteur du slot : même convention. */
+  /** Slot height: same convention. */
   height?: number | string
   className?: string
   style?: CSSProperties
-  /** Appelé si l'image ne charge pas (mode image seul — un masque n'a pas d'onError). */
+  /** Called if the image fails to load (image mode only — a mask has no onError). */
   onError?: () => void
 }
 

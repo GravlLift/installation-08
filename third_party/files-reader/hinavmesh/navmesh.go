@@ -1,5 +1,7 @@
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // navmesh.go — DU FICHIER-TAG AU MAILLAGE, en coordonnees MONDE.
 //
 // hkaiNavMesh porte trois tableaux : `vertices` (hkVector4), `edges` (hkaiNavMesh::Edge)
@@ -143,11 +145,11 @@ func Decode(blob []byte) (*Maillage, error) {
 			return construitMaillage(f, vus[0])
 		}
 		if len(vus) > 1 {
-			return nil, fmt.Errorf("hinavmesh: region %d porte %d %s, impossible de choisir",
+			return nil, fmt.Errorf("hinavmesh: region %d carries %d %s, impossible to choose",
 				i+1, len(vus), classeNavMesh)
 		}
 	}
-	return nil, fmt.Errorf("hinavmesh: aucune region ne porte un %s", classeNavMesh)
+	return nil, fmt.Errorf("hinavmesh: no region carries a %s", classeNavMesh)
 }
 
 // construitMaillage assemble sommets, aretes et faces en un maillage exploitable.
@@ -179,11 +181,11 @@ func lireSommets(f *fichierTag, racine itemHavok) ([]Point, error) {
 		return nil, err
 	}
 	if nom := f.nomType(it.Type); nom != classeVecteur4 {
-		return nil, fmt.Errorf("hinavmesh: %s est un tableau de %s, %s attendu", membreSommets, nom, classeVecteur4)
+		return nil, fmt.Errorf("hinavmesh: %s is an array of %s, %s expected", membreSommets, nom, classeVecteur4)
 	}
 	pas := f.types.taille(it.Type)
 	if pas != tailleVecteur4 {
-		return nil, fmt.Errorf("hinavmesh: %s fait %d octets, %d attendus", classeVecteur4, pas, tailleVecteur4)
+		return nil, fmt.Errorf("hinavmesh: %s is %d bytes, %d expected", classeVecteur4, pas, tailleVecteur4)
 	}
 	brut, err := f.octets(it, pas)
 	if err != nil {
@@ -207,7 +209,7 @@ func lireAretes(f *fichierTag, racine itemHavok) ([]arete, error) {
 		return nil, err
 	}
 	if nom := f.nomType(it.Type); nom != classeEdge {
-		return nil, fmt.Errorf("hinavmesh: %s est un tableau de %s, %s attendu", membreAretes, nom, classeEdge)
+		return nil, fmt.Errorf("hinavmesh: %s is an array of %s, %s expected", membreAretes, nom, classeEdge)
 	}
 	pas := f.types.taille(it.Type)
 	champA, err := f.champEntier(it.Type, membreSommetA, pas)
@@ -237,7 +239,7 @@ func lireFaces(f *fichierTag, racine itemHavok, aretes []arete, nbSommets int) (
 		return nil, err
 	}
 	if nom := f.nomType(it.Type); nom != classeFace {
-		return nil, fmt.Errorf("hinavmesh: %s est un tableau de %s, %s attendu", membreFaces, nom, classeFace)
+		return nil, fmt.Errorf("hinavmesh: %s is an array of %s, %s expected", membreFaces, nom, classeFace)
 	}
 	pas := f.types.taille(it.Type)
 	champDebut, err := f.champEntier(it.Type, membreDebutArc, pas)
@@ -257,23 +259,23 @@ func lireFaces(f *fichierTag, racine itemHavok, aretes []arete, nbSommets int) (
 		o := i * pas
 		debut, nb := int(champDebut.lit(brut, o)), int(champNb.lit(brut, o))
 		if nb < cotesFaceMinimum {
-			return nil, fmt.Errorf("hinavmesh: face %d annonce %d cotes (minimum %d)", i, nb, cotesFaceMinimum)
+			return nil, fmt.Errorf("hinavmesh: face %d announces %d sides (minimum %d)", i, nb, cotesFaceMinimum)
 		}
 		if debut < 0 || debut+nb > len(aretes) {
-			return nil, fmt.Errorf("hinavmesh: face %d vise les aretes %d..%d sur %d",
+			return nil, fmt.Errorf("hinavmesh: face %d targets edges %d..%d of %d",
 				i, debut, debut+nb, len(aretes))
 		}
 		contour := make([]int32, nb)
 		for k := 0; k < nb; k++ {
 			s := aretes[debut+k].A
 			if s < 0 || int(s) >= nbSommets {
-				return nil, fmt.Errorf("hinavmesh: face %d, arete %d: sommet %d sur %d", i, debut+k, s, nbSommets)
+				return nil, fmt.Errorf("hinavmesh: face %d, edge %d: vertex %d of %d", i, debut+k, s, nbSommets)
 			}
 			// Le contour doit BOUCLER : l'arete k finit ou l'arete k+1 commence. C'est
 			// l'invariant qui distingue une lecture juste d'un decalage de champ, car un
 			// mauvais offset donnerait des indices dans les bornes mais un contour ouvert.
 			if suivante := aretes[debut+(k+1)%nb].A; aretes[debut+k].B != suivante {
-				return nil, fmt.Errorf("hinavmesh: face %d, arete %d: contour ouvert (%d -> %d, %d attendu)",
+				return nil, fmt.Errorf("hinavmesh: face %d, edge %d: open contour (%d -> %d, %d expected)",
 					i, debut+k, aretes[debut+k].A, aretes[debut+k].B, suivante)
 			}
 			contour[k] = s
@@ -298,11 +300,11 @@ func lireEntete(f *fichierTag, racine itemHavok, m *Maillage) error {
 	// `up` est un hkaiUpVector, dont le seul membre est un hkVector4 a l'offset 0.
 	interne, ok := f.types.membre(haut.Type, membreHaut)
 	if !ok {
-		return fmt.Errorf("hinavmesh: %s ne declare pas le membre %q", f.nomType(haut.Type), membreHaut)
+		return fmt.Errorf("hinavmesh: %s does not declare member %q", f.nomType(haut.Type), membreHaut)
 	}
 	base := racine.Offset + haut.Offset + interne.Offset
 	if base < 0 || base+tailleVecteur4 > len(f.data) {
-		return fmt.Errorf("hinavmesh: vecteur haut hors de DATA (offset %d)", base)
+		return fmt.Errorf("hinavmesh: up vector outside DATA (offset %d)", base)
 	}
 	m.Haut = Point{X: flottant(f.data, base), Y: flottant(f.data, base+4), Z: flottant(f.data, base+8)}
 	return lireErosion(f, racine, m)
@@ -312,11 +314,11 @@ func lireEntete(f *fichierTag, racine itemHavok, m *Maillage) error {
 func lireErosion(f *fichierTag, racine itemHavok, m *Maillage) error {
 	erosion, ok := f.types.membre(racine.Type, membreErosion)
 	if !ok {
-		return fmt.Errorf("hinavmesh: %s ne declare pas le membre %q", classeNavMesh, membreErosion)
+		return fmt.Errorf("hinavmesh: %s does not declare member %q", classeNavMesh, membreErosion)
 	}
 	pos := racine.Offset + erosion.Offset
 	if pos < 0 || pos+4 > len(f.data) {
-		return fmt.Errorf("hinavmesh: rayon d'erosion hors de DATA (offset %d)", pos)
+		return fmt.Errorf("hinavmesh: erosion radius outside DATA (offset %d)", pos)
 	}
 	m.RayonErosion = flottant(f.data, pos)
 	return nil
@@ -360,15 +362,15 @@ func (c champScalaire) lit(b []byte, base int) int64 {
 func (f *fichierTag) champEntier(typ int, nom string, pas int) (champScalaire, error) {
 	m, ok := f.types.membre(typ, nom)
 	if !ok {
-		return champScalaire{}, fmt.Errorf("hinavmesh: %s ne declare pas le membre %q", f.nomType(typ), nom)
+		return champScalaire{}, fmt.Errorf("hinavmesh: %s does not declare member %q", f.nomType(typ), nom)
 	}
 	taille := f.types.taille(m.Type)
 	if taille != 1 && taille != 2 && taille != 4 {
-		return champScalaire{}, fmt.Errorf("hinavmesh: le membre %q est un %s de %d octets, entier attendu",
+		return champScalaire{}, fmt.Errorf("hinavmesh: member %q is a %s of %d bytes, integer expected",
 			nom, f.nomType(m.Type), taille)
 	}
 	if m.Offset < 0 || m.Offset+taille > pas {
-		return champScalaire{}, fmt.Errorf("hinavmesh: le membre %q est a +%d (%d octets) dans un pas de %d",
+		return champScalaire{}, fmt.Errorf("hinavmesh: member %q is at +%d (%d bytes) within a stride of %d",
 			nom, m.Offset, taille, pas)
 	}
 	return champScalaire{offset: m.Offset, taille: taille}, nil

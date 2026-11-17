@@ -316,8 +316,8 @@ export function flagPlaceAt(now: FlagNow, frame: number, posOf: FlagCarriesInput
  * STABLE at the base and on the ground (cf. the header: on the ground, it is the return
  * zone that carries the signal).
  *
- * PURE FUNCTION, exported: the Oddball skull layer will reuse it as is (renvoi written in
- * PLAN_OBJECTIFS_VIVANTS_2E_LECTURE.md, decision 7) — a carried object away from its pad is
+ * PURE FUNCTION, exported: the Oddball skull layer will reuse it as is (cross-reference
+ * written in PLAN_OBJECTIFS_VIVANTS_2E_LECTURE.md, decision 7) — a carried object away from its pad is
  * read the same way, and two copies of this formula would beat at different rhythms.
  *
  * AN UNKNOWN STATE FOLLOWS THE "PRESENT" BEHAVIOR — full fixed opacity. That is the rule
@@ -574,9 +574,9 @@ export function flagAt(
     // 6.7 phase B2 also on `loose` (carrier lost of sight). Copying it without these
     // conditions would put the hover target 6 px from the glyph — and a target drift is not
     // seen, it is endured.
-    const decale = glyphIsOffset(now.state) && !place.loose
-    const cx = c.x + (decale ? FLAG_OFFSET_X : 0)
-    const cy = c.y - (decale ? FLAG_OFFSET_Y : 0) - FLAG_POLE_H / 2
+    const shifted = glyphIsOffset(now.state) && !place.loose
+    const cx = c.x + (shifted ? FLAG_OFFSET_X : 0)
+    const cy = c.y - (shifted ? FLAG_OFFSET_Y : 0) - FLAG_POLE_H / 2
     const d = (cx - at.x) * (cx - at.x) + (cy - at.y) * (cy - at.y)
     if (d <= bestD) {
       bestD = d

@@ -13,6 +13,8 @@
 // walker sbsp/rtgo.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 const (
@@ -58,7 +60,7 @@ func ModeRegions(tag []byte) ([]Region, error) {
 		}
 		return ti.parseRegions(regionsTarget, rAbs, rSize/regionStride), nil
 	}
-	return nil, fmt.Errorf("himap: bloc regions du mode introuvable")
+	return nil, fmt.Errorf("himap: mode regions block not found")
 }
 
 func (ti tagInfo) parseRegions(regionsTarget, rAbs, n int) []Region {

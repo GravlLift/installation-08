@@ -13,7 +13,7 @@ const SWATCH = {
   scratch_color: [0.3, 0.3, 0.3] as [number, number, number], scratch_roughness: 0.2, scratch_metallic: 1,
 }
 
-/** La table des revêtements de la bibliothèque des armes : la liste `b0799de3` a pour défaut `036e9dd8`, sans dégradé. */
+/** The weapon library's coatings table: list `b0799de3` defaults to `036e9dd8`, with no gradient. */
 function table(): CoatingTable {
   return {
     schema: 1, globals: {}, default_styles: { b0799de3: '036e9dd8' },
@@ -22,7 +22,7 @@ function table(): CoatingTable {
   }
 }
 
-/** Le revêtement `2c5251bc` : la liste `b0799de3` prend le style `f56eda13`, une zone à dégradé `c5e192fb`. */
+/** Coating `2c5251bc`: list `b0799de3` takes style `f56eda13`, a zone with gradient `c5e192fb`. */
 function coatingFile(): CoatingFile {
   return {
     style: '2c5251bc', lists: { b0799de3: 'f56eda13' },
@@ -30,7 +30,7 @@ function coatingFile(): CoatingFile {
   }
 }
 
-/** Un matériau peint d'un modèle d'arme (masques bruts, style de la liste `b0799de3`). */
+/** A weapon model's painted material (raw masks, style of list `b0799de3`). */
 function paintedMaterial(): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial()
   m.userData = {
@@ -40,7 +40,7 @@ function paintedMaterial(): THREE.MeshStandardMaterial {
   return m
 }
 
-/** Un réseau factice : documents des revêtements, `fail` les fichiers en échec. */
+/** A fake network: coating documents, `fail` the files that error out. */
 function fakeIO(fail: Set<string> = new Set()) {
   const nameOf = (url: string) => url.slice(url.lastIndexOf('/') + 1)
   const documents: Record<string, () => unknown> = { 'coatings.json': table, 'coating-2c5251bc.json': coatingFile }
@@ -77,29 +77,29 @@ describe('construirePeintureArme', () => {
     expect(fetchJson.mock.calls.map(([url]) => String(url).slice(String(url).lastIndexOf('/') + 1))).toEqual(['coatings.json'])
   })
 
-  it('peint les matériaux du revêtement de l’arme, dégradés chargés', async () => {
+  it('paints the weapon coating\'s materials, gradients loaded', async () => {
     const { io, loadSwatch } = fakeIO()
     const m = paintedMaterial()
     const { coat, issues } = await construirePeintureArme([m], '2c5251bc', new ArmorLibrary('/armes', io))
     expect(issues).toEqual([])
     expect(coat.size).toBe(1)
     const paint = coat.get(m)!
-    // Zone de base : allumée, couche 0 (le seul dégradé chargé), couleur haute du revêtement.
+    // Base zone: lit, layer 0 (the only loaded gradient), the coating's top color.
     expect(Array.from(paint.paint.data.slice(0, 2))).toEqual([1, 0])
     expect(Array.from(paint.paint.data.slice(4, 7))).toEqual([expect.closeTo(0.2, 6), expect.closeTo(0.3, 6), expect.closeTo(0.4, 6)])
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
-  it('revêtement absent : le style par défaut de chaque liste, l’écart nommé', async () => {
+  it('coating absent: each list\'s default style, the gap named', async () => {
     const { io } = fakeIO()
     const m = paintedMaterial()
     const { coat, issues } = await construirePeintureArme([m], '00000000', new ArmorLibrary('/armes', io))
     expect(issues).toEqual([{ kind: 'coating_unknown', what: '00000000', count: 1 }])
-    // Le style par défaut de la liste n’a pas de dégradé : zone allumée, couche absente (-1).
+    // The list's default style has no gradient: zone lit, layer absent (-1).
     expect(Array.from(coat.get(m)!.paint.data.slice(0, 2))).toEqual([1, -1])
   })
 
-  it('table illisible : tout neutre, nommé une fois par matériau', async () => {
+  it('unreadable table: all neutral, named once per material', async () => {
     const { io } = fakeIO(new Set(['coatings.json']))
     const { coat, issues } = await construirePeintureArme([paintedMaterial(), paintedMaterial()], '2c5251bc', new ArmorLibrary('/armes', io))
     expect(issues).toEqual([{ kind: 'coatings_unavailable', what: '', count: 1 }])
@@ -109,13 +109,13 @@ describe('construirePeintureArme', () => {
 })
 
 describe('reportArme', () => {
-  it('rapporte la peinture une fois : info sans repli, warning sinon', () => {
+  it('reports the paint once: info with no fallback, warning otherwise', () => {
     reportArme('1', '11111111', new Map(), [])
     expect(console.info).toHaveBeenCalledTimes(1)
-    expect(console.info).toHaveBeenCalledWith('rejeu 3D : arme 1 (11111111) : 0 matériaux peints, 0 replis', [])
+    expect(console.info).toHaveBeenCalledWith('3D replay: weapon 1 (11111111): 0 materials painted, 0 fallbacks', [])
     expect(console.warn).not.toHaveBeenCalled()
     reportArme('1', '22222222', new Map(), [{ kind: 'coating_unknown', what: '2c5251bc', count: 2 }])
     expect(console.warn).toHaveBeenCalledTimes(1)
-    expect(console.warn).toHaveBeenCalledWith('rejeu 3D : arme 1 (22222222) : 0 matériaux peints, 1 replis', ['coating_unknown 2c5251bc ×2'])
+    expect(console.warn).toHaveBeenCalledWith('3D replay: weapon 1 (22222222): 0 materials painted, 1 fallbacks', ['coating_unknown 2c5251bc ×2'])
   })
 })

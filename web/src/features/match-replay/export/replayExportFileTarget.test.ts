@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayExportFileTarget.test.ts — LE CIBLE DU FICHIER D'EXPORT, testé sans navigateur.
+ * replayExportFileTarget.test.ts — THE EXPORT FILE'S TARGET, tested without a browser.
  *
- * Deux familles de tests :
+ * Two families of tests:
  *
- * 1. `ExportFileTarget` en isolation : on lui nourrit des `StreamTargetChunk` et on vérifie
- *    l'assemblage, le rabattage en `Blob`, les ecritures positionnees dans la tete, l'erreur
- *    sur une region deja rabattue, et le rejet par `abort`.
+ * 1. `ExportFileTarget` in isolation: it is fed `StreamTargetChunk`s, and we verify the
+ *    assembly, the flush into a `Blob`, positioned writes into the head, the error on a
+ *    region already flushed, and the rejection via `abort`.
  *
- * 2. Un export MP4 SYNTHETIQUE (mediabunny, `fastStart: false`, paquets deja codés — aucune
- *    API WebCodecs requise). On prouve que le cible reproduce exactement ce que `BufferTarget`
- *    produirait, que la disposition est ftyp/mdat/moov avec la taille mdat patchee, et quelles
- *    positions mediabunny ecrit in place (seule l'en-tete mdat, tout au debut).
+ * 2. A SYNTHETIC MP4 export (mediabunny, `fastStart: false`, already-encoded packets — no
+ *    WebCodecs API required). We prove the target reproduces exactly what `BufferTarget`
+ *    would produce, that the layout is ftyp/mdat/moov with the mdat size patched, and which
+ *    positions mediabunny writes in place (only the mdat header, right at the start).
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -26,23 +26,23 @@ import type { StreamTargetChunk, Target } from 'mediabunny'
 
 import { ExportFileTarget, HEAD_BYTES } from './replayExportFileTarget'
 
-/** Fabrique un chunk de `StreamTarget` pour nourrir le cible directement. */
+/** Builds a `StreamTarget` chunk to feed the target directly. */
 const chunk = (position: number, data: Uint8Array<ArrayBuffer>): StreamTargetChunk => ({ type: 'write', data, position })
 
-/** Lit les octets d'un `Blob`. */
+/** Reads a `Blob`'s bytes. */
 async function blobBytes(blob: Blob): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer())
 }
 
-describe('ExportFileTarget — assemblage et rabattage', () => {
-  it('assemble les appends dans l\'ordre', async () => {
+describe('ExportFileTarget — assembly and flushing', () => {
+  it('assembles appends in order', async () => {
     const t = new ExportFileTarget(64, 1024)
     t.write(chunk(0, new Uint8Array([1, 2, 3])))
     t.write(chunk(3, new Uint8Array([4, 5])))
     expect([...(await blobBytes(t.finish()))]).toEqual([1, 2, 3, 4, 5])
   })
 
-  it('applique une ecriture positionnee dans la tete mutable', async () => {
+  it('applies a positioned write inside the mutable head', async () => {
     const t = new ExportFileTarget(64, 1024)
     t.write(chunk(0, new Uint8Array(10).fill(0)))
     t.write(chunk(2, new Uint8Array([9, 9])))
@@ -54,8 +54,8 @@ describe('ExportFileTarget — assemblage et rabattage', () => {
     expect(bytes[4]).toBe(0)
   })
 
-  it('rabattre les octets en Blob au-dela du seuil, sans en perdre un seul', async () => {
-    // Tete de 16 o, parts de 8 o : 30 o ecrits forcent un rabattage.
+  it('flushes bytes into a Blob past the threshold, without losing a single one', async () => {
+    // 16-byte head, 8-byte parts: 30 bytes written force a flush.
     const t = new ExportFileTarget(16, 8)
     t.write(chunk(0, new Uint8Array(30).fill(7)))
     expect(t.partCount).toBe(1)
@@ -64,14 +64,14 @@ describe('ExportFileTarget — assemblage et rabattage', () => {
     for (const b of bytes) expect(b).toBe(7)
   })
 
-  it('leve pour une ecriture positionnee dans une region deja rabattue', () => {
+  it('throws for a positioned write inside a region already flushed', () => {
     const t = new ExportFileTarget(16, 8)
     t.write(chunk(0, new Uint8Array(40).fill(0)))
-    // La position 24 est hors de la tete (16) et tombe dans une part deja rabattue.
+    // Position 24 is past the head (16) and falls inside a part already flushed.
     expect(() => t.write(chunk(24, new Uint8Array([1])))).toThrow()
   })
 
-  it('abort jette toutes les donnees collectees', async () => {
+  it('abort discards all collected data', async () => {
     const t = new ExportFileTarget(64, 8)
     t.write(chunk(0, new Uint8Array(40).fill(5)))
     t.abort()
@@ -80,10 +80,10 @@ describe('ExportFileTarget — assemblage et rabattage', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Export MP4 synthetique : mediabunny, `fastStart: false`, paquets deja codés.
+// Synthetic MP4 export: mediabunny, `fastStart: false`, already-encoded packets.
 // ---------------------------------------------------------------------------
 
-/** Un enregistrement AVCDecoderConfigurationRecord minimal (le muxer l'incruste tel quel). */
+/** A minimal AVCDecoderConfigurationRecord (the muxer embeds it as is). */
 function minimalAvcC(): Uint8Array {
   const sps = [0x67, 0x42, 0xc0, 0x1e, 0xd9, 0x01, 0x40, 0x56]
   const pps = [0x68, 0xcb, 0x83, 0xcb]
@@ -105,7 +105,7 @@ const VIDEO_META = {
   },
 }
 
-/** Muxe un court clip video synthetique dans le cible fourni. */
+/** Muxes a short synthetic video clip into the given target. */
 async function muxSynthetic(target: Target): Promise<void> {
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: false }), target })
   const video = new EncodedVideoPacketSource('avc')
@@ -122,7 +122,7 @@ async function muxSynthetic(target: Target): Promise<void> {
   await output.finalize()
 }
 
-/** Le cible de production : `StreamTarget` vers notre `ExportFileTarget`. */
+/** The production target: a `StreamTarget` wired to our `ExportFileTarget`. */
 function streamTargetFor(fileTarget: ExportFileTarget, onChunk?: (c: StreamTargetChunk) => void): StreamTarget {
   return new StreamTarget(
     new WritableStream<StreamTargetChunk>({
@@ -134,7 +134,7 @@ function streamTargetFor(fileTarget: ExportFileTarget, onChunk?: (c: StreamTarge
   )
 }
 
-/** Decoupe les boites de premier niveau d'un fichier ISOBMFF. */
+/** Splits an ISOBMFF file's top-level boxes. */
 function topLevelBoxes(bytes: Uint8Array): { type: string; start: number; size: number }[] {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const boxes: { type: string; start: number; size: number }[] = []
@@ -151,9 +151,9 @@ function topLevelBoxes(bytes: Uint8Array): { type: string; start: number; size: 
 }
 
 /**
- * `mediabunny` insere `creationTime = floor(Date.now()/1000)` dans mvhd/tkhd/mdhd : deux
- * sorties distinctes ne sont identiques qu'a l'instant fixe. On gele l'horloge pour que le
- * test de byte-a-byte soit deterministe.
+ * `mediabunny` inserts `creationTime = floor(Date.now()/1000)` into mvhd/tkhd/mdhd: two
+ * distinct runs are only identical at a fixed instant. The clock is frozen so the
+ * byte-for-byte test is deterministic.
  */
 function withFrozenClock(fn: () => Promise<void>): Promise<void> {
   return (async () => {
@@ -166,8 +166,8 @@ function withFrozenClock(fn: () => Promise<void>): Promise<void> {
   })()
 }
 
-describe('ExportFileTarget vs BufferTarget — export synthetique', () => {
-  it('produit des octets strictement identiques a un BufferTarget', () =>
+describe('ExportFileTarget vs BufferTarget — synthetic export', () => {
+  it('produces bytes strictly identical to a BufferTarget', () =>
     withFrozenClock(async () => {
       const reference = new BufferTarget()
       await muxSynthetic(reference)
@@ -181,7 +181,7 @@ describe('ExportFileTarget vs BufferTarget — export synthetique', () => {
       expect(mine).toEqual(referenceBytes)
     }))
 
-  it('dispose le fichier en ftyp, mdat, moov — taille mdat patchee', () =>
+  it('lays out the file as ftyp, mdat, moov — mdat size patched', () =>
     withFrozenClock(async () => {
       const fileTarget = new ExportFileTarget()
       await muxSynthetic(streamTargetFor(fileTarget))
@@ -190,12 +190,12 @@ describe('ExportFileTarget vs BufferTarget — export synthetique', () => {
       expect(boxes.map((b) => b.type)).toEqual(['ftyp', 'mdat', 'moov'])
       const mdat = boxes[1]
       const moov = boxes[2]
-      // La taille declaree de mdat couvre exactement jusqu'au debut de moov : le patch a ete fait.
+      // mdat's declared size covers exactly up to the start of moov: the patch was applied.
       expect(mdat.size).toBe(moov.start - mdat.start)
       expect(mdat.size).toBeGreaterThan(8)
     }))
 
-  it('mediabunny ne reecrit in place que l\'en-tete mdat, tout au debut du fichier', () =>
+  it('mediabunny rewrites in place only the mdat header, right at the start of the file', () =>
     withFrozenClock(async () => {
       const writes: { position: number; length: number; inPlace: boolean }[] = []
       let end = 0
@@ -210,12 +210,12 @@ describe('ExportFileTarget vs BufferTarget — export synthetique', () => {
       const ftypSize = topLevelBoxes(bytes)[0].size
 
       const inPlace = writes.filter((w) => w.inPlace)
-      // Un seul passage in place : le patch de l'en-tete mdat, juste apres ftyp.
+      // A single in-place pass: the mdat header patch, right after ftyp.
       expect(inPlace).toHaveLength(1)
       const patch = inPlace[0]
       expect(patch.position).toBe(ftypSize)
       expect(patch.position).toBeLessThan(HEAD_BYTES)
-      // Fichier de quelques Ko : taille 32 bits, patch de 8 octets.
+      // A file of a few KB: 32-bit size, an 8-byte patch.
       expect(patch.length).toBe(8)
     }))
 })

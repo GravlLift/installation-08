@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { preparerEvenementsPremierePersonne } from './firstPersonEvents3d'
 
-it('range les événements par emplacement et ne garde que les changements réels', () => {
+it('sorts the events by slot and keeps only the real changes', () => {
   const doc = {
     grenades: [{ slot: 1, t: 30 }, { slot: 1, t: 10 }],
     stances: [{ slot: 1, kind: 'sprint', t0: 40, t1: 50 }, { slot: 1, kind: 'sprint', t0: 10, t1: 20 }],
@@ -16,7 +16,7 @@ it('range les événements par emplacement et ne garde que les changements réel
   expect(result.sprints.get(1)?.map((s) => s.t0)).toEqual([10, 40])
 })
 
-it('voit la bascule entre deux armes portées : sélecteur et lecture de chargeur', () => {
+it('sees the switch between two weapons carried: selector and magazine read', () => {
   const doc = {
     grenades: [], stances: [], loadouts: [{ slot: 1, t: 0 }], inventory: [], weaponChanges: [],
     drawnWeapons: [{ slot: 1, t: 20, d: 1 }], ammoReads: [{ slot: 2, t: 39, ms: 3950, src: 'delta' }, { slot: 2, t: 10, ms: 1000, src: 'key' }],

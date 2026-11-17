@@ -1,7 +1,7 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // film_context.go — CE QUE TOUS LES BALAYAGES D'UN MEME FILM SE PARTAGENT.
-//
 // # CE QUE CE FICHIER FERME
 //
 // Lot 2 de PLAN_CUISSON_PERF (2026-09-03). Le lot 1 avait supprime les ~36 relectures du film :
@@ -297,8 +297,8 @@ func (c *FilmContext) signalerProfilIncomplet() {
 		return
 	}
 	c.diag.Signaler(constat.Diagnostic{Code: DiagProfilIncomplet, Niveau: constat.NiveauWarn,
-		Message: "profil du film INCOMPLET — une cle ecrite dans le film est absente de la table " +
-			"de profil ; le film reste decode, les replis existants decident et se comptent",
+		Message: "film profile INCOMPLETE — a key written in the film is absent from the profile " +
+			"table; the film stays decoded, the existing fallbacks decide and are counted",
 		Attrs: []any{"err", p.Err(), "format", p.FormatVersion(), "build", p.Build()}})
 }
 

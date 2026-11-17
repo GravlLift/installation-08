@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * armorLibrary3d.ts — LA BIBLIOTHÈQUE DES PIÈCES D'ARMURE côté vue : l'index, puis chaque GLB
- * (pièce à peau ou accessoire rigide) chargé UNE fois par session, géométries, matériaux et images
- * partagés par tous les joueurs qui le portent. Les copies posées sur un joueur (`spartanArmor3d`)
- * ne possèdent rien de ce qui vient d'ici ; `dispose` le libère une fois.
+ * armorLibrary3d.ts — THE ARMOR PIECE LIBRARY on the view side: the index, then each GLB
+ * (skinned piece or rigid accessory) loaded ONCE per session, geometries, materials and
+ * images shared by every player who wears it. The copies placed on a player (`spartanArmor3d`)
+ * own none of what comes from here; `dispose` releases it once.
  *
- * Les images d'un GLB sont des fichiers voisins (URI relative, nommés par empreinte) que plusieurs
- * pièces nomment : un greffon du chargeur (`SharedTextures`) n'en télécharge et n'en décode chacune
- * qu'une fois pour toute la bibliothèque.
+ * A GLB's images are neighboring files (relative URI, named by hash) that several pieces
+ * name: a loader plugin (`SharedTextures`) downloads and decodes each one only once for the
+ * whole library.
  *
- * Un matériau peint par la vue (`extras.surfaceBrute`) reçoit ses masques bruts en
- * `userData.armorMaps` (`armorMaterial3d.ArmorMaps`) et sa géométrie l'attribut que le matériau lit.
- * La table des revêtements (`coatings.json`), le fichier d'un revêtement et les images des dégradés
- * (`swatch-<id>.png`, couches de `gradients`, `armorGradients3d`) se lisent aussi une fois par session.
+ * A material painted by the view (`extras.surfaceBrute`) receives its raw masks in
+ * `userData.armorMaps` (`armorMaterial3d.ArmorMaps`) and its geometry the attribute the
+ * material reads. The coating table (`coatings.json`), a coating file and the gradient images
+ * (`swatch-<id>.png`, layers of `gradients`, `armorGradients3d`) are also each read once per
+ * session.
  *
- * Un fichier qui ne se charge pas rend null, journalisé une fois ; l'appelant retombe sur son repli.
- * Les téléchargements de GLB sont bornés à `MAX_LOADS` à la fois : le rejeu ne les attend pas.
+ * A file that fails to load returns null, logged once; the caller falls back to its own
+ * fallback. GLB downloads are capped at `MAX_LOADS` at a time: replay does not wait for them.
  */
 import * as THREE from 'three'
 import { GLTFLoader, type GLTFLoaderPlugin, type GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
@@ -31,34 +32,34 @@ import { withMeshopt } from './meshoptGeometry3d'
 import { surfaceModelBytes } from './sessionResourceBytes3d'
 import { prepareModel } from './weaponModels3d'
 
-/** Téléchargements de GLB simultanés au plus. */
+/** Simultaneous GLB downloads, at most. */
 const MAX_LOADS = 6
 const INDEX_FILE = 'index.json'
 const COATINGS_FILE = 'coatings.json'
-/** La clé des extras d'un matériau peint (`himap.CleSurfaceBrute`). */
+/** The extras key of a painted material (`himap.CleSurfaceBrute`). */
 const RAW_SURFACE = 'surfaceBrute'
 
-/** Ce que la bibliothèque demande au réseau (remplacé dans les tests). */
+/** What the library asks of the network (replaced in tests). */
 export interface ArmorLibraryIO {
-  /** fetchJson rend le document JSON `url` (index, table et fichiers des revêtements). */
+  /** fetchJson returns the JSON document at `url` (index, table, and coating files). */
   fetchJson(url: string, signal: AbortSignal): Promise<unknown>
-  /** loadSwatch rend l'image `url` d'un dégradé en couche (`armorGradients3d.LAYER_BYTES`). */
+  /** loadSwatch returns the image at `url` of a gradient as a layer (`armorGradients3d.LAYER_BYTES`). */
   loadSwatch(url: string, signal: AbortSignal): Promise<Uint8Array>
   /**
-   * loadGlb rend la scène du GLB `url`, ses images relatives résolues contre `base` ; `textures` :
-   * les images déjà partagées de la session.
+   * loadGlb returns the scene of the GLB at `url`, its relative images resolved against
+   * `base`; `textures`: the session's already-shared images.
    */
   loadGlb(url: string, base: string, textures: TextureShare, signal: AbortSignal): Promise<THREE.Object3D>
 }
 
-/** Les images partagées d'une session, par URI et échantillonneur. */
+/** A session's shared images, by URI and sampler. */
 export type TextureShare = Map<string, Promise<THREE.Texture>>
 
 export class ArmorLibrary {
   private indexLoad: Promise<ArmorIndex | null> | null = null
   private readonly json = new Map<string, Promise<unknown>>()
   private readonly swatches = new Map<string, Promise<number | null>>()
-  /** Les dégradés chargés de la session, une couche chacun. */
+  /** The session's loaded gradients, one layer each. */
   readonly gradients = new GradientAtlas()
   private readonly files = new Map<string, Promise<THREE.Object3D | null>>()
   private readonly owned: THREE.Object3D[] = []
@@ -74,7 +75,7 @@ export class ArmorLibrary {
    *  stale. The caller re-stores it with a fresh count; never called on dispose or a failed load. */
   private readonly onGrowth?: () => void
 
-  /** `base` : le dossier servi de la bibliothèque (`…/replay/spartan-pieces`). */
+  /** `base`: the library's served folder (`…/replay/spartan-pieces`). */
   constructor(base: string, io: ArmorLibraryIO = defaultIO, onGrowth?: () => void) {
     this.base = base
     this.io = io
@@ -82,9 +83,9 @@ export class ArmorLibrary {
   }
 
   /**
-   * loadedBytes : l'empreinte estimée de ce qui est chargé jusqu'ici (géométries et textures des
-   * GLB possédés, dégradés) — pour le cache de session (`sessionAssetCache3d.ts`), qui ne connaît
-   * sinon aucune taille (`storeArmorLibrary`'s `knownBytes`) et ne peut jamais évincer la bibliothèque.
+   * loadedBytes: the estimated footprint of what's loaded so far (geometries and textures of
+   * owned GLBs, gradients) — for the session cache (`sessionAssetCache3d.ts`), which otherwise
+   * knows no size (`storeArmorLibrary`'s `knownBytes`) and can never evict the library.
    */
   loadedBytes(): number {
     let bytes = this.gradients.bytes
@@ -92,34 +93,34 @@ export class ArmorLibrary {
     return bytes
   }
 
-  /** index rend l'index de la bibliothèque (une lecture par session), null s'il est illisible. */
+  /** index returns the library's index (one read per session), null if unreadable. */
   index(): Promise<ArmorIndex | null> {
     this.indexLoad ??= this.io.fetchJson(`${this.base}/${INDEX_FILE}`, this.abort.signal).then(
       (doc) => {
         const ix = doc as ArmorIndex
         if (ix.schema === ARMOR_INDEX_SCHEMA) return ix
-        console.warn('rejeu 3D : index des pièces d’armure de schéma inconnu', ix.schema)
+        console.warn('3D replay: unknown schema for the armor pieces index', ix.schema)
         return null
       },
       (err: unknown) => {
-        if (!this.abort.signal.aborted) console.warn('rejeu 3D : index des pièces d’armure illisible', err)
+        if (!this.abort.signal.aborted) console.warn('3D replay: unreadable armor pieces index', err)
         return null
       },
     )
     return this.indexLoad
   }
 
-  /** coatings rend la table des revêtements (`coatings.json`), null si elle ne se lit pas. */
+  /** coatings returns the coating table (`coatings.json`), null if it can't be read. */
   coatings(): Promise<CoatingTable | null> {
     return this.document(COATINGS_FILE) as Promise<CoatingTable | null>
   }
 
-  /** coating rend le revêtement de clé `key` (`coating-<key>.json`), null s'il n'est pas dans la bibliothèque. */
+  /** coating returns the coating keyed `key` (`coating-<key>.json`), null if it isn't in the library. */
   coating(key: string): Promise<CoatingFile | null> {
     return this.document(`coating-${key}.json`) as Promise<CoatingFile | null>
   }
 
-  /** swatch rend la couche du dégradé `id` (`swatch-<id>.png`) dans `gradients`, null s'il ne se charge pas. */
+  /** swatch returns the layer of gradient `id` (`swatch-<id>.png`) in `gradients`, null if it fails to load. */
   swatch(id: string): Promise<number | null> {
     let p = this.swatches.get(id)
     if (!p) {
@@ -131,7 +132,7 @@ export class ArmorLibrary {
           return layer
         },
         (err: unknown) => {
-          if (!this.abort.signal.aborted) console.warn('rejeu 3D : dégradé de revêtement non chargé', id, err)
+          if (!this.abort.signal.aborted) console.warn('3D replay: coating gradient not loaded', id, err)
           return null
         },
       )
@@ -140,7 +141,7 @@ export class ArmorLibrary {
     return p
   }
 
-  /** file rend la scène du GLB `name` de la bibliothèque (partagée : à copier), null s'il ne se charge pas. */
+  /** file returns the scene of the library's GLB `name` (shared: to be copied), null if it fails to load. */
   file(name: string): Promise<THREE.Object3D | null> {
     let p = this.files.get(name)
     if (!p) {
@@ -162,12 +163,12 @@ export class ArmorLibrary {
     this.json.clear()
   }
 
-  /** document rend le JSON `name` de la bibliothèque (une lecture par session), null s'il ne se lit pas. */
+  /** document returns the library's JSON `name` (one read per session), null if it can't be read. */
   private document(name: string): Promise<unknown> {
     let p = this.json.get(name)
     if (!p) {
       p = this.io.fetchJson(`${this.base}/${name}`, this.abort.signal).catch((err: unknown) => {
-        if (!this.abort.signal.aborted) console.warn('rejeu 3D : fichier des revêtements illisible', name, err)
+        if (!this.abort.signal.aborted) console.warn('3D replay: unreadable coatings file', name, err)
         return null
       })
       this.json.set(name, p)
@@ -188,7 +189,7 @@ export class ArmorLibrary {
       this.onGrowth?.()
       return root
     } catch (err) {
-      if (!this.abort.signal.aborted) console.warn('rejeu 3D : pièce d’armure non chargée', name, err)
+      if (!this.abort.signal.aborted) console.warn('3D replay: armor piece not loaded', name, err)
       return null
     } finally {
       this.release()
@@ -212,7 +213,7 @@ export class ArmorLibrary {
   }
 }
 
-/** disposeScene libère géométries, matériaux et images d'une scène chargée (une image partagée une fois). */
+/** disposeScene releases the geometries, materials, and images of a loaded scene (a shared image once). */
 function disposeScene(root: THREE.Object3D): void {
   const textures = new Set<THREE.Texture>()
   root.traverse((o) => {
@@ -230,9 +231,9 @@ function disposeScene(root: THREE.Object3D): void {
 }
 
 /**
- * SharedTextures : greffon de GLTFLoader qui rend, pour une image déjà demandée par un autre GLB de
- * la session (même URI, même échantillonneur), la même texture. Les images embarquées passent par
- * le chargeur normal.
+ * SharedTextures: a GLTFLoader plugin that returns, for an image already requested by
+ * another GLB in the session (same URI, same sampler), the same texture. Embedded images go
+ * through the normal loader.
  */
 class SharedTextures implements GLTFLoaderPlugin {
   readonly name = 'LEVELUP_shared_textures'
@@ -264,10 +265,10 @@ class SharedTextures implements GLTFLoaderPlugin {
 }
 
 /**
- * rawMaps charge les masques bruts de chaque matériau peint de la scène (`extras.surfaceBrute` :
- * rangs glTF des textures, -1 absente) en `userData.armorMaps`, et prépare leurs géométries.
+ * rawMaps loads the raw masks of each painted material in the scene (`extras.surfaceBrute`:
+ * glTF texture indices, -1 absent) into `userData.armorMaps`, and prepares their geometries.
  */
-export async function rawMaps(scene: THREE.Object3D, parser: GLTFParser, filtre: (m: THREE.Material) => boolean = () => true): Promise<void> {
+export async function rawMaps(scene: THREE.Object3D, parser: GLTFParser, filter: (m: THREE.Material) => boolean = () => true): Promise<void> {
   const texture = (i: unknown): Promise<THREE.Texture | null> =>
     typeof i === 'number' && i >= 0 ? (parser.getDependency('texture', i) as Promise<THREE.Texture>) : Promise.resolve(null)
   const done = new Map<THREE.Material, Promise<void>>()
@@ -277,7 +278,7 @@ export async function rawMaps(scene: THREE.Object3D, parser: GLTFParser, filtre:
   })
   for (const mesh of meshes) {
     for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-      if (!filtre(m)) continue
+      if (!filter(m)) continue
       const raw = m.userData[RAW_SURFACE] as { asg?: number; masque0?: number; masque1?: number } | undefined
       if (!raw) continue
       prepareArmorUVs(mesh.geometry)
@@ -295,11 +296,11 @@ const defaultIO: ArmorLibraryIO = {
   async loadSwatch(url, signal) {
     const res = await fetch(apiUrl(url), { credentials: 'include', signal })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    // Des données, pas une couleur : ni conversion d'espace colorimétrique ni prémultiplication.
+    // Data, not a color: no color-space conversion and no premultiplication.
     const bitmap = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' })
     const canvas = new OffscreenCanvas(SWATCH_SIZE, SWATCH_SIZE)
     const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('canevas 2D indisponible')
+    if (!ctx) throw new Error('2D canvas unavailable')
     ctx.drawImage(bitmap, 0, 0, SWATCH_SIZE, SWATCH_SIZE)
     bitmap.close()
     return redBlue(ctx.getImageData(0, 0, SWATCH_SIZE, SWATCH_SIZE).data)
@@ -317,7 +318,7 @@ const defaultIO: ArmorLibraryIO = {
 
 function noProgress(): void {}
 
-/** apiUrl : le chemin d'API `path` résolu contre la base du client (les images ne passent pas par lui). */
+/** apiUrl: the API path `path` resolved against the client base (images don't go through it). */
 function apiUrl(path: string): string {
   return `${API_BASE_URL.replace(/\/$/, '')}${path}`
 }

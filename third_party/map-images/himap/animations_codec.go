@@ -27,6 +27,8 @@
 // si son bit statique l'est, sinon la pose de repos du modele (PisteOs vide).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
@@ -70,10 +72,10 @@ const (
 )
 
 // ErrCodecNonDecode : l'animation est dans un codec que ce lecteur ne decode pas.
-var ErrCodecNonDecode = errors.New("himap: codec d'animation non decode")
+var ErrCodecNonDecode = errors.New("himap: animation codec not decoded")
 
 // ErrAnimationIllisible : les donnees de l'animation ne tiennent pas dans leur blob.
-var ErrAnimationIllisible = errors.New("himap: donnees d'animation illisibles")
+var ErrAnimationIllisible = errors.New("himap: unreadable animation data")
 
 // CodecNonDecodeError porte le codec refuse ; errors.Is(err, ErrCodecNonDecode).
 type CodecNonDecodeError struct{ Codec int }
@@ -130,12 +132,12 @@ type fluxLu struct {
 // Decode decode l'animation de rang `rang`.
 func (g *GrapheAnimation) Decode(rang int) (*ClipAnimation, error) {
 	if rang < 0 || rang >= len(g.Animations) {
-		return nil, fmt.Errorf("%w : animation %d hors des %d du graphe %08x", ErrAnimationIllisible, rang, len(g.Animations), g.ID)
+		return nil, fmt.Errorf("%w: animation %d outside the %d of graph %08x", ErrAnimationIllisible, rang, len(g.Animations), g.ID)
 	}
 	a := g.Animations[rang]
 	m, ok := g.membres[[2]int{a.Groupe, a.Membre}]
 	if !ok {
-		return nil, fmt.Errorf("%w : animation %d sans membre de ressource (%d, %d)", ErrAnimationIllisible, rang, a.Groupe, a.Membre)
+		return nil, fmt.Errorf("%w: animation %d without a resource member (%d, %d)", ErrAnimationIllisible, rang, a.Groupe, a.Membre)
 	}
 	sec := sectionsDuMembre(m)
 	c := &ClipAnimation{Graphe: g.ID, Animation: a, Images: a.Images, Os: make([]PisteOs, len(g.Os))}
@@ -172,10 +174,10 @@ func sectionsDuMembre(m membreRessource) [sectionsParMembre][]byte {
 // (rotation, translation, echelle) dans l'ordre de leurs bits.
 func drapeauxDuMembre(sec [sectionsParMembre][]byte, nOs int) (statiques, animes [tableauxDrapeaux][]int, err error) {
 	if statiques, err = rangsDesDrapeaux(sec[sectionDrapeauxStatiq], nOs); err != nil {
-		return statiques, animes, fmt.Errorf("drapeaux statiques : %w", err)
+		return statiques, animes, fmt.Errorf("static flags: %w", err)
 	}
 	if animes, err = rangsDesDrapeaux(sec[sectionDrapeauxAnimes], nOs); err != nil {
-		return statiques, animes, fmt.Errorf("drapeaux animes : %w", err)
+		return statiques, animes, fmt.Errorf("animated flags: %w", err)
 	}
 	return statiques, animes, nil
 }
@@ -187,7 +189,7 @@ func rangsDesDrapeaux(b []byte, nOs int) ([tableauxDrapeaux][]int, error) {
 		return out, nil
 	}
 	if len(b)%tableauxDrapeaux != 0 || len(b)/tableauxDrapeaux*8 < nOs {
-		return out, fmt.Errorf("%w : %d octets de drapeaux pour %d os", ErrAnimationIllisible, len(b), nOs)
+		return out, fmt.Errorf("%w: %d bytes of flags for %d bones", ErrAnimationIllisible, len(b), nOs)
 	}
 	t := len(b) / tableauxDrapeaux
 	for k := 0; k < tableauxDrapeaux; k++ {
@@ -196,7 +198,7 @@ func rangsDesDrapeaux(b []byte, nOs int) ([tableauxDrapeaux][]int, error) {
 				continue
 			}
 			if i >= nOs {
-				return out, fmt.Errorf("%w : bit %d allume pour %d os", ErrAnimationIllisible, i, nOs)
+				return out, fmt.Errorf("%w: bit %d set for %d bones", ErrAnimationIllisible, i, nOs)
 			}
 			out[k] = append(out[k], i)
 		}
@@ -215,7 +217,7 @@ func litFlux(b []byte) (fluxLu, error) {
 		return fluxLu{}, CodecNonDecodeError{Codec: c}
 	}
 	if len(b) < fluxEntete {
-		return fluxLu{}, fmt.Errorf("%w : flux de %d octets (codec %d)", ErrAnimationIllisible, len(b), b[0])
+		return fluxLu{}, fmt.Errorf("%w: stream of %d bytes (codec %d)", ErrAnimationIllisible, len(b), b[0])
 	}
 	return fluxLu{
 		codec: int(b[0]), nRot: int(u16(b, fluxOffRotations)), nTrans: int(u16(b, fluxOffTranslations)),
@@ -227,7 +229,7 @@ func litFlux(b []byte) (fluxLu, error) {
 // borne verifie qu'une plage [o, o+n) tient dans le flux.
 func (f fluxLu) borne(o, n int) error {
 	if o < 0 || n < 0 || o+n > len(f.octets) {
-		return fmt.Errorf("%w : lecture [%d, %d) hors d'un flux de %d octets (codec %d)", ErrAnimationIllisible, o, o+n, len(f.octets), f.codec)
+		return fmt.Errorf("%w: read [%d, %d) outside a stream of %d bytes (codec %d)", ErrAnimationIllisible, o, o+n, len(f.octets), f.codec)
 	}
 	return nil
 }
@@ -235,7 +237,7 @@ func (f fluxLu) borne(o, n int) error {
 // verifieComptes compare les comptes de l'en-tete aux drapeaux.
 func (f fluxLu) verifieComptes(rangs [tableauxDrapeaux][]int) error {
 	if f.nRot != len(rangs[0]) || f.nTrans != len(rangs[1]) || f.nEch != len(rangs[2]) {
-		return fmt.Errorf("%w : codec %d, en-tete %d/%d/%d pistes, drapeaux %d/%d/%d", ErrAnimationIllisible, f.codec,
+		return fmt.Errorf("%w: codec %d, header %d/%d/%d tracks, flags %d/%d/%d", ErrAnimationIllisible, f.codec,
 			f.nRot, f.nTrans, f.nEch, len(rangs[0]), len(rangs[1]), len(rangs[2]))
 	}
 	return nil

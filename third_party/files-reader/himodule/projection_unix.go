@@ -2,6 +2,8 @@
 
 package himodule
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"os"
@@ -30,7 +32,7 @@ func projetteFichier(chemin string) ([]byte, func() error, error) {
 		return nil, func() error { return nil }, nil
 	}
 	if taille != int64(int(taille)) {
-		return nil, nil, fmt.Errorf("archive de %d octets : trop grande pour cette plateforme", taille)
+		return nil, nil, fmt.Errorf("archive of %d bytes: too large for this platform", taille)
 	}
 
 	octets, err := unix.Mmap(int(f.Fd()), 0, int(taille), unix.PROT_READ, unix.MAP_SHARED)

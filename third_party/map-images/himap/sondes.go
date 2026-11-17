@@ -32,6 +32,8 @@
 // min + (i + 0,5) (max - min) / n. Mesure : TestSondesEspacement.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 
@@ -107,11 +109,11 @@ func LitSondes(s SourcesLumiere) (SondesLumiere, bool, error) {
 func tagLumiereStatique(m *himodule.Module, id uint32) (tagInfo, error) {
 	f, ok := entreeParID(m, GroupeLumiereStatique, id)
 	if !ok {
-		return tagInfo{}, fmt.Errorf("himap: %s %#x absent du module", GroupeLumiereStatique, id)
+		return tagInfo{}, fmt.Errorf("himap: %s %#x absent from the module", GroupeLumiereStatique, id)
 	}
 	ti, err := tagDeEntree(m, f)
 	if err != nil {
-		return tagInfo{}, fmt.Errorf("himap: %s %#x : %w", GroupeLumiereStatique, id, err)
+		return tagInfo{}, fmt.Errorf("himap: %s %#x: %w", GroupeLumiereStatique, id, err)
 	}
 	return ti, nil
 }
@@ -138,7 +140,7 @@ func litRegionsSondes(ti tagInfo) ([]RegionSondes, []int, uint32, error) {
 	}
 	rabs, rtaille := ti.blockAbs(racine)
 	if stlmOffBitmaps+refOffGlobalID+4 > rtaille {
-		return nil, nil, 0, fmt.Errorf("himap: %s : bloc racine de %#x o", GroupeLumiereStatique, rtaille)
+		return nil, nil, 0, fmt.Errorf("himap: %s: root block of %#x bytes", GroupeLumiereStatique, rtaille)
 	}
 	n := u32(tag, rabs+stlmOffRegions+compteTagBlock)
 	cible := ti.subBlockTarget(racine, stlmOffRegions)
@@ -147,7 +149,7 @@ func litRegionsSondes(ti tagInfo) ([]RegionSondes, []int, uint32, error) {
 	}
 	abs, taille := ti.blockAbs(cible)
 	if taille != n*regionTaille || abs+taille > len(tag) {
-		return nil, nil, 0, fmt.Errorf("himap: %s : %d regions sur %#x o, attendu %#x o chacune",
+		return nil, nil, 0, fmt.Errorf("himap: %s: %d regions over %#x bytes, %#x bytes expected each",
 			GroupeLumiereStatique, n, taille, regionTaille)
 	}
 	regions := make([]RegionSondes, n)
@@ -160,7 +162,7 @@ func litRegionsSondes(ti tagInfo) ([]RegionSondes, []int, uint32, error) {
 			r.Max[k] = f32(tag, o+regionOffBornes+8*k+4)
 			r.Nombre[k] = i32(tag, o+regionOffNombre+4*k)
 			if r.Nombre[k] <= 0 || r.Max[k] < r.Min[k] {
-				return nil, nil, 0, fmt.Errorf("himap: %s : region %d incoherente (%v sondes, %v..%v)",
+				return nil, nil, 0, fmt.Errorf("himap: %s: region %d inconsistent (%v probes, %v..%v)",
 					GroupeLumiereStatique, i, r.Nombre, r.Min, r.Max)
 			}
 		}
@@ -176,11 +178,11 @@ func litRegionsSondes(ti tagInfo) ([]RegionSondes, []int, uint32, error) {
 func litIrradiances(m *himodule.Module, id uint32, regions []RegionSondes, debuts []int) error {
 	f, ok := entreeParID(m, GroupeBitmap, id)
 	if !ok {
-		return fmt.Errorf("himap: bitmap des sondes %#x absent du module", id)
+		return fmt.Errorf("himap: probe bitmap %#x absent from the module", id)
 	}
 	ti, err := tagDeEntree(m, f)
 	if err != nil {
-		return fmt.Errorf("himap: bitmap des sondes : %w", err)
+		return fmt.Errorf("himap: probe bitmap: %w", err)
 	}
 	racine, err := ti.rootBlockIndex()
 	if err != nil {
@@ -188,7 +190,7 @@ func litIrradiances(m *himodule.Module, id uint32, regions []RegionSondes, debut
 	}
 	c := ti.subBlockTarget(racine, bitmOffBitmaps)
 	if c < 0 {
-		return fmt.Errorf("himap: bitmap des sondes sans bloc de textures")
+		return fmt.Errorf("himap: probe bitmap without a textures block")
 	}
 	babs, btaille := ti.blockAbs(c)
 	res, err := m.Ressources(f)
@@ -196,26 +198,26 @@ func litIrradiances(m *himodule.Module, id uint32, regions []RegionSondes, debut
 		return err
 	}
 	if len(res) != btaille/bitmapStride {
-		return fmt.Errorf("himap: bitmap des sondes : %d textures, %d ressources", btaille/bitmapStride, len(res))
+		return fmt.Errorf("himap: probe bitmap: %d textures, %d resources", btaille/bitmapStride, len(res))
 	}
 	for i := range regions {
 		r := &regions[i]
 		k := debuts[i]
 		if k < 0 || k >= len(res) {
-			return fmt.Errorf("himap: region %d : texture %d hors des %d du bitmap", i, k, len(res))
+			return fmt.Errorf("himap: region %d: texture %d outside the %d of the bitmap", i, k, len(res))
 		}
 		o := babs + k*bitmapStride
 		l, h, p := int(u16(ti.tag, o+bitmapOffLarg)), int(u16(ti.tag, o+bitmapOffHaut)), int(u16(ti.tag, o+bitmapOffProf))
 		if l != r.Nombre[0]*TuileSonde || h != r.Nombre[1]*TuileSonde || p != r.Nombre[2] {
-			return fmt.Errorf("himap: region %d : texture %dx%dx%d pour %v sondes", i, l, h, p, r.Nombre)
+			return fmt.Errorf("himap: region %d: texture %dx%dx%d for %v probes", i, l, h, p, r.Nombre)
 		}
 		brut, err := m.Extract(res[k])
 		if err != nil {
-			return fmt.Errorf("himap: region %d : %w", i, err)
+			return fmt.Errorf("himap: region %d: %w", i, err)
 		}
 		d := res[k].Donnees(brut)
 		if len(d) != l*h*p*octetsIrradiance {
-			return fmt.Errorf("himap: region %d : %d o d'irradiance, attendu %d", i, len(d), l*h*p*octetsIrradiance)
+			return fmt.Errorf("himap: region %d: %d bytes of irradiance, %d expected", i, len(d), l*h*p*octetsIrradiance)
 		}
 		r.Irradiance = d
 	}

@@ -16,7 +16,7 @@ const source: Replay3DExportSource = {
 }
 
 describe('minimapBox', () => {
-  it('pose la carte en bas à droite, à sa part de largeur et à ses proportions', () => {
+  it('places the map bottom-right, at its share of width and its aspect ratio', () => {
     const box = minimapBox({ width: 960, height: 540 }, { width: 1920, height: 1080 })
     expect(box.width).toBeCloseTo(960 * MINIMAP_SHARE)
     expect(box.height).toBeCloseTo((960 * MINIMAP_SHARE * 9) / 16)
@@ -24,20 +24,20 @@ describe('minimapBox', () => {
     expect(box.y + box.height).toBe(540 - 16)
   })
 
-  it('une carte sans largeur ne donne pas de boîte', () => {
+  it('a map with no width gives no box', () => {
     expect(minimapBox({ width: 960, height: 540 }, { width: 0, height: 0 }).height).toBe(0)
   })
 })
 
 describe('replay3dExportStore', () => {
-  it('inscrit et désinscrit la vue', () => {
+  it('registers and unregisters the view', () => {
     const release = registerReplay3DExport({ source, live: true, camera: 'fp', pov: null })
     expect(replay3DExportEntry()?.source).toBe(source)
     release()
     expect(replay3DExportEntry()).toBeNull()
   })
 
-  it('une désinscription périmée ne retire pas l’inscription suivante', () => {
+  it('a stale unregister does not remove the following registration', () => {
     const first = registerReplay3DExport({ source, live: true, camera: 'fp', pov: null })
     const second = registerReplay3DExport({ source, live: false, camera: 'tp', pov: 'x' })
     first()
@@ -116,13 +116,13 @@ describe('paintTags — exported name tags', () => {
 })
 
 describe('view3dChoice', () => {
-  it('part de ce que l’écran montre, mini-carte comprise', () => {
+  it('starts from what the screen shows, minimap included', () => {
     const entry = { source, live: true, camera: 'tp' as const, pov: 'x1' }
     expect(initialView3dChoice(entry)).toEqual({ on: true, camera: 'tp', pov: 'x1', minimap: true })
     expect(initialView3dChoice(null).on).toBe(false)
   })
 
-  it('n’exporte en 3D que si la 3D est choisie ET chargée', () => {
+  it('exports in 3D only if 3D is both chosen AND loaded', () => {
     const entry = { source, live: true, camera: 'fp' as const, pov: null }
     const choice = { on: true, camera: 'free' as const, pov: 'x2', minimap: false }
     expect(view3dRunOptions(entry, choice)).toEqual({ camera: 'free', pov: 'x2', minimap: false })

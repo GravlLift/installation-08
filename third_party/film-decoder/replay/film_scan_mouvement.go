@@ -45,14 +45,14 @@ func (s *filmScan) balayerEtatsDeMouvement() {
 	} else {
 		slog.InfoContext(s.ctx, "movement states read",
 			"records", st.Records, "desyncs", st.Desyncs, "reads", st.Read,
-			"packets", st.Packets, "paquetsEvenements", st.EventPackets,
-			"paquetsEvenementsLocalises", st.EventPacketsLocated,
-			"paquetsEvenementsNonLocalises", st.EventPacketsUnlocated,
-			"slotNonLie", st.SlotUnbound, "duplicates", st.Duplicates, "liaisonsOubliees", st.LiaisonsOubliees, "neufsContreUnVivant", st.NeufsContreUnVivant,
-			"largeursCarte", st.MapWidths, "absent", st.Absent)
+			"packets", st.Packets, "eventPackets", st.EventPackets,
+			"eventPacketsLocated", st.EventPacketsLocated,
+			"eventPacketsUnlocated", st.EventPacketsUnlocated,
+			"slotUnbound", st.SlotUnbound, "duplicates", st.Duplicates, "forgottenLinks", st.LiaisonsOubliees, "newAgainstALive", st.NeufsContreUnVivant,
+			"mapWidths", st.MapWidths, "absent", st.Absent)
 		slog.InfoContext(s.ctx, "sustained fire read (control view)",
-			"packets", tc.Packets, "vueCFermee", tc.Closed, "holes", tc.Holes, "suitesDeTrous", tc.HoleRuns,
-			"bursts", tc.Bursts, "rafalesTouchees", tc.BurstsWithHole, "tirTenuTuMs", tc.HeldHoleMS,
+			"packets", tc.Packets, "viewCClosed", tc.Closed, "holes", tc.Holes, "holeRuns", tc.HoleRuns,
+			"bursts", tc.Bursts, "burstsWithHole", tc.BurstsWithHole, "heldHoleMs", tc.HeldHoleMS,
 			"match_id", s.matchID)
 	}
 	s.opt.Fallbacks.DeclencheN(fallback.NomLiaisonParAnticipation, m.LiaisonsParRepliDAnticipation)

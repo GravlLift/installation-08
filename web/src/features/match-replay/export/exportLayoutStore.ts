@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * exportLayoutStore.ts — LA MISE EN PAGE D'EXPORT EN VIGUEUR, partagee entre la boucle d'export
- * (hors React) et le cadrage de la toile (`useReplayView`, dans React).
+ * exportLayoutStore.ts — THE EXPORT LAYOUT CURRENTLY IN EFFECT, shared between the export loop
+ * (outside React) and the canvas's framing (`useReplayView`, inside React).
  *
- * # POURQUOI UN MAGASIN DE MODULE (remplace `exportRenderScale`, 2026-09-16)
+ * # WHY A MODULE-LEVEL STORE (replaces `exportRenderScale`, 2026-09-16)
  *
- * L'ancien suréchantillonnage n'etait qu'un FACTEUR lu au dimensionnement du backing store : un
- * objet mutable suffisait. Le rendu au format cible change la GEOMETRIE — largeur et hauteur de
- * dessin, donc le cadre de la scene, la projection, les calques cuits et chaque calque lie a
- * `canvasView`. Tout cela est memoise dans React : il faut un re-rendu, donc un magasin auquel
- * `useReplayView` s'abonne (`useSyncExternalStore`). Le faire descendre en prop traverserait
- * `ReplayCanvas`, qui est a son plafond de taille.
+ * The old oversampling was only a FACTOR read when sizing the backing store: a mutable object
+ * was enough. Rendering at the target format changes the GEOMETRY — drawing width and height,
+ * hence the scene's frame, the projection, the baked layers and every layer tied to
+ * `canvasView`. All of that is memoized in React: it needs a re-render, hence a store that
+ * `useReplayView` subscribes to (`useSyncExternalStore`). Passing it down as a prop would
+ * cross `ReplayCanvas`, which is already at its size ceiling.
  *
- * # DEMANDEE / APPLIQUEE : POURQUOI DEUX VALEURS
+ * # REQUESTED / APPLIED: WHY TWO VALUES
  *
- * La boucle d'export DEMANDE une mise en page, puis ne doit peindre sa premiere image qu'une fois
- * React l'a APPLIQUEE — rendu, calques statiques recuits, `draw` republie. `useReplayView` le
- * signale depuis un effet ; les effets du meme composant qui suivent (cuisson des calques,
- * publication de `draw`) s'executent dans le meme passage, avant que la boucle ne reprenne la
- * main. La densite de pixels suit la valeur APPLIQUEE : ainsi le backing store et les calques
- * cuits ne changent de densite qu'avec la geometrie qui va avec.
+ * The export loop REQUESTS a layout, then must not paint its first frame until React has
+ * APPLIED it — rendered, baked the static layers, republished `draw`. `useReplayView` signals
+ * this from an effect; the same component's effects that follow (baking the layers,
+ * publishing `draw`) run in the same pass, before the loop regains control. Pixel density
+ * follows the APPLIED value: this way the backing store and the baked layers only change
+ * density together with the geometry that goes with it.
  *
- * UNE SEULE TOILE DE REJEU PAR PAGE : c'est deja l'hypothese de l'ancien facteur de module.
+ * ONE REPLAY CANVAS PER PAGE: that was already the old module-level factor's assumption.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 
@@ -42,25 +42,25 @@ function snapshot(): ExportLayout | null {
 }
 
 /**
- * requestExportLayout — pose (ou retire, `null`) la mise en page d'export. Seul ecrivain : la
- * boucle d'export, qui la retire dans un `finally` sur tous les chemins.
+ * requestExportLayout — sets (or clears, `null`) the export layout. The only writer: the
+ * export loop, which clears it in a `finally` on every path.
  */
 export function requestExportLayout(layout: ExportLayout | null): void {
   requested = layout
   for (const fn of listeners) fn()
 }
 
-/** La mise en page d'export demandee, et un re-rendu a chaque changement. */
+/** The requested export layout, with a re-render on every change. */
 export function useExportLayout(): ExportLayout | null {
   const layout = useSyncExternalStore(subscribe, snapshot, snapshot)
-  // L'ACCUSE D'APPLICATION, apres le commit du rendu qui a lu cette valeur (cf. l'en-tete).
+  // THE APPLICATION ACKNOWLEDGMENT, after the commit of the render that read this value (see the header).
   useEffect(() => {
     applied = layout
   }, [layout])
   return layout
 }
 
-/** La mise en page demandee (`null` hors export) : son identite marque UN export. */
+/** The requested layout (`null` outside an export): its identity marks ONE export. */
 export function exportLayoutRequested(): ExportLayout | null {
   return requested
 }
@@ -70,53 +70,52 @@ function activeSnapshot(): boolean {
 }
 
 /**
- * useExportActive — un re-rendu a l'entree et a la sortie de chaque export, SANS accuser
- * d'application (c'est le role de `useExportLayout`, tenu par le cadrage). Sert aux memos qui
- * dependent du theme : les encres de l'export sont celles du theme sombre (cf. `themeInk.ts`).
+ * useExportActive — a re-render on entering and leaving each export, WITHOUT acknowledging
+ * application (that is `useExportLayout`'s role, held by the framing). Used by memos that
+ * depend on the theme: the export's inks are the dark theme's (see `themeInk.ts`).
  */
 export function useExportActive(): boolean {
   return useSyncExternalStore(subscribe, activeSnapshot, activeSnapshot)
 }
 
 /**
- * isExportActive — un export tient-il la toile ? VRAI DES LA DEMANDE, avant meme que React
- * l'applique : c'est ce que lisent les gestes hors React (survol, cf. `hoverLayers.ts`) pour
- * se taire pendant `prepare` et `encode` (decision D7).
+ * isExportActive — does an export hold the canvas? TRUE FROM THE REQUEST ONWARD, even before
+ * React applies it: this is what non-React gestures (hover, see `hoverLayers.ts`) read in
+ * order to go silent during `prepare` and `encode` (decision D7).
  */
 export function isExportActive(): boolean {
   return requested !== null
 }
 
-/** La mise en page demandee est-elle celle que la toile a deja prise ? */
+/** Is the requested layout the one the canvas has already taken on? */
 export function isExportLayoutApplied(): boolean {
   return applied === requested
 }
 
 /**
- * canvasPixelRatio — la densite a laquelle la toile et ses calques cuits se rendent : celle de
- * la mise en page d'export appliquee, sinon celle de l'ecran. PENDANT UN EXPORT, LE
- * `devicePixelRatio` N'ENTRE NULLE PART : c'est ce qui rend le fichier identique d'une machine
- * a l'autre.
+ * canvasPixelRatio — the density the canvas and its baked layers render at: the applied
+ * export layout's, otherwise the screen's. DURING AN EXPORT, `devicePixelRatio` PLAYS NO PART
+ * ANYWHERE: that is what makes the file identical from one machine to another.
  */
 export function canvasPixelRatio(): number {
   return applied ? applied.pixelRatio : window.devicePixelRatio || 1
 }
 
 /**
- * Le delai au-dela duquel une mise en page demandee et jamais appliquee est une panne. En pratique
- * elle s'applique au premier retour a la boucle d'evenements (un rendu synchrone de React) ;
- * sans toile montee, elle ne s'appliquera jamais, et l'export doit le dire plutot qu'attendre.
+ * The delay past which a requested layout never applied is a failure. In practice it applies
+ * on the first return to the event loop (a synchronous React render); without a mounted
+ * canvas, it will never apply, and the export must say so rather than wait.
  */
 export const EXPORT_LAYOUT_TIMEOUT_MS = 5000
 
 /**
- * waitForExportLayout — rend la main quand la toile est REELLEMENT au format : mise en page
- * appliquee par React, puis backing store redimensionne par un trace a exactement
+ * waitForExportLayout — returns control once the canvas is REALLY at the target format:
+ * layout applied by React, then the backing store resized, proven by a draw at exactly
  * `format.width` x `format.height`.
  *
- * LA TAILLE DU BACKING STORE EST LA PREUVE, PAS UNE SUPPOSITION : l'encodeur est configure au
- * format, et une toile d'une autre taille serait rognee ou refusee. Leve apres
- * `EXPORT_LAYOUT_TIMEOUT_MS` — la boucle d'export en fait un echec affiche.
+ * THE BACKING STORE'S SIZE IS THE PROOF, NOT AN ASSUMPTION: the encoder is configured to the
+ * format, and a canvas of a different size would be cropped or rejected. Throws after
+ * `EXPORT_LAYOUT_TIMEOUT_MS` — the export loop turns that into a displayed failure.
  */
 export async function waitForExportLayout(
   canvas: HTMLCanvasElement,

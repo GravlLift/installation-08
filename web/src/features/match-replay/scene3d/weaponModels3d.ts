@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * weaponModels3d.ts — LES MODÈLES 3D DES ARMES, tirés du jeu installé (`cmd/mapmesh-build --armes`).
+ * weaponModels3d.ts — THE WEAPONS' 3D MODELS, pulled from the installed game (`cmd/mapmesh-build --armes`).
  *
- * Un GLB par arme, sous sa clé : la famille de son identifiant (GlobalID du tag `weap`, 8 chiffres
- * hexadécimaux minuscules, même règle que `meshproto.CleArme` côté serveur). Repère du modèle : axes
- * three de la carte (X vers la bouche du canon, Y vers le haut), origine à la poignée, en unités monde.
- * Le projectile de chaque type de grenade lancé a le sien, sous `grenade<rang>` (`meshproto.CleGrenade`).
+ * One GLB per weapon, under its key: its identifier's family (the `weap` tag's GlobalID, 8
+ * lowercase hex digits, the same rule as the server's `meshproto.CleArme`). The model's frame:
+ * the map's three.js axes (X toward the barrel's muzzle, Y up), origin at the grip, in world units.
+ * Each thrown grenade kind's projectile has its own, under `grenade<rank>` (`meshproto.CleGrenade`).
  * Each equipment object of the title's manifest has its own, under its `eqip` GlobalID (same form
  * as a weapon key); a power-up pad names its item by family, resolved by `equipmentKeys3d`.
- * Le Spartan à peau (squelette du jeu, pieds à l'origine) a le sien sous `spartan` (`meshproto.CleSpartan`),
- * avec les animations du jeu, rangées à côté de sa scène (`clips3d.spartanClipsOf`).
+ * The skinned Spartan (the game's skeleton, feet at the origin) has its own under `spartan`
+ * (`meshproto.CleSpartan`), with the game's animations, stored beside its scene (`clips3d.spartanClipsOf`).
  *
- * Un modèle se charge à sa première demande et la vue garde sa forme simple en attendant. Absent
- * (404 : pas encore construit, ou arme sans modèle), il est redemandé après `RETRY_MS` : une
- * construction lancée pendant le visionnage paraît sans recharger la page.
+ * A model loads on its first request and the view keeps its simple shape while waiting. Absent
+ * (404: not built yet, or a weapon with no model), it is requested again after `RETRY_MS`: a
+ * build started during viewing shows up with no page reload.
  *
- * Les matériaux peints (`extras.surfaceBrute`) reçoivent leurs masques bruts en `userData.armorMaps`
- * (`armorLibrary3d.rawMaps`) : la vue peint les armes du joueur de leur revêtement
+ * Painted materials (`extras.surfaceBrute`) receive their raw masks into `userData.armorMaps`
+ * (`armorLibrary3d.rawMaps`): the view paints the player's weapons with their coating
  * (`weaponCoat3d`).
  */
 import * as THREE from 'three'
@@ -37,16 +37,16 @@ import { ReticleRanges } from './reticleRanges3d'
 import { surfaceModelBytes } from './sessionResourceBytes3d'
 import { withKtx2 } from './ktx2Textures3d'
 
-/** Délai avant de redemander un modèle absent (ms). */
+/** Delay before requesting an absent model again (ms). */
 const RETRY_MS = 15_000
-/** La clé du Spartan, celle de `meshproto.CleSpartan`. */
+/** The Spartan's key, `meshproto.CleSpartan`'s own. */
 const SPARTAN_KEY = 'spartan'
 
-/** weaponModelKey — la clé du modèle d'une arme du rejeu, null pour un identifiant qui n'en est pas une. */
+/** weaponModelKey — the replay's model key for a weapon, null for an identifier that is not one. */
 export function weaponModelKey(id: string): string | null {
   const m = /^(?:0[xX])?([0-9a-fA-F]{8})([0-9a-fA-F]{8})?$/.exec(id)
   if (!m) return null
-  // Un hexadécimal nu ne porte que la famille.
+  // A bare hex string carries only the family.
   if (!/^0[xX]/.test(id) && m[2]) return null
   return m[1].toLowerCase()
 }
@@ -83,7 +83,7 @@ export class WeaponModels {
    *  it with a fresh count; never called on dispose or a failed/absent load. */
   private readonly onGrowth?: () => void
 
-  /** `base` : le dossier servi des modèles (`…/replay/weapons`). */
+  /** `base`: the served folder of models (`…/replay/weapons`). */
   constructor(
     base: string,
     gate?: LoadGate,
@@ -102,7 +102,7 @@ export class WeaponModels {
     this.onGrowth = onGrowth
   }
 
-  /** loadedBytes : l'empreinte estimée des modèles chargés jusqu'ici (voir `ArmorLibrary.loadedBytes`). */
+  /** loadedBytes: the estimated footprint of the models loaded so far (see `ArmorLibrary.loadedBytes`). */
   loadedBytes(): number {
     let bytes = 0
     for (const root of this.owned) bytes += surfaceModelBytes(root)
@@ -116,7 +116,7 @@ export class WeaponModels {
   }
 
   /**
-   * model rend le modèle (à cloner) de l'arme `id`, null tant qu'il n'est pas là. An `id` that is
+   * model returns the model (to clone) of weapon `id`, null until it is there. An `id` that is
    * not a weapon identifier is read as an equipment family (a power-up pad's item,
    * `powerup_camo`) and resolves through the index's equipment table.
    */
@@ -136,20 +136,20 @@ export class WeaponModels {
     return key && model ? this.banners.dress(model, key, team, ink) : null
   }
 
-  /** spartan rend le Spartan à peau (à cloner par `SkeletonUtils`, cf. `spartan3d`), null tant qu'il n'est pas là. */
+  /** spartan returns the skinned Spartan (to clone with `SkeletonUtils`, see `spartan3d`), null until it is there. */
   spartan(): THREE.Object3D | null {
     return this.byKey(SPARTAN_KEY)
   }
 
-  /** grenade rend le modèle (à cloner) du projectile de la grenade de rang `rank`, null tant qu'il n'est pas là. */
+  /** grenade returns the model (to clone) of the projectile for grenade rank `rank`, null until it is there. */
   grenade(rank: number): THREE.Object3D | null {
     return Number.isInteger(rank) && rank >= 0 ? this.byKey(`grenade${rank}`) : null
   }
 
   /**
-   * sourcesChargees : les modèles chargés, non attachés à la scène (leurs copies le sont). Leurs
-   * matériaux et textures sont partagés par les copies : les compiler et charger leurs textures
-   * une fois couvre toutes les copies.
+   * sourcesChargees: the loaded models, not attached to the scene (their copies are). Their
+   * materials and textures are shared by the copies: compiling and loading their textures once
+   * covers every copy.
    */
   sourcesChargees(): THREE.Object3D[] {
     return this.owned
@@ -187,8 +187,8 @@ export class WeaponModels {
         const buffer = await fetchMesh(`${this.base}/${key}.glb`, noProgress, this.abort.signal)
         const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, '')
         prepareModel(gltf.scene)
-        await rawMaps(gltf.scene, gltf.parser).catch((erreur: unknown) => {
-          if (!this.abort.signal.aborted) console.warn('rejeu 3D : masques de l’arme indisponibles', key, erreur)
+        await rawMaps(gltf.scene, gltf.parser).catch((error: unknown) => {
+          if (!this.abort.signal.aborted) console.warn('3D replay: weapon masks unavailable', key, error)
         })
         if (gltf.animations.length > 0) registerClips(gltf)
         this.owned.push(gltf.scene)
@@ -196,7 +196,7 @@ export class WeaponModels {
         this.onGrowth?.()
       } catch (err) {
         if (this.abort.signal.aborted) return
-        if (!isNotFound(err)) console.warn('rejeu 3D : échec du chargement du modèle d’arme', key, err)
+        if (!isNotFound(err)) console.warn('3D replay: weapon model failed to load', key, err)
         this.entries.set(key, { absentUntil: performance.now() + RETRY_MS })
       }
     })()
@@ -205,8 +205,8 @@ export class WeaponModels {
 }
 
 /**
- * registerClips range les animations d'un modèle (le Spartan) à côté de sa scène : catalogue lu
- * dans les animations et le JSON du GLB (`clips3d`), phases d'accord mesurées sur une copie des os.
+ * registerClips stores a model's (the Spartan's) animations beside its scene: catalogue read
+ * from the animations and the GLB's JSON (`clips3d`), sync phases measured on a copy of the bones.
  */
 function registerClips(gltf: GLTF): void {
   const json = gltf.parser.json as { animations?: GltfAnimationJson[]; asset?: { extras?: { weaponClips?: WeaponClips } } }
@@ -216,8 +216,8 @@ function registerClips(gltf: GLTF): void {
 }
 
 /**
- * prepareModel : facettes (les GLB de l'outil n'ont pas de normales de sommet), ombres portées,
- * métal sombre sur les matériaux sans texture (`darkMetalFallback`).
+ * prepareModel: faceted (the tool's GLBs carry no vertex normals), cast shadows, dark metal on
+ * texture-less materials (`darkMetalFallback`).
  */
 export function prepareModel(root: THREE.Object3D): void {
   root.traverse((o) => {
@@ -233,8 +233,8 @@ export function prepareModel(root: THREE.Object3D): void {
 }
 
 /**
- * WeaponModelPool — des copies de modèles posées à chaque image (même contrat que les lots
- * d'instances : `begin`, puis `add`). Les copies partagent géométries et matériaux.
+ * WeaponModelPool — model copies placed on every frame (the same contract as the instance
+ * batches: `begin`, then `add`). The copies share geometries and materials.
  */
 export class WeaponModelPool {
   private readonly free = new Map<THREE.Object3D, THREE.Object3D[]>()
@@ -253,7 +253,7 @@ export class WeaponModelPool {
     this.used.length = 0
   }
 
-  /** add pose une copie de `model` à `position`, orientée par `rotation`. */
+  /** add places a copy of `model` at `position`, oriented by `rotation`. */
   add(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion): void {
     let list = this.free.get(model)
     if (!list) {

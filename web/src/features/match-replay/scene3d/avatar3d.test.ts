@@ -25,7 +25,7 @@ function bone(name: string, parent: THREE.Object3D, x: number, y: number, z: num
 
 const BASE = new THREE.Color(0.5, 0.5, 0.5)
 
-/** Un Spartan de test : les os pilotés, deux maillages à peau liés à la même peau (comme le GLTFLoader). */
+/** A test Spartan: driven bones, two skinned meshes bound to the same skin (like GLTFLoader). */
 function spartanSource(skeleton?: THREE.Group): THREE.Group {
   const root = skeleton ?? new THREE.Group()
   if (!skeleton) {
@@ -67,7 +67,7 @@ const TEAM = new THREE.Color(1, 0.25, 0)
 const FEET = new THREE.Vector3(2, 1, 3)
 const held = { color: new THREE.Color(1, 1, 1) }
 
-/** Un état du corps sans bouclier allumé, camouflé à la force `camo`. */
+/** A body fx state with no shield lit, camo at strength `camo`. */
 function bodyFx(camo = 0): BodyFxState {
   return {
     shield: { hit: 0, broke: 0, breakAge: -1, recharge: 0, rechargeAge: -1 },
@@ -81,9 +81,9 @@ function bodyFx(camo = 0): BodyFxState {
 }
 
 describe('wearSpartan', () => {
-  it('habille le joueur d’une copie teinte qui remplace la capsule', () => {
+  it('dresses the player in a tinted copy that replaces the capsule', () => {
     const scene = new THREE.Scene()
-    const a = makeAvatar(scene, 'joueur', TEAM)
+    const a = makeAvatar(scene, 'player', TEAM)
     const source = spartanSource()
     wearSpartan(a, source)
     expect(a.spartan?.rig.root.parent).toBe(a.group)
@@ -91,10 +91,10 @@ describe('wearSpartan', () => {
     expect(meshes).toHaveLength(2)
     const m = meshes[0].material as THREE.MeshStandardMaterial
     expect(m).not.toBe(skinned(source)[0].material)
-    // L'armure par défaut : le gris neutre tiré vers l'équipe, quelle que soit la base du modèle.
+    // Default armor: neutral gray pulled toward the team color, whatever the model's base color.
     expect(m.color.r).toBeCloseTo(ARMURE_NEUTRE + (TEAM.r - ARMURE_NEUTRE) * 0.3)
     expect(m.color.g).toBeCloseTo(ARMURE_NEUTRE + (TEAM.g - ARMURE_NEUTRE) * 0.3)
-    // Un seul squelette pour la copie : les deux maillages le partagent.
+    // A single skeleton for the copy: both meshes share it.
     expect(meshes[0].skeleton).toBe(meshes[1].skeleton)
     expect(meshes[0].skeleton.bones[0]).not.toBe(skinned(source)[0].skeleton.bones[0])
     placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, false)
@@ -103,10 +103,10 @@ describe('wearSpartan', () => {
     expect(a.spartan?.rig.root.visible).toBe(true)
   })
 
-  it('éclaire l’armure des lampes de la carte, comme la rue où le joueur se tient', () => {
+  it('lights the armor from the map\'s lamps, like the street the player stands on', () => {
     const lamp = { kind: 'omni' as const, position: new THREE.Vector3(), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy: 1, range: 2, cone: [0, 90] as [number, number] }
     const light = new BakedLight([], packAtlas([]), 1, [lamp])
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource(), null, light)
     const armor = (a.spartan?.materials ?? []).filter((m) => m instanceof THREE.MeshStandardMaterial)
     expect(armor.length).toBeGreaterThan(0)
@@ -119,8 +119,8 @@ describe('wearSpartan', () => {
     light.dispose()
   })
 
-  it('double l’armure d’une coque d’énergie au même squelette, éteinte sans effet, libérée avec la copie', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('doubles the armor with an energy shell on the same skeleton, off with no effect, released with the copy', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     const shell = a.shell
     expect(shell?.meshes).toHaveLength(2)
@@ -133,10 +133,10 @@ describe('wearSpartan', () => {
     showBodyFx(a, { ...fx, shield: { ...fx.shield, hit: 0.5 } })
     expect(shell?.meshes.every((m) => m.visible)).toBe(true)
     expect(shell?.material.uniforms.uHit.value).toBe(0.5)
-    // L'éclat du bouclier prend la couleur du camp, pas une couleur de bouclier fixe.
+    // The shield's glow takes the team color, not a fixed shield color.
     expect((shell?.material.uniforms.uTeam.value as THREE.Color).toArray()).toEqual([0, 1, 0.3])
     expect(shell?.meshes.every((m) => m.userData.noOutline)).toBe(true)
-    // La recharge : une bande au début de la remontée, éteinte ensuite.
+    // Recharge: a band at the start of the climb back up, off afterward.
     showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 0.2 } })
     expect(shell?.meshes.every((m) => m.visible)).toBe(true)
     showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 2 } })
@@ -153,8 +153,8 @@ describe('wearSpartan', () => {
     expect(skinned(a.group)).toHaveLength(0)
   })
 
-  it('sous le camouflage, l’armure s’efface et ne passe en transparence qu’au changement', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('under camo, the armor fades out and only switches to transparent on change', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     const m = a.spartan?.materials[0] as THREE.Material
     const version = m.version
@@ -175,8 +175,8 @@ describe('wearSpartan', () => {
     expect(m.opacity).toBe(1)
   })
 
-  it('pose les pieds du modèle sur ceux du joueur, debout comme accroupi', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('puts the model\'s feet on the player\'s, standing and crouched alike', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     for (const crouch of [false, true]) {
       placeBody(a, FEET, { h: 30, p: 0, crouch, dropOeil: 0 }, false)
@@ -185,8 +185,8 @@ describe('wearSpartan', () => {
     }
   })
 
-  it('rendu à null, libère la copie et rend la capsule', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('set to null, releases the copy and brings back the capsule', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     const copy = a.spartan
     const dispose = vi.spyOn(copy?.materials[0] as THREE.Material, 'dispose')
@@ -198,15 +198,15 @@ describe('wearSpartan', () => {
   })
 })
 
-describe('showWeapon avec le Spartan', () => {
+describe('showWeapon with the Spartan', () => {
   const gun = () => {
     const g = new THREE.Group()
     g.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.02)))
     return g
   }
 
-  it('en 3e personne, l’arme est portée par la main droite ; sur l’attente du jeu, canon le long de la visée', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('in third person the weapon is carried by the right hand; at the game\'s idle, barrel along the aim', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     const source = spartanSource(spartanSkeleton())
     const clips = fixtureClips(source)
     registerSpartanClips(source, clips)
@@ -226,8 +226,8 @@ describe('showWeapon avec le Spartan', () => {
     }
   })
 
-  it('en 1re personne, le Spartan se cache et l’arme revient au cône', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('in first person the Spartan hides and the weapon goes back to the cone', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, true)
     showWeapon(a, held, gun(), { x: 0, y: -0.09, z: 0.06, roll: 0 })
@@ -237,8 +237,8 @@ describe('showWeapon avec le Spartan', () => {
   })
 })
 
-describe('showWeapon avec le revêtement de l’arme', () => {
-  /** Un modèle d'arme : un maillage peint (masques bruts). */
+describe('showWeapon with the weapon coating', () => {
+  /** A weapon model: one painted mesh (raw masks). */
   function gunSource(): THREE.Group {
     const g = new THREE.Group()
     const m = new THREE.MeshStandardMaterial()
@@ -247,45 +247,45 @@ describe('showWeapon avec le revêtement de l’arme', () => {
     return g
   }
 
-  /** Le revêtement `materiaux` peints, une peinture neutre chacun. */
-  function coatDe(...materiaux: THREE.Material[]): Coat {
-    return new Map(materiaux.map((m) => [m, {
+  /** A coating with `materials` painted, one neutral paint each. */
+  function coatOf(...materials: THREE.Material[]): Coat {
+    return new Map(materials.map((m) => [m, {
       maps: { asg: null, mask0: null, mask1: null },
       paint: packPaint(neutralPaint(), () => undefined, () => {}),
       gradients: { value: null } as unknown as THREE.IUniform<THREE.Texture>,
     }]))
   }
 
-  it('peint la copie du modèle en main du revêtement, une copie par matériau source', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('paints the copy of the model in hand with the coating, one copy per source material', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     const source = gunSource()
     const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
-    showWeapon(a, held, source, null, coatDe(mat))
-    const copie = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
-    expect(copie).not.toBe(mat)
-    expect(copie.userData.armorUniforms).toBeDefined()
-    expect(a.weaponCoat?.get(mat)).toBe(copie)
+    showWeapon(a, held, source, null, coatOf(mat))
+    const copy = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    expect(copy).not.toBe(mat)
+    expect(copy.userData.armorUniforms).toBeDefined()
+    expect(a.weaponCoat?.get(mat)).toBe(copy)
   })
 
-  it('change de revêtement : les copies précédentes sont disposées', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('changing coating disposes the previous copies', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     const source = gunSource()
     const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
-    showWeapon(a, held, source, null, coatDe(mat))
-    const copie1 = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
-    const dispose = vi.spyOn(copie1, 'dispose')
-    showWeapon(a, held, source, null, coatDe(mat))
-    expect((a.model!.children[0] as THREE.Mesh).material).not.toBe(copie1)
+    showWeapon(a, held, source, null, coatOf(mat))
+    const copy1 = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    const dispose = vi.spyOn(copy1, 'dispose')
+    showWeapon(a, held, source, null, coatOf(mat))
+    expect((a.model!.children[0] as THREE.Mesh).material).not.toBe(copy1)
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 
-  it('sans revêtement, la source revient ; à la sortie de l’arme, les copies sont libérées', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('without a coating, the source comes back; leaving the weapon releases the copies', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     const source = gunSource()
     const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
-    showWeapon(a, held, source, null, coatDe(mat))
-    const copie = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
-    const dispose = vi.spyOn(copie, 'dispose')
+    showWeapon(a, held, source, null, coatOf(mat))
+    const copy = (a.model!.children[0] as THREE.Mesh).material as THREE.Material
+    const dispose = vi.spyOn(copy, 'dispose')
     showWeapon(a, held, source, null, null)
     expect((a.model!.children[0] as THREE.Mesh).material).toBe(mat)
     expect(dispose).toHaveBeenCalledTimes(1)
@@ -294,11 +294,11 @@ describe('showWeapon avec le revêtement de l’arme', () => {
     expect(a.weaponCoat).toBeNull()
   })
 
-  it('releaseWeapon libère le revêtement posé', () => {
-    const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
+  it('releaseWeapon releases the applied coating', () => {
+    const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     const source = gunSource()
     const mat = (source.children[0] as THREE.Mesh).material as THREE.Material
-    showWeapon(a, held, source, null, coatDe(mat))
+    showWeapon(a, held, source, null, coatOf(mat))
     const dispose = vi.spyOn((a.model!.children[0] as THREE.Mesh).material as THREE.Material, 'dispose')
     releaseWeapon(a)
     expect(dispose).toHaveBeenCalledTimes(1)

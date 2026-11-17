@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"math"
@@ -40,7 +42,7 @@ func terrainsDuScenario(chemin string) ([]referenceTerrain, error) {
 		return nil, nil
 	}
 	if len(fs) != 1 {
-		return nil, fmt.Errorf("terrain : %d scenarios", len(fs))
+		return nil, fmt.Errorf("terrain: %d scenarios", len(fs))
 	}
 	tag, err := m.Extract(fs[0])
 	if err != nil {
@@ -64,11 +66,11 @@ func terrainsDuScenario(chemin string) ([]referenceTerrain, error) {
 	}
 	target := ti.subBlockTarget(root, terrainChampScenario)
 	if target < 0 {
-		return nil, fmt.Errorf("terrain : bloc de scenario absent")
+		return nil, fmt.Errorf("terrain: scenario block absent")
 	}
 	b, size := ti.blockAbs(target)
 	if b < 0 || count > size/terrainPasScenario || b+size > len(tag) {
-		return nil, fmt.Errorf("terrain : bloc de scenario invalide")
+		return nil, fmt.Errorf("terrain: invalid scenario block")
 	}
 	out := make([]referenceTerrain, 0, count)
 	for i := 0; i < count; i++ {
@@ -104,7 +106,7 @@ func ouvreTerrain(idx *ModuleIndex, id uint32) (sourceTerrain, error) {
 	}
 	a, n := ti.blockAbs(root)
 	if n < 0xac {
-		return s, fmt.Errorf("terrain %08x racine courte", id)
+		return s, fmt.Errorf("terrain %08x short root", id)
 	}
 	s.info = ti
 	s.blocNoeuds = ti.subBlockTarget(root, terrainChampNoeuds)
@@ -116,7 +118,7 @@ func ouvreTerrain(idx *ModuleIndex, id uint32) (sourceTerrain, error) {
 		s.taille[i] = f32(tag, a+0x8c+i*4)
 	}
 	if s.blocNoeuds < 0 || s.bitmap == 0 || s.resolution < 1 || s.resolution > 1024 || s.niveaux < 1 || s.niveaux > 10 || s.taille[0] <= 0 || s.taille[1] <= 0 || s.taille[2] <= 0 {
-		return s, fmt.Errorf("terrain %08x parametres invalides", id)
+		return s, fmt.Errorf("terrain %08x invalid parameters", id)
 	}
 	return s, nil
 }
@@ -131,7 +133,7 @@ func cadreTerrain(ref, frame [4]float64) ([4]float64, error) {
 	}
 	for _, v := range c {
 		if math.IsNaN(v) || math.IsInf(v, 0) {
-			return c, fmt.Errorf("terrain : cadre invalide")
+			return c, fmt.Errorf("terrain: invalid frame")
 		}
 	}
 	return c, nil
