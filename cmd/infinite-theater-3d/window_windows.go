@@ -64,10 +64,11 @@ const (
 func openWindowApp(url string) error {
 	applyWebViewEnvDefaults()
 	appOrigin := originOf(url)
-	// The remembered placement, or the default: the standard size, centered.
+	// The remembered placement always wins; with none, the DPI-aware 16:9 default
+	// (defaultWindowPlacement).
 	placement, ok := loadWindowPlacement()
 	if !ok {
-		placement = centeredPlacement(appWindowWidth, appWindowHeight)
+		placement = defaultWindowPlacement()
 	}
 	// webview_go has no window-options struct: the title and the placement (size and
 	// position, or maximized) are set right after creation instead of passed to it. The
