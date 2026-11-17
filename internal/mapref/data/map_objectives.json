@@ -129830,13 +129830,13 @@
     }
   },
   "notes": {
-    "carried_from_schema": "présent sur une carte REPORTÉE d'un schéma antérieur sans re-parse (.mvar absent au refresh) : ses objectifs n'ont pas les champs du schéma courant. Une zone sans `shape` y est NON MIGRÉE, pas ponctuelle — ne pas l'afficher en point",
-    "labels": "murmur3_x86_32(seed=0) du nom snake_case du label de mode",
-    "regeneration": "go run ./cmd/mapobj-build --player \u003cGT\u003e --map-id \u003cuuid\u003e ; hors ligne : --refresh-from \u003cdossier de .mvar\u003e",
-    "repere": "positions en repère monde du .mvar, mètres, non transformées",
-    "shape": "demi-extents en mètres ; ABSENT sur un objectif ponctuel — afficher un point, jamais un disque par défaut. Orientation obligatoire : ignorer forward se trompe de 31 % sur une zone tournée. raw = les entiers 16.16 du fichier, conservés pour recalculer sans ré-extraire",
-    "source": "variantes de carte UGC (.mvar), Bond CompactBinary v2",
-    "team_index": "index d'équipe brut du fichier ; -1 = absent"
+    "carried_from_schema": "present on a map CARRIED OVER from an earlier schema without a re-parse (.mvar missing on refresh): its objectives do not have the current schema's fields. A zone without `shape` here is NOT MIGRATED, not point-shaped -- do not render it as a point",
+    "labels": "murmur3_x86_32(seed=0) of the mode label's snake_case name",
+    "regeneration": "go run ./cmd/mapobj-build --player \u003cGT\u003e --map-id \u003cuuid\u003e ; offline: --refresh-from \u003c.mvar folder\u003e",
+    "repere": "positions in the .mvar's world frame, meters, untransformed",
+    "shape": "half-extents in meters; ABSENT on a point objective -- render a point, never a disc by default. Orientation is mandatory: ignoring forward is wrong by 31% on a rotated zone. raw = the file's 16.16 integers, kept so they can be recomputed without re-extracting",
+    "source": "UGC map variants (.mvar), Bond CompactBinary v2",
+    "team_index": "raw team index from the file; -1 = absent"
   },
   "coverage": {
     "003c828e-c2b3-43b5-b482-4005f9d4ec25": {

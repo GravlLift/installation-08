@@ -123,7 +123,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		return Result{}, err
 	}
 	b := &library{ctx: ctx, folder: dir, generator: generatorLibrary, coatings: coatings,
-		depot: &textureDepot{dir: dir, vues: map[string]bool{}},
+		depot: &textureDepot{dir: dir, seen: map[string]bool{}},
 		index: Index{Schema: SchemaPieces, Mode: Identifier(himap.ModeSpartan), Generator: generatorLibrary,
 			Pieces: []PieceIndex{}, Attachments: []AttachmentIndex{}, Markers: []MarkerIndex{},
 			Themes: []ThemeIndex{}, Failures: []FailureIndex{}}}
@@ -138,16 +138,16 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		}
 		b.bytes += b.index.Coatings.Bytes
 	}
-	b.index.Textures = TexturesIndex{Files: b.depot.fichiers, Bytes: b.depot.octets, References: b.depot.references}
+	b.index.Textures = TexturesIndex{Files: b.depot.files, Bytes: b.depot.bytes, References: b.depot.references}
 	b.index.EkurStamp = stamp
-	b.bytes += b.depot.octets
+	b.bytes += b.depot.bytes
 	if err := b.writeIndex(); err != nil {
 		return b.result(), err
 	}
 	res := b.result()
 	res.Seconds = time.Since(start).Seconds()
 	slog.InfoContext(ctx, "spartan piece library written", "pieces", len(b.index.Pieces), "attachments", len(b.index.Attachments),
-		"failures", len(b.index.Failures), "textures", b.depot.fichiers, "textureBytes", b.depot.octets,
+		"failures", len(b.index.Failures), "textures", b.depot.files, "textureBytes", b.depot.bytes,
 		"textureReferences", b.depot.references, "bytes", res.Bytes)
 	return res, nil
 }
@@ -159,7 +159,7 @@ func (b *library) result() Result {
 		coats = b.index.Coatings.Coatings
 	}
 	return Result{Pieces: len(b.index.Pieces), Attachments: len(b.index.Attachments), Failures: len(b.index.Failures),
-		Textures: b.depot.fichiers, Coatings: coats, Bytes: b.bytes}
+		Textures: b.depot.files, Coatings: coats, Bytes: b.bytes}
 }
 
 // pieceOutcome is one piece's result from the parallel build pool, keyed by its position in

@@ -44,17 +44,17 @@ const FichierIndex = "index.json"
 // FichierBras is the arm pieces catalog the view asks for at the library root.
 const FichierBras = "bras.json"
 
-// prefixeRig prefixes a rig file name with the first 16 hex digits of the sha256 of the rig's
+// rigPrefix prefixes a rig file name with the first 16 hex digits of the sha256 of the rig's
 // content: two weapons on the same rig share one file.
-const prefixeRig = "rig-"
+const rigPrefix = "rig-"
 
-// LongueurEmpreinteRig is the hex length of the content digest in a rig file name.
-const LongueurEmpreinteRig = 16
+// RigDigestLength is the hex length of the content digest in a rig file name.
+const RigDigestLength = 16
 
-// FichierRig rend le nom du GLB d'un rig par l'empreinte de son contenu.
+// FichierRig returns a rig's GLB file name from the digest of its content.
 func FichierRig(glb []byte) string {
 	e := sha256.Sum256(glb)
-	return prefixeRig + hex.EncodeToString(e[:])[:LongueurEmpreinteRig] + ".glb"
+	return rigPrefix + hex.EncodeToString(e[:])[:RigDigestLength] + ".glb"
 }
 
 // fichierTexture returns the depot file name of a shared image: texture-<32 hex>.<ext>, the
@@ -64,13 +64,13 @@ func fichierTexture(data []byte, ext string) string {
 	return "texture-" + hex.EncodeToString(e[:]) + "." + ext
 }
 
-// nomFichierPremierePersonne is the only file names the library folder holds: the index, the
+// firstPersonFileName is the only file names the library folder holds: the index, the
 // arm catalog, a rig, and a depot texture.
 // LOCAL-CHANGE (infinite-theater-3d): depot textures may also be KTX2 (the KTX2 pass output).
-var nomFichierPremierePersonne = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|texture-([0-9a-f]{16}|[0-9a-f]{64})\.(png|jpg|ktx2))$`)
+var firstPersonFileName = regexp.MustCompile(`^(index\.json|bras\.json|rig-[0-9a-f]{16}\.glb|piece-[0-9a-f]{8}-[0-9a-f]{8}\.glb|texture-([0-9a-f]{16}|[0-9a-f]{64})\.(png|jpg|ktx2))$`)
 
-// NomFichierPremierePersonne dit si `nom` est un fichier que la route des rigs sert.
-func NomFichierPremierePersonne(nom string) bool { return nomFichierPremierePersonne.MatchString(nom) }
+// NomFichierPremierePersonne reports whether `name` is a file the rig route serves.
+func NomFichierPremierePersonne(name string) bool { return firstPersonFileName.MatchString(name) }
 
 // Index is the first-person/index.json the view reads: the schema marker, the generator tag,
 // the per-weapon rig entries, the per-file rig entries, the failures, and the texture depot

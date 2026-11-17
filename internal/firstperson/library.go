@@ -82,7 +82,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		}
 	}()
 
-	dep := &depot{dir: dir, vues: map[string]bool{}}
+	dep := &depot{dir: dir, seen: map[string]bool{}}
 	var res Result
 	idx := Index{
 		Schema:    SchemaFirstPerson,
@@ -136,15 +136,15 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		announce("building first-person rig " + key)
 		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)
 		if err != nil {
-			raison := "error"
+			reason := "error"
 			if errors.Is(err, himap.ErrSansPremierePersonne) {
-				raison = "no_first_person"
+				reason = "no_first_person"
 			}
-			slog.WarnContext(ctx, "first-person rig not written", "weapon", key, "reason", raison, "err", err)
+			slog.WarnContext(ctx, "first-person rig not written", "weapon", key, "reason", reason, "err", err)
 			if merr := writeMarker(dir, key); merr != nil {
 				return fmt.Errorf("marker for %s: %w", key, merr)
 			}
-			outcomes[i] = rigOutcome{key: key, failed: true, reason: raison}
+			outcomes[i] = rigOutcome{key: key, failed: true, reason: reason}
 			return nil
 		}
 		outcomes[i] = rigOutcome{key: key, fichier: fichier, rig: rig, markers: effectMarkers(ctx, a, s)}
@@ -170,9 +170,9 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	slog.InfoContext(ctx, "first-person roster scanned", "weapons", len(armes), "without_first_person_block", sans)
 
 	sort.Slice(idx.Rigs, func(i, j int) bool { return idx.Rigs[i].File < idx.Rigs[j].File })
-	idx.Textures = Textures{Files: dep.fichiers, Bytes: dep.octets, References: dep.references}
+	idx.Textures = Textures{Files: dep.files, Bytes: dep.bytes, References: dep.references}
 	idx.EkurStamp = stamp
-	res.Bytes += dep.octets
+	res.Bytes += dep.bytes
 	armBytes, err := spartanpieces.BuildFirstPersonArms(ctx, a, opts.DataDir, dir, announce)
 	if err != nil {
 		return res, err
@@ -270,8 +270,8 @@ func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, d
 	return fichier, rig, nil
 }
 
-// rigIndex rend l'entrée d'index d'un rig: l'empreinte du squelette et des triangles, la
-// pose de repos (quand le graphe porte un clip idle), et un clip par animation distincte.
+// rigIndex builds a rig's index entry: the skeleton and triangle counts, the rest pose
+// (when the graph carries an idle clip), and one clip per distinct animation.
 func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
 	out := Rig{
 		File:        fichier,
@@ -287,14 +287,14 @@ func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
 	if pos, forward, ok := r.ArmeEnAttente(); ok {
 		out.IdleWeapon = &Pose{Position: axesGLTFFirstPerson(pos), Forward: axesGLTFFirstPerson(forward)}
 	}
-	premiere := map[string]himap.ActionRig{}
+	first := map[string]himap.ActionRig{}
 	for _, ac := range r.Actions {
-		if _, vu := premiere[ac.Clip]; !vu {
-			premiere[ac.Clip] = ac
+		if _, seen := first[ac.Clip]; !seen {
+			first[ac.Clip] = ac
 		}
 	}
 	for _, c := range r.Clips {
-		an, ac := c.Clip.Animation, premiere[c.Nom]
+		an, ac := c.Clip.Animation, first[c.Nom]
 		cadence := himap.CadenceAnimation(an)
 		out.Clips = append(out.Clips, Clip{
 			Name:            c.Nom,
@@ -327,22 +327,22 @@ func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) [
 	if err != nil {
 		return out
 	}
-	var effets []uint32
+	var effects []uint32
 	for _, at := range atts {
 		if at.PrimaryScale != 0 {
-			effets = append(effets, at.Effect)
+			effects = append(effects, at.Effect)
 		}
 	}
-	noms := a.EmplacementsDesEffets(effets)
-	if len(noms) == 0 {
+	names := a.EmplacementsDesEffets(effects)
+	if len(names) == 0 {
 		return out
 	}
-	ms, err := a.MarqueursDuModele(s.Mode, noms)
+	markers, err := a.MarqueursDuModele(s.Mode, names)
 	if err != nil {
 		slog.WarnContext(ctx, "first-person effect markers unreadable", "weapon", fmt.Sprintf("%08x", s.Arme), "err", err)
 		return out
 	}
-	for _, m := range ms {
+	for _, m := range markers {
 		if m.NomNoeud == "" {
 			continue
 		}

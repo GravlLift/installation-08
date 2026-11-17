@@ -167,11 +167,11 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	ecrit, err := writeFileIfAbsent(existing, []byte("new bytes"))
+	written, err := writeFileIfAbsent(existing, []byte("new bytes"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ecrit {
+	if written {
 		t.Fatal("an existing file must not be rewritten")
 	}
 	raw, err := readAll(existing)
@@ -181,19 +181,19 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 	if string(raw) != "bytes from the previous run" {
 		t.Fatalf("existing file changed: %q", raw)
 	}
-	manquant := filepath.Join(dir, "rig-fedcba9876543210.glb")
-	ecrit2, err := writeFileIfAbsent(manquant, []byte("fresh"))
-	if err != nil || !ecrit2 {
-		t.Fatalf("missing file: ecrit=%v err=%v, want written", ecrit2, err)
+	missing := filepath.Join(dir, "rig-fedcba9876543210.glb")
+	written2, err := writeFileIfAbsent(missing, []byte("fresh"))
+	if err != nil || !written2 {
+		t.Fatalf("missing file: written=%v err=%v, want written", written2, err)
 	}
-	raw2, err := readAll(manquant)
+	raw2, err := readAll(missing)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(raw2) != "fresh" {
 		t.Fatalf("written file = %q", raw2)
 	}
-	if _, err := readAll(manquant + ".tmp"); err == nil {
+	if _, err := readAll(missing + ".tmp"); err == nil {
 		t.Fatal("a .tmp file must not remain after a successful write")
 	}
 }
@@ -202,7 +202,7 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 // digest; a different image gets its own file.
 func TestDepotDedup(t *testing.T) {
 	dir := t.TempDir()
-	d := &depot{dir: dir, vues: map[string]bool{}}
+	d := &depot{dir: dir, seen: map[string]bool{}}
 	nom1, err := d.depose([]byte("same image"), "image/png")
 	if err != nil {
 		t.Fatal(err)
@@ -214,8 +214,8 @@ func TestDepotDedup(t *testing.T) {
 	if nom1 != nom2 {
 		t.Fatalf("same content must give the same name: %q vs %q", nom1, nom2)
 	}
-	if d.fichiers != 1 || d.references != 2 {
-		t.Fatalf("depot = %d files / %d references, want 1/2", d.fichiers, d.references)
+	if d.files != 1 || d.references != 2 {
+		t.Fatalf("depot = %d files / %d references, want 1/2", d.files, d.references)
 	}
 	nom3, err := d.depose([]byte("other image"), "image/jpeg")
 	if err != nil {
@@ -224,8 +224,8 @@ func TestDepotDedup(t *testing.T) {
 	if nom3 == nom1 {
 		t.Fatal("different content must give a different name")
 	}
-	if d.fichiers != 2 || d.references != 3 {
-		t.Fatalf("depot = %d files / %d references, want 2/3", d.fichiers, d.references)
+	if d.files != 2 || d.references != 3 {
+		t.Fatalf("depot = %d files / %d references, want 2/3", d.files, d.references)
 	}
 	if !NomFichierPremierePersonne(nom1) || !NomFichierPremierePersonne(nom3) {
 		t.Fatalf("depot names are not library file names: %q %q", nom1, nom3)
