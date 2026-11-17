@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /// <reference types="node" />
 /**
- * testDoc.ts — LA fixture de document de rejeu, partagée par tous les tests de la feature.
+ * testDoc.ts — THE replay document fixture, shared by every test in the feature.
  *
- * LE DOCUMENT DE TEST ENTRE PAR LA MÊME PORTE QUE CELUI DU SERVEUR : on décrit un document
- * de transport (champs facultatifs omis) et la frontière `normalizeReplayDocument` le
- * complète. Un test qui bâtirait directement la forme normalisée testerait un document que
- * le serveur n'envoie jamais.
+ * THE TEST DOCUMENT COMES IN THROUGH THE SAME DOOR AS THE SERVER'S: we describe a
+ * transport document (optional fields omitted) and the `normalizeReplayDocument`
+ * boundary fills it in. A test that built the normalized shape directly would be
+ * testing a document the server never actually sends.
  *
- * SA VERSION DE SCHÉMA VIENT DU PRODUCTEUR, plus d'un littéral (2026-09-13, lot 0.B). Elle
- * était figée à la version 1 — un numéro que le serveur n'a jamais servi, sous un
- * commentaire qui énonçait pourtant le principe inverse. Elle est désormais lue dans le
- * manifeste que Go écrit (`fixtures/go/manifest.json`, cf. `goFixtures.ts`) : le jour où la
- * cuisson monte de version, cette fixture suit sans que personne y pense.
+ * ITS SCHEMA VERSION COMES FROM THE PRODUCER, not a literal (2026-09-13, batch 0.B). It
+ * used to be pinned at version 1 — a number the server never served, under a comment
+ * that stated the opposite principle. It's now read from the manifest that Go writes
+ * (`fixtures/go/manifest.json`, see `goFixtures.ts`): the day the decoding bumps its
+ * version, this fixture follows without anyone having to remember.
  *
- * CE QU'ELLE N'EST PAS, ET POURQUOI ELLE RESTE MINIMALE. Elle n'est pas le document COMPLET
- * produit par Go : celui-ci vit dans `fixtures/go/`, pèse 3,3 Mio et sert le test de contrat
- * (`test/goFixtures.contract.test.ts`), qui le fait passer par la frontière et par les
- * logiques pures. Ici, ce qu'on veut est un document MINIMAL que chaque test surcharge de ce
- * qu'il observe — un document complet ferait dépendre 250 tests de valeurs qu'ils ne
- * décrivent pas. Les deux sont complémentaires : l'un prouve que la frontière tient sur le
- * document RÉEL, l'autre isole ce qu'un test veut montrer.
+ * WHAT IT IS NOT, AND WHY IT STAYS MINIMAL. It's not the COMPLETE document produced by
+ * Go: that one lives in `fixtures/go/`, weighs 3.3 MiB and serves the contract test
+ * (`test/goFixtures.contract.test.ts`), which runs it through the boundary and the pure
+ * logic. Here, what we want is a MINIMAL document that each test overrides with what it
+ * observes — a complete document would make 250 tests depend on values they don't
+ * describe. The two are complementary: one proves the boundary holds on the REAL
+ * document, the other isolates what a given test wants to show.
  *
- * Règle « ≤ 2 copies » (CLAUDE.md n° 6) : ce helper est né quand la 3e copie de cette
- * fixture allait apparaître. Le garde-rail `testDoc.guard.test.ts` interdit d'en rebâtir
- * une à la main dans les tests de la feature, et d'y écrire un numéro de schéma en dur.
+ * "≤ 2 copies" rule (CLAUDE.md #6): this helper was born when a 3rd copy of this
+ * fixture was about to appear. The `testDoc.guard.test.ts` guardrail forbids rebuilding
+ * one by hand in the feature's tests, and forbids hardcoding a schema number there.
  */
 import type { ReplayDocument } from '@/lib/api/types'
 
@@ -42,19 +42,19 @@ const SCHEMA_VERSION = 116
 type RosterEntry = NonNullable<ReplayDocument['roster']>[number]
 
 /**
- * Entrée de roster de test : `seat` est OPTIONNEL ici et vaut l'index de film par défaut — c'est
- * sa définition depuis le schéma 60 (lot 1.9.14 : le siège d'un joueur EST l'index que le film
- * écrit ; le document ne l'omet jamais). Les tests qui veulent un siège apparié (différent de
- * l'index) le posent explicitement.
+ * Test roster entry: `seat` is OPTIONAL here and defaults to the film index — that's
+ * been its definition since schema 60 (batch 1.9.14: a player's seat IS the index the
+ * film writes; the document never omits it). Tests that want a mismatched seat
+ * (different from the index) set it explicitly.
  */
 export type TestRosterEntry = Omit<RosterEntry, 'seat'> & { seat?: number }
 
-/** Surcharges acceptées par [testReplayDoc] : le document, avec un roster de test. */
+/** Overrides accepted by [testReplayDoc]: the document, with a test roster. */
 export type TestReplayDocOverrides = Omit<Partial<ReplayDocument>, 'roster'> & {
   roster?: TestRosterEntry[]
 }
 
-/** Document de rejeu minimal valide, normalisé — surcharger ce que le test veut voir. */
+/** Minimal valid, normalized replay document — override what the test wants to see. */
 export function testReplayDoc(over: Partial<ReplayDocument> | TestReplayDocOverrides = {}): ReplayDocumentReady {
   const { roster, ...rest } = over as TestReplayDocOverrides
   return normalizeReplayDocument({

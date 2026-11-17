@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useVariantLayer — pose le calque des objets de la variante du match sur la carte 3D chargée.
+ * useVariantLayer — places the match variant's object layer on the loaded 3D map.
  *
  * The layer's GLB download starts as soon as its path is known, alongside the map's (its size
  * weighs in the loading bar from the start); its preparation waits for the posed map (`scene`),
@@ -126,7 +126,7 @@ export function useVariantLayer(
         }
       } catch (err) {
         if (!alive) return
-        console.warn('rejeu 3D : calque des objets de la variante non chargé, la carte reste seule', variantPath, err)
+        console.warn('3D replay: variant object layer not loaded, map stays alone', variantPath, err)
       }
       if (!alive) return
       progress.variantSettled()
