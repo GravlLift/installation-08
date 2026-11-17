@@ -70,6 +70,23 @@ import { ExportFileTarget } from './replayExportFileTarget'
 import { yieldToEvents } from './eventLoopYield'
 
 /**
+ * Les sous-objets propres à un codec que WebCodecs accepte sur `VideoEncoderConfig` et
+ * `VideoEncoderEncodeOptions`. `lib.dom` ne type que `avc` ; `hevc` et `av1` sont de vrais
+ * champs WebCodecs (chacun porte un `quantizer` dans les options d'encodage) que la lib ne
+ * suit pas encore. On étend les types DOM ici pour construire des configs bien typées pour ces
+ * codecs, sans les forcer dans l'API publique du module.
+ */
+interface ExportCodecFields {
+  hevc?: { quantizer?: number | null }
+  av1?: { quantizer?: number | null }
+}
+
+/** `VideoEncoderConfig` + les champs `hevc`/`av1` que lib.dom ne type pas. */
+type ExportVideoEncoderConfig = VideoEncoderConfig & ExportCodecFields
+/** `VideoEncoderEncodeOptions` + les champs `hevc`/`av1` que lib.dom ne type pas. */
+type ExportVideoEncoderEncodeOptions = VideoEncoderEncodeOptions & ExportCodecFields
+
+/**
  * CADENCE DE L'EXPORT, en images par seconde.
  *
  * VOLONTAIREMENT DISTINCTE de `CAPTURE_FPS` (`replayRecording.ts`), qui vaut le même nombre
@@ -191,9 +208,80 @@ export function avcLevelFor(width: number, height: number, fps: number): string 
   return `${AVC_PROFILE}${level?.hex ?? AVC_LEVELS[AVC_LEVELS.length - 1].hex}`
 }
 
-/** videoBitrate : le débit visé, borné (cf. `BITRATE_MIN` / `BITRATE_MAX`). */
-export function videoBitrate(width: number, height: number, fps: number): number {
-  const raw = Math.round(width * height * fps * BITS_PER_PIXEL)
+/**
+ * Les niveaux HEVC, du plus bas au plus haut, avec ce que chacun accepte : `maxLuma` en
+ * échantillons de luminance par image et `maxLumaRate` en échantillons par seconde (tableau
+ * A-1 de la norme, Main Tier). `code` est le suffixe `L<level>` du nom de codec.
+ */
+const HEVC_LEVELS: readonly { code: string; maxLuma: number; maxLumaRate: number }[] = [
+  { code: 'L90', maxLuma: 36_864, maxLumaRate: 99_532 }, // 1
+  { code: 'L93', maxLuma: 81_920, maxLumaRate: 222_784 }, // 2
+  { code: 'L100', maxLuma: 122_880, maxLumaRate: 334_176 }, // 3
+  { code: 'L103', maxLuma: 245_760, maxLumaRate: 668_352 }, // 4
+  { code: 'L110', maxLuma: 245_760, maxLumaRate: 1_336_704 }, // 5
+  { code: 'L120', maxLuma: 552_960, maxLumaRate: 2_963_072 }, // 6
+  { code: 'L123', maxLuma: 1_105_920, maxLumaRate: 5_926_144 }, // 7
+  { code: 'L150', maxLuma: 8_912_896, maxLumaRate: 47_513_152 }, // 8
+  { code: 'L153', maxLuma: 17_825_792, maxLumaRate: 95_026_304 }, // 8.1
+]
+
+/** Profil MAIN (`1`), type de profil généraliste (`6`) : ce que tout lecteur décode. */
+const HEVC_PROFILE = 'hvc1.1.6'
+
+/**
+ * hevcLevelFor rend le nom de codec HEVC pour cette image et cette cadence : le PLUS BAS
+ * niveau qui accepte la surface et le débit d'échantillons, en `hvc1.1.6.L<level>.B0` (le `B0`
+ * est le High Tier absent — Main Tier). Comme `avcLevelFor`, au-delà du plus haut niveau on
+ * rend le dernier plutôt que de refuser l'export.
+ */
+export function hevcLevelFor(width: number, height: number, fps: number): string {
+  const luma = Math.ceil(width / 2) * Math.ceil(height / 2)
+  const rate = luma * fps
+  const level = HEVC_LEVELS.find((l) => luma <= l.maxLuma && rate <= l.maxLumaRate)
+  return `${HEVC_PROFILE}.${level?.code ?? HEVC_LEVELS[HEVC_LEVELS.length - 1].code}.B0`
+}
+
+/**
+ * Les niveaux AV1, du plus bas au plus haut, avec `maxLuma` (échantillons de luminance par
+ * image) et `maxLumaRate` (par seconde). `code` est le niveau, `tier` le tier (`0` Main, `1`
+ * High). AV1 compte la surface en échantillons de luminance (pas en macroblocs), d'où les
+ * plafonds deux fois plus grands que HEVC à niveau comparable.
+ */
+const AV1_LEVELS: readonly { code: string; tier: '0' | '1'; maxLuma: number; maxLumaRate: number }[] = [
+  { code: '2.0', tier: '0', maxLuma: 204_800, maxLumaRate: 614_400 }, // 2.0
+  { code: '2.1', tier: '0', maxLuma: 204_800, maxLumaRate: 1_228_800 }, // 2.1
+  { code: '3.0', tier: '0', maxLuma: 409_600, maxLumaRate: 1_228_800 }, // 3.0
+  { code: '3.1', tier: '0', maxLuma: 409_600, maxLumaRate: 2_457_600 }, // 3.1
+  { code: '4.0', tier: '0', maxLuma: 819_200, maxLumaRate: 2_457_600 }, // 4.0
+  { code: '4.1', tier: '0', maxLuma: 819_200, maxLumaRate: 4_915_200 }, // 4.1
+  { code: '5.0', tier: '0', maxLuma: 1_638_400, maxLumaRate: 4_915_200 }, // 5.0
+  { code: '5.1', tier: '1', maxLuma: 1_638_400, maxLumaRate: 9_830_400 }, // 5.1
+  { code: '5.2', tier: '1', maxLuma: 1_638_400, maxLumaRate: 19_660_800 }, // 5.2
+  { code: '6.0', tier: '0', maxLuma: 3_276_800, maxLumaRate: 9_830_400 }, // 6.0
+  { code: '6.1', tier: '1', maxLuma: 3_276_800, maxLumaRate: 19_660_800 }, // 6.1
+  { code: '6.2', tier: '1', maxLuma: 3_276_800, maxLumaRate: 39_321_600 }, // 6.2
+]
+
+/** Profil MAIN (`0`), 8 bits (`.08`) : le nom de codec AV1 de base, suivi du niveau et du tier. */
+const AV1_PREFIX = 'av01.0.'
+
+/**
+ * av1LevelFor rend le nom de codec AV1 pour cette image et cette cadence : le PLUS BAS niveau
+ * qui accepte la surface et le débit d'échantillons, en `av01.0.<level><tier>.08` (Main
+ * Profile `0`, 8 bits `.08`). Comme `avcLevelFor`, au-delà du plus haut niveau on rend le
+ * dernier plutôt que de refuser l'export.
+ */
+export function av1LevelFor(width: number, height: number, fps: number): string {
+  const luma = Math.ceil(width / 2) * Math.ceil(height / 2)
+  const rate = luma * fps
+  const level = AV1_LEVELS.find((l) => luma <= l.maxLuma && rate <= l.maxLumaRate)
+  const last = AV1_LEVELS[AV1_LEVELS.length - 1]
+  return `${AV1_PREFIX}${level?.code ?? last.code}${level?.tier ?? last.tier}.08`
+}
+
+/** videoBitrate : le débit visé, borné (cf. `BITRATE_MIN` / `BITRATE_MAX`), à `bitsPerPixel`. */
+export function videoBitrate(width: number, height: number, fps: number, bitsPerPixel: number = BITS_PER_PIXEL): number {
+  const raw = Math.round(width * height * fps * bitsPerPixel)
   return Math.min(BITRATE_MAX, Math.max(BITRATE_MIN, raw))
 }
 
@@ -205,6 +293,77 @@ export function videoBitrate(width: number, height: number, fps: number): number
  */
 export type ExportRateMode = 'quantizer' | 'constant' | 'variable'
 
+/** Les familles de codec que l'export sait encoder. */
+export type ExportVideoCodec = 'avc' | 'hevc' | 'av1'
+
+/** Les noms de préréglages vidéo. */
+export type ExportVideoPresetName =
+  | 'h264-qp20'
+  | 'h264-qp23'
+  | 'h264-qp26'
+  | 'h264-qp29'
+  | 'hevc-qp26'
+  | 'av1-q35'
+
+/**
+ * Un préréglage vidéo nommé. C'est la SEULE chose que l'on change pour varier la qualité : on
+ * pointe `EXPORT_VIDEO_PRESET` sur un autre nom de ce tableau.
+ *
+ * - `codec` : la famille de codec (`'avc'` = H.264, `'hevc'`, `'av1'`).
+ * - `mode` : le mode de débit à essayer en premier. Tous nos préréglages sont `'quantizer'`.
+ * - `quantizer` : le quantizer à l'échelle PROPRE du codec (H.264 et HEVC : 0-51 ; AV1 : 0-63).
+ *   Présent quand `mode` est `'quantizer'`.
+ * - `bitsPerPixel` : les bits par pixel pour le mode de débit, utilisé quand le mode
+ *   `'quantizer'` n'est pas supporté. H.264 conserve le 0.25 d'aujourd'hui.
+ * - `fallback` : le nom du préréglage à essayer quand le navigateur ne sait pas encoder celui-ci.
+ *   Absent à la fin de la chaîne : le préréglage H.264 par défaut, dont le repli de mode
+ *   (constant puis variable) est toujours accepté.
+ */
+export interface ExportVideoPreset {
+  name: ExportVideoPresetName
+  codec: ExportVideoCodec
+  mode: ExportRateMode
+  quantizer?: number
+  bitsPerPixel?: number
+  fallback?: ExportVideoPresetName
+}
+
+/**
+ * LA TABLE DES PRÉRÉGLAGES. Le repli de chaque préréglage pointe vers un préréglage plus sûr,
+ * et TOUTE chaîne se termine sur un préréglage H.264 : le navigateur encode toujours H.264, et
+ * ses replis de mode constant/variable (le 0.25 d'aujourd'hui) sont toujours acceptés. `hevc`
+ * et `av1` tombent sur `h264-qp23` — valeurs de départ pour la mesure à venir, pas un choix
+ * final.
+ */
+export const EXPORT_VIDEO_PRESETS: Record<ExportVideoPresetName, ExportVideoPreset> = {
+  'h264-qp20': { name: 'h264-qp20', codec: 'avc', mode: 'quantizer', quantizer: EXPORT_QP, bitsPerPixel: BITS_PER_PIXEL },
+  'h264-qp23': { name: 'h264-qp23', codec: 'avc', mode: 'quantizer', quantizer: 23, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
+  'h264-qp26': { name: 'h264-qp26', codec: 'avc', mode: 'quantizer', quantizer: 26, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
+  'h264-qp29': { name: 'h264-qp29', codec: 'avc', mode: 'quantizer', quantizer: 29, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
+  'hevc-qp26': { name: 'hevc-qp26', codec: 'hevc', mode: 'quantizer', quantizer: 26, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp23' },
+  'av1-q35': { name: 'av1-q35', codec: 'av1', mode: 'quantizer', quantizer: 35, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp23' },
+}
+
+/**
+ * LE PRÉRÉGLAGE ACTUEL : le seul nom à changer pour basculer de qualité. `'h264-qp20'` est
+ * exactement le comportement d'aujourd'hui (H.264, QP 20).
+ */
+export const EXPORT_VIDEO_PRESET: ExportVideoPresetName = 'h264-qp20'
+
+/**
+ * codecStringFor rend le nom de codec complet du préréglage pour cette image et cette cadence :
+ * le H.264 de `avcLevelFor`, ou le HEVC/AV1 de `hevcLevelFor`/`av1LevelFor` selon le codec.
+ */
+export function codecStringFor(preset: ExportVideoPreset, width: number, height: number, fps: number): string {
+  const w = evenSize(width)
+  const h = evenSize(height)
+  switch (preset.codec) {
+    case 'avc': return avcLevelFor(w, h, fps)
+    case 'hevc': return hevcLevelFor(w, h, fps)
+    case 'av1': return av1LevelFor(w, h, fps)
+  }
+}
+
 /**
  * videoEncoderConfig assemble la configuration complète. PURE : c'est elle qu'on teste, et
  * c'est elle qu'on passe à `VideoEncoder.isConfigSupported` avant d'ouvrir quoi que ce soit.
@@ -212,30 +371,37 @@ export type ExportRateMode = 'quantizer' | 'constant' | 'variable'
  * Les dimensions reçues sont celles de la TOILE ; celles qui sortent sont paires.
  *
  * Le MODE est choisi par l'appelant (`chooseExportRateMode`), qui l'a PROUVE par la même
- * fonction : `'quantizer'` encode à qualité constante (QP `EXPORT_QP`, pas de `bitrate`),
- * `'constant'` et `'variable'` visent le débit borné de `videoBitrate`.
+ * fonction : `'quantizer'` encode à qualité constante (le quantizer du préréglage, pas de
+ * `bitrate`), `'constant'` et `'variable'` visent le débit borné de `videoBitrate`.
+ *
+ * LE PRÉRÉGLAGE (`preset`) choisit le codec et le quantizer. Par défaut, c'est le préréglage
+ * d'aujourd'hui : H.264, QP 20 — la config rendue est alors byte à byte celle d'avant.
  */
 export function videoEncoderConfig(
   width: number,
   height: number,
   fps: number = EXPORT_FPS,
   mode: ExportRateMode = 'variable',
-): VideoEncoderConfig {
+  preset: ExportVideoPreset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET],
+): ExportVideoEncoderConfig {
   const w = evenSize(width)
   const h = evenSize(height)
-  const config: VideoEncoderConfig = {
-    codec: avcLevelFor(w, h, fps),
+  const config: ExportVideoEncoderConfig = {
+    codec: codecStringFor(preset, w, h, fps),
     width: w,
     height: h,
     framerate: fps,
-    // `avc` et non `annexb` : c'est la forme que le conteneur MP4 attend.
-    avc: { format: 'avc' },
+  }
+  if (preset.codec === 'avc') {
+    // `avc` et non `annexb` : c'est la forme que le conteneur MP4 attend. HEVC/AV1 n'ont pas
+    // de sous-objet de config : leur nom de codec fait déjà le travail.
+    config.avc = { format: 'avc' }
   }
   if (mode === 'quantizer') {
     // Pas de `bitrate` : en mode quantizer, la qualité EST le réglage.
     config.bitrateMode = 'quantizer'
   } else {
-    config.bitrate = videoBitrate(w, h, fps)
+    config.bitrate = videoBitrate(w, h, fps, preset.bitsPerPixel)
     config.bitrateMode = mode
   }
   return config
@@ -258,10 +424,73 @@ export async function chooseExportRateMode(
   return 'variable'
 }
 
-/** The encode options of one frame: `avc.quantizer` in quantizer mode, and only there. */
-export function encodeOptionsFor(mode: ExportRateMode, keyFrame: boolean): VideoEncoderEncodeOptions {
-  if (mode === 'quantizer') return { keyFrame, avc: { quantizer: EXPORT_QP } }
-  return { keyFrame }
+/**
+ * resolveExportPreset parcourt la chaîne de repli des préréglages et rend le PREMIER que ce
+ * navigateur sait encoder, dans le mode de débit que la sonde a prouvé.
+ *
+ * - Un préréglage NON H.264 (HEVC/AV1) n'est essayé que dans son mode primaire (`quantizer`) ;
+ *   refusé, la chaîne avance vers son `fallback`.
+ * - Un préréglage H.264 est la fin de la chaîne : on essaie son quantizer, puis le repli de
+ *   mode constant puis variable d'aujourd'hui, toujours accepté par le navigateur. La marche
+ *   aboutit donc TOUJOURS à un préréglage H.264 dans un mode supporté.
+ *
+ * `null` seulement si la table est mal formée (nom inconnu ou boucle) : avec la table bien
+ * formée, la marche se termine toujours sur H.264.
+ */
+export async function resolveExportPreset(
+  presetName: ExportVideoPresetName,
+  width: number,
+  height: number,
+  fps: number,
+  probe: (config: VideoEncoderConfig) => Promise<boolean>,
+): Promise<{ preset: ExportVideoPreset; mode: ExportRateMode } | null> {
+  const seen = new Set<ExportVideoPresetName>()
+  let name: ExportVideoPresetName = presetName
+  for (;;) {
+    const preset = EXPORT_VIDEO_PRESETS[name]
+    if (!preset || seen.has(name)) return null
+    seen.add(name)
+    if (preset.codec === 'avc') {
+      return { preset, mode: await rateModeForPreset(preset, width, height, fps, probe) }
+    }
+    if (await probe(videoEncoderConfig(width, height, fps, preset.mode, preset))) {
+      return { preset, mode: preset.mode }
+    }
+    if (!preset.fallback) return null
+    name = preset.fallback
+  }
+}
+
+/** Le mode de débit H.264 que la sonde accepte pour ce préréglage : quantizer, puis constant, puis variable. */
+async function rateModeForPreset(
+  preset: ExportVideoPreset,
+  width: number,
+  height: number,
+  fps: number,
+  probe: (config: VideoEncoderConfig) => Promise<boolean>,
+): Promise<ExportRateMode> {
+  if (preset.mode === 'quantizer' && (await probe(videoEncoderConfig(width, height, fps, 'quantizer', preset)))) return 'quantizer'
+  if (await probe(videoEncoderConfig(width, height, fps, 'constant', preset))) return 'constant'
+  return 'variable'
+}
+
+/**
+ * The encode options of one frame: the codec's `quantizer` in quantizer mode, and only there.
+ * The quantizer travels under the codec's own key (`avc`/`hevc`/`av1`), on that codec's scale.
+ */
+export function encodeOptionsFor(
+  mode: ExportRateMode,
+  keyFrame: boolean,
+  preset: ExportVideoPreset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET],
+): ExportVideoEncoderEncodeOptions {
+  if (mode !== 'quantizer') return { keyFrame }
+  const options: ExportVideoEncoderEncodeOptions = { keyFrame }
+  switch (preset.codec) {
+    case 'avc': options.avc = { quantizer: preset.quantizer }; break
+    case 'hevc': options.hevc = { quantizer: preset.quantizer }; break
+    case 'av1': options.av1 = { quantizer: preset.quantizer }; break
+  }
+  return options
 }
 
 /**
@@ -308,10 +537,11 @@ export async function chooseExportFps(
   fallback: number | undefined,
   probe: (config: VideoEncoderConfig) => Promise<boolean>,
   mode: ExportRateMode = 'variable',
+  preset: ExportVideoPreset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET],
 ): Promise<number | null> {
-  if (await probe(videoEncoderConfig(width, height, wanted, mode))) return wanted
+  if (await probe(videoEncoderConfig(width, height, wanted, mode, preset))) return wanted
   if (fallback === undefined || fallback === wanted) return null
-  return (await probe(videoEncoderConfig(width, height, fallback, mode))) ? fallback : null
+  return (await probe(videoEncoderConfig(width, height, fallback, mode, preset))) ? fallback : null
 }
 
 /** The browser probe: a throw (invalid configuration) is an answer, not a failure. */
@@ -417,9 +647,10 @@ export interface VideoExportSink {
    */
   fpsFallback: boolean
   /**
-   * The rate mode the file is encoded in, decided by the probe (`chooseExportRateMode`).
-   * `'quantizer'` = constant quality at `EXPORT_QP`; the others target `videoBitrate`.
-   * Recorded next to the fps fallback; `openVideoExport` already said it at export start.
+   * The rate mode the file is encoded in, decided by the probe (`resolveExportPreset`).
+   * `'quantizer'` = constant quality at the selected preset's quantizer; the others target
+   * `videoBitrate`. Recorded next to the fps fallback; `openVideoExport` already said it at
+   * export start.
    */
   rateMode: ExportRateMode
 }
@@ -482,20 +713,23 @@ const MIX_TRACK_SHAPE: AudioTrackShape = { sampleRate: 48_000, numberOfChannels:
 export async function openVideoExport(o: VideoExportOptions): Promise<VideoExportSink | null> {
   if (!canExportVideo()) return null
   const wanted = o.fps ?? EXPORT_FPS
-  // LE MODE SE PROUVE D'ABORD : c'est lui qui décide de la config, et la sonde de cadence
-  // (le repli 60->30) probe ensuite la config qui sera réellement ouverte.
-  const mode = await chooseExportRateMode(o.width, o.height, wanted, browserSupports)
-  const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports, mode)
+  // LE PRÉRÉGLAGE SE PROUVE D'ABORD : il choisit le codec et le mode de débit (et, si HEVC/AV1
+  // sont refusés, retombe sur H.264). La sonde de cadence (le repli 60->30) probe ensuite la
+  // config qui sera réellement ouverte.
+  const resolved = await resolveExportPreset(EXPORT_VIDEO_PRESET, o.width, o.height, wanted, browserSupports)
+  if (resolved === null) return null
+  const { preset, mode } = resolved
+  const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports, mode, preset)
   if (fps === null) return null
   const fpsFallback = fps !== wanted
   if (fpsFallback) {
     // LOUD, NOT SILENT: the caller also shows it in the dialog (`ReplayExportState.fpsFallback`).
     console.warn(`[replay-export] ${o.width}x${o.height} at ${wanted} fps refused by this browser's encoder, encoding at ${fps} fps`)
   }
-  const config = videoEncoderConfig(o.width, o.height, fps, mode)
-  // ON DIT LE MODE UNE FOIS, avec la config : le reviewer vérifie dans la console ce qui a été
-  // demandé à l'encodeur, sans avoir à deviner quel mode a gagné la sonde.
-  console.info(`[replay-export] rate mode ${mode} —`, JSON.stringify(config))
+  const config = videoEncoderConfig(o.width, o.height, fps, mode, preset)
+  // ON DIT LE PRÉRÉGLAGE ET LE MODE UNE FOIS, avec la config : le reviewer vérifie dans la
+  // console ce qui a été demandé à l'encodeur, sans avoir à deviner ce qui a gagné la sonde.
+  console.info(`[replay-export] preset ${preset.name}, rate mode ${mode} —`, JSON.stringify(config))
   const noms = o.audioTracks ?? []
   // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `audioTrackUsable`) : le
   // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
@@ -521,7 +755,8 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
       }),
     ),
   })
-  const videoSource = new EncodedVideoPacketSource('avc')
+  // La piste du conteneur déclare le codec du préréglage : `avc`, `hevc` ou `av1`.
+  const videoSource = new EncodedVideoPacketSource(preset.codec)
   output.addVideoTrack(videoSource, { frameRate: fps })
   // Les pistes AUDIO sont ajoutees ICI, vides : leur EXISTENCE et leur ORDRE se declarent avant
   // le premier octet, leur contenu arrive plus tard (`addAudioTracks`).
@@ -561,7 +796,7 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     },
   })
   encoder.configure(config)
-  const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, () => failure, () => ecritures, {
+  const sink = makeSink(encoder, output, videoSource, audioSources, fps, mode, preset, () => failure, () => ecritures, {
     width: config.width,
     height: config.height,
   }, fileTarget)
@@ -580,6 +815,7 @@ function makeSink(
   audioSources: readonly AudioBufferSource[],
   fps: number,
   mode: ExportRateMode,
+  preset: ExportVideoPreset,
   failureOf: () => Error | null,
   /** La chaine des ecritures de paquets video, a attendre avant de finaliser. */
   ecrituresEnCours: () => Promise<unknown>,
@@ -605,9 +841,9 @@ function makeSink(
       visibleRect: { x: 0, y: 0, width: size.width, height: size.height },
     })
     try {
-      // `avc.quantizer` only in quantizer mode: the browser ignores it in the rate modes, and
-      // sending it there would make the console log lie about what was asked.
-      encoder.encode(frame, encodeOptionsFor(mode, isKeyFrame(index, fps)))
+      // le quantizer du préréglage, sous la clé de SON codec, seulement en mode quantizer :
+      // dans les modes de débit le navigateur l'ignore, et l'envoyer mentirait la console.
+      encoder.encode(frame, encodeOptionsFor(mode, isKeyFrame(index, fps), preset))
     } finally {
       // TOUJOURS, même si `encode` lève : une `VideoFrame` non fermée retient sa mémoire GPU,
       // et il en passe trente par seconde de match.

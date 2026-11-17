@@ -13,7 +13,10 @@ import {
   EXPORT_FPS,
   EXPORT_FPS_3D,
   EXPORT_QP,
+  EXPORT_VIDEO_PRESET,
+  EXPORT_VIDEO_PRESETS,
   KEYFRAME_EVERY,
+  av1LevelFor,
   avcLevelFor,
   canExportVideo,
   chooseExportFps,
@@ -22,12 +25,14 @@ import {
   evenSize,
   frameDurationUs,
   frameTimestampUs,
+  hevcLevelFor,
   isKeyFrame,
+  resolveExportPreset,
   shouldDrain,
   videoBitrate,
   videoEncoderConfig,
 } from './replayVideoEncoder'
-import type { ExportRateMode } from './replayVideoEncoder'
+import type { ExportRateMode, ExportVideoPreset, ExportVideoPresetName } from './replayVideoEncoder'
 
 describe('evenSize — H.264 refuse les dimensions impaires', () => {
   it('laisse un nombre pair intact', () => {
@@ -255,5 +260,169 @@ describe('canExportVideo — la capacité du navigateur', () => {
   it('rend false là où WebCodecs n’existe pas (jsdom)', () => {
     // C'est ce qui fait retomber l'UI sur l'enregistreur temps réel (décision D5 du plan).
     expect(canExportVideo()).toBe(false)
+  })
+})
+
+describe('EXPORT_VIDEO_PRESET — le préréglage par défaut est exactement aujourd’hui', () => {
+  it('le préréglage par défaut est h264-qp20', () => {
+    expect(EXPORT_VIDEO_PRESET).toBe('h264-qp20')
+    expect(EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]).toEqual({
+      name: 'h264-qp20',
+      codec: 'avc',
+      mode: 'quantizer',
+      quantizer: EXPORT_QP,
+      bitsPerPixel: 0.25,
+    })
+  })
+
+  it('videoEncoderConfig, par défaut, est byte à byte la config d’aujourd’hui', () => {
+    const preset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]
+    // Le mode quantizer : le réglage d’aujourd’hui, sans `bitrate`.
+    expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)).toEqual({
+      codec: 'avc1.64001f',
+      width: 1280,
+      height: 720,
+      framerate: 30,
+      bitrateMode: 'quantizer',
+      avc: { format: 'avc' },
+    })
+    // Les modes de débit : le repli d’aujourd’hui, au même débit borné.
+    expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'variable', preset)).toEqual({
+      codec: 'avc1.64001f',
+      width: 1280,
+      height: 720,
+      framerate: 30,
+      bitrate: 6_912_000,
+      bitrateMode: 'variable',
+      avc: { format: 'avc' },
+    })
+  })
+
+  it('encodeOptionsFor, par défaut, est byte à byte les options d’aujourd’hui', () => {
+    const preset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, avc: { quantizer: 20 } })
+    expect(encodeOptionsFor('quantizer', false, preset)).toEqual({ keyFrame: false, avc: { quantizer: 20 } })
+    expect(encodeOptionsFor('constant', true, preset)).toEqual({ keyFrame: true })
+    expect(encodeOptionsFor('variable', false, preset)).toEqual({ keyFrame: false })
+  })
+})
+
+describe('chaque préréglage produit sa config et son nom de codec', () => {
+  it('h264-qp23 : H.264 à QP 23, même forme que le par défaut', () => {
+    const preset = EXPORT_VIDEO_PRESETS['h264-qp23']
+    expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)).toEqual({
+      codec: 'avc1.64001f',
+      width: 1280,
+      height: 720,
+      framerate: 30,
+      bitrateMode: 'quantizer',
+      avc: { format: 'avc' },
+    })
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, avc: { quantizer: 23 } })
+  })
+
+  it('h264-qp26 : H.264 à QP 26', () => {
+    const preset = EXPORT_VIDEO_PRESETS['h264-qp26']
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, avc: { quantizer: 26 } })
+    expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset).codec).toBe(avcLevelFor(1280, 720, EXPORT_FPS))
+  })
+
+  it('h264-qp29 : H.264 à QP 29', () => {
+    const preset = EXPORT_VIDEO_PRESETS['h264-qp29']
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, avc: { quantizer: 29 } })
+    expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset).codec).toBe(avcLevelFor(1280, 720, EXPORT_FPS))
+  })
+
+  it('hevc-qp26 : HEVC à QP 26, nom de codec HEVC, sans sous-objet avc', () => {
+    const preset = EXPORT_VIDEO_PRESETS['hevc-qp26']
+    const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)
+    // 640x360 échantillons = 230 400, x30 = 6 912 000 : sous le plafond du niveau 8 (L150).
+    expect(config.codec).toBe('hvc1.1.6.L150.B0')
+    expect(config.codec).toBe(hevcLevelFor(1280, 720, EXPORT_FPS))
+    expect(config).toMatchObject({ width: 1280, height: 720, framerate: 30, bitrateMode: 'quantizer' })
+    expect('avc' in config).toBe(false)
+    expect('bitrate' in config).toBe(false)
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, hevc: { quantizer: 26 } })
+  })
+
+  it('av1-q35 : AV1 à quantizer 35, nom de codec AV1, sans sous-objet avc', () => {
+    const preset = EXPORT_VIDEO_PRESETS['av1-q35']
+    const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)
+    // 230 400 échantillons x30 = 6 912 000 : niveau 5.1 (High Tier, tier 1).
+    expect(config.codec).toBe('av01.0.5.11.08')
+    expect(config.codec).toBe(av1LevelFor(1280, 720, EXPORT_FPS))
+    expect(config).toMatchObject({ width: 1280, height: 720, framerate: 30, bitrateMode: 'quantizer' })
+    expect('avc' in config).toBe(false)
+    expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, av1: { quantizer: 35 } })
+  })
+
+  it('les niveaux HEVC/AV1 suivent la surface ET la cadence, comme H.264', () => {
+    // 1080p60 : 518 400 échantillons, x60 = 31 104 000.
+    expect(hevcLevelFor(1920, 1080, 60)).toBe('hvc1.1.6.L150.B0')
+    expect(av1LevelFor(1920, 1080, 60)).toBe('av01.0.6.21.08')
+    // 1080p30 : 15 552 000 b/s, au-dessus de 5.1 (9 830 400), donc 5.2.
+    expect(hevcLevelFor(1920, 1080, 30)).toBe('hvc1.1.6.L150.B0')
+    expect(av1LevelFor(1920, 1080, 30)).toBe('av01.0.5.21.08')
+  })
+})
+
+describe('resolveExportPreset — la chaîne retombe sur H.264', () => {
+  // La sonde fake refuse tout codec non H.264.
+  const onlyAvc = async (c: VideoEncoderConfig) => c.codec.startsWith('avc1')
+
+  it('prend le HEVC quand la sonde l’accepte', async () => {
+    const resolved = await resolveExportPreset('hevc-qp26', 1280, 720, EXPORT_FPS, async (c) => c.codec.startsWith('hvc1'))
+    expect(resolved?.preset.name).toBe('hevc-qp26')
+    expect(resolved?.mode).toBe('quantizer')
+  })
+
+  it('retombe sur h264-qp23 quand le navigateur refuse le HEVC', async () => {
+    const resolved = await resolveExportPreset('hevc-qp26', 1280, 720, EXPORT_FPS, onlyAvc)
+    expect(resolved?.preset.name).toBe('h264-qp23')
+    expect(resolved?.preset.codec).toBe('avc')
+    expect(resolved?.mode).toBe('quantizer')
+  })
+
+  it('prend l’AV1 quand la sonde l’accepte', async () => {
+    const resolved = await resolveExportPreset('av1-q35', 1280, 720, EXPORT_FPS, async (c) => c.codec.startsWith('av01'))
+    expect(resolved?.preset.name).toBe('av1-q35')
+    expect(resolved?.mode).toBe('quantizer')
+  })
+
+  it('retombe sur h264-qp23 quand le navigateur refuse l’AV1', async () => {
+    const resolved = await resolveExportPreset('av1-q35', 1280, 720, EXPORT_FPS, onlyAvc)
+    expect(resolved?.preset.name).toBe('h264-qp23')
+    expect(resolved?.preset.codec).toBe('avc')
+  })
+
+  it('le préréglage par défaut garde le repli de mode H.264 : quantizer refusé → constant', async () => {
+    const onlyConstant = async (c: VideoEncoderConfig) => (c.bitrateMode ?? 'variable') === 'constant'
+    const resolved = await resolveExportPreset(EXPORT_VIDEO_PRESET, 1280, 720, EXPORT_FPS, onlyConstant)
+    expect(resolved?.preset.name).toBe('h264-qp20')
+    expect(resolved?.preset.codec).toBe('avc')
+    expect(resolved?.mode).toBe('constant')
+  })
+})
+
+describe('la chaîne de repli ne peut pas boucler', () => {
+  it('chaque préréglage finit sur un H.264, sans revisiter un préréglage', () => {
+    const names = Object.keys(EXPORT_VIDEO_PRESETS) as ExportVideoPresetName[]
+    expect(names).toHaveLength(6)
+    for (const name of names) {
+      const seen = new Set<ExportVideoPresetName>()
+      let current: ExportVideoPresetName | undefined = name
+      let hops = 0
+      while (current !== undefined) {
+        expect(seen.has(current)).toBe(false)
+        seen.add(current)
+        const preset: ExportVideoPreset = EXPORT_VIDEO_PRESETS[current]
+        if (preset.codec === 'avc') break // la chaîne s’arrête sur H.264
+        current = preset.fallback
+        hops += 1
+        expect(hops).toBeLessThan(64)
+      }
+      const terminal = current !== undefined ? EXPORT_VIDEO_PRESETS[current] : undefined
+      expect(terminal?.codec).toBe('avc')
+    }
   })
 })
