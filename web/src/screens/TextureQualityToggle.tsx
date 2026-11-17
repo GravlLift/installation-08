@@ -1,7 +1,7 @@
 /**
  * TextureQualityToggle — the match select page's texture-quality switch (Standard / High), a
- * small segmented control in the top bar beside the account (an app setting, kept away from the
- * list's filter tabs). It reads and writes the same stored preference as the
+ * small segmented control beside the "Match library" title, right-aligned over the Search
+ * button (an app setting, kept away from the list's filter tabs). It reads and writes the same stored preference as the
  * player's settings drawer (`useTextureQuality`, key `replay-texture-quality`), so a choice here
  * is the quality the next match opens with, and every mounted reader moves with it.
  */
@@ -17,7 +17,7 @@ export function TextureQualityToggle() {
       aria-label="Texture quality"
       title="Which map textures matches open with. High looks sharper; a map's first High build takes longer and uses more space."
     >
-      <span className="bc-quality-label">Map textures</span>
+      <span className="bc-quality-label">Textures</span>
       <span className="bc-seg">
         {TEXTURE_QUALITIES.map((q) => (
           <button
