@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplaySettings — préférences d'AFFICHAGE du rejeu : calques (visée, zones, noms, carte
- * de chaleur), effets d'événement (tirs, morts) et vitesse de lecture. Persistées comme le
- * son (replayPreferences.ts, patron né dans useReplaySound), depuis le tiroir de réglages
- * (décision utilisateur du 16/08).
+ * useReplaySettings — DISPLAY preferences of the replay: layers (aim, zones, names, heat
+ * map), event effects (shots, deaths) and playback speed. Persisted like the sound
+ * (replayPreferences.ts, pattern born in useReplaySound), from the settings drawer
+ * (user decision of 08/16).
  *
- * DÉLIBÉRÉMENT SÉPARÉ DE useReplaySound : ce hook ne connaît RIEN au son (ni la piste, ni
- * Web Audio) — même séparation des responsabilités que les modules voisins. Il ne fait que
- * porter l'état des calques et de la vitesse ; ReplayCanvas les consomme sans savoir qu'ils
- * survivent à la page, ReplaySettingsDrawer les affiche sans savoir où ils vivent.
+ * DELIBERATELY SEPARATE FROM useReplaySound: this hook knows NOTHING about sound (neither
+ * the track nor Web Audio) — same separation of concerns as the neighboring modules. It only
+ * carries the state of the layers and the speed; ReplayCanvas consumes them without knowing
+ * they survive the page, ReplaySettingsDrawer displays them without knowing where they live.
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -53,134 +53,134 @@ const SHOW_VEHICLES_KEY = 'replay-show-vehicles'
 const MARKER_COLORS_KEY = 'replay-marker-colors'
 
 /**
- * LA FRISE EST-ELLE DÉPLIÉE ? Réglage du LECTEUR et non d'un calque : il ne passe donc pas
- * par le tiroir, mais par un chevron sur la frise elle-même (retour utilisateur du
- * 2026-08-28) — replié, il ne reste que la barre de progression et ses horloges. La clé vit
- * avec les autres préférences du rejeu : c'est leur registre, et `useReplayTimeline` la lit.
+ * IS THE TIMELINE EXPANDED? A setting of the PLAYER, not of a layer: it therefore does not go
+ * through the drawer, but through a chevron on the timeline itself (user feedback of
+ * 2026-08-28) — collapsed, only the progress bar and its clocks remain. The key lives
+ * with the other replay preferences: this is their registry, and `useReplayTimeline` reads it.
  */
 export const TIMELINE_EXPANDED_KEY = 'replay-timeline-expanded'
 
-/** Multiplicateurs de vitesse proposés (repris du POC, réglés à l'écran). */
+/** Speed multipliers offered (carried over from the POC, tuned on screen). */
 export const SPEED_MULTIPLIERS: readonly number[] = [0.5, 1, 1.5, 2, 4]
 
 const SPEED_DEFAULT = 1
 
-/** Les deux lectures de la carte de chaleur, dans l'ordre où le tiroir les propose. */
+/** The two heat map readings, in the order the drawer offers them. */
 export const HEATMAP_MODES: readonly HeatmapMode[] = ['presence', 'kills']
 
-/** Les deux portées de temps, dans l'ordre où le tiroir les propose (V2, 2026-08-18). */
+/** The two time spans, in the order the drawer offers them (V2, 2026-08-18). */
 export const HEATMAP_SPANS: readonly HeatmapSpan[] = ['match', 'live']
 
 /**
- * La carte de chaleur est ÉTEINTE par défaut. Ce n'est pas un demi-livrable : c'est un
- * calque de synthèse qui recouvre le terrain, et le rejeu s'ouvre sur ce qui bouge — les
- * joueurs. Même règle que le son, allumé par l'utilisateur quand il le veut.
+ * The heat map is OFF by default. This is not a half-shipped feature: it is a synthesis
+ * layer that covers the terrain, and the replay opens on what moves — the players. Same
+ * rule as the sound, turned on by the user when they want it.
  */
 const SHOW_HEATMAP_DEFAULT = false
 const HEATMAP_MODE_DEFAULT: HeatmapMode = 'presence'
 
 /**
- * TOUTE LA PARTIE PAR DÉFAUT, et c'est le comportement inchangé depuis le 16/08 : la carte du
- * rejeu était DÉJÀ celle du match entier (mesuré avant de coder — `accumulatePresence` ne
- * connaissait aucune borne). La portée `live` est ce que ce lot AJOUTE ; en faire le défaut
- * changerait sous les pieds de l'utilisateur la seule lecture qu'il ait validée.
+ * ALL OF THE DEFAULT PART, and this is the behavior unchanged since 08/16: the replay's map was
+ * ALREADY the one for the whole match (measured before coding — `accumulatePresence` knew no
+ * bound). The `live` span is what this batch ADDS; making it the default would change under the
+ * user's feet the only reading they had validated.
  */
 const HEATMAP_SPAN_DEFAULT: HeatmapSpan = 'match'
 
 /**
- * LES DEUX EFFETS D'ÉVÉNEMENT SONT ALLUMÉS PAR DÉFAUT.
+ * BOTH EVENT EFFECTS ARE ON BY DEFAULT.
  *
- *  - les ÉCLAIRS DE BOUCHE le sont depuis le 16/08 : ils disent où le match se joue, image
- *    après image, et c'est le calque que l'utilisateur a validé sans réserve ;
- *  - les EFFETS DE MORT les rejoignent le 2026-08-20. Ils étaient éteints au titre du 16/08
- *    (« optionnel, désactivé par défaut »), et c'est cette réserve qui s'est retournée contre
- *    eux : l'utilisateur les CHERCHAIT sans les trouver, puisqu'il fallait déjà savoir qu'ils
- *    existaient pour aller les allumer. Un trait tueur -> victime au moment de l'élimination
- *    est précisément ce qu'on vient lire sur un rejeu.
+ *  - MUZZLE FLASHES have been since 08/16: they say where the match is being played, frame
+ *    after frame, and it is the layer the user validated without reservation;
+ *  - DEATH EFFECTS join them on 2026-08-20. They were off as of 08/16 ("optional, off by
+ *    default"), and it is that reservation that backfired: the user was LOOKING for them
+ *    without finding them, since you had to already know they existed to go turn them on. A
+ *    killer -> victim streak at the moment of the elimination is exactly what one comes to read
+ *    on a replay.
  *
- * Ce n'est PAS un demi-livrable au sens de CLAUDE.md n°11 (« pas de flag qui laisse une
- * feature OFF pour plus tard ») : les deux effets sont livrés, complets, et l'interrupteur
- * est un RÉGLAGE D'AFFICHAGE offert au lecteur — pas un interrupteur de chantier.
+ * This is NOT a half-shipped feature in the sense of CLAUDE.md #11 ("no flag that leaves a
+ * feature OFF for later"): both effects are shipped, complete, and the switch is a DISPLAY
+ * SETTING offered to the viewer — not a work-in-progress switch.
  */
 const SHOW_SHOT_FX_DEFAULT = true
 const SHOW_KILL_FX_DEFAULT = true
 
 /**
- * LES DEUX BASCULES DES POSES D'ÉQUIPEMENT, et leurs défauts OPPOSÉS eux aussi (décision
- * utilisateur du 18/08) :
+ * THE TWO EQUIPMENT PLACEMENT TOGGLES, and their OPPOSITE defaults too (user decision of
+ * 08/18):
  *
- *  - les POSES sont ALLUMÉES : le mur et le capteur sont des objets du terrain qui changent
- *    la lecture d'un échange, au même titre qu'une zone de capture ;
- *  - les OBJETS NON IDENTIFIÉS sont ÉTEINTS, et ce n'est pas de la pudeur : sur un film de
- *    Big Team Battle, AUCUNE pose n'est nommée aujourd'hui (le seuil de nommage du 18/08
- *    laisse la palette « famille A » sans nom) — les allumer y poserait des centaines de
- *    points neutres. La bascule sert exactement à cela : voir ce que la mesure a trouvé sans
- *    savoir le nommer, quand on le demande.
+ *  - PLACEMENTS are ON: the wall and the sensor are terrain objects that change the reading
+ *    of an exchange, just like a capture zone;
+ *  - UNIDENTIFIED OBJECTS are OFF, and this is not modesty: on a Big Team Battle film, NO
+ *    placement is named today (the naming threshold of 08/18 leaves the "family A" palette
+ *    unnamed) — turning them on would place hundreds of neutral points. The toggle exists
+ *    exactly for that: seeing what the measurement found without being able to name it, when
+ *    asked for.
  *
- * Ni l'une ni l'autre n'est un demi-livrable (CLAUDE.md n°11) : les deux rendus sont livrés
- * et complets, l'interrupteur est un RÉGLAGE D'AFFICHAGE offert au lecteur.
+ * Neither one is a half-shipped feature (CLAUDE.md #11): both renders are shipped and
+ * complete, the switch is a DISPLAY SETTING offered to the viewer.
  */
 const SHOW_PLACEMENTS_DEFAULT = true
 const SHOW_UNNAMED_PLACEMENTS_DEFAULT = false
 
 /**
- * LES OBJETS DE PUISSANCE LÂCHÉS SONT ALLUMÉS PAR DÉFAUT (décision utilisateur du 2026-08-18 :
- * « hors Fiesta c'est tactiquement interessant »). Un surbouclier ou un capteur au sol est
- * RAMASSABLE : savoir qu'il est là change la lecture de l'échange suivant, exactement comme
- * savoir qu'une arme est encore sur son socle.
+ * DROPPED POWER OBJECTS ARE ON BY DEFAULT (user decision of 2026-08-18: "outside Fiesta it's
+ * tactically interesting"). An overshield or a sensor on the ground is PICKABLE UP: knowing it
+ * is there changes the reading of the next exchange, exactly like knowing a weapon is still on
+ * its stand.
  *
- * LA BASCULE COMMANDE DANS TOUS LES MODES depuis le 2026-08-20. Une garde de mode l'annulait
- * en Fiesta au nom de la même décision du 18/08 ; elle masquait en fait 26 lâchers réels sur
- * le témoin Fiesta `000d5950`, et l'utilisateur veut les voir. Le tiroir affiche donc la
- * commande dès que le film porte de quoi la commander — même règle que le bouton Zones.
+ * THE TOGGLE APPLIES IN ALL MODES since 2026-08-20. A mode guard used to cancel it in Fiesta in
+ * the name of the same 08/18 decision; it was actually hiding 26 real drops on the Fiesta
+ * witness film `000d5950`, and the user wants to see them. The drawer therefore shows the
+ * control as soon as the film carries something to control — same rule as the Zones button.
  *
- * Ce n'est pas un demi-livrable (CLAUDE.md n°11) : le calque est complet, l'interrupteur est un
- * RÉGLAGE D'AFFICHAGE offert au lecteur.
+ * This is not a half-shipped feature (CLAUDE.md #11): the layer is complete, the switch is a
+ * DISPLAY SETTING offered to the viewer.
  */
 const SHOW_DROPPED_PLACEMENTS_DEFAULT = true
 
 /**
- * LES SOCLES D'ARME SONT ALLUMÉS PAR DÉFAUT (décision utilisateur du 18/08, W4 : « les infos
- * sont intéressantes à avoir »). Ce sont des lieux du terrain, pas des événements : savoir que
- * le fusil de précision est encore sur son socle change la lecture d'un échange, exactement
- * comme une zone de capture. Le film qui n'en porte aucun n'affiche ni calque ni bascule.
+ * WEAPON STANDS ARE ON BY DEFAULT (user decision of 08/18, W4: "the info is interesting to
+ * have"). They are terrain locations, not events: knowing the sniper rifle is still on its
+ * stand changes the reading of an exchange, exactly like a capture zone. A film that carries
+ * none shows neither layer nor toggle.
  */
 const SHOW_WEAPON_PADS_DEFAULT = true
 
 /**
- * LES ARMES AU SOL SONT ALLUMÉES PAR DÉFAUT (schéma 27). Même raisonnement que les objets de
- * puissance lâchés, décidé le 2026-08-18 : une arme ramassable par terre change la lecture de
- * l'échange suivant, au même titre qu'une arme encore sur son socle. Le film qui n'en porte
- * aucune n'affiche ni calque ni bascule.
+ * GROUND WEAPONS ARE ON BY DEFAULT (schema 27). Same reasoning as the dropped power objects,
+ * decided on 2026-08-18: a weapon pickable off the ground changes the reading of the next
+ * exchange, just like a weapon still on its stand. A film that carries none shows neither
+ * layer nor toggle.
  *
- * Ce n'est pas un demi-livrable (CLAUDE.md n°11) : le calque est complet, l'interrupteur est un
- * RÉGLAGE D'AFFICHAGE offert au lecteur — une carte de Grande Bataille reste dense.
+ * This is not a half-shipped feature (CLAUDE.md #11): the layer is complete, the switch is a
+ * DISPLAY SETTING offered to the viewer — a Big Team Battle map stays dense.
  */
 const SHOW_GROUND_WEAPONS_DEFAULT = true
 
 /**
- * LE FILTRE « ARMES SPÉCIALES SEULEMENT » EST ÉTEINT PAR DÉFAUT. C'est un RESSERREMENT du calque des armes au
- * sol, pas son remplacement : le comportement d'avant ce lot (tout afficher) reste le défaut,
- * et l'utilisateur choisit d'affiner sur les matchs denses (204 objets/film en moyenne, dont
- * 82 % sans intérêt tactique).
+ * THE "SPECIAL WEAPONS ONLY" FILTER IS OFF BY DEFAULT. It is a NARROWING of the ground
+ * weapons layer, not its replacement: the behavior before this batch (show everything) stays
+ * the default, and the user chooses to refine on dense matches (204 objects/film on average,
+ * 82% without tactical interest).
  */
 const SHOW_GROUND_WEAPONS_SPECIAL_ONLY_DEFAULT = false
 
 /**
- * LES ARMES DE DÉPART LÂCHÉES SONT MASQUÉES PAR DÉFAUT (décision utilisateur du 2026-10-15) :
- * tout le monde en porte les mêmes, elles n'apportent rien. L'option les réaffiche ; les armes
- * posées par la carte, elles, restent toujours visibles (`model/startingWeaponsOnGround.ts`).
+ * DROPPED STARTING WEAPONS ARE HIDDEN BY DEFAULT (user decision of 2026-10-15): everyone
+ * carries the same ones, they add nothing. The option shows them again; the weapons placed by
+ * the map, on the other hand, always stay visible (`model/startingWeaponsOnGround.ts`).
  */
 const SHOW_GROUND_WEAPONS_STARTING_DEFAULT = false
 
 /**
- * LES DRAPEAUX SONT ALLUMÉS PAR DÉFAUT. C'est l'ENJEU du match en capture de drapeau : savoir
- * où est le drapeau, qui le porte et depuis quand est la lecture même du mode — un rejeu de CTF
- * qui s'ouvrirait sans lui montrerait huit points qui courent sans raison. Le film qui n'en
- * porte aucun (tout mode qui n'est pas de la capture) n'affiche ni calque ni bascule.
+ * FLAGS ARE ON BY DEFAULT. This is the STAKE of the match in capture the flag: knowing where
+ * the flag is, who carries it and since when is the very reading of the mode — a CTF replay
+ * that opened without it would show eight points running around for no reason. A film that
+ * carries none (any mode that is not capture) shows neither layer nor toggle.
  *
- * Ce n'est pas un demi-livrable (CLAUDE.md n°11) : le calque est complet, l'interrupteur est un
- * RÉGLAGE D'AFFICHAGE offert au lecteur — un BTB de capture reste dense.
+ * This is not a half-shipped feature (CLAUDE.md #11): the layer is complete, the switch is a
+ * DISPLAY SETTING offered to the viewer — a capture BTB stays dense.
  */
 const SHOW_FLAG_CARRIES_DEFAULT = true
 const SHOW_VIP_CROWN_DEFAULT = true
@@ -188,185 +188,184 @@ const SHOW_SKULL_CARRIER_DEFAULT = true
 const SHOW_BOMB_CARRIER_DEFAULT = true
 
 /**
- * LES VÉHICULES SONT ALLUMÉS PAR DÉFAUT (schéma 39, lot du 2026-09-02) : c'est l'objectif même
- * du chantier (« rejouer un match ... avec véhicules visibles »), au même titre que les socles
- * ou les drapeaux — un objet du terrain qui change la lecture du match, pas un effet de style.
- * Le film qui n'en porte aucun (`coverage.vehicles`) n'affiche ni calque ni bascule.
+ * VEHICLES ARE ON BY DEFAULT (schema 39, 2026-09-02 batch): this is the very goal of the
+ * project ("replay a match ... with vehicles visible"), same as the stands or the flags — a
+ * terrain object that changes the reading of the match, not a style effect. A film that
+ * carries none (`coverage.vehicles`) shows neither layer nor toggle.
  *
- * Ce n'est pas un demi-livrable (CLAUDE.md n°11) : le calque est complet, l'interrupteur est un
- * RÉGLAGE D'AFFICHAGE offert au lecteur — une carte de Grande Bataille reste dense.
+ * This is not a half-shipped feature (CLAUDE.md #11): the layer is complete, the switch is a
+ * DISPLAY SETTING offered to the viewer — a Big Team Battle map stays dense.
  */
 const SHOW_VEHICLES_DEFAULT = true
 
 /**
- * LES OBJECTIFS DU MODE SONT ALLUMÉS PAR DÉFAUT (2026-09-18) : collines, bases, zones de capture,
- * socles et points de livraison sont le TERRAIN de l'enjeu — un Roi de la colline sans colline
- * montrerait des joueurs qui se battent pour rien. Le film qui n'en porte aucun (Assassin) n'affiche
- * ni calque ni bascule. Comme les drapeaux : un réglage d'affichage, pas un demi-livrable.
+ * MODE OBJECTIVES ARE ON BY DEFAULT (2026-09-18): hills, bases, capture zones, stands and
+ * delivery points are the TERRAIN of the stake — a King of the Hill without a hill would show
+ * players fighting for nothing. A film that carries none (Assassin) shows neither layer nor
+ * toggle. Like the flags: a display setting, not a half-shipped feature.
  */
 const SHOW_MODE_OBJECTIVES_DEFAULT = true
 
-/** Les deux lectures de couleur des points, dans l'ordre où le tiroir les propose. */
+/** The two marker color readings, in the order the drawer offers them. */
 export type MarkerColorsMode = 'team' | 'player'
 export const MARKER_COLORS_MODES: readonly MarkerColorsMode[] = ['team', 'player']
 
 /**
- * LA COULEUR DES POINTS DIT L'ÉQUIPE PAR DÉFAUT (doctrine D1 du 2026-08-16 : la couleur dit
- * le camp). L'option « distinctes par joueur » (proposition utilisateur du 2026-08-24) donne
- * à chaque joueur une couleur de série stable — suivre QUELQU'UN dans la mêlée — et le camp
- * reste dit par les fiches, le fil et le bandeau. Ce n'est pas un demi-livrable (CLAUDE.md
- * n°11) : les deux lectures sont complètes, l'option est un réglage d'affichage.
+ * MARKER COLOR SAYS THE TEAM BY DEFAULT (doctrine D1 of 2026-08-16: the color says the
+ * side). The "distinct per player" option (user proposal of 2026-08-24) gives each player a
+ * stable series color — to follow SOMEONE in the brawl — and the side still reads from the
+ * cards, the feed and the banner. This is not a half-shipped feature (CLAUDE.md #11): both
+ * readings are complete, the option is a display setting.
  */
 const MARKER_COLORS_DEFAULT: MarkerColorsMode = 'team'
 
-// LE RÉGLAGE « FICHES COMPACTES » EST SUPPRIMÉ (décision utilisateur du 2026-08-24 :
-// « fiches compactes va devenir la seule et unique option donc on va virer le réglage ») :
-// la fiche compacte est devenue LA fiche, la variante longue est partie avec sa clé.
+// THE "COMPACT CARDS" SETTING IS REMOVED (user decision of 2026-08-24: "compact cards is going
+// to become the one and only option so we're going to drop the setting"): the compact card
+// became THE card, the long variant left with its key.
 
 export interface ReplaySettings {
-  /** Calque de visée (direction du regard). Allumé par défaut, comme aujourd'hui. */
+  /** Aim layer (look direction). On by default, as today. */
   showAim: boolean
   toggleAim: () => void
-  /** Calque des zones nommées. Allumé par défaut ; l'appelant le rend conditionnel à la
-   *  présence de zones sur la carte (même règle que le bouton d'origine). */
+  /** Named zones layer. On by default; the caller makes it conditional on the presence of
+   *  zones on the map (same rule as the original button). */
   showZones: boolean
   toggleZones: () => void
   /**
-   * Calque des NOMS sous les marqueurs (décision D4, 2026-08-16). Allumé par défaut : le nom
-   * est ce qui distingue un coéquipier d'un autre, la couleur ne dit que le camp. Un BTB à
-   * 24 joueurs doit néanmoins pouvoir l'éteindre.
+   * NAMES layer under the markers (decision D4, 2026-08-16). On by default: the name is what
+   * distinguishes one teammate from another, color only says the side. A 24-player BTB must
+   * still be able to turn it off.
    */
   /**
-   * Calque de la TRAÎNÉE (V1, retour utilisateur du 2026-08-18 : « avoir la traînée en
-   * option »). ALLUMÉE par défaut, comme aujourd'hui : elle fait partie du marqueur validé
-   * le 16/08, et c'est elle qui dit le SENS d'un déplacement. Ce n'est pas un demi-livrable
-   * (CLAUDE.md n°11) : le calque est complet, l'interrupteur est un réglage d'affichage.
+   * TRAIL layer (V1, user feedback of 2026-08-18: "have the trail as an option"). ON by
+   * default, as today: it is part of the marker validated on 08/16, and it is what says the
+   * DIRECTION of a movement. This is not a half-shipped feature (CLAUDE.md #11): the layer is
+   * complete, the switch is a display setting.
    */
   showTrail: boolean
   toggleTrail: () => void
-  /** Calque de la carte de chaleur. ÉTEINT par défaut (cf. SHOW_HEATMAP_DEFAULT). */
+  /** Heat map layer. OFF by default (cf. SHOW_HEATMAP_DEFAULT). */
   showHeatmap: boolean
   toggleHeatmap: () => void
-  /** Ce que la carte de chaleur mesure — toujours une valeur de HEATMAP_MODES. */
+  /** What the heat map measures — always a value of HEATMAP_MODES. */
   heatmapMode: HeatmapMode
   setHeatmapMode: (mode: HeatmapMode) => void
-  /** Sur QUELLE PORTÉE elle le mesure — toujours une valeur de HEATMAP_SPANS. */
+  /** Over WHICH SPAN it measures it — always a value of HEATMAP_SPANS. */
   heatmapSpan: HeatmapSpan
   setHeatmapSpan: (span: HeatmapSpan) => void
-  /** Éclairs de bouche sur TOUS les tirs décodés. Allumés par défaut. */
+  /** Muzzle flashes on ALL decoded shots. On by default. */
   showShotFx: boolean
   toggleShotFx: () => void
-  /** Trait orienté tueur -> victime sur les éliminations. ALLUMÉ par défaut. */
+  /** Killer -> victim oriented streak on eliminations. ON by default. */
   showKillFx: boolean
   toggleKillFx: () => void
-  /** Calque des POSES d'équipement (mur, capteur). Allumé par défaut. */
+  /** Equipment PLACEMENTS layer (wall, sensor). On by default. */
   showPlacements: boolean
   togglePlacements: () => void
-  /** Poses dont la nature n'est pas établie (famille `other`). ÉTEINT par défaut. */
+  /** Placements whose nature is not established (family `other`). OFF by default. */
   showUnnamedPlacements: boolean
   toggleUnnamedPlacements: () => void
   /**
-   * Objets de PUISSANCE lâchés à la mort (power-ups, équipements déployables). ALLUMÉ par
-   * défaut, et effectif dans TOUS les modes (cf. SHOW_DROPPED_PLACEMENTS_DEFAULT).
+   * POWER objects dropped on death (power-ups, deployable equipment). ON by default, and
+   * effective in ALL modes (cf. SHOW_DROPPED_PLACEMENTS_DEFAULT).
    */
   showDroppedPlacements: boolean
   toggleDroppedPlacements: () => void
-  /** Calque des SOCLES D'ARME (schéma 11). Allumé par défaut (cf. SHOW_WEAPON_PADS_DEFAULT). */
+  /** WEAPON STANDS layer (schema 11). On by default (cf. SHOW_WEAPON_PADS_DEFAULT). */
   showWeaponPads: boolean
   toggleWeaponPads: () => void
   /**
-   * Calque des ARMES AU SOL (schéma 27) — les armes abandonnées, distinctes des socles.
-   * Allumé par défaut (cf. SHOW_GROUND_WEAPONS_DEFAULT).
+   * GROUND WEAPONS layer (schema 27) — abandoned weapons, distinct from the stands.
+   * On by default (cf. SHOW_GROUND_WEAPONS_DEFAULT).
    */
   showGroundWeapons: boolean
   toggleGroundWeapons: () => void
   /**
-   * Filtre « ARMES SPÉCIALES SEULEMENT » du calque des armes au sol (lot 6.5, 2026-09-10) :
-   * sniper/power/special uniquement. ÉTEINT par défaut (cf.
+   * "SPECIAL WEAPONS ONLY" filter of the ground weapons layer (batch 6.5, 2026-09-10):
+   * sniper/power/special only. OFF by default (cf.
    * SHOW_GROUND_WEAPONS_SPECIAL_ONLY_DEFAULT).
    */
   showGroundWeaponsSpecialOnly: boolean
   toggleGroundWeaponsSpecialOnly: () => void
-  /** Option « afficher aussi les armes de départ au sol » (cf. SHOW_GROUND_WEAPONS_STARTING_DEFAULT). */
+  /** "Also show starting weapons on the ground" option (cf. SHOW_GROUND_WEAPONS_STARTING_DEFAULT). */
   showGroundWeaponsStarting: boolean
   toggleGroundWeaponsStarting: () => void
   /**
-   * Calque des OBJECTIFS DU MODE (2026-09-18) : la géométrie cuite, l'état vivant des zones et
-   * les pulses d'action — trois calques pour un objet, une seule bascule (cf.
-   * `SceneToggles.modeObjectives`). Allumé par défaut (cf. SHOW_MODE_OBJECTIVES_DEFAULT).
+   * MODE OBJECTIVES layer (2026-09-18): the baked geometry, the live state of the zones and
+   * the action pulses — three layers for one object, a single toggle (cf.
+   * `SceneToggles.modeObjectives`). On by default (cf. SHOW_MODE_OBJECTIVES_DEFAULT).
    */
   showModeObjectives: boolean
   toggleModeObjectives: () => void
   /**
-   * Calque des DRAPEAUX de capture (schéma 15). Allumé par défaut : c'est l'enjeu du mode
-   * (cf. SHOW_FLAG_CARRIES_DEFAULT). Un film hors capture n'en publie aucun.
+   * Capture FLAGS layer (schema 15). On by default: it is the stake of the mode
+   * (cf. SHOW_FLAG_CARRIES_DEFAULT). A non-capture film publishes none.
    */
   showFlagCarries: boolean
   toggleFlagCarries: () => void
   /**
-   * Calque de la COURONNE VIP (schéma 22). Allumé par défaut : c'est l'enjeu du mode
-   * (cf. SHOW_VIP_CROWN_DEFAULT). Un film hors VIP n'en publie aucune.
+   * VIP CROWN layer (schema 22). On by default: it is the stake of the mode
+   * (cf. SHOW_VIP_CROWN_DEFAULT). A non-VIP film publishes none.
    */
   showVipCrown: boolean
   toggleVipCrown: () => void
   /**
-   * Calque du PORTEUR DU CRÂNE d'Oddball (schéma 23). Allumé par défaut : c'est l'enjeu du mode
-   * (cf. SHOW_SKULL_CARRIER_DEFAULT). Un film hors Oddball n'en publie aucun.
+   * Oddball SKULL CARRIER layer (schema 23). On by default: it is the stake of the mode
+   * (cf. SHOW_SKULL_CARRIER_DEFAULT). A non-Oddball film publishes none.
    */
   showSkullCarrier: boolean
   toggleSkullCarrier: () => void
   /**
-   * Calque de LA BOMBE d'Assaut (schéma 30) : portée sur son porteur, posée au sol. Allumé par
-   * défaut : c'est l'enjeu du mode (cf. SHOW_BOMB_CARRIER_DEFAULT). Un film hors Assaut n'en
-   * publie aucune.
+   * Assault BOMB layer (schema 30): carried on its bearer, placed on the ground. On by
+   * default: it is the stake of the mode (cf. SHOW_BOMB_CARRIER_DEFAULT). A non-Assault film
+   * publishes none.
    */
   showBombCarrier: boolean
   toggleBombCarrier: () => void
-  /** Calque des VÉHICULES (schéma 39). Allumé par défaut (cf. SHOW_VEHICLES_DEFAULT). */
+  /** VEHICLES layer (schema 39). On by default (cf. SHOW_VEHICLES_DEFAULT). */
   showVehicles: boolean
   toggleVehicles: () => void
-  /** Couleur des points des joueurs : par équipe (défaut) ou distincte par joueur. */
+  /** Player marker color: by team (default) or distinct per player. */
   markerColors: MarkerColorsMode
   setMarkerColors: (mode: MarkerColorsMode) => void
-  /** Multiplicateur de vitesse courant — toujours une valeur de SPEED_MULTIPLIERS. */
+  /** Current speed multiplier — always a value of SPEED_MULTIPLIERS. */
   speed: number
   setSpeed: (speed: number) => void
 }
 
 /**
- * usePersistedFlag — UN interrupteur persisté : son état, et la bascule qui l'écrit.
+ * usePersistedFlag — ONE persisted toggle: its state, and the switch that writes it.
  *
- * CENTRALISÉ ICI (CLAUDE.md n°6, « à la 3e copie, centraliser ») : les calques de visée, de
- * zones, de noms, de carte de chaleur, d'effets de tirs et d'effets de mort partagent EXACTEMENT
- * le même corps — état initial lu du stockage, bascule qui persiste la nouvelle valeur. Six
- * copies de six lignes se seraient mises à diverger (l'une oubliant la persistance, l'autre
- * la forme fonctionnelle du setState).
+ * CENTRALIZED HERE (CLAUDE.md #6, "centralize on the 3rd copy"): the aim, zones, names,
+ * heat map, shot effects and death effects layers share EXACTLY the same body — initial state
+ * read from storage, switch that persists the new value. Six copies of six lines would have
+ * started to diverge (one forgetting the persistence, another the functional form of
+ * setState).
  *
- * L'ÉCRITURE NE SE FAIT JAMAIS DEPUIS L'UPDATER de `setValue`, et c'est un invariant, pas un
- * style. `persistPreference` prévient SYNCHRONEMENT tous les abonnés de la clé, qui appellent
- * `setValue` à leur tour : le faire depuis l'updater, c'est déclencher une mise à jour d'état
- * en pleine phase de rendu, ré-entrante sur ce hook — et sur l'AUTRE instance de la même clé
- * quand elle vit chez un ancêtre (défaut vécu sur la clé des fiches compactes, aujourd'hui
- * supprimée : le tiroir et la page lisaient la même clé). React y répondait en gardant
- * l'ancienne valeur une fois sur deux : la bascule « revenait en arrière » toute seule, et
- * StrictMode, qui invoque les updaters deux fois pour débusquer exactement cette impureté,
- * doublait le symptôme.
+ * THE WRITE NEVER HAPPENS FROM `setValue`'S UPDATER, and this is an invariant, not a style
+ * choice. `persistPreference` SYNCHRONOUSLY notifies all subscribers of the key, who in turn
+ * call `setValue`: doing it from the updater triggers a state update in the middle of a render
+ * phase, re-entrant on this hook — and on the OTHER instance of the same key when it lives on
+ * an ancestor (bug experienced on the compact cards key, now removed: the drawer and the page
+ * were reading the same key). React responded to this by keeping the old value half the time:
+ * the switch "reverted" on its own, and StrictMode, which invokes updaters twice to flush out
+ * exactly this kind of impurity, doubled the symptom.
  *
- * Donc : `next` se calcule ICI, hors updater, à partir de la valeur rendue ; `setValue` reçoit
- * une valeur nue ; la persistance vient APRÈS, depuis le gestionnaire d'événement. `value` est
- * de ce fait une dépendance de la bascule — c'est le prix, et il est juste : une bascule qui ne
- * connaît pas la valeur qu'elle inverse n'existe pas.
+ * So: `next` is computed HERE, outside the updater, from the rendered value; `setValue`
+ * receives a plain value; the persistence comes AFTER, from the event handler. `value` is
+ * therefore a dependency of the switch — that is the price, and it is fair: a switch that does
+ * not know the value it is flipping does not exist.
  *
- * EXPORTÉ depuis le 2026-08-28 : le repli de la frise est une préférence persistée comme les
- * autres, mais elle ne passe pas par le tiroir (`useReplayTimeline` la lit directement). Faire
- * une seconde copie du corps pour cette seule raison aurait rouvert exactement la divergence
- * que cette centralisation a fermée.
+ * EXPORTED since 2026-08-28: the timeline collapse is a persisted preference like the others,
+ * but it does not go through the drawer (`useReplayTimeline` reads it directly). Making a
+ * second copy of the body for this one reason would have reopened exactly the divergence this
+ * centralization closed.
  */
 export function usePersistedFlag(key: string, fallback: boolean): [boolean, () => void] {
   const [value, setValue] = useState(() => readStoredFlag(key, fallback))
-  // L'ABONNEMENT REND LA CLÉ PARTAGEABLE : deux composants qui lisent la même préférence
-  // bougent ensemble (cf. la note de `subscribePreference`). Sans lui, la bascule du tiroir
-  // ne toucherait que sa propre copie de l'état.
+  // THE SUBSCRIPTION MAKES THE KEY SHAREABLE: two components reading the same preference move
+  // together (cf. the note on `subscribePreference`). Without it, the drawer's switch would
+  // only touch its own copy of the state.
   useEffect(() => subscribePreference(key, (raw) => setValue(raw === 'true')), [key])
   const toggle = useCallback(() => {
     const next = !value
