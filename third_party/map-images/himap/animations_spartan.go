@@ -73,7 +73,7 @@ func (a *Arsenal) GraphesDuSpartan(ctx context.Context) (*GraphesAnimation, erro
 func (a *Arsenal) GraphesDuModele(ctx context.Context, hlmt uint32) (*GraphesAnimation, error) {
 	tag, err := a.geo.Extract(hlmt)
 	if err != nil {
-		return nil, fmt.Errorf("%w : hlmt %08x : %w", ErrGrapheIllisible, hlmt, err)
+		return nil, fmt.Errorf("%w: hlmt %08x: %w", ErrGrapheIllisible, hlmt, err)
 	}
 	refs := refsInlineDuGroupe(tag, a.geo, GroupeGrapheAnimation)
 	if len(refs) != 1 {

@@ -15,6 +15,8 @@
 // quelques os d'appoint, et les animations des deux.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -33,7 +35,7 @@ const (
 
 // ErrSansPremierePersonne : le tag n'est pas une arme qui porte un bloc « first person » lisible, ou
 // les bras ne se trouvent pas.
-var ErrSansPremierePersonne = errors.New("himap: pas de vue a la premiere personne")
+var ErrSansPremierePersonne = errors.New("himap: no first-person view")
 
 // SourcesBras : les tags des bras a la premiere personne.
 type SourcesBras struct {
@@ -60,28 +62,28 @@ func (a *Arsenal) SourcesBras() (SourcesBras, error) {
 	for _, g := range globales {
 		raw, err := a.geo.Extract(g)
 		if err != nil {
-			return SourcesBras{}, fmt.Errorf("%w : %s %08x : %w", ErrSansPremierePersonne, GroupeGlobalesJoueur, g, err)
+			return SourcesBras{}, fmt.Errorf("%w: %s %08x: %w", ErrSansPremierePersonne, GroupeGlobalesJoueur, g, err)
 		}
 		for _, h := range dependancesDuGroupe(raw, GroupeHlmt) {
 			if out.Modele != 0 && out.Modele != h {
-				return SourcesBras{}, fmt.Errorf("%w : deux modeles de bras, hlmt %08x (%s %08x) et %08x (%s %08x)",
+				return SourcesBras{}, fmt.Errorf("%w: two arm models, hlmt %08x (%s %08x) and %08x (%s %08x)",
 					ErrSansPremierePersonne, out.Modele, GroupeGlobalesJoueur, out.Globales, h, GroupeGlobalesJoueur, g)
 			}
 			out.Globales, out.Modele = g, h
 		}
 	}
 	if out.Modele == 0 {
-		return SourcesBras{}, fmt.Errorf("%w : aucun %s des %d indexes ne depend d'un hlmt", ErrSansPremierePersonne, GroupeGlobalesJoueur, len(globales))
+		return SourcesBras{}, fmt.Errorf("%w: none of the %d indexed %s depends on an hlmt", ErrSansPremierePersonne, len(globales), GroupeGlobalesJoueur)
 	}
 	raw, err := a.geo.Extract(out.Modele)
 	if err != nil {
-		return SourcesBras{}, fmt.Errorf("%w : hlmt %08x : %w", ErrSansPremierePersonne, out.Modele, err)
+		return SourcesBras{}, fmt.Errorf("%w: hlmt %08x: %w", ErrSansPremierePersonne, out.Modele, err)
 	}
 	if out.Mode, err = dependanceUnique(raw, GroupeMode); err != nil {
-		return SourcesBras{}, fmt.Errorf("%w : hlmt %08x : %w", ErrSansPremierePersonne, out.Modele, err)
+		return SourcesBras{}, fmt.Errorf("%w: hlmt %08x: %w", ErrSansPremierePersonne, out.Modele, err)
 	}
 	if out.Graphe, err = dependanceUnique(raw, GroupeGrapheAnimation); err != nil {
-		return SourcesBras{}, fmt.Errorf("%w : hlmt %08x : %w", ErrSansPremierePersonne, out.Modele, err)
+		return SourcesBras{}, fmt.Errorf("%w: hlmt %08x: %w", ErrSansPremierePersonne, out.Modele, err)
 	}
 	return out, nil
 }
@@ -90,7 +92,7 @@ func (a *Arsenal) SourcesBras() (SourcesBras, error) {
 func dependanceUnique(raw []byte, grp string) (uint32, error) {
 	ds := dependancesDuGroupe(raw, grp)
 	if len(ds) != 1 {
-		return 0, fmt.Errorf("%d dependances %q (un seule attendue)", len(ds), grp)
+		return 0, fmt.Errorf("%d %q dependencies (exactly one expected)", len(ds), grp)
 	}
 	return ds[0], nil
 }
@@ -100,11 +102,11 @@ func dependanceUnique(raw []byte, grp string) (uint32, error) {
 // presentes dans l'index et dans sa table de dependances.
 func (a *Arsenal) SourcesArme(weap uint32) (SourcesArme, error) {
 	if g, _, ok := a.geo.Lookup(weap); !ok || g != GroupeArme {
-		return SourcesArme{}, fmt.Errorf("%w : %08x n'est pas un tag %q", ErrSansPremierePersonne, weap, GroupeArme)
+		return SourcesArme{}, fmt.Errorf("%w: %08x is not a %q tag", ErrSansPremierePersonne, weap, GroupeArme)
 	}
 	raw, err := a.geo.Extract(weap)
 	if err != nil {
-		return SourcesArme{}, fmt.Errorf("%w : %08x : %w", ErrSansPremierePersonne, weap, err)
+		return SourcesArme{}, fmt.Errorf("%w: %08x: %w", ErrSansPremierePersonne, weap, err)
 	}
 	modes := dependancesDuGroupe(raw, GroupeMode)
 	graphes := dependancesDuGroupe(raw, GroupeGrapheAnimation)
@@ -124,7 +126,7 @@ func (a *Arsenal) SourcesArme(weap uint32) (SourcesArme, error) {
 		trouves = couplesAuGrapheDesDependances(a, weap, raw, modes, graphes)
 	}
 	if len(trouves) != 1 {
-		return SourcesArme{}, fmt.Errorf("%w : %08x porte %d couples de references mode puis jmad", ErrSansPremierePersonne, weap, len(trouves))
+		return SourcesArme{}, fmt.Errorf("%w: %08x carries %d mode-then-jmad reference pairs", ErrSansPremierePersonne, weap, len(trouves))
 	}
 	return trouves[0], nil
 }

@@ -33,6 +33,8 @@
 // `ds/`).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"math"
@@ -209,12 +211,12 @@ func LitSddt(cheminModule string) (Sddt, error) {
 	for _, f := range fichiers {
 		tag, err := m.Extract(f)
 		if err != nil {
-			derniere = fmt.Errorf("sddt#%d : extraction : %w", f.Index, err)
+			derniere = fmt.Errorf("sddt#%d: extraction: %w", f.Index, err)
 			continue
 		}
 		s, err := litSddtTag(tag)
 		if err != nil {
-			derniere = fmt.Errorf("sddt#%d : %w", f.Index, err)
+			derniere = fmt.Errorf("sddt#%d: %w", f.Index, err)
 			continue
 		}
 		if len(s.Frontieres) > 0 || len(s.VolumesEau) > 0 {
@@ -246,7 +248,7 @@ func litSddtTag(tag []byte) (Sddt, error) {
 		if lt, ok := parOwnerOff[[2]int{l.target, sddtChampFrontieresTris}]; ok {
 			abs, size, err := blocVerifie(ti, lt, sddtStrideFrontiere)
 			if err != nil {
-				return Sddt{}, fmt.Errorf("triangles-frontieres : %w", err)
+				return Sddt{}, fmt.Errorf("boundary triangles: %w", err)
 			}
 			for k := 0; k+sddtStrideFrontiere <= size; k += sddtStrideFrontiere {
 				s.Frontieres = append(s.Frontieres, litFrontiere(ti.tag, abs+k))
@@ -257,7 +259,7 @@ func litSddtTag(tag []byte) (Sddt, error) {
 	if l, ok := parOwnerOff[[2]int{root, sddtChampVolumes}]; ok {
 		abs, size, err := blocVerifie(ti, l, sddtStrideVolume)
 		if err != nil {
-			return Sddt{}, fmt.Errorf("volumes d'eau : %w", err)
+			return Sddt{}, fmt.Errorf("water volumes: %w", err)
 		}
 		for i := 0; i*sddtStrideVolume < size; i++ {
 			s.VolumesEau = append(s.VolumesEau, litVolumeEau(ti, parOwnerOff, l.target, abs, i))
@@ -273,7 +275,7 @@ func blocVerifie(ti tagInfo, l lienBloc, stride int) (int, int, error) {
 	abs, size := ti.blockAbs(l.target)
 	c := compteChamp(ti, l)
 	if c < 0 || size != c*stride {
-		return 0, 0, fmt.Errorf("bloc %d : %d o pour %d records de %d o", l.target, size, c, stride)
+		return 0, 0, fmt.Errorf("block %d: %d bytes for %d records of %d bytes", l.target, size, c, stride)
 	}
 	return abs, size, nil
 }
@@ -330,7 +332,7 @@ func litVolumeEau(ti tagInfo, parOwnerOff map[[2]int]lienBloc, bloc, abs, i int)
 // meilleurTagInfo choisit le candidat d'en-tete dont la struct-table se valide (root block
 // trouvable, tous les data-blocks dans les bornes du tag).
 func meilleurTagInfo(tag []byte) (tagInfo, error) {
-	derniere := fmt.Errorf("aucun candidat d'en-tete")
+	derniere := fmt.Errorf("no header candidate")
 	for _, ti := range tagCandidates(tag) {
 		if _, err := ti.rootBlockIndex(); err != nil {
 			derniere = err
@@ -345,7 +347,7 @@ func meilleurTagInfo(tag []byte) (tagInfo, error) {
 			}
 		}
 		if !ok {
-			derniere = fmt.Errorf("data-block hors bornes")
+			derniere = fmt.Errorf("data-block out of bounds")
 			continue
 		}
 		return ti, nil
@@ -473,7 +475,7 @@ func ModuleVariante(cheminModule, variante string) (string, error) {
 	dossier := filepath.Base(filepath.Dir(cheminModule))
 	p := filepath.Join(dir, dossier, filepath.Base(cheminModule))
 	if _, err := os.Stat(p); err != nil {
-		return "", fmt.Errorf("module %s/%s introuvable : %w", variante, dossier, err)
+		return "", fmt.Errorf("module %s/%s not found: %w", variante, dossier, err)
 	}
 	return p, nil
 }
