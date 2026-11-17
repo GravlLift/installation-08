@@ -302,6 +302,9 @@ export function Replay3DView({
       // The first frame is on screen: front the hidden corpse copies the first deaths would
       // otherwise pay lazily, off the load's critical path.
       mapScene.prepCorpses()
+      // Warm the followed player's first-person rigs (every weapon he carries) off the load's
+      // critical path; a followed-player change is picked up by placeAvatars (brasJoueurPrêt).
+      mapScene.prechaufferJoueur()
       progress.finish('first-frame')
     })()
     return () => abort.abort()

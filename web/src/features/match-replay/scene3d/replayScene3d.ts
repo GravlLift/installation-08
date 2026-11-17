@@ -305,8 +305,8 @@ export class ReplayScene3d implements Replay3DExportSource {
    * prechaufferJoueur: starts the first-person prep (piece loads, then the arm paint) for EVERY
    * weapon rig the followed player carries during the film, not only the one in hand, so a
    * weapon switch finds its coat ready instead of dropping the arms to the static gun for the
-   * whole compute. The loading screen waits on the gate anyway: the prep runs under it, so this
-   * adds no load time.
+   * whole compute. Runs once after the first frame is on screen; a followed-player change is
+   * picked up by placeAvatars (the brasJoueurPrêt guard).
    */
   prechaufferJoueur(): void {
     const bras = this.bras
