@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { cloak, type Avatar } from './avatar3d'
+import { timed, timedSync } from './perf3d'
 import type { Outline3d } from './outline3d'
 
 type Objets = { roots: readonly THREE.Object3D[]; detaches: readonly THREE.Object3D[]; composer: EffectComposer; avatars: readonly Avatar[]; outline: Outline3d }
@@ -31,29 +32,34 @@ async function compilerEtCharger(
   const { roots, detaches, composer } = objets
   const cible = renderer.getRenderTarget()
   const ombres = renderer.shadowMap.needsUpdate
-  let compilations: Promise<unknown>[]
-  try {
-    renderer.setRenderTarget(composer.readBuffer)
-    compilations = [renderer.compileAsync(scene, camera), ...detaches.map((source) => renderer.compileAsync(source, camera, scene))]
-  } finally { renderer.setRenderTarget(cible) }
-  for (const texture of texturesDe([...roots, ...detaches])) renderer.initTexture(texture)
+  const compilations = timedSync('warmup-compile-start', () => {
+    try {
+      renderer.setRenderTarget(composer.readBuffer)
+      return [renderer.compileAsync(scene, camera), ...detaches.map((source) => renderer.compileAsync(source, camera, scene))]
+    } finally { renderer.setRenderTarget(cible) }
+  })
+  timedSync('warmup-init-texture', () => {
+    for (const texture of texturesDe([...roots, ...detaches])) renderer.initTexture(texture)
+  })
   for (const source of detaches) scene.add(source)
-  try {
-    avecObjetsVisibles([...roots, ...detaches], () => objets.outline.avecSujetsPrepares(objets.avatars.map((a) => a.group), (plan) => {
-      renderer.shadowMap.needsUpdate = true
-      plan('whole')
-      composer.render()
-      avecCamouflage(objets.avatars.flatMap((a) => a.spartan ? [a.spartan.materials] : []), () => {
-        plan('stand')
+  timedSync('warmup-render-passes', () => {
+    try {
+      avecObjetsVisibles([...roots, ...detaches], () => objets.outline.avecSujetsPrepares(objets.avatars.map((a) => a.group), (plan) => {
+        renderer.shadowMap.needsUpdate = true
+        plan('whole')
         composer.render()
-      })
-    }))
-  } finally {
-    for (const source of detaches) scene.remove(source)
-    renderer.setRenderTarget(cible)
-    renderer.shadowMap.needsUpdate = ombres
-  }
-  await Promise.all(compilations)
+        avecCamouflage(objets.avatars.flatMap((a) => a.spartan ? [a.spartan.materials] : []), () => {
+          plan('stand')
+          composer.render()
+        })
+      }))
+    } finally {
+      for (const source of detaches) scene.remove(source)
+      renderer.setRenderTarget(cible)
+      renderer.shadowMap.needsUpdate = ombres
+    }
+  })
+  await timed('warmup-compile', () => Promise.all(compilations))
 }
 
 /** Applique le camouflage du jeu aux matériaux préparés et rend leur état après le dessin. */

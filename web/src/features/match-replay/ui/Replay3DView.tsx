@@ -253,15 +253,17 @@ export function Replay3DView({
       }
       if (abort.signal.aborted) return
       preloadAssets3d(doc, null, armoryRef.current)
-      await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
+      await timed('gate-idle-1', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
-      // Une image d'essai, sous l'écran de chargement : elle demande ce que la vue montre d'abord
-      // (les bras du joueur suivi, leur peinture), puis on attend encore.
-      mapScene.setPov(warmRef.current.pov)
-      mapScene.setMode(warmRef.current.mode)
-      mapScene.render(frameRef.current ?? 0)
-      mapScene.render(frameRef.current ?? 0)
-      const result = await gate.idle(Math.max(0, deadline - performance.now()), abort.signal)
+      // The first frame's pose, under the loading screen: it requests what the view shows first
+      // (the held first-person rig, gated) and starts the background shader compile, without
+      // drawing frames nobody sees.
+      timedSync('test-render', () => {
+        mapScene.setPov(warmRef.current.pov)
+        mapScene.setMode(warmRef.current.mode)
+        mapScene.primeFirstFrame(frameRef.current ?? 0)
+      })
+      const result = await timed('gate-idle-2', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
       if (result.timedOut || waitingArmor.current) console.warn('rejeu 3D : délai de chargement dépassé', gate.pending + Number(waitingArmor.current))
       progress.finish('assets')
@@ -290,13 +292,19 @@ export function Replay3DView({
     void (async () => {
       mapScene.setPov(warmRef.current.pov)
       mapScene.setMode(warmRef.current.mode)
-      await bounded(mapScene.warmUp(), 20_000)
+      await bounded(timed('warmup', () => mapScene.warmUp()), 20_000)
       if (abort.signal.aborted) return
       progress.finish('warmup')
-      mapScene.render(frameRef.current ?? 0)
+      timedSync('final-render', () => mapScene.render(frameRef.current ?? 0))
       // Two animation frames: the drawn frame has gone to the screen (bounded: a hidden tab has none).
-      await bounded(new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))), 500)
+      await bounded(timed('first-frame-wait', () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))), 500)
       if (abort.signal.aborted) return
+      // The first frame is on screen: front the hidden corpse copies the first deaths would
+      // otherwise pay lazily, off the load's critical path.
+      mapScene.prepCorpses()
+      // Warm the followed player's first-person rigs (every weapon he carries) off the load's
+      // critical path; a followed-player change is picked up by placeAvatars (brasJoueurPrêt).
+      mapScene.prechaufferJoueur()
       progress.finish('first-frame')
     })()
     return () => abort.abort()
