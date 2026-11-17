@@ -255,13 +255,13 @@ export function Replay3DView({
       preloadAssets3d(doc, null, armoryRef.current)
       await timed('gate-idle-1', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
-      // Une image d'essai, sous l'écran de chargement : elle demande ce que la vue montre d'abord
-      // (les bras du joueur suivi, leur peinture), puis on attend encore.
+      // The first frame's pose, under the loading screen: it requests what the view shows first
+      // (the held first-person rig, gated) and starts the background shader compile, without
+      // drawing frames nobody sees.
       timedSync('test-render', () => {
         mapScene.setPov(warmRef.current.pov)
         mapScene.setMode(warmRef.current.mode)
-        mapScene.render(frameRef.current ?? 0)
-        mapScene.render(frameRef.current ?? 0)
+        mapScene.primeFirstFrame(frameRef.current ?? 0)
       })
       const result = await timed('gate-idle-2', () => gate.idle(Math.max(0, deadline - performance.now()), abort.signal))
       if (abort.signal.aborted) return
@@ -299,6 +299,9 @@ export function Replay3DView({
       // Two animation frames: the drawn frame has gone to the screen (bounded: a hidden tab has none).
       await bounded(timed('first-frame-wait', () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))), 500)
       if (abort.signal.aborted) return
+      // The first frame is on screen: front the hidden corpse copies the first deaths would
+      // otherwise pay lazily, off the load's critical path.
+      mapScene.prepCorpses()
       progress.finish('first-frame')
     })()
     return () => abort.abort()

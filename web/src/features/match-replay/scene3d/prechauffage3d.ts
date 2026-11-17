@@ -32,11 +32,12 @@ async function compilerEtCharger(
   const { roots, detaches, composer } = objets
   const cible = renderer.getRenderTarget()
   const ombres = renderer.shadowMap.needsUpdate
-  let compilations: Promise<unknown>[]
-  try {
-    renderer.setRenderTarget(composer.readBuffer)
-    compilations = [renderer.compileAsync(scene, camera), ...detaches.map((source) => renderer.compileAsync(source, camera, scene))]
-  } finally { renderer.setRenderTarget(cible) }
+  const compilations = timedSync('warmup-compile-start', () => {
+    try {
+      renderer.setRenderTarget(composer.readBuffer)
+      return [renderer.compileAsync(scene, camera), ...detaches.map((source) => renderer.compileAsync(source, camera, scene))]
+    } finally { renderer.setRenderTarget(cible) }
+  })
   timedSync('warmup-init-texture', () => {
     for (const texture of texturesDe([...roots, ...detaches])) renderer.initTexture(texture)
   })

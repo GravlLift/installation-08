@@ -51,6 +51,7 @@ import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
 import { prechauffer3d } from './prechauffage3d'
 import { serialiser } from './serialiser3d'
+import { timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
 import { ScopeView3d } from './scopeView3d'
@@ -93,11 +94,15 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly lighting: Lighting
   private readonly raycaster = new THREE.Raycaster()
   private readonly avatars = new Map<string, Avatar>()
+  /**
+   * warmUp compiles the scene and warms the first frame's draw (shaders, textures, outline passes).
+   * It no longer rebuilds the avatars (the first frame's pose, `placeAvatars`, already builds them)
+   * nor pre-poses the corpse copies (`Corpses3d.take` makes each copy lazily at the death; the
+   * hidden pre-copies are fronted by `prepCorpses` after the first frame is on screen).
+   */
   readonly warmUp = serialiser(async () => {
     try {
-      this.prepareAvatars()
-      this.prechaufferJoueur()
-      await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.action?.prepareCorpses() ?? []), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
+      await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
   })
   private model: MapModel | null = null
@@ -132,6 +137,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private bras: BrasPremierePersonne3d | null = null
   /** The first-person prep (`bras.preparerJoueur`) already started for the followed player. */
   private brasJoueurPrêt: string | null = null
+  /** The hidden corpse copies have been fronted (`prepCorpses`); they are otherwise made lazily per death. */
+  private corpsesPrepped = false
   private doc: ReplayDocumentReady | null = null
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
   private fps = 30
@@ -448,6 +455,45 @@ export class ReplayScene3d implements Replay3DExportSource {
     const ndc = new THREE.Vector2(((clientX - box.left) / box.width) * 2 - 1, -((clientY - box.top) / box.height) * 2 + 1)
     const roots = this.layer ? [this.model.root, this.layer.root] : [this.model.root]
     return probeSurface(roots, this.camera, ndc)
+  }
+
+  /**
+   * primeFirstFrame poses the scene at frame `frame` WITHOUT drawing it: `render`'s pose half, run
+   * under the loading screen. It starts the loads the first frame shows (the held first-person rig,
+   * gated) and compiles the scene's shaders in the background (`compileAsync`), so the first real
+   * draw no longer pays a synchronous shader compile. The draw itself is skipped: nothing drawn
+   * here is ever seen.
+   */
+  primeFirstFrame(frame: number): void {
+    if (this.exportScene.held) return
+    this.lastFrame = frame
+    this.animateGlow((frame * this.frameMs) / 1000)
+    if (this.tracks) {
+      timedSync('prime-avatars', () => this.placeAvatars(frame))
+      timedSync('prime-camera', () => {
+        this.cameraPlacement.placeCamera(frame)
+        this.placerLunette(frame)
+        this.bras?.placer(this.camera)
+      })
+      timedSync('prime-retag', () => this.retagTags())
+      timedSync('prime-action', () => this.action?.update(frame))
+    }
+    if (this.mode === 'free') {
+      this.fly.step(this.camera, this.orbit.target, performance.now())
+      this.orbit.update()
+    }
+    timedSync('prime-compile', () => { void this.renderer.compileAsync(this.scene, this.camera).catch(() => undefined) })
+  }
+
+  /**
+   * prepCorpses fronts the hidden corpse copies that `Corpses3d.take` would otherwise pay lazily at
+   * each death. Called once, after the first frame is drawn, so the load is not slowed by copies no
+   * early frame shows.
+   */
+  prepCorpses(): void {
+    if (this.corpsesPrepped || !this.action) return
+    this.corpsesPrepped = true
+    timedSync('corpses-prep', () => { this.action?.prepareCorpses() })
   }
 
   /** render poses the scene at frame `frame` (fractional) and draws it; returns the followed player's status. */
