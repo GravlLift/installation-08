@@ -106,6 +106,8 @@ export class BrasPremierePersonne3d {
   private readonly dossier: string
   private readonly gate?: LoadGate
   private readonly entrees = new Map<string, Entree>()
+  /** In-flight rig loads (null in `entrees`), each with its gate flag. */
+  private readonly chargements = new Map<string, { p: Promise<void>; gate: boolean }>()
   private readonly abort = new AbortController()
   private readonly armes = new Map<string, RigPremierePersonne>()
   /** La clé du modèle d'arme, par fichier de rig (l'arme se peint de son revêtement, `cleArmeDe`). */
@@ -129,6 +131,8 @@ export class BrasPremierePersonne3d {
   private readonly probeAt?: (position: THREE.Vector3) => THREE.Texture | null
   private readonly habillage: HabillageRig3d
   private readonly clesPrechargees = new Set<string>()
+  /** The deferred preload is armed: set once the load gate is idle (the loading screen is gone). */
+  private prechargeArme = false
   private readonly indexPieces: Promise<BrasIndex | null>
   private readonly chargeurPieces: BrasPieces3d
   private indexPrêt = false
@@ -204,17 +208,30 @@ export class BrasPremierePersonne3d {
       if (!this.abort.signal.aborted) console.warn('rejeu 3D : index première personne indisponible', erreur)
     }
     this.indexPrêt = true
-    for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
-    this.clesPrechargees.clear()
+    this.lancerPrecharge()
   }
 
-  /** precharger : le chargement des rigs des clés de modèle `cles` commence sans attendre `montrer` ; sans index chargé, les clés attendent son arrivée. */
+  /**
+   * precharger: record the model keys `cles` whose rigs should be preloaded. Recording does not
+   * start a download; the downloads begin only once the preload is armed (`demarrerPrecharge`),
+   * so the eager preload does not compete with the gated loads for the loading screen.
+   */
   precharger(cles: readonly string[]): void {
-    if (!this.indexPrêt) {
-      for (const cle of cles) this.clesPrechargees.add(cle)
-      return
-    }
-    for (const cle of cles) this.chargerRigDe(cle)
+    for (const cle of cles) this.clesPrechargees.add(cle)
+    this.lancerPrecharge()
+  }
+
+  /** demarrerPrecharge: arm the deferred preload; start it now if the index is already ready. Called when the load gate goes idle. */
+  demarrerPrecharge(): void {
+    this.prechargeArme = true
+    this.lancerPrecharge()
+  }
+
+  /** lancerPrecharge: start the recorded rig loads once armed and the index is ready, once. */
+  private lancerPrecharge(): void {
+    if (!this.prechargeArme || !this.indexPrêt) return
+    for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
+    this.clesPrechargees.clear()
   }
 
   private chargerRigDe(cle: string): void {
@@ -248,7 +265,8 @@ export class BrasPremierePersonne3d {
     this.cacher()
     const rig = cleArme && this.armes.get(cleArme)
     if (!rig) return false
-    if (!this.entrees.has(rig.file)) this.chargerRig(rig)
+    // The visible rig holds the loading screen (the first frame shows one): gated.
+    this.chargerRig(rig, true)
     const entree = this.entrees.get(rig.file)
     if (!entree) return false
     this.habillage.actualiser(rig.file, entree.root)
@@ -498,7 +516,19 @@ export class BrasPremierePersonne3d {
     entree.bouche = st
   }
 
-  private chargerRig(rig: RigPremierePersonne): void {
+  /**
+   * Load the rig `rig`, once per file. `gate`: the load holds the loading screen
+   * (`gate.idle`) — true for the visible rig (the first frame shows one), false for the
+   * eagerly preloaded rigs (`precharger`), which load without blocking playback. If an
+   * ungated load is already in flight and a gated one is requested, it is promoted to gated.
+   */
+  private chargerRig(rig: RigPremierePersonne, gate = false): void {
+    if (this.entrees.get(rig.file)) return
+    const enCours = this.chargements.get(rig.file)
+    if (enCours) {
+      if (gate && !enCours.gate) { enCours.gate = true; this.gate?.track(enCours.p) }
+      return
+    }
     this.entrees.set(rig.file, null)
     const chargement = (async () => {
       try {
@@ -565,8 +595,12 @@ export class BrasPremierePersonne3d {
         if (this.xuid && this.armurerie && !this.armurerie.pending(this.xuid)) this.preparerRig()
       } catch (erreur) {
         if (!this.abort.signal.aborted) console.warn('rejeu 3D : rig première personne indisponible', rig.file, erreur)
+      } finally {
+        this.chargements.delete(rig.file)
       }
     })()
-    void (this.gate?.track(chargement) ?? chargement)
+    this.chargements.set(rig.file, { p: chargement, gate })
+    if (gate) this.gate?.track(chargement)
+    void chargement
   }
 }

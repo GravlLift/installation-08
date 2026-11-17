@@ -288,8 +288,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.prechargerRigs()
   }
 
-  /** prechargerRigs: start loading the rigs of the weapons the match carries, for the loading screen. */
+  /** prechargerRigs: record the weapons the match carries for the first-person preload (no download yet). */
   private prechargerRigs() { if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc)) }
+
+  /** startRigPreload: arm the recorded first-person preload; called once the load gate is idle so it starts after the first frame. */
+  startRigPreload(): void { this.bras?.demarrerPrecharge() }
 
   /**
    * prechaufferJoueur: starts the first-person prep (piece loads, then the arm paint) for EVERY

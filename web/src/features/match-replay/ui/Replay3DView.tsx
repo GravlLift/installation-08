@@ -266,6 +266,8 @@ export function Replay3DView({
       if (result.timedOut || waitingArmor.current) console.warn('rejeu 3D : délai de chargement dépassé', gate.pending + Number(waitingArmor.current))
       progress.finish('assets')
       setAssetsFor(mapScene)
+      // The loading screen is gone: start the deferred first-person preload now, off the critical path.
+      mapScene.startRigPreload()
     })()
     return () => { unsubscribe(); abort.abort() }
   }, [mapScene, doc, frameRef, progress])
