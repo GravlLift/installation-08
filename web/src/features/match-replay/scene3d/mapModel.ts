@@ -261,6 +261,9 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
   const baked = await timed('map:baked-light', () => loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps))
   if (baked) for (const m of owned) baked.apply(m)
   const model = await indexSurfaces(prepared, onStep, 'map', bvhCache)
+  // Entries `adoptCopies` adds later (environment-probe copies) are this attach's own: a session
+  // cache reattaching this model on a later match resets them first (`resetCopies`).
+  model.glowAnimation.markBaseline()
   let unbatch: (() => void) | null = null
   return {
     ...model,
@@ -291,7 +294,9 @@ export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | nu
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2, 'variant')
   if (light) for (const m of prepared.owned) light.apply(m)
-  return indexSurfaces(prepared, onStep, 'variant', bvhCache)
+  const model = await indexSurfaces(prepared, onStep, 'variant', bvhCache)
+  model.glowAnimation.markBaseline() // see loadMapModel: bounds what a reattach's adoptCopies may add
+  return model
 }
 
 function quiet(): void {}

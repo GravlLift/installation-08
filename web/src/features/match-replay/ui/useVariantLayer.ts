@@ -6,8 +6,10 @@
  * whose baked light it reuses. Every step reports into `progress`. Absent (no variant, 404, or a
  * failed build), nothing; on failure, a warning and the map stays alone. Either way the hook
  * returns true once the layer is settled, so the load does not finish before it. The layer is
- * removed and released when the scene or the path changes, and with the scene; a layer arriving
- * after release is released at once.
+ * removed when the scene or the path changes, and with the scene; a layer arriving after that is
+ * never attached. The layer itself is session-cached by its served path (`sessionAssetCache3d`): a
+ * reopened match with the same variant finds it already decoded, and nothing here disposes it
+ * directly — the cache does, only when evicted.
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -16,7 +18,8 @@ import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
 import type { LoadProgress3d } from '../model/chargement3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { loadLayerModel } from '../scene3d/mapModel'
-import { timedSync } from '../scene3d/perf3d'
+import { mark, timedSync } from '../scene3d/perf3d'
+import { cachedLayerModel, layerModelKey, sessionAssetCache, storeLayerModel } from '../scene3d/sessionAssetCache3d'
 import { fetchVariantBuffer } from '../scene3d/variantLayer'
 
 type Prefetch = {
@@ -41,9 +44,10 @@ export function useVariantLayer(
   const [settledFor, setSettledFor] = useState<LoadProgress3d | null>(null)
   const prefetch = useRef<Prefetch | null>(null)
 
-  // The download, before the map is posed.
+  // The download, before the map is posed. Skipped when the layer is already session-cached: a
+  // reopened match on the same variant has nothing to prefetch.
   useEffect(() => {
-    if (!variantPath) return
+    if (!variantPath || cachedLayerModel(variantPath)) return
     const abort = new AbortController()
     const buffer = fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
     buffer.catch(() => {})
@@ -69,24 +73,48 @@ export function useVariantLayer(
     if (!scene) return
     const abort = new AbortController()
     let alive = true
+    const key = layerModelKey(variantPath)
     void (async () => {
       try {
-        const entry = prefetch.current
-        const samePrefetch = entry && entry.path === variantPath && entry.progress === progress
-        const pre = samePrefetch ? entry.buffer : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
-        const bvhPre = samePrefetch ? entry.bvhCache : fetchBVHCache(variantPath, abort.signal)
-        const [buffer, bvhCache] = await Promise.all([pre, bvhPre])
-        // The buffer is read once: the layer holds what it needs, the 100+ MB file is released.
-        if (prefetch.current?.buffer === pre) prefetch.current = null
-        if (!alive) return
-        if (!buffer) progress.variantNone()
-        else {
-          const layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
-            progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader, bvhCache)
-          if (!alive || !timedSync('variant:attach', () => scene.attachLayer(layer))) layer.dispose()
-          // Off the critical path, same as the map's own upload: the layer is already posed (or
-          // dropped) by the time this fires.
-          else if (layer.bvhUpload) void uploadBVHCache(variantPath, layer.bvhUpload, abort.signal)
+        let layer = cachedLayerModel(variantPath)
+        // The freshly built ray index to store server-side, once the layer is posed; stays null
+        // on a cache hit and when a used sidecar already matched (see the map's own `attach` effect).
+        let bvhToUpload: ArrayBuffer | null = null
+        if (layer) {
+          // Warm load: see the map's own cache hit above — nothing to fetch, decode or index.
+          mark('cache-hit:layer')
+          progress.variantBytes(1, 1)
+          progress.step('variant-decode', 1, 1)
+          progress.step('variant-index', 1, 1)
+        } else {
+          const entry = prefetch.current
+          const samePrefetch = entry && entry.path === variantPath && entry.progress === progress
+          const pre = samePrefetch ? entry.buffer : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
+          const bvhPre = samePrefetch ? entry.bvhCache : fetchBVHCache(variantPath, abort.signal)
+          const [buffer, bvhCache] = await Promise.all([pre, bvhPre])
+          // The buffer is read once: the layer holds what it needs, the 100+ MB file is released.
+          if (prefetch.current?.buffer === pre) prefetch.current = null
+          if (!alive) return
+          if (!buffer) progress.variantNone()
+          else {
+            layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
+              progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader, bvhCache)
+            storeLayerModel(variantPath, layer)
+            bvhToUpload = layer.bvhUpload
+          }
+        }
+        if (layer) {
+          const resolvedLayer = layer
+          // Not attached (unmounted meanwhile, or no map posed yet): the cache still holds the
+          // layer unpinned, for a later try, instead of it being disposed here.
+          if (!alive || !timedSync('variant:attach', () => scene.attachLayer(resolvedLayer))) {
+            // no-op
+          } else {
+            sessionAssetCache.acquire(key)
+            // Off the critical path, same as the map's own upload: the layer is already posed by
+            // the time this fires. Never runs on a cache hit or when a used sidecar matched.
+            if (bvhToUpload) void uploadBVHCache(variantPath, bvhToUpload, abort.signal)
+          }
         }
       } catch (err) {
         if (!alive) return
@@ -100,6 +128,7 @@ export function useVariantLayer(
       alive = false
       abort.abort()
       scene.detachLayer()
+      sessionAssetCache.release(key)
     }
   }, [scene, variantPath, pending, progress])
 

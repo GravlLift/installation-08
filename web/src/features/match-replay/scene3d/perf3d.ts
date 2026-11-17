@@ -10,6 +10,16 @@ export function now(): number {
   return performance.now()
 }
 
+/** mark records a point-in-time User Timing mark `it3d:<name>` (an event, not a duration — a warm
+ *  load's session-cache hit, so the lead's load-time harness can tell it apart from a cold one). */
+export function mark(name: string, detail?: unknown): void {
+  try {
+    performance.mark(`it3d:${name}`, { detail })
+  } catch {
+    // A mark is a diagnostic: an environment without User Timing loads the same.
+  }
+}
+
 /** measureSince records `it3d:<name>` from `start` (a `now()` reading) to now. */
 export function measureSince(name: string, start: number, detail?: unknown): void {
   try {

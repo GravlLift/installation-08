@@ -58,7 +58,16 @@ export class WeaponModels {
   private readonly owned: THREE.Object3D[] = []
   private readonly abort = new AbortController()
   readonly base: string
-  readonly gate?: LoadGate
+  /**
+   * The current match's load gate, tracked for its still-pending model loads. Mutable (`useGate`):
+   * this library may be session-cached (`sessionAssetCache3d`) and reused by a later match whose
+   * own gate must see any load this library starts from then on, not the gate of whichever match
+   * first built it.
+   */
+  private _gate?: LoadGate
+  get gate(): LoadGate | undefined { return this._gate }
+  /** useGate rebinds the match load gate this library tracks new loads against; called by the caller when a cached instance is handed to a new match. */
+  useGate(gate?: LoadGate): void { this._gate = gate }
   /** The red-reticle ranges and zoom magnifications of the library's index (served at `base`). */
   readonly reticles: ReticleRanges
   /** The team banners of the library's index (the CTF flag's). */
@@ -78,7 +87,7 @@ export class WeaponModels {
     ktx2: KTX2Loader | null = null,
   ) {
     this.base = base
-    this.gate = gate
+    this._gate = gate
     this.reticles = reticles
     this.banners = banners
     this.equipment = equipment
@@ -175,7 +184,7 @@ export class WeaponModels {
         this.entries.set(key, { absentUntil: performance.now() + RETRY_MS })
       }
     })()
-    void (this.gate?.track(loading) ?? loading)
+    void (this._gate?.track(loading) ?? loading)
   }
 }
 

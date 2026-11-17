@@ -173,6 +173,8 @@ export class GlowAnimator {
   private enabled = true
   private readonly scratch = new THREE.Color()
   private readonly tint = new THREE.Color()
+  /** How many entries are the model's own (`add`, at load time), set once loading is done: `resetCopies` drops only what `adoptCopies` added after it. */
+  private baseCount: number | null = null
 
   get size(): number {
     return this.entries.length
@@ -216,6 +218,30 @@ export class GlowAnimator {
         this.entries.push({ ...this.entries[k], material: m, texture: null })
       }
     }
+  }
+
+  /**
+   * markBaseline remembers how many entries are the model's own, right after it finishes loading
+   * (before any `adoptCopies` call). A model kept in the session cache and reused by a later match
+   * is reattached, captured by new environment probes, and re-adopted; without this the previous
+   * match's probe-copy entries would never leave, growing `entries` (and the per-frame `update`
+   * cost) a little on every reused match.
+   */
+  markBaseline(): void {
+    this.baseCount ??= this.entries.length
+  }
+
+  /**
+   * resetCopies drops every entry `adoptCopies` added (the previous attach's environment-probe
+   * copies), keeping only the model's own (`add`). Call it before capturing new probes on a
+   * reattach, so `adoptCopies` starts clean instead of piling on top of stale copies. It leaves
+   * each dropped copy's `userData[GLOW_ENTRY]` mark alone: a probe copy SHARES its original's
+   * `userData` object (`assignProbes`), so clearing the mark there would also erase it from the
+   * model's own base material, the one `adoptCopies` looks it up from on every later reattach.
+   */
+  resetCopies(): void {
+    if (this.baseCount === null) return
+    this.entries.length = this.baseCount
   }
 
   /** update writes every material's state at match `seconds`; nothing while disabled. */
