@@ -6,7 +6,7 @@
  * réelle de l'encodeur, elle, n'a rien à faire sous jsdom — elle se vérifie dans le navigateur,
  * et c'est le gate manuel de l'étape E1 du plan.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ENCODE_QUEUE_MAX,
@@ -14,8 +14,10 @@ import {
   EXPORT_FPS_3D,
   EXPORT_QP,
   KEYFRAME_EVERY,
+  audioEncoderConfig,
   avcLevelFor,
   canExportVideo,
+  chooseAudioCodec,
   chooseExportFps,
   chooseExportRateMode,
   encodeOptionsFor,
@@ -255,5 +257,42 @@ describe('canExportVideo — la capacité du navigateur', () => {
   it('rend false là où WebCodecs n’existe pas (jsdom)', () => {
     // C'est ce qui fait retomber l'UI sur l'enregistreur temps réel (décision D5 du plan).
     expect(canExportVideo()).toBe(false)
+  })
+})
+
+describe('chooseAudioCodec — AAC first, Opus where there is no AAC encoder (Firefox)', () => {
+  const SHAPE = { sampleRate: 48_000, numberOfChannels: 2 }
+  afterEach(() => vi.unstubAllGlobals())
+  const withWebCodecs = () => {
+    vi.stubGlobal('AudioEncoder', class {})
+    vi.stubGlobal('AudioData', class {})
+  }
+
+  it('takes AAC when the browser encodes it', async () => {
+    withWebCodecs()
+    expect(await chooseAudioCodec(SHAPE, async () => true)).toBe('aac')
+  })
+
+  it('falls back to Opus when AAC is refused, as Firefox does', async () => {
+    withWebCodecs()
+    const asked: string[] = []
+    const codec = await chooseAudioCodec(SHAPE, async (c) => {
+      asked.push(c.codec)
+      return c.codec === 'opus'
+    })
+    expect(codec).toBe('opus')
+    expect(asked).toEqual(['mp4a.40.2', 'opus'])
+  })
+
+  it('no codec at all, or no WebCodecs: null, and the clip is announced silent', async () => {
+    withWebCodecs()
+    expect(await chooseAudioCodec(SHAPE, async () => false)).toBeNull()
+    vi.unstubAllGlobals()
+    expect(await chooseAudioCodec(SHAPE, async () => true)).toBeNull()
+  })
+
+  it('the configurations presented: AAC-LC by default, Opus on request, same shape and rate', () => {
+    expect(audioEncoderConfig(SHAPE)).toMatchObject({ codec: 'mp4a.40.2', sampleRate: 48_000, numberOfChannels: 2 })
+    expect(audioEncoderConfig(SHAPE, 'opus')).toMatchObject({ codec: 'opus', sampleRate: 48_000, numberOfChannels: 2 })
   })
 })

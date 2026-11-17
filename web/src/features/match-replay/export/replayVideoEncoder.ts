@@ -66,6 +66,7 @@ import {
 } from 'mediabunny'
 import type { StreamTargetChunk } from 'mediabunny'
 
+import { repairAvcDescription } from './avcDescription'
 import { ExportFileTarget } from './replayExportFileTarget'
 import { yieldToEvents } from './eventLoopYield'
 
@@ -357,10 +358,23 @@ export function canExportAudio(): boolean {
  */
 const AUDIO_BITRATE = 128_000
 
-/** La configuration AAC visee : AAC-LC, le profil que tout lecteur decode. */
-export function audioEncoderConfig(shape: AudioTrackShape): AudioEncoderConfig {
+/**
+ * The audio codecs of the clip, in order of preference: AAC-LC first, the profile every player
+ * decodes; Opus where the browser has no AAC encoder. Firefox is that case (checked 2026-11-16 on
+ * Firefox 142: `AudioEncoder.isConfigSupported` refuses `mp4a.40.2` and accepts `opus`); without
+ * the Opus fallback its clips came out silent. Opus in MP4 is standard (ISO/IEC 14496-12 with the
+ * Opus mapping) and plays in the browsers and VLC.
+ */
+export type ExportAudioCodec = 'aac' | 'opus'
+const AUDIO_CODECS: readonly { codec: ExportAudioCodec; webCodec: string }[] = [
+  { codec: 'aac', webCodec: 'mp4a.40.2' },
+  { codec: 'opus', webCodec: 'opus' },
+]
+
+/** The configuration presented for a codec: AAC-LC by default. */
+export function audioEncoderConfig(shape: AudioTrackShape, codec: ExportAudioCodec = 'aac'): AudioEncoderConfig {
   return {
-    codec: 'mp4a.40.2',
+    codec: AUDIO_CODECS.find((c) => c.codec === codec)?.webCodec ?? 'mp4a.40.2',
     sampleRate: shape.sampleRate,
     numberOfChannels: shape.numberOfChannels,
     bitrate: AUDIO_BITRATE,
@@ -368,25 +382,35 @@ export function audioEncoderConfig(shape: AudioTrackShape): AudioEncoderConfig {
 }
 
 /**
- * audioTrackUsable dit si ce navigateur sait REELLEMENT encoder cette piste.
+ * chooseAudioCodec says which codec this browser can REALLY encode for this track, in the order
+ * of `AUDIO_CODECS`, or `null` when it can encode none.
  *
- * `canExportAudio` ne repond qu'a « l'API existe-t-elle ». Elle peut exister et REFUSER la
- * configuration — et ce refus est ASYNCHRONE : `configure()` ne leve pas, il passe l'encodeur
- * en erreur et le ferme, si bien que la panne n'apparait qu'au `flush()`, sous la forme
- * trompeuse « Encoder must be configured first ». C'est exactement ce qui s'est produit en
- * recette le 2026-08-28.
+ * `canExportAudio` only answers "does the API exist". It can exist and REFUSE the configuration,
+ * and that refusal is ASYNCHRONOUS: `configure()` does not throw, it puts the encoder in error and
+ * closes it, so the failure only shows at `flush()`, as the misleading "Encoder must be
+ * configured first". That is exactly what happened in acceptance on 2026-08-28.
  *
- * La question se pose donc AVANT d'ouvrir le conteneur, qui declare ses pistes une fois pour
- * toutes : mieux vaut un clip muet annonce qu'un export perdu.
+ * So the question is asked BEFORE the container is opened, which declares its tracks once and for
+ * all: an announced silent clip is better than a lost export.
  */
-export async function audioTrackUsable(shape: AudioTrackShape): Promise<boolean> {
-  if (!canExportAudio()) return false
+export async function chooseAudioCodec(
+  shape: AudioTrackShape,
+  probe: (config: AudioEncoderConfig) => Promise<boolean> = audioConfigSupported,
+): Promise<ExportAudioCodec | null> {
+  if (!canExportAudio()) return null
+  for (const { codec } of AUDIO_CODECS) {
+    if (await probe(audioEncoderConfig(shape, codec))) return codec
+  }
+  return null
+}
+
+/** The browser's answer for one audio configuration; a refusal that throws is a "no". */
+async function audioConfigSupported(config: AudioEncoderConfig): Promise<boolean> {
   if (typeof AudioEncoder.isConfigSupported !== 'function') return false
   try {
-    const probe = await AudioEncoder.isConfigSupported(audioEncoderConfig(shape))
-    return probe.supported === true
+    return (await AudioEncoder.isConfigSupported(config)).supported === true
   } catch {
-    // Une configuration REFUSEE leve ici (config invalide) : c'est une reponse, pas une panne.
+    // A REFUSED configuration throws here (invalid config): that is an answer, not a failure.
     return false
   }
 }
@@ -472,10 +496,9 @@ export interface AudioTrackInput {
  * capacité absente, et le plan (D5) veut qu'elle se traite par un autre bouton.
  */
 /**
- * La forme de reference des pistes sonores : celle que rend le mixage hors ligne
- * (`replayAudioMix.ts`). Elle ne sert qu'a PROUVER que l'encodeur AAC l'accepte, AVANT de
- * declarer quoi que ce soit dans le conteneur — une piste declaree puis refusee perd tout
- * l'export.
+ * The reference shape of the sound tracks: the one the offline mix renders (`replayAudioMix.ts`).
+ * It only serves to PROVE that the encoder (AAC, or Opus) accepts it, BEFORE anything is declared
+ * in the container: a track declared and then refused loses the whole export.
  */
 const MIX_TRACK_SHAPE: AudioTrackShape = { sampleRate: 48_000, numberOfChannels: 2 }
 
@@ -497,10 +520,11 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // demandé à l'encodeur, sans avoir à deviner quel mode a gagné la sonde.
   console.info(`[replay-export] rate mode ${mode} —`, JSON.stringify(config))
   const noms = o.audioTracks ?? []
-  // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `audioTrackUsable`) : le
-  // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
-  // l'encodeur refusera ensuite perd TOUT l'export.
-  const audioOk = noms.length > 0 && (await audioTrackUsable(MIX_TRACK_SHAPE))
+  // THE SOUND TRACKS ARE PROVEN BEFORE THEY ARE DECLARED (see `chooseAudioCodec`): the container
+  // writes its track table once and for all, and a declared track the encoder later refuses
+  // loses THE WHOLE export.
+  const audioCodec = noms.length > 0 ? await chooseAudioCodec(MIX_TRACK_SHAPE) : null
+  if (audioCodec && audioCodec !== 'aac') console.info(`[replay-export] no AAC encoder in this browser, audio encoded as ${audioCodec}`)
 
   // LE FICHIER EST ECRIT EN FLUX, JAMAIS DANS UN SEUL ArrayBuffer.
   //
@@ -525,9 +549,9 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   output.addVideoTrack(videoSource, { frameRate: fps })
   // Les pistes AUDIO sont ajoutees ICI, vides : leur EXISTENCE et leur ORDRE se declarent avant
   // le premier octet, leur contenu arrive plus tard (`addAudioTracks`).
-  const audioSources = audioOk
+  const audioSources = audioCodec
     ? noms.map((name) => {
-        const src = new AudioBufferSource({ codec: 'aac', quality: QUALITY_HIGH })
+        const src = new AudioBufferSource({ codec: audioCodec, quality: QUALITY_HIGH })
         output.addAudioTrack(src, { name })
         return src
       })
@@ -554,7 +578,8 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
       const packet = EncodedPacket.fromEncodedChunk(chunk)
-      ecritures = ecritures.then(() => videoSource.add(packet, meta))
+      const checked = withRepairedDescription(meta, packet.data)
+      ecritures = ecritures.then(() => videoSource.add(packet, checked))
     },
     error: (err) => {
       failure = err instanceof Error ? err : new Error(String(err))
@@ -566,6 +591,23 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
     height: config.height,
   }, fileTarget)
   return { ...sink, fpsFallback, rateMode: mode }
+}
+
+/**
+ * withRepairedDescription hands the muxer a well-formed `avcC`: Firefox's encoder gives a malformed
+ * one (`avcDescription.ts`). Metadata without a description, or with a sound one, passes as is.
+ */
+function withRepairedDescription(
+  meta: EncodedVideoChunkMetadata | undefined,
+  data: Uint8Array,
+): EncodedVideoChunkMetadata | undefined {
+  const desc = meta?.decoderConfig?.description
+  if (!meta?.decoderConfig || !desc) return meta
+  const bytes = ArrayBuffer.isView(desc) ? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength) : new Uint8Array(desc)
+  const repaired = repairAvcDescription(bytes, data)
+  if (!repaired) return meta
+  console.warn('[replay-export] the browser gave a malformed H.264 avcC; rebuilt from the key frame parameter sets')
+  return { ...meta, decoderConfig: { ...meta.decoderConfig, description: repaired } }
 }
 
 /**
