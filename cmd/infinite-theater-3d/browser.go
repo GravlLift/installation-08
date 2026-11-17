@@ -97,12 +97,36 @@ func isRunningCopy(addr string) (running, viewer bool) {
 	return health.OK == "true", health.Viewer != "false"
 }
 
-// openOnExisting handles a listen failure of a run that opens the browser. When the
-// address is held by another running copy of this program that serves the viewer, it
-// opens the browser on that copy and reports no error, so a second double-click exits
-// cleanly. A copy without the viewer (a development server) or anything else holding the
-// address returns an error naming the way out, and no browser opens on a page that 404s.
-func openOnExisting(addr string, listenErr error) error {
+// openWindowUI opens a launch's UI on the server's address: the app window in window
+// mode, the default browser in browser mode. When the window cannot be created it logs a
+// warning and falls back to the browser exactly as browser mode does. It reports whether
+// the app window was opened and then closed (the server should stop with it).
+func openWindowUI(ui, addr string) bool {
+	url := urlForAddr(addr)
+	if url == "" {
+		slog.Warn("could not derive a browser URL from the listen address", "addr", addr)
+		return false
+	}
+	if ui == uiWindow {
+		if err := openWindow(url); err != nil {
+			slog.Warn("could not open the app window; falling back to the default browser", "err", err)
+		} else {
+			return true
+		}
+	}
+	if err := openBrowser(url); err != nil {
+		slog.Warn("could not open the browser", "err", err)
+	}
+	return false
+}
+
+// openOnExisting handles a listen failure of a run that opens the UI. When the address is
+// held by another running copy of this program that serves the viewer, it opens the
+// launch's UI (the app window in window mode, the default browser in browser mode) on
+// that copy and reports no error, so a second double-click exits cleanly. A copy without
+// the viewer (a development server) or anything else holding the address returns an error
+// naming the way out, and no UI opens on a page that 404s.
+func openOnExisting(addr string, listenErr error, ui string) error {
 	running, viewer := isRunningCopy(addr)
 	if !running {
 		return fmt.Errorf("listen %s: %w", addr, listenErr)
@@ -110,9 +134,7 @@ func openOnExisting(addr string, listenErr error) error {
 	if !viewer {
 		return fmt.Errorf("%s is held by another copy of this program that does not serve the viewer (a development server); stop it, or start this one with --addr 127.0.0.1:<another port>", addr)
 	}
-	slog.Info("already running, opening the browser on the existing server", "addr", addr)
-	if err := openBrowser(urlForAddr(addr)); err != nil {
-		slog.Warn("could not open the browser", "err", err)
-	}
+	slog.Info("already running, opening the UI on the existing server", "addr", addr)
+	openWindowUI(ui, addr)
 	return nil
 }

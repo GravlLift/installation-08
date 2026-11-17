@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -41,6 +42,7 @@ type serveFlags struct {
 	addrSet  bool // --addr was given: never replaced by a fallback port
 	web      string
 	open     bool
+	ui       string // --ui: window (the app's own window) or browser (the default browser)
 	readOnly bool
 	dataDir  string
 	game     string
@@ -53,7 +55,8 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	var f serveFlags
 	fs.StringVar(&f.addr, "addr", "127.0.0.1:8177", "listen address (loopback by default)")
 	fs.StringVar(&f.web, "web", "", "directory of static files to serve for non-API paths (optional; the embedded viewer answers when no directory is given)")
-	fs.BoolVar(&f.open, "open", false, "open the default browser on the server's address once it is listening")
+	fs.BoolVar(&f.open, "open", false, "open the UI on the server's address once it is listening")
+	fs.StringVar(&f.ui, "ui", defaultUI(), "UI to open with --open: window (the app's own window) or browser (the default browser)")
 	fs.BoolVar(&f.readOnly, "read-only", false, "refuse every state-changing request (for a server shown to others through a tunnel)")
 	fs.StringVar(&f.dataDir, "data", "", dataDirHelp)
 	fs.StringVar(&f.game, "game", "", "game deploy root for map and weapon builds (empty auto-detects)")
@@ -61,6 +64,9 @@ func parseServeFlags(args []string) (serveFlags, error) {
 	err := fs.Parse(args)
 	if err != nil {
 		return f, err
+	}
+	if f.ui != uiWindow && f.ui != uiBrowser {
+		return f, fmt.Errorf("unknown --ui value %q (window or browser)", f.ui)
 	}
 	fs.Visit(func(fl *flag.Flag) {
 		if fl.Name == "addr" {
@@ -85,7 +91,7 @@ func runServe(args []string) error {
 	// touch the data. A launch that cannot claim either exits before writing anything.
 	claim, err := claimDataDir(dataDir)
 	if errors.Is(err, errDataDirBusy) {
-		return onDataDirBusy(dataDir, f.open)
+		return onDataDirBusy(dataDir, f.open, f.ui)
 	}
 	if err != nil {
 		return err
@@ -136,15 +142,34 @@ func runServe(args []string) error {
 		Handler:           h.readOnlyHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	errCh := make(chan error, 1)
-	go func() {
-		slog.Info("infinite-theater-3d serving", "addr", addr, "data", dataDir)
-		errCh <- srv.Serve(ln)
-	}()
+	if f.open && f.ui == uiWindow {
+		// The app window runs on the main OS thread; the server runs in a goroutine.
+		// Closing the window cancels the context, the same path Ctrl+C takes. When the
+		// window cannot be created, openWindowUI falls back to the default browser and the
+		// process stays running on the signal path, exactly as the browser mode does.
+		coreErr := make(chan error, 1)
+		go func() { coreErr <- serveCore(ctx, srv, ln, addr, dataDir) }()
+		closed := openWindowUI(f.ui, addr)
+		if closed {
+			stop()
+		}
+		return <-coreErr
+	}
 	if f.open {
 		fmt.Printf("\nInfinite Theater 3D is running at %s\nKeep this window open while you use the viewer. Close it to stop.\n\n", urlForAddr(addr))
 		openOnListen(ctx, addr)
 	}
+	return serveCore(ctx, srv, ln, addr, dataDir)
+}
+
+// serveCore serves the server and blocks until a cancellation signal or a serve failure,
+// then shuts it down cleanly.
+func serveCore(ctx context.Context, srv *http.Server, ln net.Listener, addr, dataDir string) error {
+	slog.Info("infinite-theater-3d serving", "addr", addr, "data", dataDir)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Serve(ln)
+	}()
 	select {
 	case <-ctx.Done():
 		slog.Info("shutting down")

@@ -57,6 +57,7 @@ var commands = map[string]func([]string) error{
 	"build-firstperson-library": runBuildFirstPersonLibrary,
 	"build-icons":               runBuildIcons,
 	"setup-coatings":            runSetupCoatings,
+	"window":                    runWindow, // hidden developer command: the app window on a URL, no server
 }
 
 func run(args []string) error {

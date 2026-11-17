@@ -57,20 +57,20 @@ func TestDataDirBusyOpensHolder(t *testing.T) {
 	addr := holder.Listener.Addr().String()
 	claim.recordAddr(addr)
 	urls := withFakeOpenBrowser(t)
-	if err := onDataDirBusy(dir, true); err != nil {
+	if err := onDataDirBusy(dir, true, uiBrowser); err != nil {
 		t.Fatalf("double-click on a busy folder: %v", err)
 	}
 	if got := readUrls(urls); len(got) != 1 || got[0] != "http://"+addr {
 		t.Fatalf("opened %v, want http://%s", got, addr)
 	}
-	if err := onDataDirBusy(dir, false); !errors.Is(err, errDataDirBusy) {
+	if err := onDataDirBusy(dir, false, uiBrowser); !errors.Is(err, errDataDirBusy) {
 		t.Fatalf("serve on a busy folder: err = %v, want errDataDirBusy", err)
 	}
 }
 
 func TestDataDirBusyNoHolderAddr(t *testing.T) {
 	urls := withFakeOpenBrowser(t)
-	if err := onDataDirBusy(t.TempDir(), true); !errors.Is(err, errDataDirBusy) {
+	if err := onDataDirBusy(t.TempDir(), true, uiBrowser); !errors.Is(err, errDataDirBusy) {
 		t.Fatalf("err = %v, want errDataDirBusy", err)
 	}
 	if got := readUrls(urls); len(got) != 0 {
