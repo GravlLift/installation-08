@@ -23,6 +23,11 @@
         dist\installation-08-<version>-windows-amd64.zip
         dist\SHA256SUMS.txt          (one SHA-256 per release file; also lists the installer with -Installer)
 
+    Before the zip, the load check (web\scripts\release-check.mjs) runs the new exe on this
+    machine's app data folder (or, when the app is open, the same bundle against it) and
+    loads one stored match in a headless browser; a match that does not reach ready, or any
+    error the page reports, stops the script. -SkipLoadCheck skips it.
+
     Any failing step stops the script with a non-zero exit and a clear message.
 #>
 param(
@@ -32,6 +37,9 @@ param(
     [switch]$SkipWeb,
 
     [switch]$Installer,
+
+    # Skip the load check (step 4b), for a machine with no stored match to load.
+    [switch]$SkipLoadCheck,
 
     # Where the exe, the release folder and the zip are written (default: dist\ in the repo).
     [string]$OutDir
@@ -107,6 +115,26 @@ finally { Pop-Location }
 # throws (stopping this script, since $ErrorActionPreference is Stop here too) on any failure,
 # including a missing mt.exe.
 & (Join-Path $scriptDir 'embed-manifest.ps1') -Exe $exe
+
+# --- 4b. Load check: the just-built exe loads one stored match end to end in a headless
+# browser (web\scripts\release-check.mjs). test.18 and test.19 shipped with every match stuck
+# on "Decoding materials" because nothing ever loaded a match from the minified bundle. Exit 1
+# (the scene never got ready, or the page reported an error) stops the packaging; exit 2 (no
+# stored match with a built map on this machine) only warns.
+if (-not $SkipLoadCheck) {
+    Push-Location (Join-Path $repo 'web')
+    try {
+        & node scripts/release-check.mjs --exe $exe
+        $check = $LASTEXITCODE
+    }
+    finally { Pop-Location }
+    if ($check -eq 2) {
+        Write-Warning 'load check skipped: no stored match with a built map on this machine'
+    }
+    elseif ($check -ne 0) {
+        throw "load check failed (exit $check): the packaged build did not load a match; see the [release-check] lines above"
+    }
+}
 
 # --- 5. The release folder and the zip.
 $name = "installation-08-$Version-windows-amd64"

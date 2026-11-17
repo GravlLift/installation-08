@@ -225,7 +225,8 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
 `tools\package.ps1 -Version <version>` builds `web\` (`npm run build`; run `npm ci` in `web\`
 first), stages `web\dist\index.html` and `web\dist\assets\` into `internal\webdist\files`,
 builds the Go binary with the `embedweb` build tag, the `-ldflags` version, and a static MinGW
-link (no `libwinpthread-1.dll` or other MinGW runtime DLLs on the target machine), and writes:
+link (no `libwinpthread-1.dll` or other MinGW runtime DLLs on the target machine), runs the
+load check, and writes:
 
 ```
 dist\installation-08-<version>-windows-amd64\
@@ -240,6 +241,15 @@ dist\SHA256SUMS.txt
 
 `-OutDir <dir>` writes them somewhere other than `dist\`. `SHA256SUMS.txt` holds one SHA-256
 per release file in standard `sha256sum` format (`<lowercase hex>  <file name>`).
+
+The load check (`web\scripts\release-check.mjs`) runs before the zip. It starts the new exe on
+this machine's app data folder (`%LOCALAPPDATA%\infinite-theater-3d\data`; when the app is open,
+it serves the same `web\dist` bundle through `vite preview` against the running server instead)
+and loads the first stored match whose map is built in headless Chromium (Playwright's own, one
+persistent profile in `%TEMP%\it3d-release-check-chrome-profile`). Packaging stops unless the
+scene reaches `ready` (the `data-it3d-scene-load` attribute on the page) with no page error and
+no viewer error. With no stored match it only warns; `-SkipLoadCheck` skips it. Run it alone
+with `node scripts/release-check.mjs --exe <exe> [--match <id>] [--data <dir>]` from `web\`.
 
 With `-Installer` the script also compiles a Windows installer (Inno Setup 6) from
 `tools\installer.iss` and writes `dist\installation-08-<version>-setup.exe`. The installer

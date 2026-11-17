@@ -26,7 +26,7 @@ import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanA
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
 import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
-import { LOAD_STALL_MS, LoadProgress3d, type LoadState } from '../model/chargement3d_logic'
+import { LOAD_STALL_MS, LoadProgress3d, sceneLoadSignal, type LoadState } from '../model/chargement3d_logic'
 import { reportClientError } from '@/lib/clientLog'
 import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
@@ -146,6 +146,7 @@ export function Replay3DView({
         : next.kind
       if (key === shown) return
       shown = key
+      document.documentElement.dataset.it3dSceneLoad = sceneLoadSignal(next)
       if (next.kind === 'ready') console.info('rejeu 3D : chargement', progress.report())
       setLoad(next)
     }

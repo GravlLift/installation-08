@@ -51,6 +51,17 @@ export const LOAD_STALL_MS = 180_000
 
 const MB = 1024 * 1024
 
+/**
+ * sceneLoadSignal is the load state as the `data-it3d-scene-load` attribute on the page's root
+ * element: `loading:<phase>`, `ready`, `error`, or `error:stalled:<phase>`. The release load
+ * check (web/scripts/release-check.mjs) waits on it, so it must keep this shape.
+ */
+export function sceneLoadSignal(state: LoadState): string {
+  if (state.kind === 'loading') return `loading:${state.phase}`
+  if (state.kind === 'error') return state.stalled ? `error:stalled:${state.stalled}` : 'error'
+  return 'ready'
+}
+
 /** Estimated costs, in seconds (per MB of GLB for the GLB phases). Calibrate from the
  *  `report()` timings the view logs at the end of each load. */
 export const LOAD_COSTS_3D = {

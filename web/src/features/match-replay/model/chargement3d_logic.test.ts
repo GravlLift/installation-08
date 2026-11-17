@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { LOAD_STALL_MS, LoadProgress3d, type LoadState } from './chargement3d_logic'
+import { LOAD_STALL_MS, LoadProgress3d, sceneLoadSignal, type LoadState } from './chargement3d_logic'
+
+describe('sceneLoadSignal', () => {
+  it('keeps the shape the release load check waits on', () => {
+    expect(sceneLoadSignal({ kind: 'loading', phase: 'decode', fraction: 0.1, done: 1, total: 2 })).toBe('loading:decode')
+    expect(sceneLoadSignal({ kind: 'ready' })).toBe('ready')
+    expect(sceneLoadSignal({ kind: 'error' })).toBe('error')
+    expect(sceneLoadSignal({ kind: 'error', stalled: 'decode' })).toBe('error:stalled:decode')
+  })
+})
 
 const MB = 1024 * 1024
 
