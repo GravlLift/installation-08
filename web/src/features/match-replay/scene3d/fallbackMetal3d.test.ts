@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { DARK_GLASS, DARK_METAL, darkMetalFallback } from './fallbackMetal3d'
 
 describe('darkMetalFallback', () => {
-  it('donne le métal sombre à un matériau sans texture', () => {
+  it('gives dark metal to an untextured material', () => {
     const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(1, 1, 1), metalness: 0, roughness: 1 })
     expect(darkMetalFallback(m)).toBe(true)
     expect(m.color.r).toBeCloseTo(DARK_METAL.r)
@@ -13,7 +13,7 @@ describe('darkMetalFallback', () => {
     expect(m.roughness).toBe(DARK_METAL.roughness)
   })
 
-  it('donne le verre sombre opaque à un matériau translucide sans texture', () => {
+  it('gives opaque dark glass to an untextured translucent material', () => {
     const glass = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.4 })
     expect(darkMetalFallback(glass)).toBe(true)
     expect(glass.color.r).toBeCloseTo(DARK_GLASS.r)
@@ -22,7 +22,7 @@ describe('darkMetalFallback', () => {
     expect(glass.opacity).toBe(1)
   })
 
-  it('laisse un matériau texturé', () => {
+  it('leaves a textured material alone', () => {
     const textured = new THREE.MeshStandardMaterial({ map: new THREE.Texture() })
     expect(darkMetalFallback(textured)).toBe(false)
     expect(textured.color.r).toBe(1)

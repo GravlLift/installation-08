@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest'
 import { TAG_HEIGHT } from './body3d'
 import { NAME_TAG_FULL_U, NAME_TAG_RANGE_U, nameTagOpacity, placeTag } from './nameTags3d'
 
-describe('nameTagOpacity — étiquette des joueurs selon la distance', () => {
-  it('pleine à portée, nulle au-delà de la limite', () => {
+describe('nameTagOpacity — player tags by distance', () => {
+  it('full within range, zero beyond the limit', () => {
     expect(nameTagOpacity(0, false)).toBe(1)
     expect(nameTagOpacity(NAME_TAG_FULL_U, false)).toBe(1)
     expect(nameTagOpacity(NAME_TAG_RANGE_U, false)).toBe(0)
@@ -15,7 +15,7 @@ describe('nameTagOpacity — étiquette des joueurs selon la distance', () => {
     expect(nameTagOpacity(Number.NaN, false)).toBe(0)
   })
 
-  it('s’efface sans saut entre les deux bornes', () => {
+  it('fades out with no jump between the two bounds', () => {
     const mid = (NAME_TAG_FULL_U + NAME_TAG_RANGE_U) / 2
     expect(nameTagOpacity(mid, false)).toBeCloseTo(0.5, 6)
     let previous = 1
@@ -25,21 +25,21 @@ describe('nameTagOpacity — étiquette des joueurs selon la distance', () => {
       expect(previous - o).toBeLessThan(0.05)
       previous = o
     }
-    // Aux deux bornes, la courbe arrive à plat : ni saut à l'entrée du fondu, ni à la sortie.
+    // At both bounds, the curve arrives flat: no jump entering the fade, nor leaving it.
     expect(1 - nameTagOpacity(NAME_TAG_FULL_U + 0.01, false)).toBeLessThan(1e-3)
     expect(nameTagOpacity(NAME_TAG_RANGE_U - 0.01, false)).toBeLessThan(1e-3)
   })
 
-  it('le joueur suivi et le repère « tous les noms » sont nommés à toute distance', () => {
+  it('the followed player and the "all names" aid are named at any distance', () => {
     expect(nameTagOpacity(NAME_TAG_RANGE_U * 10, true)).toBe(1)
   })
 })
 
-describe('placeTag — pose et visibilité de l’étiquette', () => {
+describe('placeTag — placement and visibility of the tag', () => {
   const tagAt = () => new CSS2DObject(document.createElement('div'))
   const feet = new THREE.Vector3(0, 0, 0)
 
-  it('pose au-dessus des pieds, pleine et sans opacité écrite à portée', () => {
+  it('places above the feet, fully opaque and with no written opacity within range', () => {
     const tag = tagAt()
     placeTag(tag, feet, new THREE.Vector3(0, TAG_HEIGHT, 2), false)
     expect(tag.position.y).toBe(TAG_HEIGHT)
@@ -47,7 +47,7 @@ describe('placeTag — pose et visibilité de l’étiquette', () => {
     expect(tag.element.style.opacity).toBe('')
   })
 
-  it('pâlit dans le fondu, se cache au-delà, revient pleine en se rapprochant', () => {
+  it('fades in the transition, hides beyond it, returns full when getting closer', () => {
     const tag = tagAt()
     const mid = (NAME_TAG_FULL_U + NAME_TAG_RANGE_U) / 2
     placeTag(tag, feet, new THREE.Vector3(0, TAG_HEIGHT, mid), false)
@@ -60,13 +60,13 @@ describe('placeTag — pose et visibilité de l’étiquette', () => {
     expect(tag.element.style.opacity).toBe('')
   })
 
-  it('cachée quand l’opacité au centième tombe à zéro (jamais posée transparente)', () => {
+  it('hidden when opacity to the hundredth drops to zero (never left transparent)', () => {
     const tag = tagAt()
     placeTag(tag, feet, new THREE.Vector3(0, TAG_HEIGHT, NAME_TAG_RANGE_U - 0.05), false)
     expect(tag.visible).toBe(false)
   })
 
-  it('sans caméra (soi-même en 1re personne), cachée même de près', () => {
+  it('with no camera (yourself in first person), hidden even up close', () => {
     const tag = tagAt()
     placeTag(tag, feet, null, true)
     expect(tag.visible).toBe(false)

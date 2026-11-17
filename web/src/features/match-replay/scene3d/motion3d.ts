@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * motion3d.ts — LE MOUVEMENT DU SPARTAN D'UN JOUEUR À UNE IMAGE : ce que le film dit de lui, rangé
- * pour `clipSelect3d`, puis le mélange de clips du jeu qui le joue.
+ * motion3d.ts — A PLAYER'S SPARTAN MOTION AT ONE FRAME: what the film says about them, packed
+ * for `clipSelect3d`, then the blend of game clips that plays it.
  *
- * Tout se lit dans le document, rangé une fois : postures par emplacement et par sorte, grenades
- * par emplacement, coups de mêlée mortels par tueur (kills du fil dont la source est la mêlée,
- * `fall3d.fallKindOf`), changements de l'arme en main par emplacement (cherchés aux seules images où
- * la lecture de l'arme peut changer : relevés d'armes, inventaires, prises et lâchers). La classe de
- * l'arme vient du libellé de l'arme tenue (`weaponClass3d`) ; le porteur du crâne ou d'un drapeau
- * tient la classe de l'objet. La PHASE de locomotion d'une vie s'intègre point par point (distance au sol / foulée du
- * mélange à ce point) et se garde par vie : elle ne dépend que du document.
- *
+ * Everything is read from the document, packed once: stances by slot and by kind, grenades by
+ * slot, lethal melee strikes by killer (feed kills whose source is melee, `fall3d.fallKindOf`),
+ * held-weapon changes by slot (looked up only at frames where the held weapon's reading can
+ * change: weapon pickups, inventory, grabs and drops). The weapon class comes from the held
+ * weapon's label (`weaponClass3d`); a skull or flag carrier takes the object's own class. A
+ * life's locomotion PHASE is integrated point by point (ground distance / that point's blend's
+ * stride) and kept per life: it depends only on the document.
  */
 import { msToFrames } from '@/lib/replay/replayLogic'
 
@@ -61,7 +60,7 @@ export class Motion3d {
   private readonly held: (slot: number, frame: number) => HeldWeapon3d | null
   private readonly stances = new Map<number, MotionStances>()
   private readonly rechargements: Map<number, number[]>
-  /** Les instants où les mains quittent l'arme (`reloadStarts`) : un rechargement en cours s'y arrête. */
+  /** The instants where the hands leave the weapon (`reloadStarts`): a reload in progress stops there. */
   private readonly coupuresRechargement: Map<number, number[]>
   private readonly coups: Map<number, number[]>
   private readonly grenades = new Map<number, number[]>()
@@ -80,7 +79,7 @@ export class Motion3d {
   private readonly scratch = newClipMix()
   private uses: { fps: number; dodges: Map<number, DodgeShot[]>; fp: Map<number, UseShot[]> } | null = null
 
-  /** `held` : l'arme en main d'un emplacement à une image (celle que la scène montre). */
+  /** `held`: the weapon held by a slot at a frame (the one the scene shows). */
   constructor(ctx: ActionContext, held: (slot: number, frame: number) => HeldWeapon3d | null) {
     this.ctx = ctx
     this.held = held
@@ -115,8 +114,8 @@ export class Motion3d {
   }
 
   /**
-   * at écrit dans `out` le mélange de clips du joueur `xuid` à l'image `frame` (`aboard` : à bord
-   * d'un véhicule, attente seule) ; null hors vie ou tant que le Spartan animé n'est pas chargé.
+   * at writes into `out` player `xuid`'s clip blend at frame `frame` (`aboard`: riding a
+   * vehicle, idle only); null outside their life or while the animated Spartan isn't loaded.
    */
   at(xuid: string, frame: number, aboard: boolean, out: ClipMix): ClipMix | null {
     const source = this.ctx.spartanModel()
@@ -139,17 +138,17 @@ export class Motion3d {
     return selectClips(q, clips, out)
   }
 
-  /** Les mêmes postures alimentent les animations à la première personne. */
+  /** The same stances feed the first-person animations. */
   postures(slot: number): MotionStances {
     return this.stances.get(slot) ?? NO_STANCES
   }
 
-  /** Les usages qui jouent un clip à la première personne (`equipmentUse3d_logic`), par emplacement. */
+  /** Uses that play a first-person clip (`equipmentUse3d_logic`), by slot. */
   firstPersonUses(slot: number, fps: number): readonly UseShot[] {
     return this.usesAt(Math.max(1, fps)).fp.get(slot) ?? NO_USES
   }
 
-  /** usesAt : les esquives et les usages du document, lus une fois par cadence. */
+  /** usesAt: the document's dodges and uses, read once per frame rate. */
   private usesAt(fps: number) {
     if (this.uses?.fps !== fps) {
       const heading = (slot: number, frame: number) => this.ctx.slotState(slot, frame)?.h ?? null
@@ -159,7 +158,7 @@ export class Motion3d {
     return this.uses
   }
 
-  /** weaponClass : la classe de l'arme tenue ; un objet d'objectif porté donne la sienne (`CARRIED_OBJECT_CLASS`). */
+  /** weaponClass: the held weapon's class; a carried objective object gives its own (`CARRIED_OBJECT_CLASS`). */
   private weaponClass(xuid: string, slot: number, frame: number): WeaponClass {
     const carried = carriedObjectAt(this.ctx.doc, xuid, frame)
     if (carried) return CARRIED_OBJECT_CLASS[carried]
@@ -178,9 +177,9 @@ export class Motion3d {
   }
 
   /**
-   * phaseOf : la phase de locomotion (cycles) à chaque point de la vie : la distance de chaque pas
-   * divisée par la foulée du mélange de ce point (classe du fusil : les foulées ne changent pas
-   * d'une classe à l'autre). Calculée une fois par vie.
+   * phaseOf: the locomotion phase (cycles) at each point of the life: each step's distance
+   * divided by that point's blend's stride (rifle class: strides don't change from one class to
+   * another). Computed once per life.
    */
   private phaseOf(life: LifeView, fps: number, clips: SpartanClips): Float64Array {
     const known = this.phases.get(life)
@@ -204,7 +203,7 @@ export class Motion3d {
     return out
   }
 
-  /** meleeOf : les coups non mortels, sans doublon avec les kills de mêlée. */
+  /** meleeOf: non-lethal melee strikes, deduplicated against melee kills. */
   private meleeOf(xuid: string, slot: number): readonly number[] {
     const kills = this.ctx.inputs().kills
     if (kills !== this.killSource) {
@@ -230,7 +229,7 @@ export class Motion3d {
     return fusion
   }
 
-  /** Un rechargement ne traverse ni une mort, ni un changement d'arme, ni un instant où les mains quittent l'arme. */
+  /** A reload crosses neither a death, nor a weapon change, nor an instant where the hands leave the weapon. */
   private rechargement(xuid: string, vie: LifeView, frame: number): readonly number[] {
     const list = this.rechargements.get(vie.slot) ?? NO_FRAMES
     const t = list.findLast((f) => f <= frame)
@@ -261,7 +260,7 @@ export class Motion3d {
     return (nom && clips.get(nom)) || (classeNom && clips.get(classeNom)) || clips.get('combat:rifle:reload_1') || null
   }
 
-  /** swapsOf : les changements de l'arme en main de l'emplacement, cherchés une fois. */
+  /** swapsOf: the slot's held-weapon changes, looked up once. */
   private swapsOf(slot: number): readonly WeaponSwap[] {
     let list = this.swaps.get(slot)
     if (!list) {
@@ -272,15 +271,15 @@ export class Motion3d {
   }
 }
 
-/** angleStep : le plus court chemin d'un cap `a` à un cap `b` (degrés). */
+/** angleStep: the shortest path from heading `a` to heading `b` (degrees). */
 function angleStep(a: number, b: number): number {
   return ((b - a + 540) % 360) - 180
 }
 
 /**
- * findSwaps : les images où l'arme en main de l'emplacement change d'une arme à une autre. La
- * lecture de l'arme ne change qu'aux relevés du document (armes, inventaire, prises et lâchers) :
- * seules ces images sont comparées à l'image d'avant.
+ * findSwaps: the frames where the slot's held weapon changes from one weapon to another. The
+ * held weapon's reading only changes at the document's own markers (weapons, inventory, grabs
+ * and drops): only those frames are compared to the one before.
  */
 function findSwaps(ctx: ActionContext, slot: number): WeaponSwap[] {
   const { doc } = ctx

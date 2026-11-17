@@ -13,9 +13,9 @@ const scale = (name: string, v: number) => new THREE.VectorKeyframeTrack(`${name
 const extras = (frameCount: number, rootMotion: number[][] = []): GltfAnimationJson['extras'] => ({ levelupAnimation: { frameCount, rootMotion } })
 
 describe('clipsOf', () => {
-  it('lit le nombre d’images, la foulée et le sens dans les extras du GLB', () => {
+  it('reads the frame count, stride, and direction from the GLB extras', () => {
     const anim = new THREE.AnimationClip('combat:rifle:locomote_run_front', -1, [quat('b_pelvis', 22), pos('b_pelvis', 1)])
-    // 22 images qui avancent chacune de (0,07 ; 0 ; 0) : 1,54 u le long de +X.
+    // 22 frames each advancing by (0.07, 0, 0): 1.54 u along +X.
     const clips = clipsOf([anim], [{ name: anim.name, extras: extras(22, Array.from({ length: 22 }, () => [0.07, 0, 0])) }])
     const c = clips.get('combat:rifle:locomote_run_front')
     expect(c?.frames).toBe(22)
@@ -27,7 +27,7 @@ describe('clipsOf', () => {
     expect(clips.bones()).toEqual(['b_pelvis'])
   })
 
-  it('lit la cadence propre et garde 30 Hz pour un ancien GLB', () => {
+  it('reads its own frame rate and keeps 30 Hz for an older GLB', () => {
     const a = new THREE.AnimationClip('a', -1, [quat('b_pelvis', 1)])
     const b = new THREE.AnimationClip('b', -1, [quat('b_pelvis', 1)])
     const clips = clipsOf([a, b], [
@@ -37,14 +37,14 @@ describe('clipsOf', () => {
     expect(clips.get('a')).toMatchObject({ frameRate: 60, cycle: 1.2, once: 71 / 60 })
     expect(clips.get('b')).toMatchObject({ frameRate: 30, cycle: 2.4 })
   })
-  it('un clip qui bouge à peine reste sur place (foulée 0, sans sens)', () => {
+  it('a clip that barely moves stays in place (stride 0, no direction)', () => {
     const anim = new THREE.AnimationClip('combat:rifle:idle', -1, [quat('b_pelvis', 1)])
     const c = clipsOf([anim], [{ name: anim.name, extras: extras(156, [[0.0001, 0, 0]]) }]).get('combat:rifle:idle')
     expect(c?.stride).toBe(0)
     expect(c?.dir).toEqual([0, 0])
   })
 
-  it('écarte sans bruit l’échelle unité des os d’aide, journalise en une ligne les pistes illisibles', () => {
+  it('silently drops the helper bones\' unit scale, logs unreadable tracks in one line', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const anim = new THREE.AnimationClip('combat:rifle:idle', -1, [
       quat('b_spine1', 4),
@@ -61,7 +61,7 @@ describe('clipsOf', () => {
     warn.mockRestore()
   })
 
-  it('écarte une animation sans nombre d’images, ou dont le JSON ne correspond pas', () => {
+  it('drops an animation with no frame count, or whose JSON does not match', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const a = new THREE.AnimationClip('a', -1, [quat('b_pelvis', 1)])
     const b = new THREE.AnimationClip('b', -1, [quat('b_pelvis', 1)])
@@ -73,7 +73,7 @@ describe('clipsOf', () => {
 })
 
 describe('registerSpartanClips', () => {
-  it('range le catalogue à côté de sa source ; rien pour une autre', () => {
+  it('stores the catalog next to its source; nothing for another one', () => {
     const source = new THREE.Group()
     const clips = clipsOf([], [])
     expect(spartanClipsOf(source)).toBeNull()

@@ -16,7 +16,7 @@ describe('shockBeamPaths', () => {
   const to = new THREE.Vector3(30, 2, -12)
   const out: ShockBeam[] = Array.from({ length: SHOCK_BEAMS }, () => ({ points: [] }))
 
-  it('tire trois faisceaux de la bouche au point d impact, bouts jamais décalés', () => {
+  it('fires three beams from the muzzle to the impact point, endpoints never offset', () => {
     const beams = shockBeamPaths(from, to, 41, 0, out)
     expect(beams).toHaveLength(SHOCK_BEAMS)
     for (const beam of beams) {
@@ -26,14 +26,14 @@ describe('shockBeamPaths', () => {
     }
   })
 
-  it('le même tir au même temps de partie dessine la même image', () => {
+  it('the same shot at the same match time draws the same frame', () => {
     const a = shockBeamPaths(from, to, 41, 7, out)
     const first = a.map((b) => flat(b.points))
     shockBeamPaths(from, to, 41, 7, out)
     expect(out.map((b) => flat(b.points))).toEqual(first)
   })
 
-  it('le tremblement se re-seed par palier : l intérieur du faisceau bouge, les bouts non', () => {
+  it('the jitter reseeds per bucket: the beam\'s interior moves, the endpoints don\'t', () => {
     shockBeamPaths(from, to, 41, 0, out)
     const bucket0 = out.map((b) => flat(b.points))
     shockBeamPaths(from, to, 41, 1, out)
@@ -47,14 +47,14 @@ describe('shockBeamPaths', () => {
     }
   })
 
-  it('deux tirs (deux seeds) ne partagent pas leur faisceau', () => {
+  it('two shots (two seeds) don\'t share their beam', () => {
     shockBeamPaths(from, to, 41, 0, out)
     const a = out.map((b) => flat(b.points))
     shockBeamPaths(from, to, 42, 0, out)
     expect(out.map((b) => flat(b.points))).not.toEqual(a)
   })
 
-  it('un tir de longueur nulle ne déborde pas', () => {
+  it('a zero-length shot doesn\'t overflow', () => {
     const p = new THREE.Vector3(1, 1, 1)
     const beams = shockBeamPaths(p, p.clone(), 1, 0, out)
     for (const beam of beams) {
@@ -65,8 +65,8 @@ describe('shockBeamPaths', () => {
   })
 })
 
-describe('la vie du tir de choc', () => {
-  it('plein au tir, fondu linéairement, éteint après sa durée', () => {
+describe('the shock shot\'s life', () => {
+  it('full at the shot, fades linearly, out after its duration', () => {
     expect(beamFade(0, SHOCK_BEAM_SECONDS)).toBe(1)
     expect(beamFade(SHOCK_BEAM_SECONDS / 2, SHOCK_BEAM_SECONDS)).toBeCloseTo(0.5)
     expect(beamFade(SHOCK_BEAM_SECONDS, SHOCK_BEAM_SECONDS)).toBe(0)
@@ -75,8 +75,8 @@ describe('la vie du tir de choc', () => {
   })
 })
 
-describe('les seeds', () => {
-  it('unitHash reste dans [0, 1) et désaccorde ses voisins', () => {
+describe('the seeds', () => {
+  it('unitHash stays within [0, 1) and disagrees with its neighbors', () => {
     for (const n of [0, 1, -1, 97, 1 << 20]) {
       expect(unitHash(n)).toBeGreaterThanOrEqual(0)
       expect(unitHash(n)).toBeLessThan(1)
@@ -84,7 +84,7 @@ describe('les seeds', () => {
     }
   })
 
-  it('le palier de tremblement avance à la cadence nommée', () => {
+  it('the jitter bucket advances at the named rate', () => {
     expect(shockJitterBucket(0)).toBe(0)
     expect(shockJitterBucket(0.04)).toBe(0)
     expect(shockJitterBucket(0.06)).toBe(1)

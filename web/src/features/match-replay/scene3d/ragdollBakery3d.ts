@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollBakery3d.ts — LES CUISSONS DES MORTS D'UN MATCH, faites à la demande sans bloquer la page.
+ * ragdollBakery3d.ts — THE BAKES FOR A MATCH'S DEATHS, done on demand without blocking the page.
  *
- * Une mort se cuit une fois (`ragdollBake3d`) ; tant que sa cuisson n'est pas prête, le corps tombe
- * par les clips de mort du jeu (`fall3d`), rien ne casse. L'ordre : les corps visibles à l'image,
- * puis les morts les plus proches de la tête de lecture. Chaque image de la vue avance les cuissons
- * dans un budget de temps (`pump`) ; le reste se fait quand le navigateur est inoccupé
- * (`requestIdleCallback`), par tranches.
+ * A death is baked once (`ragdollBake3d`); while its bake isn't ready, the body falls through
+ * the game's death clips (`fall3d`), nothing breaks. Order: bodies visible at the current frame
+ * first, then deaths closest to the playhead. Every view frame advances the bakes within a time
+ * budget (`pump`); the rest happens while the browser is idle (`requestIdleCallback`), in slices.
  *
- * Les cuissons dépendent du Spartan (son squelette, ses clips) et des surfaces de la carte : un
- * nouveau Spartan ou un calque posé sur la carte (`Ground.version`) les oublie toutes.
+ * Bakes depend on the Spartan (its skeleton, its clips) and the map's surfaces: a new Spartan or
+ * a layer placed on the map (`Ground.version`) forgets all of them.
  */
 import { heldWeaponAt } from './heldWeapon3d'
 import type { ActionContext } from './actionScene3d'
@@ -19,14 +18,14 @@ import { bakeBytes, RagdollJob, type RagdollBake } from './ragdollBake3d'
 import { MeshTriangleSource, bodySurfaces } from './ragdollPatch3d'
 import { makeScratch, startOf, type Scratch } from './ragdollStart3d'
 
-/** Le temps de cuisson qu'une image de la vue s'accorde (ms). */
+/** The baking time a view frame allows itself (ms). */
 export const FRAME_BUDGET_MS = 3
-/** Le temps laissé au navigateur dans une tranche inoccupée (ms). */
+/** Time left to the browser within an idle slice (ms). */
 const IDLE_SLACK_MS = 1
-/** Sans Spartan chargé, la cuisson inoccupée se repose ce délai avant de réessayer (ms). */
+/** With no Spartan loaded, idle baking rests this long before retrying (ms). */
 const RETRY_MS = 500
 
-/** Les mesures des cuissons faites. */
+/** Measurements of the bakes done. */
 export interface BakeryStats {
   baked: number
   failed: number
@@ -60,8 +59,8 @@ export class RagdollBakery {
   }
 
   /**
-   * setDeaths : les morts du match. Une liste refaite garde les cuissons des morts qu'elle reprend
-   * (même clé, `deathKey`) et oublie les autres.
+   * setDeaths: the match's deaths. A rebuilt list keeps the bakes of the deaths it still holds
+   * (same key, `deathKey`) and forgets the rest.
    */
   setDeaths(deaths: readonly Death3d[]): void {
     this.deaths = deaths
@@ -73,7 +72,7 @@ export class RagdollBakery {
     this.wake()
   }
 
-  /** get : la cuisson prête de la mort `d`, null sinon (le corps tombe alors par les clips). */
+  /** get: death `d`'s ready bake, null otherwise (the body then falls through the clips). */
   get(d: Death3d): RagdollBake | null {
     this.validate()
     const k = this.keys.get(d)
@@ -81,8 +80,8 @@ export class RagdollBakery {
   }
 
   /**
-   * pump avance les cuissons jusqu'à l'échéance `deadline` (`performance.now()`), les corps visibles
-   * à l'image `frame` d'abord ; `hold` : la durée d'un corps (images).
+   * pump advances bakes up to deadline `deadline` (`performance.now()`), bodies visible at frame
+   * `frame` first; `hold`: how long a body stays (frames).
    */
   pump(frame: number, hold: number, deadline: number): void {
     this.playhead = frame
@@ -151,7 +150,7 @@ export class RagdollBakery {
     this.totals.bytes += bakeBytes(bake)
   }
 
-  /** next : la mort à cuire d'abord (visible à l'image, puis la plus proche de la tête de lecture). */
+  /** next: the death to bake first (visible at the frame, then closest to the playhead). */
   private next(): Death3d | null {
     let best: Death3d | null = null
     let bestKey = Infinity
@@ -171,7 +170,7 @@ export class RagdollBakery {
     return !!d.body && d.body.start <= this.playhead && this.playhead - d.frame < this.hold
   }
 
-  /** validate : le Spartan et la carte sont-ils ceux des cuissons ? Sinon tout est oublié. Faux sans Spartan. */
+  /** validate: are the Spartan and the map the ones the bakes were made for? If not, everything is forgotten. False with no Spartan. */
   private validate(): boolean {
     const source = this.ctx.spartanModel()
     const version = this.ctx.ground.version
@@ -192,7 +191,7 @@ export class RagdollBakery {
     this.recount()
   }
 
-  /** recount refait les mesures depuis les cuissons gardées. */
+  /** recount redoes the measurements from the kept bakes. */
   private recount(): void {
     const t: BakeryStats = { baked: 0, failed: 0, totalMs: 0, maxMs: 0, bytes: 0 }
     for (const b of this.bakes.values()) {
@@ -208,7 +207,7 @@ export class RagdollBakery {
     Object.assign(this.totals, t)
   }
 
-  /** wake relance la cuisson inoccupée (une seule à la fois). */
+  /** wake restarts idle baking (only one at a time). */
   private wake(): void {
     if (this.disposed || this.idle) return
     if (typeof requestIdleCallback === 'function') {
@@ -239,8 +238,8 @@ export class RagdollBakery {
 }
 
 /**
- * deathKey : ce qui fait qu'une mort se cuit pareil d'une liste refaite à l'autre (la victime, le
- * tueur, l'image, le départ du corps et le style de chute).
+ * deathKey: what makes a death bake the same way from one rebuilt list to another (the victim,
+ * the killer, the frame, the body's start, and the fall's style).
  */
 export function deathKey(d: Pick<Death3d, 'victim' | 'killer' | 'frame' | 'body'>): string {
   return `${d.victim}|${d.killer}|${d.frame}|${d.body?.start}|${d.body?.fall.kind}`

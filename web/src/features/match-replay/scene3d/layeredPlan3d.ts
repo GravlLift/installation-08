@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * layeredPlan3d.ts — LE PLAN DE LA FUSION DES MATÉRIAUX EN COUCHES DE LA CARTE (logique pure).
+ * layeredPlan3d.ts — THE PLAN FOR MERGING THE MAP'S LAYERED MATERIALS (pure logic).
  *
- * La fusion (`layeredMerge3d`) range les cartes des matériaux en couches dans quelques tableaux de
- * textures, leurs constantes dans une texture de paramètres (une ligne par composition) et la ligne
- * de chaque sommet dans un attribut. Ce module décide, sans three ni GPU :
- * - quelle carte va dans quel tableau (même taille, mêmes réglages d'échantillonnage), dans les
- *   limites que tout contexte WebGL 2 garantit ; une composition qui n'y tient pas reste à part ;
- * - ce que contient la ligne d'une composition (`packRow`) ;
- * - quels sommets dédoubler : un sommet n'a qu'une ligne, celui que deux compositions se partagent
- *   est copié pour la seconde (`assignVertexRows`) ;
- * - l'index d'un maillage fusionné (`concatIndices`) et le jeu de coordonnées du masque d'une
- *   composition qui n'en a pas (`foldMaskSets`).
+ * The merge (`layeredMerge3d`) packs layered materials' maps into a handful of texture arrays,
+ * their constants into a parameter texture (one row per composition), and each vertex's row into
+ * an attribute. This module decides, without three.js or the GPU:
+ * - which map goes into which array (same size, same sampling settings), within the limits any
+ *   WebGL 2 context guarantees; a composition that doesn't fit stays separate;
+ * - what a composition's row contains (`packRow`);
+ * - which vertices to duplicate: a vertex has only one row, the one two compositions share is
+ *   copied for the second (`assignVertexRows`);
+ * - a merged mesh's index (`concatIndices`) and the UV set to use for a composition's mask when
+ *   it has none (`foldMaskSets`).
  */
 import { LAYER_ROWS, MAX_LAYERS, packLayers, type LayerInfo } from './layeredMaterial'
 
-/** Emplacements de cartes d'une composition : couleur 0..3, normale 0..3, contrôle 0..3, masque. */
+/** A composition's map slots: color 0..3, normal 0..3, control 0..3, mask. */
 export const SLOT_COUNT = 3 * MAX_LAYERS + 1
 export const MASK_SLOT = 3 * MAX_LAYERS
 export const colorSlot = (k: number) => k
@@ -23,13 +23,13 @@ export const normalSlot = (k: number) => MAX_LAYERS + k
 export const controlSlot = (k: number) => 2 * MAX_LAYERS + k
 
 /**
- * La ligne d'une composition dans la texture de paramètres, en texels RGBA :
- * - 0 .. HEAD_TEXEL-1 : les constantes des couches, rangées comme `uLayer` (cf. `packLayers`) ;
- * - HEAD_TEXEL : nombre de couches, a un masque, emplacement du masque (tableau, couche) ;
- * - GLOW_TEXEL : lumière propre (RVB linéaire, force comprise), 0 ;
- * - SLOT_TEXEL + 2k : emplacements couleur et normale de la couche k ; SLOT_TEXEL + 2k + 1 :
- *   emplacement du contrôle, 0, 0.
- * Un emplacement vaut (tableau, couche) ; une carte absente a le tableau -1.
+ * A composition's row in the parameter texture, in RGBA texels:
+ * - 0 .. HEAD_TEXEL-1: the layers' constants, packed like `uLayer` (cf. `packLayers`);
+ * - HEAD_TEXEL: layer count, has a mask, mask slot (array, layer);
+ * - GLOW_TEXEL: self-light (linear RGB, strength included), 0;
+ * - SLOT_TEXEL + 2k: layer k's color and normal slots; SLOT_TEXEL + 2k + 1: its control slot,
+ *   0, 0.
+ * A slot's value is (array, layer); a missing map has array -1.
  */
 export const HEAD_TEXEL = MAX_LAYERS * LAYER_ROWS
 export const GLOW_TEXEL = HEAD_TEXEL + 1
@@ -38,18 +38,19 @@ export const ROW_TEXELS = SLOT_TEXEL + 2 * MAX_LAYERS
 const ABSENT = -1
 
 export interface ArrayLimits {
-  /** Couches par tableau. */
+  /** Layers per array. */
   maxLayers: number
-  /** Tableaux par matériau (unités de texture laissées aux tableaux). */
+  /** Arrays per material (texture units left for arrays). */
   maxArrays: number
-  /** Lignes de la texture de paramètres (sa hauteur). */
+  /** Rows of the parameter texture (its height). */
   maxRows: number
 }
 
 /**
- * Les minimums de tout contexte WebGL 2 : 256 couches par tableau, 16 unités de texture par shader de
- * fragment (moins le reflet, l'ombre du soleil, la lumière cuite et la texture de paramètres), 2048
- * texels de côté. Le plan qui les tient vaut sur toute machine, sans interroger le contexte.
+ * The guaranteed minimums of any WebGL 2 context: 256 layers per array, 16 texture units per
+ * fragment shader (minus the reflection, the sun's shadow, baked light, and the parameter
+ * texture), 2048 texels per side. A plan that respects them holds on any machine, with no need
+ * to query the context.
  */
 export const WEBGL2_LIMITS: ArrayLimits = { maxLayers: 256, maxArrays: 16 - 4, maxRows: 2048 }
 /**
@@ -58,7 +59,7 @@ export const WEBGL2_LIMITS: ArrayLimits = { maxLayers: 256, maxArrays: 16 - 4, m
  */
 export const BATCHED_LIMITS: ArrayLimits = { ...WEBGL2_LIMITS, maxArrays: WEBGL2_LIMITS.maxArrays - 2 }
 
-/** Ce qui range une carte : sa taille, et ses réglages (espace de couleur, filtres, répétition...). */
+/** What files a map under: its size, and its settings (color space, filters, wrap...). */
 export interface TextureFacts {
   width: number
   height: number
@@ -69,17 +70,17 @@ export interface PlannedArray<T> {
   width: number
   height: number
   settings: string
-  /** Les cartes du tableau, dans l'ordre de ses couches. */
+  /** The array's maps, in the order of its layers. */
   members: T[]
 }
 
 export interface LayeredPlan<T> {
   arrays: PlannedArray<T>[]
-  /** L'emplacement (tableau, couche) de chaque carte retenue. */
+  /** The (array, layer) slot of each accepted map. */
   slotOf: Map<T, readonly [number, number]>
-  /** Les rangs (dans l'entrée) des compositions retenues : la ligne i de la texture est `accepted[i]`. */
+  /** The ranks (in the input) of accepted compositions: texture row i is `accepted[i]`. */
   accepted: number[]
-  /** Les rangs des compositions laissées à leur matériau propre. */
+  /** The ranks of compositions left on their own material. */
   rejected: number[]
 }
 
@@ -106,7 +107,7 @@ function groupArrays<T>(rows: readonly Slots<T>[], kept: readonly number[], fact
   return out
 }
 
-/** usedArrays : les tableaux les plus utilisés (en compositions) qui tiennent dans `max`, leurs cartes. */
+/** usedArrays: the most-used arrays (by composition count) that fit within `max`, their maps. */
 function usedArrays<T>(arrays: readonly PlannedArray<T>[], rows: readonly Slots<T>[], kept: readonly number[], max: number): Set<T> {
   const arrayOf = new Map<T, number>()
   arrays.forEach((a, i) => a.members.forEach((t) => arrayOf.set(t, i)))
@@ -119,10 +120,10 @@ function usedArrays<T>(arrays: readonly PlannedArray<T>[], rows: readonly Slots<
 }
 
 /**
- * planArrays range les cartes des compositions `rows` (SLOT_COUNT emplacements chacune, null pour
- * une carte absente) en tableaux. Une composition est refusée si une de ses cartes est illisible
- * (`facts` rend null), si son tableau ne tient plus dans `maxArrays` (les tableaux les moins utilisés
- * sont écartés), ou au-delà de `maxRows` compositions.
+ * planArrays packs the maps of compositions `rows` (SLOT_COUNT slots each, null for a missing
+ * map) into arrays. A composition is rejected if one of its maps is unreadable (`facts` returns
+ * null), if its array no longer fits within `maxArrays` (the least-used arrays are dropped), or
+ * past `maxRows` compositions.
  */
 export function planArrays<T>(rows: readonly Slots<T>[], facts: (t: T) => TextureFacts | null, limits: ArrayLimits): LayeredPlan<T> {
   const known = new Map<T, TextureFacts | null>()
@@ -133,7 +134,7 @@ export function planArrays<T>(rows: readonly Slots<T>[], facts: (t: T) => Textur
   const readable = (t: T) => factsOf(t) as TextureFacts
   let kept = rows.map((_, i) => i).filter((i) => rows[i].every((t) => t === null || factsOf(t) !== null))
   let arrays = groupArrays(rows, kept, readable, limits.maxLayers)
-  // Une passe suffit : les tableaux recomposés sur les cartes retenues ne sont jamais plus nombreux.
+  // One pass is enough: arrays recomposed on the kept maps are never more numerous.
   if (arrays.length > limits.maxArrays) {
     const allowed = usedArrays(arrays, rows, kept, limits.maxArrays)
     kept = kept.filter((i) => rows[i].every((t) => t === null || allowed.has(t)))
@@ -151,9 +152,9 @@ export type Slot = readonly [number, number] | null
 const pair = (s: Slot | undefined) => (s ? [s[0], s[1]] : [ABSENT, 0])
 
 /**
- * packRow : la ligne d'une composition (ROW_TEXELS texels RGBA, cf. HEAD_TEXEL). Ses constantes de
- * couches sont celles que `packLayers` donnerait à `uLayer` pour le même matériau ; `slots` porte
- * l'emplacement de chaque carte (SLOT_COUNT, null absente) ; `glow` la lumière propre.
+ * packRow: a composition's row (ROW_TEXELS RGBA texels, cf. HEAD_TEXEL). Its layer constants are
+ * what `packLayers` would give `uLayer` for the same material; `slots` carries each map's slot
+ * (SLOT_COUNT, null if missing); `glow` is the self-light.
  */
 export function packRow(layers: readonly LayerInfo[], slots: readonly Slot[], glow: readonly [number, number, number]): Float32Array {
   const out = new Float32Array(ROW_TEXELS * 4)
@@ -171,19 +172,19 @@ export function packRow(layers: readonly LayerInfo[], slots: readonly Slot[], gl
 }
 
 export interface VertexRows {
-  /** La ligne de chaque sommet (les `vertexCount` d'origine, puis les copies). */
+  /** Each vertex's row (the original `vertexCount`, then the copies). */
   rows: Uint16Array
-  /** Pour chaque copie, le sommet d'origine qu'elle reprend. */
+  /** For each copy, the original vertex it repeats. */
   sources: Uint32Array
-  /** L'index de chaque membre, null s'il ne change pas (aucune copie à lui). */
+  /** Each member's index, null if unchanged (no copy made for it). */
   indices: (Uint32Array | null)[]
   duplicated: number
 }
 
 /**
- * assignVertexRows donne une ligne à chaque sommet d'un tampon partagé par `members` (leur index et
- * la ligne de leur composition). Le premier membre qui lit un sommet le garde ; un membre d'une autre
- * ligne lit une copie du sommet, une par (sommet, ligne), partagée par les membres de cette ligne.
+ * assignVertexRows gives a row to every vertex of a buffer shared by `members` (their index and
+ * their composition's row). The first member to read a vertex keeps it; a member on another row
+ * reads a copy of the vertex, one per (vertex, row), shared by the members on that row.
  */
 export function assignVertexRows(vertexCount: number, members: readonly { index: ArrayLike<number>; row: number }[]): VertexRows {
   const owner = new Int32Array(vertexCount).fill(-1)
@@ -215,7 +216,7 @@ export function assignVertexRows(vertexCount: number, members: readonly { index:
   return { rows, sources: Uint32Array.from(sources), indices, duplicated: sources.length }
 }
 
-/** concatIndices met bout à bout les index de `parts`, en 16 bits si les `vertexCount` sommets y tiennent. */
+/** concatIndices concatenates the indices of `parts`, in 16 bits if the `vertexCount` vertices fit. */
 export function concatIndices(parts: readonly ArrayLike<number>[], vertexCount: number): Uint16Array | Uint32Array {
   const total = parts.reduce((n, p) => n + p.length, 0)
   const out = vertexCount <= 65536 ? new Uint16Array(total) : new Uint32Array(total)
@@ -227,16 +228,16 @@ export function concatIndices(parts: readonly ArrayLike<number>[], vertexCount: 
   return out
 }
 
-/** Les jeux de coordonnées d'une composition : celui des couches, celui du masque (null sans masque). */
+/** A composition's UV sets: the layers' set, the mask's set (null with no mask). */
 export interface UvSets {
   layer: number
   mask: number | null
 }
 
 /**
- * foldMaskSets : pour chaque jeu de couches, le jeu de masque le plus fréquent parmi `sets` (le plus
- * petit à égalité). Une composition sans masque ne lit pas son jeu de masque : elle peut prendre
- * celui-là et partager le matériau fusionné de ses voisines.
+ * foldMaskSets: for each layer set, the most frequent mask set among `sets` (the smallest on a
+ * tie). A composition with no mask doesn't read its mask set: it can take this one and share its
+ * neighbors' merged material.
  */
 export function foldMaskSets(sets: readonly UvSets[]): Map<number, number> {
   const counts = new Map<number, Map<number, number>>()

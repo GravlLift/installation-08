@@ -6,8 +6,8 @@ import { firstAbove } from './recoilShots3d'
 import { phaseRechargement, type ClipsRechargement, type ClipsVent, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 
 /**
- * ChangementArme : le changement de l'arme en main de l'emplacement à la frame, avec la clé de
- * modèle de l'arme qui part (`avant`) et de celle qui arrive (`apres`) ; null du côté absent.
+ * ChangementArme: the swap of the held weapon at a frame, with the model key of the weapon that
+ * leaves (`avant`) and the one that arrives (`apres`); null on the absent side.
  */
 export interface ChangementArme {
   frame: number
@@ -27,7 +27,7 @@ export interface EvenementsPremierePersonne {
   accroupis: readonly IntervalleSprint[]
   sauts: readonly IntervalleSprint[]
   escalades: readonly IntervalleSprint[]
-  /** Les usages qui jouent un clip du jeu (équipement porté, grappin, propulseur), triés par image. */
+  /** Uses that play a game clip (carried equipment, grapple, thruster), sorted by frame. */
   usages: readonly UseShot[]
   frame: number
   fps: number
@@ -46,9 +46,10 @@ export function nouvellePosePremierePersonne(): PosePremierePersonne {
   return { base: null, tempsBase: 0, poidsBase: 0, tir: null, tempsTir: 0, poidsTir: 0 }
 }
 
-function dernier(liste: ArrayLike<number>, frame: number): number {
-  const i = firstAbove(liste, frame, true) - 1
-  return i < 0 ? -Infinity : liste[i]
+/** lastAtOrBefore: the last entry of `list` at or before `frame`, or -Infinity if none. */
+function lastAtOrBefore(list: ArrayLike<number>, frame: number): number {
+  const i = firstAbove(list, frame, true) - 1
+  return i < 0 ? -Infinity : list[i]
 }
 
 interface ClipsRig {
@@ -72,21 +73,21 @@ interface ClipsRig {
   slideSortie: ClipPremierePersonne | null
 }
 
-const clipsParRig = new WeakMap<RigPremierePersonne, ClipsRig>()
+const clipsByRig = new WeakMap<RigPremierePersonne, ClipsRig>()
 
-/** clipsVentDuRig: the rig's vent clips (`ClipsVent`), null when it lacks the enter or the loop. */
-function clipsVentDuRig(rig: RigPremierePersonne): ClipsVent | null {
+/** ventClipsForRig: the rig's vent clips (`ClipsVent`), null when it lacks the enter or the loop. */
+function ventClipsForRig(rig: RigPremierePersonne): ClipsVent | null {
   const entree = clipDuRig(rig, 'vent_enter')
   const boucle = clipDuRig(rig, 'vent_loop')
   return entree && boucle ? { entree, boucle, sortie: clipDuRig(rig, 'vent_exit') } : null
 }
 
-function clipsDuRig(rig: RigPremierePersonne) {
-  let clips = clipsParRig.get(rig)
+function clipsForRig(rig: RigPremierePersonne) {
+  let clips = clipsByRig.get(rig)
   if (!clips) {
     clips = { recharge: { plein: clipDuRig(rig, 'reload_full'), vide: clipDuRig(rig, 'reload_empty'), entree: clipDuRig(rig, 'reload_enter'),
       boucle: clipDuRig(rig, 'reload_continue_full'), boucleVide: clipDuRig(rig, 'reload_continue_empty'),
-      sortie: clipDuRig(rig, 'reload_exit') ?? clipDuRig(rig, 'chamber_1'), vent: clipsVentDuRig(rig) },
+      sortie: clipDuRig(rig, 'reload_exit') ?? clipDuRig(rig, 'chamber_1'), vent: ventClipsForRig(rig) },
       coup: clipDuRig(rig, 'melee_strike_1'), tir: clipDuRig(rig, 'fire_1'),
       grenade: clipDuRig(rig, 'throw_grenade'), changement: clipDuRig(rig, 'ready'),
       mise: clipDuRig(rig, 'put_away'), sprint: clipDuRig(rig, 'sprint_loop'),
@@ -95,13 +96,13 @@ function clipsDuRig(rig: RigPremierePersonne) {
       saut: clipDuRig(rig, 'jump'), receptionDouce: clipDuRig(rig, 'land_soft'),
       receptionForte: clipDuRig(rig, 'land_hard'), escalade: clipDuRig(rig, 'clamber'),
       slideEntree: clipDuRig(rig, 'slide_enter'), slideBoucle: clipDuRig(rig, 'slide_loop'), slideSortie: clipDuRig(rig, 'slide_exit') }
-    clipsParRig.set(rig, clips)
+    clipsByRig.set(rig, clips)
   }
   return clips
 }
 
-/** L'indice du premier changement de frame au-delà de `v` (la liste est triée par frame). */
-function premierChangementAuDela(changements: ArrayLike<ChangementArme>, v: number): number {
+/** The index of the first weapon change past `v` (the list is sorted by frame). */
+function firstChangeAfter(changements: ArrayLike<ChangementArme>, v: number): number {
   let lo = 0
   let hi = changements.length
   while (lo < hi) {
@@ -113,18 +114,19 @@ function premierChangementAuDela(changements: ArrayLike<ChangementArme>, v: numb
 }
 
 /**
- * Le film annonce l'arme tenue à la frame où le modèle en main change : le rangement de l'arme qui
- * part se joue donc avant cette frame, le tirage de celle qui arrive à partir d'elle. Positif : la
- * séquence entière se décale plus tard.
+ * The film reports the held weapon at the frame where the model in hand changes: so the outgoing
+ * weapon's holster plays before this frame, and the incoming one's draw starts from it. Positive:
+ * the whole sequence shifts later.
  */
 export const DECALEMENT_CHANGEMENT_ARME = 0
-/** Le fondu des deux phases du changement d'arme en main, en secondes. */
-const FONDU_CHANGEMENT_ARME = 0.1
+/** The fade between the two phases of the held weapon change, in seconds. */
+const WEAPON_CHANGE_FADE = 0.1
 
 /**
- * PhaseChangementArme : la phase du changement de l'arme en main à l'image, pour le rig posé (celui
- * de l'arme tenue à l'image : celui qui part avant le changement, celui qui arrive après). `temps`
- * court de 0 à la durée du clip ; `poids` : fondu au début de la mise, fondu à la fin du tirage.
+ * PhaseChangementArme: the phase of the held weapon change at this frame, for the posed rig (the
+ * one for the weapon held at this frame: the one that leaves before the change, or the one that
+ * arrives after). `temps` runs from 0 to the clip's duration; `poids`: fades in at the start of
+ * the holster, fades out at the end of the draw.
  */
 export interface PhaseChangementArme {
   phase: 'mise' | 'pret'
@@ -132,8 +134,8 @@ export interface PhaseChangementArme {
   poids: number
 }
 
-/** Le tirage de l'arme qui part n'est pas fini : le changement précédent le tire trop récemment. */
-function tirageRecent(
+/** The outgoing weapon's draw isn't finished: the previous change drew it too recently. */
+function drawTooRecent(
   changement: ChangementArme,
   index: number,
   changements: ArrayLike<ChangementArme>,
@@ -150,11 +152,11 @@ function tirageRecent(
 }
 
 /**
- * phaseChangementArme : la phase du changement d'arme en main à l'image, pour le rig posé : la mise
- * de l'arme qui part (son clip `put_away`, dont la durée se termine à la frame du changement) puis,
- * de cette frame, le tirage de celle qui arrive (son clip `ready`). Pas de mise sans clip `put_away`,
- * sans arme qui part, ou quand le tirage de l'arme qui part n'a pas fini (changement précédent trop
- * récent) ; rien hors des deux fenêtres.
+ * phaseChangementArme: the phase of the held weapon change at this frame, for the posed rig: the
+ * outgoing weapon's holster (its `put_away` clip, whose duration ends at the change's frame),
+ * then from that frame, the incoming one's draw (its `ready` clip). No holster without a
+ * `put_away` clip, without an outgoing weapon, or when the outgoing weapon's draw hasn't finished
+ * (previous change too recent); nothing outside the two windows.
  */
 export function phaseChangementArme(
   rig: RigPremierePersonne,
@@ -164,35 +166,36 @@ export function phaseChangementArme(
   decalage: number = DECALEMENT_CHANGEMENT_ARME,
 ): PhaseChangementArme | null {
   if (fps <= 0) return null
-  const i = premierChangementAuDela(changements, frame - decalage * fps) - 1
+  const i = firstChangeAfter(changements, frame - decalage * fps) - 1
   const suivant = i + 1 < changements.length ? changements[i + 1] : null
   if (suivant && suivant.avant !== null) {
-    const clips = clipsDuRig(rig)
+    const clips = clipsForRig(rig)
     const mise = clips.mise
     const debut = (frame - suivant.frame) / fps - decalage + (mise?.durationSeconds ?? 0)
     if (mise && mise.durationSeconds > 0 && debut >= 0 && debut < mise.durationSeconds) {
-      if (!tirageRecent(suivant, i + 1, changements, fps, clips.changement?.durationSeconds ?? 0)) {
-        // Le rangement du jeu est très court : son fondu d'entrée n'en prend jamais plus du quart.
-        return { phase: 'mise', temps: debut, poids: Math.min(1, debut / Math.min(FONDU_CHANGEMENT_ARME, mise.durationSeconds / 4)) }
+      if (!drawTooRecent(suivant, i + 1, changements, fps, clips.changement?.durationSeconds ?? 0)) {
+        // The game's holster is very short: its fade-in never takes more than a quarter of it.
+        return { phase: 'mise', temps: debut, poids: Math.min(1, debut / Math.min(WEAPON_CHANGE_FADE, mise.durationSeconds / 4)) }
       }
     }
   }
   if (i >= 0) {
     const changement = changements[i]
     const temps = (frame - changement.frame) / fps - decalage
-    const pret = clipsDuRig(rig).changement
+    const pret = clipsForRig(rig).changement
     if (pret && pret.durationSeconds > 0 && temps >= 0 && temps < pret.durationSeconds) {
-      // Le tirage part de l'arme hors champ : plein poids dès sa première image, fondu à sa fin seulement.
-      return { phase: 'pret', temps, poids: Math.min(1, (pret.durationSeconds - temps) / FONDU_CHANGEMENT_ARME) }
+      // The draw starts from the weapon offscreen: full weight from its first frame, fading out only at the end.
+      return { phase: 'pret', temps, poids: Math.min(1, (pret.durationSeconds - temps) / WEAPON_CHANGE_FADE) }
     }
   }
   return null
 }
 
-/** Glissade : entree (si clip) au debut de l'intervalle, boucle jusqu'a la fin de l'intervalle,
- *  sortie (si clip) apres l'intervalle, pour sa propre duree. Poids 1 aux jonctions de phases ;
- *  fondu de 0.15 s uniquement au tout debut sans entree, et au tout bout sans sortie. */
-function phaseGlisse(clips: ClipsRig, slide: IntervalleSprint | undefined, frame: number, fps: number): { clip: ClipPremierePersonne; temps: number; poids: number } | null {
+/** Slide: entry (if there is a clip) at the start of the interval, loop until the end of the
+ *  interval, exit (if there is a clip) after the interval, for its own duration. Weight 1 at
+ *  phase boundaries; a 0.15 s fade only right at the start with no entry, and right at the end
+ *  with no exit. */
+function slidePhase(clips: ClipsRig, slide: IntervalleSprint | undefined, frame: number, fps: number): { clip: ClipPremierePersonne; temps: number; poids: number } | null {
   const boucle = clips.slideBoucle
   if (!slide || !boucle || boucle.durationSeconds <= 0 || frame < slide.t0) return null
   const tDebut = (frame - slide.t0) / fps
@@ -209,27 +212,27 @@ function phaseGlisse(clips: ClipsRig, slide: IntervalleSprint | undefined, frame
   return null
 }
 
-type Mouvement = { clip: ClipPremierePersonne; temps: number; poids: number }
+type Movement = { clip: ClipPremierePersonne; temps: number; poids: number }
 
-/** Une chute de plus d'une seconde utilise la réception forte. */
-const DUREE_CHUTE_FORTE = 1
+/** A fall longer than one second uses the hard landing. */
+const HARD_LANDING_FALL_DURATION = 1
 
-function boucle(clip: ClipPremierePersonne | null, intervalle: IntervalleSprint | undefined, e: EvenementsPremierePersonne): Mouvement | null {
+function loopMotion(clip: ClipPremierePersonne | null, intervalle: IntervalleSprint | undefined, e: EvenementsPremierePersonne): Movement | null {
   if (!clip || !intervalle || e.frame > intervalle.t1 || clip.durationSeconds <= 0) return null
   const temps = (e.frame - intervalle.t0) / e.fps
   return { clip, temps: clip.frameCount <= 2 ? 0 : temps % clip.durationSeconds,
     poids: Math.min(1, temps / 0.15, (intervalle.t1 - e.frame) / e.fps / 0.15) }
 }
 
-function uneFois(clip: ClipPremierePersonne | null, temps: number): Mouvement | null {
+function once(clip: ClipPremierePersonne | null, temps: number): Movement | null {
   if (!clip || temps < 0 || temps >= clip.durationSeconds) return null
   return { clip, temps, poids: Math.min(1, temps / 0.1, (clip.durationSeconds - temps) / 0.1) }
 }
 
-/** Les phases dépendent uniquement des bornes du sprint et de l'image courante. */
-function phaseSprint(clips: ClipsRig, sprint: IntervalleSprint | undefined, e: EvenementsPremierePersonne, enAir: boolean): Mouvement | null {
+/** The phases depend only on the sprint's bounds and the current frame. */
+function sprintPhase(clips: ClipsRig, sprint: IntervalleSprint | undefined, e: EvenementsPremierePersonne, enAir: boolean): Movement | null {
   const loop = enAir ? clips.sprintAir ?? clips.sprint : clips.sprint
-  if (!sprint || (!clips.sprintEntree && !clips.sprintSortie)) return boucle(loop, sprint, e)
+  if (!sprint || (!clips.sprintEntree && !clips.sprintSortie)) return loopMotion(loop, sprint, e)
   const debut = (e.frame - sprint.t0) / e.fps
   const fin = (sprint.t1 + 1 - sprint.t0) / e.fps
   const entree = clips.sprintEntree, sortie = clips.sprintSortie
@@ -247,24 +250,24 @@ function phaseSprint(clips: ClipsRig, sprint: IntervalleSprint | undefined, e: E
   const poids = Math.min(1, entree ? 1 : debut / 0.15, sortie ? 1 : Math.max(0, (sprint.t1 - e.frame) / e.fps / 0.15))
   return { clip: loop, temps, poids }
 }
-function mouvement(clips: ClipsRig, e: EvenementsPremierePersonne): Mouvement | null {
+function movement(clips: ClipsRig, e: EvenementsPremierePersonne): Movement | null {
   const slide = e.slides.findLast((s) => s.t0 <= e.frame)
   const saut = e.sauts.findLast((s) => s.t0 <= e.frame)
   const escalade = e.escalades.findLast((s) => s.t0 <= e.frame)
   const accroupi = e.accroupis.findLast((s) => s.t0 <= e.frame)
   const sprint = e.sprints.findLast((s) => s.t0 <= e.frame)
-  let choix = slide && e.frame <= slide.t1 ? null : boucle(clips.accroupi, accroupi, e)
+  let choix = slide && e.frame <= slide.t1 ? null : loopMotion(clips.accroupi, accroupi, e)
   const enAir = saut && e.frame <= saut.t1
-  choix = phaseSprint(clips, sprint, e, !!enAir) ?? choix
-  choix = phaseGlisse(clips, slide, e.frame, e.fps) ?? choix
+  choix = sprintPhase(clips, sprint, e, !!enAir) ?? choix
+  choix = slidePhase(clips, slide, e.frame, e.fps) ?? choix
   if (saut) {
     const depuisSaut = (e.frame - saut.t0) / e.fps
     const depuisReception = (e.frame - (saut.t1 + 1)) / e.fps
-    const reception = (saut.t1 + 1 - saut.t0) / e.fps > DUREE_CHUTE_FORTE ? clips.receptionForte : clips.receptionDouce
-    choix = uneFois(clips.saut, depuisSaut) ?? choix
-    choix = uneFois(reception, depuisReception) ?? choix
+    const reception = (saut.t1 + 1 - saut.t0) / e.fps > HARD_LANDING_FALL_DURATION ? clips.receptionForte : clips.receptionDouce
+    choix = once(clips.saut, depuisSaut) ?? choix
+    choix = once(reception, depuisReception) ?? choix
   }
-  if (escalade && e.frame <= escalade.t1) choix = uneFois(clips.escalade, (e.frame - escalade.t0) / e.fps) ?? choix
+  if (escalade && e.frame <= escalade.t1) choix = once(clips.escalade, (e.frame - escalade.t0) / e.fps) ?? choix
   return choix
 }
 
@@ -276,17 +279,17 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
   pose.tempsTir = 0
   pose.poidsTir = 0
   if (e.fps <= 0) return pose
-  // Un tir ou un rechargement d'avant le dernier changement d'arme appartient à l'arme rangée :
-  // il ne joue pas sur le rig de celle qui arrive.
-  const rangChangement = premierChangementAuDela(e.changements, e.frame) - 1
+  // A shot or reload from before the last weapon change belongs to the holstered weapon:
+  // it doesn't play on the rig of the one that's arriving.
+  const rangChangement = firstChangeAfter(e.changements, e.frame) - 1
   const depuis = rangChangement >= 0 ? e.changements[rangChangement].frame : -Infinity
-  const dernierTir = dernier(e.tirs, e.frame)
-  const coup = dernier(e.coups, e.frame)
+  const dernierTir = lastAtOrBefore(e.tirs, e.frame)
+  const coup = lastAtOrBefore(e.coups, e.frame)
   const tir = dernierTir < depuis ? -Infinity : dernierTir
-  const clips = clipsDuRig(rig)
-  const grenade = dernier(e.grenades, e.frame + 0.25 * e.fps)
+  const clips = clipsForRig(rig)
+  const grenade = lastAtOrBefore(e.grenades, e.frame + 0.25 * e.fps)
   const tempsTir = (e.frame - tir) / e.fps
-  const deplacement = tempsTir >= 0.3 ? mouvement(clips, e) : null
+  const deplacement = tempsTir >= 0.3 ? movement(clips, e) : null
   if (deplacement) {
     pose.base = deplacement.clip
     pose.tempsBase = deplacement.temps
@@ -316,7 +319,7 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
     pose.tempsBase = recharge.temps
     poidsRecharge = recharge.poids
   }
-  // L'usage d'un équipement, le tir du grappin ou le propulseur coupent le rechargement ; un coup les coupe.
+  // Using a piece of equipment, firing the grapple, or the thruster all cut the reload; a melee strike cuts them too.
   const usage = useAt(e.usages, e.frame)
   const clipUsage = usage ? clipDuRig(rig, usage.action) : null
   const tempsUsage = usage ? (e.frame - usage.frame) / e.fps : Infinity
@@ -330,17 +333,17 @@ export function posePremierePersonne(rig: RigPremierePersonne, e: EvenementsPrem
     pose.tempsBase = tempsCoup
     poidsRecharge = null
   }
-  // Le poids du changement d'arme est calculé par la phase (fondu de la mise, fondus du tirage).
+  // The weight of a weapon change is computed by the phase (holster's fade-in, draw's fades).
   if (poidsRecharge !== null) {
     pose.poidsBase = poidsRecharge
   } else if (pose.base && pose.base !== clips.changement && pose.base !== clips.mise && pose.base !== deplacement?.clip) {
-    // Le coup part à plein poids : sa frappe tient dans le premier dixième de seconde du clip,
-    // qu'un fondu d'entrée effacerait.
+    // A melee strike starts at full weight: its hit lands in the clip's first tenth of a second,
+    // which a fade-in would erase.
     const entree = pose.base === clipCoup ? 1 : pose.tempsBase / 0.1
     pose.poidsBase = Math.min(1, entree, (pose.base.durationSeconds - pose.tempsBase) / 0.1)
   }
   const clipTir = clips.tir
-  // Un coup donné après le dernier tir en coupe l'animation : elle masquerait la frappe.
+  // A melee strike given after the last shot cuts its animation: it would hide the strike.
   const tirCoupe = pose.base === clipCoup && clipCoup !== null && coup >= tir
   if (clipTir && tempsTir < clipTir.durationSeconds && !tirCoupe) {
     pose.tir = clipTir

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * outlineStand3d.ts — LA SILHOUETTE EN BÂTONS d'un joueur lointain, pour le masque du contour
- * d'équipe (`outline3d`) : une quinzaine d'ellipsoïdes posés sur les os du Spartan à l'image (tronc,
- * épaules, tête, membres) et le long de l'arme en main, en un seul appel de dessin. Elle suit la pose
- * (accroupi, glissade, visée) comme l'armure entière, que le masque d'un joueur de quelques texels ne
- * distingue plus, sans en payer les dizaines d'appels de dessin.
+ * outlineStand3d.ts — THE STICK-FIGURE SILHOUETTE of a distant player, for the team outline's
+ * mask (`outline3d`): about fifteen ellipsoids placed on the Spartan's bones at the frame
+ * (torso, shoulders, head, limbs) and along the held weapon, in a single draw call. It follows
+ * the pose (crouch, slide, aim) like the full armor does, which a player's mask of a few texels
+ * can no longer tell apart, without paying for its dozens of draw calls.
  */
 import * as THREE from 'three'
 
-/** Les segments de la silhouette : d'un os à un autre, au rayon (u) qui couvre l'armure. */
+/** The silhouette's segments: from one bone to another, at the radius (u) that covers the armor. */
 export const STAND_LIMBS: readonly (readonly [string, string, number])[] = [
   ['b_pelvis', 'b_spine3', 0.09],
   ['b_l_upperarm', 'b_r_upperarm', 0.055],
@@ -25,16 +25,16 @@ export const STAND_LIMBS: readonly (readonly [string, string, number])[] = [
   ['b_r_upperarm', 'b_r_forearm', 0.04],
   ['b_r_forearm', 'b_r_hand', 0.035],
 ]
-/** L'os qui porte l'arme en main (`avatar3d`), et l'épaisseur de l'arme (u). */
+/** The bone that carries the held weapon (`avatar3d`), and the weapon's thickness (u). */
 const GRIP_BONE = 'b_r_grip'
 const WEAPON_RADIUS = 0.035
 const PARTS = STAND_LIMBS.length + 1
-/** Un ellipsoïde de rayon 1, étiré le long de Y sur chaque segment. */
+/** A radius-1 ellipsoid, stretched along Y for each segment. */
 const UNIT = new THREE.SphereGeometry(1, 8, 6)
 
-/** Les os d'un squelette par nom, relevés une fois par squelette (une copie du Spartan en a un). */
+/** A skeleton's bones by name, looked up once per skeleton (each Spartan copy has one). */
 const bonesBySkeleton = new WeakMap<THREE.Skeleton, Map<string, THREE.Bone>>()
-/** Les deux bouts de l'arme dans son propre repère (X = canon), relevés une fois par modèle. */
+/** The weapon's two ends in its own frame (X = barrel), looked up once per model. */
 const barrelByModel = new WeakMap<THREE.Object3D, [THREE.Vector3, THREE.Vector3]>()
 
 const _a = new THREE.Vector3()
@@ -47,7 +47,7 @@ const _matrix = new THREE.Matrix4()
 const _box = new THREE.Box3()
 const UP = new THREE.Vector3(0, 1, 0)
 
-/** skeletonOf : le squelette du premier maillage à peau sous `root`, null sans Spartan. */
+/** skeletonOf: the skeleton of the first skinned mesh under `root`, null with no Spartan. */
 export function skeletonOf(root: THREE.Object3D): THREE.Skeleton | null {
   const stack: THREE.Object3D[] = [root]
   for (let o = stack.pop(); o; o = stack.pop()) {
@@ -67,7 +67,7 @@ function bonesOf(skeleton: THREE.Skeleton): Map<string, THREE.Bone> {
   return bones
 }
 
-/** StandFigure : la silhouette en bâtons d'un joueur, un maillage instancié réutilisé d'image en image. */
+/** StandFigure: a player's stick-figure silhouette, an instanced mesh reused frame to frame. */
 export class StandFigure {
   readonly mesh = new THREE.InstancedMesh(UNIT, undefined, PARTS)
 
@@ -78,8 +78,8 @@ export class StandFigure {
   }
 
   /**
-   * pose pose la silhouette sur les os de `skeleton` (matrices du monde à jour) et sur l'arme portée
-   * par sa poignée ; un os absent laisse son segment de côté.
+   * pose places the silhouette on `skeleton`'s bones (world matrices up to date) and on the
+   * weapon carried by its grip; a missing bone leaves its segment out.
    */
   pose(skeleton: THREE.Skeleton): void {
     const bones = bonesOf(skeleton)
@@ -100,7 +100,7 @@ export class StandFigure {
     this.mesh.instanceMatrix.needsUpdate = true
   }
 
-  /** segment pose l'ellipsoïde `i` de `a` à `b` (monde), au rayon `r`. */
+  /** segment places ellipsoid `i` from `a` to `b` (world), at radius `r`. */
   private segment(i: number, a: THREE.Vector3, b: THREE.Vector3, r: number): void {
     _dir.subVectors(b, a)
     const half = _dir.length() / 2
@@ -111,7 +111,7 @@ export class StandFigure {
   }
 }
 
-/** barrelOf : les deux bouts de l'arme `model` le long de son X, au milieu de sa section. */
+/** barrelOf: the two ends of weapon `model` along its X, at the middle of its cross-section. */
 function barrelOf(model: THREE.Object3D): [THREE.Vector3, THREE.Vector3] {
   const known = barrelByModel.get(model)
   if (known) return known
