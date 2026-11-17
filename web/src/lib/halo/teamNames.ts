@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * teamNames — résolution team_id → nom officiel d'équipe Halo Infinite.
+ * teamNames — team_id -> official Halo Infinite team name resolution.
  *
- * Port 1:1 de `src/config.py::TEAM_MAP` (branche main Python). Halo Infinite
- * définit 9 équipes nommées (Eagle / Cobra / ...) attribuées aux team_id 0..8
- * de manière fixe par 343 Industries — ce mapping ne dépend pas du match.
+ * 1:1 port of `src/config.py::TEAM_MAP` (Python main branch). Halo Infinite
+ * defines 9 named teams (Eagle / Cobra / ...) assigned to team_id 0..8
+ * in a fixed way by 343 Industries — this mapping does not depend on the match.
  *
- * Le backend expose `team_side` au format "t{N}" pour MatchScoreboard
- * (cf. buildTeamTabFull qui fait `fmt.Sprintf("t%d", *s.TeamID)`). D'autres
- * surfaces (picker média) exposent l'entier directement — utiliser alors
- * `resolveTeamNameFromID`.
+ * The backend exposes `team_side` in the "t{N}" format for MatchScoreboard
+ * (see buildTeamTabFull, which does `fmt.Sprintf("t%d", *s.TeamID)`). Other
+ * surfaces (media picker) expose the integer directly — use
+ * `resolveTeamNameFromID` then.
  *
- * Module placé dans `lib/halo/` (et non `features/match-view/`) pour pouvoir
- * être consommé par plusieurs features sans couplage cross-feature.
+ * Module placed under `lib/halo/` (and not `features/match-view/`) so it can
+ * be consumed by several features without cross-feature coupling.
  */
 import { sansAccents } from '@/lib/text/sansAccents'
 
@@ -29,8 +29,8 @@ const TEAM_NAMES_HALO_INFINITE: Record<number, string> = {
 }
 
 /**
- * Parse "t{N}" → N. Retourne null si le format n'est pas reconnu (équipe vide
- * ou ancienne convention). Idempotent face à null/undefined.
+ * Parses "t{N}" -> N. Returns null if the format is not recognized (an empty team
+ * or an older convention). Idempotent against null/undefined.
  */
 export function parseTeamSideID(teamSide: string | null | undefined): number | null {
   if (!teamSide) return null
@@ -40,9 +40,9 @@ export function parseTeamSideID(teamSide: string | null | undefined): number | n
 }
 
 /**
- * Résout team_side "t{N}" → nom officiel Halo Infinite. Retourne null si
- * team_id absent de la map (équipe non standard ou nouvelle non encore
- * référencée) ou si le format est invalide.
+ * Resolves team_side "t{N}" -> official Halo Infinite name. Returns null if
+ * team_id is absent from the map (a non-standard team, or a new one not yet
+ * referenced) or if the format is invalid.
  */
 export function resolveTeamName(teamSide: string | null | undefined): string | null {
   const id = parseTeamSideID(teamSide)
@@ -51,8 +51,8 @@ export function resolveTeamName(teamSide: string | null | undefined): string | n
 }
 
 /**
- * Variante directe : team_id (entier) → nom officiel, sans passer par le
- * format "t{N}". Utile pour les surfaces qui exposent déjà l'entier.
+ * Direct variant: team_id (integer) -> official name, without going through the
+ * "t{N}" format. Useful for surfaces that already expose the integer.
  */
 export function resolveTeamNameFromID(teamID: number | null | undefined): string | null {
   if (teamID == null) return null
@@ -60,11 +60,11 @@ export function resolveTeamNameFromID(teamID: number | null | undefined): string
 }
 
 /**
- * Chemin de l'asset logo d'une équipe : `/titles/{slug}/teams/{teamId}.png`.
- * Résolution d'asset uniforme title-agnostic (le slug paramètre le chemin, ce n'est
- * pas une branche de comportement). Retourne null si l'un des deux est absent →
- * le caller n'affiche pas de logo. Certains team_id peuvent ne pas avoir d'asset :
- * l'onError du <img> gère le 404 côté rendu.
+ * Path of a team's logo asset: `/titles/{slug}/teams/{teamId}.png`.
+ * Uniform, title-agnostic asset resolution (the slug parameterizes the path, it is
+ * not a behavior branch). Returns null if either is absent ->
+ * the caller does not display a logo. Some team_id values may have no asset:
+ * the `<img>`'s onError handles the 404 on the rendering side.
  */
 export function teamLogoPath(
   slug: string | null | undefined,
@@ -75,15 +75,15 @@ export function teamLogoPath(
 }
 
 /**
- * Détecte si un libellé d'équipe contient DÉJÀ le mot « équipe »/« team »
- * (accents et casse ignorés). Sert à éviter le double préfixe : le backend Halo 5
- * fournit un libellé déjà complet et localisé depuis team_colors (« Équipe Cobra »),
- * alors que les noms officiels résolus côté front (Eagle / Cobra) sont NUS et
- * attendent le préfixe « Équipe »/« Team » ajouté par teamLabelFmt.
+ * Detects whether a team label ALREADY contains the word "équipe"/"team"
+ * (accents and case ignored). Used to avoid a double prefix: the Halo 5 backend
+ * supplies a label that is already complete and localized from team_colors ("Équipe Cobra"),
+ * whereas the official names resolved on the frontend (Eagle / Cobra) are BARE and
+ * expect the "Équipe"/"Team" prefix added by teamLabelFmt.
  *
- * Title-agnostic : on teste uniquement la DONNÉE (le libellé), jamais le slug.
- * Aucun nom d'équipe officiel Halo (Eagle/Cobra/Hades/…) ne contient ces mots,
- * donc le test ne produit pas de faux positif sur les noms nus.
+ * Title-agnostic: only the DATA (the label) is tested, never the slug.
+ * No official Halo team name (Eagle/Cobra/Hades/…) contains these words,
+ * so the test produces no false positive on bare names.
  */
 export function labelHasTeamWord(name: string): boolean {
   const normalized = sansAccents(name).toLowerCase()

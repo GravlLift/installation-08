@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * pickText — LIRE UN LIBELLÉ PAR LANGUE (ADR 0040, D3).
+ * pickText — READING A LABEL BY LANGUAGE (ADR 0040, D3).
  *
- * Le document de rejeu garde un libellé par langue DANS le document (gros document, mis en cache
- * côté client, artefacts cuits qu'on ne re-cuit pas) : un libellé d'arme est
- * `{ en: '…', fr: '…', fx: '…', … }`, une propriété par langue de `config/locales.toml`, au même
- * niveau que les autres champs. Ce module est le SEUL endroit qui choisit une langue dans un tel
- * objet : le reste du code appelle `pickText(libellé, locale)` et ne nomme jamais `.fr` / `.en`
- * (garde-rail `replay-label-access.guard.test.ts`).
+ * The replay document keeps a label per language INSIDE the document (a large document, cached
+ * client-side, baked artifacts that are not re-baked): a weapon label is
+ * `{ en: '…', fr: '…', fx: '…', … }`, one property per language from `config/locales.toml`, at the same
+ * level as the other fields. This module is the ONLY place that picks a language from such an
+ * object: the rest of the code calls `pickText(label, locale)` and never names `.fr` / `.en`
+ * directly (guard rail `replay-label-access.guard.test.ts`).
  *
- * REPLI (D3 : noms de jeu) : la langue demandée, sinon `FALLBACK_LOCALE`, sinon la chaîne vide.
- * Jamais une traduction inventée, jamais « l'autre langue » au hasard de l'ordre des clés.
+ * FALLBACK (D3: game names): the requested language, otherwise `FALLBACK_LOCALE`, otherwise an empty string.
+ * Never an invented translation, never "whichever other language" by the luck of key order.
  */
 import { FALLBACK_LOCALE, KNOWN_LOCALES, type Locale } from './locale'
 
-/** Un libellé par langue : toute propriété dont le nom est une langue de la liste est lue, le reste ignoré. */
+/** A label per language: any property whose name is a language from the list is read, the rest ignored. */
 export type LocaleTexts = Readonly<Partial<Record<Locale, string | null | undefined>>>
 
 /**
- * Le texte de la langue demandée ; à défaut, celui de `FALLBACK_LOCALE` ; à défaut, `''`.
- * Un libellé absent (`undefined` / `null`) rend `''` : l'appelant décide quoi montrer à sa place.
+ * The text for the requested language; failing that, `FALLBACK_LOCALE`'s; failing that, `''`.
+ * An absent label (`undefined` / `null`) returns `''`: the caller decides what to show in its place.
  */
 export function pickText(text: LocaleTexts | null | undefined, locale: Locale): string {
   return text?.[locale] || text?.[FALLBACK_LOCALE] || ''
 }
 
 /**
- * Les textes de toutes les langues renseignées, dans l'ordre de la liste. Pour les lectures qui
- * cherchent un radical de nom dans n'importe quelle langue (reconnaître « transloc » dans
- * « Quantum Translocator » comme dans sa traduction), jamais pour afficher.
+ * The texts of every language provided, in the list's order. For lookups that
+ * search for a name stem in any language (recognizing "transloc" in
+ * "Quantum Translocator" as in its translation), never for display.
  */
 export function allTexts(text: LocaleTexts | null | undefined): string[] {
   if (!text) return []
@@ -39,9 +39,9 @@ export function allTexts(text: LocaleTexts | null | undefined): string[] {
 }
 
 /**
- * Projette un objet qui porte des propriétés de langue (un libellé du document, une zone nommée)
- * sur ses seuls textes par langue : les autres propriétés (`img`, `x`, `family`…) n'y entrent pas.
- * Sert à ranger les textes d'une zone dans un champ dédié plutôt que de garder tout l'objet.
+ * Projects an object carrying language properties (a document label, a named zone)
+ * onto its per-language texts alone: other properties (`img`, `x`, `family`…) do not enter it.
+ * Used to store a zone's texts in a dedicated field rather than keeping the whole object.
  */
 export function localeTextsOf(source: object | null | undefined): Partial<Record<Locale, string>> {
   const out: Partial<Record<Locale, string>> = {}

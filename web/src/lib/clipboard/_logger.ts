@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * _logger.ts — Logger namespacé pour le module presse-papier.
+ * _logger.ts — namespaced logger for the clipboard module.
  *
- * Même pattern que `lib/accessibility/_logger.ts` : chaque clé n'est logguée
- * qu'une fois par session (un presse-papier refusé l'est à chaque clic, on ne
- * veut pas noyer la console).
+ * Same pattern as `lib/accessibility/_logger.ts`: each key is logged
+ * only once per session (a refused clipboard write happens on every click, and we do not
+ * want to flood the console).
  *
- * Clés stables :
- *   - `clipboard:write_failed` — `navigator.clipboard.writeText` a rejeté
- *     (contexte non sécurisé, permission refusée, API absente).
+ * Stable keys:
+ *   - `clipboard:write_failed` — `navigator.clipboard.writeText` rejected
+ *     (insecure context, permission denied, API absent).
  */
 
 const PREFIX = '[clipboard]'
@@ -38,7 +38,7 @@ export const log = {
     console.debug(`${PREFIX} ${msg}`, ...args)
   },
 
-  /** Réinitialise la déduplication (usage test uniquement). */
+  /** Resets deduplication (test use only). */
   _resetForTests(): void {
     _warned.clear()
     _errored.clear()
