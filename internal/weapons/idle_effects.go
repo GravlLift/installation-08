@@ -50,6 +50,29 @@ type IdleFunction struct {
 	Export      string  `json:"export"`
 	TurnOffWith string  `json:"turnOffWith,omitempty"`
 	Invert      bool    `json:"invert,omitempty"`
+	// Mapping: the function's mapping of its import (its `default function`, decoded as a particle
+	// property: Min + (Max - Min) x the curve at the import's value); absent for the identity 0..1
+	// and for a mapping of a kind not decoded (logged), which the view reads as the identity.
+	Mapping *himap.FonctionParticule `json:"mapping,omitempty"`
+}
+
+// mappingIdentity is the identity function type (the engine's mapping type 0).
+const mappingIdentity = 0
+
+// mappingOf decodes an object function's mapping; nil for the identity 0..1 (or no mapping), and
+// for a kind not decoded (ok false).
+func mappingOf(b []byte) (m *himap.FonctionParticule, ok bool) {
+	if len(b) == 0 {
+		return nil, true
+	}
+	f, err := himap.FonctionDeMapping(b)
+	if err != nil {
+		return nil, false
+	}
+	if f.Type == mappingIdentity && !f.Ranged && f.Min == 0 && f.Max == 1 {
+		return nil, true
+	}
+	return &f, true
 }
 
 // IdleSystem is a particle system, its vectors in GLB axes.
@@ -118,7 +141,9 @@ var knownFunctionNames = func() map[uint32]string {
 	out := map[uint32]string{}
 	for _, n := range []string{"ready", "is_reloading", "primary_ammunition", "secondary_ammunition", "camo",
 		"active_camo", "zoom", "secondary_charged", "fx_ready", "fx_reloading", "fx_ammo", "fx_zoom",
-		"illumination", "heat", "primary_charged", "overheated", "power"} {
+		"illumination", "heat", "primary_charged", "overheated", "power",
+		// Cracked from the game binary's strings (the Heatwave's functions, 2ac9c2ff).
+		"fx_reload", "fx_camo_off", "animation_event_function_variant_switch", "alt_fire"} {
 		out[uint32(mapvar.LabelHash(n))] = n
 	}
 	return out
@@ -225,8 +250,12 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 	e := IdleEffect{Effect: fmt.Sprintf("%08x", at.Effect), ScaleA: functionName(at.PrimaryScale),
 		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}}
 	for _, f := range fns {
+		m, ok := mappingOf(f.Mapping)
+		if !ok {
+			slog.Warn("weapon function mapping not decoded, read as the identity", "effect", e.Effect, "export", functionName(f.Export))
+		}
 		e.Functions = append(e.Functions, IdleFunction{Import: functionName(f.Import), Default: f.Default,
-			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert})
+			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert, Mapping: m})
 	}
 	noms := map[uint32]bool{}
 	for _, s := range fx.Systems {

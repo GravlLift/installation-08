@@ -117,8 +117,9 @@ const EquipmentRuleCurrent = 2
 // outdated and rebuilt by the normal build flow; an index without a schema (built before
 // schema versioning) is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy
 // parts) is read from its declared emissive_intensity and its tint map. 4: the weapons' idle
-// particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files.
-const SchemaCurrent = 4
+// particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files. 5: the idle
+// effects' weapon functions carry their mapping (the Heatwave's `fx_camo_off` is 1 - camo).
+const SchemaCurrent = 5
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

@@ -31,14 +31,19 @@ type EffectAttachment struct {
 }
 
 // ObjectFunction is one of the weapon's object functions (StringIDs; 0: none). Its value is the
-// import's (Default when the object has no such import), inverted when Invert (flags bit 0), and
-// 0 while the function named TurnOffWith is 0.
+// import's (Default when the object has no such import) through its mapping, inverted when Invert
+// (flags bit 0), and 0 while the function named TurnOffWith is 0.
 type ObjectFunction struct {
 	Import      uint32
 	Default     float32
 	Export      uint32
 	TurnOffWith uint32
 	Invert      bool
+	// Mapping: the bytes of the function's `default function` (the engine's mapping function, the
+	// codec of a particle property: himap.FonctionDeMapping); nil when the tag has none. Measured on
+	// the Heatwave (2ac9c2ff): `fx_camo_off` maps `camo` through 1 - x, `primary_ammunition` is
+	// mapped to a step at 3.25%, the identity functions carry a 32-byte identity 0..1.
+	Mapping []byte
 }
 
 // Plugin names of the fields read.
@@ -54,6 +59,7 @@ const (
 	fieldNoImport       = "no import default"
 	fieldExport         = "export name"
 	fieldTurnOffWith    = "turn off with"
+	fieldMapping        = "default function"
 	// refGroupOff: the group FourCC of a `_41` reference, after its id (calibrated on the flag's
 	// effect references, "effe" at +0x14 of the field).
 	refGroupOff = 0x14
@@ -79,7 +85,7 @@ var (
 		return blockLayoutOfPlugin(pathAttachments, fieldAttachType, fieldMarker, fieldPrimaryScale, fieldSecondaryScale)
 	})
 	loadFunctionLayout = sync.OnceValues(func() (*blockLayout, error) {
-		return blockLayoutOfPlugin(pathFunctions, fieldFlags, fieldImport, fieldNoImport, fieldExport, fieldTurnOffWith)
+		return blockLayoutOfPlugin(pathFunctions, fieldFlags, fieldImport, fieldNoImport, fieldExport, fieldTurnOffWith, fieldMapping)
 	})
 )
 
@@ -120,31 +126,58 @@ func blockLayoutOfPlugin(path string, names ...string) (*blockLayout, error) {
 
 // elements resolves the block of layout l in tag: its records' absolute offsets (nil: no block).
 func (l *blockLayout) elements(tag []byte) ([]int, error) {
+	out, _, _, err := l.elementsOfBlock(tag)
+	return out, err
+}
+
+// elementsOfBlock is elements, with the tag's tables and the block's index (-1: no block).
+func (l *blockLayout) elementsOfBlock(tag []byte) ([]int, weapTag, int, error) {
 	wt, err := openWeapTag(tag)
 	if err != nil {
-		return nil, err
+		return nil, wt, -1, err
 	}
 	root, err := wt.rootBlock()
 	if err != nil {
-		return nil, err
+		return nil, wt, -1, err
 	}
 	shift, err := l.shift(wt.rootBlockFields(root))
 	if err != nil {
-		return nil, err
+		return nil, wt, -1, err
 	}
 	blk := wt.childBlock(root, l.field+shift)
 	if blk < 0 {
-		return nil, nil
+		return nil, wt, -1, nil
 	}
 	abs, size := wt.blockAbs(blk)
 	if abs < 0 || abs+size > len(tag) || size%l.stride != 0 {
-		return nil, fmt.Errorf("block of %d bytes, not a multiple of %d", size, l.stride)
+		return nil, wt, -1, fmt.Errorf("block of %d bytes, not a multiple of %d", size, l.stride)
 	}
 	var out []int
 	for e := abs; e < abs+size; e += l.stride {
 		out = append(out, e)
 	}
-	return out, nil
+	return out, wt, blk, nil
+}
+
+// dataRefs returns the data references of block blk: field offset from the block's start (its
+// records included) -> the bytes they point to. The table follows the struct table, 0x14 bytes an
+// entry: the data block's index at +8, the owning block at +12, the field offset at +16 (the layout
+// himap reads a material's animated parameters with, `donneesDuChamp`).
+func (w weapTag) dataRefs(blk int) map[int][]byte {
+	out := map[int][]byte{}
+	tab := w.structTab + w.structs*0x20
+	for i := 0; i < w.dataRefCount && tab+(i+1)*0x14 <= len(w.tag); i++ {
+		e := tab + i*0x14
+		if int(int32(binary.LittleEndian.Uint32(w.tag[e+12:]))) != blk {
+			continue
+		}
+		abs, size := w.blockAbs(int(int32(binary.LittleEndian.Uint32(w.tag[e+8:]))))
+		if abs < 0 || abs+size > len(w.tag) {
+			continue
+		}
+		out[int(binary.LittleEndian.Uint32(w.tag[e+16:]))] = w.tag[abs : abs+size]
+	}
+	return out
 }
 
 // shift is the offset of the live root's block fields from the plugin's at the block: the run of
@@ -195,14 +228,19 @@ func ReadObjectFunctions(tag []byte) ([]ObjectFunction, error) {
 	if err != nil {
 		return nil, err
 	}
-	els, err := l.elements(tag)
+	els, wt, blk, err := l.elementsOfBlock(tag)
 	if err != nil {
 		return nil, fmt.Errorf("functions: %w", err)
 	}
+	var data map[int][]byte
+	if len(els) > 0 {
+		data = wt.dataRefs(blk)
+	}
 	u32 := func(o int) uint32 { return binary.LittleEndian.Uint32(tag[o:]) }
 	out := make([]ObjectFunction, 0, len(els))
-	for _, e := range els {
+	for k, e := range els {
 		out = append(out, ObjectFunction{
+			Mapping:     data[k*l.stride+l.at[fieldMapping]],
 			Import:      u32(e + l.at[fieldImport]),
 			Default:     math.Float32frombits(u32(e + l.at[fieldNoImport])),
 			Export:      u32(e + l.at[fieldExport]),

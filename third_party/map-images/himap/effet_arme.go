@@ -390,6 +390,13 @@ func litEmetteur(ti tagInfo, em, abs int) (EmetteurParticules, error) {
 	return e, nil
 }
 
+// FonctionDeMapping (LOCAL-CHANGE (infinite-theater-3d)) decodes a bare mapping function's bytes
+// (an object function's `default function`, the same codec as a particle property's) into a
+// FonctionParticule without inputs: identity, constant or multi-spline, else an error.
+func FonctionDeMapping(b []byte) (FonctionParticule, error) {
+	return litProprieteParticule(make([]byte, 4), b)
+}
+
 // litProprieteParticule decodes a property: its four input bytes and its function's bytes.
 func litProprieteParticule(entrees, b []byte) (FonctionParticule, error) {
 	fj, ok := litFonctionJeu(b)

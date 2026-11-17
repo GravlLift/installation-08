@@ -456,7 +456,9 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     bitmap's curve byte at +13 of its bitmaps record, sRGB = 5, and whether its format is signed)
     serve the weapon and first-person libraries. Covered by `himap/effet_arme_test.go` (new) and
     `himap/effet_arme_gamefiles_test.go` (new: the twelve systems, the shader layouts, the three
-    meshes, the markers).
+    meshes, the markers). `FonctionDeMapping` (LOCAL-CHANGE) exposes the same function decoder for
+    a weapon object function's `default function` bytes (the Heatwave's `fx_camo_off` maps `camo`
+    through 1 - x).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
