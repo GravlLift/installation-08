@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // idle_frames.go — the frames an idle effect is emitted in (its markers' model-space position and
 // rotation) and the animation functions a weapon's reloads set.
 package weapons

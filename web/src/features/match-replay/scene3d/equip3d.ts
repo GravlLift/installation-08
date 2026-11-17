@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equip3d.ts — LE CAMOUFLAGE ET LE SURBOUCLIER SUR LE CORPS : leurs forces à une image, lues dans
  * les épisodes d'équipement du document (`equipmentEpisodes`, par vie).

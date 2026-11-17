@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replaySoundCursor.ts — READING THE TRACK: when an event goes out, and when it does not.
  * Nothing that SOUNDS lives here (the manifest and the track are in replaySound.ts) — only

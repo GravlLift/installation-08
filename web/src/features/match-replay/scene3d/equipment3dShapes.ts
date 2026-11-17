@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipment3dShapes.ts — LES FORMES 3D DE L'ÉQUIPEMENT : un lot instancié par forme, et une méthode
  * par objet (mur sans cap, faille, capteur, traqueur, champ, objet lâché, poussée). La barrière du mur

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fallbackMetal3d.ts — LE MÉTAL SOMBRE DES SURFACES SANS TEXTURE (armes, armures, bras).
  *

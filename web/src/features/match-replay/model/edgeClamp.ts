@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * edgeClamp.ts — THE PURE GEOMETRY OF OFFSCREEN CLAMPING (worksite B, offscreen squad
  * plan, 2026-09-10).

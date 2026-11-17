@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * startingWeaponsOnGround — WHICH GROUND WEAPONS THE REPLAY SHOWS BY DEFAULT.
  *

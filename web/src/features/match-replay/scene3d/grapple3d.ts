@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grapple3d.ts — THE GRAPPLESHOT DRAWN: the hook that flies from the hand to the anchor with its
  * cable behind it, then holds there while the cable pulls (`grapple3d_logic` says where the hook

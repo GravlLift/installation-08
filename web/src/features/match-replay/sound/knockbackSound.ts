@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * knockbackSound.ts — THE REPELLER'S PUSH, heard every time the film writes it.
  *

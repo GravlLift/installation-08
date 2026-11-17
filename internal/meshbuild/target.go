@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package meshbuild resolves a native map's build.Target from its installed module key, the
 // embedded reference data (internal/mapref) and the local game installation, then runs the
 // build in-process (internal/mapmesh).

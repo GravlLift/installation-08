@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentPlacementsLayer.ts — EQUIPMENT PLACEMENTS on the map: what gets drawn, and above
  * all what does NOT get drawn.

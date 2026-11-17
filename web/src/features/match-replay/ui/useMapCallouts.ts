@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMapCallouts — the named areas of the match's map (`GET /api/matches/{id}/callouts`),
  * prepared for the HUD's place label (`mapCallouts`). Null while loading, and for good when

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // datadir.go — where the data directory is: --data, then IT3D_DATA_DIR, then the `data`

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * explosionFx3d.ts — UNE EXPLOSION À UN ÂGE : ce que la vue 3D en dessine, fonction pure de l'âge
  * (secondes depuis la détonation publiée) et d'un germe.

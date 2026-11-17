@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * carriedUseSound.ts — USING A CARRIED PIECE OF EQUIPMENT, heard at the moment the film dates it.
  *

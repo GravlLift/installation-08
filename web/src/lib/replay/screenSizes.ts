@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * screenSizes.ts — THE SIZE MODEL OF THE 2D REPLAY: the map's scale when it is generous, a
  * SCALE FLOOR when it is not — and the proportions between families kept in both cases.

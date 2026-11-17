@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bodyShell3d.ts — LA COQUE D'ÉNERGIE DU SPARTAN : bouclier qui encaisse, qui rompt, qui se
  * recharge, surbouclier qui tient, contour tremblant du camouflage, dessinés sur sa propre géométrie.

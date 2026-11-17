@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * adsOverlayRaster.test.ts — the export's ADS overlays are the live SVG drawing, made a
  * standalone image: the match's weapons pick which overlays are rasterized, the SVG carries no

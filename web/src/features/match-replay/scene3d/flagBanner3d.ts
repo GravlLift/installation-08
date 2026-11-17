@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * flagBanner3d.ts — THE CTF FLAG DRESSED WITH ITS TEAM BANNER (`flagBanner3dModel`).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * headingInterp — THE HEADING BETWEEN TWO SAMPLES, by the shortest angular path.
  *

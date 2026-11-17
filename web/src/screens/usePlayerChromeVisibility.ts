@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlayerChromeVisibility — the auto-hide rule of the player's chrome (top strip and
  * transport, docs/UI-DESIGN.md 4.4).

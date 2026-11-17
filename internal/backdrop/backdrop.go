@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package backdrop builds the home screen's ring backdrop from the game install.
 //
 // The backdrop is a single cinematic image in the install: a bitm tag in the globals

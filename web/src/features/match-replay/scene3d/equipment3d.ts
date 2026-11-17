@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipment3d.ts — L'ÉQUIPEMENT DANS LA SCÈNE 3D : les poses (mur, écran occultant, capteur,
  * traqueur, champ de réparation, objets lâchés), les stations de la faille du translocateur, les

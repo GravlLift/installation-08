@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { weaponModelKey } from '../scene3d/weaponModels3d'
 

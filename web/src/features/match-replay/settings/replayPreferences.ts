@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayPreferences.ts — LE SEUL ENDROIT qui touche localStorage pour les préférences du
  * rejeu. Patron NÉ dans useReplaySound (son : coupé/volume) : clé simple, lecture sous

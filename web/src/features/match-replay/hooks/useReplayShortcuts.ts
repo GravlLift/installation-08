@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayShortcuts — LE CLAVIER DU LECTEUR (demande utilisateur du 2026-08-27).
  *

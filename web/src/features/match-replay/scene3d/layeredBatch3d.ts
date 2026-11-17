@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * layeredBatch3d.ts — LES SURFACES FUSIONNÉES DE LA CARTE EN QUELQUES APPELS DE DESSIN.
  *

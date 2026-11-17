@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // mode_filters.go: the `.mvar` mode labels a match's game mode activates, for the variant object

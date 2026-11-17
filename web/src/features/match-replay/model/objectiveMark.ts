@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectiveMark.ts — WHO CARRIES THE OBJECTIVE, at a given frame. Pure logic, no React.
  *

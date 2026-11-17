@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * thruster3d.ts — THE THRUSTER BURST DRAWN: a short exhaust cone that shoots out of the carrier's
  * back, opposite the push, and fades (`thruster3d_logic` gives the direction and the phase).

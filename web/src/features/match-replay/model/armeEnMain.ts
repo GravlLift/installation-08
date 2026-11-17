@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { frameToMs, isAliveAt, trackWindow } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { LOADOUT_SRC_BIRTH, currentLifeOf, loadoutAt, type LoadoutReading } from '@/lib/replay/rosterLogic'

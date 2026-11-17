@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // accessories.go — the attachments, markers, themes and shared images of the
 // library (LevelUp's internal/mapmesh pieces_accessoires.go, AGPL-3.0, JGtm).
 package spartanpieces

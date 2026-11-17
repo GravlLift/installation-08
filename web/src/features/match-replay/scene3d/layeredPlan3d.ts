@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * layeredPlan3d.ts — LE PLAN DE LA FUSION DES MATÉRIAUX EN COUCHES DE LA CARTE (logique pure).
  *

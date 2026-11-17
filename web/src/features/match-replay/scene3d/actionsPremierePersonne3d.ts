@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { clipDuRig, type ClipPremierePersonne, type RigPremierePersonne } from './premierePersonne3d'
 import { useAt, type UseShot } from './equipmentUse3d_logic'
 import type { IntervalleSprint } from './evenementsPremierePersonne3d'

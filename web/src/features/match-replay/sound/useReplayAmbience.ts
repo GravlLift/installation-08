@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayAmbience — THE React SEAM of the map's ambient bed (`ambienceBed.ts`), consumed by
  * `useReplaySound`, which owns the Web Audio player, the preference and the beat.

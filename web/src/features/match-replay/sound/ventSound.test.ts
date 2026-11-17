@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ventSound.test.ts — the vent of a heat weapon, with the vent animation's own timing: the enter
  * from the episode's first message, the exit after the loop hold (the later of the episode's last

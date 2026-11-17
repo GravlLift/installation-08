@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * offscreenChevron.ts — THE OFF-SCREEN ARROW (off-screen squad plan, workstream B, decision
  * D2, template provided by the user: `Pictures/Screenpresso/2026-09-09_14h26_04.png`).

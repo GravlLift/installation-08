@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mixTime.ts — moving a time of the clip into a context that starts later, WITHOUT moving it by a
  * rounding error.

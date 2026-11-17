@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * placementShapes.ts — THE BASE OF THE TRACING of equipment placements, and the SHAPES that
  * fit in a PROJECTED CENTER.

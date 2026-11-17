@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MeshBuildGate.test.tsx — the in-viewer mesh build gate: in the `absent` phase it shows the
  * message line (`.bc-step`) and the "Build map" button together; while building it fills the

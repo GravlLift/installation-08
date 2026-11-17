@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplayAthLunette3d — THE AIM-DOWN-SIGHTS OVERLAY in first person, redrawn procedurally from the
  * in-game captures of each weapon's real ADS view (the game files hold no scope bitmap: Infinite's

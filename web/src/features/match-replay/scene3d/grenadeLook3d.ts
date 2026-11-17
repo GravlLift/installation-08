@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grenadeLook3d.ts — LA MISE EN FORME D'UNE GRENADE SELON SON RANG : une fonction pure du type de
  * grenade à son dessin.

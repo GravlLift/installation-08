@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplay3dLook.test.ts — the persisted Bloom setting: on by default, persisted when toggled,
  * read back on mount, and followed by a second reader of the same key (the 3D view).

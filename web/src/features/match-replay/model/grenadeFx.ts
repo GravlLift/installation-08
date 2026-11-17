@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grenadeFx.ts — WHAT THE THROW -> PROJECTILE LINK ALLOWS TO SAY, and nothing more.
  *

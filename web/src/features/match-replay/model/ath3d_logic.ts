@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { buildPlayers, playerStateAt, vitalityPresence } from '@/lib/replay/rosterLogic'
 import { buildFilmAllegiance } from '@/lib/replay/filmAllegiance'
 import { scoreTimelineOf } from '@/lib/replay/scoreTimeline'

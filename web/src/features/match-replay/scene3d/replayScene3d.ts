@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayScene3d.ts — the 3D replay scene: WebGL render, players, cameras.
  *

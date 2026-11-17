@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replaySpans — « DOES THIS INTERVAL COVER THIS FRAME? », written once.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // attachments.go — the effects a weapon attaches to markers of its model, and its object functions.
 //
 // The `attachments` block of a weap tag lists what the weapon carries: effects (`effe`) and

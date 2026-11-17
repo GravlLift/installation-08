@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ventSound.ts — WHEN A HEAT WEAPON'S VENT SOUNDS, WITH THE VENT ANIMATION'S OWN TIMING.
  *

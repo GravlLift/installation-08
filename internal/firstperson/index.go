@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package firstperson builds and lays out the standalone's first-person library: one
 // animated rig GLB per weapon the game renders in first person, the shared texture depot,
 // and the index.json the 3D view reads.

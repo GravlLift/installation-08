@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * actionKit.ts — LES BRIQUES DES CALQUES D'ACTION 3D : formes en lots, traits, étiquettes, sol.
  *

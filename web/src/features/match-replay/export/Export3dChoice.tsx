@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Choose the exported view, camera, followed player, and optional minimap. */
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 import type { ReplayLocale } from '../i18n/i18n'

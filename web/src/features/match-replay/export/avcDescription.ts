@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * avcDescription.ts — checking, and repairing, the H.264 decoder configuration (`avcC`) a browser's
  * `VideoEncoder` hands out, before it is written into the MP4.

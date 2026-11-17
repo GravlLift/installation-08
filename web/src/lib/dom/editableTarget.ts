@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Une cible d'événement clavier où l'on saisit du texte (champ, zone de texte, liste déroulante, zone
  * éditable) : un raccourci global ne doit pas s'y déclencher. Source unique du test, partagée par le

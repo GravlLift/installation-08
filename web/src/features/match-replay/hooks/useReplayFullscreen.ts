@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useCallback, useEffect, useState, type RefObject } from 'react'
 
 export const REPLAY_ESCAPE_LAYER_ATTR = 'data-replay-escape-layer'

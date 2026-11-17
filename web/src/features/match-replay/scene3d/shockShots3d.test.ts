@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests: the shock rifle's shot — three jagged beams, deterministic in (from, to, seed, bucket),
  * jaggered per bucket, faded to zero after its life.

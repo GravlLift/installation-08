@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * SignInPlate — the device-code sign-in flow as a broadcast plate (brief 124, item 6),
  * replacing `AccountPanel`'s pending state: the code, the link, copy and cancel, restyled

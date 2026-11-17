@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * surfaceProbe3d.ts — L'INSPECTEUR DE SURFACES de la vue 3D (poste de développement) : la surface
  * de la carte sous le pointeur, avec le matériau du jeu qui la dessine.

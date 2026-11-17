@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerProbe3d.ts — LA SONDE D'ENVIRONNEMENT DES JOUEURS : l'armure d'un joueur porte la sonde de
  * la carte la plus proche de sa position, comme la surface où il se tient (`lighting.assignProbes`)

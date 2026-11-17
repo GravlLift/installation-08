@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayExport — LA BOUCLE QUI RECALCULE LE FILM, et la couture React autour d'elle.
  *

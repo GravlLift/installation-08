@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fxInk.ts — the SHOT EFFECT TINTS, read from the theme.
  *

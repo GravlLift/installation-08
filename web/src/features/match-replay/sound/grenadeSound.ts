@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grenadeSound.ts — THE TWO SOUNDS OF THE SAME OBJECT: the GESTURE of the throw, and the DETONATION.
  *

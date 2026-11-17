@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * abilityImpulseSound.ts — USING AN ABILITY THAT PROPULSES ITS CASTER, dated by the film.
  *

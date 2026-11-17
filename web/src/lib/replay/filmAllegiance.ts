@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * filmAllegiance.ts — ALLEY OR ENEMY, READ FROM THE FILM: the only allegiance computation of the replay.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package ambience
 
 // level.go reads, from a map's level tag (`levl`), the background sounds of its acoustic zones

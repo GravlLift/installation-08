@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 import type { ReplayTrackReady } from '../../../lib/replay/replayReadyTypes'
 import { CALLOUT_PROBE_ABOVE_M, calloutAt, calloutName, calloutOfLivesAt, inPolygon, prepareCallouts, type MapCallouts } from './mapCallouts'

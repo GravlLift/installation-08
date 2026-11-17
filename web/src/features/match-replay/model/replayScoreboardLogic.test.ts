@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import type { MatchScoreboardRow } from '@/lib/api/types'
 import { testReplayDoc } from '../test/testDoc'
 import { modeStatOf, readReplayScoreboard } from './replayScoreboardLogic'

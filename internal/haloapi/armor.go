@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // armor.go — the armor definitions the manifest assembly reads: the equipped
 // customization block (from the player's public customization view) and the
 // GameCMS item and theme files that its inventory paths point to.

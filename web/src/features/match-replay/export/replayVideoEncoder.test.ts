@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayVideoEncoder.test.ts — LES DÉCISIONS DE L'ENCODEUR, testées sans navigateur.
  *

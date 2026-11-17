@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * aimHud.test.ts — the first-person aim shared by the live HUD and the export: the hip reticle's
  * shape per weapon family, and, at a frame, which ADS overlay is drawn and whether the hip

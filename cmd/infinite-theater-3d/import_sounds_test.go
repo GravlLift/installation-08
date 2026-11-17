@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // import_sounds_test.go — the `import-sounds` subcommand: it copies the .ogg

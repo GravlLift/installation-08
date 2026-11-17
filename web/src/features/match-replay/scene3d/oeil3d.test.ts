@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** oeil3d.test.ts — la descente de l'œil : fondu à l'entrée, fondu à la sortie, fusion des postures. */
 import { describe, expect, it } from 'vitest'
 

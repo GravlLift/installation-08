@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MatchSelectScreen — the match select page (docs/UI-DESIGN.md 4.2, brief 124): one list of
  * rows on the left (the stored matches and, when signed in, the account's recent matches not

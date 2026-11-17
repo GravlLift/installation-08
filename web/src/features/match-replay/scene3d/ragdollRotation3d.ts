@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollRotation3d.ts — LES ROTATIONS DES BLOCS RIGIDES du corps inerte (`ragdollSolver3d`) : la
  * rotation la plus proche d'une matrice d'appariement de forme, par la méthode itérative de Müller et

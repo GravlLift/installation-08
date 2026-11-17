@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scopeView3d.test.ts — LE CHAMP DE LA CAMÉRA côté scène : la base suit le réglage de champ du
  * jeu, et le zoom multiplie depuis la base courante, pas depuis l'ancienne.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * avatar3d.ts — LE JOUEUR DANS LA SCÈNE 3D : le Spartan du jeu à la teinte de son équipe
  * (`spartan3d`, posé par `pose3d`), une capsule à sa couleur tant que le modèle n'est pas chargé, un

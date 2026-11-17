@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Ported from Ekur's ekur_definitions (GPL-3.0-or-later, Copyright (c) 2026 The Halo
 // Archive): runtime_styles.rs RuntimeCoatingStyles / RuntimeCoatingStyleRef and
 // runtime_style.rs RuntimeCoatingStyle / RuntimeCoatingRegion / RuntimeCoatingIntention /

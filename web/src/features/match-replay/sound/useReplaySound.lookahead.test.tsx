@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySound.lookahead.test.tsx — THE TRACK IS SCHEDULED AHEAD, ON THE AUDIO CLOCK.
  *

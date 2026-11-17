@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PreGameScreen — the pre-game page (docs/UI-DESIGN.md 4.3, brief 125): the match's map image
  * sharp as the backdrop, the playlist and mode as the eyebrow, the map name large, the two

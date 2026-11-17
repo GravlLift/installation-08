@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useEffect, useMemo, useState } from 'react'
 import type { MatchHighlightEvent, MatchScoreboardRow, MatchViewHeader } from '../lib/api/types'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'

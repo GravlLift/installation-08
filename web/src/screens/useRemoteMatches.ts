@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useRemoteMatches — loads "Your recent matches" (`GET /api/remote/matches`) and the local
  * store's match ids (`GET /api/matches`, reusing `fetchMatches`) whenever `signedIn` is true, so

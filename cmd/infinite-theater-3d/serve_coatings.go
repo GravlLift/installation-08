@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_coatings.go — the coating status route: tells the viewer whether the Ekur export

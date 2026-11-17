@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * pose3d.ts — LA POSE DU SPARTAN DU JEU dans la scène 3D : ses os trouvés par leur nom (ceux du
  * jeu, `b_pelvis`, `b_spine2`, ...), puis à chaque image le cap sur la racine, les clips du jeu

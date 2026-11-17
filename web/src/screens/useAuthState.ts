@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useAuthState — drives the home screen's account panel: checks the sign-in state once on
  * mount, lets the caller start a sign-in or sign out, and polls the state route every `pollMs`

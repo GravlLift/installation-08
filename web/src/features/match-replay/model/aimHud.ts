@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * aimHud.ts — THE FIRST-PERSON AIM of the HUD as data: the hip reticle's geometry and, at a frame,
  * which ADS overlay is drawn and whether the hip reticle stays. One source for the live HUD

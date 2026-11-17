@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests — grenadeLook3d : LE PASSAGE TYPE DE GRENADE -> LOOK, et le pulsé de l'orbe plasma.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * RingBackdrop.test.tsx — the home backdrop's image: on a failed load (a fresh install, the
  * image not built yet) it retries every 5 s with a cache-busting query until it exists, gives

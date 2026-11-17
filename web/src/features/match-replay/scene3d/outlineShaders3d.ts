@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * outlineShaders3d.ts — LES NUANCEURS DU CONTOUR D'ÉQUIPE (`outline3d`).
  *

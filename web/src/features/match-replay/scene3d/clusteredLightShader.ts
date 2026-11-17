@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Éclairage direct de la grille, dans le repère de vue utilisé par three. */
 export const LAMP_HEAD = /* glsl */ `
 uniform vec3 uLampMin;

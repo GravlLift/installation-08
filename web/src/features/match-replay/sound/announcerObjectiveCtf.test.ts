@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerObjectiveCtf.test.ts — the objective calls on TWO STORED CTF MATCHES, end to end:
  * the real objective actions of `05dfe4e9` (Outlook CTF) and `dea65712` (Fortress CTF) go through

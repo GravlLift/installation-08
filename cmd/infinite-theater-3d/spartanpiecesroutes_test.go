@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // spartanpiecesroutes_test.go — the Spartan piece library routes: a library
 // file (index, piece GLB, texture, coating file, swatch), and the
 // build/state pair. The spartan-pieces job is driven by the same mesh build

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * tracks3d.ts — LES PISTES DU REJEU LUES POUR LA VUE 3D.
  *

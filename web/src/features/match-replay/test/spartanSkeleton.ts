@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spartanSkeleton.ts — LE SQUELETTE DU SPARTAN DU JEU POUR LES TESTS : les 26 os que la pose
  * pilote ou traverse, avec leur position et leur orientation locales de repos telles que le GLB

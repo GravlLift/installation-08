@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { BEAM_GLOW_DIM, BEAM_GLOW_MULT, BEAM_RADIUS, BEAM_SECONDS, BOLT_SPEED, IMPACT_SECONDS, TRACER_LENGTH, TRACER_SPEED, beamFade, formeVol, impactAge, lunetteSansGerbe, shotLineShown, tracerSpan } from './shots3d'

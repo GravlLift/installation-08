@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * layerBatch3d.ts — THE VARIANT LAYER'S SURFACES IN A FEW DRAW CALLS.
  *

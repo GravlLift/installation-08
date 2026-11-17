@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentUse3d_logic.ts — THE USE ANIMATIONS OF EQUIPMENT: which of the game's own clips plays,
  * for which slot, from which frame. A function of the frame alone: seeking gives the same pose.

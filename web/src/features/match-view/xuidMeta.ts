@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * xuidMeta.ts — QUI EST QUI DANS UN MATCH : nom d'affichage et camp, par xuid.
  *

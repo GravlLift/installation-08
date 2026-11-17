@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportOverlayPanels.test.ts — LE PANNEAU DE FIN REPEINT DANS LA VIDÉO dit-il la même
  * chose que celui affiché à l'écran ?

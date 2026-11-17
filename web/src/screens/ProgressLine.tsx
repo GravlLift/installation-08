@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ProgressLine — the pre-game page's one progress line: the real step name and, when the
  * state carries a fraction, the determinate bar; otherwise the bar indeterminate. Nothing

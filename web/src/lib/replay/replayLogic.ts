@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayLogic.ts — PURE logic of the 2D replay (interpolation, projection, reading).
  * No React nor canvas → unit-testable (anti-pattern "logic in the component").

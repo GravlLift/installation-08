@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * padPresenceRefine.ts — THE UNCERTAIN STATE OF A PAD, BROUGHT BACK TO WHAT A PLAYER COULD HAVE DONE.
  *

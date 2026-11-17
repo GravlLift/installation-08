@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * soundSpatial.ts — THE PLACE OF A SOUND IN SPACE: its level and its side for the one listening.
  *

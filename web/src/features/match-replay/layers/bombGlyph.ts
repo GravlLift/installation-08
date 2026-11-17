@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bombGlyph.ts — the GLYPH OF THE ASSAULT BOMB, traced ONE single time for its TWO states
  * (carried above the carrier, placed on the ground), like `skullGlyph.ts` whose stance it

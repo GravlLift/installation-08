@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shieldMix.test.ts — THE SHIELD ALARMS OF THE EXPORT: the same pure logic as the page
  * (`shieldSound.ts`), placed in advance on the clip axis. A break life gives the break, the

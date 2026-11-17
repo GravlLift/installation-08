@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownShade3d.ts — the flat light of the map seen from above, grafted on every map material
  * (`guardMaterial` in `lighting`) and switched on only while a top-down picture is drawn

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * energyField3d.ts — THE ENERGY FIELDS OF A WEAPON (the Energy Sword's blade).
  *

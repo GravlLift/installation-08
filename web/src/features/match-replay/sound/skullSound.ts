@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * skullSound.ts — THE SOUNDS OF THE ODDBALL SKULL, and the two channels that date them.
  *

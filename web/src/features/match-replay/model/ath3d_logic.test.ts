@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** ath3d_logic.test.ts — HUD 3D: ammo, kill feed, score banner, and reticle logic. */
 import { describe, expect, it } from 'vitest'
 import { KILL_POPUP_SECONDS, campAGauche, formeReticule, horlogeHud, lireAth, lireFilAth, lirePopupsAth, lireScoreAth, marqueImpact, preparerAth } from './ath3d_logic'

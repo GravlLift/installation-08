@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerMatchCalls.test.ts — the calls about the match itself: the mode at kickoff, exactly the
  * game's time warnings on the HUD's clock, overtime at the end of regulation, the lost lead.

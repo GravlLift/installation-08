@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_bvh.go — the ray/collision index sidecar (`three-mesh-bvh`, built and serialized by the

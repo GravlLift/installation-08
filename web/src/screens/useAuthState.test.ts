@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useAuthState.test.ts — the account panel's state machine: initial check, polling while
  * pending, stopping on signed_in/signed_out/failed, login/logout transitions, and cleanup of its

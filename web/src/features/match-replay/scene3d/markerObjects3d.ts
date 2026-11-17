@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * markerObjects3d.ts — LES OBJETS POSÉS QUE LE JEU NE DESSINE PAS.
  *

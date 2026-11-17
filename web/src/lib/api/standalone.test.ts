@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * standalone.test.ts — the texture quality on the client side: every mesh/variant URL carries
  * the `?quality=high` parameter only for High; Standard (or no quality at all) leaves the URLs

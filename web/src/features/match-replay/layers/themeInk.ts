@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * themeInk.ts — READING A THEME VARIABLE for the replay canvas, and THE EXPORT THAT IS ALWAYS
  * PAINTED IN THE DARK THEME (decision D9 of the "video formats" plan, 2026-09-16).

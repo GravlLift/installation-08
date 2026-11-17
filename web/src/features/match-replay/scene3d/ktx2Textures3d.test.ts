@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Tests the KTX2 (GPU-compressed) texture path of the map and variant GLBs. */
 import fs from 'node:fs'
 import path from 'node:path'

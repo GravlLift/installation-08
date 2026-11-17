@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // icons.go — resolve, for each registered weapon family, the index of its icon in the
 // atlas, read from the game and self-validated.
 

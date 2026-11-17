@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * carrierPosition.ts — WHERE THE GLYPH OF AN OBJECTIVE CARRIER IS DRAWN, and nothing else.
  *

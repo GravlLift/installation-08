@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * layeredArrays3d.ts — LES TABLEAUX DE TEXTURES ET LE SHADER DES MATÉRIAUX EN COUCHES FUSIONNÉS.
  *

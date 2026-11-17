@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Piece 5a-1 of the Ekur port: write the five parts the coating builders read to a
 // folder, in the exact layout Ekur uses. Open the tag index on a deploy root, reproduce
 // globals.json, visor_data.json, stylelists/, styles/, and materials/ from the installed

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // variant.go ports LevelUp's internal/mapmesh/variante.go (AGPL-3.0, JGtm): a map variant's

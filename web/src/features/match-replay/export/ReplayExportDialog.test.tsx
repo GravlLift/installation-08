@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplayExportDialog.test.tsx — LES DEUX BORNES, LA CASE SON, ET CE QUI SE PASSE PENDANT.
  *

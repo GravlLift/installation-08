@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // build_icons.go — the `build-icons` subcommand: build the weapon icon set (the PNG set

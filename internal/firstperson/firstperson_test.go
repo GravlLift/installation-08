@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package firstperson
 
 // firstperson_test.go — the index contract against the fixture the web viewer's own test

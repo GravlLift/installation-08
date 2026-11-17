@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * L'ÉQUIPEMENT 3D MONTRE CE QUE LA 2D MONTRE, AUX MÊMES IMAGES : poses (mur, capteur, objets
  * lâchés, traqueur), failles, câbles de grappin et poussées, sur un document bâti à la main.

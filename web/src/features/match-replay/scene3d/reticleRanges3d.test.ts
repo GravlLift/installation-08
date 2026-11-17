@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 import { ReticleRanges, parseReticleRanges, reticleRangeAt } from './reticleRanges3d'
 import { WeaponModels } from './weaponModels3d'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scene3dText.ts — les textes de la VUE 3D du rejeu, FR + EN, parité par typage.
  *

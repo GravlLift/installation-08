@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useFocusList — the game-menu focus model (docs/UI-DESIGN.md 6): a list with exactly one
  * focused row, driven by the keyboard and the mouse.

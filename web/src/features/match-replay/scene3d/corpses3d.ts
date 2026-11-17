@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * corpses3d.ts — LES CORPS DES MORTS : une copie du Spartan par mort récente, dans l'armure de la
  * victime quand elle est prête (`armory3d.Dress`, sinon l'armure par défaut à la teinte de son

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * deathCamera3d.ts — LA CAMÉRA DE MORT EN 1RE PERSONNE : quand le joueur suivi n'a plus d'échantillon
  * à l'image, l'œil quitte sa tête pour suivre son corps inerte en 3e personne, à la distance et à la

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayCapture.ts — CE QUI SORT DU REJEU : le nom du fichier, le téléchargement, et l'image
  * du canvas.

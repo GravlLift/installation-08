@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectives3d.ts — LES OBJECTIFS DU MODE DANS LA SCÈNE 3D : zones, marqueurs, drapeaux, crâne,
  * bombe, couronne VIP.

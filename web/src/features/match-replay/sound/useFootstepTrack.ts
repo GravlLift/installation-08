@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useFootstepTrack.ts — the extracted foot and movement sounds the track plays, read once.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownMinimap3d.ts — the corner minimap over the 3D view: the painted top-down map around the
  * followed player, north-up like the 2D top-down view (`SCREEN_UP_HEADING_DEG`), with a dot per

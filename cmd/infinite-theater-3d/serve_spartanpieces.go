@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // serve_spartanpieces.go — the Spartan armor piece library routes: a library
 // file (index, piece or attachment GLB, shared texture, coating table, coating
 // file or swatch), and the build/state pair. The spartan-pieces job shares the

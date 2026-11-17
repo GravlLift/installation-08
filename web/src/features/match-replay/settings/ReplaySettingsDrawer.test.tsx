@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsDrawer.test.tsx — the texture-quality section in the drawer: both choices
  * render, the high hint is on screen, choosing High is persisted (the match view reads the

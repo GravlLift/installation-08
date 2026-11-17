@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_startup_test.go — the serve startup step: with a fake store, a fake runner and a

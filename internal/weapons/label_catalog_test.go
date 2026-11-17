@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // label_catalog_test.go — the family table's parity with LevelUp's weapon registry: the

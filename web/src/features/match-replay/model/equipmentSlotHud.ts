@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentSlotHud.ts — THE HUD'S EQUIPMENT SLOT: what the followed player carries at a frame, as
  * the game's bottom-right slot beside the grenades shows it (the equipment's icon and the uses left).

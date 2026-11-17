@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * attachCalibration.research.test.ts — the pose of a grenade stuck to a player, calibrated in the
  * frame of the BONE the film names, with the viewer's own animation of that player.

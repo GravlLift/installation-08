@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * placementWindow.ts — FROM WHEN TO WHEN a placement of equipment is on screen.
  *

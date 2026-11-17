@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests of the ENGINE SEGMENTS of the export (vehicleEngineMix.ts): the chain
  * enter -> loop x N -> exit laid on the clip axis, the 150 ms junctions, the direct

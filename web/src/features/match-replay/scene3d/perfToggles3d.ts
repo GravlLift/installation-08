@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * perfToggles3d.ts — the 3D view's performance knobs, read from the browser console at each frame.
  *

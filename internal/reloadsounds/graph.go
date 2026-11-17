@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package reloadsounds
 
 // graph.go reads, from an animation graph tag (`jmad`), the sounds one animation posts and the

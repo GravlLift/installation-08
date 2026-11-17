@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMatchSummary — the one `MatchSummary` row for `matchId`, read from `GET /api/matches` (no
  * single-match route exists yet, see `cmd/infinite-theater-3d/remote_routes.go`), and

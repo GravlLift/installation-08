@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerSound.ts — THE ANNOUNCER: which voice calls the followed player hears, and when.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // hdr.go — the `ucsh` header of a Halo Infinite tag file + the dependency table.
 // Reduced to what the probe needs.
 

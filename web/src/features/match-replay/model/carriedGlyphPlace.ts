@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * carriedGlyphPlace.ts — THE SINGLE RULE: where a CARRIED objective object is drawn when its
  * carrier has NO position at the served frame.

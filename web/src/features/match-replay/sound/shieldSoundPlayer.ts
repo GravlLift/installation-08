@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shieldSoundPlayer.ts — PLAYS the followed Spartan's shield alarms (`shieldSound.ts` says what
  * and when) on a bus of the main player, like the engines and the ambient bed.

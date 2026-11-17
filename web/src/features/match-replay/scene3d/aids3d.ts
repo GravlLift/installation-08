@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * aids3d.ts — LES REPÈRES D'ANALYSE de la vue 3D : ce que la vue sait tracer et que le jeu ne
  * montre pas. Tous éteints par défaut : la vue ressemble au jeu, le tiroir les allume.

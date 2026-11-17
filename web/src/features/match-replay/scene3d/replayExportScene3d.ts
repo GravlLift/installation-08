@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** replayExportScene3d.ts — conserve et restaure la vue pendant le rendu vidéo. */
 import * as THREE from 'three'
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js'

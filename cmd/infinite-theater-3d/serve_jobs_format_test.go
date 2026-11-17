@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_jobs_format_test.go — the build-format wiring of the readiness checks: a map or

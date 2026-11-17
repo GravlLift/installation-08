@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * clips3d.ts — LES ANIMATIONS DU JEU DU SPARTAN, lues dans son GLB (`spartan.glb`, une animation glTF
  * par nom du jeu, `posture:classe[:type]:action`, cf. `meshproto.AnimationsSpartan`).

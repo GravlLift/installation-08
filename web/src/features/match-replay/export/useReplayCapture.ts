@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayCapture — LA COUTURE REACT DE LA CAPTURE : ce que la barre de lecture commande, et
  * ce que le canvas doit lui prêter pour cela.

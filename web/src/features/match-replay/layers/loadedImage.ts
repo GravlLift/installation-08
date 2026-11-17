@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * loadedImage.ts — THE REPLAY SPRITE IMAGES, loaded once per URL.
  *

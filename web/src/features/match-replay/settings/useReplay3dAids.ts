@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplay3dAids — LES REPÈRES D'ANALYSE de la vue 3D (`aids3d`) : lignes de tir, croix et
  * étiquettes des morts, trajectoires, rayon des explosions, câbles du grappin, flèches de poussée,

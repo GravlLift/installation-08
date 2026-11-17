@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollBones3d.ts — DU CORPS INERTE AUX OS DU SPARTAN : quels os la simulation conduit, comment
  * leur orientation se tire des particules, et la pose d'une copie depuis une cuisson.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * placementRift — THE SPACETIME RIFT of the quantum translocator, and its PASSAGE.
  *

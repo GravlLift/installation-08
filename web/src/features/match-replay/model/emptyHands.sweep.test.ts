@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * emptyHands.sweep.test.ts — measure, classify and (for the longest cases) explain the frames in
  * which a living player carries no weapon in hand (`armeEnMain` returns null, no carried object).

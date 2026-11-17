@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectiveObjectsLayer.ts — THE PUBLISHED POSITIONS of the Oddball skull (schema 21) and its
  * tracing on the ground. This file is the GEOMETRIC FOUNDATION: the `objectiveObjectAt`

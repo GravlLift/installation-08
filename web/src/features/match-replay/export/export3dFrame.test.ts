@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 
 import { MINIMAP_SHARE, minimapBox, paintTags, TAG_VIEWER_CSS_HEIGHT, tagScale, type Export3dInk } from './export3dFrame'

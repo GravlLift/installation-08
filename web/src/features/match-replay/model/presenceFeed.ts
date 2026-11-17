@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * presenceFeed — WHO HAS JOINED, WHO HAS LEFT. The API first, the film as fallback.
  *

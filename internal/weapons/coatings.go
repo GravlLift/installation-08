@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // coatings.go — the weapon coating files of the library: the same file contract as the

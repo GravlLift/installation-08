@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionAssetCache3d.ts — the ONE session cache (`sessionCache3d`) that the 3D view's load path
  * reads and fills for the resources that cost the most to rebuild: the parsed map, a variant layer,

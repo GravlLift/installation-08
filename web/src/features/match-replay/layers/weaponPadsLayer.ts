@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponPadsLayer.ts — THE WEAPON PADS on the map: what the layer asserts, and the exact
  * place where it stops asserting.

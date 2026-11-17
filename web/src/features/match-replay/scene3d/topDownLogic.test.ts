@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { HEAD_TOP } from './body3d'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySound.announcer.test.tsx — THE ANNOUNCER'S WIRING (2026-11-13). Its rules have their
  * tests (announcerSound.test.ts); here, what only the assembly can betray: the round-end call

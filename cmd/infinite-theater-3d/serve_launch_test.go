@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_launch_test.go — the launch order's pieces: the data folder claim (a second claim is

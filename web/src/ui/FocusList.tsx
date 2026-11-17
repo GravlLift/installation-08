@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * FocusList — the game-menu row list (docs/UI-DESIGN.md 5): one row per item, exactly one
  * focused. It owns the row rendering (a row is its `name`, an optional `sub` line and an

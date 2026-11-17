@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { expect, it } from 'vitest'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { preparerEvenementsPremierePersonne } from './evenementsPremierePersonne3d'

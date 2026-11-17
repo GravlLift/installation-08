@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // library_ktx2_test.go — the KTX2 pass on weapon output: a model's GLB is written with its

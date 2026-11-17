@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package weaponicons builds the game's weapon and kill-feed icons from the installed
 // Halo Infinite archives, the way the weapon library build reads the install.
 //

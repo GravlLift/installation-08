@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // coatings_test.go — the weapon coating file contract, driven by a small Ekur
 // fixture in a temp directory (no game install, no network): the route's
 // whitelist, the material annotation from the reference, and the coating files

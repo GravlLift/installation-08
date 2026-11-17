@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * SettingsControls — minimal local UI primitives for the settings drawer (`SettingsToggle`,
  * `InfoMark`): plain React + Tailwind utility classes against this app's own design tokens

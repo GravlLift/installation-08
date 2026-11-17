@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsLayers — the "Layers" section of the drawer, scoped to exactly the toggles the
  * 3D view's `action.show` (`Action3dShow`, `scene3d/action3dInputs.ts`) actually reads: shot and

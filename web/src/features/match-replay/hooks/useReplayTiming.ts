@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayTiming — TOUTES LES DURÉES DU REJEU, converties une fois par document.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * glowAnimation3d.ts — THE MOVING LIGHT of the map's self-lit surfaces: a holographic sign's
  * scrolling picture and flicker, a neon's pulse, a screen's scroll.

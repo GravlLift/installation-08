@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadStarts.ts — WHICH OF THE FILM'S `reload` ACTIONS START A RELOAD, AND WHICH END ONE.
  *

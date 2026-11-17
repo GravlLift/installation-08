@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { PERF_TOGGLES_DEFAULT, currentPerfToggles, installPerfToggles, readPerfToggles, type PerfToggles } from './perfToggles3d'

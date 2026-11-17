@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * variantLayer.ts — LE CALQUE DES OBJETS DE LA VARIANTE du match (caisses, abris, décor du `.mvar`),
  * téléchargé puis préparé comme la carte (`loadLayerModel`).

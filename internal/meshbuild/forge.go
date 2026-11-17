@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package meshbuild
 
 // forge.go resolves the world mesh of a map built in Forge from the match's own map variant.

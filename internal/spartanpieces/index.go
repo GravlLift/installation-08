@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package spartanpieces builds and lays out the standalone's Spartan armor piece
 // library: one skinned GLB per piece (a region's permutation of the Spartan's
 // `mode`), one rigid GLB per attachment entry (an `ocad` entry posed on one of the

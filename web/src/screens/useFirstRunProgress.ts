@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useFirstRunProgress — the home screen's "Getting ready" panel: the first start of the server
  * reads the coatings from the game, then builds the announcer sounds, the weapon library, the

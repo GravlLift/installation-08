@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerMarks.ts — WHO IS "ME" AND WHO IS A FRIEND, on the replay page. Pure, testable.
  *

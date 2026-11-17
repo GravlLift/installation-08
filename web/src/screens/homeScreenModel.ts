@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * homeScreenModel — the pure logic of the Home page (brief 123): picking the featured
  * match, formatting its facts, building the main-menu rows and the ticker contents. No

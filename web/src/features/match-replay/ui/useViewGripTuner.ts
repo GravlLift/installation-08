@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useViewGripTuner — le réglage au clavier de l'arme en 1re personne (viewGrip3d), sur le poste de
  * développement seulement et en 1re personne : chaque pas déplace la tenue du modèle que le joueur

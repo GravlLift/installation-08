@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Select the exported victory or round-break panel using the same readings as the viewer.
  * A match-ending verdict takes precedence when the final round ends at the same frame. */
 import { meXUIDOf } from '@/features/match-view/xuidMeta'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * HomeScreen.test.tsx — the home screen's coatings setup control: when the coating status
  * says setup can fix it, the "Set up coatings" control shows in a stable row and the ticker

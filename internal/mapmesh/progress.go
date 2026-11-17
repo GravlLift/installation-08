@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // progress.go gives a map or variant build the fraction and stage the job runner shows in
 // its state snapshot. The build reads the runner's reporter from its context
 // (meshjobs.ProgressFromContext); a build that runs out of band (the standalone CLI) gets

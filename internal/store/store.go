@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package store is the standalone's match storage: a plain folder on disk (no database, no
 // accounts). A match lives under matches\<id>\ (chunks, the optional manifest and stats,
 // the built replay document and a small match.json summary); a map's geometry lives under

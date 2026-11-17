@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayAimCone.ts — the AIM CONE of a marker: its heading, and its ELEVATION read from its
  * LENGTH.

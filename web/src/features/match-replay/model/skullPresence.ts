@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * skullPresence.ts — THE PRESENCE RULE OF Oddball's SKULL (schema 23), pure.
  *

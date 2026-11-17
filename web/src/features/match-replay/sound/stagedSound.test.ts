@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * stagedSound.test.ts — the first-person sounds of a staged reload, with the rig's timing: the enter
  * clip's sounds before the first round, one round clip per stage, the closing clip at the repeated

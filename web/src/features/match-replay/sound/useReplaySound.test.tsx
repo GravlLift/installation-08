@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySound.test.tsx — THE WIRING, where a sound actually triggers or stays silent for good.
  *

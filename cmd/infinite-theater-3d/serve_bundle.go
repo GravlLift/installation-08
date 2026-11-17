@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // serve_bundle.go — the bundle route: POST /api/bundle streams a batch of library files in one
 // request so the browser needs one connection (and one round trip) for many of the small armor,
 // first-person and weapon files that would otherwise each take a request of their own. Each

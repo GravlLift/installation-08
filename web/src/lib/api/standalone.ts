@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * standalone.ts — the client for this app's own Go server (`infinite-theater-3d serve`),
  * reached through the Vite dev proxy (or, in production, same-origin) at `/api/*`.

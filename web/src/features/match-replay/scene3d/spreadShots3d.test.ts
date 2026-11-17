@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * The spread shot (the Heatwave): a level fan of bolts around the aim, each flying to the first
  * face, ricocheting once, and drawn as a fading trail at its projectile speed.

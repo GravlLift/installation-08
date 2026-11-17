@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package footstepsounds extracts the Spartan's foot and movement sounds from the user's game
 // install. The tags are known in advance (tags.go); the build follows each tag's third-person
 // event to its media, writes every media as an Ogg Vorbis take (repacked without decoding,

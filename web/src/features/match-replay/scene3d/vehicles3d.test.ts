@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests — vehicles3d : LES VÉHICULES DE LA 3D SUIVENT LES RÈGLES DE LA 2D, AVEC LA HAUTEUR.
  *

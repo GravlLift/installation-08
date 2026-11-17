@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * victoryLogic — HOW THIS MATCH ENDED FOR THE ONE BEING WATCHED.
  *

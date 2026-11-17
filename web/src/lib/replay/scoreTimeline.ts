@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scoreTimeline.ts — LE SCORE À L'INSTANT LU, et ce que le film a le droit de dire.
  *

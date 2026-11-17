@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package build
 
 // resolve.go — the inputs that a standalone decode resolves before any film byte is read:

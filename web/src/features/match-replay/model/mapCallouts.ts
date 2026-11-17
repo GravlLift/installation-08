@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mapCallouts.ts — the place name the game's HUD shows under the motion tracker ("OVERHANG" on
  * Recharge): which of the map's named areas (`GET /api/matches/{id}/callouts`, read from the

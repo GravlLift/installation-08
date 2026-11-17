@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useDefaultViewpoint — which player the viewer follows when a match opens: the signed-in
  * account's own player when they are in the match, otherwise the first of the roster. Once the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * recoilShots3d.ts — LES TIRS RÉCENTS D'UN TIREUR, d'où se calcule le recul de son arme (`recoil3d`).
  *

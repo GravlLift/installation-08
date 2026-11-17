@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replay3dExportStore.ts — LA SCÈNE 3D CHARGÉE, prêtée à l'export vidéo.
  *

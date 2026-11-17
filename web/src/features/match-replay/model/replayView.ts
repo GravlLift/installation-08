@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayView — THE FRAMING OF THE REPLAY, AND WHAT IT CAN DO.
  *

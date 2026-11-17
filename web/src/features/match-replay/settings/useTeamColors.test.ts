@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useTeamColors.test.ts — the persisted team color preference: defaults, persistence,
  * invalid stored values falling back to the defaults, the CSS variables being set on the

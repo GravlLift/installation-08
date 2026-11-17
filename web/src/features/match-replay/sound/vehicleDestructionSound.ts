@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleDestructionSound.ts — THE SOUND OF THE DESTRUCTION OF A VEHICLE (lot of 2026-09-05).
  *

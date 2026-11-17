@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import type { Scene3dText } from '../i18n/scene3dText'
 import type { LoadState } from '../model/chargement3d_logic'
 

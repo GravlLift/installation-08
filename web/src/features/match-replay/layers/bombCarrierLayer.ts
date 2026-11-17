@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bombCarrierLayer.ts — the ASSAULT BOMB (schema 30), frame by frame: on its CARRIER during
  * the carry periods, ON THE GROUND between a drop and the next pickup.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fovLogic.ts — THE FIELD OF VIEW of the 3D replay, pure functions of the frame.
  *

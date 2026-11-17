@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsAids3d — ported from LevelUp's `settings/ReplaySettingsAids3d.tsx`: the
  * "Analysis aids" section of the drawer, one toggle per `aids3d` flag, in `AIDS3D_ORDER`.

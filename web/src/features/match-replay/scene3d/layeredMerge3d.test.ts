@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 import type { GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import { describe, expect, it, vi } from 'vitest'

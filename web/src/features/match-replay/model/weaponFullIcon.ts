@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponFullIcon.ts — THE FULL VERSION of a weapon icon, for the player cards.
  *

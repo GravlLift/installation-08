@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayAudio.ts — THE Web Audio PLAYBACK of the replay's sounds, and nothing else.
  *

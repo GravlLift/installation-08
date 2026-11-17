@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponSoundLogic.ts — THE COMPUTATION OF THE WEAPON SOUNDS OF THE REPLAY, WITHOUT WEBAUDIO.
  *

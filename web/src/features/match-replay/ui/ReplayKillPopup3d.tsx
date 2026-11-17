@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplayKillPopup3d — la popup d'élimination du HUD 3D en 1re personne : à la gauche du
  * réticule, comme dans le jeu. Une ligne par médaille du kill (libellé en texte discret à

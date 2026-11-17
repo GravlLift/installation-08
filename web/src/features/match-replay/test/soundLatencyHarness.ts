@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * soundLatencyHarness.ts — a clocked Web Audio double for MEASURING the live sound path.
  *

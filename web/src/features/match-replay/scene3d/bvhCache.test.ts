@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bvhCache.test.ts — the sidecar's round trip (build, serialize, deserialize onto a fresh
  * geometry, raycast matches) and its fallbacks (a mismatched geometry, a corrupt file).

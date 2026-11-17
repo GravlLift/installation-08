@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // serve_spartans.go — the match's players' armor route:
 // GET /api/matches/{id}/spartans.
 //

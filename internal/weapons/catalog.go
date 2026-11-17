@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package weapons builds and lays out the standalone's weapon model library: one GLB per
 // weapon the 3D view can ask for, in the data directory, under the same keys and file names
 // the view already addresses them by.

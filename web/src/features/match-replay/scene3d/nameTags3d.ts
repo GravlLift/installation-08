@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * nameTags3d.ts — L'ÉTIQUETTE D'UN JOUEUR selon sa distance à la caméra.
  *

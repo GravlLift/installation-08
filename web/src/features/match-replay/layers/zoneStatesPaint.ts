@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * zoneStatesPaint.ts — HOW a living zone is painted: the ownership, the capture progress,
  * and the scale of opacities that hierarchizes them.

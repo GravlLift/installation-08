@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useFootstepTrack.test.tsx — WHEN THE FOOT SOUNDS ARE READ: only when the sound is on, and a
  * machine with nothing extracted (a null manifest) leaves them silent, without a retry.

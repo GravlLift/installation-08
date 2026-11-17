@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reculPremierePersonne3d.ts — LE RECUL DU RIG DE 1RE PERSONNE (bras et arme animés ensemble).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shieldSound.ts — THE FOLLOWED SPARTAN'S SHIELD ALARMS, as a pure function of the frame.
  *

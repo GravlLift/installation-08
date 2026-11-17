@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package firstperson
 
 // library.go builds the first-person library on demand: one rig per weapon the game renders

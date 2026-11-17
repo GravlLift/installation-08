@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * gamertagSearch.test.ts — the gamertag input's normalization and loose check, the
  * remembered last search (including storage that throws), the caption, and the rows a search

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayScene3dArmes.test.ts — les bras en 1re personne de la scène : la pose ne replie JAMAIS sur
  * le modèle statique tant que le rig est chargé (la peinture ou l'habillage en cours se posent à

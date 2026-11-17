@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsDrawer — the settings panel for the 3D view, ported in spirit from LevelUp's
  * `ReplaySettingsDrawer.tsx`: an overlay panel (not a modal — the replay keeps playing behind

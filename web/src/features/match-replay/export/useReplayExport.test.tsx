@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayExport.test.tsx — LA BOUCLE, ses deux sorties, et ce qu'elle rend à l'écran.
  *

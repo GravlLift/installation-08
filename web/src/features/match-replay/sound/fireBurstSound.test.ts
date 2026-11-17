@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fireBurstSound.test.ts — the continuous-fire burst's place and level for the owner's listening
  * note (2026-11-16): another shooter's burst must carry a position AND `OTHER_SHOOTER_GAIN_DB`,

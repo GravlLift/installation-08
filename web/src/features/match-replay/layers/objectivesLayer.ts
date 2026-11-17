@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectivesLayer.ts — the STATIC LAYER of the objectives of the mode played (lot 4):
  * normalization, geometry and action pulses. Pure logic, no React.

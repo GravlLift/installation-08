@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package callouts serves a map's named areas ("callouts"): the place names the game's HUD
 // shows under the motion tracker ("Overhang" on Recharge), each with the volume it covers.
 //

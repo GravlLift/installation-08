@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * thruster3d_logic.ts — THE THRUSTER BURST: each measured thruster use, the direction it pushed
  * the carrier, and the state of its exhaust at a frame.

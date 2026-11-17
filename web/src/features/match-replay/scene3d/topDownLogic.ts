@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownLogic.ts — pure logic of the top-down view: the lowest and highest drawn heights (the
  * map picture is cut once, a headroom over the highest walked floor, so it never changes during

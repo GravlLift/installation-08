@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fakeOfflineAudio.ts — a small, sample-level `OfflineAudioContext` for the tests of the export's
  * mix render (jsdom has no Web Audio at all).

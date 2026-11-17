@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Screen — the broadcast page frame: the Backdrop behind, the TopBar on top, the page's
  * content in the middle and the Ticker at the bottom. Every broadcast page is one Screen;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package ekurport is piece 1 of the Ekur port: a deploy-wide index of every tag in
 // the game's .module archives, so the coating builders need no second program.
 //

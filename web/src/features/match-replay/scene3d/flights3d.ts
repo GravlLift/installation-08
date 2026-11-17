@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * flights3d.ts — LES VOLS ET LES EXPLOSIONS DANS LA SCÈNE 3D : grenades, projectiles de tir
  * (roquettes, mortier...), et ce qui se passe au bout de leur vol.

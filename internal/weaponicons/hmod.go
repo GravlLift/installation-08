@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // hmod.go — a standalone .module archive reader.
 //
 // Why local: the vendored himodule reader reads `data_offset` as a u32 at +0x18. That is

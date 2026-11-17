@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorMaterial3d.ts — LE MATÉRIAU PEINT D'UNE PIÈCE D'ARMURE : le matériau standard de la pièce
  * (éclairage, ombres, brouillard, reflets de la scène inchangés), dont la couleur, la rugosité, le

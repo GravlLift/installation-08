@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollBody3d.ts — LE CORPS INERTE : ses particules (une par articulation majeure du Spartan, plus
  * trois points d'épaisseur posés devant le bassin, la poitrine et la face), ses blocs rigides et ses

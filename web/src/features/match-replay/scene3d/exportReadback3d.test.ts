@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ExportReadback3d, type ReadbackGl } from './exportReadback3d'

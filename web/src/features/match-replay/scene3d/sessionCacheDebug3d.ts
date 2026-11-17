@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionCacheDebug3d.ts — a dev-only `window.__it3dCacheDebug` hook for live introspection of the
  * session cache. Call it from the devtools console with a cache key (the same string the "hit"/

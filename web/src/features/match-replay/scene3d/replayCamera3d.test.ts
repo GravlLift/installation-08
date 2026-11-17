@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** replayCamera3d.test.ts — vérifie les états suivis et la hauteur mesurée sur le sol. */
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'

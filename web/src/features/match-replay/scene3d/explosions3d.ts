@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * explosions3d.ts — LES EXPLOSIONS DANS LA SCÈNE 3D : les éclats de `explosionFx3d` posés en deux
  * appels de dessin quel que soit leur nombre.

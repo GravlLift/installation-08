@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { afterEach, expect, it, vi } from 'vitest'
 import { testReplayDoc } from '../test/testDoc'
 import type { ReplayKill } from '../model/killFeedLogic'

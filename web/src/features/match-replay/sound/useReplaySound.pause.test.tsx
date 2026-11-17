@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySound.pause.test.tsx — THE PAUSE TURNS OFF EVERYTHING, AND A JUMP AT THE STOP DOES NOT REKINDLE.
  *

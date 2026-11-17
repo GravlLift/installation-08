@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grenadeSound.test.ts — the throw and the explosion of a grenade: the throw stays without a
  * place for the followed player's own hand (same reasoning as a shot's muzzle), the explosion

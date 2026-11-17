@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentZones.ts — THE PLAYER IN AN EQUIPMENT ZONE: what the card is allowed
  * to assert when a player stands in the disk of a placed object.

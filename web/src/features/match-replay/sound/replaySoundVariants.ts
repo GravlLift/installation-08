@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replaySoundVariants.ts — ONE GESTURE, SEVERAL FILES: the drawing of a variant.
  *

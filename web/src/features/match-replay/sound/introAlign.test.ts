@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * introAlign.test.ts — THE INTRO ALIGNED TO THE KICKOFF even when its buffer arrives late
  * (item 7, A4.9, DA-9 of the 2026-09-26 backlog plan).

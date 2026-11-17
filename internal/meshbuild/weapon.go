@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package meshbuild
 
 // weapon.go resolves a weapon model's build target and writes its GLB.

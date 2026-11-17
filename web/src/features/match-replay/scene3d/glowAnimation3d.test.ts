@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * glowAnimation3d.test.ts — the game's animated self-lit surfaces: a pure function of match time,
  * nothing without the build's extras, and nothing per frame once the look turns them off.

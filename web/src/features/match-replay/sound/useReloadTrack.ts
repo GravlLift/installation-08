@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReloadTrack.ts — the extracted weapon sounds the track plays, measured once: the reloads
  * and the heat weapons' vents.

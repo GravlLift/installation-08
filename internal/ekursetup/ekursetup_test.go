@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package ekursetup
 
 // ekursetup_test.go — the setup end to end against a fake export only: an injectable

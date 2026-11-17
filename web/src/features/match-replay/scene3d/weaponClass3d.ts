@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponClass3d.ts — LA CLASSE D'ANIMATION D'UNE ARME : le mot du jeu qui choisit les clips du
  * Spartan (`combat:<classe>:...`, cf. `meshproto.AnimationsSpartan`).

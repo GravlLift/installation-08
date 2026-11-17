@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * freeFly3d.ts — LE VOL DE LA CAMÉRA LIBRE au clavier. Les touches se lisent à leur PLACE sur le
  * clavier (`KeyboardEvent.code`) : W A S D en QWERTY, Z Q S D en AZERTY. Avant / arrière suivent

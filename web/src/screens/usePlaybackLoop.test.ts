@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlaybackLoop.test.ts — regression for the duplicate-`requestAnimationFrame` bug: the hook
  * must schedule at most one tick per tick while playing, never two. Two schedules per tick double

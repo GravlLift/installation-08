@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * riftPoseSound.ts — THE PLACEMENT OF THE TRANSPORTER'S RIFT, heard so that its HIT lands at the placement.
  *

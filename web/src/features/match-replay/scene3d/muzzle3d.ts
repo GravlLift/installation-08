@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * muzzle3d.ts — LA BOUCHE DE L'ARME TENUE, d'où partent les tirs de la scène 3D.
  *

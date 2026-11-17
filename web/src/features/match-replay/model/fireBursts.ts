@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fireBursts.ts — THE SHOTS OF A CONTINUOUS-FIRE BURST, PLACED THE WAY THEATER PLACES THEM (schema 71,
  * batch M4b of the replay returns).

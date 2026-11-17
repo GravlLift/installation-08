@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package mapref embeds the shipped reference data needed to resolve a native map's build
 // target: the objectives catalog (anchor positions per map name), the per-map background
 // sidecar (name list and world-frame calibration), and the per-map geometry overrides.

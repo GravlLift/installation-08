@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * rechargementPremierePersonne3d.ts: WHICH FIRST-PERSON RELOAD CLIP PLAYS AT A FRAME, from the film's own
  * reload messages.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ScrubBar — the player's scrub bar: our own slider element with the played part and the head,
  * and the selected player's events as marks (`scrubMarks`): medals in a lane above the track,

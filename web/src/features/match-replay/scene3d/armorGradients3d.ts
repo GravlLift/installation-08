@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorGradients3d.ts — LES DÉGRADÉS DES REVÊTEMENTS D'UNE SESSION, en UNE texture à couches
  * (`DataArrayTexture`) : un matériau peint nomme jusqu'à huit dégradés (sept zones et la salissure),

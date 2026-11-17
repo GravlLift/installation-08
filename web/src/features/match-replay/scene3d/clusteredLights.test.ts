@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import { buildLampGrid, cellLamps, MAX_CELL_LAMPS } from './clusteredLights'

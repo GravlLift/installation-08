@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // weapon.go — the weapon definitions the weapon coating reads: the equipped
 // weapon themes (from the player's public customization view) and the GameCMS
 // coating file its inventory path points to.

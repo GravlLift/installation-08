@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMatchFetchQueue — drives the "Fetch" button on each remote-match row: queues the server's
  * fetch-and-build job and polls every in-flight row's state every `pollMs`, reporting when a

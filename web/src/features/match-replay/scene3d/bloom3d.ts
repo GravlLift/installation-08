@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bloom3d.ts — THE GLOW OF SELF-LIT SURFACES: map lamps and light strips, emissive armor paint,
  * energy blades. The composer runs it on the scene's linear HDR image, after the ambient

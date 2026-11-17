@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package soundtags follows a `snd!` tag to the media its events play. A sound tag names two
 // Wwise events, each with its bank: the event at +0x14 of the tag data (bank tag at +0x2c) and
 // the one at +0x18 (bank tag at +0x48). Measured on the installed game: where a weapon's sound

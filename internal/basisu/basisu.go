@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package basisu encodes images into KTX2 files with Basis Universal (ETC1S or UASTC LDR 4x4),
 // the supercompressed GPU texture formats glTF's KHR_texture_basisu carries and three.js's
 // KTX2Loader transcodes to the GPU's own block format (BC7 on desktop).

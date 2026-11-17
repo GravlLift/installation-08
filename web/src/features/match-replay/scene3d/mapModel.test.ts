@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Tests glass material selection and stencil decals. */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'

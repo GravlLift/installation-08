@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package rankicons builds and names the CSR tier badges.
 //
 // The badges live in the game install as one bitm atlas: 31 images at 100x100, in tier

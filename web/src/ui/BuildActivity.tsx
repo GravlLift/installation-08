@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * BuildActivity — the header's "Building: Vacancy Forge layer · 2 queued" indicator, with a
  * small pulsing mark; the tooltip lists the queue. Hidden when nothing builds. At narrow

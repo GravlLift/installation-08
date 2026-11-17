@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useEffect, useState } from 'react'
 
 import { qualityQuery, type MeshQuality } from '../lib/api/standalone'

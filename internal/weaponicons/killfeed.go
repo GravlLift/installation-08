@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // killfeed.go — THE "SANDBOX" ATLAS IS THE KILL FEED ONE, and it carries its own naming
 // table.
 //

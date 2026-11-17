@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * floorRings.ts — THE REPLAY'S FLOOR LANGUAGE: concentric rings, one per floor above the
  * ground. ONE SINGLE IMPLEMENTATION, shared by the pawns (`replayMarkers.ts`) and by the mode

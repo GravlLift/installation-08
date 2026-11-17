@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportFormats.test.ts — le catalogue des formats et la geometrie qu'il impose.
  *

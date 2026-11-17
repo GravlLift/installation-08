@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportLayoutStore.ts — LA MISE EN PAGE D'EXPORT EN VIGUEUR, partagee entre la boucle d'export
  * (hors React) et le cadrage de la toile (`useReplayView`, dans React).

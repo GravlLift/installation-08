@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bvhCache.ts — serializes and restores the ray index (`three-mesh-bvh`) that `mapModel.ts` builds
  * for the map and the variant layer, so a later load can read it back instead of rebuilding it.

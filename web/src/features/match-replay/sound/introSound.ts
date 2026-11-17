@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * introSound.ts — THE INTRO MUSIC of the replay (item 7 of the backlog, decision D-8 of 2026-09-26).
  *

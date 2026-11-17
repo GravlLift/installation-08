@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // bundle_test.go — the bundle route: a batch of library files streamed in one request, one entry
 // per file (a 4-byte little-endian length, a JSON header, then the file's bytes). It decodes back
 // to the right bytes and statuses, refuses a path escape as a 404 entry, and answers 400 for a

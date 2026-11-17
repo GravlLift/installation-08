@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // atlas.go — the one exported extraction: one full-color image of one bitm atlas tag,
 // for the builds outside this package that decode a game bitmap the same way the icon
 // builds do (the rank badges).

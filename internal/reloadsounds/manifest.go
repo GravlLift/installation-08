@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package reloadsounds extracts the weapons' reload sounds from the user's game install. The
 // game posts them from the Spartan's third-person reload animation of the held weapon's type
 // (`<stance>:<class>:<type>:reload_1`): each sound event of that animation names a `snd!` tag at

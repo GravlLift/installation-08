@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // bc7_mode7.go — MODE 7, the one that makes artifacts.
 //
 // WHAT REDUCED THE PROBLEM. The exact decoder covers modes 4, 5 and 6; modes 0 to 3 and

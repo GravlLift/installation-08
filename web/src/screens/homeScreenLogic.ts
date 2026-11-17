@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * homeScreenLogic — the sign-in countdown helper: no network, no timers, so it is a plain
  * unit-tested function rather than a hook. The remote-matches helpers moved to

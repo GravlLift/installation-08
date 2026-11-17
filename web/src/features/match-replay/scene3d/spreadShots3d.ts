@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spreadShots3d.ts — THE SPREAD SHOT IN 3D (family `spread`, the Heatwave): one trigger pull is a
  * fan of energy bolts that fly at a projectile's speed and ricochet once off the scenery.

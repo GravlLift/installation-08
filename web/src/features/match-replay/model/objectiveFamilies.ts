@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectiveFamilies.ts — THE OBJECTIVE FAMILY OF A NAMED STATISTIC. Pure logic, no
  * React, no interface strings.

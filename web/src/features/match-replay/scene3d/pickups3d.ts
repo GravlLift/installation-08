@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * pickups3d.ts — LES SOCLES D'ARME ET LES ARMES AU SOL DANS LA SCÈNE 3D.
  *

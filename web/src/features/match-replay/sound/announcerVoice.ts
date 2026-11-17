@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerVoice.ts — WHICH RECORDED LINE says a call, and how long it lasts.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_callouts.go — GET /api/matches/{id}/callouts: the named areas of the match's map (the

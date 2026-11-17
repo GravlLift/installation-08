@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * TopBar — the thin bar over every broadcast page: the app mark, an optional crumb naming
  * the current section, and on the right the server's build indicator (BuildActivity, hidden

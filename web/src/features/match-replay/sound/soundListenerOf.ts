@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** The followed player's position and heading serve as the export's audio listener. */
 import { isAliveAt, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayCutPoint } from '../../../lib/replay/replayReadyTypes'

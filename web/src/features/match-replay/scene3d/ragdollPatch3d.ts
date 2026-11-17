@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollPatch3d.ts — LE MORCEAU DE CARTE OÙ TOMBE UN CORPS : les triangles de la carte autour de
  * la mort, rangés dans une grille, et les contacts d'une sphère (une particule du corps inerte,

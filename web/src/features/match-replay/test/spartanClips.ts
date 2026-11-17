@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spartanClips.ts — DES CLIPS DE TEST au format de `clips3d` : de petits clips synthétiques, sans
  * GLB, pour le squelette du jeu de `spartanSkeleton` (os et repos réels).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shields3d.ts — LE BOUCLIER D'UN JOUEUR, lu dans sa piste pour les effets du corps.
  *

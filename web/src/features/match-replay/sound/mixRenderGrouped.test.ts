@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mixRenderGrouped.test.ts — the render of the browsers without `OfflineAudioContext.suspend`
  * (Firefox): it must sound like the just-in-time render, stay linear in the track, and keep the

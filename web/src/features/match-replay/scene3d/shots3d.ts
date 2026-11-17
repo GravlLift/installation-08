@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shots3d.ts — LES TIRS DANS LA SCÈNE 3D : éclair de bouche (gerbe de pétales au bout du canon
  * dessiné, `muzzleFlash3d` ; lumière brève, `flash3d`), balle en vol, étincelle d'impact.

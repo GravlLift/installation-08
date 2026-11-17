@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** springArm3d.ts — third-person spring arm: the follow camera's pull-in and release past the map. */
 import type { Vector3 } from 'three'
 

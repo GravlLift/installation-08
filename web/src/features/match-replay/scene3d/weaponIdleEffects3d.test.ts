@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests: the held weapons' idle effects layer — drawn on the holder's drawn weapon in third person,
  * on the rig's marker in first person, each system in its own view, off with the Shots switch,

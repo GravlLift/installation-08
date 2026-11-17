@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // bc7.go — BC7 (BPTC) DECODER.
 //
 // SCOPE, AND WHY IT IS WHAT IT IS. Modes 4, 5 and 6 (single subset) decode EXACTLY: they

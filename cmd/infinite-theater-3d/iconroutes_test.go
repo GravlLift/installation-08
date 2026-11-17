@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // iconroutes_test.go — the weapon-icon route and the serve startup enqueue. The route

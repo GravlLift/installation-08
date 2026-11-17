@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleEngineMix.ts — THE ENGINES IN THE OUT-OF-REAL-TIME EXPORT: the SAME logic as the
  * page (same bounds of merged episodes, same 150 ms crossfades at constant power, same bus at

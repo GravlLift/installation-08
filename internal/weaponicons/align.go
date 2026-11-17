@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // align.go — image descriptor <-> pixel resource pairing, and the per-tag cache.
 //
 // Kept apart from extract.go (the 500-line limit): this file carries only the question

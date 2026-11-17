@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerSound.test.ts — the announcer's rules: whose calls, which variant, one line, no
  * overlap, and the bundled lines. The table used by most cases is a test table: the bundled set

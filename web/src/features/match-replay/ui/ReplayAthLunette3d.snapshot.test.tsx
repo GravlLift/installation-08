@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * A VISUAL CHECK of the ADS overlays, off by default: with `ADS_SNAPSHOT_DIR` set, it writes one
  * 1280x720 HTML page per weapon and level, the overlay alone over a flat gray scene, and with

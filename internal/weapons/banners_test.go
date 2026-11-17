@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // banners_test.go — the banner images the weapon route serves, and the axis change of the read

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests — replayFullRate / replayNormalize : le vol au débit du film (schema 127) se relit
  * UNE FOIS, à la frontière.

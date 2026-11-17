@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MatchNotFetched — what a match link shows when the match is not stored on this install
  * (another user's shared `#/matches/<id>`): the match id, a button that queues the server's

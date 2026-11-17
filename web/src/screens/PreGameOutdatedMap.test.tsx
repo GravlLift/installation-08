@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PreGameOutdatedMap.test.tsx — a map file that is on disk but not `ready` to the build runner (an
  * older build format, or an update queued or running) must not mount the viewer: the viewer's gate

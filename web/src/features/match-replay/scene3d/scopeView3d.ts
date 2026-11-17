@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scopeView3d.ts — LE ZOOM EN 1re PERSONNE côté scène : le champ de la caméra et les bras quand
  * la lunette est montée. L'AMPLISSÉE vient de `model/scopeLogic` (fonction pure de l'image) ;

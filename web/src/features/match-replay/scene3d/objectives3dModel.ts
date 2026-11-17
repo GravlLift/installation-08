@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectives3dModel.ts — CE QUE LE CALQUE 3D DES OBJECTIFS POSE À UNE IMAGE, sans three.js.
  *

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // weaptags.go — THE UNIVERSAL KEY OF THE ICON: the `weap` tag, not a name, not a product
 // key.
 //

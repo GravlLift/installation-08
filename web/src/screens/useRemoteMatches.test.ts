@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useRemoteMatches.test.ts — loads the remote match list and local match ids while `signedIn`,
  * clears them when signed out, and `refresh()` reloads both. Fetch is mocked per URL since this

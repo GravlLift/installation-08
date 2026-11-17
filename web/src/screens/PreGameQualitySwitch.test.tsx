@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PreGameQualitySwitch.test.tsx — switching the texture quality while the viewer is mounted must
  * not drop the viewer. The pre-game used to follow the live preference: a switch re-ran the

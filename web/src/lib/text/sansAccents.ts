@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sansAccents — le texte sans ses accents : décomposition NFD, marques diacritiques combinantes
  * (U+0300 à U+036F) retirées ; casse et blancs inchangés. LA normalisation des recherches et

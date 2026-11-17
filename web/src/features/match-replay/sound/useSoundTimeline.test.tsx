@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useSoundTimeline.test.tsx — the footsteps MERGE into the track the page plays and the export
  * mixes. A manifest present on a walking match puts foot steps in the timeline; the followed

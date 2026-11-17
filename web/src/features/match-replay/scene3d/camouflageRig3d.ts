@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * camouflageRig3d.ts — ACTIVE CAMO ON THE FIRST-PERSON ARMS AND WEAPON.
  *

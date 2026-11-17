@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * teamIdentityFromDocument.ts — team-aware colors and names from the DOCUMENT ALONE.
  *

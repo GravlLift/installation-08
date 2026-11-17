@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollKick3d.ts — CE QUI POUSSE LE CORPS À LA MORT : la vitesse de départ de chaque particule du
  * corps inerte, tirée de la source du kill (`fall3d.fallKindOf`) et de ce que le film dit autour.

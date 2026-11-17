@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadManifest.ts — THE EXTRACTED RELOADS, as the viewer reads them.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 

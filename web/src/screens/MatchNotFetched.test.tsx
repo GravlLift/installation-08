@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MatchNotFetched.test.tsx — a shared match link on an install that does not have the match:
  * the pre-game page shows the fetch panel instead of an error, the button queues the server's

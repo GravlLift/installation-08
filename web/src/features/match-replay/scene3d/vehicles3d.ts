@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicles3d.ts — LES VÉHICULES DANS LA SCÈNE 3D : une caisse par véhicule, un cône sur son nez.
  *

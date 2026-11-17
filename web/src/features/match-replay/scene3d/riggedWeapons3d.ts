@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * riggedWeapons3d.ts — LES CLÉS DE MODÈLE DES RIGS DE PREMIÈRE PERSONNE QU'UN MATCH EMPLOIE.
  *

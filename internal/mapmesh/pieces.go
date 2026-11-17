@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // pieces.go ports the single-piece build path of LevelUp's internal/mapmesh/pieces_armure.go

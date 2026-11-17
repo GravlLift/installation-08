@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * adsOverlayRaster.ts — THE ADS OVERLAYS IN THE VIDEO FILE. The live HUD draws each weapon's
  * aim-down-sights overlay as SVG (`ui/ReplayAthLunette3d`), which never reaches the exported file.

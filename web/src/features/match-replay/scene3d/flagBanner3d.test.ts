@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests: the team banner of the CTF flag, read from the weapon library index (the values the
  * server reads from the installed game, `internal/weapons/banners_gamefiles_test.go`), and the

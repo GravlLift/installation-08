@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package armor assembles a player's armor manifest from their equipped
 // customization and the resolved GameCMS definition files, and defines the
 // response served for a match's players.

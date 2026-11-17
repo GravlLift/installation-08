@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayExportPlan.ts — QUELLES IMAGES L'EXPORT VA PEINDRE, et à quel instant du fichier.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scrubMarks — the selected player's events on the scrub bar, as the game's theater shows
  * them: his kills, his deaths and his medals, each a mark that seeks to just before it.

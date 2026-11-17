@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shieldBarGeometry.ts — pure geometry of the first-person shield bar, in a 1000 × 74 box.
  *

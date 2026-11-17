@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // spartanpieces_test.go — the library's own shapes, file names and Ekur
 // reference handling, driven by small fixtures in a temp directory (no game
 // install, no network).

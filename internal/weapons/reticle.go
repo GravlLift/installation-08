@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // reticle.go reads each weapon's red-reticle range from its `weap` tag (weaponicons.ReadAimAssist:

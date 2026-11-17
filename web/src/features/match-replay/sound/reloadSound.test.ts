@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadSound.test.ts — one detection rule for every weapon, the animation's timing, and the
  * cancellations (life end, hand change, melee or throw from the same instant, shot, next reload).

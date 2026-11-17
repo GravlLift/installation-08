@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Grille mondiale des lampes, indépendante de la caméra. */
 import * as THREE from 'three'
 import type { PlacedLight } from './placedLights'

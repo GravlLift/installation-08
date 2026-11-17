@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Ported from Ekur's ekur_customization (GPL-3.0-or-later, Copyright (c) 2026 The Halo
 // Archive): visor.rs process_visor and the VisorPattern/VisorColor serde shapes it
 // writes.

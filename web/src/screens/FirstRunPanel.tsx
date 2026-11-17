@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * FirstRunPanel — the home screen's "Getting ready" plate while the server's first-start work
  * runs (`useFirstRunProgress`): a determinate bar (finished steps of five), the current step in

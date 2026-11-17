@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * impactSound.ts — THE IMPACT SOUND OF A GUN PROJECTILE FROM A FOOTWEAPON (rockets...).
  *

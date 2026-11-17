@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useCoatingsNotice.test.ts — the three notice texts and the "render nothing" cases (a pure
  * reducer), plus the hook: it fetches once, stays hidden while loading, and aborts its request

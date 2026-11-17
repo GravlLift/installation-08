@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * TextureQualityToggle — the match select page's texture-quality switch (Standard / High), a
  * small segmented control beside the "Match library" title, right-aligned over the Search

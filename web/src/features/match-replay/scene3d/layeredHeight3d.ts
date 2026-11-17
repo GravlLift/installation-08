@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Les hauteurs de couches, selon Ekur `layer_blending`, `heightblend` et `heightaccum_l1`. */
 export function hauteurInitiale(scale: number, controle: number, masque: number): number {
   return Math.max(0, Math.min(4, scale * (controle + masque - 1)))

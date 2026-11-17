@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // coatingwork.go — the coating distillation of a library build (LevelUp's
 // internal/mapmesh revetements.go, AGPL-3.0, JGtm): while the GLBs are being
 // written, each material the viewer paints (extras.surfaceBrute) receives its

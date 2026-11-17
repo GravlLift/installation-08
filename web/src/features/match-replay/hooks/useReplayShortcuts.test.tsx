@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { renderHook } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 

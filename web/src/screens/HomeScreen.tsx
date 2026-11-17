@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * HomeScreen — the broadcast desk (docs/UI-DESIGN.md 4.1, brief 123): the main menu as a
  * FocusList on the left, the featured game on the right (a sharp map still with its plate

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * placementShroud — THE BUBBLE of the blackout screen (shroud screen): its range, its fold
  * duration, and its shape on the map.

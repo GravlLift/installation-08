@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // write.go holds the small shared helpers of the library build: the atomic
 // file write (temp name then rename, so a reader never sees a half-written
 // GLB or a torn index), the JSON write, and the shared texture depot, where

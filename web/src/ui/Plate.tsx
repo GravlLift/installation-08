@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Plate — the angled panel of the broadcast look (docs/UI-DESIGN.md 5): an eyebrow label,
  * a large display title and free-form children (facts, rosters, a call to action).

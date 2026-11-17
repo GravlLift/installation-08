@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // hudroutes_test.go — the HUD icon route and the HUD job's place in the startup order.

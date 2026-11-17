@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleWeaponRegistry.ts — THE READER OF THE VEHICLE WEAPON REGISTRY (schema 69, replay
  * feedback of 2026-09-23, lot M4a). THE ONLY replay file that reads `doc.vehicleWeapons`.

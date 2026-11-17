@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * meshFetchBatcher.test.ts — the library-file batcher: requests issued in one task go out as one
  * bundle, a batch over the entry cap splits into several bundles, a 404 entry rejects only itself,

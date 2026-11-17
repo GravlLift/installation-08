@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { BLAST_END_SECONDS, BLAST_FLASH_SECONDS, blastAt, blastLight, blastStyleOf, rand, type BlastSink, type BlastStyle } from './explosionFx3d'

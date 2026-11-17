@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicles3dModel.ts — LES VÉHICULES LUS POUR LA VUE 3D : position avec la hauteur, gabarit par
  * famille, place d'un occupant à bord. Aucune ligne de three.js ici : tout se teste sans scène.

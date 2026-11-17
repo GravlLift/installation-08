@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { BREAK_SECONDS, HIT_SECONDS, NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSamples } from './shields3d'

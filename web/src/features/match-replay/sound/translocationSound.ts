@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * translocationSound.ts — THE TELEPORTATION OF THE TRANSPORTER, heard at its departure.
  *
