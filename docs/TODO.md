@@ -8,7 +8,6 @@ are in [PARITY.md](PARITY.md).
 ## Migration (still open)
 
 - Film export: not checked since the UI redesign (the transport bar itself is done).
-- English translation pass of the lifted French comments and strings.
 - Installer: the release package builds (`tools\package.ps1`); the installer path is unchecked.
 
 ## Other open work
@@ -94,3 +93,12 @@ Visual work that waits for the migration to finish (do not restart before it): L
 grass, palms, Aquarius table sides, lighting. Also parked: compressed textures and a
 lower-detail map build (the map GLBs are 600 to 900 MB today, mostly texture data), and
 checking whether Live Fire's three extra structures are ever visible (they add 266 MB).
+
+## Final pass (do last, after everything above)
+
+- English translation of every French comment, identifier, log line, test name and
+  user-facing string, across `cmd/`, `internal/`, `web/` and the vendored `third_party/`
+  code we changed (the upstream text itself stays as shipped). Do it last: agents keep
+  adding French while they work in lifted code, so an earlier pass would not hold. Finish
+  with a repo-wide search for French words and accented letters that comes back empty
+  outside upstream files.
