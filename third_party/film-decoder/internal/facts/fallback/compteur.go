@@ -69,9 +69,13 @@ func (c *Compteur) DeclencheN(nom Nom, k int) {
 		return
 	}
 	if _, ok := Lire(nom); !ok {
+		name := string(nom)
+		if en, ok := EnglishName(nom); ok {
+			name = en
+		}
 		c.diag.Signaler(constat.Diagnostic{Code: DiagRepliHorsRegistre, Niveau: constat.NiveauError,
 			Message: "fallback triggered outside the registry — the count does not attach to any entry",
-			Attrs:   []any{"fallback", string(nom), "triggers", k}})
+			Attrs:   []any{"fallback", name, "triggers", k}})
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
