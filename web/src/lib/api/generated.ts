@@ -15,13 +15,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Backfill progression V2 (Ascension) pour un joueur
-         * @description Fix 2026-05-30. Force une évaluation progression V2 in-process
-         *     (détecteurs streaks/records/milestones, idempotents) pour un joueur
-         *     dont l'historique existe déjà mais dont le pipeline post-sync n'avait
-         *     jamais abouti (incident timeout shared reader pendant la fenêtre de
-         *     swap RO↔RW). N'émet pas de notifications coach. Renvoie le diag
-         *     (counts) post-exécution pour vérifier que les tables se peuplent.
+         * Backfill progression V2 (Ascension) for a player
+         * @description Fix 2026-05-30. Forces an in-process V2 progression evaluation
+         *     (streak/record/milestone detectors, idempotent) for a player
+         *     whose history already exists but whose post-sync pipeline never
+         *     completed (shared reader timeout incident during the RO/RW swap
+         *     window). Does not emit coach notifications. Returns the diag
+         *     (counts) after execution to verify that the tables are populating.
          */
         post: operations["backfillProgression"];
         delete?: never;
@@ -37,7 +37,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Diag sonde la résolution des tokens auth d'un joueur (loopback + admin) */
+        /** Diag probes auth token resolution for a player (loopback + admin) */
         get: operations["getDiagAutoSyncProbe"];
         put?: never;
         post?: never;
@@ -56,7 +56,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Diag force un cycle auto-sync (loopback + admin) */
+        /** Diag forces an auto-sync cycle (loopback + admin) */
         post: operations["postDiagAutoSyncRun"];
         delete?: never;
         options?: never;
@@ -71,7 +71,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Diag snapshot de l'ordonnanceur auto-sync */
+        /** Diag snapshot of the auto-sync scheduler */
         get: operations["getDiagAutoSyncSnapshot"];
         put?: never;
         post?: never;
@@ -89,10 +89,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Diag couverture CSR pour un joueur
-         * @description Phase 9 du plan pipeline CSR. Permet de vérifier en 1 ligne si le
-         *     pipeline CSR a bien capturé les données (snapshots Waypoint + MSR
-         *     matured/placement) ou s'il faut lancer un backfill.
+         * Diag CSR coverage for a player
+         * @description Phase 9 of the CSR pipeline plan. Lets you check in one line whether the
+         *     CSR pipeline has actually captured the data (Waypoint snapshots + MSR
+         *     matured/placement), or whether a backfill needs to run.
          */
         get: operations["getDiagCSRCoverage"];
         put?: never;
@@ -111,15 +111,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Diag agrégation télémétrie Prestige par origine du défi
-         * @description ADR 0020 (coach→pont Prestige). Agrège la table append-only
-         *     prestige_telemetry d'un joueur par origine du défi (coach / user /
-         *     pilot_mode / unknown) : compteurs created/rejected/completed/expired/
-         *     abandoned + taux d'acceptation et de complétion. Permet de mesurer si
-         *     les défis proposés par le coach sont acceptés/complétés davantage que
-         *     ceux d'autres origines. Les défis créés avant le plumbing (source NULL)
-         *     sont agrégés sous "unknown". Les taux valent -1 quand non calculables
-         *     (dénominateur nul).
+         * Diag Prestige telemetry aggregation by challenge origin
+         * @description ADR 0020 (coach-to-Prestige bridge). Aggregates the append-only
+         *     prestige_telemetry table for a player by challenge origin (coach / user /
+         *     pilot_mode / unknown): created/rejected/completed/expired/
+         *     abandoned counters + acceptance and completion rates. Lets you measure whether
+         *     challenges proposed by the coach are accepted/completed more often than
+         *     those from other origins. Challenges created before the plumbing existed (source NULL)
+         *     are aggregated under "unknown". Rates are -1 when they cannot be computed
+         *     (zero denominator).
          */
         get: operations["getDiagPrestigeTelemetry"];
         put?: never;
@@ -138,13 +138,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Diag pipeline progression V2 (Ascension)
-         * @description Phase 4 plan stabilisation 2026-05-22. Compte les rows dans les
-         *     tables V2 (streak, player_records, record_history, milestone_earned,
-         *     milestone_catalog) pour vérifier que EvaluateProgressionAfterSync
-         *     tourne bien sur l'auto-sync. Si tous les counts joueur sont à 0
-         *     après plusieurs cycles auto-sync (15 min × N), le pipeline V2
-         *     n'est pas câblé correctement.
+         * Diag V2 progression pipeline (Ascension)
+         * @description Phase 4 of the 2026-05-22 stabilization plan. Counts the rows in the
+         *     V2 tables (streak, player_records, record_history, milestone_earned,
+         *     milestone_catalog) to verify that EvaluateProgressionAfterSync
+         *     is actually running on auto-sync. If all player counts are 0
+         *     after several auto-sync cycles (15 min x N), the V2 pipeline
+         *     is not wired up correctly.
          */
         get: operations["getDiagProgression"];
         put?: never;
@@ -164,7 +164,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — force un cycle auto-sync complet, suivi via le JobStore (auth admin requis) */
+        /** Admin action — forces a full auto-sync cycle, tracked via the JobStore (admin auth required) */
         post: operations["postAdminActionAutoSyncRun"];
         delete?: never;
         options?: never;
@@ -181,7 +181,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — seed les tables catalog metadata (playlists/maps/pairs/variants) depuis match_registry, zéro réseau (le drain DiscoveryUGC reste CLI-only) (auth admin requis) */
+        /** Admin action — seeds the catalog metadata tables (playlists/maps/pairs/variants) from match_registry, zero network calls (the DiscoveryUGC drain remains CLI-only) (admin auth required) */
         post: operations["postAdminActionCatalogRefresh"];
         delete?: never;
         options?: never;
@@ -198,7 +198,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — recense les asset IDs vus en jeu (catalog_fetch_queue) puis les résout via l'API DiscoveryUGC (réseau, rate-limité) ; complète le catalog/refresh zéro-réseau pour les assets absents de match_registry ; job asynchrone (auth admin requis) */
+        /** Admin action — collects the asset IDs seen in-game (catalog_fetch_queue) then resolves them via the DiscoveryUGC API (network, rate-limited); complements the zero-network catalog/refresh for assets missing from match_registry; asynchronous job (admin auth required) */
         post: operations["postAdminActionCatalogUGCDrain"];
         delete?: never;
         options?: never;
@@ -215,7 +215,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — relance la convergence d'un joueur (RunDelta + post-sync, claim SyncGate) via le JobStore (auth admin requis) */
+        /** Admin action — re-runs convergence for a player (RunDelta + post-sync, claim SyncGate) via the JobStore (admin auth required) */
         post: operations["postAdminActionConvergenceRun"];
         delete?: never;
         options?: never;
@@ -232,7 +232,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — exécute l'audit data health immédiatement (lectures RO, synchrone) (auth admin requis) */
+        /** Admin action — runs the data health audit immediately (RO reads, synchronous) (admin auth required) */
         post: operations["postAdminActionDataHealthRun"];
         delete?: never;
         options?: never;
@@ -249,7 +249,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — re-import complet (RunFull, plafonné à max_matches) d'un joueur au choix, tokens via le pool unifié, claim SyncGate, via le JobStore (auth admin requis) */
+        /** Admin action — full re-import (RunFull, capped at max_matches) for a chosen player, tokens via the unified pool, claim SyncGate, via the JobStore (admin auth required) */
         post: operations["postAdminActionInitialSyncRun"];
         delete?: never;
         options?: never;
@@ -264,7 +264,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — journal des actions globales (dernière exécution/issue/déclencheur par action, survit au reboot) (auth admin requis) */
+        /** Monitoring dashboard — global actions journal (last run/outcome/trigger per action, survives reboot) (admin auth required) */
         get: operations["getAdminActionsJournal"];
         put?: never;
         post?: never;
@@ -283,7 +283,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — clear les bits backfill_completed menteurs de match_registry (events/weapons posés mais tables vides) + events_loaded menteur, débloque le heal au prochain sync (dry_run supporté, writer shared sérialisé dblease) (auth admin requis) */
+        /** Admin action — clears lying backfill_completed bits in match_registry (events/weapons flags set but tables empty) + lying events_loaded bit, unblocks the heal on the next sync (dry_run supported, shared writer serialized via dblease) (admin auth required) */
         post: operations["postAdminActionLyingBitsReset"];
         delete?: never;
         options?: never;
@@ -300,7 +300,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — résout les assets UUID bruts de match_registry via metadata.asset_translations (dry_run supporté, writer shared sérialisé dblease) (auth admin requis) */
+        /** Admin action — resolves raw UUID assets in match_registry via metadata.asset_translations (dry_run supported, shared writer serialized via dblease) (admin auth required) */
         post: operations["postAdminActionRegistryNamesBackfill"];
         delete?: never;
         options?: never;
@@ -317,7 +317,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — met la construction du rejeu 2D d'un match dans la file durable : le manifeste du film est résolu ici (tokens) et les URL CDN pré-signées partent dans le job, qu'un ouvrier distant prendra (auth admin requis) */
+        /** Admin action — queues a match's 2D replay build in the durable queue: the film manifest is resolved here (tokens) and the pre-signed CDN URLs go into the job, which a remote worker will pick up (admin auth required) */
         post: operations["postAdminActionReplayBuildEnqueue"];
         delete?: never;
         options?: never;
@@ -334,7 +334,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — construit l'artefact de rejeu 2D d'un match depuis le cache film local (job asynchrone, décodage hors ligne, auth admin requis) */
+        /** Admin action — builds a match's 2D replay artifact from the local film cache (asynchronous job, offline decoding, admin auth required) */
         post: operations["postAdminActionReplayBuildRun"];
         delete?: never;
         options?: never;
@@ -351,7 +351,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — upsert asset_translations (une ligne par langue saisie) pour un asset playlist/map/pair/game_variant (résolution effective des UUID inconnus) (auth admin requis) */
+        /** Admin action — upserts asset_translations (one row per language entered) for a playlist/map/pair/game_variant asset (effective resolution of unknown UUIDs) (admin auth required) */
         post: operations["postAdminActionAssetTranslation"];
         delete?: never;
         options?: never;
@@ -368,7 +368,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — upsert mode_name_tr (une ligne par langue saisie) pour un mode normalisé (résout un mode non traduit, effet immédiat) (auth admin requis) */
+        /** Admin action — upserts mode_name_tr (one row per language entered) for a normalized mode (resolves an untranslated mode, takes effect immediately) (admin auth required) */
         post: operations["postAdminActionModeTranslation"];
         delete?: never;
         options?: never;
@@ -383,7 +383,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Contention DB — compteurs du shared provider B-swap (auth admin requis) */
+        /** DB contention — shared provider B-swap counters (admin auth required) */
         get: operations["getAdminDBContention"];
         put?: never;
         post?: never;
@@ -400,7 +400,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Diagnostic apparence Spartan ID — verdict par composant (bannière/emblème/backdrop/service tag) d'un joueur suivi, à la demande (auth admin requis) */
+        /** Spartan ID appearance diagnostic — per-component verdict (banner/emblem/backdrop/service tag) for a tracked player, on demand (admin auth required) */
         get: operations["getAdminDiagAppearance"];
         put?: never;
         post?: never;
@@ -434,7 +434,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Annuaire des joueurs : comptes, profils, credentials, suivi live et anomalies (auth admin requis) */
+        /** Player directory: accounts, profiles, credentials, live tracking, and anomalies (admin auth required) */
         get: operations["getAdminIdentities"];
         put?: never;
         post?: never;
@@ -451,7 +451,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Intégrité des données — invariants du pipeline sync par joueur (auth admin requis) */
+        /** Data integrity — sync pipeline invariants per player (admin auth required) */
         get: operations["getAdminInvariants"];
         put?: never;
         post?: never;
@@ -468,10 +468,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des invitations admin (auth admin requis) */
+        /** List of admin invites (admin auth required) */
         get: operations["listAdminInvites"];
         put?: never;
-        /** Crée une invitation */
+        /** Creates an invite */
         post: operations["createAdminInvite"];
         delete?: never;
         options?: never;
@@ -489,7 +489,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Révoque une invitation */
+        /** Revokes an invite */
         delete: operations["deleteAdminInvite"];
         options?: never;
         head?: never;
@@ -503,7 +503,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — file durable de construction des rejeux (en attente / en cours / faits / échoués, avec l'ouvrier qui traite) et état des ouvriers (dernier battement, en ligne, travail fait) (auth admin requis) */
+        /** Monitoring dashboard — durable replay-build queue (pending / in progress / done / failed, with the worker handling it) and worker state (last heartbeat, online, work done) (admin auth required) */
         get: operations["getAdminMonitoringBuildQueue"];
         put?: never;
         post?: never;
@@ -520,7 +520,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — backlog de convergence (enrichment/PSA/events/weapons) par joueur (auth admin requis) */
+        /** Monitoring dashboard — convergence backlog (enrichment/PSA/events/weapons) per player (admin auth required) */
         get: operations["getAdminMonitoringConvergence"];
         put?: never;
         post?: never;
@@ -537,7 +537,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — statut unifié des crons (dernier run/succès, échecs consécutifs, persistance cron_runs) + heartbeats de features (liste fermée DC-5) (auth admin requis) */
+        /** Monitoring dashboard — unified cron status (last run/success, consecutive failures, cron_runs persistence) + feature heartbeats (closed list DC-5) (admin auth required) */
         get: operations["getAdminMonitoringCrons"];
         put?: never;
         post?: never;
@@ -554,7 +554,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — compteurs d'inconnus data (assets UUID bruts, modes non traduits, playlists hors catalogue, xuids orphelins, lying bits) (auth admin requis) */
+        /** Monitoring dashboard — unknown-data counters (raw UUID assets, untranslated modes, out-of-catalog playlists, orphan xuids, lying bits) (admin auth required) */
         get: operations["getAdminMonitoringDataQuality"];
         put?: never;
         post?: never;
@@ -571,7 +571,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — listes détaillées des inconnus d'un kind (alimente les formulaires de résolution) (auth admin requis) */
+        /** Monitoring dashboard — detailed lists of unknowns for a kind (feeds the resolution forms) (admin auth required) */
         get: operations["getAdminMonitoringDataQualityIssues"];
         put?: never;
         post?: never;
@@ -588,7 +588,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — détections persistées avec cycle de vie (open/acked/muted/resolved), survivent au restart, filtrables (auth admin requis) */
+        /** Monitoring dashboard — persisted detections with a lifecycle (open/acked/muted/resolved), survive a restart, filterable (admin auth required) */
         get: operations["getAdminMonitoringDetections"];
         put?: never;
         post?: never;
@@ -611,7 +611,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Dashboard monitoring — statuer une détection (Reconnaître / Sourdine / Résoudre) (auth admin requis) */
+        /** Monitoring dashboard — set the status of a detection (Acknowledge / Mute / Resolve) (admin auth required) */
         patch: operations["patchAdminMonitoringDetection"];
         trace?: never;
     };
@@ -622,7 +622,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — fraîcheur des données par joueur suivi et par titre actif (dernier match persisté, dernier cycle sync, statut DC-3, âge du backup) (auth admin requis) */
+        /** Monitoring dashboard — data freshness per tracked player and active title (last persisted match, last sync cycle, DC-3 status, backup age) (admin auth required) */
         get: operations["getAdminMonitoringFreshness"];
         put?: never;
         post?: never;
@@ -639,7 +639,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — jobs asynchrones récents du JobStore (auth admin requis) */
+        /** Monitoring dashboard — recent asynchronous JobStore jobs (admin auth required) */
         get: operations["getAdminMonitoringJobs"];
         put?: never;
         post?: never;
@@ -656,7 +656,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — fichiers logs/{module}.log disponibles (taille, dernière écriture) (auth admin requis) */
+        /** Monitoring dashboard — available logs/{module}.log files (size, last write) (admin auth required) */
         get: operations["getAdminMonitoringLogsModules"];
         put?: never;
         post?: never;
@@ -673,7 +673,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — dernières lignes filtrées d'un module de logs (lecture par la fin chunkée, budget 8 MiB) (auth admin requis) */
+        /** Monitoring dashboard — last filtered lines of a log module (chunked tail read, 8 MiB budget) (admin auth required) */
         get: operations["getAdminMonitoringLogsTail"];
         put?: never;
         post?: never;
@@ -690,7 +690,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — trous d'intérieur LUSR (matchs éligibles sans note, sous le watermark) + santé du garde-fou, par titre (auth admin requis) */
+        /** Monitoring dashboard — internal LUSR gaps (eligible matches without a rating, below the watermark) + guard-rail health, per title (admin auth required) */
         get: operations["getAdminMonitoringLusrGaps"];
         put?: never;
         post?: never;
@@ -709,7 +709,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Action admin — replay LUSR chronologique complet d'un joueur (comble les trous d'intérieur) (auth admin requis) */
+        /** Admin action — full chronological LUSR replay for a player (fills internal gaps) (admin auth required) */
         post: operations["postAdminMonitoringLusrGapsRecompute"];
         delete?: never;
         options?: never;
@@ -724,7 +724,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — KPIs agrégés (scheduler, jobs, data health, tokens, invariants) sans I/O DuckDB (auth admin requis) */
+        /** Monitoring dashboard — aggregated KPIs (scheduler, jobs, data health, tokens, invariants) with no DuckDB I/O (admin auth required) */
         get: operations["getAdminMonitoringOverview"];
         put?: never;
         post?: never;
@@ -741,7 +741,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — agrégats de performance depuis le boot : latences API Halo par appel + buckets d'erreurs, phases d'écriture persist par DB, étapes post-sync, fenêtre d'indisponibilité des lectures shared (expvar pur, zéro I/O) (auth admin requis) */
+        /** Monitoring dashboard — performance aggregates since boot: Halo API latencies per call + error buckets, per-DB persist write phases, post-sync steps, shared-read unavailability window (pure expvar, zero I/O) (admin auth required) */
         get: operations["getAdminMonitoringPerf"];
         put?: never;
         post?: never;
@@ -758,7 +758,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — ressources machine & process : runtime Go, tailles des bases DuckDB + WAL, disque libre du volume data, budgets/pool DuckDB, uptime + compteur de restarts (auth admin requis) */
+        /** Monitoring dashboard — machine & process resources: Go runtime, DuckDB database + WAL sizes, free disk on the data volume, DuckDB budgets/pool, uptime + restart counter (admin auth required) */
         get: operations["getAdminMonitoringResources"];
         put?: never;
         post?: never;
@@ -775,7 +775,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — snapshot scheduler auto-sync + historique des cycles depuis le boot (auth admin requis) */
+        /** Monitoring dashboard — auto-sync scheduler snapshot + cycle history since boot (admin auth required) */
         get: operations["getAdminMonitoringScheduler"];
         put?: never;
         post?: never;
@@ -792,7 +792,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dashboard monitoring — couverture de résolution d'arme (registre vs weapon_labels vs non résolu) par titre (auth admin requis) */
+        /** Monitoring dashboard — weapon resolution coverage (registry vs weapon_labels vs unresolved) per title (admin auth required) */
         get: operations["getAdminMonitoringWeaponCoverage"];
         put?: never;
         post?: never;
@@ -809,7 +809,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des titres enregistrés (slug, nom, Status lifecycle, capabilities, has_mappings) (auth admin requis) */
+        /** List of registered titles (slug, name, lifecycle status, capabilities, has_mappings) (admin auth required) */
         get: operations["getAdminTitles"];
         put?: never;
         post?: never;
@@ -826,7 +826,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Détail d'un titre : descripteur + capabilities déclarées (TOML) + feature-matrix calculée (auth admin requis) */
+        /** Title detail: descriptor + declared capabilities (TOML) + computed feature matrix (admin auth required) */
         get: operations["getAdminTitleDetail"];
         put?: never;
         post?: never;
@@ -843,7 +843,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Diagnostic santé d'un titre : présence des mappings TOML + réalité DB (auth admin requis) */
+        /** Title health diagnostic: presence of TOML mappings + DB reality (admin auth required) */
         get: operations["getAdminTitleDiagnostic"];
         put?: never;
         post?: never;
@@ -860,7 +860,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Brouillon capabilities.toml collable pour un titre — ZÉRO écriture serveur (D10, auth admin requis) */
+        /** Paste-ready capabilities.toml draft for a title — ZERO server writes (D10, admin auth required) */
         get: operations["getAdminTitleTOMLDraft"];
         put?: never;
         post?: never;
@@ -877,7 +877,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Santé des tokens auth (Accès / XSTS / Refresh) par joueur (auth admin requis) */
+        /** Auth token health (Access / XSTS / Refresh) per player (admin auth required) */
         get: operations["getAdminTokenHealth"];
         put?: never;
         post?: never;
@@ -894,7 +894,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des utilisateurs (auth admin requis) */
+        /** List of users (admin auth required) */
         get: operations["listAdminUsers"];
         put?: never;
         post?: never;
@@ -914,7 +914,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Supprime un compte utilisateur */
+        /** Deletes a user account */
         delete: operations["deleteAdminUser"];
         options?: never;
         head?: never;
@@ -934,7 +934,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Reset password d'un utilisateur */
+        /** Resets a user's password */
         patch: operations["patchAdminUserPassword"];
         trace?: never;
     };
@@ -951,7 +951,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Modifie le rôle d'un utilisateur (admin/user) */
+        /** Changes a user's role (admin/user) */
         patch: operations["patchAdminUserRole"];
         trace?: never;
     };
@@ -962,7 +962,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les maps du catalogue avec leurs traductions */
+        /** Lists the catalog's maps with their translations */
         get: operations["listMapsMetadata"];
         put?: never;
         post?: never;
@@ -979,7 +979,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les médailles du catalogue avec leurs traductions (icône sprite pour Halo 5) */
+        /** Lists the catalog's medals with their translations (sprite icon for Halo 5) */
         get: operations["listMedalsMetadata"];
         put?: never;
         post?: never;
@@ -996,7 +996,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les armes du catalogue avec leurs traductions */
+        /** Lists the catalog's weapons with their translations */
         get: operations["listWeaponsMetadata"];
         put?: never;
         post?: never;
@@ -1013,7 +1013,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sert une image de battlepass (cache long terme) */
+        /** Serves a battlepass image (long-term cache) */
         get: operations["getBattlepassAsset"];
         put?: never;
         post?: never;
@@ -1030,7 +1030,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sert une image de badge de défi */
+        /** Serves a challenge badge image */
         get: operations["getChallengeBadgeAsset"];
         put?: never;
         post?: never;
@@ -1047,7 +1047,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sert l'image d'une carte */
+        /** Serves a map image */
         get: operations["getMapAsset"];
         put?: never;
         post?: never;
@@ -1064,7 +1064,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sert l'image d'une médaille */
+        /** Serves a medal image */
         get: operations["getMedalAsset"];
         put?: never;
         post?: never;
@@ -1081,7 +1081,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sert un asset Spartan (emblem, backdrop, etc.) */
+        /** Serves a Spartan asset (emblem, backdrop, etc.) */
         get: operations["getSpartanAsset"];
         put?: never;
         post?: never;
@@ -1098,7 +1098,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Statut d'un Device Code Flow en cours */
+        /** Status of an ongoing Device Code Flow */
         get: operations["getAuthDeviceFlowStatus"];
         put?: never;
         post?: never;
@@ -1118,9 +1118,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Initier un Device Code Flow Microsoft
-         * @description Lance un Device Code Flow pour l'authentification Halo (SISU).
-         *     Refusé en mode démo (403 `demo_mode_forbidden`).
+         * Starts a Microsoft Device Code Flow
+         * @description Starts a Device Code Flow for Halo authentication (SISU).
+         *     Refused in demo mode (403 `demo_mode_forbidden`).
          */
         post: operations["postAuthDeviceFlowStart"];
         delete?: never;
@@ -1138,7 +1138,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Authentification email + password */
+        /** Email + password authentication */
         post: operations["postAuthLogin"];
         delete?: never;
         options?: never;
@@ -1155,7 +1155,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Invalide la session courante */
+        /** Invalidates the current session */
         post: operations["postAuthLogout"];
         delete?: never;
         options?: never;
@@ -1172,7 +1172,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Définit/change le mot de passe de l'utilisateur connecté (opt-in, PR-C) */
+        /** Sets/changes the logged-in user's password (opt-in, PR-C) */
         post: operations["postAuthPassword"];
         delete?: never;
         options?: never;
@@ -1189,7 +1189,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Création de compte (mode invite-only ou public selon registration_mode) */
+        /** Account creation (invite-only or public mode depending on registration_mode) */
         post: operations["postAuthRegister"];
         delete?: never;
         options?: never;
@@ -1207,12 +1207,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Lance un backfill (job long)
-         * @description Corps JSON lu à la main (400 `invalid_body` sinon) : `player_slug` (obligatoire), les
-         *     `engagement_scores`... ; aucune = tout), `force_rescan`, `max_matches`, `dry_run` et
-         *     `title` (slug du titre, défaut : le titre par défaut ; le joueur doit y être suivi, 404
-         *     `player_not_found` sinon). Sur un titre qui ne déclare pas `citations.engine` (Halo 5),
-         *     la portée `citations` est ignorée avec un avertissement du job.
+         * Starts a backfill (long-running job)
+         * @description JSON body parsed by hand (400 `invalid_body` otherwise): `player_slug` (required), the
+         *     `engagement_scores`... ; none = all), `force_rescan`, `max_matches`, `dry_run`, and
+         *     `title` (title slug, default: the default title; the player must be tracked on it, 404
+         *     `player_not_found` otherwise). On a title that doesn't declare `citations.engine` (Halo 5),
+         *     the `citations` scope is ignored with a job warning.
          */
         post: operations["postBackfillStart"];
         delete?: never;
@@ -1229,18 +1229,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Bootstrap du shell React
-         * @description Point d'entrée unique du shell React. Retourne l'état complet de l'application :
-         *     configuration du setup, état auth, joueur courant, capacités, feature flags.
+         * React shell bootstrap
+         * @description Single entry point for the React shell. Returns the complete application state:
+         *     setup configuration, auth state, current player, capabilities, feature flags.
          *
-         *     Le frontend appelle cet endpoint au démarrage et après chaque action
-         *     susceptible de changer l'état global (auth, changement de joueur, etc.).
+         *     The frontend calls this endpoint on startup and after every action
+         *     that could change the global state (auth, player switch, etc.).
          *
-         *     **Invariants :**
-         *     - `auth_state` ∈ {missing, partial, ready}
-         *     - `setup_state` ∈ {no_halo_link, halo_linked_no_profile, profile_ready_no_sync, ready}
-         *     - `available_players` ne doit jamais être null si la liste est connue
-         *     - `current_player` peut être null
+         *     **Invariants:**
+         *     - `auth_state` is one of {missing, partial, ready}
+         *     - `setup_state` is one of {no_halo_link, halo_linked_no_profile, profile_ready_no_sync, ready}
+         *     - `available_players` must never be null if the list is known
+         *     - `current_player` may be null
          */
         get: operations["getBootstrap"];
         put?: never;
@@ -1258,7 +1258,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Changelog Markdown du projet */
+        /** Project Markdown changelog */
         get: operations["getChangelog"];
         put?: never;
         post?: never;
@@ -1276,13 +1276,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Recherche floue de gamertags
-         * @description Recherche floue de gamertags dans la base partagée.
-         *     Accessible sans joueur courant (endpoint global).
+         * Fuzzy gamertag search
+         * @description Fuzzy search for gamertags in the shared database.
+         *     Accessible without a current player (global endpoint).
          *
-         *     **Invariants :**
-         *     - Une recherche sans résultat renvoie 200 avec items = []
-         *     - q minimum 2 caractères pour retourner des résultats
+         *     **Invariants:**
+         *     - A search with no results returns 200 with items = []
+         *     - q requires a minimum of 2 characters to return results
          */
         get: operations["searchGamertags"];
         put?: never;
@@ -1300,10 +1300,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les groupes du user courant (auth + identité Halo requise) */
+        /** Lists the current user's groups (auth + Halo identity required) */
         get: operations["listMyGroups"];
         put?: never;
-        /** Crée un groupe (user courant = propriétaire) */
+        /** Creates a group (current user = owner) */
         post: operations["createGroup"];
         delete?: never;
         options?: never;
@@ -1321,11 +1321,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Supprime un groupe (propriétaire only) */
+        /** Deletes a group (owner only) */
         delete: operations["deleteGroup"];
         options?: never;
         head?: never;
-        /** Renomme un groupe (propriétaire only) */
+        /** Renames a group (owner only) */
         patch: operations["renameGroup"];
         trace?: never;
     };
@@ -1338,7 +1338,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Génère une invitation 'rejoindre le groupe' (membre only) */
+        /** Generates a "join the group" invite (member only) */
         post: operations["createGroupInvite"];
         delete?: never;
         options?: never;
@@ -1356,7 +1356,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Retire un membre (propriétaire only) */
+        /** Removes a member (owner only) */
         delete: operations["removeGroupMember"];
         options?: never;
         head?: never;
@@ -1373,7 +1373,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Quitter un groupe (self ; propriétaire interdit → 409) */
+        /** Leaves a group (self; owner forbidden -> 409) */
         delete: operations["leaveGroup"];
         options?: never;
         head?: never;
@@ -1389,8 +1389,8 @@ export interface paths {
         };
         /**
          * Health check
-         * @description Sonde publique : 200 `{status}` quand la base partagée s'ouvre et se lit,
-         *     503 sinon. Aucune version ni aucun compteur (détail : `GET /admin/health`).
+         * @description Public probe: 200 `{status}` when the shared database opens and reads,
+         *     503 otherwise. No version or counter (detail: `GET /admin/health`).
          */
         get: operations["getHealth"];
         put?: never;
@@ -1408,7 +1408,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness probe (process vivant, pas d'I/O DB) */
+        /** Liveness probe (process alive, no DB I/O) */
         get: operations["getHealthz"];
         put?: never;
         post?: never;
@@ -1426,13 +1426,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Smoke endpoint contenu home (banner, peaks CSR/LUSR, playlists, arme favorite)
-         * @description Sonde le contenu de la home page Mission Control pour un joueur donné.
-         *     Inspecte les 5 sections critiques et liste celles qui sont vides
-         *     sans raison (= régression silencieuse). Pensé pour CI post-backfill
-         *     et alerte développeur.
+         * Home content smoke endpoint (banner, CSR/LUSR peaks, playlists, favorite weapon)
+         * @description Probes the Mission Control home page content for a given player.
+         *     Inspects the 5 critical sections and lists any that are empty
+         *     for no reason (= silent regression). Designed for post-backfill CI
+         *     and developer alerts.
          *
-         *     Paramètre `player` obligatoire — pas d'auto-pick.
+         *     `player` parameter required -- no auto-pick.
          */
         get: operations["getHealthzHome"];
         put?: never;
@@ -1450,7 +1450,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Notes de release dérivées du git log */
+        /** Release notes derived from the git log */
         get: operations["getReleaseNotes"];
         put?: never;
         post?: never;
@@ -1469,7 +1469,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Protocole ouvrier — dépose l'artefact de rejeu construit pour un job pris (corps = l'artefact, taille bornée). Jeton d'ouvrier requis. */
+        /** Worker protocol — uploads the built replay artifact for a claimed job (body = the artifact, bounded size). Worker token required. */
         post: operations["postBuildQueueArtifact"];
         delete?: never;
         options?: never;
@@ -1486,7 +1486,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Protocole ouvrier — prend le prochain job de construction et rend son travail résolu (URL CDN pré-signées). Jeton d'ouvrier requis. */
+        /** Worker protocol — claims the next build job and returns its resolved work (pre-signed CDN URLs). Worker token required. */
         post: operations["postBuildQueueClaim"];
         delete?: never;
         options?: never;
@@ -1503,7 +1503,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Protocole ouvrier — rend le résultat d'un job pris (succès ou échec). Jeton d'ouvrier requis. */
+        /** Worker protocol — reports the result of a claimed job (success or failure). Worker token required. */
         post: operations["postBuildQueueComplete"];
         delete?: never;
         options?: never;
@@ -1520,7 +1520,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Protocole ouvrier — signe de vie de l'ouvrier et prolongation du bail du job en cours. Jeton d'ouvrier requis. */
+        /** Worker protocol — worker heartbeat and lease extension for the job in progress. Worker token required. */
         post: operations["postBuildQueueHeartbeat"];
         delete?: never;
         options?: never;
@@ -1535,7 +1535,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Statut d'un job long */
+        /** Status of a long-running job */
         get: operations["getJob"];
         put?: never;
         post?: never;
@@ -1569,7 +1569,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Version du feed médias (pour invalidation cache front) */
+        /** Media feed version (for frontend cache invalidation) */
         get: operations["getMediaFeedVersion"];
         put?: never;
         post?: never;
@@ -1587,9 +1587,9 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Liste des joueurs disponibles
-         * @description Retourne la liste de tous les joueurs configurés dans db_profiles.json.
-         *     En DEMO_MODE, retourne le joueur de démo pointant sur les fixtures.
+         * List of available players
+         * @description Returns the list of all players configured in db_profiles.json.
+         *     In DEMO_MODE, returns the demo player pointing at the fixtures.
          */
         get: operations["getPlayers"];
         put?: never;
@@ -1607,7 +1607,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Calendrier d'activité : nombre de matchs par jour UTC sur la fenêtre (jours vides omis) */
+        /** Activity calendar: number of matches per UTC day over the window (empty days omitted) */
         get: operations["getActivityCalendar"];
         put?: never;
         post?: never;
@@ -1624,10 +1624,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les arcs de progression Prestige */
+        /** Lists Prestige progression arcs */
         get: operations["listPrestigeArcs"];
         put?: never;
-        /** Crée un arc de progression Prestige */
+        /** Creates a Prestige progression arc */
         post: operations["createPrestigeArc"];
         delete?: never;
         options?: never;
@@ -1642,11 +1642,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Détail d'un arc de progression Prestige */
+        /** Detail of a Prestige progression arc */
         get: operations["getPrestigeArc"];
         put?: never;
         post?: never;
-        /** Supprime un arc de progression Prestige */
+        /** Deletes a Prestige progression arc */
         delete: operations["deletePrestigeArc"];
         options?: never;
         head?: never;
@@ -1660,7 +1660,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les arcs Prestige prédéfinis */
+        /** Lists predefined Prestige arcs */
         get: operations["listPrestigeArcPresets"];
         put?: never;
         post?: never;
@@ -1679,7 +1679,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Adopte un arc Prestige prédéfini */
+        /** Adopts a predefined Prestige arc */
         post: operations["adoptPrestigeArcPreset"];
         delete?: never;
         options?: never;
@@ -1696,7 +1696,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Démarrer une campagne d'amélioration sur un axe (snapshot des 100 derniers matchs) */
+        /** Starts an improvement campaign on an axis (snapshot of the last 100 matches) */
         post: operations["startCampaign"];
         delete?: never;
         options?: never;
@@ -1711,7 +1711,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Détail d'une campagne + défis liés */
+        /** Detail of a campaign + its related challenges */
         get: operations["getCampaignByID"];
         put?: never;
         post?: never;
@@ -1730,7 +1730,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Abandonner une campagne (status=abandoned, sans pénalité) */
+        /** Abandons a campaign (status=abandoned, no penalty) */
         post: operations["abandonCampaign"];
         delete?: never;
         options?: never;
@@ -1747,7 +1747,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Clôturer une campagne (status=completed) */
+        /** Closes a campaign (status=completed) */
         post: operations["closeCampaign"];
         delete?: never;
         options?: never;
@@ -1764,7 +1764,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mettre une campagne active en pause */
+        /** Pauses an active campaign */
         post: operations["pauseCampaign"];
         delete?: never;
         options?: never;
@@ -1781,7 +1781,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reprendre une campagne en pause */
+        /** Resumes a paused campaign */
         post: operations["resumeCampaign"];
         delete?: never;
         options?: never;
@@ -1796,7 +1796,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Campagne active du joueur (null si aucune) */
+        /** Player's active campaign (null if none) */
         get: operations["getActiveCampaign"];
         put?: never;
         post?: never;
@@ -1813,7 +1813,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Campagnes closes du joueur (historique, les plus récentes d'abord) */
+        /** Player's closed campaigns (history, most recent first) */
         get: operations["listEndedCampaigns"];
         put?: never;
         post?: never;
@@ -1830,7 +1830,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des proposals coach (challenges/arcs Prestige calibrés sur signaux récents) */
+        /** List of coach proposals (challenges/Prestige arcs calibrated on recent signals) */
         get: operations["listCoachProposals"];
         put?: never;
         post?: never;
@@ -1849,7 +1849,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Matérialise une proposal coach via prestige.CreateChallenge ou CreateArc (Source="coach") */
+        /** Materializes a coach proposal via prestige.CreateChallenge or CreateArc (Source="coach") */
         post: operations["acceptCoachProposal"];
         delete?: never;
         options?: never;
@@ -1866,7 +1866,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Marque une proposal comme dismissed (idempotent — no-op si déjà résolue) */
+        /** Marks a proposal as dismissed (idempotent -- no-op if already resolved) */
         post: operations["dismissCoachProposal"];
         delete?: never;
         options?: never;
@@ -1881,7 +1881,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Totaux à vie des commendations natives (Halo 5) */
+        /** Lifetime totals of native commendations (Halo 5) */
         get: operations["getCommendationTotals"];
         put?: never;
         post?: never;
@@ -1901,8 +1901,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Force le recalcul des coefficients d'engagement (admin)
-         * @description Recalcule les coefficients perso (coef_team_share / coef_lobby_share) pour toutes les catégories de mode supportées, depuis les paces persistées dans player_match_enrichment. Idempotent.
+         * Forces recomputation of the engagement coefficients (admin)
+         * @description Recomputes the personal coefficients (coef_team_share / coef_lobby_share) for all supported mode categories, from the paces persisted in player_match_enrichment. Idempotent.
          */
         post: operations["postRecomputeEngagementCoefficients"];
         delete?: never;
@@ -1921,8 +1921,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Série temporelle de l'engagement filtrée (Mock 11)
-         * @description Retourne les N derniers matchs PvP du scope avec leurs paces. Body aligné sur POST /pages/timeseries : `filters` honore period / cascade / sessions / match_context. `limit` optionnel (défaut 50, max 500). Un body vide équivaut à `{}` (compat smoke).
+         * Filtered engagement time series (Mock 11)
+         * @description Returns the last N PvP matches of the scope with their paces. Body aligned with POST /pages/timeseries: `filters` honors period / cascade / sessions / match_context. `limit` optional (default 50, max 500). An empty body is equivalent to `{}` (smoke-test compat).
          */
         post: operations["postEngagementTimeseries"];
         delete?: never;
@@ -1938,7 +1938,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Profil engagement long-terme du joueur */
+        /** Player's long-term engagement profile */
         get: operations["getEngagementProfile"];
         put?: never;
         post?: never;
@@ -1957,7 +1957,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Résoudre la liste des match_ids correspondant à un contexte de filtres */
+        /** Resolves the list of match_ids matching a filter context */
         post: operations["filtersMatchIDs"];
         delete?: never;
         options?: never;
@@ -1975,14 +1975,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Résoudre le contexte de filtres
-         * @description Normalise FilterContextInput, calcule les options disponibles
-         *     (playlists/modes/cartes/sessions) et retourne le contexte résolu.
+         * Resolves the filter context
+         * @description Normalizes FilterContextInput, computes the available options
+         *     (playlists/modes/maps/sessions), and returns the resolved context.
          *
-         *     **Invariants :**
-         *     - `filter_mode` ∈ {period, sessions}
-         *     - `effective` est le FilterContextInput normalisé, pas un echo brut
-         *     - Les listes vides dans cascade = « tout coché » (pas de filtre restrictif)
+         *     **Invariants:**
+         *     - `filter_mode` is one of {period, sessions}
+         *     - `effective` is the normalized FilterContextInput, not a raw echo
+         *     - Empty lists in cascade mean "everything checked" (no restrictive filter)
          */
         post: operations["resolveFilters"];
         delete?: never;
@@ -2017,13 +2017,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Détail complet d'un match
-         * @description Retourne le détail complet d'un match (header + rank + 5 onglets).
+         * Full detail of a match
+         * @description Returns the full detail of a match (header + rank + 5 tabs).
          *
-         *     **Invariants :**
-         *     - La vue match est un contrat par onglets/blocs métier, pas un dump du MatchDetail canonique
-         *     - Un match introuvable renvoie 404 avec code = match_not_found
-         *     - Les blocs partiels sont autorisés si le contrat principal est servable
+         *     **Invariants:**
+         *     - The match view is a contract organized by business tabs/blocks, not a dump of the canonical MatchDetail
+         *     - A match that cannot be found returns 404 with code = match_not_found
+         *     - Partial blocks are allowed if the main contract can be served
          */
         get: operations["getMatchView"];
         put?: never;
@@ -2041,7 +2041,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Score d'engagement + courbe pour un match (P3.2) */
+        /** Engagement score + curve for a match (P3.2) */
         get: operations["getMatchEngagement"];
         put?: never;
         post?: never;
@@ -2058,7 +2058,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Timeline canonique d'events d'un match (kill-feed / timeline) */
+        /** Canonical event timeline for a match (kill feed / timeline) */
         get: operations["getMatchEvents"];
         put?: never;
         post?: never;
@@ -2082,8 +2082,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Marquer ou démarquer un match comme non pertinent
-         *     Un match exclu est ignoré partout dans l'app (stats, graphes, historique, export).
+         * Marks or unmarks a match as not relevant
+         *     An excluded match is ignored everywhere in the app (stats, charts, history, export).
          */
         patch: operations["setMatchExclusion"];
         trace?: never;
@@ -2101,7 +2101,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Toggle le statut favori d'un match */
+        /** Toggles a match's favorite status */
         patch: operations["patchMatchFavorite"];
         trace?: never;
     };
@@ -2112,7 +2112,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Match précédent / suivant pour navigation */
+        /** Previous/next match for navigation */
         get: operations["getMatchNeighbors"];
         put?: never;
         post?: never;
@@ -2129,7 +2129,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Timeline objectif mode-agnostique d'un match */
+        /** Mode-agnostic objective timeline for a match */
         get: operations["getMatchObjectiveEvents"];
         put?: never;
         post?: never;
@@ -2146,7 +2146,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Positions joueurs aux images-clés d'un match */
+        /** Player positions at a match's keyframes */
         get: operations["getMatchPositions"];
         put?: never;
         post?: never;
@@ -2163,7 +2163,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Rejeu 2D pré-construit d'un match */
+        /** Pre-built 2D replay for a match */
         get: operations["getMatchReplay"];
         put?: never;
         post?: never;
@@ -2180,7 +2180,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Calage du fond de carte du rejeu 2D d'un match */
+        /** Map background alignment for a match's 2D replay */
         get: operations["getMatchReplayBackground"];
         put?: never;
         post?: never;
@@ -2198,11 +2198,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Sert l'image du fond de carte du rejeu 2D
-         * @description Image vue du dessus de la carte du match (PNG), cuite hors ligne par
-         *     `cmd/mapfond-build`. Elle ne se lit qu'avec son CALAGE, servi par
-         *     `GET .../replay/background` : une image dont on ignore où elle se pose ne se
-         *     superpose à rien.
+         * Serves the 2D replay's map background image
+         * @description Top-down image of the match map (PNG), baked offline by
+         *     `cmd/mapfond-build`. It can only be interpreted together with its ALIGNMENT, served by
+         *     `GET .../replay/background`: an image whose placement is unknown cannot be
+         *     overlaid on anything.
          */
         get: operations["getMatchReplayBackgroundImage"];
         put?: never;
@@ -2220,7 +2220,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Zones nommées (callouts) de la carte du rejeu 2D d'un match */
+        /** Named zones (callouts) on a match's 2D replay map */
         get: operations["getMatchReplayCallouts"];
         put?: never;
         post?: never;
@@ -2237,7 +2237,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Contexte de match de la page de rejeu */
+        /** Match context for the replay page */
         get: operations["getMatchReplayContext"];
         put?: never;
         post?: never;
@@ -2257,7 +2257,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Supprime définitivement un média (propriétaire ou admin) */
+        /** Permanently deletes a media item (owner or admin) */
         delete: operations["deleteMedia"];
         options?: never;
         head?: never;
@@ -2273,7 +2273,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Associe un média à un match */
+        /** Associates a media item with a match */
         post: operations["postMediaAssociate"];
         delete?: never;
         options?: never;
@@ -2288,9 +2288,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Réglage des pistes audio des médias du joueur */
+        /** Audio track settings for the player's media */
         get: operations["getMediaAudioConfig"];
-        /** Définit le réglage des pistes audio des médias du joueur */
+        /** Sets the audio track settings for the player's media */
         put: operations["putMediaAudioConfig"];
         post?: never;
         delete?: never;
@@ -2306,7 +2306,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des auteurs de médias visibles pour ce joueur */
+        /** List of media authors visible for this player */
         get: operations["getMediaAuthors"];
         put?: never;
         post?: never;
@@ -2321,13 +2321,13 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
                 filepath: string;
             };
             cookie?: never;
         };
-        /** Sert un fichier média (image/vidéo) */
+        /** Serves a media file (image/video) */
         get: operations["serveMediaFile"];
         put?: never;
         post?: never;
@@ -2350,7 +2350,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Like / unlike d'un média */
+        /** Likes / unlikes a media item */
         patch: operations["patchMediaLike"];
         trace?: never;
     };
@@ -2361,7 +2361,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Candidats de match pour associer un média */
+        /** Match candidates for associating a media item */
         get: operations["getMediaMatchCandidates"];
         put?: never;
         post?: never;
@@ -2376,14 +2376,14 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
             };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Upload d'un média (image/vidéo) */
+        /** Uploads a media item (image/video) */
         post: operations["postUploadMedia"];
         delete?: never;
         options?: never;
@@ -2398,7 +2398,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Catalogue de milestones + statut Earned par milestone */
+        /** Milestone catalog + Earned status per milestone */
         get: operations["listProgressionMilestones"];
         put?: never;
         post?: never;
@@ -2415,7 +2415,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des notifications du joueur */
+        /** List of the player's notifications */
         get: operations["listNotifications"];
         put?: never;
         post?: never;
@@ -2435,7 +2435,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Supprime une notification */
+        /** Deletes a notification */
         delete: operations["deleteNotification"];
         options?: never;
         head?: never;
@@ -2455,7 +2455,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Repasse une notification en non-lue */
+        /** Marks a notification unread again */
         patch: operations["patchNotificationUnread"];
         trace?: never;
     };
@@ -2468,7 +2468,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Marque toutes les notifications comme lues */
+        /** Marks all notifications as read */
         post: operations["postMarkAllRead"];
         delete?: never;
         options?: never;
@@ -2485,7 +2485,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Marque une liste de notifications comme lues */
+        /** Marks a list of notifications as read */
         post: operations["postMarkRead"];
         delete?: never;
         options?: never;
@@ -2500,14 +2500,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Préférences notifications du joueur */
+        /** Player's notification preferences */
         get: operations["getNotificationPreferences"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Met à jour les préférences */
+        /** Updates the preferences */
         patch: operations["patchNotificationPreferences"];
         trace?: never;
     };
@@ -2520,7 +2520,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Émet une notification de test (debug) */
+        /** Emits a test notification (debug) */
         post: operations["postNotificationTest"];
         delete?: never;
         options?: never;
@@ -2535,7 +2535,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Compteur de notifications non lues */
+        /** Unread notifications counter */
         get: operations["getNotificationUnreadCount"];
         put?: never;
         post?: never;
@@ -2553,17 +2553,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Page Achievements Xbox du joueur
-         * @description Retourne la liste fusionnée des achievements Xbox (référentiel bilingue
-         *     EN/FR) avec la progression du joueur. Triés : unlocked en premier
-         *     (UnlockedAt DESC), puis locked par gamerscore DESC.
+         * Player's Xbox Achievements page
+         * @description Returns the merged list of Xbox achievements (bilingual EN/FR
+         *     reference data) with the player's progression. Sorted: unlocked first
+         *     (UnlockedAt DESC), then locked by gamerscore DESC.
          *
-         *     Données peuplées par le sync engine post-sync ou par la CLI
-         *     `levelup sync-achievements`. Si la table est vide (backfill jamais lancé),
-         *     renvoie une réponse `{summary: zeros, achievements: []}`.
+         *     Data populated by the sync engine post-sync or by the
+         *     `levelup sync-achievements` CLI. If the table is empty (backfill never run),
+         *     returns a `{summary: zeros, achievements: []}` response.
          *
-         *     Capability requise : `achievements` — middleware retourne 405 si le
-         *     titre courant ne supporte pas cette feature.
+         *     Required capability: `achievements` -- the middleware returns 405 if the
+         *     current title does not support this feature.
          */
         get: operations["getAchievementsPage"];
         put?: never;
@@ -2582,14 +2582,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Page Carrière complète
-         * @description Retourne la page Carrière complète pour un joueur :
-         *     rang, XP, projections, graphes, historique, rating LUSR, top matchs, encounters.
+         * Full Career page
+         * @description Returns the full Career page for a player:
+         *     rank, XP, projections, charts, history, LUSR rating, top matches, encounters.
          *
-         *     **Invariants :**
-         *     - `charts` peut contenir des valeurs null ciblées
-         *     - `summary` et `lusr` restent optionnels si la donnée manque
-         *     - Le contrat est page-oriented, pas une projection brute du canonique Halo
+         *     **Invariants:**
+         *     - `charts` may contain targeted null values
+         *     - `summary` and `lusr` remain optional if data is missing
+         *     - The contract is page-oriented, not a raw projection of the canonical Halo data
          */
         get: operations["getCareerPage"];
         put?: never;
@@ -2608,16 +2608,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Classements CSR par playlist (snapshots current / season / all-time)
-         * @description Retourne pour chaque playlist ranked les snapshots CSR `current`,
-         *     `season`, `all_time`, agrégés depuis `player_csr_snapshots` (Q26) pour la
-         *     saison demandée. Si la table est absente, dégradation silencieuse (200
-         *     avec liste vide).
+         * CSR rankings per playlist (current / season / all-time snapshots)
+         * @description Returns, for each ranked playlist, the `current`, `season`, and
+         *     `all_time` CSR snapshots, aggregated from `player_csr_snapshots` (Q26) for the
+         *     requested season. If the table is absent, degrades silently (200
+         *     with an empty list).
          *
-         *     Le paramètre `season` sélectionne la saison CSR à afficher (vide → saison
-         *     courante configurée). `available_seasons` liste les saisons proposables
-         *     dans le menu déroulant (saisons ayant des données classées pour le joueur
-         *     + saison courante). LUSR n'est pas concerné (cumulatif, hors saison).
+         *     The `season` parameter selects the CSR season to display (empty -> configured
+         *     current season). `available_seasons` lists the seasons offered in the
+         *     dropdown menu (seasons with ranked data for the player
+         *     + the current season). LUSR is not affected (cumulative, not seasonal).
          */
         get: operations["getCareerCSRs"];
         put?: never;
@@ -2636,8 +2636,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Encounters du joueur
-         * @description Retourne les adversaires et coéquipiers fréquents.
+         * Player's encounters
+         * @description Returns frequent opponents and teammates.
          */
         get: operations["getCareerEncounters"];
         put?: never;
@@ -2656,20 +2656,20 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Matchs marquants — 15 best + 15 worst (format Explorer)
-         * @description Retourne les 15 meilleurs et 15 pires matchs du joueur au format
-         *     ExplorerMatchesRow (mêmes colonnes que la page Explorer). Tri par
-         *     is_firefight=FALSE. Asymétrie WIN/LOSS sur had_bot_teammate : les WIN
-         *     avec bot coéquipier sont conservés (perf personnelle méritoire malgré
-         *     le handicap), les LOSS avec bot coéquipier sont exclus (responsabilité
-         *     du joueur non isolable d'un déséquilibre 4v3).
+         * Highlight matches -- 15 best + 15 worst (Explorer format)
+         * @description Returns the player's 15 best and 15 worst matches in
+         *     ExplorerMatchesRow format (same columns as the Explorer page). Sorted by
+         *     is_firefight=FALSE. WIN/LOSS asymmetry on had_bot_teammate: WINs
+         *     with a bot teammate are kept (a personal performance that is still meritorious despite
+         *     the handicap), LOSSes with a bot teammate are excluded (the player's
+         *     responsibility can't be isolated from a 4v3 imbalance).
          *
-         *     Query params optionnels filtrent côté SQL :
-         *       - `experience` : "all" / "ranked" / "unranked"
-         *       - `season_ids` : CSV des saisons (ex. "season6,season7")
+         *     Optional query params filter server-side (SQL):
+         *       - `experience`: "all" / "ranked" / "unranked"
+         *       - `season_ids`: CSV of seasons (e.g. "season6,season7")
          *
-         *     La réponse inclut les cascade counts (`available_experience`,
-         *     `available_seasons`) qui respectent l'autre filtre actif (cascade-aware).
+         *     The response includes the cascade counts (`available_experience`,
+         *     `available_seasons`) which respect the other active filter (cascade-aware).
          */
         get: operations["getCareerHighlightMatches"];
         put?: never;
@@ -2688,13 +2688,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Top némésis + Top souffre-douleur
-         * @description Retourne le top 10 némésis (joueurs qui ont le plus tué le joueur
-         *     principal, tri par deaths DESC) et le top 10 souffre-douleur (joueurs
-         *     que le principal a le plus tué, tri par frags DESC). Source :
-         *     `shared.killer_victim_pairs`. Pas de seuil minimum d'interactions.
-         *     Bots exclus. Le ratio frags/deaths est calculé côté backend
-         *     (avec garde div-par-zéro : 0 morts → ratio = float64(frags)).
+         * Top nemesis + top punching bag
+         * @description Returns the top 10 nemesis players (players who have killed the main
+         *     player the most, sorted by deaths DESC) and the top 10 punching-bag players
+         *     (players the main player has killed the most, sorted by frags DESC). Source:
+         *     `shared.killer_victim_pairs`. No minimum interaction threshold.
+         *     Bots excluded. The frags/deaths ratio is computed server-side
+         *     (with a divide-by-zero guard: 0 deaths -> ratio = float64(frags)).
          */
         get: operations["getCareerRivals"];
         put?: never;
@@ -2713,12 +2713,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Joueurs les plus croisés (hors amis)
-         * @description Retourne les 10 joueurs les plus fréquemment croisés au niveau
-         *     carrière, hors amis configurés (`FriendGamertags` settings résolus
-         *     en XUIDs via `v_gamertag_lookup`). Format MatchEncounterRow (mêmes
-         *     8 colonnes que Match View > "Historique de rencontre"). Inclut les
-         *     badges narratifs ally_plus / tough_enemy / ordinal.
+         * Most frequently encountered players (excluding friends)
+         * @description Returns the 10 players most frequently encountered at the
+         *     career level, excluding configured friends (`FriendGamertags` settings resolved
+         *     to XUIDs via `v_gamertag_lookup`). MatchEncounterRow format (same
+         *     8 columns as Match View > "Encounter history"). Includes the
+         *     narrative badges ally_plus / tough_enemy / ordinal.
          */
         get: operations["getCareerTopEncounters"];
         put?: never;
@@ -2738,7 +2738,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Citations (filtres en body) */
+        /** Citations (filters in body) */
         post: operations["postCitations"];
         delete?: never;
         options?: never;
@@ -2755,7 +2755,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Commendations et médailles par catégorie */
+        /** Commendations and medals by category */
         post: operations["postCommendations"];
         delete?: never;
         options?: never;
@@ -2772,7 +2772,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Comparaison joueur vs joueur (12 KPIs) */
+        /** Player vs player comparison (12 KPIs) */
         post: operations["postComparePage"];
         delete?: never;
         options?: never;
@@ -2790,8 +2790,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Requête paginée des matchs Explorer
-         * @description Retourne la liste paginée et filtrée des matchs pour la vue Explorer.
+         * Paginated Explorer matches query
+         * @description Returns the paginated and filtered list of matches for the Explorer view.
          */
         post: operations["queryExplorerMatches"];
         delete?: never;
@@ -2810,8 +2810,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Profil d'encounter avec un joueur cible
-         * @description Retourne le profil d'encounter et les matchs communs avec un joueur cible.
+         * Encounter profile with a target player
+         * @description Returns the encounter profile and shared matches with a target player.
          */
         post: operations["queryExplorerPlayer"];
         delete?: never;
@@ -2827,7 +2827,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Page Accueil */
+        /** Home page */
         get: operations["getHomePage"];
         put?: never;
         post?: never;
@@ -2845,11 +2845,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Tuiles de match de l'Accueil (pages suivantes, favoris)
-         * @description Tuiles de match de l'Accueil. La tête de la liste (30 tuiles) est servie avec `pages/home` ;
-         *     ce endpoint rend la suite de l'historique par curseur (`before` = `next_before` de la page
-         *     précédente, tuiles strictement plus anciennes, ordre instant canonique décroissant puis
-         *     match_id décroissant) et, avec `kind=favorites`, les favoris du joueur en entier.
+         * Home page match tiles (following pages, favorites)
+         * @description Home page match tiles. The head of the list (30 tiles) is served with `pages/home`;
+         *     this endpoint returns the rest of the history by cursor (`before` = the previous
+         *     page's `next_before`, strictly older tiles, in canonical instant descending order then
+         *     match_id descending) and, with `kind=favorites`, the player's entire set of favorites.
          */
         get: operations["getHomeMatches"];
         put?: never;
@@ -2869,7 +2869,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Résoudre le dernier match */
+        /** Resolves the last match */
         post: operations["postLastMatchResolve"];
         delete?: never;
         options?: never;
@@ -2884,7 +2884,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Résumé CSR local du joueur courant */
+        /** Current player's local CSR summary */
         get: operations["getLeaderboardPage"];
         put?: never;
         post?: never;
@@ -2901,7 +2901,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Saisons + playlists disponibles pour les sélecteurs du classement CSR mondial */
+        /** Available seasons + playlists for the global CSR leaderboard selectors */
         get: operations["getLeaderboardCatalog"];
         put?: never;
         post?: never;
@@ -2919,10 +2919,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Export CSV de l'historique
-         * @description Génère un jeton d'export CSV pour l'historique filtré des parties.
-         *     Sprint 49 : aligné sur GET (chi) — l'export utilise les filtres de session,
-         *     pas un body POST.
+         * CSV export of the history
+         * @description Generates a CSV export token for the filtered match history.
+         *     Sprint 49: aligned on GET (chi) -- the export uses the session filters,
+         *     not a POST body.
          */
         get: operations["exportMatchHistory"];
         put?: never;
@@ -2943,13 +2943,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Requête paginée de l'historique des parties
-         * @description Retourne la page paginée de l'historique des parties pour un joueur.
+         * Paginated match history query
+         * @description Returns the paginated page of match history for a player.
          *
-         *     **Invariants :**
-         *     - `table` est une PaginatedResponse avec `items` et `pagination`
-         *     - `export_hint` est optionnel
-         *     - `match_url` est porté par chaque ligne, pas reconstruit côté frontend
+         *     **Invariants:**
+         *     - `table` is a PaginatedResponse with `items` and `pagination`
+         *     - `export_hint` is optional
+         *     - `match_url` is carried by each row, not rebuilt on the frontend
          */
         post: operations["queryMatchHistory"];
         delete?: never;
@@ -2967,7 +2967,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Médailles (catalogue complet + compteur joueur) */
+        /** Medals (full catalog + player counter) */
         post: operations["postMedals"];
         delete?: never;
         options?: never;
@@ -2984,7 +2984,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Galerie médias (filtres en body) */
+        /** Media gallery (filters in body) */
         post: operations["postMediaLibrary"];
         delete?: never;
         options?: never;
@@ -3001,7 +3001,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Hub Communauté > Relations segmenté (filtres en body : expérience, saison/période, playlist/mode, vue solo/escouade) */
+        /** Community Hub > Relations, segmented (filters in body: experience, season/period, playlist/mode, solo/squad view) */
         post: operations["postRelationsPage"];
         delete?: never;
         options?: never;
@@ -3018,7 +3018,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Section Moments & Rivalités (heatmap relation x tranche horaire + cartes revanche), segmentée par les memes filtres en body */
+        /** Moments & Rivalries section (relation x time-of-day heatmap + rematch cards), segmented by the same filters in body */
         post: operations["postRelationsMoments"];
         delete?: never;
         options?: never;
@@ -3033,7 +3033,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Page Season Pass (palmarès) */
+        /** Season Pass page (hall of fame) */
         get: operations["getSeasonPassPage"];
         put?: never;
         post?: never;
@@ -3050,7 +3050,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sessions (Go-only — à réconcilier avec /pages/timeseries FastAPI au Sprint 32) */
+        /** Sessions (Go-only -- to be reconciled with the FastAPI /pages/timeseries in Sprint 32) */
         get: operations["getSessions"];
         put?: never;
         post?: never;
@@ -3069,7 +3069,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Détail d'une session avec suggestion de comparaison */
+        /** Session detail with a comparison suggestion */
         post: operations["postSessionDetailPage"];
         delete?: never;
         options?: never;
@@ -3084,7 +3084,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Escouade (GET legacy — voir aussi POST /pages/teammates) */
+        /** Squad (legacy GET -- see also POST /pages/teammates) */
         get: operations["getSquadPage"];
         put?: never;
         post?: never;
@@ -3101,7 +3101,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Page Squad V2 (multi-coéquipiers, fondations Phase 0) */
+        /** Squad V2 page (multi-teammate, Phase 0 foundations) */
         get: operations["getSquadV2Page"];
         put?: never;
         post?: never;
@@ -3118,7 +3118,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Engagement squad pour la session courante */
+        /** Squad engagement for the current session */
         get: operations["getSquadEngagementSession"];
         put?: never;
         post?: never;
@@ -3137,7 +3137,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Séries temporelles (legacy — voir aussi POST /pages/timeseries) */
+        /** Time series (legacy -- see also POST /pages/timeseries) */
         post: operations["postStatsQuery"];
         delete?: never;
         options?: never;
@@ -3154,7 +3154,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Synthèse globale (filtres en body) */
+        /** Global synthesis (filters in body) */
         post: operations["postSynthesisPage"];
         delete?: never;
         options?: never;
@@ -3171,7 +3171,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Analyse coéquipiers (filtres en body) */
+        /** Teammate analysis (filters in body) */
         post: operations["postTeammatesPage"];
         delete?: never;
         options?: never;
@@ -3187,16 +3187,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Sessions de la composition, sans la page
-         * @description Lecture LÉGÈRE des sessions de la composition (lot perf L4b, 2026-09-23) : les
-         *     champs `composition_sessions` et `latest_composition_session` de
-         *     `POST /pages/teammates`, mêmes valeurs pour la même composition et la même option
-         *     composition exacte, sans calculer la page. La page Escouade s'y ancre sur la
-         *     dernière session de la composition AVANT d'envoyer la requête lourde.
+         * Composition sessions, without the page
+         * @description LIGHTWEIGHT read of the composition's sessions (perf batch L4b, 2026-09-23): the
+         *     `composition_sessions` and `latest_composition_session` fields from
+         *     `POST /pages/teammates`, same values for the same composition and the same exact
+         *     composition option, without computing the page. The Squad page anchors on it for the
+         *     composition's latest session BEFORE sending the heavy request.
          *
-         *     Sans coéquipier : les sessions escouade du joueur principal, dernière session vide.
-         *     Les deux champs sont toujours présents (liste vide, chaîne vide). Un titre sans la
-         *     capability requise répond 503 `capability_not_supported`.
+         *     Without a teammate: the main player's squad sessions, with an empty latest session.
+         *     Both fields are always present (empty list, empty string). A title without the
+         *     required capability responds 503 `capability_not_supported`.
          */
         get: operations["getTeammatesSessions"];
         put?: never;
@@ -3216,7 +3216,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Séries temporelles (filtres en body) */
+        /** Time series (filters in body) */
         post: operations["postTimeseriesPage"];
         delete?: never;
         options?: never;
@@ -3233,7 +3233,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Tendances (vue et type de partie en body) */
+        /** Trends (view and match type in body) */
         post: operations["postTrendsPage"];
         delete?: never;
         options?: never;
@@ -3249,11 +3249,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Pattern Engine v3 — contextes, comportements, leviers calibrés
-         * @description Retourne le rapport Pattern Engine (PLAN_PATTERN_ENGINE_V3) pour le
-         *     joueur : patterns contextuels (by mode/map/squad), patterns comportementaux
-         *     (tilt/fatigue/engagement/plateau/plafond), et leviers calibrés p60
-         *     (top 3 axes d'amélioration). Analyse sur les `n` derniers matchs.
+         * Pattern Engine v3 -- contexts, behaviors, calibrated levers
+         * @description Returns the Pattern Engine report (PLAN_PATTERN_ENGINE_V3) for the
+         *     player: contextual patterns (by mode/map/squad), behavioral patterns
+         *     (tilt/fatigue/engagement/plateau/ceiling), and calibrated p60 levers
+         *     (top 3 improvement axes). Analysis over the last `n` matches.
          */
         get: operations["getPlayerPatterns"];
         put?: never;
@@ -3273,7 +3273,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Désactive le mode pilote automatique Prestige */
+        /** Disables Prestige's automatic pilot mode */
         post: operations["disablePilotMode"];
         delete?: never;
         options?: never;
@@ -3290,7 +3290,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Active le mode pilote automatique Prestige */
+        /** Enables Prestige's automatic pilot mode */
         post: operations["enablePilotMode"];
         delete?: never;
         options?: never;
@@ -3305,10 +3305,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les défis Prestige actifs */
+        /** Lists active Prestige challenges */
         get: operations["listPrestigeChallenges"];
         put?: never;
-        /** Crée un défi Prestige */
+        /** Creates a Prestige challenge */
         post: operations["createPrestigeChallenge"];
         delete?: never;
         options?: never;
@@ -3323,15 +3323,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Détail d'un défi Prestige */
+        /** Detail of a Prestige challenge */
         get: operations["getPrestigeChallenge"];
         put?: never;
         post?: never;
-        /** Abandonne un défi Prestige */
+        /** Abandons a Prestige challenge */
         delete: operations["abandonPrestigeChallenge"];
         options?: never;
         head?: never;
-        /** Met à jour un défi Prestige */
+        /** Updates a Prestige challenge */
         patch: operations["updatePrestigeChallenge"];
         trace?: never;
     };
@@ -3344,7 +3344,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Suggère le prochain défi Prestige */
+        /** Suggests the next Prestige challenge */
         post: operations["suggestNextPrestigeChallenge"];
         delete?: never;
         options?: never;
@@ -3359,7 +3359,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** État Prestige du joueur courant */
+        /** Current player's Prestige state */
         get: operations["getMyPrestige"];
         put?: never;
         post?: never;
@@ -3376,7 +3376,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Profil joueur complet (radar 6 axes, style FK/FD, tier LUSR + 8 composantes, leviers, suggestions) */
+        /** Full player profile (6-axis radar, FK/FD style, LUSR tier + 8 components, levers, suggestions) */
         get: operations["getPlayerProfile"];
         put?: never;
         post?: never;
@@ -3393,7 +3393,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** PB courants + timeline des records battus */
+        /** Current PBs + timeline of broken records */
         get: operations["listProgressionRecords"];
         put?: never;
         post?: never;
@@ -3413,7 +3413,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Abandonne un défi d'escouade */
+        /** Abandons a squad challenge */
         delete: operations["abandonSquadChallenge"];
         options?: never;
         head?: never;
@@ -3429,7 +3429,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Évalue un défi d'escouade */
+        /** Evaluates a squad challenge */
         post: operations["evaluateSquadChallenge"];
         delete?: never;
         options?: never;
@@ -3446,7 +3446,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rejoint un défi d'escouade */
+        /** Joins a squad challenge */
         post: operations["joinSquadChallenge"];
         delete?: never;
         options?: never;
@@ -3461,10 +3461,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les escouades du joueur */
+        /** Lists the player's squads */
         get: operations["listMySquads"];
         put?: never;
-        /** Crée une escouade Prestige */
+        /** Creates a Prestige squad */
         post: operations["createSquad"];
         delete?: never;
         options?: never;
@@ -3482,11 +3482,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Supprime une escouade */
+        /** Deletes a squad */
         delete: operations["deleteSquad"];
         options?: never;
         head?: never;
-        /** Renomme une escouade */
+        /** Renames a squad */
         patch: operations["renameSquad"];
         trace?: never;
     };
@@ -3497,10 +3497,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste les défis d'une escouade */
+        /** Lists a squad's challenges */
         get: operations["listSquadChallenges"];
         put?: never;
-        /** Crée un défi d'escouade */
+        /** Creates a squad challenge */
         post: operations["createSquadChallenge"];
         delete?: never;
         options?: never;
@@ -3517,7 +3517,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rafraîchit le pool de défis d'une escouade */
+        /** Refreshes a squad's challenge pool */
         post: operations["refreshSquadChallengePool"];
         delete?: never;
         options?: never;
@@ -3534,7 +3534,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ajoute un membre à une escouade */
+        /** Adds a member to a squad */
         post: operations["addSquadMember"];
         delete?: never;
         options?: never;
@@ -3552,7 +3552,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Retire un membre d'une escouade */
+        /** Removes a member from a squad */
         delete: operations["removeSquadMember"];
         options?: never;
         head?: never;
@@ -3566,7 +3566,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Orientation stratégique d'une escouade */
+        /** Strategic orientation of a squad */
         get: operations["getSquadOrientation"];
         put?: never;
         post?: never;
@@ -3583,7 +3583,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liste des streaks du joueur (active + historique) */
+        /** List of the player's streaks (active + history) */
         get: operations["listProgressionStreaks"];
         put?: never;
         post?: never;
@@ -3602,7 +3602,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sync delta par joueur */
+        /** Delta sync per player */
         post: operations["postPlayerSync"];
         delete?: never;
         options?: never;
@@ -3617,7 +3617,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Calage du fond d'une carte de l'onglet Tactique */
+        /** Background alignment for a Tactical tab map */
         get: operations["getTacticalMapBackground"];
         put?: never;
         post?: never;
@@ -3635,13 +3635,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Sert l'image du fond d'une carte de l'onglet Tactique
-         * @description Image vue du dessus d'une carte (PNG), cuite hors ligne par `cmd/mapfond-build`.
-         *     C'est la MÊME donnée que le fond du rejeu 2D, résolue par la même cascade, mais
-         *     adressée par `map_id` : la grille des cartes ne connaît pas de match. Son CALAGE
-         *     est servi par `GET .../tactical/{map_id}/background`. Contrairement au rejeu,
-         *     cette route n'est PAS restreinte à la boucle locale : une image de carte est une
-         *     donnée de référence versionnée, pas une trajectoire décodée d'un film.
+         * Serves the background image for a Tactical tab map
+         * @description Top-down image of a map (PNG), baked offline by `cmd/mapfond-build`.
+         *     It is the SAME data as the 2D replay background, resolved by the same cascade, but
+         *     addressed by `map_id`: the map grid has no notion of a match. Its ALIGNMENT
+         *     is served by `GET .../tactical/{map_id}/background`. Unlike the replay,
+         *     this route is NOT restricted to the local loop: a map image is
+         *     versioned reference data, not a trajectory decoded from a film.
          */
         get: operations["getTacticalMapBackgroundImage"];
         put?: never;
@@ -3661,7 +3661,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Detail d'une cellule : les contributions ouvrables par l'appelant, pour ouvrir le rejeu au bon instant */
+        /** Detail of a cell: the contributions the caller can open, to open the replay at the right instant */
         post: operations["getTacticalCellule"];
         delete?: never;
         options?: never;
@@ -3678,7 +3678,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Lecture de placement d'une carte (ou je meurs, ou je tue, ou je gagne, ou je passe mon temps) */
+        /** Placement reading for a map (where I die, where I kill, where I win, where I spend my time) */
         post: operations["getTacticalRaster"];
         delete?: never;
         options?: never;
@@ -3695,7 +3695,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sequence d'une mort : traces de la victime, du tueur et des coequipiers de -8 a +3 s, et etapes du cercle de portee */
+        /** Sequence of a death: traces of the victim, the killer, and teammates from -8 to +3 s, and steps of the range circle */
         post: operations["getTacticalSequence"];
         delete?: never;
         options?: never;
@@ -3712,7 +3712,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cartes jouees, pour la grille d'entree de l'onglet Tactique */
+        /** Maps played, for the Tactical tab's entry grid */
         post: operations["getTacticalMaps"];
         delete?: never;
         options?: never;
@@ -3727,7 +3727,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Suggère des templates de défi Prestige */
+        /** Suggests Prestige challenge templates */
         get: operations["suggestPrestigeTemplates"];
         put?: never;
         post?: never;
@@ -3744,7 +3744,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Présence en jeu des joueurs suivis et des amis */
+        /** In-game presence of tracked players and friends */
         get: operations["getPresence"];
         put?: never;
         post?: never;
@@ -3765,11 +3765,11 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Purger les données d'un titre pour un joueur
-         * @description Retire le couple (joueur, titre) de db_profiles.json et supprime les
-         *     fichiers de données du joueur pour ce titre. Refuse de purger le DERNIER
-         *     titre actif du joueur (409). data_removed=false si les fichiers n'ont pas
-         *     pu être supprimés malgré le retrait du profil (verrou disque résiduel).
+         * Purges a title's data for a player
+         * @description Removes the (player, title) pair from db_profiles.json and deletes the
+         *     player's data files for that title. Refuses to purge the player's LAST
+         *     active title (409). data_removed=false if the files could not
+         *     be deleted despite the profile removal (residual disk lock).
          */
         delete: operations["purgeTitleData"];
         options?: never;
@@ -3791,10 +3791,10 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Activer ou mettre en pause un titre pour un joueur
-         * @description Bascule sync_enabled du couple (joueur, titre) dans db_profiles.json.
-         *     Mettre en pause conserve les données sur disque (réactivable sans re-sync).
-         *     Refuse de mettre en pause le DERNIER titre actif du joueur (409).
+         * Activates or pauses a title for a player
+         * @description Toggles sync_enabled for the (player, title) pair in db_profiles.json.
+         *     Pausing keeps the data on disk (reactivable without a re-sync).
+         *     Refuses to pause the player's LAST active title (409).
          */
         patch: operations["setTitleSync"];
         trace?: never;
@@ -3826,14 +3826,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Mise à jour du contexte de session
-         * @description Met à jour le joueur courant, la locale ou les hints dans la session web.
-         *     N'expose jamais le contenu complet de session.
+         * Session context update
+         * @description Updates the current player, locale, or hints in the web session.
+         *     Never exposes the full session content.
          *
-         *     **Invariants :**
-         *     - `locale` ∈ {fr, en} si fourni
-         *     - `player_slug` doit référencer un slug existant
-         *     - Retourne 404 si le slug est inconnu
+         *     **Invariants:**
+         *     - `locale` is one of {fr, en} if provided
+         *     - `player_slug` must reference an existing slug
+         *     - Returns 404 if the slug is unknown
          */
         post: operations["updateSessionContext"];
         delete?: never;
@@ -3849,14 +3849,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lire la configuration */
+        /** Reads the configuration */
         get: operations["getSettings"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Mettre à jour la configuration */
+        /** Updates the configuration */
         patch: operations["patchSettings"];
         trace?: never;
     };
@@ -3869,7 +3869,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Déclenche un cycle de sauvegarde immédiat */
+        /** Triggers an immediate backup cycle */
         post: operations["postBackupRun"];
         delete?: never;
         options?: never;
@@ -3884,7 +3884,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Statut du scheduler de sauvegarde */
+        /** Backup scheduler status */
         get: operations["getBackupStatus"];
         put?: never;
         post?: never;
@@ -3901,7 +3901,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Etat des sauvegardes et de la memoire (application de bureau) */
+        /** Backup and memory state (desktop application) */
         get: operations["getDataStatus"];
         put?: never;
         post?: never;
@@ -3920,7 +3920,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Lance une sauvegarde en dossier maintenant (application de bureau) */
+        /** Runs a folder backup now (desktop application) */
         post: operations["postDataBackupRun"];
         delete?: never;
         options?: never;
@@ -3935,7 +3935,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Etat vivant de l'integration au poste (application de bureau) */
+        /** Live state of the desktop integration (desktop application) */
         get: operations["getDesktopStatus"];
         put?: never;
         post?: never;
@@ -3952,7 +3952,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Occupation et emplacement de l'archive des films */
+        /** Size and location of the film archive */
         get: operations["getFilmArchive"];
         put?: never;
         post?: never;
@@ -3971,7 +3971,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Réinitialiser l'index médias */
+        /** Resets the media index */
         post: operations["postSettingsMediaResetIndex"];
         delete?: never;
         options?: never;
@@ -3988,7 +3988,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Lance un scan du dossier médias */
+        /** Starts a scan of the media folder */
         post: operations["postSettingsMediaScan"];
         delete?: never;
         options?: never;
@@ -4005,7 +4005,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Recalcule les sessions à partir de la base actuelle */
+        /** Recomputes sessions from the current database */
         post: operations["postSettingsSessionsRecalculate"];
         delete?: never;
         options?: never;
@@ -4023,11 +4023,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Créer un profil joueur
-         * @description Crée (ou met à jour) le couple (joueur, titre) dans db_profiles.json.
-         *     Onboarding multi-titre : appeler une fois par titre choisi, avec son
-         *     title_slug et son initial_max_matches. title_slug du body prime sur le
-         *     titre du contexte (header X-LevelUp-Title).
+         * Creates a player profile
+         * @description Creates (or updates) the (player, title) pair in db_profiles.json.
+         *     Multi-title onboarding: call once per chosen title, with its
+         *     title_slug and its initial_max_matches. The body's title_slug takes priority over the
+         *     context title (X-LevelUp-Title header).
          */
         post: operations["postSetupPlayers"];
         delete?: never;
@@ -4046,10 +4046,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Lancer un smoke test (Go-only — à valider Sprint 31)
-         * @description Endpoint Go uniquement — absent de FastAPI.
-         *     Vérifie la configuration de bout en bout (connexion DB + API Halo).
-         *     Son maintien versus intégration dans `/sync/initial` sera décidé au Sprint 31.
+         * Runs a smoke test (Go-only -- to be validated in Sprint 31)
+         * @description Go-only endpoint -- absent from FastAPI.
+         *     Checks the end-to-end configuration (DB connection + Halo API).
+         *     Whether to keep it versus integrating it into `/sync/initial` will be decided in Sprint 31.
          */
         post: operations["postSetupSmokeTest"];
         delete?: never;
@@ -4067,7 +4067,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sync delta global (tous les joueurs configurés) */
+        /** Global delta sync (all configured players) */
         post: operations["postSyncAll"];
         delete?: never;
         options?: never;
@@ -4085,11 +4085,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Lancer la synchronisation initiale
-         * @description Sync initiale title-aware. title_slug cible la bonne DB (lève l'ambiguïté
-         *     d'un gamertag présent sous plusieurs titres) ; à défaut, le titre du
-         *     contexte. max_matches : 1-2000 ; 0 = défaut du profil (initial_max_matches)
-         *     puis 200.
+         * Starts the initial sync
+         * @description Title-aware initial sync. title_slug targets the right DB (resolves the
+         *     ambiguity of a gamertag present under multiple titles); otherwise, the context
+         *     title is used. max_matches: 1-2000; 0 = the profile's default (initial_max_matches)
+         *     then 200.
          */
         post: operations["postSyncInitial"];
         delete?: never;
@@ -4105,7 +4105,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Capabilities produit déclarées par un titre */
+        /** Product capabilities declared by a title */
         get: operations["getTitleCapabilities"];
         put?: never;
         post?: never;
@@ -4122,7 +4122,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Catalogue des maps d'un titre */
+        /** Catalog of a title's maps */
         get: operations["getTitleCatalogMaps"];
         put?: never;
         post?: never;
@@ -4139,7 +4139,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Catalogue des paires mode/map d'un titre */
+        /** Catalog of a title's mode/map pairs */
         get: operations["getTitleCatalogPairs"];
         put?: never;
         post?: never;
@@ -4156,7 +4156,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Catalogue des playlists d'un titre */
+        /** Catalog of a title's playlists */
         get: operations["getTitleCatalogPlaylists"];
         put?: never;
         post?: never;
@@ -4173,7 +4173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Matrice de features (cascade capabilities) d'un titre */
+        /** Feature matrix (cascade capabilities) of a title */
         get: operations["getTitleFeatureMatrix"];
         put?: never;
         post?: never;
@@ -4190,7 +4190,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Field mappings TOML d'un titre */
+        /** A title's TOML field mappings */
         get: operations["getTitleFieldMappings"];
         put?: never;
         post?: never;
@@ -4207,7 +4207,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Statut d'une tentative d'authentification watcher */
+        /** Status of a watcher auth attempt */
         get: operations["getWatcherAuthStatus"];
         put?: never;
         post?: never;
@@ -4226,7 +4226,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Démarre le flow d'auth watcher */
+        /** Starts the watcher auth flow */
         post: operations["postWatcherAuthStart"];
         delete?: never;
         options?: never;
@@ -4241,7 +4241,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Statut watcher (provider, token expiry, last_seen) */
+        /** Watcher status (provider, token expiry, last_seen) */
         get: operations["getWatcherStatus"];
         put?: never;
         post?: never;
@@ -4264,7 +4264,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Mise à jour des abonnements watcher */
+        /** Watcher subscriptions update */
         patch: operations["patchWatcherSubscriptions"];
         trace?: never;
     };
@@ -4652,7 +4652,7 @@ export interface components {
             };
             databases: components["schemas"]["ResourceDBFile"][] | null;
             /**
-             * @description ok = racine data lisible ; unavailable = racine data introuvable/illisible (RepoRoot mal résolu ou volume non monté).
+             * @description ok = data root readable; unavailable = data root not found/unreadable (RepoRoot misresolved or volume not mounted).
              * @enum {string}
              */
             db_inventory_status: "ok" | "unavailable";
@@ -4784,25 +4784,25 @@ export interface components {
         };
         ApiError: {
             /**
-             * @description Code d'erreur stable (snake_case)
+             * @description Stable error code (snake_case)
              * @example player_not_found
              */
             code: string;
-            /** @description Contexte structuré optionnel (objet ou tableau) */
+            /** @description Optional structured context (object or array) */
             details?: {
                 [key: string]: unknown;
             } | unknown[];
-            /** @description Erreurs de validation par champ (corps de requête) */
+            /** @description Per-field validation errors (request body) */
             field_errors?: components["schemas"]["FieldError"][] | null;
-            /** @description Message humain localisé */
+            /** @description Localized human-readable message */
             message: string;
-            /** @description Vrai si l'appelant peut réessayer (5xx / indisponibilité transitoire) */
+            /** @description True if the caller can retry (5xx / transient unavailability) */
             retryable: boolean;
         };
         AppInfo: {
-            /** @description Dossier des données de l'utilisateur (bases, jetons, archive des films). */
+            /** @description The user's data folder (databases, tokens, film archive). */
             data_root: string;
-            /** @description Version de l'application (celle du serveur). */
+            /** @description Application version (the server's). */
             version: string;
         };
         AppearanceComponentDiagnosis: {
@@ -4918,44 +4918,44 @@ export interface components {
             playlists?: components["schemas"]["LabelValue"][];
         };
         BackupRunResult: {
-            /** @description Durée du cycle en millisecondes */
+            /** @description Cycle duration in milliseconds */
             duration_ms?: number;
-            /** @description Clés des bases exportées */
+            /** @description Keys of the exported databases */
             exported?: string[];
-            /** @description Vrai si aucune DB n'a changé depuis le dernier backup */
+            /** @description True if no DB changed since the last backup */
             skipped: boolean;
-            /** @description ID du snapshot créé (vide si skipped) */
+            /** @description ID of the created snapshot (empty if skipped) */
             snapshot_id?: string;
         };
         BackupStatusResponse: {
-            /** @description Binaire restic trouvé dans le PATH */
+            /** @description Restic binary found in PATH */
             available: boolean;
             config?: {
-                /** @description Intervalle entre cycles (ex. "6h0m0s") */
+                /** @description Interval between cycles (e.g. "6h0m0s") */
                 interval?: string;
                 keep_daily?: number;
                 keep_monthly?: number;
                 keep_weekly?: number;
             };
-            /** @description Backup activé dans app_settings.json */
+            /** @description Backup enabled in app_settings.json */
             enabled: boolean;
-            /** @description Résultats PRAGMA integrity_check par base (clé = DB key, présent après le premier cycle) */
+            /** @description PRAGMA integrity_check results per database (key = DB key, present after the first cycle) */
             integrity_checks?: {
                 [key: string]: components["schemas"]["IntegrityCheckResult"];
             };
             /**
              * Format: date-time
-             * @description Date du dernier backup réussi (absente si jamais sauvegardé)
+             * @description Date of the last successful backup (absent if never backed up)
              */
             last_backup_at?: string;
-            /** @description Durée du dernier cycle en millisecondes */
+            /** @description Last cycle's duration in milliseconds */
             last_duration_ms?: number;
-            /** @description Clés des bases exportées lors du dernier cycle */
+            /** @description Keys of the databases exported during the last cycle */
             last_exported?: string[];
-            /** @description ID du dernier snapshot restic */
+            /** @description ID of the last restic snapshot */
             last_snapshot_id?: string;
         };
-        /** @description Pattern comportemental (tilt/fatigue/...) — schéma libre */
+        /** @description Behavioral pattern (tilt/fatigue/...) -- free-form schema */
         BehavioralPattern: {
             confirmed: boolean;
             evidence: string;
@@ -5140,18 +5140,18 @@ export interface components {
         };
         BootstrapResponse: {
             active_sync_job_id?: string;
-            /** @description Version de l'application et racine des données, pour la fenêtre À propos (chrome de bureau seulement). */
+            /** @description Application version and data root, for the About window (desktop chrome only). */
             app_info?: components["schemas"]["AppInfo"];
             /** @enum {string} */
             auth_mode: "none" | "password" | "xbox";
             /** @enum {string} */
             auth_state: "missing" | "partial" | "ready";
             available_players: components["schemas"]["PlayerSummary"][] | null;
-            /** @description Sprint 44 : titres disponibles (title switcher) : active + coming_soon. */
+            /** @description Sprint 44: available titles (title switcher): active + coming_soon. */
             available_titles: components["schemas"]["TitleSummary"][] | null;
             capabilities: components["schemas"]["CapabilityMap"];
             current_player: components["schemas"]["PlayerSummary"] | null;
-            /** @description Sprint 44 : slug du titre courant de la session. */
+            /** @description Sprint 44: current session's title slug. */
             current_title_slug: string;
             current_username: string | null;
             demo_mode: boolean;
@@ -5165,12 +5165,12 @@ export interface components {
             linked_halo_identity?: components["schemas"]["HaloIdentitySummary"] | null;
             /** @default fr */
             locale: string;
-            /** @description Aucun encodeur H.264 utilisable : le transcodage vidéo des clips est refusé. */
+            /** @description No usable H.264 encoder: clip video transcoding is refused. */
             media_h264_missing?: boolean;
             oauth_code_flow_enabled: boolean;
             /** @enum {string} */
             pool_sharing: "granted" | "declined" | "undecided" | "unavailable";
-            /** @description Sprint 54-B : informations de confidentialité des matchs du joueur actif. */
+            /** @description Sprint 54-B: privacy information for the active player's matches. */
             privacy?: components["schemas"]["MatchPrivacyInfo"] | null;
             reauth_required: boolean;
             /** @enum {string} */
@@ -5179,7 +5179,7 @@ export interface components {
             setup_required: boolean;
             /** @enum {string} */
             setup_state: "no_halo_link" | "halo_linked_no_profile" | "profile_ready_no_sync" | "ready";
-            /** @description Profils de available_players sur lesquels la session peut écrire. */
+            /** @description Profiles from available_players the session can write to. */
             writable_player_slugs: string[] | null;
         };
         BornesMonde: {
@@ -5459,69 +5459,69 @@ export interface components {
             Severity: string;
         };
         CapabilityMap: {
-            /** @description Sauvegarde périodique des données en Parquet vers un dossier choisi, et restauration. */
+            /** @description Periodic backup of the data to Parquet in a chosen folder, with restore. */
             can_backup_to_folder: boolean;
-            /** @description L'instance suit plusieurs comptes : les pages qui les confrontent (classements de la communauté) sont offertes. */
+            /** @description The instance tracks multiple accounts: pages comparing them (community leaderboards) are offered. */
             can_compare_accounts: boolean;
-            /** @description Réglages de l'instance modifiables (figés en démo). */
+            /** @description Instance settings can be edited (frozen in demo). */
             can_edit_settings: boolean;
-            /** @description L'instance livre au joueur connecté ses données pour l'application de bureau. */
+            /** @description The instance delivers the connected player's data to the desktop application. */
             can_export_for_desktop: boolean;
-            /** @description Import des données d'un joueur depuis une instance hébergée (jeton d'export à usage unique). */
+            /** @description Import of a player's data from a hosted instance (single-use export token). */
             can_import_from_site: boolean;
-            /** @description Intégration de la coquille avec le poste : notifications Windows, zone de notification, démarrage avec Windows. */
+            /** @description Shell integration with the machine: Windows notifications, tray icon, start with Windows. */
             can_integrate_shell: boolean;
-            /** @description Plafond mémoire des bases réglable, mémoire du processus affichée. */
+            /** @description Adjustable database memory cap, process memory displayed. */
             can_limit_memory: boolean;
-            /** @description Connexion Microsoft dans le navigateur par défaut, sans code à recopier (application de bureau). */
+            /** @description Microsoft sign-in in the default browser, no code to retype (desktop application). */
             can_login_via_browser: boolean;
             can_manage_instance: boolean;
             can_manage_settings: boolean;
-            /** @description Téléchargement de l'application Windows proposé. */
+            /** @description Windows application download offered. */
             can_offer_windows_download: boolean;
-            /** @description Mise en commun des jetons proposée à l'utilisateur. */
+            /** @description Token pooling offered to the user. */
             can_pool_tokens: boolean;
             can_read_local_data: boolean;
-            /** @description Régénération des rejeux en retard sur la version de l'application, sur demande (file de fond, un film à la fois). */
+            /** @description Regeneration of replays that lag behind the application version, on demand (background queue, one film at a time). */
             can_regenerate_replays: boolean;
-            /** @description Rapport de diagnostic (archive de journaux et d'état, sans secret) à joindre à un signalement. */
+            /** @description Diagnostic report (log and state archive, no secrets) to attach to a bug report. */
             can_report_diagnostic: boolean;
             can_reset_media_index: boolean;
             can_run_sync: boolean;
-            /** @description Tâche planifiée Windows qui rafraîchit les jetons quand l'application est fermée. */
+            /** @description Windows scheduled task that refreshes tokens while the application is closed. */
             can_schedule_refresh: boolean;
             can_self_provision: boolean;
-            /** @description Connexion par le SSO Xbox (mode xbox). */
+            /** @description Sign-in via Xbox SSO (xbox mode). */
             can_sign_in_with_xbox: boolean;
             can_start_initial_sync: boolean;
-            /** @description Mise à jour de l'application par la coquille desktop. */
+            /** @description Application update via the desktop shell. */
             can_update_app: boolean;
-            /** @description Dépôt de captures (refusé en démo). */
+            /** @description Media upload (refused in demo). */
             can_upload_media: boolean;
-            /** @description Comptes et inscriptions (authentification password ou xbox). */
+            /** @description Accounts and sign-up (password or xbox authentication). */
             can_use_accounts: boolean;
-            /** @description Espace d'administration de l'instance. */
+            /** @description Instance administration area. */
             can_use_admin: boolean;
-            /** @description Chrome d'application de bureau : barre latérale, fenêtre À propos, accueil sans image de couverture. */
+            /** @description Desktop application chrome: side bar, About window, home without a cover image. */
             can_use_compact_chrome: boolean;
-            /** @description Relais d'alertes Discord. */
+            /** @description Discord alert relay. */
             can_use_discord: boolean;
-            /** @description Groupes (accès mutuel entre comptes). */
+            /** @description Groups (mutual access between accounts). */
             can_use_groups: boolean;
-            /** @description Codes d'invitation entre comptes et groupes. */
+            /** @description Invite codes between accounts and groups. */
             can_use_invitations: boolean;
             can_use_live_halo: boolean;
-            /** @description Sortie du serveur vers les services tiers (API Halo, Microsoft). */
+            /** @description Server outbound traffic to third-party services (Halo API, Microsoft). */
             can_use_outbound_network: boolean;
-            /** @description Sauvegarde restic des bases. */
+            /** @description Restic database backup. */
             can_use_restic: boolean;
             can_view_media: boolean;
-            /** @description Vue 3D du rejeu, depuis le maillage de carte du cache local (poste de l'utilisateur seulement). */
+            /** @description 3D replay view, from the local cache's map mesh (user's machine only). */
             can_view_replay_3d: boolean;
-            /** @description Détection du jeu en cours (mode jeu : cuisson et tâches lourdes suspendues pendant la partie, synchronisation à sa fermeture). */
+            /** @description Detection of an ongoing game (game mode: baking and heavy tasks suspended during the match, sync on its close). */
             can_watch_game_process: boolean;
             /**
-             * @description Profil de déploiement (affichage et diagnostic ; ne jamais brancher dessus).
+             * @description Deployment profile (display and diagnostic only; never branch on it).
              * @enum {string}
              */
             deployment: "hosted" | "desktop" | "demo" | "dev";
@@ -5539,10 +5539,10 @@ export interface components {
             value: number;
         };
         CareerCSRResponse: {
-            /** @description Saisons proposables dans le menu déroulant (CSR uniquement) */
+            /** @description Seasons offered in the dropdown menu (CSR only) */
             available_seasons: components["schemas"]["CSRSeasonOption"][] | null;
             playlists: components["schemas"]["CareerPlaylistCSR"][] | null;
-            /** @description Saison effectivement retournée (sélectionnée ou courante) */
+            /** @description Season actually returned (selected or current) */
             season_id: string;
         };
         CareerEncounter: {
@@ -5781,7 +5781,7 @@ export interface components {
             modes: string[] | null;
             playlists: string[] | null;
         };
-        /** @description Listes vides = « tout coché » (pas de filtre restrictif) */
+        /** @description Empty lists mean "everything checked" (no restrictive filter) */
         CascadeInput: {
             experience_types?: string[];
             maps?: string[];
@@ -5938,7 +5938,7 @@ export interface components {
             xp_available?: number;
         };
         ChangelogHumaOutputBody: {
-            /** @description Contenu Markdown du changelog */
+            /** @description Markdown content of the changelog */
             content: string;
         };
         ChartPoint2D: {
@@ -6172,7 +6172,7 @@ export interface components {
             present: boolean;
             required: boolean;
         };
-        /** @description Pattern contextuel (mode/map/squad) — schéma libre côté frontend */
+        /** @description Contextual pattern (mode/map/squad) -- free-form schema on the frontend side */
         ContextualPattern: {
             /** Format: double */
             avg_delta_csr?: number;
@@ -6577,56 +6577,56 @@ export interface components {
         DataBackupAttempt: {
             /**
              * Format: date-time
-             * @description Instant du passage.
+             * @description Instant of the pass.
              */
             at: string;
-            /** @description Code fixe de l'échec (nothing_exported, backup_failed). */
+            /** @description Fixed failure code (nothing_exported, backup_failed). */
             error_code?: string;
-            /** @description Le passage a réussi. */
+            /** @description The pass succeeded. */
             ok: boolean;
         };
         DataBackupRunResponse: {
-            /** @description La sauvegarde a été lancée. */
+            /** @description The backup was started. */
             started: boolean;
         };
         DataBackupStatus: {
-            /** @description Un dossier de sauvegarde est choisi. */
+            /** @description A backup folder is chosen. */
             enabled: boolean;
-            /** @description Jeu de sauvegarde complet le plus récent du dossier choisi. */
+            /** @description Most recent complete backup set from the chosen folder. */
             last?: components["schemas"]["DataBackupSummary"];
-            /** @description Dernier passage depuis le démarrage de l'application. */
+            /** @description Last pass since the application started. */
             last_attempt?: components["schemas"]["DataBackupAttempt"];
-            /** @description Une sauvegarde est en cours d'écriture. */
+            /** @description A backup is currently being written. */
             running: boolean;
-            /** @description Le dossier choisi est sur le même volume que les données. */
+            /** @description The chosen folder is on the same volume as the data. */
             same_volume: boolean;
         };
         DataBackupSummary: {
-            /** @description Version de l'application qui a écrit le jeu. */
+            /** @description Version of the application that wrote the set. */
             app_version: string;
             /**
              * Format: int64
-             * @description Taille du jeu, en octets.
+             * @description Size of the set, in bytes.
              */
             bytes: number;
             /**
              * Format: date-time
-             * @description Instant de la sauvegarde.
+             * @description Instant of the backup.
              */
             created_at: string;
             /**
              * Format: int64
-             * @description Nombre de bases du jeu.
+             * @description Number of databases in the set.
              */
             databases: number;
             /**
              * Format: int64
-             * @description Durée de la sauvegarde, en millisecondes.
+             * @description Duration of the backup, in milliseconds.
              */
             duration_ms: number;
-            /** @description Nom du dossier du jeu. */
+            /** @description Name of the set's folder. */
             name: string;
-            /** @description Vrai quand une base est restée occupée ou a échoué : le jeu est incomplet. */
+            /** @description True when a database stayed busy or failed: the set is incomplete. */
             partial: boolean;
         };
         DataIssue: {
@@ -6634,9 +6634,9 @@ export interface components {
             detail?: string;
         };
         DataStatus: {
-            /** @description État de la sauvegarde périodique en Parquet (absent hors de l'application de bureau). */
+            /** @description State of the periodic Parquet backup (absent outside the desktop application). */
             backup?: components["schemas"]["DataBackupStatus"];
-            /** @description Mémoire du processus et plafond effectif des bases (absent hors de l'application de bureau). */
+            /** @description Process memory and effective database cap (absent outside the desktop application). */
             memory?: components["schemas"]["MemoryStatus"];
         };
         DatabaseStatus: {
@@ -6667,21 +6667,21 @@ export interface components {
             sourceRev: string;
         };
         DesktopStatus: {
-            /** @description Le jeu tourne en ce moment : la cuisson des rejeux et les tâches lourdes sont suspendues. */
+            /** @description The game is currently running: replay baking and heavy tasks are suspended. */
             game_running: boolean;
-            /** @description État de la tâche planifiée de rafraîchissement des jetons (absent hors de l'application de bureau). */
+            /** @description State of the scheduled token refresh task (absent outside the desktop application). */
             scheduled_refresh?: components["schemas"]["ScheduledRefreshStatus"];
         };
         DetectionPatchInputBody: {
             note?: string;
             status: string;
         };
-        /** @description Réponse de POST /auth/device-flow/start */
+        /** @description Response of POST /auth/device-flow/start */
         DeviceFlowStartResponse: {
             attempt_id: string;
             /**
              * Format: int64
-             * @description Durée de validité en secondes
+             * @description Validity duration in seconds
              */
             expires_in: number;
             /**
@@ -6689,11 +6689,11 @@ export interface components {
              * @default 5
              */
             poll_interval_seconds: number;
-            /** @description Code à afficher à l'utilisateur */
+            /** @description Code to display to the user */
             user_code: string;
             verification_uri: string;
         };
-        /** @description Réponse de GET /auth/device-flow/{attempt_id} */
+        /** @description Response of GET /auth/device-flow/{attempt_id} */
         DeviceFlowStatusResponse: {
             attempt_id: string;
             error_code?: string;
@@ -6863,15 +6863,15 @@ export interface components {
             xuid: string;
         };
         EngagementScoreResult: {
-            /** @description 2e porte F7 : statut de calibration du titre (validated | provisional). Vide = validated. */
+            /** @description F7 gate 2: title calibration status (validated | provisional). Empty = validated. */
             calibration?: string;
             confidence: string;
             engagement_curve: components["schemas"]["EngagementPoint"][] | null;
             /** Format: double */
             engagement_score: number | null;
-            /** @description Base de l'attendu (modele lobby-anchored v2) : bin | global | cold_start. */
+            /** @description Basis for the expected value (lobby-anchored v2 model): bin | global | cold_start. */
             expected_basis: string;
-            /** @description Libelle du bin d'intensite quand expected_basis=bin (calme|standard|chaotique). Vide sinon. */
+            /** @description Intensity bin label when expected_basis=bin (calme|standard|chaotique). Empty otherwise. */
             intensity_bin: string;
             /** Format: double */
             match_intensity: number;
@@ -6887,7 +6887,7 @@ export interface components {
             player_activity: number;
             /** Format: double */
             residual_brut: number;
-            /** @description 1re porte F7 : suffisance du vecteur de signaux (full | partial). Vide si non calcule. */
+            /** @description F7 gate 1: sufficiency of the signal vector (full | partial). Empty if not computed. */
             signal_basis?: string;
         };
         EngagementSnapshot: {
@@ -7301,7 +7301,7 @@ export interface components {
             expected_win_prob?: number;
             /** @default Non classé */
             experience_type_label: string;
-            /** @description Un coéquipier était un bot. Exposé sur les best_matches de la carrière (les LOSS avec bot sont exclus côté backend). */
+            /** @description A teammate was a bot. Exposed on career best_matches (LOSSes with a bot are excluded server-side). */
             had_bot_teammate?: boolean;
             has_replay?: boolean;
             is_overtime?: boolean;
@@ -7528,11 +7528,11 @@ export interface components {
             status: string;
         };
         FieldError: {
-            /** @description Code machine optionnel de l'erreur de champ */
+            /** @description Optional machine code for the field error */
             code?: string;
-            /** @description Nom du champ en erreur */
+            /** @description Name of the field in error */
             field: string;
-            /** @description Message d'erreur lisible pour ce champ */
+            /** @description Human-readable error message for this field */
             message: string;
         };
         FileTokenResponse: {
@@ -7545,30 +7545,30 @@ export interface components {
             file_token: string;
         };
         FilmArchiveStatus: {
-            /** @description Réglage « archiver les films ». */
+            /** @description "Archive films" setting. */
             archive_films: boolean;
             /**
              * Format: int64
-             * @description Taille occupée par l'archive, en octets.
+             * @description Size occupied by the archive, in bytes.
              */
             bytes: number;
-            /** @description Valeur enregistrée du réglage ; vide = emplacement par défaut. */
+            /** @description Saved setting value; empty = default location. */
             configured_dir: string;
-            /** @description Dossier effectif de l'archive des films. */
+            /** @description Effective folder for the film archive. */
             dir: string;
             /**
              * Format: int64
-             * @description Nombre de films dans l'archive.
+             * @description Number of films in the archive.
              */
             films: number;
             /**
              * Format: date-time
-             * @description Instant de la mesure (mise en cache).
+             * @description Instant of the measurement (cached).
              */
             measured_at: string;
-            /** @description Vrai si la mesure a été interrompue : les totaux sont des minorants. */
+            /** @description True if the measurement was interrupted: the totals are lower bounds. */
             partial: boolean;
-            /** @description Vrai quand le dossier enregistré diffère du dossier effectif (redémarrage nécessaire). */
+            /** @description True when the saved folder differs from the effective folder (restart required). */
             restart_required: boolean;
             volume?: components["schemas"]["FilmArchiveVolume"];
         };
@@ -8285,12 +8285,12 @@ export interface components {
         IntegrityCheckResult: {
             /**
              * Format: date-time
-             * @description Horodatage UTC de la vérification
+             * @description UTC timestamp of the check
              */
             checked_at?: string;
-            /** @description Premier message d'erreur (absent si ok ou pragma non supporté) */
+            /** @description First error message (absent if ok or pragma not supported) */
             detail?: string;
-            /** @description Vrai si PRAGMA integrity_check a retourné "ok" */
+            /** @description True if PRAGMA integrity_check returned "ok" */
             ok?: boolean;
         };
         IntensityHeatmapPoint: {
@@ -8695,7 +8695,7 @@ export interface components {
             /** Format: int64 */
             threshold_pp: number;
         };
-        /** @description Levier calibré (axe d'amélioration p60) */
+        /** @description Calibrated lever (p60 improvement axis) */
         Lever: {
             axis: string;
             context_key?: string;
@@ -9522,11 +9522,11 @@ export interface components {
             media: components["schemas"]["MatchMediaTab"];
             /**
              * Format: int64
-             * @description Temps réglementaire en secondes de la variante du match, lu dans la table du titre ; absent quand la variante n'y figure pas (pas de limite connue, jamais de défaut).
+             * @description Regulation time in seconds for the match variant, read from the title's table; absent when the variant is not listed there (no known limit, never a default).
              */
             regulation_seconds?: number;
             scoreboard: components["schemas"]["MatchScoreboardRow"][] | null;
-            /** @description Une lecture a échoué côté serveur : contexte transitoire, à redemander (jamais conservé en cache). */
+            /** @description A read failed server-side: transient context, retry on request (never cached). */
             source_unavailable: boolean;
         };
         MatchRosterRow: {
@@ -9548,7 +9548,7 @@ export interface components {
             team_side?: string;
             xuid: string;
         };
-        /** @description Stats objectifs par joueur (CTF/Zones/Oddball/Stockpile/Extraction/VIP/Assaut) — blocs mutuellement exclusifs par mode, seuls les champs du mode joué sont renseignés. */
+        /** @description Per-player objective stats (CTF/Zones/Oddball/Stockpile/Extraction/VIP/Assault) -- blocks are mutually exclusive by mode, only the fields for the played mode are populated. */
         MatchScoreboardObjective: {
             /** Format: int64 */
             bomb_arms?: number;
@@ -9875,7 +9875,7 @@ export interface components {
             is_partial?: boolean;
             lives_near_teammate?: components["schemas"]["MatchLivesNearTeammate"];
             media_tab: components["schemas"]["MatchMediaTab"];
-            /** @description <source>_empty : lecture réussie sans donnée ; *_unavailable : lecture en échec (vue transitoire, jamais conservée). */
+            /** @description <source>_empty: successful read with no data; *_unavailable: failed read (transient view, never cached). */
             partial_reasons?: string[] | null;
             privacy_warning?: components["schemas"]["MatchPrivacyWarning"];
             radar?: unknown[] | null;
@@ -10120,16 +10120,16 @@ export interface components {
             h264_encoder_missing: boolean;
         };
         MemoryStatus: {
-            /** @description Plafond mémoire effectivement appliqué à chaque base (par exemple 4096MiB). */
+            /** @description Memory cap actually applied to each database (e.g. 4096MiB). */
             effective_limit: string;
             /**
              * Format: int64
-             * @description Plafond réglé pour chaque base, en Mo (0 = valeur par défaut du serveur).
+             * @description Cap set for each database, in MB (0 = server default value).
              */
             limit_mb: number;
             /**
              * Format: int64
-             * @description Mémoire résidente du processus, en Mo (0 quand la mesure est indisponible).
+             * @description Resident memory of the process, in MB (0 when the measurement is unavailable).
              */
             rss_mb: number;
         };
@@ -10392,7 +10392,7 @@ export interface components {
             timeMs: number;
             xuid: string;
         };
-        /** @description Cumul (SUM) des stats objectifs (CTF/Zones/Oddball) d'un joueur sur un ensemble de matchs. Champs zéro omis. */
+        /** @description Sum (SUM) of a player's objective stats (CTF/Zones/Oddball) over a set of matches. Zero fields omitted. */
         ObjectiveAggregate: {
             /** Format: int64 */
             flag_captures?: number;
@@ -10621,7 +10621,7 @@ export interface components {
             min_matches_for_signal: number;
             /**
              * Format: int64
-             * @description Taille effective de la fenêtre analysée
+             * @description Effective size of the analyzed window
              */
             window_size: number;
         };
@@ -10882,18 +10882,18 @@ export interface components {
             /** Format: int64 */
             sprite_width?: number;
         };
-        /** @description Réglage par joueur du rôle des pistes audio de ses médias. mode=auto : analyse acoustique automatique à l'ingestion (NNLS). mode=manual : rôles déclarés (track_roles, indexé par piste audio source dans l'ordre ffprobe) — l'analyse est court-circuitée. */
+        /** @description Per-player setting for the role of their media's audio tracks. mode=auto: automatic acoustic analysis on ingestion (NNLS). mode=manual: declared roles (track_roles, indexed by source audio track in ffprobe order) -- the analysis is short-circuited. */
         PlayerMediaAudioConfig: {
             /**
-             * @description Mode de résolution du rôle des pistes audio.
+             * @description Resolution mode for the audio track role.
              * @enum {string}
              */
             mode: "auto" | "manual";
-            /** @description Rôle de chaque piste audio source. Requis et non vide en mode manuel. */
+            /** @description Role of each source audio track. Required and non-empty in manual mode. */
             track_roles?: ("game" | "voice" | "other")[] | null;
             /**
              * Format: date-time
-             * @description Horodatage serveur de la dernière écriture (ignoré en entrée).
+             * @description Server timestamp of the last write (ignored on input).
              */
             updated_at: string;
         };
@@ -11118,7 +11118,7 @@ export interface components {
         PresenceSnapshot: {
             /**
              * Format: int64
-             * @description Amis en jeu : joueurs visibles du titre courant (même périmètre que players), non possédés par l'utilisateur, en jeu sur l'un des titres suivis.
+             * @description Friends in game: players visible in the current title (same scope as players), not owned by the user, in game on one of the tracked titles.
              */
             friends_in_game: number;
             players: components["schemas"]["PlayerPresence"][] | null;
@@ -11632,10 +11632,10 @@ export interface components {
             total: number;
         };
         ScheduledRefreshStatus: {
-            /** @description Code de l'erreur quand l'état est error. */
+            /** @description Error code when the state is error. */
             error_code?: string;
             /**
-             * @description Tâche présente, absente, en erreur, ou pas encore vérifiée.
+             * @description Task present, absent, in error, or not yet checked.
              * @enum {string}
              */
             state: "present" | "absent" | "error" | "unknown";
@@ -12115,7 +12115,7 @@ export interface components {
             solo_labels: string[] | null;
             squad_labels: string[] | null;
         };
-        /** @description SessionPageResponse — session courante, matchs détaillés, suggestion et éventuelle comparaison */
+        /** @description SessionPageResponse -- current session, detailed matches, suggestion, and optional comparison */
         SessionPageResponse: {
             available_sessions: string[] | null;
             compare_coordination?: components["schemas"]["CoordinationBlock"];
@@ -12163,7 +12163,7 @@ export interface components {
         };
         SessionsInput: {
             /**
-             * @description Invariant: toujours 120 dans le code actuel.
+             * @description Invariant: always 120 in the current code.
              * @default 120
              */
             gap_minutes: number;
@@ -12172,7 +12172,7 @@ export interface components {
             picked_solo_session_label?: string | null;
             picked_squad_session_label?: string | null;
         };
-        /** @description TODO Sprint 32 : aligner avec TimeseriesPageResponse FastAPI */
+        /** @description TODO Sprint 32: align with the FastAPI TimeseriesPageResponse */
         SessionsResponse: {
             assignments: components["schemas"]["SessionAssignment"][] | null;
             bucket_info: components["schemas"]["BucketInfo"];
@@ -12200,7 +12200,7 @@ export interface components {
             show_records: boolean;
             user_timezone: string;
         };
-        /** @description Configuration de l'application (GET/PATCH /settings) */
+        /** @description Application configuration (GET/PATCH /settings) */
         SettingsResponse: {
             /** @enum {string} */
             discord_lang?: "fr" | "en";
@@ -12212,14 +12212,14 @@ export interface components {
             /** @enum {string} */
             lang: "fr" | "en";
             media_captures_base_dir?: string;
-            /** @description Supprimer le fichier source (.mkv/.avi…) après un transcodage HLS réussi. GET renvoie la valeur effective résolue (env > réglage > défaut prod). PATCH persiste le réglage (omis = auto). */
+            /** @description Delete the source file (.mkv/.avi...) after a successful HLS transcode. GET returns the effective resolved value (env > setting > prod default). PATCH persists the setting (omitted = auto). */
             media_delete_source_after_transcode?: boolean;
             media_tolerance_minutes?: number;
             media_watcher_debounce_seconds?: number;
             media_watcher_enabled?: boolean;
             normalize_mode_labels?: boolean;
             refresh_clears_caches?: boolean;
-            /** @description Affichage du système Objectifs/Prestige (section Accueil + nav L1). */
+            /** @description Display of the Objectives/Prestige system (Home section + L1 nav). */
             show_progression?: boolean;
             show_records?: boolean;
             spnkr_auto_sync_enabled?: boolean;
@@ -13520,32 +13520,32 @@ export interface components {
         TacticalCelluleAdresse: {
             /**
              * Format: int64
-             * @description Colonne de la cellule, ancree sur l'origine du monde (comme CelluleTactique.col).
+             * @description Cell column, anchored on the world origin (same as CelluleTactique.col).
              */
             col: number;
             /**
              * Format: int64
-             * @description Ligne de la cellule, ancree sur l'origine du monde (comme CelluleTactique.lig).
+             * @description Cell row, anchored on the world origin (same as CelluleTactique.lig).
              */
             lig: number;
             /**
              * Format: double
-             * @description Pas de la grille sur laquelle (col, lig) est adressee, en metres — celui publie par la lecture agregee (TacticalRaster.pas_m). Absent ou <= 0 : pas par defaut (0,5 m).
+             * @description Grid step on which (col, lig) is addressed, in meters -- the one published by the aggregated read (TacticalRaster.pas_m). Absent or <= 0: default step (0.5 m).
              */
             pas_m?: number;
         };
         TacticalCelluleBody: {
-            /** @description La cellule dont on demande le detail (col, lig). */
+            /** @description The cell whose detail is requested (col, lig). */
             cellule: components["schemas"]["TacticalCelluleAdresse"];
-            /** @description XUIDs de la composition choisie (0 a 3). Restreint aux matchs ou TOUS y etaient dans mon equipe, et definit l'axe « escouade ». */
+            /** @description XUIDs of the chosen composition (0 to 3). Restricts to matches where ALL of them were on my team, and defines the "squad" axis. */
             coequipiers?: string[] | null;
-            /** @description Perimetre : les match_id retenus par la barre de filtres (resolus via /filters/match-ids). Liste vide ou absente = aucun match. */
+            /** @description Scope: the match_ids retained by the filter bar (resolved via /filters/match-ids). Empty or absent list = no match. */
             match_ids?: string[] | null;
-            /** @description Lecture : morts | kills | solde | gagne | temps | routes | isole. Defaut : morts. */
+            /** @description Reading: morts | kills | solde | gagne | temps | routes | isole. Default: morts. */
             question?: string;
-            /** @description Axe : moi | escouade | adv. Defaut : moi. */
+            /** @description Axis: moi | escouade | adv. Default: moi. */
             qui?: string;
-            /** @description Identifiant d'une grappe de reapparition : restreint l'univers aux matchs dont MA premiere vie en part. */
+            /** @description Identifier of a spawn cluster: restricts the universe to matches where MY first life is part of it. */
             spawn?: string;
         };
         TacticalCelluleReponse: {
@@ -13608,7 +13608,7 @@ export interface components {
         };
         TacticalMapCard: {
             bornes?: components["schemas"]["BornesMonde"];
-            /** @description Calage du fond fige de la carte (metres par pixel, origine monde, taille de l'image). Absent : pas de fond fige pour cette carte. */
+            /** @description Alignment of the map's frozen background (meters per pixel, world origin, image size). Absent: no frozen background for this map. */
             calage_fond?: components["schemas"]["MapBackgroundCalibration"];
             cellules?: components["schemas"]["CelluleTactique"][] | null;
             /** Format: int64 */
@@ -13627,9 +13627,9 @@ export interface components {
             victoires: number;
         };
         TacticalMapsBody: {
-            /** @description XUIDs de la composition choisie (0 a 3). Restreint aux matchs ou TOUS y etaient dans mon equipe. */
+            /** @description XUIDs of the chosen composition (0 to 3). Restricts to matches where ALL of them were on my team. */
             coequipiers?: string[] | null;
-            /** @description Perimetre : les match_id retenus par la barre de filtres (resolus via /filters/match-ids). Liste vide ou absente = aucun match. */
+            /** @description Scope: the match_ids retained by the filter bar (resolved via /filters/match-ids). Empty or absent list = no match. */
             match_ids?: string[] | null;
         };
         TacticalMapsPage: {
@@ -13677,15 +13677,15 @@ export interface components {
             zones?: components["schemas"]["CalloutZone"][] | null;
         };
         TacticalRasterBody: {
-            /** @description XUIDs de la composition choisie (0 a 3). Restreint aux matchs ou TOUS y etaient dans mon equipe, et definit l'axe « escouade ». */
+            /** @description XUIDs of the chosen composition (0 to 3). Restricts to matches where ALL of them were on my team, and defines the "squad" axis. */
             coequipiers?: string[] | null;
-            /** @description Perimetre : les match_id retenus par la barre de filtres (resolus via /filters/match-ids). Liste vide ou absente = aucun match. */
+            /** @description Scope: the match_ids retained by the filter bar (resolved via /filters/match-ids). Empty or absent list = no match. */
             match_ids?: string[] | null;
-            /** @description Lecture : morts | kills | solde | gagne | temps | routes | isole. Defaut : morts. « temps »/« routes » exigent film.replay_artifact, « isole » film.kill_positions. */
+            /** @description Reading: morts | kills | solde | gagne | temps | routes | isole. Default: morts. "temps"/"routes" require film.replay_artifact, "isole" requires film.kill_positions. */
             question?: string;
-            /** @description Axe : moi | escouade | adv. Defaut : moi. « escouade » exige des coequipiers. */
+            /** @description Axis: moi | escouade | adv. Default: moi. "escouade" requires teammates. */
             qui?: string;
-            /** @description Identifiant d'une grappe de reapparition (champ grappes[].id) : restreint l'univers aux matchs dont MA premiere vie en part. Vide = aucune restriction. */
+            /** @description Identifier of a spawn cluster (grappes[].id field): restricts the universe to matches where MY first life is part of it. Empty = no restriction. */
             spawn?: string;
         };
         TacticalSequence: {
@@ -13706,14 +13706,14 @@ export interface components {
             xuid?: string;
         };
         TacticalSequenceBody: {
-            /** @description Le match de la mort. */
+            /** @description The match of the death. */
             match_id: string;
             /**
              * Format: int64
-             * @description L'instant de la mort sur l'horloge du MATCH (TacticalContribution.instant_ms).
+             * @description The instant of the death on the MATCH clock (TacticalContribution.instant_ms).
              */
             time_ms: number;
-            /** @description La victime (xuid decimal) — celle de la contribution de face « mort ». */
+            /** @description The victim (decimal xuid) -- the one from the "death"-side contribution. */
             victim_xuid: string;
         };
         TacticalSequenceEtape: {
@@ -13871,14 +13871,14 @@ export interface components {
             weapon_accuracy?: components["schemas"]["SquadWeaponAccuracy"];
             weapon_tools?: components["schemas"]["SquadWeaponTools"];
         };
-        /** @description Corps de POST /pages/teammates (handler RawBody : le schéma est documenté ici, cf. domain.TeammatesQueryRequest). */
+        /** @description Body of POST /pages/teammates (RawBody handler: the schema is documented here, cf. domain.TeammatesQueryRequest). */
         TeammatesQueryRequest: {
             /**
-             * @description Option « composition exacte » : n'inclut que les matchs où aucun autre coéquipier connu n'était sur l'équipe du joueur principal. Par défaut (false), la population est « matchs commencés ensemble » = intersection du roster sélectionné.
+             * @description "Exact composition" option: only includes matches where no other known teammate was on the main player's team. By default (false), the population is "matches started together" = intersection of the selected roster.
              * @default false
              */
             filter_exact_composition: boolean;
-            /** @description Contexte de filtre envoyé par le client — tous les champs optionnels. */
+            /** @description Filter context sent by the client -- all fields optional. */
             filters?: {
                 cascade?: {
                     experience_types?: string[];
@@ -14129,11 +14129,11 @@ export interface components {
             icon_url?: string;
             is_default: boolean;
             name: string;
-            /** @description false si l'API du titre ne fournit pas damage_taken (Halo 5) : le front neutralise la Résistance défensive (N/A) au lieu d'afficher 0. */
+            /** @description false if the title's API does not provide damage_taken (Halo 5): the frontend neutralizes Defensive Resistance (N/A) instead of showing 0. */
             provides_damage_taken: boolean;
-            /** @description true si le titre fournit la folie meurtrière max par match (native ou calculée via events horodatés). Front masque la série si false. */
+            /** @description true if the title provides max killing spree per match (native or computed via timestamped events). Frontend hides the stat if false. */
             provides_max_killing_spree: boolean;
-            /** @description false si l'API du titre ne fournit pas de MMR d'équipe/adverse par match (Halo 5) : le front masque la colonne MMR au lieu d'afficher 0. */
+            /** @description false if the title's API does not provide per-match team/opponent MMR (Halo 5): the frontend hides the MMR column instead of showing 0. */
             provides_team_mmr: boolean;
             slug: string;
             /** @enum {string} */
@@ -14999,7 +14999,7 @@ export interface components {
         };
     };
     responses: {
-        /** @description Requête invalide */
+        /** @description Invalid request */
         BadRequest: {
             headers: {
                 [name: string]: unknown;
@@ -15016,9 +15016,9 @@ export interface components {
             };
         };
         /**
-         * @description Requête abandonnée par le client avant la réponse (contexte annulé : onglet fermé,
-         *     requête remplacée). Convention nginx 499 : aucun client ne lit cette réponse, le
-         *     statut sert au journal d'accès et aux compteurs (classe 4xx, jamais 5xx).
+         * @description Request abandoned by the client before the response (canceled context: tab closed,
+         *     request superseded). nginx 499 convention: no client reads this response, the
+         *     status is used for access logging and counters (4xx class, never 5xx).
          */
         ClientClosed: {
             headers: {
@@ -15035,7 +15035,7 @@ export interface components {
                 "application/json": components["schemas"]["ApiError"];
             };
         };
-        /** @description Conflit avec l'état courant de la ressource */
+        /** @description Conflict with the resource's current state */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -15052,12 +15052,12 @@ export interface components {
             };
         };
         /**
-         * @description Base momentanément occupée (verrou d'écriture, ou bascule RO/RW du provider
-         *     partagé pendant une synchronisation) : transitoire, réessayer après `Retry-After`.
+         * @description Database momentarily busy (write lock, or RO/RW toggle of the
+         *     shared provider during a sync): transient, retry after `Retry-After`.
          */
         DbBusy: {
             headers: {
-                /** @description Délai conseillé avant un nouvel essai, en secondes */
+                /** @description Recommended delay before a new attempt, in seconds */
                 "Retry-After"?: number;
                 [name: string]: unknown;
             };
@@ -15072,7 +15072,7 @@ export interface components {
                 "application/json": components["schemas"]["ApiError"];
             };
         };
-        /** @description Erreur interne */
+        /** @description Internal error */
         InternalError: {
             headers: {
                 [name: string]: unknown;
@@ -15088,7 +15088,7 @@ export interface components {
                 "application/json": components["schemas"]["ApiError"];
             };
         };
-        /** @description Ressource introuvable */
+        /** @description Resource not found */
         NotFound: {
             headers: {
                 [name: string]: unknown;
@@ -15104,7 +15104,7 @@ export interface components {
                 "application/json": components["schemas"]["ApiError"];
             };
         };
-        /** @description Authentification requise */
+        /** @description Authentication required */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
@@ -15122,7 +15122,7 @@ export interface components {
         };
     };
     parameters: {
-        /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+        /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
         PlayerSlug: string;
     };
     requestBodies: never;
@@ -15136,14 +15136,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Diag pipeline progression V2 après backfill */
+            /** @description Diag V2 progression pipeline after backfill */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15258,7 +15258,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -15291,14 +15291,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Agrégats télémétrie Prestige par origine */
+            /** @description Prestige telemetry aggregates by origin */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15324,14 +15324,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description État pipeline progression V2 */
+            /** @description V2 progression pipeline state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15361,7 +15361,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Job créé (suivre via GET /jobs/{job_id}) */
+            /** @description Job created (track via GET /jobs/{job_id}) */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -15370,7 +15370,7 @@ export interface operations {
                     "application/json": components["schemas"]["AsyncJobStatus"];
                 };
             };
-            /** @description Un cycle forcé est déjà en vol (job_id en details) */
+            /** @description A forced cycle is already in flight (job_id in details) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15415,7 +15415,7 @@ export interface operations {
                     "application/json": components["schemas"]["CatalogRefreshResult"];
                 };
             };
-            /** @description Refresh déjà en cours */
+            /** @description Refresh already in progress */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15451,7 +15451,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Job créé (suivre via GET /jobs/{job_id}) */
+            /** @description Job created (track via GET /jobs/{job_id}) */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -15460,14 +15460,14 @@ export interface operations {
                     "application/json": components["schemas"]["AsyncJobStatus"];
                 };
             };
-            /** @description Drain déjà en cours pour ce titre (job_id en details) */
+            /** @description Drain already in progress for this title (job_id in details) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Drain indisponible (jobs non câblés) */
+            /** @description Drain unavailable (jobs not wired up) */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15497,15 +15497,15 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Slug du joueur à faire converger */
+                    /** @description Slug of the player to converge */
                     player_slug: string;
-                    /** @description Slug du titre (défaut = titre par défaut) */
+                    /** @description Title slug (default = default title) */
                     title_slug?: string;
                 };
             };
         };
         responses: {
-            /** @description Job créé (suivre via GET /jobs/{job_id}) */
+            /** @description Job created (track via GET /jobs/{job_id}) */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -15514,14 +15514,14 @@ export interface operations {
                     "application/json": components["schemas"]["AsyncJobStatus"];
                 };
             };
-            /** @description player_slug requis */
+            /** @description player_slug required */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Convergence déjà en cours pour ce joueur (job_id en details) */
+            /** @description Convergence already in progress for this player (job_id in details) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15564,7 +15564,7 @@ export interface operations {
                     "application/json": components["schemas"]["MonitoringDataHealth"];
                 };
             };
-            /** @description Health scheduler non câblé */
+            /** @description Health scheduler not wired up */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15585,7 +15585,7 @@ export interface operations {
     postAdminActionInitialSyncRun: {
         parameters: {
             query?: {
-                /** @description Titre cible (fallback du title_slug du corps, sinon titre par défaut). */
+                /** @description Target title (falls back to the body's title_slug, otherwise the default title). */
                 title?: string;
             };
             header?: never;
@@ -15595,17 +15595,17 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Plafond de matchs (1..2000) ; 0/absent → défaut profil (initial_max_matches) puis 200. */
+                    /** @description Match cap (1..2000); 0/absent -> profile default (initial_max_matches) then 200. */
                     max_matches?: number;
-                    /** @description Slug (ou gamertag) du joueur suivi à re-importer. */
+                    /** @description Slug (or gamertag) of the tracked player to re-import. */
                     player_slug: string;
-                    /** @description Titre cible explicite (multi-titre) ; vide → paramètre title puis titre par défaut. */
+                    /** @description Explicit target title (multi-title); empty -> title parameter then default title. */
                     title_slug?: string;
                 };
             };
         };
         responses: {
-            /** @description Job créé (suivre via GET /jobs/{job_id}) */
+            /** @description Job created (track via GET /jobs/{job_id}) */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -15614,14 +15614,14 @@ export interface operations {
                     "application/json": components["schemas"]["AsyncJobStatus"];
                 };
             };
-            /** @description player_slug requis */
+            /** @description player_slug required */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Synchronisation initiale déjà en cours pour ce joueur (job_id en details) */
+            /** @description Initial sync already in progress for this player (job_id in details) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15655,7 +15655,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Journal des actions globales */
+            /** @description Global actions journal */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -15687,7 +15687,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Compteurs de matchs clearés par catégorie (ou détectés en dry-run) */
+            /** @description Match counters cleared by category (or detected in dry-run) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15696,14 +15696,14 @@ export interface operations {
                     "application/json": components["schemas"]["LyingBitsResetResult"];
                 };
             };
-            /** @description Reset déjà en cours */
+            /** @description Reset already in progress */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Writer shared occupé ou shared absente */
+            /** @description Shared writer busy or shared provider absent */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15741,14 +15741,14 @@ export interface operations {
                     "application/json": components["schemas"]["RegistryNamesBackfillResult"];
                 };
             };
-            /** @description Backfill déjà en cours */
+            /** @description Backfill already in progress */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Writer shared occupé ou metadata absente */
+            /** @description Shared writer busy or metadata absent */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15839,7 +15839,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description created | updated + langues écrites */
+            /** @description created | updated + languages written */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15848,7 +15848,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResolveResult"];
                 };
             };
-            /** @description Entrées invalides */
+            /** @description Invalid entries */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15877,7 +15877,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description created | updated + clé normalisée écrite */
+            /** @description created | updated + normalized key written */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15886,7 +15886,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResolveResult"];
                 };
             };
-            /** @description Entrées invalides */
+            /** @description Invalid entries */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -15920,7 +15920,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Compteurs de contention (swaps, durées, lectures rejetées en 503) */
+            /** @description Contention counters (swaps, durations, reads rejected with 503) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15945,7 +15945,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur suivi (db_profiles.json). */
+                /** @description Slug of the tracked player (db_profiles.json). */
                 player_slug: string;
             };
             cookie?: never;
@@ -15961,7 +15961,7 @@ export interface operations {
                     "application/json": components["schemas"]["AppearanceDiagnosisResponse"];
                 };
             };
-            /** @description Joueur suivi introuvable */
+            /** @description Tracked player not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16048,7 +16048,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rapports d'invariants par joueur */
+            /** @description Invariant reports per player */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16077,7 +16077,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des invitations */
+            /** @description List of invites */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16106,7 +16106,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Invitation créée */
+            /** @description Invite created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -16137,7 +16137,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Invitation supprimée */
+            /** @description Invite deleted */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -16197,7 +16197,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Backlog de convergence par joueur (compteurs plafonnés à l'horizon) */
+            /** @description Convergence backlog per player (counters capped at the horizon) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16226,7 +16226,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statut des crons + liveness des features */
+            /** @description Cron statuses + feature liveness */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16250,7 +16250,7 @@ export interface operations {
         parameters: {
             query?: {
                 title?: string;
-                /** @description Locale cible du compteur untranslated_modes (défaut fr). */
+                /** @description Target locale for the untranslated_modes counter (default fr). */
                 locale?: string;
             };
             header?: never;
@@ -16259,7 +16259,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Compteurs qualité données */
+            /** @description Data quality counters */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -16285,10 +16285,10 @@ export interface operations {
             query: {
                 title?: string;
                 kind: "raw_uuids" | "untranslated_modes" | "orphan_playlists" | "orphan_xuids";
-                /** @description Locale cible des modes sans traduction (défaut fr). */
+                /** @description Target locale for untranslated modes (default fr). */
                 locale?: string;
                 limit?: string;
-                /** @description Décalage de pagination serveur (défaut 0, rétrocompatible). */
+                /** @description Server pagination offset (default 0, backward-compatible). */
                 offset?: string;
             };
             header?: never;
@@ -16297,7 +16297,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Fenêtre paginée [offset, offset+limit) + total (avant fenêtrage) */
+            /** @description Paginated window [offset, offset+limit) + total (before windowing) */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -16307,7 +16307,7 @@ export interface operations {
                     "application/json": components["schemas"]["AdminDataQualityIssues"];
                 };
             };
-            /** @description kind invalide */
+            /** @description Invalid kind */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16340,7 +16340,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Détections triées par last_seen décroissant + open_count */
+            /** @description Detections sorted by descending last_seen + open_count */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16375,7 +16375,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Statut appliqué (fingerprint, status, ok) */
+            /** @description Status applied (fingerprint, status, ok) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16384,7 +16384,7 @@ export interface operations {
                     "application/json": components["schemas"]["AdminDetectionPatchResponse"];
                 };
             };
-            /** @description Statut invalide */
+            /** @description Invalid status */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16420,7 +16420,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Fraîcheur par titre (vide = tous les titres actifs) + total critical */
+            /** @description Freshness per title (empty = all active titles) + total critical */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16451,7 +16451,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Jobs récents, actifs d'abord */
+            /** @description Recent jobs, active ones first */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16515,7 +16515,7 @@ export interface operations {
                 contains?: string;
                 n?: string;
                 since?: string;
-                /** @description Curseur arrière « charger plus » (offset octet renvoyé en next_offset) — charge la tranche strictement plus ancienne. */
+                /** @description Backward "load more" cursor (byte offset returned in next_offset) -- loads the strictly older slice. */
                 before?: string;
             };
             header?: never;
@@ -16524,7 +16524,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Entrées parsées (plus récentes d'abord) + truncated + curseur next_offset/has_more */
+            /** @description Parsed entries (most recent first) + truncated + next_offset/has_more cursor */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16533,7 +16533,7 @@ export interface operations {
                     "application/json": components["schemas"]["AdminLogTail"];
                 };
             };
-            /** @description Module invalide */
+            /** @description Invalid module */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16562,7 +16562,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rapport trous LUSR par joueur + agrégats + garde-fou */
+            /** @description LUSR gaps report per player + aggregates + guard rail */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16595,7 +16595,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Replay effectué (nombre de lignes LUSR réécrites) */
+            /** @description Replay performed (number of LUSR rows rewritten) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16604,14 +16604,14 @@ export interface operations {
                     "application/json": components["schemas"]["AdminLUSRRecomputeResponse"];
                 };
             };
-            /** @description Replay échoué */
+            /** @description Replay failed */
             500: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Moteur de replay non câblé */
+            /** @description Replay engine not wired up */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -16671,7 +16671,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Agrégats count/sum/avg/max par appel/phase/étape */
+            /** @description count/sum/avg/max aggregates per call/phase/step */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16700,7 +16700,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description État ressources (best-effort par section) */
+            /** @description Resource state (best-effort per section) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16729,7 +16729,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Snapshot + historique des cycles (ring mémoire 48 entrées) */
+            /** @description Snapshot + cycle history (48-entry memory ring) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16760,7 +16760,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Couverture de résolution d'arme par titre */
+            /** @description Weapon resolution coverage per title */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16789,7 +16789,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des titres enregistrés */
+            /** @description List of registered titles */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16820,7 +16820,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Détail du titre */
+            /** @description Title detail */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16852,7 +16852,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Rapport de diagnostic du titre */
+            /** @description Title diagnostic report */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16883,7 +16883,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Brouillon TOML (text/plain) à copier dans config/titles/{slug}/mappings/ */
+            /** @description TOML draft (text/plain) to copy into config/titles/{slug}/mappings/ */
             200: {
                 headers: {
                     "Content-Type"?: string;
@@ -16916,7 +16916,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statuts de santé des tokens par joueur */
+            /** @description Token health statuses per player */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16945,7 +16945,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des utilisateurs */
+            /** @description List of users */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -16976,7 +16976,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Utilisateur supprimé */
+            /** @description User deleted */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -17065,7 +17065,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des maps */
+            /** @description List of maps */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17105,7 +17105,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des médailles */
+            /** @description List of medals */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17145,7 +17145,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des armes */
+            /** @description List of weapons */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17290,7 +17290,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statut du flow (pending / authorized / provisioned / failed / expired) */
+            /** @description Flow status (pending / authorized / provisioned / failed / expired) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17321,7 +17321,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Flow initié (user_code + verification_uri) */
+            /** @description Flow started (user_code + verification_uri) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17351,7 +17351,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Session créée (cookie set) */
+            /** @description Session created (cookie set) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17408,7 +17408,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Mot de passe défini */
+            /** @description Password set */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -17437,7 +17437,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Compte créé */
+            /** @description Account created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17467,7 +17467,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Job créé, voir GET /jobs/{job_id} */
+            /** @description Job created, see GET /jobs/{job_id} */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -17526,7 +17526,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Contenu du changelog */
+            /** @description Changelog content */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17550,13 +17550,13 @@ export interface operations {
     searchGamertags: {
         parameters: {
             query?: {
-                /** @description Requête de recherche (min. 2 caractères) */
+                /** @description Search query (min. 2 characters) */
                 q?: string;
                 /**
-                 * @description Arme le repli LIVE (résolution Xbox d'un joueur jamais croisé localement).
-                 *     Défaut false : recherche locale seule, rapide (typeahead). true uniquement
-                 *     sur intention explicite de l'utilisateur (« Rechercher sur Xbox ») car il
-                 *     ajoute un round-trip Xbox de 2-3 s (challenge V72-24).
+                 * @description Arms the LIVE fallback (Xbox resolution of a player never seen locally).
+                 *     Default false: local search only, fast (typeahead). true only
+                 *     on explicit user intent ("Search on Xbox") since it
+                 *     adds a 2-3 s Xbox round trip (challenge V72-24).
                  */
                 live?: boolean;
                 /** @description Nombre maximal de suggestions */
@@ -17598,7 +17598,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des groupes */
+            /** @description List of groups */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17629,13 +17629,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Nom du groupe (1-60 caractères). */
+                    /** @description Group name (1-60 characters). */
                     name: string;
                 };
             };
         };
         responses: {
-            /** @description Groupe créé */
+            /** @description Group created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17668,14 +17668,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Groupe supprimé */
+            /** @description Group deleted */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Accès refusé (propriétaire/membre requis) */
+            /** @description Access denied (owner/member required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17706,13 +17706,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Nouveau nom du groupe (1-60 caractères). */
+                    /** @description New group name (1-60 characters). */
                     name: string;
                 };
             };
         };
         responses: {
-            /** @description Groupe renommé */
+            /** @description Group renamed */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17722,7 +17722,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Accès refusé (propriétaire/membre requis) */
+            /** @description Access denied (owner/member required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17753,13 +17753,13 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    /** @description Durée de validité de l'invitation en jours */
+                    /** @description Invite validity duration in days */
                     expires_in_days?: number;
                 };
             };
         };
         responses: {
-            /** @description Invitation créée */
+            /** @description Invite created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -17768,7 +17768,7 @@ export interface operations {
                     "application/json": components["schemas"]["InviteCode"];
                 };
             };
-            /** @description Accès refusé (propriétaire/membre requis) */
+            /** @description Access denied (owner/member required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17799,21 +17799,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Membre retiré */
+            /** @description Member removed */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Le propriétaire ne peut pas être retiré */
+            /** @description The owner cannot be removed */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Accès refusé (propriétaire requis) */
+            /** @description Access denied (owner required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17843,7 +17843,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Membre retiré */
+            /** @description Member removed */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -17851,7 +17851,7 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
-            /** @description Le propriétaire ne peut pas quitter */
+            /** @description The owner cannot leave */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17878,7 +17878,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Service opérationnel */
+            /** @description Service operational */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17941,7 +17941,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Toutes les sections critiques sont peuplées */
+            /** @description All critical sections are populated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -17950,14 +17950,14 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Param 'player' manquant */
+            /** @description Missing 'player' param */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description player_slug inconnu */
+            /** @description Unknown player_slug */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -17965,8 +17965,8 @@ export interface operations {
                 content?: never;
             };
             /**
-             * @description Au moins une section est vide sans raison. Body :
-             *     `{ok: false, player, checks: {section: 'ok'|'missing (raison)'},
+             * @description At least one section is empty for no reason. Body:
+             *     `{ok: false, player, checks: {section: 'ok'|'missing (reason)'},
              *     empty_sections: ['banner', 'highest_csr', ...]}`
              */
             503: {
@@ -17997,7 +17997,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des release notes */
+            /** @description List of release notes */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18161,7 +18161,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statut du job */
+            /** @description Job status */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18256,7 +18256,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des joueurs */
+            /** @description List of players */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18280,7 +18280,7 @@ export interface operations {
     getActivityCalendar: {
         parameters: {
             query?: {
-                /** @description Fenêtre en jours (clampé 7..180, défaut 90) */
+                /** @description Window in days (clamped 7..180, default 90) */
                 days?: string;
             };
             header?: never;
@@ -18300,7 +18300,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActivityCalendar"];
                 };
             };
-            /** @description Joueur inconnu */
+            /** @description Unknown player */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -18524,7 +18524,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Campagne créée */
+            /** @description Campaign created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -18533,14 +18533,14 @@ export interface operations {
                     "application/json": components["schemas"]["ImprovementCampaign"];
                 };
             };
-            /** @description Axe invalide */
+            /** @description Invalid axis */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Une campagne est déjà active */
+            /** @description A campaign is already active */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18579,7 +18579,7 @@ export interface operations {
                     "application/json": components["schemas"]["ImprovementCampaign"];
                 };
             };
-            /** @description Campagne inconnue */
+            /** @description Unknown campaign */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -18609,21 +18609,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Campagne abandonnée */
+            /** @description Campaign abandoned */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne inconnue */
+            /** @description Unknown campaign */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne déjà terminée */
+            /** @description Campaign already ended */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18653,21 +18653,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Campagne clôturée */
+            /** @description Campaign closed */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne inconnue */
+            /** @description Unknown campaign */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne déjà terminée */
+            /** @description Campaign already ended */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18697,21 +18697,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Campagne mise en pause */
+            /** @description Campaign paused */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne inconnue */
+            /** @description Unknown campaign */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Transition d'état invalide */
+            /** @description Invalid state transition */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18741,21 +18741,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Campagne reprise */
+            /** @description Campaign resumed */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Campagne inconnue */
+            /** @description Unknown campaign */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Transition d'état invalide */
+            /** @description Invalid state transition */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18815,7 +18815,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des campagnes closes */
+            /** @description List of closed campaigns */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18857,14 +18857,14 @@ export interface operations {
                     "application/json": components["schemas"]["ProposalsListResponse"];
                 };
             };
-            /** @description Joueur inconnu */
+            /** @description Unknown player */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Coach advisor non configuré ou indisponible pour ce joueur */
+            /** @description Coach advisor not configured or unavailable for this player */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -18894,7 +18894,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Accepted — challenge_id ou arc_id + challenge_ids dans la réponse */
+            /** @description Accepted -- challenge_id or arc_id + challenge_ids in the response */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -18903,28 +18903,28 @@ export interface operations {
                     "application/json": components["schemas"]["AcceptResponse"];
                 };
             };
-            /** @description id manquant */
+            /** @description Missing id */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Proposal ou joueur inconnu */
+            /** @description Unknown proposal or player */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Proposal n'est plus pending (déjà accepted/dismissed/superseded/obsoleted) */
+            /** @description Proposal is no longer pending (already accepted/dismissed/superseded/obsoleted) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Coach advisor non configuré */
+            /** @description Coach advisor not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -18963,21 +18963,21 @@ export interface operations {
                     "application/json": components["schemas"]["DismissResponse"];
                 };
             };
-            /** @description id manquant */
+            /** @description Missing id */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Joueur inconnu */
+            /** @description Unknown player */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Coach advisor non configuré */
+            /** @description Coach advisor not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -19000,14 +19000,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Totaux à vie des commendations natives, groupés par catégorie */
+            /** @description Lifetime totals of native commendations, grouped by category */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19086,10 +19086,10 @@ export interface operations {
         };
         responses: {
             /**
-             * @description EngagementTimeseriesResponse — granularity adaptative selon densité
-             *     filtrée : match (≤ limit) → session → week → month. Au-delà de
-             *     workCap=200 matchs filtrés, le binning ne couvre que les N plus
-             *     récents et `truncated_to_recent` est positionné.
+             * @description EngagementTimeseriesResponse -- adaptive granularity based on filtered
+             *     density: match (<= limit) -> session -> week -> month. Beyond
+             *     workCap=200 filtered matches, binning only covers the N most
+             *     recent ones and `truncated_to_recent` is set.
              */
             200: {
                 headers: {
@@ -19154,7 +19154,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -19165,7 +19165,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Liste des match_ids filtrés */
+            /** @description List of filtered match_ids */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19194,7 +19194,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -19205,7 +19205,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Contexte de filtres résolu */
+            /** @description Resolved filter context */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19297,16 +19297,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
-                /** @description UUID du match Halo Infinite */
+                /** @description UUID of the Halo Infinite match */
                 match_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Détail du match */
+            /** @description Match detail */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -19364,7 +19364,7 @@ export interface operations {
     getMatchEvents: {
         parameters: {
             query?: {
-                /** @description Filtre optionnel par type d'event (kill, medal, impulse, ...). Répétable ou CSV. Vide = tous. */
+                /** @description Optional filter by event type (kill, medal, impulse, ...). Repeatable or CSV. Empty = all. */
                 types?: string[] | null;
             };
             header?: never;
@@ -19385,7 +19385,7 @@ export interface operations {
                     "application/json": components["schemas"]["MatchEventTimeline"];
                 };
             };
-            /** @description Le titre n'expose pas de timeline d'events */
+            /** @description The title does not expose an events timeline */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -19408,9 +19408,9 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
-                /** @description UUID du match Halo Infinite */
+                /** @description UUID of the Halo Infinite match */
                 match_id: string;
             };
             cookie?: never;
@@ -19421,7 +19421,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Exclusion mise à jour avec succès */
+            /** @description Exclusion updated successfully */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -19454,7 +19454,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statut mis à jour */
+            /** @description Status updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19647,14 +19647,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Image PNG du fond de carte */
+            /** @description PNG image of the map background */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Aucun fond de carte figé pour la carte de ce match */
+            /** @description No frozen map background for this match's map */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -19772,7 +19772,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Association créée */
+            /** @description Association created */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19803,7 +19803,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Réglage audio média (défaut auto si non défini) */
+            /** @description Media audio setting (default auto if not set) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19839,7 +19839,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Réglage enregistré */
+            /** @description Setting saved */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19897,7 +19897,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
                 filepath: string;
             };
@@ -19919,7 +19919,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -19930,7 +19930,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description État liked persisté côté backend */
+            /** @description Liked state persisted server-side */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -19991,14 +19991,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Media uploadé */
+            /** @description Media uploaded */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20086,7 +20086,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Notification supprimée */
+            /** @description Notification deleted */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -20215,7 +20215,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Préférences */
+            /** @description Preferences */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20250,7 +20250,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Préférences mises à jour */
+            /** @description Preferences updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20335,7 +20335,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20369,14 +20369,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Page Carrière */
+            /** @description Career page */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20403,12 +20403,12 @@ export interface operations {
     getCareerCSRs: {
         parameters: {
             query?: {
-                /** @description Saison CSR à afficher (ex. "CsrSeason13-1"). Vide → saison courante. */
+                /** @description CSR season to display (e.g. "CsrSeason13-1"). Empty -> current season. */
                 season?: string;
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20444,7 +20444,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20479,14 +20479,14 @@ export interface operations {
         parameters: {
             query?: {
                 experience?: "all" | "ranked" | "unranked";
-                /** @description CSV des IDs de saison à filtrer (ex. "season6,season7") */
+                /** @description CSV of season IDs to filter (e.g. "season6,season7") */
                 season_ids?: string;
                 mode_uis?: string;
                 playlist_names?: string;
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20506,13 +20506,13 @@ export interface operations {
             499: components["responses"]["ClientClosed"];
             500: components["responses"]["InternalError"];
             /**
-             * @description Base momentanément occupée (`db_busy`, réessayer après `Retry-After`), ou
-             *     MatchHistoryService non câblé (`match_history_unavailable`, cas test, sans
+             * @description Database momentarily busy (`db_busy`, retry after `Retry-After`), or
+             *     MatchHistoryService not wired up (`match_history_unavailable`, test case, no
              *     `Retry-After`).
              */
             503: {
                 headers: {
-                    /** @description Délai conseillé avant un nouvel essai, en secondes */
+                    /** @description Recommended delay before a new attempt, in seconds */
                     "Retry-After"?: number;
                     [name: string]: unknown;
                 };
@@ -20536,7 +20536,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20572,7 +20572,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20608,14 +20608,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Citations calculées (Triple Kill, Clutch, etc.) */
+            /** @description Computed citations (Triple Kill, Clutch, etc.) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20641,14 +20641,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Commendations et médailles par catégorie */
+            /** @description Commendations and medals by category */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20674,7 +20674,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20685,7 +20685,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Résultat de comparaison avec 12 KPIs */
+            /** @description Comparison result with 12 KPIs */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20712,7 +20712,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20753,7 +20753,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20797,14 +20797,14 @@ export interface operations {
                 "If-None-Match"?: string;
             };
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Page accueil (hero card, tête des matchs récents, sessions) */
+            /** @description Home page (hero card, head of recent matches, sessions) */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -20821,14 +20821,14 @@ export interface operations {
             499: components["responses"]["ClientClosed"];
             500: components["responses"]["InternalError"];
             /**
-             * @description Page momentanément indisponible, réessayer après `Retry-After` :
-             *     `home_page_db_busy` (bascule RO/RW d'une synchronisation),
-             *     `home_page_db_recovering` (connexion en cours de récupération) ou
-             *     `db_busy` (verrou d'écriture).
+             * @description Page momentarily unavailable, retry after `Retry-After`:
+             *     `home_page_db_busy` (RO/RW toggle from a sync),
+             *     `home_page_db_recovering` (connection currently recovering), or
+             *     `db_busy` (write lock).
              */
             503: {
                 headers: {
-                    /** @description Délai conseillé avant un nouvel essai, en secondes */
+                    /** @description Recommended delay before a new attempt, in seconds */
                     "Retry-After"?: number;
                     [name: string]: unknown;
                 };
@@ -20851,13 +20851,13 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description `recent` (défaut) : l'historique par curseur. `favorites` : les favoris en entier
-                 *     (`before` et `limit` ignorés).
+                 * @description `recent` (default): the cursor-based history. `favorites`: the entire set of favorites
+                 *     (`before` and `limit` ignored).
                  */
                 kind?: "recent" | "favorites";
-                /** @description Curseur opaque `next_before` de la page précédente ; absent = depuis la plus récente. */
+                /** @description Opaque `next_before` cursor from the previous page; absent = from the most recent one. */
                 before?: string;
-                /** @description Tuiles par page (30 par défaut, 60 au plus). */
+                /** @description Tiles per page (30 by default, 60 at most). */
                 limit?: number;
             };
             header?: {
@@ -20865,7 +20865,7 @@ export interface operations {
                 "If-None-Match"?: string;
             };
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -20890,14 +20890,14 @@ export interface operations {
             499: components["responses"]["ClientClosed"];
             500: components["responses"]["InternalError"];
             /**
-             * @description Page momentanément indisponible, réessayer après `Retry-After` :
-             *     `home_page_db_busy` (bascule RO/RW d'une synchronisation),
-             *     `home_page_db_recovering` (connexion en cours de récupération) ou
-             *     `db_busy` (verrou d'écriture).
+             * @description Page momentarily unavailable, retry after `Retry-After`:
+             *     `home_page_db_busy` (RO/RW toggle from a sync),
+             *     `home_page_db_recovering` (connection currently recovering), or
+             *     `db_busy` (write lock).
              */
             503: {
                 headers: {
-                    /** @description Délai conseillé avant un nouvel essai, en secondes */
+                    /** @description Recommended delay before a new attempt, in seconds */
                     "Retry-After"?: number;
                     [name: string]: unknown;
                 };
@@ -20921,14 +20921,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Dernier match résolu */
+            /** @description Last match resolved */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20944,23 +20944,23 @@ export interface operations {
         parameters: {
             query?: {
                 category?: string;
-                /** @description Filtrer par saison */
+                /** @description Filter by season */
                 season?: string;
-                /** @description Filtrer par playlist */
+                /** @description Filter by playlist */
                 playlist?: string;
                 title_slug?: string;
                 limit?: string;
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Classement des joueurs */
+            /** @description Player ranking */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -20986,14 +20986,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Catalogue saisons + playlists ayant des snapshots */
+            /** @description Catalog of seasons + playlists with snapshots */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21019,7 +21019,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: components["parameters"]["PlayerSlug"];
             };
             cookie?: never;
@@ -21045,7 +21045,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -21056,7 +21056,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Historique paginé */
+            /** @description Paginated history */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21084,14 +21084,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Catalogue complet des médailles du titre avec le compteur obtenu par le joueur (0 = jamais obtenue), regroupées par catégorie et super-section */
+            /** @description Full catalog of the title's medals with the count obtained by the player (0 = never obtained), grouped by category and super-section */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21117,7 +21117,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -21128,7 +21128,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Galerie médias paginée */
+            /** @description Paginated media gallery */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21255,14 +21255,14 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des sessions avec stats agrégées */
+            /** @description List of sessions with aggregated stats */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21290,7 +21290,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -21301,7 +21301,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Détail de session avec suggestion similaire et comparaison intégrée */
+            /** @description Session detail with a similar suggestion and built-in comparison */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21332,14 +21332,14 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Analyse escouade / coéquipiers */
+            /** @description Squad / teammates analysis */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21438,14 +21438,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Données séries temporelles (win/loss, précision, forme, objectif) */
+            /** @description Time series data (win/loss, accuracy, form, objective) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21471,14 +21471,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Synthèse globale (heatmap, top semaines, comparaison KPIs) */
+            /** @description Global synthesis (heatmap, top weeks, KPI comparison) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21506,7 +21506,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
@@ -21517,7 +21517,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Analyse coéquipiers avec statistiques */
+            /** @description Teammate analysis with statistics */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21543,21 +21543,21 @@ export interface operations {
     getTeammatesSessions: {
         parameters: {
             query?: {
-                /** @description Gamertags des membres de la composition, joints par des virgules. Absent ou vide : sessions escouade du joueur principal. */
+                /** @description Gamertags of the composition's members, joined by commas. Absent or empty: the main player's squad sessions. */
                 teammates?: string[] | null;
                 /** @description Option composition exacte (filter_exact_composition de POST /pages/teammates). Absent : false. */
                 exact?: boolean;
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Sessions de la composition, de la plus récente à la plus ancienne */
+            /** @description Composition's sessions, from most recent to oldest */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21585,14 +21585,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Données séries temporelles */
+            /** @description Time series data */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21649,19 +21649,19 @@ export interface operations {
     getPlayerPatterns: {
         parameters: {
             query?: {
-                /** @description Nombre de matchs récents à analyser (10 ≤ n ≤ 200, défaut 50). */
+                /** @description Number of recent matches to analyze (10 <= n <= 200, default 50). */
                 n?: string;
             };
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Rapport patterns du joueur (peut être vide si aucun match) */
+            /** @description Player's patterns report (may be empty if no matches) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -21744,7 +21744,7 @@ export interface operations {
             query?: {
                 user_id?: string;
                 title_slug?: string;
-                /** @description Filtre statut(s), séparés par virgule (ex 'completed,abandoned'). Vide → 'active' (défaut). Valeurs : draft/active/completed/expired/abandoned/archived. */
+                /** @description Status filter(s), comma-separated (e.g. 'completed,abandoned'). Empty -> 'active' (default). Values: draft/active/completed/expired/abandoned/archived. */
                 status?: string[] | null;
             };
             header?: never;
@@ -21982,7 +21982,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlayerProfile"];
                 };
             };
-            /** @description Joueur inconnu */
+            /** @description Unknown player */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -22484,7 +22484,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Sync démarré */
+            /** @description Sync started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -22548,14 +22548,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Image PNG du fond de carte */
+            /** @description PNG image of the map background */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Aucun fond de carte figé pour cette carte */
+            /** @description No frozen map background for this map */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -22776,16 +22776,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
-                /** @description Slug du titre cible */
+                /** @description Slug of the target title */
                 slug: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Titre purgé */
+            /** @description Title purged */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22813,9 +22813,9 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Slug du joueur (dérivé du gamertag, ex. "Chocoboflor") */
+                /** @description Player slug (derived from the gamertag, e.g. "Chocoboflor") */
                 player_slug: string;
-                /** @description Slug du titre cible (ex. halo_infinite, halo_5) */
+                /** @description Slug of the target title (e.g. halo_infinite, halo_5) */
                 slug: string;
             };
             cookie?: never;
@@ -22826,7 +22826,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description État de sync mis à jour */
+            /** @description Sync state updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22858,7 +22858,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Prêt à servir le trafic */
+            /** @description Ready to serve traffic */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22869,7 +22869,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Pas prêt (un check externe échoue) */
+            /** @description Not ready (an external check fails) */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -22900,7 +22900,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Contexte de session mis à jour */
+            /** @description Session context updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22962,7 +22962,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Configuration mise à jour */
+            /** @description Configuration updated */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -22993,7 +22993,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Résultat du cycle (snapshot_id, bases exportées, durée) */
+            /** @description Cycle result (snapshot_id, exported databases, duration) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23003,7 +23003,7 @@ export interface operations {
                 };
             };
             500: components["responses"]["InternalError"];
-            /** @description Scheduler non initialisé (backup désactivé) */
+            /** @description Scheduler not initialized (backup disabled) */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -23030,7 +23030,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Statut courant (enabled, last backup, DBs exportées, config) */
+            /** @description Current status (enabled, last backup, exported DBs, config) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -23176,7 +23176,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Reset démarré */
+            /** @description Reset started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23206,7 +23206,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Scan démarré */
+            /** @description Scan started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23235,7 +23235,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Recalcul démarré */
+            /** @description Recompute started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23266,18 +23266,18 @@ export interface operations {
             content: {
                 "application/json": {
                     gamertag: string;
-                    /** @description Nb de matchs à synchroniser à l'onboarding (0 = défaut) */
+                    /** @description Number of matches to sync at onboarding (0 = default) */
                     initial_max_matches?: number;
                     /** @description xbox | azure_manual */
                     profile_mode?: string;
-                    /** @description Titre cible (défaut: titre du contexte puis halo_infinite) */
+                    /** @description Target title (default: context title then halo_infinite) */
                     title_slug?: string;
                     xuid?: string;
                 };
             };
         };
         responses: {
-            /** @description Profil créé */
+            /** @description Profile created */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -23308,7 +23308,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Smoke test démarré */
+            /** @description Smoke test started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23338,7 +23338,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Sync global démarré */
+            /** @description Global sync started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23368,16 +23368,16 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description 1-2000 ; 0 = défaut profil puis 200 */
+                    /** @description 1-2000; 0 = profile default then 200 */
                     max_matches?: number;
                     player_slug: string;
-                    /** @description Titre cible (défaut: titre du contexte puis halo_infinite) */
+                    /** @description Target title (default: context title then halo_infinite) */
                     title_slug?: string;
                 };
             };
         };
         responses: {
-            /** @description Sync démarrée */
+            /** @description Sync started */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -23386,7 +23386,7 @@ export interface operations {
                     "application/json": components["schemas"]["AsyncJobStatus"];
                 };
             };
-            /** @description Aucune session (code auth_required) */
+            /** @description No session (code auth_required) */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -23396,9 +23396,9 @@ export interface operations {
                 };
             };
             /**
-             * @description Sync initiale désactivée sur l'instance (code initial_sync_disabled), ou
-             *     session sans jetons Halo (code halo_tokens_missing) — jamais un 401 :
-             *     la session est valide.
+             * @description Initial sync disabled on the instance (code initial_sync_disabled), or
+             *     session with no Halo tokens (code halo_tokens_missing) -- never a 401:
+             *     the session is valid.
              */
             403: {
                 headers: {
@@ -23408,7 +23408,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Une sync est déjà en cours */
+            /** @description A sync is already in progress */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -23442,7 +23442,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Capabilities du titre */
+            /** @description Title's capabilities */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -23583,7 +23583,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Feature matrix du titre */
+            /** @description Title's feature matrix */
             200: {
                 headers: {
                     "Cache-Control"?: string;
@@ -23744,7 +23744,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Subscriptions mises à jour */
+            /** @description Subscriptions updated */
             200: {
                 headers: {
                     [name: string]: unknown;
