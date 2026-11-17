@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * recoilPose3d.ts — LE RECUL POSÉ SUR L'ARME DESSINÉE (l'écart de `recoil3d`, repère du modèle
- * d'arme : X canon, Y haut, origine à la poignée, pivot du recul).
+ * recoilPose3d.ts — RECOIL APPLIED TO THE DRAWN WEAPON (the deviation from `recoil3d`, the
+ * weapon model's frame: X barrel, Y up, origin at the grip, the recoil's pivot).
  *
- * En 1re personne (et sans Spartan), l'écart va au modèle seul (`recoilModel`) : la caméra ne bouge
- * pas, la visée enregistrée du film porte déjà le mouvement réel du regard. En 3e personne, il va aux
- * deux clavicules (`recoilArms`) : les deux bras et l'arme que la main droite porte bougent d'un même
- * mouvement rigide, après les clips ; les mains restent sur l'arme. La bouche d'un tir se lit sur la
- * même pose (`recoilPoint` pour un modèle porté seul).
+ * In first person (and without a Spartan), the deviation goes to the model alone (`recoilModel`):
+ * the camera does not move, the film's recorded aim already carries the look's real motion. In
+ * third person, it goes to both clavicles (`recoilArms`): both arms and the weapon the right hand
+ * carries move with one rigid motion, after the clips; the hands stay on the weapon. A shot's
+ * muzzle is read on the same pose (`recoilPoint` for a model carried alone).
  */
 import * as THREE from 'three'
 
@@ -23,27 +23,28 @@ const inv = new THREE.Matrix4()
 const local = new THREE.Matrix4()
 const m = new THREE.Matrix4()
 
-/** recoilRotation : la rotation de l'écart (lève la bouche, puis lacet et roulis), repère du modèle. */
+/** recoilRotation: the deviation's rotation (lifts the muzzle, then yaw and roll), model frame. */
 export function recoilRotation(r: Recoil, out: THREE.Quaternion): THREE.Quaternion {
-  // Ordre 'ZYX' : Rz(tangage) · Ry(lacet) · Rx(roulis) ; tourner autour de +Z mène le canon (X) vers le haut (Y).
+  // Order 'ZYX': Rz(pitch) · Ry(yaw) · Rx(roll); turning about +Z carries the barrel (X) toward up (Y).
   return out.setFromEuler(euler.set(r.roll, r.yaw, r.pitch, 'ZYX'))
 }
 
-/** recoilPoint : le point `p` du modèle (son repère) déplacé par l'écart, dans le repère du modèle au repos. */
+/** recoilPoint: model point `p` (its own frame) moved by the deviation, in the resting model's frame. */
 export function recoilPoint(p: THREE.Vector3, r: Recoil, out: THREE.Vector3): THREE.Vector3 {
   return out.copy(p).applyQuaternion(recoilRotation(r, turn)).add(shift.set(-r.back, 0, 0))
 }
 
-/** recoilModel ajoute l'écart à la tenue que `model` a déjà dans son porteur (position et orientation). */
+/** recoilModel adds the deviation to the carry `model` already has in its holder (position and orientation). */
 export function recoilModel(model: THREE.Object3D, r: Recoil): void {
   model.position.add(shift.set(-r.back, 0, 0).applyQuaternion(model.quaternion))
   model.quaternion.multiply(recoilRotation(r, turn))
 }
 
 /**
- * recoilArms pose l'écart sur les bras `arms` (les clavicules) d'un Spartan dont l'os `grip` porte
- * l'arme à l'orientation `gripToWeapon` : le mouvement monde T = W · R · W⁻¹ (W l'arme, R l'écart) est
- * appliqué à chaque clavicule dans le repère de son parent. Faux sans clavicules : rien n'est posé.
+ * recoilArms applies the deviation to arms `arms` (the clavicles) of a Spartan whose `grip` bone
+ * carries the weapon at orientation `gripToWeapon`: the world motion T = W · R · W⁻¹ (W the
+ * weapon, R the deviation) is applied to each clavicle in its parent's frame. False without
+ * clavicles: nothing is applied.
  */
 export function recoilArms(arms: readonly THREE.Bone[], grip: THREE.Object3D, gripToWeapon: THREE.Quaternion, r: Recoil): boolean {
   if (arms.length === 0) return false
