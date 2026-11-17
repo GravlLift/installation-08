@@ -485,27 +485,35 @@ export function reloadingAt(spans: readonly ReloadSpan[], frame: number, fps: nu
   return true
 }
 
-/** A magazine read of the film: its time (ms) and the rounds loaded. */
-export interface MagazineRead {
+/**
+ * What changes a magazine, from the film: a reading (`read`, its rounds), a shot (`shot`, one round), a
+ * round a staged reload puts in (`round`, one round, when its round clip ends: the episode's next
+ * stage), a one-clip reload that completes (`full`, at the end of the rig's reload clip, no shot or
+ * swap before it).
+ */
+export interface MagazineEvent {
   ms: number
-  rounds: number
+  kind: 'read' | 'shot' | 'round' | 'full'
+  rounds?: number
 }
 
 /**
- * magazineFraction is the engine's `primary_ammunition` at `ms`: the rounds of the film's last magazine
- * read at or before it (`reads` sorted by ms; carried forward until the next one) over the weapon's
- * `rounds loaded maximum` (`size`), in [0, 1]. Before the life's first read the magazine is full (a
- * player spawns full). A weapon of unknown size (an older library, a weapon without a magazine) reads full.
+ * magazineFraction is the engine's `primary_ammunition` at `ms`: the magazine replayed from the life's
+ * spawn (full: a player spawns full) through `events` (sorted by ms): a reading sets it, a shot takes a
+ * round (never below 0), a staged round adds one and a completed reload fills it (never above the
+ * weapon's `rounds loaded maximum`, `size`); over `size`, in [0, 1]. The film's readings are sparse
+ * (match 05dfe4e9: keyframes 8.5 s apart): the shots and reloads since carry the answer, as
+ * `magazineAtReload` measured. A weapon of unknown size (an older library, no magazine) reads full.
  */
-export function magazineFraction(reads: readonly MagazineRead[], ms: number, size: number | undefined): number {
+export function magazineFraction(events: readonly MagazineEvent[], ms: number, size: number | undefined): number {
   if (!size || size <= 0) return 1
-  let lo = 0
-  let hi = reads.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (reads[mid].ms <= ms) lo = mid + 1
-    else hi = mid
+  let rounds = size
+  for (const e of events) {
+    if (e.ms > ms) break
+    if (e.kind === 'read') rounds = e.rounds ?? rounds
+    else if (e.kind === 'shot') rounds = Math.max(0, rounds - 1)
+    else if (e.kind === 'round') rounds = Math.min(size, rounds + 1)
+    else rounds = size
   }
-  if (lo === 0) return 1
-  return Math.min(1, Math.max(0, reads[lo - 1].rounds / size))
+  return Math.min(1, Math.max(0, rounds / size))
 }

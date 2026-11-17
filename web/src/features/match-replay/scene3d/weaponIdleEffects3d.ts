@@ -34,6 +34,7 @@ import { episodesRechargementParSlot } from './actionsFilm3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
+import { dureeAttendue, finNaturelle, type EpisodeRechargement } from './rechargementPremierePersonne3d'
 import {
   effectScales,
   magazineFraction,
@@ -45,7 +46,7 @@ import {
   type IdleEffectTable,
   type IdleSystem,
   type LiveParticle,
-  type MagazineRead,
+  type MagazineEvent,
   type ReloadSpan,
 } from './weaponIdleEffects3dModel'
 import { weaponModelKey } from './weaponModels3d'
@@ -378,8 +379,10 @@ interface SlotTimeline {
   reloads: ReloadSpan[]
   shots: number[]
   changes: number[]
-  /** The film's magazine reads, by weapon slot (`ammoReads`), sorted by ms. */
-  magazines: Map<number, MagazineRead[]>
+  /** The film's magazine readings and the holder's shots, by weapon slot, sorted by ms. */
+  magazines: Map<number, MagazineEvent[]>
+  /** The reload episodes, with the weapon slot in hand at their start. */
+  episodes: { ep: EpisodeRechargement; w: number | null }[]
 }
 
 const ANCHOR = new THREE.Matrix4()
@@ -487,11 +490,11 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       // The magazine of the weapon in hand: the film's last read of its slot, carried forward; full
       // before the life's first read.
       const hand = armeEnMain(this.ctx.doc, track.slot, f)
-      const reads = hand && line ? line.magazines.get(hand.slotArme) ?? [] : []
       const atMs = frameToMs(f, this.ctx.doc)
+      const magazine = hand && line ? this.magazineEvents(line, hand.slotArme, clipS, atMs, fps) : []
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
-        const scales = effectScales(e, { ready, reloading, ammo: magazineFraction(reads, atMs, e.magazine) })
+        const scales = effectScales(e, { ready, reloading, ammo: magazineFraction(magazine, atMs, e.magazine) })
         if (scales.scaleA <= 0) return
         e.systems.forEach((s, si) => {
           if (!systemShown(s, firstPerson, scoped)) return
@@ -590,25 +593,68 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     return pool
   }
 
+  /**
+   * magazineEvents: what changed weapon slot `w`'s magazine up to `atMs`: the film's readings and the
+   * holder's shots, and its reloads as the first-person rig plays them (`clipS`: the clip lengths of the
+   * weapon in hand). A staged reload (`reload_enter` and a round clip, no `reload_full`: the Heatwave,
+   * Cindershot) puts one round in each time a round clip completes: at the next stage, the last one only
+   * when the episode's closing message ends it naturally (`finNaturelle`, the rig's own test), or at the
+   * round's expected end when no message follows; a shot or a swap stops it. A one-clip reload fills the
+   * magazine at the end of its clip (the empty one when the magazine was empty), if nothing stopped it.
+   */
+  private magazineEvents(line: SlotTimeline, w: number, clipS: (action: string) => number | null, atMs: number, fps: number): MagazineEvent[] {
+    const doc = this.ctx.doc
+    const out = (line.magazines.get(w) ?? []).filter((e) => e.ms <= atMs)
+    for (const { ep, w: held } of line.episodes) {
+      const stages = ep.etapes
+      const start = stages[0].t
+      if (held !== w || frameToMs(start, doc) > atMs) continue
+      const stops = Math.min(firstAfter(line.shots, start), firstAfter(line.changes, start))
+      const roundS = ep.vide
+        ? clipS('reload_continue_empty') ?? clipS('reload_continue_full')
+        : clipS('reload_continue_full') ?? clipS('reload_continue_empty')
+      if (clipS('reload_full') === null && clipS('reload_enter') !== null && roundS !== null && roundS > 0) {
+        const round = { durationSeconds: roundS }
+        const last = stages.length - 1
+        const closes = stages[last].coupe
+        const rounds = closes ? last - 1 : last
+        for (let i = 1; i <= rounds; i++) {
+          const done = i < last
+            ? i + 1 === last && closes && !finNaturelle(stages, round, fps) ? null : stages[i + 1].t
+            : stages[i].t + dureeAttendue(stages, i, round, fps) * fps
+          if (done !== null && done < stops) out.push({ ms: frameToMs(done, doc), kind: 'round' })
+        }
+        continue
+      }
+      const s = ep.vide ? clipS('reload_empty') ?? clipS('reload_full') : clipS('reload_full') ?? clipS('reload_empty')
+      if (s !== null && s > 0 && start + s * fps < stops) out.push({ ms: frameToMs(start, doc) + s * 1000, kind: 'full' })
+    }
+    return out.sort((a, b) => a.ms - b.ms)
+  }
   private timelinesOf(): Map<number, SlotTimeline> {
     if (this.timelines) return this.timelines
     const doc = this.ctx.doc
     const out = new Map<number, SlotTimeline>()
     const line = (slot: number) => {
       let l = out.get(slot)
-      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [], magazines: new Map() }))
+      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [], magazines: new Map(), episodes: [] }))
       return l
     }
     for (const [slot, eps] of episodesRechargementParSlot(doc)) {
       line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
+      line(slot).episodes = eps.map((ep) => ({ ep, w: armeEnMain(doc, slot, ep.etapes[0].t)?.slotArme ?? null }))
     }
-    for (const s of doc.shots) line(s.slot).shots.push(s.t)
-    for (const r of doc.ammoReads) {
-      if (r.mag == null) continue
-      const m = line(r.slot).magazines
-      if (!m.has(r.w)) m.set(r.w, [])
-      m.get(r.w)!.push({ ms: r.ms, rounds: r.mag })
+    const magazine = (slot: number, w: number) => {
+      const m = line(slot).magazines
+      if (!m.has(w)) m.set(w, [])
+      return m.get(w)!
     }
+    for (const s of doc.shots) {
+      line(s.slot).shots.push(s.t)
+      const w = armeEnMain(doc, s.slot, s.t)?.slotArme
+      if (w != null) magazine(s.slot, w).push({ ms: frameToMs(s.t, doc) + (s.o ?? 0), kind: 'shot' })
+    }
+    for (const r of doc.ammoReads) if (r.mag != null) magazine(r.slot, r.w).push({ ms: r.ms, kind: 'read', rounds: r.mag })
     const locale = this.ctx.inputs().locale
     for (const list of [doc.loadouts, doc.inventory, doc.weaponChanges]) {
       for (const r of list) {
@@ -620,7 +666,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     for (const l of out.values()) {
       l.shots.sort((a, b) => a - b)
       l.changes.sort((a, b) => a - b)
-      for (const reads of l.magazines.values()) reads.sort((a, b) => a.ms - b.ms)
+      for (const events of l.magazines.values()) events.sort((a, b) => a.ms - b.ms)
     }
     this.timelines = out
     return out
@@ -652,4 +698,10 @@ function lastAtOrBefore(sorted: readonly number[], v: number): number {
 function perpendicularTo(z: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
   const a = Math.abs(z.x) < 0.9 ? X.set(1, 0, 0) : X.set(0, 1, 0)
   return out.crossVectors(a, z).normalize()
+}
+
+/** firstAfter: the first frame of a sorted list strictly after `frame`, or Infinity. */
+function firstAfter(sorted: readonly number[], frame: number): number {
+  for (const t of sorted) if (t > frame) return t
+  return Infinity
 }

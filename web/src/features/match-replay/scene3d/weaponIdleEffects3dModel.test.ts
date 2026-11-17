@@ -19,6 +19,7 @@ import {
   systemShown,
   type IdleEffect,
   type IdleFunction,
+  type MagazineEvent,
   type IdleSystem,
   type LiveParticle,
 } from './weaponIdleEffects3dModel'
@@ -266,18 +267,41 @@ describe('parseIdleEffects', () => {
 })
 
 describe('the magazine feed', () => {
-  const reads = [{ ms: 1000, rounds: 6 }, { ms: 5000, rounds: 0 }]
-  it('is full before the life first read, then the last read carried forward over the magazine', () => {
-    expect(magazineFraction(reads, 500, 8)).toBe(1)
-    expect(magazineFraction(reads, 1000, 8)).toBe(0.75)
-    expect(magazineFraction(reads, 4999, 8)).toBe(0.75)
-    expect(magazineFraction(reads, 9000, 8)).toBe(0)
-    expect(magazineFraction(reads, 9000, undefined)).toBe(1)
+  const read = (ms: number, rounds: number): MagazineEvent => ({ ms, kind: 'read', rounds })
+  const shot = (ms: number): MagazineEvent => ({ ms, kind: 'shot' })
+  const round = (ms: number): MagazineEvent => ({ ms, kind: 'round' })
+  const full = (ms: number): MagazineEvent => ({ ms, kind: 'full' })
+
+  it('starts full, then follows the readings and takes a round per shot since, never below 0', () => {
+    const events = [shot(100), read(1000, 8), shot(1200), shot(1300), shot(1400)]
+    expect(magazineFraction(events, 50, 8)).toBe(1)
+    expect(magazineFraction(events, 150, 8)).toBe(7 / 8)
+    expect(magazineFraction(events, 1000, 8)).toBe(1)
+    expect(magazineFraction(events, 1500, 8)).toBe(5 / 8)
+    expect(magazineFraction([read(0, 1), shot(10), shot(20)], 30, 8)).toBe(0)
+    expect(magazineFraction(events, 1500, undefined)).toBe(1)
   })
+
+  it('a staged reload puts one round in per round, up to the magazine', () => {
+    const events = [read(0, 8), shot(10), shot(20), shot(30), round(700), round(1067), round(1434), round(1800)]
+    expect(magazineFraction(events, 800, 8)).toBe(6 / 8)
+    expect(magazineFraction(events, 1500, 8)).toBe(1)
+    expect(magazineFraction(events, 1900, 8)).toBe(1)
+  })
+
+  const shock = { functions: SHOCK_FUNCTIONS, scaleA: 'fx_ready', scaleB: '#118a9c27' } as IdleEffect
   it('leaves the Shock Rifle electricity as it was, off only on an empty magazine', () => {
-    const shock = { functions: SHOCK_FUNCTIONS, scaleA: 'fx_ready', scaleB: '#118a9c27' } as IdleEffect
     const before = effectScales(shock, { ready: true, reloading: false })
     expect(effectScales(shock, { ready: true, reloading: false, ammo: 5 / 12 })).toEqual(before)
     expect(effectScales(shock, { ready: true, reloading: false, ammo: 0 }).scaleA).toBe(0)
+  })
+
+  it('brings the Shock Rifle electricity back after a reload from empty', () => {
+    const shots = Array.from({ length: 12 }, (_, k) => shot(100 + k * 100))
+    const events = [...shots, full(3500)]
+    const at = (ms: number) => effectScales(shock, { ready: true, reloading: ms > 1300 && ms < 3500, ammo: magazineFraction(events, ms, 12) }).scaleA
+    expect(at(1250)).toBe(0) // empty, not yet reloading
+    expect(at(2000)).toBe(0) // reloading
+    expect(at(3600)).toBe(1) // the reload filled it
   })
 })

@@ -44,8 +44,9 @@ engineering backlog; this page keeps only the user-visible parts of it.
   drawn.
 - The Heatwave's vent glow on its fins and its ready glow come from the game's own effects.
   The vent shows while the film says the player reloads, scaled by the value the weapon's own
-  reload animation sets (read from the game), while the magazine is not full (the film's last
-  magazine reading, carried forward until the next one). The first-person reload sounds of the
+  reload animation sets (read from the game), while the magazine is not full (full at spawn,
+  the film's last magazine reading less the shots since, plus one round per stage the reload
+  plays). The first-person reload sounds of the
   Heatwave, Cindershot and Hydra (fins opening, each round, the closing) play for the followed
   player only, on top of the Spartan's reload sound, and are not yet checked by ear. Seen from outside, a weapon's own moving parts (the Heatwave's
   fins, slides, barrels) do not move: weapons are drawn as one rigid piece in third person.
