@@ -210,19 +210,24 @@ export function avcLevelFor(width: number, height: number, fps: number): string 
 
 /**
  * Les niveaux HEVC, du plus bas au plus haut, avec ce que chacun accepte : `maxLuma` en
- * échantillons de luminance par image et `maxLumaRate` en échantillons par seconde (tableau
- * A-1 de la norme, Main Tier). `code` est le suffixe `L<level>` du nom de codec.
+ * échantillons de luminance par image et `maxLumaRate` en échantillons par seconde (Annexe A
+ * de la norme H.265, limites du tier général). `code` est le suffixe `L<level>` du nom de
+ * codec, et le code du niveau EST le niveau multiplié par 30 : 4 = L120, 4.1 = L123, 5 = L150.
  */
 const HEVC_LEVELS: readonly { code: string; maxLuma: number; maxLumaRate: number }[] = [
-  { code: 'L90', maxLuma: 36_864, maxLumaRate: 99_532 }, // 1
-  { code: 'L93', maxLuma: 81_920, maxLumaRate: 222_784 }, // 2
-  { code: 'L100', maxLuma: 122_880, maxLumaRate: 334_176 }, // 3
-  { code: 'L103', maxLuma: 245_760, maxLumaRate: 668_352 }, // 4
-  { code: 'L110', maxLuma: 245_760, maxLumaRate: 1_336_704 }, // 5
-  { code: 'L120', maxLuma: 552_960, maxLumaRate: 2_963_072 }, // 6
-  { code: 'L123', maxLuma: 1_105_920, maxLumaRate: 5_926_144 }, // 7
-  { code: 'L150', maxLuma: 8_912_896, maxLumaRate: 47_513_152 }, // 8
-  { code: 'L153', maxLuma: 17_825_792, maxLumaRate: 95_026_304 }, // 8.1
+  { code: 'L30', maxLuma: 34_816, maxLumaRate: 2_088_960 }, // 1
+  { code: 'L60', maxLuma: 139_264, maxLumaRate: 4_177_920 }, // 2
+  { code: 'L63', maxLuma: 139_264, maxLumaRate: 8_355_840 }, // 2.1
+  { code: 'L90', maxLuma: 557_056, maxLumaRate: 16_711_680 }, // 3
+  { code: 'L93', maxLuma: 557_056, maxLumaRate: 33_423_360 }, // 3.1
+  { code: 'L120', maxLuma: 2_228_224, maxLumaRate: 66_846_720 }, // 4
+  { code: 'L123', maxLuma: 2_228_224, maxLumaRate: 133_693_440 }, // 4.1
+  { code: 'L150', maxLuma: 8_912_896, maxLumaRate: 267_386_880 }, // 5
+  { code: 'L153', maxLuma: 8_912_896, maxLumaRate: 534_773_760 }, // 5.1
+  { code: 'L156', maxLuma: 8_912_896, maxLumaRate: 1_069_547_520 }, // 5.2
+  { code: 'L180', maxLuma: 35_651_584, maxLumaRate: 2_139_095_040 }, // 6
+  { code: 'L183', maxLuma: 35_651_584, maxLumaRate: 4_278_190_080 }, // 6.1
+  { code: 'L186', maxLuma: 35_651_584, maxLumaRate: 8_556_380_160 }, // 6.2
 ]
 
 /** Profil MAIN (`1`), type de profil généraliste (`6`) : ce que tout lecteur décode. */
@@ -231,35 +236,37 @@ const HEVC_PROFILE = 'hvc1.1.6'
 /**
  * hevcLevelFor rend le nom de codec HEVC pour cette image et cette cadence : le PLUS BAS
  * niveau qui accepte la surface et le débit d'échantillons, en `hvc1.1.6.L<level>.B0` (le `B0`
- * est le High Tier absent — Main Tier). Comme `avcLevelFor`, au-delà du plus haut niveau on
- * rend le dernier plutôt que de refuser l'export.
+ * est le High Tier absent — Main Tier). La surface compte en échantillons de luminance de la
+ * LENTILLE complètes (`width * height`), et le débit en échantillons par seconde
+ * (`width * height * fps`). Comme `avcLevelFor`, au-delà du plus haut niveau on rend le dernier
+ * plutôt que de refuser l'export.
  */
 export function hevcLevelFor(width: number, height: number, fps: number): string {
-  const luma = Math.ceil(width / 2) * Math.ceil(height / 2)
+  const luma = width * height
   const rate = luma * fps
   const level = HEVC_LEVELS.find((l) => luma <= l.maxLuma && rate <= l.maxLumaRate)
   return `${HEVC_PROFILE}.${level?.code ?? HEVC_LEVELS[HEVC_LEVELS.length - 1].code}.B0`
 }
 
 /**
- * Les niveaux AV1, du plus bas au plus haut, avec `maxLuma` (échantillons de luminance par
- * image) et `maxLumaRate` (par seconde). `code` est le niveau, `tier` le tier (`0` Main, `1`
- * High). AV1 compte la surface en échantillons de luminance (pas en macroblocs), d'où les
- * plafonds deux fois plus grands que HEVC à niveau comparable.
+ * Les niveaux AV1, du plus bas au plus haut, avec `maxPic` (échantillons de luminance de la
+ * LENTILLE complètes par image) et `maxDisplayRate` (échantillons par seconde, Annexe A de la
+ * norme AV1). `ll` est le `seq_level_idx` à deux chiffres du nom de codec : `(majeur - 2) * 4
+ * + mineur`, donc 4.0 = 08, 4.1 = 09, 5.0 = 12, 5.1 = 13. Le tier est le Main partout (`M`).
  */
-const AV1_LEVELS: readonly { code: string; tier: '0' | '1'; maxLuma: number; maxLumaRate: number }[] = [
-  { code: '2.0', tier: '0', maxLuma: 204_800, maxLumaRate: 614_400 }, // 2.0
-  { code: '2.1', tier: '0', maxLuma: 204_800, maxLumaRate: 1_228_800 }, // 2.1
-  { code: '3.0', tier: '0', maxLuma: 409_600, maxLumaRate: 1_228_800 }, // 3.0
-  { code: '3.1', tier: '0', maxLuma: 409_600, maxLumaRate: 2_457_600 }, // 3.1
-  { code: '4.0', tier: '0', maxLuma: 819_200, maxLumaRate: 2_457_600 }, // 4.0
-  { code: '4.1', tier: '0', maxLuma: 819_200, maxLumaRate: 4_915_200 }, // 4.1
-  { code: '5.0', tier: '0', maxLuma: 1_638_400, maxLumaRate: 4_915_200 }, // 5.0
-  { code: '5.1', tier: '1', maxLuma: 1_638_400, maxLumaRate: 9_830_400 }, // 5.1
-  { code: '5.2', tier: '1', maxLuma: 1_638_400, maxLumaRate: 19_660_800 }, // 5.2
-  { code: '6.0', tier: '0', maxLuma: 3_276_800, maxLumaRate: 9_830_400 }, // 6.0
-  { code: '6.1', tier: '1', maxLuma: 3_276_800, maxLumaRate: 19_660_800 }, // 6.1
-  { code: '6.2', tier: '1', maxLuma: 3_276_800, maxLumaRate: 39_321_600 }, // 6.2
+const AV1_LEVELS: readonly { ll: string; maxPic: number; maxDisplayRate: number }[] = [
+  { ll: '00', maxPic: 204_800, maxDisplayRate: 4_423_680 }, // 2.0
+  { ll: '01', maxPic: 204_800, maxDisplayRate: 8_847_360 }, // 2.1
+  { ll: '04', maxPic: 409_600, maxDisplayRate: 17_694_720 }, // 3.0
+  { ll: '05', maxPic: 409_600, maxDisplayRate: 35_389_440 }, // 3.1
+  { ll: '08', maxPic: 2_359_296, maxDisplayRate: 70_778_880 }, // 4.0
+  { ll: '09', maxPic: 2_359_296, maxDisplayRate: 141_557_760 }, // 4.1
+  { ll: '12', maxPic: 8_912_896, maxDisplayRate: 283_115_520 }, // 5.0
+  { ll: '13', maxPic: 8_912_896, maxDisplayRate: 566_231_040 }, // 5.1
+  { ll: '14', maxPic: 8_912_896, maxDisplayRate: 1_132_462_080 }, // 5.2
+  { ll: '16', maxPic: 35_651_584, maxDisplayRate: 2_264_924_160 }, // 6.0
+  { ll: '17', maxPic: 35_651_584, maxDisplayRate: 4_529_848_320 }, // 6.1
+  { ll: '18', maxPic: 35_651_584, maxDisplayRate: 9_059_696_640 }, // 6.2
 ]
 
 /** Profil MAIN (`0`), 8 bits (`.08`) : le nom de codec AV1 de base, suivi du niveau et du tier. */
@@ -267,16 +274,17 @@ const AV1_PREFIX = 'av01.0.'
 
 /**
  * av1LevelFor rend le nom de codec AV1 pour cette image et cette cadence : le PLUS BAS niveau
- * qui accepte la surface et le débit d'échantillons, en `av01.0.<level><tier>.08` (Main
- * Profile `0`, 8 bits `.08`). Comme `avcLevelFor`, au-delà du plus haut niveau on rend le
- * dernier plutôt que de refuser l'export.
+ * qui accepte la surface et le débit d'échantillons, en `av01.0.<LL>M.08` (Main Profile `0`,
+ * tier Main `M`, 8 bits `.08`). La surface compte en échantillons de luminance de la lentille
+ * complètes (`width * height`), et le débit en échantillons par seconde. Comme `avcLevelFor`,
+ * au-delà du plus haut niveau on rend le dernier plutôt que de refuser l'export.
  */
 export function av1LevelFor(width: number, height: number, fps: number): string {
-  const luma = Math.ceil(width / 2) * Math.ceil(height / 2)
+  const luma = width * height
   const rate = luma * fps
-  const level = AV1_LEVELS.find((l) => luma <= l.maxLuma && rate <= l.maxLumaRate)
+  const level = AV1_LEVELS.find((l) => luma <= l.maxPic && rate <= l.maxDisplayRate)
   const last = AV1_LEVELS[AV1_LEVELS.length - 1]
-  return `${AV1_PREFIX}${level?.code ?? last.code}${level?.tier ?? last.tier}.08`
+  return `${AV1_PREFIX}${level?.ll ?? last.ll}M.08`
 }
 
 /** videoBitrate : le débit visé, borné (cf. `BITRATE_MIN` / `BITRATE_MAX`), à `bitsPerPixel`. */
@@ -316,8 +324,8 @@ export type ExportVideoPresetName =
  * - `bitsPerPixel` : les bits par pixel pour le mode de débit, utilisé quand le mode
  *   `'quantizer'` n'est pas supporté. H.264 conserve le 0.25 d'aujourd'hui.
  * - `fallback` : le nom du préréglage à essayer quand le navigateur ne sait pas encoder celui-ci.
- *   Absent à la fin de la chaîne : le préréglage H.264 par défaut, dont le repli de mode
- *   (constant puis variable) est toujours accepté.
+ *   SEULEMENT sur HEVC et AV1 : la chaîne s'arrête sur TOUS les préréglages H.264 (le navigateur
+ *   les encode toujours), donc jamais sur un préréglage H.264.
  */
 export interface ExportVideoPreset {
   name: ExportVideoPresetName
@@ -337,9 +345,9 @@ export interface ExportVideoPreset {
  */
 export const EXPORT_VIDEO_PRESETS: Record<ExportVideoPresetName, ExportVideoPreset> = {
   'h264-qp20': { name: 'h264-qp20', codec: 'avc', mode: 'quantizer', quantizer: EXPORT_QP, bitsPerPixel: BITS_PER_PIXEL },
-  'h264-qp23': { name: 'h264-qp23', codec: 'avc', mode: 'quantizer', quantizer: 23, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
-  'h264-qp26': { name: 'h264-qp26', codec: 'avc', mode: 'quantizer', quantizer: 26, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
-  'h264-qp29': { name: 'h264-qp29', codec: 'avc', mode: 'quantizer', quantizer: 29, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp20' },
+  'h264-qp23': { name: 'h264-qp23', codec: 'avc', mode: 'quantizer', quantizer: 23, bitsPerPixel: BITS_PER_PIXEL },
+  'h264-qp26': { name: 'h264-qp26', codec: 'avc', mode: 'quantizer', quantizer: 26, bitsPerPixel: BITS_PER_PIXEL },
+  'h264-qp29': { name: 'h264-qp29', codec: 'avc', mode: 'quantizer', quantizer: 29, bitsPerPixel: BITS_PER_PIXEL },
   'hevc-qp26': { name: 'hevc-qp26', codec: 'hevc', mode: 'quantizer', quantizer: 26, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp23' },
   'av1-q35': { name: 'av1-q35', codec: 'av1', mode: 'quantizer', quantizer: 35, bitsPerPixel: BITS_PER_PIXEL, fallback: 'h264-qp23' },
 }
@@ -349,6 +357,17 @@ export const EXPORT_VIDEO_PRESETS: Record<ExportVideoPresetName, ExportVideoPres
  * exactement le comportement d'aujourd'hui (H.264, QP 20).
  */
 export const EXPORT_VIDEO_PRESET: ExportVideoPresetName = 'h264-qp20'
+
+/**
+ * exportPresetNameFromRaw maps a raw developer override (a localStorage value) to a preset
+ * name, or `undefined` when it names nothing in the table. The caller turns `undefined` into
+ * the one-line default `EXPORT_VIDEO_PRESET`, so an unknown or absent override provably keeps
+ * today's preset. PURE over the table — this is the seam the test asserts on.
+ */
+export function exportPresetNameFromRaw(raw: string | null | undefined): ExportVideoPresetName | undefined {
+  if (raw !== undefined && raw !== null && raw in EXPORT_VIDEO_PRESETS) return raw as ExportVideoPresetName
+  return undefined
+}
 
 /**
  * codecStringFor rend le nom de codec complet du préréglage pour cette image et cette cadence :
@@ -665,6 +684,12 @@ export interface VideoExportOptions {
    */
   fallbackFps?: number
   /**
+   * The preset to encode with, when given: used instead of the one-line constant
+   * `EXPORT_VIDEO_PRESET`. Absent: the constant. This is the seam a developer override
+   * (localStorage) plugs into, so a comparison can be measured without editing code.
+   */
+  preset?: ExportVideoPresetName
+  /**
    * COMBIEN de pistes sonores le clip portera. Declare a l'ouverture ou jamais : le conteneur
    * ecrit sa table des pistes une fois pour toutes. `0` = clip muet, ce qui reste un resultat.
    *
@@ -715,8 +740,9 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   const wanted = o.fps ?? EXPORT_FPS
   // LE PRÉRÉGLAGE SE PROUVE D'ABORD : il choisit le codec et le mode de débit (et, si HEVC/AV1
   // sont refusés, retombe sur H.264). La sonde de cadence (le repli 60->30) probe ensuite la
-  // config qui sera réellement ouverte.
-  const resolved = await resolveExportPreset(EXPORT_VIDEO_PRESET, o.width, o.height, wanted, browserSupports)
+  // config qui sera réellement ouverte. `preset`, quand l'appelant en donne un (surcharge
+  // développeur), remplace le préréglage d'une ligne `EXPORT_VIDEO_PRESET`.
+  const resolved = await resolveExportPreset(o.preset ?? EXPORT_VIDEO_PRESET, o.width, o.height, wanted, browserSupports)
   if (resolved === null) return null
   const { preset, mode } = resolved
   const fps = await chooseExportFps(o.width, o.height, wanted, o.fallbackFps, browserSupports, mode, preset)

@@ -93,7 +93,15 @@ import {
   type ExportPlan,
 } from './replayExportPlan'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
-import { EXPORT_FPS, EXPORT_FPS_3D, canExportVideo, openVideoExport, type VideoExportSink } from './replayVideoEncoder'
+import {
+  EXPORT_FPS,
+  EXPORT_FPS_3D,
+  canExportVideo,
+  openVideoExport,
+  exportPresetNameFromRaw,
+  type ExportVideoPresetName,
+  type VideoExportSink,
+} from './replayVideoEncoder'
 import type { ReplayWindowBounds } from '../model/replayWindow'
 import {
   exportFormatOf,
@@ -114,6 +122,20 @@ import type { ReplayKill } from '../model/killFeedLogic'
 
 /** Cadence de publication de la progression, en images encodées. */
 const PROGRESS_EVERY = 15
+
+/**
+ * readExportPresetOverride — the developer's preset choice, read from localStorage so a
+ * quality comparison can be measured WITHOUT editing code. The key is developer-facing, not
+ * user-facing; an unknown name (or a throwing localStorage, e.g. private mode) yields
+ * `undefined`, which `openVideoExport` turns into the one-line default.
+ */
+function readExportPresetOverride(): ExportVideoPresetName | undefined {
+  try {
+    return exportPresetNameFromRaw(window.localStorage.getItem('it3d-export-preset'))
+  } catch {
+    return undefined
+  }
+}
 
 export interface ReplayExportOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>
@@ -603,6 +625,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
           height: format.height,
           fps: wantedFps,
           fallbackFps: view3d ? EXPORT_FPS : undefined,
+          preset: readExportPresetOverride(),
           audioTracks: mix ? trackNames(mix, o.locale) : undefined,
         })
         if (!sink) {

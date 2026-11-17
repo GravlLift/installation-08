@@ -23,6 +23,7 @@ import {
   chooseExportRateMode,
   encodeOptionsFor,
   evenSize,
+  exportPresetNameFromRaw,
   frameDurationUs,
   frameTimestampUs,
   hevcLevelFor,
@@ -336,8 +337,8 @@ describe('chaque préréglage produit sa config et son nom de codec', () => {
   it('hevc-qp26 : HEVC à QP 26, nom de codec HEVC, sans sous-objet avc', () => {
     const preset = EXPORT_VIDEO_PRESETS['hevc-qp26']
     const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)
-    // 640x360 échantillons = 230 400, x30 = 6 912 000 : sous le plafond du niveau 8 (L150).
-    expect(config.codec).toBe('hvc1.1.6.L150.B0')
+    // 1280x720 = 921 600 échantillons, x30 = 27 648 000 : sous le plafond du niveau 4 (L120).
+    expect(config.codec).toBe('hvc1.1.6.L120.B0')
     expect(config.codec).toBe(hevcLevelFor(1280, 720, EXPORT_FPS))
     expect(config).toMatchObject({ width: 1280, height: 720, framerate: 30, bitrateMode: 'quantizer' })
     expect('avc' in config).toBe(false)
@@ -348,8 +349,8 @@ describe('chaque préréglage produit sa config et son nom de codec', () => {
   it('av1-q35 : AV1 à quantizer 35, nom de codec AV1, sans sous-objet avc', () => {
     const preset = EXPORT_VIDEO_PRESETS['av1-q35']
     const config = videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)
-    // 230 400 échantillons x30 = 6 912 000 : niveau 5.1 (High Tier, tier 1).
-    expect(config.codec).toBe('av01.0.5.11.08')
+    // 921 600 échantillons x30 = 27 648 000 : sous le plafond du niveau 4.0 (LL 08).
+    expect(config.codec).toBe('av01.0.08M.08')
     expect(config.codec).toBe(av1LevelFor(1280, 720, EXPORT_FPS))
     expect(config).toMatchObject({ width: 1280, height: 720, framerate: 30, bitrateMode: 'quantizer' })
     expect('avc' in config).toBe(false)
@@ -357,12 +358,19 @@ describe('chaque préréglage produit sa config et son nom de codec', () => {
   })
 
   it('les niveaux HEVC/AV1 suivent la surface ET la cadence, comme H.264', () => {
-    // 1080p60 : 518 400 échantillons, x60 = 31 104 000.
-    expect(hevcLevelFor(1920, 1080, 60)).toBe('hvc1.1.6.L150.B0')
-    expect(av1LevelFor(1920, 1080, 60)).toBe('av01.0.6.21.08')
-    // 1080p30 : 15 552 000 b/s, au-dessus de 5.1 (9 830 400), donc 5.2.
-    expect(hevcLevelFor(1920, 1080, 30)).toBe('hvc1.1.6.L150.B0')
-    expect(av1LevelFor(1920, 1080, 30)).toBe('av01.0.5.21.08')
+    // La surface compte en échantillons de la LENTILLE complètes (w*h), pas en demi-résolution.
+    // 1080p60 : 2 073 600 échantillons, x60 = 124 416 000 : le niveau 4.1 (HEVC L123 / AV1 LL 09).
+    expect(hevcLevelFor(1920, 1080, 60)).toBe('hvc1.1.6.L123.B0')
+    expect(av1LevelFor(1920, 1080, 60)).toBe('av01.0.09M.08')
+    // 1080p30 : 62 208 000 échantillons/s : le niveau 4 (HEVC L120 / AV1 LL 08).
+    expect(hevcLevelFor(1920, 1080, 30)).toBe('hvc1.1.6.L120.B0')
+    expect(av1LevelFor(1920, 1080, 30)).toBe('av01.0.08M.08')
+    // 1440p60 : 3 686 400 échantillons, x60 = 221 184 000 : le niveau 5 (HEVC L150 / AV1 LL 12).
+    expect(hevcLevelFor(2560, 1440, 60)).toBe('hvc1.1.6.L150.B0')
+    expect(av1LevelFor(2560, 1440, 60)).toBe('av01.0.12M.08')
+    // 2160p60 : 8 294 400 échantillons, x60 = 497 664 000 : le niveau 5.1 (HEVC L153 / AV1 LL 13).
+    expect(hevcLevelFor(3840, 2160, 60)).toBe('hvc1.1.6.L153.B0')
+    expect(av1LevelFor(3840, 2160, 60)).toBe('av01.0.13M.08')
   })
 })
 
@@ -424,5 +432,22 @@ describe('la chaîne de repli ne peut pas boucler', () => {
       const terminal = current !== undefined ? EXPORT_VIDEO_PRESETS[current] : undefined
       expect(terminal?.codec).toBe('avc')
     }
+  })
+})
+
+describe('exportPresetNameFromRaw — l’override développeur ne fait jamais mentir le défaut', () => {
+  it('un nom connu est transmis tel quel', () => {
+    expect(exportPresetNameFromRaw('hevc-qp26')).toBe('hevc-qp26')
+    expect(exportPresetNameFromRaw('av1-q35')).toBe('av1-q35')
+  })
+
+  it('un nom inconnu rend undefined : l’appelant garde EXPORT_VIDEO_PRESET', () => {
+    expect(exportPresetNameFromRaw('not-a-preset')).toBeUndefined()
+    expect(exportPresetNameFromRaw('')).toBeUndefined()
+  })
+
+  it('un override absent rend undefined : le défaut d’une ligne tient', () => {
+    expect(exportPresetNameFromRaw(null)).toBeUndefined()
+    expect(exportPresetNameFromRaw(undefined)).toBeUndefined()
   })
 })
