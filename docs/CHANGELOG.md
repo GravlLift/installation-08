@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-test.20
+
+Changes since 0.1.0-test.19.
+
+- Fixed: every match hung on "Decoding materials…" in the packaged app (test.18 and test.19). The geometry decoder's background worker broke when the release build was minified; geometry now decodes on the page itself. On the test machine Vacancy's map decodes in about 1.9 s and an Absolution match is playing in about 16 s.
+
 ## 0.1.0-test.19
 
 Changes since 0.1.0-test.18.

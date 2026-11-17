@@ -20,9 +20,6 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'
 
 import { measureSince, now } from './perf3d'
 
-/** The decoder's workers: decoding a map's few hundred MB of views stays off the main thread. */
-const DECODER_WORKERS = 4
-
 /**
  * The decoder as three r170 ships it: its type declarations (from an older meshoptimizer) lack
  * the worker and async entry points the module has and GLTFLoader calls.
@@ -37,18 +34,19 @@ const decoderModule = MeshoptDecoder as Decoder
 let timed: Decoder | null = null
 
 /**
- * timedDecoder is `MeshoptDecoder` with its workers started (once, where workers exist) and each
- * buffer view's decode recorded as an `it3d:meshopt` measure.
+ * timedDecoder is `MeshoptDecoder` with each buffer view's decode recorded as an `it3d:meshopt`
+ * measure.
+ *
+ * It never calls `useWorkers`. three's decoder builds its worker from source text
+ * (`"self.onmessage = workerProcess;" + decode.toString() + workerProcess.toString()`), and the
+ * production minifier renames `workerProcess` and `decode`, so the worker throws on start and
+ * every decode waits forever: test.18 and test.19 hung on "Decoding materials" for every map,
+ * while the unminified dev build worked. Without workers the decoder runs on the main thread,
+ * which the minifier cannot break. Moving the decode off the main thread again needs a worker
+ * module of our own that imports the decoder, not `useWorkers`.
  */
 function timedDecoder(): Decoder {
   if (timed) return timed
-  if (typeof Worker !== 'undefined') {
-    try {
-      decoderModule.useWorkers(Math.max(1, Math.min(DECODER_WORKERS, (navigator.hardwareConcurrency || 2) / 2)))
-    } catch {
-      // Without workers the decoder runs on the main thread: slower, same result.
-    }
-  }
   const decoder = Object.create(decoderModule) as Decoder
   decoder.decodeGltfBufferAsync = (count, size, source, mode, filter) => {
     const start = now()
