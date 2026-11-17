@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package fallback
 
 // compteur.go — LE COMPTE DES DÉCLENCHEMENTS, PAR CUISSON.
@@ -69,8 +70,8 @@ func (c *Compteur) DeclencheN(nom Nom, k int) {
 	}
 	if _, ok := Lire(nom); !ok {
 		c.diag.Signaler(constat.Diagnostic{Code: DiagRepliHorsRegistre, Niveau: constat.NiveauError,
-			Message: "repli hors registre declenche — le compte ne se rattache a aucune entree",
-			Attrs:   []any{"repli", string(nom), "declenchements", k}})
+			Message: "fallback triggered outside the registry — the count does not attach to any entry",
+			Attrs:   []any{"fallback", string(nom), "triggers", k}})
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

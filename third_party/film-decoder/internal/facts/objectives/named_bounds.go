@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package objectives
 
 // named_bounds.go — LA DERIVATION UNIQUE DES INCREMENTS FILTRES, ET LES BORNES QUI LA REGLENT.
@@ -135,7 +136,7 @@ func (b *eventBudget) rejeter(key statSlotKey, p types.ScorePoint, n int64) {
 	b.diag.Signaler(constat.Diagnostic{Code: DiagDeroulageRejete, Niveau: constat.NiveauWarn,
 		Message: "objectives: deroulage aberrant rejete (dernier rempart memoire)",
 		Attrs: []any{"passe", b.origine, "comp", key.Comp, "cote", key.Side, "slot", p.Slot,
-			"time_ms", p.TimeMS, "deroulage", n, "borne", maxUnrollPerStep}})
+			"time_ms", p.TimeMS, "unroll", n, "bound", maxUnrollPerStep}})
 }
 
 // epuiser marque le solde consomme. Une seule ligne de journal : les appels suivants sortent
@@ -143,9 +144,9 @@ func (b *eventBudget) rejeter(key statSlotKey, p types.ScorePoint, n int64) {
 func (b *eventBudget) epuiser(key statSlotKey, p types.ScorePoint, n int64) {
 	b.tronque = true
 	b.diag.Signaler(constat.Diagnostic{Code: DiagPlafondEvenements, Niveau: constat.NiveauWarn,
-		Message: "objectives: plafond d'evenements du film atteint, deroulage interrompu",
-		Attrs: []any{"passe", b.origine, "comp", key.Comp, "cote", key.Side, "slot", p.Slot,
-			"time_ms", p.TimeMS, "deroulage", n, "reste", b.reste, "plafond", maxNamedEventsPerFilm}})
+		Message: "objectives: film event cap reached, unrolling stopped",
+		Attrs: []any{"pass", b.origine, "comp", key.Comp, "side", key.Side, "slot", p.Slot,
+			"time_ms", p.TimeMS, "unroll", n, "remaining", b.reste, "cap", maxNamedEventsPerFilm}})
 }
 
 // resume publie, en fin de passe, ce que les bornes ont coute. SILENCIEUX quand elles n'ont
@@ -156,9 +157,9 @@ func (b *eventBudget) resume() {
 		return
 	}
 	b.diag.Signaler(constat.Diagnostic{Code: DiagBornesAppliquees, Niveau: constat.NiveauWarn,
-		Message: "objectives: bornes de deroulage appliquees sur ce film",
-		Attrs: []any{"passe", b.origine, "deroulages_rejetes", b.rejetes, "tronque", b.tronque,
-			"evenements_emis", maxNamedEventsPerFilm - b.reste, "plafond", maxNamedEventsPerFilm}})
+		Message: "objectives: unroll bounds applied on this film",
+		Attrs: []any{"pass", b.origine, "rejected_unrolls", b.rejetes, "truncated", b.tronque,
+			"emitted_events", maxNamedEventsPerFilm - b.reste, "cap", maxNamedEventsPerFilm}})
 }
 
 // boundedStep est UN point d'une suite cumulee, avec le deroulage qu'il demande et le verdict
