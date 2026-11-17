@@ -9,7 +9,7 @@ import { FP_RECOIL_GAIN, pivotDuRecul, poserReculRig } from './reculPremierePers
 const PIVOT = new THREE.Vector3(0.05, -0.04, 0.02)
 const BOUCHE = new THREE.Vector3(0.25, -0.03, 0.02)
 
-/** Un rig sous un support tourné comme `BrasPremierePersonne3d.placer` le tourne (caméra à l'origine). */
+/** A rig under a support rotated the way `BrasPremierePersonne3d.placer` rotates it (camera at the origin). */
 function rigSousCamera(): { support: THREE.Group; racine: THREE.Group } {
   const support = new THREE.Group()
   support.quaternion.copy(ROTATION_RIG_CAMERA)
@@ -18,14 +18,14 @@ function rigSousCamera(): { support: THREE.Group; racine: THREE.Group } {
   return { support, racine }
 }
 
-/** Le point `p` du rig en repère caméra (x à droite, y en haut, -z vers l'avant). */
+/** Rig point `p` in camera frame (x right, y up, -z forward). */
 function enCamera(support: THREE.Object3D, p: THREE.Vector3): THREE.Vector3 {
   support.updateMatrixWorld(true)
   return p.clone().applyMatrix4(support.children[0].matrixWorld)
 }
 
 describe('poserReculRig', () => {
-  it('laisse le rig au repos sans recul ou pour un recul nul', () => {
+  it('leaves the rig at rest with no recoil or a zero recoil', () => {
     const racine = new THREE.Group()
     poserReculRig(racine, null, PIVOT)
     expect(racine.position.length()).toBe(0)
@@ -35,18 +35,18 @@ describe('poserReculRig', () => {
     expect(racine.quaternion.equals(new THREE.Quaternion())).toBe(true)
   })
 
-  it('recule le rig le long de l’avant de la visée, vers l’œil', () => {
+  it('pulls the rig back along the aim\'s forward, toward the eye', () => {
     const { support, racine } = rigSousCamera()
     const avant = enCamera(support, BOUCHE)
     poserReculRig(racine, { ...newRecoil(), back: 0.012 }, PIVOT)
     const apres = enCamera(support, BOUCHE)
-    // L'avant de la caméra est -Z : reculer, c'est monter en z, sans écart latéral ni vertical.
+    // The camera's forward is -Z: pulling back means z increases, with no lateral or vertical offset.
     expect(apres.z - avant.z).toBeCloseTo(0.012 * FP_RECOIL_GAIN, 9)
     expect(apres.x).toBeCloseTo(avant.x, 9)
     expect(apres.y).toBeCloseTo(avant.y, 9)
   })
 
-  it('lève la bouche autour du pivot, qui reste en place', () => {
+  it('raises the muzzle around the pivot, which stays in place', () => {
     const { support, racine } = rigSousCamera()
     const boucheAvant = enCamera(support, BOUCHE)
     const pivotAvant = enCamera(support, PIVOT)
@@ -56,13 +56,13 @@ describe('poserReculRig', () => {
     expect(boucheApres.y).toBeGreaterThan(boucheAvant.y)
     expect(boucheApres.x).toBeCloseTo(boucheAvant.x, 9)
     expect(pivotApres.distanceTo(pivotAvant)).toBeLessThan(1e-9)
-    // Le canon tourne du tangage multiplié par le gain.
+    // The barrel rotates by the pitch multiplied by the gain.
     const canonAvant = boucheAvant.clone().sub(pivotAvant).normalize()
     const canonApres = boucheApres.clone().sub(pivotApres).normalize()
     expect(canonAvant.angleTo(canonApres)).toBeCloseTo((3 * Math.PI) / 180 * FP_RECOIL_GAIN, 6)
   })
 
-  it('n’accumule rien : poser deux fois vaut poser une fois, et le repos revient', () => {
+  it('accumulates nothing: posing twice equals posing once, and rest comes back', () => {
     const recul = { back: 0.01, pitch: 0.05, yaw: 0.004, roll: -0.006 }
     const racine = new THREE.Group()
     poserReculRig(racine, recul, PIVOT)
@@ -78,7 +78,7 @@ describe('poserReculRig', () => {
 })
 
 describe('pivotDuRecul', () => {
-  it('prend la racine de l’arme à l’idle, null sans pose d’arme', () => {
+  it('takes the weapon\'s root at idle, null with no weapon pose', () => {
     expect(pivotDuRecul({ position: [1, 2, 3] })?.toArray()).toEqual([1, 2, 3])
     expect(pivotDuRecul(undefined)).toBeNull()
   })

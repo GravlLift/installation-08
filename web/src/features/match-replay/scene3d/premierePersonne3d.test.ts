@@ -7,24 +7,24 @@ const clip = { name: 'attente', action: 'idle', variant: 0, type: 'base', overla
 const rig = { file: 'rig.glb', bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'attente' }], missingActions: [] }
 const index: IndexPremierePersonne = { schema: 1, weapons: [{ weapon: 'abcdef12', file: rig.file }], rigs: [rig], failures: [], textures: {} }
 
-describe('première personne', () => {
-  it('trouve le rig par clé sans distinguer la casse', () => {
+describe('first person', () => {
+  it('finds the rig by key, case-insensitively', () => {
     expect(rigDeLArme(index, 'ABCDEF12')).toBe(rig)
     expect(rigDeLArme(index, '12345678')).toBeNull()
     expect(rigDeLArme(index, null)).toBeNull()
   })
-  it('trouve le clip par les actions et sa variante', () => {
+  it('finds the clip by its actions and variant', () => {
     expect(clipDuRig(rig, 'idle')).toBe(clip)
     expect(clipDuRig(rig, 'idle', 1)).toBeNull()
     expect(clipDuRig(rig, 'fire')).toBeNull()
   })
-  it('calcule un temps déterministe et bouclé', () => {
+  it('computes a deterministic, looped time', () => {
     expect(tempsDuClip(clip, 15, 10)).toBeCloseTo(0.5)
     expect(tempsDuClip(clip, 5, 10)).toBeCloseTo(0.5)
     expect(tempsDuClip(clip, -5, 10)).toBeCloseTo(0.5)
     expect(tempsDuClip(clip, 5, 0)).toBe(0)
   })
-  it('oriente les axes du rig vers ceux de la caméra', () => {
+  it('orients the rig\'s axes toward the camera\'s', () => {
     for (const [origine, attendu] of [
       [[1, 0, 0], [0, 0, -1]], [[0, 0, 1], [1, 0, 0]], [[0, 1, 0], [0, 1, 0]],
     ]) {
