@@ -108,7 +108,12 @@ const HEATWAVE_FUNCTIONS: IdleFunction[] = [
 ]
 
 describe('the Heatwave vent functions', () => {
-  const vent = { functions: HEATWAVE_FUNCTIONS, scaleA: 'fx_reload', scaleB: 'animation_event_function_variant_switch' } as IdleEffect
+  // The Heatwave's weapon graph (0fca8aee) sets animation_event_function_variant_switch to 1 over every
+  // frame of each of its reload_1 animations (the index's reloadFunctions).
+  const vent = {
+    functions: HEATWAVE_FUNCTIONS, scaleA: 'fx_reload', scaleB: 'animation_event_function_variant_switch',
+    reloadFunctions: { animation_event_function_variant_switch: 1 },
+  } as unknown as IdleEffect
   const ready = { functions: HEATWAVE_FUNCTIONS, scaleA: 'fx_ready', scaleB: 'fx_camo_off' } as IdleEffect
 
   it('maps an import through its function before inverting it', () => {
@@ -120,9 +125,13 @@ describe('the Heatwave vent functions', () => {
     expect(functionValue(HEATWAVE_FUNCTIONS, { ...imports, primary_ammunition: 0 }, '#b1abb805')).toBe(1)
   })
 
-  it('vents while reloading, the B scale at its importing function default', () => {
+  it('vents while reloading, the B scale the reload animations set', () => {
     expect(effectScales(vent, { ready: true, reloading: true })).toEqual({ scaleA: 1, scaleB: 1 })
-    expect(effectScales(vent, { ready: true, reloading: false }).scaleA).toBe(0)
+    expect(effectScales(vent, { ready: true, reloading: false })).toEqual({ scaleA: 0, scaleB: 0 })
+  })
+
+  it('reads an import nothing feeds as 0, not as the default of the function importing it', () => {
+    expect(effectScales({ ...vent, reloadFunctions: undefined }, { ready: true, reloading: true }).scaleB).toBe(0)
   })
 
   it('draws the ready glow at full B while not camouflaged', () => {

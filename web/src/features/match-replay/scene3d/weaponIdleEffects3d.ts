@@ -381,6 +381,7 @@ const LOCAL = new THREE.Matrix4()
 const WORLD = new THREE.Matrix4()
 const ROOT_INV = new THREE.Matrix4()
 const MARKER = new THREE.Matrix4()
+const MARKER_Q = new THREE.Quaternion()
 const X = new THREE.Vector3()
 const Y = new THREE.Vector3()
 const Z = new THREE.Vector3()
@@ -445,10 +446,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const lastChange = line ? lastAtOrBefore(line.changes, f) : -Infinity
       const ready = f - lastChange >= readyS * fps
       const clipS = (action: string) => this.ctx.weaponClipSeconds?.(key, action) ?? null
-      const fullS = clipS('reload_full')
-      // A staged reload (no reload_full: the Heatwave) lasts through its closing clip.
-      const closingS = fullS === null ? clipS('reload_exit') ?? clipS('chamber_1') : null
-      const reloading = !!line && reloadingAt(line.reloads, f, fps, fullS, line.shots, closingS)
+      const reloading = !!line && reloadingAt(line.reloads, f, fps, clipS('reload_full'), line.shots)
       const seed = this.slotSeed.get(track.slot) ?? 0
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
@@ -464,8 +462,12 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
             if (firstPerson) {
               if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR, m)) return
             } else {
+              // The marker's frame on the model: its position, then its rotation (the Heatwave's fins turn
+              // their marker a quarter about up, so the vent points out of them).
               const at = e.markers[s.location][m]
-              ANCHOR.copy(drawn!.model.matrixWorld).multiply(MARKER.makeTranslation(at[0], at[1], at[2]))
+              const q = e.markerRotations?.[s.location]?.[m]
+              MARKER.makeRotationFromQuaternion(q ? MARKER_Q.set(q[0], q[1], q[2], q[3]) : MARKER_Q.identity()).setPosition(at[0], at[1], at[2])
+              ANCHOR.copy(drawn!.model.matrixWorld).multiply(MARKER)
             }
             simulateSystem(s, t, seed * 64 + m, ei * 32 + si, { ...scales, cameraDistance: 0 }, this.particles)
             for (const p of this.particles) this.write(pool, p)

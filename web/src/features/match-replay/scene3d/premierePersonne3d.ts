@@ -22,11 +22,15 @@ export interface RigPremierePersonne {
   missingActions: unknown[]
 }
 
-/** A marker a weapon's idle effect emits at, on the rig: its bone and its offset in that bone's frame (GLB axes). */
+/**
+ * A marker a weapon's idle effect emits at, on the rig: its bone, and its offset and rotation (quaternion
+ * x, y, z, w; absent in a library before schema 5: none) in that bone's frame (GLB axes).
+ */
 export interface MarqueurEffetRig {
   marker: string
   bone: string
   position: [number, number, number]
+  rotation?: [number, number, number, number]
 }
 
 export interface IndexPremierePersonne {

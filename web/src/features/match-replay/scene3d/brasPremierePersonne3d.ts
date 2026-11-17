@@ -50,6 +50,7 @@ const BAC_ORIGINE = new THREE.Vector3()
 const BAC_IDENTITE = new THREE.Quaternion()
 const BAC_AXE_RIG = new THREE.Vector3()
 const BAC_MARQUEUR = new THREE.Matrix4()
+const QUAT_MARQUEUR = new THREE.Quaternion()
 
 /**
  * appliquerTenueRig : pose la tenue réglée du rig (viewGrip3d) sur la position et l'orientation
@@ -386,8 +387,8 @@ export class BrasPremierePersonne3d {
 
   /**
    * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
-   * rig, at the rendered frame: its bone's world matrix, then the marker's offset in that bone's
-   * frame. `instance`: which instance of the marker, in the index's order (the Heatwave's vent marker
+   * rig, at the rendered frame: its bone's world matrix, then the marker's offset and rotation in that
+   * bone's frame. `instance`: which instance of the marker, in the index's order (the Heatwave's vent marker
    * sits on both fins). False when that weapon's rig is not the one shown, or lacks the marker or its bone.
    */
   ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4, instance = 0): boolean {
@@ -400,7 +401,9 @@ export class BrasPremierePersonne3d {
     const bone = os.get(m.bone)
     if (!bone) return false
     bone.updateWorldMatrix(true, false)
-    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.makeTranslation(m.position[0], m.position[1], m.position[2]))
+    const q = m.rotation
+    BAC_MARQUEUR.makeRotationFromQuaternion(q ? QUAT_MARQUEUR.set(q[0], q[1], q[2], q[3]) : QUAT_MARQUEUR.identity())
+    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.setPosition(m.position[0], m.position[1], m.position[2]))
     return true
   }
 

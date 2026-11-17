@@ -110,7 +110,15 @@ export interface IdleEffect {
   scaleA: string
   scaleB: string
   functions: IdleFunction[]
+  /** Per location, the marker instances on the third-person model (model space, GLB axes). */
   markers: Record<string, [number, number, number][]>
+  /** Their rotations, same order (quaternions x, y, z, w, GLB axes); absent in an older library: none. */
+  markerRotations?: Record<string, [number, number, number, number][]>
+  /**
+   * The animation functions the weapon's own reload animations set, by name (read from its graph:
+   * the Heatwave's and the Cindershot's `animation_event_function_variant_switch`, 1 over every frame).
+   */
+  reloadFunctions?: Record<string, number>
   systems: IdleSystem[]
 }
 
@@ -214,10 +222,9 @@ export function propertyAt(f: ParticleFunction, input: (k: number) => number): n
 
 /**
  * functionValue is the value of the weapon function `name`: an export of `fns` (the first that
- * exports it), else an import the view feeds (`imports`), else an import the view does not feed,
- * which takes the "no import default" of the weapon's function that imports it (the Heatwave's vent
- * B scale names `animation_event_function_variant_switch`, set by animation events the view does not
- * read: its importing function's default, 1), else 0. A function's value is its import's (its
+ * exports it), else an import the view feeds (`imports`: the Heatwave's vent B scale names
+ * `animation_event_function_variant_switch`, which its weapon's reload animations set, fed while the
+ * holder reloads), else 0. A function's value is its import's (its
  * default without one) through its mapping (`mapping`, the tag's `default function`: the Heatwave's
  * `fx_camo_off` is 1 - camo), clamped to [0, 1], inverted when the function says so, and 0 while its
  * turn-off function is 0.
@@ -231,7 +238,7 @@ export function propertyAt(f: ParticleFunction, input: (k: number) => number): n
 export function functionValue(fns: readonly IdleFunction[], imports: Readonly<Record<string, number>>, name: string, depth = 0): number {
   if (!name) return 1
   const f = fns.find((g) => g.export === name)
-  if (!f) return name in imports ? imports[name] : (fns.find((g) => g.import === name)?.default ?? 0)
+  if (!f) return name in imports ? imports[name] : 0
   if (depth > MAX_FUNCTION_DEPTH) return 0
   let v = f.import in imports ? imports[f.import] : (fns.some((g) => g.export === f.import) ? functionValue(fns, imports, f.import, depth + 1) : f.default)
   v = Math.min(1, Math.max(0, v))
@@ -443,7 +450,7 @@ export interface WeaponFxState {
 
 /** effectScales are the effect's A and B scales for the weapon state `w` (its functions, `functionValue`). */
 export function effectScales(e: IdleEffect, w: WeaponFxState): { scaleA: number; scaleB: number } {
-  const imports = { ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: 1, camo: 0 }
+  const imports = { ...(w.reloading ? e.reloadFunctions : undefined), ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: 1, camo: 0 }
   return { scaleA: functionValue(e.functions, imports, e.scaleA), scaleB: functionValue(e.functions, imports, e.scaleB) }
 }
 
@@ -460,23 +467,14 @@ export interface ReloadSpan {
 /**
  * reloadingAt says whether frame `frame` falls in one of `spans` (sorted by start), the reload
  * lasting `seconds` (the weapon's reload clip; null: only to its last stage), `shots` the holder's
- * shot frames (sorted). `closingSeconds`: a staged reload's closing clip (the rig's `reload_exit`, else
- * `chamber_1`: the Heatwave's), played after its last stage, which the reload lasts through
- * (inferred: `is_reloading` holds until the closing clip ends, as the rig shows it).
+ * shot frames (sorted).
  */
-export function reloadingAt(
-  spans: readonly ReloadSpan[],
-  frame: number,
-  fps: number,
-  seconds: number | null,
-  shots: readonly number[],
-  closingSeconds: number | null = null,
-): boolean {
+export function reloadingAt(spans: readonly ReloadSpan[], frame: number, fps: number, seconds: number | null, shots: readonly number[]): boolean {
   let i = -1
   for (let k = 0; k < spans.length && spans[k].start <= frame; k++) i = k
   if (i < 0) return false
   const s = spans[i]
-  const end = Math.max(s.lastStage + Math.max(0, closingSeconds ?? 0) * fps, s.start + Math.max(0, seconds ?? 0) * fps)
+  const end = Math.max(s.lastStage, s.start + Math.max(0, seconds ?? 0) * fps)
   if (frame >= end) return false
   for (const t of shots) if (t > s.start && t <= frame) return false
   return true
