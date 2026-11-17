@@ -90,4 +90,34 @@ describe('surfaceModelBytes', () => {
     root.add(new THREE.Mesh(geometry, material))
     expect(surfaceModelBytes(root)).toBe(geometryBytes(geometry) + textureBytes(arrayTexture) + textureBytes(params))
   })
+
+  // THE REAL STREETS BUG: GLTFLoader caches one BufferAttribute per glTF accessor, so when a big
+  // map's structure is exported as many small per-material submeshes that all slice one shared
+  // vertex pool (same position/normal accessor, each submesh only bringing its own index range),
+  // every submesh's geometry is a DISTINCT BufferGeometry object wrapping the exact SAME shared
+  // position/normal BufferAttribute. Summing each geometry's own attribute bytes independently (as
+  // this used to) counted that one shared buffer once per submesh instead of once — for Streets'
+  // ~2,000 structure submeshes sharing one pool, that is what produced the terabyte-scale number
+  // (the texture/source-dedup fix alone never touched this, since it is a geometry, not a texture).
+  it('counts a position/normal buffer shared by many distinct submesh geometries only once', () => {
+    const sharedPosition = new THREE.BufferAttribute(new Float32Array(900_000), 3) // one big vertex pool
+    const sharedNormal = new THREE.BufferAttribute(new Float32Array(900_000), 3)
+    const root = new THREE.Group()
+    const material = new THREE.MeshStandardMaterial()
+    for (let i = 0; i < 2000; i++) {
+      // Each submesh: its own BufferGeometry and its own index range, but the SAME shared attribute
+      // objects for position/normal — exactly what GLTFLoader's accessor cache hands back.
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', sharedPosition)
+      geometry.setAttribute('normal', sharedNormal)
+      geometry.setIndex(new THREE.BufferAttribute(new Uint16Array([i, i + 1, i + 2]), 1)) // each submesh's own index
+      root.add(new THREE.Mesh(geometry, material))
+    }
+    const sharedBytes = sharedPosition.array.byteLength + sharedNormal.array.byteLength
+    const ownIndexBytes = 2000 * (3 * 2) // Uint16Array(3) per submesh, never shared
+    expect(surfaceModelBytes(root)).toBe(sharedBytes + ownIndexBytes)
+    // The bug this guards against: before the fix, this would have been ~2000x too high
+    // (sharedBytes counted again for every submesh) instead of counted once.
+    expect(surfaceModelBytes(root)).toBeLessThan(sharedBytes * 2)
+  })
 })

@@ -76,10 +76,11 @@ function textureIdentity(texture: THREE.Texture): unknown {
 
 /**
  * surfaceModelBytes: the estimated footprint of a loaded surface model (map, layer or library root),
- * every geometry and texture counted once even when several meshes, materials or clones share it
- * (see `textureIdentity`). Includes a merged layered material's own array textures and parameter
- * texture (`layeredArrays3d.LayeredAtlas`), kept in `material.userData.textures` rather than a named
- * material property — the same place `mapModel.ts`'s own `dispose()` reads them from.
+ * every attribute array, index and texture counted once even when several meshes, materials or
+ * clones share it (see `collectResources`'s per-array dedup and `textureIdentity`). Includes a
+ * merged layered material's own array textures and parameter texture (`layeredArrays3d.LayeredAtlas`),
+ * kept in `material.userData.textures` rather than a named material property — the same place
+ * `mapModel.ts`'s own `dispose()` reads them from.
  */
 export function surfaceModelBytes(root: THREE.Object3D): number {
   let bytes = 0
@@ -109,11 +110,32 @@ export interface DebugResourceEntry {
 
 /**
  * collectResources walks `root` exactly as `surfaceModelBytes` does, but returns every unique
- * geometry and texture it counted instead of only their sum — for `window.__it3dCacheDebug`
+ * resource it counted instead of only their sum — for `window.__it3dCacheDebug`
  * (`sessionCacheDebug3d.ts`) to show which resources actually account for a cached entry's bytes.
+ *
+ * Geometry is deduped by each attribute's and index's own underlying typed array, not by the
+ * `THREE.BufferGeometry` wrapper: GLTFLoader caches one `BufferAttribute` per glTF accessor, so
+ * many submesh geometries that split one shared vertex pool by material/surface — the normal way
+ * to build a big map, thousands of small per-material submeshes, each its own `Mesh`/
+ * `BufferGeometry`, all sharing the SAME position/normal/uv accessor and differing only in their
+ * own index range — hand back the literal same attribute object to every submesh. Summing each
+ * geometry's own `geometryBytes()` independently (as this used to) counted that shared buffer once
+ * PER SUBMESH instead of once per unique buffer: for Streets' structure submeshes sharing one big
+ * vertex pool, that is what turned a real few-hundred-MB vertex budget into a bogus terabyte-scale
+ * one — the actual root cause behind the wrong byte count the texture/source-dedup fix
+ * (`textureIdentity`) did not touch, since that fix only deduped textures.
  */
 export function collectResources(root: THREE.Object3D): DebugResourceEntry[] {
-  const geometries = new Map<THREE.BufferGeometry, number>()
+  const arrays = new Map<unknown, { bytes: number; uses: number; vertexCount?: number; indexCount?: number }>()
+  const addArray = (
+    array: unknown,
+    bytes: number,
+    counts: { vertexCount?: number; indexCount?: number },
+  ): void => {
+    const existing = arrays.get(array)
+    if (existing) { existing.uses++; return }
+    arrays.set(array, { bytes, uses: 1, ...counts })
+  }
   const textures = new Map<unknown, { texture: THREE.Texture; uses: number }>()
   const addTexture = (value: unknown): void => {
     if (!(value instanceof THREE.Texture)) return
@@ -124,7 +146,14 @@ export function collectResources(root: THREE.Object3D): DebugResourceEntry[] {
   }
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
-    geometries.set(o.geometry, (geometries.get(o.geometry) ?? 0) + 1)
+    const geometry = o.geometry
+    for (const name of Object.keys(geometry.attributes)) {
+      const attr = geometry.attributes[name] as THREE.BufferAttribute | THREE.InterleavedBufferAttribute
+      addArray(attr.array, attr.array.byteLength, { vertexCount: attr.count })
+    }
+    if (geometry.index) {
+      addArray(geometry.index.array, geometry.index.array.byteLength, { indexCount: geometry.index.count })
+    }
     const materials = Array.isArray(o.material) ? o.material : [o.material]
     for (const material of materials) {
       for (const value of Object.values(material)) addTexture(value)
@@ -133,14 +162,8 @@ export function collectResources(root: THREE.Object3D): DebugResourceEntry[] {
     }
   })
   const out: DebugResourceEntry[] = []
-  for (const [geometry, uses] of geometries) {
-    out.push({
-      kind: 'geometry',
-      bytes: geometryBytes(geometry),
-      uses,
-      vertexCount: geometry.getAttribute('position')?.count,
-      indexCount: geometry.index?.count,
-    })
+  for (const { bytes, uses, vertexCount, indexCount } of arrays.values()) {
+    out.push({ kind: 'geometry', bytes, uses, vertexCount, indexCount })
   }
   for (const { texture, uses } of textures.values()) {
     const image = texture.image as { width?: number; height?: number; depth?: number } | undefined
