@@ -160,8 +160,10 @@ describe('chooseExportRateMode — la sonde décide, rien n’est supposé', () 
 
 describe('encodeOptionsFor — le QP ne voyage que dans le mode quantizer', () => {
   it('porte avc.quantizer dans le mode quantizer, image-clé et autres images de même', () => {
-    expect(encodeOptionsFor('quantizer', true)).toEqual({ keyFrame: true, avc: { quantizer: EXPORT_QP } })
-    expect(encodeOptionsFor('quantizer', false)).toEqual({ keyFrame: false, avc: { quantizer: EXPORT_QP } })
+    // Without a preset argument, the default preset's quantizer.
+    const qp = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET].quantizer
+    expect(encodeOptionsFor('quantizer', true)).toEqual({ keyFrame: true, avc: { quantizer: qp } })
+    expect(encodeOptionsFor('quantizer', false)).toEqual({ keyFrame: false, avc: { quantizer: qp } })
   })
 
   it('ne porte que la clé dans les modes de débit : le QP serait ignoré, et la console mentirait', () => {
@@ -264,10 +266,20 @@ describe('canExportVideo — la capacité du navigateur', () => {
   })
 })
 
-describe('EXPORT_VIDEO_PRESET — the default preset is exactly today', () => {
-  it('the default preset is h264-qp20', () => {
-    expect(EXPORT_VIDEO_PRESET).toBe('h264-qp20')
+describe('EXPORT_VIDEO_PRESET — the default, and h264-qp20 as the old behavior', () => {
+  it('the default preset is h264-qp26 (the bake-off winner)', () => {
+    expect(EXPORT_VIDEO_PRESET).toBe('h264-qp26')
     expect(EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]).toEqual({
+      name: 'h264-qp26',
+      codec: 'avc',
+      mode: 'quantizer',
+      quantizer: 26,
+      bitsPerPixel: 0.25,
+    })
+  })
+
+  it('h264-qp20 keeps the old default exactly', () => {
+    expect(EXPORT_VIDEO_PRESETS['h264-qp20']).toEqual({
       name: 'h264-qp20',
       codec: 'avc',
       mode: 'quantizer',
@@ -276,8 +288,8 @@ describe('EXPORT_VIDEO_PRESET — the default preset is exactly today', () => {
     })
   })
 
-  it('videoEncoderConfig, by default, is byte for byte today’s config', () => {
-    const preset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]
+  it('videoEncoderConfig for h264-qp20 is byte for byte the old config', () => {
+    const preset = EXPORT_VIDEO_PRESETS['h264-qp20']
     // The quantizer mode: today’s setting, no `bitrate`.
     expect(videoEncoderConfig(1280, 720, EXPORT_FPS, 'quantizer', preset)).toEqual({
       codec: 'avc1.64001f',
@@ -299,8 +311,8 @@ describe('EXPORT_VIDEO_PRESET — the default preset is exactly today', () => {
     })
   })
 
-  it('encodeOptionsFor, by default, is byte for byte today’s options', () => {
-    const preset = EXPORT_VIDEO_PRESETS[EXPORT_VIDEO_PRESET]
+  it('encodeOptionsFor for h264-qp20 is byte for byte the old options', () => {
+    const preset = EXPORT_VIDEO_PRESETS['h264-qp20']
     expect(encodeOptionsFor('quantizer', true, preset)).toEqual({ keyFrame: true, avc: { quantizer: 20 } })
     expect(encodeOptionsFor('quantizer', false, preset)).toEqual({ keyFrame: false, avc: { quantizer: 20 } })
     expect(encodeOptionsFor('constant', true, preset)).toEqual({ keyFrame: true })
@@ -406,7 +418,7 @@ describe('resolveExportPreset — the chain falls back to H.264', () => {
   it('the default preset keeps the H.264 rate-mode fallback: quantizer refused -> constant', async () => {
     const onlyConstant = async (c: VideoEncoderConfig) => (c.bitrateMode ?? 'variable') === 'constant'
     const resolved = await resolveExportPreset(EXPORT_VIDEO_PRESET, 1280, 720, EXPORT_FPS, onlyConstant)
-    expect(resolved?.preset.name).toBe('h264-qp20')
+    expect(resolved?.preset.name).toBe('h264-qp26')
     expect(resolved?.preset.codec).toBe('avc')
     expect(resolved?.mode).toBe('constant')
   })

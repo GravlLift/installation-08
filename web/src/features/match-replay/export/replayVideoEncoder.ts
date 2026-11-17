@@ -351,10 +351,12 @@ export const EXPORT_VIDEO_PRESETS: Record<ExportVideoPresetName, ExportVideoPres
 }
 
 /**
- * THE CURRENT PRESET: the one name to change to switch quality. `'h264-qp20'` is exactly
- * today's behavior (H.264, QP 20).
+ * THE CURRENT PRESET: the one name to change to switch quality. `'h264-qp20'` is the old
+ * default (H.264, QP 20). `'h264-qp26'` won the 2026-11-16 bake-off: a 30 s 1080p60 Outlook
+ * clip was 45% of qp20's size at VMAF 95.8 against qp20. HEVC at QP 26 was the same size and
+ * quality, and AV1 at 35 was larger than qp20, so H.264 stays (it plays everywhere).
  */
-export const EXPORT_VIDEO_PRESET: ExportVideoPresetName = 'h264-qp20'
+export const EXPORT_VIDEO_PRESET: ExportVideoPresetName = 'h264-qp26'
 
 /**
  * exportPresetNameFromRaw maps a raw developer override (a localStorage value) to a preset
