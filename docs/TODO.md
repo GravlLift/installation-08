@@ -91,11 +91,16 @@ are in [PARITY.md](PARITY.md).
   of over HTTP, measured against HTTP.
 - Confirm compiled shaders persist across launches in the window's fixed profile (second
   launch load against first), and keep it that way.
-- Keep parsed models, textures and the map loaded between matches (a session cache with a
-  memory cap), so the second match and a reopened map load fast.
-- Save each map's collision index (three-mesh-bvh serialize) into the map build, so no map
-  builds it at load time. Every map benefits, not only Streets. Also consider merging a map's
-  small static pieces at build time (Streets has about 2,000).
+- DONE: one renderer and a capped session cache (1.5 GB) keep the map, variant layer and
+  model libraries between matches. Measured 2026-11-17: a revisited Outlook loads in 5.6 to
+  7.2 s (11 s cold), a revisited Streets in 7.1 to 8.4 s (18 to 20 s cold). Open: what remains
+  is per-match work, mostly transcoding this match's armor and weapon textures (322 KTX2
+  transcodes on Streets) and the warmup for its players; caching decoded armor and weapon
+  textures across matches is the next gain. The armor and weapon library entries count 0
+  bytes against the cap.
+- DONE: each map's and variant's collision index is saved beside its build on first open
+  (`.bvh` sidecar) and loaded after that: Streets 71 ms instead of about 1.9 s. Still open:
+  merging a map's small static pieces at build time (Streets has about 2,000).
 - Update checker (GitHub releases), once the repo is public.
 
 ## Ideas for later
