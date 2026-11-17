@@ -3,6 +3,7 @@ docs/sys/lookup.json
 # Local build and generated data
 /infinite-theater-3d
 /infinite-theater-3d.exe
+/installation-08.exe
 *.test
 *.out
 /data/

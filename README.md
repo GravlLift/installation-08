@@ -38,7 +38,7 @@ anywhere.
 
 ### Run it
 
-1. Download the release zip, unzip it anywhere, and double-click `infinite-theater-3d.exe`.
+1. Download the release zip, unzip it anywhere, and double-click `installation-08.exe`.
    It starts a small local server and opens the viewer in your browser.
 
    The app is not code-signed, so the first time Windows shows **"Windows protected your PC"**.
@@ -68,7 +68,7 @@ Each release comes with a `SHA256SUMS` file. To confirm your zip is the one that
 hash it and compare the result with its line in that file:
 
 ```powershell
-Get-FileHash .\infinite-theater-3d-<version>-windows-amd64.zip -Algorithm SHA256
+Get-FileHash .\installation-08-<version>-windows-amd64.zip -Algorithm SHA256
 ```
 
 ## Watching a replay
@@ -115,7 +115,7 @@ cd ..
 tools\package.ps1 -Version my-build
 ```
 
-The result is in `dist\`: the same single `infinite-theater-3d.exe` the release ships (with the
+The result is in `dist\`: the same single `installation-08.exe` the release ships (with the
 viewer built in), its folder and a zip. Run it exactly like the downloaded release. The first
 compile takes a few minutes. Your build won't be byte-for-byte identical to the published
 release, because the version name is baked in.

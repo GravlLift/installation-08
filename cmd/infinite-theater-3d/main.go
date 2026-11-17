@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-const usage = `usage: infinite-theater-3d <command> [flags]
+const usage = `usage: installation-08 <command> [flags]
 
   login [--client-id <id>] [--data <dir>]
   logout [--data <dir>]

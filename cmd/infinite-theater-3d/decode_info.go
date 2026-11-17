@@ -12,7 +12,7 @@ import (
 // from a folder of film chunks.
 func runDecodeInfo(args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: infinite-theater-3d decode-info <chunk-dir>")
+		return fmt.Errorf("usage: installation-08 decode-info <chunk-dir>")
 	}
 	film, err := decfilm.LoadDir(args[0], nil)
 	if err != nil {

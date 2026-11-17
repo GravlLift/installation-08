@@ -167,7 +167,7 @@ func runServe(args []string) error {
 // serveCore serves the server and blocks until a cancellation signal or a serve failure,
 // then shuts it down cleanly.
 func serveCore(ctx context.Context, srv *http.Server, ln net.Listener, addr, dataDir string) error {
-	slog.Info("infinite-theater-3d serving", "addr", addr, "data", dataDir)
+	slog.Info("Installation 08 serving", "addr", addr, "data", dataDir)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- srv.Serve(ln)

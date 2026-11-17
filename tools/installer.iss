@@ -1,4 +1,4 @@
-; installer.iss — the Windows installer for infinite-theater-3d (Inno Setup 6).
+; installer.iss — the Windows installer for Installation 08 (Inno Setup 6).
 ;
 ; Compiled by tools\package.ps1 -Installer with two defines:
 ;
@@ -14,6 +14,7 @@
 #define MyAppName "Installation 08"
 #define MyAppPublisher "llampwall"
 #define MyAppURL "https://github.com/llampwall/infinite-theater-3d"
+#define MyAppExeName "installation-08.exe"
 ; Fixed for all versions of this installer: updates are detected by this id, not by the
 ; folder name.
 #define MyAppId "{{9B6C1F2E-4D7A-4E3B-9C58-2A0D6E7F4C11}"
@@ -33,13 +34,13 @@ LicenseFile={#PackageDir}\LICENSE
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
-OutputBaseFilename=infinite-theater-3d-{#Version}-setup
+OutputBaseFilename=installation-08-{#Version}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\infinite-theater-3d.exe
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -47,13 +48,17 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+; The exe was infinite-theater-3d.exe before the rename; an upgrade removes it.
+Type: files; Name: "{app}\infinite-theater-3d.exe"
+
 [Files]
 Source: "{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\infinite-theater-3d.exe"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{app}\unins000.exe"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\infinite-theater-3d.exe"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\infinite-theater-3d.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

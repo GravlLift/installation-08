@@ -16,7 +16,7 @@
 -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1"
     xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
-  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="infinite-theater-3d" type="win32" />
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="installation-08" type="win32" />
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>

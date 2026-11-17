@@ -31,9 +31,9 @@ token.
 The same steps the viewer takes are available without it:
 
 ```powershell
-.\infinite-theater-3d.exe login
-.\infinite-theater-3d.exe matches --count 10
-.\infinite-theater-3d.exe fetch --match <match-id>
+.\installation-08.exe login
+.\installation-08.exe matches --count 10
+.\installation-08.exe fetch --match <match-id>
 ```
 
 - `serve`: the local server and viewer (see [serve](#serve)). Running the exe with no
@@ -170,7 +170,7 @@ play.
 ## serve
 
 ```powershell
-.\infinite-theater-3d.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>] [--map <module-key>] [--read-only]
+.\installation-08.exe serve [--addr <host:port>] [--web <dir>] [--data <dir>] [--game <deploy-root>] [--map <module-key>] [--read-only]
 ```
 
 - `--addr` is the listen address (loopback by default, `127.0.0.1:8177`).
@@ -228,13 +228,13 @@ builds the Go binary with the `embedweb` build tag, the `-ldflags` version, and 
 link (no `libwinpthread-1.dll` or other MinGW runtime DLLs on the target machine), and writes:
 
 ```
-dist\infinite-theater-3d-<version>-windows-amd64\
-    infinite-theater-3d.exe
+dist\installation-08-<version>-windows-amd64\
+    installation-08.exe
     LICENSE
     NOTICE.md
     README.md
     third_party\...
-dist\infinite-theater-3d-<version>-windows-amd64.zip
+dist\installation-08-<version>-windows-amd64.zip
 dist\SHA256SUMS.txt
 ```
 
@@ -242,7 +242,7 @@ dist\SHA256SUMS.txt
 per release file in standard `sha256sum` format (`<lowercase hex>  <file name>`).
 
 With `-Installer` the script also compiles a Windows installer (Inno Setup 6) from
-`tools\installer.iss` and writes `dist\infinite-theater-3d-<version>-setup.exe`. The installer
+`tools\installer.iss` and writes `dist\installation-08-<version>-setup.exe`. The installer
 is per-user (no administrator prompt) and installs the release folder to
 `%LOCALAPPDATA%\Programs\Installation 08`: it shows the license, offers a Start menu
 shortcut (always) and a desktop shortcut (optional, off by default), and asks whether to launch
@@ -255,7 +255,7 @@ A plain development build of the Go server, without the embedded viewer:
 
 ```powershell
 $env:CGO_ENABLED = '1'
-go build -o infinite-theater-3d.exe ./cmd/infinite-theater-3d
+go build -o installation-08.exe ./cmd/infinite-theater-3d
 ```
 
 cgo is needed because the vendored files-reader includes the `ooz` decompressor, map textures

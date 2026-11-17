@@ -145,7 +145,7 @@ func runServeStartup(jobs interface {
 		fmt.Fprintf(os.Stderr, "\nHalo Infinite was not found on this PC, so maps, weapons and coatings cannot be built.\n"+
 			"Searched: every Steam library, and <drive>:\\XboxGames\\Halo Infinite\\Content\\deploy on each drive.\n"+
 			"If the game is installed elsewhere, close this window and start the app from a command prompt with\n"+
-			"  infinite-theater-3d.exe serve --open --game \"<the game's deploy folder>\"\n"+
+			"  installation-08.exe serve --open --game \"<the game's deploy folder>\"\n"+
 			"or set %s to that folder.\n\n", himap.DeployRootEnv)
 		return
 	}

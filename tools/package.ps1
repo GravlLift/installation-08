@@ -1,7 +1,7 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-    Builds the packaged infinite-theater-3d: one self-contained Windows exe with the
+    Builds the packaged Installation 08: one self-contained Windows exe with the
     web viewer embedded, plus a release zip.
 
 .DESCRIPTION
@@ -11,15 +11,15 @@
     static MinGW link (no libwinpthread-1.dll on the user's machine), and writes under
     dist\:
 
-        dist\infinite-theater-3d-<version>-windows-amd64\
-            infinite-theater-3d.exe
+        dist\installation-08-<version>-windows-amd64\
+            installation-08.exe
             LICENSE
             NOTICE.md
             README.md
             docs\KNOWN-ISSUES.md
             docs\CHANGELOG.md
             <third-party license texts from third_party\>
-        dist\infinite-theater-3d-<version>-windows-amd64.zip
+        dist\installation-08-<version>-windows-amd64.zip
         dist\SHA256SUMS.txt          (one SHA-256 per release file; also lists the installer with -Installer)
 
     Any failing step stops the script with a non-zero exit and a clear message.
@@ -83,7 +83,10 @@ if (Test-Path $srcAssets) {
 # --- 4. The packaged binary: embed tag, version, no debug info, static MinGW link.
 $outDir = if ($OutDir) { $OutDir } else { Join-Path $repo 'dist' }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$exe = Join-Path $outDir 'infinite-theater-3d.exe'
+# The exe takes the app's name; the Go package folder (cmd\infinite-theater-3d), the module
+# path and the data folder (%LOCALAPPDATA%\infinite-theater-3d) keep the old one.
+$exeName = 'installation-08.exe'
+$exe = Join-Path $outDir $exeName
 Push-Location $repo
 try {
     # -H=windowsgui: the packaged exe is a GUI-subsystem program, so a double-click opens
@@ -103,11 +106,11 @@ finally { Pop-Location }
 & (Join-Path $scriptDir 'embed-manifest.ps1') -Exe $exe
 
 # --- 5. The release folder and the zip.
-$name = "infinite-theater-3d-$Version-windows-amd64"
+$name = "installation-08-$Version-windows-amd64"
 $pkgDir = Join-Path $outDir $name
 New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
 Get-ChildItem -LiteralPath $pkgDir -File | Remove-Item
-Copy-Item -LiteralPath $exe -Destination (Join-Path $pkgDir 'infinite-theater-3d.exe')
+Copy-Item -LiteralPath $exe -Destination (Join-Path $pkgDir $exeName)
 foreach ($f in 'LICENSE', 'NOTICE.md', 'README.md') {
     Copy-Item -LiteralPath (Join-Path $repo $f) -Destination $pkgDir
 }
@@ -133,7 +136,7 @@ Compress-Archive -Path $pkgDir -DestinationPath $zip
 # --- 6. The installer (only with -Installer): compile tools\installer.iss with Inno
 # Setup 6 (ISCC.exe), found on PATH first, then the usual per-user and system install
 # locations. The script takes the version and the release folder as /D defines; the
-# output lands in the output folder (/O, dist\ by default) as infinite-theater-3d-<version>-setup.exe.
+# output lands in the output folder (/O, dist\ by default) as installation-08-<version>-setup.exe.
 if ($Installer) {
     $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
     if (-not $iscc) {
@@ -151,7 +154,7 @@ if ($Installer) {
     Write-Host "Compiling installer with $iscc ..."
     & $iscc "/DVersion=$Version" "/DPackageDir=$pkgDir" "/O$outDir" (Join-Path $scriptDir 'installer.iss')
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit $LASTEXITCODE)" }
-    $setup = Join-Path $outDir "infinite-theater-3d-$Version-setup.exe"
+    $setup = Join-Path $outDir "installation-08-$Version-setup.exe"
     if (-not (Test-Path $setup)) { throw "installer was not produced: $setup" }
 }
 

@@ -19,7 +19,7 @@ import (
 )
 
 // errDataDirBusy: another running server holds the data folder.
-var errDataDirBusy = errors.New("another copy of infinite-theater-3d is using this data folder")
+var errDataDirBusy = errors.New("another copy of Installation 08 is using this data folder")
 
 const (
 	// serverLockName is the file a running server holds open exclusively in its data folder.
