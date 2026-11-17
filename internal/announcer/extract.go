@@ -27,8 +27,12 @@ const ManifestName = "announcer.json"
 // only widens the name set (the "strongholdlost" line). Version 5 keeps the version 4 format and
 // widens the name set again: the stacker bank's CTF and Assault objective lines (the enemy
 // capture, the flag taken, the bomb); an install's version 4 manifest goes stale and the
-// extraction runs again with the wider set.
-const ManifestVersion = 5
+// extraction runs again with the wider set. Version 6 keeps the version 5 take format: the
+// caller no longer hard-codes English(US) as the language folder to read (DiscoverLanguage picks
+// whichever installed language actually has an announcer package), so a version 5 manifest from
+// before that change goes stale and is rebuilt under the new discovery, recording the language it
+// now reads from GameLanguage.
+const ManifestVersion = 6
 
 // TakeExt is the file extension of an extracted take.
 const TakeExt = ".ogg"

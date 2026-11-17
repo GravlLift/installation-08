@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 
@@ -184,7 +185,7 @@ func buildAnnouncerSounds(ctx context.Context, gameRoot, dataDir, lang string) (
 	if err != nil {
 		return nil, "", err
 	}
-	code, folder, err := announcerFolder(root, lang)
+	code, folder, err := announcerFolder(ctx, root, lang)
 	if err != nil {
 		return nil, "", err
 	}
@@ -214,17 +215,44 @@ func deployRootFor(flagValue string) (string, error) {
 	return root, nil
 }
 
-// announcerFolder returns the language code and the game's sound folder to read. A language
-// whose folder holds no announcer package falls back to English, and says so.
-func announcerFolder(deployRoot, lang string) (string, string, error) {
+// announcerFolder returns the language code and the game's sound folder to read: lang's own
+// folder when the install holds an announcer package there. Otherwise the install does not have
+// lang's announcer (or, when lang is "en" and English isn't installed at all, the plain
+// hard-coded path the CLI used to always ask for) — announcer.DiscoverLanguage picks whichever
+// language folder under the game's sound root does have one, and that is used instead, logging
+// the choice.
+func announcerFolder(ctx context.Context, deployRoot, lang string) (string, string, error) {
 	name, ok := announcerLanguages[lang]
 	if !ok {
 		return "", "", fmt.Errorf("build-sounds: --lang %q: want en or fr", lang)
 	}
-	folder := filepath.Join(announcer.SoundRoot(deployRoot), name)
-	if lang != "en" && !announcer.HasPackages(folder) {
-		slog.Info("the game install has no announcer in this language; using English", "language", name, "folder", folder)
-		return announcerFolder(deployRoot, "en")
+	soundRoot := announcer.SoundRoot(deployRoot)
+	folder := filepath.Join(soundRoot, name)
+	if announcer.HasPackages(folder) {
+		return lang, folder, nil
 	}
-	return lang, folder, nil
+	found, dir, err := announcer.DiscoverLanguage(ctx, soundRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("build-sounds: %w", err)
+	}
+	if found != name {
+		slog.Info("the requested announcer language isn't installed; using the installed language instead", "requested", name, "language", found, "folder", dir)
+	}
+	return languageCode(found), dir, nil
+}
+
+// languageCode returns the viewer-facing language code of a game language folder name: the code
+// announcerLanguages already maps it from ("en", "fr"), or, for an install with a language this
+// build has no two-letter code for, a code derived from the folder's own name ("Spanish(Spain)"
+// -> "spanish") so the manifest still names a real language rather than guessing en or fr.
+func languageCode(folderName string) string {
+	for code, name := range announcerLanguages {
+		if name == folderName {
+			return code
+		}
+	}
+	if i := strings.IndexByte(folderName, '('); i > 0 {
+		return strings.ToLower(folderName[:i])
+	}
+	return strings.ToLower(folderName)
 }
