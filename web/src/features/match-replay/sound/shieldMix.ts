@@ -31,7 +31,8 @@ import {
   type ShieldSoundReading,
 } from './shieldSound'
 import type { ShieldHudTrack } from '../model/shieldHud'
-import type { TimedPlacement } from './mixRender'
+import type { MixBus, MixSource, TimedPlacement } from './mixRender'
+import { shiftedTime } from './mixTime'
 
 /** A shield source placed on the axis of the CLIP (seconds). */
 export interface ShieldSegment {
@@ -226,10 +227,38 @@ export function shieldTailSeconds(
   return Math.max(0, tail)
 }
 
+/** The shield bus (`SHIELD_BUS_GAIN`, the page's level). */
+const SHIELD_BUS: MixBus = { id: 'shield', gain: SHIELD_BUS_GAIN }
+
+/**
+ * shieldSegmentSources — the segments as context-free sources of the mix, behind the shield bus.
+ * Both renders consume them: the just-in-time one (`shieldSegmentPlacements`) and the grouped one
+ * of the browsers without `suspend` (`mixRender.renderGrouped`).
+ */
+export function shieldSegmentSources(
+  segments: readonly ShieldSegment[],
+  buffers: ReadonlyMap<string, AudioBuffer | null>,
+): MixSource[] {
+  const out: MixSource[] = []
+  for (const s of segments) {
+    const buf = buffers.get(s.stem)
+    if (!buf) continue
+    const at = Math.max(s.atS, 0)
+    // A loop is always bounded by the plan (its interval's end); a one-shot plays its whole file.
+    const endS = s.stopS !== undefined ? Math.max(s.stopS, at) : at + buf.duration
+    out.push({
+      startS: at,
+      endS,
+      bus: SHIELD_BUS,
+      wire: (ctx, destination, originS) => placeShieldSegment(ctx, destination, s, buf, originS),
+    })
+  }
+  return out
+}
+
 /**
  * shieldSegmentPlacements — the segments as placements for the just-in-time render
- * (`mixRender.renderScheduled`), behind the shield bus (`SHIELD_BUS_GAIN`, the page's level).
- * The bus is the only node placed up front.
+ * (`mixRender.renderScheduled`), behind the shield bus. The bus is the only node placed up front.
  */
 export function shieldSegmentPlacements(
   ctx: BaseAudioContext,
@@ -239,41 +268,42 @@ export function shieldSegmentPlacements(
 ): TimedPlacement[] {
   if (segments.length === 0) return []
   const bus = ctx.createGain()
-  bus.gain.value = SHIELD_BUS_GAIN
+  bus.gain.value = SHIELD_BUS.gain
   bus.connect(destination)
-  const out: TimedPlacement[] = []
-  for (const s of segments) {
-    const buf = buffers.get(s.stem)
-    if (!buf) continue
-    const at = Math.max(s.atS, 0)
-    // A loop is always bounded by the plan (its interval's end); a one-shot plays its whole file.
-    const endS = s.stopS !== undefined ? Math.max(s.stopS, at) : at + buf.duration
-    out.push({ startS: at, endS, place: () => placeShieldSegment(ctx, bus, s, buf) })
-  }
-  return out
+  return shieldSegmentSources(segments, buffers).map((s) => ({
+    startS: s.startS,
+    endS: s.endS,
+    place: () => s.wire(ctx, bus, 0),
+  }))
 }
 
-/** Wires one segment with its linear fade; returns its gain, the node on the bus. */
+/**
+ * Wires one segment with its linear fade; returns its gain, the node on the bus. `originS` is the
+ * clip moment the context's time 0 stands for (0 for the whole-track render); every time is
+ * computed on the clip axis, then moved into the context (`mixTime.shiftedTime`).
+ */
 function placeShieldSegment(
   ctx: BaseAudioContext,
   bus: AudioNode,
   s: ShieldSegment,
   buf: AudioBuffer,
+  originS: number,
 ): AudioNode {
+  const shift = (t: number) => shiftedTime(t, originS, ctx.sampleRate)
   const at = Math.max(s.atS, 0)
   const gain = ctx.createGain()
-  gain.gain.setValueAtTime(1, at)
+  gain.gain.setValueAtTime(1, shift(at))
   if (s.stopS !== undefined && s.fadeOutS) {
-    gain.gain.setValueAtTime(1, Math.max(s.stopS - s.fadeOutS, at))
-    gain.gain.linearRampToValueAtTime(0, Math.max(s.stopS, at))
+    gain.gain.setValueAtTime(1, shift(Math.max(s.stopS - s.fadeOutS, at)))
+    gain.gain.linearRampToValueAtTime(0, shift(Math.max(s.stopS, at)))
   }
   const src = ctx.createBufferSource()
   src.buffer = buf
   src.loop = s.loop
   src.connect(gain)
   gain.connect(bus)
-  if (s.offsetS !== undefined && s.offsetS > 0 && buf.duration > 0) src.start(at, s.offsetS % buf.duration)
-  else src.start(at)
-  if (s.stopS !== undefined) src.stop(Math.max(s.stopS, at))
+  if (s.offsetS !== undefined && s.offsetS > 0 && buf.duration > 0) src.start(shift(at), s.offsetS % buf.duration)
+  else src.start(shift(at))
+  if (s.stopS !== undefined) src.stop(shift(Math.max(s.stopS, at)))
   return gain
 }
