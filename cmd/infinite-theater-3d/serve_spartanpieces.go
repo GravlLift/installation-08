@@ -24,17 +24,23 @@ func spartanPiecesDir(root *store.Root) string {
 	return filepath.Join(root.Dir(), "spartan-pieces")
 }
 
+// resolveSpartanPiecesFile resolves name to the full path of one library file, saying whether
+// it is one of the library's own file names (LevelUp's whitelist) that stays inside the library
+// folder. The GET route and the bundle route both resolve a name through it.
+func resolveSpartanPiecesFile(root *store.Root, name string) (string, bool) {
+	if !spartanpieces.LibraryFile(name) || strings.ContainsAny(name, "/\\") {
+		return "", false
+	}
+	return joinInside(spartanPiecesDir(root), name)
+}
+
 // handleSpartanPiecesFile answers GET /api/spartan-pieces/{file} with one
 // library file (range-capable). The name must be one of the library's own file
 // names (LevelUp's whitelist) and the resolved path must stay inside the
 // library folder; a missing or foreign file is a JSON 404.
 func (h serverHandlers) handleSpartanPiecesFile(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
-	if !spartanpieces.LibraryFile(name) || strings.ContainsAny(name, "/\\") {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "spartan_pieces_file_not_available", "file": name})
-		return
-	}
-	full, ok := joinInside(spartanPiecesDir(h.root), name)
+	full, ok := resolveSpartanPiecesFile(h.root, name)
 	if !ok {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "spartan_pieces_file_not_available", "file": name})
 		return

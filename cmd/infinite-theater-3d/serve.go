@@ -192,6 +192,12 @@ func (h serverHandlers) readOnlyHandler() http.Handler {
 	inner := h
 	inner.mux = inner.buildMux()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The bundle only reads library files (it changes no state), so it is allowed in read-only
+		// the way the library's own GET routes are; without it the batched viewer loads would fail.
+		if r.Method == http.MethodPost && r.URL.Path == "/api/bundle" {
+			inner.ServeHTTP(w, r)
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "read_only"})
 			return

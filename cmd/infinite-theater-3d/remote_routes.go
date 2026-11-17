@@ -384,6 +384,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/spartan-pieces/state", h.handleSpartanPiecesState)
 	mux.HandleFunc("POST /api/spartan-pieces/build", h.handleSpartanPiecesBuild)
 	mux.HandleFunc("GET /api/spartan-pieces/{file}", h.handleSpartanPiecesFile)
+	mux.HandleFunc("POST /api/bundle", h.handleBundle)
 	mux.HandleFunc("GET /api/announcer/state", h.handleAnnouncerState)
 	mux.HandleFunc("GET /api/builds", h.handleBuilds)
 	mux.HandleFunc("POST /api/announcer/build", h.handleAnnouncerBuild)

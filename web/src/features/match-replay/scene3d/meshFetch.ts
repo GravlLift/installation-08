@@ -7,12 +7,28 @@
 import { api } from '@/lib/api/client'
 
 import { measureSince, now } from './perf3d'
+import { createMeshBatcher, isLibraryFile, type MeshBatcher } from './meshFetchBatcher'
+
+// The library files are batched; everything else (the map, the variant, the index files) stays a
+// single request. The batcher is a module-level singleton, swappable in tests.
+let batcher: MeshBatcher = createMeshBatcher({ fetch: (url, init) => fetch(url, init) })
+
+/** setMeshBatcher swaps the batcher (tests). */
+export function setMeshBatcher(b: MeshBatcher): void {
+  batcher = b
+}
+
+/** resetMeshBatcher restores a fresh default batcher (tests). */
+export function resetMeshBatcher(): void {
+  batcher = createMeshBatcher({ fetch: (url, init) => fetch(url, init) })
+}
 
 export async function fetchMesh(
   path: string,
   onProgress: (loaded: number, total: number) => void,
   signal: AbortSignal,
 ): Promise<ArrayBuffer> {
+  if (isLibraryFile(path)) return batcher.request(path, onProgress, signal)
   const start = now()
   const buffer = await download(path, onProgress, signal)
   measureSince('download', start, { path, bytes: buffer.byteLength })
