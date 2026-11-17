@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 
-// Package sounds holds the built-in replay sound set. The files are the 183 hand-produced
-// .ogg files of JGtm's LevelUp replay player (see NOTICE.md), produced from Halo
+// Package sounds holds the built-in replay sound set. The files are hand-produced .ogg files of
+// JGtm's LevelUp replay player (see NOTICE.md for the current count), produced from Halo
 // Infinite's game audio. They are embedded in every build so the viewer is not silent on
 // a fresh install: the sound route serves a file from the user's data directory when it is
-// there (an imported file wins), otherwise from this set.
+// there (an imported file wins), otherwise from this set. A family this repo now extracts from
+// the user's own installation (internal/announcer, internal/reloadsounds,
+// internal/footstepsounds, internal/uisounds, internal/ambience, internal/eventsounds,
+// internal/endmatchvoice) has its shipped files removed from here once confirmed; see each
+// package's doc comment.
 package sounds
 
 import (
