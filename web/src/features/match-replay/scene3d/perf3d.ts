@@ -58,3 +58,21 @@ export function timedSync<T>(name: string, run: () => T): T {
     measureSince(name, start)
   }
 }
+
+/** `requestIdleCallback`'s own type, not declared in this project's lib target. */
+interface IdleWindow {
+  requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number
+}
+
+/**
+ * runWhenIdle runs `fn` off the main thread's busy stretch (`requestIdleCallback`, falling back to
+ * `setTimeout(fn, 0)` where it is not available), for work that must never push back a load's first
+ * frame: packing the session's freshly built ray index for upload (`bvhCache.serializeBVHCache`) is
+ * itself real main-thread work, so it runs here, after the scene is shown, never before. A generous
+ * timeout (2 s) keeps it from being starved indefinitely on a busy page.
+ */
+export function runWhenIdle(fn: () => void): void {
+  const w = globalThis as unknown as IdleWindow
+  if (typeof w.requestIdleCallback === 'function') w.requestIdleCallback(fn, { timeout: 2000 })
+  else setTimeout(fn, 0)
+}

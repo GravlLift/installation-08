@@ -99,6 +99,28 @@ describe('SessionCache3d', () => {
     expect(cache.totalBytes).toBe(0)
   })
 
+  it('an entry bigger than the whole cap is kept alone instead of evicting itself too', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    silence()
+    const cache = new SessionCache3d(250)
+    const disposeA = vi.fn()
+    const disposeB = vi.fn()
+    const disposeHuge = vi.fn()
+    cache.set('a', { value: 'A', bytes: 100, dispose: disposeA })
+    cache.set('b', { value: 'B', bytes: 100, dispose: disposeB })
+    cache.set('huge', { value: 'HUGE', bytes: 10_000, dispose: disposeHuge }) // alone over the cap
+    // Every other entry is evicted to make room, but the huge one survives: it never evicts
+    // itself right after being stored (the bug this guards against).
+    expect(disposeA).toHaveBeenCalledTimes(1)
+    expect(disposeB).toHaveBeenCalledTimes(1)
+    expect(disposeHuge).not.toHaveBeenCalled()
+    expect(cache.has('huge')).toBe(true)
+    expect(cache.get('huge')).toBe('HUGE')
+    expect(cache.totalBytes).toBe(10_000)
+    expect(cache.size).toBe(1)
+    expect(warn).toHaveBeenCalled() // logged distinctly, not silently cleared
+  })
+
   it('a dispose that throws during eviction is logged and does not stop the cache from working', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     silence()

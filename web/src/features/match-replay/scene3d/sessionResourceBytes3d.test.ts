@@ -33,6 +33,14 @@ describe('textureBytes', () => {
     expect(textureBytes(texture)).toBe(Math.round(blocks * 16 * 1.33))
     expect(textureBytes(texture)).toBeLessThan(256 * 256 * 4) // far under the uncompressed size
   })
+
+  // Shaped like what `ktx2Textures3d.ts`'s `arrayTexture` (`layeredArrays3d.ts`) actually builds for
+  // a map's merged layered materials: a compressed 2D ARRAY texture, one layer per merged material.
+  it('multiplies a compressed array texture (layeredArrays3d) by its layer count (image.depth)', () => {
+    const arrayTexture = new THREE.CompressedArrayTexture([], 512, 512, 12, THREE.RGBA_S3TC_DXT5_Format)
+    const blocksPerLayer = Math.ceil(512 / 4) * Math.ceil(512 / 4)
+    expect(textureBytes(arrayTexture)).toBe(Math.round(blocksPerLayer * 16 * 12 * 1.33))
+  })
 })
 
 describe('surfaceModelBytes', () => {
@@ -48,5 +56,38 @@ describe('surfaceModelBytes', () => {
 
     const once = geometryBytes(geometry) + textureBytes(texture)
     expect(surfaceModelBytes(root)).toBe(once)
+  })
+
+  // GLTFLoader (and this app's own KTX2 path, `DirectKtx2Images`) hands a second use of the same
+  // image a CLONE: a distinct `THREE.Texture` object sharing the original's `source`, never a
+  // decode of its own. Deduping by the `Texture` object (not by `source`) would count the same
+  // decoded pixels once per use instead of once per image — the bug that turned a map's real
+  // texture budget into a terabyte-scale one when many surfaces reuse a handful of base images.
+  it('counts a texture used by many surfaces once, even though each use is its own clone sharing one source', () => {
+    const base = new THREE.Texture()
+    base.image = { width: 2048, height: 2048 }
+    const root = new THREE.Group()
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3))
+    for (let i = 0; i < 50; i++) {
+      // Each surface's own material clone, its own clone of the shared texture (as GLTFLoader's
+      // `sourceCache`-then-`clone()` pattern does for every use after the first).
+      const clonedTexture = base.clone()
+      const material = new THREE.MeshStandardMaterial({ map: clonedTexture })
+      root.add(new THREE.Mesh(geometry, material))
+    }
+    expect(surfaceModelBytes(root)).toBe(geometryBytes(geometry) + textureBytes(base))
+  })
+
+  it('counts a merged layered material\'s array textures and parameter texture (userData.textures)', () => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3))
+    const arrayTexture = new THREE.DataArrayTexture(null, 256, 256, 4)
+    const params = new THREE.DataTexture(new Float32Array(4), 1, 1)
+    const material = new THREE.MeshStandardMaterial()
+    material.userData = { textures: [arrayTexture, params], couchesFusionnees: true }
+    const root = new THREE.Group()
+    root.add(new THREE.Mesh(geometry, material))
+    expect(surfaceModelBytes(root)).toBe(geometryBytes(geometry) + textureBytes(arrayTexture) + textureBytes(params))
   })
 })

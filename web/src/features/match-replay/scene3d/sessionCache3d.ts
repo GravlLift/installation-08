@@ -81,10 +81,19 @@ export class SessionCache3d {
    * set: stores `init.value` under `key` (replacing and disposing whatever was there, unless it is
    * the very value already held), then evicts unpinned entries, oldest first, until the cap holds.
    * The new entry starts unpinned; call `acquire` right after if the caller is about to use it.
+   *
+   * An entry bigger than the whole cap on its own is a special case: the normal eviction loop
+   * below removes unpinned entries oldest-first until the total fits, but the entry just inserted
+   * is itself the newest and still unpinned at this point, so on a strict "oldest first" walk it
+   * would eventually evict ITSELF too, right after being stored — leaving the cache empty even
+   * though the resource is still in use. Such an entry is kept alone instead (every OTHER entry
+   * evicted, this one kept) and logged distinctly, since it is either a genuinely huge resource or
+   * (more likely) a wrong byte estimate worth noticing rather than silently clearing the cache.
    */
   set<T>(key: string, init: CacheEntryInit<T>): void {
     const previous = this.entries.get(key)
-    if (previous && previous.value !== init.value) {
+    const sameValue = !!previous && previous.value === init.value
+    if (previous && !sameValue) {
       this.totalBytesHeld -= previous.bytes
       this.disposeEntry(key, previous)
     }
@@ -92,11 +101,24 @@ export class SessionCache3d {
       value: init.value,
       bytes: init.bytes,
       dispose: init.dispose as (value: unknown) => void,
-      refCount: previous && previous.value === init.value ? previous.refCount : 0,
+      refCount: sameValue ? previous.refCount : 0,
+    }
+    if (init.bytes > this.capBytes) {
+      for (const [otherKey, other] of this.entries) {
+        if (otherKey === key) continue
+        this.entries.delete(otherKey)
+        this.totalBytesHeld -= other.bytes
+        this.disposeEntry(otherKey, other)
+      }
+      this.entries.delete(key)
+      this.entries.set(key, entry)
+      this.totalBytesHeld = init.bytes
+      console.warn(`${this.label}: ${key} (${init.bytes} B) alone exceeds the cap (${this.capBytes} B) — keeping it cached alone, evicting everything else`)
+      return
     }
     this.entries.delete(key)
     this.entries.set(key, entry)
-    this.totalBytesHeld += previous && previous.value === init.value ? init.bytes - previous.bytes : init.bytes
+    this.totalBytesHeld += sameValue ? init.bytes - previous.bytes : init.bytes
     this.evictOverCap()
   }
 
