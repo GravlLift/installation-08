@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { LoadProgress3d, type LoadState } from './chargement3d_logic'
+import { LOAD_STALL_MS, LoadProgress3d, type LoadState } from './chargement3d_logic'
 
 const MB = 1024 * 1024
 
@@ -154,6 +154,74 @@ describe('LoadProgress3d', () => {
     progress.mapDownloaded()
     expect(progress.report()).toMatchObject({ mapMb: 8, variantMb: 0, phasesMs: { download: 120 } })
     progress.fail()
+    expect(progress.snapshot()).toEqual({ kind: 'error' })
+  })
+})
+
+describe('LoadProgress3d stall watchdog', () => {
+  function clocked() {
+    let t = 0
+    const progress = new LoadProgress3d(() => t)
+    return { progress, advance: (ms: number) => { t += ms } }
+  }
+
+  it('fails a load with no progress for LOAD_STALL_MS, naming the phase', () => {
+    const { progress, advance } = clocked()
+    progress.variantNone()
+    progress.mapBytes(10 * MB, 10 * MB)
+    progress.mapDownloaded()
+    progress.step('decode', 2, 40)
+    expect(progress.checkStall()).toBeNull()
+    advance(LOAD_STALL_MS - 1)
+    expect(progress.checkStall()).toBeNull()
+    advance(1)
+    expect(progress.checkStall()).toBe('decode')
+    expect(progress.snapshot()).toEqual({ kind: 'error', stalled: 'decode' })
+  })
+
+  it('a repeated identical report is not progress', () => {
+    const { progress, advance } = clocked()
+    progress.variantNone()
+    progress.mapBytes(10 * MB, 10 * MB)
+    progress.mapDownloaded()
+    progress.step('decode', 2, 40)
+    progress.checkStall()
+    for (let i = 0; i < 4; i++) {
+      advance(LOAD_STALL_MS / 4)
+      progress.step('decode', 2, 40)
+    }
+    expect(progress.checkStall()).toBe('decode')
+  })
+
+  it('real progress keeps the load alive', () => {
+    const { progress, advance } = clocked()
+    progress.variantNone()
+    for (let i = 1; i <= 10; i++) {
+      progress.step('decode', i, 40)
+      advance(LOAD_STALL_MS - 1)
+      expect(progress.checkStall()).toBeNull()
+    }
+    expect(progress.snapshot().kind).toBe('loading')
+  })
+
+  it('never fires while the server builds the variant', () => {
+    const { progress, advance } = clocked()
+    progress.variantBuilding()
+    progress.mapBytes(10 * MB, 10 * MB)
+    progress.mapDownloaded()
+    progress.finish('decode')
+    progress.finish('index')
+    for (let i = 0; i < 5; i++) {
+      advance(LOAD_STALL_MS)
+      expect(progress.checkStall()).toBeNull()
+    }
+  })
+
+  it('does nothing once the load failed or finished', () => {
+    const { progress, advance } = clocked()
+    progress.fail()
+    advance(LOAD_STALL_MS * 2)
+    expect(progress.checkStall()).toBeNull()
     expect(progress.snapshot()).toEqual({ kind: 'error' })
   })
 })

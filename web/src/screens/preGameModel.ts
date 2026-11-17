@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { REPLAY_TEXT, type ReplayLocale } from '../features/match-replay/i18n/i18n'
-import type { LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { LoadPhase3d, LoadState } from '../features/match-replay/model/chargement3d_logic'
 import type { TextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { formatClock } from '../lib/replay/replayLogic'
 import { displayPlayerName } from '../lib/players/displayName'
@@ -166,12 +166,32 @@ function counted(label: string, done: number, total: number): string {
   return total > 0 ? `${label} ${Math.min(done, total)} / ${total}` : label
 }
 
+/** The step a stalled load sat in, in the words its progress line used. */
+const STALLED_STEP: Record<LoadPhase3d, string> = {
+  download: 'downloading the map',
+  decode: 'decoding textures',
+  index: 'preparing geometry',
+  'variant-build': 'building the map objects',
+  'variant-prepare': 'preparing the map objects',
+  assets: 'loading players and weapons',
+  warmup: 'compiling shaders',
+  'first-frame': 'drawing the first frame',
+}
+
 /** The progress line for the 3D scene's own load: the phase in plain words (with its count when
  *  the phase has one) and the scene's real overall fraction (null when the scene failed, so no
  *  bar claims progress). */
 export function sceneStepOf(load: LoadState): { label: string; fraction: number | null } {
   if (load.kind === 'ready') return { label: 'Ready', fraction: 1 }
-  if (load.kind === 'error') return { label: 'The map could not be loaded', fraction: null }
+  if (load.kind === 'error') {
+    if (load.stalled) {
+      return {
+        label: `Loading stopped (${STALLED_STEP[load.stalled]}). Press Ctrl+R to try again; the log has the details.`,
+        fraction: null,
+      }
+    }
+    return { label: 'The map could not be loaded', fraction: null }
+  }
   const { fraction, done, total } = load
   switch (load.phase) {
     case 'download':

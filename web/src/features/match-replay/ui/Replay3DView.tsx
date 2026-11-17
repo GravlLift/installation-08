@@ -26,7 +26,8 @@ import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanA
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
 import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
-import { LoadProgress3d, type LoadState } from '../model/chargement3d_logic'
+import { LOAD_STALL_MS, LoadProgress3d, type LoadState } from '../model/chargement3d_logic'
+import { reportClientError } from '@/lib/clientLog'
 import { hudLevelOf } from '../model/hudLevel'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
@@ -151,6 +152,25 @@ export function Replay3DView({
     push()
     return progress.subscribe(push)
   }, [progress])
+  // The stall watchdog: a load with no progress at all for LOAD_STALL_MS fails with the phase it
+  // sat in, shown on screen and written to server.log, instead of spinning forever.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const state = progress.snapshot()
+      if (state.kind !== 'loading') {
+        window.clearInterval(timer)
+        return
+      }
+      const stalled = progress.checkStall()
+      if (stalled) {
+        window.clearInterval(timer)
+        const message = `match load made no progress for ${LOAD_STALL_MS / 1000} s in phase "${stalled}"`
+        console.error(`3D replay: ${message}`, progress.report())
+        reportClientError('load-stalled', message, JSON.stringify(progress.report()))
+      }
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [progress])
   const [loadId, setLoadId] = useState(0)
   const [povStatus, setPovStatus] = useState<PovStatus>('none')
   // Le premier joueur publié : le suivi par défaut quand la page n'a pas de point de vue.
@@ -245,6 +265,7 @@ export function Replay3DView({
       } catch (err) {
         if (!alive) return
         console.error('rejeu 3D : chargement de la carte', err)
+        reportClientError('map-load', err, meshPath)
         progress.fail()
       }
     })()

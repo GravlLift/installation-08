@@ -36,7 +36,18 @@ export type LoadPhase3d = (typeof LOAD_PHASES_3D)[number]
 export type LoadState =
   | { kind: 'loading'; fraction: number; phase: LoadPhase3d; done: number; total: number }
   | { kind: 'ready' }
-  | { kind: 'error' }
+  /** `stalled`: the phase the load sat in with no progress at all (`checkStall`), when that is why it failed. */
+  | { kind: 'error'; stalled?: LoadPhase3d }
+
+/**
+ * How long the load may go without any progress report before it is declared stuck. Every phase
+ * but the server's variant build reports steadily (bytes, images, geometries, models), so two
+ * minutes of silence means something will never answer: test.18/test.19's broken meshopt worker
+ * left every match on "Decoding materials" forever, with no error anywhere. Three minutes, not
+ * two: the shader warmup reports nothing until it ends, and a weak GPU compiles slowly; a false
+ * alarm would kill a load that was about to finish.
+ */
+export const LOAD_STALL_MS = 180_000
 
 const MB = 1024 * 1024
 
@@ -81,6 +92,9 @@ export class LoadProgress3d {
   }
   private complete = new Set<LoadPhase3d>()
   private failed = false
+  private stalledPhase: LoadPhase3d | null = null
+  private lastActivity: number
+  private lastSignature = ''
   private shown = 0
   private base = { raw: 0, shown: 0 }
   private weightsKey = ''
@@ -92,6 +106,7 @@ export class LoadProgress3d {
   constructor(now: () => number = () => performance.now()) {
     this.now = now
     this.started = now()
+    this.lastActivity = this.started
   }
 
   subscribe(listener: () => void): () => void {
@@ -158,9 +173,33 @@ export class LoadProgress3d {
     this.changed()
   }
 
+  /**
+   * checkStall fails the load when nothing has reported progress for `stallMs` and returns the
+   * phase it was stuck in; otherwise null. The server's variant build is exempt (the page only
+   * waits on it, the server's own build queue shows and logs it), and its silence does not count
+   * against the phases after it.
+   */
+  checkStall(stallMs: number = LOAD_STALL_MS): LoadPhase3d | null {
+    const state = this.snapshot()
+    if (state.kind !== 'loading') return null
+    const now = this.now()
+    // Progress is a change in what the loaders reported, not a call: a repeated identical report
+    // does not keep a stuck load alive.
+    const signature = this.progressSignature()
+    if (signature !== this.lastSignature || state.phase === 'variant-build') {
+      this.lastSignature = signature
+      this.lastActivity = now
+      return null
+    }
+    if (now - this.lastActivity < stallMs) return null
+    this.stalledPhase = state.phase
+    this.fail()
+    return state.phase
+  }
+
   /** The current state: error, ready (every phase complete), or loading with its fraction and phase. */
   snapshot(): LoadState {
-    if (this.failed) return { kind: 'error' }
+    if (this.failed) return this.stalledPhase ? { kind: 'error', stalled: this.stalledPhase } : { kind: 'error' }
     const fractions = this.fractions()
     const weights = this.weights()
     const key = LOAD_PHASES_3D.map((p) => weights[p].toFixed(3)).join('|')
@@ -195,6 +234,17 @@ export class LoadProgress3d {
     const phasesMs: Partial<Record<LoadPhase3d, number>> = {}
     for (const [phase, at] of this.completedAt) phasesMs[phase] = Math.round(at - this.started)
     return { mapMb: Math.round(this.map.done / MB), variantMb: Math.round(this.variant.done / MB), phasesMs }
+  }
+
+  /** Everything the loaders have reported, as one string: it changes exactly when progress is made. */
+  private progressSignature(): string {
+    const counts = Object.values(this.counts).map((c) => `${c.done}/${c.total}`).join(',')
+    return [
+      `${this.map.done}/${this.map.total}/${this.map.complete}`,
+      `${this.variant.done}/${this.variant.total}/${this.variant.complete}/${this.variant.status}`,
+      counts,
+      [...this.complete].sort().join(','),
+    ].join('|')
   }
 
   private mark(phase: LoadPhase3d): void {

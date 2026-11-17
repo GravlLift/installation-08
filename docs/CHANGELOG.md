@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-test.21
+
+Changes since 0.1.0-test.20.
+
+- A match that stops loading no longer spins forever. If nothing makes progress for three minutes, the loading screen says which step stopped and to press Ctrl+R. The Forge object build, which runs on the server, is exempt.
+- Errors in the app's pages are now written to `server.log` as "viewer error" lines with their details: uncaught errors, unhandled failures, a map that failed to load, and a stalled load. Sending the log is now enough to see what went wrong in the window.
+
 ## 0.1.0-test.20
 
 Changes since 0.1.0-test.19.

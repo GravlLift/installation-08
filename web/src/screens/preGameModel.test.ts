@@ -260,6 +260,14 @@ describe('usePreGameCountdown', () => {
 })
 
 describe('sceneStepOf', () => {
+  it('names the step a stalled load stopped in, and claims no progress', () => {
+    const step = sceneStepOf({ kind: 'error', stalled: 'decode' })
+    expect(step.fraction).toBeNull()
+    expect(step.label).toContain('decoding textures')
+    expect(step.label).toContain('Ctrl+R')
+    expect(sceneStepOf({ kind: 'error' }).label).toBe('The map could not be loaded')
+  })
+
   const MB = 1024 * 1024
   it('names each phase of the scene load with its count and the overall fraction', () => {
     expect(sceneStepOf({ kind: 'loading', phase: 'download', fraction: 0.2, done: 42 * MB, total: 130 * MB }))
