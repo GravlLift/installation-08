@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "source": "world bounds x/y/z du tag sbsp de la RÉGION 0 (ordre du bloc structure-BSP du tag de niveau), lus dans ds/levels/multi (relatif à la racine de l'installation)",
+  "source": "world bounds x/y/z of the sbsp tag of REGION 0 (order of the level tag's structure-BSP block), read from ds/levels/multi (relative to the install root)",
   "maps": {
     "944396dd-5661-4a16-b1d8-a6053f762c55": {
       "module": "fo13_frost",

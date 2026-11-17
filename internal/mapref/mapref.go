@@ -67,14 +67,14 @@ func GeometryOverride(module string) (string, error) {
 		return "", fmt.Errorf("mapref: map settings: %w", err)
 	}
 	var settings struct {
-		Cartes map[string]struct {
-			ModuleGeometrie string `json:"moduleGeometrie"`
-		} `json:"cartes"`
+		Maps map[string]struct {
+			GeometryModule string `json:"geometryModule"`
+		} `json:"maps"`
 	}
 	if err := json.Unmarshal(blob, &settings); err != nil {
 		return "", fmt.Errorf("mapref: map settings: %w", err)
 	}
-	return settings.Cartes[module].ModuleGeometrie, nil
+	return settings.Maps[module].GeometryModule, nil
 }
 
 // DefaultForgeMaterials returns the embedded Forge material tints catalog (JSON), copied
