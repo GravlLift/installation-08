@@ -26,7 +26,8 @@ export interface CallOptions {
   signal?: AbortSignal
 }
 
-function resolve(path: string): string {
+/** resolve a path against the API base (absolute URLs pass through unchanged). */
+export function resolve(path: string): string {
   return path.startsWith('http://') || path.startsWith('https://') ? path : `${BASE_URL}${path}`
 }
 
