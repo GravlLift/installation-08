@@ -56,8 +56,8 @@ engineering backlog; this page keeps only the user-visible parts of it.
   properties), and which axes of the model these stretch is not known: neither the tag layouts
   nor any published documentation says. Read along the model's own long axis, the Heatwave's
   ready glow would be a 26 cm streak along the barrel; read across it, as the flat effects use
-  them, an 11.5 cm wide disc. Until this is known, the ready glow shows as a small round glow
-  beside the gun in first person.
+  them, an 11.5 cm wide disc. Until this is known, the part of the ready glow seen in first person
+  is not drawn (drawn at its size alone, it showed as a round disc beside the gun).
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the
   same level everywhere), and other players' shield alarms are not played.
 - How much quieter other players' guns are than your own (4 dB, plus distance) is an

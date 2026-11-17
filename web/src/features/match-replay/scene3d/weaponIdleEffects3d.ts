@@ -56,6 +56,13 @@ const BLEND_ADD_SRC_ALPHA = 9
 /** The two particle shaders the view draws. */
 const SHADER_SPRITE = '9b1c511e'
 const SHADER_MODEL = '96db07b6'
+/**
+ * Systems not drawn, as weapon key:effect:system, until their model particle's stretch is decoded
+ * (docs/KNOWN-ISSUES.md, the model particles' scale x and scale y). The Heatwave's ready glow (its
+ * scale x is 5) drawn at its size alone shows as a round disc beside the gun in first person.
+ */
+const UNDECODED_SYSTEMS: ReadonlySet<string> = new Set(['2ac9c2ff:67537d26:0'])
+
 /** Billboards a sprite draws with: facing the screen or camera, or perpendicular to its direction. */
 const BILLBOARD_SCREEN = 0
 const BILLBOARD_CAMERA = 1
@@ -503,6 +510,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
         e.systems.forEach((s, si) => {
           if (!systemShown(s, firstPerson, scoped)) return
           const debugKey = `${key}:${e.effect}:${si}`
+          if (UNDECODED_SYSTEMS.has(debugKey)) return
           if (typeof window !== 'undefined' && window.__it3dIdleEffectsHide?.includes(debugKey)) return
           const pool = this.poolOf(`${key}:${ei}:${si}`, s)
           if (!pool) return
