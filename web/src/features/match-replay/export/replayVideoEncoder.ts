@@ -357,10 +357,23 @@ export function canExportAudio(): boolean {
  */
 const AUDIO_BITRATE = 128_000
 
-/** La configuration AAC visee : AAC-LC, le profil que tout lecteur decode. */
-export function audioEncoderConfig(shape: AudioTrackShape): AudioEncoderConfig {
+/**
+ * The audio codecs of the clip, in order of preference: AAC-LC first, the profile every player
+ * decodes; Opus where the browser has no AAC encoder. Firefox is that case (checked 2026-11-16 on
+ * Firefox 142: `AudioEncoder.isConfigSupported` refuses `mp4a.40.2` and accepts `opus`); without
+ * the Opus fallback its clips came out silent. Opus in MP4 is standard (ISO/IEC 14496-12 with the
+ * Opus mapping) and plays in the browsers and VLC.
+ */
+export type ExportAudioCodec = 'aac' | 'opus'
+const AUDIO_CODECS: readonly { codec: ExportAudioCodec; webCodec: string }[] = [
+  { codec: 'aac', webCodec: 'mp4a.40.2' },
+  { codec: 'opus', webCodec: 'opus' },
+]
+
+/** La configuration visee pour un codec : AAC-LC par defaut. */
+export function audioEncoderConfig(shape: AudioTrackShape, codec: ExportAudioCodec = 'aac'): AudioEncoderConfig {
   return {
-    codec: 'mp4a.40.2',
+    codec: AUDIO_CODECS.find((c) => c.codec === codec)?.webCodec ?? 'mp4a.40.2',
     sampleRate: shape.sampleRate,
     numberOfChannels: shape.numberOfChannels,
     bitrate: AUDIO_BITRATE,
@@ -368,7 +381,8 @@ export function audioEncoderConfig(shape: AudioTrackShape): AudioEncoderConfig {
 }
 
 /**
- * audioTrackUsable dit si ce navigateur sait REELLEMENT encoder cette piste.
+ * chooseAudioCodec dit quel codec ce navigateur sait REELLEMENT encoder pour cette piste, dans
+ * l'ordre de `AUDIO_CODECS`, ou `null` s'il n'en sait aucun.
  *
  * `canExportAudio` ne repond qu'a « l'API existe-t-elle ». Elle peut exister et REFUSER la
  * configuration — et ce refus est ASYNCHRONE : `configure()` ne leve pas, il passe l'encodeur
@@ -379,12 +393,22 @@ export function audioEncoderConfig(shape: AudioTrackShape): AudioEncoderConfig {
  * La question se pose donc AVANT d'ouvrir le conteneur, qui declare ses pistes une fois pour
  * toutes : mieux vaut un clip muet annonce qu'un export perdu.
  */
-export async function audioTrackUsable(shape: AudioTrackShape): Promise<boolean> {
-  if (!canExportAudio()) return false
+export async function chooseAudioCodec(
+  shape: AudioTrackShape,
+  probe: (config: AudioEncoderConfig) => Promise<boolean> = audioConfigSupported,
+): Promise<ExportAudioCodec | null> {
+  if (!canExportAudio()) return null
+  for (const { codec } of AUDIO_CODECS) {
+    if (await probe(audioEncoderConfig(shape, codec))) return codec
+  }
+  return null
+}
+
+/** The browser's answer for one audio configuration; a refusal that throws is a "no". */
+async function audioConfigSupported(config: AudioEncoderConfig): Promise<boolean> {
   if (typeof AudioEncoder.isConfigSupported !== 'function') return false
   try {
-    const probe = await AudioEncoder.isConfigSupported(audioEncoderConfig(shape))
-    return probe.supported === true
+    return (await AudioEncoder.isConfigSupported(config)).supported === true
   } catch {
     // Une configuration REFUSEE leve ici (config invalide) : c'est une reponse, pas une panne.
     return false
@@ -473,7 +497,7 @@ export interface AudioTrackInput {
  */
 /**
  * La forme de reference des pistes sonores : celle que rend le mixage hors ligne
- * (`replayAudioMix.ts`). Elle ne sert qu'a PROUVER que l'encodeur AAC l'accepte, AVANT de
+ * (`replayAudioMix.ts`). Elle ne sert qu'a PROUVER que l'encodeur (AAC, ou Opus) l'accepte, AVANT de
  * declarer quoi que ce soit dans le conteneur — une piste declaree puis refusee perd tout
  * l'export.
  */
@@ -497,10 +521,11 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // demandé à l'encodeur, sans avoir à deviner quel mode a gagné la sonde.
   console.info(`[replay-export] rate mode ${mode} —`, JSON.stringify(config))
   const noms = o.audioTracks ?? []
-  // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `audioTrackUsable`) : le
+  // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `chooseAudioCodec`) : le
   // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
   // l'encodeur refusera ensuite perd TOUT l'export.
-  const audioOk = noms.length > 0 && (await audioTrackUsable(MIX_TRACK_SHAPE))
+  const audioCodec = noms.length > 0 ? await chooseAudioCodec(MIX_TRACK_SHAPE) : null
+  if (audioCodec && audioCodec !== 'aac') console.info(`[replay-export] no AAC encoder in this browser, audio encoded as ${audioCodec}`)
 
   // LE FICHIER EST ECRIT EN FLUX, JAMAIS DANS UN SEUL ArrayBuffer.
   //
@@ -525,9 +550,9 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   output.addVideoTrack(videoSource, { frameRate: fps })
   // Les pistes AUDIO sont ajoutees ICI, vides : leur EXISTENCE et leur ORDRE se declarent avant
   // le premier octet, leur contenu arrive plus tard (`addAudioTracks`).
-  const audioSources = audioOk
+  const audioSources = audioCodec
     ? noms.map((name) => {
-        const src = new AudioBufferSource({ codec: 'aac', quality: QUALITY_HIGH })
+        const src = new AudioBufferSource({ codec: audioCodec, quality: QUALITY_HIGH })
         output.addAudioTrack(src, { name })
         return src
       })
