@@ -42,8 +42,8 @@ func assetVocabulary() []string {
 		if !ok {
 			continue
 		}
-		for _, champ := range []string{l.Detail, l.Name, l.Reserve} {
-			for _, m := range reAssetName.FindAllString(strings.ToLower(champ), -1) {
+		for _, field := range []string{l.Detail, l.Name, l.Reserve} {
+			for _, m := range reAssetName.FindAllString(strings.ToLower(field), -1) {
 				if strings.Contains(m, "_") {
 					names[m] = true
 				}
@@ -52,8 +52,8 @@ func assetVocabulary() []string {
 	}
 	seen := map[string]bool{}
 	var out []string
-	for nom := range names {
-		for _, q := range assetTails(nom) {
+	for name := range names {
+		for _, q := range assetTails(name) {
 			if len(q) > maxAssetTail {
 				continue
 			}
