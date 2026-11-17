@@ -321,36 +321,40 @@ export function MatchSelectScreen() {
       id="select"
       gamertag={gamertag}
       onSignIn={onSignIn}
-      topBarControl={<TextureQualityToggle />}
       backdropUrl={backdropUrl}
       items={ticker}
       keys={keys}
     >
       <div className="bc-select">
         <div className="bc-select-head">
-          <div>
-            <div className="bc-eyebrow">Select a match</div>
-            <h1 className="bc-title">Match library</h1>
+          <div className="bc-select-headline">
+            <div>
+              <div className="bc-eyebrow">Select a match</div>
+              <h1 className="bc-title">Match library</h1>
+            </div>
+            <TextureQualityToggle />
           </div>
-          <div className="bc-tabs" role="tablist">
-            {tabs.map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="tab"
-                aria-selected={t === tab}
-                className={'bc-tab' + (t === tab ? ' on' : '')}
-                onClick={() => setTab(t)}
-              >
-                {t}
+          <div className="bc-select-headtabs">
+            <div className="bc-tabs" role="tablist">
+              {tabs.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={t === tab}
+                  className={'bc-tab' + (t === tab ? ' on' : '')}
+                  onClick={() => setTab(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            {gamertag ? (
+              <button type="button" className="bc-signout" onClick={onSignOut}>
+                Sign out
               </button>
-            ))}
+            ) : null}
           </div>
-          {gamertag ? (
-            <button type="button" className="bc-signout" onClick={onSignOut}>
-              Sign out
-            </button>
-          ) : null}
         </div>
 
         <div className={'bc-list-wrap' + (signedIn ? ' bc-has-search' : '')}>
