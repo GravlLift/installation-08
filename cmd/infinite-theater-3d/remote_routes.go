@@ -358,6 +358,7 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("POST /api/matches/{id}/fetch", h.startFetch)
 	mux.HandleFunc("GET /api/matches/{id}/fetch/state", h.fetchState)
 	mux.HandleFunc("GET /api/health", h.handleHealth)
+	mux.HandleFunc("POST /api/client-log", handleClientLog)
 	mux.HandleFunc("GET /api/coatings/status", h.handleCoatingStatus)
 	mux.HandleFunc("GET /api/coatings/setup/state", h.handleCoatingsSetupState)
 	mux.HandleFunc("POST /api/coatings/setup", h.handleCoatingsSetup)
