@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 1254 1254" role="img" aria-label="Installation 08 icon — blue-shaded Forerunner spire within a segmented Halo ring">
+  <title>Installation 08</title>
+  <desc>Installation 08 app icon. Flat editable vector shapes traced from the approved icon, preserving its segmented ring, blue-shaded left spire, silver tower, and orange marker.</desc>
+  <defs>
+    <radialGradient id="background" cx="50%" cy="46%" r="70%">
+      <stop offset="0" stop-color="#151F27"/>
+      <stop offset="1" stop-color="#0F171E"/>
+    </radialGradient>
+  </defs>
+  <rect id="icon-background" x="81" y="93" width="1085" height="1082" rx="225" fill="url(#background)"/>
+  <path id="ring-upper-left-cyan" fill="#629EB4" d="M 561,503 L 507,508 L 443,519 L 392,532 L 340,551 L 309,567 L 293,578 L 277,593 L 269,604 L 263,617 L 261,626 L 262,647 L 285,624 L 313,604 L 328,595 L 377,572 L 417,558 L 462,546 L 514,536 L 557,531 Z"/>
+  <path id="ring-upper-right-cyan" fill="#629EB3" d="M 696,501 L 696,520 L 698,529 L 731,531 L 781,538 L 816,545 L 857,556 L 889,567 L 922,582 L 949,598 L 978,621 L 980,613 L 979,598 L 976,588 L 967,574 L 947,557 L 914,540 L 859,522 L 807,511 L 744,503 Z"/>
+  <path id="ring-left-end" fill="#7D8C97" d="M 269,588 L 239,605 L 215,623 L 196,642 L 179,670 L 175,685 L 176,709 L 183,728 L 195,745 L 262,689 L 252,676 L 245,663 L 242,653 L 241,640 L 244,624 L 251,609 Z"/>
+  <path id="ring-right-end" fill="#7D8C97" d="M 970,562 L 986,579 L 997,601 L 998,625 L 994,640 L 1062,692 L 1068,674 L 1068,655 L 1062,635 L 1052,619 L 1035,601 L 1018,588 L 995,574 Z"/>
+  <path id="ring-lower-left" fill="#768691" d="M 206,757 L 224,773 L 242,785 L 274,802 L 303,814 L 340,826 L 355,829 L 403,753 L 370,744 L 328,729 L 299,715 L 273,698 Z"/>
+  <path id="ring-lower-center-left" fill="#758490" d="M 373,834 L 439,845 L 509,850 L 556,773 L 475,766 L 421,756 Z"/>
+  <path id="ring-lower-center-right" fill="#758490" d="M 886,817 L 837,741 L 778,758 L 703,771 L 749,847 L 779,844 L 827,835 L 886,819 Z"/>
+  <path id="ring-lower-right" fill="#788793" d="M 1053,709 L 985,655 L 966,676 L 939,696 L 898,718 L 859,733 L 855,736 L 903,810 L 906,812 L 927,804 L 962,787 L 999,764 L 1035,733 Z"/>
+  <path id="spire-left-base-blue" fill="#548098" d="M 526,670 L 501,682 L 481,753 L 515,756 Z"/>
+  <path id="spire-left-upper-blue" fill="#59869F" d="M 605,445 L 585,445 L 570,597 L 586,591 L 587,599 L 545,620 L 528,757 L 604,759 Z"/>
+  <path id="spire-right-shoulder" fill="#82909C" d="M 685,606 L 689,757 L 744,750 L 768,745 L 746,683 L 717,670 L 709,618 Z"/>
+  <path id="spire-main-silver" fill="#939FAA" d="M 639,320 L 639,390 L 620,410 L 621,759 L 669,759 L 672,758 L 672,320 Z"/>
+  <path id="orange-chevron" fill="#F69A25" d="M 563,809 L 627,873 L 692,810 Z"/>
+</svg>
