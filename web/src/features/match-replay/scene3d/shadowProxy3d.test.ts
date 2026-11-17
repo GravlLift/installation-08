@@ -4,7 +4,7 @@ import * as THREE from 'three'
 
 import { buildShadowProxies } from './shadowProxy3d'
 
-/** Deux surfaces sur un même tampon de sommets (un triangle chacune), plus une surface à découpe. */
+/** Two surfaces on the same vertex buffer (one triangle each), plus a cutout surface. */
 function scene() {
   const position = new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0, 0, 6, 0, 0, 5, 1, 0]), 3)
   const surface = (index: number[], material: THREE.Material) => {
@@ -25,7 +25,7 @@ function scene() {
 }
 
 describe('buildShadowProxies', () => {
-  it("porte l'ombre des surfaces d'un même tampon par un seul maillage", () => {
+  it('carries the shadow of surfaces on the same buffer through a single mesh', () => {
     const { root, a, b, cutout, position } = scene()
     const proxies = buildShadowProxies(root, [a, b, cutout])
     expect(proxies.merged).toBe(2)
@@ -37,11 +37,11 @@ describe('buildShadowProxies', () => {
     expect(Array.from(proxy.geometry.index!.array)).toEqual([0, 1, 2, 3, 4, 5])
     expect(a.castShadow).toBe(false)
     expect(b.castShadow).toBe(false)
-    // La découpe garde son ombre propre : ses trous ne se lisent que dans son matériau.
+    // The cutout keeps its own shadow: its holes only show up in its own material.
     expect(cutout.castShadow).toBe(true)
   })
 
-  it("n'est dessiné que dans la passe d'ombre et ne répond à aucun rayon", () => {
+  it('is only drawn in the shadow pass and responds to no ray', () => {
     const { root, a, b } = scene()
     const proxy = buildShadowProxies(root, [a, b]).meshes[0]
     const call = [null, null, null, null, null, null] as unknown as Parameters<THREE.Mesh['onBeforeRender']>
@@ -54,11 +54,11 @@ describe('buildShadowProxies', () => {
     expect(hits).toHaveLength(0)
   })
 
-  it('sépare les surfaces dont la face dessinée diffère et libère sans toucher aux sommets', () => {
+  it('separates surfaces whose drawn face differs, and releases without touching the vertices', () => {
     const { root, a, b, position } = scene()
     b.material = new THREE.MeshStandardMaterial({ side: THREE.FrontSide })
     const proxies = buildShadowProxies(root, [a, b])
-    // Un groupe d'une seule surface ne gagne rien : elle garde son ombre.
+    // A group of a single surface gains nothing: it keeps its own shadow.
     expect(proxies.meshes).toHaveLength(0)
     expect(a.castShadow).toBe(true)
     proxies.dispose()
