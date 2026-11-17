@@ -44,7 +44,7 @@ type IdleEffect struct {
 	Markers         map[string][][3]float64 `json:"markers"`
 	MarkerRotations map[string][][4]float64 `json:"markerRotations"`
 	// ReloadFunctions: the animation functions the weapon's own graph sets through its reload
-	// animations (himap.FonctionsDuRechargement), by name, where every reload animation holds one
+	// animations (himap.ReloadFunctions), by name, where every reload animation holds one
 	// value over all its frames (the Heatwave's and the Cindershot's animation_event_function_variant_switch,
 	// 1); the view feeds them while the holder reloads.
 	ReloadFunctions map[string]float64 `json:"reloadFunctions,omitempty"`
@@ -76,7 +76,7 @@ func mappingOf(b []byte) (m *himap.FonctionParticule, ok bool) {
 	if len(b) == 0 {
 		return nil, true
 	}
-	f, err := himap.FonctionDeMapping(b)
+	f, err := himap.DecodeMappingFunction(b)
 	if err != nil {
 		return nil, false
 	}
@@ -285,7 +285,7 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 	}
 	for _, m := range ms {
 		k := fmt.Sprintf("%08x", m.Nom)
-		p, q := markerFrame(m.Modele)
+		p, q := markerFrame(m.Model)
 		e.Markers[k] = append(e.Markers[k], p)
 		e.MarkerRotations[k] = append(e.MarkerRotations[k], q)
 	}

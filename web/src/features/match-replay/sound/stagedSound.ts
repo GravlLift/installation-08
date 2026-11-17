@@ -60,14 +60,14 @@ function oneStaged(
   next: EpisodeRechargement | null,
   fps: number,
 ): ReplaySoundEvent[] {
-  const etapes = ep.etapes
-  const debut = etapes[0].t
-  const held = armeEnMain(doc, slot, debut)
+  const stages = ep.etapes
+  const start = stages[0].t
+  const held = armeEnMain(doc, slot, start)
   const tag = held ? weaponTagOf(held.id) : null
-  const life = currentLifeOf(doc, slot, debut)
+  const life = currentLifeOf(doc, slot, start)
   const clips = tag ? library.get(tag) : undefined
   if (!held || !life || !clips) return []
-  const startMs = frameToMs(debut, doc)
+  const startMs = frameToMs(start, doc)
   const endMs = Math.min(
     frameToMs(trackWindow(life).end, doc),
     next ? frameToMs(next.etapes[0].t, doc) : Infinity,
@@ -78,8 +78,8 @@ function oneStaged(
   // The rig's round clip: the empty one when the magazine was empty at the start (its `vide`).
   const round = magazineAtReload(doc, slot, startMs, starts) === 0 ? clips.roundEmpty : clips.round
   const roundS = round.durationMs / 1000
-  const last = etapes.length - 1
-  const msOf = (i: number) => frameToMs(etapes[i].t, doc)
+  const last = stages.length - 1
+  const msOf = (i: number) => frameToMs(stages[i].t, doc)
   const cancelled = endMs < msOf(last) + Math.max(clips.closing.durationMs, round.durationMs)
   const out: ReplaySoundEvent[] = []
   // One clip from `fromMs`, played `rate` times faster, until `untilMs` (the next stage, or its end).
@@ -96,14 +96,14 @@ function oneStaged(
   }
   play(clips.enter, startMs, 1, last > 0 ? msOf(1) : Infinity)
   for (let i = 1; i <= last; i++) {
-    if (i === last && etapes[i].coupe) {
-      if (finNaturelle(etapes, { durationSeconds: roundS }, fps)) play(clips.closing, msOf(i), 1, Infinity)
+    if (i === last && stages[i].coupe) {
+      if (finNaturelle(stages, { durationSeconds: roundS }, fps)) play(clips.closing, msOf(i), 1, Infinity)
       continue
     }
     // A round cut short by the episode's last message keeps the episode's pace (the rig's rule).
-    const coupee = i + 1 === last && etapes[last].coupe && !finNaturelle(etapes, { durationSeconds: roundS }, fps)
-    const duree = i < last && !coupee ? (etapes[i + 1].t - etapes[i].t) / fps : dureeAttendue(etapes, i, { durationSeconds: roundS }, fps)
-    const rate = roundS > 0 && duree > 0 ? Math.max(1, roundS / duree) : 1
+    const cutShort = i + 1 === last && stages[last].coupe && !finNaturelle(stages, { durationSeconds: roundS }, fps)
+    const roundDuration = i < last && !cutShort ? (stages[i + 1].t - stages[i].t) / fps : dureeAttendue(stages, i, { durationSeconds: roundS }, fps)
+    const rate = roundS > 0 && roundDuration > 0 ? Math.max(1, roundS / roundDuration) : 1
     play(round, msOf(i), rate, i < last ? msOf(i + 1) : Infinity)
   }
   return out

@@ -50,7 +50,7 @@ const BAC_ORIGINE = new THREE.Vector3()
 const BAC_IDENTITE = new THREE.Quaternion()
 const BAC_AXE_RIG = new THREE.Vector3()
 const BAC_MARQUEUR = new THREE.Matrix4()
-const QUAT_MARQUEUR = new THREE.Quaternion()
+const MARKER_QUAT = new THREE.Quaternion()
 
 /**
  * appliquerTenueRig : pose la tenue réglée du rig (viewGrip3d) sur la position et l'orientation
@@ -402,7 +402,7 @@ export class BrasPremierePersonne3d {
     if (!bone) return false
     bone.updateWorldMatrix(true, false)
     const q = m.rotation
-    BAC_MARQUEUR.makeRotationFromQuaternion(q ? QUAT_MARQUEUR.set(q[0], q[1], q[2], q[3]) : QUAT_MARQUEUR.identity())
+    BAC_MARQUEUR.makeRotationFromQuaternion(q ? MARKER_QUAT.set(q[0], q[1], q[2], q[3]) : MARKER_QUAT.identity())
     out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.setPosition(m.position[0], m.position[1], m.position[2]))
     return true
   }

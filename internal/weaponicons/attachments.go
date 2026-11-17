@@ -40,7 +40,7 @@ type ObjectFunction struct {
 	TurnOffWith uint32
 	Invert      bool
 	// Mapping: the bytes of the function's `default function` (the engine's mapping function, the
-	// codec of a particle property: himap.FonctionDeMapping); nil when the tag has none. Measured on
+	// codec of a particle property: himap.DecodeMappingFunction); nil when the tag has none. Measured on
 	// the Heatwave (2ac9c2ff): `fx_camo_off` maps `camo` through 1 - x, `primary_ammunition` is
 	// mapped to a step at 3.25%, the identity functions carry a 32-byte identity 0..1.
 	Mapping []byte

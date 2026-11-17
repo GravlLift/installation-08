@@ -58,7 +58,7 @@ const reloadFunctionTolerance = 1e-6
 // reloadFunctions reads the animation functions the weapon's reload animations set, keeping those
 // that hold one value over every frame of every reload animation (logged otherwise). Nil without one.
 func (w effectWriter) reloadFunctions(ctx context.Context, weap uint32) map[string]float64 {
-	fs, err := w.a.FonctionsDuRechargement(ctx, weap)
+	fs, err := w.a.ReloadFunctions(ctx, weap)
 	if err != nil {
 		slog.WarnContext(ctx, "weapon reload animation functions unreadable", "weapon", fmt.Sprintf("%08x", weap), "err", err)
 		return nil
@@ -66,8 +66,8 @@ func (w effectWriter) reloadFunctions(ctx context.Context, weap uint32) map[stri
 	values := map[string]float64{}
 	varying := map[string]bool{}
 	for _, f := range fs {
-		name := functionName(f.Nom)
-		for _, v := range f.Valeurs {
+		name := functionName(f.Name)
+		for _, v := range f.Values {
 			if prev, ok := values[name]; ok && math.Abs(prev-v) > reloadFunctionTolerance {
 				varying[name] = true
 			}
