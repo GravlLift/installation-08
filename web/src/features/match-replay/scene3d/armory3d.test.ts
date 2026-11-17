@@ -14,7 +14,7 @@ import { dressSpartan } from './spartanArmor3d'
 const BONES = ['b_pedestal', 'b_pelvis', 'b_head']
 const POSE = { translation: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0, 1] as [number, number, number, number] }
 
-/** Une racine portant les os `BONES` en chaîne (racine, bassin, tête). */
+/** A root carrying the `BONES` chain (pedestal, pelvis, head). */
 function skeletonRoot(names = BONES): { root: THREE.Group; skeleton: THREE.Skeleton } {
   const bones = names.map((n) => Object.assign(new THREE.Bone(), { name: n }))
   bones.forEach((b, i) => {
@@ -27,7 +27,7 @@ function skeletonRoot(names = BONES): { root: THREE.Group; skeleton: THREE.Skele
   return { root, skeleton: new THREE.Skeleton(bones) }
 }
 
-/** La scène d'un GLB de pièce : un maillage à peau sur ses propres os. */
+/** A piece GLB's scene: a skinned mesh on its own bones. */
 function pieceScene(names = BONES): THREE.Object3D {
   const { root, skeleton } = skeletonRoot(names)
   const mesh = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
@@ -76,7 +76,7 @@ const SWATCH = {
   scratch_color: [0.3, 0.3, 0.3] as [number, number, number], scratch_roughness: 0.2, scratch_metallic: 1,
 }
 
-/** La table des revêtements : la liste `b0799de3` a pour défaut `036e9dd8`, une zone sans dégradé. */
+/** The coating table: list `b0799de3` defaults to `036e9dd8`, a zone with no gradient. */
 function table(): CoatingTable {
   return {
     schema: 1, globals: {}, default_styles: { b0799de3: '036e9dd8' },
@@ -85,7 +85,7 @@ function table(): CoatingTable {
   }
 }
 
-/** Le revêtement `2c5251bc` : la liste `b0799de3` prend le style `f56eda13`, une zone à dégradé `c5e192fb`. */
+/** Coating `2c5251bc`: list `b0799de3` takes style `f56eda13`, a zone with gradient `c5e192fb`. */
 function coatingFile(): CoatingFile {
   return {
     style: '2c5251bc', lists: { b0799de3: 'f56eda13' },
@@ -93,7 +93,7 @@ function coatingFile(): CoatingFile {
   }
 }
 
-/** Une pièce dont le matériau est peint par la vue (masques chargés, style de la liste `b0799de3`). */
+/** A piece whose material is painted by the view (masks loaded, style of list `b0799de3`). */
 function paintedPiece(): THREE.Object3D {
   const root = pieceScene()
   root.traverse((o) => {
@@ -108,8 +108,8 @@ function paintedPiece(): THREE.Object3D {
 }
 
 /**
- * Un réseau factice : chaque fichier rend une scène fraîche, `fail` les fichiers en échec. Les
- * URLs sous `/armes/` (la bibliothèque des armes) lisent `weaponDocs`, sinon les documents d'armure.
+ * A fake network: every file returns a fresh scene, `fail` names the failing files. URLs under
+ * `/armes/` (the weapon library) read `weaponDocs`, otherwise the armor documents.
  */
 function fakeIO(fail: Set<string> = new Set(), scenes: Record<string, () => THREE.Object3D> = {}, weaponDocs: Record<string, () => unknown> = {}) {
   const nameOf = (url: string) => url.slice(url.lastIndexOf('/') + 1)
@@ -145,7 +145,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('ArmorLibrary', () => {
-  it('charge chaque fichier une fois par session, l’index aussi', async () => {
+  it('loads each file once per session, the index too', async () => {
     const { io, loadGlb, fetchJson } = fakeIO()
     const lib = new ArmorLibrary('/base', io)
     const [a, b] = await Promise.all([lib.file('piece-x.glb'), lib.file('piece-x.glb')])
@@ -157,7 +157,7 @@ describe('ArmorLibrary', () => {
     expect(fetchJson).toHaveBeenCalledTimes(1)
   })
 
-  it('un fichier en échec rend null, journalisé une fois, sans nouvel essai', async () => {
+  it('a failing file returns null, logged once, with no retry', async () => {
     const { io, loadGlb } = fakeIO(new Set(['piece-x.glb']))
     const lib = new ArmorLibrary('/base', io)
     expect(await lib.file('piece-x.glb')).toBeNull()
@@ -166,12 +166,12 @@ describe('ArmorLibrary', () => {
     expect(console.warn).toHaveBeenCalledTimes(1)
   })
 
-  it('index d’un autre schéma : null', async () => {
+  it('an index of another schema: null', async () => {
     const lib = new ArmorLibrary('/base', { ...fakeIO().io, fetchJson: async () => ({ ...index(), schema: 3 }) })
     expect(await lib.index()).toBeNull()
   })
 
-  it('revêtements et dégradés lus une fois ; absents : null, journalisés une fois', async () => {
+  it('coatings and gradients read once; absent: null, logged once', async () => {
     const { io, fetchJson, loadSwatch } = fakeIO(new Set(['swatch-deadbeef.png']))
     const lib = new ArmorLibrary('/base', io)
     expect(await lib.coatings()).toEqual(table())
@@ -189,13 +189,13 @@ describe('ArmorLibrary', () => {
     expect(console.warn).toHaveBeenCalledTimes(2)
   })
 
-  it('dispose libère chaque géométrie une fois, et une scène arrivée après', async () => {
+  it('dispose releases each geometry once, and a scene that arrives afterward', async () => {
     let release: (o: THREE.Object3D) => void = () => {}
     const late = new Promise<THREE.Object3D>((r) => (release = r))
     const lib = new ArmorLibrary('/base', { ...fakeIO().io, loadGlb: (url) => (url.endsWith('late.glb') ? late : Promise.resolve(pieceScene())) })
     const early = (await lib.file('a.glb')) as THREE.Object3D
     const pending = lib.file('late.glb')
-    // Le téléchargement est en vol quand la bibliothèque est libérée.
+    // The download is in flight when the library is released.
     await settle()
     const geometries: THREE.BufferGeometry[] = []
     early.traverse((o) => o instanceof THREE.Mesh && geometries.push(o.geometry))
@@ -210,7 +210,7 @@ describe('ArmorLibrary', () => {
     expect(lateSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('borne les téléchargements simultanés', async () => {
+  it('caps simultaneous downloads', async () => {
     let active = 0
     let peak = 0
     const lib = new ArmorLibrary('/base', {
@@ -236,7 +236,7 @@ describe('SpartanArmory', () => {
     { xuid: '3', status: 'default', reason: 'private' },
   ]
 
-  it('habit nul tant qu’il se charge, puis prêt ; même géométrie, même tenue ; armure par défaut sans manifeste', async () => {
+  it('null dress while loading, then ready; same geometry, same outfit; default armor without a manifest', async () => {
     const { io, loadGlb } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), players)
     expect(armory.dress('1')).toBeNull()
@@ -251,12 +251,12 @@ describe('SpartanArmory', () => {
     expect(armory.dress('2')).not.toBe(armory.dress('1'))
     expect(armory.dress('3')).toBeNull()
     expect(loadGlb).toHaveBeenCalledTimes(3)
-    // Une tenue rapportée une fois ; la peinture de chaque joueur une fois (sans revêtement : repli nommé).
+    // One outfit reported once; each player's paint once (without a coating: fallback named).
     expect(console.info).toHaveBeenCalledTimes(1)
     expect(console.warn).toHaveBeenCalledTimes(2)
   })
 
-  it('peint les matériaux peints de la tenue de son revêtement, chargé avec ses dégradés', async () => {
+  it("paints the outfit's painted materials with its coating, loaded with its gradients", async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
     const m = { ...manifest('h2'), coating: { path: 'c', style_id: 743592380, style_key: '2c5251bc' } }
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: m }])
@@ -265,7 +265,7 @@ describe('SpartanArmory', () => {
     const dress = armory.dress('1')
     expect(dress?.coat.size).toBe(1)
     const [paint] = [...(dress?.coat.values() ?? [])]
-    // Zone de base : allumée, couche 0 (le seul dégradé chargé), couleur haute du revêtement.
+    // Base zone: on, layer 0 (the only loaded gradient), coating's high color.
     expect(Array.from(paint.paint.data.slice(0, 2))).toEqual([1, 0])
     expect(paint.gradients.value).toBeInstanceOf(THREE.DataArrayTexture)
     expect(Array.from(paint.paint.data.slice(4, 7))).toEqual([expect.closeTo(0.2, 6), expect.closeTo(0.3, 6), expect.closeTo(0.4, 6)])
@@ -273,18 +273,18 @@ describe('SpartanArmory', () => {
     expect(console.info).toHaveBeenCalledTimes(2)
   })
 
-  it('pièce non chargée : son repli (armure par défaut de la région) est posé, l’écart nommé', async () => {
+  it("a piece that fails to load: its fallback (the region's default armor) is placed, the deviation named", async () => {
     const { io } = fakeIO(new Set(['piece-aaaaaaaa-11111111.glb']))
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), players)
     armory.dress('1')
     await settle()
     const o = armory.dress('1')?.outfit
     expect(o?.skinned).toHaveLength(2)
-    expect(o?.issues).toEqual([{ kind: 'piece_load_failed', what: 'aaaaaaaa-11111111', detail: 'repli aaaaaaaa-13d24f1f (default)' }])
+    expect(o?.issues).toEqual([{ kind: 'piece_load_failed', what: 'aaaaaaaa-11111111', detail: 'fallback aaaaaaaa-13d24f1f (default)' }])
     expect(console.warn).toHaveBeenCalled()
   })
 
-  it('pièce aux os différents de l’index : refusée et nommée, le repli la remplace', async () => {
+  it("a piece with bones different from the index: rejected and named, the fallback replaces it", async () => {
     const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': () => pieceScene(['x', 'y', 'z']) })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), players)
     armory.dress('1')
@@ -293,8 +293,8 @@ describe('SpartanArmory', () => {
   })
 })
 
-describe('SpartanArmory armes', () => {
-  /** Un modèle d'arme : un maillage peint dont la liste de style n'est pas dans la table d'armure. */
+describe('SpartanArmory weapons', () => {
+  /** A weapon model: a painted mesh whose style list isn't in the armor table. */
   function weaponScene(): THREE.Object3D {
     const root = new THREE.Group()
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
@@ -306,13 +306,13 @@ describe('SpartanArmory armes', () => {
     return root
   }
 
-  const joueursArmes: ReplaySpartan[] = [
+  const weaponPlayers: ReplaySpartan[] = [
     { xuid: '1', status: 'armor', manifest: manifest('h1'), weapon_coatings: [{ model_key: '11111111', style_key: '2c5251bc' }] },
   ]
 
-  it('peindreArme : coatArme nulle en attente, le coat posé et en cache ensuite', async () => {
+  it('peindreArme: coatArme null while pending, the coat placed and cached afterward', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
-    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
     const p = armory.peindreArme('1', '11111111', scene)
     expect(armory.coatArme('1', '11111111', scene)).toBeNull()
@@ -320,11 +320,11 @@ describe('SpartanArmory armes', () => {
     expect(coat?.size).toBe(1)
     expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
     expect(armory.peindreArme('1', '11111111', scene)).toBe(p)
-    // La peinture rapportée une fois à la console.
+    // The paint reported once to the console.
     expect(console.info).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreArme : without a coating for the weapon (no core), the default style of each list, cached', async () => {
+  it('peindreArme: without a coating for the weapon (no core), the default style of each list, cached', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }], undefined, '/armes', io)
     const scene = weaponScene()
@@ -334,15 +334,15 @@ describe('SpartanArmory armes', () => {
     expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
   })
 
-  it('peindreArme : sans bibliothèque des armes, null', async () => {
+  it('peindreArme: without a weapon library, null', async () => {
     const { io } = fakeIO()
-    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes)
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers)
     expect(await armory.peindreArme('1', '11111111', weaponScene())).toBeNull()
   })
 
-  it('coatArme : le coat ne couvre plus tous les matériaux peints du modèle, null', async () => {
+  it("coatArme: the coat no longer covers every painted material of the model, null", async () => {
     const { io } = fakeIO()
-    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
     const coat = await armory.peindreArme('1', '11111111', scene)
     const extra = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
@@ -355,7 +355,7 @@ describe('SpartanArmory armes', () => {
     expect(armory.coatArme('1', '11111111', scene)).toBeNull()
   })
 
-  it('peindreObjet : the default style of each list, one coat per model key, cached', async () => {
+  it('peindreObjet: the default style of each list, one coat per model key, cached', async () => {
     const { io, fetchJson } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [], undefined, '/armes', io)
     const sceneA = weaponScene()
@@ -368,7 +368,7 @@ describe('SpartanArmory armes', () => {
     // The default style of the list (no gradient in the test table): zone lit, layer -1.
     expect(Array.from([...coat!.values()][0].paint.data.slice(0, 2))).toEqual([1, -1])
     expect(armory.coatObjet('11111111', sceneA)).toBe(coat)
-    // A second request for the same key reuses the coat (one fetch of the table) ; a different
+    // A second request for the same key reuses the coat (one fetch of the table); a different
     // key paints its own model.
     expect(armory.peindreObjet('11111111', sceneB)).toBe(p)
     expect(fetchJson).toHaveBeenCalledTimes(1)
@@ -377,19 +377,19 @@ describe('SpartanArmory armes', () => {
     expect((await p2)?.size).toBe(1)
   })
 
-  it('peindreObjet : sans bibliothèque des armes, null', async () => {
+  it('peindreObjet: without a weapon library, null', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [])
     expect(await armory.peindreObjet('11111111', weaponScene())).toBeNull()
     expect(armory.coatObjet('11111111', weaponScene())).toBeNull()
   })
 
-  /** Le revêtement d'arme `2c5251bc` : la liste `f00dface` prend le style `036e9dd8` de la table. */
+  /** Weapon coating `2c5251bc`: list `f00dface` takes the table's style `036e9dd8`. */
   function coatingArmes(): CoatingFile {
     return { style: '2c5251bc', lists: { f00dface: '036e9dd8' }, styles: {} }
   }
 
-  /** La table de la bibliothèque des armes : la liste `f00dface` a pour défaut `036e9dd8`, sans dégradé. */
+  /** The weapon library's table: list `f00dface` defaults to `036e9dd8`, with no gradient. */
   function tableArmes(): CoatingTable {
     return {
       schema: 1, globals: {}, default_styles: { f00dface: '036e9dd8' },
@@ -398,7 +398,7 @@ describe('SpartanArmory armes', () => {
     }
   }
 
-  it('peindreBras : l’arme du rig prend son revêtement, les bras celui du joueur', async () => {
+  it("peindreBras: the rig's weapon wears its own coating, the arms the player's", async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const m = { ...manifest('h4'), coating: { path: 'c', style_id: 1, style_key: '2c5251bc' } }
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [
@@ -406,22 +406,22 @@ describe('SpartanArmory armes', () => {
     ], undefined, '/armes', io)
     armory.dress('1')
     await settle()
-    const habit = armory.dress('1')
-    if (!habit) throw new Error('habit absent')
-    const bras = [...habit.coat.keys()][0]
-    const arme = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
-    const paint = await armory.peindreBras('1', habit, [bras, arme], '22222222')
+    const dress = armory.dress('1')
+    if (!dress) throw new Error('dress missing')
+    const arm = [...dress.coat.keys()][0]
+    const weapon = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
+    const paint = await armory.peindreBras('1', dress, [arm, weapon], '22222222')
     expect(paint).not.toBeNull()
-    expect(paint!.has(bras)).toBe(true)
-    // L’arme a le revêtement demandé, absent de la bibliothèque : style par défaut, sans dégradé.
-    expect(paint!.has(arme)).toBe(true)
-    expect(Array.from(paint!.get(arme)!.paint.data.slice(0, 2))).toEqual([1, -1])
-    // Les bras ont le revêtement du joueur, dégradé chargé.
-    expect(Array.from(paint!.get(bras)!.paint.data.slice(0, 2))).toEqual([1, 0])
+    expect(paint!.has(arm)).toBe(true)
+    // The weapon has the requested coating, missing from the library: default style, no gradient.
+    expect(paint!.has(weapon)).toBe(true)
+    expect(Array.from(paint!.get(weapon)!.paint.data.slice(0, 2))).toEqual([1, -1])
+    // The arms have the player's coating, gradient loaded.
+    expect(Array.from(paint!.get(arm)!.paint.data.slice(0, 2))).toEqual([1, 0])
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreBras : a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
+  it('peindreBras: a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
     const base = manifest('h5')
     const m: SpartanArmorManifest = {
@@ -433,37 +433,37 @@ describe('SpartanArmory armes', () => {
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: m }])
     armory.dress('1')
     await settle()
-    const habit = armory.dress('1')
-    if (!habit) throw new Error('habit absent')
+    const dress = armory.dress('1')
+    if (!dress) throw new Error('dress missing')
     // The arm piece's style region (0b7e328b) is a prosthetic region of the manifest.
-    const bras = [...habit.coat.keys()][0]
-    const paint = await armory.peindreBras('1', habit, [bras])
+    const arm = [...dress.coat.keys()][0]
+    const paint = await armory.peindreBras('1', dress, [arm])
     expect(paint).not.toBeNull()
     // Same paint as the third-person coat: the coating's style, its gradient loaded.
-    expect(Array.from(paint!.get(bras)!.paint.data)).toEqual(Array.from(habit.coat.get(bras)!.paint.data))
-    expect(Array.from(paint!.get(bras)!.paint.data.slice(0, 2))).toEqual([1, 0])
+    expect(Array.from(paint!.get(arm)!.paint.data)).toEqual(Array.from(dress.coat.get(arm)!.paint.data))
+    expect(Array.from(paint!.get(arm)!.paint.data.slice(0, 2))).toEqual([1, 0])
     expect(loadSwatch).toHaveBeenCalled()
   })
 
-  it('peindreBras : without an entry for the rig weapon, it wears the default style of each list', async () => {
+  it('peindreBras: without an entry for the rig weapon, it wears the default style of each list', async () => {
     const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
-    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     armory.dress('1')
     await settle()
-    const habit = armory.dress('1')
-    if (!habit) throw new Error('habit absent')
-    const bras = [...habit.coat.keys()][0]
-    const arme = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
-    const paint = await armory.peindreBras('1', habit, [bras, arme], '99999999')
+    const dress = armory.dress('1')
+    if (!dress) throw new Error('dress missing')
+    const arm = [...dress.coat.keys()][0]
+    const weapon = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
+    const paint = await armory.peindreBras('1', dress, [arm, weapon], '99999999')
     expect(paint).not.toBeNull()
-    expect(Array.from(paint!.get(arme)!.paint.data.slice(0, 2))).toEqual([1, -1])
+    expect(Array.from(paint!.get(weapon)!.paint.data.slice(0, 2))).toEqual([1, -1])
   })
 
   it('a libraryArme given at construction is used (no own one built) and survives dispose', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
     const given = new ArmorLibrary('/armes', io)
     const spy = vi.spyOn(given, 'coatings')
-    const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io, true, given)
+    const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io, true, given)
     const scene = weaponScene()
     const coat = await armory.peindreArme('1', '11111111', scene)
     expect(coat?.size).toBe(1)
@@ -479,7 +479,7 @@ describe('SpartanArmory armes', () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
     const protoDispose = vi.spyOn(ArmorLibrary.prototype, 'dispose')
     try {
-      const armory = new SpartanArmory(new ArmorLibrary('/b', io), joueursArmes, undefined, '/armes', io)
+      const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
       const scene = weaponScene()
       const coat = await armory.peindreArme('1', '11111111', scene)
       expect(coat?.size).toBe(1)
@@ -495,13 +495,13 @@ describe('SpartanArmory armes', () => {
 })
 
 describe('dressSpartan', () => {
-  it('remplace l’armure par défaut, lie chaque pièce au squelette de la copie, pose l’accessoire à son os', async () => {
+  it("replaces the default armor, binds each piece to the copy's skeleton, places the accessory at its bone", async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }])
     armory.dress('1')
     await settle()
     const outfit = armory.dress('1')?.outfit
-    if (!outfit) throw new Error('tenue absente')
+    if (!outfit) throw new Error('outfit missing')
     const { root, skeleton } = skeletonRoot()
     const legacy = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
     root.add(legacy)
@@ -513,17 +513,17 @@ describe('dressSpartan', () => {
     root.traverse((o) => o instanceof THREE.SkinnedMesh && skinned.push(o))
     expect(skinned).toHaveLength(2)
     expect(skinned.every((s) => s.skeleton === skeleton)).toBe(true)
-    // Géométrie partagée avec la bibliothèque, jamais recopiée.
+    // Geometry shared with the library, never recopied.
     expect(skinned.map((s) => s.geometry)).toEqual(outfit.skinned.map((s) => s.geometry))
     const head = skeleton.bones[2]
     root.updateMatrixWorld(true)
     const rigid = head.children[0].children[0].children[0] as THREE.Mesh
     expect(rigid.geometry).toBe(outfit.rigid[0].meshes[0].mesh.geometry)
-    // Tête à 0,3 (os en chaîne), instance à +0,2, maillage à +0,5 en z dans son GLB.
+    // Head at 0.3 (bone chain), instance at +0.2, mesh at +0.5 on z within its own GLB.
     expect(rigid.getWorldPosition(new THREE.Vector3()).toArray()).toEqual([0, expect.closeTo(0.5, 6), expect.closeTo(0.5, 6)])
   })
 
-  it('squelette d’autres os : refusé, la copie garde son armure', async () => {
+  it('a skeleton with other bones: rejected, the copy keeps its armor', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }])
     armory.dress('1')
@@ -532,7 +532,7 @@ describe('dressSpartan', () => {
     const legacy = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
     root.add(legacy)
     const outfit = armory.dress('1')?.outfit
-    if (!outfit) throw new Error('tenue absente')
+    if (!outfit) throw new Error('outfit missing')
     expect(dressSpartan(root, skeleton, outfit)).toBe(false)
     expect(legacy.parent).toBe(root)
   })

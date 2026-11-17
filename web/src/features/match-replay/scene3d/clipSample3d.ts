@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * clipSample3d.ts — LES CLIPS DU JEU POSÉS SUR UNE COPIE DU SPARTAN, à un temps imposé.
+ * clipSample3d.ts — THE GAME'S CLIPS POSED ON A SPARTAN COPY, at an imposed time.
  *
- * Aucune horloge ni `AnimationMixer` : la pose est une fonction du mélange demandé (`ClipMix`, tiré
- * de l'image du rejeu par `clipSelect3d`). Chaque appel repart de la pose de repos de tous les os que
- * les clips animent, puis :
- *   1. les couches de BASE (locomotion, postures, saut...) se mélangent en moyenne pondérée (leurs
- *      poids font 1 ; un os qu'aucune n'anime garde le repos pour la part qui manque) ;
- *   2. les couches PAR-DESSUS (corps à corps, lancer, rangement...) remplacent, à leur poids, les os
- *      qu'elles animent (les autres gardent la base).
- * Même mélange = même pose au bit près, quelles que soient les images visitées avant.
+ * No clock and no `AnimationMixer`: the pose is a pure function of the requested mix (`ClipMix`,
+ * drawn from the replay frame by `clipSelect3d`). Each call restarts from the rest pose of every
+ * bone the clips animate, then:
+ *   1. the BASE layers (locomotion, stances, jump...) blend in a weighted average (their weights
+ *      sum to 1; a bone none of them animates keeps rest for the missing share);
+ *   2. the OVER layers (melee, throw, put-away...) replace, at their weight, the bones they
+ *      animate (the others keep the base).
+ * Same mix = same pose down to the bit, regardless of which frames were visited before.
  *
- * Les pistes sont liées aux os une fois (par nom) ; un échantillon lit deux clés voisines (une par
- * image du clip) : interpolation sphérique des rotations, linéaire des translations. Un clip bouclé
- * passe de sa dernière image à la première ; un clip joué une fois tient ses bords. Aucune allocation
- * par image : des tampons par copie.
+ * Tracks are bound to bones once (by name); a sample reads two neighboring keys (one per clip
+ * frame): spherical interpolation for rotations, linear for translations. A looping clip wraps
+ * from its last frame to the first; a once-played clip holds its edges. No per-frame
+ * allocation: per-copy buffers.
  */
 import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 
 import { type SpartanClip, type SpartanClips } from './clips3d'
 
-/** Une couche du mélange : un clip, son temps (s), son poids, et s'il boucle. */
+/** A layer of the mix: a clip, its time (s), its weight, and whether it loops. */
 export interface ClipLayer {
   clip: SpartanClip | null
   time: number
@@ -29,7 +29,7 @@ export interface ClipLayer {
   loop: boolean
 }
 
-/** Le mélange d'une image : couches de base (poids de somme 1) puis couches par-dessus. */
+/** A frame's mix: base layers (weights summing to 1) then over layers. */
 export interface ClipMix {
   base: ClipLayer[]
   baseCount: number
@@ -37,7 +37,7 @@ export interface ClipMix {
   overCount: number
 }
 
-/** newClipMix : un mélange vide aux capacités données (réutilisé d'une image à l'autre). */
+/** newClipMix: an empty mix at the given capacities (reused from one frame to the next). */
 export function newClipMix(baseCapacity = 16, overCapacity = 4): ClipMix {
   const layer = (): ClipLayer => ({ clip: null, time: 0, weight: 0, loop: false })
   return {
@@ -48,11 +48,11 @@ export function newClipMix(baseCapacity = 16, overCapacity = 4): ClipMix {
   }
 }
 
-/** Les liaisons d'un clip à une copie : l'indice d'os de chaque piste (-1 : os absent de la copie). */
+/** A clip's bindings to a copy: each track's bone index (-1: bone absent from the copy). */
 type Binding = Int16Array
 
 export class ClipRig {
-  /** Les os animés par au moins un clip, dans l'ordre des tampons. */
+  /** Bones animated by at least one clip, in buffer order. */
   readonly bones: THREE.Bone[]
   private readonly restQ: Float32Array
   private readonly restT: Float32Array
@@ -64,7 +64,7 @@ export class ClipRig {
   private readonly sample = new Float32Array(4)
   readonly clips: SpartanClips
 
-  /** `root` : la copie à son repos ; `clips` : le catalogue de sa source. */
+  /** `root`: the copy at rest; `clips`: its source's catalog. */
   constructor(root: THREE.Object3D, clips: SpartanClips) {
     this.clips = clips
     const byName = new Map<string, THREE.Bone>()
@@ -90,7 +90,7 @@ export class ClipRig {
     }
   }
 
-  /** apply pose les os de la copie pour le mélange `mix` (cf. l'en-tête). */
+  /** apply poses the copy's bones for mix `mix` (see the header). */
   apply(mix: ClipMix): void {
     this.wq.fill(0)
     this.wt.fill(0)
@@ -103,7 +103,7 @@ export class ClipRig {
     })
   }
 
-  /** blendBase ajoute une couche de base à la moyenne pondérée en cours. */
+  /** blendBase adds a base layer to the weighted average in progress. */
   private blendBase(layer: ClipLayer): void {
     const clip = layer.clip
     if (!clip || layer.weight <= 0) return
@@ -118,7 +118,7 @@ export class ClipRig {
     })
   }
 
-  /** settleBase : la part de poids qu'aucune couche n'a donnée à un os revient à son repos. */
+  /** settleBase: the weight share no layer gave a bone returns to its rest pose. */
   private settleBase(): void {
     for (let b = 0; b < this.bones.length; b++) {
       settle(this.q, this.wq[b], b, 4, this.restQ)
@@ -126,7 +126,7 @@ export class ClipRig {
     }
   }
 
-  /** blendOver remplace, au poids de la couche, les os qu'elle anime. */
+  /** blendOver replaces, at the layer's weight, the bones it animates. */
   private blendOver(layer: ClipLayer): void {
     const clip = layer.clip
     if (!clip || layer.weight <= 0) return
@@ -144,9 +144,9 @@ export class ClipRig {
 }
 
 /**
- * measureSyncPhases mesure la phase d'accord (`SpartanClip.sync`) de chaque clip qui se déplace :
- * l'image où le pied gauche (`b_l_foot`) mène le plus loin devant le droit dans le sens du
- * déplacement. Pose une copie des os de `source` (jamais `source` elle-même) ; une fois par catalogue.
+ * measureSyncPhases measures the sync phase (`SpartanClip.sync`) of each moving clip: the frame
+ * where the left foot (`b_l_foot`) leads furthest ahead of the right one in the direction of
+ * travel. Poses a copy of `source`'s bones (never `source` itself); once per catalog.
  */
 export function measureSyncPhases(source: THREE.Object3D, clips: SpartanClips): void {
   const root = cloneSkinned(source)
@@ -180,19 +180,19 @@ export function measureSyncPhases(source: THREE.Object3D, clips: SpartanClips): 
   }
 }
 
-/** slerpFlat : `THREE.Quaternion.slerpFlat` sur des tableaux typés (ses types n'acceptent que `number[]`). */
+/** slerpFlat: `THREE.Quaternion.slerpFlat` over typed arrays (its types only accept `number[]`). */
 function slerpFlat(dst: Float32Array, d: number, a: Float32Array, ai: number, b: Float32Array, bi: number, t: number): void {
   THREE.Quaternion.slerpFlat(dst as unknown as number[], d, a as unknown as number[], ai, b as unknown as number[], bi, t)
 }
 
-/** framePosition : la position fractionnaire (en images du clip) du temps `time` (s). */
+/** framePosition: the fractional position (in clip frames) of time `time` (s). */
 export function framePosition(clip: SpartanClip, time: number, loop: boolean): number {
   const p = time * clip.frameRate
   if (loop) return p - clip.frames * Math.floor(p / clip.frames)
   return Math.min(Math.max(p, 0), clip.frames - 1)
 }
 
-/** sampleTrack écrit dans `out` la valeur de `tr` à la position `at` (images). */
+/** sampleTrack writes into `out` the value of `tr` at position `at` (frames). */
 function sampleTrack(tr: { size: 3 | 4; values: Float32Array; keys: number }, at: number, frames: number, loop: boolean, out: Float32Array): void {
   const s = tr.size
   if (tr.keys === 1) {
@@ -210,8 +210,8 @@ function sampleTrack(tr: { size: 3 | 4; values: Float32Array; keys: number }, at
 }
 
 /**
- * accumulate ajoute la valeur `v` au poids `w` à la moyenne de l'os `b` : la première contribution
- * est copiée, les suivantes mêlées au prorata (rotation sphérique, translation linéaire).
+ * accumulate adds value `v` at weight `w` into bone `b`'s average: the first contribution is
+ * copied, the following ones blended pro rata (spherical rotation, linear translation).
  */
 function accumulate(acc: Float32Array, weights: Float32Array, b: number, size: 3 | 4, v: Float32Array, w: number): void {
   const total = weights[b] + w
@@ -226,7 +226,7 @@ function accumulate(acc: Float32Array, weights: Float32Array, b: number, size: 3
   for (let c = 0; c < 3; c++) acc[o + c] = k === 1 ? v[c] : acc[o + c] + (v[c] - acc[o + c]) * k
 }
 
-/** settle : un os de poids `w` < 1 rejoint son repos pour `1 - w` ; sans poids, il est au repos. */
+/** settle: a bone at weight `w` < 1 joins its rest pose for `1 - w`; with no weight, it is at rest. */
 function settle(acc: Float32Array, w: number, b: number, size: 3 | 4, rest: Float32Array): void {
   const o = size * b
   if (w >= 1 - 1e-6) return

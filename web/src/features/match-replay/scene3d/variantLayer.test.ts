@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * variantLayer.test.ts — le calque des objets de la variante passe par la préparation de la carte
- * (familles, étiquettes de l'inspecteur, nœuds `ombre*`, index, envers de la structure, lumière cuite
- * reprise), devient sol
- * des calques d'action, et un 404 n'est pas une panne.
+ * variantLayer.test.ts — the variant's object layer goes through the map's preparation
+ * (families, inspector tags, `ombre*` nodes, index, the structure's back face, baked light
+ * carried over), becomes ground for action layers, and a 404 is not a failure.
  */
 import * as THREE from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -20,14 +19,14 @@ vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
 
 const fetchMock = vi.mocked(fetchMesh)
 
-/** Un carré horizontal de 2 u de côté à la hauteur three `y`. */
+/** A horizontal 2 u square at three height `y`. */
 const SQUARE = (y: number) => [-1, y, -1, 1, y, -1, 1, y, 1, -1, y, 1]
 const INDICES = [0, 2, 1, 0, 3, 2]
 
 /**
- * tinyGlb : un GLB au format du maillage de la carte, réduit à un carré par nœud parent : une
- * caisse (structure, shader publié), un fond (`decor*`), une vitre (`vitre`), un mandataire
- * d'ombre (`ombre*`).
+ * tinyGlb: a GLB in the map's mesh format, reduced to one square per parent node: a crate
+ * (structure, published shader), a backdrop (`decor*`), a glass pane (`vitre`), a shadow
+ * proxy (`ombre*`).
  */
 function tinyGlb(height = 1): ArrayBuffer {
   const bin = new ArrayBuffer(60)
@@ -84,7 +83,7 @@ function tinyGlb(height = 1): ArrayBuffer {
 
 function meshUnder(root: THREE.Object3D, node: string): THREE.Mesh {
   const found = root.getObjectByName(node)?.children[0]
-  if (!(found instanceof THREE.Mesh)) throw new Error(`pas de maillage sous ${node}`)
+  if (!(found instanceof THREE.Mesh)) throw new Error(`no mesh under ${node}`)
   return found
 }
 
@@ -94,7 +93,7 @@ afterEach(() => {
 })
 
 describe('loadLayerModel', () => {
-  it('prépare le calque comme la carte : familles, étiquettes, ombres cachées, index', async () => {
+  it('prepares the layer like the map: families, tags, hidden shadows, index', async () => {
     const layer = await loadLayerModel(tinyGlb(), null)
     const crate = meshUnder(layer.root, 'structure')
     expect(layer.pickables).toEqual([crate])
@@ -107,11 +106,11 @@ describe('loadLayerModel', () => {
     layer.dispose()
   })
 
-  it('la structure seule a son envers, hors des listes du modèle, libéré avec lui', async () => {
+  it('only the structure has its back face, outside the model lists, released with it', async () => {
     const layer = await loadLayerModel(tinyGlb(), null)
     const crate = meshUnder(layer.root, 'structure')
     const backs = layer.root.children.filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && o.name === BACK_FACE_NAME)
-    // Le fond (décor) et la vitre lisent le même tampon : seul l'index de la caisse entre dans l'envers.
+    // The backdrop (decor) and the glass pane read the same buffer: only the crate's index enters the back face.
     expect(backs).toHaveLength(1)
     expect(backs[0].geometry.getAttribute('position')).toBe(crate.geometry.getAttribute('position'))
     expect(Array.from(backs[0].geometry.index?.array ?? [])).toEqual(Array.from(crate.geometry.index?.array ?? []))
@@ -124,7 +123,7 @@ describe('loadLayerModel', () => {
     expect(backs[0].parent).toBeNull()
   })
 
-  it('reprend la lumière cuite de la carte sur chacun de ses matériaux', async () => {
+  it("carries over the map's baked light onto each of its materials", async () => {
     const light = { apply: vi.fn() } as unknown as BakedLight
     const layer = await loadLayerModel(tinyGlb(), light)
     const applied = vi.mocked(light.apply).mock.calls.map(([m]) => m)
@@ -133,8 +132,8 @@ describe('loadLayerModel', () => {
   })
 })
 
-describe('Ground avec un calque', () => {
-  it('le sol posé après coup porte les calques d’action, les hauteurs déjà lues sont oubliées', async () => {
+describe('Ground with a layer', () => {
+  it('ground placed after the fact carries action layers, already-read heights are forgotten', async () => {
     const map = await loadLayerModel(tinyGlb(0), null)
     const layer = await loadLayerModel(tinyGlb(1), null)
     const ground = new Ground([...map.pickables], 10)
@@ -151,7 +150,7 @@ describe('Ground avec un calque', () => {
 describe('loadVariantLayer', () => {
   const signal = new AbortController().signal
 
-  it('absent (404) : pas de calque, noté en débogage seulement', async () => {
+  it('absent (404): no layer, only logged at debug level', async () => {
     const debug = vi.spyOn(console, 'debug').mockImplementation(() => {})
     const warn = vi.spyOn(console, 'warn')
     fetchMock.mockRejectedValue({ code: 'not_found', message: 'absent', retryable: false, status: 404 })
@@ -160,12 +159,12 @@ describe('loadVariantLayer', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
-  it('autre échec : l’erreur remonte à l’appelant', async () => {
+  it('a different failure: the error bubbles up to the caller', async () => {
     fetchMock.mockRejectedValue({ code: 'internal', message: 'panne', retryable: true, status: 500 })
     await expect(loadVariantLayer('/v.glb', signal, null)).rejects.toMatchObject({ status: 500 })
   })
 
-  it('présent : le calque préparé', async () => {
+  it('present: the prepared layer', async () => {
     fetchMock.mockResolvedValue(tinyGlb())
     const layer = await loadVariantLayer('/v.glb', signal, null)
     expect(fetchMock).toHaveBeenCalledWith('/v.glb', expect.any(Function), signal)

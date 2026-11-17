@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — flights3d : LE LOOK D'UNE GRENADE DANS LA SCÈNE SUIVANT SON RANG.
+ * Tests — flights3d: A GRENADE'S LOOK IN THE SCENE, BY ITS RANK.
  *
- * CE QUE CE FICHIER VERROUILLE :
- *  - une grenade plasma montre son orbe (cœur et halo additifs), en vol comme posée, et ne pose
- *    plus la tête sombre ;
- *  - une frag garde son look : la tête, pas l'orbe ;
- *  - la détonation de la plasma est bleue, celle de la frag orangée.
+ * WHAT THIS FILE LOCKS DOWN:
+ *  - a plasma grenade shows its orb (additive core and halo), in flight as much as at rest, and
+ *    no longer places the dark head;
+ *  - a frag keeps its own look: the head, not the orb;
+ *  - the plasma's detonation is blue, the frag's orange.
  */
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
@@ -23,17 +23,17 @@ import type { ActionContext } from './actionScene3d'
 import type { AttachBone } from './avatar3d'
 import type { Tracks3d } from './tracks3d'
 
-const ENCRE: Record<string, THREE.Color> = {
+const INK: Record<string, THREE.Color> = {
   blue: new THREE.Color(0, 0, 1),
   orange: new THREE.Color(1, 0.4, 0),
-  blanc: new THREE.Color(1, 1, 1),
+  white: new THREE.Color(1, 1, 1),
   info: new THREE.Color(0.2, 0.5, 1),
-  vert: new THREE.Color(0, 1, 0),
+  green: new THREE.Color(0, 1, 0),
 }
 
 /**
- * Un film d'une seule grenade du rang `rank` : le vol part à l'image 100, finit à 140, et la
- * détonation publiée est à 160 (la grenade est donc posée entre 140 et 160).
+ * A film of a single grenade of rank `rank`: the flight leaves at frame 100, ends at 140, and
+ * the published detonation is at 160 (so the grenade sits between 140 and 160).
  */
 function documentGrenade(rank: number): unknown {
   return {
@@ -56,12 +56,12 @@ function documentTir(key: string, tint: string): unknown {
   }
 }
 
-function calque(rank: number, doc: unknown = documentGrenade(rank), extra: Partial<ActionContext> = {}): { layer: Flights3dLayer; root: THREE.Group } {
+function makeLayer(rank: number, doc: unknown = documentGrenade(rank), extra: Partial<ActionContext> = {}): { layer: Flights3dLayer; root: THREE.Group } {
   const root = new THREE.Group()
   const inputs = {
     framesPerSecond: 60,
     inks: {
-      fx: { tint: { plasma_cool: 'blue', plasma_green: 'vert', blast: 'orange', neutral: 'orange' }, core: 'blanc' },
+      fx: { tint: { plasma_cool: 'blue', plasma_green: 'green', blast: 'orange', neutral: 'orange' }, core: 'white' },
       grenade: 'info',
     },
     aids: { projectilePaths: false, blastRadius: false },
@@ -70,7 +70,7 @@ function calque(rank: number, doc: unknown = documentGrenade(rank), extra: Parti
     doc: doc as unknown as ReplayDocumentReady,
     tracks: {} as Tracks3d,
     ground: { floorY: () => 0 } as unknown as Ground,
-    ink: { of: (css: string | null | undefined) => ENCRE[css ?? ''] ?? new THREE.Color(1, 1, 1) } as unknown as InkCache,
+    ink: { of: (css: string | null | undefined) => INK[css ?? ''] ?? new THREE.Color(1, 1, 1) } as unknown as InkCache,
     root,
     originAboveFloor: 0,
     inputs: () => inputs,
@@ -89,46 +89,46 @@ function calque(rank: number, doc: unknown = documentGrenade(rank), extra: Parti
   return { layer: new Flights3dLayer(ctx), root }
 }
 
-/** Le nombre d'instances du lot `i` (ordre : traîne, tête, cœur d'orbe, halo d'orbe, ...). */
-const compte = (root: THREE.Group, i: number): number => (root.children[i] as THREE.InstancedMesh).count
+/** The number of instances in pool `i` (order: trail, head, orb core, orb halo, ...). */
+const countOf = (root: THREE.Group, i: number): number => (root.children[i] as THREE.InstancedMesh).count
 
-describe('Flights3dLayer — le look d une grenade', () => {
-  it('la plasma montre son orbe en vol, pas la tête sombre', () => {
-    const { layer, root } = calque(1)
+describe("Flights3dLayer — a grenade's look", () => {
+  it('plasma shows its orb in flight, not the dark head', () => {
+    const { layer, root } = makeLayer(1)
     layer.update(120)
-    expect([compte(root, 0), compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 0, 1, 1])
+    expect([countOf(root, 0), countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([0, 0, 1, 1])
     layer.dispose()
   })
 
-  it('la plasma posée garde son orbe jusqu à la détonation', () => {
-    const { layer, root } = calque(1)
+  it('a plasma at rest keeps its orb until the detonation', () => {
+    const { layer, root } = makeLayer(1)
     layer.update(150)
-    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 1, 1])
+    expect([countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([0, 1, 1])
     layer.dispose()
   })
 
-  it('la frag garde son look : la tête, pas l orbe', () => {
-    const { layer, root } = calque(0)
+  it('a frag keeps its own look: the head, not the orb', () => {
+    const { layer, root } = makeLayer(0)
     layer.update(120)
-    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([1, 0, 0])
+    expect([countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([1, 0, 0])
     layer.dispose()
   })
 
-  it('la détonation de la plasma est bleue, celle de la frag orangée', () => {
-    for (const [rank, bleue] of [[1, true], [0, false]] as const) {
-      const { layer, root } = calque(rank)
+  it("the plasma's detonation is blue, the frag's orange", () => {
+    for (const [rank, blue] of [[1, true], [0, false]] as const) {
+      const { layer, root } = makeLayer(rank)
       layer.update(169)
       const points = root.children[7] as THREE.Points
       const n = points.geometry.drawRange.count
       expect(n).toBeGreaterThan(0)
-      const couleur = points.geometry.getAttribute('aColor') as THREE.BufferAttribute
+      const color = points.geometry.getAttribute('aColor') as THREE.BufferAttribute
       let r = 0
       let b = 0
       for (let i = 0; i < n; i++) {
-        r += couleur.getX(i)
-        b += couleur.getZ(i)
+        r += color.getX(i)
+        b += color.getZ(i)
       }
-      if (bleue) expect(b).toBeGreaterThan(r)
+      if (blue) expect(b).toBeGreaterThan(r)
       else expect(r).toBeGreaterThan(b)
       layer.dispose()
     }
@@ -146,7 +146,7 @@ function documentRebond(withZ: boolean): unknown {
 }
 
 /** The position of the first instance of batch `i` (the head is batch 1). */
-function premiere(root: THREE.Group, i: number): THREE.Vector3 {
+function firstPosition(root: THREE.Group, i: number): THREE.Vector3 {
   const m = new THREE.Matrix4()
   ;(root.children[i] as THREE.InstancedMesh).getMatrixAt(0, m)
   return new THREE.Vector3().setFromMatrixPosition(m)
@@ -175,37 +175,37 @@ describe('flightPointAt — a flight through its published points', () => {
 
 describe('Flights3dLayer — the published height of a flight', () => {
   it('draws the head at the published heights: down to the floor, back up after the bounce', () => {
-    const { layer, root } = calque(0, documentRebond(true))
+    const { layer, root } = makeLayer(0, documentRebond(true))
     layer.update(104)
-    expect(premiere(root, 1).y).toBeCloseTo(0.05, 6)
+    expect(firstPosition(root, 1).y).toBeCloseTo(0.05, 6)
     layer.update(106)
-    expect(premiere(root, 1).y).toBeCloseTo(0.4, 6)
-    expect(premiere(root, 1).x).toBeCloseTo(3, 6)
-    expect(premiere(root, 1).z).toBeCloseTo(0, 6)
+    expect(firstPosition(root, 1).y).toBeCloseTo(0.4, 6)
+    expect(firstPosition(root, 1).x).toBeCloseTo(3, 6)
+    expect(firstPosition(root, 1).z).toBeCloseTo(0, 6)
     layer.dispose()
   })
 
   it('a seek lands where playing forward does', () => {
     const frames = [100, 100.5, 101, 103.25, 104, 105.7, 108, 111.9, 112]
-    const forward = calque(0, documentRebond(true))
+    const forward = makeLayer(0, documentRebond(true))
     const played = frames.map((f) => {
       forward.layer.update(f)
-      return premiere(forward.root, 1).toArray()
+      return firstPosition(forward.root, 1).toArray()
     })
-    const seek = calque(0, documentRebond(true))
+    const seek = makeLayer(0, documentRebond(true))
     for (const k of [6, 0, 8, 3, 1, 7, 2, 5, 4]) {
       seek.layer.update(160)
       seek.layer.update(frames[k])
-      expect(premiere(seek.root, 1).toArray()).toEqual(played[k])
+      expect(firstPosition(seek.root, 1).toArray()).toEqual(played[k])
     }
     forward.layer.dispose()
     seek.layer.dispose()
   })
 
   it('an artifact without heights keeps the interpolated slide (no regression on old documents)', () => {
-    const { layer, root } = calque(0, documentRebond(false))
+    const { layer, root } = makeLayer(0, documentRebond(false))
     layer.update(106)
-    const y = premiere(root, 1).y
+    const y = firstPosition(root, 1).y
     expect(Number.isFinite(y)).toBe(true)
     expect(y).not.toBeCloseTo(0.4, 2)
     layer.dispose()
@@ -214,9 +214,9 @@ describe('Flights3dLayer — the published height of a flight', () => {
 
 describe('Flights3dLayer — the fuel rod', () => {
   it('flies as a large green orb, and leaves nothing behind once its flight ends', () => {
-    const { layer, root } = calque(0, documentTir('hinf_fuel_rod_spnkr', 'plasma_green'))
+    const { layer, root } = makeLayer(0, documentTir('hinf_fuel_rod_spnkr', 'plasma_green'))
     layer.update(120)
-    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 1, 1])
+    expect([countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([0, 1, 1])
     const core = root.children[2] as THREE.InstancedMesh
     const m = new THREE.Matrix4()
     core.getMatrixAt(0, m)
@@ -225,14 +225,14 @@ describe('Flights3dLayer — the fuel rod', () => {
     core.getColorAt(0, c)
     expect(c.g).toBeGreaterThan(c.b)
     layer.update(143)
-    expect([compte(root, 2), compte(root, 3)]).toEqual([0, 0])
+    expect([countOf(root, 2), countOf(root, 3)]).toEqual([0, 0])
     layer.dispose()
   })
 
   it('keeps the small head for a rocket of the regular SPNKr', () => {
-    const { layer, root } = calque(0, documentTir('hinf_m41_spnkr', 'blast'))
+    const { layer, root } = makeLayer(0, documentTir('hinf_m41_spnkr', 'blast'))
     layer.update(120)
-    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([1, 0, 0])
+    expect([countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([1, 0, 0])
     layer.dispose()
   })
 })
@@ -276,7 +276,7 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
       shots: [],
       weaponLabels: undefined,
     }
-    return calque(0, normalizeReplayDocument(raw as unknown as ReplayDocument))
+    return makeLayer(0, normalizeReplayDocument(raw as unknown as ReplayDocument))
   }
 
   it('the head at the frame of the first native sample is exactly that sample (no double decode)', () => {
@@ -284,14 +284,14 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
     // The first sample is ABSOLUTE frame 100 (t0) at (0, 0, 1.0). A double decode of the
     // differential columns over the already-decoded values would place it far away.
     layer.update(100)
-    const head = premiere(root, 1)
+    const head = firstPosition(root, 1)
     expect(head.x).toBeCloseTo(decX[0], 6)
     expect(head.y).toBeCloseTo(decZ[0], 6)
     expect(head.z).toBeCloseTo(-decY[0], 6)
     // ... and at every native sample's frame the head is exactly that sample.
     for (let k = 1; k < decX.length; k++) {
       layer.update(Math.round((100 + k) * frameMs) / frameMs)
-      const h = premiere(root, 1)
+      const h = firstPosition(root, 1)
       expect(h.x).toBeCloseTo(decX[k], 4)
       expect(h.y).toBeCloseTo(decZ[k], 4)
       expect(h.z).toBeCloseTo(-decY[k], 4)
@@ -306,7 +306,7 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
     // flight (x = 0, y = 1.0). The fixed head is just past sample 0 toward sample 1 (x = 0.01),
     // which distinguishes it at two decimals.
     layer.update(100.01)
-    const head = premiere(root, 1)
+    const head = firstPosition(root, 1)
     expect(head.x).toBeCloseTo(0.01, 2)
     expect(head.y).toBeCloseTo(0.9985, 2)
     expect(head.z).toBeCloseTo(-0.003, 2)
@@ -318,7 +318,7 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
     // Halfway between samples 0 (frame ~100.0) and 1 (frame ~101.0), straight between the two
     // points: x = 0.5, y = 0.925, z = -0.15. toThree(x,y,z) = [x, z, -y].
     layer.update(100.5)
-    const head = premiere(root, 1)
+    const head = firstPosition(root, 1)
     expect(head.x).toBeCloseTo(0.5, 4)
     expect(head.y).toBeCloseTo(0.925, 4)
     expect(head.z).toBeCloseTo(-0.15, 4)
@@ -331,7 +331,7 @@ describe('Flights3dLayer — the flight at the film rate (schema 127)', () => {
     // (frames 100 and 102): x = (0+1)/2 = 0.5, y = (1.0+0.5)/2 = 0.75, z = 0 (both grid points
     // have y=0, so toThree gives z=0).
     layer.update(101)
-    const head = premiere(root, 1)
+    const head = firstPosition(root, 1)
     expect(head.x).toBeCloseTo(0.5, 4)
     expect(head.y).toBeCloseTo(0.75, 4)
     expect(head.z).toBeCloseTo(0, 4)
@@ -364,18 +364,18 @@ describe('Flights3dLayer — a grenade stuck to a player (schema 128)', () => {
 
   it('rides the bone the film names, at the pose in its frame, from the attach to the explosion', () => {
     const bone = os()
-    const { layer, root } = calque(1, documentCollee(), { attachBone: bone.attachBone })
+    const { layer, root } = makeLayer(1, documentCollee(), { attachBone: bone.attachBone })
     layer.update(150)
     expect(bone.asked).toEqual([[561, 22]])
     // Halo (0.1, 0.2, 0.3) in the bone's frame is three (0.1, 0.3, -0.2).
-    const p = premiere(root, 2)
+    const p = firstPosition(root, 2)
     expect([p.x, p.y, p.z].map((v) => +v.toFixed(6))).toEqual([5.1, 1.3, 1.8])
     bone.at.set(6, 0.5, 2) // the foot moves: the grenade with it
     layer.update(155)
-    const q = premiere(root, 2)
+    const q = firstPosition(root, 2)
     expect([q.x, q.y, q.z].map((v) => +v.toFixed(6))).toEqual([6.1, 0.8, 1.8])
     layer.update(161)
-    expect(compte(root, 2)).toBe(0)
+    expect(countOf(root, 2)).toBe(0)
     layer.dispose()
   })
 
@@ -384,41 +384,41 @@ describe('Flights3dLayer — a grenade stuck to a player (schema 128)', () => {
       out.makeRotationY(Math.PI / 2).setPosition(5, 1, 2)
       return 'drawn'
     }
-    const { layer, root } = calque(1, documentCollee(), { attachBone })
+    const { layer, root } = makeLayer(1, documentCollee(), { attachBone })
     layer.update(150)
     // three (0.1, 0.3, -0.2) turned a quarter about Y is (-0.2, 0.3, -0.1).
-    const p = premiere(root, 2)
+    const p = firstPosition(root, 2)
     expect([p.x, p.y, p.z].map((v) => +v.toFixed(6))).toEqual([4.8, 1.3, 1.9])
     layer.dispose()
   })
 
   it('flies as before until the attach frame', () => {
     const bone = os()
-    const stuck = calque(1, documentCollee(), { attachBone: bone.attachBone })
-    const plain = calque(1)
+    const stuck = makeLayer(1, documentCollee(), { attachBone: bone.attachBone })
+    const plain = makeLayer(1)
     stuck.layer.update(120)
     plain.layer.update(120)
     expect(bone.asked).toEqual([])
-    expect(premiere(stuck.root, 2)).toEqual(premiere(plain.root, 2))
+    expect(firstPosition(stuck.root, 2)).toEqual(firstPosition(plain.root, 2))
     stuck.layer.dispose()
     plain.layer.dispose()
   })
 
   it('keeps the end of its flight when no body is drawn for the parent', () => {
-    const stuck = calque(1, documentCollee(), { attachBone: os('none').attachBone })
-    const plain = calque(1)
+    const stuck = makeLayer(1, documentCollee(), { attachBone: os('none').attachBone })
+    const plain = makeLayer(1)
     stuck.layer.update(150)
     plain.layer.update(150)
-    expect(compte(stuck.root, 2)).toBe(1)
-    expect(premiere(stuck.root, 2)).toEqual(premiere(plain.root, 2))
+    expect(countOf(stuck.root, 2)).toBe(1)
+    expect(firstPosition(stuck.root, 2)).toEqual(firstPosition(plain.root, 2))
     stuck.layer.dispose()
     plain.layer.dispose()
   })
 
   it('draws nothing in first person on a bone the arms rig does not carry', () => {
-    const { layer, root } = calque(1, documentCollee(), { attachBone: os('hidden').attachBone })
+    const { layer, root } = makeLayer(1, documentCollee(), { attachBone: os('hidden').attachBone })
     layer.update(150)
-    expect([compte(root, 1), compte(root, 2), compte(root, 3)]).toEqual([0, 0, 0])
+    expect([countOf(root, 1), countOf(root, 2), countOf(root, 3)]).toEqual([0, 0, 0])
     layer.dispose()
   })
 })

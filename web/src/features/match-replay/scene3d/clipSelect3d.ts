@@ -1,41 +1,40 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * clipSelect3d.ts — QUELS CLIPS DU JEU JOUER À UNE IMAGE, et à quel temps : une fonction pure de ce
- * que le film dit du joueur (allure, postures datées, classe de l'arme tenue, actions datées).
+ * clipSelect3d.ts — WHICH GAME CLIPS TO PLAY AT A FRAME, and at what time: a pure function of
+ * what the film says about the player (gait, dated stances, held weapon class, dated actions).
  *
- * Rien ne s'accumule : chaque poids et chaque temps se calcule depuis l'image (fondus mesurés depuis
- * le début ou la fin d'un intervalle de posture, depuis l'image d'une action), donc pause, ralenti,
- * recul et saut rendent la même image.
+ * Nothing accumulates: every weight and every time is computed from the frame (fades measured
+ * from the start or end of a stance interval, from an action's frame), so pause, slow motion,
+ * rewind and seek render the same frame.
  *
- * BASE (poids de somme 1, par priorité : escalade, glissade, saut, réception, puis locomotion) :
- *   - locomotion : attente, marche, course choisies par la vitesse (bornes = vitesses propres des
- *     clips, tirées de leur foulée), sprint par sa posture ; la direction du déplacement relative au
- *     cap mêle les deux clips directionnels qui l'encadrent ; accroupi par sa posture. Le temps d'un
- *     clip qui se déplace vient de la PHASE de la vie (`MotionGait.phase`, cycles intégrés de la
- *     distance au sol divisée par la foulée du mélange) et de la phase d'accord du clip
- *     (`SpartanClip.sync`) : les pieds ne glissent pas et tous les clips mêlés posent le même pied ;
- *   - escalade : entrée puis sortie étirées sur l'intervalle ; glissade et saut : temps depuis le
- *     début de l'intervalle ; réception : temps depuis la fin du saut.
- * PAR-DESSUS (remplacent les os qu'ils animent) : propulseur (l'esquive du jeu dans la direction de
- * la poussée relative au cap, depuis l'image de la poussée), corps à corps (impact calé sur l'image du coup),
- * lancer de grenade (lâcher calé sur l'image du lancer), rechargement (depuis son image), rangement
- * (fini à l'image du changement d'arme, classe de l'ancienne) et dégainage (depuis cette image, classe
- * de la nouvelle).
+ * BASE (weights summing to 1, by priority: clamber, slide, jump, land, then locomotion):
+ *   - locomotion: idle, walk, run chosen by speed (bounds = the clips' own speeds, drawn from
+ *     their stride), sprint by its stance; movement direction relative to heading blends the two
+ *     directional clips bracketing it; crouched by its stance. A moving clip's time comes from
+ *     the life's PHASE (`MotionGait.phase`, cycles integrated from ground distance divided by
+ *     the mix's stride) and the clip's own sync phase (`SpartanClip.sync`): feet don't slide and
+ *     every blended clip plants the same foot;
+ *   - clamber: entry then exit stretched over the interval; slide and jump: time since the
+ *     interval's start; land: time since the jump's end.
+ * OVER (replace the bones they animate): thruster (the game's dodge in the push direction
+ * relative to heading, from the push frame), melee (impact timed to the hit's frame), grenade
+ * throw (release timed to the throw's frame), reload (from its frame), put-away (finished at the
+ * weapon-change frame, old class) and ready (from that frame, new class).
  *
- * Un clip absent pour la classe tenue se prend dans celle du fusil (le jeu complet).
+ * A clip missing for the held class is taken from the rifle's (the complete set).
  */
 import type { SpartanClip } from './clips3d'
 import type { ClipLayer, ClipMix } from './clipSample3d'
 import { lastStartedAt, type DodgeShot, type EvadeDir } from './equipmentUse3d_logic'
 import { DEFAULT_WEAPON_CLASS, type WeaponClass } from './weaponClass3d'
 
-/** Un intervalle de posture du film, fermé aux deux bouts (`replaySpans.covers`). */
+/** A film stance interval, closed at both ends (`replaySpans.covers`). */
 export interface Span {
   t0: number
   t1: number
 }
 
-/** Les postures d'une vie, chaque liste triée par début. */
+/** A life's stances, each list sorted by start. */
 export interface MotionStances {
   crouch: readonly Span[]
   sprint: readonly Span[]
@@ -44,28 +43,28 @@ export interface MotionStances {
   jump: readonly Span[]
 }
 
-/** Un changement de l'arme en main : son image, la classe quittée et la classe prise. */
+/** A held-weapon change: its frame, the class left and the class taken. */
 export interface WeaponSwap {
   t: number
   from: WeaponClass
   to: WeaponClass
 }
 
-/** Les actions d'une vie, en images triées. */
+/** A life's actions, as sorted frames. */
 export interface MotionEvents {
-  /** L'image du coup (kill de mêlée, coup non mortel). */
+  /** The hit's frame (melee kill, non-lethal hit). */
   melee: readonly number[]
   meleeStart?: readonly number[]
-  /** L'image du lancer. */
+  /** The throw's frame. */
   grenade: readonly number[]
-  /** L'image du début du rechargement. */
+  /** The reload start's frame. */
   reload: readonly number[]
   swaps: readonly WeaponSwap[]
-  /** Les poussées du propulseur : leur image et leur direction relative au cap. */
+  /** The thruster's pushes: their frame and their direction relative to heading. */
   dodges?: readonly DodgeShot[]
 }
 
-/** L'allure : vitesse au sol (u/s), direction relative au cap (degrés, + = gauche), phase (cycles). */
+/** Gait: ground speed (u/s), direction relative to heading (degrees, + = left), phase (cycles). */
 export interface MotionGait {
   speed: number
   rel: number
@@ -73,13 +72,13 @@ export interface MotionGait {
 }
 
 export interface MotionInput {
-  /** Image du film (fractionnaire). */
+  /** Film frame (fractional). */
   frame: number
-  /** Images du film par seconde. */
+  /** Film frames per second. */
   fps: number
   reloadClip?: SpartanClip | null
   weapon: WeaponClass
-  /** null : à bord d'un véhicule (attente seule). */
+  /** null: aboard a vehicle (idle only). */
   gait: MotionGait | null
   stances: MotionStances
   events: MotionEvents
@@ -89,28 +88,28 @@ export interface ClipCatalog {
   get(name: string): SpartanClip | undefined
 }
 
-/** Sous cette vitesse (u/s), le joueur se tient (le tremblé des positions publiées reste dessous). */
+/** Below this speed (u/s), the player stands (published positions' jitter stays under it). */
 export const IDLE_BELOW = 0.1
-/** À partir de cette vitesse (u/s), plus rien de l'attente. */
+/** From this speed (u/s) up, nothing of idle is left. */
 export const MOVE_FULL = 0.5
-/** Fondus des postures (s) : accroupi et sprint ; saut ; réception ; escalade et glissade. */
+/** Stance fades (s): crouch and sprint; jump; land; clamber and slide. */
 export const STANCE_FADE = 0.15
 const JUMP_FADE_IN = 0.1
 const JUMP_FADE_OUT = 0.08
-/** La réception se joue sur cette durée après le saut (s), fondue à l'entrée et à la sortie. */
+/** Landing plays over this long after the jump (s), faded on entry and on exit. */
 export const LAND_SECONDS = 0.45
 const LAND_FADE_IN = 0.05
 const LAND_FADE_OUT = 0.25
 const MOVE_FADE = 0.1
-/** Fondus d'une action par-dessus (s). */
+/** Fades of an over action (s). */
 export const ACTION_FADE_IN = 0.05
 export const ACTION_FADE_OUT = 0.15
-/** L'impact dans `melee_strike_1` (s) : pic de vitesse de la main à l'image 3 (mesuré sur le GLB). */
+/** The impact within `melee_strike_1` (s): the hand's peak speed at frame 3 (measured on the GLB). */
 export const MELEE_IMPACT = 0.1
-/** Le lâcher conserve la pose de l'image 15 du clip à 60 Hz. */
+/** The release holds the pose of the clip's frame 15 at 60 Hz. */
 export const THROW_RELEASE = 0.25
 
-/** Les huit directions des clips et leur angle (degrés, + = gauche), dans [-180, 180). */
+/** The clips' eight directions and their angle (degrees, + = left), within [-180, 180). */
 const DIRECTIONS: readonly (readonly [string, number])[] = [
   ['back', -180], ['backright', -135], ['right', -90], ['frontright', -45],
   ['front', 0], ['frontleft', 45], ['left', 90], ['backleft', 135],
@@ -144,7 +143,7 @@ interface ClassClips {
 
 const resolved = new WeakMap<ClipCatalog, Map<WeaponClass, ClassClips>>()
 
-/** classClips : les clips d'une classe dans un catalogue, résolus une fois (repli fusil). */
+/** classClips: a class's clips within a catalog, resolved once (rifle fallback). */
 function classClips(cat: ClipCatalog, cls: WeaponClass): ClassClips {
   let byClass = resolved.get(cat)
   if (!byClass) {
@@ -184,9 +183,9 @@ function resolveClass(cat: ClipCatalog, cls: WeaponClass): ClassClips {
 }
 
 /**
- * dirSet : les clips directionnels d'une classe. Une classe qui a les quatre directions cardinales
- * garde son propre jeu ; sinon le jeu du fusil, où chaque direction que la classe possède prend la
- * sienne (une arme lourde qui n'avance que de face garde ses bras en marchant droit devant).
+ * dirSet: a class's directional clips. A class with all four cardinal directions keeps its own
+ * set; otherwise the rifle's set, where every direction the class owns takes its own clip (a
+ * heavy weapon that only advances facing forward keeps its own arms walking straight ahead).
  */
 function dirSet(cat: ClipCatalog, cls: WeaponClass, name: (cls: string, dir: string) => string): DirSet {
   const own = DIRECTIONS.map(([d]) => cat.get(name(cls, d)))
@@ -201,7 +200,7 @@ function dirSet(cat: ClipCatalog, cls: WeaponClass, name: (cls: string, dir: str
   return out
 }
 
-/** Deux clips directionnels voisins et leurs poids (somme 1). */
+/** Two neighboring directional clips and their weights (sum 1). */
 export interface DirPair {
   a: SpartanClip | null
   wa: number
@@ -209,14 +208,14 @@ export interface DirPair {
   wb: number
 }
 
-/** wrap180 : un angle (degrés) ramené dans [-180, 180). */
+/** wrap180: an angle (degrees) brought into [-180, 180). */
 export function wrap180(a: number): number {
   return a - 360 * Math.floor((a + 180) / 360)
 }
 
 /**
- * dirPairOf : les deux clips du jeu `set` qui encadrent la direction `rel` (degrés), poids
- * linéaires en angle (continus d'un secteur à l'autre, somme 1) ; écrit dans `out`.
+ * dirPairOf: the two clips of set `set` bracketing direction `rel` (degrees), weights linear in
+ * angle (continuous from one sector to the next, sum 1); written into `out`.
  */
 function dirPairOf(set: DirSet, rel: number, out: DirPair): DirPair {
   const n = set.angles.length
@@ -239,7 +238,7 @@ function dirPairOf(set: DirSet, rel: number, out: DirPair): DirPair {
   return out
 }
 
-/** dirWeights : les poids des clips directionnels de la classe pour l'allure `kind` (tests, réglages). */
+/** dirWeights: the class's directional clip weights for gait `kind` (tests, tuning). */
 export function dirWeights(cat: ClipCatalog, cls: WeaponClass, kind: 'walk' | 'run' | 'crouchWalk', rel: number): DirPair {
   return dirPairOf(classClips(cat, cls)[kind], rel, { a: null, wa: 0, b: null, wb: 0 })
 }
@@ -252,7 +251,7 @@ function pairSpeed(p: DirPair): number {
   return p.wa * clipSpeed(p.a) + p.wb * clipSpeed(p.b)
 }
 
-/** phaseTime : le temps (s) d'un clip qui se déplace à la phase de vie `phase` (cycles). */
+/** phaseTime: a moving clip's time (s) at life phase `phase` (cycles). */
 export function phaseTime(clip: SpartanClip, phase: number): number {
   const u = phase + clip.sync
   return (u - Math.floor(u)) * clip.cycle
@@ -262,13 +261,13 @@ function clamp01(x: number): number {
   return x < 0 ? 0 : x > 1 ? 1 : x
 }
 
-/** smoothstep : 0 sous `lo`, 1 au-dessus de `hi`, en douceur entre. */
+/** smoothstep: 0 below `lo`, 1 above `hi`, smooth in between. */
 export function smoothstep(x: number, lo: number, hi: number): number {
   const u = clamp01((x - lo) / (hi - lo))
   return u * u * (3 - 2 * u)
 }
 
-/** lastStarted : l'indice du dernier intervalle commencé à l'image `f` (liste triée par début), -1 sinon. */
+/** lastStarted: the index of the last interval started at or before frame `f` (list sorted by start), -1 otherwise. */
 function lastStarted(spans: readonly Span[], f: number): number {
   let lo = 0
   let hi = spans.length
@@ -280,7 +279,7 @@ function lastStarted(spans: readonly Span[], f: number): number {
   return lo - 1
 }
 
-/** fadeOf : le poids d'un intervalle à l'image `f` : monte sur `fadeIn` (s) dès `t0`, descend sur `fadeOut` après sa dernière image. */
+/** fadeOf: an interval's weight at frame `f`: rises over `fadeIn` (s) from `t0`, falls over `fadeOut` after its last frame. */
 function fadeOf(s: Span, f: number, fps: number, fadeIn: number, fadeOut: number): number {
   const since = (f - s.t0) / fps
   const after = (f - (s.t1 + 1)) / fps
@@ -289,8 +288,8 @@ function fadeOf(s: Span, f: number, fps: number, fadeIn: number, fadeOut: number
 }
 
 /**
- * spanWeight : le poids d'une posture à l'image `f` : le plus fort des deux derniers intervalles
- * commencés (un intervalle qui suit de près le précédent ne creuse pas le poids).
+ * spanWeight: a stance's weight at frame `f`: the stronger of the two most recently started
+ * intervals (an interval that closely follows the previous one doesn't dip the weight).
  */
 export function spanWeight(spans: readonly Span[], f: number, fps: number, fadeIn: number, fadeOut: number): number {
   const i = lastStarted(spans, f)
@@ -326,8 +325,8 @@ function pushPair(out: ClipMix, p: DirPair, weight: number, phase: number): void
 }
 
 /**
- * selectClips écrit dans `out` le mélange de l'image (cf. l'en-tête) et le rend. Les poids de base
- * font 1 dès que le catalogue porte les clips du fusil.
+ * selectClips writes the frame's mix into `out` (see the header) and returns it. The base
+ * weights sum to 1 as soon as the catalog carries the rifle's clips.
  */
 export function selectClips(q: MotionInput, cat: ClipCatalog, out: ClipMix): ClipMix {
   out.baseCount = 0
@@ -342,7 +341,7 @@ export function selectClips(q: MotionInput, cat: ClipCatalog, out: ClipMix): Cli
   return out
 }
 
-/** specialStates pose escalade, glissade, saut et réception par priorité ; rend le poids qui reste. */
+/** specialStates places clamber, slide, jump and land by priority; returns the remaining weight. */
 function specialStates(q: MotionInput, c: ClassClips, out: ClipMix): number {
   const { frame: f, fps, stances } = q
   let rest = 1
@@ -364,7 +363,7 @@ function specialStates(q: MotionInput, c: ClassClips, out: ClipMix): number {
   return rest - land
 }
 
-/** clamber : l'escalade, entrée puis sortie étirées sur l'intervalle ; rend le poids qui reste. */
+/** clamber: entry then exit stretched over the interval; returns the remaining weight. */
 function clamber(q: MotionInput, c: ClassClips, rest: number, out: ClipMix): number {
   const spans = q.stances.clamber
   const s = spans[lastStarted(spans, q.frame)]
@@ -379,7 +378,7 @@ function clamber(q: MotionInput, c: ClassClips, rest: number, out: ClipMix): num
   return rest - w
 }
 
-/** locomotion : attente, marche, course, sprint et accroupi au poids `weight`. */
+/** locomotion: idle, walk, run, sprint and crouched at weight `weight`. */
 function locomotion(q: MotionInput, g: MotionGait, c: ClassClips, weight: number, out: ClipMix): void {
   const { frame: f, fps, stances } = q
   const crouch = spanWeight(stances.crouch, f, fps, STANCE_FADE, STANCE_FADE)
@@ -408,13 +407,13 @@ function locomotion(q: MotionInput, g: MotionGait, c: ClassClips, weight: number
   }
 }
 
-/** actionWeight : le poids d'une action jouée une fois au temps `time` de son clip (durée `once`). */
+/** actionWeight: the weight of an action played once at time `time` of its clip (duration `once`). */
 export function actionWeight(time: number, once: number): number {
   if (time < 0 || time > once) return 0
   return clamp01(Math.min(time / ACTION_FADE_IN, (once - time) / ACTION_FADE_OUT))
 }
 
-/** lastBefore : l'indice de la dernière image de `frames` (triée) au plus `f`, -1 sinon. */
+/** lastBefore: the index of the last frame in `frames` (sorted) at most `f`, -1 otherwise. */
 function lastBefore(frames: readonly number[], f: number): number {
   let lo = 0
   let hi = frames.length
@@ -426,7 +425,7 @@ function lastBefore(frames: readonly number[], f: number): number {
   return lo - 1
 }
 
-/** oneAction : l'action la plus récente de `frames` dont le point `at` (s dans le clip) tombe à son image. */
+/** oneAction: the most recent action in `frames` whose point `at` (s within the clip) lands on its frame. */
 function oneAction(out: ClipMix, clip: SpartanClip | null, frames: readonly number[], q: MotionInput, at: number): void {
   if (!clip) return
   const i = lastBefore(frames, q.frame + at * q.fps)
@@ -435,7 +434,7 @@ function oneAction(out: ClipMix, clip: SpartanClip | null, frames: readonly numb
   pushOver(out, clip, time, actionWeight(time, clip.once))
 }
 
-/** actions pose les actions par-dessus (cf. l'en-tête). */
+/** actions places the over actions (see the header). */
 function actions(q: MotionInput, cat: ClipCatalog, c: ClassClips, out: ClipMix): void {
   const ev = q.events
   const d = ev.dodges ? lastStartedAt(ev.dodges, q.frame, (s) => s.t) : -1
@@ -467,7 +466,7 @@ function actions(q: MotionInput, cat: ClipCatalog, c: ClassClips, out: ClipMix):
   }
 }
 
-/** mixStride : la foulée (u par cycle) des couches de base qui se déplacent, moyenne à leur poids ; 0 sans elles. */
+/** mixStride: the stride (u per cycle) of the moving base layers, averaged at their weight; 0 without them. */
 export function mixStride(mix: ClipMix): number {
   let w = 0
   let s = 0

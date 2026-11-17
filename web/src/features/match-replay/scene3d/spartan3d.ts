@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * spartan3d.ts — LA COPIE DU SPARTAN D'UN JOUEUR : le modèle à peau du jeu (`WeaponModels.spartan`)
- * cloné avec son squelette, ses os pilotés (`pose3d`) et liés aux clips du jeu de la source
- * (`clips3d.spartanClipsOf`, `clipSample3d.ClipRig`). Ses matériaux sont des copies : à la teinte de
- * l'équipe pour l'armure par défaut ; habillée de l'armure du joueur, peintes de son revêtement
- * (`armorMaterial3d`), les autres (décalcomanies) telles quelles. Le camp se lit au contour d'équipe
+ * spartan3d.ts — A PLAYER'S SPARTAN COPY: the game's skinned model (`WeaponModels.spartan`)
+ * cloned with its skeleton, its driven bones (`pose3d`) bound to the source's game clips
+ * (`clips3d.spartanClipsOf`, `clipSample3d.ClipRig`). Its materials are copies: in the team
+ * tint for the default armor; dressed in the player's armor, painted with its coating
+ * (`armorMaterial3d`), the others (decals) as is. The team reads from the team outline
  * (`outline3d`).
  *
- * La copie partage géométries et textures avec la source (libérées par `WeaponModels.dispose`) et,
- * habillée de l'armure du joueur, avec la bibliothèque des pièces (`armorLibrary3d`) ; elle possède
- * ses matériaux teints et ses squelettes, que `releaseSpartan` libère. Les maillages liés à la même
- * peau, pièces d'armure comprises, partagent UN squelette : il ne se recalcule qu'une fois par image.
+ * The copy shares geometries and textures with the source (released by `WeaponModels.dispose`)
+ * and, dressed in the player's armor, with the piece library (`armorLibrary3d`); it owns its
+ * tinted materials and its skeletons, which `releaseSpartan` releases. Meshes bound to the
+ * same skin, armor pieces included, share ONE skeleton: it is only recomputed once per frame.
  */
 import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
@@ -32,18 +32,18 @@ export interface SpartanCopy {
 }
 
 /**
- * copySpartan : une copie de `source`, habillée de l'habit `dress` du joueur (`spartanArmor3d`, peint)
- * quand il est donné, sinon de l'armure par défaut du modèle teinte à l'équipe `tint` ; null si
- * `source` n'a pas les os du Spartan. `baked` : la lumière cuite de la carte, greffée sur ses
- * matériaux (elle compose avec le patch du matériau peint, `bakedLightShader.apply`).
+ * copySpartan: a copy of `source`, dressed in the player's outfit `dress` (`spartanArmor3d`,
+ * painted) when given, otherwise in the model's default armor tinted to team `tint`; null if
+ * `source` doesn't have the Spartan's bones. `baked`: the map's baked light, grafted onto its
+ * materials (it composes with the painted material's patch, `bakedLightShader.apply`).
  */
 export function copySpartan(source: THREE.Object3D, tint: THREE.Color, dress: Dress | null = null, baked: BakedLight | null = null): SpartanCopy | null {
   const root = cloneSkinned(source)
   const skeletons = shareSkeletons(root)
   const dressed = dress !== null && skeletons.length === 1 && dressSpartan(root, skeletons[0], dress.outfit)
-  if (dress && skeletons.length !== 1) console.warn('rejeu 3D : la copie du Spartan porte plusieurs squelettes, armure par défaut')
-  // La sphère englobante d'un maillage à peau date de sa pose de repos : un corps qui tombe ou
-  // s'allonge en sort, et serait écarté du champ alors qu'il y est. Les copies se dessinent toujours.
+  if (dress && skeletons.length !== 1) console.warn('3D replay: the Spartan copy carries several skeletons, default armor')
+  // A skinned mesh's bounding sphere dates from its rest pose: a body that falls or stretches
+  // out grows past it, and would be culled out of view while still in it. Copies are always drawn.
   root.traverse((o) => {
     if (o instanceof THREE.SkinnedMesh) o.frustumCulled = false
   })
@@ -57,26 +57,26 @@ export function copySpartan(source: THREE.Object3D, tint: THREE.Color, dress: Dr
   return { source, rig, materials, skeletons }
 }
 
-/** rigOf : les os pilotés de la copie `root` de `source`, liés aux clips de la source s'il y en a. */
+/** rigOf: `root`'s (a copy of `source`) driven bones, bound to the source's clips if it has any. */
 export function rigOf(root: THREE.Object3D, source: THREE.Object3D): SpartanRig | null {
   const clips = spartanClipsOf(source)
   return rigSpartan(root, clips ? new ClipRig(root, clips) : null)
 }
 
-/** releaseSpartan retire la copie de la scène et libère ses matériaux et ses squelettes. */
+/** releaseSpartan removes the copy from the scene and releases its materials and skeletons. */
 export function releaseSpartan(copy: SpartanCopy): void {
   copy.rig.root.removeFromParent()
   for (const m of copy.materials) m.dispose()
   for (const s of copy.skeletons) s.dispose()
 }
 
-/** La part de la teinte d'équipe dans l'armure par défaut : le gris neutre domine, le camp se devine. */
+/** The team tint's share in the default armor: the neutral gray dominates, the team shows through. */
 const DEFAULT_ARMOR_TEAM_SHARE = 0.3
 
 /**
- * tinted : une copie de `m` pour l'armure par défaut (joueur dont l'armure n'est pas connue) : le
- * gris neutre des pièces non peintes, tiré vers `tint`, mat et sans métal — lisible sous toute
- * lumière, sans dépendre de la couleur de base du modèle.
+ * tinted: a copy of `m` for the default armor (a player whose armor is not known): the
+ * unpainted pieces' neutral gray, pulled toward `tint`, matte and metal-free — readable under
+ * any light, with no dependence on the model's base color.
  */
 function tinted(m: THREE.Material, tint: THREE.Color): THREE.Material {
   const c = m.clone()
@@ -90,8 +90,8 @@ function tinted(m: THREE.Material, tint: THREE.Color): THREE.Material {
 }
 
 /**
- * paintMaterial : la copie de `m` peinte de `paint` ; sans peinture (matériau que la vue ne peint
- * pas), une simple copie.
+ * paintMaterial: a copy of `m` painted with `paint`; with no paint (a material the view does
+ * not paint), a plain copy.
  */
 function paintMaterial(m: THREE.Material, paint: CoatPaint | undefined): THREE.Material {
   if (!paint || !(m instanceof THREE.MeshStandardMaterial)) return m.clone()
@@ -99,8 +99,8 @@ function paintMaterial(m: THREE.Material, paint: CoatPaint | undefined): THREE.M
 }
 
 /**
- * copyMaterials remplace chaque matériau de `root` par sa copie `copy` (une par matériau source) ;
- * rend les copies.
+ * copyMaterials replaces each of `root`'s materials with its copy `copy` (one per source
+ * material); returns the copies.
  */
 function copyMaterials(root: THREE.Object3D, copy: (m: THREE.Material) => THREE.Material): THREE.Material[] {
   const copies = new Map<THREE.Material, THREE.Material>()
@@ -121,8 +121,8 @@ function copyMaterials(root: THREE.Object3D, copy: (m: THREE.Material) => THREE.
 }
 
 /**
- * shareSkeletons lie chaque maillage à peau de `root` au premier squelette de mêmes os et mêmes
- * matrices de liaison ; rend les squelettes restants (ceux que la copie possède).
+ * shareSkeletons binds each of `root`'s skinned meshes to the first skeleton with the same
+ * bones and the same bind matrices; returns the remaining skeletons (the ones the copy owns).
  */
 function shareSkeletons(root: THREE.Object3D): THREE.Skeleton[] {
   const kept: THREE.Skeleton[] = []

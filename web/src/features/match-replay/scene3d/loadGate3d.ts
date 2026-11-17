@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * loadGate3d.ts — LE COMPTE DES CHARGEMENTS EN COURS D'UNE SCÈNE.
+ * loadGate3d.ts — A SCENE'S COUNT OF LOADS IN PROGRESS.
  *
- * Chaque chargeur paresseux (modèles d'armes, armures, bras) y inscrit sa promesse ; l'écran de
- * chargement attend que le compte retombe à zéro avant de montrer la scène.
+ * Each lazy loader (weapon models, armor, arms) registers its promise here; the loading screen
+ * waits for the count to drop back to zero before showing the scene.
  */
 
 /**
- * LoadGate : `track` compte une promesse sans changer son issue ; `idle` se résout quand le compte
- * est resté nul le temps d'une macrotâche (un chargement qui en lance un autre à sa suite est
- * couvert), ou à l'échéance `timeoutMs` (`timedOut`). Un signal interrompu résout sans échéance.
+ * LoadGate: `track` counts a promise without changing its outcome; `idle` resolves once the
+ * count has stayed at zero for a macrotask (a load that chains another after it is covered),
+ * or at the `timeoutMs` deadline (`timedOut`). An aborted signal resolves with no deadline.
  */
 export class LoadGate {
   pending = 0

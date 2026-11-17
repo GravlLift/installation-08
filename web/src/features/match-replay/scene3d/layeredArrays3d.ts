@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * layeredArrays3d.ts — LES TABLEAUX DE TEXTURES ET LE SHADER DES MATÉRIAUX EN COUCHES FUSIONNÉS.
+ * layeredArrays3d.ts — THE TEXTURE ARRAYS AND SHADER OF MERGED LAYERED MATERIALS.
  *
- * `LayeredAtlas` porte les tableaux (un par taille et réglages, cf. `planArrays`) et la texture de
- * paramètres (une ligne de ROW_TEXELS texels par composition, cf. `packRow`). Les tableaux reçoivent
- * leurs images à la première compilation d'un matériau fusionné, qui seule a le moteur de rendu : three
- * alloue chaque tableau sans transfert (`dataReady` faux), puis chaque image décodée y est copiée par
- * `texSubImage3D` et les niveaux de détail sont générés une fois par tableau. The maps of a KTX2 GLB
- * are GPU-compressed: their arrays are compressed arrays of the same format, filled level by level
- * with `compressedTexSubImage3D` (the levels come from the file, none are generated).
+ * `LayeredAtlas` carries the arrays (one per size and settings, see `planArrays`) and the
+ * parameter texture (one row of ROW_TEXELS texels per composition, see `packRow`). The arrays
+ * receive their images at a merged material's first compile, the only point that has the
+ * renderer: three allocates each array with no transfer (`dataReady` false), then each decoded
+ * image is copied into it with `texSubImage3D` and mip levels are generated once per array. The
+ * maps of a KTX2 GLB are GPU-compressed: their arrays are compressed arrays of the same format,
+ * filled level by level with `compressedTexSubImage3D` (the levels come from the file, none are
+ * generated).
  *
- * Le shader fusionné est celui des couches (`LAYER_COMPOSE`), ses uniformes remplacés par la ligne
- * du sommet (`cRow`) lue dans la texture de paramètres, ses cartes par un tableau choisi par
- * emplacement. Les trois sommets d'un triangle portent la même ligne (`assignVertexRows`) : la
- * ligne passe par un varying ordinaire, arrondi : un varying `flat` suit la convention du dernier
- * sommet, que le moteur D3D d'ANGLE peut devoir émuler. Le choix du tableau change d'un triangle à l'autre d'un même dessin :
- * les échantillons prennent des dérivées explicites, calculées hors de tout branchement.
+ * The merged shader is the layers' own (`LAYER_COMPOSE`), its uniforms replaced by the vertex's
+ * row (`cRow`) read from the parameter texture, its maps by an array chosen by slot. A
+ * triangle's three vertices carry the same row (`assignVertexRows`): the row travels through an
+ * ordinary, rounded varying: a `flat` varying follows the last-vertex convention, which ANGLE's
+ * D3D backend may have to emulate. Which array is chosen changes from one triangle to the next
+ * within the same draw: the samples take explicit derivatives, computed outside any branch.
  */
 import * as THREE from 'three'
 
@@ -23,14 +24,16 @@ import { releaseTexels } from './ktx2Textures3d'
 import { LAYER_COMPOSE, LAYER_INJECTIONS, LAYER_ROWS, LAYER_VERTEX_HEAD } from './layeredMaterial'
 import { GLOW_TEXEL, HEAD_TEXEL, ROW_TEXELS, SLOT_TEXEL, type PlannedArray } from './layeredPlan3d'
 
-/** La clé de `userData` qui marque un matériau fusionné (copies par sonde comprises, qui la partagent). */
+/** The `userData` key that flags a merged material (probe copies included, which share it). */
+// NOTE: value kept as 'couchesFusionnees' (French) because sessionResourceBytes3d.test.ts, outside
+// this group's file list, asserts this exact literal; do not rename without updating that test too.
 const MERGED_KEY = 'couchesFusionnees'
 
 /**
- * La clé de `userData` qui marque une carte dont l'image, copiée dans un tableau de textures, n'est
- * tenue par aucun matériau conservé : `LayeredAtlas.upload` ferme l'image après la copie, et seul.
+ * The `userData` key that flags a map whose image, copied into a texture array, is held by no
+ * kept material: `LayeredAtlas.upload` closes the image after the copy, and only then.
  */
-export const IMAGE_LIBEREE = 'imageLiberee'
+export const IMAGE_LIBEREE = 'imageReleased'
 
 /**
  * releaseImage frees the CPU copy of `texture`'s pixels, once: an ImageBitmap is closed, a
@@ -50,7 +53,7 @@ type ArrayTexture = THREE.DataArrayTexture | THREE.CompressedArrayTexture
 
 const isCompressed = (t: THREE.Texture): t is THREE.CompressedTexture => (t as THREE.CompressedTexture).isCompressedTexture === true
 
-/** isMergedMaterial : le matériau est un matériau en couches fusionné (`mergedMaterial`) ou une de ses copies. */
+/** isMergedMaterial: the material is a merged layered material (`mergedMaterial`) or one of its copies. */
 export function isMergedMaterial(material: THREE.Material | THREE.Material[]): material is THREE.MeshStandardMaterial {
   return !Array.isArray(material) && material.userData?.[MERGED_KEY] === true
 }
@@ -80,7 +83,7 @@ function arrayTexture(plan: PlannedArray<THREE.Texture>): ArrayTexture {
     format: like.format,
     type: like.type,
   })
-  // three alloue le tableau sans rien y transférer : `upload` y copie les images.
+  // three allocates the array with nothing transferred to it: `upload` copies the images into it.
   t.source.dataReady = false
   t.needsUpdate = true
   return t
@@ -113,7 +116,7 @@ function uploadCompressed(
 ): void {
   const format = new THREE.WebGLUtils(gl, renderer.extensions).convert(texture.format, texture.colorSpace)
   if (format === null) {
-    console.warn('rejeu 3D : format compressé non pris en charge par le GPU, tableau des couches vide', texture.format, texture.colorSpace)
+    console.warn('3D replay: compressed format not supported by the GPU, layers array left empty', texture.format, texture.colorSpace)
     return
   }
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
@@ -128,15 +131,15 @@ function uploadCompressed(
   })
 }
 
-/** Les cartes fusionnées d'une carte : tableaux de textures et texture de paramètres. */
+/** A map's merged layers: texture arrays and parameter texture. */
 export class LayeredAtlas {
   readonly arrays: ArrayTexture[]
   readonly params: THREE.DataTexture
   private pending: readonly (readonly THREE.Texture[])[] | null
-  /** Durée du transfert des images (ms), null tant qu'il n'a pas eu lieu. */
+  /** Duration of the image transfer (ms), null until it has happened. */
   uploadMs: number | null = null
 
-  /** `rows` : `rowCount` lignes de ROW_TEXELS texels RGBA (cf. `packRow`). */
+  /** `rows`: `rowCount` rows of ROW_TEXELS RGBA texels (see `packRow`). */
   constructor(arrays: readonly PlannedArray<THREE.Texture>[], rows: Float32Array<ArrayBuffer>, rowCount: number) {
     this.arrays = arrays.map(arrayTexture)
     this.pending = arrays.map((a) => a.members)
@@ -144,16 +147,16 @@ export class LayeredAtlas {
     this.params.needsUpdate = true
   }
 
-  /** Les textures à libérer avec la carte. */
+  /** The textures to release with the map. */
   get textures(): THREE.Texture[] {
     return [...this.arrays, this.params]
   }
 
   /**
-   * upload copie les images dans les tableaux, une fois. Les réglages de transfert sont ceux que three
-   * pose pour chaque carte d'origine (retournement, prémultiplication, alignement ; aucune conversion
-   * de couleur : sRGB et linéaire ont les primaires de l'espace de travail). A compressed array
-   * receives each map's encoded levels as they are (no decode, no generated levels).
+   * upload copies the images into the arrays, once. The transfer settings are those three sets
+   * for each source map (flip, premultiplication, alignment; no color conversion: sRGB and
+   * linear share the working space's primaries). A compressed array receives each map's
+   * encoded levels as they are (no decode, no generated levels).
    */
   upload(renderer: THREE.WebGLRenderer): void {
     const pending = this.pending
@@ -165,7 +168,7 @@ export class LayeredAtlas {
       renderer.initTexture(texture)
       const handle = (renderer.properties.get(texture) as { __webglTexture?: WebGLTexture }).__webglTexture
       if (!handle) {
-        console.warn('rejeu 3D : tableau de textures des couches non alloué', texture.image.width, texture.image.height)
+        console.warn('3D replay: layers texture array not allocated', texture.image.width, texture.image.height)
         return
       }
       renderer.state.bindTexture(gl.TEXTURE_2D_ARRAY, handle)
@@ -173,7 +176,7 @@ export class LayeredAtlas {
       else uploadDecoded(gl, texture, pending[a])
       renderer.state.unbindTexture()
     })
-    // Les images copiées ne sont plus lues par aucun matériau : on les ferme (cf. IMAGE_LIBEREE).
+    // The copied images are no longer read by any material: close them (see IMAGE_LIBEREE).
     for (const row of pending) for (const t of row) if (t.userData[IMAGE_LIBEREE]) releaseImage(t)
     this.uploadMs = performance.now() - start
   }
@@ -187,7 +190,7 @@ const VERTEX_HEAD = /* glsl */ `${LAYER_VERTEX_HEAD}
 attribute float cRow;
 varying float vRow;`
 
-/** fragmentHead : les déclarations et l'échantillonnage du shader fusionné, pour `arrays` tableaux. */
+/** fragmentHead: the merged shader's declarations and sampling, for `arrays` arrays. */
 function fragmentHead(arrays: number): string {
   const ids = Array.from({ length: arrays }, (_, a) => a)
   const samplers = ids.map((a) => `uniform highp sampler2DArray uArr${a};`).join('\n')
@@ -197,18 +200,18 @@ ${samplers}
 uniform highp sampler2D uParams;
 varying float vRow;
 #define LAYER_ROWS ${LAYER_ROWS}
-// La ligne de la composition du triangle dans la texture de paramètres (posée par layered()).
+// The triangle's composition row in the parameter texture (set by layered()).
 int gRow;
 #define P_TEXEL(i) texelFetch(uParams, ivec2(i, gRow), 0)
 #define L_ROW(k, i) P_TEXEL((k) * LAYER_ROWS + (i))
 ${LAYER_COMPOSE}
-// Les dérivées écran des coordonnées des couches, prises hors de tout branchement.
+// The layer coordinates' screen-space derivatives, taken outside any branch.
 vec2 gDx;
 vec2 gDy;
 vec2 gMx;
 vec2 gMy;
 
-// L'échantillon de la carte à l'emplacement slot (tableau, couche) ; tableau négatif : pas de carte.
+// The map's sample at slot (array, layer); a negative array means no map.
 vec4 fromArray(vec2 slot, vec2 uv, vec2 dx, vec2 dy) {
   if (slot.x < 0.0) return vec4(0.0);
   int a = int(slot.x + 0.5);
@@ -258,18 +261,18 @@ Surface layered() {
 }`
 }
 
-// La lumière propre de la composition remplace celle du matériau (posée après la surface des couches).
+// The composition's own light replaces the material's (set after the layers' surface).
 const GLOW_INJECTION = ['#include <emissivemap_fragment>', `#include <emissivemap_fragment>\ntotalEmissiveRadiance = P_TEXEL(${GLOW_TEXEL}).rgb;`] as const
 
 /**
- * mergedMaterial : un matériau fusionné, copie de `base` (face dessinée, rendu en facettes,
- * brouillard) dont la couleur, la normale, la rugosité, le métal et la lumière propre viennent de la
- * ligne de chaque sommet et des tableaux de `atlas`. Les textures vivent dans les uniformes : le
- * matériau les nomme pour qui le libère (`userData.textures`, cf. mapModel).
+ * mergedMaterial: a merged material, a copy of `base` (drawn face, flat-shaded rendering, fog)
+ * whose color, normal, roughness, metalness and own light come from each vertex's row and
+ * `atlas`'s arrays. The textures live in the uniforms: the material names them for whoever
+ * releases them (`userData.textures`, see mapModel).
  */
 export function mergedMaterial(base: THREE.MeshStandardMaterial, atlas: LayeredAtlas): THREE.MeshStandardMaterial {
   const saved = base.userData
-  // `clone` recopie `userData` par JSON : les textures d'un matériau en couches y vivent.
+  // `clone` copies `userData` via JSON: a layered material's textures live there.
   base.userData = {}
   const m = base.clone()
   base.userData = saved
@@ -291,6 +294,6 @@ export function mergedMaterial(base: THREE.MeshStandardMaterial, atlas: LayeredA
       shader.fragmentShader.replace('#include <common>', `#include <common>${head}`),
     )
   }
-  m.customProgramCacheKey = () => `couches-tableaux-v3-${atlas.arrays.length}`
+  m.customProgramCacheKey = () => `layers-arrays-v3-${atlas.arrays.length}`
   return m
 }

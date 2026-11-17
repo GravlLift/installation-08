@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * scopeView3d.ts — LE ZOOM EN 1re PERSONNE côté scène : le champ de la caméra et les bras quand
- * la lunette est montée. L'AMPLISSÉE vient de `model/scopeLogic` (fonction pure de l'image) ;
- * ce module ne pose que le champ, et ne recompte la matrice de projection que quand il change.
+ * scopeView3d.ts — 1ST-PERSON ZOOM on the scene side: the camera's field of view and the arms
+ * when the scope is mounted. The MAGNIFICATION comes from `model/scopeLogic` (a pure function
+ * of the frame); this module only sets the field of view, and only recomputes the projection
+ * matrix when it changes.
  */
 import * as THREE from 'three'
 
@@ -11,13 +12,13 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { zoomAt, zoomedFov, type ScopeSpec } from '../model/scopeLogic'
 
 /**
- * ScopeView3d porte le champ de base et le dernier champ posé : hors 1re personne, le champ
- * revient à la base, et la lunette y est toujours repliée.
+ * ScopeView3d carries the base field of view and the last one set: outside 1st person, the
+ * field of view returns to the base, and the scope is always folded there.
  */
 export class ScopeView3d {
   private baseFov: number
   private lastFov: number
-  /** La lunette est montée à la dernière image posée (`appliquer`) : les bras sont retirés de l'écran. */
+  /** The scope is mounted as of the last frame set (`appliquer`): the arms are removed from the screen. */
   montee = false
 
   constructor(baseFov: number) {
@@ -26,9 +27,9 @@ export class ScopeView3d {
   }
 
   /**
-   * appliquer pose le champ de la caméra pour l'image `frame` (amplification effective du zoom)
-   * et dit si les bras doivent quitter l'écran : une lunette ou le cadre Bandit monté au-delà
-   * de la moitié du lissage remplace l'arme ; un lien intelligent la garde.
+   * appliquer sets the camera's field of view for frame `frame` (the zoom's effective
+   * magnification) and says whether the arms must leave the screen: a scope or the Bandit
+   * sight mounted past half the smoothing replaces the weapon; a smart-link keeps it.
    */
   appliquer(camera: THREE.PerspectiveCamera, doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): boolean {
     const zoom = zoomAt(doc, xuid, frame, spec, mags)
@@ -38,14 +39,14 @@ export class ScopeView3d {
     return this.montee
   }
 
-  /** changerBase change le champ de base (le réglage de champ du jeu) et repose le champ de la caméra. */
+  /** changerBase changes the base field of view (the game's FOV setting) and resets the camera's field of view. */
   changerBase(camera: THREE.PerspectiveCamera, baseFov: number): void {
     if (baseFov === this.baseFov) return
     this.baseFov = baseFov
     this.poseFov(camera, baseFov)
   }
 
-  /** reposer remet le champ de base (mode tiers ou caméra libre) et replie la lunette. */
+  /** reposer restores the base field of view (third-person or free camera mode) and folds the scope. */
   reposer(camera: THREE.PerspectiveCamera): void {
     this.montee = false
     this.poseFov(camera, this.baseFov)

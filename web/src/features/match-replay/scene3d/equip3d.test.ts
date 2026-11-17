@@ -14,12 +14,12 @@ const episodes = [
 ]
 
 describe('equipFxAt', () => {
-  it('rien hors des épisodes de la vie, ni pour une famille inconnue', () => {
+  it("nothing outside the life's episodes, nor for an unknown family", () => {
     for (const f of [50, 99.9, 200.1, 250, 400.1]) expect(equipFxAt(episodes, 3, f, FPS, fresh())).toEqual(NO_EQUIP_FX)
     expect(equipFxAt(episodes, 9, 150, FPS, fresh())).toEqual(NO_EQUIP_FX)
   })
 
-  it('le camouflage se fond au début, tient, puis revient à la fin de l’épisode', () => {
+  it('camouflage fades in at the start, holds, then fades back at the end of the episode', () => {
     const at = (f: number) => equipFxAt(episodes, 3, f, FPS, fresh()).camo
     expect(at(100)).toBe(0)
     expect(at(102)).toBeCloseTo(0.5)
@@ -30,7 +30,7 @@ describe('equipFxAt', () => {
     expect(equipFxAt(episodes, 3, 150, FPS, fresh()).overshield).toBe(0)
   })
 
-  it('le surbouclier s’allume vite puis tient jusqu’au bout de l’épisode', () => {
+  it('overshield lights up fast then holds to the end of the episode', () => {
     const at = (f: number) => equipFxAt(episodes, 3, f, FPS, fresh()).overshield
     expect(at(301)).toBeCloseTo(0.5)
     expect(at(302)).toBe(1)
@@ -38,7 +38,7 @@ describe('equipFxAt', () => {
     expect(equipFxAt(episodes, 3, 350, FPS, fresh()).camo).toBe(0)
   })
 
-  it('réécrit sa sortie : une image sans effet efface la précédente', () => {
+  it('overwrites its output: a frame with no effect erases the previous one', () => {
     const out = fresh()
     equipFxAt(episodes, 3, 150, FPS, out)
     expect(out.camo).toBe(1)
