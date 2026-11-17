@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_scan_naissances.go — LE BALAYAGE DES DOTATIONS DE NAISSANCE (lot M3.2 de la campagne
@@ -25,13 +26,13 @@ import (
 func (s *filmScan) balayerNaissances() {
 	births, st, err := grammar.ScanBirthLoadouts(s.fc, s.in.BipedCreations)
 	if err != nil {
-		slog.WarnContext(s.ctx, "dotations de naissance illisibles — rejeu sans armes de naissance",
+		slog.WarnContext(s.ctx, "birth loadouts unreadable — replay without birth weapons",
 			"err", err, "match_id", s.matchID)
 		births, st = nil, types.BirthLoadoutStats{Creations: len(s.in.BipedCreations)}
 	} else {
-		slog.InfoContext(s.ctx, "naissance : dotations lues",
-			"creations", st.Creations, "lues", st.Read, "desynchronisees", st.Desync,
-			"debordantes", st.Overflow, "nonConfirmees", st.Unconfirmed,
+		slog.InfoContext(s.ctx, "birth: loadouts read",
+			"creations", st.Creations, "read", st.Read, "desynchronized", st.Desync,
+			"overflowing", st.Overflow, "nonConfirmees", st.Unconfirmed,
 			"sansEmplacement", st.NoWeaponComponent, "fermeesParDelta", st.ClosedByDelta,
 			"fermeesParNouveauLie", st.ClosedByBoundNew,
 			"fermeesParNouveauAnticipe", st.ClosedByAnticipatedNew, "match_id", s.matchID)

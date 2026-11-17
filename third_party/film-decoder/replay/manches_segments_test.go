@@ -158,14 +158,14 @@ func journalDeCuisson(t *testing.T, recs []types.StatRecord, manches int) string
 // (build_score.go) fait reapparaitre le message de repli sous les trois blocs gardes.
 func TestLeJournalDeBornesNeSeContreditPas(t *testing.T) {
 	journal := journalDeCuisson(t, manchesFixtureRelecteur(), 2)
-	if n := strings.Count(journal, "bloc de manche GARDE"); n != 3 {
+	if n := strings.Count(journal, "round block KEPT"); n != 3 {
 		t.Fatalf("%d bloc(s) garde(s) journalise(s), attendu 3 — la fixture ne prouve rien :\n%s", n, journal)
 	}
-	if strings.Contains(journal, "AUCUNE borne de manche posee") {
+	if strings.Contains(journal, "NO round bound posed") {
 		t.Errorf("le journal affirme qu'aucune borne n'est posee JUSTE APRES avoir nomme trois blocs "+
 			"gardes par une borne :\n%s", journal)
 	}
-	if !strings.Contains(journal, "hors de la fenetre de leur manche declaree") {
+	if !strings.Contains(journal, "outside their declared round window") {
 		t.Errorf("le journal ne dit pas que des bornes sont posees :\n%s", journal)
 	}
 }
@@ -177,10 +177,10 @@ func TestLeJournalDitQuandAucuneBorneNEstPosee(t *testing.T) {
 	recs := manchesCorps(0, 30_000)
 	recs = append(recs, manchesCorps(1, manchesDebutR0)...)
 	journal := journalDeCuisson(t, recs, 2)
-	if !strings.Contains(journal, "AUCUNE borne de manche posee") {
+	if !strings.Contains(journal, "NO round bound posed") {
 		t.Errorf("aucune borne n'est posable sur ce film et le journal ne le dit pas :\n%s", journal)
 	}
-	if strings.Contains(journal, "bloc de manche GARDE") {
+	if strings.Contains(journal, "round block KEPT") {
 		t.Errorf("aucun bloc ne peut etre garde sans borne :\n%s", journal)
 	}
 }

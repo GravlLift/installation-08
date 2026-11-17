@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -166,7 +167,7 @@ func attachGrenadeReadCoverage(ctx context.Context, doc *ReplayDocument, built [
 		}
 	}
 	doc.Coverage.GrenadeReads = cov
-	slog.InfoContext(ctx, "rejeu : couverture des grenades portees",
+	slog.InfoContext(ctx, "replay: carried grenade coverage",
 		"imagesCles", cov.FromKeyframe, "delta", cov.FromDelta,
 		"ecarteesSansPiste", cov.Unpublished, "canalMunitionsRefuse", cov.AmmoRefused)
 }

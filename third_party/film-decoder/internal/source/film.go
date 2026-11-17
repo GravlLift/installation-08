@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package source
 
 // film.go — LE FILM CHARGE : CHUNKS DECOMPRESSES UNE FOIS, PAQUETS DECOUPES UNE FOIS.
@@ -87,12 +88,12 @@ func (f *Film) AllPackets() []types.Packet { return f.all }
 func (f *Film) Meta() []types.ChunkMeta { return f.meta }
 
 // errNoChunk : une source sans chunk n'est pas un film.
-var errNoChunk = errors.New("source: aucun chunk dans la source")
+var errNoChunk = errors.New("source: no chunks in the source")
 
 // ErrEnTeteZlib : le tampon ne COMMENCE pas par un en-tete zlib valide. [Decompresser] la rend
 // enveloppee, et c est la SEULE erreur qu un appelant tolerant doit traverser : un flux dont
 // l en-tete est bon mais qui casse ensuite est une donnee abimee, pas une donnee deja claire.
-var ErrEnTeteZlib = errors.New("source: en-tete zlib")
+var ErrEnTeteZlib = errors.New("source: zlib header")
 
 // Load : decompresse tous les chunks de `src` et decoupe leurs paquets, une seule lecture de la
 // source. `meta` est POSITIONNEL (`meta[i]` decrit le chunk `i` de `src`) et LICITE A NIL
@@ -102,7 +103,7 @@ var ErrEnTeteZlib = errors.New("source: en-tete zlib")
 // [LoadDir], qui construit cet alignement lui-meme depuis les noms de fichiers.
 func Load(src Source, meta []types.ChunkMeta) (*Film, error) {
 	if src == nil {
-		return nil, errors.New("source: source nulle")
+		return nil, errors.New("source: nil source")
 	}
 	n := src.NumChunks()
 	if n <= 0 {
@@ -192,7 +193,7 @@ func Decompresser(raw []byte) ([]byte, error) {
 	defer func() { _ = zr.Close() }()
 	out, err := io.ReadAll(zr)
 	if err != nil {
-		return nil, fmt.Errorf("source: decompression zlib: %w", err)
+		return nil, fmt.Errorf("source: zlib decompression: %w", err)
 	}
 	return out, nil
 }

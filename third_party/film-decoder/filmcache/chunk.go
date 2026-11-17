@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filmcache
 
 // chunk.go — LE FICHIER D'UN CHUNK : son nom, et sa lecture VALIDEE (J2.3 du plan de suite de
@@ -56,7 +57,7 @@ func LireChunk(root, shortID string, numero int) ([]byte, error) {
 	}
 	raw, err := lireChunkValide(CheminDuChunk(ChunkDir(root, shortID), numero), numero, attendu)
 	if err != nil {
-		return nil, fmt.Errorf("filmcache: chunk %d de %s : %w", numero, shortID, err)
+		return nil, fmt.Errorf("filmcache: chunk %d of %s: %w", numero, shortID, err)
 	}
 	return raw, nil
 }
@@ -73,7 +74,7 @@ func lireChunkValide(path string, numero int, attendu int64) ([]byte, error) {
 	}
 	raw, err := octetsLogiques(fichier)
 	if err != nil {
-		return nil, fmt.Errorf("chunk %d illisible (%s) : %w", numero, path, err)
+		return nil, fmt.Errorf("chunk %d unreadable (%s): %w", numero, path, err)
 	}
 	if attendu > 0 && int64(len(raw)) != attendu {
 		return nil, &ErrChunkTronque{Index: numero, Attendu: attendu, Lu: int64(len(raw))}
@@ -125,14 +126,14 @@ func (s *Source) controlerFichiers() (manquant bool, err error) {
 			continue
 		}
 		if err != nil {
-			return manquant, fmt.Errorf("filmcache: etat du chunk %d de %s : %w", c.Index, s.short, err)
+			return manquant, fmt.Errorf("filmcache: state of chunk %d of %s: %w", c.Index, s.short, err)
 		}
 		if s.tailles[i] <= 0 {
 			continue
 		}
 		lu, err := TailleLogique(CheminDuChunk(dir, c.Index), info.Size())
 		if err != nil {
-			return manquant, fmt.Errorf("filmcache: taille du chunk %d de %s : %w", c.Index, s.short, err)
+			return manquant, fmt.Errorf("filmcache: size of chunk %d of %s: %w", c.Index, s.short, err)
 		}
 		if lu != TailleLogiqueInconnue && lu != s.tailles[i] {
 			return manquant, &ErrChunkTronque{Index: c.Index, Attendu: s.tailles[i], Lu: lu}

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_equipement_porte.go — L ÉQUIPEMENT PORTÉ : son énergie, ses usages restants et la pose de
@@ -366,8 +367,8 @@ func trierLesPoses(p []RiftPose) {
 
 // logCarriedEquipmentCoverage sort la couverture du calque.
 func logCarriedEquipmentCoverage(ctx context.Context, cov CarriedEquipmentCoverage) {
-	slog.InfoContext(ctx, "rejeu : equipement porte",
-		"crees", cov.Created, "attaches", cov.Attached, "publies", cov.Published, "sansIdentite", cov.NoIdentity,
+	slog.InfoContext(ctx, "replay: carried equipment",
+		"created", cov.Created, "attached", cov.Attached, "published", cov.Published, "sansIdentite", cov.NoIdentity,
 		"avantOrigine", cov.BeforeOrigin, "finisAvantOrigine", cov.EndedBeforeOrigin,
 		"lecturesAvantOrigine", cov.ReadsBeforeOrigin, "sansIdentifiant", cov.NoGlobalID, "grenades", cov.Grenades,
 		"nonResolus", cov.Unresolved, "enDesaccord", cov.Conflicting,
@@ -379,7 +380,7 @@ func logCarriedEquipmentCoverage(ctx context.Context, cov CarriedEquipmentCovera
 		"objetsEngendres", cov.TrackedObjects, "finsLues", cov.TrackedEnds,
 		"objetsSitues", cov.TrackedPositioned, "objetsSansPosition", cov.TrackedUnpositioned,
 		"finsDeFailleLues", cov.RiftEndsRead, "finsDeFailleNonLues", cov.RiftEndsUnread,
-		"effets", cov.TrackedEffects, "finsDEffetLues", cov.TrackedEffectEnds,
+		"effects", cov.TrackedEffects, "finsDEffetLues", cov.TrackedEffectEnds,
 		"effetsAmbigus", cov.TrackedEffectsAmbiguous, "effetsSansLien", cov.TrackedEffectsUnlinked)
 }
 

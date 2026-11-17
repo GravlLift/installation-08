@@ -199,7 +199,7 @@ func TestScanFilmBipedPositionsForBandRefuseBandeVide(t *testing.T) {
 	opt := DefaultScanFilmOptions()
 	opt.QuantaOnly, opt.Chunks = true, []int{1} // la liste de chunks passe le pré-contrôle
 	_, err := ScanFilmBipedPositionsForBand(t.TempDir(), SlotBand{}, opt)
-	if err == nil || !strings.Contains(err.Error(), "bande de slots vide") {
+	if err == nil || !strings.Contains(err.Error(), "empty slot band") {
 		t.Fatalf("bande vide : erreur « bande de slots vide » attendue, obtenu %v", err)
 	}
 }

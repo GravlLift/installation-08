@@ -18,12 +18,12 @@ import (
 // avertissementsDePublication : un extrait de chacun des six avertissements qui disent un defaut du
 // document publie.
 var avertissementsDePublication = []string{
-	"table du film NON EMPLOYEE",
-	"origine d'horloge non etablie",
-	"aucune origine etablie",
-	"equipes NON LUES",
-	"impulsions de capacite NON BALAYEES",
-	"charges d equipement NON BALAYEES",
+	"film table NOT USED",
+	"clock origin not established",
+	"no origin established",
+	"teams NOT READ",
+	"ability impulses NOT SWEEPED",
+	"equipment charges NOT SWEEPED",
 }
 
 func TestPortagesAuSync_LeDocumentInterneTaitLesAvertissementsDePublication(t *testing.T) { // JDP-INTERNE
@@ -60,7 +60,7 @@ func TestAvertissementsSansTemoinSuiventLeNiveauDePublication(t *testing.T) { //
 				temoinDuFil{offsetMS: 4_512_847, appariees: 90}, niveau)
 		})
 	}
-	for _, extrait := range []string{"la base CONTREDIT le film", "origine LUE contredite"} {
+	for _, extrait := range []string{"the base CONTRADICTS the film", "READ origin contradicted"} {
 		if !aUnEnregistrement(jouer(false), "WARN", extrait) {
 			t.Errorf("%q : absent en WARN du document publie", extrait)
 		}

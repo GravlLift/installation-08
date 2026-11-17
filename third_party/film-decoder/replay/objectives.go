@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -186,8 +187,8 @@ func attachObjectiveActions(ctx context.Context, doc *ReplayDocument, opt Option
 	if n := countActionsWithoutTrack(actions, doc.Tracks, reg.PontEpure()); n > 0 {
 		// PUBLIEES QUAND MEME, ET SIGNALEES : le defaut est dans le calque des POSITIONS, pas
 		// dans l'action. Le taire ferait disparaitre une lecture vraie sans laisser de trace.
-		slog.WarnContext(ctx, "rejeu : actions d'objectif dont l'auteur n'a aucune trajectoire publiee",
-			"match_id", doc.MatchID, "actions", n, "publiees", len(actions))
+		slog.WarnContext(ctx, "replay: objective actions whose author has no published track",
+			"match_id", doc.MatchID, "actions", n, "published", len(actions))
 	}
 	cov.warnIfLossy(ctx, "objectifs")
 	return cov

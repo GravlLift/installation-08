@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_flux.go — LE FLUX D OCTETS DU CODEC DES FAITS DE FILM, ET RIEN D AUTRE.
@@ -95,7 +96,7 @@ func (r *greader) u() uint64 {
 	}
 	v, n := binary.Uvarint(r.b[r.off:])
 	if n <= 0 {
-		r.err = fmt.Errorf("uvarint illisible a l offset %d", r.off)
+		r.err = fmt.Errorf("uvarint unreadable at offset %d", r.off)
 		return 0
 	}
 	r.off += n
@@ -108,7 +109,7 @@ func (r *greader) i() int64 {
 	}
 	v, n := binary.Varint(r.b[r.off:])
 	if n <= 0 {
-		r.err = fmt.Errorf("varint illisible a l offset %d", r.off)
+		r.err = fmt.Errorf("varint unreadable at offset %d", r.off)
 		return 0
 	}
 	r.off += n
@@ -120,7 +121,7 @@ func (r *greader) byte8() byte {
 		return 0
 	}
 	if r.off >= len(r.b) {
-		r.err = fmt.Errorf("fin de flux prematuree a l offset %d", r.off)
+		r.err = fmt.Errorf("premature end of stream at offset %d", r.off)
 		return 0
 	}
 	v := r.b[r.off]
@@ -133,7 +134,7 @@ func (r *greader) f32() float32 {
 		return 0
 	}
 	if r.off+4 > len(r.b) {
-		r.err = fmt.Errorf("float32 tronque a l offset %d", r.off)
+		r.err = fmt.Errorf("float32 truncated at offset %d", r.off)
 		return 0
 	}
 	v := math.Float32frombits(uint32(lirePoidsFaibleDAbord(r.b[r.off:], 4)))
@@ -147,7 +148,7 @@ func (r *greader) str() string {
 		return ""
 	}
 	if n < 0 || n > len(r.b)-r.off {
-		r.err = fmt.Errorf("chaine tronquee a l offset %d", r.off)
+		r.err = fmt.Errorf("string truncated at offset %d", r.off)
 		return ""
 	}
 	s := string(r.b[r.off : r.off+n])
@@ -166,7 +167,7 @@ func (r *greader) tranche(n int) []byte {
 		return nil
 	}
 	if n < 0 || r.off+n > len(r.b) {
-		r.err = fmt.Errorf("tranche de %d octet(s) a l offset %d : %d disponible(s)",
+		r.err = fmt.Errorf("slice of %d byte(s) at offset %d: %d available",
 			n, r.off, len(r.b)-r.off)
 		return nil
 	}
@@ -203,8 +204,8 @@ func (r *greader) compte(coutMinimal int) int {
 		coutMinimal = 1
 	}
 	if reste := len(r.b) - r.off; n < 0 || n > reste/coutMinimal {
-		r.err = fmt.Errorf("compte de %d element(s) a l offset %d : %d octet(s) restants, "+
-			"%d au minimum par element — flux desynchronise", n, r.off, reste, coutMinimal)
+		r.err = fmt.Errorf("count of %d element(s) at offset %d: %d byte(s) remaining, "+
+			"%d minimum per element — desynchronized stream", n, r.off, reste, coutMinimal)
 		return 0
 	}
 	return n

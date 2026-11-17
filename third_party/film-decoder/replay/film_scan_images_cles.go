@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_scan_images_cles.go — LA MARCHE UNIQUE DES IMAGES-CLES POUR LES BIPEDES.
@@ -28,13 +29,13 @@ func (s *filmScan) lireLesImagesCles() {
 	s.etats, s.errEtats = grammar.ScanEtatsDesImagesCles(s.fc, loadoutFamilies(), 0)
 	a := s.etats.Admission
 	r := recuperesParMethode(s.etats.Recuperes)
-	slog.InfoContext(s.ctx, "image-cle : etat complet des bipedes lu par la grammaire",
-		"match_id", s.matchID, "bipedes", a.Bipedes, "admis", a.Admis, "sansCorps", a.SansCorps,
+	slog.InfoContext(s.ctx, "keyframe: full biped state read by the grammar",
+		"match_id", s.matchID, "bipeds", a.Bipedes, "admitted", a.Admis, "sansCorps", a.SansCorps,
 		"refusNiFermeNiI22", a.RefusNiFermeNiI22, "refusT1", a.RefusT1, "refusT2", a.RefusT2,
 		"refusDebordement", a.RefusDebordement,
-		"debordements", a.Debordements, "capaciteHorsDomaine", a.CapaciteHorsDomaine,
+		"overflows", a.Debordements, "capaciteHorsDomaine", a.CapaciteHorsDomaine,
 		"selectionHorsMasque", a.SelectionHorsMasque,
-		"recuperes", len(s.etats.Recuperes), "recuperesArmes", r.armes,
+		"recovered", len(s.etats.Recuperes), "recuperesArmes", r.armes,
 		"recuperesInventaire", r.inventaire, "recuperesMarque", r.marque)
 }
 

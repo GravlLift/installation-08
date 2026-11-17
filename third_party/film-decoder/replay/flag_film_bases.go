@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -453,6 +454,6 @@ func logFlagFilmBases(ctx context.Context, cov *FlagCarriesCoverage) {
 	if ctx == nil || cov.FilmBaseContradict == 0 {
 		return
 	}
-	slog.WarnContext(ctx, "rejeu : bases du drapeau lues dans le film en contradiction avec le catalogue de socles",
-		"bases_film", cov.FilmBases, "accord", cov.FilmBaseAgree, "contradiction", cov.FilmBaseContradict)
+	slog.WarnContext(ctx, "replay: flag bases read in the film contradict the pad catalog",
+		"film_bases", cov.FilmBases, "agree", cov.FilmBaseAgree, "contradiction", cov.FilmBaseContradict)
 }

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_codec.go — LES SOUS-CODECS PARTAGES ENTRE SECTIONS : positions, pistes, objets du
@@ -111,7 +112,7 @@ func decodePositionSection(r *greader, lay profile.I0Layout, world profile.Vec3R
 		p.TimestampUS = lastTS
 		si := r.u()
 		if si >= uint64(len(slots)) {
-			r.err = fmt.Errorf("index de slot %d hors table (%d)", si, len(slots))
+			r.err = fmt.Errorf("slot index %d outside the table (%d)", si, len(slots))
 			return out
 		}
 		p.Slot = slots[si]
@@ -482,7 +483,7 @@ func decodeAmmo(r *greader) types.SlotAmmo {
 	}
 	if r.bool8() {
 		if r.off+8 > len(r.b) {
-			r.err = fmt.Errorf("jauge tronquee a l offset %d", r.off)
+			r.err = fmt.Errorf("gauge truncated at offset %d", r.off)
 			return a
 		}
 		v := math.Float64frombits(lirePoidsFaibleDAbord(r.b[r.off:], 8))

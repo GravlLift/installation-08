@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // bomb_stats_document.go — LES CINQ STATISTIQUES D'OBJECTIF DE L'ASSAUT, POSÉES SUR LE DOCUMENT.
@@ -122,14 +123,14 @@ func bombArmingsRead(doc *ReplayDocument) bool {
 // est journalisé ici, au même endroit et au même instant que le dénominateur `kills` qu'il
 // complète, donc jamais tu.
 func logBombStats(ctx context.Context, matchID string, c BombStatsCoverage, killsEcartes int) {
-	slog.InfoContext(ctx, "rejeu : statistiques d'objectif de l'Assaut",
-		"match_id", matchID, "joueurs", c.Players, "explosions", c.Detonations,
-		"armements", c.Armings, "attribues", c.ArmingsAttributed,
+	slog.InfoContext(ctx, "replay: Assault objective statistics",
+		"match_id", matchID, "players", c.Players, "explosions", c.Detonations,
+		"armings", c.Armings, "attributed", c.ArmingsAttributed,
 		"parLacher", c.ArmingsByDrop, "parRepli", c.ArmingsByActiveCarry,
 		"sansPorteur", c.ArmingsNoCarrier, "sansPont", c.ArmingsNoBridge,
-		"ambigus", c.ArmingsAmbiguous, "sansHorloge", c.ArmingsNoClock, "periodes", c.Periods,
+		"ambiguous", c.ArmingsAmbiguous, "sansHorloge", c.ArmingsNoClock, "periods", c.Periods,
 		"periodesSansPont", c.PeriodsNoBridge, "periodesOuvertes", c.PeriodsOpen,
 		"kills", c.Kills, "killsEcartes", killsEcartes, "killsSurPorteur", c.KillsOnCarrier,
-		"lu_explosions", c.DetonationsRead, "lu_portage", c.CarryRead,
-		"lu_armements", c.ArmingsRead, "lu_kills", c.KillsRead)
+		"explosions_read", c.DetonationsRead, "carry_read", c.CarryRead,
+		"armings_read", c.ArmingsRead, "kills_read", c.KillsRead)
 }

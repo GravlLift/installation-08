@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // creations_du_monde.go — LES CREATIONS DES OBJETS DU MONDE, MARCHEES EN UNE PASSE POUR TOUS LEURS
@@ -94,7 +95,7 @@ func (c *FilmContext) marcheDeCreation(ti uint32, wr *profile.Vec3Range, band ma
 	case VehicleTypeIndex:
 		lay, err := c.I0Layout()
 		if err != nil {
-			return w, fmt.Errorf("decoupage i0 illisible : %w", err)
+			return w, fmt.Errorf("unreadable i0 split: %w", err)
 		}
 		arch, err := c.vehicleArchetype()
 		if err != nil {

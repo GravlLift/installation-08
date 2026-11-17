@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_film_table.go — LA TABLE DU FILM EST LE LIEN DIRECT (lot 1.6.1).
@@ -206,27 +207,27 @@ func completerParLesChunks(out *filmTableLinks, in IdentityInput) {
 // NON EMPLOYEE se dit au `niveau` que l'appelant donne : elle dit un defaut du document publie.
 func (l filmTableLinks) alarmerSurLaTableDuFilm(ctx context.Context, matchID string, niveau slog.Level) {
 	c := l.couverture
-	slog.InfoContext(ctx, "rejeu : table du film composee au registre d'identite", "match_id", matchID,
-		"lue", c.Read, "refus", c.Refusal, "sieges", c.Seats, "direct", c.Direct,
-		"repli", c.Fallback, "accord", c.Accord, "contradiction", c.Contradiction,
+	slog.InfoContext(ctx, "replay: film table composed into the identity registry", "match_id", matchID,
+		"read", c.Read, "refusal", c.Refusal, "seats", c.Seats, "direct", c.Direct,
+		"fallback", c.Fallback, "agree", c.Accord, "contradiction", c.Contradiction,
 		"silence", c.Silence, "collisionsIndex", c.IndexCollisions)
 	if c.IndexCollisions > 0 {
-		slog.WarnContext(ctx, "rejeu : des INDEX de joueur etaient revendiques par deux xuids dans la table "+
-			"composee — l'index est retire POUR LES DEUX, aucune identite n'est tiree au sort",
-			"match_id", matchID, "collisions", c.IndexCollisions, "liens_restants",
+		slog.WarnContext(ctx, "replay: player INDEXES were claimed by two xuids in the "+
+			"composed table — the index is removed FOR BOTH, no identity is drawn at random",
+			"match_id", matchID, "collisions", c.IndexCollisions, "remaining_links",
 			c.Direct+c.Fallback)
 	}
 	if c.Contradiction > 0 {
-		slog.WarnContext(ctx, "rejeu : la lecture des chunks CONTREDIT la table du film sur des index — hors chaine, la "+
-			"table du film fait foi, l'ecart est compte",
-			"match_id", matchID, "contradictions", c.Contradiction, "accords", c.Accord,
+		slog.WarnContext(ctx, "replay: the chunk reading CONTRADICTS the film table on some indexes — outside chains, the "+
+			"film table is authoritative, the gap is counted",
+			"match_id", matchID, "contradictions", c.Contradiction, "agrees", c.Accord,
 			"detail", l.contradictions, "indexDesChunksHorsTable", len(l.indexDesChunks),
 			"indexTenus", l.indexTenus, "membresDeChaine", l.membresDeChaine, "chainesNonResolues", l.chaines)
 	}
 	if !c.Read {
-		slog.Log(ctx, niveau, "rejeu : table du film NON EMPLOYEE — le lien index <-> xuid retombe "+
-			"entierement sur la lecture des chunks de replication",
-			"match_id", matchID, "refus", c.Refusal, "liens", c.Fallback)
+		slog.Log(ctx, niveau, "replay: film table NOT USED — the index <-> xuid link falls back "+
+			"entirely to the reading of the replication chunks",
+			"match_id", matchID, "refusal", c.Refusal, "links", c.Fallback)
 	}
 }
 

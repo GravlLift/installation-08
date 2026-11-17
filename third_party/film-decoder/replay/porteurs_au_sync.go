@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // porteurs_au_sync.go — LES INTERVALLES DE PORT D'OBJECTIF, LUS AU SYNC PAR L'ASSEMBLEUR DE LA CUISSON.
@@ -230,18 +231,18 @@ func (e EntreePorteursAuSync) lireLesPorteurs(ctx context.Context, g GardesDesPo
 func (e EntreePorteursAuSync) lireLesArmesTenues(ctx context.Context) []types.HeldWeaponChange {
 	loadouts, err := grammar.ScanArmesDesImagesCles(e.Contexte, loadoutFamilies())
 	if err != nil {
-		slog.WarnContext(ctx, "porteurs au sync : images-cles d'armes illisibles", "match_id", e.MatchID, "err", err)
+		slog.WarnContext(ctx, "carriers at sync: unreadable weapon keyframes", "match_id", e.MatchID, "err", err)
 		loadouts = nil
 	}
 	creations := e.Identite.BipedCreations
 	births, _, err := grammar.ScanBirthLoadouts(e.Contexte, creations)
 	if err != nil {
-		slog.WarnContext(ctx, "porteurs au sync : dotations de naissance illisibles", "match_id", e.MatchID, "err", err)
+		slog.WarnContext(ctx, "carriers at sync: unreadable birth loadouts", "match_id", e.MatchID, "err", err)
 		births = nil
 	}
 	held, _, err := grammar.ScanHeldWeaponChanges(e.Contexte, spawnSetFrom(loadouts, births, creations))
 	if err != nil {
-		slog.WarnContext(ctx, "porteurs au sync : changements d'arme illisibles — bombe sans portage",
+		slog.WarnContext(ctx, "carriers at sync: unreadable weapon changes — bomb without a carrier",
 			"match_id", e.MatchID, "err", err)
 		return nil
 	}

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -341,9 +342,9 @@ func logSkullCarriesCoverage(ctx context.Context, cov *SkullCarriesCoverage) {
 	if cov == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : portage du crane d'Oddball",
-		"prises", cov.Grabs, "trains", cov.Trains, "portages", cov.Carries,
-		"fermes", cov.Closed, "ouverts", cov.Open,
+	slog.InfoContext(ctx, "replay: Oddball skull carry",
+		"pickups", cov.Grabs, "trains", cov.Trains, "carries", cov.Carries,
+		"closed", cov.Closed, "open", cov.Open,
 		"sansPont", cov.NoBridge, "horsFenetre", cov.OutOfWindow,
 		"porteurAbsent", cov.CarrierAbsent)
 }

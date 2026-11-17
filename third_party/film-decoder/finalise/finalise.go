@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package finalise
 
 // finalise.go — UN FILM N'EST ARCHIVE, DECODE NI CUIT QUE FINALISE (lot L3 de
@@ -63,8 +64,8 @@ const ChunkTypeTempsForts = 3
 //
 // SON TEXTE TRAVERSE UNE FRONTIERE DE PROCESSUS : l'enfant de cuisson rend un `stderr`, et
 // `sync/replayartifacts` classe sur ce texte (meme contrat que `replaybuild.ErrUnknownFilmKey`).
-var ErrFilmNonFinalise = errors.New("film non finalise : le manifeste ne porte pas le morceau " +
-	"des temps forts (chunk_type 3)")
+var ErrFilmNonFinalise = errors.New("film not finalized: the manifest does not carry the piece " +
+	"of the highlights (chunk_type 3)")
 
 // EstTempsForts dit si un type de manifeste est celui du morceau des temps forts. C'est la
 // seule comparaison au type 3 permise hors de [Finalise] : elle SELECTIONNE ce morceau (fil des

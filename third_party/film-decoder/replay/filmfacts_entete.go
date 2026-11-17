@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_entete.go — L EN-TETE D UN FICHIER DE FAITS : ce que ses premiers octets disent, et
@@ -60,20 +61,20 @@ func encodeEnteteDuFichier(f *FilmFactsFile) *gwriter {
 func DecodeFilmFactsEntete(blob []byte) (FilmFactsEntete, error) {
 	var e FilmFactsEntete
 	if len(blob) < len(magieFaitsDeFilm) || string(blob[:len(magieFaitsDeFilm)]) != magieFaitsDeFilm {
-		return e, fmt.Errorf("%w : magie absente", ErrFilmFactsVersion)
+		return e, fmt.Errorf("%w: magic absent", ErrFilmFactsVersion)
 	}
 	r := &greader{b: blob, off: len(magieFaitsDeFilm)}
 	e.VersionCodec, e.Schema = int(r.u()), int(r.u())
 	longueur := int(r.u())
 	if r.err != nil {
-		return e, fmt.Errorf("%w : prefixe illisible (%v)", ErrFilmFactsVersion, r.err)
+		return e, fmt.Errorf("%w: unreadable prefix (%v)", ErrFilmFactsVersion, r.err)
 	}
 	if e.VersionCodec != VersionCodecFaits || e.Schema != SchemaDesFaits {
-		return e, fmt.Errorf("%w : codec %d schema %d, ce binaire lit codec %d schema %d",
+		return e, fmt.Errorf("%w: codec %d schema %d, this binary reads codec %d schema %d",
 			ErrFilmFactsVersion, e.VersionCodec, e.Schema, VersionCodecFaits, SchemaDesFaits)
 	}
 	if longueur < 0 || longueur > len(r.b)-r.off {
-		return e, fmt.Errorf("%w : en-tete annonce %d octets, %d disponibles",
+		return e, fmt.Errorf("%w: header announces %d bytes, %d available",
 			ErrFilmFactsVersion, longueur, len(r.b)-r.off)
 	}
 	e.corps = r.off + longueur
@@ -86,7 +87,7 @@ func DecodeFilmFactsEntete(blob []byte) (FilmFactsEntete, error) {
 	copy(e.EmpreinteDeCle[:], r.tranche(sha256.Size))
 	e.Gardes = decodeGardesDeCuisson(r)
 	if r.err != nil {
-		return e, fmt.Errorf("%w : en-tete illisible (%v)", ErrFilmFactsVersion, r.err)
+		return e, fmt.Errorf("%w: unreadable header (%v)", ErrFilmFactsVersion, r.err)
 	}
 	return e, nil
 }
@@ -130,7 +131,7 @@ func (e FilmFactsEntete) Frais(entry profile.MapQuantEntry) error {
 	}
 	courantes := couvertureDuDecodeur(nil)
 	if !memesRevisionsDeCouche(e.Coverage, *courantes) {
-		return fmt.Errorf("%w : faits %s contre binaire %s", ErrFilmFactsRevisions,
+		return fmt.Errorf("%w: facts %s against binary %s", ErrFilmFactsRevisions,
 			listeDesRevisions(e.Coverage), listeDesRevisions(*courantes))
 	}
 	return verifierCleDeCuisson(e.MapModule, e.AxisW, e.LayoutDetected, entry, e.EmpreinteDeCle[:])

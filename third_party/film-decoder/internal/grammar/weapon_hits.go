@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // weapon_hits.go — NUMERATEUR de precision par arme, depuis le film (Lot 2 du plan
@@ -196,7 +197,7 @@ func ScanFilmWeaponShots(dir string, n int) ([]WeaponShot, error) {
 	for c := 1; c <= n; c++ {
 		data, err := ReadFilmChunk(dir, c)
 		if err != nil {
-			return nil, fmt.Errorf("chunk_%02d illisible : %w", c, err)
+			return nil, fmt.Errorf("chunk_%02d unreadable: %w", c, err)
 		}
 		for _, pk := range WalkPackets(data) {
 			if pk.Type != PacketTypeDelta || pk.Size < 4 {
@@ -236,7 +237,7 @@ func ScanFilmWeaponDamages(dir string, n int) ([]WeaponDamage, error) {
 	for c := 1; c <= n; c++ {
 		data, err := ReadFilmChunk(dir, c)
 		if err != nil {
-			return nil, fmt.Errorf("chunk_%02d illisible : %w", c, err)
+			return nil, fmt.Errorf("chunk_%02d unreadable: %w", c, err)
 		}
 		out = scanChunkDamages(WalkPackets(data), data, out)
 	}

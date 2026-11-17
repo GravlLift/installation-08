@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // frame_closure.go — LA CARTE DE FERMETURE DES TRAMES DELTA (lot J4.0 du plan de suite de
@@ -179,21 +180,21 @@ func FrameClosure(fc *FilmContext, utiles UsagesProduit) (FrameClosureReport, er
 // cadre de balayage du contexte et l observateur de la mesure.
 func mesureSurLaMarche(fc *FilmContext, utiles UsagesProduit) (*mesureDesTrames, *marcheurDesTrames, error) {
 	if fc == nil {
-		return nil, nil, fmt.Errorf("filmdec: contexte de film nil — aucune fermeture a mesurer")
+		return nil, nil, fmt.Errorf("filmdec: nil film context — no closure to measure")
 	}
 	if len(fc.ChunkNumbers()) == 0 {
 		return nil, nil, ErrNoFilmChunk
 	}
 	reg, err := fc.Registry()
 	if err != nil {
-		return nil, nil, fmt.Errorf("filmdec: registre illisible, les trames n ont pas de grammaire: %w", err)
+		return nil, nil, fmt.Errorf("filmdec: unreadable registry, the frames have no grammar: %w", err)
 	}
 	cfg := fc.CadreDeBalayage()
 	if !cfg.Profil.Grammaire.ClassesDeVue {
 		// La carte mesure la marche PAR CLASSES DE VUE, celle de production : un cadre qui ne la
 		// porte pas ne publie pas le verdict de la vue C, et la mesure n aurait pas d oracle.
-		return nil, nil, errors.New("filmdec: la carte de fermeture exige la marche " +
-			"par classes de vue (GrammaireBalayage.ClassesDeVue)")
+		return nil, nil, errors.New("filmdec: the closure map requires the walk " +
+			"by view classes (GrammaireBalayage.ClassesDeVue)")
 	}
 	m := nouvelleMesureDesTrames(reg, utiles, cfg)
 	mt, err := fc.nouveauMarcheurDesTrames(m.cfg.Obs)

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // neutral_deaths.go — LES MORTS QUE PERSONNE NE REVENDIQUE, côté assemblage.
@@ -41,8 +42,8 @@ func keepNeutralDeathsOfPublishedTracks(ctx context.Context, deaths []NeutralDea
 		out = append(out, d)
 	}
 	if dropped := len(deaths) - len(out); dropped > 0 {
-		slog.InfoContext(ctx, "rejeu 2D : morts sans revendication écartées (joueur sans trajectoire publiée, "+
-			"ou type non établi)", "ecartees", dropped, "publiees", len(out))
+		slog.InfoContext(ctx, "2D replay: unclaimed deaths dropped (player without a published trajectory, "+
+			"or type not established)", "rejected", dropped, "published", len(out))
 	}
 	if len(out) == 0 {
 		return nil

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -52,9 +53,9 @@ func installWorldObjectPrecision(ctx context.Context, fc *grammar.FilmContext, m
 		// REPLI NOMME ET COMPTE (D14) : le defaut conserve est celui d'UNE carte, applique a
 		// toutes. Le journal le dit ; le compte le fait voyager avec l'artefact.
 		fb.Declenche(fallback.NomLargeursAxeParDefautConservees)
-		slog.WarnContext(ctx, "largeurs d'axe absentes de l'entrée de catalogue — objets du monde déquantifiés aux largeurs par défaut",
+		slog.WarnContext(ctx, "axis widths missing from the catalog entry — world objects dequantized at the default widths",
 			"module", fc.Profile().Map().Module, "match_id", matchID,
-			"defaut", fc.ProfilDeBalayage().LargeursObjetDuMonde().AxisW)
+			"default", fc.ProfilDeBalayage().LargeursObjetDuMonde().AxisW)
 	}
 	signalerLeDecoupageMPP(ctx, matchID, pose.MPP)
 }

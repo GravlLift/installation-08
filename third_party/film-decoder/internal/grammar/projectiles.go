@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -136,7 +137,7 @@ func ScanWorldObjects(fc *FilmContext, wr *profile.Vec3Range, typeIndex int) ([]
 	// Une bande vide ne ferme le balayage que si elle est la seule designation de l archetype : les
 	// pistes d un archetype que la marche designe seule se lisent sans elle ([laMarcheDesigneSeule]).
 	if len(band) == 0 && !laMarcheDesigneSeule(typeIndex) {
-		return nil, fmt.Errorf("aucun slot d'archétype ti=%d dans les keyframes du film", typeIndex)
+		return nil, fmt.Errorf("no archetype slot ti=%d in the film keyframes", typeIndex)
 	}
 	return ScanWorldObjectsForBand(fc, wr, typeIndex, band)
 }
@@ -171,7 +172,7 @@ func ScanWorldObjectsForBand(
 	fc *FilmContext, wr *profile.Vec3Range, ti int, band map[uint32]bool,
 ) ([]types.ProjectileTrack, error) {
 	if wr == nil {
-		return nil, fmt.Errorf("bornes monde absentes : sans elles le décodeur ne rend que des quanta")
+		return nil, fmt.Errorf("world bounds missing: without them the decoder only yields quanta")
 	}
 	if len(FilmChunkNumbers(fc.Film())) == 0 {
 		return nil, ErrNoFilmChunk

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filmcache
 
 // stockage.go — LA FORME D'UN CHUNK SUR DISQUE (decision D-18, 2026-11-01).
@@ -37,7 +38,7 @@ func TailleLogique(path string, tailleDisque int64) (int64, error) {
 	defer func() { _ = f.Close() }()
 	debut := make([]byte, min(tailleDisque, int64(source.TailleEnteteZstd)))
 	if _, err := io.ReadFull(f, debut); err != nil {
-		return 0, fmt.Errorf("lecture de l'en-tete de %s : %w", path, err)
+		return 0, fmt.Errorf("reading the header of %s: %w", path, err)
 	}
 	if !source.EstZstd(debut) {
 		return tailleDisque, nil
@@ -47,7 +48,7 @@ func TailleLogique(path string, tailleDisque int64) (int64, error) {
 		return TailleLogiqueInconnue, nil
 	}
 	if err != nil {
-		return 0, fmt.Errorf("en-tete zstd de %s : %w", path, err)
+		return 0, fmt.Errorf("zstd header of %s: %w", path, err)
 	}
 	return taille, nil
 }

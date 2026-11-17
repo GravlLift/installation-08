@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // successions.go — LA FERMETURE PAR RELAIS : le remplaçant hérite des vies anonymes qui
@@ -103,7 +104,7 @@ func attributeSuccessions(ctx context.Context, tracks []Track, successions []Suc
 		}
 	}
 	c.fb.DeclencheN(fallback.NomVieDeBotParRelaisDeLaBase, claimed)
-	slog.InfoContext(ctx, "rejeu : fermetures par relais", "successions", len(successions),
+	slog.InfoContext(ctx, "replay: relay closures", "successions", len(successions),
 		"viesAttribuees", claimed, "chainesArretees", halted, "contestationsLeveesParTir", liftedByFire)
 }
 

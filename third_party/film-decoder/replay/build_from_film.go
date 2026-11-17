@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_from_film.go — LE DECODAGE D'UN FILM, ET RIEN QUE LUI.
@@ -65,7 +66,7 @@ func BuildFromFilmAvecFaits(ctx context.Context, matchID, titleSlug string, film
 ) {
 	if opt.MapQuant == nil {
 		return ReplayDocument{}, nil, fmt.Errorf(
-			"%w (match %s) : le document de rejeu exige l'entrée de catalogue de la carte",
+			"%w (match %s): the replay document requires the map's catalog entry",
 			profile.ErrUnknownMapBounds, matchID)
 	}
 	// PLUS DE VERROU DE PAQUET ICI (lot 2.3) : `grammar` n'a plus aucune variable de paquet
@@ -178,15 +179,15 @@ func poserProfilPuisCarte(ctx context.Context, fc *grammar.FilmContext, matchID 
 func signalerLeDecoupageMPP(ctx context.Context, matchID string, res grammar.ResolutionMPP) {
 	if !res.Decide() {
 		if d := res.Declaration; d.Records > 0 {
-			slog.WarnContext(ctx, "film : decoupage MPP declare discordant — chemin calibre garde",
+			slog.WarnContext(ctx, "film: declared MPP split discordant — calibrated path kept",
 				"match_id", matchID, "format", res.FormatVersion, "records", d.Records,
-				"discordants", d.Discordants)
+				"discordant", d.Discordants)
 		}
 		return
 	}
 	if res.Provenance == profile.MPPPresumeParMesure {
-		slog.InfoContext(ctx, "film : decoupage MPP declare par le film, presume par mesure",
-			"match_id", matchID, "format", res.FormatVersion, "decoupage", res.Widths.String())
+		slog.InfoContext(ctx, "film: MPP split declared by the film, presumed by measurement",
+			"match_id", matchID, "format", res.FormatVersion, "split", res.Widths.String())
 	}
 }
 

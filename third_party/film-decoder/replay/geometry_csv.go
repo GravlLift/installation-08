@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // geometry_csv.go — LA LECTURE DES CSV DE GEOMETRIE, ligne par ligne et NOMMEE (lot J2.10,
@@ -140,7 +141,7 @@ func readCSV(path string) ([]ligneCSV, error) {
 	rd.FieldsPerRecord = -1
 	head, err := rd.Read()
 	if err != nil {
-		return nil, fmt.Errorf("en-tête %s: %w", path, err)
+		return nil, fmt.Errorf("header %s: %w", path, err)
 	}
 	cols := make(map[string]int, len(head))
 	for i, h := range head {
@@ -153,7 +154,7 @@ func readCSV(path string) ([]ligneCSV, error) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("lecture %s: %w", path, err)
+			return nil, fmt.Errorf("reading %s: %w", path, err)
 		}
 		numero, _ := rd.FieldPos(0)
 		lignes = append(lignes, ligneCSV{fichier: path, numero: numero, rec: rec, cols: cols})

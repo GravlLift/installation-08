@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // pistes_sans_creation.go — UN SLOT QUE AUCUN RECORD DE CREATION N'OUVRE N'EST PAS UN CORPS DE
@@ -140,7 +141,7 @@ func (a *assemblage) construireLeRegistre(entree func(*fallback.Compteur) Identi
 		a.sorted, positions = sansLesSlots(a.sorted, ecartes)
 		a.opt.Fallbacks.DeclencheN(fallback.NomPositionDeBipedeSansCreationEcartee, positions)
 		// JOURNALISE, JAMAIS AVALE : ces positions ne se publient pas.
-		slog.WarnContext(a.ctx, "rejeu : slots sans record de creation ni identite ecartes — aucune piste publiee",
+		slog.WarnContext(a.ctx, "replay: slots with no creation record and no identity discarded — no track published",
 			"match_id", a.matchID, "slots", len(ecartes), "positions", positions)
 	}
 	return BuildIdentityRegistry(a.ctx, entree(a.opt.Fallbacks))

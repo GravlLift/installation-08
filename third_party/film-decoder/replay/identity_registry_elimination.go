@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_elimination.go — L'IDENTITE PAR ELIMINATION SUR LE ROSTER.
@@ -48,7 +49,7 @@ func (r *IdentityRegistry) resolveByRosterElimination(ctx context.Context, in Id
 	muets := slotsSansVieNommee(r.Vies())
 	if len(libres) != 1 || len(muets) != 1 {
 		if len(libres) > 0 && len(muets) > 0 {
-			slog.InfoContext(ctx, "rejeu : elimination sur le roster impossible — l'unicite manque",
+			slog.InfoContext(ctx, "replay: elimination on the roster impossible — uniqueness is missing",
 				"match_id", in.MatchID, "xuidsLibres", len(libres), "slotsMuets", len(muets))
 		}
 		return
@@ -62,8 +63,8 @@ func (r *IdentityRegistry) resolveByRosterElimination(ctx context.Context, in Id
 		return
 	}
 	r.eliminatedSlot, r.eliminatedXUID = slot, xuid
-	slog.InfoContext(ctx, "rejeu : identite posee par elimination sur le roster",
-		"match_id", in.MatchID, "slot", slot, "xuid", xuid, "vies", r.eliminated)
+	slog.InfoContext(ctx, "replay: identity placed by elimination on the roster",
+		"match_id", in.MatchID, "slot", slot, "xuid", xuid, "lives", r.eliminated)
 }
 
 // rosterCandidat rend les xuids que l'elimination peut attribuer : ceux que le film NOMME

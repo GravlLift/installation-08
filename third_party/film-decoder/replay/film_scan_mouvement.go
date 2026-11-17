@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_scan_mouvement.go — LA MARCHE DU FRAME-PROCESSEUR : les ETATS DE MOUVEMENT (schema 65, lot
@@ -38,20 +39,20 @@ func (s *filmScan) balayerEtatsDeMouvement() {
 	m, err := s.marche, s.errMarche
 	st, tc := m.MovementStateStats, m.ContinuousFireStats
 	if err != nil {
-		slog.WarnContext(s.ctx, "etats de mouvement et tir continu illisibles — rejeu sans intervalles d etat ni rafales",
+		slog.WarnContext(s.ctx, "movement states and sustained fire unreadable — replay without state intervals or bursts",
 			"err", err, "match_id", s.matchID)
 		m, st, tc = grammar.MarcheDesTrames{}, types.MovementStateStats{}, types.ContinuousFireStats{}
 	} else {
-		slog.InfoContext(s.ctx, "etats de mouvement lus",
-			"records", st.Records, "desyncs", st.Desyncs, "lectures", st.Read,
-			"paquets", st.Packets, "paquetsEvenements", st.EventPackets,
+		slog.InfoContext(s.ctx, "movement states read",
+			"records", st.Records, "desyncs", st.Desyncs, "reads", st.Read,
+			"packets", st.Packets, "paquetsEvenements", st.EventPackets,
 			"paquetsEvenementsLocalises", st.EventPacketsLocated,
 			"paquetsEvenementsNonLocalises", st.EventPacketsUnlocated,
-			"slotNonLie", st.SlotUnbound, "doublons", st.Duplicates, "liaisonsOubliees", st.LiaisonsOubliees, "neufsContreUnVivant", st.NeufsContreUnVivant,
+			"slotNonLie", st.SlotUnbound, "duplicates", st.Duplicates, "liaisonsOubliees", st.LiaisonsOubliees, "neufsContreUnVivant", st.NeufsContreUnVivant,
 			"largeursCarte", st.MapWidths, "absent", st.Absent)
-		slog.InfoContext(s.ctx, "tir continu lu (vue de controle)",
-			"paquets", tc.Packets, "vueCFermee", tc.Closed, "trous", tc.Holes, "suitesDeTrous", tc.HoleRuns,
-			"rafales", tc.Bursts, "rafalesTouchees", tc.BurstsWithHole, "tirTenuTuMs", tc.HeldHoleMS,
+		slog.InfoContext(s.ctx, "sustained fire read (control view)",
+			"packets", tc.Packets, "vueCFermee", tc.Closed, "holes", tc.Holes, "suitesDeTrous", tc.HoleRuns,
+			"bursts", tc.Bursts, "rafalesTouchees", tc.BurstsWithHole, "tirTenuTuMs", tc.HeldHoleMS,
 			"match_id", s.matchID)
 	}
 	s.opt.Fallbacks.DeclencheN(fallback.NomLiaisonParAnticipation, m.LiaisonsParRepliDAnticipation)

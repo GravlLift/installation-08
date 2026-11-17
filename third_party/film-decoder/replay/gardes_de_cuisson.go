@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // gardes_de_cuisson.go — LES GARDES DE L APPELANT SOUS LESQUELLES DES FAITS ONT ETE CUITS (lot J3.4
@@ -37,7 +38,7 @@ import (
 
 // ErrFilmFactsGardes : les faits ont ete cuits sous des gardes de l appelant qui ne couvrent pas
 // celles de la cuisson courante. PERIMES pour CETTE cuisson : la reponse est de redecoder.
-var ErrFilmFactsGardes = errors.New("faits de film : cuits sous d autres gardes de l appelant")
+var ErrFilmFactsGardes = errors.New("film facts: cooked under other guards of the caller")
 
 // GardesDeCuisson : ce que l appelant a commande au balayage, et que les faits ont donc lu.
 type GardesDeCuisson struct {
@@ -109,11 +110,11 @@ func (g GardesDeCuisson) couvre(d GardesDeCuisson) error {
 		demande, cuit bool
 	}{{nomGardeDrapeau, d.Drapeau, g.Drapeau}, {nomGardeZones, d.Zones, g.Zones}, {nomGardeBombe, d.Bombe, g.Bombe}} {
 		if c.demande && !c.cuit {
-			return fmt.Errorf("%w : %s demande, les faits ne l ont pas balaye", ErrFilmFactsGardes, c.nom)
+			return fmt.Errorf("%w: %s requested, the facts did not sweep it", ErrFilmFactsGardes, c.nom)
 		}
 	}
 	if d.Roster != g.Roster {
-		return fmt.Errorf("%w : roster de l appelant different de celui de la cuisson des faits",
+		return fmt.Errorf("%w: caller roster differs from the one the facts were cooked under",
 			ErrFilmFactsGardes)
 	}
 	return nil

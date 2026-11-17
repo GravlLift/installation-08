@@ -31,6 +31,7 @@
 //     bit près dans une fenêtre de 20_000 bits qui suit, lire les 60 octets
 //     d'event qui le précèdent (au bit près également).
 //  4. Décoder l'event selon la version du film.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -203,21 +204,21 @@ func parseEventAtBit(data []byte, xuidStartBit int, xuid uint64, version int) (h
 			if lastErr != nil {
 				return highlightevent.HighlightEvent{}, -1, lastErr
 			}
-			return highlightevent.HighlightEvent{}, -1, fmt.Errorf("end-marker absent dans la fenêtre")
+			return highlightevent.HighlightEvent{}, -1, fmt.Errorf("end-marker absent from the window")
 		}
 
 		eventBitsStart := endPosBit - eventDataBytes*8
 		if eventBitsStart < xuidStartBit {
 			// End-marker trop proche du XUID — chercher après.
 			searchFrom = endPosBit + 1
-			lastErr = fmt.Errorf("données event insuffisantes avant le end-marker")
+			lastErr = fmt.Errorf("insufficient event data before the end-marker")
 			continue
 		}
 
 		eventBytes := readBytesAtBit(data, eventBitsStart, eventDataBytes)
 		if eventBytes == nil {
 			searchFrom = endPosBit + 1
-			lastErr = fmt.Errorf("lecture event bytes hors limites")
+			lastErr = fmt.Errorf("event byte read out of range")
 			continue
 		}
 		ev, err := decodeEventBytes(eventBytes, xuid, version)
@@ -237,7 +238,7 @@ func parseEventAtBit(data []byte, xuidStartBit int, xuid uint64, version int) (h
 //   - version 39–40          : pad[0:12] | gamertag[12:44] | pad[44:47] | type_hint[47] | time_ms[48:52] | pad | is_medal[55] | pad | medal_type[59]
 func decodeEventBytes(b []byte, xuid uint64, version int) (highlightevent.HighlightEvent, error) {
 	if len(b) < eventDataBytes {
-		return highlightevent.HighlightEvent{}, fmt.Errorf("bloc event trop court: %d < 60", len(b))
+		return highlightevent.HighlightEvent{}, fmt.Errorf("event block too short: %d < 60", len(b))
 	}
 
 	var gamertag string
@@ -284,7 +285,7 @@ func inferEventType(typeHint int, isMedal bool) (string, error) {
 	case typeHintKill:
 		return highlightevent.EventTypeKill, nil
 	}
-	return "", fmt.Errorf("type_hint=%d isMedal=%v non reconnu", typeHint, isMedal)
+	return "", fmt.Errorf("type_hint=%d isMedal=%v not recognized", typeHint, isMedal)
 }
 
 // decodeUTF16LE décode une chaîne utf-16le et retire les nulls.

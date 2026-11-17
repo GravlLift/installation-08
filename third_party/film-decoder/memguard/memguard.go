@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package memguard
 
 // memguard.go — LA SENTINELLE MEMOIRE, canonique.
@@ -145,7 +146,7 @@ func Arm(ctx context.Context, tool string, giB int, onExceeded func(peakBytes ui
 	hard := HardLimitFor(giB)
 	if giB > 0 {
 		debug.SetMemoryLimit(int64(uint64(giB) * octetsParGiB))
-		slog.InfoContext(ctx, cfg.message, "outil", tool, "souple_gib", giB, "dur_octets", hard)
+		slog.InfoContext(ctx, cfg.message, "tool", tool, "soft_gib", giB, "hard_bytes", hard)
 	}
 	return newGuard(hard, samplePeriod, onExceeded)
 }
@@ -162,7 +163,7 @@ func ArmBytes(ctx context.Context, tool string, softBytes uint64, onExceeded fun
 	if softBytes > 0 {
 		hard = hardMargin(softBytes)
 		debug.SetMemoryLimit(int64(softBytes))
-		slog.InfoContext(ctx, cfg.message, "outil", tool, "souple_octets", softBytes, "dur_octets", hard)
+		slog.InfoContext(ctx, cfg.message, "tool", tool, "soft_bytes", softBytes, "hard_bytes", hard)
 	}
 	return newGuard(hard, samplePeriod, onExceeded)
 }

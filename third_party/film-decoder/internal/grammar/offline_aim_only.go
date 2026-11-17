@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // offline_aim_only.go — LA VISEE D'UN BIPEDE QUI NE REPLIQUE PLUS SA POSITION.
@@ -114,7 +115,7 @@ func ScanBipedAimOnly(fc *FilmContext) ([]BipedAim, error) {
 	}
 	band := fc.BipedSlots()
 	if band.Count() == 0 {
-		return nil, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	// Lot J5.2 : les generations vivantes du film, pas la seule 1 ; DATEES a l instant du paquet
 	// (lot R2-bis) : la visee d un corps n est pas lue avant son record de creation.

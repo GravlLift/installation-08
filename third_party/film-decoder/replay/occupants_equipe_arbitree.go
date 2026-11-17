@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // occupants_equipe_arbitree.go — UN BOT DONT L'ENTITE ET LA DECLARATION DISENT DEUX EQUIPES : LA
@@ -76,7 +77,7 @@ const metriqueEquipesSansArbitre = "rejeu_bots_equipe_sans_arbitre"
 // ERREUR (et au second compteur) quand elle ne connait pas le bot et que l'entite est publiee.
 func journaliserLesEquipesDeclarees(ctx context.Context, matchID string, occ occupants) {
 	if occ.equipesParDeclaration > 0 {
-		slog.InfoContext(ctx, "rejeu : equipe de bot(s) lue dans leur declaration BOT_METADATA, faute d'entite ti=9",
+		slog.InfoContext(ctx, "replay: bot team(s) read from their BOT_METADATA declaration, lacking a ti=9 entity",
 			"match_id", matchID, "bots", occ.equipesParDeclaration)
 	}
 	if occ.equipesContreDeclaration > 0 {
@@ -84,14 +85,14 @@ func journaliserLesEquipesDeclarees(ctx context.Context, matchID string, occ occ
 	}
 	for _, c := range occ.contradictions {
 		if c.base != nil {
-			slog.WarnContext(ctx, "rejeu : l'entite ti=9 d'un bot et son entree BOT_METADATA disent deux equipes — "+
-				"l'equipe de la feuille de match est publiee", "match_id", matchID, "bot", c.nom, "bid", c.bid,
-				"entite", c.entite, "declaration", c.declaree, "feuille", *c.base)
+			slog.WarnContext(ctx, "replay: a bot's ti=9 entity and its BOT_METADATA entry say two teams — "+
+				"the match sheet's team is published", "match_id", matchID, "bot", c.nom, "bid", c.bid,
+				"entity", c.entite, "declaration", c.declaree, "sheet", *c.base)
 			continue
 		}
 		filmobs.AddInt(metriqueEquipesSansArbitre, 1)
-		slog.ErrorContext(ctx, "rejeu : l'entite ti=9 d'un bot et son entree BOT_METADATA disent deux equipes, "+
-			"et la feuille de match ne connait pas ce bot — l'entite est publiee, l'ecart est compte",
-			"match_id", matchID, "bot", c.nom, "bid", c.bid, "entite", c.entite, "declaration", c.declaree)
+		slog.ErrorContext(ctx, "replay: a bot's ti=9 entity and its BOT_METADATA entry say two teams, "+
+			"and the match sheet does not know this bot — the entity is published, the gap is counted",
+			"match_id", matchID, "bot", c.nom, "bid", c.bid, "entity", c.entite, "declaration", c.declaree)
 	}
 }

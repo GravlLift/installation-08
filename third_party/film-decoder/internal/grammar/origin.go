@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -30,10 +31,10 @@ func ScanFilmClockOrigin(filmDir string) (uint64, error) {
 func ScanClockOrigin(film *source.Film) (uint64, error) {
 	_, packets, ok := FilmChunkAt(film, 1)
 	if !ok {
-		return 0, fmt.Errorf("chunk 1 (origine d'horloge) : absent du film")
+		return 0, fmt.Errorf("chunk 1 (clock origin): missing from the film")
 	}
 	if len(packets) == 0 {
-		return 0, fmt.Errorf("chunk 1 (origine d'horloge) : aucun paquet lisible")
+		return 0, fmt.Errorf("chunk 1 (clock origin): no readable packet")
 	}
 	return packets[0].TimestampUS, nil
 }

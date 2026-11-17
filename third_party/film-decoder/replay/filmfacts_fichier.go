@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_fichier.go — LE FICHIER DE FAITS D UN FILM : CINQ SECTIONS ET UN EN-TETE
@@ -276,11 +277,11 @@ const (
 
 // ErrFilmFactsVersion : le fichier n est pas de ce conteneur ou pas de ce schema. Les faits sont
 // alors PERIMES, pas corrompus : la reponse est de redecoder le film, jamais de lire « au mieux ».
-var ErrFilmFactsVersion = errors.New("faits de film : version de codec ou de schema inconnue")
+var ErrFilmFactsVersion = errors.New("film facts: unknown codec or schema version")
 
 // ErrFilmFactsRevisions : les faits ont ete pris sous d autres revisions de couche que celles du
 // binaire courant. PERIMES, au sens de la regle de fraicheur TOUT OU RIEN du lot 4.1.
-var ErrFilmFactsRevisions = errors.New("faits de film : revisions de couche differentes")
+var ErrFilmFactsRevisions = errors.New("film facts: differing layer revisions")
 
 // FilmStatborg porte ce que la porte des ENREGISTREMENTS D ENTITE rend d un film.
 //
@@ -374,7 +375,7 @@ func EncodeFilmFactsFile(f *FilmFactsFile) ([]byte, error) {
 	} {
 		charge, err := json.Marshal(s.valeur)
 		if err != nil {
-			return nil, fmt.Errorf("faits de film : section %s : %w", s.libelle, err)
+			return nil, fmt.Errorf("film facts: section %s: %w", s.libelle, err)
 		}
 		ecrireSection(w, s.id, charge)
 	}
@@ -415,7 +416,7 @@ func DecodeFilmFactsFile(blob []byte, entry profile.MapQuantEntry) (*FilmFactsFi
 		}
 	}
 	if r.err != nil {
-		return nil, fmt.Errorf("faits de film : cadre de section illisible : %w", r.err)
+		return nil, fmt.Errorf("film facts: unreadable section frame: %w", r.err)
 	}
 	return out, nil
 }
@@ -428,7 +429,7 @@ func (f *FilmFactsFile) lireSection(id int, charge []byte, entry profile.MapQuan
 		r := &greader{b: charge}
 		blob := r.tranche(int(r.u()))
 		if r.err != nil {
-			return fmt.Errorf("faits de film : section entrees : %w", r.err)
+			return fmt.Errorf("film facts: entries section: %w", r.err)
 		}
 		g, err := DecodeFilmFacts(blob, entry)
 		if err != nil {
@@ -437,7 +438,7 @@ func (f *FilmFactsFile) lireSection(id int, charge []byte, entry profile.MapQuan
 		f.Facts = *g
 		decodeComplementDesEntrees(r, &f.Facts)
 		if r.err != nil {
-			return fmt.Errorf("faits de film : canaux gardes : %w", r.err)
+			return fmt.Errorf("film facts: guarded channels: %w", r.err)
 		}
 		return nil
 	case sectionIdentite:
@@ -457,7 +458,7 @@ func (f *FilmFactsFile) lireSection(id int, charge []byte, entry profile.MapQuan
 // dire laquelle n aide personne a 3 h du matin.
 func lireSectionJSON(charge []byte, cible any, libelle string) error {
 	if err := json.Unmarshal(charge, cible); err != nil {
-		return fmt.Errorf("faits de film : section %s : %w", libelle, err)
+		return fmt.Errorf("film facts: section %s: %w", libelle, err)
 	}
 	return nil
 }

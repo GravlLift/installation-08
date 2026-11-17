@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_vehicles_coverage.go — CE QUE LE CALQUE DES VEHICULES DIT DE LUI-MEME : le decompte
@@ -102,24 +103,24 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 	if c == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : vehicules",
-		"balaye", c.Scanned, "viesRecensees", c.Lives, "publiees", c.Published,
+	slog.InfoContext(ctx, "replay: vehicles",
+		"swept", c.Scanned, "viesRecensees", c.Lives, "published", c.Published,
 		"relaisFusionnes", c.Merged,
 		"sansPosition", c.NoPosition, "avecNaissance", c.WithSpawn, "avecChassis", c.WithChassis,
 		"famillesResolues", c.FamilyResolved, "famillesInconnues", c.FamilyUnknown,
-		"echantillons", c.Samples, "avecCap", c.WithHeading)
+		"samples", c.Samples, "avecCap", c.WithHeading)
 	// LA PORTE DES POSITIONS (lot M1 des retours du rejeu) : ce qu elle a ecarte, et les silences
 	// avec deplacement qu elle a laisses publies faute de preuve pour trancher.
 	if c.EchantillonsHorsEmprise+c.SpawnsHorsEmprise+c.EchantillonsAuTraversDUnSilence+c.SilencesNonTranches > 0 {
-		slog.InfoContext(ctx, "rejeu : porte des positions de vehicule",
+		slog.InfoContext(ctx, "replay: carrying of vehicle positions",
 			"echantillonsHorsEmprise", c.EchantillonsHorsEmprise, "spawnsHorsEmprise", c.SpawnsHorsEmprise,
 			"echantillonsAuTraversDUnSilence", c.EchantillonsAuTraversDUnSilence,
 			"silencesNonTranches", c.SilencesNonTranches)
 	}
-	slog.InfoContext(ctx, "rejeu : occupation des vehicules",
+	slog.InfoContext(ctx, "replay: occupation of the vehicles",
 		"episodes", c.Rides, "vehiculesOccupes", c.VehiclesRidden, "occupantsNommes", c.RidesNamed,
-		"lus", c.RidesRead, "parProximite", c.RidesProximity,
-		"avecSiege", c.RidesWithSeat, "ambigus", c.Ambiguous,
+		"read", c.RidesRead, "parProximite", c.RidesProximity,
+		"avecSiege", c.RidesWithSeat, "ambiguous", c.Ambiguous,
 		"lecturesDeViseeBrutes", c.AimReads, "episodesAvecVisee", c.RidesWithAim,
 		"pointsDeVisee", c.AimSamples, "framesDEpisode", c.AimRideFrames)
 	// LE CYCLE DE REAPPARITION porte ses deux moities de denominateur au journal comme il les
@@ -127,17 +128,17 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 	// qui a passe la regle de stabilite, `manques` les occasions perdues faute d une fin datee.
 	// Sans eux, « 0 cycle » ne distinguerait pas un film sans emplacement d un film dont tous les
 	// ecarts etaient trop disperses.
-	slog.InfoContext(ctx, "rejeu : cycle de reapparition des vehicules",
-		"emplacements", c.CycleLocations, "cycles", c.Cycles,
-		"ecarts", c.CycleGaps, "manques", c.CycleMissing)
+	slog.InfoContext(ctx, "replay: vehicle reappearance cycle",
+		"placements", c.CycleLocations, "cycles", c.Cycles,
+		"gaps", c.CycleGaps, "missing", c.CycleMissing)
 	// LE SILENCE QU IL FAUT ROMPRE, et il est le pendant exact du warn de `logVehicleCoverage` :
 	// des episodes publies dont AUCUN ne porte de visee n est pas « un film ou personne ne
 	// regardait », c est le balayage `i21` sans position qui n a rien rendu. La mesure V11 rend
 	// 35 episodes attestes sur 35 porteurs d au moins une lecture, sur 5 films.
 	if c.Rides > 0 && c.RidesWithAim == 0 {
-		slog.WarnContext(ctx, "rejeu : AUCUN episode d occupation ne porte de visee alors que des episodes"+
-			" existent — le balayage des records de visee SANS position n a rien rendu, le cone"+
-			" retombe partout sur le cap du chassis",
+		slog.WarnContext(ctx, "replay: NO occupation episode carries an aim while episodes "+
+			"exist — the position-less aim-record sweep returned nothing, the cone "+
+			"falls back everywhere to the chassis heading",
 			"episodes", c.Rides, "lecturesBrutes", c.AimReads)
 	}
 	// UN CHASSIS INCONNU EST UN AVERTISSEMENT DEPUIS LE LOT 1.9.9 (2026-09-16), une ligne par
@@ -149,14 +150,14 @@ func logVehicleCoverage(ctx context.Context, c *VehicleCoverage) {
 	// Le journal porte le `ctx` de l appelant de la cuisson (lot J12.3), comme les autres journaux
 	// de ce fichier et de `build_vehicles.go`.
 	for id, n := range c.UnknownChassis {
-		slog.WarnContext(ctx, "rejeu : chassis de vehicule ABSENT DE LA TABLE DES FAMILLES — vies publiees"+
-			" sans sprite, dessinees en marqueur neutre ; le mot d identite est LU, c est la table"+
-			" qui ne le nomme pas",
-			"chassis", id, "vies", n, "repli", string(fallback.NomChassisVehiculeMarqueurNeutre))
+		slog.WarnContext(ctx, "replay: vehicle chassis ABSENT FROM THE FAMILY TABLE — lives published "+
+			"without sprite, drawn as neutral marker ; the identity word is READ, it is the table "+
+			"that does not name it",
+			"chassis", id, "lives", n, "fallback", string(fallback.NomChassisVehiculeMarqueurNeutre))
 	}
 	if c.WithChassis > 0 && c.FamilyResolved == 0 {
-		slog.WarnContext(ctx, "rejeu : AUCUN chassis de vehicule resolu alors que le mot d identite a ete lu"+
-			" — table de familles a completer, ou lecture du bloc MPP a verifier",
+		slog.WarnContext(ctx, "replay: NO vehicle chassis resolved while the identity word was read "+
+			"— family table to complete, or MPP block reading to check",
 			"chassisLus", c.WithChassis)
 	}
 }

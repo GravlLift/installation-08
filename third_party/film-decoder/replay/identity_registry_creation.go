@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_creation.go — LE LIEN DIRECT CORPS -> JOUEUR, LU DANS LE FILM.
@@ -456,25 +457,25 @@ func indexDesBotsDeclares(bots []BotIdentity) map[int]bool {
 // vie qui en sort n'est plus `non_resolu`, donc plus dans ce compte. Rien a soustraire.
 func (r creationReport) alarmerSurLesRefus(ctx context.Context, matchID string, causes identity.UnresolvedCauses,
 	index []string) {
-	slog.InfoContext(ctx, "rejeu : lien direct corps -> joueur",
-		"match_id", matchID, "records", r.Records, "corps", r.Slots,
-		"direct", r.Direct, "propage", r.Propagated, "indexBot", r.IndexBot,
+	slog.InfoContext(ctx, "replay: direct body -> player link",
+		"match_id", matchID, "records", r.Records, "bodies", r.Slots,
+		"direct", r.Direct, "propagated", r.Propagated, "indexBot", r.IndexBot,
 		"parEntite", r.ParEntite, "parDeclaration", r.ParDeclaration, "slotsRecycles", r.Recycled,
 		"parIndexDesChunks", len(r.parIndexDesChunks), "indexDesChunksRefuses", r.IndexDesChunksRefuses)
 	if causes.IndexOutOfTable > 0 {
 		// `index` porte la piece : chaque index lu des vies restees sans nom, et leur nombre.
-		slog.WarnContext(ctx, "rejeu : index de participant LU mais absent de la table publiee — vies NON "+
-			"rattachees (verdict I0 : participant que PlayerIndexTable ne nomme pas)",
-			"match_id", matchID, "vies", causes.IndexOutOfTable, "index", index)
+		slog.WarnContext(ctx, "replay: player index READ but absent from the published table — lives NOT "+
+			"attached (verdict I0: participant that PlayerIndexTable does not name)",
+			"match_id", matchID, "lives", causes.IndexOutOfTable, "index", index)
 	}
 	if causes.DivergentReadings > 0 {
-		slog.WarnContext(ctx, "rejeu : vie anterieure au premier record de son slot RECYCLE — aucun corps "+
-			"etabli a cet instant, le partage se tait",
-			"match_id", matchID, "vies", causes.DivergentReadings, "slotsRecycles", r.Recycled)
+		slog.WarnContext(ctx, "replay: life earlier than the first record of its RECYCLED slot — no body "+
+			"established at that instant, the sharing stays silent",
+			"match_id", matchID, "lives", causes.DivergentReadings, "slotsRecycles", r.Recycled)
 	}
 	if r.Slots > 0 && causes.NoCreationRecord > 0 {
-		slog.WarnContext(ctx, "rejeu : vies de bipede sans record de creation sur un film qui en porte — "+
-			"classe attendue VIDE (lot E2 : bijection slots<->records mesuree sur 5 films)",
-			"match_id", matchID, "vies", causes.NoCreationRecord, "corps", r.Slots)
+		slog.WarnContext(ctx, "replay: biped lives without a creation record on a film that carries them — "+
+			"expected class EMPTY (lot E2: slots<->records bijection measured on 5 films)",
+			"match_id", matchID, "lives", causes.NoCreationRecord, "bodies", r.Slots)
 	}
 }

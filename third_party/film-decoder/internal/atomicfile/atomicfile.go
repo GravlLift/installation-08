@@ -42,6 +42,7 @@
 // visés par WriteFile (settings JSON) sont RECONSTRUCTIBLES : un fichier vide
 // relit les défauts, aucune donnée métier n'est perdue. Pour un fichier dont la
 // troncature serait une perte irréversible : WriteFileStrict.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package atomicfile
 
 import (
@@ -60,7 +61,7 @@ const tmpPattern = ".levelup-atomic-*"
 // errTemporaireImpossible — le temporaire n'a pas pu être créé dans le
 // répertoire de la cible (répertoire parent non inscriptible). Seul WriteFile
 // l'interprète, pour décider du repli in-place.
-var errTemporaireImpossible = errors.New("atomicfile: temporaire impossible")
+var errTemporaireImpossible = errors.New("atomicfile: cannot create temporary file")
 
 // Points d'injection pour les tests (simulation d'un rename EBUSY et d'un
 // répertoire parent non inscriptible). JAMAIS réassignés en production.
@@ -78,7 +79,7 @@ var (
 func WriteFileStrict(path string, data []byte, perm os.FileMode) error {
 	tmp, err := createTemp(filepath.Dir(path), tmpPattern)
 	if err != nil {
-		return fmt.Errorf("%w pour %s: %w", errTemporaireImpossible, path, err)
+		return fmt.Errorf("%w for %s: %w", errTemporaireImpossible, path, err)
 	}
 	tmpName := tmp.Name()
 	if err := finalizeTemp(tmp, data, perm); err != nil {
@@ -105,10 +106,10 @@ func WriteFile(ctx context.Context, path string, data []byte, perm os.FileMode) 
 	case errors.Is(err, errTemporaireImpossible):
 		// Répertoire parent non inscriptible : le temporaire est impossible, mais
 		// l'inode cible peut rester ouvrable en écriture (bind-mount fichier).
-		slog.WarnContext(ctx, "atomicfile: temporaire impossible, repli in-place NON ATOMIQUE",
+		slog.WarnContext(ctx, "atomicfile: cannot create temporary file, NON-ATOMIC in-place fallback",
 			"path", path, "err", err)
 	case isBusy(err):
-		slog.WarnContext(ctx, "atomicfile: rename EBUSY (cible bind-montée fichier), repli in-place NON ATOMIQUE",
+		slog.WarnContext(ctx, "atomicfile: rename EBUSY (bind-mounted file target), NON-ATOMIC in-place fallback",
 			"path", path, "err", err)
 	default:
 		return err

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // mpp_format_inconnu.go — LE CABLEUR DU COMPTEUR « VERSION DE FORMAT INCONNUE » (lot 1.9.1 ter).
@@ -84,8 +85,8 @@ func avertirFormatSansProfil(ctx context.Context, film *source.Film, matchID str
 			build = id.Build
 		}
 	}
-	slog.WarnContext(ctx, "version de format de chunk_00 INCONNUE de la table de profil — largeurs du bloc "+
-		"de replication CALIBREES sur le film (repli repli_largeurs_mpp_calibrees_sur_le_film) ; "+
-		"un patch du jeu a pu changer le format",
+	slog.WarnContext(ctx, "chunk_00 format version UNKNOWN to the profile table — replication block "+
+		"widths CALIBRATED on the film (fallback repli_largeurs_mpp_calibrees_sur_le_film); "+
+		"a game patch may have changed the format",
 		"match_id", matchID, "format", format, "build", build)
 }

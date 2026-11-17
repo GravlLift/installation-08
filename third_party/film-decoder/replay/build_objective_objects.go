@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_objective_objects.go — LE CÂBLAGE du calque des objets d'objectif LIBRES.
@@ -184,7 +185,7 @@ func logObjectiveObjectsCoverage(ctx context.Context, cov *ObjectiveObjectsCover
 	if cov == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : objets d objectif libres",
-		"balaye", cov.Scanned, "declares", cov.Declared, "vies", cov.Lives,
-		"points", cov.Points, "immobiles", cov.Motionless, "horsAxe", cov.OutOfAxis)
+	slog.InfoContext(ctx, "replay: free objective objects",
+		"swept", cov.Scanned, "declared", cov.Declared, "lives", cov.Lives,
+		"points", cov.Points, "motionless", cov.Motionless, "horsAxe", cov.OutOfAxis)
 }

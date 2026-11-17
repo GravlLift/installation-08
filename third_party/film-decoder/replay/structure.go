@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // STRUCTURE DE CARTE — fichier de référence figé par carte.
@@ -81,14 +82,14 @@ type MapStructureStats struct {
 func LoadMapStructure(path string) (*MapStructure, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("structure de carte illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("map structure unreadable (%s): %w", path, err)
 	}
 	var s MapStructure
 	if err := json.Unmarshal(blob, &s); err != nil {
-		return nil, fmt.Errorf("structure de carte invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("map structure invalid (%s): %w", path, err)
 	}
 	if s.SchemaVersion != MapStructureSchemaVersion {
-		return nil, fmt.Errorf("structure de carte en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("map structure is version %d, expected %d (%s)",
 			s.SchemaVersion, MapStructureSchemaVersion, path)
 	}
 	return &s, nil

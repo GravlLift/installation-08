@@ -374,11 +374,11 @@ func viesAlarmeesIndexHorsTable(t *testing.T, journal []byte) int {
 			t.Fatalf("ligne de journal illisible : %v (%s)", err, ligne)
 		}
 		msg, _ := rec["msg"].(string)
-		if msg != "rejeu : index de participant LU mais absent de la table publiee — vies NON "+
-			"rattachees (verdict I0 : participant que PlayerIndexTable ne nomme pas)" {
+		if msg != "replay: player index READ but absent from the published table — lives NOT "+
+			"attached (verdict I0: participant that PlayerIndexTable does not name)" {
 			continue
 		}
-		v, _ := rec["vies"].(float64)
+		v, _ := rec["lives"].(float64)
 		return int(v)
 	}
 	return -1

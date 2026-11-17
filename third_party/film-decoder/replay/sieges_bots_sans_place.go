@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // sieges_bots_sans_place.go — LE BOT DECLARE QUI N'A AUCUNE VIE ET NE TROUVE AUCUNE PLACE N'ENTRE PAS
@@ -76,11 +77,11 @@ func sansLesBotsEcartes(roster []RosterEntry, cov SeatCoverage) []RosterEntry {
 func journaliserLesBotsSansPlace(ctx context.Context, matchID string, ecartes, avecVie int) {
 	if ecartes > 0 {
 		filmobs.AddInt(metriqueBotsSansVieNiPlace, int64(ecartes))
-		slog.WarnContext(ctx, "rejeu : bot declare sans aucune vie ni place libre dans son equipe — hors du "+
-			"roster publie, aucun partant deduit", "match_id", matchID, "bots", ecartes)
+		slog.WarnContext(ctx, "replay: declared bot with no life and no free seat in its team — out of the "+
+			"published roster, no leaver inferred", "match_id", matchID, "bots", ecartes)
 	}
 	if avecVie > 0 {
-		slog.ErrorContext(ctx, "rejeu : bot sans place qui a une vie — sa place n'est pas lue", "match_id", matchID,
+		slog.ErrorContext(ctx, "replay: seatless bot that has a life — its seat was not read", "match_id", matchID,
 			"bots", avecVie)
 	}
 }

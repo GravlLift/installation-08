@@ -153,6 +153,7 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   v128, `structure_test.go` reason, regenerated `document_shape.golden`; covered by
   `replay/projectiles_attache_test.go` (new) and `projectiles_attaches_research_test.go`
   (`research` tag, also exports the cases the viewer harness reads).
+- Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged.
 ## Omitted upstream files
 
 The upstream notices identify the following as game imagery or Forge assets. They are excluded under this project's no game-derived assets policy, regardless of corpus size:

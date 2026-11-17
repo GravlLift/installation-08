@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // equipment_placements_decode.go — LE BALAYAGE DES POSES ET DES EVENEMENTS 103, journalises (hors ligne).
@@ -33,19 +34,19 @@ func decodeFilmPlacements(ctx context.Context,
 	}
 	switch {
 	case err != nil:
-		slog.WarnContext(ctx, "poses d'equipement illisibles — rejeu sans equipement pose",
+		slog.WarnContext(ctx, "equipment placements unreadable — replay without placed equipment",
 			"err", err, "match_id", matchID)
 		return nil, st
 	case !st.Calibration.Widths.Valid():
-		slog.WarnContext(ctx, "poses d'equipement : le decoupage du bloc de replication n'a pas ete tranche"+
-			" sur ce film — AUCUNE pose publiee plutot que du bruit",
-			"match_id", matchID, "ancres", st.Calibration.Anchors,
-			"vies", st.Calibration.Lives, "chunksLus", st.Calibration.Chunks)
+		slog.WarnContext(ctx, "equipment placements: the replication block split was not cut "+
+			"on this film — NO placement published rather than noise",
+			"match_id", matchID, "anchors", st.Calibration.Anchors,
+			"lives", st.Calibration.Lives, "chunksLus", st.Calibration.Chunks)
 	default:
-		slog.InfoContext(ctx, "poses d'equipement : records de creation ti=37",
-			"decoupage", st.Calibration.Widths.String(), "accords", st.Calibration.Agree,
-			"ancres", st.Anchors, "acceptes", st.Accepted,
-			"confirmes", st.Confirmed, "poses", st.Placements)
+		slog.InfoContext(ctx, "equipment placements: ti=37 creation records",
+			"split", st.Calibration.Widths.String(), "agrees", st.Calibration.Agree,
+			"anchors", st.Anchors, "accepted", st.Accepted,
+			"confirmed", st.Confirmed, "placements", st.Placements)
 	}
 	return pl, st
 }
@@ -65,13 +66,13 @@ func decodeFilmSpawnEvents(ctx context.Context,
 ) ([]types.EquipmentSpawnEvent, types.EquipmentSpawnStats) {
 	ev, st, err := grammar.ScanEquipmentSpawnEvents(fc)
 	if err != nil {
-		slog.WarnContext(ctx, "evenements de piece engendree illisibles — l'origine des poses retombe sur ses replis",
+		slog.WarnContext(ctx, "spawned-piece events unreadable — the origin of the placements falls back to its fallbacks",
 			"err", err, "match_id", matchID)
 		return nil, st
 	}
-	slog.InfoContext(ctx, "poses d'equipement : evenements 103 (piece engendree)",
+	slog.InfoContext(ctx, "equipment placements: event 103 (spawned piece)",
 		"match_id", matchID, "chunks", st.Chunks, "paquetsDelta", st.Packets,
-		"listesNonVides", st.Lists, "evenements", st.Events,
+		"listesNonVides", st.Lists, "events", st.Events,
 		"refSource", st.WithSource, "refEngendree", st.WithSpawned, "ref2", st.Ref2)
 	return ev, st
 }

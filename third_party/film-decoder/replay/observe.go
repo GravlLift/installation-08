@@ -81,7 +81,7 @@ var buildFromFilmSteps = []string{
 	// LES DETONATIONS/IMPACTS DE PROJECTILE (lot detonations, 2026-10-22) : apres les pistes
 	// qu elles rattachent, meme horloge.
 	"detonations",
-	// LOCAL-CHANGE (infinite-theater-3d): the attach reads of the projectiles that stick, right after
+	// LOCAL-CHANGE (infinite-theater-3d): the attach reads of the projectiles that stick, right after Log and error strings translated to English.
 	// the detonations they end with.
 	"projectileAttaches",
 	// LES MESSAGES D ACTION DU JOUEUR (vue A) : meme passe des tetes que les detonations.
@@ -114,7 +114,7 @@ type stepClock struct{ last time.Time }
 // entre les deux appels.
 func (o Options) observe(ctx context.Context, step string, v any) {
 	if o.clock != nil && !strings.HasSuffix(step, ".stats") {
-		slog.DebugContext(ctx, "replay: balayage", "step", step, "duration", time.Since(o.clock.last))
+		slog.DebugContext(ctx, "replay: sweep", "step", step, "duration", time.Since(o.clock.last))
 		o.clock.last = time.Now()
 	}
 	if o.Observe != nil {

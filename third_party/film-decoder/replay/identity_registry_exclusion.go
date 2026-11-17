@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_exclusion.go — L'IDENTITE PAR EXCLUSION TEMPORELLE.
@@ -75,12 +76,12 @@ func (r *IdentityRegistry) resolveByTemporalExclusion(ctx context.Context, in Id
 	if r.excluded == 0 && r.excludedContradictions == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : exclusion temporelle sur le roster",
+	slog.InfoContext(ctx, "replay: temporal exclusion on the roster",
 		"match_id", in.MatchID, "viesNommees", r.excluded,
 		"viesSansAucunCandidat", r.excludedContradictions)
 	if r.excludedContradictions > 0 {
-		slog.WarnContext(ctx, "rejeu : des vies n'ont AUCUN occupant possible — la lecture se contredit",
-			"match_id", in.MatchID, "vies", r.excludedContradictions)
+		slog.WarnContext(ctx, "replay: some lives have NO possible occupant — the reading contradicts itself",
+			"match_id", in.MatchID, "lives", r.excludedContradictions)
 	}
 }
 
@@ -193,7 +194,7 @@ func universDeLExclusion(ctx context.Context, in IdentityInput, lives []lifeSpan
 		return nil, false
 	}
 	if simultanees := occupationMaximale(lives); simultanees > len(roster) {
-		slog.WarnContext(ctx, "rejeu : exclusion temporelle ecartee — plus de vies simultanees que de joueurs",
+		slog.WarnContext(ctx, "replay: temporal exclusion discarded — more simultaneous lives than players",
 			"match_id", in.MatchID, "viesSimultanees", simultanees, "roster", len(roster))
 		return nil, false
 	}

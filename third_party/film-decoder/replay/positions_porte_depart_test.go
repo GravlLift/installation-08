@@ -189,7 +189,7 @@ func TestPorteDepartSeDitAuJournalEtAuCompteur(t *testing.T) {
 	BuildFromPositions(context.Background(), "m", "halo_infinite", in, nil, opt)
 	avertie := false
 	for _, ligne := range strings.Split(buf.String(), "\n") {
-		avertie = avertie || (strings.Contains(ligne, `"level":"WARN"`) && strings.Contains(ligne, "depart prouve"))
+		avertie = avertie || (strings.Contains(ligne, `"level":"WARN"`) && strings.Contains(ligne, "proven departure"))
 	}
 	if !avertie {
 		t.Errorf("journal %q : attendu un AVERTISSEMENT du corps ecarte", buf.String())

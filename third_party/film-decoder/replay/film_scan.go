@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_scan.go — LES CINQ PHASES DE BALAYAGE D UN FILM, DANS L ORDRE DU FILM.
@@ -45,8 +46,8 @@ func (s *filmScan) balayerPositions() error {
 		v := hl.MajorVersion
 		s.in.FilmMajorVersion = &v
 	} else {
-		slog.WarnContext(s.ctx, "rejeu : version de film illisible — le fil des morts retombe sur le decoupage "+
-			"historique du gamertag", "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "replay: unreadable film version — the death feed falls back to the "+
+			"historical gamertag split", "match_id", s.matchID)
 	}
 	s.lirePontDIdentite()
 	s.opt.observe(s.ctx, "translocations", s.in.Translocations)
@@ -66,7 +67,7 @@ func (s *filmScan) balayerPositions() error {
 	// absence n'est pas fatale (un film sans event de tir reste un rejeu valide).
 	shots, err := grammar.ScanFireEvents(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "events de tir illisibles — rejeu sans tirs", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "shooting events unreadable — replay without shots", "err", err, "match_id", s.matchID)
 		shots = nil
 	}
 	s.in.Fire = shots
@@ -81,15 +82,15 @@ func (s *filmScan) balayerPositions() error {
 	s.lireLesImagesCles()
 	loadouts, marche, err := s.etats.Loadouts, s.etats.Marche, s.errEtats
 	if err != nil {
-		slog.WarnContext(s.ctx, "keyframes illisibles — rejeu sans armes portées", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "keyframes unreadable — replay without carried weapons", "err", err, "match_id", s.matchID)
 		loadouts = nil
 	}
 	s.in.Loadouts, s.in.KeyframeWalk = loadouts, marche
 	s.opt.Fallbacks.DeclencheN(fallback.NomAncreDImageCleParElection, marche.Elections)
 	if marche.BipedesAbsentsEncadres > 0 {
-		slog.InfoContext(s.ctx, "image-cle : bipedes manques par la marche entre deux images-cles qui les portent",
+		slog.InfoContext(s.ctx, "keyframe: bipeds missed by the walk between two keyframes carrying them",
 			"match_id", s.matchID, "absentsEncadres", marche.BipedesAbsentsEncadres,
-			"elections", marche.Elections, "recalages", marche.Recalages)
+			"elections", marche.Elections, "recalibrations", marche.Recalages)
 	}
 	s.opt.observe(s.ctx, "loadouts", s.in.Loadouts)
 	s.balayerNaissances()
@@ -104,24 +105,24 @@ func (s *filmScan) balayerPositions() error {
 func (s *filmScan) balayerCreations() {
 	creations, creaStats, err := s.pont.Creations, s.pont.StatsCreations, s.pont.ErrCreations
 	if err != nil {
-		slog.WarnContext(s.ctx, "creations de bipede illisibles — le registre degrade sur le pont par morts",
+		slog.WarnContext(s.ctx, "biped creations unreadable — the registry degrades onto the bridge by deaths",
 			"err", err, "match_id", s.matchID)
 		creations, creaStats = nil, types.BipedCreationStats{}
 	} else {
-		slog.InfoContext(s.ctx, "creation de bipede : records lus",
-			"corps", creaStats.Slots, "ancres", creaStats.Anchors, "acceptes", creaStats.Accepted,
+		slog.InfoContext(s.ctx, "biped creation: records read",
+			"bodies", creaStats.Slots, "anchors", creaStats.Anchors, "accepted", creaStats.Accepted,
 			"formeRefusee", creaStats.ShapeBad, "signatureEtrangere", creaStats.SignatureMismatch,
 			"motAlternatif", creaStats.OtherWord, "motAlternatifCompte", creaStats.OtherWordCount,
-			"porteFermee", creaStats.GateClosed, "tronques", creaStats.Truncated)
+			"porteFermee", creaStats.GateClosed, "truncated", creaStats.Truncated)
 	}
 	if creaStats.Anchors > 0 && creaStats.Accepted == 0 {
 		// L'ALARME DU LECTEUR, ET C'EST LA SEULE : des ancres de la bonne FORME dont aucune ne
 		// porte la constante de représentation. Un film dont les bipèdes portent un autre corps
 		// que le Spartan multijoueur se lirait ainsi (cf. biped_creation.go).
-		slog.WarnContext(s.ctx, "creation de bipede : aucune signature reconnue sur des ancres presentes — "+
-			"ce film porte-t-il une autre representation ?",
-			"match_id", s.matchID, "ancres", creaStats.Anchors,
-			"motAlternatifModal", creaStats.OtherWord, "compte", creaStats.OtherWordCount)
+		slog.WarnContext(s.ctx, "biped creation: no recognized signature on present anchors — "+
+			"does this film carry another representation?",
+			"match_id", s.matchID, "anchors", creaStats.Anchors,
+			"motAlternatifModal", creaStats.OtherWord, "count", creaStats.OtherWordCount)
 	}
 	s.in.BipedCreations = creations
 	s.opt.observe(s.ctx, "bipedCreations", s.in.BipedCreations)
@@ -139,10 +140,10 @@ func (s *filmScan) balayerPortage() {
 	weaponChanges, wStats, err := grammar.ScanHeldWeaponChanges(s.fc,
 		spawnSetFrom(s.in.Loadouts, s.in.BirthLoadouts, s.in.BipedCreations))
 	if err != nil {
-		slog.WarnContext(s.ctx, "changements d arme illisibles — rejeu sans ramassages", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "weapon changes unreadable — replay without pickups", "err", err, "match_id", s.matchID)
 		weaponChanges = nil
 	} else {
-		slog.InfoContext(s.ctx, "ramassage : changements d arme lus",
+		slog.InfoContext(s.ctx, "pickup: weapon changes read",
 			"recordsDelta", wStats.Records, "masquePorteur", wStats.WithComponent,
 			"emissions", wStats.Emissions, "repetitions", wStats.Repeats)
 	}
@@ -155,12 +156,12 @@ func (s *filmScan) balayerPortage() {
 	// avant la trame. Il date a la milliseconde ET nomme le ramasseur. Absence non fatale.
 	pickups, pStats, err := grammar.ScanBipedPickups(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "ramassages natifs illisibles — rejeu sans ramassages natifs", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "native pickups unreadable — replay without native pickups", "err", err, "match_id", s.matchID)
 		pickups, pStats = nil, types.BipedPickupStats{}
 	} else {
-		slog.InfoContext(s.ctx, "ramassage natif : evenements lus",
-			"paquets", pStats.Packets, "type9", pStats.Type9, "type8", pStats.Type8,
-			"publies", pStats.Published, "listesMultiples", pStats.MultiEvent,
+		slog.InfoContext(s.ctx, "native pickup: events read",
+			"packets", pStats.Packets, "type9", pStats.Type9, "type8", pStats.Type8,
+			"published", pStats.Published, "listesMultiples", pStats.MultiEvent,
 			"refusesSansRef", pStats.RefusedNoRef, "refusesSansIdentifiant", pStats.RefusedNoCatalog,
 			"refusesHorsBande", pStats.RefusedOffBand, "refLargeInattendue", pStats.UnexpectedWideRef)
 	}
@@ -190,10 +191,10 @@ func (s *filmScan) balayerInventaire() {
 		inventory, invStats, err = nil, types.KeyframeInventoryStats{}, nil
 	}
 	if err != nil {
-		slog.WarnContext(s.ctx, "inventaire illisible — rejeu sans grenades ni munitions", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "inventory unreadable — replay without grenades or ammo", "err", err, "match_id", s.matchID)
 		inventory = nil
 	} else {
-		slog.InfoContext(s.ctx, "inventaire : lectures de keyframe",
+		slog.InfoContext(s.ctx, "inventory: keyframe readings",
 			"chunks", invStats.Chunks, "chunksIllisibles", invStats.ChunksUnread,
 			"imagesCles", invStats.Keyframes, "records", invStats.Records,
 			"grenadesParAncre", invStats.GrenadesByAnchor, "grenadesParPosition", invStats.GrenadesByPosition)
@@ -206,15 +207,15 @@ func (s *filmScan) balayerInventaire() {
 	// fatale — l'axe des grenades retombe sur les seules images-cles.
 	invDeltas, dStats, err := grammar.ScanInventoryDeltas(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "inventaire delta illisible — grenades sans rafraichissement entre images-cles",
+		slog.WarnContext(s.ctx, "delta inventory unreadable — grenades without refresh between keyframes",
 			"err", err, "match_id", s.matchID)
 		invDeltas = nil
 	} else {
-		slog.InfoContext(s.ctx, "inventaire delta : lectures",
+		slog.InfoContext(s.ctx, "delta inventory: readings",
 			"recordsDelta", dStats.Records, "masqueAvecI22", dStats.WithI22,
 			"i22Lues", dStats.I22Read, "i22Implausibles", dStats.Implausible,
 			"masqueAvecI47", dStats.WithI47, "i47Lues", dStats.I47Read,
-			"accord", dStats.Accord, "accordVerifies", dStats.AccordChecked,
+			"agree", dStats.Accord, "accordVerifies", dStats.AccordChecked,
 			"canalMunitionsRefuse", dStats.AmmoRefused)
 	}
 	s.in.InventoryDeltas = invDeltas
@@ -231,12 +232,12 @@ func (s *filmScan) balayerCapacites() {
 	// ne voient que 16..23. Absence non fatale — le rejeu retombe sur cette seule fenetre.
 	abilityRanks, aStats, err := grammar.ScanAbilityRanks(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "identites de capacite illisibles — rejeu sans rang complet", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "ability identities unreadable — replay without a complete rank", "err", err, "match_id", s.matchID)
 		abilityRanks = nil
 	} else {
-		slog.InfoContext(s.ctx, "capacites : lectures d i48",
+		slog.InfoContext(s.ctx, "abilities: i48 readings",
 			"recordsDelta", aStats.Records, "masqueAvecI48", aStats.WithI48,
-			"lues", aStats.Read, "illisibles", aStats.Unread, "sansIdentite", aStats.Gated)
+			"read", aStats.Read, "unreadable", aStats.Unread, "sansIdentite", aStats.Gated)
 	}
 	s.in.AbilityRanks = abilityRanks
 	s.opt.observe(s.ctx, "abilityRanks", s.in.AbilityRanks)
@@ -248,14 +249,14 @@ func (s *filmScan) balayerCapacites() {
 	// les modes ou les joueurs renaissent equipes. Absence non fatale.
 	equipChanges, eStats, err := grammar.ScanEquipmentChanges(s.fc, birthOfLives(s.in.Positions))
 	if err != nil {
-		slog.WarnContext(s.ctx, "changements d equipement illisibles — rejeu sans ramassages d equipement",
+		slog.WarnContext(s.ctx, "equipment changes unreadable — replay without equipment pickups",
 			"err", err, "match_id", s.matchID)
 		equipChanges, eStats = nil, types.EquipmentChangeStats{}
 	} else {
-		slog.InfoContext(s.ctx, "equipement : changements lus",
-			"emissions", eStats.Walk.Read, "vies", eStats.Lives,
-			"ramassages", eStats.Taken, "consommations", eStats.Spent,
-			"reapparitions", eStats.Spawned, "manqueesEstimees", eStats.MissedEstimate)
+		slog.InfoContext(s.ctx, "equipment: changes read",
+			"emissions", eStats.Walk.Read, "lives", eStats.Lives,
+			"pickups", eStats.Taken, "spent", eStats.Spent,
+			"respawns", eStats.Spawned, "manqueesEstimees", eStats.MissedEstimate)
 	}
 	s.in.EquipmentChanges, s.in.EquipmentChangeStats = equipChanges, eStats
 	s.opt.observe(s.ctx, "equipmentChanges", s.in.EquipmentChanges)
@@ -272,12 +273,12 @@ func (s *filmScan) balayerEtatsActifs() {
 	// — le rejeu sort sans episodes de camouflage, jamais avec des episodes devines.
 	camoStates, cStats, err := grammar.ScanCamoStates(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "etat de camouflage illisible — rejeu sans episodes de camo", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "camouflage state unreadable — replay without camo episodes", "err", err, "match_id", s.matchID)
 		camoStates = nil
 	} else {
-		slog.InfoContext(s.ctx, "camouflage : lectures d i28 queue[1]",
+		slog.InfoContext(s.ctx, "camouflage: i28 queue[1] readings",
 			"recordsDelta", cStats.Records, "masqueAvecI28", cStats.WithI28,
-			"lues", cStats.Read, "illisibles", cStats.Unread, "sansVoie", cStats.NoChannel)
+			"read", cStats.Read, "unreadable", cStats.Unread, "sansVoie", cStats.NoChannel)
 	}
 	s.in.CamoStates = camoStates
 	s.opt.observe(s.ctx, "camoStates", s.in.CamoStates)
@@ -286,12 +287,12 @@ func (s *filmScan) balayerEtatsActifs() {
 	// fatale — le rejeu sort sans tractions de grappin, jamais avec des tractions devinees.
 	grappleReads, gStats, err := grammar.ScanGrappleReads(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "evenements de grappin illisibles — rejeu sans tractions", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "grapple events unreadable — replay without tugs", "err", err, "match_id", s.matchID)
 		grappleReads = nil
 	} else {
-		slog.InfoContext(s.ctx, "grappin : lectures d i59 tag==3",
+		slog.InfoContext(s.ctx, "grapple: i59 tag==3 readings",
 			"recordsDelta", gStats.Records, "masqueAvecI59", gStats.WithI59,
-			"lues", gStats.Read, "illisibles", gStats.Unread,
+			"read", gStats.Read, "unreadable", gStats.Unread,
 			"tag3", gStats.Tag3, "corpsCasses", gStats.BodyBroken)
 	}
 	s.in.GrappleReads = grappleReads
@@ -308,12 +309,12 @@ func (s *filmScan) balayerImpulsionsEtCharges() {
 	// Absence non fatale — le rejeu sort sans impulsions, jamais avec des impulsions devinees.
 	impulses, iStats, err := grammar.ScanAbilityImpulses(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "impulsions de capacite illisibles — rejeu sans impulsions", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "ability impulses unreadable — replay without impulses", "err", err, "match_id", s.matchID)
 		impulses, iStats = nil, types.AbilityImpulseStats{}
 	} else {
-		slog.InfoContext(s.ctx, "capacites : lectures de tag d i57/i59",
+		slog.InfoContext(s.ctx, "abilities: i57/i59 tag readings",
 			"recordsDelta", iStats.Records, "masqueAvecI57", iStats.WithI57,
-			"masqueAvecI59", iStats.WithI59, "lues", iStats.Read, "illisibles", iStats.Unread,
+			"masqueAvecI59", iStats.WithI59, "read", iStats.Read, "unreadable", iStats.Unread,
 			"tag1", iStats.Tag1, "composantAbsent", iStats.Absent)
 	}
 	s.in.AbilityImpulses, s.in.AbilityImpulseStats = impulses, iStats
@@ -324,12 +325,12 @@ func (s *filmScan) balayerImpulsionsEtCharges() {
 	// jamais avec des charges devinees.
 	charges, chStats, err := grammar.ScanAbilityCharges(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "charges d equipement illisibles — rejeu sans releve de charges", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "equipment charges unreadable — replay without charge readings", "err", err, "match_id", s.matchID)
 		charges, chStats = nil, types.AbilityChargeStats{}
 	} else {
-		slog.InfoContext(s.ctx, "capacites : lectures d i56",
+		slog.InfoContext(s.ctx, "abilities: i56 readings",
 			"recordsDelta", chStats.Records, "masqueAvecI56", chStats.WithI56,
-			"lues", chStats.Read, "illisibles", chStats.Unread,
+			"read", chStats.Read, "unreadable", chStats.Unread,
 			"emplacementsArmes", chStats.Armed, "composantAbsent", chStats.Absent)
 	}
 	s.in.AbilityCharges, s.in.AbilityChargeStats = charges, chStats

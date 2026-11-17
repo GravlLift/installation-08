@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // fire_bursts.go — LA PUBLICATION DU TIR CONTINU : une rafale lue dans la vue de controle devient
@@ -83,8 +84,8 @@ func buildFireBursts(ctx context.Context, doc *ReplayDocument, e entreesDesRafal
 		return cmp.Or(cmp.Compare(a.T0, b.T0), cmp.Compare(a.Slot, b.Slot))
 	})
 	if !cov.balanced() {
-		slog.ErrorContext(ctx, "rejeu : couverture du tir continu desequilibree", "lues", cov.BurstsRead,
-			"publiees", cov.Published)
+		slog.ErrorContext(ctx, "replay: unbalanced sustained-fire coverage", "read", cov.BurstsRead,
+			"published", cov.Published)
 	}
 	return out, cov
 }
@@ -423,10 +424,10 @@ func logFireBursts(ctx context.Context, cov *ContinuousFireCoverage) {
 	if cov == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : tir continu", "paquets", cov.Packets, "vueCFermee", cov.Closed,
-		"trous", cov.Holes, "lues", cov.BurstsRead, "publiees", cov.Published, "vehicule", cov.OnVehicle,
+	slog.InfoContext(ctx, "replay: sustained fire", "packets", cov.Packets, "vueCFermee", cov.Closed,
+		"holes", cov.Holes, "read", cov.BurstsRead, "published", cov.Published, "vehicle", cov.OnVehicle,
 		"aPied", cov.OnFoot, "autreBit", cov.OtherInput, "sansJoueur", cov.NoPlayer,
-		"ambigues", cov.Ambiguous, "montureSansArme", cov.VehicleNoWeapon, "sansPiste", cov.NoTrack,
-		"armeInconnue", cov.WeaponUnknown, "armeNonContinue", cov.NotContinuous, "vides", cov.Empty,
-		"coups", cov.Shots, "tenuTrouS", math.Round(float64(cov.HeldHoleMS)/100)/10)
+		"ambiguous", cov.Ambiguous, "montureSansArme", cov.VehicleNoWeapon, "sansPiste", cov.NoTrack,
+		"armeInconnue", cov.WeaponUnknown, "armeNonContinue", cov.NotContinuous, "empty", cov.Empty,
+		"shots", cov.Shots, "tenuTrouS", math.Round(float64(cov.HeldHoleMS)/100)/10)
 }

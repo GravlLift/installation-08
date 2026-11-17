@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // navpoint_radial_scan.go — LE BALAYAGE DE LA PROGRESSION RADIALE DES POINTS DE NAVIGATION
@@ -170,7 +171,7 @@ func (c *FilmContext) filmArchetype(ti int) (Archetype, *Registry, error) {
 		return Archetype{}, nil, err
 	}
 	if !ok {
-		return Archetype{}, nil, fmt.Errorf("archetype ti=%d absent du registre", ti)
+		return Archetype{}, nil, fmt.Errorf("archetype ti=%d missing from the registry", ti)
 	}
 	return arch, reg, nil
 }

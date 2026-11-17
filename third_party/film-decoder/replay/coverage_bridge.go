@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // coverage_bridge.go — LA SANTÉ DU PONT slot -> joueur, et le verdict qui en découle.
@@ -294,7 +295,7 @@ func (b BridgeHealth) warnIfCalageEtroit(ctx context.Context) {
 		b.DeathOffsetMatched >= deathOffsetMargeMin*b.DeathOffsetRunnerUp {
 		return
 	}
-	slog.WarnContext(ctx, "rejeu : calage du fil des morts trop peu distinct du bruit — nommage et origine suspects",
-		"apparies", b.DeathOffsetMatched, "second_candidat", b.DeathOffsetRunnerUp,
-		"marge_minimale", deathOffsetMargeMin, "vies", b.LivesTotal, "slots", b.Slots)
+	slog.WarnContext(ctx, "replay: death feed calibration too close to the noise — naming and origin suspect",
+		"paired", b.DeathOffsetMatched, "second_candidate", b.DeathOffsetRunnerUp,
+		"min_margin", deathOffsetMargeMin, "lives", b.LivesTotal, "slots", b.Slots)
 }

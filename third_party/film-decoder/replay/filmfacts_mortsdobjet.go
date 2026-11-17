@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_mortsdobjet.go — LA FIN DE VIE ECRITE D UN OBJET DU MONDE, DANS LE FICHIER DE FAITS.
@@ -66,7 +67,7 @@ func encodeMortsDObjet(w *gwriter, morts, mortsDeBipedes []types.ObjectDeath, st
 	if err != nil {
 		// JAMAIS SILENCIEUX : une charge vide se relirait comme une ABSENCE de morts, donc comme
 		// un fait faux. Le flux porte l erreur, et l appelant redecodera le film.
-		w.echec = fmt.Errorf("morts d objet non serialisables : %w", err)
+		w.echec = fmt.Errorf("non-serializable object deaths: %w", err)
 		w.u(0)
 		return
 	}
@@ -81,7 +82,7 @@ func decodeMortsDObjet(r *greader) (morts, mortsDeBipedes []types.ObjectDeath, s
 	}
 	var out chargeDesMortsDObjet
 	if err := json.Unmarshal(charge, &out); err != nil {
-		r.err = fmt.Errorf("morts d objet : %w", err)
+		r.err = fmt.Errorf("object deaths: %w", err)
 		return nil, nil, grammar.ObjectDeathStats{}
 	}
 	return out.Morts, out.Bipedes, versObjectDeathStats(out.Stats, grammar.FrameConfig{

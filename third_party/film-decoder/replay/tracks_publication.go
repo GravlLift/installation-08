@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // tracks_publication.go — LA PUBLICATION DES TRACES, ET CE QU ELLE REFUSE.
@@ -327,8 +328,8 @@ func poserLesTraces(ctx context.Context, doc *ReplayDocument, sorted []grammar.B
 	// JOURNALISE, JAMAIS AVALE (regle n°3 du depot). Un artefact de decodage qui passe la
 	// porte des bornes n est pas un detail : il decadre la scene et fait disparaitre le fond
 	// de carte. Le compte doit se voir en production, meme quand le correctif marche.
-	slog.InfoContext(ctx, "rejeu : echantillons aberrants ecartes des bornes",
-		"match_id", doc.MatchID, "ecartes", ecartes, "seuil_etendues", boundsRejectSpreads)
+	slog.InfoContext(ctx, "replay: outlier samples discarded from the bounds",
+		"match_id", doc.MatchID, "discarded", ecartes, "spread_threshold", boundsRejectSpreads)
 	return trackCov
 }
 
@@ -418,16 +419,16 @@ type TrackCoverage struct {
 // les vies, donc elles ne ressemblaient même pas à un silence.
 func logTrackCoverage(ctx context.Context, matchID string, c TrackCoverage) {
 	if c.Gaps > 0 {
-		slog.InfoContext(ctx, "rejeu : lacunes de replication DANS une vie",
-			"match_id", matchID, "lacunes", c.Gaps, "duree_ms", c.GapMS,
-			"vies", c.Published, "seuil_ms", lifeGapUS/1000)
+		slog.InfoContext(ctx, "replay: replication gaps INSIDE a life",
+			"match_id", matchID, "gaps", c.Gaps, "duration_ms", c.GapMS,
+			"lives", c.Published, "threshold_ms", lifeGapUS/1000)
 	}
 	if c.RefusedMinPoints == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : vies refusees par le seuil de publication",
-		"match_id", matchID, "vies", c.RefusedMinPoints, "points", c.RefusedPoints,
-		"seuil", c.MinPoints, "viesPubliees", c.Published)
+	slog.InfoContext(ctx, "replay: lives refused by the publication threshold",
+		"match_id", matchID, "lives", c.RefusedMinPoints, "points", c.RefusedPoints,
+		"threshold", c.MinPoints, "viesPubliees", c.Published)
 }
 
 // pointPublie compose le point d'une frame : la position arrondie, la lacune que ce point

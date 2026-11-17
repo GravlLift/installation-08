@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_health.go — LA SANTE DU PONT, TELLE QUE LA COUVERTURE LA PUBLIE.
@@ -66,7 +67,7 @@ func buildCoverage(ctx context.Context, shots, grenades, objectives LayerCoverag
 // compte (doctrine §0.2 du plan v2) ; il ne se tait jamais.
 func (r IdentityRegistry) logRegistry(ctx context.Context, matchID string) {
 	total := r.Section.Coverage.Total()
-	slog.InfoContext(ctx, "rejeu : registre d'identite",
+	slog.InfoContext(ctx, "replay: identity registry",
 		"match_id", matchID,
 		"slots", len(r.IndexParSlot()), "viesNommees", r.ViesNommeesParLaLecture(),
 		"viesTotal", r.ViesTotal(), "lecturesIndex", r.LecturesIndex(),
@@ -87,17 +88,17 @@ func (r IdentityRegistry) logRegistry(ctx context.Context, matchID string) {
 		r.indexDesViesHorsTable())
 	r.publierDiscordancesDuPont(ctx, matchID)
 	if r.ViesNommeesParLePont() > 0 {
-		slog.WarnContext(ctx, "rejeu : AUCUNE lecture directe corps -> joueur — le pont par morts a nomme en "+
-			"degradation complete (cf. identity_registry_bridge.go)",
-			"match_id", matchID, "vies", r.ViesNommeesParLePont())
+		slog.WarnContext(ctx, "replay: NO direct body -> player reading — the bridge by deaths named in "+
+			"complete degradation (cf. identity_registry_bridge.go)",
+			"match_id", matchID, "lives", r.ViesNommeesParLePont())
 	}
 	if r.DesaccordsIndex() > 0 {
-		slog.WarnContext(ctx, "rejeu : desaccord de lecture de l'index de joueur — liens directs NON publies",
-			"match_id", matchID, "desaccords", r.DesaccordsIndex())
+		slog.WarnContext(ctx, "replay: disagreement in the player index reading — direct links NOT published",
+			"match_id", matchID, "disagreements", r.DesaccordsIndex())
 	}
 	if total.Unresolved > 0 {
-		slog.WarnContext(ctx, "rejeu : liens d'identite NON RESOLUS — publies et comptes, jamais inventes",
-			"match_id", matchID, "liens", total.Unresolved)
+		slog.WarnContext(ctx, "replay: identity links NOT RESOLVED — published and counted, never invented",
+			"match_id", matchID, "links", total.Unresolved)
 	}
 }
 
@@ -116,10 +117,10 @@ func (r IdentityRegistry) publierDiscordancesDuPont(ctx context.Context, matchID
 		return
 	}
 	filmobs.AddInt(compteurDiscordancesDuPont, int64(n))
-	slog.InfoContext(ctx, "rejeu : le pont par morts contredit le lien direct sur des vies — le film "+
-		"fait foi, les noms du pont sont ecartes",
-		"match_id", matchID, "discordances", n,
-		"concordances", r.PontConcordant(), "slots", r.PontSlotsDiscordants())
+	slog.InfoContext(ctx, "replay: the bridge by deaths contradicts the direct link on some lives — the film "+
+		"is authoritative, the bridge's names are set aside",
+		"match_id", matchID, "discordance", n,
+		"concordant", r.PontConcordant(), "slots", r.PontSlotsDiscordants())
 }
 
 // indexDesViesHorsTable rend, pour le journal, chaque index de participant LU sur une vie restee

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // zone_state_scan.go — LE BALAYAGE DES PROPRIETES RESEAU DE ti=13, en production.
@@ -192,7 +193,7 @@ func ScanManagedProperties(fc *FilmContext) (ManagedPropertyScan, error) {
 	}
 	band := observedSlotBand(fc, ManagedPropertyTypeIndex)
 	if len(band) == 0 {
-		return sc, fmt.Errorf("aucun slot d'archetype ti=%d dans les keyframes du film",
+		return sc, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			ManagedPropertyTypeIndex)
 	}
 	sc.Slots = len(band)
@@ -229,7 +230,7 @@ func (c *FilmContext) managedPropertyArchetype() (Archetype, error) {
 		return Archetype{}, err
 	}
 	if !ok {
-		return Archetype{}, fmt.Errorf("archetype ti=%d absent du registre", ManagedPropertyTypeIndex)
+		return Archetype{}, fmt.Errorf("archetype ti=%d missing from the registry", ManagedPropertyTypeIndex)
 	}
 	return arch, nil
 }

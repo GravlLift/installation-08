@@ -36,6 +36,7 @@
 // Il est classe `horsCoucheFilm` dans `archlint/film_layers_deps_test.go` : outillage de
 // revision, ni decodage ni publication — il ne lit aucun octet de film, il hache des octets de
 // SOURCE.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 import (
@@ -92,7 +93,7 @@ import (
 // C est une ERREUR et pas un zero : une couche dont l arborescence a bouge doit echouer
 // bruyamment plutot que hacher du vide et rendre un gate vert qui ne garde plus rien (meme
 // doctrine que les planchers de balayage des ratchets d `archlint`).
-var ErrRacineSansSource = errors.New("racine sans source .go de production")
+var ErrRacineSansSource = errors.New("root with no production .go source")
 
 // Resultat : l empreinte et le nombre de fichiers qui l ont produite.
 //

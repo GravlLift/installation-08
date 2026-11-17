@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // vehicle_creation.go — LE RECORD DE CREATION d'un VEHICULE (ti=40).
@@ -92,7 +93,7 @@ func ScanVehicleCreations(
 	}
 	band := worldObjectSlotBand(fc, VehicleTypeIndex)
 	if len(band) == 0 {
-		return nil, st, fmt.Errorf("aucun slot d'archetype ti=%d dans les keyframes du film",
+		return nil, st, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			VehicleTypeIndex)
 	}
 	return ScanVehicleCreationsForBand(fc, wr, band)
@@ -111,7 +112,7 @@ func ScanVehicleCreationsForBand(
 ) ([]types.EquipmentCreation, types.EquipmentCreationStats, error) {
 	var st types.EquipmentCreationStats
 	if wr == nil {
-		return nil, st, fmt.Errorf("bornes absentes : sans elles le decodeur ne rend que des quanta")
+		return nil, st, fmt.Errorf("bounds missing: without them the decoder only yields quanta")
 	}
 	if len(fc.ChunkNumbers()) == 0 {
 		return nil, st, ErrNoFilmChunk
@@ -133,7 +134,7 @@ func (c *FilmContext) vehicleArchetype() (Archetype, error) {
 		return Archetype{}, err
 	}
 	if !ok {
-		return Archetype{}, fmt.Errorf("archetype vehicule %d absent du registre", VehicleTypeIndex)
+		return Archetype{}, fmt.Errorf("vehicle archetype %d missing from the registry", VehicleTypeIndex)
 	}
 	return arch, nil
 }

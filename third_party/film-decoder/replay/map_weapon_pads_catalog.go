@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // CATALOGUE DES EMPLACEMENTS DE SOCLE — la FORME du fichier de référence figé par titre
@@ -132,14 +133,14 @@ type MapWeaponPadSpot struct {
 func LoadMapWeaponPads(path string) (*MapWeaponPadsCatalog, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("catalogue des socles illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("pad catalog unreadable (%s): %w", path, err)
 	}
 	var c MapWeaponPadsCatalog
 	if err := json.Unmarshal(blob, &c); err != nil {
-		return nil, fmt.Errorf("catalogue des socles invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("pad catalog invalid (%s): %w", path, err)
 	}
 	if c.SchemaVersion != MapWeaponPadsSchemaVersion {
-		return nil, fmt.Errorf("catalogue des socles en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("pad catalog is version %d, expected %d (%s)",
 			c.SchemaVersion, MapWeaponPadsSchemaVersion, path)
 	}
 	return &c, nil
@@ -174,8 +175,8 @@ func LoadMapWeaponPadsMerged(ctx context.Context, versionne, overlay string) (*M
 	case errors.Is(err, fs.ErrNotExist):
 		return cat, nil
 	case err != nil:
-		slog.WarnContext(ctx, "catalogue des socles : overlay illisible — seules les cartes versionnees "+
-			"sont servies ; le rattrapage au fetch de film les rajoutera",
+		slog.WarnContext(ctx, "pad catalog: unreadable overlay — only versioned maps "+
+			"are served; the catch-up at film fetch will add them",
 			"err", err, "overlay", overlay)
 		return cat, nil
 	}
@@ -193,8 +194,8 @@ func LoadMapWeaponPadsMerged(ctx context.Context, versionne, overlay string) (*M
 		ajoutees++
 	}
 	if ajoutees > 0 {
-		slog.DebugContext(ctx, "catalogue des socles : cartes rattrapees superposees au catalogue versionne",
-			"ajoutees", ajoutees, "versionnees", len(cat.Maps)-ajoutees, "overlay", overlay)
+		slog.DebugContext(ctx, "pad catalog: catch-up maps overlaid on the versioned catalog",
+			"added", ajoutees, "versioned", len(cat.Maps)-ajoutees, "overlay", overlay)
 	}
 	return cat, nil
 }

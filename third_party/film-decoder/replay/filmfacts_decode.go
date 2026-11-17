@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts_decode.go — LE DECODEUR DES FAITS DE FILM.
@@ -44,7 +45,7 @@ func DecodeFilmFacts(blob []byte, entry profile.MapQuantEntry) (*FilmFacts, erro
 		return nil, r.err
 	}
 	if r.off != len(r.b) {
-		return nil, fmt.Errorf("faits de film : %d octet(s) non consomme(s) — format desynchronise",
+		return nil, fmt.Errorf("film facts: %d byte(s) unconsumed — desynchronized format",
 			len(r.b)-r.off)
 	}
 	return g, nil
@@ -55,7 +56,7 @@ func decodeEntete(blob []byte, entry profile.MapQuantEntry) (
 	*FilmFacts, *greader, profile.I0Layout, profile.Vec3Range, error,
 ) {
 	if len(blob) < len(filmFactsMagic) || string(blob[:len(filmFactsMagic)]) != filmFactsMagic {
-		return nil, nil, profile.I0Layout{}, profile.Vec3Range{}, fmt.Errorf("faits de film : magie absente ou version inconnue — redecoder le film")
+		return nil, nil, profile.I0Layout{}, profile.Vec3Range{}, fmt.Errorf("film facts: magic absent or version unknown — re-decode the film")
 	}
 	r := &greader{b: blob, off: len(filmFactsMagic)}
 	g := &FilmFacts{Film: r.str()}
@@ -106,17 +107,17 @@ func verifierCleDeCuisson(mapModule string, axisW [3]uint, layoutDetected bool,
 	entry profile.MapQuantEntry, empreinte []byte,
 ) error {
 	if mapModule != entry.Module {
-		return fmt.Errorf("%w : faits cuits pour %q, entree de catalogue fournie %q",
+		return fmt.Errorf("%w: facts cooked for %q, catalog entry provided %q",
 			ErrFilmFactsCarte, mapModule, entry.Module)
 	}
 	if attendue := EmpreinteDeCle(entry); empreinte != nil && !bytes.Equal(empreinte, attendue[:]) {
-		return fmt.Errorf("%w : faits cuits sous une AUTRE entree de catalogue pour %q (bornes, "+
-			"largeurs, region ou index de region corriges depuis)", ErrFilmFactsCarte, entry.Module)
+		return fmt.Errorf("%w: facts cooked under ANOTHER catalog entry for %q (bounds, "+
+			"widths, region or region index corrected since)", ErrFilmFactsCarte, entry.Module)
 	}
 	impose := grammar.NewFilmContextForMap(nil, &entry, nil).ImposedLayout()
 	switch {
 	case !layoutDetected && (impose == nil || impose.AxisW != axisW):
-		return fmt.Errorf("%w : faits au decoupage %v (dit du CATALOGUE), catalogue %v",
+		return fmt.Errorf("%w: facts at split %v (per the CATALOG), catalog %v",
 			ErrFilmFactsDecoupage, axisW, imposeAxisW(impose))
 	case layoutDetected && impose != nil:
 		return fmt.Errorf(

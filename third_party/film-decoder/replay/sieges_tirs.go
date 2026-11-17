@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // sieges_tirs.go — LA PLACE LUE DANS LES TIRS, ET LA MESURE DE L'AFFICHAGE (lot M2.3, 2026-09-23).
@@ -65,8 +66,8 @@ func (pp *poseDesPlaces) lireLesPlacesDansLesTirs(ctx context.Context, fire []Fi
 		lues++
 	}
 	if contredits > 0 {
-		slog.InfoContext(ctx, "rejeu : tirs de place dont la vie qui tire n est pas l arrivant deduit — sans vote",
-			"tirs", contredits)
+		slog.InfoContext(ctx, "replay: seat shots whose shooting life is not the deduced arriving one — without a vote",
+			"shots", contredits)
 	}
 	return lues, contestes, false
 }

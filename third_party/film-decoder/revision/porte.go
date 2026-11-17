@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // porte.go — LA PORTE DE REGENERATION D UN GOLDEN DE REVISION.
@@ -99,7 +100,7 @@ func (p Porte) Reecrire(chemin, revision, empreinte string) (string, error) {
 	}
 	sortie := strings.Join(append(append(prose, donnees...), ""), "\n")
 	if err := os.WriteFile(chemin, []byte(sortie), 0o600); err != nil {
-		return "", fmt.Errorf("ecriture du golden %s : %w", chemin, err)
+		return "", fmt.Errorf("writing golden %s: %w", chemin, err)
 	}
 	return fmt.Sprintf("1 reference(s) reecrite(s) : %s (revision %s, empreinte %s) ; "+
 		"relancer sans -%s pour verifier", chemin, revision, empreinte, p.Drapeau()), nil

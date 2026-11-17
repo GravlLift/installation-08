@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -89,16 +90,16 @@ type temoinDuFil struct {
 // l'appelant donne ([niveauDePublication] : il dit un defaut du document PUBLIE).
 func resolveOriginMs(ctx context.Context, firstPosUS, filmClockUS uint64, temoin temoinDuFil, niveau slog.Level) *int64 {
 	if filmClockUS == 0 || firstPosUS < filmClockUS {
-		slog.Log(ctx, niveau, "rejeu : origine d'horloge non etablie — le client retombera sur l'appariement",
-			"premierPaquetPositionUS", firstPosUS, "premierPaquetFilmUS", filmClockUS)
+		slog.Log(ctx, niveau, "replay: clock origin not established — the client will fall back to pairing",
+			"firstPositionPacketUS", firstPosUS, "firstFilmPacketUS", filmClockUS)
 		return nil
 	}
 	read := int64(firstPosUS-filmClockUS) / 1000
 	if temoin.appariees >= originControlMinMatches {
 		control := int64(firstPosUS)/1000 - temoin.offsetMS
 		if ecart := control - read; ecart > originControlToleranceMS || ecart < -originControlToleranceMS {
-			slog.Log(ctx, niveau, "rejeu : origine LUE contredite par le fil des morts — aucune origine publiee",
-				"origineLueMs", read, "origineTemoinMs", control, "ecartMs", ecart, "mortsAppariees", temoin.appariees)
+			slog.Log(ctx, niveau, "replay: READ origin contradicted by the death feed — no origin published",
+				"readOriginMs", read, "witnessOriginMs", control, "gapMs", ecart, "matchedDeaths", temoin.appariees)
 			return nil
 		}
 	}
@@ -120,7 +121,7 @@ func resolveOriginMs(ctx context.Context, firstPosUS, filmClockUS uint64, temoin
 func originMSOf(ctx context.Context, origin *int64, matchID string, niveau slog.Level) int {
 	if origin == nil {
 		slog.Log(ctx, niveau,
-			"rejeu : aucune origine etablie — calques dates sur l'horloge du film NON recales",
+			"replay: no origin established — layers dated on the film clock NOT rescaled",
 			"match_id", matchID)
 		return 0
 	}

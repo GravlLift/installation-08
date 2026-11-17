@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_ability_charges.go — LES CHARGES D'ÉQUIPEMENT RESTANTES, datées par le film et
@@ -212,8 +213,8 @@ func (b *abilityChargeBuilder) resolve(r types.AbilityCharge) (AbilityCharge, bo
 // logAbilityImpulseCoverage : un journal qui ne dirait que les publiées laisserait croire
 // que le canal n'a rien refusé.
 func logAbilityChargeCoverage(ctx context.Context, cov AbilityChargeCoverage) {
-	slog.InfoContext(ctx, "rejeu : charges d equipement",
-		"lectures", cov.Reads, "publiees", cov.Published,
+	slog.InfoContext(ctx, "replay: equipment charges",
+		"reads", cov.Reads, "published", cov.Published,
 		"sansIdentite", cov.NoIdentity, "familleNonMesuree", cov.OtherFamily,
 		"attributionIndisponible", cov.NoResolver,
 		"avantOrigine", cov.BeforeOrigin, "sansPiste", cov.Unpublished,

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // tirs_index_fiable.go — L INDEX DE TIREUR EST-IL LA PLACE SUR CE FILM ? (lot M4b.4, 2026-09-24)
@@ -70,8 +71,8 @@ func (m accordIndexUnite) journaliser(ctx context.Context, matchID string) {
 	if m.estLaPlace() {
 		return
 	}
-	slog.WarnContext(ctx, "rejeu : l index de tireur n est pas la place sur ce film — seule la reference 0 pose les tirs",
-		"match_id", matchID, "accord", m.accord, "tirs", m.total, "seuil", seuilAccordIndexUnite)
+	slog.WarnContext(ctx, "replay: the shooter index is not the seat in this film — only reference 0 places the shots",
+		"match_id", matchID, "agree", m.accord, "shots", m.total, "threshold", seuilAccordIndexUnite)
 }
 
 // sansIndexDeTireur rend une COPIE des evenements ou l index de tireur est retire : seule leur

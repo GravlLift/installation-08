@@ -12,6 +12,7 @@
 //
 // Chaque prise est liee a un test : un refus fait echouer le test en nommant le detenteur, et le
 // verrou est rendu a la fin du test.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package decodelock
 
 import (
@@ -44,7 +45,7 @@ type soloHolder struct {
 }
 
 // errOccupe : un autre decodage tient le verrou.
-var errOccupe = errors.New("un decodage de film est deja en cours sur cette machine")
+var errOccupe = errors.New("a film decode is already running on this machine")
 
 // attente : cadence des nouvelles tentatives de [PrendreEnAttendant].
 const attente = 500 * time.Millisecond
@@ -91,10 +92,10 @@ type verrou struct {
 // nomme) ou l'erreur de la prise.
 func tenter(cacheRoot, outil, matchID string) (*verrou, error) {
 	if cacheRoot == "" {
-		return nil, errors.New("racine de cache vide")
+		return nil, errors.New("empty cache root")
 	}
 	if err := os.MkdirAll(cacheRoot, 0o755); err != nil {
-		return nil, fmt.Errorf("creation de %s : %w", cacheRoot, err)
+		return nil, fmt.Errorf("creating %s: %w", cacheRoot, err)
 	}
 	holderPath := filepath.Join(cacheRoot, soloHolderFileName)
 	lock, err := filelock.TryLock(filepath.Join(cacheRoot, soloFileName))
@@ -111,7 +112,7 @@ func tenter(cacheRoot, outil, matchID string) (*verrou, error) {
 		err = atomicfile.WriteFileStrict(holderPath, b, 0o644)
 	}
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("description du detenteur : %w", err), lock.Unlock())
+		return nil, errors.Join(fmt.Errorf("holder description: %w", err), lock.Unlock())
 	}
 	return &verrou{lock: lock, holderPath: holderPath}, nil
 }
@@ -135,7 +136,7 @@ func occupe(holderPath string) error {
 		err = json.Unmarshal(b, &h)
 	}
 	if err != nil {
-		return fmt.Errorf("%w : detenteur non decrit (%v), %s", errOccupe, err, holderPath)
+		return fmt.Errorf("%w: holder not described (%v), %s", errOccupe, err, holderPath)
 	}
-	return fmt.Errorf("%w : %s (pid %d) decode %q depuis %s", errOccupe, h.Tool, h.PID, h.MatchID, h.StartedAt)
+	return fmt.Errorf("%w: %s (pid %d) has been decoding %q since %s", errOccupe, h.Tool, h.PID, h.MatchID, h.StartedAt)
 }

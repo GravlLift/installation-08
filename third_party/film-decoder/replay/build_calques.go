@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_calques.go — LES QUATRE PASSES DE CALQUES DE L ASSEMBLAGE : le grappin et les poses
@@ -26,13 +27,13 @@ func (a *assemblage) poserGrappinEtPoses() {
 		var grapCov *GrappleCoverage
 		a.doc.GrappleLines, grapCov = buildGrappleLines(a.opt.GrappleReads, *a.opt.MapQuant, a.origin, a.step, a.doc.Tracks)
 		a.doc.Coverage.Grapple = grapCov
-		slog.InfoContext(a.ctx, "rejeu : tractions de grappin",
-			"tirs", grapCov.LightReads, "accroches", grapCov.HeavyReads,
-			"tractions", grapCov.Pulls, "vies", grapCov.PullLives,
-			"rates", grapCov.UnpairedFires, "corpsCasses", grapCov.BrokenBodies)
+		slog.InfoContext(a.ctx, "replay: grapple tugs",
+			"shots", grapCov.LightReads, "heavies", grapCov.HeavyReads,
+			"pulls", grapCov.Pulls, "lives", grapCov.PullLives,
+			"missed", grapCov.UnpairedFires, "corpsCasses", grapCov.BrokenBodies)
 	case len(a.opt.GrappleReads) > 0:
-		slog.WarnContext(a.ctx, "rejeu : lectures de grappin sans bornes de carte — aucune traction publiee",
-			"lectures", len(a.opt.GrappleReads))
+		slog.WarnContext(a.ctx, "replay: grapple readings without map bounds — no tug published",
+			"reads", len(a.opt.GrappleReads))
 	}
 	// Les POSES d'equipement : famille par le manifeste du titre, poseur et cap MESURES sur le
 	// nuage NON decime (une pose dure quelques dizaines de millisecondes ; la decimation
@@ -62,10 +63,10 @@ func (a *assemblage) poserPrisesEtSocles() {
 	var wcCov WeaponChangeCoverage
 	a.doc.WeaponChanges, wcCov = buildWeaponChanges(a.opt.WeaponChanges, a.origin, a.step)
 	a.doc.Coverage.WeaponChanges = &wcCov
-	slog.InfoContext(a.ctx, "rejeu : prises et lachers d arme",
-		"decodes", wcCov.Decoded, "publies", wcCov.Published,
-		"prises", wcCov.Taken, "lachers", wcCov.Dropped, "echanges", wcCov.Swapped,
-		"reannonces", wcCov.Restated, "avantOrigine", wcCov.BeforeOrigin)
+	slog.InfoContext(a.ctx, "replay: weapon pickups and drops",
+		"decoded", wcCov.Decoded, "published", wcCov.Published,
+		"pickups", wcCov.Taken, "drops", wcCov.Dropped, "swapped", wcCov.Swapped,
+		"reannounced", wcCov.Restated, "avantOrigine", wcCov.BeforeOrigin)
 	// LES RAMASSAGES NATIFS, dates a la milliseconde et ATTRIBUES par le pont slot -> joueur
 	// deja construit ci-dessus. Publies AVANT les socles : `attachWeaponPads` s'en sert pour
 	// dater les occupations de socle qui restaient en intervalle de vingt secondes.
@@ -77,16 +78,16 @@ func (a *assemblage) poserPrisesEtSocles() {
 		pickupInputs{occupant: a.reg.XUIDNumAt, st: a.opt.PickupStats,
 			weaponKeys: a.opt.Labels.Keys, judge: judge})
 	a.doc.Coverage.Pickups = &pkCov
-	slog.InfoContext(a.ctx, "rejeu : ramassages natifs",
-		"decodes", pkCov.Decoded, "publies", pkCov.Published, "nommes", pkCov.Named,
-		"armes", pkCov.Weapons, "objets", pkCov.Items,
+	slog.InfoContext(a.ctx, "replay: native pickups",
+		"decoded", pkCov.Decoded, "published", pkCov.Published, "named", pkCov.Named,
+		"weapons", pkCov.Weapons, "objects", pkCov.Items,
 		"origineSocle", pkCov.OriginSpawner, "origineSol", pkCov.OriginGround,
 		"origineInconnue", pkCov.OriginUnknown, "etatPoints", pkCov.SpawnPointsState,
 		"pointsCatalogue", pkCov.MapCatalogPoints,
 		"socleParNature", pkCov.SpawnerByPointKind,
 		"famillesInconnues", pkCov.UnknownFamilies,
 		"avantOrigine", pkCov.BeforeOrigin, "listesMultiples", pkCov.MultiEvent,
-		"refuses", pkCov.Refused)
+		"refused", pkCov.Refused)
 	// Les SOCLES — armes au sol ET power-ups —, sur le meme nuage NON decime (build_ground_weapons.go).
 	a.gwObjs = attachWeaponPads(a.ctx, &a.doc, a.opt.Pads, a.sorted,
 		replayClock{origin: a.origin, step: a.step, frames: a.doc.FrameCount, fb: a.opt.Fallbacks}, a.opt.Labels)
@@ -102,10 +103,10 @@ func (a *assemblage) poserPrisesEtSocles() {
 	padDating := datation.trancherParLeCycle(localiserParLeCanalNatif(judge.positionDe))
 	a.opt.Fallbacks.DeclencheN(fallback.NomPriseDeSoclePremiereDuCycle, padDating.FirstOfCycle)
 	a.doc.Coverage.PadDating = &padDating
-	slog.InfoContext(a.ctx, "rejeu : datation des occupations de socle",
-		"occupations", padDating.Occupations, "datees", padDating.Dated, "nommees", padDating.Named,
+	slog.InfoContext(a.ctx, "replay: dating of pad occupations",
+		"occupations", padDating.Occupations, "dated", padDating.Dated, "named", padDating.Named,
 		"premieresDuCycle", padDating.FirstOfCycle,
-		"ambigues", padDating.Ambiguous, "nonCouvertes", padDating.Uncovered)
+		"ambiguous", padDating.Ambiguous, "nonCouvertes", padDating.Uncovered)
 }
 
 // releverLesSocles releve les socles d arme hors de l emprise jouee au lieu ou leurs armes sont prises
@@ -121,8 +122,8 @@ func (a *assemblage) releverLesSocles(judge *pickupOriginJudge) {
 		clock: replayClock{origin: a.origin, step: a.step, frames: a.doc.FrameCount},
 	}, cov)
 	a.opt.Fallbacks.DeclencheN(fallback.NomSocleHorsEmpriseAuLieuDesPrises, n)
-	slog.InfoContext(a.ctx, "rejeu : socles d arme hors de l emprise jouee",
-		"horsEmprise", cov.HorsEmprise, "releves", cov.Releves, "plusieursLieux", cov.PlusieursLieux)
+	slog.InfoContext(a.ctx, "replay: weapon pads outside the played footprint",
+		"horsEmprise", cov.HorsEmprise, "readings", cov.Releves, "plusieursLieux", cov.PlusieursLieux)
 }
 
 // poserArmesAuSolEtVehicules publie les armes au sol objet par objet, les vehicules, et la
@@ -212,7 +213,7 @@ func (a *assemblage) poserObjectifsVivants() {
 	// nommées et le recalage d'horloge. Aucun balayage de plus, aucune étape observée de plus
 	// (cf. bomb_stats_document.go).
 	attachBombStats(a.ctx, &a.doc, a.opt, a.reg, bombCarry)
-	slog.InfoContext(a.ctx, "rejeu : episodes d'equipement actif",
+	slog.InfoContext(a.ctx, "replay: active equipment episodes",
 		"viesPubliees", a.doc.Coverage.Equipment.TracksTotal,
 		"viesCamo", a.doc.Coverage.Equipment.CamoLives,
 		"episodesCamo", a.doc.Coverage.Equipment.CamoEpisodes,

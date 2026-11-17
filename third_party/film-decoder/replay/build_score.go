@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -77,22 +78,22 @@ func logRoundBounds(ctx context.Context, matchID string, in *ScoreInput, cov *Sc
 	// exactement le cas que `logKeptSegments` vient de nommer. Trancher sur le compte faisait
 	// alors emettre « aucune borne posee » a la ligne suivante, contredisant le diagnostic fin.
 	if !bornes.Posed() {
-		slog.WarnContext(ctx, "rejeu : AUCUNE borne de manche posee sur un film a plusieurs manches — le numero "+
-			"de manche ne suit pas l'horloge, les compteurs restent ceux d'avant",
-			"match_id", matchID, "manches", cov.Rounds, "enregistrements", len(in.Records))
+		slog.WarnContext(ctx, "replay: NO round bound posed on a multi-round film — the round number "+
+			"does not follow the clock, the counters keep their previous values",
+			"match_id", matchID, "rounds", cov.Rounds, "records", len(in.Records))
 		return
 	}
 	n := bornes.Outliers(in.Records)
 	if n > objectives.OutliersNominalMax {
-		slog.WarnContext(ctx, "rejeu : enregistrements hors de la fenetre de leur manche declaree AU-DELA DU "+
-			"NOMINAL — l'etiquetage de manche de ce film est a regarder",
-			"match_id", matchID, "ecartes", n, "nominal_max", objectives.OutliersNominalMax,
-			"enregistrements", len(in.Records), "manches", cov.Rounds)
+		slog.WarnContext(ctx, "replay: records outside their declared round window BEYOND THE "+
+			"NOMINAL — this film's round labeling needs a look",
+			"match_id", matchID, "discarded", n, "nominal_max", objectives.OutliersNominalMax,
+			"records", len(in.Records), "rounds", cov.Rounds)
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : enregistrements hors de la fenetre de leur manche declaree, ecartes",
-		"match_id", matchID, "ecartes", n, "enregistrements", len(in.Records),
-		"manches", cov.Rounds, "blocs_gardes", len(bornes.KeptSegments()))
+	slog.InfoContext(ctx, "replay: records outside their declared round window, discarded",
+		"match_id", matchID, "discarded", n, "records", len(in.Records),
+		"rounds", cov.Rounds, "kept_blocks", len(bornes.KeptSegments()))
 }
 
 // logKeptSegments nomme les blocs (slot, manche) que la GARDE PAR SLOT a exemptes : leur bloc
@@ -102,10 +103,10 @@ func logRoundBounds(ctx context.Context, matchID string, in *ScoreInput, cov *Sc
 // le consensus et ce slot ne s'accordent pas sur les bornes de la manche.
 func logKeptSegments(ctx context.Context, matchID string, bornes objectives.RoundBounds) {
 	for _, s := range bornes.KeptSegments() {
-		slog.WarnContext(ctx, "rejeu : bloc de manche GARDE hors de la fenetre consensuelle — le slot et le "+
-			"consensus ne s'accordent pas sur les bornes de cette manche",
-			"match_id", matchID, "slot", s.Slot, "manche", s.Round,
-			"debut_ms", s.FromMS, "fin_ms", s.ToMS, "ecart_ms", s.GapMS, "enregistrements", s.Records)
+		slog.WarnContext(ctx, "replay: round block KEPT outside the consensus window — the slot and the "+
+			"consensus do not agree on the bounds of this round",
+			"match_id", matchID, "slot", s.Slot, "round", s.Round,
+			"start_ms", s.FromMS, "end_ms", s.ToMS, "gap_ms", s.GapMS, "records", s.Records)
 	}
 }
 
@@ -119,16 +120,16 @@ func logScoreCoverage(ctx context.Context, matchID string, cov *ScoreCoverage, t
 		teams, players = len(tl.Teams), len(tl.Players)
 	}
 	if cov.TeamIdentity == ScoreIdentityUnresolved {
-		slog.WarnContext(ctx, "rejeu : identite des camps NON RESOLUE — courbes de score publiees sans equipe",
-			"match_id", matchID, "equipes", teams, "joueurs", players, "manches", cov.Rounds)
+		slog.WarnContext(ctx, "replay: camp identity NOT RESOLVED — score curves published without teams",
+			"match_id", matchID, "teams", teams, "players", players, "rounds", cov.Rounds)
 	}
 	if cov.Truncated {
-		slog.WarnContext(ctx, "rejeu : lecture des enregistrements TRONQUEE — courbes de score incompletes",
+		slog.WarnContext(ctx, "replay: record reading TRUNCATED — incomplete score curves",
 			"match_id", matchID, "points", cov.Points)
 	}
-	slog.InfoContext(ctx, "rejeu : courbe de score",
-		"match_id", matchID, "identiteEquipes", cov.TeamIdentity, "manches", cov.Rounds,
-		"modePorte", cov.ModeSupported, "equipes", teams, "joueurs", players, "points", cov.Points)
+	slog.InfoContext(ctx, "replay: score curve",
+		"match_id", matchID, "identiteEquipes", cov.TeamIdentity, "rounds", cov.Rounds,
+		"modePorte", cov.ModeSupported, "teams", teams, "players", players, "points", cov.Points)
 }
 
 // logHoldThreshold journalise la lecture du seuil de garde d'un match a colline — le detail que
@@ -141,9 +142,9 @@ func logHoldThreshold(ctx context.Context, matchID string, r *holdThresholdReadi
 		"ecartes", r.rejected, "table", r.table, "tableContredite", r.tableDisagrees,
 		"unTicParPoint", r.oneTickPerPoint}
 	if r.tableDisagrees {
-		slog.WarnContext(ctx, "rejeu : seuil de garde de la colline — la table de la variante "+
-			"contredit le film, le film prime", attrs...)
+		slog.WarnContext(ctx, "replay: hill hold threshold — the variant table "+
+			"contradicts the film, the film prevails", attrs...)
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : seuil de garde de la colline", attrs...)
+	slog.InfoContext(ctx, "replay: hill hold threshold", attrs...)
 }

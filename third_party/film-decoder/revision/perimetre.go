@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // perimetre.go — LE PERIMETRE D UNE COUCHE EST LA FERMETURE DE SES IMPORTS (ADR 0034).
@@ -56,7 +57,7 @@ type Couche struct {
 
 // ErrPerimetre : la declaration d une couche et sa fermeture ne s accordent pas (couche inconnue,
 // valeur amont manquante ou superflue). C est une faute de DECLARATION, jamais un resultat.
-var ErrPerimetre = errors.New("perimetre de couche incoherent")
+var ErrPerimetre = errors.New("incoherent layer perimeter")
 
 // Module : le module Go qui borne la fermeture — sa racine sur le disque et son chemin
 // d import, lu dans `go.mod`.
@@ -91,13 +92,13 @@ func ModuleDe(dossier string) (Module, error) {
 		if errLire == nil {
 			chemin := cheminDuModule(string(blob))
 			if chemin == "" {
-				return Module{}, fmt.Errorf("%w : %s/go.mod sans directive `module`", ErrPerimetre, dir)
+				return Module{}, fmt.Errorf("%w: %s/go.mod without a `module` directive", ErrPerimetre, dir)
 			}
 			return Module{Racine: dir, Chemin: chemin}, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return Module{}, fmt.Errorf("%w : aucun go.mod au-dessus de %s", ErrPerimetre, dossier)
+			return Module{}, fmt.Errorf("%w: no go.mod above %s", ErrPerimetre, dossier)
 		}
 		dir = parent
 	}
@@ -117,7 +118,7 @@ func cheminDuModule(gomod string) string {
 func (m Module) Fermeture(nom string, couches []Couche) (Perimetre, error) {
 	propre, ok := coucheNommee(nom, couches)
 	if !ok {
-		return Perimetre{}, fmt.Errorf("%w : couche %q absente de la liste des couches", ErrPerimetre, nom)
+		return Perimetre{}, fmt.Errorf("%w: layer %q absent from the layer list", ErrPerimetre, nom)
 	}
 	file, err := m.paquetsDeLArbre(propre.Racine)
 	if err != nil {
@@ -249,12 +250,12 @@ func (m Module) importsDuPaquet(rel string) ([]string, error) {
 	for _, nom := range noms {
 		f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dossier, nom), nil, parser.ImportsOnly)
 		if err != nil {
-			return nil, fmt.Errorf("imports de %s/%s : %w", rel, nom, err)
+			return nil, fmt.Errorf("imports of %s/%s: %w", rel, nom, err)
 		}
 		for _, imp := range f.Imports {
 			chemin, err := strconv.Unquote(imp.Path.Value)
 			if err != nil {
-				return nil, fmt.Errorf("imports de %s/%s : %w", rel, nom, err)
+				return nil, fmt.Errorf("imports of %s/%s: %w", rel, nom, err)
 			}
 			courant, ok := strings.CutPrefix(chemin, prefixe)
 			if !ok {
@@ -314,15 +315,15 @@ func valeursDesAmonts(nom string, rencontrees []string, valeurs map[string]strin
 	for _, a := range rencontrees {
 		v, ok := valeurs[a]
 		if !ok || v == "" {
-			return nil, fmt.Errorf("%w : la couche %s importe la couche %s, dont la valeur n est pas "+
-				"fournie", ErrPerimetre, nom, a)
+			return nil, fmt.Errorf("%w: layer %s imports layer %s, whose value is not "+
+				"provided", ErrPerimetre, nom, a)
 		}
 		out = append(out, v)
 	}
 	for a := range valeurs {
 		if !slices.Contains(rencontrees, a) {
-			return nil, fmt.Errorf("%w : valeur amont fournie pour %s, que la fermeture de %s ne "+
-				"rencontre pas (rencontrees : %v)", ErrPerimetre, a, nom, rencontrees)
+			return nil, fmt.Errorf("%w: upstream value provided for %s, which the closure of %s does "+
+				"not meet (met: %v)", ErrPerimetre, a, nom, rencontrees)
 		}
 	}
 	return out, nil

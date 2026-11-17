@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -146,8 +147,8 @@ func logFlagAmbiguousSlots(ctx context.Context, slots []uint32) {
 	if len(slots) == 0 {
 		return
 	}
-	slog.WarnContext(ctx, "rejeu : vies sans nom refusees au calque drapeau — slot partage par plusieurs joueurs",
-		"slots", slots, "nombre", len(slots))
+	slog.WarnContext(ctx, "replay: unnamed lives refused at the flag layer — slot shared by several players",
+		"slots", slots, "count", len(slots))
 }
 
 // flagCarrierPointToleranceMS est l'ecart maximal, en millisecondes, entre l'instant d'une prise ou

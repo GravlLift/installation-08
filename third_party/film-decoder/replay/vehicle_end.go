@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -175,8 +176,8 @@ func logVehicleDeathTally(ctx context.Context, t vehicleDeathTally) {
 	if t.unmatched > 0 {
 		niveau = slog.LevelWarn
 	}
-	slog.Log(ctx, niveau, "rejeu : attribution des morts de vehicule",
-		"lues", t.read, "appariees", t.matched, "viesFermees", t.closed,
+	slog.Log(ctx, niveau, "replay: attribution of vehicle deaths",
+		"read", t.read, "paired", t.matched, "viesFermees", t.closed,
 		"nonAppariees", t.unmatched, "queueRompue", t.tailDesync,
 		"perdues_slotAbsent", t.noSlot, "perdues_generationAbsente", t.noGen,
 		"perdues_horsFenetre", t.window, "horsFenetre_avant", t.windowAvant,

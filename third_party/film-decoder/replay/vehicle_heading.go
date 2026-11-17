@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // vehicle_heading.go — LE CAP D UN VEHICULE : ce que le film ECRIT, et ce qu on DEDUIT faute
@@ -100,8 +101,8 @@ func logVehicleHeadingSource(ctx context.Context, pos []grammar.BipedPosition) i
 			aucun++
 		}
 	}
-	slog.InfoContext(ctx, "rejeu : source du cap des vehicules",
-		"echantillons", len(pos), "capDuFilm", film, "capParVelocite", velocite,
+	slog.InfoContext(ctx, "replay: source of the vehicles' heading",
+		"samples", len(pos), "capDuFilm", film, "capParVelocite", velocite,
 		"sansCap", aucun, "roulisLuMaisModeNonPublie", modeNonPublie)
 	return velocite
 }

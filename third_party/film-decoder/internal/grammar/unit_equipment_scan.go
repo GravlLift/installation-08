@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // unit_equipment_scan.go — LE BALAYAGE d'i26 `unit-equipment-component` : la liste de
@@ -52,10 +53,10 @@ func ScanUnitEquipment(fc *FilmContext) ([]UnitEquipmentEmission, error) {
 	}
 	slots := fc.BipedSlots()
 	if slots.Count() == 0 {
-		return nil, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	if _, err := fc.I0Layout(); err != nil {
-		return nil, fmt.Errorf("découpage i0 illisible : %w", err)
+		return nil, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	arch, err := fc.bipedArchetype()
 	if err != nil {
@@ -63,7 +64,7 @@ func ScanUnitEquipment(fc *FilmContext) ([]UnitEquipmentEmission, error) {
 	}
 	idx26 := indexDeLEquipementDUnite(arch)
 	if idx26 < 0 {
-		return nil, fmt.Errorf("aucun %s dans l'archétype biped du film", compUnitEquipment)
+		return nil, fmt.Errorf("no %s in the film's biped archetype", compUnitEquipment)
 	}
 	lu, err := fc.lecturesBipedes()
 	if err != nil {

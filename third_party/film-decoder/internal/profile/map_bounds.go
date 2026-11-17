@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package profile
 
 // BORNES DE DÉQUANTIFICATION PAR CARTE.
@@ -28,7 +29,7 @@ import (
 
 // ErrUnknownMapBounds signale que la carte n'a pas de bornes connues : aucune coordonnée
 // monde ne peut être produite.
-var ErrUnknownMapBounds = errors.New("filmdec: bornes de quantification inconnues pour cette carte")
+var ErrUnknownMapBounds = errors.New("filmdec: unknown quantization bounds for this map")
 
 // MapQuantSchemaVersion est la version du catalogue. Incrémentée si la forme change.
 const MapQuantSchemaVersion = 1
@@ -179,14 +180,14 @@ type MapQuantCatalog struct {
 func LoadMapQuantCatalog(path string) (*MapQuantCatalog, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("catalogue de bornes illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("bounds catalog unreadable (%s): %w", path, err)
 	}
 	var c MapQuantCatalog
 	if err := json.Unmarshal(blob, &c); err != nil {
-		return nil, fmt.Errorf("catalogue de bornes invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("bounds catalog invalid (%s): %w", path, err)
 	}
 	if c.SchemaVersion != MapQuantSchemaVersion {
-		return nil, fmt.Errorf("catalogue de bornes en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("bounds catalog is version %d, expected %d (%s)",
 			c.SchemaVersion, MapQuantSchemaVersion, path)
 	}
 	return &c, nil

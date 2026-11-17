@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // positions_porte_depart.go — LA PORTE DES POSITIONS, REGLE R-B3 : aucune vie d'un corps apres le
@@ -110,6 +111,6 @@ func (c couverturePorte) journaliserLesViesApresDepart(ctx context.Context, matc
 		return
 	}
 	filmobs.AddInt(metriqueViesApresDepart, int64(c.CorpsApresDepart))
-	slog.WarnContext(ctx, "rejeu : positions d'un corps posterieures au depart prouve de son occupant — "+
-		"aucune vie publiee", "match_id", matchID, "corps", c.CorpsApresDepart, "positions", c.ApresDepart)
+	slog.WarnContext(ctx, "replay: positions of a body later than the proven departure of its occupant — "+
+		"no life published", "match_id", matchID, "bodies", c.CorpsApresDepart, "positions", c.ApresDepart)
 }

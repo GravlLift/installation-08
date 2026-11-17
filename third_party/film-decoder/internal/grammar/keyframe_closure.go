@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // keyframe_closure.go — LA FERMETURE DES RECORDS D'IMAGE-CLE, PAR ARCHETYPE (lot 0.A.3).
@@ -140,11 +141,11 @@ func seulesBornees(toutes []keyframeBorne) []keyframeBorne {
 // mesuree au decoupage d un AUTRE build.
 func KeyframeClosure(fc *FilmContext) (map[uint32]KeyframeClosureStat, error) {
 	if fc == nil {
-		return nil, fmt.Errorf("filmdec: contexte de film nil — aucune fermeture a mesurer")
+		return nil, fmt.Errorf("filmdec: nil film context — no closure to measure")
 	}
 	reg, err := fc.Registry()
 	if err != nil {
-		return nil, fmt.Errorf("filmdec: registre illisible, la fermeture n'a pas de grammaire: %w", err)
+		return nil, fmt.Errorf("filmdec: unreadable registry, the closure has no grammar: %w", err)
 	}
 	m := mesureDeFermeture{reg: reg, stats: map[uint32]KeyframeClosureStat{}, bloquants: map[uint32]map[string]int{}}
 	for p, err := range fc.ImagesCles() {

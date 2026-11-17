@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package killsource
 
 // decode.go — L API PUBLIQUE : UNE FONCTION.
@@ -28,21 +29,21 @@ import (
 // Erreurs rendues par [Decode]. Elles se testent avec `errors.Is`.
 var (
 	// ErrNoChunk : le film ne porte aucun chunk (film nil compris).
-	ErrNoChunk = errors.New("killsource: aucun chunk")
+	ErrNoChunk = errors.New("killsource: no chunks")
 	// ErrNoPacket : aucun paquet de replication : le film n est pas exploitable.
-	ErrNoPacket = errors.New("killsource: aucun paquet de replication (type 0)")
+	ErrNoPacket = errors.New("killsource: no replication packet (type 0)")
 	// ErrNoKillFeed : aucun chunk HIGHLIGHT porteur d evenements `kill`. Sans kill-feed il n y a
 	// pas de verite de credit, donc pas de bijection indice -> joueur, donc rien de publiable.
-	ErrNoKillFeed = errors.New("killsource: kill-feed introuvable (aucun chunk HIGHLIGHT)")
+	ErrNoKillFeed = errors.New("killsource: kill-feed not found (no HIGHLIGHT chunk)")
 	// ErrRegistry : le chunk 0 ne porte pas un registre ECS lisible.
-	ErrRegistry = errors.New("killsource: registre ECS illisible")
+	ErrRegistry = errors.New("killsource: unreadable ECS registry")
 	// ErrCarteAbsente : aucune entree de catalogue PORTANT DES LARGEURS n a ete fournie
 	// (`Options.Carte` nil, ou entree sans largeurs d axe). Le film est MIS DE COTE, jamais decode
 	// aux largeurs d une autre carte (regle utilisateur du 2026-09-27 : « le flux du film est la
 	// seule source fiable. Pas de repli. »). Meme famille que la cle de film inconnue (D-4
 	// d ADR 0034) : le film est la, ce qui manque est une donnee cote depot.
-	ErrCarteAbsente = errors.New("killsource: carte du match absente — film mis de cote, " +
-		"jamais decode aux largeurs d une autre carte")
+	ErrCarteAbsente = errors.New("killsource: match map missing — film set aside, " +
+		"never decoded at another map's widths")
 )
 
 func errRegistry(err error) error { return fmt.Errorf("%w: %w", ErrRegistry, err) }
