@@ -22,6 +22,22 @@
     linear-gradient(90deg, rgba(5,8,13,0.7), rgba(5,8,13,0.1) 45%),
     linear-gradient(180deg, rgba(8,16,26,0.5), rgba(5,8,13,0.05) 25%, rgba(5,8,13,0.8)); }
 
+/* Optimize banner (OptimizeBanner.tsx): a thin bar fixed
+ * above everything while the server's startup builds run. `.bc-has-optimize-bar` on <body>
+ * (toggled by the component) pushes every page's own fixed frame down by its height, so it
+ * never covers the replay viewer's minimap/camera-view corner or any top-bar control — those
+ * stay inside their own frame and move down with it. */
+.bc-optimize-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: var(--optimize-bar-height);
+  background: rgba(5,8,13,0.92); border-bottom: 1px solid var(--air-deep); overflow: hidden; }
+.bc-optimize-fill { position: absolute; inset: 0; width: 0; background: linear-gradient(90deg, var(--air-deep), var(--air));
+  transition: width 400ms ease; opacity: 0.55; }
+.bc-optimize-text { position: relative; height: 100%; display: flex; align-items: center; gap: 14px; padding: 0 16px;
+  font-family: var(--display); font-stretch: 75%; font-weight: 600; font-size: 14px; letter-spacing: 0.06em; color: var(--ink); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.bc-optimize-step { flex: none; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.14em; }
+:root { --optimize-bar-height: 26px; }
+body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: var(--optimize-bar-height); }
+
 /* Page frame. */
 .bc-stage { position: fixed; inset: 0; z-index: 1; display: grid; grid-template-rows: auto 1fr auto; }
 .bc-view { display: grid; min-height: 0; padding: 28px 36px 8px; animation: bc-wipe 260ms ease-out; }

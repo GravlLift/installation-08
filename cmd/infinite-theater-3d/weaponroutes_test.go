@@ -77,6 +77,71 @@ func weaponTestHandlers(t *testing.T, root *store.Root, jobs *meshjobs.Runner) s
 	return newServerHandlers(root, "", jobs, weapons.Catalog{Map: "moda"}, testLabelCatalog)
 }
 
+// TestWeaponModelKeyOf — a bare model file name is a key; a coating, banner or effect file, or
+// a malformed name, is not.
+func TestWeaponModelKeyOf(t *testing.T) {
+	for file, wantKey := range map[string]string{
+		"2b1824d5.glb":              "2b1824d5",
+		"coating-f56ee213.json":     "",
+		"banner-2b1824d5-cloth.png": "",
+		"swatch-0b000001.png":       "",
+		"notakey.glb":               "",
+		"no-extension":              "",
+	} {
+		key, ok := weaponModelKeyOf(file)
+		if wantKey == "" {
+			if ok {
+				t.Errorf("weaponModelKeyOf(%q) = %q, true; want not a model key", file, key)
+			}
+			continue
+		}
+		if !ok || key != wantKey {
+			t.Errorf("weaponModelKeyOf(%q) = %q, %v; want %q, true", file, key, ok, wantKey)
+		}
+	}
+}
+
+// TestWeaponModelRoute_PrioritizesMissingKey — a GET for a weapon model the library has not
+// built yet moves that key to the front of the weapons job's dispatch order (Runner.
+// Prioritize), read back here through PriorityFromContext at the job's own start.
+func TestWeaponModelRoute_PrioritizesMissingKey(t *testing.T) {
+	root, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var seenPriority []string
+	jobs, err := meshjobs.New(func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		mu.Lock()
+		seenPriority = meshjobs.PriorityFromContext(ctx)
+		mu.Unlock()
+		<-ctx.Done()
+		return meshjobs.BuildResult{}, ctx.Err()
+	}, "", func(string) bool { return false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs.Start()
+	t.Cleanup(func() { jobs.Stop(time.Second) })
+	h := weaponTestHandlers(t, root, jobs)
+
+	// Not-yet-built: the route answers 404 and records the key as a priority.
+	rec := get(t, h, "/api/weapons/2b1824d5.glb", nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	jobs.Enqueue(meshjobs.JobWeapons)
+	deadline := time.Now().Add(2 * time.Second)
+	for func() bool { mu.Lock(); defer mu.Unlock(); return seenPriority == nil }() && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seenPriority) != 1 || seenPriority[0] != "2b1824d5" {
+		t.Fatalf("priority seen by the build = %v, want [2b1824d5]", seenPriority)
+	}
+}
+
 // TestWeaponIndexNotBuilt — before a build, GET /api/weapons is a JSON 404 naming
 // weapons_not_built.
 func TestWeaponIndexNotBuilt(t *testing.T) {

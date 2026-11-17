@@ -189,6 +189,22 @@ func ProgressFromContext(ctx context.Context) ProgressReporter {
 	return rep
 }
 
+// priorityKey is the context key the runner uses to carry a build's priority item keys.
+type priorityKey struct{}
+
+// PriorityFromContext returns the item keys (weapon or rig keys, in the order the viewer asked
+// for them) that the build running under ctx should build first, or nil when none were
+// recorded (the common case) or ctx is not a runner build. A library build (firstperson.Build,
+// weapons.Build, spartanpieces.Build) that works through many independent items in a worker
+// pool reads this once, at the start, to choose its dispatch order (internal/parallel.
+// PriorityOrder): it never changes the build's recorded output, only which items a worker
+// reaches first, so a match the viewer just opened shows its weapons sooner without the
+// library's index or files depending on dispatch order.
+func PriorityFromContext(ctx context.Context) []string {
+	keys, _ := ctx.Value(priorityKey{}).([]string)
+	return keys
+}
+
 // progressReporter is the runner's ProgressReporter for one active build. Report clamps the
 // fraction to [0,1] and moves it only forward (a stage boundary never reports below the last
 // value seen); the stage is overwritten by the latest non-empty name.
@@ -242,11 +258,20 @@ type Runner struct {
 	started     map[string]time.Time
 	result      map[string]BuildResult
 	progress    map[string]progressInfo // module -> build progress (fraction + stage)
-	cancel      context.CancelFunc // the active build's cancel, or nil
+	priority    map[string][]string     // module -> item keys to build first, most recent first
+	cancel      context.CancelFunc      // the active build's cancel, or nil
 	pumpStarted bool
 	done        chan struct{}
 	kick        chan struct{} // signals the pump that work may be waiting
 	stopOnce    sync.Once
+	// enqueuedTotal and completedTotal (LOCAL-CHANGE (infinite-theater-3d)) count every job
+	// this runner has ever accepted new work for (Enqueue appending to the queue) and ever
+	// finished (runJob, whatever the outcome), across the runner's whole life: Progress()
+	// divides one by the other for the overall fraction the "Optimizing assets" banner shows.
+	// They never reset, so a job enqueued after some have finished (a match fetched mid-run)
+	// only ever grows the total, which is the right direction for an honest fraction.
+	enqueuedTotal  int
+	completedTotal int
 }
 
 // New builds a Runner. build and ready must be non-nil; gameRoot is the deploy root passed
@@ -322,9 +347,47 @@ func (r *Runner) Enqueue(module string) Snapshot {
 		}
 	}
 	r.queue = append(r.queue, module)
+	r.enqueuedTotal++
 	delete(r.cancelled, module)
 	r.kickPumpLocked()
 	return r.snapshotLocked(module)
+}
+
+// Prioritize records that item (an item key inside module's library — a weapon or rig key the
+// viewer just asked for and could not get because the library has not built it yet) should be
+// among the first the library build reaches, moving it to the front of module's recorded
+// priority list (so the most recently requested item is the one still on screen). It is a
+// hint, not a guarantee: a build already past that item, or one that has not started reading
+// priorities yet when Prioritize runs, is unaffected. Calling it for a module with no library
+// build, or on an item that build does not recognize, does nothing but store the hint.
+func (r *Runner) Prioritize(module, item string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.priority == nil {
+		r.priority = map[string][]string{}
+	}
+	list := r.priority[module]
+	out := make([]string, 0, len(list)+1)
+	out = append(out, item)
+	for _, k := range list {
+		if k != item {
+			out = append(out, k)
+		}
+	}
+	const maxPriorityKeys = 64
+	if len(out) > maxPriorityKeys {
+		out = out[:maxPriorityKeys]
+	}
+	r.priority[module] = out
+}
+
+// Progress returns how many jobs this runner has completed and how many it has ever accepted,
+// across its whole life (see enqueuedTotal/completedTotal). total is 0 when nothing has ever
+// been enqueued.
+func (r *Runner) Progress() (done, total int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.completedTotal, r.enqueuedTotal
 }
 
 // kickPumpLocked wakes the pump. The lock must be held (the kick is a non-blocking,
@@ -355,6 +418,9 @@ func (r *Runner) pump() {
 			// solely when the build succeeds (runJob). The build reports through the context.
 			r.progress[module] = progressInfo{}
 			ctx = context.WithValue(ctx, progressKey{}, &progressReporter{r: r, module: module})
+			if pr := r.priority[module]; len(pr) > 0 {
+				ctx = context.WithValue(ctx, priorityKey{}, append([]string(nil), pr...))
+			}
 			// Drain a stray kick so we do not spin: it was for the job we just took.
 			select {
 			case <-r.kick:
@@ -411,6 +477,7 @@ func (r *Runner) runJob(ctx context.Context, module string) {
 	}
 	r.active = ""
 	r.cancel = nil
+	r.completedTotal++
 	r.mu.Unlock()
 }
 

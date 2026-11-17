@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { HomeScreen } from './screens/HomeScreen'
 import { MatchSelectScreen } from './screens/MatchSelectScreen'
 import { MatchViewScreen } from './screens/MatchViewScreen'
+import { OptimizeBanner } from './ui/OptimizeBanner'
 
 export type Route = { name: 'home' } | { name: 'list' } | { name: 'match'; matchId: string }
 
@@ -40,18 +41,16 @@ function navigate(path: string): void {
 export function App() {
   const route = useHashRoute()
 
-  if (route.name === 'match') {
-    return (
-      <MatchViewScreen
-        matchId={route.matchId}
-        onBack={() => navigate('/matches')}
-      />
-    )
-  }
-
-  if (route.name === 'list') {
-    return <MatchSelectScreen />
-  }
-
-  return <HomeScreen />
+  return (
+    <>
+      <OptimizeBanner />
+      {route.name === 'match' ? (
+        <MatchViewScreen matchId={route.matchId} onBack={() => navigate('/matches')} />
+      ) : route.name === 'list' ? (
+        <MatchSelectScreen />
+      ) : (
+        <HomeScreen />
+      )}
+    </>
+  )
 }

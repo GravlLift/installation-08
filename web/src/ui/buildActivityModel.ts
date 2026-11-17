@@ -8,8 +8,12 @@
 import { useEffect, useState } from 'react'
 
 export interface BuildsBody {
-  active: { key: string; label: string; elapsedMs?: number } | null
+  active: { key: string; label: string; elapsedMs?: number; step?: string } | null
   queued: { key: string; label: string }[]
+  /** Across every job the server has ever queued this run (LOCAL-CHANGE (infinite-theater-3d),
+   * OptimizeBanner.tsx): `done` finished jobs plus the active job's own fraction, over
+   * `total`; `fraction` is that already divided, 0 when `total` is 0. */
+  overall?: { done: number; total: number; fraction: number }
 }
 
 export interface BuildActivityView {
@@ -33,7 +37,9 @@ export function buildActivityView(body: BuildsBody | null): BuildActivityView | 
   return { label: body.active.label, queued: queue.length, title: lines.join('\n') }
 }
 
-async function fetchBuilds(signal: AbortSignal): Promise<BuildsBody | null> {
+/** fetchBuilds reads GET /api/builds; exported so OptimizeBanner (optimizeBannerModel.ts)
+ * polls the same endpoint without duplicating the fetch/parse. */
+export async function fetchBuilds(signal: AbortSignal): Promise<BuildsBody | null> {
   try {
     const res = await fetch('/api/builds', { signal })
     if (!res.ok) return null

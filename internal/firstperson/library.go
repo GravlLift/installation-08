@@ -25,6 +25,7 @@ import (
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/parallel"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
@@ -111,11 +112,27 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	// reporter (nil out of band), leaving the tail (arms, index) to the runner's own 1 on success.
 	rep := meshjobs.ProgressFromContext(ctx)
 	total := len(armes)
-	for i, s := range armes {
+	// LOCAL-CHANGE (infinite-theater-3d): the rigs build on a bounded worker pool
+	// (internal/parallel), not one at a time — see docs/CHANGELOG.md "Unreleased" for the
+	// measurement. Each goroutine writes its outcome to its own slot of outcomes (indexed by
+	// its position in armes, never by completion order), so the merge below — which is what
+	// actually appends to idx.Weapons/idx.Rigs and runs single-threaded, after every rig has
+	// been attempted — walks armes in its own original order regardless of dispatch order or
+	// which worker finished first. The build's recorded output (index.json, the rig and
+	// texture files) is therefore identical whatever the dispatch order is, including the
+	// priority order below: a weapon the viewer is waiting on (meshjobs.PriorityFromContext,
+	// set by Prioritize when a match's weapon or rig request 404s) is only reached sooner by a
+	// worker, never recorded differently.
+	outcomes := make([]rigOutcome, total)
+	keyOf := func(i int) string { return fmt.Sprintf("%08x", armes[i].Arme) }
+	order := parallel.PriorityOrder(total, keyOf, meshjobs.PriorityFromContext(ctx))
+	buildErr := parallel.Run(ctx, order, parallel.Workers(), func(done int) {
 		if rep != nil {
-			rep.Report(0.85*float64(i)/float64(total), "rigs")
+			rep.Report(0.85*float64(done)/float64(total), fmt.Sprintf("%d/%d", done, total))
 		}
-		key := fmt.Sprintf("%08x", s.Arme)
+	}, func(ctx context.Context, i int) error {
+		s := armes[i]
+		key := keyOf(i)
 		announce("building first-person rig " + key)
 		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)
 		if err != nil {
@@ -124,18 +141,29 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 				raison = "no_first_person"
 			}
 			slog.WarnContext(ctx, "first-person rig not written", "weapon", key, "reason", raison, "err", err)
-			idx.Failures = append(idx.Failures, Echec{Weapon: key, Reason: raison})
 			if merr := writeMarker(dir, key); merr != nil {
-				return res, fmt.Errorf("marker for %s: %w", key, merr)
+				return fmt.Errorf("marker for %s: %w", key, merr)
 			}
+			outcomes[i] = rigOutcome{key: key, failed: true, reason: raison}
+			return nil
+		}
+		outcomes[i] = rigOutcome{key: key, fichier: fichier, rig: rig, markers: effectMarkers(ctx, a, s)}
+		return nil
+	})
+	if buildErr != nil {
+		return res, buildErr
+	}
+	for _, o := range outcomes {
+		if o.failed {
+			idx.Failures = append(idx.Failures, Echec{Weapon: o.key, Reason: o.reason})
 			res.Skipped++
 			continue
 		}
-		idx.Weapons = append(idx.Weapons, Arme{Weapon: key, File: fichier, EffectMarkers: effectMarkers(ctx, a, s)})
-		if !parFichier[fichier] {
-			parFichier[fichier] = true
-			idx.Rigs = append(idx.Rigs, rig)
-			res.Bytes += rig.Bytes
+		idx.Weapons = append(idx.Weapons, Arme{Weapon: o.key, File: o.fichier, EffectMarkers: o.markers})
+		if !parFichier[o.fichier] {
+			parFichier[o.fichier] = true
+			idx.Rigs = append(idx.Rigs, o.rig)
+			res.Bytes += o.rig.Bytes
 		}
 		res.Built++
 	}
@@ -186,6 +214,18 @@ func ResolveModule(ctx context.Context, opts Options) (string, string, error) {
 	return gameRoot, module, nil
 }
 
+// rigOutcome is one weapon's result from the parallel build pool: either a written rig
+// (fichier, rig, markers) or a failure (reason), keyed by the weapon's key for the merge that
+// follows the pool.
+type rigOutcome struct {
+	key     string
+	fichier string
+	rig     Rig
+	markers []EffectMarker
+	failed  bool
+	reason  string
+}
+
 // buildRig writes one weapon's rig (sharing a file by content digest when already written
 // in this run, or already on disk from a previous run) and returns its file name and index
 // entry. The file name is the content digest of the written rig, so the same index is
@@ -211,7 +251,9 @@ func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, d
 	}
 	// LOCAL-CHANGE (infinite-theater-3d): compress the rig's textures to KTX2 before externalising
 	// the images, so the depot stores KTX2 (not PNG) and the GLB references KHR_texture_basisu.
-	painted, _, err = texcompress.CompressGLB(ctx, painted, texcompress.Options{})
+	// Workers: 1 — the Build loop above already runs many rigs at once on its own worker pool;
+	// texcompress's own internal pool would otherwise oversubscribe the same cores underneath it.
+	painted, _, err = texcompress.CompressGLB(ctx, painted, texcompress.Options{Workers: 1})
 	if err != nil {
 		return "", Rig{}, fmt.Errorf("ktx2: %w", err)
 	}
