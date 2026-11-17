@@ -19,10 +19,10 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "FileDescription", "Infinite Theater 3D"
+            VALUE "FileDescription", "Installation 08"
             VALUE "FileVersion", "0.1.0-dev"
             VALUE "LegalCopyright", "Licensed under AGPL-3.0; see NOTICE.md."
-            VALUE "ProductName", "Infinite Theater 3D"
+            VALUE "ProductName", "Installation 08"
             VALUE "ProductVersion", "0.1.0-dev"
         END
     END

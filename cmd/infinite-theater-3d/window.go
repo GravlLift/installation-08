@@ -24,7 +24,7 @@ const (
 // the About box, and the version resource (resources.rc, which tools\resources.ps1
 // regenerates by reading this constant). Renaming the app is one edit here plus a rerun
 // of that script. The WebView2 user data folder deliberately does NOT derive from it.
-const appDisplayName = "Infinite Theater 3D"
+const appDisplayName = "Installation 08"
 
 // appWindowDataDir is the data dir the running server uses; runServe sets it so the
 // app window's File menu opens the same folder. Empty outside a serve launch.

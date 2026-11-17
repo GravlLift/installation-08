@@ -23,7 +23,7 @@ export function TopBar({ gamertag, onSignIn, crumb, topBarControl }: TopBarProps
   return (
     <>
       <div className="bc-topbar">
-        <div className="bc-mark">Infinite <b>Theater</b> 3D</div>
+        <div className="bc-mark">Installation <b>08</b></div>
         {crumb ? <div className="bc-crumb">{crumb}</div> : null}
         <div className="bc-spacer" />
         {topBarControl}

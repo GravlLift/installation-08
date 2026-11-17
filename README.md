@@ -1,8 +1,8 @@
-# Infinite Theater 3D
+# Installation 08
 
 Rewatch your Halo Infinite matches in full 3D, on your own PC.
 
-Pick a recent match, and Infinite Theater 3D rebuilds it: the real map from your installed game,
+Pick a recent match, and Installation 08 rebuilds it: the real map from your installed game,
 every Spartan in their own armor and coatings, their weapons, grenades and equipment, the kill
 feed, the HUD, and the match's sounds. Then you can watch it from anyone's eyes, over their
 shoulder, or from a free camera anywhere on the map, and export the moment to a video.
