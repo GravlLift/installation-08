@@ -120,6 +120,16 @@ import { replay3DExportEntry, type Replay3DExportSource } from './replay3dExport
 import { createExportHud } from './exportHud'
 import type { ReplayKill } from '../model/killFeedLogic'
 
+declare global {
+  interface Window {
+    /**
+     * The app window's Go close guard (`it3dExportBusy` binding): while an export is running
+     * the window asks before it closes. Absent in a plain browser tab.
+     */
+    it3dExportBusy?: (busy: boolean) => void
+  }
+}
+
 /** Cadence de publication de la progression, en images encodées. */
 const PROGRESS_EVERY = 15
 
@@ -536,6 +546,12 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
       pendingRef.current = null
     }
   }, [])
+
+  // The app window's close guard: while an export is running (`prepare` or `encode`), the
+  // Go side asks before the window closes. Every other phase reports not running.
+  useEffect(() => {
+    window.it3dExportBusy?.(state.phase === 'prepare' || state.phase === 'encode')
+  }, [state.phase])
 
   const cancel = useCallback(() => {
     cancelRef.current = true

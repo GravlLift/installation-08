@@ -95,6 +95,13 @@ func openWindowApp(url string) error {
 		return err
 	}
 	fullScreen := &fullScreenState{}
+	guard := &closeGuard{}
+	// The page reports an export running (or ending) on the it3dExportBusy binding; a
+	// WM_CLOSE while it runs then asks before closing.
+	if err := w.Bind("it3dExportBusy", guard.setBusy); err != nil {
+		w.Destroy()
+		return err
+	}
 	installAppWindowMenu(w, menuActions{
 		openDataFolder: func() error {
 			dir, err := appWindowDataDirNow()
@@ -124,7 +131,7 @@ func openWindowApp(url string) error {
 		reload:     func() { w.Eval("location.reload()") },
 		github:     func() error { return openBrowser(githubURL) },
 		about:      func() { showAboutBox() },
-	})
+	}, guard)
 	w.Navigate(url)
 	w.Run() // returns when the window closes
 	return nil

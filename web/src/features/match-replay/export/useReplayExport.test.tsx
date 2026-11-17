@@ -335,6 +335,22 @@ describe('useReplayExport', () => {
     expect(hook.result.current.state.filename).toBe('replay-m-0m00s-0m00s.mp4')
   })
 
+  it('tells the app window an export is running while it encodes, and done after', async () => {
+    const spy = vi.fn()
+    window.it3dExportBusy = spy
+    try {
+      const { hook } = setup()
+      // Mounted idle: not running.
+      expect(spy).toHaveBeenLastCalledWith(false)
+      await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }))
+      // The guard saw the running phases, and the last word is "done".
+      expect(spy).toHaveBeenCalledWith(true)
+      expect(spy).toHaveBeenLastCalledWith(false)
+    } finally {
+      delete window.it3dExportBusy
+    }
+  })
+
   it('propose par défaut le film entier quand il n’y a pas de cadrage', () => {
     const { hook } = setup()
     // Sans palier transmis, la carte est a 1x : le dialogue ne proposera pas de cadrage.

@@ -234,7 +234,7 @@ func appendSubmenu(bar uintptr, sub uintptr, text string) {
 // entry point for the injected keydown listener. The callback is never released: the
 // window and the process share a lifetime, and releasing it before the window is gone
 // would free live window-procedure code.
-func installAppWindowMenu(w webview2.WebView, a menuActions) {
+func installAppWindowMenu(w webview2.WebView, a menuActions, guard *closeGuard) {
 	hwnd := windows.Handle(w.Window())
 	if menu := createAppMenu(); menu != 0 {
 		_, _, _ = procSetMenu.Call(uintptr(hwnd), uintptr(menu))
@@ -246,6 +246,11 @@ func installAppWindowMenu(w webview2.WebView, a menuActions) {
 			return 0
 		}
 		if msg == wmClose {
+			// While an export is running the close asks first; a No answers the
+			// message and the window stays open.
+			if !guard.closeAllowed(askCloseWhileExportRunning) {
+				return 0
+			}
 			// Remember the placement before the original procedure destroys the window.
 			saveWindowPlacement(captureWindowPlacement(hwnd))
 		}
