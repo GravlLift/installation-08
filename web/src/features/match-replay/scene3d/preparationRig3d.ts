@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * preparationRig3d.ts — LA PRÉPARATION EN FOND DES RIGS DE PREMIÈRE PERSONNE DU JOUEUR SUIVI.
+ * preparationRig3d.ts — THE BACKGROUND PREPARATION OF THE TRACKED PLAYER'S FIRST-PERSON RIGS.
  *
- * Les pièces de bras du joueur (`BrasPieces3d`) et les revêtements des rigs se préparent en fond,
- * un lot à la fois. Chaque revêtement est propre à son fichier et peut être posé seulement s'il
- * couvre tous les matériaux du rig habillé. Un changement de joueur vide la préparation.
+ * The player's arm pieces (`BrasPieces3d`) and the rigs' coats prepare in the background, one
+ * batch at a time. Each coat is specific to its file and can only be applied once it covers all
+ * of the dressed rig's materials. A player change clears the preparation.
  */
 import type * as THREE from 'three'
 
@@ -12,78 +12,78 @@ import type { Coat } from './armorCoat3d'
 import type { SpartanArmory } from './armory3d'
 import { planBras, type BrasIndex } from './brasPieces3d'
 
-/** Les accès que la préparation demande à `BrasPremierePersonne3d`. */
+/** The accesses the preparation asks of `BrasPremierePersonne3d`. */
 export interface SourcePreparation {
-  /** Les fichiers des rigs chargés. */
+  /** The loaded rigs' files. */
   fichiersCharges(): string[]
-  /** Les matériaux de bras d'un rig chargé. */
+  /** A loaded rig's arm materials. */
   materiauxDe(fichier: string): THREE.Material[]
   indexPieces(): Promise<BrasIndex | null>
-  /** La scène d'une pièce de bras, par le cache de `BrasPieces3d`. */
+  /** An arm piece's scene, through `BrasPieces3d`'s cache. */
   piece(fichier: string): Promise<THREE.Object3D | null>
   armurerie(): SpartanArmory | null
   xuid(): string | null
-  /** La clé du modèle de l'arme du rig de fichier `fichier`, null sans modèle chargé pour lui. */
+  /** The weapon model key for file `fichier`'s rig, null with no loaded model for it. */
   cleArmeDe(fichier: string): string | null
 }
 
 /**
- * PreparationRig3d : prépare en fond les rigs du joueur suivi. Les pièces se préchargent une fois
- * par lot (elles sont les mêmes pour tous les rigs) ; la peinture se précalcule par fichier de
- * rig, pour être posée sans attente à la bascule.
+ * PreparationRig3d: prepares the tracked player's rigs in the background. Pieces preload once
+ * per batch (they are the same for every rig); the coat precomputes per rig file, so it can be
+ * applied with no wait at the switch.
  */
 export class PreparationRig3d {
   private readonly source: SourcePreparation
   private readonly coats = new Map<string, Coat>()
-  private fil: string[] = []
-  private enCours = false
+  private queue: string[] = []
+  private running = false
   private generation = 0
 
   constructor(source: SourcePreparation) { this.source = source }
 
-  /** Le revêtement préparé pour un fichier de rig, null sinon (la peinture se calcule à la bascule). */
+  /** The coat prepared for a rig file, null otherwise (the coat computes at the switch). */
   coat(fichier: string): Coat | null { return this.coats.get(fichier) ?? null }
 
   /**
-   * abandonner : le revêtement préparé ne couvre plus les matériaux du rig (une pièce est venue
-   * s'y poser depuis sa préparation) — il ne se pose plus, la peinture se recalcule à la bascule.
+   * abandonner: the prepared coat no longer covers the rig's materials (a piece was placed onto
+   * it since it was prepared) — it no longer applies, the coat recomputes at the switch.
    */
   abandonner(fichier: string): void { this.coats.delete(fichier) }
 
-  /** Le joueur suivi change : prépare ses rigs chargés, et ceux qui chargeront après. */
+  /** The tracked player changes: prepares their loaded rigs, and those that will load after. */
   changerJoueur(): void {
     this.generation++
     this.coats.clear()
-    this.fil = this.source.fichiersCharges()
-    this.poursuivre()
+    this.queue = this.source.fichiersCharges()
+    this.advance()
   }
 
-  /** Un rig vient de charger : il entre dans la file, s'il n'y est pas déjà. */
+  /** A rig just loaded: it enters the queue, if not already in it. */
   rigCharge(fichier: string): void {
-    if (!this.fil.includes(fichier)) this.fil.push(fichier)
-    this.poursuivre()
+    if (!this.queue.includes(fichier)) this.queue.push(fichier)
+    this.advance()
   }
 
-  /** Un lot à la fois ; sans joueur suivi, rien ne se prépare (la file attend). */
-  private poursuivre(): void {
-    if (this.enCours || !this.fil.length || !this.source.xuid()) return
-    this.enCours = true
-    const lot = this.fil.splice(0)
-    const finir = () => { this.enCours = false; this.poursuivre() }
-    void this.preparer(lot).then(finir, finir)
+  /** One batch at a time; with no tracked player, nothing prepares (the queue waits). */
+  private advance(): void {
+    if (this.running || !this.queue.length || !this.source.xuid()) return
+    this.running = true
+    const batch = this.queue.splice(0)
+    const finish = () => { this.running = false; this.advance() }
+    void this.prepare(batch).then(finish, finish)
   }
 
-  private async preparer(lot: string[]): Promise<void> {
+  private async prepare(batch: string[]): Promise<void> {
     const generation = this.generation
-    const armurerie = this.source.armurerie()
+    const armory = this.source.armurerie()
     const xuid = this.source.xuid()
-    if (!armurerie || !xuid) return
+    if (!armory || !xuid) return
     const index = await this.source.indexPieces()
-    if (index) await Promise.all(planBras(index, armurerie.regions(xuid)).map((p) => this.source.piece(p.file)))
-    const habit = armurerie.dress(xuid)
-    if (!habit) return
-    for (const fichier of lot) {
-      const coat = await armurerie.peindreBras(xuid, habit, this.source.materiauxDe(fichier), this.source.cleArmeDe(fichier))
+    if (index) await Promise.all(planBras(index, armory.regions(xuid)).map((p) => this.source.piece(p.file)))
+    const dress = armory.dress(xuid)
+    if (!dress) return
+    for (const fichier of batch) {
+      const coat = await armory.peindreBras(xuid, dress, this.source.materiauxDe(fichier), this.source.cleArmeDe(fichier))
       if (coat && generation === this.generation && this.source.xuid() === xuid) this.coats.set(fichier, coat)
     }
   }
