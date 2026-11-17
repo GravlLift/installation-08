@@ -1,45 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * fallbackMetal3d.ts — LE MÉTAL SOMBRE DES SURFACES SANS TEXTURE (armes, armures, bras).
+ * fallbackMetal3d.ts — THE DARK METAL OF UNTEXTURED SURFACES (weapons, armor, arms).
  *
- * Un matériau d'un modèle d'arme ou d'armure dont le GLB ne porte pas de texture sort à sa teinte
- * de repli, presque blanche. Dans le jeu ces pièces (mécanique, articulations, dessous d'armure)
- * sont en métal sombre : `darkMetalFallback` leur donne cette matière, et un verre sombre aux
- * pièces translucides sans texture (lunette, viseur). Ne sont pas touchés : un matériau texturé
- * ou lumineux (voyant). An untextured alpha-blended field that is not glass (the Energy Sword's
- * blade) is energized instead (`energyField3d`), and a self-lit surface without a color map (a
- * light strip, an ammo screen) is drawn as light only (`selfLit3d`).
+ * A weapon or armor model's material whose GLB carries no texture comes out at its fallback
+ * tint, almost white. In the game these parts (mechanisms, joints, underarmor) are dark metal:
+ * `darkMetalFallback` gives them that material, and dark glass to untextured translucent parts
+ * (scopes, sights). Left untouched: a textured or glowing (lit) material. An untextured
+ * alpha-blended field that is not glass (the Energy Sword's blade) is energized instead
+ * (`energyField3d`), and a self-lit surface without a color map (a light strip, an ammo screen)
+ * is drawn as light only (`selfLit3d`).
  */
 import * as THREE from 'three'
 
 import { energize } from './energyField3d'
 import { lightSelfLit } from './selfLit3d'
 
-/** Le gris métal (linéaire, légèrement bleuté), sa part de métal et sa rugosité. */
+/** The metal gray (linear, slightly blue-tinted), its metalness, and its roughness. */
 export const DARK_METAL = { r: 0.15, g: 0.16, b: 0.18, metalness: 0.55, roughness: 0.5 } as const
 
 /**
- * Le verre sombre des optiques sans texture (lunette, viseur, écran d'arme) : le jeu y affiche une
- * image que la vue ne rend pas ; une vitre presque noire et lisse s'y fond mieux que la teinte de
- * repli claire.
+ * The dark glass of untextured optics (scope, sight, weapon screen): the game displays an image
+ * there that the view does not render; an almost-black, smooth pane blends better there than the
+ * light fallback tint.
  */
 export const DARK_GLASS = { r: 0.012, g: 0.014, b: 0.018, metalness: 0, roughness: 0.12 } as const
 
-/** isPlain : matériau standard sans texture de couleur et sans lumière propre. */
+/** isPlain: a standard material with no color texture and no light of its own. */
 function isPlain(m: THREE.Material): m is THREE.MeshStandardMaterial {
   if (!(m instanceof THREE.MeshStandardMaterial) || m.map) return false
   const glows = m.emissiveIntensity > 0 && (m.emissive.r > 0 || m.emissive.g > 0 || m.emissive.b > 0)
   return !glows && !m.emissiveMap
 }
 
-/** isUntextured : matériau standard opaque, sans texture de couleur et sans lumière propre. */
+/** isUntextured: an opaque standard material, with no color texture and no light of its own. */
 export function isUntextured(m: THREE.Material): m is THREE.MeshStandardMaterial {
   return isPlain(m) && !m.transparent && m.opacity >= 1
 }
 
 /**
- * darkMetalFallback : le métal sombre sur `m` s'il est opaque et sans texture, le verre sombre
- * opaque s'il est translucide et sans texture ; vrai s'il a été changé.
+ * darkMetalFallback: dark metal on `m` if it's opaque and untextured, opaque dark glass if it's
+ * translucent and untextured; true if it was changed.
  */
 export function darkMetalFallback(m: THREE.Material): boolean {
   // An energy field (the Energy Sword's blade: alpha blended, untextured, not glass) is a

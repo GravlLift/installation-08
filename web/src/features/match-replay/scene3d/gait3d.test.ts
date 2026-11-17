@@ -7,13 +7,13 @@ import { buildTracks3d } from './tracks3d'
 
 const FPS = 10
 
-/** Une vie le long de +X Halo à `speed` u/s, un point par image (10 images/s). */
+/** A life along +X Halo at `speed` u/s, one point per frame (10 frames/s). */
 function straight(speed: number, frames: number): GaitPoint[] {
   return Array.from({ length: frames + 1 }, (_, t) => ({ t, x: (speed * t) / FPS, y: 0, g: 0 }))
 }
 
 describe('lifeDistances', () => {
-  it('cumule le trajet au sol, sans compter le saut d’un trou de réplication', () => {
+  it('accumulates the ground path, without counting a replication gap\'s jump', () => {
     const pts: GaitPoint[] = [
       { t: 0, x: 0, y: 0, g: 0 },
       { t: 1, x: 3, y: 4, g: 0 },
@@ -25,7 +25,7 @@ describe('lifeDistances', () => {
 })
 
 describe('bracketAt', () => {
-  it('encadre l’image et tient la position après un trou', () => {
+  it('brackets the frame and holds the position after a gap', () => {
     const pts: GaitPoint[] = [
       { t: 0, x: 0, y: 0, g: 0 },
       { t: 4, x: 4, y: 0, g: 0 },
@@ -39,7 +39,7 @@ describe('bracketAt', () => {
 })
 
 describe('gaitAt', () => {
-  it('mesure la vitesse et la direction du déplacement', () => {
+  it('measures speed and direction of travel', () => {
     const pts: GaitPoint[] = Array.from({ length: 11 }, (_, t) => ({ t, x: 0, y: (-2.5 * t) / FPS, g: 0 }))
     const g = gaitAt(pts, lifeDistances(pts), 6, FPS)
     expect(g.speed).toBeCloseTo(2.5)
@@ -47,19 +47,19 @@ describe('gaitAt', () => {
     expect(g.distance).toBeCloseTo(1.5)
   })
 
-  it('immobile : vitesse nulle', () => {
+  it('motionless: zero speed', () => {
     const pts = straight(0, 10)
     expect(gaitAt(pts, lifeDistances(pts), 5, FPS).speed).toBe(0)
   })
 
-  it('au début de la vie, la fenêtre se raccourcit ; à la première image, vitesse nulle', () => {
+  it('at the start of life, the window shortens; at the first frame, zero speed', () => {
     const pts = straight(2, 10)
     const dist = lifeDistances(pts)
     expect(gaitAt(pts, dist, 0, FPS).speed).toBe(0)
     expect(gaitAt(pts, dist, 1, FPS).speed).toBeCloseTo(2)
   })
 
-  it('le saut d’un trou de réplication ne fait pas courir', () => {
+  it('a replication gap\'s jump does not count as running', () => {
     const pts: GaitPoint[] = [
       { t: 0, x: 0, y: 0, g: 0 },
       { t: 1, x: 0, y: 0, g: 0 },
@@ -69,15 +69,15 @@ describe('gaitAt', () => {
     expect(gaitAt(pts, lifeDistances(pts), 2.5, FPS).speed).toBe(0)
   })
 
-  it('lisse le tremblé sur la fenêtre', () => {
-    // Immobile à 1 cm près, une image sur deux.
+  it('smooths jitter over the window', () => {
+    // Motionless to within 1 cm, every other frame.
     const pts: GaitPoint[] = Array.from({ length: 21 }, (_, t) => ({ t, x: (t % 2) * 0.01, y: 0, g: 0 }))
     const g = gaitAt(pts, lifeDistances(pts), 10, FPS)
     expect(GAIT_WINDOW * FPS).toBe(2)
     expect(g.speed).toBe(0)
   })
 
-  it('la même image rend la même allure, en avant comme en arrière', () => {
+  it('the same frame yields the same gait, forward or backward', () => {
     const pts = straight(2.3, 40)
     const dist = lifeDistances(pts)
     const first = gaitAt(pts, dist, 12.4, FPS)
@@ -95,7 +95,7 @@ describe('Tracks3d.gait', () => {
   })
   const tracks = buildTracks3d(doc)
 
-  it('lit l’allure du joueur à la cadence du document, null hors de sa vie', () => {
+  it('reads the player\'s gait at the document\'s rate, null outside their life', () => {
     const g = tracks.gait('A', 10)
     expect(g?.speed).toBeCloseTo(2)
     expect(g?.distance).toBeCloseTo(2)
