@@ -453,3 +453,76 @@ func TestRunnerActivity(t *testing.T) {
 		t.Fatalf("the queue copy aliases the runner's: %v", q2)
 	}
 }
+
+// TestRunnerPriority — a key Prioritize records for a module reaches that module's build
+// through its context, most recently prioritized first; a module Prioritize was never called
+// for sees no priority list at all.
+func TestRunnerPriority(t *testing.T) {
+	f := newFakeStore(t)
+	var seen []string
+	var mu sync.Mutex
+	r, err := New(func(ctx context.Context, module, gameRoot, out string) (BuildResult, error) {
+		mu.Lock()
+		seen = append(seen, module+":"+joinKeys(PriorityFromContext(ctx)))
+		mu.Unlock()
+		return f.build(ctx, module, gameRoot, out)
+	}, "", f.ready)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	r.Start()
+	defer r.Stop(time.Second)
+
+	r.Prioritize("alpha", "w2")
+	r.Prioritize("alpha", "w1")
+	r.Prioritize("alpha", "w2") // moves back to the front
+	r.Enqueue("alpha")
+	waitState(t, r, "alpha", StateReady)
+	r.Enqueue("beta") // no Prioritize call for this module
+	waitState(t, r, "beta", StateReady)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 2 || seen[0] != "alpha:w2,w1" || seen[1] != "beta:" {
+		t.Fatalf("seen = %v, want [alpha:w2,w1 beta:]", seen)
+	}
+}
+
+func joinKeys(keys []string) string {
+	out := ""
+	for i, k := range keys {
+		if i > 0 {
+			out += ","
+		}
+		out += k
+	}
+	return out
+}
+
+// TestRunnerOverallProgress — Progress starts at 0/0, grows its total as modules are enqueued
+// and its done count as they finish (success or failure both count), and never shrinks.
+func TestRunnerOverallProgress(t *testing.T) {
+	f := newFakeStore(t)
+	f.fail["beta"] = errors.New("boom")
+	r := runnerOf(t, f)
+	if done, total := r.Progress(); done != 0 || total != 0 {
+		t.Fatalf("Progress at rest = %d/%d, want 0/0", done, total)
+	}
+	r.Start()
+	defer r.Stop(2 * time.Second)
+	r.Enqueue("alpha")
+	r.Enqueue("beta")
+	if _, total := r.Progress(); total != 2 {
+		t.Fatalf("total after enqueuing 2 = %d, want 2", total)
+	}
+	waitState(t, r, "alpha", StateReady)
+	waitState(t, r, "beta", StateFailed)
+	if done, total := r.Progress(); done != 2 || total != 2 {
+		t.Fatalf("Progress after both finish = %d/%d, want 2/2", done, total)
+	}
+	// Re-requesting a ready module joins nothing new: the total does not grow.
+	r.Enqueue("alpha")
+	if _, total := r.Progress(); total != 2 {
+		t.Fatalf("total after re-enqueuing ready alpha = %d, want 2", total)
+	}
+}
