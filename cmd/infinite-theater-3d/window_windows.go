@@ -69,18 +69,24 @@ const (
 func openWindowApp(url string) error {
 	applyWebViewEnvDefaults()
 	appOrigin := originOf(url)
+	// The remembered placement, or the default: the standard size, centered.
+	placement, ok := loadWindowPlacement()
+	if !ok {
+		placement = centeredPlacement(appWindowWidth, appWindowHeight)
+	}
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		DataPath: webviewUserDataFolder(),
 		WindowOptions: webview2.WindowOptions{
 			Title:  appWindowTitle,
-			Width:  appWindowWidth,
-			Height: appWindowHeight,
+			Width:  uint(placement.Width),
+			Height: uint(placement.Height),
 		},
 	})
 	if w == nil {
 		return errors.New("the WebView2 runtime could not create the app window")
 	}
 	hwnd := windows.Handle(w.Window())
+	applyWindowPlacement(hwnd, placement)
 	w.Init(externalLinksJS)
 	w.Init(acceleratorJS)
 	bound := func(u string) error { return openExternalURL(u, appOrigin) }

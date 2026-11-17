@@ -245,6 +245,10 @@ func installAppWindowMenu(w webview2.WebView, a menuActions) {
 			a.runMenuCommand(wParam)
 			return 0
 		}
+		if msg == wmClose {
+			// Remember the placement before the original procedure destroys the window.
+			saveWindowPlacement(captureWindowPlacement(hwnd))
+		}
 		r, _, _ := procCallWindowProcW.Call(orig, uintptr(hwnd), uintptr(msg), wParam, lParam)
 		return r
 	})
