@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  app.manifest - the app's PE manifest. It declares long-path awareness, Common Controls
+  v6, and Windows 10. It is embedded after the build: Go links a single default manifest
+  of its own into the exe, and a second name-1 manifest from a .syso would only sit
+  behind it (Windows loads the first one found). tools\embed-manifest.ps1 replaces that
+  default with this file via mt.exe.
+  DPI awareness is deliberately NOT declared here and must not be set at runtime with
+  SetProcessDpiAwarenessContext: on this machine any DPI-aware state (manifest or
+  runtime call) breaks WebView2 controller creation (nil controller, a res=0 panic in
+  go-webview2), while a DPI-unaware process launches fine. Revisit once that WebView2
+  issue is understood; the app is DPI-unaware until then, as it is today.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1"
+    xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="infinite-theater-3d" type="win32" />
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and later. -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32"
+          name="Microsoft.Windows.Common-Controls"
+          version="6.0.0.0"
+          processorArchitecture="*"
+          publicKeyToken="6595b64144ccf1df"
+          language="*" />
+    </dependentAssembly>
+  </dependency>
+</assembly>
