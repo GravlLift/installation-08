@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * equip3d.ts — LE CAMOUFLAGE ET LE SURBOUCLIER SUR LE CORPS : leurs forces à une image, lues dans
- * les épisodes d'équipement du document (`equipmentEpisodes`, par vie).
+ * equip3d.ts — CAMOUFLAGE AND OVERSHIELD ON THE BODY: their strength at a frame, read from the
+ * document's equipment episodes (`equipmentEpisodes`, per life).
  *
- * L'épisode EST la durée de l'effet (`model/equipmentFx.ts`) : rien n'est montré hors de [t0, t1].
- * Dedans, le camouflage se fond en `CAMO_FADE_SECONDS` à son début et revient à la fin (le corps
- * s'efface puis réapparaît, comme dans le jeu) ; le surbouclier s'allume en `OVERSHIELD_FADE_SECONDS`
- * puis tient. Fonction de l'image seule.
+ * The episode IS the effect's duration (`model/equipmentFx.ts`): nothing is shown outside
+ * [t0, t1]. Inside it, camouflage fades in over `CAMO_FADE_SECONDS` at its start and fades back
+ * at the end (the body vanishes then reappears, as in the game); overshield lights up over
+ * `OVERSHIELD_FADE_SECONDS` then holds. A pure function of the frame alone.
  */
 import { EQUIP_FAMILY_CAMO, EQUIP_FAMILY_OVERSHIELD } from '../model/equipmentFx'
 
 export interface EquipFx {
-  /** 0 visible, 1 camouflé. */
+  /** 0 visible, 1 camouflaged. */
   camo: number
-  /** 0 éteint, 1 surbouclier entier. */
+  /** 0 off, 1 full overshield. */
   overshield: number
 }
 
@@ -29,7 +29,7 @@ interface Episode {
   fam: string
 }
 
-/** ramp : la force d'un épisode à l'image `f`, montée en `rise` images, descente en `fall` images. */
+/** ramp: an episode's strength at frame `f`, rising over `rise` frames, falling over `fall` frames. */
 function ramp(e: Episode, f: number, rise: number, fall: number): number {
   if (f < e.t0 || f > e.t1) return 0
   const up = rise > 0 ? (f - e.t0) / rise : 1
@@ -37,7 +37,7 @@ function ramp(e: Episode, f: number, rise: number, fall: number): number {
   return Math.min(1, up, down)
 }
 
-/** equipFxAt : le camouflage et le surbouclier de la vie `slot` à l'image `f` ; écrit dans `out`. */
+/** equipFxAt: the camouflage and overshield of life `slot` at frame `f`; written into `out`. */
 export function equipFxAt(episodes: readonly Episode[], slot: number, f: number, fps: number, out: EquipFx): EquipFx {
   out.camo = 0
   out.overshield = 0

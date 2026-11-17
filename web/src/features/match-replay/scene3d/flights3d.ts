@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * flights3d.ts — LES VOLS ET LES EXPLOSIONS DANS LA SCÈNE 3D : grenades, projectiles de tir
- * (roquettes, mortier...), et ce qui se passe au bout de leur vol.
+ * flights3d.ts — FLIGHTS AND EXPLOSIONS IN THE 3D SCENE: grenades, shot projectiles (rockets,
+ * mortar...), and what happens at the end of their flight.
  *
- * Les vols sont ceux du document (`projectiles`), sur la même fenêtre que la 2D (le vol, puis une
- * courte traîne). Le chemin parcouru (traîne) est un repère d'analyse (`aids3d.projectilePaths`),
- * éteint par défaut : le jeu ne montre que l'objet qui vole. Les explosions sont celles de la 2D
- * (`buildRestFx` : grenades par type, projectiles de tir dont l'arme détone), à la même image
- * (explosion, nappe Dynamo, halo).
+ * Flights are the document's own (`projectiles`), over the same window as the 2D (the flight,
+ * then a short trail). The path travelled (the trail) is an analysis aid
+ * (`aids3d.projectilePaths`), off by default: the game only shows the flying object. Explosions
+ * are the 2D's own (`buildRestFx`: grenades by type, shot projectiles whose weapon detonates),
+ * at the same frame (explosion, Dynamo nappe, halo).
  *
  * THE HEIGHT OF A FLIGHT IS PUBLISHED since schema 126 (`Projectile.z`, one height per point of
  * `p`): the film replicates the object's position on all three axes at ~60 Hz, and the document keeps
@@ -19,16 +19,17 @@
  * An artifact older than schema 126 has no height: it is INTERPOLATED along the distance
  * travelled, from the thrower's hand to the floor under the detonation point (`heightsAlong`).
  *
- * Une détonation se joue comme dans le jeu, en moins d'une seconde (`explosionFx3d`, posée par
- * `explosions3d`) : éclair, boule de feu en bouffées, étincelles, voile de fumée, et une lumière brève
- * qui éclaire la pièce (`flash3d`), fonctions du temps écoulé depuis la détonation publiée. La sphère
- * du rayon de dégâts est un repère d'analyse (`aids3d.blastRadius`), éteint par défaut.
+ * A detonation plays out as in the game, in under a second (`explosionFx3d`, placed by
+ * `explosions3d`): flash, fireball in billows, sparks, a smoke veil, and a brief light that
+ * lights the room (`flash3d`), all functions of the time elapsed since the published
+ * detonation. The damage-radius sphere is an analysis aid (`aids3d.blastRadius`), off by
+ * default.
  *
- * Une grenade dont le modèle du jeu est chargé (`ActionContext.grenadeModel`) le montre à la place
- * de la tête lumineuse, en tournoyant ; posée avant de détoner (vol fini avant l'explosion publiée),
- * elle reste au bout de son vol jusqu'à l'explosion. La grenade plasma n'a pas de modèle : elle
- * montre son ORBE LUMINEUSE (cœur bleu-blanc, halo bleu saturé, pulsé par le temps ;
- * `grenadeLook3d`), en vol comme posée.
+ * A grenade whose game model is loaded (`ActionContext.grenadeModel`) shows it in place of the
+ * glowing head, tumbling; placed before it detonates (flight finished before the published
+ * explosion), it stays at the end of its flight until the explosion. The plasma grenade has no
+ * model: it shows its GLOWING ORB (blue-white core, saturated blue halo, pulsed over time;
+ * `grenadeLook3d`), in flight as much as at rest.
  *
  * A PROJECTILE THAT STICKS (schema 128, `Projectile.attach`) stops replicating its position: the film
  * names what it is stuck to instead, a node of the parent and its offset in that node's frame. From
@@ -55,21 +56,21 @@ import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { MUZZLE_HEIGHT } from './body3d'
 import { toThree } from './tracks3d'
 
-// Le vol reste visible brièvement après son dernier point (la traîne de la 2D).
+// A flight stays briefly visible after its last point (the 2D's own trail).
 const TAIL_FRAMES = 7
 const TRAIL_RADIUS = 0.01
 const HEAD_RADIUS = 0.05
-// Au sol, l'objet repose sur sa face, pas sur son centre.
+// On the ground, the object rests on its face, not its center.
 const REST_LIFT = 0.08
-/** Le rayon de dégâts d'une explosion (u, ~3,4 m), celui de la 2D : le repère d'analyse le montre. */
+/** An explosion's damage radius (u, ~3.4 m), the 2D's own: the analysis aid shows it. */
 export const BLAST_RADIUS = 1.1
-/** La sphère du rayon de dégâts tient une seconde, et s'efface. */
+/** The damage-radius sphere holds for one second, and fades out. */
 const BLAST_RADIUS_SECONDS = 1
 const NAPPE_RADIUS = 0.9
 const HALO_RADIUS = 0.3
-// La lumière d'une détonation éclaire la pièce sur ~18 m.
+// A detonation's light lights the room over ~18 m.
 const DETONATION_LIGHT_RANGE = 6
-// La couleur de cette lumière : la teinte de la déflagration mêlée de blanc incandescent.
+// This light's color: the blast's tint mixed with incandescent white.
 const DETONATION_CORE_MIX = 0.35
 
 // The grenade tumbles by the distance it travels (rad per unit, about two turns a second at a
@@ -79,19 +80,19 @@ const SPIN_AXIS = new THREE.Vector3(1, 0, 0.4).normalize()
 
 interface Flight {
   t0: number
-  /** Image absolue de chaque point. */
+  /** Absolute frame of each point. */
   at: number[]
   pts: THREE.Vector3[]
   /** The distance travelled up to each point (u), for the tumble. */
   dist: number[]
   end: number
-  /** Image de l'explosion publiée (`Projectile.detoT`). */
+  /** Frame of the published explosion (`Projectile.detoT`). */
   detoT: number
-  /** Le rang de la grenade lancée, null pour un projectile de tir. */
+  /** The thrown grenade's rank, null for a shot projectile. */
   grenade: number | null
-  /** La forme du vol (`grenadeLook3d`) : le modèle du jeu, ou l'orbe plasma. */
+  /** The flight's shape (`grenadeLook3d`): the game model, or the plasma orb. */
   look: GrenadeFlightLook
-  /** Le rayon du cœur de l'orbe (u), quand le vol en est une. */
+  /** The orb's core radius (u), when the flight is one. */
   orbRadius: number
   tint: FxTint
   /**
@@ -113,13 +114,13 @@ interface Blast {
 export class Flights3dLayer implements ActionLayer3d {
   private readonly trails: SegmentPool
   private readonly heads: InstancePool
-  /** Les cœurs des orbes plasma (additifs). */
+  /** Plasma orbs' cores (additive). */
   private readonly plasmaCore: InstancePool
-  /** Les halos des orbes plasma (additifs, plus larges, plus assourdis). */
+  /** Plasma orbs' halos (additive, wider, more muted). */
   private readonly plasmaHalo: InstancePool
   private readonly blasts: InstancePool
   private readonly nappes: InstancePool
-  /** Les sphères du rayon de dégâts (repère d'analyse). */
+  /** Damage-radius spheres (analysis aid). */
   private readonly radii: InstancePool
   private readonly explosions: Explosions3d
   private readonly pools: readonly { begin(): void; end(): void; dispose(): void }[]
@@ -173,7 +174,7 @@ export class Flights3dLayer implements ActionLayer3d {
     const fps = Math.max(1, inputs.framesPerSecond)
     const ink = (tint: FxTint) => this.ctx.ink.of(inputs.inks.fx.tint[tint] || inputs.inks.fx.core)
     const grenadeInk = this.ctx.ink.of(inputs.inks.grenade)
-    // Les vols : ceux partis depuis la plus longue durée de vol possible, triés par départ.
+    // Flights: those that started within the longest possible flight duration, sorted by start.
     for (let i = firstFrom(this.flights, (f) => f.t0, frame - this.maxSpan); i < this.flights.length; i++) {
       const f = this.flights[i]
       if (f.t0 > frame) break
@@ -203,7 +204,7 @@ export class Flights3dLayer implements ActionLayer3d {
     this.models.dispose()
   }
 
-  /** drawDetonation : l'explosion (`explosions3d`) et sa lumière, `age` secondes après elle. */
+  /** drawDetonation: the explosion (`explosions3d`) and its light, `age` seconds after it. */
   private drawDetonation(b: Blast, age: number, tint: THREE.Color, core: THREE.Color): void {
     const style = blastStyleOf(b.tint)
     this.explosions.add(b.at, style, age, b.rest.seed, { core, tint })
@@ -211,7 +212,7 @@ export class Flights3dLayer implements ActionLayer3d {
     if (light > 0) this.ctx.flashes.add(b.at, this.flashInk.copy(tint).lerp(core, DETONATION_CORE_MIX), light, DETONATION_LIGHT_RANGE)
   }
 
-  /** drawFlight : le projectile en vol ; son chemin parcouru seulement si le tiroir le demande (`paths`). */
+  /** drawFlight: the projectile in flight; its traveled path only if the drawer asks for it (`paths`). */
   private drawFlight(f: Flight, frame: number, color: THREE.Color, { fps, paths }: { fps: number; paths: boolean }): void {
     const model = f.look === 'model' && f.grenade !== null ? this.ctx.grenadeModel(f.grenade) : null
     let i = 1
@@ -220,12 +221,12 @@ export class Flights3dLayer implements ActionLayer3d {
     }
     if (f.attach && frame >= f.attach.from && frame <= f.detoT && this.drawAttached(f, frame, model, color, fps)) return
     if (frame > f.end) {
-      // Posée avant de détoner : la grenade attend l'explosion au bout de son vol.
+      // Placed before it detonates: the grenade waits for the explosion at the end of its flight.
       if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps)
       else if (model && frame <= f.detoT) this.models.add(model, f.pts[f.pts.length - 1], this.spin(f.dist[f.dist.length - 1]))
       return
     }
-    // La tête : interpolée entre le dernier point passé et le suivant.
+    // The head: interpolated between the last point passed and the next.
     const head = flightPointAt(f.at, f.pts, frame, this.p)
     if (paths) this.trails.add(f.pts[i - 1], head, TRAIL_RADIUS, color)
     if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps)
@@ -253,8 +254,8 @@ export class Flights3dLayer implements ActionLayer3d {
   }
 
   /**
-   * drawPlasmaOrb : la grenade plasma, en vol ou posée — un cœur bleu-blanc et un halo bleu
-   * saturé, additifs, pulsés par le temps (`grenadeLook3d.plasmaPulse`). A shot projectile drawn
+   * drawPlasmaOrb: the plasma grenade, in flight or at rest — a blue-white core and a saturated
+   * blue halo, additive, pulsed over time (`grenadeLook3d.plasmaPulse`). A shot projectile drawn
    * as an orb (`SHOT_ORB_RADIUS`, the fuel rod) takes its own tint and radius, in flight only.
    */
   private drawPlasmaOrb(f: Flight, at: THREE.Vector3, frame: number, fps: number): void {
@@ -272,29 +273,29 @@ export class Flights3dLayer implements ActionLayer3d {
     return this.q.setFromAxisAngle(SPIN_AXIS, dist * GRENADE_SPIN_PER_UNIT)
   }
 
-  /** drawBlast : la nappe Dynamo ou le halo d'une fin de vol sans détonation, `u` dans [0, 1] sur sa durée. */
+  /** drawBlast: the Dynamo nappe or the halo of a flight's end with no detonation, `u` in [0, 1] over its duration. */
   private drawBlast(b: Blast, u: number, color: THREE.Color): void {
     if (b.kind === 'nappe') {
       this.nappes.add(b.at, null, new THREE.Vector3(NAPPE_RADIUS, 1, NAPPE_RADIUS), color)
       return
     }
-    // Gonfle vite, puis retombe : le halo se lit comme un éclat, pas comme un objet.
+    // Swells fast, then falls back: the halo reads as a flash, not an object.
     const r = HALO_RADIUS * (u < 0.15 ? u / 0.15 : 1 - ((u - 0.15) / 0.85) * 0.8)
     this.blasts.add(b.at, null, r, color)
   }
 }
 
-/** Le tireur ou le lanceur d'un vol, et la nature de ce qu'il a tiré. */
+/** A flight's shooter or thrower, and the nature of what they fired. */
 interface FlightOwner {
   slot: number
-  /** Le rang de la grenade lancée, null pour un tir. */
+  /** The thrown grenade's rank, null for a shot. */
   grenade: number | null
   tint: FxTint
   /** The weapon key of the shot (`WeaponLabel.key`), undefined for a grenade. */
   key?: string
 }
 
-/** lastFrame : la dernière image où un vol se dessine (sa traîne, ou sa grenade posée). */
+/** lastFrame: the last frame where a flight is drawn (its trail, or its grenade at rest). */
 function lastFrame(f: Flight): number {
   return Math.max(f.end + TAIL_FRAMES, f.grenade !== null || f.attach ? f.detoT : 0)
 }
@@ -424,7 +425,7 @@ function flightValueAt(at: readonly number[], values: readonly number[], frame: 
   return values[i] + (values[i + 1] - values[i]) * u
 }
 
-/** heightsAlong : les points du vol en axes three, la hauteur répartie sur la distance parcourue. */
+/** heightsAlong: the flight's points in three axes, the height spread over the distance travelled. */
 export function heightsAlong(steps: readonly (readonly number[])[], start: number, end: number): THREE.Vector3[] {
   const cum = [0]
   for (let i = 1; i < steps.length; i++) {
@@ -441,7 +442,7 @@ function buildBlasts(ctx: ActionContext, flights: readonly Flight[]): Blast[] {
   const doc = ctx.doc
   const holdBlast = Math.max(1, msToFrames(GRENADE_REST_HOLD_MS, doc))
   const holdNappe = Math.max(1, msToFrames(DYNAMO_REST_HOLD_MS, doc))
-  // Le bout de chaque vol, par image d'explosion : l'explosion se pose à la hauteur où le vol finit.
+  // The end of each flight, by explosion frame: the explosion is placed at the height the flight ends.
   const endsByFrame = new Map<number, THREE.Vector3[]>()
   for (const f of flights) endsByFrame.set(f.detoT, [...(endsByFrame.get(f.detoT) ?? []), f.pts[f.pts.length - 1]])
   return buildRestFx(doc).map((rest) => {
