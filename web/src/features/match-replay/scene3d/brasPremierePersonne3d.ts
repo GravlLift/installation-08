@@ -117,6 +117,8 @@ export class BrasPremierePersonne3d {
   private visible: THREE.Object3D | null = null
   private readonly mainMonde = new THREE.Vector3()
   private cleVisible: string | null = null
+  /** Why the last `ancreEffet` failed (review: the idle effects console hook), null when it succeeded. */
+  anchorMiss: string | null = null
   private armurerie: SpartanArmory | null = null
   private xuid: string | null = null
   private readonly preparation: PreparationRig3d
@@ -392,14 +394,24 @@ export class BrasPremierePersonne3d {
    * sits on both fins). False when that weapon's rig is not the one shown, or lacks the marker or its bone.
    */
   ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4, instance = 0): boolean {
-    if (!this.visible || this.cleVisible !== cle) return false
+    this.anchorMiss = null
+    if (!this.visible || this.cleVisible !== cle) {
+      this.anchorMiss = `rig shown: ${this.visible ? this.cleVisible : 'none'}`
+      return false
+    }
     const m = this.marqueursEffets.get(cle)?.filter((x) => x.marker === marqueur)[instance]
-    if (!m) return false
+    if (!m) {
+      this.anchorMiss = `no marker ${marqueur} #${instance} on rig ${cle} (${this.marqueursEffets.get(cle)?.length ?? 0} markers)`
+      return false
+    }
     let os = this.osEffets.get(this.visible)
     if (!os) this.osEffets.set(this.visible, (os = new Map()))
     if (!os.has(m.bone)) os.set(m.bone, this.visible.getObjectByName(m.bone) ?? null)
     const bone = os.get(m.bone)
-    if (!bone) return false
+    if (!bone) {
+      this.anchorMiss = `no bone ${m.bone} on rig ${cle}`
+      return false
+    }
     bone.updateWorldMatrix(true, false)
     const q = m.rotation
     BAC_MARQUEUR.makeRotationFromQuaternion(q ? MARKER_QUAT.set(q[0], q[1], q[2], q[3]) : MARKER_QUAT.identity())

@@ -401,11 +401,16 @@ const AT = new THREE.Vector3()
  */
 export interface IdleEffectDebugRow {
   key: string
+  /** The holder: its film slot and player. */
+  slot: number
+  xuid: string
   location: string
   instance: number
   firstPerson: boolean
   particles: number
   marker: [number, number, number]
+  /** A first-person system whose rig anchor failed (particles -1): why. */
+  miss?: string
 }
 
 declare global {
@@ -487,8 +492,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const clipS = (action: string) => this.ctx.weaponClipSeconds?.(key, action) ?? null
       const reloading = !!line && reloadingAt(line.reloads, f, fps, clipS('reload_full'), line.shots)
       const seed = this.slotSeed.get(track.slot) ?? 0
-      // The magazine of the weapon in hand: the film's last read of its slot, carried forward; full
-      // before the life's first read.
+      // The magazine of the weapon in hand: full at spawn, then the film's readings, shots and reloads.
       const hand = armeEnMain(this.ctx.doc, track.slot, f)
       const atMs = frameToMs(f, this.ctx.doc)
       const magazine = hand && line ? this.magazineEvents(line, hand.slotArme, clipS, atMs, fps) : []
@@ -506,7 +510,11 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
           const anchors = e.markers[s.location]?.length ?? 0
           for (let m = 0; m < anchors; m++) {
             if (firstPerson) {
-              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR, m)) return
+              if (!this.ctx.firstPersonEffectAnchor?.(key, s.location, ANCHOR, m)) {
+                // Listed, with no particles: the rig shown is not this weapon's, or lacks the marker or its bone.
+                this.debugRows.push({ key: debugKey, slot: track.slot, xuid: track.xuid ?? '', location: s.location, instance: m, firstPerson, particles: -1, marker: [0, 0, 0], miss: this.ctx.firstPersonAnchorMiss?.() ?? 'unknown' })
+                return
+              }
             } else {
               // The marker's frame on the model: its position, then its rotation (the Heatwave's fins turn
               // their marker a quarter about up, so the vent points out of them).
@@ -518,7 +526,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
             simulateSystem(s, t, seed * 64 + m, ei * 32 + si, { ...scales, cameraDistance: 0 }, this.particles)
             for (const p of this.particles) this.write(pool, p)
             AT.setFromMatrixPosition(ANCHOR)
-            this.debugRows.push({ key: debugKey, location: s.location, instance: m, firstPerson, particles: this.particles.length, marker: [AT.x, AT.y, AT.z] })
+            this.debugRows.push({ key: debugKey, slot: track.slot, xuid: track.xuid ?? '', location: s.location, instance: m, firstPerson, particles: this.particles.length, marker: [AT.x, AT.y, AT.z] })
           }
         })
       })

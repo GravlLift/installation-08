@@ -144,6 +144,9 @@ describe('WeaponIdleEffects3dLayer', () => {
     const hidden = await layerFor({ firstPerson: true, anchor: false })
     hidden.layer.update(50)
     expect(hidden.drawnCount('fp')).toBe(0)
+    // The console hook lists the system with no particles, and its holder.
+    const rows = (window as unknown as { __it3dIdleEffects?: { key: string; slot: number; particles: number }[] }).__it3dIdleEffects ?? []
+    expect(rows).toContainEqual(expect.objectContaining({ key: '1a22fee6:1e471031:0', slot: 512, particles: -1 }))
     hidden.layer.dispose()
   })
 
