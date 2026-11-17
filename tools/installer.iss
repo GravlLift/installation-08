@@ -7,11 +7,11 @@
 ;                            NOTICE.md, README.md, tools, third_party)
 ;
 ; The install is per-user (no administrator prompt) into
-; {localappdata}\Programs\Infinite Theater 3D. The uninstaller removes the
+; {localappdata}\Programs\Installation 08. The uninstaller removes the
 ; installed files only; the user's data folder
 ; (%LOCALAPPDATA%\infinite-theater-3d) is never touched.
 
-#define MyAppName "Infinite Theater 3D"
+#define MyAppName "Installation 08"
 #define MyAppPublisher "llampwall"
 #define MyAppURL "https://github.com/llampwall/infinite-theater-3d"
 ; Fixed for all versions of this installer: updates are detected by this id, not by the
@@ -26,7 +26,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={localappdata}\Programs\Infinite Theater 3D
+DefaultDirName={localappdata}\Programs\Installation 08
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile={#PackageDir}\LICENSE

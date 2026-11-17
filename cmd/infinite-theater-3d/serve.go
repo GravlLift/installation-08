@@ -158,7 +158,7 @@ func runServe(args []string) error {
 		return <-coreErr
 	}
 	if f.open {
-		fmt.Printf("\nInfinite Theater 3D is running at %s\nKeep this window open while you use the viewer. Close it to stop.\n\n", urlForAddr(addr))
+		fmt.Printf("\n%s is running at %s\nKeep this window open while you use the viewer. Close it to stop.\n\n", appDisplayName, urlForAddr(addr))
 		openOnListen(ctx, addr)
 	}
 	return serveCore(ctx, srv, ln, addr, dataDir)

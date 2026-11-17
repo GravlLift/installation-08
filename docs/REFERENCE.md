@@ -1,6 +1,6 @@
 # Reference
 
-How Infinite Theater 3D works underneath: its commands, the one-time builds, the local
+How Installation 08 works underneath: its commands, the one-time builds, the local
 server's routes, where data lives, and how the sounds and coatings are extracted from the game.
 For installing and using the app, see the [README](../README.md).
 
@@ -244,7 +244,7 @@ per release file in standard `sha256sum` format (`<lowercase hex>  <file name>`)
 With `-Installer` the script also compiles a Windows installer (Inno Setup 6) from
 `tools\installer.iss` and writes `dist\infinite-theater-3d-<version>-setup.exe`. The installer
 is per-user (no administrator prompt) and installs the release folder to
-`%LOCALAPPDATA%\Programs\Infinite Theater 3D`: it shows the license, offers a Start menu
+`%LOCALAPPDATA%\Programs\Installation 08`: it shows the license, offers a Start menu
 shortcut (always) and a desktop shortcut (optional, off by default), and asks whether to launch
 the program at the end. Uninstalling removes the installed files only; the data folder
 (`%LOCALAPPDATA%\infinite-theater-3d`) is never touched. The script finds `ISCC.exe` on `PATH`

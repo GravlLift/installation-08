@@ -55,8 +55,8 @@ $rc = @"
 // manifest into every exe, and a second name-1 manifest would only sit behind it.
 // tools\embed-manifest.ps1 replaces the default with app.manifest after the build.
 
-// App icon: add here, once the name and the artwork are chosen, as
-// 1 ICON "app.ico"
+// App icon: resource ID 1, so Explorer and the taskbar use it as the exe's own icon.
+1 ICON "../../assets/icon/installation-08.ico"
 
 1 VERSIONINFO
 FILEVERSION $fileVersion
