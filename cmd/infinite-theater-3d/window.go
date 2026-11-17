@@ -20,6 +20,12 @@ const (
 	uiBrowser = "browser"
 )
 
+// appDisplayName is the ONE place the app's display name is written: the window title,
+// the About box, and the version resource (resources.rc, which tools\resources.ps1
+// regenerates by reading this constant). Renaming the app is one edit here plus a rerun
+// of that script. The WebView2 user data folder deliberately does NOT derive from it.
+const appDisplayName = "Infinite Theater 3D"
+
 // defaultUIFor is the --ui default for an OS: the app's own window on Windows (the
 // WebView2 runtime ships with the system), the default browser elsewhere.
 func defaultUIFor(goos string) string {

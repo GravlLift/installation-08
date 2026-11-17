@@ -7,12 +7,23 @@ import (
 	"runtime"
 
 	webview2 "github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
 )
+
+var procSetProcessDpiAwarenessContext = windows.NewLazySystemDLL("user32.dll").NewProc("SetProcessDpiAwarenessContext")
+
+// dpiAwarenessContextPerMonitorAwareV2 is user32's Dpi_Awareness_Context value for
+// per-monitor-v2 awareness: the signed handle -4.
+const dpiAwarenessContextPerMonitorAwareV2 = ^uintptr(3)
 
 func init() {
 	// The webview's window and its message loop must live on the main OS thread for the
 	// whole process lifetime.
 	runtime.LockOSThread()
+	// The app manifest (app.manifest, embedded via rsrc_windows_amd64.syso) declares
+	// per-monitor-v2 DPI awareness; this is the belt-and-braces fallback for a build
+	// without it. Its failure (Windows 8.1 and older) is ignored.
+	_, _, _ = procSetProcessDpiAwarenessContext.Call(dpiAwarenessContextPerMonitorAwareV2)
 }
 
 // webviewUserDataFolder is the ONE fixed user data folder of the app window's WebView2
@@ -44,13 +55,13 @@ func applyWebViewEnvDefaults() {
 	}
 }
 
-// openWindow opens url in the app's own window (titled "Infinite Theater 3D", 1600x900,
+// openWindow opens url in the app's own window (titled appDisplayName, 1600x900,
 // resizable) and blocks until the window closes. It is a variable so tests replace it; no
 // test ever opens a real window.
 var openWindow = openWindowApp
 
 const (
-	appWindowTitle  = "Infinite Theater 3D"
+	appWindowTitle  = appDisplayName
 	appWindowWidth  = 1600
 	appWindowHeight = 900
 )
