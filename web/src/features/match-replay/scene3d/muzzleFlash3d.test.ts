@@ -12,7 +12,7 @@ import { MUZZLE_FLASH_SECONDS, flashPetals, flashRoll, muzzleFlashSite, muzzleFl
 import { aimDirThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
 
-/** Un modèle d'arme de test : la boîte du BR75 tenu, poignée à l'origine, canon le long de X. */
+/** A test weapon model: the held BR75's box, grip at the origin, barrel along X. */
 function rifle(): THREE.Group {
   const g = new THREE.Group()
   g.add(new THREE.Mesh(new THREE.BoxGeometry(0.308, 0.1, 0.024).translate(0.144, 0.02, 0), new THREE.MeshBasicMaterial()))
@@ -25,7 +25,7 @@ const held = { color: new THREE.Color(1, 1, 1) }
 const vec = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2])
 
 describe('muzzleFlashStrength', () => {
-  it('dure une à deux images à 60 Hz : pleine au tir, plus faible à la seconde, éteinte ensuite', () => {
+  it('lasts one to two frames at 60 Hz: full at the shot, weaker on the second, off after', () => {
     expect(MUZZLE_FLASH_SECONDS).toBeCloseTo(2 / 60)
     expect(muzzleFlashStrength(-0.001)).toBe(0)
     expect(muzzleFlashStrength(0)).toBe(1)
@@ -38,11 +38,11 @@ describe('muzzleFlashStrength', () => {
 })
 
 describe('flashRoll', () => {
-  it('tire un angle du germe : stable, dans [0, 2π), sans parenté entre germes voisins', () => {
+  it('draws an angle from the seed: stable, within [0, 2π), unrelated between neighboring seeds', () => {
     expect(flashRoll(825)).toBe(flashRoll(825))
     const rolls = Array.from({ length: 50 }, (_, i) => flashRoll(800 + i))
     expect(rolls.every((r) => r >= 0 && r < 2 * Math.PI)).toBe(true)
-    // Les tirs d'une rafale ont des germes consécutifs : leurs gerbes ne tournent pas d'un degré.
+    // A burst's shots have consecutive seeds: their bursts do not rotate by just one degree.
     const steps = rolls.slice(1).map((r, i) => Math.abs(r - rolls[i]))
     expect(steps.filter((d) => d < THREE.MathUtils.degToRad(5)).length).toBeLessThan(5)
   })
@@ -52,7 +52,7 @@ describe('flashPetals', () => {
   const barrel = new THREE.Vector3(1, 0.2, -0.4).normalize()
   const tipOf = (p: FlashPetal) => new THREE.Vector3(0, 1, 0).applyQuaternion(p.rotation)
 
-  it('ouvre la gerbe vers l’avant du canon, petite (pas une boule)', () => {
+  it('opens the burst toward the front of the barrel, small (not a ball)', () => {
     const petals = flashPetals(barrel, 1, 825, [])
     expect(petals.length).toBeGreaterThan(4)
     for (const p of petals) {
@@ -62,7 +62,7 @@ describe('flashPetals', () => {
     }
   })
 
-  it('tourne avec le germe, pas avec l’image : la même image rend la même gerbe', () => {
+  it('rotates with the seed, not the frame: the same frame renders the same burst', () => {
     const a = flashPetals(barrel, 0.7, 825, []).map(tipOf)
     const b = flashPetals(barrel, 0.7, 825, []).map(tipOf)
     const c = flashPetals(barrel, 0.7, 826, []).map(tipOf)
@@ -71,11 +71,11 @@ describe('flashPetals', () => {
   })
 })
 
-describe('muzzleFlashSite : jamais de gerbe hors d’un canon dessiné', () => {
+describe('muzzleFlashSite: never a burst outside a drawn barrel', () => {
   const pos = new THREE.Vector3()
   const barrel = new THREE.Vector3()
 
-  it('sans arme dessinée ou pour un tir de véhicule, pas de gerbe', () => {
+  it('with no drawn weapon or for a vehicle\'s shot, no burst', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
     placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, true)
     showWeapon(a, held, null, viewGripOf(null))
@@ -86,7 +86,7 @@ describe('muzzleFlashSite : jamais de gerbe hors d’un canon dessiné', () => {
     expect(muzzleFlashSite(true, drawnWeapon(a), pos, barrel)).toBe(false)
   })
 
-  it('un joueur caché (à bord en 1re personne, hors vie) ne dessine pas d’arme', () => {
+  it('a hidden player (aboard in first person, not alive) draws no weapon', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
     placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, false)
     showWeapon(a, held, rifle(), null)
@@ -95,7 +95,7 @@ describe('muzzleFlashSite : jamais de gerbe hors d’un canon dessiné', () => {
     expect(drawnWeapon(a)).toBeNull()
   })
 
-  it('en 1re personne, la gerbe est au bout du canon dessiné, devant l’œil mais hors de son axe', () => {
+  it('in first person, the burst is at the end of the drawn barrel, ahead of the eye but off its axis', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
     const gun = rifle()
     placeBody(a, FEET, { h: 40, p: -10, crouch: false, dropOeil: 0 }, true)
@@ -104,13 +104,13 @@ describe('muzzleFlashSite : jamais de gerbe hors d’un canon dessiné', () => {
     const eye = FEET.clone().setY(FEET.y + EYE_HEIGHT)
     const dir = vec(aimDirThree(40, -10))
     const ahead = pos.clone().sub(eye)
-    // Devant l'œil, le long de la visée, mais sous et à droite de son axe : jamais au centre de l'écran.
+    // Ahead of the eye, along the aim, but below and to the right of its axis: never at screen center.
     expect(ahead.dot(dir)).toBeGreaterThan(0.25)
     expect(ahead.clone().addScaledVector(dir, -ahead.dot(dir)).length()).toBeGreaterThan(0.05)
     expect(barrel.angleTo(dir)).toBeLessThan(THREE.MathUtils.degToRad(5))
   })
 
-  it('en 3e personne, la gerbe suit le modèle porté par la main du Spartan', () => {
+  it('in third person, the burst follows the model held by the Spartan\'s hand', () => {
     const source = spartanSkeleton()
     registerSpartanClips(source, fixtureClips(source))
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
@@ -127,26 +127,26 @@ describe('muzzleFlashSite : jamais de gerbe hors d’un canon dessiné', () => {
   })
 })
 
-describe('rigFlashSite : la gerbe de 1re personne à la bouche du rig', () => {
+describe('rigFlashSite: the first-person burst at the rig\'s muzzle', () => {
   const from = new THREE.Vector3(0, 1.6, 0)
   const to = new THREE.Vector3(10, 1.6, -5)
   const pos = new THREE.Vector3()
   const barrel = new THREE.Vector3()
 
-  it('la gerbe est à l’origine du vol, le long de sa direction', () => {
+  it('the burst is at the flight\'s origin, along its direction', () => {
     expect(rigFlashSite(true, { from, to }, pos, barrel)).toBe(true)
     expect(pos.distanceTo(from)).toBeLessThan(1e-12)
     expect(barrel.distanceTo(to.clone().sub(from).normalize())).toBeLessThan(1e-12)
   })
 
-  it('jamais de gerbe hors d’une bouche dessinée : sans rig dessiné, sans cap', () => {
+  it('never a burst outside a drawn muzzle: with no drawn rig, with no heading', () => {
     expect(rigFlashSite(false, { from, to }, pos, barrel)).toBe(false)
     expect(rigFlashSite(true, { from, to: null }, pos, barrel)).toBe(false)
   })
 })
 
-describe('drawnMuzzle et viewMuzzle', () => {
-  it('lit la bouche et le canon dans la pose du modèle dessiné', () => {
+describe('drawnMuzzle and viewMuzzle', () => {
+  it('reads the muzzle and barrel from the drawn model\'s pose', () => {
     const gun = rifle()
     const copy = gun.clone()
     const holder = new THREE.Group()
@@ -156,12 +156,12 @@ describe('drawnMuzzle et viewMuzzle', () => {
     const pos = new THREE.Vector3()
     const barrel = new THREE.Vector3()
     drawnMuzzle({ model: copy, source: gun }, pos, barrel)
-    // Tourné d'un quart de tour autour de Y : le canon (X) part vers -Z.
+    // Rotated a quarter turn around Y: the barrel (X) now points toward -Z.
     expect(barrel.distanceTo(new THREE.Vector3(0, 0, -1))).toBeLessThan(1e-9)
     expect(pos.distanceTo(new THREE.Vector3(1, 2.02, 3 - 0.298))).toBeLessThan(1e-6)
   })
 
-  it('l’origine du vol en 1re personne est la bouche que la vue dessine, debout comme accroupi', () => {
+  it('the first-person flight\'s origin is the muzzle the view draws, standing as well as crouched', () => {
     for (const [h, p, crouch] of [[0, 0, false], [75, 30, false], [210, -45, true]] as const) {
       const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
       const gun = rifle()

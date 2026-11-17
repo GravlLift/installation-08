@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * cssColor.ts — une couleur CSS résolue (jeton de thème) en couleur three.
+ * cssColor.ts — a resolved CSS color (theme token) turned into a three.js color.
  *
- * Les encres du rejeu viennent des jetons du thème et peuvent être écrites dans une notation que
- * three ne lit pas (oklch, variables résolues). Le navigateur, lui, les lit toutes : on peint un
- * pixel et on relit ses composantes sRGB.
+ * The replay's inks come from theme tokens and may be written in a notation three.js cannot read
+ * (oklch, resolved variables). The browser, though, reads all of them: we paint a pixel and read
+ * its sRGB components back.
  */
 import * as THREE from 'three'
 
-// Un pixel hors écran, créé à la première lecture : il ne peint rien de visible.
+// An off-screen pixel, created on first read: it paints nothing visible.
 const makeProbe = () => document.createElement('canvas').getContext('2d', { willReadFrequently: true })
 let probe: ReturnType<typeof makeProbe> | undefined
 

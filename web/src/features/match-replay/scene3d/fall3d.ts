@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * fall3d.ts — LA CHUTE DU CORPS À LA MORT : les clips de mort du jeu, fonction du temps écoulé depuis
- * la mort, dans une allure que la source du kill du fil choisit.
+ * fall3d.ts — THE BODY'S FALL AT DEATH: the game's death clips, a function of the time elapsed
+ * since death, in a style chosen by the thread kill's source.
  *
- * Le jeu n'a pas de chute debout (ses morts sont une chute EN L'AIR, `airborne_dead`, et l'arrivée
- * au sol, `landing_dead`, chacune de face et de dos) : le corps passe de la pose debout (attente au
- * fusil) ou, projeté, de la chute en l'air, à l'arrivée au sol par un fondu sur la durée de la chute,
- * puis l'arrivée se joue (rebond, corps qui se pose). De face ou de dos selon l'impulsion (du tueur
- * vers la victime quand les deux positions sont relues, vers l'arrière de la victime sinon) relative
- * à la face de la victime ; le corps tourne pendant la chute pour tomber le long de l'impulsion, la
- * racine glisse le long d'elle et s'envole pour les projections.
+ * The game has no standing fall (its deaths are a fall IN THE AIR, `airborne_dead`, and the
+ * ground landing, `landing_dead`, each front and back): the body goes from the standing pose
+ * (rifle idle) or, if thrown, from the airborne fall, to the ground landing through a crossfade
+ * over the fall's duration, then the landing plays out (bounce, body settling). Front or back
+ * depending on the impulse (from the killer to the victim when both positions can be read, toward
+ * the victim's back otherwise) relative to the victim's facing; the body rotates during the fall
+ * to land along the impulse, its root slides along it and launches for thrown kills.
  *
- * Le style (`FallKind`) vient du kill : l'écrasement (vignette `killfeed-60`,
- * `libs/film/killicon/splatter.go`) et l'explosion (grenades `killfeed-46..49`, bobines
- * `killfeed-42..45`, familles `explosive` / `bomb`) projettent le corps, la mêlée (vignette
- * `killfeed-65`, famille `melee`) le pousse, le tir à la tête le fait s'effondrer sur place ; une
- * balle le fait tomber.
+ * The style (`FallKind`) comes from the kill: a splatter (thumbnail `killfeed-60`,
+ * `libs/film/killicon/splatter.go`) and an explosion (grenades `killfeed-46..49`, launchers
+ * `killfeed-42..45`, families `explosive` / `bomb`) throw the body, melee (thumbnail
+ * `killfeed-65`, family `melee`) pushes it, a headshot makes it collapse in place; a bullet makes
+ * it fall.
  *
- * Aucune mémoire : la chute ne dépend que du temps et du style.
+ * No memory: the fall depends only on time and style.
  */
 import * as THREE from 'three'
 
@@ -30,18 +30,18 @@ import { smoothstep, type ClipCatalog } from './clipSelect3d'
 
 export type FallKind = 'shot' | 'headshot' | 'melee' | 'blast' | 'splatter'
 
-/** La vignette d'écrasement du fil (`libs/film/killicon/splatter.go`). */
+/** The thread's splatter thumbnail (`libs/film/killicon/splatter.go`). */
 const SPLATTER_SPRITE = 'killfeed-60'
 const BLAST_FAMILIES: ReadonlySet<ShotFamily> = new Set(['explosive', 'bomb'])
 
 interface FallStyle {
-  /** Durée de la chute jusqu'au sol (s). */
+  /** Duration of the fall to the ground (s). */
   seconds: number
-  /** Le glissement du corps le long de l'impulsion (u). */
+  /** The body's slide along the impulse (u). */
   slide: number
-  /** L'envol au milieu de la chute (u). */
+  /** The launch at the midpoint of the fall (u). */
   hop: number
-  /** Projeté : la chute part de la chute en l'air du jeu, pas de la pose debout. */
+  /** Thrown: the fall starts from the game's airborne fall, not the standing pose. */
   thrown: boolean
 }
 
@@ -53,7 +53,7 @@ const STYLES: Readonly<Record<FallKind, FallStyle>> = {
   splatter: { seconds: 0.6, slide: 1.4, hop: 0.35, thrown: true },
 }
 
-/** Les clips de mort du jeu et la pose debout d'où part une chute qui n'est pas une projection. */
+/** The game's death clips and the standing pose a non-thrown fall starts from. */
 export const DEATH_CLIPS = {
   standing: 'combat:rifle:idle',
   airborne: 'combat:any:airborne_dead',
@@ -62,14 +62,14 @@ export const DEATH_CLIPS = {
   landingBack: 'combat:landing_dead_back',
 } as const
 
-/** La chute à un instant : sa part faite (0 à 1), le glissement et l'envol de la racine (u). */
+/** The fall at an instant: its progress (0 to 1), the root's slide and lift (u). */
 export interface FallPose {
   u: number
   slide: number
   lift: number
 }
 
-/** fallKindOf : le style de chute qu'un kill du fil appelle, `family` lue dans `doc.killEffects`. */
+/** fallKindOf: the fall style a thread kill calls for, `family` read from `doc.killEffects`. */
 export function fallKindOf(k: Pick<ReplayKill, 'weaponImageUrl' | 'headshot'>, family: ShotFamily): FallKind {
   const stem = killSourceSpriteStem(k.weaponImageUrl)
   if (stem === SPLATTER_SPRITE) return 'splatter'
@@ -79,12 +79,12 @@ export function fallKindOf(k: Pick<ReplayKill, 'weaponImageUrl' | 'headshot'>, f
   return k.headshot === true ? 'headshot' : 'shot'
 }
 
-/** fallSeconds : la durée de la chute d'un style (au-delà, le corps est au sol). */
+/** fallSeconds: a style's fall duration (past that, the body is on the ground). */
 export function fallSeconds(kind: FallKind): number {
   return STYLES[kind].seconds
 }
 
-/** fallPose : la chute `t` secondes après la mort ; debout avant, au sol après sa durée. */
+/** fallPose: the fall `t` seconds after death; standing before, on the ground after its duration. */
 export function fallPose(t: number, kind: FallKind, out: FallPose): FallPose {
   const s = STYLES[kind]
   const u = Math.min(1, Math.max(0, t / s.seconds))
@@ -94,21 +94,21 @@ export function fallPose(t: number, kind: FallKind, out: FallPose): FallPose {
   return out
 }
 
-/** fallPlacement : où poser la racine du corps (axes three) : aux pieds `at`, glissée le long de l'impulsion `dir` et levée. */
+/** fallPlacement: where to place the body's root (three.js axes): at feet `at`, slid along impulse `dir` and raised. */
 export function fallPlacement(at: THREE.Vector3, dir: THREE.Vector3, p: FallPose, pos: THREE.Vector3): void {
   pos.copy(at).addScaledVector(dir, p.slide)
   pos.y += p.lift
 }
 
-/** fallsBackward : l'impulsion `dir` (horizontale, axes three) va-t-elle vers le dos d'une victime au cap `facing` (axes three) ? */
+/** fallsBackward: does impulse `dir` (horizontal, three.js axes) point toward the back of a victim heading `facing` (three.js axes)? */
 export function fallsBackward(dir: THREE.Vector3, facing: THREE.Vector3): boolean {
   return dir.dot(facing) < 0
 }
 
 /**
- * fallHeading : le cap du corps (degrés) à la part `u` de la chute : celui de la victime `h` au
- * départ, tourné pendant la chute pour que le corps tombe le long de l'impulsion `dir` (axes three) :
- * face vers elle, ou dos vers elle s'il tombe de dos (le plus court des deux, un quart de tour au plus).
+ * fallHeading: the body's heading (degrees) at fall progress `u`: the victim's heading `h` at the
+ * start, rotated during the fall so the body lands along impulse `dir` (three.js axes): facing
+ * it, or back to it if falling backward (whichever is shorter, at most a quarter turn).
  */
 export function fallHeading(h: number, dir: THREE.Vector3, backward: boolean, u: number): number {
   const s = backward ? -1 : 1
@@ -118,9 +118,9 @@ export function fallHeading(h: number, dir: THREE.Vector3, backward: boolean, u:
 }
 
 /**
- * deathMix écrit dans `out` les clips du corps `t` secondes après la mort : la pose de départ
- * (debout, ou chute en l'air pour une projection) fondue vers l'arrivée au sol pendant la chute,
- * puis l'arrivée jouée depuis la fin de la chute. Rend `out` (vide sans les clips de mort).
+ * deathMix writes to `out` the body's clips `t` seconds after death: the starting pose (standing,
+ * or the airborne fall for a thrown kill) crossfaded to the ground landing over the fall, then
+ * the landing played from the end of the fall. Returns `out` (empty with no death clips).
  */
 export function deathMix(t: number, kind: FallKind, backward: boolean, cat: ClipCatalog, out: ClipMix): ClipMix {
   const s = STYLES[kind]

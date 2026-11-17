@@ -5,8 +5,8 @@ import * as THREE from 'three'
 import { tightenBounds } from './mapModel'
 
 describe('tightenBounds', () => {
-  it("mesure les bornes sur les sommets de l'index, pas sur le tampon partagé", () => {
-    // Deux triangles éloignés dans un même tampon ; la surface n'indexe que le premier.
+  it('measures bounds over the index\'s vertices, not the shared buffer', () => {
+    // Two triangles far apart in the same buffer; the surface indexes only the first.
     const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 100, 100, 100, 101, 100, 100, 100, 101, 100])
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -20,7 +20,7 @@ describe('tightenBounds', () => {
     expect(geometry.boundingSphere!.center.toArray()).toEqual([0.5, 0.5, 0])
   })
 
-  it('laisse une géométrie sans index telle quelle', () => {
+  it('leaves a geometry with no index as-is', () => {
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3))
     tightenBounds(geometry)

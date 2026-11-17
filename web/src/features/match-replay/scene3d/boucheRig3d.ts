@@ -1,122 +1,123 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * boucheRig3d.ts — LA BOUCHE DU RIG DE 1RE PERSONNE (bras + arme animés), une fois par rig.
+ * boucheRig3d.ts — THE FIRST-PERSON RIG'S MUZZLE (animated arms + weapon), measured once per rig.
  *
- * Les tirs de 1re personne partent du canon que la caméra dessine : le rig animé, posé par
- * `BrasPremierePersonne3d.placer`. Son point de bouche et l'axe de son canon se mesurent UNE FOIS,
- * à la pose idle (l'image où le rig se repose), dans le repère du PORTEUR (l'espace des enfants de
- * `porteur`, avant la tenue et avant la caméra). `boucheRigCamera` le transforme ensuite en repère
- * CAMÉRA exactement comme `appliquerTenueRig` + `placer` le font pour une caméra à l'origine immobile
- * : aucun calcul ne se répète par tir ni par image, et l'effet d'un tir reste le même en rebobinant.
+ * First-person shots leave from the barrel the camera draws: the animated rig, placed by
+ * `BrasPremierePersonne3d.placer`. Its muzzle point and barrel axis are measured ONCE, at the idle
+ * pose (the frame where the rig is at rest), in the CARRIER's frame (the space of `porteur`'s
+ * children, before the grip and before the camera). `boucheRigCamera` then transforms it into the
+ * CAMERA frame exactly as `appliquerTenueRig` + `placer` do for a camera held still at the origin:
+ * no computation repeats per shot or per frame, and a shot's effect stays the same when rewound.
  *
- * Les maillages du rig dont aucun matériau n'est un bras (`estMateriauBras` faux) sont l'arme : la
- * bouche est le devant de leurs sommets, sur une tranche de ~3 cm le long du canon (la même idée que
- * `muzzleOfModel`). Les pièces de bras posées ensuite (`actualiserPieces`) sont des maillages de bras,
- * elles en sont écartées.
+ * The rig's meshes whose materials are never an arm (`estMateriauBras` false) are the weapon: the
+ * muzzle is the front of their vertices, over a ~3cm slice along the barrel (the same idea as
+ * `muzzleOfModel`). Arm pieces placed afterward (`actualiserPieces`) are arm meshes, and are
+ * excluded from the measurement.
  */
 import * as THREE from 'three'
 
 import { ROTATION_RIG_CAMERA } from './premierePersonne3d'
 import type { ViewGrip } from './viewGrip3d'
 
-// La tranche avant du canon dont le centre des sommets fait la bouche (u, ~3 cm, comme MUZZLE_SLICE).
-const BOUCHE_TRANCHE = 0.01
-// Le nombre maximal de sommets lus par maillage (pas d'échantillonnage) : la mesure est une fois.
-const BOUCHE_PAS_MAX = 5000
+// The barrel's front slice whose vertex centroid makes the muzzle (u, ~3cm, like MUZZLE_SLICE).
+const MUZZLE_SLICE = 0.01
+// The maximum number of vertices read per mesh (no sub-sampling): the measurement happens once.
+const MUZZLE_MAX_STEP = 5000
 
-// Bacs à sable partagés : aucun sommet n'est stocké, tout se passe dans ces vecteurs.
-const BAC_SOMMET = new THREE.Vector3()
-const BAC_RELA = new THREE.Matrix4()
-const BAC_MAILLAGE = new THREE.Matrix4()
-const BAC_AXE = new THREE.Vector3()
-// L'axe du canon dans le repère du rig quand l'index ne le donne pas : l'avant de la caméra
-// (0,0,-1) ramené dans le repère du rig (l'inverse de ROTATION_RIG_CAMERA).
-const AXE_PAR_DEFAUT = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().copy(ROTATION_RIG_CAMERA).invert())
-const BAC_DEPLACEMENT = new THREE.Vector3()
-// L'axe de visée du rig (repère caméra, -Z vers l'avant) : le roulis de la tenue y tourne autour.
-const AXE_AVANT = new THREE.Vector3(0, 0, -1)
-const BAC_ROULIS = new THREE.Quaternion()
+// Shared scratch buffers: no vertex is stored, everything happens in these vectors.
+const SCRATCH_VERTEX = new THREE.Vector3()
+const SCRATCH_RELATIVE = new THREE.Matrix4()
+const SCRATCH_MESH = new THREE.Matrix4()
+const SCRATCH_AXIS = new THREE.Vector3()
+// The barrel axis in the rig's frame when the index does not provide one: the camera's forward
+// (0,0,-1) brought back into the rig's frame (the inverse of ROTATION_RIG_CAMERA).
+const DEFAULT_AXIS = new THREE.Vector3(0, 0, -1).applyQuaternion(new THREE.Quaternion().copy(ROTATION_RIG_CAMERA).invert())
+const SCRATCH_OFFSET = new THREE.Vector3()
+// The rig's aim axis (camera frame, -Z forward): the grip's roll rotates around it.
+const FORWARD_AXIS = new THREE.Vector3(0, 0, -1)
+const SCRATCH_ROLL = new THREE.Quaternion()
 
 /**
- * boucheRig : la bouche et l'axe du canon d'un rig, dans le repère du PORTEUR (les enfants de
- * `porteur`, dont `root`), mesurés sur les maillages d'ARMES (aucun matériau de bras) à la pose
- * courante du rig (l'idle, où le rig a fini de charger).
- * - `root` : la scène du rig (`entree.root`), enfant de `porteur` ; ses matrices monde doivent être
- *   celles de la pose (`updateMatrixWorld` est appelé ici).
- * - `isArm` : un matériau de bras ; un maillage dont un seul matériau est un bras est un bras.
- * - `axeRig` : l'axe du canon dans le repère du RIG (`rig.idleWeapon.forward`), normalisé ; null :
- *   l'axe qui pointe loin de l'œil une fois le rig posé (l'inverse de ROTATION_RIG_CAMERA sur -Z).
- * - `out` : `{ bouche, axe }` remplis dans le repère du porteur. Faux si aucun maillage d'arme.
+ * boucheRig: a rig's muzzle and barrel axis, in the CARRIER's frame (the children of `porteur`,
+ * including `root`), measured on the WEAPON meshes (no arm material), at the rig's current pose
+ * (the idle pose, once the rig has finished loading).
+ * - `root`: the rig's scene (`entree.root`), a child of `porteur`; its world matrices must be
+ *   those of the pose (`updateMatrixWorld` is called here).
+ * - `isArm`: an arm material; a mesh with even one arm material counts as an arm.
+ * - `axeRig`: the barrel axis in the RIG's frame (`rig.idleWeapon.forward`), normalized; null:
+ *   the axis pointing away from the eye once the rig is placed (the inverse of
+ *   ROTATION_RIG_CAMERA on -Z).
+ * - `out`: `{ bouche, axe }` filled in the carrier's frame. False if there is no weapon mesh.
  */
 export function boucheRig(
   root: THREE.Object3D,
   porteur: THREE.Object3D,
-  isArm: (materiau: THREE.Material) => boolean,
+  isArm: (material: THREE.Material) => boolean,
   axeRig: THREE.Vector3 | null,
   out: { bouche: THREE.Vector3; axe: THREE.Vector3 },
 ): boolean {
   root.updateMatrixWorld(true)
   porteur.updateMatrixWorld(true)
-  const versPorteur = BAC_RELA.copy(porteur.matrixWorld).invert()
-  const axe = BAC_AXE.copy(axeRig ?? AXE_PAR_DEFAUT).normalize()
+  const toCarrier = SCRATCH_RELATIVE.copy(porteur.matrixWorld).invert()
+  const axis = SCRATCH_AXIS.copy(axeRig ?? DEFAULT_AXIS).normalize()
   let front = -Infinity
-  const somme = new THREE.Vector3()
-  // Premier tour : le plus avant le long du canon ; deuxième tour : la tranche de ce front.
+  const sum = new THREE.Vector3()
+  // First pass: the furthest point along the barrel; second pass: that front's slice.
   let n = 0
-  for (const passe of [0, 1]) {
-    if (passe === 1 && front === -Infinity) return false
-    somme.set(0, 0, 0)
+  for (const pass of [0, 1]) {
+    if (pass === 1 && front === -Infinity) return false
+    sum.set(0, 0, 0)
     n = 0
     root.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return
-      const materiaux = Array.isArray(o.material) ? o.material : [o.material]
-      if (materiaux.some(isArm)) return
-      // Sommet local du maillage -> monde -> repère du porteur.
-      const rel = BAC_MAILLAGE.multiplyMatrices(versPorteur, o.matrixWorld)
+      const materials = Array.isArray(o.material) ? o.material : [o.material]
+      if (materials.some(isArm)) return
+      // Mesh-local vertex -> world -> carrier's frame.
+      const rel = SCRATCH_MESH.multiplyMatrices(toCarrier, o.matrixWorld)
       const pos = (o.geometry as THREE.BufferGeometry).getAttribute('position')
-      const pas = Math.max(1, Math.ceil(pos.count / BOUCHE_PAS_MAX))
-      for (let i = 0; i < pos.count; i += pas) {
-        const v = BAC_SOMMET
+      const stride = Math.max(1, Math.ceil(pos.count / MUZZLE_MAX_STEP))
+      for (let i = 0; i < pos.count; i += stride) {
+        const v = SCRATCH_VERTEX
         if (o instanceof THREE.SkinnedMesh) o.getVertexPosition(i, v)
         else v.fromBufferAttribute(pos, i)
         v.applyMatrix4(rel)
-        const t = v.dot(axe)
-        if (passe === 0) {
+        const t = v.dot(axis)
+        if (pass === 0) {
           if (t > front) front = t
-        } else if (t >= front - BOUCHE_TRANCHE) {
-          somme.add(v)
+        } else if (t >= front - MUZZLE_SLICE) {
+          sum.add(v)
           n++
         }
       }
     })
   }
   if (n === 0) return false
-  out.bouche.copy(somme).divideScalar(n)
-  // La bouche est au DEVANT du canon : le point de la tranche est poussé sur son plan frontal.
-  out.bouche.addScaledVector(axe, front - out.bouche.dot(axe))
-  out.axe.copy(axe)
+  out.bouche.copy(sum).divideScalar(n)
+  // The muzzle sits in FRONT of the barrel: the slice's point is pushed onto its front plane.
+  out.bouche.addScaledVector(axis, front - out.bouche.dot(axis))
+  out.axe.copy(axis)
   return true
 }
 
 /**
- * boucheRigCamera : la bouche d'un rig (repère du porteur, `st`) en repère CAMÉRA (x à droite, y en
- * haut, -z vers l'avant), composée exactement comme `appliquerTenueRig` + `placer` le font pour une
- * caméra à l'origine immobile : le point tourné de `ROTATION_RIG_CAMERA`, plus le roulis de la tenue
- * autour du canon (comme `appliquerTenueRig`), plus la translation de la tenue (x, y, -z).
- * `out` est rempli, sans allocation par appel.
+ * boucheRigCamera: a rig's muzzle (carrier's frame, `st`) in the CAMERA frame (x to the right, y
+ * up, -z forward), composed exactly as `appliquerTenueRig` + `placer` do for a camera held still
+ * at the origin: the point rotated by `ROTATION_RIG_CAMERA`, plus the grip's roll around the
+ * barrel (as `appliquerTenueRig` does), plus the grip's translation (x, y, -z).
+ * `out` is filled, with no allocation per call.
  */
-export function boucheRigCamera(st: { bouche: THREE.Vector3; axe: THREE.Vector3 }, tenue: ViewGrip, out: THREE.Vector3): THREE.Vector3 {
+export function boucheRigCamera(st: { bouche: THREE.Vector3; axe: THREE.Vector3 }, grip: ViewGrip, out: THREE.Vector3): THREE.Vector3 {
   out.copy(st.bouche).applyQuaternion(ROTATION_RIG_CAMERA)
-  if (tenue.roll) out.applyQuaternion(BAC_ROULIS.setFromAxisAngle(AXE_AVANT, tenue.roll))
-  if (tenue.x || tenue.y || tenue.z) out.add(BAC_DEPLACEMENT.set(tenue.x, tenue.y, -tenue.z))
+  if (grip.roll) out.applyQuaternion(SCRATCH_ROLL.setFromAxisAngle(FORWARD_AXIS, grip.roll))
+  if (grip.x || grip.y || grip.z) out.add(SCRATCH_OFFSET.set(grip.x, grip.y, -grip.z))
   return out
 }
 
 /**
- * La bouche et l'axe du canon dans le repère LOCAL de l'objet qui porte la bouche : le maillage pour
- * un maillage simple, l'os dont la tranche avant cumule le plus de poids de peau pour un
- * `SkinnedMesh`. C'est le point et l'axe qui suivent le rig à mesure qu'il est animé et posé :
- * `boucheMondeRig` les ramène en monde à l'image rendue.
+ * The muzzle and barrel axis in the LOCAL frame of the object carrying the muzzle: the mesh for a
+ * plain mesh, the bone whose front slice carries the most skin weight for a `SkinnedMesh`. This
+ * is the point and axis that follow the rig as it is animated and posed: `boucheMondeRig` brings
+ * them back to world space at the rendered frame.
  */
 export interface BoucheLocale {
   porteurLocal: THREE.Object3D
@@ -125,99 +126,99 @@ export interface BoucheLocale {
 }
 
 /**
- * boucheRigLocale : la bouche et l'axe du canon d'un rig, exprimés dans le repère LOCAL de l'objet
- * qui porte la bouche (maillage, ou l'os porteur dominant d'un `SkinnedMesh`), à la pose courante.
- * Les maillages d'arme sont ceux dont aucun matériau n'est un bras (`isArm`) ; sans maillage d'arme,
- * faux. Mesurée une fois au chargement, comme `boucheRig` : `out` est rempli, sans contrainte
- * d'allocation (la mesure est un chargement, pas une image).
+ * boucheRigLocale: a rig's muzzle and barrel axis, expressed in the LOCAL frame of the object
+ * carrying the muzzle (a mesh, or the dominant carrier bone of a `SkinnedMesh`), at the current
+ * pose. Weapon meshes are those with no arm material (`isArm`); with no weapon mesh, false.
+ * Measured once at load time, like `boucheRig`: `out` is filled, with no allocation constraint
+ * (the measurement happens at load, not per frame).
  */
 export function boucheRigLocale(
   root: THREE.Object3D,
   porteur: THREE.Object3D,
-  isArm: (materiau: THREE.Material) => boolean,
+  isArm: (material: THREE.Material) => boolean,
   axeRig: THREE.Vector3 | null,
   out: BoucheLocale,
 ): boolean {
   root.updateMatrixWorld(true)
   porteur.updateMatrixWorld(true)
-  const versPorteur = BAC_RELA.copy(porteur.matrixWorld).invert()
-  const axe = BAC_AXE.copy(axeRig ?? AXE_PAR_DEFAUT).normalize()
-  const estArme = (o: THREE.Mesh) => (Array.isArray(o.material) ? o.material : [o.material]).every((m) => !isArm(m))
-  const sommetLocal = (o: THREE.Mesh, i: number, v: THREE.Vector3, rel: THREE.Matrix4): THREE.Vector3 => {
+  const toCarrier = SCRATCH_RELATIVE.copy(porteur.matrixWorld).invert()
+  const axis = SCRATCH_AXIS.copy(axeRig ?? DEFAULT_AXIS).normalize()
+  const isWeapon = (o: THREE.Mesh) => (Array.isArray(o.material) ? o.material : [o.material]).every((m) => !isArm(m))
+  const localVertex = (o: THREE.Mesh, i: number, v: THREE.Vector3, rel: THREE.Matrix4): THREE.Vector3 => {
     if (o instanceof THREE.SkinnedMesh) o.getVertexPosition(i, v)
     else v.fromBufferAttribute((o.geometry as THREE.BufferGeometry).getAttribute('position'), i)
     return v.applyMatrix4(rel)
   }
-  // Premier tour : le plus avant le long du canon (repère du porteur).
+  // First pass: the furthest point along the barrel (carrier's frame).
   let front = -Infinity
-  const v = BAC_SOMMET
+  const v = SCRATCH_VERTEX
   root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || !estArme(o)) return
-    const rel = BAC_MAILLAGE.multiplyMatrices(versPorteur, o.matrixWorld)
+    if (!(o instanceof THREE.Mesh) || !isWeapon(o)) return
+    const rel = SCRATCH_MESH.multiplyMatrices(toCarrier, o.matrixWorld)
     const pos = (o.geometry as THREE.BufferGeometry).getAttribute('position')
-    const pas = Math.max(1, Math.ceil(pos.count / BOUCHE_PAS_MAX))
-    for (let i = 0; i < pos.count; i += pas) {
-      if (sommetLocal(o, i, v, rel).dot(axe) > front) front = v.dot(axe)
+    const stride = Math.max(1, Math.ceil(pos.count / MUZZLE_MAX_STEP))
+    for (let i = 0; i < pos.count; i += stride) {
+      if (localVertex(o, i, v, rel).dot(axis) > front) front = v.dot(axis)
     }
   })
   if (front === -Infinity) return false
-  // Deuxième tour : la tranche avant — l'objet porteur est celui dont la tranche cumule le plus de
-  // poids (nombre de sommets pour un maillage, somme des poids de peau pour un os).
-  const poids = new Map<THREE.Object3D, number>()
+  // Second pass: the front slice — the carrier object is the one whose slice carries the most
+  // weight (vertex count for a mesh, sum of skin weights for a bone).
+  const weight = new Map<THREE.Object3D, number>()
   root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || !estArme(o)) return
-    const rel = BAC_MAILLAGE.multiplyMatrices(versPorteur, o.matrixWorld)
+    if (!(o instanceof THREE.Mesh) || !isWeapon(o)) return
+    const rel = SCRATCH_MESH.multiplyMatrices(toCarrier, o.matrixWorld)
     const pos = (o.geometry as THREE.BufferGeometry).getAttribute('position')
-    const pas = Math.max(1, Math.ceil(pos.count / BOUCHE_PAS_MAX))
+    const stride = Math.max(1, Math.ceil(pos.count / MUZZLE_MAX_STEP))
     if (o instanceof THREE.SkinnedMesh) {
-      const os = o.geometry.getAttribute('skinIndex') as THREE.BufferAttribute
-      const w = o.geometry.getAttribute('skinWeight') as THREE.BufferAttribute
-      for (let i = 0; i < pos.count; i += pas) {
-        if (sommetLocal(o, i, v, rel).dot(axe) < front - BOUCHE_TRANCHE) continue
+      const boneIndices = o.geometry.getAttribute('skinIndex') as THREE.BufferAttribute
+      const boneWeights = o.geometry.getAttribute('skinWeight') as THREE.BufferAttribute
+      for (let i = 0; i < pos.count; i += stride) {
+        if (localVertex(o, i, v, rel).dot(axis) < front - MUZZLE_SLICE) continue
         for (let k = 0; k < 4; k++) {
-          const osPorteur = o.skeleton.bones[os.getX(i + k)]
-          if (osPorteur) poids.set(osPorteur, (poids.get(osPorteur) ?? 0) + w.getX(i + k))
+          const bone = o.skeleton.bones[boneIndices.getX(i + k)]
+          if (bone) weight.set(bone, (weight.get(bone) ?? 0) + boneWeights.getX(i + k))
         }
       }
     } else {
       let n = 0
-      for (let i = 0; i < pos.count; i += pas) if (sommetLocal(o, i, v, rel).dot(axe) >= front - BOUCHE_TRANCHE) n++
-      if (n > 0) poids.set(o, (poids.get(o) ?? 0) + n)
+      for (let i = 0; i < pos.count; i += stride) if (localVertex(o, i, v, rel).dot(axis) >= front - MUZZLE_SLICE) n++
+      if (n > 0) weight.set(o, (weight.get(o) ?? 0) + n)
     }
   })
-  let porteurLocal: THREE.Object3D | null = null
-  let poidsMax = 0
-  for (const [p, w] of poids) if (w > poidsMax) { poidsMax = w; porteurLocal = p }
-  if (!porteurLocal) return false
-  // Le centre de la tranche qui appartient à ce porteur, repoussé sur son plan frontal.
-  const centre = new THREE.Vector3()
+  let localCarrier: THREE.Object3D | null = null
+  let maxWeight = 0
+  for (const [p, w] of weight) if (w > maxWeight) { maxWeight = w; localCarrier = p }
+  if (!localCarrier) return false
+  // The center of the slice that belongs to this carrier, pushed onto its front plane.
+  const center = new THREE.Vector3()
   let n = 0
   root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || !estArme(o)) return
-    const porte = o === porteurLocal || (o instanceof THREE.SkinnedMesh && (o.skeleton.bones as THREE.Object3D[]).includes(porteurLocal))
-    if (!porte) return
-    const rel = BAC_MAILLAGE.multiplyMatrices(versPorteur, o.matrixWorld)
+    if (!(o instanceof THREE.Mesh) || !isWeapon(o)) return
+    const belongs = o === localCarrier || (o instanceof THREE.SkinnedMesh && (o.skeleton.bones as THREE.Object3D[]).includes(localCarrier))
+    if (!belongs) return
+    const rel = SCRATCH_MESH.multiplyMatrices(toCarrier, o.matrixWorld)
     const pos = (o.geometry as THREE.BufferGeometry).getAttribute('position')
-    const pas = Math.max(1, Math.ceil(pos.count / BOUCHE_PAS_MAX))
-    for (let i = 0; i < pos.count; i += pas) if (sommetLocal(o, i, v, rel).dot(axe) >= front - BOUCHE_TRANCHE) { centre.add(v); n++ }
+    const stride = Math.max(1, Math.ceil(pos.count / MUZZLE_MAX_STEP))
+    for (let i = 0; i < pos.count; i += stride) if (localVertex(o, i, v, rel).dot(axis) >= front - MUZZLE_SLICE) { center.add(v); n++ }
   })
   if (n === 0) return false
-  centre.divideScalar(n)
-  centre.addScaledVector(axe, front - centre.dot(axe))
-  // Repasse le point et l'axe dans le repère local du porteur (l'inverse de son passage au porteur).
-  // `versPorteur` vit dans BAC_RELA : le produit se fait dans un autre bac.
-  const matLocal = BAC_MAILLAGE.multiplyMatrices(versPorteur, porteurLocal.matrixWorld).invert()
-  out.porteurLocal = porteurLocal
-  out.point.copy(centre).applyMatrix4(matLocal)
-  out.axe.copy(axe).transformDirection(matLocal)
+  center.divideScalar(n)
+  center.addScaledVector(axis, front - center.dot(axis))
+  // Brings the point and axis back into the carrier's local frame (the inverse of its pass to the carrier).
+  // `toCarrier` lives in SCRATCH_RELATIVE: the product happens in a different scratch buffer.
+  const localMatrix = SCRATCH_MESH.multiplyMatrices(toCarrier, localCarrier.matrixWorld).invert()
+  out.porteurLocal = localCarrier
+  out.point.copy(center).applyMatrix4(localMatrix)
+  out.axe.copy(axis).transformDirection(localMatrix)
   return true
 }
 
 /**
- * boucheMondeRig : la bouche (`point`, repère local du porteur `porteurLocal`) et l'axe du canon
- * (`axe`, idem) en espace MONDE, lus à l'image rendue : la matrice monde du porteur est rafraîchie
- * sur sa chaîne (`updateWorldMatrix`). Aucun tir ni image n'alloue : `outPos` et `outAxe` sont
- * remplis.
+ * boucheMondeRig: the muzzle (`point`, local frame of carrier `porteurLocal`) and barrel axis
+ * (`axe`, same) in WORLD space, read at the rendered frame: the carrier's world matrix is
+ * refreshed along its chain (`updateWorldMatrix`). Neither a shot nor a frame allocates: `outPos`
+ * and `outAxe` are filled.
  */
 export function boucheMondeRig(
   porteurLocal: THREE.Object3D,

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** Grille mondiale des lampes, indépendante de la caméra. */
+/** World-space lamp grid, independent of the camera. */
 import * as THREE from 'three'
 import type { PlacedLight } from './placedLights'
 
-// Borne de la boucle du shader : une cellule plus chargée ne garde que ses lampes les plus fortes en son centre.
+// Bound of the shader loop: a more crowded cell keeps only its strongest lamps at its center.
 export const MAX_CELL_LAMPS = 32
 export const LAMP_CELL_SIZE = 2
 const LAMP_SCALE = 2
@@ -40,7 +40,7 @@ function intersects(lamp: PlacedLight, min: THREE.Vector3, size: number): boolea
   return distance <= lamp.range * lamp.range
 }
 
-/** Construit les listes des sphères touchant chaque cellule et compte les entrées écartées. */
+/** Builds the lists of spheres touching each cell and counts the entries dropped. */
 export function buildLampGrid(lamps: readonly PlacedLight[], size = LAMP_CELL_SIZE): LampGrid {
   const grid: LampGrid = { min: new THREE.Vector3(), size, dims: new THREE.Vector3(), cells: [], indices: [], overflow: 0, maxBeforeCap: 0 }
   if (!lamps.length) return grid
@@ -77,7 +77,7 @@ export function buildLampGrid(lamps: readonly PlacedLight[], size = LAMP_CELL_SI
   return grid
 }
 
-/** Retourne les indices de la cellule contenant un point du monde. */
+/** Returns the indices of the cell containing a world point. */
 export function cellLamps(grid: LampGrid, point: THREE.Vector3): number[] {
   const p = point.clone().sub(grid.min).divideScalar(grid.size).floor()
   const { x, y, z } = p, d = grid.dims
@@ -85,7 +85,7 @@ export function cellLamps(grid: LampGrid, point: THREE.Vector3): number[] {
   return grid.cells[x + d.x * (y + d.y * z)]
 }
 
-/** Les texels des cellules, indices et lampes suivent les sondes dans le même atlas RGBA. */
+/** The cell, index and lamp texels follow the probes in the same RGBA atlas. */
 export function appendLampData(atlas: import('./bakedLight').BakedAtlas, grid: LampGrid, lamps: readonly PlacedLight[]): { table: number; list: number; records: number } {
   const image = atlas.irradiance.image as unknown as { data: Uint16Array; width: number; height: number }
   const table = image.width * image.height
@@ -93,7 +93,7 @@ export function appendLampData(atlas: import('./bakedLight').BakedAtlas, grid: L
   const records = list + Math.ceil(grid.indices.length / 4)
   const end = records + lamps.length * 3
   const height = Math.ceil(end / image.width)
-  if (height > 2048 || end >= 16777216) throw new Error('Atlas de lampes trop grand pour WebGL2')
+  if (height > 2048 || end >= 16777216) throw new Error('Lamp atlas too large for WebGL2')
   const data = new Float32Array(image.width * height * 4)
   for (let i = 0; i < image.data.length; i++) data[i] = THREE.DataUtils.fromHalfFloat(image.data[i])
   let offset = 0

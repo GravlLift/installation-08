@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * mapModel.ts — LA CARTE 3D : le GLB du cache local (`cmd/mapfond-build --maillage`), ses
- * matériaux et son index de lancer de rayons.
+ * mapModel.ts — THE 3D MAP: the GLB from the local cache (`cmd/mapfond-build --maillage`), its
+ * materials and its ray-casting index.
  *
- * Une primitive glTF par matériau du jeu ; ses extras (mélange, shader, couches) viennent du tag
- * `mat `. Trois familles : la structure, le décor (nœuds `decor*`), et ce que le jeu superpose à
- * ce qui est derrière (cartes lumineuses, décalques : mélange non nul ; vitres : `vitre`). Les nœuds
- * `ombre*` sont des projecteurs et des mandataires d'ombre que le jeu ne dessine pas. La structure,
- * vue de face seulement, a son envers dessiné à part, sombre et reculé (`backFaces3d`).
+ * One glTF primitive per game material; its extras (melange, shader, couches) come from the
+ * `mat ` tag. Three families: structure, decor (`decor*` nodes), and what the game layers over
+ * what is behind it (light maps, decals: non-zero melange; glass: `vitre`). The `ombre*` nodes
+ * are projectors and shadow proxies the game does not draw. Structure, drawn front-face only,
+ * has its back drawn separately, dark and pulled back (`backFaces3d`).
  *
- * Le calque des objets de la variante du match (`loadLayerModel`) est un GLB au même format : il
- * passe par la même préparation (familles, étiquettes de l'inspecteur, nœuds `ombre*`, index), et
- * reprend la lumière cuite de la carte au lieu d'en porter une.
+ * The match variant's object layer (`loadLayerModel`) is a GLB in the same format: it goes
+ * through the same preparation (families, inspector labels, `ombre*` nodes, index), and reuses
+ * the map's baked light instead of carrying its own.
  */
 import * as THREE from 'three'
 import { LoadingManager } from 'three'
@@ -40,40 +40,40 @@ import { tagSurface } from './surfaceProbe3d'
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree
 THREE.Mesh.prototype.raycast = acceleratedRaycast
 
-// Teintes de repli des surfaces sans couches (pas des couleurs d'interface).
+// Fallback tints for surfaces without layers (not UI colors).
 const STRUCTURE_TINT = 0xb4bac2
 const DECOR_TINT = 0x5c6166
 const GLASS_TINT = 0x9fd4ff
-// Teinte de repli des décalques pochoir pour les cartes construites sans leur couleur.
+// Fallback tint for stencil decals, for maps built without their color.
 export const DECAL_TINT = 0x4f8fc0
 
 type Family = 'structure' | 'decor' | 'seeThrough'
 
 /**
- * Les shaders du jeu qui ne lisent que l'image déjà rendue (cartes d'effet d'écran, sans texture ni
- * couleur propre) : la vue n'a pas cet effet, leurs surfaces ne se dessinent pas plutôt que de
- * paraître en dalle pleine.
+ * The game's shaders that read only the already-rendered image (screen-effect maps, with no
+ * texture or color of their own): the view has no such effect, so their surfaces are not drawn
+ * at all rather than showing up as a solid slab.
  */
 const SCREEN_EFFECT_SHADERS: ReadonlySet<number> = new Set([0xc0146c52])
 
 /**
- * Les shaders du jeu dont la texture est un pochoir : une image blanche sur fond noir sans canal
- * alpha, dont la luminance est la couverture. En jeu, seule la forme blanche est dessinée, d'une
- * couleur, au-dessus du mur derrière ; le noir est entièrement transparent.
+ * The game's shaders whose texture is a stencil: a white shape on a black background with no
+ * alpha channel, whose luminance is the coverage. In game, only the white shape is drawn, in a
+ * color, over the wall behind it; the black is fully transparent.
  */
 const STENCIL_DECAL_SHADERS: ReadonlySet<number> = new Set([3233303146])
 
 interface Pochoir { couleur: [number, number, number]; opacite: number }
 
 /**
- * decalStencilMaterial renvoie le matériau du décalque pochoir pour une texture : un standard
- * teinté dont `alphaMap` est la texture (three lit son canal vert comme couverture), sans `map`.
- * Un matériau par texture, couleur et opacité :
- * il est bâti à la première demande puis servi depuis `cache`. L'objet de texture est réutilisé
- * (jamais cloné) pour conserver la transformation de ses UV (`KHR_texture_transform`).
+ * decalStencilMaterial returns the stencil decal material for a texture: a tinted standard
+ * material whose `alphaMap` is the texture (three.js reads its green channel as coverage), with
+ * no `map`. One material per texture, color and opacity: it is built on first request then
+ * served from `cache`. The texture object is reused (never cloned) to keep its UV transform
+ * (`KHR_texture_transform`).
  */
 export function decalStencilMaterial(texture: THREE.Texture, cache: Map<string, THREE.MeshStandardMaterial>, pochoir?: Pochoir): THREE.MeshStandardMaterial {
-  const signature = `${texture.uuid}|${pochoir ? `${pochoir.couleur.join(',')}|${pochoir.opacite}` : 'repli'}`
+  const signature = `${texture.uuid}|${pochoir ? `${pochoir.couleur.join(',')}|${pochoir.opacite}` : 'fallback'}`
   let m = cache.get(signature)
   if (!m) {
     m = new THREE.MeshStandardMaterial({
@@ -92,13 +92,13 @@ export function decalStencilMaterial(texture: THREE.Texture, cache: Map<string, 
 
 interface MaterialExtras {
   melange?: number
-  /** GlobalID du shader de matériau du jeu. */
+  /** GlobalID of the game's material shader. */
   shader?: number
-  /** Vitre du jeu : dessinée par réfraction, son mélange reste opaque. */
+  /** The game's glass: drawn by refraction, its melange stays opaque. */
   vitre?: boolean
   couches?: LayeredInfo
   pochoir?: Pochoir
-  /** Couleur à plat (RVB linéaire) d'un matériau sans couches : l'objet posé d'une variante Forge. */
+  /** Flat color (linear RGB) of a layerless material: a Forge variant's placed object. */
   teinte?: [number, number, number]
   /** Its light is a picture (sign, screen, hologram), not a light mask (`glowOf`). */
   emissionImage?: boolean
@@ -108,14 +108,14 @@ interface MaterialExtras {
   id?: number
 }
 
-/** Les surfaces d'un GLB de la vue (la carte, ou un calque posé sur elle), matériaux de la vue posés. */
+/** A view GLB's surfaces (the map, or a layer placed over it), with the view's materials placed. */
 export interface SurfaceModel {
   root: THREE.Object3D
-  /** Les surfaces opaques de structure : celles que le rayon vers le sol interroge. */
+  /** The opaque structure surfaces: the ones the ground ray queries. */
   pickables: THREE.Mesh[]
-  /** Les surfaces translucides : exclues de l'occlusion ambiante. */
+  /** The translucent surfaces: excluded from ambient occlusion. */
   seeThrough: THREE.Mesh[]
-  /** Toutes les surfaces dessinées : celles que les sondes d'environnement éclairent. */
+  /** All drawn surfaces: the ones environment probes light. */
   surfaces: THREE.Mesh[]
   /** The self-lit materials whose light the game animates (`glowAnimation3d`); empty for a still map. */
   glowAnimation: GlowAnimator
@@ -128,7 +128,7 @@ export interface SurfaceModel {
    * before — calling this is exactly as expensive whenever it happens, only the timing differs.
    */
   bvhUpload: (() => ArrayBuffer) | null
-  /** Libère géométries, index et matériaux du modèle (pas la lumière cuite qu'il a reprise). */
+  /** Releases the model's geometries, index and materials (not the baked light it reused). */
   dispose(): void
 }
 
@@ -137,13 +137,13 @@ export interface MapModel extends SurfaceModel {
   sunStrength: number
   /** The game's sun color published with the mesh (`sunColorOf`, linear RGB), null when absent. */
   sunColor: [number, number, number] | null
-  /** Le soleil du jeu publié dans le maillage (cf. `sunAngles`), null s'il n'y est pas. */
+  /** The game's sun published in the mesh (see `sunAngles`), null when it is not there. */
   sun: { azimuth: number; elevation: number } | null
-  /** La lumière cuite du jeu, greffée sur les matériaux de la carte ; null si le GLB n'en porte pas. */
+  /** The game's baked light, grafted onto the map's materials; null if the GLB carries none. */
   baked: BakedLight | null
   /**
-   * batchDraws dessine en un maillage les surfaces à matériau fusionné d'un même nœud et d'un même
-   * matériau (`batchLayered`) ; une fois, après la capture des sondes. Sans fusion, rien.
+   * batchDraws draws the merged-material surfaces of a given node and material as one mesh
+   * (`batchLayered`); once, after the probes are captured. With no merge, nothing.
    */
   batchDraws(): void
 }
@@ -151,30 +151,30 @@ export interface MapModel extends SurfaceModel {
 type Step = 'materials' | 'index'
 
 /**
- * Le rapport de progression d'une étape : `done` / `total` sont les unités déjà traitées sur le
- * total connu (images décodées pour `materials`, index de rayons bâtis pour `index`). Sans compte,
- * l'étape n'est qu'un repère (début de bande).
+ * A step's progress report: `done` / `total` are the units already processed out of the known
+ * total (images decoded for `materials`, ray indexes built for `index`). With no count, the step
+ * is just a marker (start of the progress bar).
  */
 export type StepCallback = (step: Step, done?: number, total?: number) => void
 
-/** Un GLB décodé, ses surfaces rangées par famille et les matériaux de la vue qu'il possède. */
+/** A decoded GLB, its surfaces sorted by family, and the view materials it owns. */
 interface Prepared {
   scene: THREE.Object3D
   groups: Record<Family, THREE.Mesh[]>
   owned: THREE.Material[]
-  /** La fusion des matériaux en couches (`convertLayered`), null sans fusion. */
+  /** The layered-material merge (`convertLayered`), null with no merge. */
   merge: LayeredMerge | null
   glowAnimation: GlowAnimator
   /**
-   * Le décodeur du GLB (`GLTFParser`) : la seule référence qui tient les données de la
-   * pré-fusion en vie (JSON, chunk binaire, buffer principal, accessors, images décodées).
-   * Lu par `prepareSurfaces` et `loadBakedLight` seul ; jamais retenu par le modèle rendu,
-   * pour que ces données soient ramassables dès que le modèle est bâti.
+   * The GLB's decoder (`GLTFParser`): the only reference keeping the pre-merge data alive (JSON,
+   * binary chunk, main buffer, accessors, decoded images). Read by `prepareSurfaces` and
+   * `loadBakedLight` only; never retained by the rendered model, so that data is collectable as
+   * soon as the model is built.
    */
   parser: GLTFParser
 }
 
-/** emits : le matériau glTF porte une lumière propre (`emissiveFactor`, force par extension). */
+/** emits: the glTF material carries its own light (`emissiveFactor`, strengthened by extension). */
 function emits(source: THREE.MeshStandardMaterial): boolean {
   return source.emissive.getHex() !== 0 && source.emissiveIntensity > 0
 }
@@ -193,7 +193,7 @@ export function glowOf(source: THREE.MeshStandardMaterial, image: boolean): { co
   return { color: color.multiplyScalar(1 / brightest), level: imageGlowLevel(brightest * source.emissiveIntensity) }
 }
 
-/** applyGlow recopie la lumière propre du matériau du jeu, sa force ramenée à l'échelle de la vue. */
+/** applyGlow copies over the game material's own light, its strength brought to the view's scale. */
 function applyGlow(target: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image = false): void {
   if (!emits(source)) return
   const { color, level } = glowOf(source, image)
@@ -236,29 +236,29 @@ export function seeThroughGlowMaterial(source: THREE.MeshStandardMaterial, extra
 }
 
 /**
- * teinteVerreTeint moyenne la couleur de la première couche d'un matériau en couches (`bas`,
- * `milieu` et `haut`, ceux qui sont présents, en RVB linéaire) : la teinte de la vitre sombre du
- * jeu. Null sans couche lisible ni couleur (la vitre garde alors le verre clair).
+ * teinteVerreTeint averages the color of a layered material's first layer (`bas`, `milieu` and
+ * `haut`, whichever are present, in linear RGB): the game's dark glass tint. Null with no
+ * readable layer or color (the glass then keeps the clear glass).
  */
 export function teinteVerreTeint(couches: LayeredInfo): [number, number, number] | null {
-  const couche = couches.couches[0]
-  if (!couche) return null
-  const couleurs = [couche.bas, couche.milieu, couche.haut].filter((c): c is [number, number, number] => c !== undefined)
-  if (couleurs.length === 0) return null
-  const somme = [0, 0, 0]
-  for (const c of couleurs) for (let i = 0; i < 3; i++) somme[i] += c[i]
-  return [somme[0] / couleurs.length, somme[1] / couleurs.length, somme[2] / couleurs.length]
+  const layer = couches.couches[0]
+  if (!layer) return null
+  const colors = [layer.bas, layer.milieu, layer.haut].filter((c): c is [number, number, number] => c !== undefined)
+  if (colors.length === 0) return null
+  const sum = [0, 0, 0]
+  for (const c of colors) for (let i = 0; i < 3; i++) sum[i] += c[i]
+  return [sum[0] / colors.length, sum[1] / colors.length, sum[2] / colors.length]
 }
 
 /**
- * loadMapModel décode le GLB de la carte et prépare ses matériaux ; `onStep` dit l'étape en cours.
+ * loadMapModel decodes the map's GLB and prepares its materials; `onStep` reports the current step.
  * `ktx2`: the renderer's KTX2 loader (`createKtx2Loader`), for a GLB with compressed textures.
  */
 export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<MapModel> {
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2, 'map')
   const { scene, parser, owned, merge } = prepared
-  // Dernière lecture du décodeur : après elle, le modèle n'en retient aucune référence et
-  // les données de la pré-fusion qu'il tient (cf. `Prepared.parser`) sont ramassables.
+  // Last read of the decoder: after this, the model retains no reference to it and the
+  // pre-merge data it holds (see `Prepared.parser`) becomes collectable.
   const lamps = readPlacedLights(scene.userData)
   const cielInfo = lireCiel(scene.userData)
   const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
@@ -289,10 +289,10 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
 }
 
 /**
- * loadLayerModel décode un calque posé sur la carte (les objets de la variante du match), préparé
- * comme elle. Il n'a pas de lumière propre : la lumière cuite de la carte (`light`, null si elle
- * n'en porte pas) est greffée sur ses matériaux, et reste à la carte qui la libère. `ktx2`: as for
- * `loadMapModel`.
+ * loadLayerModel decodes a layer placed over the map (the match variant's objects), prepared the
+ * same way. It carries no light of its own: the map's baked light (`light`, null if it carries
+ * none) is grafted onto its materials, and stays owned by the map, which releases it. `ktx2`: as
+ * for `loadMapModel`.
  */
 export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
@@ -306,21 +306,20 @@ export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | nu
 function quiet(): void {}
 
 /**
- * prepareSurfaces décode le GLB, range ses surfaces par famille, leur pose les matériaux de la vue
- * (couches, découpes, lumière propre) et les étiquette pour l'inspecteur ; les nœuds `ombre*` sont
- * cachés. `mergeLimits` : les matériaux en couches opaques passent aux matériaux fusionnés
- * (`convertLayered`).
+ * prepareSurfaces decodes the GLB, sorts its surfaces by family, places the view's materials on
+ * them (layers, cutouts, own light) and tags them for the inspector; `ombre*` nodes are hidden.
+ * `mergeLimits`: opaque layered materials get converted to merged materials (`convertLayered`).
  */
-/** Les matériaux de famille, les surfaces qu'ils porteront, et la liste des matériaux possédés. */
+/** The family materials, the surfaces they will carry, and the list of owned materials. */
 function familyMaterials(): { mats: Record<Family, THREE.MeshStandardMaterial>; groups: Record<Family, THREE.Mesh[]>; owned: THREE.Material[] } {
   const surface = { roughness: 0.8, metalness: 0, flatShading: true, side: THREE.DoubleSide }
   const mats: Record<Family, THREE.MeshStandardMaterial> = {
-    // Vue de face seulement, comme en jeu : deux surfaces coplanaires dos à dos (un panneau et
-    // l'envers d'une autre) ne se disputent pas les mêmes pixels. Son envers se dessine à part
-    // (`buildBackFaces`), sombre et reculé : il bouche les jours sans passer devant une face.
+    // Front-face only, as in the game: two coplanar back-to-back surfaces (a panel and another's
+    // back) do not fight over the same pixels. Its back is drawn separately (`buildBackFaces`),
+    // dark and pulled back: it plugs the gaps without appearing in front of a face.
     structure: new THREE.MeshStandardMaterial({ ...surface, color: STRUCTURE_TINT, side: THREE.FrontSide }),
-    // Le décor grossier (coques extérieures, fonds) n'est vu que de face, comme en jeu : une coque
-    // vue de l'intérieur ne couvre pas une verrière.
+    // Coarse decor (outer shells, backdrops) is seen front-face only, as in the game: a shell
+    // seen from the inside does not cover a window.
     decor: new THREE.MeshStandardMaterial({ ...surface, color: DECOR_TINT, side: THREE.FrontSide }),
     seeThrough: new THREE.MeshStandardMaterial({
       color: GLASS_TINT, roughness: 0.1, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide,
@@ -329,15 +328,15 @@ function familyMaterials(): { mats: Record<Family, THREE.MeshStandardMaterial>; 
   return { mats, groups: { structure: [], decor: [], seeThrough: [] }, owned: Object.values(mats) }
 }
 
-/** Le contexte de pose des matériaux pendant le parcours des surfaces du GLB. */
+/** The context for placing materials while walking the GLB's surfaces. */
 interface MaterialContext {
   mats: Record<Family, THREE.MeshStandardMaterial>
   owned: THREE.Material[]
-  /** Un matériau à couches par composition, sa promesse partagée entre les surfaces de même composition. */
+  /** One layered material per composition, its promise shared by surfaces of the same composition. */
   layered: Map<string, Promise<THREE.MeshStandardMaterial>>
-  /** Les promesses de pose des matériaux à couches, attendues à la fin du parcours. */
+  /** The pending layered-material placements, awaited at the end of the walk. */
   jobs: Promise<void>[]
-  /** Le décodeur du GLB, lu par les matériaux à couches avant la fin de `prepareSurfaces`. */
+  /** The GLB's decoder, read by layered materials before `prepareSurfaces` finishes. */
   parser: GLTFParser
   glowCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, image: boolean): THREE.MeshStandardMaterial
   /** Registers a view material drawing the light of `source` with the animator, when the game animates it. */
@@ -345,23 +344,23 @@ interface MaterialContext {
   /** A see-through emitter of the game, one per game material (`seeThroughGlowMaterial`). */
   seeThroughGlow(source: THREE.MeshStandardMaterial, extras: MaterialExtras): THREE.MeshBasicMaterial
   tintCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]): THREE.MeshStandardMaterial
-  /** La vitre teintée du jeu : elle multiplie ce qui est derrière elle par `teinte`, sans éclairage ni reflet. */
+  /** The game's tinted glass: it multiplies what is behind it by `teinte`, with no lighting or reflection. */
   verreTeint(teinte: [number, number, number]): THREE.MeshBasicMaterial
-  /** Le décalque pochoir du jeu, partagé par texture, couleur et opacité. */
+  /** The game's stencil decal, shared by texture, color and opacity. */
   decalStencil(texture: THREE.Texture, pochoir?: Pochoir): THREE.MeshStandardMaterial
 }
 
 /**
- * placeMaterial pose le matériau de la vue sur une surface : à découpe (garde la texture du jeu),
- * copie lumineuse, copie teintée, ou matériau à couches (promesse partagée par composition, posée
- * à sa résolution dans `ctx.jobs`). Un matériau en couches à découpe porte le masque dans l'alpha
- * de sa couleur de base : le matériau de couches applique un alpha test sur sa texture, au lieu
- * de passer par un matériau MASK à part.
+ * placeMaterial places the view's material on a surface: a cutout (keeps the game's texture), a
+ * lit copy, a tinted copy, or a layered material (a promise shared by composition, placed on
+ * resolution in `ctx.jobs`). A cutout layered material carries the mask in its base color's
+ * alpha: the layered material applies an alpha test on its texture, instead of going through a
+ * separate MASK material.
  */
 function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras: MaterialExtras, key: Family, ctx: MaterialContext): void {
   const image = extras.emissionImage === true
   if (source.alphaTest > 0 && source.map && !extras.couches) {
-    // Matériau à découpe sans couches (glTF `MASK`) : il garde sa texture, ses trous se voient.
+    // A layerless cutout material (glTF `MASK`): it keeps its texture, its holes show.
     const m = ctx.mats[key].clone()
     m.color.set(1, 1, 1)
     m.map = source.map
@@ -378,9 +377,9 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
     return
   }
   if (extras.shader !== undefined && STENCIL_DECAL_SHADERS.has(extras.shader) && source.map) {
-    // Un décalque pochoir du jeu (logos et marquages de mur) : sa texture n'est pas une image
-    // opaque mais une carte de masque ; on la pose teintée au-dessus du mur derrière. Sans texture
-    // de base, il garde le comportement de famille d'aujourd'hui.
+    // One of the game's stencil decals (wall logos and markings): its texture is not an opaque
+    // image but a mask map; it is placed tinted over the wall behind it. With no base texture, it
+    // keeps today's family behavior.
     o.material = ctx.decalStencil(source.map, extras.pochoir)
     return
   }
@@ -394,9 +393,8 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
   // A light masked by a texture stays on its lit copy (`glowCopy`): the layered shader's thirteen
   // samplers plus the lighting maps leave no texture unit for the mask under WebGL 2's sixteen.
   if (extras.couches && key !== 'seeThrough' && !source.emissiveMap && prepareLayerUVs(o.geometry, extras.couches)) {
-    // Un matériau à couches par composition distincte (famille, couches, lumière propre, découpe)
-    // : les surfaces de même composition le partagent, et le dessin ne change de matériau qu'entre
-    // elles.
+    // One layered material per distinct composition (family, layers, own light, cutout): surfaces
+    // of the same composition share it, and drawing only changes material between them.
     // An animated light has its own material: its light moves alone (`glowAnimation3d`).
     const anim = emits(source) && readGlowAnim(extras) ? `:${source.uuid}` : ''
     const glow = emits(source) ? `${source.emissive.getHex()}:${source.emissiveIntensity}:${image}${anim}` : ''
@@ -420,15 +418,14 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
 }
 
 /**
- * prepareSurfaces décode le GLB, range ses surfaces par famille, leur pose les matériaux de la vue
- * (couches, découpes, lumière propre) et les étiquette pour l'inspecteur ; les nœuds `ombre*` sont
- * cachés. `mergeLimits` : les matériaux en couches opaques passent aux matériaux fusionnés
- * (`convertLayered`).
+ * prepareSurfaces decodes the GLB, sorts its surfaces by family, places the view's materials on
+ * them (layers, cutouts, own light) and tags them for the inspector; `ombre*` nodes are hidden.
+ * `mergeLimits`: opaque layered materials get converted to merged materials (`convertLayered`).
  */
 async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null, label: string): Promise<Prepared> {
-  // L'étape « matériaux » : le décodage des images du GLB en est l'attente longue. Le gestionnaire
-  // de chargement les compte (itemStart / itemEnd, une par image) pour que la barre avance image
-  // après image ; sans image, elle reste au début de la bande.
+  // The "materials" step: decoding the GLB's images is its long wait. The loading manager
+  // counts them (itemStart / itemEnd, one per image) so the bar advances image by image; with no
+  // image, it stays at the start of the bar.
   const manager = new LoadingManager()
   manager.onProgress = (_url, done, total) => onStep('materials', done, total)
   onStep('materials', 0, 0)
@@ -436,7 +433,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const materialsStart = now()
   timedSync(`${label}:markers`, () => dropMarkerObjects(gltf.scene))
   const { mats, groups, owned } = familyMaterials()
-  // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.
+  // One lit copy of a family material per emitting game material.
   const glowing = new Map<THREE.Material, THREE.MeshStandardMaterial>()
   const glowAnimation = new GlowAnimator()
   const animateGlow = (material: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial, source: THREE.MeshStandardMaterial, image: boolean) => {
@@ -472,7 +469,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     }
     return m
   }
-  // Une copie teintée d'un matériau de famille par couleur à plat distincte (rugosité et métal du jeu).
+  // One tinted copy of a family material per distinct flat color (the game's roughness and metal).
   const tinted = new Map<string, THREE.MeshStandardMaterial>()
   const tintCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]) => {
     const signature = `${base.uuid}|${teinte.join(',')}|${source.roughness}|${source.metalness}`
@@ -487,8 +484,8 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     }
     return m
   }
-  // Une vitre teintée par teinte distincte : le verre sombre du jeu (matériau `vitre` en couches),
-  // posée à l'opacité de la vitre teintée au lieu du verre clair de famille.
+  // One tinted glass per distinct tint: the game's dark glass (a layered `vitre` material),
+  // placed at the tinted glass's opacity instead of the family's clear glass.
   const verreTeint = new Map<string, THREE.MeshBasicMaterial>()
   const verreTeintCopy = (teinte: [number, number, number]) => {
     const signature = teinte.map((v) => Math.round(v * 1000) / 1000).join(',')
@@ -501,7 +498,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     }
     return m
   }
-  // Un décalque pochoir par texture, couleur et opacité distinctes.
+  // One stencil decal per distinct texture, color and opacity.
   const decalStencil = new Map<string, THREE.MeshStandardMaterial>()
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
   const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
@@ -547,10 +544,10 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
 }
 
 /**
- * tightenBounds mesure la boîte et la sphère englobantes d'une surface sur les seuls sommets que
- * son index référence. Les surfaces d'un GLB partagent un tampon de sommets : la mesure par défaut
- * de three porte sur le tampon entier, donne à chaque surface les bornes de la carte, et plus rien
- * hors champ n'est écarté du dessin.
+ * tightenBounds measures a surface's bounding box and sphere over only the vertices its index
+ * references. A GLB's surfaces share one vertex buffer: three.js's default measurement covers the
+ * whole buffer, giving every surface the map's own bounds, so nothing out of view gets culled
+ * from drawing.
  */
 export function tightenBounds(geometry: THREE.BufferGeometry): void {
   const index = geometry.index
@@ -571,16 +568,16 @@ export function tightenBounds(geometry: THREE.BufferGeometry): void {
 }
 
 /**
- * geometriesOf rend les géométries distinctes de `meshes` : les objets d'une variante posent une
- * même géométrie à plusieurs endroits (des nœuds qui partagent un maillage glTF), et son index de
- * rayons comme ses bornes, pris dans son repère propre, valent pour toutes ses poses.
+ * geometriesOf returns the distinct geometries of `meshes`: a variant's objects place the same
+ * geometry in several spots (nodes sharing a glTF mesh), and its ray index as well as its bounds,
+ * taken in its own frame, hold for all of its placements.
  */
 export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometry[] {
   return [...new Set(meshes.map((m) => m.geometry))]
 }
 
 /**
- * indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle.
+ * indexSurfaces builds the ray-casting index (structure, translucent) and returns the model.
  * `bvhCache`, when given, is tried first (`deserializeBVHCache`): on a match it replaces the whole
  * build loop below. On any mismatch (format, library version, build options, geometry counts) or
  * when absent, the index is built as before, and the model's `bvhUpload` is a function the caller
@@ -596,15 +593,15 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
   const loadedFromCache = bvhCache ? timedSync(`${label}:bvh-load`, () => deserializeBVHCache(bvhCache, bvh)) : false
   if (!loadedFromCache) {
     await new Promise((r) => setTimeout(r, 0))
-    // Un index de rayons par géométrie : la construction se compte, et un passage au navigateur tous
-    // les quelques géométries laisse la barre se peindre sans ralentir le calcul (dix-neuf passes au
-    // plus pour toute la carte).
+    // One ray index per geometry: the build is counted, and yielding to the browser every few
+    // geometries lets the bar paint without slowing the computation down (nineteen yields at
+    // most for the whole map).
     // Diagnostics: the structure index is the one raycasts query; the see-through one is tallied
     // apart to see if it earns its build time.
     const structGeos = new Set(geometriesOf(groups.structure))
     let structMs = 0
     let seeThroughMs = 0
-    const pas = Math.max(1, Math.ceil(bvh.length / 19))
+    const step = Math.max(1, Math.ceil(bvh.length / 19))
     for (let i = 0; i < bvh.length; i++) {
       const geoStart = now()
       // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
@@ -615,7 +612,7 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
       if (structGeos.has(bvh[i])) structMs += dt
       else seeThroughMs += dt
       onStep('index', i + 1, bvh.length)
-      if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
+      if ((i + 1) % step === 0) await new Promise((r) => setTimeout(r, 0))
     }
     measureSince(`${label}:bvh`, bvhStart)
     measureDuration(`${label}:bvh-structure`, structMs)
@@ -629,7 +626,7 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
     for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
   })
   const shadows = timedSync(`${label}:shadow-proxies`, () => buildShadowProxies(scene, [...groups.structure, ...groups.decor]))
-  // Après la fusion des matériaux : l'envers lit les sommets et les index définitifs des surfaces.
+  // After the material merge: the back reads surfaces' final vertices and indexes.
   const backs = timedSync(`${label}:back-faces`, () => buildBackFaces(scene, groups.structure, tightenBounds))
 
   return {

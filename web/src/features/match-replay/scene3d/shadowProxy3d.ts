@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * shadowProxy3d.ts — LES OMBRES PORTÉES DE LA CARTE EN QUELQUES APPELS DE DESSIN.
+ * shadowProxy3d.ts — THE MAP'S CAST SHADOWS IN A HANDFUL OF DRAW CALLS.
  *
- * La passe d'ombre redessine chaque surface qui porte une ombre : un appel par surface, plus d'un
- * millier sur une carte. Or ces surfaces partagent leur tampon de sommets et n'ont pas de
- * transformation propre : leurs index mis bout à bout font UN maillage par tampon et par face
- * dessinée. `buildShadowProxies` construit ces maillages, leur confie l'ombre portée et la retire
- * aux surfaces d'origine, qui continuent de se dessiner et de recevoir l'ombre comme avant.
+ * The shadow pass redraws every surface that casts a shadow: one call per surface, over a
+ * thousand on a map. Yet these surfaces share their vertex buffer and carry no transform of
+ * their own: their indexes, concatenated, make ONE mesh per buffer and per drawn face.
+ * `buildShadowProxies` builds these meshes, hands them the cast shadow and takes it away from
+ * the original surfaces, which keep drawing and receiving shadow as before.
  *
- * Un maillage d'ombre n'existe que pour la passe d'ombre : au dessin de la scène (et de toute passe
- * qui passe par `onBeforeRender` : normales de l'occlusion ambiante, sondes), sa plage de dessin
- * est vide. Il ne répond à aucun lancer de rayon.
+ * A shadow mesh exists only for the shadow pass: when the scene draws (and any pass that goes
+ * through `onBeforeRender`: ambient occlusion normals, probes), its draw range is empty. It
+ * responds to no ray cast.
  */
 import * as THREE from 'three'
 
 export interface ShadowProxies {
-  /** Les maillages d'ombre, déjà enfants de la racine donnée. */
+  /** The shadow meshes, already children of the given root. */
   meshes: THREE.Mesh[]
-  /** Le nombre de surfaces dont l'ombre est maintenant portée par un maillage d'ombre. */
+  /** The number of surfaces whose shadow is now carried by a shadow mesh. */
   merged: number
-  /** Libère les index et matériaux des maillages d'ombre (pas les sommets, qui sont aux surfaces). */
+  /** Releases the shadow meshes' index and materials (not the vertices, which belong to the surfaces). */
   dispose(): void
 }
 
-/** mergeable : une surface simple, indexée, opaque sans découpe, qui porte une ombre. */
+/** mergeable: a plain, indexed, opaque, cutout-free surface that casts a shadow. */
 function mergeable(mesh: THREE.Mesh): mesh is THREE.Mesh<THREE.BufferGeometry, THREE.Material> {
   if (!mesh.castShadow || !mesh.visible) return false
   if (mesh instanceof THREE.SkinnedMesh || mesh instanceof THREE.InstancedMesh) return false
@@ -32,16 +32,16 @@ function mergeable(mesh: THREE.Mesh): mesh is THREE.Mesh<THREE.BufferGeometry, T
   return mesh.geometry.index !== null && mesh.geometry.getAttribute('position') !== undefined
 }
 
-/** La face que la passe d'ombre dessine pour un matériau (la règle de three sans `shadowSide`). */
+/** The face the shadow pass draws for a material (three.js's own rule with no `shadowSide`). */
 function shadowSideOf(material: THREE.Material): THREE.Side {
   if (material.shadowSide !== null) return material.shadowSide
   return material.side === THREE.FrontSide ? THREE.BackSide : material.side === THREE.BackSide ? THREE.FrontSide : THREE.DoubleSide
 }
 
 /**
- * buildShadowProxies regroupe les surfaces de `meshes` qui portent une ombre par tampon de sommets,
- * transformation monde et face d'ombre, et pose un maillage d'ombre par groupe sous `root`. Les
- * surfaces regroupées perdent `castShadow` ; les autres (découpes, translucides) le gardent.
+ * buildShadowProxies groups `meshes`'s shadow-casting surfaces by vertex buffer, world transform
+ * and shadow face, and places one shadow mesh per group under `root`. Grouped surfaces lose
+ * `castShadow`; the others (cutouts, translucent) keep it.
  */
 export function buildShadowProxies(root: THREE.Object3D, meshes: readonly THREE.Mesh[]): ShadowProxies {
   root.updateMatrixWorld(true)
@@ -76,10 +76,10 @@ export function buildShadowProxies(root: THREE.Object3D, meshes: readonly THREE.
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', group[0].geometry.getAttribute('position'))
     geometry.setIndex(new THREE.BufferAttribute(index, 1))
-    // `shadowSide` fixe la face dessinée dans la passe d'ombre : la même que pour les surfaces d'origine.
+    // `shadowSide` fixes the face drawn in the shadow pass: the same as the original surfaces'.
     const material = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, shadowSide: shadowSideOf(group[0].material) })
     const proxy = new THREE.Mesh(geometry, material)
-    proxy.name = 'ombre-carte'
+    proxy.name = 'map-shadow'
     proxy.castShadow = true
     proxy.frustumCulled = false
     proxy.matrixAutoUpdate = false
@@ -96,7 +96,7 @@ export function buildShadowProxies(root: THREE.Object3D, meshes: readonly THREE.
     dispose() {
       for (const proxy of proxies) {
         proxy.removeFromParent()
-        // Seul l'index est à ce maillage : libérer la géométrie entière libérerait les sommets partagés.
+        // Only the index belongs to this mesh: releasing the whole geometry would release the shared vertices.
         proxy.geometry.deleteAttribute('position')
         proxy.geometry.dispose()
         ;(proxy.material as THREE.Material).dispose()

@@ -110,7 +110,7 @@ afterEach(() => {
 })
 
 describe('WeaponModels.sourcesChargees', () => {
-  it('rend les modèles chargés, vide sans modèle chargé', () => {
+  it('returns the loaded models, empty with no model loaded', () => {
     const models = new WeaponModels('/weapons')
     expect(models.sourcesChargees()).toEqual([])
     models.dispose()

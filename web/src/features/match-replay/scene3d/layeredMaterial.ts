@@ -1,30 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * layeredMaterial.ts — LES MATÉRIAUX EN COUCHES DU GLB (`extras.couches`, écrits par
+ * layeredMaterial.ts — THE GLB'S LAYERED MATERIALS (`extras.couches`, written by
  * libs/himap/himap/glb_couches.go).
  *
- * Jusqu'à quatre couches ; le masque macro (2e jeu de coordonnées) pose les couches 2, 3, 4 sur
- * la première ; les couches se répètent sur le jeu `jeuCouches` (3e pour un shader de niveau, 1er
- * pour un diffus, qui n'a qu'une couche).
- * - Couche « couleur » : carte sRGB × teinte. Couche « dégradé » : le rouge de sa carte choisit
- *   entre bas (0), milieu (0,5) et haut (1). Les teintes sont linéaires.
- * - Relief : chaque couche a sa carte normale tangente (convention DirectX : +Y suit la
- *   coordonnée v, vers le bas de l'image) et son occlusion (vert de sa carte de contrôle),
- *   mélangées avec les mêmes poids que la couleur. Le GLB ne porte pas de tangentes : le repère
- *   tangent se déduit des dérivées écran de la position et des coordonnées des couches.
- * - Matière : rugosité (bleu du contrôle) et métal (rouge du contrôle d'une couche couleur),
- *   mélangés de même, remplacent celles du matériau standard de base.
+ * Up to four layers; the macro mask (2nd coordinate set) lays layers 2, 3, 4 onto the first;
+ * layers repeat on the `jeuCouches` set (3rd for a terrain shader, 1st for a diffuse one, which
+ * has only one layer).
+ * - A "couleur" layer: an sRGB map × tint. A "degrade" layer: its map's red channel picks
+ *   between bottom (0), middle (0.5) and top (1). Tints are linear.
+ * - Relief: each layer has its own tangent-space normal map (DirectX convention: +Y follows the
+ *   v coordinate, toward the bottom of the image) and its own occlusion (the green channel of
+ *   its control map), blended with the same weights as the color. The GLB carries no tangents:
+ *   the tangent frame is derived from the screen-space derivatives of position and layer
+ *   coordinates.
+ * - Material: roughness (the control's blue channel) and metal (the red channel of a "couleur"
+ *   layer's control, which is the metal source there), blended the same way, replace those of
+ *   the base standard material.
  */
 import * as THREE from 'three'
 import type { GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 
-/** Nombre de couches lues par matériau (les suivantes sont ignorées). */
+/** Number of layers read per material (further ones are ignored). */
 export const MAX_LAYERS = 4
 
-/** Nombre de vec4 par couche dans `uLayer`. */
+/** Number of vec4 per layer in `uLayer`. */
 export const LAYER_ROWS = 10
 
-/** Une couche telle que le GLB la décrit (`extras.couches.couches[]`). */
+/** A layer as the GLB describes it (`extras.couches.couches[]`). */
 export interface LayerInfo {
   sorte: 'couleur' | 'degrade'
   texture?: number
@@ -60,7 +62,7 @@ export interface LayerInfo {
   controleMacro?: boolean
 }
 
-/** La composition d'un matériau (`extras.couches`). */
+/** A material's composition (`extras.couches`). */
 export interface LayeredInfo {
   couches: LayerInfo[]
   masque: number
@@ -75,7 +77,7 @@ export function usesMaskSet(info: LayeredInfo): boolean {
   return info.masque >= 0 || info.couches.some((l) => l.normaleMacro || l.controleMacro)
 }
 
-/** Les attributs et varyings des couches, communs au shader par matériau et au shader fusionné. */
+/** The layers' attributes and varyings, shared by the per-material shader and the merged shader. */
 export const LAYER_VERTEX_HEAD = /* glsl */ `
 attribute vec2 cMacro;
 attribute vec2 cUv;
@@ -99,15 +101,15 @@ uniform sampler2D uCtl3;
 uniform float uHasMask;
 uniform float uMaskCut;
 uniform int uCount;
-// Les constantes des couches, LAYER_ROWS vec4 par couche (cf. packLayers).
+// The layers' constants, LAYER_ROWS vec4 per layer (see packLayers).
 #define LAYER_ROWS ${LAYER_ROWS}
 uniform vec4 uLayer[${MAX_LAYERS} * LAYER_ROWS];
 #define L_ROW(k, i) uLayer[(k) * LAYER_ROWS + (i)]`
 
 /**
- * Les champs d'une couche, lus par `L_ROW(k, i)` (la ligne i de la couche k), que chaque shader
- * définit avant : un tableau d'uniformes ici, une texture de paramètres pour le shader fusionné.
- * Puis le décodage des échantillons et la composition des couches, communs aux deux.
+ * A layer's fields, read by `L_ROW(k, i)` (row i of layer k), which each shader defines up
+ * front: a uniform array here, a parameter texture for the merged shader. Then the sample
+ * decoding and layer composition, shared by both.
  */
 export const LAYER_COMPOSE = /* glsl */ `
 #define L_XFORM(k) L_ROW(k, 0)
@@ -140,7 +142,7 @@ vec2 at(vec4 x) { return vCouche * x.xy + x.zw; }
 // A map flagged 2 (has-normal / has-control row) lies on the mask's coordinates.
 vec2 atOn(vec4 x, float on) { return (on > 1.5 ? vMacro : vCouche) * x.xy + x.zw; }
 
-// Couleur d'une couche à partir de l'échantillon de sa carte. A gradient runs from the bottom
+// A layer's color from its map's sample. A gradient runs from the bottom
 // color (0) through the middle (0.5) to the top (1), as Ekur's ColorMixer node does.
 vec3 colorOf(vec4 s, int k) {
   if (L_KIND(k) < 0.5) return s.rgb * L_TINT(k);
@@ -149,15 +151,15 @@ vec3 colorOf(vec4 s, int k) {
   return mix(low, L_TOP(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
 }
 
-// Normale tangente d'une couche à partir du rouge et du vert de sa carte normale.
+// A layer's tangent-space normal from the red and green of its normal map.
 vec3 normalOf(vec2 rg, int k) {
   vec2 xy = rg * 2.0 - 1.0;
   float z = sqrt(max(0.0, 1.0 - dot(xy, xy)));
   return normalize(vec3(xy * L_NINT(k), z));
 }
 
-// Contrôle d'une couche : occlusion, rugosité, métal (rouge de l'image pour une couche couleur,
-// dont il est l'alpha d'origine ; un dégradé n'a pas de métal).
+// A layer's control: occlusion, roughness, metal (the image's red channel for a "couleur" layer,
+// whose original alpha it is; a gradient layer has no metal).
 #define ROUGH_DEFAULT 0.6
 vec3 controlOf(vec3 c, int k) {
   vec4 p = L_MAT(k);
@@ -168,13 +170,13 @@ vec3 overlay(vec3 a, vec3 b) {
   return mix(2.0 * a * b, 1.0 - 2.0 * (1.0 - a) * (1.0 - b), step(0.5, a));
 }
 
-// Mode de normale 1 : le relief de la couche s'ajoute à celui du dessous (mélange « whiteout »).
+// Normal mode 1: the layer's relief adds to the one below it (a "whiteout" blend).
 vec3 stackNormal(vec3 n, vec3 m, float w, int k) {
   vec3 target = L_NBLEND(k) > 0.5 ? normalize(vec3(n.xy + m.xy, n.z * m.z)) : m;
   return normalize(mix(n, target, w));
 }
 
-// ctl : occlusion, rugosité, métal.
+// ctl: occlusion, roughness, metal.
 struct Surface { vec3 color; vec3 normal; vec3 ctl; };
 
 void stack(inout Surface s, vec3 c, vec3 n, vec3 ctl, float mw, int k) {
@@ -184,7 +186,7 @@ void stack(inout Surface s, vec3 c, vec3 n, vec3 ctl, float mw, int k) {
   s.ctl = mix(s.ctl, ctl, w);
 }
 
-// Mélange de hauteur : équations de référence Ekur, layer_blending et heightblend.
+// Height blend: reference equations from Ekur, layer_blending and heightblend.
 float startHeight(float c, float mask) {
   return clamp(L_HEIGHT(0).x * (c + mask - 1.0), 0.0, 4.0);
 }
@@ -198,8 +200,8 @@ float heightWeight(inout float h, float c, float mask, int k) {
   h += p.z * (max(h, next) - h);
   return w;
 }
-// Repère tangent par dérivées (Schuler, « Normal Mapping Without Precomputed Tangents ») ; une
-// surface dont les coordonnées ne varient pas garde sa normale.
+// Tangent frame from derivatives (Schuler, "Normal Mapping Without Precomputed Tangents"); a
+// surface whose coordinates do not vary keeps its normal.
 vec3 perturb(vec3 n, vec3 p, vec2 uv, vec3 t) {
   vec3 dp1 = dFdx(p), dp2 = dFdy(p);
   vec2 duv1 = dFdx(uv), duv2 = dFdy(uv);
@@ -213,7 +215,7 @@ vec3 perturb(vec3 n, vec3 p, vec2 uv, vec3 t) {
   return dot(r, r) > 1e-12 ? normalize(r) : n;
 }`
 
-// L'échantillonnage du shader par matériau : une unité de texture par carte.
+// The per-material shader's sampling: one texture unit per map.
 const PER_MATERIAL_SAMPLING = /* glsl */ `
 vec3 layerColor(sampler2D t, int k) {
   return colorOf(texture2D(t, at(L_XFORM(k))), k);
@@ -243,8 +245,8 @@ Surface layered() {
 const FRAGMENT_HEAD = UNIFORMS_HEAD + LAYER_COMPOSE + PER_MATERIAL_SAMPLING
 
 /**
- * LAYER_INJECTIONS : les remplacements, dans le shader standard de three, qui posent la surface
- * des couches (`layered()`) à la place de la couleur, de la rugosité, du métal et de la normale.
+ * LAYER_INJECTIONS: the replacements, in three.js's standard shader, that place the layers'
+ * surface (`layered()`) in place of the color, roughness, metal and normal.
  */
 export const LAYER_INJECTIONS: readonly (readonly [string, string])[] = [
   ['#include <map_fragment>', '#include <map_fragment>\nSurface surf = layered();\ndiffuseColor.rgb = surf.color * surf.ctl.x;\n#ifdef USE_ALPHATEST\ndiffuseColor.a = uMaskCut > 0.5 ? texture2D(uMask, vMacro).a : texture2D(uTex0, at(L_XFORM(0))).a;\n#endif'],
@@ -253,13 +255,13 @@ export const LAYER_INJECTIONS: readonly (readonly [string, string])[] = [
   ['#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = perturb(normal, -vViewPosition, L_HAS_NRM(0) > 1.5 ? vMacro : vCouche, surf.normal);'],
 ]
 
-/** Noms des jeux de coordonnées chez GLTFLoader (TEXCOORD_n). */
+/** Names of GLTFLoader's coordinate sets (TEXCOORD_n). */
 export const UV_NAMES: readonly string[] = ['uv', 'uv1', 'uv2']
 
 /**
- * prepareLayerUVs expose le jeu du masque macro et celui des couches (`jeuMasque`,
- * `jeuCouches`) sous des noms propres au shader, pour ne pas croiser les attributs de three.
- * Sans masque, le jeu du masque n'est pas lu (il peut manquer). A map laid on the mask's set reads
+ * prepareLayerUVs exposes the macro mask's set and the layers' set (`jeuMasque`,
+ * `jeuCouches`) under names of the shader's own, to avoid crossing three.js's attributes.
+ * With no mask, the mask's set is not read (it may be missing). A map laid on the mask's set reads
  * the layer's set on a geometry without it (Ekur keeps the active map when UV1 is missing).
  */
 export function prepareLayerUVs(geometry: THREE.BufferGeometry, info: LayeredInfo): boolean {
@@ -272,7 +274,7 @@ export function prepareLayerUVs(geometry: THREE.BufferGeometry, info: LayeredInf
   return true
 }
 
-/** Index de texture glTF -> texture three (null pour une carte absente, index négatif). */
+/** glTF texture index -> three.js texture (null for an absent map, negative index). */
 async function load(parser: GLTFParser, index: number | undefined, colorSpace: THREE.ColorSpace) {
   if (index === undefined || index < 0) return null
   const t = (await parser.getDependency('texture', index)) as THREE.Texture
@@ -285,16 +287,16 @@ const xform = (scale?: [number, number], offset?: [number, number]) => [scale?.[
 const rgb = (c?: [number, number, number]) => c ?? [0, 0, 0]
 
 /**
- * packLayers range les constantes des couches dans le tableau unique `uLayer` : par couche k,
- * LAYER_ROWS vec4 à partir de k * LAYER_ROWS :
- * - 0 : échelle.xy, décalage.xy de la couleur ; 1 : idem de la normale ; 2 : idem du contrôle ;
- * - 3 : teinte.rgb, sorte (0 couleur, 1 dégradé) ; 4 : haut.rgb, mélange ;
- * - 5 : milieu.rgb, opacité ; 6 : bas.rgb, intensité de la normale ;
- * - 7 : a une normale, mode de normale, a un contrôle, rang du gabarit (`rang`, à défaut k) ; a
- *   normal or control laid on the mask's coordinates (`normaleMacro`, `controleMacro`) counts 2 ;
- * - 8 : hauteur ; 9 : matière.
- * Une couche absente vaut transformations neutres (1, 1, 0, 0) et zéro partout ailleurs.
- * `hasNormal[k]` / `hasControl[k]` : la carte de la couche k est chargée.
+ * packLayers files the layers' constants into the single `uLayer` array: per layer k,
+ * LAYER_ROWS vec4 starting at k * LAYER_ROWS:
+ * - 0: color's echelle.xy, decalage.xy; 1: same for the normal; 2: same for the control;
+ * - 3: teinte.rgb, sorte (0 couleur, 1 degrade); 4: haut.rgb, melange;
+ * - 5: milieu.rgb, opacite; 6: bas.rgb, normal intensity;
+ * - 7: has a normal, normal mode, has a control, template rank (`rang`, defaulting to k); a
+ *   normal or control laid on the mask's coordinates (`normaleMacro`, `controleMacro`) counts 2;
+ * - 8: hauteur; 9: matiere.
+ * A missing layer gets neutral transforms (1, 1, 0, 0) and zero everywhere else.
+ * `hasNormal[k]` / `hasControl[k]`: layer k's map is loaded.
  */
 export function packLayers(layers: readonly LayerInfo[], hasNormal: readonly boolean[], hasControl: readonly boolean[]): Float32Array {
   const out = new Float32Array(MAX_LAYERS * LAYER_ROWS * 4)
@@ -322,8 +324,8 @@ export function packLayers(layers: readonly LayerInfo[], hasNormal: readonly boo
 }
 
 /**
- * layeredMaterial clone `base` (même éclairage, même brouillard) et remplace sa couleur, sa
- * normale, sa rugosité et son métal par la composition des couches de `info`.
+ * layeredMaterial clones `base` (same lighting, same fog) and replaces its color, normal,
+ * roughness and metal with the layer composition from `info`.
  */
 export async function layeredMaterial(
   base: THREE.MeshStandardMaterial,
@@ -344,8 +346,8 @@ export async function layeredMaterial(
     uHasMask: { value: mask ? 1 : 0 },
     uMaskCut: { value: mask && info.decoupeMasque ? 1 : 0 },
     uCount: { value: layers.length },
-    // Un seul tableau déjà à plat : three l'envoie tel quel à chaque changement de matériau (un
-    // tableau d'uniforme n'a pas de cache, chaque tableau coûte un envoi).
+    // A single, already-flat array: three.js sends it as-is on every material change (a uniform
+    // array has no cache, every array costs a send).
     uLayer: { value: packLayers(layers, normals.map((t) => t !== null), controls.map((t) => t !== null)) },
   }
   for (let k = 0; k < MAX_LAYERS; k++) {
@@ -356,8 +358,8 @@ export async function layeredMaterial(
 
   const m = base.clone()
   m.color.set(1, 1, 1)
-  // Les textures des couches vivent dans les uniformes, hors des champs que three libère :
-  // le matériau les nomme pour qui le libère (mapModel).
+  // The layers' textures live in uniforms, outside the fields three.js disposes: the material
+  // names them for whoever releases it (mapModel).
   m.userData.textures = [...maps, ...normals, ...controls, mask].filter((t): t is THREE.Texture => t !== null)
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
@@ -374,10 +376,10 @@ export async function layeredMaterial(
   return m
 }
 
-/** La composition d'un matériau en couches : ses couches et la carte chargée de chaque emplacement. */
+/** A layered material's composition: its layers and the loaded map for each slot. */
 export interface LayeredComposition {
   info: LayeredInfo
-  /** Les couches lues (au plus MAX_LAYERS). */
+  /** The layers read (at most MAX_LAYERS). */
   layers: readonly LayerInfo[]
   maps: readonly (THREE.Texture | null)[]
   normals: readonly (THREE.Texture | null)[]
@@ -388,8 +390,8 @@ export interface LayeredComposition {
 const compositions = new WeakMap<THREE.Material, LayeredComposition>()
 
 /**
- * layeredComposition rend la composition d'un matériau fait par `layeredMaterial` (undefined pour
- * tout autre matériau) : la fusion des matériaux de la carte (`layeredMerge3d`) la relit.
+ * layeredComposition returns the composition of a material made by `layeredMaterial` (undefined
+ * for any other material): the map's material merge (`layeredMerge3d`) reads it back.
  */
 export function layeredComposition(material: THREE.Material): LayeredComposition | undefined {
   return compositions.get(material)

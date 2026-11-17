@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * corpses3d.ts — LES CORPS DES MORTS : une copie du Spartan par mort récente, dans l'armure de la
- * victime quand elle est prête (`armory3d.Dress`, sinon l'armure par défaut à la teinte de son
- * équipe), qui tombe en corps inerte (sa cuisson, `ragdollBake3d`, rejouée à l'âge de la mort) puis
- * reste où il a fini jusqu'à ce que la croix de la mort s'efface. Tant que la cuisson n'est pas
- * prête, le corps tombe par les clips de mort du jeu (`fall3d`).
+ * corpses3d.ts — THE DEAD'S BODIES: one Spartan copy per recent death, in the victim's armor once
+ * it is ready (`armory3d.Dress`, otherwise the default armor tinted for its team), that falls to
+ * a ragdoll (its bake, `ragdollBake3d`, replayed at the death's age) then stays where it ended up
+ * until the death's cross fades out. While the bake is not ready, the body falls through the
+ * game's death clips (`fall3d`).
  *
- * Les copies sont gardées d'une image à l'autre par clé (victime et teinte) et resservies : une copie
- * ne porte rien de la mort qu'elle montre, tout est reposé à chaque image depuis la mort et son âge ;
- * elle est refaite quand l'habit de la victime arrive. Une nouvelle source du Spartan (rechargement)
- * libère toutes les copies.
+ * Copies are kept from one frame to the next by key (victim and tint) and reused: a copy carries
+ * nothing of the death it shows, everything is re-set each frame from the death and its age; it
+ * is remade when the victim's outfit arrives. A new Spartan source (a reload) releases all copies.
  */
 import * as THREE from 'three'
 
@@ -25,27 +24,27 @@ import { bonesOf } from './ragdollBones3d'
 import { copySpartan, releaseSpartan, type SpartanCopy } from './spartan3d'
 import { aimDirThree } from './tracks3d'
 
-/** Ce qu'il faut savoir d'une mort pour en poser le corps. */
+/** What needs to be known about a death to place its body. */
 export interface Corpse {
-  /** Pieds de la victime à sa mort (axes three). */
+  /** Victim's feet at death (three.js axes). */
   at: THREE.Vector3
-  /** L'impulsion : horizontale, unitaire. */
+  /** The impulse: horizontal, unit length. */
   dir: THREE.Vector3
-  /** Cap de la victime à sa mort (degrés). */
+  /** Victim's heading at death (degrees). */
   h: number
   kind: FallKind
 }
 
-/** Au plus autant de corps à la fois : au-delà, les plus récents passent. */
+/** At most this many bodies at once: past that, the most recent ones win. */
 const MAX_CORPSES = 24
 
 interface Body {
   copy: SpartanCopy
-  /** L'habit que porte la copie (null : l'armure par défaut). */
+  /** The outfit the copy wears (null: the default armor). */
   dress: Dress | null
-  /** La place du corps, aux pieds (glissement et envol de la chute) ; la copie y tourne sur son cap. */
+  /** The body's spot, at the feet (the fall's slide and launch); the copy rotates there to its heading. */
   holder: THREE.Group
-  /** Les os de la copie alignés sur les noms d'une cuisson (`names`), lus une fois par liste de noms. */
+  /** The copy's bones aligned to a bake's names (`names`), read once per name list. */
   names: readonly string[] | null
   bones: (THREE.Bone | undefined)[]
 }
@@ -59,9 +58,9 @@ export class Corpses3d {
   private readonly mix = newClipMix(4, 0)
   private readonly facing = new THREE.Vector3()
   private readonly parent: THREE.Object3D
-  /** La sonde de la carte la plus proche d'un point (reflets éteints : null) ; sans, les corps se tiennent sans sonde. */
+  /** The map's closest probe to a point (reflections off: null); without one, bodies stand with no probe. */
   private readonly probeAt: (position: THREE.Vector3) => THREE.Texture | null
-  /** La lumière cuite de la carte, greffée sur les copies à leur création (`copySpartan`). */
+  /** The map's baked light, grafted onto copies when they are created (`copySpartan`). */
   private readonly baked: BakedLight | null
   private readonly probePoint = new THREE.Vector3()
 
@@ -71,7 +70,7 @@ export class Corpses3d {
     this.baked = baked
   }
 
-  /** begin ouvre une image ; `source` est le Spartan du jeu (null tant qu'il n'est pas chargé). */
+  /** begin opens a frame; `source` is the game's Spartan (null until it loads). */
   begin(source: THREE.Object3D | null): void {
     if (source !== this.source) {
       this.releaseAll()
@@ -81,11 +80,11 @@ export class Corpses3d {
     this.count = 0
   }
 
-  /** Prépare une copie cachée sans la prendre pour une mort. */
+  /** Prepares a hidden copy without claiming it for a death. */
   prepare(key: string, tint: THREE.Color, dress: Dress | null): THREE.Object3D | null {
     const list = this.bodies.get(key)
-    const disponible = list?.find((body) => body.dress === dress)
-    if (disponible) return disponible.holder
+    const available = list?.find((body) => body.dress === dress)
+    if (available) return available.holder
     const n = this.used.get(key) ?? 0
     const body = this.take(key, tint, dress)
     if (n) this.used.set(key, n)
@@ -95,9 +94,9 @@ export class Corpses3d {
   }
 
   /**
-   * add pose le corps `c`, `t` secondes après la mort, dans l'habit `dress` de la victime (null :
-   * l'armure par défaut à la teinte `tint`), clé `key`. `bake` : sa cuisson de corps inerte quand
-   * elle est prête (`ragdollBake3d`), sinon la chute par les clips de mort du jeu.
+   * add places body `c`, `t` seconds after death, in victim's outfit `dress` (null: the default
+   * armor tinted `tint`), key `key`. `bake`: its ragdoll bake once it is ready
+   * (`ragdollBake3d`), otherwise the fall through the game's death clips.
    */
   add(c: Corpse, t: number, tint: THREE.Color, key: string, dress: Dress | null = null, bake: RagdollBake | null = null): void {
     if (!this.source || this.count >= MAX_CORPSES) return
@@ -122,13 +121,13 @@ export class Corpses3d {
     this.illuminate(body)
   }
 
-  /** illuminate : l'armure du corps porte la sonde de la carte au point où il se tient (comme le joueur vivant). */
+  /** illuminate: the body's armor carries the map's probe at the point where it stands (like a living player). */
   private illuminate(body: Body): void {
     body.holder.getWorldPosition(this.probePoint)
     assignPlayerProbes(body.copy.materials, this.probeAt(this.probePoint))
   }
 
-  /** fall pose le corps par les clips de mort du jeu (la cuisson n'est pas prête). */
+  /** fall places the body through the game's death clips (the bake is not ready). */
   private fall(body: Body, c: Corpse, t: number): void {
     const clips = this.source ? spartanClipsOf(this.source) : null
     const p = fallPose(t, c.kind, this.pose)
@@ -139,7 +138,7 @@ export class Corpses3d {
     fallPlacement(c.at, c.dir, p, body.holder.position)
   }
 
-  /** end cache les copies qu'aucune mort n'a prises à cette image. */
+  /** end hides the copies no death claimed this frame. */
   end(): void {
     for (const [key, list] of this.bodies) {
       const n = this.used.get(key) ?? 0
@@ -158,7 +157,7 @@ export class Corpses3d {
       this.bodies.set(key, list)
     }
     const n = this.used.get(key) ?? 0
-    // Toute copie d'un autre habit est libérée : la suivante, glissée à sa place, est vérifiée à son tour.
+    // Any copy wearing another outfit is released: the next one, slid into its place, is checked in turn.
     while (n < list.length && list[n].dress !== dress) {
       release(list[n])
       list.splice(n, 1)

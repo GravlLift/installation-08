@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * objectives3d.ts — LES OBJECTIFS DU MODE DANS LA SCÈNE 3D : zones, marqueurs, drapeaux, crâne,
- * bombe, couronne VIP.
+ * objectives3d.ts — THE MODE'S OBJECTIVES IN THE 3D SCENE: zones, markers, flags, skull, bomb,
+ * VIP crown.
  *
- * Les règles sont celles de la 2D, lues par `objectives3dModel` ; ce calque ne fait que poser :
- *  - une ZONE est un contour plat (cercle de son rayon, ou rectangle de ses demi-cotés le long
- *    de `fwd`) et une paroi translucide basse au sol, teints par le propriétaire connu ;
- *  - un MARQUEUR (apparition, socle, livraison) est une hampe fine de `MARKER_HEIGHT` ; a CTF base
- *    has none once the flag model is drawn (`markersToDraw`) ;
- *  - un DRAPEAU est le modèle du jeu (le `weap` du drapeau, `flagObjectIdOf`) : dans la main de son
- *    porteur (l'arme en main, `heldWeapon3d`), sinon debout au sol, sur sa base ou là où il est
- *    tombé. Le socle de la base est un objet de la variante de carte, posé avec elle ;
- *  - le CRÂNE est une sphère, la BOMBE une boîte, la COURONNE un cône : au-dessus du porteur, ou
- *    au sol pour les deux premiers.
+ * The rules are the 2D's own, read by `objectives3dModel`; this layer only places things:
+ *  - a ZONE is a flat outline (a circle of its radius, or a rectangle of its half-sides along
+ *    `fwd`) and a low translucent wall at ground level, tinted by the known owner;
+ *  - a MARKER (spawn, pad, delivery) is a thin pole of `MARKER_HEIGHT`; a CTF base
+ *    has none once the flag model is drawn (`markersToDraw`);
+ *  - a FLAG is the game's model (the flag's `weap`, `flagObjectIdOf`): in its carrier's hand (the
+ *    held weapon, `heldWeapon3d`), otherwise standing on the ground, on its base or wherever it
+ *    fell. The base's pedestal is a map variant object, placed with it;
+ *  - the SKULL is a sphere, the BOMB a box, the CROWN a cone: above the carrier, or on the
+ *    ground for the first two.
  *
- * Un objet porté suit les pieds 3D de son porteur (`playerFeet`, véhicule compris) ; quand la 3D
- * ne le situe pas mais que la 2D le fait (fenêtre après la mort), il se pose au point 2D.
- * Le clignotement des objets portés de la 2D n'a pas d'équivalent : un lot n'a qu'une opacité.
+ * A carried object follows its carrier's 3D feet (`playerFeet`, including a vehicle); when the
+ * 3D does not place them but the 2D does (the window after death), it is placed at the 2D point.
+ * The 2D's carried-object blinking has no equivalent here: a batch has only one opacity.
  *
- * Unités monde Halo (cf. `tracks3d`).
+ * Halo world units (see `tracks3d`).
  */
 import * as THREE from 'three'
 
@@ -62,24 +62,24 @@ import { toThree } from './tracks3d'
 import { WeaponModelPool } from './weaponModels3d'
 import { zoneOutlineGeometry, zoneWallGeometry } from './zoneOutline3d'
 
-/** Hauteur de reference pour les etiquettes de zone (u). */
+/** Reference height for zone labels (u). */
 const ZONE_HEIGHT = 1.2
-/** Rayon minimal d'un cylindre de zone (u) : une zone dégénérée reste visible. */
+/** Minimum radius of a zone cylinder (u): a degenerate zone stays visible. */
 const ZONE_MIN_RADIUS = 0.2
-/** La lettre de la zone, au-dessus du volume (u). */
+/** The zone's letter, above the volume (u). */
 const ZONE_LETTER_LIFT = 0.25
-/** Hampe d'un marqueur (u). */
+/** A marker's pole (u). */
 const MARKER_HEIGHT = 1
 const MARKER_RADIUS = 0.03
-/** Un objet porté flotte à cet écart au-dessus du sommet de la tête (u). */
+/** A carried object floats this far above the top of the head (u). */
 const CARRIED_GAP = 0.08
-/** Le crâne (~21 cm, la taille du modèle du jeu), la bombe (largeur, hauteur, profondeur), la couronne (u). */
+/** The skull (~21cm, the game model's size), the bomb (width, height, depth), the crown (u). */
 const SKULL_RADIUS = 0.035
 const BOMB_SIZE = { w: 0.3, h: 0.18, d: 0.22 }
 const CROWN_RADIUS = 0.12
 const CROWN_HEIGHT = 0.2
 const CROWN_SIDES = 5
-/** Plafonds des lots. */
+/** Batch caps. */
 const ZONE_CAP = 64
 const MARKER_CAP = 64
 const CROWN_CAP = 8
@@ -87,20 +87,20 @@ const CROWN_CAP = 8
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
 
 /**
- * Ce que la page passe au calque en plus du contexte commun.
+ * What the page passes to the layer in addition to the common context.
  *
- * - `allegiance` : `model.allegiance`, la même que celle des calques 2D (`useZoneStates`,
- *   `useReplayFlagCarries`, `useReplayVipCrown`) ; elle porte le point de vue.
- * - `families` : les interrupteurs par famille du tiroir (`showFlagCarries`, `showVipCrown`,
- *   `showSkullCarrier`, `showBombCarrier`), relus à chaque image. Absent, `show.objectives` les
- *   commande tous (cf. `objectivesShown`).
+ * - `allegiance`: `model.allegiance`, the same one the 2D layers use (`useZoneStates`,
+ *   `useReplayFlagCarries`, `useReplayVipCrown`); it carries the viewpoint.
+ * - `families`: the drawer's per-family toggles (`showFlagCarries`, `showVipCrown`,
+ *   `showSkullCarrier`, `showBombCarrier`), re-read every frame. When absent, `show.objectives`
+ *   drives all of them (see `objectivesShown`).
  */
 export interface Objectives3dPage {
   allegiance: Pick<FilmAllegiance, 'ofTeam' | 'ofXuid'>
   families?: () => Objectives3dFamilies
 }
 
-/** Les deux lots d'une opacité de zone : contours circulaires et rectangulaires. */
+/** The two batches of a zone's opacity: circular and rectangular outlines. */
 class ZoneVolumes {
   private readonly cyl: InstancePool
   private readonly box: InstancePool
@@ -140,7 +140,7 @@ class ZoneVolumes {
       this.wallCyl.add(this.p, null, this.s.set(r, 0.45, r), color)
       return
     }
-    // L'axe X local de la boîte suit `fwd` : (x, y) Halo devient (x, -y) dans le plan three.
+    // The box's local X axis follows `fwd`: Halo (x, y) becomes (x, -y) in the three.js plane.
     this.q.setFromAxisAngle(Y_AXIS, Math.atan2(e.fwd.y, e.fwd.x))
     this.box.add(this.p, this.q, this.s.set(2 * e.halfX, 1, 2 * e.halfY), color)
     this.wallBox.add(this.p, this.q, this.s.set(2 * e.halfX, 0.45, 2 * e.halfY), color)
@@ -166,21 +166,21 @@ function volumeMaterial(opacity: number): THREE.Material {
   return new THREE.MeshBasicMaterial({ transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide })
 }
 
-/** Une hampe : cylindre fin, base à y = 0. */
+/** A pole: a thin cylinder, base at y = 0. */
 function poleGeometry(radius: number, height: number): THREE.BufferGeometry {
   return new THREE.CylinderGeometry(radius, radius, height, 8).translate(0, height / 2, 0)
 }
 
-/** Le calque des objectifs du mode. */
+/** The mode's objectives layer. */
 export class Objectives3dLayer implements ActionLayer3d {
   readonly labels: LabelPool
   private readonly volumes: ZoneVolumes
   private readonly markers: InstancePool
-  /** Les drapeaux posés au sol : des copies du modèle du jeu. */
+  /** Flags placed on the ground: copies of the game's model. */
   private readonly flagModels: WeaponModelPool
-  /** Le `weap` du drapeau de ce film, null sans portage qui le nomme. */
+  /** This film's flag `weap`, null with no carry naming one. */
   private readonly flagId: string | null
-  /** La pose debout du modèle du drapeau, mesurée une fois sur le modèle chargé. */
+  /** The flag model's standing pose, measured once on the loaded model. */
   private flagPose: { model: THREE.Object3D; pose: ReturnType<typeof standingWeaponPose> } | null = null
   private readonly skull: InstancePool
   private readonly bomb: InstancePool
@@ -252,7 +252,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     return [this.markers, this.skull, this.bomb, this.crowns]
   }
 
-  /** Les objectifs préparés, refaits seulement quand la page sert une autre liste. */
+  /** The prepared objectives, remade only when the page serves another list. */
   private objectives(list: readonly ObjectiveElementReady[]): PreparedObjectives {
     if (this.prepared?.from !== list) this.prepared = { from: list, value: prepareObjectives(list, this.ctx.doc) }
     return this.prepared.value
@@ -268,7 +268,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     for (const z of prepared.zones) {
       const ink = zoneDisplayInkAt(z, frame, k)
       if (ink === null) continue
-      // shortcut: contour horizontal sur sol incliné, épouser le terrain quand son tracé sera disponible.
+      // shortcut: a horizontal outline on sloped ground, hug the terrain once its trace is available.
       const floor = this.ctx.ground.floorY(z.e.x, z.e.y, z.e.z) ?? z.e.z
       this.volumes.add(z.e, this.ctx.ink.of(ink), floor)
       if (z.letter === null) continue
@@ -282,10 +282,10 @@ export class Objectives3dLayer implements ActionLayer3d {
   }
 
   /**
-   * Les drapeaux hors de la main : le modèle du jeu debout au sol, with its team's banner
-   * (`flagBanner3d`). Celui d'un porteur que la 3D pose est dans sa main (`heldWeapon3d`) ; un
-   * porteur qu'elle ne pose pas le laisse au sol sous son point 2D. Tant que le modèle n'est pas
-   * chargé, rien. The standing pose is measured on the bare model (the banner hangs above its foot).
+   * Flags out of hand: the game's model standing on the ground, with its team's banner
+   * (`flagBanner3d`). The one held by a carrier the 3D places is in their hand (`heldWeapon3d`);
+   * a carrier it does not place leaves it on the ground under their 2D point. While the model is
+   * not loaded, nothing. The standing pose is measured on the bare model (the banner hangs above its foot).
    */
   private paintFlags(frame: number, inputs: Action3dInputs): void {
     const model = this.flagModel()
@@ -309,8 +309,8 @@ export class Objectives3dLayer implements ActionLayer3d {
   }
 
   /**
-   * La bombe et les couronnes : au-dessus du porteur, ou au sol. Le crâne : au sol seulement, porté
-   * il est dans la main de son porteur (arme tenue, `heldWeapon3d`).
+   * The bomb and the crowns: above the carrier, or on the ground. The skull: on the ground only,
+   * once carried it is in its carrier's hand (held weapon, `heldWeapon3d`).
    */
   private paintCarriedObjects(frame: number, inks: ReplayInks, shown: Objectives3dShown): void {
     const objectInk = this.ctx.ink.of(inks.neutral)
@@ -334,7 +334,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     }
   }
 
-  /** Pose une forme centrée sur son origine, son dessous à la place servie. */
+  /** Places a shape centered on its origin, its underside at the served spot. */
   private addCentered(pool: InstancePool, at: THREE.Vector3 | null, halfHeight: number, color: THREE.Color): void {
     if (!at) return
     at.y += halfHeight
@@ -342,8 +342,8 @@ export class Objectives3dLayer implements ActionLayer3d {
   }
 
   /**
-   * placeOf — le point three où se pose le DESSOUS de l'objet : au-dessus de la tête du porteur,
-   * ou au sol. Le vecteur rendu est partagé : à consommer avant le prochain appel.
+   * placeOf — the three.js point where the object's UNDERSIDE sits: above the carrier's head, or
+   * on the ground. The returned vector is shared: consume it before the next call.
    */
   private placeOf(place: ObjectPlace, frame: number): THREE.Vector3 | null {
     if (place.on === 'floor') return this.floorAt(place.at, place.hint)
@@ -354,7 +354,7 @@ export class Objectives3dLayer implements ActionLayer3d {
     return base
   }
 
-  /** Le porteur que la 3D ne situe pas mais que la 2D situe : le sol sous son point 2D. */
+  /** A carrier the 3D does not place but the 2D does: the ground under their 2D point. */
   private floorUnderCarrier(xuid: string, frame: number): THREE.Vector3 | null {
     const at = this.posOf(xuid, frame)
     return at ? this.floorAt(at, this.zOf(xuid, frame)) : null
