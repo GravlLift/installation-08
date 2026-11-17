@@ -144,7 +144,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	chemins = append(chemins, opts.modulesCarteDeportee()...)
 	idx, bsp, bsps, err := ouvreBSPMonde(&b, opts, chemins)
@@ -190,12 +190,12 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	out.posePlacements(ctx, idx, opts)
 	terrain, matieresTerrain, texturesTerrain, decorateurs, err := collecteTerrains(idx, opts)
 	if err != nil {
-		return nil, b, fmt.Errorf("terrain : %w", err)
+		return nil, b, fmt.Errorf("terrain: %w", err)
 	}
 	out.Terrain = terrain
 	out.Decorateurs = decorateurs
 	if out.Structure.Triangles()+out.Terrain.Triangles() == 0 {
-		return nil, b, fmt.Errorf("aucun triangle de structure sur %d instances des %d structures", len(bsp.Instances), len(bsps))
+		return nil, b, fmt.Errorf("no structure triangle out of %d instances of the %d structures", len(bsp.Instances), len(bsps))
 	}
 	if err := out.resoutMateriaux(opts, idx); err != nil {
 		return nil, b, err
@@ -255,7 +255,7 @@ func (m *MaillageMonde) resoutMateriaux(opts OptionsCuisson, idxGeo *ModuleIndex
 	}
 	idx, err := NewModuleIndex(append(chemins, opts.modulesCarteDeportee()...)...)
 	if err != nil {
-		return fmt.Errorf("index des modules de materiaux : %w", err)
+		return fmt.Errorf("material module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	m.lisMateriaux(idx, idxGeo)

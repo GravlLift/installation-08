@@ -8,6 +8,8 @@
 // reference `proj` de son element.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -27,7 +29,7 @@ func (a *Arsenal) Grenade(ctx context.Context, rang int) (*MaillageMonde, error)
 		return nil, err
 	}
 	if rang < 0 || rang >= len(projs) {
-		return nil, fmt.Errorf("%w : grenade de rang %d sur %d types", ErrSansModele, rang, len(projs))
+		return nil, fmt.Errorf("%w: grenade of rank %d of %d types", ErrSansModele, rang, len(projs))
 	}
 	return a.objet(ctx, projs[rang], GroupeProjectile)
 }
@@ -36,11 +38,11 @@ func (a *Arsenal) Grenade(ctx context.Context, rang int) (*MaillageMonde, error)
 func (a *Arsenal) projectilesDeGrenade() ([]uint32, error) {
 	ids := a.geo.EntreesDuGroupe(GroupeReglagesGrenades)
 	if len(ids) != 1 {
-		return nil, fmt.Errorf("%w : %d tags %q", ErrSansModele, len(ids), GroupeReglagesGrenades)
+		return nil, fmt.Errorf("%w: %d %q tags", ErrSansModele, len(ids), GroupeReglagesGrenades)
 	}
 	raw, err := a.geo.Extract(ids[0])
 	if err != nil {
-		return nil, fmt.Errorf("reglages des grenades : %w", err)
+		return nil, fmt.Errorf("grenade settings: %w", err)
 	}
 	projs := map[uint32]bool{}
 	for _, d := range dependancesDuGroupe(raw, GroupeProjectile) {
@@ -51,7 +53,7 @@ func (a *Arsenal) projectilesDeGrenade() ([]uint32, error) {
 			return out, nil
 		}
 	}
-	return nil, fmt.Errorf("%w : bloc des types de grenade introuvable", ErrSansModele)
+	return nil, fmt.Errorf("%w: grenade types block not found", ErrSansModele)
 }
 
 // projectilesParElement cherche, parmi les blocs du bloc racine, le premier dont chaque element

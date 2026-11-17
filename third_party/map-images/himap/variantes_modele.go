@@ -41,7 +41,7 @@ type VarianteModele map[uint32]uint32
 func LitVarianteModele(hlmt []byte, nom uint32) (VarianteModele, bool, error) {
 	ti, err := meilleurTagInfo(hlmt)
 	if err != nil {
-		return nil, false, fmt.Errorf("himap: en-tete du hlmt : %w", err)
+		return nil, false, fmt.Errorf("himap: hlmt header: %w", err)
 	}
 	offs, cibles, err := ti.rootBlockRefs()
 	if err != nil {

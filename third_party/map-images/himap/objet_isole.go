@@ -12,6 +12,8 @@
 // (`source-in`), c'est l'alpha qui dessine — donc le relief survit a la teinte d'equipe.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"image"
@@ -229,7 +231,7 @@ func RenduObjetIsole(asset *RuntimeGeoAsset, o OptionsSprite) (*Rendu, error) {
 func renduDesMeshes(meshes []*Mesh, o OptionsSprite, nSections int) (*Rendu, error) {
 	min, max, ok := bornesPlan(meshes)
 	if !ok {
-		return nil, fmt.Errorf("himap: modele sans maillage exploitable (%d sections)", nSections)
+		return nil, fmt.Errorf("himap: model without a usable mesh (%d sections)", nSections)
 	}
 	// Cadre force : rend plusieurs sous-ensembles de sections au MEME repere (comparables).
 	if o.CadreMin != nil && o.CadreMax != nil {
@@ -237,7 +239,7 @@ func renduDesMeshes(meshes []*Mesh, o OptionsSprite, nSections int) (*Rendu, err
 	}
 	etendue := math.Max(max[0]-min[0], max[1]-min[1])
 	if etendue <= 0 {
-		return nil, fmt.Errorf("himap: modele degenere (emprise nulle)")
+		return nil, fmt.Errorf("himap: degenerate model (zero bounding box)")
 	}
 	var cell float64
 	if o.CellMetres > 0 {

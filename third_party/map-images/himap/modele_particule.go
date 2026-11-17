@@ -9,6 +9,8 @@
 // the resource section.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"encoding/binary"
@@ -37,11 +39,11 @@ func pmdfGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	}
 	sections, ok := parOffset[pmdfOffSections]
 	if !ok {
-		return RuntimeGeo{}, fmt.Errorf("himap: pmdf sans Sections a l'offset %d (offsets vus: %v)", pmdfOffSections, offs)
+		return RuntimeGeo{}, fmt.Errorf("himap: pmdf without Sections at offset %d (offsets seen: %v)", pmdfOffSections, offs)
 	}
 	absS, sizeS := ti.blockAbs(sections)
 	if absS < 0 || sizeS <= 0 || sizeS%sectionStride != 0 || absS+sizeS > len(ti.tag) {
-		return RuntimeGeo{}, fmt.Errorf("himap: pmdf, bloc Sections de taille %d non multiple de %d", sizeS, sectionStride)
+		return RuntimeGeo{}, fmt.Errorf("himap: pmdf, Sections block of size %d not a multiple of %d", sizeS, sectionStride)
 	}
 	absB, err := premiereBoite(ti, parOffset, pmdfOffBoundingBoxes)
 	if err != nil {
@@ -107,7 +109,7 @@ type ModeleParticule struct {
 // ModeleDeParticule reads the particle model `id`: every mesh of it, merged.
 func (a *Arsenal) ModeleDeParticule(ctx context.Context, id uint32) (*ModeleParticule, error) {
 	if g, _, ok := a.geo.Lookup(id); !ok || g != GroupeModeleParticule {
-		return nil, fmt.Errorf("himap: %08x n'est pas un pmdf", id)
+		return nil, fmt.Errorf("himap: %08x is not a pmdf", id)
 	}
 	tag, blob, err := a.geo.ExtractWithResources(id)
 	if err != nil {
@@ -156,7 +158,7 @@ func (a *Arsenal) ModeleDeParticule(ctx context.Context, id uint32) (*ModelePart
 		}
 	}
 	if len(out.Triangles) == 0 {
-		return nil, fmt.Errorf("himap: pmdf %08x sans triangle lisible", id)
+		return nil, fmt.Errorf("himap: pmdf %08x without a readable triangle", id)
 	}
 	_ = ctx
 	return out, nil
