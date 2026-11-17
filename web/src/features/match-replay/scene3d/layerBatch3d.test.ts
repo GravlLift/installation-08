@@ -101,6 +101,47 @@ describe('layerBatch3d', () => {
 
       result.dispose()
       expect(result.meshes.every((m) => m.parent === null)).toBe(true)
+      // dispose must undo what batchLayer did to the ORIGINAL surfaces, not just free the batches:
+      // a session-cached layer root a later match reattaches is batched again from scratch
+      // (`candidate` skips an already-hidden mesh), so a surface left hidden here is lost forever.
+      for (const m of [...placed, ...leaves, back]) {
+        expect(m.visible).toBe(true)
+        expect(drawnBy(m)).toBeNull()
+      }
+    } finally {
+      info.mockRestore()
+    }
+  })
+
+  it('a reused root batches again exactly as a cold one, after dispose', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    try {
+      const root = new THREE.Group()
+      const { position, uv } = buffers()
+      const a = sharedGeometry(position, uv, 0, 4)
+      const b = sharedGeometry(position, uv, 12, 2)
+      const plain = new THREE.MeshStandardMaterial()
+      const classic = new THREE.MeshStandardMaterial()
+      classic.userData.textures = [new THREE.Texture()]
+      place(root, a, plain, 0)
+      place(root, a, plain, 10)
+      place(root, b, plain, 20)
+      place(root, a, classic, 30)
+      place(root, a, classic, 40)
+
+      const first = batchLayer(root)
+      const firstBatched = first.batched
+      const firstMeshCount = first.meshes.length
+      first.dispose()
+
+      // The bug this reproduces: without the dispose fix, every surface batchLayer hid on the
+      // first pass stays `visible: false` forever, so this second pass (standing in for the next
+      // match that reattaches the same session-cached layer) would batch 0 surfaces instead of
+      // finding the same candidates again.
+      const second = batchLayer(root)
+      expect(second.batched).toBe(firstBatched)
+      expect(second.meshes.length).toBe(firstMeshCount)
+      second.dispose()
     } finally {
       info.mockRestore()
     }

@@ -33,7 +33,7 @@ import * as THREE from 'three'
 
 import { BACK_FACE_NAME } from './backFaces3d'
 import { isMergedMaterial } from './layeredArrays3d'
-import { drawnBy, markDrawnBy, surfaceFamily } from './surfaceProbe3d'
+import { clearDrawnBy, drawnBy, markDrawnBy, surfaceFamily } from './surfaceProbe3d'
 
 /** The attributes a merged layered material reads (`layeredArrays3d`). */
 const MERGED_ATTRIBUTES = ['position', 'cMacro', 'cUv', 'cRow']
@@ -199,6 +199,7 @@ export function batchLayer(root: THREE.Object3D): LayerBatches {
     group.members.push({ mesh, names })
   })
   const meshes: THREE.Mesh[] = []
+  const hidden: THREE.Mesh[] = [] // every original surface this pass hides, so `dispose` can undo it
   const compacted = new Map<string, THREE.BufferGeometry>()
   const matrix = new THREE.Matrix4()
   let batched = 0
@@ -249,6 +250,7 @@ export function batchLayer(root: THREE.Object3D): LayerBatches {
     for (const { mesh } of members) {
       mesh.visible = false
       markDrawnBy(mesh, drawer)
+      hidden.push(mesh)
     }
     batched += members.length
   }
@@ -266,6 +268,14 @@ export function batchLayer(root: THREE.Object3D): LayerBatches {
         m.removeFromParent()
         if ((m as THREE.BatchedMesh).isBatchedMesh) (m as THREE.BatchedMesh).dispose()
         else (m as THREE.InstancedMesh).dispose()
+      }
+      // Undo exactly what this pass did to the original surfaces (see the module header and
+      // `clearDrawnBy`'s own doc): a layer root released back to the session cache must come back
+      // to a later `batchLayer` call looking as it would right after loading, not with everything
+      // this pass batched stuck invisible and un-candidate forever.
+      for (const m of hidden) {
+        m.visible = true
+        clearDrawnBy(m)
       }
     },
   }
