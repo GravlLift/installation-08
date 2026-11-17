@@ -10,12 +10,12 @@ import { newClipMix, type ClipMix } from './clipSample3d'
 import { MuzzleProbe, muzzleOfModel, muzzleWorld } from './muzzle3d'
 import { aimDirThree } from './tracks3d'
 
-/** Un modèle d'arme de test : la boîte du BR75 tenu (0,31 x 0,10 x 0,024 u), poignée à l'origine. */
+/** A test weapon model: the held BR75's box (0.31 x 0.10 x 0.024 u), grip at the origin. */
 function rifle(): THREE.Group {
   const geo = new THREE.BoxGeometry(0.308, 0.1, 0.024).translate(0.144, 0.02, 0)
   const g = new THREE.Group()
   g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial()))
-  // La pose de la source ne compte pas : la vue en tient une copie repositionnée.
+  // The source's pose does not matter: the view holds a repositioned copy of it.
   g.position.set(5, 5, 5)
   g.rotation.set(0.3, 1, 0)
   return g
@@ -24,14 +24,14 @@ function rifle(): THREE.Group {
 const vec = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2])
 
 describe('muzzleOfModel', () => {
-  it('rend le devant de la boîte le long du canon, au milieu de la section, dans le repère du modèle', () => {
+  it('returns the front of the box along the barrel, centered on the cross-section, in the model\'s frame', () => {
     const m = muzzleOfModel(rifle())
     expect(m.x).toBeCloseTo(0.298, 5)
     expect(m.y).toBeCloseTo(0.02, 5)
     expect(m.z).toBeCloseTo(0, 5)
   })
 
-  it('se centre sur le bout du canon, pas sur la section entière (chargeur dessous)', () => {
+  it('centers on the tip of the barrel, not on the whole cross-section (a magazine underneath)', () => {
     const gun = rifle()
     const mag = new THREE.BoxGeometry(0.04, 0.12, 0.02).translate(0.08, -0.09, 0)
     gun.add(new THREE.Mesh(mag, new THREE.MeshBasicMaterial()))
@@ -42,9 +42,9 @@ describe('muzzleOfModel', () => {
 })
 
 describe('muzzleWorld', () => {
-  it('porte la bouche depuis la poignée comme l’avatar porte l’arme (GRIP_TO_WEAPON)', () => {
+  it('carries the muzzle from the grip the way the avatar carries the weapon (GRIP_TO_WEAPON)', () => {
     const grip = new THREE.Vector3(1, 2, 3)
-    // Une poignée tournée de l'inverse du port : le modèle d'arme a les axes du monde.
+    // A grip rotated by the inverse of the carry: the weapon model has the world's axes.
     const out = muzzleWorld(grip, GRIP_TO_WEAPON.clone().invert(), new THREE.Vector3(0.3, 0.02, 0), new THREE.Vector3())
     expect(out.distanceTo(new THREE.Vector3(1.3, 2.02, 3))).toBeLessThan(1e-6)
   })
@@ -67,13 +67,13 @@ describe('MuzzleProbe', () => {
   const at = (probe: MuzzleProbe, h: number, p: number, mix = idle) =>
     probe.at(source, weapon, feet, { h, p, mix }, new THREE.Vector3()) as THREE.Vector3
 
-  it('la bouche est le bout du canon porté par la main, le long de la visée', () => {
+  it('the muzzle is the tip of the barrel carried by the hand, along the aim', () => {
     const probe = new MuzzleProbe()
     for (const [h, p] of [[0, 0], [90, 20], [230, -35]]) {
       const m = at(probe, h, p)
       const m2 = probe.at(source, weapon, feet, { h, p, mix: idle }, new THREE.Vector3()) as THREE.Vector3
       expect(m2.distanceTo(m)).toBeLessThan(1e-12)
-      // Deux bouches de longueurs de canon différentes : leur écart suit la visée.
+      // Two muzzles with different barrel lengths: their gap follows the aim.
       const short = new THREE.Group()
       short.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.02).translate(0.05, 0.02, 0)))
       const s = probe.at(source, short, feet, { h, p, mix: idle }, new THREE.Vector3()) as THREE.Vector3
@@ -82,7 +82,7 @@ describe('MuzzleProbe', () => {
     }
   })
 
-  it('suit le cap autour des pieds, le tangage de la visée et l’accroupi des clips', () => {
+  it('follows the heading around the feet, the pitch of the aim, and the crouch of the clips', () => {
     const probe = new MuzzleProbe()
     const east = at(probe, 0, 0).sub(feet)
     const north = at(probe, 90, 0).sub(feet)
@@ -92,7 +92,7 @@ describe('MuzzleProbe', () => {
     expect(at(probe, 0, 0, crouch).y).toBeLessThan(at(probe, 0, 0).y - 0.15)
   })
 
-  it('ne garde rien d’un appel à l’autre : la même pose rend la même bouche', () => {
+  it('keeps nothing from one call to the next: the same pose returns the same muzzle', () => {
     const probe = new MuzzleProbe()
     const first = at(probe, 30, 10)
     at(probe, 250, -60, crouch)
@@ -100,7 +100,7 @@ describe('MuzzleProbe', () => {
     expect(at(probe, 30, 10).distanceTo(first)).toBeLessThan(1e-9)
   })
 
-  it('rend null pour un modèle sans les os du Spartan', () => {
+  it('returns null for a model without the Spartan\'s bones', () => {
     expect(new MuzzleProbe().at(new THREE.Group(), weapon, feet, { h: 0, p: 0, mix: null }, new THREE.Vector3())).toBeNull()
   })
 })
