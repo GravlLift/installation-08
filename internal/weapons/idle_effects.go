@@ -38,9 +38,17 @@ type IdleEffect struct {
 	// Functions: the weapon's object functions the scales read, by name.
 	Functions []IdleFunction `json:"functions"`
 	// Markers: per location name, the marker instances of the weapon's third-person model, model
-	// space, GLB axes (the systems emit at the first instance).
-	Markers map[string][][3]float64 `json:"markers"`
-	Systems []IdleSystem            `json:"systems"`
+	// space at its rest pose (the marker's node chain, then the marker), GLB axes; MarkerRotations:
+	// their rotations, same order, quaternions (x, y, z, w) in GLB axes (the Heatwave's fin markers turn
+	// a quarter about up, so its vent points out of the fins). The systems emit at every instance.
+	Markers         map[string][][3]float64 `json:"markers"`
+	MarkerRotations map[string][][4]float64 `json:"markerRotations"`
+	// ReloadFunctions: the animation functions the weapon's own graph sets through its reload
+	// animations (himap.FonctionsDuRechargement), by name, where every reload animation holds one
+	// value over all its frames (the Heatwave's and the Cindershot's animation_event_function_variant_switch,
+	// 1); the view feeds them while the holder reloads.
+	ReloadFunctions map[string]float64 `json:"reloadFunctions,omitempty"`
+	Systems         []IdleSystem       `json:"systems"`
 }
 
 // IdleFunction is a weapon object function (weaponicons.ObjectFunction), by name.
@@ -221,6 +229,7 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 	if !ok {
 		return nil, nil
 	}
+	reloadFns := w.reloadFunctions(ctx, weap)
 	var out []IdleEffect
 	for _, at := range atts {
 		if at.PrimaryScale == 0 {
@@ -235,6 +244,7 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 				"effect", fmt.Sprintf("%08x", at.Effect), "why", s)
 		}
 		e, err := w.effect(at, fns, mode, fx)
+		e.ReloadFunctions = reloadFns
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +258,7 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 // effect builds one IdleEffect and writes its files.
 func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.ObjectFunction, mode uint32, fx *himap.EffetParticules) (IdleEffect, error) {
 	e := IdleEffect{Effect: fmt.Sprintf("%08x", at.Effect), ScaleA: functionName(at.PrimaryScale),
-		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}}
+		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}, MarkerRotations: map[string][][4]float64{}}
 	for _, f := range fns {
 		m, ok := mappingOf(f.Mapping)
 		if !ok {
@@ -267,7 +277,9 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 	}
 	for _, m := range ms {
 		k := fmt.Sprintf("%08x", m.Nom)
-		e.Markers[k] = append(e.Markers[k], gltfOf(m.Translation))
+		p, q := markerFrame(m.Modele)
+		e.Markers[k] = append(e.Markers[k], p)
+		e.MarkerRotations[k] = append(e.MarkerRotations[k], q)
 	}
 	for _, s := range fx.Systems {
 		loc := fmt.Sprintf("%08x", s.Location)

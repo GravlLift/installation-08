@@ -561,14 +561,17 @@ func (a *Arsenal) litRendu(id uint32) (RenduParticule, error) {
 	return r, nil
 }
 
-// MarqueurArme is a marker instance of a weapon's model: its node, and its position in that node's
-// frame (Halo axes; the markers the effects name carry an identity rotation on the Shock Rifle).
+// MarqueurArme is a marker instance of a weapon's model: its node, and its position and rotation in
+// that node's frame (Halo axes; the markers the effects name carry an identity rotation on the Shock
+// Rifle, a quarter turn about up on the Heatwave's fins). Modele: the marker's frame in model space at
+// the model's rest pose (its node's chain, then the marker).
 type MarqueurArme struct {
 	Nom         uint32
 	Noeud       int
 	NomNoeud    string
 	Translation [3]float64
 	Rotation    [4]float64
+	Modele      Transforme
 }
 
 // MarqueursDuModele reads the markers `noms` of the render model `mode`, every instance.
@@ -588,7 +591,8 @@ func (a *Arsenal) MarqueursDuModele(mode uint32, noms map[uint32]bool) ([]Marque
 			continue
 		}
 		for _, in := range g.Instances {
-			m := MarqueurArme{Nom: g.Nom, Noeud: in.Noeud, Translation: in.Translation, Rotation: in.Rotation}
+			m := MarqueurArme{Nom: g.Nom, Noeud: in.Noeud, Translation: in.Translation, Rotation: in.Rotation,
+				Modele: Compose(NodeModelTransform(noeuds, in.Noeud), Transforme{Scale: 1, Rot: quatVersRot(in.Rotation), Trans: in.Translation})}
 			if in.Noeud >= 0 && in.Noeud < len(noeuds) {
 				m.NomNoeud = NomDuNoeud(noeuds[in.Noeud].Name)
 			}

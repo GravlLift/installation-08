@@ -458,7 +458,14 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     `himap/effet_arme_gamefiles_test.go` (new: the twelve systems, the shader layouts, the three
     meshes, the markers). `FonctionDeMapping` (LOCAL-CHANGE) exposes the same function decoder for
     a weapon object function's `default function` bytes (the Heatwave's `fx_camo_off` maps `camo`
-    through 1 - x).
+    through 1 - x). `MarqueurArme.Modele` (LOCAL-CHANGE) is the marker's model-space frame at the
+    rest pose (`NodeModelTransform` of its node, then its translation and rotation): the Heatwave's
+    fin markers turn a quarter about up.
+  - `himap/animations_fonctions.go` (new, LOCAL-CHANGE), `animations.go` (modified: a member keeps
+    its function list): `GrapheAnimation.Fonctions` decodes the functions an animation sets (the
+    member's list at +216, its curves in blob section 16) and `Arsenal.FonctionsDuRechargement`
+    those a weapon's own graph sets through its `reload_1` animations (the Heatwave's
+    `animation_event_function_variant_switch`, 1). Covered by `himap/animations_fonctions_test.go`.
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

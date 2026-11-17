@@ -302,9 +302,19 @@ func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) [
 		if m.NomNoeud == "" {
 			continue
 		}
-		out = append(out, EffectMarker{Marker: fmt.Sprintf("%08x", m.Nom), Bone: m.NomNoeud, Position: axesGLTFFirstPerson(m.Translation)})
+		out = append(out, EffectMarker{Marker: fmt.Sprintf("%08x", m.Nom), Bone: m.NomNoeud, Position: axesGLTFFirstPerson(m.Translation),
+			Rotation: quatGLTFFirstPerson(m.Rotation)})
 	}
 	return out
+}
+
+// quatGLTFFirstPerson: a quaternion (x, y, z, w) in Halo axes -> glTF axes, (x, z, -y, w); a zero
+// quaternion (no rotation read) is the identity.
+func quatGLTFFirstPerson(q [4]float64) [4]float32 {
+	if q == ([4]float64{}) {
+		return [4]float32{0, 0, 0, 1}
+	}
+	return [4]float32{float32(q[0]), float32(q[2]), float32(-q[1]) + 0, float32(q[3])}
 }
 
 // axesGLTFFirstPerson: (x, y, z) Halo -> (x, z, -y) glTF.
