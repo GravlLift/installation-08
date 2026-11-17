@@ -18,6 +18,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
+	"github.com/llampwall/infinite-theater-3d/internal/endmatchvoice"
 	"github.com/llampwall/infinite-theater-3d/internal/eventsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
@@ -65,6 +66,13 @@ func writeEventsManifest(t *testing.T, dataDir string, version int) {
 	writeSoundManifest(t, dataDir, eventsounds.ManifestName, map[string]any{"version": version, "sounds": map[string]any{}})
 }
 
+// writeEndMatchVoiceManifest writes an end-of-match voice manifest of the given version into the
+// store's sound folder.
+func writeEndMatchVoiceManifest(t *testing.T, dataDir string, version int) {
+	t.Helper()
+	writeSoundManifest(t, dataDir, endmatchvoice.ManifestName, map[string]any{"version": version, "sounds": map[string]any{}})
+}
+
 func writeSoundManifest(t *testing.T, dataDir, name string, body map[string]any) {
 	t.Helper()
 	dir := soundsDir(dataDir)
@@ -98,6 +106,7 @@ func announcerTestHandlers(t *testing.T) (serverHandlers, *store.Root) {
 		writeUIManifest(t, root.Dir(), uisounds.ManifestVersion)
 		writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion)
 		writeEventsManifest(t, root.Dir(), eventsounds.ManifestVersion)
+		writeEndMatchVoiceManifest(t, root.Dir(), endmatchvoice.ManifestVersion)
 		return meshjobs.BuildResult{Bytes: 1}, nil
 	}
 	r, err := meshjobs.New(build, "", func(m string) bool { return jobModuleReady(root, m) })
@@ -162,6 +171,10 @@ func TestAnnouncerReadiness(t *testing.T) {
 		t.Fatalf("without event sounds: %s built %v", state, built)
 	}
 	writeEventsManifest(t, root.Dir(), eventsounds.ManifestVersion)
+	if state, built, _ := announcerState(t, h); state != "absent" || built {
+		t.Fatalf("without end-of-match voice: %s built %v", state, built)
+	}
+	writeEndMatchVoiceManifest(t, root.Dir(), endmatchvoice.ManifestVersion)
 	if state, built, stale := announcerState(t, h); state != "ready" || !built || stale {
 		t.Fatalf("current: %s built %v stale %v", state, built, stale)
 	}
@@ -172,6 +185,7 @@ func TestAnnouncerReadiness(t *testing.T) {
 		"ui version 0":         func() { writeUIManifest(t, root.Dir(), uisounds.ManifestVersion-1) },
 		"ambience version 0":   func() { writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion-1) },
 		"events version 0":     func() { writeEventsManifest(t, root.Dir(), eventsounds.ManifestVersion-1) },
+		"voice version 0":      func() { writeEndMatchVoiceManifest(t, root.Dir(), endmatchvoice.ManifestVersion-1) },
 	} {
 		writeAnnouncerManifest(t, root.Dir(), announcer.ManifestVersion)
 		writeReloadsManifest(t, root.Dir(), reloadsounds.ManifestVersion)
@@ -179,6 +193,7 @@ func TestAnnouncerReadiness(t *testing.T) {
 		writeUIManifest(t, root.Dir(), uisounds.ManifestVersion)
 		writeAmbienceManifest(t, root.Dir(), ambience.ManifestVersion)
 		writeEventsManifest(t, root.Dir(), eventsounds.ManifestVersion)
+		writeEndMatchVoiceManifest(t, root.Dir(), endmatchvoice.ManifestVersion)
 		write()
 		if jobModuleReady(root, meshjobs.JobAnnouncer) {
 			t.Fatalf("%s: ready", name)

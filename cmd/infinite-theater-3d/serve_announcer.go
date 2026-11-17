@@ -15,6 +15,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
+	"github.com/llampwall/infinite-theater-3d/internal/endmatchvoice"
 	"github.com/llampwall/infinite-theater-3d/internal/eventsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
@@ -38,7 +39,7 @@ func announcerReady(dataDir string) bool {
 // soundLibraryStatus is built when every manifest of the sound library is there, stale when any is old.
 func soundLibraryStatus(dir string) (built, stale bool) {
 	built, stale = true, false
-	for _, status := range []func(string) (bool, bool){announcer.ManifestStatus, reloadsounds.ManifestStatus, footstepsounds.ManifestStatus, uisounds.ManifestStatus, ambience.ManifestStatus, eventsounds.ManifestStatus} {
+	for _, status := range []func(string) (bool, bool){announcer.ManifestStatus, reloadsounds.ManifestStatus, footstepsounds.ManifestStatus, uisounds.ManifestStatus, ambience.ManifestStatus, eventsounds.ManifestStatus, endmatchvoice.ManifestStatus} {
 		b, s := status(dir)
 		built = built && b
 		stale = stale || s
@@ -74,7 +75,11 @@ func buildAnnouncer(ctx context.Context, root *store.Root, gameRoot string) (mes
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
-	return meshjobs.BuildResult{Bytes: res.Bytes + reloads.Bytes + footsteps.Bytes + ui.Bytes + beds.Bytes + events.Bytes, Triangles: 0}, nil
+	voice, err := buildEndMatchVoice(ctx, gameRoot, root.Dir())
+	if err != nil {
+		return meshjobs.BuildResult{}, err
+	}
+	return meshjobs.BuildResult{Bytes: res.Bytes + reloads.Bytes + footsteps.Bytes + ui.Bytes + beds.Bytes + events.Bytes + voice.Bytes, Triangles: 0}, nil
 }
 
 // handleAnnouncerState answers GET /api/announcer/state with the sound library's build state,

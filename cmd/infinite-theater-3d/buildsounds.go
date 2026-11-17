@@ -15,6 +15,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/ambience"
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/endmatchvoice"
 	"github.com/llampwall/infinite-theater-3d/internal/eventsounds"
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/footstepsounds"
@@ -79,7 +80,27 @@ func runBuildSounds(args []string) error {
 		return err
 	}
 	fmt.Printf("event sounds built into %s: %d files, %d bytes; missing %v\n", soundsDir(dir), events.Files, events.Bytes, events.Missing)
+	voice, err := buildEndMatchVoice(context.Background(), *gameRoot, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("end-of-match voice built into %s: %d files, %d bytes; missing %v\n", soundsDir(dir), voice.Files, voice.Bytes, voice.Missing)
 	return nil
+}
+
+// buildEndMatchVoice is the end-of-match voice extraction both build-sounds and the server's
+// sound job run: the one shipped line confirmed by duration against the installed game's
+// English announcer catalog (internal/endmatchvoice), into the data directory's sound folder.
+func buildEndMatchVoice(ctx context.Context, gameRoot, dataDir string) (*endmatchvoice.Result, error) {
+	root, err := deployRootFor(gameRoot)
+	if err != nil {
+		return nil, err
+	}
+	res, err := endmatchvoice.Build(ctx, endmatchvoice.Options{GameRoot: root, OutDir: soundsDir(dataDir)})
+	if err != nil {
+		return nil, fmt.Errorf("build-sounds: %w", err)
+	}
+	return res, nil
 }
 
 // buildEventSounds is the event sound extraction both build-sounds and the server's sound job

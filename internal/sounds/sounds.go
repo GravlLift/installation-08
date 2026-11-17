@@ -6,8 +6,9 @@
 // a fresh install: the sound route serves a file from the user's data directory when it is
 // there (an imported file wins), otherwise from this set. A family this repo now extracts from
 // the user's own installation (internal/announcer, internal/reloadsounds,
-// internal/footstepsounds, internal/uisounds, internal/ambience, internal/eventsounds) has its
-// shipped files removed from here once confirmed; see each package's doc comment.
+// internal/footstepsounds, internal/uisounds, internal/ambience, internal/eventsounds,
+// internal/endmatchvoice) has its shipped files removed from here once confirmed; see each
+// package's doc comment.
 package sounds
 
 import (
