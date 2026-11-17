@@ -1,6 +1,6 @@
 # Notice
 
-Infinite Theater 3D: Copyright (C) 2026 Jordan Hewitt (https://github.com/llampwall). The
+Installation 08 (formerly Infinite Theater 3D): Copyright (C) 2026 Jordan Hewitt (https://github.com/llampwall). The
 upstream code it builds on keeps its own authors' copyright, listed below and in
 `third_party/README.md`; the git history records who wrote what and when.
 
