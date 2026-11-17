@@ -1,5 +1,7 @@
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // resynchronisation.go — FRANCHIR UNE ENTREE TBDY QU'ON NE SAIT PAS LIRE.
 //
 // LE PROBLEME, mesure le 2026-08-31 sur Absolution. Sa section TBDY se lit parfaitement jusqu'a
@@ -66,6 +68,6 @@ func lisibleJusquAuBout(corps []byte, depuis int, types tableTypes, nomsChamps [
 
 // erreurEntreeIllisible enveloppe l'echec d'une entree pour que le message dise ce qui a ete tente.
 func erreurEntreeIllisible(idx int, nom string, offset int, cause error) error {
-	return fmt.Errorf("hinavmesh: TBDY, type %d (%s) a l'offset %d, et aucun saut de 1 a %d octets "+
-		"ne resynchronise la section: %w", idx, nom, offset, sautMaxResynchronisation, cause)
+	return fmt.Errorf("hinavmesh: TBDY, type %d (%s) at offset %d, and no jump of 1 to %d bytes "+
+		"resynchronizes the section: %w", idx, nom, offset, sautMaxResynchronisation, cause)
 }

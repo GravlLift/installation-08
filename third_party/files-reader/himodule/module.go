@@ -20,6 +20,8 @@
 // any/levels/multi/catalyst, 100 % sur pc/levels/multi/ridgeline).
 package himodule
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -134,7 +136,7 @@ func Open(path string) (*Module, error) {
 	data := proj.octets
 	if len(data) < headerSize || string(data[:4]) != "mohd" {
 		_ = proj.ferme()
-		return nil, fmt.Errorf("himodule: magic mohd absent (%s)", path)
+		return nil, fmt.Errorf("himodule: missing mohd magic (%s)", path)
 	}
 	m := &Module{
 		data:      data,
@@ -146,7 +148,7 @@ func Open(path string) (*Module, error) {
 	m.blockOff = lockBlockTable(data, m.numBlocks, m.dataBase, headerSize+m.fileCount*entryStride)
 	if m.blockOff < 0 {
 		_ = m.Close()
-		return nil, fmt.Errorf("himodule: table des blocs introuvable")
+		return nil, fmt.Errorf("himodule: block table not found")
 	}
 	m.loadHd1(path)
 	return m, nil
@@ -260,7 +262,7 @@ func hd1BaseCandidates(head []byte, hd1Len int) []int {
 func (m *Module) srcFor(f File) ([]byte, int, error) {
 	if f.UseHd1() {
 		if m.hd1 == nil {
-			return nil, 0, fmt.Errorf("himodule: entree en hd1 mais compagnon absent ou non calibre")
+			return nil, 0, fmt.Errorf("himodule: entry in hd1 but companion missing or not calibrated")
 		}
 		return m.hd1, m.hd1Base, nil
 	}
@@ -357,7 +359,7 @@ func (m *Module) Extract(f File) ([]byte, error) {
 	if f.BlockCount == 0 {
 		base := dbase + int(f.DataOffset)
 		if base < 0 || base+f.CompSize > len(buf) {
-			return nil, fmt.Errorf("himodule: resource hors borne")
+			return nil, fmt.Errorf("himodule: resource out of bounds")
 		}
 		src := buf[base : base+f.CompSize]
 		if f.CompSize == f.UncompSize {
@@ -375,7 +377,7 @@ func (m *Module) Extract(f File) ([]byte, error) {
 		comp := u32(m.data, b+16)
 		base := dbase + int(f.DataOffset) + co
 		if base < 0 || base+cs > len(buf) || dorel+ds > len(out) {
-			return nil, fmt.Errorf("himodule: bloc %d hors borne", i)
+			return nil, fmt.Errorf("himodule: block %d out of bounds", i)
 		}
 		src := buf[base : base+cs]
 		if comp == 0 {

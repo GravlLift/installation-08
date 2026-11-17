@@ -28,6 +28,8 @@
 // illisible sont exactement celles qui portent un navmesh.
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"bytes"
 	"compress/zlib"
@@ -64,13 +66,13 @@ const (
 func inflate(comprime []byte, attendu int) ([]byte, error) {
 	zr, err := zlib.NewReader(bytes.NewReader(comprime))
 	if err != nil {
-		return nil, fmt.Errorf("hinavmesh: en-tete zlib illisible (%02x %02x): %w", comprime[0], comprime[1], err)
+		return nil, fmt.Errorf("hinavmesh: unreadable zlib header (%02x %02x): %w", comprime[0], comprime[1], err)
 	}
 	defer func() { _ = zr.Close() }()
 	tampon := bytes.NewBuffer(make([]byte, 0, attendu))
 	// io.CopyN plafonne l'ecriture : un flux zlib forge ne peut pas faire exploser la RAM.
 	if _, err := io.CopyN(tampon, zr, int64(attendu)+1); err != nil && err != io.EOF {
-		return nil, fmt.Errorf("hinavmesh: inflate a echoue: %w", err)
+		return nil, fmt.Errorf("hinavmesh: inflate failed: %w", err)
 	}
 	return tampon.Bytes(), nil
 }
@@ -78,7 +80,7 @@ func inflate(comprime []byte, attendu int) ([]byte, error) {
 // regions decoupe la charge inflatee selon le preambule de 28 octets.
 func regions(charge []byte) ([][]byte, error) {
 	if len(charge) < taillePreambule {
-		return nil, fmt.Errorf("hinavmesh: charge de %d octets, preambule de %d attendu", len(charge), taillePreambule)
+		return nil, fmt.Errorf("hinavmesh: payload of %d bytes, preamble of %d expected", len(charge), taillePreambule)
 	}
 	decoupe := make([][]byte, 0, nbRegions)
 	debut := taillePreambule
@@ -86,7 +88,7 @@ func regions(charge []byte) ([][]byte, error) {
 		taille := int(binary.BigEndian.Uint32(charge[8+4*i:]))
 		fin := debut + taille
 		if taille < 0 || fin > len(charge) {
-			return nil, fmt.Errorf("hinavmesh: region %d de %d octets deborde la charge (%d..%d sur %d)",
+			return nil, fmt.Errorf("hinavmesh: region %d of %d bytes overflows the payload (%d..%d of %d)",
 				i+1, taille, debut, fin, len(charge))
 		}
 		decoupe = append(decoupe, charge[debut:fin])
@@ -98,8 +100,8 @@ func regions(charge []byte) ([][]byte, error) {
 	// declarait un autre nombre de regions, ce reste ne tomberait pas juste, et il vaut
 	// mieux le savoir ici que decouper de travers en silence.
 	if reste := len(charge) - debut; reste != tailleQueue {
-		return nil, fmt.Errorf("hinavmesh: %d octets apres les %d regions, %d attendus "+
-			"(le preambule ne declare peut-etre pas %d regions sur cette carte)",
+		return nil, fmt.Errorf("hinavmesh: %d bytes after the %d regions, %d expected "+
+			"(the preamble may not declare %d regions on this map)",
 			reste, nbRegions, tailleQueue, nbRegions)
 	}
 	return decoupe, nil

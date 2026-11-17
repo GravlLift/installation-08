@@ -1,5 +1,7 @@
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // enveloppe.go — L'EMBALLAGE COMMUN DES BLOBS PUBLIES A COTE D'UN `.mvar`.
 //
 // Les trois blobs d'un asset UGC de carte Forge (`navmesh.blob`, `audioocclusion.blob`,
@@ -67,7 +69,7 @@ func decompresse(blob []byte) ([]byte, error) {
 		return nil, err
 	}
 	if len(charge) != env.tailleInflatee {
-		return nil, fmt.Errorf("hinavmesh: inflate rend %d octets, le conteneur en declare %d",
+		return nil, fmt.Errorf("hinavmesh: inflate yields %d bytes, the container declares %d",
 			len(charge), env.tailleInflatee)
 	}
 	return charge, nil
@@ -77,13 +79,13 @@ func decompresse(blob []byte) ([]byte, error) {
 func lisEnveloppe(blob []byte) (enveloppe, error) {
 	var env enveloppe
 	if len(blob) < tailleEntete {
-		return env, fmt.Errorf("hinavmesh: blob de %d octets, en-tete de %d attendue", len(blob), tailleEntete)
+		return env, fmt.Errorf("hinavmesh: blob of %d bytes, header of %d expected", len(blob), tailleEntete)
 	}
 	if version := binary.BigEndian.Uint32(blob[0:]); version != versionAttendue {
-		return env, fmt.Errorf("hinavmesh: version de blob %d inconnue (attendu %d)", version, versionAttendue)
+		return env, fmt.Errorf("hinavmesh: unknown blob version %d (expected %d)", version, versionAttendue)
 	}
 	if declaree := int(binary.BigEndian.Uint32(blob[4:])); declaree != len(blob)-tailleEntete {
-		return env, fmt.Errorf("hinavmesh: l'en-tete annonce %d octets de charge, le fichier en porte %d",
+		return env, fmt.Errorf("hinavmesh: the header announces %d bytes of payload, the file carries %d",
 			declaree, len(blob)-tailleEntete)
 	}
 	// Le troisieme champ (0x001FFFFF) est CONSTANT sur les blobs mesures, et sa
@@ -99,11 +101,11 @@ func lisRacineBond(bond []byte) (enveloppe, error) {
 	d := &lecteurBond{buf: bond}
 	longueur, err := d.varint()
 	if err != nil {
-		return env, fmt.Errorf("hinavmesh: longueur de la racine Bond: %w", err)
+		return env, fmt.Errorf("hinavmesh: length of the Bond root: %w", err)
 	}
 	fin := d.pos + int(longueur)
 	if fin != len(bond) {
-		return env, fmt.Errorf("hinavmesh: la racine Bond declare %d octets, le conteneur en porte %d",
+		return env, fmt.Errorf("hinavmesh: the Bond root declares %d bytes, the container carries %d",
 			longueur, len(bond)-d.pos)
 	}
 	vus := map[uint16]bool{}
@@ -124,13 +126,13 @@ func lisRacineBond(bond []byte) (enveloppe, error) {
 		vus[id] = true
 	}
 	if !vus[champCharge] {
-		return env, fmt.Errorf("hinavmesh: le conteneur Bond ne porte pas le champ %d (charge)", champCharge)
+		return env, fmt.Errorf("hinavmesh: the Bond container does not carry field %d (payload)", champCharge)
 	}
 	if !vus[champTailleInflatee] {
-		return env, fmt.Errorf("hinavmesh: le conteneur Bond ne porte pas le champ %d (taille inflatee)", champTailleInflatee)
+		return env, fmt.Errorf("hinavmesh: the Bond container does not carry field %d (inflated size)", champTailleInflatee)
 	}
 	if len(env.comprime) == 0 {
-		return env, fmt.Errorf("hinavmesh: charge vide")
+		return env, fmt.Errorf("hinavmesh: empty payload")
 	}
 	return env, nil
 }
@@ -158,13 +160,13 @@ func (d *lecteurBond) litChampRacine(env *enveloppe, id uint16, typ byte) error 
 			return err
 		}
 		if n > tailleInflateeMax {
-			return fmt.Errorf("hinavmesh: taille inflatee declaree %d au-dela du plafond %d",
+			return fmt.Errorf("hinavmesh: declared inflated size %d beyond the cap %d",
 				n, tailleInflateeMax)
 		}
 		env.tailleInflatee = int(n)
 		return nil
 	default:
-		return fmt.Errorf("hinavmesh: champ Bond inattendu (id %d, type %d) a %d", id, typ, d.pos)
+		return fmt.Errorf("hinavmesh: unexpected Bond field (id %d, type %d) at %d", id, typ, d.pos)
 	}
 }
 
@@ -176,7 +178,7 @@ type lecteurBond struct {
 
 func (d *lecteurBond) octet() (byte, error) {
 	if d.pos >= len(d.buf) {
-		return 0, fmt.Errorf("hinavmesh: fin de conteneur a %d", d.pos)
+		return 0, fmt.Errorf("hinavmesh: end of container at %d", d.pos)
 	}
 	b := d.buf[d.pos]
 	d.pos++
@@ -196,7 +198,7 @@ func (d *lecteurBond) varint() (uint64, error) {
 			return out, nil
 		}
 		if shift += 7; shift > 63 {
-			return 0, fmt.Errorf("hinavmesh: varint trop long a %d", d.pos)
+			return 0, fmt.Errorf("hinavmesh: varint too long at %d", d.pos)
 		}
 	}
 }
@@ -218,7 +220,7 @@ func (d *lecteurBond) tag() (typ byte, id uint16, err error) {
 		id = uint16(b)
 	case 7:
 		if d.pos+2 > len(d.buf) {
-			return 0, 0, fmt.Errorf("hinavmesh: id de champ tronque a %d", d.pos)
+			return 0, 0, fmt.Errorf("hinavmesh: field id truncated at %d", d.pos)
 		}
 		id = binary.LittleEndian.Uint16(d.buf[d.pos:])
 		d.pos += 2
@@ -247,10 +249,10 @@ func (d *lecteurBond) listeInt8() ([]byte, error) {
 		n = int(c)
 	}
 	if elemType != bondInt8 {
-		return nil, fmt.Errorf("hinavmesh: la charge est une liste de type %d, int8 attendu", elemType)
+		return nil, fmt.Errorf("hinavmesh: the payload is a list of type %d, int8 expected", elemType)
 	}
 	if n < 0 || d.pos+n > len(d.buf) {
-		return nil, fmt.Errorf("hinavmesh: charge de %d octets hors bornes a %d", n, d.pos)
+		return nil, fmt.Errorf("hinavmesh: payload of %d bytes out of bounds at %d", n, d.pos)
 	}
 	out := d.buf[d.pos : d.pos+n]
 	d.pos += n

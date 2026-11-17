@@ -29,6 +29,8 @@
 // point.
 package mapvar
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"math"
@@ -38,19 +40,19 @@ import (
 // volume. 65,8 % des objectifs sont dans ce cas (shape.go) — ce n'est pas une
 // anomalie, et l'appelant doit le compter a part plutot que de l'assimiler a un
 // echec de lecture.
-var ErrNoShape = errors.New("mapvar: objectif ponctuel (aucune forme)")
+var ErrNoShape = errors.New("mapvar: point objective (no shape)")
 
 // ErrDegenerateFrame signale une forme dont l'orientation ne permet pas de
 // construire un repere : Up nul, ou Forward colineaire a Up. Mesure sur le
 // catalogue : 0 occurrence sur les 224 formes de zone. Une occurrence future
 // serait donc une nouveaute a expliquer, jamais un cas a rattraper par defaut.
-var ErrDegenerateFrame = errors.New("mapvar: orientation degeneree (repere non constructible)")
+var ErrDegenerateFrame = errors.New("mapvar: degenerate orientation (frame not constructible)")
 
 // ErrMissingExtent signale une forme a laquelle manque la dimension de sa propre famille
 // (une boite sans demi-cotes, un cylindre sans rayon). Cas d'un document relu d'un schema
 // anterieur : sans ce refus, le volume serait d'extension nulle et ne contiendrait jamais
 // rien — un zero silencieux, indistinguable d'un joueur qui n'y etait pas.
-var ErrMissingExtent = errors.New("mapvar: forme sans dimension pour sa famille")
+var ErrMissingExtent = errors.New("mapvar: shape without a dimension for its family")
 
 // degenerateEpsilon : en deca de cette norme, un vecteur d'orientation est tenu
 // pour nul. Les vecteurs du fichier sont des unitaires ; 1e-6 separe un zero

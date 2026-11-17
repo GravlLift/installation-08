@@ -11,6 +11,8 @@
 // portant reellement la donnee.
 package himodule
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // offResourceIndex : index de la premiere ressource de l'entree.
@@ -33,11 +35,11 @@ func (m *Module) resourceCount() int { return int(u32(m.data, resourceCountOffse
 func (m *Module) resourceSlot(k int) (int, error) {
 	n := m.resourceCount()
 	if k < 0 || k >= n {
-		return 0, fmt.Errorf("himodule: ressource %d hors des %d declarees", k, n)
+		return 0, fmt.Errorf("himodule: resource %d outside the %d declared", k, n)
 	}
 	base := m.blockOff - n*4
 	if base < 0 || base+n*4 > len(m.data) {
-		return 0, fmt.Errorf("himodule: table des ressources hors borne (base %d)", base)
+		return 0, fmt.Errorf("himodule: resource table out of bounds (base %d)", base)
 	}
 	return int(u32(m.data, base+k*4)), nil
 }
@@ -55,7 +57,7 @@ func (m *Module) ResourceBlob(f File) ([]byte, error) {
 	for k, r := range res {
 		buf, err := m.Extract(r)
 		if err != nil {
-			return nil, fmt.Errorf("himodule: ressource %d (entree %d): %w", k, r.Index, err)
+			return nil, fmt.Errorf("himodule: resource %d (entry %d): %w", k, r.Index, err)
 		}
 		out = append(out, buf...)
 	}
@@ -71,7 +73,7 @@ func (m *Module) Ressources(f File) ([]File, error) {
 		fin = m.ResourceIndex(f.Index + 1)
 	}
 	if debut > fin {
-		return nil, fmt.Errorf("himodule: plage de ressources inversee pour l'entree %d (%d..%d)",
+		return nil, fmt.Errorf("himodule: reversed resource range for entry %d (%d..%d)",
 			f.Index, debut, fin)
 	}
 	out := make([]File, 0, fin-debut)
@@ -81,7 +83,7 @@ func (m *Module) Ressources(f File) ([]File, error) {
 			return nil, err
 		}
 		if slot < 0 || slot >= m.fileCount {
-			return nil, fmt.Errorf("himodule: slot de ressource %d hors des %d entrees", slot, m.fileCount)
+			return nil, fmt.Errorf("himodule: resource slot %d outside the %d entries", slot, m.fileCount)
 		}
 		out = append(out, m.file(slot))
 	}
