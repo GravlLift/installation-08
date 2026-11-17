@@ -18,6 +18,7 @@ import { GLTFLoader, type GLTFParser } from 'three/addons/loaders/GLTFLoader.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
+import { buildBoundsTree } from './bvhWorker3d'
 import { buildBackFaces } from './backFaces3d'
 import { intensiteSoleil, lireCiel, sunColorOf } from './ciel3d'
 import { GlowAnimator, readGlowAnim } from './glowAnimation3d'
@@ -577,18 +578,18 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
   const structGeos = new Set(geometriesOf(groups.structure))
   let structMs = 0
   let seeThroughMs = 0
-  const pas = Math.max(1, Math.ceil(bvh.length / 19))
   for (let i = 0; i < bvh.length; i++) {
     const geoStart = now()
     // Coarser leaves (100 triangles, not 10): the ground and reticle rays are short and sparse,
     // so the hit test pays only a little more per ray, while the build drops a level of sorting
     // for every doubling (Streets: ~3.3 s to ~1.9 s over its two thousand structure geometries).
-    bvh[i].computeBoundsTree({ maxLeafTris: 100 })
+    // Built on a worker thread so the main thread is free while the sort runs; the geometry's
+    // buffers are restored before it resolves, so tightenBounds and the render see them intact.
+    await buildBoundsTree(bvh[i], { maxLeafTris: 100 })
     const dt = now() - geoStart
     if (structGeos.has(bvh[i])) structMs += dt
     else seeThroughMs += dt
     onStep('index', i + 1, bvh.length)
-    if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
   }
   measureSince(`${label}:bvh`, bvhStart)
   measureDuration(`${label}:bvh-structure`, structMs)
