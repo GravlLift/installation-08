@@ -39,8 +39,9 @@ import { LoadGate } from '../scene3d/loadGate3d'
 import { preloadAssets3d } from '../scene3d/preloadAssets3d'
 import { fetchMesh } from '../scene3d/meshFetch'
 import {
-  armorLibraryKey, cachedArmorLibrary, cachedMapModel, cachedWeaponModels, mapModelKey,
-  sessionAssetCache, storeArmorLibrary, storeMapModel, storeWeaponModels, weaponModelsKey,
+  armorLibraryKey, cachedArmorLibrary, cachedMapModel, cachedWeaponCoatLibrary, cachedWeaponModels, mapModelKey,
+  sessionAssetCache, storeArmorLibrary, storeMapModel, storeWeaponCoatLibrary, storeWeaponModels,
+  weaponCoatLibraryKey, weaponModelsKey,
 } from '../scene3d/sessionAssetCache3d'
 import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
 import { ReplayScene3d, type CameraMode3d, type PovStatus } from '../scene3d/replayScene3d'
@@ -275,7 +276,14 @@ export function Replay3DView({
       mark('cache-hit:weapon-library')
       weapons.useGate(gateRef.current ?? undefined)
     } else {
-      weapons = new WeaponModels(weaponsPath, gateRef.current ?? undefined, undefined, undefined, undefined, mapScene.textureLoader)
+      weapons = new WeaponModels(
+        weaponsPath, gateRef.current ?? undefined, undefined, undefined, undefined, mapScene.textureLoader,
+        // Re-sizes this SAME cache entry (no dispose, `SessionCache3d.set`'s same-value path) every
+        // time a new weapon/Spartan/grenade GLB finishes loading: without this, `loadedBytes()` at
+        // store time (just the index, nothing decoded yet) would stay ~0 forever and the library
+        // would never count against the cap or be evicted (`storeWeaponModels`'s own doc comment).
+        () => storeWeaponModels(weaponsPath, weapons!),
+      )
       storeWeaponModels(weaponsPath, weapons)
     }
     sessionAssetCache.acquire(key)
@@ -293,14 +301,32 @@ export function Replay3DView({
     let library = cachedArmorLibrary(piecesPath)
     if (library) mark('cache-hit:armor-library')
     else {
-      library = new ArmorLibrary(piecesPath)
+      library = new ArmorLibrary(piecesPath, undefined, () => storeArmorLibrary(piecesPath, library!))
       storeArmorLibrary(piecesPath, library)
     }
     sessionAssetCache.acquire(key)
+    // The weapon-coating library (swatches, coating tables, weapon-piece GLBs): the same session
+    // cache as armor-lib/weapon-lib, so a later match whose players share a weapon's coating or
+    // swatch with an earlier one neither refetches nor redecodes it. Previously built fresh inside
+    // every `SpartanArmory` instance (`libraryArme`, one per match, thrown away with it) — the
+    // actual cause of `/api/weapons` swatch/coating requests repeating on every warm step.
+    let weaponKey: string | null = null
+    let libraryArme: ArmorLibrary | undefined
+    if (weaponsPath) {
+      weaponKey = weaponCoatLibraryKey(weaponsPath)
+      libraryArme = cachedWeaponCoatLibrary(weaponsPath)
+      if (libraryArme) mark('cache-hit:weapon-coat-library')
+      else {
+        libraryArme = new ArmorLibrary(weaponsPath, undefined, () => storeWeaponCoatLibrary(weaponsPath, libraryArme!))
+        storeWeaponCoatLibrary(weaponsPath, libraryArme)
+      }
+      sessionAssetCache.acquire(weaponKey)
+    }
     // The library (geometries, textures, coatings) is session-cached and NOT owned by this armory:
     // `ownsLibrary: false` keeps `dispose()` from releasing it, since this cache's own release
-    // below (and eventual eviction) is what frees it.
-    const armory = new SpartanArmory(library, spartans.players, gateRef.current ?? undefined, weaponsPath, undefined, false)
+    // below (and eventual eviction) is what frees it. Same for `libraryArme` (implicit:
+    // `ownsLibraryArme` is false whenever a `libraryArme` argument is given at all).
+    const armory = new SpartanArmory(library, spartans.players, gateRef.current ?? undefined, weaponsPath, undefined, false, libraryArme)
     armoryRef.current = armory
     mapScene.setSpartanArmory(armory)
     preloadAssets3d(doc, null, armory)
@@ -308,6 +334,7 @@ export function Replay3DView({
       armoryRef.current = null
       mapScene.setSpartanArmory(null)
       sessionAssetCache.release(key)
+      if (weaponKey) sessionAssetCache.release(weaponKey)
     }
   }, [mapScene, piecesPath, spartans, doc, weaponsPath])
   // The models (weapons, armor, arms): counted by the gate, over when it stays idle.

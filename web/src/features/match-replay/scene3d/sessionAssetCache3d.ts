@@ -23,6 +23,10 @@ export const mapModelKey = (meshPath: string): string => `map:${meshPath}`
 export const layerModelKey = (variantPath: string): string => `layer:${variantPath}`
 export const armorLibraryKey = (base: string): string => `armor-lib:${base}`
 export const weaponModelsKey = (base: string): string => `weapon-lib:${base}`
+/** The weapon-coating library (`ArmorLibrary` pointed at the weapons folder, `armory3d.ts`'s
+ *  `libraryArme`): swatches, coating tables and weapon-piece GLBs, kept separate from `weapon-lib`
+ *  (the held/world weapon MODELS, `WeaponModels`) even though both read the same served folder. */
+export const weaponCoatLibraryKey = (base: string): string => `weapon-coat-lib:${base}`
 
 /** cachedMapModel: the cached map for `meshPath`, undefined on a miss (the caller must load and `set` it). */
 export function cachedMapModel(meshPath: string): MapModel | undefined {
@@ -57,15 +61,31 @@ export function cachedArmorLibrary(base: string): ArmorLibrary | undefined {
 }
 
 /**
- * storeArmorLibrary caches `library` under `base`. Its own GLB roots arrive asynchronously (`file`
- * is lazy), so its byte count is an estimate at store time (`knownBytes`, 0 for a freshly built
- * library) that the caller may update later with `restoreArmorLibraryBytes`-style re-`set` once more
- * pieces have loaded; evicting it still disposes whatever it has loaded by then.
+ * storeArmorLibrary caches `library` under `base`, sized by `library.loadedBytes()`. Its own GLB
+ * roots and swatches arrive asynchronously (`file`/`swatch` are lazy), so this is only what has
+ * loaded SO FAR: `library`'s own `onGrowth` callback (constructor param) is meant to call this
+ * again on every new piece or swatch, which re-sizes the SAME cache entry without disposing it
+ * (`SessionCache3d.set`'s same-value path) — without that, a library that keeps growing after its
+ * first store would stay underestimated, exactly the `bytes: 0` problem this replaces.
  */
-export function storeArmorLibrary(base: string, library: ArmorLibrary, knownBytes = 0): void {
+export function storeArmorLibrary(base: string, library: ArmorLibrary): void {
   sessionAssetCache.set(armorLibraryKey(base), {
     value: library,
-    bytes: knownBytes,
+    bytes: library.loadedBytes(),
+    dispose: (lib) => lib.dispose(),
+  })
+}
+
+/** cachedWeaponCoatLibrary / storeWeaponCoatLibrary: the weapon-coating library (swatches, coating
+ *  tables, weapon-piece GLBs), kept across matches like `armor-lib` (see `weaponCoatLibraryKey`). */
+export function cachedWeaponCoatLibrary(base: string): ArmorLibrary | undefined {
+  return sessionAssetCache.get<ArmorLibrary>(weaponCoatLibraryKey(base))
+}
+
+export function storeWeaponCoatLibrary(base: string, library: ArmorLibrary): void {
+  sessionAssetCache.set(weaponCoatLibraryKey(base), {
+    value: library,
+    bytes: library.loadedBytes(),
     dispose: (lib) => lib.dispose(),
   })
 }
@@ -75,10 +95,11 @@ export function cachedWeaponModels(base: string): WeaponModels | undefined {
   return sessionAssetCache.get<WeaponModels>(weaponModelsKey(base))
 }
 
-export function storeWeaponModels(base: string, models: WeaponModels, knownBytes = 0): void {
+/** storeWeaponModels caches `models` under `base`, sized by `models.loadedBytes()` (see `storeArmorLibrary`). */
+export function storeWeaponModels(base: string, models: WeaponModels): void {
   sessionAssetCache.set(weaponModelsKey(base), {
     value: models,
-    bytes: knownBytes,
+    bytes: models.loadedBytes(),
     dispose: (m) => m.dispose(),
   })
 }

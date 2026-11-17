@@ -144,3 +144,32 @@ describe('WeaponModels KTX2', () => {
     models.dispose()
   })
 })
+
+describe('WeaponModels.loadedBytes / onGrowth', () => {
+  it('is 0 before anything loads, grows once a weapon GLB loads, and calls onGrowth', async () => {
+    vi.mocked(fetchMesh).mockResolvedValueOnce(ktx2Glb())
+    const gate = new LoadGate()
+    const onGrowth = vi.fn()
+    const { loader } = fakeKtx2()
+    const models = new WeaponModels('/weapons', gate, undefined, undefined, undefined, loader, onGrowth)
+    expect(models.loadedBytes()).toBe(0)
+    expect(models.model('2b1824d5')).toBeNull() // starts the load
+    await gate.idle(2000)
+    expect(models.model('2b1824d5')).not.toBeNull()
+    expect(models.loadedBytes()).toBeGreaterThan(0)
+    expect(onGrowth).toHaveBeenCalledTimes(1)
+    models.dispose()
+  })
+
+  it('never calls onGrowth for a model that fails to load (absent)', async () => {
+    vi.mocked(fetchMesh).mockRejectedValueOnce(new Error('404'))
+    const gate = new LoadGate()
+    const onGrowth = vi.fn()
+    const models = new WeaponModels('/weapons', gate, undefined, undefined, undefined, undefined, onGrowth)
+    expect(models.model('2b1824d5')).toBeNull()
+    await gate.idle(2000)
+    expect(models.model('2b1824d5')).toBeNull()
+    expect(onGrowth).not.toHaveBeenCalled()
+    models.dispose()
+  })
+})
