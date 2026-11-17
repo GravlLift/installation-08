@@ -81,10 +81,12 @@ are in [PARITY.md](PARITY.md).
 
 ## App window and load speed (owner's queue, 2026-11-17)
 
-- Window shell: per-monitor DPI awareness (the window renders soft at display scaling above
-  100% because neither the exe nor go-webview2 declares it), an app icon and version
-  resource, a menu bar (File: open data folder, open log, exit; Help: GitHub, about), the
-  window's size and position remembered, F11 full screen, a guard on closing during an export.
+- Window shell: DONE for the menu bar, version resource, remembered placement, F11, Ctrl+R
+  and the export close guard. Open: per-monitor DPI awareness (the window renders soft at
+  display scaling above 100%; declaring PerMonitorV2 made go-webview2 crash at controller
+  creation, 7 of 7 launches; next step is to debug the wrapper or switch to
+  webview/webview_go, brief in the 2026-11-17 session), and the app icon once the name is
+  chosen.
 - Serve the viewer's files to the window in-process (WebView2 resource interception) instead
   of over HTTP, measured against HTTP.
 - Confirm compiled shaders persist across launches in the window's fixed profile (second

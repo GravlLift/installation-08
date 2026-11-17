@@ -13,6 +13,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
+import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
+
 import type { LoadProgress3d } from '../model/chargement3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { loadLayerModel } from '../scene3d/mapModel'
@@ -20,7 +22,14 @@ import { mark, timedSync } from '../scene3d/perf3d'
 import { cachedLayerModel, layerModelKey, sessionAssetCache, storeLayerModel } from '../scene3d/sessionAssetCache3d'
 import { fetchVariantBuffer } from '../scene3d/variantLayer'
 
-type Prefetch = { path: string; progress: LoadProgress3d; buffer: Promise<ArrayBuffer | null> }
+type Prefetch = {
+  path: string
+  progress: LoadProgress3d
+  buffer: Promise<ArrayBuffer | null>
+  /** The layer's ray-index sidecar, fetched alongside the buffer so a cache hit costs no extra
+   *  round trip; null (never rejects) when absent, stale, or the fetch failed. */
+  bvhCache: Promise<ArrayBuffer | null>
+}
 
 /**
  * `variantPath`: the layer's URL once the server has it; `pending`: true while the server still
@@ -42,7 +51,8 @@ export function useVariantLayer(
     const abort = new AbortController()
     const buffer = fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
     buffer.catch(() => {})
-    const entry = { path: variantPath, progress, buffer }
+    const bvhCache = fetchBVHCache(variantPath, abort.signal)
+    const entry = { path: variantPath, progress, buffer, bvhCache }
     prefetch.current = entry
     return () => {
       abort.abort()
@@ -67,25 +77,30 @@ export function useVariantLayer(
     void (async () => {
       try {
         let layer = cachedLayerModel(variantPath)
+        // The freshly built ray index to store server-side, once the layer is posed; stays null
+        // on a cache hit and when a used sidecar already matched (see the map's own `attach` effect).
+        let bvhToUpload: ArrayBuffer | null = null
         if (layer) {
+          // Warm load: see the map's own cache hit above — nothing to fetch, decode or index.
           mark('cache-hit:layer')
           progress.variantBytes(1, 1)
           progress.step('variant-decode', 1, 1)
           progress.step('variant-index', 1, 1)
         } else {
           const entry = prefetch.current
-          const pre = entry && entry.path === variantPath && entry.progress === progress
-            ? entry.buffer
-            : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
-          const buffer = await pre
+          const samePrefetch = entry && entry.path === variantPath && entry.progress === progress
+          const pre = samePrefetch ? entry.buffer : fetchVariantBuffer(variantPath, abort.signal, (loaded, total) => progress.variantBytes(loaded, total))
+          const bvhPre = samePrefetch ? entry.bvhCache : fetchBVHCache(variantPath, abort.signal)
+          const [buffer, bvhCache] = await Promise.all([pre, bvhPre])
           // The buffer is read once: the layer holds what it needs, the 100+ MB file is released.
           if (prefetch.current?.buffer === pre) prefetch.current = null
           if (!alive) return
           if (!buffer) progress.variantNone()
           else {
             layer = await loadLayerModel(buffer, scene.mapLight, (step, done = 0, total = 0) =>
-              progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader)
+              progress.step(step === 'materials' ? 'variant-decode' : 'variant-index', done, total), scene.textureLoader, bvhCache)
             storeLayerModel(variantPath, layer)
+            bvhToUpload = layer.bvhUpload
           }
         }
         if (layer) {
@@ -96,6 +111,9 @@ export function useVariantLayer(
             // no-op
           } else {
             sessionAssetCache.acquire(key)
+            // Off the critical path, same as the map's own upload: the layer is already posed by
+            // the time this fires. Never runs on a cache hit or when a used sidecar matched.
+            if (bvhToUpload) void uploadBVHCache(variantPath, bvhToUpload, abort.signal)
           }
         }
       } catch (err) {
