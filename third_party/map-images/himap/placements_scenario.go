@@ -15,6 +15,8 @@
 // Les sections que le jeu ne dessine pas a l'ecran (projection d'ombre) vont a la famille ombre.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -225,13 +227,13 @@ func permutationDeLaRegion(r Region, v VarianteModele) (Permutation, bool) {
 func (m *MaillageMonde) posePlacements(ctx context.Context, idx *ModuleIndex, opts OptionsCuisson) {
 	mod, err := himodule.Open(opts.moduleScenario())
 	if err != nil {
-		slog.WarnContext(ctx, "module de carte illisible : objets du scenario non poses", "err", err)
+		slog.WarnContext(ctx, "unreadable map module: scenario objects not placed", "err", err)
 		return
 	}
 	defer func() { _ = mod.Close() }()
 	placements, err := LitPlacementsScenario(mod)
 	if err != nil {
-		slog.WarnContext(ctx, "scenario illisible : objets du scenario non poses", "err", err)
+		slog.WarnContext(ctx, "unreadable scenario: scenario objects not placed", "err", err)
 		return
 	}
 	modeles := map[[2]uint32]*modelePose{}
@@ -260,7 +262,7 @@ func (m *MaillageMonde) posePlacements(ctx context.Context, idx *ModuleIndex, op
 		poses++
 	}
 	m.HorsCadre += horsCadre
-	slog.InfoContext(ctx, "objets du scenario poses", "placements", len(placements), "poses", poses,
+	slog.InfoContext(ctx, "scenario objects placed", "placements", len(placements), "placed", poses,
 		"sansModele", sansModele, "horsCadre", horsCadre, "multiJoueur", multiJoueur, "modeles", len(modeles))
 }
 
@@ -286,12 +288,12 @@ func (m *MaillageMonde) poseModele(mp *modelePose, in Instance) {
 func modeleDuPlacement(ctx context.Context, idx *ModuleIndex, tag, variante uint32) *modelePose {
 	octets, err := idx.Extract(tag)
 	if err != nil {
-		slog.DebugContext(ctx, "tag d'objet du scenario illisible", "id", fmt.Sprintf("%08x", tag), "err", err)
+		slog.DebugContext(ctx, "unreadable scenario object tag", "id", fmt.Sprintf("%08x", tag), "err", err)
 		return nil
 	}
 	id, groupe, ok := RefModeleVehicule(ctx, idx, octets)
 	if !ok {
-		slog.DebugContext(ctx, "objet du scenario sans modele", "id", fmt.Sprintf("%08x", tag))
+		slog.DebugContext(ctx, "scenario object without model", "id", fmt.Sprintf("%08x", tag))
 		return nil
 	}
 	a := ouvreAsset(ctx, idx, id, groupe)

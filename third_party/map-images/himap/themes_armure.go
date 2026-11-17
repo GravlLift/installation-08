@@ -17,6 +17,8 @@
 // y portent celle du Mark VII.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -54,7 +56,7 @@ func (a *Arsenal) ThemesDuModele(ctx context.Context, mode uint32) ([]ThemeArmur
 	for _, id := range a.geo.EntreesDuGroupe(GroupePersonnalisation) {
 		tag, err := a.geo.Extract(id)
 		if err != nil {
-			slog.WarnContext(ctx, "globales de personnalisation illisibles", "id", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable customization globals", "id", fmt.Sprintf("%08x", id), "err", err)
 			continue
 		}
 		themes, ok := themesDeLOcgd(tag, mode)
@@ -104,7 +106,7 @@ func themesDeLOcgd(ocgd []byte, mode uint32) ([]ThemeArmure, bool) {
 // baseDuTheme lit l'ocur du theme et pose Lu, Permutation et Base.
 func (a *Arsenal) baseDuTheme(ctx context.Context, th *ThemeArmure) {
 	if g, _, ok := a.geo.Lookup(th.Ocur); !ok || g != GroupeTheme {
-		slog.WarnContext(ctx, "theme sans ocur dans l'index", "theme", fmt.Sprintf("%08x", th.Nom), "ocur", fmt.Sprintf("%08x", th.Ocur))
+		slog.WarnContext(ctx, "theme without ocur in the index", "theme", fmt.Sprintf("%08x", th.Nom), "ocur", fmt.Sprintf("%08x", th.Ocur))
 		return
 	}
 	tag, err := a.geo.Extract(th.Ocur)
@@ -112,7 +114,7 @@ func (a *Arsenal) baseDuTheme(ctx context.Context, th *ThemeArmure) {
 		th.Base, th.Permutation, err = baseDeLOcur(tag)
 	}
 	if err != nil {
-		slog.WarnContext(ctx, "ocur illisible", "theme", fmt.Sprintf("%08x", th.Nom), "ocur", fmt.Sprintf("%08x", th.Ocur), "err", err)
+		slog.WarnContext(ctx, "unreadable ocur", "theme", fmt.Sprintf("%08x", th.Nom), "ocur", fmt.Sprintf("%08x", th.Ocur), "err", err)
 		return
 	}
 	th.Lu = true

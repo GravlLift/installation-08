@@ -13,6 +13,8 @@
 //	permutation : 44 o (nom @+0, probabilite f32 @+0xc)
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -104,12 +106,12 @@ func varianteDuPlacement(ctx context.Context, idx *ModuleIndex, objet []byte, no
 	for _, h := range refsVehicule(objet, idx, "hlmt") {
 		tag, err := idx.Extract(h)
 		if err != nil {
-			slog.DebugContext(ctx, "hlmt illisible", "id", fmt.Sprintf("%08x", h), "err", err)
+			slog.DebugContext(ctx, "unreadable hlmt", "id", fmt.Sprintf("%08x", h), "err", err)
 			continue
 		}
 		v, ok, err := LitVarianteModele(tag, nom)
 		if err != nil {
-			slog.DebugContext(ctx, "variantes du hlmt illisibles", "id", fmt.Sprintf("%08x", h), "err", err)
+			slog.DebugContext(ctx, "unreadable hlmt variants", "id", fmt.Sprintf("%08x", h), "err", err)
 			continue
 		}
 		if ok {

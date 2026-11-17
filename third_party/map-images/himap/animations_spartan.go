@@ -7,6 +7,8 @@
 // `pc/globals`, que l'index d'une carte installee couvre.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -100,7 +102,7 @@ func (a *Arsenal) litChaine(ctx context.Context, gs *GraphesAnimation, id uint32
 		return nil, err
 	}
 	gs.parID[id] = g
-	slog.InfoContext(ctx, "graphe d'animation lu", "id", fmt.Sprintf("%08x", id), "os", len(g.Os),
+	slog.InfoContext(ctx, "animation graph read", "id", fmt.Sprintf("%08x", id), "os", len(g.Os),
 		"animations", len(g.Animations), "entrees", len(g.Entrees), "parents", len(g.Parents))
 	for _, p := range g.Parents {
 		if _, err := a.litChaine(ctx, gs, p, prof+1); err != nil {

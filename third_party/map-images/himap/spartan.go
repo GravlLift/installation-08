@@ -13,6 +13,8 @@
 // que le jeu ne dessine pas a l'ecran (horsPasseVisible : ombre, ou hors du LOD 0) ne sont pas gardees.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -140,7 +142,7 @@ func (a *Arsenal) ModeleAPeau(ctx context.Context, mode uint32) (*ModeleAPeau, e
 	out.Maillage.resoutTextures(ctx, a.geo)
 	out.ShadersInconnus = shadersHorsSurfaceDure(ctx, out.Maillage.Materiaux)
 	lo, hi, _ := out.Maillage.Structure.Borne()
-	slog.InfoContext(ctx, "modele a peau lu", "id", fmt.Sprintf("%08x", mode), "noeuds", len(out.Noeuds),
+	slog.InfoContext(ctx, "skinned model read", "id", fmt.Sprintf("%08x", mode), "nodes", len(out.Noeuds),
 		"variante", fmt.Sprintf("%08x", out.Armure.NomVariante), "hlmt", fmt.Sprintf("%08x", out.Armure.Modele),
 		"permutations", out.PermutationsRetenues, "sections", out.SectionsDessinees, "ombre", out.SectionsOmbre,
 		"illisibles", out.SectionsIllisibles, "triangles", out.Maillage.Structure.Triangles(),
@@ -165,7 +167,7 @@ func (m *ModeleAPeau) collecte(ctx context.Context, asset *RuntimeGeoAsset, sel 
 			err = fmt.Errorf("%w : section %d, maillage illisible ou de taille differente", ErrPeauIllisible, k)
 		}
 		if err != nil {
-			slog.WarnContext(ctx, "section du modele a peau sautee", "section", k, "err", err)
+			slog.WarnContext(ctx, "skinned model section skipped", "section", k, "err", err)
 			m.SectionsIllisibles++
 			continue
 		}
@@ -187,7 +189,7 @@ func shadersHorsSurfaceDure(ctx context.Context, mats map[uint32]Materiau) map[u
 		}
 	}
 	for s, n := range out {
-		slog.InfoContext(ctx, "shader sans rendu de surface dure : materiaux gris neutre", "shader", fmt.Sprintf("%08x", s), "materiaux", n)
+		slog.InfoContext(ctx, "shader without hard-surface rendering: neutral gray materials", "shader", fmt.Sprintf("%08x", s), "materials", n)
 	}
 	return out
 }

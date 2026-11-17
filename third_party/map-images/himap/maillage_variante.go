@@ -34,6 +34,8 @@
 // carte) ne s'appliquent pas : ils reglent une image vue du dessus, pas ce que le jeu dessine.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -209,7 +211,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 		if err != nil {
 			return nil, b, err
 		}
-		slog.InfoContext(ctx, "styles Forge resolus", "styles", len(opts.StylesMvar), "jeu", len(jeu), "catalogue", len(opts.StylesForge))
+		slog.InfoContext(ctx, "Forge styles resolved", "styles", len(opts.StylesMvar), "game", len(jeu), "catalog", len(opts.StylesForge))
 		opts.StylesForge = jeu
 		opts.Teintes = completeTeintesForge(opts.Teintes, echantillonsPaletteJeu(styles), opts.StylesMvar)
 	}
@@ -225,7 +227,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	out.stylesForge = opts.StylesForge // LOCAL-CHANGE (infinite-theater-3d)
 	out.resoutTextures(ctx, idx)
 	out.appliqueTeintes()
-	slog.InfoContext(ctx, "objets de la variante poses", "objets", b.Objets, "poses", b.Poses,
+	slog.InfoContext(ctx, "variant objects placed", "objects", b.Objets, "placed", b.Poses,
 		"invisibles", b.Invisibles, "sansModele", b.SansModele, "volumesDeMort", b.VolumesDeMort, "volumes", b.Volumes, "reperes", b.Reperes, "horsMode", b.HorsMode,
 		"sansPalette", b.SansPalette, "repliRepresentation", b.RepliRepresentation, "types", b.Types,
 		"triangles", trianglesPoses, "trianglesUniques", trianglesUniques,

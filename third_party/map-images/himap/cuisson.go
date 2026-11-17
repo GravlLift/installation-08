@@ -36,6 +36,8 @@
 // chantier.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -256,7 +258,7 @@ type BilanCuisson struct {
 func (b *BilanCuisson) degrade(ctx context.Context, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	b.Degradations = append(b.Degradations, msg)
-	slog.WarnContext(ctx, "cuisson degradee", "module", b.Module, "raison", msg)
+	slog.WarnContext(ctx, "degraded bake", "module", b.Module, "reason", msg)
 }
 
 // CuitCarteNative rend le fond de carte d'une carte CUITE DANS UN MODULE (les 25 cartes
@@ -305,14 +307,14 @@ func CuitCarteNative(ctx context.Context, opts OptionsCuisson) (*Rendu, BilanCui
 	borneALaBoite(ctx, r, &b, opts.BoiteUtile)
 	if opts.RogneAuxComposantesAncrees {
 		n, gardees, total := r.GardeComposantesAncrees(opts.Ancres)
-		slog.InfoContext(ctx, "mapfond: composantes sans ancre effacees", "carte", b.Module,
+		slog.InfoContext(ctx, "mapfond: anchorless components cleared", "map", b.Module,
 			"cellules", n, "composantes", fmt.Sprintf("%d/%d gardees", gardees, total))
 	}
 	JugeParLesAncres(r, &b, opts.Ancres)
 	if !opts.SansEau {
 		PoseEauDepuisModule(ctx, r, &b, opts.CheminModule)
 	}
-	slog.InfoContext(ctx, "carte cuite", "module", b.Module,
+	slog.InfoContext(ctx, "map baked", "module", b.Module,
 		"instances", b.Dessinees, "decor", b.EcarteesDecor,
 		"ancres", fmt.Sprintf("%d/%d", b.AncresAvecSol, b.AncresDansLeCadre),
 		"couverture", fmt.Sprintf("%.1f%%", 100*b.TauxCouverture), "couverte", b.CarteCouverte,
@@ -484,7 +486,7 @@ func horsPasseVisible(a *RuntimeGeoAsset, meshIndex int) bool {
 func ouvreAsset(ctx context.Context, idx *ModuleIndex, id uint32, groupe string) *RuntimeGeoAsset {
 	tag, blob, err := idx.ExtractWithResources(id)
 	if err != nil {
-		slog.DebugContext(ctx, "tag de geometrie illisible", "groupe", groupe, "id", fmt.Sprintf("%08x", id), "err", err)
+		slog.DebugContext(ctx, "unreadable geometry tag", "group", groupe, "id", fmt.Sprintf("%08x", id), "err", err)
 		return nil
 	}
 	var a *RuntimeGeoAsset
@@ -494,7 +496,7 @@ func ouvreAsset(ctx context.Context, idx *ModuleIndex, id uint32, groupe string)
 		a, err = NewRuntimeGeoAsset(tag, blob)
 	}
 	if err != nil {
-		slog.DebugContext(ctx, "tag de geometrie indecodable", "groupe", groupe, "id", fmt.Sprintf("%08x", id), "err", err)
+		slog.DebugContext(ctx, "undecodable geometry tag", "group", groupe, "id", fmt.Sprintf("%08x", id), "err", err)
 		return nil
 	}
 	return a
@@ -637,7 +639,7 @@ func mesureEtRogneZones(ctx context.Context, r *Rendu, b *BilanCuisson, opts Opt
 	if matiere > 0 {
 		part = float64(dehors) / float64(matiere)
 	}
-	slog.InfoContext(ctx, "mapfond: matiere hors des zones nommees", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: material outside named zones", "map", b.Module,
 		"zones", len(opts.ZonesNommees), "matiere", matiere, "dehors", dehors,
 		"part", fmt.Sprintf("%.1f%%", 100*part), "rogne", opts.RogneAuxZones)
 	if opts.RogneAuxZones {
@@ -647,11 +649,11 @@ func mesureEtRogneZones(ctx context.Context, r *Rendu, b *BilanCuisson, opts Opt
 		// Masque NON DILATE : la dilatation d une zone n est pas du terrain joue, et c est elle
 		// qui avait noye Illusion.
 		b.CellulesSolSuppose = r.CombleZonesEntieres(MasqueZones(r, opts.ZonesNommees, 0))
-		slog.InfoContext(ctx, "mapfond: sol suppose pose sur TOUTES les zones (vides ouverts compris)",
+		slog.InfoContext(ctx, "mapfond: floor assumed resting on ALL zones (including open voids)",
 			"carte", b.Module, "cellules", b.CellulesSolSuppose)
 	} else if opts.CombleTrous {
 		b.CellulesSolSuppose = r.CombleTrous(m)
-		slog.InfoContext(ctx, "mapfond: sol suppose pose sur les trous des zones", "carte", b.Module,
+		slog.InfoContext(ctx, "mapfond: floor assumed resting on zone holes", "map", b.Module,
 			"cellules", b.CellulesSolSuppose)
 	}
 }
@@ -687,6 +689,6 @@ func borneALaBoite(ctx context.Context, r *Rendu, b *BilanCuisson, bo [4]float64
 		}
 	}
 	b.CellulesHorsBoite = efface
-	slog.InfoContext(ctx, "mapfond: matiere bornee a la boite manuelle", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: material bounded to the manual box", "map", b.Module,
 		"boite", fmt.Sprintf("[%.1f %.1f %.1f %.1f]", bo[0], bo[1], bo[2], bo[3]), "effacees", efface)
 }

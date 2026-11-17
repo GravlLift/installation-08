@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -34,7 +36,7 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 		}
 		plage, tuiles, noeuds, err := litTerrainAdapte(idx, s, cadre)
 		if err != nil {
-			slog.Warn("terrain ignore", "id", fmt.Sprintf("%08x", ref.ID), "erreur", err)
+			slog.Warn("terrain ignored", "id", fmt.Sprintf("%08x", ref.ID), "error", err)
 			continue
 		}
 		if len(tuiles) == 0 {
@@ -51,7 +53,7 @@ func collecteTerrains(idx *ModuleIndex, opts OptionsCuisson) (GroupeMaillage, ma
 		} else {
 			mat, err = couleurTerrain(idx, s, noeuds)
 			if err != nil {
-				slog.Warn("terrain sans couleur lisible", "id", fmt.Sprintf("%08x", ref.ID), "erreur", err)
+				slog.Warn("terrain without readable color", "id", fmt.Sprintf("%08x", ref.ID), "error", err)
 				continue
 			}
 		}
@@ -120,7 +122,7 @@ func (m *MaillageMonde) resoutTexturesTerrain(ctx context.Context, idx *ModuleIn
 				}
 				t, err := LitBitmap(idx, b, m.capsFor().Couche) // LOCAL-CHANGE (infinite-theater-3d)
 				if err != nil {
-					slog.WarnContext(ctx, "texture de terrain illisible", "bitmap", fmt.Sprintf("%08x", b), "err", err)
+					slog.WarnContext(ctx, "unreadable terrain texture", "bitmap", fmt.Sprintf("%08x", b), "err", err)
 					m.TexturesCouchesIllisibles++
 					continue
 				}
@@ -128,7 +130,7 @@ func (m *MaillageMonde) resoutTexturesTerrain(ctx context.Context, idx *ModuleIn
 			}
 		}
 		if _, ok := m.TexturesCouches[mat.Couches.Couches[0].Bitmap]; !ok {
-			return fmt.Errorf("terrain : texture %08x illisible", mat.Couches.Couches[0].Bitmap)
+			return fmt.Errorf("terrain: unreadable texture %08x", mat.Couches.Couches[0].Bitmap)
 		}
 	}
 	return nil

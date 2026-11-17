@@ -12,6 +12,8 @@
 // origine a la poignee ; l'echelle est celle du monde (une unite ~ 3 m).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -92,7 +94,7 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 	m.surfaceCote = a.surfaceCote
 	m.lisMateriaux(a.mats, a.geo)
 	m.resoutTextures(ctx, a.geo)
-	slog.InfoContext(ctx, "objet lu", "groupe", groupe, "id", fmt.Sprintf("%08x", id), "triangles", m.Structure.Triangles(),
+	slog.InfoContext(ctx, "object read", "group", groupe, "id", fmt.Sprintf("%08x", id), "triangles", m.Structure.Triangles(),
 		"materiaux", len(m.Materiaux), "materiauxIllisibles", m.MateriauxIllisibles,
 		"textures", len(m.TexturesCouches), "texturesIllisibles", m.TexturesCouchesIllisibles)
 	return m, nil

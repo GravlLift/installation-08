@@ -20,6 +20,8 @@
 // du terrain joue par definition, le maillage decode EST le sol.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -77,7 +79,7 @@ func CuitCarteNavmesh(ctx context.Context, opts OptionsCuissonNavmesh) (*Rendu, 
 	}
 	b.Dessinees = len(tris)
 	JugeParLesAncres(r, &b, opts.Ancres)
-	slog.InfoContext(ctx, "carte cuite depuis le maillage de navigation", "carte", opts.Cle,
+	slog.InfoContext(ctx, "map baked from the navigation mesh", "map", opts.Cle,
 		"faces", len(m.Faces), "sommets", len(m.Sommets), "triangles", len(tris),
 		"aireAuSol", fmt.Sprintf("%.0f m2", m.AireAuSol()),
 		"ancres", fmt.Sprintf("%d/%d", b.AncresAvecSol, b.AncresDansLeCadre))

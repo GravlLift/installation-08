@@ -13,6 +13,8 @@
 // pointee vers +X en attente.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -160,7 +162,7 @@ func (a *Arsenal) rigPremierePersonne(ctx context.Context, weap uint32, armure V
 	if err := r.litClips(gs); err != nil {
 		return nil, fmt.Errorf("%w : %08x : %w", ErrSansPremierePersonne, weap, err)
 	}
-	slog.InfoContext(ctx, "rig a la premiere personne lu", "arme", fmt.Sprintf("%08x", weap), "os", len(r.Modele.Noeuds),
+	slog.InfoContext(ctx, "first-person rig read", "weapon", fmt.Sprintf("%08x", weap), "os", len(r.Modele.Noeuds),
 		"osSansPose", len(r.OsSansPose), "triangles", r.Modele.Maillage.Structure.Triangles(), "clips", len(r.Clips),
 		"actions", len(r.Actions), "absentes", len(r.Absentes))
 	return r, nil
@@ -231,7 +233,7 @@ func modeleDeLArme(ctx context.Context, a *Arsenal, src SourcesArme) (*modelePos
 	if asset == nil {
 		return nil, fmt.Errorf("modele %08x de l'arme illisible", src.Mode)
 	}
-	slog.InfoContext(ctx, "rig a la premiere personne : modele FP distinct du modele 3P", "arme", fmt.Sprintf("%08x", src.Arme),
+	slog.InfoContext(ctx, "first-person rig: FP model distinct from 3P model", "weapon", fmt.Sprintf("%08x", src.Arme),
 		"mode", fmt.Sprintf("%08x", src.Mode))
 	mp := lisModelePose(asset, GroupeMode, nil)
 	return &mp, nil
@@ -299,7 +301,7 @@ func (m *ModeleAPeau) versePieces(ctx context.Context, asset *RuntimeGeoAsset, s
 		m.Influences = append(m.Influences, inf...)
 		m.SectionsDessinees++
 	}
-	slog.DebugContext(ctx, "pieces versees au rig", "sections", len(sel.maillages), "dessinees", m.SectionsDessinees)
+	slog.DebugContext(ctx, "parts contributed to the rig", "sections", len(sel.maillages), "drawn", m.SectionsDessinees)
 	return nil
 }
 

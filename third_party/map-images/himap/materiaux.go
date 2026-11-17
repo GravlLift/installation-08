@@ -12,6 +12,8 @@
 // 1 215 materiaux de Recharge, +60 porte un entier de l'enum et +56/+64 le remplissage 0xBC.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"io/fs"
@@ -308,7 +310,7 @@ func lecteurShaders(idx *ModuleIndex) LecteurShaders {
 				p, err = LitParametresShader(tag)
 			}
 			if err != nil {
-				slog.Warn("shader illisible : materiaux sans couches", "shader", fmt.Sprintf("%08x", id), "err", err)
+				slog.Warn("unreadable shader: materials without layers", "shader", fmt.Sprintf("%08x", id), "err", err)
 			}
 		}
 		lus[id] = p

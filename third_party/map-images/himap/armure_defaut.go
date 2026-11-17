@@ -16,6 +16,8 @@
 // le cas des pieces facultatives (coudieres, genouilleres, poignets) du noyau de base.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -55,12 +57,12 @@ func armureParDefaut(ctx context.Context, idx *ModuleIndex, mode uint32) (Armure
 	for _, id := range ids {
 		tag, err := idx.Extract(id)
 		if err != nil {
-			slog.WarnContext(ctx, "globales de personnalisation illisibles", "id", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable customization globals", "id", fmt.Sprintf("%08x", id), "err", err)
 			continue
 		}
 		nom, modele, ok, err := themeParDefaut(tag, mode)
 		if err != nil {
-			slog.WarnContext(ctx, "themes de personnalisation illisibles", "id", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable customization themes", "id", fmt.Sprintf("%08x", id), "err", err)
 			continue
 		}
 		if !ok {
@@ -109,18 +111,18 @@ func varianteDuBiped(ctx context.Context, idx *ModuleIndex, a ArmureParDefaut, m
 	for _, b := range refsInlineDuGroupe(modele, idx, GroupeBiped) {
 		bipd, err := idx.Extract(b)
 		if err != nil {
-			slog.WarnContext(ctx, "bipd illisible", "id", fmt.Sprintf("%08x", b), "err", err)
+			slog.WarnContext(ctx, "unreadable bipd", "id", fmt.Sprintf("%08x", b), "err", err)
 			continue
 		}
 		for _, h := range refsVehicule(bipd, idx, GroupeHlmt) {
 			hlmt, err := idx.Extract(h)
 			if err != nil {
-				slog.WarnContext(ctx, "hlmt illisible", "id", fmt.Sprintf("%08x", h), "err", err)
+				slog.WarnContext(ctx, "unreadable hlmt", "id", fmt.Sprintf("%08x", h), "err", err)
 				continue
 			}
 			v, ok, err := LitVarianteModele(hlmt, a.NomVariante)
 			if err != nil {
-				slog.WarnContext(ctx, "variantes du hlmt illisibles", "id", fmt.Sprintf("%08x", h), "err", err)
+				slog.WarnContext(ctx, "unreadable hlmt variants", "id", fmt.Sprintf("%08x", h), "err", err)
 				continue
 			}
 			if ok {

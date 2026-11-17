@@ -17,6 +17,8 @@
 // so the clumps are thinned uniformly to a budget.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"log/slog"
@@ -247,7 +249,7 @@ func poseDecorateurs(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles [
 		if _, vu := tapis[dec]; !vu {
 			ms, err := LitDecorateur(idx, dec)
 			if err != nil {
-				slog.Warn("decorateur illisible", "id", fmt.Sprintf("%08x", dec), "erreur", err)
+				slog.Warn("unreadable decorator", "id", fmt.Sprintf("%08x", dec), "error", err)
 				tapis[dec] = nil
 				continue
 			}
@@ -295,7 +297,7 @@ func poseDecorateurs(idx *ModuleIndex, s sourceTerrain, p plageTerrain, tuiles [
 	for dec, v := range totalParDecorateur {
 		attendus = append(attendus, fmt.Sprintf("%08x:%.0f", dec, v))
 	}
-	slog.Info("terrain decorateurs", "id", fmt.Sprintf("%08x", id), "attendus", attendus, "poses", compte, "tapis", len(out))
+	slog.Info("terrain decorators", "id", fmt.Sprintf("%08x", id), "expected", attendus, "placed", compte, "collected", len(out))
 	return out
 }
 

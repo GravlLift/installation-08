@@ -10,6 +10,8 @@
 // carte entiere.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -172,7 +174,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	// Collecter les autres structures nommees par le scenario.
 	nommes, err := structuresNommees(ctx, opts)
 	if err != nil {
-		slog.WarnContext(ctx, "scenarios illisible : un seul bsp collecte", "erreur", err)
+		slog.WarnContext(ctx, "unreadable scenarios: only one bsp collected", "error", err)
 		nommes = nil
 	}
 	for _, autre := range bsps {
@@ -201,7 +203,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	if err := out.resoutTexturesTerrain(ctx, idx, matieresTerrain, texturesTerrain); err != nil {
 		return nil, b, err
 	}
-	slog.InfoContext(ctx, "maillage monde collecte", "instances", b.Dessinees, "decor", b.EcarteesDecor,
+	slog.InfoContext(ctx, "world mesh collected", "instances", b.Dessinees, "scenery", b.EcarteesDecor,
 		"triangles", out.Structure.Triangles(), "trianglesTerrain", out.Terrain.Triangles(), "tuilesTerrain", out.Terrain.Instances, "trianglesDecor", out.Decor.Triangles(), "trianglesOmbre", out.Ombre.Triangles(),
 		"horsBoite", out.HorsBoite, "instancesHorsCadre", out.HorsCadre, "materiaux", len(out.Materiaux), "materiauxIllisibles", out.MateriauxIllisibles,
 		"masques", len(out.Masques), "masquesIllisibles", out.MasquesIllisibles,

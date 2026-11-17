@@ -2,6 +2,8 @@
 // selon la representation que son placement choisit parmi celles de son type.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -83,7 +85,7 @@ func palettesRepresentations(tag []byte) map[int32]uint32 {
 func paletteDeRepresentation(ctx context.Context, idx *ModuleIndex, id uint32, defaut []uint32) []uint32 {
 	tag, err := idx.Extract(id)
 	if err != nil {
-		slog.WarnContext(ctx, "palette de representation illisible", "rtmp", fmt.Sprintf("%08x", id), "err", err)
+		slog.WarnContext(ctx, "unreadable representation palette", "rtmp", fmt.Sprintf("%08x", id), "err", err)
 		return nil
 	}
 	estMateriau := func(h uint32) bool { g, _, _ := idx.Lookup(h); return g == GroupeMateriau }

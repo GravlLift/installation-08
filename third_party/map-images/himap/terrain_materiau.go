@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"log/slog"
@@ -70,7 +72,7 @@ func couleurTerrain(idx *ModuleIndex, s sourceTerrain, noeuds []int) (Materiau, 
 	}
 	// shortcut: sans couleur locale explicite, prendre une couleur de la palette ; lire les poids et les degrades pour la fidelite.
 	if comptes[meilleur] == 0 {
-		slog.Warn("terrain : aucune couleur locale explicite, couleur de la palette utilisee")
+		slog.Warn("terrain: no explicit local color, using palette color")
 	}
 	o := pa + meilleur*40
 	tr := Transfo{Echelle: [2]float32{float32(f32(tag, o+8)), float32(f32(tag, o+12))}}

@@ -29,6 +29,8 @@
 // Les DECLARATIONS des cartes (map_id, canevas, `.mvar`) vivent dans cartes_forge.go.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -298,7 +300,7 @@ func CuitCarteForge(ctx context.Context, opts OptionsCuissonForge) (*Rendu, Bila
 		NiveauHautNavmesh = opts.MaillageNiveauHaut
 		couvertes := r.ArmeReferenceDepuisNavmesh(opts.NavmeshReference)
 		NiveauHautNavmesh = precedent
-		slog.InfoContext(ctx, "mapfond: reference prise sur le maillage de navigation",
+		slog.InfoContext(ctx, "mapfond: reference taken from the navigation mesh",
 			"carte", opts.Cle, "cellules", couvertes)
 	} else {
 		r.ArmeReference(s)
@@ -317,7 +319,7 @@ func CuitCarteForge(ctx context.Context, opts OptionsCuissonForge) (*Rendu, Bila
 	}
 	poseObjetsForge(ctx, r, &b, idx, forge, opts, zJeu)
 	if opts.PlafondObjets > 0 {
-		slog.InfoContext(ctx, "mapfond: objets poses au-dessus du plafond ecartes", "carte", opts.Cle,
+		slog.InfoContext(ctx, "mapfond: objects placed above the ceiling discarded", "map", opts.Cle,
 			"plafond", opts.PlafondObjets, "objets", b.ObjetsAuPlafond)
 	}
 	if b.ObjetsDessines == 0 {
@@ -325,7 +327,7 @@ func CuitCarteForge(ctx context.Context, opts OptionsCuissonForge) (*Rendu, Bila
 	}
 	if opts.SolVuDuDessous {
 		n := r.AdopteSurfaceBasse()
-		slog.InfoContext(ctx, "mapfond: sol vu du dessous", "carte", opts.Cle, "pixels", n)
+		slog.InfoContext(ctx, "mapfond: floor seen from below", "map", opts.Cle, "pixels", n)
 	}
 	appliqueSubstitutionForge(ctx, r, &b, s, opts)
 	rogneAuNavmeshForge(ctx, r, opts)
@@ -339,7 +341,7 @@ func CuitCarteForge(ctx context.Context, opts OptionsCuissonForge) (*Rendu, Bila
 	}
 	JugeParLesAncres(r, &b, opts.Ancres)
 	journalisePixelsParType(ctx, r, b, opts.Objets)
-	slog.InfoContext(ctx, "carte Forge cuite", "cle", b.Module,
+	slog.InfoContext(ctx, "Forge map baked", "key", b.Module,
 		"objets", fmt.Sprintf("%d/%d", b.ObjetsDessines, b.ObjetsForge),
 		"sansModele", b.ObjetsSansModele, "volumesDeMort", b.VolumesDeMort,
 		"couverture", fmt.Sprintf("%.1f%%", 100*b.TauxCouverture), "couverte", b.CarteCouverte,
@@ -376,7 +378,7 @@ func appliqueSubstitutionForge(ctx context.Context, r *Rendu, b *BilanCuisson,
 	case opts.SansSubstitution:
 		b.TauxCouverture = r.TauxCouvertureMesure()
 		b.CarteCouverte = b.TauxCouverture > SeuilCouvertureEffectif()
-		slog.InfoContext(ctx, "mapfond: substitution NON appliquee sur demande", "carte", opts.Cle,
+		slog.InfoContext(ctx, "mapfond: substitution NOT applied as requested", "map", opts.Cle,
 			"couverture", fmt.Sprintf("%.1f%%", 100*b.TauxCouverture))
 	case opts.EcreteToits:
 		b.TauxCouverture, b.CellulesSubstituees, b.CellulesEcretees = r.EcretteToits(s, opts.PlafondArene)
@@ -395,11 +397,11 @@ func rogneAuNavmeshForge(ctx context.Context, r *Rendu, opts OptionsCuissonForge
 			marge = opts.MargeNavmeshCarte
 		}
 		n := r.EffaceHorsNavmesh(marge)
-		slog.InfoContext(ctx, "mapfond: matiere effacee hors du maillage de navigation", "carte", opts.Cle, "cellules", n, "marge", marge)
+		slog.InfoContext(ctx, "mapfond: material cleared outside the navigation mesh", "map", opts.Cle, "cells", n, "margin", marge)
 	}
 	if opts.ToleranceNavmesh > 0 {
 		n := r.EffaceLoinDuNavmesh(opts.ToleranceNavmesh)
-		slog.InfoContext(ctx, "mapfond: surfaces loin du sol vidées", "carte", opts.Cle, "tolerance", opts.ToleranceNavmesh, "cellules", n)
+		slog.InfoContext(ctx, "mapfond: surfaces far from the floor cleared", "map", opts.Cle, "tolerance", opts.ToleranceNavmesh, "cells", n)
 	}
 }
 
@@ -416,7 +418,7 @@ func rogneAltitudesEtPositionsForge(ctx context.Context, r *Rendu, opts OptionsC
 			marge = opts.MargeAltitude
 		}
 		n := r.RogneAuxAltitudesProches(seuil, marge)
-		slog.InfoContext(ctx, "mapfond: matiere loin du niveau de jeu effacee", "carte", opts.Cle,
+		slog.InfoContext(ctx, "mapfond: material far from play level cleared", "map", opts.Cle,
 			"seuil", seuil, "marge", marge, "cellules", n)
 	}
 	if len(opts.PositionsJouees) > 0 {
@@ -431,7 +433,7 @@ func rogneAltitudesEtPositionsForge(ctx context.Context, r *Rendu, opts OptionsC
 			seuilRec = opts.SeuilRecollement
 		}
 		n := r.RogneAuxPositionsJouees(opts.PositionsJouees, rayon, seuilRec)
-		slog.InfoContext(ctx, "mapfond: matiere hors des positions jouees effacee", "carte", opts.Cle,
+		slog.InfoContext(ctx, "mapfond: material outside played positions cleared", "map", opts.Cle,
 			"positions", len(opts.PositionsJouees), "rayon", rayon, "cellules", n,
 			"seuilRecollement", seuilRec, "objetsRetires", r.RecollementRetires)
 	}
@@ -443,7 +445,7 @@ func rogneAltitudesEtPositionsForge(ctx context.Context, r *Rendu, opts OptionsC
 func cadreAuxAncresEtZonesForge(ctx context.Context, r *Rendu, opts OptionsCuissonForge) {
 	if opts.RogneAuxComposantesAncrees {
 		n, gardees, total := r.GardeComposantesAncrees(opts.Ancres)
-		slog.InfoContext(ctx, "mapfond: composantes sans ancre effacees", "carte", opts.Cle,
+		slog.InfoContext(ctx, "mapfond: anchorless components cleared", "map", opts.Cle,
 			"cellules", n, "composantes", fmt.Sprintf("%d/%d gardees", gardees, total))
 	}
 	if opts.CadreAuxAncres {
@@ -454,7 +456,7 @@ func cadreAuxAncresEtZonesForge(ctx context.Context, r *Rendu, opts OptionsCuiss
 		if ba, ok := BoiteDesAncres(opts.Ancres, marge); ok {
 			var bb BilanCuisson
 			borneALaBoite(ctx, r, &bb, ba)
-			slog.InfoContext(ctx, "mapfond: cadre borne a l emprise des ancres", "carte", opts.Cle,
+			slog.InfoContext(ctx, "mapfond: frame bounded to the anchors' extent", "map", opts.Cle,
 				"boite", fmt.Sprintf("%.1f %.1f %.1f %.1f", ba[0], ba[1], ba[2], ba[3]),
 				"cellules", bb.CellulesHorsBoite)
 		}
@@ -464,10 +466,10 @@ func cadreAuxAncresEtZonesForge(ctx context.Context, r *Rendu, opts OptionsCuiss
 			var bz2 BilanCuisson
 			borneALaBoite(ctx, r, &bz2, bz)
 			n := bz2.CellulesHorsBoite
-			slog.InfoContext(ctx, "mapfond: cadre borne a l emprise des zones de callout", "carte", opts.Cle,
+			slog.InfoContext(ctx, "mapfond: frame bounded to the callout zones' extent", "map", opts.Cle,
 				"boite", fmt.Sprintf("%.1f %.1f %.1f %.1f", bz[0], bz[1], bz[2], bz[3]), "cellules", n)
 		} else {
-			slog.WarnContext(ctx, "mapfond: cadre aux zones demande mais aucune zone lue", "carte", opts.Cle)
+			slog.WarnContext(ctx, "mapfond: frame-to-zones requested but no zone read", "map", opts.Cle)
 		}
 	}
 }
@@ -616,7 +618,7 @@ func modeleParType(ctx context.Context, objets []mapvar.Object,
 		}
 		tag, err := forge.Extract(f)
 		if err != nil {
-			slog.DebugContext(ctx, "tag food illisible", "typeID", o.TypeID, "err", err)
+			slog.DebugContext(ctx, "unreadable food tag", "typeID", o.TypeID, "err", err)
 			continue
 		}
 		// LOCAL-CHANGE (infinite-theater-3d): the food's own references are typed (refs_typees.go).
@@ -655,7 +657,7 @@ func modeleParSaut(ctx context.Context, idx *ModuleIndex, tagFood []byte) (refMo
 		for _, hObjet := range refsTypeesDuGroupe(tagFood, idx, groupe) { // LOCAL-CHANGE (infinite-theater-3d)
 			objet, err := idx.Extract(hObjet)
 			if err != nil {
-				slog.DebugContext(ctx, "tag de saut illisible", "groupe", groupe, "id", hObjet, "err", err)
+				slog.DebugContext(ctx, "unreadable jump tag", "group", groupe, "id", hObjet, "err", err)
 				continue
 			}
 			if m, ok := modeleDuHlmt(ctx, idx, objet); ok {
@@ -672,7 +674,7 @@ func modeleDuHlmt(ctx context.Context, idx *ModuleIndex, objet []byte) (refModel
 	for _, hModele := range refsInlineDuGroupe(objet, idx, GroupeHlmt) {
 		hlmt, err := idx.Extract(hModele)
 		if err != nil {
-			slog.DebugContext(ctx, "tag hlmt illisible", "id", hModele, "err", err)
+			slog.DebugContext(ctx, "unreadable hlmt tag", "id", hModele, "err", err)
 			continue
 		}
 		if refs := refsInlineDuGroupe(hlmt, idx, GroupeRtgo); len(refs) > 0 {
@@ -795,7 +797,7 @@ func boiteForge(ctx context.Context, opts OptionsCuissonForge) [4]float64 {
 		return [4]float64{}
 	}
 	boite, n := BoiteDesVolumesDeMort(opts.Objets)
-	slog.InfoContext(ctx, "mapfond: bornage aux volumes de mort", "carte", opts.Cle,
+	slog.InfoContext(ctx, "mapfond: bounding to kill volumes", "map", opts.Cle,
 		"volumes", n, "boite", fmt.Sprintf("[%.1f %.1f %.1f %.1f]", boite[0], boite[1], boite[2], boite[3]))
 	return boite
 }
@@ -845,7 +847,7 @@ func journaliseTypesEtendus(ctx context.Context, b *BilanCuisson, etendues map[i
 	for _, x := range l {
 		detail = append(detail, fmt.Sprintf("%d:%.0fm x%d", x.typeID, x.etendue, x.n))
 	}
-	slog.InfoContext(ctx, "mapfond: types les plus etendus", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: most extensive types", "map", b.Module,
 		"types", len(etendues), "top", strings.Join(detail, " "))
 }
 
@@ -874,7 +876,7 @@ func poseCanevasForge(ctx context.Context, r *Rendu, b *BilanCuisson, opts Optio
 	bsp := ChoisitBSP(bsps, opts.Ancres)
 	dessinees, decor := PeupleRendu(ctx, r, idx, bsp)
 	b.CanevasDessinees, b.CanevasEcartees = dessinees, decor
-	slog.InfoContext(ctx, "mapfond: canevas dessine sous la carte", "carte", opts.Cle,
+	slog.InfoContext(ctx, "mapfond: canvas drawn under the map", "map", opts.Cle,
 		"bsps", len(bsps), "instances", len(bsp.Instances), "dessinees", dessinees, "decor", decor)
 }
 
@@ -999,7 +1001,7 @@ func journalisePixelsParType(ctx context.Context, r *Rendu, b BilanCuisson, obje
 		detail = append(detail, fmt.Sprintf("%d:%.1f%%(x%d)", x.typeID,
 			100*float64(x.pixels)/float64(total), compte[x.typeID]))
 	}
-	slog.InfoContext(ctx, "mapfond: qui peint l image", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: who paints the image", "map", b.Module,
 		"typesVisibles", len(pix), "pixels", total, "top", strings.Join(detail, " "))
 }
 
@@ -1025,7 +1027,7 @@ func mesureEtRogneZonesForge(ctx context.Context, r *Rendu, b *BilanCuisson, opt
 	if matiere > 0 {
 		part = float64(dehors) / float64(matiere)
 	}
-	slog.InfoContext(ctx, "mapfond: matiere hors des zones de callout (Forge)", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: material outside callout zones (Forge)", "map", b.Module,
 		"zones", len(zs), "matiere", matiere, "dehors", dehors,
 		"part", fmt.Sprintf("%.1f%%", 100*part), "rogne", opts.RogneAuxZones, "marge", marge)
 	if opts.RogneAuxZones {
@@ -1039,7 +1041,7 @@ func combleTrousForge(ctx context.Context, r *Rendu, b *BilanCuisson, opts Optio
 	if opts.CombleAuMaillage {
 		n := r.CombleDansLeMaillage(MargeNavmesh)
 		b.CellulesSolSuppose += n
-		slog.InfoContext(ctx, "mapfond: sol suppose pose dans l emprise du maillage", "carte", b.Module,
+		slog.InfoContext(ctx, "mapfond: floor assumed resting within the mesh's extent", "map", b.Module,
 			"cellules", n)
 	}
 	if !opts.CombleTrous {
@@ -1052,6 +1054,6 @@ func combleTrousForge(ctx context.Context, r *Rendu, b *BilanCuisson, opts Optio
 		tout[i] = true
 	}
 	b.CellulesSolSuppose += r.CombleTrous(tout)
-	slog.InfoContext(ctx, "mapfond: sol suppose pose dans les trous interieurs", "carte", b.Module,
+	slog.InfoContext(ctx, "mapfond: floor assumed resting in interior holes", "map", b.Module,
 		"cellules", b.CellulesSolSuppose)
 }

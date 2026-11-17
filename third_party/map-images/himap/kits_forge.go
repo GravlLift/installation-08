@@ -24,6 +24,8 @@
 // Le jeu ne les montre pas en partie ; un kit sans machine ne pose donc rien.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"log/slog"
@@ -181,7 +183,7 @@ func piecesDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map
 	}
 	tag, err := idx.Extract(kits[0])
 	if err != nil {
-		slog.DebugContext(ctx, "kit Forge illisible", "id", kits[0], "err", err)
+		slog.DebugContext(ctx, "unreadable Forge kit", "id", kits[0], "err", err)
 		return nil
 	}
 	objets := lisObjetsKit(tag)

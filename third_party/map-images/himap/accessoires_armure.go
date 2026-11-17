@@ -16,6 +16,8 @@
 // Spartan qui porte son nom (identite sur les tags mesures).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"errors"
@@ -141,7 +143,7 @@ func (a *Arsenal) AccessoiresDuModele(ctx context.Context, noms map[uint32]bool)
 				continue
 			}
 		}
-		slog.WarnContext(ctx, "accessoire illisible", "id", fmt.Sprintf("%08x", id), "err", err)
+		slog.WarnContext(ctx, "unreadable accessory", "id", fmt.Sprintf("%08x", id), "err", err)
 		illisibles++
 	}
 	return out, autres, illisibles
