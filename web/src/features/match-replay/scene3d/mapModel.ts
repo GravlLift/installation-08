@@ -27,6 +27,7 @@ import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMat
 import { convertLayered, MERGE_LAYERED, type LayeredMerge } from './layeredMerge3d'
 import { BATCHED_LIMITS, WEBGL2_LIMITS, type ArrayLimits } from './layeredPlan3d'
 import { withKtx2 } from './ktx2Textures3d'
+import { measureSince, now, timed, timedSync } from './perf3d'
 import { BAKED_INTENSITY, glowLevel, guardMaterial, imageGlowLevel } from './lighting'
 import { dropMarkerObjects } from './markerObjects3d'
 import { readPlacedLights } from './placedLights'
@@ -243,16 +244,16 @@ export function teinteVerreTeint(couches: LayeredInfo): [number, number, number]
  * `ktx2`: the renderer's KTX2 loader (`createKtx2Loader`), for a GLB with compressed textures.
  */
 export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null): Promise<MapModel> {
-  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2)
+  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2, 'map')
   const { scene, parser, owned, merge } = prepared
   // Dernière lecture du décodeur : après elle, le modèle n'en retient aucune référence et
   // les données de la pré-fusion qu'il tient (cf. `Prepared.parser`) sont ramassables.
   const lamps = readPlacedLights(scene.userData)
   const cielInfo = lireCiel(scene.userData)
   const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
-  const baked = await loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps)
+  const baked = await timed('map:baked-light', () => loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps))
   if (baked) for (const m of owned) baked.apply(m)
-  const model = await indexSurfaces(prepared, onStep)
+  const model = await indexSurfaces(prepared, onStep, 'map')
   let unbatch: (() => void) | null = null
   return {
     ...model,
@@ -281,9 +282,9 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
  */
 export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
-  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2)
+  const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2, 'variant')
   if (light) for (const m of prepared.owned) light.apply(m)
-  return indexSurfaces(prepared, onStep)
+  return indexSurfaces(prepared, onStep, 'variant')
 }
 
 function quiet(): void {}
@@ -408,14 +409,15 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
  * cachés. `mergeLimits` : les matériaux en couches opaques passent aux matériaux fusionnés
  * (`convertLayered`).
  */
-async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null): Promise<Prepared> {
+async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null, label: string): Promise<Prepared> {
   // L'étape « matériaux » : le décodage des images du GLB en est l'attente longue. Le gestionnaire
   // de chargement les compte (itemStart / itemEnd, une par image) pour que la barre avance image
   // après image ; sans image, elle reste au début de la bande.
   const manager = new LoadingManager()
   manager.onProgress = (_url, done, total) => onStep('materials', done, total)
   onStep('materials', 0, 0)
-  const gltf = await withKtx2(new GLTFLoader(manager), ktx2).parseAsync(buffer, '')
+  const gltf = await timed(`${label}:gltf-parse`, () => withKtx2(new GLTFLoader(manager), ktx2).parseAsync(buffer, ''))
+  const materialsStart = now()
   dropMarkerObjects(gltf.scene)
   const { mats, groups, owned } = familyMaterials()
   // Une copie lumineuse d'un matériau de famille par matériau du jeu qui émet.
@@ -516,13 +518,14 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     o.receiveShadow = true
   })
   await Promise.all(ctx.jobs)
+  measureSince(`${label}:materials`, materialsStart)
   // A clump's cards are seen from both sides, as in the game. Their layered materials are theirs
   // alone (the composition names their cutout and gradient).
   const familyShared = new Set<THREE.Material>(Object.values(mats))
   for (const o of instanced) for (const m of [o.material].flat()) if (!familyShared.has(m)) m.side = THREE.DoubleSide
   for (const m of decalStencil.values()) owned.push(m)
   const drawn = [...groups.structure, ...groups.decor]
-  const merge = mergeLimits ? convertLayered(drawn, [...drawn, ...groups.seeThrough], owned, mergeLimits) : null
+  const merge = mergeLimits ? timedSync(`${label}:merge`, () => convertLayered(drawn, [...drawn, ...groups.seeThrough], owned, mergeLimits)) : null
   for (const m of owned) guardMaterial(m)
   return { scene: gltf.scene, groups, owned, merge, parser: gltf.parser, glowAnimation }
 }
@@ -561,7 +564,8 @@ export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometr
 }
 
 /** indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle. */
-async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback): Promise<SurfaceModel> {
+async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback, label: string): Promise<SurfaceModel> {
+  const bvhStart = now()
   const bvh = geometriesOf([...groups.structure, ...groups.seeThrough])
   onStep('index', 0, bvh.length)
   await new Promise((r) => setTimeout(r, 0))
@@ -574,10 +578,13 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
     onStep('index', i + 1, bvh.length)
     if ((i + 1) % pas === 0) await new Promise((r) => setTimeout(r, 0))
   }
-  for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
-  const shadows = buildShadowProxies(scene, [...groups.structure, ...groups.decor])
+  measureSince(`${label}:bvh`, bvhStart)
+  timedSync(`${label}:bounds`, () => {
+    for (const g of geometriesOf([...groups.structure, ...groups.decor, ...groups.seeThrough])) tightenBounds(g)
+  })
+  const shadows = timedSync(`${label}:shadow-proxies`, () => buildShadowProxies(scene, [...groups.structure, ...groups.decor]))
   // Après la fusion des matériaux : l'envers lit les sommets et les index définitifs des surfaces.
-  const backs = buildBackFaces(scene, groups.structure, tightenBounds)
+  const backs = timedSync(`${label}:back-faces`, () => buildBackFaces(scene, groups.structure, tightenBounds))
 
   return {
     root: scene,
