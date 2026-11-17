@@ -26,6 +26,10 @@ const (
 // of that script. The WebView2 user data folder deliberately does NOT derive from it.
 const appDisplayName = "Infinite Theater 3D"
 
+// appWindowDataDir is the data dir the running server uses; runServe sets it so the
+// app window's File menu opens the same folder. Empty outside a serve launch.
+var appWindowDataDir string
+
 // defaultUIFor is the --ui default for an OS: the app's own window on Windows (the
 // WebView2 runtime ships with the system), the default browser elsewhere.
 func defaultUIFor(goos string) string {

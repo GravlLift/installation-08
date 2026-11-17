@@ -87,6 +87,8 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The app window's File menu opens the data dir this serve uses.
+	appWindowDataDir = dataDir
 	// Launch order (serve_launch.go): claim the data folder, then an address, and only then
 	// touch the data. A launch that cannot claim either exits before writing anything.
 	claim, err := claimDataDir(dataDir)

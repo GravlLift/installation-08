@@ -80,12 +80,45 @@ func openWindowApp(url string) error {
 	if w == nil {
 		return errors.New("the WebView2 runtime could not create the app window")
 	}
+	hwnd := windows.Handle(w.Window())
 	w.Init(externalLinksJS)
+	w.Init(acceleratorJS)
 	bound := func(u string) error { return openExternalURL(u, appOrigin) }
 	if err := w.Bind("it3dOpenExternal", bound); err != nil {
 		w.Destroy()
 		return err
 	}
+	fullScreen := &fullScreenState{}
+	installAppWindowMenu(w, menuActions{
+		openDataFolder: func() error {
+			dir, err := appWindowDataDirNow()
+			if err != nil {
+				return err
+			}
+			return openInExplorer(dir)
+		},
+		openLog: func() error {
+			dir, err := appWindowDataDirNow()
+			if err != nil {
+				return err
+			}
+			logDir := filepath.Join(dir, "logs")
+			logFile := filepath.Join(logDir, serverLogName)
+			if _, statErr := os.Stat(logFile); statErr == nil {
+				return openInExplorer(logFile)
+			}
+			return openInExplorer(logDir)
+		},
+		exit: func() {
+			// WM_CLOSE on the original procedure: the same close a click on the title
+			// bar's X would take, so the server shuts down exactly as today.
+			_, _, _ = procPostMessageW.Call(uintptr(hwnd), wmClose, 0, 0)
+		},
+		fullScreen: func() { fullScreen.toggle(hwnd) },
+		reload:     func() { w.Eval("location.reload()") },
+		github:     func() error { return openBrowser(githubURL) },
+		about:      func() { showAboutBox() },
+	})
 	w.Navigate(url)
 	w.Run() // returns when the window closes
 	return nil
