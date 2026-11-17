@@ -371,7 +371,7 @@ const AUDIO_CODECS: readonly { codec: ExportAudioCodec; webCodec: string }[] = [
   { codec: 'opus', webCodec: 'opus' },
 ]
 
-/** La configuration visee pour un codec : AAC-LC par defaut. */
+/** The configuration presented for a codec: AAC-LC by default. */
 export function audioEncoderConfig(shape: AudioTrackShape, codec: ExportAudioCodec = 'aac'): AudioEncoderConfig {
   return {
     codec: AUDIO_CODECS.find((c) => c.codec === codec)?.webCodec ?? 'mp4a.40.2',
@@ -382,17 +382,16 @@ export function audioEncoderConfig(shape: AudioTrackShape, codec: ExportAudioCod
 }
 
 /**
- * chooseAudioCodec dit quel codec ce navigateur sait REELLEMENT encoder pour cette piste, dans
- * l'ordre de `AUDIO_CODECS`, ou `null` s'il n'en sait aucun.
+ * chooseAudioCodec says which codec this browser can REALLY encode for this track, in the order
+ * of `AUDIO_CODECS`, or `null` when it can encode none.
  *
- * `canExportAudio` ne repond qu'a « l'API existe-t-elle ». Elle peut exister et REFUSER la
- * configuration — et ce refus est ASYNCHRONE : `configure()` ne leve pas, il passe l'encodeur
- * en erreur et le ferme, si bien que la panne n'apparait qu'au `flush()`, sous la forme
- * trompeuse « Encoder must be configured first ». C'est exactement ce qui s'est produit en
- * recette le 2026-08-28.
+ * `canExportAudio` only answers "does the API exist". It can exist and REFUSE the configuration,
+ * and that refusal is ASYNCHRONOUS: `configure()` does not throw, it puts the encoder in error and
+ * closes it, so the failure only shows at `flush()`, as the misleading "Encoder must be
+ * configured first". That is exactly what happened in acceptance on 2026-08-28.
  *
- * La question se pose donc AVANT d'ouvrir le conteneur, qui declare ses pistes une fois pour
- * toutes : mieux vaut un clip muet annonce qu'un export perdu.
+ * So the question is asked BEFORE the container is opened, which declares its tracks once and for
+ * all: an announced silent clip is better than a lost export.
  */
 export async function chooseAudioCodec(
   shape: AudioTrackShape,
@@ -411,7 +410,7 @@ async function audioConfigSupported(config: AudioEncoderConfig): Promise<boolean
   try {
     return (await AudioEncoder.isConfigSupported(config)).supported === true
   } catch {
-    // Une configuration REFUSEE leve ici (config invalide) : c'est une reponse, pas une panne.
+    // A REFUSED configuration throws here (invalid config): that is an answer, not a failure.
     return false
   }
 }
@@ -497,10 +496,9 @@ export interface AudioTrackInput {
  * capacité absente, et le plan (D5) veut qu'elle se traite par un autre bouton.
  */
 /**
- * La forme de reference des pistes sonores : celle que rend le mixage hors ligne
- * (`replayAudioMix.ts`). Elle ne sert qu'a PROUVER que l'encodeur (AAC, ou Opus) l'accepte, AVANT de
- * declarer quoi que ce soit dans le conteneur — une piste declaree puis refusee perd tout
- * l'export.
+ * The reference shape of the sound tracks: the one the offline mix renders (`replayAudioMix.ts`).
+ * It only serves to PROVE that the encoder (AAC, or Opus) accepts it, BEFORE anything is declared
+ * in the container: a track declared and then refused loses the whole export.
  */
 const MIX_TRACK_SHAPE: AudioTrackShape = { sampleRate: 48_000, numberOfChannels: 2 }
 
@@ -522,9 +520,9 @@ export async function openVideoExport(o: VideoExportOptions): Promise<VideoExpor
   // demandé à l'encodeur, sans avoir à deviner quel mode a gagné la sonde.
   console.info(`[replay-export] rate mode ${mode} —`, JSON.stringify(config))
   const noms = o.audioTracks ?? []
-  // LES PISTES SONORES SE PROUVENT AVANT D'ETRE DECLAREES (cf. `chooseAudioCodec`) : le
-  // conteneur ecrit sa table des pistes une fois pour toutes, et une piste declaree que
-  // l'encodeur refusera ensuite perd TOUT l'export.
+  // THE SOUND TRACKS ARE PROVEN BEFORE THEY ARE DECLARED (see `chooseAudioCodec`): the container
+  // writes its track table once and for all, and a declared track the encoder later refuses
+  // loses THE WHOLE export.
   const audioCodec = noms.length > 0 ? await chooseAudioCodec(MIX_TRACK_SHAPE) : null
   if (audioCodec && audioCodec !== 'aac') console.info(`[replay-export] no AAC encoder in this browser, audio encoded as ${audioCodec}`)
 
