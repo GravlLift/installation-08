@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 
-/** Contour plat d'une zone logique, sans surface ni volume rempli. */
+/** A logical zone's flat outline, with no filled surface or volume. */
 export function zoneOutlineGeometry(family: 'box' | 'cylinder'): THREE.BufferGeometry {
   if (family === 'cylinder') return new THREE.RingGeometry(0.96, 1, 64).rotateX(-Math.PI / 2)
   const shape = new THREE.Shape().moveTo(-0.5, -0.5).lineTo(0.5, -0.5).lineTo(0.5, 0.5).lineTo(-0.5, 0.5).lineTo(-0.5, -0.5)
@@ -10,7 +10,7 @@ export function zoneOutlineGeometry(family: 'box' | 'cylinder'): THREE.BufferGeo
   return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2)
 }
 
-/** Paroi ouverte sur le périmètre, sans plafond ni plancher. */
+/** A wall open around the perimeter, with no ceiling or floor. */
 export function zoneWallGeometry(family: 'box' | 'cylinder'): THREE.BufferGeometry {
   if (family === 'cylinder') return new THREE.CylinderGeometry(1, 1, 1, 64, 1, true).translate(0, 0.5, 0)
   const geometry = new THREE.BoxGeometry(1, 1, 1)

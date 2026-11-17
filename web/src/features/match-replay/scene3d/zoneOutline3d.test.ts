@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { zoneOutlineGeometry, zoneWallGeometry } from './zoneOutline3d'
 
-describe('contours des zones', () => {
-  it.each(['box', 'cylinder'] as const)('%s reste dans le plan du sol et laisse le centre vide', (family) => {
+describe('zone outlines', () => {
+  it.each(['box', 'cylinder'] as const)('%s stays in the ground plane and leaves the center empty', (family) => {
     const geometry = zoneOutlineGeometry(family)
     const p = geometry.getAttribute('position')
     for (let i = 0; i < p.count; i++) {
@@ -19,8 +19,8 @@ describe('contours des zones', () => {
   })
 })
 
-describe('parois des zones', () => {
-  it.each(['box', 'cylinder'] as const)('%s ne ferme pas le centre et dessine ses bords', (family) => {
+describe('zone walls', () => {
+  it.each(['box', 'cylinder'] as const)('%s does not close the center and draws its edges', (family) => {
     const mesh = new THREE.Mesh(zoneWallGeometry(family), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }))
     const down = new THREE.Raycaster(new THREE.Vector3(0, 2, 0), new THREE.Vector3(0, -1, 0))
     expect(down.intersectObject(mesh)).toHaveLength(0)
