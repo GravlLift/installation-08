@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.0-test.17
+
+Changes since 0.1.0-test.16.
+
+Highlights:
+- The app opens in its own window, with no console.
+- Matches open much faster (Outlook about 27 s to 11 s on the test machine).
+- Exported videos are about half the size.
+
+- Double-clicking the exe opens the app in its own window (the Microsoft Edge WebView2 Runtime that comes with Windows 10 and 11) instead of a browser tab, and no console window stays open. Closing the window stops the app. Links to other sites, such as the Microsoft sign-in, open in your normal browser. `serve --ui browser` keeps the old behavior, and the app falls back to the browser if the window cannot start. Without a console, the server log is written to `logs\server.log` in the data folder.
+- Loading a match is faster: texture decoding uses more of the machine, only the gun on screen holds the loading screen, the other first-person guns load after the first frame, the map's collision index builds faster, armor, weapon and first-person files download in a few bundled requests instead of about 1,400, and the first frame is set up without wasted draws. On the test machine Outlook went from about 27 s to about 11 s and Streets from about 27 s to about 18 to 21 s.
+- Map geometry is compressed (meshoptimizer), so map files are about 40% smaller. Maps already built are converted automatically when the app starts, and High texture maps built before this version update correctly.
+- Exported videos use a smaller H.264 setting by default, about 45% of the old size at nearly the same quality.
+- Exporting a video works in Firefox.
+- The Heatwave shows its vent and magazine feed, and its reload sounds play in stages.
+- The weapon library's Textures switch sits beside the title.
+
 ## 0.1.0-test.16
 
 Changes since 0.1.0-test.15.
