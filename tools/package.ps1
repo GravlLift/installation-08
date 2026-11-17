@@ -86,7 +86,10 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $exe = Join-Path $outDir 'infinite-theater-3d.exe'
 Push-Location $repo
 try {
-    & go build -tags embedweb -trimpath -ldflags "-s -w -X main.Version=$Version -extldflags=-static" -o $exe ./cmd/infinite-theater-3d
+    # -H=windowsgui: the packaged exe is a GUI-subsystem program, so a double-click opens
+    # no console window; launched from a terminal it takes that terminal's console over
+    # (cmd\infinite-theater-3d\console_windows.go).
+    & go build -tags embedweb -trimpath -ldflags "-s -w -H=windowsgui -X main.Version=$Version -extldflags=-static" -o $exe ./cmd/infinite-theater-3d
     if ($LASTEXITCODE -ne 0) { throw "go build failed (exit $LASTEXITCODE)" }
 }
 finally { Pop-Location }
