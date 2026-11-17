@@ -99,8 +99,12 @@ are in [PARITY.md](PARITY.md).
   on restore if the target monitor's DPI differs. Open: the app icon once the name is chosen.
 - Serve the viewer's files to the window in-process (WebView2 resource interception) instead
   of over HTTP, measured against HTTP.
-- Confirm compiled shaders persist across launches in the window's fixed profile (second
-  launch load against first), and keep it that way.
+- Compiled shaders: they persist across launches in the window's fixed profile with the
+  webview_go window (measured 2026-11-17: `Default\GPUCache` grew 544 KB to 7.8 MB in one
+  session and kept growing over two real restarts; Streets loaded in 39.5 s on the first
+  launch, about 20 s on each later one). The earlier 544 KB reading came from the go-webview2
+  builds and did not reproduce. Open: the first-launch Streets load in the window (39.5 s) is
+  about twice Chrome's cold load; not yet explained.
 - DONE: one renderer and a capped session cache (1.5 GB) keep the map, variant layer and
   model libraries between matches. Measured 2026-11-17: a revisited Outlook loads in 5.6 to
   7.2 s (11 s cold), a revisited Streets in 7.1 to 8.4 s (18 to 20 s cold). Open: what remains
