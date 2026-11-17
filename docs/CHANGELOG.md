@@ -1,13 +1,26 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-test.19
+
+Changes since 0.1.0-test.18.
+
+Highlights:
+- The first start is much shorter: the weapon, first-person and Spartan libraries build on every core, and a bar at the top shows their progress.
+- The main menu shows the Installation 08 wordmark.
+
+- On first start the weapon, first-person and Spartan-piece libraries build on all of the machine's cores instead of one item at a time. A weapon in a match you open while they build moves to the front of the queue. A bar at the top of every page shows the progress ("Weapons 84/190") with the note "Optimizing assets. Playback may be less smooth until this finishes." and disappears when the work is done. A clean first start on the 20-core test machine took about 11 minutes.
+- The main menu shows the Installation 08 wordmark.
+- 24 objective, pad, repair-field and weapon pickup/drop sounds and one end-of-match voice line ("Defeat") are now built from your Halo install, like the announcer and reloads, instead of shipping with the app.
+- `server.log` records when each library build starts and finishes and how long it took.
+- The film decoder's log and error messages are in English.
+- Fixed: the packaged exe was missing the browser-tab icon and other small web files.
+
+### Notes on the parallel library builds
 
 - The weapon, first-person and Spartan-piece libraries now build on all of the machine's
   logical cores at once instead of one weapon/rig/piece at a time, and a weapon the viewer
   actually asks for (a match you open while the library is still building) moves to the front
-  of the queue. A thin bar at the top of every page shows the overall progress ("Weapons
-  84/190") and the note "Optimizing assets. Playback may be less smooth until this finishes."
-  while any of this runs; it disappears once the queue is empty.
+  of the queue.
   Measured on a 20-core / 64 GB machine, timing a fixed 20-weapon subset of the first-person
   library (a full ~190-weapon run was too long to time twice for this change): 297.2 s wall,
   3.70 GB peak working set before this change, vs. 190.1 s wall, 6.72 GB peak after (about
