@@ -19,12 +19,12 @@ import (
 // the viewer looks up through the rig's actions. Marshaled, it must carry exactly the JSON
 // fields the viewer's IndexPremierePersonne reads.
 type indexFixture struct {
-	Schema    int      `json:"schema"`
-	Generator string   `json:"generator"`
-	Weapons   []Arme   `json:"weapons"`
-	Rigs      []Rig    `json:"rigs"`
-	Failures  []Echec  `json:"failures"`
-	Textures  Textures `json:"textures"`
+	Schema    int           `json:"schema"`
+	Generator string        `json:"generator"`
+	Weapons   []WeaponEntry `json:"weapons"`
+	Rigs      []Rig         `json:"rigs"`
+	Failures  []Failure     `json:"failures"`
+	Textures  Textures      `json:"textures"`
 }
 
 // TestIndexShapeMatchesViewer — the JSON a built library writes is the shape the viewer
@@ -36,7 +36,7 @@ func TestIndexShapeMatchesViewer(t *testing.T) {
 	idx := Index{
 		Schema:    SchemaFirstPerson,
 		Generator: generatorLibrary,
-		Weapons:   []Arme{{Weapon: "abcdef12", File: "rig-0123456789abcdef.glb"}},
+		Weapons:   []WeaponEntry{{Weapon: "abcdef12", File: "rig-0123456789abcdef.glb"}},
 		Rigs: []Rig{{
 			File:        "rig-0123456789abcdef.glb",
 			Bones:       80,
@@ -47,7 +47,7 @@ func TestIndexShapeMatchesViewer(t *testing.T) {
 			Actions:     []Action{{Action: "idle", Variant: 0, Clip: "attente"}},
 			MissingActs: []string{},
 		}},
-		Failures: []Echec{},
+		Failures: []Failure{},
 		Textures: Textures{},
 	}
 	raw, err := json.Marshal(idx)
@@ -63,7 +63,7 @@ func TestIndexShapeMatchesViewer(t *testing.T) {
 			t.Fatalf("index JSON missing key %q: %s", k, raw)
 		}
 	}
-	var weapon []Arme
+	var weapon []WeaponEntry
 	if err := json.Unmarshal(got["weapons"], &weapon); err != nil {
 		t.Fatal(err)
 	}
@@ -99,27 +99,27 @@ func TestIndexShapeMatchesViewer(t *testing.T) {
 	}
 }
 
-// TestFichierRig — a rig's file name is the content digest of its written bytes: the same
+// TestRigFile — a rig's file name is the content digest of its written bytes: the same
 // rig content gives the same name (two weapons share a file), different content a different
 // one.
-func TestFichierRig(t *testing.T) {
-	a := FichierRig([]byte("rig content A"))
-	b := FichierRig([]byte("rig content A"))
-	c := FichierRig([]byte("rig content B"))
+func TestRigFile(t *testing.T) {
+	a := RigFile([]byte("rig content A"))
+	b := RigFile([]byte("rig content A"))
+	c := RigFile([]byte("rig content B"))
 	if a != b || a == c {
-		t.Fatalf("FichierRig: A=%q A2=%q B=%q", a, b, c)
+		t.Fatalf("RigFile: A=%q A2=%q B=%q", a, b, c)
 	}
 	if !strings.HasPrefix(a, "rig-") || !strings.HasSuffix(a, ".glb") || len(a) != len("rig-")+16+4 {
 		t.Fatalf("rig file name shape = %q", a)
 	}
-	if !NomFichierPremierePersonne(a) {
-		t.Fatalf("FichierRig output %q is not a library file name", a)
+	if !IsLibraryFileName(a) {
+		t.Fatalf("RigFile output %q is not a library file name", a)
 	}
 }
 
-// TestNomFichierPremierePersonne — the library's file names, and the look-alikes the route
+// TestIsLibraryFileName — the library's file names, and the look-alikes the route
 // must refuse.
-func TestNomFichierPremierePersonne(t *testing.T) {
+func TestIsLibraryFileName(t *testing.T) {
 	ok := []string{
 		"index.json",
 		"bras.json",
@@ -129,9 +129,9 @@ func TestNomFichierPremierePersonne(t *testing.T) {
 		"texture-" + strings.Repeat("0", 64) + ".png",
 		"texture-" + strings.Repeat("a", 64) + ".jpg",
 	}
-	for _, nom := range ok {
-		if !NomFichierPremierePersonne(nom) {
-			t.Errorf("%q should be a library file name", nom)
+	for _, name := range ok {
+		if !IsLibraryFileName(name) {
+			t.Errorf("%q should be a library file name", name)
 		}
 	}
 	bad := []string{
@@ -148,9 +148,9 @@ func TestNomFichierPremierePersonne(t *testing.T) {
 		"../index.json",
 		"",
 	}
-	for _, nom := range bad {
-		if NomFichierPremierePersonne(nom) {
-			t.Errorf("%q should not be a library file name", nom)
+	for _, name := range bad {
+		if IsLibraryFileName(name) {
+			t.Errorf("%q should not be a library file name", name)
 		}
 	}
 }
@@ -167,11 +167,11 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	ecrit, err := writeFileIfAbsent(existing, []byte("new bytes"))
+	written, err := writeFileIfAbsent(existing, []byte("new bytes"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ecrit {
+	if written {
 		t.Fatal("an existing file must not be rewritten")
 	}
 	raw, err := readAll(existing)
@@ -181,19 +181,19 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 	if string(raw) != "bytes from the previous run" {
 		t.Fatalf("existing file changed: %q", raw)
 	}
-	manquant := filepath.Join(dir, "rig-fedcba9876543210.glb")
-	ecrit2, err := writeFileIfAbsent(manquant, []byte("fresh"))
-	if err != nil || !ecrit2 {
-		t.Fatalf("missing file: ecrit=%v err=%v, want written", ecrit2, err)
+	missing := filepath.Join(dir, "rig-fedcba9876543210.glb")
+	written2, err := writeFileIfAbsent(missing, []byte("fresh"))
+	if err != nil || !written2 {
+		t.Fatalf("missing file: written=%v err=%v, want written", written2, err)
 	}
-	raw2, err := readAll(manquant)
+	raw2, err := readAll(missing)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(raw2) != "fresh" {
 		t.Fatalf("written file = %q", raw2)
 	}
-	if _, err := readAll(manquant + ".tmp"); err == nil {
+	if _, err := readAll(missing + ".tmp"); err == nil {
 		t.Fatal("a .tmp file must not remain after a successful write")
 	}
 }
@@ -202,35 +202,35 @@ func TestWriteFileIfAbsentResume(t *testing.T) {
 // digest; a different image gets its own file.
 func TestDepotDedup(t *testing.T) {
 	dir := t.TempDir()
-	d := &depot{dir: dir, vues: map[string]bool{}}
-	nom1, err := d.depose([]byte("same image"), "image/png")
+	d := &depot{dir: dir, seen: map[string]bool{}}
+	name1, err := d.store([]byte("same image"), "image/png")
 	if err != nil {
 		t.Fatal(err)
 	}
-	nom2, err := d.depose([]byte("same image"), "image/png")
+	name2, err := d.store([]byte("same image"), "image/png")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if nom1 != nom2 {
-		t.Fatalf("same content must give the same name: %q vs %q", nom1, nom2)
+	if name1 != name2 {
+		t.Fatalf("same content must give the same name: %q vs %q", name1, name2)
 	}
-	if d.fichiers != 1 || d.references != 2 {
-		t.Fatalf("depot = %d files / %d references, want 1/2", d.fichiers, d.references)
+	if d.files != 1 || d.references != 2 {
+		t.Fatalf("depot = %d files / %d references, want 1/2", d.files, d.references)
 	}
-	nom3, err := d.depose([]byte("other image"), "image/jpeg")
+	name3, err := d.store([]byte("other image"), "image/jpeg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if nom3 == nom1 {
+	if name3 == name1 {
 		t.Fatal("different content must give a different name")
 	}
-	if d.fichiers != 2 || d.references != 3 {
-		t.Fatalf("depot = %d files / %d references, want 2/3", d.fichiers, d.references)
+	if d.files != 2 || d.references != 3 {
+		t.Fatalf("depot = %d files / %d references, want 2/3", d.files, d.references)
 	}
-	if !NomFichierPremierePersonne(nom1) || !NomFichierPremierePersonne(nom3) {
-		t.Fatalf("depot names are not library file names: %q %q", nom1, nom3)
+	if !IsLibraryFileName(name1) || !IsLibraryFileName(name3) {
+		t.Fatalf("depot names are not library file names: %q %q", name1, name3)
 	}
-	if _, err = d.depose([]byte("x"), "image/webp"); err == nil {
+	if _, err = d.store([]byte("x"), "image/webp"); err == nil {
 		t.Fatal("an unsupported mime type must be refused")
 	}
 }

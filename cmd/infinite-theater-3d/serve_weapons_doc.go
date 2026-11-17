@@ -220,9 +220,9 @@ func weaponTiersFor(pairName string) *replay.WeaponTiersInfo {
 // hasRandomStarts says whether the mode name carries one of the random-start tokens,
 // searched as a whole word, case-insensitive — LevelUp's HasRandomStarts rule.
 func hasRandomStarts(pairName string) bool {
-	nom := " " + modeWords.ReplaceAllString(strings.ToLower(strings.TrimSpace(pairName)), " ") + " "
+	name := " " + modeWords.ReplaceAllString(strings.ToLower(strings.TrimSpace(pairName)), " ") + " "
 	for _, t := range randomStartModeTokens {
-		if strings.Contains(nom, " "+strings.ToLower(t)+" ") {
+		if strings.Contains(name, " "+strings.ToLower(t)+" ") {
 			return true
 		}
 	}
