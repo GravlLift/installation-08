@@ -32,7 +32,7 @@ import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import type { Action3dInputs, PageAction3dInputs } from '../scene3d/action3dInputs'
 import { ArmorLibrary } from '../scene3d/armorLibrary3d'
 import { SpartanArmory } from '../scene3d/armory3d'
-import { mark, timed, timedSync } from '../scene3d/perf3d'
+import { mark, runWhenIdle, timed, timedSync } from '../scene3d/perf3d'
 import { cssColor } from '../scene3d/cssColor'
 import { loadMapModel } from '../scene3d/mapModel'
 import { LoadGate } from '../scene3d/loadGate3d'
@@ -186,10 +186,10 @@ export function Replay3DView({
     void (async () => {
       try {
         let model = cachedMapModel(meshPath)
-        // The freshly built ray index to store server-side, once the map is shown; stays null on
-        // a cache hit (the cached model's own index was already good) and when a used sidecar
-        // matched (`loadMapModel`'s `bvhUpload` is then null too).
-        let bvhToUpload: ArrayBuffer | null = null
+        // Packs the freshly built ray index to store server-side, once the map is shown; stays
+        // null on a cache hit (the cached model's own index was already good) and when a used
+        // sidecar matched (`loadMapModel`'s `bvhUpload` is then null too).
+        let packBvhUpload: (() => ArrayBuffer) | null = null
         if (model) {
           // Warm load: the map is already decoded and indexed, from an earlier match on it this
           // session. Nothing to download, decode, or fetch a ray-index sidecar for: the progress
@@ -217,7 +217,7 @@ export function Replay3DView({
           progress.finish('decode')
           progress.finish('index')
           storeMapModel(meshPath, model)
-          bvhToUpload = model.bvhUpload
+          packBvhUpload = model.bvhUpload
         }
         sessionAssetCache.acquire(mapKey)
         const posedModel = model
@@ -227,11 +227,19 @@ export function Replay3DView({
         sceneRef.current = scene
         setMapScene(scene)
         setFallbackPov(tracks.players[0]?.xuid ?? null)
-        // Off the critical path: the map is already shown by the time this fires. A map built
-        // before this shipped has no sidecar yet (`bvhCache` null); this is the lazy upload that
-        // gives it one, read back by every later load of the same build. Never runs on a cache
-        // hit or when a used sidecar already matched (`bvhToUpload` null either way).
-        if (bvhToUpload) void uploadBVHCache(meshPath, bvhToUpload, abort.signal)
+        // Off the critical path, after an idle moment (so the browser gets to paint first): a map
+        // built before this shipped has no sidecar yet (`bvhCache` null); this is the lazy upload
+        // that gives it one, read back by every later load of the same build. Never runs on a
+        // cache hit or when a used sidecar already matched (`packBvhUpload` null either way).
+        // Packing itself (`serializeBVHCache`, real work for a map the size of Streets) happens
+        // here too, not before: see `mapModel.ts`'s `bvhUpload` doc comment.
+        if (packBvhUpload) {
+          const pack = packBvhUpload
+          runWhenIdle(() => {
+            if (abort.signal.aborted) return
+            void uploadBVHCache(meshPath, pack(), abort.signal)
+          })
+        }
       } catch (err) {
         if (!alive) return
         console.error('rejeu 3D : chargement de la carte', err)

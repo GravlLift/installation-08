@@ -119,11 +119,14 @@ export interface SurfaceModel {
   /** The self-lit materials whose light the game animates (`glowAnimation3d`); empty for a still map. */
   glowAnimation: GlowAnimator
   /**
-   * The freshly built ray index, packed for upload (`bvhCache.serializeBVHCache`), when
+   * Packs the freshly built ray index for upload (`bvhCache.serializeBVHCache`), when
    * `indexSurfaces` had to build it (no cache was given, or it did not match); null when a
-   * supplied cache was used as-is, so nothing new needs to be stored server-side.
+   * supplied cache was used as-is, so nothing new needs to be stored server-side. A function, not
+   * the packed bytes themselves: packing ~2000 trees is itself real main-thread work (Streets), so
+   * the caller runs it off the critical path (after the first frame, an idle callback), never
+   * before — calling this is exactly as expensive whenever it happens, only the timing differs.
    */
-  bvhUpload: ArrayBuffer | null
+  bvhUpload: (() => ArrayBuffer) | null
   /** Libère géométries, index et matériaux du modèle (pas la lumière cuite qu'il a reprise). */
   dispose(): void
 }
@@ -579,14 +582,16 @@ export function geometriesOf(meshes: readonly THREE.Mesh[]): THREE.BufferGeometr
  * indexSurfaces construit l'index de lancer de rayons (structure, translucides) et rend le modèle.
  * `bvhCache`, when given, is tried first (`deserializeBVHCache`): on a match it replaces the whole
  * build loop below. On any mismatch (format, library version, build options, geometry counts) or
- * when absent, the index is built as before, and the model's `bvhUpload` carries the freshly built
- * one, packed for the caller to store server-side; a used cache leaves `bvhUpload` null.
+ * when absent, the index is built as before, and the model's `bvhUpload` is a function the caller
+ * runs later (off the critical path) to pack the freshly built one for upload; a used cache leaves
+ * `bvhUpload` null. Packing itself is NOT done here: for a map the size of Streets (~2000
+ * geometries) it is real main-thread work on its own, so it must never run before the first frame.
  */
 async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, onStep: StepCallback, label: string, bvhCache: ArrayBuffer | null = null): Promise<SurfaceModel> {
   const bvhStart = now()
   const bvh = geometriesOf([...groups.structure, ...groups.seeThrough])
   onStep('index', 0, bvh.length)
-  let bvhUpload: ArrayBuffer | null = null
+  let bvhUpload: (() => ArrayBuffer) | null = null
   const loadedFromCache = bvhCache ? timedSync(`${label}:bvh-load`, () => deserializeBVHCache(bvhCache, bvh)) : false
   if (!loadedFromCache) {
     await new Promise((r) => setTimeout(r, 0))
@@ -614,7 +619,9 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
     measureSince(`${label}:bvh`, bvhStart)
     measureDuration(`${label}:bvh-structure`, structMs)
     measureDuration(`${label}:bvh-see-through`, seeThroughMs)
-    bvhUpload = bvh.length > 0 ? serializeBVHCache(bvh) : null
+    // Deferred: `serializeBVHCache` walks every tree in `bvh` again: left as a thunk, run by the
+    // caller once the scene is shown, not here on the cold load's critical path.
+    if (bvh.length > 0) bvhUpload = () => serializeBVHCache(bvh)
   }
   onStep('index', bvh.length, bvh.length)
   timedSync(`${label}:bounds`, () => {
