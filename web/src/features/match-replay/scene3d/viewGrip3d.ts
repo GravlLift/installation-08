@@ -8,7 +8,7 @@
  * barrel (radians). That is why the J key (the table's +x) moves it on screen to the left, the
  * cone's right.
  *
- * `RIG_GRIPS`: the animated arms+weapon rig (brasPremierePersonne3d). The grip is in the camera's
+ * `RIG_GRIPS`: the animated arms+weapon rig (`FirstPersonArms3d`). The grip is in the camera's
  * frame before the rig's rotation: positive x = to the RIGHT on screen, positive y = UP,
  * positive z = AWAY from the eye, `roll` = rotation around the aim axis (radians). The keys do
  * what they say on screen: Alt + J left, L right, I up, K down, N toward the eye, M away, O / P roll.

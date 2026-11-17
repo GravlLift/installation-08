@@ -71,7 +71,6 @@ export const ROUND_OVER_CALL = 'round_over'
  */
 export const ANNOUNCER_LINES: AnnouncerLines = {
   [ROUND_OVER_CALL]: {
-    fr: { stem: ROUND_OVER_SOUND_STEMS.fr, durationMs: 1_756 },
     en: { stem: ROUND_OVER_SOUND_STEMS.en, durationMs: 1_713 },
   },
 }

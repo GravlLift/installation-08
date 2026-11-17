@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 
-import { appliquerTenueRig } from './brasPremierePersonne3d'
+import { appliquerTenueRig } from './firstPersonArms3d'
 import {
   formatRigGrips,
   rigGripOf,

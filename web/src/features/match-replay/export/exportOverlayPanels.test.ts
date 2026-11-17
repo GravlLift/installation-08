@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * exportOverlayPanels.test.ts — does the end-of-match panel repainted into the video say the
- * same thing as the one shown on screen?
+ * exportOverlayPanels.test.ts — DOES THE END PANEL REPAINTED IN THE VIDEO SAY THE SAME
+ * THING as the one shown on screen?
  *
- * Both surfaces announce the SAME match: if they decided separately, the exported video would
- * show the last round's score ("100 - 43") while the page says "2 - 1". The DOM twin is
- * covered by ReplayVictoryOverlay.test.tsx; this file covers the export-side choice, which
- * wasn't covered (finding from the 2026-08-29 adversarial review).
+ * The two surfaces announce the SAME match: if they decided separately, the exported video
+ * would show the last round's points ("100 - 43") while the page says "2 - 1". The DOM twin
+ * is covered by ReplayVictoryOverlay.test.tsx; this file covers the export-side choice, which
+ * was not covered before (adversarial review finding of 2026-08-29).
  */
 import { describe, expect, it } from 'vitest'
 
@@ -25,7 +25,7 @@ describe('exportFinalScore', () => {
     expect(exportFinalScore({ ally: 2, enemy: 1 }, film)).toEqual({ ally: 2, enemy: 1 })
   })
 
-  it('falls back to reading the film layer when the API says nothing', () => {
+  it('falls back to the film layer reading when the API says nothing', () => {
     expect(exportFinalScore(null, film)).toEqual({ ally: 100, enemy: 43 })
     expect(exportFinalScore(undefined, film)).toEqual({ ally: 100, enemy: 43 })
   })
@@ -40,14 +40,14 @@ describe('exportFinalScore', () => {
 })
 
 /**
- * ADDED 2026-09-07 — THE EXPORTED PANEL'S WORD FOLLOWS THE VIEWPOINT, AND HAS ONLY ONE SOURCE.
+ * ADDED 2026-09-07 — THE EXPORTED PANEL'S WORD FOLLOWS THE POINT OF VIEW, AND HAS ONLY ONE SOURCE.
  *
  * The clip used to paint its verdict with `outcome.label`, i.e. `header.outcome_label`: the
- * PAGE PLAYER's word, produced by a Go map hardcoded in French. Viewed from an opponent of a
- * won match, `readVictory` correctly swapped the outcome and the panel's team color — but the
- * title still said "Victoire", above the losing team. The label for the VIEWED outcome now
- * arrives in `viewedLabel`, resolved by `useReplayCapture` (a hook; this module is pure) from
- * the title's mappings, and it is the ONLY word this module accepts: without it, silence.
+ * PAGE PLAYER's word, built by a Go map hard-coded in one language. Viewed from an opponent
+ * of a won match, `readVictory` did flip the outcome and the panel's side — but the title
+ * still said "Victory", above the losing team. The READ outcome's label now arrives in
+ * `viewedLabel`, resolved by `useReplayCapture` (a hook; this module is pure) from the title's
+ * mappings, and it is the ONLY word this module accepts: without it, silence.
  */
 describe('buildOverlayPanelSource — the verdict painted into the video', () => {
   const DOC = {
@@ -57,16 +57,16 @@ describe('buildOverlayPanelSource — the verdict painted into the video', () =>
   } as unknown as ReplayDocumentReady & ReplayScoreDocument
 
   const SB = [
-    { xuid: 'moi', team_side: 't0', is_me: true },
-    { xuid: 'eux', team_side: 't1', is_me: false },
+    { xuid: 'me', team_side: 't0', is_me: true },
+    { xuid: 'them', team_side: 't1', is_me: false },
   ] as MatchScoreboardRow[]
 
-  /** The FILM's allegiance as seen from `reference`: `moi` on side 0, `eux` on side 1. */
+  /** The FILM's allegiance as seen from `reference`: `me` on side 0, `them` on side 1. */
   const viewedFrom = (reference: string) =>
     buildFilmAllegiance(
       [
-        { xuid: 'moi', team: 0, lives: [], board: SB[0] },
-        { xuid: 'eux', team: 1, lives: [], board: SB[1] },
+        { xuid: 'me', team: 0, lives: [], board: SB[0] },
+        { xuid: 'them', team: 1, lives: [], board: SB[1] },
       ] as ReplayPlayer[],
       reference,
     )
@@ -91,11 +91,11 @@ describe('buildOverlayPanelSource — the verdict painted into the video', () =>
     return buildOverlayPanelSource({
       doc: DOC,
       scoreboard: SB,
-      allegiance: viewedFrom(over.viewpoint ?? 'moi'),
+      allegiance: viewedFrom(over.viewpoint ?? 'me'),
       playWindow: WINDOW,
-      outcome: { code: 2, viewedLabel: 'Victoire' },
+      outcome: { code: 2, viewedLabel: 'Victory' },
       viewpoint: null,
-      locale: 'fr',
+      locale: 'en',
       ink: INK,
       teamStyle: { background: '#111', border: '#222' },
       logo: null,
@@ -103,26 +103,26 @@ describe('buildOverlayPanelSource — the verdict painted into the video', () =>
     }).panelAt(WINDOW.endFrame)
   }
 
-  it('default viewpoint: the outcome’s label, as is', () => {
-    expect(panel()?.status).toBe('Victoire')
+  it('default point of view: the outcome label, as is', () => {
+    expect(panel()?.status).toBe('Victory')
   })
 
-  it('page player’s viewpoint: the same word, nothing swapped', () => {
-    expect(panel({ viewpoint: 'moi' })?.status).toBe('Victoire')
+  it("page player's point of view: the same word, nothing is flipped", () => {
+    expect(panel({ viewpoint: 'me' })?.status).toBe('Victory')
   })
 
-  it('viewed from an opponent: the SWAPPED outcome’s label, supplied by the seam', () => {
+  it('viewed from an opponent: the FLIPPED outcome label, supplied by the wiring', () => {
     const p = panel({
-      viewpoint: 'eux',
-      outcome: { code: 2, viewedLabel: 'Défaite' },
+      viewpoint: 'them',
+      outcome: { code: 2, viewedLabel: 'Defeat' },
     })
-    expect(p?.status).toBe('Défaite')
+    expect(p?.status).toBe('Defeat')
   })
 
   it('`viewedLabel` is `null`: no panel — never a raw key in the clip', () => {
-    // The degraded case: the title's mappings give no label for the viewed outcome. Same
-    // silence as the DOM, with no fallback to a second vocabulary.
-    expect(panel({ viewpoint: 'eux', outcome: { code: 2, viewedLabel: null } })).toBeNull()
+    // The degraded case: the title's mappings give no label for the read outcome. Same
+    // silence as the DOM, and no fallback to a second vocabulary.
+    expect(panel({ viewpoint: 'them', outcome: { code: 2, viewedLabel: null } })).toBeNull()
   })
 
   it('`viewedLabel` ABSENT: no panel either — there is no other source left', () => {

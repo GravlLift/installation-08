@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { REPLAY_TEXT, type ReplayLocale } from '../features/match-replay/i18n/i18n'
-import type { LoadPhase3d, LoadState } from '../features/match-replay/model/chargement3d_logic'
+import type { LoadPhase3d, LoadState } from '../features/match-replay/model/loading3d_logic'
 import type { TextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { formatClock } from '../lib/replay/replayLogic'
 import { displayPlayerName } from '../lib/players/displayName'

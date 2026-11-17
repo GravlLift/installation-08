@@ -4,14 +4,14 @@ import { testReplayDoc } from '../test/testDoc'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { createExportHud } from './exportHud'
 
-vi.mock('../model/ath3d_logic', () => ({
-  preparerAth: () => ({}),
-  lireScoreAth: () => null,
-  horlogeHud: () => 0,
-  lireAth: () => ({ bouclier: null, etiquette: { img: '/jeu/contour-01.png', tinted: true }, munitions: { mag: 12, res: 24 }, grenades: [{ rank: 0, name: 'Frag', count: 1 }] }),
-  lireFilAth: () => [
-    { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/weapon.png', weaponTinted: true }, opacite: 1, tueur: true, victime: false },
-    { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/missing.png', weaponLabel: 'Bandit Evo / M392 Bandit' }, opacite: 1, tueur: true, victime: false },
+vi.mock('../model/hud3d_logic', () => ({
+  prepareHud: () => ({}),
+  readScoreHud: () => null,
+  hudClock: () => 0,
+  readHud: () => ({ shield: null, label: { img: '/jeu/contour-01.png', tinted: true }, ammo: { mag: 12, res: 24 }, grenades: [{ rank: 0, name: 'Frag', count: 1 }] }),
+  readKillFeed: () => [
+    { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/weapon.png', weaponTinted: true }, opacity: 1, killer: true, victim: false },
+    { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/missing.png', weaponLabel: 'Bandit Evo / M392 Bandit' }, opacity: 1, killer: true, victim: false },
   ],
 }))
 vi.mock('../layers/replayDraw', () => ({ tintedIconCanvas: () => ({ width: 100, height: 50 }) }))

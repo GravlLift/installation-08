@@ -3,7 +3,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 
 import { readPlayback, type PlaybackMeter, type PlaybackReading } from '../model/playbackMeter_logic'
-import { ETAPES_PROFIL, PASS_COST_NAMES, type PassCostName, type ProfilRendu } from '../scene3d/profilRendu3d'
+import { ETAPES_PROFIL, PASS_COST_NAMES, type PassCostName, type ProfilRendu } from '../scene3d/renderProfile3d'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import { useReplay3dMeter } from '../settings/useReplay3dMeter'

@@ -2,9 +2,9 @@
 /**
  * ReplayExportDialog.test.tsx — THE TWO BOUNDS, THE SOUND CHECKBOX, AND WHAT HAPPENS DURING.
  *
- * What gets locked in here is what a user can BREAK: crossing the two sliders, starting a
- * mute export while believing they asked for sound, or losing the "Cancel" button in the
- * middle of a computation lasting several minutes.
+ * What this locks in is what a user can BREAK: crossing the two sliders, launching a muted
+ * export while believing they asked for sound, or losing the "Cancel" button in the middle of
+ * a computation that takes several minutes.
  */
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -34,48 +34,48 @@ function makeExport(over: Partial<ReplayExport> = {}): ReplayExport {
 function setup(over: Partial<ReplayExport> = {}) {
   const exporter = makeExport(over)
   const onClose = vi.fn()
-  render(<ReplayExportDialog exporter={exporter} locale="fr" onClose={onClose} />)
+  render(<ReplayExportDialog exporter={exporter} locale="en" onClose={onClose} />)
   return { exporter, onClose }
 }
 
 describe('ReplayExportDialog — at rest', () => {
-  it('offers the whole range by default', () => {
+  it('proposes the whole range by default', () => {
     setup()
-    const debut = screen.getByLabelText('Début') as HTMLInputElement
-    const fin = screen.getByLabelText('Fin') as HTMLInputElement
-    expect(debut.value).toBe('0')
-    expect(fin.value).toBe('100')
+    const start = screen.getByLabelText('Start') as HTMLInputElement
+    const end = screen.getByLabelText('End') as HTMLInputElement
+    expect(start.value).toBe('0')
+    expect(end.value).toBe('100')
   })
 
-  it('starts the export with the bounds and the sound, included BY DEFAULT', async () => {
+  it('launches the export with the bounds and sound, included BY DEFAULT', async () => {
     const user = userEvent.setup()
     const { exporter } = setup()
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith({ startFrame: 0, endFrame: 100 }, { sound: true, format: '1080p', framing: 'whole', view3d: null })
   })
 
   it('exports muted when the checkbox is unchecked', async () => {
     const user = userEvent.setup()
     const { exporter } = setup()
-    await user.click(screen.getByLabelText('Inclure le son'))
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByLabelText('Include sound'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: false, format: '1080p', framing: 'whole', view3d: null })
   })
 
   it('PREVENTS the two bounds from crossing', () => {
     setup()
-    const debut = screen.getByLabelText('Début') as HTMLInputElement
-    const fin = screen.getByLabelText('Fin') as HTMLInputElement
+    const start = screen.getByLabelText('Start') as HTMLInputElement
+    const end = screen.getByLabelText('End') as HTMLInputElement
     // Dragging the start past the end does not produce an empty interval: it is bounded.
-    fireChange(debut, '80')
-    fireChange(fin, '40')
-    expect(Number(debut.value)).toBeLessThanOrEqual(Number(fin.value))
+    fireChange(start, '80')
+    fireChange(end, '40')
+    expect(Number(start.value)).toBeLessThanOrEqual(Number(end.value))
   })
 
-  it('closes on "Fermer", without starting anything', async () => {
+  it('closes on "Close", without launching anything', async () => {
     const user = userEvent.setup()
     const { exporter, onClose } = setup()
-    await user.click(screen.getByRole('button', { name: 'Fermer' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalled()
     expect(exporter.run).not.toHaveBeenCalled()
   })
@@ -97,14 +97,14 @@ describe('ReplayExportDialog — the file format', () => {
     const user = userEvent.setup()
     const { exporter } = setup()
     await user.click(screen.getByLabelText('720p (1280 × 720)'))
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null })
     expect(window.localStorage.getItem(EXPORT_FORMAT_KEY)).toBe('720p')
-    // A NEW dialog (page reloaded, different match) starts from the remembered choice.
+    // A NEW dialog (page reloaded, other match) starts from the remembered choice.
     cleanup()
     const second = setup()
     expect((screen.getByLabelText('720p (1280 × 720)') as HTMLInputElement).checked).toBe(true)
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(second.exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null })
   })
 
@@ -123,16 +123,16 @@ describe('ReplayExportDialog — the file format', () => {
 describe('ReplayExportDialog — the framing (D6)', () => {
   it('is NOT offered on a map at 1x', () => {
     setup({ zoomLevel: 1 })
-    expect(screen.queryByRole('radiogroup', { name: 'Cadrage' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Framing' })).not.toBeInTheDocument()
   })
 
-  it('zoomed: offers the whole map, checked by default, and the current framing with its zoom level', async () => {
+  it('zoomed in: offers the whole map, checked by default, and the current framing with its level', async () => {
     const user = userEvent.setup()
     const { exporter } = setup({ zoomLevel: 1.5 })
-    expect(screen.getByRole('radiogroup', { name: 'Cadrage' })).toBeInTheDocument()
-    expect((screen.getByLabelText('Carte entière') as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByLabelText('Cadrage actuel (1,5x)')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    expect(screen.getByRole('radiogroup', { name: 'Framing' })).toBeInTheDocument()
+    expect((screen.getByLabelText('Whole map') as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByLabelText('Current view (1.5x)')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'whole', view3d: null })
   })
 
@@ -141,14 +141,14 @@ describe('ReplayExportDialog — the framing (D6)', () => {
     const keys = () => Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i)).sort()
     const before = keys()
     const { exporter } = setup({ zoomLevel: 2 })
-    await user.click(screen.getByLabelText('Cadrage actuel (2x)'))
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByLabelText('Current view (2x)'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'current', view3d: null })
     // NOT REMEMBERED: no new key, and a new dialog starts from the whole map again.
     expect(keys()).toEqual(before)
     cleanup()
     setup({ zoomLevel: 2 })
-    expect((screen.getByLabelText('Carte entière') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByLabelText('Whole map') as HTMLInputElement).checked).toBe(true)
   })
 })
 
@@ -157,28 +157,28 @@ describe('ReplayExportDialog — during the computation', () => {
 
   it('shows the progress in words, and the bar', () => {
     setup({ state: running })
-    expect(screen.getByText('Image 300 / 1200')).toBeInTheDocument()
+    expect(screen.getByText('Frame 300 / 1200')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25')
   })
 
   it('offers ONLY cancellation', () => {
     setup({ state: running })
-    // Restarting an export mid-export, or closing the dialog while leaving the computation
-    // running with nothing to say so: both are removed.
-    expect(screen.queryByRole('button', { name: 'Exporter' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Fermer' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Annuler' })).toBeInTheDocument()
+    // Relaunching an export during an export, or closing the dialog while leaving the
+    // computation running without a word about it: both are withdrawn.
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
   it('cancels on click', async () => {
     const user = userEvent.setup()
     const { exporter } = setup({ state: running })
-    await user.click(screen.getByRole('button', { name: 'Annuler' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(exporter.cancel).toHaveBeenCalled()
   })
 })
 
-describe('ReplayExportDialog — la vue 3D', () => {
+describe('ReplayExportDialog — the 3D view', () => {
   let release: (() => void) | null = null
   afterEach(() => {
     release?.()
@@ -212,20 +212,20 @@ describe('ReplayExportDialog — la vue 3D', () => {
     }))
   })
 
-  it('with no 3D map loaded, offers nothing', () => {
+  it('offers nothing without a loaded 3D map', () => {
     setup()
-    expect(screen.queryByRole('radiogroup', { name: 'Vue' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'View' })).not.toBeInTheDocument()
   })
 
-  it('3D on screen: offers it by default, with the screen’s camera and player', async () => {
+  it('3D on screen: offers it by default, with the camera and the player from the screen', async () => {
     const user = userEvent.setup()
     load3d(true)
     const { exporter } = setup()
-    expect((screen.getByLabelText('Vue 3D') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByLabelText('3D view') as HTMLInputElement).checked).toBe(true)
     await user.selectOptions(screen.getByRole('combobox'), 'x2')
-    await user.click(screen.getByLabelText('Vue libre, fixe'))
-    await user.click(screen.getByLabelText('Carte 2D réduite dans un coin'))
-    await user.click(screen.getByRole('button', { name: 'Exporter' }))
+    await user.click(screen.getByLabelText('Free view, fixed'))
+    await user.click(screen.getByLabelText('2D mini-map in a corner'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
     expect(exporter.run).toHaveBeenCalledWith(expect.anything(), {
       sound: true,
       format: '1080p',
@@ -238,14 +238,14 @@ describe('ReplayExportDialog — la vue 3D', () => {
     const user = userEvent.setup()
     load3d(false)
     setup({ zoomLevel: 2 })
-    expect((screen.getByLabelText('Carte 2D') as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByRole('radiogroup', { name: 'Cadrage' })).toBeInTheDocument()
-    await user.click(screen.getByLabelText('Vue 3D'))
-    expect(screen.queryByRole('radiogroup', { name: 'Cadrage' })).not.toBeInTheDocument()
+    expect((screen.getByLabelText('2D map') as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByRole('radiogroup', { name: 'Framing' })).toBeInTheDocument()
+    await user.click(screen.getByLabelText('3D view'))
+    expect(screen.queryByRole('radiogroup', { name: 'Framing' })).not.toBeInTheDocument()
   })
 })
 
-/** An `<input type="range">` cannot be driven by keyboard in jsdom: the value is set directly. */
+/** An `<input type="range">` cannot be driven by keyboard in jsdom: we set the value directly. */
 function fireChange(el: HTMLInputElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
   setter?.call(el, value)
@@ -253,68 +253,68 @@ function fireChange(el: HTMLInputElement, value: string) {
 }
 
 describe('ReplayExportDialog — the computation phases', () => {
-  it('during PREPARATION, says what is being done instead of counting frames', () => {
+  it('while PREPARING, says what is happening instead of counting frames', () => {
     setup({ state: { phase: 'prepare', done: 0, total: 1200, pct: 0 } })
-    // This is the phase that used to show "Image 0 / 1200" without moving for several seconds.
-    expect(screen.getByText('Préparation du son et des images…')).toBeInTheDocument()
-    expect(screen.queryByText(/Image 0/)).not.toBeInTheDocument()
+    // This is the phase that used to show "Frame 0 / 1200" without moving for several seconds.
+    expect(screen.getByText('Preparing sound and frames…')).toBeInTheDocument()
+    expect(screen.queryByText(/Frame 0/)).not.toBeInTheDocument()
     // INDETERMINATE bar: nothing is encoded yet, no percentage is true.
     expect(screen.getByRole('progressbar')).not.toHaveAttribute('aria-valuenow')
   })
 
   it('while the sound MIXES, the bar moves and says which step runs', () => {
     setup({ state: { phase: 'prepare', done: 0, total: 1200, pct: 0, prepareStep: { stage: 'mix', pct: 42 } } })
-    expect(screen.getByText('Mixage du son… 42 %')).toBeInTheDocument()
+    expect(screen.getByText('Mixing sound… 42 %')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
   })
 
   it('then while its tracks ENCODE', () => {
     setup({ state: { phase: 'prepare', done: 0, total: 1200, pct: 0, prepareStep: { stage: 'audio', pct: 50 } } })
-    expect(screen.getByText('Encodage du son… 50 %')).toBeInTheDocument()
-    expect(screen.queryByText(/Image 0/)).not.toBeInTheDocument()
+    expect(screen.getByText('Encoding sound… 50 %')).toBeInTheDocument()
+    expect(screen.queryByText(/Frame 0/)).not.toBeInTheDocument()
   })
 
-  it('during ENCODING, counts the frames AND announces the remaining time', () => {
+  it('while ENCODING, counts the frames AND announces the remaining time', () => {
     setup({ state: { phase: 'encode', done: 300, total: 1200, pct: 25, etaMs: 80_000 } })
-    expect(screen.getByText('Image 300 / 1200')).toBeInTheDocument()
-    expect(screen.getByText(/environ 1:20 restantes/)).toBeInTheDocument()
+    expect(screen.getByText('Frame 300 / 1200')).toBeInTheDocument()
+    expect(screen.getByText(/about 1:20 remaining/)).toBeInTheDocument()
   })
 
   it('does NOT show an estimate that says nothing', () => {
-    // "environ 0:00 restantes" reads as "it's done" while the computation is still running.
+    // "about 0:00 remaining" reads as "it's done" while the computation is still running.
     setup({ state: { phase: 'encode', done: 300, total: 1200, pct: 25, etaMs: 900 } })
-    expect(screen.queryByText(/restantes/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/remaining/)).not.toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25')
   })
 
   it('without a reliable estimate, does not invent one', () => {
     setup({ state: { phase: 'encode', done: 3, total: 1200, pct: 0.25 } })
-    expect(screen.queryByText(/restantes/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/remaining/)).not.toBeInTheDocument()
   })
 
-  it('warns about the field scrolling WHILE the computation runs, not before', () => {
+  it('warns of the field scrolling DURING the computation, not before', () => {
     setup({ state: { phase: 'encode', done: 300, total: 1200, pct: 25 } })
-    // The key is called `exportRunningHint` and used to show up in the form instead.
-    expect(screen.getByText(/Le terrain défile dans le cadre de la vidéo pendant le calcul/)).toBeInTheDocument()
+    // The key is `exportRunningHint`, and it used to show in the form instead.
+    expect(screen.getByText(/The field scrolls inside the video frame while it computes/)).toBeInTheDocument()
   })
 
-  it('at the END, names the ready file and renders the "Sauvegarder la vidéo" button', () => {
+  it('at the END, names the ready file and renders the "Save video" button', () => {
     setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
-    expect(screen.getByText('Fichier prêt : replay-m-0m00s-5m00s.mp4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sauvegarder la vidéo' })).toBeInTheDocument()
+    expect(screen.getByText('File ready: replay-m-0m00s-5m00s.mp4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save video' })).toBeInTheDocument()
   })
 
-  it('clicking "Sauvegarder la vidéo" starts the delivery', async () => {
+  it('clicking "Save video" starts the download', async () => {
     const user = userEvent.setup()
     const { exporter } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
-    await user.click(screen.getByRole('button', { name: 'Sauvegarder la vidéo' }))
+    await user.click(screen.getByRole('button', { name: 'Save video' }))
     expect(exporter.saveDone).toHaveBeenCalled()
   })
 
   it('closing WITHOUT saving releases the clip: `discardDone` is called', async () => {
     const user = userEvent.setup()
     const { exporter, onClose } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
-    await user.click(screen.getByRole('button', { name: 'Fermer' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(exporter.discardDone).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
   })
@@ -322,8 +322,8 @@ describe('ReplayExportDialog — the computation phases', () => {
   it('saving does NOT close: the state stays `done`, and the button is still there', async () => {
     const user = userEvent.setup()
     const { onClose } = setup({ state: { phase: 'done', done: 10, total: 10, pct: 100, filename: 'replay-m-0m00s-5m00s.mp4' } })
-    await user.click(screen.getByRole('button', { name: 'Sauvegarder la vidéo' }))
+    await user.click(screen.getByRole('button', { name: 'Save video' }))
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Sauvegarder la vidéo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save video' })).toBeInTheDocument()
   })
 })

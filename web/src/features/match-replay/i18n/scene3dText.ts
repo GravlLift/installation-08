@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * scene3dText.ts — the text for the replay's 3D VIEW, FR + EN, parity by typing.
+ * scene3dText.ts — the text for the replay's 3D VIEW, typed parity.
  *
  * A table separate from the replay dictionary (`i18nContract.ts`): the 3D view only exists on
  * the user's own machine (`can_view_replay_3d` capability), and its few texts read together
@@ -13,7 +13,7 @@ import type { ReplayLocale } from './i18n'
  * Standalone port note: LevelUp's build-step union lives in `lib/replay/meshBuild`, a
  * TanStack Query module (API client, query keys, app store) this viewer does not lift —
  * there is no "build the 3D map from your own game files" flow here. The union is kept
- * literally so `buildSteps` below still type-checks; `ReplayChargement3d` never reads it.
+ * literally so `buildSteps` below still type-checks; `ReplayLoading3d` never reads it.
  */
 type ReplayMeshBuildStep = 'geometry' | 'lighting' | 'writing' | 'libraries'
 
@@ -50,9 +50,9 @@ export interface Scene3dText {
   noPov: string
   /** Surface inspector (dev build): the line is now on the clipboard. */
   probeCopied: string
-  /** Playback meter (right, under the minimap): frames per second, « 13 / 30 fps ». */
+  /** Playback meter (right, under the minimap): frames per second, "13 / 30 fps". */
   cadenceIps: string
-  /** Playback meter: the worst frame's label, « worst 22.4 ms ». */
+  /** Playback meter: the worst frame's label, "worst 22.4 ms". */
   cadencePire: string
   /** Playback meter: the film is paused (no real-time ratio). */
   cadencePaused: string
@@ -119,117 +119,6 @@ export interface Scene3dText {
 }
 
 export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
-  fr: {
-    view2d: '2D',
-    view3d: '3D',
-    viewGroup: 'Vue de la carte',
-    cameraGroup: 'Caméra',
-    cameraFirst: '1re personne',
-    cameraThird: '3e personne',
-    cameraFree: 'Vue libre',
-  cameraFirstShort: '1re',
-  cameraThirdShort: '3e',
-  cameraFreeShort: 'Libre',
-    cameraFreeHint: 'ZQSD : avancer · E / A : monter, descendre · Maj : plus vite · souris : tourner, clic droit : décaler, molette : approcher',
-    loadingFmt: (percent, megabytes) => `Carte 3D : ${percent} % de ${megabytes} Mo`,
-    loadingMaterials: 'Décodage des matériaux…',
-    loadingIndex: 'Préparation de la carte…',
-    loadingAssets: 'Chargement des modèles et armures…',
-    loadingWarmup: "Préparation de l'affichage…",
-    loadFailed: 'La carte 3D n’a pas pu être chargée.',
-    povUnspawned: 'Pas encore apparu',
-    noPov: 'Choisissez un joueur à suivre',
-    probeCopied: 'copié',
-    cadenceIps: 'ips',
-    cadencePire: 'pire',
-    cadencePaused: 'en pause',
-    insetEnlarge2d: 'Agrandir la carte 2D',
-    insetEnlarge3d: 'Agrandir la vue 3D',
-    insetMove: 'Changer de côté',
-    insetResize: 'Changer de taille',
-    exportView: 'Vue',
-    exportView2d: 'Carte 2D',
-    exportView3d: 'Vue 3D',
-    exportCameraFreeFixed: 'Vue libre, fixe',
-    exportFollow: 'Suivi',
-    exportMinimap: 'Carte 2D réduite dans un coin',
-    lookTitle: 'Vue 3D',
-    lookFov: 'Champ de vision',
-    lookFovHint: 'Le réglage de champ du jeu, en degrés. L’arme en 1re personne garde la taille à laquelle elle est réglée.',
-    lookShadows: 'Ombres portées',
-    lookShadowsHint: 'Ombres du soleil, portées par la carte, les joueurs et les véhicules.',
-    lookReflections: 'Reflets',
-    lookReflectionsHint: 'Reflets et lumière renvoyée par les surfaces de la carte.',
-    lookOcclusion: 'Occlusion ambiante',
-    lookOcclusionHint: 'Assombrit les coins et les recoins. Le plus coûteux des réglages.',
-    lookGameLight: 'Lumière du jeu',
-    lookGameLightHint: 'La lumière cuite et les lampes de la carte, telles que le jeu les pose.',
-    lookBloom: 'Halo lumineux',
-    lookBloomHint: "Les surfaces lumineuses (lampes, bandeaux, lames d'énergie) rayonnent au-delà de leurs bords.",
-    lookGlowAnimation: 'Lumières animées',
-    lookGlowAnimationHint: 'Les enseignes, écrans et néons de la carte défilent et scintillent comme en jeu.',
-    lookPlaybackFps: 'Afficher les ips de lecture',
-    lookPlaybackFpsHint: "Les images du film affichées par seconde face à sa cadence native, le rapport au temps réel, puis le temps d'image et le coût du rendu. Touche `.",
-    aidsTitle: 'Repères d’analyse',
-    aidsTitleHint: 'Des traits et des marques que le jeu ne montre pas, pour lire une action. Éteints, la vue ressemble au jeu.',
-    aids: {
-      shotLines: {
-        label: 'Lignes de tir',
-        hint: 'Le vol entier de chaque tir, de la bouche au mur, et le trait du tueur vers sa victime.',
-      },
-      deathMarkers: {
-        label: 'Croix des morts',
-        hint: 'Une croix au sol là où chaque joueur est tombé, et au-dessus « tueur › victime · arme ». La liste des éliminations n’en dépend pas.',
-      },
-      projectilePaths: {
-        label: 'Trajectoires',
-        hint: 'Le chemin parcouru par les grenades et les projectiles (roquettes, mortier…).',
-      },
-      blastRadius: {
-        label: 'Rayon des explosions',
-        hint: 'La sphère du rayon de dégâts de chaque explosion, une seconde après la détonation.',
-      },
-      grappleLines: {
-        label: 'Câbles du grappin',
-        hint: 'Le câble du grappin en trait épais et clair, avec son point d’accroche.',
-      },
-      knockbackArrows: {
-        label: 'Flèches de poussée',
-        hint: 'La direction et la force de chaque poussée du répulseur, à la couleur de son auteur.',
-      },
-      placementShapes: {
-        label: 'Formes des poses',
-        hint: "Traqueur, failles du translocateur et objets lâchés. Le mur, l'écran occultant, le capteur et le champ de réparation restent affichés.",
-      },
-      allNameTags: {
-        label: 'Tous les noms',
-        hint: 'Le nom de chaque joueur à toute distance. Éteint, seuls les joueurs proches de la caméra sont nommés.',
-      },
-    },
-    buildTitle: 'Carte 3D pas encore construite',
-    buildBody:
-      'Elle se construit à partir de Halo Infinite installé sur cet ordinateur, en moins d’une minute, et reste sur cet ordinateur. La première construction prépare aussi les modèles d’armure et de vue à la première personne : quelques minutes, une seule fois.',
-    buildAction: 'Construire la carte 3D',
-    buildingTitle: 'Construction de la carte 3D',
-    buildSteps: {
-      geometry: 'Lecture de la géométrie et des textures',
-      lighting: 'Lumière de la carte',
-      writing: 'Écriture du fichier',
-      libraries: 'Modèles d’armure et vue à la première personne (une seule fois, quelques minutes)',
-    },
-    buildStarting: 'Démarrage…',
-    buildDone: 'Carte construite, chargement…',
-    buildWaitingForGame: 'En attente de la fin de la partie',
-    buildFailed: 'La construction a échoué',
-    buildRetry: 'Réessayer',
-    buildGameMissing:
-      'Halo Infinite n’a pas été trouvé sur cet ordinateur. La carte 3D se construit à partir des fichiers du jeu installés : installez le jeu, ou indiquez son dossier avec LEVELUP_HALO_DEPLOY.',
-    buildToolMissing: 'Le constructeur de cartes 3D est manquant dans cette installation. Réinstallez LevelUp pour le retrouver.',
-    buildBusy: 'Une autre carte est en construction',
-    variantBuildAction: 'Construire les objets de la carte',
-    variantBuilding: 'Construction des objets de la carte',
-    variantBuildFailed: 'Les objets de la carte n’ont pas pu être construits',
-  },
   en: {
     view2d: '2D',
     view3d: '3D',

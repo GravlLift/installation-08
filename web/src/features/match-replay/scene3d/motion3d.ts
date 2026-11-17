@@ -14,11 +14,11 @@
 import { msToFrames } from '@/lib/replay/replayLogic'
 
 import { familyOf } from '../layers/shotEffects'
-import { carriedObjectAt } from '../model/armeEnMain'
+import { carriedObjectAt } from '../model/weaponInHand'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { covers } from '../model/replaySpans'
 import type { ActionContext } from './actionScene3d'
-import { actionsParSlot, rechargementsParSlot, sautDepuisAction } from './actionsFilm3d'
+import { actionsParSlot, rechargementsParSlot, sautDepuisAction } from './filmActions3d'
 import { spartanClipsOf, type SpartanClips } from './clips3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
 import {

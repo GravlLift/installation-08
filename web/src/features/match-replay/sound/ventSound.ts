@@ -7,7 +7,7 @@
  * film writes it the same way. The messages are grouped into episodes the way the first-person
  * vent does (`episodesRechargement`): the enter from the episode's first message, the loop held
  * until the later of the episode's last message and one full loop, then the exit (`phaseVent`,
- * `rechargementPremierePersonne3d.ts`). A weapon with no vent in the library (every weapon that
+ * `firstPersonReload3d.ts`). A weapon with no vent in the library (every weapon that
  * reloads, the melee weapons, anything the extraction did not reach) stays silent, without a
  * list of names here.
  *
@@ -27,10 +27,10 @@
 import { frameToMs, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { currentLifeOf } from '../../../lib/replay/rosterLogic'
-import { armeEnMain } from '../model/armeEnMain'
+import { weaponInHand } from '../model/weaponInHand'
 import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
-import { episodesRechargement, type EpisodeRechargement } from '../scene3d/rechargementPremierePersonne3d'
+import { episodesRechargement, type EpisodeRechargement } from '../scene3d/firstPersonReload3d'
 import { weaponTagOf, type ReloadClip, type VentLibrary } from './reloadManifest'
 import { factsBySlot, firstAt, trackIdentity, type SlotFacts } from './reloadSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -66,7 +66,7 @@ function oneVent(
   followed: string | null,
 ): ReplaySoundEvent[] {
   const debut = ep.etapes[0].t
-  const held = armeEnMain(doc, slot, debut)
+  const held = weaponInHand(doc, slot, debut)
   const tag = held ? weaponTagOf(held.id) : null
   const life = currentLifeOf(doc, slot, debut)
   const vent = tag && life ? ventAt(doc, library, tag, slot, debut) : undefined

@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { fetchBVHCache, uploadBVHCache } from '@/lib/api/standalone'
 
-import type { LoadProgress3d } from '../model/chargement3d_logic'
+import type { LoadProgress3d } from '../model/loading3d_logic'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
 import { loadLayerModel } from '../scene3d/mapModel'
 import { mark, runWhenIdle, timedSync } from '../scene3d/perf3d'

@@ -5,7 +5,7 @@
  * the medal, objective and round calls.
  *
  * THE CLOCK IS THE HUD'S. The remaining time is the regulation time minus the time since the
- * kickoff (`horlogeHud` over `displayClockMs`): a warning "N left" falls at kickoff + limit - N,
+ * kickoff (`hudClock` over `displayClockMs`): a warning "N left" falls at kickoff + limit - N,
  * and overtime at kickoff + limit. Without a known limit or a play window, no time call: the
  * replay never guesses a clock.
  *

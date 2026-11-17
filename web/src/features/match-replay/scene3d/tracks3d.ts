@@ -16,7 +16,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { covers } from '../model/replaySpans'
 import { fineLifePoints } from './fineTracks3d'
 import { bracketAt, gaitAt, lifeDistances, type Gait } from './gait3d'
-import { DUREE_ENTREE_OEIL, DUREE_SORTIE_OEIL, dropOeil, fusionnerIntervallees, SANS_INTERVALLE, type IntervalleOeil } from './oeil3d'
+import { DUREE_ENTREE_OEIL, DUREE_SORTIE_OEIL, dropOeil, fusionnerIntervallees, SANS_INTERVALLE, type IntervalleOeil } from './eye3d'
 import { postureFilm } from './posturesFilm3d'
 import { NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSamples } from './shields3d'
 
@@ -78,7 +78,7 @@ export interface PlayerState3d {
   h: number
   p: number
   crouch: boolean
-  /** The eye's drop in world units at this frame (crouch AND slide, faded, `oeil3d`). */
+  /** The eye's drop in world units at this frame (crouch AND slide, faded, `eye3d`). */
   dropOeil: number
   /** This life's biped slot. */
   slot: number
@@ -139,7 +139,7 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
   const crouching = (life: Life, f: number) =>
     (crouchBySlot.get(life.slot) ?? []).some((s) => covers(s.intervalle, f) && f !== s.fin)
   // The eye drops crouched as in a slide: the union of the slot's two postures, merged once per
-  // document, then read by binary search (`oeil3d`).
+  // document, then read by binary search (`eye3d`).
   const eyeBySlot = new Map<number, IntervalleOeil[]>()
   for (const s of doc.stances) {
     if (s.kind !== 'crouch' && s.kind !== 'slide') continue

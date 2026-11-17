@@ -12,9 +12,9 @@
  * is also at its size ceiling.
  *
  * FIRST LOCALE-AWARE ENTRY OF THE SOUND CATALOG. A shot, an explosion, a placement have no
- * language; an ANNOUNCER'S VOICE has one. The two packs (FR and EN) are extracted from the game,
- * and the language played is the one of the INTERFACE (the `locale` prop of the replay page) —
- * not the game's language at the time of the match, which the film does not publish.
+ * language; an ANNOUNCER'S VOICE has one. This pack is extracted from the game, and the
+ * language played is the one of the INTERFACE (the `locale` prop of the replay page, English
+ * only) — not the game's language at the time of the match, which the film does not publish.
  *
  * TWO SOUNDS GO OUT TOGETHER, AND THAT IS THE GAME'S STAGING (user decision of
  * 2026-08-27): the announcer's line on top of the fanfare. They are two voices of
@@ -24,8 +24,8 @@
  * MULTIPLE TAKES, RANDOM DRAW (vote rule: "multiple takes -> random draw").
  * The randomness is INJECTED (`rand`), like everywhere else in the replay sound (pattern
  * `drawVariation` / `weaponSoundVariations.ts`): tests pin the take, production
- * passes `Math.random`. FR has two takes for win, loss and tie; EN
- * has only one for win and tie — the EN pack carries two for loss only.
+ * passes `Math.random`. EN has only one take for win and tie — the EN pack carries
+ * two for loss only.
  *
  * FFA HAS NO SCREEN, BUT IT HAS A SOUND (decision D-C3). The end screen requires TWO sides
  * (`victoryLogic.ts`, decision D-B1): on a teamless match it does not render, and that
@@ -61,22 +61,18 @@ import { readVictory, type VictoryFilm, type VictoryOutcome } from '../model/vic
  * The announcer's voice TAKES, per outcome then per language. A list with multiple entries
  * = multiple recordings of the same word in the game, among which the app draws (cf. the header).
  *
- * Transcriptions noted at extraction (2026-08-27): FR "Victoire" (x2), "Défaite"
- * (x2), "Égalité" / "À égalité"; EN "Victory", "Defeat" (x2), "Game tied".
+ * Transcriptions noted at extraction (2026-08-27): EN "Victory", "Defeat" (x2), "Game tied".
  */
 export const END_VOICE_STEMS: Readonly<
   Record<VictoryOutcome, Readonly<Record<ReplayLocale, readonly string[]>>>
 > = {
   win: {
-    fr: ['end_victory_voice_fr_01', 'end_victory_voice_fr_02'],
     en: ['end_victory_voice_en_01'],
   },
   loss: {
-    fr: ['end_defeat_voice_fr_01', 'end_defeat_voice_fr_02'],
     en: ['end_defeat_voice_en_01', 'end_defeat_voice_en_02'],
   },
   tie: {
-    fr: ['end_tie_voice_fr_01', 'end_tie_voice_fr_02'],
     en: ['end_tie_voice_en_01'],
   },
 }
@@ -94,11 +90,10 @@ export const END_MUSIC_STEMS: Readonly<Record<VictoryOutcome, string>> = {
 }
 
 /**
- * The voice of the WON FFA, per language — "Vainqueur" (Winner), the line that names no team.
+ * The voice of the WON FFA, per language — "Winner", the line that names no team.
  * English falls back to "Victory": the EN pack has no standalone "Winner" (cf. the header).
  */
 export const END_FFA_WIN_VOICE_STEMS: Readonly<Record<ReplayLocale, readonly string[]>> = {
-  fr: ['end_winner_voice_fr_01'],
   en: ['end_victory_voice_en_01'],
 }
 
@@ -132,7 +127,7 @@ export interface EndMatchSoundSpec {
  * the POINT OF VIEW there; here the subject is omitted: the end is read for the PAGE'S PLAYER, whom
  * this function itself finds in the scoreboard (`meXUIDOf`) — the caller can therefore not slip in
  * the point of view — and whose team is read in the film like everywhere else.
- * Inspecting an opponent must not make "Défaite" (Defeat) ring out on a match that was won. The
+ * Inspecting an opponent must not make "Defeat" ring out on a match that was won. The
  * two calls therefore intentionally diverge. Do not "harmonize": also see the comment on the
  * route, at the `endMatchSoundSpec` call. `film` serves only its sides and a
  * player's team: the reference that the allegiance carries (the point of view) is not read.
@@ -146,8 +141,8 @@ export function endMatchSoundSpec(
   // NO SUBJECT: the omitted subject stands for "the page's player" (decision 3).
   const reading = readVictory(film, outcomeCode, meXUIDOf(scoreboard))
   if (reading) return { outcome: reading.outcome, ffa: false, locale }
-  // Without two readable sides, only the VICTORY has a line: "Vainqueur" (Winner) does
-  // without a named opponent, "Défaite" (Defeat) and "Égalité" (Tie) presuppose a two-side confrontation.
+  // Without two readable sides, only the VICTORY has a line: "Winner" does
+  // without a named opponent, "Defeat" and "Tie" presuppose a two-side confrontation.
   const outcome = outcomeCodeToValue(outcomeCode)
   return outcome === 'win' ? { outcome, ffa: true, locale } : null
 }

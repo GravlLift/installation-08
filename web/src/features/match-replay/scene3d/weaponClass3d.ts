@@ -11,7 +11,7 @@
  * flag are not rack weapons: their carrier takes the object's class from how it's carried
  * (`carriedObjectAt`), not from this table (`CARRIED_OBJECT_CLASS`).
  */
-import type { CarriedObject } from '../model/armeEnMain'
+import type { CarriedObject } from '../model/weaponInHand'
 
 export type WeaponClass = 'rifle' | 'pistol' | 'missile' | 'sword' | 'hammer' | 'ball' | 'turret'
 

@@ -34,7 +34,7 @@ export interface ShieldSoundReading {
  * followedShieldReader: reads the followed player's shield at a frame, null while he is dead or
  * the film carries no shield sample for that moment. The whole reader is null when no player is
  * followed, he is not in the film, or the film carries no shield at all: nothing to load or play.
- * The life's bar is built as the HUD builds it (`ath3d_logic.barreBouclier`: same points, frame
+ * The life's bar is built as the HUD builds it (`hud3d_logic.barreBouclier`: same points, frame
  * interval and start), once per life.
  */
 export function followedShieldReader(doc: ReplayDocumentReady, xuid: string | null): ((frame: number) => ShieldSoundReading | null) | null {

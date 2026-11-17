@@ -10,7 +10,7 @@
  * followed player only, without a place (INFERRED: the game posts a first-person clip's sounds for its
  * own player; the others hear the third-person reload, `reloadSound.ts`).
  *
- * THE TIMING IS THE RIG'S (`phaseRechargement`, `rechargementPremierePersonne3d.ts`): the film's reload
+ * THE TIMING IS THE RIG'S (`phaseRechargement`, `firstPersonReload3d.ts`): the film's reload
  * messages are grouped into episodes; the enter clip plays from the episode's first message until the
  * next stage, each round clip from its stage, fitted to the time the film gives it (played faster when
  * the stage is shorter than the clip, never slower), the closing clip from the last stage when the
@@ -22,10 +22,10 @@
 import { frameToMs, msToFrames, trackWindow } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { currentLifeOf } from '../../../lib/replay/rosterLogic'
-import { armeEnMain } from '../model/armeEnMain'
+import { weaponInHand } from '../model/weaponInHand'
 import { magazineAtReload } from '../model/reloadMagazine'
 import { reloadReadings } from '../model/reloadStarts'
-import { dureeAttendue, episodesRechargement, finNaturelle, type EpisodeRechargement } from '../scene3d/rechargementPremierePersonne3d'
+import { dureeAttendue, episodesRechargement, finNaturelle, type EpisodeRechargement } from '../scene3d/firstPersonReload3d'
 import { weaponTagOf, type ReloadClip, type StagedLibrary } from './reloadManifest'
 import { factsBySlot, firstAt, trackIdentity, type SlotFacts } from './reloadSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -63,7 +63,7 @@ function oneStaged(
 ): ReplaySoundEvent[] {
   const stages = ep.etapes
   const start = stages[0].t
-  const held = armeEnMain(doc, slot, start)
+  const held = weaponInHand(doc, slot, start)
   const tag = held ? weaponTagOf(held.id) : null
   const life = currentLifeOf(doc, slot, start)
   const clips = tag ? library.get(tag) : undefined

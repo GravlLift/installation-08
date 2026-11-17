@@ -45,9 +45,9 @@ describe('mapCallouts', () => {
     expect(calloutAt(null, 0, 0, 0)).toBeNull()
   })
 
-  it('names in the viewer language, English as the fallback', () => {
-    expect(calloutName(calloutAt(prepared, 5, 5, 0), 'fr')).toBe('Salle')
-    expect(calloutName(calloutAt(prepared, 5, 5, 4), 'fr')).toBe('Overhang')
+  it('names in the viewer language (English)', () => {
+    expect(calloutName(calloutAt(prepared, 5, 5, 0), 'en')).toBe('Hall')
+    expect(calloutName(calloutAt(prepared, 5, 5, 4), 'en')).toBe('Overhang')
     expect(calloutName(null, 'en')).toBeNull()
   })
 

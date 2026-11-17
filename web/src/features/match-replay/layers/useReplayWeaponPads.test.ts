@@ -50,13 +50,6 @@ describe('padNameFor', () => {
     expect(padNameFor('thruster', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Thruster')
     expect(padNameFor('powerup_camo', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Active camouflage')
     expect(padNameFor('powerup_overshield', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Overshield')
-
-    expect(padNameFor('repulsor', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Répulseur')
-    expect(padNameFor('translocator_beacon', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Translocateur')
-    expect(padNameFor('wall', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Mur déployable')
-    expect(padNameFor('grapple', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Grappin')
-    expect(padNameFor('sensor', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Détecteur de menaces')
-    expect(padNameFor('thruster', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Propulseur')
   })
 
   it('prefers the catalog name of the document over any fallback', () => {
@@ -64,17 +57,14 @@ describe('padNameFor', () => {
       [weaponLabelKeyOf('f408190f')]: { en: 'CQS48 Bulldog', fr: 'CQS48 Bulldog' },
     } as const
     expect(padNameFor('0xF408190F', labels, REPLAY_TEXT.en, 'en')).toBe('CQS48 Bulldog')
-    expect(padNameFor('f408190f', labels, REPLAY_TEXT.fr, 'fr')).toBe('CQS48 Bulldog')
   })
 
   it('keeps an unnamed weapon as its exact hexadecimal (the only true thing one can write)', () => {
     expect(padNameFor('0xD7915565', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('0xD7915565')
-    expect(padNameFor('d7915565', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('d7915565')
   })
 
   it('shows the readable writing of an unknown non-hex key, never the raw key', () => {
     expect(padNameFor('some_future_key', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Some Future Key')
-    expect(padNameFor('grenade_frag', NO_LABELS, REPLAY_TEXT.fr, 'fr')).toBe('Grenade Frag')
   })
 })
 

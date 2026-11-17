@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Replay3DView.hud.test.tsx — what the HUD (ReplayAth3d) draws at each level (`hudLevel`):
+ * Replay3DView.hud.test.tsx — what the HUD (ReplayHud3d) draws at each level (`hudLevel`):
  * first person everything; third person the followed player's whole HUD (weapon corner with
  * magazine and reserve, as pinned since 1e3164c) but no reticle; free view no weapon corner;
  * 2D the score strip alone. The 3D view itself needs three.js and WebGL, so this mounts the
@@ -8,7 +8,7 @@
  */
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { ReplayAth3d } from './ReplayAth3d'
+import { ReplayHud3d } from './ReplayHud3d'
 import type { HudLevel } from '../model/hudLevel'
 import { testReplayDoc } from '../test/testDoc'
 import { prepareCallouts } from '../model/mapCallouts'
@@ -33,11 +33,11 @@ const callouts = prepareCallouts({ version: 1, source: 'level', zones: [{ en: 'O
 
 function renderHud(hud?: HudLevel, withCallouts = false) {
   return render(
-    <ReplayAth3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} callouts={withCallouts ? callouts : null} />,
+    <ReplayHud3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} callouts={withCallouts ? callouts : null} />,
   ).container
 }
 
-describe('ReplayAth3d at each HUD level', () => {
+describe('ReplayHud3d at each HUD level', () => {
   it('first person: weapon corner and reticle', () => {
     const container = renderHud('full')
     expect(container.textContent).toContain('13')

@@ -4,7 +4,7 @@
  * kill feed (Brief 132).
  *
  * The chain is: context response -> `collectKillEvents` (_momentum.ts) -> `buildFeedEntries`
- * (killFeedLogic.ts) -> the feed's kills reach `ReplayAthFil3d`, which renders a `WeaponIcon`
+ * (killFeedLogic.ts) -> the feed's kills reach `ReplayHudFeed3d`, which renders a `WeaponIcon`
  * only when `weaponImageUrl` is set and tints it with the killer's team color.
  *
  * TWO FAILURES, TWO TESTS:
