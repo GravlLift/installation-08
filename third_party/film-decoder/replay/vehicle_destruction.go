@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // vehicle_destruction.go — QUI A DETRUIT UN VEHICULE, AVEC QUOI, ET QUI ETAIT A BORD.
@@ -338,11 +339,11 @@ func logVehicleDestructions(ctx context.Context, c VehicleDestructionCoverage) {
 	if c.Destroyed == 0 && c.Pieces == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : destructions de vehicule",
-		"detruits", c.Destroyed, "pieces", c.Pieces, "publiees", c.Published,
+	slog.InfoContext(ctx, "replay: vehicle destructions",
+		"destroyed", c.Destroyed, "pieces", c.Pieces, "published", c.Published,
 		"parHumain", c.ByHuman, "parBot", c.ByBot, "destructeurAbsent", c.KillerAbsent,
 		"destructeurHorsRoster", c.KillerOutOfRoster, "destructeurAmbigu", c.KillerAmbiguous,
 		"cause", c.Cause, "causeNonResolue", c.CauseUnresolved, "causeAbsente", c.CauseAbsent,
-		"avecOccupant", c.Occupant, "avecTues", c.Killed, "tues", c.KilledOccupants,
+		"avecOccupant", c.Occupant, "avecTues", c.Killed, "killed", c.KilledOccupants,
 		"tuesSansIdentite", c.KilledNoIdentity, "tuesDeNettoyage", c.KilledCleanup)
 }

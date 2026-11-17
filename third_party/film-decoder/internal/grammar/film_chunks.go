@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // film_chunks.go — LE PONT ENTRE UN FILM CHARGE UNE FOIS ET LES BALAYAGES.
@@ -46,13 +47,13 @@ import (
 // a fait le chargement.
 var (
 	// ErrNoFilmChunk : le film ne porte aucun chunk de DONNEES (numero >= 1).
-	ErrNoFilmChunk = errors.New("aucun chunk de donnees dans le film")
+	ErrNoFilmChunk = errors.New("no data chunks in the film")
 	// ErrNoReadableFilmChunk : aucun chunk de donnees n'a pu etre lu (film vide ou tronque).
-	ErrNoReadableFilmChunk = errors.New("aucun chunk film lisible")
+	ErrNoReadableFilmChunk = errors.New("no readable film chunks")
 	// ErrNoRegistryChunk : le film ne porte pas son registre (le chunk NUMERO 0) — bobine
 	// partielle ou fixture. Les lecteurs d'archetype le disent plutot que de rendre un registre
 	// vide, qui se lirait comme « archetype absent du build ».
-	ErrNoRegistryChunk = errors.New("chunk_00 (registre) absent du film")
+	ErrNoRegistryChunk = errors.New("chunk_00 (registry) missing from the film")
 )
 
 // FilmChunkNumbers rend les NUMEROS des chunks de DONNEES du film (le registre `chunk_00` exclu),

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // inventory_delta.go — L'INVENTAIRE DE GRENADES SUIVI DANS LES PAQUETS DELTA.
@@ -174,10 +175,10 @@ func newInvDeltaScanner(fc *FilmContext) (*invDeltaScanner, error) {
 		return nil, ErrNoFilmChunk
 	}
 	if fc.BipedSlots().Count() == 0 {
-		return nil, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	if _, err := fc.I0Layout(); err != nil {
-		return nil, fmt.Errorf("découpage i0 illisible : %w", err)
+		return nil, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	arch, err := fc.bipedArchetype()
 	if err != nil {
@@ -185,7 +186,7 @@ func newInvDeltaScanner(fc *FilmContext) (*invDeltaScanner, error) {
 	}
 	sc := &invDeltaScanner{role: invDeltaRoles(arch)}
 	if len(sc.role) == 0 {
-		return nil, fmt.Errorf("aucun composant d'inventaire dans l'archétype biped du film")
+		return nil, fmt.Errorf("no inventory component in the film's biped archetype")
 	}
 	return sc, nil
 }

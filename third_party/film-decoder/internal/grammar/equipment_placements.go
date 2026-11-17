@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // equipment_placements.go — LES POSES d'objets d'équipement (mur de protection, capteur de
@@ -134,14 +135,14 @@ func ScanEquipmentPlacements(
 ) ([]types.EquipmentPlacement, EquipmentPlacementStats, error) {
 	st := EquipmentPlacementStats{ByID: map[uint32]int{}}
 	if wr == nil {
-		return nil, st, fmt.Errorf("bornes monde absentes : sans elles le décodeur ne rend que des quanta")
+		return nil, st, fmt.Errorf("world bounds missing: without them the decoder only yields quanta")
 	}
 	if len(fc.ChunkNumbers()) == 0 {
 		return nil, st, ErrNoFilmChunk
 	}
 	band := worldObjectSlotBand(fc, EquipmentTypeIndex)
 	if len(band) == 0 {
-		return nil, st, fmt.Errorf("aucun slot d'archétype ti=%d dans les keyframes du film",
+		return nil, st, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			EquipmentTypeIndex)
 	}
 	st.Slots = len(band)

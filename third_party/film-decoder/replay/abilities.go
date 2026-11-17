@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -200,9 +201,9 @@ func buildAbilityCoverage(raw, clean, published []AbilityRead, noise int) Abilit
 // logAbilityCoverage journalise la couverture du calque — un rejet compté mais jamais
 // journalisé serait à moitié muet.
 func logAbilityCoverage(ctx context.Context, cov AbilityCoverage) {
-	slog.InfoContext(ctx, "rejeu : identite de capacite portee",
-		"lectures", cov.Reads, "bruitDeBalayage", cov.ScanNoise,
-		"sansTrajectoirePubliee", cov.Unpublished, "publiees", cov.Published)
+	slog.InfoContext(ctx, "replay: carried ability identity",
+		"reads", cov.Reads, "bruitDeBalayage", cov.ScanNoise,
+		"sansTrajectoirePubliee", cov.Unpublished, "published", cov.Published)
 }
 
 // AbilityPalette est une palette de capacités du titre : les rangs qui la SIGNENT, et les

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_actions_joueur.go — LES ACTIONS DU JOUEUR QUE LE FILM ECRIT ET QUE LE DECODEUR LISAIT
@@ -183,7 +184,7 @@ func keepKillCausesOfPublishedTracks(causes []KillCause, published map[string]bo
 
 // logPlayerActionsCoverage sort la couverture des quatre calques.
 func logPlayerActionsCoverage(ctx context.Context, cov PlayerActionsCoverage, killCausesIn int) {
-	slog.InfoContext(ctx, "rejeu : actions du joueur",
+	slog.InfoContext(ctx, "replay: player actions",
 		"armesLues", cov.DrawnRead, "armesPubliees", cov.DrawnPublished, "armesSansPiste", cov.DrawnNoTrack,
 		"armesAvantOrigine", cov.DrawnBeforeOrigin, "armesSlotNonLie", cov.DrawnSlotUnbound,
 		"degatsLus", cov.DamagesRead, "degatsPublies", cov.DamagesPublished, "degatsSansPiste", cov.DamagesNoTrack,

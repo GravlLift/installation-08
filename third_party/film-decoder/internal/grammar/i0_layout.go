@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // DÉCOUPAGE BINAIRE DU COMPOSANT i0 (object-position-dynamic-precision) — LU DANS LE FILM.
@@ -92,7 +93,7 @@ func DetectI0LayoutOf(film *source.Film) (profile.I0Layout, I0LayoutReport, erro
 	}
 	slots := bipedSlotBand(NewFilmContext(film), scanned)
 	if slots.Count() == 0 {
-		return profile.I0Layout{}, I0LayoutReport{}, fmt.Errorf("aucun slot biped (ti=%d) dans le film", BipedTypeIndex)
+		return profile.I0Layout{}, I0LayoutReport{}, fmt.Errorf("no biped slot (ti=%d) in the film", BipedTypeIndex)
 	}
 	var samples []i0Sample
 	for _, c := range scanned {
@@ -110,7 +111,7 @@ func DetectI0LayoutOf(film *source.Film) (profile.I0Layout, I0LayoutReport, erro
 	rep := profileI0(samples)
 	rep.Boundaries = i0Boundaries(rep.FlipRate)
 	if len(rep.Boundaries) < 3 {
-		return profile.I0Layout{}, rep, fmt.Errorf("profil i0 non concluant : %d frontière(s) détectée(s) sur %d paires",
+		return profile.I0Layout{}, rep, fmt.Errorf("inconclusive i0 profile: %d boundary(ies) detected over %d pairs",
 			len(rep.Boundaries), rep.Pairs)
 	}
 	b := rep.Boundaries
@@ -119,7 +120,7 @@ func DetectI0LayoutOf(film *source.Film) (profile.I0Layout, I0LayoutReport, erro
 		AxisW:    [3]uint{uint(b[0] - profile.DefaultI0GateBits), uint(b[1] - b[0]), uint(b[2] - b[1])},
 	}
 	if !lay.Valid() {
-		return lay, rep, fmt.Errorf("découpage i0 implausible : %s", lay)
+		return lay, rep, fmt.Errorf("implausible i0 split: %s", lay)
 	}
 	return lay, rep, nil
 }

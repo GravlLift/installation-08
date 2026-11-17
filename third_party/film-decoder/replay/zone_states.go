@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // zone_states.go — LA REGLE qui remplit `zoneStates` : comment un slot `ti=13` devient une zone,
@@ -171,7 +172,7 @@ func buildZoneStates(ctx context.Context, in ZoneInput, c zoneCtx) ([]ZoneState,
 	}
 	cov := &ZonesCoverage{Method: ZoneMethodCaptures, Roles: in.Roles, Catalog: len(in.Zones)}
 	if len(in.Zones) == 0 || c.frames <= 0 || c.step == 0 {
-		slog.WarnContext(ctx, "rejeu : etat des zones sans catalogue de carte — aucun intervalle publie",
+		slog.WarnContext(ctx, "replay: zone state without a map catalog — no interval published",
 			"match_id", c.matchID, "zones", len(in.Zones), "frames", c.frames)
 		return nil, cov
 	}
@@ -201,15 +202,15 @@ func buildZoneStates(ctx context.Context, in ZoneInput, c zoneCtx) ([]ZoneState,
 		// aucune capture n'a pu etre attribuee — l'absence d'appariement se PUBLIE en
 		// couverture et ne se comble pas.
 		if !in.Hill {
-			slog.InfoContext(ctx, "rejeu : aucune capture appariee hors mode a colline — aucun etat de zone",
+			slog.InfoContext(ctx, "replay: no paired capture outside hill mode — no zone state",
 				"match_id", c.matchID, "zones", len(in.Zones), "captures", cov.Captures,
-				"attribuees", cov.Attributed)
+				"attributed", cov.Attributed)
 			return nil, cov
 		}
 		states := buildHillStates(cat, ser, zoneTeamSet(in.TeamByXUID), c, cov)
 		if cov.OwnerVoteDisagreed > 0 {
-			slog.WarnContext(ctx, "rejeu : le voisin du designateur contredit le nom du proprietaire de la colline — le nom est retenu",
-				"match_id", c.matchID, "discordances", cov.OwnerVoteDisagreed)
+			slog.WarnContext(ctx, "replay: the designator's neighbor contradicts the hill owner's name — the name is kept",
+				"match_id", c.matchID, "discordance", cov.OwnerVoteDisagreed)
 		}
 		return states, cov
 	}
@@ -225,8 +226,8 @@ func buildZoneStates(ctx context.Context, in ZoneInput, c zoneCtx) ([]ZoneState,
 // `capturerElectionDisagreed`).
 func logZoneOwnerDiscordances(ctx context.Context, matchID string, disc []zoneDiscordance) {
 	for _, d := range disc {
-		slog.WarnContext(ctx, "rejeu : la regle de repli contredit le nom d un canal de zone — le nom est retenu",
-			"match_id", matchID, "zone", d.ref, "canal", d.canal, "canalNomme", d.nomme, "canalAutre", d.autre)
+		slog.WarnContext(ctx, "replay: the fallback rule contradicts a zone channel's name — the name is kept",
+			"match_id", matchID, "zone", d.ref, "channel", d.canal, "canalNomme", d.nomme, "canalAutre", d.autre)
 	}
 }
 
@@ -236,13 +237,13 @@ func logZoneKeyTally(ctx context.Context, matchID string, lectures int, key zone
 	if lectures == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : etat initial des zones lu aux images-cles",
+	slog.InfoContext(ctx, "replay: initial zone state read at the keyframes",
 		"match_id", matchID, "lecturesImageCle", lectures,
 		"zonesOuvertesParImageCle", key.opened, "imagesClesComparees", key.checked,
 		"imagesClesConcordantes", key.agreed, "imagesClesDiscordantes", key.checked-key.agreed)
 	if key.checked > key.agreed {
-		slog.WarnContext(ctx, "rejeu : etats d'image-cle DISCORDANTS avec l'etat que les trames delta reconstituent",
-			"match_id", matchID, "discordants", key.checked-key.agreed, "compares", key.checked)
+		slog.WarnContext(ctx, "replay: keyframe states DISCORDANT with the state the delta frames reassemble",
+			"match_id", matchID, "discordant", key.checked-key.agreed, "checked", key.checked)
 	}
 }
 

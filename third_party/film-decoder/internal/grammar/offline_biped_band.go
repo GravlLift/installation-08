@@ -16,6 +16,7 @@
 // La bande est le seul parametre d'archetype du decodeur : `ti=35` (bipede) et `ti=40`
 // (vehicule) partagent la meme forme d'i0, et c'est ce fichier qui porte les trois reglages a
 // connaitre pour un archetype autre que le bipede (cf. la doc de ScanBipedPositionsForBand).
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -34,12 +35,12 @@ import (
 func ScanFilmBipedPositionsForBand(dir string, band SlotBand, opt ScanFilmOptions) (
 	[]BipedPosition, error) {
 	if opt.WorldRange == nil && !opt.QuantaOnly {
-		return nil, fmt.Errorf("%w (film %s) : renseigner ScanFilmOptions.WorldRange, ou QuantaOnly pour n'obtenir que les quanta", profile.ErrUnknownMapBounds, dir)
+		return nil, fmt.Errorf("%w (film %s): set ScanFilmOptions.WorldRange, or QuantaOnly to get quanta only", profile.ErrUnknownMapBounds, dir)
 	}
 	// LES DEUX REFUS D'ENTREE PRECEDENT LE CHARGEMENT, et c'est l'ordre d'origine : un appelant
 	// sans bornes ou sans bande doit recevoir SON erreur, pas une erreur de lecture de repertoire.
 	if band.Count() == 0 {
-		return nil, errors.New("bande de slots vide")
+		return nil, errors.New("empty slot band")
 	}
 	film, err := source.LoadDir(dir, nil)
 	if err != nil {
@@ -115,7 +116,7 @@ func balayerLesPositions(fc *FilmContext, band SlotBand, opt ScanFilmOptions, vo
 	}
 	if band.Count() == 0 {
 		// Une bande vide n est pas un film illisible : l appelant a releve un archetype absent.
-		return nil, errors.New("bande de slots vide")
+		return nil, errors.New("empty slot band")
 	}
 	lay, err := bipedI0Layout(film, opt)
 	if err != nil {
@@ -156,7 +157,7 @@ func balayerLesPositions(fc *FilmContext, band SlotBand, opt ScanFilmOptions, vo
 // erreur, dans le même ordre, sur des options incomplètes ou un film sans chunk.
 func bipedScanChunks(film *source.Film, opt ScanFilmOptions) ([]int, error) {
 	if opt.WorldRange == nil && !opt.QuantaOnly {
-		return nil, fmt.Errorf("%w : renseigner ScanFilmOptions.WorldRange, ou QuantaOnly pour n'obtenir que les quanta", profile.ErrUnknownMapBounds)
+		return nil, fmt.Errorf("%w: set ScanFilmOptions.WorldRange, or QuantaOnly to get quanta only", profile.ErrUnknownMapBounds)
 	}
 	chunks := opt.Chunks
 	if len(chunks) == 0 {
@@ -175,7 +176,7 @@ func bipedI0Layout(film *source.Film, opt ScanFilmOptions) (profile.I0Layout, er
 	}
 	lay, _, err := DetectI0LayoutOf(film)
 	if err != nil {
-		return profile.I0Layout{}, fmt.Errorf("découpage i0 illisible : %w", err)
+		return profile.I0Layout{}, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	return lay, nil
 }

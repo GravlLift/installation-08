@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -338,8 +339,8 @@ func t0FilmRefuse(ctx context.Context, cov *T0FilmCoverage, reason, matchID stri
 	cov.Detected, cov.Reason = false, reason
 	slog.WarnContext(ctx,
 		"rejeu : coup d'envoi NON date par le film — le T0 de l'API reste la source",
-		"match_id", matchID, "raison", reason, "pistes", cov.Tracks, "pistesEnMouvement",
-		cov.Moving, "rafale", cov.Burst, "margeMs", cov.MarginMs)
+		"match_id", matchID, "reason", reason, "tracks", cov.Tracks, "pistesEnMouvement",
+		cov.Moving, "burst", cov.Burst, "margeMs", cov.MarginMs)
 	return nil, cov
 }
 

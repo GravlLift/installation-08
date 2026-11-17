@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -108,7 +109,7 @@ func logInventoryEmptyCoverage(ctx context.Context, inv []Inventory, marked int)
 	if empty == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : lectures d'inventaire vides",
-		"lectures", len(inv), "vides", empty,
-		"morts", marked, "inexpliquees", empty-marked)
+	slog.InfoContext(ctx, "replay: empty inventory readings",
+		"reads", len(inv), "empty", empty,
+		"marked", marked, "unexplained", empty-marked)
 }

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // CATALOGUE D'OBJECTIFS — lecteur du fichier de référence figé par titre
@@ -38,7 +39,7 @@ const MapObjectivesSchemaVersion = 2
 // ErrUnknownMap signale une carte absente du catalogue. C'est le cas NOMINAL et
 // fréquent : le catalogue couvre 72 cartes sur la centaine jouée. L'appelant doit
 // dégrader (rejeu sans zones), jamais échouer.
-var ErrUnknownMap = errors.New("replay: carte absente du catalogue d'objectifs")
+var ErrUnknownMap = errors.New("replay: map absent from the objectives catalog")
 
 // MapObjectivesCatalog est le catalogue figé, tel qu'il est sur disque.
 type MapObjectivesCatalog struct {
@@ -78,14 +79,14 @@ type MapObjectivesEntry struct {
 func LoadMapObjectives(path string) (*MapObjectivesCatalog, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("catalogue d'objectifs illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("objectives catalog unreadable (%s): %w", path, err)
 	}
 	var c MapObjectivesCatalog
 	if err := json.Unmarshal(blob, &c); err != nil {
-		return nil, fmt.Errorf("catalogue d'objectifs invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("objectives catalog invalid (%s): %w", path, err)
 	}
 	if c.SchemaVersion != MapObjectivesSchemaVersion {
-		return nil, fmt.Errorf("catalogue d'objectifs en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("objectives catalog is version %d, expected %d (%s)",
 			c.SchemaVersion, MapObjectivesSchemaVersion, path)
 	}
 	return &c, nil

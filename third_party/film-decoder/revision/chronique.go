@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // chronique.go — LA CHRONIQUE D UNE REVISION : ce que le godoc RACONTE, ce que le golden FIGE,
@@ -48,20 +49,20 @@ var formeRevision = regexp.MustCompile(`^([0-9]{4}-[0-9]{2}-[0-9]{2})(?:\.([0-9]
 func ParserRevision(prefixe, revision string) (Rang, error) {
 	reste, ok := strings.CutPrefix(revision, prefixe+"-")
 	if !ok {
-		return Rang{}, fmt.Errorf("revision %q : prefixe attendu %q (forme %s-AAAA-MM-JJ[.N])",
+		return Rang{}, fmt.Errorf("revision %q: expected prefix %q (form %s-YYYY-MM-DD[.N])",
 			revision, prefixe, prefixe)
 	}
 	m := formeRevision.FindStringSubmatch(reste)
 	if m == nil {
-		return Rang{}, fmt.Errorf("revision %q : forme attendue %s-AAAA-MM-JJ[.N]", revision, prefixe)
+		return Rang{}, fmt.Errorf("revision %q: expected form %s-YYYY-MM-DD[.N]", revision, prefixe)
 	}
 	if m[2] == "" {
 		return Rang{Date: m[1], N: 1}, nil
 	}
 	n, err := strconv.Atoi(m[2])
 	if err != nil || n < 2 {
-		return Rang{}, fmt.Errorf("revision %q : rang de journee %q invalide — le premier lot du "+
-			"jour s ecrit SANS suffixe, les suivants a partir de `.2`", revision, m[2])
+		return Rang{}, fmt.Errorf("revision %q: day rank %q invalid — the first lot of the "+
+			"day is written WITHOUT a suffix, the following from `.2`", revision, m[2])
 	}
 	return Rang{Date: m[1], N: n}, nil
 }
@@ -169,7 +170,7 @@ func LireChronique(prefixe string, cheminsGodoc []string, cheminGolden string) (
 func lignesDe(chemin string) ([]string, error) {
 	blob, err := os.ReadFile(chemin) //nolint:gosec // chemin fourni par l appelant, resolu chez lui
 	if err != nil {
-		return nil, fmt.Errorf("%s illisible : %w — il est VERSIONNE, son absence est une erreur",
+		return nil, fmt.Errorf("%s unreadable: %w — it is VERSIONED, its absence is an error",
 			chemin, err)
 	}
 	return strings.Split(strings.ReplaceAll(string(blob), "\r\n", "\n"), "\n"), nil
@@ -188,13 +189,13 @@ func lireGolden(chemin string) ([]LigneGolden, error) {
 		}
 		champs := strings.Split(ligne, "\t")
 		if len(champs) != 2 || champs[0] == "" || champs[1] == "" {
-			return nil, fmt.Errorf("golden %s ligne %d : %q malformee — attendu "+
+			return nil, fmt.Errorf("golden %s line %d: %q malformed — expected "+
 				"`revision<TAB>empreinte`", chemin, i+1, ligne)
 		}
 		donnees = append(donnees, LigneGolden{Revision: champs[0], Empreinte: champs[1], Ligne: i + 1})
 	}
 	if len(donnees) == 0 {
-		return nil, fmt.Errorf("golden %s : aucune ligne de donnees", chemin)
+		return nil, fmt.Errorf("golden %s: no data lines", chemin)
 	}
 	return donnees, nil
 }
@@ -225,7 +226,7 @@ func (c Chronique) VerifierCouverture(revision string) error {
 	if len(manques) == 0 {
 		return nil
 	}
-	return fmt.Errorf("revision %s : %s", revision, strings.Join(manques, " ; "))
+	return fmt.Errorf("revision %s: %s", revision, strings.Join(manques, " ; "))
 }
 
 // dansGodoc dit si une revision a son entree de godoc.
@@ -272,7 +273,7 @@ func (c Chronique) VerifierRangs(depuis string) error {
 	if len(fautes) == 0 {
 		return nil
 	}
-	return fmt.Errorf("chronique %s : %s", c.Prefixe, strings.Join(fautes, " ; "))
+	return fmt.Errorf("chronicle %s: %s", c.Prefixe, strings.Join(fautes, " ; "))
 }
 
 // fautesDeRang rend les ruptures de la suite des revisions d un cote de la chronique.

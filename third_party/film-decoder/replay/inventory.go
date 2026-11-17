@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -286,9 +287,9 @@ func attachInventoryCoverage(ctx context.Context, doc *ReplayDocument, decoded [
 	}
 	cov := buildInventoryCoverage(decoded, built, doc.Inventory, droppedBeforeOrigin)
 	doc.Coverage.Inventory = cov
-	slog.InfoContext(ctx, "rejeu : couverture inventaire",
-		"decodees", cov.Decoded,
+	slog.InfoContext(ctx, "replay: inventory coverage",
+		"decoded", cov.Decoded,
 		"ecarteesAvantOrigine", cov.DroppedBeforeOrigin,
 		"ecarteesSansPiste", cov.Unpublished,
-		"publiees", cov.Published)
+		"published", cov.Published)
 }

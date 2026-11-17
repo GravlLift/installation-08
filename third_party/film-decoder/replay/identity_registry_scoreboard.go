@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_scoreboard.go — LE TABLEAU DE L'API NOMME CE QUE LE FILM NE TABLE PAS.
@@ -258,22 +259,22 @@ func contientBid(l []string, bid string) bool {
 // alarmer journalise ce que le tableau a pose et ce qu'il n'a pas su poser. Un refus sans cause
 // ne se corrige pas ; un refus muet ne se voit meme pas.
 func (s scoreboardReport) alarmer(ctx context.Context, matchID string) {
-	slog.InfoContext(ctx, "rejeu : nommage par le tableau de l'API",
-		"match_id", matchID, "lignes", s.Lignes, "bots", s.Bots, "humains", s.Humains,
-		"conflits", s.Conflits, "sansCandidat", s.SansCandidat, "indexPartage", s.IndexPartage)
+	slog.InfoContext(ctx, "replay: naming by the API scoreboard",
+		"match_id", matchID, "lines", s.Lignes, "bots", s.Bots, "humans", s.Humains,
+		"conflicts", s.Conflits, "sansCandidat", s.SansCandidat, "indexPartage", s.IndexPartage)
 	if s.Conflits > 0 {
-		slog.WarnContext(ctx, "rejeu : siege d'index partage que la fenetre de participation ne departage "+
-			"pas — vies laissees non resolues",
-			"match_id", matchID, "vies", s.Conflits)
+		slog.WarnContext(ctx, "replay: shared index seat that the participation window does not "+
+			"disambiguate — lives left unresolved",
+			"match_id", matchID, "lives", s.Conflits)
 	}
 	if s.SansCandidat > 0 {
-		slog.WarnContext(ctx, "rejeu : index de participant que NI la table d'index NI BOT_METADATA ne "+
-			"nomme, ou bot declare absent du tableau — le tableau n'indexe pas, il ne peut pas le rattacher",
-			"match_id", matchID, "vies", s.SansCandidat)
+		slog.WarnContext(ctx, "replay: player index named by NEITHER the index table NOR BOT_METADATA, "+
+			"or declared bot absent from the scoreboard — the scoreboard does not index, it cannot attach it",
+			"match_id", matchID, "lives", s.SansCandidat)
 	}
 	if s.IndexPartage > 0 {
-		slog.WarnContext(ctx, "rejeu : index que PLUSIEURS bots declarent dans BOT_METADATA, sans entite "+
-			"ni declaration qui designe un seul d'entre eux — le tableau n'indexe pas, il ne departage pas",
-			"match_id", matchID, "vies", s.IndexPartage)
+		slog.WarnContext(ctx, "replay: index declared by MULTIPLE bots in BOT_METADATA, with no entity "+
+			"or declaration designating one of them — the scoreboard does not index, it does not disambiguate",
+			"match_id", matchID, "lives", s.IndexPartage)
 	}
 }

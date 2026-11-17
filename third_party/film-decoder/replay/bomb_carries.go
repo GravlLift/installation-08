@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // bomb_carries.go — LE CÂBLAGE du calque du PORTEUR DE LA BOMBE d'Assaut (schéma 30) : ce
@@ -135,7 +136,7 @@ func attachBombCarries(ctx context.Context, doc *ReplayDocument, opt Options, re
 	var carry HeldObjectCarry
 	if !reg.PontEtabli() {
 		cov = &BombCarriesCoverage{BombFilm: true, Events: len(events)}
-		slog.WarnContext(ctx, "rejeu : portage de la bombe sans pont slot->xuid — aucune periode publiable",
+		slog.WarnContext(ctx, "replay: bomb carry without a slot->xuid bridge — no publishable period",
 			"match_id", doc.MatchID, "transitions", len(events))
 	} else {
 		carry = BuildHeldObjectCarry(events, occupantParMatchMS(reg), opt.Deaths)
@@ -151,9 +152,9 @@ func attachBombCarries(ctx context.Context, doc *ReplayDocument, opt Options, re
 	if doc.Coverage != nil {
 		doc.Coverage.BombCarries = cov
 	}
-	slog.InfoContext(ctx, "rejeu : portage de la bombe d'Assaut",
-		"transitions", cov.Events, "periodes", cov.Periods, "portages", cov.Carries,
-		"fermes", cov.Closed, "ouverts", cov.Open, "parMort", cov.ByDeath,
+	slog.InfoContext(ctx, "replay: Assault bomb carry",
+		"transitions", cov.Events, "periods", cov.Periods, "carries", cov.Carries,
+		"closed", cov.Closed, "open", cov.Open, "parMort", cov.ByDeath,
 		"sansPont", cov.NoBridge, "horsFenetre", cov.OutOfWindow,
 		"porteurAbsent", cov.CarrierAbsent)
 	return carry

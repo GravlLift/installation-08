@@ -23,6 +23,7 @@
 // PEREMPTION. Comme `damagetag`, la table GRANDIT a chaque saison. Une regle dont le nom
 // ne correspond plus a aucune ligne de labels.tsv fait ECHOUER la suite de tests
 // (`TestChaqueRegleTrouveSaSource`) : la peremption se paie en rouge, jamais en silence.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package killicon
 
 import (
@@ -196,7 +197,7 @@ func racineUnique(re *regexp.Regexp, detail string) (string, bool) {
 func init() {
 	var err error
 	if rules, provided.Date, provided.AnnouncedNb, err = parseRules(rawRules); err != nil {
-		panic("killicon: data/rules.tsv illisible: " + err.Error())
+		panic("killicon: data/rules.tsv unreadable: " + err.Error())
 	}
 	provided.RuleCount = len(rules)
 	byTag = resolve(rules, damagetag.Labels())
@@ -343,7 +344,7 @@ func parseRules(raw string) ([]Rule, string, int, error) {
 		}
 		f := strings.Split(line, "\t")
 		if len(f) != ruleColumns {
-			return nil, "", 0, fmt.Errorf("ligne %d: %d colonnes au lieu de %d", n+1, len(f), ruleColumns)
+			return nil, "", 0, fmt.Errorf("line %d: %d columns instead of %d", n+1, len(f), ruleColumns)
 		}
 		if f[0] == "genre" { // ligne d en-tete de colonnes
 			continue
@@ -363,19 +364,19 @@ func validate(r Rule, line int) error {
 	switch r.Genre {
 	case GenreNom, GenreGGGL, GenrePorteur, GenreBanque, GenreClasse:
 	default:
-		return fmt.Errorf("ligne %d: genre %q inconnu", line, r.Genre)
+		return fmt.Errorf("line %d: unknown genre %q", line, r.Genre)
 	}
 	if r.Key == "" || r.Sprite == "" {
-		return fmt.Errorf("ligne %d: cle ou sprite vide", line)
+		return fmt.Errorf("line %d: empty key or sprite", line)
 	}
 	// Une cle PORTEUR mal formee (majuscules, prefixe `0x`, longueur fautive) ne
 	// correspondrait a AUCUNE ligne : la regle serait inerte, sans erreur ni compteur. La
 	// forme est donc verifiee a la lecture, pour que la faute se paie en rouge au demarrage.
 	if r.Genre == GenrePorteur && !clePorteurRe.MatchString(r.Key) {
-		return fmt.Errorf("ligne %d: cle PORTEUR %q mal formee (8 chiffres hexa minuscules attendus)", line, r.Key)
+		return fmt.Errorf("line %d: malformed carrier key %q (8 lowercase hex digits expected)", line, r.Key)
 	}
 	if r.Justification == "" {
-		return fmt.Errorf("ligne %d: justification vide (regle non auditable)", line)
+		return fmt.Errorf("line %d: empty justification (rule not auditable)", line)
 	}
 	return nil
 }

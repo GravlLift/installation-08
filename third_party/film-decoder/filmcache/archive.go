@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filmcache
 
 // archive.go — L'ARCHIVE DES FILMS COMME UN TOUT : combien elle pese. La retirer, la deplacer ou
@@ -64,7 +65,7 @@ func MesurerOccupation(ctx context.Context, root string) (Occupation, error) {
 			return occ, nil
 		}
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return occ, fmt.Errorf("filmcache: mesure de %s : %w", dossier, err)
+			return occ, fmt.Errorf("filmcache: sizing of %s: %w", dossier, err)
 		}
 	}
 	return occ, nil

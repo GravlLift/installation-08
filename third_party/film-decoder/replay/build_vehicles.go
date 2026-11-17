@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_vehicles.go — LE CABLAGE du calque des VEHICULES : ce que BuildFromFilm DECODE du film
@@ -120,7 +121,7 @@ func decodeFilmVehicleScan(ctx context.Context,
 	defer gwInstallMPPWidths(fc, gwWidthsForFilm(fc, mpp))()
 	out := decodeFilmVehicleLayer(ctx, fc, matchID, wr)
 	out.Aims = decodeFilmOccupantAims(ctx, fc, matchID)
-	slog.InfoContext(ctx, "visees sans position lues", "match_id", matchID, "lectures", len(out.Aims))
+	slog.InfoContext(ctx, "aimings without position read", "match_id", matchID, "reads", len(out.Aims))
 	return out
 }
 
@@ -130,28 +131,28 @@ func decodeFilmVehicleLayer(ctx context.Context, fc *grammar.FilmContext, matchI
 	wr *profile.Vec3Range) VehicleScan {
 	kf := grammar.ScanWorldObjectKeyframes(fc, grammar.VehicleTypeIndex)
 	if len(kf.Band) == 0 {
-		slog.InfoContext(ctx, "vehicules : aucun slot ti=40 aux images-cles — film lu, aucun vehicule",
+		slog.InfoContext(ctx, "vehicles: no ti=40 slot in the keyframes — film read, no vehicle",
 			"match_id", matchID, "imagesCles", len(kf.TimesUS))
 		return scanBandeVide(kf)
 	}
 	cre, st, err := grammar.ScanVehicleCreationsForBand(fc, wr, kf.Band)
 	if err != nil {
-		slog.WarnContext(ctx, "vehicules : records de creation illisibles — rejeu sans ce calque",
+		slog.WarnContext(ctx, "vehicles: unreadable creation records — replay without this layer",
 			"err", err, "match_id", matchID)
 		return VehicleScan{}
 	}
 	pos, err := nuageDesVehicules(fc, kf.Band, wr)
 	if err != nil {
-		slog.WarnContext(ctx, "vehicules : nuage de positions illisible — AUCUN vehicule publie (sans lui, une"+
-			" vie recensee n aurait ni trajectoire ni cap)", "err", err, "match_id", matchID)
+		slog.WarnContext(ctx, "vehicles: unreadable position cloud — NO vehicle published (without it, a "+
+			"cataloged life would have no trajectory nor heading)", "err", err, "match_id", matchID)
 		return VehicleScan{}
 	}
 	out := VehicleScan{Scanned: true, Keyframes: kf, Creations: cre, Stats: st, Positions: pos}
 	out.Events = decodeFilmVehicleEvents(ctx, fc, matchID)
-	slog.InfoContext(ctx, "vehicules : balayage ti=40",
-		"slots", st.Slots, "ancres", st.Anchors, "creationsAcceptees", st.Accepted,
+	slog.InfoContext(ctx, "vehicles: ti=40 sweep",
+		"slots", st.Slots, "anchors", st.Anchors, "creationsAcceptees", st.Accepted,
 		"imagesCles", len(kf.TimesUS), "viesRecensees", len(kf.SeenUS),
-		"echantillons", len(pos), "evenements", len(out.Events))
+		"samples", len(pos), "events", len(out.Events))
 	return out
 }
 
@@ -196,13 +197,13 @@ func LireLesVehicules(fc *grammar.FilmContext, wr *profile.Vec3Range) (Vehicules
 	}
 	pos, err := nuageDesVehicules(fc, kf.Band, wr)
 	if err != nil {
-		return out, fmt.Errorf("nuage des vehicules : %w", err)
+		return out, fmt.Errorf("vehicle cloud: %w", err)
 	}
 	out.Positions = pos
 	defer gwInstallMPPWidths(fc, gwWidthsForFilm(fc, profile.MPPWidths{}))()
 	cre, _, err := grammar.ScanVehicleCreationsForBand(fc, wr, kf.Band)
 	if err != nil {
-		return out, fmt.Errorf("creations des vehicules : %w", err)
+		return out, fmt.Errorf("vehicle creations: %w", err)
 	}
 	out.Creations = cre
 	return out, nil
@@ -257,7 +258,7 @@ func logVehicleDeathReads(ctx context.Context, matchID string, tous, vehicules i
 	if perdus > 0 {
 		niveau = slog.LevelWarn
 	}
-	slog.Log(ctx, niveau, "vehicules : lecture des morts ecrites",
+	slog.Log(ctx, niveau, "vehicles: reading the written deaths",
 		"match_id", matchID, "mortsToutesEntites", tous, "mortsVehicules", vehicules,
 		"masqueDeclareLeDeadState", declares, "dontDesynchronises", perdus,
 		"recordsAtteints", st.Records[ti], "recordsEntierementPortes", st.CleanRecords[ti],
@@ -279,8 +280,8 @@ func logVehicleDeathReads(ctx context.Context, matchID string, tous, vehicules i
 func decodeFilmOccupantAims(ctx context.Context, fc *grammar.FilmContext, matchID string) []grammar.BipedAim {
 	aims, err := grammar.ScanBipedAimOnly(fc)
 	if err != nil {
-		slog.WarnContext(ctx, "vehicules : visees sans position illisibles — episodes d occupation sans serie"+
-			" de visee, le cone retombe sur le cap du chassis", "err", err, "match_id", matchID)
+		slog.WarnContext(ctx, "vehicles: position-less aims unreadable — occupation episodes without an aim "+
+			"series, the cone falls back to the chassis heading", "err", err, "match_id", matchID)
 		return nil
 	}
 	return aims
@@ -293,8 +294,8 @@ func decodeFilmOccupantAims(ctx context.Context, fc *grammar.FilmContext, matchI
 func decodeFilmVehicleEvents(ctx context.Context, fc *grammar.FilmContext, matchID string) []types.VehicleEvent {
 	ev, err := grammar.ScanVehicleEvents(fc)
 	if err != nil {
-		slog.WarnContext(ctx, "vehicules : liste d evenements illisible — episodes d occupation bornes par le"+
-			" seul trou de position", "err", err, "match_id", matchID)
+		slog.WarnContext(ctx, "vehicles: unreadable event list — occupation episodes bounded by the "+
+			"single position hole alone", "err", err, "match_id", matchID)
 		return nil
 	}
 	return ev
@@ -376,14 +377,14 @@ func logVehicleRideResolution(ctx context.Context, st vehicleRideStats) {
 	if st.episodes == 0 && st.repli == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : rattachement des episodes d occupation",
+	slog.InfoContext(ctx, "replay: attaching occupation episodes",
 		"episodesEvenement", st.episodes, "nommesParLEvenement", st.nommes,
 		"resolusParEvenement", st.parEvenement, "resolusParVieLaPlusProche", st.parEvenementProche,
 		"resolusParGeometrie", st.parGeometrie, "nonRattaches", st.perdus,
 		"episodesDeRepli", st.repli, "siegesLusDansLeFilm", st.sieges)
 	if st.episodes > 0 && st.nommes == 0 {
-		slog.WarnContext(ctx, "rejeu : AUCUN episode d occupation nomme par son evenement de sortie — la"+
-			" reference de vehicule (domaine 1, ref 1) n est plus lue, le calque retombe sur la"+
-			" seule geometrie", "episodes", st.episodes)
+		slog.WarnContext(ctx, "replay: NO occupation episode named by its exit event — the "+
+			"vehicle reference (domain 1, ref 1) is no longer read, the layer falls back to the "+
+			"geometry alone", "episodes", st.episodes)
 	}
 }

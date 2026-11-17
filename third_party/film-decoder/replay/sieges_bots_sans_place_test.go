@@ -82,10 +82,10 @@ func TestBotSansVieNiPlaceHorsDuRosterPublie(t *testing.T) { // B-ECARTE
 	if cov.SansPlace != 0 || cov.PlacesEnTrop != 0 || cov.Depassements != 0 || cov.SansPresence != 0 {
 		t.Errorf("couverture %+v : ni place en trop, ni depassement, ni entree sans place ou sans presence", cov)
 	}
-	if !aUnEnregistrement(journal, "WARN", "bot declare sans aucune vie ni place libre") {
+	if !aUnEnregistrement(journal, "WARN", "declared bot with no life and no free seat") {
 		t.Errorf("journal %v : l'ecart se dit en AVERTISSEMENT", journal)
 	}
-	if aUnEnregistrement(journal, "ERROR", "bot sans place qui a une vie") {
+	if aUnEnregistrement(journal, "ERROR", "seatless bot that has a life") {
 		t.Errorf("journal %v : aucune ERREUR pour un bot sans vie", journal)
 	}
 }
@@ -99,7 +99,7 @@ func TestBotSansPlaceAvecUneVieResteUnDefaut(t *testing.T) { // B-AVEC-VIE
 		t.Fatalf("roster publie %d entrees, source du bot %q, sansPlace %d : attendu 5, %q, 1 — le bot qui a une "+
 			"vie reste, sans place", len(publie), publie[len(publie)-1].SeatSource, cov.SansPlace, SeatSourceIndex)
 	}
-	if !aUnEnregistrement(journal, "ERROR", "bot sans place qui a une vie") {
+	if !aUnEnregistrement(journal, "ERROR", "seatless bot that has a life") {
 		t.Errorf("journal %v : un bot sans place qui a une vie se dit en ERREUR", journal)
 	}
 }

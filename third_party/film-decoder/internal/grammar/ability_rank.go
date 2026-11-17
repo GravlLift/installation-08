@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // ability_rank.go — LE RANG DE PALETTE DE LA CAPACITÉ PORTÉE, lu dans les paquets delta.
@@ -135,11 +136,11 @@ func resolveAbilityScan(fc *FilmContext) (abilityScanSetup, error) {
 	}
 	s.slots = fc.BipedSlots()
 	if s.slots.Count() == 0 {
-		return s, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return s, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	lay, err := fc.I0Layout()
 	if err != nil {
-		return s, fmt.Errorf("découpage i0 illisible : %w", err)
+		return s, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	s.gram = grammaireRecord{lay: lay, prof: fc.ProfilDeBalayage()}
 	if s.gram.arch, err = fc.bipedArchetype(); err != nil {
@@ -214,7 +215,7 @@ func (c *FilmContext) bipedArchetype() (Archetype, error) {
 		return Archetype{}, err
 	}
 	if !ok {
-		return Archetype{}, fmt.Errorf("archétype biped %d absent du registre", BipedTypeIndex)
+		return Archetype{}, fmt.Errorf("biped archetype %d missing from the registry", BipedTypeIndex)
 	}
 	return arch, nil
 }

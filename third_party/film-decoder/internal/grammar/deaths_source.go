@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -40,13 +41,13 @@ import (
 // dernier numero etait un morceau de replication), ou d un morceau des temps forts absent du
 // cache. DISTINCTE d un morceau illisible ou sans mort, et de la famille
 // [finalise.ErrFilmNonFinalise] : `errors.Is` repond vrai pour les deux.
-var ErrFilSansTempsForts = fmt.Errorf("fil des morts : aucun morceau des temps forts parmi les "+
-	"morceaux types du film : %w", finalise.ErrFilmNonFinalise)
+var ErrFilSansTempsForts = fmt.Errorf("death feed: no highlights piece among the "+
+	"typed pieces of the film: %w", finalise.ErrFilmNonFinalise)
 
 // ErrFilDesMortsSansMort : le morceau des temps forts a ete LU et ne porte aucune mort. C est une
 // MESURE, pas une panne — `coverage.bridge.deathsFeed` la publie `empty`, distincte de
 // `unreadable` (lot M5.2 des retours rejeu, 2026-09-23). Le texte du message est celui d avant.
-var ErrFilDesMortsSansMort = errors.New("aucune mort")
+var ErrFilDesMortsSansMort = errors.New("no death")
 
 // ScanFilmDeaths lit le fil des morts du film de filmDir.
 //
@@ -131,7 +132,7 @@ func scanDeaths(film *source.Film) ([]types.Death, bool, error) {
 	}
 	raw, _, ok := FilmChunkAt(film, n)
 	if !ok {
-		return nil, auDernierNumero, fmt.Errorf("chunk highlight (%d) : absent du film", n)
+		return nil, auDernierNumero, fmt.Errorf("highlight chunk (%d): missing from the film", n)
 	}
 	// LE WARN DU REGISTRE ABSENT MONTE CHEZ L APPELANT, ET C EST DELIBERE (revue adversariale du
 	// 2026-09-12, constat P2-4). Deux raisons : cette fonction ne connait pas le `match_id` — elle
@@ -146,7 +147,7 @@ func scanDeaths(film *source.Film) ([]types.Death, bool, error) {
 	// pour une valeur qui tient dans les quatre premiers octets.
 	evs, err := ParseHighlightEvents(raw, HighlightProfileOfFilm(film).MajorVersion)
 	if err != nil {
-		return nil, auDernierNumero, fmt.Errorf("chunk highlight (%d) : %w", n, err)
+		return nil, auDernierNumero, fmt.Errorf("highlight chunk (%d): %w", n, err)
 	}
 	out := make([]types.Death, 0, len(evs))
 	for _, e := range evs {
@@ -156,7 +157,7 @@ func scanDeaths(film *source.Film) ([]types.Death, bool, error) {
 		out = append(out, types.Death{XUID: e.XUID, Gamertag: e.Gamertag, TimeMS: int64(e.TimeMS)})
 	}
 	if len(out) == 0 {
-		return nil, auDernierNumero, fmt.Errorf("chunk highlight (%d) : %w", n, ErrFilDesMortsSansMort)
+		return nil, auDernierNumero, fmt.Errorf("highlight chunk (%d): %w", n, ErrFilDesMortsSansMort)
 	}
 	trierMortsDuFil(out)
 	return out, auDernierNumero, nil

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // sieges.go — LA PLACE D'UN OCCUPANT, SA PRESENCE, ET CE QUI LES DECIDE (lot 1.9.14 ; refondu au
@@ -293,8 +294,8 @@ func poserLesSieges(ctx context.Context, roster []RosterEntry, occ occupants, in
 	var successions int
 	cov.RelaisBornes, cov.Chevauchements, successions = pp.bornerAuSuccesseur()
 	if successions > 0 {
-		slog.InfoContext(ctx, "rejeu : humain(s) qui succede(nt) a un bot sur sa place — presence ouverte au "+
-			"lendemain de son retrait", "successions", successions)
+		slog.InfoContext(ctx, "replay: human(s) succeeding a bot on its seat — presence open on the "+
+			"morning of its retirement", "successions", successions)
 	}
 	pp.retirerLesAffichagesVides()
 	if !occ.balaye {
@@ -320,17 +321,17 @@ func poserLesSieges(ctx context.Context, roster []RosterEntry, occ occupants, in
 func journaliserLesPlaces(ctx context.Context, matchID string, cov SeatCoverage) {
 	journaliserLesBotsSansPlace(ctx, matchID, len(cov.botsEcartes), cov.botsSansPlaceAvecVie)
 	if cov.SansEquipe > 0 {
-		slog.ErrorContext(ctx, "rejeu : entree(s) du roster presente(s) SANS EQUIPE lue — aucune tuile ne les "+
-			"montre", "match_id", matchID, "sansEquipe", cov.SansEquipe, "entrees", cov.Entrees)
+		slog.ErrorContext(ctx, "replay: roster entry(ies) present WITHOUT a read TEAM — no tile shows them",
+			"match_id", matchID, "sansEquipe", cov.SansEquipe, "entries", cov.Entrees)
 	}
 	if cov.BotsRelevesEnJeu > 0 {
-		slog.WarnContext(ctx, "rejeu : bot(s) dont la fiche passe a l humain arrive alors que le film leur donne "+
-			"encore une vie — lecture a verifier", "match_id", matchID, "botsRelevesEnJeu", cov.BotsRelevesEnJeu)
+		slog.WarnContext(ctx, "replay: bot(s) whose record passed to the arriving human while the film still gives them "+
+			"a life — reading to verify", "match_id", matchID, "botsRelevesEnJeu", cov.BotsRelevesEnJeu)
 	}
 	if cov.SansPlace > 0 || cov.Depassements > 0 || cov.PlacesEnTrop > 0 {
-		slog.WarnContext(ctx, "rejeu : places a lire — entree sans place, ou equipe au-dela de sa capacite",
-			"match_id", matchID, "sansPlace", cov.SansPlace, "depassements", cov.Depassements,
-			"placesEnTrop", cov.PlacesEnTrop, "capacite", cov.Capacite)
+		slog.WarnContext(ctx, "replay: seats to read — entry without a seat, or team beyond its capacity",
+			"match_id", matchID, "sansPlace", cov.SansPlace, "overruns", cov.Depassements,
+			"placesEnTrop", cov.PlacesEnTrop, "capacity", cov.Capacite)
 	}
 }
 

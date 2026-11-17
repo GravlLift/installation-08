@@ -68,7 +68,7 @@ func TestLAlarmeDeMargeEtroiteSeDeclencheEtSeTait(t *testing.T) {
 	var buf bytes.Buffer
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	defer slog.SetDefault(prev)
-	const motif = "calage du fil des morts trop peu distinct"
+	const motif = "death feed calibration too close to the noise"
 
 	// Marge ÉTROITE : le calage retenu ne fait pas deux fois mieux que son suivant.
 	BridgeHealth{DeathOffsetMatched: 9, DeathOffsetRunnerUp: 8, LivesTotal: 87, Slots: 84}.

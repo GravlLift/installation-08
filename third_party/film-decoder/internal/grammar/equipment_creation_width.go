@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // equipment_creation_width.go — LA LARGEUR du premier champ du bloc `object-multiplayer-
@@ -212,10 +213,10 @@ type MPPCalibration struct {
 // String rend la calibration en une ligne, pour le journal de production.
 func (c MPPCalibration) String() string {
 	if !c.Widths.Valid() {
-		return fmt.Sprintf("NON CONCLUANTE (%d ancres, %d vies, %d chunks)",
+		return fmt.Sprintf("NOT CONCLUSIVE (%d anchors, %d lives, %d chunks)",
 			c.Anchors, c.Lives, c.Chunks)
 	}
-	return fmt.Sprintf("%s (%d accords contre %d à %s ; %d ancres, %d vies, %d chunks)",
+	return fmt.Sprintf("%s (%d agreements vs %d for %s; %d anchors, %d lives, %d chunks)",
 		c.Widths, c.Agree, c.RunnerAgree, c.Runner, c.Anchors, c.Lives, c.Chunks)
 }
 

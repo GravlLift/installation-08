@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // filmfacts.go — LE TYPE DES FAITS PERSISTES PAR FILM, ET LA CLE DE LEUR CUISSON.
@@ -279,11 +280,11 @@ const filmFactsMagic = "REPLAYINPUTS30\n"
 // ERREUR TYPEE parce que la confusion est SILENCIEUSE autrement : les positions sont des quanta,
 // et `DequantBipedAxis` les rendrait avec les bornes de la mauvaise carte sans rien signaler —
 // des coordonnees FAUSSES, pas approximatives (cf. son en-tete).
-var ErrFilmFactsCarte = errors.New("faits de film : carte du catalogue differente")
+var ErrFilmFactsCarte = errors.New("film facts: catalog map differs")
 
 // ErrFilmFactsDecoupage : les faits disent tenir leur decoupage du catalogue, et le catalogue
 // n en dit plus autant. Les quanta se dequantifieraient avec un AUTRE pas — silencieusement.
-var ErrFilmFactsDecoupage = errors.New("faits de film : decoupage d i0 en contradiction avec le catalogue")
+var ErrFilmFactsDecoupage = errors.New("film facts: i0 split contradicted by the catalog")
 
 // imposeAxisW rend les largeurs d un decoupage impose, ou un marqueur quand il n y en a pas.
 func imposeAxisW(impose *profile.I0Layout) any {

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // ground_weapon_creation.go — LE RECORD DE CRÉATION d'une ARME AU SOL (ti=42).
@@ -58,7 +59,7 @@ func ScanGroundWeaponCreations(
 	}
 	band := worldObjectSlotBand(fc, GroundWeaponTypeIndex)
 	if len(band) == 0 {
-		return nil, st, fmt.Errorf("aucun slot d'archétype ti=%d dans les keyframes du film",
+		return nil, st, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			GroundWeaponTypeIndex)
 	}
 	return ScanGroundWeaponCreationsForBand(fc, wr, band)
@@ -87,7 +88,7 @@ func ScanGroundWeaponCreationsForBand(
 ) ([]types.EquipmentCreation, types.EquipmentCreationStats, error) {
 	var st types.EquipmentCreationStats
 	if wr == nil {
-		return nil, st, fmt.Errorf("bornes monde absentes : sans elles le décodeur ne rend que des quanta")
+		return nil, st, fmt.Errorf("world bounds missing: without them the decoder only yields quanta")
 	}
 	nums := fc.ChunkNumbers()
 	if len(nums) == 0 {
@@ -110,7 +111,7 @@ func (c *FilmContext) groundWeaponArchetype() (Archetype, error) {
 		return Archetype{}, err
 	}
 	if !ok {
-		return Archetype{}, fmt.Errorf("archétype arme au sol %d absent du registre",
+		return Archetype{}, fmt.Errorf("ground weapon archetype %d missing from the registry",
 			GroundWeaponTypeIndex)
 	}
 	return arch, nil

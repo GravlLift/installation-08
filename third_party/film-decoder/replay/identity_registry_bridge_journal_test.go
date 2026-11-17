@@ -59,16 +59,16 @@ func TestPontParMorts_DiscordancesPublieesUneFoisParFilm(t *testing.T) {
 			t.Fatalf("journal illisible %q : %v", ligne, err)
 		}
 		msg, _ := rec["msg"].(string)
-		if !strings.Contains(msg, "pont par morts") {
+		if !strings.Contains(msg, "bridge by deaths") {
 			continue
 		}
 		switch {
-		case strings.Contains(msg, "sur des vies"):
+		case strings.Contains(msg, "on some lives"):
 			agregees++
 			if rec["level"] != "INFO" {
 				t.Errorf("trace agregee au niveau %v, attendu INFO", rec["level"])
 			}
-			if rec["discordances"] != float64(2) {
+			if rec["discordance"] != float64(2) {
 				t.Errorf("trace agregee : discordances = %v, attendu 2", rec["discordances"])
 			}
 		default:

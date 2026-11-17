@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // vehicle_shots.go — LA SECONDE PORTE DES TIRS : celle des joueurs EMBARQUÉS.
@@ -400,7 +401,7 @@ func logVehicleShots(ctx context.Context, cov *VehicleCoverage, published int) {
 	if cov == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : tirs en vehicule",
-		"publies", published, "poses", cov.Shots, "ambigus", cov.ShotsAmbiguous,
+	slog.InfoContext(ctx, "replay: vehicle shots",
+		"published", published, "placements", cov.Shots, "ambiguous", cov.ShotsAmbiguous,
 		"sansPosition", cov.ShotsUnplaced, "orphelinsHorsEpisode", cov.ShotsNoRide)
 }

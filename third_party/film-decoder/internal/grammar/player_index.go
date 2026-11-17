@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -64,7 +65,7 @@ func ScanPlayerIndices(film *source.Film, roster []uint64) (types.PlayerIndexTab
 func scanPlayerIndices(film *source.Film, roster []uint64) (types.PlayerIndexTable, int, error) {
 	out := types.PlayerIndexTable{ByXUID: map[uint64]int{}}
 	if len(roster) == 0 {
-		return out, 0, fmt.Errorf("roster vide : rien à résoudre")
+		return out, 0, fmt.Errorf("empty roster: nothing to resolve")
 	}
 	if len(FilmChunkNumbers(film)) == 0 {
 		return out, 0, ErrNoReadableFilmChunk
@@ -72,7 +73,7 @@ func scanPlayerIndices(film *source.Film, roster []uint64) (types.PlayerIndexTab
 	seen, lectures, sautes := lecturesDuMotif(film, roster)
 	out.Readings = lectures
 	if out.Readings == 0 {
-		return out, sautes, fmt.Errorf("aucun chunk de réplication n'a livré d'index de joueur")
+		return out, sautes, fmt.Errorf("no replication chunk delivered a player index")
 	}
 	for x, byIdx := range seen {
 		if len(byIdx) > 1 {

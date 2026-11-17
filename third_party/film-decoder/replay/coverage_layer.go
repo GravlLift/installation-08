@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // coverage_layer.go — LA COUVERTURE D UN CALQUE D EVENEMENTS (tirs, grenades, actions d objectif),
@@ -114,8 +115,8 @@ func (c LayerCoverage) warnIfLossy(ctx context.Context, layer string) {
 		if float64(cat.n)/float64(c.Available) < rejectSampleThreshold {
 			continue
 		}
-		slog.WarnContext(ctx, "rejeu : rejets au-dessus du seuil",
-			"calque", layer, "cause", cat.name, "rejetes", cat.n, "disponibles", c.Available,
-			"rattaches", c.Attached)
+		slog.WarnContext(ctx, "replay: rejections above the threshold",
+			"layer", layer, "cause", cat.name, "rejected", cat.n, "available", c.Available,
+			"attached", c.Attached)
 	}
 }

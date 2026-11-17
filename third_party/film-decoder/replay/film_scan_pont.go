@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_scan_pont.go — LA PREMIERE LECTURE DE L ETAGE DE BALAYAGE : LE PONT D IDENTITE (lot J4.3,
@@ -48,7 +49,7 @@ func (s *filmScan) lirePontDIdentite() {
 	})
 	s.in.Translocations = s.pont.Translocations
 	if len(s.in.Translocations) > 0 {
-		slog.InfoContext(s.ctx, "translocateur : teleportations lues", "evenements", len(s.in.Translocations))
+		slog.InfoContext(s.ctx, "teleporter: translocations read", "events", len(s.in.Translocations))
 	}
 }
 
@@ -86,7 +87,7 @@ func (s *filmScan) balayerPont() {
 	// Absence non fatale, comme les tirs et les armes portées.
 	grenades, err := grammar.ScanGrenadeThrows(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "paquets delta illisibles — rejeu sans lancers de grenade", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "delta packets unreadable — replay without grenade throws", "err", err, "match_id", s.matchID)
 		grenades = nil
 	}
 	s.in.Grenades = grenades
@@ -94,7 +95,7 @@ func (s *filmScan) balayerPont() {
 	// Trajectoires de projectile : memes chunks, meme horloge. Absence non fatale.
 	proj, err := grammar.ScanProjectiles(s.fc, &s.world)
 	if err != nil {
-		slog.WarnContext(s.ctx, "projectiles illisibles — rejeu sans trajectoires", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "projectiles unreadable — replay without tracks", "err", err, "match_id", s.matchID)
 		proj = nil
 	}
 	s.in.Projectiles = proj
@@ -103,11 +104,11 @@ func (s *filmScan) balayerPont() {
 	// supplementaire — jamais d'erreur, juste moins de couverture sur un film qui ne les ecrit pas.
 	s.in.Detonations, _ = grammar.ScanProjectileDetonations(s.fc)
 	s.opt.observe(s.ctx, "detonations", s.in.Detonations)
-	// LOCAL-CHANGE (infinite-theater-3d): the attach reads of the projectiles that stick, which the
+	// LOCAL-CHANGE (infinite-theater-3d): the attach reads of the projectiles that stick, which the Log and error strings translated to English.
 	// frame walk already collected. Absence non fatale : the grenades keep their last position.
 	attaches, err := grammar.ScanProjectileAttaches(s.fc)
 	if err != nil {
-		slog.WarnContext(s.ctx, "attaches de projectile illisibles — rejeu sans grenade collee", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "projectile attachments unreadable — replay without a stuck grenade", "err", err, "match_id", s.matchID)
 		attaches = nil
 	}
 	s.in.ProjectileAttaches = attaches
@@ -146,12 +147,12 @@ func (s *filmScan) balayerPont() {
 		// l a toujours fait lire.
 		idx, err := s.pont.Index, s.pont.ErrIndex
 		if err != nil {
-			slog.WarnContext(s.ctx, "index de joueur illisible — les tireurs ne seront nommes que par les autres "+
-				"lectures du registre (table des sieges du film)", "err", err, "match_id", s.matchID)
+			slog.WarnContext(s.ctx, "player index unreadable — the shooters will be named only by the other "+
+				"readings of the registry (film seat table)", "err", err, "match_id", s.matchID)
 		}
 		table, collisions := injectiveOrEmpty(idx)
 		if collisions > 0 {
-			slog.WarnContext(s.ctx, "index de joueur NON INJECTIF — table ecartee",
+			slog.WarnContext(s.ctx, "player index NOT INJECTIVE — table discarded",
 				"collisions", collisions, "match_id", s.matchID)
 		}
 		s.in.PlayerIndices = table
@@ -162,7 +163,7 @@ func (s *filmScan) balayerPont() {
 	// client retombe sur l'appariement.
 	clockUS, err := s.pont.OrigineUS, s.pont.ErrOrigine
 	if err != nil {
-		slog.WarnContext(s.ctx, "origine d'horloge illisible — rejeu sans origine publiee", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "clock origin unreadable — replay without a published origin", "err", err, "match_id", s.matchID)
 		clockUS = 0
 	}
 	s.in.FilmClockOriginUS = clockUS
@@ -186,11 +187,11 @@ func (s *filmScan) poserLeFilDesMorts(deaths []types.Death, err error) {
 	s.in.DeathsFeed = verdictDeLaLecture(deaths, err)
 	switch s.in.DeathsFeed.Verdict {
 	case DeathsFeedUnreadable:
-		slog.WarnContext(s.ctx, "fil des morts illisible — ni calage d horloge des morts, ni table d index, ni "+
-			"pont par morts (coverage.bridge.deathsFeed = unreadable)", "err", err, "match_id", s.matchID)
+		slog.WarnContext(s.ctx, "death feed unreadable — no death clock offset, no index table, no "+
+			"bridge by deaths (coverage.bridge.deathsFeed = unreadable)", "err", err, "match_id", s.matchID)
 		deaths = nil
 	case DeathsFeedEmpty:
-		slog.InfoContext(s.ctx, "fil des morts lu et VIDE — aucune mort a nommer (coverage.bridge.deathsFeed = empty)",
+		slog.InfoContext(s.ctx, "death feed read and EMPTY — no death to name (coverage.bridge.deathsFeed = empty)",
 			"err", err, "match_id", s.matchID)
 		deaths = nil
 	}

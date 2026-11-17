@@ -87,7 +87,7 @@ func TestLoadRefuseUneVersionInconnue(t *testing.T) {
 	if err := os.WriteFile(path, []byte(fmt.Sprintf(`{"schema_version": %d, "entries": []}`, SchemaVersion+1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "attendue") {
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "expected") {
 		t.Fatalf("une version inconnue doit etre refusee : %v", err)
 	}
 	if _, err := Load(filepath.Join(t.TempDir(), "absent.json")); err == nil {

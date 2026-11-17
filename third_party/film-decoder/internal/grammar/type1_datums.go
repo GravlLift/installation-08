@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // type1_datums.go — LE BLOC DE TYPE 1 : LA TABLE DE DATUMS DU CHUNK, LUE A L OCTET
@@ -135,7 +136,7 @@ const (
 )
 
 // ErrBlocDeDatums signale un bloc dont la taille ne se referme pas sur la grammaire lue.
-var ErrBlocDeDatums = errors.New("bloc de datums")
+var ErrBlocDeDatums = errors.New("datums block")
 
 // DatumEntry est UNE entree de la table de datums, telle que le bloc de type 1 la porte.
 type DatumEntry struct {
@@ -196,19 +197,19 @@ func LireBlocDeDatums(pay []byte) (BlocDeDatums, error) {
 	total := len(pay) * 8
 	n := (total - datumQueueBits + datumBourrageMax) / datumPasParSlot
 	if total < datumQueueBits || n <= 0 {
-		return BlocDeDatums{}, fmt.Errorf("%w : %d octets ne portent aucune entree",
+		return BlocDeDatums{}, fmt.Errorf("%w: %d bytes carry no entry",
 			ErrBlocDeDatums, len(pay))
 	}
 	if n > datumCapSlots {
 		// D4 du 5.20 : `DAT_144706100` suit la table quand elle GRANDIT. Un film qui
 		// depasserait le cap de rejeu changerait aussi la largeur d identifiant du flux de
 		// trame — ce lot ne l invente pas, il s arrete.
-		return BlocDeDatums{}, fmt.Errorf("%w : %d entrees derivees au-dela du cap %d",
+		return BlocDeDatums{}, fmt.Errorf("%w: %d derived entries beyond the cap of %d",
 			ErrBlocDeDatums, n, datumCapSlots)
 	}
 	lus := n*datumPasParSlot + datumQueueBits
 	if reste := total - lus; reste < 0 || reste > datumBourrageMax {
-		return BlocDeDatums{}, fmt.Errorf("%w : %d bits pour %d entrees, reste %d",
+		return BlocDeDatums{}, fmt.Errorf("%w: %d bits for %d entries, %d remaining",
 			ErrBlocDeDatums, total, n, reste)
 	}
 	b := BlocDeDatums{Entrees: make([]DatumEntry, n), BitsLus: lus, Bourrage: total - lus}

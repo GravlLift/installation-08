@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // grapple_state.go — LES ÉVÉNEMENTS DE GRAPPIN, lus dans les paquets delta.
@@ -78,10 +79,10 @@ func ScanGrappleReads(fc *FilmContext) ([]types.GrappleRead, GrappleStats, error
 	}
 	slots := fc.BipedSlots()
 	if slots.Count() == 0 {
-		return nil, st, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, st, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	if _, err := fc.I0Layout(); err != nil {
-		return nil, st, fmt.Errorf("découpage i0 illisible : %w", err)
+		return nil, st, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	arch, err := fc.bipedArchetype()
 	if err != nil {
@@ -89,7 +90,7 @@ func ScanGrappleReads(fc *FilmContext) ([]types.GrappleRead, GrappleStats, error
 	}
 	i59idx := componentIndexOfAny(arch, grappleComponentName, grappleComponentNameAlt)
 	if i59idx < 0 {
-		return nil, st, fmt.Errorf("composant %q absent de l'archétype biped du film", grappleComponentName)
+		return nil, st, fmt.Errorf("component %q missing from the film's biped archetype", grappleComponentName)
 	}
 	lu, err := fc.lecturesBipedes()
 	if err != nil {

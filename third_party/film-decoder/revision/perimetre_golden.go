@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // perimetre_golden.go — LE GOLDEN DE PERIMETRE D UNE COUCHE : la liste des paquets hashes par
@@ -41,8 +42,8 @@ func LirePerimetre(chemin string) (Perimetre, error) {
 		case ok && etiquette == etiquetteAmont && valeur != "":
 			p.Amonts = append(p.Amonts, valeur)
 		default:
-			return Perimetre{}, fmt.Errorf("golden de perimetre %s : ligne malformee %q — attendu "+
-				"`paquet<TAB>dossier` ou `amont<TAB>couche`", chemin, ligne)
+			return Perimetre{}, fmt.Errorf("scope golden %s: malformed line %q — expected "+
+				"`paquet<TAB>dossier` or `amont<TAB>couche`", chemin, ligne)
 		}
 	}
 	return p, nil
@@ -80,7 +81,7 @@ func (p Porte) ReecrirePerimetre(chemin string, per Perimetre) (string, error) {
 	}
 	sortie := strings.Join(append(append(prose, donnees...), ""), "\n")
 	if err := os.WriteFile(chemin, []byte(sortie), 0o600); err != nil {
-		return "", fmt.Errorf("ecriture du golden %s : %w", chemin, err)
+		return "", fmt.Errorf("writing golden %s: %w", chemin, err)
 	}
 	return fmt.Sprintf("1 perimetre reecrit : %s (%d paquets, amonts %v) ; relancer sans -%s pour "+
 		"verifier", chemin, len(per.Paquets), per.Amonts, p.Drapeau()), nil

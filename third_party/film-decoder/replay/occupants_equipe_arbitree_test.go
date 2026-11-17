@@ -91,7 +91,7 @@ func TestSansContradictionLaFeuilleNeChangeRien(t *testing.T) { // A-ACCORD
 }
 
 func TestJournalDesContradictionsDEquipe(t *testing.T) { // A-JOURNAL
-	const extrait = "disent deux equipes"
+	const extrait = "say two teams"
 	contre, sansArbitre := filmobs.Load(metriqueEquipesContreDeclaration), filmobs.Load(metriqueEquipesSansArbitre)
 	tranchee := occupants{equipesContreDeclaration: 1,
 		contradictions: []contradictionDEquipe{{nom: "b", bid: "bid(7.0)", entite: 1, base: equipePtr(0)}}}

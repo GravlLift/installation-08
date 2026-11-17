@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // unnamed_lives.go — AUCUNE VIE PUBLIÉE NE RESTE SANS NOM.
@@ -220,9 +221,9 @@ func trackSpanUS(t Track, origin, step uint64) (int64, int64) {
 // publié, ou le document interne que le sync assemble pour relire ses portages (`interne`).
 func logUnnamedLives(ctx context.Context, matchID string, tracks []Track, rep unnamedLivesReport, interne bool) {
 	if rep.total() > 0 {
-		slog.InfoContext(ctx, "rejeu : nommage final des vies restantes",
-			"match_id", matchID, "traitees", rep.total(), "parViePrecedente", rep.byPrevious,
-			"parVieSuivante", rep.byNext, "parPont", rep.byBridge, "residu", rep.remaining,
+		slog.InfoContext(ctx, "replay: final naming of the remaining lives",
+			"match_id", matchID, "processed", rep.total(), "parViePrecedente", rep.byPrevious,
+			"parVieSuivante", rep.byNext, "parPont", rep.byBridge, "remaining", rep.remaining,
 			"frontieresIndecidables", rep.contested)
 	}
 	if rep.remaining == 0 {
@@ -240,6 +241,6 @@ func logUnnamedLives(ctx context.Context, matchID string, tracks []Track, rep un
 		msg = "rejeu : des vies du DOCUMENT INTERNE du sync (non publie) restent sans identite — defaut de nommage du pont"
 	}
 	slog.ErrorContext(ctx, msg,
-		"match_id", matchID, "vies", rep.remaining, "premierSlot", slot,
+		"match_id", matchID, "lives", rep.remaining, "premierSlot", slot,
 		"premiereFrameDebut", from, "premiereFrameFin", to)
 }

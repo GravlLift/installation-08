@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_inventaire.go — LES QUATRE DERNIERES PASSES DE L ASSEMBLAGE : les libelles et
@@ -106,8 +107,8 @@ func (a *assemblage) poserCapacitesEtTranslocations() {
 	logKnockbackCoverage(a.ctx, kbCov)
 	a.palette = classifyAbilityPalette(a.doc.Abilities, a.opt.Labels.Abilities)
 	a.doc.AbilityLabels = abilityLabelsUsed(a.doc.Abilities, a.palette)
-	slog.InfoContext(a.ctx, "rejeu : a.palette de capacites",
-		"a.palette", paletteIDOrNone(a.palette), "lectures", len(a.doc.Abilities),
+	slog.InfoContext(a.ctx, "replay: a.ability palette",
+		"a.palette", paletteIDOrNone(a.palette), "reads", len(a.doc.Abilities),
 		"rangsNommes", len(a.doc.AbilityLabels))
 	a.poserLEquipementPorte()
 }
@@ -137,8 +138,8 @@ func (a *assemblage) poserImpulsionsEtCharges() {
 		a.doc.Coverage.AbilityImpulses = &aiCov
 		logAbilityImpulseCoverage(a.ctx, aiCov)
 	} else {
-		slog.Log(a.ctx, a.niveauDePublication(), "rejeu : impulsions de capacite NON BALAYEES — aucune couverture publiee",
-			"lectures", len(a.opt.AbilityImpulses))
+		slog.Log(a.ctx, a.niveauDePublication(), "replay: ability impulses NOT SWEEPED — no coverage published",
+			"reads", len(a.opt.AbilityImpulses))
 	}
 	// LES CHARGES RESTANTES, par la MEME palette et la MEME jointure d'identite que les
 	// impulsions (le rang i48 de la vie, nomme par la palette du match) — un film non classe
@@ -158,8 +159,8 @@ func (a *assemblage) poserImpulsionsEtCharges() {
 		a.doc.Coverage.AbilityCharges = &acCov
 		logAbilityChargeCoverage(a.ctx, acCov)
 	} else {
-		slog.Log(a.ctx, a.niveauDePublication(), "rejeu : charges d equipement NON BALAYEES — aucune couverture publiee",
-			"lectures", len(a.opt.AbilityCharges))
+		slog.Log(a.ctx, a.niveauDePublication(), "replay: equipment charges NOT SWEEPED — no coverage published",
+			"reads", len(a.opt.AbilityCharges))
 	}
 }
 
@@ -171,7 +172,7 @@ func (a *assemblage) clore() {
 	// événements de « sans slot » vers « rattachés » APRÈS que `buildCoverage` a figé la
 	// couverture. Journaliser `shotCov` publierait un compte périmé à côté d'un artefact à jour.
 	shotsPub := a.doc.Coverage.Shots
-	slog.InfoContext(a.ctx, "rejeu : couverture par calque",
+	slog.InfoContext(a.ctx, "replay: coverage by layer",
 		"tirsRattaches", shotsPub.Attached, "tirsDisponibles", shotsPub.Available,
 		"tirsSansSlot", shotsPub.NoSlot, "tirsAmbigus", shotsPub.Ambiguous,
 		"tirsHorsFenetre", shotsPub.OutOfWindow, "tirsNonPublies", shotsPub.Unpublished,

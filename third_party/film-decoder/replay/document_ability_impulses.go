@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_ability_impulses.go — LES IMPULSIONS DE CAPACITÉ, datées par le film et
@@ -368,8 +369,8 @@ func (idx *abilityRankIndex) rankInLife(slot uint32, at uint64) (int, bool) {
 // publiées laisserait croire que le canal n'a rien refusé — or il refuse deux choses de
 // natures différentes, et c'est justement ce qu'il faut pouvoir lire.
 func logAbilityImpulseCoverage(ctx context.Context, cov AbilityImpulseCoverage) {
-	slog.InfoContext(ctx, "rejeu : impulsions de capacite",
-		"lectures", cov.Reads, "episodes", cov.Episodes, "publiees", cov.Published,
+	slog.InfoContext(ctx, "replay: ability impulses",
+		"reads", cov.Reads, "episodes", cov.Episodes, "published", cov.Published,
 		"sansIdentite", cov.NoIdentity, "familleNonMesuree", cov.OtherFamily,
 		"attributionIndisponible", cov.NoResolver,
 		"avantOrigine", cov.BeforeOrigin, "sansPiste", cov.Unpublished,

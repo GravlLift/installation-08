@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -277,15 +278,15 @@ func logPlacementCoverage(ctx context.Context, c *EquipmentPlacementCoverage) {
 	if c == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : poses d'equipement",
-		"balaye", c.Scanned, "calibre", c.Calibrated, "decoupage", c.Widths, "poses", c.Placements,
-		"nommees", c.Named, "autres", c.Other,
+	slog.InfoContext(ctx, "replay: equipment placements",
+		"swept", c.Scanned, "calibrated", c.Calibrated, "split", c.Widths, "placements", c.Placements,
+		"named", c.Named, "others", c.Other,
 		"avecPoseur", c.WithOwner, "avecCap", c.WithHeading,
-		"deployees", c.Deployed, "lachees", c.Dropped, "origineInconnue", c.Unknown,
+		"deployed", c.Deployed, "dropped", c.Dropped, "origineInconnue", c.Unknown,
 		"finVue", c.EndSeen, "finOuverte", c.EndOpen,
 		// LA PROVENANCE, AU JOURNAL COMME A L'ARTEFACT (lot 1.9.1) : sans elle, un operateur lit
 		// « 51 deployees » sans savoir si le film l'a dit ou si un repli l'a decide.
-		"evenements103", c.SpawnEvents, "listesEvenements", c.SpawnLists, "parCause", c.ByCause)
+		"events103", c.SpawnEvents, "listesEvenements", c.SpawnLists, "parCause", c.ByCause)
 }
 
 // equipmentInputs porte TOUT ce que l'assemblage des poses lit : le balayage, le nuage de

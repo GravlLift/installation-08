@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // objective_scan.go — LE BALAYAGE DE L'ARCHETYPE DES OBJECTIFS GERES (ti=11), en production.
@@ -190,7 +191,7 @@ func ScanObjectives(fc *FilmContext) (ObjectiveScan, error) {
 	}
 	band := observedSlotBand(fc, ObjectiveTypeIndex)
 	if len(band) == 0 {
-		return sc, fmt.Errorf("aucun slot d'archetype ti=%d dans les keyframes du film",
+		return sc, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			ObjectiveTypeIndex)
 	}
 	sc.Slots = len(band)
@@ -237,7 +238,7 @@ func (c *FilmContext) objectiveArchetype() (Archetype, *Registry, error) {
 		return Archetype{}, nil, err
 	}
 	if !ok {
-		return Archetype{}, nil, fmt.Errorf("archetype ti=%d absent du registre", ObjectiveTypeIndex)
+		return Archetype{}, nil, fmt.Errorf("archetype ti=%d missing from the registry", ObjectiveTypeIndex)
 	}
 	return arch, reg, nil
 }

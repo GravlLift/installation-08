@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // jetons.go — CE QUI ENTRE DANS L EMPREINTE D UNE SOURCE : SES JETONS, PAS SES OCTETS (ADR 0034).
@@ -60,7 +61,7 @@ func jetonsDe(rel, texte, brique string) (string, []string, error) {
 	var s scanner.Scanner
 	s.Init(fichier, src, func(pos token.Position, msg string) {
 		if premiere == nil {
-			premiere = fmt.Errorf("source %s illisible par le lexeur : %s : %s", rel, pos, msg)
+			premiere = fmt.Errorf("source %s unreadable by the lexer: %s: %s", rel, pos, msg)
 		}
 	}, scanner.ScanComments)
 	var b strings.Builder

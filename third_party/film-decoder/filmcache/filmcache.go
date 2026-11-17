@@ -30,6 +30,7 @@
 // Il rend des octets, un index et — par [LoadFilm] — un film DEJA CHARGE (`source`, une
 // decompression par film). Le decodage, lui, vit dans `film/facts/objectives` et
 // `internal/grammar`.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filmcache
 
 import (
@@ -94,11 +95,11 @@ func Open(root, shortID string) (*Source, bool, error) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("manifeste de film illisible (%s) : %w", path, err)
+		return nil, false, fmt.Errorf("film manifest unreadable (%s): %w", path, err)
 	}
 	var mf manifestJSON
 	if err := json.Unmarshal(raw, &mf); err != nil {
-		return nil, false, fmt.Errorf("manifeste de film invalide (%s) : %w", path, err)
+		return nil, false, fmt.Errorf("film manifest invalid (%s): %w", path, err)
 	}
 	src := &Source{root: root, short: shortID, chunks: make([]types.ChunkMeta, 0, len(mf.Chunks)),
 		tailles: make([]int64, 0, len(mf.Chunks))}
@@ -137,12 +138,12 @@ func (s *Source) TailleDeclaree(i int) int64 {
 // taille du chunk, un fichier d'une autre taille rend [ErrChunkTronque].
 func (s *Source) Chunk(i int) ([]byte, error) {
 	if i < 0 || i >= len(s.chunks) {
-		return nil, fmt.Errorf("filmcache: chunk %d hors bornes (%d au manifeste de %s)", i, len(s.chunks), s.short)
+		return nil, fmt.Errorf("filmcache: chunk %d out of range (%d in the manifest of %s)", i, len(s.chunks), s.short)
 	}
 	path := CheminDuChunk(s.dirDesChunks(), s.chunks[i].Index)
 	raw, err := lireChunkValide(path, s.chunks[i].Index, s.tailles[i])
 	if err != nil {
-		return nil, fmt.Errorf("filmcache: chunk %d de %s (%s) : %w", s.chunks[i].Index, s.short, path, err)
+		return nil, fmt.Errorf("filmcache: chunk %d of %s (%s): %w", s.chunks[i].Index, s.short, path, err)
 	}
 	return raw, nil
 }
@@ -165,11 +166,11 @@ func LoadFilm(root, shortID string) (*source.Film, bool, error) {
 		return nil, ok, err
 	}
 	if _, err := src.controlerFichiers(); err != nil {
-		return nil, true, fmt.Errorf("filmcache: film %s : %w", shortID, err)
+		return nil, true, fmt.Errorf("filmcache: film %s: %w", shortID, err)
 	}
 	film, err := source.LoadDir(ChunkDir(root, shortID), src.Meta())
 	if err != nil {
-		return nil, true, fmt.Errorf("filmcache: chargement du film %s : %w", shortID, err)
+		return nil, true, fmt.Errorf("filmcache: loading film %s: %w", shortID, err)
 	}
 	return film, true, nil
 }
@@ -213,7 +214,7 @@ func ListShortIDs(root string) ([]string, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("enumeration du cache film (%s) : %w", root, err)
+		return nil, fmt.Errorf("enumerating the film cache (%s): %w", root, err)
 	}
 	out := make([]string, 0, len(entries))
 	for _, e := range entries {

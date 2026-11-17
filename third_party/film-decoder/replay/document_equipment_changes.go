@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_equipment_changes.go — LES RAMASSAGES ET LES CONSOMMATIONS D'ÉQUIPEMENT, datés à
@@ -187,11 +188,11 @@ func birthOfLives(positions []grammar.BipedPosition) func(uint32) (uint64, bool)
 // logEquipmentChangeCoverage sort la couverture du calque, TÉMOIN DE COMPLÉTUDE COMPRIS : un
 // journal qui ne dirait que les publiés laisserait croire qu'ils sont tous là.
 func logEquipmentChangeCoverage(ctx context.Context, cov EquipmentChangeCoverage) {
-	slog.InfoContext(ctx, "rejeu : ramassages et consommations d equipement",
-		"decodes", cov.Decoded, "publies", cov.Published,
-		"ramassages", cov.Taken, "consommations", cov.Spent,
-		"reapparitions", cov.Spawned, "avantOrigine", cov.BeforeOrigin,
-		"vies", cov.Lives, "manqueesEstimees", cov.MissedEstimate,
+	slog.InfoContext(ctx, "replay: equipment pickups and consumptions",
+		"decoded", cov.Decoded, "published", cov.Published,
+		"pickups", cov.Taken, "spent", cov.Spent,
+		"respawns", cov.Spawned, "avantOrigine", cov.BeforeOrigin,
+		"lives", cov.Lives, "manqueesEstimees", cov.MissedEstimate,
 		"sautsCompteur", cov.CounterJumps, "premiereHorsNorme", cov.LivesFirstOffSpec,
-		"repetitions", cov.Repeats, "recuperees", cov.Recovered)
+		"repetitions", cov.Repeats, "recovered", cov.Recovered)
 }

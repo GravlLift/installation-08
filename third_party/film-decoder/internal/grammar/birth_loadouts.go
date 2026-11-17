@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // birth_loadouts.go — LA DOTATION DE NAISSANCE : les armes qu'un bipède porte À SA CRÉATION, lues
@@ -78,7 +79,7 @@ func ScanBirthLoadouts(
 	}
 	emp := weaponEmplacements(arch)
 	if len(emp) == 0 {
-		return nil, st, fmt.Errorf("aucun %s dans l'archétype biped du film", compWeaponStateTypeInfo)
+		return nil, st, fmt.Errorf("no %s in the film's biped archetype", compWeaponStateTypeInfo)
 	}
 	s := newBirthScan(fc, reg, emp, &st)
 	parPaquet := map[birthPacketKey][]BipedCreation{}

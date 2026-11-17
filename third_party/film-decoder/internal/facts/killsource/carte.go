@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package killsource
 
 // carte.go — LA CARTE DU MATCH EST OBLIGATOIRE (2026-09-27).
@@ -42,7 +43,7 @@ func exigerLaCarte(o Options) error {
 		return nil
 	}
 	if o.Carte == nil {
-		return fmt.Errorf("%w (aucune entree de catalogue)", ErrCarteAbsente)
+		return fmt.Errorf("%w (no catalog entry)", ErrCarteAbsente)
 	}
-	return fmt.Errorf("%w (entree %q sans largeurs d axe)", ErrCarteAbsente, o.Carte.Module)
+	return fmt.Errorf("%w (entry %q without axis widths)", ErrCarteAbsente, o.Carte.Module)
 }

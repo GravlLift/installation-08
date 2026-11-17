@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity.go — QUI EST QUI DANS LE FILM, et comment on le nomme.
@@ -337,8 +338,8 @@ func nameBotTracks(ctx context.Context, tracks []Track, occ occupantsDesSlots, b
 	if partages > 0 {
 		// PAS UNE ERREUR : un siège partagé est un fait du film (des remplaçants SUCCESSIFS),
 		// et c'est le RELAIS qui sait les départager par l'instant de bascule.
-		slog.InfoContext(ctx, "rejeu : sièges de bot partagés par plusieurs noms — nommage laissé au relais",
-			"sieges", partages)
+		slog.InfoContext(ctx, "replay: bot seats shared by several names — naming left to the relay",
+			"seats", partages)
 	}
 	for i := range tracks {
 		if tracks[i].XUID != "" || tracks[i].Bot != "" {

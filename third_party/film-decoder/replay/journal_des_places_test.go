@@ -25,7 +25,7 @@ import (
 )
 
 // extraitSansEquipe : le message d'ERREUR de [journaliserLesPlaces] pour une entree presente sans equipe.
-const extraitSansEquipe = "SANS EQUIPE lue"
+const extraitSansEquipe = "WITHOUT a read TEAM"
 
 // joueursSansEquipe : le nombre de joueurs de [lecturesSansEquipe].
 const joueursSansEquipe = 4

@@ -82,7 +82,7 @@ func TestCouvertureAvertitQuandAucuneIdentiteNeResout(t *testing.T) {
 	if cov.Kept != 0 || cov.Accepted == 0 {
 		t.Fatalf("le cas temoin doit etre `0 retenue pour N acceptees` : %+v", cov)
 	}
-	if log := gwCaptureLog(t, func() { logGroundWeaponCoverage(context.Background(), cov) }); !strings.Contains(log, "largeurs MPP") {
+	if log := gwCaptureLog(t, func() { logGroundWeaponCoverage(context.Background(), cov) }); !strings.Contains(log, "MPP widths?") {
 		t.Fatalf("aucun avertissement sur une identite qui ne resout RIEN — le journal est"+
 			" muet la ou un film entier sort sans socle. Journal obtenu :\n%s", log)
 	}
@@ -94,7 +94,7 @@ func TestCouvertureAvertitQuandAucuneIdentiteNeResout(t *testing.T) {
 	if ok.Kept == 0 {
 		t.Fatalf("le contre-cas doit retenir des creations : %+v", ok)
 	}
-	if log := gwCaptureLog(t, func() { logGroundWeaponCoverage(context.Background(), ok) }); strings.Contains(log, "largeurs MPP") {
+	if log := gwCaptureLog(t, func() { logGroundWeaponCoverage(context.Background(), ok) }); strings.Contains(log, "MPP widths?") {
 		t.Fatalf("avertissement emis alors que l'identite resout : %s", log)
 	}
 }

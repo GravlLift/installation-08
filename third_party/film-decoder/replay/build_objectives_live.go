@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_objectives_live.go — LE CABLAGE du calque du DRAPEAU VIVANT : ce que l'appelant fournit,
@@ -126,7 +127,7 @@ func decodeFilmCarrierMarks(ctx context.Context, marks grammar.CarrierMarkScan, 
 		return grammar.CarrierMarkScan{}
 	}
 	if err != nil {
-		slog.WarnContext(ctx, "drapeau : marqueur de portage illisible — calque publie sans son controle",
+		slog.WarnContext(ctx, "flag: unreadable carry marker — layer published without its control",
 			"err", err, "match_id", matchID)
 		return grammar.CarrierMarkScan{}
 	}
@@ -274,8 +275,8 @@ func logFlagOpeningsWithoutBridge(ctx context.Context, slots []int, openings int
 	if len(slots) == 0 {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : prises de drapeau sans pont d'identite",
-		"slots", slots, "sansPont", len(slots), "prises", openings)
+	slog.InfoContext(ctx, "replay: flag pickups without an identity bridge",
+		"slots", slots, "sansPont", len(slots), "pickups", openings)
 }
 
 // logFlagCarriesCoverage journalise ce que le calque publie — et ce qu'il ecarte.
@@ -288,23 +289,23 @@ func logFlagCarriesCoverage(ctx context.Context, cov *FlagCarriesCoverage) {
 		return
 	}
 	if !cov.FlagFilm {
-		slog.DebugContext(ctx, "rejeu : film non reconnu CTF — aucun drapeau publie",
-			"bursts", cov.Bursts, "captures", cov.Captures, "vols", cov.Steals)
+		slog.DebugContext(ctx, "replay: film not recognized as CTF — no flag published",
+			"bursts", cov.Bursts, "captures", cov.Captures, "steals", cov.Steals)
 		return
 	}
 	if cov.ClosedOverlaps > 0 {
-		slog.WarnContext(ctx, "rejeu : plus de deux drapeaux portes a la fois ENTRE PORTAGES FERMES — "+
-			"la lecture se contredit", "depassements", cov.ClosedOverlaps,
-			"depassementsTous", cov.Overlaps, "portages", cov.Carries)
+		slog.WarnContext(ctx, "replay: more than two flags carried at once BETWEEN CLOSED CARRIES — "+
+			"the reading contradicts itself", "overruns", cov.ClosedOverlaps,
+			"depassementsTous", cov.Overlaps, "carries", cov.Carries)
 	}
-	slog.InfoContext(ctx, "rejeu : vie des drapeaux",
-		"prises", cov.Openings, "portages", cov.Carries, "fermes", cov.Closed,
-		"ouverts", cov.Open, "viesLibres", cov.ObjectLives,
+	slog.InfoContext(ctx, "replay: flag lives",
+		"pickups", cov.Openings, "carries", cov.Carries, "closed", cov.Closed,
+		"open", cov.Open, "viesLibres", cov.ObjectLives,
 		"fermesParLObjet", cov.ClosedByObject, "lachersRepositionnes", cov.DropsRepositioned,
 		"sansPont", cov.NoBridge, "sansPiste", cov.NoTrack,
 		"horsFenetre", cov.OutOfWindow, "slotsAmbigus", cov.AmbiguousSlot, "marqueurConfirme", cov.MarkerConfirmed,
-		"marqueurObserve", cov.MarkerObserved, "socles", cov.Spawns,
-		"simultaneite", cov.Overlaps, "porteursTuesAmbigus", cov.AmbiguousCarrierKills,
+		"marqueurObserve", cov.MarkerObserved, "bases", cov.Spawns,
+		"overlaps", cov.Overlaps, "porteursTuesAmbigus", cov.AmbiguousCarrierKills,
 		"porteursTuesNonJuges", cov.UnjudgedCarrierKills,
 		"retoursAmbigus", cov.AmbiguousReturns, "rentreesParLObjet", cov.HomeByObject,
 		"rentreesAmbigues", cov.AmbiguousHomecomings)
@@ -313,12 +314,12 @@ func logFlagCarriesCoverage(ctx context.Context, cov *FlagCarriesCoverage) {
 	// pas (canal non lu, lu sans slot de jauge, slots sans correlation, correlation sans emission
 	// sur l intervalle). `apparies` a zero avec des `slots` non nuls est le cas qu il faut VOIR
 	// arriver : le canal parle, et aucune de ses series ne suit les lachers publies.
-	slog.InfoContext(ctx, "rejeu : jauge de retour du drapeau",
-		"balaye", cov.GaugeScanned, "slots", cov.GaugeSlots, "lectures", cov.GaugeReads,
-		"apparies", cov.GaugePaired, "lachersAvecJauge", cov.GaugeSpans, "points", cov.GaugePoints)
+	slog.InfoContext(ctx, "replay: flag return gauge",
+		"swept", cov.GaugeScanned, "slots", cov.GaugeSlots, "reads", cov.GaugeReads,
+		"paired", cov.GaugePaired, "lachersAvecJauge", cov.GaugeSpans, "points", cov.GaugePoints)
 	if cov.GaugeScanned && cov.GaugeSlots > 0 && cov.GaugePaired == 0 {
-		slog.WarnContext(ctx, "rejeu : jauge de retour LUE mais AUCUNE ne correle a un drapeau — "+
-			"les lachers publies et les series du film ne se recouvrent pas",
-			"slots", cov.GaugeSlots, "lectures", cov.GaugeReads, "portages", cov.Carries)
+		slog.WarnContext(ctx, "replay: return gauge READ but NONE correlates to a flag — "+
+			"the published drops and the film's series do not overlap",
+			"slots", cov.GaugeSlots, "reads", cov.GaugeReads, "carries", cov.Carries)
 	}
 }

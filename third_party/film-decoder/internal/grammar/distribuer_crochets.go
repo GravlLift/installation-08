@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // distribuer_crochets.go — LES CROCHETS DES CANAUX, FONDUS DANS L OBSERVATION DE LA MARCHE.
@@ -25,7 +26,7 @@ func brancherLesCanaux(m *MarcheDistribuee, canaux []CanalDesTrames) (*Observati
 		propre := NouvelleObservation()
 		c.Brancher(propre, m)
 		if err := fondreLesCrochets(obs, propre); err != nil {
-			return nil, fmt.Errorf("canal %d : %w", i, err)
+			return nil, fmt.Errorf("channel %d: %w", i, err)
 		}
 	}
 	return obs, nil

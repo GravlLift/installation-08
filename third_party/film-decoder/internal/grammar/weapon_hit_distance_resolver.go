@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // weapon_hit_distance_resolver.go — LE RESOLVEUR DE DISTANCE tireur<->victime, productionise
@@ -67,7 +68,7 @@ type hitPosSample struct {
 func BuildBipedTracks(dir string, entry profile.MapQuantEntry, n int) (map[uint32][]hitPosSample, error) {
 	lay := entry.Layout()
 	if !lay.Valid() {
-		return nil, fmt.Errorf("%w (film %s) : l entree de catalogue ne porte pas de decoupage d axe exploitable",
+		return nil, fmt.Errorf("%w (film %s): the catalog entry carries no usable axis split",
 			profile.ErrUnknownMapBounds, dir)
 	}
 	wr := entry.Range()
@@ -84,7 +85,7 @@ func BuildBipedTracks(dir string, entry profile.MapQuantEntry, n int) (map[uint3
 	}
 	pos, err := ScanFilmBipedPositions(dir, opt)
 	if err != nil {
-		return nil, fmt.Errorf("balayage biped (%s) : %w", dir, err)
+		return nil, fmt.Errorf("biped sweep (%s): %w", dir, err)
 	}
 	tr := map[uint32][]hitPosSample{}
 	for _, p := range pos {

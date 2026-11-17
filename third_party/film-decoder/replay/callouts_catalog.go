@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // CATALOGUE DE CALLOUTS — lecteur du fichier de référence figé par titre
@@ -51,7 +52,7 @@ const MapCalloutsSchemaVersion = 1
 // (Lookup) ou map_id inconnu (LookupByID). Cas COURANT : toutes les cartes Forge ne sont pas
 // extraites, et une carte hors rotation n'a jamais été vue. L'appelant dégrade, il n'échoue
 // pas.
-var ErrCalloutsUnknownMap = errors.New("replay: carte absente du catalogue de callouts")
+var ErrCalloutsUnknownMap = errors.New("replay: map absent from the callouts catalog")
 
 // Provenance du polygone livré pour une carte.
 const (
@@ -153,14 +154,14 @@ type CalloutZone struct {
 func LoadMapCallouts(path string) (*MapCalloutsCatalog, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("catalogue de callouts illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("callouts catalog unreadable (%s): %w", path, err)
 	}
 	var c MapCalloutsCatalog
 	if err := json.Unmarshal(blob, &c); err != nil {
-		return nil, fmt.Errorf("catalogue de callouts invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("callouts catalog invalid (%s): %w", path, err)
 	}
 	if c.SchemaVersion != MapCalloutsSchemaVersion {
-		return nil, fmt.Errorf("catalogue de callouts en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("callouts catalog is version %d, expected %d (%s)",
 			c.SchemaVersion, MapCalloutsSchemaVersion, path)
 	}
 	return &c, nil

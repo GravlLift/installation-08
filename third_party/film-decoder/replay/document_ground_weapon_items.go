@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_ground_weapon_items.go — LES ARMES AU SOL, une par une, affichables du lâcher à la
@@ -373,8 +374,8 @@ func gwItemTakeInWindow(b gwPickupBounds, apparUS, tUS uint64) bool {
 
 // logGroundWeaponItems journalise le calque avec ses dénominateurs.
 func logGroundWeaponItems(ctx context.Context, cov GroundWeaponItemsCoverage) {
-	slog.InfoContext(ctx, "rejeu : armes au sol individuelles",
-		"objets", cov.Objects, "publiees", cov.Published, "auRepos", cov.AtRest,
+	slog.InfoContext(ctx, "replay: individual ground weapons",
+		"objects", cov.Objects, "published", cov.Published, "auRepos", cov.AtRest,
 		"lacheurNomme", cov.DropperNamed, "prisesRecues", cov.TakesTotal,
 		"ramasseurNomme", cov.PickupLinked,
 		"finPickup", cov.EndPickup, "finVue", cov.EndSeen, "finOuverte", cov.EndOpen)

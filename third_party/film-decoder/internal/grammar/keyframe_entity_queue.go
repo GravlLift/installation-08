@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // keyframe_entity_queue.go — lot R6 (2026-08-17). PONT entre la capture live « keyframe »
@@ -50,7 +51,7 @@ type KFQPacketRef struct {
 func FindPackets(root string, preds []func([]byte) bool) ([][]KFQPacketRef, error) {
 	films, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("racine de films illisible %s : %w", root, err)
+		return nil, fmt.Errorf("unreadable films root %s: %w", root, err)
 	}
 	out := make([][]KFQPacketRef, len(preds))
 	for _, f := range films {
@@ -96,7 +97,7 @@ func KFQPrefix(want []byte) func([]byte) bool {
 func FirstPacketOfType(dir string, typ uint16) ([]byte, FilmPacket, int, error) {
 	n := CountFilmChunks(dir)
 	if n == 0 {
-		return nil, FilmPacket{}, 0, fmt.Errorf("aucun chunk film dans %s", dir)
+		return nil, FilmPacket{}, 0, fmt.Errorf("no film chunks in %s", dir)
 	}
 	for c := 1; c <= n; c++ {
 		data, err := ReadFilmChunk(dir, c)
@@ -109,7 +110,7 @@ func FirstPacketOfType(dir string, typ uint16) ([]byte, FilmPacket, int, error) 
 			}
 		}
 	}
-	return nil, FilmPacket{}, 0, fmt.Errorf("aucun paquet de type %d dans %s", typ, dir)
+	return nil, FilmPacket{}, 0, fmt.Errorf("no packet of type %d in %s", typ, dir)
 }
 
 // KFQVariant est une combinaison de CADRE de la boucle de records — les trois grandeurs qui

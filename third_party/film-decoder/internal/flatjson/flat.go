@@ -38,6 +38,7 @@
 //	type labelWire Label // mêmes champs, sans méthodes (évite la récursion)
 //	func (l Label) MarshalJSON() ([]byte, error)  { return flatjson.MarshalFlat[Text](labelWire(l), layout) }
 //	func (l *Label) UnmarshalJSON(b []byte) error { return flatjson.UnmarshalFlat[Text](b, (*labelWire)(l)) }
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package flatjson
 
 import (
@@ -70,19 +71,19 @@ func textField[T ~map[string]string](v reflect.Value) (reflect.Value, error) {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
-		return reflect.Value{}, fmt.Errorf("flatjson: %s n'est pas un struct", v.Type())
+		return reflect.Value{}, fmt.Errorf("flatjson: %s is not a struct", v.Type())
 	}
 	var found reflect.Value
 	for i := range v.NumField() {
 		if v.Type().Field(i).Type == textType {
 			if found.IsValid() {
-				return reflect.Value{}, fmt.Errorf("flatjson: %s porte plusieurs champs %s", v.Type(), textType)
+				return reflect.Value{}, fmt.Errorf("flatjson: %s has multiple fields %s", v.Type(), textType)
 			}
 			found = v.Field(i)
 		}
 	}
 	if !found.IsValid() {
-		return reflect.Value{}, fmt.Errorf("flatjson: %s ne porte aucun champ %s", v.Type(), textType)
+		return reflect.Value{}, fmt.Errorf("flatjson: %s has no field %s", v.Type(), textType)
 	}
 	return found, nil
 }
@@ -191,7 +192,7 @@ func insertionOffset(obj []byte, after string) (int, error) {
 			return int(dec.InputOffset()), nil
 		}
 	}
-	return 0, fmt.Errorf("flatjson: membre %q absent de l'objet, les langues ne peuvent pas s'y insérer", after)
+	return 0, fmt.Errorf("flatjson: member %q missing from the object, languages cannot be inserted into it", after)
 }
 
 // nomsDesChamps : par type de parent, les noms JSON de ses champs (ceux qu'`encoding/json` lit),
@@ -284,7 +285,7 @@ func UnmarshalFlat[T ~map[string]string](data []byte, wire any) error {
 		}
 		var v string
 		if err := json.Unmarshal(brut, &v); err != nil {
-			return fmt.Errorf("flatjson: membre %q : %w", membre, err)
+			return fmt.Errorf("flatjson: member %q: %w", membre, err)
 		}
 		if t == nil {
 			t = T{}

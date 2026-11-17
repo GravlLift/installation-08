@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // INDEX DES FONDS PUBLIÉS — de l'IDENTITÉ d'une carte jouée vers la CLÉ de son fond.
@@ -190,7 +191,7 @@ func (i *MapBackgroundIndex) Cles() int {
 func BuildMapBackgroundIndex(ctx context.Context, dir string) (*MapBackgroundIndex, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("répertoire de fonds illisible (%s) : %w", dir, err)
+		return nil, fmt.Errorf("background directory unreadable (%s): %w", dir, err)
 	}
 	return indexDepuisEntrees(ctx, dir, entries), nil
 }
@@ -210,7 +211,7 @@ func indexDepuisEntrees(ctx context.Context, dir string, entries []os.DirEntry) 
 		chemin := filepath.Join(dir, e.Name())
 		bg, errLect := LoadMapBackground(chemin)
 		if errLect != nil {
-			slog.WarnContext(ctx, "index des fonds : sidecar illisible — carte non indexée",
+			slog.WarnContext(ctx, "background index: unreadable sidecar — map not indexed",
 				"err", errLect, "path", chemin)
 			continue
 		}
@@ -245,8 +246,8 @@ func trancheAmbiguites(ctx context.Context, porteurs map[string]map[string]bool,
 		}
 		sort.Strings(liste)
 		idx.ambigues[identite] = liste
-		slog.WarnContext(ctx, "index des fonds : identité de carte ambiguë — aucun fond servi sous ce nom",
-			"identite", identite, "cles", strings.Join(liste, ", "))
+		slog.WarnContext(ctx, "background index: ambiguous map identity — no background served under this name",
+			"identity", identite, "keys", strings.Join(liste, ", "))
 	}
 	return idx
 }
@@ -308,7 +309,7 @@ var signatureIndatable atomic.Uint64
 func MapBackgroundIndexFor(ctx context.Context, dir string) (*MapBackgroundIndex, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("répertoire de fonds illisible (%s) : %w", dir, err)
+		return nil, fmt.Errorf("background directory unreadable (%s): %w", dir, err)
 	}
 	signature := signatureDossier(entries)
 

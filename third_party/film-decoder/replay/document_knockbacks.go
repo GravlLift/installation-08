@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_knockbacks.go — LES POUSSÉES D'ÉQUIPEMENT (le répulseur), datées et attribuées par la
@@ -100,8 +101,8 @@ func buildKnockbacks(evts []types.Knockback, st types.KnockbackStats, tracks []T
 
 // logKnockbackCoverage sort la couverture du calque.
 func logKnockbackCoverage(ctx context.Context, cov KnockbackCoverage) {
-	slog.InfoContext(ctx, "rejeu : poussees d equipement",
-		"lus104", cov.Read104, "lus105", cov.Read105, "appariees", cov.Paired, "nonAppariees", cov.Unpaired,
-		"publiees", cov.Published, "avantOrigine", cov.BeforeOrigin, "sansIdentite", cov.NoIdentity,
+	slog.InfoContext(ctx, "replay: equipment knockbacks",
+		"read104", cov.Read104, "read105", cov.Read105, "paired", cov.Paired, "nonAppariees", cov.Unpaired,
+		"published", cov.Published, "avantOrigine", cov.BeforeOrigin, "sansIdentite", cov.NoIdentity,
 		"sansImpulsion", cov.WithoutImpulse, "sansAuteur", cov.WithoutAuthor)
 }

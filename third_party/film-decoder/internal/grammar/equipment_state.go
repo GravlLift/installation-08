@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // equipment_state.go — L'ÉTAT DES ÉQUIPEMENTS DÉPLOYÉS, lu dans les paquets delta de ti=37.
@@ -200,7 +201,7 @@ func (c *FilmContext) EquipmentArchetype() (Archetype, error) {
 		return Archetype{}, err
 	}
 	if !ok {
-		return Archetype{}, fmt.Errorf("archétype équipement %d absent du registre", EquipmentTypeIndex)
+		return Archetype{}, fmt.Errorf("equipment archetype %d missing from the registry", EquipmentTypeIndex)
 	}
 	return arch, nil
 }
@@ -230,7 +231,7 @@ func ScanEquipmentState(fc *FilmContext) ([]EquipmentStateSample, EquipmentState
 	}
 	band := worldObjectSlotBand(fc, EquipmentTypeIndex)
 	if len(band) == 0 {
-		return nil, st, fmt.Errorf("aucun slot d'archétype ti=%d dans les keyframes du film",
+		return nil, st, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			EquipmentTypeIndex)
 	}
 	st.Slots = len(band)

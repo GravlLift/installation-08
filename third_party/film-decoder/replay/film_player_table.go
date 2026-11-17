@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // film_player_table.go — LA TABLE DES JOUEURS DU FILM, JOURNALISEE ET COMPTEE (lot 1.6.0).
@@ -33,18 +34,18 @@ func consignerLaTableDuFilm(ctx context.Context, t grammar.FilmPlayerTable, err 
 			// production et non seulement dans le journal du jour de la cuisson.
 			publierBuildInconnu(t.Build)
 		}
-		slog.WarnContext(ctx, "rejeu : table des joueurs du film NON LUE — le registre d'identite retombe sur "+
-			"la lecture des chunks de replication", "match_id", matchID, "build", t.Build,
+		slog.WarnContext(ctx, "replay: film player table NOT READ — the identity registry falls back to "+
+			"the reading of the replication chunks", "match_id", matchID, "build", t.Build,
 			"cause", string(t.Refusal), "err", err)
 		return t
 	}
-	slog.InfoContext(ctx, "rejeu : table des joueurs du film lue", "match_id", matchID, "build", t.Build,
-		"sieges", t.Occupied, "vacants", t.Vacant, "vacantIntercale", t.InterleavedVacant)
+	slog.InfoContext(ctx, "replay: film player table read", "match_id", matchID, "build", t.Build,
+		"seats", t.Occupied, "vacant", t.Vacant, "vacantIntercale", t.InterleavedVacant)
 	if t.InterleavedVacant {
 		// Le registre d'identite tranche (identity_registry_vacant_intercale.go) et journalise son
 		// refus quand les records de creation ne confirment pas le rang absolu.
-		slog.InfoContext(ctx, "rejeu : siege VACANT INTERCALE dans la table du film — le rang absolu et "+
-			"l'index parmi les occupes divergent, le lien direct attend la confirmation des records de creation",
+		slog.InfoContext(ctx, "replay: VACANT SEAT INTERLEAVED in the film table — the absolute rank and "+
+			"the index among the occupied diverge, the direct link awaits the confirmation of the creation records",
 			"match_id", matchID, "build", t.Build)
 	}
 	return t

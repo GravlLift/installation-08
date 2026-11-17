@@ -7,6 +7,7 @@
 // installe (`himap.LireLesEnergiesDEquipement`) : jamais saisi a la main. Chaque entree est une fiche
 // `sofa` qui relie l objet RAMASSABLE (nomme par le film au sol) a l objet PORTE (cree attache au
 // joueur qui le prend), avec l energie initiale des deux et la capacite du second.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package equipenergy
 
 import (
@@ -59,10 +60,10 @@ func Load(path string) (*Catalog, error) {
 	}
 	var c Catalog
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return nil, fmt.Errorf("catalogue de l energie des equipements %s : %w", path, err)
+		return nil, fmt.Errorf("equipment energy catalog %s: %w", path, err)
 	}
 	if c.SchemaVersion != SchemaVersion {
-		return nil, fmt.Errorf("catalogue de l energie des equipements %s : version %d, %d attendue", path,
+		return nil, fmt.Errorf("equipment energy catalog %s: version %d, %d expected", path,
 			c.SchemaVersion, SchemaVersion)
 	}
 	return &c, nil

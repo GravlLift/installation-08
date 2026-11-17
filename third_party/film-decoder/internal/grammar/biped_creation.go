@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // biped_creation.go — LE RECORD DE CRÉATION D'UN BIPÈDE (ti=35), ET L'INDEX QU'IL PORTE.
@@ -126,7 +127,7 @@ func (c BipedCreation) LifeKey() uint32 { return c.Slot | (c.Generation << 16) }
 // HORS LIGNE (parcours de tous les paquets delta du film) — jamais depuis un chemin de requête.
 func ScanBipedCreations(fc *FilmContext) ([]BipedCreation, types.BipedCreationStats, error) {
 	if fc == nil {
-		return nil, types.BipedCreationStats{}, errors.New("contexte de film absent")
+		return nil, types.BipedCreationStats{}, errors.New("film context missing")
 	}
 	if len(fc.ChunkNumbers()) == 0 {
 		return nil, types.BipedCreationStats{}, ErrNoFilmChunk
@@ -134,7 +135,7 @@ func ScanBipedCreations(fc *FilmContext) ([]BipedCreation, types.BipedCreationSt
 	band := fc.BipedSlots()
 	if band.Count() == 0 {
 		return nil, types.BipedCreationStats{}, fmt.Errorf(
-			"aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+			"no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	return ScanBipedCreationsForBand(fc, band)
 }
@@ -150,14 +151,14 @@ func ScanBipedCreationsForBand(
 ) ([]BipedCreation, types.BipedCreationStats, error) {
 	var st types.BipedCreationStats
 	if fc == nil {
-		return nil, st, errors.New("contexte de film absent")
+		return nil, st, errors.New("film context missing")
 	}
 	nums := fc.ChunkNumbers()
 	if len(nums) == 0 {
 		return nil, st, ErrNoFilmChunk
 	}
 	if band.Count() == 0 {
-		return nil, st, errors.New("bande de slots vide")
+		return nil, st, errors.New("empty slot band")
 	}
 	st.Slots = band.Count()
 	w := bipedCreationWalk{prof: fc.ProfilDeBalayage(), band: band, st: &st, autres: map[uint32]int{}}

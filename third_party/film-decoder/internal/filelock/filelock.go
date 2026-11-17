@@ -18,6 +18,7 @@
 //
 // `gofrs/flock` ecarte : une dependance pour la quarantaine de lignes ci-dessous, au-dessus de
 // `golang.org/x/sys`, deja dependance directe du module.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filelock
 
 import (
@@ -28,7 +29,7 @@ import (
 )
 
 // ErrLocked : le verrou est tenu par un autre detenteur. Un REFUS attendu, pas une panne.
-var ErrLocked = errors.New("filelock: verrou tenu par un autre detenteur")
+var ErrLocked = errors.New("filelock: lock held by another holder")
 
 // Lock : un verrou tenu. [Lock.Unlock] le rend ; l'appeler plusieurs fois est sur.
 type Lock struct {
@@ -42,14 +43,14 @@ type Lock struct {
 func TryLock(path string) (*Lock, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644) //nolint:gosec // chemin fourni par l'appelant
 	if err != nil {
-		return nil, fmt.Errorf("filelock: ouverture de %s : %w", path, err)
+		return nil, fmt.Errorf("filelock: opening %s: %w", path, err)
 	}
 	if err := verrouiller(f); err != nil {
 		_ = f.Close()
 		if errors.Is(err, ErrLocked) {
 			return nil, err
 		}
-		return nil, fmt.Errorf("filelock: verrou de %s : %w", path, err)
+		return nil, fmt.Errorf("filelock: locking %s: %w", path, err)
 	}
 	return &Lock{f: f}, nil
 }
@@ -64,7 +65,7 @@ func (l *Lock) Unlock() error {
 		errDeverrou := deverrouiller(l.f)
 		errFermeture := l.f.Close()
 		if err := errors.Join(errDeverrou, errFermeture); err != nil {
-			l.err = fmt.Errorf("filelock: liberation de %s : %w", l.f.Name(), err)
+			l.err = fmt.Errorf("filelock: releasing %s: %w", l.f.Name(), err)
 		}
 	})
 	return l.err

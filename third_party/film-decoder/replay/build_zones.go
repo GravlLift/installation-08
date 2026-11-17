@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_zones.go — LE CABLAGE du calque de L'ETAT DES ZONES : ce que l'appelant fournit, ce que
@@ -62,13 +63,13 @@ func (p *ti13Partage) lire(ctx context.Context) {
 	p.fait = true
 	sc, err := grammar.ScanManagedProperties(p.fc)
 	if err != nil {
-		slog.InfoContext(ctx, "rejeu : proprietes ti=13 illisibles — rejeu sans etat de zone ni jauge de retour",
+		slog.InfoContext(ctx, "replay: unreadable ti=13 properties — replay without zone state or return gauge",
 			"err", err, "match_id", p.matchID)
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : proprietes ti=13 balayees",
-		"match_id", p.matchID, "slots", sc.Slots, "records", sc.Records, "marches", sc.Walked,
-		"cassees", sc.Broken, "chainees", sc.Chained, "lectures", len(sc.Reads),
+	slog.InfoContext(ctx, "replay: ti=13 properties swept",
+		"match_id", p.matchID, "slots", sc.Slots, "records", sc.Records, "walks", sc.Walked,
+		"broken", sc.Broken, "chained", sc.Chained, "reads", len(sc.Reads),
 		"recordsImageCle", sc.KeyRecords, "fermesImageCle", sc.KeyClosed,
 		"cassesImageCle", sc.KeyBroken, "nonProuvesImageCle", sc.KeyUnproven,
 		"refusesImageCle", sc.KeyRefused, "lecturesImageCle", len(sc.KeyReads))
@@ -87,7 +88,7 @@ func (p *ti13Partage) lire(ctx context.Context) {
 // zones, arrivent ici SANS catalogue et ne paient rien de ce cote.
 func decodeFilmZoneReads(ctx context.Context, p *ti13Partage, garde bool) (reads, keyReads []grammar.ManagedPropertyRead) {
 	if !garde {
-		slog.DebugContext(ctx, "rejeu : aucune zone au catalogue — proprietes ti=13 non consommees par les zones",
+		slog.DebugContext(ctx, "replay: no zone in the catalog — ti=13 properties not consumed by zones",
 			"match_id", p.matchID)
 		return nil, nil
 	}
@@ -143,23 +144,23 @@ func logZoneStatesCoverage(ctx context.Context, matchID string, cov *ZonesCovera
 		// qu'aucune capture ne rattache, des rampes que la grappe ne localise pas, ou des
 		// periodes designees que la grappe ne localise pas. La methode voyage donc DANS le
 		// message — sans elle, le meme chiffre se lirait de trois facons.
-		slog.WarnContext(ctx, "rejeu : appariements ECARTES — zones absentes de l'etat publie",
-			"match_id", matchID, "methode", cov.Method, "nonApparies", cov.Unpaired,
-			"apparies", cov.Paired, "captures", cov.Captures, "attribuees", cov.Attributed)
+		slog.WarnContext(ctx, "replay: pairings DISCARDED — zones absent from the published state",
+			"match_id", matchID, "method", cov.Method, "nonApparies", cov.Unpaired,
+			"paired", cov.Paired, "captures", cov.Captures, "attributed", cov.Attributed)
 	}
 	if cov.OwnerUnpaired > 0 {
-		slog.WarnContext(ctx, "rejeu : zones SANS canal de proprietaire elu — zones absentes de l'etat publie",
-			"match_id", matchID, "sansProprietaire", cov.OwnerUnpaired, "apparies", cov.Paired,
+		slog.WarnContext(ctx, "replay: zones WITHOUT an elected owner channel — zones absent from the published state",
+			"match_id", matchID, "sansProprietaire", cov.OwnerUnpaired, "paired", cov.Paired,
 			"seuilAccord", zoneOwnerMinAgreements)
 	}
 	if cov.UnknownOwner > 0 {
-		slog.WarnContext(ctx, "rejeu : valeurs de proprietaire INCONNUES — intervalles non ouverts",
-			"match_id", matchID, "valeurs", cov.UnknownOwner)
+		slog.WarnContext(ctx, "replay: UNKNOWN owner values — intervals not opened",
+			"match_id", matchID, "values", cov.UnknownOwner)
 	}
-	slog.InfoContext(ctx, "rejeu : etat des zones",
-		"match_id", matchID, "methode", cov.Method, "catalogue", cov.Catalog,
-		"slots", cov.Slots, "apparies", cov.Paired, "nonApparies", cov.Unpaired,
-		"sansProprietaire", cov.OwnerUnpaired, "intervalles", cov.Spans,
+	slog.InfoContext(ctx, "replay: zone state",
+		"match_id", matchID, "method", cov.Method, "catalog", cov.Catalog,
+		"slots", cov.Slots, "paired", cov.Paired, "nonApparies", cov.Unpaired,
+		"sansProprietaire", cov.OwnerUnpaired, "intervals", cov.Spans,
 		"periodesColline", cov.HillPeriods, "proprietaireVerifie", cov.OwnerChecked,
 		"proprietaireConcordant", cov.OwnerAgreed,
 		"capturesAttribuees", cov.Attributed, "capturesSansPosition", cov.NoPosition,

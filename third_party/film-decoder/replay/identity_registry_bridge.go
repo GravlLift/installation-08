@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // identity_registry_bridge.go — LE PONT PAR MORTS, DEVENU UNE VERIFICATION (lot E2, 2026-09-08).
@@ -93,9 +94,9 @@ func verifierParLesMorts(ctx context.Context, lives []lifeSpan, deaths []types.D
 		}
 		v.Discordant++
 		v.SlotsDiscordants = ajouterSlot(v.SlotsDiscordants, l.slot)
-		slog.DebugContext(ctx, "rejeu : le pont par morts CONTREDIT le lien direct — le film fait foi",
-			"match_id", matchID, "slot", l.slot, "de", l.from, "a", l.to,
-			"xuidDirect", l.xuid, "xuidDuPont", deaths[p.di].XUID, "voie", l.nomPar)
+		slog.DebugContext(ctx, "replay: the bridge by deaths CONTRADICTS the direct link — the film is authoritative",
+			"match_id", matchID, "slot", l.slot, "from", l.from, "to", l.to,
+			"xuidDirect", l.xuid, "xuidDuPont", deaths[p.di].XUID, "via", l.nomPar)
 	}
 	return v
 }

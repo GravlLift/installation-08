@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // ground_weapon_pads.go — LES SOCLES D'ARME du match : où une arme réapparaît, quand elle y est,
@@ -391,25 +392,25 @@ func logGroundWeaponCoverage(ctx context.Context, c *GroundWeaponCoverage) {
 	if c == nil {
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : socles d'arme au sol",
-		"balaye", c.Scanned, "ancres", c.Anchors, "acceptees", c.Accepted,
-		"retenues", c.Kept, "ecartees", c.Rejected, "objetsDObjectif", c.Objectives,
-		"lachees", c.Dropped, "apparues", c.Spawned, "auRepos", c.AtRest,
-		"grappes", c.Clusters, "socles", c.Pads, "occupations", c.Occupancies,
-		"datees", c.Dated, "sansPassage", c.Unknown, "jamaisVidees", c.Never,
+	slog.InfoContext(ctx, "replay: ground weapon pads",
+		"swept", c.Scanned, "anchors", c.Anchors, "accepted", c.Accepted,
+		"kept", c.Kept, "rejected", c.Rejected, "objetsDObjectif", c.Objectives,
+		"dropped", c.Dropped, "spawned", c.Spawned, "auRepos", c.AtRest,
+		"clusters", c.Clusters, "bases", c.Pads, "occupations", c.Occupancies,
+		"dated", c.Dated, "sansPassage", c.Unknown, "jamaisVidees", c.Never,
 		"cyclesEtablis", c.Cycles)
 	// LA VOIE `ti=37` A SA PROPRE LIGNE, et il le faut : ses dénominateurs sont ceux d'un AUTRE
 	// balayage. Les fondre dans la ligne ci-dessus aurait rendu illisible le seul rapport qui
 	// dit si la lecture a réussi — acceptées contre retenues par l'identité.
-	slog.InfoContext(ctx, "rejeu : socles de power-up",
-		"balaye", c.PowerupScanned, "acceptees", c.PowerupAccepted,
-		"retenues", c.PowerupKept, "socles", c.PowerupPads)
+	slog.InfoContext(ctx, "replay: power-up pads",
+		"swept", c.PowerupScanned, "accepted", c.PowerupAccepted,
+		"kept", c.PowerupKept, "bases", c.PowerupPads)
 	// LE SILENCE QU'IL FAUT ROMPRE : des créations acceptées dont AUCUNE ne résout d'arme n'est
 	// pas « un film sans socle », c'est une lecture qui a échoué en bloc — largeurs du bloc MPP
 	// non réinstallées, ou grammaire de l'état par défaut qui a bougé. Sans ce warn, un film BTB
 	// entier sortait avec zéro socle sans que rien ne le signale.
 	if c.Kept == 0 && c.Accepted > 0 {
-		slog.WarnContext(ctx, "rejeu : identite ti=42 non resolue sur AUCUNE creation — largeurs MPP ?",
-			"acceptees", c.Accepted, "retenues", c.Kept, "ancres", c.Anchors)
+		slog.WarnContext(ctx, "replay: ti=42 identity unresolved on NO creation — MPP widths?",
+			"accepted", c.Accepted, "kept", c.Kept, "anchors", c.Anchors)
 	}
 }

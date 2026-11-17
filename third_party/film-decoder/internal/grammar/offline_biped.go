@@ -40,6 +40,7 @@
 // (choix des chunks, découpage i0, relevé de la bande `ti=35`) vivent dans
 // offline_biped_band.go — un DÉPLACEMENT du 2026-09-05, sans une ligne de logique changée,
 // pour repasser sous le seuil de 500 lignes.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 import (
@@ -190,7 +191,7 @@ func ScanFilmBipedPositions(dir string, opt ScanFilmOptions) ([]BipedPosition, e
 	// bornes doit recevoir profile.ErrUnknownMapBounds, pas une erreur de lecture de repertoire. Le
 	// message garde le chemin du film, que la forme `Scan*(film)` n'a plus.
 	if opt.WorldRange == nil && !opt.QuantaOnly {
-		return nil, fmt.Errorf("%w (film %s) : renseigner ScanFilmOptions.WorldRange, ou QuantaOnly pour n'obtenir que les quanta", profile.ErrUnknownMapBounds, dir)
+		return nil, fmt.Errorf("%w (film %s): set ScanFilmOptions.WorldRange, or QuantaOnly to get quanta only", profile.ErrUnknownMapBounds, dir)
 	}
 	film, err := source.LoadDir(dir, nil)
 	if err != nil {
@@ -224,7 +225,7 @@ func ScanBipedPositions(fc *FilmContext, opt ScanFilmOptions) ([]BipedPosition, 
 		band = bipedSlotBand(fc, chunks)
 	}
 	if band.Count() == 0 {
-		return nil, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	voie := positionsParBande
 	if parContexte {

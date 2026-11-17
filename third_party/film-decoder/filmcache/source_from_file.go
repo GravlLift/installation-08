@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package filmcache
 
 // source_from_file.go — [NewSource] et [ParseManifest] : une Source construite depuis un
@@ -22,7 +23,7 @@ import (
 func ParseManifest(raw []byte) ([]types.ChunkMeta, error) {
 	var mf manifestJSON
 	if err := json.Unmarshal(raw, &mf); err != nil {
-		return nil, fmt.Errorf("manifeste de film invalide : %w", err)
+		return nil, fmt.Errorf("film manifest invalid: %w", err)
 	}
 	out := make([]types.ChunkMeta, 0, len(mf.Chunks))
 	for _, c := range mf.Chunks {

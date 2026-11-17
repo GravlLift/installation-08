@@ -60,6 +60,7 @@
 //	AMBIGU        NE PAS PUBLIER. L etiquette serait affirmative et fausse (effet generique
 //	              partage par plusieurs entrees, dont on ne peut pas designer laquelle).
 //	INCONNU       le tag est un `jpt!` valide mais aucune source ne lui est remontee.
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package damagetag
 
 import (
@@ -133,10 +134,10 @@ var (
 func init() {
 	var err error
 	if catalog, ids, provided.IDsDate, err = parseIDs(rawIDs); err != nil {
-		panic("damagetag: data/jpt_ids.txt illisible: " + err.Error())
+		panic("damagetag: data/jpt_ids.txt unreadable: " + err.Error())
 	}
 	if labels, provided.LabelsDate, err = parseLabels(rawLabels); err != nil {
-		panic("damagetag: data/labels.tsv illisible: " + err.Error())
+		panic("damagetag: data/labels.tsv unreadable: " + err.Error())
 	}
 	provided.IDsCount = len(ids)
 	provided.LabelCount = len(labels)
@@ -215,7 +216,7 @@ func parseIDs(raw string) (map[uint32]struct{}, []uint32, string, error) {
 		}
 		v, err := strconv.ParseUint(line, 16, 32)
 		if err != nil {
-			return nil, nil, "", fmt.Errorf("ligne %d: %q: %w", n+1, line, err)
+			return nil, nil, "", fmt.Errorf("line %d: %q: %w", n+1, line, err)
 		}
 		if _, dup := set[uint32(v)]; dup {
 			continue
@@ -242,11 +243,11 @@ func parseLabels(raw string) (map[uint32]Label, string, error) {
 		}
 		f := strings.Split(line, "\t")
 		if len(f) != 6 {
-			return nil, "", fmt.Errorf("ligne %d: %d colonnes au lieu de 6", n+1, len(f))
+			return nil, "", fmt.Errorf("line %d: %d columns instead of 6", n+1, len(f))
 		}
 		v, err := strconv.ParseUint(f[0], 16, 32)
 		if err != nil {
-			return nil, "", fmt.Errorf("ligne %d: tag %q: %w", n+1, f[0], err)
+			return nil, "", fmt.Errorf("line %d: tag %q: %w", n+1, f[0], err)
 		}
 		out[uint32(v)] = Label{Tag: uint32(v), Class: Class(f[1]), Status: Status(f[2]),
 			Name: f[3], Detail: f[4], Reserve: f[5]}

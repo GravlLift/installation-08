@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_pistes.go — LES SIX PREMIERES PASSES DE L ASSEMBLAGE : les pistes et leur identite, les
@@ -221,9 +222,9 @@ func (a *assemblage) poserTirsProjectilesEtGrenades() {
 		if projTronquees > 0 {
 			// JOURNALISE, JAMAIS AVALE (regle n°3) : une coupure protege le rendu, elle ne
 			// repare pas la dequantification qui la cause.
-			slog.InfoContext(a.ctx, "rejeu : trajectoires de projectile coupees a un pas impossible",
-				"match_id", a.matchID, "tronquees", projTronquees, "pistes", len(a.opt.Projectiles),
-				"seuil_mps", projectileMaxSpeedMPS)
+			slog.InfoContext(a.ctx, "replay: projectile tracks cut at an impossible step",
+				"match_id", a.matchID, "truncated", projTronquees, "tracks", len(a.opt.Projectiles),
+				"threshold_mps", projectileMaxSpeedMPS)
 		}
 	}
 
@@ -264,8 +265,8 @@ func (a *assemblage) poserEpisodesDEquipement() {
 	a.doc.EquipmentEpisodes, camoNonBinary = buildEquipmentEpisodes(a.sorted, a.opt.CamoStates, a.origin, a.step,
 		a.doc.Tracks, a.clotureesParMort)
 	if camoNonBinary > 0 {
-		slog.WarnContext(a.ctx, "rejeu : lectures camo NON BINAIRES ignorees — l'interrupteur mesure ne connait que 0 et 4095",
-			"lectures", camoNonBinary)
+		slog.WarnContext(a.ctx, "replay: NON-BINARY camo readings ignored — the measured switch only knows 0 and 4095",
+			"reads", camoNonBinary)
 	}
 	// Les FRAGS SOUS EFFET ACTIF : jointure des episodes avec les kills resolus par
 	// l'appelant (cf. equipment_episode_kills.go). AVANT la couverture, qui publie
@@ -279,12 +280,12 @@ func (a *assemblage) poserEpisodesDEquipement() {
 		origin: a.origin, step: a.step, tracks: a.doc.Tracks,
 		closedByDeath: a.clotureesParMort,
 	})
-	slog.InfoContext(a.ctx, "rejeu : etats de mouvement",
-		"balaye", a.stanceCov.Scanned, "absent", a.stanceCov.Absent,
+	slog.InfoContext(a.ctx, "replay: movement states",
+		"swept", a.stanceCov.Scanned, "absent", a.stanceCov.Absent,
 		"records", a.stanceCov.Records, "desyncs", a.stanceCov.Desyncs,
-		"lectures", a.stanceCov.Reads, "intervalles", a.stanceCov.Intervals,
-		"parGenre", a.stanceCov.ByKind, "vies", a.stanceCov.Lives,
-		"viesPubliees", a.stanceCov.TracksTotal, "ecartees", a.stanceCov.Dropped,
+		"reads", a.stanceCov.Reads, "intervals", a.stanceCov.Intervals,
+		"parGenre", a.stanceCov.ByKind, "lives", a.stanceCov.Lives,
+		"viesPubliees", a.stanceCov.TracksTotal, "rejected", a.stanceCov.Dropped,
 		"largeursCarte", a.stanceCov.MapWidths)
 	a.killsRead = attachAllEquipmentKills(a.doc.EquipmentEpisodes, a.opt.Kills, occupantParFrame(a.reg, replayClock{origin: a.origin, step: a.step, fb: a.opt.Fallbacks}), a.doc.OriginMs, a.interval)
 }

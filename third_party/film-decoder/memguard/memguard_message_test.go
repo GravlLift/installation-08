@@ -59,15 +59,15 @@ func TestArmJournaliseLeMessageDeLAppelant(t *testing.T) {
 		champs[a.Key] = a.Value.String()
 		return true
 	})
-	if champs["souple_gib"] != "64" {
-		t.Errorf("champ souple_gib = %q, attendu \"64\"", champs["souple_gib"])
+	if champs["soft_gib"] != "64" {
+		t.Errorf("champ soft_gib = %q, attendu \"64\"", champs["soft_gib"])
 	}
-	if got, veut := champs["dur_octets"], HardLimitFor(64); got != uint64String(veut) {
-		t.Errorf("champ dur_octets = %q, attendu %d — HardLimitFor doit rendre le plafond "+
+	if got, veut := champs["hard_bytes"], HardLimitFor(64); got != uint64String(veut) {
+		t.Errorf("champ hard_bytes = %q, attendu %d — HardLimitFor doit rendre le plafond "+
 			"que Arm pose reellement", got, veut)
 	}
-	if champs["outil"] != "outil-de-test" {
-		t.Errorf("champ outil = %q, attendu \"outil-de-test\"", champs["outil"])
+	if champs["tool"] != "outil-de-test" {
+		t.Errorf("champ tool = %q, attendu \"outil-de-test\"", champs["tool"])
 	}
 }
 

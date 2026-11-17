@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // equipment_creation.go — LE RECORD DE CRÉATION d'un objet d'équipement (ti=37).
@@ -113,7 +114,7 @@ func ScanEquipmentCreations(fc *FilmContext, wr *profile.Vec3Range) ([]types.Equ
 	}
 	band := worldObjectSlotBand(fc, EquipmentTypeIndex)
 	if len(band) == 0 {
-		return nil, st, fmt.Errorf("aucun slot d'archétype ti=%d dans les keyframes du film",
+		return nil, st, fmt.Errorf("no archetype slot ti=%d in the film keyframes",
 			EquipmentTypeIndex)
 	}
 	return ScanEquipmentCreationsForBand(fc, wr, band)
@@ -143,7 +144,7 @@ func ScanEquipmentCreationsForBand(
 ) ([]types.EquipmentCreation, types.EquipmentCreationStats, error) {
 	var st types.EquipmentCreationStats
 	if wr == nil {
-		return nil, st, fmt.Errorf("bornes monde absentes : sans elles le décodeur ne rend que des quanta")
+		return nil, st, fmt.Errorf("world bounds missing: without them the decoder only yields quanta")
 	}
 	nums := fc.ChunkNumbers()
 	if len(nums) == 0 {

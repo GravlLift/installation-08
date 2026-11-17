@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package grammar
 
 // camo_state.go — L'ÉTAT ACTIF DU CAMOUFLAGE, lu dans les paquets delta.
@@ -87,10 +88,10 @@ func ScanCamoStates(fc *FilmContext) ([]types.CamoRead, CamoStateStats, error) {
 	}
 	slots := fc.BipedSlots()
 	if slots.Count() == 0 {
-		return nil, st, fmt.Errorf("aucun slot biped (ti=%d) dans les keyframes du film", BipedTypeIndex)
+		return nil, st, fmt.Errorf("no biped slot (ti=%d) in the film keyframes", BipedTypeIndex)
 	}
 	if _, err := fc.I0Layout(); err != nil {
-		return nil, st, fmt.Errorf("découpage i0 illisible : %w", err)
+		return nil, st, fmt.Errorf("unreadable i0 split: %w", err)
 	}
 	arch, err := fc.bipedArchetype()
 	if err != nil {
@@ -98,7 +99,7 @@ func ScanCamoStates(fc *FilmContext) ([]types.CamoRead, CamoStateStats, error) {
 	}
 	i28idx := componentIndexOfAny(arch, camoComponentName)
 	if i28idx < 0 {
-		return nil, st, fmt.Errorf("composant %q absent de l'archétype biped du film", camoComponentName)
+		return nil, st, fmt.Errorf("component %q missing from the film's biped archetype", camoComponentName)
 	}
 	lu, err := fc.lecturesBipedes()
 	if err != nil {

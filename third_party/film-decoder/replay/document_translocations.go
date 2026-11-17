@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // document_translocations.go — LES TÉLÉPORTATIONS DU TRANSLOCATEUR, datées ET SITUÉES par
@@ -125,8 +126,8 @@ func coordPtr(v float32) *float32 {
 // logTranslocationCoverage sort la couverture du calque — un journal qui ne dirait que les
 // publiées laisserait croire qu'elles sont toutes là, et qu'elles portent toutes leur saut.
 func logTranslocationCoverage(ctx context.Context, cov TranslocationCoverage) {
-	slog.InfoContext(ctx, "rejeu : teleportations du translocateur",
-		"evenements", cov.Events, "publiees", cov.Published, "positionnees", cov.Positioned,
+	slog.InfoContext(ctx, "replay: teleporter translocations",
+		"events", cov.Events, "published", cov.Published, "positioned", cov.Positioned,
 		"sansPosition", cov.Published-cov.Positioned,
 		"avantOrigine", cov.BeforeOrigin, "sansPiste", cov.Unpublished)
 }

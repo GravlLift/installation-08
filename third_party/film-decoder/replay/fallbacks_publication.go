@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // fallbacks_publication.go — CE QUE L'ARTEFACT DIT DE SES PROPRES REPLIS (schema 58, D14).
@@ -45,8 +46,8 @@ func attachFallbackCoverage(ctx context.Context, doc *ReplayDocument, c *fallbac
 	// UNE LIGNE PAR REPLI DECLENCHE, et pas un total : un total ne designe aucun chantier, alors
 	// qu'un nom en designe un — le registre porte sa cible de retrait en face.
 	for _, h := range doc.Coverage.Fallbacks {
-		slog.InfoContext(ctx, "rejeu : repli declenche",
-			"match_id", doc.MatchID, "repli", h.Name, "declenchements", h.Hits)
+		slog.InfoContext(ctx, "replay: fallback triggered",
+			"match_id", doc.MatchID, "fallback", h.Name, "triggers", h.Hits)
 	}
 }
 

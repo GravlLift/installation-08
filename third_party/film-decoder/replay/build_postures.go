@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_postures.go — LA PASSE DES POSTURES DE LA COMMANDE : accroupis, glissades et sauts lus dans la
@@ -42,9 +43,9 @@ func (a *assemblage) poserLesPosturesDeControle() {
 	a.doc.Actions = append(a.doc.Actions, sauts...)
 	sortPlayerActions(a.doc.Actions)
 	a.opt.Fallbacks.DeclencheN(fallback.NomSautDeriveDeLaVitesse, cov.JumpsDerivedKept)
-	slog.InfoContext(a.ctx, "rejeu : postures de la commande",
-		"lue", cov.Read, "pressions", cov.Presses, "accroupis", cov.Crouches, "glissades", cov.Slides,
-		"glissadesApresChute", cov.SlidesAfterFall, "impulsionsDuSaut", cov.JumpPulses, "sauts", cov.Jumps,
+	slog.InfoContext(a.ctx, "replay: command postures",
+		"read", cov.Read, "presses", cov.Presses, "crouches", cov.Crouches, "slides", cov.Slides,
+		"glissadesApresChute", cov.SlidesAfterFall, "impulsionsDuSaut", cov.JumpPulses, "jumps", cov.Jumps,
 		"sansJoueur", cov.NoPlayer, "sansVie", cov.NoLife, "enVehicule", cov.InVehicle,
 		"sansPosition", cov.NoPosition, "postureLue", cov.ReadByComponent,
 		"sautsDerivesGardes", cov.JumpsDerivedKept, "sautsDerivesRemplaces", cov.JumpsDerivedReplaced,

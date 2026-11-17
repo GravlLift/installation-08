@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // bomb_armings.go — LE CÂBLAGE du calque de L'ARMEMENT DE LA BOMBE : ce que l'appelant
@@ -157,26 +158,26 @@ type bombFuseVerdict struct {
 func decodeFilmBombReads(ctx context.Context, fc *grammar.FilmContext, matchID string, in BombInput) []types.NavpointRadialRead {
 	if !bombeBalayable(in) {
 		if in.Scanned {
-			slog.WarnContext(ctx, "armement : film armable sans horloge de manifeste — calque non construit",
+			slog.WarnContext(ctx, "arming: armable film without a manifest clock — layer not built",
 				"match_id", matchID)
 		}
 		return nil
 	}
 	sc, err := grammar.ScanNavpointRadial(fc, in.ChunkStartMS)
 	if err != nil {
-		slog.WarnContext(ctx, "armement : anneau ti=12 illisible — rejeu sans compte a rebours",
+		slog.WarnContext(ctx, "arming: unreadable ti=12 ring — replay without countdowns",
 			"err", err, "match_id", matchID)
 		return nil
 	}
 	if sc.Truncated {
-		slog.WarnContext(ctx, "armement : recolte TRONQUEE au plafond de lectures — armements tardifs possibles manquants",
+		slog.WarnContext(ctx, "arming: harvest TRUNCATED at the read cap — possible late armings missing",
 			"match_id", matchID)
 	}
 	// paquetsSansHorloge est un compte NOMINAL non nul (le footer n'a pas de paquet delta de
 	// base) : il s'imprime avec le bilan, il n'alarme pas.
-	slog.InfoContext(ctx, "armement : anneau ti=12 balaye",
+	slog.InfoContext(ctx, "arming: ti=12 ring swept",
 		"match_id", matchID, "slots", sc.SlotsObserved, "records", sc.Records,
-		"marches", sc.Walked, "chainees", sc.Chained, "lectures", len(sc.Reads),
+		"walks", sc.Walked, "chained", sc.Chained, "reads", len(sc.Reads),
 		"paquetsSansHorloge", sc.PacketsNoClock,
 		"imageCleRecords", sc.KeyRecords, "imageCleFermees", sc.KeyClosed,
 		"imageCleBornees", sc.KeyBounded)
@@ -427,19 +428,19 @@ func bombDetonationTimes(actions []ObjectiveAction) []int {
 // logBombArmings journalise ce que le calque publie — et pourquoi il peut se taire.
 func logBombArmings(ctx context.Context, matchID string, cov *BombArmingsCoverage, v bombFuseVerdict) {
 	if cov.Suppressed {
-		slog.WarnContext(ctx, "rejeu : armement RETENU A LA SOURCE — le film contredit la lecture "+
-			"(explosion sans armement, ou meches qui se contredisent)",
+		slog.WarnContext(ctx, "replay: arming HELD AT THE SOURCE — the film contradicts the reading "+
+			"(explosion without arming, or fuses that contradict each other)",
 			"match_id", matchID, "explosions", cov.Detonations,
-			"couvertes", cov.DetonationsCovered, "armements", cov.Armed, "segments", cov.Rises,
-			"mecheIncoherente", v.Inconsistent, "meche_ms", v.FuseMS, "cv", v.CV)
+			"covered", cov.DetonationsCovered, "armings", cov.Armed, "segments", cov.Rises,
+			"mecheIncoherente", v.Inconsistent, "fuse_ms", v.FuseMS, "cv", v.CV)
 		return
 	}
-	slog.InfoContext(ctx, "rejeu : armement de la bombe",
-		"match_id", matchID, "lectures", cov.Reads, "segments", cov.Rises,
-		"sousLePlein", cov.BelowFull, "armements", cov.Armed, "paireFondue", cov.PairMerged,
-		"publies", cov.Published, "horsFenetre", cov.OutOfWindow,
-		"explosions", cov.Detonations, "couvertes", cov.DetonationsCovered,
-		"meche_ms", v.FuseMS, "mecheMesuree", v.Measured, "cv", v.CV)
+	slog.InfoContext(ctx, "replay: bomb arming",
+		"match_id", matchID, "reads", cov.Reads, "segments", cov.Rises,
+		"sousLePlein", cov.BelowFull, "armings", cov.Armed, "paireFondue", cov.PairMerged,
+		"published", cov.Published, "horsFenetre", cov.OutOfWindow,
+		"explosions", cov.Detonations, "covered", cov.DetonationsCovered,
+		"fuse_ms", v.FuseMS, "mecheMesuree", v.Measured, "cv", v.CV)
 }
 
 // bombReadsBySlot indexe les lectures de l anneau par slot, chacune TRIEE par instant — l ordre

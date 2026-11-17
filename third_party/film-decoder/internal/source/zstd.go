@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package source
 
 // zstd.go — LE STOCKAGE ZSTD DES CHUNKS DU CACHE (decision D-18, 2026-11-01).
@@ -56,7 +57,7 @@ var magieZstd = [4]byte{0x28, 0xb5, 0x2f, 0xfd}
 
 // ErrZstdTailleInconnue : l'en-tete de trame ne declare pas la taille du contenu (trame ecrite par
 // un autre compresseur que le notre).
-var ErrZstdTailleInconnue = errors.New("source: la trame zstd ne declare pas sa taille")
+var ErrZstdTailleInconnue = errors.New("source: the zstd frame does not declare its size")
 
 // EstZstd dit si `octets` COMMENCE par la magie d'une trame zstd.
 func EstZstd(octets []byte) bool {
@@ -83,7 +84,7 @@ func CompresserZstd(octets []byte) ([]byte, error) {
 	}
 	enc, err := encodeurZstd()
 	if err != nil {
-		return nil, fmt.Errorf("source: encodeur zstd: %w", err)
+		return nil, fmt.Errorf("source: zstd encoder: %w", err)
 	}
 	return enc.EncodeAll(octets, make([]byte, 0, len(octets)/3+64)), nil
 }
@@ -93,7 +94,7 @@ func CompresserZstd(octets []byte) ([]byte, error) {
 func DecompresserZstd(trame []byte) ([]byte, error) {
 	dec, err := decodeurZstd()
 	if err != nil {
-		return nil, fmt.Errorf("source: decodeur zstd: %w", err)
+		return nil, fmt.Errorf("source: zstd decoder: %w", err)
 	}
 	hint := 0
 	if taille, err := TailleLogiqueZstd(trame); err == nil && taille <= decompressionZstdMax {
@@ -101,7 +102,7 @@ func DecompresserZstd(trame []byte) ([]byte, error) {
 	}
 	out, err := dec.DecodeAll(trame, make([]byte, 0, hint))
 	if err != nil {
-		return out, fmt.Errorf("source: decompression zstd: %w", err)
+		return out, fmt.Errorf("source: zstd decompression: %w", err)
 	}
 	return out, nil
 }
@@ -112,7 +113,7 @@ func DecompresserZstd(trame []byte) ([]byte, error) {
 func TailleLogiqueZstd(debut []byte) (int64, error) {
 	var h zstd.Header
 	if err := h.Decode(debut); err != nil {
-		return 0, fmt.Errorf("source: en-tete zstd: %w", err)
+		return 0, fmt.Errorf("source: zstd header: %w", err)
 	}
 	if !h.HasFCS {
 		return 0, ErrZstdTailleInconnue

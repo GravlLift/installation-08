@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package revision
 
 // embarques.go — LES FICHIERS QU UNE SOURCE EMBARQUE ENTRENT DANS L EMPREINTE (lot J3.2 du
@@ -46,11 +47,11 @@ func (c *collecte) embarquer(source string, motifs []string) error {
 	for _, brut := range motifs {
 		motif, tout, err := motifEmbarque(brut)
 		if err != nil {
-			return fmt.Errorf("%s : motif //go:embed %q : %w", source, brut, err)
+			return fmt.Errorf("%s: //go:embed pattern %q: %w", source, brut, err)
 		}
 		trouves, err := filepath.Glob(filepath.Join(dossier, filepath.FromSlash(motif)))
 		if err != nil || len(trouves) == 0 {
-			return fmt.Errorf("%s : motif //go:embed %q sans fichier (%v)", source, brut, err)
+			return fmt.Errorf("%s: //go:embed pattern %q with no file (%v)", source, brut, err)
 		}
 		for _, t := range trouves {
 			if err := c.ajouterEmbarques(t, tout); err != nil {

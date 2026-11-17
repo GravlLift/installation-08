@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // build_ground_weapons.go — LE CABLAGE du calque des SOCLES : ce que BuildFromFilm DECODE du
@@ -100,25 +101,25 @@ func decodeFilmPadScan(ctx context.Context,
 	defer gwInstallMPPWidths(fc, gwWidthsForFilm(fc, mpp))()
 	kf := grammar.ScanWorldObjectKeyframes(fc, arch.ti)
 	if len(kf.Band) == 0 {
-		slog.WarnContext(ctx, "socles : aucun slot de l archetype aux images-cles — rejeu sans ce calque",
+		slog.WarnContext(ctx, "pads: no archetype slot in the keyframes — replay without this layer",
 			"archetype", arch.label, "match_id", matchID, "imagesCles", len(kf.TimesUS))
 		return WorldObjectScan{}
 	}
 	cre, st, err := arch.scan(fc, wr, kf.Band)
 	if err != nil {
-		slog.WarnContext(ctx, "socles : records de creation illisibles — rejeu sans ce calque",
+		slog.WarnContext(ctx, "pads: unreadable creation records — replay without this layer",
 			"archetype", arch.label, "err", err, "match_id", matchID)
 		return WorldObjectScan{}
 	}
 	tracks, err := grammar.ScanWorldObjectsForBand(fc, wr, arch.ti, kf.Band)
 	if err != nil {
-		slog.WarnContext(ctx, "socles : pistes delta illisibles — AUCUN socle publie (sans elles, toute"+
-			" apparition passerait pour un objet apparu au repos)",
+		slog.WarnContext(ctx, "pads: unreadable delta tracks — NO pad published (without them, every "+
+			"appearance would read as an object that appeared at rest)",
 			"archetype", arch.label, "err", err, "match_id", matchID)
 		return WorldObjectScan{}
 	}
-	slog.InfoContext(ctx, "socles : balayage d archetype",
-		"archetype", arch.label, "slots", st.Slots, "ancres", st.Anchors, "acceptees", st.Accepted,
+	slog.InfoContext(ctx, "pads: archetype sweep",
+		"archetype", arch.label, "slots", st.Slots, "anchors", st.Anchors, "accepted", st.Accepted,
 		"imagesCles", len(kf.TimesUS), "viesRecensees", len(kf.SeenUS), "pistesDelta", len(tracks))
 	return WorldObjectScan{Scanned: true, Creations: cre, Stats: st, Keyframes: kf, Tracks: tracks}
 }

@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // FOND DE CARTE — le sidecar de calage d'une image de carte figée.
@@ -125,14 +126,14 @@ type MapBackgroundStats struct {
 func LoadMapBackground(path string) (*MapBackground, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("fond de carte illisible (%s) : %w", path, err)
+		return nil, fmt.Errorf("map background unreadable (%s): %w", path, err)
 	}
 	var b MapBackground
 	if err := json.Unmarshal(blob, &b); err != nil {
-		return nil, fmt.Errorf("fond de carte invalide (%s) : %w", path, err)
+		return nil, fmt.Errorf("map background invalid (%s): %w", path, err)
 	}
 	if b.SchemaVersion != MapBackgroundSchemaVersion {
-		return nil, fmt.Errorf("fond de carte en version %d, attendu %d (%s)",
+		return nil, fmt.Errorf("map background is version %d, expected %d (%s)",
 			b.SchemaVersion, MapBackgroundSchemaVersion, path)
 	}
 	return &b, nil

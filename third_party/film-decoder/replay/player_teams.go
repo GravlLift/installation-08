@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 // player_teams.go — L'EQUIPE PUBLIEE VIENT DU FILM (lot 1.7.2).
@@ -355,24 +356,24 @@ func (p teamPublication) tableDesEquipesPourLesDrapeaux() map[string]int {
 // contradiction et un refus se DISENT, avant toute degradation (regle n° 3 du depot), au `niveau`
 // de [niveauDePublication] : ils disent un defaut des equipes du document PUBLIE.
 func logTeamCoverage(ctx context.Context, matchID string, cov TeamCoverage, niveau slog.Level) {
-	slog.InfoContext(ctx, "rejeu : equipes lues dans le film", "match_id", matchID, "lue", cov.Read,
-		"refus", cov.Refusal, "records", cov.Records, "rejetes", cov.Rejected,
+	slog.InfoContext(ctx, "replay: teams read from the film", "match_id", matchID, "read", cov.Read,
+		"refusal", cov.Refusal, "records", cov.Records, "rejected", cov.Rejected,
 		"divergences", cov.Divergences, "film", cov.Film, "sansEquipe", cov.NoTeam,
-		"nonLus", cov.Unread, "accord", cov.Accord, "contradiction", cov.Contradiction,
-		"silence", cov.Silence, "vies", cov.Tracks, "viesAvecEquipe", cov.TracksNamed,
+		"nonLus", cov.Unread, "agree", cov.Accord, "contradiction", cov.Contradiction,
+		"silence", cov.Silence, "lives", cov.Tracks, "viesAvecEquipe", cov.TracksNamed,
 		"viesSlotAmbigu", cov.TracksSlotAmbiguous)
 	if cov.TracksSlotAmbiguous > 0 {
-		slog.WarnContext(ctx, "rejeu : le pont slot -> index s'ABSTIENT sur des vies dont le slot a porte deux joueurs nommes, "+
-			"ou l'index un occupant d'une autre equipe — leur equipe reste inconnue plutot qu'empruntee a un autre "+
-			"occupant", "match_id", matchID, "vies", cov.TracksSlotAmbiguous)
+		slog.WarnContext(ctx, "replay: the slot -> index bridge ABSTAINS on lives whose slot carried two named players, "+
+			"or whose index an occupant of another team — their team stays unknown rather than borrowed from another "+
+			"occupant", "match_id", matchID, "lives", cov.TracksSlotAmbiguous)
 	}
 	if cov.Contradiction > 0 {
-		slog.Log(ctx, niveau, "rejeu : la base CONTREDIT le film sur l'equipe de joueurs — le film fait foi, "+
-			"l'ecart est compte", "match_id", matchID, "contradictions", cov.Contradiction,
-			"accords", cov.Accord)
+		slog.Log(ctx, niveau, "replay: the base CONTRADICTS the film on player teams — the film is authoritative, "+
+			"the gap is counted", "match_id", matchID, "contradictions", cov.Contradiction,
+			"agrees", cov.Accord)
 	}
 	if !cov.Read {
-		slog.Log(ctx, niveau, "rejeu : equipes NON LUES dans le film — aucune vie ne portera d'equipe",
-			"match_id", matchID, "refus", cov.Refusal)
+		slog.Log(ctx, niveau, "replay: teams NOT READ from the film — no life will carry a team",
+			"match_id", matchID, "refusal", cov.Refusal)
 	}
 }

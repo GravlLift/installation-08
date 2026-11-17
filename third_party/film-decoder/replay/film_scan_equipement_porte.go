@@ -1,3 +1,4 @@
+// LOCAL-CHANGE (infinite-theater-3d): log and error strings translated to English.
 package replay
 
 import (
@@ -13,7 +14,7 @@ import (
 func (s *filmScan) balayerEquipementPorte() {
 	reads, st, err := grammar.ScanEquipementPorte(s.fc, &s.world)
 	if err != nil {
-		slog.WarnContext(s.ctx, "equipement porte illisible — rejeu sans energie d equipement ni pose de faille",
+		slog.WarnContext(s.ctx, "carried equipment unreadable — replay without equipment energy or flaw placement",
 			"err", err, "match_id", s.matchID)
 		reads, st = nil, types.CarriedEquipmentStats{}
 	}
