@@ -78,17 +78,21 @@ export class SpartanArmory {
   private readonly objetsPretes = new Map<string, Promise<Coat | null>>()
   private readonly objetsCaches = new Map<string, Coat | null>()
   private disposed = false
+  /** Whether `dispose` releases `library` too; false when it is session-cached (`sessionAssetCache3d`) and owned by its caller across matches. */
+  private readonly ownsLibrary: boolean
 
   /**
    * `players` : l'armure des joueurs du match ; `weaponsPath` : le dossier servi de la bibliothèque
    * des armes (les revêtements d'armes se lisent dessus) ; `weaponIO` : le réseau de cette
-   * bibliothèque (remplacé dans les tests).
+   * bibliothèque (remplacé dans les tests) ; `ownsLibrary` (default true): false when `library` is
+   * shared across matches (the caller releases it itself, through the session cache).
    */
-  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO) {
+  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true) {
     this.library = library
     this.gate = gate
     this.weaponsPath = weaponsPath
     this.weaponIO = weaponIO
+    this.ownsLibrary = ownsLibrary
     for (const p of players) {
       if (!p.xuid) continue
       if (p.status === 'armor' && p.manifest) this.manifests.set(p.xuid, p.manifest)
@@ -205,7 +209,10 @@ export class SpartanArmory {
     return materiauxArmesDe(model).every((m) => coat.has(m)) ? coat : null
   }
 
-  /** dispose libère les bibliothèques (géométries, matériaux, images) ; les habits ne servent plus. */
+  /**
+   * dispose libère les bibliothèques (géométries, matériaux, images) ; les habits ne servent plus.
+   * `library` is skipped when `ownsLibrary` is false: a session-cached library outlives this match.
+   */
   dispose(): void {
     this.disposed = true
     this.outfits.clear()
@@ -216,7 +223,7 @@ export class SpartanArmory {
     this.objetsCaches.clear()
     this.libraryArme?.dispose()
     this.libraryArme = null
-    this.library.dispose()
+    if (this.ownsLibrary) this.library.dispose()
   }
 
   /** separerArme sépare les matériaux d'armure (liste dans la table d'armure) de ceux de l'arme. */

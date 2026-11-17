@@ -154,3 +154,59 @@ describe('GlowAnimator', () => {
     expect(view.emissive.equals(source.emissive)).toBe(true)
   })
 })
+
+describe('GlowAnimator resetCopies / markBaseline', () => {
+  it('a reattach that resets before adopting stays at the same entry count instead of growing', () => {
+    const anim = new GlowAnimator()
+    const source = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(1, 0, 0), emissiveIntensity: 1 })
+    const baseMaterial = new THREE.MeshStandardMaterial()
+    anim.add(baseMaterial, source, [], false, 0)
+    // Loading is done: this is the model's own baseline, before any attach's probe copies.
+    anim.markBaseline()
+    expect(anim.size).toBe(1)
+
+    // First attach on a match: the lighting probes copy the base material, adopted here.
+    const probeCopy1 = baseMaterial.clone()
+    probeCopy1.userData = baseMaterial.userData
+    anim.adoptCopies([new THREE.Mesh(new THREE.BufferGeometry(), probeCopy1)])
+    expect(anim.size).toBe(2)
+
+    // A later match reattaches the SAME session-cached model: reset drops the stale copy first.
+    anim.resetCopies()
+    expect(anim.size).toBe(1)
+    const probeCopy2 = baseMaterial.clone()
+    probeCopy2.userData = baseMaterial.userData
+    anim.adoptCopies([new THREE.Mesh(new THREE.BufferGeometry(), probeCopy2)])
+    expect(anim.size).toBe(2) // not 3: the first match's copy did not linger
+
+    // And once more, to confirm it does not creep up over repeated reattaches.
+    anim.resetCopies()
+    const probeCopy3 = baseMaterial.clone()
+    probeCopy3.userData = baseMaterial.userData
+    anim.adoptCopies([new THREE.Mesh(new THREE.BufferGeometry(), probeCopy3)])
+    expect(anim.size).toBe(2)
+  })
+
+  it('markBaseline only takes effect once: a later call after more entries are added does not move it', () => {
+    const anim = new GlowAnimator()
+    const source = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(1, 0, 0), emissiveIntensity: 1 })
+    const baseMaterial = new THREE.MeshStandardMaterial()
+    anim.add(baseMaterial, source, [], false, 0)
+    anim.markBaseline()
+    const probeCopy = baseMaterial.clone()
+    probeCopy.userData = baseMaterial.userData
+    anim.adoptCopies([new THREE.Mesh(new THREE.BufferGeometry(), probeCopy)])
+    anim.markBaseline() // a second, mistaken call must not swallow the probe copy into the baseline
+    anim.resetCopies()
+    expect(anim.size).toBe(1)
+  })
+
+  it('resetCopies is a no-op before markBaseline has ever run', () => {
+    const anim = new GlowAnimator()
+    const source = new THREE.MeshStandardMaterial({ emissive: new THREE.Color(1, 0, 0), emissiveIntensity: 1 })
+    const baseMaterial = new THREE.MeshStandardMaterial()
+    anim.add(baseMaterial, source, [], false, 0)
+    anim.resetCopies()
+    expect(anim.size).toBe(1)
+  })
+})

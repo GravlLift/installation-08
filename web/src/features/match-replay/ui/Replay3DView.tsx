@@ -32,12 +32,16 @@ import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import type { Action3dInputs, PageAction3dInputs } from '../scene3d/action3dInputs'
 import { ArmorLibrary } from '../scene3d/armorLibrary3d'
 import { SpartanArmory } from '../scene3d/armory3d'
-import { timed, timedSync } from '../scene3d/perf3d'
+import { mark, timed, timedSync } from '../scene3d/perf3d'
 import { cssColor } from '../scene3d/cssColor'
 import { loadMapModel } from '../scene3d/mapModel'
 import { LoadGate } from '../scene3d/loadGate3d'
 import { preloadAssets3d } from '../scene3d/preloadAssets3d'
 import { fetchMesh } from '../scene3d/meshFetch'
+import {
+  armorLibraryKey, cachedArmorLibrary, cachedMapModel, cachedWeaponModels, mapModelKey,
+  sessionAssetCache, storeArmorLibrary, storeMapModel, storeWeaponModels, weaponModelsKey,
+} from '../scene3d/sessionAssetCache3d'
 import { ReplayScene3d, type CameraMode3d, type PovStatus } from '../scene3d/replayScene3d'
 import type { SceneView3d } from '../scene3d/topDownLogic'
 import { buildTracks3d } from '../scene3d/tracks3d'
@@ -177,19 +181,36 @@ export function Replay3DView({
     const onStep = (step: 'materials' | 'index', done = 0, total = 0) => {
       if (alive) progress.step(step === 'materials' ? 'decode' : 'index', done, total)
     }
+    const mapKey = mapModelKey(meshPath)
     void (async () => {
       try {
-        const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
-        if (alive) progress.mapDownloaded()
-        const model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader))
-        if (!alive) {
-          model.dispose()
-          return
+        let model = cachedMapModel(meshPath)
+        if (model) {
+          // Warm load: the map is already decoded and indexed, from an earlier match on it this
+          // session. Nothing to download or decode: the progress jumps straight to done.
+          mark('cache-hit:map')
+          progress.mapBytes(1, 1)
+          progress.mapDownloaded()
+          progress.step('decode', 1, 1)
+          progress.step('index', 1, 1)
+          progress.finish('decode')
+          progress.finish('index')
+        } else {
+          const buffer = await fetchMesh(meshPath, onProgress, abort.signal)
+          if (alive) progress.mapDownloaded()
+          model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader))
+          if (!alive) {
+            model.dispose()
+            return
+          }
+          progress.finish('decode')
+          progress.finish('index')
+          storeMapModel(meshPath, model)
         }
-        progress.finish('decode')
-        progress.finish('index')
+        sessionAssetCache.acquire(mapKey)
+        const posedModel = model
         const tracks = buildTracks3d(doc)
-        timedSync('map:attach', () => scene.attach(model, tracks, (xuid) => cssColor(colorRef.current(xuid), NEUTRAL)))
+        timedSync('map:attach', () => scene.attach(posedModel, tracks, (xuid) => cssColor(colorRef.current(xuid), NEUTRAL)))
         scene.enableAction(doc, () => actionRef.current)
         sceneRef.current = scene
         setMapScene(scene)
@@ -206,6 +227,7 @@ export function Replay3DView({
       sceneRef.current = null
       setMapScene(null)
       scene.dispose()
+      sessionAssetCache.release(mapKey)
     }
   }, [meshPath, doc, progress])
   const variantSettled = useVariantLayer(mapScene, variantPath, variantPending, progress)
@@ -222,18 +244,46 @@ export function Replay3DView({
   const warmRef = useRef<{ pov: string | null; mode: CameraMode3d }>({ pov: null, mode })
   useEffect(() => {
     if (!mapScene || !weaponsPath) return
-    const weapons = new WeaponModels(weaponsPath, gateRef.current ?? undefined, undefined, undefined, undefined, mapScene.textureLoader)
+    const key = weaponModelsKey(weaponsPath)
+    let weapons = cachedWeaponModels(weaponsPath)
+    if (weapons) {
+      mark('cache-hit:weapon-library')
+      weapons.useGate(gateRef.current ?? undefined)
+    } else {
+      weapons = new WeaponModels(weaponsPath, gateRef.current ?? undefined, undefined, undefined, undefined, mapScene.textureLoader)
+      storeWeaponModels(weaponsPath, weapons)
+    }
+    sessionAssetCache.acquire(key)
     weaponsRef.current = weapons
     mapScene.setWeaponModels(weapons)
-    return () => { weaponsRef.current = null; mapScene.setWeaponModels(null) }
+    return () => {
+      weaponsRef.current = null
+      mapScene.setWeaponModels(null)
+      sessionAssetCache.release(key)
+    }
   }, [mapScene, weaponsPath])
   useEffect(() => {
     if (!mapScene || !piecesPath || !spartans) return
-    const armory = new SpartanArmory(new ArmorLibrary(piecesPath), spartans.players, gateRef.current ?? undefined, weaponsPath)
+    const key = armorLibraryKey(piecesPath)
+    let library = cachedArmorLibrary(piecesPath)
+    if (library) mark('cache-hit:armor-library')
+    else {
+      library = new ArmorLibrary(piecesPath)
+      storeArmorLibrary(piecesPath, library)
+    }
+    sessionAssetCache.acquire(key)
+    // The library (geometries, textures, coatings) is session-cached and NOT owned by this armory:
+    // `ownsLibrary: false` keeps `dispose()` from releasing it, since this cache's own release
+    // below (and eventual eviction) is what frees it.
+    const armory = new SpartanArmory(library, spartans.players, gateRef.current ?? undefined, weaponsPath, undefined, false)
     armoryRef.current = armory
     mapScene.setSpartanArmory(armory)
     preloadAssets3d(doc, null, armory)
-    return () => { armoryRef.current = null; mapScene.setSpartanArmory(null) }
+    return () => {
+      armoryRef.current = null
+      mapScene.setSpartanArmory(null)
+      sessionAssetCache.release(key)
+    }
   }, [mapScene, piecesPath, spartans, doc, weaponsPath])
   // The models (weapons, armor, arms): counted by the gate, over when it stays idle.
   const [assetsFor, setAssetsFor] = useState<ReplayScene3d | null>(null)

@@ -37,7 +37,7 @@ import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
 import { FreeFly } from './freeFly3d'
-import { createKtx2Loader } from './ktx2Textures3d'
+import { attachRenderer, detachRenderer, getSessionKtx2Loader } from './sessionRenderer3d'
 import { farthestCorner, Lighting } from './lighting'
 import { creerCiel, setCloudClock } from './ciel3d'
 import type { Look3d } from './look3d'
@@ -105,9 +105,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
   })
+  /** The posed map: session-cached (`sessionAssetCache3d`) by its served path, not owned by this scene. */
   private model: MapModel | null = null
-  /** The renderer's KTX2 loader (`textureLoader`), made at the first GLB load; released with the scene. */
-  private ktx2: KTX2Loader | null = null
   private ciel: ReturnType<typeof creerCiel> | null = null
   private layer: SurfaceModel | null = null
   /** The play area's center (three axes) and its half diagonal (u), for the haze (`Lighting.fitHaze`). */
@@ -167,12 +166,11 @@ export class ReplayScene3d implements Replay3DExportSource {
   private backFaces: THREE.Object3D[] = []
   private backFacesShown = true
   constructor(host: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.info.autoReset = false
+    // One WebGLRenderer for the whole session (`sessionRenderer3d`): its compiled shader programs
+    // and uploaded GPU buffers and textures survive this scene's own teardown, for the next match.
+    this.renderer = attachRenderer(host)
     // Pendant un export, la toile rend au format du fichier sans changer de boîte (image entière à l'écran).
     this.renderer.domElement.style.objectFit = 'contain'
-    host.appendChild(this.renderer.domElement)
     Object.assign(this.labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
     host.appendChild(this.labels.domElement)
     this.scene.background = new THREE.Color(SKY_TINT)
@@ -241,6 +239,9 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.lighting.setSun(sun.azimuth, sun.elevation)
       this.lighting.takeGameLight(model.baked) // game light active during the probe captures
       seg('probes', () => {
+        // A model reused from the session cache keeps its previous match's probe copies until
+        // this reset: without it `adoptCopies` would pile new ones on top on every reattach.
+        model.glowAnimation.resetCopies()
         this.lighting.captureProbes(playPoints.map((p) => p.clone().setY(p.y + EYE_HEIGHT)), model.surfaces)
         model.glowAnimation.adoptCopies(model.surfaces) // the probes copied shared materials
       })
@@ -334,10 +335,13 @@ export class ReplayScene3d implements Replay3DExportSource {
     bras.preparerJoueur(xuid)
   }
 
-  /** setWeaponModels poses the source of the weapon and Spartan models (the previous one, and the Spartans copying it, is released); null: none. */
+  /**
+   * setWeaponModels poses the source of the weapon and Spartan models; null: none. The models are
+   * session-cached (`sessionAssetCache3d`) by their served path and are NOT disposed here: the
+   * caller (`Replay3DView`) releases its hold, which disposes them only when evicted.
+   */
   setWeaponModels(models: WeaponModels | null): void {
     for (const a of this.avatars.values()) wearSpartan(a, null)
-    this.weaponModels?.dispose()
     this.weaponModels = models
     this.bras?.dispose()
     this.bras = models ? new BrasPremierePersonne3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
@@ -362,10 +366,10 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   /**
-   * textureLoader: the KTX2 loader of this scene's renderer (ktx2Textures3d), shared by the map and
-   * the layers posed on it, for GLBs whose textures are GPU-compressed.
+   * textureLoader: the session's KTX2 loader (`sessionRenderer3d`, bound to the shared renderer),
+   * used by the map and the layers posed on it for GLBs whose textures are GPU-compressed.
    */
-  get textureLoader(): KTX2Loader { return (this.ktx2 ??= createKtx2Loader(this.renderer)) }
+  get textureLoader(): KTX2Loader { return getSessionKtx2Loader() }
 
   /** mapLight: the baked light of the posed map that its layers reuse; null without a map or a light. */
   get mapLight(): BakedLight | null { return this.model?.baked ?? null }
@@ -383,6 +387,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    // See `attach`: a layer reused from the session cache keeps its previous match's probe copies
+    // until this reset.
+    layer.glowAnimation.resetCopies()
     layer.glowAnimation.adoptCopies(layer.surfaces)
     // After the probes chose each surface's material: the batches share it.
     this.layerBatches = batchLayer(layer.root)
@@ -393,7 +400,11 @@ export class ReplayScene3d implements Replay3DExportSource {
     return true
   }
 
-  /** detachLayer removes and releases the posed layer; nothing without one. */
+  /**
+   * detachLayer removes the posed layer from the scene; nothing without one. The layer itself is
+   * session-cached (`sessionAssetCache3d`) by its served path and is NOT disposed here: its owner
+   * (`useVariantLayer`) releases its hold on the cache entry, which disposes it only when evicted.
+   */
   detachLayer(): void {
     const layer = this.layer
     if (!layer) return
@@ -406,7 +417,6 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.ground?.setPickables(this.groundSurfaces())
     this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
-    layer.dispose()
   }
 
   /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion, bloom. */
@@ -689,17 +699,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.detachLayer()
     this.top?.dispose()
     if (this.ciel) { this.scene.remove(this.ciel); this.ciel.geometry.dispose(); this.ciel.material.dispose(); this.ciel = null }
-    this.model?.dispose()
+    // The map itself is session-cached by its served path (`sessionAssetCache3d`): only removed from
+    // this scene, not disposed — the caller (`Replay3DView`) releases its hold, which disposes it
+    // only when evicted.
+    if (this.model) this.scene.remove(this.model.root)
     this.model = null // no map: a layer arriving after release is refused (`attachLayer`)
     this.top = null
     this.doc = null
     this.lighting.dispose()
     this.post.dispose()
     this.gpu.dispose()
-    this.ktx2?.dispose()
-    this.ktx2 = null
-    this.renderer.dispose()
-    this.renderer.domElement.remove()
+    // The renderer (and its KTX2 loader) is shared for the whole session (`sessionRenderer3d`): the
+    // canvas is detached from this host, never disposed, so the next match's scene can reuse its
+    // compiled shader programs and uploaded GPU buffers.
+    detachRenderer()
     this.labels.domElement.remove()
   }
 
