@@ -19,7 +19,7 @@ func (b *library) writeAttachments(a *himap.Arsenal, r *himap.Armurerie) {
 	for _, g := range r.Marqueurs {
 		names[g.Nom] = true
 	}
-	accs, autres, illisibles := a.AccessoiresDuModele(b.ctx, names)
+	accs, others, unreadable := a.AccessoiresDuModele(b.ctx, names)
 	b.index.Attachments = []AttachmentIndex{}
 	multi := 0
 	for _, acc := range accs {
@@ -36,8 +36,8 @@ func (b *library) writeAttachments(a *himap.Arsenal, r *himap.Armurerie) {
 			b.index.Attachments = append(b.index.Attachments, ai)
 		}
 	}
-	slog.InfoContext(b.ctx, "spartan attachments", "attachments", len(accs), "otherModels", autres,
-		"unreadable", illisibles, "entriesWithSeveralMarkers", multi)
+	slog.InfoContext(b.ctx, "spartan attachments", "attachments", len(accs), "otherModels", others,
+		"unreadable", unreadable, "entriesWithSeveralMarkers", multi)
 }
 
 // writeAttachment writes the entry k of the accessory id and returns its index

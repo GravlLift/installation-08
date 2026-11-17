@@ -22,7 +22,7 @@ func BuildFirstPersonArms(ctx context.Context, arsenal *himap.Arsenal, dataDir, 
 	}
 	// LOCAL-CHANGE (infinite-theater-3d): first-person arm pieces get KTX2-compressed textures.
 	b := &library{ctx: ctx, folder: folder, generator: generatorLibrary, coatings: coatings,
-		depot: &textureDepot{dir: folder, vues: map[string]bool{}},
+		depot: &textureDepot{dir: folder, seen: map[string]bool{}},
 		index: Index{Pieces: []PieceIndex{}, Failures: []FailureIndex{}}, ktx2: true}
 	b.writePieces(r, announce)
 	index := firstPersonArmIndex(r, b.index.Pieces, b.index.Failures)
@@ -30,7 +30,7 @@ func BuildFirstPersonArms(ctx context.Context, arsenal *himap.Arsenal, dataDir, 
 	if err != nil {
 		return 0, fmt.Errorf("arm catalog: %w", err)
 	}
-	return b.bytes + b.depot.octets + n, nil
+	return b.bytes + b.depot.bytes + n, nil
 }
 
 func firstPersonArmIndex(r *himap.Armurerie, pieces []PieceIndex, failures []FailureIndex) armIndex {
