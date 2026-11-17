@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 )
 
@@ -56,6 +57,7 @@ var commands = map[string]func([]string) error{
 	"build-firstperson-library": runBuildFirstPersonLibrary,
 	"build-icons":               runBuildIcons,
 	"setup-coatings":            runSetupCoatings,
+	"window":                    runWindow, // hidden developer command: the app window on a URL, no server
 }
 
 func run(args []string) error {
@@ -76,9 +78,23 @@ func run(args []string) error {
 }
 
 func main() {
+	// Before anything prints: a console-subsystem build (the development one) already has
+	// its console; a GUI-subsystem build launched from a terminal takes the terminal's
+	// over, and on a double-click (no parent console) the output goes to the server log
+	// file beside the data instead.
+	hasConsole := attachConsole()
+	if !hasConsole {
+		if dataDir, err := dataDirFor(""); err == nil {
+			if f, logErr := openServerLog(dataDir); logErr == nil {
+				os.Stdout = f
+				os.Stderr = f
+				slog.SetDefault(slog.New(slog.NewTextHandler(f, nil)))
+			}
+		}
+	}
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		if len(os.Args) == 1 {
+		if len(os.Args) == 1 && hasConsole {
 			// A double-click launch owns its console window, which closes as soon as the
 			// process exits: keep the reason on screen until the user has read it. With no
 			// console input (redirected or closed) the read returns at once.

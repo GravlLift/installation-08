@@ -76,9 +76,10 @@ func recordedAddr(dir string) string {
 }
 
 // onDataDirBusy handles a launch whose data folder another server holds. With open (a
-// double-click), when the holder is reachable and serves the viewer, the browser opens on
-// it and the launch exits cleanly; otherwise the error says what holds the folder.
-func onDataDirBusy(dir string, open bool) error {
+// double-click), when the holder is reachable and serves the viewer, the launch's UI
+// (the app window in window mode, the default browser in browser mode) opens on it and
+// the launch exits cleanly; otherwise the error says what holds the folder.
+func onDataDirBusy(dir string, open bool, ui string) error {
 	busy := fmt.Errorf("%w (%s): close its window first, or start this one with --data <another folder>", errDataDirBusy, dir)
 	addr := recordedAddr(dir)
 	if addr == "" {
@@ -87,7 +88,7 @@ func onDataDirBusy(dir string, open bool) error {
 	if !open {
 		return fmt.Errorf("%w; it serves on http://%s", busy, addr)
 	}
-	return openOnExisting(addr, busy)
+	return openOnExisting(addr, busy, ui)
 }
 
 // listenServe takes the server's address. When the default address is held by another

@@ -245,7 +245,7 @@ func TestPortInUseOpensExisting(t *testing.T) {
 	t.Cleanup(copyServer.Close)
 	addr := copyServer.Listener.Addr().String()
 	urls := withFakeOpenBrowser(t)
-	if err := openOnExisting(addr, errors.New("address in use")); err != nil {
+	if err := openOnExisting(addr, errors.New("address in use"), uiBrowser); err != nil {
 		t.Fatalf("running copy on the port: %v", err)
 	}
 	got := readUrls(urls)
@@ -263,7 +263,7 @@ func TestPortInUseByCopyWithoutViewer(t *testing.T) {
 	}))
 	t.Cleanup(copyServer.Close)
 	urls := withFakeOpenBrowser(t)
-	err := openOnExisting(copyServer.Listener.Addr().String(), errors.New("address in use"))
+	err := openOnExisting(copyServer.Listener.Addr().String(), errors.New("address in use"), uiBrowser)
 	if err == nil || !strings.Contains(err.Error(), "--addr") {
 		t.Fatalf("err = %v, want an error naming --addr", err)
 	}
@@ -306,7 +306,7 @@ func TestPortInUseByAnotherProgram(t *testing.T) {
 	}()
 	urls := withFakeOpenBrowser(t)
 	listenErr := errors.New("address in use")
-	if err := openOnExisting("127.0.0.1:"+port, listenErr); !errors.Is(err, listenErr) {
+	if err := openOnExisting("127.0.0.1:"+port, listenErr, uiBrowser); !errors.Is(err, listenErr) {
 		t.Fatalf("err = %v, want the listen error", err)
 	}
 	if got := readUrls(urls); len(got) != 0 {
