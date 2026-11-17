@@ -92,6 +92,8 @@
 /* Home: the broadcast desk. */
 .bc-home { display: grid; grid-template-columns: minmax(320px, 26vw) 1fr; gap: 4vw; align-items: center; }
 .bc-home .bc-row { padding: 16px 26px 16px 30px; }
+/* The Installation 08 wordmark above the main menu, like a game's title screen. */
+.bc-home-logo { display: block; width: 100%; height: auto; margin: 0 0 4vh -2%; filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.55)); user-select: none; pointer-events: none; }
 .bc-home .bc-row .bc-name { font-size: 26px; }
 .bc-home .bc-row .bc-sub { font-size: 13px; }
 .bc-home .bc-feature { display: flex; flex-direction: column; align-items: flex-start; justify-self: end; width: min(100%, 118vh); }

@@ -138,6 +138,7 @@ export function HomeScreen() {
         {mode === 'desk' && (
           <>
             <div>
+              <img className="bc-home-logo" src="/installation-08-wordmark.svg" alt="Installation 08" />
               <div className="bc-eyebrow">Main menu</div>
               <div className="bc-menu">
                 <FocusList
