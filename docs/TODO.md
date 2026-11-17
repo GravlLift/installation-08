@@ -96,7 +96,9 @@ are in [PARITY.md](PARITY.md).
   client area at exactly 16:9 (1600x900 DIPs scaled to the monitor's DPI, outer size via
   AdjustWindowRectExForDpi including the menu, shrunk keeping 16:9 and centered if it would not
   fit the work area), and a remembered placement now carries the DPI it was captured at, rescaled
-  on restore if the target monitor's DPI differs. Open: the app icon once the name is chosen.
+  on restore if the target monitor's DPI differs. DONE 2026-11-17: the display name is
+  Installation 08 with its icon (exe, title bar, taskbar, favicon); the exe name, repo and data
+  folder keep the old name.
 - Serve the viewer's files to the window in-process (WebView2 resource interception) instead
   of over HTTP, measured against HTTP.
 - Compiled shaders: they persist across launches in the window's fixed profile with the
