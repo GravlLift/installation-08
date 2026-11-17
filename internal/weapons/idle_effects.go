@@ -48,7 +48,10 @@ type IdleEffect struct {
 	// value over all its frames (the Heatwave's and the Cindershot's animation_event_function_variant_switch,
 	// 1); the view feeds them while the holder reloads.
 	ReloadFunctions map[string]float64 `json:"reloadFunctions,omitempty"`
-	Systems         []IdleSystem       `json:"systems"`
+	// Magazine: the rounds the weapon's first magazine holds loaded (its tag's `rounds loaded
+	// maximum`), the denominator of the engine's primary_ammunition; 0 (left out) without one.
+	Magazine int          `json:"magazine,omitempty"`
+	Systems  []IdleSystem `json:"systems"`
 }
 
 // IdleFunction is a weapon object function (weaponicons.ObjectFunction), by name.
@@ -230,6 +233,10 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 		return nil, nil
 	}
 	reloadFns := w.reloadFunctions(ctx, weap)
+	magazine, err := weaponicons.ReadMagazineSize(raw)
+	if err != nil {
+		slog.WarnContext(ctx, "weapon magazine unreadable", "weapon", fmt.Sprintf("%08x", weap), "err", err)
+	}
 	var out []IdleEffect
 	for _, at := range atts {
 		if at.PrimaryScale == 0 {
@@ -245,6 +252,7 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 		}
 		e, err := w.effect(at, fns, mode, fx)
 		e.ReloadFunctions = reloadFns
+		e.Magazine = magazine
 		if err != nil {
 			return nil, err
 		}

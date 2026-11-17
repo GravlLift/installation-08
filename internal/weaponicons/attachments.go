@@ -48,18 +48,20 @@ type ObjectFunction struct {
 
 // Plugin names of the fields read.
 const (
-	pathAttachments     = "item/object/attachments"
-	pathFunctions       = "item/object/functions"
-	fieldAttachType     = "type"
-	fieldMarker         = "marker"
-	fieldPrimaryScale   = "primary scale"
-	fieldSecondaryScale = "secondary scale"
-	fieldFlags          = "flags"
-	fieldImport         = "import name"
-	fieldNoImport       = "no import default"
-	fieldExport         = "export name"
-	fieldTurnOffWith    = "turn off with"
-	fieldMapping        = "default function"
+	pathAttachments      = "item/object/attachments"
+	pathFunctions        = "item/object/functions"
+	fieldAttachType      = "type"
+	fieldMarker          = "marker"
+	fieldPrimaryScale    = "primary scale"
+	fieldSecondaryScale  = "secondary scale"
+	fieldFlags           = "flags"
+	fieldImport          = "import name"
+	fieldNoImport        = "no import default"
+	fieldExport          = "export name"
+	fieldTurnOffWith     = "turn off with"
+	fieldMapping         = "default function"
+	pathMagazines        = "magazines"
+	fieldRoundsLoadedMax = "rounds loaded maximum"
 	// refGroupOff: the group FourCC of a `_41` reference, after its id (calibrated on the flag's
 	// effect references, "effe" at +0x14 of the field).
 	refGroupOff = 0x14
@@ -83,6 +85,9 @@ type blockLayout struct {
 var (
 	loadAttachLayout = sync.OnceValues(func() (*blockLayout, error) {
 		return blockLayoutOfPlugin(pathAttachments, fieldAttachType, fieldMarker, fieldPrimaryScale, fieldSecondaryScale)
+	})
+	loadMagazineLayout = sync.OnceValues(func() (*blockLayout, error) {
+		return blockLayoutOfPlugin(pathMagazines, fieldRoundsLoadedMax)
 	})
 	loadFunctionLayout = sync.OnceValues(func() (*blockLayout, error) {
 		return blockLayoutOfPlugin(pathFunctions, fieldFlags, fieldImport, fieldNoImport, fieldExport, fieldTurnOffWith, fieldMapping)
@@ -263,4 +268,50 @@ func (w weapTag) childBlock(parent, fieldOff int) int {
 		return int(int32(binary.LittleEndian.Uint32(w.tag[b+0x14:])))
 	}
 	return -1
+}
+
+// ReadMagazineSize reads the rounds a `weap` tag's first magazine holds loaded (its `rounds loaded
+// maximum`): the denominator of the engine's `primary_ammunition`. 0 for a weapon without a magazine.
+func ReadMagazineSize(tag []byte) (int, error) {
+	l, err := loadMagazineLayout()
+	if err != nil {
+		return 0, err
+	}
+	abs, size, err := l.firstRecord(tag)
+	if err != nil {
+		return 0, fmt.Errorf("magazines: %w", err)
+	}
+	at := l.at[fieldRoundsLoadedMax]
+	if abs < 0 || at+2 > size {
+		return 0, nil
+	}
+	return int(int16(binary.LittleEndian.Uint16(tag[abs+at:]))), nil
+}
+
+// firstRecord resolves the block of layout l in tag and returns its first record's absolute offset
+// and the block's size (-1: no block). Unlike elements it accepts a record longer than the plugin's:
+// the installed game's magazine is 164 bytes where the plugin lays out 160, the fields it reads
+// lying before the difference (checked on the magazine sizes the game shows, ReadMagazineSize).
+func (l *blockLayout) firstRecord(tag []byte) (int, int, error) {
+	wt, err := openWeapTag(tag)
+	if err != nil {
+		return -1, 0, err
+	}
+	root, err := wt.rootBlock()
+	if err != nil {
+		return -1, 0, err
+	}
+	shift, err := l.shift(wt.rootBlockFields(root))
+	if err != nil {
+		return -1, 0, err
+	}
+	blk := wt.childBlock(root, l.field+shift)
+	if blk < 0 {
+		return -1, 0, nil
+	}
+	abs, size := wt.blockAbs(blk)
+	if abs < 0 || abs+size > len(tag) {
+		return -1, 0, fmt.Errorf("block out of bounds")
+	}
+	return abs, size, nil
 }
