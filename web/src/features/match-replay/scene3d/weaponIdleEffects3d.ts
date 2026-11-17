@@ -27,13 +27,16 @@
 import * as THREE from 'three'
 
 import { api } from '@/lib/api/client'
+import { frameToMs } from '@/lib/replay/replayLogic'
 
+import { armeEnMain } from '../model/armeEnMain'
 import { episodesRechargementParSlot } from './actionsFilm3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
 import {
   effectScales,
+  magazineFraction,
   parseIdleEffects,
   reloadingAt,
   simulateSystem,
@@ -42,6 +45,7 @@ import {
   type IdleEffectTable,
   type IdleSystem,
   type LiveParticle,
+  type MagazineRead,
   type ReloadSpan,
 } from './weaponIdleEffects3dModel'
 import { weaponModelKey } from './weaponModels3d'
@@ -374,6 +378,8 @@ interface SlotTimeline {
   reloads: ReloadSpan[]
   shots: number[]
   changes: number[]
+  /** The film's magazine reads, by weapon slot (`ammoReads`), sorted by ms. */
+  magazines: Map<number, MagazineRead[]>
 }
 
 const ANCHOR = new THREE.Matrix4()
@@ -382,6 +388,31 @@ const WORLD = new THREE.Matrix4()
 const ROOT_INV = new THREE.Matrix4()
 const MARKER = new THREE.Matrix4()
 const MARKER_Q = new THREE.Quaternion()
+const AT = new THREE.Vector3()
+
+/**
+ * One drawn system instance, as the debug hook `window.__it3dIdleEffects` lists it: the weapon, effect,
+ * system and marker instance, the view, how many particles it drew, and its marker's world position.
+ * `window.__it3dIdleEffectsHide` (a list of `weapon:effect:system` keys) leaves those systems out, so a
+ * shape on screen can be traced to the system that draws it.
+ */
+export interface IdleEffectDebugRow {
+  key: string
+  location: string
+  instance: number
+  firstPerson: boolean
+  particles: number
+  marker: [number, number, number]
+}
+
+declare global {
+  interface Window {
+    __it3dIdleEffects?: readonly IdleEffectDebugRow[]
+    __it3dIdleEffectsHide?: readonly string[]
+  }
+}
+
+const DEBUG_HOOK = '__it3dIdleEffects'
 const X = new THREE.Vector3()
 const Y = new THREE.Vector3()
 const Z = new THREE.Vector3()
@@ -398,14 +429,19 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
   private timelines: Map<number, SlotTimeline> | null = null
   private slotSeed: Map<number, number> | null = null
   private readonly fetchJson?: FetchJson
+  private readonly debugRows: IdleEffectDebugRow[] = []
 
   constructor(ctx: ActionContext, fetchJson?: FetchJson) {
     this.ctx = ctx
     this.fetchJson = fetchJson
+    if (typeof window !== 'undefined') {
+      Object.defineProperty(window, DEBUG_HOOK, { configurable: true, enumerable: false, get: () => this.debugRows.slice() })
+    }
   }
 
   update(frame: number): void {
     for (const p of this.pools.values()) if (p) p.n = 0
+    this.debugRows.length = 0
     const inputs = this.ctx.inputs()
     if (inputs.show.shots) this.draw(frame, inputs.framesPerSecond, inputs.locale)
     for (const p of this.pools.values()) {
@@ -448,12 +484,19 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       const clipS = (action: string) => this.ctx.weaponClipSeconds?.(key, action) ?? null
       const reloading = !!line && reloadingAt(line.reloads, f, fps, clipS('reload_full'), line.shots)
       const seed = this.slotSeed.get(track.slot) ?? 0
+      // The magazine of the weapon in hand: the film's last read of its slot, carried forward; full
+      // before the life's first read.
+      const hand = armeEnMain(this.ctx.doc, track.slot, f)
+      const reads = hand && line ? line.magazines.get(hand.slotArme) ?? [] : []
+      const atMs = frameToMs(f, this.ctx.doc)
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
-        const scales = effectScales(e, { ready, reloading })
+        const scales = effectScales(e, { ready, reloading, ammo: magazineFraction(reads, atMs, e.magazine) })
         if (scales.scaleA <= 0) return
         e.systems.forEach((s, si) => {
           if (!systemShown(s, firstPerson, scoped)) return
+          const debugKey = `${key}:${e.effect}:${si}`
+          if (typeof window !== 'undefined' && window.__it3dIdleEffectsHide?.includes(debugKey)) return
           const pool = this.poolOf(`${key}:${ei}:${si}`, s)
           if (!pool) return
           // Every instance of the marker (the Heatwave's vent marker is on both fins), in both views.
@@ -471,6 +514,8 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
             }
             simulateSystem(s, t, seed * 64 + m, ei * 32 + si, { ...scales, cameraDistance: 0 }, this.particles)
             for (const p of this.particles) this.write(pool, p)
+            AT.setFromMatrixPosition(ANCHOR)
+            this.debugRows.push({ key: debugKey, location: s.location, instance: m, firstPerson, particles: this.particles.length, marker: [AT.x, AT.y, AT.z] })
           }
         })
       })
@@ -551,13 +596,19 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     const out = new Map<number, SlotTimeline>()
     const line = (slot: number) => {
       let l = out.get(slot)
-      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [] }))
+      if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [], magazines: new Map() }))
       return l
     }
     for (const [slot, eps] of episodesRechargementParSlot(doc)) {
       line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
     }
     for (const s of doc.shots) line(s.slot).shots.push(s.t)
+    for (const r of doc.ammoReads) {
+      if (r.mag == null) continue
+      const m = line(r.slot).magazines
+      if (!m.has(r.w)) m.set(r.w, [])
+      m.get(r.w)!.push({ ms: r.ms, rounds: r.mag })
+    }
     const locale = this.ctx.inputs().locale
     for (const list of [doc.loadouts, doc.inventory, doc.weaponChanges]) {
       for (const r of list) {
@@ -569,6 +620,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     for (const l of out.values()) {
       l.shots.sort((a, b) => a - b)
       l.changes.sort((a, b) => a - b)
+      for (const reads of l.magazines.values()) reads.sort((a, b) => a.ms - b.ms)
     }
     this.timelines = out
     return out
@@ -584,6 +636,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     this.pools.clear()
     this.quad.dispose()
     this.assets?.dispose()
+    if (typeof window !== 'undefined') delete (window as unknown as Record<string, unknown>)[DEBUG_HOOK]
   }
 }
 

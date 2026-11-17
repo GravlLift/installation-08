@@ -13,6 +13,7 @@ import {
   functionValue,
   parseIdleEffects,
   propertyAt,
+  magazineFraction,
   reloadingAt,
   simulateSystem,
   systemShown,
@@ -125,13 +126,15 @@ describe('the Heatwave vent functions', () => {
     expect(functionValue(HEATWAVE_FUNCTIONS, { ...imports, primary_ammunition: 0 }, '#b1abb805')).toBe(1)
   })
 
-  it('vents while reloading, the B scale the reload animations set', () => {
-    expect(effectScales(vent, { ready: true, reloading: true })).toEqual({ scaleA: 1, scaleB: 1 })
-    expect(effectScales(vent, { ready: true, reloading: false })).toEqual({ scaleA: 0, scaleB: 0 })
+  it('vents while reloading a magazine that is not full, the B scale the reload animations set', () => {
+    // fx_reload turns off with the second #9ef8b167, 1 - primary_ammunition: off on a full magazine.
+    expect(effectScales(vent, { ready: true, reloading: true, ammo: 3 / 8 })).toEqual({ scaleA: 1, scaleB: 1 })
+    expect(effectScales(vent, { ready: true, reloading: true, ammo: 1 }).scaleA).toBe(0)
+    expect(effectScales(vent, { ready: true, reloading: false, ammo: 3 / 8 })).toEqual({ scaleA: 0, scaleB: 0 })
   })
 
   it('reads an import nothing feeds as 0, not as the default of the function importing it', () => {
-    expect(effectScales({ ...vent, reloadFunctions: undefined }, { ready: true, reloading: true }).scaleB).toBe(0)
+    expect(effectScales({ ...vent, reloadFunctions: undefined }, { ready: true, reloading: true, ammo: 0.5 }).scaleB).toBe(0)
   })
 
   it('draws the ready glow at full B while not camouflaged', () => {
@@ -139,8 +142,9 @@ describe('the Heatwave vent functions', () => {
     expect(effectScales(ready, { ready: false, reloading: false }).scaleA).toBe(0)
   })
 
-  it('a turn-off name nothing defines turns nothing off; a defined one at 0 does', () => {
-    expect(functionValue(HEATWAVE_FUNCTIONS, {}, '#9ef8b167')).toBe(1)
+  it('reads the last of two functions exporting one name; a defined turn-off at 0 turns off', () => {
+    expect(functionValue(HEATWAVE_FUNCTIONS, { primary_ammunition: 0.25, camo: 0 }, '#9ef8b167')).toBe(0.75)
+    expect(functionValue(HEATWAVE_FUNCTIONS, { primary_ammunition: 0.25, camo: 1 }, '#9ef8b167')).toBe(0)
     const fns: IdleFunction[] = [{ import: 'is_reloading', default: 1, export: 'a', turnOffWith: 'b' }, { import: 'camo', default: 1, export: 'b' }]
     expect(functionValue(fns, { is_reloading: 1, camo: 0 }, 'a')).toBe(0)
     expect(functionValue(fns, { is_reloading: 1, camo: 1 }, 'a')).toBe(1)
@@ -258,5 +262,22 @@ describe('parseIdleEffects', () => {
       },
     })
     expect(Object.keys(t!)).toEqual(['1a22fee6'])
+  })
+})
+
+describe('the magazine feed', () => {
+  const reads = [{ ms: 1000, rounds: 6 }, { ms: 5000, rounds: 0 }]
+  it('is full before the life first read, then the last read carried forward over the magazine', () => {
+    expect(magazineFraction(reads, 500, 8)).toBe(1)
+    expect(magazineFraction(reads, 1000, 8)).toBe(0.75)
+    expect(magazineFraction(reads, 4999, 8)).toBe(0.75)
+    expect(magazineFraction(reads, 9000, 8)).toBe(0)
+    expect(magazineFraction(reads, 9000, undefined)).toBe(1)
+  })
+  it('leaves the Shock Rifle electricity as it was, off only on an empty magazine', () => {
+    const shock = { functions: SHOCK_FUNCTIONS, scaleA: 'fx_ready', scaleB: '#118a9c27' } as IdleEffect
+    const before = effectScales(shock, { ready: true, reloading: false })
+    expect(effectScales(shock, { ready: true, reloading: false, ammo: 5 / 12 })).toEqual(before)
+    expect(effectScales(shock, { ready: true, reloading: false, ammo: 0 }).scaleA).toBe(0)
   })
 })

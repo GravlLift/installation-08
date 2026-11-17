@@ -119,6 +119,8 @@ export interface IdleEffect {
    * the Heatwave's and the Cindershot's `animation_event_function_variant_switch`, 1 over every frame).
    */
   reloadFunctions?: Record<string, number>
+  /** The rounds the weapon's magazine holds loaded (its tag's `rounds loaded maximum`); absent in an older library. */
+  magazine?: number
   systems: IdleSystem[]
 }
 
@@ -221,8 +223,9 @@ export function propertyAt(f: ParticleFunction, input: (k: number) => number): n
 }
 
 /**
- * functionValue is the value of the weapon function `name`: an export of `fns` (the first that
- * exports it), else an import the view feeds (`imports`: the Heatwave's vent B scale names
+ * functionValue is the value of the weapon function `name`: an export of `fns` (the LAST that exports
+ * it: the Heatwave exports `#9ef8b167` twice, and the Cindershot, whose effect is gated the same way,
+ * carries only its second, 1 - `primary_ammunition`), else an import the view feeds (`imports`: the Heatwave's vent B scale names
  * `animation_event_function_variant_switch`, which its weapon's reload animations set, fed while the
  * holder reloads), else 0. A function's value is its import's (its
  * default without one) through its mapping (`mapping`, the tag's `default function`: the Heatwave's
@@ -233,11 +236,11 @@ export function propertyAt(f: ParticleFunction, input: (k: number) => number): n
  * result of the function is one minus the actual result"); a turn-off name that no function exports
  * and the view does not feed turns nothing off (the Heatwave's first `#9ef8b167` turns off with
  * `#9f494a78`, a function of the Shock Rifle's that the Heatwave does not define); of two functions
- * with one export name, the first is read.
+ * with one export name, the last is read (see above).
  */
 export function functionValue(fns: readonly IdleFunction[], imports: Readonly<Record<string, number>>, name: string, depth = 0): number {
   if (!name) return 1
-  const f = fns.find((g) => g.export === name)
+  const f = fns.findLast((g) => g.export === name)
   if (!f) return name in imports ? imports[name] : 0
   if (depth > MAX_FUNCTION_DEPTH) return 0
   let v = f.import in imports ? imports[f.import] : (fns.some((g) => g.export === f.import) ? functionValue(fns, imports, f.import, depth + 1) : f.default)
@@ -446,11 +449,13 @@ export function systemShown(s: IdleSystem, firstPerson: boolean, scoped: boolean
 export interface WeaponFxState {
   ready: boolean
   reloading: boolean
+  /** The magazine's fraction (`primary_ammunition`, `magazineFraction`); absent: full. */
+  ammo?: number
 }
 
 /** effectScales are the effect's A and B scales for the weapon state `w` (its functions, `functionValue`). */
 export function effectScales(e: IdleEffect, w: WeaponFxState): { scaleA: number; scaleB: number } {
-  const imports = { ...(w.reloading ? e.reloadFunctions : undefined), ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: 1, camo: 0 }
+  const imports = { ...(w.reloading ? e.reloadFunctions : undefined), ready: w.ready ? 1 : 0, is_reloading: w.reloading ? 1 : 0, primary_ammunition: w.ammo ?? 1, camo: 0 }
   return { scaleA: functionValue(e.functions, imports, e.scaleA), scaleB: functionValue(e.functions, imports, e.scaleB) }
 }
 
@@ -478,4 +483,29 @@ export function reloadingAt(spans: readonly ReloadSpan[], frame: number, fps: nu
   if (frame >= end) return false
   for (const t of shots) if (t > s.start && t <= frame) return false
   return true
+}
+
+/** A magazine read of the film: its time (ms) and the rounds loaded. */
+export interface MagazineRead {
+  ms: number
+  rounds: number
+}
+
+/**
+ * magazineFraction is the engine's `primary_ammunition` at `ms`: the rounds of the film's last magazine
+ * read at or before it (`reads` sorted by ms; carried forward until the next one) over the weapon's
+ * `rounds loaded maximum` (`size`), in [0, 1]. Before the life's first read the magazine is full (a
+ * player spawns full). A weapon of unknown size (an older library, a weapon without a magazine) reads full.
+ */
+export function magazineFraction(reads: readonly MagazineRead[], ms: number, size: number | undefined): number {
+  if (!size || size <= 0) return 1
+  let lo = 0
+  let hi = reads.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (reads[mid].ms <= ms) lo = mid + 1
+    else hi = mid
+  }
+  if (lo === 0) return 1
+  return Math.min(1, Math.max(0, reads[lo - 1].rounds / size))
 }
