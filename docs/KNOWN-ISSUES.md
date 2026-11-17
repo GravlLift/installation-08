@@ -44,9 +44,10 @@ engineering backlog; this page keeps only the user-visible parts of it.
   drawn.
 - The Heatwave's vent glow on its fins and its ready glow come from the game's own effects.
   The vent shows while the film says the player reloads, scaled by the value the weapon's own
-  reload animation sets (read from the game). Its own sound may be missing: the reload sounds come
-  from the Spartan's animation, and the first-person reload animations post further sounds the
-  viewer does not read. Seen from outside, a weapon's own moving parts (the Heatwave's
+  reload animation sets (read from the game), while the magazine is not full (the film's last
+  magazine reading, carried forward until the next one). The first-person reload sounds of the
+  Heatwave, Cindershot and Hydra (fins opening, each round, the closing) play for the followed
+  player only, on top of the Spartan's reload sound, and are not yet checked by ear. Seen from outside, a weapon's own moving parts (the Heatwave's
   fins, slides, barrels) do not move: weapons are drawn as one rigid piece in third person.
 - Vehicle engine and destruction sounds are not yet placed in the world (they play at the
   same level everywhere), and other players' shield alarms are not played.
