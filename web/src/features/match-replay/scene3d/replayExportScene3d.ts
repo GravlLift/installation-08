@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** replayExportScene3d.ts — conserve et restaure la vue pendant le rendu vidéo. */
+/** replayExportScene3d.ts — holds and restores the view during video rendering. */
 import * as THREE from 'three'
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -12,7 +12,7 @@ import type { PostFx3d } from './postFx3d'
 import type { Lighting } from './lighting'
 import { ExportReadback3d } from './exportReadback3d'
 
-/** Les éléments de scène utilisés par l'export et les opérations qui conservent son état. */
+/** The scene elements used by the export and the operations that hold its state. */
 interface ExportScene {
   renderer: THREE.WebGLRenderer
   camera: THREE.PerspectiveCamera
@@ -43,10 +43,10 @@ interface ExportScene {
   hideTopDown?(): void
 }
 
-/** La vue d'écran pendant un export : ce qu'elle avait, et ce qu'elle demande depuis. */
+/** The on-screen view during an export: what it had, and what it has requested since. */
 interface HeldView {
   mode: CameraMode3d
-  /** La caméra avant l'export : un changement demandé pendant l'export se rejoue au retour. */
+  /** The camera before the export: a change requested during the export replays on return. */
   modeBefore: CameraMode3d
   /** The drawing view before the export; a change asked mid-export is replayed on return. */
   view: SceneView3d
@@ -67,9 +67,9 @@ export function exportStepSeconds(previous: number, frame: number, frameMs: numb
   return Math.max(0, frame - previous) * Math.max(0, frameMs) / 1000
 }
 
-/** Gère la prise de la scène et la restitution de la vue d'écran. */
+/** Manages taking over the scene and restoring the on-screen view. */
 export class ReplayExportScene3d {
-  /** La vue d'écran retenue pendant l'export, ou null hors export. */
+  /** The on-screen view held during the export, or null outside an export. */
   held: HeldView | null = null
 
   private readonly scene: ExportScene
@@ -80,7 +80,7 @@ export class ReplayExportScene3d {
 
   constructor(scene: ExportScene) { this.scene = scene }
 
-  /** Prend la scène et retient la vue d'écran jusqu'à la fin de l'export. */
+  /** Takes over the scene and holds the on-screen view until the export ends. */
   beginExport(setup: Export3dSetup): void {
     if (this.held) return
     const size = this.scene.renderer.getSize(new THREE.Vector2())
@@ -97,7 +97,7 @@ export class ReplayExportScene3d {
       target: this.scene.orbit.target.clone(),
     }
     this.clock = { previous: setup.frame, frameMs: setup.frameMs }
-    // Le fichier a sa propre taille : la densité de l'écran n'entre pas dans le rendu.
+    // The file has its own size: the screen's pixel density does not enter the render.
     this.scene.renderer.setPixelRatio(1)
     this.scene.post.composer.setPixelRatio(1)
     this.applySize(setup.width, setup.height, false)
@@ -107,15 +107,15 @@ export class ReplayExportScene3d {
     this.scene.view = '3d'
     this.scene.hideTopDown?.()
     this.scene.applyPov(setup.pov)
-    // La caméra libre déjà choisie à l'écran garde son cadrage ; prise pour l'export, elle part
-    // derrière le joueur suivi à la première image du clip et n'en bouge plus.
+    // A free camera already chosen on screen keeps its framing; taken over for the export, it
+    // starts behind the tracked player at the clip's first frame and does not move from there.
     this.scene.lastFrame = setup.frame
     if (setup.camera !== this.scene.mode) this.scene.applyMode(setup.camera)
     this.scene.orbit.enabled = false
   }
 
   /**
-   * Dessine une image vidéo sans rendre les étiquettes HTML. Everything posed here is a function
+   * Draws a video frame without rendering the HTML labels. Everything posed here is a function
    * of `frame` and of MATCH time: the export renders far slower or faster than real time, so a
    * wall-clock step would change the motion with the machine's load.
    */
@@ -146,14 +146,14 @@ export class ReplayExportScene3d {
     return this.readback.read(this.scene.renderer.getContext())
   }
 
-  /** Projette les étiquettes visibles dans le format vidéo. */
+  /** Projects the visible labels into the video format. */
   exportTags(): readonly ExportTag3d[] {
     const size = this.scene.renderer.getSize(new THREE.Vector2())
     const tags: ExportTag3d[] = []
     const p = new THREE.Vector3()
     const push = (at: THREE.Vector3, tag: Omit<ExportTag3d, 'x' | 'y'>) => {
       p.copy(at).project(this.scene.camera)
-      // Derrière la caméra ou hors champ : pas d'étiquette (comme `CSS2DRenderer`).
+      // Behind the camera or out of frame: no label (like `CSS2DRenderer`).
       if (p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return
       tags.push({ x: ((p.x + 1) / 2) * size.x, y: ((1 - p.y) / 2) * size.y, ...tag })
     }
@@ -167,7 +167,7 @@ export class ReplayExportScene3d {
     return tags
   }
 
-  /** Rend la scène à la vue d'écran et applique les changements retenus. */
+  /** Returns the scene to the on-screen view and applies the held changes. */
   endExport(): void {
     const held = this.held
     if (!held) return
@@ -190,7 +190,7 @@ export class ReplayExportScene3d {
     }
   }
 
-  /** applySize : `onScreen` faux pour l'export, qui rend sans toucher à la boîte de la toile. */
+  /** applySize: `onScreen` false for the export, which renders without touching the canvas's box. */
   applySize(width: number, height: number, onScreen: boolean): void {
     this.scene.camera.aspect = width / height
     this.scene.camera.updateProjectionMatrix()
