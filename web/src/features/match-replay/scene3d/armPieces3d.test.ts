@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import nyexc from './testdata/nyexc-arms.json'
 import { fetchMesh } from './meshFetch'
-import { armPieces3d, lierPiece, planBras, type BrasIndex, type BrasPiece } from './armPieces3d'
+import { ArmPieces3d, lierPiece, planBras, type BrasIndex, type BrasPiece } from './armPieces3d'
 
 vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
 
@@ -216,11 +216,11 @@ function ktx2Glb(): ArrayBuffer {
   return out.buffer
 }
 
-describe('armPieces3d KTX2', () => {
+describe('ArmPieces3d KTX2', () => {
   it('routes a piece GLB KTX2 image through the KTX2 loader it was given', async () => {
     const { urls, loader } = fakeKtx2()
     vi.mocked(fetchMesh).mockResolvedValueOnce(ktx2Glb())
-    const pieces = new armPieces3d('/bras', new AbortController().signal, loader)
+    const pieces = new ArmPieces3d('/bras', new AbortController().signal, loader)
     const scene = await pieces.piece('piece-x.glb')
     expect(scene).not.toBeNull()
     expect(urls).toHaveLength(1)
@@ -231,7 +231,7 @@ describe('armPieces3d KTX2', () => {
 
   it('resolves a KTX2 piece to null without a KTX2 loader', async () => {
     vi.mocked(fetchMesh).mockResolvedValueOnce(ktx2Glb())
-    const pieces = new armPieces3d('/bras', new AbortController().signal, null)
+    const pieces = new ArmPieces3d('/bras', new AbortController().signal, null)
     await expect(pieces.piece('piece-x.glb')).resolves.toBeNull()
     expect(vi.mocked(fetchMesh)).toHaveBeenCalledTimes(1)
     pieces.dispose()

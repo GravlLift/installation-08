@@ -4,8 +4,8 @@ import * as THREE from 'three'
 
 import type { Dress, SpartanArmory } from './armory3d'
 import type { Coat } from './armorCoat3d'
-import type { rigPreparation3d } from './rigPreparation3d'
-import { rigPaint3d } from './rigPaint3d'
+import type { RigPreparation3d } from './rigPreparation3d'
+import { RigPaint3d } from './rigPaint3d'
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0))
 
@@ -42,12 +42,12 @@ function armurerieDe(habit: Dress | null) {
   }
 }
 
-function preparationDe(coat: Coat | null): rigPreparation3d {
-  return { coat: () => coat } as unknown as rigPreparation3d
+function preparationDe(coat: Coat | null): RigPreparation3d {
+  return { coat: () => coat } as unknown as RigPreparation3d
 }
 
-function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation: rigPreparation3d, cleArmeDe: (fichier: string) => string | null = () => null): rigPaint3d {
-  return new rigPaint3d({
+function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation: RigPreparation3d, cleArmeDe: (fichier: string) => string | null = () => null): RigPaint3d {
+  return new RigPaint3d({
     xuid: () => '1',
     armurerie: () => armurerie,
     preparation,
@@ -55,14 +55,14 @@ function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation
   })
 }
 
-describe('rigPaint3d', () => {
+describe('RigPaint3d', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
   it('keeps each copy, invalidates only one rig, and restores both on a player change', () => {
     const a = brasRig(), b = brasRig()
     const armurerie = armurerieDe({} as Dress)
     const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
-    const peinture = peintureDe(a.root, armurerie.armurerie, { coat: (f: string) => coats.get(f) } as unknown as rigPreparation3d)
+    const peinture = peintureDe(a.root, armurerie.armurerie, { coat: (f: string) => coats.get(f) } as unknown as RigPreparation3d)
     peinture.actualiser('a', a.root)
     const copieA = (a.root.children[0] as THREE.Mesh).material as THREE.Material
     const disposeA = vi.spyOn(copieA, 'dispose')
@@ -91,7 +91,7 @@ describe('rigPaint3d', () => {
     a.root.add(piece.root.children[0])
     const armurerie = armurerieDe({} as Dress)
     const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
-    const preparation = { coat: (f: string) => coats.get(f), abandonner: vi.fn() } as unknown as rigPreparation3d
+    const preparation = { coat: (f: string) => coats.get(f), abandonner: vi.fn() } as unknown as RigPreparation3d
     const peinture = peintureDe(a.root, armurerie.armurerie, preparation, () => 'cle-a')
     peinture.actualiser('a', a.root)
     peinture.actualiser('b', b.root)
@@ -280,7 +280,7 @@ describe('rigPaint3d', () => {
     // The stale coat: only the original material (computed before the piece landed).
     const obsolète = coatDe(materiau)
     const coats = new Map([['rig1', obsolète]])
-    const preparation = { coat: (f: string) => coats.get(f) ?? null } as unknown as rigPreparation3d
+    const preparation = { coat: (f: string) => coats.get(f) ?? null } as unknown as RigPreparation3d
     const abandonner = vi.fn(() => { coats.delete('rig1') })
     ;(preparation as { abandonner: unknown }).abandonner = abandonner
     const armurerie = armurerieDe({} as Dress)

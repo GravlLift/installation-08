@@ -13,14 +13,14 @@ import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
 import { nouvellePosePremierePersonne, posePremierePersonne, type EvenementsPremierePersonne } from './firstPersonActions3d'
 import { clipDuRig, ROTATION_RIG_CAMERA, tempsDuClip, urlRig, type ClipPremierePersonne, type IndexPremierePersonne, type MarqueurEffetRig, type RigPremierePersonne } from './premierePersonne3d'
 import { rigGripOf, type ViewGrip } from './viewGrip3d'
-import { armPieces3d, type BrasIndex } from './armPieces3d'
+import { ArmPieces3d, type BrasIndex } from './armPieces3d'
 import { muzzleWorldPose, muzzlePose, muzzlePoseCamera, muzzleLocalPose, type MuzzleLocal } from './muzzleRig3d'
 import type { Dress, SpartanArmory } from './armory3d'
-import { rigPreparation3d } from './rigPreparation3d'
+import { RigPreparation3d } from './rigPreparation3d'
 import type { BakedLight } from './bakedLightShader'
 import { assignPlayerProbe } from './playerProbe3d'
-import { rigDressing3d } from './rigDressing3d'
-import { rigPaint3d } from './rigPaint3d'
+import { RigDressing3d } from './rigDressing3d'
+import { RigPaint3d } from './rigPaint3d'
 import type { Recoil } from './recoil3d'
 import { pivotDuRecul, poserReculRig } from './firstPersonRecoil3d'
 import { fpCableStart } from './grapple3d_logic'
@@ -159,8 +159,8 @@ export class FirstPersonArms3d {
       }
     })()
     this.gate?.track(this.indexPieces)
-    this.chargeurPieces = new armPieces3d(dossier, this.abort.signal, this.ktx2)
-    this.preparation = new rigPreparation3d({
+    this.chargeurPieces = new ArmPieces3d(dossier, this.abort.signal, this.ktx2)
+    this.preparation = new RigPreparation3d({
       fichiersCharges: () => [...this.entrees.entries()].filter(([, entree]) => entree).map(([fichier]) => fichier),
       materiauxDe: (fichier) => this.entrees.get(fichier)?.materiaux ?? [],
       indexPieces: () => this.indexPieces,
@@ -169,7 +169,7 @@ export class FirstPersonArms3d {
       xuid: () => this.xuid,
       cleArmeDe: (fichier) => this.fichiersArmes.get(fichier) ?? null,
     })
-    this.peinture = new rigPaint3d({
+    this.peinture = new RigPaint3d({
       xuid: () => this.xuid,
       armurerie: () => this.armurerie,
       preparation: this.preparation,
@@ -177,7 +177,7 @@ export class FirstPersonArms3d {
       gate: this.gate,
       baked: this.baked ?? null,
     })
-    this.habillage = new rigDressing3d({
+    this.habillage = new RigDressing3d({
       indexPieces: this.indexPieces,
       chargeur: this.chargeurPieces,
       signal: this.abort.signal,
