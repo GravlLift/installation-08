@@ -7,8 +7,31 @@ The source files below are as of 2026-11-13, with the documented changes noted p
 | film-decoder | https://github.com/JGtm/halo-infinite-film-decoder | v1.3.6 | `h1:CP7zIqapzMcHHam2aKBMsXAsaNgJCzjTWk27petIpxc=` | AGPL-3.0 |
 | map-images | https://github.com/JGtm/halo-infinite-map-images | v1.0.1 | `h1:Op1TrnECQKrCxOjWkI2Cb9WGf+S5nOikyap5eGZdPA=` | AGPL-3.0 |
 | files-reader | https://github.com/JGtm/halo-infinite-files-reader | v1.0.1 | `h1:sqD4leKw4x9yC+JdXWAVHOio6LOqF+VzKgcWZ5SL688=` | GPL-3.0-only (the whole module, `ooz` included) |
+| webview_go | https://github.com/webview/webview_go | v0.0.0-20240831120633-6173450d4dd6 | `h1:VQpB2SpK88C6B5lPHTuSZKb2Qee1QWwiFlC5CKY4AW0=` | MIT (webview.h and the Go bindings; `libs/mswebview2/include/WebView2.h` is Microsoft's own SDK header, 3-Clause BSD, see `libs/mswebview2/LICENSE`) |
 
 `files-reader/ooz` uses cgo and requires a C/C++ toolchain.
+
+`webview_go` uses cgo (a C++ toolchain) on every platform; the app window needs it on Windows
+only. Replaced `jchv/go-webview2` (a hand-written Go COM binding to WebView2): making the app
+window per-monitor DPI aware (manifest `dpiAwareness` or a runtime
+`SetProcessDpiAwarenessContext` call) crashed that binding's controller-creation callback with a
+nil `*ICoreWebView2Controller` despite a success HRESULT (`pkg/edge/chromium.go`'s
+`CreateCoreWebView2ControllerCompleted`, 7 launches of 7); reading its vtable thunk and callback
+registration found no small, provable fix, so the window now goes through this official library
+instead, which declares PerMonitorV2 itself and handles `WM_DPICHANGED`/`WM_GETDPISCALEDSIZE`.
+
+- `libs/webview/include/webview.h` (LOCAL-CHANGE): `win32_edge_engine::embed` reads
+  `WEBVIEW2_USER_DATA_FOLDER` (via `GetEnvironmentVariableW`) and uses it verbatim when the host
+  process set it, instead of always computing a folder from `CSIDL_APPDATA` plus the running
+  exe's own file name. Upstream's computed folder is a brand-new WebView2 (Chromium) profile for
+  any exe name or location this library has not been run from before, and a first-time profile on
+  this project's build machine makes a Windows blank-password logon check that must never run
+  against an unplanned folder (see the global operating rules). The app sets
+  `WEBVIEW2_USER_DATA_FOLDER` itself (`cmd/infinite-theater-3d/window_windows.go`) to its one
+  fixed folder before creating the window; this change only makes the library honor it.
+- Everything else is unmodified: `go.sum` is empty upstream (no dependencies) and is copied as
+  such; `examples/`, `webview_test.go`, `CHANGELOG.md`, `README.md`, `.github/` and `.gitignore`
+  are omitted (not needed to build).
 
 `basisu/` holds Binomial's Basis Universal encoder and transcoder (https://github.com/BinomialLLC/basis_universal,
 commit `99f52d63aa6799cbdaecfe977111dc5ec3b31d47` of 2026-09-01, Go proxy pseudo-version

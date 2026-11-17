@@ -9,10 +9,11 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"unsafe"
 
-	webview2 "github.com/jchv/go-webview2"
+	webview "github.com/webview/webview_go"
 	"golang.org/x/sys/windows"
 )
 
@@ -51,9 +52,21 @@ const (
 	mbOK                    = 0x00000000
 )
 
-// gwlWndProc is user32's GWL_WNDPROC index (-24) as the unsigned value the
-// GetWindowLongPtrW/SetWindowLongPtrW calls take.
-const gwlWndProc = ^uintptr(23)
+// gwlWndProc is user32's GWL_WNDPROC (== GWLP_WNDPROC) index, -4, as the unsigned value the
+// GetWindowLongPtrW/SetWindowLongPtrW calls take: ^uintptr(3) is two's-complement -4, the
+// correctly sign-extended 64-bit form of the 32-bit index winuser.h defines.
+//
+// LOCAL-CHANGE (fix/window-dpi, 2026-11-17): this was ^uintptr(23) (-24, not a real GWL/GWLP
+// index) since the file's first commit. GetWindowLongPtrW/SetWindowLongPtrW on an undefined
+// negative index neither crash nor reliably no-op: on this build they silently failed, so the
+// subclass below was never actually installed on the real window procedure, under either
+// window binding. Nothing read their return value or error, so the menu bar showed (SetMenu is
+// a separate, correct call) but every click did nothing: WM_COMMAND and WM_CLOSE never reached
+// runMenuCommand/the close guard/the placement save, which instead went straight to the
+// window's real procedure (DefWindowProcW's default WM_COMMAND handling, nothing). Covered by
+// TestSubclassWndProc (window_menu_windows_test.go), which proves ^uintptr(3) round-trips a
+// message through a real subclassed window and ^uintptr(23) does not.
+const gwlWndProc = ^uintptr(3)
 
 var (
 	procCreateMenu        = windows.NewLazySystemDLL("user32.dll").NewProc("CreateMenu")
@@ -230,16 +243,30 @@ func appendSubmenu(bar uintptr, sub uintptr, text string) {
 
 // installAppWindowMenu sets the menu bar on the window, subclasses its window
 // procedure so menu selections reach runMenuCommand (every other message goes to the
-// original procedure, which go-webview2 installed), and binds the it3dAccelerator
+// original procedure, which the window binding installed: webview_go's win32_edge_engine
+// wndproc, registered on the "webview" window class), and binds the it3dAccelerator
 // entry point for the injected keydown listener. The callback is never released: the
 // window and the process share a lifetime, and releasing it before the window is gone
 // would free live window-procedure code.
-func installAppWindowMenu(w webview2.WebView, a menuActions, guard *closeGuard) {
+func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 	hwnd := windows.Handle(w.Window())
 	if menu := createAppMenu(); menu != 0 {
 		_, _, _ = procSetMenu.Call(uintptr(hwnd), uintptr(menu))
 	}
-	orig, _, _ := procGetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc)
+	orig, _, err := procGetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc)
+	if orig == 0 {
+		// A real original procedure is never a nil pointer; this is GetWindowLongPtrW
+		// failing (wrong index, invalid window...). Installing the subclass over a wrong
+		// "orig" would either lose every message the switch below does not name or crash
+		// on the CallWindowProcW fallback, so stop here: the menu bar still shows (SetMenu
+		// already ran), its clicks just do nothing, which is the pre-fix symptom and the
+		// one this logs instead of hiding.
+		slog.Error("app window: GetWindowLongPtrW(GWL_WNDPROC) failed, menu and close-save disabled", "err", err)
+		_ = w.Bind("it3dAccelerator", func(name string) {
+			w.Dispatch(func() { a.runMenuCommand(menuCommand(name)) })
+		})
+		return
+	}
 	subclass := windows.NewCallback(func(hwnd windows.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 		if msg == wmCommand && wParam>>16 == 0 { // a menu selection
 			a.runMenuCommand(wParam)
@@ -257,7 +284,9 @@ func installAppWindowMenu(w webview2.WebView, a menuActions, guard *closeGuard) 
 		r, _, _ := procCallWindowProcW.Call(orig, uintptr(hwnd), uintptr(msg), wParam, lParam)
 		return r
 	})
-	_, _, _ = procSetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc, subclass)
+	if ret, _, err := procSetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc, subclass); ret == 0 {
+		slog.Error("app window: SetWindowLongPtrW(GWL_WNDPROC) failed, menu and close-save disabled", "err", err)
+	}
 	// The binding's body may run on the Chromium message thread; the action itself must
 	// run on the main OS thread, so dispatch it.
 	_ = w.Bind("it3dAccelerator", func(name string) {

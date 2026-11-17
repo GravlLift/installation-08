@@ -81,12 +81,22 @@ are in [PARITY.md](PARITY.md).
 
 ## App window and load speed (owner's queue, 2026-11-17)
 
-- Window shell: DONE for the menu bar, version resource, remembered placement, F11, Ctrl+R
-  and the export close guard. Open: per-monitor DPI awareness (the window renders soft at
-  display scaling above 100%; declaring PerMonitorV2 made go-webview2 crash at controller
-  creation, 7 of 7 launches; next step is to debug the wrapper or switch to
-  webview/webview_go, brief in the 2026-11-17 session), and the app icon once the name is
-  chosen.
+- Window shell: DONE for the menu bar, version resource, remembered placement, F11, Ctrl+R,
+  the export close guard, and per-monitor DPI awareness (fix/window-dpi, 2026-11-17: go-webview2
+  crashed WebView2 controller creation under any DPI-aware state with no small fix found in its
+  vtable/callback code; switched the window to webview/webview_go, vendored in
+  third_party/webview_go with one local change to honor the app's fixed WEBVIEW2_USER_DATA_FOLDER;
+  app.manifest now declares dpiAwareness PerMonitorV2, embedded into packaged builds by
+  tools/package.ps1). The switch exposed a pre-existing bug, present since the menu bar's first
+  commit under either binding: `gwlWndProc` was `^uintptr(23)` (-24, not a real GWL/GWLP index),
+  so the menu/close-save subclass was never actually installed — every menu click did nothing,
+  and the placement was never saved on close. Fixed to `^uintptr(3)` (-4, the real
+  GWL_WNDPROC/GWLP_WNDPROC), with the previously-ignored SetWindowLongPtrW/GetWindowLongPtrW
+  failures now logged. Also DONE: the default window size (no remembered placement) is now the
+  client area at exactly 16:9 (1600x900 DIPs scaled to the monitor's DPI, outer size via
+  AdjustWindowRectExForDpi including the menu, shrunk keeping 16:9 and centered if it would not
+  fit the work area), and a remembered placement now carries the DPI it was captured at, rescaled
+  on restore if the target monitor's DPI differs. Open: the app icon once the name is chosen.
 - Serve the viewer's files to the window in-process (WebView2 resource interception) instead
   of over HTTP, measured against HTTP.
 - Confirm compiled shaders persist across launches in the window's fixed profile (second

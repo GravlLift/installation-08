@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	webview2 "github.com/jchv/go-webview2"
+	webview "github.com/webview/webview_go"
 	"golang.org/x/sys/windows"
 )
 
@@ -14,11 +14,11 @@ func init() {
 	// The webview's window and its message loop must live on the main OS thread for the
 	// whole process lifetime.
 	runtime.LockOSThread()
-	// DPI awareness must NOT be set here at runtime: on this machine any DPI-aware
-	// state (a manifest declaration or a SetProcessDpiAwarenessContext call) breaks
-	// WebView2 controller creation (nil controller, a res=0 panic in go-webview2),
-	// while a DPI-unaware process launches fine. The app is DPI-unaware until that
-	// WebView2 issue is understood.
+	// DPI awareness is declared in app.manifest (PerMonitorV2) and, as defense in depth,
+	// set at runtime by webview_go's own window creation if the manifest did not already
+	// set it. The previous binding (go-webview2) crashed WebView2 controller creation
+	// under any DPI-aware state (see third_party/README.md); this one is the official
+	// webview library, which is per-monitor DPI aware by design.
 }
 
 // webviewUserDataFolder is the ONE fixed user data folder of the app window's WebView2
@@ -64,22 +64,22 @@ const (
 func openWindowApp(url string) error {
 	applyWebViewEnvDefaults()
 	appOrigin := originOf(url)
-	// The remembered placement, or the default: the standard size, centered.
+	// The remembered placement always wins; with none, the DPI-aware 16:9 default
+	// (defaultWindowPlacement).
 	placement, ok := loadWindowPlacement()
 	if !ok {
-		placement = centeredPlacement(appWindowWidth, appWindowHeight)
+		placement = defaultWindowPlacement()
 	}
-	w := webview2.NewWithOptions(webview2.WebViewOptions{
-		DataPath: webviewUserDataFolder(),
-		WindowOptions: webview2.WindowOptions{
-			Title:  appWindowTitle,
-			Width:  uint(placement.Width),
-			Height: uint(placement.Height),
-		},
-	})
+	// webview_go has no window-options struct: the title and the placement (size and
+	// position, or maximized) are set right after creation instead of passed to it. The
+	// data path is not a parameter of this library either; it reads
+	// WEBVIEW2_USER_DATA_FOLDER itself (applyWebViewEnvDefaults set it above), per the
+	// LOCAL-CHANGE in third_party/webview_go/libs/webview/include/webview.h.
+	w := webview.New(false)
 	if w == nil {
 		return errors.New("the WebView2 runtime could not create the app window")
 	}
+	w.SetTitle(appWindowTitle)
 	hwnd := windows.Handle(w.Window())
 	applyWindowPlacement(hwnd, placement)
 	w.Init(externalLinksJS)
