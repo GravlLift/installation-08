@@ -66,8 +66,8 @@ func writeGLBAt(t *testing.T, path string, buildFormat int, basisu bool) {
 
 // TestGlbFormatCurrent — the build-format read of a map GLB: the stamped current format
 // is current, an older stamp is not, an unstamped KTX2 GLB (KHR_texture_basisu, built
-// before the stamp existed) is current, an unstamped PNG one is not, and a non-GLB is
-// not.
+// before the stamp existed: format 2) is not since format 3, an unstamped PNG one is not,
+// and a non-GLB is not.
 func TestGlbFormatCurrent(t *testing.T) {
 	dir := t.TempDir()
 	writeGLBAt(t, filepath.Join(dir, "cur.glb"), mapmesh.BuildFormat, false)
@@ -78,7 +78,7 @@ func TestGlbFormatCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, want := range map[string]bool{
-		"cur.glb": true, "old.glb": false, "ktx2.glb": true, "none.glb": false, "junk.glb": false,
+		"cur.glb": true, "old.glb": false, "ktx2.glb": false, "none.glb": false, "junk.glb": false,
 	} {
 		if got := glbFormatCurrent(filepath.Join(dir, name)); got != want {
 			t.Errorf("glbFormatCurrent(%s) = %v, want %v", name, got, want)
