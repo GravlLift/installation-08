@@ -94,6 +94,14 @@ try {
 }
 finally { Pop-Location }
 
+# Embed the app manifest (per-monitor-v2 DPI awareness, long-path awareness, Common Controls
+# v6, Windows 10) into the just-built exe, replacing Go's own default manifest. Without this
+# step a packaged build ships DPI-unaware (soft, bitmap-stretched at display scaling above
+# 100%) even though the dev/run path picks it up via the same app.manifest. embed-manifest.ps1
+# throws (stopping this script, since $ErrorActionPreference is Stop here too) on any failure,
+# including a missing mt.exe.
+& (Join-Path $scriptDir 'embed-manifest.ps1') -Exe $exe
+
 # --- 5. The release folder and the zip.
 $name = "infinite-theater-3d-$Version-windows-amd64"
 $pkgDir = Join-Path $outDir $name

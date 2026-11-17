@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"unsafe"
 
-	webview2 "github.com/jchv/go-webview2"
+	webview "github.com/webview/webview_go"
 	"golang.org/x/sys/windows"
 )
 
@@ -234,7 +234,7 @@ func appendSubmenu(bar uintptr, sub uintptr, text string) {
 // entry point for the injected keydown listener. The callback is never released: the
 // window and the process share a lifetime, and releasing it before the window is gone
 // would free live window-procedure code.
-func installAppWindowMenu(w webview2.WebView, a menuActions, guard *closeGuard) {
+func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 	hwnd := windows.Handle(w.Window())
 	if menu := createAppMenu(); menu != 0 {
 		_, _, _ = procSetMenu.Call(uintptr(hwnd), uintptr(menu))
