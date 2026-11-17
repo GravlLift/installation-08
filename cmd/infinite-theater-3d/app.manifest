@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
   app.manifest - the app's PE manifest. It declares per-monitor-v2 DPI awareness (with
-  the older <dpiAware> vocabulary as the fallback), Common Controls v6, and Windows 10.
-  It is embedded into every Windows/amd64 build by resources.rc (compiled to
-  rsrc_windows_amd64.syso; regenerate with tools\resources.ps1).
+  the older <dpiAware> vocabulary as the fallback), long-path awareness, Common Controls
+  v6, and Windows 10. It is embedded after the build: Go links a single default manifest
+  of its own into the exe, and a second name-1 manifest from a .syso would only sit
+  behind it (Windows loads the first one found). tools\embed-manifest.ps1 replaces that
+  default with this file via mt.exe. Do not set DPI awareness at runtime with
+  SetProcessDpiAwarenessContext: on this machine that call breaks WebView2 controller
+  creation (nil controller, res=0 panic in go-webview2).
 -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1"
     xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
@@ -12,6 +16,7 @@
     <windowsSettings>
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
       <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">

@@ -10,20 +10,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var procSetProcessDpiAwarenessContext = windows.NewLazySystemDLL("user32.dll").NewProc("SetProcessDpiAwarenessContext")
-
-// dpiAwarenessContextPerMonitorAwareV2 is user32's Dpi_Awareness_Context value for
-// per-monitor-v2 awareness: the signed handle -4.
-const dpiAwarenessContextPerMonitorAwareV2 = ^uintptr(3)
-
 func init() {
 	// The webview's window and its message loop must live on the main OS thread for the
 	// whole process lifetime.
 	runtime.LockOSThread()
-	// The app manifest (app.manifest, embedded via rsrc_windows_amd64.syso) declares
-	// per-monitor-v2 DPI awareness; this is the belt-and-braces fallback for a build
-	// without it. Its failure (Windows 8.1 and older) is ignored.
-	_, _, _ = procSetProcessDpiAwarenessContext.Call(dpiAwarenessContextPerMonitorAwareV2)
+	// DPI awareness comes from the app manifest (app.manifest, embedded after the build
+	// by tools\embed-manifest.ps1). It must NOT be set here at runtime: calling
+	// SetProcessDpiAwarenessContext in this process breaks WebView2 controller creation
+	// on this machine (nil controller, a res=0 panic in go-webview2).
 }
 
 // webviewUserDataFolder is the ONE fixed user data folder of the app window's WebView2

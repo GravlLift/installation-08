@@ -8,7 +8,8 @@
     The display name comes from the appDisplayName constant (window.go) and the version
     from the Version default (serve.go). The script rewrites resources.rc from its
     template, so renaming the app is one edit of the constant plus a rerun of this
-    script; the manifest (app.manifest) is referenced from the .rc, not copied into it.
+    script. The app manifest (app.manifest) is applied to a finished exe separately,
+    by tools\embed-manifest.ps1.
     windres (a MinGW resource compiler, on PATH) compiles the .rc into the .syso that
     Go's toolchain links into every Windows/amd64 build.
 
@@ -50,8 +51,9 @@ $rc = @"
 // appDisplayName constant (window.go) and the Version default (serve.go). Do not edit
 // it by hand: rename the app by editing the constant, then rerun the script.
 
-// The app manifest: per-monitor-v2 DPI awareness, Common Controls v6, Windows 10.
-1 24 "app.manifest"
+// The app manifest (app.manifest) is NOT compiled in here: Go already links a default
+// manifest into every exe, and a second name-1 manifest would only sit behind it.
+// tools\embed-manifest.ps1 replaces the default with app.manifest after the build.
 
 // App icon: add here, once the name and the artwork are chosen, as
 // 1 ICON "app.ico"
