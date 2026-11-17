@@ -13,6 +13,7 @@ package meshjobs
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -384,8 +385,21 @@ func (r *Runner) pump() {
 // outcome. A Stop cancels the build's context.
 func (r *Runner) runJob(ctx context.Context, module string) {
 	out := r.outFor(module)
+	// One line at the start and one at the end of every build, with its duration, so the
+	// server log of a user's first start says which build took the time.
+	slog.Info("build started", "job", module)
+	t0 := time.Now()
 	res, err := r.build(ctx, module, r.gameRoot, out)
+	took := time.Since(t0).Round(100 * time.Millisecond).String()
 	r.mu.Lock()
+	switch {
+	case r.cancelling:
+		slog.Info("build cancelled", "job", module, "took", took)
+	case err == nil:
+		slog.Info("build finished", "job", module, "took", took)
+	default:
+		slog.Warn("build failed", "job", module, "took", took, "err", err)
+	}
 	if r.cancelling {
 		r.cancelled[module] = true
 	} else if err == nil {
