@@ -3,6 +3,7 @@ package reloadsounds
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,24 @@ func TestFramesToMs(t *testing.T) {
 		if got := framesToMs(c.frames, c.fps); got != c.ms {
 			t.Errorf("framesToMs(%d, %d) = %d, want %d", c.frames, c.fps, got, c.ms)
 		}
+	}
+}
+
+// TestManifestWritesEmptySoundsAsList: a silent vent loop (and a missing phase) is written with
+// `"sounds": []`, never null, which the viewer refuses.
+func TestManifestWritesEmptySoundsAsList(t *testing.T) {
+	dir := t.TempDir()
+	m := &Manifest{Version: ManifestVersion,
+		Weapons: map[string]map[string]Reload{"2ac9c2ff": {"combat": {Animation: "a", DurationMs: 400}}},
+		Vents:   map[string]map[string]Vent{"daf193c7": {"combat": {Loop: VentClip{Animation: "combat:pistol:pp:vent_loop", DurationMs: 833}}}}}
+	if err := writeManifest(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ManifestName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); strings.Contains(s, "null") || strings.Count(s, `"sounds": []`) != 4 {
+		t.Fatalf("manifest:\n%s", s)
 	}
 }

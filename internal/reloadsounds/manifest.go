@@ -57,11 +57,31 @@ type VentClip struct {
 	Sounds     []Sound `json:"sounds"`
 }
 
+// MarshalJSON writes a clip that posts no sound (a vent loop) with an empty `sounds` list, never
+// null: the viewer reads a clip as a length and a list, and refused the whole manifest, every
+// reload of every weapon silenced, for the null its first vents wrote (2026-11-16).
+func (c VentClip) MarshalJSON() ([]byte, error) {
+	type plain VentClip
+	if c.Sounds == nil {
+		c.Sounds = []Sound{}
+	}
+	return json.Marshal(plain(c))
+}
+
 // Reload is one reload animation: its game name, its length, and the sounds it posts.
 type Reload struct {
 	Animation  string  `json:"animation"`
 	DurationMs int     `json:"durationMs"`
 	Sounds     []Sound `json:"sounds"`
+}
+
+// MarshalJSON writes an empty `sounds` list as [], as VentClip does.
+func (r Reload) MarshalJSON() ([]byte, error) {
+	type plain Reload
+	if r.Sounds == nil {
+		r.Sounds = []Sound{}
+	}
+	return json.Marshal(plain(r))
 }
 
 // Sound is a sound the animation posts at AtMs after its start; the game draws one of its takes.

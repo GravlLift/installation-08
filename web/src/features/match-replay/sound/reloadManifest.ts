@@ -84,9 +84,20 @@ export function takeStem(file: string): string {
   return file.replace(/\.ogg$/, '')
 }
 
-/** The shape of one manifest clip: a length and a list of sounds. */
+/**
+ * The shape of one manifest clip: a length and a list of sounds. A clip that posts no sound may carry
+ * `sounds: null`: the server's v2 manifests write a silent vent loop that way (a Go nil list), and
+ * refusing it refused the whole manifest, every reload of every weapon silenced (fixed 2026-11-16).
+ */
 function isClip(clip: unknown): clip is ReloadManifestClip {
-  return !!clip && typeof (clip as ReloadManifestClip).durationMs === 'number' && Array.isArray((clip as ReloadManifestClip).sounds)
+  if (!clip || typeof (clip as ReloadManifestClip).durationMs !== 'number') return false
+  const sounds = (clip as { sounds?: unknown }).sounds
+  return Array.isArray(sounds) || sounds === null
+}
+
+/** withSounds: the clip with a null `sounds` read as the empty list. */
+function withSounds(clip: ReloadManifestClip): ReloadManifestClip {
+  return clip.sounds === null ? { ...clip, sounds: [] } : clip
 }
 
 /** parseReloadManifest checks the manifest's shape; anything else reads as nothing extracted. */
@@ -95,19 +106,28 @@ export function parseReloadManifest(raw: unknown): ReloadManifest | null {
   const m = raw as Partial<ReloadManifest>
   if (typeof m.version !== 'number' || m.version < RELOAD_MANIFEST_VERSION) return null
   if (!m.weapons || typeof m.weapons !== 'object') return null
-  for (const stances of Object.values(m.weapons)) {
-    for (const clip of Object.values(stances ?? {})) {
+  const weapons: Record<string, Partial<Record<ReloadStance, ReloadManifestClip>>> = {}
+  for (const [tag, stances] of Object.entries(m.weapons)) {
+    const out: Partial<Record<ReloadStance, ReloadManifestClip>> = {}
+    for (const [stance, clip] of Object.entries(stances ?? {})) {
       if (!isClip(clip)) return null
+      out[stance as ReloadStance] = withSounds(clip)
     }
+    weapons[tag] = out
   }
+  let vents: Record<string, Partial<Record<ReloadStance, VentManifest>>> | undefined
   if (m.vents) {
-    for (const stances of Object.values(m.vents)) {
-      for (const vent of Object.values(stances ?? {})) {
+    vents = {}
+    for (const [tag, stances] of Object.entries(m.vents)) {
+      const out: Partial<Record<ReloadStance, VentManifest>> = {}
+      for (const [stance, vent] of Object.entries(stances ?? {})) {
         if (!vent || !isClip(vent.enter) || !isClip(vent.loop) || !isClip(vent.exit)) return null
+        out[stance as ReloadStance] = { enter: withSounds(vent.enter), loop: withSounds(vent.loop), exit: withSounds(vent.exit) }
       }
+      vents[tag] = out
     }
   }
-  return m as ReloadManifest
+  return { ...(m as ReloadManifest), weapons, ...(vents ? { vents } : {}) }
 }
 
 /** loadReloadManifest reads the manifest from the sound route; `null` when nothing was extracted. */
