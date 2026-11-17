@@ -108,6 +108,51 @@ func HasPackages(dir string) bool {
 	return false
 }
 
+// EnglishFolderName is the game's language folder this build prefers whenever it holds an
+// announcer package.
+const EnglishFolderName = "English(US)"
+
+// DiscoverLanguage picks the language folder under soundRoot (announcer.SoundRoot's result,
+// the game's Content\Sound\win) to read the announcer from. An install can hold voice packages
+// for any single language, not necessarily English — the install this was built against only
+// has English(US); a tester's report showed an install with only French(France), which failed
+// outright because the caller always asked for English(US) by name.
+//
+// Choice order: EnglishFolderName when it holds an announcer package; otherwise every other
+// language folder under soundRoot that holds one, picked deterministically (sorted by folder
+// name, so the same install always picks the same language). An install with no announcer
+// package in any language folder is an error naming every folder searched.
+func DiscoverLanguage(ctx context.Context, soundRoot string) (name, dir string, err error) {
+	entries, err := os.ReadDir(soundRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("announcer: %w", err)
+	}
+	var all, withAnnouncer []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		all = append(all, e.Name())
+		if HasPackages(filepath.Join(soundRoot, e.Name())) {
+			withAnnouncer = append(withAnnouncer, e.Name())
+		}
+	}
+	if len(withAnnouncer) == 0 {
+		sort.Strings(all)
+		return "", "", fmt.Errorf("announcer: no announcer package in any language folder under %s (searched %s)", soundRoot, strings.Join(all, ", "))
+	}
+	sort.Strings(withAnnouncer)
+	picked := withAnnouncer[0]
+	for _, n := range withAnnouncer {
+		if n == EnglishFolderName {
+			picked = EnglishFolderName
+			break
+		}
+	}
+	slog.InfoContext(ctx, "announcer language chosen", "language", picked, "installed", withAnnouncer)
+	return picked, filepath.Join(soundRoot, picked), nil
+}
+
 // readPacks parses the announcer packages of a language folder and returns the bank ids their
 // names give (a package is named after its bank, and a bank's id is the hash of its name).
 func readPacks(dir string) ([]*wwise.Package, map[uint32]string, error) {
