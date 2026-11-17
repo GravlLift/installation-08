@@ -9,11 +9,11 @@
  */
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { adsLevelIndex, adsOverlayFor, type AdsOverlaySpec } from './adsOverlay'
-import type { formeReticule } from './hud3d_logic'
+import type { reticleShape } from './hud3d_logic'
 import { specLunette, zoomAt, type ScopeSpec, type Zoom3d } from './scopeLogic'
 
-/** The hip reticle family of a weapon (`formeReticule`). */
-export type ReticleForm = ReturnType<typeof formeReticule>
+/** The hip reticle family of a weapon (`reticleShape`). */
+export type ReticleForm = ReturnType<typeof reticleShape>
 
 /** The reticle box: at least this many CSS pixels... */
 export const RETICLE_MIN_PX = 50
@@ -28,7 +28,7 @@ export const RETICLE_DOT_R = 1.7
 /** A line segment in box units: x1, y1, x2, y2. */
 export type Segment = readonly [number, number, number, number]
 
-/** The four ticks of the 'cercle' and 'pistolet' reticles. */
+/** The four ticks of the 'circle' and 'pistol' reticles. */
 const TICKS: readonly Segment[] = [[50, 18, 50, 23], [50, 77, 50, 82], [18, 50, 23, 50], [77, 50, 82, 50]]
 /** The hit marker: four short diagonals at the box corners, pointing in. */
 const HIT_MARKS: readonly Segment[] = [[20, 20, 27, 27], [80, 20, 73, 27], [20, 80, 27, 73], [80, 80, 73, 73]]
@@ -44,9 +44,9 @@ export interface ReticleGeometry {
 
 /** reticleGeometry: what the hip reticle of `form` draws, with the hit marker of the moment. */
 export function reticleGeometry(form: ReticleForm, elimination: number, touche: number): ReticleGeometry {
-  const ring = ['cercle', 'precision', 'large', 'defaut'].includes(form) ? (form === 'large' ? 32 : form === 'precision' ? 15 : 25) : null
-  const dot = ['precision', 'pistolet', 'point', 'defaut'].includes(form)
-  const ticks = ['cercle', 'pistolet'].includes(form) ? TICKS : []
+  const ring = ['circle', 'precision', 'large', 'default'].includes(form) ? (form === 'large' ? 32 : form === 'precision' ? 15 : 25) : null
+  const dot = ['precision', 'pistol', 'dot', 'default'].includes(form)
+  const ticks = ['circle', 'pistol'].includes(form) ? TICKS : []
   const hit = elimination > 0 || touche > 0 ? { segments: HIT_MARKS, kill: elimination > 0, opacity: elimination || touche } : null
   return { ring, dot, ticks, hit }
 }

@@ -12,19 +12,19 @@ import { aimHudAt, heldModelKey, reticleBoxPx, reticleGeometry, segmentsPath } f
 
 describe('reticleGeometry', () => {
   it('draws each family the way the live SVG did', () => {
-    expect(reticleGeometry('defaut', 0, 0)).toMatchObject({ ring: 25, dot: true, ticks: [], hit: null })
+    expect(reticleGeometry('default', 0, 0)).toMatchObject({ ring: 25, dot: true, ticks: [], hit: null })
     expect(reticleGeometry('large', 0, 0)).toMatchObject({ ring: 32, dot: false })
     expect(reticleGeometry('precision', 0, 0)).toMatchObject({ ring: 15, dot: true })
-    expect(reticleGeometry('point', 0, 0)).toMatchObject({ ring: null, dot: true, ticks: [] })
-    const pistol = reticleGeometry('pistolet', 0, 0)
+    expect(reticleGeometry('dot', 0, 0)).toMatchObject({ ring: null, dot: true, ticks: [] })
+    const pistol = reticleGeometry('pistol', 0, 0)
     expect(pistol.ring).toBeNull()
     expect(segmentsPath(pistol.ticks)).toBe('M50 18L50 23 M50 77L50 82 M18 50L23 50 M77 50L82 50')
   })
 
   it('marks a hit in the reticle color and a kill heavier, at the mark opacity', () => {
-    expect(reticleGeometry('cercle', 0, 0.4).hit).toMatchObject({ kill: false, opacity: 0.4 })
-    expect(reticleGeometry('cercle', 0.8, 0.4).hit).toMatchObject({ kill: true, opacity: 0.8 })
-    expect(segmentsPath(reticleGeometry('cercle', 1, 0).hit!.segments)).toBe('M20 20L27 27 M80 20L73 27 M20 80L27 73 M80 80L73 73')
+    expect(reticleGeometry('circle', 0, 0.4).hit).toMatchObject({ kill: false, opacity: 0.4 })
+    expect(reticleGeometry('circle', 0.8, 0.4).hit).toMatchObject({ kill: true, opacity: 0.8 })
+    expect(segmentsPath(reticleGeometry('circle', 1, 0).hit!.segments)).toBe('M20 20L27 27 M80 20L73 27 M20 80L27 73 M80 80L73 73')
   })
 
   it('sizes the box at 10 % of the height, never under 50 px', () => {

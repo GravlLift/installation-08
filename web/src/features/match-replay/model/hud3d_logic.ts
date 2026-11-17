@@ -14,122 +14,122 @@ import { equipmentSlotAt } from './equipmentSlotHud'
 import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
 
-export function formeReticule(cle: string | undefined): 'cercle' | 'precision' | 'pistolet' | 'point' | 'large' | 'defaut' {
-  if (!cle) return 'defaut'
-  if (['hinf_br75', 'hinf_vk78_commando', 'hinf_bandit', 'hinf_shock_rifle'].includes(cle)) return 'precision'
-  if (['hinf_s7_sniper'].includes(cle)) return 'point'
-  if (['hinf_cqs48_bulldog', 'hinf_heatwave', 'hinf_cindershot'].includes(cle) || weaponClassOfKey(cle) === 'missile') return 'large'
-  if (weaponClassOfKey(cle) === 'pistol') return 'pistolet'
-  return weaponClassOfKey(cle) === 'rifle' ? 'cercle' : 'defaut'
+export function reticleShape(key: string | undefined): 'circle' | 'precision' | 'pistol' | 'dot' | 'large' | 'default' {
+  if (!key) return 'default'
+  if (['hinf_br75', 'hinf_vk78_commando', 'hinf_bandit', 'hinf_shock_rifle'].includes(key)) return 'precision'
+  if (['hinf_s7_sniper'].includes(key)) return 'dot'
+  if (['hinf_cqs48_bulldog', 'hinf_heatwave', 'hinf_cindershot'].includes(key) || weaponClassOfKey(key) === 'missile') return 'large'
+  if (weaponClassOfKey(key) === 'pistol') return 'pistol'
+  return weaponClassOfKey(key) === 'rifle' ? 'circle' : 'default'
 }
 
-export function marqueImpact(ageMs: number, dureeMs: number): number {
-  return ageMs >= 0 && ageMs < dureeMs ? 1 - ageMs / dureeMs : 0
+export function impactMark(ageMs: number, durationMs: number): number {
+  return ageMs >= 0 && ageMs < durationMs ? 1 - ageMs / durationMs : 0
 }
 
 /** The first-person HUD clock: when the match's time limit is known, it
  * counts down from it and is bounded at zero; unknown limit (`null`) = the elapsed time,
  * like the timeline. */
-export function horlogeHud(limitMs: number | null, elapsedMs: number): number {
+export function hudClock(limitMs: number | null, elapsedMs: number): number {
   return limitMs == null ? elapsedMs : Math.max(0, limitMs - elapsedMs)
 }
 
-export function preparerAth(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[]) {
+export function prepareHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[]) {
   const impacts = new Map<number, number[]>()
-  for (const degat of doc.damages) {
-    if (degat.by === undefined) continue
-    const temps = impacts.get(degat.by) ?? []
-    temps.push(frameToMs(degat.t, doc))
-    impacts.set(degat.by, temps)
+  for (const damage of doc.damages) {
+    if (damage.by === undefined) continue
+    const times = impacts.get(damage.by) ?? []
+    times.push(frameToMs(damage.t, doc))
+    impacts.set(damage.by, times)
   }
-  for (const temps of impacts.values()) temps.sort((a, b) => a - b)
+  for (const times of impacts.values()) times.sort((a, b) => a - b)
   const eliminations = kills.filter((k) => k.xuid === xuid).map((k) => k.replayMs).sort((a, b) => a - b)
-  const joueurs = buildPlayers(doc, [])
-  const allegeance = buildFilmAllegiance(joueurs, xuid)
-  const fil = [...kills].sort((a, b) => a.replayMs - b.replayMs)
-  return { doc, xuid, allegeance, fil, score: scoreTimelineOf(doc), joueur: joueurs.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, munitions: suivreMunitions(doc), boucliers: new Map<ReplayTrackReady, ShieldHudTrack>() }
+  const players = buildPlayers(doc, [])
+  const allegiance = buildFilmAllegiance(players, xuid)
+  const feed = [...kills].sort((a, b) => a.replayMs - b.replayMs)
+  return { doc, xuid, allegiance, feed, score: scoreTimelineOf(doc), player: players.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, ammo: trackAmmo(doc), shields: new Map<ReplayTrackReady, ShieldHudTrack>() }
 }
 
 /** The shield bar of a life (`shieldHud`), built on its first read and kept for the source's life. */
-function barreBouclier(source: ReturnType<typeof preparerAth>, vie: ReplayTrackReady): ShieldHudTrack {
-  let piste = source.boucliers.get(vie)
-  if (!piste) source.boucliers.set(vie, (piste = shieldHudTrackOf(vie.points, frameToMs(1, source.doc), vie.points[0]?.t)))
-  return piste
+function shieldBar(source: ReturnType<typeof prepareHud>, life: ReplayTrackReady): ShieldHudTrack {
+  let track = source.shields.get(life)
+  if (!track) source.shields.set(life, (track = shieldHudTrackOf(life.points, frameToMs(1, source.doc), life.points[0]?.t)))
+  return track
 }
 
 /** The ammo of a weapon slot of a life across the film: each read carries forward what it does not say. */
-export interface SuiviMunitions {
+export interface AmmoTracking {
   ms: number[]
   mag: (number | undefined)[]
   res: (number | undefined)[]
 }
 
-const cleMunitions = (slot: number, w: number) => slot * 8 + w
+const ammoKey = (slot: number, w: number) => slot * 8 + w
 
-/** suivreMunitions buckets `doc.ammoReads` (already sorted by instant) by life and weapon slot. */
-export function suivreMunitions(doc: ReplayDocumentReady): Map<number, SuiviMunitions> {
-  const suivis = new Map<number, SuiviMunitions>()
-  for (const lecture of doc.ammoReads) {
-    const cle = cleMunitions(lecture.slot, lecture.w)
-    let suivi = suivis.get(cle)
-    if (!suivi) suivis.set(cle, (suivi = { ms: [], mag: [], res: [] }))
-    const dernier = suivi.ms.length - 1
-    suivi.ms.push(lecture.ms)
-    suivi.mag.push(lecture.mag ?? suivi.mag[dernier])
-    suivi.res.push(lecture.res ?? suivi.res[dernier])
+/** trackAmmo buckets `doc.ammoReads` (already sorted by instant) by life and weapon slot. */
+export function trackAmmo(doc: ReplayDocumentReady): Map<number, AmmoTracking> {
+  const tracked = new Map<number, AmmoTracking>()
+  for (const read of doc.ammoReads) {
+    const key = ammoKey(read.slot, read.w)
+    let tracking = tracked.get(key)
+    if (!tracking) tracked.set(key, (tracking = { ms: [], mag: [], res: [] }))
+    const last = tracking.ms.length - 1
+    tracking.ms.push(read.ms)
+    tracking.mag.push(read.mag ?? tracking.mag[last])
+    tracking.res.push(read.res ?? tracking.res[last])
   }
-  return suivis
+  return tracked
 }
 
-/** munitionsA: the last read of the slot at instant `ms`, null before the first. */
-export function munitionsA(suivi: SuiviMunitions | undefined, ms: number): { mag?: number; res?: number } | null {
-  if (!suivi) return null
-  let debut = 0
-  let fin = suivi.ms.length
-  while (debut < fin) {
-    const milieu = (debut + fin) >> 1
-    if (suivi.ms[milieu] <= ms) debut = milieu + 1
-    else fin = milieu
+/** ammoAt: the last read of the slot at instant `ms`, null before the first. */
+export function ammoAt(tracking: AmmoTracking | undefined, ms: number): { mag?: number; res?: number } | null {
+  if (!tracking) return null
+  let start = 0
+  let end = tracking.ms.length
+  while (start < end) {
+    const mid = (start + end) >> 1
+    if (tracking.ms[mid] <= ms) start = mid + 1
+    else end = mid
   }
-  return debut ? { mag: suivi.mag[debut - 1], res: suivi.res[debut - 1] } : null
+  return start ? { mag: tracking.mag[start - 1], res: tracking.res[start - 1] } : null
 }
 
-function derniereMarque(temps: readonly number[], maintenant: number, duree: number): number {
-  let debut = 0
-  let fin = temps.length
-  while (debut < fin) {
-    const milieu = Math.floor((debut + fin) / 2)
-    if (temps[milieu] <= maintenant) debut = milieu + 1
-    else fin = milieu
+function lastMark(times: readonly number[], now: number, duration: number): number {
+  let start = 0
+  let end = times.length
+  while (start < end) {
+    const mid = Math.floor((start + end) / 2)
+    if (times[mid] <= now) start = mid + 1
+    else end = mid
   }
-  return debut ? marqueImpact(maintenant - temps[debut - 1], duree) : 0
+  return start ? impactMark(now - times[start - 1], duration) : 0
 }
 
-export function lireAth(source: ReturnType<typeof preparerAth>, frame: number, locale: ReplayLocale) {
-  const { doc, joueur, presence } = source
-  if (!joueur) return null
-  const etat = playerStateAt(joueur, frame, presence)
-  if (!etat.alive || !etat.life) return null
-  const slot = etat.life.slot
-  const inventaire = inventoryAt(doc, slot, frame)
-  const maintenant = frameToMs(frame, doc)
-  const tenue = weaponInHand(doc, slot, frame)
-  const enMain = tenue?.slotArme
-  const arme = tenue
-  const etiquette = arme ? doc.weaponLabels?.[arme.id] : undefined
-  const image = enMain != null ? inventaire?.state.am?.[enMain] : undefined
+export function readHud(source: ReturnType<typeof prepareHud>, frame: number, locale: ReplayLocale) {
+  const { doc, player, presence } = source
+  if (!player) return null
+  const state = playerStateAt(player, frame, presence)
+  if (!state.alive || !state.life) return null
+  const slot = state.life.slot
+  const inventory = inventoryAt(doc, slot, frame)
+  const now = frameToMs(frame, doc)
+  const held = weaponInHand(doc, slot, frame)
+  const inHand = held?.slotArme
+  const weapon = held
+  const label = weapon ? doc.weaponLabels?.[weapon.id] : undefined
+  const keyframe = inHand != null ? inventory?.state.am?.[inHand] : undefined
   // The `ammoReads` axis tracks the magazine per shot; the inventory keyframe stands in without it.
-  const fine = enMain != null ? munitionsA(source.munitions.get(cleMunitions(slot, enMain)), maintenant) : null
-  const munitions = fine ? { ...image, mag: fine.mag ?? image?.mag, res: fine.res ?? image?.res } : image
-  const boite = grenadeBoxAt(doc, slot, frame, inventaire)
-  const grenades = boite ? grenadesCarriedFrom(boite.g, doc.grenadeLabels, locale) : []
-  if (!grenades.some((g) => g.rank === 0)) grenades.unshift({ rank: 0, name: catalogText(doc.grenadeLabels?.[0], locale) ?? REPLAY_TEXT[locale].soundCategory.grenade, count: boite?.g[0] ?? 0 })
-  const touche = derniereMarque(source.impacts.get(slot) ?? [], maintenant, 150)
-  const elimination = derniereMarque(source.eliminations, maintenant, 400)
-  const equipement = equipmentSlotAt(doc, slot, frame)
+  const fine = inHand != null ? ammoAt(source.ammo.get(ammoKey(slot, inHand)), now) : null
+  const ammo = fine ? { ...keyframe, mag: fine.mag ?? keyframe?.mag, res: fine.res ?? keyframe?.res } : keyframe
+  const box = grenadeBoxAt(doc, slot, frame, inventory)
+  const grenades = box ? grenadesCarriedFrom(box.g, doc.grenadeLabels, locale) : []
+  if (!grenades.some((g) => g.rank === 0)) grenades.unshift({ rank: 0, name: catalogText(doc.grenadeLabels?.[0], locale) ?? REPLAY_TEXT[locale].soundCategory.grenade, count: box?.g[0] ?? 0 })
+  const hit = lastMark(source.impacts.get(slot) ?? [], now, 150)
+  const elimination = lastMark(source.eliminations, now, 400)
+  const equipment = equipmentSlotAt(doc, slot, frame)
   // The shield bar: smooth recharge, instant drops (`shieldHud`); null when the film carries no shield.
-  const bouclierEtat = etat.shield ? shieldHudAt(barreBouclier(source, etat.life), frame) : null
-  return { bouclier: bouclierEtat?.fraction ?? null, bouclierEtat, armeId: arme?.id, etiquette, munitions, grenades, equipement, forme: formeReticule(etiquette?.key), touche, elimination }
+  const shieldState = state.shield ? shieldHudAt(shieldBar(source, state.life), frame) : null
+  return { shield: shieldState?.fraction ?? null, shieldState, weaponId: weapon?.id, label, ammo, grenades, equipment, shape: reticleShape(label?.key), hit, elimination }
 }
 
 /** Life window of an elimination of the followed player in the 3D HUD popup, in seconds. */
@@ -143,58 +143,58 @@ export interface KillPopup {
   /** The kill (victim and medals, in feed order). */
   kill: ReplayKill
   /** 1 during the window, then a linear drop to 0 over its last second. */
-  opacite: number
+  opacity: number
 }
 
 /**
- * lirePopupsAth: the eliminations of the followed player to display beside the reticle — those
+ * readKillPopups: the eliminations of the followed player to display beside the reticle — those
  * that happened at the latest by the current frame, within the KILL_POPUP_SECONDS window, the most
  * recent first, two at most. Pure function of the frame: a rewind replays
  * exactly what playback showed, and nothing is shown before its instant.
  */
-export function lirePopupsAth(source: ReturnType<typeof preparerAth>, frame: number): KillPopup[] {
+export function readKillPopups(source: ReturnType<typeof prepareHud>, frame: number): KillPopup[] {
   const ms = frameToMs(frame, source.doc)
-  const fenetre = KILL_POPUP_SECONDS * 1000
-  return source.fil
-    .filter((k) => k.xuid === source.xuid && k.replayMs <= ms && ms - k.replayMs < fenetre)
+  const window = KILL_POPUP_SECONDS * 1000
+  return source.feed
+    .filter((k) => k.xuid === source.xuid && k.replayMs <= ms && ms - k.replayMs < window)
     .sort((a, b) => b.replayMs - a.replayMs)
     .slice(0, 2)
     .map((kill) => {
       const age = ms - kill.replayMs
-      const debutFondu = fenetre - KILL_POPUP_FADE_MS
-      return { kill, opacite: age >= debutFondu ? 1 - (age - debutFondu) / KILL_POPUP_FADE_MS : 1 }
+      const fadeStart = window - KILL_POPUP_FADE_MS
+      return { kill, opacity: age >= fadeStart ? 1 - (age - fadeStart) / KILL_POPUP_FADE_MS : 1 }
     })
 }
 
 /** The feed is bounded by the instant of the film, independently of the direction of playback. */
-export function lireFilAth(source: ReturnType<typeof preparerAth>, frame: number) {
+export function readKillFeed(source: ReturnType<typeof prepareHud>, frame: number) {
   const ms = frameToMs(frame, source.doc)
-  let debut = 0
-  let fin = source.fil.length
-  while (debut < fin) {
-    const milieu = (debut + fin) >> 1
-    if (source.fil[milieu].replayMs <= ms) debut = milieu + 1
-    else fin = milieu
+  let start = 0
+  let end = source.feed.length
+  while (start < end) {
+    const mid = (start + end) >> 1
+    if (source.feed[mid].replayMs <= ms) start = mid + 1
+    else end = mid
   }
-  return source.fil.slice(Math.max(0, debut - 4), debut)
+  return source.feed.slice(Math.max(0, start - 4), start)
     .filter((k) => ms - k.replayMs < 6000)
-    .map((kill) => ({ kill, opacite: Math.min(1, (6000 - (ms - kill.replayMs)) / 1000),
-      implique: kill.xuid === source.xuid || kill.victimXuid === source.xuid,
+    .map((kill) => ({ kill, opacity: Math.min(1, (6000 - (ms - kill.replayMs)) / 1000),
+      involved: kill.xuid === source.xuid || kill.victimXuid === source.xuid,
       // A kill by the followed player: the feed highlights it with his team color.
-      mien: kill.xuid === source.xuid,
-      tueur: source.allegeance.ofXuid(kill.xuid), victime: source.allegeance.ofXuid(kill.victimXuid) }))
+      mine: kill.xuid === source.xuid,
+      killer: source.allegiance.ofXuid(kill.xuid), victim: source.allegiance.ofXuid(kill.victimXuid) }))
 }
 
 /** The LEFT team of the 3D banner: the game sorts by team identifier, the smallest on
  * the left. Unknown or equal: the ally team stays on the left. */
-export function campAGauche(allyId: number | null | undefined, enemyId: number | null | undefined): boolean {
+export function allyOnLeft(allyId: number | null | undefined, enemyId: number | null | undefined): boolean {
   if (allyId == null || enemyId == null) return true
   return allyId <= enemyId
 }
 
 /** The reading of the 3D HUD score banner: the two camps, and which camp sits on the left. */
-export function lireScoreAth(source: ReturnType<typeof preparerAth>, frame: number): (ScoreBannerReading & { allieAGauche: boolean }) | null {
-  const lecture = readScoreBanner(source.score, source.allegeance, frame)
-  if (!lecture) return null
-  return { ...lecture, allieAGauche: campAGauche(lecture.ally.teamId, lecture.enemy.teamId) }
+export function readScoreHud(source: ReturnType<typeof prepareHud>, frame: number): (ScoreBannerReading & { allyOnLeft: boolean }) | null {
+  const reading = readScoreBanner(source.score, source.allegiance, frame)
+  if (!reading) return null
+  return { ...reading, allyOnLeft: allyOnLeft(reading.ally.teamId, reading.enemy.teamId) }
 }

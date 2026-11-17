@@ -3,7 +3,7 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { horlogeHud, lireAth, lireFilAth, lireScoreAth, preparerAth } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud } from '../model/hud3d_logic'
 import { shieldFlash } from '../model/shieldHud'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
@@ -46,7 +46,7 @@ export interface ExportHudOptions {
 }
 
 export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale, options: ExportHudOptions = {}) {
-  const source = preparerAth(doc, xuid, kills)
+  const source = prepareHud(doc, xuid, kills)
   const names = new Map(doc.roster.map((p) => [p.xuid, p.name || p.xuid]))
   const lives = buildLivesByXuid(doc.tracks)
   const white = '#eaf2f5'
@@ -85,8 +85,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     const enemy = resolveToken('team-enemy')
     const { width: w, height: h } = view
     const size = Math.max(19, Math.min(39, 7.7 + h * 0.0287))
-    const ath = lireAth(source, frame, locale)
-    const score = lireScoreAth(source, frame)
+    const ath = readHud(source, frame, locale)
+    const score = readScoreHud(source, frame)
     ctx.save()
     ctx.fillStyle = white
     ctx.strokeStyle = white
@@ -96,14 +96,14 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     ctx.shadowColor = 'rgba(0,0,0,.8)'
     ctx.shadowBlur = 3
     if (score) {
-      const left = score.allieAGauche ? score.ally : score.enemy
-      const right = score.allieAGauche ? score.enemy : score.ally
-      const colors = score.allieAGauche ? [ally, enemy] : [enemy, ally]
+      const left = score.allyOnLeft ? score.ally : score.enemy
+      const right = score.allyOnLeft ? score.enemy : score.ally
+      const colors = score.allyOnLeft ? [ally, enemy] : [enemy, ally]
       const y = h * 0.94 - size * 0.7
       const bar = size * 4.2
       ctx.font = `700 ${size * 0.65}px system-ui`
       ctx.textAlign = 'center'
-      ctx.fillText(formatClock(horlogeHud(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow))), w / 2, y)
+      ctx.fillText(formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow))), w / 2, y)
       for (const [index, side] of [left, right].entries()) {
         const x = index === 0 ? w / 2 - size * 1.6 - bar : w / 2 + size * 1.6
         ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(x, y - size * 0.4, bar, size * 0.8)
@@ -112,23 +112,23 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       }
     }
     if (ath) {
-      if (ath.bouclierEtat) {
+      if (ath.shieldState) {
         // The shield bar, the same glass bar as `ShieldBar3d`: drawn in its 1000x74 unit box,
         // scaled and centered where the export already put the old bar.
         const bw = Math.min(h * 0.5, w * 0.9), bh = bw * SHIELD_BAR_H / SHIELD_BAR_W
         const ox = (w - bw) / 2, oy = h * 0.08
         const s = bw / SHIELD_BAR_W
-        const state = ath.bouclierEtat.state
+        const state = ath.shieldState.state
         const low = state === 'low'
         const alert = low || state === 'broken'
-        const flash = shieldFlash(frameToMs(ath.bouclierEtat.since, doc), frameToMs(frame, doc))
+        const flash = shieldFlash(frameToMs(ath.shieldState.since, doc), frameToMs(frame, doc))
         const pulse = alert ? 0.35 + 0.65 * flash : 1
         const alertInk = resolveToken('replay-hud-shield-alert')
         const mainInk = low ? alertInk : resolveToken('replay-hud-shield')
         const deepInk = low ? mixSrgb(alertInk, 0.65) : resolveToken('replay-hud-shield-deep')
         const trackInk = resolveToken('replay-hud-shield-track')
         const rimInk = resolveToken('replay-hud-shield-rim')
-        const half = SHIELD_CENTER * Math.max(0, Math.min(1, ath.bouclierEtat.fraction))
+        const half = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.fraction))
         const toX = (u: number) => ox + u * s
         const toY = (v: number) => oy + v * s
         // The bar's glass: track fill under the bar outline.
@@ -185,8 +185,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     // under the ADS overlay (a scope's shade darkens them); the reticle, the place label and the
     // weapon corner sit over it.
     if (aimOn && ath) {
-      const aim = aimHudAt(doc, xuid, frame, heldModelKey(ath.armeId), ath.etiquette?.key, null)
-      const onEnemy = !!ath.armeId && !!options.redReticle?.(frame, source.allegeance, { weaponId: ath.armeId, zoomLevel: aim.zoom.level })
+      const aim = aimHudAt(doc, xuid, frame, heldModelKey(ath.weaponId), ath.label?.key, null)
+      const onEnemy = !!ath.weaponId && !!options.redReticle?.(frame, source.allegiance, { weaponId: ath.weaponId, zoomLevel: aim.zoom.level })
       if (aim.ads && atlas) {
         const raster = atlas.get(aim.ads, aim.adsLevel, onEnemy)
         if (raster) {
@@ -194,12 +194,12 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
           ctx.shadowColor = 'transparent'
           ctx.globalAlpha = aim.zoom.amount
           ctx.drawImage(raster, 0, 0, w, h)
-          if (aim.ads.ammo) paintAdsAmmo(ctx, view, aim.ads.design, adsAmmoText(ath.munitions?.mag), resolveToken('display'))
+          if (aim.ads.ammo) paintAdsAmmo(ctx, view, aim.ads.design, adsAmmoText(ath.ammo?.mag), resolveToken('display'))
           ctx.restore()
         }
       }
       if (aim.reticleShown) {
-        paintReticle(ctx, view, reticleGeometry(ath.forme, ath.elimination, ath.touche), aim.reticleScale, onEnemy ? resolveToken('reticle-hostile') : resolveToken('replay-hud-on-dark'), enemy)
+        paintReticle(ctx, view, reticleGeometry(ath.shape, ath.elimination, ath.hit), aim.reticleScale, onEnemy ? resolveToken('reticle-hostile') : resolveToken('replay-hud-on-dark'), enemy)
       }
     }
     // The place name under the game's motion tracker (`mapCallouts`), bottom left.
@@ -217,12 +217,12 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.restore()
     }
     if (ath) {
-      const weapon = ath.etiquette?.img ? weaponFullIcon(ath.etiquette.img) : null
+      const weapon = ath.label?.img ? weaponFullIcon(ath.label.img) : null
       const iconWidth = size * 2.8, iconHeight = size * 1.1
-      const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.etiquette?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
+      const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
       ctx.fillStyle = weaponInk
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px system-ui`
-      const ammo = [ath.munitions?.mag, ath.munitions?.res].filter((v) => v != null).join(' | ')
+      const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
       if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
       ctx.font = `700 ${size * 0.6}px system-ui`
       let right = w * 0.97
@@ -246,20 +246,20 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     /** The kill feed, left, above the place label; leaves the alpha at 1. */
     function paintFeed() {
       ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px system-ui`; ctx.textAlign = 'left'
-      const feed = lireFilAth(source, frame)
-      feed.forEach(({ kill, opacite, mien, tueur, victime }, i) => {
-        ctx.globalAlpha = opacite
+      const feed = readKillFeed(source, frame)
+      feed.forEach(({ kill, opacity, mine, killer: killerSide, victim: victimSide }, i) => {
+        ctx.globalAlpha = opacity
         const y = h * 0.78 - (feed.length - i) * size * 0.62
-        if (mien) {
+        if (mine) {
           // The followed player's own kill: a light wash of his team color behind the row.
           const rowWidth = ctx.measureText(names.get(kill.xuid) ?? kill.xuid).width + ctx.measureText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '').width + size * 1.6
-          ctx.save(); ctx.globalAlpha = opacite * 0.3; ctx.fillStyle = ally
+          ctx.save(); ctx.globalAlpha = opacity * 0.3; ctx.fillStyle = ally
           ctx.fillRect(w * 0.03 - size * 0.2, y - size * 0.3, rowWidth + size * 0.4, size * 0.6); ctx.restore()
         }
-        const color = tueur === true ? ally : tueur === false ? enemy : white
-        const killer = names.get(kill.xuid) ?? kill.xuid
+        const color = killerSide === true ? ally : killerSide === false ? enemy : white
+        const killerName = names.get(kill.xuid) ?? kill.xuid
         let x = w * 0.03
-        ctx.fillStyle = color; ctx.fillText(killer, x, y); x += ctx.measureText(killer).width + size * 0.2
+        ctx.fillStyle = color; ctx.fillText(killerName, x, y); x += ctx.measureText(killerName).width + size * 0.2
         const width = size * 0.96, height = size * 0.48
         // The game's kill feed draws the FULL weapon pointing at the victim: the silhouette,
         // mirrored (the atlases point left).
@@ -269,7 +269,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
           const label = (kill.weaponLabel || REPLAY_TEXT[locale].killFeedUnknownWeapon).split(/\s*\/\s*/)[0]
           ctx.fillText(label, x, y); x += ctx.measureText(label).width + size * 0.2
         }
-        ctx.fillStyle = victime === true ? ally : victime === false ? enemy : white
+        ctx.fillStyle = victimSide === true ? ally : victimSide === false ? enemy : white
         ctx.fillText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '', x, y)
       })
       ctx.globalAlpha = 1

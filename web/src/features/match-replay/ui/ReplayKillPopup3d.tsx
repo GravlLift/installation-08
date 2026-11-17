@@ -3,7 +3,7 @@
  * ReplayKillPopup3d — la popup d'élimination du HUD 3D en 1re personne : à la gauche du
  * réticule, comme dans le jeu. Une ligne par médaille du kill (libellé en texte discret à
  * gauche, icône à droite), puis la victime dans une boîte translucide, le tout aligné à
- * droite. L'opacité vient de la logique (`lirePopupsAth`) : la popup est une fonction pure
+ * droite. L'opacité vient de la logique (`readKillPopups`) : la popup est une fonction pure
  * de la frame, elle se rejoue au retour en arrière.
  *
  * Les tailles sont en em : elles suivent la taille de texte du HUD (elle-même en cqh), donc
@@ -22,9 +22,9 @@ export function ReplayKillPopup3d({ popups, locale }: { popups: readonly KillPop
       aria-hidden="true"
       style={{ position: 'absolute', top: '44.5%', right: '69%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3em' }}
     >
-      {popups.map(({ kill, opacite }, i) => (
-        <div key={`${kill.replayMs}-${kill.xuid}-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25em', opacity: opacite }}>
-          {/* Le jeu empile la médaille la plus récente en haut : l'ordre inverse du fil. */}
+      {popups.map(({ kill, opacity }, i) => (
+        <div key={`${kill.replayMs}-${kill.xuid}-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25em', opacity }}>
+          {/* The game stacks the most recent medal on top: the reverse of the feed's order. */}
           {[...kill.medals].reverse().map((m, j) => (
             <span key={`${m.name}-${m.tMs}-${j}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45em', fontSize: '0.38em', fontWeight: 500 }}>
               {libelleMedale(m)}
