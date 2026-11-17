@@ -132,7 +132,7 @@ func openWindowApp(url string) error {
 		github:     func() error { return openBrowser(githubURL) },
 		about:      func() { showAboutBox() },
 	}, guard)
-	w.Navigate(url)
+	w.Navigate(appWindowURL(url, Version))
 	w.Run() // returns when the window closes
 	return nil
 }

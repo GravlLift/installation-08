@@ -14,6 +14,7 @@ Highlights:
 - `server.log` records when each library build starts and finishes and how long it took.
 - The film decoder's log and error messages are in English.
 - Fixed: the packaged exe was missing the browser-tab icon and other small web files.
+- Fixed: after an update the app window could keep showing the previous version's pages until a reload.
 
 ### Notes on the parallel library builds
 

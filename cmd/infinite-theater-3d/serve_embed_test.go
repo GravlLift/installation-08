@@ -156,6 +156,36 @@ func TestServeEmbeddedViewer(t *testing.T) {
 	}
 }
 
+// TestServeEmbeddedCacheHeaders: the page and the unhashed files are fetched again on every
+// load (an update must show the new page), while Vite's hashed assets/ files are kept for good.
+func TestServeEmbeddedCacheHeaders(t *testing.T) {
+	root := newFakeStore(t)
+	h := newServerHandlers(root, "", nil, weapons.Catalog{}, testLabelCatalog)
+	h.webFS = embeddedViewer()
+
+	for path, want := range map[string]string{
+		"/":              "no-cache",
+		"/match/abc":     "no-cache",
+		"/assets/app.js": "public, max-age=31536000, immutable",
+	} {
+		rec := get(t, h, path, nil)
+		if got := rec.Header().Get("Cache-Control"); rec.Code != http.StatusOK || got != want {
+			t.Fatalf("%s: status=%d Cache-Control=%q, want %q", path, rec.Code, got, want)
+		}
+	}
+}
+
+// TestAppWindowURL: the window opens the root with the version as the query, so a release is a
+// new cache key; a build with no version opens the bare root.
+func TestAppWindowURL(t *testing.T) {
+	if got := appWindowURL("http://127.0.0.1:8178", "0.1.0-test.19"); got != "http://127.0.0.1:8178/?v=0.1.0-test.19" {
+		t.Fatalf("versioned: %q", got)
+	}
+	if got := appWindowURL("http://127.0.0.1:8178", ""); got != "http://127.0.0.1:8178/" {
+		t.Fatalf("unversioned: %q", got)
+	}
+}
+
 // TestStaticRoutesStayWithTheMux: a /static/ path is answered by the mux's own routes
 // (icons, ranks, sounds), never by the viewer's index.html, with a --web directory and
 // with the embedded viewer alike.

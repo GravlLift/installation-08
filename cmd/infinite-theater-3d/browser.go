@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"time"
@@ -48,6 +49,18 @@ func urlForAddr(addr string) string {
 		host = "[" + host + "]"
 	}
 	return "http://" + host + ":" + port
+}
+
+// appWindowURL is the page the app window opens: the server's root with the app version as a
+// query, so each release is a new cache key in the window's WebView2 profile. A test.18 window
+// kept its cached index.html (served without a Cache-Control header) after the test.19 update
+// and showed the old home screen. The viewer routes on the hash, so the query changes nothing
+// else.
+func appWindowURL(base, version string) string {
+	if version == "" {
+		return base + "/"
+	}
+	return base + "/?v=" + url.QueryEscape(version)
 }
 
 // openOnListen opens the browser on the server's address once it starts listening. It

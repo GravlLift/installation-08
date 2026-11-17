@@ -270,6 +270,7 @@ func (h serverHandlers) servesStatic(r *http.Request) bool {
 func (h serverHandlers) serveEmbedded(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if info, err := fs.Stat(h.webFS, name); name != "" && err == nil && !info.IsDir() {
+		w.Header().Set("Cache-Control", embeddedCacheControl(name))
 		http.ServeFileFS(w, r, h.webFS, name)
 		return
 	}
@@ -278,7 +279,22 @@ func (h serverHandlers) serveEmbedded(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	w.Header().Set("Cache-Control", embeddedCacheControl("index.html"))
 	http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
+}
+
+// embeddedCacheControl says how long the app window may keep an embedded viewer file.
+// Embedded files carry no modification time, so without this header WebView2 guessed and kept
+// the previous release's index.html after an update, which pointed at the old bundle (test.19
+// showed test.18's home screen until a reload). Vite's assets/ files carry a content hash in
+// their names, so they never change under one name and can be kept for good; everything else
+// (index.html, the icons, the wordmark) is fetched again on every load, which costs nothing
+// over loopback.
+func embeddedCacheControl(name string) string {
+	if strings.HasPrefix(name, "assets/") {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-cache"
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
