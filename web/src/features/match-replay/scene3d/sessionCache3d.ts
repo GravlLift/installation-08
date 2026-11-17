@@ -15,8 +15,18 @@
  * cached value themselves after handing it to `set`.
  */
 
-/** The byte cap started with, before the lead's load-time harness calibrates it from real sessions. */
-export const DEFAULT_CACHE_CAP_BYTES = 1.5 * 1024 ** 3 // 1.5 GB
+/**
+ * The byte cap, calibrated from the lead's load-time harness once the libraries carried real byte
+ * counts instead of 0 (`armorLibrary3d.ts`/`weaponModels3d.ts`'s `loadedBytes()`): two maps the
+ * harness alternated between measured 400 MB-1.2 GB each, their variant layers 30-130 MB each, and
+ * the armor/weapon-model/weapon-coating libraries together about 140 + 127 + 17 ~= 284 MB. At 1.5 GB
+ * this cap made the libraries (now correctly counted) crowd out room for two maps to stay warm at
+ * once, evicting and reloading one map every time the other was requested — a map a few hundred MB
+ * to over a GB on its own leaves little headroom under a cap sized before libraries counted for
+ * anything. 3 GB comfortably holds two heavy maps and layers plus the libraries together: this is a
+ * desktop app, and keeping as much decoded and GPU-uploaded as the machine can spare is the point.
+ */
+export const DEFAULT_CACHE_CAP_BYTES = 3 * 1024 ** 3 // 3 GB
 
 /** What `set` is given: the resource, its estimated GPU/CPU footprint, and how to free it. */
 export interface CacheEntryInit<T> {
