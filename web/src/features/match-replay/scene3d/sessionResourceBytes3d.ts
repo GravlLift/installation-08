@@ -83,22 +83,48 @@ function textureIdentity(texture: THREE.Texture): unknown {
  */
 export function surfaceModelBytes(root: THREE.Object3D): number {
   let bytes = 0
-  const seenGeometries = new Set<THREE.BufferGeometry>()
-  const seenTextures = new Set<unknown>()
+  for (const entry of collectResources(root)) bytes += entry.bytes
+  return bytes
+}
+
+/** One resource `debugSurfaceModelBreakdown` found, as `surfaceModelBytes` would count it. */
+export interface DebugResourceEntry {
+  kind: 'geometry' | 'texture'
+  bytes: number
+  /** How many distinct meshes (geometry) or material slots (texture) reference this one resource. */
+  uses: number
+  /** geometry only: its vertex count and index count. */
+  vertexCount?: number
+  indexCount?: number
+  /** texture only. */
+  width?: number
+  height?: number
+  /** texture only: the array-texture layer count (`layeredArrays3d.ts`'s merged atlases), 1 otherwise. */
+  depth?: number
+  /** texture only: `THREE.*Format`/`THREE.*Type` numeric constants, and whether it is GPU-compressed. */
+  format?: number
+  type?: number
+  compressed?: boolean
+}
+
+/**
+ * collectResources walks `root` exactly as `surfaceModelBytes` does, but returns every unique
+ * geometry and texture it counted instead of only their sum — for `window.__it3dCacheDebug`
+ * (`sessionCacheDebug3d.ts`) to show which resources actually account for a cached entry's bytes.
+ */
+export function collectResources(root: THREE.Object3D): DebugResourceEntry[] {
+  const geometries = new Map<THREE.BufferGeometry, number>()
+  const textures = new Map<unknown, { texture: THREE.Texture; uses: number }>()
   const addTexture = (value: unknown): void => {
     if (!(value instanceof THREE.Texture)) return
     const identity = textureIdentity(value)
-    if (seenTextures.has(identity)) return
-    seenTextures.add(identity)
-    bytes += textureBytes(value)
+    const existing = textures.get(identity)
+    if (existing) existing.uses++
+    else textures.set(identity, { texture: value, uses: 1 })
   }
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
-    const geometry = o.geometry
-    if (!seenGeometries.has(geometry)) {
-      seenGeometries.add(geometry)
-      bytes += geometryBytes(geometry)
-    }
+    geometries.set(o.geometry, (geometries.get(o.geometry) ?? 0) + 1)
     const materials = Array.isArray(o.material) ? o.material : [o.material]
     for (const material of materials) {
       for (const value of Object.values(material)) addTexture(value)
@@ -106,5 +132,34 @@ export function surfaceModelBytes(root: THREE.Object3D): number {
       for (const value of layerTextures) addTexture(value)
     }
   })
-  return bytes
+  const out: DebugResourceEntry[] = []
+  for (const [geometry, uses] of geometries) {
+    out.push({
+      kind: 'geometry',
+      bytes: geometryBytes(geometry),
+      uses,
+      vertexCount: geometry.getAttribute('position')?.count,
+      indexCount: geometry.index?.count,
+    })
+  }
+  for (const { texture, uses } of textures.values()) {
+    const image = texture.image as { width?: number; height?: number; depth?: number } | undefined
+    out.push({
+      kind: 'texture',
+      bytes: textureBytes(texture),
+      uses,
+      width: image?.width,
+      height: image?.height,
+      depth: Math.max(1, image?.depth ?? 1),
+      format: texture.format,
+      type: texture.type,
+      compressed: (texture as THREE.CompressedTexture).isCompressedTexture === true,
+    })
+  }
+  return out
+}
+
+/** debugSurfaceModelBreakdown: the top `limit` resources of `root` by counted bytes (default 20). */
+export function debugSurfaceModelBreakdown(root: THREE.Object3D, limit = 20): DebugResourceEntry[] {
+  return collectResources(root).sort((a, b) => b.bytes - a.bytes).slice(0, limit)
 }

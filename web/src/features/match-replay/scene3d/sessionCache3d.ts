@@ -65,6 +65,16 @@ export class SessionCache3d {
     return this.entries.has(key)
   }
 
+  /** peek: like `get`, but touches nothing and logs nothing — for debug tooling only (`window.__it3dCacheDebug`). */
+  peek<T>(key: string): T | undefined {
+    return this.entries.get(key)?.value as T | undefined
+  }
+
+  /** debugEntries: every key with its estimated bytes and pin count, for debug tooling only. */
+  debugEntries(): { key: string; bytes: number; refCount: number }[] {
+    return [...this.entries].map(([key, entry]) => ({ key, bytes: entry.bytes, refCount: entry.refCount }))
+  }
+
   /** get: the cached value for `key` (touches it as most-recently-used), or undefined on a miss. */
   get<T>(key: string): T | undefined {
     const entry = this.entries.get(key)
