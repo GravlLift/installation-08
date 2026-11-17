@@ -106,31 +106,31 @@ func BuildSpartan(ctx context.Context, gameRoot string, t SpartanTarget, path, g
 }
 
 // bodyAnimationClips decodes BodyAnimations from the Spartan's animation graph chain, on its
-// model's skeleton (noeuds). A missing animation, or one from a graph whose skeleton does not
+// model's skeleton (nodes). A missing animation, or one from a graph whose skeleton does not
 // match (himap.GrapheAnimation.MemeSquelette), is logged and dropped; the model is still written.
-func bodyAnimationClips(ctx context.Context, a *himap.Arsenal, noeuds []himap.Noeud) []himap.ClipGLB {
+func bodyAnimationClips(ctx context.Context, a *himap.Arsenal, nodes []himap.Noeud) []himap.ClipGLB {
 	gs, err := a.GraphesDuSpartan(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "spartan animation graphs unreadable: body written without animation", "err", err)
 		return nil
 	}
-	squelette := map[uint32]error{}
+	skeletonMatch := map[uint32]error{}
 	for _, g := range gs.Tous() {
-		squelette[g.ID] = g.MemeSquelette(noeuds)
+		skeletonMatch[g.ID] = g.MemeSquelette(nodes)
 	}
 	var out []himap.ClipGLB
 	missing := 0
-	for _, nom := range BodyAnimations {
-		c, err := gs.ClipNomme(nom)
+	for _, name := range BodyAnimations {
+		c, err := gs.ClipNomme(name)
 		if err == nil {
-			err = squelette[c.Graphe]
+			err = skeletonMatch[c.Graphe]
 		}
 		if err != nil {
-			slog.WarnContext(ctx, "spartan body animation not baked", "name", nom, "err", err)
+			slog.WarnContext(ctx, "spartan body animation not baked", "name", name, "err", err)
 			missing++
 			continue
 		}
-		out = append(out, himap.ClipGLB{Nom: nom, Clip: c, Chemin: nom, Cadence: himap.CadenceAnimation(c.Animation)})
+		out = append(out, himap.ClipGLB{Nom: name, Clip: c, Chemin: name, Cadence: himap.CadenceAnimation(c.Animation)})
 	}
 	slog.InfoContext(ctx, "spartan body animations", "baked", len(out), "missing", missing)
 	return out
