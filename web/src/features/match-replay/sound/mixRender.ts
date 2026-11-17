@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mixRender.ts — THE OFFLINE RENDER of the export's sound track, with the sources placed JUST IN
  * TIME: a step ahead of the render, and released once they have stopped.

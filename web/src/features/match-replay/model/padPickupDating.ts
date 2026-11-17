@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * padPickupDating.ts — THE PICKUP OF A PAD, DATED BY THE NATIVE EVENT WHEN THE FILM SAYS IT.
  *

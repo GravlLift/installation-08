@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayExportPlan.test.ts — l'échantillonnage de l'export, sans navigateur ni encodeur.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * introSound.test.tsx — THE INTRO MUSIC (item 7 of the backlog, decision D-8), sound side.
  *

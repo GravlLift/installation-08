@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shotImpactFx.ts — THE EXPLOSION OF A SHOT PROJECTILE (mortar, rockets, bomb...).
  *

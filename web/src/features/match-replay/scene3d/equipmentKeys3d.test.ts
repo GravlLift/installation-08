@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 
 import { EquipmentKeys, parseEquipmentKeys } from './equipmentKeys3d'

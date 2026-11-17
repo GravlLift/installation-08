@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportFormats.ts — LES FORMATS DE SORTIE DE L'EXPORT VIDEO, et la geometrie qui en decoule.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Replay3DView — LA VUE 3D DU REJEU, posée sur la toile 2D, au même cadre.
  *

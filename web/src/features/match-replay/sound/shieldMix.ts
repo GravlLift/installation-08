@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shieldMix.ts — THE FOLLOWED SPARTAN'S SHIELD ALARMS in the out-of-real-time export: the SAME
  * pure logic as the page (`shieldSound.ts` says what and when, `shieldSoundPlayer.ts` plays it

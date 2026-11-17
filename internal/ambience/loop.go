@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package ambience
 
 // loop.go follows a looping sound tag (`lsnd`) to the media it plays. Measured on the background

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * oeil3d.ts — LA DESCENTE DE L'ŒIL : quelle hauteur (unités monde) l'œil perd accroupi ou en
  * glissade, en fondu à l'entrée comme à la sortie.

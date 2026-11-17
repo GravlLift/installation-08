@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * zoneSound.ts — THE SOUNDS THAT COME FROM THE STATE OF THE ZONES, not from a player action.
  *

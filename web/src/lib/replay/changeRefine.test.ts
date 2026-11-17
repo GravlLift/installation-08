@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests: a pickup onto an occupied slot replaces the weapon the row says that slot held.
  */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * selfLit3d.ts — THE SELF-LIT SURFACES OF A MODEL (a weapon's light strips and ammo screens).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MedalBadges — les badges de médaille EN IMAGES (POC) : le badge du jeu se reconnaît d'un
  * coup d'œil, le libellé et la description vivent dans l'infobulle où ils ne coûtent rien.

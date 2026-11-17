@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fireBurstSound.ts — THE SOUND OF A FULL-AUTO FIRE BURST (schema 71, replay-feedback lot M4b).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentFx.ts — THE ACTIVE STATE OF AN EQUIPMENT on the player card, read in the episodes.
  *

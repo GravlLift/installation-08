@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Vitest + Testing Library setup, imported automatically via `setupFiles` in vite.config.ts.
  *

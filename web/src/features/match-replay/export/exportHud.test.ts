@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportHud.test.ts — the export HUD resolves the team colors at PAINT TIME, not once when
  * the HUD is built: a team color changed after `createExportHud` runs (through the settings

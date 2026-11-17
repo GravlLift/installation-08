@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * outcome.ts — mapping canonique du code outcome backend vers la valeur d'outcome
  * de la frise (OutcomeSequenceTape) / clés `outcomes.toml`.

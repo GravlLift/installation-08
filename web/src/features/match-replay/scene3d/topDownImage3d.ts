@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownImage3d.ts — a cached top-down picture of the map: an orthographic camera straight down
  * over a square, near plane on a cut, the map alone staged for the top-down views

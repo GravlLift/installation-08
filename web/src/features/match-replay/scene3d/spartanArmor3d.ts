@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spartanArmor3d.ts — L'ARMURE D'UN JOUEUR POSÉE SUR SA COPIE DU SPARTAN : l'armure par défaut de la
  * copie (`spartan3d.copySpartan`) cède la place aux pièces de sa tenue (`armory3d.Outfit`).

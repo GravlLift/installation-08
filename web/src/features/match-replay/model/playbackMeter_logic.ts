@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playbackMeter_logic.ts — the film's playback rate, measured on the 3D view's render loop.
  *

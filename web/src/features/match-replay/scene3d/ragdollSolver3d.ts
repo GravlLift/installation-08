@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollSolver3d.ts — LE CORPS INERTE PAS À PAS : dynamique par positions (Verlet), contraintes
  * projetées en un nombre fixe d'itérations, contacts avec le morceau de carte (`ragdollPatch3d`).

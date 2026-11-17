@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * backFaces3d.test.ts — l'envers de la structure : un maillage d'envers par attribut de sommets et
  * transformation, qui reprend les sommets et les index des surfaces, dessiné de dos, reculé en

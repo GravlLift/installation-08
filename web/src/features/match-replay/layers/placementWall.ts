@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * placementWall.ts — THE PROTECTION WALL: its geometry, its tracing, and ON WHICH PLACEMENT it
  * draws.

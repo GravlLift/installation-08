@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** springArm3d.test.ts — the third-person spring arm: pull-in on a hit, eased release on a clear line. */
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'

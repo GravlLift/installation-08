@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * motion3d.ts — LE MOUVEMENT DU SPARTAN D'UN JOUEUR À UNE IMAGE : ce que le film dit de lui, rangé
  * pour `clipSelect3d`, puis le mélange de clips du jeu qui le joue.

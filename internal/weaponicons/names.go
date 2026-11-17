@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // names.go — THE INTERNAL NAME OF EACH ICON, cracked and not guessed.
 //
 // THE PROBLEM. The `UI display info` block carries a `name` field, but it is not a

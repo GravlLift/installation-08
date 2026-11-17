@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package ekursetup builds the Ekur coating reference the coating builders read.
 //
 // It reproduces, straight from the installed game (internal/ekurport), the five parts the

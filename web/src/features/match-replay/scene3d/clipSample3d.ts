@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * clipSample3d.ts — LES CLIPS DU JEU POSÉS SUR UNE COPIE DU SPARTAN, à un temps imposé.
  *

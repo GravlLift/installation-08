@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // setup_coatings.go — the `setup-coatings` subcommand: the same setup the viewer's

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Command parity compares, for one match, the replay document and the match context
 // served by the standalone server and by LevelUp: every top-level key present on each
 // side, array counts, and for mode-specific fields the first entries and value ranges.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useTextureQuality.test.ts — the persisted texture-quality preference: the Standard default,
  * persistence, an invalid stored value falling back to the default, and the shared-key

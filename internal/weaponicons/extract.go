@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // extract.go — from the archives to the PNG: entry index, resource table, image-to-resource
 // pairing, BC7 decoding and the glyph render.
 

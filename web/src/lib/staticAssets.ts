@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * staticAssets.ts — composition d'URLs d'assets statiques title-scopés côté frontend.
  *

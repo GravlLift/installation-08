@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayInks.test.ts — the team inks of the canvas/3D follow the team color preference
  * live: the memo is keyed on the two colors, so a change made through the preference

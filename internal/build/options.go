@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package build
 
 // options.go — assembling the replay.Options of a standalone decode, in the order

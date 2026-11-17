@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * groundWeaponTime.ts — WHEN a ground weapon is seen, and WITH WHAT CERTAINTY.
  *

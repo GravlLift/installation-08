@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownNavLogic.ts — pure math of the top-down view's framing: the safe area between the page's
  * chrome (top strip, transport bar), the orthographic frame that fits the played area in it, wheel

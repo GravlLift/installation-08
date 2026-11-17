@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * skullCarrierLayer.ts — THE CARRIER OF THE ODBALL SKULL (schema 23), frame by frame.
  *

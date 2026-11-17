@@ -1,4 +1,5 @@
 #requires -Version 7
+# SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 <#
 .SYNOPSIS
     Builds the packaged Installation 08: one self-contained Windows exe with the

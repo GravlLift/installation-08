@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleEngineSound.ts — THE SOUND PLAN OF THE VEHICLE ENGINES: which families sound,
  * when an engine runs, and how its clips chain. PURE LOGIC, without Web Audio nor

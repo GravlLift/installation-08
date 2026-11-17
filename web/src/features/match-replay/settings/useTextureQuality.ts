@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useTextureQuality — the viewer's texture-quality preference: Standard (the default) or High.
  *

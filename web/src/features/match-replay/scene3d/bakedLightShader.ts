@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bakedLightShader.ts — LA LUMIÈRE CUITE DANS LE SHADER DES MATÉRIAUX DE LA CARTE (cf. `bakedLight`).
  *

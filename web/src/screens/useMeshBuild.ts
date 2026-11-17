@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMeshBuild — drives the "map not built yet" panel: checks the module's build state once on
  * mount, lets the caller start a build, and polls the state route every `pollMs` while a build

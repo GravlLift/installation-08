@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * dropWall3d_logic.ts — THE DROP WALL AT A FRAME: how far its barrier has risen, how far it has
  * dissolved, and where its panels stand.

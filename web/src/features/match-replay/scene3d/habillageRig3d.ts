@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * habillageRig3d.ts — LES PIÈCES DE BRAS DU JOUEUR SUIVI SUR LE RIG DE PREMIÈRE PERSONNE.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * The equipment layer draws each effect in use at the frames the document dates, and nothing
  * outside them: the thruster exhaust, the drop wall standing then dissolving, the shroud screen's

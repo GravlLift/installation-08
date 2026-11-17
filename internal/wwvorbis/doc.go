@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package wwvorbis rebuilds a Wwise Vorbis media (`.wem`) as a standard Ogg Vorbis file without
 // decoding or re-encoding the audio. It is a Go port of ww2ogg by hcs
 // (https://github.com/hcs64/ww2ogg, commit 14ed9b0dd62e815a38702b5f03c57006cbe2501b), reduced to

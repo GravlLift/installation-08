@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * indexField3d.ts — ONE FIELD OF THE WEAPON LIBRARY INDEX (`GET /api/weapons`), read on first use.
  *

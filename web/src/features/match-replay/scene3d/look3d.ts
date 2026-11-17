@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * look3d.ts — LES RÉGLAGES D'ÉCLAIRAGE de la vue 3D, tels que le tiroir les porte.
  *

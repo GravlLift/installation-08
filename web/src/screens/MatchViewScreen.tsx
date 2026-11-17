@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * MatchViewScreen — fetches one match's replay document from the standalone server, checks
  * its map mesh is built, and mounts the lifted 3D view with its match context.

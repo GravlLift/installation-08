@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayAudioMix.test.ts — WHAT THE MIXING KEEPS, AND IN WHICH ORDER.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * i18nContract.ts — LE CONTRAT DE TEXTE du rejeu 2D : un champ par string affichée, et la
  * raison d'être de chacune en commentaire.

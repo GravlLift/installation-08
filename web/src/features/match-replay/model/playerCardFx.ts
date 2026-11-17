@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerCardFx.ts — ALL THE VISUAL EFFECTS OF A PLAYER CARD, composed in one single place.
  *

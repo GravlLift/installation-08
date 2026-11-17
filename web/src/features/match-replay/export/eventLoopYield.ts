@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * eventLoopYield.ts — RENDRE LA MAIN À L'ÉVÉNEMENTIEL SANS SE FAIRE BRIDER.
  *

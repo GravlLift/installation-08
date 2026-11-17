@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /// <reference types="vitest/config" />
 import fs from 'node:fs'
 import path from 'node:path'

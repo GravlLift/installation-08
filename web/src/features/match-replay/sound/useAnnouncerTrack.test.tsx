@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useAnnouncerTrack.test.tsx — the extracted voice joins the announcer's input once the sound is
  * on, and nothing is read before (no language, sound off).

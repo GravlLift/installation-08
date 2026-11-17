@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package mapmesh builds a native map's 3D world mesh (the glTF binary the viewer loads):
 // geometry in world space, sun, baked light probes and placed lights, written under a
 // temporary name then renamed (a reader never sees a half-written GLB).

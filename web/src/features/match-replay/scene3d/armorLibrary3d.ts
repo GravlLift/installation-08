@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorLibrary3d.ts — LA BIBLIOTHÈQUE DES PIÈCES D'ARMURE côté vue : l'index, puis chaque GLB
  * (pièce à peau ou accessoire rigide) chargé UNE fois par session, géométries, matériaux et images

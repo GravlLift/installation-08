@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ktx2Textures3d.ts — GPU-compressed textures (KTX2, `KHR_texture_basisu`) in the map and Forge
  * variant GLBs.

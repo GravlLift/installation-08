@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PlayerTransportIcons — the transport's icon buttons and the inline icons they draw (no icon
  * library: every glyph is a small 16 px SVG in `currentColor`).

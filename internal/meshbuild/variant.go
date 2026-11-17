@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package meshbuild
 
 // variant.go resolves a map variant's (.mvar) object-layer build target and writes its GLB.

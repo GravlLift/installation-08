@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadLoudness.test.ts — the measured level of a take, and the one gain of a reload.
  */

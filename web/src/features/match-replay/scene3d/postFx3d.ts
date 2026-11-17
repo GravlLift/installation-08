@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * postFx3d.ts — LE COMPOSITEUR DE LA SCÈNE 3D : rendu de la scène dans une cible qui garde sa
  * profondeur, masque du contour d'équipe (`outline3d`), occlusion ambiante, passage aux couleurs de

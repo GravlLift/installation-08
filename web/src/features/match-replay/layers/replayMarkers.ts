@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayMarkers.ts — THE PLAYER ON THE MAP: trail, floor marker, aim cone, appearance and
  * death.

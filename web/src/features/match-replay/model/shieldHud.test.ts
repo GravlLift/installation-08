@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { SHIELD_FLASH_PERIOD_MS, SHIELD_RECHARGE_FULL_MS, shieldFlash, shieldFractionAt, shieldHudAt, shieldHudTrackOf, shieldTransitionsOf } from './shieldHud'

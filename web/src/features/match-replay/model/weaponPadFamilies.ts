@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponPadFamilies.ts — WHAT DESERVES A BIG ICON ON A PEDESTAL, and why the list is written
  * rather than guessed.

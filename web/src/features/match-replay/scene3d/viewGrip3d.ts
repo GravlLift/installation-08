@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * viewGrip3d.ts — L'ARME EN 1RE PERSONNE, deux tables, par clé de modèle (`weaponModelKey`) ; une
  * arme absente de sa table prend la tenue par défaut.

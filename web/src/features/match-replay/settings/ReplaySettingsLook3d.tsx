@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsLook3d — ported from LevelUp's `settings/ReplaySettingsLook3d.tsx`: the
  * "3D view" section of the drawer (shadows, reflections, ambient occlusion, game lighting, bloom, glow animation,

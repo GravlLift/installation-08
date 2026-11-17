@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package announcer extracts the Halo Infinite multiplayer announcer's voice lines from the
 // user's game install: it finds the announcer's dialogue tag (`udlg`), names its vocalizations,
 // follows each to its sound tag (`snd!`), its Wwise event and the media that event plays, then

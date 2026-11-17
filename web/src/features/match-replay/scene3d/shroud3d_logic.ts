@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shroud3d_logic.ts — THE SHROUD SCREEN'S BUBBLE AT A FRAME: where it stands, how big it is,
  * whether it is up, and the constants of its surface read in its game material.

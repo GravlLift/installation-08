@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * outlineStand3d.ts — LA SILHOUETTE EN BÂTONS d'un joueur lointain, pour le masque du contour
  * d'équipe (`outline3d`) : une quinzaine d'ellipsoïdes posés sur les os du Spartan à l'image (tronc,

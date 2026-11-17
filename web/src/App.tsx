@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * App — the whole standalone page, routed: the broadcast Home (`HomeScreen`) at `#/`, the
  * match select page (`MatchSelectScreen`) at `#/matches`, and a match view

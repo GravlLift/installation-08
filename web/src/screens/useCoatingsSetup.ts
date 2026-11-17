@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useCoatingsSetup — drives the match viewer's "Set up coatings" button: starts the server's
  * one coatings setup job (`POST /api/coatings/setup`), polls its state every `pollMs` while it

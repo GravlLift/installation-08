@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerMarkers3d_logic.ts — pure geometry of the top-down player markers: which way each
  * living player's disc faces, how a player on another floor than the drawn one is dimmed and

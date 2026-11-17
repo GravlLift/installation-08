@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // serve_announcer_test.go — the extracted sound library: readiness from the five manifests and
 // their versions, the state/build route pair over the mesh build runner (a fake build writes the
 // manifests), the read-only refusal.

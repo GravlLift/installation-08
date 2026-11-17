@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * killfeedIcons.test.ts — the kill feed icon URLs the server serves since every kill gets
  * the game's kill feed atlas sprite (`/static/weapons-assets/halo_infinite/jeu/killfeed-NN.png`).

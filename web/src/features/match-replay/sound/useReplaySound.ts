@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySound — THE WIRING of the replay sound: user preference, lifecycle
  * of the Web Audio player, and the beat that makes sound what the cursor just crossed.

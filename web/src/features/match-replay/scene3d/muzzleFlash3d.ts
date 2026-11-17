@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * muzzleFlash3d.ts — L'ÉCLAIR DE BOUCHE d'un tir : une gerbe de pétales au bout du canon du modèle
  * d'arme DESSINÉ, le temps d'une à deux images à 60 Hz.

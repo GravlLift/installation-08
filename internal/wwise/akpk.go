@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package wwise reads the Audiokinetic Wwise files Halo Infinite ships its audio in: the file
 // packages (`.pck`, magic AKPK), the sound banks inside them (`.bnk`, chunk BKHD/DIDX/DATA/HIRC)
 // and the media header of a `.wem` (a RIFF/WAVE container). It reads only; decoding the audio

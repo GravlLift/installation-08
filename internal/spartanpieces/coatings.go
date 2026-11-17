@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // coatings.go holds the coating shapes of the Spartan piece library (LevelUp's
 // meshproto revetements.go, AGPL-3.0, JGtm): the table distilled at build time
 // from the community Ekur reference (styles, style lists, coating globals,

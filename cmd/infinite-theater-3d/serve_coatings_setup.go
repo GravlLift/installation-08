@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_coatings_setup.go — the in-app coatings setup: POST /api/coatings/setup starts the

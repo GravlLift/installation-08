@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionRenderer3d.ts — ONE `THREE.WebGLRenderer` for the whole session, not one per match.
  *

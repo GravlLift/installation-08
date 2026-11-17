@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // hud.go — the HUD equipment and grenade icon set.
 //
 // Build the game's grenade and equipment HUD glyphs from their pinned atlases.

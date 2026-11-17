@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorPlan3d.ts — CE QU'IL FAUT CHARGER POUR HABILLER UN JOUEUR : fonction pure de son manifeste
  * d'armure (`lib/replay/spartanArmor`) et de l'index de la bibliothèque des pièces (contrat écrit en

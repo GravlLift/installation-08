@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package meshjobs runs map mesh builds for the server, one at a time. It owns the state
 // of each map module (absent, queued, building, ready, failed), serializes builds process
 // wide, and hands out an immutable state snapshot for a module key at any moment.

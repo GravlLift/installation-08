@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Backdrop — the treated full-screen map image (docs/UI-DESIGN.md 3.3). Two layers cross-fade
  * when `imageUrl` changes (the mockup's `setBackdrop` behavior): the incoming layer is

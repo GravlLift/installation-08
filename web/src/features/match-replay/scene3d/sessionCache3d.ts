@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionCache3d.ts — a generic, byte-capped LRU cache for GPU-backed 3D resources (the parsed map,
  * a variant layer, a model library) that should outlive one match: the second match on the same map,

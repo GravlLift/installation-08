@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerMarkers3d.ts — the top-down player markers: one filled disc at each living player's
  * feet in his team color, a wedge out of it where he is facing, a light arrow inside it when he is

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * avcDescription.test.ts — the `avcC` repair, on the bytes Firefox 142 really produced
  * (2026-11-16, 1280x720 at 60 fps, `avc1.640020`): a description with doubled NAL header bytes, and

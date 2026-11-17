@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * footstepManifest.ts — THE EXTRACTED FOOT AND MOVEMENT SOUNDS, as the viewer reads them.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponCoat3d.ts — LA PEINTURE D'UNE ARME POUR UN JOUEUR : le même noyau que l'armure
  * (`armorCoat3d.paintMaterials`), sur les matériaux peints du modèle de l'arme

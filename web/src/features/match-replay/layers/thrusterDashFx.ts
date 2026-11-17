@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * thrusterDashFx.ts — the THRUSTER PUSH: when each measured use happens, which way it pushed, and
  * the timing of its effect. The 3D view's exhaust (`scene3d/thruster3d`) and the game's dodge and

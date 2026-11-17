@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // firstperson.go ports the single-weapon build path of LevelUp's internal/mapmesh/premiere_personne.go

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplayScoreboardOverlay.tsx — the in-game scoreboard, rendered on top of the 3D view.
  *

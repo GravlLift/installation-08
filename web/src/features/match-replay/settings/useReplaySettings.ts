@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplaySettings — préférences d'AFFICHAGE du rejeu : calques (visée, zones, noms, carte
  * de chaleur), effets d'événement (tirs, morts) et vitesse de lecture. Persistées comme le

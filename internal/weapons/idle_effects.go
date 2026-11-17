@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // idle_effects.go — the particle effects a weapon carries while it is held (the Shock Rifle's
 // electricity around its barrel housing), read from its `weap` tag down to the numbers the view
 // simulates (himap.EffetDeParticules), with the textures and particle meshes they draw.

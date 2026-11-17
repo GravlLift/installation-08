@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package safefs removes a folder tree without ever following a symlink or a directory
 // junction. Windows junctions look like folders, and a recursive delete that follows one
 // deletes whatever it points at; every tree removal in this program goes through RemoveTree.

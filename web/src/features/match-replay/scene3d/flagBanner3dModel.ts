@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * flagBanner3dModel.ts — THE TEAM BANNER A WEAPON ATTACHES TO ITS MODEL (the CTF flag), as the
  * weapon library index describes it (`banners`, written by the server from the flag's per-team

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * skullGlyph.ts — the GLYPH OF THE SKULL of Oddball, traced ONE single time for its TWO
  * layers.

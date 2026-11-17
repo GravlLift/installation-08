@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * knockbackFx.ts — THE TIMING OF A REPULSOR PUSH: the window and the easing of its effect.
  *

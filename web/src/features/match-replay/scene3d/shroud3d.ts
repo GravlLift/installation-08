@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shroud3d.ts — THE SHROUD SCREEN'S BUBBLE DRAWN: a luminous blue sphere covered with hexagonal
  * cells, brightening to a cyan-white rim at its silhouette (`shroud3d_logic` gives its place,

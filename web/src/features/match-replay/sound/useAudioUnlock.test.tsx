@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useAudioUnlock.test.tsx — THE SOUND ALREADY ENABLED REVIVES ON THE FIRST GESTURE ON THE PAGE
  * (item 12 of the backlog plan of 2026-09-26, decision D-10), judged through `useReplaySound`:

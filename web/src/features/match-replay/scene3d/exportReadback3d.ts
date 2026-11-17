@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportReadback3d.ts — copies an exported 3D frame out of WebGL with `readPixels`.
  *

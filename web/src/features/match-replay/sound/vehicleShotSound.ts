@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleShotSound.ts — THE VARIANTS OF THE SOUND OF A SHOT IN VEHICLE (lot of 2026-09-04).
  *

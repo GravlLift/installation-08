@@ -1,4 +1,5 @@
 #requires -Version 7
+# SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 <#
 .SYNOPSIS
     Packs a folder of PNGs into a multi-size Windows .ico, with PNG-compressed entries.

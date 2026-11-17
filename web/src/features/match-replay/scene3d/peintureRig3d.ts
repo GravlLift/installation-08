@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * peintureRig3d.ts — LA PEINTURE DES BRAS DU RIG DE PREMIÈRE PERSONNE DU JOUEUR SUIVI.
  *

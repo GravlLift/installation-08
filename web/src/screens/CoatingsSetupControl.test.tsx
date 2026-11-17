@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * CoatingsSetupControl.test.tsx — the "Set up coatings" control: the notice and button, the
  * progress through the server's stages to ready, the failure message with Retry, adopting a

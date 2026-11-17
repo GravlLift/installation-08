@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 
 /** Contour plat d'une zone logique, sans surface ni volume rempli. */

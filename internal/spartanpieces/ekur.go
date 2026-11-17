@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // ekur.go — the Ekur reference of the coatings, read at the build of the
 // library (LevelUp's internal/mapmesh revetements_ekur.go, AGPL-3.0, JGtm):
 // the JSON output of the community Ekur tool (Blender add-on for Halo

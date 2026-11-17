@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * teamSeriesColor.ts — L'ENCRE D'UNE SÉRIE D'ÉQUIPE DANS UN GRAPHE, et il n'y en a qu'une.
  *

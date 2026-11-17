@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armory3d.ts — L'ARMURE DE CHAQUE JOUEUR DU MATCH, prête à poser : pour chaque joueur dont le
  * manifeste est servi (`status = armor`), le plan de ses pièces (`armorPlan3d`), chargées par la

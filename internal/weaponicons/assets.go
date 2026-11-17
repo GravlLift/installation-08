@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // assets.go — THE DAMAGE TAG CATALOGUE SERVES AS VOCABULARY.
 //
 // WHY THIS SOURCE, AND NO MORE. `damagetag` in the vendored film decoder carries, already

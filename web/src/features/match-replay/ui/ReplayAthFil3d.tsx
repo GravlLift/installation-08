@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { WeaponIcon } from '@/components/ui/WeaponIcon'
 import { teamTokenCssVar } from '@/features/match-view/teamSeriesColor'
 import { displayPlayerName } from '@/lib/players/displayName'

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // import.go — the `import` subcommand: copy a film (chunks, optional manifest and stats)

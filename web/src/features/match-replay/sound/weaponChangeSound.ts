@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponChangeSound.ts — THE PICKUP AND THE DROP OF WEAPON, dated by the film.
  *

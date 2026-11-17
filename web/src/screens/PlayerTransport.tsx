@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PlayerTransport — the lower third of the player: the scrub bar (`ScrubBar`, with the selected
  * player's kills, deaths and medals as marks) and the controls row under it.

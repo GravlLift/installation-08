@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * roundsLogic — THE ROUNDS OF A MULTI-ROUND MATCH, read in the score layer.
  *

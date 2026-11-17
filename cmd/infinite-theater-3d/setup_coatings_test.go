@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // setup_coatings_test.go — the setup-coatings subcommand's refusals, which happen before

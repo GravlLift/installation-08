@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package main
 
 // serve_jobs.go — the mesh build runner's wiring for `serve`: which output each job writes,

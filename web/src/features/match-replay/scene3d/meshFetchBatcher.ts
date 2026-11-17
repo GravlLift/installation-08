@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * meshFetchBatcher.ts — the small library files (armor, first-person, weapon) fetched in BUNDLES
  * instead of one request each.

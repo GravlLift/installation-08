@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownView3d.ts — the top-down view of the replay scene: the same scene, drawn from
  * straight above with an orthographic camera, as one fixed picture of the whole map, with a

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** replayCamera3d.ts — état suivi, placement de caméra et mesure du sol de la carte. */
 import * as THREE from 'three'
 import { EYE_HEIGHT } from './body3d'

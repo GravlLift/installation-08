@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * deaths3d.ts — LES MORTS DANS LA SCÈNE 3D : une croix au sol là où la victime est tombée, le tueur
  * et l'arme du kill au-dessus, et, au premier instant, le trait du tueur vers sa victime.

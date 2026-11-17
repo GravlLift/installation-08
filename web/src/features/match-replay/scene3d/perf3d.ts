@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * perf3d.ts — User Timing measures of the 3D scene's load, named `it3d:<step>`: the map and variant
  * downloads, the GLB parse, each KTX2 transcode and meshopt decode, the materials, the merge, the ray

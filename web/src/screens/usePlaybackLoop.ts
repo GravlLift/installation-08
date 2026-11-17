@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlaybackLoop — advances the playback frame once per animation frame while `playing`, at
  * `speed` of `fps`, until the document's last frame.

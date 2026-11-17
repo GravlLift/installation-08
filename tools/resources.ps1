@@ -1,4 +1,5 @@
 #requires -Version 7
+# SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 <#
 .SYNOPSIS
     Regenerates the app's PE resources (cmd\infinite-theater-3d\rsrc_windows_amd64.syso)

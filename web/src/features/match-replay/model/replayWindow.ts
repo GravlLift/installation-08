@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayWindow — THE GAMEPLAY WINDOW: where the MATCH starts and where it ends on the axis of the film.
  *

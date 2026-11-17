@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shadowSplit3d.ts — THE SUN'S SHADOW MAP IN TWO PARTS: the static map, drawn once, and what moves,
  * drawn at each replay frame on top of it.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorCoat3d.ts — LA PEINTURE D'UNE TENUE POUR UN JOUEUR : pour chaque matériau peint de sa tenue
  * (masques bruts en `userData.armorMaps`, style en `userData.style`, `armorLibrary3d`), la peinture de

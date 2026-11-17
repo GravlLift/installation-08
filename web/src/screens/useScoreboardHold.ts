@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useScoreboardHold — the Tab hold of the in-game scoreboard: while Tab is held down the
  * overlay is open, releasing it closes it.

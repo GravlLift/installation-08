@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package refdata
 
 // map_identity.go — the map identity the film carries on its own: chunk_00 gives a map

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * killsFromDocument.ts — kill markers built from the DOCUMENT ALONE, no Match View context.
  *

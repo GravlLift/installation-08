@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reticleRanges3d.ts — THE RED-RETICLE RANGE OF EACH WEAPON, read from the weapon library index
  * (`reticle_ranges`, written by the server from each weapon's `weap` tag: its autoaim range, and

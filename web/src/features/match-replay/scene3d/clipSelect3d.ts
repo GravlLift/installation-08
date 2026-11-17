@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * clipSelect3d.ts — QUELS CLIPS DU JEU JOUER À UNE IMAGE, et à quel temps : une fonction pure de ce
  * que le film dit du joueur (allure, postures datées, classe de l'arme tenue, actions datées).

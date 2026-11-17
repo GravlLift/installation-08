@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mixRender.test.ts — the just-in-time render: every source is placed before its start, the
  * graph never holds more than the sounds of the current step, the progress moves, and a

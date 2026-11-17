@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shroudInk.ts — THE SHROUD SCREEN'S INKS, read from the theme.
  *

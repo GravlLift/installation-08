@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * FirstRunPanel.test.tsx — the home screen's "Getting ready" plate: the steps reduced from the
  * state routes, the determinate bar and current step while work runs, "Ready" then gone, a

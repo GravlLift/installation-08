@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shockShots3d.ts — THE SHOCK RIFLE'S SHOT IN 3D (family `shock`): the same electric discharge
  * the shroud wears, fired out as THREE jagged beams from the muzzle to the shot's end point.

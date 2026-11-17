@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsLook3d.test.tsx — the drawer's "3D view" section carries the Bloom and glow
  * animation switches, on by default, and flipping one writes the persisted setting the 3D view reads.

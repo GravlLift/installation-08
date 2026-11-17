@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // labels.go — the replay label catalog for Halo Infinite, built from the embedded
 // reference JSONs (generated from LevelUp's title mappings and weapon registry).
 // The catalog is the single source of weapon names, grenade labels, ability palettes,

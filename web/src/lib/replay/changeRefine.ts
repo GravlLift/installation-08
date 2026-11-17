@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * changeRefine.ts — FINE DATING of card readings (schemas 24 and 25).
  *

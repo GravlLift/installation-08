@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayReadyTypes.ts — LES TYPES `*Ready` : la FORME du document de rejeu une fois passé la
  * frontière, champ par champ, avec la raison de chaque comblement.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useVariantLayer — pose le calque des objets de la variante du match sur la carte 3D chargée.
  *

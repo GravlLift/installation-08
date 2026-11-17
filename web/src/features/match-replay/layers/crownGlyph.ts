@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * crownGlyph.ts — the SHAPE OF THE VIP CROWN, described ONE single time for its TWO uses: the
  * map glyph (`vipCrownLayer`, canvas) and the card watermark

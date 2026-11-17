@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spartan3d.ts — LA COPIE DU SPARTAN D'UN JOUEUR : le modèle à peau du jeu (`WeaponModels.spartan`)
  * cloné avec son squelette, ses os pilotés (`pose3d`) et liés aux clips du jeu de la source

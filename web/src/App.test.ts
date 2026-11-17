@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * App.test.ts — the hash router: the three routes of the broadcast app (Home, the match
  * list and the player) and nothing else.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests — pickups3d : LES SOCLES ET LES ARMES AU SOL DE LA 3D SUIVENT LES RÈGLES DE LA 2D.
  *

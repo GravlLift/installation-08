@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * armorCoating3d.ts — LA PEINTURE D'UN MATÉRIAU D'ARMURE, fonction pure : le style du matériau
  * (`extras.style` de son GLB), la table des revêtements de la bibliothèque, le revêtement du joueur

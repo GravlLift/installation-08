@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useTeamColors — the persisted preference for the two team colors (friendly and enemy).
  *

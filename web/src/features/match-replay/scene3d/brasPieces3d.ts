@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * brasPieces3d.ts — LES PIÈCES DE BRAS DU JOUEUR EN PREMIÈRE PERSONNE.
  *

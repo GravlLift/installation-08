@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import * as THREE from 'three'
 import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { cloak, type Avatar } from './avatar3d'

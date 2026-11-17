@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayDraw.ts — BACKGROUND and EVENTS layers of the 2D replay: reconstructed ground, Forge
  * props (as fallback), shots and deaths. The player themselves lives in replayMarkers.ts.

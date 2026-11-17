@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests of the ENGINE PLAN of the vehicles (vehicleEngineSound.ts): merging of the
  * occupation episodes, engine that follows the movement, refusal of the decor, table of the stems, and the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * padSpawnSound.ts — THE APPEARANCE OF A WEAPON ON ITS STAND, dated to the frame.
  *

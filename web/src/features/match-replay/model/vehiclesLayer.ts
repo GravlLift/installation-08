@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehiclesLayer.ts — THE VEHICLES on the replay map (schema 39): the geometry and the
  * rules, without a line of canvas.

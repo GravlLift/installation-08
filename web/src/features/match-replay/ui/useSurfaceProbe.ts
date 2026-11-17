@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useSurfaceProbe — l'inspecteur de surfaces de la vue 3D, sur le poste de développement
  * seulement : Alt+clic sur la carte nomme le matériau du jeu sous le pointeur (et l'objet de la

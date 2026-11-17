@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * preparationRig3d.ts — LA PRÉPARATION EN FOND DES RIGS DE PREMIÈRE PERSONNE DU JOUEUR SUIVI.
  *

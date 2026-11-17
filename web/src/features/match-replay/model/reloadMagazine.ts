@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadMagazine.ts: THE ROUNDS LEFT IN THE HELD WEAPON'S MAGAZINE WHEN A RELOAD STARTS, from the film.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayAudioMix.ts — THE SOUND TRACK OF THE EXPORT, mixed OFF REAL TIME.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlayerChromeInsets — the player's safe insets: how far the top strip reaches down into the
  * 16:9 box and the transport reaches up into it, published on the box as the CSS variables

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * matchClock.ts — THE THREE TIME AXES OF A MATCH, AND THE CONVERSIONS BETWEEN THEM.
  *

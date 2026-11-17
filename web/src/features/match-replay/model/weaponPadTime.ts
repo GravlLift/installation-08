@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponPadTime.ts — WHAT THE FILM SAYS ABOUT A PEDESTAL AT AN INSTANT: its occupancy, its
  * state, and the time left before the weapon comes back.

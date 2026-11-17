@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { expect, it, vi } from 'vitest'
 import type { SpartanArmory, Dress } from './armory3d'
 import type { Coat } from './armorCoat3d'

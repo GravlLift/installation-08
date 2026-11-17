@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * respawnCountdown.ts — THE COUNTDOWN OF A PLACE THAT RESTOCKS, and the ORDER OF ITS
  * TWO SOURCES.

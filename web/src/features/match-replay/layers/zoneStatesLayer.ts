@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * zoneStatesLayer.ts — THE LIVING STATE OF THE ZONES (schemas 16-18): who holds what at the
  * current frame, and the CAPTURE GAUGE that fills under your eyes.

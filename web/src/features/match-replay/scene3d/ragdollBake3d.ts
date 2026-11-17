@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollBake3d.ts — LA CUISSON D'UNE MORT : le corps inerte simulé UNE fois, au pas fixe, depuis la
  * pose exacte de la victime à sa mort, jusqu'au repos (au plus `MAX_SECONDS`), et rangé en piste :

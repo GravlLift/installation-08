@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlayerMarks — the selected player's events for the scrub bar (`scrubMarks`) and the
  * previous / next event step the `[` / `]` keys and the bar's buttons share. The selected

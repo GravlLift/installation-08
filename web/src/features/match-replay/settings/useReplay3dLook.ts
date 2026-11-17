@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplay3dLook — LES RÉGLAGES D'ÉCLAIRAGE de la vue 3D : ombres, reflets, occlusion ambiante,
  * lumière du jeu, bloom, animation des surfaces lumineuses.

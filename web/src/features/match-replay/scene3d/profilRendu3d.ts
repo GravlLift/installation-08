@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * profilRendu3d.ts — le temps de script d'une image de la scène, par étape.
  *

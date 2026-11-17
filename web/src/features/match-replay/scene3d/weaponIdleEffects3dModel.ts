@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponIdleEffects3dModel.ts — THE PARTICLE EFFECTS A HELD WEAPON CARRIES (the Shock Rifle's
  * electricity around its barrel housing), as the weapon library index describes them

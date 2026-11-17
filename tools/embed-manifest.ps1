@@ -1,4 +1,5 @@
 #requires -Version 7
+# SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 <#
 .SYNOPSIS
     Embeds the app's PE manifest (cmd\infinite-theater-3d\app.manifest) into a finished

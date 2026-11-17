@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /// <reference types="node" />
 /**
  * testDoc.ts — LA fixture de document de rejeu, partagée par tous les tests de la feature.

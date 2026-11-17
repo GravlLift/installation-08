@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReloadTrack.test.tsx — nothing is read before the sound is on; once on, the match's
  * weapons get their reloads with a measured gain; nothing extracted leaves them silent.

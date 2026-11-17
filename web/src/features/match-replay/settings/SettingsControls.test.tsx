@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { render, screen } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import { SettingsToggle } from './SettingsControls'

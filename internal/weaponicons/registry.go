@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // registry.go — the weapon families: the high 32 bits of a filmshell weapon id mapped to
 // a family key.
 //

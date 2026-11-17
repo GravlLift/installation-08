@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * gamertagSearch — the pure side of the match select page's gamertag search: the input's
  * normalization and loose check (the same rule the server applies, see

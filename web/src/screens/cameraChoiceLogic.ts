@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * cameraChoiceLogic — the one camera state of the player, driven from the control bar's camera
  * group (camera mode segment and POV picker) and the 1 / 2 / 3 keys.

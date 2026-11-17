@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * meshFetch.ts — LE TÉLÉCHARGEMENT DU MAILLAGE 3D, lu en flux pour en dire la progression.
  *

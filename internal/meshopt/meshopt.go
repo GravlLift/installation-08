@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package meshopt is the cgo binding of the meshoptimizer codecs that glTF's
 // EXT_meshopt_compression carries: the vertex buffer codec, the index buffer and index sequence
 // codecs, and the exponential vertex filter. three.js's MeshoptDecoder (the viewer's

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMatchFetchQueue.test.ts — per-row remote-match fetch progress: starting a job, queueing
  * several rows at once (the server downloads them one after another, positions included),

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionRendererDebug3d.ts — a dev-only `window.__it3dRendererDebug` hook: the shared session
  * renderer's own counters (compiled shader programs, uploaded geometries/textures, draw calls per

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * chargement3d_logic.ts — the loading progress of the 3D scene, one honest bar for the whole load.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplay3dMeter — whether the 3D view shows its playback meter (`ReplayCadence3d`): the film's
  * displayed frames per second, the real-time ratio and the render cost.

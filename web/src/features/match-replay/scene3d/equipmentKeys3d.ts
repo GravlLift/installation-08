@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * equipmentKeys3d.ts — THE MODEL KEY OF AN EQUIPMENT FAMILY, read from the weapon library index
  * (`equipment`, written by the server from the title's equipment manifest: each family whose pickup

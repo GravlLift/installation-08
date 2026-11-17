@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * CoatingsSetupControl — the match viewer's top-strip control when coatings are off: the
  * notice with a "Set up coatings" button, then the setup's progress, then its outcome (the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleEnginePlayer.ts — THE REAL-TIME PLAYBACK of the vehicle engines, and nothing else.
  *

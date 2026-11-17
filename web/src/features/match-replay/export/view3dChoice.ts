@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Default view choices and export options for the dialog. */
 import type { Export3dOptions } from './export3dFrame'
 import type { Replay3DExportEntry } from './replay3dExportStore'

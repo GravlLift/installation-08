@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package ambience extracts each multiplayer map's ambient bed (its "room tone") from the user's
 // game install. A map's level tag (`levl`) holds a palette of background sounds, one entry per
 // acoustic zone of the map, each naming a looping sound tag (`lsnd`); the looping sound names a

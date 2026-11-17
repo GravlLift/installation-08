@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * exportSoundFamilies.ts — what the OFFLINE EXPORT receives from the page's sound, in addition to
  * the track: the end-of-match takes it will play, and the voice / music classification of its

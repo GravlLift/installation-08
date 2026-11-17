@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ragdollStart3d.ts — CE QUE LE FILM DIT D'UNE MORT AU CORPS INERTE : la pose de la victime à son
  * dernier instant en vie (les clips que la vue jouait, `motion3d`, le cap et le tangage du film),

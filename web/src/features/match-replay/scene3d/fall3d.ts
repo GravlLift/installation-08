@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fall3d.ts — LA CHUTE DU CORPS À LA MORT : les clips de mort du jeu, fonction du temps écoulé depuis
  * la mort, dans une allure que la source du kill du fil choisit.

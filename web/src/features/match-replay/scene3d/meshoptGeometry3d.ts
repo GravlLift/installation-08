@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * meshoptGeometry3d.ts — compressed geometry (`EXT_meshopt_compression`) in the GLBs the server
  * builds (maps and Forge variant layers since build format 3, `internal/geocompress`).

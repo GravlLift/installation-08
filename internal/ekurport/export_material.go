@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Ported from Ekur's ekur_materials (GPL-3.0-or-later, Copyright (c) 2026 The Halo
 // Archive): process.rs process_material, layered/layered_shader.rs add_style_info and
 // collect_textures, lib.rs Material / StyleInfo / TextureType, and

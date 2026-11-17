@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * reloadManifest.test.ts — the manifest's shape, the weapon tag of a film id, and the library the
  * track plays from it.

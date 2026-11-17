@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package webdist holds the built web viewer for the packaged program. The files live in
 // the gitignored staging directory internal/webdist/files (a tracked placeholder keeps
 // the directory present); the packaging script copies web\dist\index.html and

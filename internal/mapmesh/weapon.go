@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // weapon.go ports LevelUp's internal/mapmesh/armes.go (AGPL-3.0, JGtm) weapon-model build: a

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ReplaySettingsTeamColors — the "Team colors" section of the settings drawer: the friendly
  * and enemy inks, each a native color input with a swatch, and a reset to the defaults.

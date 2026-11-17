@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * cssColor.ts — une couleur CSS résolue (jeton de thème) en couleur three.
  *

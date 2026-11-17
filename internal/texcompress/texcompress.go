@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package texcompress rewrites the images of a finished map or variant GLB as KTX2 GPU textures
 // (Basis Universal, glTF KHR_texture_basisu): the GLB gets smaller, and the viewer uploads the
 // textures to the GPU still block-compressed (BC7 on desktop, a quarter of RGBA8) instead of

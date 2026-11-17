@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * shotFx.ts — WHAT IS KNOWN ABOUT A SHOT BEFORE DRAWING IT: where, when, what shape,
  * what tint, and in which direction the shooter WAS LOOKING.

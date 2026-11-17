@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * recoil3d.ts — LE RECUL DE L'ARME AU TIR : ce que l'arme dessinée fait à chaque coup.
  *

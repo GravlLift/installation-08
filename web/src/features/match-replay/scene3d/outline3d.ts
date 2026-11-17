@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * outline3d.ts — LE CONTOUR D'ÉQUIPE : une ligne pleine, à la couleur du camp (allié ou adverse vu
  * du joueur de la page), autour de la silhouette entière de chaque joueur en vie, arme en main

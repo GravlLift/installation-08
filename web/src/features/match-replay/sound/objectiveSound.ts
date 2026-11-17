@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * objectiveSound.ts — THE OBJECTIVE SOUNDS, and the side that distinguishes them.
  *

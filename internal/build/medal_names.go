@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Film-code to English name mapping measured by LevelUp in libs/film/medalname.
 package build
 

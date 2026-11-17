@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * PreGameQualityChoice.test.tsx — the texture-quality choice the pre-game offers before a first
  * build: when the map is not built at the stored quality, both qualities are offered with their

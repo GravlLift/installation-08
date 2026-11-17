@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useCameraChoice — the player's camera state (`cameraChoiceLogic`), lifted to the viewer so the
  * control bar and the keyboard drive it and the 3D view only reads it. The reference player

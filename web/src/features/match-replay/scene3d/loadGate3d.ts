@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * loadGate3d.ts — LE COMPTE DES CHARGEMENTS EN COURS D'UNE SCÈNE.
  *

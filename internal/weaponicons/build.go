@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // build.go — the build entry point: index the archives, resolve the weapon-to-icon link,
 // crack the names, decode every atlas image, and write the PNG set plus index.json.
 

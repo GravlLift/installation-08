@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * footstepSound.test.ts — THE PURE RULES of when a foot step sounds, from the film's motion.
  *

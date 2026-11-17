@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * backFaces3d.ts — L'ENVERS DE LA STRUCTURE D'UN MODÈLE DE LA VUE (la carte, un calque posé sur elle).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * stagedSound.ts — THE FIRST-PERSON SOUNDS OF A STAGED RELOAD (the Heatwave, Cindershot and Hydra),
  * WITH THE FIRST-PERSON RIG'S OWN TIMING.

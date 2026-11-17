@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * pickText — LIRE UN LIBELLÉ PAR LANGUE (ADR 0040, D3).
  *

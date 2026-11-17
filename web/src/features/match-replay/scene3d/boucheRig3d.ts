@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * boucheRig3d.ts — LA BOUCHE DU RIG DE 1RE PERSONNE (bras + arme animés), une fois par rig.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * TextureQualityToggle.test.tsx — the match select page's texture-quality toggle: it shows the
  * stored preference (Standard by default), a click writes the shared key, and the player's

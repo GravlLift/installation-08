@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * playerProbe3d.test.ts — LA SONDE D'ENVIRONNEMENT DES JOUEURS : l'attribution à un matériau ne
  * recompile qu'à la bascule sonde ↔ sans sonde (le compteur `version` du matériau, où three pose

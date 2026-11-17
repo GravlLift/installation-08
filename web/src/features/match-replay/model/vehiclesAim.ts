@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehiclesAim.ts — THE AIM OF A VEHICLE OCCUPANT (schema 39): which direction, at which
  * image, and when to fall back on the chassis heading.

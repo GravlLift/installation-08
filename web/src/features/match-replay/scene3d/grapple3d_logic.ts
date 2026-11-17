@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * grapple3d_logic.ts — THE GRAPPLESHOT AT A FRAME: how far the hook has flown toward its anchor,
  * and whether it holds.

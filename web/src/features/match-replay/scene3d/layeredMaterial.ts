@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * layeredMaterial.ts — LES MATÉRIAUX EN COUCHES DU GLB (`extras.couches`, écrits par
  * libs/himap/himap/glb_couches.go).

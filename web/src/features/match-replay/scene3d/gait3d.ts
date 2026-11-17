@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * gait3d.ts — L'ALLURE D'UN JOUEUR LUE SUR SA PISTE : vitesse au sol, direction du déplacement et
  * distance parcourue depuis le début de sa vie, à une image (fractionnaire).

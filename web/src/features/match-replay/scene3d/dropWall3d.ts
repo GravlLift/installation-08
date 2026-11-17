@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * dropWall3d.ts — THE DROP WALL DRAWN: a translucent energy barrier standing on the 2D arc, its
  * flat panels rising from the ground at deployment and sinking away as it dissolves

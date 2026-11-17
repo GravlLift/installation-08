@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * spawnedObjects.ts — THE OBJECTS SPAWNED BY CARRIED EQUIPMENT, made drawable: the sensor, the
  * tracker, the shroud screen and the repair field, at the place where they came to rest.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weaponicons
 
 // bc7_test.go — unit tests for the BC7 decoder. The blocks are built with the same bit

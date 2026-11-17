@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayShieldSound — THE React SEAM of the followed Spartan's shield alarms
  * (`shieldSound.ts`, `shieldSoundPlayer.ts`), consumed by `useReplaySound`, which owns the Web

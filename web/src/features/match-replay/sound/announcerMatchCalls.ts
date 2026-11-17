@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerMatchCalls.ts — THE CALLS ABOUT THE MATCH ITSELF: the mode's name at kickoff, the
  * remaining-time warnings, overtime, and the lost lead. Pure; `announcerCalls` merges them with

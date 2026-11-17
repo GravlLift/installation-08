@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * catalogLabel.ts — LIRE UN LIBELLÉ DU DOCUMENT DANS LA LANGUE DU LECTEUR.
  *

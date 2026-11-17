@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * threatSensor.ts — THE THREAT SENSOR: its range, its PING, and what the ping reveals.
  *

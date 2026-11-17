@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import type { Avatar } from './avatar3d'

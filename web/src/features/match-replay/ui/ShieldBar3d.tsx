@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useId } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import type { ShieldHudState } from '../model/shieldHud'

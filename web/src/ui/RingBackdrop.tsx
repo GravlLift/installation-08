@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * RingBackdrop — the home screen's backdrop. The image is the game's own ring scene,
  * extracted from the install at first run and served from `/api/backdrop/home` (never

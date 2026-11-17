@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useSoundCategoryFilter — the per-category sound filter of the settings drawer, its persistence
  * and its toggle. Extracted from `useReplaySound.ts` (over its size threshold) when the announcer

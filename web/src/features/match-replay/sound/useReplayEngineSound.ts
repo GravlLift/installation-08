@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayEngineSound — THE React SEAM of the vehicle engines, consumed by
  * `useReplaySound` (which owns the Web Audio player and the beat).

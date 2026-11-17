@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * action3dInputs.ts — CE QUE LA PAGE DONNE À LA 3D POUR DESSINER L'ACTION.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * soundLatency.measure.test.ts — MEASURES the live sound path on a real stored match.
  *

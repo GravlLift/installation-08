@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * teamNames — résolution team_id → nom officiel d'équipe Halo Infinite.
  *

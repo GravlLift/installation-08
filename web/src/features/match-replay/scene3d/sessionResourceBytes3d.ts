@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * sessionResourceBytes3d.ts — estimates the GPU/CPU footprint of a loaded 3D resource, for
  * `sessionCache3d`'s byte cap: geometry attribute and index bytes, plus texture bytes (width x

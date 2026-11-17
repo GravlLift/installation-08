@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package mapmesh
 
 // spartan.go ports LevelUp's internal/mapmesh/animations.go body-animation logic (AGPL-3.0,

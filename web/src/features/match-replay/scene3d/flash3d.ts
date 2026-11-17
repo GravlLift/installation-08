@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * flash3d.ts — LES ÉCLAIRS BREFS DE L'ACTION : leur lumière (un jeu fixe de lumières ponctuelles)
  * et leur courbe dans le temps.

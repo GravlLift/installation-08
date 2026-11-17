@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * matchSelectModel.test.ts — the match select page's pure logic: the merge of the stored
  * and the recent lists (with a match present in both), the sort, the tab filters, the score

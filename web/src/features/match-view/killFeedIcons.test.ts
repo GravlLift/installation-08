@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * killFeedIcons.test.ts — pins the cause of the missing weapon icons in the 3D replay
  * kill feed (Brief 132).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * body3d.ts — LES COTES DU JOUEUR dans la scène 3D, en unités monde Halo (1 u = 3,048 m),
  * mesurées depuis les pieds. La capsule, la caméra et les calques d'action (bouche de l'arme,

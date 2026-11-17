@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * ambienceBed.ts — THE MAP'S AMBIENT BED ("room tone"): one long loop the game authors per
  * acoustic zone of the map, played quietly under the replay so the scene never goes dead silent.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * livesPosition.ts — THE SINGLE writing of the block « position of a player at a frame ».
  *

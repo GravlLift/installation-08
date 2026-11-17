@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplay3dFov — LE RÉGLAGE DE CHAMP DU JEU de la vue 3D (70 à 120, degrés horizontaux à
  * 16:9), persisté comme les réglages d'éclairage (`useReplay3dLook`) et partagé par clé : le

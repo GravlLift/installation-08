@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * matchNotFetchedModel — the words and the one action of the panel a shared match link shows
  * when the match is not stored on this install (`MatchNotFetched.tsx`). Pure: it turns the

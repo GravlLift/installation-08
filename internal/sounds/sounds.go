@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package sounds holds the built-in replay sound set. The files are the 183 hand-produced
 // .ogg files of JGtm's LevelUp replay player (see NOTICE.md), produced from Halo
 // Infinite's game audio. They are embedded in every build so the viewer is not silent on

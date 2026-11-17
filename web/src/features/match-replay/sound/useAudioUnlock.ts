@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useAudioUnlock — THE PLAYER OPENS ON THE FIRST GESTURE ON THE PAGE, WHATEVER IT IS, when the
  * preference is "enabled" (item 12 of the backlog plan of 2026-09-26, decision D-10).

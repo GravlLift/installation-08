@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useMeshBuild.test.ts — the build panel's state machine: initial state check, starting a
  * build, polling while queued/building, stopping on ready/failed, and cleaning up its timer and

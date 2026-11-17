@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package refdata ships the reference catalogs a standalone decode needs, embedded in the
 // binary: the user owns no reference files of their own, so the catalogs travel with the
 // program. The map quantization catalog is LevelUp's reference catalog, copied in and

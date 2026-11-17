@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * soundListener3d.ts — L'AUDITEUR SPATIAL D'UNE CAMÉRA 3D : sa place et son cap, en repère de la
  * carte, pour le son spatial du rejeu (`soundSpatial.ts`).

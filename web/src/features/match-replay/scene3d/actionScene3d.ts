@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * actionScene3d.ts — L'ACTION DU MATCH DANS LA SCÈNE 3D : le contrat des calques et leur ensemble.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fakeAudio.ts — LE double Web Audio des tests du rejeu, partagé (patron testDoc.ts).
  *

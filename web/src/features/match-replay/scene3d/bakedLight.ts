@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bakedLight.ts — LA LUMIÈRE CUITE DU JEU : ses sondes d'irradiance (`stlm`), publiées dans le GLB
  * par `cmd/mapfond-build --maillage` sous `scenes[0].extras.levelupProbes` (cf.

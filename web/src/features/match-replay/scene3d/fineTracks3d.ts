@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * fineTracks3d.ts — LA VIE AU DÉBIT DU FILM, MISE EN POINTS POUR LA VUE 3D.
  *

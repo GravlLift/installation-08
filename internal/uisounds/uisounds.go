@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package uisounds extracts the game's interface sounds the viewer plays outside the replay
 // track, from the user's game install: the countdown tick the pre-game screen plays on each of
 // its 3, 2, 1, and the followed Spartan's own shield alarms (low, break, depleted, recharge).

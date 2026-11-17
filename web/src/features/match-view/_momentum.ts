@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * _momentum.ts — logique pure de l'histogramme momentum de la carte « Dominance »
  * (match_view.10, `MatchTugOfWarChart`).

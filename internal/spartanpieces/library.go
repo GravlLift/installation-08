@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // library.go — the Spartan armor piece library build (LevelUp's
 // internal/mapmesh ConstruitPieces, AGPL-3.0, JGtm): every piece of the
 // Spartan's `mode` (a skinned permutation of one of its regions), every

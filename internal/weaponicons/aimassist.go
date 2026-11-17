@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // aimassist.go — THE RED-RETICLE REACH OF A WEAPON, read from its `weap` tag.
 //
 // The reticle turns red when the target is inside the weapon's AUTOAIM RANGE: the

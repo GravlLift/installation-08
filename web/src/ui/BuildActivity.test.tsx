@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * BuildActivity.test.tsx — the header's build indicator: the view reduced from GET /api/builds,
  * hidden while idle, the label and queue count while a build runs, the tooltip listing the

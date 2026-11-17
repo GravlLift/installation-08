@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useSoundTimeline.ts — THE TRACK the page plays and the export mixes: `buildSoundTimeline` with
  * the two inputs that arrive from the user's game install after the sound is turned on, the

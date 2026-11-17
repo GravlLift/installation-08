@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * variantLayer.test.ts — le calque des objets de la variante passe par la préparation de la carte
  * (familles, étiquettes de l'inspecteur, nœuds `ombre*`, index, envers de la structure, lumière cuite

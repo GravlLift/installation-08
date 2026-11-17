@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * translocationCuts — A TRANSLOCATION IS A CUT OF THE TRACK, NOT A MOVEMENT.
  *

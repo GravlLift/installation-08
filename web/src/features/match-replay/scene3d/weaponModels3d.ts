@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponModels3d.ts — LES MODÈLES 3D DES ARMES, tirés du jeu installé (`cmd/mapmesh-build --armes`).
  *

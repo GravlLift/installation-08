@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * vehicleWeaponMounts.ts — WHERE A VEHICLE SHOT LEAVES FROM, NOT THE CENTER OF THE PIECE.
  *

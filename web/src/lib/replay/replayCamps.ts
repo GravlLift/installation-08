@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayCamps.ts — THE REPLAY'S CAMPS: who gets in (the FILM), and what they are called (the
  * match SHEET).

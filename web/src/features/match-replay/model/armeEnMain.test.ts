@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Tests: the objective object a carrier holds in hand (skull, CTF flag), and the identifier of the
  * flag's model.

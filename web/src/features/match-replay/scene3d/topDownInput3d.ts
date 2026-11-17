@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownInput3d.ts — the pointer and key gestures of the top-down view, on the scene's canvas:
  * the wheel zooms toward the cursor, a drag pans, a double click or the `0` key goes back to the

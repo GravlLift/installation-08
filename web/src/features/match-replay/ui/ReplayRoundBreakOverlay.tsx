@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Show a non-interactive round-end message at the film's current frame.
  * Round boundaries use the score timeline's clock guard and the end of the previous round,
  * shared with the round-over sound. A frame window keeps seeking and pausing deterministic. */

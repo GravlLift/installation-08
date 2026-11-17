@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * homeScreenLogic.test.ts — the sign-in countdown helper.
  */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponIdleEffects3d.ts — THE PARTICLE EFFECTS HELD WEAPONS CARRY, drawn from the weapon library
  * (`idle_effects`, `weaponIdleEffects3dModel` for the data and the simulation): the Shock Rifle's

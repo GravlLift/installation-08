@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * soundSpatial.test.ts — the place of a sound in space: closes the gap left since this module's
  * creation (its own header claimed "testable (soundSpatial.test.ts)" without the file ever

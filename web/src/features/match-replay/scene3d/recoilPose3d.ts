@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * recoilPose3d.ts — LE RECUL POSÉ SUR L'ARME DESSINÉE (l'écart de `recoil3d`, repère du modèle
  * d'arme : X canon, Y haut, origine à la poignée, pivot du recul).

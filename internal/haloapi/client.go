@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package haloapi provides the Halo Infinite endpoints needed to fetch a film.
 package haloapi
 

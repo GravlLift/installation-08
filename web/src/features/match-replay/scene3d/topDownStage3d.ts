@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * topDownStage3d.ts — what every top-down render changes on the shared scene, and gives back after
  * it: the page's studio color as background, the helpers that have no place in a map (sky, structure

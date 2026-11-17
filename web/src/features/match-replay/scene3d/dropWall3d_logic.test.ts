@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
 import { WALL_OPENING_RAD, WALL_RADIUS_M } from '../layers/placementWall'

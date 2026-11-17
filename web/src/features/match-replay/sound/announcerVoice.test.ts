@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * announcerVoice.test.ts — the call keys onto the game's vocalization names, the extracted
  * manifest as a voice, and the load that stays silent when nothing was extracted.

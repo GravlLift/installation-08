@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Locale — standalone stand-in for LevelUp's generated `lib/i18n/locale`.
  *

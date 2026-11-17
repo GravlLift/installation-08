@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * bodyFx3d.ts — CE QUE LE CORPS D'UN JOUEUR MONTRE À UNE IMAGE : l'état que la coque d'énergie
  * (`bodyShell3d`) et l'armure (`avatar3d.showBodyFx`) dessinent, lu dans le document et les entrées

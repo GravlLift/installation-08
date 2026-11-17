@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * scrubMath — the pure position/frame math of the player's scrub bar. No React and no DOM
  * math here beyond what a test can feed: a position is a fraction of the bar in [0, 1], a

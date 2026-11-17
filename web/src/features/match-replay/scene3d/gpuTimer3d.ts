@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * gpuTimer3d.ts — the GPU time of the 3D view's draws, from `EXT_disjoint_timer_query_webgl2`.
  *

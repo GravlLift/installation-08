@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package build turns a folder of theater film chunks into the replay document the viewer
 // reads, in process, with no LevelUp application code: the vendored decoder is the whole
 // pipeline (film load, killsource, statborg second decode, document assembly). The map

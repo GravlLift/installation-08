@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // weapui.go — THE WEAPON-TO-ICON LINK, read from the game and self-validated.
 //
 // Reads the `UI display info` of a `weap` tag to get the pair (sprite = atlas bitmap,

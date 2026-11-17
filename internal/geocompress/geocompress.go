@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 // Package geocompress rewrites the geometry of a finished GLB with meshoptimizer's codecs, as
 // glTF's EXT_meshopt_compression: vertex attributes, triangle indices, instance transforms and
 // animation data shrink on disk and on the wire, and the viewer (three's GLTFLoader with

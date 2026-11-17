@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+
 package weapons
 
 // banners.go reads the team banner a weapon attaches to its model (the CTF flag's holographic

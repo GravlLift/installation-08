@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * useReplayWeaponPads.test.ts — THE NAME RESOLUTION OF A PEDESTAL (`padNameFor`), and the
  * readable writing of an identifier no table names (`displayKeyOf`).

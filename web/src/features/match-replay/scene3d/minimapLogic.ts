@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * minimapLogic.ts — pure math of the corner minimap over the 3D view: a square of fixed world size
  * centered on the followed player with a fixed north-up orientation (screen up is scene -Z, the

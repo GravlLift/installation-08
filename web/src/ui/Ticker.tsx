@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Ticker — the status line along the bottom of every broadcast page: free-form status
  * items on the left (server state, "N matches stored", the coatings notice) and the

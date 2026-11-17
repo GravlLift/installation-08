@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * mapModel.ts — LA CARTE 3D : le GLB du cache local (`cmd/mapfond-build --maillage`), ses
  * matériaux et son index de lancer de rayons.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * buildActivityModel — the header's build indicator: reads `GET /api/builds` (the server's active
  * build and its queue, labeled in plain words) and reduces it to what the header shows. The

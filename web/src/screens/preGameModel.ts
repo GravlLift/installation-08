@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * preGameModel — the pure logic of the pre-game screen (brief 125): the progress-line step
  * from the document and map-build states, the two rosters against each other, the build

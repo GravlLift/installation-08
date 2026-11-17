@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Replay3DView.hud.test.tsx — what the HUD (ReplayAth3d) draws at each level (`hudLevel`):
  * first person everything; third person the followed player's whole HUD (weapon corner with

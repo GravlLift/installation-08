@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * replayExportFileTarget.test.ts — LE CIBLE DU FICHIER D'EXPORT, testé sans navigateur.
  *
