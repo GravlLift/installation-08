@@ -281,6 +281,21 @@ func coatingLibraryFolder(module string) (string, bool) {
 	return "", false
 }
 
+// glbModule says whether a job key (quality suffix included) builds one map or variant GLB, the
+// outputs mapmesh.BuildFormat stamps (the libraries, icons and sounds are folders).
+func glbModule(key string) bool {
+	module, _ := meshjobs.SplitQuality(key)
+	if _, ok := variantJobID(module); ok {
+		return true
+	}
+	switch module {
+	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, meshjobs.JobWeaponIcons,
+		meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer:
+		return false
+	}
+	return true
+}
+
 // meshJobsFor wires the mesh build runner to the store: the ready callback reports whether a
 // module's output is on disk (a map's mesh file, or the weapon library's index), the
 // destination maps a module to its output file, and the builder runs the real map build for a
@@ -318,6 +333,12 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		if glbModule(module) {
+			// A map or variant GLB of the previous format only needs its geometry encoded.
+			if s, ok, err := mapmesh.UpgradeFile(ctx, dest(module)); ok {
+				return meshjobs.BuildResult{Bytes: s.Bytes, Triangles: s.Triangles}, err
+			}
+		}
 		module, quality := meshjobs.SplitQuality(module)
 		if id, ok := variantJobID(module); ok {
 			result, err := buildMatchVariant(ctx, root, id, game, out, quality)

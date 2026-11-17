@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/geocompress"
 	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
@@ -92,11 +93,13 @@ const (
 
 // BuildFormat is the build-format number published in every map and variant GLB's
 // asset.extras (under BuildFormatKey). It is bumped when the build output changes
-// (today: KTX2 textures, the texture read sizes, the materials), so a GLB written by an
-// older version of the app is detected as outdated and rebuilt by the normal build flow.
-// A GLB without the field (built before versioning) is outdated.
+// (2: KTX2 textures, the texture read sizes, the materials; 3: geometry compressed with
+// EXT_meshopt_compression), so a GLB written by an older version of the app is detected as
+// outdated and rebuilt by the normal build flow. A GLB without the field (built before
+// versioning) is outdated. A format-2 GLB differs from format 3 by its geometry encoding only:
+// UpgradeFile brings it to format 3 in place, without reading the game.
 const (
-	BuildFormat    = 2
+	BuildFormat    = 3
 	BuildFormatKey = "buildFormat"
 )
 
@@ -117,6 +120,8 @@ const (
 	StepWriting  Step = "writing"
 	// StepTextures rewrites the written GLB's images as KTX2 (Textures = texcompress.FormatKTX2).
 	StepTextures Step = "textures"
+	// StepCompress encodes the written GLB's geometry with meshoptimizer (geocompress).
+	StepCompress Step = "compress"
 )
 
 // Summary summarizes a written mesh.
@@ -192,29 +197,89 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	return s, nil
 }
 
-// writeGLB writes a map or variant GLB to `path` like writeFile. For texcompress.FormatKTX2 the
-// writer's GLB goes to `path + ".src"` first, its images are rewritten into `path`
-// (StepTextures), and the source is removed: `path` only ever holds the finished KTX2 GLB.
+// writeGLB writes a map or variant GLB to `path` like writeFile. The writer's GLB goes to
+// `path + ".src"` first; for texcompress.FormatKTX2 its images are rewritten into `path + ".tex"`
+// (StepTextures) and the source is removed; then its geometry is encoded into `path`
+// (StepCompress, geocompress). `path` only ever holds the finished GLB.
 func writeGLB(ctx context.Context, path, key string, format texcompress.Format, prog progress, write func(io.Writer) error) (int64, error) {
-	if format != texcompress.FormatKTX2 {
-		return writeFile(path, write)
-	}
 	src := path + ".src"
 	// `write` is not used past this call: the collected mesh its closure holds can be freed
-	// during the pass (the callers read what they report from it beforehand).
+	// during the passes (the callers read what they report from it beforehand).
 	if _, err := writeFile(src, write); err != nil {
 		return 0, err
 	}
 	defer func() { _ = os.Remove(src) }()
-	prog.stage(StepTextures)
-	st, err := texcompress.CompressFile(ctx, src, path, texcompress.Options{Progress: prog.texturesDone})
-	if err != nil {
-		return 0, fmt.Errorf("textures: %w", err)
+	if format == texcompress.FormatKTX2 {
+		prog.stage(StepTextures)
+		tex := path + ".tex"
+		st, err := texcompress.CompressFile(ctx, src, tex, texcompress.Options{Progress: prog.texturesDone})
+		if err != nil {
+			return 0, fmt.Errorf("textures: %w", err)
+		}
+		defer func() { _ = os.Remove(tex) }()
+		_ = os.Remove(src)
+		src = tex
+		slog.InfoContext(ctx, "textures compressed", "map", key, "images", st.Encoded,
+			"bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
+			"gpuRGBA8", st.GPURGBA8, "gpuBlocks", st.GPUBlock, "duration", st.Duration.Round(time.Millisecond))
 	}
-	slog.InfoContext(ctx, "textures compressed", "map", key, "images", st.Encoded,
-		"bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
-		"gpuRGBA8", st.GPURGBA8, "gpuBlocks", st.GPUBlock, "duration", st.Duration.Round(time.Millisecond))
+	prog.stage(StepCompress)
+	// The writer stamped the current build format already (commonExtras).
+	st, err := compressGeometry(ctx, src, path, key, nil)
+	if err != nil {
+		return 0, err
+	}
 	return st.BytesOut, nil
+}
+
+// compressGeometry runs the geometry pass from `src` into `dst` (they may be the same file),
+// merging `extras` into asset.extras, and logs what it did.
+func compressGeometry(ctx context.Context, src, dst, key string, extras map[string]any) (geocompress.Stats, error) {
+	st, err := geocompress.CompressFile(ctx, src, dst, geocompress.Options{Extras: extras})
+	if err != nil {
+		return geocompress.Stats{}, fmt.Errorf("geometry: %w", err)
+	}
+	var geoIn, geoOut int64
+	for _, k := range st.ByKind {
+		geoIn += k.BytesIn
+		geoOut += k.BytesOut
+	}
+	slog.InfoContext(ctx, "geometry compressed", "map", key, "views", st.Compressed, "kept", st.Kept,
+		"geometryBefore", geoIn, "geometryAfter", geoOut, "bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
+		"maxPositionError", st.MaxPositionError, "maxAttributeError", st.MaxAttributeError, "rejected", st.Rejected,
+		"duration", st.Duration.Round(time.Millisecond))
+	return st, nil
+}
+
+// UpgradeFile brings the map or variant GLB at `path` from the previous build format (2, or an
+// unstamped KTX2 GLB, which is format 2) to BuildFormat in place: its geometry is encoded, the
+// rest is kept, and the stamp is updated. It takes seconds where a rebuild reads the game for
+// minutes. ok=false (and nothing written) when the file is absent or at another format: the
+// caller then builds it from the game as before.
+func UpgradeFile(ctx context.Context, path string) (Summary, bool, error) {
+	if !upgradable(path) {
+		return Summary{}, false, nil
+	}
+	prog := progressOf(ctx, true)
+	prog.stage(StepCompress)
+	st, err := compressGeometry(ctx, path, path, filepath.Base(path), map[string]any{BuildFormatKey: BuildFormat})
+	if err != nil {
+		return Summary{}, true, err
+	}
+	return Summary{Triangles: st.Triangles, Bytes: st.BytesOut}, true, nil
+}
+
+// upgradable says whether the GLB at path is at the build format UpgradeFile upgrades.
+func upgradable(path string) bool {
+	extras, err := texcompress.AssetExtras(path)
+	if err != nil {
+		return false
+	}
+	if v, ok := extras[BuildFormatKey]; ok {
+		return fmt.Sprint(v) == "2"
+	}
+	basisu, err := texcompress.UsesBasisu(path)
+	return err == nil && basisu
 }
 
 // writeFile writes what `write` produces under `path + ".tmp"` then renames it (a reader never

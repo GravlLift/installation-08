@@ -27,13 +27,18 @@ import (
 // pass is most of the build and geometry a fifth of it; larger maps spend more in geometry
 // than this sample, so the KTX2 writing span is left wide enough for that.
 const (
-	ktx2Lighting = 0.20 // geometry is done, lighting starts (KTX2 build)
-	ktx2Writing  = 0.22 // the GLB (PNG/JPEG) is written, the KTX2 pass starts at ktx2Textures
-	ktx2Textures = 0.30
+	ktx2Lighting    = 0.20 // geometry is done, lighting starts (KTX2 build)
+	ktx2Writing     = 0.22 // the GLB (PNG/JPEG) is written, the KTX2 pass starts at ktx2Textures
+	ktx2Textures    = 0.30
 	ktx2TexturesEnd = 0.96 // all images compressed; the runner sets 1 on success
 
 	pngLighting = 0.45
 	pngWriting  = 0.48 // the file is being written; the runner sets 1 on success
+
+	// The geometry pass (geocompress) follows the writer and the KTX2 pass: about a second for
+	// Streets' 600 MB of geometry, a sliver of either build.
+	ktx2Compress = ktx2TexturesEnd
+	pngCompress  = 0.9
 )
 
 // progress is one build's progress reporting: the runner's reporter (nil reports nothing)
@@ -70,6 +75,12 @@ func (p progress) stage(step Step) {
 		p.rep.Report(f, string(step))
 	case StepTextures:
 		p.rep.Report(ktx2Textures, string(step))
+	case StepCompress:
+		f := pngCompress
+		if p.ktx2 {
+			f = ktx2Compress
+		}
+		p.rep.Report(f, string(step))
 	}
 }
 

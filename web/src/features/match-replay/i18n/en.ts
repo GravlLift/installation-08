@@ -435,6 +435,7 @@ export const EN_TEXT = {
     lighting: 'Reading the lighting',
     writing: 'Writing the map file',
     textures: 'Compressing textures',
+    compress: 'Compressing geometry',
     weapons: 'Building the weapon library',
     rigs: 'Building the first-person rigs',
   },

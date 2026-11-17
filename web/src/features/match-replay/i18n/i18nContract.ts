@@ -1021,7 +1021,7 @@ export interface ReplayText {
    * elapsed time over progress). The bar itself fills with the real fraction; nothing in
    * these strings invents a number the server did not report.
    */
-  buildStage: Record<'geometry' | 'lighting' | 'writing' | 'textures' | 'weapons' | 'rigs', string>
+  buildStage: Record<'geometry' | 'lighting' | 'writing' | 'textures' | 'compress' | 'weapons' | 'rigs', string>
   buildProgressFmt: (stage: string, pct: number) => string
   buildEtaFmt: (clock: string) => string
 }

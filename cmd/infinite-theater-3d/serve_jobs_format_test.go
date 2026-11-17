@@ -235,3 +235,18 @@ func libraryRoot(t *testing.T) *store.Root {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// TestGLBModule — the map and variant job keys (either quality) build a stamped GLB, the
+// library, icon and sound jobs do not: only the former take the in-place format upgrade.
+func TestGLBModule(t *testing.T) {
+	for _, key := range []string{"moda", meshjobs.JobKey("moda", meshjobs.QualityHigh), variantPrefix + "abc", meshjobs.JobKey(variantPrefix+"abc", meshjobs.QualityHigh)} {
+		if !glbModule(key) {
+			t.Errorf("%s: not a GLB module", key)
+		}
+	}
+	for _, key := range []string{meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer} {
+		if glbModule(key) {
+			t.Errorf("%s: a GLB module", key)
+		}
+	}
+}

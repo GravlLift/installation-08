@@ -57,7 +57,7 @@ either at `serve` startup or by hand.
 
 | Command | What it builds | Key flags |
 |---|---|---|
-| `build-mesh` | one map's world mesh (geometry, sun, light probes, placed lights) to a GLB; a Forge map (`--mvar`) is its canvas framed on the variant's objectives, its objects left to the variant layer | `--map <module-key or Forge map asset id>`, `--out <file.glb>`, `--game <deploy-root>`, `--mvar <file.mvar>`, `--name <map name>`, `--texture-quality <standard or high>`, `--textures <ktx2 or png>` (ktx2, the default: GPU-compressed Basis Universal textures, `KHR_texture_basisu`) |
+| `build-mesh` | one map's world mesh (geometry, sun, light probes, placed lights) to a GLB; a Forge map (`--mvar`) is its canvas framed on the variant's objectives, its objects left to the variant layer | `--map <module-key or Forge map asset id>`, `--out <file.glb>`, `--game <deploy-root>`, `--mvar <file.mvar>`, `--name <map name>`, `--texture-quality <standard or high>`, `--textures <ktx2 or png>` (ktx2, the default: GPU-compressed Basis Universal textures, `KHR_texture_basisu`); the geometry is always written compressed (meshoptimizer, `EXT_meshopt_compression`, `internal/geocompress`) |
 | `build-variant` | a map variant's object layer (the crates and cover a `.mvar` places) to its own GLB, each distinct model written once and placed by node transform | `--map <key> --mvar <file.mvar> --out <file.glb>`, `--texture-quality <standard or high>`, `--textures <ktx2 or png>` |
 | `build-weapons` | the whole weapon model library (every installed `weap` tag, the grenades, the Spartan body) plus `index.json`; with a coating reference, the weapon coating files too | `--map <module-key>`, `--data <dir>` |
 | `build-icons` | the weapon icon set (PNG set + `index.json`) and the HUD equipment/grenade icon set | `--data <dir>`, `--game <root>` |
@@ -102,6 +102,14 @@ The three coating libraries (Spartan pieces, weapons, first person) record a sho
 export in their `index.json`. When the export changes, `serve` moves the stale library aside at
 its next start (or right after Set up coatings writes a new export), rebuilds it, and removes
 the old copy once the rebuild succeeds. With no export set, existing libraries are kept.
+
+Map and variant GLBs record their build format in `asset.extras.buildFormat`; one in an older
+format is rebuilt by the normal build flow (at `serve` start for stored matches, or when the
+match is opened). Format 3 compresses the geometry (meshoptimizer, `EXT_meshopt_compression`:
+positions on a 2^-10 unit grid, under half a millimeter of error; the other float attributes at
+the resolution of their largest value; indices lossless), about half the size of a format-2 map.
+A format-2 GLB differs only by that encoding, so it is upgraded in place in seconds, without
+reading the game.
 
 The viewer's top bar shows a **Set up coatings** button only if the automatic step failed
 (until it succeeds, coated materials render in a neutral color and the bar shows "Coatings
@@ -248,9 +256,9 @@ $env:CGO_ENABLED = '1'
 go build -o infinite-theater-3d.exe ./cmd/infinite-theater-3d
 ```
 
-cgo is needed because the vendored files-reader includes the `ooz` decompressor, and map
-textures are compressed with the Basis Universal encoder (`internal/basisu`; its first compile
-takes about a minute).
+cgo is needed because the vendored files-reader includes the `ooz` decompressor, map textures
+are compressed with the Basis Universal encoder (`internal/basisu`; its first compile takes about
+a minute), and map geometry with meshoptimizer's codecs (`internal/meshopt`).
 
 ## Web viewer development
 
