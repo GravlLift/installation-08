@@ -25,24 +25,24 @@ afterEach(() => {
   unregister = null
 })
 
-it.each(['en', 'fr'] as const)('shows the Bloom switch on by default and persists its flip (%s)', (locale) => {
-  render(<Look3dSection locale={locale} />)
-  const toggle = screen.getByRole('switch', { name: SCENE3D_TEXT[locale].lookBloom })
+it('shows the Bloom switch on by default and persists its flip', () => {
+  render(<Look3dSection locale="en" />)
+  const toggle = screen.getByRole('switch', { name: SCENE3D_TEXT.en.lookBloom })
   expect(toggle.getAttribute('aria-checked')).toBe('true')
-  expect(toggle.getAttribute('title')).toBe(SCENE3D_TEXT[locale].lookBloomHint)
+  expect(toggle.getAttribute('title')).toBe(SCENE3D_TEXT.en.lookBloomHint)
   fireEvent.click(toggle)
   expect(toggle.getAttribute('aria-checked')).toBe('false')
   expect(localStorage.getItem(BLOOM_KEY)).toBe('false')
 })
 
-it.each(['en', 'fr'] as const)('shows the glow animation switch on by default and persists its flip (%s)', (locale) => {
-  render(<Look3dSection locale={locale} />)
-  const toggle = screen.getByRole('switch', { name: SCENE3D_TEXT[locale].lookGlowAnimation })
+it('shows the glow animation switch on by default and persists its flip', () => {
+  render(<Look3dSection locale="en" />)
+  const toggle = screen.getByRole('switch', { name: SCENE3D_TEXT.en.lookGlowAnimation })
   expect(toggle.getAttribute('aria-checked')).toBe('true')
-  expect(toggle.getAttribute('title')).toBe(SCENE3D_TEXT[locale].lookGlowAnimationHint)
+  expect(toggle.getAttribute('title')).toBe(SCENE3D_TEXT.en.lookGlowAnimationHint)
   fireEvent.click(toggle)
   expect(toggle.getAttribute('aria-checked')).toBe('false')
   expect(localStorage.getItem(GLOW_ANIMATION_KEY)).toBe('false')
   // Bloom stays as it was.
-  expect(screen.getByRole('switch', { name: SCENE3D_TEXT[locale].lookBloom }).getAttribute('aria-checked')).toBe('true')
+  expect(screen.getByRole('switch', { name: SCENE3D_TEXT.en.lookBloom }).getAttribute('aria-checked')).toBe('true')
 })

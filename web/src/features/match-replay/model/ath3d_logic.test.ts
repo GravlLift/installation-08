@@ -32,7 +32,7 @@ describe('HUD 3D display', () => {
   })
 
   it('shows nothing when the player is absent', () => {
-    expect(lireAth(preparerAth(testReplayDoc(), 'absent', []), 0, 'fr')).toBeNull()
+    expect(lireAth(preparerAth(testReplayDoc(), 'absent', []), 0, 'en')).toBeNull()
   })
 
   it('tracks slot impacts and inventory readings in both playback directions', () => {
@@ -44,11 +44,11 @@ describe('HUD 3D display', () => {
       damages: [{ t: 10, slot: 99, by: 512 }, { t: 11, slot: 512, by: 99 }],
     })
     const source = preparerAth(doc, 'A', [])
-    expect(lireAth(source, 10, 'fr')).toMatchObject({ bouclier: 0.4, touche: 1, munitions: { mag: 13, res: 42 } })
-    expect(lireAth(source, 12, 'fr')?.touche).toBe(0)
-    expect(lireAth(source, 9, 'fr')?.touche).toBe(0)
-    expect(lireAth(source, 10, 'fr')?.touche).toBe(1)
-    expect(lireAth(source, 101, 'fr')).toBeNull()
+    expect(lireAth(source, 10, 'en')).toMatchObject({ bouclier: 0.4, touche: 1, munitions: { mag: 13, res: 42 } })
+    expect(lireAth(source, 12, 'en')?.touche).toBe(0)
+    expect(lireAth(source, 9, 'en')?.touche).toBe(0)
+    expect(lireAth(source, 10, 'en')?.touche).toBe(1)
+    expect(lireAth(source, 101, 'en')).toBeNull()
   })
 
   it('follows the magazine per-shot on ammoReads and keeps the reserve from the inventory reading', () => {
@@ -65,10 +65,10 @@ describe('HUD 3D display', () => {
       ],
     })
     const source = preparerAth(doc, 'A', [])
-    expect(lireAth(source, 2, 'fr')?.munitions).toMatchObject({ mag: 13, res: 42 })
-    expect(lireAth(source, 3, 'fr')?.munitions).toMatchObject({ mag: 12, res: 42 })
-    expect(lireAth(source, 5, 'fr')?.munitions).toMatchObject({ mag: 11, res: 42 })
-    expect(lireAth(source, 3, 'fr')?.munitions).toMatchObject({ mag: 12, res: 42 })
+    expect(lireAth(source, 2, 'en')?.munitions).toMatchObject({ mag: 13, res: 42 })
+    expect(lireAth(source, 3, 'en')?.munitions).toMatchObject({ mag: 12, res: 42 })
+    expect(lireAth(source, 5, 'en')?.munitions).toMatchObject({ mag: 11, res: 42 })
+    expect(lireAth(source, 3, 'en')?.munitions).toMatchObject({ mag: 12, res: 42 })
   })
 
   it("follows the weapon whose magazine moves when the inventory keyframe predates the switch", () => {
@@ -83,9 +83,9 @@ describe('HUD 3D display', () => {
       ],
     })
     const source = preparerAth(doc, 'A', [])
-    expect(lireAth(source, 2, 'fr')?.munitions).toMatchObject({ mag: 13, res: 42 })
-    expect(lireAth(source, 3, 'fr')?.munitions).toMatchObject({ mag: 7, res: 20 })
-    expect(lireAth(source, 4, 'fr')?.munitions).toMatchObject({ mag: 6, res: 20 })
+    expect(lireAth(source, 2, 'en')?.munitions).toMatchObject({ mag: 13, res: 42 })
+    expect(lireAth(source, 3, 'en')?.munitions).toMatchObject({ mag: 7, res: 20 })
+    expect(lireAth(source, 4, 'en')?.munitions).toMatchObject({ mag: 6, res: 20 })
   })
 })
 

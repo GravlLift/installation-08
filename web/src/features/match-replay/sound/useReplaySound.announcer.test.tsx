@@ -68,7 +68,7 @@ describe('useReplaySound — the announcer', () => {
 
   it('announcer category cut: the end-of-match fanfare plays alone, at the page and in the export', async () => {
     const doc = testReplayDoc({ frameIntervalMs: 100 })
-    const context: ReplaySoundContext = { ...EN, endMatch: { outcome: 'win', ffa: false, locale: 'fr' } }
+    const context: ReplaySoundContext = { ...EN, endMatch: { outcome: 'win', ffa: false, locale: 'en' } }
     const { result } = renderHook(() => useReplaySound(doc, [], 1, context))
     act(() => result.current.toggleCategory('announcer'))
     act(() => result.current.toggle())

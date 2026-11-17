@@ -20,10 +20,11 @@
  * the shared bound.
  *
  * LOCALE-AWARE, like the END OF MATCH voice (`endMatchSound.ts`): an ANNOUNCER VOICE has a
- * language. The two packs (FR and EN) are extracted from the game, and the language played is
- * that of the INTERFACE (prop `locale` of the replay page) — not that of the game at the moment
- * of the match, which the film does not publish. The announcer receives that locale once, at the
- * construction of the track: the stem is therefore frozen, not drawn at playback like a variant.
+ * language. This bundled pack is extracted from the game, and the language played is that of
+ * the INTERFACE (prop `locale` of the replay page, English only) — not that of the game at the
+ * moment of the match, which the film does not publish. The announcer receives that locale once,
+ * at the construction of the track: the stem is therefore frozen, not drawn at playback like a
+ * variant.
  *
  * ANNOUNCER CATEGORY (2026-11-13): this file only says WHEN a round ends and which stem says so.
  * The call itself goes through the announcer (`announcerSound.ts`), which keeps it from
@@ -44,10 +45,9 @@ import { roundTransitions } from '../model/roundsLogic'
 
 /**
  * The stem of the "round ended" voice, by language. Extracted from the game (announcer pack
- * provided by the user): FR `257984770`, EN `327120953`, renamed in a speaking stem.
+ * provided by the user): EN `327120953`, renamed in a speaking stem.
  */
 export const ROUND_OVER_SOUND_STEMS: Readonly<Record<ReplayLocale, string>> = {
-  fr: 'round_over_fr',
   en: 'round_over_en',
 }
 

@@ -111,10 +111,15 @@ export function calloutAt(prepared: PreparedCallouts | null, x: number, y: numbe
   return best?.zone ?? null
 }
 
-/** calloutName — the area's name in the viewer's language, English when it has no other. */
-export function calloutName(zone: CalloutZone | null, locale: ReplayLocale): string | null {
+/**
+ * calloutName — the area's name in the viewer's language. The viewer is English-only; `zone.fr`
+ * (a real callout name the game itself serves in French, for a match recorded on a French
+ * client) is wire data this function does not read, kept on the type for parity with the
+ * server's own record.
+ */
+export function calloutName(zone: CalloutZone | null, _locale: ReplayLocale): string | null {
   if (!zone) return null
-  return (locale === 'fr' && zone.fr) || zone.en || null
+  return zone.en || null
 }
 
 /** sampleAt — the track sample in force at `frame` (the last one at or before it). */

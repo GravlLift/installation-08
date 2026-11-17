@@ -62,7 +62,7 @@ describe('manifestVoice', () => {
 
   it('resolves a call through its names, with every take and its measured duration', () => {
     expect(voice.takes('medal.double_kill', 'en')).toEqual([{ stem: 'announcer_doublekill_01', durationMs: 900 }])
-    expect(voice.takes('medal.overkill', 'fr').map((t) => t.stem)).toEqual(['announcer_overkillmedal_01', 'announcer_overkillmedal_02'])
+    expect(voice.takes('medal.overkill', 'en').map((t) => t.stem)).toEqual(['announcer_overkillmedal_01', 'announcer_overkillmedal_02'])
     expect(voice.takes('mode.ctf', 'en')[0].durationMs).toBe(1_400)
     expect(voice.takes('medal.perfect', 'en')).toEqual([])
   })
@@ -72,7 +72,8 @@ describe('manifestVoice', () => {
     const bundled = tableVoice({ 'medal.double_kill': { en: { stem: 'bundled_dk', durationMs: 700 } } })
     const both = combineVoices(bundled, voice)
     expect(both.takes('medal.double_kill', 'en')[0].stem).toBe('bundled_dk')
-    expect(both.takes('medal.double_kill', 'fr')[0].stem).toBe('announcer_doublekill_01')
+    // The bundled table has no entry for this call: the combined voice falls through to the manifest.
+    expect(both.takes('mode.ctf', 'en')[0].stem).toBe('announcer_ctfstart_01')
   })
 })
 

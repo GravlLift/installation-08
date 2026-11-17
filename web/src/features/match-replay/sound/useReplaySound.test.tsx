@@ -359,7 +359,7 @@ describe('useReplaySound — the sound already activated revives at the first ge
     localStorage.setItem('replay-sound-on', 'true')
     const doc = docWithCouple()
     const { result } = renderHook(() =>
-      useReplaySound(doc, [kill()], 1, { ...NO_CONTEXT, endMatch: { outcome: 'win', ffa: false, locale: 'fr' } }),
+      useReplaySound(doc, [kill()], 1, { ...NO_CONTEXT, endMatch: { outcome: 'win', ffa: false, locale: 'en' } }),
     )
     act(() => result.current.wake())
     await act(async () => { await flushAudio() })
@@ -376,10 +376,10 @@ describe('useReplaySound — the sound already activated revives at the first ge
  * fanfare do go out TOGETHER, two voices of the player and not a pre-mixed file.
  */
 describe('useReplaySound — the end of match', () => {
-  const VICTOIRE_FR: EndMatchSoundSpec = { outcome: 'win', ffa: false, locale: 'fr' }
+  const VICTORY_SPEC: EndMatchSoundSpec = { outcome: 'win', ffa: false, locale: 'en' }
 
   /** The hook, mounted on the same single-kill match, with an end of match to announce. */
-  function mountWithEnd(spec: EndMatchSoundSpec | null = VICTOIRE_FR) {
+  function mountWithEnd(spec: EndMatchSoundSpec | null = VICTORY_SPEC) {
     const doc = docWithCouple()
     const kills = [kill()]
     return renderHook(() => useReplaySound(doc, kills, 1, { ...NO_CONTEXT, endMatch: spec }))
@@ -397,8 +397,7 @@ describe('useReplaySound — the end of match', () => {
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
     const charges = fetchMock.mock.calls.map((c) => String(c[0]))
-    expect(charges).toContain('/static/sounds/halo_infinite/end_victory_voice_fr_01.ogg')
-    expect(charges).toContain('/static/sounds/halo_infinite/end_victory_voice_fr_02.ogg')
+    expect(charges).toContain('/static/sounds/halo_infinite/end_victory_voice_en_01.ogg')
     expect(charges).toContain('/static/sounds/halo_infinite/end_victory_music_01.ogg')
     expect(charges).toContain('/static/sounds/halo_infinite/hinf_br75.ogg')
   })
@@ -415,8 +414,8 @@ describe('useReplaySound — the end of match', () => {
   // after the voice, was silently refused. The fanfare alone lasts 9.9 s here: that is what we read.
   it('eight sounds in course at the arrival: the voice AND the fanfare go out anyway', async () => {
     fetchMock.mockImplementation((url: string) => Promise.resolve(okAudioResponse(url.includes('_music_') ? 9.9 : 1.2)))
-    const huit = Array.from({ length: SOUND_MAX_VOICES }, () => kill())
-    const { result } = renderHook(() => useReplaySound(docWithCouple(), huit, 1, { ...NO_CONTEXT, endMatch: VICTOIRE_FR }))
+    const eight = Array.from({ length: SOUND_MAX_VOICES }, () => kill())
+    const { result } = renderHook(() => useReplaySound(docWithCouple(), eight, 1, { ...NO_CONTEXT, endMatch: VICTORY_SPEC }))
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })
     act(() => result.current.tick(1_900))
@@ -430,7 +429,7 @@ describe('useReplaySound — the end of match', () => {
   it('fast forward: the conclusion stays silent too, as the panel announces', async () => {
     const doc = docWithCouple()
     const { result } = renderHook(() =>
-      useReplaySound(doc, [kill()], SOUND_MAX_SPEED * 2, { ...NO_CONTEXT, endMatch: VICTOIRE_FR }),
+      useReplaySound(doc, [kill()], SOUND_MAX_SPEED * 2, { ...NO_CONTEXT, endMatch: VICTORY_SPEC }),
     )
     act(() => result.current.toggle())
     await act(async () => { await flushAudio() })

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * scene3dText.ts — les textes de la VUE 3D du rejeu, FR + EN, parité par typage.
+ * scene3dText.ts — the texts of the replay's 3D VIEW, typed parity.
  *
- * Table à part du dictionnaire du rejeu (`i18nContract.ts`) : la vue 3D n'existe que sur le
- * poste de l'utilisateur (capacité `can_view_replay_3d`), et ses quelques textes se lisent
- * ensemble.
+ * A table apart from the replay dictionary (`i18nContract.ts`): the 3D view only exists on the
+ * user's own machine (capability `can_view_replay_3d`), and its few texts read together.
  */
 import type { Aids3d } from '../scene3d/aids3d'
 import type { ReplayLocale } from './i18n'
@@ -18,13 +17,13 @@ import type { ReplayLocale } from './i18n'
 type ReplayMeshBuildStep = 'geometry' | 'lighting' | 'writing' | 'libraries'
 
 export interface Scene3dText {
-  /** Bascule de la carte : vue du dessus. */
+  /** Map toggle: top-down view. */
   view2d: string
-  /** Bascule de la carte : vue 3D. */
+  /** Map toggle: 3D view. */
   view3d: string
-  /** Nom accessible du groupe de bascule. */
+  /** Accessible name of the toggle group. */
   viewGroup: string
-  /** Caméras de la vue 3D. */
+  /** 3D view cameras. */
   cameraGroup: string
   cameraFirst: string
   cameraThird: string
@@ -33,45 +32,45 @@ export interface Scene3dText {
   cameraFirstShort: string
   cameraThirdShort: string
   cameraFreeShort: string
-  /** Les commandes de la vue libre, sous les caméras (touches à leur place : QWERTY / AZERTY). */
+  /** The free view's controls, under the cameras (keys placed for QWERTY / AZERTY). */
   cameraFreeHint: string
-  /** « Carte 3D : 42 % de 224 Mo » — le téléchargement du maillage. */
+  /** "3D map: 42% of 224 MB" — the mesh download. */
   loadingFmt: (percent: number, megabytes: number) => string
-  /** Étapes après le téléchargement. */
+  /** Steps after the download. */
   loadingMaterials: string
   loadingIndex: string
   loadingAssets: string
   loadingWarmup: string
-  /** Échec du chargement : la vue le dit au lieu de rester noire. */
+  /** Load failure: the view says so instead of staying black. */
   loadFailed: string
-  /** Le joueur suivi n'est pas encore apparu : la caméra attend à sa première apparition. */
+  /** The followed player has not spawned yet: the camera waits for their first spawn. */
   povUnspawned: string
-  /** Aucun point de vue choisi : la caméra libre seule a un sens. */
+  /** No point of view chosen: only the free camera makes sense. */
   noPov: string
-  /** Inspecteur de surfaces (poste de développement) : la ligne est dans le presse-papiers. */
+  /** Surface probe (developer build): the line is in the clipboard. */
   probeCopied: string
-  /** Playback meter (right, under the minimap): frames per second, « 13 / 30 fps ». */
+  /** Playback meter (right, under the minimap): frames per second, "13 / 30 fps". */
   cadenceIps: string
-  /** Playback meter: the worst frame's label, « worst 22.4 ms ». */
+  /** Playback meter: the worst frame's label, "worst 22.4 ms". */
   cadencePire: string
   /** Playback meter: the film is paused (no real-time ratio). */
   cadencePaused: string
-  /** La vue réduite du coin : l'agrandir (selon celle qui y est), la déplacer, la retailler. */
+  /** The corner inset view: enlarge it (whichever is shown), move it, resize it. */
   insetEnlarge2d: string
   insetEnlarge3d: string
   insetMove: string
   insetResize: string
-  /** Boîte d'export : la vue exportée, et ses réglages en 3D. */
+  /** Export dialog: the exported view, and its 3D settings. */
   exportView: string
   exportView2d: string
   exportView3d: string
-  /** La caméra libre de l'export ne bouge pas pendant le clip. */
+  /** The export's free camera does not move during the clip. */
   exportCameraFreeFixed: string
   exportFollow: string
   exportMinimap: string
-  /** Tiroir des réglages : la section de la vue 3D et ses interrupteurs. */
+  /** Settings drawer: the 3D view section and its toggles. */
   lookTitle: string
-  /** Le réglage de champ du jeu (degrés horizontaux à 16:9), un curseur et non une bascule. */
+  /** The game's field-of-view setting (horizontal degrees at 16:9), a slider rather than a toggle. */
   lookFov: string
   lookFovHint: string
   lookShadows: string
@@ -89,147 +88,36 @@ export interface Scene3dText {
   /** The playback meter's toggle (also the ` key). */
   lookPlaybackFps: string
   lookPlaybackFpsHint: string
-  /** Tiroir des réglages : les repères d'analyse de la vue 3D (`aids3d`), éteints par défaut. */
+  /** Settings drawer: the 3D view's analysis aids (`aids3d`), off by default. */
   aidsTitle: string
   aidsTitleHint: string
   aids: Record<keyof Aids3d, { label: string; hint: string }>
-  /** Panneau de construction de la carte 3D, quand son maillage manque encore sur le poste. */
+  /** The 3D map build panel, while its mesh is still missing on this machine. */
   buildTitle: string
   buildBody: string
   buildAction: string
-  /** Construction en cours : titre, étapes, démarrage, fin (la vue se charge), attente de la partie. */
+  /** Build in progress: title, steps, starting, done (the view is loading), waiting for the match. */
   buildingTitle: string
   buildSteps: Record<ReplayMeshBuildStep, string>
   buildStarting: string
   buildDone: string
   buildWaitingForGame: string
-  /** Échec de la construction, et nouvel essai. */
+  /** Build failure, and retry. */
   buildFailed: string
   buildRetry: string
-  /** Indisponible : Halo Infinite absent du poste, et le remède (l'explication tient lieu d'échec). */
+  /** Unavailable: Halo Infinite absent from this machine, and the fix (the explanation stands in for a failure). */
   buildGameMissing: string
-  /** Indisponible : l'outil de construction manquant, et le remède. */
+  /** Unavailable: the build tool is missing, and the fix. */
   buildToolMissing: string
-  /** Lancement refusé : une autre carte est en construction. */
+  /** Launch refused: another map is already being built. */
   buildBusy: string
-  /** Carte affichée sans le calque des objets de sa variante : le lancer, son avancement, son échec. */
+  /** A map shown without its variant's object layer: triggering the build, its progress, its failure. */
   variantBuildAction: string
   variantBuilding: string
   variantBuildFailed: string
 }
 
 export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
-  fr: {
-    view2d: '2D',
-    view3d: '3D',
-    viewGroup: 'Vue de la carte',
-    cameraGroup: 'Caméra',
-    cameraFirst: '1re personne',
-    cameraThird: '3e personne',
-    cameraFree: 'Vue libre',
-  cameraFirstShort: '1re',
-  cameraThirdShort: '3e',
-  cameraFreeShort: 'Libre',
-    cameraFreeHint: 'ZQSD : avancer · E / A : monter, descendre · Maj : plus vite · souris : tourner, clic droit : décaler, molette : approcher',
-    loadingFmt: (percent, megabytes) => `Carte 3D : ${percent} % de ${megabytes} Mo`,
-    loadingMaterials: 'Décodage des matériaux…',
-    loadingIndex: 'Préparation de la carte…',
-    loadingAssets: 'Chargement des modèles et armures…',
-    loadingWarmup: "Préparation de l'affichage…",
-    loadFailed: 'La carte 3D n’a pas pu être chargée.',
-    povUnspawned: 'Pas encore apparu',
-    noPov: 'Choisissez un joueur à suivre',
-    probeCopied: 'copié',
-    cadenceIps: 'ips',
-    cadencePire: 'pire',
-    cadencePaused: 'en pause',
-    insetEnlarge2d: 'Agrandir la carte 2D',
-    insetEnlarge3d: 'Agrandir la vue 3D',
-    insetMove: 'Changer de côté',
-    insetResize: 'Changer de taille',
-    exportView: 'Vue',
-    exportView2d: 'Carte 2D',
-    exportView3d: 'Vue 3D',
-    exportCameraFreeFixed: 'Vue libre, fixe',
-    exportFollow: 'Suivi',
-    exportMinimap: 'Carte 2D réduite dans un coin',
-    lookTitle: 'Vue 3D',
-    lookFov: 'Champ de vision',
-    lookFovHint: 'Le réglage de champ du jeu, en degrés. L’arme en 1re personne garde la taille à laquelle elle est réglée.',
-    lookShadows: 'Ombres portées',
-    lookShadowsHint: 'Ombres du soleil, portées par la carte, les joueurs et les véhicules.',
-    lookReflections: 'Reflets',
-    lookReflectionsHint: 'Reflets et lumière renvoyée par les surfaces de la carte.',
-    lookOcclusion: 'Occlusion ambiante',
-    lookOcclusionHint: 'Assombrit les coins et les recoins. Le plus coûteux des réglages.',
-    lookGameLight: 'Lumière du jeu',
-    lookGameLightHint: 'La lumière cuite et les lampes de la carte, telles que le jeu les pose.',
-    lookBloom: 'Halo lumineux',
-    lookBloomHint: "Les surfaces lumineuses (lampes, bandeaux, lames d'énergie) rayonnent au-delà de leurs bords.",
-    lookGlowAnimation: 'Lumières animées',
-    lookGlowAnimationHint: 'Les enseignes, écrans et néons de la carte défilent et scintillent comme en jeu.',
-    lookPlaybackFps: 'Afficher les ips de lecture',
-    lookPlaybackFpsHint: "Les images du film affichées par seconde face à sa cadence native, le rapport au temps réel, puis le temps d'image et le coût du rendu. Touche `.",
-    aidsTitle: 'Repères d’analyse',
-    aidsTitleHint: 'Des traits et des marques que le jeu ne montre pas, pour lire une action. Éteints, la vue ressemble au jeu.',
-    aids: {
-      shotLines: {
-        label: 'Lignes de tir',
-        hint: 'Le vol entier de chaque tir, de la bouche au mur, et le trait du tueur vers sa victime.',
-      },
-      deathMarkers: {
-        label: 'Croix des morts',
-        hint: 'Une croix au sol là où chaque joueur est tombé, et au-dessus « tueur › victime · arme ». La liste des éliminations n’en dépend pas.',
-      },
-      projectilePaths: {
-        label: 'Trajectoires',
-        hint: 'Le chemin parcouru par les grenades et les projectiles (roquettes, mortier…).',
-      },
-      blastRadius: {
-        label: 'Rayon des explosions',
-        hint: 'La sphère du rayon de dégâts de chaque explosion, une seconde après la détonation.',
-      },
-      grappleLines: {
-        label: 'Câbles du grappin',
-        hint: 'Le câble du grappin en trait épais et clair, avec son point d’accroche.',
-      },
-      knockbackArrows: {
-        label: 'Flèches de poussée',
-        hint: 'La direction et la force de chaque poussée du répulseur, à la couleur de son auteur.',
-      },
-      placementShapes: {
-        label: 'Formes des poses',
-        hint: "Traqueur, failles du translocateur et objets lâchés. Le mur, l'écran occultant, le capteur et le champ de réparation restent affichés.",
-      },
-      allNameTags: {
-        label: 'Tous les noms',
-        hint: 'Le nom de chaque joueur à toute distance. Éteint, seuls les joueurs proches de la caméra sont nommés.',
-      },
-    },
-    buildTitle: 'Carte 3D pas encore construite',
-    buildBody:
-      'Elle se construit à partir de Halo Infinite installé sur cet ordinateur, en moins d’une minute, et reste sur cet ordinateur. La première construction prépare aussi les modèles d’armure et de vue à la première personne : quelques minutes, une seule fois.',
-    buildAction: 'Construire la carte 3D',
-    buildingTitle: 'Construction de la carte 3D',
-    buildSteps: {
-      geometry: 'Lecture de la géométrie et des textures',
-      lighting: 'Lumière de la carte',
-      writing: 'Écriture du fichier',
-      libraries: 'Modèles d’armure et vue à la première personne (une seule fois, quelques minutes)',
-    },
-    buildStarting: 'Démarrage…',
-    buildDone: 'Carte construite, chargement…',
-    buildWaitingForGame: 'En attente de la fin de la partie',
-    buildFailed: 'La construction a échoué',
-    buildRetry: 'Réessayer',
-    buildGameMissing:
-      'Halo Infinite n’a pas été trouvé sur cet ordinateur. La carte 3D se construit à partir des fichiers du jeu installés : installez le jeu, ou indiquez son dossier avec LEVELUP_HALO_DEPLOY.',
-    buildToolMissing: 'Le constructeur de cartes 3D est manquant dans cette installation. Réinstallez LevelUp pour le retrouver.',
-    buildBusy: 'Une autre carte est en construction',
-    variantBuildAction: 'Construire les objets de la carte',
-    variantBuilding: 'Construction des objets de la carte',
-    variantBuildFailed: 'Les objets de la carte n’ont pas pu être construits',
-  },
   en: {
     view2d: '2D',
     view3d: '3D',

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * exportOverlayPanels.test.ts — LE PANNEAU DE FIN REPEINT DANS LA VIDÉO dit-il la même
- * chose que celui affiché à l'écran ?
+ * exportOverlayPanels.test.ts — DOES THE END PANEL REPAINTED IN THE VIDEO SAY THE SAME
+ * THING as the one shown on screen?
  *
- * Les deux surfaces annoncent le MÊME match : si elles tranchaient séparément, la vidéo
- * exportée afficherait les points de la dernière manche (« 100 - 43 ») pendant que la page
- * dit « 2 - 1 ». Le jumeau DOM est couvert par ReplayVictoryOverlay.test.tsx ; ce fichier
- * couvre le choix côté export, qui ne l'était pas (constat de revue adversariale du
- * 2026-08-29).
+ * The two surfaces announce the SAME match: if they decided separately, the exported video
+ * would show the last round's points ("100 - 43") while the page says "2 - 1". The DOM twin
+ * is covered by ReplayVictoryOverlay.test.tsx; this file covers the export-side choice, which
+ * was not covered before (adversarial review finding of 2026-08-29).
  */
 import { describe, expect, it } from 'vitest'
 
@@ -22,35 +21,35 @@ import type { ReplayWindowBounds } from '../model/replayWindow'
 const film = { ally: { score: 100 }, enemy: { score: 43 } }
 
 describe('exportFinalScore', () => {
-  it("préfère le score servi par l'API quand il existe", () => {
+  it('prefers the score served by the API when it exists', () => {
     expect(exportFinalScore({ ally: 2, enemy: 1 }, film)).toEqual({ ally: 2, enemy: 1 })
   })
 
-  it('retombe sur la lecture du calque du film quand l’API ne dit rien', () => {
+  it('falls back to the film layer reading when the API says nothing', () => {
     expect(exportFinalScore(null, film)).toEqual({ ally: 100, enemy: 43 })
     expect(exportFinalScore(undefined, film)).toEqual({ ally: 100, enemy: 43 })
   })
 
-  it("n'invente rien quand aucune des deux sources ne parle", () => {
+  it('invents nothing when neither source speaks', () => {
     expect(exportFinalScore(null, null)).toBeNull()
   })
 
-  it('accepte un zéro : 2 manches à 0 est une mesure, pas une absence', () => {
+  it('accepts a zero: 2 rounds to 0 is a measurement, not an absence', () => {
     expect(exportFinalScore({ ally: 2, enemy: 0 }, film)).toEqual({ ally: 2, enemy: 0 })
   })
 })
 
 /**
- * AJOUT DU 2026-09-07 — LE MOT DU PANNEAU EXPORTÉ SUIT LE POINT DE VUE, ET N'A QU'UNE SOURCE.
+ * ADDED 2026-09-07 — THE EXPORTED PANEL'S WORD FOLLOWS THE POINT OF VIEW, AND HAS ONLY ONE SOURCE.
  *
- * Le clip peignait son verdict avec `outcome.label`, c'est-à-dire `header.outcome_label` : le
- * mot du JOUEUR DE LA PAGE, fabriqué par une map Go en dur en français. Vu depuis un adversaire
- * d'un match gagné, `readVictory` permutait bien l'issue et le camp du panneau — mais le titre
- * disait encore « Victoire », au-dessus de l'équipe perdante. Le libellé de l'issue LUE arrive
- * désormais dans `viewedLabel`, résolu par `useReplayCapture` (un hook ; ce module est pur)
- * depuis les mappings du titre, et c'est le SEUL mot que ce module accepte : sans lui, silence.
+ * The clip used to paint its verdict with `outcome.label`, i.e. `header.outcome_label`: the
+ * PAGE PLAYER's word, built by a Go map hard-coded in one language. Viewed from an opponent
+ * of a won match, `readVictory` did flip the outcome and the panel's side — but the title
+ * still said "Victory", above the losing team. The READ outcome's label now arrives in
+ * `viewedLabel`, resolved by `useReplayCapture` (a hook; this module is pure) from the title's
+ * mappings, and it is the ONLY word this module accepts: without it, silence.
  */
-describe('buildOverlayPanelSource — le verdict peint dans la vidéo', () => {
+describe('buildOverlayPanelSource — the verdict painted into the video', () => {
   const DOC = {
     originMs: 0,
     frameIntervalMs: 100,
@@ -58,16 +57,16 @@ describe('buildOverlayPanelSource — le verdict peint dans la vidéo', () => {
   } as unknown as ReplayDocumentReady & ReplayScoreDocument
 
   const SB = [
-    { xuid: 'moi', team_side: 't0', is_me: true },
-    { xuid: 'eux', team_side: 't1', is_me: false },
+    { xuid: 'me', team_side: 't0', is_me: true },
+    { xuid: 'them', team_side: 't1', is_me: false },
   ] as MatchScoreboardRow[]
 
-  /** L'allégeance du FILM vue de `reference` : `moi` au camp 0, `eux` au camp 1. */
-  const vueDe = (reference: string) =>
+  /** The FILM's allegiance as seen from `reference`: `me` on side 0, `them` on side 1. */
+  const viewedFrom = (reference: string) =>
     buildFilmAllegiance(
       [
-        { xuid: 'moi', team: 0, lives: [], board: SB[0] },
-        { xuid: 'eux', team: 1, lives: [], board: SB[1] },
+        { xuid: 'me', team: 0, lives: [], board: SB[0] },
+        { xuid: 'them', team: 1, lives: [], board: SB[1] },
       ] as ReplayPlayer[],
       reference,
     )
@@ -92,11 +91,11 @@ describe('buildOverlayPanelSource — le verdict peint dans la vidéo', () => {
     return buildOverlayPanelSource({
       doc: DOC,
       scoreboard: SB,
-      allegiance: vueDe(over.viewpoint ?? 'moi'),
+      allegiance: viewedFrom(over.viewpoint ?? 'me'),
       playWindow: WINDOW,
-      outcome: { code: 2, viewedLabel: 'Victoire' },
+      outcome: { code: 2, viewedLabel: 'Victory' },
       viewpoint: null,
-      locale: 'fr',
+      locale: 'en',
       ink: INK,
       teamStyle: { background: '#111', border: '#222' },
       logo: null,
@@ -104,29 +103,29 @@ describe('buildOverlayPanelSource — le verdict peint dans la vidéo', () => {
     }).panelAt(WINDOW.endFrame)
   }
 
-  it('point de vue par défaut : le libellé de l’issue, tel quel', () => {
-    expect(panel()?.status).toBe('Victoire')
+  it('default point of view: the outcome label, as is', () => {
+    expect(panel()?.status).toBe('Victory')
   })
 
-  it('point de vue du joueur de la page : le même mot, rien n’est permuté', () => {
-    expect(panel({ viewpoint: 'moi' })?.status).toBe('Victoire')
+  it("page player's point of view: the same word, nothing is flipped", () => {
+    expect(panel({ viewpoint: 'me' })?.status).toBe('Victory')
   })
 
-  it('vu depuis un adversaire : le libellé de l’issue PERMUTÉE, fourni par la couture', () => {
+  it('viewed from an opponent: the FLIPPED outcome label, supplied by the wiring', () => {
     const p = panel({
-      viewpoint: 'eux',
-      outcome: { code: 2, viewedLabel: 'Défaite' },
+      viewpoint: 'them',
+      outcome: { code: 2, viewedLabel: 'Defeat' },
     })
-    expect(p?.status).toBe('Défaite')
+    expect(p?.status).toBe('Defeat')
   })
 
-  it('`viewedLabel` à `null` : pas de panneau — jamais une clé brute dans le clip', () => {
-    // Le cas dégradé : les mappings du titre ne donnent aucun libellé pour l'issue lue. Même
-    // silence que le DOM, et sans repli sur un second vocabulaire.
-    expect(panel({ viewpoint: 'eux', outcome: { code: 2, viewedLabel: null } })).toBeNull()
+  it('`viewedLabel` is `null`: no panel — never a raw key in the clip', () => {
+    // The degraded case: the title's mappings give no label for the read outcome. Same
+    // silence as the DOM, and no fallback to a second vocabulary.
+    expect(panel({ viewpoint: 'them', outcome: { code: 2, viewedLabel: null } })).toBeNull()
   })
 
-  it('`viewedLabel` ABSENT : pas de panneau non plus — il n’y a plus d’autre source', () => {
+  it('`viewedLabel` ABSENT: no panel either — there is no other source left', () => {
     expect(panel({ outcome: { code: 2 } })).toBeNull()
   })
 })

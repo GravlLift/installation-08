@@ -142,11 +142,10 @@ describe('announcerSoundEvents — the track events', () => {
     expect(announcerSoundEvents({ doc: twoRoundDoc(), followed: null, medals: [], voice: VOICE }, undefined)).toEqual([])
   })
 
-  it('the bundled set: the round end plays in both languages, medals stay silent (no file)', () => {
+  it('the bundled set: the round end plays, medals stay silent (no file)', () => {
     const input = { doc: twoRoundDoc(), followed: 'me', medals: [{ ms: 1_200, xuid: 'me', name: 'Double Kill' }] }
-    expect(announcerSoundEvents(input, 'fr').map((e) => e.stem)).toEqual(['round_over_fr'])
     expect(announcerSoundEvents(input, 'en').map((e) => e.stem)).toEqual(['round_over_en'])
-    expect(announcerStems('fr')).toEqual(['round_over_fr'])
+    expect(announcerStems('en')).toEqual(['round_over_en'])
   })
 })
 
