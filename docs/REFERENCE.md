@@ -104,8 +104,9 @@ its next start (or right after Set up coatings writes a new export), rebuilds it
 the old copy once the rebuild succeeds. With no export set, existing libraries are kept.
 
 Map and variant GLBs record their build format in `asset.extras.buildFormat`; one in an older
-format is rebuilt by the normal build flow (at `serve` start for stored matches, or when the
-match is opened). Format 3 compresses the geometry (meshoptimizer, `EXT_meshopt_compression`:
+format is rebuilt by the normal build flow (at `serve` start for stored matches, Standard and any
+High file already on disk, or when the match is opened; a High file is never built from nothing at
+startup). Format 3 compresses the geometry (meshoptimizer, `EXT_meshopt_compression`:
 positions and indices lossless, since the game's decals sit a fraction of a millimeter off their
 walls; the other float attributes at the resolution of their largest value or within a float's
 last bit), about 60% of the size of a format-2 map.

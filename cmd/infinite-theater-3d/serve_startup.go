@@ -51,14 +51,18 @@ func hasMatchMvar(root *store.Root, id string) bool {
 // that match's map mesh and variant layer (each
 // distinct map module once, in the store's listing order). ready is the runner's own
 // readiness check, so an output that is already on disk is skipped; variantExists says
-// which matches have a stored map variant to build. skipCoatingLibs leaves the three
+// which matches have a stored map variant to build. outdated (nil: none) is the runner's own
+// outdated check: a High-quality map or variant file that is on disk in an older build format is
+// queued too (its update, in place for a format-2 file, takes seconds), but a High file that is
+// absent is never built here (High is built only when the user picks it). Without it a High file
+// stayed outdated until opened, and the viewer met it there. skipCoatingLibs leaves the three
 // coating libraries unqueued: the coatings setup being run this startup queues them (with
 // coatings) in its own completion step. It enqueues through jobs (its own Enqueue, so a
 // recording wrapper is used transparently), never blocks, and logs one line naming what it
 // queued (or "nothing"). A nil jobs or ready is a no-op.
 func enqueueStartupBuilds(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready func(string) bool, matches []startupMatch, variantExists func(id string) bool, skipCoatingLibs bool) {
+}, ready, outdated func(string) bool, matches []startupMatch, variantExists func(id string) bool, skipCoatingLibs bool) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -93,22 +97,28 @@ func enqueueStartupBuilds(jobs interface {
 		}
 	}
 	seen := map[string]bool{}
+	// once enqueues a key the first time it is seen: Standard when not ready, High only when its
+	// file is there but outdated.
+	once := func(key string) {
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		if !ready(key) {
+			enqueue(key)
+		}
+		high := meshjobs.JobKey(key, meshjobs.QualityHigh)
+		if outdated != nil && outdated(high) {
+			enqueue(high)
+		}
+	}
 	for _, m := range matches {
-		if m.MeshKey != "" && !seen[m.MeshKey] {
-			seen[m.MeshKey] = true
-			if !ready(m.MeshKey) {
-				enqueue(m.MeshKey)
-			}
+		if m.MeshKey != "" {
+			once(m.MeshKey)
 		}
 		// The variant layer is per match: two matches on one map each get theirs.
 		if variantExists != nil && variantExists(m.MatchID) {
-			key := variantPrefix + m.MatchID
-			if !seen[key] {
-				seen[key] = true
-				if !ready(key) {
-					enqueue(key)
-				}
-			}
+			once(variantPrefix + m.MatchID)
 		}
 	}
 	if queued > 0 {
@@ -125,7 +135,7 @@ func enqueueStartupBuilds(jobs interface {
 // going to the listen.
 func runServeStartup(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready func(string) bool, root *store.Root, gameRoot string, startCoatingsSetup func()) {
+}, ready, outdated func(string) bool, root *store.Root, gameRoot string, startCoatingsSetup func()) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -162,7 +172,7 @@ func runServeStartup(jobs interface {
 	for _, m := range ms {
 		matches = append(matches, startupMatch{MatchID: m.MatchID, MeshKey: meshKeyOf(m)})
 	}
-	enqueueStartupBuilds(jobs, ready, matches, func(id string) bool {
+	enqueueStartupBuilds(jobs, ready, outdated, matches, func(id string) bool {
 		return hasMatchMvar(root, id)
 	}, skipCoatingLibs)
 }

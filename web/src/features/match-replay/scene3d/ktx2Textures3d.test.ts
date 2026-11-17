@@ -31,12 +31,17 @@ function compressed(size = 4, levels = 3): THREE.CompressedTexture {
   return t
 }
 
-/** A KTX2Loader stand-in: every image it is asked for is a transcoded `compressed()` texture. */
+/** A KTX2Loader stand-in: every image it is asked for (by URL, or as embedded bytes) is a
+ *  transcoded `compressed()` texture. `urls` records both: a URL, or "bytes:<first byte>". */
 function fakeKtx2(levels = 3) {
   const urls: string[] = []
   const loader = {
     load(url: string, onLoad: (t: THREE.CompressedTexture) => void) {
       urls.push(url)
+      onLoad(compressed(4, levels))
+    },
+    parse(buffer: ArrayBuffer, onLoad: (t: THREE.CompressedTexture) => void) {
+      urls.push(`bytes:${new Uint8Array(buffer)[0].toString(16)}`)
       onLoad(compressed(4, levels))
     },
   }
@@ -172,6 +177,19 @@ describe('withKtx2', () => {
     expect(arrays[0].flipY).toBe(false)
     expect(arrays[0].mipmaps?.map((l) => l.width)).toEqual([4, 2, 1])
     layer.dispose()
+  })
+
+  it('hands an embedded KTX2 image to the loader as its bytes, never as a blob URL', async () => {
+    const { urls, loader } = fakeKtx2()
+    const created = vi.fn(() => 'blob:it3d-test')
+    URL.createObjectURL = created
+    const model = await loadMapModel(ktx2Glb(), () => {}, loader)
+    // One image, read once although two materials use it; its bytes start with 0xab (KTX2's magic).
+    expect(urls).toEqual(['bytes:ab'])
+    expect(created).not.toHaveBeenCalled()
+    const decor = meshUnder(model.root, 'decor').material as THREE.MeshStandardMaterial
+    expect(decor.map?.userData.mimeType).toBe('image/ktx2')
+    model.dispose()
   })
 
   it('fails a KTX2 GLB loudly without a KTX2 loader', async () => {

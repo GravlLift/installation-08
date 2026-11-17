@@ -111,7 +111,7 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 	}
 	// bbbb shares aaaa's map module but has a variant of its own: its variant is still queued.
 	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
-	enqueueStartupBuilds(rr, rr.ready, matches, variantExists, false)
+	enqueueStartupBuilds(rr, rr.ready, nil, matches, variantExists, false)
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer,
 		meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces,
@@ -131,9 +131,33 @@ func TestStartupBuildsSkipsReady(t *testing.T) {
 		{MatchID: "bbbb", MeshKey: "moda"},
 		{MatchID: "cccc", MeshKey: "modb"},
 	}
-	enqueueStartupBuilds(rr, rr.ready, matches, func(id string) bool { return id == "bbbb" }, false)
+	enqueueStartupBuilds(rr, rr.ready, nil, matches, func(id string) bool { return id == "bbbb" }, false)
 	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
 		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, "moda"}
+	if got := rr.modules(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("queued = %v, want %v", got, want)
+	}
+}
+
+// TestStartupBuildsUpdatesOutdatedHigh — a High map or variant file on disk in an older build
+// format is queued after its Standard counterpart (its update runs in place); a High file that is
+// current or absent is not (High is never built from nothing at startup).
+func TestStartupBuildsUpdatesOutdatedHigh(t *testing.T) {
+	ready := map[string]bool{meshjobs.JobWeaponIcons: true, meshjobs.JobHudIcons: true, meshjobs.JobRanks: true,
+		meshjobs.JobBackdrop: true, meshjobs.JobAnnouncer: true, meshjobs.JobWeapons: true, meshjobs.JobFirstPerson: true,
+		meshjobs.JobSpartanPieces: true, "modb": true, "variant:bbbb": true}
+	outdated := map[string]bool{
+		meshjobs.JobKey("moda", meshjobs.QualityHigh):         true,
+		meshjobs.JobKey("variant:bbbb", meshjobs.QualityHigh): true,
+	}
+	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
+	matches := []startupMatch{
+		{MatchID: "aaaa", MeshKey: "moda"},
+		{MatchID: "bbbb", MeshKey: "moda"},
+		{MatchID: "cccc", MeshKey: "modb"},
+	}
+	enqueueStartupBuilds(rr, rr.ready, func(m string) bool { return outdated[m] }, matches, func(id string) bool { return id == "bbbb" }, false)
+	want := []string{"moda", meshjobs.JobKey("moda", meshjobs.QualityHigh), meshjobs.JobKey("variant:bbbb", meshjobs.QualityHigh)}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
 	}
@@ -145,7 +169,7 @@ func TestStartupBuildsNoInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", filepath.Join(t.TempDir(), "absent"))
-	runServeStartup(rr, rr.ready, root, "", nil)
+	runServeStartup(rr, rr.ready, nil, root, "", nil)
 	if got := rr.modules(); len(got) != 0 {
 		t.Fatalf("queued = %v, want nothing (no install)", got)
 	}
@@ -158,7 +182,7 @@ func TestStartupBuildsFoundInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", t.TempDir())
-	runServeStartup(rr, rr.ready, root, "", nil)
+	runServeStartup(rr, rr.ready, nil, root, "", nil)
 	// The seven libraries lead, in order; the two distinct map modules and the one stored
 	// variant follow (their relative order is the store's listing order, newest import
 	// first, a tie broken by id).
@@ -190,7 +214,7 @@ func TestStartupStartsCoatingsSetup(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	deploy := t.TempDir()
 	started := false
-	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
 	if !started {
 		t.Fatal("the coatings setup was not started (no valid export, no override, install found)")
 	}
@@ -215,7 +239,7 @@ func TestStartupValidExportSkipsSetup(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	deploy := t.TempDir()
 	started := false
-	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
 	if started {
 		t.Fatal("the setup ran with a valid export in place")
 	}
@@ -234,7 +258,7 @@ func TestStartupOverrideSkipsSetup(t *testing.T) {
 	deploy := t.TempDir()
 	t.Setenv(spartanpieces.EkurEnv, t.TempDir())
 	started := false
-	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
 	if started {
 		t.Fatal("the setup ran under the override")
 	}

@@ -121,7 +121,7 @@ func runServe(args []string) error {
 	h.callouts.cache.Persist = !f.readOnly
 	// The startup starts the coatings setup through the same job the POST route uses, so a
 	// run is single-flight whichever way it is started.
-	runServeStartup(h.jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game, func() { h.startCoatingsSetup() })
+	runServeStartup(h.jobs, func(module string) bool { return jobModuleReady(root, module) }, func(module string) bool { return jobModuleOutdated(root, module) }, root, f.game, func() { h.startCoatingsSetup() })
 	if f.readOnly {
 		slog.Info("read-only mode: state-changing requests are refused")
 	}

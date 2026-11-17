@@ -17,7 +17,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import { checkMesh, fetchReplayDocument, MatchNotFoundError, MeshNotBuiltError } from '../lib/api/standalone'
+import {
+  checkMesh,
+  fetchMeshState,
+  fetchReplayDocument,
+  MatchNotFoundError,
+  MeshNotBuiltError,
+  type MeshQuality,
+} from '../lib/api/standalone'
 import { normalizeReplayDocument } from '../lib/replay/replayNormalize'
 import { useMatchSummary } from './useMatchSummary'
 import { MESH_BUILD_POLL_MS, useMeshBuild } from './useMeshBuild'
@@ -65,6 +72,23 @@ type MeshCheck = {
   result: { phase: 'ready' } | { phase: 'build' } | { phase: 'error'; message: string }
 }
 
+/**
+ * Whether the map file that is on disk is also `ready` to the build runner. The viewer's own
+ * build gate loads the scene only on `ready`: a file in an older build format (`outdated`) or
+ * one whose build or in-place update is queued or running would mount the viewer, which then
+ * drops its scene and shows its gate underneath this screen, where nothing can be clicked and
+ * the progress line stays on the aborted download. Such a file goes to this screen's own
+ * build step instead. A state route that cannot answer (no build runner) keeps the old
+ * behavior: the file is there, so it loads.
+ */
+async function meshStateReady(matchId: string, signal: AbortSignal, quality: MeshQuality): Promise<boolean> {
+  try {
+    return (await fetchMeshState(matchId, signal, quality)).state === 'ready'
+  } catch {
+    return true
+  }
+}
+
 /** Fetches the match's replay document, checks the map mesh, and lands on one of the states
  *  above. `MeshNotBuiltError` keeps the already-fetched document so the build can run here
  *  and the viewer mounts the moment the map is built (no re-fetch, no reload). A 404 on the
@@ -105,7 +129,9 @@ function useMatchDocument(matchId: string, attempt: number, quality: TextureQual
       try {
         await checkMesh(matchId, controller.signal, quality)
         if (controller.signal.aborted) return
-        setCheck({ doc, quality, result: { phase: 'ready' } })
+        const ready = await meshStateReady(matchId, controller.signal, quality)
+        if (controller.signal.aborted) return
+        setCheck({ doc, quality, result: { phase: ready ? 'ready' : 'build' } })
       } catch (err) {
         if (controller.signal.aborted) return
         if (err instanceof MeshNotBuiltError) {
