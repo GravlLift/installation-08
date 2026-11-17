@@ -246,7 +246,7 @@ func compressGeometry(ctx context.Context, src, dst, key string, extras map[stri
 	}
 	slog.InfoContext(ctx, "geometry compressed", "map", key, "views", st.Compressed, "kept", st.Kept,
 		"geometryBefore", geoIn, "geometryAfter", geoOut, "bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
-		"maxPositionError", st.MaxPositionError, "maxAttributeError", st.MaxAttributeError, "rejected", st.Rejected,
+		"maxAttributeError", st.MaxAttributeError, "rejected", st.Rejected,
 		"duration", st.Duration.Round(time.Millisecond))
 	return st, nil
 }

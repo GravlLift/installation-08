@@ -106,8 +106,9 @@ the old copy once the rebuild succeeds. With no export set, existing libraries a
 Map and variant GLBs record their build format in `asset.extras.buildFormat`; one in an older
 format is rebuilt by the normal build flow (at `serve` start for stored matches, or when the
 match is opened). Format 3 compresses the geometry (meshoptimizer, `EXT_meshopt_compression`:
-positions on a 2^-10 unit grid, under half a millimeter of error; the other float attributes at
-the resolution of their largest value; indices lossless), about half the size of a format-2 map.
+positions and indices lossless, since the game's decals sit a fraction of a millimeter off their
+walls; the other float attributes at the resolution of their largest value or within a float's
+last bit), about 60% of the size of a format-2 map.
 A format-2 GLB differs only by that encoding, so it is upgraded in place in seconds, without
 reading the game.
 

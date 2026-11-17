@@ -166,10 +166,9 @@ func floatsOf(b []byte) []float32 {
 }
 
 // TestCompressRoundTrip — the geometry views are encoded and decode back within their bounds
-// (positions within half the step in world space, UVs at the resolution of their largest
-// magnitude, indices exactly up to rotation), the image and extras-read views stay as they were,
-// the fallback buffer and the extension lists are written, the POSITION bounds follow the
-// decoded data and the build-format stamp is merged.
+// (positions exactly, UVs at the resolution of their largest magnitude, indices exactly up to
+// rotation), the image and extras-read views stay as they were, the fallback buffer and the
+// extension lists are written and the build-format stamp is merged.
 func TestCompressRoundTrip(t *testing.T) {
 	for _, scale := range []float64{1, 8} {
 		glb, pos, uv, idx := testGLB(t, scale, 40)
@@ -182,12 +181,13 @@ func TestCompressRoundTrip(t *testing.T) {
 		}
 		p := parse(t, out)
 		gotPos := floatsOf(p.viewBytes(t, 0))
-		var worst float64
 		for i := range pos {
-			worst = max(worst, math.Abs(float64(gotPos[i])-float64(pos[i]))*scale)
+			if gotPos[i] != pos[i] {
+				t.Fatalf("scale %g: position %d = %v, want %v (positions are lossless)", scale, i, gotPos[i], pos[i])
+			}
 		}
-		if worst > DefaultPositionStep/2 || math.Abs(worst-st.MaxPositionError) > 1e-9 {
-			t.Errorf("scale %g: position error %g (reported %g), want at most %g", scale, worst, st.MaxPositionError, DefaultPositionStep/2)
+		if _, ok := st.MaxAttributeError["POSITION"]; ok {
+			t.Error("POSITION went through the filter")
 		}
 		gotUV := floatsOf(p.viewBytes(t, 1))
 		for i := range uv {
@@ -213,11 +213,6 @@ func TestCompressRoundTrip(t *testing.T) {
 		}
 		if !listed(p.doc, "extensionsUsed") || !listed(p.doc, "extensionsRequired") {
 			t.Error("extension not listed")
-		}
-		acc := p.doc["accessors"].([]any)[0].(map[string]any)
-		lo, _ := acc["min"].([]any)
-		if v := number(lo[0]); math.Abs(v-100.0001) > DefaultPositionStep {
-			t.Errorf("POSITION min x = %v, want about 100.0001", v)
 		}
 		ex := p.doc["asset"].(map[string]any)["extras"].(map[string]any)
 		if ex["buildFormat"] != json.Number("3") || ex["module"] != "m" {

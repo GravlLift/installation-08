@@ -8,11 +8,9 @@
 // used, so nothing that reads geometry on the client (ray index, merges, bounds, back faces,
 // shadow proxies, the top-down view, the layered materials' UV sets) sees a different layout.
 //
-//   - POSITION is rounded to a power-of-two grid in its own space, chosen from the largest scale
-//     a node (and its instances) applies to the mesh so that the world-space error stays at most
-//     half of PositionStep (Options), then encoded with the exponential filter (shared component
-//     exponents, 24-bit mantissas), which is exact on that grid. One grid for every mesh of a file
-//     (at unit scale): two meshes that meet at a seam round their shared vertices alike.
+//   - POSITION is lossless (vertex codec only). The game stacks decals a fraction of a millimeter
+//     in front of their walls: rounding positions to a 2^-10 unit grid (0.49 mm at most) made
+//     signs on Streets z-fight, and one exponent per value saved only 3 MB of its 88.
 //   - Other float vertex attributes (TEXCOORD_n, NORMAL, TANGENT, COLOR_n, WEIGHTS_n, custom
 //     ones) use the exponential filter with 24-bit mantissas: shared component exponents (fixed
 //     point at the resolution of the largest magnitude in the buffer) when that resolution is at
@@ -71,18 +69,11 @@ const (
 // most 0.09 texel). Coarser, the attribute keeps one exponent per value.
 const sharedResolution = 1.0 / (1 << 21)
 
-// DefaultPositionStep is the world-space position grid (world units, about meters): 2^-10, a
-// maximum error of 2^-11 (0.49 mm).
-const DefaultPositionStep = 1.0 / 1024
-
 // ErrNotGLB: the bytes are not a GLB this pass can read (one buffer, views inside the binary chunk).
 var ErrNotGLB = errors.New("geocompress: not a readable GLB")
 
 // Options tune a pass.
 type Options struct {
-	// PositionStep is the world-space grid of positions (world units); 0 is DefaultPositionStep.
-	// Negative keeps positions lossless.
-	PositionStep float64
 	// Extras are merged into asset.extras (the build-format stamp of the map and variant builds).
 	Extras map[string]any
 	// Workers is the number of views encoded at once; 0 is min(4, half the logical CPUs).
@@ -104,10 +95,8 @@ type Stats struct {
 	// check out (a codec bug; the view stays raw and the file stays right).
 	Rejected []string
 	ByKind   map[string]*KindStats
-	// MaxPositionError is the largest world-space position error (world units, after the largest
-	// node and instance scale); MaxAttributeError the largest absolute error of the other filtered
-	// float attributes (UV units for TEXCOORD_n), by semantic.
-	MaxPositionError  float64
+	// MaxAttributeError is the largest absolute error of the filtered float attributes (UV units
+	// for TEXCOORD_n), by semantic.
 	MaxAttributeError map[string]float64
 	// Triangles is the count of triangles drawn by the meshes' primitives.
 	Triangles         int
@@ -260,11 +249,7 @@ func Compress(ctx context.Context, r io.ReaderAt, size int64, w io.Writer, o Opt
 		return Stats{}, err
 	}
 	st.Triangles = plan.triangles
-	step := o.PositionStep
-	if step == 0 {
-		step = DefaultPositionStep
-	}
-	results, err := encodeAll(ctx, r, plan.jobs, step, o.Workers)
+	results, err := encodeAll(ctx, r, plan.jobs, o.Workers)
 	if err != nil {
 		return Stats{}, err
 	}
@@ -290,12 +275,7 @@ func Compress(ctx context.Context, r io.ReaderAt, size int64, w io.Writer, o Opt
 		ks.BytesOut += int64(len(res.data))
 		st.Compressed++
 		encoded[jb.view] = res
-		if jb.semantic == "POSITION" && res.filtered {
-			st.MaxPositionError = max(st.MaxPositionError, res.maxErr)
-			for _, a := range jb.accessors {
-				setMinMax(plan.accessors[a], res.min, res.max)
-			}
-		} else if res.filtered {
+		if res.filtered {
 			st.MaxAttributeError[jb.semantic] = max(st.MaxAttributeError[jb.semantic], res.maxErr)
 		}
 	}
@@ -467,20 +447,17 @@ type job struct {
 	kind, semantic string
 	mode           string // ATTRIBUTES, TRIANGLES, INDICES
 	stride, count  int
-	// filter: float attribute encoded with the exponential filter.
+	// filter: float attribute (not POSITION) encoded with the exponential filter.
 	filter bool
-	// grid is the local position grid (0: no rounding).
-	gridScale float64
 	// indexSize is 2 or 4 for an index view.
 	indexSize int
 	accessors []int
 }
 
 type result struct {
-	data     []byte
-	maxErr   float64
-	min, max []float64
-	// filtered: the data carries the exponential filter (a filtered view may fall back to lossless).
+	data   []byte
+	maxErr float64
+	// filtered: the data carries the exponential filter.
 	filtered bool
 	// err: the view was refused (kept raw).
 	err error
@@ -499,7 +476,6 @@ type accUse struct {
 	indices   bool
 	triangles bool // indices of triangle-list primitives only
 	other     string
-	scale     float64 // largest world scale of the meshes reading it as an attribute
 }
 
 // planViews decides, for every buffer view, whether and how it is encoded.
@@ -516,14 +492,12 @@ func planViews(g glbFile, r io.ReaderAt) (viewPlan, error) {
 			f(&uses[i])
 		}
 	}
-	meshScale := meshScales(doc, accs, r, g)
 	var plan viewPlan
 	plan.accessors = accs
 	meshes, _ := doc["meshes"].([]any)
-	for mi, mv := range meshes {
+	for _, mv := range meshes {
 		m, _ := mv.(map[string]any)
 		prims, _ := m["primitives"].([]any)
-		scale := meshScale[mi]
 		for _, pv := range prims {
 			p, _ := pv.(map[string]any)
 			mode, ok := entier(p["mode"])
@@ -538,7 +512,6 @@ func planViews(g glbFile, r io.ReaderAt) (viewPlan, error) {
 								u.other = "attribute shared by two semantics"
 							}
 							u.semantic = sem
-							u.scale = max(u.scale, scale)
 						})
 					}
 				}
@@ -700,16 +673,14 @@ func planView(vi int, vw view, vm map[string]any, users []int, accs []map[string
 	default:
 		jb.kind = "other"
 	}
-	// The exponential filter: a float attribute alone in its view, tightly packed.
+	// The exponential filter: a float attribute other than POSITION, alone in its view, tightly
+	// packed.
 	off, _ := entier(first["byteOffset"])
 	count, _ := entier(first["count"])
-	if len(users) == 1 && u.semantic != "" && u.other == "" && comp == compFloat && off == 0 && stride == elem && count == jb.count {
+	if len(users) == 1 && u.semantic != "" && u.semantic != "POSITION" && u.other == "" && comp == compFloat && off == 0 && stride == elem && count == jb.count {
 		if norm, _ := first["normalized"].(bool); !norm {
 			jb.filter = true
 			jb.semantic = u.semantic
-			if u.semantic == "POSITION" {
-				jb.gridScale = max(u.scale, 1e-6)
-			}
 		}
 	}
 	return jb, true
@@ -717,7 +688,7 @@ func planView(vi int, vw view, vm map[string]any, users []int, accs []map[string
 
 // encodeAll encodes the jobs on a few goroutines, the biggest first, and returns their results
 // in job order. A job that fails its check fails the pass.
-func encodeAll(ctx context.Context, r io.ReaderAt, jobs []job, step float64, workers int) ([]result, error) {
+func encodeAll(ctx context.Context, r io.ReaderAt, jobs []job, workers int) ([]result, error) {
 	if workers <= 0 {
 		workers = max(1, min(4, runtime.NumCPU()/2))
 	}
@@ -745,7 +716,7 @@ func encodeAll(ctx context.Context, r io.ReaderAt, jobs []job, step float64, wor
 					fail(fmt.Errorf("geocompress: view %d: %w", jb.view, err))
 					continue
 				}
-				res, err := encodeJob(jb, raw, step)
+				res, err := encodeJob(jb, raw)
 				if err != nil {
 					// A view the codecs refuse, or whose decoding does not check out, stays as it
 					// was: the file is still right, only that view is not smaller.
@@ -775,7 +746,7 @@ feed:
 }
 
 // encodeJob encodes one view and checks its decoding.
-func encodeJob(jb job, raw []byte, step float64) (result, error) {
+func encodeJob(jb job, raw []byte) (result, error) {
 	switch jb.mode {
 	case "TRIANGLES", "INDICES":
 		idx := make([]uint32, jb.count)
@@ -827,14 +798,13 @@ func encodeJob(jb job, raw []byte, step float64) (result, error) {
 		}
 		return result{data: enc}, nil
 	}
-	return encodeFiltered(jb, raw, step)
+	return encodeFiltered(jb, raw)
 }
 
-// encodeFiltered encodes a float attribute with the exponential filter (POSITION rounded to its
-// grid first), checks the decoded floats and measures their error.
-func encodeFiltered(jb job, raw []byte, step float64) (result, error) {
+// encodeFiltered encodes a float attribute with the exponential filter, checks the decoded floats
+// and measures their error.
+func encodeFiltered(jb job, raw []byte) (result, error) {
 	n := jb.count * jb.stride / 4
-	comps := jb.stride / 4
 	src := make([]float32, n)
 	for i := range src {
 		src[i] = math.Float32frombits(binary.LittleEndian.Uint32(raw[i*4:]))
@@ -842,31 +812,19 @@ func encodeFiltered(jb job, raw []byte, step float64) (result, error) {
 			return result{}, nil // the filter takes finite values only: keep the view raw
 		}
 	}
-	in := src
-	var grid float64
-	if jb.semantic == "POSITION" && step > 0 {
-		// The largest power of two whose world size (times the mesh's largest scale) is at most `step`.
-		grid = math.Exp2(math.Floor(math.Log2(step / jb.gridScale)))
-		in = make([]float32, n)
-		for i, v := range src {
-			in[i] = float32(math.Round(float64(v)/grid) * grid)
-		}
-	}
-	// Positions sit on their grid: shared exponents are exact there. Another attribute shares its
-	// exponents (fixed point at the resolution of its largest magnitude) only while that
-	// resolution is at most sharedResolution; above it (UVs in the hundreds, whose texture may
-	// also tile 90 times) each value keeps its own exponent, within a unit in the last place.
+	// The attribute shares its exponents (fixed point at the resolution of its largest magnitude)
+	// only while that resolution is at most sharedResolution; above it (UVs in the hundreds, whose
+	// texture may also tile 90 times) each value keeps its own exponent, within a unit in the
+	// last place.
 	mode := meshopt.ExpSharedComponent
-	if jb.semantic != "POSITION" {
-		var top float64
-		for _, v := range src {
-			top = max(top, math.Abs(float64(v)))
-		}
-		if _, e := math.Frexp(top); math.Ldexp(1, e-23) > sharedResolution {
-			mode = meshopt.ExpSeparate
-		}
+	var top float64
+	for _, v := range src {
+		top = max(top, math.Abs(float64(v)))
 	}
-	filtered, err := meshopt.EncodeFilterExp(in, jb.count, jb.stride, 24, mode)
+	if _, e := math.Frexp(top); math.Ldexp(1, e-23) > sharedResolution {
+		mode = meshopt.ExpSeparate
+	}
+	filtered, err := meshopt.EncodeFilterExp(src, jb.count, jb.stride, 24, mode)
 	if err != nil {
 		return result{}, err
 	}
@@ -882,10 +840,6 @@ func encodeFiltered(jb job, raw []byte, step float64) (result, error) {
 		return result{}, errors.New("filtered vertex round trip differs")
 	}
 	meshopt.DecodeFilterExp(dec, jb.count, jb.stride)
-	res := result{data: enc, filtered: true, min: make([]float64, comps), max: make([]float64, comps)}
-	for c := range comps {
-		res.min[c], res.max[c] = math.Inf(1), math.Inf(-1)
-	}
 	var worst float64
 	for i := range src {
 		got := float64(math.Float32frombits(binary.LittleEndian.Uint32(dec[i*4:])))
@@ -894,19 +848,8 @@ func encodeFiltered(jb job, raw []byte, step float64) (result, error) {
 		if mode == meshopt.ExpSeparate && d > ulp(src[i]) {
 			return result{}, fmt.Errorf("separate exponents off by %g at %g", d, src[i])
 		}
-		c := i % comps
-		res.min[c], res.max[c] = min(res.min[c], got), max(res.max[c], got)
 	}
-	if jb.semantic == "POSITION" {
-		worst *= jb.gridScale
-		// The grid bounds the error at half a step; above it (a mesh too large for 24-bit
-		// mantissas at that grid) the view stays lossless.
-		if step > 0 && worst > step/2*(1+1e-6) {
-			return encodeJob(job{view: jb.view, n: jb.n, kind: jb.kind, mode: jb.mode, stride: jb.stride, count: jb.count}, raw, step)
-		}
-	}
-	res.maxErr = worst
-	return res, nil
+	return result{data: enc, filtered: true, maxErr: worst}, nil
 }
 
 // sameTriangles says whether the decoded index bytes (`size` 2 or 4) hold the triangles of
@@ -932,25 +875,6 @@ func sameTriangles(dec []byte, want []uint32, size int) bool {
 func ulp(v float32) float64 {
 	a := float32(math.Abs(float64(v)))
 	return float64(math.Nextafter32(a, float32(math.Inf(1))) - a)
-}
-
-// setMinMax replaces a POSITION accessor's bounds with those of its decoded values (rounding
-// may move a vertex past the stored bounds by up to half a grid step). The accessor must cover
-// the whole view: the bounds are measured over it.
-func setMinMax(a map[string]any, lo, hi []float64) {
-	if a == nil || len(lo) == 0 {
-		return
-	}
-	if _, ok := a["min"]; !ok {
-		return
-	}
-	mn := make([]any, len(lo))
-	mx := make([]any, len(hi))
-	for i := range lo {
-		mn[i] = json.Number(fmt.Sprint(float32(lo[i])))
-		mx[i] = json.Number(fmt.Sprint(float32(hi[i])))
-	}
-	a["min"], a["max"] = mn, mx
 }
 
 func componentSize(c int) int {
