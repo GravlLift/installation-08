@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { LoadGate } from './loadGate3d'
 
 describe('LoadGate', () => {
-  it('attend les charges enchaînées et garde leur résultat', async () => {
+  it('waits for chained loads and keeps their result', async () => {
     const gate = new LoadGate()
     let finish!: (value: number) => void
     const first = gate.track(new Promise<number>((resolve) => { finish = resolve }))
@@ -14,7 +14,7 @@ describe('LoadGate', () => {
     expect(await idle).toEqual({ timedOut: false })
     expect(gate.pending).toBe(0)
   })
-  it('conserve les échecs, limite le délai et accepte une annulation', async () => {
+  it('keeps failures, caps the delay, and accepts a cancellation', async () => {
     const gate = new LoadGate()
     await expect(gate.track(Promise.reject(new Error('absent')))).rejects.toThrow('absent')
     gate.track(new Promise(() => {}))
@@ -23,7 +23,7 @@ describe('LoadGate', () => {
     abort.abort()
     expect(await gate.idle(1000, abort.signal)).toEqual({ timedOut: false })
   })
-  it('compte les débuts et fins et retire les abonnements', async () => {
+  it('counts starts and finishes and removes subscriptions', async () => {
     const gate = new LoadGate()
     const snapshots: number[][] = []
     const unsubscribe = gate.subscribe(() => snapshots.push([gate.started, gate.finished, gate.pending]))

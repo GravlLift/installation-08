@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * armory3d.ts — L'ARMURE DE CHAQUE JOUEUR DU MATCH, prête à poser : pour chaque joueur dont le
- * manifeste est servi (`status = armor`), le plan de ses pièces (`armorPlan3d`), chargées par la
- * bibliothèque de la session (`armorLibrary3d`), devient une TENUE (`Outfit`) : les maillages source
- * de ses pièces à peau et de ses accessoires, que `spartanArmor3d` copie sur le Spartan du joueur.
+ * armory3d.ts — EVERY PLAYER'S ARMOR FOR THE MATCH, ready to place: for each player whose
+ * manifest is served (`status = armor`), their piece plan (`armorPlan3d`), loaded by the
+ * session's library (`armorLibrary3d`), becomes an OUTFIT (`Outfit`): the source meshes of
+ * their skinned pieces and accessories, which `spartanArmor3d` copies onto the player's Spartan.
  *
- * Paresseuse : l'habit d'un joueur (`Dress` : sa tenue et sa peinture, `armorCoat3d`) se construit à
- * sa première demande (`dress`), et null est rendu tant qu'il n'est pas prêt : le joueur garde le
- * Spartan par défaut, puis change d'armure à l'arrivée de la sienne, peinte. Deux joueurs de même
- * géométrie (`config_hash`) partagent la tenue ; chacun a sa peinture (revêtement, visière).
+ * Lazy: a player's dress (`Dress`: their outfit and their paint, `armorCoat3d`) is built on
+ * first request (`dress`), and null is returned until it's ready: the player keeps the
+ * default Spartan, then switches to their own armor once painted. Two players with the same
+ * geometry (`config_hash`) share the outfit; each has their own paint (coating, visor).
  *
- * Chaque tenue est rapportée UNE fois à la console : pièces posées, régions vides, et tout écart
- * nommé (pièce en repli et pourquoi, accessoire non posé) ; chaque peinture aussi, avec ses replis.
- * Rien n'est substitué en silence.
+ * Each dress is reported to the console ONCE: pieces placed, empty regions, and every
+ * deviation named (a piece on fallback and why, an accessory not placed); each paint too,
+ * with its own fallbacks. Nothing is substituted silently.
  *
- * Les armes du joueur se peignent aussi (`weaponCoat3d`, sur la bibliothèque des armes,
- * `weaponsPath` de la construction) : le modèle en main est peint en 3e personne
- * (`peindreArme`/`coatArme`), le rig de 1re personne dans `peindreBras` (les matériaux dont la
- * liste n'est pas dans la table d'armure sont ceux de l'arme).
+ * A player's weapons are also painted (`weaponCoat3d`, against the weapon library,
+ * `weaponsPath` from the constructor): the model held in third person is painted
+ * (`peindreArme`/`coatArme`), the first-person rig in `peindreBras` (materials whose list is
+ * not in the armor table are the weapon's own).
  */
 import * as THREE from 'three'
 import type { LoadGate } from './loadGate3d'
@@ -30,27 +30,27 @@ import { ArmorLibrary, type ArmorLibraryIO } from './armorLibrary3d'
 import { planOutfit, type ArmorIndex, type ArmorPose, type OutfitIssue, type PlannedAttachment, type PlannedPiece } from './armorPlan3d'
 import { construirePeintureArme, reportArme } from './weaponCoat3d'
 
-/** Un accessoire posé : à son instance de marqueur, enfant de l'os `bone`, puis à son décalage. */
+/** A placed accessory: at its marker instance, child of bone `bone`, then at its offset. */
 export interface OutfitRigid {
   key: string
   bone: string
   instance: ArmorPose
   offset: ArmorPose
-  /** Les maillages source et leur pose dans la scène de leur GLB. */
+  /** The source meshes and their pose in their GLB's scene. */
   meshes: { mesh: THREE.Mesh; matrix: THREE.Matrix4 }[]
 }
 
-/** La tenue d'un joueur : maillages source partagés, à copier (`spartanArmor3d.dressSpartan`). */
+/** A player's outfit: shared source meshes, to be copied (`spartanArmor3d.dressSpartan`). */
 export interface Outfit {
-  /** Les os de la peau des pièces, dans l'ordre (`index.skeleton.bones`). */
+  /** The bones of the pieces' skin, in order (`index.skeleton.bones`). */
   bones: readonly string[]
   skinned: THREE.SkinnedMesh[]
   rigid: OutfitRigid[]
-  /** Ce que la tenue ne porte pas comme le manifeste le dit (plan et chargement). */
+  /** What the outfit is not wearing as the manifest says (plan and load). */
   issues: OutfitIssue[]
 }
 
-/** L'habit d'un joueur : sa tenue (partagée par géométrie) et sa peinture. */
+/** A player's dress: their outfit (shared by geometry) and their paint. */
 export interface Dress {
   outfit: Outfit
   coat: Coat
@@ -65,35 +65,35 @@ export class SpartanArmory {
   private readonly library: ArmorLibrary
   private readonly gate?: LoadGate
   private readonly weaponsPath: string | null
-  /** Le réseau de la bibliothèque des armes (remplacé dans les tests). */
+  /** The weapon library's network (replaced in tests). */
   private readonly weaponIO?: ArmorLibraryIO
   private readonly weaponCoatings = new Map<string, WeaponCoating[]>()
   /**
-   * La bibliothèque des armes (revêtements, dégradés) : celle qu'on nous a donnée (session-cachée,
-   * partagée entre matchs, `ownsLibraryArme = false`), sinon une créée à la première peinture d'arme
-   * demandée et possédée par cette armurerie (compatibilité : les appels sans ce paramètre).
+   * The weapon library (coatings, gradients): the one we were given (session-cached, shared
+   * across matches, `ownsWeaponLibrary = false`), else one created on first requested weapon
+   * paint and owned by this armory (compatibility: calls without this parameter).
    */
-  private libraryArme: ArmorLibrary | null
-  private readonly ownsLibraryArme: boolean
-  /** La peinture des armes, en cours, par joueur et clé de modèle. */
-  private readonly armesPretes = new Map<string, Promise<Coat | null>>()
-  /** La peinture des armes prête, par joueur et clé de modèle (null : pas de revêtement). */
-  private readonly armesCaches = new Map<string, Coat | null>()
-  /** La peinture des objets de la carte (socles, râteliers, sol) : le style par défaut de chaque
-   * liste (aucun joueur n'y porte de revêtement), une fois par clé de modèle. */
-  private readonly objetsPretes = new Map<string, Promise<Coat | null>>()
-  private readonly objetsCaches = new Map<string, Coat | null>()
+  private weaponLibrary: ArmorLibrary | null
+  private readonly ownsWeaponLibrary: boolean
+  /** Weapon paint in progress, by player and model key. */
+  private readonly weaponsPending = new Map<string, Promise<Coat | null>>()
+  /** Weapon paint, ready, by player and model key (null: no coating). */
+  private readonly weaponsCache = new Map<string, Coat | null>()
+  /** Map object paint (stands, racks, ground): each list's default style (no player wears a
+   * coating on it), once per model key. */
+  private readonly objectsPending = new Map<string, Promise<Coat | null>>()
+  private readonly objectsCache = new Map<string, Coat | null>()
   private disposed = false
   /** Whether `dispose` releases `library` too; false when it is session-cached (`sessionAssetCache3d`) and owned by its caller across matches. */
   private readonly ownsLibrary: boolean
 
   /**
-   * `players` : l'armure des joueurs du match ; `weaponsPath` : le dossier servi de la bibliothèque
-   * des armes (les revêtements d'armes se lisent dessus) ; `weaponIO` : le réseau de cette
-   * bibliothèque (remplacé dans les tests) ; `ownsLibrary` (default true): false when `library` is
-   * shared across matches (the caller releases it itself, through the session cache). `libraryArme`
-   * (optional): a pre-built weapon-coating library, session-cached and shared across matches by its
-   * caller (`Replay3DView.tsx`, keyed by `weaponsPath`) — never disposed here. Without one, this
+   * `players`: the match players' armor; `weaponsPath`: the weapon library's served folder
+   * (weapon coatings are read against it); `weaponIO`: that library's network (replaced in
+   * tests); `ownsLibrary` (default true): false when `library` is shared across matches (the
+   * caller releases it itself, through the session cache). `libraryArme` (optional): a
+   * pre-built weapon-coating library, session-cached and shared across matches by its caller
+   * (`Replay3DView.tsx`, keyed by `weaponsPath`) — never disposed here. Without one, this
    * armory builds and owns its own (the old behavior: one per match, thrown away with it).
    */
   constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true, libraryArme?: ArmorLibrary) {
@@ -102,8 +102,8 @@ export class SpartanArmory {
     this.weaponsPath = weaponsPath
     this.weaponIO = weaponIO
     this.ownsLibrary = ownsLibrary
-    this.libraryArme = libraryArme ?? null
-    this.ownsLibraryArme = libraryArme === undefined
+    this.weaponLibrary = libraryArme ?? null
+    this.ownsWeaponLibrary = libraryArme === undefined
     for (const p of players) {
       if (!p.xuid) continue
       if (p.status === 'armor' && p.manifest) this.manifests.set(p.xuid, p.manifest)
@@ -112,8 +112,8 @@ export class SpartanArmory {
   }
 
   /**
-   * regions rend le choix du joueur pour chaque région du manifeste (dont la `source`, qui dit si
-   * la région est un membre prosthétique), null sans manifeste.
+   * regions returns the player's choice for each manifest region (including `source`, which
+   * says whether the region is a prosthetic limb), null without a manifest.
    */
   regions(xuid: string): readonly { region_key: string; permutation_key: string; source: string }[] | null {
     const m = this.manifests.get(xuid)
@@ -121,7 +121,7 @@ export class SpartanArmory {
     return m.regions.map((r) => ({ region_key: r.region_key, permutation_key: r.permutation_key, source: r.source }))
   }
 
-  /** dress rend l'habit du joueur `xuid` quand il est prêt ; null sinon (armure par défaut). */
+  /** dress returns player `xuid`'s dress once it's ready; null otherwise (default armor). */
   dress(xuid: string): Dress | null {
     const m = this.manifests.get(xuid)
     if (!m) return null
@@ -130,7 +130,7 @@ export class SpartanArmory {
       this.dresses.set(xuid, PENDING)
       const loading = this.dressUp(xuid, m).catch((error: unknown) => {
         this.dresses.set(xuid, null)
-        console.warn('rejeu 3D : armure indisponible', error)
+        console.warn('3D replay: armor unavailable', error)
       })
       void (this.gate?.track(loading) ?? loading)
       return null
@@ -141,154 +141,154 @@ export class SpartanArmory {
   pending(xuid: string): boolean { return this.dresses.get(xuid) === PENDING }
 
   /**
-   * peindreBras peint les matériaux de bras du joueur de son revêtement d'armure, as his
+   * peindreBras paints the player's arm materials from their armor coating, as his
    * third-person Spartan is painted. Prosthetic limbs included: their pieces carry their own style
    * list (`a7d83e8c`), which a coating rarely names (3 of the 824 armor coatings), so they wear that
    * list's default style (`a7d83e8c_42c9679f`: warm gray and bronze metal, grime and scratches)
-   * unless the player's coating names it, the game's rule for every list. `cleArme` : la clé du
-   * modèle de l'arme du rig, quand l'arme y est peinte de son propre revêtement (`weaponCoat3d`,
-   * bibliothèque des armes).
+   * unless the player's coating names it, the game's rule for every list. `cleArme`: the key
+   * of the rig's weapon model, when the weapon is painted there with its own coating
+   * (`weaponCoat3d`, weapon library).
    */
   async peindreBras(xuid: string, habit: Dress, materiaux: readonly THREE.Material[], cleArme: string | null = null): Promise<Coat | null> {
-    const manifeste = this.manifests.get(xuid)
-    if (!manifeste || this.dress(xuid) !== habit || this.disposed) return null
-    const { armure, arme } = await this.separerArme([...materiaux], cleArme)
-    const { coat } = await construirePeintureMateriaux(armure, manifeste, this.library)
+    const manifest = this.manifests.get(xuid)
+    if (!manifest || this.dress(xuid) !== habit || this.disposed) return null
+    const { armure: armor, arme: weapon } = await this.splitWeaponMaterials([...materiaux], cleArme)
+    const { coat } = await construirePeintureMateriaux(armor, manifest, this.library)
     if (this.disposed) return null
-    const peinture = new Map(coat)
-    if (arme.length > 0) {
-      const libArme = this.libraryArme ?? this.ownLibraryArme()
-      const entree = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === cleArme) ?? null
-      if (libArme) {
-        const { coat: coatArme } = await construirePeintureArme(arme, entree?.style_key || null, libArme)
-        for (const [m, p] of coatArme) peinture.set(m, p)
+    const paint = new Map(coat)
+    if (weapon.length > 0) {
+      const weaponLib = this.weaponLibrary ?? this.ownWeaponLibrary()
+      const entry = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === cleArme) ?? null
+      if (weaponLib) {
+        const { coat: weaponCoat } = await construirePeintureArme(weapon, entry?.style_key || null, weaponLib)
+        for (const [m, p] of weaponCoat) paint.set(m, p)
       }
     }
-    return peinture
+    return paint
   }
 
   /**
-   * peindreObjet prepare en fond la default-style paint of a MAP object's weapon model (a pad or
+   * peindreObjet prepares in the background the default-style paint of a MAP object's weapon model (a pad or
    * rack item, a ground weapon): no player coat applies to it, so its style key is null (the
    * default style of each of its style lists). One coat per model key: ten pads of the same weapon
    * paint once. null without the weapon library (all neutral).
    */
   peindreObjet(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
-    let p = this.objetsPretes.get(modelKey)
+    let p = this.objectsPending.get(modelKey)
     if (!p) {
-      p = this.peindreObjetFond(modelKey, model).catch((erreur: unknown) => {
-        console.warn('rejeu 3D : peinture de l’objet indisponible', erreur)
+      p = this.paintObjectAsync(modelKey, model).catch((error: unknown) => {
+        console.warn('3D replay: object paint unavailable', error)
         return null
       })
-      this.objetsPretes.set(modelKey, p)
+      this.objectsPending.set(modelKey, p)
     }
     return p
   }
 
   /**
-   * coatObjet : the default-style paint of the map object model `modelKey`, ready and covering its
-   * painted materials ; null while pending, or without the weapon library.
+   * coatObjet: the default-style paint of the map object model `modelKey`, ready and covering its
+   * painted materials; null while pending, or without the weapon library.
    */
   coatObjet(modelKey: string, model: THREE.Object3D): Coat | null {
-    const coat = this.objetsCaches.get(modelKey)
+    const coat = this.objectsCache.get(modelKey)
     if (coat == null) return null
-    return materiauxArmesDe(model).every((m) => coat.has(m)) ? coat : null
+    return weaponMaterialsOf(model).every((m) => coat.has(m)) ? coat : null
   }
 
   /**
-   * peindreArme prépare en fond la peinture de l'arme `modelKey` du joueur `xuid`, sur les
-   * matériaux peints du modèle : son revêtement, ou sans revêtement lu pour cette arme le style par
-   * défaut de chaque liste ; null sans bibliothèque des armes (tout neutre).
+   * peindreArme prepares in the background the paint of weapon `modelKey` for player `xuid`, on
+   * the model's painted materials: their coating, or without a coating read for this weapon the
+   * default style of each list; null without the weapon library (all neutral).
    */
   peindreArme(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
-    let p = this.armesPretes.get(key)
+    let p = this.weaponsPending.get(key)
     if (!p) {
-      p = this.peindreArmeFond(xuid, modelKey, model).catch((erreur: unknown) => {
-        console.warn('rejeu 3D : peinture de l’arme indisponible', erreur)
+      p = this.paintWeaponAsync(xuid, modelKey, model).catch((error: unknown) => {
+        console.warn('3D replay: weapon paint unavailable', error)
         return null
       })
-      this.armesPretes.set(key, p)
+      this.weaponsPending.set(key, p)
     }
     return p
   }
 
-  /** coatArme : la peinture de l'arme `modelKey`, prête et couvrante du modèle ; null en attente. */
+  /** coatArme: weapon `modelKey`'s paint, ready and covering the model; null while pending. */
   coatArme(xuid: string, modelKey: string, model: THREE.Object3D): Coat | null {
-    const coat = this.armesCaches.get(`${xuid}:${modelKey}`)
+    const coat = this.weaponsCache.get(`${xuid}:${modelKey}`)
     if (coat == null) return null
-    return materiauxArmesDe(model).every((m) => coat.has(m)) ? coat : null
+    return weaponMaterialsOf(model).every((m) => coat.has(m)) ? coat : null
   }
 
   /**
-   * dispose libère les bibliothèques (géométries, matériaux, images) ; les habits ne servent plus.
-   * `library` is skipped when `ownsLibrary` is false, and `libraryArme` when `ownsLibraryArme` is
+   * dispose releases the libraries (geometries, materials, images); dresses are no longer usable.
+   * `library` is skipped when `ownsLibrary` is false, and `libraryArme` when `ownsWeaponLibrary` is
    * false: a session-cached library outlives this match (its caller releases/evicts it instead).
    */
   dispose(): void {
     this.disposed = true
     this.outfits.clear()
     this.dresses.clear()
-    this.armesPretes.clear()
-    this.armesCaches.clear()
-    this.objetsPretes.clear()
-    this.objetsCaches.clear()
-    if (this.ownsLibraryArme) this.libraryArme?.dispose()
-    this.libraryArme = null
+    this.weaponsPending.clear()
+    this.weaponsCache.clear()
+    this.objectsPending.clear()
+    this.objectsCache.clear()
+    if (this.ownsWeaponLibrary) this.weaponLibrary?.dispose()
+    this.weaponLibrary = null
     if (this.ownsLibrary) this.library.dispose()
   }
 
   /**
-   * ownLibraryArme : la bibliothèque des armes que cette armurerie construit et possède elle-même
-   * (compatibilité, sans `libraryArme` au constructeur) ; null sans dossier des armes. Jamais
-   * appelée quand `this.libraryArme` est déjà la bibliothèque donnée par l'appelant.
+   * ownWeaponLibrary: the weapon library this armory builds and owns itself (compatibility,
+   * without `libraryArme` at the constructor); null without a weapons folder. Never called when
+   * `this.weaponLibrary` is already the library the caller provided.
    */
-  private ownLibraryArme(): ArmorLibrary | null {
+  private ownWeaponLibrary(): ArmorLibrary | null {
     if (!this.weaponsPath) return null
-    this.libraryArme ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)
-    return this.libraryArme
+    this.weaponLibrary ??= new ArmorLibrary(this.weaponsPath, this.weaponIO)
+    return this.weaponLibrary
   }
 
-  /** separerArme sépare les matériaux d'armure (liste dans la table d'armure) de ceux de l'arme. */
-  private async separerArme(aPeindre: THREE.Material[], cleArme: string | null): Promise<{ armure: THREE.Material[]; arme: THREE.Material[] }> {
-    if (!cleArme || !this.weaponsPath) return { armure: aPeindre, arme: [] }
+  /** splitWeaponMaterials separates armor materials (listed in the armor table) from weapon materials. */
+  private async splitWeaponMaterials(toPaint: THREE.Material[], cleArme: string | null): Promise<{ armure: THREE.Material[]; arme: THREE.Material[] }> {
+    if (!cleArme || !this.weaponsPath) return { armure: toPaint, arme: [] }
     const table = await this.library.coatings()
-    const arme: THREE.Material[] = []
-    if (table) for (const m of aPeindre) {
+    const weapon: THREE.Material[] = []
+    if (table) for (const m of toPaint) {
       const style = m.userData.style as MaterialStyle | undefined
-      if (style && table.default_styles[style.stylelist] === undefined) arme.push(m)
+      if (style && table.default_styles[style.stylelist] === undefined) weapon.push(m)
     }
-    return { armure: aPeindre.filter((m) => !arme.includes(m)), arme }
+    return { armure: toPaint.filter((m) => !weapon.includes(m)), arme: weapon }
   }
 
-  private async peindreArmeFond(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+  private async paintWeaponAsync(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
-    const entree = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === modelKey) ?? null
-    const libArme = this.libraryArme ?? this.ownLibraryArme()
-    if (!libArme) {
-      this.armesCaches.set(key, null)
+    const entry = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === modelKey) ?? null
+    const weaponLib = this.weaponLibrary ?? this.ownWeaponLibrary()
+    if (!weaponLib) {
+      this.weaponsCache.set(key, null)
       return null
     }
     // Without a coating entry for this weapon (a weapon with no core: Fuel Rod, Skewer, Energy
     // Sword), the default style of each list (`weaponCoat3d`).
-    const { coat, issues } = await construirePeintureArme(materiauxArmesDe(model), entree?.style_key || null, libArme)
+    const { coat, issues } = await construirePeintureArme(weaponMaterialsOf(model), entry?.style_key || null, weaponLib)
     if (this.disposed) return null
     reportArme(xuid, modelKey, coat, issues)
-    this.armesCaches.set(key, coat)
+    this.weaponsCache.set(key, coat)
     return coat
   }
 
-  private async peindreObjetFond(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
-    const libArme = this.libraryArme ?? this.ownLibraryArme()
-    if (!libArme) {
-      this.objetsCaches.set(modelKey, null)
+  private async paintObjectAsync(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+    const weaponLib = this.weaponLibrary ?? this.ownWeaponLibrary()
+    if (!weaponLib) {
+      this.objectsCache.set(modelKey, null)
       return null
     }
     // A map item wears the default style of each of its style lists: no player coat applies to it.
-    const { coat, issues } = await construirePeintureArme(materiauxArmesDe(model), null, libArme)
+    const { coat, issues } = await construirePeintureArme(weaponMaterialsOf(model), null, weaponLib)
     if (this.disposed) return null
-    reportArme('carte', modelKey, coat, issues)
-    this.objetsCaches.set(modelKey, coat)
+    reportArme('map', modelKey, coat, issues)
+    this.objectsCache.set(modelKey, coat)
     return coat
   }
 
@@ -323,15 +323,15 @@ export class SpartanArmory {
     return outfit
   }
 
-  /** piece rend les maillages à peau d'une pièce, ou de son repli si elle ne se charge pas. */
+  /** piece returns a piece's skinned meshes, or its fallback's if it fails to load. */
   private async piece(p: PlannedPiece, index: ArmorIndex, issues: OutfitIssue[]): Promise<THREE.SkinnedMesh[]> {
     const own = skinnedOf(await this.library.file(p.file), index, p.key, issues)
     if (own) return own
     if (!p.fallback) {
-      issues.push({ kind: 'piece_no_fallback', what: p.key, detail: `région ${p.region} (${p.source}) sans pièce de repli` })
+      issues.push({ kind: 'piece_no_fallback', what: p.key, detail: `region ${p.region} (${p.source}) has no fallback piece` })
       return []
     }
-    issues.push({ kind: 'piece_load_failed', what: p.key, detail: `repli ${p.fallback.key} (${p.fallback.from})` })
+    issues.push({ kind: 'piece_load_failed', what: p.key, detail: `fallback ${p.fallback.key} (${p.fallback.from})` })
     return skinnedOf(await this.library.file(p.fallback.file), index, p.fallback.key, issues) ?? []
   }
 
@@ -350,8 +350,8 @@ export class SpartanArmory {
 }
 
 /**
- * skinnedOf : les maillages à peau de la scène d'une pièce, null si elle n'est pas chargée ou si
- * ses os ne sont pas ceux de l'index (dans l'ordre) : la peau ne se lierait pas au squelette du joueur.
+ * skinnedOf: a piece's scene's skinned meshes, null if it isn't loaded or if its bones aren't
+ * the index's (in order): the skin would not bind to the player's skeleton.
  */
 function skinnedOf(root: THREE.Object3D | null, index: ArmorIndex, key: string, issues: OutfitIssue[]): THREE.SkinnedMesh[] | null {
   if (!root) return null
@@ -362,14 +362,14 @@ function skinnedOf(root: THREE.Object3D | null, index: ArmorIndex, key: string, 
   const bones = index.skeleton.bones
   const bad = out.find((s) => s.skeleton.bones.length !== bones.length || s.skeleton.bones.some((b, i) => b.name !== bones[i]))
   if (bad) {
-    issues.push({ kind: 'piece_bones_mismatch', what: key, detail: `${bad.skeleton.bones.length} os` })
+    issues.push({ kind: 'piece_bones_mismatch', what: key, detail: `${bad.skeleton.bones.length} bones` })
     return null
   }
   return out
 }
 
-/** materiauxArmesDe : les matériaux peints d'un modèle d'arme (masques bruts chargés), une fois chacun. */
-function materiauxArmesDe(model: THREE.Object3D): THREE.Material[] {
+/** weaponMaterialsOf: a weapon model's painted materials (loaded raw masks), each once. */
+function weaponMaterialsOf(model: THREE.Object3D): THREE.Material[] {
   const out = new Set<THREE.Material>()
   model.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
@@ -378,13 +378,13 @@ function materiauxArmesDe(model: THREE.Object3D): THREE.Material[] {
   return [...out]
 }
 
-/** reportOutfit écrit la tenue d'un joueur une fois : ce qui est posé, et chaque écart nommé. */
+/** reportOutfit writes a player's outfit once: what's placed, and every deviation named. */
 function reportOutfit(xuid: string, m: SpartanArmorManifest, planned: number, empty: readonly string[], o: Outfit): void {
   const log = o.issues.length > 0 ? console.warn : console.info
   log(
-    `rejeu 3D : armure ${xuid} (${m.core_id}, ${m.config_hash.slice(0, 8)}) : ${planned} pièces, ` +
-      `${o.rigid.length} accessoires, ${empty.length} régions sans géométrie (${empty.join(', ')}), ` +
-      `${o.issues.length} écarts`,
-    o.issues.map((i) => `${i.kind} ${i.what} : ${i.detail}`),
+    `3D replay: armor ${xuid} (${m.core_id}, ${m.config_hash.slice(0, 8)}): ${planned} pieces, ` +
+      `${o.rigid.length} accessories, ${empty.length} regions without geometry (${empty.join(', ')}), ` +
+      `${o.issues.length} deviations`,
+    o.issues.map((i) => `${i.kind} ${i.what}: ${i.detail}`),
   )
 }

@@ -1,46 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * eventLoopYield.test.ts — la primitive rend bien la main, et par le canal non bridé.
+ * eventLoopYield.test.ts — the primitive does yield, and through the unthrottled channel.
  *
- * CE QUI NE PEUT PAS ÊTRE TESTÉ ICI : le bridage lui-même. Il n'existe que dans un onglet
- * caché d'un vrai navigateur — jsdom n'a pas de notion de visibilité d'onglet. La mesure qui
- * justifie ce module est consignée dans son en-tête (673 ms contre 0,06 ms) ; ce test-ci
- * verrouille ce qui est vérifiable : la promesse se résout, et elle passe par `MessageChannel`
- * quand il existe.
+ * WHAT CANNOT BE TESTED HERE: the throttling itself. It only exists in a hidden tab of a real
+ * browser — jsdom has no notion of tab visibility. The measurement justifying this module is
+ * recorded in its header (673 ms versus 0.06 ms); this test locks in what is verifiable: the
+ * promise resolves, and it goes through `MessageChannel` when available.
  */
 import { describe, expect, it, vi } from 'vitest'
 
 import { yieldToEvents } from './eventLoopYield'
 
 describe('yieldToEvents', () => {
-  it('rend la main puis reprend', async () => {
-    let repris = false
-    const attente = yieldToEvents().then(() => {
-      repris = true
+  it('yields control, then resumes', async () => {
+    let resumed = false
+    const wait = yieldToEvents().then(() => {
+      resumed = true
     })
-    // La reprise est ASYNCHRONE : elle n'a pas eu lieu au retour de l'appel.
-    expect(repris).toBe(false)
-    await attente
-    expect(repris).toBe(true)
+    // The resumption is ASYNCHRONOUS: it has not happened by the time the call returns.
+    expect(resumed).toBe(false)
+    await wait
+    expect(resumed).toBe(true)
   })
 
-  it('passe par MessageChannel, pas par un minuteur', async () => {
+  it('goes through MessageChannel, not a timer', async () => {
     const timer = vi.spyOn(globalThis, 'setTimeout')
     await yieldToEvents()
-    // LE POINT DU TEST : un `setTimeout` ici serait bridé à une seconde en onglet caché, et
-    // c'est exactement le bug que ce module corrige.
+    // THE POINT OF THIS TEST: a `setTimeout` here would be throttled to one second in a
+    // hidden tab, which is exactly the bug this module fixes.
     expect(timer).not.toHaveBeenCalled()
     timer.mockRestore()
   })
 
-  it('se replie sur un minuteur là où MessageChannel n’existe pas', async () => {
-    const vrai = globalThis.MessageChannel
-    // @ts-expect-error — on simule un environnement qui n'a pas la primitive.
+  it('falls back to a timer where MessageChannel does not exist', async () => {
+    const real = globalThis.MessageChannel
+    // @ts-expect-error — simulating an environment without the primitive.
     delete globalThis.MessageChannel
     try {
       await expect(yieldToEvents()).resolves.toBeUndefined()
     } finally {
-      globalThis.MessageChannel = vrai
+      globalThis.MessageChannel = real
     }
   })
 })

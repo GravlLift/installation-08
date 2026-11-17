@@ -43,17 +43,17 @@ func EcritGLBPeau(w io.Writer, m *ModeleAPeau, generateur string, extras map[str
 // suivent dans l'ordre du squelette) et celui de la racine du squelette.
 func documentPeau(m *ModeleAPeau, generateur string, extras map[string]any) (*gltfDoc, *tamponGLB, int, int, error) {
 	if n := len(m.Maillage.Structure.Sommets) / 3; len(m.Influences) != n {
-		return nil, nil, 0, 0, fmt.Errorf("%d influences pour %d sommets", len(m.Influences), n)
+		return nil, nil, 0, 0, fmt.Errorf("%d influences for %d vertices", len(m.Influences), n)
 	}
 	if len(m.Noms) != len(m.Noeuds) || len(m.Noeuds) == 0 {
-		return nil, nil, 0, 0, fmt.Errorf("squelette de %d noeuds et %d noms", len(m.Noeuds), len(m.Noms))
+		return nil, nil, 0, 0, fmt.Errorf("skeleton of %d nodes and %d names", len(m.Noeuds), len(m.Noms))
 	}
 	doc, bin, err := documentGLB(m.Maillage, generateur, extras)
 	if err != nil {
 		return nil, nil, 0, 0, err
 	}
 	if len(doc.Nodes) != 1 {
-		return nil, nil, 0, 0, fmt.Errorf("un modele a peau ne porte que sa structure (%d groupes)", len(doc.Nodes))
+		return nil, nil, 0, 0, fmt.Errorf("a skinned model carries only its structure (%d groups)", len(doc.Nodes))
 	}
 	joints, poids := ajouteInfluences(doc, bin, m.Influences)
 	for i := range doc.Meshes[0].Primitives {
@@ -112,7 +112,7 @@ func ajouteOs(doc *gltfDoc, m *ModeleAPeau) (int, error) {
 	for i, n := range m.Noeuds {
 		if n.Parent < 0 || n.Parent >= len(m.Noeuds) {
 			if racine >= 0 {
-				return 0, fmt.Errorf("squelette a plusieurs racines (%d et %d)", racine-base, i)
+				return 0, fmt.Errorf("skeleton with multiple roots (%d and %d)", racine-base, i)
 			}
 			racine = base + i
 			continue
@@ -120,7 +120,7 @@ func ajouteOs(doc *gltfDoc, m *ModeleAPeau) (int, error) {
 		doc.Nodes[base+n.Parent].Children = append(doc.Nodes[base+n.Parent].Children, base+i)
 	}
 	if racine < 0 {
-		return 0, fmt.Errorf("squelette sans racine")
+		return 0, fmt.Errorf("skeleton without a root")
 	}
 	for i := range m.Noeuds {
 		j, pas := i, 0
@@ -128,7 +128,7 @@ func ajouteOs(doc *gltfDoc, m *ModeleAPeau) (int, error) {
 			j, pas = m.Noeuds[j].Parent, pas+1
 		}
 		if pas > len(m.Noeuds) {
-			return 0, fmt.Errorf("le noeud %d remonte en boucle", i)
+			return 0, fmt.Errorf("node %d loops back on itself", i)
 		}
 	}
 	return racine, nil

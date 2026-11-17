@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * grenadeLook3d.ts — LA MISE EN FORME D'UNE GRENADE SELON SON RANG : une fonction pure du type de
- * grenade à son dessin.
+ * grenadeLook3d.ts — A GRENADE'S LOOK BY ITS RANK: a pure function from the grenade type to its
+ * drawing.
  *
- * `flights3d` y lit les deux décisions qui peuvent varier par type — la forme du vol (seule la
- * grenade plasma s'écarte du look frag pour l'instant : un orbe lumineuse, cœur bleu-blanc et
- * halo bleu saturé) et la nature de la détonation (vocabulaire de `fxInk`) — de sorte que, quand
- * Dynamo et Spike auront leur propre mise en forme, on changera ce fichier, pas le calque.
+ * `flights3d` reads from here the two decisions that can vary by type — the flight's shape
+ * (only the plasma grenade departs from the frag look for now: a glowing orb, blue-white core
+ * and saturated blue halo) and the nature of the detonation (`fxInk`'s own vocabulary) — so
+ * that, once Dynamo and Spike get their own look, this file changes, not the layer.
  *
- * L'orbe se dessine comme le faisceau du tir de choc (`shots3d`) : un second lobe plus large, à
- * une fraction de l'intensité du cœur. Le pulsé est une fonction pure du temps, périodique : la
- * même image rend toujours le même orbe, en avant comme en arrière.
+ * The orb is drawn like the shock shot's beam (`shots3d`): a second, wider lobe, at a fraction
+ * of the core's intensity. The pulse is a pure, periodic function of time: the same frame
+ * always renders the same orb, forward as much as backward.
  */
 import type { FxTint } from '../layers/fxInk'
 import { explosionTintOf } from '../model/grenadeFx'
 
-/** Rang de la grenade plasma dans `GrenadeLabels` (0 frag, 1 plasma, 2 dynamo, 3 spike). */
+/** The plasma grenade's rank in `GrenadeLabels` (0 frag, 1 plasma, 2 dynamo, 3 spike). */
 export const PLASMA_RANK = 1
 
-/** La forme du vol d'une grenade : le modèle du jeu (ou la tête sphérique), ou l'orbe plasma. */
+/** A grenade's flight shape: the game model (or the spherical head), or the plasma orb. */
 export type GrenadeFlightLook = 'model' | 'orb'
 
-/** Le look d'une grenade : la forme de son vol, et la nature de sa détonation. */
+/** A grenade's look: its flight's shape, and the nature of its detonation. */
 export interface GrenadeLook {
   flight: GrenadeFlightLook
   tint: FxTint
 }
 
-/** grenadeLookOf — le passage type de grenade -> look, seul détenteur de cette correspondance. */
+/** grenadeLookOf — the grenade-type -> look mapping, the sole holder of this correspondence. */
 export function grenadeLookOf(rank: number): GrenadeLook {
   if (rank === PLASMA_RANK) return { flight: 'orb', tint: 'plasma_cool' }
   return { flight: 'model', tint: explosionTintOf(rank) }
 }
 
-/** Le rayon du cœur de l'orbe (u) : celui de la tête d'une frag. */
+/** The orb's core radius (u): that of a frag's head. */
 export const PLASMA_CORE_RADIUS = 0.02
 
 /**
@@ -45,20 +45,20 @@ export const PLASMA_CORE_RADIUS = 0.02
 export const SHOT_ORB_RADIUS: Readonly<Record<string, number>> = {
   hinf_fuel_rod_spnkr: 0.06,
 }
-/** Le halo : un second lobe à ce multiple du rayon du cœur. */
+/** The halo: a second lobe at this multiple of the core's radius. */
 export const PLASMA_HALO_MULT = 2
-/** Le halo, à cette fraction de l'intensité du cœur. */
+/** The halo, at this fraction of the core's intensity. */
 export const PLASMA_HALO_DIM = 0.7
-/** La fréquence du pulsé de l'orbe (pulsés par seconde). */
+/** The orb's pulse frequency (pulses per second). */
 export const PLASMA_PULSE_RATE = 1.5
-/** L'amplitude du pulsé : l'intensité et le rayon varient de cette fraction autour de leur moyenne. */
+/** The pulse's amplitude: intensity and radius vary by this fraction around their average. */
 export const PLASMA_PULSE_DEPTH = 0.3
-/** Le bleu-blanc du cœur : cette fraction d'incandescence dans la teinte plasma. */
+/** The core's blue-white: this fraction of incandescence within the plasma tint. */
 export const PLASMA_CORE_MIX = 0.3
 
 /**
- * plasmaPulse — l'intensité du pulsé de l'orbe, fonction pure du temps en secondes : une valeur
- * entre 0 et 1, périodique de période `1 / PLASMA_PULSE_RATE`.
+ * plasmaPulse — the orb's pulse intensity, a pure function of time in seconds: a value between
+ * 0 and 1, periodic with period `1 / PLASMA_PULSE_RATE`.
  */
 export function plasmaPulse(seconds: number): number {
   return 0.5 + 0.5 * Math.sin(seconds * PLASMA_PULSE_RATE * Math.PI * 2)

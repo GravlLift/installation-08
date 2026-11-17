@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * teamSeriesColor.ts — L'ENCRE D'UNE SÉRIE D'ÉQUIPE DANS UN GRAPHE, et il n'y en a qu'une.
+ * teamSeriesColor.ts — THE COLOR OF A TEAM SERIES IN A CHART, and there is only one.
  *
- * UNE SEULE FAMILLE DE COULEUR D'ÉQUIPE : les TOKENS `team-ally` / `team-enemy`, donc la
- * palette d'accessibilité que l'utilisateur a réglée (décision D1 du plan d'habillage) — en
- * graphe (`teamSeriesColor`, par `resolveToken`) comme en DOM (`teamTokenCssVar`) : tableau des
- * scores, en-têtes de camp, fil des éliminations, bandeau, frise et carte du rejeu. La couleur
- * OFFICIELLE du jeu par `team_id` (Eagle bleu, Cobra rouge) ne peint aucun camp : sur Halo
- * Infinite le `team_id` est TOUJOURS présent, et une cascade qui la plaçait avant le token
- * n'atteignait jamais le réglage de l'utilisateur — un joueur qui a réglé ses camps en vert et
- * orange voyait du bleu et du rouge.
+ * A SINGLE TEAM-COLOR FAMILY: the `team-ally` / `team-enemy` TOKENS, i.e. the
+ * accessibility palette the user has set (decision D1 of the styling plan) — in
+ * charts (`teamSeriesColor`, via `resolveToken`) as in the DOM (`teamTokenCssVar`):
+ * score table, team headers, kill feed, banner, timeline and replay map. The game's
+ * OFFICIAL color by `team_id` (Eagle blue, Cobra red) paints no team: on Halo
+ * Infinite `team_id` is ALWAYS present, and a cascade that placed it before the
+ * token never reached the user's own setting — a player who set their teams to
+ * green and orange would see blue and red.
  *
- * POURQUOI CE FICHIER PLUTÔT QU'UNE FONCTION PRIVÉE. Elle l'était — dans
- * `MatchScoreCurveChart.tsx` — jusqu'à ce que le graphe des points marqués ait besoin de la
- * MÊME encre (2026-09-03). Deux camps peints par deux fonctions, ce sont deux couleurs pour
- * la même équipe sur deux blocs du même onglet (règle CLAUDE.md n°6, ≤ 2 copies).
+ * WHY THIS FILE RATHER THAN A PRIVATE FUNCTION. It was one — in
+ * `MatchScoreCurveChart.tsx` — until the marked-points chart needed the SAME color
+ * (2026-09-03). Two teams painted by two functions is two colors for the same team
+ * across two blocks of the same tab (CLAUDE.md rule #6, ≤ 2 copies).
  *
- * AUCUNE VALEUR EN DUR : `resolveToken` lit la palette courante, et l'appel doit se faire
- * DEPUIS `buildOption` — c'est le rebuild sur changement de palette qui rafraîchit la teinte.
+ * NO HARDCODED VALUE: `resolveToken` reads the current palette, and the call must
+ * happen FROM `buildOption` — it's the rebuild on palette change that refreshes the tint.
  */
 import type { EChartsThemeColors } from '@/components/charts/_utils'
 import { resolveToken, tokenCssVar } from '@/lib/accessibility'
 
 /**
- * teamSeriesColor rend l'encre d'une série d'équipe.
+ * teamSeriesColor renders a team series's color.
  *
- * `ally === null` = camp INCONNU : l'appelant ne sait pas le situer face au joueur regardé
- * (par la feuille sur les graphes de la page Match, par l'équipe du film sur le rejeu et
- * l'onglet Arsenal). Encre neutre du thème, jamais l'une des deux couleurs par défaut —
- * affirmer un camp qu'on n'a pas mesuré serait pire que de ne rien dire.
+ * `ally === null` = team UNKNOWN: the caller can't place it against the viewed
+ * player (via the sheet on the Match page's charts, via the film's team on the
+ * replay and the Arsenal tab). Neutral theme color, never one of the two default
+ * colors — asserting a team we haven't measured would be worse than saying nothing.
  */
 export function teamSeriesColor(ally: boolean | null, tc: EChartsThemeColors): string {
   if (ally === null) return tc.axisLabel
@@ -36,22 +36,22 @@ export function teamSeriesColor(ally: boolean | null, tc: EChartsThemeColors): s
 }
 
 /**
- * L'ENCRE NEUTRE D'UN CAMP INCONNU EN DOM. Variable de thème, jamais un jeton d'équipe :
- * affirmer un camp qu'on n'a pas mesuré serait pire que de ne rien dire (même règle que le
- * repli `tc.axisLabel` de `teamSeriesColor`).
+ * THE NEUTRAL COLOR OF AN UNKNOWN TEAM IN THE DOM. A theme variable, never a team
+ * token: asserting a team we haven't measured would be worse than saying nothing
+ * (same rule as `teamSeriesColor`'s `tc.axisLabel` fallback).
  */
 const NEUTRAL_TEAM_COLOR = 'var(--muted-foreground)'
 
 /**
- * teamTokenCssVar — LE PENDANT DOM de `teamSeriesColor`, et il obéit à la MÊME frontière.
+ * teamTokenCssVar — the DOM COUNTERPART of `teamSeriesColor`, and it obeys the SAME boundary.
  *
- * Les graphes en DOM/CSS (barres de la grille des usages, bâtons du contrôle des socles,
- * face-à-face des objectifs) ne passent pas par `resolveToken` : ils écrivent la VARIABLE CSS
- * du jeton, qui suit la palette sans re-rendu. La règle de choix, elle, est la même — jetons
- * `team-ally` / `team-enemy`, donc la palette d'accessibilité réglée par l'utilisateur, jamais
- * la couleur officielle du jeu par `team_id` (cf. l'en-tête).
+ * DOM/CSS charts (usage grid bars, pedestal-control sticks, objective face-off)
+ * don't go through `resolveToken`: they write the token's CSS VARIABLE, which
+ * follows the palette with no re-render. The choice rule itself is the same — the
+ * `team-ally` / `team-enemy` tokens, i.e. the user's own accessibility palette,
+ * never the game's official color by `team_id` (see the header).
  *
- * `ally === null` = camp INCONNU, comme pour `teamSeriesColor` : encre neutre du thème.
+ * `ally === null` = team UNKNOWN, same as for `teamSeriesColor`: neutral theme color.
  */
 export function teamTokenCssVar(ally: boolean | null): string {
   if (ally === null) return NEUTRAL_TEAM_COLOR

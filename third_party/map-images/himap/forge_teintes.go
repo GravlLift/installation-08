@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/json"
 	"fmt"
@@ -72,10 +74,10 @@ func LitMateriauxForge(data []byte, styles map[int32][]mapvar.StyleLayer) (map[i
 		} `json:"layers"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("matériaux Forge : %w", err)
+		return nil, fmt.Errorf("Forge materials: %w", err)
 	}
 	if doc.Layers == nil {
-		return nil, fmt.Errorf("matériaux Forge : couches absentes")
+		return nil, fmt.Errorf("Forge materials: layers missing")
 	}
 	bibli := map[int32]TeinteForge{}
 	for _, entry := range doc.Layers {

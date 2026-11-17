@@ -1,37 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * xuidMeta.ts — QUI EST QUI DANS UN MATCH : nom d'affichage et camp, par xuid.
+ * xuidMeta.ts — WHO IS WHO IN A MATCH: display name and team, by xuid.
  *
- * POURQUOI CE FICHIER EXISTE. La même cascade était écrite deux fois à l'identique
- * (`MatchTugOfWarChart`, `MatchKDCumulChart`) et le rejeu 2D en réclamait une troisième.
- * Règle du dépôt : à la troisième copie on centralise ET on pose le garde-rail — ici
- * `xuidMeta.guard.test.ts`, qui interdit de réécrire la cascade ailleurs.
+ * WHY THIS FILE EXISTS. The same cascade was written twice, identically
+ * (`MatchTugOfWarChart`, `MatchKDCumulChart`), and the 2D replay was about to claim
+ * a third copy. Repo rule: the third copy gets centralized AND gets a guardrail —
+ * here, `xuidMeta.guard.test.ts`, which forbids rewriting the cascade elsewhere.
  *
- * LE CAMP N'EST PAS DANS LA DONNÉE, il se déduit. « Allié » veut dire « du côté du joueur
- * dont on regarde la page » : on lit le `team_side` de sa ligne, et tout le monde qui
- * partage ce camp est allié. Sans ligne pour lui, personne n'est allié — mieux vaut aucun
- * camp qu'un camp inventé, car c'est la couleur des kills qui en dépend.
+ * THE TEAM ISN'T IN THE DATA, it's inferred. "Ally" means "on the side of the player
+ * whose page we're viewing": we read the `team_side` of their row, and everyone who
+ * shares that side is an ally. With no row for them, nobody is an ally — better no
+ * team at all than an invented one, since the kills' color depends on it.
  *
- * LA PAGE REJEU N'EN LIT QUE LES NOMS (2026-10-06). Son allégeance vient de l'équipe du FILM
- * (`lib/replay/filmAllegiance.ts`) : la table d'identité lui sert à écrire les gamertags du fil
- * et à filtrer les kills de la base, jamais à dire qui est allié. Le régime à trois arguments
- * qu'elle employait (« allié » relatif à son point de vue, 2026-09-06) a été retiré avec ce
- * dernier lecteur ; les cinq charts de la page Match appellent à deux arguments, inchangés.
+ * THE REPLAY PAGE ONLY READS THE NAMES FROM IT (2026-10-06). Its allegiance comes
+ * from the FILM's team (`lib/replay/filmAllegiance.ts`): the identity table only
+ * serves it the feed's gamertags and filters the database's kills, never says who's
+ * an ally. The three-argument scheme it used to use ("ally" relative to its own
+ * point of view, 2026-09-06) was removed along with that last reader; the Match
+ * page's five charts still call with two arguments, unchanged.
  */
 import { displayPlayerName } from '@/lib/players/displayName'
 import type { MatchScoreboardRow } from '@/lib/api/types'
 import { parseTeamSideID } from '@/lib/halo/teamNames'
 
-/** Nom d'affichage (bots compris) et appartenance, par xuid. */
+/** Display name (bots included) and membership, by xuid. */
 export type XuidMeta = ReadonlyMap<string, { gamertag: string; ally: boolean }>
 
 /**
- * resolveXuidMeta indexe le scoreboard par xuid.
+ * resolveXuidMeta indexes the scoreboard by xuid.
  *
- * `meXUID` désigne le joueur de la page ; sa ligne peut aussi se reconnaître à `is_me`,
- * qui reste prioritaire (une ligne marquée « moi » est alliée par définition — y compris en
- * mêlée générale, où personne n'a de `team_side` : le camp des AUTRES reste indéductible, celui
- * du joueur de la page ne se déduit pas, il est donné).
+ * `meXUID` names the page's player; their row can also be recognized by `is_me`,
+ * which still takes priority (a row marked "me" is an ally by definition — even in
+ * free-for-all, where nobody has a `team_side`: everyone ELSE's team stays
+ * undecidable, but the page's own player's isn't inferred, it's given).
  */
 export function resolveXuidMeta(
   scoreboard: MatchScoreboardRow[] | null | undefined,
@@ -49,18 +50,19 @@ export function resolveXuidMeta(
 }
 
 /**
- * allyOfTeamId dit si une équipe (`teamId`, le numéro d'un côté de feuille `t{N}`, celui des
- * séries du calque de score) est du côté du joueur de la page, POUR LA PAGE MATCH.
+ * allyOfTeamId says whether a team (`teamId`, the number of a sheet side `t{N}`, the
+ * one the score layer's series use) is on the page's player's side, FOR THE MATCH PAGE.
  *
- * La page raisonne en « allié / adverse », une notion RELATIVE au joueur consulté ; le pont
- * passe par la feuille, seul endroit où le côté et le xuid coexistent, et par la cascade
- * ci-dessus (`allies`). `null` = côté introuvable ou aucun joueur reconnu : la marque prend une
- * encre neutre, jamais l'une des deux couleurs par défaut.
+ * The page reasons in "ally / opponent", a notion RELATIVE to the player being
+ * viewed; the bridge goes through the sheet, the only place where the side and the
+ * xuid coexist, and through the cascade above (`allies`). `null` = side not found or
+ * no player recognized: the mark takes a neutral color, never one of the two
+ * default colors.
  *
- * LA PAGE REJEU NE L'EMPLOIE PAS : son allégeance vient de l'équipe du FILM
- * (`lib/replay/filmAllegiance.ts`, 2026-10-06). Ce lecteur de feuille vivait dans
- * `lib/replay/scoreTimeline.ts` ; il a rejoint la cascade dont il dépend quand le rejeu a cessé
- * d'en être un lecteur.
+ * THE REPLAY PAGE DOESN'T USE IT: its allegiance comes from the FILM's team
+ * (`lib/replay/filmAllegiance.ts`, 2026-10-06). This sheet reader used to live in
+ * `lib/replay/scoreTimeline.ts`; it joined the cascade it depends on once the replay
+ * stopped being one of its readers.
  */
 export function allyOfTeamId(
   scoreboard: ReadonlyArray<Pick<MatchScoreboardRow, 'xuid' | 'team_side'>>,
@@ -77,13 +79,13 @@ export function allyOfTeamId(
 }
 
 /**
- * meXUIDOf retrouve le joueur de la page dans le scoreboard, quand l'appelant ne le tient
- * pas d'ailleurs. `is_me` est posé par le backend sur la ligne du joueur consulté.
+ * meXUIDOf finds the page's player in the scoreboard, when the caller doesn't have
+ * it from elsewhere. `is_me` is set by the backend on the viewed player's row.
  *
- * L'ENTRÉE EST VOLONTAIREMENT LARGE (2026-09-06) : `resolveViewpoint`, le foyer du point de
- * vue du rejeu, s'en sert pour son repli et ne manipule que `xuid` + `is_me`. Le réduire à ces
- * deux champs évite d'y recopier la recherche de la ligne « moi » — une sixième copie de la
- * lecture que le lot L2b vient précisément de supprimer.
+ * THE INPUT IS DELIBERATELY WIDE (2026-09-06): `resolveViewpoint`, the replay's
+ * point-of-view resolver, uses it for its fallback and only touches `xuid` + `is_me`.
+ * Narrowing it to these two fields avoids re-copying the "me" row lookup here — a
+ * sixth copy of the exact read that batch L2b just removed.
  */
 export function meXUIDOf(
   scoreboard: readonly Pick<MatchScoreboardRow, 'xuid' | 'is_me'>[] | null | undefined,

@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayRecording.ts — LE CHOIX DU CONTENEUR VIDÉO, et rien d'autre.
+ * replayRecording.ts — THE VIDEO CONTAINER CHOICE, and nothing else.
  *
- * POURQUOI CE CHOIX N'EST PAS ANODIN. `MediaRecorder` ne sait pas produire le même fichier
- * partout : Chrome sur Windows encode volontiers du MP4/H.264, Firefox ne connaît que WebM.
- * Un fichier MP4 s'ouvre dans n'importe quel lecteur et se dépose tel quel dans un montage ;
- * un WebM demande souvent une conversion. L'ordre ci-dessous descend donc du plus portable au
- * plus sûr, et l'EXTENSION SUIT LE TYPE RETENU — un `.mp4` qui contiendrait du WebM ne
- * s'ouvrirait nulle part, et c'est exactement ce que produit un nom de fichier écrit en dur.
+ * WHY THIS CHOICE IS NOT TRIVIAL. `MediaRecorder` cannot produce the same file everywhere:
+ * Chrome on Windows happily encodes MP4/H.264, Firefox only knows WebM. An MP4 file opens in
+ * any player and drops straight into an edit timeline; a WebM often needs a conversion. The
+ * order below therefore goes from the most portable to the safest, and the EXTENSION FOLLOWS
+ * THE CHOSEN TYPE — a `.mp4` that actually held WebM would open nowhere, and that is exactly
+ * what a hardcoded file name would produce.
  *
- * L'INTERROGATION EST UN PARAMÈTRE (`isSupported`), pas un appel direct à
- * `MediaRecorder.isTypeSupported` : la fonction reste ainsi une décision pure, testable sans
- * navigateur — jsdom n'a pas `MediaRecorder` du tout.
+ * THE QUERY IS A PARAMETER (`isSupported`), not a direct call to
+ * `MediaRecorder.isTypeSupported`: this keeps the function a pure decision, testable without
+ * a browser — jsdom has no `MediaRecorder` at all.
  */
 
-/** Le conteneur retenu et l'extension qui va avec. Les deux voyagent ensemble, toujours. */
+/** The chosen container and the extension that goes with it. The two always travel together. */
 export interface VideoMimeChoice {
   mime: string
   ext: string
 }
 
 /**
- * L'ordre EXACT de la décision 5 du plan : MP4/H.264 d'abord (le plus portable), MP4 nu
- * ensuite, puis WebM/VP9 et WebM nu — le repli que tout navigateur qui enregistre sait faire.
+ * The EXACT order from plan decision 5: MP4/H.264 first (the most portable), plain MP4
+ * next, then WebM/VP9 and plain WebM — the fallback every recording browser can do.
  */
 const CANDIDATES: readonly VideoMimeChoice[] = [
   { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
@@ -32,26 +32,26 @@ const CANDIDATES: readonly VideoMimeChoice[] = [
 ]
 
 /**
- * CADENCE DE CAPTURE, en images par seconde.
+ * CAPTURE RATE, in frames per second.
  *
- * 30 et pas 60 : le rejeu se lit à la cadence de l'écran, mais ce qu'il montre — des points
- * qui glissent sur une carte — ne gagne rien à doubler le débit, et un clip de match pèserait
- * alors le double pour l'œil qui n'y verrait rien. Ce n'est PAS la vitesse de lecture : filmer
- * un rejeu passé en 2× donne un clip à 30 im/s où l'action va deux fois plus vite (décision 4).
+ * 30, not 60: the replay plays at the screen's rate, but what it shows — dots sliding across
+ * a map — gains nothing from doubling the bit rate, and a match clip would then weigh twice
+ * as much for an eye that would see no difference. This is NOT the playback speed: filming a
+ * replay played at 2x gives a 30 fps clip where the action moves twice as fast (decision 4).
  */
 export const CAPTURE_FPS = 30
 
-/** pickVideoMimeType rend le premier conteneur supporté, ou `null` si aucun ne l'est. */
+/** pickVideoMimeType returns the first supported container, or `null` if none is. */
 export function pickVideoMimeType(isSupported: (type: string) => boolean): VideoMimeChoice | null {
   return CANDIDATES.find((c) => isSupported(c.mime)) ?? null
 }
 
 /**
- * isVideoTypeSupported interroge le navigateur courant.
+ * isVideoTypeSupported queries the current browser.
  *
- * Rend `false` partout où l'enregistrement n'existe pas (jsdom, vieux navigateurs) plutôt que
- * de lever : c'est ce qui permet à `pickVideoMimeType` de conclure « aucun » proprement, et au
- * bouton de ne pas se rendre du tout (décision 7).
+ * Returns `false` everywhere recording doesn't exist (jsdom, old browsers) rather than
+ * throwing: that is what lets `pickVideoMimeType` cleanly conclude "none", and the button not
+ * render at all (decision 7).
  */
 export function isVideoTypeSupported(type: string): boolean {
   if (typeof MediaRecorder === 'undefined') return false
@@ -60,11 +60,11 @@ export function isVideoTypeSupported(type: string): boolean {
 }
 
 /**
- * canRecordCanvas dit si CE navigateur sait filmer une toile.
+ * canRecordCanvas says whether THIS browser can film a canvas.
  *
- * Les trois conditions sont indissociables : l'enregistreur, la capture de flux du canvas, et
- * un conteneur qu'il accepte. Il en manque une, il n'y a pas d'enregistrement possible — et
- * mieux vaut alors pas de bouton qu'un bouton qui ne rendrait jamais de fichier.
+ * The three conditions are inseparable: the recorder, canvas stream capture, and a container
+ * it accepts. Missing any one of them, no recording is possible — and a missing button is
+ * then better than a button that would never produce a file.
  */
 export function canRecordCanvas(): boolean {
   if (typeof MediaRecorder === 'undefined') return false

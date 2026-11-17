@@ -244,12 +244,12 @@ func (b *library) writeGLB(file string, glb []byte) (int64, error) {
 			return 0, fmt.Errorf("ktx2: %w", err)
 		}
 	}
-	sans, _, err := himap.ExterniseImagesGLB(glb, b.depot.depose)
+	stripped, _, err := himap.ExterniseImagesGLB(glb, b.depot.store)
 	if err != nil {
 		return 0, err
 	}
 	n, err := writeFile(filepath.Join(b.folder, file), func(w io.Writer) error {
-		_, err := w.Write(sans)
+		_, err := w.Write(stripped)
 		return err
 	})
 	if err != nil {

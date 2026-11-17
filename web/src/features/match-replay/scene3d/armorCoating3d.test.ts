@@ -27,7 +27,7 @@ const RED = 'ee77d118'
 const GLOBAL = '11111111'
 const CHAINED = '22222222'
 
-/** La table : un style par défaut, une globale qui se replie sur `BASE`, une autre sans repli, une visière. */
+/** The table: a default style, a global that falls back to `BASE`, another without a fallback, a visor. */
 function table(): CoatingTable {
   return {
     schema: 1,
@@ -44,7 +44,7 @@ function table(): CoatingTable {
   }
 }
 
-/** Le revêtement : la liste `b0799de3` prend `cccccccc`, région propre puis commune, zone rouge éteinte. */
+/** The coating: list `b0799de3` takes `cccccccc`, own region then shared, red zone off. */
 function coating(): CoatingFile {
   return {
     style: '2c5251bc',
@@ -65,7 +65,7 @@ function style(over: Partial<MaterialStyle> = {}): MaterialStyle {
 const tops = (zones: (CoatingSwatch | null)[]) => zones.map((z) => z?.top[0] ?? null)
 
 describe('paintOf', () => {
-  it('le style du revêtement pour la liste du matériau : région propre avant la commune, zone éteinte nulle', () => {
+  it("the coating's style for the material's list: own region before the shared one, an off zone is null", () => {
     const note = vi.fn()
     const p = paintOf(style(), { table: table(), coating: coating(), visor: null }, note)
     expect(tops(p.zones)).toEqual([0.7, null, null, null, null, null, null])
@@ -73,21 +73,21 @@ describe('paintOf', () => {
     expect(note).not.toHaveBeenCalled()
   })
 
-  it('liste que le revêtement ne nomme pas : le style par défaut de la liste, nommé', () => {
+  it("a list the coating does not name: the list's default style, named", () => {
     const note = vi.fn()
     const p = paintOf(style({ region: 'ffffffff' }), { table: table(), coating: { ...coating(), lists: {} }, visor: null }, note)
     expect(tops(p.zones)[0]).toBe(0.9)
     expect(note).toHaveBeenCalledWith('style_not_in_list', 'b0799de3')
   })
 
-  it('sans revêtement : le style par défaut, sans repli de liste', () => {
+  it('without a coating: the default style, with no list fallback', () => {
     const note = vi.fn()
     expect(tops(paintOf(style(), { table: table(), coating: null, visor: null }, note).zones)[0]).toBe(0.9)
     expect(note).toHaveBeenCalledWith('intention_unknown', RED)
     expect(note).not.toHaveBeenCalledWith('style_not_in_list', expect.anything())
   })
 
-  it('liste inconnue de la table, matériau sans style : neutre, nommé', () => {
+  it('a list unknown to the table, material without a style: neutral, named', () => {
     const note = vi.fn()
     expect(tops(paintOf(style({ stylelist: '99999999' }), { table: table(), coating: null, visor: null }, note).zones).every((z) => z === null)).toBe(true)
     expect(note).toHaveBeenCalledWith('stylelist_unknown', '99999999')
@@ -95,19 +95,19 @@ describe('paintOf', () => {
     expect(note).toHaveBeenCalledWith('material_without_style', '')
   })
 
-  it('globales : le repli d’abord (nouveau système), la couche de la globale sans repli', () => {
+  it("globals: the fallback first (new system), the fallback-less global's own layer", () => {
     const note = vi.fn()
     const p = paintOf(style({ intentions: [GLOBAL, CHAINED] , layers: 2 }), { table: table(), coating: coating(), visor: null }, note)
     expect(tops(p.zones).slice(0, 2)).toEqual([0.7, 0.22])
   })
 
-  it('ancien système : la couche de même rang de la région, au-delà des zones déclarées', () => {
+  it("old system: the region's same-rank layer, beyond the declared zones", () => {
     const note = vi.fn()
     const p = paintOf(style({ stylelist: 'aaaaaaaa', intentions: [GLOBAL, CHAINED, GLOBAL], layers: 2 }), { table: table(), coating: null, visor: null }, note)
     expect(tops(p.zones).slice(0, 3)).toEqual([0.31, 0.32, 0.33])
   })
 
-  it('visière : la zone de base du matériau de la visière seul prend son nuancier', () => {
+  it("visor: only the visor material's base zone takes its swatch", () => {
     const note = vi.fn()
     const visor = visorSwatch(table(), { visor_id: 936780723, color_variant: -382869120 }, note)
     expect(visor?.top).toEqual([0.497, 0, 0])
@@ -118,7 +118,7 @@ describe('paintOf', () => {
     expect(note).not.toHaveBeenCalled()
   })
 
-  it('visière inconnue ou absente : null, inconnue nommée', () => {
+  it('unknown or absent visor: null, unknown named', () => {
     const note = vi.fn()
     expect(visorSwatch(table(), { visor_id: 1, color_variant: 2 }, note)).toBeNull()
     expect(note).toHaveBeenCalledWith('visor_unknown', '00000001/00000002')
@@ -128,7 +128,7 @@ describe('paintOf', () => {
 })
 
 describe('hexId', () => {
-  it('identifiants signés de l’API en clé de 8 chiffres', () => {
+  it('signed API identifiers as an 8-digit key', () => {
     expect([hexId(743592380), hexId(-382869120), hexId(1)]).toEqual(['2c5251bc', 'e92de180', '00000001'])
   })
 })

@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * probes3d.ts — LES SONDES D'ENVIRONNEMENT : où capturer la carte, et quelle sonde éclaire quelle
+ * probes3d.ts — THE ENVIRONMENT PROBES: where to capture the map, and which probe lights which
  * surface.
  *
- * Une capture unique éclairerait une salle fermée avec le ciel de la cour voisine. Les sondes se posent là où des joueurs se sont tenus (jamais dans un mur), réparties par
- * tirage du point le plus éloigné : la première au plus près du centre, chaque suivante au point
- * joué le plus loin des sondes déjà posées, jusqu'au plafond ou jusqu'à ce que tout point joué ait
- * une sonde à moins de `spacing`. Chaque surface de la carte prend la sonde la plus proche de sa
- * boîte (une dalle qui traverse plusieurs zones départage par son centre).
+ * A single capture would light a closed room with the neighboring courtyard's sky. Probes are
+ * placed where players have stood (never inside a wall), spread out by farthest-point sampling:
+ * the first closest to the center, each next one at the played point farthest from the probes
+ * already placed, up to the cap or until every played point has a probe within `spacing`. Each
+ * map surface takes the probe closest to its box (a slab crossing several zones is settled by its
+ * center).
  */
 import * as THREE from 'three'
 
 /**
- * chooseProbes : au plus `max` points pris dans `points`, le premier au plus près de leur centre,
- * espacés d'au moins `spacing` (u). Déterministe : mêmes points, mêmes sondes.
+ * chooseProbes: at most `max` points taken from `points`, the first closest to their center,
+ * spaced at least `spacing` apart (u). Deterministic: same points, same probes.
  */
 export function chooseProbes(points: readonly THREE.Vector3[], max: number, spacing: number): THREE.Vector3[] {
   if (points.length === 0 || max < 1) return []
@@ -21,7 +22,7 @@ export function chooseProbes(points: readonly THREE.Vector3[], max: number, spac
   let first = points[0]
   for (const p of points) if (p.distanceToSquared(mean) < first.distanceToSquared(mean)) first = p
   const chosen = [first]
-  // Distance de chaque point à la sonde la plus proche, tenue à jour à chaque pose.
+  // Each point's distance to its closest probe, kept up to date on every placement.
   const nearest = points.map((p) => p.distanceToSquared(first))
   while (chosen.length < max) {
     let far = 0
@@ -35,8 +36,8 @@ export function chooseProbes(points: readonly THREE.Vector3[], max: number, spac
 }
 
 /**
- * nearestProbe : l'indice de la sonde qui éclaire une surface de boîte `box`. Distance à la boîte
- * d'abord (une sonde dedans ou contre elle vaut 0), puis au centre pour départager.
+ * nearestProbe: the index of the probe that lights a surface with box `box`. Distance to the box
+ * first (a probe inside or against it scores 0), then to the center as a tiebreaker.
  */
 export function nearestProbe(box: THREE.Box3, probes: readonly THREE.Vector3[]): number {
   const center = box.getCenter(new THREE.Vector3())
@@ -56,9 +57,9 @@ export function nearestProbe(box: THREE.Box3, probes: readonly THREE.Vector3[]):
 }
 
 /**
- * sunAngles : la direction du soleil publiée dans le maillage (axes Halo, vers le soleil) en azimut
- * et élévation de la scène (degrés, convention de `Lighting.setSun`) ; null si elle est absente ou
- * illisible. Les axes three sont (x, z, -y) des axes Halo.
+ * sunAngles: the sun direction published in the mesh (Halo axes, toward the sun) as the scene's
+ * azimuth and elevation (degrees, `Lighting.setSun`'s convention); null if it is absent or
+ * unreadable. three.js axes are Halo's axes as (x, z, -y).
  */
 export function sunAngles(extras: unknown): { azimuth: number; elevation: number } | null {
   const dir = (extras as { levelupSun?: { dir?: unknown } } | null)?.levelupSun?.dir

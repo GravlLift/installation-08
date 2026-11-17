@@ -6,7 +6,7 @@ import { packAtlas, readBakedRegions } from './bakedLight'
 
 const TILE_TEXELS = 64
 
-/** Un texel R11G11B10 : trois flottants 11, 11 et 10 bits (exposant biais 15, sans signe). */
+/** An R11G11B10 texel: three 11-, 11- and 10-bit floats (biased-15 exponent, unsigned). */
 function packed(r: number, g: number, b: number): number {
   const small = (v: number, mantissa: number) => {
     if (v === 0) return 0
@@ -34,7 +34,7 @@ function half(h: number): number {
 }
 
 describe('readBakedRegions', () => {
-  it('lit chaque région et numérote ses sondes à la suite des précédentes', async () => {
+  it("reads each region and numbers its probes following the previous ones", async () => {
     const views = [region([2, 1, 1], () => 1), region([1, 1, 3], () => 1)]
     const parser = { getDependency: async (_: 'bufferView', i: number) => views[i].buffer as ArrayBuffer }
     const extras = {
@@ -51,7 +51,7 @@ describe('readBakedRegions', () => {
     expect(regions?.[1].blend.toArray()).toEqual([0.5, 0.25])
   })
 
-  it('rend null sans sondes ou quand une vue ne tombe pas à la taille de sa grille', async () => {
+  it("returns null without probes, or when a view doesn't match its grid's size", async () => {
     const parser = { getDependency: async () => new Uint32Array(10).buffer as ArrayBuffer }
     expect(await readBakedRegions({}, parser)).toBeNull()
     const extras = { levelupProbes: { tile: 8, regions: [{ min: [0, 0, 0], max: [1, 1, 1], count: [1, 1, 1], priority: 1, blend: [1, 1], irradiance: 0 }] } }
@@ -60,8 +60,8 @@ describe('readBakedRegions', () => {
 })
 
 describe('packAtlas', () => {
-  it('convertit les texels du jeu en demi-flottants et marque les sondes enfouies', async () => {
-    // Sonde 0 : (0,25 ; 1,5 ; 3) ; sonde 1 : enfouie (tout à zéro).
+  it('converts the game texels to half-floats and marks buried probes', async () => {
+    // Probe 0: (0.25, 1.5, 3); probe 1: buried (all zero).
     const texels = region([2, 1, 1], (k) => (k === 0 ? packed(0.25, 1.5, 3) : 0))
     const parser = { getDependency: async () => texels.buffer as ArrayBuffer }
     const extras = { levelupProbes: { tile: 8, regions: [{ min: [0, 0, 0], max: [2, 1, 1], count: [2, 1, 1], priority: 1, blend: [1, 1], irradiance: 0 }] } }

@@ -375,8 +375,8 @@ func gwItemTakeInWindow(b gwPickupBounds, apparUS, tUS uint64) bool {
 // logGroundWeaponItems journalise le calque avec ses dénominateurs.
 func logGroundWeaponItems(ctx context.Context, cov GroundWeaponItemsCoverage) {
 	slog.InfoContext(ctx, "replay: individual ground weapons",
-		"objects", cov.Objects, "published", cov.Published, "auRepos", cov.AtRest,
-		"lacheurNomme", cov.DropperNamed, "prisesRecues", cov.TakesTotal,
-		"ramasseurNomme", cov.PickupLinked,
-		"finPickup", cov.EndPickup, "finVue", cov.EndSeen, "finOuverte", cov.EndOpen)
+		"objects", cov.Objects, "published", cov.Published, "atRest", cov.AtRest,
+		"dropperNamed", cov.DropperNamed, "takesTotal", cov.TakesTotal,
+		"pickupLinked", cov.PickupLinked,
+		"endPickup", cov.EndPickup, "endSeen", cov.EndSeen, "endOpen", cov.EndOpen)
 }

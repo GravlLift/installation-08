@@ -13,6 +13,8 @@
 // que le jeu ne dessine pas a l'ecran (horsPasseVisible : ombre, ou hors du LOD 0) ne sont pas gardees.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -102,29 +104,29 @@ func comptesEtRegions(tag []byte) (ComptesMode, []Region, error) {
 // influences de chaque sommet ; ErrSansModele quand le tag manque ou ne se decode pas.
 func (a *Arsenal) ModeleAPeau(ctx context.Context, mode uint32) (*ModeleAPeau, error) {
 	if g, _, ok := a.geo.Lookup(mode); !ok || g != GroupeMode {
-		return nil, fmt.Errorf("%w : %08x n'est pas un tag %q des modules", ErrSansModele, mode, GroupeMode)
+		return nil, fmt.Errorf("%w: %08x is not a %q tag of the modules", ErrSansModele, mode, GroupeMode)
 	}
 	tag, blob, err := a.geo.ExtractWithResources(mode)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansModele, mode, err)
 	}
 	asset, err := NewRenderModelAsset(tag, blob)
 	if err != nil {
-		return nil, fmt.Errorf("%w : %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: %08x: %w", ErrSansModele, mode, err)
 	}
 	out := &ModeleAPeau{Maillage: &MaillageMonde{}}
 	var regions []Region
 	if out.Comptes, regions, err = comptesEtRegions(tag); err != nil {
-		return nil, fmt.Errorf("%w : comptes du %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: counts of %08x: %w", ErrSansModele, mode, err)
 	}
 	if out.Noeuds, err = ModeNodes(tag); err != nil {
-		return nil, fmt.Errorf("%w : squelette du %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: skeleton of %08x: %w", ErrSansModele, mode, err)
 	}
 	for _, n := range out.Noeuds {
 		out.Noms = append(out.Noms, NomDuNoeud(n.Name))
 	}
 	if out.Armure, err = armureParDefaut(ctx, a.geo, mode); err != nil {
-		return nil, fmt.Errorf("%w : armure par defaut du %08x : %w", ErrSansModele, mode, err)
+		return nil, fmt.Errorf("%w: default armor of %08x: %w", ErrSansModele, mode, err)
 	}
 	for _, r := range regions {
 		if _, ok := permutationDeLaRegion(r, out.Armure.Variante); ok {
@@ -134,13 +136,13 @@ func (a *Arsenal) ModeleAPeau(ctx context.Context, mode uint32) (*ModeleAPeau, e
 	sel := lisModelePose(asset, GroupeMode, out.Armure.Variante)
 	out.collecte(ctx, asset, &sel)
 	if out.Maillage.Structure.Triangles() == 0 {
-		return nil, fmt.Errorf("%w : %08x sans triangle visible", ErrSansModele, mode)
+		return nil, fmt.Errorf("%w: %08x without a visible triangle", ErrSansModele, mode)
 	}
 	out.Maillage.lisMateriaux(a.mats, a.geo)
 	out.Maillage.resoutTextures(ctx, a.geo)
 	out.ShadersInconnus = shadersHorsSurfaceDure(ctx, out.Maillage.Materiaux)
 	lo, hi, _ := out.Maillage.Structure.Borne()
-	slog.InfoContext(ctx, "modele a peau lu", "id", fmt.Sprintf("%08x", mode), "noeuds", len(out.Noeuds),
+	slog.InfoContext(ctx, "skinned model read", "id", fmt.Sprintf("%08x", mode), "nodes", len(out.Noeuds),
 		"variante", fmt.Sprintf("%08x", out.Armure.NomVariante), "hlmt", fmt.Sprintf("%08x", out.Armure.Modele),
 		"permutations", out.PermutationsRetenues, "sections", out.SectionsDessinees, "ombre", out.SectionsOmbre,
 		"illisibles", out.SectionsIllisibles, "triangles", out.Maillage.Structure.Triangles(),
@@ -162,10 +164,10 @@ func (m *ModeleAPeau) collecte(ctx context.Context, asset *RuntimeGeoAsset, sel 
 		mesh := asset.Mesh(k)
 		inf, err := asset.PeauDeSection(k, len(m.Noeuds))
 		if err == nil && (mesh == nil || len(inf) != len(mesh.Vertices)) {
-			err = fmt.Errorf("%w : section %d, maillage illisible ou de taille differente", ErrPeauIllisible, k)
+			err = fmt.Errorf("%w: section %d, unreadable mesh or different size", ErrPeauIllisible, k)
 		}
 		if err != nil {
-			slog.WarnContext(ctx, "section du modele a peau sautee", "section", k, "err", err)
+			slog.WarnContext(ctx, "skinned model section skipped", "section", k, "err", err)
 			m.SectionsIllisibles++
 			continue
 		}
@@ -187,7 +189,7 @@ func shadersHorsSurfaceDure(ctx context.Context, mats map[uint32]Materiau) map[u
 		}
 	}
 	for s, n := range out {
-		slog.InfoContext(ctx, "shader sans rendu de surface dure : materiaux gris neutre", "shader", fmt.Sprintf("%08x", s), "materiaux", n)
+		slog.InfoContext(ctx, "shader without hard-surface rendering: neutral gray materials", "shader", fmt.Sprintf("%08x", s), "materials", n)
 	}
 	return out
 }

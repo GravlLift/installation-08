@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * outlineShaders3d.ts — LES NUANCEURS DU CONTOUR D'ÉQUIPE (`outline3d`).
+ * outlineShaders3d.ts — THE TEAM OUTLINE'S SHADERS (`outline3d`).
  *
- * Le contour est en rayons X : il traverse la carte, comme dans le théâtre du jeu. Aucun des deux
- * nuanceurs ne lit la profondeur de la scène ; un joueur caché par un mur est tracé tout de même.
+ * The outline is X-ray: it sees through the map, as in the game's theater. Neither shader reads
+ * the scene's depth; a player hidden behind a wall is still traced.
  *
- * Le masque est une cible à demi-résolution, lue en filtrage linéaire : chaque texel couvert porte
- * (allié, adverse, éclat, profondeur du joueur), un texel vide (0, 0, 0, 0). Lu entre les texels, il
- * donne une couverture douce (allié + adverse) dont la ligne de niveau 0,5 est le bord de la
- * silhouette, et des moyennes pondérées par la couverture (éclat / couverture, profondeur /
- * couverture). La ligne se mesure depuis ce bord au demi-pixel près : elle sort lisse, pas en
- * escalier, et garde son épaisseur à l'écran.
+ * The mask is a half-resolution target, read with linear filtering: every covered texel carries
+ * (ally, enemy, flare, player depth), an empty texel (0, 0, 0, 0). Read between texels, it gives
+ * a soft coverage (ally + enemy) whose 0.5 level line is the silhouette's edge, and coverage-weighted
+ * averages (flare / coverage, depth / coverage). The line is measured from that edge to the half
+ * pixel: it comes out smooth, not stair-stepped, and keeps its thickness on screen.
  */
 
-/** La couleur de l'éclat tire vers le blanc, d'autant au plus fort. */
+/** The flare's color pulls toward white, more so at full strength. */
 const FLARE_WHITE = 0.45
-/** Directions et anneaux échantillonnés autour d'un pixel (le pas suit l'épaisseur au plus fort). */
+/** Directions and rings sampled around a pixel (the step follows the thickness at full strength). */
 const DIRS = 12
 const RINGS = 5
 
@@ -38,7 +37,7 @@ void main() {
   vDepth = -mvPosition.z;
 }`
 
-/** Le joueur au masque : son camp, son éclat, sa profondeur ; le masque le garde, même caché. */
+/** The player in the mask: their side, their flare, their depth; the mask keeps them even hidden. */
 export const SUBJECT_FRAGMENT = /* glsl */ `
 uniform vec3 uSide;
 varying float vDepth;
@@ -47,11 +46,11 @@ void main() {
 }`
 
 /**
- * La ligne, à pleine résolution, par-dessus l'image (en rayons X, un mur devant ne l'arrête pas).
- * Hors de la silhouette : dans chaque direction, le premier échantillon couvert donne le bord
- * (interpolé entre lui et le précédent) et la portée du joueur (épaisseur + éclat) ; la direction
- * la plus couvrante l'emporte. Dans la silhouette, le bord intérieur de la ligne s'efface sur
- * `uSoft` : il couvre l'escalier du corps sans le mordre.
+ * The line, at full resolution, over the image (X-ray: a wall in front does not stop it). Outside
+ * the silhouette: in each direction, the first covered sample gives the edge (interpolated
+ * between it and the previous one) and the player's reach (thickness + flare); the most covering
+ * direction wins. Inside the silhouette, the line's inner edge fades out over `uSoft`: it covers
+ * the body's stair-stepping without biting into it.
  */
 export const LINE_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
@@ -75,7 +74,7 @@ void main() {
   vec4 here = texture2D(tMask, vUv);
   float c0 = here.r + here.g;
   if (c0 >= 0.5) {
-    // La couverture monte de 0 à 1 sur un texel du masque (uMaskPx pixels).
+    // Coverage rises from 0 to 1 over one mask texel (uMaskPx pixels).
     float inside = (c0 - 0.5) * uMaskPx;
     float a = clamp(1.0 - inside / uSoft, 0.0, 1.0);
     if (a > 0.0) gl_FragColor = vec4(mix(base.rgb, inkOf(here), a), base.a);

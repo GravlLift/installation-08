@@ -8,8 +8,8 @@ import { BrasPieces3d, lierPiece, planBras, type BrasIndex, type BrasPiece } fro
 
 vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
 
-function indexPieces(pieces: BrasPiece[], defaut: Record<string, string>): BrasIndex {
-  return { schema: 2, skeleton: { bones: ['a', 'b'] }, pieces, default: defaut, failures: [] }
+function indexPieces(pieces: BrasPiece[], defaults: Record<string, string>): BrasIndex {
+  return { schema: 2, skeleton: { bones: ['a', 'b'] }, pieces, default: defaults, failures: [] }
 }
 
 function piece(key: string, region: string, permutation: string): BrasPiece {
@@ -25,7 +25,7 @@ describe('planBras', () => {
     expect(nyexc.player.regions.find((r) => r.region_key === '3f91af6a')?.source).toBe('prosthetic_left_arm')
   })
 
-  it(`choisit la permutation du joueur quand la piece existe`, () => {
+  it(`selects the player's permutation when the piece exists`, () => {
     const idx = indexPieces(
       [piece('r1-p1', 'r1', 'p1'), piece('r1-d', 'r1', 'd')],
       { r1: 'd' },
@@ -35,7 +35,7 @@ describe('planBras', () => {
     expect(plan.map((p) => p.key)).toEqual(['r1-p1'])
   })
 
-  it(`tombant sur la permutation par defaut quand celle du joueur n existe pas`, () => {
+  it(`falls back to the default permutation when the player's does not exist`, () => {
     const idx = indexPieces(
       [piece('r1-p1', 'r1', 'p1'), piece('r1-d', 'r1', 'd')],
       { r1: 'd' },
@@ -45,7 +45,7 @@ describe('planBras', () => {
     expect(plan.map((p) => p.key)).toEqual(['r1-d'])
   })
 
-  it(`saute une region quand ni la piece du joueur ni le defaut n existent`, () => {
+  it(`skips a region when neither the player's piece nor the default exists`, () => {
     const idx = indexPieces(
       [piece('r2-d', 'r2', 'd')],
       { r1: 'x', r2: 'd' },
@@ -55,7 +55,7 @@ describe('planBras', () => {
     expect(plan.map((p) => p.region)).toEqual(['r2'])
   })
 
-  it(`rend le jeu par defaut quand regions est null`, () => {
+  it(`gives the default set when regions is null`, () => {
     const idx = indexPieces(
       [piece('r1-d', 'r1', 'd'), piece('r2-d', 'r2', 'd')],
       { r1: 'd', r2: 'd' },
@@ -64,7 +64,7 @@ describe('planBras', () => {
     expect(plan.map((p) => p.key).sort()).toEqual(['r1-d', 'r2-d'])
   })
 
-  it(`ignore les regions hors de l index`, () => {
+  it(`ignores regions outside the index`, () => {
     const idx = indexPieces(
       [piece('r1-d', 'r1', 'd')],
       { r1: 'd' },
@@ -78,14 +78,14 @@ describe('planBras', () => {
 describe('lierPiece', () => {
   function pieceTest(boneNames: string[]): THREE.Object3D {
     const scene = new THREE.Group()
-    const os = boneNames.map((n) => { const b = new THREE.Bone(); b.name = n; return b })
-    scene.add(...os)
+    const bones = boneNames.map((n) => { const b = new THREE.Bone(); b.name = n; return b })
+    scene.add(...bones)
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0, 1,0,0, 0,1,0]), 3))
     const mat = new THREE.MeshStandardMaterial()
     mat.userData.surfaceBrute = {}
     const mesh = new THREE.SkinnedMesh(geo, mat)
-    const skel = new THREE.Skeleton(os)
+    const skel = new THREE.Skeleton(bones)
     mesh.bind(skel)
     scene.add(mesh)
     return scene
@@ -97,20 +97,20 @@ describe('lierPiece', () => {
     return scene
   }
 
-  it(`relient les os de la piece a ceux du rig dans lordre de la piece`, () => {
+  it(`binds the piece's bones to the rig's in the piece's order`, () => {
     const pieceScene = pieceTest(['a', 'b'])
     const rig = rigTest(['b', 'x', 'a'])
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const result = lierPiece(pieceScene, rig)
     expect(result).toHaveLength(1)
-    const osRig = result[0].skeleton.bones
-    expect(osRig[0].name).toBe('a')
-    expect(osRig[1].name).toBe('b')
-    expect(osRig[0]).toBe(rig.getObjectByName('a'))
-    expect(osRig[1]).toBe(rig.getObjectByName('b'))
+    const rigBones = result[0].skeleton.bones
+    expect(rigBones[0].name).toBe('a')
+    expect(rigBones[1].name).toBe('b')
+    expect(rigBones[0]).toBe(rig.getObjectByName('a'))
+    expect(rigBones[1]).toBe(rig.getObjectByName('b'))
   })
 
-  it(`sautent le maillage quand un os est manquant dans le rig`, () => {
+  it(`skips the mesh when a bone is missing from the rig`, () => {
     const pieceScene = pieceTest(['a', 'b'])
     const rig = rigTest(['x'])
     vi.spyOn(console, 'warn').mockImplementation(() => {})

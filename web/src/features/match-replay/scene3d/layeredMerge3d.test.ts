@@ -11,14 +11,14 @@ import { GLOW_TEXEL, ROW_TEXELS } from './layeredPlan3d'
 import { tightenBounds } from './mapModel'
 import { probeSurface, tagSurface } from './surfaceProbe3d'
 
-/** Quatre textures : couleur 4x4, normale 4x4, masque 4x4, dégradé 8x8. */
+/** Four textures: color 4x4, normal 4x4, mask 4x4, glow 8x8. */
 function textures(): THREE.Texture[] {
   return [4, 4, 4, 8].map((size) => new THREE.Texture({ width: size, height: size } as unknown as HTMLImageElement))
 }
 
 /**
- * Deux surfaces d'un nœud sur un même tampon de quatre sommets, qui se partagent les sommets 1 et 2,
- * et une vitre sans couches sur le même tampon.
+ * Two surfaces of a node on the same four-vertex buffer, which share vertices 1 and 2, and a
+ * layer-less glass pane on the same buffer.
  */
 async function scene() {
   const maps = textures()
@@ -53,7 +53,7 @@ async function scene() {
 }
 
 describe('convertLayered', () => {
-  it('pose un matériau fusionné, une ligne par composition, et dédouble les sommets partagés', async () => {
+  it('places a merged material, one row per composition, and duplicates shared vertices', async () => {
     const { maps, a, b, glass, owned } = await scene()
     const disposed = new Set<THREE.Texture>()
     for (const t of maps) t.addEventListener('dispose', () => disposed.add(t))
@@ -64,20 +64,20 @@ describe('convertLayered', () => {
     expect(isMergedMaterial(a.material)).toBe(true)
     expect(owned).toEqual([glass.material, a.material])
     expect(disposed).toEqual(new Set(maps))
-    // Le tampon prolongé sert les trois surfaces ; les sommets 1 et 2 ont une copie pour la ligne de b.
+    // The extended buffer serves the three surfaces; vertices 1 and 2 have a copy for b's row.
     const position = a.geometry.getAttribute('position')
     expect([position.count, b.geometry.getAttribute('position'), glass.geometry.getAttribute('position')]).toEqual([6, position, position])
     expect(Array.from(a.geometry.getAttribute('cRow').array)).toEqual([0, 0, 0, 1, 1, 1])
     expect(Array.from(b.geometry.index!.array)).toEqual([4, 5, 3])
     expect([position.getX(4), position.getY(4), position.getX(5), position.getY(5)]).toEqual([-1, 1, 1, -1])
-    // b n'a pas de masque : il lit le jeu de masque de a, pour partager son matériau.
+    // b has no mask: it reads a's mask set, to share its material.
     expect(b.geometry.getAttribute('cMacro')).toBe(a.geometry.getAttribute('cMacro'))
-    // La lumière propre de b est dans sa ligne (force comprise), pas dans le matériau.
+    // b's own light is in its row (intensity included), not in the material.
     const params = merge!.atlas.params.image.data as unknown as Float32Array
     expect(Array.from(params.slice((ROW_TEXELS + GLOW_TEXEL) * 4, (ROW_TEXELS + GLOW_TEXEL) * 4 + 4))).toEqual([2, 1, 0, 0])
   })
 
-  it('remplace les cartes du shader par des tableaux lus à la ligne du sommet', async () => {
+  it("replaces the shader's maps with arrays read at the vertex's row", async () => {
     const { a, b, glass, owned } = await scene()
     convertLayered([a, b], [a, b, glass], owned)
     const shader = {
@@ -95,14 +95,14 @@ describe('convertLayered', () => {
 })
 
 describe('batchLayered', () => {
-  it('dessine en un maillage les surfaces de même matériau ; l’inspecteur nomme toujours la surface', async () => {
+  it('draws same-material surfaces as a single mesh; the inspector still names the surface', async () => {
     const { a, b, glass, root, owned } = await scene()
     const merge = convertLayered([a, b], [a, b, glass], owned)!
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     const release = batchLayered(merge, [a, b, glass], tightenBounds)
     expect(info).toHaveBeenCalledTimes(1)
     info.mockRestore()
-    const drawn = root.children.filter((o) => o.name === 'carte-fusion') as THREE.Mesh[]
+    const drawn = root.children.filter((o) => o.name === 'merged-map') as THREE.Mesh[]
     expect(drawn).toHaveLength(1)
     expect(Array.from(drawn[0].geometry.index!.array)).toEqual([0, 1, 2, 4, 5, 3])
     expect(drawn[0].material).toBe(a.material)
@@ -117,6 +117,6 @@ describe('batchLayered', () => {
     expect(probeSurface([root], camera, new THREE.Vector2(0.05, -0.1))?.material).toBe('mat_a')
 
     release()
-    expect(root.children.some((o) => o.name === 'carte-fusion')).toBe(false)
+    expect(root.children.some((o) => o.name === 'merged-map')).toBe(false)
   })
 })

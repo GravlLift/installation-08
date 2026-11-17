@@ -9,7 +9,7 @@ import { PeintureRig3d } from './peintureRig3d'
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0))
 
-/** Un matériau de bras peint (masques bruts et style) sur un maillage de la racine du rig. */
+/** A paintable arm material (raw masks and style) on a mesh of the rig's root. */
 function brasRig(): { root: THREE.Group; materiau: THREE.MeshStandardMaterial } {
   const materiau = new THREE.MeshStandardMaterial()
   materiau.userData.surfaceBrute = {}
@@ -20,7 +20,7 @@ function brasRig(): { root: THREE.Group; materiau: THREE.MeshStandardMaterial } 
   return { root, materiau }
 }
 
-/** Le revêtement d'un matériau, sans texture (masques nuls). */
+/** A material's coating, with no texture (null masks). */
 function coatDe(materiau: THREE.Material): Coat {
   const peinture = {
     maps: { asg: null, mask0: null, mask1: null },
@@ -30,7 +30,7 @@ function coatDe(materiau: THREE.Material): Coat {
   return new Map([[materiau, peinture]])
 }
 
-/** L'armurerie du joueur : l'habit et le calcul de la peinture (une promesse par appel). */
+/** The player's armory: the outfit and the paint computation (one promise per call). */
 function armurerieDe(habit: Dress | null) {
   let resoudreIntérieur: (coat: Coat | null) => void = () => {}
   const peindreBras = vi.fn(() => new Promise<Coat | null>((r) => { resoudreIntérieur = r }))
@@ -58,7 +58,7 @@ function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation
 describe('PeintureRig3d', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('garde chaque copie, invalide un seul rig et restaure les deux au changement', () => {
+  it('keeps each copy, invalidates only one rig, and restores both on a player change', () => {
     const a = brasRig(), b = brasRig()
     const armurerie = armurerieDe({} as Dress)
     const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
@@ -86,7 +86,7 @@ describe('PeintureRig3d', () => {
     expect((b.root.children[0] as THREE.Mesh).material).toBe(b.materiau)
   })
 
-  it('refuse un revêtement préparé qui ne couvre pas les pièces du rig', async () => {
+  it('rejects a prepared coating that does not cover the rig\'s pieces', async () => {
     const a = brasRig(), piece = brasRig(), b = brasRig()
     a.root.add(piece.root.children[0])
     const armurerie = armurerieDe({} as Dress)
@@ -103,7 +103,7 @@ describe('PeintureRig3d', () => {
     expect(peinture.materiauSource((a.root.children[1] as THREE.Mesh).material as THREE.Material)).toBe(piece.materiau)
   })
 
-  it('abandonne une peinture invalidée sans interrompre un autre rig', async () => {
+  it('abandons an invalidated paint without interrupting another rig', async () => {
     const a = brasRig(), b = brasRig(), piece = brasRig()
     const attente: Array<(coat: Coat | null) => void> = []
     const armurerie = { dress: () => habit, peindreBras: () => new Promise<Coat | null>((r) => attente.push(r)) } as unknown as SpartanArmory
@@ -166,7 +166,7 @@ describe('PeintureRig3d', () => {
     peinture.changerJoueur()
   })
 
-  it('pose le revêtement préparé sans attente, et garde le couple (fichier, habit)', () => {
+  it('applies the prepared coating with no wait, and keeps the (file, outfit) pair', () => {
     const { root, materiau } = brasRig()
     const armurerie = armurerieDe({} as Dress)
     const peinture = peintureDe(root, armurerie.armurerie, preparationDe(coatDe(materiau)))
@@ -181,7 +181,7 @@ describe('PeintureRig3d', () => {
     expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
   })
 
-  it('ne peint rien sans habit, et reste en attente de la peinture en fond', () => {
+  it('paints nothing with no outfit, and stays waiting on the background paint', () => {
     const { root, materiau } = brasRig()
     const sans = peintureDe(root, armurerieDe(null).armurerie, preparationDe(null))
     sans.actualiser('rig1', root)
@@ -196,7 +196,7 @@ describe('PeintureRig3d', () => {
     expect(armurerie.peindreBras).toHaveBeenCalledTimes(1)
   })
 
-  it('pose la peinture en fond à son arrivée, abandonnée si le joueur change avant', async () => {
+  it('applies the background paint on arrival, abandoned if the player changes first', async () => {
     const { root, materiau } = brasRig()
     const armurerie = armurerieDe({} as Dress)
     const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
@@ -217,7 +217,7 @@ describe('PeintureRig3d', () => {
     expect((retard.root.children[0] as THREE.Mesh).material).toBe(retard.materiau)
   })
 
-  it('ne rejette pas un revêtement calculé sur un rig déjà habillé quand la pièce arrive en retard', async () => {
+  it('does not reject a coating computed on an already-dressed rig when a piece lands late', async () => {
     // The arm piece lands while the coat is still computing: `invalider` drops the in-flight coat,
     // `actualiser` recomputes it once on the dressed rig. Before the fix the fresh coat was
     // discarded because the rig was already registered as computed (enCours false), so the arms
@@ -247,7 +247,7 @@ describe('PeintureRig3d', () => {
     expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.materiau)
   })
 
-  it('garde le revêtement posé sur un rig pendant que la peinture de la nouvelle tenue se calcule', async () => {
+  it('keeps the applied coating on a rig while the new outfit\'s paint is computed', async () => {
     // A weapon switch to an unpainted rig computes its coat in the background: the LAST coat is
     // never replaced by a pending compute (the scene shows the rig painted, never gun-only), and
     // the new coat lands when it arrives.
@@ -270,7 +270,7 @@ describe('PeintureRig3d', () => {
     peinture.changerJoueur()
   })
 
-  it('abandonne un revêtement préparé devenu obsolète au prochain actualiser', async () => {
+  it('abandons a prepared coating that became stale, on the next actualiser', async () => {
     // The prepared coat was computed on the undressed rig, so it does NOT include the piece's
     // material (which arrived since). The coat is therefore a subset of the rig's paintable
     // materials: `actualiser` must drop it and recalculate on the dressed rig.
@@ -296,7 +296,7 @@ describe('PeintureRig3d', () => {
     expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.materiau)
   })
 
-  it('invalider force un repeintage au prochain actualiser', async () => {
+  it('invalider forces a repaint on the next actualiser', async () => {
     const { root, materiau } = brasRig()
     const armurerie = armurerieDe({} as Dress)
     const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))

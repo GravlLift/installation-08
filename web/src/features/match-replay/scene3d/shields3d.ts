@@ -1,54 +1,54 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * shields3d.ts — LE BOUCLIER D'UN JOUEUR, lu dans sa piste pour les effets du corps.
+ * shields3d.ts — A PLAYER'S SHIELD, read from their track for the body's effects.
  *
- * Le document publie, par point de piste, la fraction de bouclier (`Point.sh`, 0..1, bornée à 1 :
- * un surbouclier ne s'y distingue pas). Le film ne la réplique QU'AU CHANGEMENT : une baisse est
- * un coup encaissé, un passage à zéro une rupture, une suite de hausses image après image une
- * recharge (mesuré sur 512155b9 : 962 baisses dont 235 ruptures, hausses de 0,047 par image).
+ * The document publishes, per track point, the shield fraction (`Point.sh`, 0..1, capped at 1:
+ * an overshield isn't distinguishable there). The film only replicates it ON CHANGE: a drop is a
+ * hit taken, a drop to zero a break, a run of frame-by-frame rises a recharge (measured on
+ * 512155b9: 962 drops including 235 breaks, rises of 0.047 per frame).
  *
- * Les effets sont une FONCTION DE L'IMAGE : l'éclat décroît avec le temps écoulé depuis la
- * dernière baisse publiée avant l'image, la rupture avec le temps depuis le dernier passage à zéro,
- * la recharge vaut tant que deux mesures voisines de l'image montent. Rien ne s'accumule : avancer,
- * reculer ou sauter rend la même valeur à la même image.
+ * The effects are a FUNCTION OF THE FRAME: the hit's glow decays with time elapsed since the last
+ * drop published before the frame, the break with time since the last drop to zero, recharge
+ * holds as long as two neighboring measurements around the frame rise. Nothing accumulates:
+ * stepping forward, back, or jumping gives the same value at the same frame.
  */
 
-/** Les mesures de bouclier d'une vie, triées par image (seulement les points qui en portent). */
+/** A life's shield measurements, sorted by frame (only the points that carry one). */
 export interface ShieldSamples {
   t: number[]
   v: number[]
 }
 
-/** Ce que le corps montre du bouclier à une image. */
+/** What the body shows of the shield at a frame. */
 export interface ShieldFx {
-  /** L'éclat d'un coup encaissé (0..1), plus fort pour une grosse baisse, décroissant. */
+  /** The glow of a hit taken (0..1), stronger for a bigger drop, decaying. */
   hit: number
-  /** La rupture (0..1) : 1 à l'instant où le bouclier tombe à zéro, puis décroissante. */
+  /** The break (0..1): 1 at the instant the shield hits zero, then decaying. */
   broke: number
-  /** Le temps (s) depuis la rupture, -1 sans rupture en cours : l'éclatement s'étend avec lui. */
+  /** Time (s) since the break, -1 with no break in progress: the flash grows with it. */
   breakAge: number
-  /** La recharge (0 ou 1) : le bouclier remonte autour de l'image. */
+  /** The recharge (0 or 1): the shield is rising around the frame. */
   recharge: number
-  /** Le temps (s) depuis le début de la remontée en cours, -1 hors recharge. */
+  /** Time (s) since the start of the current rise, -1 outside a recharge. */
   rechargeAge: number
 }
 
-/** Durée de l'éclat d'un coup (s) : un tir soutenu le tient allumé, il s'éteint après le dernier. */
+/** Duration of a hit's glow (s): sustained fire keeps it lit, it fades after the last one. */
 export const HIT_SECONDS = 0.4
-/** Durée de l'éclatement d'une rupture (s) : un éclair bref. */
+/** Duration of a break's flash (s): a brief spark. */
 export const BREAK_SECONDS = 0.25
-// En deçà, une différence de mesure n'est pas un changement (arrondi de publication).
+// Below this, a difference between measurements isn't a change (publishing rounds).
 const EPS = 0.005
-// Deux mesures montantes à plus de tant d'images l'une de l'autre ne font pas une recharge : le film
-// réplique la recharge à chaque image (mesuré), un écart plus long est un trou de réplication.
+// Two rising measurements more than this many frames apart aren't a recharge: the film replicates
+// the recharge every frame (measured), a longer gap is a replication gap.
 const RECHARGE_GAP_FRAMES = 2
-// L'éclat d'une baisse : un plancher, plus la part de la baisse (0,25 = un coup de BR fait ~0,9).
+// A drop's glow: a floor, plus a share of the drop (0.25 = a BR shot gives ~0.9).
 const HIT_FLOOR = 0.4
 const HIT_PER_DROP = 2
 
 export const NO_SHIELD_FX: Readonly<ShieldFx> = Object.freeze({ hit: 0, broke: 0, breakAge: -1, recharge: 0, rechargeAge: -1 })
 
-/** lastAtOrBefore : le rang de la dernière mesure à l'image `f` ou avant, -1 s'il n'y en a pas. */
+/** lastAtOrBefore: the index of the last measurement at frame `f` or before, -1 if there is none. */
 function lastAtOrBefore(t: readonly number[], f: number): number {
   let lo = 0
   let hi = t.length
@@ -61,8 +61,8 @@ function lastAtOrBefore(t: readonly number[], f: number): number {
 }
 
 /**
- * shieldFxAt : ce que le corps montre du bouclier à l'image `f` (fractionnaire), `fps` images par
- * seconde. `out` reçoit le résultat (aucune allocation par image) et est rendu.
+ * shieldFxAt: what the body shows of the shield at frame `f` (fractional), `fps` frames per
+ * second. `out` receives the result (no per-frame allocation) and is returned.
  */
 export function shieldFxAt(s: ShieldSamples, f: number, fps: number, out: ShieldFx): ShieldFx {
   Object.assign(out, NO_SHIELD_FX)
@@ -85,7 +85,7 @@ export function shieldFxAt(s: ShieldSamples, f: number, fps: number, out: Shield
   }
   out.recharge = rising(t, v, k, k + 1) || (f - t[k] <= RECHARGE_GAP_FRAMES && rising(t, v, k - 1, k)) ? 1 : 0
   if (out.recharge > 0) {
-    // Le début de la remontée : la première mesure de la suite montante qui mène à l'image.
+    // The rise's start: the first measurement of the rising run that leads to the frame.
     let start = k
     while (rising(t, v, start - 1, start)) start--
     out.rechargeAge = Math.max(0, (f - t[start]) / fps)
@@ -93,12 +93,12 @@ export function shieldFxAt(s: ShieldSamples, f: number, fps: number, out: Shield
   return out
 }
 
-/** rising : la mesure `b` suit `a` de près et monte. */
+/** rising: measurement `b` closely follows `a` and rises. */
 function rising(t: readonly number[], v: readonly number[], a: number, b: number): boolean {
   return a >= 0 && b < t.length && t[b] - t[a] <= RECHARGE_GAP_FRAMES && v[b] > v[a] + EPS
 }
 
-/** shieldSamplesOf : les mesures de bouclier des points d'une piste (ceux qui en portent). */
+/** shieldSamplesOf: the shield measurements of a track's points (those that carry one). */
 export function shieldSamplesOf(points: readonly { t: number; sh?: number }[]): ShieldSamples {
   const out: ShieldSamples = { t: [], v: [] }
   for (const p of points) {

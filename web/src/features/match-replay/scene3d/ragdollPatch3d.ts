@@ -1,39 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollPatch3d.ts — LE MORCEAU DE CARTE OÙ TOMBE UN CORPS : les triangles de la carte autour de
- * la mort, rangés dans une grille, et les contacts d'une sphère (une particule du corps inerte,
- * `ragdollSolver3d`) avec eux.
+ * ragdollPatch3d.ts — THE MAP CHUNK A BODY FALLS INTO: the map's triangles around the death,
+ * stored in a grid, and a sphere's contacts (a ragdoll particle, `ragdollSolver3d`) with them.
  *
- * La carte entière (des millions de triangles, une primitive par matériau qui couvre toute la carte)
- * n'est jamais parcourue : les triangles d'une boîte autour du corps sont lus dans l'index de lancer
- * de rayons que la carte porte déjà (`three-mesh-bvh`, `mapModel.indexSurfaces`), une fois par boîte,
- * puis rangés dans une grille régulière. Les contacts : point le plus proche de chaque triangle des
- * cases que la sphère touche, poussée hors du triangle du côté d'où vient la particule ; un pas plus
- * long que le rayon est d'abord balayé (segment contre triangles) pour ne pas traverser un mur fin.
+ * The whole map (millions of triangles, one primitive per material covering the entire map) is
+ * never walked: the triangles of a box around the body are read from the raycast index the map
+ * already carries (`three-mesh-bvh`, `mapModel.indexSurfaces`), once per box, then stored in a
+ * regular grid. Contacts: the closest point of each triangle in the cells the sphere touches,
+ * pushed out of the triangle on the side the particle came from; a step longer than the radius is
+ * swept first (segment against triangles) so it does not pass through a thin wall.
  *
- * Tout est déterministe : même boîte, mêmes triangles dans le même ordre, mêmes contacts.
+ * Everything is deterministic: same box, same triangles in the same order, same contacts.
  */
 import * as THREE from 'three'
 import type { MeshBVH } from 'three-mesh-bvh'
 
 import { surfaceFamily } from './surfaceProbe3d'
 
-/** Ce qui sait rendre les triangles (axes three, 9 nombres par triangle) qui touchent une boîte. */
+/** Something that can return the triangles (three axes, 9 numbers per triangle) touching a box. */
 export interface TriangleSource {
   trianglesIn(box: THREE.Box3): Float32Array
 }
 
-/** La taille d'une case de la grille (u). */
+/** A grid cell's size (u). */
 const CELL = 0.1
 const EPS = 1e-9
-/** Les plans de contact d'une particule au plus (`TrianglePatch.contacts`). */
+/** A particle's contact planes at most (`TrianglePatch.contacts`). */
 export const MAX_CONTACTS = 4
 
 export class TrianglePatch {
   readonly box: THREE.Box3
   readonly count: number
   private readonly tris: Float32Array
-  /** La boîte englobante de chaque triangle : min x y z, max x y z. */
+  /** Each triangle's bounding box: min x y z, max x y z. */
   private readonly bounds: Float32Array
   private readonly mx: number
   private readonly my: number
@@ -73,14 +72,14 @@ export class TrianglePatch {
     }
     const n = this.nx * this.ny * this.nz
     this.start = new Int32Array(n + 1)
-    // Deux passes : compter par case, puis ranger (ordre des triangles conservé dans chaque case).
+    // Two passes: count per cell, then store (triangle order kept within each cell).
     this.eachCell(null)
     for (let i = 0; i < n; i++) this.start[i + 1] += this.start[i]
     this.items = new Int32Array(this.start[n])
     this.eachCell(this.start.slice(0, n))
   }
 
-  /** inside : le point (x, y, z) est-il dans la boîte rétrécie de `margin` ? */
+  /** inside: is point (x, y, z) within the box shrunk by `margin`? */
   inside(x: number, y: number, z: number, margin: number): boolean {
     const b = this.box
     return x > b.min.x + margin && x < b.max.x - margin && y > b.min.y + margin && y < b.max.y - margin &&
@@ -88,13 +87,13 @@ export class TrianglePatch {
   }
 
   /**
-   * contacts écrit dans `out` (6 nombres par plan : point, normale) les plans de contact de la sphère
-   * de centre `p[o..o+2]` : un par triangle à moins de `reach` de son centre, au plus `max`, les plus
-   * proches d'abord. La normale va du triangle vers le côté de `prev` (la place d'avant). Avec
-   * `anchor` (le centre du corps, aux premiers pas seulement), une place d'avant qui n'était pas
-   * nettement écartée de la surface (à moins du rayon `r`) ne décide pas : le côté du centre du corps
-   * décide, et une particule qui part déjà sous une surface (pieds du film un peu sous un sol) est
-   * remontée, pas poussée à travers. Rend le nombre de plans.
+   * contacts writes into `out` (6 numbers per plane: point, normal) the contact planes of the
+   * sphere centered at `p[o..o+2]`: one per triangle within `reach` of its center, at most `max`,
+   * closest first. The normal points from the triangle toward `prev`'s side (the previous
+   * position). With `anchor` (the body's center, first steps only), a previous position that was
+   * not clearly off the surface (within radius `r`) does not decide: the body center's side
+   * decides, and a particle that already starts under a surface (the film's feet slightly under a
+   * floor) is pulled back up, not pushed through. Returns the number of planes.
    */
   contacts(p: Float64Array, o: number, r: number, reach: number, prev: Float64Array, anchor: readonly number[] | null, out: Float64Array, max: number): number {
     let n = 0
@@ -107,7 +106,7 @@ export class TrianglePatch {
       const cx = this.c[0], cy = this.c[1], cz = this.c[2]
       let nx = px - cx, ny = py - cy, nz = pz - cz
       const d = Math.sqrt(nx * nx + ny * ny + nz * nz)
-      // `!(d < reach)` écarte aussi un triangle dégénéré (point NaN).
+      // `!(d < reach)` also rejects a degenerate triangle (NaN point).
       if (!(d < reach) || (n >= max && d >= dists[max - 1])) continue
       if (d < 1e-6) {
         triangleNormal(this.tris, 9 * t, this.c)
@@ -128,7 +127,7 @@ export class TrianglePatch {
         ny = -ny
         nz = -nz
       }
-      // Rangé par distance croissante ; au-delà de `max`, le plus lointain tombe.
+      // Stored by increasing distance; past `max`, the furthest drops out.
       let k = Math.min(n, max - 1)
       while (k > 0 && dists[k - 1] > d) {
         out.copyWithin(6 * k, 6 * (k - 1), 6 * k)
@@ -148,8 +147,9 @@ export class TrianglePatch {
   }
 
   /**
-   * sweep : le premier triangle que coupe le segment de `prev` à `p` (une particule rapide) ; la
-   * particule est ramenée au point d'impact, à `r` du triangle du côté de `prev`. Rend vrai si coupé.
+   * sweep: the first triangle the segment from `prev` to `p` crosses (a fast particle); the
+   * particle is brought back to the impact point, `r` from the triangle on `prev`'s side. Returns
+   * true if it crossed one.
    */
   sweep(p: Float64Array, o: number, r: number, prev: Float64Array): boolean {
     const ax = prev[o], ay = prev[o + 1], az = prev[o + 2]
@@ -175,8 +175,8 @@ export class TrianglePatch {
   }
 
   /**
-   * gather range dans `cand` les triangles (une fois chacun) des cases que touche la boîte donnée et
-   * dont la boîte englobante la touche ; rend leur nombre.
+   * gather stores in `cand` the triangles (once each) of the cells the given box touches whose
+   * bounding box also touches it; returns their count.
    */
   private gather(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): number {
     const i0 = Math.max(0, Math.floor((x0 - this.mx) / CELL)), i1 = Math.min(this.nx - 1, Math.floor((x1 - this.mx) / CELL))
@@ -213,7 +213,7 @@ export class TrianglePatch {
     return n
   }
 
-  /** eachCell : sans `fill`, compte les triangles de chaque case (dans `start`) ; avec, les y range. */
+  /** eachCell: without `fill`, counts each cell's triangles (into `start`); with it, stores them there. */
   private eachCell(fill: Int32Array | null): void {
     const bd = this.bounds
     const clampCell = (v: number, m: number, n: number) => Math.min(n - 1, Math.max(0, Math.floor((v - m) / CELL)))
@@ -239,7 +239,7 @@ function cells(size: number): number {
   return Math.max(1, Math.ceil(size / CELL))
 }
 
-/** triangleNormal écrit dans `out` la normale unitaire du triangle à l'indice `o` (nulle s'il est plat). */
+/** triangleNormal writes into `out` the unit normal of the triangle at index `o` (zero if it is flat). */
 function triangleNormal(tr: Float32Array, o: number, out: Float64Array): void {
   const ux = tr[o + 3] - tr[o]
   const uy = tr[o + 4] - tr[o + 1]
@@ -257,15 +257,15 @@ function triangleNormal(tr: Float32Array, o: number, out: Float64Array): void {
 }
 
 /**
- * closestOnTriangle écrit dans `out` le point du triangle (indice `o`) le plus proche de (px, py, pz)
- * (Ericson, « Real-Time Collision Detection », 5.1.5 : régions de Voronoï des sommets et des arêtes).
+ * closestOnTriangle writes into `out` the point of the triangle (index `o`) closest to (px, py, pz)
+ * (Ericson, "Real-Time Collision Detection", 5.1.5: Voronoi regions of vertices and edges).
  */
 export function closestOnTriangle(tr: Float32Array, o: number, px: number, py: number, pz: number, out: Float64Array): void {
   const ax = tr[o], ay = tr[o + 1], az = tr[o + 2]
   const abx = tr[o + 3] - ax, aby = tr[o + 4] - ay, abz = tr[o + 5] - az
   const acx = tr[o + 6] - ax, acy = tr[o + 7] - ay, acz = tr[o + 8] - az
   const apx = px - ax, apy = py - ay, apz = pz - az
-  // Coordonnées (u, v) du point le plus proche sur a + u·ab + v·ac, par région.
+  // Coordinates (u, v) of the closest point on a + u·ab + v·ac, by region.
   let u = 0
   let v = 0
   const d1 = abx * apx + aby * apy + abz * apz
@@ -280,7 +280,7 @@ export function closestOnTriangle(tr: Float32Array, o: number, px: number, py: n
   const vb = d5 * d2 - d1 * d6
   const va = d3 * d6 - d5 * d4
   if (d1 <= 0 && d2 <= 0) {
-    // sommet a
+    // vertex a
   } else if (d3 >= 0 && d4 <= d3) {
     u = 1
   } else if (vc <= 0 && d1 >= 0 && d3 <= 0) {
@@ -303,8 +303,8 @@ export function closestOnTriangle(tr: Float32Array, o: number, px: number, py: n
 }
 
 /**
- * segmentTriangle : la fraction (0 à 1) du segment a + u·d où il coupe le triangle (indice `o`),
- * -1 s'il ne le coupe pas (Möller-Trumbore, des deux côtés).
+ * segmentTriangle: the fraction (0 to 1) of segment a + u·d where it crosses the triangle (index
+ * `o`), -1 if it does not cross it (Möller-Trumbore, both sides).
  */
 export function segmentTriangle(tr: Float32Array, o: number, ax: number, ay: number, az: number, dx: number, dy: number, dz: number): number {
   const e1x = tr[o + 3] - tr[o], e1y = tr[o + 4] - tr[o + 1], e1z = tr[o + 5] - tr[o + 2]
@@ -324,9 +324,9 @@ export function segmentTriangle(tr: Float32Array, o: number, ax: number, ay: num
 }
 
 /**
- * MeshTriangleSource : les triangles des surfaces de la carte (`Ground.surfaces`) qui touchent une
- * boîte, lus dans l'index de chaque maillage (`geometry.boundsTree`) ; un maillage sans index est
- * ignoré. Le test triangle-boîte est celui des boîtes englobantes (conservatif, rapide).
+ * MeshTriangleSource: the triangles of the map's surfaces (`Ground.surfaces`) that touch a box,
+ * read from each mesh's index (`geometry.boundsTree`); a mesh with no index is skipped. The
+ * triangle-box test is the bounding-box one (conservative, fast).
  */
 export class MeshTriangleSource implements TriangleSource {
   private readonly meshes: THREE.Mesh[]
@@ -334,15 +334,15 @@ export class MeshTriangleSource implements TriangleSource {
   private readonly inv = new THREE.Matrix4()
   private readonly v = new THREE.Vector3()
 
-  /** `surfaces` : les maillages qui arrêtent un corps (`bodySurfaces`) ; ceux sans index en reçoivent un. */
+  /** `surfaces`: the meshes that stop a body (`bodySurfaces`); ones with no index get one. */
   constructor(surfaces: readonly THREE.Mesh[]) {
     for (const m of surfaces) if (!m.geometry.boundsTree) m.geometry.computeBoundsTree()
     this.meshes = [...surfaces]
   }
 
   /**
-   * trianglesIn : les triangles qui touchent `box`, lus par plages de feuilles de l'index (l'index des
-   * sommets de la géométrie est rangé par l'index de rayons : le triangle t est `index[3t..3t+2]`).
+   * trianglesIn: the triangles touching `box`, read in leaf ranges of the index (the geometry's
+   * vertex index is ordered by the raycast index: triangle t is `index[3t..3t+2]`).
    */
   trianglesIn(box: THREE.Box3): Float32Array {
     this.n = 0
@@ -370,7 +370,7 @@ export class MeshTriangleSource implements TriangleSource {
   private out = new Float32Array(9 * 4096)
   private n = 0
 
-  /** keep range le triangle (a, b, c) de `pos` s'il touche `lb` (boîtes englobantes), dans le monde. */
+  /** keep stores triangle (a, b, c) of `pos` if it touches `lb` (bounding boxes), in world space. */
   private keep(pos: THREE.BufferAttribute, a: number, b: number, c: number, lb: THREE.Box3, world: THREE.Matrix4 | null): void {
     const ax = pos.getX(a), ay = pos.getY(a), az = pos.getZ(a)
     const bx = pos.getX(b), by = pos.getY(b), bz = pos.getZ(b)
@@ -400,14 +400,14 @@ export class MeshTriangleSource implements TriangleSource {
   }
 }
 
-/** Les familles de la vue qui arrêtent un corps : la structure, le décor (des sols en sont), les vitres. */
+/** The view's families that stop a body: structure, decor (some floors are decor), see-through glass. */
 const BODY_FAMILIES: ReadonlySet<string> = new Set(['structure', 'decor', 'seeThrough'])
 
 /**
- * bodySurfaces : les maillages qui arrêtent un corps inerte : ceux du sol (`ground`, la structure de la
- * carte et du calque posé), plus le décor et les vitres des mêmes modèles (le sol de certaines aires
- * est du décor, que le sol des calques ne lit pas). Les nœuds cachés (`ombre*`) ne portent pas
- * d'étiquette de famille et restent dehors.
+ * bodySurfaces: the meshes that stop a ragdoll: the floor's own (`ground`, the map's structure and
+ * the placed layer), plus decor and see-through glass of the same models (some areas' floor is
+ * decor, which the layers' floor does not read). Hidden nodes (`ombre*`) carry no family label and
+ * stay out.
  */
 export function bodySurfaces(ground: readonly THREE.Object3D[]): THREE.Mesh[] {
   const roots = new Set<THREE.Object3D>()

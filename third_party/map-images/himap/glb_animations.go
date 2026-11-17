@@ -15,6 +15,8 @@
 //	             film et n'a besoin du deplacement que pour accorder la cadence a la vitesse
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -118,16 +120,16 @@ func ajouteAnimations(doc *gltfDoc, bin *tamponGLB, base int, m *ModeleAPeau, cl
 	for _, c := range clips {
 		switch {
 		case c.Nom == "" || vus[c.Nom]:
-			return fmt.Errorf("animation au nom vide ou en double : %q", c.Nom)
+			return fmt.Errorf("animation with an empty or duplicate name: %q", c.Nom)
 		case c.Clip == nil || c.Clip.Images < 1:
-			return fmt.Errorf("animation %q sans image", c.Nom)
+			return fmt.Errorf("animation %q without a frame", c.Nom)
 		case len(c.Clip.Os) != len(m.Noeuds):
-			return fmt.Errorf("animation %q : %d pistes pour %d os", c.Nom, len(c.Clip.Os), len(m.Noeuds))
+			return fmt.Errorf("animation %q: %d tracks for %d bones", c.Nom, len(c.Clip.Os), len(m.Noeuds))
 		}
 		vus[c.Nom] = true
 		a, err := animationGLTF(doc, bin, base, c)
 		if err != nil {
-			return fmt.Errorf("animation %q : %w", c.Nom, err)
+			return fmt.Errorf("animation %q: %w", c.Nom, err)
 		}
 		doc.Animations = append(doc.Animations, a)
 	}
@@ -189,7 +191,7 @@ func animationGLTF(doc *gltfDoc, bin *tamponGLB, base int, c ClipGLB) (gltfAnima
 		}
 	}
 	if len(e.a.Channels) == 0 {
-		return gltfAnimation{}, fmt.Errorf("aucune piste")
+		return gltfAnimation{}, fmt.Errorf("no track")
 	}
 	return e.a, nil
 }
@@ -210,7 +212,7 @@ func (e *ecrivainAnimation) canal(noeud int, chemin string, cles, sortieAcc int)
 		}
 		entree = e.tempsAnime
 	default:
-		return fmt.Errorf("piste %s du noeud %d : %d cles pour %d images", chemin, noeud, cles, e.images)
+		return fmt.Errorf("track %s of node %d: %d keys for %d frames", chemin, noeud, cles, e.images)
 	}
 	e.a.Samplers = append(e.a.Samplers, gltfEchantillonneur{Input: entree, Output: sortieAcc, Interpolation: interpolationLin})
 	e.a.Channels = append(e.a.Channels, gltfCanal{Sampler: len(e.a.Samplers) - 1, Target: gltfCible{Node: noeud, Path: chemin}})

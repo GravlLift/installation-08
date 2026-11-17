@@ -30,7 +30,7 @@ func (a *assemblage) poserGrappinEtPoses() {
 		slog.InfoContext(a.ctx, "replay: grapple tugs",
 			"shots", grapCov.LightReads, "heavies", grapCov.HeavyReads,
 			"pulls", grapCov.Pulls, "lives", grapCov.PullLives,
-			"missed", grapCov.UnpairedFires, "corpsCasses", grapCov.BrokenBodies)
+			"missed", grapCov.UnpairedFires, "brokenBodies", grapCov.BrokenBodies)
 	case len(a.opt.GrappleReads) > 0:
 		slog.WarnContext(a.ctx, "replay: grapple readings without map bounds — no tug published",
 			"reads", len(a.opt.GrappleReads))
@@ -66,7 +66,7 @@ func (a *assemblage) poserPrisesEtSocles() {
 	slog.InfoContext(a.ctx, "replay: weapon pickups and drops",
 		"decoded", wcCov.Decoded, "published", wcCov.Published,
 		"pickups", wcCov.Taken, "drops", wcCov.Dropped, "swapped", wcCov.Swapped,
-		"reannounced", wcCov.Restated, "avantOrigine", wcCov.BeforeOrigin)
+		"reannounced", wcCov.Restated, "beforeOrigin", wcCov.BeforeOrigin)
 	// LES RAMASSAGES NATIFS, dates a la milliseconde et ATTRIBUES par le pont slot -> joueur
 	// deja construit ci-dessus. Publies AVANT les socles : `attachWeaponPads` s'en sert pour
 	// dater les occupations de socle qui restaient en intervalle de vingt secondes.
@@ -81,12 +81,12 @@ func (a *assemblage) poserPrisesEtSocles() {
 	slog.InfoContext(a.ctx, "replay: native pickups",
 		"decoded", pkCov.Decoded, "published", pkCov.Published, "named", pkCov.Named,
 		"weapons", pkCov.Weapons, "objects", pkCov.Items,
-		"origineSocle", pkCov.OriginSpawner, "origineSol", pkCov.OriginGround,
-		"origineInconnue", pkCov.OriginUnknown, "etatPoints", pkCov.SpawnPointsState,
-		"pointsCatalogue", pkCov.MapCatalogPoints,
-		"socleParNature", pkCov.SpawnerByPointKind,
-		"famillesInconnues", pkCov.UnknownFamilies,
-		"avantOrigine", pkCov.BeforeOrigin, "listesMultiples", pkCov.MultiEvent,
+		"originSpawner", pkCov.OriginSpawner, "originGround", pkCov.OriginGround,
+		"originUnknown", pkCov.OriginUnknown, "spawnPointsState", pkCov.SpawnPointsState,
+		"mapCatalogPoints", pkCov.MapCatalogPoints,
+		"spawnerByPointKind", pkCov.SpawnerByPointKind,
+		"unknownFamilies", pkCov.UnknownFamilies,
+		"beforeOrigin", pkCov.BeforeOrigin, "multiEvent", pkCov.MultiEvent,
 		"refused", pkCov.Refused)
 	// Les SOCLES — armes au sol ET power-ups —, sur le meme nuage NON decime (build_ground_weapons.go).
 	a.gwObjs = attachWeaponPads(a.ctx, &a.doc, a.opt.Pads, a.sorted,
@@ -105,8 +105,8 @@ func (a *assemblage) poserPrisesEtSocles() {
 	a.doc.Coverage.PadDating = &padDating
 	slog.InfoContext(a.ctx, "replay: dating of pad occupations",
 		"occupations", padDating.Occupations, "dated", padDating.Dated, "named", padDating.Named,
-		"premieresDuCycle", padDating.FirstOfCycle,
-		"ambiguous", padDating.Ambiguous, "nonCouvertes", padDating.Uncovered)
+		"firstOfCycle", padDating.FirstOfCycle,
+		"ambiguous", padDating.Ambiguous, "uncovered", padDating.Uncovered)
 }
 
 // releverLesSocles releve les socles d arme hors de l emprise jouee au lieu ou leurs armes sont prises
@@ -123,7 +123,7 @@ func (a *assemblage) releverLesSocles(judge *pickupOriginJudge) {
 	}, cov)
 	a.opt.Fallbacks.DeclencheN(fallback.NomSocleHorsEmpriseAuLieuDesPrises, n)
 	slog.InfoContext(a.ctx, "replay: weapon pads outside the played footprint",
-		"horsEmprise", cov.HorsEmprise, "readings", cov.Releves, "plusieursLieux", cov.PlusieursLieux)
+		"outOfBounds", cov.HorsEmprise, "readings", cov.Releves, "multipleLocations", cov.PlusieursLieux)
 }
 
 // poserArmesAuSolEtVehicules publie les armes au sol objet par objet, les vehicules, et la
@@ -214,9 +214,9 @@ func (a *assemblage) poserObjectifsVivants() {
 	// (cf. bomb_stats_document.go).
 	attachBombStats(a.ctx, &a.doc, a.opt, a.reg, bombCarry)
 	slog.InfoContext(a.ctx, "replay: active equipment episodes",
-		"viesPubliees", a.doc.Coverage.Equipment.TracksTotal,
-		"viesCamo", a.doc.Coverage.Equipment.CamoLives,
-		"episodesCamo", a.doc.Coverage.Equipment.CamoEpisodes,
-		"viesSurbouclier", a.doc.Coverage.Equipment.OvershieldLives,
-		"episodesSurbouclier", a.doc.Coverage.Equipment.OvershieldEpisodes)
+		"publishedLives", a.doc.Coverage.Equipment.TracksTotal,
+		"camoLives", a.doc.Coverage.Equipment.CamoLives,
+		"camoEpisodes", a.doc.Coverage.Equipment.CamoEpisodes,
+		"overshieldLives", a.doc.Coverage.Equipment.OvershieldLives,
+		"overshieldEpisodes", a.doc.Coverage.Equipment.OvershieldEpisodes)
 }

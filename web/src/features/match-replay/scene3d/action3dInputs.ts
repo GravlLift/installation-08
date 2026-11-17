@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * action3dInputs.ts — CE QUE LA PAGE DONNE À LA 3D POUR DESSINER L'ACTION.
+ * action3dInputs.ts — WHAT THE PAGE HANDS TO THE 3D VIEW TO DRAW THE ACTION.
  *
- * Les listes que le canvas 2D a déjà cuites (tirs, kills du fil recalés), les objectifs de la
- * carte, les encres du thème, les interrupteurs du tiroir et les résolutions d'identité par image :
- * la 3D n'en recalcule aucune, elle n'y ajoute que la hauteur. Les interrupteurs du tiroir valent
- * pour les deux vues : masquer les tirs les masque partout.
+ * The lists the 2D canvas has already baked (shots, thread-aligned kills), the map's objectives,
+ * the theme's inks, the drawer's toggles, and the per-frame identity resolvers: the 3D view
+ * recomputes none of them, it only adds height. The drawer's toggles apply to both views:
+ * hiding shots hides them everywhere.
  *
- * Ce module ne porte que des types : le paquet de la page n'embarque pas three.js pour autant.
+ * This module carries only types: the page's bundle does not pull in three.js because of it.
  */
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 
@@ -18,7 +18,7 @@ import type { ReplayKill } from '../model/killFeedLogic'
 import type { ShotFxEntry } from '../model/shotFx'
 import type { Aids3d } from './aids3d'
 
-/** Les interrupteurs du tiroir que la 3D suit. */
+/** The drawer's toggles that the 3D view follows. */
 export interface Action3dShow {
   shots: boolean
   kills: boolean
@@ -28,11 +28,11 @@ export interface Action3dShow {
   groundWeaponsStarting: boolean
   placements: boolean
   vehicles: boolean
-  /** Objectifs du mode et état des zones. */
+  /** Mode objectives and zone state. */
   objectives: boolean
   /**
-   * Les objets portés, chacun sous son interrupteur (comme la 2D). Pas le crâne : son porteur le
-   * tient en main (arme `weap` des prises en main), sans marqueur au-dessus de la tête.
+   * Carried objects, each under its own toggle (as in 2D). Not the skull: its carrier holds it
+   * in hand (the `weap` grip-handling weapon), with no marker above the head.
    */
   flags: boolean
   vipCrown: boolean
@@ -43,31 +43,31 @@ export interface Action3dInputs {
   shotFx: readonly ShotFxEntry[]
   kills: readonly ReplayKill[]
   mapObjectives: readonly ObjectiveElementReady[]
-  /** Allié ou adverse, lu dans le film depuis le point de vue de la page (couleurs des zones). */
+  /** Ally or enemy, read from the film from the page's own viewpoint (zone colors). */
   allegiance: Pick<FilmAllegiance, 'ofTeam' | 'ofXuid'>
   /**
-   * Allié ou adverse vu du joueur de la PAGE (celui de l'adresse), quel que soit le point de vue
-   * suivi : le contour d'équipe et l'éclat du bouclier en prennent la couleur.
+   * Ally or enemy as seen by the PAGE's player (the one at this address), regardless of which
+   * viewpoint is being followed: the team outline and the shield glow take their color from it.
    */
   pageAllegiance: Pick<FilmAllegiance, 'ofXuid'>
   inks: ReplayInks
   show: Action3dShow
-  /** Rémanence d'un tir, en images (la même que l'éclair de la 2D). */
+  /** How long a shot lingers, in frames (the same value as the 2D flash). */
   shotHoldFrames: number
-  /** Cadence native du document : les durées propres à la 3D (vol d'une balle) s'y convertissent. */
+  /** The document's native frame rate: 3D-specific durations (a bullet's flight) convert from it. */
   framesPerSecond: number
-  /** Rémanence d'une mort, en images (la même que la croix de la 2D). */
+  /** How long a death lingers, in frames (the same value as the 2D cross). */
   deathHoldFrames: number
   colorOfSlot: (slot: number, frame: number) => string | null
   colorOfXuid: (xuid: string) => string | null
   nameOfSlot: (slot: number, frame: number) => string | null
   nameOfXuid: (xuid: string) => string | null
-  /** La règle du pion : un joueur qui ne tient plus de fiche (bot relevé) n'a pas de position. */
+  /** The pawn rule: a player no longer holding a sheet (a bot that was relieved) has no position. */
   seatedOfXuid: (xuid: string, frame: number) => boolean
   locale: ReplayLocale
-  /** Les repères d'analyse du tiroir 3D (`aids3d`), éteints par défaut ; la vue 3D les pose. */
+  /** The 3D drawer's analysis aids (`aids3d`), off by default; the 3D view sets them. */
   aids: Aids3d
 }
 
-/** Ce que la page cuit pour la 3D : tout sauf les repères d'analyse, que la vue 3D lit elle-même. */
+/** What the page bakes for the 3D view: everything except the analysis aids, which the 3D view reads itself. */
 export type PageAction3dInputs = Omit<Action3dInputs, 'aids'>

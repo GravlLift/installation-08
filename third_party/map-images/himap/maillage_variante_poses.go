@@ -10,6 +10,8 @@
 // material per triangle, same tint rule.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"cmp"
 	"fmt"
@@ -275,7 +277,7 @@ func (m *MaillageMonde) resoutMateriauxPoses(opts OptionsCuisson, idxGeo *Module
 	}
 	idx, err := NewModuleIndex(append(chemins, opts.modulesCarteDeportee()...)...)
 	if err != nil {
-		return fmt.Errorf("index des modules de materiaux : %w", err)
+		return fmt.Errorf("material module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	m.Materiaux, m.MateriauxIllisibles = LitMateriaux(idx, idxGeo, m.Poses.idsSources())

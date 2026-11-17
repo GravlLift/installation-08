@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** replayCamera3d.test.ts — vérifie les états suivis et la hauteur mesurée sur le sol. */
+/** replayCamera3d.test.ts — checks the tracked states and the height measured on the floor. */
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
@@ -7,7 +7,7 @@ import type { MapModel } from './mapModel'
 import type { Tracks3d } from './tracks3d'
 
 describe('ReplayCamera3d', () => {
-  it('choisit la vie courante, la dernière vie ou la première apparition', () => {
+  it('picks the current life, the last life, or the first spawn', () => {
     const point = { x: 0, y: 0, z: 1, h: 0, p: 0, crouch: false, slot: 1 }
     const tracks = {
       sample: (_xuid: string, frame: number) => frame === 2 ? point : null,
@@ -20,7 +20,7 @@ describe('ReplayCamera3d', () => {
     expect(placement.povState(3)).toEqual({ state: point, status: 'dead' })
   })
 
-  it('mesure la médiane des hauteurs sur les surfaces de la carte', () => {
+  it('measures the median of the heights over the map\'s surfaces', () => {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicMaterial())
     floor.rotation.x = -Math.PI / 2
     floor.updateMatrixWorld()

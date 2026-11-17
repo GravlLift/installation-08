@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * avatar3d.ts — LE JOUEUR DANS LA SCÈNE 3D : le Spartan du jeu à la teinte de son équipe
- * (`spartan3d`, posé par `pose3d`), une capsule à sa couleur tant que le modèle n'est pas chargé, un
- * cône de visée, et son étiquette (son nom). La scène (`ReplayScene3d`) les pose à
- * chaque image.
+ * avatar3d.ts — THE PLAYER IN THE 3D SCENE: the game's Spartan tinted to their team
+ * (`spartan3d`, posed by `pose3d`), a capsule in their color while the model is not loaded, an
+ * aim cone, and their tag (their name). The scene (`ReplayScene3d`) poses them
+ * every frame.
  *
- * Le Spartan porte une coque d'énergie (`bodyShell3d`) : le bouclier qui encaisse, rompt ou se
- * recharge, le surbouclier et le contour du camouflage s'y dessinent, à l'état que la scène lui donne
- * à chaque image (`showBodyFx`) ; sous le camouflage, l'armure elle-même s'efface.
+ * The Spartan wears an energy shell (`bodyShell3d`): the shield that takes hits, breaks or
+ * recharges, the overshield and the camo outline are drawn on it, at the state the scene gives it
+ * every frame (`showBodyFx`); under camo, the armor itself fades out.
  *
- * L'arme en main est le modèle du jeu quand il est chargé (`weaponModels3d`), sinon une barre à la
- * teinte de ses tirs. En 3e personne, le modèle est porté par la main droite du Spartan (os
- * `b_r_grip`) comme le jeu l'y attache (`GRIP_TO_WEAPON`) : les clips tiennent l'arme des deux mains,
- * le tangage du buste la lève avec eux. En 1re personne et sans Spartan, l'arme est portée par le cône.
- * Au tir, l'arme recule (`recoil3d`, posé par `recoilPose3d`) : en 3e personne avec les deux bras.
- * Le modèle est peint du revêtement de l'arme du joueur (`Coat` de `armory3d`) par copies de
- * matériau (`armorMaterial3d`), posées à `showWeapon`, libérées à `releaseWeapon`.
+ * The weapon in hand is the game's model when it is loaded (`weaponModels3d`), otherwise a bar
+ * tinted to its shots. In third person, the model is carried by the Spartan's right hand (bone
+ * `b_r_grip`) the way the game attaches it (`GRIP_TO_WEAPON`): the clips hold the weapon with both
+ * hands, torso pitch lifts it with them. In first person and without a Spartan, the weapon is
+ * carried by the cone. On fire, the weapon recoils (`recoil3d`, posed by `recoilPose3d`): in third
+ * person with both arms. The model is painted with the player's weapon coating (`Coat` from
+ * `armory3d`) by material copies (`armorMaterial3d`), applied by `showWeapon`, released by
+ * `releaseWeapon`.
  */
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -37,24 +38,25 @@ import { copySpartan, releaseSpartan, type SpartanCopy } from './spartan3d'
 import { aimDirThree } from './tracks3d'
 import type { ViewGrip } from './viewGrip3d'
 
-// L'arme en main : une barre au bout de la visée, un peu à droite et sous l'œil (u, repère du cône,
-// dont le Z suit la visée : sa droite est son -X).
+// The weapon in hand: a bar at the end of the aim cone, slightly right and under the eye (in the
+// cone's own frame, whose Z follows the aim: its right is its -X).
 const GUN_SIZE = new THREE.Vector3(0.045, 0.06, 0.32)
 const GUN_OFFSET = new THREE.Vector3(-0.07, -0.05, 0.16)
-// Le modèle du jeu sans Spartan : sa poignée (son origine) dans la main, devant la poitrine, un peu
-// à droite ; la crosse touche le corps (rayon 0,12 u) et le canon (X du modèle) suit la visée (Z du cône).
+// The game's model without a Spartan: its grip (its origin) in the hand, in front of the chest,
+// slightly right; the stock touches the body (radius 0.12 u) and the barrel (model X) follows the
+// aim (cone Z).
 const MODEL_GRIP = new THREE.Vector3(-0.06, -0.12, 0.17)
 export const MODEL_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0))
 const BARREL = new THREE.Vector3(0, 0, 1)
 /**
- * Le canon et le haut du modèle d'arme dans le repère de l'os `b_r_grip`, mesurés sur l'attente au
- * fusil du GLB (`combat:rifle:idle`, image 0 : le fusil vise droit devant, sans dévers) ; au long des
- * clips de visée au fusil le canon ainsi porté reste à 1,3° de l'avant du modèle, la main gauche à
- * 0,113 u devant la poignée le long du canon.
+ * The barrel and top of the weapon model in the `b_r_grip` bone's frame, measured on the GLB's
+ * rifle idle pose (`combat:rifle:idle`, frame 0: the rifle aims straight ahead, no cant); across the
+ * rifle aim clips the barrel carried this way stays within 1.3° of the model's forward, the left hand
+ * 0.113 u ahead of the grip along the barrel.
  */
 const GRIP_BARREL = new THREE.Vector3(0.101, -0.171, -0.98).normalize()
 const GRIP_UP = new THREE.Vector3(0.146, 0.977, -0.155)
-/** GRIP_TO_WEAPON : l'orientation du modèle d'arme (X canon, Y haut) dans le repère de `b_r_grip`. */
+/** GRIP_TO_WEAPON: the weapon model's orientation (X barrel, Y up) in the `b_r_grip` frame. */
 export const GRIP_TO_WEAPON = gripToWeapon(GRIP_BARREL, GRIP_UP)
 
 function gripToWeapon(barrel: THREE.Vector3, up: THREE.Vector3): THREE.Quaternion {
@@ -62,7 +64,7 @@ function gripToWeapon(barrel: THREE.Vector3, up: THREE.Vector3): THREE.Quaternio
   const z = barrel.clone().cross(y)
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(barrel, y, z))
 }
-// Sous le camouflage entier, l'armure garde cette opacité : le contour de la coque fait le reste.
+// Fully cloaked, the armor keeps this opacity: the shell's outline does the rest.
 const CAMO_OPACITY = 0.08
 
 export interface Avatar {
@@ -70,40 +72,40 @@ export interface Avatar {
   body: THREE.Mesh
   aim: THREE.Mesh
   gun: THREE.Mesh
-  /** Le modèle du jeu en main (une copie), null sans modèle chargé. */
+  /** The game's model in hand (a copy), null without a loaded model. */
   model: THREE.Object3D | null
-  /** Le modèle dont `model` est la copie. */
+  /** The model `model` is a copy of. */
   modelSource: THREE.Object3D | null
-  /** Les copies de matériau peintes sur `model`, par matériau source, null sans revêtement posé. */
+  /** The material copies painted on `model`, by source material, null without an applied coating. */
   weaponCoat: Map<THREE.Material, THREE.Material> | null
-  /** Le revêtement (`armory3d.coatArme`) dont les copies sont posées sur `model`. */
+  /** The coating (`armory3d.coatArme`) whose copies are applied to `model`. */
   weaponCoatFor: Coat | null
-  /** Le Spartan du joueur (une copie teinte), null sans modèle chargé. */
+  /** The player's Spartan (a tinted copy), null without a loaded model. */
   spartan: SpartanCopy | null
-  /** Le modèle dont `spartan` est la copie (posé même si la copie a échoué : pas de nouvel essai). */
+  /** The model `spartan` is a copy of (set even if the copy failed: no retry). */
   spartanSource: THREE.Object3D | null
-  /** L'habit du joueur que porte `spartan` (`armory3d`), null : l'armure par défaut du modèle. */
+  /** The player's outfit worn by `spartan` (`armory3d`), null: the model's default armor. */
   dress: Dress | null
-  /** La coque d'énergie du Spartan (`bodyShell3d`), null sans Spartan. */
+  /** The Spartan's energy shell (`bodyShell3d`), null without a Spartan. */
   shell: BodyShell | null
   tag: CSS2DObject
   /** `tag`'s opacity as placed by `placeTag` for the last frame; the export paints it (0: hidden). */
   tagOpacity: number
   name: string
   color: string
-  /** La teinte de l'équipe, qui multiplie les couleurs du Spartan. */
+  /** The team tint, which multiplies the Spartan's colors. */
   tint: THREE.Color
-  /** Le mélange de clips du joueur, réécrit à chaque image (`motion3d`). */
+  /** The player's clip mix, rewritten every frame (`motion3d`). */
   mix: ClipMix
 }
 
-/** makeAvatar crée le joueur `name` à la couleur `color` et l'ajoute à `scene`. */
+/** makeAvatar creates player `name` in color `color` and adds it to `scene`. */
 export function makeAvatar(scene: THREE.Scene, name: string, color: THREE.Color): Avatar {
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(BODY_RADIUS, BODY_LENGTH, 4, 12), new THREE.MeshLambertMaterial({ color }))
   const aim = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.2, 10), new THREE.MeshBasicMaterial({ color }))
   aim.geometry.rotateX(Math.PI / 2)
   aim.geometry.translate(0, 0, 0.18)
-  // L'arme suit la visée : elle est portée par le cône, dans son repère.
+  // The weapon follows the aim: it is carried by the cone, in its own frame.
   const gun = new THREE.Mesh(new THREE.BoxGeometry(GUN_SIZE.x, GUN_SIZE.y, GUN_SIZE.z), new THREE.MeshLambertMaterial())
   gun.position.copy(GUN_OFFSET)
   gun.visible = false
@@ -126,10 +128,10 @@ export function makeAvatar(scene: THREE.Scene, name: string, color: THREE.Color)
 }
 
 /**
- * wearSpartan habille le joueur du modèle `source` (une copie, ajoutée à son groupe), portant son
- * habit `dress` quand il est prêt (null : l'armure par défaut du modèle, teinte), ne recopiant qu'au
- * changement de l'un ou de l'autre ; `source` null : la copie est libérée et la capsule revient.
- * `baked` : la lumière cuite de la carte, greffée sur l'armure de la copie.
+ * wearSpartan dresses the player in model `source` (a copy, added to their group), wearing outfit
+ * `dress` once it is ready (null: the model's default armor, tinted), only re-copying when either
+ * one changes; `source` null: the copy is released and the capsule comes back. `baked`: the map's
+ * baked light, grafted onto the copy's armor.
  */
 export function wearSpartan(a: Avatar, source: THREE.Object3D | null, dress: Dress | null = null, baked: BakedLight | null = null): void {
   if (source === a.spartanSource && dress === a.dress) return
@@ -139,13 +141,13 @@ export function wearSpartan(a: Avatar, source: THREE.Object3D | null, dress: Dre
   a.dress = dress
   a.spartan = source ? copySpartan(source, a.tint, dress, baked) : null
   a.shell = a.spartan ? makeShell(a.spartan.rig.root) : null
-  if (source && !a.spartan) console.warn('rejeu 3D : le modèle du Spartan n’a pas les os attendus')
+  if (source && !a.spartan) console.warn('3D replay: the Spartan model does not have the expected bones')
   if (a.spartan) a.group.add(a.spartan.rig.root)
 }
 
 /**
- * showBodyFx pose ce que le corps montre à l'image (null : rien) : la coque d'énergie, et l'armure
- * qui s'efface sous le camouflage.
+ * showBodyFx sets what the body shows this frame (null: nothing): the energy shell, and the armor
+ * fading out under camo.
  */
 export function showBodyFx(a: Avatar, fx: BodyFxState | null): void {
   if (a.shell) showShell(a.shell, fx)
@@ -153,8 +155,8 @@ export function showBodyFx(a: Avatar, fx: BodyFxState | null): void {
 }
 
 /**
- * cloak rend l'armure transparente à la force `camo` du camouflage (opacité `CAMO_OPACITY` au plus
- * fort). Le passage en transparence ne se fait qu'au changement : il recompile le matériau.
+ * cloak makes the armor transparent at camo strength `camo` (opacity `CAMO_OPACITY` at full
+ * strength). The switch to transparent only happens on change: it recompiles the material.
  */
 export function cloak(materials: readonly THREE.Material[], camo: number): void {
   const see = camo > 0
@@ -168,43 +170,42 @@ export function cloak(materials: readonly THREE.Material[], camo: number): void 
   }
 }
 
-/** cloakOpacity : l'opacité de l'armure sous un camouflage de force `camo` (0 visible, 1 entier). */
+/** cloakOpacity: the armor's opacity under camo strength `camo` (0 visible, 1 full). */
 export function cloakOpacity(camo: number): number {
   return 1 - (1 - CAMO_OPACITY) * camo
 }
 
 /**
- * placeBody pose le joueur, pieds en `feet` (axes three) : le groupe et la capsule (écrasée
- * accroupi, `crouch`), le Spartan (cap, clips, tangage), et la visée (de l'œil en 1re personne).
- * `dropOeil` : la descente de l'œil en fondu (unités monde), que seule la visée en 1re personne
- * suit — la pose du corps reste instantanée (`crouch`). `probe` : la sonde d'environnement de la
- * carte au point des pieds, posée sur l'armure du Spartan (`playerProbe3d`).
+ * placeBody places the player, feet at `feet` (three axes): the group and the capsule (squashed
+ * when crouching, `crouch`), the Spartan (pitch, clips, torso), and the aim (from the eye in first
+ * person). `dropOeil`: the eye's drop while fading in (world units), which only the first-person
+ * aim follows — the body pose stays instant (`crouch`). `probe`: the map's environment probe at the
+ * feet point, applied to the Spartan's armor (`playerProbe3d`).
  */
 export function placeBody(a: Avatar, feet: THREE.Vector3, pose: SpartanPose & { crouch: boolean; dropOeil: number }, firstPerson: boolean, probe: THREE.Texture | null = null): void {
   const crouch = pose.crouch ? CROUCH_DROP : 0
   a.group.position.set(feet.x, feet.y + BODY_CENTER - crouch / 2, feet.z)
   a.body.scale.y = 1 - crouch
   if (a.spartan) {
-    // Les pieds du modèle sont son origine ; l'accroupi est porté par les clips.
+    // The model's feet are its origin; crouching is carried by the clips.
     a.spartan.rig.root.position.set(0, crouch / 2 - BODY_CENTER, 0)
     poseSpartan(a.spartan.rig, pose)
   }
   const d = aimDirThree(pose.h, pose.p)
-  // En 1re personne, la visée part de l'œil de la caméra (placeCamera) : l'arme suit le champ, et
-  // l'œil à sa descente en fondu (dropOeil), indépendante de la pose du corps (crouch).
+  // In first person, the aim starts at the camera's eye (placeCamera): the weapon follows the view,
+  // and the eye at its fade-in drop (dropOeil), independent of the body pose (crouch).
   const aimY = firstPerson ? EYE_HEIGHT - (BODY_CENTER - crouch / 2) - pose.dropOeil : AIM_HEIGHT - crouch
   a.aim.position.set(0, aimY, 0)
   a.aim.lookAt(a.group.position.x + d[0], a.group.position.y + aimY + d[1], a.group.position.z + d[2])
-  // L'armure prend l'environnement de la carte là où se tient le joueur (sonde nulle : reflets éteints).
+  // The armor picks up the map's environment where the player is standing (null probe: reflections off).
   if (a.spartan) assignPlayerProbes(a.spartan.materials, probe)
 }
 
 /**
- * showWeapon : l'arme en main (le modèle du jeu `model` s'il est chargé, la barre sinon). `view` :
- * le joueur est la caméra (1re personne), seule son arme se
- * dessine, tenue dans le champ comme `view` le dit (viewGrip3d) ; null sinon. `coat` : le
- * revêtement de l'arme du joueur, peint en copies de matériau sur la copie du modèle ; null
- * s'il n'est pas prêt. Après `placeBody`.
+ * showWeapon: the weapon in hand (the game's `model` if loaded, the bar otherwise). `view`: the
+ * player is the camera (first person), only their weapon is drawn, held in the view the way `view`
+ * says (viewGrip3d); null otherwise. `coat`: the player's weapon coating, painted as material
+ * copies onto the model's copy; null when it is not ready. After `placeBody`.
  */
 export function showWeapon(
   a: Avatar,
@@ -217,10 +218,10 @@ export function showWeapon(
   const spartan = firstPerson ? null : a.spartan
   const holder = spartan ? spartan.rig.rightGrip : a.aim
   const source = held ? model : null
-  if (source !== a.modelSource) detacherRevêtementArme(a)
+  if (source !== a.modelSource) detachWeaponCoat(a)
   holdModel(a, source, holder)
   if (a.model && a.weaponCoatFor !== coat) {
-    detacherRevêtementArme(a)
+    detachWeaponCoat(a)
     a.weaponCoatFor = coat
     a.weaponCoat = coat ? poserRevêtementArme(a.model, coat) : null
   }
@@ -234,8 +235,8 @@ export function showWeapon(
     a.model.position.copy(MODEL_GRIP)
     a.model.quaternion.copy(MODEL_TURN)
   }
-  // Le recul du tir, par-dessus la tenue : les bras le portent en 3e personne (les mains restent sur
-  // l'arme), le modèle seul sinon. La caméra de 1re personne ne bouge pas.
+  // Fire recoil, on top of the pose: the arms carry it in third person (the hands stay on the
+  // weapon), the model alone otherwise. The first-person camera does not move.
   const recoil = held?.recoil
   if (a.model && recoilActive(recoil)) {
     const armed = spartan ? recoilArms(spartan.rig.arms, spartan.rig.rightGrip, GRIP_TO_WEAPON, recoil) : false
@@ -243,14 +244,14 @@ export function showWeapon(
   }
   if (a.spartan) a.spartan.rig.root.visible = !firstPerson
   a.body.visible = !firstPerson && !a.spartan
-  // La barre de repli ne se montre pas en 1re personne : collée à l'œil, elle masque le champ.
+  // The fallback bar does not show in first person: pressed to the eye, it would block the view.
   a.gun.visible = held !== null && a.model === null && !firstPerson
-  // Le Spartan ou le modèle en main dit la visée : le cône (son porteur) ne se dessine plus, ses enfants restent.
+  // The Spartan or the model in hand already shows the aim: the cone (its carrier) no longer draws, its children still do.
   ;(a.aim.material as THREE.Material).visible = a.model === null && !firstPerson && !a.spartan
   if (held) (a.gun.material as THREE.MeshLambertMaterial).color.copy(held.color)
 }
 
-/** Le modèle d'arme dessiné dans la main d'un joueur : la copie posée, et le modèle dont elle est la copie. */
+/** The weapon model drawn in a player's hand: the applied copy, and the model it is a copy of. */
 /** Where an attached projectile's bone is (`ActionContext.attachBone`). */
 export type AttachBone = 'drawn' | 'hidden' | 'none'
 
@@ -278,8 +279,8 @@ export interface DrawnWeapon {
 }
 
 /**
- * drawnWeapon : l'arme que la dernière pose (`showWeapon`) dessine dans la main du joueur `a`, null
- * sans modèle en main ou quand elle ne se dessine pas (joueur caché, à bord en 1re personne).
+ * drawnWeapon: the weapon the last pose (`showWeapon`) draws in player `a`'s hand, null without a
+ * model in hand or when it does not draw (player hidden, carried in first person).
  */
 export function drawnWeapon(a: Avatar | undefined): DrawnWeapon | null {
   if (!a?.model || !a.modelSource) return null
@@ -290,7 +291,7 @@ export function drawnWeapon(a: Avatar | undefined): DrawnWeapon | null {
   return null
 }
 
-/** holdModel met dans `holder` une copie de `model` (null : aucune), en ne recopiant qu'au changement. */
+/** holdModel puts a copy of `model` in `holder` (null: none), only re-copying on change. */
 function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object3D): void {
   if (model !== a.modelSource) {
     a.model?.removeFromParent()
@@ -301,55 +302,55 @@ function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object
 }
 
 /**
- * poserRevêtementArme peint la copie `model` du modèle d'arme du revêtement `coat` : une copie de
- * matériau (`armorMaterial3d`) par matériau source peint, posée sur les maillages ; rend la
- * correspondance source vers copie (vide sans matériau peint).
+ * poserRevêtementArme paints copy `model` of the weapon model with coating `coat`: one material
+ * copy (`armorMaterial3d`) per painted source material, applied to the meshes; returns the source
+ * to copy mapping (empty without a painted material).
  */
 export function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
   const copies = new Map<THREE.Material, THREE.Material>()
   // The energy fields (the sword's blade) glow in the weapon's own emissive swatch (`energyField3d`).
-  const teinte = energyTintOf(coat)
+  const tint = energyTintOf(coat)
   model.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
-    const liste = Array.isArray(o.material) ? o.material : [o.material]
-    const neufs: THREE.Material[] = []
-    for (const m of liste) {
+    const list = Array.isArray(o.material) ? o.material : [o.material]
+    const next: THREE.Material[] = []
+    for (const m of list) {
       const paint = coat.get(m)
-      if (!paint && teinte && isEnergized(m)) {
-        let champ = copies.get(m)
-        if (!champ) { champ = energyCopy(m, teinte); copies.set(m, champ) }
-        neufs.push(champ)
+      if (!paint && tint && isEnergized(m)) {
+        let field = copies.get(m)
+        if (!field) { field = energyCopy(m, tint); copies.set(m, field) }
+        next.push(field)
         continue
       }
-      if (!paint) { neufs.push(m); continue }
-      let copie = copies.get(m)
-      if (!copie) { copie = armorMaterial(m as THREE.MeshStandardMaterial, paint); copies.set(m, copie) }
-      neufs.push(copie)
+      if (!paint) { next.push(m); continue }
+      let copy = copies.get(m)
+      if (!copy) { copy = armorMaterial(m as THREE.MeshStandardMaterial, paint); copies.set(m, copy) }
+      next.push(copy)
     }
-    o.material = Array.isArray(o.material) ? neufs : neufs[0]
+    o.material = Array.isArray(o.material) ? next : next[0]
   })
   return copies
 }
 
-/** detacherRevêtementArme rend aux maillages leurs matériaux source et libère les copies peintes. */
-function detacherRevêtementArme(a: Avatar): void {
+/** detachWeaponCoat returns the meshes to their source materials and releases the painted copies. */
+function detachWeaponCoat(a: Avatar): void {
   if (!a.weaponCoat) return
   const copies = a.weaponCoat
-  // Les copies posées sont les valeurs ; la restauration cherche par copie vers matériau source.
+  // The applied copies are the values; restoring looks up source material by copy.
   const sources = new Map<THREE.Material, THREE.Material>()
   for (const [src, cop] of copies) sources.set(cop, src)
   if (a.model) a.model.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
-    const liste = Array.isArray(o.material) ? o.material : [o.material]
-    const dOrigine = liste.map((m) => sources.get(m) ?? m)
-    o.material = Array.isArray(o.material) ? dOrigine : dOrigine[0]
+    const list = Array.isArray(o.material) ? o.material : [o.material]
+    const original = list.map((m) => sources.get(m) ?? m)
+    o.material = Array.isArray(o.material) ? original : original[0]
   })
   for (const c of copies.values()) c.dispose()
   a.weaponCoat = null
   a.weaponCoatFor = null
 }
 
-/** releaseWeapon libère le revêtement de l'arme du joueur (fin de la scène). */
+/** releaseWeapon releases the player's weapon coating (end of the scene). */
 export function releaseWeapon(a: Avatar): void {
-  detacherRevêtementArme(a)
+  detachWeaponCoat(a)
 }

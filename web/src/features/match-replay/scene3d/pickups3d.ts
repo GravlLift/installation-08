@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * pickups3d.ts — LES SOCLES D'ARME ET LES ARMES AU SOL DANS LA SCÈNE 3D.
+ * pickups3d.ts — WEAPON PADS AND GROUND WEAPONS IN THE 3D SCENE.
  *
- * Aucune règle n'est réécrite ici : la présence, l'état d'un socle, le filtre des armes au sol et
- * la nature d'une arme sont ceux de la vue 2D, appelés tels quels.
+ * No rule is rewritten here: a pad's presence and state, the ground weapon filter, and a
+ * weapon's nature are those of the 2D view, called as they are.
  *  - The pad itself (floor pad, wall rack) is the game's own model, drawn by the variant object
  *    layer (`variantLayer.ts`); this layer draws only the weapon it holds. Full, a weapon box in its
  *    family ink (`padFamilyOf`) floats above the pad and turns slowly; uncertain, the box is a ghost;
@@ -13,24 +13,24 @@
  *    empty states. Every crossed pad stands at its spawner's position, never at a floor ray read at
  *    construction. Without that crossing, a pad above the floor (`padMountOf`) keeps the earlier
  *    fallback: only the game's weapon model is posed, at its height. `window.__it3dPickups` reads
- *    what each pad drew (`debugRows`). Un socle hors des bornes de la carte
- *    (`padOutOfBounds`) n'est pas dessiné du tout. Les socles sont préparés comme en 2D : croisés
- *    avec les emplacements de la carte, datés par les ramassages natifs, puis leur incertitude
- *    ramenée à ce qu'un joueur a pu faire (`useReplayWeaponPads`).
- *  - Le MODÈLE DU JEU de l'arme (`weaponModels3d`) remplace la boîte pleine dès qu'il est chargé.
+ *    what each pad drew (`debugRows`). A pad outside the map's bounds (`padOutOfBounds`) is not
+ *    drawn at all. Pads are prepared as in 2D: crossed with the map's slots, dated by native
+ *    pickups, then their uncertainty brought back to what a player could have done
+ *    (`useReplayWeaponPads`).
+ *  - The weapon's GAME MODEL (`weaponModels3d`) replaces the solid box as soon as it is loaded.
  *    A power-up pad names its item by equipment family (`powerup_camo`); the library resolves the
  *    family to the pickup object's own model (`equipmentKeys3d`), drawn the same way. An
  *    EQUIPMENT pad (`repulsor`, `wall`, `grapple`, `sensor`, `thruster`..., crossed as `equipment`)
  *    is the same: its item floats and turns above the pad while it is there and is gone once
  *    taken. Every floating pad item, weapon or not, turns about the center of its model, over the
  *    pad's center (`centerOffset`).
- *  - Une ARME AU SOL est la même boîte, couchée au sol, à l'encre de sa nature ; dans sa fenêtre de
- *    disparition non datée (`vanishing`), elle passe au lot fantôme (`groundWeaponPresenceAt`). Les
- *    filtres du tiroir (armes spéciales seulement, armes de départ) sont ceux de
+ *  - A GROUND WEAPON is the same box, lying on the ground, in the ink of its nature; in its
+ *    undated vanishing window (`vanishing`), it moves to the ghost pool (`groundWeaponPresenceAt`).
+ *    The drawer's filters (special weapons only, starting weapons) are those of
  *    `useReplayGroundWeapons`.
  *
- * La rotation se déduit de l'image, jamais de l'horloge : l'écran et l'export rendent la même pose.
- * Unités monde Halo (cf. `tracks3d`).
+ * The rotation is derived from the frame, never from the clock: the screen and the export render
+ * the same pose. Halo world units (see `tracks3d`).
  */
 import * as THREE from 'three'
 
@@ -56,21 +56,21 @@ import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 import { poserRevêtementArme } from './avatar3d'
 
-/** La boîte d'arme : longueur, hauteur, largeur (u). */
+/** The weapon box: length, height, width (u). */
 const BOX_LENGTH = 0.5
 const BOX_HEIGHT = 0.08
 const BOX_WIDTH = 0.12
 /** Gap between a floor pad's feet and the underside of the weapon floating above it (u). */
 const PAD_BOX_LIFT = 0.28
-/** Vitesse de rotation de la boîte d'un socle plein (radians par image). */
+/** A full pad's box rotation speed (radians per frame). */
 const PAD_SPIN_PER_FRAME = 0.02
-/** Déphasage d'un socle à l'autre, pour que les boîtes ne tournent pas en bloc (radians). */
+/** Phase offset from one pad to the next, so the boxes don't all turn in lockstep (radians). */
 const PAD_SPIN_PHASE = 0.7
-/** Orientation d'une arme couchée : l'angle d'or, qui disperse les caps sans motif visible. */
+/** A lying weapon's orientation: the golden angle, which scatters headings with no visible pattern. */
 const GROUND_YAW_STEP = Math.PI * (3 - Math.sqrt(5))
 /**
- * Un z publié se recale sur le sol qu'il surplombe de moins que ceci (u) : l'origine d'un objet
- * flotte de quelques centimètres. Au-delà (un râtelier mural), le z publié fait foi.
+ * A published z snaps to the floor it overhangs by less than this (u): an object's origin floats
+ * by a few centimeters. Beyond that (a wall rack), the published z is trusted.
  */
 const FLOOR_SNAP = 0.3
 /**
@@ -84,11 +84,11 @@ const PAD_MOUNT_THRESHOLD = 0.25
  * kit's box is the same 0.25 x 0.17 x 0.46 u on every measured map) plus a small gap.
  */
 const RACK_FACE = 0.073
-/** Un socle au-delà de cette marge hors des bornes de la carte n'est pas dessiné (u). */
+/** A pad past this margin outside the map's bounds is not drawn (u). */
 const PAD_OUT_OF_BOUNDS_MARGIN = 5
-/** Plafond des lots : quelques centaines d'objets au plus. */
+/** Pool cap: a few hundred objects at most. */
 const POOL_CAP = 400
-/** Opacité du lot fantôme (incertain, en disparition). */
+/** Opacity of the ghost pool (uncertain, vanishing). */
 const GHOST_OPACITY = 0.35
 /**
  * Emissive strength of the glow on a floating pad item: a faint self-lit tint in its family ink so
@@ -101,13 +101,13 @@ export const GLOW_EMISSIVE = 0.1
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
 
-/** Les champs du document dont la préparation des socles a besoin. */
+/** The document fields pad preparation needs. */
 export type PadSources = Pick<ReplayDocumentReady, 'weaponPads' | 'mapWeaponPads' | 'padPickups' | 'tracks'>
 
-/** Le catalogue d'armes du document, tel qu'il arrive. */
+/** The document's weapon catalog, as it arrives. */
 type Labels = ReplayDocumentReady['weaponLabels']
 
-/** Les champs du document dont le filtre des armes au sol a besoin. */
+/** The document fields the ground weapon filter needs. */
 export interface GroundSources {
   groundWeapons: readonly ReplayGroundWeapon[]
   weaponLabels?: Labels
@@ -115,9 +115,9 @@ export interface GroundSources {
 }
 
 /**
- * prepareWeaponPads — les socles tels que la 2D les dessine : position croisée avec la carte, puis
- * datation par le ramassage natif, puis raffinement de l'incertitude. L'ordre est celui de
- * `useReplayWeaponPads`. Une passe par document.
+ * prepareWeaponPads — pads the way 2D draws them: position crossed with the map, then dated by
+ * native pickup, then uncertainty refined. The order is `useReplayWeaponPads`'s own. One pass per
+ * document.
  */
 export function prepareWeaponPads(doc: PadSources): readonly ReplayWeaponPadReady[] {
   return refinePadPresence(
@@ -127,16 +127,16 @@ export function prepareWeaponPads(doc: PadSources): readonly ReplayWeaponPadRead
 }
 
 /**
- * pickupFamilyOf — la nature d'une arme, socle ou sol. La clé canonique se lit sous la forme
- * normalisée de l'identifiant (`weaponLabelKeyOf`), idempotente sur celle des socles.
+ * pickupFamilyOf — a weapon's nature, pad or ground. The canonical key is read under the
+ * normalized form of the id (`weaponLabelKeyOf`), idempotent on a pad's own.
  */
 export function pickupFamilyOf(weapon: string, labels: Labels): PadFamily {
   return padFamilyOf(weapon, labels?.[weaponLabelKeyOf(weapon)]?.key)
 }
 
 /**
- * shownGroundWeapons — les armes au sol que les filtres du tiroir gardent, dans l'ordre de
- * `useReplayGroundWeapons` : armes spéciales d'abord, armes de départ ensuite.
+ * shownGroundWeapons — the ground weapons the drawer's filters keep, in `useReplayGroundWeapons`'s
+ * order: special weapons first, starting weapons next.
  */
 export function shownGroundWeapons(
   doc: GroundSources,
@@ -149,16 +149,16 @@ export function shownGroundWeapons(
   return visibleGroundWeapons(candidates, doc.loadouts, includeStarting)
 }
 
-/** Le rendu d'une boîte d'arme à une image : pleine, fantôme, ou absente. */
+/** How a weapon box looks at a frame: solid, ghost, or absent. */
 export type BoxLook = 'solid' | 'ghost' | null
 
-/** padBoxLook — plein : boîte pleine ; incertain : boîte fantôme ; vide : pas de boîte. */
+/** padBoxLook — full: solid box; uncertain: ghost box; empty: no box. */
 export function padBoxLook(state: PadState): BoxLook {
   if (state === 'full') return 'solid'
   return state === 'uncertain' ? 'ghost' : null
 }
 
-/** groundBoxLook — présente : pleine ; en disparition non datée : fantôme ; sinon rien. */
+/** groundBoxLook — present: solid; vanishing undated: ghost; otherwise nothing. */
 export function groundBoxLook(item: ReplayGroundWeapon, frame: number): BoxLook {
   const presence = groundWeaponPresenceAt(item, frame)
   if (!presence) return null
@@ -166,8 +166,9 @@ export function groundBoxLook(item: ReplayGroundWeapon, frame: number): BoxLook 
 }
 
 /**
- * floorUnder — la hauteur three du sol sous un objet. Sans z publié, le premier sol sous le
- * plafond ; avec, le sol sous lui s'il en est assez proche, sinon le z publié lui-même.
+ * floorUnder — the three-space height of the floor under an object. Without a published z, the
+ * first floor under the ceiling; with one, the floor under it if close enough, else the published
+ * z itself.
  */
 export function floorUnder(ground: Pick<Ground, 'floorY'>, x: number, y: number, z: number | undefined): number | null {
   if (z === undefined) return ground.floorY(x, y, null)
@@ -176,9 +177,10 @@ export function floorUnder(ground: Pick<Ground, 'floorY'>, x: number, y: number,
 }
 
 /**
- * padMountOf — un socle est MURAL quand il surplombe le sol sous lui de plus que
- * PAD_MOUNT_THRESHOLD ; sinon il est AU SOL. Sans z publié ni sol connu, il est au sol : un inconnu
- * n'invente pas un râtelier (le sol se lit dans le maillage de la carte, pas dans le document).
+ * padMountOf — a pad is WALL-MOUNTED when it overhangs the floor under it by more than
+ * PAD_MOUNT_THRESHOLD; otherwise it is ON THE FLOOR. Without a published z or a known floor, it is
+ * on the floor: unknown does not invent a rack (the floor is read from the map's mesh, not from
+ * the document).
  */
 export function padMountOf(z: number | undefined, floor: number | null): 'floor' | 'mounted' {
   if (z === undefined || floor === null) return 'floor'
@@ -186,8 +188,8 @@ export function padMountOf(z: number | undefined, floor: number | null): 'floor'
 }
 
 /**
- * padOutOfBounds — un socle est hors jeu, donc non dessiné, s'il dépasse les bornes de la carte de
- * PAD_OUT_OF_BOUNDS_MARGIN en x ou en y. Sans bornes, rien n'est hors jeu.
+ * padOutOfBounds — a pad is out of play, and so not drawn, if it exceeds the map's bounds by
+ * PAD_OUT_OF_BOUNDS_MARGIN in x or y. Without bounds, nothing is out of play.
  */
 export function padOutOfBounds(
   bounds: Pick<ReplayBounds, 'minX' | 'maxX' | 'minY' | 'maxY'> | undefined,
@@ -314,7 +316,7 @@ interface PadDrawn {
   pos: THREE.Vector3 | null
 }
 
-/** Un socle cuit : sa donnée, sa nature, son pied (axes three), son type (sol ou râtelier mural). */
+/** A baked pad: its data, its nature, its foot (three axes), its kind (floor or wall rack). */
 interface PadSpot {
   index: number
   pad: ReplayWeaponPadReady
@@ -346,7 +348,7 @@ export interface PickupDebugRow {
   worldPos: [number, number, number]
 }
 
-/** Une arme au sol cuite : sa donnée, sa nature, son pied au sol, son cap fixe. */
+/** A baked ground weapon: its data, its nature, its ground foot, its fixed heading. */
 interface GroundSpot {
   item: ReplayGroundWeapon
   family: PadFamily
@@ -382,7 +384,7 @@ function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): 
     }
     const floor = ctx.ground.floorY(pad.x, pad.y, pad.z ?? null)
     const mounted = padMountOf(pad.z, floor) === 'mounted'
-    // Un râtelier tient au z publié (la boîte du socle est absente) ; un socle au sol se cale sur le sol.
+    // A rack holds at the published z (the pad's box is absent); a floor pad settles onto the floor.
     const feet = mounted ? new THREE.Vector3(...toThree(pad.x, pad.y, pad.z!)) : feetOf(ctx.ground, pad.x, pad.y, pad.z)
     if (feet) out.push({ index: i, pad, family, slot: slot?.family ?? null, feet, mounted, phase })
   })
@@ -405,14 +407,14 @@ function capacity(n: number): number {
   return Math.max(1, Math.min(POOL_CAP, n))
 }
 
-/** Le calque des socles et des armes au sol. */
+/** The layer of pads and ground weapons. */
 export class Pickups3dLayer implements ActionLayer3d {
   private readonly ctx: ActionContext
   private readonly pads: PadSpot[]
   private readonly groundSpots: Map<ReplayGroundWeapon, GroundSpot>
   private readonly solidBoxes: InstancePool
   private readonly ghostBoxes: InstancePool
-  /** Les modèles du jeu, pleins seulement : un incertain reste une boîte fantôme. */
+  /** The game's models, full only: uncertain stays a ghost box. */
   private readonly models: WeaponModelPool
   private readonly scratch = { p: new THREE.Vector3(), q: new THREE.Quaternion(), o: new THREE.Vector3(), c: new THREE.Vector3() }
   /** Per source model: the standing correction of an equipment item (its thinnest axis horizontal). */
@@ -424,7 +426,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   private filterKey = ''
   private shownGround: GroundSpot[] = []
   /** The model keys this layer has already asked to paint (one request per model key, armory-side and layer-side). */
-  private readonly peintsDemandes = new Set<string>()
+  private readonly paintRequested = new Set<string>()
   /** The painted map-item model per source model (its default-style coat, `armurerie.coatObjet`); null while the coat is pending. */
   private readonly painted = new Map<THREE.Object3D, THREE.Object3D | null>()
   /** The painted copies (owned by this layer, with their painted materials). */
@@ -449,32 +451,32 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   /**
-   * objetPeint — the painted form of a loaded map-item `model` (its default-style coat, one per
+   * paintedObject — the painted form of a loaded map-item `model` (its default-style coat, one per
    * model key, `armurerie.coatObjet`); the bare model while the coat is pending. A map item is
    * painted before its glow copy, so the glow keeps the paint's shader hooks. Equipment objects
    * and a scene with no weapon library stay bare.
    */
-  private objetPeint(id: string, model: THREE.Object3D): THREE.Object3D {
-    const armurerie = this.ctx.armurerie?.()
+  private paintedObject(id: string, model: THREE.Object3D): THREE.Object3D {
+    const armory = this.ctx.armurerie?.()
     const key = weaponModelKey(id)
-    const coat = armurerie && key ? armurerie.coatObjet(key, model) : null
+    const coat = armory && key ? armory.coatObjet(key, model) : null
     if (!coat) return model
     const cache = this.painted.get(model)
     if (cache) return cache
-    const copie = model.clone()
-    for (const m of poserRevêtementArme(copie, coat).values()) this.paintedMaterials.push(m)
-    this.paintedModels.push(copie)
-    this.painted.set(model, copie)
-    return copie
+    const copy = model.clone()
+    for (const m of poserRevêtementArme(copy, coat).values()) this.paintedMaterials.push(m)
+    this.paintedModels.push(copy)
+    this.painted.set(model, copy)
+    return copy
   }
 
   /**
-   * sansOmbre — a weapon pad and rack item casts no shadow (`castShadow = false` on every mesh,
+   * noShadow — a weapon pad and rack item casts no shadow (`castShadow = false` on every mesh,
    * the glow copy included): a camera-following light casts its dark copy on the floor behind the
    * item, and the floating weapon reads as lying on the ground. The painted copy is shared per
    * source model, so the flag is set once per copy; `receiveShadow` stays.
    */
-  private sansOmbre(item: THREE.Object3D): THREE.Object3D {
+  private noShadow(item: THREE.Object3D): THREE.Object3D {
     item.traverse((o) => {
       if (o instanceof THREE.Mesh) o.castShadow = false
     })
@@ -483,10 +485,10 @@ export class Pickups3dLayer implements ActionLayer3d {
 
   update(frame: number): void {
     const { show, inks } = this.ctx.inputs()
-    // Les objets de la carte chargés se peignent en fond de leur style par défaut (une fois par
-    // clé de modèle) ; l'image les montre nus tant que la peinture n'est pas prête.
-    for (const spot of this.pads) this.preparerObjet(spot.pad.weapon)
-    for (const spot of this.groundSpots.values()) this.preparerObjet(spot.item.w)
+    // Loaded map objects get painted in the background with their default style (once per model
+    // key); the frame shows them bare while the paint is not ready.
+    for (const spot of this.pads) this.prepareObject(spot.pad.weapon)
+    for (const spot of this.groundSpots.values()) this.prepareObject(spot.item.w)
     this.solidBoxes.begin()
     this.ghostBoxes.begin()
     this.models.begin()
@@ -498,20 +500,19 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   /**
-   * preparerObjet demande en fond la peinture du style par défaut de l'objet `id` quand son
-   * modèle est chargé : l'armurerie cache la peinture par clé de modèle (dix socles de la même
-   * arme se peignent une fois). Objet d'équipement (pas de clé de modèle) ou scène sans
-   * bibliothèque des armes : rien.
+   * prepareObject requests the default-style paint of object `id` in the background once its
+   * model is loaded: the armory caches the paint by model key (ten pads of the same weapon paint
+   * once). An equipment object (no model key) or a scene with no weapon library: nothing.
    */
-  private preparerObjet(id: string): void {
-    const armurerie = this.ctx.armurerie?.()
+  private prepareObject(id: string): void {
+    const armory = this.ctx.armurerie?.()
     const key = weaponModelKey(id)
-    if (!armurerie || !key) return
-    if (this.peintsDemandes.has(key)) return
+    if (!armory || !key) return
+    if (this.paintRequested.has(key)) return
     const model = this.ctx.weaponModel(id)
     if (!model) return
-    this.peintsDemandes.add(key)
-    void armurerie.peindreObjet(key, model)
+    this.paintRequested.add(key)
+    void armory.peindreObjet(key, model)
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {
@@ -529,7 +530,7 @@ export class Pickups3dLayer implements ActionLayer3d {
         // as a floating item (a rack's own weapon is drawn bare and still, in `paintRack`).
         const source = this.ctx.weaponModel(spot.pad.weapon)
         if (!source) continue
-        const model = this.sansOmbre(this.objetPeint(spot.pad.weapon, source))
+        const model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p.copy(spot.feet), q)
         Object.assign(last, { drawn: 'model', pos: p.clone() })
@@ -541,7 +542,7 @@ export class Pickups3dLayer implements ActionLayer3d {
       q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
       const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
       let model: THREE.Object3D | null = null
-      if (source) model = this.sansOmbre(this.objetPeint(spot.pad.weapon, source))
+      if (source) model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
       if (model) {
         if (spot.slot === 'equipment') {
           // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
@@ -615,7 +616,7 @@ export class Pickups3dLayer implements ActionLayer3d {
     if (!look) return
     const { p } = this.scratch
     const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
-    const model = source ? this.sansOmbre(this.objetPeint(spot.pad.weapon, source)) : null
+    const model = source ? this.noShadow(this.paintedObject(spot.pad.weapon, source)) : null
     if (model) {
       if (rack.model !== model || !rack.offset) {
         rack.model = model
@@ -659,10 +660,10 @@ export class Pickups3dLayer implements ActionLayer3d {
     for (const spot of this.groundFor(specialOnly, includeStarting)) {
       const look = groundBoxLook(spot.item, frame)
       if (!look) continue
-      // Une arme au sol garde son modèle jusqu'au bout, disparition non datée comprise : la boîte
-      // n'est que le repli d'un modèle absent.
+      // A ground weapon keeps its model to the end, undated vanishing included: the box is only
+      // the fallback for an absent model.
       const source = this.ctx.weaponModel(spot.item.w)
-      const model = source ? this.objetPeint(spot.item.w, source) : null
+      const model = source ? this.paintedObject(spot.item.w, source) : null
       if (model) {
         if (spot.model !== model || !spot.pose) {
           spot.model = model
@@ -676,7 +677,7 @@ export class Pickups3dLayer implements ActionLayer3d {
     }
   }
 
-  /** Les armes au sol gardées par les filtres : recalculées seulement quand un filtre change. */
+  /** The ground weapons kept by the filters: recomputed only when a filter changes. */
   private groundFor(specialOnly: boolean, includeStarting: boolean): readonly GroundSpot[] {
     const key = `${specialOnly}|${includeStarting}`
     if (key !== this.filterKey) {
@@ -700,8 +701,8 @@ export class Pickups3dLayer implements ActionLayer3d {
     this.models.dispose()
     for (const m of this.glowMaterials) m.dispose()
     this.glowMaterials.length = 0
-    // Les modèles peints (et leurs copies posées) sont les nôtres ; les matériaux peints aussi
-    // (les clones des copies partagent ceux de la copie peinte).
+    // The painted models (and their placed copies) are ours; the painted materials too (the pool
+    // copies' clones share those of the painted copy).
     for (const painted of this.paintedModels) this.ctx.root.remove(painted)
     this.paintedModels.length = 0
     for (const m of this.paintedMaterials) m.dispose()
@@ -734,7 +735,7 @@ function removeDebugHook(layer: Pickups3dLayer): void {
   delete (window as unknown as Record<string, unknown>)[DEBUG_HOOK]
 }
 
-/** Une boîte d'arme neuve : chaque lot dispose de sa propre géométrie. */
+/** A fresh weapon box: each pool gets its own geometry. */
 function boxGeometry(): THREE.BoxGeometry {
   return new THREE.BoxGeometry(BOX_LENGTH, BOX_HEIGHT, BOX_WIDTH)
 }

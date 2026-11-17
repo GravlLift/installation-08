@@ -15,7 +15,7 @@ import { buildTracks3d } from './tracks3d'
 
 describe('firstFrom', () => {
   const items = [1, 3, 3, 7, 9]
-  it('rend le premier élément à partir de la valeur', () => {
+  it('returns the first element at or after the given value', () => {
     expect(firstFrom(items, (v) => v, 3)).toBe(1)
     expect(firstFrom(items, (v) => v, 4)).toBe(3)
     expect(firstFrom(items, (v) => v, 0)).toBe(0)
@@ -24,11 +24,11 @@ describe('firstFrom', () => {
 })
 
 describe('heightsAlong', () => {
-  it('répartit la hauteur sur la distance parcourue, pas sur le nombre de points', () => {
-    // Trois pas : 0 -> 1 (1 u), 1 -> 4 (3 u) ; la hauteur passe de 2 à 6.
+  it('spreads the height over the distance traveled, not over the point count', () => {
+    // Three steps: 0 -> 1 (1 u), 1 -> 4 (3 u); the height goes from 2 to 6.
     const pts = heightsAlong([[0, 0, 0], [1, 1, 0], [2, 4, 0]], 2, 6)
     expect(pts.map((p) => p.y)).toEqual([2, 3, 6])
-    // Axes three : (x, y) Halo -> (x, -y).
+    // three axes: (x, y) Halo -> (x, -y).
     expect(pts[2].x).toBe(4)
     expect(pts[2].z).toBeCloseTo(0)
   })
@@ -47,22 +47,22 @@ describe('heldWeaponAt', () => {
       weaponLabels: { '0xAAAA': { en: 'BR75', fr: 'BR75', tint: 'kinetic' } },
     })
 
-  it('nomme l’arme que le sélecteur désigne, avec la teinte de ses tirs', () => {
+  it('names the weapon the selector points at, with the tint of its shots', () => {
     expect(heldWeaponAt(doc(0), 512, 60, 'en')).toEqual({ id: '0xAAAA', name: 'BR75', tint: 'kinetic' })
   })
 
-  it('un libellé absent du catalogue laisse le nom vide, jamais l’identifiant', () => {
+  it('a label missing from the catalog leaves the name empty, never the id', () => {
     expect(heldWeaponAt(doc(1), 512, 60, 'en')).toEqual({ id: '0xBBBB', name: '', tint: 'neutral' })
   })
 
-  it('mains nues ou sélecteur non lu : rien en main', () => {
+  it('bare hands or an unread selector: nothing in hand', () => {
     expect(heldWeaponAt(doc(2), 512, 60, 'en')).toBeNull()
     expect(heldWeaponAt(doc(), 512, 60, 'en')).toBeNull()
   })
 })
 
 describe('buildDeaths3d', () => {
-  // Victime V en vie 0-50 ; tueur K en vie 0-120. Le kill tombe à l'image 50.
+  // Victim V alive 0-50; killer K alive 0-120. The kill lands on frame 50.
   const doc = testReplayDoc({
     frameIntervalMs: 100,
     tracks: [track(1, 'V', 0, 50, 3), track(2, 'K', 0, 120, 3)],
@@ -98,7 +98,7 @@ describe('buildDeaths3d', () => {
   const kill = (over: Partial<ReplayKill> = {}): ReplayKill =>
     ({ tMs: 0, replayMs: 5000, xuid: 'K', victimXuid: 'V', teamID: 0, weaponLabel: 'BR75', weaponKey: 'br', medals: [], ...over }) as ReplayKill
 
-  it('pose la mort aux pieds de la victime, le tueur relu, l’arme du kill', () => {
+  it('puts the death at the victim\'s feet, the killer re-read, the weapon of the kill', () => {
     const [d] = buildDeaths3d(ctxWith(() => true), [kill()])
     expect(d.frame).toBe(50)
     expect(d.at.y).toBeCloseTo(2.5)
@@ -106,24 +106,24 @@ describe('buildDeaths3d', () => {
     expect(d.weapon).toBe('BR75')
   })
 
-  it('commence le corps à la dernière image de vie, sans intervalle vide', () => {
+  it('starts the body on the last frame alive, with no empty gap', () => {
     const [d] = buildDeaths3d(ctxWith(() => true), [kill()])
     expect(d.body?.start).toBe(50)
   })
 
-  it('un tueur qui ne tient plus de fiche ne tire pas de trait', () => {
+  it('a killer with no record left draws no line', () => {
     const [d] = buildDeaths3d(ctxWith((x) => x !== 'K'), [kill()])
     expect(d.from).toBeNull()
   })
 
-  it('l’étiquette se lit comme le fil', () => {
+  it('the label reads like the feed', () => {
     expect(deathText('K', 'V', 'BR75')).toBe('K › V · BR75')
     expect(deathText('K', 'V', '')).toBe('K › V')
     expect(deathText('K', null, 'BR75')).toBe('K · BR75')
     expect(deathText(null, 'V', 'BR75')).toBeNull()
   })
 
-  it('sans victime localisée, aucune croix', () => {
+  it('without a located victim, no cross', () => {
     expect(buildDeaths3d(ctxWith(() => true), [kill({ victimXuid: 'X' })])).toEqual([])
     expect(buildDeaths3d(ctxWith(() => true), [kill({ victimXuid: undefined })])).toEqual([])
   })

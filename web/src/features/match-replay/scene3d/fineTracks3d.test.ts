@@ -5,7 +5,7 @@ import type { ReplayFullRateReady } from '@/lib/replay/replayFullRate'
 
 import { aimAt, fineLifePoints, HOLD_AFTER_TICKS, lifeTick } from './fineTracks3d'
 
-/** Un tick de 60 Hz sur une grille de 100 ms, en images. */
+/** A 60 Hz tick on a 100 ms grid, in frames. */
 const TICK = 1 / 6
 
 function life(partial: Partial<ReplayFullRateReady>): ReplayFullRateReady {
@@ -13,27 +13,27 @@ function life(partial: Partial<ReplayFullRateReady>): ReplayFullRateReady {
 }
 
 describe('fineLifePoints', () => {
-  it('garde chaque échantillon à son instant, sans le ramener à la grille', () => {
+  it('keeps each sample at its own instant, without snapping it to the grid', () => {
     const t = [0, TICK, 2 * TICK, 3 * TICK]
     const pts = fineLifePoints(life({ t, x: [0, 1, 2, 3], y: [0, 0, 0, 0], z: [0, 0, 0, 0] }))
     expect(pts.map((p) => p.t)).toEqual(t)
     expect(pts.map((p) => p.x)).toEqual([0, 1, 2, 3])
   })
 
-  it('lit la visée sur son propre axe, exacte à ses instants et interpolée entre eux', () => {
+  it('reads aim on its own axis, exact at its instants and interpolated between them', () => {
     const t = [0, TICK, 2 * TICK]
     const pts = fineLifePoints(
       life({ t, x: [0, 0, 0], y: [0, 0, 0], z: [0, 0, 0], aimT: [0, 2 * TICK], h: [350, 10], p: [0, 4] }),
     )
     expect(pts[0].h).toBe(350)
-    // À mi-chemin, le cap passe par 0 (plus court chemin), pas par 180.
+    // Halfway, the heading passes through 0 (shortest path), not 180.
     expect(((pts[1].h % 360) + 360) % 360).toBeCloseTo(0, 6)
     expect(pts[1].p).toBeCloseTo(2, 6)
     expect(pts[2].h).toBe(10)
     expect(pts.every((p) => p.aim)).toBe(true)
   })
 
-  it("tient la position pendant un silence et ne bouge qu'au dernier tick", () => {
+  it("holds the position during a silence and only moves on the last tick", () => {
     const t = [0, TICK, 2 * TICK, 12 * TICK]
     const pts = fineLifePoints(life({ t, x: [0, 0, 1, 5], y: [0, 0, 0, 0], z: [0, 0, 0, 0] }))
     expect(pts).toHaveLength(5)
@@ -42,7 +42,7 @@ describe('fineLifePoints', () => {
     expect(pts[4].x).toBe(5)
   })
 
-  it('marque la lacune sur le point qui la suit, sans point de tenue', () => {
+  it('marks the gap on the point that follows it, with no holding point', () => {
     const t = [0, TICK, 80 * TICK]
     const pts = fineLifePoints(life({ t, x: [0, 1, 9], y: [0, 0, 0], z: [0, 0, 0], gaps: [2] }))
     expect(pts.map((p) => p.g)).toEqual([0, 0, 1])
@@ -50,14 +50,14 @@ describe('fineLifePoints', () => {
 })
 
 describe('aimAt', () => {
-  it("tient la visée après un silence jusqu'à un tick avant la suivante", () => {
+  it("holds the aim after a silence until one tick before the next", () => {
     const fr = life({ aimT: [0, 10 * TICK], h: [0, 90], p: [0, 0] })
     expect(aimAt(fr, 5 * TICK, TICK).h).toBe(0)
     expect(aimAt(fr, 9.5 * TICK, TICK).h).toBeCloseTo(45, 6)
     expect(aimAt(fr, 10 * TICK, TICK).h).toBe(90)
   })
 
-  it('rend la première visée, non connue, avant le premier échantillon', () => {
+  it('returns the first aim, unknown, before the first sample', () => {
     const fr = life({ aimT: [3], h: [12], p: [1] })
     expect(aimAt(fr, 1, TICK)).toEqual({ h: 12, p: 1, known: false })
     expect(aimAt(life({}), 1, TICK).known).toBe(false)
@@ -65,7 +65,7 @@ describe('aimAt', () => {
 })
 
 describe('lifeTick', () => {
-  it("prend l'écart médian entre positions", () => {
+  it("takes the median gap between positions", () => {
     expect(lifeTick([0, TICK, 2 * TICK, 3 * TICK, 40])).toBeCloseTo(TICK, 9)
     expect(lifeTick([1])).toBeCloseTo(TICK, 9)
     expect(HOLD_AFTER_TICKS).toBeGreaterThan(1)

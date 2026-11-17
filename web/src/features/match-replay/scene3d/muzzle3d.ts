@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * muzzle3d.ts — LA BOUCHE DE L'ARME TENUE, d'où partent les tirs de la scène 3D.
+ * muzzle3d.ts — THE MUZZLE OF THE HELD WEAPON, where the 3D scene's shots leave from.
  *
- * Un tir part du canon du modèle que le Spartan du tireur tient à l'image du tir : la pose de cette
- * image (cap du tir, tangage, clips du jeu de cette image) est rejouée sur une copie d'os seule,
- * jamais dessinée (`MuzzleProbe`), et la bouche est le devant de la boîte du modèle le long du canon,
- * porté comme l'avatar le porte (`GRIP_TO_WEAPON` sur `b_r_grip`). Le résultat ne dépend que de
- * l'image du tir : le calque le calcule une fois par tir. En 1re personne, l'arme est portée par le
- * cône de visée à la tenue de `viewGrip3d` (`viewMuzzle`).
+ * A shot leaves from the barrel of the model the shooter's Spartan holds on the shot's frame: that
+ * frame's pose (shot heading, pitch, that frame's game clips) is replayed on a bone-only copy,
+ * never drawn (`MuzzleProbe`), and the muzzle is the front of the model's box along the barrel,
+ * carried the way the avatar carries it (`GRIP_TO_WEAPON` on `b_r_grip`). The result only depends
+ * on the shot's frame: the layer computes it once per shot. In first person, the weapon is carried
+ * by the aim cone the way `viewGrip3d` holds it (`viewMuzzle`).
  *
- * L'éclair, lui, se pose au bout du modèle que la scène dessine à l'image affichée (`drawnMuzzle`) :
- * il suit l'arme à l'écran, quelle que soit la caméra.
+ * The flash itself sits at the end of the model the scene draws on the shown frame (`drawnMuzzle`):
+ * it follows the weapon on screen, whatever the camera.
  */
 import * as THREE from 'three'
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
@@ -25,19 +25,19 @@ import type { ViewGrip } from './viewGrip3d'
 const muzzles = new WeakMap<THREE.Object3D, THREE.Vector3>()
 const toLocal = new THREE.Matrix4()
 
-// L'épaisseur de la tranche avant du modèle dont le centre fait la bouche (u, ~3 cm) : le bout du
-// canon, pas le milieu de la section (un chargeur sous l'arme le tirerait vers le bas).
+// The thickness of the model's front slice whose center makes the muzzle (u, ~3 cm): the tip of
+// the barrel, not the middle of the cross-section (a magazine under the weapon would pull it down).
 const MUZZLE_SLICE = 0.01
 
 /**
- * muzzleOfModel : la bouche d'un modèle d'arme dans son repère (X vers la bouche, origine à la
- * poignée) : le point le plus avancé le long du canon, centré sur les sommets de la tranche avant
- * (`MUZZLE_SLICE`). Une fois par modèle.
+ * muzzleOfModel: a weapon model's muzzle in its own frame (X toward the muzzle, origin at the
+ * grip): the point furthest forward along the barrel, centered on the vertices of the front slice
+ * (`MUZZLE_SLICE`). Once per model.
  */
 export function muzzleOfModel(model: THREE.Object3D): THREE.Vector3 {
   const known = muzzles.get(model)
   if (known) return known
-  // Sommet par sommet, dans le repère du modèle : une boîte monde ramenée ensuite serait gonflée.
+  // Vertex by vertex, in the model's own frame: a world-space box brought back later would be inflated.
   let front = -Infinity
   forEachVertex(model, (v) => {
     front = Math.max(front, v.x)
@@ -54,7 +54,7 @@ export function muzzleOfModel(model: THREE.Object3D): THREE.Vector3 {
   return m
 }
 
-/** forEachVertex : chaque sommet des maillages de `model`, dans le repère de `model`. */
+/** forEachVertex: every vertex of `model`'s meshes, in `model`'s own frame. */
 function forEachVertex(model: THREE.Object3D, visit: (v: THREE.Vector3) => void): void {
   model.updateMatrixWorld(true)
   toLocal.copy(model.matrixWorld).invert()
@@ -69,16 +69,17 @@ function forEachVertex(model: THREE.Object3D, visit: (v: THREE.Vector3) => void)
 }
 
 /**
- * muzzleWorld : la bouche en monde d'une arme tenue par l'os de poignée en `grip` (monde),
- * d'orientation monde `gripQ` : l'arme y est portée comme l'avatar la porte (`GRIP_TO_WEAPON`).
+ * muzzleWorld: the world-space muzzle of a weapon held by the grip bone at `grip` (world),
+ * with world orientation `gripQ`: the weapon is carried the way the avatar carries it
+ * (`GRIP_TO_WEAPON`).
  */
 export function muzzleWorld(grip: THREE.Vector3, gripQ: THREE.Quaternion, local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
   return out.copy(local).applyQuaternion(GRIP_TO_WEAPON).applyQuaternion(gripQ).add(grip)
 }
 
 /**
- * drawnMuzzle : la bouche (monde, dans `pos`) et l'axe du canon (monde, unitaire, dans `barrel`) du
- * modèle d'arme dessiné `drawn`, là où la dernière pose l'a placé, en 1re personne comme en 3e.
+ * drawnMuzzle: the muzzle (world, in `pos`) and the barrel axis (world, unit, in `barrel`) of the
+ * drawn weapon model `drawn`, wherever the last pose placed it, in first person as in third.
  */
 export function drawnMuzzle(drawn: DrawnWeapon, pos: THREE.Vector3, barrel: THREE.Vector3): void {
   drawn.model.updateWorldMatrix(true, false)
@@ -93,26 +94,27 @@ const turnQ = new THREE.Quaternion()
 const gripAt = new THREE.Vector3()
 const ORIGIN = new THREE.Vector3()
 const UP = new THREE.Vector3(0, 1, 0)
-// L'axe de la visée dans le repère du cône : la tenue en 1re personne roule autour de lui.
+// The aim axis in the cone's own frame: the first-person carry rolls around it.
 const AIM_AXIS = new THREE.Vector3(0, 0, 1)
 
 /**
- * viewMuzzle : la bouche (monde) de l'arme tenue en 1re personne, posée comme `showWeapon` la pose :
- * portée par le cône de visée, qui part de l'œil `eye` et regarde le long de `dir` (unitaire), à la
- * tenue `view` (`viewGrip3d`), tournée de `MODEL_TURN` ; `local` : la bouche dans le repère du modèle,
- * déplacée par le recul de l'image (`recoilPoint`) quand l'arme recule, comme `showWeapon` la déplace.
+ * viewMuzzle: the world-space muzzle of the weapon held in first person, placed the way
+ * `showWeapon` places it: carried by the aim cone, which starts at eye `eye` and looks along `dir`
+ * (unit), in carry `view` (`viewGrip3d`), rotated by `MODEL_TURN`; `local`: the muzzle in the
+ * model's own frame, shifted by the frame's recoil (`recoilPoint`) when the weapon is recoiling,
+ * the way `showWeapon` shifts it.
  */
 export function viewMuzzle(eye: THREE.Vector3, dir: THREE.Vector3, view: ViewGrip, local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
-  // Le cône regarde comme `Object3D.lookAt` le tourne : son +Z vers la cible.
+  // The cone looks the way `Object3D.lookAt` turns it: its +Z toward the target.
   aimQ.setFromRotationMatrix(aimBasis.lookAt(dir, ORIGIN, UP))
   turnQ.setFromAxisAngle(AIM_AXIS, view.roll).multiply(MODEL_TURN)
   return out.copy(local).applyQuaternion(turnQ).add(gripAt.set(view.x, view.y, view.z)).applyQuaternion(aimQ).add(eye)
 }
 
 /**
- * MuzzleProbe — une copie des os du Spartan (sans maillage), posée à la demande pour lire où la
- * main droite tient l'arme à une image donnée. Chaque appel repart du repos (`poseSpartan`) :
- * aucun état ne passe d'un tir à l'autre.
+ * MuzzleProbe — a copy of the Spartan's bones (no mesh), posed on demand to read where the right
+ * hand holds the weapon at a given frame. Every call starts over from rest (`poseSpartan`): no
+ * state carries from one shot to the next.
  */
 export class MuzzleProbe {
   private source: THREE.Object3D | null = null
@@ -122,9 +124,9 @@ export class MuzzleProbe {
   private readonly kicked = new THREE.Vector3()
 
   /**
-   * at : la bouche (axes three) de `weapon` tenu par le Spartan `source`, pieds en `feet`, dans la
-   * pose `pose` (cap, tangage, clips de l'image du tir, recul de l'arme posé comme l'avatar le pose) ;
-   * null si `source` n'a pas les os du Spartan.
+   * at: the muzzle (three axes) of `weapon` held by Spartan `source`, feet at `feet`, in pose
+   * `pose` (heading, pitch, that shot frame's clips, weapon recoil placed the way the avatar
+   * places it); null if `source` does not have the Spartan's bones.
    */
   at(
     source: THREE.Object3D,
@@ -150,7 +152,7 @@ export class MuzzleProbe {
   private rebuild(source: THREE.Object3D): void {
     this.source = source
     const root = cloneSkinned(source)
-    // Les os seuls : les maillages et leurs squelettes copiés ne servent à rien ici.
+    // Bones only: the copied meshes and their skeletons serve no purpose here.
     const meshes: THREE.SkinnedMesh[] = []
     root.traverse((o) => {
       if (o instanceof THREE.SkinnedMesh) meshes.push(o)

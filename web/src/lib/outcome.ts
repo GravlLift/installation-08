@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * outcome.ts — mapping canonique du code outcome backend vers la valeur d'outcome
- * de la frise (OutcomeSequenceTape) / clés `outcomes.toml`.
+ * outcome.ts — canonical mapping from the backend outcome code to the outcome value
+ * used by the timeline (OutcomeSequenceTape) / `outcomes.toml` keys.
  *
- * Contrat ADR 0006 : 2=win, 3=loss, 1=tie, 4=dnf. Clé 'tie' (frise + outcomes.toml).
- * NE PAS confondre avec la variante 'draw' des ÉCHELLES d'accessibilité/couleur
- * (`outcomeKey` de `lib/outcome-color.ts`) — jeux de clés distincts (tie vs draw).
+ * ADR 0006 contract: 2=win, 3=loss, 1=tie, 4=dnf. Key 'tie' (timeline + outcomes.toml).
+ * DO NOT confuse with the 'draw' variant of the accessibility/color SCALES
+ * (`outcomeKey` from `lib/outcome-color.ts`) — distinct key sets (tie vs draw).
  *
- * DÉFAUT EXPLICITE : un code HORS contrat (null / undefined / 0 / négatif / > 4)
- * mappe vers `null`. C'est le défaut le PLUS SÛR : ne jamais fabriquer un outcome
- * pour une entrée inconnue. Un consommateur qui COMPTE les issues (ex.
- * SessionOutcomeDonut : `if (!key) continue`) doit pouvoir EXCLURE l'inconnu — un
- * défaut 'tie' ou 'dnf' fausserait silencieusement ses statistiques.
+ * EXPLICIT DEFAULT: a code OUTSIDE the contract (null / undefined / 0 / negative / > 4)
+ * maps to `null`. This is the SAFEST default: never manufacture an outcome
+ * for an unknown entry. A consumer that COUNTS outcomes (e.g.
+ * SessionOutcomeDonut: `if (!key) continue`) must be able to EXCLUDE the unknown — a
+ * 'tie' or 'dnf' default would silently skew its statistics.
  *
- * Source UNIQUE (garde-rail `outcome.guard.test.ts`, CLAUDE.md n°6) — ne jamais
- * redéfinir un mapping code→outcome localement.
+ * SINGLE source (guard rail `outcome.guard.test.ts`, CLAUDE.md #6) — never
+ * redefine a code -> outcome mapping locally.
  */
 export type OutcomeValue = 'win' | 'loss' | 'tie' | 'dnf'
 
 /**
- * Mappe un code outcome backend vers sa valeur canonique, ou `null` si le code est
- * hors contrat ADR 0006 (voir docstring du module pour le choix du défaut).
+ * Maps a backend outcome code to its canonical value, or `null` if the code is
+ * outside the ADR 0006 contract (see the module docstring for the default's rationale).
  */
 export function outcomeCodeToValue(code: number | null | undefined): OutcomeValue | null {
   switch (code) {
@@ -38,11 +38,11 @@ export function outcomeCodeToValue(code: number | null | undefined): OutcomeValu
 }
 
 /**
- * Variante pour les frises séquentielles (OutcomeSequenceTape) qui exigent une
- * valeur NON-null par match. Applique le défaut de frise 'dnf' — bucket neutre
- * « non classé » n'affirmant ni victoire, ni défaite, ni égalité. En pratique
- * l'API ne sert que les codes 1..4 → ce défaut ne se déclenche pas sur données
- * réelles ; il n'existe que pour satisfaire le typage non-null de la frise.
+ * Variant for sequential timelines (OutcomeSequenceTape) that require a
+ * NON-null value per match. Applies the timeline's 'dnf' default — a neutral
+ * "unclassified" bucket asserting neither a win, nor a loss, nor a tie. In practice
+ * the API only ever serves codes 1..4 -> this default never triggers on real
+ * data; it exists only to satisfy the timeline's non-null typing.
  */
 export function outcomeCodeToTapeValue(code: number | null | undefined): OutcomeValue {
   return outcomeCodeToValue(code) ?? 'dnf'

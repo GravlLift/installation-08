@@ -89,7 +89,7 @@ func (s *filmScan) balayerPositions() error {
 	s.opt.Fallbacks.DeclencheN(fallback.NomAncreDImageCleParElection, marche.Elections)
 	if marche.BipedesAbsentsEncadres > 0 {
 		slog.InfoContext(s.ctx, "keyframe: bipeds missed by the walk between two keyframes carrying them",
-			"match_id", s.matchID, "absentsEncadres", marche.BipedesAbsentsEncadres,
+			"match_id", s.matchID, "framedAbsentees", marche.BipedesAbsentsEncadres,
 			"elections", marche.Elections, "recalibrations", marche.Recalages)
 	}
 	s.opt.observe(s.ctx, "loadouts", s.in.Loadouts)
@@ -111,9 +111,9 @@ func (s *filmScan) balayerCreations() {
 	} else {
 		slog.InfoContext(s.ctx, "biped creation: records read",
 			"bodies", creaStats.Slots, "anchors", creaStats.Anchors, "accepted", creaStats.Accepted,
-			"formeRefusee", creaStats.ShapeBad, "signatureEtrangere", creaStats.SignatureMismatch,
-			"motAlternatif", creaStats.OtherWord, "motAlternatifCompte", creaStats.OtherWordCount,
-			"porteFermee", creaStats.GateClosed, "truncated", creaStats.Truncated)
+			"shapeRejected", creaStats.ShapeBad, "foreignSignature", creaStats.SignatureMismatch,
+			"otherWord", creaStats.OtherWord, "otherWordCount", creaStats.OtherWordCount,
+			"gateClosed", creaStats.GateClosed, "truncated", creaStats.Truncated)
 	}
 	if creaStats.Anchors > 0 && creaStats.Accepted == 0 {
 		// L'ALARME DU LECTEUR, ET C'EST LA SEULE : des ancres de la bonne FORME dont aucune ne
@@ -122,7 +122,7 @@ func (s *filmScan) balayerCreations() {
 		slog.WarnContext(s.ctx, "biped creation: no recognized signature on present anchors — "+
 			"does this film carry another representation?",
 			"match_id", s.matchID, "anchors", creaStats.Anchors,
-			"motAlternatifModal", creaStats.OtherWord, "count", creaStats.OtherWordCount)
+			"modalOtherWord", creaStats.OtherWord, "count", creaStats.OtherWordCount)
 	}
 	s.in.BipedCreations = creations
 	s.opt.observe(s.ctx, "bipedCreations", s.in.BipedCreations)
@@ -144,7 +144,7 @@ func (s *filmScan) balayerPortage() {
 		weaponChanges = nil
 	} else {
 		slog.InfoContext(s.ctx, "pickup: weapon changes read",
-			"recordsDelta", wStats.Records, "masquePorteur", wStats.WithComponent,
+			"recordsDelta", wStats.Records, "carrierMask", wStats.WithComponent,
 			"emissions", wStats.Emissions, "repetitions", wStats.Repeats)
 	}
 	s.in.WeaponChanges = weaponChanges
@@ -161,9 +161,9 @@ func (s *filmScan) balayerPortage() {
 	} else {
 		slog.InfoContext(s.ctx, "native pickup: events read",
 			"packets", pStats.Packets, "type9", pStats.Type9, "type8", pStats.Type8,
-			"published", pStats.Published, "listesMultiples", pStats.MultiEvent,
-			"refusesSansRef", pStats.RefusedNoRef, "refusesSansIdentifiant", pStats.RefusedNoCatalog,
-			"refusesHorsBande", pStats.RefusedOffBand, "refLargeInattendue", pStats.UnexpectedWideRef)
+			"published", pStats.Published, "multiEvent", pStats.MultiEvent,
+			"refusedNoRef", pStats.RefusedNoRef, "refusedNoCatalog", pStats.RefusedNoCatalog,
+			"refusedOffBand", pStats.RefusedOffBand, "unexpectedWideRef", pStats.UnexpectedWideRef)
 	}
 	s.in.Pickups, s.in.PickupStats = pickups, pStats
 	s.opt.observe(s.ctx, "pickups", s.in.Pickups)
@@ -195,9 +195,9 @@ func (s *filmScan) balayerInventaire() {
 		inventory = nil
 	} else {
 		slog.InfoContext(s.ctx, "inventory: keyframe readings",
-			"chunks", invStats.Chunks, "chunksIllisibles", invStats.ChunksUnread,
-			"imagesCles", invStats.Keyframes, "records", invStats.Records,
-			"grenadesParAncre", invStats.GrenadesByAnchor, "grenadesParPosition", invStats.GrenadesByPosition)
+			"chunks", invStats.Chunks, "unreadableChunks", invStats.ChunksUnread,
+			"keyframes", invStats.Keyframes, "records", invStats.Records,
+			"grenadesByAnchor", invStats.GrenadesByAnchor, "grenadesByPosition", invStats.GrenadesByPosition)
 	}
 	s.in.Inventory = inventory
 	s.opt.observe(s.ctx, "inventory", s.in.Inventory)
@@ -212,11 +212,11 @@ func (s *filmScan) balayerInventaire() {
 		invDeltas = nil
 	} else {
 		slog.InfoContext(s.ctx, "delta inventory: readings",
-			"recordsDelta", dStats.Records, "masqueAvecI22", dStats.WithI22,
-			"i22Lues", dStats.I22Read, "i22Implausibles", dStats.Implausible,
-			"masqueAvecI47", dStats.WithI47, "i47Lues", dStats.I47Read,
-			"agree", dStats.Accord, "accordVerifies", dStats.AccordChecked,
-			"canalMunitionsRefuse", dStats.AmmoRefused)
+			"recordsDelta", dStats.Records, "maskWithI22", dStats.WithI22,
+			"i22Read", dStats.I22Read, "i22Implausible", dStats.Implausible,
+			"maskWithI47", dStats.WithI47, "i47Read", dStats.I47Read,
+			"agree", dStats.Accord, "agreementChecked", dStats.AccordChecked,
+			"ammoChannelRefused", dStats.AmmoRefused)
 	}
 	s.in.InventoryDeltas = invDeltas
 	s.in.InventoryDeltaAmmoRefused = dStats.AmmoRefused
@@ -236,8 +236,8 @@ func (s *filmScan) balayerCapacites() {
 		abilityRanks = nil
 	} else {
 		slog.InfoContext(s.ctx, "abilities: i48 readings",
-			"recordsDelta", aStats.Records, "masqueAvecI48", aStats.WithI48,
-			"read", aStats.Read, "unreadable", aStats.Unread, "sansIdentite", aStats.Gated)
+			"recordsDelta", aStats.Records, "maskWithI48", aStats.WithI48,
+			"read", aStats.Read, "unreadable", aStats.Unread, "noIdentity", aStats.Gated)
 	}
 	s.in.AbilityRanks = abilityRanks
 	s.opt.observe(s.ctx, "abilityRanks", s.in.AbilityRanks)
@@ -256,7 +256,7 @@ func (s *filmScan) balayerCapacites() {
 		slog.InfoContext(s.ctx, "equipment: changes read",
 			"emissions", eStats.Walk.Read, "lives", eStats.Lives,
 			"pickups", eStats.Taken, "spent", eStats.Spent,
-			"respawns", eStats.Spawned, "manqueesEstimees", eStats.MissedEstimate)
+			"respawns", eStats.Spawned, "estimatedMissed", eStats.MissedEstimate)
 	}
 	s.in.EquipmentChanges, s.in.EquipmentChangeStats = equipChanges, eStats
 	s.opt.observe(s.ctx, "equipmentChanges", s.in.EquipmentChanges)
@@ -277,8 +277,8 @@ func (s *filmScan) balayerEtatsActifs() {
 		camoStates = nil
 	} else {
 		slog.InfoContext(s.ctx, "camouflage: i28 queue[1] readings",
-			"recordsDelta", cStats.Records, "masqueAvecI28", cStats.WithI28,
-			"read", cStats.Read, "unreadable", cStats.Unread, "sansVoie", cStats.NoChannel)
+			"recordsDelta", cStats.Records, "maskWithI28", cStats.WithI28,
+			"read", cStats.Read, "unreadable", cStats.Unread, "noChannel", cStats.NoChannel)
 	}
 	s.in.CamoStates = camoStates
 	s.opt.observe(s.ctx, "camoStates", s.in.CamoStates)
@@ -291,9 +291,9 @@ func (s *filmScan) balayerEtatsActifs() {
 		grappleReads = nil
 	} else {
 		slog.InfoContext(s.ctx, "grapple: i59 tag==3 readings",
-			"recordsDelta", gStats.Records, "masqueAvecI59", gStats.WithI59,
+			"recordsDelta", gStats.Records, "maskWithI59", gStats.WithI59,
 			"read", gStats.Read, "unreadable", gStats.Unread,
-			"tag3", gStats.Tag3, "corpsCasses", gStats.BodyBroken)
+			"tag3", gStats.Tag3, "brokenBodies", gStats.BodyBroken)
 	}
 	s.in.GrappleReads = grappleReads
 	s.opt.observe(s.ctx, "grappleReads", s.in.GrappleReads)
@@ -313,9 +313,9 @@ func (s *filmScan) balayerImpulsionsEtCharges() {
 		impulses, iStats = nil, types.AbilityImpulseStats{}
 	} else {
 		slog.InfoContext(s.ctx, "abilities: i57/i59 tag readings",
-			"recordsDelta", iStats.Records, "masqueAvecI57", iStats.WithI57,
-			"masqueAvecI59", iStats.WithI59, "read", iStats.Read, "unreadable", iStats.Unread,
-			"tag1", iStats.Tag1, "composantAbsent", iStats.Absent)
+			"recordsDelta", iStats.Records, "maskWithI57", iStats.WithI57,
+			"maskWithI59", iStats.WithI59, "read", iStats.Read, "unreadable", iStats.Unread,
+			"tag1", iStats.Tag1, "componentAbsent", iStats.Absent)
 	}
 	s.in.AbilityImpulses, s.in.AbilityImpulseStats = impulses, iStats
 	s.opt.observe(s.ctx, "abilityImpulses", s.in.AbilityImpulses)
@@ -329,9 +329,9 @@ func (s *filmScan) balayerImpulsionsEtCharges() {
 		charges, chStats = nil, types.AbilityChargeStats{}
 	} else {
 		slog.InfoContext(s.ctx, "abilities: i56 readings",
-			"recordsDelta", chStats.Records, "masqueAvecI56", chStats.WithI56,
+			"recordsDelta", chStats.Records, "maskWithI56", chStats.WithI56,
 			"read", chStats.Read, "unreadable", chStats.Unread,
-			"emplacementsArmes", chStats.Armed, "composantAbsent", chStats.Absent)
+			"weaponSlots", chStats.Armed, "componentAbsent", chStats.Absent)
 	}
 	s.in.AbilityCharges, s.in.AbilityChargeStats = charges, chStats
 	s.opt.observe(s.ctx, "abilityCharges", s.in.AbilityCharges)

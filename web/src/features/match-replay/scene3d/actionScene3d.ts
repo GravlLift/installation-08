@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * actionScene3d.ts — L'ACTION DU MATCH DANS LA SCÈNE 3D : le contrat des calques et leur ensemble.
+ * actionScene3d.ts — THE MATCH ACTION IN THE 3D SCENE: the layer contract and their set.
  *
- * Un calque d'action lit le document et les entrées de la page (`Action3dInputs`) et pose, à chaque
- * image, ce qui est visible (tirs, vols, armes au sol, véhicules, morts...) dans ses lots de formes
- * (`actionKit`). La scène appelle `update(frame)` après avoir posé les joueurs, à l'écran comme
- * pendant un export : les formes sont dans l'image rendue, les étiquettes sont repeintes par l'export.
+ * An action layer reads the document and the page inputs (`Action3dInputs`) and places, at each
+ * frame, what's visible (shots, flights, ground weapons, vehicles, deaths...) in its batches of
+ * shapes (`actionKit`). The scene calls `update(frame)` after placing the players, on screen as
+ * during an export: the shapes are in the rendered frame, labels are repainted by the export.
  *
- * Trois questions remontent des calques vers les joueurs, et l'ensemble y répond pour la scène :
- * l'arme en main (`heldWeapon`), le mouvement du Spartan (`motion`, les clips du jeu choisis par
- * `motion3d`) et la place d'un joueur embarqué (`riderAt`) : un bipède à bord ne réplique plus sa
- * position, il suit son véhicule.
+ * Three questions rise from the layers to the players, and the set answers them for the scene:
+ * the held weapon (`heldWeapon`), the Spartan's motion (`motion`, the game clips chosen by
+ * `motion3d`), and an embarked player's position (`riderAt`): a biped aboard no longer replicates
+ * his own position, he follows his vehicle.
  */
 import * as THREE from 'three'
 
@@ -40,26 +40,26 @@ import { ShooterRecoil } from './recoilShots3d'
 import type { PlayerState3d, Tracks3d } from './tracks3d'
 import { weaponModelKey } from './weaponModels3d'
 
-/** Ce que chaque calque reçoit à sa construction. */
+/** What each layer receives at construction. */
 export interface ActionContext {
   readonly doc: ReplayDocumentReady
   readonly tracks: Tracks3d
   readonly ground: Ground
   readonly ink: InkCache
-  /** Le groupe où le calque pose ses lots et ses étiquettes. */
+  /** The group where the layer places its batches and labels. */
   readonly root: THREE.Group
-  /** Hauteur de l'origine publiée d'un joueur au-dessus de ses pieds (u). */
+  /** Height of a player's published origin above his feet (u). */
   readonly originAboveFloor: number
-  /** Les entrées courantes de la page : relues à chaque image (thème, tiroir, langue). */
+  /** The page's current inputs: re-read every frame (theme, drawer, language). */
   inputs(): Action3dInputs
   /**
-   * Où se tient un joueur à l'image `frame` (axes three, pieds au sol), véhicule compris ; null
-   * s'il n'est pas en vie. Le calque des véhicules y répond pour les joueurs embarqués.
+   * Where a player stands at frame `frame` (three axes, feet on the ground), vehicle included;
+   * null if he isn't alive. The vehicle layer answers this for embarked players.
    */
   playerFeet(xuid: string, frame: number): THREE.Vector3 | null
-  /** Même question par emplacement de bipède (les tirs et les grenades nomment un emplacement). */
+  /** The same question by biped slot (shots and grenades name a slot). */
   slotState(slot: number, frame: number): PlayerState3d | null
-  /** Le modèle du jeu de l'arme `id` (à cloner), null tant qu'il n'est pas chargé (`weaponModels3d`). */
+  /** The game's model of weapon `id` (to clone), null until it is loaded (`weaponModels3d`). */
   weaponModel(id: string): THREE.Object3D | null
   /**
    * The game's model of the flag `id` (to clone) dressed with the banner of team `team`, its cloth
@@ -67,11 +67,11 @@ export interface ActionContext {
    * not known, null until the model is loaded (`weaponModels3d.flagModel`).
    */
   flagModel(id: string, team: number | null, ink: THREE.Color | null): THREE.Object3D | null
-  /** Le modèle du jeu du projectile de la grenade de rang `rank` (à cloner), null tant qu'il n'est pas chargé. */
+  /** The game's model of the grenade projectile of rank `rank` (to clone), null until it is loaded. */
   grenadeModel(rank: number): THREE.Object3D | null
-  /** Le Spartan à peau du jeu (à cloner par `SkeletonUtils`), null tant qu'il n'est pas chargé. */
+  /** The game's skinned Spartan (to clone via `SkeletonUtils`), null until it is loaded. */
   spartanModel(): THREE.Object3D | null
-  /** L'habit du joueur `xuid` (`armory3d`), null tant qu'il n'est pas prêt ou sans armure servie. */
+  /** Player `xuid`'s dress (`armory3d`), null until it is ready or without armor served. */
   dressOf(xuid: string): Dress | null
   /**
    * The match's armory (held weapons' coatings, and the default-style paint of the map objects:
@@ -80,20 +80,21 @@ export interface ActionContext {
    */
   armurerie?: () => SpartanArmory | null
   /**
-   * L'arme que la scène dessine dans la main du joueur `xuid` à l'image posée (`avatar3d.drawnWeapon`),
-   * null sans arme dessinée : l'éclair de bouche se pose au bout de son canon.
+   * The weapon the scene draws in player `xuid`'s hand at the placed frame (`avatar3d.drawnWeapon`),
+   * null without a drawn weapon: the muzzle flash is placed at the end of its own barrel.
    */
   drawnWeapon(xuid: string): DrawnWeapon | null
-  /** L'emplacement du bipède que la caméra porte en 1re personne à l'image `frame`, null sinon. */
+  /** The slot the camera carries in first person at frame `frame`, null otherwise. */
   firstPersonSlot(frame: number): number | null
   /**
-   * La bouche du rig de 1re personne (repère caméra) pour l'arme `held` (clé de modèle) ; true et
-   * `out` rempli si le rig de cette arme est chargé, false sinon (le tir prend le modèle statique).
+   * The first-person rig's muzzle (camera frame) for the held weapon `held` (model key); true and
+   * `out` filled when that weapon's rig is loaded, false otherwise (the shot takes the static model).
    */
   rigMuzzle?: (held: string | null, out: THREE.Vector3) => boolean
   /**
-   * La bouche du rig de 1re personne en espace MONDE, lue à l'image rendue (`pos` et `axe` du canon
-   * unitaire) ; true quand un rig visible a une bouche mesurée, false sinon (l'éclair suit le vol).
+   * The first-person rig's muzzle in WORLD space, read at the rendered frame (`pos` and `axe` of
+   * the unit barrel); true when a visible rig has a measured muzzle, false otherwise (the flash
+   * follows the flight).
    */
   rigMuzzleWorld?: (pos: THREE.Vector3, axe: THREE.Vector3) => boolean
   /**
@@ -111,8 +112,8 @@ export interface ActionContext {
   attachBone?: (slot: number, node: number, out: THREE.Matrix4) => AttachBone
 
   /**
-   * La lunette est-elle montée sur la vue 1re personne de l'image rendue (les bras retirés de
-   * l'écran), lue à la même image ; `null` quand la scène ne la porte pas.
+   * Is the scope mounted on the rendered frame's first-person view (arms removed from screen),
+   * read at the same frame; `null` when the scene doesn't carry it.
    */
   scopeMounted?: () => boolean
   /** The served folder of the weapon library (its index and files), null until known. */
@@ -128,11 +129,11 @@ export interface ActionContext {
   firstPersonAnchorMiss?: () => string | null
   /** The length in seconds of the first-person clip `action` of weapon `key` (its rig index), null without one. */
   weaponClipSeconds?: (key: string, action: string) => number | null
-  /** Les lumières des éclairs brefs : l'ensemble les ouvre et les ferme autour des calques. */
+  /** The brief flash lights: the set opens and closes them around the layers. */
   readonly flashes: FlashLights
-  /** La lumière cuite de la carte (`lighting.takeGameLight`), greffée sur les armures des joueurs. */
+  /** The map's baked light (`lighting.takeGameLight`), grafted onto players' armor. */
   readonly baked?: BakedLight | null
-  /** La sonde d'environnement la plus proche d'un point (reflets éteints : null) ; sans, les joueurs se tiennent sans sonde. */
+  /** The environment probe nearest a point (reflections off: null); without one, players stand with no probe. */
   readonly probeAt?: (position: THREE.Vector3) => THREE.Texture | null
 }
 
@@ -141,34 +142,34 @@ export interface ActionLayer3d {
   /** Finish the deferred work frame `frame` needs before it is drawn (`ActionScene3d.settle`). */
   settle?(frame: number): void
   prepareCorpses?(): THREE.Object3D[]
-  /** Les étiquettes du calque (repeintes dans l'image exportée). */
+  /** The layer's labels (repainted in the exported frame). */
   readonly labels?: LabelPool
-  /** Un joueur embarqué : ses pieds (axes three) sur son véhicule, ou null. */
+  /** An embarked player: his feet (three axes) on his vehicle, or null. */
   riderAt?(xuid: string, frame: number): THREE.Vector3 | null
-  /** Le cap de son véhicule (degrés) : la caméra d'un joueur embarqué regarde où il va. */
+  /** His vehicle's heading (degrees): an embarked player's camera looks where it's going. */
   riderHeadingAt?(xuid: string, frame: number): number | null
-  /** Les pieds du corps inerte de la victime `xuid` à l'image `frame` (axes three), écrits dans `out` ; null sans corps. */
+  /** The feet of victim `xuid`'s inert body at frame `frame` (three axes), written in `out`; null without a body. */
   corpseFeet?(xuid: string, frame: number, out: THREE.Vector3): THREE.Vector3 | null
   dispose(): void
 }
 
 /**
- * L'arme en main telle que la capsule la montre : son nom, la teinte de ses tirs, son modèle du jeu
- * et la clé de ce modèle (null quand l'identifiant n'en donne pas).
+ * The held weapon as the capsule shows it: its name, its shots' tint, its game model, and that
+ * model's key (null when the identifier doesn't give one).
  */
 export interface HeldShown {
   name: string
   color: THREE.Color
   model: THREE.Object3D | null
   key: string | null
-  /** Le recul de l'arme à l'image (`recoil3d`), réécrit à chaque appel pour cet emplacement. */
+  /** The weapon's recoil at the frame (`recoil3d`), overwritten on each call for that slot. */
   recoil: Recoil
 }
 
-/** L'ensemble des calques d'action d'une scène. */
-const VIDE: readonly number[] = []
-const SANS_CHANGEMENT: readonly ChangementArme[] = []
-const SANS_RECHARGEMENT: readonly EpisodeRechargement[] = []
+/** The set of an action scene's layers. */
+const EMPTY: readonly number[] = []
+const NO_CHANGE: readonly ChangementArme[] = []
+const NO_RELOAD: readonly EpisodeRechargement[] = []
 
 export class ActionScene3d {
   private readonly ctx: ActionContext
@@ -177,15 +178,15 @@ export class ActionScene3d {
   private readonly body: BodyFx3d
   private readonly moves: Motion3d
   private readonly recoil: ShooterRecoil
-  private readonly rechargements: Map<number, EpisodeRechargement[]>
-  private readonly coups: Map<number, number[]>
-  private readonly premieres: ReturnType<typeof preparerEvenementsPremierePersonne>
-  private sourceTirs: readonly ShotFxEntry[] | null = null
-  private tirs = new Map<number, SlotShots>()
-  private xuidPremierePersonne = ''
-  private readonly evenements: EvenementsPremierePersonne = {
+  private readonly reloadsBySlot: Map<number, EpisodeRechargement[]>
+  private readonly meleesBySlot: Map<number, number[]>
+  private readonly firstPerson: ReturnType<typeof preparerEvenementsPremierePersonne>
+  private shotSource: readonly ShotFxEntry[] | null = null
+  private shots = new Map<number, SlotShots>()
+  private firstPersonXuid = ''
+  private readonly events: EvenementsPremierePersonne = {
     rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 1,
-    rechargementValide: (t, f) => this.moves.rechargementValide(this.xuidPremierePersonne, t, f),
+    rechargementValide: (t, f) => this.moves.rechargementValide(this.firstPersonXuid, t, f),
   }
   private readonly kicks = new Map<number, Recoil>()
 
@@ -197,9 +198,9 @@ export class ActionScene3d {
     this.ctx = ctx
     this.layers = layers
     this.held = held
-    this.rechargements = episodesRechargementParSlot(ctx.doc)
-    this.coups = actionsParSlot(ctx.doc, 'melee')
-    this.premieres = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
+    this.reloadsBySlot = episodesRechargementParSlot(ctx.doc)
+    this.meleesBySlot = actionsParSlot(ctx.doc, 'melee')
+    this.firstPerson = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
     this.body = new BodyFx3d(ctx)
     this.moves = new Motion3d(ctx, (slot, frame) => held.at(slot, frame))
     this.recoil = new ShooterRecoil(ctx.doc, () => ctx.inputs())
@@ -207,19 +208,19 @@ export class ActionScene3d {
 
   evenementsPremierePersonne(xuid: string, slot: number, frame: number, fps: number): EvenementsPremierePersonne {
     const source = this.ctx.inputs().shotFx
-    if (source !== this.sourceTirs) {
-      this.sourceTirs = source
-      this.tirs = indexShotTimes(source)
+    if (source !== this.shotSource) {
+      this.shotSource = source
+      this.shots = indexShotTimes(source)
     }
-    this.xuidPremierePersonne = xuid
-    const e = this.evenements
-    e.rechargements = this.rechargements.get(slot) ?? SANS_RECHARGEMENT
-    e.coups = this.coups.get(slot) ?? VIDE
-    e.tirs = this.tirs.get(slot)?.frames ?? VIDE
-    e.grenades = this.premieres.grenades.get(slot) ?? VIDE
-    e.changements = this.premieres.changements.get(slot) ?? SANS_CHANGEMENT
-    e.sprints = this.premieres.sprints.get(slot) ?? []
-    e.slides = this.premieres.slides.get(slot) ?? []
+    this.firstPersonXuid = xuid
+    const e = this.events
+    e.rechargements = this.reloadsBySlot.get(slot) ?? NO_RELOAD
+    e.coups = this.meleesBySlot.get(slot) ?? EMPTY
+    e.tirs = this.shots.get(slot)?.frames ?? EMPTY
+    e.grenades = this.firstPerson.grenades.get(slot) ?? EMPTY
+    e.changements = this.firstPerson.changements.get(slot) ?? NO_CHANGE
+    e.sprints = this.firstPerson.sprints.get(slot) ?? []
+    e.slides = this.firstPerson.slides.get(slot) ?? []
     const postures = this.moves.postures(slot)
     e.accroupis = postures.crouch
     e.sauts = postures.jump
@@ -268,14 +269,14 @@ export class ActionScene3d {
   }
 
   /**
-   * motion : le mélange de clips du jeu du joueur à l'image (`motion3d`), écrit dans `out` ; null hors
-   * vie ou sans Spartan animé. `aboard` : à bord d'un véhicule.
+   * motion: the player's game clip mix at the frame (`motion3d`), written in `out`; null out of
+   * life or without an animated Spartan. `aboard`: aboard a vehicle.
    */
   motion(xuid: string, frame: number, aboard: boolean, out: ClipMix): ClipMix | null {
     return this.moves.at(xuid, frame, aboard, out)
   }
 
-  /** bodyFx : ce que le corps du joueur montre à l'image (bouclier), réécrit à chaque appel. */
+  /** bodyFx: what the player's body shows at the frame (shield), overwritten on each call. */
   bodyFx(xuid: string, frame: number): BodyFxState {
     return this.body.at(xuid, frame)
   }
@@ -296,7 +297,7 @@ export class ActionScene3d {
     return null
   }
 
-  /** corpseFeet : les pieds du corps inerte de `xuid` à l'image `frame` (le calque des morts y répond). */
+  /** corpseFeet: the feet of `xuid`'s inert body at frame `frame` (the deaths layer answers this). */
   corpseFeet(xuid: string, frame: number, out: THREE.Vector3): THREE.Vector3 | null {
     for (const l of this.layers) {
       const p = l.corpseFeet?.(xuid, frame, out)
@@ -305,7 +306,7 @@ export class ActionScene3d {
     return null
   }
 
-  /** aids : les repères d'analyse du tiroir 3D (`aids3d`), relus à chaque appel. */
+  /** aids: the 3D drawer's analysis aids (`aids3d`), re-read on every call. */
   aids(): Aids3d {
     return this.ctx.inputs().aids
   }

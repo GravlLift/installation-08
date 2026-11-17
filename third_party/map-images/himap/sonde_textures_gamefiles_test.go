@@ -167,7 +167,7 @@ func TestSondeTextures(t *testing.T) {
 			}
 			vusTex[tx.bitmap] = true
 			tex, err := LitBitmap(idx, tx.bitmap, 512)
-			if err != nil && strings.Contains(err.Error(), "illisible") && erreurs["detail"] < 2 {
+			if err != nil && strings.Contains(err.Error(), "unreadable") && erreurs["detail"] < 2 {
 				erreurs["detail"]++
 				brut, _ := idx.Extract(tx.bitmap)
 				_, fe, _ := idx.entree(tx.bitmap)

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * layeredBatch3d.ts — LES SURFACES FUSIONNÉES DE LA CARTE EN QUELQUES APPELS DE DESSIN.
+ * layeredBatch3d.ts — THE MAP'S MERGED SURFACES IN A HANDFUL OF DRAW CALLS.
  *
- * Après la fusion des matériaux (`convertLayered`) et l'attribution des sondes (`Lighting`), les
- * surfaces d'un même nœud qui partagent tampons de sommets, matériau (sonde comprise) et ombre portée
- * ne diffèrent plus que par leur index : `batchLayered` met ces index bout à bout et pose UN maillage
- * par groupe. Les surfaces d'origine restent dans la scène, cachées : elles portent l'index de rayons
- * (sol, corps inertes), l'étiquette de l'inspecteur (`markDrawnBy`) et les ombres déjà regroupées
- * (`shadowProxy3d`). Le maillage fusionné ne répond à aucun rayon. Sa matière est celle des surfaces :
- * les réglages du tiroir (reflets, lumière du jeu, ombres) s'y appliquent sans rien de plus.
+ * After the materials merge (`convertLayered`) and probe assignment (`Lighting`), surfaces of
+ * the same node that share vertex buffers, material (probe included) and cast shadow differ
+ * only by their index: `batchLayered` concatenates those indices end to end and places ONE
+ * mesh per group. The original surfaces stay in the scene, hidden: they carry the raycast
+ * index (ground, static bodies), the inspector's tag (`markDrawnBy`), and the shadows already
+ * grouped (`shadowProxy3d`). The merged mesh answers no raycast. Its material is the surfaces'
+ * own: the drawer's settings (reflections, game light, shadows) apply to it with nothing more.
  */
 import * as THREE from 'three'
 
@@ -17,14 +17,14 @@ import type { LayeredMerge } from './layeredMerge3d'
 import { concatIndices } from './layeredPlan3d'
 import { markDrawnBy } from './surfaceProbe3d'
 
-// Les attributs que lit un matériau fusionné ; les autres restent aux surfaces d'origine.
+// The attributes a merged material reads; the others stay with the original surfaces.
 const DRAWN_ATTRIBUTES = ['position', 'cMacro', 'cUv', 'cRow'] as const
 
 /**
- * releaseGpuIndex libère la copie GPU de l'index d'une surface cachée, sans toucher aux sommets
- * qu'elle partage avec son maillage fusionné : three libère, à `dispose`, l'index et les attributs de
- * la géométrie, qu'on lui retire le temps de l'appel. L'index reste en mémoire pour les rayons ; si la
- * surface se redessinait, three le renverrait.
+ * releaseGpuIndex releases a hidden surface's GPU index copy, without touching the vertices it
+ * shares with its merged mesh: three releases the geometry's index and attributes on
+ * `dispose`, which are removed from it for the length of the call. The index stays in memory
+ * for raycasts; if the surface were drawn again, three would re-upload it.
  */
 function releaseGpuIndex(geometry: THREE.BufferGeometry): void {
   const attributes = { ...geometry.attributes }
@@ -44,7 +44,7 @@ function groupKey(mesh: THREE.Mesh, idOf: (o: object) => number): string | null 
   return `${parts.join(',')}|${mesh.castShadow}|${mesh.receiveShadow}|${mesh.matrix.elements.join(',')}`
 }
 
-/** drawOnce pose sous leur nœud le maillage qui dessine `group` (même tampon, même matériau) et cache ses membres. */
+/** drawOnce places under their node the mesh that draws `group` (same buffer, same material) and hides its members. */
 function drawOnce(group: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometry) => void): THREE.Mesh {
   const first = group[0]
   const geometry = new THREE.BufferGeometry()
@@ -53,7 +53,7 @@ function drawOnce(group: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometr
   geometry.setIndex(new THREE.BufferAttribute(concatIndices(parts, first.geometry.getAttribute('position').count), 1))
   tighten(geometry)
   const mesh = new THREE.Mesh(geometry, first.material)
-  mesh.name = 'carte-fusion'
+  mesh.name = 'merged-map'
   mesh.position.copy(first.position)
   mesh.quaternion.copy(first.quaternion)
   mesh.scale.copy(first.scale)
@@ -70,9 +70,10 @@ function drawOnce(group: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometr
 }
 
 /**
- * batchLayered regroupe les surfaces de `meshes` à matériau fusionné (cf. en-tête), écrit la ligne
- * de la fusion dans la console et rend la libération des maillages posés (leurs index seuls : les
- * sommets sont aux surfaces). `tighten` borne un maillage sur les sommets que son index lit.
+ * batchLayered groups the surfaces of `meshes` that have a merged material (see header),
+ * writes the merge's line to the console, and returns the release of the placed meshes (their
+ * index only: the vertices belong to the surfaces). `tighten` bounds a mesh to the vertices
+ * its index reads.
  */
 export function batchLayered(merge: LayeredMerge, meshes: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometry) => void): () => void {
   const start = performance.now()
@@ -100,10 +101,10 @@ export function batchLayered(merge: LayeredMerge, meshes: readonly THREE.Mesh[],
   const upload = merge.atlas.uploadMs
   const probed = new Set([...groups.values()].map((g) => g[0].material)).size
   console.info(
-    `rejeu 3D : fusion des couches, matériaux ${s.materialsBefore} -> ${s.materialsAfter} (${probed} avec les sondes), ` +
-      `maillages ${s.meshes} -> ${batches.length + alone}, tableaux ${s.arrays.join(' ')}, lignes ${s.rows} (${s.rejected} à part), ` +
-      `sommets dupliqués ${s.duplicated}, ${Math.round(s.ms + performance.now() - start)} ms, transfert des images ` +
-      (upload === null ? 'au premier rendu' : `en ${Math.round(upload)} ms`),
+    `3D replay: layers merge, materials ${s.materialsBefore} -> ${s.materialsAfter} (${probed} with probes), ` +
+      `meshes ${s.meshes} -> ${batches.length + alone}, arrays ${s.arrays.join(' ')}, rows ${s.rows} (${s.rejected} left apart), ` +
+      `duplicated vertices ${s.duplicated}, ${Math.round(s.ms + performance.now() - start)} ms, image transfer ` +
+      (upload === null ? 'at first render' : `in ${Math.round(upload)} ms`),
   )
   return () => {
     for (const mesh of batches) {

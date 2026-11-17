@@ -46,8 +46,12 @@ func attachFallbackCoverage(ctx context.Context, doc *ReplayDocument, c *fallbac
 	// UNE LIGNE PAR REPLI DECLENCHE, et pas un total : un total ne designe aucun chantier, alors
 	// qu'un nom en designe un — le registre porte sa cible de retrait en face.
 	for _, h := range doc.Coverage.Fallbacks {
+		name := h.Name
+		if en, ok := fallback.EnglishName(fallback.Nom(h.Name)); ok {
+			name = en
+		}
 		slog.InfoContext(ctx, "replay: fallback triggered",
-			"match_id", doc.MatchID, "fallback", h.Name, "triggers", h.Hits)
+			"match_id", doc.MatchID, "fallback", name, "triggers", h.Hits)
 	}
 }
 

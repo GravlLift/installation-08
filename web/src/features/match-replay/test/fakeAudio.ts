@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * fakeAudio.ts — LE double Web Audio des tests du rejeu, partagé (patron testDoc.ts).
+ * fakeAudio.ts — THE Web Audio double for replay tests, shared (same pattern as testDoc.ts).
  *
- * jsdom n'implémente ni AudioContext ni le décodage : sans double, rien de la chaîne
- * sonore n'est testable. Celui-ci n'imite pas le son — il NOTE ce qu'on lui demande
- * (sources démarrées, enveloppes programmées, arrêts), ce qui est justement ce qui casse
- * en silence. Le rendu, lui, se juge à l'écoute, jamais ici.
+ * jsdom implements neither AudioContext nor decoding: without a double, nothing in the
+ * audio chain is testable. This one doesn't simulate sound — it RECORDS what it's asked
+ * to do (sources started, envelopes scheduled, stops), which is exactly what breaks
+ * silently. The actual rendering is judged by ear, never here.
  *
- * Deux tests s'en servent (moteur et câblage) : il vit donc à un seul endroit dès la
- * deuxième copie, avant de diverger.
+ * Two tests use it (engine and wiring): it lives in a single place as of the second
+ * copy, before they diverge.
  */
 import { vi } from 'vitest'
 
-/** Un paramètre de gain qui enregistre l'enveloppe qu'on lui programme. */
+/** A gain parameter that records the envelope programmed into it. */
 export class FakeParam {
   value = 1
   calls: Array<[string, number, number]> = []
@@ -22,23 +22,23 @@ export class FakeParam {
 }
 
 /**
- * FakeGain note VERS QUOI il est branché depuis le 2026-08-26 (robinet d'enregistrement) :
- * la question « le son du clip sort-il du même endroit que celui des haut-parleurs ? » ne se
- * répond pas autrement, et elle casserait en silence — un clip muet ne lève aucune erreur.
+ * FakeGain records WHAT it's connected to as of 2026-08-26 (recording tap): the question
+ * "does the clip's sound come out of the same place as the speakers' sound?" can't be
+ * answered any other way, and it would break silently — a muted clip throws no error.
  */
 export class FakeGain {
   gain = new FakeParam()
-  /** Branchements NOTÉS (robinet d'enregistrement, 2026-08-26) : un clip branché au mauvais
-   *  endroit est muet, et ça casse en silence — rien d'autre ne répond à la question. */
+  /** Connections RECORDED (recording tap, 2026-08-26): a clip connected to the wrong
+   *  place is silent, and that breaks silently — nothing else answers the question. */
   connections: unknown[] = []
   connect(dest?: unknown) { this.connections.push(dest) }
   disconnect() { this.connections.length = 0 }
 }
 
 /**
- * Le panneur stéréo de la spatialisation : il porte un côté (`pan`) et note ses branchements
- * comme le gain — c'est ce qui permet de vérifier qu'un son à un côté passe par lui, et qu'un
- * son centré n'en crée pas.
+ * The stereo panner for spatialization: it carries a side (`pan`) and records its
+ * connections like the gain node — this is what lets us verify that a panned sound
+ * goes through it, and that a centered sound doesn't create one.
  */
 export class FakeStereoPanner {
   pan = { value: 0 }
@@ -47,7 +47,7 @@ export class FakeStereoPanner {
   disconnect() { this.connections.length = 0 }
 }
 
-/** Le passe-bas de la chaîne de distance ; il note ses branchements comme le gain. */
+/** The low-pass filter of the distance chain; it records its connections like the gain. */
 export class FakeFilter {
   type = ''
   frequency = new FakeParam()
@@ -56,7 +56,7 @@ export class FakeFilter {
   disconnect() { this.connections.length = 0 }
 }
 
-/** Le robinet d'enregistrement : un nœud de sortie qui expose une piste audio. */
+/** The recording tap: an output node that exposes an audio track. */
 export class FakeStreamDestination {
   track = { kind: 'audio' } as unknown as MediaStreamTrack
   stream = { getAudioTracks: () => [this.track] }
@@ -67,16 +67,16 @@ export class FakeSource {
   onended: (() => void) | null = null
   started: number | null = null
   stopped: number | null = null
-  /** La VITESSE DE LECTURE, portée comme un AudioParam par le vrai WebAudio (`.value`) :
-   *  c'est par elle que passe la variation de hauteur d'un tirage (weaponSoundLogic). */
+  /** The PLAYBACK RATE, carried as an AudioParam by real WebAudio (`.value`):
+   *  this is what carries a shot's pitch variation (weaponSoundLogic). */
   playbackRate = new FakeParam()
   connect() {}
   disconnect() {}
-  /** Le DÉCALAGE dans le tampon au départ (`start(t, offset)`), 0 quand il est omis. */
+  /** The OFFSET into the buffer at start (`start(t, offset)`), 0 when omitted. */
   offset = 0
   start(t: number, offset = 0) { this.started = t; this.offset = offset }
   stop(t: number) { this.stopped = t }
-  /** Fin naturelle de la source : c'est le navigateur qui l'appelle, ici le test. */
+  /** Natural end of the source: normally called by the browser, here by the test. */
   end() { this.onended?.() }
 }
 
@@ -100,35 +100,35 @@ export class FakeContext {
   }
   createBufferSource() { const s = new FakeSource(); this.sources.push(s); return s }
   decodeAudioData(raw: ArrayBuffer) {
-    // La « durée » du buffer est encodée dans la taille du tampon (1 octet = 0,1 s) : le
-    // test choisit ainsi des sons longs ou courts sans embarquer de vrai fichier son.
+    // The buffer's "duration" is encoded in the buffer's size (1 byte = 0.1 s): this lets
+    // the test pick long or short sounds without shipping a real sound file.
     return Promise.resolve({ duration: raw.byteLength / 10 } as AudioBuffer)
   }
   close() { this.closed++; return Promise.resolve() }
   resume() { this.resumed++; return Promise.resolve() }
 }
 
-/** Une réponse `fetch` réussie portant un tampon qui « dure » `seconds`. */
+/** A successful `fetch` response carrying a buffer that "lasts" `seconds`. */
 export function okAudioResponse(seconds: number) {
   return { ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(Math.round(seconds * 10))) }
 }
 
 /**
- * installFakeAudio remplace AudioContext et fetch le temps d'un test. À appeler dans un
- * `beforeEach`, à défaire par `vi.unstubAllGlobals()`.
+ * installFakeAudio replaces AudioContext and fetch for the duration of a test. Call it
+ * in a `beforeEach`, undo it with `vi.unstubAllGlobals()`.
  */
 export function installFakeAudio(seconds = 3): {
   ctx: FakeContext
   fetchMock: ReturnType<typeof vi.fn>
 } {
   const ctx = new FakeContext()
-  // `new AudioContext()` doit rendre NOTRE double : une fonction constructeur qui retourne
-  // un objet ignore l'instance neuve et sert celui-là (vi.fn() n'est pas constructible).
+  // `new AudioContext()` must return OUR double: a constructor function that returns
+  // an object ignores the new instance and serves that one instead (vi.fn() isn't constructible).
   vi.stubGlobal('AudioContext', function AudioContextDouble() { return ctx })
   const fetchMock = vi.fn(() => Promise.resolve(okAudioResponse(seconds)))
   vi.stubGlobal('fetch', fetchMock)
   return { ctx, fetchMock }
 }
 
-/** Laisse les promesses de chargement/décodage se résoudre. */
+/** Lets loading/decoding promises resolve. */
 export const flushAudio = () => new Promise((r) => setTimeout(r, 0))

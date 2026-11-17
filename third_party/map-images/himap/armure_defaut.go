@@ -16,6 +16,8 @@
 // le cas des pieces facultatives (coudieres, genouilleres, poignets) du noyau de base.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -55,12 +57,12 @@ func armureParDefaut(ctx context.Context, idx *ModuleIndex, mode uint32) (Armure
 	for _, id := range ids {
 		tag, err := idx.Extract(id)
 		if err != nil {
-			slog.WarnContext(ctx, "globales de personnalisation illisibles", "id", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable customization globals", "id", fmt.Sprintf("%08x", id), "err", err)
 			continue
 		}
 		nom, modele, ok, err := themeParDefaut(tag, mode)
 		if err != nil {
-			slog.WarnContext(ctx, "themes de personnalisation illisibles", "id", fmt.Sprintf("%08x", id), "err", err)
+			slog.WarnContext(ctx, "unreadable customization themes", "id", fmt.Sprintf("%08x", id), "err", err)
 			continue
 		}
 		if !ok {
@@ -68,7 +70,7 @@ func armureParDefaut(ctx context.Context, idx *ModuleIndex, mode uint32) (Armure
 		}
 		return varianteDuBiped(ctx, idx, ArmureParDefaut{NomVariante: nom, Personnalisation: id}, modele)
 	}
-	return ArmureParDefaut{}, fmt.Errorf("aucune globale de personnalisation (%s) ne porte le mode %08x", GroupePersonnalisation, mode)
+	return ArmureParDefaut{}, fmt.Errorf("no customization global (%s) carries mode %08x", GroupePersonnalisation, mode)
 }
 
 // themeParDefaut rend le nom de variante du theme 0 du modele `mode` de l'ocgd, et les octets de
@@ -95,7 +97,7 @@ func themeParDefaut(ocgd []byte, mode uint32) (uint32, []byte, bool, error) {
 			themes := ti.subBlockTarget(cibles[i], k*ocgdModeleStride+ocgdModeleOffThemes)
 			tAbs, tTaille := ti.blockAbs(themes)
 			if themes < 0 || tAbs < 0 || tTaille < ocgdThemeStride {
-				return 0, nil, false, fmt.Errorf("modele %08x sans theme", mode)
+				return 0, nil, false, fmt.Errorf("model %08x without a theme", mode)
 			}
 			return uint32(u32(ti.tag, tAbs+ocgdThemeOffVariante)), ti.tag[rec : rec+ocgdModeleStride], true, nil
 		}
@@ -109,18 +111,18 @@ func varianteDuBiped(ctx context.Context, idx *ModuleIndex, a ArmureParDefaut, m
 	for _, b := range refsInlineDuGroupe(modele, idx, GroupeBiped) {
 		bipd, err := idx.Extract(b)
 		if err != nil {
-			slog.WarnContext(ctx, "bipd illisible", "id", fmt.Sprintf("%08x", b), "err", err)
+			slog.WarnContext(ctx, "unreadable bipd", "id", fmt.Sprintf("%08x", b), "err", err)
 			continue
 		}
 		for _, h := range refsVehicule(bipd, idx, GroupeHlmt) {
 			hlmt, err := idx.Extract(h)
 			if err != nil {
-				slog.WarnContext(ctx, "hlmt illisible", "id", fmt.Sprintf("%08x", h), "err", err)
+				slog.WarnContext(ctx, "unreadable hlmt", "id", fmt.Sprintf("%08x", h), "err", err)
 				continue
 			}
 			v, ok, err := LitVarianteModele(hlmt, a.NomVariante)
 			if err != nil {
-				slog.WarnContext(ctx, "variantes du hlmt illisibles", "id", fmt.Sprintf("%08x", h), "err", err)
+				slog.WarnContext(ctx, "unreadable hlmt variants", "id", fmt.Sprintf("%08x", h), "err", err)
 				continue
 			}
 			if ok {
@@ -129,5 +131,5 @@ func varianteDuBiped(ctx context.Context, idx *ModuleIndex, a ArmureParDefaut, m
 			}
 		}
 	}
-	return a, fmt.Errorf("variante %08x du theme par defaut absente des hlmt du bipd de l'ocgd %08x", a.NomVariante, a.Personnalisation)
+	return a, fmt.Errorf("variant %08x of the default theme missing from the hlmts of ocgd's bipd %08x", a.NomVariante, a.Personnalisation)
 }

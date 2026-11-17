@@ -178,9 +178,9 @@ func decodeFilmBombReads(ctx context.Context, fc *grammar.FilmContext, matchID s
 	slog.InfoContext(ctx, "arming: ti=12 ring swept",
 		"match_id", matchID, "slots", sc.SlotsObserved, "records", sc.Records,
 		"walks", sc.Walked, "chained", sc.Chained, "reads", len(sc.Reads),
-		"paquetsSansHorloge", sc.PacketsNoClock,
-		"imageCleRecords", sc.KeyRecords, "imageCleFermees", sc.KeyClosed,
-		"imageCleBornees", sc.KeyBounded)
+		"packetsNoClock", sc.PacketsNoClock,
+		"keyframeRecords", sc.KeyRecords, "keyframeClosed", sc.KeyClosed,
+		"keyframeBounded", sc.KeyBounded)
 	publierFermetureImageCle(sc)
 	return sc.Reads
 }
@@ -432,15 +432,15 @@ func logBombArmings(ctx context.Context, matchID string, cov *BombArmingsCoverag
 			"(explosion without arming, or fuses that contradict each other)",
 			"match_id", matchID, "explosions", cov.Detonations,
 			"covered", cov.DetonationsCovered, "armings", cov.Armed, "segments", cov.Rises,
-			"mecheIncoherente", v.Inconsistent, "fuse_ms", v.FuseMS, "cv", v.CV)
+			"inconsistentFuse", v.Inconsistent, "fuse_ms", v.FuseMS, "cv", v.CV)
 		return
 	}
 	slog.InfoContext(ctx, "replay: bomb arming",
 		"match_id", matchID, "reads", cov.Reads, "segments", cov.Rises,
-		"sousLePlein", cov.BelowFull, "armings", cov.Armed, "paireFondue", cov.PairMerged,
-		"published", cov.Published, "horsFenetre", cov.OutOfWindow,
+		"belowFull", cov.BelowFull, "armings", cov.Armed, "mergedPair", cov.PairMerged,
+		"published", cov.Published, "outOfWindow", cov.OutOfWindow,
 		"explosions", cov.Detonations, "covered", cov.DetonationsCovered,
-		"fuse_ms", v.FuseMS, "mecheMesuree", v.Measured, "cv", v.CV)
+		"fuse_ms", v.FuseMS, "measuredFuse", v.Measured, "cv", v.CV)
 }
 
 // bombReadsBySlot indexe les lectures de l anneau par slot, chacune TRIEE par instant — l ordre

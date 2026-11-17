@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * deaths3d.ts — LES MORTS DANS LA SCÈNE 3D : une croix au sol là où la victime est tombée, le tueur
- * et l'arme du kill au-dessus, et, au premier instant, le trait du tueur vers sa victime.
+ * deaths3d.ts — DEATHS IN THE 3D SCENE: a cross on the ground where the victim fell, the killer
+ * and the kill's weapon above it, and, for the first moment, a line from the killer to their
+ * victim.
  *
- * Les kills sont ceux du fil, recalés une fois par la page ; la croix tient la même durée que celle
- * de la 2D. Les positions passent par le même résolveur que la 2D (`buildCarrierPosAt`) : un joueur
- * tué à bord tombe sur son véhicule. Le trait n'est tiré que si les deux positions sont relues
- * (jamais un axe inventé), seulement pendant la durée d'un tir, et seulement quand le tiroir allume
- * les lignes de tir (`aids3d.shotLines`) : le jeu ne le montre pas.
+ * Kills are the feed's, resolved once per page; the cross lasts as long as the one in 2D.
+ * Positions go through the same resolver as 2D (`buildCarrierPosAt`): a player killed while
+ * mounted falls onto their vehicle. The line is only drawn when both positions are re-read (never
+ * a made-up axis), only for the duration of a shot, and only when the drawer turns on shot lines
+ * (`aids3d.shotLines`): the game itself does not show it.
  *
- * L'étiquette se lit comme le fil : « tueur › victime · arme ». L'arme est celle que la base donne au
- * kill (`weaponLabel`), vide pour la mêlée et les grenades. Un tueur inconnu laisse la croix seule.
- * Croix et étiquette sont un repère d'analyse (`aids3d.deathMarkers`, éteint) : le jeu ne les pose
- * pas sur la carte. L'interrupteur des morts du tiroir 2D (`show.kills`) les coiffe tous deux.
+ * The label reads like the feed: "killer › victim · weapon". The weapon is the one the backend
+ * gives the kill (`weaponLabel`), empty for melee and grenades. An unknown killer leaves the cross
+ * alone. Cross and label are an analysis aid (`aids3d.deathMarkers`, off by default): the game does
+ * not place them on the map. The 2D drawer's deaths toggle (`show.kills`) gates both.
  *
- * Le corps de la victime (`corpses3d`) tombe à la fin de sa vie en corps inerte poussé par ce qui l'a
- * tué (cuisson par mort, `ragdollBakery3d` ; par les clips de mort du jeu, `fall3d`, tant qu'elle
- * n'est pas prête), et reste où il a fini aussi longtemps que la croix ; il est du monde, pas du tiroir :
- * masquer les morts n'efface que la croix, le trait et l'étiquette.
+ * The victim's body (`corpses3d`) falls at the end of their life into a ragdoll pushed by whatever
+ * killed them (baked on death, `ragdollBakery3d`; by the game's death clips, `fall3d`, until it is
+ * ready), and stays where it settled for as long as the cross; it belongs to the world, not the
+ * drawer: hiding deaths only clears the cross, the line and the label.
  */
 import * as THREE from 'three'
 
@@ -46,23 +47,23 @@ export interface Death3d {
   frame: number
   killer: string
   victim: string
-  /** Pieds de la victime (axes three). */
+  /** Victim's feet (three axes). */
   at: THREE.Vector3
-  /** Pieds du tueur, seulement quand les deux positions sont relues. */
+  /** Killer's feet, only when both positions are re-read. */
   from: THREE.Vector3 | null
   weapon: string
   /**
-   * Le corps : l'image où la victime n'est plus en vie (début de la chute) et sa chute ; null quand
-   * la vie qui finit n'est pas relue près du kill (jamais un corps à côté d'un joueur vivant).
+   * The body: the frame where the victim is no longer alive (start of the fall) and its fall; null
+   * when the life that ends is not re-read near the kill (never a body next to a live player).
    */
   body: { start: number; fall: Corpse } | null
 }
 
-/** Le retard au plus entre le kill du fil et la fin de la vie de sa victime (s). */
+/** The maximum lag between the feed's kill and the end of its victim's life (s). */
 const DEATH_LAG_SECONDS = 1
-/** Le pas de la recherche de cette fin (images). */
+/** The step of the search for that end (frames). */
 const DEATH_LAG_STEP = 0.25
-/** En deçà (u), tueur et victime sont confondus : l'impulsion ne se lit pas entre eux. */
+/** Below this (u), killer and victim overlap: the push direction cannot be read between them. */
 const MIN_PUSH = 0.05
 
 export class Deaths3dLayer implements ActionLayer3d {
@@ -123,7 +124,7 @@ export class Deaths3dLayer implements ActionLayer3d {
     this.bakery.setDeaths(this.deaths)
   }
 
-  /** Prépare une copie de chaque victime possible avec la teinte du calque. */
+  /** Prepares a copy of every possible victim with the layer's tint. */
   prepareCorpses(): THREE.Object3D[] {
     this.corpses.begin(this.ctx.spartanModel())
     return this.ctx.tracks.players.flatMap((p) => {
@@ -139,14 +140,14 @@ export class Deaths3dLayer implements ActionLayer3d {
     return { key: `${css}|${xuid}`, tint: this.ctx.ink.of(css) }
   }
 
-  /** ragdollStats : les mesures des cuissons de corps inertes faites (`ragdollBakery3d`). */
+  /** ragdollStats: the measurements of the ragdoll bakes done (`ragdollBakery3d`). */
   ragdollStats(): BakeryStats {
     return this.bakery.stats()
   }
 
   /**
-   * corpseFeet : les pieds du corps inerte de la victime `xuid` à l'image `frame` (axes three), écrits
-   * dans `out` ; null sans corps à cette image. Sert la caméra de mort (`deathCamera3d`).
+   * corpseFeet: the feet of victim `xuid`'s ragdoll body at frame `frame` (three axes), written
+   * into `out`; null without a body at that frame. Serves the death camera (`deathCamera3d`).
    */
   corpseFeet(xuid: string, frame: number, out: THREE.Vector3): THREE.Vector3 | null {
     const d = this.currentBody(xuid, frame)
@@ -156,8 +157,8 @@ export class Deaths3dLayer implements ActionLayer3d {
   }
 
   /**
-   * currentBody : la mort de `xuid` dont le corps est le plus récent à démarrer avant `frame`, null
-   * sans corps. Entre deux morts le joueur est en vie, donc le corps le plus récent est le courant.
+   * currentBody: the death of `xuid` whose body is the most recent to start before `frame`, null
+   * without a body. Between two deaths the player is alive, so the most recent body is the current one.
    */
   private currentBody(xuid: string, frame: number): Death3d | null {
     let best: Death3d | null = null
@@ -198,8 +199,8 @@ export class Deaths3dLayer implements ActionLayer3d {
 }
 
 /**
- * deathText : l'étiquette d'une mort, lue comme une ligne du fil — « tueur › victime · arme ». Sans
- * tueur nommé, rien : la croix seule. Sans victime nommée, le tueur et l'arme.
+ * deathText: a death's label, read like a feed line — "killer › victim · weapon". Without a
+ * named killer, nothing: the cross alone. Without a named victim, the killer and the weapon.
  */
 export function deathText(killer: string | null, victim: string | null, weapon: string): string | null {
   if (!killer) return null
@@ -207,7 +208,7 @@ export function deathText(killer: string | null, victim: string | null, weapon: 
   return weapon ? `${who} · ${weapon}` : who
 }
 
-/** buildDeaths3d : les morts localisées, triées par image, pieds posés sur la carte. */
+/** buildDeaths3d: the located deaths, sorted by frame, feet placed on the map. */
 export function buildDeaths3d(ctx: ActionContext, kills: readonly ReplayKill[]): Death3d[] {
   const { doc } = ctx
   const posOf = buildCarrierPosAt(doc)
@@ -227,9 +228,9 @@ export function buildDeaths3d(ctx: ActionContext, kills: readonly ReplayKill[]):
 }
 
 /**
- * deathFrame : l'image de la mort d'une victime dont le fil annonce le kill à `killFrame`. Le fil
- * suit la fin de la vie de peu : la mort se pose sur cette fin quand elle précède le kill de moins
- * de `DEATH_LAG_SECONDS`, pour que le corps vivant laisse place au corps inerte sans image vide.
+ * deathFrame: the frame of a victim's death whose kill the feed reports at `killFrame`. The feed
+ * trails the end of life by a little: the death lands on that end when it precedes the kill by
+ * less than `DEATH_LAG_SECONDS`, so the live body gives way to the ragdoll with no empty frame.
  */
 function deathFrame(ctx: ActionContext, victim: string, killFrame: number): number {
   if (ctx.tracks.sample(victim, killFrame)) return killFrame
@@ -239,9 +240,9 @@ function deathFrame(ctx: ActionContext, victim: string, killFrame: number): numb
 }
 
 /**
- * bodyOf : le corps de la victime d'un kill à l'image `frame`. La chute part de la fin de sa vie
- * (cherchée jusqu'à `DEATH_LAG_SECONDS` après le kill), dans la direction du tueur vers elle quand
- * les deux positions sont relues, vers son dos sinon.
+ * bodyOf: a kill victim's body at frame `frame`. The fall starts at the end of their life
+ * (searched up to `DEATH_LAG_SECONDS` after the kill), in the direction from the killer toward
+ * them when both positions are re-read, toward their back otherwise.
  */
 function bodyOf(
   ctx: ActionContext,
@@ -268,7 +269,7 @@ function bodyOf(
   return { start, fall: { at, dir: dir.normalize(), h: last.h, kind } }
 }
 
-/** feetAt : un point (x, y) du rejeu posé à la hauteur des pieds du joueur, ou sur le sol à défaut. */
+/** feetAt: a replay point (x, y) placed at the player's feet height, or on the ground otherwise. */
 function feetAt(ctx: ActionContext, xy: { x: number; y: number } | null, xuid: string, frame: number): THREE.Vector3 | null {
   if (!xy) return null
   const [x, , z] = toThree(xy.x, xy.y, 0)

@@ -68,7 +68,7 @@ import { weaponModelKey, type WeaponModels } from './weaponModels3d'
 import { readRedReticle, type HeldWeapon } from './redReticle3d'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
-/** Le joueur suivi : en vie, mort, pas encore apparu, ou aucun joueur suivi. */
+/** The followed player: alive, dead, not yet spawned, or no followed player. */
 export type PovStatus = 'alive' | 'dead' | 'unspawned' | 'none'
 // Free camera start: behind and above the followed player (u).
 const FREE_BACK = 3
@@ -90,7 +90,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   readonly camera: THREE.PerspectiveCamera
   private readonly orbit: OrbitControls
   private readonly fly = new FreeFly()
-  /** Le compositeur : occlusion ambiante et contour d'équipe (`postFx3d`). */
+  /** The compositor: ambient occlusion and team outline (`postFx3d`). */
   private readonly post: PostFx3d
   private readonly lighting: Lighting
   private readonly raycaster = new THREE.Raycaster()
@@ -104,7 +104,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   readonly warmUp = serialiser(async () => {
     try {
       await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
-    } catch (erreur) { console.warn('rejeu 3D : préchauffage indisponible', erreur) }
+    } catch (error) { console.warn('3D replay: prewarming unavailable', error) }
   })
   /** The posed map: session-cached (`sessionAssetCache3d`) by its served path, not owned by this scene. */
   private model: MapModel | null = null
@@ -144,7 +144,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private fps = 30
   private weaponModels: WeaponModels | null = null
   private armory: SpartanArmory | null = null
-  /** L'arme du joueur suivi en 1re personne (clé et nom), null sans clé ; `rig` : c'est le rig bras + arme qui est dessiné. */
+  /** The followed player's first-person weapon (key and name), null with no key; `rig`: the arms+weapon rig is what's drawn. */
   inView: { key: string; name: string; rig: boolean } | null = null
   private readonly actionRoot = new THREE.Group()
   private feetDrop = 0
@@ -170,7 +170,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     // One WebGLRenderer for the whole session (`sessionRenderer3d`): its compiled shader programs
     // and uploaded GPU buffers and textures survive this scene's own teardown, for the next match.
     this.renderer = attachRenderer(host)
-    // Pendant un export, la toile rend au format du fichier sans changer de boîte (image entière à l'écran).
+    // During an export, the canvas renders at the file's format without changing box (full image on screen).
     this.renderer.domElement.style.objectFit = 'contain'
     Object.assign(this.labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
     host.appendChild(this.labels.domElement)
@@ -208,7 +208,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       hideTopDown: () => this.top?.idle(),
     })
   }
-  /** attach pose la carte et les joueurs, éclaire l'aire de jeu et capture l'environnement. */
+  /** attach poses the map and the players, lights the play area, and captures the environment. */
   attach(model: MapModel, tracks: Tracks3d, colorOf: (xuid: string) => THREE.Color): void {
     this.model = model
     this.tracks = tracks
@@ -255,7 +255,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     this.top?.sync(this.ciel, this.mapRoots())
     seg('batch', () => {
-      // Après l'attribution des sondes : les surfaces de même matériau se dessinent ensemble.
+      // After the probes are assigned: surfaces sharing a material are drawn together.
       model.batchDraws()
       freezeStatic(model.root)
       this.findBackFaces()

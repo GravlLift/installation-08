@@ -1,50 +1,52 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplayShortcuts — LE CLAVIER DU LECTEUR (demande utilisateur du 2026-08-27).
+ * useReplayShortcuts — THE PLAYER'S KEYBOARD (user request of 2026-08-27).
  *
- * LES RACCOURCIS SONT CEUX QUE TOUT LE MONDE CONNAÎT DÉJÀ, et pas un de plus : Espace et K
- * pour lecture/pause, ←/→ et J/L pour ±10 s, M pour le son, R pour recommencer, « , » et « . »
- * pour l'image par image, F pour le plein écran ; au cadrage, + / − pour grossir et réduire, 0 pour toute la carte,
- * Maj + flèche pour se déplacer. Inventer une convention maison ferait apprendre ce que le lecteur
- * sait déjà.
+ * THE SHORTCUTS ARE THE ONES EVERYONE ALREADY KNOWS, and not one more: Space and K for
+ * play/pause, ←/→ and J/L for ±10 s, M for sound, R to restart, "," and "." for frame by
+ * frame, F for fullscreen; for framing, + / − to zoom in and out, 0 for the whole map,
+ * Shift + arrow to pan. Inventing a house convention would make the viewer learn what they
+ * already know.
  *
- * IL NE VOLE PAS LA FRAPPE : un raccourci ne part jamais depuis un champ de saisie, un
- * `contenteditable`, ni avec un modificateur (Ctrl/Cmd/Alt) — sans quoi Espace dans une
- * recherche mettrait le rejeu en pause, et Cmd+R rechargerait ET rembobinerait.
+ * IT DOES NOT STEAL KEYSTROKES: a shortcut never fires from an input field, a
+ * `contenteditable`, nor with a modifier (Ctrl/Cmd/Alt) — otherwise Space in a search box
+ * would pause the replay, and Cmd+R would reload AND rewind.
  *
- * ...SAUF DEPUIS LA FRISE DU LECTEUR, ET C'EST UNE DÉCISION UTILISATEUR (gate du 2026-08-28).
- * Un `input[type=range]` est un champ de saisie pour le navigateur : la garde ci-dessus
- * l'attrapait, et les raccourcis MOURAIENT dès qu'on avait cliqué sur la frise — c'est-à-dire
- * exactement au moment où l'on analyse un match. Espace ne répondait plus, ←/→ avançaient d'UNE
- * image (le pas natif du champ) au lieu de sauter 10 s. L'exemption est portée par un ATTRIBUT
- * (`data-replay-timeline`) et non par un test de type : elle vise CE champ-là, pas la famille.
+ * ...EXCEPT FROM THE PLAYER'S TIMELINE, AND THAT IS A USER DECISION (gate of 2026-08-28).
+ * An `input[type=range]` is an input field to the browser: the guard above used to catch
+ * it, and the shortcuts DIED as soon as you had clicked the timeline — that is, exactly at
+ * the moment one is analyzing a match. Space stopped responding, ←/→ advanced by ONE frame
+ * (the field's native step) instead of jumping 10 s. The exemption is carried by an
+ * ATTRIBUTE (`data-replay-timeline`) and not by a type check: it targets THAT field
+ * specifically, not the family.
  *
- * LE VOLUME, LUI, RESTE UN CHAMP DE SAISIE — c'est le même élément HTML, et c'est pourquoi
- * l'exemption devait être nominative : qui vient de cliquer sur le volume et presse ← attend
- * que le volume baisse, pas que le film saute de dix secondes.
+ * VOLUME, ON THE OTHER HAND, STAYS AN INPUT FIELD — it is the same HTML element, and that is
+ * why the exemption had to be nominative: whoever just clicked volume and presses ← expects
+ * the volume to go down, not the film to jump ten seconds.
  *
- * `preventDefault` N'EST APPELÉ QUE SUR LES TOUCHES QU'ON TRAITE, et c'est lui qui supprime le
- * double pas : sur la frise focalisée, ←/→ ferait NOTRE saut PLUS le pas natif du champ.
+ * `preventDefault` IS ONLY CALLED ON THE KEYS WE HANDLE, and that is what removes the
+ * double step: on the focused timeline, ←/→ would do OUR jump PLUS the field's native step.
  */
 import { useEffect, useRef } from 'react'
 import { isEditableTarget } from '@/lib/dom/editableTarget'
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 
 /**
- * L'ATTRIBUT QUI REND SA FRAPPE À LA FRISE. Il est posé par `ReplayTimelineTracks` sur le seul
- * champ concerné et lu ici — le lien entre les deux est la pièce fragile de ce mécanisme, il a
- * son garde-fou dans `ReplayTimelineTracks.test.tsx`.
+ * THE ATTRIBUTE THAT GIVES KEYSTROKES BACK TO THE TIMELINE. It is set by
+ * `ReplayTimelineTracks` on the one field it concerns and read here — the link between the
+ * two is the fragile piece of this mechanism, it has its safeguard in
+ * `ReplayTimelineTracks.test.tsx`.
  */
 export const TIMELINE_SHORTCUT_ATTR = 'data-replay-timeline'
 
-/** Ce que le clavier commande. Chaque entrée est une commande déjà existante du lecteur. */
+/** What the keyboard commands. Each entry is an already-existing player command. */
 export interface ReplayShortcutHandlers {
   togglePlay: () => void
   seekBy: (seconds: number) => void
   stepFrames: (frames: number) => void
   restart: () => void
   toggleSound: () => void
-  /** Ouvre ou ferme le mode plein écran (useReplayFullscreen) : la touche F. */
+  /** Opens or closes fullscreen mode (useReplayFullscreen): the F key. */
   toggleFullscreen: () => void
   /** Switches the 3D view between the perspective and the orthographic top-down: the key V; absent = the key is not listened to. */
   toggleView?: () => void
@@ -52,16 +54,16 @@ export interface ReplayShortcutHandlers {
   setCameraMode?: (mode: CameraMode3d) => void
   /** Seeks to the selected player's previous (-1) or next (1) kill, death or medal: the keys [ and ]; absent = the keys are not listened to. */
   stepEvent?: (direction: -1 | 1) => void
-  /** Le saut des flèches, en secondes (cf. SKIP_SECONDS de la barre). */
+  /** The arrow keys' jump, in seconds (cf. SKIP_SECONDS of the bar). */
   skipSeconds: number
-  /** `false` quand la page n'a pas de rejeu chargé : rien n'est écouté. */
+  /** `false` when the page has no replay loaded: nothing is listened to. */
   enabled: boolean
   /**
-   * LE CADRAGE (2026-09-02). Absent = les raccourcis de cadrage ne sont pas écoutés.
+   * FRAMING (2026-09-02). Absent = framing shortcuts are not listened to.
    *
-   * Il passe par CE hook et non par un second écouteur : deux écouteurs clavier concurrents sur
-   * les mêmes touches finissent toujours par se marcher dessus, et il n'y a ici qu'un seul
-   * endroit où l'on sait si la frappe vient d'un champ de saisie.
+   * It goes through THIS hook and not through a second listener: two concurrent keyboard
+   * listeners on the same keys always end up stepping on each other, and there is only one
+   * place here that knows whether the keystroke comes from an input field.
    */
   zoom?: {
     zoomIn: () => void
@@ -71,14 +73,14 @@ export interface ReplayShortcutHandlers {
   }
 }
 
-/** Ce qu'une touche commande au cadrage. */
+/** What a key commands for framing. */
 export type ZoomKeyCommand = 'in' | 'out' | 'reset'
 
 /**
- * LES TOUCHES DU ZOOM, une seule table pour le rejeu et les plans qui reprennent son zoom (Vue
- * match, Tactique : `useReplayZoomKeys`). `=` et `_` viennent avec `+` et `-`, parce que `+` et `-`
- * exigent Maj sur beaucoup de dispositions — sans eux, la moitié des claviers n'aurait pas de zoom.
- * `0` revoit toute la carte, comme le bouton ⌂.
+ * THE ZOOM KEYS, a single table for the replay and the screens that reuse its zoom (Match
+ * View, Tactical: `useReplayZoomKeys`). `=` and `_` come along with `+` and `-`, because `+`
+ * and `-` require Shift on many layouts — without them, half the keyboards would have no
+ * zoom. `0` resets to the whole map, like the ⌂ button.
  */
 export function zoomKeyCommand(key: string): ZoomKeyCommand | null {
   switch (key) {
@@ -95,7 +97,7 @@ export function zoomKeyCommand(key: string): ZoomKeyCommand | null {
   }
 }
 
-/** Applique une commande de touche au cadrage. */
+/** Applies a key command to the framing. */
 export function applyZoomKey(command: ZoomKeyCommand, zoom: { zoomIn: () => void; zoomOut: () => void; reset: () => void }): void {
   if (command === 'in') zoom.zoomIn()
   else if (command === 'out') zoom.zoomOut()
@@ -103,8 +105,9 @@ export function applyZoomKey(command: ZoomKeyCommand, zoom: { zoomIn: () => void
 }
 
 /**
- * Les quatre flèches, en pas de croix. `dy` positif va vers le HAUT de la carte : le monde a son
- * Y vers le haut, et c'est `worldToCanvas` qui porte l'inversion — pas la commande.
+ * The four arrows, cross-stepped. A positive `dy` goes toward the TOP of the map: the world
+ * has its Y pointing up, and it is `worldToCanvas` that carries the inversion — not the
+ * command.
  */
 const ARROW_PAN: Record<string, [number, number] | undefined> = {
   ArrowUp: [0, 1],
@@ -113,7 +116,7 @@ const ARROW_PAN: Record<string, [number, number] | undefined> = {
   ArrowRight: [1, 0],
 }
 
-/** Ce qu'une touche commande au LECTEUR (le cadrage a sa propre table, `zoomKeyCommand`). */
+/** What a key commands for the PLAYER (framing has its own table, `zoomKeyCommand`). */
 type PlayerKeyAction =
   | 'play'
   | 'back'
@@ -131,9 +134,9 @@ type PlayerKeyAction =
   | 'nextEvent'
 
 /**
- * LES TOUCHES DU LECTEUR, majuscules comprises : Verr. Maj allumé ne doit éteindre aucun
- * raccourci. Une `Map` et non un objet : une clé de touche ne doit jamais tomber sur une
- * propriété héritée d'`Object.prototype`.
+ * THE PLAYER'S KEYS, uppercase included: Caps Lock being on must not disable any shortcut. A
+ * `Map` and not an object: a key name must never collide with a property inherited from
+ * `Object.prototype`.
  */
 const PLAYER_KEYS = new Map<string, PlayerKeyAction>([
   [' ', 'play'], ['k', 'play'], ['K', 'play'],
@@ -154,20 +157,20 @@ const CAMERA_KEY_MODE: Partial<Record<PlayerKeyAction, CameraMode3d>> = { camera
 export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
   if (!el) return false
-  // LA FRISE DU LECTEUR EST EXEMPTÉE, ET ELLE SEULE (cf. l'en-tête) : l'exemption est portée par
-  // un attribut, pas par un test de type — `input[type=range]` couvrirait aussi le volume, dont
-  // les flèches doivent rester natives. `hasAttribute` est appelé en optionnel : la cible d'un
-  // événement clavier peut être `window` ou `document`, qui n'ont pas de méthode d'attribut.
+  // THE PLAYER'S TIMELINE IS EXEMPTED, AND IT ALONE (cf. the header): the exemption is
+  // carried by an attribute, not by a type check — `input[type=range]` would also cover
+  // volume, whose arrows must stay native. `hasAttribute` is called optionally: the target of
+  // a keyboard event can be `window` or `document`, which have no attribute method.
   if (el.hasAttribute?.(TIMELINE_SHORTCUT_ATTR)) return false
   return isEditableTarget(el)
 }
 
 export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
   const { togglePlay, seekBy, stepFrames, restart, toggleSound, toggleFullscreen, toggleView, setCameraMode, stepEvent, skipSeconds, enabled, zoom } = h
-  // LE CADRAGE PAR RÉFÉRENCE, et pas en dépendance de l'effet : son objet est recréé à chaque
-  // rendu, et le cadrage change soixante fois par seconde pendant la lecture. En dépendance,
-  // l'écouteur clavier se réabonnerait à cette cadence. La référence s'écrit dans un effet —
-  // jamais pendant le rendu, que React réserve au calcul.
+  // FRAMING BY REFERENCE, and not as an effect dependency: its object is recreated on every
+  // render, and framing changes sixty times a second during playback. As a dependency, the
+  // keyboard listener would re-subscribe at that rate. The reference is written inside an
+  // effect — never during render, which React reserves for computation.
   const liveZoom = useRef(zoom)
   useEffect(() => {
     liveZoom.current = zoom
@@ -204,9 +207,10 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
       const { toggleView, setCameraMode, stepEvent } = live.current
       if (e.ctrlKey || e.metaKey || e.altKey) return
       if (isTypingTarget(e.target)) return
-      // MAJ + FLÈCHE DÉPLACE LE CADRAGE, et ce court-circuit vient AVANT les touches du
-      // lecteur : les flèches nues y valent le saut temporel, qui est le geste le plus fréquent
-      // d'un rejeu et qu'on ne déplace pas. Sans le `return`, une même frappe ferait les deux.
+      // SHIFT + ARROW PANS THE FRAMING, and this short-circuit comes BEFORE the player's
+      // keys: bare arrows there mean the time jump, which is the most frequent gesture of a
+      // replay and which we do not move. Without the `return`, the same keystroke would do
+      // both.
       const z = liveZoom.current
       if (z && e.shiftKey) {
         const p = ARROW_PAN[e.key]
@@ -216,15 +220,15 @@ export function useReplayShortcuts(h: ReplayShortcutHandlers): void {
           return
         }
       }
-      // LE ZOOM AU CLAVIER : la table partagée (`zoomKeyCommand`), avant les touches du lecteur.
+      // KEYBOARD ZOOM: the shared table (`zoomKeyCommand`), before the player's keys.
       const zoomCommand = z ? zoomKeyCommand(e.key) : null
       if (z && zoomCommand) {
         e.preventDefault()
         applyZoomKey(zoomCommand, z)
         return
       }
-      // `preventDefault` SUR LES SEULES TOUCHES TRAITÉES (cf. l'en-tête) : une touche hors table
-      // reste au navigateur.
+      // `preventDefault` ON THE ONLY KEYS WE HANDLE (cf. the header): a key outside the table
+      // stays with the browser.
       const action = PLAYER_KEYS.get(e.key)
       if (!action) return
       if (action === 'view' && !toggleView) return // no view on this page: the key stays with the browser

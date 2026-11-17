@@ -22,6 +22,8 @@
 // L'unite de l'energie n'est pas connue : elle se regle contre des captures du jeu.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"math"
@@ -101,7 +103,7 @@ func litBlocLumieres(ti tagInfo) ([]Lumiere, error) {
 	}
 	rabs, rtaille := ti.blockAbs(racine)
 	if stlmOffLumieres+compteTagBlock+4 > rtaille {
-		return nil, fmt.Errorf("himap: %s : bloc racine de %#x o", GroupeLumiereStatique, rtaille)
+		return nil, fmt.Errorf("himap: %s: root block of %#x bytes", GroupeLumiereStatique, rtaille)
 	}
 	n := u32(tag, rabs+stlmOffLumieres+compteTagBlock)
 	cible := ti.subBlockTarget(racine, stlmOffLumieres)
@@ -110,7 +112,7 @@ func litBlocLumieres(ti tagInfo) ([]Lumiere, error) {
 	}
 	abs, taille := ti.blockAbs(cible)
 	if taille != n*lumiereTaille || abs+taille > len(tag) {
-		return nil, fmt.Errorf("himap: %s : %d lumieres sur %#x o, attendu %#x o chacune",
+		return nil, fmt.Errorf("himap: %s: %d lights over %#x bytes, %#x bytes expected each",
 			GroupeLumiereStatique, n, taille, lumiereTaille)
 	}
 	var out []Lumiere

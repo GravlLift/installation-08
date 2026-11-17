@@ -7,6 +7,8 @@
 // `pc/globals`, que l'index d'une carte installee couvre.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -46,14 +48,14 @@ func (gs *GraphesAnimation) Resout(depuis *GrapheAnimation, e EntreeMode) (*Grap
 	g := depuis
 	if e.Graphe != grapheLocal {
 		if e.Graphe < 0 || e.Graphe >= len(depuis.Parents) {
-			return nil, 0, fmt.Errorf("entree %s : graphe herite %d sur %d", e.Chemin(), e.Graphe, len(depuis.Parents))
+			return nil, 0, fmt.Errorf("entry %s: inherited graph %d of %d", e.Chemin(), e.Graphe, len(depuis.Parents))
 		}
 		if g = gs.parID[depuis.Parents[e.Graphe]]; g == nil {
-			return nil, 0, fmt.Errorf("entree %s : graphe %08x non lu", e.Chemin(), depuis.Parents[e.Graphe])
+			return nil, 0, fmt.Errorf("entry %s: graph %08x not read", e.Chemin(), depuis.Parents[e.Graphe])
 		}
 	}
 	if e.Animation < 0 || e.Animation >= len(g.Animations) {
-		return nil, 0, fmt.Errorf("entree %s : animation %d sur %d du graphe %08x", e.Chemin(), e.Animation, len(g.Animations), g.ID)
+		return nil, 0, fmt.Errorf("entry %s: animation %d of %d of graph %08x", e.Chemin(), e.Animation, len(g.Animations), g.ID)
 	}
 	return g, e.Animation, nil
 }
@@ -62,7 +64,7 @@ func (gs *GraphesAnimation) Resout(depuis *GrapheAnimation, e EntreeMode) (*Grap
 func (a *Arsenal) GraphesDuSpartan(ctx context.Context) (*GraphesAnimation, error) {
 	armure, err := armureParDefaut(ctx, a.geo, ModeSpartan)
 	if err != nil {
-		return nil, fmt.Errorf("%w : armure par defaut du Spartan : %w", ErrGrapheIllisible, err)
+		return nil, fmt.Errorf("%w: Spartan's default armor: %w", ErrGrapheIllisible, err)
 	}
 	return a.GraphesDuModele(ctx, armure.Modele)
 }
@@ -71,11 +73,11 @@ func (a *Arsenal) GraphesDuSpartan(ctx context.Context) (*GraphesAnimation, erro
 func (a *Arsenal) GraphesDuModele(ctx context.Context, hlmt uint32) (*GraphesAnimation, error) {
 	tag, err := a.geo.Extract(hlmt)
 	if err != nil {
-		return nil, fmt.Errorf("%w : hlmt %08x : %w", ErrGrapheIllisible, hlmt, err)
+		return nil, fmt.Errorf("%w: hlmt %08x: %w", ErrGrapheIllisible, hlmt, err)
 	}
 	refs := refsInlineDuGroupe(tag, a.geo, GroupeGrapheAnimation)
 	if len(refs) != 1 {
-		return nil, fmt.Errorf("%w : hlmt %08x reference %d graphes (%08x) : un seul attendu", ErrGrapheIllisible, hlmt, len(refs), refs)
+		return nil, fmt.Errorf("%w: hlmt %08x references %d graphs (%08x): exactly one expected", ErrGrapheIllisible, hlmt, len(refs), refs)
 	}
 	return a.GraphesDepuis(ctx, refs[0])
 }
@@ -86,10 +88,10 @@ func (a *Arsenal) litChaine(ctx context.Context, gs *GraphesAnimation, id uint32
 		return g, nil
 	}
 	if prof > profondeurMaxHeritage {
-		return nil, fmt.Errorf("%w : heritage de plus de %d graphes depuis %08x", ErrGrapheIllisible, profondeurMaxHeritage, id)
+		return nil, fmt.Errorf("%w: inheritance of more than %d graphs from %08x", ErrGrapheIllisible, profondeurMaxHeritage, id)
 	}
 	if grp, _, ok := a.geo.Lookup(id); !ok || grp != GroupeGrapheAnimation {
-		return nil, fmt.Errorf("%w : %08x n'est pas un tag %q des modules", ErrGrapheIllisible, id, GroupeGrapheAnimation)
+		return nil, fmt.Errorf("%w: %08x is not a %q tag of the modules", ErrGrapheIllisible, id, GroupeGrapheAnimation)
 	}
 	tag, err := a.geo.Extract(id)
 	if err != nil {
@@ -100,7 +102,7 @@ func (a *Arsenal) litChaine(ctx context.Context, gs *GraphesAnimation, id uint32
 		return nil, err
 	}
 	gs.parID[id] = g
-	slog.InfoContext(ctx, "graphe d'animation lu", "id", fmt.Sprintf("%08x", id), "os", len(g.Os),
+	slog.InfoContext(ctx, "animation graph read", "id", fmt.Sprintf("%08x", id), "os", len(g.Os),
 		"animations", len(g.Animations), "entrees", len(g.Entrees), "parents", len(g.Parents))
 	for _, p := range g.Parents {
 		if _, err := a.litChaine(ctx, gs, p, prof+1); err != nil {

@@ -26,7 +26,7 @@ describe('packLayers', () => {
     melangeNormale: 1,
   }
 
-  it('place chaque constante d’une couche à sa ligne de uLayer', () => {
+  it('places each layer constant on its uLayer row', () => {
     const data = packLayers([{ sorte: 'couleur' }, degrade], [false, true], [false, true])
     expect(data.length).toBe(4 * LAYER_ROWS * 4)
     const f = (v: number[]) => Array.from(new Float32Array(v))
@@ -40,8 +40,8 @@ describe('packLayers', () => {
     expect(row(data, 1, 7)).toEqual([1, 1, 1, 1])
   })
 
-  it('range le rang du gabarit d’une couche, à défaut sa position', () => {
-    // Couches 1, 2 et 4 du gabarit (rochers de Live Fire) : la troisième lit le canal de la couche 4.
+  it('files a layer\'s template rank, defaulting to its position', () => {
+    // Template layers 1, 2 and 4 (Live Fire's boulders): the third reads layer 4's channel.
     const data = packLayers([{ sorte: 'couleur' }, { sorte: 'degrade' }, { sorte: 'degrade', rang: 3 }], [false, false, false], [false, false, false])
     expect(row(data, 0, 7)[3]).toBe(0)
     expect(row(data, 1, 7)[3]).toBe(1)
@@ -55,21 +55,21 @@ describe('packLayers', () => {
     expect(row(data, 1, 7)).toEqual([0, 0, 0, 1])
   })
 
-  it('donne leurs défauts aux champs absents et aux couches absentes', () => {
+  it('gives their defaults to absent fields and absent layers', () => {
     const data = packLayers([{ sorte: 'couleur' }], [false], [false])
-    // Couche présente sans champs : transformations neutres, sorte couleur, intensité de normale 1.
+    // A present layer with no fields: neutral transforms, sorte couleur, normal intensity 1.
     for (let i = 0; i < 3; i++) expect(row(data, 0, i)).toEqual([1, 1, 0, 0])
     expect(row(data, 0, 3)).toEqual([0, 0, 0, 0])
     expect(row(data, 0, 6)).toEqual([0, 0, 0, 1])
     expect(row(data, 0, 7)).toEqual([0, 0, 0, 0])
-    // Couche absente : transformations neutres, zéro partout ailleurs (intensité comprise).
+    // An absent layer: neutral transforms, zero everywhere else (intensity included).
     for (let i = 0; i < 3; i++) expect(row(data, 3, i)).toEqual([1, 1, 0, 0])
     for (let i = 3; i < LAYER_ROWS; i++) expect(row(data, 3, i)).toEqual([0, 0, 0, 0])
   })
 })
 
 describe('layeredMaterial', () => {
-  it('transmet les cartes et les constantes de chaque couche au shader', async () => {
+  it('passes each layer\'s maps and constants to the shader', async () => {
     const textures = Array.from({ length: 7 }, () => new THREE.Texture())
     const parser = { getDependency: async (_: string, index: number) => textures[index] } as unknown as GLTFParser
     const couches: LayerInfo[] = [
@@ -88,7 +88,7 @@ describe('layeredMaterial', () => {
     expect(shader.uniforms.uTex2.value).toBeNull()
   })
 
-  it('ne déclare plus qu’un tableau de constantes par matériau', async () => {
+  it('declares only one constants array per material', async () => {
     const parser = { getDependency: async () => new THREE.Texture() } as unknown as GLTFParser
     const info = { couches: [{ sorte: 'couleur' as const, texture: 0, normale: 1 }], masque: -1, jeuMasque: 1, jeuCouches: 0 }
     const m = await layeredMaterial(new THREE.MeshStandardMaterial(), info, parser)

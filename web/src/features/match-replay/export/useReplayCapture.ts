@@ -1,38 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplayCapture — LA COUTURE REACT DE LA CAPTURE : ce que la barre de lecture commande, et
- * ce que le canvas doit lui prêter pour cela.
+ * useReplayCapture — THE REACT WIRING OF CAPTURE: what the transport bar commands, and what
+ * the canvas must lend it for that.
  *
- * POURQUOI UN HOOK PLUTÔT QU'UN HANDLER DANS LE CANVAS. `ReplayCanvas.tsx` vit sous un seuil
- * de taille (`max-lines` eslint, R5, neuf extractions imposées à ce jour) : tout ce
- * qui n'est pas du DESSIN en sort. Le canvas ne prête donc que sa TOILE, son HORLOGE et son
- * état de lecture, et reçoit en retour un objet unique qu'il repasse tel quel à la barre —
- * exactement le patron du son (`useReplaySound` -> `ReplaySound`), et pour la même raison :
- * brancher une commande de plus ne doit pas coûter une ligne de canvas.
+ * WHY A HOOK RATHER THAN A HANDLER IN THE CANVAS. `ReplayCanvas.tsx` lives under a size
+ * threshold (`max-lines` eslint, R5, nine extractions imposed so far): everything that is not
+ * DRAWING comes out of it. The canvas therefore only lends its CANVAS, its CLOCK, and its
+ * playback state, and gets back a single object it passes straight through to the bar —
+ * exactly the pattern used for sound (`useReplaySound` -> `ReplaySound`), and for the same
+ * reason: wiring one more command must not cost a line of canvas code.
  *
- * CE QUE CE FICHIER NE DÉCIDE PAS : le nom du fichier, le téléchargement et la lecture des
- * pixels sont de la logique pure et vivent dans `replayCapture.ts` ; le choix du conteneur
- * vidéo, dans `replayRecording.ts` ; la piste audio, dans `replayAudio.ts` (le lecteur ouvre
- * une seconde sortie en parallèle des haut-parleurs). Ici, seule la couture.
+ * WHAT THIS FILE DOES NOT DECIDE: the filename, the download, and reading pixels are pure
+ * logic and live in `replayCapture.ts`; the video container choice lives in
+ * `replayRecording.ts`; the audio track lives in `replayAudio.ts` (the player opens a second
+ * output alongside the speakers). Here, only the wiring.
  *
- * DEUX SOUS-HOOKS, pour la raison écrite dans `useReplaySound.ts` avant lui (CLAUDE.md n° 5,
- * fonction ≤ 80 lignes) : l'image et la vidéo n'ont en commun que leur destination — un
- * fichier — et les mêler dans une seule fonction n'aurait fait qu'une fonction longue.
+ * TWO SUB-HOOKS, for the reason already written in `useReplaySound.ts` (CLAUDE.md #5,
+ * function <= 80 lines): the image and the video only share their destination — a file — and
+ * merging them into one function would only have made a long function.
  *
- * # ON FILME L'ÉCRAN, ET C'EST ASSUMÉ
+ * # THE SCREEN IS FILMED, AND THAT IS INTENTIONAL
  *
- * L'enregistrement capture ce que la toile MONTRE, image par image, pendant qu'elle le montre.
- * Changer de vitesse ou déplacer le curseur en cours d'enregistrement se voit donc dans le
- * fichier (décision 4) : ce n'est pas un défaut, c'est le contrat, et l'infobulle du bouton le
- * dit. Un rendu hors écran à vitesse fixe serait un autre produit — et un autre chantier.
+ * Recording captures what the canvas SHOWS, frame by frame, while it shows it. Changing speed
+ * or dragging the scrubber mid-recording therefore shows up in the file (decision 4): not a
+ * flaw, it is the contract, and the button's tooltip says so. An offscreen render at a fixed
+ * speed would be a different product — and a different piece of work.
  *
- * # UN SEUL CHEMIN DE SORTIE
+ * # ONE SINGLE EXIT PATH
  *
- * Trois gestes arrêtent l'enregistrement, et les trois passent par `stopRecording` : le second
- * clic sur le bouton, la mise en pause, et la fin du film. C'est ce qui garantit qu'un clip est
- * toujours assemblé et remis une fois — jamais zéro (un enregistrement oublié qui tourne dans
- * le vide), jamais deux (deux téléchargements pour un seul clip). Symétriquement, un clic sur
- * un rejeu EN PAUSE lance la lecture (décision 3) : filmer une image figée n'a aucun sens.
+ * Three gestures stop recording, and all three go through `stopRecording`: a second click on
+ * the button, pausing, and the film's end. That is what guarantees a clip is always assembled
+ * and handed back exactly once — never zero (a forgotten recording spinning in the void),
+ * never two (two downloads for one clip). Symmetrically, a click on a PAUSED replay starts
+ * playback (decision 3): filming a frozen frame makes no sense.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
@@ -57,25 +57,25 @@ import type { ReplayScoreDocument } from '@/lib/replay/scoreTimeline'
 import { DEFAULT_LOCALE } from '@/lib/i18n/locale'
 
 export interface ReplayCaptureOptions {
-  /** La toile du rejeu : c'est elle, et elle seule, qui porte tout ce qui se voit. */
+  /** The replay's canvas: it, and only it, carries everything that is visible. */
   canvasRef: RefObject<HTMLCanvasElement | null>
-  /** Le document : il donne l'identifiant du match et la durée d'une image. */
+  /** The document: it gives the match's id and a frame's duration. */
   doc: ReplayDocumentReady
-  /** L'image courante, partagée avec le dessin — lue au clic, jamais au rendu. */
+  /** The current frame, shared with drawing — read on click, never on render. */
   frameRef: RefObject<number>
-  /** L'état de lecture. Sa RETOMBÉE à `false` clôt l'enregistrement (pause, fin du film). */
+  /** Playback state. Its FALLING EDGE to `false` ends recording (pause, film's end). */
   playing: boolean
-  /** Lance la lecture. Appelé au démarrage si le rejeu est en pause (décision 3). */
+  /** Starts playback. Called at start if the replay is paused (decision 3). */
   play: () => void
   /**
-   * La piste audio du rejeu, DEMANDÉE au démarrage de l'enregistrement (cf. `ReplaySound`).
-   * `null` = son coupé ou lecteur pas né : le clip sort muet, ce qui est le cas nominal
-   * puisque le son du rejeu est coupé par défaut.
+   * The replay's audio track, REQUESTED when recording starts (see `ReplaySound`).
+   * `null` = sound muted or player not yet alive: the clip comes out silent, which is the
+   * nominal case since the replay's sound is muted by default.
    */
   audioTrack?: () => MediaStreamTrack | null
   /**
-   * CE QUE L'EXPORT HORS TEMPS REEL DEMANDE EN PLUS (cf. `useReplayExport`). Absents, seules
-   * l'image et la video temps reel restent disponibles — l'export ne se rend simplement pas.
+   * WHAT THE OFFLINE EXPORT ADDITIONALLY NEEDS (see `useReplayExport`). Absent, only the
+   * image and real-time video remain available — the export simply does not render.
    */
   redraw?: () => void
   playWindow?: ReplayWindowBounds | null
@@ -83,66 +83,67 @@ export interface ReplayCaptureOptions {
   kills?: ReplayExportOptions['kills']
   timeLimitMs?: number | null
   /**
-   * L'allégeance lue dans le film, vue du point de vue (`model.allegiance`) : l'écran de fin du
-   * clip. REQUISE, comme le point de vue qu'elle porte.
+   * The allegiance read from the film, from the viewpoint (`model.allegiance`): the clip's
+   * end screen. REQUIRED, like the viewpoint it carries.
    */
   allegiance: FilmAllegiance
   /**
-   * Le verdict du match : son CODE (`header.outcome_code`) et, sur un mode a manches, le score
-   * final servi par l'API. Le MOT, lui, se resout ici meme depuis les mappings du titre
-   * (`useViewedOutcome`). Sans verdict, pas d'ecran de fin dans le clip (parite DOM).
+   * The match's verdict: its CODE (`header.outcome_code`) and, in a mode played in rounds,
+   * the final score served by the API. The WORD itself is resolved right here from the
+   * title's mappings (`useViewedOutcome`). Without a verdict, no end screen in the clip
+   * (parity with the DOM).
    */
   outcome?: ExportOutcome | null
   /**
-   * LE POINT DE VUE de la page (2026-09-06) : l'export rend CE QUE L'ÉCRAN MONTRE (décision 12
-   * du plan « frise, point de vue ») — panneau de victoire compris. La personne qui exporte a
-   * choisi ce qu'elle regarde. `null` : le joueur de la page.
+   * THE PAGE'S VIEWPOINT (2026-09-06): the export renders WHAT THE SCREEN SHOWS (decision 12
+   * of the "timeline, viewpoint" plan) — including the victory panel. The person exporting
+   * chose what they are watching. `null`: the page's own player.
    *
-   * OBLIGATOIRE DEPUIS LE 2026-09-07 (revue F4), `null` compris. Optionnel, son oubli chez
-   * l'appelant ne faisait rougir AUCUN test — le clip serait sorti au camp du joueur de la page
-   * pendant que l'écran suivait le joueur choisi. Requis, l'oubli ne compile plus.
+   * MANDATORY SINCE 2026-09-07 (F4 review), `null` included. Optional, its omission at the
+   * call site made NO test fail — the clip would come out at the page player's side while
+   * the screen followed the chosen player. Required, the omission no longer compiles.
    */
   viewpoint: string | null
   locale?: ReplayLocale
-  /** La piste sonore du rejeu et son volume, pour le mixage hors ligne (`useReplaySound`). */
+  /** The replay's sound track and its volume, for the offline mix (`useReplaySound`). */
   soundTrack?: ReplayExportOptions['soundTrack']
   soundVolume?: number
-  /** Le palier de zoom de l'écran, pour le choix du cadrage de l'export (cf. `useReplayExport`). */
+  /** The screen's zoom level, for the export's framing choice (see `useReplayExport`). */
   zoomLevel?: number
 }
 
-/** Ce que la barre de lecture reçoit (même forme que `ReplaySound` : un objet, pas des props). */
+/** What the transport bar receives (same shape as `ReplaySound`: an object, not props). */
 export interface ReplayCapture {
-  /** Télécharge la scène courante en PNG. Sans toile lisible : ne fait rien, ne casse rien. */
+  /** Downloads the current scene as PNG. With no readable canvas: does nothing, breaks nothing. */
   captureImage: () => void
   /**
-   * `false` = ce navigateur ne sait pas filmer une toile (pas de `MediaRecorder`, pas de
-   * `captureStream`, ou aucun conteneur accepté). Le bouton ne se rend alors PAS du tout
-   * (décision 7) : une commande grisée laisserait croire à une panne réparable.
+   * `false` = this browser cannot film a canvas (no `MediaRecorder`, no `captureStream`, or no
+   * accepted container). The button then does NOT render at all (decision 7): a greyed-out
+   * command would suggest a fixable failure.
    */
   recordingSupported: boolean
   recording: boolean
-  /** Démarre, ou arrête ET télécharge. Le même bouton, les deux sens. */
+  /** Starts, or stops AND downloads. The same button, both directions. */
   toggleRecording: () => void
   /**
-   * L'EXPORT HORS TEMPS RÉEL. `null` quand la page ne lui a pas donné de quoi peindre les
-   * surimpressions — la barre de lecture n'affiche alors pas la commande.
+   * THE OFFLINE EXPORT. `null` when the page did not give it anything to paint overlays with
+   * — the transport bar then does not show the command.
    */
   videoExport: ReplayExport | null
 }
 
-/** Nomme un fichier de capture sur l'instant de match COURANT, dans l'extension demandée. */
+/** Names a capture file at the CURRENT match instant, in the requested extension. */
 type FilenameFor = (ext: string) => string
 
-/** Le tableau de score absent, en référence STABLE : un `[]` neuf par rendu casserait les mémos. */
+/** The absent scoreboard, as a STABLE reference: a fresh `[]` per render would break memos. */
 const EMPTY_BOARD: readonly MatchScoreboardRow[] = []
 
 /**
- * openRecording assemble le flux, ouvre l'enregistreur et le démarre. HORS REACT : rien ici
- * n'est un état de composant, seulement le graphe média — c'est ce qui garde le hook court.
+ * openRecording assembles the stream, opens the recorder, and starts it. OUTSIDE REACT:
+ * nothing here is component state, only the media graph — that is what keeps the hook short.
  *
- * `onClosed` reçoit le clip assemblé (ou `null` si rien n'a été enregistré) et son nom. Il est
- * appelé une seule fois, à la fermeture, et c'est le seul endroit d'où un fichier peut sortir.
+ * `onClosed` receives the assembled clip (or `null` if nothing was recorded) and its name. It
+ * is called exactly once, at closing, and it is the only place a file can come out of.
  */
 function openRecording(
   canvas: HTMLCanvasElement,
@@ -153,9 +154,9 @@ function openRecording(
   const choice = pickVideoMimeType(isVideoTypeSupported)
   if (!choice) return null
   const canvasStream = canvas.captureStream(CAPTURE_FPS)
-  // LE SON REJOINT L'IMAGE ICI, ET SEULEMENT ICI (décision 6) : la piste est demandée au
-  // DÉMARRAGE, donc activer le son ensuite n'ajoute rien au clip en cours. Sans piste — son
-  // coupé, ce qui est le cas par défaut — on enregistre le flux de la toile tel quel.
+  // SOUND JOINS THE IMAGE HERE, AND ONLY HERE (decision 6): the track is requested at
+  // START, so enabling sound afterwards adds nothing to the current clip. With no track —
+  // sound muted, the default case — the canvas's own stream is recorded as is.
   const audio = audioTrack?.() ?? null
   const stream =
     audio && typeof MediaStream === 'function'
@@ -163,17 +164,17 @@ function openRecording(
       : canvasStream
   const recorder = new MediaRecorder(stream, { mimeType: choice.mime })
   const chunks: Blob[] = []
-  // Le nom est FIGÉ au démarrage : il porte l'instant où le clip commence, pas celui où il
-  // s'arrête. Un clip nommé sur sa fin ne se replacerait pas dans le match.
+  // The name is FIXED at start: it carries the instant the clip begins, not the one it
+  // stops. A clip named after its end would not place back into the match.
   const filename = filenameFor(choice.ext)
   recorder.ondataavailable = (e: BlobEvent) => {
     if (e.data && e.data.size > 0) chunks.push(e.data)
   }
   recorder.onstop = () => {
-    // LES PISTES DE LA TOILE SE COUPENT ICI, pas avant : la capture doit tourner jusqu'à la
-    // dernière tranche, sans quoi le clip perdrait sa fin. LA PISTE AUDIO, elle, N'EST PAS
-    // COUPÉE — elle appartient au lecteur de son, qui vit plus longtemps que le clip ; la
-    // fermer ici rendrait muet tout enregistrement suivant.
+    // THE CANVAS'S TRACKS STOP HERE, not before: capture must run until the last slice, or
+    // the clip would lose its ending. THE AUDIO TRACK, however, IS NOT STOPPED — it belongs
+    // to the sound player, which lives longer than the clip; closing it here would mute
+    // every following recording.
     for (const track of canvasStream.getTracks()) track.stop()
     onClosed(chunks.length > 0 ? new Blob(chunks, { type: choice.mime }) : null, filename)
   }
@@ -181,7 +182,7 @@ function openRecording(
   return recorder
 }
 
-/** Sous-hook : la capture d'image. Rien d'asynchrone à tenir, donc pas d'état. */
+/** Sub-hook: image capture. Nothing asynchronous to hold, so no state. */
 function useImageCapture(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   filenameFor: FilenameFor,
@@ -189,19 +190,19 @@ function useImageCapture(
   return useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    // LE NOM EST FIGÉ AVANT L'ENCODAGE : `toBlob` est asynchrone, et l'image continue de
-    // courir pendant ce temps. Nommer après rendrait un fichier daté d'un instant qui n'est
-    // pas celui qu'il montre.
+    // THE NAME IS FIXED BEFORE ENCODING: `toBlob` is asynchronous, and the frame keeps
+    // running during that time. Naming it afterward would date a file with an instant that
+    // is not the one it shows.
     const filename = filenameFor('png')
     void captureCanvasImage(canvas).then((blob) => {
-      // Pas de blob = toile vierge ou encodage refusé : rien à remettre. Un fichier vide
-      // serait pire que pas de fichier (cf. `captureCanvasImage`).
+      // No blob = blank canvas or refused encoding: nothing to hand back. An empty file
+      // would be worse than no file (see `captureCanvasImage`).
       if (blob) triggerDownload(blob, filename)
     })
   }, [canvasRef, filenameFor])
 }
 
-/** Sous-hook : l'enregistrement vidéo, son état, et ses trois sorties (cf. l'en-tête). */
+/** Sub-hook: video recording, its state, and its three exits (see the header). */
 function useVideoRecording(
   o: ReplayCaptureOptions,
   filenameFor: FilenameFor,
@@ -209,17 +210,17 @@ function useVideoRecording(
   const { canvasRef, playing, play, audioTrack } = o
   const [recording, setRecording] = useState(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
-  // LE DÉMONTAGE NE TÉLÉCHARGE PAS. Quitter la page pendant un enregistrement doit refermer
-  // l'enregistreur, pas déposer un fichier que plus personne n'attend.
+  // UNMOUNTING DOES NOT DOWNLOAD. Leaving the page during a recording must close the
+  // recorder, not drop a file nobody is waiting for anymore.
   const liveRef = useRef(true)
-  // La capacité ne dépend que du navigateur : elle ne change pas d'un rendu à l'autre.
+  // The capability only depends on the browser: it does not change from one render to the next.
   const supported = useMemo(() => canRecordCanvas(), [])
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current
     if (!recorder || recorder.state === 'inactive') return
-    // L'assemblage et le téléchargement se font dans `onstop` : `stop()` vide d'abord ce que
-    // l'encodeur retient encore, et cette dernière tranche arrive APRÈS ce retour.
+    // Assembly and download happen in `onstop`: `stop()` first drains whatever the encoder
+    // still holds, and that last slice arrives AFTER this return.
     recorder.stop()
   }, [])
 
@@ -234,14 +235,14 @@ function useVideoRecording(
     if (!recorder) return
     recorderRef.current = recorder
     setRecording(true)
-    // FILMER UNE IMAGE FIGÉE N'A AUCUN SENS (décision 3) : un rejeu en pause repart.
+    // FILMING A FROZEN FRAME MAKES NO SENSE (decision 3): a paused replay resumes.
     if (!playing) play()
   }, [canvasRef, filenameFor, audioTrack, playing, play])
 
-  // AUTO-ARRÊT SUR LA RETOMBÉE DE LA LECTURE — pause manuelle ou fin du film, c'est le même
-  // signal et la même sortie. On guette la TRANSITION, jamais l'état : au démarrage depuis une
-  // pause, `playing` vaut encore `false` le temps d'un rendu, et lire l'état arrêterait le
-  // clip dans la seconde qui suit son ouverture.
+  // AUTO-STOP ON PLAYBACK'S FALLING EDGE — manual pause or the film's end, it is the same
+  // signal and the same exit. The TRANSITION is what is watched for, never the state: at
+  // startup from a pause, `playing` is still `false` for one render, and reading the state
+  // would stop the clip within the second after it opens.
   const wasPlayingRef = useRef(playing)
   useEffect(() => {
     const was = wasPlayingRef.current
@@ -249,7 +250,7 @@ function useVideoRecording(
     if (was && !playing) stop()
   }, [playing, stop])
 
-  // Démontage : on referme l'enregistreur sans rien déposer (cf. `liveRef`).
+  // Unmounting: the recorder is closed without dropping anything (see `liveRef`).
   useEffect(() => {
     return () => {
       liveRef.current = false
@@ -268,8 +269,8 @@ function useVideoRecording(
 
 export function useReplayCapture(o: ReplayCaptureOptions): ReplayCapture {
   const { canvasRef, doc, frameRef } = o
-  // L'INSTANT SE LIT AU MOMENT DU NOMMAGE, jamais au rendu : image et vidéo partagent la même
-  // règle de nom (décision 8), et c'est la seule chose qu'elles ont réellement en commun.
+  // THE INSTANT IS READ AT NAMING TIME, never at render: image and video share the same
+  // naming rule (decision 8), and that is the only thing they truly have in common.
   const filenameFor = useCallback<FilenameFor>(
     (ext) => buildCaptureFilename(doc.matchId, frameToMs(frameRef.current, doc), ext, new Date()),
     [doc, frameRef],
@@ -288,39 +289,39 @@ export function useReplayCapture(o: ReplayCaptureOptions): ReplayCapture {
 }
 
 /**
- * useExportSeam branche l'export hors temps réel — quand la page a donné de quoi peindre.
+ * useExportSeam wires in the offline export — when the page has given it something to paint.
  *
- * LA PAUSE SE FABRIQUE ICI, elle n'est pas un paramètre de plus : `play` est le BASCULEUR de
- * lecture (`togglePlay`), donc l'appeler pendant une lecture met en pause. C'est exactement ce
- * dont l'export a besoin — la boucle d'animation écrit `frameRef` elle aussi, et les deux en
- * même temps se disputeraient le curseur.
+ * THE PAUSE IS BUILT HERE, it is not one more parameter: `play` is the playback TOGGLE
+ * (`togglePlay`), so calling it during playback pauses it. That is exactly what the export
+ * needs — the animation loop writes `frameRef` too, and the two running at once would fight
+ * over the cursor.
  *
- * LE HOOK EST APPELÉ SANS CONDITION, et seul son RÉSULTAT est retenu ou jeté : appeler un hook
- * derrière un `if` est interdit par React, et une page sans surimpressions reste une page qui
- * peut exporter son terrain.
+ * THE HOOK IS CALLED UNCONDITIONALLY, and only its RESULT is kept or discarded: calling a
+ * hook behind an `if` is forbidden by React, and a page with no overlays is still a page that
+ * can export its map.
  *
- * C'EST AUSSI ICI QUE LE MOT DU VERDICT SE RÉSOUT (2026-09-07), et pas plus bas : le libellé
- * canonique de l'issue vient d'un HOOK — `useOutcomeMapping`, les mappings du titre — et
- * `exportOverlayPanels` est une fonction pure que la boucle d'export appelle hors React. La
- * couture est la dernière marche où un hook peut encore courir.
+ * THIS IS ALSO WHERE THE VERDICT'S WORD IS RESOLVED (2026-09-07), and nowhere further down:
+ * the outcome's canonical label comes from a HOOK — `useOutcomeMapping`, the title's mappings
+ * — and `exportOverlayPanels` is a pure function the export loop calls outside React. The
+ * wiring layer is the last step where a hook can still run.
  *
- * `useOutcomeMapping` ET PAS `useOutcomeLabel`, qui serait pourtant le hook naturel : celui-ci
- * rend la CLÉ BRUTE quand les mappings du titre ne sont pas chargés (`win`, `loss`), et un
- * panneau d'export ne peut pas se rattraper — le clip encodé garderait le mot `loss` en plein
- * cadre, pour toujours. `useOutcomeMapping` rend `undefined` dans ce cas, ce qui se distingue
- * d'un libellé et fait TAIRE le panneau, exactement comme le DOM.
+ * `useOutcomeMapping` AND NOT `useOutcomeLabel`, which would otherwise be the natural hook:
+ * the latter returns the RAW KEY when the title's mappings are not loaded (`win`, `loss`),
+ * and an export panel cannot recover from that — the encoded clip would keep the word `loss`
+ * in full frame, forever. `useOutcomeMapping` returns `undefined` in that case, which is
+ * distinct from a label and SILENCES the panel, exactly like the DOM.
  */
 function useExportSeam(o: ReplayCaptureOptions): ReplayExport | null {
   const { canvasRef, frameRef, doc, playing, play, redraw } = o
   const pause = useCallback(() => {
     if (playing) play()
   }, [playing, play])
-  const bidon = useCallback(() => {}, [])
+  const noop = useCallback(() => {}, [])
   const outcome = useViewedOutcome(o)
   const exportable = useReplayExport({
     canvasRef,
     frameRef,
-    redraw: redraw ?? bidon,
+    redraw: redraw ?? noop,
     pause,
     doc: doc as ReplayDocumentReady & ReplayScoreDocument,
     playWindow: o.playWindow ?? null,
@@ -340,24 +341,24 @@ function useExportSeam(o: ReplayCaptureOptions): ReplayExport | null {
 }
 
 /**
- * useViewedOutcome complète le verdict de la page avec LE MOT QUE L'ÉCRAN MONTRE.
+ * useViewedOutcome completes the page's verdict with THE WORD THE SCREEN SHOWS.
  *
- * UNE SEULE SOURCE, LES MAPPINGS DU TITRE (2026-09-07) : le libellé de l'issue LUE
- * (`readVictory`, donc déjà permutée quand le sujet est de l'autre camp) tel qu'`outcomes.toml`
- * le publie via `/field-mappings`. C'est mot pour mot ce que peint le DOM.
+ * ONE SINGLE SOURCE, THE TITLE'S MAPPINGS (2026-09-07): the label of the READ outcome
+ * (`readVictory`, already swapped when the subject is on the other side) exactly as
+ * `outcomes.toml` publishes it via `/field-mappings`. This is word for word what the DOM paints.
  *
- * IL Y AVAIT DEUX VOCABULAIRES, et c'est ce que cette règle ferme. Le mot par défaut venait de
- * `header.outcome_label`, fabriqué par une map Go CODÉE EN DUR EN FRANÇAIS ; seul le mot
- * PERMUTÉ passait par `outcomes.toml`. En français les deux coïncidaient — rien ne se voyait ;
- * en anglais le clip aurait dit « Victoire » par défaut et « Loss » vu d'un adversaire. Depuis
- * le 2026-09-07 (D5), le backend ne sert plus AUCUN mot pour l'issue — seulement la clé
- * canonique (win|loss|tie|dnf, cf. `service/outcome_label.go`) — et ne connaît de toute façon
- * qu'un point de vue : le résoudre ici, sur l'issue lue, est ce qui garantit l'unicité.
+ * THERE USED TO BE TWO VOCABULARIES, and this rule closes that gap. The default word used to
+ * come from `header.outcome_label`, built by a Go map HARD-CODED IN FRENCH; only the SWAPPED
+ * word went through `outcomes.toml`. In French the two coincided — nothing showed; in English
+ * the clip would have said "Victoire" by default and "Loss" seen from an opponent. Since
+ * 2026-09-07 (D5), the backend no longer serves ANY word for the outcome — only the canonical
+ * key (win|loss|tie|dnf, see `service/outcome_label.go`) — and in any case only knows one
+ * viewpoint: resolving it here, on the read outcome, is what guarantees uniqueness.
  *
- * MÊME RÈGLE QUE LE DOM (`ReplayVictoryOverlay`), à la ligne près — c'est la deuxième et
- * dernière copie tolérée (règle n° 6), et l'en-tête d'`exportOverlayPanels` dit déjà pourquoi
- * l'export ne peut pas monter le composant. `null` en sortie quand l'issue n'a pas de libellé
- * (mappings du titre pas encore là) : le panneau se tait, exactement comme le DOM.
+ * SAME RULE AS THE DOM (`ReplayVictoryOverlay`), line for line — this is the second and last
+ * tolerated copy (rule #6), and `exportOverlayPanels`'s header already explains why the export
+ * cannot mount the component. `null` returned when the outcome has no label (title's mappings
+ * not loaded yet): the panel stays silent, exactly like the DOM.
  */
 function useViewedOutcome(o: ReplayCaptureOptions): ExportOutcome | null {
   const scoreboard = o.scoreboard ?? EMPTY_BOARD

@@ -124,7 +124,7 @@ export function vehicleShotPlacement(
 ): VehicleShotPlacement {
   // UNKNOWN MOUNT: no offset — the spark stays at the CENTER of the chassis, the only
   // position the document gives —, but it still gets its DIRECTION (cf. `vehicleMountAngle`).
-  if (!mount) return { offset: { x: 0, y: 0 }, angle: vehicleSansMontageAngle(caps) }
+  if (!mount) return { offset: { x: 0, y: 0 }, angle: vehicleNoMountAngle(caps) }
   const scale = vehicleSpriteScale(size.naturalHeightPx, size.mmPerPx, scalePxPerM, size.ceilPx) * k
   const localX = mount.ax * size.naturalWidthPx
   const localY = mount.ay * size.naturalHeightPx
@@ -134,7 +134,7 @@ export function vehicleShotPlacement(
   const angle = vehicleMountAngle(mount, caps)
   // THE MUZZLE OF AN AIMED TURRET: the barrel, of the measured length, in the direction of
   // the shot.
-  const barrel = tourelleBarrelOffset(mount, angle, size.naturalHeightPx * scale)
+  const barrel = turretBarrelOffset(mount, angle, size.naturalHeightPx * scale)
   const offset: XY = {
     x: (localX * cosA - localY * sinA) * scale + barrel.x,
     y: (localX * sinA + localY * cosA) * scale + barrel.y,
@@ -143,18 +143,18 @@ export function vehicleShotPlacement(
 }
 
 /**
- * tourelleBarrelOffset — the barrel of a TURRET on screen: `reach × sprite length` along the
+ * turretBarrelOffset — the barrel of a TURRET on screen: `reach × sprite length` along the
  * direction of the discharge. Zero for a fixed weapon (its anchor is the muzzle) and for a
  * turret without a read aim (no direction, the shot stays at the pivot).
  */
-function tourelleBarrelOffset(mount: VehicleWeaponMount, angle: number | null, spriteLengthPx: number): XY {
+function turretBarrelOffset(mount: VehicleWeaponMount, angle: number | null, spriteLengthPx: number): XY {
   if (mount.classe !== 'tourelle' || angle === null) return { x: 0, y: 0 }
   const length = (mount.reach ?? 0) * spriteLengthPx
   return { x: length * Math.cos(angle), y: length * Math.sin(angle) }
 }
 
 /**
- * vehicleMountAngle — THE DIRECTION OF A DISCHARGE, mount by mount. ONE SINGLE FOYER for the
+ * vehicleMountAngle — THE DIRECTION OF A DISCHARGE, mount by mount. ONE SINGLE SOURCE for the
  * two callers (`vehicleShotPlacement` with the sprite, `vehicleShotOrigin` without): the rule
  * was written TWICE there, and that is exactly what would make it diverge again (CLAUDE.md
  * n° 6).
@@ -172,7 +172,7 @@ function vehicleMountAngle(mount: VehicleWeaponMount, caps: VehicleShotCaps): nu
 }
 
 /**
- * vehicleSansMontageAngle — THE DIRECTION WHEN NO MOUNT IS DOCUMENTED, and it depends on
+ * vehicleNoMountAngle — THE DIRECTION WHEN NO MOUNT IS DOCUMENTED, and it depends on
  * WHAT FIRED (lot 5.8.5).
  *
  *   - VEHICLE WEAPON (the Shade, whose `weap` tag is missing): the CHASSIS heading, unchanged
@@ -183,7 +183,7 @@ function vehicleMountAngle(mount: VehicleWeaponMount, caps: VehicleShotCaps): nu
  *     intact); without a reading, the source is not even created
  *     (`shotFx.vehicleShotSourceOf`), so this `null` only happens on a direct call.
  */
-function vehicleSansMontageAngle(caps: VehicleShotCaps): number | null {
+function vehicleNoMountAngle(caps: VehicleShotCaps): number | null {
   if (caps.arme === 'vehicule') return vehicleAimAngle(caps.chassisDeg)
   return caps.tireurDeg === null ? null : vehicleAimAngle(caps.tireurDeg)
 }
@@ -240,7 +240,7 @@ export function vehicleShotOrigin(args: {
   if (!size) {
     return {
       origin: center,
-      angle: mount ? vehicleMountAngle(mount, caps) : vehicleSansMontageAngle(caps),
+      angle: mount ? vehicleMountAngle(mount, caps) : vehicleNoMountAngle(caps),
     }
   }
   const sized = args.ceilPx === undefined ? size : { ...size, ceilPx: args.ceilPx }

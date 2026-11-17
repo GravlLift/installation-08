@@ -8,14 +8,14 @@ function lamp(x: number, range = 1, energy = 1): PlacedLight {
   return { kind: 'omni', position: new THREE.Vector3(x, 0, 0), direction: new THREE.Vector3(0, -1, 0), color: new THREE.Color(1, 1, 1), energy, range, cone: [0, 90] }
 }
 
-describe('grille des lampes', () => {
-  it('associe les cellules touchées par la sphère et exclut les cellules éloignées', () => {
+describe('lamp grid', () => {
+  it('assigns cells touched by the sphere and excludes distant cells', () => {
     const grid = buildLampGrid([lamp(0, 2)], 1)
     expect(cellLamps(grid, new THREE.Vector3(0, 0, 0))).toEqual([0])
     expect(cellLamps(grid, new THREE.Vector3(1.5, 0, 0))).toEqual([0])
     expect(cellLamps(grid, new THREE.Vector3(9, 0, 0))).toEqual([])
   })
-  it('garde les plus fortes au centre et compte les dépassements', () => {
+  it('keeps the strongest at the center and counts overflows', () => {
     const grid = buildLampGrid(Array.from({ length: 33 }, (_, i) => lamp(0, 2, i + 1)), 2)
     expect(grid.overflow).toBeGreaterThan(0)
     const indices = cellLamps(grid, new THREE.Vector3(0, 0, 0))
@@ -23,7 +23,7 @@ describe('grille des lampes', () => {
     expect(indices).not.toContain(0)
     expect(indices).toContain(32)
   })
-  it('produit une grille vide sans lampe', () => {
+  it('produces an empty grid with no lamp', () => {
     const grid = buildLampGrid([], 2)
     expect(grid.cells).toHaveLength(0)
     expect(grid.indices).toHaveLength(0)
@@ -34,7 +34,7 @@ describe('grille des lampes', () => {
 import { packAtlas } from './bakedLight'
 import { appendLampData } from './clusteredLights'
 
-it('range les cellules et indices dans un atlas flottant partagé', () => {
+it('files cells and indices into a shared float atlas', () => {
   const lamps = [lamp(0, 2)]
   const grid = buildLampGrid(lamps)
   const atlas = packAtlas([])

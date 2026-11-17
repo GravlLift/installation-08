@@ -32,6 +32,8 @@
 // mesurée (callouts_all.py) ; le build serveur dédié porte le scénario complet.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"strings"
@@ -117,18 +119,18 @@ func (c Callout) ZTop() float64    { return c.Pos[2] + c.Top }
 func ReadModuleCallouts(modulePath string) ([]Callout, error) {
 	m, err := himodule.Open(modulePath)
 	if err != nil {
-		return nil, fmt.Errorf("himap: ouvrir %s: %w", modulePath, err)
+		return nil, fmt.Errorf("himap: open %s: %w", modulePath, err)
 	}
 	// Le module est projete en memoire : tout ce qui est rendu ci-dessous est une COPIE, la
 	// projection peut donc etre relachee a la sortie (cf. himodule.Module.Close).
 	defer func() { _ = m.Close() }()
 	levls := m.Files("levl")
 	if len(levls) != 1 {
-		return nil, fmt.Errorf("himap: %d tags levl dans %s (attendu 1)", len(levls), modulePath)
+		return nil, fmt.Errorf("himap: %d levl tags in %s (1 expected)", len(levls), modulePath)
 	}
 	tag, err := m.Extract(levls[0])
 	if err != nil {
-		return nil, fmt.Errorf("himap: extraire levl de %s: %w", modulePath, err)
+		return nil, fmt.Errorf("himap: extract levl from %s: %w", modulePath, err)
 	}
 	return calloutsFromTag(tag)
 }
@@ -137,7 +139,7 @@ func ReadModuleCallouts(modulePath string) ([]Callout, error) {
 func calloutsFromTag(tag []byte) ([]Callout, error) {
 	ti, err := meilleurTagInfo(tag)
 	if err != nil {
-		return nil, fmt.Errorf("himap: en-tête levl: %w", err)
+		return nil, fmt.Errorf("himap: levl header: %w", err)
 	}
 	root, err := ti.rootBlockIndex()
 	if err != nil {
@@ -151,7 +153,7 @@ func calloutsFromTag(tag []byte) ([]Callout, error) {
 
 	rootAbs, rootSize := ti.blockAbs(root)
 	if levlChampNames+0x14 > rootSize {
-		return nil, fmt.Errorf("himap: root block levl trop court (%d o)", rootSize)
+		return nil, fmt.Errorf("himap: levl root block too short (%d bytes)", rootSize)
 	}
 	nNames := u32(ti.tag, rootAbs+levlChampNames+0x10)
 	nVols := u32(ti.tag, rootAbs+levlChampVolumes+0x10)
@@ -162,7 +164,7 @@ func calloutsFromTag(tag []byte) ([]Callout, error) {
 	ln, okN := parOwnerOff[[2]int{root, levlChampNames}]
 	lv, okV := parOwnerOff[[2]int{root, levlChampVolumes}]
 	if !okN || !okV {
-		return nil, fmt.Errorf("himap: levl: blocs names/volumes introuvables (%d noms, %d volumes déclarés)", nNames, nVols)
+		return nil, fmt.Errorf("himap: levl: names/volumes blocks not found (%d names, %d volumes declared)", nNames, nVols)
 	}
 	nAbs, _, err := blocVerifie(ti, ln, levlStrideName)
 	if err != nil {
@@ -193,13 +195,13 @@ func litCallout(ti tagInfo, o, vAbs, nVols int, lv lienBloc, parOwnerOff map[[2]
 		StringID:    uint32(u32(ti.tag, o+levlNameOffSID)),
 	}
 	if vi < 0 || vi >= nVols {
-		return Callout{}, fmt.Errorf("himap: levl: named location %q pointe le volume %d hors des %d volumes", c.Name, vi, nVols)
+		return Callout{}, fmt.Errorf("himap: levl: named location %q points to volume %d outside the %d volumes", c.Name, vi, nVols)
 	}
 	r := vAbs + vi*levlStrideVolume
 	if volSID := uint32(u32(ti.tag, r+levlVolOffSID)); volSID != c.StringID {
 		// La liaison nom<->volume est un invariant MESURÉ (816/816) : sa rupture est
 		// une structure inconnue, jamais une zone à publier quand même.
-		return Callout{}, fmt.Errorf("himap: levl: string_id du volume %d (%08x) != nom %q (%08x)",
+		return Callout{}, fmt.Errorf("himap: levl: string_id of volume %d (%08x) != name %q (%08x)",
 			vi, volSID, c.Name, c.StringID)
 	}
 	c.HasShape = ti.tag[r+levlVolOffHasShape] == 1
@@ -256,7 +258,7 @@ func verifieAABBRelative(ti tagInfo, volAbs, polyAbs, polySize int) error {
 	for i, attendu := range []float64{minX, maxX, minY, maxY} {
 		lu := f32(ti.tag, volAbs+levlVolOffAABB+4*i)
 		if d := lu - attendu; d < -levlAABBToleranceM || d > levlAABBToleranceM {
-			return fmt.Errorf("AABB @0x94[%d] = %.3f, boîte des sommets = %.3f — repère des sommets inconnu", i, lu, attendu)
+			return fmt.Errorf("AABB @0x94[%d] = %.3f, vertex box = %.3f — unknown vertex frame", i, lu, attendu)
 		}
 	}
 	return nil

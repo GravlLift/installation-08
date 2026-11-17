@@ -1,57 +1,58 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ReplayExportDialog — LE PANNEAU D'EXPORT : la plage, le son, et ce qui se passe pendant.
+ * ReplayExportDialog — THE EXPORT PANEL: the range, the sound, and what happens during.
  *
- * # POURQUOI UN PANNEAU, ET PAS UN SIMPLE BOUTON
+ * # WHY A PANEL, AND NOT A SIMPLE BUTTON
  *
- * L'enregistrement temps réel n'avait rien à demander : il filmait ce qu'on lui montrait, et
- * s'arrêtait quand on le lui disait. L'export, lui, décide TOUT à l'avance — de quelle image à
- * quelle image, avec ou sans son — et ne rend la main qu'une fois le fichier prêt. Ces choix
- * doivent donc se poser AVANT, et une seule fois.
+ * Real-time recording had nothing to ask: it filmed whatever was shown to it, and stopped
+ * when told to. Export, on the other hand, decides EVERYTHING up front — from which frame to
+ * which frame, with or without sound — and only returns control once the file is ready. These
+ * choices must therefore be made BEFORE, and only once.
  *
- * # IL EST ANCRÉ AU BOUTON, ET C'EST UNE DÉCISION
+ * # IT IS ANCHORED TO THE BUTTON, AND THAT IS A DECISION
  *
- * Le panneau s'ouvre juste au-dessus du bouton qui l'a appelé, aligné à droite sur lui : le
- * geste et sa réponse au même endroit. Il l'était mal jusqu'au 2026-08-28 — déclaré `absolute`
- * sans ancêtre positionné dans la barre, il se calait par ACCIDENT sur la carte entière du
- * rejeu, cinq cents lignes plus loin, et recouvrait la frise. Le cartouche des commandes de
- * sortie porte désormais `relative` : l'ancrage est écrit, plus subi.
+ * The panel opens just above the button that called it, right-aligned to it: the gesture and
+ * its response in the same place. It was anchored wrong until 2026-08-28 — declared
+ * `absolute` with no positioned ancestor in the bar, it landed by ACCIDENT on the replay's
+ * full map, five hundred lines further down, and covered the timeline. The export controls'
+ * container now carries `relative`: the anchoring is written, not accidental.
  *
- * # CE QUE CE COMPOSANT NE DÉCIDE PAS
+ * # WHAT THIS COMPONENT DOES NOT DECIDE
  *
- * Rien du calcul. Il ne connaît ni encodeur, ni toile, ni piste sonore : il lit un état
- * (`ReplayExport`) et appelle `run`. Le bornage lui-même est délégué — `clampExportBounds`
- * vit dans `replayExportPlan.ts`, avec le reste de l'arithmétique de l'export, parce qu'une
- * borne qui se corrige dans un composant est une borne qu'on ne peut pas tester.
+ * None of the computation. It knows nothing of the encoder, the canvas, or the sound track:
+ * it reads a state (`ReplayExport`) and calls `run`. Bounding itself is delegated —
+ * `clampExportBounds` lives in `replayExportPlan.ts`, with the rest of the export's
+ * arithmetic, because a bound that corrects itself inside a component is a bound that cannot
+ * be tested.
  *
- * # LES DEUX CURSEURS NE PEUVENT PAS SE CROISER
+ * # THE TWO SLIDERS CANNOT CROSS
  *
- * Ils sont bornés à la fenêtre de gameplay ET l'un à l'autre : tirer la fin avant le début
- * pousse le début, pas l'inverse d'un cran. Un intervalle vide n'est pas une erreur à
- * signaler, c'est un geste qu'on empêche — il n'y a rien à dire à l'utilisateur.
+ * They are bounded to the gameplay window AND to each other: dragging the end before the
+ * start pushes the start, never the other way around. An empty interval is not an error to
+ * report, it is a gesture that is prevented — there is nothing to tell the user.
  *
- * # LE FORMAT DU FICHIER SE CHOISIT ICI, ET SE RETIENT (2026-09-16)
+ * # THE FILE FORMAT IS CHOSEN HERE, AND REMEMBERED (2026-09-16)
  *
- * 1080p ou 720p (`exportFormats.ts`), 1080p par défaut. Le choix est retenu dans CE navigateur
- * (`readExportFormat` / `persistExportFormat`, décision D4) : on exporte rarement une seule fois,
- * et le format est une habitude liée à l'usage (partage, montage), pas au match.
+ * 1080p or 720p (`exportFormats.ts`), 1080p by default. The choice is remembered in THIS
+ * browser (`readExportFormat` / `persistExportFormat`, decision D4): exporting once is rare,
+ * and the format is a habit tied to usage (sharing, editing), not to the match.
  *
- * # LE CADRAGE, LUI, NE SE PROPOSE QUE SUR UNE CARTE ZOOMÉE, ET NE SE RETIENT PAS (D6)
+ * # FRAMING, ON THE OTHER HAND, IS OFFERED ONLY ON A ZOOMED MAP, AND IS NOT REMEMBERED (D6)
  *
- * À 1x il n'y a rien à choisir. Zoomée, la carte peut sortir entière (défaut : un clip se
- * partage, on veut y voir tout le terrain) ou au cadrage de l'écran. Le choix vit le temps du
- * dialogue : un zoom est un geste du moment.
+ * At 1x there is nothing to choose. Zoomed, the map can export in full (the default: a clip
+ * gets shared, and the whole field should be visible) or at the screen's current framing. The
+ * choice lives only for the duration of the dialog: a zoom is a moment's gesture.
  *
- * # LA VUE 3D, QUAND LA PAGE EN A UNE CHARGÉE
+ * # THE 3D VIEW, WHEN THE PAGE HAS ONE LOADED
  *
- * Carte 2D ou vue 3D, et en 3D la caméra, le joueur suivi et la mini-carte (`Export3dChoice`).
- * Le cadrage de la carte zoomée ne vaut que pour la 2D.
+ * 2D map or 3D view, and in 3D the camera, the followed player and the minimap
+ * (`Export3dChoice`). The zoomed-map framing only applies to 2D.
  *
- * # PENDANT LE CALCUL, LE PANNEAU NE SE FERME PAS TOUT SEUL
+ * # DURING THE COMPUTATION, THE PANEL DOES NOT CLOSE ON ITS OWN
  *
- * Il devient une progression et un bouton « Annuler ». Et si l'utilisateur le referme quand
- * même par le bouton, c'est CELUI-CI qui porte alors la progression (cf. `PlayerTransport`) :
- * aucun état de la page ne doit perdre à la fois le retour et le moyen d'annuler.
+ * It turns into a progress bar and a "Cancel" button. And if the user closes it anyway via
+ * the button, it is THAT button which then carries the progress (see `PlayerTransport`): no
+ * page state must lose both the way back and the means to cancel at the same time.
  */
 import { useState, type ReactNode } from 'react'
 
@@ -73,7 +74,7 @@ interface Props {
   threeDOnly?: boolean
 }
 
-/** L'export travaille-t-il ? Les deux phases actives, et elles seules. */
+/** Is the export busy? The two active phases, and only those. */
 export function isExportBusy(state: ReplayExportState): boolean {
   return state.phase === 'prepare' || state.phase === 'encode'
 }
@@ -103,17 +104,17 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
       className={`z-20 w-[22rem] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-4 shadow-lg ${threeDOnly ? 'relative overflow-y-auto' : 'absolute bottom-full right-0 mb-2'}`}
     >
       <p className="text-sm font-semibold text-foreground">{t.exportDialogTitle}</p>
-      {/* L'ÉCHEC SE DIT. Sans cette ligne, une panne d'encodeur faisait disparaître la barre
-          sans un mot et sans fichier — impossible de distinguer « ça a échoué » de « il ne
-          s'est rien passé ». */}
+      {/* FAILURE IS SAID OUT LOUD. Without this line, an encoder failure made the bar vanish
+          without a word and without a file — impossible to tell "it failed" apart from
+          "nothing happened". */}
       {state.phase === 'failed' && (
         <p role="alert" className="mt-2 text-[12.5px] text-destructive">
           {t.exportFailed}
           {state.message ? ` (${state.message})` : ''}
         </p>
       )}
-      {/* LA FIN SE DIT AUSSI, avec le nom du fichier : le clip part dans les téléchargements,
-          où rien ne rattache un `replay-...mp4` au geste qui vient d'être fait. */}
+      {/* THE END IS SAID TOO, with the file name: the clip lands in downloads, where nothing
+          ties a `replay-...mp4` back to the gesture that just happened. */}
       {state.phase === 'done' && (
         <p role="status" className="mt-2 break-all text-[12.5px] text-foreground">
           {t.exportDoneFmt(state.filename ?? '')}
@@ -154,11 +155,11 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
 }
 
 /**
- * Le formulaire : les deux bornes, le format, le son, et les deux gestes.
+ * The form: the two bounds, the format, the sound, and the two actions.
  *
- * LE FORMAT N'A PAS BESOIN D'ÊTRE DÉSACTIVÉ PENDANT L'EXPORT : ce formulaire n'est pas rendu du
- * tout pendant `prepare`/`encode` (cf. `isExportBusy`), le choix ne peut donc pas changer sous
- * un calcul en cours.
+ * THE FORMAT DOES NOT NEED TO BE DISABLED DURING EXPORT: this form is not rendered at all
+ * during `prepare`/`encode` (see `isExportBusy`), so the choice cannot change under a
+ * computation already in progress.
  */
 function ExportForm({
   t, bounds, domain, exporter, sound, format, framing, view3d, onBound, onClose,
@@ -170,7 +171,7 @@ function ExportForm({
   sound: { on: boolean; set: (v: boolean) => void }
   format: { id: ExportFormatId; set: (id: ExportFormatId) => void }
   framing: { id: ExportFraming; set: (id: ExportFraming) => void }
-  /** Le choix 2D / 3D (`Export3dChoice`) et ses options ; `null` sans carte 3D chargée. */
+  /** The 2D / 3D choice (`Export3dChoice`) and its options; `null` with no 3D map loaded. */
   view3d: { slot: ReactNode; run: Export3dOptions | null } | null
   onBound: { start: (v: number) => void; end: (v: number) => void }
   onClose: () => void
@@ -196,7 +197,7 @@ function ExportForm({
       </div>
       {view3d?.slot}
       <FormatChoice t={t} format={format} />
-      {/* Le cadrage est celui de la carte 2D : en 3D, la caméra en tient lieu. */}
+      {/* Framing belongs to the 2D map: in 3D, the camera serves that role instead. */}
       {exporter.zoomLevel > 1 && !run3d && <FramingChoice t={t} framing={framing} zoomLevel={exporter.zoomLevel} />}
       <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
         <input
@@ -232,7 +233,7 @@ function ExportForm({
   )
 }
 
-/** Le choix du format : une option par format du catalogue, avec ses dimensions. */
+/** The format choice: one option per catalog format, with its dimensions. */
 function FormatChoice({
   t,
   format,
@@ -262,7 +263,7 @@ function FormatChoice({
   )
 }
 
-/** Le choix du cadrage, sur une carte zoomée seulement (cf. l'en-tête). */
+/** The framing choice, on a zoomed map only (see the header). */
 function FramingChoice({
   t,
   framing,
@@ -298,7 +299,7 @@ function FramingChoice({
   )
 }
 
-/** Un curseur de borne, avec son horloge de match à droite. */
+/** A bound slider, with its match clock on the right. */
 function BoundSlider({
   label,
   value,
@@ -330,16 +331,16 @@ function BoundSlider({
 }
 
 /**
- * La progression, et le SEUL geste disponible pendant le calcul.
+ * The progress bar, and the ONLY action available during the computation.
  *
- * DEUX PHASES QUI NE DISENT PAS LA MÊME CHOSE. En `prepare` — polices, logo, décodage des sons,
- * mixage hors ligne, encodage de la piste — aucun compte d'images n'a de sens, rien n'est encore
- * encodé : la barre est INDÉTERMINÉE et le texte dit ce qu'on fait. C'est la phase qui affichait
- * « Image 0 / 18000 » sans bouger pendant plusieurs secondes, c'est-à-dire exactement l'instant
- * où l'on se demande si ça a planté. En `encode`, le compte et l'estimation deviennent vrais.
+ * TWO PHASES THAT DO NOT SAY THE SAME THING. During `prepare` — fonts, logo, sound decoding,
+ * offline mixing, track encoding — no frame count means anything, nothing is encoded yet: the
+ * bar is INDETERMINATE and the text says what is being done. This is the phase that used to
+ * show "Frame 0 / 18000" without moving for several seconds, which is exactly the moment one
+ * wonders whether it has crashed. During `encode`, the count and the estimate become real.
  *
- * La barre est un simple bloc à largeur variable : une balise `<progress>` se style
- * différemment dans chaque navigateur, et l'export n'a pas besoin d'un composant de plus.
+ * The bar is a simple variable-width block: a `<progress>` tag styles differently in every
+ * browser, and the export does not need yet another component.
  */
 function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: ReplayLocale }) {
   const t = REPLAY_TEXT[locale]
@@ -378,9 +379,9 @@ function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: 
           </>
         )}
       </p>
-      {/* CE QUE L'UTILISATEUR VOIT BOUGER DERRIÈRE LE PANNEAU, et qui l'inquiéterait sinon. Ce
-          texte vivait dans le FORMULAIRE jusqu'au 2026-08-28 : sa clé s'appelle pourtant
-          `exportRunningHint`, et il ne s'affichait justement pas pendant le calcul. */}
+      {/* WHAT THE USER SEES MOVING BEHIND THE PANEL, which would otherwise worry them. This
+          text used to live in the FORM until 2026-08-28: its key is nonetheless called
+          `exportRunningHint`, and it precisely did not show during the computation. */}
       <p className="mt-1 text-[11.5px] text-muted-foreground">{t.exportRunningHint}</p>
       <div className="mt-3 flex justify-end">
         <button
@@ -396,17 +397,18 @@ function ExportProgress({ exporter, locale }: { exporter: ReplayExport; locale: 
 }
 
 /**
- * La phase `done` : le clip est prêt, le dialogue reste ouvert, et le dépôt attend un clic.
+ * The `done` phase: the clip is ready, the dialog stays open, and the delivery waits for a
+ * click.
  *
- * POURQUOI LE CLIC, ET PAS LE CODE. Des minutes après le clic d'export, un téléchargement
- * déclenché par le code n'a plus le geste de l'utilisateur derrière : Chrome bloque le
- * second fichier non demandé d'un site (« Needs permission to download »), et le film,
- * c'est précisément le deuxième. Le bouton « Sauvegarder la vidéo » porte donc le clic —
- * c'est l'utilisateur qui dépose le fichier, pas le code qui le lui jette.
+ * WHY THE CLICK, AND NOT THE CODE. Minutes after the export click, a download triggered by
+ * code no longer has a user gesture behind it: Chrome blocks a site's second unrequested
+ * file ("Needs permission to download"), and the video is precisely the second one. The
+ * "Save video" button therefore carries the click — it is the user who delivers the file,
+ * not the code throwing it at them.
  *
- * Fermer SANS sauver rend le clip (`discardDone`) : l'URL d'objet est révoquée, l'état
- * retombe à l'inertie, et rien ne retient le blob en mémoire. Sauver, lui, ne ferme pas :
- * l'utilisateur peut encore relire le nom, ou en demander un autre.
+ * Closing WITHOUT saving releases the clip (`discardDone`): the object URL is revoked, the
+ * state falls back to idle, and nothing keeps the blob in memory. Saving, on the other hand,
+ * does not close: the user can still re-read the name, or ask for another one.
  */
 function ExportDone({ exporter, t, onClose }: { exporter: ReplayExport; t: ReplayText; onClose: () => void }) {
   return (

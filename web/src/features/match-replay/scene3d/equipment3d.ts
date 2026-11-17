@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * equipment3d.ts — L'ÉQUIPEMENT DANS LA SCÈNE 3D : les poses (mur, écran occultant, capteur,
- * traqueur, champ de réparation, objets lâchés), les stations de la faille du translocateur, les
- * câbles de grappin et les poussées du répulseur.
+ * equipment3d.ts — EQUIPMENT IN THE 3D SCENE: placements (wall, shroud screen, sensor, seeker,
+ * repair field, dropped objects), the translocator rift's stations, grapple cables and repulsor
+ * knockbacks.
  *
- * TOUTES LES DÉCISIONS SONT CELLES DE LA 2D, relues et jamais recopiées :
- *  - ce qui se dessine et sous quelle forme : `placementKind` (table par famille, objets lâchés,
- *    panneaux du mur), sur `drawablePlacements` (poses du document puis objets engendrés situés) ;
- *  - jusqu'à quand : `placementEndFrame` (fin lue, sinon durée de repli de la famille) et
- *    `placementShows` (le traqueur ne montre que son impulsion) ;
- *  - le cap du mur : `wallHeading` (cap de pose, sinon trajectoire, sinon visée) ;
- *  - les failles : `riftStations` (pose, échanges, fin lue ou repli) ;
- *  - le câble : la fenêtre mesurée [t0, t1] de `grappleLines` (un fil sombre comme celui du jeu ; le
- *    trait clair et le point d'accroche sont un repère d'analyse, `aids3d.grappleLines`) ;
- *  - la poussée : la fenêtre de `waveProgress` (`KNOCKBACK_FX_MS`), la couleur de l'auteur.
- * La 3D n'y ajoute que la hauteur (le sol sous chaque objet) et le volume (`equipment3dShapes`).
+ * EVERY DECISION IS 2D'S OWN, re-read and never recopied:
+ *  - what draws and in what shape: `placementKind` (table by family, dropped objects, wall
+ *    panels), on `drawablePlacements` (document placements then located spawned objects);
+ *  - until when: `placementEndFrame` (read end, else the family's fallback duration) and
+ *    `placementShows` (the seeker only shows its pulse);
+ *  - the wall's heading: `wallHeading` (placement heading, else trajectory, else aim);
+ *  - rifts: `riftStations` (placement, exchanges, read end or fallback);
+ *  - the cable: the measured window [t0, t1] of `grappleLines` (a dark line like the game's; the
+ *    bright line and the anchor point are an analysis aid, `aids3d.grappleLines`);
+ *  - the knockback: the window of `waveProgress` (`KNOCKBACK_FX_MS`), the author's color.
+ * 3D only adds height (the floor under each object) and volume (`equipment3dShapes`).
  *
  * THE EQUIPMENT IN USE, as the game shows it, each in its own module (pure timing and geometry in
  * its `*_logic.ts`): the grapple hook flying out and holding (`grapple3d`), the drop wall rising and
@@ -26,14 +26,14 @@
  * hand (`ctx.firstPersonLeftHand`), the thruster draws no exhaust in the viewer's face, and the wall
  * and the bubble are world objects seen like any other (inside the bubble, its inner wall).
  *
- * LES DEUX BASCULES QUE LE TIROIR 3D NE PORTE PAS valent leur défaut du tiroir 2D : objets non
- * identifiés éteints, objets lâchés allumés (`PLACEMENT_TOGGLES_3D`). Poses et failles suivent
- * l'interrupteur des poses (the drop wall and the bubble with them); grapple and thruster act on their
+ * THE TWO TOGGLES THE 3D DRAWER DOES NOT CARRY take their default from the 2D drawer: unidentified
+ * objects off, dropped objects on (`PLACEMENT_TOGGLES_3D`). Placements and rifts follow the
+ * placements switch (the drop wall and the bubble with them); grapple and thruster act on their
  * carrier and follow no switch, like camouflage and overshield.
  *
- * LES REPÈRES D'ANALYSE (`aids3d`, éteints par défaut) coiffent ce que le jeu ne montre pas tel
- * quel : les formes des poses (`placementShapes` : tout sauf mur, écran occultant, capteur et champ,
- * que le jeu montre, `ALWAYS_SHOWN`) et les flèches de poussée (`knockbackArrows`).
+ * THE ANALYSIS AIDS (`aids3d`, off by default) cover what the game does not show as such: the
+ * placement shapes (`placementShapes`: everything except wall, shroud screen, sensor and field,
+ * which the game shows, `ALWAYS_SHOWN`) and the knockback arrows (`knockbackArrows`).
  */
 import * as THREE from 'three'
 
@@ -64,26 +64,26 @@ import { toThree } from './tracks3d'
 type GrappleLine = ReplayDocumentReady['grappleLines'][number]
 type Knockback = ReplayDocumentReady['knockbacks'][number]
 
-/** Les bascules 2D sans commande en 3D : leurs défauts du tiroir (`useReplaySettings`). */
+/** The 2D toggles with no 3D control: their drawer defaults (`useReplaySettings`). */
 export const PLACEMENT_TOGGLES_3D: PlacementToggles = { showUnnamed: false, showDropped: true }
 
-/** Les poses dessinées hors du repère `placementShapes` : le jeu montre la barrière du mur, la bulle de l'écran et la portée du capteur et du champ. */
+/** Placements drawn outside the `placementShapes` aid: the game shows the wall's barrier, the screen's bubble, and the range of the sensor and the field. */
 const ALWAYS_SHOWN: ReadonlySet<PlacementKind> = new Set<PlacementKind>(['wall', 'shroud', 'sensor', 'field'])
 
-/** placementDrawn — la pose se dessine-t-elle, le repère des formes des poses allumé ou non ? */
+/** placementDrawn — does the placement draw, whether or not the placement-shapes aid is on? */
 export function placementDrawn(kind: PlacementKind, shapes: boolean): boolean {
   return shapes || ALWAYS_SHOWN.has(kind)
 }
 
-/** Hauteur de la main au-dessus des pieds (u) : le câble part de là. */
+/** Hand height above the feet (u): the cable starts there. */
 const HAND_ABOVE_FEET_U = 0.45
-/** Hauteur du centre du corps au-dessus des pieds (u) : la flèche de poussée et le jet du propulseur partent de là. */
+/** Body center height above the feet (u): the knockback arrow and the thruster jet start there. */
 const BODY_ABOVE_FEET_U = 0.345
-/** Longueur de la flèche par unité de vitesse imposée, et son plafond (u). */
+/** Arrow length per unit of published speed, and its cap (u). */
 const KNOCKBACK_U_PER_SPEED = 0.2
 const KNOCKBACK_MAX_U = 1.5
 
-/** L'axe de temps d'une fenêtre de pose : durée réelle d'une image et nombre d'images. */
+/** A placement window's time axis: a frame's real duration and the frame count. */
 export interface EquipmentTime3d {
   frameMs: number
   frames: number
@@ -93,14 +93,14 @@ export function equipmentTime3d(doc: ReplayDocumentReady): EquipmentTime3d {
   return { frameMs: frameToMs(1, doc), frames: doc.frameCount }
 }
 
-/** Une pose que la 2D dessinerait, avec sa forme et sa dernière image affichée. */
+/** A placement 2D would draw, with its shape and its last shown frame. */
 export interface PlacementSpan3d {
   p: ReplayEquipmentPlacement
   kind: PlacementKind
   end: number
 }
 
-/** placementSpans3d — les poses dessinables du document, par la porte du tracé 2D. */
+/** placementSpans3d — the document's drawable placements, through the 2D trace's gate. */
 export function placementSpans3d(doc: ReplayDocumentReady, time: EquipmentTime3d): PlacementSpan3d[] {
   const out: PlacementSpan3d[] = []
   for (const p of drawablePlacements(doc)) {
@@ -111,20 +111,20 @@ export function placementSpans3d(doc: ReplayDocumentReady, time: EquipmentTime3d
   return out
 }
 
-/** placementShownAt — la pose montre-t-elle quelque chose à cette image ? */
+/** placementShownAt — does the placement show anything at this frame? */
 export function placementShownAt(s: PlacementSpan3d, frame: number, time: EquipmentTime3d): boolean {
   if (frame < s.p.t0 || frame > s.end) return false
   return placementShows(s.p, s.kind, { frame, ...time, ...PLACEMENT_TOGGLES_3D })
 }
 
-/** knockbackShownAt — la poussée est-elle dans la fenêtre de son effet 2D ? */
+/** knockbackShownAt — is the knockback within its 2D effect window? */
 export function knockbackShownAt(k: Knockback, frame: number, time: EquipmentTime3d): boolean {
   return waveProgress((frame - k.t) * time.frameMs, false) !== null
 }
 
 /**
- * knockbackArrow — la direction (axes three, unitaire) et la longueur (u) de la flèche, ou null sans
- * impulsion publiée (la 2D ne trace alors pas de sillage). La verticale absente vaut zéro.
+ * knockbackArrow — the arrow's direction (three axes, unit) and length (u), or null without a
+ * published pulse (2D then draws no trail either). A missing vertical counts as zero.
  */
 export function knockbackArrow(k: Knockback): { dir: THREE.Vector3; length: number } | null {
   if (k.vx == null || k.vy == null) return null
@@ -136,11 +136,11 @@ export function knockbackArrow(k: Knockback): { dir: THREE.Vector3; length: numb
 
 interface PlacementItem extends PlacementSpan3d {
   /**
-   * Le point au sol (axes three) ; null quand ni le sol ni la hauteur publiée ne le situent.
+   * The ground point (three axes); null when neither the floor nor a published height locates it.
    * Re-read whenever the ground's surfaces change (`resolveHeights`).
    */
   at: THREE.Vector3 | null
-  /** Cap du mur (degrés Halo), null sans source ; inutilisé hors mur et faille. */
+  /** Wall heading (Halo degrees), null without a source; unused outside wall and rift. */
   heading: number | null
   /** The drop wall's panels (Halo axes), null without a heading or for another kind. */
   panels: WallPanel[] | null
@@ -213,7 +213,7 @@ export class Equipment3dLayer implements ActionLayer3d {
     for (const p of this.pools) p.dispose()
   }
 
-  // --- Préparation (une fois par document) -------------------------------------------------------
+  // --- Preparation (once per document) -------------------------------------------------------
 
   /**
    * resolveHeights — re-read every floor under the equipment once the ground's surfaces change.
@@ -232,7 +232,7 @@ export class Equipment3dLayer implements ActionLayer3d {
     for (const g of this.grapples) g.anchor = this.anchorOf(g.l)
   }
 
-  /** floorAt — le sol sous (x, y) Halo, sous la hauteur `z` quand elle est connue ; à défaut `z`. */
+  /** floorAt — the floor under Halo (x, y), under height `z` when it is known; else `z`. */
   private floorAt(x: number, y: number, z: number | null): THREE.Vector3 | null {
     const y3 = this.ctx.ground.floorY(x, y, z) ?? z
     if (y3 === null) return null
@@ -251,9 +251,9 @@ export class Equipment3dLayer implements ActionLayer3d {
   }
 
   /**
-   * riftItems — les stations, situées en hauteur : la station ne porte que (x, y), la hauteur vient
-   * de la pose (`riftPoses[].z`) ou de l'échange (`translocations[].fz`) qui l'ouvre, même slot et
-   * même image ; à défaut, celle du porteur. La faille regarde où regardait son porteur.
+   * riftItems — the stations, located in height: the station only carries (x, y), the height comes
+   * from the placement (`riftPoses[].z`) or the exchange (`translocations[].fz`) that opens it,
+   * same slot and same frame; else the carrier's. The rift faces where its carrier was facing.
    */
   private riftItems(doc: ReplayDocumentReady): RiftItem[] {
     const zOf = new Map<string, number>()
@@ -266,15 +266,15 @@ export class Equipment3dLayer implements ActionLayer3d {
     })
   }
 
-  /** anchorOf — le point d'accroche publié ; sans hauteur, le sol sous lui près du tireur. */
+  /** anchorOf — the published anchor point; without a height, the floor under it near the shooter. */
   private anchorOf(l: GrappleLine): THREE.Vector3 | null {
     if (l.az !== undefined) return new THREE.Vector3(...toThree(l.ax, l.ay, l.az))
     return this.floorAt(l.ax, l.ay, this.ctx.slotState(l.slot, l.t0)?.z ?? null)
   }
 
-  // --- Peinture (à chaque image) ------------------------------------------------------------------
+  // --- Painting (every frame) ------------------------------------------------------------------
 
-  /** feetAt — les pieds du bipède de `slot` à cette image (axes three), relevés de `lift`. */
+  /** feetAt — the feet of the biped at `slot` for this frame (three axes), raised by `lift`. */
   private feetAt(slot: number, frame: number, lift: number, out: THREE.Vector3): THREE.Vector3 | null {
     const s = this.ctx.slotState(slot, frame)
     if (!s) return null
@@ -282,11 +282,11 @@ export class Equipment3dLayer implements ActionLayer3d {
     return out.set(x, y - this.ctx.originAboveFloor + lift, z)
   }
 
-  /** ownerInk — la couleur du poseur à sa pose (règle 2D `inkOf`), la frontière d'une vie comprise. */
+  /** ownerInk — the placer's color at their placement (2D rule `inkOf`), a life's boundary included. */
   private ownerInk(p: ReplayEquipmentPlacement, inputs: Action3dInputs): THREE.Color {
     const neutral = inputs.inks.floor.edge
     if (p.owner < 0) return this.ctx.ink.of(neutral)
-    // Un objet lâché à la mort naît à `finVie + 1` : l'image d'avant est encore celle du lâcheur.
+    // An object dropped on death is born at `lifeEnd + 1`: the frame before is still the dropper's.
     const css = inputs.colorOfSlot(p.owner, p.t0) ?? inputs.colorOfSlot(p.owner, p.t0 - 1) ?? neutral
     return this.ctx.ink.of(css)
   }
@@ -415,7 +415,7 @@ export class Equipment3dLayer implements ActionLayer3d {
       const arrow = knockbackArrow(k)
       const from = this.feetAt(k.slot, frame, BODY_ABOVE_FEET_U, this.scratch.b)
       if (!arrow || !from) continue
-      // La couleur de l'AUTEUR à l'image de la poussée, sinon celle du poussé (règle 2D).
+      // The AUTHOR's color at the frame of the knockback, else the pushed player's (2D rule).
       const css = (k.by != null ? inputs.colorOfSlot(k.by, k.t) : null) ?? inputs.colorOfSlot(k.slot, k.t)
       this.shapes.arrow(from, arrow.dir, arrow.length, this.ctx.ink.of(css ?? inputs.inks.fx.core))
     }

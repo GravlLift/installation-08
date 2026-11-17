@@ -1,5 +1,7 @@
 package hinavmesh
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // typetable.go — LA TABLE DES TYPES D'UN FICHIER-TAG (sections TNA1 et TBDY).
 //
 // TNA1 : [n] puis n-1 entrees {indice de nom, nb de modeles, (indice de nom, valeur)*}.
@@ -53,7 +55,7 @@ func (l *lecteurEmpaquete) entier() int {
 		return 0
 	}
 	if l.pos >= len(l.buf) {
-		l.err = fmt.Errorf("hinavmesh: fin de section a l'offset %d", l.pos)
+		l.err = fmt.Errorf("hinavmesh: end of section at offset %d", l.pos)
 		return 0
 	}
 	b0 := l.buf[l.pos]
@@ -68,11 +70,11 @@ func (l *lecteurEmpaquete) entier() int {
 	case b0&0xF0 == 0xE0:
 		longueur = 4
 	default:
-		l.err = fmt.Errorf("hinavmesh: forme d'entier empaquete inconnue 0x%02x a l'offset %d", b0, l.pos)
+		l.err = fmt.Errorf("hinavmesh: unknown packed integer form 0x%02x at offset %d", b0, l.pos)
 		return 0
 	}
 	if l.pos+longueur > len(l.buf) {
-		l.err = fmt.Errorf("hinavmesh: entier empaquete de %d octets tronque a l'offset %d", longueur, l.pos)
+		l.err = fmt.Errorf("hinavmesh: packed integer of %d bytes truncated at offset %d", longueur, l.pos)
 		return 0
 	}
 	if longueur > 1 {
@@ -137,11 +139,11 @@ func lireTypes(buf []byte, sections map[string][2]int) (tableTypes, int, error) 
 		}
 	}
 	if !trouve {
-		return nil, 0, fmt.Errorf("hinavmesh: fichier-tag sans table de chaines (ni TST1/FST1, ni TSTR/FSTR)")
+		return nil, 0, fmt.Errorf("hinavmesh: tag file without a string table (neither TST1/FST1 nor TSTR/FSTR)")
 	}
 	for _, tag := range []string{sectionNomsTypes, sectionCorpsTypes} {
 		if _, ok := sections[tag]; !ok {
-			return nil, 0, fmt.Errorf("hinavmesh: fichier-tag sans section %s", tag)
+			return nil, 0, fmt.Errorf("hinavmesh: tag file without section %s", tag)
 		}
 	}
 	nomsTypes := chaines(buf, secTypes)
@@ -166,11 +168,11 @@ func lireNomsTypes(buf []byte, sec [2]int, nomsTypes []string) (tableTypes, erro
 		return nil, l.err
 	}
 	if n <= 0 || n > sec[1] {
-		return nil, fmt.Errorf("hinavmesh: TNA1 annonce %d types pour %d octets", n, sec[1])
+		return nil, fmt.Errorf("hinavmesh: TNA1 announces %d types for %d bytes", n, sec[1])
 	}
 	nom := func(i int) (string, error) {
 		if i < 0 || i >= len(nomsTypes) {
-			return "", fmt.Errorf("hinavmesh: indice de nom %d hors des %d chaines de la table des types", i, len(nomsTypes))
+			return "", fmt.Errorf("hinavmesh: name index %d outside the %d strings of the type table", i, len(nomsTypes))
 		}
 		return nomsTypes[i], nil
 	}
@@ -197,7 +199,7 @@ func lireNomsTypes(buf []byte, sec [2]int, nomsTypes []string) (tableTypes, erro
 		}
 	}
 	if !l.fini() {
-		return nil, fmt.Errorf("hinavmesh: TNA1 laisse %d octets non nuls apres %d types", sec[1]-l.pos, n)
+		return nil, fmt.Errorf("hinavmesh: TNA1 leaves %d non-zero bytes after %d types", sec[1]-l.pos, n)
 	}
 	return types, nil
 }
@@ -214,7 +216,7 @@ func lireCorpsTypes(buf []byte, sec [2]int, types tableTypes, nomsChamps []strin
 			break
 		}
 		if idx <= 0 || idx >= len(types) {
-			return recuperations, fmt.Errorf("hinavmesh: TBDY, indice de type %d hors des %d types (offset %d)",
+			return recuperations, fmt.Errorf("hinavmesh: TBDY, type index %d outside the %d types (offset %d)",
 				idx, len(types), l.pos)
 		}
 		avant := types[idx]
@@ -244,7 +246,7 @@ func lireUnCorps(l *lecteurEmpaquete, t *typeHavok, nomsChamps []string) error {
 	t.Parent = l.entier()
 	drapeaux := l.entier()
 	if drapeaux&drapeauReserve != 0 {
-		return fmt.Errorf("drapeau 0x80 inconnu (drapeaux 0x%02x)", drapeaux)
+		return fmt.Errorf("unknown 0x80 flag (flags 0x%02x)", drapeaux)
 	}
 	for _, d := range []int{drapeauFormat, drapeauSousType, drapeauVersion} {
 		if drapeaux&d != 0 {
@@ -269,7 +271,7 @@ func lireUnCorps(l *lecteurEmpaquete, t *typeHavok, nomsChamps []string) error {
 				break
 			}
 			if iNom < 0 || iNom >= len(nomsChamps) {
-				return fmt.Errorf("membre %d: indice de nom %d hors des %d chaines de la table des noms de champs",
+				return fmt.Errorf("member %d: name index %d outside the %d strings of the field name table",
 					j, iNom, len(nomsChamps))
 			}
 			t.Membres = append(t.Membres, membreHavok{Nom: nomsChamps[iNom], Offset: offset, Type: typ})

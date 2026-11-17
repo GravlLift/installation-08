@@ -345,6 +345,6 @@ func logSkullCarriesCoverage(ctx context.Context, cov *SkullCarriesCoverage) {
 	slog.InfoContext(ctx, "replay: Oddball skull carry",
 		"pickups", cov.Grabs, "trains", cov.Trains, "carries", cov.Carries,
 		"closed", cov.Closed, "open", cov.Open,
-		"sansPont", cov.NoBridge, "horsFenetre", cov.OutOfWindow,
-		"porteurAbsent", cov.CarrierAbsent)
+		"noBridge", cov.NoBridge, "outOfWindow", cov.OutOfWindow,
+		"carrierAbsent", cov.CarrierAbsent)
 }

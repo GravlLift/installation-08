@@ -6,8 +6,8 @@ import { BREAK_SECONDS, HIT_SECONDS, NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, 
 const FPS = 10
 const fx = (s: ShieldSamples, f: number): ShieldFx => ({ ...shieldFxAt(s, f, FPS, { ...NO_SHIELD_FX }) })
 
-// Plein jusqu'à 10, coup à 12 (1 -> 0,75), coup à 20 (0,75 -> 0,5), rupture à 24, puis plat à 0,
-// recharge image par image de 40 à 45 (0 -> 0,235), puis plat.
+// Full up to 10, a hit at 12 (1 -> 0.75), a hit at 20 (0.75 -> 0.5), a break at 24, then flat at 0,
+// frame-by-frame recharge from 40 to 45 (0 -> 0.235), then flat.
 const LIFE = shieldSamplesOf([
   { t: 0, sh: 1 }, { t: 10, sh: 1 }, { t: 11 }, { t: 12, sh: 0.75 }, { t: 20, sh: 0.5 }, { t: 24, sh: 0 },
   { t: 30, sh: 0 }, { t: 40, sh: 0 }, { t: 41, sh: 0.047 }, { t: 42, sh: 0.094 }, { t: 43, sh: 0.141 },
@@ -15,23 +15,23 @@ const LIFE = shieldSamplesOf([
 ])
 
 describe('shieldSamplesOf', () => {
-  it('ne garde que les points qui portent une mesure', () => {
+  it('keeps only the points that carry a measurement', () => {
     expect(LIFE.t).not.toContain(11)
     expect(LIFE.t).toHaveLength(LIFE.v.length)
   })
 })
 
 describe('shieldFxAt', () => {
-  it('rien quand le bouclier est plat', () => {
+  it('nothing when the shield is flat', () => {
     expect(fx(LIFE, 5)).toEqual(NO_SHIELD_FX)
     expect(fx(LIFE, 80)).toEqual(NO_SHIELD_FX)
   })
 
-  it('rien avant la première mesure', () => {
+  it('nothing before the first measurement', () => {
     expect(fx(LIFE, -3).hit).toBe(0)
   })
 
-  it('un coup éclate à la baisse publiée puis décroît, et s’éteint après sa durée', () => {
+  it('a hit glows at the published drop then decays, and fades out after its duration', () => {
     expect(fx(LIFE, 11.9).hit).toBe(0)
     const at = fx(LIFE, 12)
     expect(at.hit).toBeCloseTo(0.9)
@@ -41,11 +41,11 @@ describe('shieldFxAt', () => {
     expect(fx(LIFE, 12 + HIT_SECONDS * FPS).hit).toBe(0)
   })
 
-  it('le dernier coup avant l’image décide, pas un plus ancien', () => {
+  it('the last hit before the frame decides, not an earlier one', () => {
     expect(fx(LIFE, 20).hit).toBeCloseTo(0.9)
   })
 
-  it('une rupture : éclat et éclatement au passage à zéro, l’âge de l’éclatement avance avec l’image', () => {
+  it('a break: glow and flash at the drop to zero, the flash\'s age advances with the frame', () => {
     const at = fx(LIFE, 24)
     expect(at.broke).toBe(1)
     expect(at.breakAge).toBe(0)
@@ -56,12 +56,12 @@ describe('shieldFxAt', () => {
     expect(fx(LIFE, 24 + BREAK_SECONDS * FPS).broke).toBe(0)
   })
 
-  it('un bouclier déjà nul qui reste nul ne rompt pas', () => {
+  it('a shield already at zero that stays at zero doesn\'t break', () => {
     expect(fx(LIFE, 31).broke).toBe(0)
     expect(fx(LIFE, 31).hit).toBe(0)
   })
 
-  it('la recharge vaut tant que les mesures voisines montent, pas au-delà', () => {
+  it('recharge holds as long as neighboring measurements rise, not beyond', () => {
     expect(fx(LIFE, 39).recharge).toBe(0)
     expect(fx(LIFE, 40.5).recharge).toBe(1)
     expect(fx(LIFE, 43.2).recharge).toBe(1)
@@ -69,14 +69,14 @@ describe('shieldFxAt', () => {
     expect(fx(LIFE, 47.5).recharge).toBe(0)
   })
 
-  it('l’âge de la recharge part du début de la remontée, pas de la dernière mesure', () => {
-    // La remontée commence à 40 (0 -> 0,047 à 41) : à 43,2, elle dure depuis 0,32 s.
+  it('the recharge\'s age starts at the rise\'s beginning, not the last measurement', () => {
+    // The rise starts at 40 (0 -> 0.047 at 41): at 43.2, it has lasted 0.32 s.
     expect(fx(LIFE, 43.2).rechargeAge).toBeCloseTo(0.32)
     expect(fx(LIFE, 40.5).rechargeAge).toBeCloseTo(0.05)
     expect(fx(LIFE, 47.5).rechargeAge).toBe(-1)
   })
 
-  it('un tir soutenu tient l’éclat allumé ; il s’éteint avant une demi-seconde après le dernier coup', () => {
+  it('sustained fire keeps the glow lit; it fades within half a second of the last hit', () => {
     const burst = shieldSamplesOf([
       { t: 0, sh: 1 }, { t: 1, sh: 0.9 }, { t: 2, sh: 0.8 }, { t: 3, sh: 0.7 }, { t: 4, sh: 0.6 }, { t: 30, sh: 0.6 },
     ])
@@ -86,7 +86,7 @@ describe('shieldFxAt', () => {
     expect(BREAK_SECONDS).toBeLessThanOrEqual(0.3)
   })
 
-  it('même valeur en avançant et en reculant, quelle que soit l’image précédente', () => {
+  it('the same value stepping forward or back, regardless of the previous frame', () => {
     const frames: number[] = []
     for (let f = 0; f <= 60; f += 0.25) frames.push(f)
     const forward = frames.map((f) => fx(LIFE, f))

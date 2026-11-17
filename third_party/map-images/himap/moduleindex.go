@@ -10,6 +10,8 @@
 // Le handoff ne signalait ce piege que pour la COLLISION ; il vaut aussi pour le rendu.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"os"
@@ -41,7 +43,7 @@ func NewModuleIndex(chemins ...string) (*ModuleIndex, error) {
 	for _, p := range chemins {
 		m, err := himodule.Open(p)
 		if err != nil {
-			return nil, fmt.Errorf("himap: ouvrir %s: %w", p, err)
+			return nil, fmt.Errorf("himap: open %s: %w", p, err)
 		}
 		i := len(idx.modules)
 		idx.modules = append(idx.modules, m)
@@ -172,7 +174,7 @@ func (idx *ModuleIndex) Lookup(id uint32) (groupe, module string, ok bool) {
 func (idx *ModuleIndex) Extract(id uint32) ([]byte, error) {
 	e, ok := idx.parID[id]
 	if !ok {
-		return nil, fmt.Errorf("himap: GlobalID %#x absent des %d modules indexes", id, len(idx.modules))
+		return nil, fmt.Errorf("himap: GlobalID %#x absent from the %d indexed modules", id, len(idx.modules))
 	}
 	return idx.modules[e.module].Extract(e.fichier)
 }
@@ -184,7 +186,7 @@ func (idx *ModuleIndex) Extract(id uint32) ([]byte, error) {
 func (idx *ModuleIndex) ExtractWithResources(id uint32) (tag, blob []byte, err error) {
 	e, ok := idx.parID[id]
 	if !ok {
-		return nil, nil, fmt.Errorf("himap: GlobalID %#x absent des %d modules indexes", id, len(idx.modules))
+		return nil, nil, fmt.Errorf("himap: GlobalID %#x absent from the %d indexed modules", id, len(idx.modules))
 	}
 	m := idx.modules[e.module]
 	tag, err = m.Extract(e.fichier)

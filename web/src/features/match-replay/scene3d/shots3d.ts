@@ -1,42 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * shots3d.ts — LES TIRS DANS LA SCÈNE 3D : éclair de bouche (gerbe de pétales au bout du canon
- * dessiné, `muzzleFlash3d` ; lumière brève, `flash3d`), balle en vol, étincelle d'impact.
+ * shots3d.ts — SHOTS IN THE 3D SCENE: muzzle flash (a spray of petals at the end of the drawn
+ * barrel, `muzzleFlash3d`; a brief light, `flash3d`), a bullet in flight, an impact spark.
  *
- * Les tirs sont ceux de la 2D (`buildShotFx`, tir continu compris), dans la même teinte de
- * décharge. La 3D leur donne un vol : la balle part du canon du modèle d'arme que le tireur tient à
- * l'image du tir (`muzzle3d` : main du Spartan, ou tenue de 1re personne quand la caméra est le
- * tireur), ou, sans ces modèles et pour un tir de véhicule, de `MUZZLE_HEIGHT` au-dessus de ses
- * pieds ; elle suit la direction de son
- * regard (cap du tir, tangage de sa visée), et file vers le premier mur touché sous la forme d'un
- * trait court à la vitesse d'une balle (`tracerSpan`) ; elle s'éteint à l'impact, qui jette une
- * étincelle brève. Les durées sont en temps réel, converties par la cadence du document : la
- * rémanence de 0,6 s de la 2D, appliquée à un trait tendu de la bouche au mur, en faisait un laser.
+ * Shots are the 2D's own (`buildShotFx`, continuous fire included), in the same discharge
+ * tint. The 3D gives them a flight: the bullet leaves from the barrel of the weapon model the
+ * shooter holds at the shot's frame (`muzzle3d`: the Spartan's hand, or a 1st-person hold when
+ * the camera is the shooter), or, with no such models and for a vehicle shot, from
+ * `MUZZLE_HEIGHT` above its feet; it follows its aim's direction (the shot's heading, its
+ * aim's pitch), and flies toward the first wall it hits as a short streak at a bullet's speed
+ * (`tracerSpan`); it goes out at impact, which throws a brief spark. Durations are in real
+ * time, converted by the document's frame rate: the 2D's 0.6 s persistence, applied to a
+ * streak stretched from muzzle to wall, would have made it a laser.
  *
- * Un tir de projectile d'énergie (familles de `BOLT_SPEED` : plasma, aiguilles) n'a pas de trait :
- * un point de feu file à sa vitesse, plus lente, jusqu'au mur.
+ * An energy projectile shot (the `BOLT_SPEED` families: plasma, needles) has no streak: a fire
+ * point flies at its own, slower speed, to the wall.
  *
  * The spread shot (family `spread`, the Heatwave) is a fan of energy bolts, each a short glowing
  * streak that flies at its projectile speed, ricochets once off the scenery and sparks where it ends
  * (`spreadShots3d`). As a `light` tracer (the 0.4 mm wire of a bullet, at a bullet's speed) it was
  * not seen at all.
  *
- * Le tir de choc (famille `shock`) n'a ni balle ni trait : TROIS faisceaux électriques sains,
- * de la bouche au mur (`shockShots3d`), pleins à l'instant du tir, agités par bac de jitter et
- * fondus linéairement sur `SHOCK_BEAM_SECONDS`.
+ * The shock shot (family `shock`) has neither bullet nor streak: THREE sound electric beams,
+ * from muzzle to wall (`shockShots3d`), full at the instant of the shot, jittered per bucket
+ * and faded linearly over `SHOCK_BEAM_SECONDS`.
  *
- * L'éclair de bouche se pose au bout de l'arme que la scène DESSINE à l'image affichée
- * (`drawnWeapon`) : en 1re personne, l'arme dessinée est le rig bras + arme, qui n'a pas d'arme en
- * main du Spartan — la gerbe est alors à la bouche du rig dont le vol est parti (`viewPath`), le
- * long de la direction du tir. Sans arme dessinée, pas de gerbe, seulement la lumière, à
- * l'origine du vol.
+ * The muzzle flash is placed at the end of the weapon the scene DRAWS at the displayed frame
+ * (`drawnWeapon`): in 1st person, the drawn weapon is the arms + weapon rig, which has no
+ * weapon in the Spartan's hand — the spray is then at the muzzle of the rig the flight left
+ * from (`viewPath`), along the shot's direction. With no drawn weapon, no spray, only the
+ * light, at the flight's origin.
  *
- * Un tir sans cap lisible n'a pas de balle, seulement l'éclair : la 2D en fait une bouffée ronde,
- * pour la même raison (pas de direction inventée). Le film ne dit pas ce qu'une balle a touché :
- * le point d'impact est celui du décor, jamais un joueur.
+ * A shot with no readable heading has no bullet, only the flash: the 2D makes it a round
+ * puff, for the same reason (no invented direction). The film does not say what a bullet hit:
+ * the impact point is the scenery's own, never a player.
  *
- * La ligne de tir entière (de la bouche au mur, tenue la rémanence de la 2D) est un repère
- * d'analyse (`aids3d.shotLines`), éteint par défaut : le jeu ne la montre pas.
+ * The entire shot line (from muzzle to wall, held for the 2D's persistence) is an analysis aid
+ * (`aids3d.shotLines`), off by default: the game does not show it.
  */
 import * as THREE from 'three'
 
@@ -60,78 +60,78 @@ import { aimDirThree, toThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
 import { weaponModelKey } from './weaponModels3d'
 
-// Vitesse apparente d'une balle : 300 u/s, ~900 m/s (une unité vaut ~3 m).
+// A bullet's apparent speed: 300 u/s, ~900 m/s (one unit is ~3 m).
 export const TRACER_SPEED = 300
-// Longueur du trait d'une balle en vol : ~3,5 m, le filé d'une balle à l'écran.
+// A flying bullet's streak length: ~3.5 m, a bullet's on-screen trail.
 export const TRACER_LENGTH = 1.2
-// Portée d'une balle sans mur : ~240 m.
+// A bullet's range with no wall: ~240 m.
 const TRACER_RANGE = 80
-// ~2,5 mm d'épaisseur : un fil, qui ne masque pas la vue en 1re personne.
+// ~2.5 mm thick: a wire, which does not block the 1st-person view.
 const TRACER_RADIUS = 0.0004
-// La bouche de repli est un peu devant le corps, au bout de l'arme.
+// The fallback muzzle sits a little in front of the body, at the end of the weapon.
 const MUZZLE_FORWARD = 0.3
-// La gerbe de l'éclair : la teinte de l'arme mêlée de blanc ; et une lumière brève qui éclaire le
-// tireur et le décor proche.
+// The flash's spray: the weapon's tint mixed with white; and a brief light that lights the
+// shooter and nearby scenery.
 const PETAL_CORE_MIX = 0.3
-// La gerbe de l'arme de la caméra se dessine après le reste de la scène.
+// The camera's weapon spray is drawn after the rest of the scene.
 const VIEW_FLASH_ORDER = 10
 export const MUZZLE_LIGHT = 2.5
 const MUZZLE_LIGHT_RANGE = 2.5
 export const IMPACT_SECONDS = 0.12
 const IMPACT_RADIUS = 0.012
-// Le blanc de la balle, mêlé à la teinte de l'arme : un trait chaud, pas un néon de la couleur pure.
+// The bullet's white, mixed into the weapon's tint: a hot streak, not a neon of the pure color.
 const CORE_MIX = 0.5
 // Energy discharges (plasma, electric, Forerunner...) keep their own color: the game shows a
 // saturated bolt, so only a touch of the white core goes in.
 const ENERGY_CORE_MIX = 0.1
 const CAPACITY = 512
-// Bacs à sable du tir de 1re personne : le repère caméra est tourné dans la visée, aucun tir n'alloue.
-const VUE_HAUT = new THREE.Vector3(0, 1, 0)
-const VUE_Q = new THREE.Quaternion()
-const VUE_M = new THREE.Matrix4()
-const BAC_CIBLE = new THREE.Vector3()
-const BAC_VUE = new THREE.Vector3()
-const BAC_BOCHE = new THREE.Vector3()
+// 1st-person shot scratch buffers: the camera frame is rotated into the aim, no shot allocates.
+const VIEW_UP = new THREE.Vector3(0, 1, 0)
+const VIEW_Q = new THREE.Quaternion()
+const VIEW_M = new THREE.Matrix4()
+const SCRATCH_TARGET = new THREE.Vector3()
+const SCRATCH_VIEW = new THREE.Vector3()
+const SCRATCH_MUZZLE = new THREE.Vector3()
 /**
- * Les familles dont le tir est un projectile lent et lumineux, pas une balle : un point de feu qui
- * file à sa vitesse (u/s) jusqu'au mur, sans trait. Vitesses choisies à l'œil, de l'ordre du jeu.
+ * The families whose shot is a slow, glowing projectile, not a bullet: a fire point flying at
+ * its own speed (u/s) to the wall, with no streak. Speeds picked by eye, in the game's own range.
  */
 export const BOLT_SPEED: Partial<Record<ShotFamily, number>> = { plasma: 45, needles: 25 }
-// ~8 cm : le point de feu d'un projectile d'énergie.
+// ~8 cm: an energy projectile's fire point.
 const BOLT_RADIUS = 0.025
-// Le faisceau du tir de choc : l'arc électrique entier, de la bouche au mur.
+// The shock shot's beam: the entire electric arc, from muzzle to wall.
 export const BEAM_RADIUS = 0.012
-// La lueur du faisceau : un second segment sur le même chemin, à ce multiple du rayon du cœur
-// et à cette fraction de son intensité, au même fondu.
+// The beam's glow: a second segment on the same path, at this multiple of the core's radius
+// and this fraction of its intensity, with the same fade.
 export const BEAM_GLOW_MULT = 4
 export const BEAM_GLOW_DIM = 0.25
-// La vie du faisceau : plein à l'instant du tir, fondu linéairement jusqu'à zéro.
+// The beam's life: full at the instant of the shot, faded linearly down to zero.
 export const BEAM_SECONDS = 0.25
-// La ligne de tir (repère d'analyse) : un fil un peu plus épais que la balle, assourdi.
+// The shot line (analysis aid): a wire a little thicker than the bullet, muted.
 const LINE_RADIUS = 0.004
 const LINE_DIM = 0.6
 // The spread's bolt: a streak this thick (~9 cm, an ESTIMATE of the game's glowing bar), and its
 // glow around it at the beam's multiple and dim.
 export const SPREAD_BOLT_RADIUS = 0.03
-// La vie la plus longue d'un tir : vol du projectile le plus lent jusqu'à la portée, puis l'étincelle.
+// A shot's longest life: the slowest projectile's flight to range, then the spark.
 const SLOWEST = Math.min(TRACER_SPEED, ...Object.values(BOLT_SPEED))
 const LIFE_SECONDS = Math.max((TRACER_RANGE + TRACER_LENGTH) / SLOWEST, (SPREAD_RANGE + SPREAD_BOUNCE_RANGE + SPREAD_TRAIL) / SPREAD_SPEED) + IMPACT_SECONDS
 
 interface ShotPath {
   from: THREE.Vector3
-  /** Le bout du vol ; null sans cap lisible. */
+  /** The flight's end; null with no readable heading. */
   to: THREE.Vector3 | null
-  /** Le vol s'arrête sur le décor (et non à la portée maximale). */
+  /** The flight stops on the scenery (rather than at the maximum range). */
   hit: boolean
-  /** Longueur du vol, en unités. */
+  /** The flight's length, in units. */
   length: number
 }
 
 /**
- * tracerSpan : la portion du vol (distances depuis la bouche) que couvre le trait de la balle
- * `age` secondes après le tir, null quand la balle a fini sa course. La tête avance à
- * `TRACER_SPEED` et s'arrête au bout du vol ; la queue la suit à `TRACER_LENGTH` et rentre dans
- * le point d'impact.
+ * tracerSpan: the portion of the flight (distances from the muzzle) the bullet's streak
+ * covers `age` seconds after the shot, null once the bullet has finished its run. The head
+ * advances at `TRACER_SPEED` and stops at the flight's end; the tail follows it at
+ * `TRACER_LENGTH` and retracts into the impact point.
  */
 export function tracerSpan(length: number, age: number, speed = TRACER_SPEED, trail = TRACER_LENGTH): { tail: number; head: number } | null {
   if (age < 0) return null
@@ -140,25 +140,25 @@ export function tracerSpan(length: number, age: number, speed = TRACER_SPEED, tr
   return tail < length ? { tail, head } : null
 }
 
-/** impactAge : l'âge (s) de l'étincelle d'un vol de `length` unités, null avant l'arrivée du projectile. */
+/** impactAge: the age (s) of a `length`-unit flight's spark, null before the projectile arrives. */
 export function impactAge(length: number, age: number, speed = TRACER_SPEED): number | null {
   const since = age - length / speed
   return since >= 0 && since < IMPACT_SECONDS ? since : null
 }
 
-/** shotLineShown : la ligne de tir (repère d'analyse) tient la rémanence de la 2D, `holdSeconds`. */
+/** shotLineShown: the shot line (analysis aid) holds the 2D's persistence, `holdSeconds`. */
 export function shotLineShown(age: number, holdSeconds: number): boolean {
   return age >= 0 && age <= holdSeconds
 }
 
 /**
- * Ce que dessine le VOL d'un tir selon sa famille : un faisceau instantané (tir de choc), un
- * point de feu lent (projectile d'énergie, familles de `BOLT_SPEED`), ou un trait court qui file
- * à la vitesse de la balle.
+ * What a shot's FLIGHT draws by its family: an instant beam (shock shot), a slow fire point
+ * (energy projectile, the `BOLT_SPEED` families), or a short streak flying at a bullet's
+ * speed.
  */
 export type ShotFlightForm = 'beam' | 'bolt' | 'tracer' | 'spread'
 
-/** formeVol : la forme du vol d'une famille de tir. */
+/** formeVol: a shot family's flight shape. */
 export function formeVol(fam: ShotFamily): ShotFlightForm {
   if (fam === 'shock') return 'beam'
   if (fam === 'spread') return 'spread'
@@ -166,8 +166,8 @@ export function formeVol(fam: ShotFamily): ShotFlightForm {
 }
 
 /**
- * beamFade : la force (0..1) du faisceau du tir de choc `age` secondes après le tir : plein à
- * l'instant, fondu linéairement jusqu'à zéro à `seconds`, éteint au-delà.
+ * beamFade: the shock shot's beam strength (0..1) `age` seconds after the shot: full at the
+ * instant, faded linearly down to zero at `seconds`, out beyond it.
  */
 export function beamFade(age: number, seconds: number = BEAM_SECONDS): number {
   if (age < 0) return 0
@@ -175,18 +175,18 @@ export function beamFade(age: number, seconds: number = BEAM_SECONDS): number {
 }
 
 /**
- * lunetteSansGerbe : la gerbe d'un tir de la vue 1re personne se retire quand la lunette est
- * montée sur cette vue : les bras quittent l'écran, il n'y a plus de bouche dessinée où la poser
- * (elle filerait au centre de l'écran). La lunette du joueur suivi ne touche pas un tir vu de
- * 3e personne, dont le Spartan garde son arme dessinée.
+ * lunetteSansGerbe: a 1st-person view shot's spray withdraws when the scope is mounted on
+ * that view: the arms leave the screen, there is no more drawn muzzle to place it at (it
+ * would fly to the center of the screen). The tracked player's scope does not affect a shot
+ * seen from 3rd person, whose Spartan keeps its drawn weapon.
  */
 export function lunetteSansGerbe(vue: boolean, lunetteMontee: boolean): boolean {
   return vue && lunetteMontee
 }
 
 /**
- * Ce qu'un tir dit de son dessin : le tir, sa famille, la rémanence de sa ligne (s, négative :
- * éteinte), et si la caméra est le tireur (1re personne).
+ * What a shot says of its drawing: the shot, its family, its line's persistence (s, negative:
+ * off), and whether the camera is the shooter (1st person).
  */
 interface ShotLook {
   e: ShotFxEntry
@@ -200,7 +200,7 @@ export class Shots3dLayer implements ActionLayer3d {
   private readonly lines: SegmentPool
   private readonly dots: InstancePool
   private readonly petals: InstancePool
-  /** La gerbe de l'arme de la caméra : par-dessus l'arme, dont le corps cache la bouche à l'œil. */
+  /** The camera's weapon spray: over the weapon, whose body hides the muzzle from the eye. */
   private readonly viewPetals: InstancePool
   private readonly pools: readonly { begin(): void; end(): void; dispose(): void }[]
   private readonly lineInk = new THREE.Color()
@@ -209,11 +209,11 @@ export class Shots3dLayer implements ActionLayer3d {
   private readonly paths = new Map<ShotFxEntry, ShotPath | null>()
   /** The spread's bolts of each flight, traced once. */
   private readonly spreads = new WeakMap<ShotPath, BoltPath[]>()
-  /** Les trois faisceaux du tir de choc, remplis à chaque image (bacs réutilisables). */
+  /** The shock shot's three beams, filled every frame (reusable buckets). */
   private readonly shockBeams: ShockBeam[] = Array.from({ length: SHOCK_BEAMS }, () => ({ points: [] }))
   private readonly fromMuzzle = new Map<ShotFxEntry, ShotPath | null>()
   private readonly fromView = new Map<ShotFxEntry, ShotPath | null>()
-  /** L'arme en main de chaque tir (identifiant), lue une fois. */
+  /** Each shot's held weapon (id), read once. */
   private readonly held = new Map<ShotFxEntry, string | null>()
   private readonly probe = new MuzzleProbe()
   private readonly recoil: ShooterRecoil
@@ -248,9 +248,9 @@ export class Shots3dLayer implements ActionLayer3d {
     petal.vertexColors = true
     petal.side = THREE.DoubleSide
     this.petals = new InstancePool(ctx.root, petalGeometry(), petal, CAPACITY)
-    // En 1re personne le canon file droit devant l'œil : le corps de l'arme masque sa bouche. La
-    // gerbe passe devant (comme le jeu dessine l'arme et ses effets à part) ; rien d'autre ne tient
-    // entre l'œil et une bouche à ~25 cm.
+    // In 1st person the barrel points straight ahead of the eye: the weapon's body hides its
+    // muzzle. The spray draws in front (as the game draws the weapon and its effects apart);
+    // nothing else belongs between the eye and a muzzle ~25 cm away.
     const overWeapon = petal.clone()
     overWeapon.depthTest = false
     this.viewPetals = new InstancePool(ctx.root, petalGeometry(), overWeapon, CAPACITY)
@@ -296,9 +296,9 @@ export class Shots3dLayer implements ActionLayer3d {
   }
 
   /**
-   * draw : l'éclair à la bouche, la balle (trait court) ou le projectile d'énergie (point de feu) sur
-   * son vol, l'étincelle qui s'éteint au point d'impact ; la ligne de tir entière si le tiroir la
-   * demande (`hold` en secondes, négatif : éteinte).
+   * draw: the muzzle flash, the bullet (short streak) or the energy projectile (fire point) on
+   * its flight, the spark that goes out at the impact point; the entire shot line if the
+   * drawer asks for it (`hold` in seconds, negative: off).
    */
   private draw(path: ShotPath, age: number, tint: THREE.Color, core: THREE.Color, shot: ShotLook): void {
     const k = muzzleFlashStrength(age)
@@ -310,8 +310,8 @@ export class Shots3dLayer implements ActionLayer3d {
       return
     }
     if (formeVol(shot.fam) === 'beam') {
-      // Le tir de choc : trois faisceaux, de la bouche au mur ; son impact est à distance nulle,
-      // l'étincelle naît au tir.
+      // The shock shot: three beams, from muzzle to wall; its impact is at zero range, the
+      // spark is born at the shot.
       this.drawShock(path, path.to, age, tint, shot)
       return
     }
@@ -376,11 +376,12 @@ export class Shots3dLayer implements ActionLayer3d {
   }
 
   /**
-   * flash : l'éclair de bouche à la force `k` (`muzzleFlashStrength`) : la gerbe au bout de l'arme que
-   * la scène dessine pour le tireur, le long de son canon, et la lumière. En 1re personne le rig n'a
-   * pas d'arme dessinée : la gerbe se pose à la bouche du rig VIVANT, lue à l'image (`ctx.rigMuzzleWorld`),
-   * le long de son canon dessiné ; sans elle, `rigFlashSite` la pose à la bouche du vol. Sans arme
-   * dessinée, la lumière seule, à l'origine du vol : aucune forme n'est posée hors d'un canon dessiné.
+   * flash: the muzzle flash at strength `k` (`muzzleFlashStrength`): the spray at the end of
+   * the weapon the scene draws for the shooter, along its barrel, and the light. In 1st
+   * person the rig has no drawn weapon: the spray is placed at the LIVE rig's muzzle, read at
+   * the frame (`ctx.rigMuzzleWorld`), along its drawn barrel; with no rig, `rigFlashSite`
+   * places it at the flight's muzzle. With no drawn weapon, the light alone, at the flight's
+   * origin: no shape is placed outside a drawn barrel.
    */
   private flash(path: ShotPath, k: number, tint: THREE.Color, core: THREE.Color, shot: ShotLook): void {
     const e = shot.e
@@ -391,25 +392,26 @@ export class Shots3dLayer implements ActionLayer3d {
       muzzleFlashSite(e.vehicleShot !== null, drawn, this.muzzle, this.barrel) ||
       rigFlashSite(shot.view && e.vehicleShot === null && this.rigLoaded(e), path, this.muzzle, this.barrel)
     this.ctx.flashes.add(site ? this.muzzle : path.from, tint, MUZZLE_LIGHT * k, MUZZLE_LIGHT_RANGE)
-    // Lunette montée : les bras sont retirés de l'écran, la gerbe n'a plus de bouche dessinée où se
-    // poser (sans elle elle filerait au centre de l'écran) ; la lumière et le tir lui-même restent.
+    // Scope mounted: the arms are removed from the screen, the spray has no more drawn muzzle
+    // to be placed at (with no muzzle it would fly to the center of the screen); the light and
+    // the shot itself remain.
     if (!site || lunetteSansGerbe(shot.view, this.ctx.scopeMounted?.() === true)) return
     const color = this.petalInk.copy(tint).lerp(core, PETAL_CORE_MIX).multiplyScalar(k)
     const pool = shot.view ? this.viewPetals : this.petals
     for (const p of flashPetals(this.barrel, k, e.seed, this.burst)) pool.add(this.muzzle, p.rotation, p.size, color)
   }
 
-  /** rigLoaded : le rig de 1re personne de l'arme tenue du tir est chargé (`ctx.rigMuzzle`). */
+  /** rigLoaded: the shot's held weapon's 1st-person rig is loaded (`ctx.rigMuzzle`). */
   private rigLoaded(e: ShotFxEntry): boolean {
     const held = this.heldOf(e)
-    return this.ctx.rigMuzzle != null && held !== null && this.ctx.rigMuzzle(weaponModelKey(held), BAC_BOCHE)
+    return this.ctx.rigMuzzle != null && held !== null && this.ctx.rigMuzzle(weaponModelKey(held), SCRATCH_MUZZLE)
   }
 
   /**
-   * pathOf : la bouche du tireur et le bout du vol, calculés une fois par tir : du canon de l'arme
-   * tenue quand le modèle est là (main du Spartan, ou tenue de 1re personne quand `view` : la caméra
-   * est le tireur), sinon de l'origine de repli. Un vol depuis le canon n'est retenu qu'une fois les
-   * modèles chargés.
+   * pathOf: the shooter's muzzle and the flight's end, computed once per shot: from the held
+   * weapon's barrel when the model is there (the Spartan's hand, or a 1st-person hold when
+   * `view`: the camera is the shooter), otherwise from the fallback origin. A flight from the
+   * barrel is only kept once the models are loaded.
    */
   private pathOf(e: ShotFxEntry, view: boolean): ShotPath | null {
     const cache = view ? this.fromView : this.fromMuzzle
@@ -417,7 +419,7 @@ export class Shots3dLayer implements ActionLayer3d {
     if (known) return known
     if (known === undefined) {
       const held = this.heldOf(e)
-      // Le recul des tirs précédents de la rafale, à l'image fractionnaire du tir : la balle part du canon dessiné.
+      // The recoil of the burst's previous shots, at the shot's fractional frame: the bullet leaves from the drawn barrel.
       const recoil = held ? this.recoil.at(e.slot, e.time, held, this.kick) : null
       const path = view
         ? viewPath(this.ctx, e, held, recoil)
@@ -432,7 +434,7 @@ export class Shots3dLayer implements ActionLayer3d {
     return path
   }
 
-  /** heldOf : l'arme en main (identifiant) du tireur à l'image du tir, lue une fois par tir. */
+  /** heldOf: the shooter's held weapon (id) at the shot's frame, read once per shot. */
   private heldOf(e: ShotFxEntry): string | null {
     let held = this.held.get(e)
     if (held === undefined) {
@@ -442,23 +444,23 @@ export class Shots3dLayer implements ActionLayer3d {
     return held
   }
 
-  /** xuidOf : le joueur de l'emplacement de bipède `slot`, null pour un bipède sans joueur. */
+  /** xuidOf: the player of biped slot `slot`, null for a biped with no player. */
   private xuidOf(slot: number): string | null {
     if (!this.slotXuid) this.slotXuid = new Map(this.ctx.doc.tracks.map((t) => [t.slot, t.xuid ?? null]))
     return this.slotXuid.get(slot) ?? null
   }
 
-  /** poseOf : les clips du tireur à l'image du tir (`motion3d`), null pour un bipède sans joueur. */
+  /** poseOf: the shooter's clips at the shot's frame (`motion3d`), null for a biped with no player. */
   private poseOf(e: ShotFxEntry): ClipMix | null {
     const xuid = this.xuidOf(e.slot)
     return xuid ? this.motion.at(xuid, e.frame, false, this.mix) : null
   }
 }
 
-/** shotPath : le vol de repli, de `MUZZLE_HEIGHT` au-dessus des pieds du tireur (sans modèle, véhicule). */
+/** shotPath: the fallback flight, from `MUZZLE_HEIGHT` above the shooter's feet (no model, vehicle). */
 function shotPath(ctx: ActionContext, e: ShotFxEntry): ShotPath | null {
   const s = ctx.slotState(e.slot, e.frame)
-  // La hauteur du tireur ; à défaut (tir d'un véhicule, bipède embarqué), le sol sous le tir.
+  // The shooter's height; failing that (a vehicle shot, an onboard biped), the ground under the shot.
   const feet = s ? s.z - ctx.originAboveFloor : ctx.ground.floorY(e.x, e.y, null)
   if (feet === null) return null
   const [x, , z] = toThree(e.x, e.y, 0)
@@ -470,9 +472,10 @@ function shotPath(ctx: ActionContext, e: ShotFxEntry): ShotPath | null {
 }
 
 /**
- * muzzlePath : le vol depuis la bouche du modèle d'arme que le Spartan du tireur tient à l'image du
- * tir (`MuzzleProbe`). null : ce tir n'en a pas (tir d'un véhicule, sans cap, sans arme en main,
- * bipède sans position) ; undefined : le Spartan ou le modèle n'est pas encore chargé.
+ * muzzlePath: the flight from the muzzle of the weapon model the shooter's Spartan holds at
+ * the shot's frame (`MuzzleProbe`). null: this shot has none (a vehicle shot, no heading, no
+ * weapon in hand, a biped with no position); undefined: the Spartan or the model is not
+ * loaded yet.
  */
 function muzzlePath(
   ctx: ActionContext,
@@ -493,12 +496,13 @@ function muzzlePath(
 }
 
 /**
- * viewPath : le vol depuis la bouche de l'arme tenue en 1re personne, l'œil du tireur à l'image du
- * tir. Quand le rig bras + arme est chargé pour l'arme tenue (`ctx.rigMuzzle`), la bouche est celle
- * du rig (repère caméra, posée comme `placer` le pose) tournée dans la visée du tir : l'arme animée
- * dessine elle-même son recul, on n'en décale plus la bouche. Sans rig chargé, la bouche est celle du
- * modèle statique (`viewMuzzle`), déplacée par le recul `recoil` comme la vue le dessine. null : ce
- * tir n'en a pas ; undefined : le modèle (ou le rig) n'est pas encore chargé.
+ * viewPath: the flight from the muzzle of the weapon held in 1st person, the shooter's eye at
+ * the shot's frame. When the arms + weapon rig is loaded for the held weapon
+ * (`ctx.rigMuzzle`), the muzzle is the rig's own (camera frame, placed as `placer` places it)
+ * rotated into the shot's aim: the animated weapon draws its own recoil, so the muzzle is no
+ * longer offset for it. With no rig loaded, the muzzle is the static model's (`viewMuzzle`),
+ * moved by recoil `recoil` as the view draws it. null: this shot has none; undefined: the
+ * model (or the rig) is not loaded yet.
  */
 function viewPath(ctx: ActionContext, e: ShotFxEntry, held: string | null, recoil: Recoil | null): ShotPath | null | undefined {
   const s = ctx.slotState(e.slot, e.frame)
@@ -508,10 +512,11 @@ function viewPath(ctx: ActionContext, e: ShotFxEntry, held: string | null, recoi
   const eye = new THREE.Vector3(x, s.z - ctx.originAboveFloor + EYE_HEIGHT - s.dropOeil, z)
   const dir = new THREE.Vector3(...aimDirThree(e.h, s.p))
   if (ctx.rigMuzzle) {
-    // Le rig répond pour l'arme tenue : sa bouche (bac à sable), dans la visée du tir. Recul ignoré :
-    // l'anim de tir du rig déplace lui-même l'arme, la gerbe part de la bouche au repos.
-    if (ctx.rigMuzzle(key, BAC_BOCHE)) return flight(ctx, vueTiree(eye, dir, BAC_BOCHE, BAC_VUE).clone(), dir)
-    // Le rig n'est pas chargé pour cette arme (ou il n'a pas de rig) : le modèle statique dessiné.
+    // The rig answers for the held weapon: its muzzle (scratch buffer), in the shot's aim.
+    // Recoil ignored: the rig's firing animation moves the weapon itself, the spray leaves
+    // from the muzzle at rest.
+    if (ctx.rigMuzzle(key, SCRATCH_MUZZLE)) return flight(ctx, aimedView(eye, dir, SCRATCH_MUZZLE, SCRATCH_VIEW).clone(), dir)
+    // The rig is not loaded for this weapon (or it has no rig): the static model is drawn.
   }
   const weapon = ctx.weaponModel(held)
   if (!weapon) return undefined
@@ -521,17 +526,17 @@ function viewPath(ctx: ActionContext, e: ShotFxEntry, held: string | null, recoi
 }
 
 /**
- * vueTiree : un point en repère CAMÉRA (x à droite, y en haut, -z vers l'avant) tourné dans la
- * visée du tir (avant = `dir`, haut = le monde +Y) et posé depuis l'œil `eye`. `out` est rempli.
+ * aimedView: a point in CAMERA frame (x right, y up, -z forward) rotated into the shot's aim
+ * (forward = `dir`, up = world +Y) and placed from eye `eye`. `out` is filled.
  */
-function vueTiree(eye: THREE.Vector3, dir: THREE.Vector3, point: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
-  // Le repère d'une caméra en `eye` qui regarde le long de `dir` : son -Z vers l'avant, son +X à droite.
-  VUE_M.lookAt(eye, BAC_CIBLE.copy(eye).add(dir), VUE_HAUT)
-  VUE_Q.setFromRotationMatrix(VUE_M)
-  return out.copy(point).applyQuaternion(VUE_Q).add(eye)
+function aimedView(eye: THREE.Vector3, dir: THREE.Vector3, point: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+  // The frame of a camera at `eye` looking along `dir`: its -Z forward, its +X right.
+  VIEW_M.lookAt(eye, SCRATCH_TARGET.copy(eye).add(dir), VIEW_UP)
+  VIEW_Q.setFromRotationMatrix(VIEW_M)
+  return out.copy(point).applyQuaternion(VIEW_Q).add(eye)
 }
 
-/** flight : le vol d'une balle partie de `from` le long de `dir`, jusqu'au premier mur ou à la portée. */
+/** flight: a bullet's flight starting from `from` along `dir`, to the first wall or to range. */
 function flight(ctx: ActionContext, from: THREE.Vector3, dir: THREE.Vector3): ShotPath {
   const hit = ctx.ground.hit(from, dir, TRACER_RANGE)
   const to = hit ? hit.clone() : from.clone().addScaledVector(dir, TRACER_RANGE)

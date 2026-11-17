@@ -1,64 +1,66 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * recoil3d.ts — LE RECUL DE L'ARME AU TIR : ce que l'arme dessinée fait à chaque coup.
+ * recoil3d.ts — WEAPON RECOIL ON FIRE: what the drawn weapon does on every shot.
  *
- * Le clip de tir du jeu ne bouge presque rien (l'index sur la détente) : le moteur ajoute le recul
- * par un ressort. Ici, le recul est une FONCTION DE L'IMAGE : à l'image `f`, l'écart de l'arme est la
- * somme des réponses des tirs récents du tireur, chacune ne dépendant que de son âge. Aucune horloge :
- * reculer, s'arrêter ou sauter dans le rejeu rend le même écart à la même image.
+ * The game's fire clip barely moves anything (the index finger on the trigger): the engine adds
+ * recoil through a spring. Here, recoil is a FUNCTION OF THE FRAME: at frame `f`, the weapon's
+ * deviation is the sum of the shooter's recent shots' responses, each depending only on its age.
+ * No clock: rewinding, pausing or jumping in the replay returns the same deviation at the same
+ * frame.
  *
- * La réponse d'un tir (`recoilShape`) : une attaque d'environ une image à 60 Hz (`RECOIL_ATTACK`),
- * puis un retour de ressort amorti qui dépasse un peu sous le repos et y revient exactement à la fin
- * de sa fenêtre (`recovery` du profil). Les tirs se somment, adoucis au-delà d'un coup (`soften`) :
- * le tir automatique devient une petite secousse tenue, jamais une dérive.
+ * A shot's response (`recoilShape`): an attack of about one frame at 60 Hz (`RECOIL_ATTACK`),
+ * then a damped spring return that dips a little below rest and reaches it exactly at the end of
+ * its window (the profile's `recovery`). Shots sum together, softened past one shot (`soften`):
+ * automatic fire becomes a small held shake, never a drift.
  *
- * L'écart est dans le repère du modèle d'arme (X canon, Y haut, origine à la poignée) : `back` recule
- * l'arme le long du canon, `pitch` lève la bouche, `yaw` et `roll` sont un petit bruit tiré du germe de
- * chaque tir (une rafale ne se répète pas). `recoilPose3d` le pose sur l'arme et les bras.
+ * The deviation is in the weapon model's frame (X barrel, Y up, origin at the grip): `back`
+ * pulls the weapon back along the barrel, `pitch` lifts the muzzle, `yaw` and `roll` are a small
+ * noise drawn from each shot's seed (a burst does not repeat). `recoilPose3d` applies it to the
+ * weapon and the arms.
  */
 
-/** La famille de recul d'une arme ; `none` : arme de mêlée, elle ne recule pas. */
+/** A weapon's recoil family; `none`: a melee weapon, it does not recoil. */
 export type RecoilKind = 'precision' | 'automatic' | 'heavy' | 'energy' | 'none'
 
 export interface RecoilProfile {
-  /** Le recul le long du canon au sommet d'un coup (u ; 1 u ~ 3 m). */
+  /** The recoil along the barrel at a shot's peak (u; 1 u ~ 3 m). */
   kick: number
-  /** La levée de la bouche au sommet d'un coup (radians). */
+  /** The muzzle lift at a shot's peak (radians). */
   pitch: number
-  /** L'amplitude du bruit de lacet et de roulis d'un coup (radians). */
+  /** The amplitude of a shot's yaw and roll noise (radians). */
   jitter: number
-  /** La durée du retour au repos après l'attaque (s). */
+  /** How long it takes to return to rest after the attack (s). */
   recovery: number
 }
 
 const deg = (d: number) => (d * Math.PI) / 180
 
-/** Le profil de recul de chaque famille : les seuls réglages du recul. */
+/** Each family's recoil profile: the only recoil settings. */
 export const RECOIL_PROFILES: Readonly<Record<RecoilKind, RecoilProfile>> = {
-  // Fusils de précision et pistolets : un coup net, bien lisible.
+  // Precision rifles and pistols: a crisp, clearly readable kick.
   precision: { kick: 0.012, pitch: deg(3), jitter: deg(0.6), recovery: 0.12 },
-  // Automatiques : de petits coups rapides.
+  // Automatics: small, fast kicks.
   automatic: { kick: 0.006, pitch: deg(1.2), jitter: deg(0.8), recovery: 0.08 },
-  // Fusil à pompe, sniper, lance-roquettes et autres armes lourdes : une poussée franche.
+  // Shotgun, sniper, rocket launcher and other heavy weapons: a hard shove.
   heavy: { kick: 0.024, pitch: deg(6), jitter: deg(1), recovery: 0.15 },
-  // Plasma et énergie : plus léger.
+  // Plasma and energy weapons: lighter.
   energy: { kick: 0.004, pitch: deg(0.9), jitter: deg(0.5), recovery: 0.09 },
   none: { kick: 0, pitch: 0, jitter: 0, recovery: 0 },
 }
 
-/** L'attaque d'un coup : une image à 60 Hz. */
+/** A shot's attack: one frame at 60 Hz. */
 export const RECOIL_ATTACK = 1 / 60
-// Le ressort du retour : cos(π u) (1 - u)², u de 0 à 1 sur la fenêtre : il passe sous le repos à
-// mi-chemin (dépassement de ~6 %) et rejoint le repos à pente nulle.
+// The return spring: cos(π u) (1 - u)², u from 0 to 1 over the window: it dips below rest halfway
+// (about 6% overshoot) and reaches rest at zero slope.
 const SPRING_TURNS = Math.PI
-// Chaque coup varie de force autour de son profil (± AMPLITUDE_SPREAD), au germe du tir.
+// Each shot varies in strength around its profile (± AMPLITUDE_SPREAD), from the shot's seed.
 const AMPLITUDE_SPREAD = 0.15
-// La somme des coups est intacte jusqu'à RECOIL_KNEE coups au sommet, puis s'adoucit sans jamais
-// passer RECOIL_CAP : sous le feu continu, l'arme tient une secousse bornée.
+// The sum of shots is untouched up to RECOIL_KNEE peak shots, then softens without ever passing
+// RECOIL_CAP: under continuous fire, the weapon holds a bounded shake.
 export const RECOIL_KNEE = 1 + AMPLITUDE_SPREAD
 export const RECOIL_CAP = 1.8
 
-/** La famille de recul par la clé stable du libellé d'arme (cf. `weaponClass3d`) ; précision par défaut. */
+/** Recoil family by a weapon label's stable key (see `weaponClass3d`); precision by default. */
 const KIND_BY_KEY: Readonly<Record<string, RecoilKind>> = {
   hinf_br75: 'precision',
   hinf_vk78_commando: 'precision',
@@ -90,15 +92,15 @@ const KIND_BY_KEY: Readonly<Record<string, RecoilKind>> = {
   hinf_gravity_hammer: 'none',
 }
 
-/** recoilKindOfKey : la famille de recul d'une arme par la clé de son libellé. */
+/** recoilKindOfKey: a weapon's recoil family by its label's key. */
 export function recoilKindOfKey(key: string | undefined): RecoilKind {
   return (key !== undefined && KIND_BY_KEY[key]) || 'precision'
 }
 
 /**
- * recoilShape : la réponse d'un coup `age` secondes après le tir (1 au sommet), pour un retour de
- * `recovery` secondes : 0 avant le tir, montée pendant `RECOIL_ATTACK`, ressort amorti ensuite,
- * exactement 0 dès la fin de la fenêtre.
+ * recoilShape: a shot's response `age` seconds after firing (1 at peak), for a return of
+ * `recovery` seconds: 0 before the shot, rising during `RECOIL_ATTACK`, a damped spring
+ * afterward, exactly 0 as soon as the window ends.
  */
 export function recoilShape(age: number, recovery: number): number {
   if (age < 0 || age >= RECOIL_ATTACK + recovery) return 0
@@ -110,14 +112,14 @@ export function recoilShape(age: number, recovery: number): number {
   return Math.cos(SPRING_TURNS * u) * (1 - u) * (1 - u)
 }
 
-/** recoilWindow : la durée (s) pendant laquelle un coup du profil compte encore. */
+/** recoilWindow: how long (s) a shot of the profile still counts. */
 export function recoilWindow(profile: RecoilProfile): number {
   return profile.recovery > 0 ? RECOIL_ATTACK + profile.recovery : 0
 }
 
 /**
- * soften : une somme de coups (en coups au sommet) telle que l'arme la porte : intacte jusqu'à
- * `RECOIL_KNEE`, puis adoucie vers `RECOIL_CAP`, de même signe.
+ * soften: a sum of shots (in peak-shot units) as the weapon carries it: untouched up to
+ * `RECOIL_KNEE`, then softened toward `RECOIL_CAP`, same sign.
  */
 export function soften(x: number): number {
   const a = Math.abs(x)
@@ -126,7 +128,7 @@ export function soften(x: number): number {
   return Math.sign(x) * (RECOIL_KNEE + room * Math.tanh((a - RECOIL_KNEE) / room))
 }
 
-/** L'écart de l'arme à une image, dans le repère du modèle d'arme (cf. l'en-tête). */
+/** A weapon's deviation at a frame, in the weapon model's frame (see the header). */
 export interface Recoil {
   back: number
   pitch: number
@@ -138,7 +140,7 @@ export function newRecoil(): Recoil {
   return { back: 0, pitch: 0, yaw: 0, roll: 0 }
 }
 
-/** clearRecoil : l'arme au repos. */
+/** clearRecoil: the weapon at rest. */
 export function clearRecoil(out: Recoil): Recoil {
   out.back = 0
   out.pitch = 0
@@ -147,15 +149,15 @@ export function clearRecoil(out: Recoil): Recoil {
   return out
 }
 
-/** recoilActive : l'écart n'est pas le repos. */
+/** recoilActive: the deviation is not at rest. */
 export function recoilActive(r: Recoil | null | undefined): r is Recoil {
   return !!r && (r.back !== 0 || r.pitch !== 0 || r.yaw !== 0 || r.roll !== 0)
 }
 
 /**
- * signedHash : un nombre de [-1, 1) tiré du germe `seed` et du canal `channel` (mélange entier, celui
- * de la gerbe de `muzzleFlash3d` : des germes voisins n'ont pas de parenté). Copié plutôt qu'importé :
- * ce module reste sans dépendance, l'avatar l'importe.
+ * signedHash: a number in [-1, 1) drawn from seed `seed` and channel `channel` (integer mix, the
+ * same as `muzzleFlash3d`'s spray: neighboring seeds are unrelated). Copied rather than imported:
+ * this module stays dependency-free, and the avatar imports it.
  */
 function signedHash(seed: number, channel: number): number {
   let h = Math.floor(seed * 7 + channel) | 0
@@ -166,8 +168,9 @@ function signedHash(seed: number, channel: number): number {
 }
 
 /**
- * recoilAt écrit dans `out` l'écart à l'image `frame` du tireur dont les tirs sont aux images
- * `frames[from..to)` (triées), de germes `seeds`, à `fps` images par seconde, pour le profil `profile`.
+ * recoilAt writes into `out` the deviation at frame `frame` for the shooter whose shots are at
+ * frames `frames[from..to)` (sorted), with seeds `seeds`, at `fps` frames per second, for profile
+ * `profile`.
  */
 export function recoilAt(
   shots: { frames: ArrayLike<number>; seeds: ArrayLike<number>; from: number; to: number },

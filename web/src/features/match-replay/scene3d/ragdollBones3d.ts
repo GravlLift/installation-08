@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollBones3d.ts — DU CORPS INERTE AUX OS DU SPARTAN : quels os la simulation conduit, comment
- * leur orientation se tire des particules, et la pose d'une copie depuis une cuisson.
+ * ragdollBones3d.ts — FROM THE RAGDOLL TO THE SPARTAN'S BONES: which bones the simulation
+ * drives, how their orientation is derived from the particles, and posing a copy from a bake.
  *
- * Seuls les os majeurs sont conduits (bassin, colonne, cou, tête, bras, avant-bras, cuisses,
- * mollets, pieds). Chacun tourne, dans le monde, d'une rotation depuis la mort : celle de son bloc
- * rigide (bassin, buste, tête), un mélange de deux blocs pour la colonne et le cou, ou, pour un
- * membre, la rotation la plus courte qui amène son segment (de la mort, porté par son parent conduit)
- * sur le segment simulé : la torsion du membre reste celle de la mort. Les os non conduits (doigts,
- * os de torsion, aides, attaches d'armure) gardent leur rotation locale de la mort et suivent leur
- * parent. Seules les rotations changent (et la place du bassin) : les longueurs des os sont celles du
- * modèle.
+ * Only the major bones are driven (pelvis, spine, neck, head, upper arms, forearms, thighs,
+ * calves, feet). Each one rotates, in world space, by a rotation from the death: that of its
+ * rigid cluster (pelvis, chest, head), a blend of two clusters for the spine and neck, or, for a
+ * limb, the shortest rotation that brings its segment (from the death, carried by its driven
+ * parent) onto the simulated segment: the limb's twist stays the death's own. Undriven bones
+ * (fingers, twist bones, helpers, armor attachments) keep their local rotation from the death
+ * and follow their parent. Only rotations change (and the pelvis's position): bone lengths are
+ * the model's own.
  */
 import * as THREE from 'three'
 
@@ -21,7 +21,7 @@ type Rule =
   | { kind: 'blend'; from: ClusterName; to: ClusterName; share: number }
   | { kind: 'swing'; base: ClusterName | string; a: number; b: number }
 
-/** Les os conduits, parents avant enfants, et leur règle. */
+/** The driven bones, parents before children, and their rule. */
 export const DRIVEN: readonly { bone: string; rule: Rule }[] = [
   { bone: 'b_pelvis', rule: { kind: 'cluster', cluster: 'pelvis' } },
   { bone: 'b_spine1', rule: { kind: 'blend', from: 'pelvis', to: 'chest', share: 1 / 3 } },
@@ -43,7 +43,7 @@ export const DRIVEN: readonly { bone: string; rule: Rule }[] = [
 ]
 const DRIVEN_INDEX = new Map(DRIVEN.map((d, i) => [d.bone, i]))
 
-/** bonesOf : les os de `root` par nom (le premier de chaque nom), dans l'ordre du parcours. */
+/** bonesOf: `root`'s bones by name (the first of each name), in traversal order. */
 export function bonesOf(root: THREE.Object3D): THREE.Bone[] {
   const seen = new Set<string>()
   const out: THREE.Bone[] = []
@@ -57,29 +57,29 @@ export function bonesOf(root: THREE.Object3D): THREE.Bone[] {
 }
 
 /**
- * La pose de la mort, lue une fois sur le squelette posé : les rotations et places locales de tous
- * les os, et pour chaque os conduit sa rotation monde, et de quoi recomposer la rotation monde de son
- * parent depuis l'os conduit le plus proche au-dessus de lui.
+ * The death's pose, read once on the posed skeleton: the local rotations and positions of every
+ * bone, and for each driven bone its world rotation, plus enough to recompose its parent's
+ * world rotation from the nearest driven bone above it.
  */
 export interface DeathFrame {
   names: string[]
-  /** 7 par os : quaternion local (4), place locale (3). */
+  /** 7 per bone: local quaternion (4), local position (3). */
   base: Float32Array
-  /** L'indice (dans `names`) de chaque os conduit. */
+  /** The index (in `names`) of each driven bone. */
   index: Int16Array
   world0: THREE.Quaternion[]
-  /** L'os conduit au-dessus (indice dans `DRIVEN`), -1 : aucun. */
+  /** The driven bone above it (index into `DRIVEN`), -1: none. */
   anchor: Int16Array
-  /** La chaîne de l'ancre au parent (ancre exclue), ou la rotation monde du parent sans ancre. */
+  /** The chain from the anchor to the parent (anchor excluded), or the parent's world rotation with no anchor. */
   chain: THREE.Quaternion[]
-  /** L'inverse de la matrice monde du parent du bassin (constante : il n'est pas conduit). */
+  /** The inverse of the pelvis's parent's world matrix (constant: it isn't driven). */
   pelvisParentInv: THREE.Matrix4
 }
 
 /**
- * readDeathFrame lit la pose de la mort des os `bones` (`bonesOf`, matrices à jour) ; `names` est la
- * liste de leurs noms, partagée par toutes les cuissons d'un même squelette. Null s'il manque un os
- * conduit.
+ * readDeathFrame reads the death's pose from bones `bones` (`bonesOf`, matrices up to date);
+ * `names` is the list of their names, shared by every bake of the same skeleton. Null if a
+ * driven bone is missing.
  */
 export function readDeathFrame(bones: readonly THREE.Bone[], names: string[]): DeathFrame | null {
   const byName = new Map(bones.map((b, i) => [b.name, i]))
@@ -111,7 +111,7 @@ export function readDeathFrame(bones: readonly THREE.Bone[], names: string[]): D
   }
 }
 
-/** Les rotations des blocs depuis la mort, et les places des particules. */
+/** Cluster rotations since the death, and the particles' positions. */
 export interface SimFrame {
   clusters: Record<ClusterName, THREE.Quaternion>
   x: Float64Array
@@ -123,8 +123,9 @@ const swing = new THREE.Quaternion()
 const parentQ = new THREE.Quaternion()
 
 /**
- * driveBones écrit, pour chaque os conduit, sa rotation LOCALE à l'image simulée `sim` (dans `out`,
- * 4 par os) ; `x0` : les particules à la mort. `deltas` : tampon des rotations monde depuis la mort.
+ * driveBones writes, for each driven bone, its LOCAL rotation at simulated frame `sim` (into
+ * `out`, 4 per bone); `x0`: the particles at death. `deltas`: scratch buffer of world rotations
+ * since the death.
  */
 export function driveBones(f: DeathFrame, x0: Float64Array, sim: SimFrame, deltas: THREE.Quaternion[], out: Float64Array): void {
   const world: THREE.Quaternion[] = []
@@ -152,7 +153,7 @@ function segment(x: Float64Array, a: number, b: number, out: THREE.Vector3): THR
   return out.set(x[3 * b] - x[3 * a], x[3 * b + 1] - x[3 * a + 1], x[3 * b + 2] - x[3 * a + 2]).normalize()
 }
 
-/** pelvisLocal : la place locale du bassin pour la particule du bassin `x` (axes du monde). */
+/** pelvisLocal: the pelvis's local position for pelvis particle `x` (world axes). */
 export function pelvisLocal(f: DeathFrame, x: Float64Array, out: THREE.Vector3): THREE.Vector3 {
   return out.set(x[3 * P('pelvis')], x[3 * P('pelvis') + 1], x[3 * P('pelvis') + 2]).applyMatrix4(f.pelvisParentInv)
 }

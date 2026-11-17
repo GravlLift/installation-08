@@ -74,7 +74,7 @@ func writeFileIfAbsent(path string, data []byte) (bool, error) {
 	return err == nil, err
 }
 
-// depot stores each rig image once, named by the digest of its content: two rigs that
+// depot covers each rig image once, named by the digest of its content: two rigs that
 // share an image (the arm masks, the weapon's textures) share the file.
 type depot struct {
 	dir        string
@@ -82,30 +82,29 @@ type depot struct {
 	files      int
 	bytes      int64
 	references int
-	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel rig build pool calls depose from
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel rig build pool calls store from
 	// several goroutines at once; it guards seen/files/bytes/references and the dedup
 	// write below, so the depot's counts (and index.Textures, read from them) are exact
 	// however many rigs run at once.
 	mu sync.Mutex
 }
 
-// depose writes the image (if it isn't already written) and returns its name, a URI
-// relative to the GLB that names it: the viewer resolves it against the rig's URL, on the
-// same route.
-func (d *depot) depose(data []byte, mime string) (string, error) {
+// store writes the image (if not already written) and returns its name, a URI relative to
+// the GLB that names it: the view resolves it against the rig's URL, on the same route.
+func (d *depot) store(data []byte, mime string) (string, error) {
 	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
 	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {
-		return "", fmt.Errorf("image type %q: not PNG, JPEG, or KTX2", mime)
+		return "", fmt.Errorf("image of type %q: neither PNG, JPEG nor KTX2", mime)
 	}
-	name := fichierTexture(data, extension)
+	name := textureFile(data, extension)
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.references++
 	if d.seen[name] {
 		return name, nil
 	}
-	n, err := writeFile(filepath.Join(d.dir, name), func(w ioWriter) error {
+	written, err := writeFile(filepath.Join(d.dir, name), func(w ioWriter) error {
 		_, werr := w.Write(data)
 		return werr
 	})
@@ -114,6 +113,6 @@ func (d *depot) depose(data []byte, mime string) (string, error) {
 	}
 	d.seen[name] = true
 	d.files++
-	d.bytes += n
+	d.bytes += written
 	return name, nil
 }

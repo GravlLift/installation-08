@@ -1,60 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * armorMaterial3d.ts — LE MATÉRIAU PEINT D'UNE PIÈCE D'ARMURE : le matériau standard de la pièce
- * (éclairage, ombres, brouillard, reflets de la scène inchangés), dont la couleur, la rugosité, le
- * métal et l'émission sont calculés par pixel depuis les masques bruts de la pièce
- * (`extras.surfaceBrute` : ASG, masque 0, masque 1) et la peinture du joueur (`armorCoating3d`).
+ * armorMaterial3d.ts — AN ARMOR PIECE'S PAINTED MATERIAL: the piece's standard material
+ * (lighting, shadows, fog, scene reflections unchanged), whose color, roughness, metalness
+ * and emission are computed per pixel from the piece's raw masks (`extras.surfaceBrute`: ASG,
+ * mask 0, mask 1) and the player's paint (`armorCoating3d`).
  *
- * Composition (celle du nœud « Halo Infinite Shader » du greffon Blender Ekur, The Halo Archive,
- * réimplémentée sans en reprendre le code) :
- *   - zone k : le rouge de son dégradé choisit bas (0), milieu (0,5), haut (1) ; son bleu mêle la
- *     rugosité du noir au blanc, multipliée par l'exposant / 4 ;
- *   - zones posées l'une sur l'autre : base, puis R, V, B du masque 0, puis du masque 1 ;
- *   - rayures : vers la couleur, la rugosité et le métal de rayure des zones, là où le vert de l'ASG
- *     dépasse 1 - quantité de rayures ; salissure : vers son nuancier là où le bleu dépasse
- *     1 - quantité de salissure ; occlusion : le rouge de l'ASG multiplie la couleur.
- *   - Approximé : pas de normales de détail des nuanciers, émission = couleur × quantité.
+ * Composition (that of the "Halo Infinite Shader" node of the Ekur Blender plugin, The Halo
+ * Archive, reimplemented here without reusing its code):
+ *   - zone k: its gradient's red picks low (0), mid (0.5), high (1); its blue mixes roughness
+ *     from black to white, multiplied by the exponent / 4;
+ *   - zones stacked on each other: base, then R, G, B of mask 0, then of mask 1;
+ *   - scratches: toward the zones' scratch color, roughness and metalness, wherever the ASG's
+ *     green exceeds 1 - scratch amount; grime: toward its swatch wherever the blue exceeds
+ *     1 - grime amount; occlusion: the ASG's red multiplies the color.
+ *   - Approximated: no swatch detail normals, emission = color × amount.
  *
- * UN programme pour toutes les pièces de tous les joueurs : la peinture vit dans des uniformes
- * (`packPaint`), les dégradés dans la texture à couches de la session (`armorGradients3d`), le cache
- * de programme ne dépend pas d'eux. Le camp ne se lit pas sur l'armure : le contour d'équipe est
- * tracé après la scène (`outline3d`).
+ * ONE program for every piece of every player: the paint lives in uniforms (`packPaint`), the
+ * gradients in the session's layered texture (`armorGradients3d`), the program cache does not
+ * depend on them. Team is not read off the armor: the team outline is drawn after the scene
+ * (`outline3d`).
  */
 import * as THREE from 'three'
 
 import { ZONES, type CoatingSwatch, type MaterialPaint, type PaintNote } from './armorCoating3d'
 
-/** Emplacements de nuancier : sept zones puis la salissure. */
+/** Swatch slots: seven zones then the grime. */
 export const PAINT_SLOTS = ZONES + 1
-/** Vecteurs de quatre flottants par emplacement (`packPaint`). */
+/** Four-float vectors per slot (`packPaint`). */
 export const VEC4_PER_SLOT = 6
 export const ARMURE_NEUTRE = 0.18
 export const RUGOSITE_ARMURE_NEUTRE = 0.6
 const GRIME_SLOT = ZONES
 const NO_GRADIENT = -1
 
-/** La peinture d'un matériau, prête pour les uniformes. */
+/** A material's paint, ready for the uniforms. */
 export interface PackedPaint {
   /**
-   * `PAINT_SLOTS` × `VEC4_PER_SLOT` vecteurs : (allumé, couche du dégradé, échelle x, y), (haut,
-   * émission), (milieu, métal), (bas, exposant / 4), (rayure, métal de rayure), (rugosité noir,
-   * blanc, de rayure, 0).
+   * `PAINT_SLOTS` × `VEC4_PER_SLOT` vectors: (on, gradient layer, scale x, y), (high,
+   * emission), (mid, metalness), (low, exponent / 4), (scratch, scratch metalness), (black
+   * roughness, white, scratch, 0).
    */
   data: Float32Array
-  /** Salissure, rayures, densité de texels x, y. */
+  /** Grime, scratches, texel density x, y. */
   globals: [number, number, number, number]
   offset: [number, number]
 }
 
-/** gradientsOf : les dégradés que nomme la peinture `p` (zones et salissure), une fois chacun. */
+/** gradientsOf: the gradients named by paint `p` (zones and grime), each once. */
 export function gradientsOf(p: MaterialPaint): string[] {
   const ids = [...p.zones, p.grime].map((s) => s?.gradient).filter((g): g is string => !!g)
   return [...new Set(ids)]
 }
 
 /**
- * packPaint range la peinture `p` ; `layerOf` rend la couche d'un dégradé chargé
- * (`armorGradients3d`), un dégradé non chargé devient neutre (nommé).
+ * packPaint packs paint `p`; `layerOf` returns the layer of a loaded gradient
+ * (`armorGradients3d`), an unloaded gradient becomes neutral (named).
  */
 export function packPaint(p: MaterialPaint, layerOf: (id: string) => number | undefined, note: PaintNote): PackedPaint {
   const data = new Float32Array(PAINT_SLOTS * VEC4_PER_SLOT * 4)
@@ -79,17 +79,17 @@ export function packPaint(p: MaterialPaint, layerOf: (id: string) => number | un
   return { data, globals: [p.grime ? p.grimeAmount : 0, p.scratchAmount, p.density[0], p.density[1]], offset: p.offset }
 }
 
-/** Les masques bruts d'une pièce (textures du GLB). */
+/** A piece's raw masks (GLB textures). */
 export interface ArmorMaps {
   asg: THREE.Texture | null
   mask0: THREE.Texture | null
   mask1: THREE.Texture | null
 }
 
-/** Le nom de l'attribut de coordonnées lu par le matériau (alias de `uv`, sans copie). */
+/** The name of the coordinate attribute the material reads (alias of `uv`, no copy). */
 const UV_ATTRIBUTE = 'armorUv'
 
-/** prepareArmorUVs expose `uv` sous le nom du matériau ; faux si la géométrie n'en a pas. */
+/** prepareArmorUVs exposes `uv` under the material's name; false if the geometry has none. */
 export function prepareArmorUVs(geometry: THREE.BufferGeometry): boolean {
   const uv = geometry.getAttribute('uv')
   if (!uv) return false
@@ -166,20 +166,20 @@ ArmorZone armorPaint() {
   return s;
 }`
 
-/** Le programme commun : la peinture ne change que des uniformes. */
+/** The shared program: paint only changes uniforms. */
 const PROGRAM_KEY = 'armure-revetement-v1'
 
-/** Ce qu'il faut pour peindre une copie de matériau. */
+/** What's needed to paint a material copy. */
 export interface ArmorPaintInput {
   maps: ArmorMaps
   paint: PackedPaint
-  /** L'uniforme commun des dégradés de la session (`GradientAtlas.uniform`), partagé tel quel. */
+  /** The session's shared gradient uniform (`GradientAtlas.uniform`), shared as is. */
   gradients: THREE.IUniform<THREE.Texture>
 }
 
 /**
- * armorMaterial : une copie de `base` (matériau standard de la pièce) peinte par `input`. Elle ne
- * possède aucune texture (masques et dégradés appartiennent à la bibliothèque).
+ * armorMaterial: a copy of `base` (the piece's standard material) painted by `input`. It owns
+ * no texture (masks and gradients belong to the library).
  */
 export function armorMaterial(base: THREE.MeshStandardMaterial, input: ArmorPaintInput): THREE.MeshStandardMaterial {
   const m = base.clone()

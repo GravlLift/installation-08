@@ -2,6 +2,8 @@
 // et de son deplacement de racine ; la grammaire est en tete d'animations_codec.go.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // poseStatique lit la pose statique (codec 1 a l'emplacement 0, ou codec 11 a l'emplacement 17).
@@ -9,7 +11,7 @@ func (g *GrapheAnimation) poseStatique(c *ClipAnimation, sec [sectionsParMembre]
 	for _, s := range []int{sectionStatique, sectionStatiquePartage} {
 		f, err := litFlux(sec[s])
 		if err != nil {
-			return fmt.Errorf("pose statique : %w", err)
+			return fmt.Errorf("static pose: %w", err)
 		}
 		switch f.codec {
 		case CodecAucun:
@@ -22,7 +24,7 @@ func (g *GrapheAnimation) poseStatique(c *ClipAnimation, sec [sectionsParMembre]
 			err = CodecNonDecodeError{Codec: f.codec}
 		}
 		if err != nil {
-			return fmt.Errorf("pose statique : %w", err)
+			return fmt.Errorf("static pose: %w", err)
 		}
 	}
 	return nil
@@ -68,14 +70,14 @@ func (g *GrapheAnimation) statiquePartagee(c *ClipAnimation, f fluxLu, rangs [ta
 	for i, os := range rangs[0] {
 		k := int(u16(f.octets, fluxEntete+i*octetsIndexPartage))
 		if k >= len(g.rotationsPartagees) {
-			return fmt.Errorf("%w : rotation partagee %d sur %d", ErrAnimationIllisible, k, len(g.rotationsPartagees))
+			return fmt.Errorf("%w: shared rotation %d of %d", ErrAnimationIllisible, k, len(g.rotationsPartagees))
 		}
 		c.Os[os].Rotations = [][4]float64{g.rotationsPartagees[k]}
 	}
 	for i, os := range rangs[1] {
 		k := int(u16(f.octets, f.debutTrans+i*octetsIndexPartage))
 		if k >= len(g.translationsPartagees) {
-			return fmt.Errorf("%w : translation partagee %d sur %d", ErrAnimationIllisible, k, len(g.translationsPartagees))
+			return fmt.Errorf("%w: shared translation %d of %d", ErrAnimationIllisible, k, len(g.translationsPartagees))
 		}
 		c.Os[os].Translations = [][3]float64{g.translationsPartagees[k]}
 	}
@@ -85,7 +87,7 @@ func (g *GrapheAnimation) statiquePartagee(c *ClipAnimation, f fluxLu, rangs [ta
 	for i, os := range rangs[2] {
 		k := int(u16(f.octets, f.debutEch+i*octetsIndexPartage))
 		if k >= len(g.echellesPartagees) {
-			return fmt.Errorf("%w : echelle partagee %d sur %d", ErrAnimationIllisible, k, len(g.echellesPartagees))
+			return fmt.Errorf("%w: shared scale %d of %d", ErrAnimationIllisible, k, len(g.echellesPartagees))
 		}
 		c.Os[os].Echelles = []float64{g.echellesPartagees[k]}
 	}
@@ -98,13 +100,13 @@ func (c *ClipAnimation) pistesAnimees(b []byte, rangs [tableauxDrapeaux][]int) e
 	if len(b) > 0 && int(b[0]) == CodecCourbeRevisee {
 		c.Codec = CodecCourbeRevisee
 		if err := c.litPistesCourbes(b, rangs); err != nil {
-			return fmt.Errorf("pistes animees : %w", err)
+			return fmt.Errorf("animated tracks: %w", err)
 		}
 		return nil
 	}
 	f, err := litFlux(b)
 	if err != nil {
-		return fmt.Errorf("pistes animees : %w", err)
+		return fmt.Errorf("animated tracks: %w", err)
 	}
 	c.Codec = f.codec
 	switch f.codec {
@@ -128,7 +130,7 @@ func (c *ClipAnimation) pistesAnimees(b []byte, rangs [tableauxDrapeaux][]int) e
 func (f fluxLu) verifiePas(images int) error {
 	if f.nRot > 0 && f.pasRot != images*octetsRotation || f.nTrans > 0 && f.pasTrans != images*octetsTranslation ||
 		f.nEch > 0 && f.pasEch != images*octetsEchelle {
-		return fmt.Errorf("%w : pas %d/%d/%d pour %d images", ErrAnimationIllisible, f.pasRot, f.pasTrans, f.pasEch, images)
+		return fmt.Errorf("%w: stride %d/%d/%d for %d frames", ErrAnimationIllisible, f.pasRot, f.pasTrans, f.pasEch, images)
 	}
 	if err := f.borne(fluxEntete, f.nRot*f.pasRot); err != nil {
 		return err
@@ -188,7 +190,7 @@ func (c *ClipAnimation) litDeplacement(b []byte) error {
 		return nil
 	}
 	if len(b) != c.Images*len(comp)*4 {
-		return fmt.Errorf("%w : deplacement de %d octets pour %d images de %d composantes", ErrAnimationIllisible, len(b), c.Images, len(comp))
+		return fmt.Errorf("%w: offset of %d bytes for %d frames of %d components", ErrAnimationIllisible, len(b), c.Images, len(comp))
 	}
 	c.Deplacement = make([][4]float64, c.Images)
 	for k := range c.Deplacement {

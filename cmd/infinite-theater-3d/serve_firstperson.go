@@ -29,7 +29,7 @@ func firstPersonDir(root *store.Root) string {
 // handleFirstPersonIndex answers GET /api/first-person/index.json with the library's
 // index.json. Before the library is built it is a JSON 404 naming first_person_not_built.
 func (h serverHandlers) handleFirstPersonIndex(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join(firstPersonDir(h.root), firstperson.FichierIndex)
+	path := filepath.Join(firstPersonDir(h.root), firstperson.IndexFile)
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "first_person_not_built"})
@@ -46,7 +46,7 @@ func (h serverHandlers) handleFirstPersonIndex(w http.ResponseWriter, r *http.Re
 
 // handleFirstPersonBras answers GET /api/first-person/bras.json with the arm pieces catalog.
 func (h serverHandlers) handleFirstPersonBras(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join(firstPersonDir(h.root), firstperson.FichierBras)
+	path := filepath.Join(firstPersonDir(h.root), firstperson.ArmsFile)
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "first_person_not_built"})
@@ -65,7 +65,7 @@ func (h serverHandlers) handleFirstPersonBras(w http.ResponseWriter, r *http.Req
 // texture), saying whether it is one of the library's own file names that stays inside the
 // library folder. The GET route and the bundle route both resolve a name through it.
 func resolveFirstPersonFile(root *store.Root, name string) (string, bool) {
-	if !firstperson.NomFichierPremierePersonne(name) || strings.ContainsAny(name, "/\\") {
+	if !firstperson.IsLibraryFileName(name) || strings.ContainsAny(name, "/\\") {
 		return "", false
 	}
 	return joinInside(firstPersonDir(root), name)

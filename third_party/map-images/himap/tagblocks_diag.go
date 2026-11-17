@@ -11,6 +11,8 @@
 // assemblage a translation nulle correct, sans marqueur a extraire.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import "fmt"
 
 // RootBlocksOfTag rend l'inventaire des tag-blocks racine d'un tag deja decompresse (diagnostic
@@ -26,7 +28,7 @@ func RootBlocksOfTag(tag []byte) ([]RootBlockInfo, error) {
 			return info, nil
 		}
 	}
-	return nil, fmt.Errorf("himap: en-tête de tag non reconnu")
+	return nil, fmt.Errorf("himap: unrecognized tag header")
 }
 
 // RawRootBlock rend les octets bruts du data-block designe par un champ tag-block racine
@@ -43,12 +45,12 @@ func RawRootBlock(tag []byte, fieldOffset int) ([]byte, error) {
 			}
 			abs, size := ti.blockAbs(targets[i])
 			if abs < 0 || size <= 0 || abs+size > len(ti.tag) {
-				return nil, fmt.Errorf("himap: bloc hors borne (abs=%d size=%d)", abs, size)
+				return nil, fmt.Errorf("himap: block out of bounds (abs=%d size=%d)", abs, size)
 			}
 			b := make([]byte, size)
 			copy(b, ti.tag[abs:abs+size])
 			return b, nil
 		}
 	}
-	return nil, fmt.Errorf("himap: champ racine %d introuvable", fieldOffset)
+	return nil, fmt.Errorf("himap: root field %d not found", fieldOffset)
 }

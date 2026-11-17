@@ -96,7 +96,7 @@ func verifierParLesMorts(ctx context.Context, lives []lifeSpan, deaths []types.D
 		v.SlotsDiscordants = ajouterSlot(v.SlotsDiscordants, l.slot)
 		slog.DebugContext(ctx, "replay: the bridge by deaths CONTRADICTS the direct link — the film is authoritative",
 			"match_id", matchID, "slot", l.slot, "from", l.from, "to", l.to,
-			"xuidDirect", l.xuid, "xuidDuPont", deaths[p.di].XUID, "via", l.nomPar)
+			"xuidDirect", l.xuid, "bridgeXuid", deaths[p.di].XUID, "via", l.nomPar)
 	}
 	return v
 }

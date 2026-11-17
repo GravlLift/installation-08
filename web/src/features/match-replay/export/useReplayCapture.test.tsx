@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — useReplayCapture (la couture React de la capture : image et vidéo).
+ * Tests — useReplayCapture (the React wiring of capture: image and video).
  *
- * CE QU'ILS PROTÈGENT. La commande lit la toile et l'horloge AU MOMENT DU CLIC, pas au rendu :
- * le fichier doit porter l'instant qu'il montre. Quand la toile ne rend pas d'image — toile
- * absente, encodage refusé — il ne se télécharge RIEN : un fichier vide ferait croire à une
- * capture réussie. Et l'enregistrement n'a qu'UN chemin de sortie : second clic, pause, ou fin
- * du film mènent au même arrêt, donc à un seul clip remis une seule fois.
+ * WHAT THEY PROTECT. The command reads the canvas and the clock AT THE MOMENT OF THE CLICK,
+ * not at render: the file must carry the instant it shows. When the canvas renders no frame —
+ * no canvas, encoding refused — NOTHING downloads: an empty file would suggest a successful
+ * capture. And recording has only ONE exit path: a second click, a pause, or the film's end
+ * all lead to the same stop, hence a single clip handed back exactly once.
  *
- * TOUT EST DOUBLÉ, ET IL N'Y A RIEN À DOUBLER DE MOINS. jsdom n'a NI `MediaRecorder`, NI
- * `canvas.captureStream`, NI `toBlob` : il n'existe aucun enregistrement RÉEL à mesurer ici.
- * La question posée est donc « qui est appelé, quand, avec quoi » — la même que celle de
- * `useReplayPlayback.test.tsx`, qui remplace la boucle d'animation par une file qu'on vide à la
- * main. Ce que le module de sortie FAIT est vérifié chez lui (`replayCapture.test.ts`).
+ * EVERYTHING IS DOUBLED, AND THERE IS NOTHING LEFT TO DOUBLE LESS OF. jsdom has NEITHER
+ * `MediaRecorder`, NOR `canvas.captureStream`, NOR `toBlob`: no REAL recording exists to
+ * measure here. The question asked is therefore "who is called, when, with what" — the same
+ * one asked by `useReplayPlayback.test.tsx`, which replaces the animation loop with a queue
+ * drained by hand. What the output module actually DOES is verified in its own tests
+ * (`replayCapture.test.ts`).
  */
 import { act, renderHook } from '@testing-library/react'
 import { createRef, type RefObject } from 'react'
@@ -28,42 +29,42 @@ import type { ReplayPlayer } from '@/lib/replay/rosterLogic'
 import { useReplayCapture } from './useReplayCapture'
 
 /**
- * L'ESPION SUR `useReplayExport` (2026-09-07) — il DÉLÈGUE au vrai hook.
+ * THE SPY ON `useReplayExport` (2026-09-07) — it DELEGATES to the real hook.
  *
- * POURQUOI IL FAUT EN PASSER PAR LÀ. `viewedLabel` — le mot que le panneau de l'export peindra —
- * est calculé DANS cette couture (`useViewedOutcome`) et ne ressort pas de `useReplayCapture` :
- * il descend directement dans les options de l'export. Le seul calcul de production n'avait donc
- * aucun test, et le neutraliser laissait toute la suite verte. On intercepte les options au
- * passage, sans rien changer d'autre : le vrai hook est appelé, avec le même objet, au même
- * endroit de l'ordre des hooks.
+ * WHY THIS DETOUR IS NEEDED. `viewedLabel` — the word the export's panel will paint — is
+ * computed INSIDE this wiring layer (`useViewedOutcome`) and does not come back out of
+ * `useReplayCapture`: it goes straight down into the export's options. The one production
+ * computation therefore had no test, and neutering it left the whole suite green. The options
+ * are intercepted in passing, with nothing else changed: the real hook is called, with the
+ * same object, at the same point in the hooks' order.
  *
- * `vi.hoisted` parce que la fabrique de `vi.mock` est remontée en tête de module : une `const`
- * ordinaire y serait dans sa zone morte.
+ * `vi.hoisted` because `vi.mock`'s factory is hoisted to the top of the module: an ordinary
+ * `const` would be in its dead zone there.
  */
-const espionExport = vi.hoisted(() => ({ options: [] as ReplayExportOptions[] }))
+const exportSpy = vi.hoisted(() => ({ options: [] as ReplayExportOptions[] }))
 
 vi.mock('./useReplayExport', async (importOriginal) => {
-  const vrai = await importOriginal<typeof import('./useReplayExport')>()
+  const real = await importOriginal<typeof import('./useReplayExport')>()
   return {
-    ...vrai,
+    ...real,
     useReplayExport: (o: ReplayExportOptions) => {
-      espionExport.options.push(o)
-      return vrai.useReplayExport(o)
+      exportSpy.options.push(o)
+      return real.useReplayExport(o)
     },
   }
 })
 
 vi.mock('./replayCapture', async (importOriginal) => {
-  // Le NOMMAGE reste le vrai : c'est lui qui prouve que l'instant lu est le bon.
-  const vrai = await importOriginal<typeof import('./replayCapture')>()
+  // NAMING stays real: it is what proves the instant read is the right one.
+  const real = await importOriginal<typeof import('./replayCapture')>()
   return {
-    ...vrai,
+    ...real,
     captureCanvasImage: vi.fn(),
     triggerDownload: vi.fn(),
   }
 })
 
-/** 20 images par seconde : l'image 40 tombe donc à la 2e seconde de match. */
+/** 20 frames per second: frame 40 therefore falls at the match's 2nd second. */
 const DOC = testReplayDoc({ matchId: 'match-témoin', frameIntervalMs: 50 })
 
 function mount(
@@ -85,23 +86,23 @@ function mount(
 }
 
 /**
- * LE PROVIDER DE REQUÊTES EST DEVENU NÉCESSAIRE LE 2026-09-07 (revue F2) : la couture résout
- * désormais le MOT du verdict par les mappings du titre (`useOutcomeMapping`, TanStack Query)
- * quand le point de vue permute la lecture. La plupart des cas d'ici n'exercent pas ce chemin —
- * ils montent la capture sans verdict — mais le hook s'appelle sans condition, comme tout hook.
+ * THE QUERY PROVIDER BECAME NECESSARY ON 2026-09-07 (F2 review): the wiring layer now resolves
+ * the verdict's WORD through the title's mappings (`useOutcomeMapping`, TanStack Query) when
+ * the viewpoint swaps the reading. Most cases here do not exercise that path — they mount the
+ * capture with no verdict — but the hook is called unconditionally, like any hook.
  *
- * `outcomes` À `true` SÈME LES MAPPINGS DU TITRE dans le cache, sous la clé que
- * `useFieldMappings` construit à partir des défauts du store (`halo_infinite`, `fr`). La requête
- * reste désactivée en test (`isBootstrapped` est faux) et lit quand même la donnée. À `false`,
- * c'est le cas dégradé : aucun libellé canonique.
+ * `outcomes` SET TO `true` SEEDS THE TITLE'S MAPPINGS into the cache, under the key
+ * `useFieldMappings` builds from the store's defaults (`halo_infinite`, `fr`). The query stays
+ * disabled in tests (`isBootstrapped` is false) and still reads the data. At `false`, this is
+ * the degraded case: no canonical label.
  */
 beforeEach(() => {
   vi.mocked(captureCanvasImage).mockReset()
   vi.mocked(triggerDownload).mockReset()
 })
 
-describe('useReplayCapture — capturer l’image', () => {
-  it('télécharge un PNG nommé sur l’instant de match affiché', async () => {
+describe('useReplayCapture — capturing the image', () => {
+  it('downloads a PNG named on the displayed match instant', async () => {
     const blob = new Blob(['png'])
     vi.mocked(captureCanvasImage).mockResolvedValue(blob)
     const { result } = mount(40)
@@ -109,11 +110,11 @@ describe('useReplayCapture — capturer l’image', () => {
       result.current.captureImage()
     })
     expect(captureCanvasImage).toHaveBeenCalledTimes(1)
-    // L'identifiant du match est assaini au passage (l'accent ne survit pas au nom de fichier).
+    // The match id is sanitized along the way (the accent does not survive into the filename).
     expect(triggerDownload).toHaveBeenCalledWith(blob, 'replay-match-t-moin-0m02s.png')
   })
 
-  it('une toile qui ne rend pas d’image ne télécharge RIEN', async () => {
+  it('a canvas that renders no frame downloads NOTHING', async () => {
     vi.mocked(captureCanvasImage).mockResolvedValue(null)
     const { result } = mount(40)
     await act(async () => {
@@ -122,7 +123,7 @@ describe('useReplayCapture — capturer l’image', () => {
     expect(triggerDownload).not.toHaveBeenCalled()
   })
 
-  it('sans toile montée, la commande ne fait rien et ne lève pas', async () => {
+  it('with no canvas mounted, the command does nothing and does not throw', async () => {
     const { result } = mount(40, null)
     await act(async () => {
       result.current.captureImage()
@@ -132,27 +133,27 @@ describe('useReplayCapture — capturer l’image', () => {
   })
 })
 
-describe('pickVideoMimeType — le conteneur le plus portable d’abord', () => {
-  it('MP4/H.264 l’emporte dès qu’il est accepté', () => {
+describe('pickVideoMimeType — the most portable container first', () => {
+  it('MP4/H.264 wins as soon as it is accepted', () => {
     expect(pickVideoMimeType(() => true)).toEqual({ mime: 'video/mp4;codecs=avc1', ext: 'mp4' })
   })
 
-  it('sans MP4, on descend sur WebM/VP9 — et l’extension SUIT le type retenu', () => {
-    // Un `.mp4` qui contiendrait du WebM ne s'ouvrirait nulle part : c'est le couple
-    // (type, extension) qui est la décision, jamais le type seul.
-    const choix = pickVideoMimeType((t) => t.startsWith('video/webm'))
-    expect(choix).toEqual({ mime: 'video/webm;codecs=vp9', ext: 'webm' })
+  it('with no MP4, falls back to WebM/VP9 — and the extension FOLLOWS the chosen type', () => {
+    // A `.mp4` that actually contained WebM would not open anywhere: the (type, extension)
+    // pair is the decision, never the type alone.
+    const choice = pickVideoMimeType((t) => t.startsWith('video/webm'))
+    expect(choice).toEqual({ mime: 'video/webm;codecs=vp9', ext: 'webm' })
   })
 
-  it('aucun conteneur accepté : `null`, et surtout pas un repli inventé', () => {
+  it('no accepted container: `null`, and especially not a made-up fallback', () => {
     expect(pickVideoMimeType(() => false)).toBeNull()
   })
 })
 
 /**
- * L'ENREGISTREUR DOUBLÉ : il note ce qu'on lui demande, et rend une tranche unique à l'arrêt.
- * `stop()` émet la tranche PUIS `onstop`, dans cet ordre — c'est celui du navigateur, et c'est
- * ce qui fait que le clip contient bien sa dernière image.
+ * THE DOUBLED RECORDER: it notes what it is asked, and returns a single slice on stop.
+ * `stop()` emits the slice THEN `onstop`, in that order — the browser's own order, and that is
+ * what makes the clip truly contain its last frame.
  */
 class FakeMediaRecorder {
   static supported: string[] = ['video/mp4;codecs=avc1']
@@ -183,10 +184,10 @@ class FakeMediaRecorder {
   }
 }
 
-/** Les pistes du flux : on vérifie qu'elles sont bien coupées à la fin, pas avant. */
+/** The stream's tracks: checked to be stopped at the end, and not before. */
 let tracksStopped = 0
 
-/** Le flux à plusieurs pistes que l'assemblage image + son fabrique. */
+/** The multi-track stream the image+sound assembly builds. */
 class FakeMediaStream {
   tracks: unknown[]
   constructor(tracks: unknown[]) {
@@ -197,17 +198,17 @@ class FakeMediaStream {
   }
 }
 
-/** La piste vidéo de la toile — celle qui doit être coupée à l'arrêt, et elle seule. */
-const PISTE_VIDEO = { kind: 'video', stop: () => (tracksStopped += 1) }
+/** The canvas's video track — the one that must be stopped at the end, and only it. */
+const VIDEO_TRACK = { kind: 'video', stop: () => (tracksStopped += 1) }
 
-function armerLEnregistrement(supported = ['video/mp4;codecs=avc1']) {
+function armRecording(supported = ['video/mp4;codecs=avc1']) {
   FakeMediaRecorder.supported = supported
   FakeMediaRecorder.last = null
   tracksStopped = 0
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
   vi.stubGlobal('MediaStream', FakeMediaStream)
   HTMLCanvasElement.prototype.captureStream = () =>
-    ({ getTracks: () => [PISTE_VIDEO] }) as unknown as MediaStream
+    ({ getTracks: () => [VIDEO_TRACK] }) as unknown as MediaStream
 }
 
 afterEach(() => {
@@ -215,10 +216,10 @@ afterEach(() => {
   delete (HTMLCanvasElement.prototype as { captureStream?: unknown }).captureStream
 })
 
-describe('useReplayCapture — enregistrer la vidéo', () => {
-  beforeEach(() => armerLEnregistrement())
+describe('useReplayCapture — recording the video', () => {
+  beforeEach(() => armRecording())
 
-  it('un clic ouvre l’enregistrement dans le conteneur retenu', () => {
+  it('a click opens recording in the chosen container', () => {
     const { result } = mount(40)
     expect(result.current.recordingSupported).toBe(true)
     act(() => {
@@ -229,7 +230,7 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
     expect(FakeMediaRecorder.last?.state).toBe('recording')
   })
 
-  it('le second clic arrête, assemble, et télécharge UNE fois — avec la bonne extension', () => {
+  it('the second click stops, assembles, and downloads ONCE — with the right extension', () => {
     const { result } = mount(40)
     act(() => {
       result.current.toggleRecording()
@@ -239,15 +240,15 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
     })
     expect(result.current.recording).toBe(false)
     expect(triggerDownload).toHaveBeenCalledTimes(1)
-    const [blob, nom] = vi.mocked(triggerDownload).mock.calls[0]
-    expect(nom).toBe('replay-match-t-moin-0m02s.mp4')
+    const [blob, name] = vi.mocked(triggerDownload).mock.calls[0]
+    expect(name).toBe('replay-match-t-moin-0m02s.mp4')
     expect(blob.type).toBe('video/mp4;codecs=avc1')
-    // Les pistes de la toile ne se coupent qu'APRÈS la dernière tranche.
+    // The canvas's tracks only stop AFTER the last slice.
     expect(tracksStopped).toBe(1)
   })
 
-  it('sans MP4 accepté, le clip sort en WebM — nom et conteneur d’accord', () => {
-    armerLEnregistrement(['video/webm'])
+  it('with no MP4 accepted, the clip comes out as WebM — name and container agree', () => {
+    armRecording(['video/webm'])
     const { result } = mount(40)
     act(() => {
       result.current.toggleRecording()
@@ -258,9 +259,9 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
     expect(vi.mocked(triggerDownload).mock.calls[0][1]).toBe('replay-match-t-moin-0m02s.webm')
   })
 
-  // DÉCISION 3 — un seul chemin de sortie. La fin du film met la lecture en pause
-  // (useReplayPlayback) : c'est cette RETOMBÉE qui clôt le clip, sans second clic.
-  it('la lecture qui s’arrête clôt l’enregistrement et télécharge', () => {
+  // DECISION 3 — a single exit path. The film's end pauses playback (useReplayPlayback): it is
+  // that FALLING EDGE that closes the clip, with no second click.
+  it('playback stopping closes recording and downloads', () => {
     const { result, rerender } = mount(40)
     act(() => {
       result.current.toggleRecording()
@@ -273,10 +274,10 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
     expect(triggerDownload).toHaveBeenCalledTimes(1)
   })
 
-  // Le piège que la garde de TRANSITION évite : au démarrage depuis une pause, `playing` vaut
-  // encore `false` le temps d'un rendu. Lire l'ÉTAT plutôt que sa retombée refermerait le clip
-  // aussitôt ouvert — et rendrait le bouton inutilisable sur un rejeu en pause.
-  it('démarrer sur une PAUSE relance la lecture, et ne se referme pas aussitôt', () => {
+  // The pitfall the TRANSITION guard avoids: starting from a pause, `playing` is still
+  // `false` for one render. Reading the STATE rather than its falling edge would close the
+  // clip as soon as it opened — and make the button unusable on a paused replay.
+  it('starting from a PAUSE resumes playback, and does not close right away', () => {
     const { result, rerender, play } = mount(40)
     act(() => {
       rerender({ playing: false })
@@ -293,41 +294,41 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
     expect(result.current.recording).toBe(true)
   })
 
-  // DÉCISION 6 — le son rejoint la vidéo AU DÉMARRAGE, et seulement s'il est déjà actif.
-  it('avec le son actif : DEUX pistes, l’image et le son', () => {
-    const piste = { kind: 'audio', stop: vi.fn() } as unknown as MediaStreamTrack
-    const { result } = mount(40, document.createElement('canvas'), () => piste)
+  // DECISION 6 — sound joins video AT START, and only if it is already active.
+  it('with sound active: TWO tracks, image and sound', () => {
+    const track = { kind: 'audio', stop: vi.fn() } as unknown as MediaStreamTrack
+    const { result } = mount(40, document.createElement('canvas'), () => track)
     act(() => {
       result.current.toggleRecording()
     })
-    expect(FakeMediaRecorder.last?.stream.getTracks()).toEqual([PISTE_VIDEO, piste])
+    expect(FakeMediaRecorder.last?.stream.getTracks()).toEqual([VIDEO_TRACK, track])
   })
 
-  it('sans son : UNE piste, et le flux de la toile passe tel quel', () => {
+  it('with no sound: ONE track, and the canvas stream passes through as is', () => {
     const { result } = mount(40, document.createElement('canvas'), () => null)
     act(() => {
       result.current.toggleRecording()
     })
-    expect(FakeMediaRecorder.last?.stream.getTracks()).toEqual([PISTE_VIDEO])
+    expect(FakeMediaRecorder.last?.stream.getTracks()).toEqual([VIDEO_TRACK])
   })
 
-  it('à l’arrêt, la piste AUDIO survit — elle appartient au lecteur de son', () => {
-    // La couper ici rendrait muet tout enregistrement suivant : le lecteur vit plus
-    // longtemps que le clip, et c'est lui qui possède cette piste.
+  it('on stop, the AUDIO track survives — it belongs to the sound player', () => {
+    // Stopping it here would mute every following recording: the player lives longer than
+    // the clip, and it is the player that owns this track.
     const stop = vi.fn()
-    const piste = { kind: 'audio', stop } as unknown as MediaStreamTrack
-    const { result } = mount(40, document.createElement('canvas'), () => piste)
+    const track = { kind: 'audio', stop } as unknown as MediaStreamTrack
+    const { result } = mount(40, document.createElement('canvas'), () => track)
     act(() => {
       result.current.toggleRecording()
     })
     act(() => {
       result.current.toggleRecording()
     })
-    expect(tracksStopped).toBe(1) // la piste de la toile, elle, est bien coupée
+    expect(tracksStopped).toBe(1) // the canvas's own track, however, is indeed stopped
     expect(stop).not.toHaveBeenCalled()
   })
 
-  it('quitter la page pendant un enregistrement referme SANS déposer de fichier', () => {
+  it('leaving the page during a recording closes it WITHOUT dropping a file', () => {
     const { result, unmount } = mount(40)
     act(() => {
       result.current.toggleRecording()
@@ -340,10 +341,10 @@ describe('useReplayCapture — enregistrer la vidéo', () => {
   })
 })
 
-describe('useReplayCapture — navigateur sans enregistrement', () => {
-  it('`recordingSupported` est faux quand l’API manque, et le bouton image reste utile', async () => {
-    // Ni `MediaRecorder`, ni `captureStream` : l'état par défaut de jsdom, et celui d'un vieux
-    // navigateur. La capture d'image, elle, ne dépend d'aucun des deux.
+describe('useReplayCapture — browser with no recording', () => {
+  it('`recordingSupported` is false when the API is missing, and the image button stays useful', async () => {
+    // Neither `MediaRecorder` nor `captureStream`: jsdom's default state, and an old
+    // browser's. Image capture itself depends on neither.
     const blob = new Blob(['png'])
     vi.mocked(captureCanvasImage).mockResolvedValue(blob)
     const { result } = mount(40)
@@ -356,49 +357,49 @@ describe('useReplayCapture — navigateur sans enregistrement', () => {
 })
 
 /**
- * AJOUT DU 2026-09-07 — LE MOT QUE LE CLIP PEINDRA, ET SA SOURCE UNIQUE.
+ * ADDED ON 2026-09-07 — THE WORD THE CLIP WILL PAINT, AND ITS SINGLE SOURCE.
  *
- * `useViewedOutcome` est le SEUL calcul de production de `viewedLabel`, et il n'était couvert
- * par rien : le clip exporté depuis le point de vue d'un adversaire annonçait « Victoire » sur
- * l'équipe qui a perdu. Le mot vient désormais des mappings du titre dans TOUS les cas — la page
- * ne descend plus que le code — et ces cas fixent les deux régimes, plus le dégradé.
+ * `useViewedOutcome` is the ONLY production computation of `viewedLabel`, and nothing covered
+ * it: a clip exported from an opponent's viewpoint announced "Victory" over the team that
+ * lost. The word now comes from the title's mappings in ALL cases — the page only sends down
+ * the code — and these cases pin down both regimes, plus the degraded one.
  *
- * ILS N'OBSERVENT PAS LE PANNEAU mais l'ENTRÉE de l'export : ce que `exportOverlayPanels` en
- * fait est éprouvé chez lui (`exportOverlayPanels.test.ts`, cinq cas sur `viewedLabel`). Ici,
- * la seule question est « la couture a-t-elle résolu le bon mot ? ».
+ * THEY DO NOT OBSERVE THE PANEL but the export's INPUT: what `exportOverlayPanels` does with
+ * it is proven in its own tests (`exportOverlayPanels.test.ts`, five cases on `viewedLabel`).
+ * Here, the only question is "did the wiring resolve the right word?".
  */
-describe('useReplayCapture — le mot du verdict transmis à l’export', () => {
+describe('useReplayCapture — the verdict\'s word, passed to the export', () => {
   const SB = [
-    { xuid: 'moi', team_side: 't0', is_me: true },
-    { xuid: 'eux', team_side: 't1', is_me: false },
+    { xuid: 'me', team_side: 't0', is_me: true },
+    { xuid: 'them', team_side: 't1', is_me: false },
   ] as MatchScoreboardRow[]
 
   /**
-   * Le verdict servi par l'en-tête : le joueur de la page a GAGNÉ (code 2). LE CODE SEUL —
-   * depuis le 2026-09-07 la page ne descend plus de libellé, le mot se résout ici.
+   * The verdict served by the header: the page's own player WON (code 2). THE CODE ALONE —
+   * since 2026-09-07 the page no longer sends down a label, the word is resolved here.
    */
   const OUTCOME = { code: 2 }
 
-  /** Le même lobby, plus un COÉQUIPIER du joueur de la page. */
-  const SB_TRIO = [...SB, { xuid: 'pote', team_side: 't0', is_me: false } as MatchScoreboardRow]
+  /** The same lobby, plus a TEAMMATE of the page's own player. */
+  const SB_TRIO = [...SB, { xuid: 'buddy', team_side: 't0', is_me: false } as MatchScoreboardRow]
 
   /**
-   * L'allégeance du FILM de la page, vue du point de vue (le joueur de la page à défaut, comme le
-   * modèle) : chaque joueur de la feuille porte au film l'équipe de son côté.
+   * The page's FILM allegiance, from the viewpoint (the page's own player by default, like the
+   * model): each player on the sheet carries into the film the team of their own side.
    */
-  function allegeanceDe(board: MatchScoreboardRow[], viewpoint: string | null) {
-    const joueurs = board.map(
+  function allegianceOf(board: MatchScoreboardRow[], viewpoint: string | null) {
+    const players = board.map(
       (r) => ({ xuid: r.xuid, team: Number((r.team_side ?? '').slice(1)), lives: [], board: r }) as ReplayPlayer,
     )
-    return buildFilmAllegiance(joueurs, viewpoint ?? 'moi')
+    return buildFilmAllegiance(players, viewpoint ?? 'me')
   }
 
-  /** Monte la capture avec un verdict et un point de vue, et rend les options vues par l'export. */
-  function optionsPour(
+  /** Mounts the capture with a verdict and a viewpoint, and returns the options seen by the export. */
+  function optionsFor(
     viewpoint: string | null,
     { board = SB }: { board?: MatchScoreboardRow[] } = {},
   ) {
-    espionExport.options.length = 0
+    exportSpy.options.length = 0
     const canvasRef = createRef<HTMLCanvasElement>() as RefObject<HTMLCanvasElement | null>
     canvasRef.current = document.createElement('canvas')
     const frameRef = createRef<number>() as RefObject<number>
@@ -411,39 +412,39 @@ describe('useReplayCapture — le mot du verdict transmis à l’export', () => 
           frameRef,
           playing: false,
           play: vi.fn(),
-          // `redraw` est ce qui rend l'export DISPONIBLE (cf. `useExportSeam`) : sans lui le
-          // hook tourne quand même, mais son résultat est jeté — et les options nous échappent.
+          // `redraw` is what makes the export AVAILABLE (see `useExportSeam`): without it the
+          // hook still runs, but its result is discarded — and the options escape us.
           redraw: vi.fn(),
           scoreboard: board,
-          allegiance: allegeanceDe(board, viewpoint),
+          allegiance: allegianceOf(board, viewpoint),
           outcome: OUTCOME,
           viewpoint,
         }),
-      
+
     )
-    return espionExport.options[espionExport.options.length - 1]
+    return exportSpy.options[exportSpy.options.length - 1]
   }
 
-  it('point de vue ADVERSE : le libellé CANONIQUE de l’issue permutée', () => {
-    // Le joueur de la page a gagné (code 2) ; vu de `eux`, la lecture est une défaite, et c'est
-    // ce mot-là — celui d'`outcomes.toml` — que le clip doit peindre, pas « Victoire ».
-    expect(optionsPour('eux').outcome?.viewedLabel).toBe('Defeat')
+  it('OPPONENT viewpoint: the CANONICAL label of the swapped outcome', () => {
+    // The page's own player won (code 2); seen from `them`, the reading is a defeat, and that
+    // word — `outcomes.toml`'s own — is what the clip must paint, not "Victory".
+    expect(optionsFor('them').outcome?.viewedLabel).toBe('Defeat')
   })
 
-  it('point de vue = LE JOUEUR DE LA PAGE : le libellé de son issue, tel quel', () => {
-    expect(optionsPour('moi').outcome?.viewedLabel).toBe('Victory')
+  it('viewpoint = THE PAGE\'S OWN PLAYER: their outcome\'s label, as is', () => {
+    expect(optionsFor('me').outcome?.viewedLabel).toBe('Victory')
   })
 
-  it('point de vue ABSENT (`null`) : le libellé de l’issue de la page', () => {
-    expect(optionsPour(null).outcome?.viewedLabel).toBe('Victory')
+  it('ABSENT viewpoint (`null`): the page\'s own outcome label', () => {
+    expect(optionsFor(null).outcome?.viewedLabel).toBe('Victory')
   })
 
-  it('COÉQUIPIER du joueur de la page : même camp, donc rien de permuté', () => {
-    expect(optionsPour('pote', { board: SB_TRIO }).outcome?.viewedLabel).toBe('Victory')
+  it('TEAMMATE of the page\'s own player: same side, so nothing swapped', () => {
+    expect(optionsFor('buddy', { board: SB_TRIO }).outcome?.viewedLabel).toBe('Victory')
   })
 
-  it('le reste du verdict traverse INCHANGÉ : seul le mot vu s’ajoute', () => {
-    const outcome = optionsPour('eux').outcome
+  it('the rest of the verdict passes through UNCHANGED: only the viewed word is added', () => {
+    const outcome = optionsFor('them').outcome
     expect(outcome).toMatchObject({ code: 2, viewedLabel: 'Defeat' })
   })
 })

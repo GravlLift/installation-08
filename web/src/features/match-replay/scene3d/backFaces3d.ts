@@ -1,47 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * backFaces3d.ts — L'ENVERS DE LA STRUCTURE D'UN MODÈLE DE LA VUE (la carte, un calque posé sur elle).
+ * backFaces3d.ts — the BACK SIDE OF A VIEW MODEL'S STRUCTURE (the map, a layer placed on it).
  *
- * Les surfaces de structure se dessinent de face seulement : deux surfaces coplanaires dos à dos (un
- * panneau et l'envers d'une autre) ne se disputent pas les mêmes pixels. L'envers écarté laisserait
- * pourtant voir le ciel là où la carte laisse un jour (une dalle de plafond vue d'en dessous à travers
- * un treillis). `buildBackFaces` dessine l'envers de ces surfaces d'un seul matériau sombre, sans
- * éclairage, pris dans la brume, et repoussé en profondeur : il ne passe jamais devant une face
- * coplanaire, il ne fait que boucher les jours.
+ * Structure surfaces are drawn front-facing only: two coplanar back-to-back surfaces (a panel and
+ * another one's back face) don't fight for the same pixels. But dropping the back face would let
+ * the sky show through wherever the map has a gap (a ceiling slab seen from below through a
+ * lattice). `buildBackFaces` draws the back of these surfaces with a single dark material, unlit,
+ * caught in fog, and pushed back in depth: it never draws in front of a coplanar face, it only
+ * plugs the gaps.
  *
- * Les surfaces qui lisent le même attribut de sommets sous la même transformation se dessinent en UN
- * maillage d'envers (leurs index mis bout à bout) : quelques appels de dessin pour tout le modèle. Un
- * maillage d'envers ne figure dans aucune liste du modèle : il ne répond à aucun rayon (sol, inspecteur),
- * ne porte ni ne reçoit d'ombre, ne porte pas d'étiquette de surface (corps inertes, inspecteur), n'a pas
- * de matériau standard (sondes, lumière cuite, fusion) et le contour d'équipe l'ignore (`noOutline`).
+ * Surfaces that read the same vertex attribute under the same transform are drawn as ONE back
+ * mesh (their indices concatenated): a handful of draw calls for the whole model. A back mesh
+ * appears in no model list: it answers no ray (ground, inspector), casts or receives no shadow,
+ * carries no surface label (ragdolls, inspector), has no standard material (probes, baked light,
+ * fusion), and the team outline ignores it (`noOutline`).
  */
 import * as THREE from 'three'
 
 import { concatIndices } from './layeredPlan3d'
 
-/** L'envers d'un mur ou d'une dalle, vu seulement là où la carte laisse un jour (RVB linéaire, pas une couleur d'interface). */
+/** The back of a wall or slab, seen only where the map has a gap (linear RGB, not a UI color). */
 export const BACK_FACE_TINT = 0x07090b
 
-/** Le nom des maillages d'envers posés sous la racine du modèle. */
-export const BACK_FACE_NAME = 'envers-structure'
+/** The name of the back meshes placed under the model's root. */
+export const BACK_FACE_NAME = 'structure-back'
 
-// Le recul en profondeur de l'envers (pente et pas de profondeur) : positif, une face coplanaire passe devant.
+// The back face's depth bias (slope and depth step): positive, a coplanar face draws in front.
 const BACK_OFFSET_FACTOR = 1
 const BACK_OFFSET_UNITS = 1
 
 export interface BackFaces {
-  /** Les maillages d'envers, déjà enfants de la racine donnée. */
+  /** The back meshes, already children of the given root. */
   meshes: THREE.Mesh[]
-  /** Le nombre de surfaces dont l'envers est dessiné. */
+  /** The number of surfaces whose back is drawn. */
   covered: number
-  /** Retire les maillages d'envers et libère leurs index et le matériau commun (pas les sommets, qui sont aux surfaces). */
+  /** Removes the back meshes and frees their indices and the shared material (not the vertices, which belong to the surfaces). */
   dispose(): void
 }
 
 /**
- * hasBack : une surface simple, visible, indexée, opaque, sans découpe et dessinée de face seulement.
- * Une découpe (treillis, grille) garde ses trous vue de dos ; une surface déjà dessinée des deux côtés
- * n'a pas d'envers à boucher.
+ * hasBack: a simple surface, visible, indexed, opaque, uncut, and drawn front-facing only. A
+ * cutout (lattice, grille) keeps its holes seen from behind; a surface already drawn on both
+ * sides has no back to plug.
  */
 function hasBack(mesh: THREE.Mesh): boolean {
   if (!mesh.visible || mesh instanceof THREE.SkinnedMesh || mesh instanceof THREE.InstancedMesh) return false
@@ -50,7 +50,7 @@ function hasBack(mesh: THREE.Mesh): boolean {
   return mesh.geometry.index !== null && mesh.geometry.getAttribute('position') !== undefined
 }
 
-/** backFaceMaterial : le matériau commun de l'envers (sans éclairage, face arrière, reculé en profondeur). */
+/** backFaceMaterial: the shared back-face material (unlit, back-facing, pushed back in depth). */
 function backFaceMaterial(): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     side: THREE.BackSide, fog: true,
@@ -61,10 +61,10 @@ function backFaceMaterial(): THREE.MeshBasicMaterial {
 }
 
 /**
- * backGeometry rend la géométrie d'envers d'un groupe : ses index mis bout à bout sur son attribut de
- * sommets. Des groupes qui lisent les mêmes index (un objet posé à plusieurs endroits : des surfaces
- * qui partagent leur géométrie, sous des transformations différentes) partagent la leur, bâtie une
- * fois et gardée dans `shared`.
+ * backGeometry builds a group's back geometry: its indices concatenated over its vertex
+ * attribute. Groups that read the same indices (an object placed in several spots: surfaces
+ * sharing their geometry under different transforms) share theirs, built once and kept in
+ * `shared`.
  */
 function backGeometry(group: readonly THREE.Mesh[], shared: Map<string, THREE.BufferGeometry>, idOf: (o: object) => number, tighten: (g: THREE.BufferGeometry) => void): THREE.BufferGeometry {
   const position = group[0].geometry.getAttribute('position')
@@ -81,7 +81,7 @@ function backGeometry(group: readonly THREE.Mesh[], shared: Map<string, THREE.Bu
   return geometry
 }
 
-/** backMesh pose sous `root` le maillage d'envers d'un groupe (même attribut de sommets, même transformation). */
+/** backMesh places a group's back mesh under `root` (same vertex attribute, same transform). */
 function backMesh(group: readonly THREE.Mesh[], geometry: THREE.BufferGeometry, material: THREE.Material, toRoot: THREE.Matrix4): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = BACK_FACE_NAME
@@ -95,9 +95,9 @@ function backMesh(group: readonly THREE.Mesh[], geometry: THREE.BufferGeometry, 
 }
 
 /**
- * buildBackFaces pose sous `root` l'envers des surfaces de `meshes` qui en ont un (`hasBack`), un
- * maillage par attribut de sommets et transformation (relative à `root`, qu'il suit). `tighten` borne
- * un maillage sur les sommets que son index lit.
+ * buildBackFaces places under `root` the back of surfaces in `meshes` that have one (`hasBack`),
+ * one mesh per vertex attribute and transform (relative to `root`, which it follows). `tighten`
+ * bounds a mesh on the vertices its index reads.
  */
 export function buildBackFaces(root: THREE.Object3D, meshes: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometry) => void): BackFaces {
   root.updateMatrixWorld(true)
@@ -124,7 +124,7 @@ export function buildBackFaces(root: THREE.Object3D, meshes: readonly THREE.Mesh
     dispose() {
       for (const mesh of backs) mesh.removeFromParent()
       for (const geometry of shared.values()) {
-        // Seul l'index est à ce maillage : libérer la géométrie entière libérerait les sommets partagés.
+        // Only the index belongs to this mesh: disposing the whole geometry would free the shared vertices.
         geometry.deleteAttribute('position')
         geometry.dispose()
       }

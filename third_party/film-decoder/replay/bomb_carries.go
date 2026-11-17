@@ -154,8 +154,8 @@ func attachBombCarries(ctx context.Context, doc *ReplayDocument, opt Options, re
 	}
 	slog.InfoContext(ctx, "replay: Assault bomb carry",
 		"transitions", cov.Events, "periods", cov.Periods, "carries", cov.Carries,
-		"closed", cov.Closed, "open", cov.Open, "parMort", cov.ByDeath,
-		"sansPont", cov.NoBridge, "horsFenetre", cov.OutOfWindow,
-		"porteurAbsent", cov.CarrierAbsent)
+		"closed", cov.Closed, "open", cov.Open, "byDeath", cov.ByDeath,
+		"noBridge", cov.NoBridge, "outOfWindow", cov.OutOfWindow,
+		"carrierAbsent", cov.CarrierAbsent)
 	return carry
 }

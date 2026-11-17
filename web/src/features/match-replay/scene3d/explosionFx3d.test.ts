@@ -22,15 +22,15 @@ function frameAt(style: BlastStyle, age: number, seed = 1234): Frame {
   return out
 }
 
-/** La lumière émise par une image : la somme des couleurs, pondérée par la surface des éclats ronds. */
+/** The light emitted by a frame: the sum of colors, weighted by the round sparks/billows' area. */
 function energy(f: Frame): number {
   const sprites = f.sprites.reduce((s, [, , , radius, r, g, b]) => s + (r + g + b) * radius * radius, 0)
   const streaks = f.streaks.reduce((s, v) => s + v[6] + v[7] + v[8], 0) * 0.002
   return sprites + streaks
 }
 
-describe('blastAt — une explosion fonction pure de son âge', () => {
-  it('rien avant la détonation ni à partir de la fin (moins d une seconde)', () => {
+describe('blastAt — an explosion as a pure function of its age', () => {
+  it('nothing before the detonation nor from the end onward (under a second)', () => {
     expect(BLAST_END_SECONDS).toBeLessThan(1)
     for (const style of ['fire', 'plasma', 'shard'] as const) {
       expect(frameAt(style, -0.01)).toEqual({ sprites: [], streaks: [] })
@@ -38,18 +38,18 @@ describe('blastAt — une explosion fonction pure de son âge', () => {
     }
   })
 
-  it('même âge et même germe : même image, dans n importe quel ordre', () => {
+  it('same age and same seed: same frame, in any order', () => {
     const ages = [0.3, 0.05, 0.12, 0.05, 0.3]
     const seen = ages.map((a) => frameAt('fire', a))
     expect(seen[1]).toEqual(seen[3])
     expect(seen[0]).toEqual(seen[4])
   })
 
-  it('deux germes : deux boules de feu différentes', () => {
+  it('two seeds: two different fireballs', () => {
     expect(frameAt('fire', 0.15, 1)).not.toEqual(frameAt('fire', 0.15, 2))
   })
 
-  it('l énergie est en tête : éclair blanc d une à deux images, puis décroissance rapide', () => {
+  it('energy peaks first: a one- to two-frame white flash, then a fast decay', () => {
     const flash = frameAt('fire', 0.01)
     expect(flash.sprites.some((s) => s[7] === 0 && s[4] > 2)).toBe(true)
     expect(frameAt('fire', BLAST_FLASH_SECONDS + 0.01).sprites.every((s) => s[4] < 3)).toBe(true)
@@ -58,17 +58,17 @@ describe('blastAt — une explosion fonction pure de son âge', () => {
     expect(e[3]).toBeLessThan(e[0] * 0.15)
   })
 
-  it('la boule de feu est faite de plusieurs bouffées et reste sous le rayon de dégâts', () => {
+  it('the fireball is made of several billows and stays under the damage radius', () => {
     for (const age of [0.05, 0.2, 0.4, 0.6]) {
       const f = frameAt('fire', age)
-      // Le feu : les éclats qui émettent (la fumée, grise et éteinte, n'en est pas).
+      // Fire: the sparks/billows that emit (smoke, gray and dark, is not one of them).
       const fire = f.sprites.filter((s) => s[4] > 0.05)
       for (const [x, y, z, radius] of fire) expect(Math.hypot(x, y, z) + radius).toBeLessThan(BLAST_RADIUS)
     }
     expect(frameAt('fire', 0.2).sprites.length).toBeGreaterThanOrEqual(8)
   })
 
-  it('les étincelles filent puis retombent sous leur poids', () => {
+  it('sparks fly out then fall back under their own weight', () => {
     const early = frameAt('fire', 0.05).streaks
     const late = frameAt('fire', 0.4).streaks
     expect(early.length).toBeGreaterThan(20)
@@ -76,28 +76,28 @@ describe('blastAt — une explosion fonction pure de son âge', () => {
     expect(drop(late)).toBeLessThan(drop(early))
   })
 
-  it('le plasma n a pas de fumée et finit plus tôt que le feu', () => {
+  it('plasma has no smoke and ends earlier than fire', () => {
     expect(frameAt('plasma', 0.5)).toEqual({ sprites: [], streaks: [] })
     expect(frameAt('fire', 0.5).sprites.length).toBeGreaterThan(0)
   })
 })
 
-describe('blastLight et blastStyleOf', () => {
-  it('la lumière d une détonation dépasse celle d un tir puis s éteint en moins d une demi-seconde', () => {
+describe('blastLight and blastStyleOf', () => {
+  it("a detonation's light exceeds a shot's, then goes out in under half a second", () => {
     expect(blastLight('fire', 0)).toBeGreaterThan(MUZZLE_LIGHT)
     expect(blastLight('fire', 0.1)).toBeLessThan(blastLight('fire', 0))
     expect(blastLight('fire', 0.31)).toBe(0)
     expect(blastLight('fire', -0.01)).toBe(0)
   })
 
-  it('la nature de la décharge choisit la mise en scène', () => {
+  it('the nature of the discharge chooses the staging', () => {
     expect(blastStyleOf('blast')).toBe('fire')
     expect(blastStyleOf('plasma_cool')).toBe('plasma')
     expect(blastStyleOf('needle')).toBe('shard')
     expect(blastStyleOf('neutral')).toBe('fire')
   })
 
-  it('les tirages sont stables et dans [0, 1)', () => {
+  it('draws are stable and within [0, 1)', () => {
     expect(rand(7, 3, 1)).toBe(rand(7, 3, 1))
     for (let i = 0; i < 200; i++) {
       const v = rand(i * 31, i, i % 5)

@@ -102,7 +102,7 @@ func buildKnockbacks(evts []types.Knockback, st types.KnockbackStats, tracks []T
 // logKnockbackCoverage sort la couverture du calque.
 func logKnockbackCoverage(ctx context.Context, cov KnockbackCoverage) {
 	slog.InfoContext(ctx, "replay: equipment knockbacks",
-		"read104", cov.Read104, "read105", cov.Read105, "paired", cov.Paired, "nonAppariees", cov.Unpaired,
-		"published", cov.Published, "avantOrigine", cov.BeforeOrigin, "sansIdentite", cov.NoIdentity,
-		"sansImpulsion", cov.WithoutImpulse, "sansAuteur", cov.WithoutAuthor)
+		"read104", cov.Read104, "read105", cov.Read105, "paired", cov.Paired, "unpaired", cov.Unpaired,
+		"published", cov.Published, "beforeOrigin", cov.BeforeOrigin, "noIdentity", cov.NoIdentity,
+		"withoutImpulse", cov.WithoutImpulse, "withoutAuthor", cov.WithoutAuthor)
 }

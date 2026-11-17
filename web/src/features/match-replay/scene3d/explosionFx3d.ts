@@ -1,81 +1,82 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * explosionFx3d.ts — UNE EXPLOSION À UN ÂGE : ce que la vue 3D en dessine, fonction pure de l'âge
- * (secondes depuis la détonation publiée) et d'un germe.
+ * explosionFx3d.ts — AN EXPLOSION AT AN AGE: what the 3D view draws of it, a pure function of
+ * the age (seconds since the published detonation) and a seed.
  *
- * Le rejeu se parcourt en avant comme en arrière : aucune particule n'est simulée d'image en image.
- * Chaque éclat a ses tirages (direction, vitesse, retard, durée) fixés par le germe de l'explosion et
- * son rang, et sa place se calcule en forme close depuis l'âge : la même image rend la même explosion.
+ * Replay is browsed forward as much as backward: no particle is simulated frame to frame. Each
+ * spark/billow has its own draws (direction, speed, delay, duration) fixed by the explosion's
+ * seed and its own rank, and its place is computed in closed form from the age: the same frame
+ * renders the same explosion.
  *
- * La mise en scène suit le jeu (frag de Halo Infinite) : tout se joue en moins d'une seconde. Un éclair
- * blanc d'une à deux images, une boule de feu FAITE DE PLUSIEURS BOUFFÉES qui se chevauchent (orange,
- * points chauds jaune-blanc, trous sombres entre elles) et s'écartent un peu en montant, une gerbe
- * d'étincelles blanches qui filent et retombent, puis un voile de fumée qui a disparu avant 0,8 s.
- * Le plasma : éclair et gerbe d'énergie à la teinte de l'arme, sans fumée. Le cristal (Spike) : aiguilles
- * droites et rapides. La boule de feu reste sous le rayon de dégâts (`BLAST_RADIUS` de `flights3d`).
+ * The staging follows the game (a Halo Infinite frag): everything plays out in under a second.
+ * A one- to two-frame white flash, a fireball MADE OF SEVERAL OVERLAPPING BILLOWS (orange,
+ * yellow-white hot spots, dark holes between them) drifting apart a little as they rise, a
+ * spray of white sparks that fly out and fall back, then a smoke veil gone before 0.8 s. Plasma:
+ * flash and energy spray in the weapon's tint, no smoke. Shard (Spike): straight, fast needles.
+ * The fireball stays under the damage radius (`BLAST_RADIUS` from `flights3d`).
  *
- * Unités monde Halo (1 u = 3,048 m), axes three (Y en haut). Couleurs linéaires, pré-multipliées :
- * `r, g, b` est la lumière émise, `a` ce que l'éclat cache derrière lui (0 : pure lueur).
+ * Halo world units (1 u = 3.048 m), three axes (Y up). Linear, premultiplied colors: `r, g, b`
+ * is the emitted light, `a` what the spark/billow occludes behind it (0: pure glow).
  */
 import type { FxTint } from '../layers/fxInk'
 
-/** Les trois mises en scène d'une détonation. */
+/** A detonation's three stagings. */
 export type BlastStyle = 'fire' | 'plasma' | 'shard'
 
-/** blastStyleOf : la mise en scène d'une détonation selon la nature de sa décharge (`fxInk`). */
+/** blastStyleOf: a detonation's staging, from the nature of its discharge (`fxInk`). */
 export function blastStyleOf(tint: FxTint): BlastStyle {
   if (tint === 'needle') return 'shard'
   if (tint === 'plasma_cool' || tint === 'plasma_green' || tint === 'plasma_hot' || tint === 'electric' || tint === 'forerunner') return 'plasma'
   return 'fire'
 }
 
-/** Une couleur linéaire (une `THREE.Color` convient). */
+/** A linear color (a `THREE.Color` works). */
 export interface Rgb {
   r: number
   g: number
   b: number
 }
 
-/** Les encres d'une explosion : le cœur incandescent commun et la teinte de la décharge. */
+/** An explosion's inks: the shared incandescent core and the discharge's tint. */
 export interface BlastInk {
   core: Rgb
   tint: Rgb
 }
 
-/** Ce qui reçoit les éclats d'une image (les tampons du rendu, ou une liste dans les tests). */
+/** What receives a frame's sparks/billows (the render buffers, or a list in tests). */
 export interface BlastSink {
-  /** Un éclat rond : décalage depuis le centre (u), rayon (u), lumière émise, opacité. */
+  /** A round spark/billow: offset from the center (u), radius (u), emitted light, opacity. */
   sprite(x: number, y: number, z: number, radius: number, r: number, g: number, b: number, a: number): void
-  /** Une étincelle : de (x0, y0, z0) à (x1, y1, z1), décalages depuis le centre (u), lumière émise. */
+  /** A streak: from (x0, y0, z0) to (x1, y1, z1), offsets from the center (u), emitted light. */
   streak(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, r: number, g: number, b: number): void
 }
 
-/** La fin de toute explosion (s) : au-delà, rien n'est dessiné. */
+/** The end of every explosion (s): beyond it, nothing is drawn. */
 export const BLAST_END_SECONDS = 0.8
-/** La pesanteur des étincelles (u/s²) : 9,8 m/s². */
+/** Sparks' gravity (u/s^2): 9.8 m/s^2. */
 const GRAVITY = 3.2
-/** La durée de l'éclair blanc (s) : une à deux images à l'écran. */
+/** The white flash's duration (s): one to two frames on screen. */
 export const BLAST_FLASH_SECONDS = 0.06
-/** Le temps que dure le filé d'une étincelle (s) : la longueur de son trait. */
+/** How long a spark's streak lasts (s): the length of its trail. */
 const STREAK_SECONDS = 0.03
 
 interface StyleSpec {
   flashRadius: number
   flashGain: number
   billows: number
-  /** Rayon d'une bouffée (u) et sa dispersion. */
+  /** A billow's radius (u) and its spread. */
   billowRadius: [number, number]
-  /** Écart de la bouffée au centre à la fin de sa vie (u). */
+  /** A billow's distance from the center at the end of its life (u). */
   billowReach: [number, number]
   billowLife: [number, number]
-  /** Opacité au plus d'une bouffée : une boule de feu cache ce qui est derrière, le plasma non. */
+  /** A billow's peak opacity: a fireball occludes what's behind it, plasma doesn't. */
   billowCover: number
   billowGain: number
   sparks: number
   sparkSpeed: [number, number]
   sparkLife: [number, number]
   sparkGravity: number
-  /** Filé d'une étincelle, en multiple de `STREAK_SECONDS`. */
+  /** A spark's streak, as a multiple of `STREAK_SECONDS`. */
   sparkTrail: number
   smoke: number
   light: number
@@ -100,7 +101,7 @@ const SPECS: Record<BlastStyle, StyleSpec> = {
   },
 }
 
-/** blastLight : la force de la lumière de la détonation à `age` (pleine au départ, éteinte vite). */
+/** blastLight: the strength of the detonation's light at `age` (full at the start, quickly off). */
 export function blastLight(style: BlastStyle, age: number): number {
   const s = SPECS[style]
   if (age < 0 || age >= s.lightSeconds) return 0
@@ -109,8 +110,8 @@ export function blastLight(style: BlastStyle, age: number): number {
 }
 
 /**
- * rand : un tirage dans [0, 1) propre au germe `seed`, à l'éclat `i` et au tirage `k` (hachage
- * entier) : la même explosion tire toujours les mêmes nombres, sans état.
+ * rand: a draw in [0, 1) specific to seed `seed`, spark/billow `i` and draw `k` (integer hash):
+ * the same explosion always draws the same numbers, with no state.
  */
 export function rand(seed: number, i: number, k: number): number {
   let h = Math.imul((seed | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(i + 1, 0xc2b2ae35) ^ Math.imul(k + 1, 0x27d4eb2f)
@@ -124,7 +125,7 @@ function between(range: [number, number], t: number): number {
   return range[0] + (range[1] - range[0]) * t
 }
 
-/** Une direction tirée, plutôt vers le haut (`up` : part minimale de la verticale), unitaire. */
+/** A drawn direction, mostly upward (`up`: minimum vertical share), unit length. */
 function direction(seed: number, i: number, k: number, up: number): [number, number, number] {
   const a = rand(seed, i, k) * Math.PI * 2
   const y = up + (1 - up) * rand(seed, i, k + 1)
@@ -133,8 +134,9 @@ function direction(seed: number, i: number, k: number, up: number): [number, num
 }
 
 /**
- * blastAt pose dans `sink` les éclats d'une explosion de style `style`, `age` secondes après la
- * détonation, germe `seed`, encres `ink`. Rien avant la détonation ni après `BLAST_END_SECONDS`.
+ * blastAt places into `sink` the sparks/billows of an explosion of style `style`, `age` seconds
+ * after the detonation, seed `seed`, inks `ink`. Nothing before the detonation nor after
+ * `BLAST_END_SECONDS`.
  */
 export function blastAt(style: BlastStyle, age: number, seed: number, ink: BlastInk, sink: BlastSink): void {
   if (age < 0 || age >= BLAST_END_SECONDS) return
@@ -150,9 +152,9 @@ export function blastAt(style: BlastStyle, age: number, seed: number, ink: Blast
 }
 
 /**
- * billows : les bouffées de la boule de feu. Chacune naît près du centre, s'écarte en montant
- * (détente rapide puis lente), grossit, passe du blanc chaud à la teinte puis au rouge sombre et
- * s'efface ; leurs écarts tirés font une boule bosselée, jamais une sphère.
+ * billows: the fireball's billows. Each is born near the center, drifts apart as it rises (fast
+ * expansion then slow), grows, shifts from hot white to the tint then to dark red and fades
+ * out; their drawn offsets make a lumpy ball, never a sphere.
  */
 function billows(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: BlastSink): void {
   for (let i = 0; i < s.billows; i++) {
@@ -161,18 +163,17 @@ function billows(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: B
     const u = (age - delay) / life
     if (u < 0 || u >= 1) continue
     const [dx, dy, dz] = direction(seed, i, 2, 0.15)
-    // Détente : la boule atteint presque sa taille au premier tiers de sa vie.
+    // Expansion: the ball reaches almost full size by the first third of its life.
     const ease = 1 - (1 - Math.min(1, u * 3)) ** 3
     const reach = 0.06 + between(s.billowReach, rand(seed, i, 4)) * ease
     const radius = between(s.billowRadius, rand(seed, i, 5)) * (0.7 + 0.45 * ease)
-    // Chaleur : blanc chaud au départ, la teinte au milieu, rouge sombre (vert retiré) à la fin ;
-    // certaines bouffées restent plus chaudes (les points jaune-blanc de la boule), d'autres plus
-    // sombres (les trous de la boule).
+    // Heat: hot white at the start, the tint in the middle, dark red (green removed) at the end;
+    // some billows stay hotter (the ball's yellow-white hot spots), others darker (the ball's
+    // holes).
     const heat = Math.min(1, Math.max(0, 1 - u * 6 + 1.2 * (rand(seed, i, 7) - 0.5)))
-    // Les bouffées se recouvrent : leur couleur converge vers lumière / opacité, d'où un gain modeste
-    // (une boule orange qui a du corps, pas un blanc saturé).
-    // La lumière s'éteint plus vite que le corps : la fin d'une bouffée est sombre, jamais un disque
-    // rouge saturé.
+    // Billows overlap: their color converges toward light / opacity, hence a modest gain (an
+    // orange ball with body, not a saturated white).
+    // Light fades faster than body: the end of a billow is dark, never a saturated red disc.
     const fade = (1 - u) ** 2.2 * s.billowGain * (0.75 + 0.5 * rand(seed, i, 6))
     const cool = 1 - 0.4 * Math.min(1, u * 1.6)
     const r = (ink.tint.r + (ink.core.r - ink.tint.r) * heat) * fade
@@ -182,7 +183,7 @@ function billows(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: B
   }
 }
 
-/** sparks : la gerbe d'étincelles, chacune en vol balistique depuis le centre, filé compris. */
+/** sparks: the spray of sparks, each on a ballistic flight from the center, trail included. */
 function sparks(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: BlastSink): void {
   for (let i = 0; i < s.sparks; i++) {
     const t = age - 0.02 * rand(seed, 100 + i, 0)
@@ -207,7 +208,7 @@ function sparks(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: Bl
   }
 }
 
-/** smoke : un voile de fumée grise qui monte, s'élargit et a disparu avant `BLAST_END_SECONDS`. */
+/** smoke: a veil of gray smoke that rises, widens, and is gone before `BLAST_END_SECONDS`. */
 function smoke(s: StyleSpec, age: number, seed: number, ink: BlastInk, sink: BlastSink): void {
   for (let i = 0; i < s.smoke; i++) {
     const start = 0.1 + 0.06 * rand(seed, 200 + i, 0)

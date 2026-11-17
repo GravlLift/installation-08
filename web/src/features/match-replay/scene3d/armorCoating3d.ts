@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * armorCoating3d.ts — LA PEINTURE D'UN MATÉRIAU D'ARMURE, fonction pure : le style du matériau
- * (`extras.style` de son GLB), la table des revêtements de la bibliothèque, le revêtement du joueur
- * et sa visière donnent le nuancier de chacune de ses sept zones et de la salissure. Contrat écrit
- * en tête de `meshproto/revetements.go` (côté serveur) ; la règle de recherche d'une intention est
- * celle du greffon Blender Ekur (The Halo Archive, `layered_shader.py`, `get_intention`),
- * réimplémentée ici sans en reprendre le code.
+ * armorCoating3d.ts — AN ARMOR MATERIAL'S PAINT, a pure function: the material's style
+ * (`extras.style` from its GLB), the library's coating table, the player's coating and visor
+ * give the swatch of each of its seven zones and the grime. Contract written at the top of
+ * `meshproto/revetements.go` (server side); the rule for looking up an intention is that of
+ * the Ekur Blender plugin (The Halo Archive, `layered_shader.py`, `get_intention`),
+ * reimplemented here without reusing its code.
  *
- * Replis, tous nommés (`note`) et jamais silencieux :
- *   - table des revêtements illisible : neutre partout (`coatings_unavailable`, `armorCoat3d`) ;
- *   - matériau sans style : neutre (`material_without_style`) ;
- *   - revêtement absent de la bibliothèque, ou liste que le revêtement ne nomme pas : style par
- *     défaut de la liste (`coating_unknown`, `style_not_in_list`) ;
- *   - liste ou style inconnus de la table : neutre (`stylelist_unknown`) ;
- *   - intention introuvable : zone éteinte (`intention_unknown`) ;
- *   - motif ou couleur de visière inconnus : la zone de base garde le revêtement (`visor_unknown`) ;
- *   - image d'un dégradé non chargée : dégradé neutre (`gradient_missing`, `armorMaterial3d`).
+ * Fallbacks, all named (`note`) and never silent:
+ *   - unreadable coating table: neutral everywhere (`coatings_unavailable`, `armorCoat3d`);
+ *   - material without a style: neutral (`material_without_style`);
+ *   - coating missing from the library, or a list the coating does not name: the list's
+ *     default style (`coating_unknown`, `style_not_in_list`);
+ *   - list or style unknown to the table: neutral (`stylelist_unknown`);
+ *   - intention not found: zone off (`intention_unknown`);
+ *   - unknown visor pattern or color: the base zone keeps the coating (`visor_unknown`);
+ *   - gradient image not loaded: neutral gradient (`gradient_missing`, `armorMaterial3d`).
  */
 
-/** Une couche de revêtement (`meshproto.Nuancier`). Couleurs linéaires. */
+/** A coating layer (`meshproto.Nuancier`). Linear colors. */
 export interface CoatingSwatch {
   index: number
   disabled?: boolean
-  /** Le bitmap du dégradé (`swatch-<id>.png`) ; absent : dégradé neutre (milieu, rugosité mêlée à moitié). */
+  /** The gradient bitmap (`swatch-<id>.png`); absent: neutral gradient (mid, roughness mixed halfway). */
   gradient?: string
   gradient_scale: [number, number]
   roughness: number
@@ -38,7 +38,7 @@ export interface CoatingSwatch {
   scratch_metallic: number
 }
 
-/** Un style (`meshproto.StyleRevetement`). */
+/** A style (`meshproto.StyleRevetement`). */
 export interface CoatingStyle {
   old_system?: boolean
   grime_amount: number
@@ -47,7 +47,7 @@ export interface CoatingStyle {
   regions: Record<string, Record<string, CoatingSwatch>>
 }
 
-/** La table commune de la bibliothèque (`coatings.json`, `meshproto.TableRevetements`). */
+/** The library's shared table (`coatings.json`, `meshproto.TableRevetements`). */
 export interface CoatingTable {
   schema: number
   globals: Record<string, { fallback?: string; layer: CoatingSwatch }>
@@ -70,14 +70,14 @@ export interface VisorPattern {
   scratch_metallic: number
 }
 
-/** Un revêtement (`coating-<style_key>.json`, `meshproto.Revetement`). */
+/** A coating (`coating-<style_key>.json`, `meshproto.Revetement`). */
 export interface CoatingFile {
   style: string
   lists: Record<string, string>
   styles: Record<string, CoatingStyle>
 }
 
-/** Le style d'un matériau (`extras.style`, `meshproto.ExtrasStyleMateriau`). */
+/** A material's style (`extras.style`, `meshproto.ExtrasStyleMateriau`). */
 export interface MaterialStyle {
   stylelist: string
   region: string
@@ -87,7 +87,7 @@ export interface MaterialStyle {
   offset: [number, number]
 }
 
-/** La peinture d'un matériau : sept zones (null : éteinte), la salissure, les quantités globales. */
+/** A material's paint: seven zones (null: off), the grime, the global amounts. */
 export interface MaterialPaint {
   zones: (CoatingSwatch | null)[]
   grime: CoatingSwatch | null
@@ -109,32 +109,32 @@ export type PaintIssueKind =
 
 export type PaintNote = (kind: PaintIssueKind, what: string) => void
 
-/** Les régions et intentions de la référence (`meshproto.RegionCommune`, `RegionVisiere`). */
+/** The reference regions and intentions (`meshproto.RegionCommune`, `RegionVisiere`). */
 export const ANY_REGION = '0b7e328b'
 export const VISOR_REGION = '54ad0a58'
 const NO_INTENTION = '00000000'
 export const ZONES = 7
-/** Au plus autant de replis de globales enchaînés (la table n'en enchaîne pas plus de deux). */
+/** At most this many chained global fallbacks (the table never chains more than two). */
 const MAX_FALLBACKS = 4
 
-/** Ce qui peint un joueur : la table, son revêtement (null : absent) et sa visière (null : aucune). */
+/** What paints a player: the table, their coating (null: absent) and their visor (null: none). */
 export interface PaintSource {
   table: CoatingTable
   coating: CoatingFile | null
   visor: CoatingSwatch | null
 }
 
-/** hexId : la clé hexadécimale (8 chiffres, 32 bits non signés) d'un identifiant signé de l'API. */
+/** hexId: the hexadecimal key (8 digits, unsigned 32 bits) of a signed API identifier. */
 export function hexId(n: number): string {
   return (n >>> 0).toString(16).padStart(8, '0')
 }
 
-/** neutralPaint : la peinture d'un matériau sans style, sept zones éteintes, sans usure. */
+/** neutralPaint: a styleless material's paint, seven zones off, no wear. */
 export function neutralPaint(): MaterialPaint {
   return { zones: Array.from({ length: ZONES }, () => null), grime: null, grimeAmount: 0, scratchAmount: 0, density: [1, 1], offset: [0, 0] }
 }
 
-/** paintOf : la peinture d'un matériau de style `style` pour le joueur de `src`. */
+/** paintOf: the paint of a material styled `style` for the player of `src`. */
 export function paintOf(style: MaterialStyle | null, src: PaintSource, note: PaintNote): MaterialPaint {
   if (!style) {
     note('material_without_style', '')
@@ -169,9 +169,9 @@ export function paintOf(style: MaterialStyle | null, src: PaintSource, note: Pai
 }
 
 /**
- * intentionOf : le nuancier de l'intention dans la région du matériau, puis la région commune, puis
- * les globales (leur repli d'abord, hors ancien système ; ancien système : la couche de rang `k` de
- * la région du matériau).
+ * intentionOf: the intention's swatch in the material's region, then the shared region, then
+ * the globals (their fallback first, outside the old system; old system: the layer at rank
+ * `k` of the material's region).
  */
 function intentionOf(intention: string, data: CoatingStyle, region: string, table: CoatingTable, k: number, depth: number): CoatingSwatch | null {
   const own = data.regions[region]
@@ -188,8 +188,8 @@ function intentionOf(intention: string, data: CoatingStyle, region: string, tabl
 }
 
 /**
- * visorSwatch : la visière du joueur (motif `visor_id`, couleurs `color_variant`, clés de l'API
- * signées) en nuancier de zone de base ; null sans visière, ou nommée inconnue.
+ * visorSwatch: the player's visor (pattern `visor_id`, colors `color_variant`, signed API
+ * keys) as a base-zone swatch; null without a visor, or if it names an unknown one.
  */
 export function visorSwatch(table: CoatingTable, visor: { visor_id?: number; color_variant?: number } | undefined, note: PaintNote): CoatingSwatch | null {
   if (!visor || visor.visor_id === undefined || visor.color_variant === undefined) return null

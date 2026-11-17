@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * freeFly3d.ts — LE VOL DE LA CAMÉRA LIBRE au clavier. Les touches se lisent à leur PLACE sur le
- * clavier (`KeyboardEvent.code`) : W A S D en QWERTY, Z Q S D en AZERTY. Avant / arrière suivent
- * la visée (on vole, on ne marche pas), gauche / droite glissent à l'horizontale, E monte et Q
- * (A en AZERTY) descend, Maj accélère. La caméra et le point visé de l'orbite glissent ensemble :
- * la souris garde la rotation autour de lui et la molette le rapprochement.
+ * freeFly3d.ts — THE FREE CAMERA'S KEYBOARD FLIGHT. Keys are read by their PLACE on the
+ * keyboard (`KeyboardEvent.code`): W A S D on QWERTY, Z Q S D on AZERTY. Forward/back follow
+ * the aim (you fly, you don't walk), left/right strafe horizontally, E rises and Q (A on
+ * AZERTY) descends, Shift speeds up. The camera and the orbit's target point glide together:
+ * the mouse keeps the rotation around it and the wheel the zoom.
  *
- * Aucune de ces touches n'est prise par le lecteur (`useReplayShortcuts` : espace, J K L, F, M, R,
- * flèches, zoom).
+ * None of these keys are taken by the player (`useReplayShortcuts`: space, J K L, F, M, R,
+ * arrows, zoom).
  */
 import * as THREE from 'three'
 
-/** Vitesse en unités du jeu par seconde (1 u ~ 3 m), et son multiplicateur sous Maj. */
+/** Speed in game units per second (1 u ~ 3 m), and its multiplier under Shift. */
 const SPEED = 4
 const BOOST = 3
-// Au-delà, l'image a sauté (onglet caché, chargement) : on ne rattrape pas le temps perdu.
+// Beyond this, the frame skipped (hidden tab, loading): lost time is not caught up.
 const MAX_STEP_S = 0.1
 
-/** Axe du déplacement par touche : [avant, droite, haut]. */
+/** Movement axis per key: [forward, right, up]. */
 const AXES: Readonly<Record<string, readonly [number, number, number]>> = {
   KeyW: [1, 0, 0],
   KeyS: [-1, 0, 0],
@@ -27,7 +27,7 @@ const AXES: Readonly<Record<string, readonly [number, number, number]>> = {
   KeyQ: [0, 0, -1],
 }
 
-/** flyDelta rend le déplacement d'un pas de `dt` secondes pour les touches tenues, null sans touche. */
+/** flyDelta returns the movement of one `dt`-second step for the held keys, null with no key. */
 export function flyDelta(held: ReadonlySet<string>, forward: THREE.Vector3, dt: number, boost: boolean): THREE.Vector3 | null {
   let f = 0
   let r = 0
@@ -52,7 +52,7 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)
 }
 
-/** FreeFly tient l'état du clavier ; `step` déplace la caméra libre à chaque image. */
+/** FreeFly holds the keyboard state; `step` moves the free camera on every frame. */
 export class FreeFly {
   private readonly held = new Set<string>()
   private shift = false
@@ -69,7 +69,7 @@ export class FreeFly {
     this.held.delete(e.code)
   }
 
-  // Une touche relâchée hors de la fenêtre ne remonte jamais : on lâche tout.
+  // A key released outside the window never bubbles up: release everything.
   private readonly onBlur = () => this.held.clear()
 
   constructor() {
@@ -78,7 +78,7 @@ export class FreeFly {
     window.addEventListener('blur', this.onBlur)
   }
 
-  /** step glisse `camera` et `target` ensemble selon les touches tenues depuis l'image précédente. */
+  /** step glides `camera` and `target` together per the keys held since the previous frame. */
   step(camera: THREE.Camera, target: THREE.Vector3, nowMs: number): void {
     const dt = this.last === 0 ? 0 : (nowMs - this.last) / 1000
     this.last = nowMs

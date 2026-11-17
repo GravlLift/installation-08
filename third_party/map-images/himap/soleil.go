@@ -25,6 +25,8 @@
 // ni l'etendue de la saison ne sont confirmes au-dela de 0.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"errors"
@@ -93,7 +95,7 @@ type Soleil struct {
 // litParametresSoleil decode un enregistrement « Dynamic Suns » de 0x34 octets.
 func litParametresSoleil(b []byte) (ParametresSoleil, error) {
 	if len(b) < soleilTaille {
-		return ParametresSoleil{}, fmt.Errorf("himap: soleil dynamique tronque (%d o)", len(b))
+		return ParametresSoleil{}, fmt.Errorf("himap: dynamic sun truncated (%d bytes)", len(b))
 	}
 	f := func(o int) float64 { return float64(math.Float32frombits(binary.LittleEndian.Uint32(b[o:]))) }
 	return ParametresSoleil{
@@ -161,7 +163,7 @@ func (p ParametresSoleil) Soleil() (Soleil, bool) {
 }
 
 // ErrSansSoleil : le `dwsg` de la carte ne porte aucun soleil dynamique.
-var ErrSansSoleil = errors.New("himap: aucun soleil dynamique")
+var ErrSansSoleil = errors.New("himap: no dynamic sun")
 
 // LitParametresSoleil lit le premier soleil dynamique du `dwsg` `id` (SourcesLumiere.EtatDuMonde)
 // d'un module `any`. ErrSansSoleil si id vaut 0 ou si le bloc de soleils est vide ; erreur si le
@@ -177,7 +179,7 @@ func LitParametresSoleil(cheminModuleAny string, id uint32) (ParametresSoleil, e
 	defer func() { _ = m.Close() }()
 	f, ok := entreeParID(m, GroupeEtatDuMonde, id)
 	if !ok {
-		return ParametresSoleil{}, fmt.Errorf("himap: %s %#x absent de %s", GroupeEtatDuMonde, id, cheminModuleAny)
+		return ParametresSoleil{}, fmt.Errorf("himap: %s %#x absent from %s", GroupeEtatDuMonde, id, cheminModuleAny)
 	}
 	raw, err := m.Extract(f)
 	if err != nil {
@@ -190,7 +192,7 @@ func LitParametresSoleil(cheminModuleAny string, id uint32) (ParametresSoleil, e
 func litSoleilDwsg(raw []byte) (ParametresSoleil, error) {
 	ti, err := meilleurTagInfo(raw)
 	if err != nil {
-		return ParametresSoleil{}, fmt.Errorf("himap: %s : %w", GroupeEtatDuMonde, err)
+		return ParametresSoleil{}, fmt.Errorf("himap: %s: %w", GroupeEtatDuMonde, err)
 	}
 	racine, err := ti.rootBlockIndex()
 	if err != nil {
@@ -198,7 +200,7 @@ func litSoleilDwsg(raw []byte) (ParametresSoleil, error) {
 	}
 	rabs, rtaille := ti.blockAbs(racine)
 	if dwsgOffSoleils+compteTagBlock+4 > rtaille {
-		return ParametresSoleil{}, fmt.Errorf("himap: %s : bloc racine de %#x o", GroupeEtatDuMonde, rtaille)
+		return ParametresSoleil{}, fmt.Errorf("himap: %s: root block of %#x bytes", GroupeEtatDuMonde, rtaille)
 	}
 	cible := ti.subBlockTarget(racine, dwsgOffSoleils)
 	if cible < 0 || u32(raw, rabs+dwsgOffSoleils+compteTagBlock) == 0 {
@@ -207,7 +209,7 @@ func litSoleilDwsg(raw []byte) (ParametresSoleil, error) {
 	abs, taille := ti.blockAbs(cible)
 	n := u32(raw, rabs+dwsgOffSoleils+compteTagBlock)
 	if taille != n*soleilTaille || abs+taille > len(raw) {
-		return ParametresSoleil{}, fmt.Errorf("himap: %s : %d soleils sur %#x o, attendu %#x o chacun",
+		return ParametresSoleil{}, fmt.Errorf("himap: %s: %d suns over %#x bytes, %#x bytes expected each",
 			GroupeEtatDuMonde, n, taille, soleilTaille)
 	}
 	return litParametresSoleil(raw[abs : abs+soleilTaille])
@@ -221,7 +223,7 @@ func LitSoleil(src SourcesLumiere) (Soleil, bool, error) {
 		return Soleil{}, false, nil
 	}
 	if src.ModuleEtat == "" {
-		return Soleil{}, false, fmt.Errorf("himap: %s %#x introuvable", GroupeEtatDuMonde, src.EtatDuMonde)
+		return Soleil{}, false, fmt.Errorf("himap: %s %#x not found", GroupeEtatDuMonde, src.EtatDuMonde)
 	}
 	p, err := LitParametresSoleil(src.ModuleEtat, src.EtatDuMonde)
 	if errors.Is(err, ErrSansSoleil) {

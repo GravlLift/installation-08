@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * vehicles3d.ts — LES VÉHICULES DANS LA SCÈNE 3D : une caisse par véhicule, un cône sur son nez.
+ * vehicles3d.ts — VEHICLES IN THE 3D SCENE: a box per vehicle, a cone on its nose.
  *
- * Ce qui se dessine est ce que dessine la 2D (`layers/vehiclesPaint.ts`) : ni décor, ni décor de
- * carte, ni pièce montée (`vehicleIsHidden`) ; un élément de carte se dessine à l'encre « aucun
- * camp » ; un véhicule prend la couleur de son conducteur, à défaut d'un occupant, à défaut
- * l'encre neutre (`vehiclePaintColor`) ; la fenêtre d'affichage est `vehicleVisibleAt` et le cap
- * celui du sprite (`vehicleChassisHeadingAt`). La 3D y ajoute la hauteur et le gabarit
+ * What draws is what the 2D draws (`layers/vehiclesPaint.ts`): neither decor, nor map decor, nor
+ * a mounted turret (`vehicleIsHidden`); a map element draws with the "no team" ink; a vehicle
+ * takes its driver's color, failing that an occupant's, failing that the neutral ink
+ * (`vehiclePaintColor`); the display window is `vehicleVisibleAt` and the heading is the
+ * sprite's own (`vehicleChassisHeadingAt`). The 3D adds the height and the size
  * (`vehicles3dModel`).
  *
- * Le calque répond aussi à la scène : un joueur à bord ne réplique plus sa position, il se tient
- * sur sa monture (`riderAt`). Cette réponse ne suit pas l'interrupteur du calque : véhicules
- * masqués, un occupant reste à bord plutôt que de glisser en ligne droite à travers les murs.
+ * The layer also answers to the scene: a player aboard no longer replicates their own position,
+ * they stand on their mount (`riderAt`). This response does not follow the layer's toggle:
+ * vehicles hidden, an occupant stays aboard rather than sliding in a straight line through walls.
  */
 import * as THREE from 'three'
 
@@ -37,26 +37,26 @@ import {
 } from './vehicles3dModel'
 
 const CAPACITY = 128
-// Le cône du nez : sa longueur et son rayon (u), plafonné par la largeur de la caisse.
+// The nose cone: its length and radius (u), capped by the box's width.
 const NOSE_LENGTH = 0.35
 const NOSE_RADIUS = 0.18
 const NOSE_RADIUS_OF_WIDTH = 0.3
 
 const UP = new THREE.Vector3(0, 1, 0)
 
-/** Une vie dessinable, préparée une fois : son rang dans le document et sa nature publiée. */
+/** A drawable life, prepared once: its rank in the document and its published kind. */
 interface VehicleEntry {
   index: number
   kind: string | undefined
 }
 
-/** La pose d'un véhicule à une image, en axes three. */
+/** A vehicle's pose at a frame, in three.js axes. */
 interface VehiclePose {
   x: number
   z: number
-  /** Le bas de la caisse. */
+  /** The bottom of the box. */
   bottom: number
-  /** Cap monde Halo, degrés. */
+  /** Halo world heading, degrees. */
   heading: number
   size: VehicleSize3d
 }
@@ -90,7 +90,7 @@ export class Vehicles3dLayer implements ActionLayer3d {
     this.riders = buildRiderIndex(this.tracks, kindOf)
     this.bodies = new InstancePool(ctx.root, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), CAPACITY)
     this.bodies.mesh.castShadow = true
-    // Le cône pointe vers +X local : l'axe du cap de la caisse.
+    // The cone points toward local +X: the box's heading axis.
     const nose = new THREE.ConeGeometry(1, 1, 12).rotateZ(-Math.PI / 2)
     this.noses = new InstancePool(ctx.root, nose, new THREE.MeshBasicMaterial({ toneMapped: false }), CAPACITY)
   }
@@ -117,11 +117,11 @@ export class Vehicles3dLayer implements ActionLayer3d {
     const pose = this.poseAt(seat.vehicle, frame)
     if (!pose) return null
     const { dx, dy } = rotateOffset(seatOffset(seat.order, pose.size), pose.heading)
-    // Halo (dx, dy) -> three (dx, -dy) : même conversion que `toThree`.
+    // Halo (dx, dy) -> three.js (dx, -dy): the same conversion as `toThree`.
     return new THREE.Vector3(pose.x + dx, pose.bottom + RIDER_ABOVE_BOTTOM, pose.z - dy)
   }
 
-  /** riderHeadingAt : le cap du véhicule d'un joueur embarqué (degrés, convention `Point.h`). */
+  /** riderHeadingAt: the vehicle's heading for a player aboard (degrees, `Point.h` convention). */
   riderHeadingAt(xuid: string, frame: number): number | null {
     const seat = this.seatOf(xuid, frame)
     return seat ? (this.poseAt(seat.vehicle, frame)?.heading ?? null) : null
@@ -152,7 +152,7 @@ export class Vehicles3dLayer implements ActionLayer3d {
     this.noses.add(this.p, this.q, this.s.set(NOSE_LENGTH, r, r), color)
   }
 
-  /** seatOf : la monture d'un joueur, relue une fois par image entière. */
+  /** seatOf: a player's mount, re-read once per whole frame. */
   private seatOf(xuid: string, frame: number): RiderSeat | null {
     const whole = Math.floor(frame)
     if (whole !== this.seatFrame) {
@@ -167,7 +167,7 @@ export class Vehicles3dLayer implements ActionLayer3d {
     return seat
   }
 
-  /** poseAt : la pose d'une vie à l'image exacte, partagée entre le dessin et ses occupants. */
+  /** poseAt: a life's pose at the exact frame, shared between drawing and its occupants. */
   private poseAt(index: number, frame: number): VehiclePose | null {
     if (frame !== this.poseFrame) {
       this.poseFrame = frame
@@ -186,8 +186,8 @@ export class Vehicles3dLayer implements ActionLayer3d {
     const world = vehicleWorldAt(track, frame)
     if (!world) return null
     const [x, y, z] = toThree(world.x, world.y, world.z)
-    // L'échantillon est à la hauteur de l'origine d'un bipède à côté du véhicule : ses pieds sont
-    // `originAboveFloor` plus bas, et c'est là que la caisse touche le sol.
+    // The sample is at the height of a biped's origin standing by the vehicle: its feet are
+    // `originAboveFloor` lower, and that is where the box touches the ground.
     const floor = this.ctx.ground.floorY(world.x, world.y, world.z)
     return {
       x,

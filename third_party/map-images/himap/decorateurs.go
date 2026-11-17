@@ -9,6 +9,8 @@
 // Texture coordinates are the usual format 9 (two u16 between the box's UV bounds).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -42,11 +44,11 @@ func dcrtGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	}
 	sections, ok := par[dcrtOffSections]
 	if !ok {
-		return RuntimeGeo{}, fmt.Errorf("himap: dcrt sans sections")
+		return RuntimeGeo{}, fmt.Errorf("himap: dcrt without sections")
 	}
 	absS, sizeS := ti.blockAbs(sections)
 	if absS < 0 || sizeS <= 0 || sizeS%sectionStride != 0 || absS+sizeS > len(ti.tag) {
-		return RuntimeGeo{}, fmt.Errorf("himap: dcrt sections de taille %d", sizeS)
+		return RuntimeGeo{}, fmt.Errorf("himap: dcrt sections of size %d", sizeS)
 	}
 	absB, err := premiereBoite(ti, par, dcrtOffBoundingBoxes)
 	if err != nil {
@@ -60,7 +62,7 @@ func dcrtGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 func LitDecorateur(idx *ModuleIndex, id uint32) ([]MaillageDecorateur, error) {
 	mod, file, ok := idx.entree(id)
 	if !ok || file.Group != GroupeDecorateur {
-		return nil, fmt.Errorf("himap: decorateur %08x absent", id)
+		return nil, fmt.Errorf("himap: decorator %08x absent", id)
 	}
 	tag, err := mod.Extract(file)
 	if err != nil {
@@ -83,17 +85,17 @@ func decodeDecorateur(tag []byte) ([]MaillageDecorateur, error) {
 		}
 		abs, size := a.info.blockAbsSection(b)
 		if abs < 0 || abs+size > len(tag) {
-			return nil, fmt.Errorf("himap: dcrt tampon hors du tag")
+			return nil, fmt.Errorf("himap: dcrt buffer outside the tag")
 		}
 		blocs = append(blocs, tag[abs:abs+size])
 	}
 	if len(blocs) < len(a.vertexDescs)+len(a.indexDescs) {
-		return nil, fmt.Errorf("himap: dcrt %d tampons pour %d descripteurs", len(blocs), len(a.vertexDescs)+len(a.indexDescs))
+		return nil, fmt.Errorf("himap: dcrt %d buffers for %d descriptors", len(blocs), len(a.vertexDescs)+len(a.indexDescs))
 	}
 	var blob []byte
 	place := func(d *bufferDesc, bloc []byte) error {
 		if len(bloc) != d.Size {
-			return fmt.Errorf("himap: dcrt tampon de %d octets pour %d", len(bloc), d.Size)
+			return fmt.Errorf("himap: dcrt buffer of %d bytes for %d", len(bloc), d.Size)
 		}
 		d.Offset = len(blob)
 		blob = append(blob, bloc...)
@@ -118,7 +120,7 @@ func decodeDecorateur(tag []byte) ([]MaillageDecorateur, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("himap: dcrt sans maillage lisible")
+		return nil, fmt.Errorf("himap: dcrt without a readable mesh")
 	}
 	return out, nil
 }

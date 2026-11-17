@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * recoilShots3d.ts — LES TIRS RÉCENTS D'UN TIREUR, d'où se calcule le recul de son arme (`recoil3d`).
+ * recoilShots3d.ts — A SHOOTER'S RECENT SHOTS, from which their weapon's recoil is computed (`recoil3d`).
  *
- * Les tirs de la page (`shotFx`, tir continu compris) sont rangés une fois par emplacement de bipède,
- * triés par image FRACTIONNAIRE (`ShotFxEntry.time`, l'offset intra-frame compris), dans des tableaux
- * typés ; à chaque image, deux recherches dichotomiques bornent les tirs encore dans la fenêtre de
- * recul : aucune allocation par image. Un tir d'arme DE VÉHICULE ne fait pas reculer l'arme en main ;
- * une arme de joueur tirée d'un siège, si.
+ * The page's shots (`shotFx`, including sustained fire) are sorted once per biped slot, by
+ * FRACTIONAL frame (`ShotFxEntry.time`, intra-frame offset included), into typed arrays; on every
+ * frame, two binary searches bound the shots still within the recoil window: no allocation per
+ * frame. A VEHICLE weapon's shot does not recoil the held weapon; a player weapon fired from a
+ * seat does.
  */
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
@@ -14,7 +14,7 @@ import type { ShotFxEntry } from '../model/shotFx'
 import type { Action3dInputs } from './action3dInputs'
 import { RECOIL_PROFILES, clearRecoil, recoilAt, recoilKindOfKey, recoilWindow, type Recoil, type RecoilKind } from './recoil3d'
 
-/** Les tirs d'un emplacement : leurs images fractionnaires (triées) et leurs germes, dans le même ordre. */
+/** A slot's shots: their fractional frames (sorted) and their seeds, in the same order. */
 export interface SlotShots {
   frames: Float64Array
   seeds: Float64Array
@@ -22,7 +22,7 @@ export interface SlotShots {
 
 const NONE = new Float64Array(0)
 
-/** indexShotTimes : les tirs à pied (ou d'une arme de joueur) de chaque emplacement, triés par image fractionnaire. */
+/** indexShotTimes: each slot's on-foot (or player weapon) shots, sorted by fractional frame. */
 export function indexShotTimes(shots: readonly ShotFxEntry[]): Map<number, SlotShots> {
   const lists = new Map<number, ShotFxEntry[]>()
   for (const e of shots) {
@@ -39,7 +39,7 @@ export function indexShotTimes(shots: readonly ShotFxEntry[]): Map<number, SlotS
   return out
 }
 
-/** firstAbove : l'indice du premier élément de `sorted` strictement au-dessus de `value` (`strict`) ou au moins égal. */
+/** firstAbove: the index of the first element of `sorted` strictly above `value` (`strict`) or at least equal. */
 export function firstAbove(sorted: ArrayLike<number>, value: number, strict: boolean): number {
   let lo = 0
   let hi = sorted.length
@@ -53,9 +53,9 @@ export function firstAbove(sorted: ArrayLike<number>, value: number, strict: boo
 }
 
 /**
- * ShooterRecoil — le recul de l'arme d'un tireur à une image : ses tirs récents, la famille de recul de
- * l'arme en main (par la clé de son libellé), la cadence du document. Réindexe quand la page change
- * de liste de tirs.
+ * ShooterRecoil — a shooter's weapon recoil at a frame: their recent shots, the held weapon's
+ * recoil family (by its label's key), the document's frame rate. Reindexes when the page serves
+ * a different shot list.
  */
 export class ShooterRecoil {
   private source: readonly ShotFxEntry[] | null = null
@@ -70,7 +70,7 @@ export class ShooterRecoil {
     this.inputs = inputs
   }
 
-  /** at écrit dans `out` l'écart de l'arme `weaponId` tenue par l'emplacement `slot` à l'image `frame`. */
+  /** at writes to `out` the offset of weapon `weaponId` held by slot `slot` at frame `frame`. */
   at(slot: number, frame: number, weaponId: string, out: Recoil): Recoil {
     const inputs = this.inputs()
     if (inputs.shotFx !== this.source) {

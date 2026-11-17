@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * fineTracks3d.ts — LA VIE AU DÉBIT DU FILM, MISE EN POINTS POUR LA VUE 3D.
+ * fineTracks3d.ts — A LIFE AT THE FILM'S OWN RATE, TURNED INTO POINTS FOR THE 3D VIEW.
  *
- * `tracks[].fullRate` (schéma 109, relu par `lib/replay/replayFullRate.ts`) porte chaque position
- * et chaque visée que le film réplique, à son instant : 60 ou 30 par seconde selon le film, contre
- * un point par image de 100 ms dans `points`. Ce module en tire la suite de points que
- * `tracks3d.ts` interpole, à la place des points de la grille.
+ * `tracks[].fullRate` (schema 109, read back by `lib/replay/replayFullRate.ts`) carries every
+ * position and every aim the film replicates, at its own instant: 60 or 30 per second depending
+ * on the film, versus one point per 100 ms frame in `points`. This module derives from it the
+ * sequence of points that `tracks3d.ts` interpolates, in place of the grid's points.
  *
- * DEUX AXES DE TEMPS, ET AUCUN N'EST PLIÉ SUR L'AUTRE AU MOMENT DE LA LECTURE. Les points suivent
- * les instants des POSITIONS ; la visée de chaque point se lit sur l'axe des VISÉES, à l'instant du
- * point (interpolée entre les deux visées qui l'encadrent). Comme toute visée publiée vient d'un
- * record de position, chaque instant de visée est aussi un instant de point : la visée y est exacte.
+ * TWO TIME AXES, AND NEITHER IS FOLDED ONTO THE OTHER AT PLAYBACK TIME. Points follow the
+ * POSITIONS' instants; each point's aim is read on the AIM axis, at the point's instant
+ * (interpolated between the two aims bracketing it). Since every published aim comes from a
+ * position record, every aim instant is also a point instant: the aim there is exact.
  *
- * LE SILENCE N'EST PAS UN MOUVEMENT LENT. Le film ne réplique que ce qui change : un corps immobile
- * se tait, puis le premier record après le silence décrit le pas d'UN tick. Interpoler sur tout le
- * silence ferait glisser le joueur pendant qu'il était immobile ; on tient donc la dernière valeur
- * jusqu'à un tick avant la suivante (`holdUntil`), pour les positions comme pour la visée. Une
- * LACUNE (`gaps`, plus de 5 s) reste une rupture : le point qui la suit porte `g = 1`, et
- * l'interpolation ne la traverse pas (`gait3d.bracketAt`).
+ * SILENCE IS NOT SLOW MOVEMENT. The film only replicates what changes: a motionless body stays
+ * silent, then the first record after the silence describes the step of ONE tick. Interpolating
+ * across the whole silence would slide the player while they were motionless; so the last value
+ * is held until one tick before the next sample (`holdUntil`), for both positions and aim. A GAP
+ * (`gaps`, more than 5 s) remains a break: the point that follows it carries `g = 1`, and
+ * interpolation does not cross it (`gait3d.bracketAt`).
  */
 import type { ReplayFullRateReady } from '@/lib/replay/replayFullRate'
 
-/** Un point de vie au débit du film : la forme que `tracks3d.ts` interpole. */
+/** A life point at the film's rate: the shape `tracks3d.ts` interpolates. */
 export interface FineLifePoint {
   t: number
   x: number
@@ -33,10 +33,10 @@ export interface FineLifePoint {
   aim: boolean
 }
 
-/** Au-delà de ce nombre de ticks sans échantillon, la valeur se tient au lieu de s'interpoler. */
+/** Beyond this many ticks without a sample, the value is held instead of interpolated. */
 export const HOLD_AFTER_TICKS = 3
 
-/** Le tick de la vie, en images : l'écart médian entre deux positions (repli : 60 Hz sur 100 ms). */
+/** The life's tick, in frames: the median gap between two positions (fallback: 60 Hz over 100 ms). */
 export function lifeTick(t: readonly number[]): number {
   const dts: number[] = []
   for (let i = 1; i < t.length; i++) if (t[i] > t[i - 1]) dts.push(t[i] - t[i - 1])
@@ -46,10 +46,10 @@ export function lifeTick(t: readonly number[]): number {
 }
 
 /**
- * aimAt : la visée (cap, élévation, en degrés) à l'image `f`, lue sur l'axe des visées. Avant la
- * première visée, la première ; après la dernière, la dernière ; entre deux visées proches,
- * l'interpolation (cap par le plus court chemin) ; après un silence, la tenue jusqu'à un tick avant
- * la suivante. `known` dit qu'une visée précède `f`.
+ * aimAt: the aim (heading, pitch, in degrees) at frame `f`, read on the aim axis. Before the
+ * first aim, the first; after the last, the last; between two close aims, interpolation (heading
+ * via the shortest path); after a silence, held until one tick before the next. `known` says an
+ * aim precedes `f`.
  */
 export function aimAt(fr: ReplayFullRateReady, f: number, tick: number): { h: number; p: number; known: boolean } {
   const n = fr.aimT.length
@@ -68,7 +68,7 @@ export function aimAt(fr: ReplayFullRateReady, f: number, tick: number): { h: nu
   return { h: fr.h[lo] + dh * u, p: fr.p[lo] + (fr.p[hi] - fr.p[lo]) * u, known: true }
 }
 
-/** La fraction d'interpolation entre `a` et `b` à `f`, tenue à 0 jusqu'à un tick avant `b` après un silence. */
+/** The interpolation fraction between `a` and `b` at `f`, held at 0 until one tick before `b` after a silence. */
 function holdFraction(a: number, b: number, f: number, tick: number): number {
   if (b <= a) return 0
   const from = b - a > HOLD_AFTER_TICKS * tick ? b - tick : a
@@ -76,10 +76,10 @@ function holdFraction(a: number, b: number, f: number, tick: number): number {
 }
 
 /**
- * fineLifePoints : les points de la vie au débit du film, visée comprise. Après un silence de plus
- * de `HOLD_AFTER_TICKS` ticks (hors lacune), un point de tenue reprend la position précédente un tick
- * avant l'échantillon qui suit le silence, pour que l'interpolation linéaire de `tracks3d` tienne le
- * corps immobile pendant le silence.
+ * fineLifePoints: the life's points at the film's rate, aim included. After a silence longer
+ * than `HOLD_AFTER_TICKS` ticks (outside a gap), a holding point repeats the previous position
+ * one tick before the sample that follows the silence, so `tracks3d`'s linear interpolation
+ * holds the body still during the silence.
  */
 export function fineLifePoints(fr: ReplayFullRateReady): FineLifePoint[] {
   const tick = lifeTick(fr.t)

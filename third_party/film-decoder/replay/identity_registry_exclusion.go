@@ -77,8 +77,8 @@ func (r *IdentityRegistry) resolveByTemporalExclusion(ctx context.Context, in Id
 		return
 	}
 	slog.InfoContext(ctx, "replay: temporal exclusion on the roster",
-		"match_id", in.MatchID, "viesNommees", r.excluded,
-		"viesSansAucunCandidat", r.excludedContradictions)
+		"match_id", in.MatchID, "namedLives", r.excluded,
+		"livesWithNoCandidate", r.excludedContradictions)
 	if r.excludedContradictions > 0 {
 		slog.WarnContext(ctx, "replay: some lives have NO possible occupant — the reading contradicts itself",
 			"match_id", in.MatchID, "lives", r.excludedContradictions)
@@ -195,7 +195,7 @@ func universDeLExclusion(ctx context.Context, in IdentityInput, lives []lifeSpan
 	}
 	if simultanees := occupationMaximale(lives); simultanees > len(roster) {
 		slog.WarnContext(ctx, "replay: temporal exclusion discarded — more simultaneous lives than players",
-			"match_id", in.MatchID, "viesSimultanees", simultanees, "roster", len(roster))
+			"match_id", in.MatchID, "simultaneousLives", simultanees, "roster", len(roster))
 		return nil, false
 	}
 	return roster, true

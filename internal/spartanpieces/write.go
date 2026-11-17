@@ -77,15 +77,15 @@ type textureDepot struct {
 	files      int
 	bytes      int64
 	references int
-	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel piece build pool calls depose from
+	// mu (LOCAL-CHANGE (infinite-theater-3d)): the parallel piece build pool calls store from
 	// several goroutines at once; it guards seen/files/bytes/references and the dedup
 	// write below.
 	mu sync.Mutex
 }
 
-// depose stores the image (when this build has not stored it yet) and returns
+// store stores the image (when this build has not stored it yet) and returns
 // its name, a URI relative to the GLB that names it.
-func (d *textureDepot) depose(data []byte, mime string) (string, error) {
+func (d *textureDepot) store(data []byte, mime string) (string, error) {
 	// LOCAL-CHANGE (infinite-theater-3d): KTX2 images from the KTX2 pass.
 	extension := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/ktx2": "ktx2"}[mime]
 	if extension == "" {

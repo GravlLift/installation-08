@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * equipment3dShapes.ts — LES FORMES 3D DE L'ÉQUIPEMENT : un lot instancié par forme, et une méthode
- * par objet (mur sans cap, faille, capteur, traqueur, champ, objet lâché, poussée). La barrière du mur
- * (`dropWall3d`), la bulle de l'écran occultant (`shroud3d`) et le grappin (`grapple3d`) ont leur propre module.
+ * equipment3dShapes.ts — EQUIPMENT'S 3D SHAPES: one instanced pool per shape, and one method per
+ * object (headingless wall, rift, sensor, tracker, field, dropped object, push). The wall's own
+ * barrier (`dropWall3d`), the shroud screen's bubble (`shroud3d`) and the grapple (`grapple3d`)
+ * have their own module.
  *
- * Les PORTÉES sont celles de la 2D, lues dans les fichiers de chaque famille, CONVERTIES À L'UNITÉ
- * DE LA SCÈNE (1 u = 3,048 m) selon ce que dit chaque constante : le capteur est publié en unités
- * du jeu (« Sensor Radius: 4.25wu », `threatSensor.ts`) et vaut 4,25 u ; le champ de réparation (3 m)
- * et le mur (rayon 1,6 m, corde 2,6 m) sont des choix d'écran calibrés EN MÈTRES sur l'objet du jeu,
- * et valent donc 3 / 3,048 u et 1,6 / 3,048 u (`metersToU`). Les tailles qui ne sont que d'écran en
- * 2D (pixels) reçoivent ici une taille monde, nommée et sans prétention de mesure.
+ * RANGES are the 2D's own, read from each family's files, CONVERTED TO THE SCENE'S UNIT (1 u =
+ * 3.048 m) per what each constant says: the sensor is published in the game's own units
+ * ("Sensor Radius: 4.25wu", `threatSensor.ts`) and is worth 4.25 u; the repair field (3 m) and
+ * the wall (radius 1.6 m, chord 2.6 m) are screen choices calibrated IN METERS against the
+ * game's object, and so are worth 3 / 3.048 u and 1.6 / 3.048 u (`metersToU`). Sizes that are
+ * only ever a screen size in 2D (pixels) get a world size here instead, named and with no claim
+ * to being a measurement.
  *
  * THE THREAT SENSOR'S FIELD (user return of 2026-11-14, from the game): a FULL sphere around the
  * device, of the game's radius, very lightly tinted in the planter's team color, with the ping
  * as a brief brighter shell opening out to the radius. Not the half dome at the 0.18 opacity of
  * the zones, which read as a giant saturated bubble.
  *
- * Les positions reçues sont en axes three, au sol (sauf le capteur : sa position publiée, il se
- * colle aux murs) ; les caps en degrés Halo (0 = +X, 90 = +Y).
+ * Received positions are in three axes, on the ground (except the sensor: its published
+ * position, it sticks to walls); headings in Halo degrees (0 = +X, 90 = +Y).
  */
 import * as THREE from 'three'
 
@@ -47,34 +49,34 @@ export const SENSOR_FIELD_OPACITY = 0.05
 /** Peak opacity of the ping's shell, which fades as it opens (`sensorPing`'s alpha, 0.9 at the start). */
 export const SENSOR_PING_OPACITY = 0.2
 
-/** La faille : un anneau debout, à peu près de la taille d'un joueur accroupi. */
+/** The rift: a standing ring, roughly the size of a crouched player. */
 const RIFT_RADIUS_U = 0.3
 const RIFT_TUBE_RATIO = 0.12
 const RIFT_CORE_RATIO = 0.88
 
-/** L'appareil posé (capteur, traqueur, champ) : un palet au sol. */
+/** A placed device (sensor, tracker, field): a puck on the ground. */
 const DEVICE_RADIUS_U = 0.09
 const DEVICE_HEIGHT_U = 0.06
-/** L'objet lâché : un octaèdre posé sur sa pointe, à hauteur de ramassage. */
+/** The dropped object: an octahedron standing on its tip, at pickup height. */
 const DROPPED_SIZE_U = 0.1
-/** Rayon atteint par l'impulsion du traqueur (la 2D la dit en pixels : 14 px). */
+/** Radius reached by the tracker's impulse (the 2D states it in pixels: 14 px). */
 const SEEKER_RING_U = 0.6
 
-/** Les anneaux au sol : des traits fins, à peine décollés du sol. */
+/** Ground rings: thin lines, barely lifted off the ground. */
 const RING_SEGMENTS = 32
 const RING_RADIUS_U = 0.015
 const RING_LIFT_U = 0.02
 
-/** La flèche de poussée : la hampe, puis une pointe de longueur fixe. */
+/** The push arrow: the shaft, then a fixed-length head. */
 const ARROW_RADIUS_U = 0.025
 const ARROW_HEAD_LENGTH_U = 0.16
 const ARROW_HEAD_RADIUS_U = 0.07
 
-/** Opacités des volumes : les zones ne masquent rien. */
+/** Volume opacities: the zones occlude nothing. */
 const ZONE_OPACITY = 0.18
 const RIFT_CORE_OPACITY = 0.45
 
-/** Capacités des lots : au-delà, une instance est ignorée (cf. `InstancePool.add`). */
+/** Pool capacities: beyond them, an instance is ignored (see `InstancePool.add`). */
 const SOLID_CAPACITY = 256
 const VOLUME_CAPACITY = 64
 const SEGMENT_CAPACITY = 4096
@@ -89,8 +91,8 @@ const scratch = {
 }
 
 /**
- * headingQuat — la rotation qui tourne l'axe local +Z vers le cap Halo `deg`, autour de la verticale.
- * Le quaternion rendu est partagé : à consommer aussitôt (une pose d'instance).
+ * headingQuat — the rotation that turns the local +Z axis to Halo heading `deg`, around the
+ * vertical. The returned quaternion is shared: consume it right away (one instance pose).
  */
 export function headingQuat(deg: number): THREE.Quaternion {
   return scratch.q.setFromAxisAngle(UP, (deg * Math.PI) / 180 + Math.PI / 2)
@@ -161,7 +163,7 @@ export class FadingPool {
   }
 }
 
-/** Les encres déjà converties d'une faille. */
+/** A rift's already-converted inks. */
 export interface PairInk3d {
   a: THREE.Color
   b: THREE.Color
@@ -187,7 +189,7 @@ export class EquipmentShapes3d {
     this.spheres = new FadingPool(parent, new THREE.SphereGeometry(1, 48, 24), VOLUME_CAPACITY)
     this.pucks = new InstancePool(parent, new THREE.CylinderGeometry(1, 1, 1, 16), solid(), SOLID_CAPACITY)
     this.gems = new InstancePool(parent, new THREE.OctahedronGeometry(1), solid(), SOLID_CAPACITY)
-    // La pointe de la flèche : un cône dont la BASE est à l'origine, la pointe vers +Y.
+    // The arrow's head: a cone whose BASE is at the origin, tip toward +Y.
     const cone = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
     this.cones = new InstancePool(parent, cone, solid(), SOLID_CAPACITY)
     this.lines = new SegmentPool(parent, solid(), SEGMENT_CAPACITY)
@@ -207,14 +209,14 @@ export class EquipmentShapes3d {
   }
 
   /**
-   * wallRing — le mur dont aucune source ne donne le cap (la 2D trace alors un cercle pointillé) :
-   * un anneau au sol du rayon du mur, aucune orientation inventée. Le mur orienté est `dropWall3d`.
+   * wallRing — the wall with no source giving its heading (the 2D then draws a dotted circle):
+   * a ground ring of the wall's radius, no invented orientation. The oriented wall is `dropWall3d`.
    */
   wallRing(at: THREE.Vector3, color: THREE.Color): void {
     this.ring(at, WALL_RADIUS_U, color)
   }
 
-  /** rift — l'anneau debout de la faille (lèvres) et son cœur translucide, tourné vers `headingDeg`. */
+  /** rift — the rift's standing ring (lip) and its translucent core, turned toward `headingDeg`. */
   rift(at: THREE.Vector3, headingDeg: number, ink: PairInk3d): void {
     const c = scratch.p.copy(at)
     c.y += RIFT_RADIUS_U * (1 + RIFT_TUBE_RATIO)
@@ -237,7 +239,7 @@ export class EquipmentShapes3d {
     if (wave && wave.reach > 0) this.spheres.add(center, SENSOR_SPHERE_RADIUS_U * wave.reach, color, SENSOR_PING_OPACITY * wave.alpha)
   }
 
-  /** seeker — l'appareil et l'anneau de son unique impulsion (le calque ne l'appelle que pendant elle). */
+  /** seeker — the device and the ring of its single impulse (the layer only calls this during it). */
   seeker(at: THREE.Vector3, ageMs: number, color: THREE.Color): void {
     this.device(at, color)
     const wave = seekerImpulse(ageMs, false)
@@ -245,7 +247,7 @@ export class EquipmentShapes3d {
   }
 
   /**
-   * field — l'appareil et le dôme du champ de réparation, à sa portée déclarée (3 m). A dome on
+   * field — the device and the repair field's dome, at its declared range (3 m). A dome on
    * the ground, as the 2D's own source says of the game's ("what the dome of the game shelters",
    * `placementShapes.REPAIR_FIELD_RADIUS_M`).
    */
@@ -255,14 +257,14 @@ export class EquipmentShapes3d {
     this.ring(at, REPAIR_FIELD_RADIUS_U, color)
   }
 
-  /** dropped — l'objet tombé au sol, une forme unique pour toutes les familles (règle 2D). */
+  /** dropped — the object fallen to the ground, one shape for every family (the 2D's own rule). */
   dropped(at: THREE.Vector3, color: THREE.Color): void {
     const c = scratch.p.copy(at)
     c.y += DROPPED_SIZE_U
     this.gems.add(c, null, DROPPED_SIZE_U, color)
   }
 
-  /** arrow — une flèche de `length` (u) depuis `from`, le long de `dir` (unitaire, axes three). */
+  /** arrow — an arrow of `length` (u) from `from`, along `dir` (unit, three axes). */
   arrow(from: THREE.Vector3, dir: THREE.Vector3, length: number, color: THREE.Color): void {
     const head = Math.min(ARROW_HEAD_LENGTH_U, length)
     const base = scratch.b.copy(dir).multiplyScalar(length - head).add(from)
@@ -277,7 +279,7 @@ export class EquipmentShapes3d {
     this.pucks.add(c, null, scratch.s.set(DEVICE_RADIUS_U, DEVICE_HEIGHT_U, DEVICE_RADIUS_U), color)
   }
 
-  /** ring — un cercle horizontal de traits fins, à peine au-dessus du sol. */
+  /** ring — a horizontal circle of thin lines, barely above the ground. */
   private ring(at: THREE.Vector3, radius: number, color: THREE.Color): void {
     if (!(radius > 0)) return
     for (let i = 0; i < RING_SEGMENTS; i++) {

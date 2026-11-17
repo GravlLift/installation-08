@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * rosterLogic.ts — LA JOINTURE ENTRE LE FILM ET LA BASE, et l'état d'un joueur à une image.
+ * rosterLogic.ts — THE JOIN BETWEEN THE FILM AND THE DATABASE, and a player's state at a frame.
  *
- * DEUX SOURCES, DEUX RÔLES, ET UNE SEULE CLÉ. Le film porte ce qui se passe — positions,
- * vies, morts, armes, bouclier, et l'ÉQUIPE de chaque joueur (`roster[].team`, la seule
- * source d'appartenance ET d'allégeance de la page, cf. `ReplayPlayer.team` et
- * `filmAllegiance.ts`) — et l'identifie par XUID. La base porte qui sont les gens : gamertag,
- * côté de feuille (qui NOMME un camp), K/D/A du match. Aucune des deux ne sait faire le travail
- * de l'autre, et l'artefact de rejeu n'essaie pas : il publie le xuid, qui est la seule clé sur
- * laquelle une jointure ne suppose rien.
+ * TWO SOURCES, TWO ROLES, AND ONE SINGLE KEY. The film carries what happens — positions,
+ * lives, deaths, weapons, shield, and each player's TEAM (`roster[].team`, the page's only
+ * source of membership AND allegiance, see `ReplayPlayer.team` and
+ * `filmAllegiance.ts`) — and identifies them by XUID. The database carries who the people are:
+ * gamertag, scoreboard side (which NAMES a side), match K/D/A. Neither does the other's
+ * job, and the replay artifact does not try to: it publishes the xuid, which is the only key
+ * on which a join assumes nothing.
  *
- * POURQUOI PAS UN INDEX. Ce chantier a déjà publié un « index de joueur » comme une découverte
- * avant de constater que c'était son propre tri alphabétique. Un index est un ORDRE ; le xuid
- * est une IDENTITÉ. La règle qui en est sortie tient en une ligne et vaut ici : on ne joint
- * jamais sur un rang.
+ * WHY NOT AN INDEX. This project already published a "player index" as a discovery
+ * before realizing it was just its own alphabetical sort. An index is an ORDER; the xuid
+ * is an IDENTITY. The rule that came out of that fits in one line and applies here: never
+ * join on a rank.
  *
- * Tout ce fichier est PUR : aucun React, aucun canvas, donc testable.
+ * This whole file is PURE: no React, no canvas, hence testable.
  */
 import type { MatchScoreboardRow, ReplayRosterEntry } from '@/lib/api/types'
 import { displayPlayerName, stripBotSuffix } from '@/lib/players/displayName'
@@ -27,107 +27,107 @@ import { heldReading, isAliveAt, trackWindow } from './replayLogic'
 import type { ReplayDocumentReady, ReplayTrackReady } from './replayNormalize'
 
 /**
- * ReplayPlayer — un joueur du rejeu : son identité (base) et ses vies (film).
+ * ReplayPlayer — a replay player: their identity (database) and their lives (film).
  *
- * `board` est absent quand le xuid du film n'a aucune ligne au scoreboard. Ce n'est pas censé
- * arriver, et c'est précisément pour cela qu'on le représente au lieu de l'écraser : un joueur
- * du film introuvable dans la base est un signal, pas un détail à masquer.
+ * `board` is absent when the film's xuid has no scoreboard row. This is not supposed to
+ * happen, and that is exactly why it is represented instead of being papered over: a film
+ * player not found in the database is a signal, not a detail to hide.
  */
 export interface ReplayPlayer {
   /**
-   * Identité du joueur : le xuid en décimal, ou — pour un BOT, qui n'en a pas — la clé
-   * synthétique `bot:<nom>` (schéma 36). La clé ne sort jamais à l'écran : elle sert les
-   * Map de ce fichier et des résolveurs, le nom affiché vient de `filmName`/`board`.
+   * Player identity: the decimal xuid, or — for a BOT, which has none — the
+   * synthetic key `bot:<name>` (schema 36). The key never shows on screen: it serves the
+   * Maps of this file and its resolvers, the displayed name comes from `filmName`/`board`.
    */
   xuid: string
-  /** Vrai pour un bot déclaré par le film (roster/tracks `bot`). */
+  /** True for a bot declared by the film (roster/tracks `bot`). */
   bot?: boolean
-  /** Ligne du scoreboard du match, quand la jointure aboutit. */
+  /** The match's scoreboard row, when the join succeeds. */
   board?: MatchScoreboardRow
-  /** Gamertag écrit par le FILM. Sert quand la base n'a rien à dire sur ce joueur. */
+  /** Gamertag written by the FILM. Used when the database has nothing to say about this player. */
   filmName?: string
   /**
-   * L'ÉQUIPE DU JOUEUR : le désignateur que le FILM écrit pour son entrée de roster
-   * (`roster[].team`, schéma 57 ; `-1` = « aucune équipe » d'un mode sans camps, une lecture).
-   * C'est la SEULE source d'appartenance de la page Rejeu (ADR 0034 D-9) — tous ses camps en
-   * sortent (`replayCamps.ts`), et toute son encre allié / adverse (`filmAllegiance.ts`). Absente
-   * = le film la tait, ou le joueur n'a pas d'entrée : il n'entre dans aucun camp, n'a pas
-   * d'encre de camp, et la feuille de match ne la remplace pas.
+   * THE PLAYER'S TEAM: the designator the FILM writes for their roster entry
+   * (`roster[].team`, schema 57; `-1` = "no team" for a mode without sides, a reading).
+   * It is the ONLY source of membership for the Replay page (ADR 0034 D-9) — all its sides
+   * come from it (`replayCamps.ts`), and all its ally/enemy ink (`filmAllegiance.ts`). Absent
+   * = the film stays silent on it, or the player has no entry: they belong to no side, have no
+   * side ink, and the scoreboard does not substitute for it.
    */
   team?: number
-  /** Toutes les vies de ce joueur, dans l'ordre du temps. */
+  /** All of this player's lives, in chronological order. */
   lives: ReplayTrackReady[]
 }
 
-/** Clé d'identité d'un bot dans les tables de ce fichier — jamais affichée. */
+/** Identity key for a bot in this file's tables — never displayed. */
 export function botKey(name: string): string {
   return `bot:${name}`
 }
 
 /**
- * rosterEntryKey — la clé d'identité d'une entrée de roster, DANS LE MÊME ESPACE que
- * `ReplayPlayer.xuid` construit par `buildPlayers` ci-dessous : le xuid quand il existe,
- * sinon `botKey(name)` pour un bot (`RosterEntry.xuid` vaut `''` pour un bot, jamais un xuid
- * réel — schéma 36). Un appelant qui compare `entry.xuid` directement à `player.xuid` ne fait
- * jamais matcher un bot (constat P2-5, audit vies anonymes 2026-09-06 : `equipmentUsageLogic`
- * et `playerCardReadings` en portaient chacun une occurrence). Centralisée ici pour que les
- * deux jointures roster -> joueur du dépôt qui en avaient besoin partagent une seule
- * dérivation (règle des ≤ 2 copies, CLAUDE.md n°6). `seatLogic.filmIndexByIdentity` portait une
- * 3e copie inline (correcte, mais non centralisée) : migrée le 2026-09-10 — garde-rail grep :
- * `apps/web/src/lib/replay/rosterEntryKey_no_new_copies.guard.test.ts`. `buildPlayers` la
- * consomme aussi : c'est par elle que l'équipe d'une entrée rejoint son joueur.
+ * rosterEntryKey — the identity key for a roster entry, IN THE SAME SPACE as
+ * `ReplayPlayer.xuid` built by `buildPlayers` below: the xuid when it exists,
+ * otherwise `botKey(name)` for a bot (`RosterEntry.xuid` is `''` for a bot, never a real
+ * xuid — schema 36). A caller who compares `entry.xuid` directly to `player.xuid` never
+ * matches a bot (finding P2-5, anonymous-lives audit 2026-09-06: `equipmentUsageLogic`
+ * and `playerCardReadings` each carried an occurrence). Centralized here so that the
+ * repo's two roster -> player joins that needed it share a single
+ * derivation (the <= 2 copies rule, CLAUDE.md #6). `seatLogic.filmIndexByIdentity` carried a
+ * 3rd inline copy (correct, but not centralized): migrated on 2026-09-10 — grep guard rail:
+ * `apps/web/src/lib/replay/rosterEntryKey_no_new_copies.guard.test.ts`. `buildPlayers`
+ * also uses it: it is through it that an entry's team reaches its player.
  */
 export function rosterEntryKey(entry: Pick<ReplayRosterEntry, 'xuid' | 'bot' | 'name'>): string {
   return entry.xuid || (entry.bot && entry.name ? botKey(entry.name) : '')
 }
 
 /**
- * playerName choisit le nom à afficher.
+ * playerName chooses the name to display.
  *
- * LA BASE D'ABORD, LE FILM ENSUITE. Les deux disent le même gamertag, mais la base est celle
- * qui suit un changement de pseudo : le film fige le nom au jour de la partie. En cas
- * d'absence de ligne de scoreboard, le nom du film évite de tomber sur « joueur inconnu »
- * pour quelqu'un que le film nomme parfaitement.
+ * DATABASE FIRST, FILM SECOND. Both say the same gamertag, but the database is the one that
+ * follows a name change: the film freezes the name as of the match day. When there is no
+ * scoreboard row, the film's name avoids falling back to "unknown player"
+ * for someone the film names perfectly well.
  */
 export function playerName(player: ReplayPlayer): string | null {
   return player.board?.gamertag || player.filmName || null
 }
 
 /**
- * ReplayTeamGroup — un camp DU FILM et ses joueurs (`replayCamps.ts` : le désignateur décide,
- * le côté de feuille de ses membres ne fait que le nommer).
+ * ReplayTeamGroup — a side FROM THE FILM and its players (`replayCamps.ts`: the designator decides,
+ * its members' scoreboard side only names it).
  */
 export interface ReplayTeamGroup extends ReplayCamp {
   players: ReplayPlayer[]
 }
 
 /**
- * buildPlayers regroupe les vies par joueur et les joint au scoreboard.
+ * buildPlayers groups lives by player and joins them to the scoreboard.
  *
- * LES VIES ANONYMES NE SONT PAS INVENTÉES DE PROPRIÉTAIRE : une trace sans xuid n'entre dans
- * aucun joueur. Elle n'ajoute donc ni fiche ni ligne à personne — et son slot n'entrant dans
- * aucune des tables ci-dessous, le calque ne la dessine pas non plus (`colorOfSlot` rend
- * `null`, cf. useSlotIdentity) : ce sont les caméras et les spectateurs de fin de partie.
+ * ANONYMOUS LIVES ARE NOT GIVEN A MADE-UP OWNER: a trace with no xuid belongs to
+ * no player. It therefore adds neither a card nor a row to anyone — and since its slot belongs to
+ * none of the tables below, the layer does not draw it either (`colorOfSlot` returns
+ * `null`, see useSlotIdentity): these are cameras and end-of-match spectators.
  *
- * CE QUI IDENTIFIE QUELQU'UN (couleur, marque d'identité, nom) appartient AU JOUEUR, jamais à
- * la vie ; le calque le résout par SLOT et par IMAGE (`buildSlotOwnership` / `ownerAtFrame`
- * ci-dessous, dérivés `colorResolver`/`markResolver`/`nameResolver`). Sans cela, un joueur
- * changerait de couleur à chaque réapparition (99 traces pour 8 joueurs), et — un slot de
- * biped étant réattribué entre manches — un slot montrerait un seul joueur pour tout le match :
- * suivre quelqu'un des yeux deviendrait impossible.
+ * WHAT IDENTIFIES SOMEONE (color, identity mark, name) BELONGS TO THE PLAYER, never to a
+ * life; the layer resolves it by SLOT and by FRAME (`buildSlotOwnership` / `ownerAtFrame`
+ * below, derived `colorResolver`/`markResolver`/`nameResolver`). Without this, a player
+ * would change color on every respawn (99 traces for 8 players), and — a biped slot
+ * being reassigned between rounds — a slot would show a single player for the whole match:
+ * following someone with your eyes would become impossible.
  */
 export function buildPlayers(
   doc: ReplayDocumentReady,
   scoreboard: MatchScoreboardRow[],
 ): ReplayPlayer[] {
   const byXUID = new Map<string, ReplayPlayer>()
-  // L'ordre du roster du film donne un ordre STABLE et reproductible ; à défaut, l'ordre
-  // d'apparition des traces. Jamais l'ordre d'itération d'une Map remplie au hasard.
-  // UN BOT N'A PAS DE XUID (schéma 36) : son identité de table est `bot:<nom>` — deux bots
-  // homonymes fusionneraient, et c'est assumé : le film ne donne rien de plus discriminant.
-  // L'ÉQUIPE EST POSÉE ICI ET NULLE PART AILLEURS (cf. `ReplayPlayer.team`) : le désignateur de
-  // l'entrée, jointe par la même clé que partout (`rosterEntryKey`). Un joueur que seules ses
-  // vies nomment n'a pas d'entrée, donc pas d'équipe.
+  // The film's roster order gives a STABLE, reproducible order; failing that, the order in
+  // which traces appear. Never the iteration order of a Map filled at random.
+  // A BOT HAS NO XUID (schema 36): its table identity is `bot:<name>` — two bots with the
+  // same name would merge, and that is accepted: the film gives nothing more discriminating.
+  // THE TEAM IS SET HERE AND NOWHERE ELSE (see `ReplayPlayer.team`): the entry's designator,
+  // joined by the same key as everywhere else (`rosterEntryKey`). A player named only by their
+  // lives has no entry, hence no team.
   for (const entry of doc.roster ?? []) {
     const key = rosterEntryKey(entry)
     if (!key) continue
@@ -150,11 +150,11 @@ export function buildPlayers(
     p.lives.push(track)
   }
   const board = new Map(scoreboard.map((r) => [r.xuid, r]))
-  // LA JOINTURE D'UN BOT SE FAIT PAR GAMERTAG, faute de xuid commun : la base identifie ses
-  // bots par `is_bot` (xuid `bid(N.0)`, gamertag résolu SANS suffixe), le film par le nom
-  // suffixé « [bot] » — la clé de jointure est le nom NU des deux côtés. Un nom absent du
-  // scoreboard laisse `board` vide — le bot reste sans ligne de feuille, jamais une ligne
-  // devinée ; son équipe, elle, est celle que le film écrit (`team`, posée plus haut).
+  // A BOT IS JOINED BY GAMERTAG, for lack of a shared xuid: the database identifies its
+  // bots by `is_bot` (xuid `bid(N.0)`, gamertag resolved WITHOUT the suffix), the film by the name
+  // suffixed "[bot]" — the join key is the BARE name on both sides. A name absent from the
+  // scoreboard leaves `board` empty — the bot stays without a scoreboard row, never a guessed
+  // row; its team, though, is the one the film writes (`team`, set above).
   const boardByName = new Map(
     scoreboard.filter((r) => r.is_bot).map((r) => [stripBotSuffix(r.gamertag), r]),
   )
@@ -166,12 +166,12 @@ export function buildPlayers(
 }
 
 /**
- * groupByTeam range les joueurs par camp DU FILM (`ReplayPlayer.team`), camps dans l'ordre des
- * désignateurs, joueurs dans l'ordre du roster.
+ * groupByTeam arranges players by side FROM THE FILM (`ReplayPlayer.team`), sides in the order of
+ * their designators, players in roster order.
  *
- * UN JOUEUR DONT LE FILM TAIT L'ÉQUIPE N'ENTRE DANS AUCUN CAMP — il n'y a pas de groupe « à
- * part » : c'est un défaut de source (cf. `replayCamps.ts`). Un joueur SANS LIGNE de feuille,
- * lui, est dans le camp que le film lui donne ; la feuille ne fait que nommer ce camp.
+ * A PLAYER WHOSE TEAM THE FILM KEEPS SILENT BELONGS TO NO SIDE — there is no "other"
+ * group: it is a source defect (see `replayCamps.ts`). A player WITHOUT a scoreboard row,
+ * on the other hand, is in the side the film gives them; the scoreboard only names that side.
  */
 export function groupByTeam(players: readonly ReplayPlayer[]): ReplayTeamGroup[] {
   return groupByCamp(players, (p) => p.team, (p) => [p.board]).map(({ team, side, members }) => ({
@@ -182,20 +182,19 @@ export function groupByTeam(players: readonly ReplayPlayer[]): ReplayTeamGroup[]
 }
 
 /**
- * indexBySlot — AGRÉGAT MATCH : « ce qui appartient au JOUEUR redescend sur chacune de ses
- * VIES », effondré en UNE valeur par slot (DERNIER GAGNANT sur l'ordre des joueurs puis des
- * vies).
+ * indexBySlot — MATCH-WIDE AGGREGATE: "what belongs to the PLAYER flows down to each of their
+ * LIVES", collapsed into ONE value per slot (LAST WINNER over player order then life order).
  *
- * C'EST UN AGRÉGAT SUR TOUT LE MATCH, PAS UNE LECTURE PAR IMAGE. Il sert au comptage d'usage
- * d'équipement (`equipmentUsageLogic`), où l'on veut « le joueur du slot » toutes vies
- * confondues. Pour le RENDU par image, ne pas s'en servir : un slot de biped est réattribué
- * entre réapparitions ET entre manches, il n'a donc pas UN propriétaire mais le propriétaire
- * de la vie qui l'occupe À CETTE IMAGE — c'est `buildSlotOwnership` / `ownerAtFrame`. (En
- * multi-manche, cet agrégat attribue au dernier propriétaire du slot : dette connue, assumée
- * ici parce que le comptage d'usage est au niveau du match, pas de l'image.)
+ * THIS IS AN AGGREGATE OVER THE WHOLE MATCH, NOT A PER-FRAME READING. It serves equipment
+ * usage counting (`equipmentUsageLogic`), where "the slot's player" is wanted across all
+ * lives. For per-FRAME rendering, do not use it: a biped slot is reassigned
+ * between respawns AND between rounds, so it does not have ONE owner but the owner
+ * of the life that occupies it AT THAT FRAME — that is `buildSlotOwnership` / `ownerAtFrame`. (In
+ * multi-round play, this aggregate attributes to the slot's last owner: a known debt, accepted
+ * here because usage counting is match-level, not frame-level.)
  *
- * Une vie SANS propriétaire (trace sans xuid) n'apparaît dans aucune table : l'appelant sert
- * alors son propre repli — encre neutre pour la couleur, aucune marque, aucun nom.
+ * A life WITHOUT an owner (a trace with no xuid) appears in no table: the caller then
+ * serves its own fallback — neutral ink for color, no mark, no name.
  */
 export function indexBySlot<T>(
   players: readonly ReplayPlayer[],
@@ -210,32 +209,32 @@ export function indexBySlot<T>(
 }
 
 /**
- * SlotOwnership — QUI OCCUPE UN SLOT À UNE IMAGE. Le remède à l'effondrement d'`indexBySlot`
- * pour le rendu : un slot de biped est réattribué entre réapparitions ET entre manches, son
- * propriétaire n'est donc pas une constante du match mais la VIE qui couvre l'image lue.
+ * SlotOwnership — WHO OCCUPIES A SLOT AT A FRAME. The fix for `indexBySlot`'s collapse
+ * for rendering: a biped slot is reassigned between respawns AND between rounds, so its
+ * owner is not a match-wide constant but the LIFE that covers the read frame.
  *
- * SANS AMBIGUÏTÉ : les vies d'un slot sont disjointes (un biped a un seul occupant à la fois),
- * `buildPlayers` les a triées dans le temps, et la recherche rend la première vie qui couvre
- * l'image. Un slot libre entre deux vies — ou avant la première, ou après la dernière — n'a
- * pas de propriétaire à cette image : `ownerAtFrame` rend `null`, le calque ne dessine rien.
+ * UNAMBIGUOUS: a slot's lives are disjoint (a biped has only one occupant at a time),
+ * `buildPlayers` sorted them in time, and the lookup returns the first life that covers
+ * the frame. A slot free between two lives — or before the first, or after the last — has
+ * no owner at that frame: `ownerAtFrame` returns `null`, the layer draws nothing.
  */
 export interface SlotOwnership {
   ownerAtFrame(slot: number, frame: number): ReplayPlayer | null
   /**
-   * ownerAtFrameOrLast — la vie qui COUVRE l'image, sinon la vie la plus récente TERMINÉE avant
-   * elle (la « vie juste précédente »). Réservé aux consommateurs de FRONTIÈRE dont l'événement
-   * est daté À l'INSTANT OÙ LE PROPRIÉTAIRE VIENT DE QUITTER LE SLOT : un objet LÂCHÉ à la mort
-   * porte `t0 = finVie + 1` (le poseur n'occupe plus le slot), et un kill posthume/échange
-   * peut tomber une image après la fin de vie du tueur. `ownerAtFrame` y rendrait `null` (donc
-   * une encre neutre au lieu de la couleur d'équipe) : c'est un TROU à combler par la vie qui
-   * précède, pas par le dernier-gagnant du match — en multi-manche, le résultat reste le joueur
-   * de LA manche concernée (SHROOM s'il vient de mourir, DinoR00 sinon). NE PAS l'employer pour
-   * le rendu continu des marqueurs/vies : eux doivent rester `null` dans les trous.
+   * ownerAtFrameOrLast — the life that COVERS the frame, otherwise the most recent life
+   * ENDED before it (the "life just before"). Reserved for BOUNDARY consumers whose event
+   * is dated AT THE MOMENT THE OWNER JUST LEFT THE SLOT: an object DROPPED on death carries
+   * `t0 = lifeEnd + 1` (the dropper no longer occupies the slot), and a posthumous kill/trade
+   * can land one frame after the killer's life ends. `ownerAtFrame` would return `null` there
+   * (so neutral ink instead of the team color): that is a GAP to fill with the preceding
+   * life, not with the match's last-winner — in multi-round play, the result stays the player
+   * of THAT round (SHROOM if they just died, DinoR00 otherwise). Do NOT use it for the
+   * continuous rendering of markers/lives: those must stay `null` in the gaps.
    */
   ownerAtFrameOrLast(slot: number, frame: number): ReplayPlayer | null
 }
 
-/** Une vie possédée, réduite à sa fenêtre et à son propriétaire (l'index n'a besoin de rien d'autre). */
+/** An owned life, reduced to its window and its owner (the index needs nothing else). */
 interface OwnedLife {
   start: number
   end: number
@@ -243,10 +242,10 @@ interface OwnedLife {
 }
 
 /**
- * buildSlotOwnership indexe, par slot, les vies qui l'ont occupé — triées par début — et rend
- * le résolveur `ownerAtFrame`. Construit UNE FOIS par document (mémoïsé par l'appelant) ; la
- * résolution est un balayage court (une poignée de vies par slot) avec sortie anticipée dès
- * qu'une vie commence après l'image.
+ * buildSlotOwnership indexes, per slot, the lives that occupied it — sorted by start — and returns
+ * the `ownerAtFrame` resolver. Built ONCE per document (memoized by the caller); the
+ * resolution is a short scan (a handful of lives per slot) with early exit as soon as
+ * a life starts after the frame.
  */
 export function buildSlotOwnership(players: readonly ReplayPlayer[]): SlotOwnership {
   const bySlot = new Map<number, OwnedLife[]>()
@@ -265,7 +264,7 @@ export function buildSlotOwnership(players: readonly ReplayPlayer[]): SlotOwners
       const lives = bySlot.get(slot)
       if (!lives) return null
       for (const l of lives) {
-        // Triées par début : dès qu'une vie commence après l'image, aucune de la suite ne la couvre.
+        // Sorted by start: as soon as a life starts after the frame, none of the rest covers it.
         if (frame < l.start) break
         if (frame <= l.end) return l.player
       }
@@ -276,29 +275,29 @@ export function buildSlotOwnership(players: readonly ReplayPlayer[]): SlotOwners
       if (!lives) return null
       let last: ReplayPlayer | null = null
       for (const l of lives) {
-        if (frame < l.start) break // aucune vie couvrante ni précédente au-delà : on garde `last`
-        if (frame <= l.end) return l.player // vie couvrante
-        last = l.player // vie entièrement AVANT l'image : on retient la plus récente
+        if (frame < l.start) break // no covering nor preceding life beyond this: keep `last`
+        if (frame <= l.end) return l.player // covering life
+        last = l.player // life entirely BEFORE the frame: keep the most recent one
       }
-      return last // la vie juste précédente (le lâcheur / le tueur), ou null si aucune
+      return last // the life just before (the dropper / the killer), or null if none
     },
   }
 }
 
 /**
- * colorResolver — LA COULEUR D'UNE VIE EST CELLE DE SON PROPRIÉTAIRE À CETTE IMAGE, et c'est sa
- * couleur d'ÉQUIPE (décision D1 du plan d'habillage, 2026-08-16, amendée par l'utilisateur) :
- * les tokens `team-ally` / `team-enemy` que les réglages d'accessibilité peuvent surcharger,
- * jamais une couleur de série indexée sur la trace. Un joueur gardait jusque-là une teinte par
- * VIE (il changeait à chaque réapparition) ; puis une teinte figée par SLOT, qui montrait un
- * seul joueur pour tout le match quand un slot est réattribué entre manches. La couleur est
- * désormais résolue À L'IMAGE, via le propriétaire de la vie qui occupe alors le slot.
+ * colorResolver — THE COLOR OF A LIFE IS THAT OF ITS OWNER AT THAT FRAME, and it is their
+ * TEAM color (decision D1 of the dressing-up plan, 2026-08-16, amended by the user):
+ * the `team-ally` / `team-enemy` tokens that accessibility settings may override,
+ * never a trace-indexed series color. A player used to keep a hue per LIFE (it
+ * changed on every respawn); then a hue fixed per SLOT, which showed a
+ * single player for the whole match when a slot is reassigned between rounds. The color is
+ * now resolved AT THE FRAME, via the owner of the life occupying the slot at that moment.
  *
- * `colorOf` rend la couleur d'un camp (l'appelant résout les tokens), `allyOf` dit l'allégeance
- * d'un JOUEUR vue de la référence (`FilmAllegiance.ofPlayer` : l'équipe du FILM, jamais la
- * feuille), `neutral` sert quand elle est inconnue (`null` : le film tait l'équipe du joueur, ou
- * celle de la référence). `null` en sortie = aucun propriétaire à cette image (slot libre, ou vie
- * anonyme) : le calque ne dessine rien.
+ * `colorOf` returns a side's color (the caller resolves the tokens), `allyOf` tells a
+ * PLAYER's allegiance as seen from the reference (`FilmAllegiance.ofPlayer`: the FILM's team,
+ * never the scoreboard), `neutral` serves when it is unknown (`null`: the film keeps the
+ * player's team silent, or the reference's). `null` on output = no owner at that frame (free
+ * slot, or anonymous life): the layer draws nothing.
  */
 export function colorResolver(
   ownership: SlotOwnership,
@@ -310,11 +309,11 @@ export function colorResolver(
 }
 
 /**
- * colorResolverOrLast — MÊME couleur d'équipe, mais résolue via `ownerAtFrameOrLast` : pour les
- * consommateurs de FRONTIÈRE (couleur d'un objet LÂCHÉ à la mort, couleur d'un effet de mort)
- * dont l'événement est daté à l'instant où le propriétaire vient de quitter le slot. Un objet
- * lâché porte `t0 = finVie + 1` : la résolution stricte y rendrait `null` → encre neutre au lieu
- * de la couleur du lâcheur. NE PAS l'employer pour les marqueurs/vies (rendu continu).
+ * colorResolverOrLast — the SAME team color, but resolved via `ownerAtFrameOrLast`: for BOUNDARY
+ * consumers (the color of an object DROPPED on death, the color of a death effect)
+ * whose event is dated right when the owner just left the slot. A dropped object carries
+ * `t0 = lifeEnd + 1`: a strict resolution would return `null` there -> neutral ink instead of
+ * the dropper's color. Do NOT use it for markers/lives (continuous rendering).
  */
 export function colorResolverOrLast(
   ownership: SlotOwnership,
@@ -325,7 +324,7 @@ export function colorResolverOrLast(
   return (slot, frame) => teamColorOfOwner(ownership.ownerAtFrameOrLast(slot, frame), colorOf, allyOf, neutral)
 }
 
-/** teamColorOfOwner — la couleur d'équipe d'un propriétaire (neutre sans allégeance, null s'il n'y en a pas). */
+/** teamColorOfOwner — an owner's team color (neutral without allegiance, null if there is none). */
 function teamColorOfOwner(
   p: ReplayPlayer | null,
   colorOf: (ally: boolean) => string,
@@ -338,18 +337,18 @@ function teamColorOfOwner(
 }
 
 /**
- * campResolver — LE CAMP D'UNE VIE À UNE IMAGE, celui de son propriétaire à cette image : son
- * équipe du FILM (`ReplayPlayer.team`). Il sert l'OPPOSITION entre deux vies (capteur de menaces,
- * zones d'une fiche, poses), pas l'encre : celle-là est relative à la référence
+ * campResolver — THE SIDE OF A LIFE AT A FRAME, that of its owner at that frame: their
+ * FILM team (`ReplayPlayer.team`). It serves OPPOSITION between two lives (threat sensor, card
+ * zones, poses), not the ink: that one is relative to the reference
  * (`filmAllegiance.ts`).
  *
- * PAS LE DRAPEAU « allié », qui est relatif au joueur regardé et range tous les autres dans un
- * seul camp — faux dès qu'il y a plus de deux équipes (BTB à quatre camps). Ce que le capteur
- * doit savoir, c'est si DEUX vies s'opposent ; leurs désignateurs le disent.
+ * NOT THE "ally" FLAG, which is relative to the player being viewed and lumps every other
+ * player into a single side — wrong as soon as there are more than two teams (four-side BTB).
+ * What the sensor needs to know is whether TWO lives oppose each other; their designators say so.
  *
- * Sans propriétaire à cette image (slot libre), ou quand le film tait son équipe ou n'en donne
- * aucune (`-1`, mode sans camps), une vie n'a PAS de camp (null) : ni alliée ni ennemie de
- * personne, et la feuille ne l'affirmera pas à sa place.
+ * With no owner at that frame (free slot), or when the film keeps its team silent or gives
+ * none (`-1`, mode without sides), a life has NO side (null): neither ally nor enemy to
+ * anyone, and the scoreboard will not assert one in its place.
  */
 export function campResolver(
   ownership: SlotOwnership,
@@ -361,8 +360,8 @@ export function campResolver(
 }
 
 /**
- * markResolver rend la marque d'identité (« moi », « ami ») du propriétaire de la vie qui
- * occupe le slot à cette image ; `undefined` s'il n'y a pas de propriétaire ou pas de marque.
+ * markResolver returns the identity mark ("me", "friend") of the owner of the life that
+ * occupies the slot at that frame; `undefined` if there is no owner or no mark.
  */
 export function markResolver(
   ownership: SlotOwnership,
@@ -375,10 +374,10 @@ export function markResolver(
 }
 
 /**
- * nameResolver rend le NOM D'AFFICHAGE du propriétaire de la vie qui occupe le slot à cette
- * image — celui des fiches et du fil (`displayPlayerName`), jamais un xuid brut. Aucun
- * propriétaire à cette image → `null` : l'étiquette de la carte reste alors vide plutôt que
- * d'écrire « Joueur #### » ou, pire, le nom d'un joueur d'une AUTRE manche.
+ * nameResolver returns the DISPLAY NAME of the owner of the life that occupies the slot at
+ * that frame — the one used by cards and the feed (`displayPlayerName`), never a raw xuid. No
+ * owner at that frame -> `null`: the card's label then stays empty rather than writing
+ * "Player ####" or, worse, the name of a player from ANOTHER round.
  */
 export function nameResolver(
   ownership: SlotOwnership,
@@ -390,18 +389,18 @@ export function nameResolver(
 }
 
 /**
- * nameByXuidResolver — LE MÊME NOM D'AFFICHAGE, mais demandé PAR XUID et sans image.
+ * nameByXuidResolver — THE SAME DISPLAY NAME, but requested BY XUID and without a frame.
  *
- * POURQUOI IL EXISTE (2026-09-02, calque des véhicules). `nameResolver` répond à « qui occupe CE
- * SLOT à CETTE IMAGE » — la seule question juste pour un pion, dont l'identité n'existe que par
- * la vie qui occupe le slot. Mais un ÉPISODE D'OCCUPATION de véhicule (`VehicleRide`) nomme son
- * occupant LUI-MÊME, par xuid, et cette affirmation-là ne dépend d'aucune trace de bipède : elle
- * survit au cas — observé sur film — où la trace du slot n'a pas été jointe à un joueur
- * (`buildPlayers` l'écarte alors, cf. `if (!track.xuid) continue`) et où le pont slot->joueur ne
- * peut donc rien rendre.
+ * WHY IT EXISTS (2026-09-02, the vehicles layer). `nameResolver` answers "who occupies THIS
+ * SLOT at THIS FRAME" — the right question for a pawn, whose identity only exists through
+ * the life occupying the slot. But a vehicle OCCUPANCY EPISODE (`VehicleRide`) names its
+ * occupant ITSELF, by xuid, and that statement does not depend on any biped trace: it
+ * survives the case — observed on film — where the slot's trace was not joined to a player
+ * (`buildPlayers` then discards it, see `if (!track.xuid) continue`) and where the
+ * slot->player bridge can therefore return nothing.
  *
- * XUID INCONNU DU ROSTER -> `null` : on ne fabrique pas un nom à partir d'un identifiant qu'aucun
- * joueur du match ne porte.
+ * XUID UNKNOWN TO THE ROSTER -> `null`: a name is not manufactured from an identifier no
+ * player in the match carries.
  */
 export function nameByXuidResolver(
   players: readonly ReplayPlayer[],
@@ -414,19 +413,20 @@ export function nameByXuidResolver(
 }
 
 /**
- * colorByXuidResolver — LA MÊME COULEUR D'ÉQUIPE, mais demandée PAR XUID et sans image.
+ * colorByXuidResolver — THE SAME TEAM COLOR, but requested BY XUID and without a frame.
  *
- * POURQUOI IL EXISTE (2026-09-02, teinte des véhicules). `colorResolver` répond à « de quelle
- * couleur est la vie qui occupe CE SLOT à CETTE IMAGE » — la seule question juste pour un pion.
- * Mais un ÉPISODE D'OCCUPATION de véhicule nomme son occupant LUI-MÊME (`VehicleRide.xuid`), et
- * pendant l'épisode le bipède ne réplique plus : le pont slot->joueur est alors MUET là où il
- * faudrait qu'il parle — c'est exactement le défaut que le contrat de `VehicleRide.xuid`
- * annonçait pourtant résolu (« c'est lui qui donne sa couleur au véhicule »). Résoudre par xuid
- * tient cette promesse ; le pont par slot reste le REPLI, comme pour le nom.
+ * WHY IT EXISTS (2026-09-02, vehicle tinting). `colorResolver` answers "what color is the
+ * life occupying THIS SLOT at THIS FRAME" — the right question for a pawn. But a vehicle
+ * OCCUPANCY EPISODE names its occupant ITSELF (`VehicleRide.xuid`), and during the episode
+ * the biped no longer replicates: the slot->player bridge is then SILENT right where it
+ * needs to speak — exactly the defect the `VehicleRide.xuid` contract claimed was
+ * resolved ("it is the one that gives the vehicle its color"). Resolving by xuid keeps
+ * that promise; the slot bridge remains the FALLBACK, as for the name.
  *
- * XUID INCONNU DU ROSTER -> `null` : aucun joueur du match ne le porte, on ne lui invente pas
- * d'équipe. Xuid connu dont l'allégeance est inconnue (le film tait son équipe, ou celle de la
- * référence) -> encre neutre (même règle que le pont par slot : le joueur existe, son camp non).
+ * XUID UNKNOWN TO THE ROSTER -> `null`: no player in the match carries it, no team is
+ * invented for them. Known xuid whose allegiance is unknown (the film keeps its team silent, or
+ * the reference's) -> neutral ink (same rule as the slot bridge: the player exists, their side
+ * does not).
  */
 export function colorByXuidResolver(
   players: readonly ReplayPlayer[],
@@ -439,52 +439,51 @@ export function colorByXuidResolver(
 }
 
 /**
- * PlayerState — ce qu'un joueur est à une image donnée, lu dans le film.
+ * PlayerState — what a player is at a given frame, read from the film.
  *
- * `shield` est null quand aucune mesure n'existe dans la fenêtre de maintien : c'est
- * « on ne sait pas », à distinguer absolument d'un bouclier à zéro, qui est une mesure.
+ * `shield` is null when no measurement exists in the hold window: that is
+ * "unknown", to be absolutely distinguished from a shield at zero, which is a measurement.
  */
 export interface PlayerState {
   alive: boolean
-  /** La vie en cours, quand il y en a une. */
+  /** The current life, when there is one. */
   life: ReplayTrackReady | null
   /**
-   * Bouclier : la dernière mesure de la vie avec son âge, ou 1,0 (âge 0) avant la première
-   * mesure — on apparaît plein, et le flux différentiel ne retransmet que ce qui change.
-   * Null UNIQUEMENT quand le document ne porte pas ce champ (cf. VitalityPresence) ou que
-   * le joueur est mort.
+   * Shield: the life's last measurement with its age, or 1.0 (age 0) before the first
+   * measurement — you spawn full, and the differential stream only retransmits what changes.
+   * Null ONLY when the document does not carry this field at all (see VitalityPresence) or
+   * the player is dead.
    */
   shield: { value: number; age: number } | null
   /**
-   * Santé, même contrat que le bouclier — y compris le plein d'apparition. Elle est
-   * répliquée AU CHANGEMENT et rarement transmise (médiane zéro échantillon par vie sur le
-   * film de référence) : dans Halo le bouclier encaisse d'abord, une vie sans mesure de
-   * santé est une vie restée intacte.
+   * Health, same contract as the shield — including the full-on-spawn value. It is
+   * replicated ON CHANGE and rarely transmitted (zero-sample median per life on the
+   * reference film): in Halo the shield absorbs first, a life with no health measurement is a
+   * life that stayed untouched.
    */
   health: { value: number; age: number } | null
-  /** Nombre d'images écoulées depuis la fin de la dernière vie (mort) ; -1 s'il est en vie. */
+  /** Number of frames elapsed since the end of the last life (death); -1 if alive. */
   sinceDeath: number
   /**
-   * Image de RÉAPPARITION, LUE : c'est l'image de départ de la vie suivante du même joueur, pas
-   * une constante ajoutée à l'instant de la mort. -1 quand aucune vie ne suit — ce qui arrive
-   * pour un survivant de fin de partie, et doit s'afficher comme une lacune, jamais comme un
-   * délai deviné.
+   * RESPAWN frame, READ: it is the start frame of the same player's next life, not
+   * a constant added to the moment of death. -1 when no life follows — which happens
+   * for an end-of-match survivor, and must display as a gap, never as a guessed delay.
    */
   respawnFrame: number
 }
 
 /**
- * VitalityPresence — le document porte-t-il la donnée, champ par champ ? C'est la garde
- * multi-titre du « plein au spawn » : un titre dont le film ne transmet JAMAIS une
- * vitalité ne doit pas afficher des barres pleines inventées — il n'affiche pas de barre.
- * Dégradation par ABSENCE DE DONNÉE, jamais par comparaison de slug.
+ * VitalityPresence — does the document carry the data, field by field? This is the
+ * multi-title guard for "full on spawn": a title whose film NEVER transmits a
+ * vitality value must not display invented full bars — it displays no bar.
+ * Degrades on ABSENCE OF DATA, never on a slug comparison.
  */
 export interface VitalityPresence {
   shield: boolean
   health: boolean
 }
 
-/** vitalityPresence mesure, une fois par document, quels champs de vitalité existent. */
+/** vitalityPresence measures, once per document, which vitality fields exist. */
 export function vitalityPresence(doc: ReplayDocumentReady): VitalityPresence {
   let shield = false
   let health = false
@@ -499,23 +498,23 @@ export function vitalityPresence(doc: ReplayDocumentReady): VitalityPresence {
 }
 
 /**
- * playerStateAt lit l'état d'un joueur à une image.
+ * playerStateAt reads a player's state at a frame.
  *
- * LE REPORT DE VITALITÉ COUVRE LA VIE ENTIÈRE, et c'est une lecture juste : le flux est
- * différentiel — non retransmis veut dire INCHANGÉ — et les points appartiennent à la vie,
- * donc le report ne franchit jamais une mort. Ce qui vieillit doit se VOIR : l'âge voyage
- * avec la valeur et l'affichage l'estompe (cf. barres).
+ * VITALITY CARRY-FORWARD COVERS THE WHOLE LIFE, and that is a correct reading: the stream is
+ * differential — not retransmitted means UNCHANGED — and the points belong to the life,
+ * so the carry-forward never crosses a death. What ages must SHOW: the age travels
+ * with the value and the display fades it (see bars).
  *
- * AVANT LA PREMIÈRE MESURE D'UNE VIE, LA VALEUR JUSTE EST 1,0 : on apparaît vie et bouclier
- * PLEINS (règle du jeu), et le film ne retransmet que ce qui CHANGE — « rien d'arrivé »
- * veut dire « plein », pas « inconnu ». C'est la lecture du POC, rétablie sur décision
- * utilisateur (2026-08-12). Elle est GARDÉE par VitalityPresence : un document qui ne
- * porte jamais le champ n'affiche rien (titre sans décodage film).
+ * BEFORE A LIFE'S FIRST MEASUREMENT, THE CORRECT VALUE IS 1.0: you spawn with full life and
+ * shield (game rule), and the film only retransmits what CHANGES — "nothing happened"
+ * means "full", not "unknown". This is the POC's reading, restored by user decision
+ * (2026-08-12). It is GUARDED by VitalityPresence: a document that never carries the
+ * field shows nothing (title without film decoding).
  *
- * LE DÉLAI DE RÉAPPARITION EST LU, PAS DÉDUIT. Mesuré sur le film de référence : 90 épisodes de
- * mort, 82 avec un retour lisible, médiane 8,0 s et 66 sur 82 exactement à 7,9-8,0 s. C'est un
- * palier net — mais mesuré sur UN match, ce qui n'en fait pas une constante du jeu. Les 8
- * épisodes sans retour restent sans délai affiché.
+ * THE RESPAWN DELAY IS READ, NOT DERIVED. Measured on the reference film: 90 death
+ * episodes, 82 with a readable return, median 8.0 s and 66 of 82 exactly at 7.9-8.0 s. It is a
+ * clean plateau — but measured on ONE match, which does not make it a game constant. The 8
+ * episodes without a return stay with no displayed delay.
  */
 export function playerStateAt(
   player: ReplayPlayer,
@@ -536,8 +535,8 @@ export function playerStateAt(
       respawnFrame: -1,
     }
   }
-  // Mort : la dernière vie CLOSE avant cette image date la mort ; la suivante, si elle existe,
-  // date le retour.
+  // Dead: the last life CLOSED before this frame dates the death; the next one, if it exists,
+  // dates the return.
   let last: ReplayTrackReady | null = null
   let next = -1
   for (const l of player.lives) {
@@ -556,59 +555,59 @@ export function playerStateAt(
 }
 
 /**
- * LOADOUT_SRC_BIRTH — la provenance d'un relevé lu dans le record de CRÉATION du corps
- * (`loadouts[].src`, schéma 69 ; miroir de `replay.LoadoutSrcBirth` côté Go).
+ * LOADOUT_SRC_BIRTH — the provenance of a reading taken from the body's CREATION
+ * record (`loadouts[].src`, schema 69; mirror of Go's `replay.LoadoutSrcBirth`).
  */
 export const LOADOUT_SRC_BIRTH = 'birth'
 
 /**
- * LoadoutReading — les armes portées et l'ÂGE de cette lecture.
+ * LoadoutReading — the weapons carried and the AGE of this reading.
  *
- * L'ÂGE EST INDISSOCIABLE DE LA VALEUR. Le loadout ne se lit qu'aux images-clés, une toutes les
- * ~20 s. Entre deux, ce qui est affiché est la dernière lecture connue, et la faire passer pour
- * l'état courant était un défaut réel : sur les 21 899 fiches d'un match, l'âge médian de cette
- * lecture est de 8,4 s, et 7,1 % seulement ont moins d'une seconde. L'estompage n'est donc pas
- * un ornement rare — il sert neuf fois sur dix.
+ * THE AGE IS INSEPARABLE FROM THE VALUE. The loadout is only read at keyframes, one every
+ * ~20 s. Between two, what is displayed is the last known reading, and passing it off as
+ * the current state was a real defect: across a match's 21,899 cards, the median age of this
+ * reading is 8.4 s, and only 7.1% have less than one second. Fading is therefore not
+ * a rare ornament — it is used nine times out of ten.
  */
 export interface LoadoutReading {
   weapons: string[]
   age: number
   /**
-   * PROVENANCE du relevé de base (schéma 69) : `birth` = la DOTATION DE NAISSANCE, lue dans le
-   * record de création du corps ; absent = un relevé d'image-clé. L'infobulle de la fiche la dit.
+   * PROVENANCE of the base reading (schema 69): `birth` = the SPAWN LOADOUT, read from the
+   * body's creation record; absent = a keyframe reading. The card's tooltip says so.
    */
   src?: string
-  /** Emplacement de chaque arme de `weapons`, quand le relevé le situe (dotation de naissance). */
+  /** Each weapon's slot in `weapons`, when the reading places it (spawn loadout). */
   k?: number[]
 }
 
 /**
- * loadoutAt rend les armes portées par un SLOT à une image, avec l'âge de la lecture.
+ * loadoutAt returns the weapons carried by a SLOT at a frame, with the reading's age.
  *
- * La recherche porte sur le slot et non sur le joueur : le loadout est écrit pour un biped, et
- * un slot est réattribué à chaque réapparition. C'est aussi ce qui rend le report SÛR — une
- * dotation ne peut pas franchir une mort, puisqu'elle ne survit pas à son porteur.
+ * The lookup is by slot, not by player: the loadout is written for a biped, and
+ * a slot is reassigned on every respawn. That is also what makes the carry-forward SAFE — a
+ * loadout cannot cross a death, since it does not outlive its holder.
  *
- * BORNÉE À LA VIE EN COURS DU SLOT (correctif du 2026-09-06) : un slot réattribué n'accueille pas
- * qu'une mort, il accueille une AUTRE vie — parfois un AUTRE joueur. Chercher « la dernière
- * lecture du slot » sans borne de vie reportait donc l'armement de la vie PRÉCÉDENTE.
- * `currentLifeOf` désigne la vie qui couvre `frame` sur ce slot ; sans elle, aucune recherche
- * n'a lieu — `null`, jamais une lecture volée à une autre vie.
+ * BOUNDED TO THE SLOT'S CURRENT LIFE (2026-09-06 fix): a reassigned slot does not only receive
+ * a death, it receives ANOTHER life — sometimes ANOTHER player. Looking for "the slot's
+ * last reading" without a life boundary therefore carried forward the PREVIOUS life's loadout.
+ * `currentLifeOf` names the life that covers `frame` on this slot; without one, no lookup
+ * happens — `null`, never a reading stolen from another life.
  *
- * LA DOTATION DE NAISSANCE EST LE PREMIER RELEVÉ DE LA VIE (schéma 69, lot M3.3). Le document
- * publie, dans `loadouts`, les armes que le record de création du corps transmet (`src:
- * 'birth'`), posées sur la vie qu'il ouvre : c'est le relevé PASSÉ du début de vie, et
- * `nearestReading` le retient comme n'importe quel autre.
+ * THE SPAWN LOADOUT IS THE LIFE'S FIRST READING (schema 69, batch M3.3). The document
+ * publishes, in `loadouts`, the weapons that the body's creation record transmits (`src:
+ * 'birth'`), placed on the life it opens: it is the PAST reading at the start of life, and
+ * `nearestReading` keeps it like any other.
  *
- * LA LECTURE « À VENIR » EST RETIRÉE D'UNE VIE DONT LA NAISSANCE EST LUE (décision utilisateur
- * Q18 du 2026-09-23) : avant la première image-clé, elle montrait les armes lues JUSQU'À vingt
- * secondes plus tard — dont une arme ramassée entre-temps. La règle est PAR VIE, parce que la
- * lecture de naissance l'est : sur les films des builds antérieurs à HI_1_12_0, le record de
- * création ne se ferme pas et aucune dotation n'est publiée (mesure du lot M3 : neuf témoins sur
- * vingt-deux) — une règle par DOCUMENT les privait du repli, et la fiche « armes non lues »
- * passait de 4,1 % à 13,9 % du temps de vie sur les dix-neuf témoins du gate de corpus.
- * Une vie SANS dotation garde donc l'ancien repli : la plus proche lecture À VENIR de la même
- * vie, âge NÉGATIF publié tel quel et dit « à venir ».
+ * THE "UPCOMING" READING IS WITHDRAWN FROM A LIFE WHOSE BIRTH IS READ (user decision
+ * Q18 of 2026-09-23): before the first keyframe, it showed the weapons read UP TO twenty
+ * seconds later — including a weapon picked up in the meantime. The rule is PER LIFE, because
+ * the birth reading is too: on films from builds earlier than HI_1_12_0, the creation
+ * record does not close and no loadout is published (batch M3 measurement: nine of
+ * twenty-two references) — a PER-DOCUMENT rule deprived them of the fallback, and the
+ * "weapons unread" card went from 4.1% to 13.9% of lifetime across the corpus gate's nineteen
+ * references. A life WITHOUT a spawn loadout therefore keeps the old fallback: the nearest
+ * UPCOMING reading of the same life, NEGATIVE age published as-is and labeled "upcoming".
  */
 export function loadoutAt(doc: ReplayDocumentReady, slot: number, frame: number): LoadoutReading | null {
   const life = currentLifeOf(doc, slot, frame)
@@ -617,16 +616,16 @@ export function loadoutAt(doc: ReplayDocumentReady, slot: number, frame: number)
   const loadouts = doc.loadouts ?? []
   const read = nearestReading(loadouts, slot, frame, window, !lifeHasBirthLoadout(loadouts, slot, window))
   if (!read) return null
-  // LA DATATION FINE (schéma 25) : le relevé donne l'ÉTAT, les changements d'arme datés donnent
-  // les TRANSITIONS survenues depuis. Ce qu'ils appliquent et ce qu'ils refusent d'appliquer est
-  // écrit dans changeRefine.ts — un artefact qui n'en porte aucun rend la lecture inchangée.
+  // FINE-GRAINED DATING (schema 25): the reading gives the STATE, the dated weapon changes give
+  // the TRANSITIONS that occurred since. What they apply and what they refuse to apply is
+  // written in changeRefine.ts — an artifact carrying none returns the reading unchanged.
   return refineWeaponsReading(
     {
       weapons: read.value.w,
       age: read.age,
       src: read.value.src,
-      // SITUÉ seulement quand chaque arme a son emplacement : un relevé d'image-clé n'en porte
-      // aucun, et une rangée à moitié située ne l'est pas.
+      // LOCATED only when every weapon has its slot: a keyframe reading carries none,
+      // and a half-located row is not located.
       k: read.value.k.length > 0 && read.value.k.length === read.value.w.length ? read.value.k : undefined,
     },
     doc.weaponChanges,
@@ -635,7 +634,7 @@ export function loadoutAt(doc: ReplayDocumentReady, slot: number, frame: number)
   )
 }
 
-/** lifeHasBirthLoadout dit si la vie du slot, dans ces bornes, porte sa DOTATION DE NAISSANCE. */
+/** lifeHasBirthLoadout says whether the slot's life, within these bounds, carries its SPAWN LOADOUT. */
 function lifeHasBirthLoadout(
   loadouts: ReadonlyArray<{ slot: number; t: number; src?: string | null }>,
   slot: number,
@@ -647,20 +646,20 @@ function lifeHasBirthLoadout(
 }
 
 /**
- * currentLifeOf — LA VIE DU SLOT QUI COUVRE CETTE IMAGE, ou `undefined`.
+ * currentLifeOf — THE SLOT'S LIFE THAT COVERS THIS FRAME, or `undefined`.
  *
- * SŒUR DE `lifeOfSlotAt` (`features/match-replay/model/livesPosition.ts`), PAS UNE QUATRIÈME
- * COPIE : ce module ne peut pas l'importer — `lib/` ne dépend jamais de `features/` (sens
- * unique du dépôt, aucun fichier de production ne l'inverse) — et les appelants d'ici
- * (`loadoutAt`, `abilityAt`, et `inventoryAt`/`grenadeReadingAt` côté feature, qui réutilisent
- * cette même fonction) n'ont qu'un slot et une image, jamais la map par-slot déjà construite :
- * la reconstruire à chaque appel coûterait plus cher qu'un balayage direct de `doc.tracks`,
- * déjà la complexité de `nearestReading` lui-même. Le même balayage direct existe déjà en
- * production (`abilityChargeLogic.ts:133`) et l'audit du 2026-09-06 l'a examiné et écarté
- * comme non fautif — même garde, même verdict.
+ * SIBLING OF `lifeOfSlotAt` (`features/match-replay/model/livesPosition.ts`), NOT A FOURTH
+ * COPY: this module cannot import it — `lib/` never depends on `features/` (the repo's
+ * one-way direction, no production file reverses it) — and this module's callers
+ * (`loadoutAt`, `abilityAt`, and `inventoryAt`/`grenadeReadingAt` on the feature side, which reuse
+ * this same function) only have a slot and a frame, never the already-built per-slot
+ * map: rebuilding it on every call would cost more than a direct scan of
+ * `doc.tracks`, already `nearestReading`'s own complexity. The same direct scan already
+ * exists in production (`abilityChargeLogic.ts:133`) and the 2026-09-06 audit examined it and
+ * cleared it as not at fault — same guard, same verdict.
  *
- * MÊME RÈGLE QUE `lifeOfSlotAt` : « prendre la première venue serait une faute » — un slot
- * sans vie à cet instant ne rend rien, jamais une vie voisine.
+ * SAME RULE AS `lifeOfSlotAt`: "taking whichever one comes first would be a bug" — a slot
+ * with no life at that instant returns nothing, never a neighboring life.
  */
 export function currentLifeOf(
   doc: ReplayDocumentReady,
@@ -671,36 +670,36 @@ export function currentLifeOf(
 }
 
 /**
- * nearestReading — LE FOYER CANONIQUE du report de lecture (règle ≤2 copies, CLAUDE.md n°6).
+ * nearestReading — THE CANONICAL HOME of carry-forward reading (<=2 copies rule, CLAUDE.md #6).
  *
- * Trois calques lisent le film par ÉCHANTILLONS ESPACÉS et doivent afficher, à une image
- * donnée, la dernière lecture connue : les armes portées, l'inventaire, et — depuis le
- * 2026-08-14 — la capacité d'armure. La troisième copie a déclenché la centralisation ; le
- * garde-rail `rosterLogic.guard.test.ts` interdit d'en réécrire une quatrième à la main.
+ * Three layers read the film in SPACED-OUT SAMPLES and must display, at a given
+ * frame, the last known reading: weapons carried, inventory, and — since
+ * 2026-08-14 — armor ability. The third copy triggered centralization; the
+ * guard rail `rosterLogic.guard.test.ts` forbids hand-writing a fourth one.
  *
- * LA RÈGLE, IDENTIQUE POUR LES TROIS :
- *   - la recherche porte sur le SLOT, jamais sur le joueur. Un slot est réattribué à chaque
- *     réapparition : c'est ce qui rend le report SÛR, une lecture ne peut pas franchir une
- *     mort puisqu'elle ne survit pas à son porteur ;
- *   - avant la première lecture d'une vie, on rend la plus proche À VENIR du même slot, avec
- *     un âge NÉGATIF publié tel quel. L'affichage l'estompe sur sa valeur absolue et le dit
- *     « à venir » — jamais déguisé en lecture passée.
+ * THE RULE, IDENTICAL FOR ALL THREE:
+ *   - the lookup is by SLOT, never by player. A slot is reassigned on every
+ *     respawn: that is what makes the carry-forward SAFE, a reading cannot cross a
+ *     death since it does not outlive its holder;
+ *   - before a life's first reading, return the nearest UPCOMING one of the same slot, with
+ *     a NEGATIVE age published as-is. The display fades it by its absolute value and labels it
+ *     "upcoming" — never disguised as a past reading.
  *
- * `life` BORNE DÉSORMAIS LA RECHERCHE À LA VIE EN COURS DU SLOT (correctif du 2026-09-06) — NI `best` NI `ahead` NE REGARDAIENT LA
- * FRONTIÈRE DE VIE AVANT CE CORRECTIF : sur un slot recyclé ou un film multi-manche, `best`
- * retenait TOUJOURS la lecture passée la plus proche, quelle que soit sa vie, avant même de
- * considérer `ahead` — le repli « à venir » documenté ci-dessus était donc INERTE dès que le
- * slot portait une vie antérieure, et la fiche affichait l'armement de cette vie précédente,
- * parfois celui d'un AUTRE joueur sur un slot recyclé. `life` vient de `currentLifeOf` ; sans
- * vie couvrante, ou sans lecture dans ses bornes, la fonction rend `null`.
+ * `life` NOW BOUNDS THE LOOKUP TO THE SLOT'S CURRENT LIFE (2026-09-06 fix) — NEITHER `best` NOR
+ * `ahead` LOOKED AT THE LIFE BOUNDARY BEFORE THIS FIX: on a recycled slot or a multi-round
+ * film, `best` ALWAYS kept the closest past reading, regardless of its life, before even
+ * considering `ahead` — the "upcoming" fallback documented above was therefore INERT as soon as
+ * the slot carried an earlier life, and the card displayed that previous life's loadout,
+ * sometimes that of ANOTHER player on a recycled slot. `life` comes from `currentLifeOf`; without
+ * a covering life, or without a reading within its bounds, the function returns `null`.
  *
- * `allowAhead` (vrai par défaut) autorise ce repli « à venir » ; `loadoutAt` le refuse à une vie
- * dont la dotation de naissance est lue (Q18, cf. sa note) — les autres calques le gardent.
+ * `allowAhead` (true by default) allows this "upcoming" fallback; `loadoutAt` refuses it for a
+ * life whose spawn loadout is read (Q18, see its note) — the other layers keep it.
  *
- * `null` NE VEUT PAS DIRE « IDENTITÉ INCONNUE » — décision produit du 2026-09-06 : une vie est
- * un humain ou un bot, jamais une entité anonyme (le nommage se corrige à la source côté Go,
- * hors de ce lot). `null` dit uniquement « aucune lecture encore observée depuis le début de
- * CETTE vie » — un repli neutre, jamais la lecture volée à une autre vie.
+ * `null` DOES NOT MEAN "UNKNOWN IDENTITY" — product decision of 2026-09-06: a life is
+ * a human or a bot, never an anonymous entity (naming is fixed at the source on the Go
+ * side, outside this batch). `null` only means "no reading yet observed since the start of
+ * THIS life" — a neutral fallback, never a reading stolen from another life.
  */
 export function nearestReading<T extends { slot: number; t: number }>(
   samples: readonly T[],
@@ -714,12 +713,12 @@ export function nearestReading<T extends { slot: number; t: number }>(
   let ahead: { value: T; age: number } | null = null
   for (const s of samples) {
     if (s.slot !== slot) continue
-    // BORNE DE VIE : une lecture hors de [life.start, life.end] appartient à une AUTRE vie du
-    // même slot (recyclé) — jamais candidate, ni comme « best » ni comme « ahead ».
+    // LIFE BOUNDARY: a reading outside [life.start, life.end] belongs to ANOTHER life of the
+    // same slot (recycled) — never a candidate, neither as "best" nor as "ahead".
     if (s.t < life.start || s.t > life.end) continue
     const age = frame - s.t
     if (age < 0) {
-      // La plus PROCHE à venir : l'âge le moins négatif.
+      // The nearest upcoming one: the least negative age.
       if (!ahead || age > ahead.age) ahead = { value: s, age }
       continue
     }
@@ -729,12 +728,12 @@ export function nearestReading<T extends { slot: number; t: number }>(
 }
 
 /**
- * AbilityReading — le RANG de palette de la capacité portée, et l'âge de cette lecture.
+ * AbilityReading — the palette RANK of the ability carried, and the age of this reading.
  *
- * DEUX CANAUX, UNE SEULE GRANDEUR (cf. l'artefact, abilities.go) : `i48` transmet le rang
- * complet dans les paquets delta, environ une fois par vie ; le canal d'image-clé est dense
- * mais BORGNE — il ne voit que les rangs 16 à 23. On ne les départage pas : la lecture la
- * plus récente gagne, quel que soit son canal, parce que les deux disent la même chose.
+ * TWO CHANNELS, ONE QUANTITY (see the artifact, abilities.go): `i48` transmits the full
+ * rank in delta packets, about once per life; the keyframe channel is dense but
+ * BLIND — it only sees ranks 16 to 23. They are not arbitrated: the most recent
+ * reading wins, whichever channel it came from, because both say the same thing.
  */
 export interface AbilityReading {
   rank: number
@@ -743,18 +742,18 @@ export interface AbilityReading {
 }
 
 /**
- * abilityAt rend le dernier rang de capacité lu pour un SLOT, avec l'âge de la lecture.
+ * abilityAt returns the last ability rank read for a SLOT, with the reading's age.
  *
- * TROIS SOURCES DEPUIS LE SCHÉMA 25, ET LA PLUS RÉCENTE GAGNE : les deux canaux d'`abilities`
- * (image-clé et paquet delta, qui disent ce que le joueur PORTE) et les CHANGEMENTS
- * d'équipement (qui datent ce qui lui ARRIVE). Le départage — et le cas de la consommation,
- * qui rend `null` parce que le joueur ne porte alors plus rien — vit dans changeRefine.ts.
+ * THREE SOURCES SINCE SCHEMA 25, AND THE MOST RECENT WINS: `abilities`'s two channels
+ * (keyframe and delta packet, which say what the player CARRIES) and equipment
+ * CHANGES (which date what HAPPENS to them). The arbitration — and the consumption case,
+ * which returns `null` because the player then carries nothing — lives in changeRefine.ts.
  *
- * BORNÉE À LA VIE EN COURS DU SLOT (correctif P0-2, 2026-09-06, même défaut et même remède
- * que `loadoutAt`) : sans vie couvrante pour ce slot à cette image, aucune des deux sources ne
- * répond — `null`, jamais la capacité d'une autre vie. `window.start` descend jusqu'à
- * `refineAbilityReading`, qui borne à son tour le canal des changements d'équipement (site
- * frère du même défaut, `changeRefine.ts`).
+ * BOUNDED TO THE SLOT'S CURRENT LIFE (fix P0-2, 2026-09-06, same defect and same fix
+ * as `loadoutAt`): without a covering life for this slot at this frame, neither source
+ * answers — `null`, never another life's ability. `window.start` is passed down to
+ * `refineAbilityReading`, which in turn bounds the equipment-changes channel (sibling
+ * site of the same defect, `changeRefine.ts`).
  */
 export function abilityAt(
   doc: ReplayDocumentReady,

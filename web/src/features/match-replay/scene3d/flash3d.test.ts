@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { FLASH_POOL, FlashLights, flashCurve } from './flash3d'
 
 describe('flashCurve', () => {
-  it('pleine au départ, décroissante, éteinte au bout, nulle avant le départ', () => {
+  it('full at the start, decaying, off at the end, zero before the start', () => {
     expect(flashCurve(-0.001, 0.1)).toBe(0)
     expect(flashCurve(0, 0.1)).toBe(1)
     let last = 1
@@ -28,7 +28,7 @@ describe('FlashLights', () => {
     return out
   }
 
-  it('pose un jeu fixe de lumières éteintes, sans ombre', () => {
+  it('places a fixed set of off lights, with no shadow', () => {
     const scene = new THREE.Scene()
     new FlashLights(scene)
     const lights = lightsOf(scene)
@@ -36,7 +36,7 @@ describe('FlashLights', () => {
     expect(lights.every((l) => l.intensity === 0 && !l.castShadow)).toBe(true)
   })
 
-  it('donne les places aux éclairs les plus forts de l’image, éteint le reste à l’image suivante', () => {
+  it('gives the slots to the frame\'s strongest flashes, turns off the rest the next frame', () => {
     const scene = new THREE.Scene()
     const flashes = new FlashLights(scene)
     const white = new THREE.Color(1, 1, 1)
@@ -51,7 +51,7 @@ describe('FlashLights', () => {
     expect(flashes.lit()).toBe(1)
   })
 
-  it('retire ses lumières de la scène à la libération', () => {
+  it('removes its lights from the scene on release', () => {
     const scene = new THREE.Scene()
     new FlashLights(scene).dispose()
     expect(lightsOf(scene)).toHaveLength(0)

@@ -87,11 +87,11 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	idx := Index{
 		Schema:    SchemaFirstPerson,
 		Generator: generatorLibrary,
-		Weapons:   []Arme{},
+		Weapons:   []WeaponEntry{},
 		Rigs:      []Rig{},
-		Failures:  []Echec{},
+		Failures:  []Failure{},
 	}
-	parFichier := map[string]bool{}
+	seenFile := map[string]bool{}
 
 	ekurDir := spartanpieces.EkurDir(opts.DataDir)
 	coats, err := spartanpieces.OpenCoatingWork(ekurDir)
@@ -107,34 +107,34 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		slog.WarnContext(ctx, "ekur stamp could not be read", "err", err)
 	}
-	armes, sans := a.ArmesPremierePersonne()
+	weapons, withoutFP := a.ArmesPremierePersonne()
 	// The rigs are the bulk of the library build; report them per unit through the runner's
 	// reporter (nil out of band), leaving the tail (arms, index) to the runner's own 1 on success.
 	rep := meshjobs.ProgressFromContext(ctx)
-	total := len(armes)
+	total := len(weapons)
 	// LOCAL-CHANGE (infinite-theater-3d): the rigs build on a bounded worker pool
 	// (internal/parallel), not one at a time — see docs/CHANGELOG.md "Unreleased" for the
 	// measurement. Each goroutine writes its outcome to its own slot of outcomes (indexed by
-	// its position in armes, never by completion order), so the merge below — which is what
+	// its position in weapons, never by completion order), so the merge below — which is what
 	// actually appends to idx.Weapons/idx.Rigs and runs single-threaded, after every rig has
-	// been attempted — walks armes in its own original order regardless of dispatch order or
+	// been attempted — walks weapons in its own original order regardless of dispatch order or
 	// which worker finished first. The build's recorded output (index.json, the rig and
 	// texture files) is therefore identical whatever the dispatch order is, including the
 	// priority order below: a weapon the viewer is waiting on (meshjobs.PriorityFromContext,
 	// set by Prioritize when a match's weapon or rig request 404s) is only reached sooner by a
 	// worker, never recorded differently.
 	outcomes := make([]rigOutcome, total)
-	keyOf := func(i int) string { return fmt.Sprintf("%08x", armes[i].Arme) }
+	keyOf := func(i int) string { return fmt.Sprintf("%08x", weapons[i].Arme) }
 	order := parallel.PriorityOrder(total, keyOf, meshjobs.PriorityFromContext(ctx))
 	buildErr := parallel.Run(ctx, order, parallel.Workers(), func(done int) {
 		if rep != nil {
 			rep.Report(0.85*float64(done)/float64(total), fmt.Sprintf("%d/%d", done, total))
 		}
 	}, func(ctx context.Context, i int) error {
-		s := armes[i]
+		s := weapons[i]
 		key := keyOf(i)
 		announce("building first-person rig " + key)
-		fichier, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)
+		file, rig, err := buildRig(ctx, a, s, key, dir, dep, coats)
 		if err != nil {
 			reason := "error"
 			if errors.Is(err, himap.ErrSansPremierePersonne) {
@@ -147,7 +147,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 			outcomes[i] = rigOutcome{key: key, failed: true, reason: reason}
 			return nil
 		}
-		outcomes[i] = rigOutcome{key: key, fichier: fichier, rig: rig, markers: effectMarkers(ctx, a, s)}
+		outcomes[i] = rigOutcome{key: key, file: file, rig: rig, markers: effectMarkers(ctx, a, s)}
 		return nil
 	})
 	if buildErr != nil {
@@ -155,19 +155,19 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	for _, o := range outcomes {
 		if o.failed {
-			idx.Failures = append(idx.Failures, Echec{Weapon: o.key, Reason: o.reason})
+			idx.Failures = append(idx.Failures, Failure{Weapon: o.key, Reason: o.reason})
 			res.Skipped++
 			continue
 		}
-		idx.Weapons = append(idx.Weapons, Arme{Weapon: o.key, File: o.fichier, EffectMarkers: o.markers})
-		if !parFichier[o.fichier] {
-			parFichier[o.fichier] = true
+		idx.Weapons = append(idx.Weapons, WeaponEntry{Weapon: o.key, File: o.file, EffectMarkers: o.markers})
+		if !seenFile[o.file] {
+			seenFile[o.file] = true
 			idx.Rigs = append(idx.Rigs, o.rig)
 			res.Bytes += o.rig.Bytes
 		}
 		res.Built++
 	}
-	slog.InfoContext(ctx, "first-person roster scanned", "weapons", len(armes), "without_first_person_block", sans)
+	slog.InfoContext(ctx, "first-person roster scanned", "weapons", len(weapons), "without_first_person_block", withoutFP)
 
 	sort.Slice(idx.Rigs, func(i, j int) bool { return idx.Rigs[i].File < idx.Rigs[j].File })
 	idx.Textures = Textures{Files: dep.files, Bytes: dep.bytes, References: dep.references}
@@ -215,11 +215,11 @@ func ResolveModule(ctx context.Context, opts Options) (string, string, error) {
 }
 
 // rigOutcome is one weapon's result from the parallel build pool: either a written rig
-// (fichier, rig, markers) or a failure (reason), keyed by the weapon's key for the merge that
+// (file, rig, markers) or a failure (reason), keyed by the weapon's key for the merge that
 // follows the pool.
 type rigOutcome struct {
 	key     string
-	fichier string
+	file    string
 	rig     Rig
 	markers []EffectMarker
 	failed  bool
@@ -257,24 +257,24 @@ func buildRig(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme, key, d
 	if err != nil {
 		return "", Rig{}, fmt.Errorf("ktx2: %w", err)
 	}
-	glb, _, err := himap.ExterniseImagesGLB(painted, dep.depose)
+	glb, _, err := himap.ExterniseImagesGLB(painted, dep.store)
 	if err != nil {
 		return "", Rig{}, err
 	}
-	fichier := FichierRig(glb)
-	rig := rigIndex(r, fichier)
-	if _, err := writeFileIfAbsent(filepath.Join(dir, fichier), glb); err != nil {
+	file := RigFile(glb)
+	rig := rigIndex(r, file)
+	if _, err := writeFileIfAbsent(filepath.Join(dir, file), glb); err != nil {
 		return "", Rig{}, err
 	}
 	rig.Bytes = int64(len(glb))
-	return fichier, rig, nil
+	return file, rig, nil
 }
 
-// rigIndex builds a rig's index entry: the skeleton and triangle counts, the rest pose
+// rigIndex returns a rig's index entry: the skeleton and triangle digest, the rest pose
 // (when the graph carries an idle clip), and one clip per distinct animation.
-func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
+func rigIndex(r *himap.RigPremierePersonne, file string) Rig {
 	out := Rig{
-		File:        fichier,
+		File:        file,
 		Bones:       len(r.Modele.Noeuds),
 		Triangles:   r.Modele.Maillage.Structure.Triangles(),
 		Clips:       []Clip{},
@@ -287,15 +287,15 @@ func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
 	if pos, forward, ok := r.ArmeEnAttente(); ok {
 		out.IdleWeapon = &Pose{Position: axesGLTFFirstPerson(pos), Forward: axesGLTFFirstPerson(forward)}
 	}
-	first := map[string]himap.ActionRig{}
+	firstByClip := map[string]himap.ActionRig{}
 	for _, ac := range r.Actions {
-		if _, seen := first[ac.Clip]; !seen {
-			first[ac.Clip] = ac
+		if _, seen := firstByClip[ac.Clip]; !seen {
+			firstByClip[ac.Clip] = ac
 		}
 	}
 	for _, c := range r.Clips {
-		an, ac := c.Clip.Animation, first[c.Nom]
-		cadence := himap.CadenceAnimation(an)
+		an, ac := c.Clip.Animation, firstByClip[c.Nom]
+		frameRate := himap.CadenceAnimation(an)
 		out.Clips = append(out.Clips, Clip{
 			Name:            c.Nom,
 			Action:          ac.Action,
@@ -303,8 +303,8 @@ func rigIndex(r *himap.RigPremierePersonne, fichier string) Rig {
 			Type:            himap.NomTypeAnimation(an.Type),
 			Overlay:         an.Type == himap.AnimationSurcouche,
 			FrameCount:      c.Clip.Images,
-			FrameRate:       cadence,
-			DurationSeconds: float64(c.Clip.Images) / float64(cadence),
+			FrameRate:       frameRate,
+			DurationSeconds: float64(c.Clip.Images) / float64(frameRate),
 		})
 	}
 	for _, ac := range r.Actions {
@@ -337,12 +337,12 @@ func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) [
 	if len(names) == 0 {
 		return out
 	}
-	markers, err := a.MarqueursDuModele(s.Mode, names)
+	ms, err := a.MarqueursDuModele(s.Mode, names)
 	if err != nil {
 		slog.WarnContext(ctx, "first-person effect markers unreadable", "weapon", fmt.Sprintf("%08x", s.Arme), "err", err)
 		return out
 	}
-	for _, m := range markers {
+	for _, m := range ms {
 		if m.NomNoeud == "" {
 			continue
 		}
@@ -372,7 +372,7 @@ func writeIndex(dir string, idx Index) error {
 	if err != nil {
 		return err
 	}
-	_, err = writeFile(filepath.Join(dir, FichierIndex), func(w ioWriter) error {
+	_, err = writeFile(filepath.Join(dir, IndexFile), func(w ioWriter) error {
 		_, werr := w.Write(raw)
 		return werr
 	})

@@ -25,6 +25,8 @@
 // mesuree sur les graphes du Spartan ; aucun code repris.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 	"fmt"
@@ -56,7 +58,7 @@ const (
 
 // ErrCourbeNonLue : une variante du codec 10 que ce lecteur ne lit pas ; errors.Is(err,
 // ErrCodecNonDecode).
-var ErrCourbeNonLue = errors.New("himap: variante du codec 10 non lue")
+var ErrCourbeNonLue = errors.New("himap: codec 10 variant not read")
 
 // CourbeNonLueError porte la raison du refus (CourbeNonLue*) ; errors.Is(err, ErrCodecNonDecode).
 type CourbeNonLueError struct {
@@ -108,7 +110,7 @@ type pisteCourbe struct {
 // litPistesCourbes lit un flux de codec 10 dans les pistes du clip.
 func (c *ClipAnimation) litPistesCourbes(b []byte, rangs [tableauxDrapeaux][]int) error {
 	if len(b) < courbeEntete {
-		return fmt.Errorf("%w : flux de courbes de %d octets", ErrAnimationIllisible, len(b))
+		return fmt.Errorf("%w: curve stream of %d bytes", ErrAnimationIllisible, len(b))
 	}
 	if string(b[courbeOffMarque:courbeOffMarque+len(courbeMarque)]) != courbeMarque {
 		return CourbeNonLueError{Raison: CourbeNonLueMarque, Detail: fmt.Sprintf("%q", b[courbeOffMarque:courbeEntete])}
@@ -122,12 +124,12 @@ func (c *ClipAnimation) litPistesCourbes(b []byte, rangs [tableauxDrapeaux][]int
 		return CourbeNonLueError{Raison: CourbeNonLueEchelles, Detail: fmt.Sprintf("%d pistes", f.nEch)}
 	}
 	if t := u32(b, courbeOffTaille); t != len(b) {
-		return fmt.Errorf("%w : flux de courbes de %d octets, en-tete %d", ErrAnimationIllisible, len(b), t)
+		return fmt.Errorf("%w: curve stream of %d bytes, header %d", ErrAnimationIllisible, len(b), t)
 	}
 	donnees := u32(b, courbeOffDonnees)
 	rot, err := c.tablePistes(f, donnees, donnees, f.nRot, sorteRotation)
 	if err != nil {
-		return fmt.Errorf("rotations : %w", err)
+		return fmt.Errorf("rotations: %w", err)
 	}
 	for i, os := range rangs[0] {
 		c.Os[os].Rotations = rotationsDeCourbe(rot[i].valeurs)
@@ -137,7 +139,7 @@ func (c *ClipAnimation) litPistesCourbes(b []byte, rangs [tableauxDrapeaux][]int
 	}
 	trans, err := c.tablePistes(f, donnees, donnees+u32(b, courbeOffTabTrans), f.nTrans, sorteTranslation)
 	if err != nil {
-		return fmt.Errorf("translations : %w", err)
+		return fmt.Errorf("translations: %w", err)
 	}
 	for i, os := range rangs[1] {
 		c.Os[os].Translations = translationsDeCourbe(trans[i])
@@ -160,7 +162,7 @@ func (c *ClipAnimation) tablePistes(f fluxLu, donnees, table, n int, s sortePist
 		}
 		p, err := litPisteCourbe(f, o, c.Images, s)
 		if err != nil {
-			return nil, fmt.Errorf("piste %d : %w", k, err)
+			return nil, fmt.Errorf("track %d: %w", k, err)
 		}
 		out[k] = p
 	}

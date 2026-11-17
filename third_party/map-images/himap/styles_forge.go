@@ -12,6 +12,8 @@
 // own swatch, and its grime replaces the material's style grime.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/json"
 	"fmt"
@@ -69,7 +71,7 @@ func lisCatalogueForge(data []byte) (echantillonForge, error) {
 		} `json:"layers"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("styles Forge : %w", err)
+		return nil, fmt.Errorf("Forge styles: %w", err)
 	}
 	catalogue := map[int32]coucheCatalogue{}
 	for _, e := range doc.Layers {

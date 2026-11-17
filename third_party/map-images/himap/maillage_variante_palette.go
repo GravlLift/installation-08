@@ -2,6 +2,8 @@
 // d'objet de variante applique a son modele.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -15,7 +17,7 @@ func paletteDuType(ctx context.Context, idx *ModuleIndex, forge *himodule.Module
 	food himodule.File, rtgo uint32) (mats []uint32, sansPalette bool) {
 	tag, err := forge.Extract(food)
 	if err != nil {
-		slog.WarnContext(ctx, "food illisible : objet sans palette", "food", fmt.Sprintf("%08x", food.GlobalID), "err", err)
+		slog.WarnContext(ctx, "unreadable food: object without palette", "food", fmt.Sprintf("%08x", food.GlobalID), "err", err)
 		return nil, true
 	}
 	groupe := func(h uint32) string {
@@ -25,17 +27,17 @@ func paletteDuType(ctx context.Context, idx *ModuleIndex, forge *himodule.Module
 	connu := func(h uint32) bool { return groupe(h) != "" }
 	id, ok := paletteApres(RefsInline(tag, connu), groupe, rtgo)
 	if !ok {
-		slog.WarnContext(ctx, "rtgo sans palette dans son food", "food", fmt.Sprintf("%08x", food.GlobalID), "rtgo", fmt.Sprintf("%08x", rtgo))
+		slog.WarnContext(ctx, "rtgo without palette in its food", "food", fmt.Sprintf("%08x", food.GlobalID), "rtgo", fmt.Sprintf("%08x", rtgo))
 		return nil, true
 	}
 	tagPalette, err := idx.Extract(id)
 	if err != nil {
-		slog.WarnContext(ctx, "palette illisible", "rtmp", fmt.Sprintf("%08x", id), "err", err)
+		slog.WarnContext(ctx, "unreadable palette", "rtmp", fmt.Sprintf("%08x", id), "err", err)
 		return nil, true
 	}
 	mats = listeMateriauxPalette(tagPalette, func(h uint32) bool { return groupe(h) == GroupeMateriau })
 	if mats == nil {
-		slog.WarnContext(ctx, "palette sans liste de materiaux", "rtmp", fmt.Sprintf("%08x", id))
+		slog.WarnContext(ctx, "palette without material list", "rtmp", fmt.Sprintf("%08x", id))
 		return nil, true
 	}
 	return mats, false

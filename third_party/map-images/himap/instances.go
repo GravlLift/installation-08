@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"encoding/xml"
 	"fmt"
@@ -172,7 +174,7 @@ func ReadModuleInstances(modulePath string) ([]BSPInstances, error) {
 		if firstErr != nil {
 			return nil, firstErr
 		}
-		return nil, fmt.Errorf("%w dans %s", ErrAucunTagSbsp, modulePath)
+		return nil, fmt.Errorf("%w in %s", ErrAucunTagSbsp, modulePath)
 	}
 	return out, nil
 }
@@ -184,7 +186,7 @@ func instancesFromTag(tag []byte) (BSPInstances, error) {
 	}
 	cands := tagCandidates(tag)
 	if len(cands) == 0 {
-		return BSPInstances{}, fmt.Errorf("en-tête de tag non reconnu")
+		return BSPInstances{}, fmt.Errorf("unrecognized tag header")
 	}
 	var last error
 	for _, ti := range cands {
@@ -212,10 +214,10 @@ func instancesFromTagInfo(ti tagInfo) (BSPInstances, error) {
 	}
 	abs, size := ti.blockAbs(target)
 	if abs < 0 || size < 0 || abs+size > len(ti.tag) {
-		return BSPInstances{}, fmt.Errorf("bloc instances hors borne")
+		return BSPInstances{}, fmt.Errorf("instances block out of bounds")
 	}
 	if size%instanceStride != 0 {
-		return BSPInstances{}, fmt.Errorf("taille de bloc %d non multiple de %#x", size, instanceStride)
+		return BSPInstances{}, fmt.Errorf("block size %d not a multiple of %#x", size, instanceStride)
 	}
 	n := size / instanceStride
 	sousBlocs := ti.sousBlocsParOffset(target)
@@ -254,7 +256,7 @@ func PluginInstanceStride() (int, error) {
 	}
 	n := findPluginNode(root, instancesBlockName)
 	if n == nil {
-		return 0, fmt.Errorf("himap: %q absent du plugin", instancesBlockName)
+		return 0, fmt.Errorf("himap: %q absent from the plugin", instancesBlockName)
 	}
 	var tmp []pluginField
 	return walkPlugin(*n, 0, &tmp), nil
@@ -308,20 +310,20 @@ func (ti tagInfo) blockByPluginName(name string) (int, error) {
 		}
 	}
 	if rank < 0 {
-		return 0, fmt.Errorf("champ %q absent du plugin", name)
+		return 0, fmt.Errorf("field %q absent from the plugin", name)
 	}
 	offs, targets, err := ti.rootBlockRefs()
 	if err != nil {
 		return 0, err
 	}
 	if rank >= len(offs) {
-		return 0, fmt.Errorf("rang %d hors des %d refs du tag", rank, len(offs))
+		return 0, fmt.Errorf("rank %d outside the %d tag refs", rank, len(offs))
 	}
 	// Les écarts entre tag-blocks doivent être conservés jusqu'au rang visé, sinon
 	// le préfixe du root block a changé de forme et l'appariement serait faux.
 	for i := 0; i < rank; i++ {
 		if pluginBlocks[i+1].off-pluginBlocks[i].off != offs[i+1]-offs[i] {
-			return 0, fmt.Errorf("écart de tag-blocks non conservé au rang %d", i)
+			return 0, fmt.Errorf("tag-blocks gap not preserved at rank %d", i)
 		}
 	}
 	return targets[rank], nil
@@ -340,7 +342,7 @@ func (ti tagInfo) rootBlockRefs() ([]int, []int, error) {
 		}
 	}
 	if rootBlock < 0 {
-		return nil, nil, fmt.Errorf("root block introuvable")
+		return nil, nil, fmt.Errorf("root block not found")
 	}
 	type ref struct{ off, target int }
 	var refs []ref
@@ -388,7 +390,7 @@ func DescribeRootBlocks(modulePath string) ([]RootBlockInfo, error) {
 	defer func() { _ = m.Close() }()
 	files := m.Files("sbsp")
 	if len(files) == 0 {
-		return nil, fmt.Errorf("%w dans %s", ErrAucunTagSbsp, modulePath)
+		return nil, fmt.Errorf("%w in %s", ErrAucunTagSbsp, modulePath)
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].UncompSize > files[j].UncompSize })
 	tag, err := m.Extract(files[0])
@@ -405,7 +407,7 @@ func DescribeRootBlocks(modulePath string) ([]RootBlockInfo, error) {
 		}
 		return ti.describeRootBlocks()
 	}
-	return nil, fmt.Errorf("himap: en-tête de tag non reconnu")
+	return nil, fmt.Errorf("himap: unrecognized tag header")
 }
 
 func (ti tagInfo) describeRootBlocks() ([]RootBlockInfo, error) {
@@ -442,7 +444,7 @@ func (ti tagInfo) rootBlockIndex() (int, error) {
 			return i32(ti.tag, b+0x14), nil
 		}
 	}
-	return 0, fmt.Errorf("root block introuvable")
+	return 0, fmt.Errorf("root block not found")
 }
 
 // Footprint2D est l'emprise au sol d'une instance, projetée sur le plan (x, y).

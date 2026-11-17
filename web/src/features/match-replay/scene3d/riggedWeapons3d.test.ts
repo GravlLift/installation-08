@@ -6,7 +6,7 @@ import { testReplayDoc } from '../test/testDoc'
 import { clesRigsRejeu } from './riggedWeapons3d'
 
 describe('clesRigsRejeu', () => {
-  it("union des dotations et des changements d'arme, sans doublon", () => {
+  it('unions loadouts and weapon changes, with no duplicate', () => {
     const doc = testReplayDoc({
       loadouts: [{ t: 0, slot: 0, w: ['12345678', '0xdeadbeef01234567'] }],
       weaponChanges: [
@@ -16,13 +16,13 @@ describe('clesRigsRejeu', () => {
     })
     expect(clesRigsRejeu(doc)).toEqual(['12345678', 'deadbeef', 'abcdef12'])
   })
-  it("réduit un identifiant complet à sa famille, et écarte ce qui n'en a pas", () => {
+  it('reduces a full id to its family, and drops ones with none', () => {
     const doc = testReplayDoc({
       weaponChanges: [{ t: 1, slot: 0, kind: 'swapped', w: '0x1234567890abcdef', from: 'grenade012' }],
     })
     expect(clesRigsRejeu(doc)).toEqual(['12345678'])
   })
-  it('rend une liste vide sans arme portée', () => {
+  it('returns an empty list without a carried weapon', () => {
     expect(clesRigsRejeu(testReplayDoc())).toEqual([])
   })
 })

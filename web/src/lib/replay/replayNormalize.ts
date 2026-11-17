@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * replayNormalize.ts — LA FRONTIÈRE du document de rejeu.
+ * replayNormalize.ts — THE BOUNDARY of the replay document.
  *
- * POURQUOI CE FICHIER EXISTE. Depuis que `ReplayDocument` vient du contrat généré et non
- * plus d'une copie écrite à la main, ses tableaux sont nullables : un slice Go nil se
- * sérialise en `null`, et le schéma le dit. C'est la vérité du transport, pas celle du
- * rendu — pour tout ce qui dessine, « aucune trace » et « le champ vaut null » sont la
- * même chose. Sans point de passage, cette différence se paie en `?.` et `?? []` semés
- * dans chaque appelant, et il en manque toujours un.
+ * WHY THIS FILE EXISTS. Since `ReplayDocument` comes from the generated contract and no
+ * longer from a hand-written copy, its arrays are nullable: a nil Go slice
+ * serializes to `null`, and the schema says so. That is the transport's truth, not
+ * rendering's — for everything that draws, "no trace" and "the field is null" are the
+ * same thing. Without a crossing point, this difference is paid in `?.` and `?? []` scattered
+ * across every caller, and one is always missing.
  *
- * Le document est donc normalisé UNE FOIS, dans la queryFn (cf. queries.ts), et tout le
- * dossier `match-replay/` ne manipule que les types `*Ready` : aucun tableau n'y est null.
+ * The document is therefore normalized ONCE, in the queryFn (see queries.ts), and the whole
+ * `match-replay/` folder only handles `*Ready` types: no array is null there.
  *
- * CE QUE LA NORMALISATION RÉPARE AUSSI — les longueurs fixes. Le Go écrit
- * `Poly [][2]float32` et `P [][3]float32` : des sommets XY et des pas [dt, x, y]. JSON
- * Schema ne sait pas exprimer un tuple de longueur fixe, le contrat généré rend donc
- * `number[]`. La donnée, elle, EST une paire ou un triplet — c'est le type Go qui le
- * garantit, pas une supposition d'ici. Le rétablir tient en une assertion posée à cet
- * endroit unique, plutôt qu'en un cast par appelant.
+ * WHAT NORMALIZATION ALSO FIXES — fixed lengths. Go writes
+ * `Poly [][2]float32` and `P [][3]float32`: XY vertices and [dt, x, y] steps. JSON
+ * Schema cannot express a fixed-length tuple, so the generated contract yields
+ * `number[]`. The data itself IS a pair or a triple — it is the Go type that guarantees
+ * it, not an assumption made here. Restoring it takes one assertion placed at this
+ * single spot, rather than a cast per caller.
  *
- * LES TYPES `*Ready` — la FORME du document normalisé, champ par champ — vivent dans
- * `replayReadyTypes.ts` depuis le 2026-09-05 : un DÉPLACEMENT, sans une ligne changée, pour
- * repasser sous le seuil de 500 lignes. Ce fichier-ci garde LA FONCTION, et les re-publie.
+ * THE `*Ready` TYPES — the normalized document's SHAPE, field by field — live in
+ * `replayReadyTypes.ts` since 2026-09-05: a MOVE, without a line changed, to get back
+ * under the 500-line threshold. This file keeps THE FUNCTION, and re-exports them.
  */
 import { decodeFullRate, decodeFullRateFlight, type ReplayFullRateFlightRaw } from '@/lib/replay/replayFullRate'
 import { normalizeScoreTimeline } from '@/lib/replay/scoreTimeline'
@@ -31,16 +31,16 @@ import type { ReplayDocument } from '@/lib/api/types'
 import type { ReplayDocumentReady, ReplayProjectileAttach, ReplayStep, ReplayXY } from './replayReadyTypes'
 
 /**
- * Le pas de grille d'un document qui ne publie pas `frameIntervalMs` : celui du producteur
+ * The grid step of a document that does not publish `frameIntervalMs`: the producer's own
  * (`DefaultFrameIntervalMS`, `libs/film/replay/build.go`).
  */
-const PAS_DE_GRILLE_PAR_DEFAUT_MS = 100
+const DEFAULT_GRID_STEP_MS = 100
 
 /**
- * LES TYPES `*Ready` SE RE-PUBLIENT ICI, et ce n'est pas un baril de complaisance : ils vivent
- * dans `replayReadyTypes.ts` depuis le découpage du 2026-09-05 (seuil des 500 lignes), et la
- * frontière doit rester UN seul module pour ses ~140 appelants — un déplacement de fichier ne
- * se paie pas en réécriture d'imports partout.
+ * THE `*Ready` TYPES ARE RE-EXPORTED HERE, and this is not a courtesy barrel: they live
+ * in `replayReadyTypes.ts` since the 2026-09-05 split (the 500-line threshold), and the
+ * boundary must stay ONE single module for its ~140 callers — moving a file is not
+ * paid for by rewriting imports everywhere.
  */
 export type {
   ReplayBombCarry,
@@ -64,169 +64,169 @@ export type {
 } from './replayReadyTypes'
 
 /**
- * normalizeReplayDocument comble les tableaux absents et rétablit l'arité des coordonnées.
+ * normalizeReplayDocument fills in the missing arrays and restores coordinate arity.
  *
- * Aucune valeur n'est inventée : un tableau null ou absent devient vide, ce qui est
- * exactement ce que le producteur voulait dire. Les objets ne sont recopiés qu'en surface
- * — les points de trajectoire, qui font le poids du document, ne sont jamais dupliqués.
+ * No value is invented: a null or absent array becomes empty, which is
+ * exactly what the producer meant. Objects are only shallow-copied
+ * — trajectory points, which make up the bulk of the document, are never duplicated.
  *
- * DEUX QUESTIONS, DEUX CHAMPS, DEPUIS LE SCHÉMA 62 — et c'est ce que les commentaires ci-dessous
- * nomment désormais tous les deux. « Ce calque A-T-IL ÉTÉ PRODUIT ? » se lit dans `layers[nom]` :
- * entrée présente = la passe a tourné (sous la révision nommée), entrée absente = elle n'a pas
- * tourné (une garde de mode fermée, un balayage qui n'a pas abouti). « QU'A COÛTÉ la lecture ? »
- * se lit dans `coverage.X` : ce qui a été vu, rattaché, perdu. Avant 62 la première question se
- * déduisait de la seconde — une jointure entre un tableau absent et un bloc de couverture, qui
- * demandait de connaître la carte des blocs (et `coverage.groundWeapons` mesure `padPickups`,
- * `coverage.zones` mesure `zoneStates` : les deux nomenclatures ne coïncident pas).
+ * TWO QUESTIONS, TWO FIELDS, SINCE SCHEMA 62 — and this is what the comments below now
+ * name both of. "WAS this layer PRODUCED?" is read in `layers[name]`:
+ * entry present = the pass ran (under the named revision), entry absent = it did not
+ * run (a closed mode guard, a scan that did not complete). "What did the reading COST?"
+ * is read in `coverage.X`: what was seen, attached, lost. Before 62 the first question was
+ * deduced from the second — a join between an absent array and a coverage block, which
+ * required knowing the map of blocks (and `coverage.groundWeapons` measures `padPickups`,
+ * `coverage.zones` measures `zoneStates`: the two naming schemes do not match).
  *
- * L'OBJET `layers` LUI-MÊME PEUT ÊTRE ABSENT (artefact antérieur à 62) : c'est `schemaVersion`
- * qui tranche, et `calquePresent` (features/match-replay/model) porte cette lecture en un point.
+ * THE `layers` OBJECT ITSELF MAY BE ABSENT (artifact predating 62): it is `schemaVersion`
+ * that decides, and `layerPresent` (features/match-replay/model) carries this reading in one place.
  */
 export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentReady {
   const sceneryLives = new Set((raw.vehicleScenery?.hidden ?? []).map((h) => vehicleLifeKey(h.slot, h.gen)))
   return {
     ...raw,
-    // Le calque des lectures de CAPACITÉ (schéma 6). Il remplace `Inventory.a`, retiré le
-    // même jour : celui-ci portait `rang − 16` (le canal d'image-clé ne voit que 16..23),
-    // ce calque porte le RANG complet, et chaque lecture dit par quel canal elle est venue.
-    // Absent = aucune lecture, la fiche montre l'inventaire sans capacité nommée.
+    // The ABILITY reading layer (schema 6). It replaces `Inventory.a`, removed the
+    // same day: that one carried `rank - 16` (the keyframe channel only sees 16..23),
+    // this layer carries the FULL rank, and each reading says which channel it came
+    // through. Absent = no reading, the card shows the inventory without a named ability.
     abilities: raw.abilities ?? [],
-    // L'ARMEMENT DE LA BOMBE d'Assaut (schéma 29) : hold, instant armé, mèche. Absent =
-    // artefact antérieur, mode non couvert, ou calque retenu par la confrontation locale —
-    // `layers[bombArmings]` / `coverage.bombArmings` distinguent les silences. Aucun tableau
-    // imbriqué : l'entrée est plate.
+    // THE ASSAULT BOMB ARMING (schema 29): hold, armed instant, fuse. Absent =
+    // artifact predating this, mode not covered, or layer withheld by local confrontation —
+    // `layers[bombArmings]` / `coverage.bombArmings` tell the silences apart. No nested
+    // array: the entry is flat.
     bombArmings: raw.bombArmings ?? [],
-    // LES PÉRIODES DE PORTAGE DE LA BOMBE d'Assaut (schéma 30) : une entrée plate par période
-    // (xuid, t0, t1, closed), le patron de `skullCarries` sur le canal des armes tenues.
-    // Absent = artefact antérieur, ou film hors famille bomb — `layers[bombCarries]` /
-    // `coverage.bombCarries` distinguent les deux.
+    // ASSAULT BOMB CARRY PERIODS (schema 30): a flat entry per period
+    // (xuid, t0, t1, closed), the `skullCarries` pattern on the held-weapon channel.
+    // Absent = artifact predating this, or film outside the bomb family — `layers[bombCarries]` /
+    // `coverage.bombCarries` tell the two apart.
     bombCarries: raw.bombCarries ?? [],
-    // LES FAITS DATÉS DE LA BOMBE (schéma 39) : armements et explosions. Absent = artefact
-    // antérieur, ou film hors famille bomb.
+    // THE DATED BOMB FACTS (schema 39): armings and explosions. Absent = artifact
+    // predating this, or film outside the bomb family.
     bombEvents: raw.bombEvents ?? [],
-    // LES CINQ STATISTIQUES D'ASSAUT (schéma 39). L'OBJET garde le droit d'être absent — un
-    // bloc vide se lirait « lu, rien trouvé » —, mais son tableau est comblé.
+    // THE FIVE ASSAULT STATISTICS (schema 39). The OBJECT keeps the right to be absent — an
+    // empty block would read as "read, found nothing" —, but its array is filled in.
     bombStats: raw.bombStats == null ? undefined : { ...raw.bombStats, players: raw.bombStats.players ?? [] },
-    // LES RAMASSAGES ET LES CONSOMMATIONS d'équipement (schéma 26) : la source FINE de datation
-    // de ce que porte un joueur. `abilities` reste la LECTURE (ce qu'il porte, échantillonné) ;
-    // ceci est l'ÉVÉNEMENT (ce qui lui arrive, daté). Absent = artefact antérieur, ou film qui
-    // n'en porte aucun — `layers[equipmentChanges]` / `coverage.equipmentChanges` distinguent les deux.
+    // EQUIPMENT PICKUPS AND CONSUMPTIONS (schema 26): the FINE-GRAINED dating source
+    // for what a player carries. `abilities` remains the READING (what they carry, sampled);
+    // this is the EVENT (what happens to them, dated). Absent = artifact predating this, or
+    // film that carries none — `layers[equipmentChanges]` / `coverage.equipmentChanges` tell the two apart.
     equipmentChanges: raw.equipmentChanges ?? [],
-    // LES PRISES ET LES LÂCHERS D'ARME (schéma 25) : même rapport à `loadouts` que ci-dessus —
-    // la lecture d'image-clé dit l'ÉTAT, ces événements datent le CHANGEMENT. Absent = artefact
-    // antérieur, ou film qui n'en porte aucun (`layers[weaponChanges]` / `coverage.weaponChanges`
-    // distinguent les deux).
+    // WEAPON PICKUPS AND DROPS (schema 25): same relation to `loadouts` as above —
+    // the keyframe reading says the STATE, these events date the CHANGE. Absent = artifact
+    // predating this, or film that carries none (`layers[weaponChanges]` / `coverage.weaponChanges`
+    // tell the two apart).
     weaponChanges: raw.weaponChanges ?? [],
-    // LES RAMASSAGES NATIFS (schéma 30) : l'événement que la bobine écrit elle-même, là où
-    // `weaponChanges` déduit d'un changement de composant. Absent = artefact antérieur, ou film
-    // qui n'en porte aucun (`layers[pickups]` / `coverage.pickups` distinguent les deux).
+    // NATIVE PICKUPS (schema 30): the event the reel writes itself, where
+    // `weaponChanges` infers from a component change. Absent = artifact predating this, or film
+    // that carries none (`layers[pickups]` / `coverage.pickups` tell the two apart).
     pickups: raw.pickups ?? [],
-    // LES ARMES AU SOL individuelles (schéma 27) : une entrée par objet qui a bougé, bornée par
-    // l'OBSERVATION. Absent = artefact antérieur, ou film dont aucune arme ne tombe —
-    // `layers[groundWeapons]` / `coverage.groundWeaponItems` distinguent les deux. Aucun tableau
-    // imbriqué : l'objet est plat.
+    // INDIVIDUAL GROUND WEAPONS (schema 27): one entry per object that moved, bounded by
+    // OBSERVATION. Absent = artifact predating this, or film where no weapon falls —
+    // `layers[groundWeapons]` / `coverage.groundWeaponItems` tell the two apart. No nested
+    // array: the object is flat.
     groundWeapons: raw.groundWeapons ?? [],
-    // Les épisodes d'ÉTAT ACTIF d'équipement (schéma 7) : camouflage et surbouclier,
-    // datés par vie — les deux seules familles dont l'état est MESURÉ. Absent = aucune
-    // vie publiée n'en porte : les fiches restent sobres, jamais un effet deviné.
+    // Equipment ACTIVE-STATE episodes (schema 7): camouflage and overshield,
+    // dated per life — the only two families whose state is MEASURED. Absent = no
+    // published life carries one: cards stay sober, never a guessed effect.
     equipmentEpisodes: raw.equipmentEpisodes ?? [],
-    // Les POSES d'équipement (schéma 9) : mur, capteur, et les objets du monde qui
-    // partagent l'archétype — ces derniers publiés en famille `other`, avec leur
-    // identifiant de tag et sans nom. Absent = le film n'en porte aucune, OU sa largeur
-    // de bloc de réplication n'a pas été tranchée : `layers[equipmentPlacements]` /
-    // `coverage.placements.calibrated` distinguent les deux, et c'est pour cela qu'ils sont publiés.
+    // Equipment PLACEMENTS (schema 9): wall, sensor, and the world objects that
+    // share the archetype — the latter published under the `other` family, with their
+    // tag identifier and no name. Absent = the film carries none, OR its replication
+    // block width was not decided: `layers[equipmentPlacements]` /
+    // `coverage.placements.calibrated` tell the two apart, and that is why they are published.
     equipmentPlacements: raw.equipmentPlacements ?? [],
-    // LES ÉTATS DE MOUVEMENT (schéma 66) : un intervalle par (vie, genre) — `crouch`, `slide`,
-    // `clamber`, `sprint` (LUS) et `jumpDerived` (DÉRIVÉ de la vitesse verticale). Absent = artefact
-    // antérieur au schéma 65, OU film dont aucune vie publiée ne porte de transition :
-    // `coverage.stances.scanned` et `.absent` distinguent les deux, et c'est pour cela qu'ils
-    // sont publiés. Un genre de PLUS qui apparaîtrait serait une donnée neuve, pas un libellé
-    // à deviner.
+    // MOVEMENT STATES (schema 66): an interval per (life, kind) — `crouch`, `slide`,
+    // `clamber`, `sprint` (READ) and `jumpDerived` (DERIVED from vertical speed). Absent = artifact
+    // predating schema 65, OR film where no published life carries a transition:
+    // `coverage.stances.scanned` and `.absent` tell the two apart, and that is why they
+    // are published. One MORE kind appearing would be new data, not a label
+    // to guess.
     stances: raw.stances ?? [],
-    // LA VIE DES DRAPEAUX de CTF (schéma 14) : une entrée par objet, une suite d'intervalles
-    // d'état. Absent = le film n'est pas reconnu comme du CTF, ou personne ne l'a lu pour ce
-    // calque — `layers[flagCarries]` / `coverage.flagCarries` distinguent les deux, et c'est pour
-    // cela qu'ils sont publiés.
+    // CTF flags' life (schema 14): one entry per object, a sequence of state
+    // intervals. Absent = the film is not recognized as CTF, or nobody read it for this
+    // layer — `layers[flagCarries]` / `coverage.flagCarries` tell the two apart, and that is why
+    // they are published.
     //
-    // LE TABLEAU IMBRIQUÉ SE COMBLE AUSSI (`spans`), comme pour `weaponPads` et `tracks` : le
-    // contrat le déclare nullable, et un drapeau qui arriverait avec `spans: null` ferait
-    // tomber le calque à l'exécution — pas à la compilation.
+    // THE NESTED ARRAY IS ALSO FILLED IN (`spans`), as for `weaponPads` and `tracks`: the
+    // contract declares it nullable, and a flag arriving with `spans: null` would crash
+    // the layer at runtime — not at compile time.
     flagCarries: (raw.flagCarries ?? []).map((f) => ({
       ...f,
       spans: (f.spans ?? []).map((sp) => ({ ...sp, returnProgress: sp.returnProgress ?? [] })),
     })),
-    // LES PÉRIODES DE PORT DE LA COURONNE VIP (schéma 22) : une entrée plate par période
-    // (xuid, t0, t1, closed), aucun tableau imbriqué. Absent = artefact antérieur, ou film
-    // non reconnu VIP — `layers[vipCrown]` / `coverage.vipCrown` distinguent les deux, et c'est
-    // pour cela qu'ils existent.
+    // VIP CROWN CARRY PERIODS (schema 22): a flat entry per period
+    // (xuid, t0, t1, closed), no nested array. Absent = artifact predating this, or film
+    // not recognized as VIP — `layers[vipCrown]` / `coverage.vipCrown` tell the two apart, and that is
+    // why they exist.
     vipCrown: raw.vipCrown ?? [],
-    // LES PÉRIODES DE PORTAGE DU CRÂNE d'Oddball (schéma 23) : une entrée plate par période
-    // (xuid, t0, t1, closed), aucun tableau imbriqué. Absent = artefact antérieur, ou film non
-    // reconnu Oddball — `layers[skullCarries]` / `coverage.skullCarries` distinguent les deux.
+    // ODDBALL SKULL CARRY PERIODS (schema 23): a flat entry per period
+    // (xuid, t0, t1, closed), no nested array. Absent = artifact predating this, or film not
+    // recognized as Oddball — `layers[skullCarries]` / `coverage.skullCarries` tell the two apart.
     skullCarries: raw.skullCarries ?? [],
-    // LES TÉLÉPORTATIONS DU TRANSLOCATEUR (schéma 38) : une entrée plate par saut — (t, slot)
-    // et le va-et-vient, datés et situés par l'ÉVÉNEMENT du film. Absent = artefact antérieur
-    // au schéma 38, ou film sans translocateur — `layers[translocations]` /
-    // `coverage.translocations` distinguent les deux.
+    // TRANSLOCATOR TELEPORTS (schema 38): a flat entry per jump — (t, slot)
+    // and the round trip, dated and positioned by the film's EVENT. Absent = artifact predating
+    // schema 38, or film without a translocator — `layers[translocations]` /
+    // `coverage.translocations` tell the two apart.
     translocations: raw.translocations ?? [],
-    // LES POUSSÉES DU RÉPULSEUR (schéma 94) : absent = artefact antérieur, ou film sans poussée —
-    // `layers[knockbacks]` / `coverage.knockbacks` distinguent les deux.
+    // REPULSOR KNOCKBACKS (schema 94): absent = artifact predating this, or film without a push —
+    // `layers[knockbacks]` / `coverage.knockbacks` tell the two apart.
     knockbacks: raw.knockbacks ?? [],
-    // LES ACTIONS DU JOUEUR (schéma 107) : absent = artefact antérieur, ou rien de lu —
-    // `coverage.playerActions` distingue.
+    // PLAYER ACTIONS (schema 107): absent = artifact predating this, or nothing read —
+    // `coverage.playerActions` tells them apart.
     drawnWeapons: raw.drawnWeapons ?? [],
     damages: raw.damages ?? [],
     killCauses: raw.killCauses ?? [],
-    // LES GESTES DU JOUEUR (schéma 108), même règle. Depuis le schéma 111 chaque action porte `ms`
-    // (l'instant à la milliseconde depuis l'origine de la grille) et le saut lu dans la commande
-    // (`jump`) les rejoint ; un artefact antérieur n'a que la frame, et `ms` y vaut le début de la
-    // frame : une précision de frame, pas une lecture.
+    // PLAYER GESTURES (schema 108), same rule. Since schema 111 each action carries `ms`
+    // (the millisecond instant since the grid's origin) and the jump read from the command
+    // (`jump`) joins them; an older artifact only has the frame, and `ms` there is the start of the
+    // frame: frame precision, not a reading.
     actions: (raw.actions ?? []).map((a) =>
-      a.ms === undefined ? { ...a, ms: a.t * (raw.frameIntervalMs ?? PAS_DE_GRILLE_PAR_DEFAUT_MS) } : a,
+      a.ms === undefined ? { ...a, ms: a.t * (raw.frameIntervalMs ?? DEFAULT_GRID_STEP_MS) } : a,
     ),
-    // L'ÉQUIPEMENT PORTÉ (schéma 95) : ses deux tableaux imbriqués se comblent aussi.
+    // CARRIED EQUIPMENT (schema 95): its two nested arrays are also filled in.
     carriedEquipment: (raw.carriedEquipment ?? []).map((c) => ({
       ...c,
       energy: c.energy ?? [],
       uses: c.uses ?? [],
       tracked: c.tracked ?? [],
     })),
-    // LES POSES DE FAILLE (schéma 95) : absent = artefact antérieur, ou film sans translocateur posé.
+    // RIFT POSES (schema 95): absent = artifact predating this, or film without a placed translocator.
     riftPoses: raw.riftPoses ?? [],
-    // LES IMPULSIONS DE CAPACITÉ (schéma 38) : une entrée plate par geste (t, slot, family),
-    // l'usage MESURÉ du propulseur. Absent = artefact antérieur au schéma 38, film sans
-    // propulseur, ou palette non classée — `layers[abilityImpulses]` /
-    // `coverage.abilityImpulses` distinguent les trois.
+    // ABILITY IMPULSES (schema 38): a flat entry per gesture (t, slot, family),
+    // the thruster's MEASURED use. Absent = artifact predating schema 38, film without a
+    // thruster, or an unclassified palette — `layers[abilityImpulses]` /
+    // `coverage.abilityImpulses` tell the three apart.
     abilityImpulses: raw.abilityImpulses ?? [],
-    // LES CHARGES D'ÉQUIPEMENT RESTANTES (schéma 38 enrichi, lot P5) : une entrée plate par
-    // lecture (t, slot, family, charges) — jamais un compte d'usages dérivé. Absent =
-    // artefact antérieur, film sans lecture armée, ou palette non classée —
-    // `layers[abilityCharges]` / `coverage.abilityCharges` distinguent les trois.
+    // REMAINING EQUIPMENT CHARGES (enriched schema 38, batch P5): a flat entry per
+    // reading (t, slot, family, charges) — never a derived usage count. Absent =
+    // artifact predating this, film without an armed reading, or an unclassified palette —
+    // `layers[abilityCharges]` / `coverage.abilityCharges` tell the three apart.
     abilityCharges: raw.abilityCharges ?? [],
-    // LES OBJETS D'OBJECTIF LIBRES (schéma 21) : une entrée par VIE de l'objet hors portage.
-    // Absent = artefact antérieur, mode sans objet porté, ou film qui n'en porte pas —
-    // `layers[objectiveObjects]` / `coverage.objectiveObjects` distinguent les trois, et c'est
-    // pour cela qu'ils sont publiés.
-    // Le tableau IMBRIQUÉ (`pts`) se comble aussi, même raison que `spans` ci-dessus.
+    // FREE OBJECTIVE OBJECTS (schema 21): one entry per object LIFE outside of carry.
+    // Absent = artifact predating this, mode without a carried object, or film that carries
+    // none — `layers[objectiveObjects]` / `coverage.objectiveObjects` tell the three apart, and that is
+    // why they are published.
+    // The NESTED array (`pts`) is also filled in, same reason as `spans` above.
     objectiveObjects: (raw.objectiveObjects ?? []).map((o) => ({ ...o, pts: o.pts ?? [] })),
     geometry: raw.geometry ?? [],
-    // Les TRACTIONS de grappin (schéma 8) : fenêtre mesurée [t0, t1] par vie + point
-    // d'accroche en coordonnées monde. Absent = aucune traction lue sur ce film : rien
-    // ne se trace, jamais une ligne devinée.
+    // Grapple PULLS (schema 8): a measured window [t0, t1] per life + anchor
+    // point in world coordinates. Absent = no pull read on this film: nothing
+    // is drawn, never a guessed line.
     grappleLines: raw.grappleLines ?? [],
     grenadeLabels: raw.grenadeLabels ?? [],
-    // `g` est comblé comme partout ailleurs : le contrat le déclare nullable, et une lecture
-    // qui arriverait avec `g: null` ferait tomber la boîte de grenades à l'exécution.
+    // `g` is filled in as everywhere else: the contract declares it nullable, and a reading
+    // arriving with `g: null` would crash the grenade box at runtime.
     grenadeReads: (raw.grenadeReads ?? []).map((gr) => ({ ...gr, g: gr.g ?? [] })),
     ammoReads: raw.ammoReads ?? [],
     grenades: raw.grenades ?? [],
-    // LE REGISTRE D'IDENTITÉ (schéma 50) : ses trois listes se comblent, l'OBJET garde le droit
-    // d'être absent. Un artefact antérieur au schéma 50 n'en porte aucun, et un objet vide se
-    // lirait « le registre a été calculé, il n'a rien trouvé » — le contraire de « personne n'a
-    // regardé ». Même régime que `scoreTimeline`.
-    // LA PART DE REPLI du document (schéma 58) : `coverage.fallbacks` liste les replis du
-    // décodeur qui se sont déclenchés pendant la cuisson. Comblée comme les autres tableaux ;
-    // l'OBJET `coverage`, lui, garde le droit d'être absent (même régime qu'`identity`).
+    // THE IDENTITY REGISTRY (schema 50): its three lists are filled in, the OBJECT keeps the
+    // right to be absent. An artifact predating schema 50 carries none, and an empty object
+    // would read as "the registry was computed, it found nothing" — the opposite of "nobody
+    // looked". Same regime as `scoreTimeline`.
+    // THE document's FALLBACK SHARE (schema 58): `coverage.fallbacks` lists the decoder's
+    // fallbacks that triggered during baking. Filled in like the other arrays;
+    // the `coverage` OBJECT, though, keeps the right to be absent (same regime as `identity`).
     coverage: raw.coverage ? { ...raw.coverage, fallbacks: raw.coverage.fallbacks ?? [] } : undefined,
     identity: raw.identity
       ? {
@@ -236,33 +236,33 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
           statborgSlots: raw.identity.statborgSlots ?? [],
         }
       : undefined,
-    // LES RÉVISIONS PAR CALQUE (schéma 62) : `layers` porte, pour chaque calque produit, la
-    // révision de la couche qui l'a décodé. MÊME RÉGIME que `coverage` et `identity` : l'OBJET
-    // garde le droit d'être ABSENT (artefact antérieur au schéma 62), et il n'est JAMAIS comblé —
-    // un objet vide se lirait « la table a été calculée, aucun calque produit », ce qui est faux.
-    // Une ENTRÉE absente dans un objet présent est une réponse : ce calque n'a pas été produit.
+    // PER-LAYER REVISIONS (schema 62): `layers` carries, for each produced layer, the
+    // revision of the stage that decoded it. SAME REGIME as `coverage` and `identity`: the OBJECT
+    // keeps the right to be ABSENT (artifact predating schema 62), and it is NEVER filled in —
+    // an empty object would read as "the table was computed, no layer produced", which is false.
+    // An ABSENT entry in a present object is an answer: this layer was not produced.
     layers: raw.layers,
     inventory: (raw.inventory ?? []).map((inv) => ({ ...inv, am: inv.am ?? [], g: inv.g ?? [] })),
-    // `k` (schéma 69) : l'emplacement de chaque arme d'une dotation de naissance. Comblé comme
-    // `w` ; un relevé d'image-clé n'en porte aucun (`k` vide = relevé NON situé, cf. loadoutAt).
+    // `k` (schema 69): each weapon's slot for a spawn loadout. Filled in like
+    // `w`; a keyframe reading carries none (`k` empty = reading NOT located, see loadoutAt).
     loadouts: (raw.loadouts ?? []).map((lo) => ({ ...lo, w: lo.w ?? [], k: lo.k ?? [] })),
-    // Le TYPE des morts que personne ne revendique (chute, hors-limites, sa propre arme) :
-    // le fil déduit ces lignes de ses pistes, cette table dit seulement DE QUOI le joueur
-    // est mort. Absente = aucune n'est établie, le fil garde son repère neutre.
+    // The TYPE of unclaimed deaths (fall, out of bounds, own weapon):
+    // the feed infers these lines from its tracks, this table only says WHAT the player
+    // died of. Absent = none established, the feed keeps its neutral marker.
     neutralDeaths: raw.neutralDeaths ?? [],
-    // Le calque d'actions d'objectif traverse la frontière comme les autres tableaux ;
-    // il nourrit les PULSES du canvas (objectivesLayer.buildObjectivePulses, lot 4.4).
+    // The objective-actions layer crosses the boundary like the other arrays;
+    // it feeds the canvas PULSES (objectivesLayer.buildObjectivePulses, batch 4.4).
     objectives: raw.objectives ?? [],
-    // Les occupations de SOCLE achevées (schéma 11) : le socle s'est vidé quelque part dans
-    // [tLow, tHigh]. Absent = aucun socle ne s'est vidé sur ce film — ou le film n'en porte
-    // aucun (`layers[padPickups]` / `coverage.groundWeapons` distinguent les deux, et c'est pour
-    // cela qu'ils sont publiés).
+    // Completed PAD occupancies (schema 11): the pad emptied somewhere within
+    // [tLow, tHigh]. Absent = no pad emptied on this film — or the film carries
+    // none (`layers[padPickups]` / `coverage.groundWeapons` tell the two apart, and that is why
+    // they are published).
     padPickups: raw.padPickups ?? [],
-    // `mapObjectives` (objectifs STATIQUES du mode, servis à la requête) passe par
-    // `...raw` : c'est un objet optionnel, pas un tableau — sa normalisation vit à
-    // l'entrée du calque (normalizeMapObjectives), comme celle des callouts.
-    // `as` sur l'arité seule : le contenu est celui du contrat, seule la longueur fixe du
-    // tuple que JSON Schema ne sait pas dire est réaffirmée (cf. en-tête).
+    // `mapObjectives` (the mode's STATIC objectives, served at request time) passes through
+    // `...raw`: it is an optional object, not an array — its normalization lives at
+    // the layer's entry point (normalizeMapObjectives), like that of callouts.
+    // `as` on arity alone: the content is the contract's, only the tuple's fixed length,
+    // which JSON Schema cannot express, is reasserted (see header).
     // `z` (schema 126) is the height of each point of `p`: kept only when it matches `p` point for
     // point. An older artifact has none, and the 3D viewer falls back to an interpolated height.
     projectiles: (raw.projectiles ?? []).map((pr) => {
@@ -279,71 +279,71 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
         attach: attachOf((pr as { attach?: unknown }).attach),
       }
     }),
-    // LA PRÉSENCE DE CHAQUE OCCUPANT (schéma 69) : les intervalles pendant lesquels il TIENT sa
-    // place. Comblée à VIDE quand elle manque — un artefact antérieur au schéma 69 n'en publie
-    // aucune, et `seatLogic.publieDesPresences` le lit au niveau du DOCUMENT pour retomber sur
-    // l'enveloppe des vies (repli daté) ; jamais un intervalle inventé ici.
+    // EACH OCCUPANT'S PRESENCE (schema 69): the intervals during which they HOLD their
+    // seat. Filled in EMPTY when it is missing — an artifact predating schema 69 publishes
+    // none, and `seatLogic.publishesPresences` reads that at the DOCUMENT level to fall back
+    // to the lives' envelope (a dated fallback); never an invented interval here.
     roster: (raw.roster ?? []).map((e) => ({ ...e, presence: e.presence ?? [] })),
-    // Le SCORE DANS LE TEMPS (schéma 12) : quatre étages de tableaux nullables comblés d'un
-    // coup (cf. normalizeScoreTimeline). L'OBJET, lui, garde le droit d'être absent.
+    // SCORE OVER TIME (schema 12): four tiers of nullable arrays filled in at
+    // once (see normalizeScoreTimeline). The OBJECT, though, keeps the right to be absent.
     scoreTimeline: normalizeScoreTimeline(raw.scoreTimeline),
-    // `o` (schéma 116) est comblé à 0 comme partout : absent des documents cuits avant le
-    // schéma 116, et aussi du JSON d'un tir posé juste sur la borne de sa frame.
+    // `o` (schema 116) is filled in to 0 as everywhere: absent from documents baked before
+    // schema 116, and also from the JSON of a shot sitting right on its frame's boundary.
     shots: (raw.shots ?? []).map((s) => ({ ...s, o: s.o ?? 0 })),
-    // LES RAFALES DE TIR CONTINU (schéma 71) : le tableau ET ses passages muets comblés.
+    // CONTINUOUS-FIRE BURSTS (schema 71): the array AND its silent passes filled in.
     bursts: (raw.bursts ?? []).map((b) => ({ ...b, holes: b.holes ?? [] })),
     structure: (raw.structure ?? []).map((s) => ({ ...s, poly: (s.poly ?? []) as ReplayXY[] })),
-    // LES TRANSLOCATIONS COUPENT LA PISTE (aj14-b) : l'échantillon d'arrivée porte `cut`, que
-    // `positionAt` / `trailAt` lisent comme une rupture — ni glissade, ni trait de traînée.
-    // LE PLEIN DÉBIT (schéma 109) se relit ici, une fois : colonnes différentielles -> images et degrés.
+    // TRANSLOCATIONS CUT THE TRACK (aj14-b): the arrival sample carries `cut`, which
+    // `positionAt` / `trailAt` read as a break — neither a pawn glide nor a trail line.
+    // THE FULL RATE (schema 109) is re-read here, once: differential columns -> frames and degrees.
     tracks: markTranslocationCuts(
       (raw.tracks ?? []).map(({ fullRate, ...t }) => ({
         ...t,
         points: t.points ?? [],
-        // Un document qui le porte porte aussi `frameIntervalMs` (les deux datent du schéma 109 ou après).
+        // A document carrying it also carries `frameIntervalMs` (both date from schema 109 or later).
         ...(fullRate && raw.frameIntervalMs ? { fullRate: decodeFullRate(fullRate, raw.frameIntervalMs) } : {}),
       })),
       raw.translocations ?? [],
     ),
-    // LA VIE DE CHAQUE VÉHICULE (schéma 29). Absent = artefact antérieur, ou film sans véhicule
-    // (`layers[vehicles]` / `coverage.vehicles` distinguent les deux). LES DEUX TABLEAUX
-    // IMBRIQUÉS SE COMBLENT AUSSI
-    // (`samples`, `rides`), même patron que `tracks` et `weaponPads` : `spawn`, lui, N'EST PAS un
-    // tableau et reste tel quel (absent = record de création non lu, jamais un objet inventé).
-    // `vehicleCycles` (schéma 63) : une LISTE PLATE d'emplacements, aucun tableau imbriqué.
+    // EACH VEHICLE'S LIFE (schema 29). Absent = artifact predating this, or film without a vehicle
+    // (`layers[vehicles]` / `coverage.vehicles` tell the two apart). BOTH NESTED
+    // ARRAYS ARE ALSO FILLED IN
+    // (`samples`, `rides`), same pattern as `tracks` and `weaponPads`: `spawn`, though, IS NOT an
+    // array and stays as-is (absent = creation record not read, never an invented object).
+    // `vehicleCycles` (schema 63): a FLAT LIST of locations, no nested array.
     vehicleCycles: raw.vehicleCycles ?? [],
     vehicles: (raw.vehicles ?? []).map((v) => ({
       ...v,
-      // LE DÉCOR DE CARTE : le serveur nomme les vies de décor (`vehicleScenery.hidden` — posées
-      // hors de la zone jouable, ou tenues en l'air sans occupant) ; la vie le porte, pour que le
-      // calque n'ait qu'un prédicat à lire (`vehicleIsScenery`). Absent = aucun verdict de décor.
+      // MAP SCENERY: the server names scenery lives (`vehicleScenery.hidden` — placed
+      // outside the playable zone, or held in the air with no occupant); the life carries it, so
+      // the layer only has one predicate to read (`vehicleIsScenery`). Absent = no scenery verdict.
       ...(sceneryLives.has(vehicleLifeKey(v.slot, v.gen)) ? { scenery: true } : {}),
       samples: v.samples ?? [],
-      // LA SÉRIE DE VISÉE D'UN OCCUPANT (schéma 31) SE COMBLE AU TROISIÈME NIVEAU : c'est un
-      // tableau nullable dans un tableau imbriqué, et la garde de contrat les exige tous comblés
-      // ou justifiés. Vide = artefact antérieur au schéma 31, ou épisode sans lecture — le cône
-      // retombe alors sur le cap du châssis (`vehiclesAim.vehicleOccupantAimAt`).
+      // AN OCCUPANT'S AIM SERIES (schema 31) FILLS IN AT THE THIRD LEVEL: it is a
+      // nullable array inside a nested array, and the contract guard requires them all filled in
+      // or justified. Empty = artifact predating schema 31, or episode without a reading — the cone
+      // then falls back to the chassis heading (`vehiclesAim.vehicleOccupantAimAt`).
       rides: (v.rides ?? []).map((r) => ({ ...r, aim: r.aim ?? [] })),
     })),
-    // Les SOCLES D'ARME du match (schéma 11). Absent = le film n'en porte aucun : rien ne se
-    // dessine, jamais un socle deviné. Une donnée de MATCH, pas de carte — l'arme qui apparaît
-    // sur un socle change d'un match à l'autre, la position non.
+    // The match's WEAPON PADS (schema 11). Absent = the film carries none: nothing is
+    // drawn, never a guessed pad. MATCH data, not map data — the weapon that appears
+    // on a pad changes from match to match, the position does not.
     //
-    // LES DEUX TABLEAUX IMBRIQUÉS SE COMBLENT AUSSI (`spawns`, `presence`), comme pour `tracks`
-    // et `structure` : le contrat les déclare nullables, et un socle qui arriverait avec
-    // `spawns: null` ferait tomber le calque à l'exécution — pas à la compilation.
+    // BOTH NESTED ARRAYS ARE ALSO FILLED IN (`spawns`, `presence`), as for `tracks`
+    // and `structure`: the contract declares them nullable, and a pad arriving with
+    // `spawns: null` would crash the layer at runtime — not at compile time.
     weaponPads: (raw.weaponPads ?? []).map((pad) => ({
       ...pad,
       spawns: pad.spawns ?? [],
       presence: pad.presence ?? [],
     })),
-    // L'ÉTAT DES ZONES (schéma 16) : une entrée par zone appariée, une suite d'intervalles de
-    // propriété. Absent = le mode n'a pas de zone, ou l'appariement n'a rien rattaché —
-    // `layers[zoneStates]` / `coverage.zones` distinguent les deux, et c'est pour cela qu'ils sont publiés.
+    // ZONE STATE (schema 16): one entry per matched zone, a sequence of ownership
+    // intervals. Absent = the mode has no zone, or matching attached nothing —
+    // `layers[zoneStates]` / `coverage.zones` tell the two apart, and that is why they are published.
     //
-    // LES TABLEAUX IMBRIQUÉS SE COMBLENT AUSSI (`spans`, et `gauge` — la jauge en direct du
-    // schéma 18), comme pour `flagCarries` et `weaponPads`. Une jauge absente (schéma <= 17, ou
-    // zone sans rampe) devient VIDE : aucun arc, jamais le sommet statique à sa place.
+    // THE NESTED ARRAYS ARE ALSO FILLED IN (`spans`, and `gauge` — the schema-18 live
+    // gauge), as for `flagCarries` and `weaponPads`. An absent gauge (schema <= 17, or
+    // a zone without a ramp) becomes EMPTY: no arc, never the static apex in its place.
     zoneStates: (raw.zoneStates ?? []).map((z) => ({
       ...z,
       spans: z.spans ?? [],
@@ -353,7 +353,7 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
   }
 }
 
-/** La clé d'une VIE de véhicule : `(slot, gen)`, la seule clé d'une vie (cf. `VehicleTrack`). */
+/** A vehicle LIFE's key: `(slot, gen)`, a life's only key (see `VehicleTrack`). */
 function vehicleLifeKey(slot: number, gen: number): string {
   return `${slot}/${gen}`
 }

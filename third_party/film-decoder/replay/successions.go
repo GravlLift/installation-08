@@ -105,7 +105,7 @@ func attributeSuccessions(ctx context.Context, tracks []Track, successions []Suc
 	}
 	c.fb.DeclencheN(fallback.NomVieDeBotParRelaisDeLaBase, claimed)
 	slog.InfoContext(ctx, "replay: relay closures", "successions", len(successions),
-		"viesAttribuees", claimed, "chainesArretees", halted, "contestationsLeveesParTir", liftedByFire)
+		"claimedLives", claimed, "haltedChains", halted, "challengesLiftedByFire", liftedByFire)
 }
 
 // candidateIn rend l'index de la track anonyme retenue dans [fromUS, toUS] : l'unique

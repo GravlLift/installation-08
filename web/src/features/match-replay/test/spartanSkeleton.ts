@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * spartanSkeleton.ts — LE SQUELETTE DU SPARTAN DU JEU POUR LES TESTS : les 26 os que la pose
- * pilote ou traverse, avec leur position et leur orientation locales de repos telles que le GLB
- * `spartan` les porte (lues sur le GLB servi le 2026-11-09, axes glTF, unités du monde Halo). Les
- * repères de repos des os ne sont pas celui du modèle (comme dans le jeu) : c'est ce qui rend le
- * test des poses honnête. Les os sans rôle dans la pose (doigts, aides, armures) sont omis.
+ * spartanSkeleton.ts — THE GAME SPARTAN'S SKELETON FOR TESTS: the 26 bones that the pose
+ * drives or passes through, with their local rest position and orientation as carried by
+ * the `spartan` GLB (read from the GLB served on 2026-11-09, glTF axes, Halo world units).
+ * The bones' rest frames are not the model's own (same as in the game): this is what keeps
+ * pose testing honest. Bones with no role in posing (fingers, helpers, armor) are omitted.
  *
- * Mesures de repos : bassin à 0,408 u, hanche 0,399, genou 0,233, cheville 0,051, orteil 0,016 ;
- * cuisse 0,168 u, mollet 0,186 u ; bras 0,105 u, avant-bras 0,092 u.
+ * Rest measurements: pelvis at 0.408 u, hip 0.399, knee 0.233, ankle 0.051, toe 0.016;
+ * thigh 0.168 u, calf 0.186 u; upper arm 0.105 u, forearm 0.092 u.
  */
 import * as THREE from 'three'
 
@@ -42,7 +42,7 @@ const BONES: readonly BoneRow[] = [
   ['b_l_grip', 'b_l_hand', [0.0001, -0.0038, 0.0334], [0.0528, -0.0042, 0.1523, 0.9869]],
 ]
 
-/** spartanSkeleton : une racine portant le squelette du Spartan au repos (matrices à jour). */
+/** spartanSkeleton: a root carrying the Spartan's skeleton at rest (matrices up to date). */
 export function spartanSkeleton(): THREE.Group {
   const root = new THREE.Group()
   const byName = new Map<string, THREE.Bone>()

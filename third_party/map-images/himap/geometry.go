@@ -135,7 +135,7 @@ func nouvelAsset(tag, blob []byte, decode func(tagInfo) (RuntimeGeo, error), gro
 		a.indexDescs = a.findDescTable(indexDescStride, decodeIndexDesc)
 		return a, nil
 	}
-	return nil, fmt.Errorf("himap: tag %s illisible", groupe)
+	return nil, fmt.Errorf("himap: unreadable tag %s", groupe)
 }
 
 // findDescTable retient le data-block qui est un tableau COHERENT de descripteurs.

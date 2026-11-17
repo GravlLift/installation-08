@@ -222,9 +222,9 @@ func trackSpanUS(t Track, origin, step uint64) (int64, int64) {
 func logUnnamedLives(ctx context.Context, matchID string, tracks []Track, rep unnamedLivesReport, interne bool) {
 	if rep.total() > 0 {
 		slog.InfoContext(ctx, "replay: final naming of the remaining lives",
-			"match_id", matchID, "processed", rep.total(), "parViePrecedente", rep.byPrevious,
-			"parVieSuivante", rep.byNext, "parPont", rep.byBridge, "remaining", rep.remaining,
-			"frontieresIndecidables", rep.contested)
+			"match_id", matchID, "processed", rep.total(), "byPreviousLife", rep.byPrevious,
+			"byNextLife", rep.byNext, "byBridge", rep.byBridge, "remaining", rep.remaining,
+			"undecidableBoundaries", rep.contested)
 	}
 	if rep.remaining == 0 {
 		return
@@ -241,6 +241,6 @@ func logUnnamedLives(ctx context.Context, matchID string, tracks []Track, rep un
 		msg = "rejeu : des vies du DOCUMENT INTERNE du sync (non publie) restent sans identite — defaut de nommage du pont"
 	}
 	slog.ErrorContext(ctx, msg,
-		"match_id", matchID, "lives", rep.remaining, "premierSlot", slot,
-		"premiereFrameDebut", from, "premiereFrameFin", to)
+		"match_id", matchID, "lives", rep.remaining, "firstSlot", slot,
+		"firstFrameStart", from, "firstFrameEnd", to)
 }

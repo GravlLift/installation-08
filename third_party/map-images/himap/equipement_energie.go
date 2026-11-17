@@ -1,5 +1,7 @@
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 // equipement_energie.go — L ENERGIE DES EQUIPEMENTS, LUE DANS LES TAGS `eqip` DU JEU (lot
 // « equipement porte » du plan d ajustements du 2026-10-14).
 //
@@ -72,7 +74,7 @@ func LireLesEnergiesDEquipement(root string) ([]EnergieDEquipement, error) {
 	for _, rel := range ModulesDesEquipements {
 		m, err := himodule.Open(filepath.Join(root, filepath.FromSlash(rel)))
 		if err != nil {
-			return nil, fmt.Errorf("module %s : %w", rel, err)
+			return nil, fmt.Errorf("module %s: %w", rel, err)
 		}
 		for _, f := range m.Files("eqip") {
 			if _, deja := eqips[f.GlobalID]; deja {
@@ -80,7 +82,7 @@ func LireLesEnergiesDEquipement(root string) ([]EnergieDEquipement, error) {
 			}
 			raw, err := m.Extract(f)
 			if err != nil {
-				return nil, fmt.Errorf("eqip 0x%08x (%s) : %w", f.GlobalID, rel, err)
+				return nil, fmt.Errorf("eqip 0x%08x (%s): %w", f.GlobalID, rel, err)
 			}
 			if t, ok := lireUnEqip(raw); ok {
 				t.module = rel
@@ -93,7 +95,7 @@ func LireLesEnergiesDEquipement(root string) ([]EnergieDEquipement, error) {
 			}
 			raw, err := m.Extract(f)
 			if err != nil {
-				return nil, fmt.Errorf("sofa 0x%08x (%s) : %w", f.GlobalID, rel, err)
+				return nil, fmt.Errorf("sofa 0x%08x (%s): %w", f.GlobalID, rel, err)
 			}
 			sofas[f.GlobalID] = dependancesDuGroupe(raw, "eqip")
 			sofaModule[f.GlobalID] = rel

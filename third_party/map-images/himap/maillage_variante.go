@@ -34,6 +34,8 @@
 // carte) ne s'appliquent pas : ils reglent une image vue du dessus, pas ce que le jeu dessine.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"context"
 	"fmt"
@@ -190,16 +192,16 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, b, fmt.Errorf("index des modules : %w", err)
+		return nil, b, fmt.Errorf("module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	forge, err := himodule.Open(cheminDefinitionsForge(opts.RacineDeploy))
 	if err != nil {
-		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
+		return nil, b, fmt.Errorf("Forge objects module: %w", err)
 	}
 	defer func() { _ = forge.Close() }()
 	// LOCAL-CHANGE (infinite-theater-3d): the objects' Forge styles from the game's own palette.
@@ -209,7 +211,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 		if err != nil {
 			return nil, b, err
 		}
-		slog.InfoContext(ctx, "styles Forge resolus", "styles", len(opts.StylesMvar), "jeu", len(jeu), "catalogue", len(opts.StylesForge))
+		slog.InfoContext(ctx, "Forge styles resolved", "styles", len(opts.StylesMvar), "game", len(jeu), "catalog", len(opts.StylesForge))
 		opts.StylesForge = jeu
 		opts.Teintes = completeTeintesForge(opts.Teintes, echantillonsPaletteJeu(styles), opts.StylesMvar)
 	}
@@ -217,7 +219,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	out, poses := poseGeometrieVariante(ctx, opts, idx, forge, &b)
 	trianglesPoses, trianglesUniques := out.Poses.Triangles()
 	if trianglesPoses == 0 {
-		return nil, b, fmt.Errorf("aucun triangle pose sur %d objets de variante", len(opts.Objets))
+		return nil, b, fmt.Errorf("no triangle placed out of %d variant objects", len(opts.Objets))
 	}
 	if err := out.resoutMateriauxPoses(OptionsCuisson{RacineDeploy: opts.RacineDeploy, CheminModule: opts.CheminModule}, idx); err != nil {
 		return nil, b, err
@@ -225,7 +227,7 @@ func CollecteMaillageVariante(ctx context.Context, opts OptionsVariante) (*Maill
 	out.stylesForge = opts.StylesForge // LOCAL-CHANGE (infinite-theater-3d)
 	out.resoutTextures(ctx, idx)
 	out.appliqueTeintes()
-	slog.InfoContext(ctx, "objets de la variante poses", "objets", b.Objets, "poses", b.Poses,
+	slog.InfoContext(ctx, "variant objects placed", "objects", b.Objets, "placed", b.Poses,
 		"invisibles", b.Invisibles, "sansModele", b.SansModele, "volumesDeMort", b.VolumesDeMort, "volumes", b.Volumes, "reperes", b.Reperes, "horsMode", b.HorsMode,
 		"sansPalette", b.SansPalette, "repliRepresentation", b.RepliRepresentation, "types", b.Types,
 		"triangles", trianglesPoses, "trianglesUniques", trianglesUniques,
@@ -261,16 +263,16 @@ func CollecteSolidesVariante(ctx context.Context, opts OptionsVariante) (*Mailla
 	}
 	chemins, err := GeometrySearchPathMonde(opts.RacineDeploy, opts.CheminModule)
 	if err != nil {
-		return nil, b, fmt.Errorf("chemins de geometrie : %w", err)
+		return nil, b, fmt.Errorf("geometry paths: %w", err)
 	}
 	idx, err := NewModuleIndex(chemins...)
 	if err != nil {
-		return nil, b, fmt.Errorf("index des modules : %w", err)
+		return nil, b, fmt.Errorf("module index: %w", err)
 	}
 	defer func() { _ = idx.Close() }()
 	forge, err := himodule.Open(cheminDefinitionsForge(opts.RacineDeploy))
 	if err != nil {
-		return nil, b, fmt.Errorf("module des objets Forge : %w", err)
+		return nil, b, fmt.Errorf("Forge objects module: %w", err)
 	}
 	defer func() { _ = forge.Close() }()
 	out, _ := poseGeometrieVariante(ctx, opts, idx, forge, &b)

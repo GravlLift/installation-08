@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * ragdollBake3d.ts — LA CUISSON D'UNE MORT : le corps inerte simulé UNE fois, au pas fixe, depuis la
- * pose exacte de la victime à sa mort, jusqu'au repos (au plus `MAX_SECONDS`), et rangé en piste :
- * la place du bassin et la rotation locale de chaque os conduit, `SAMPLE_RATE` fois par seconde,
- * rotations quantifiées sur 16 bits. Au-delà de la piste, la dernière pose tient.
+ * ragdollBake3d.ts — BAKING A DEATH: the ragdoll simulated ONCE, at a fixed step, from the
+ * victim's exact pose at death, to rest (at most `MAX_SECONDS`), and stored as a track: the
+ * pelvis position and the local rotation of each driven bone, `SAMPLE_RATE` times per second,
+ * rotations quantized to 16 bits. Past the track, the last pose holds.
  *
- * La vue rejoue la piste à l'instant fractionnaire de l'image (`poseBake`) : la pose est une fonction
- * de l'image, en avant comme en arrière, à l'arrêt comme au ralenti. Même entrée, même piste au bit
- * près (pas fixe, itérations fixes, germe stable).
+ * The view replays the track at the frame's fractional instant (`poseBake`): the pose is a
+ * function of the frame, forward as backward, paused as in slow motion. Same input, same track
+ * to the bit (fixed step, fixed iterations, stable seed).
  *
- * La cuisson est un travail qu'on avance par tranches (`RagdollJob.advance`, jusqu'à une échéance) :
- * la page ne se bloque pas. La carte autour du corps (`ragdollPatch3d`) est relue quand le corps
- * s'approche du bord du morceau lu.
+ * Baking is a job advanced in slices (`RagdollJob.advance`, up to a deadline): the page does not
+ * block. The map around the body (`ragdollPatch3d`) is reread when the body nears the edge of the
+ * loaded chunk.
  */
 import * as THREE from 'three'
 
@@ -21,46 +21,46 @@ import { kickVelocities, type KickInput } from './ragdollKick3d'
 import { TrianglePatch, type TriangleSource } from './ragdollPatch3d'
 import { STEP_SECONDS, broken, createRagdoll, kickRagdoll, maxStep, stepRagdoll, type RagdollState } from './ragdollSolver3d'
 
-/** La cadence de la piste (images par seconde) et sa durée au plus (s). */
+/** The track's rate (frames per second) and its max duration (s). */
 export const SAMPLE_RATE = 30
 export const MAX_SECONDS = 4
 const STEPS_PER_SAMPLE = Math.round(1 / (SAMPLE_RATE * STEP_SECONDS))
 const MAX_STEPS = Math.round(MAX_SECONDS / STEP_SECONDS)
-/** Le repos : après `REST_AFTER` s, tout pas sous `REST_STEP` u pendant `REST_HOLD` s. */
+/** Rest: after `REST_AFTER` s, every step under `REST_STEP` u for `REST_HOLD` s. */
 const REST_AFTER = 0.5
 const REST_STEP = 0.06 * STEP_SECONDS
 const REST_HOLD = 0.3
-/** Le morceau de carte lu autour du bassin (demi-côté, u), relu quand une particule passe à `PATCH_MARGIN` de son bord. */
+/** The map chunk read around the pelvis (half-side, u), reread when a particle comes within `PATCH_MARGIN` of its edge. */
 const PATCH_HALF = 1.5
 const PATCH_MARGIN = 0.3
 const MAX_PATCHES = 12
 const QUANT = 32767
 
-/** Une mort cuite. */
+/** A baked death. */
 export interface RagdollBake {
-  /** Les noms des os (partagés par les cuissons d'un même squelette) et la pose de la mort (7 par os). */
+  /** The bone names (shared by bakes of the same skeleton) and the death pose (7 per bone). */
   names: readonly string[]
   base: Float32Array
-  /** L'indice (dans `names`) de chaque os conduit (`ragdollBones3d.DRIVEN`). */
+  /** The index (into `names`) of each driven bone (`ragdollBones3d.DRIVEN`). */
   index: Int16Array
   count: number
-  /** 4 par os conduit et par échantillon. */
+  /** 4 per driven bone and per sample. */
   rot: Int16Array
-  /** La place locale du bassin, 3 par échantillon. */
+  /** The pelvis's local position, 3 per sample. */
   pelvis: Float32Array
-  /** La racine du squelette pendant la cuisson : ses pieds (axes three) et son lacet (radians). */
+  /** The skeleton's root during the bake: its feet (three axes) and its yaw (radians). */
   feet: THREE.Vector3
   yaw: number
-  /** Le temps simulé (s) ; au repos avant `MAX_SECONDS` ou non. */
+  /** The simulated time (s); whether it rested before `MAX_SECONDS`. */
   seconds: number
   rested: boolean
-  /** Mesures : temps de calcul (ms), morceaux de carte lus et triangles. */
+  /** Measurements: compute time (ms), map chunks read, and triangles. */
   stats: { ms: number; patches: number; triangles: number }
 }
 
-/** Ce qu'une cuisson lit au départ. */
+/** What a bake reads at the start. */
 export interface RagdollStart {
-  /** Les os du squelette de travail posé à la mort (`bonesOf`, matrices monde à jour) et leurs noms. */
+  /** The work skeleton's bones posed at death (`bonesOf`, world matrices up to date) and their names. */
   bones: readonly THREE.Bone[]
   names: string[]
   feet: THREE.Vector3
@@ -69,7 +69,7 @@ export interface RagdollStart {
   world: TriangleSource
 }
 
-/** RagdollJob : une cuisson en cours (cf. l'en-tête). */
+/** RagdollJob: a bake in progress (see the header). */
 export class RagdollJob {
   private readonly frame: DeathFrame
   private readonly state: RagdollState
@@ -90,7 +90,7 @@ export class RagdollJob {
   private readonly locals = new Float64Array(4 * DRIVEN.length)
   private readonly sim: SimFrame
   private result: RagdollBake | null = null
-  /** La cuisson a été abandonnée (état non fini) : elle ne rendra rien. */
+  /** The bake was abandoned (a non-finite state): it will return nothing. */
   failed = false
 
   private constructor(frame: DeathFrame, x0: Float64Array, s: RagdollStart) {
@@ -107,7 +107,7 @@ export class RagdollJob {
     this.sim = { clusters: { pelvis: new THREE.Quaternion(), chest: new THREE.Quaternion(), head: new THREE.Quaternion() }, x: this.state.x }
   }
 
-  /** start : la cuisson d'une mort, null si le squelette n'a pas les os conduits ou les os des particules. */
+  /** start: a death's bake, null if the skeleton lacks the driven bones or the particle bones. */
   static start(s: RagdollStart): RagdollJob | null {
     const t0 = performance.now()
     const frame = readDeathFrame(s.bones, s.names)
@@ -119,15 +119,15 @@ export class RagdollJob {
     return job
   }
 
-  /** advance avance la cuisson jusqu'à l'échéance `deadline` (`performance.now()`) ; rend la cuisson finie, ou null. */
+  /** advance moves the bake forward to deadline `deadline` (`performance.now()`); returns the finished bake, or null. */
   advance(deadline: number): RagdollBake | null {
     if (this.result || this.failed) return this.result
     const t0 = performance.now()
     while (!this.finished()) {
       this.step()
       if (broken(this.state)) {
-        // Garde-fou : un état non fini (triangle dégénéré mal lu...) abandonne la cuisson ; le corps
-        // tombe alors par les clips de mort du jeu.
+        // Safety net: a non-finite state (a mis-read degenerate triangle...) abandons the bake;
+        // the body then falls through the game's death clips.
         this.failed = true
         return null
       }
@@ -151,7 +151,7 @@ export class RagdollJob {
     if (this.steps % STEPS_PER_SAMPLE === 0 || this.finished()) this.record()
   }
 
-  /** ensurePatch relit la carte autour du bassin quand une particule approche du bord du morceau. */
+  /** ensurePatch rereads the map around the pelvis when a particle nears the chunk's edge. */
   private ensurePatch(): void {
     const x = this.state.x
     if (this.patch) {
@@ -198,8 +198,8 @@ export class RagdollJob {
 const v = new THREE.Vector3()
 
 /**
- * particlesOf : les places (axes du monde) des particules sur le squelette posé : les os nommés, puis
- * les points d'épaisseur ; null s'il manque un os.
+ * particlesOf: the particles' positions (world axes) on the posed skeleton: the named bones, then
+ * the thickness points; null if a bone is missing.
  */
 export function particlesOf(bones: readonly THREE.Bone[]): Float64Array | null {
   const byName = new Map(bones.map((b) => [b.name, b]))
@@ -231,9 +231,9 @@ const qa = new THREE.Quaternion()
 const qb = new THREE.Quaternion()
 
 /**
- * poseBake pose les os `bones` (alignés sur `bake.names`) à `t` secondes de la mort : la pose de la
- * mort pour tous, puis les os conduits et le bassin lus entre les deux échantillons voisins. La racine
- * (pieds, lacet) est à poser par l'appelant (`bake.feet`, `bake.yaw`).
+ * poseBake poses bones `bones` (aligned with `bake.names`) at `t` seconds from death: the death
+ * pose for all of them, then the driven bones and the pelvis read between the two neighboring
+ * samples. The root (feet, yaw) is for the caller to place (`bake.feet`, `bake.yaw`).
  */
 export function poseBake(bake: RagdollBake, t: number, bones: readonly (THREE.Bone | undefined)[]): void {
   for (let i = 0; i < bones.length; i++) {
@@ -269,7 +269,7 @@ function dequant(rot: Int16Array, o: number, out: THREE.Quaternion): void {
   out.set(rot[o] / QUANT, rot[o + 1] / QUANT, rot[o + 2] / QUANT, rot[o + 3] / QUANT).normalize()
 }
 
-/** bakeBytes : la mémoire tenue par une cuisson (octets des tampons qu'elle possède). */
+/** bakeBytes: the memory a bake holds (bytes of the buffers it owns). */
 export function bakeBytes(b: RagdollBake): number {
   return b.rot.byteLength + b.pelvis.byteLength + b.base.byteLength
 }

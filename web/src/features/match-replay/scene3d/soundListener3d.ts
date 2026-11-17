@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * soundListener3d.ts — L'AUDITEUR SPATIAL D'UNE CAMÉRA 3D : sa place et son cap, en repère de la
- * carte, pour le son spatial du rejeu (`soundSpatial.ts`).
+ * soundListener3d.ts — A 3D CAMERA'S SPATIAL LISTENER: its position and heading, in map frame,
+ * for the replay's spatial sound (`soundSpatial.ts`).
  *
- * La caméra vit en repère three.js ; la conversion est celle de `toThree` (`tracks3d.ts`) :
- * three (X, Y, Z) = carte (X, -Z). Le cap est l'azimut du regard projeté sur le plan horizontal,
- * en degrés : 0 vers +X, 90 vers +Y — la même convention que `aimDirThree` tourne en direction
- * de caméra.
+ * The camera lives in three.js's frame; the conversion is `toThree`'s own (`tracks3d.ts`):
+ * three (X, Y, Z) = map (X, -Z). The heading is the look direction's azimuth projected onto the
+ * horizontal plane, in degrees: 0 toward +X, 90 toward +Y — the same convention `aimDirThree`
+ * turns toward a camera direction.
  */
 import * as THREE from 'three'
 import type { SoundListener } from '../sound/soundSpatial'
 
 /**
- * listenerOfCamera — la position et le cap d'une caméra, traduits en auditeur du son spatial.
+ * listenerOfCamera — a camera's position and heading, translated into a spatial sound listener.
  *
- * `getWorldPosition` / `getWorldDirection` rendent des vecteurs three.js : la position (X, Y, Z)
- * devient carte (X, -Z), le regard (dX, dZ) horizontal devient (dX, -dZ), et le cap est
- * l'atan2 de ces deux composantes, en degrés.
+ * `getWorldPosition` / `getWorldDirection` return three.js vectors: position (X, Y, Z) becomes
+ * map (X, -Z), the horizontal look (dX, dZ) becomes (dX, -dZ), and the heading is the atan2 of
+ * those two components, in degrees.
  */
 export function listenerOfCamera(camera: THREE.Camera): SoundListener {
   const p = camera.getWorldPosition(new THREE.Vector3())

@@ -277,11 +277,11 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 		e.Functions = append(e.Functions, IdleFunction{Import: functionName(f.Import), Default: f.Default,
 			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert, Mapping: m})
 	}
-	noms := map[uint32]bool{}
+	names := map[uint32]bool{}
 	for _, s := range fx.Systems {
-		noms[s.Location] = true
+		names[s.Location] = true
 	}
-	ms, err := w.a.MarqueursDuModele(mode, noms)
+	ms, err := w.a.MarqueursDuModele(mode, names)
 	if err != nil {
 		return IdleEffect{}, err
 	}

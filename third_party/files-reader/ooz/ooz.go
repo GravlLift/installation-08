@@ -12,6 +12,8 @@ extern int ooz_decompress(const unsigned char* src, long src_len, unsigned char*
 */
 import "C"
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"unsafe"
@@ -28,7 +30,7 @@ const safeSpace = 128
 // (connue du conteneur module). Renvoie une erreur si la taille décodée diffère.
 func Decompress(comp []byte, rawLen int) ([]byte, error) {
 	if len(comp) == 0 || rawLen <= 0 {
-		return nil, fmt.Errorf("ooz: entrée invalide (comp=%d rawLen=%d)", len(comp), rawLen)
+		return nil, fmt.Errorf("ooz: invalid input (comp=%d rawLen=%d)", len(comp), rawLen)
 	}
 	dst := make([]byte, rawLen+safeSpace)
 	n := C.ooz_decompress(
@@ -36,7 +38,7 @@ func Decompress(comp []byte, rawLen int) ([]byte, error) {
 		(*C.uchar)(unsafe.Pointer(&dst[0])), C.long(rawLen),
 	)
 	if int(n) != rawLen {
-		return nil, fmt.Errorf("ooz: décompression échouée (retour=%d, attendu=%d)", int(n), rawLen)
+		return nil, fmt.Errorf("ooz: decompression failed (return=%d, expected=%d)", int(n), rawLen)
 	}
 	return dst[:rawLen:rawLen], nil
 }

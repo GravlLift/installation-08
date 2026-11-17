@@ -23,7 +23,7 @@ describe('centerOffset', () => {
 })
 
 describe('groundWeaponPose', () => {
-  it('pose un modèle décentré sur le sol et conserve un cap horizontal stable', () => {
+  it('places an off-center model on the ground and keeps a stable horizontal heading', () => {
     const model = new THREE.Group()
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 0.4, 0.2))
     mesh.position.set(0.3, 0.5, 0.25)
@@ -38,7 +38,7 @@ describe('groundWeaponPose', () => {
     expect(groundWeaponPose(model, 1.2).rotation.equals(pose.rotation)).toBe(true)
   })
 
-  it('ne produit pas de hauteur infinie pour un modèle vide', () => {
+  it('does not produce an infinite height for an empty model', () => {
     expect(groundWeaponPose(new THREE.Group(), 0).lift).toBe(0)
   })
 })

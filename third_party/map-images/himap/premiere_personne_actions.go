@@ -13,6 +13,8 @@
 // meme action (`moving` -> `moving:var1` -> `moving:var2`) ; l'action designe la premiere.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"strconv"
@@ -55,12 +57,12 @@ func (gs *GraphesAnimation) ClipsDeLAction(action string, parNom bool) ([]ClipAc
 	chemin := [NiveauxModes]string{"any", "any", "any", "any", fmt.Sprintf("#%08x", NomAnimation(action))}
 	g, rang, err := gs.designeeSurchargee(chemin)
 	if err != nil {
-		return nil, fmt.Errorf("action %q : %w", action, err)
+		return nil, fmt.Errorf("action %q: %w", action, err)
 	}
 	source := SourceArbre
 	if g == nil && parNom {
 		if g, rang, err = gs.Nommee(PrefixeNomPremierePersonne + action); err != nil {
-			return nil, fmt.Errorf("action %q : %w", action, err)
+			return nil, fmt.Errorf("action %q: %w", action, err)
 		}
 		source = SourceNom
 	}
@@ -79,7 +81,7 @@ func (gs *GraphesAnimation) ClipsDeLActionDuJeu(jeu, action string) ([]ClipActio
 	nom := NomActionDuJeu(jeu, action)
 	g, rang, err := gs.designeeSurchargee(chemin)
 	if err != nil {
-		return nil, fmt.Errorf("action %q : %w", nom, err)
+		return nil, fmt.Errorf("action %q: %w", nom, err)
 	}
 	if g == nil {
 		return nil, nil
@@ -119,7 +121,7 @@ func (gs *GraphesAnimation) designeeSurchargee(chemin [NiveauxModes]string) (*Gr
 				return nil, 0, err
 			}
 			if trouve != nil && (trouve != g || rangTrouve != rang) {
-				return nil, 0, fmt.Errorf("chemin %v ambigu dans le graphe %08x", chemin, depuis.ID)
+				return nil, 0, fmt.Errorf("path %v ambiguous in graph %08x", chemin, depuis.ID)
 			}
 			trouve, rangTrouve = g, rang
 		}

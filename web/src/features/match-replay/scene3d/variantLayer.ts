@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * variantLayer.ts — LE CALQUE DES OBJETS DE LA VARIANTE du match (caisses, abris, décor du `.mvar`),
- * téléchargé puis préparé comme la carte (`loadLayerModel`).
+ * variantLayer.ts — THE MATCH VARIANT'S OBJECT LAYER (crates, cover, `.mvar` decor),
+ * downloaded then prepared like the map (`loadLayerModel`).
  *
- * Absent (404 : match sans variante, ou calque pas encore construit) n'est pas une panne : `null`,
- * noté en débogage seulement. Toute autre erreur (réseau, GLB illisible) remonte à l'appelant, qui
- * garde la carte seule.
+ * Absent (404: a match with no variant, or a layer not built yet) is not a failure: `null`,
+ * only logged at debug level. Any other error (network, unreadable GLB) bubbles up to the
+ * caller, which keeps the map alone.
  */
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 
@@ -28,13 +28,13 @@ export async function fetchVariantBuffer(
     return await fetchMesh(path, onProgress, signal)
   } catch (err) {
     if (!isNotFound(err)) throw err
-    console.debug('rejeu 3D : pas de calque des objets de la variante', path)
+    console.debug('3D replay: no variant object layer', path)
     return null
   }
 }
 
 /**
- * loadVariantLayer rend le calque prêt à poser, éclairé par la lumière cuite de la carte (`light`) ;
+ * loadVariantLayer returns the layer ready to place, lit by the map's baked light (`light`);
  * `ktx2`: the scene's KTX2 loader, for a layer with compressed textures.
  */
 export async function loadVariantLayer(path: string, signal: AbortSignal, light: BakedLight | null, ktx2: KTX2Loader | null = null): Promise<SurfaceModel | null> {

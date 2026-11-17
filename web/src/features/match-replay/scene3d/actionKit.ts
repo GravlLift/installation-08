@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * actionKit.ts — LES BRIQUES DES CALQUES D'ACTION 3D : formes en lots, traits, étiquettes, sol.
+ * actionKit.ts — the BUILDING BLOCKS for 3D action layers: batched shapes, segments, labels, ground.
  *
- * Chaque calque redessine son état à chaque image : il vide ses lots (`begin`), y pose ce qui est
- * visible (`add`), puis les ferme (`end`). Un lot est UN maillage instancié : une forme, un
- * matériau, autant d'instances que d'objets, un seul appel de dessin quel que soit leur nombre.
- * Rien n'est créé ni détruit pendant la lecture.
+ * Each layer redraws its state every frame: it clears its batches (`begin`), places what is
+ * visible (`add`), then closes them (`end`). A batch is ONE instanced mesh: one shape, one
+ * material, as many instances as there are objects, a single draw call no matter their count.
+ * Nothing is created or destroyed during playback.
  *
- * Unités monde Halo (cf. `tracks3d`) ; les positions passées ici sont déjà en axes three.
+ * Halo world units (see `tracks3d`); positions passed here are already in three.js axes.
  */
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -15,7 +15,7 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { cssColor } from './cssColor'
 import { toThree } from './tracks3d'
 
-/** L'étiquette d'un joueur ou d'un fait : même pastille partout (vue et export). */
+/** A player or event's label: the same pill everywhere (view and export). */
 export const TAG_CLASS = 'rounded bg-background/70 px-1 text-xs text-foreground whitespace-nowrap border-l-[3px]'
 
 const UP = new THREE.Vector3(0, 1, 0)
@@ -23,8 +23,8 @@ const NO_ROTATION = new THREE.Quaternion()
 const scratch = { m: new THREE.Matrix4(), q: new THREE.Quaternion(), s: new THREE.Vector3(), d: new THREE.Vector3(), p: new THREE.Vector3() }
 
 /**
- * firstFrom : l'indice du premier élément dont `key` vaut au moins `value`, dans une liste triée
- * par `key` (recherche dichotomique). Les calques d'événements y trouvent le début de leur fenêtre.
+ * firstFrom: the index of the first item whose `key` is at least `value`, in a list sorted by
+ * `key` (binary search). Event layers use it to find the start of their window.
  */
 export function firstFrom<T>(items: readonly T[], key: (item: T) => number, value: number): number {
   let lo = 0
@@ -37,7 +37,7 @@ export function firstFrom<T>(items: readonly T[], key: (item: T) => number, valu
   return lo
 }
 
-/** Couleurs three tirées des encres CSS du thème : une conversion par chaîne, puis le cache. */
+/** Three.js colors drawn from the theme's CSS inks: one conversion per string, then cached. */
 export class InkCache {
   private readonly cache = new Map<string, THREE.Color>()
   private readonly fallback: THREE.Color
@@ -57,7 +57,7 @@ export class InkCache {
   }
 }
 
-/** Un lot de formes identiques : chaque instance a sa pose et sa couleur. */
+/** A batch of identical shapes: each instance has its own pose and color. */
 export class InstancePool {
   readonly mesh: THREE.InstancedMesh
   private readonly capacity: number
@@ -67,7 +67,7 @@ export class InstancePool {
     this.capacity = capacity
     this.mesh = new THREE.InstancedMesh(geometry, material, capacity)
     this.mesh.count = 0
-    // Les instances couvrent toute la carte : la boîte du maillage de base ne dit rien d'elles.
+    // Instances span the whole map: the base mesh's bounding box says nothing about them.
     this.mesh.frustumCulled = false
     this.mesh.setColorAt(0, new THREE.Color())
     parent.add(this.mesh)
@@ -77,7 +77,7 @@ export class InstancePool {
     this.n = 0
   }
 
-  /** add pose une instance ; au-delà de la capacité, l'instance est ignorée. */
+  /** add places one instance; past capacity, the instance is dropped. */
   add(pos: THREE.Vector3, rot: THREE.Quaternion | null, scale: THREE.Vector3 | number, color: THREE.Color): void {
     if (this.n >= this.capacity) return
     const s = typeof scale === 'number' ? scratch.s.setScalar(scale) : scale
@@ -101,7 +101,7 @@ export class InstancePool {
   }
 }
 
-/** Un lot de traits : des cylindres fins tendus entre deux points (un trait WebGL fait 1 px). */
+/** A batch of segments: thin cylinders stretched between two points (a WebGL line is 1 px). */
 export class SegmentPool {
   private readonly pool: InstancePool
 
@@ -131,7 +131,7 @@ export class SegmentPool {
   }
 }
 
-/** Une étiquette visible, telle que l'export la repeint. */
+/** A visible label, as the export repaints it. */
 export interface ShownLabel {
   position: THREE.Vector3
   text: string
@@ -142,7 +142,7 @@ interface LabelSlot extends ShownLabel {
   obj: CSS2DObject
 }
 
-/** Un lot d'étiquettes HTML posées dans la scène (pastilles des faits : morts, objets). */
+/** A batch of HTML labels placed in the scene (event pills: deaths, objects). */
 export class LabelPool {
   private readonly slots: LabelSlot[] = []
   private readonly parent: THREE.Object3D
@@ -166,7 +166,7 @@ export class LabelPool {
       slot = { obj, position: obj.position, text: '', color: '' }
       this.slots.push(slot)
     }
-    // Le DOM ne change que si le texte ou la couleur changent : la pose, elle, change à chaque image.
+    // The DOM only changes if the text or color changes: the pose, on the other hand, changes every frame.
     if (slot.text !== text) slot.obj.element.textContent = slot.text = text
     if (slot.color !== color) slot.obj.element.style.borderLeftColor = slot.color = color
     slot.obj.position.copy(pos)
@@ -191,12 +191,12 @@ export class LabelPool {
 }
 
 /**
- * Ground — la hauteur du sol sous un point du rejeu, lue dans le maillage de la carte.
+ * Ground — the ground height under a point in the replay, read from the map's mesh.
  *
- * Plusieurs canaux ne publient que (x, y) : tirs, projectiles, grenades, drapeaux, crâne. Leur
- * hauteur se cherche sous un indice (la hauteur d'un joueur voisin, l'origine d'un vol) : le
- * premier sol sous l'indice, à défaut le plus haut sol de l'aire de jeu. Le résultat est mis en
- * cache au quart d'unité près : un objet immobile ne relance pas de rayon à chaque image.
+ * Several channels only publish (x, y): shots, projectiles, grenades, flags, skull. Their
+ * height is looked up below a hint (a nearby player's height, a flight's origin): the first
+ * ground surface below the hint, or failing that the highest ground surface on the play area.
+ * The result is cached to a quarter unit: a motionless object doesn't recast a ray every frame.
  */
 export class Ground {
   private readonly ray = new THREE.Raycaster()
@@ -212,24 +212,24 @@ export class Ground {
     this.ray.firstHitOnly = true
   }
 
-  /** setPickables change les surfaces du sol (un calque posé sur la carte ou retiré) ; les hauteurs lues sont oubliées. */
+  /** setPickables changes the ground surfaces (a layer added to or removed from the map); cached heights are forgotten. */
   setPickables(pickables: THREE.Object3D[]): void {
     this.pickables = pickables
     this.changes++
     this.cache.clear()
   }
 
-  /** version : change à chaque `setPickables` (ce qui a été tiré des surfaces est à refaire). */
+  /** version: changes on every `setPickables` (whatever was cast against the old surfaces must be redone). */
   get version(): number {
     return this.changes
   }
 
-  /** surfaces : les surfaces du sol (celles que touchent aussi les corps inertes, `ragdollPatch3d`). */
+  /** surfaces: the ground surfaces (the same ones ragdolls also collide with, `ragdollPatch3d`). */
   surfaces(): readonly THREE.Object3D[] {
     return this.pickables
   }
 
-  /** floorY : la hauteur three du sol sous (x, y) Halo, sous `zHint` (z Halo) s'il est connu. */
+  /** floorY: the three.js ground height under (x, y) Halo, below `zHint` (Halo z) if known. */
   floorY(x: number, y: number, zHint: number | null): number | null {
     const key = `${Math.round(x * 4)},${Math.round(y * 4)},${zHint === null ? 'h' : Math.round(zHint * 2)}`
     const hit = this.cache.get(key)
@@ -244,7 +244,7 @@ export class Ground {
     return y3
   }
 
-  /** hit : le premier impact sur la carte le long d'un rayon, ou null au-delà de `far`. */
+  /** hit: the first impact on the map along a ray, or null beyond `far`. */
   hit(from: THREE.Vector3, dir: THREE.Vector3, far: number): THREE.Vector3 | null {
     this.ray.set(from, dir)
     this.ray.far = far
@@ -252,8 +252,8 @@ export class Ground {
   }
 
   /**
-   * hitFace : le premier impact le long d'un rayon et la normale du décor touché (monde, tournée
-   * vers le rayon), ou null au-delà de `far`. What a ricochet needs.
+   * hitFace: the first impact along a ray and the hit surface's normal (world space, facing the
+   * ray), or null beyond `far`. What a ricochet needs.
    */
   hitFace(from: THREE.Vector3, dir: THREE.Vector3, far: number): { point: THREE.Vector3; normal: THREE.Vector3 } | null {
     this.ray.set(from, dir)
@@ -274,6 +274,6 @@ export class Ground {
 }
 
 const DOWN = new THREE.Vector3(0, -1, 0)
-// Fenêtre de recherche autour d'un indice de hauteur (u) : au-dessus de la tête, et un étage sous les pieds.
+// Search window around a height hint (units): above the head, and a floor below the feet.
 const HINT_REACH_UP = 0.6
 const HINT_REACH_DOWN = 4

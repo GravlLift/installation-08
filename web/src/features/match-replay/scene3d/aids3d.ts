@@ -1,35 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * aids3d.ts — LES REPÈRES D'ANALYSE de la vue 3D : ce que la vue sait tracer et que le jeu ne
- * montre pas. Tous éteints par défaut : la vue ressemble au jeu, le tiroir les allume.
+ * aids3d.ts — THE 3D VIEW'S ANALYSIS AIDS: what the view can draw that the game does not show.
+ * All off by default: the view looks like the game, the drawer turns them on.
  *
- * Types seulement : le tiroir et ses préférences les lisent sans tirer three.js dans le paquet
- * de la page.
+ * Types only: the drawer and its preferences read them without pulling three.js into the
+ * page's bundle.
  */
 
 export interface Aids3d {
-  /** Le vol entier de chaque tir, de la bouche au mur, et le trait du tueur vers sa victime. */
+  /** A shot's entire flight, from muzzle to wall, and the killer's line to his victim. */
   shotLines: boolean
-  /** Les croix au sol des morts et leur étiquette « tueur › victime · arme » dans la scène. */
+  /** Death crosses on the ground and their "killer > victim · weapon" label in the scene. */
   deathMarkers: boolean
-  /** Le chemin parcouru par les grenades et les projectiles de tir. */
+  /** The path traveled by grenades and shot projectiles. */
   projectilePaths: boolean
-  /** La sphère du rayon de dégâts d'une explosion, une seconde après la détonation. */
+  /** An explosion's damage-radius sphere, one second after the blast. */
   blastRadius: boolean
-  /** Le câble du grappin en trait épais et clair, et son point d'accroche. */
+  /** The grapple cable as a thick, light line, and its anchor point. */
   grappleLines: boolean
-  /** La flèche de la poussée du répulseur, de la couleur de son auteur. */
+  /** The repulsor's push arrow, in its owner's color. */
   knockbackArrows: boolean
   /**
-   * Les formes des poses hors mur, écran occultant, capteur et champ de réparation (que le jeu montre,
-   * et qui restent allumés) : traqueur, failles du translocateur, objets lâchés.
+   * The shapes of off-wall poses, occluding screen, sensor and repair field (which the game
+   * shows, and which stay on): tracker, translocator rifts, dropped objects.
    */
   placementShapes: boolean
-  /** L'étiquette de chaque joueur à toute distance ; éteint, seulement à portée (`nameTags3d`). */
+  /** Every player's label at any distance; off, only in range (`nameTags3d`). */
   allNameTags: boolean
 }
 
-/** L'ordre du tiroir : tirs et morts, projectiles, équipement, joueurs. */
+/** The drawer's order: shots and deaths, projectiles, equipment, players. */
 export const AIDS3D_ORDER: readonly (keyof Aids3d)[] = [
   'shotLines',
   'deathMarkers',

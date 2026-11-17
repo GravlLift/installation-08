@@ -128,7 +128,7 @@ const PAD_DIAMOND_GROWTH = 1.25
  * `replayMarkers.corePath`, third copy of the same tracing). REUSING this function rather
  * than writing a third is what CLAUDE.md #6 asks at the 3rd copy — the complete
  * centralization of the three (including `replayMarkers.ts`) remains a pre-existing debt,
- * outside the scope of this lot (cf. Découvertes).
+ * outside the scope of this lot (cf. Discoveries).
  */
 export function traceDiamond(ctx: CanvasRenderingContext2D, c: XY, half: number): void {
   ctx.beginPath()
@@ -447,9 +447,9 @@ function drawOnePad(
   // distinguished from a rack but by its size. `style.ink` remains served and remains the
   // NEUTRAL — it no longer tints the mark, and the ordinary rack falls back on an ink of its
   // own by its own family.
-  const encre = style.inkOf(pad.weapon)
-  ctx.strokeStyle = encre
-  ctx.fillStyle = encre
+  const tint = style.inkOf(pad.weapon)
+  ctx.strokeStyle = tint
+  ctx.fillStyle = tint
   drawDot(ctx, c, half, state, time.k)
   const iconAlpha = PAD_ALPHA[state].icon
   const icon = iconAlpha > 0 ? style.iconOf(pad.weapon) : null

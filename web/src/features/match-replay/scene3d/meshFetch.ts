@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * meshFetch.ts — LE TÉLÉCHARGEMENT DU MAILLAGE 3D, lu en flux pour en dire la progression.
+ * meshFetch.ts — THE 3D MESH DOWNLOAD, read as a stream to report its progress.
  *
- * Le fichier pèse des centaines de Mio : la vue affiche la part reçue. Il passe par le client
- * d'API (en-têtes de titre et de langue, cookies, mapping d'erreurs), jamais par un `fetch` nu.
+ * The file weighs hundreds of MiB: the view shows the share received. It goes through the API
+ * client (title/language headers, cookies, error mapping), never through a bare `fetch`.
  */
 import { api } from '@/lib/api/client'
 
@@ -44,8 +44,8 @@ async function download(
   const response = await api.getResponse(path, { signal })
   const total = Number(response.headers.get('Content-Length') ?? 0)
   if (!response.body) return response.arrayBuffer()
-  // Taille annoncée : un seul tampon rempli au fil des morceaux, sans recopie finale. Un corps
-  // qui la dépasse retombe sur la liste de morceaux.
+  // Announced size: a single buffer filled as chunks arrive, with no final copy. A body that
+  // exceeds it falls back to the chunk list.
   let out: Uint8Array<ArrayBuffer> | null = total > 0 ? new Uint8Array(total) : null
   const chunks: Uint8Array[] = []
   let loaded = 0

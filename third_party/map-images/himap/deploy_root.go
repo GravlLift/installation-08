@@ -11,6 +11,8 @@
 // archlint.TestAucuneAutreCopieDuCheminDuJeu interdit le litteral partout ailleurs).
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"fmt"
 	"os"
@@ -25,8 +27,8 @@ const DeployRootEnv = "LEVELUP_HALO_DEPLOY"
 // ErrNoDeployRoot signale qu'aucune installation n'a ete trouvee. Les appelants hors ligne
 // (production d'assets, tests gamefiles) doivent s'ARRETER ou se declarer absents, jamais
 // continuer sur un chemin devine.
-var ErrNoDeployRoot = fmt.Errorf("himap: aucune installation de Halo Infinite trouvee "+
-	"(definir %s, ou installer le jeu a l'un des emplacements connus)", DeployRootEnv)
+var ErrNoDeployRoot = fmt.Errorf("himap: no Halo Infinite installation found "+
+	"(set %s, or install the game at one of the known locations)", DeployRootEnv)
 
 // nomDepotSteam et nomDepotXbox : noms de dossier des deux depots, exposes pour que les
 // tests construisent leurs chemins a partir des memes constantes que la recherche (le
@@ -84,7 +86,7 @@ func chercheDeployRoot(env func(string) string, existe func(string) bool,
 	lecture func(string) ([]byte, error), lecteurs func() []string) (string, error) {
 	if r := strings.TrimSpace(env(DeployRootEnv)); r != "" {
 		if !existe(r) {
-			return "", fmt.Errorf("himap: %s pointe sur %q, illisible", DeployRootEnv, r)
+			return "", fmt.Errorf("himap: %s points to %q, unreadable", DeployRootEnv, r)
 		}
 		return r, nil
 	}

@@ -17,7 +17,7 @@ function headOf(root: THREE.Object3D): THREE.Vector3 {
   return (root.getObjectByName('b_head') as THREE.Bone).getWorldPosition(new THREE.Vector3())
 }
 
-/** Le squelette du jeu et ses clips de test, rangés comme le fait le chargement du GLB. */
+/** The game's skeleton and its test clips, set up the way the GLB load does. */
 function animatedSource(): THREE.Group {
   const source = spartanSkeleton()
   registerSpartanClips(source, fixtureClips(source))
@@ -27,7 +27,7 @@ function animatedSource(): THREE.Group {
 describe('Corpses3d', () => {
   const corpse: Corpse = { at: new THREE.Vector3(2, 1, 3), dir: new THREE.Vector3(0, 0, -1), h: 0, kind: 'shot' }
 
-  it('prépare une copie cachée et la ressert à la première mort', () => {
+  it('prepares a hidden copy and reuses it for the first death', () => {
     const parent = new THREE.Group()
     const pool = new Corpses3d(parent)
     pool.begin(animatedSource())
@@ -40,7 +40,7 @@ describe('Corpses3d', () => {
     pool.dispose()
   })
 
-  it('le corps debout à la mort finit couché par l’arrivée au sol du jeu, tête le long de l’impulsion', () => {
+  it('a body upright at death ends up lying down via the game\'s ground landing, head along the impulse', () => {
     const parent = new THREE.Group()
     const pool = new Corpses3d(parent)
     const source = animatedSource()
@@ -58,7 +58,7 @@ describe('Corpses3d', () => {
     expect(Math.abs(flat.x - corpse.at.x)).toBeLessThan(0.1)
   })
 
-  it('resert ses copies, cache celles qu’aucune mort ne prend, libère tout avec une nouvelle source', () => {
+  it('reuses its copies, hides the ones no death claims, releases everything with a new source', () => {
     const parent = new THREE.Group()
     const pool = new Corpses3d(parent)
     const source = animatedSource()
@@ -80,11 +80,11 @@ describe('Corpses3d', () => {
     pool.dispose()
   })
 
-  describe('habit de la victime', () => {
+  describe('victim\'s outfit', () => {
     it.each([
-      ['la chute par les clips', null],
-      ['la cuisson', idleBake()],
-    ])('par %s : la copie en armure par défaut cède la place à l’habit arrivé, libérée sans toucher aux géométries', (_, bake) => {
+      ['the fall through clips', null],
+      ['the bake', idleBake()],
+    ])('via %s: the default-armor copy gives way to the arrived outfit, released without touching the geometries', (_, bake) => {
       const { source, armor } = skinnedSource()
       const dress = dressFor(source)
       const parent = new THREE.Group()
@@ -108,7 +108,7 @@ describe('Corpses3d', () => {
       expect(released.materials()).toBe(true)
       expect(released.skeleton).toHaveBeenCalledTimes(1)
 
-      // Même habit à l'image suivante : la même copie, rien de refait ni de libéré.
+      // Same outfit on the next frame: the same copy, nothing remade or released.
       frame(dress)
       expect(only(parent)).toBe(after)
       expect(released.skeleton).toHaveBeenCalledTimes(1)
@@ -116,7 +116,7 @@ describe('Corpses3d', () => {
       pool.dispose()
     })
 
-    it('aucun corps d’une même victime ne sert l’ancien habit : les copies périmées glissées à la place sont libérées aussi', () => {
+    it('no body of the same victim serves the old outfit: stale copies slid into place are released too', () => {
       const { source } = skinnedSource()
       const dress = dressFor(source)
       const parent = new THREE.Group()
@@ -129,7 +129,7 @@ describe('Corpses3d', () => {
       pool.begin(source)
       pool.add(corpse, 0.2, RED, 'red|v', dress)
       pool.end()
-      // La copie périmée suivante glisse à la place de la première : elle ne sert pas, elle est libérée.
+      // The next stale copy slides into the first one's place: it serves nothing, it is released.
       expect(a.parent).toBeNull()
       expect(b.parent).toBeNull()
       expect(geometriesOf(only(parent))).toEqual([dress.outfit.skinned[0].geometry])
@@ -145,8 +145,8 @@ describe('Corpses3d', () => {
 })
 
 /**
- * skinnedSource : le Spartan de test (os et clips du jeu) portant une armure par défaut à peau, liée
- * à un squelette de tous ses os ; `armor` est sa géométrie, partagée par chaque copie.
+ * skinnedSource: the test Spartan (game bones and clips) wearing a skinned default armor, bound
+ * to a skeleton of all its bones; `armor` is its geometry, shared by every copy.
  */
 function skinnedSource(): { source: THREE.Group; armor: THREE.BufferGeometry } {
   const source = animatedSource()
@@ -159,7 +159,7 @@ function skinnedSource(): { source: THREE.Group; armor: THREE.BufferGeometry } {
   return { source, armor }
 }
 
-/** dressFor : un habit d'une pièce à peau sur les os de `source`, sans peinture. */
+/** dressFor: a one-piece skinned outfit on `source`'s bones, with no paint. */
 function dressFor(source: THREE.Object3D): Dress {
   const bones: string[] = []
   source.traverse((o) => o instanceof THREE.Bone && bones.push(o.name))
@@ -167,7 +167,7 @@ function dressFor(source: THREE.Object3D): Dress {
   return { outfit: { bones, skinned: [piece], rigid: [], issues: [] }, coat: new Map() }
 }
 
-/** idleBake : une cuisson qui ne conduit aucun os (seules sa place et son lacet comptent ici). */
+/** idleBake: a bake that drives no bone (only its spot and yaw matter here). */
 function idleBake(): RagdollBake {
   return {
     names: [], base: new Float32Array(0), index: new Int16Array(64).fill(-1), count: 1, rot: new Int16Array(0),
@@ -187,7 +187,7 @@ function geometriesOf(holder: THREE.Object3D): THREE.BufferGeometry[] {
   return out
 }
 
-/** watchRelease suit la libération des matériaux et du squelette de la copie que porte `holder`. */
+/** watchRelease tracks the release of the materials and skeleton of the copy `holder` carries. */
 function watchRelease(holder: THREE.Object3D): { materials: () => boolean; skeleton: ReturnType<typeof vi.fn> } {
   const disposed = new Set<THREE.Material>()
   const materials = new Set<THREE.Material>()
@@ -204,7 +204,7 @@ function watchRelease(holder: THREE.Object3D): { materials: () => boolean; skele
   return { materials: () => materials.size > 0 && [...materials].every((m) => disposed.has(m)), skeleton: spy }
 }
 
-/** watchGeometry : un témoin appelé si l'une des géométries partagées est libérée. */
+/** watchGeometry: a witness called if any of the shared geometries is released. */
 function watchGeometry(...geometries: THREE.BufferGeometry[]): ReturnType<typeof vi.fn> {
   const spy = vi.fn()
   for (const g of geometries) g.addEventListener('dispose', spy)

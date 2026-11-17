@@ -1,118 +1,118 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * _momentum.ts — logique pure de l'histogramme momentum de la carte « Dominance »
+ * _momentum.ts — pure logic for the "Dominance" chart's momentum histogram
  * (match_view.10, `MatchTugOfWarChart`).
  *
- * Affecte chaque event `kill` à une tranche temporelle (bin) et à une équipe, puis
- * dérive par bin :
- *   - `delta` = kills alliés − kills ennemis (barre signée du momentum) ;
- *   - `teamKills` / `enemyKills` (counts absolus de la tranche) ;
- *   - `cumTeam` / `cumEnemy` (cumuls depuis le début, pour le tooltip) ;
- *   - `trend` (DEC-4) : `'up'` quand le momentum se RENFORCE par rapport à la tranche
- *     précédente (→ opacité pleine au rendu), `'down'` quand il s'essouffle.
+ * Assigns each `kill` event to a time slice (bin) and a team, then derives per bin:
+ *   - `delta` = allied kills − enemy kills (momentum's signed bar);
+ *   - `teamKills` / `enemyKills` (the slice's absolute counts);
+ *   - `cumTeam` / `cumEnemy` (cumulative totals since the start, for the tooltip);
+ *   - `trend` (DEC-4): `'up'` when momentum is BUILDING relative to the previous
+ *     slice (→ full opacity when rendered), `'down'` when it's fading.
  *
- * La liste `kills` (une entrée par kill, avec sa position fractionnaire dans le bin)
- * est renvoyée pour que le composant scatter/vagues n'itère les events qu'une fois.
+ * The `kills` list (one entry per kill, with its fractional position in the bin)
+ * is returned so the scatter/wave component only iterates the events once.
  *
- * Zéro dépendance React/ECharts : testable en pur (`_momentum.test.ts`).
+ * Zero React/ECharts dependency: pure and testable (`_momentum.test.ts`).
  *
- * Rappel produit : les `team_kills` / `enemy_kills` du backend (`MatchTugOfWarBin`)
- * sont un delta NET (un seul non-nul par bin) — on recompute ici les deux counts
- * simultanément depuis `highlight_events` + `team_side` du scoreboard.
+ * Product reminder: the backend's `team_kills` / `enemy_kills` (`MatchTugOfWarBin`)
+ * are a NET delta (only one is non-zero per bin) — here we recompute both counts
+ * simultaneously from `highlight_events` + the scoreboard's `team_side`.
  */
 import type { MatchHighlightEvent, MatchTugOfWarBin } from '@/lib/api/types'
 
-/** Sens du momentum d'une tranche relativement à la précédente (DEC-4). */
+/** Direction of a slice's momentum relative to the previous one (DEC-4). */
 type MomentumTrend = 'up' | 'down'
 
-/** Résultat momentum d'une tranche temporelle. */
+/** Momentum result for a time slice. */
 export interface MomentumBin {
-  /** kills alliés − kills ennemis dans la tranche (barre signée). */
+  /** Allied kills − enemy kills in the slice (signed bar). */
   delta: number
   teamKills: number
   enemyKills: number
-  /** Cumul kills alliés depuis le début du match (tooltip). */
+  /** Cumulative allied kills since the start of the match (tooltip). */
   cumTeam: number
-  /** Cumul kills ennemis depuis le début du match (tooltip). */
+  /** Cumulative enemy kills since the start of the match (tooltip). */
   cumEnemy: number
-  /** `'up'` = momentum qui se renforce (opacité pleine), `'down'` = essoufflement. */
+  /** `'up'` = momentum building (full opacity), `'down'` = fading. */
   trend: MomentumTrend
 }
 
 /**
- * Un KILL, indépendamment de tout découpage temporel.
+ * A KILL, independent of any time slicing.
  *
- * POURQUOI CE TYPE EXISTE À PART DE `MomentumKill`. Le binning n'appartient qu'à
- * l'histogramme de la carte « Dominance » : le rejeu 2D, lui, pose les mêmes kills sur
- * l'horloge du film, où un bin n'a aucun sens. Ce qui est COMMUN — ce qui fait qu'un event
- * est un kill, qui l'a porté, et comment son arme voyage — se lit donc ici, une seule fois.
+ * WHY THIS TYPE EXISTS SEPARATELY FROM `MomentumKill`. Binning belongs only to the
+ * "Dominance" chart's histogram: the 2D replay, on the other hand, places the same
+ * kills on the film's clock, where a bin makes no sense. What's COMMON — what makes
+ * an event a kill, who carried it out, and how its weapon travels — is therefore
+ * read here, in one place.
  */
 export interface KillEvent {
   tMs: number
   xuid: string
   ally: boolean
   /**
-   * Équipe du TUEUR (`actor_team_id`) : le camp auquel la piste Dominance du rejeu attribue le
-   * frag. Null si le backend ne l'a pas résolue (acteur hors scoreboard) : le frag ne compte
-   * pour aucun camp. Elle ne colore plus rien — l'encre du fil du rejeu vient de l'équipe du film.
+   * The KILLER's team (`actor_team_id`): the side the replay's Dominance track credits
+   * the frag to. Null if the backend didn't resolve it (actor off the scoreboard): the
+   * frag counts for neither side. It no longer colors anything — the replay feed's color
+   * comes from the film's team.
    */
   teamID: number | null
   /**
-   * L'ARME DU KILL, telle que le backend l'a résolue. Les trois champs voyagent
-   * ensemble et sont vides ensemble : une source de dégât non identifiée sans
-   * ambiguïté ne donne AUCUNE icône, jamais celle d'une autre arme.
+   * THE KILL'S WEAPON, as resolved by the backend. The three fields travel together
+   * and are empty together: a damage source identified without ambiguity gives NO
+   * icon, never another weapon's.
    *
-   * `weaponLabel` est un nom propre (BR75), pas un libellé traduit. Vide pour les
-   * sources sans nom propre (mêlée, grenade) qui gardent pourtant leur icône.
+   * `weaponLabel` is a proper name (BR75), not a translated label. Empty for sources
+   * with no proper name (melee, grenade), which nonetheless keep their icon.
    *
-   * `weaponKey` est la clé canonique du registre d'armes du titre — la clé de jointure
-   * de l'effet de mort du rejeu (`doc.killEffects`). Vide quand la source n'y figure
-   * pas (mêlée générique, objets) : l'effet reste neutre, jamais celui d'une voisine.
+   * `weaponKey` is the title's weapon registry canonical key — the join key for the
+   * replay's death effect (`doc.killEffects`). Empty when the source isn't listed
+   * there (generic melee, objects): the effect stays neutral, never a neighbor's.
    */
   weaponKey: string
   weaponLabel: string
   weaponImageUrl: string
   weaponTinted: boolean
   /**
-   * Le dégât fatal était-il un tir à la tête ? INDÉPENDANT des trois champs `weapon*`
-   * ci-dessus (pas conditionné à la résolution d'icône). `undefined` = non mesurable
-   * (film absent, passe non publiable, source ambiguë) — JAMAIS `false` par défaut, même
-   * doctrine que `killerDamagePct`/`assistDamagePct` ci-dessous. Optionnel (et non
-   * obligatoire comme les autres champs de ce type) : ce champ est apparu après ce type,
-   * les consommateurs existants (rejeu 2D) construisent encore des `KillEvent` qui ne le
-   * portent pas.
+   * Was the fatal hit a headshot? INDEPENDENT of the three `weapon*` fields above
+   * (not conditioned on icon resolution). `undefined` = not measurable (film absent,
+   * unpublishable pass, ambiguous source) — NEVER defaults to `false`, same doctrine
+   * as `killerDamagePct`/`assistDamagePct` below. Optional (and not required like the
+   * other fields of this type): this field appeared after this type did, and existing
+   * consumers (2D replay) still build `KillEvent`s that don't carry it.
    */
   headshot?: boolean
   /**
-   * L'ASSISTANCE du kill, lue du film — TROIS états qui ne se confondent jamais :
-   * '' (on ne sait pas), 'none' (mesuré : pas d'assistant), 'named' (assistant nommé,
-   * avec sa part de dégâts quand elle est lue). Ne JAMAIS traiter '' comme « pas
-   * d'assistant » : c'est le mensonge que cette énumération existe pour empêcher.
+   * The kill's ASSIST, read from the film — THREE states that are never conflated:
+   * '' (unknown), 'none' (measured: no assist), 'named' (named assist, with their
+   * damage share when it's available). NEVER treat '' as "no assist": that's exactly
+   * the lie this enum exists to prevent.
    */
   assistState: '' | 'none' | 'named'
   assistGamertag: string
   assistTeamID: number | null
-  /** Parts de dégâts en % entiers, NON bornées à 100. Null = non mesurée, jamais 0. */
+  /** Damage shares in whole %, NOT capped at 100. Null = not measured, never 0. */
   killerDamagePct: number | null
   assistDamagePct: number | null
   /**
-   * La VICTIME du kill, jointe côté backend depuis killer_victim_pairs par la clé
-   * (tueur, instant) avec garde d'unanimité. Vides quand la paire manque ou quand
-   * deux victimes distinctes partagent la même clé : personne n'est nommé au hasard.
+   * The kill's VICTIM, joined server-side from killer_victim_pairs by the (killer,
+   * instant) key with a unanimity guard. Empty when the pair is missing, or when two
+   * distinct victims share the same key: nobody gets named at random.
    */
   victimXuid: string
   victimGamertag: string
 }
 
-/** Métadonnée minimale par xuid nécessaire au calcul (appartenance équipe). */
+/** Minimal per-xuid metadata needed for the computation (team membership). */
 type XuidAllyMeta = ReadonlyMap<string, { ally: boolean }>
 
 /**
- * collectKillEvents extrait les kills d'une liste d'events bruts, dans leur ordre d'arrivée.
+ * collectKillEvents extracts the kills from a list of raw events, in their arrival order.
  *
- * Un event est ignoré s'il n'est pas un `kill`, s'il n'a ni acteur ni horodatage, ou si son
- * acteur est hors scoreboard — les mêmes exclusions qu'avant l'extraction, parce que ce sont
- * celles du binning serveur.
+ * An event is skipped if it isn't a `kill`, has neither an actor nor a timestamp, or its
+ * actor is off the scoreboard — the same exclusions as before the extraction, because
+ * they're the server binning's own.
  */
 export function collectKillEvents(
   events: MatchHighlightEvent[] | null | undefined,
@@ -146,7 +146,7 @@ export function collectKillEvents(
   return out
 }
 
-/** Un kill affecté à un bin, avec sa position fractionnaire (kill feed / vagues). */
+/** A kill assigned to a bin, with its fractional position (kill feed / waves). */
 export interface MomentumKill extends KillEvent {
   binIdx: number
   fracInBin: number
@@ -158,13 +158,13 @@ interface MomentumData {
 }
 
 /**
- * Calcule le momentum par bin depuis les events `kill` et les bornes de bins.
- * `xuidMeta` résout l'appartenance d'équipe (allié vs ennemi) d'un acteur.
- * Un event ignoré (mauvais type, xuid/temps manquant, acteur hors scoreboard,
- * temps AVANT le premier bin) ne contribue ni au delta ni aux kills. Un event
- * AU-DELÀ du dernier bin est CLAMPÉ dans le dernier bin — parité stricte avec le
- * binning serveur (`tug_of_war.go` : `if idx >= nBins { idx = nBins - 1 }`), pour
- * que l'histogramme front et le delta net backend comptent les mêmes kills.
+ * Computes momentum per bin from the `kill` events and the bin boundaries.
+ * `xuidMeta` resolves an actor's team membership (ally vs enemy). A skipped event
+ * (wrong type, missing xuid/time, actor off the scoreboard, time BEFORE the first
+ * bin) contributes to neither delta nor kills. An event PAST the last bin is
+ * CLAMPED into the last bin — strict parity with the server's binning
+ * (`tug_of_war.go`: `if idx >= nBins { idx = nBins - 1 }`), so the front-end
+ * histogram and the backend's net delta count the same kills.
  */
 export function computeMomentumBins(
   bins: MatchTugOfWarBin[],
@@ -175,16 +175,16 @@ export function computeMomentumBins(
   const enemyKills = new Array<number>(bins.length).fill(0)
   const kills: MomentumKill[] = []
 
-  // Les kills sont collectés par le MÊME chemin que le rejeu 2D ; seul le binning est
-  // propre à cette carte. Deux collectes, ce serait deux définitions de « ce qui est un
-  // kill » sur la même page.
+  // Kills are collected through the SAME path as the 2D replay; only the binning is
+  // specific to this chart. Two collection paths would mean two definitions of "what
+  // is a kill" on the same page.
   for (const k of collectKillEvents(events, xuidMeta)) {
     const tSec = k.tMs / 1000
     let idx = bins.findIndex((b) => tSec >= b.bin_start && tSec < b.bin_end)
     if (idx < 0) {
-      // Parité avec le clamp backend (tug_of_war.go) : un event au-delà du dernier
-      // bin est compté dans le dernier bin ; un temps avant le premier bin est
-      // ignoré (le backend saute TimeMS < 0).
+      // Parity with the backend clamp (tug_of_war.go): an event past the last bin is
+      // counted in the last bin; a time before the first bin is skipped (the backend
+      // skips TimeMS < 0).
       const last = bins.length - 1
       if (last >= 0 && tSec >= bins[last].bin_end) {
         idx = last
@@ -221,11 +221,11 @@ export function computeMomentumBins(
 }
 
 /**
- * Sens du momentum d'une tranche (DEC-4). `prevDelta` = delta de la tranche
- * précédente (0 avant la première tranche, ce qui rend « up » le premier bin non nul,
- * qu'il penche allié ou ennemi). `'up'` = amplitude signée qui s'accroît dans le sens
- * déjà engagé → opacité pleine ; sinon `'down'` (essoufflement). Un `delta` nul ne
- * produit pas de barre (DEC-5), son `trend` est neutralisé à `'down'`.
+ * Direction of a slice's momentum (DEC-4). `prevDelta` = the previous slice's delta
+ * (0 before the first slice, which makes the first non-zero bin "up", whether it
+ * leans allied or enemy). `'up'` = signed amplitude growing in the direction already
+ * engaged → full opacity; otherwise `'down'` (fading). A zero `delta` produces no
+ * bar (DEC-5), its `trend` is neutralized to `'down'`.
  */
 function computeTrend(delta: number, prevDelta: number): MomentumTrend {
   if (delta > 0) return delta > prevDelta ? 'up' : 'down'

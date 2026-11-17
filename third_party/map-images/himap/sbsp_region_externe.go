@@ -25,6 +25,8 @@
 // region avec sa preuve, comme il declare le module.
 package himap
 
+// LOCAL-CHANGE: user-visible strings translated to English.
+
 import (
 	"errors"
 
@@ -52,7 +54,7 @@ func RegionsBSPExternes(modulePath string, porteurs []string) ([]RegionExterne, 
 	}
 	defer func() { _ = m.Close() }()
 	if len(m.Files("sbsp")) > 0 {
-		return nil, fmt.Errorf("himap: %s porte ses propres tags sbsp — utiliser BSPQuantification", modulePath)
+		return nil, fmt.Errorf("himap: %s carries its own sbsp tags — use BSPQuantification", modulePath)
 	}
 	parGID, err := sbspDesPorteurs(porteurs)
 	if err != nil {
@@ -60,7 +62,7 @@ func RegionsBSPExternes(modulePath string, porteurs []string) ([]RegionExterne, 
 	}
 	attendus := sbspReferences(m, parGID)
 	if len(attendus) == 0 {
-		return nil, fmt.Errorf("himap: le levl de %s ne reference aucun tag sbsp des %d module(s) porteur(s)",
+		return nil, fmt.Errorf("himap: the levl of %s references no sbsp tag from the %d carrier module(s)",
 			modulePath, len(porteurs))
 	}
 	ordre, err := ordreRegionsBSP(m, attendus)
@@ -77,7 +79,7 @@ func RegionsBSPExternes(modulePath string, porteurs []string) ([]RegionExterne, 
 		}
 	}
 	if len(out) != len(ordre) {
-		return nil, fmt.Errorf("himap: %s : %d region(s) ordonnee(s) mais %d resolue(s)",
+		return nil, fmt.Errorf("himap: %s: %d region(s) ordered but %d resolved",
 			modulePath, len(ordre), len(out))
 	}
 	return out, nil
@@ -100,7 +102,7 @@ func sbspDesPorteurs(porteurs []string) (map[uint32]sbspPorte, error) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("himap: porteur %s: %w", p, err)
+			return nil, fmt.Errorf("himap: carrier %s: %w", p, err)
 		}
 		for _, b := range bsps {
 			if _, deja := out[b.GlobalID]; !deja {

@@ -42,17 +42,17 @@ func weapTagsByIndex(ix *tagIndex) (map[int][]string, error) {
 	if !ok {
 		return nil, fmt.Errorf("`sprite` / `sprite index` fields absent from the plugin")
 	}
-	vus := map[uint32]bool{}
-	parIndex := map[int]map[string]bool{}
-	for groupe, refs := range ix.byGroup {
-		if groupe == "bitm" {
+	seen := map[uint32]bool{}
+	byIndex := map[int]map[string]bool{}
+	for group, refs := range ix.byGroup {
+		if group == "bitm" {
 			continue // bitmaps carry no interface block
 		}
 		for _, r := range refs {
-			if vus[r.ID] {
+			if seen[r.ID] {
 				continue
 			}
-			vus[r.ID] = true
+			seen[r.ID] = true
 			data, err := ix.extract(r)
 			if err != nil {
 				continue
@@ -69,14 +69,14 @@ func weapTagsByIndex(ix *tagIndex) (map[int][]string, error) {
 			if idx < 0 || idx >= maxAtlasIndex {
 				continue
 			}
-			if parIndex[idx] == nil {
-				parIndex[idx] = map[string]bool{}
+			if byIndex[idx] == nil {
+				byIndex[idx] = map[string]bool{}
 			}
-			parIndex[idx][fmt.Sprintf("%08x", r.ID)] = true
+			byIndex[idx][fmt.Sprintf("%08x", r.ID)] = true
 		}
 	}
-	out := make(map[int][]string, len(parIndex))
-	for idx, set := range parIndex {
+	out := make(map[int][]string, len(byIndex))
+	for idx, set := range byIndex {
 		tags := make([]string, 0, len(set))
 		for t := range set {
 			tags = append(tags, t)

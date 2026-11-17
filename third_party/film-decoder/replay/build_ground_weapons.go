@@ -46,14 +46,14 @@ type padArchetype struct {
 // groundWeaponArchetype / worldEquipmentArchetype : les deux voies de la chaîne des socles.
 func groundWeaponArchetype() padArchetype {
 	return padArchetype{
-		ti: grammar.GroundWeaponTypeIndex, label: "armes au sol (ti=42)",
+		ti: grammar.GroundWeaponTypeIndex, label: "ground weapons (ti=42)",
 		scan: grammar.ScanGroundWeaponCreationsForBand,
 	}
 }
 
 func worldEquipmentArchetype() padArchetype {
 	return padArchetype{
-		ti: grammar.EquipmentTypeIndex, label: "power-ups de socle (ti=37)",
+		ti: grammar.EquipmentTypeIndex, label: "socle power-ups (ti=37)",
 		scan: grammar.ScanEquipmentCreationsForBand,
 	}
 }
@@ -102,7 +102,7 @@ func decodeFilmPadScan(ctx context.Context,
 	kf := grammar.ScanWorldObjectKeyframes(fc, arch.ti)
 	if len(kf.Band) == 0 {
 		slog.WarnContext(ctx, "pads: no archetype slot in the keyframes — replay without this layer",
-			"archetype", arch.label, "match_id", matchID, "imagesCles", len(kf.TimesUS))
+			"archetype", arch.label, "match_id", matchID, "keyframes", len(kf.TimesUS))
 		return WorldObjectScan{}
 	}
 	cre, st, err := arch.scan(fc, wr, kf.Band)
@@ -120,7 +120,7 @@ func decodeFilmPadScan(ctx context.Context,
 	}
 	slog.InfoContext(ctx, "pads: archetype sweep",
 		"archetype", arch.label, "slots", st.Slots, "anchors", st.Anchors, "accepted", st.Accepted,
-		"imagesCles", len(kf.TimesUS), "viesRecensees", len(kf.SeenUS), "pistesDelta", len(tracks))
+		"keyframes", len(kf.TimesUS), "livesSeen", len(kf.SeenUS), "deltaTracks", len(tracks))
 	return WorldObjectScan{Scanned: true, Creations: cre, Stats: st, Keyframes: kf, Tracks: tracks}
 }
 
