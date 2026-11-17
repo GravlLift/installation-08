@@ -14,10 +14,11 @@ func init() {
 	// The webview's window and its message loop must live on the main OS thread for the
 	// whole process lifetime.
 	runtime.LockOSThread()
-	// DPI awareness comes from the app manifest (app.manifest, embedded after the build
-	// by tools\embed-manifest.ps1). It must NOT be set here at runtime: calling
-	// SetProcessDpiAwarenessContext in this process breaks WebView2 controller creation
-	// on this machine (nil controller, a res=0 panic in go-webview2).
+	// DPI awareness must NOT be set here at runtime: on this machine any DPI-aware
+	// state (a manifest declaration or a SetProcessDpiAwarenessContext call) breaks
+	// WebView2 controller creation (nil controller, a res=0 panic in go-webview2),
+	// while a DPI-unaware process launches fine. The app is DPI-unaware until that
+	// WebView2 issue is understood.
 }
 
 // webviewUserDataFolder is the ONE fixed user data folder of the app window's WebView2
