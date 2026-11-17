@@ -66,7 +66,7 @@ if (-not (Test-Path (Join-Path $dist 'index.html'))) {
     throw "web build missing: $dist\index.html (run without -SkipWeb, or build web first)"
 }
 
-# --- 3. Stage the viewer: index.html and assets only. web\dist\dev is local development
+# --- 3. Stage the viewer: the root files and assets only. web\dist\dev is local development
 # fixtures and never ends up in the exe or the zip.
 $stage = Join-Path (Join-Path (Join-Path $repo 'internal') 'webdist') 'files'
 $srcAssets = Join-Path $dist 'assets'
@@ -76,7 +76,9 @@ New-Item -ItemType Directory -Force -Path $dstAssets | Out-Null
 # leaves other names behind). The tracked placeholder stays.
 Get-ChildItem -LiteralPath $stage -File | Where-Object Name -ne 'placeholder' | Remove-Item
 Get-ChildItem -LiteralPath $dstAssets -File | Remove-Item
-Copy-Item -LiteralPath (Join-Path $dist 'index.html') -Destination $stage
+# Every file at the build's root: index.html plus web\public's files (the favicon, the
+# wordmark). Folders other than assets\ (web\dist\dev) stay out.
+Get-ChildItem -LiteralPath $dist -File | Copy-Item -Destination $stage
 if (Test-Path $srcAssets) {
     Get-ChildItem -LiteralPath $srcAssets -File | Copy-Item -Destination $dstAssets
 }
