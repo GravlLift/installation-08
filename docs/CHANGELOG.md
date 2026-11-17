@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- The weapon, first-person and Spartan-piece libraries now build on all of the machine's
+  logical cores at once instead of one weapon/rig/piece at a time, and a weapon the viewer
+  actually asks for (a match you open while the library is still building) moves to the front
+  of the queue. A thin bar at the top of every page shows the overall progress ("Weapons
+  84/190") and the note "Optimizing assets. Playback may be less smooth until this finishes."
+  while any of this runs; it disappears once the queue is empty.
+  Measured on a 20-core / 64 GB machine, timing a fixed 20-weapon subset of the first-person
+  library (a full ~190-weapon run was too long to time twice for this change): 297.2 s wall,
+  3.70 GB peak working set before this change, vs. 190.1 s wall, 6.72 GB peak after (about
+  1.6x on this small, geometry-read-dominated subset; the per-rig write/compress step itself —
+  the real cost at full roster size — went from fully sequential to running all 20 at once).
+  Peak memory per worker (~340 MB) stayed well inside a typical 16 GB machine's budget even at
+  this machine's full 20-way concurrency, so the default stays every logical core, uncapped.
+
 ## 0.1.0-test.18
 
 Changes since 0.1.0-test.17.

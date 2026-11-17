@@ -19,8 +19,13 @@ engineering backlog; this page keeps only the user-visible parts of it.
   match the game exactly.
 - Map files are large: up to about 850 MB per map at Standard and 1.4 GB at High (Streets),
   mostly texture data. The first build of a large map takes minutes (Streets: about 2 minutes
-  Standard, 8 minutes High), and the first start after an update rebuilds the weapon and
-  first-person libraries in the background.
+  Standard, 8 minutes High), and the first start after an update rebuilds the weapon,
+  first-person and Spartan-piece libraries in the background, now on all of the machine's
+  cores at once (see docs/CHANGELOG.md "Unreleased" for the measurement) instead of one weapon
+  or rig at a time. A thin bar at the top of every page shows the overall progress and the
+  current step while this runs; a match opened mid-build plays right away, its own weapons
+  built first, with any weapon not yet ready shown as a plain placeholder until its file
+  appears.
 - Origin: its surrounding hills draw snowy where the game shows brown rock and green hills.
 - Signs, screens and neon animate with the game's own rates, but their scanline, noise and
   parallax layers and the holograms' noise and edge glow are not drawn. One Streets sign
