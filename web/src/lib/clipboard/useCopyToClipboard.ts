@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useCopyToClipboard — hook canonique « copier + coche transitoire ».
+ * useCopyToClipboard — the canonical "copy + transient checkmark" hook.
  *
- * Quatre boutons portaient le même corps recopié (état `copied`, `setTimeout`,
- * `navigator.clipboard.writeText`, `catch` muet) avec deux durées différentes
- * (2000 ms et 1500 ms) : ShareLinkButton, IdentitiesSection (XuidCell),
- * MatchHeader.card et CopyCodeButton. Règle CLAUDE.md n°6 (à la 3e copie :
- * helper + garde-rail) — le ratchet est `useCopyToClipboard.guard.test.ts`.
+ * Four buttons carried the same copy-pasted body (`copied` state, `setTimeout`,
+ * `navigator.clipboard.writeText`, a silent `catch`) with two different durations
+ * (2000 ms and 1500 ms): ShareLinkButton, IdentitiesSection (XuidCell),
+ * MatchHeader.card and CopyCodeButton. CLAUDE.md rule #6 (on the 3rd copy:
+ * helper + guard rail) — the ratchet is `useCopyToClipboard.guard.test.ts`.
  *
- * Ce que le hook corrige par rapport aux copies :
- *  - une seule durée de coche (`COPIED_FEEDBACK_MS`) ;
- *  - le minuteur est annulé au démontage ET à chaque nouveau clic (les copies
- *    laissaient la coche d'une 2e copie disparaître au minuteur de la 1re, et
- *    appelaient setState après démontage) ;
- *  - l'échec du presse-papier est journalisé (`log.error`) au lieu d'être avalé,
- *    et `copied` reste FAUX — jamais de fausse confirmation de copie
- *    (MatchHeader.card n'avait même pas de `catch` : rejet non géré).
+ * What the hook fixes compared to the copies:
+ *  - a single checkmark duration (`COPIED_FEEDBACK_MS`);
+ *  - the timer is cancelled on unmount AND on every new click (the copies
+ *    let a 2nd copy's checkmark disappear on the 1st one's timer, and
+ *    called setState after unmount);
+ *  - a clipboard failure is logged (`log.error`) instead of being swallowed,
+ *    and `copied` stays FALSE — never a false copy confirmation
+ *    (MatchHeader.card did not even have a `catch`: an unhandled rejection).
  *
- * L'apparence (icône, libellés, classes) reste au site appelant : le hook ne
- * porte que la mécanique.
+ * The appearance (icon, labels, classes) stays with the calling site: the hook only
+ * carries the mechanics.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { log } from './_logger'
 
-/** Durée unique de la coche « copié » sur toute l'application. */
+/** The single "copied" checkmark duration across the whole application. */
 export const COPIED_FEEDBACK_MS = 2000
 
 export interface UseCopyToClipboard {
-  /** Copie `text` ; met `copied` à vrai le temps de `COPIED_FEEDBACK_MS`. */
+  /** Copies `text`; sets `copied` to true for the duration of `COPIED_FEEDBACK_MS`. */
   copy: (text: string) => Promise<void>
-  /** Vrai pendant la fenêtre de feedback qui suit une copie RÉUSSIE. */
+  /** True during the feedback window that follows a SUCCESSFUL copy. */
   copied: boolean
 }
 
@@ -48,15 +48,15 @@ export function useCopyToClipboard(): UseCopyToClipboard {
   }, [])
 
   const copy = useCallback(async (text: string) => {
-    // Un nouveau clic réarme la fenêtre de feedback depuis zéro.
+    // A new click re-arms the feedback window from zero.
     if (timerRef.current !== null) clearTimeout(timerRef.current)
 
     try {
       await navigator.clipboard.writeText(text)
     } catch (err) {
-      // Presse-papier indisponible (contexte non sécurisé, permission refusée).
-      // Jamais de coche dans ce cas : le texte reste sélectionnable à la main.
-      log.error('clipboard:write_failed', 'navigator.clipboard.writeText a échoué', err)
+      // Clipboard unavailable (insecure context, permission denied).
+      // Never a checkmark in that case: the text stays manually selectable.
+      log.error('clipboard:write_failed', 'navigator.clipboard.writeText failed', err)
       if (mountedRef.current) setCopied(false)
       return
     }

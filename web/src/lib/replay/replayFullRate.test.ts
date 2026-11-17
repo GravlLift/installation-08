@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * Tests — replayFullRate / replayNormalize : le vol au débit du film (schema 127) se relit
- * UNE FOIS, à la frontière.
+ * Tests — replayFullRate / replayNormalize: the flight at the film's native rate (schema 127) is
+ * re-read ONCE, at the boundary.
  *
- * `normalizeReplayDocument` lit les colonnes différentielles de `projectiles[].fullRate` et publie
- * la forme décodée (`ReplayFullRateFlightReady`), `t` en images fractionnaires ABSOLUES
- * (ms depuis l'origine de la grille / frameIntervalMs) : les calques la lisent telle quelle,
- * sans re-décodage.
+ * `normalizeReplayDocument` reads the differential columns of `projectiles[].fullRate` and publishes
+ * the decoded form (`ReplayFullRateFlightReady`), `t` in ABSOLUTE fractional frames
+ * (ms since the grid's origin / frameIntervalMs): the layers read it as-is,
+ * with no re-decoding.
  */
 import { describe, expect, it } from 'vitest'
 

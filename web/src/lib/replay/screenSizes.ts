@@ -109,14 +109,14 @@ const MONGOOSE_REFERENCE_LENGTH_MM = 1280
  * anything; it is kept because the SCALE FLOOR is defined relative to it, and a floor whose
  * origin cannot be reconstituted is no longer verifiable.
  */
-const MONGOOSE_TO_PION_RATIO_V1 = 1.75
+const MONGOOSE_TO_PAWN_RATIO_V1 = 1.75
 
 /**
- * PX_PAR_MM_CADRAGE_V1 — THE OLD SCALE, in CSS pixels per world millimeter:
+ * PX_PER_MM_FRAMING_V1 — THE OLD SCALE, in CSS pixels per world millimeter:
  * 0.01203125 px/mm. It is the former `VEHICLE_PX_PER_MM`, and it was applied whatever the
  * map.
  */
-const PX_PAR_MM_CADRAGE_V1 = (PION_SCREEN_PX * MONGOOSE_TO_PION_RATIO_V1) / MONGOOSE_REFERENCE_LENGTH_MM
+const PX_PER_MM_FRAMING_V1 = (PION_SCREEN_PX * MONGOOSE_TO_PAWN_RATIO_V1) / MONGOOSE_REFERENCE_LENGTH_MM
 
 /**
  * VEHICLE_SCREEN_BUMP — THE +20% ASKED BY THE USER ON 2026-09-19, in a SINGLE literal.
@@ -136,7 +136,7 @@ export const VEHICLE_SCREEN_BUMP = 1.2
  * Snowbound (54.2 m, 17.56 px/m) is above — the map's scale is used there, and the vehicles
  * are bigger than the old +20%.
  */
-export const PX_PAR_MM_MINIMUM_ECRAN = PX_PAR_MM_CADRAGE_V1 * VEHICLE_SCREEN_BUMP
+export const PX_PAR_MM_MINIMUM_ECRAN = PX_PER_MM_FRAMING_V1 * VEHICLE_SCREEN_BUMP
 
 /**
  * VEHICLE_SOFT_CEIL_PX — the SOFT ceiling, UNCHANGED (7 pawns, 61.60 px): beyond it, the
@@ -193,7 +193,7 @@ export function vehicleCeilPx(canvasMinSidePx: number): number {
  * there, one does not know which one", and a glyph of ignorance must not weigh as much as a
  * named vehicle — hence an equivalence calibrated on what it was worth, never on a chassis.
  */
-const VEHICLE_UNKNOWN_HALF_MM = CORE_RADIUS / PX_PAR_MM_CADRAGE_V1
+const VEHICLE_UNKNOWN_HALF_MM = CORE_RADIUS / PX_PER_MM_FRAMING_V1
 
 /**
  * VEHICLE_TURRET_HALF_MM — same equivalence for the half-side of the turret pictogram: the
@@ -204,14 +204,14 @@ const VEHICLE_UNKNOWN_HALF_MM = CORE_RADIUS / PX_PAR_MM_CADRAGE_V1
  * than the diamond of an unknown chassis, without reaching the size of a driven chassis —
  * and this ratio is now held AT EVERY SCALE, since the three follow the same one.
  */
-const VEHICLE_TURRET_HALF_MM = (PION_SCREEN_PX * 0.75) / PX_PAR_MM_CADRAGE_V1
+const VEHICLE_TURRET_HALF_MM = (PION_SCREEN_PX * 0.75) / PX_PER_MM_FRAMING_V1
 
 /**
  * VEHICLE_EDGE_FALLBACK_MM — the equivalent world length of the half-gauge that a vehicle
  * whose sprite or manifest is NOT YET LOADED lends to its label: the one that gives back its
  * 4.40 historical px (a half-pawn) at the old scale. 4.40 -> 5.28 px on a big map.
  */
-const VEHICLE_EDGE_FALLBACK_MM = (PION_SCREEN_PX / 2) / PX_PAR_MM_CADRAGE_V1
+const VEHICLE_EDGE_FALLBACK_MM = (PION_SCREEN_PX / 2) / PX_PER_MM_FRAMING_V1
 
 /**
  * screenScalePxPerMm — THE EFFECTIVE SCALE of the layer: the map's, or the floor, the larger
@@ -222,8 +222,8 @@ const VEHICLE_EDGE_FALLBACK_MM = (PION_SCREEN_PX / 2) / PX_PAR_MM_CADRAGE_V1
  * is known is drawn, even before the scene is framed.
  */
 export function screenScalePxPerMm(scalePxPerM: number): number {
-  const carte = scalePxPerM > 0 ? scalePxPerM / 1000 : 0
-  return Math.max(carte, PX_PAR_MM_MINIMUM_ECRAN)
+  const mapScale = scalePxPerM > 0 ? scalePxPerM / 1000 : 0
+  return Math.max(mapScale, PX_PAR_MM_MINIMUM_ECRAN)
 }
 
 /**
@@ -237,8 +237,8 @@ export function screenLengthPx(
   ceilPx: number = VEHICLE_SOFT_CEIL_PX,
 ): number {
   if (worldLengthMm <= 0) return 0
-  const brut = worldLengthMm * screenScalePxPerMm(scalePxPerM)
-  return brut <= ceilPx ? brut : ceilPx + Math.sqrt(brut - ceilPx)
+  const raw = worldLengthMm * screenScalePxPerMm(scalePxPerM)
+  return raw <= ceilPx ? raw : ceilPx + Math.sqrt(raw - ceilPx)
 }
 
 /**

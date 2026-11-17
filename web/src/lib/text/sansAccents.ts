@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * sansAccents — le texte sans ses accents : décomposition NFD, marques diacritiques combinantes
- * (U+0300 à U+036F) retirées ; casse et blancs inchangés. LA normalisation des recherches et
- * comparaisons insensibles aux accents de l'application (« Écluse » → « Ecluse »).
+ * sansAccents — the text without its accents: NFD decomposition, combining diacritical marks
+ * (U+0300 to U+036F) stripped; case and whitespace unchanged. THE normalization for the
+ * application's accent-insensitive searches and comparisons ("Écluse" -> "Ecluse").
  *
- * Garde-rail : `sansAccents.guard.test.ts` — `.normalize('NFD')` n'apparaît nulle part ailleurs.
+ * Guard rail: `sansAccents.guard.test.ts` — `.normalize('NFD')` appears nowhere else.
  */
-export function sansAccents(texte: string): string {
-  return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+export function sansAccents(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
