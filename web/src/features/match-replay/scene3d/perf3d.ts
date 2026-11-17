@@ -19,6 +19,16 @@ export function measureSince(name: string, start: number, detail?: unknown): voi
   }
 }
 
+/** measureDuration records `it3d:<name>` of `durationMs` ending now (for accumulated parts of a phase). */
+export function measureDuration(name: string, durationMs: number): void {
+  try {
+    const end = performance.now()
+    performance.measure(`it3d:${name}`, { start: end - durationMs, duration: durationMs })
+  } catch {
+    // A measure is a diagnostic: an environment without User Timing loads the same.
+  }
+}
+
 /** timed runs `run` and records `it3d:<name>` over its whole duration, failed or not. */
 export async function timed<T>(name: string, run: () => Promise<T>): Promise<T> {
   const start = now()
