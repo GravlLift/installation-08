@@ -103,35 +103,35 @@ export function refineWeaponsReading(
 ): WeaponsReading {
   if (base.age < 0 || changes.length === 0) return base
   const readFrame = frame - base.age
-  const rangee: Rangee = { weapons: [...base.weapons], k: base.k ? [...base.k] : undefined }
+  const row: Row = { weapons: [...base.weapons], k: base.k ? [...base.k] : undefined }
   let applied = -1
   // CHRONOLOGICAL ORDER IS MANDATORY, and the document's list does not guarantee it: two
   // substitutions on the same slot must chain in the order they happened, otherwise the card
   // would show the second-to-last weapon.
-  const utiles = changes
+  const due = changes
     .filter((c) => c.slot === slot && c.t > readFrame && c.t <= frame)
     .sort((a, b) => a.t - b.t)
-  for (const c of utiles) {
-    if (appliquerChangement(rangee, c)) applied = c.t
+  for (const c of due) {
+    if (applyChange(row, c)) applied = c.t
   }
   if (applied < 0) return base
   // PROVENANCE DOES NOT SURVIVE AN APPLIED CHANGE (adversarial review of lot M3.3, 2026-09-24):
   // the row is no longer the birth loadout, it is that PLUS what has happened since — the
   // tooltip must no longer say "Birth loadout". `k` stays: the row stays placed.
-  return { weapons: rangee.weapons, age: frame - applied, ...(rangee.k ? { k: rangee.k } : {}) }
+  return { weapons: row.weapons, age: frame - applied, ...(row.k ? { k: row.k } : {}) }
 }
 
 /** The row being refined: its weapons and, when it is placed, their slots. */
-interface Rangee {
+interface Row {
   weapons: string[]
   k: number[] | undefined
 }
 
 /**
- * appliquerChangement applies ONE change to the row and says whether it did (see the header:
+ * applyChange applies ONE change to the row and says whether it did (see the header:
  * substitutions everywhere, pickups and drops only at the edges of a placed row).
  */
-function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
+function applyChange(r: Row, c: ReplayWeaponChange): boolean {
   const { weapons, k } = r
   if (c.w && c.from) {
     // THE ROW MUST NAME THE WEAPON BEING REPLACED. Otherwise the two readings are mismatched
@@ -139,9 +139,9 @@ function appliquerChangement(r: Rangee, c: ReplayWeaponChange): boolean {
     // "in hand" highlight, which refuses to designate a slot the loadout does not carry.
     // The change's slot, when the row is placed, breaks the tie between two equal weapons.
     const from = familyKey(c.from)
-    const situe = k && c.k !== undefined ? k.indexOf(c.k) : -1
-    const at = situe >= 0 && familyKey(weapons[situe]) === from
-      ? situe
+    const found = k && c.k !== undefined ? k.indexOf(c.k) : -1
+    const at = found >= 0 && familyKey(weapons[found]) === from
+      ? found
       : weapons.findIndex((w) => familyKey(w) === from)
     if (at < 0) return false
     weapons[at] = familyKey(c.w)

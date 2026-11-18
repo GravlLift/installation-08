@@ -247,9 +247,9 @@ export interface ReplayExportState {
   total: number
   pct: number
   /**
-   * Temps restant ESTIME, en millisecondes, ou `undefined` tant qu'aucune image n'est encodee.
-   * Fiable ici parce que le cout par image est tres regulier : meme toile, meme encodeur, et
-   * un dessin dont la charge ne depend pas de l'instant du match.
+   * ESTIMATED time remaining, in milliseconds, or `undefined` until any frame is encoded.
+   * Reliable here because the cost per frame is very regular: same canvas, same encoder, and
+   * drawing whose cost does not depend on the match's instant.
    */
   etaMs?: number
   /** The name of the file ready to download, in the `done` phase. */

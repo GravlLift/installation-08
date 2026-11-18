@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-/** Textes du rejeu 2D en anglais (contrat : `i18nContract.ts`). */
+/** The 2D replay's texts in English (contract: `i18nContract.ts`). */
 import type { ReplayText } from './i18nContract'
 
 export const EN_TEXT = {

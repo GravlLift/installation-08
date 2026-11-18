@@ -16,33 +16,33 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { weaponInHand } from './weaponInHand'
 
 /** The model key of a weapon id: its first eight hex digits, lower case. */
-function cleModele(id: string | undefined): string {
+function modelKeyOf(id: string | undefined): string {
   return (id ?? '').replace(/^0x/i, '').slice(0, 8).toLowerCase()
 }
 
 /**
  * magazineAtReload: the rounds in the in-hand weapon's magazine at `ms`, when a reload of life `slot`
- * starts; null when the film does not say (no hand, no read, or a reload since the read). `debuts`: the
+ * starts; null when the film does not say (no hand, no read, or a reload since the read). `starts`: the
  * life's reload starts in ms, sorted.
  */
-export function magazineAtReload(doc: ReplayDocumentReady, slot: number, ms: number, debuts: readonly number[]): number | null {
+export function magazineAtReload(doc: ReplayDocumentReady, slot: number, ms: number, starts: readonly number[]): number | null {
   const frame = msToFrames(ms, doc)
   const main = weaponInHand(doc, slot, frame)
   if (!main) return null
-  let lecture: ReplayDocumentReady['ammoReads'][number] | null = null
+  let read: ReplayDocumentReady['ammoReads'][number] | null = null
   for (const r of doc.ammoReads) {
     if (r.slot !== slot || r.w !== main.weaponSlot || r.mag == null || r.ms > ms) continue
-    if (!lecture || r.ms >= lecture.ms) lecture = r
+    if (!read || r.ms >= read.ms) read = r
   }
-  if (!lecture || lecture.mag == null) return null
-  const depuis = lecture.ms
-  if (debuts.some((d) => d > depuis && d < ms)) return null
-  const cle = cleModele(main.id)
-  let tirs = 0
+  if (!read || read.mag == null) return null
+  const since = read.ms
+  if (starts.some((d) => d > since && d < ms)) return null
+  const key = modelKeyOf(main.id)
+  let shots = 0
   for (const s of doc.shots) {
-    if (s.slot !== slot || cleModele(s.w) !== cle) continue
+    if (s.slot !== slot || modelKeyOf(s.w) !== key) continue
     const t = frameToMs(s.t, doc) + (s.o ?? 0)
-    if (t > depuis && t <= ms) tirs++
+    if (t > since && t <= ms) shots++
   }
-  return Math.max(0, lecture.mag - tirs)
+  return Math.max(0, read.mag - shots)
 }

@@ -65,16 +65,16 @@ function oneVent(
   next: EpisodeRechargement | null,
   followed: string | null,
 ): ReplaySoundEvent[] {
-  const debut = ep.etapes[0].t
-  const held = weaponInHand(doc, slot, debut)
+  const start = ep.etapes[0].t
+  const held = weaponInHand(doc, slot, start)
   const tag = held ? weaponTagOf(held.id) : null
-  const life = currentLifeOf(doc, slot, debut)
-  const vent = tag && life ? ventAt(doc, library, tag, slot, debut) : undefined
+  const life = currentLifeOf(doc, slot, start)
+  const vent = tag && life ? ventAt(doc, library, tag, slot, start) : undefined
   if (!held || !life || !vent) return []
-  const startMs = frameToMs(debut, doc)
+  const startMs = frameToMs(start, doc)
   // The loop is held until the later of the episode's last message and one full loop: the
   // timing of `phaseVent`, in ms.
-  const endBoucleMs = Math.max(frameToMs(ep.etapes[ep.etapes.length - 1].t, doc), startMs + vent.enter.durationMs + vent.loop.durationMs)
+  const loopEndMs = Math.max(frameToMs(ep.etapes[ep.etapes.length - 1].t, doc), startMs + vent.enter.durationMs + vent.loop.durationMs)
   const endMs = Math.min(
     frameToMs(trackWindow(life).end, doc),
     next ? frameToMs(next.etapes[0].t, doc) : Infinity,
@@ -82,12 +82,12 @@ function oneVent(
     firstAt(f.changes, startMs, false),
     f.hands.find((h) => h.ms > startMs && h.d !== held.weaponSlot)?.ms ?? Infinity,
   )
-  const cancelled = endMs < endBoucleMs + vent.exit.durationMs
+  const cancelled = endMs < loopEndMs + vent.exit.durationMs
   const xuid = trackIdentity(doc, slot)
   const out: ReplaySoundEvent[] = []
-  const phase = (clip: ReloadClip, debutMs: number) => {
+  const phase = (clip: ReloadClip, fromMs: number) => {
     for (const s of clip.sounds) {
-      const ms = debutMs + s.atMs
+      const ms = fromMs + s.atMs
       if (ms >= endMs || s.stems.length === 0) continue
       const e: ReplaySoundEvent = { ms, stem: s.stems[0], gainDb: clip.gainDb }
       if (s.stems.length > 1) e.variants = s.stems
@@ -99,7 +99,7 @@ function oneVent(
   }
   phase(vent.enter, startMs)
   phase(vent.loop, startMs + vent.enter.durationMs)
-  phase(vent.exit, endBoucleMs)
+  phase(vent.exit, loopEndMs)
   return out
 }
 

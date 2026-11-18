@@ -3,7 +3,7 @@
  * victoryLogic — HOW THIS MATCH ENDED FOR THE ONE BEING WATCHED.
  *
  * FOR WHOM, EXACTLY: by default the page player, and since 2026-09-06 the POINT OF VIEW
- * when the caller passes one (plan "frise, point de vue", decisions 3 and 12). The end
+ * when the caller passes one (plan "timeline, viewpoint", decisions 3 and 12). The end
  * screen and the video export follow what is being watched; the SOUND and the end voice,
  * for their part, stay anchored on the page player — inspecting an opponent must not
  * play "Defeat" on a won match. The two surfaces therefore share this reading, but pass
@@ -105,7 +105,7 @@ export interface VictoryReading {
  * `outcomeCode` is the verdict. The module does not look it up itself: it receives
  * it, like the subject.
  *
- * `subject` (2026-09-06, plan "frise, point de vue"): THROUGH WHOSE EYES this ending
+ * `subject` (2026-09-06, plan "timeline, viewpoint"): THROUGH WHOSE EYES this ending
  * is read.
  *
  * MIND THE ASYMMETRY OF THE TWO INPUTS, that is the whole subject. `outcomeCode` is
