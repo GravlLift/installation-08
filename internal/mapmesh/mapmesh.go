@@ -96,12 +96,13 @@ const (
 // BuildFormat is the build-format number published in every map and variant GLB's
 // asset.extras (under BuildFormatKey). It is bumped when the build output changes
 // (2: KTX2 textures, the texture read sizes, the materials; 3: geometry compressed with
-// EXT_meshopt_compression), so a GLB written by an older version of the app is detected as
-// outdated and rebuilt by the normal build flow. A GLB without the field (built before
-// versioning) is outdated. A format-2 GLB differs from format 3 by its geometry encoding only:
-// UpgradeFile brings it to format 3 in place, without reading the game.
+// EXT_meshopt_compression; 4: every KTX2 image block-aligned, see texcompress.blockAligned), so a
+// GLB written by an older version of the app is detected as outdated and rebuilt by the normal
+// build flow. A GLB without the field (built before versioning) is outdated. Formats 2 and 3
+// differ from 4 by encodings only: UpgradeFile brings them to 4 in place, without reading the
+// game.
 const (
-	BuildFormat    = 3
+	BuildFormat    = 4
 	BuildFormatKey = "buildFormat"
 )
 
@@ -221,7 +222,7 @@ func writeGLB(ctx context.Context, path, key string, format texcompress.Format, 
 		defer func() { _ = os.Remove(tex) }()
 		_ = os.Remove(src)
 		src = tex
-		slog.InfoContext(ctx, "textures compressed", "map", key, "images", st.Encoded,
+		slog.InfoContext(ctx, "textures compressed", "map", key, "images", st.Encoded, "aligned", st.Aligned,
 			"bytesBefore", st.BytesIn, "bytesAfter", st.BytesOut,
 			"gpuRGBA8", st.GPURGBA8, "gpuBlocks", st.GPUBlock, "duration", st.Duration.Round(time.Millisecond))
 	}
@@ -253,35 +254,62 @@ func compressGeometry(ctx context.Context, src, dst, key string, extras map[stri
 	return st, nil
 }
 
-// UpgradeFile brings the map or variant GLB at `path` from the previous build format (2, or an
-// unstamped KTX2 GLB, which is format 2) to BuildFormat in place: its geometry is encoded, the
-// rest is kept, and the stamp is updated. It takes seconds where a rebuild reads the game for
-// minutes. ok=false (and nothing written) when the file is absent or at another format: the
-// caller then builds it from the game as before.
+// UpgradeFile brings the map or variant GLB at `path` from build format 2 (or an unstamped KTX2
+// GLB, which is format 2) or 3 to BuildFormat in place: its misaligned images are re-encoded
+// (texcompress.RealignFile), a format-2 file's geometry is encoded, the rest is kept, and the
+// stamp is updated last. It takes seconds where a rebuild reads the game for minutes. ok=false
+// (and nothing written) when the file is absent or at another format: the caller then builds it
+// from the game as before.
 func UpgradeFile(ctx context.Context, path string) (Summary, bool, error) {
-	if !upgradable(path) {
+	from := upgradableFrom(path)
+	if from == 0 {
 		return Summary{}, false, nil
 	}
+	stamp := map[string]any{BuildFormatKey: BuildFormat}
 	prog := progressOf(ctx, true)
+	prog.stage(StepTextures)
+	// A format-2 file is stamped by its geometry pass, after its images.
+	realignStamp := stamp
+	if from == 2 {
+		realignStamp = nil
+	}
+	tst, err := texcompress.RealignFile(ctx, path, realignStamp, texcompress.Options{Progress: prog.texturesDone})
+	if err != nil {
+		return Summary{}, true, fmt.Errorf("textures: %w", err)
+	}
+	slog.InfoContext(ctx, "textures realigned", "file", filepath.Base(path), "images", tst.Aligned,
+		"duration", tst.Duration.Round(time.Millisecond))
+	if from == 3 {
+		return Summary{Bytes: tst.BytesOut}, true, nil
+	}
 	prog.stage(StepCompress)
-	st, err := compressGeometry(ctx, path, path, filepath.Base(path), map[string]any{BuildFormatKey: BuildFormat})
+	st, err := compressGeometry(ctx, path, path, filepath.Base(path), stamp)
 	if err != nil {
 		return Summary{}, true, err
 	}
 	return Summary{Triangles: st.Triangles, Bytes: st.BytesOut}, true, nil
 }
 
-// upgradable says whether the GLB at path is at the build format UpgradeFile upgrades.
-func upgradable(path string) bool {
+// upgradableFrom is the build format (2 or 3) of the GLB at path when UpgradeFile upgrades it,
+// else 0.
+func upgradableFrom(path string) int {
 	extras, err := texcompress.AssetExtras(path)
 	if err != nil {
-		return false
+		return 0
 	}
 	if v, ok := extras[BuildFormatKey]; ok {
-		return fmt.Sprint(v) == "2"
+		switch fmt.Sprint(v) {
+		case "2":
+			return 2
+		case "3":
+			return 3
+		}
+		return 0
 	}
-	basisu, err := texcompress.UsesBasisu(path)
-	return err == nil && basisu
+	if basisu, err := texcompress.UsesBasisu(path); err == nil && basisu {
+		return 2
+	}
+	return 0
 }
 
 // writeFile writes what `write` produces under `path + ".tmp"` then renames it (a reader never

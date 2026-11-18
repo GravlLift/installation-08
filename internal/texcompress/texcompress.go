@@ -100,6 +100,8 @@ type Stats struct {
 	// Encoded counts the images rewritten; Kept the images left as they were (already KTX2, or
 	// external).
 	Encoded, Kept int
+	// Aligned counts the encoded images resampled to multiple-of-4 sides (blockAligned).
+	Aligned int
 	ByClass       map[Class]*ClassStats
 	// GPURGBA8 is the GPU memory the images take uploaded as RGBA8 with a full mip chain (the
 	// viewer's PNG path); GPUBlock the same images as 16-byte 4x4 blocks with a full mip chain
@@ -302,19 +304,22 @@ func viewOf(v any, binLen int64) (view, error) {
 	return view{int64(off), int64(n)}, nil
 }
 
-// job is one image to encode.
+// job is one image to encode. `ktx2`: the source is a KTX2 image (RealignFile), decoded from its
+// base level instead of as a PNG or JPEG.
 type job struct {
 	image, view int
 	class       Class
+	ktx2        bool
 }
 
 // result is one encoded image, stored at `off` (`n` bytes) in the pass's blobs.
 type result struct {
-	off, n int64
-	w, h   int
-	err    error
-	inSize int64
-	dur    time.Duration
+	off, n  int64
+	w, h    int
+	err     error
+	inSize  int64
+	dur     time.Duration
+	aligned bool
 }
 
 // Compress reads a GLB of `size` bytes from `r` and writes it to `w` with its PNG and JPEG
@@ -448,6 +453,9 @@ func compress(ctx context.Context, r io.ReaderAt, size int64, w io.Writer, o Opt
 		newData[jb.view] = res
 		encodedImage[jb.image] = true
 		st.Encoded++
+		if res.aligned {
+			st.Aligned++
+		}
 	}
 	textures, _ := g.doc["textures"].([]any)
 	for _, tv := range textures {
@@ -567,11 +575,18 @@ func encodeAll(ctx context.Context, r io.ReaderAt, binOff int64, views []view, j
 					continue
 				}
 				t0 := time.Now()
-				img, _, err := image.Decode(bytes.NewReader(src))
+				var img image.Image
+				var err error
+				if jb.ktx2 {
+					img, err = basisu.Decode(src, 0)
+				} else {
+					img, _, err = image.Decode(bytes.NewReader(src))
+				}
 				if err != nil {
 					fail(fmt.Errorf("texcompress: image %d: decode: %w", jb.image, err))
 					continue
 				}
+				img, aligned := blockAligned(img)
 				data, err := basisu.Encode(img, preset(jb.class))
 				if err != nil {
 					fail(fmt.Errorf("texcompress: image %d (%s): %w", jb.image, jb.class, err))
@@ -583,7 +598,7 @@ func encodeAll(ctx context.Context, r io.ReaderAt, binOff int64, views []view, j
 					continue
 				}
 				b := img.Bounds()
-				results[k] = result{off: off, n: int64(len(data)), w: b.Dx(), h: b.Dy(), inSize: v.n, dur: time.Since(t0)}
+				results[k] = result{off: off, n: int64(len(data)), w: b.Dx(), h: b.Dy(), inSize: v.n, dur: time.Since(t0), aligned: aligned}
 				n := done.Add(1)
 				if o.Progress != nil {
 					o.Progress(int(n), len(jobs))
