@@ -57,14 +57,17 @@ func showCheckUpdates() {
 	}
 }
 
-// openReportIssue is the Help > Report an issue action: it opens the
-// repository's new-issue form prefilled with the app and Windows versions. The
-// body carries nothing identifying: no username, no paths, no gamertag.
+// reportIssueURL is the Tally form Help > Report an issue opens: no account needed,
+// unlike a GitHub issue.
+const reportIssueURL = "https://tally.so/r/Z9OLky"
+
+// openReportIssue is the Help > Report an issue action: it opens the Tally form
+// with the app and Windows versions as URL parameters (Tally fills hidden fields
+// named "version" and "windows" from them, and ignores them if the form has none).
+// Nothing identifying is sent: no username, no paths, no gamertag.
 func openReportIssue() error {
-	body := "**App version:** " + Version + "\n" +
-		"**Windows:** " + windowsVersionString() + "\n\n" +
-		"**What happened:**\n\n\n**Steps to reproduce:**\n\n\n**Match ID (if it is about one match):**\n"
-	return openBrowser(githubURL + "/issues/new?body=" + url.QueryEscape(body))
+	q := url.Values{"version": {Version}, "windows": {windowsVersionString()}}
+	return openBrowser(reportIssueURL + "?" + q.Encode())
 }
 
 // windowsVersionString is the Windows version a reported issue carries:
