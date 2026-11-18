@@ -12,7 +12,7 @@
  * — including the replay viewer, whose minimap/camera-view corner stays inside its own frame
  * and so moves down with it, never covered.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 import { useOptimizeBanner } from './optimizeBannerModel'
 
@@ -20,15 +20,15 @@ const BODY_CLASS = 'bc-has-optimize-bar'
 
 export function OptimizeBanner({ pollMs }: { pollMs?: { active: number; idle: number } }) {
   const view = useOptimizeBanner(pollMs?.active, pollMs?.idle)
-  const shown = useRef(false)
+  const visible = view !== null
 
+  // The class follows visibility only. It was once keyed on the view object, whose cleanup ran on
+  // every progress update and removed the class while the bar stayed up: the bar then covered
+  // the page's top bar for the rest of the builds (seen on a first start, 2026-11-18).
   useEffect(() => {
-    const visible = view !== null
-    if (visible === shown.current) return
-    shown.current = visible
     document.body.classList.toggle(BODY_CLASS, visible)
-    return () => document.body.classList.remove(BODY_CLASS)
-  }, [view])
+  }, [visible])
+  useEffect(() => () => document.body.classList.remove(BODY_CLASS), [])
 
   if (!view) return null
   const percent = Math.round(view.fraction * 100)

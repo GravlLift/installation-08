@@ -62,6 +62,14 @@ describe('OptimizeBanner', () => {
     await waitFor(() => expect(document.body.classList.contains('bc-has-optimize-bar')).toBe(false))
   })
 
+  it('keeps the body class through progress updates while the bar stays up', async () => {
+    const LATER = { ...BUSY, active: { ...BUSY.active, step: 'Weapons 120/190' }, overall: { done: 3, total: 9, fraction: 0.5 } }
+    vi.stubGlobal('fetch', sequence([BUSY, LATER]))
+    render(<OptimizeBanner pollMs={{ active: 40, idle: 1000 }} />)
+    await waitFor(() => expect(screen.getByTestId('optimize-banner').textContent).toContain('Weapons 120/190'))
+    expect(document.body.classList.contains('bc-has-optimize-bar')).toBe(true)
+  })
+
   it('renders nothing while idle, and nothing for a server without the route', async () => {
     const mock = vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) }) as Response)
     vi.stubGlobal('fetch', mock)
