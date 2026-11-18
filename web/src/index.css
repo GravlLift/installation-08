@@ -33,6 +33,9 @@
   --replay-hud-shadow: rgba(0, 0, 0, 0.8);
   --replay-hud-weapon: #a9dcff;
   --replay-export-backdrop: #000;
+  /* Outline of the player names on the map and the dimmed player card (death, shroud screen):
+     a dark that frames team-colored letters on any floor. LevelUp's value. */
+  --replay-label-stroke: rgb(8 12 18 / 0.92);
   /* First-person shield bar (ui/ShieldBar3d.tsx): the glassy light steel blue read off the in-game
      captures (brighter at the center, deeper at the ends, a pale rim). The alert red and the empty
      track are design choices: the captures show only a full bar. */
