@@ -76,9 +76,10 @@ func geometryGLB(t *testing.T, format int) []byte {
 	return out.Bytes()
 }
 
-// TestUpgradeFile — a format-2 GLB is brought to the current format in place (geometry encoded,
-// stamp updated, other extras kept); a current or older GLB, and a missing file, are left to the
-// normal build (ok=false, file untouched).
+// TestUpgradeFile — a format-2 or format-3 GLB is brought to the current format in place
+// (images realigned, a format-2 file's geometry encoded, stamp updated, other extras kept); a
+// current or older GLB, and a missing file, are left to the normal build (ok=false, file
+// untouched).
 func TestUpgradeFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "m.glb")
@@ -100,6 +101,17 @@ func TestUpgradeFile(t *testing.T) {
 	}
 	if uses, err := geocompress.Uses(path); err != nil || !uses {
 		t.Errorf("upgraded GLB does not list %s (%v)", geocompress.Extension, err)
+	}
+	// Format 3: its images are realigned (none here) and the stamp updated; the geometry is
+	// left as the format-3 build encoded it.
+	if err := os.WriteFile(path, geometryGLB(t, 3), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := UpgradeFile(context.Background(), path); err != nil || !ok {
+		t.Fatalf("format 3: ok %v, err %v", ok, err)
+	}
+	if extras, err := texcompress.AssetExtras(path); err != nil || fmt.Sprint(extras[BuildFormatKey]) != fmt.Sprint(BuildFormat) || extras["module"] != "m" {
+		t.Errorf("format 3: extras after upgrade = %v (%v)", extras, err)
 	}
 	for _, format := range []int{BuildFormat, 1, 0} {
 		raw := geometryGLB(t, format)

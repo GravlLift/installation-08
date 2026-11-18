@@ -352,7 +352,9 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
 		baseModule, _ := meshjobs.SplitQuality(module)
 		if glbModule(module) && baseModule != "ctf_breaker" {
-			// A map or variant GLB of the previous format only needs its geometry encoded.
+			// A map or variant GLB of format 2 or 3 is upgraded in place (images realigned,
+			// format 2's geometry encoded). Breaker is left to the full build: its material
+			// revision comes from reading the game.
 			if s, ok, err := mapmesh.UpgradeFile(ctx, dest(module)); ok {
 				return meshjobs.BuildResult{Bytes: s.Bytes, Triangles: s.Triangles}, err
 			}
