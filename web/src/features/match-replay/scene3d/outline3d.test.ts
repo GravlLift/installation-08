@@ -200,7 +200,7 @@ it('prepares both mask paths and restores the subjects even if the render fails'
   const prepare = spartanAt(1000)
   o.add(previous, fx(false))
   o.maskPass.enabled = false
-  expect(() => o.avecSujetsPrepares([prepare], (draw) => {
+  expect(() => o.withPreparedSubjects([prepare], (draw) => {
     expect(o.maskPass.enabled).toBe(true)
     draw('whole')
     expect(o.plan(1)).toEqual(['whole'])

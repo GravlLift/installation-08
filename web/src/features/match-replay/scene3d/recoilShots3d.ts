@@ -26,7 +26,7 @@ const NONE = new Float64Array(0)
 export function indexShotTimes(shots: readonly ShotFxEntry[]): Map<number, SlotShots> {
   const lists = new Map<number, ShotFxEntry[]>()
   for (const e of shots) {
-    if (e.vehicleShot?.arme === 'vehicule') continue
+    if (e.vehicleShot?.weaponSource === 'vehicle') continue
     const list = lists.get(e.slot)
     if (list) list.push(e)
     else lists.set(e.slot, [e])

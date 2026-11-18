@@ -10,7 +10,7 @@
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { adsLevelIndex, adsOverlayFor, type AdsOverlaySpec } from './adsOverlay'
 import type { reticleShape } from './hud3d_logic'
-import { specLunette, zoomAt, type ScopeSpec, type Zoom3d } from './scopeLogic'
+import { scopeOf, zoomAt, type ScopeSpec, type Zoom3d } from './scopeLogic'
 
 /** The hip reticle family of a weapon (`reticleShape`). */
 export type ReticleForm = ReturnType<typeof reticleShape>
@@ -85,7 +85,7 @@ export interface AimHud {
  * level and the fade, which do not depend on it.
  */
 export function aimHudAt(doc: ReplayDocumentReady, xuid: string, frame: number, modelKey: string | undefined, labelKey: string | null | undefined, mags: number[] | null): AimHud {
-  const spec = specLunette(modelKey, labelKey)
+  const spec = scopeOf(modelKey, labelKey)
   const zoom = zoomAt(doc, xuid, frame, spec, mags)
   const overlay = adsOverlayFor(modelKey, labelKey, spec)
   const visible = overlay !== null && zoom.shownLevel > 0 && zoom.amount > 0

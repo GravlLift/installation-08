@@ -7,7 +7,7 @@ import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud } from '../model/hud3d_logic'
-import { magsPourArme } from '../model/scopeLogic'
+import { magsForWeapon } from '../model/scopeLogic'
 import { adsAmmoText } from '../model/adsOverlay'
 import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
@@ -73,7 +73,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const weaponKey = heldModelKey(ath?.weaponId)
   // The magnification per level comes from the weapon index (the tag's own values); the hand
   // table gives only the kind and the style. A weapon the index has no zoom for does not zoom.
-  const mags = magsPourArme(weaponKey, sceneRef?.current?.magnifications(weaponKey ?? '') ?? null)
+  const mags = magsForWeapon(weaponKey, sceneRef?.current?.magnifications(weaponKey ?? '') ?? null)
   // The weapon's ADS overlay (`adsOverlay`): drawn from the first frame of the zoom, fading with it;
   // an overlay with its own center reticle replaces the hip reticle past half the fade (`aimHud`,
   // shared with the video export).

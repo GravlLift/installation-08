@@ -22,8 +22,8 @@
  * would fire from the center of the sprite, where the driver's piece sits.
  *
  * WHAT THIS FILE KEEPS: the type of an anchor and the GEOMETRY that rotates it by the
- * vehicle's heading. CLASS: `fixe` = rigid with the nose, aims only where the vehicle points
- * (the pilot IS the aimer) — the anchor IS the muzzle; `tourelle` = aim steered INDEPENDENTLY
+ * vehicle's heading. CLASS: `fixed` = rigid with the nose, aims only where the vehicle points
+ * (the pilot IS the aimer) — the anchor IS the muzzle; `turret` = aim steered INDEPENDENTLY
  * of the heading (rear cannon of the Warthog, cannon of the Scorpion, side post of the
  * Falcon) — the anchor is the PIVOT, and the muzzle is at `reach` (barrel length, fraction of
  * the sprite length) from the pivot in the direction of the MEASURED aim of its shooter;
@@ -33,12 +33,12 @@
 import { vehicleAimAngle, vehicleScreenAngle, vehicleSpriteScale } from './vehiclesLayer'
 import type { XY } from '../../../lib/replay/replayLogic'
 
-/** `fixe` = rigid with the nose, aims where the vehicle points. `tourelle` = independent aim, unknown. */
-export type VehicleMountClass = 'fixe' | 'tourelle'
+/** `fixed` = rigid with the nose, aims where the vehicle points. `turret` = independent aim, unknown. */
+export type VehicleMountClass = 'fixed' | 'turret'
 
 /** A mount anchor: aim class + position in fractions of the sprite (frame with the nose up). */
 export interface VehicleWeaponMount {
-  classe: VehicleMountClass
+  mountClass: VehicleMountClass
   /** Lateral: -0.5 (left edge of the sprite) .. +0.5 (right edge). */
   ax: number
   /** Longitudinal: -0.5 (nose) .. +0.5 (rear). */
@@ -78,7 +78,7 @@ export interface VehicleShotPlacement {
  * mount is an anchor in the LOCAL frame of the sprite, so it is that one, and only that one,
  * that places the spark.
  *
- * `tireurDeg` is the MEASURED aim of the one who fired (`vehicleShooterAimAt`, paired by
+ * `shooterDeg` is the MEASURED aim of the one who fired (`vehicleShooterAimAt`, paired by
  * SLOT), or `null` when no reading is in effect. It serves only to ORIENT the discharge of
  * a TURRET — where the chassis says nothing, because the turret rotates independently of the
  * body. The two stay distinct on purpose: confusing placement and direction would take the
@@ -86,13 +86,13 @@ export interface VehicleShotPlacement {
  */
 export interface VehicleShotCaps {
   chassisDeg: number
-  tireurDeg: number | null
+  shooterDeg: number | null
   /**
    * WHAT FIRED (lot 5.8.5): a VEHICLE weapon is rigid with the chassis, so its heading is a
    * legitimate fallback when the mount is missing; a PLAYER weapon fired from a seat is not
    * — it accepts only the measured aim of its shooter (rule of lot 5.2a.5, which survives).
    */
-  arme: 'vehicule' | 'joueur'
+  weaponSource: 'vehicle' | 'player'
 }
 
 /**
@@ -102,7 +102,7 @@ export interface VehicleShotCaps {
  *  - `vehicleScreenAngle` to rotate the LOCAL offset (sprite frame, nose up) EXACTLY as
  *    `drawRotatedSprite` rotates the image itself (same angle, same sense);
  *  - `vehicleSpriteScale` for the same physical->screen scaling as the sprite;
- *  - `vehicleAimAngle` for the direction of a `fixe` shot — THE SAME angle as the driver's
+ *  - `vehicleAimAngle` for the direction of a `fixed` shot — THE SAME angle as the driver's
  *    cone (`drawVehicleAimCone`), not a recomputed variant: "vehicle heading = aimer" is an
  *    assumption already made elsewhere in this layer, not a new invention.
  *
@@ -148,7 +148,7 @@ export function vehicleShotPlacement(
  * turret without a read aim (no direction, the shot stays at the pivot).
  */
 function turretBarrelOffset(mount: VehicleWeaponMount, angle: number | null, spriteLengthPx: number): XY {
-  if (mount.classe !== 'tourelle' || angle === null) return { x: 0, y: 0 }
+  if (mount.mountClass !== 'turret' || angle === null) return { x: 0, y: 0 }
   const length = (mount.reach ?? 0) * spriteLengthPx
   return { x: length * Math.cos(angle), y: length * Math.sin(angle) }
 }
@@ -159,16 +159,16 @@ function turretBarrelOffset(mount: VehicleWeaponMount, angle: number | null, spr
  * was written TWICE there, and that is exactly what would make it diverge again (CLAUDE.md
  * n° 6).
  *
- *   - `fixe`: the CHASSIS heading, unchanged — on these families the weapon does not rotate
+ *   - `fixed`: the CHASSIS heading, unchanged — on these families the weapon does not rotate
  *     relative to the body, and since 5.2a.6 that heading IS already the driver's aim
  *     (measured drift 0.0 degree).
- *   - `tourelle`: the MEASURED aim of the shooter when it is in effect (lot 5.5), otherwise
+ *   - `turret`: the MEASURED aim of the shooter when it is in effect (lot 5.5), otherwise
  *     `null` — the previous fallback, the round puff, because a turret does not point where
  *     the nose points.
  */
 function vehicleMountAngle(mount: VehicleWeaponMount, caps: VehicleShotCaps): number | null {
-  if (mount.classe !== 'tourelle') return vehicleAimAngle(caps.chassisDeg)
-  return caps.tireurDeg === null ? null : vehicleAimAngle(caps.tireurDeg)
+  if (mount.mountClass !== 'turret') return vehicleAimAngle(caps.chassisDeg)
+  return caps.shooterDeg === null ? null : vehicleAimAngle(caps.shooterDeg)
 }
 
 /**
@@ -184,8 +184,8 @@ function vehicleMountAngle(mount: VehicleWeaponMount, caps: VehicleShotCaps): nu
  *     (`shotFx.vehicleShotSourceOf`), so this `null` only happens on a direct call.
  */
 function vehicleNoMountAngle(caps: VehicleShotCaps): number | null {
-  if (caps.arme === 'vehicule') return vehicleAimAngle(caps.chassisDeg)
-  return caps.tireurDeg === null ? null : vehicleAimAngle(caps.tireurDeg)
+  if (caps.weaponSource === 'vehicle') return vehicleAimAngle(caps.chassisDeg)
+  return caps.shooterDeg === null ? null : vehicleAimAngle(caps.shooterDeg)
 }
 
 /**
@@ -206,15 +206,15 @@ function vehicleNoMountAngle(caps: VehicleShotCaps): number | null {
  * the INTERPOLATED ORIGIN OF THE VEHICLE). `vehicleShotPlacement` does the computation; this
  * function only adds the fallback WITHOUT a known sprite size (loading not yet settled,
  * unknown family): the center, but with the RIGHT direction as soon as the mount class is
- * known (`tourelle` -> none, `fixe` -> the heading) — never an invented offset without the
+ * known (`turret` -> none, `fixed` -> the heading) — never an invented offset without the
  * real size that justifies it.
  */
 export function vehicleShotOrigin(args: {
   h: number | null
   vehicleShot: {
     mount: VehicleWeaponMount | null
-    /** What fired (lot 5.8.5) — cf. `VehicleShotCaps.arme`. */
-    arme: 'vehicule' | 'joueur'
+    /** What fired (lot 5.8.5) — cf. `VehicleShotCaps.weaponSource`. */
+    weaponSource: 'vehicle' | 'player'
     family: string | undefined
     headingDeg: number
     /** MEASURED aim of the shooter (lot 5.5), `null` if no reading in effect. */
@@ -230,8 +230,8 @@ export function vehicleShotOrigin(args: {
 }): { origin: XY; angle: number | null } {
   const { h, vehicleShot, center, sizeOf, k } = args
   if (!vehicleShot) return { origin: center, angle: h === null ? null : (-h * Math.PI) / 180 }
-  const { mount, arme, family, headingDeg, shooterHeadingDeg } = vehicleShot
-  const caps: VehicleShotCaps = { chassisDeg: headingDeg, tireurDeg: shooterHeadingDeg, arme }
+  const { mount, weaponSource, family, headingDeg, shooterHeadingDeg } = vehicleShot
+  const caps: VehicleShotCaps = { chassisDeg: headingDeg, shooterDeg: shooterHeadingDeg, weaponSource }
   const size = family ? sizeOf?.(family) : null
   // THE DIRECTION WITHOUT THE SPRITE: same rule as with it (`vehicleMountAngle`), only the
   // OFFSET is missing — it requires the real size and is not invented. An UNKNOWN mount

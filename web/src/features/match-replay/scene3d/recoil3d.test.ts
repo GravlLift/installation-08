@@ -130,9 +130,9 @@ describe('recoilKindOfKey', () => {
 })
 
 describe('a shooter\'s recent shots', () => {
-  const shot = (slot: number, frame: number, seed: number, arme?: 'vehicule' | 'joueur', o?: number): ShotFxEntry => ({
+  const shot = (slot: number, frame: number, seed: number, weaponSource?: 'vehicle' | 'player', o?: number): ShotFxEntry => ({
     frame, time: frame + (o ?? 0) / 100, slot, x: 0, y: 0, h: 0, fam: 'ballistic', tint: 'kinetic', seed,
-    vehicleShot: arme ? { mount: null, arme, family: undefined, headingDeg: 0, shooterHeadingDeg: null } : null,
+    vehicleShot: weaponSource ? { mount: null, weaponSource, family: undefined, headingDeg: 0, shooterHeadingDeg: null } : null,
   }) as ShotFxEntry
 
   it('firstAbove: binary-search bounds', () => {
@@ -144,7 +144,7 @@ describe('a shooter\'s recent shots', () => {
   })
 
   it('sorts by slot, sorted; a vehicle weapon\'s shot does not count', () => {
-    const index = indexShotTimes([shot(2, 50, 1), shot(1, 30, 2), shot(2, 10, 3), shot(2, 20, 4, 'vehicule'), shot(2, 40, 5, 'joueur')])
+    const index = indexShotTimes([shot(2, 50, 1), shot(1, 30, 2), shot(2, 10, 3), shot(2, 20, 4, 'vehicle'), shot(2, 40, 5, 'player')])
     expect([...(index.get(2)?.frames ?? [])]).toEqual([10, 40, 50])
     expect([...(index.get(2)?.seeds ?? [])]).toEqual([3, 5, 1])
     expect([...(index.get(1)?.frames ?? [])]).toEqual([30])

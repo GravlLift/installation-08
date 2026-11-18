@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { BEAM_GLOW_DIM, BEAM_GLOW_MULT, BEAM_RADIUS, BEAM_SECONDS, BOLT_SPEED, IMPACT_SECONDS, TRACER_LENGTH, TRACER_SPEED, beamFade, formeVol, impactAge, lunetteSansGerbe, shotLineShown, tracerSpan } from './shots3d'
+import { BEAM_GLOW_DIM, BEAM_GLOW_MULT, BEAM_RADIUS, BEAM_SECONDS, BOLT_SPEED, IMPACT_SECONDS, TRACER_LENGTH, TRACER_SPEED, beamFade, flightForm, impactAge, scopedNoSpray, shotLineShown, tracerSpan } from './shots3d'
 
 describe('the default shot looks like the game', () => {
   it('a bullet lives for the length of its flight, never suspended in the air', () => {
@@ -65,25 +65,25 @@ describe('impactAge', () => {
   })
 })
 
-describe('formeVol', () => {
+describe('flightForm', () => {
   it('the shock shot is an instant beam, not a bullet or a point', () => {
-    expect(formeVol('shock')).toBe('beam')
+    expect(flightForm('shock')).toBe('beam')
   })
 
   it('energy projectiles are fire points', () => {
-    expect(formeVol('plasma')).toBe('bolt')
-    expect(formeVol('needles')).toBe('bolt')
+    expect(flightForm('plasma')).toBe('bolt')
+    expect(flightForm('needles')).toBe('bolt')
   })
 
   it('the other families fire a short streak at the speed of the bullet', () => {
-    expect(formeVol('ballistic')).toBe('tracer')
-    expect(formeVol('light')).toBe('tracer')
-    expect(formeVol('explosive')).toBe('tracer')
-    expect(formeVol('plain')).toBe('tracer')
+    expect(flightForm('ballistic')).toBe('tracer')
+    expect(flightForm('light')).toBe('tracer')
+    expect(flightForm('explosive')).toBe('tracer')
+    expect(flightForm('plain')).toBe('tracer')
   })
 
   it('the spread shot (Heatwave) has its own form', () => {
-    expect(formeVol('spread')).toBe('spread')
+    expect(flightForm('spread')).toBe('spread')
   })
 })
 
@@ -110,16 +110,16 @@ describe("the beam's glow", () => {
 })
 
 
-describe('lunetteSansGerbe', () => {
+describe('scopedNoSpray', () => {
   it('a 1st-person view shot has no spray when the scope is mounted', () => {
-    expect(lunetteSansGerbe(true, true)).toBe(true)
+    expect(scopedNoSpray(true, true)).toBe(true)
   })
 
   it('the 1st-person view spray stays with no scope', () => {
-    expect(lunetteSansGerbe(true, false)).toBe(false)
+    expect(scopedNoSpray(true, false)).toBe(false)
   })
 
   it('the tracked player\'s scope does not remove a shot\'s spray seen from 3rd person', () => {
-    expect(lunetteSansGerbe(false, true)).toBe(false)
+    expect(scopedNoSpray(false, true)).toBe(false)
   })
 })

@@ -158,8 +158,8 @@ export function shotLineShown(age: number, holdSeconds: number): boolean {
  */
 export type ShotFlightForm = 'beam' | 'bolt' | 'tracer' | 'spread'
 
-/** formeVol: a shot family's flight shape. */
-export function formeVol(fam: ShotFamily): ShotFlightForm {
+/** flightForm: a shot family's flight shape. */
+export function flightForm(fam: ShotFamily): ShotFlightForm {
   if (fam === 'shock') return 'beam'
   if (fam === 'spread') return 'spread'
   return BOLT_SPEED[fam] !== undefined ? 'bolt' : 'tracer'
@@ -175,13 +175,13 @@ export function beamFade(age: number, seconds: number = BEAM_SECONDS): number {
 }
 
 /**
- * lunetteSansGerbe: a 1st-person view shot's spray withdraws when the scope is mounted on
+ * scopedNoSpray: a 1st-person view shot's spray withdraws when the scope is mounted on
  * that view: the arms leave the screen, there is no more drawn muzzle to place it at (it
  * would fly to the center of the screen). The tracked player's scope does not affect a shot
  * seen from 3rd person, whose Spartan keeps its drawn weapon.
  */
-export function lunetteSansGerbe(vue: boolean, lunetteMontee: boolean): boolean {
-  return vue && lunetteMontee
+export function scopedNoSpray(firstPerson: boolean, scopeMounted: boolean): boolean {
+  return firstPerson && scopeMounted
 }
 
 /**
@@ -305,11 +305,11 @@ export class Shots3dLayer implements ActionLayer3d {
     if (k > 0) this.flash(path, k, tint, core, shot)
     if (!path.to) return
     if (shotLineShown(age, shot.hold)) this.lines.add(path.from, path.to, LINE_RADIUS, this.lineInk.copy(tint).multiplyScalar(LINE_DIM))
-    if (formeVol(shot.fam) === 'spread') {
+    if (flightForm(shot.fam) === 'spread') {
       this.drawSpread(path, path.to, age, tint)
       return
     }
-    if (formeVol(shot.fam) === 'beam') {
+    if (flightForm(shot.fam) === 'beam') {
       // The shock shot: three beams, from muzzle to wall; its impact is at zero range, the
       // spark is born at the shot.
       this.drawShock(path, path.to, age, tint, shot)
@@ -395,7 +395,7 @@ export class Shots3dLayer implements ActionLayer3d {
     // Scope mounted: the arms are removed from the screen, the spray has no more drawn muzzle
     // to be placed at (with no muzzle it would fly to the center of the screen); the light and
     // the shot itself remain.
-    if (!site || lunetteSansGerbe(shot.view, this.ctx.scopeMounted?.() === true)) return
+    if (!site || scopedNoSpray(shot.view, this.ctx.scopeMounted?.() === true)) return
     const color = this.petalInk.copy(tint).lerp(core, PETAL_CORE_MIX).multiplyScalar(k)
     const pool = shot.view ? this.viewPetals : this.petals
     for (const p of flashPetals(this.barrel, k, e.seed, this.burst)) pool.add(this.muzzle, p.rotation, p.size, color)

@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
 import { familyOf } from '../layers/shotEffects'
-import { formeVol } from './shots3d'
+import { flightForm } from './shots3d'
 import {
   boltEndAge,
   boltPath,
@@ -34,7 +34,7 @@ const wall: FaceHit = (from, dir, far) => {
 describe('the family', () => {
   it('is drawn: the document\'s `spread` is neither plain nor a tracer', () => {
     expect(familyOf('spread')).toBe('spread')
-    expect(formeVol('spread')).toBe('spread')
+    expect(flightForm('spread')).toBe('spread')
   })
 })
 

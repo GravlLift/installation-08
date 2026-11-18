@@ -39,8 +39,8 @@ export interface VehicleShotStyle {
  * class: no mount, fallback to the vehicle's center.
  */
 const VEHICLE_WEAPON_AIM_CLASS: Readonly<Record<string, VehicleMountClass>> = {
-  fixed: 'fixe',
-  turret: 'tourelle',
+  fixed: 'fixed',
+  turret: 'turret',
 }
 
 /** The registry entry of a firing weapon, or `null`. */
@@ -90,7 +90,7 @@ export function vehicleWeaponMountOf(
 ): VehicleWeaponMount | null {
   const m = vehicleWeaponOf(doc, w)?.mount
   if (!m) return null
-  const classe = VEHICLE_WEAPON_AIM_CLASS[m.aim]
-  if (!classe) return null
-  return { classe, ax: m.ax, ay: m.ay, reach: m.reach ?? 0 }
+  const mountClass = VEHICLE_WEAPON_AIM_CLASS[m.aim]
+  if (!mountClass) return null
+  return { mountClass, ax: m.ax, ay: m.ay, reach: m.reach ?? 0 }
 }

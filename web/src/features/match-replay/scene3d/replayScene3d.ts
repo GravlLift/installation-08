@@ -51,7 +51,7 @@ import { BACK_FACE_NAME } from './backFaces3d'
 import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
 import { prechauffer3d } from './warmup3d'
-import { serialiser } from './serialiser3d'
+import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
@@ -63,7 +63,7 @@ import { TopDownView3d } from './topDownView3d'
 import type { DeadPose, MarkerPose } from './playerMarkers3d'
 import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
-import { etiquetteDe, magsPourArme, specLunette } from '../model/scopeLogic'
+import { labelKeyOf, magsForWeapon, scopeOf } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
 import { readRedReticle, type HeldWeapon } from './redReticle3d'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
@@ -101,7 +101,7 @@ export class ReplayScene3d implements Replay3DExportSource {
    * nor pre-poses the corpse copies (`Corpses3d.take` makes each copy lazily at the death; the
    * hidden pre-copies are fronted by `prepCorpses` after the first frame is on screen).
    */
-  readonly warmUp = serialiser(async () => {
+  readonly warmUp = serialize(async () => {
     try {
       await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (error) { console.warn('3D replay: prewarming unavailable', error) }
@@ -302,7 +302,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       firstPersonSlot: (f) => (this.mode === 'fp' && this.povXuid ? tracks.sample(this.povXuid, f)?.slot ?? null : null),
       rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,
       rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false, firstPersonLeftHand: (out) => this.bras?.mainGaucheMonde(out) ?? null,
-      scopeMounted: () => this.scopeView.montee,
+      scopeMounted: () => this.scopeView.mounted,
       attachBone: (slot, node, out) => {
         const d = this.drawnSlots.get(slot)
         return d ? attachBoneOf(this.avatars.get(d.xuid), node, d.firstPerson, this.bras ? (name, m) => this.bras?.osMonde(name, m) ?? false : null, out) : 'none'
@@ -445,7 +445,7 @@ export class ReplayScene3d implements Replay3DExportSource {
 
   /** setFovPreference applies the game's field-of-view setting (horizontal degrees at 16:9): the camera's base vertical field. */
   setFovPreference(gameFovDeg: number): void {
-    this.scopeView.changerBase(this.camera, verticalFovOf(gameFovDeg))
+    this.scopeView.setBaseFov(this.camera, verticalFovOf(gameFovDeg))
   }
   setPov(xuid: string | null): void {
     if (this.exportScene.held) this.exportScene.held.pov = xuid
@@ -801,16 +801,16 @@ export class ReplayScene3d implements Replay3DExportSource {
   private placerLunette(f: number): void {
     const doc = this.doc
     if (this.mode !== 'fp' || !this.povXuid || !doc) {
-      this.scopeView.reposer(this.camera)
+      this.scopeView.reset(this.camera)
       return
     }
     const cle = this.inView?.key ?? null
-    const spec = specLunette(cle, cle ? etiquetteDe(doc, cle) : null)
-    // The same resolution the HUD uses (`magsPourArme`): the index's own zoom when it carries one,
+    const spec = scopeOf(cle, cle ? labelKeyOf(doc, cle) : null)
+    // The same resolution the HUD uses (`magsForWeapon`): the index's own zoom when it carries one,
     // else the hand table. The Shock Rifle and both Bandits carry [1] in the index, so reading the
     // raw values left the camera unzoomed while the HUD showed 1.6x / 2.5x.
-    const mags = magsPourArme(cle, cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null)
-    if (this.scopeView.appliquer(this.camera, doc, this.povXuid, f, spec, mags)) this.bras?.cacher()
+    const mags = magsForWeapon(cle, cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null)
+    if (this.scopeView.apply(this.camera, doc, this.povXuid, f, spec, mags)) this.bras?.cacher()
   }
 
   /** mapRoots: the posed map's root and its layer's. */

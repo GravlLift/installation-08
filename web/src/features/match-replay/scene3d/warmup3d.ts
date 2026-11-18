@@ -45,7 +45,7 @@ async function compilerEtCharger(
   for (const source of detaches) scene.add(source)
   timedSync('warmup-render-passes', () => {
     try {
-      avecObjetsVisibles([...roots, ...detaches], () => objets.outline.avecSujetsPrepares(objets.avatars.map((a) => a.group), (plan) => {
+      avecObjetsVisibles([...roots, ...detaches], () => objets.outline.withPreparedSubjects(objets.avatars.map((a) => a.group), (plan) => {
         renderer.shadowMap.needsUpdate = true
         plan('whole')
         composer.render()

@@ -22,7 +22,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import { ADS_MINIMAL, adsOverlayFor, type AdsDesign, type AdsOverlaySpec } from '../model/adsOverlay'
 import { heldModelKey } from '../model/aimHud'
-import { specLunette } from '../model/scopeLogic'
+import { scopeOf } from '../model/scopeLogic'
 import { ADS_AMMO_TEXT, ReplayHudScope3d } from '../ui/ReplayHudScope3d'
 
 /** Loads an SVG document as an image; null when it cannot be decoded. */
@@ -50,7 +50,7 @@ export function adsOverlaysOfDoc(doc: ReplayDocumentReady): AdsOverlaySpec[] {
   const out = new Set<AdsOverlaySpec>([ADS_MINIMAL])
   for (const [id, label] of Object.entries(doc.weaponLabels ?? {})) {
     const key = heldModelKey(id)
-    const spec = adsOverlayFor(key, label?.key, specLunette(key, label?.key))
+    const spec = adsOverlayFor(key, label?.key, scopeOf(key, label?.key))
     if (spec) out.add(spec)
   }
   return [...out]

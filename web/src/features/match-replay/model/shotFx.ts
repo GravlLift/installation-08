@@ -56,7 +56,7 @@ export interface VehicleShotSource {
   /**
    * The mount of the weapon on the chassis, or `null` when the registry of the document does not carry it
    * (weapon absent from the registry, or entry without mount), OR when the weapon is not a vehicle
-   * weapon at all (`arme: 'joueur'`).
+   * weapon at all (`weaponSource: 'player'`).
    * `null` NO LONGER makes the source lost: the flash stays at the CENTER of the vehicle, but it keeps its
    * DIRECTION (cf. `vehicleShotPlacement`).
    */
@@ -71,7 +71,7 @@ export interface VehicleShotSource {
    * THE DISCRIMINATOR IS THE WEAPON REGISTRY, as for the sound: a weapon absent from
    * `weaponLabels` is a vehicle weapon.
    */
-  arme: 'vehicule' | 'joueur'
+  weaponSource: 'vehicle' | 'player'
   /** Family of the carrying vehicle (key of `sizeOf`/`spriteOf`, cf. `VehicleStyle`). */
   family: string | undefined
   /**
@@ -224,22 +224,22 @@ function vehicleShotSourceOf(
   if (!track) return null
   const mount = vehicleWeaponMountOf(doc, shot.w)
   // VEHICLE WEAPON = absent from the player weapon registry (cf. the header of this function).
-  const armeDeVehicule = shot.w !== undefined && doc.weaponLabels?.[shot.w] === undefined
+  const vehicleWeapon = shot.w !== undefined && doc.weaponLabels?.[shot.w] === undefined
   // THE SLOT OF THE SHOOTER, NOT THEIR SEAT (lot 5.5): it is the only key that designates the occupant who
   // fired, and it holds for the passenger gunner of the Warthog as for the driver gunner
   // of the Scorpion — as for the passenger who fires their own weapon.
-  const viseeTireur =
-    vehicleShooterAimAt(track, shot.slot, t) ?? viseeSurUnePiecePortee(doc, track, shot.slot, t)
+  const shooterAim =
+    vehicleShooterAimAt(track, shot.slot, t) ?? aimOnMountedGun(doc, track, shot.slot, t)
   // A PLAYER WEAPON ENTERS ONLY IF ITS AIM IS READ: without it, the source would bring nothing
   // and the shot would lose its own gaze (`h`), which is sometimes readable.
-  if (!mount && !armeDeVehicule && viseeTireur === null) return null
+  if (!mount && !vehicleWeapon && shooterAim === null) return null
   return {
     mount,
-    arme: armeDeVehicule ? 'vehicule' : 'joueur',
+    weaponSource: vehicleWeapon ? 'vehicle' : 'player',
     // THE SPRITE DRAWN, variant included (schema 69): it is on ITS dimensions that the anchor is read.
     family: vehicleSpriteFamily(track),
     headingDeg: vehicleChassisHeadingAt(track, t),
-    shooterHeadingDeg: viseeTireur,
+    shooterHeadingDeg: shooterAim,
   }
 }
 
@@ -255,16 +255,16 @@ function vehicleShotSourceOf(
  * the round puff. The gun belongs to the carrier by `carrier {slot, gen}`: its episode IS
  * the episode of the shooter, paired by SLOT as everywhere else.
  */
-function viseeSurUnePiecePortee(
+function aimOnMountedGun(
   doc: ReplayDocumentReady,
-  porteur: ReplayVehicleTrackReady,
-  slotTireur: number,
+  carrier: ReplayVehicleTrackReady,
+  shooterSlot: number,
   t: number,
 ): number | null {
-  for (const piece of doc.vehicles) {
-    if (piece.carrier?.slot !== porteur.slot || piece.carrier.gen !== porteur.gen) continue
-    const visee = vehicleShooterAimAt(piece, slotTireur, t)
-    if (visee !== null) return visee
+  for (const gun of doc.vehicles) {
+    if (gun.carrier?.slot !== carrier.slot || gun.carrier.gen !== carrier.gen) continue
+    const aim = vehicleShooterAimAt(gun, shooterSlot, t)
+    if (aim !== null) return aim
   }
   return null
 }

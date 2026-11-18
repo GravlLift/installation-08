@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
-import { serialiser } from './serialiser3d'
+import { serialize } from './serialiser3d'
 
-describe('serialiser', () => {
+describe('serialize', () => {
   it('batches requests made during a run and waits for the last one', async () => {
     const ends: (() => void)[] = []
     const work = vi.fn(() => new Promise<void>((resolve) => ends.push(resolve)))
-    const run = serialiser(work)
+    const run = serialize(work)
     const first = run()
     const next = run()
     const last = run()

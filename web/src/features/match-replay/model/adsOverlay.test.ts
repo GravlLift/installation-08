@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { ADS_MINIMAL, ADS_OVERLAYS, adsAmmoText, adsLevelIndex, adsOverlayFor } from './adsOverlay'
-import { LUNETTE_PAR_DEFAUT, specLunette, zoomAt } from './scopeLogic'
+import { DEFAULT_SCOPE, scopeOf, zoomAt } from './scopeLogic'
 
 const SCOPE = { kind: 'scope' } as const
 
@@ -18,7 +18,7 @@ describe('adsOverlayFor', () => {
 
   it('gives the six small arms the same smart-link frame', () => {
     for (const key of ['hinf_sidekick', 'hinf_ma40_ar', 'hinf_cqs48_bulldog', 'hinf_disruptor', 'hinf_mangler', 'hinf_plasma_pistol']) {
-      expect(adsOverlayFor(null, key, LUNETTE_PAR_DEFAUT)?.design).toBe('smartLink')
+      expect(adsOverlayFor(null, key, DEFAULT_SCOPE)?.design).toBe('smartLink')
     }
   })
 
@@ -34,7 +34,7 @@ describe('adsOverlayFor', () => {
   })
 
   it('draws nothing for an uncaptured smart-link weapon: it keeps its hip reticle', () => {
-    expect(adsOverlayFor('6b049244', 'hinf_needler', LUNETTE_PAR_DEFAUT)).toBeNull()
+    expect(adsOverlayFor('6b049244', 'hinf_needler', DEFAULT_SCOPE)).toBeNull()
   })
 
   it('every captured overlay names at least one level', () => {
@@ -94,7 +94,7 @@ describe('zoomAt shownLevel', () => {
       },
     ],
   } as ReplayDocumentReady
-  const spec = specLunette('0a1992bc', null)
+  const spec = scopeOf('0a1992bc', null)
 
   it('is the level while zoomed', () => {
     const z = zoomAt(doc, 'A', 10, spec, [5, 10])

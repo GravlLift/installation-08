@@ -172,7 +172,7 @@ export class Outline3d {
   }
 
   /** Draws the mask's two shapes for the prepared roots, then renders the frame's subjects. */
-  avecSujetsPrepares(roots: readonly THREE.Object3D[], render: (plan: (mode: 'whole' | 'stand') => void) => void): void {
+  withPreparedSubjects(roots: readonly THREE.Object3D[], render: (plan: (mode: 'whole' | 'stand') => void) => void): void {
     const subjects = this.subjects.splice(0)
     const count = this.count
     const enabled = this.maskPass.enabled

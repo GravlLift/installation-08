@@ -18,8 +18,8 @@ import { zoomAt, zoomedFov, type ScopeSpec } from '../model/scopeLogic'
 export class ScopeView3d {
   private baseFov: number
   private lastFov: number
-  /** The scope is mounted as of the last frame set (`appliquer`): the arms are removed from the screen. */
-  montee = false
+  /** The scope is mounted as of the last frame set (`apply`): the arms are removed from the screen. */
+  mounted = false
 
   constructor(baseFov: number) {
     this.baseFov = baseFov
@@ -27,28 +27,28 @@ export class ScopeView3d {
   }
 
   /**
-   * appliquer sets the camera's field of view for frame `frame` (the zoom's effective
+   * apply sets the camera's field of view for frame `frame` (the zoom's effective
    * magnification) and says whether the arms must leave the screen: a scope or the Bandit
    * sight mounted past half the smoothing replaces the weapon; a smart-link keeps it.
    */
-  appliquer(camera: THREE.PerspectiveCamera, doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): boolean {
+  apply(camera: THREE.PerspectiveCamera, doc: ReplayDocumentReady, xuid: string, frame: number, spec: ScopeSpec, mags: number[] | null): boolean {
     const zoom = zoomAt(doc, xuid, frame, spec, mags)
     const fov = zoom.mag > 1 ? zoomedFov(this.baseFov, zoom.mag) : this.baseFov
     this.poseFov(camera, fov)
-    this.montee = spec.kind !== 'smartLink' && zoom.amount > 0.5
-    return this.montee
+    this.mounted = spec.kind !== 'smartLink' && zoom.amount > 0.5
+    return this.mounted
   }
 
-  /** changerBase changes the base field of view (the game's FOV setting) and resets the camera's field of view. */
-  changerBase(camera: THREE.PerspectiveCamera, baseFov: number): void {
+  /** setBaseFov changes the base field of view (the game's FOV setting) and resets the camera's field of view. */
+  setBaseFov(camera: THREE.PerspectiveCamera, baseFov: number): void {
     if (baseFov === this.baseFov) return
     this.baseFov = baseFov
     this.poseFov(camera, baseFov)
   }
 
-  /** reposer restores the base field of view (third-person or free camera mode) and folds the scope. */
-  reposer(camera: THREE.PerspectiveCamera): void {
-    this.montee = false
+  /** reset restores the base field of view (third-person or free camera mode) and folds the scope. */
+  reset(camera: THREE.PerspectiveCamera): void {
+    this.mounted = false
     this.poseFov(camera, this.baseFov)
   }
 
