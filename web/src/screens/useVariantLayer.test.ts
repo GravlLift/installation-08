@@ -74,3 +74,11 @@ it('shows an already built Standard layer while High is building', async () => {
   await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb'))
   expect(result.current.pending).toBe(false)
 })
+
+it('upgrades the Standard fallback when High is ready', async () => {
+  let highChecks = 0
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ ok: true, json: async () => url.includes('quality=high') ? { state: ++highChecks === 1 ? 'building' : 'ready' } : { state: 'ready' } })))
+  const { result } = renderHook(() => useVariantSource('abc', 'high'))
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb'))
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb?quality=high'), { timeout: 4000 })
+})
