@@ -28,6 +28,7 @@ import (
 // identifiers) from LevelUp's internal/mapmesh/meshproto/armes.go `animationsDuCorps`, the
 // body-only prefix of its AnimationsSpartan list.
 var BodyAnimations = []string{
+	"ghost_d:idle", "warthog_d:idle", "warthog_p:rifle:idle", "warthog_g:idle",
 	// rifle: idle, walk and run in eight directions, turns, sprint
 	"combat:rifle:idle",
 	"combat:rifle:locomote_walk_front", "combat:rifle:locomote_walk_back", "combat:rifle:locomote_walk_left",
@@ -122,6 +123,22 @@ func bodyAnimationClips(ctx context.Context, a *himap.Arsenal, nodes []himap.Noe
 	missing := 0
 	for _, name := range BodyAnimations {
 		c, err := gs.ClipNomme(name)
+		if err != nil && name == "warthog_d:idle" {
+			// The driver's animation is named differently from its mode-tree entry.
+			for _, graph := range gs.Tous() {
+				for _, entry := range graph.Entrees {
+					if entry.Chemin() == "warthog_d / any / any / any / idle" {
+						if source, rank, e := gs.Resout(graph, entry); e == nil {
+							c, err = source.Decode(rank)
+						}
+						break
+					}
+				}
+				if err == nil {
+					break
+				}
+			}
+		}
 		if err == nil {
 			err = skeletonMatch[c.Graphe]
 		}

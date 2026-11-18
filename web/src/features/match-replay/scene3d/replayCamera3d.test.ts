@@ -7,6 +7,15 @@ import type { MapModel } from './mapModel'
 import type { Tracks3d } from './tracks3d'
 
 describe('ReplayCamera3d', () => {
+  it('pulls the camera behind an occupied vehicle even in first-person mode', () => {
+    const point = { x: 0, y: 0, z: 0, h: 0, p: 0, crouch: false, slot: 1 }
+    const tracks = { sample: () => point } as unknown as Tracks3d
+    const camera = new THREE.PerspectiveCamera()
+    const action = { riderAt: () => new THREE.Vector3(0, 0, 0), riderHeadingAt: () => 0 }
+    const placement = new ReplayCamera3d({ tracks, povXuid: 'A', mode: 'fp', action: action as never, originAboveFloor: 0, camera, pickables: () => [], raycaster: new THREE.Raycaster() })
+    placement.placeCamera(10)
+    expect(camera.position.x).toBeLessThan(-0.5)
+  })
   it('picks the current life, the last life, or the first spawn', () => {
     const point = { x: 0, y: 0, z: 1, h: 0, p: 0, crouch: false, slot: 1 }
     const tracks = {

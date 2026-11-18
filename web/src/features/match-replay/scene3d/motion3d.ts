@@ -117,11 +117,18 @@ export class Motion3d {
    * at writes into `out` player `xuid`'s clip blend at frame `frame` (`aboard`: riding a
    * vehicle, idle only); null outside their life or while the animated Spartan isn't loaded.
    */
-  at(xuid: string, frame: number, aboard: boolean, out: ClipMix): ClipMix | null {
+  at(xuid: string, frame: number, aboard: boolean, out: ClipMix, seatClip?: string | null): ClipMix | null {
     const source = this.ctx.spartanModel()
     const clips = source ? spartanClipsOf(source) : null
     const life = this.ctx.tracks.life(xuid, frame)
     if (!clips || !life) return null
+    const seated = aboard && seatClip ? clips.get(seatClip) : undefined
+    if (seated) {
+      Object.assign(out.base[0], { clip: seated, time: 0, weight: 1, loop: false })
+      out.baseCount = 1
+      out.overCount = 0
+      return out
+    }
     const q = this.input
     q.frame = frame
     q.fps = Math.max(1, this.ctx.inputs().framesPerSecond)

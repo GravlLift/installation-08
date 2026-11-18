@@ -121,6 +121,10 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err != nil {
 		return res, err
 	}
+	announce("building vehicle models")
+	if err := buildVehicleModels(ctx, a, dir, &res); err != nil {
+		return res, err
+	}
 	announce("building spartan body")
 	if n, err := buildSpartanModel(ctx, gameRoot, module, dir); err != nil {
 		return res, fmt.Errorf("spartan: %w", err)
@@ -148,6 +152,65 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	}
 	res.Seconds = time.Since(start).Seconds()
 	return res, nil
+}
+
+// vehicleModelKeys are the game chassis used by the replay's vehicle families.
+var vehicleModelKeys = []string{"fe32c0f4", "af31ab1a", "5b80c406", "0000d3db", "b65b3b4a", "000026ed", "00002706", "002ba902"}
+
+var vehicleSeatNames = map[string]map[string]string{
+	"fe32c0f4": {"driver": "0", "passenger": "1"},
+	"5b80c406": {"ghost_d": "0"},
+}
+
+func vehicleSeats(ctx context.Context, a *himap.Arsenal, key string, id uint32) map[string][3]float64 {
+	names := vehicleSeatNames[key]
+	wanted := map[uint32]bool{}
+	seats := map[uint32]string{}
+	for name, seat := range names {
+		hash := himap.NomAnimation(name)
+		wanted[hash] = true
+		seats[hash] = seat
+	}
+	out := map[string][3]float64{}
+	if len(wanted) == 0 {
+		return out
+	}
+	markers, err := a.MarqueursVehicule(ctx, id, wanted)
+	if err != nil {
+		slog.WarnContext(ctx, "vehicle seat markers unavailable", "vehicle", key, "err", err)
+		return out
+	}
+	for _, marker := range markers {
+		out[seats[marker.Nom]] = marker.Model.Trans
+	}
+	return out
+}
+
+func buildVehicleModels(ctx context.Context, a *himap.Arsenal, dir string, res *Result) error {
+	for _, key := range vehicleModelKeys {
+		id, err := parseKey(key)
+		if err != nil {
+			return err
+		}
+		model, err := a.Vehicule(ctx, id)
+		if errors.Is(err, himap.ErrSansModele) {
+			if err := writeMarker(dir, key); err != nil {
+				return err
+			}
+			res.Skipped++
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("vehicle %s: %w", key, err)
+		}
+		n, err := writeModelGLB(ctx, dir, key, model, nil, generatorWeapon, map[string]any{"vehi": key, "vehicleSeats": vehicleSeats(ctx, a, key, id)})
+		if err != nil {
+			return fmt.Errorf("vehicle %s: %w", key, err)
+		}
+		res.Built++
+		res.Bytes += n
+	}
+	return nil
 }
 
 // tagSource names where the index's tag-read fields come from and where their files go.

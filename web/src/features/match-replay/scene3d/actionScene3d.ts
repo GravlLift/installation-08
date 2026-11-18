@@ -146,6 +146,7 @@ export interface ActionLayer3d {
   readonly labels?: LabelPool
   /** An embarked player: his feet (three axes) on his vehicle, or null. */
   riderAt?(xuid: string, frame: number): THREE.Vector3 | null
+  riderClipAt?(xuid: string, frame: number): string | null
   /** His vehicle's heading (degrees): an embarked player's camera looks where it's going. */
   riderHeadingAt?(xuid: string, frame: number): number | null
   /** The feet of victim `xuid`'s inert body at frame `frame` (three axes), written in `out`; null without a body. */
@@ -273,7 +274,12 @@ export class ActionScene3d {
    * life or without an animated Spartan. `aboard`: aboard a vehicle.
    */
   motion(xuid: string, frame: number, aboard: boolean, out: ClipMix): ClipMix | null {
-    return this.moves.at(xuid, frame, aboard, out)
+    let seatClip: string | null | undefined
+    if (aboard) for (const layer of this.layers) {
+      seatClip = layer.riderClipAt?.(xuid, frame)
+      if (seatClip) break
+    }
+    return this.moves.at(xuid, frame, aboard, out, seatClip)
   }
 
   /** bodyFx: what the player's body shows at the frame (shield), overwritten on each call. */

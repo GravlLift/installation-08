@@ -78,7 +78,7 @@ export class ReplayCamera3d {
     const heading = rider && this.state.povXuid ? this.state.action?.riderHeadingAt(this.state.povXuid, f) ?? s.h : s.h
     const d = new THREE.Vector3(...aimDirThree(heading, rider ? 0 : s.p))
     this.state.camera.position.copy(eye)
-    if (this.state.mode === 'tp') this.springArm(eye, d)
+    if (this.state.mode === 'tp' || rider) this.springArm(eye, d)
     this.state.camera.lookAt(eye.clone().addScaledVector(d, 10))
     return status
   }

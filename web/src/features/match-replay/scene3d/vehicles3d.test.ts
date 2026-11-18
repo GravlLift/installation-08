@@ -158,7 +158,7 @@ describe('Vehicles3dLayer', () => {
     flags: true, vipCrown: true, bombCarrier: true,
   }
 
-  function makeLayer(shown: Action3dShow) {
+  function makeLayer(shown: Action3dShow, model: THREE.Object3D | null = null) {
     const samples = [sample_(0, 10, 20, { z: 5, h: 0 }), sample_(100, 10, 20, { z: 5, h: 0 })]
     const doc = {
       vehicles: [
@@ -187,7 +187,7 @@ describe('Vehicles3dLayer', () => {
       inputs: () => inputs,
       playerFeet: () => null,
       slotState: () => null,
-      weaponModel: () => null,
+      weaponModel: () => model,
       flagModel: () => null,
       grenadeModel: () => null,
       spartanModel: () => null,
@@ -199,8 +199,30 @@ describe('Vehicles3dLayer', () => {
     const layer = new Vehicles3dLayer(ctx)
     // Batch order: boxes, cones.
     const counts = () => root.children.map((c) => (c as THREE.InstancedMesh).count)
-    return { layer, counts }
+    return { layer, counts, root }
   }
+
+  it('draws an available vehicle model instead of its box and cone', () => {
+    const model = new THREE.Group()
+    model.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))
+    const { layer, root } = makeLayer(show, model)
+    layer.update(20)
+    expect(root.children.some((child) => child.userData.source === model && child.visible)).toBe(true)
+    expect((root.children[0] as THREE.InstancedMesh).count).toBe(1)
+    layer.dispose()
+  })
+
+  it('places a driver at the model seat marker', () => {
+    const model = new THREE.Group()
+    model.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))
+    model.userData.vehicleSeats = { 0: [-0.06, 0.166, 0.405] }
+    const { layer } = makeLayer(show, model)
+    const feet = layer.riderAt('A', 20)
+    expect(feet?.x).toBeCloseTo(10.06)
+    expect(feet?.y).toBeCloseTo(5.905)
+    expect(feet?.z).toBeCloseTo(-19.834)
+    layer.dispose()
+  })
 
   it('skips decor, map decor and mounted turrets, keeps the map element', () => {
     const { layer, counts } = makeLayer(show)
@@ -216,6 +238,7 @@ describe('Vehicles3dLayer', () => {
     layer.update(20)
     expect(counts()).toEqual([0, 0])
     const feet = layer.riderAt('A', 20)
+    expect(layer.riderClipAt('A', 20)).toBe('warthog_d:idle')
     expect(feet).not.toBeNull()
     expect(feet!.x).toBeCloseTo(10 - 0.1 * VEHICLE_SIZE_3D.warthog.length)
     expect(feet!.y).toBeCloseTo(5 + RIDER_ABOVE_BOTTOM)
