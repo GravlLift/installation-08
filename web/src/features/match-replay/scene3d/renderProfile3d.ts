@@ -7,13 +7,13 @@
  */
 
 /** A frame's steps, in the order `render` chains them (short codes, shown as-is). */
-export const ETAPES_PROFIL = ['av', 'act', 'cam', 'shd', 'draw', 'lbl'] as const
+export const PROFILE_STEPS = ['av', 'act', 'cam', 'shd', 'draw', 'lbl'] as const
 
-export interface ProfilRendu {
-  /** Each step's smoothed duration, in milliseconds, in `ETAPES_PROFIL`'s order. */
+export interface RenderProfile {
+  /** Each step's smoothed duration, in milliseconds, in `PROFILE_STEPS`'s order. */
   ms: Float32Array
   /** The last frame's draw calls and triangles, across every pass. */
-  appels: number
+  calls: number
   triangles: number
   /** The renderer's live geometries and textures (`renderer.info.memory`). */
   geometries: number
@@ -36,19 +36,19 @@ export type PassCostName = (typeof PASS_COST_NAMES)[number]
 
 const SMOOTHING = 0.1
 
-export function nouveauProfil(): ProfilRendu {
-  return { ms: new Float32Array(ETAPES_PROFIL.length), appels: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1, width: 0, height: 0, passes: Object.fromEntries(PASS_COST_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as ProfilRendu['passes'], gpuMs: null, bloomGpuMs: null }
+export function newProfile(): RenderProfile {
+  return { ms: new Float32Array(PROFILE_STEPS.length), calls: 0, triangles: 0, geometries: 0, textures: 0, pixelRatio: 1, width: 0, height: 0, passes: Object.fromEntries(PASS_COST_NAMES.map((n) => [n, { calls: 0, triangles: 0 }])) as RenderProfile['passes'], gpuMs: null, bloomGpuMs: null }
 }
 
-/** marquer closes step `step` started at `start` (ms) and returns the closing instant, the start of the next one. */
-export function marquer(profile: ProfilRendu, step: number, start: number): number {
+/** markStep closes step `step` started at `start` (ms) and returns the closing instant, the start of the next one. */
+export function markStep(profile: RenderProfile, step: number, start: number): number {
   const end = performance.now()
   profile.ms[step] += (end - start - profile.ms[step]) * SMOOTHING
   return end
 }
 
-/** formaterProfil: a line "av 1.2 · act 0.4 · ... · 812 calls · 1.9M tri". */
-export function formaterProfil(profile: ProfilRendu): string {
-  const steps = ETAPES_PROFIL.map((name, i) => `${name} ${profile.ms[i].toFixed(1)}`).join(' · ')
-  return `${steps} · ${profile.appels} calls · ${(profile.triangles / 1e6).toFixed(2)}M tri`
+/** formatProfile: a line "av 1.2 · act 0.4 · ... · 812 calls · 1.9M tri". */
+export function formatProfile(profile: RenderProfile): string {
+  const steps = PROFILE_STEPS.map((name, i) => `${name} ${profile.ms[i].toFixed(1)}`).join(' · ')
+  return `${steps} · ${profile.calls} calls · ${(profile.triangles / 1e6).toFixed(2)}M tri`
 }

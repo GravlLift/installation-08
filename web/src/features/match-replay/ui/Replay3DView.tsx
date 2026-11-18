@@ -441,7 +441,7 @@ export function Replay3DView({
   const ready = load.kind === 'ready'
   // The playback meter: the loop records each drawn frame (no allocation), the corner reads it.
   const meterRef = useRef(newPlaybackMeter())
-  const lireProfil = useCallback(() => sceneRef.current?.profil ?? null, [])
+  const readProfile = useCallback(() => sceneRef.current?.profil ?? null, [])
   useEffect(() => {
     if (ready) sceneRef.current?.setPov(pov)
   }, [ready, pov])
@@ -576,7 +576,7 @@ export function Replay3DView({
           {povStatus === 'unspawned' ? t.povUnspawned : t.noPov}
         </div>
       )}
-      {ready && active && <ReplayCadence3d meterRef={meterRef} profil={lireProfil} filmFps={framesPerSecond(doc)} locale={locale} />}
+      {ready && active && <ReplayCadence3d meterRef={meterRef} profile={readProfile} filmFps={framesPerSecond(doc)} locale={locale} />}
     </div>
   )
 }

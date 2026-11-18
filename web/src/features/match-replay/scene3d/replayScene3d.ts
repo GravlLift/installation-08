@@ -19,7 +19,7 @@
  * and `render` draws nothing while it runs.
  */
 import * as THREE from 'three'
-import { marquer, nouveauProfil } from './renderProfile3d'
+import { markStep, newProfile } from './renderProfile3d'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
@@ -150,7 +150,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private feetDrop = 0
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
-  readonly profil = nouveauProfil()
+  readonly profil = newProfile()
   /** The console's performance knobs (perfToggles3d), read at each frame. */
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
   private knobRatio: number | null = null
@@ -540,23 +540,23 @@ export class ReplayScene3d implements Replay3DExportSource {
     shadowCost.calls = shadowCost.triangles = 0
     if (this.tracks) {
       this.placeAvatars(frame)
-      t = marquer(p, 0, t)
+      t = markStep(p, 0, t)
       status = this.cameraPlacement.placeCamera(frame)
       this.placerLunette(frame)
       this.bras?.placer(this.camera)
       this.retagTags() // tags must measure from the camera now placed, not the previous frame's
-      t = marquer(p, 1, t)
+      t = markStep(p, 1, t)
       this.action?.update(frame)
     }
     if (this.mode === 'free') {
       this.fly.step(this.camera, this.orbit.target, performance.now())
       this.orbit.update()
     }
-    t = marquer(p, 2, t)
+    t = markStep(p, 2, t)
     const top = this.view === 'top' ? this.top : null
     this.orbit.enabled = this.mode === 'free' && !top // the top-down view has its own gestures on the canvas
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
-    t = marquer(p, 3, t)
+    t = markStep(p, 3, t)
     // Every other frame with bloom drawn, its pass is timed alone and the frame's timer rests: two
     // timer queries cannot nest. The frame time still counts the bloom on the frames it measures.
     const timeBloom = !top && this.post.bloom?.enabled === true && (this.frameCount++ & 1) === 1
@@ -576,14 +576,14 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     this.gpu.end()
     this.post.timeBloom = false
-    t = marquer(p, 4, t)
+    t = markStep(p, 4, t)
     this.labels.domElement.style.display = knobs.labels ? '' : 'none'
     if (knobs.labels) this.labels.render(this.scene, top ? top.camera : this.camera)
-    marquer(p, 5, t)
+    markStep(p, 5, t)
     this.notePassCosts(minimap)
     p.gpuMs = this.gpu.ms
     p.bloomGpuMs = this.post.bloom ? this.post.bloomGpu.ms : null
-    p.appels = this.renderer.info.render.calls
+    p.calls = this.renderer.info.render.calls
     p.triangles = this.renderer.info.render.triangles
     p.geometries = this.renderer.info.memory.geometries
     p.textures = this.renderer.info.memory.textures
