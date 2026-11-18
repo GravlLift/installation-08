@@ -234,3 +234,10 @@ describe('LoadProgress3d stall watchdog', () => {
     expect(progress.snapshot()).toEqual({ kind: 'error' })
   })
 })
+it('moves the bar as the server build advances', () => {
+  const progress = new LoadProgress3d(() => 0)
+  progress.variantBuilding(0.2)
+  const before = progress.snapshot()
+  progress.variantBuilding(0.7)
+  expect(fraction(progress.snapshot())).toBeGreaterThan(fraction(before))
+})

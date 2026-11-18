@@ -61,3 +61,16 @@ it('keeps the layer absent when there is no mvar', async () => {
   expect(result.current).toBeNull()
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
+
+it('exposes server build progress while the variant is building', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ state: 'building', progress: 0.55, stage: 'textures' }) }))
+  const { result } = renderHook(() => useVariantSource('abc'))
+  await waitFor(() => expect(result.current).toMatchObject({ pending: true, progress: 0.55, stage: 'textures' }))
+})
+
+it('shows an already built Standard layer while High is building', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ ok: true, json: async () => url.includes('quality=high') ? { state: 'building', progress: 0.2 } : { state: 'ready' } })))
+  const { result } = renderHook(() => useVariantSource('abc', 'high'))
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb'))
+  expect(result.current.pending).toBe(false)
+})

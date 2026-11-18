@@ -77,6 +77,7 @@ export interface Replay3DViewProps {
   variantPath: string | null
   /** True while the server still checks or builds the variant layer: the load waits for it. */
   variantPending?: boolean
+  variantProgress?: number
   /** The served folder of weapon models (`weaponModels3d`), loaded on demand; null with no models. */
   weaponsPath: string | null
   /** The match players' armor (manifest and piece library), placed once it arrives; null with no armor. */
@@ -116,7 +117,7 @@ export interface Replay3DViewProps {
 }
 
 export function Replay3DView({
-  meshPath, variantPath, variantPending = false, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', onMinimapClick, cameraMode: mode,
+  meshPath, variantPath, variantPending = false, variantProgress, weaponsPath, armor, doc, frameRef, viewpoint, colorOfXuid, locale, width, height, compact = false, active = true, action, playWindow, timeLimitMs, soundListenerRef, onLoadState, view = '3d', onMinimapClick, cameraMode: mode,
 }: Replay3DViewProps) {
   const t = SCENE3D_TEXT[locale]
   const hostRef = useRef<HTMLDivElement>(null)
@@ -128,6 +129,7 @@ export function Replay3DView({
   const [mapScene, setMapScene] = useState<ReplayScene3d | null>(null)
   // One progress per map and document: the loaders report into it, the view shows its snapshot.
   const progress = useMemo(() => new LoadProgress3d(), [meshPath, doc])
+  useEffect(() => { if (variantPending) progress.variantBuilding(variantProgress) }, [progress, variantPending, variantProgress])
   const [load, setLoad] = useState<LoadState>(() => progress.snapshot())
   const onLoadStateRef = useRef(onLoadState)
   onLoadStateRef.current = onLoadState

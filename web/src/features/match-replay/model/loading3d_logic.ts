@@ -94,6 +94,7 @@ function ratio({ done, total }: Count): number {
 export class LoadProgress3d {
   private map: Count & { complete: boolean } = { done: 0, total: 0, complete: false }
   private variant: Count & { complete: boolean; status: VariantStatus } = { done: 0, total: 0, complete: false, status: 'unknown' }
+  private variantBuildProgress = 0
   private counts: Record<CountedStep3d, Count> = {
     decode: { done: 0, total: 0 },
     index: { done: 0, total: 0 },
@@ -139,9 +140,10 @@ export class LoadProgress3d {
   }
 
   /** The variant layer is being built on the server: its size is not known yet. */
-  variantBuilding(): void {
+  variantBuilding(fraction = 0): void {
     if (this.variant.status === 'present' || this.variant.complete) return
     this.variant.status = 'building'
+    this.variantBuildProgress = Math.max(this.variantBuildProgress, Math.min(1, Math.max(0, fraction)))
     this.changed()
   }
 
@@ -316,7 +318,7 @@ export class LoadProgress3d {
       download: this.downloadComplete() ? 1 : Math.min(0.999, mapBytes + variantBytes > 0 ? downloaded / (mapBytes + variantBytes) : 0),
       decode: done('decode', ratio(this.counts.decode)),
       index: done('index', ratio(this.counts.index)),
-      'variant-build': done('variant-build', 0),
+      'variant-build': done('variant-build', this.variantBuildProgress),
       'variant-prepare': done('variant-prepare', variantPrep),
       assets: done('assets', ratio(this.counts.assets)),
       warmup: done('warmup', 0),

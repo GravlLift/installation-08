@@ -11,8 +11,8 @@ import { qualityQuery, type MeshQuality } from '../lib/api/standalone'
  * `high` layer is a separate file the server builds on first request; standard sends no
  * parameter (the URL stays the pre-quality one).
  */
-export function useVariantSource(matchId: string, quality?: MeshQuality): { path: string | null; pending: boolean } {
-  const [result, setResult] = useState<{ id: string; url: string | null; pending: boolean } | null>(null)
+export function useVariantSource(matchId: string, quality?: MeshQuality): { path: string | null; pending: boolean; progress?: number; stage?: string } {
+  const [result, setResult] = useState<{ id: string; url: string | null; pending: boolean; progress?: number; stage?: string } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     // The quality query goes after the route's last segment (`variant/state?quality=high`,
@@ -23,6 +23,7 @@ export function useVariantSource(matchId: string, quality?: MeshQuality): { path
     // (pending) until the new quality's check settles, not as a stale standard layer.
     const key = `${matchId}:${quality ?? 'standard'}`
     let timer: ReturnType<typeof setTimeout> | undefined
+    let fallback: string | null = null
     const settle = (url: string | null) => setResult({ id: key, url, pending: false })
     const check = async (build = false) => {
       try {
@@ -30,24 +31,34 @@ export function useVariantSource(matchId: string, quality?: MeshQuality): { path
           method: build ? 'POST' : 'GET', signal: controller.signal,
         })
         if (controller.signal.aborted) return
-        if (!response.ok) return settle(null)
-        const body = await response.json() as { state: string }
+        if (!response.ok) return settle(fallback)
+        const body = await response.json() as { state: string; progress?: number; stage?: string }
         if (controller.signal.aborted) return
         if (body.state === 'ready') settle(`${base}.glb${q}`)
         else if (body.state === 'absent') void check(true)
-        else if (body.state === 'queued' || body.state === 'building') timer = setTimeout(() => void check(), 2000)
-        else settle(null)
+        else if (body.state === 'queued' || body.state === 'building') {
+          if (quality === 'high' && !fallback) {
+            try {
+              const standard = await fetch(`${base}/state`, { signal: controller.signal })
+              if (standard.ok && (await standard.json() as { state: string }).state === 'ready') fallback = `${base}.glb`
+            } catch { /* The selected quality can still finish. */ }
+          }
+          if (controller.signal.aborted) return
+          setResult({ id: key, url: fallback, pending: !fallback, progress: body.progress, stage: body.stage })
+          timer = setTimeout(() => void check(), 2000)
+        }
+        else settle(fallback)
       } catch (error) {
         if (controller.signal.aborted) return
         console.warn('Variant build failed', error)
-        settle(null)
+        settle(fallback)
       }
     }
     void check()
     return () => { controller.abort(); if (timer) clearTimeout(timer) }
   }, [matchId, quality])
   if (result?.id !== `${matchId}:${quality ?? 'standard'}`) return { path: null, pending: true }
-  return { path: result.url, pending: result.pending }
+  return { path: result.url, pending: result.pending, progress: result.progress, stage: result.stage }
 }
 
 export function useVariantLayer(matchId: string): string | null {

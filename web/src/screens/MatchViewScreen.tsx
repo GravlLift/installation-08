@@ -322,6 +322,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
                 meshPath={meshUrl(matchId, quality)}
                 variantPath={variant.path}
                 variantPending={variant.pending}
+                variantProgress={variant.progress}
                 weaponsPath="/api/weapons"
                 armor={armor}
                 doc={doc}
