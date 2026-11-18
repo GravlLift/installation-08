@@ -90,3 +90,13 @@ func TestProgressOfContext(t *testing.T) {
 	p.stage(StepGeometry)
 	p.texturesDone(1, 1)
 }
+
+func TestVariantProgressStages(t *testing.T) {
+	var reports []string
+	p := progress{rep: recProgress{add: func(_ float64, stage string) { reports = append(reports, stage) }}, ktx2: true}
+	p.stage(StepStyles)
+	p.stage(StepGeometry)
+	if len(reports) != 2 || reports[0] != "styles" || reports[1] != "geometry" {
+		t.Fatalf("stages: %v", reports)
+	}
+}

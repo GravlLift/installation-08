@@ -117,6 +117,7 @@ type Step string
 
 // The steps, in order. Geometry (materials and textures included) carries most of the time.
 const (
+	StepStyles   Step = "styles"
 	StepGeometry Step = "geometry"
 	StepLighting Step = "lighting"
 	StepWriting  Step = "writing"

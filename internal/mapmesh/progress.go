@@ -61,6 +61,8 @@ func (p progress) stage(step Step) {
 		return
 	}
 	switch step {
+	case StepStyles:
+		p.rep.Report(0, string(step))
 	case StepGeometry:
 		p.rep.Report(0, string(step))
 	case StepLighting:

@@ -67,7 +67,7 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 		announce(s)
 		prog.stage(s)
 	}
-	note(StepGeometry)
+	note(StepStyles)
 	tints, err := forgeTints(t.ForgeMaterials, t.Styles)
 	if err != nil {
 		return Summary{}, err
@@ -79,6 +79,10 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	invisible, err := forgeInvisible(t.ForgeObjects)
 	if err != nil {
 		return Summary{}, err
+	}
+	note(StepGeometry)
+	if prog.rep != nil {
+		prog.rep.Report(0.05, string(StepGeometry))
 	}
 	opts := himap.OptionsVariante{
 		RacineDeploy: gameRoot, CheminModule: t.Module, Objets: t.Objects, Teintes: tints, Invisibles: invisible,
