@@ -6,12 +6,15 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
 func TestVariantRoutes(t *testing.T) {
@@ -169,5 +172,49 @@ func TestVariantQualityRoutes(t *testing.T) {
 	}
 	if rec := get(t, h, base+".glb?quality=high", nil); rec.Code != 200 {
 		t.Fatalf("high variant status = %d", rec.Code)
+	}
+}
+
+func TestVariantCacheKeyTracksInputs(t *testing.T) {
+	base := variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant"))
+	if base == "" || base != variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant")) {
+		t.Fatal("stable inputs must share a key")
+	}
+	for _, other := range []string{
+		variantCacheKey("asset", "version2", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant")),
+		variantCacheKey("asset", "version", "map", "build", "CTF", meshjobs.QualityStandard, []byte("variant")),
+		variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityHigh, []byte("variant")),
+		variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("different")),
+	} {
+		if base == other {
+			t.Fatal("different inputs shared a key")
+		}
+	}
+	if variantCacheKey("asset", "", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant")) != "" {
+		t.Fatal("missing version must not be shared")
+	}
+}
+
+func TestVariantCacheReusesLayer(t *testing.T) {
+	root := meshTestStore(t)
+	if err := root.SaveMatchMeta("abc", store.Match{MatchID: "abc", MapModule: "map", Build: "build"}); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{"stats-full.json": `{"MatchInfo":{"MapVariant":{"AssetId":"asset","VersionId":"version"}}}`, "stats.json": `{"gameVariantName":"Slayer"}`, "map.mvar": "variant"} {
+		if err := root.WriteFile(variantPath(root, "abc", name), []byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	key := variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant"))
+	path := filepath.Join(root.Dir(), "variant-cache", key+".glb")
+	if err := root.WriteFile(path, formatGLB(t, mapmesh.BuildFormat, false)); err != nil {
+		t.Fatal(err)
+	}
+	out := variantPath(root, "abc", "variant.glb")
+	if _, err := buildMatchVariant(context.Background(), root, "abc", "missing-game", out, meshjobs.QualityStandard); err != nil {
+		t.Fatal(err)
+	}
+	if !glbFormatCurrent(out) {
+		t.Fatal("cached layer was not copied")
 	}
 }

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
@@ -46,6 +48,19 @@ func variantPath(root *store.Root, id, name string) string {
 	return filepath.Join(filepath.Dir(meta), name)
 }
 
+// Bump when variant output changes without a build-format change.
+const variantCacheRevision = 1
+
+func variantCacheKey(asset, version, module, build, mode string, quality meshjobs.Quality, mvar []byte) string {
+	if asset == "" || version == "" || module == "" || build == "" || len(mvar) == 0 {
+		return ""
+	}
+	h := sha256.New()
+	_, _ = fmt.Fprintf(h, "%q:%q:%q:%q:%q:%q:%q:%d:%d:", asset, version, module, build, mode, quality, Version, mapmesh.BuildFormat, variantCacheRevision)
+	_, _ = h.Write(mvar)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out string, quality meshjobs.Quality) (meshjobs.BuildResult, error) {
 	meta, err := root.MatchMeta(id)
 	if err != nil {
@@ -58,10 +73,33 @@ func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out stri
 	if err != nil {
 		return meshjobs.BuildResult{}, err
 	}
+	var payload matchPayload
+	stats, statsErr := os.ReadFile(variantPath(root, id, "stats-full.json"))
+	mvar, mvarErr := os.ReadFile(variantPath(root, id, "map.mvar"))
+	cache := ""
+	if statsErr == nil && mvarErr == nil && json.Unmarshal(stats, &payload) == nil {
+		key := variantCacheKey(payload.Info.Map.ID, payload.Info.Map.Version, meta.MapModule, meta.Build, mode, quality, mvar)
+		if key != "" {
+			cache = filepath.Join(root.Dir(), "variant-cache", key+".glb")
+			if glbFormatCurrent(cache) {
+				if err := root.WriteCopy(out, cache); err == nil {
+					info, err := os.Stat(out)
+					if err == nil {
+						return meshjobs.BuildResult{Bytes: info.Size()}, nil
+					}
+				}
+			}
+		}
+	}
 	opts := meshbuild.BuildVariantOptions{Map: meta.MapModule, Mvar: variantPath(root, id, "map.mvar"), GameRoot: game, Mode: mode, Quality: quality}
 	summary, err := meshbuild.BuildVariant(ctx, opts, out, nil)
 	if err != nil {
 		return meshjobs.BuildResult{}, err
+	}
+	if cache != "" {
+		if err := root.WriteCopy(cache, out); err != nil {
+			slog.Warn("variant cache write failed", "err", err)
+		}
 	}
 	return meshjobs.BuildResult{Bytes: summary.Bytes, Triangles: summary.Triangles}, nil
 }
