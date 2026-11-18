@@ -145,6 +145,8 @@ func runServeStartup(jobs interface {
 	if jobs == nil || ready == nil {
 		return
 	}
+	dataDir := root.Dir()
+	inBackground(func() { removeStaleBuildTemps(dataDir, time.Now()) })
 	if !weaponicons.GameRootFound(gameRoot) {
 		slog.Warn("game install not found, one-time builds not started", "game", gameRoot, "env", himap.DeployRootEnv)
 		// The console is the one place a double-click user reads: say it plainly, with the way out.
