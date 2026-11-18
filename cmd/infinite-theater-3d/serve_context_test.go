@@ -437,6 +437,38 @@ func TestContextCachedMetadata(t *testing.T) {
 	}
 }
 
+func TestContextRejectsNonFiniteSkillValues(t *testing.T) {
+	root := newFakeStore(t)
+	stats := `{"MatchInfo":{},"Players":[{"PlayerId":"xuid(1)","Gamertag":"A","PlayerTeamStats":[{"Stats":{"CoreStats":{"Kills":2}}}]}]}`
+	if err := root.WriteFile(variantPath(root, "abc", "stats-full.json"), []byte(stats)); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"Value":[{"Id":"xuid(1)","ResultCode":0,"Result":{"StatPerformances":{"Kills":{"Expected":"NaN","StdDev":"Infinity"},"Deaths":{"Expected":"2.5"}}}}]}`
+	if err := root.WriteFile(variantPath(root, "abc", "skill.json"), []byte(raw)); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), "/api/matches/abc/context", nil)
+	if rec.Code != 200 {
+		t.Fatalf("context status %d: %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Scoreboard []map[string]any `json:"scoreboard"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	row := got.Scoreboard[0]
+	if _, ok := row["expected_kills"]; ok {
+		t.Fatal("NaN expectation must be omitted")
+	}
+	if _, ok := row["kills_stddev"]; ok {
+		t.Fatal("infinite deviation must be omitted")
+	}
+	if row["expected_deaths"] != 2.5 {
+		t.Fatalf("finite expectation missing: %v", row)
+	}
+}
+
 func TestContextPlaylistLabel(t *testing.T) {
 	for raw, want := range map[string]string{
 		"Ranked Arena":      "Ranked Arena",
