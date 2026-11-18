@@ -428,8 +428,8 @@ export function Replay3DView({
       // otherwise pay lazily, off the load's critical path.
       mapScene.prepCorpses()
       // Warm the followed player's first-person rigs (every weapon he carries) off the load's
-      // critical path; a followed-player change is picked up by placeAvatars (brasJoueurPrêt).
-      mapScene.prechaufferJoueur()
+      // critical path; a followed-player change is picked up by placeAvatars (armsPlayerReady).
+      mapScene.warmUpPlayer()
       progress.finish('first-frame')
     })()
     return () => abort.abort()
@@ -441,7 +441,7 @@ export function Replay3DView({
   const ready = load.kind === 'ready'
   // The playback meter: the loop records each drawn frame (no allocation), the corner reads it.
   const meterRef = useRef(newPlaybackMeter())
-  const lireProfil = useCallback(() => sceneRef.current?.profil ?? null, [])
+  const lireProfil = useCallback(() => sceneRef.current?.profile ?? null, [])
   useEffect(() => {
     if (ready) sceneRef.current?.setPov(pov)
   }, [ready, pov])

@@ -6,10 +6,10 @@
  * player's piece library (`bras.json`) and binds its skinned meshes to the rig's bones by NAME,
  * so the player wears THEIR OWN armor in first person.
  *
- * `planBras` (pure) picks the player's permutation for each region when the piece exists,
+ * `armPlan` (pure) picks the player's permutation for each region when the piece exists,
  * otherwise the index's default permutation, otherwise nothing. `ArmPieces3d` is the loader
  * (one per view): it caches pieces by file, applies the raw masks and the neutral color, and
- * disposes everything. `lierPiece` rebuilds one `SkinnedMesh` per piece whose skeleton is the
+ * disposes everything. `attachPiece` rebuilds one `SkinnedMesh` per piece whose skeleton is the
  * rig's.
  */
 import * as THREE from 'three'
@@ -20,17 +20,17 @@ import { api, API_BASE_URL } from '@/lib/api/client'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
-import { estMateriauBras, peindreMateriauBras } from './firstPersonArms3d'
+import { isArmMaterial, paintArmMaterial } from './firstPersonArms3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
 import { withKtx2 } from './ktx2Textures3d'
 
 /** The arm bone skeleton (80 names) shared by pieces and rigs. */
-export interface BrasSkeleton {
+export interface ArmSkeleton {
   bones: string[]
 }
 
 /** A catalog piece: its region, permutation, file. */
-export interface BrasPiece {
+export interface ArmPiece {
   key: string
   region: string
   permutation: string
@@ -41,35 +41,35 @@ export interface BrasPiece {
 }
 
 /** The arm piece catalog (`bras.json`). */
-export interface BrasIndex {
+export interface ArmIndex {
   schema: number
-  skeleton: BrasSkeleton
-  pieces: BrasPiece[]
+  skeleton: ArmSkeleton
+  pieces: ArmPiece[]
   default: Record<string, string>
   failures: unknown[]
 }
 
 /** A region of the player's choice. */
-export interface BrasRegion {
+export interface ArmRegion {
   region_key: string
   permutation_key: string
 }
 
 /**
- * planBras: for each region of the index, the player's permutation if its piece exists,
+ * armPlan: for each region of the index, the player's permutation if its piece exists,
  * otherwise the default permutation if it exists, otherwise nothing. `regions === null` gives
  * the default set. Output order is stable (sorted by key). Regions outside the index are
  * ignored.
  */
-export function planBras(index: BrasIndex, regions: readonly BrasRegion[] | null): BrasPiece[] {
+export function armPlan(index: ArmIndex, regions: readonly ArmRegion[] | null): ArmPiece[] {
   const byPiece = new Map(index.pieces.map((p) => [p.key, p]))
   const selected = new Map<string, string>()
   if (regions) for (const r of regions) selected.set(r.region_key, r.permutation_key)
 
-  const result: BrasPiece[] = []
+  const result: ArmPiece[] = []
   for (const region of Object.keys(index.default)) {
     const playerPerm = selected.get(region)
-    let piece: BrasPiece | undefined
+    let piece: ArmPiece | undefined
     if (playerPerm) piece = byPiece.get(`${region}-${playerPerm}`)
     if (!piece) piece = byPiece.get(`${region}-${index.default[region]}`)
     if (piece) result.push(piece)
@@ -79,12 +79,12 @@ export function planBras(index: BrasIndex, regions: readonly BrasRegion[] | null
 }
 
 /**
- * lierPiece: for each SkinnedMesh in the piece's scene, a NEW SkinnedMesh sharing the geometry
+ * attachPiece: for each SkinnedMesh in the piece's scene, a NEW SkinnedMesh sharing the geometry
  * and materials, bound to a skeleton whose bones are the RIG's (found by name in the order of
  * the piece's skeleton bones), with the piece's boneInverses (cloned). Bones missing from the
  * rig are named once and the mesh is skipped.
  */
-export function lierPiece(piece: THREE.Object3D, rigRoot: THREE.Object3D): THREE.SkinnedMesh[] {
+export function attachPiece(piece: THREE.Object3D, rigRoot: THREE.Object3D): THREE.SkinnedMesh[] {
   const result: THREE.SkinnedMesh[] = []
   const missing = new Set<string>()
   piece.traverse((o) => {
@@ -119,9 +119,9 @@ export class ArmPieces3d {
   private readonly folder: string
   private readonly signal: AbortSignal
   private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
-  private indexPromise: Promise<BrasIndex | null> | null = null
+  private indexPromise: Promise<ArmIndex | null> | null = null
   /** The loaded arm materials, for painting. */
-  materiaux: THREE.Material[] = []
+  materials: THREE.Material[] = []
   /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
   private readonly ktx2: KTX2Loader | null
 
@@ -132,12 +132,12 @@ export class ArmPieces3d {
   }
 
   /** index: the piece catalog, fetched once. */
-  index(): Promise<BrasIndex | null> {
+  index(): Promise<ArmIndex | null> {
     if (!this.indexPromise) {
       this.indexPromise = (async () => {
         try {
           const r = await api.getResponse(`${this.folder}/bras.json`, { signal: this.signal })
-          return (await r.json()) as BrasIndex
+          return (await r.json()) as ArmIndex
         } catch (error: unknown) {
           if (!this.signal.aborted) console.warn('3D replay: arm catalog unavailable', error)
           return null
@@ -164,7 +164,7 @@ export class ArmPieces3d {
     }
     this.cache.clear()
     this.indexPromise = null
-    this.materiaux = []
+    this.materials = []
   }
 
   private async load(file: string): Promise<THREE.Object3D | null> {
@@ -176,18 +176,18 @@ export class ArmPieces3d {
         if (!(object instanceof THREE.Mesh)) return
         if (object instanceof THREE.SkinnedMesh) object.frustumCulled = false
         for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-          if (!estMateriauBras(material)) { darkMetalFallback(material); continue }
+          if (!isArmMaterial(material)) { darkMetalFallback(material); continue }
           material.color.setRGB(ARMURE_NEUTRE, ARMURE_NEUTRE, ARMURE_NEUTRE)
           material.roughness = RUGOSITE_ARMURE_NEUTRE
         }
       })
-      await rawMaps(gltf.scene, gltf.parser, (m) => estMateriauBras(m) && !!m.userData.style)
+      await rawMaps(gltf.scene, gltf.parser, (m) => isArmMaterial(m) && !!m.userData.style)
         .catch((error: unknown) => console.warn('3D replay: arm piece masks unavailable', error))
       if (this.signal.aborted) { this.release(gltf.scene); return null }
       gltf.scene.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return
         for (const m of Array.isArray(object.material) ? object.material : [object.material]) {
-          if (peindreMateriauBras(m, null) && !this.materiaux.includes(m)) this.materiaux.push(m)
+          if (paintArmMaterial(m, null) && !this.materials.includes(m)) this.materials.push(m)
         }
       })
       return gltf.scene

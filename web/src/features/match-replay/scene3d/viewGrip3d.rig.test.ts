@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 
-import { appliquerTenueRig } from './firstPersonArms3d'
+import { applyRigGrip } from './firstPersonArms3d'
 import {
   formatRigGrips,
   rigGripOf,
@@ -61,11 +61,11 @@ describe('the two tables are independent', () => {
   })
 })
 
-describe('appliquerTenueRig (identity camera)', () => {
+describe('applyRigGrip (identity camera)', () => {
   it('x goes right (+X), y up (+Y), z away from the eye (-Z)', () => {
     const position = new THREE.Vector3()
     const quaternion = new THREE.Quaternion()
-    appliquerTenueRig(position, quaternion, { x: 0.1, y: 0.1, z: 0.1, roll: 0 })
+    applyRigGrip(position, quaternion, { x: 0.1, y: 0.1, z: 0.1, roll: 0 })
     expect(position).toEqual(new THREE.Vector3(0.1, 0.1, -0.1))
     expect(quaternion).toEqual(new THREE.Quaternion(0, 0, 0, 1))
   })
@@ -74,7 +74,7 @@ describe('appliquerTenueRig (identity camera)', () => {
     const position = new THREE.Vector3()
     const quaternion = new THREE.Quaternion()
     const before = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion).clone()
-    appliquerTenueRig(position, quaternion, { x: 0, y: 0, z: 0, roll: 0.3 })
+    applyRigGrip(position, quaternion, { x: 0, y: 0, z: 0, roll: 0.3 })
     expect(position).toEqual(new THREE.Vector3(0, 0, 0))
     expect(new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion)).toEqual(before)
   })
@@ -84,20 +84,20 @@ describe('appliquerTenueRig (identity camera)', () => {
     const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.2, -0.4, 0.6))
     const p0 = position.clone()
     const q0 = quaternion.clone()
-    appliquerTenueRig(position, quaternion, NUL)
+    applyRigGrip(position, quaternion, NUL)
     expect(position).toEqual(p0)
     expect(quaternion).toEqual(q0)
   })
 })
 
-describe('appliquerTenueRig (camera rotated 90° around world +Y)', () => {
+describe('applyRigGrip (camera rotated 90° around world +Y)', () => {
   // Camera right = world (0, 0, -1), aim = world (-1, 0, 0), up unchanged.
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
 
   it('x follows the camera\'s right: +x goes toward world (0, 0, -1)', () => {
     const position = new THREE.Vector3()
     const quaternion = q.clone()
-    appliquerTenueRig(position, quaternion, { x: 0.1, y: 0, z: 0, roll: 0 })
+    applyRigGrip(position, quaternion, { x: 0.1, y: 0, z: 0, roll: 0 })
     expect(position.x).toBeCloseTo(0)
     expect(position.y).toBeCloseTo(0)
     expect(position.z).toBeCloseTo(-0.1)
@@ -106,7 +106,7 @@ describe('appliquerTenueRig (camera rotated 90° around world +Y)', () => {
   it('z away from the eye follows the camera\'s aim: +z goes toward world (-1, 0, 0)', () => {
     const position = new THREE.Vector3()
     const quaternion = q.clone()
-    appliquerTenueRig(position, quaternion, { x: 0, y: 0, z: 0.1, roll: 0 })
+    applyRigGrip(position, quaternion, { x: 0, y: 0, z: 0.1, roll: 0 })
     expect(position.x).toBeCloseTo(-0.1)
     expect(position.y).toBeCloseTo(0)
     expect(position.z).toBeCloseTo(0)
@@ -115,7 +115,7 @@ describe('appliquerTenueRig (camera rotated 90° around world +Y)', () => {
   it('y stays the world\'s up', () => {
     const position = new THREE.Vector3()
     const quaternion = q.clone()
-    appliquerTenueRig(position, quaternion, { x: 0, y: 0.1, z: 0, roll: 0 })
+    applyRigGrip(position, quaternion, { x: 0, y: 0.1, z: 0, roll: 0 })
     expect(position.x).toBeCloseTo(0)
     expect(position.y).toBeCloseTo(0.1)
     expect(position.z).toBeCloseTo(0)
@@ -125,7 +125,7 @@ describe('appliquerTenueRig (camera rotated 90° around world +Y)', () => {
     const position = new THREE.Vector3()
     const quaternion = q.clone()
     const before = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion).clone()
-    appliquerTenueRig(position, quaternion, { x: 0, y: 0, z: 0, roll: 0.3 })
+    applyRigGrip(position, quaternion, { x: 0, y: 0, z: 0, roll: 0.3 })
     expect(position.x).toBeCloseTo(0)
     expect(position.y).toBeCloseTo(0)
     expect(position.z).toBeCloseTo(0)

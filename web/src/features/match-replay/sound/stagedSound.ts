@@ -25,7 +25,7 @@ import { currentLifeOf } from '../../../lib/replay/rosterLogic'
 import { weaponInHand } from '../model/weaponInHand'
 import { magazineAtReload } from '../model/reloadMagazine'
 import { reloadReadings } from '../model/reloadStarts'
-import { dureeAttendue, episodesRechargement, finNaturelle, type EpisodeRechargement } from '../scene3d/firstPersonReload3d'
+import { expectedDuration, reloadEpisodes, naturalEnd, type ReloadEpisode } from '../scene3d/firstPersonReload3d'
 import { weaponTagOf, type ReloadClip, type StagedLibrary } from './reloadManifest'
 import { factsBySlot, firstAt, trackIdentity, type SlotFacts } from './reloadSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -42,7 +42,7 @@ export function stagedSoundEvents(doc: ReplayDocumentReady, library: StagedLibra
     const f = facts.get(slot)
     if (!f || trackIdentity(doc, slot) !== followed) continue
     const framesOf = (ms: readonly number[]) => ms.map((t) => msToFrames(t, doc))
-    const episodes = episodesRechargement(framesOf(r.starts), framesOf(r.cuts), fps)
+    const episodes = reloadEpisodes(framesOf(r.starts), framesOf(r.cuts), fps)
     for (let i = 0; i < episodes.length; i++) {
       out.push(...oneStaged(doc, library, slot, f, r.starts, episodes[i], episodes[i + 1] ?? null, fps))
     }
@@ -57,11 +57,11 @@ function oneStaged(
   slot: number,
   f: SlotFacts,
   starts: readonly number[],
-  ep: EpisodeRechargement,
-  next: EpisodeRechargement | null,
+  ep: ReloadEpisode,
+  next: ReloadEpisode | null,
   fps: number,
 ): ReplaySoundEvent[] {
-  const stages = ep.etapes
+  const stages = ep.stages
   const start = stages[0].t
   const held = weaponInHand(doc, slot, start)
   const tag = held ? weaponTagOf(held.id) : null
@@ -71,7 +71,7 @@ function oneStaged(
   const startMs = frameToMs(start, doc)
   const endMs = Math.min(
     frameToMs(trackWindow(life).end, doc),
-    next ? frameToMs(next.etapes[0].t, doc) : Infinity,
+    next ? frameToMs(next.stages[0].t, doc) : Infinity,
     firstAt(f.shots, startMs, false),
     firstAt(f.changes, startMs, false),
     f.hands.find((h) => h.ms > startMs && h.d !== held.slotArme)?.ms ?? Infinity,
@@ -97,13 +97,13 @@ function oneStaged(
   }
   play(clips.enter, startMs, 1, last > 0 ? msOf(1) : Infinity)
   for (let i = 1; i <= last; i++) {
-    if (i === last && stages[i].coupe) {
-      if (finNaturelle(stages, { durationSeconds: roundS }, fps)) play(clips.closing, msOf(i), 1, Infinity)
+    if (i === last && stages[i].cut) {
+      if (naturalEnd(stages, { durationSeconds: roundS }, fps)) play(clips.closing, msOf(i), 1, Infinity)
       continue
     }
     // A round cut short by the episode's last message keeps the episode's pace (the rig's rule).
-    const cutShort = i + 1 === last && stages[last].coupe && !finNaturelle(stages, { durationSeconds: roundS }, fps)
-    const roundDuration = i < last && !cutShort ? (stages[i + 1].t - stages[i].t) / fps : dureeAttendue(stages, i, { durationSeconds: roundS }, fps)
+    const cutShort = i + 1 === last && stages[last].cut && !naturalEnd(stages, { durationSeconds: roundS }, fps)
+    const roundDuration = i < last && !cutShort ? (stages[i + 1].t - stages[i].t) / fps : expectedDuration(stages, i, { durationSeconds: roundS }, fps)
     const rate = roundS > 0 && roundDuration > 0 ? Math.max(1, roundS / roundDuration) : 1
     play(round, msOf(i), rate, i < last ? msOf(i + 1) : Infinity)
   }

@@ -77,7 +77,7 @@ describe('muzzleFlashSite: never a burst outside a drawn barrel', () => {
 
   it('with no drawn weapon or for a vehicle\'s shot, no burst', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
-    placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, true)
+    placeBody(a, FEET, { h: 0, p: 0, crouch: false, eyeDrop: 0 }, true)
     showWeapon(a, held, null, viewGripOf(null))
     expect(drawnWeapon(a)).toBeNull()
     expect(muzzleFlashSite(false, drawnWeapon(a), pos, barrel)).toBe(false)
@@ -88,7 +88,7 @@ describe('muzzleFlashSite: never a burst outside a drawn barrel', () => {
 
   it('a hidden player (aboard in first person, not alive) draws no weapon', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
-    placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, false)
+    placeBody(a, FEET, { h: 0, p: 0, crouch: false, eyeDrop: 0 }, false)
     showWeapon(a, held, rifle(), null)
     expect(drawnWeapon(a)).not.toBeNull()
     a.group.visible = false
@@ -98,7 +98,7 @@ describe('muzzleFlashSite: never a burst outside a drawn barrel', () => {
   it('in first person, the burst is at the end of the drawn barrel, ahead of the eye but off its axis', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
     const gun = rifle()
-    placeBody(a, FEET, { h: 40, p: -10, crouch: false, dropOeil: 0 }, true)
+    placeBody(a, FEET, { h: 40, p: -10, crouch: false, eyeDrop: 0 }, true)
     showWeapon(a, held, gun, viewGripOf(null))
     expect(muzzleFlashSite(false, drawnWeapon(a), pos, barrel)).toBe(true)
     const eye = FEET.clone().setY(FEET.y + EYE_HEIGHT)
@@ -116,7 +116,7 @@ describe('muzzleFlashSite: never a burst outside a drawn barrel', () => {
     const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
     wearSpartan(a, source)
     const gun = rifle()
-    placeBody(a, FEET, { h: 120, p: 15, crouch: false, dropOeil: 0, mix: null }, false)
+    placeBody(a, FEET, { h: 120, p: 15, crouch: false, eyeDrop: 0, mix: null }, false)
     showWeapon(a, held, gun, null)
     const drawn = drawnWeapon(a)
     expect(drawn?.model.parent).toBe(a.spartan?.rig.rightGrip)
@@ -166,7 +166,7 @@ describe('drawnMuzzle and viewMuzzle', () => {
       const a = makeAvatar(new THREE.Scene(), 'joueur', TEAM)
       const gun = rifle()
       const view = viewGripOf('1a22fee6')
-      placeBody(a, FEET, { h, p, crouch, dropOeil: crouch ? CROUCH_DROP : 0 }, true)
+      placeBody(a, FEET, { h, p, crouch, eyeDrop: crouch ? CROUCH_DROP : 0 }, true)
       showWeapon(a, held, gun, view)
       const drawn = new THREE.Vector3()
       drawnMuzzle({ model: a.model as THREE.Object3D, source: gun }, drawn, new THREE.Vector3())

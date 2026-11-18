@@ -31,9 +31,9 @@ import type { HeldWeapon3d } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
 import { actionsParSlot, episodesRechargementParSlot } from './filmActions3d'
 import { indexShotTimes, type SlotShots } from './recoilShots3d'
-import { preparerEvenementsPremierePersonne } from './firstPersonEvents3d'
-import type { ChangementArme, EvenementsPremierePersonne } from './firstPersonActions3d'
-import type { EpisodeRechargement } from './firstPersonReload3d'
+import { prepareFirstPersonEvents } from './firstPersonEvents3d'
+import type { WeaponSwitch, FirstPersonFrameEvents } from './firstPersonActions3d'
+import type { ReloadEpisode } from './firstPersonReload3d'
 import type { ShotFxEntry } from '../model/shotFx'
 import { newRecoil, type Recoil } from './recoil3d'
 import { ShooterRecoil } from './recoilShots3d'
@@ -75,7 +75,7 @@ export interface ActionContext {
   dressOf(xuid: string): Dress | null
   /**
    * The match's armory (held weapons' coatings, and the default-style paint of the map objects:
-   * the pad, rack and ground weapons, `armory3d.peindreObjet`/`coatObjet`); null until it is posed
+   * the pad, rack and ground weapons, `armory3d.paintObject`/`objectCoat`); null until it is posed
    * (the action layers may be built before the armor query answers).
    */
   armurerie?: () => SpartanArmory | null
@@ -168,8 +168,8 @@ export interface HeldShown {
 
 /** The set of an action scene's layers. */
 const EMPTY: readonly number[] = []
-const NO_CHANGE: readonly ChangementArme[] = []
-const NO_RELOAD: readonly EpisodeRechargement[] = []
+const NO_CHANGE: readonly WeaponSwitch[] = []
+const NO_RELOAD: readonly ReloadEpisode[] = []
 
 export class ActionScene3d {
   private readonly ctx: ActionContext
@@ -178,15 +178,15 @@ export class ActionScene3d {
   private readonly body: BodyFx3d
   private readonly moves: Motion3d
   private readonly recoil: ShooterRecoil
-  private readonly reloadsBySlot: Map<number, EpisodeRechargement[]>
+  private readonly reloadsBySlot: Map<number, ReloadEpisode[]>
   private readonly meleesBySlot: Map<number, number[]>
-  private readonly firstPerson: ReturnType<typeof preparerEvenementsPremierePersonne>
+  private readonly firstPerson: ReturnType<typeof prepareFirstPersonEvents>
   private shotSource: readonly ShotFxEntry[] | null = null
   private shots = new Map<number, SlotShots>()
   private firstPersonXuid = ''
-  private readonly events: EvenementsPremierePersonne = {
-    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 1,
-    rechargementValide: (t, f) => this.moves.rechargementValide(this.firstPersonXuid, t, f),
+  private readonly events: FirstPersonFrameEvents = {
+    reloads: [], strikes: [], shots: [], grenades: [], weaponSwitches: [], sprints: [], slides: [], crouches: [], jumps: [], climbs: [], usages: [], frame: 0, fps: 1,
+    reloadValid: (t, f) => this.moves.rechargementValide(this.firstPersonXuid, t, f),
   }
   private readonly kicks = new Map<number, Recoil>()
 
@@ -200,13 +200,13 @@ export class ActionScene3d {
     this.held = held
     this.reloadsBySlot = episodesRechargementParSlot(ctx.doc)
     this.meleesBySlot = actionsParSlot(ctx.doc, 'melee')
-    this.firstPerson = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
+    this.firstPerson = prepareFirstPersonEvents(ctx.doc, (slot, frame) => held.at(slot, frame))
     this.body = new BodyFx3d(ctx)
     this.moves = new Motion3d(ctx, (slot, frame) => held.at(slot, frame))
     this.recoil = new ShooterRecoil(ctx.doc, () => ctx.inputs())
   }
 
-  evenementsPremierePersonne(xuid: string, slot: number, frame: number, fps: number): EvenementsPremierePersonne {
+  evenementsPremierePersonne(xuid: string, slot: number, frame: number, fps: number): FirstPersonFrameEvents {
     const source = this.ctx.inputs().shotFx
     if (source !== this.shotSource) {
       this.shotSource = source
@@ -214,17 +214,17 @@ export class ActionScene3d {
     }
     this.firstPersonXuid = xuid
     const e = this.events
-    e.rechargements = this.reloadsBySlot.get(slot) ?? NO_RELOAD
-    e.coups = this.meleesBySlot.get(slot) ?? EMPTY
-    e.tirs = this.shots.get(slot)?.frames ?? EMPTY
+    e.reloads = this.reloadsBySlot.get(slot) ?? NO_RELOAD
+    e.strikes = this.meleesBySlot.get(slot) ?? EMPTY
+    e.shots = this.shots.get(slot)?.frames ?? EMPTY
     e.grenades = this.firstPerson.grenades.get(slot) ?? EMPTY
-    e.changements = this.firstPerson.changements.get(slot) ?? NO_CHANGE
+    e.weaponSwitches = this.firstPerson.weaponSwitches.get(slot) ?? NO_CHANGE
     e.sprints = this.firstPerson.sprints.get(slot) ?? []
     e.slides = this.firstPerson.slides.get(slot) ?? []
     const postures = this.moves.postures(slot)
-    e.accroupis = postures.crouch
-    e.sauts = postures.jump
-    e.escalades = postures.clamber
+    e.crouches = postures.crouch
+    e.jumps = postures.jump
+    e.climbs = postures.clamber
     e.usages = this.moves.firstPersonUses(slot, fps)
     e.frame = frame
     e.fps = fps

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import nyexc from './testdata/nyexc-arms.json'
 
-import { type BrasIndex, type ArmPieces3d } from './armPieces3d'
+import { type ArmIndex, type ArmPieces3d } from './armPieces3d'
 import type { SpartanArmory } from './armory3d'
 import { RigDressing3d } from './rigDressing3d'
 
@@ -35,7 +35,7 @@ function pieceScene(boneName: string): THREE.Object3D {
 }
 
 /** The catalog: one region, one piece (default permutation). */
-function pieceIndex(): BrasIndex {
+function pieceIndex(): ArmIndex {
   return {
     schema: 1,
     skeleton: { bones: ['b_bracelette'] },
@@ -49,18 +49,18 @@ function pieceIndex(): BrasIndex {
 }
 
 function makeDressing(
-  loader: { piece: (fichier: string) => Promise<THREE.Object3D | null> },
-  invaliderPeinture: () => void,
+  loader: { piece: (file: string) => Promise<THREE.Object3D | null> },
+  invalidatePaint: () => void,
 ): RigDressing3d {
   const armory = { regions: () => null } as unknown as SpartanArmory
   return new RigDressing3d({
-    indexPieces: Promise.resolve(pieceIndex()),
-    chargeur: loader as unknown as ArmPieces3d,
+    pieceIndex: Promise.resolve(pieceIndex()),
+    loader: loader as unknown as ArmPieces3d,
     signal: new AbortController().signal,
     xuid: () => '1',
-    armurerie: () => armory,
-    materiauSource: (m) => m,
-    invaliderPeinture,
+    armory: () => armory,
+    sourceMaterial: (m) => m,
+    invalidatePaint,
   })
 }
 
@@ -74,20 +74,20 @@ describe('rigDressing3d', () => {
     const loader = { piece: vi.fn(async () => pieceScene('b_l_forearm')) }
     const armory = { regions: () => nyexc.player.regions } as unknown as SpartanArmory
     const dressing = new RigDressing3d({
-      indexPieces: Promise.resolve(nyexc.catalog),
-      chargeur: loader as unknown as ArmPieces3d,
+      pieceIndex: Promise.resolve(nyexc.catalog),
+      loader: loader as unknown as ArmPieces3d,
       signal: new AbortController().signal,
       xuid: () => nyexc.player.xuid,
-      armurerie: () => armory,
-      materiauSource: (m) => m,
-      invaliderPeinture: vi.fn(),
+      armory: () => armory,
+      sourceMaterial: (m) => m,
+      invalidatePaint: vi.fn(),
     })
-    dressing.actualiser('rig', root)
+    dressing.refresh('rig', root)
     await tick()
     expect(loader.piece).toHaveBeenCalledWith('piece-3f91af6a-16a12dd4.glb')
     expect(piecesOf(root)).toHaveLength(8)
     expect(builtin.visible).toBe(false)
-    dressing.changerJoueur()
+    dressing.changePlayer()
   })
 
   it('keeps two rigs their own pieces until the player changes', async () => {
@@ -95,18 +95,18 @@ describe('rigDressing3d', () => {
     const scene = pieceScene('b_bracelette')
     const loader = { piece: vi.fn(() => Promise.resolve(scene)) }
     const dressing = makeDressing(loader, () => {})
-    dressing.actualiser('a', a.root)
+    dressing.refresh('a', a.root)
     await tick()
     const piece = piecesOf(a.root)[0]
     const dispose = vi.spyOn(piece.skeleton, 'dispose')
-    dressing.actualiser('b', b.root)
+    dressing.refresh('b', b.root)
     await tick()
     expect(piecesOf(a.root)).toEqual([piece])
     expect(dispose).not.toHaveBeenCalled()
     expect(piecesOf(b.root)[0].geometry).toBe(piece.geometry)
-    dressing.actualiser('a', a.root)
+    dressing.refresh('a', a.root)
     expect(loader.piece).toHaveBeenCalledTimes(2)
-    dressing.changerJoueur()
+    dressing.changePlayer()
     expect(piecesOf(a.root)).toHaveLength(0)
     expect(piecesOf(b.root)).toHaveLength(0)
     expect(a.builtin.visible && b.builtin.visible).toBe(true)
@@ -116,10 +116,10 @@ describe('rigDressing3d', () => {
     const loader = { piece: vi.fn(() => Promise.resolve(pieceScene('b_bracelette'))) }
     const invalidate = vi.fn()
     const dressing = makeDressing(loader, invalidate)
-    dressing.actualiser('rig1', root)
-    expect(dressing.enCours()).toBe(true)
+    dressing.refresh('rig1', root)
+    expect(dressing.busy()).toBe(true)
     await tick()
-    expect(dressing.enCours()).toBe(false)
+    expect(dressing.busy()).toBe(false)
     expect(piecesOf(root)).toHaveLength(1)
     expect(builtin.visible).toBe(false)
     expect(invalidate).toHaveBeenCalledTimes(1)
@@ -129,9 +129,9 @@ describe('rigDressing3d', () => {
     const { root } = rigRoot()
     const loader = { piece: vi.fn(() => Promise.resolve(pieceScene('b_bracelette'))) }
     const dressing = makeDressing(loader, () => {})
-    dressing.actualiser('rig1', root)
+    dressing.refresh('rig1', root)
     await tick()
-    dressing.actualiser('rig1', root)
+    dressing.refresh('rig1', root)
     expect(loader.piece).toHaveBeenCalledTimes(1)
     expect(piecesOf(root)).toHaveLength(1)
   })
@@ -143,12 +143,12 @@ describe('rigDressing3d', () => {
     const loader = { piece: vi.fn(() => pendingPiece) }
     const invalidate = vi.fn()
     const dressing = makeDressing(loader, invalidate)
-    dressing.actualiser('rig1', root)
+    dressing.refresh('rig1', root)
     await tick()
-    dressing.changerJoueur()
+    dressing.changePlayer()
     resolvePiece(pieceScene('b_bracelette'))
     await tick()
-    expect(dressing.enCours()).toBe(false)
+    expect(dressing.busy()).toBe(false)
     expect(piecesOf(root)).toHaveLength(0)
     expect(invalidate).not.toHaveBeenCalled()
   })
@@ -168,13 +168,13 @@ describe('rigDressing3d', () => {
     const invalidate = vi.fn()
     const dressing = makeDressing(loader, invalidate)
     // The catalog carries only one piece: the first rig waits for it, the second gets the same one.
-    dressing.actualiser('rigA', root)
+    dressing.refresh('rigA', root)
     await tick()
-    dressing.actualiser('rigB', other)
+    dressing.refresh('rigB', other)
     await tick()
     resolvePrevious(pieceScene('b_bracelette'))
     await tick()
-    expect(dressing.enCours()).toBe(false)
+    expect(dressing.busy()).toBe(false)
     expect(piecesOf(root)).toHaveLength(1)
     expect(piecesOf(other)).toHaveLength(1)
     expect(invalidate).toHaveBeenCalledTimes(2)

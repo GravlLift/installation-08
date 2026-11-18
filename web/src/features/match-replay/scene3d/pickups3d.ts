@@ -54,7 +54,7 @@ import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
-import { poserRevêtementArme } from './avatar3d'
+import { applyWeaponCoating } from './avatar3d'
 
 /** The weapon box: length, height, width (u). */
 const BOX_LENGTH = 0.5
@@ -427,7 +427,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   private shownGround: GroundSpot[] = []
   /** The model keys this layer has already asked to paint (one request per model key, armory-side and layer-side). */
   private readonly paintRequested = new Set<string>()
-  /** The painted map-item model per source model (its default-style coat, `armurerie.coatObjet`); null while the coat is pending. */
+  /** The painted map-item model per source model (its default-style coat, `armurerie.objectCoat`); null while the coat is pending. */
   private readonly painted = new Map<THREE.Object3D, THREE.Object3D | null>()
   /** The painted copies (owned by this layer, with their painted materials). */
   private readonly paintedModels: THREE.Object3D[] = []
@@ -452,19 +452,19 @@ export class Pickups3dLayer implements ActionLayer3d {
 
   /**
    * paintedObject — the painted form of a loaded map-item `model` (its default-style coat, one per
-   * model key, `armurerie.coatObjet`); the bare model while the coat is pending. A map item is
+   * model key, `armurerie.objectCoat`); the bare model while the coat is pending. A map item is
    * painted before its glow copy, so the glow keeps the paint's shader hooks. Equipment objects
    * and a scene with no weapon library stay bare.
    */
   private paintedObject(id: string, model: THREE.Object3D): THREE.Object3D {
     const armory = this.ctx.armurerie?.()
     const key = weaponModelKey(id)
-    const coat = armory && key ? armory.coatObjet(key, model) : null
+    const coat = armory && key ? armory.objectCoat(key, model) : null
     if (!coat) return model
     const cache = this.painted.get(model)
     if (cache) return cache
     const copy = model.clone()
-    for (const m of poserRevêtementArme(copy, coat).values()) this.paintedMaterials.push(m)
+    for (const m of applyWeaponCoating(copy, coat).values()) this.paintedMaterials.push(m)
     this.paintedModels.push(copy)
     this.painted.set(model, copy)
     return copy
@@ -512,7 +512,7 @@ export class Pickups3dLayer implements ActionLayer3d {
     const model = this.ctx.weaponModel(id)
     if (!model) return
     this.paintRequested.add(key)
-    void armory.peindreObjet(key, model)
+    void armory.paintObject(key, model)
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {

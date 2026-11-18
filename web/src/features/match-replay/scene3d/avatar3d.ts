@@ -78,7 +78,7 @@ export interface Avatar {
   modelSource: THREE.Object3D | null
   /** The material copies painted on `model`, by source material, null without an applied coating. */
   weaponCoat: Map<THREE.Material, THREE.Material> | null
-  /** The coating (`armory3d.coatArme`) whose copies are applied to `model`. */
+  /** The coating (`armory3d.weaponCoat`) whose copies are applied to `model`. */
   weaponCoatFor: Coat | null
   /** The player's Spartan (a tinted copy), null without a loaded model. */
   spartan: SpartanCopy | null
@@ -178,11 +178,11 @@ export function cloakOpacity(camo: number): number {
 /**
  * placeBody places the player, feet at `feet` (three axes): the group and the capsule (squashed
  * when crouching, `crouch`), the Spartan (pitch, clips, torso), and the aim (from the eye in first
- * person). `dropOeil`: the eye's drop while fading in (world units), which only the first-person
+ * person). `eyeDrop`: the eye's drop while fading in (world units), which only the first-person
  * aim follows — the body pose stays instant (`crouch`). `probe`: the map's environment probe at the
  * feet point, applied to the Spartan's armor (`playerProbe3d`).
  */
-export function placeBody(a: Avatar, feet: THREE.Vector3, pose: SpartanPose & { crouch: boolean; dropOeil: number }, firstPerson: boolean, probe: THREE.Texture | null = null): void {
+export function placeBody(a: Avatar, feet: THREE.Vector3, pose: SpartanPose & { crouch: boolean; eyeDrop: number }, firstPerson: boolean, probe: THREE.Texture | null = null): void {
   const crouch = pose.crouch ? CROUCH_DROP : 0
   a.group.position.set(feet.x, feet.y + BODY_CENTER - crouch / 2, feet.z)
   a.body.scale.y = 1 - crouch
@@ -193,8 +193,8 @@ export function placeBody(a: Avatar, feet: THREE.Vector3, pose: SpartanPose & { 
   }
   const d = aimDirThree(pose.h, pose.p)
   // In first person, the aim starts at the camera's eye (placeCamera): the weapon follows the view,
-  // and the eye at its fade-in drop (dropOeil), independent of the body pose (crouch).
-  const aimY = firstPerson ? EYE_HEIGHT - (BODY_CENTER - crouch / 2) - pose.dropOeil : AIM_HEIGHT - crouch
+  // and the eye at its fade-in drop (eyeDrop), independent of the body pose (crouch).
+  const aimY = firstPerson ? EYE_HEIGHT - (BODY_CENTER - crouch / 2) - pose.eyeDrop : AIM_HEIGHT - crouch
   a.aim.position.set(0, aimY, 0)
   a.aim.lookAt(a.group.position.x + d[0], a.group.position.y + aimY + d[1], a.group.position.z + d[2])
   // The armor picks up the map's environment where the player is standing (null probe: reflections off).
@@ -223,7 +223,7 @@ export function showWeapon(
   if (a.model && a.weaponCoatFor !== coat) {
     detachWeaponCoat(a)
     a.weaponCoatFor = coat
-    a.weaponCoat = coat ? poserRevêtementArme(a.model, coat) : null
+    a.weaponCoat = coat ? applyWeaponCoating(a.model, coat) : null
   }
   if (a.model && view) {
     a.model.position.set(view.x, view.y, view.z)
@@ -302,11 +302,11 @@ function holdModel(a: Avatar, model: THREE.Object3D | null, holder: THREE.Object
 }
 
 /**
- * poserRevêtementArme paints copy `model` of the weapon model with coating `coat`: one material
+ * applyWeaponCoating paints copy `model` of the weapon model with coating `coat`: one material
  * copy (`armorMaterial3d`) per painted source material, applied to the meshes; returns the source
  * to copy mapping (empty without a painted material).
  */
-export function poserRevêtementArme(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
+export function applyWeaponCoating(model: THREE.Object3D, coat: Coat): Map<THREE.Material, THREE.Material> {
   const copies = new Map<THREE.Material, THREE.Material>()
   // The energy fields (the sword's blade) glow in the weapon's own emissive swatch (`energyField3d`).
   const tint = energyTintOf(coat)

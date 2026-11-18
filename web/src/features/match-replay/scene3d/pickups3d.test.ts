@@ -668,12 +668,12 @@ describe('Pickups3dLayer', () => {
       // The coat stays pending until `ready` is called: the items are drawn bare in between.
       ready: () => { ready = true; resolveCoat(coat) },
       painted,
-      peindreObjet: vi.fn((k: string, _model: THREE.Object3D) => {
+      paintObject: vi.fn((k: string, _model: THREE.Object3D) => {
         if (k !== key) return Promise.resolve(null)
         if (!promise) promise = new Promise<Coat | null>((resolve) => { resolveCoat = resolve })
         return promise
       }),
-      coatObjet: (k: string, _model: THREE.Object3D): Coat | null => {
+      objectCoat: (k: string, _model: THREE.Object3D): Coat | null => {
         if (k !== key || !ready) return null
         const mats = new Set<THREE.Material>()
         _model.traverse((o) => { if (o instanceof THREE.Mesh && (o.material as THREE.Material).userData.armorMaps) mats.add(o.material as THREE.Material) })
@@ -714,8 +714,8 @@ describe('Pickups3dLayer', () => {
     // The pad and the ground weapon name the same model key: ONE request for the default-style
     // coat (ten pads of the same weapon paint once).
     layer.update(15)
-    expect(fake.peindreObjet).toHaveBeenCalledTimes(1)
-    expect(fake.peindreObjet.mock.calls[0][0]).toBe('00000001')
+    expect(fake.paintObject).toHaveBeenCalledTimes(1)
+    expect(fake.paintObject.mock.calls[0][0]).toBe('00000001')
     // While the coat is pending the items are drawn from the bare model: the ground weapon wears
     // its source material, and the pad's glow copy tints that same bare material (the pad item is
     // always a glow copy, so its material is a glow tint, not the source).
@@ -733,7 +733,7 @@ describe('Pickups3dLayer', () => {
     // item objects are stable and the swap is their material (no flicker loop: one request per
     // model key). The ground weapon wears the painted material directly; the pad's glow tints it.
     layer.update(19)
-    expect(fake.peindreObjet).toHaveBeenCalledTimes(1)
+    expect(fake.paintObject).toHaveBeenCalledTimes(1)
     // The painted copies are swapped in: the ground weapon wears the painted material directly,
     // and the pad's glow tints it. Select the painted items by their coat (armor uniforms), not
     // by index (the pool reuses hidden bare objects, so the painted copies sit at fresh indices).

@@ -76,10 +76,10 @@ export function paintedMaterials(outfit: Outfit): THREE.Material[] {
  * fallbacks (counted by kind and target).
  */
 export async function buildCoat(outfit: Outfit, m: SpartanArmorManifest, lib: CoatSource): Promise<{ coat: Coat; issues: CoatIssue[] }> {
-  return construirePeintureMateriaux(paintedMaterials(outfit), m, lib)
+  return buildMaterialsCoat(paintedMaterials(outfit), m, lib)
 }
 
-export async function construirePeintureMateriaux(materials: readonly THREE.Material[], m: SpartanArmorManifest, lib: CoatSource): Promise<{ coat: Coat; issues: CoatIssue[] }> {
+export async function buildMaterialsCoat(materials: readonly THREE.Material[], m: SpartanArmorManifest, lib: CoatSource): Promise<{ coat: Coat; issues: CoatIssue[] }> {
   const counts = new Map<string, CoatIssue>()
   const note: PaintNote = (kind, what) => {
     const k = `${kind} ${what}`

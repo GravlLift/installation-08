@@ -310,41 +310,41 @@ describe('SpartanArmory weapons', () => {
     { xuid: '1', status: 'armor', manifest: manifest('h1'), weapon_coatings: [{ model_key: '11111111', style_key: '2c5251bc' }] },
   ]
 
-  it('peindreArme: coatArme null while pending, the coat placed and cached afterward', async () => {
+  it('paintWeapon: weaponCoat null while pending, the coat placed and cached afterward', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
-    const p = armory.peindreArme('1', '11111111', scene)
-    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
+    const p = armory.paintWeapon('1', '11111111', scene)
+    expect(armory.weaponCoat('1', '11111111', scene)).toBeNull()
     const coat = await p
     expect(coat?.size).toBe(1)
-    expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
-    expect(armory.peindreArme('1', '11111111', scene)).toBe(p)
+    expect(armory.weaponCoat('1', '11111111', scene)).toBe(coat)
+    expect(armory.paintWeapon('1', '11111111', scene)).toBe(p)
     // The paint reported once to the console.
     expect(console.info).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreArme: without a coating for the weapon (no core), the default style of each list, cached', async () => {
+  it('paintWeapon: without a coating for the weapon (no core), the default style of each list, cached', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }], undefined, '/armes', io)
     const scene = weaponScene()
-    const coat = await armory.peindreArme('1', '11111111', scene)
+    const coat = await armory.paintWeapon('1', '11111111', scene)
     expect(coat?.size).toBe(1)
     expect(Array.from([...coat!.values()][0].paint.data.slice(0, 2))).toEqual([1, -1])
-    expect(armory.coatArme('1', '11111111', scene)).toBe(coat)
+    expect(armory.weaponCoat('1', '11111111', scene)).toBe(coat)
   })
 
-  it('peindreArme: without a weapon library, null', async () => {
+  it('paintWeapon: without a weapon library, null', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers)
-    expect(await armory.peindreArme('1', '11111111', weaponScene())).toBeNull()
+    expect(await armory.paintWeapon('1', '11111111', weaponScene())).toBeNull()
   })
 
-  it("coatArme: the coat no longer covers every painted material of the model, null", async () => {
+  it("weaponCoat: the coat no longer covers every painted material of the model, null", async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
-    const coat = await armory.peindreArme('1', '11111111', scene)
+    const coat = await armory.paintWeapon('1', '11111111', scene)
     const extra = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial())
     extra.material.userData = {
       armorMaps: { asg: null, mask0: null, mask1: null },
@@ -352,36 +352,36 @@ describe('SpartanArmory weapons', () => {
     }
     scene.add(extra)
     expect(coat).not.toBeNull()
-    expect(armory.coatArme('1', '11111111', scene)).toBeNull()
+    expect(armory.weaponCoat('1', '11111111', scene)).toBeNull()
   })
 
-  it('peindreObjet: the default style of each list, one coat per model key, cached', async () => {
+  it('paintObject: the default style of each list, one coat per model key, cached', async () => {
     const { io, fetchJson } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [], undefined, '/armes', io)
     const sceneA = weaponScene()
     const sceneB = weaponScene()
-    const p = armory.peindreObjet('11111111', sceneA)
+    const p = armory.paintObject('11111111', sceneA)
     // Null while pending, ready once the coat covers the model.
-    expect(armory.coatObjet('11111111', sceneA)).toBeNull()
+    expect(armory.objectCoat('11111111', sceneA)).toBeNull()
     const coat = await p
     expect(coat?.size).toBe(1)
     // The default style of the list (no gradient in the test table): zone lit, layer -1.
     expect(Array.from([...coat!.values()][0].paint.data.slice(0, 2))).toEqual([1, -1])
-    expect(armory.coatObjet('11111111', sceneA)).toBe(coat)
+    expect(armory.objectCoat('11111111', sceneA)).toBe(coat)
     // A second request for the same key reuses the coat (one fetch of the table); a different
     // key paints its own model.
-    expect(armory.peindreObjet('11111111', sceneB)).toBe(p)
+    expect(armory.paintObject('11111111', sceneB)).toBe(p)
     expect(fetchJson).toHaveBeenCalledTimes(1)
-    const p2 = armory.peindreObjet('22222222', sceneB)
+    const p2 = armory.paintObject('22222222', sceneB)
     expect(p2).not.toBe(p)
     expect((await p2)?.size).toBe(1)
   })
 
-  it('peindreObjet: without a weapon library, null', async () => {
+  it('paintObject: without a weapon library, null', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [])
-    expect(await armory.peindreObjet('11111111', weaponScene())).toBeNull()
-    expect(armory.coatObjet('11111111', weaponScene())).toBeNull()
+    expect(await armory.paintObject('11111111', weaponScene())).toBeNull()
+    expect(armory.objectCoat('11111111', weaponScene())).toBeNull()
   })
 
   /** Weapon coating `2c5251bc`: list `f00dface` takes the table's style `036e9dd8`. */
@@ -398,7 +398,7 @@ describe('SpartanArmory weapons', () => {
     }
   }
 
-  it("peindreBras: the rig's weapon wears its own coating, the arms the player's", async () => {
+  it("paintArms: the rig's weapon wears its own coating, the arms the player's", async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const m = { ...manifest('h4'), coating: { path: 'c', style_id: 1, style_key: '2c5251bc' } }
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [
@@ -410,7 +410,7 @@ describe('SpartanArmory weapons', () => {
     if (!dress) throw new Error('dress missing')
     const arm = [...dress.coat.keys()][0]
     const weapon = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
-    const paint = await armory.peindreBras('1', dress, [arm, weapon], '22222222')
+    const paint = await armory.paintArms('1', dress, [arm, weapon], '22222222')
     expect(paint).not.toBeNull()
     expect(paint!.has(arm)).toBe(true)
     // The weapon has the requested coating, missing from the library: default style, no gradient.
@@ -421,7 +421,7 @@ describe('SpartanArmory weapons', () => {
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreBras: a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
+  it('paintArms: a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
     const base = manifest('h5')
     const m: SpartanArmorManifest = {
@@ -437,7 +437,7 @@ describe('SpartanArmory weapons', () => {
     if (!dress) throw new Error('dress missing')
     // The arm piece's style region (0b7e328b) is a prosthetic region of the manifest.
     const arm = [...dress.coat.keys()][0]
-    const paint = await armory.peindreBras('1', dress, [arm])
+    const paint = await armory.paintArms('1', dress, [arm])
     expect(paint).not.toBeNull()
     // Same paint as the third-person coat: the coating's style, its gradient loaded.
     expect(Array.from(paint!.get(arm)!.paint.data)).toEqual(Array.from(dress.coat.get(arm)!.paint.data))
@@ -445,7 +445,7 @@ describe('SpartanArmory weapons', () => {
     expect(loadSwatch).toHaveBeenCalled()
   })
 
-  it('peindreBras: without an entry for the rig weapon, it wears the default style of each list', async () => {
+  it('paintArms: without an entry for the rig weapon, it wears the default style of each list', async () => {
     const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     armory.dress('1')
@@ -454,7 +454,7 @@ describe('SpartanArmory weapons', () => {
     if (!dress) throw new Error('dress missing')
     const arm = [...dress.coat.keys()][0]
     const weapon = (weaponScene().children[0] as THREE.Mesh).material as THREE.Material
-    const paint = await armory.peindreBras('1', dress, [arm, weapon], '99999999')
+    const paint = await armory.paintArms('1', dress, [arm, weapon], '99999999')
     expect(paint).not.toBeNull()
     expect(Array.from(paint!.get(weapon)!.paint.data.slice(0, 2))).toEqual([1, -1])
   })
@@ -465,7 +465,7 @@ describe('SpartanArmory weapons', () => {
     const spy = vi.spyOn(given, 'coatings')
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io, true, given)
     const scene = weaponScene()
-    const coat = await armory.peindreArme('1', '11111111', scene)
+    const coat = await armory.paintWeapon('1', '11111111', scene)
     expect(coat?.size).toBe(1)
     // The given library answered the request: no second, armory-owned one was built behind it.
     expect(spy).toHaveBeenCalled()
@@ -481,7 +481,7 @@ describe('SpartanArmory weapons', () => {
     try {
       const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
       const scene = weaponScene()
-      const coat = await armory.peindreArme('1', '11111111', scene)
+      const coat = await armory.paintWeapon('1', '11111111', scene)
       expect(coat?.size).toBe(1)
       armory.dispose()
       // Both `library` ('/b') and the armory's own `libraryArme` ('/armes', built lazily since none
