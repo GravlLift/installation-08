@@ -127,10 +127,12 @@ func openWindowApp(url string) error {
 			// bar's X would take, so the server shuts down exactly as today.
 			_, _, _ = procPostMessageW.Call(uintptr(hwnd), wmClose, 0, 0)
 		},
-		fullScreen: func() { fullScreen.toggle(hwnd) },
-		reload:     func() { w.Eval("location.reload()") },
-		github:     func() error { return openBrowser(githubURL) },
-		about:      func() { showAboutBox() },
+		fullScreen:   func() { fullScreen.toggle(hwnd) },
+		reload:       func() { w.Eval("location.reload()") },
+		github:       func() error { return openBrowser(githubURL) },
+		checkUpdates: func() { showCheckUpdates() },
+		reportIssue:  func() error { return openReportIssue() },
+		about:        func() { showAboutBox() },
 	}, guard)
 	w.Navigate(appWindowURL(url, Version))
 	w.Run() // returns when the window closes

@@ -132,6 +132,9 @@ func runServe(args []string) error {
 	// The startup starts the coatings setup through the same job the POST route uses, so a
 	// run is single-flight whichever way it is started.
 	runServeStartup(h.jobs, func(module string) bool { return jobModuleReady(root, module) }, root, f.game, func() { h.startCoatingsSetup() })
+	// The startup update check runs once in the background (15 s after startup); a
+	// -dev build skips it inside.
+	startUpdateCheck()
 	if f.readOnly {
 		slog.Info("read-only mode: state-changing requests are refused")
 	}

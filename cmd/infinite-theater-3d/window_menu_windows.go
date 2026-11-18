@@ -28,6 +28,8 @@ const (
 	menuReload         = 101
 	menuGitHub         = 200
 	menuAbout          = 201
+	menuCheckUpdates   = 202
+	menuReportIssue    = 203
 )
 
 // Accelerator names the injected keydown listener reports to the it3dAccelerator
@@ -107,6 +109,8 @@ type menuActions struct {
 	fullScreen     func()
 	reload         func()
 	github         func() error
+	checkUpdates   func()
+	reportIssue    func() error
 	about          func()
 }
 
@@ -128,6 +132,10 @@ func (a menuActions) runMenuCommand(id uintptr) {
 		a.reload()
 	case menuGitHub:
 		err = a.github()
+	case menuCheckUpdates:
+		a.checkUpdates()
+	case menuReportIssue:
+		err = a.reportIssue()
 	case menuAbout:
 		a.about()
 	default:
@@ -222,6 +230,8 @@ func createAppMenu() windows.Handle {
 	appendSubmenu(bar, view, "View")
 
 	help, _, _ := procCreatePopupMenu.Call()
+	appendMenuItem(help, menuCheckUpdates, "Check for updates")
+	appendMenuItem(help, menuReportIssue, "Report an issue")
 	appendMenuItem(help, menuGitHub, "GitHub page")
 	appendMenuItem(help, menuAbout, "About")
 	appendSubmenu(bar, help, "Help")

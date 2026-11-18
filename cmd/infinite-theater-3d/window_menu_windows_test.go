@@ -30,6 +30,8 @@ func TestRunMenuCommand(t *testing.T) {
 		fullScreen:     func() { calls = append(calls, "fullScreen") },
 		reload:         func() { calls = append(calls, "reload") },
 		github:         func() error { calls = append(calls, "github"); return nil },
+		checkUpdates:   func() { calls = append(calls, "checkUpdates") },
+		reportIssue:    func() error { calls = append(calls, "reportIssue"); return nil },
 		about:          func() { calls = append(calls, "about") },
 	}
 	want := map[uintptr]string{
@@ -39,6 +41,8 @@ func TestRunMenuCommand(t *testing.T) {
 		menuFullScreen:     "fullScreen",
 		menuReload:         "reload",
 		menuGitHub:         "github",
+		menuCheckUpdates:   "checkUpdates",
+		menuReportIssue:    "reportIssue",
 		menuAbout:          "about",
 	}
 	for id, name := range want {
