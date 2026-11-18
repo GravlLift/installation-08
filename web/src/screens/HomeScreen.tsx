@@ -10,6 +10,8 @@
  * weapons, armor, first-person arms), the "Getting ready" plate (`FirstRunPanel`) shows its
  * progress; the coatings control then shows only its button for a failed setup.
  *
+ * The credits corner (`HomeCredits`) sits at the desk's bottom left in every mode.
+ *
  * The page's backdrop is the ring-world art (RingBackdrop), not the featured map, which
  * stays in the featured card.
  *
@@ -27,6 +29,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchMatches, type MatchSummary } from '../lib/api/standalone'
 import { CoatingsSetupControl } from './CoatingsSetupControl'
 import { FirstRunPanel } from './FirstRunPanel'
+import { HomeCredits } from './HomeCredits'
 import { useFirstRunProgress } from './useFirstRunProgress'
 import { FocusList } from '../ui/FocusList'
 import { Plate } from '../ui/Plate'
@@ -193,6 +196,7 @@ export function HomeScreen() {
             <CoatingsSetupControl notice={coatings.notice} showProgress={false} onStarted={firstRun.refresh} />
           </div>
         )}
+        <HomeCredits />
       </div>
     </Screen>
   )

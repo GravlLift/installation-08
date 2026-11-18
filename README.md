@@ -153,6 +153,9 @@ release, because the version name is baked in.
   read from Reclaimer's sources, then independently re-measured on game files and
   reimplemented in Go. No Reclaimer code is included; see
   `third_party/map-images/NOTICE.md`.
+- **[Andy Curtis](https://github.com/acurtis166)**: [SPNKr](https://github.com/acurtis166/SPNKr),
+  the Python SDK for the Halo Infinite web API, whose reading of the match highlight and medal
+  events the film decoder builds on. No SPNKr code is included.
 - **[hcs](https://github.com/hcs64)**: [ww2ogg](https://github.com/hcs64/ww2ogg): the basis
   for `internal/wwvorbis`'s Go port that repacks the game's Wwise Vorbis voice lines to Ogg.
 

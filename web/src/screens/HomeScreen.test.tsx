@@ -89,4 +89,29 @@ describe('HomeScreen', () => {
     expect(screen.queryByText('Sign in with Xbox')).toBeNull()
     expect(screen.queryByRole('option', { name: /Sign in/ })).toBeNull()
   })
+
+  it('credits the projects it builds on, in order, each linking out to a new browsing context', async () => {
+    vi.stubGlobal('fetch', routeFetch(true))
+    render(<HomeScreen />)
+    await screen.findByText('Sign in with Xbox')
+    const credits = screen.getByRole('navigation', { name: 'Credits' })
+    const links = Array.from(credits.querySelectorAll('a'))
+    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
+      ['LevelUp', 'https://github.com/JGtm/LevelUp'],
+      ['OpenSpartan', 'https://github.com/dend'],
+      ['Ekur', 'https://github.com/TheHaloArchive/ekur'],
+      ['SPNKr', 'https://github.com/acurtis166/SPNKr'],
+      ['More in NOTICE', 'https://github.com/llampwall/infinite-theater-3d#credits'],
+    ])
+    // The app window's injected script hands cross-origin anchors to the default browser; a
+    // plain browser tab must open them in a new tab, never replace the app.
+    for (const a of links) {
+      expect(a.getAttribute('target')).toBe('_blank')
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer')
+    }
+    expect(credits.textContent).toContain('JGtm')
+    expect(credits.textContent).toContain('Den Delimarsky')
+    expect(credits.textContent).toContain('The Halo Archive')
+    expect(credits.textContent).toContain('Andy Curtis')
+  })
 })

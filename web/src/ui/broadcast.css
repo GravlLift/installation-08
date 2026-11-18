@@ -106,7 +106,7 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 .bc-fact b { font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
 
 /* Home: the broadcast desk. */
-.bc-home { display: grid; grid-template-columns: minmax(320px, 26vw) 1fr; gap: 4vw; align-items: center; }
+.bc-home { position: relative; display: grid; grid-template-columns: minmax(320px, 26vw) 1fr; gap: 4vw; align-items: center; }
 .bc-home .bc-row { padding: 16px 26px 16px 30px; }
 /* The Installation 08 wordmark above the main menu, like a game's title screen. */
 .bc-home-logo { display: block; width: 100%; height: auto; margin: 0 0 4vh -2%; filter: drop-shadow(0 6px 18px rgb(0 0 0 / 0.55)); user-select: none; pointer-events: none; }
@@ -134,6 +134,17 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 /* The first-start "Getting ready" plate: across the desk, above the coatings row. */
 .bc-home .bc-firstrun { grid-column: 1 / -1; justify-self: center; width: min(100%, 720px); }
 .bc-home .bc-firstrun .bc-title { font-size: clamp(26px, 2.6vw, 40px); }
+/* The credits corner (HomeCredits): bottom left of the desk, just above the ticker, out of the
+ * desk's grid so it never moves the menu or the featured card. Project links in the menu's
+ * display type, authors in the rows' sub-line type. */
+.bc-home-credits { position: absolute; left: 0; bottom: 0; z-index: 1; }
+.bc-home-credits .bc-eyebrow { font-size: 11px; margin-bottom: 6px; }
+.bc-credits-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; justify-content: start; align-items: baseline; }
+.bc-credits-list li { display: contents; }
+.bc-credit-project { font-family: var(--display); font-stretch: 75%; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); text-decoration: none; transition: color 120ms; }
+.bc-credit-author { font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); }
+.bc-credits-more { display: inline-block; margin-top: 6px; font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); text-decoration: none; transition: color 120ms; }
+.bc-credit-project:hover, .bc-credit-project:focus-visible, .bc-credits-more:hover, .bc-credits-more:focus-visible { color: var(--air); }
 .bc-progress { height: 8px; margin-top: 14px; background: var(--studio-700); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
 .bc-progress-fill { height: 100%; background: linear-gradient(90deg, var(--air-deep), var(--air)); transition: width 400ms ease; }
 .bc-firstrun-step { margin-top: 10px; font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
