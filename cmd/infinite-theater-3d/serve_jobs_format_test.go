@@ -25,11 +25,17 @@ import (
 
 // formatGLB is a minimal GLB whose asset.extras carries buildFormat (0: absent) and whose
 // extensionsUsed lists KHR_texture_basisu when basisu is set (the KTX2 pass's marker).
-func formatGLB(t *testing.T, buildFormat int, basisu bool) []byte {
+func formatGLB(t *testing.T, buildFormat int, basisu bool, extra ...map[string]any) []byte {
 	t.Helper()
 	asset := map[string]any{"version": "2.0"}
 	if buildFormat > 0 {
-		asset["extras"] = map[string]any{"buildFormat": buildFormat, "module": "m"}
+		extras := map[string]any{"buildFormat": buildFormat, "module": "m"}
+		if len(extra) > 0 {
+			for k, v := range extra[0] {
+				extras[k] = v
+			}
+		}
+		asset["extras"] = extras
 	}
 	doc := map[string]any{"asset": asset}
 	if basisu {
@@ -120,6 +126,30 @@ func TestJobModuleFormatMapMesh(t *testing.T) {
 	}
 	if jobModuleReady(root, "moda") || jobModuleOutdated(root, "moda") {
 		t.Error("missing map mesh ready or outdated")
+	}
+}
+
+func TestBreakerMaterialRevision(t *testing.T) {
+	root := meshTestStore(t)
+	p, err := root.MeshPath("ctf_breaker", meshjobs.QualityStandard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeGLBAt(t, p, mapmesh.BuildFormat, false)
+	if jobModuleReady(root, "ctf_breaker") || !jobModuleOutdated(root, "ctf_breaker") {
+		t.Fatal("Breaker built before the material revision must be rebuilt")
+	}
+	if !mapMaterialCurrent("ctf_breaker", map[string]any{mapmesh.BreakerMaterialRevisionKey: float64(mapmesh.BreakerMaterialRevision)}) {
+		t.Fatal("Breaker with current material revision must be accepted")
+	}
+	if err := os.WriteFile(p, formatGLB(t, mapmesh.BuildFormat, false, map[string]any{mapmesh.BreakerMaterialRevisionKey: mapmesh.BreakerMaterialRevision}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !jobModuleReady(root, "ctf_breaker") || jobModuleOutdated(root, "ctf_breaker") {
+		t.Fatal("updated Breaker must be ready")
+	}
+	if !mapMaterialCurrent("other", nil) {
+		t.Fatal("other maps must not be invalidated")
 	}
 }
 

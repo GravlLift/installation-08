@@ -66,7 +66,7 @@ func jobModuleReady(root *store.Root, module string) bool {
 	if _, err := os.Stat(p); err != nil {
 		return false
 	}
-	return glbFormatCurrent(p)
+	return glbMapCurrent(p, module)
 }
 
 // jobModuleOutdated reports whether a module's output is on disk in an older build
@@ -94,7 +94,22 @@ func jobModuleOutdated(root *store.Root, module string) bool {
 	if _, err := os.Stat(p); err != nil {
 		return false
 	}
-	return !glbFormatCurrent(p)
+	return !glbMapCurrent(p, module)
+}
+
+func mapMaterialCurrent(module string, extras map[string]any) bool {
+	return module != "ctf_breaker" || fmt.Sprint(extras[mapmesh.BreakerMaterialRevisionKey]) == fmt.Sprint(mapmesh.BreakerMaterialRevision)
+}
+
+func glbMapCurrent(path, module string) bool {
+	if !glbFormatCurrent(path) {
+		return false
+	}
+	if module != "ctf_breaker" {
+		return true
+	}
+	extras, err := texcompress.AssetExtras(path)
+	return err == nil && mapMaterialCurrent(module, extras)
 }
 
 // glbFormatCurrent says whether the GLB at path records the current build format in its
@@ -335,7 +350,8 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
-		if glbModule(module) {
+		baseModule, _ := meshjobs.SplitQuality(module)
+		if glbModule(module) && baseModule != "ctf_breaker" {
 			// A map or variant GLB of the previous format only needs its geometry encoded.
 			if s, ok, err := mapmesh.UpgradeFile(ctx, dest(module)); ok {
 				return meshjobs.BuildResult{Bytes: s.Bytes, Triangles: s.Triangles}, err

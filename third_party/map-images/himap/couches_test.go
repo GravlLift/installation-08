@@ -10,6 +10,19 @@ import (
 	"testing"
 )
 
+func TestBreakerShaderNeedsItsBaseTexture(t *testing.T) {
+	params := ParametresShader{0xc077e7ba: 240, 0x87794a55: 212, 0x17986f67: 276, 0x997879ce: 288, 0x9e4aff11: 304}
+	read := func(uint32) ParametresShader { return params }
+	pp := postprocessLu{textures: map[int]uint32{212: 2}, constantes: make([]byte, 320)}
+	if got := couchesDuMateriau(0xd2905ea3, read, pp); got != nil {
+		t.Fatalf("missing base texture: %+v", got)
+	}
+	pp.textures[240] = 1
+	if got := couchesDuMateriau(0xd2905ea3, read, pp); got == nil || got.Couches[0].Bitmap != 1 || got.Couches[0].Normale != 2 {
+		t.Fatalf("base texture not read: %+v", got)
+	}
+}
+
 // TestCouchesParNoms lit un shader fabrique par les noms de ses parametres : premiere couche
 // `rohm` (sans opacite ni melange), deuxieme `rohg` (degrade, opacite), troisieme `nnhg`
 // declaree mais sans texture liee (omise), quatrieme `nnhg` ; transformations par registre.

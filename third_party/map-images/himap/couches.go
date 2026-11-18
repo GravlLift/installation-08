@@ -141,6 +141,13 @@ func couchesDuMateriau(shader uint32, shaders LecteurShaders, pp postprocessLu) 
 	if params == nil {
 		return nil
 	}
+	if shader == 0xd2905ea3 {
+		// shortcut: this shader's base gradient is read, its additional atlas masks need decoding.
+		base := nomsCouche{controle: 0xc077e7ba, normale: 0x87794a55, haut: 0x17986f67, milieu: 0x997879ce, bas: 0x9e4aff11, intensiteNormale: 0xbfd10cd8}
+		if layer, ok := base.lit(params, pp, lecteurConstantes(pp.constantes), true, true); ok {
+			return &Couches{JeuUV: jeuUVDiffus, Couches: []Couche{layer}}
+		}
+	}
 	return couchesParNoms(params, pp)
 }
 
