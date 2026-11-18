@@ -51,6 +51,10 @@ func TestResolveForgeTarget(t *testing.T) {
 	if target.Module != module || target.MapModule != module || target.Key != "asset" {
 		t.Errorf("target %+v", target)
 	}
+	// A Forge map's world is its variant layer: an empty canvas frame (fo11_blank) still builds.
+	if !target.MayBeEmpty {
+		t.Error("a Forge target refuses an empty canvas")
+	}
 	if len(target.Anchors) != 2 {
 		t.Fatalf("anchors %v, want the two objectives once each", target.Anchors)
 	}

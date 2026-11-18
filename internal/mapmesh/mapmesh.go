@@ -47,6 +47,10 @@ type Target struct {
 	// Frame is the world-space rectangle (minX, minY, maxX, maxY) outside which instances are
 	// dropped (see FrameOf). Zero means the whole bsp's geometry.
 	Frame [4]float64
+	// MayBeEmpty accepts a canvas with no structure or terrain inside Frame: a Forge map's world
+	// is its variant layer, and on the blank canvas (fo11_blank) the canvas mesh is only its sky
+	// and light. A native map with no geometry stays a build error.
+	MayBeEmpty bool
 	// SunIntensity and SunColor, when set, replace the scenario sun's intensity and color: a Forge
 	// map's own lighting options (mapvar.Lighting) override its canvas's sun.
 	SunIntensity *float64
@@ -155,12 +159,13 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	}
 	note(StepGeometry)
 	m, _, err := himap.CollecteMaillageMonde(ctx, himap.OptionsCuisson{
-		RacineDeploy:      gameRoot,
-		CheminModule:      t.Module,
-		CheminModuleCarte: t.MapModule,
-		Ancres:            t.Anchors,
-		CadreMaillage:     t.Frame,
-		TextureCaps:       t.TextureCaps,
+		RacineDeploy:         gameRoot,
+		CheminModule:         t.Module,
+		CheminModuleCarte:    t.MapModule,
+		Ancres:               t.Anchors,
+		CadreMaillage:        t.Frame,
+		TextureCaps:          t.TextureCaps,
+		AccepteSansStructure: t.MayBeEmpty,
 	})
 	if err != nil {
 		return Summary{}, err

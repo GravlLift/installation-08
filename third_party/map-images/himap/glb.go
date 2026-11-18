@@ -223,7 +223,7 @@ func documentGLB(m *MaillageMonde, generateur string, extras map[string]any) (*g
 	if mats.err != nil {
 		return nil, nil, fmt.Errorf("material textures: %w", mats.err)
 	}
-	if len(doc.Nodes) == 0 {
+	if len(doc.Nodes) == 0 && !m.SansStructure { // LOCAL-CHANGE (infinite-theater-3d): SansStructure
 		return nil, nil, fmt.Errorf("empty mesh")
 	}
 	scene := extrasSoleil(m.Soleil)

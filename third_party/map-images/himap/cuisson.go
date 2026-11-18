@@ -151,6 +151,10 @@ type OptionsCuisson struct {
 	// la boite monde touche ce rectangle (minX, minY, maxX, maxY) ; une instance retenue l'est
 	// entiere. Zero = pas de bornage. Sans effet sur la cuisson du fond, qui a son propre cadre.
 	CadreMaillage [4]float64
+	// AccepteSansStructure lets CollecteMaillageMonde return a mesh with no structure and no
+	// terrain triangle instead of failing. A Forge map on the blank canvas (fo11_blank, Empyrean)
+	// has its whole world in the variant layer: its canvas mesh only carries the sky and the light.
+	AccepteSansStructure bool // LOCAL-CHANGE (infinite-theater-3d)
 	// CheminModuleCarte est le .module `pc` de la carte elle-meme quand sa geometrie vit dans un
 	// autre (Live Fire : module commun) : son scenario (`levl`) pose les objets hors du sbsp, et lui
 	// et son jumeau `any` portent leurs tags (CollecteMaillageMonde). Vide = CheminModule.

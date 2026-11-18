@@ -152,7 +152,7 @@ func ResolveForgeTarget(key string, names []string, v *mapvar.Variant, levelsDir
 	if !ok {
 		return mapmesh.Target{}, notBuildable("variant %s places no objective: no anchor to frame its canvas", key)
 	}
-	return mapmesh.Target{Key: key, Module: module, MapModule: module, Names: names, Anchors: anchors, Frame: frame}, nil
+	return mapmesh.Target{Key: key, Module: module, MapModule: module, Names: names, Anchors: anchors, Frame: frame, MayBeEmpty: true}, nil
 }
 
 // variantAnchors returns the world positions of the variant's objectives, deduplicated (an object

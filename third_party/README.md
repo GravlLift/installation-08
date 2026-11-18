@@ -520,6 +520,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     member's list at +216, its curves in blob section 16) and `Arsenal.ReloadFunctions`
     those a weapon's own graph sets through its `reload_1` animations (the Heatwave's
     `animation_event_function_variant_switch`, 1). Covered by `himap/animation_functions_test.go`.
+  - `himap/cuisson.go`, `maillage_monde.go`, `glb.go` (LOCAL-CHANGE): `OptionsCuisson.AccepteSansStructure`
+    (carried as `MaillageMonde.SansStructure`) lets `CollecteMaillageMonde` and the GLB writer
+    produce a world mesh with no structure or terrain triangle (only its sky and sun) instead of
+    failing. A Forge map on the blank canvas (`fo11_blank`, Empyrean) has its whole world in the
+    variant layer; the app sets it for Forge canvases only.
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

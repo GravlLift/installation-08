@@ -35,6 +35,9 @@ type MaillageMonde struct {
 	HorsBoite int
 	// HorsCadre compte les instances ecartees par `OptionsCuisson.CadreMaillage`.
 	HorsCadre int
+	// SansStructure : collected with OptionsCuisson.AccepteSansStructure; the GLB writer then writes
+	// a scene with no node instead of failing (LOCAL-CHANGE infinite-theater-3d).
+	SansStructure bool
 	// Materiaux : les materiaux lus, par GlobalID. Un ID de `GroupeMaillage.Indices` absent de
 	// la table (illisible, ou 0 = rang hors liste) se dessine comme opaque.
 	Materiaux    map[uint32]Materiau
@@ -152,7 +155,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 		return nil, b, err
 	}
 	defer func() { _ = idx.Close() }()
-	out := &MaillageMonde{BSP: bsp.GlobalID, textureCaps: textureCapsOf(opts.TextureCaps)}
+	out := &MaillageMonde{BSP: bsp.GlobalID, textureCaps: textureCapsOf(opts.TextureCaps), SansStructure: opts.AccepteSansStructure} // LOCAL-CHANGE (infinite-theater-3d): SansStructure
 	bsp, out.HorsCadre = bsp.dansCadre(opts.CadreMaillage)
 	ajoute := func(m *Mesh, in Instance, estDecor, horsPasse bool) {
 		g := &out.Structure
@@ -194,7 +197,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	}
 	out.Terrain = terrain
 	out.Decorateurs = decorateurs
-	if out.Structure.Triangles()+out.Terrain.Triangles() == 0 {
+	if out.Structure.Triangles()+out.Terrain.Triangles() == 0 && !opts.AccepteSansStructure { // LOCAL-CHANGE (infinite-theater-3d): AccepteSansStructure
 		return nil, b, fmt.Errorf("no structure triangle out of %d instances of the %d structures", len(bsp.Instances), len(bsps))
 	}
 	if err := out.resoutMateriaux(opts, idx); err != nil {
