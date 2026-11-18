@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { HeldWeapon3d } from './heldWeapon3d'
-import { postureFilm } from './posturesFilm3d'
+import { filmPosture } from './posturesFilm3d'
 import { weaponModelKey } from './weaponModels3d'
 import type { ChangementArme } from './firstPersonActions3d'
 
@@ -19,11 +19,11 @@ export function preparerEvenementsPremierePersonne(doc: ReplayDocumentReady, hel
   }
   for (const s of doc.stances) if (s.kind === 'sprint') {
     const list = sprints.get(s.slot) ?? []
-    list.push(postureFilm(s, doc)); sprints.set(s.slot, list)
+    list.push(filmPosture(s, doc)); sprints.set(s.slot, list)
   }
   for (const s of doc.stances) if (s.kind === 'slide') {
     const list = slides.get(s.slot) ?? []
-    list.push(postureFilm(s, doc)); slides.set(s.slot, list)
+    list.push(filmPosture(s, doc)); slides.set(s.slot, list)
   }
   // Anything that can flip the weapon in hand marks a candidate frame: loadout, inventory, grabs,
   // selector flips and magazine reads (a read timed in ms acts on the following frame).

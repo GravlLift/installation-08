@@ -10,7 +10,7 @@ import type { ReplayDocument } from '@/lib/api/types'
 import { heldWeaponAt } from '../scene3d/heldWeapon3d'
 import { CARRIED_OBJECT_CLASS } from '../scene3d/weaponClass3d'
 import { testReplayDoc } from '../test/testDoc'
-import { weaponInHand, carriedObjectAt, flagObjectIdOf, flagTeamInHand, objetEnMain } from './weaponInHand'
+import { weaponInHand, carriedObjectAt, flagObjectIdOf, flagTeamInHand, handObject } from './weaponInHand'
 
 const FLAG = '2a392328'
 
@@ -65,15 +65,15 @@ describe('the flag in hand', () => {
   it('replaces the weapon while it is carried, and gives it back after', () => {
     const doc = ctfDoc()
     expect(weaponInHand(doc, 512, 30)).toBeNull()
-    expect(objetEnMain(doc, 512, 30)).toEqual({ id: '0x2A392328', slotArme: 2 })
+    expect(handObject(doc, 512, 30)).toEqual({ id: '0x2A392328', weaponSlot: 2 })
     expect(heldWeaponAt(doc, 512, 30, 'en')?.id).toBe('0x2A392328')
     expect(heldWeaponAt(doc, 512, 50, 'en')?.id).toBe('0xAAAA')
-    expect(objetEnMain(doc, 512, 50)).toBeNull()
+    expect(handObject(doc, 512, 50)).toBeNull()
   })
 
   it('takes the identifier of any object pickup of the match when the carrier has none of his own', () => {
     const doc = ctfDoc({ weaponChanges: [{ t: 90, slot: 513, kind: 'taken', w: FLAG, k: 2 }] })
-    expect(objetEnMain(doc, 512, 30)?.id).toBe('0x2A392328')
+    expect(handObject(doc, 512, 30)?.id).toBe('0x2A392328')
   })
 
   it('carries the team of the flag held (its banner), and no team with a weapon in hand', () => {
@@ -87,7 +87,7 @@ describe('the flag in hand', () => {
 
   it('holds nothing when no object pickup names the object', () => {
     const doc = ctfDoc({ weaponChanges: [] })
-    expect(objetEnMain(doc, 512, 30)).toBeNull()
+    expect(handObject(doc, 512, 30)).toBeNull()
     expect(heldWeaponAt(doc, 512, 30, 'en')).toBeNull()
   })
 })
@@ -104,12 +104,12 @@ describe('the spawn hand', () => {
 
   it('holds the weapon of emplacement 0 from birth until the first selector flip', () => {
     const doc = spawnDoc({ drawnWeapons: [{ t: 50, slot: 512, d: 1 }] })
-    expect(weaponInHand(doc, 512, 20)).toEqual({ id: '0xAAAA', slotArme: 0 })
-    expect(weaponInHand(doc, 512, 60)).toEqual({ id: '0xBBBB', slotArme: 1 })
+    expect(weaponInHand(doc, 512, 20)).toEqual({ id: '0xAAAA', weaponSlot: 0 })
+    expect(weaponInHand(doc, 512, 60)).toEqual({ id: '0xBBBB', weaponSlot: 1 })
   })
 
   it('holds the weapon of emplacement 0 for a whole life no read ever locates', () => {
-    expect(weaponInHand(spawnDoc(), 512, 90)).toEqual({ id: '0xAAAA', slotArme: 0 })
+    expect(weaponInHand(spawnDoc(), 512, 90)).toEqual({ id: '0xAAAA', weaponSlot: 0 })
   })
 
   it('does not claim the spawn weapon once a weapon change is dated since birth', () => {
@@ -137,11 +137,11 @@ describe('a pickup that the next keyframe row leaves unnamed', () => {
   }
 
   it('holds the picked weapon after the row is read', () => {
-    expect(weaponInHand(pickupDoc(), 512, 60)).toEqual({ id: '0xADB78225', slotArme: 1 })
+    expect(weaponInHand(pickupDoc(), 512, 60)).toEqual({ id: '0xADB78225', weaponSlot: 1 })
   })
 
   it('holds it between the pickup and the row read too', () => {
-    expect(weaponInHand(pickupDoc(), 512, 35)).toEqual({ id: '0xADB78225', slotArme: 1 })
+    expect(weaponInHand(pickupDoc(), 512, 35)).toEqual({ id: '0xADB78225', weaponSlot: 1 })
   })
 
   it('never borrows a pickup from an earlier life', () => {
@@ -167,7 +167,7 @@ describe('a keyframe row that names one weapon while the inventory points elsewh
   }
 
   it('holds the single named weapon even when the inventory designates the other slot', () => {
-    expect(weaponInHand(singleDoc(), 512, 90)).toEqual({ id: '0xAAAA', slotArme: 0 })
+    expect(weaponInHand(singleDoc(), 512, 90)).toEqual({ id: '0xAAAA', weaponSlot: 0 })
   })
 
   it('does not claim it once a weapon change is dated since birth', () => {
@@ -190,11 +190,11 @@ describe('a keyframe row that names a weapon the life never picked up', () => {
   }
 
   it('holds the unpicked weapon of the row from the birth to the first read', () => {
-    expect(weaponInHand(derivedSpawnDoc(), 512, 700)).toEqual({ id: '0xAAAA', slotArme: 0 })
+    expect(weaponInHand(derivedSpawnDoc(), 512, 700)).toEqual({ id: '0xAAAA', weaponSlot: 0 })
   })
 
   it('hands over to the picked weapon once the selector flip lands', () => {
-    expect(weaponInHand(derivedSpawnDoc(), 512, 850)).toEqual({ id: '0xBBBB', slotArme: 1 })
+    expect(weaponInHand(derivedSpawnDoc(), 512, 850)).toEqual({ id: '0xBBBB', weaponSlot: 1 })
   })
 
   it('leaves the hand empty when a drop of the spawn weapon is dated before the frame', () => {
@@ -232,12 +232,12 @@ describe('a read that designates an emplacement nothing names', () => {
   }
 
   it('names the weapon of the designated emplacement by its shots', () => {
-    expect(weaponInHand(unnamedDoc(), 512, 60)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+    expect(weaponInHand(unnamedDoc(), 512, 60)).toEqual({ id: '0xCCCCCCCC', weaponSlot: 1 })
   })
 
   it('keeps the row weapon of the emplacement the hand designates', () => {
     const doc = unnamedDoc({ drawnWeapons: [{ t: 30, slot: 512, d: 1 }, { t: 55, slot: 512, d: 0 }] })
-    expect(weaponInHand(doc, 512, 60)).toEqual({ id: '0xAAAA', slotArme: 0 })
+    expect(weaponInHand(doc, 512, 60)).toEqual({ id: '0xAAAA', weaponSlot: 0 })
   })
 
   it('ignores a shot earlier than a drop of the emplacement', () => {
@@ -258,8 +258,8 @@ describe('a life without any loadout reading', () => {
   }
 
   it('names the weapon of the emplacement in hand by the shots fired from it', () => {
-    expect(weaponInHand(bareDoc(), 512, 40)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
-    expect(weaponInHand(bareDoc(), 512, 90)).toEqual({ id: '0xCCCCCCCC', slotArme: 1 })
+    expect(weaponInHand(bareDoc(), 512, 40)).toEqual({ id: '0xCCCCCCCC', weaponSlot: 1 })
+    expect(weaponInHand(bareDoc(), 512, 90)).toEqual({ id: '0xCCCCCCCC', weaponSlot: 1 })
   })
 
   it('leaves the other emplacement unnamed: before the flip the hand holds emplacement 0', () => {

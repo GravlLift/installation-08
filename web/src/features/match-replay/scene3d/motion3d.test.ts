@@ -9,13 +9,13 @@ import { fakeClip, motionCatalog } from '../test/spartanClips'
 import { testReplayDoc } from '../test/testDoc'
 import type { Action3dInputs } from './action3dInputs'
 import type { ActionContext } from './actionScene3d'
-import { sautDepuisAction } from './filmActions3d'
+import { jumpFromAction } from './filmActions3d'
 import { registerSpartanClips, SpartanClips, type SpartanClip } from './clips3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
 import { mixStride, phaseTime } from './clipSelect3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
-import { postureFilm } from './posturesFilm3d'
+import { filmPosture } from './posturesFilm3d'
 import { buildTracks3d } from './tracks3d'
 
 const FPS = 10
@@ -64,20 +64,20 @@ describe('Motion3d', () => {
       { kind: 'crouch', slot: 1, t0: 20, t1: 21 },
       { kind: 'slide', slot: 1, t0: 30, t1: 31, ms0: 3020, ms1: 3180 },
     ] })
-    const pistes = buildTracks3d(film)
-    for (const [f, attendu] of [[9.7, false], [10.2, true], [10.5, true], [10.8, false], [11.3, false], [20, true], [21, true], [21.1, false]] as const) {
-      expect(pistes.sample('A', f)?.crouch).toBe(attendu)
+    const tracks = buildTracks3d(film)
+    for (const [f, expected] of [[9.7, false], [10.2, true], [10.5, true], [10.8, false], [11.3, false], [20, true], [21, true], [21.1, false]] as const) {
+      expect(tracks.sample('A', f)?.crouch).toBe(expected)
     }
-    expect(postureFilm(film.stances[2], film)).toMatchObject({ t0: 30.2, t1: 30.8, fin: 31.8 })
+    expect(filmPosture(film.stances[2], film)).toMatchObject({ t0: 30.2, t1: 30.8, end: 31.8 })
     // During the slide, the eye drops in a fade while the body pose stays upright.
-    const glissade = pistes.sample('A', 30.7)
-    expect(glissade?.crouch).toBe(false)
-    expect(glissade?.dropOeil).toBeGreaterThan(0)
+    const slide = tracks.sample('A', 30.7)
+    expect(slide?.crouch).toBe(false)
+    expect(slide?.dropOeil).toBeGreaterThan(0)
     const m = motion(true, film)
-    const poids = (f: number, suffixe: string) => base(m.at('A', f, false, newClipMix()) as ClipMix)
-      .filter((l) => l.name.includes(suffixe)).reduce((s, l) => s + l.weight, 0)
-    expect(poids(10.7, 'crouch:')).toBeGreaterThan(0.3)
-    expect(poids(30.7, ':slide')).toBeGreaterThan(0.4)
+    const weightOf = (f: number, suffix: string) => base(m.at('A', f, false, newClipMix()) as ClipMix)
+      .filter((l) => l.name.includes(suffix)).reduce((s, l) => s + l.weight, 0)
+    expect(weightOf(10.7, 'crouch:')).toBeGreaterThan(0.3)
+    expect(weightOf(30.7, ':slide')).toBeGreaterThan(0.4)
   })
   it('nothing while the animated Spartan isn\'t loaded, nor outside their life', () => {
     expect(motion(false).at('A', 20, false, newClipMix())).toBeNull()
@@ -142,12 +142,12 @@ describe('Motion3d', () => {
     })
     const m = motion(true, film)
     const at = (f: number) => base(m.at('A', f, false, newClipMix()) as ClipMix)
-    expect(m.postures(1).jump).toEqual([sautDepuisAction(film, buildTracks3d(film), 1, 10.5), postureFilm(film.stances[0], film)])
+    expect(m.postures(1).jump).toEqual([jumpFromAction(film, buildTracks3d(film), 1, 10.5), filmPosture(film.stances[0], film)])
     expect(names(at(12))).toContain('combat:rifle:airborne_arc')
     expect(names(at(16))).not.toContain('combat:rifle:airborne_arc')
     expect(at(42).find((l) => l.name === 'combat:rifle:airborne_arc')?.time).toBeCloseTo(0.2)
     expect(names(at(48))).not.toContain('combat:rifle:airborne_arc')
-    expect(sautDepuisAction(film, buildTracks3d(film), 1, 30.25)).toEqual({ t0: 30.25, t1: 44.25 })
+    expect(jumpFromAction(film, buildTracks3d(film), 1, 30.25)).toEqual({ t0: 30.25, t1: 44.25 })
   })
 
   it('reloads to the millisecond per weapon and cancels on a change', () => {
@@ -167,28 +167,28 @@ describe('Motion3d', () => {
     const at = (f: number) => over(m.at('A', f, false, newClipMix()) as ClipMix)
     expect(at(70.75).find((l) => l.name === extra[0].name)?.time).toBeCloseTo(0.05)
     expect(names(at(80.5))).not.toContain(extra[0].name)
-    const repli = new SpartanClips([...CATALOG.names().map((n) => CATALOG.get(n) as SpartanClip)], {
+    const fallback = new SpartanClips([...CATALOG.names().map((n) => CATALOG.get(n) as SpartanClip)], {
       weapons: [{ weapon: '2b1824d5', class: 'rifle', reload: 'absent' }],
       classes: [{ class: 'rifle', reload: 'combat:rifle:reload_1' }],
     })
-    expect(names(over(motion(true, film, repli).at('A', 70.75, false, newClipMix()) as ClipMix))).toContain('combat:rifle:reload_1')
-    const mort = testReplayDoc({ ...film, tracks: [
+    expect(names(over(motion(true, film, fallback).at('A', 70.75, false, newClipMix()) as ClipMix))).toContain('combat:rifle:reload_1')
+    const died = testReplayDoc({ ...film, tracks: [
       { slot: 1, team: 0, xuid: 'A', startFrame: 0, endFrame: 70, points: [{ t: 0, x: 0, y: 0, z: 0 }, { t: 70, x: 0, y: 0, z: 0 }] },
       { slot: 1, team: 0, xuid: 'A', startFrame: 71, endFrame: 100, points: [{ t: 71, x: 0, y: 0, z: 0 }, { t: 100, x: 0, y: 0, z: 0 }] },
     ], actions: [{ kind: 'reload', slot: 1, t: 69, ms: 6900 }] })
-    expect(names(over(motion(true, mort, catalogue).at('A', 71.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
+    expect(names(over(motion(true, died, catalogue).at('A', 71.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
     const sidekick = testReplayDoc({ ...film, actions: [{ kind: 'reload', slot: 1, t: 81, ms: 8100 }] })
     expect(names(over(motion(true, sidekick, catalogue).at('A', 81.5, false, newClipMix()) as ClipMix))).toContain(extra[1].name)
     const plasma = testReplayDoc({ ...film, loadouts: [{ t: 0, slot: 1, w: ['0xc3542946'] }], inventory: [{ t: 0, slot: 1, d: 0 }] })
     expect(names(over(motion(true, plasma, catalogue).at('A', 70.75, false, newClipMix()) as ClipMix))).not.toContain('combat:rifle:reload_1')
     // The film writes the message twice at an equipment use: no reload starts there, and the one under way stops.
     const usage = { kind: 'reload', slot: 1, t: 73, ms: 7325 }
-    const coupe = testReplayDoc({ ...film, actions: [{ kind: 'reload', slot: 1, t: 70, ms: 7025 }, usage, usage] })
-    const m2 = motion(true, coupe, catalogue)
+    const cut = testReplayDoc({ ...film, actions: [{ kind: 'reload', slot: 1, t: 70, ms: 7025 }, usage, usage] })
+    const m2 = motion(true, cut, catalogue)
     expect(names(over(m2.at('A', 72.5, false, newClipMix()) as ClipMix))).toContain(extra[0].name)
     expect(names(over(m2.at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
-    const seul = testReplayDoc({ ...film, actions: [usage, usage] })
-    expect(names(over(motion(true, seul, catalogue).at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
+    const onlyUsage = testReplayDoc({ ...film, actions: [usage, usage] })
+    expect(names(over(motion(true, onlyUsage, catalogue).at('A', 73.5, false, newClipMix()) as ClipMix))).not.toContain(extra[0].name)
   })
 
   it('adds non-lethal strikes and keeps the timing of the neighboring lethal strike', () => {

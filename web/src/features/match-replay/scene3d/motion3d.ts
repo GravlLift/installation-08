@@ -18,7 +18,7 @@ import { carriedObjectAt } from '../model/weaponInHand'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { covers } from '../model/replaySpans'
 import type { ActionContext } from './actionScene3d'
-import { actionsParSlot, rechargementsParSlot, sautDepuisAction } from './filmActions3d'
+import { actionsBySlot, reloadsBySlot, jumpFromAction } from './filmActions3d'
 import { spartanClipsOf, type SpartanClips } from './clips3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
 import {
@@ -35,7 +35,7 @@ import { dodgeShots, firstPersonUses, type DodgeShot, type UseShot } from './equ
 import { fallKindOf } from './fall3d'
 import { bracketAt, gaitAt, lerpAt, type Bracket, type Gait } from './gait3d'
 import { heldWeaponAt, type HeldWeapon3d } from './heldWeapon3d'
-import { postureFilm } from './posturesFilm3d'
+import { filmPosture } from './posturesFilm3d'
 import { thrusterBursts } from './thruster3d_logic'
 import type { LifeView } from './tracks3d'
 import { CARRIED_OBJECT_CLASS, DEFAULT_WEAPON_CLASS, weaponClassOfKey, type WeaponClass } from './weaponClass3d'
@@ -59,9 +59,9 @@ export class Motion3d {
   private readonly ctx: ActionContext
   private readonly held: (slot: number, frame: number) => HeldWeapon3d | null
   private readonly stances = new Map<number, MotionStances>()
-  private readonly rechargements: Map<number, number[]>
+  private readonly reloadStarts: Map<number, number[]>
   /** The instants where the hands leave the weapon (`reloadStarts`): a reload in progress stops there. */
-  private readonly coupuresRechargement: Map<number, number[]>
+  private readonly reloadCuts: Map<number, number[]>
   private readonly coups: Map<number, number[]>
   private readonly grenades = new Map<number, number[]>()
   private readonly swaps = new Map<number, readonly WeaponSwap[]>()
@@ -91,21 +91,21 @@ export class Motion3d {
         byKind = { crouch: [], sprint: [], slide: [], clamber: [], jump: [] }
         this.stances.set(s.slot, byKind)
       }
-      ;(byKind[kind] as Span[]).push(postureFilm(s, ctx.doc))
+      ;(byKind[kind] as Span[]).push(filmPosture(s, ctx.doc))
     }
-    const rechargements = rechargementsParSlot(ctx.doc)
-    this.rechargements = rechargements.debuts
-    this.coupuresRechargement = rechargements.coupures
-    this.coups = actionsParSlot(ctx.doc, 'melee')
-    for (const [slot, debuts] of actionsParSlot(ctx.doc, 'jump')) {
+    const reloads = reloadsBySlot(ctx.doc)
+    this.reloadStarts = reloads.starts
+    this.reloadCuts = reloads.cuts
+    this.coups = actionsBySlot(ctx.doc, 'melee')
+    for (const [slot, starts] of actionsBySlot(ctx.doc, 'jump')) {
       let postures = this.stances.get(slot)
       if (!postures) {
         postures = { crouch: [], sprint: [], slide: [], clamber: [], jump: [] }
         this.stances.set(slot, postures)
       }
-      for (const debut of debuts) {
-        if (postures.jump.some((j) => covers({ t0: j.t0, t1: j.t1 + 1 }, debut))) continue
-        ;(postures.jump as Span[]).push(sautDepuisAction(ctx.doc, ctx.tracks, slot, debut))
+      for (const start of starts) {
+        if (postures.jump.some((j) => covers({ t0: j.t0, t1: j.t1 + 1 }, start))) continue
+        ;(postures.jump as Span[]).push(jumpFromAction(ctx.doc, ctx.tracks, slot, start))
       }
     }
     for (const byKind of this.stances.values()) for (const list of Object.values(byKind)) (list as Span[]).sort((a, b) => a.t0 - b.t0)
@@ -132,9 +132,9 @@ export class Motion3d {
     this.events.melee = this.melee.get(xuid) ?? NO_FRAMES
     this.events.grenade = this.grenades.get(life.slot) ?? NO_FRAMES
     this.events.swaps = this.swapsOf(life.slot)
-    this.events.reload = this.rechargement(xuid, life, frame)
+    this.events.reload = this.reloadAt(xuid, life, frame)
     this.events.dodges = this.usesAt(q.fps).dodges.get(life.slot) ?? NO_DODGES
-    q.reloadClip = this.clipRechargement(clips, life.slot, frame, q.weapon)
+    q.reloadClip = this.reloadClip(clips, life.slot, frame, q.weapon)
     return selectClips(q, clips, out)
   }
 
@@ -218,46 +218,46 @@ export class Motion3d {
       }
       for (const list of this.melee.values()) list.sort((a, b) => a - b)
     }
-    const cle = xuid + ':' + slot
-    const connue = this.meleeFusion.get(cle)
-    if (connue) return connue
-    const mortels = this.melee.get(xuid) ?? NO_FRAMES
+    const key = xuid + ':' + slot
+    const known = this.meleeFusion.get(key)
+    if (known) return known
+    const lethal = this.melee.get(xuid) ?? NO_FRAMES
     const coups = (this.coups.get(slot) ?? NO_FRAMES).filter((t) =>
-      this.ctx.tracks.life(xuid, t)?.slot === slot && !mortels.some((m) => Math.abs(m - t) <= 3))
+      this.ctx.tracks.life(xuid, t)?.slot === slot && !lethal.some((m) => Math.abs(m - t) <= 3))
     const fusion = coups
-    this.meleeFusion.set(cle, fusion)
+    this.meleeFusion.set(key, fusion)
     return fusion
   }
 
   /** A reload crosses neither a death, nor a weapon change, nor an instant where the hands leave the weapon. */
-  private rechargement(xuid: string, vie: LifeView, frame: number): readonly number[] {
-    const list = this.rechargements.get(vie.slot) ?? NO_FRAMES
+  private reloadAt(xuid: string, life: LifeView, frame: number): readonly number[] {
+    const list = this.reloadStarts.get(life.slot) ?? NO_FRAMES
     const t = list.findLast((f) => f <= frame)
-    return t !== undefined && this.rechargementValide(xuid, t, frame) ? [t] : NO_FRAMES
+    return t !== undefined && this.isReloadValid(xuid, t, frame) ? [t] : NO_FRAMES
   }
 
-  rechargementValide(xuid: string, t: number, frame: number): boolean {
-    const vie = this.ctx.tracks.life(xuid, frame)
-    if (!vie || this.ctx.tracks.life(xuid, t) !== vie) return false
-    const swaps = this.swapsOf(vie.slot)
+  isReloadValid(xuid: string, t: number, frame: number): boolean {
+    const life = this.ctx.tracks.life(xuid, frame)
+    if (!life || this.ctx.tracks.life(xuid, t) !== life) return false
+    const swaps = this.swapsOf(life.slot)
     for (let i = 0; i < swaps.length; i++) if (swaps[i].t > t && swaps[i].t <= frame) return false
-    if ((this.coupuresRechargement.get(vie.slot) ?? NO_FRAMES).some((c) => c > t && c <= frame)) return false
-    const avant = this.held(vie.slot, t)
-    return !!avant && avant.id === this.held(vie.slot, frame)?.id
+    if ((this.reloadCuts.get(life.slot) ?? NO_FRAMES).some((c) => c > t && c <= frame)) return false
+    const before = this.held(life.slot, t)
+    return !!before && before.id === this.held(life.slot, frame)?.id
   }
 
-  private clipRechargement(clips: SpartanClips, slot: number, frame: number, classe: WeaponClass) {
-    const arme = this.held(slot, frame)
-    if (!arme || classe === 'sword' || classe === 'hammer' || classe === 'ball') return null
-    const cle = this.ctx.doc.weaponLabels?.[arme.id]?.key
-    if (cle === 'hinf_plasma_pistol' || cle === 'hinf_pulse_carbine' || cle === 'hinf_stalker_rifle') return null
+  private reloadClip(clips: SpartanClips, slot: number, frame: number, weaponClass: WeaponClass) {
+    const weapon = this.held(slot, frame)
+    if (!weapon || weaponClass === 'sword' || weaponClass === 'hammer' || weaponClass === 'ball') return null
+    const key = this.ctx.doc.weaponLabels?.[weapon.id]?.key
+    if (key === 'hinf_plasma_pistol' || key === 'hinf_pulse_carbine' || key === 'hinf_stalker_rifle') return null
     const table = clips.weaponClips
-    if (!table) return clips.get(`combat:${classe}:reload_1`) ?? clips.get('combat:rifle:reload_1') ?? null
-    const entree = table.weapons.find((w) => w.weapon === weaponModelKey(arme.id))
-    if (entree && !entree.reload) return null
-    const nom = entree?.reload
-    const classeNom = table.classes.find((c) => c.class === classe)?.reload
-    return (nom && clips.get(nom)) || (classeNom && clips.get(classeNom)) || clips.get('combat:rifle:reload_1') || null
+    if (!table) return clips.get(`combat:${weaponClass}:reload_1`) ?? clips.get('combat:rifle:reload_1') ?? null
+    const entry = table.weapons.find((w) => w.weapon === weaponModelKey(weapon.id))
+    if (entry && !entry.reload) return null
+    const name = entry?.reload
+    const classReloadName = table.classes.find((c) => c.class === weaponClass)?.reload
+    return (name && clips.get(name)) || (classReloadName && clips.get(classReloadName)) || clips.get('combat:rifle:reload_1') || null
   }
 
   /** swapsOf: the slot's held-weapon changes, looked up once. */

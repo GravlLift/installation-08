@@ -31,7 +31,7 @@ import { api } from '@/lib/api/client'
 import { frameToMs } from '@/lib/replay/replayLogic'
 
 import { weaponInHand } from '../model/weaponInHand'
-import { episodesRechargementParSlot } from './filmActions3d'
+import { reloadEpisodesBySlot } from './filmActions3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
@@ -503,7 +503,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       // The magazine of the weapon in hand: full at spawn, then the film's readings, shots and reloads.
       const hand = weaponInHand(this.ctx.doc, track.slot, f)
       const atMs = frameToMs(f, this.ctx.doc)
-      const magazine = hand && line ? this.magazineEvents(line, hand.slotArme, clipS, atMs, fps) : []
+      const magazine = hand && line ? this.magazineEvents(line, hand.weaponSlot, clipS, atMs, fps) : []
       if (drawn) drawn.model.updateWorldMatrix(true, false)
       effects.forEach((e, ei) => {
         const scales = effectScales(e, { ready, reloading, ammo: magazineFraction(magazine, atMs, e.magazine) })
@@ -657,9 +657,9 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       if (!l) out.set(slot, (l = { reloads: [], shots: [], changes: [], magazines: new Map(), episodes: [] }))
       return l
     }
-    for (const [slot, eps] of episodesRechargementParSlot(doc)) {
+    for (const [slot, eps] of reloadEpisodesBySlot(doc)) {
       line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
-      line(slot).episodes = eps.map((ep) => ({ ep, w: weaponInHand(doc, slot, ep.etapes[0].t)?.slotArme ?? null }))
+      line(slot).episodes = eps.map((ep) => ({ ep, w: weaponInHand(doc, slot, ep.etapes[0].t)?.weaponSlot ?? null }))
     }
     const magazine = (slot: number, w: number) => {
       const m = line(slot).magazines
@@ -668,7 +668,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     }
     for (const s of doc.shots) {
       line(s.slot).shots.push(s.t)
-      const w = weaponInHand(doc, s.slot, s.t)?.slotArme
+      const w = weaponInHand(doc, s.slot, s.t)?.weaponSlot
       if (w != null) magazine(s.slot, w).push({ ms: frameToMs(s.t, doc) + (s.o ?? 0), kind: 'shot' })
     }
     for (const r of doc.ammoReads) if (r.mag != null) magazine(r.slot, r.w).push({ ms: r.ms, kind: 'read', rounds: r.mag })

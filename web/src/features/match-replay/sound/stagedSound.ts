@@ -74,7 +74,7 @@ function oneStaged(
     next ? frameToMs(next.etapes[0].t, doc) : Infinity,
     firstAt(f.shots, startMs, false),
     firstAt(f.changes, startMs, false),
-    f.hands.find((h) => h.ms > startMs && h.d !== held.slotArme)?.ms ?? Infinity,
+    f.hands.find((h) => h.ms > startMs && h.d !== held.weaponSlot)?.ms ?? Infinity,
   )
   // The rig's round clip: the empty one when the magazine was empty at the start (its `vide`).
   const round = magazineAtReload(doc, slot, startMs, starts) === 0 ? clips.roundEmpty : clips.round

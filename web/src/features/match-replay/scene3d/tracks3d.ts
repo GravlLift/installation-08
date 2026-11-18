@@ -17,7 +17,7 @@ import { covers } from '../model/replaySpans'
 import { fineLifePoints } from './fineTracks3d'
 import { bracketAt, gaitAt, lifeDistances, type Gait } from './gait3d'
 import { DUREE_ENTREE_OEIL, DUREE_SORTIE_OEIL, dropOeil, fusionnerIntervallees, SANS_INTERVALLE, type IntervalleOeil } from './eye3d'
-import { postureFilm } from './posturesFilm3d'
+import { filmPosture } from './posturesFilm3d'
 import { NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSamples } from './shields3d'
 
 export type Vec3 = [number, number, number]
@@ -129,24 +129,24 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
   }
   for (const ls of lives.values()) ls.sort((a, b) => a.t0 - b.t0)
 
-  const crouchBySlot = new Map<number, ReturnType<typeof postureFilm>[]>()
+  const crouchBySlot = new Map<number, ReturnType<typeof filmPosture>[]>()
   for (const s of doc.stances) {
     if (s.kind !== 'crouch') continue
     const list = crouchBySlot.get(s.slot) ?? []
-    list.push(postureFilm(s, doc))
+    list.push(filmPosture(s, doc))
     crouchBySlot.set(s.slot, list)
   }
   const crouching = (life: Life, f: number) =>
-    (crouchBySlot.get(life.slot) ?? []).some((s) => covers(s.intervalle, f) && f !== s.fin)
+    (crouchBySlot.get(life.slot) ?? []).some((s) => covers(s.interval, f) && f !== s.end)
   // The eye drops crouched as in a slide: the union of the slot's two postures, merged once per
   // document, then read by binary search (`eye3d`).
   const eyeBySlot = new Map<number, IntervalleOeil[]>()
   for (const s of doc.stances) {
     if (s.kind !== 'crouch' && s.kind !== 'slide') continue
-    const film = postureFilm(s, doc)
+    const film = filmPosture(s, doc)
     const list = eyeBySlot.get(s.slot) ?? []
     // The millisecond end is exclusive; without milliseconds, the end frame is inclusive.
-    list.push({ t0: film.t0, fin: film.fin ?? film.t1 + 1 })
+    list.push({ t0: film.t0, fin: film.end ?? film.t1 + 1 })
     eyeBySlot.set(s.slot, list)
   }
   for (const [slot, list] of eyeBySlot) eyeBySlot.set(slot, fusionnerIntervallees(list))

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { testReplayDoc } from '../test/testDoc'
-import { sautDepuisAction } from './filmActions3d'
+import { jumpFromAction } from './filmActions3d'
 import { buildTracks3d } from './tracks3d'
 
 function film(z: number[], atFullRate = true) {
@@ -15,7 +15,7 @@ function film(z: number[], atFullRate = true) {
 }
 
 function end(doc: ReturnType<typeof film>) {
-  return sautDepuisAction(doc, buildTracks3d(doc), 1, 0).t1 + 1
+  return jumpFromAction(doc, buildTracks3d(doc), 1, 0).t1 + 1
 }
 
 describe('film jump landing', () => {

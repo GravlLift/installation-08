@@ -31,7 +31,7 @@ export function magazineAtReload(doc: ReplayDocumentReady, slot: number, ms: num
   if (!main) return null
   let lecture: ReplayDocumentReady['ammoReads'][number] | null = null
   for (const r of doc.ammoReads) {
-    if (r.slot !== slot || r.w !== main.slotArme || r.mag == null || r.ms > ms) continue
+    if (r.slot !== slot || r.w !== main.weaponSlot || r.mag == null || r.ms > ms) continue
     if (!lecture || r.ms >= lecture.ms) lecture = r
   }
   if (!lecture || lecture.mag == null) return null

@@ -6,17 +6,17 @@ import { inventoryAt, type InventoryReading } from './inventoryReading'
 import { covers } from './replaySpans'
 
 /** The in-hand weapon slot of a life across the film: sorted instants and slot (0 or 1). */
-export interface SuiviMain {
+export interface HandTrack {
   ms: number[]
   w: number[]
 }
 
 /**
- * suivreMain dates the in-hand weapon per life, more finely than the inventory keyframe: each
+ * trackHand dates the in-hand weapon per life, more finely than the inventory keyframe: each
  * selector flip (`drawnWeapons`) and each per-shot magazine read (a magazine that moves is the
  * one of the in-hand weapon) assert the slot at its instant.
  */
-export function suivreMain(doc: ReplayDocumentReady): Map<number, SuiviMain> {
+export function trackHand(doc: ReplayDocumentReady): Map<number, HandTrack> {
   const faits = new Map<number, { ms: number; w: number }[]>()
   const noter = (slot: number, ms: number, w: number) => {
     const liste = faits.get(slot) ?? []
@@ -25,7 +25,7 @@ export function suivreMain(doc: ReplayDocumentReady): Map<number, SuiviMain> {
   }
   for (const d of doc.drawnWeapons) if (d.d != null) noter(d.slot, frameToMs(d.t, doc), d.d)
   for (const l of doc.ammoReads) if (l.src === 'delta' && l.mag != null && (l.w === 0 || l.w === 1)) noter(l.slot, l.ms, l.w)
-  const suivis = new Map<number, SuiviMain>()
+  const suivis = new Map<number, HandTrack>()
   for (const [slot, liste] of faits) {
     liste.sort((a, b) => a.ms - b.ms)
     suivis.set(slot, { ms: liste.map((f) => f.ms), w: liste.map((f) => f.w) })
@@ -33,7 +33,7 @@ export function suivreMain(doc: ReplayDocumentReady): Map<number, SuiviMain> {
   return suivis
 }
 
-const suivis = new WeakMap<ReplayDocumentReady, Map<number, SuiviMain>>()
+const suivis = new WeakMap<ReplayDocumentReady, Map<number, HandTrack>>()
 
 /**
  * The held weapon, settled by the dated reads and bounded to the current life. Before the first
@@ -48,11 +48,11 @@ const suivis = new WeakMap<ReplayDocumentReady, Map<number, SuiviMain>>()
  * emplacement 0 until its first dated read, as long as no weapon change is dated since birth.
  * A life with no loadout reading at all is named by its own shots (`armeDesTirs`).
  */
-export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
+export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; weaponSlot: number } | null {
   const life = currentLifeOf(doc, slot, frame)
   if (!life || carriedObjectAt(doc, life.xuid, frame)) return null
   let suivi = suivis.get(doc)
-  if (!suivi) { suivi = suivreMain(doc); suivis.set(doc, suivi) }
+  if (!suivi) { suivi = trackHand(doc); suivis.set(doc, suivi) }
   const events = suivi.get(slot)
   const vie = trackWindow(life)
   const lo = loadoutAt(doc, slot, frame)
@@ -68,7 +68,7 @@ export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: numb
   if (eventMs === -Infinity && !(inv && inv.age >= 0)) {
     const k = mainDeNaissance(doc, { slot, frame, naissance: vie.start }, lo)
     const id = k === undefined ? undefined : lo.weapons[k]
-    if (k !== undefined && id) return { id, slotArme: k }
+    if (k !== undefined && id) return { id, weaponSlot: k }
   }
   let d: number | undefined
   if (invFutur) {
@@ -80,7 +80,7 @@ export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: numb
   }
   if (d === 0 || d === 1) {
     const id = armeDeLEmplacement(doc, slot, frame, lo, d, vie.start)
-    if (id) return { id, slotArme: d }
+    if (id) return { id, weaponSlot: d }
     // The read designates an emplacement the row does not name, yet the row carries a single
     // weapon. When NO dated read (selector, per-shot magazine) has located the hand, the
     // designation is a keyframe inventory pointing at a slot whose magazine the film never
@@ -91,13 +91,13 @@ export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: numb
       const k = uniqueWeaponEmplacement(doc, { slot, frame, naissance: vie.start }, lo)
       if (k !== undefined) {
         const uid = armeDeLEmplacement(doc, slot, frame, lo, k, vie.start)
-        if (uid) return { id: uid, slotArme: k }
+        if (uid) return { id: uid, weaponSlot: k }
       }
     }
     // The read designates an emplacement neither the row nor a pickup names: a shot fired from
     // that emplacement names its weapon (the same proof as `armeDesTirs`).
     const uid = armeDuTir(doc, { slot, frame, naissance: vie.start }, d, vie.end, events)
-    if (uid) return { id: uid, slotArme: d }
+    if (uid) return { id: uid, weaponSlot: d }
   }
   // A past read of the life that does not locate the hand leaves it empty.
   if (eventMs !== -Infinity || (inv && inv.age >= 0)) return null
@@ -107,11 +107,11 @@ export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: numb
   const k = avantPremiereLecture(doc, { slot, frame, naissance: vie.start }, lo, suivante)
   if (k === undefined) return null
   const id = armeDeLEmplacement(doc, slot, frame, lo, k, vie.start)
-  return id ? { id, slotArme: k } : null
+  return id ? { id, weaponSlot: k } : null
 }
 
 /** lecturesJusqua: the number of dated hand reads of `events` at or before instant `ms`. */
-function lecturesJusqua(events: SuiviMain | undefined, ms: number): number {
+function lecturesJusqua(events: HandTrack | undefined, ms: number): number {
   let debut = 0, fin = events?.ms.length ?? 0
   while (debut < fin) {
     const milieu = Math.floor((debut + fin) / 2)
@@ -152,7 +152,7 @@ function mainDeNaissance(
  * birth (selector flip, per-shot magazine), else the spawn emplacement when no weapon change is
  * dated between the birth and the frame; undefined otherwise.
  */
-function mainA(doc: ReplayDocumentReady, vie: { slot: number; frame: number; naissance: number }, events: SuiviMain | undefined): number | undefined {
+function mainA(doc: ReplayDocumentReady, vie: { slot: number; frame: number; naissance: number }, events: HandTrack | undefined): number | undefined {
   const ms = frameToMs(vie.frame, doc)
   const index = lecturesJusqua(events, ms) - 1
   if (index >= 0 && events!.ms[index] >= frameToMs(vie.naissance, doc)) return events!.w[index]
@@ -169,12 +169,12 @@ function armeDesTirs(
   doc: ReplayDocumentReady,
   vie: { slot: number; frame: number; naissance: number },
   fin: number,
-  events: SuiviMain | undefined,
-): { id: string; slotArme: number } | null {
+  events: HandTrack | undefined,
+): { id: string; weaponSlot: number } | null {
   const d = mainA(doc, vie, events)
   if (d !== 0 && d !== 1) return null
   const id = armeDuTir(doc, vie, d, fin, events)
-  return id ? { id, slotArme: d } : null
+  return id ? { id, weaponSlot: d } : null
 }
 
 /**
@@ -189,7 +189,7 @@ function armeDuTir(
   vie: { slot: number; frame: number; naissance: number },
   d: number,
   fin: number,
-  events: SuiviMain | undefined,
+  events: HandTrack | undefined,
 ): string | null {
   let best: { id: string; ecart: number } | null = null
   for (const s of doc.shots) {
@@ -360,12 +360,12 @@ export function flagTeamInHand(doc: ReplayDocumentReady, slot: number, frame: nu
 }
 
 /**
- * objetEnMain: the objective object (skull, flag) that life `slot` carries at `frame`, under its
+ * handObject: the objective object (skull, flag) that life `slot` carries at `frame`, under its
  * weapon identifier; null outside carrying. The identifier comes from the most recent pickup of
  * the object slot by this life, failing that any pickup of the match (the carrying is dated by
  * the score or the flag spans, its pickup can follow it by a few frames or be missing).
  */
-export function objetEnMain(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; slotArme: number } | null {
+export function handObject(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; weaponSlot: number } | null {
   const life = currentLifeOf(doc, slot, frame)
   if (!life || !carriedObjectAt(doc, life.xuid, frame)) return null
   let propre: string | undefined, autre: string | undefined
@@ -377,12 +377,12 @@ export function objetEnMain(doc: ReplayDocumentReady, slot: number, frame: numbe
   }
   const w = propre ?? autre
   if (!w) return null
-  return { id: /^[0-9a-f]{8}$/i.test(w) ? `0x${w.toUpperCase()}` : w, slotArme: EMPLACEMENT_OBJET }
+  return { id: /^[0-9a-f]{8}$/i.test(w) ? `0x${w.toUpperCase()}` : w, weaponSlot: EMPLACEMENT_OBJET }
 }
 
 /**
  * flagObjectIdOf: the weapon identifier of the CTF flag of this film, the object its first
- * located carrier holds in hand (`objetEnMain`); null without any carry the film can place. Every
+ * located carrier holds in hand (`handObject`); null without any carry the film can place. Every
  * flag of a match is the same `weap` tag, the team only selects a permutation of its model.
  */
 export function flagObjectIdOf(doc: ReplayDocumentReady): string | null {
@@ -390,7 +390,7 @@ export function flagObjectIdOf(doc: ReplayDocumentReady): string | null {
     for (const sp of f.spans) {
       if (!sp.xuid || (sp.state !== 'carried' && sp.state !== 'carried_open')) continue
       const life = doc.tracks.find((t) => t.xuid === sp.xuid && isAliveAt(t, sp.t0))
-      const held = life ? objetEnMain(doc, life.slot, sp.t0) : null
+      const held = life ? handObject(doc, life.slot, sp.t0) : null
       if (held) return held.id
     }
   }

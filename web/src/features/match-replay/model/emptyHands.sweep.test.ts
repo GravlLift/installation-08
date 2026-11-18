@@ -22,7 +22,7 @@ import { frameToMs, isAliveAt, trackWindow } from '@/lib/replay/replayLogic'
 import { normalizeReplayDocument, type ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { currentLifeOf, loadoutAt } from '@/lib/replay/rosterLogic'
 
-import { weaponInHand, carriedObjectAt, suivreMain } from './weaponInHand'
+import { weaponInHand, carriedObjectAt, trackHand } from './weaponInHand'
 import { inventoryAt } from './inventoryReading'
 
 const BASE = 'http://127.0.0.1:8177'
@@ -124,7 +124,7 @@ function diagnose(doc: ReplayDocumentReady, slot: number, frame: number): { caus
   const end = life ? trackWindow(life).end : 0
   const lo = loadoutAt(doc, slot, frame)
   const inv = inventoryAt(doc, slot, frame)
-  const events = suivreMain(doc).get(slot)
+  const events = trackHand(doc).get(slot)
   const ms = frameToMs(frame, doc)
   const eventMs = lastDatedReadMs(events, ms, frameToMs(start, doc))
   const portees = lo ? lo.weapons.filter(Boolean).length : 0

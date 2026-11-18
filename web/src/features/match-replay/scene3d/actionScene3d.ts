@@ -29,7 +29,7 @@ import type { ClipMix } from './clipSample3d'
 import type { FlashLights } from './flash3d'
 import type { HeldWeapon3d } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
-import { actionsParSlot, episodesRechargementParSlot } from './filmActions3d'
+import { actionsBySlot, reloadEpisodesBySlot } from './filmActions3d'
 import { indexShotTimes, type SlotShots } from './recoilShots3d'
 import { preparerEvenementsPremierePersonne } from './firstPersonEvents3d'
 import type { ChangementArme, EvenementsPremierePersonne } from './firstPersonActions3d'
@@ -186,7 +186,7 @@ export class ActionScene3d {
   private firstPersonXuid = ''
   private readonly events: EvenementsPremierePersonne = {
     rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [], slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 1,
-    rechargementValide: (t, f) => this.moves.rechargementValide(this.firstPersonXuid, t, f),
+    rechargementValide: (t, f) => this.moves.isReloadValid(this.firstPersonXuid, t, f),
   }
   private readonly kicks = new Map<number, Recoil>()
 
@@ -198,8 +198,8 @@ export class ActionScene3d {
     this.ctx = ctx
     this.layers = layers
     this.held = held
-    this.reloadsBySlot = episodesRechargementParSlot(ctx.doc)
-    this.meleesBySlot = actionsParSlot(ctx.doc, 'melee')
+    this.reloadsBySlot = reloadEpisodesBySlot(ctx.doc)
+    this.meleesBySlot = actionsBySlot(ctx.doc, 'melee')
     this.firstPerson = preparerEvenementsPremierePersonne(ctx.doc, (slot, frame) => held.at(slot, frame))
     this.body = new BodyFx3d(ctx)
     this.moves = new Motion3d(ctx, (slot, frame) => held.at(slot, frame))

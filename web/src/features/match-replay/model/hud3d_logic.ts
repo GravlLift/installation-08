@@ -114,7 +114,7 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const inventory = inventoryAt(doc, slot, frame)
   const now = frameToMs(frame, doc)
   const held = weaponInHand(doc, slot, frame)
-  const inHand = held?.slotArme
+  const inHand = held?.weaponSlot
   const weapon = held
   const label = weapon ? doc.weaponLabels?.[weapon.id] : undefined
   const keyframe = inHand != null ? inventory?.state.am?.[inHand] : undefined

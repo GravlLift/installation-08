@@ -10,7 +10,7 @@ import type { Span } from './clipSelect3d'
 import { episodesRechargement, type EpisodeRechargement } from './firstPersonReload3d'
 import type { Tracks3d } from './tracks3d'
 
-export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<number, number[]> {
+export function actionsBySlot(doc: ReplayDocumentReady, kind: string): Map<number, number[]> {
   const out = new Map<number, number[]>()
   for (const a of doc.actions) {
     if (a.kind !== kind) continue
@@ -23,24 +23,24 @@ export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<numb
 }
 
 /**
- * rechargementsParSlot: each life's reload starts and reload cuts on the frame grid
+ * reloadsBySlot: each life's reload starts and reload cuts on the frame grid
  * (`reloadStarts`: a repeated instant starts no reload, it ends the one under way).
  */
-export function rechargementsParSlot(doc: ReplayDocumentReady): { debuts: Map<number, number[]>; coupures: Map<number, number[]> } {
+export function reloadsBySlot(doc: ReplayDocumentReady): { starts: Map<number, number[]>; cuts: Map<number, number[]> } {
   const starts = new Map<number, number[]>()
   const cuts = new Map<number, number[]>()
   for (const [slot, r] of reloadReadings(doc)) {
     if (r.starts.length > 0) starts.set(slot, r.starts.map((ms) => msToFrames(ms, doc)))
     if (r.cuts.length > 0) cuts.set(slot, r.cuts.map((ms) => msToFrames(ms, doc)))
   }
-  return { debuts: starts, coupures: cuts }
+  return { starts, cuts }
 }
 
 /**
- * episodesRechargementParSlot: each life's reload episodes (`episodesRechargement`) on the frame grid,
+ * reloadEpisodesBySlot: each life's reload episodes (`episodesRechargement`) on the frame grid,
  * each marked with whether the in-hand magazine was empty at its start (`magazineAtReload`).
  */
-export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<number, EpisodeRechargement[]> {
+export function reloadEpisodesBySlot(doc: ReplayDocumentReady): Map<number, EpisodeRechargement[]> {
   const out = new Map<number, EpisodeRechargement[]>()
   const fps = framesPerSecond(doc)
   for (const [slot, r] of reloadReadings(doc)) {
@@ -60,7 +60,7 @@ export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<numbe
 const PLATEAU_WITHOUT_FALL_S = 0.2
 
 /** Ends at vertical stabilization after movement, or after 1.5s with no landing observed. */
-export function sautDepuisAction(doc: ReplayDocumentReady, tracks: Tracks3d, slot: number, start: number): Span {
+export function jumpFromAction(doc: ReplayDocumentReady, tracks: Tracks3d, slot: number, start: number): Span {
   const climb = doc.stances.filter((s) => s.slot === slot && s.kind === 'clamber' && s.t0 >= start)
     .reduce((end, s) => Math.min(end, s.t0), Infinity)
   const limit = Math.min(start + msToFrames(1500, doc), climb)

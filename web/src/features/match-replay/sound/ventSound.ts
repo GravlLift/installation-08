@@ -80,7 +80,7 @@ function oneVent(
     next ? frameToMs(next.etapes[0].t, doc) : Infinity,
     firstAt(f.shots, startMs, false),
     firstAt(f.changes, startMs, false),
-    f.hands.find((h) => h.ms > startMs && h.d !== held.slotArme)?.ms ?? Infinity,
+    f.hands.find((h) => h.ms > startMs && h.d !== held.weaponSlot)?.ms ?? Infinity,
   )
   const cancelled = endMs < endBoucleMs + vent.exit.durationMs
   const xuid = trackIdentity(doc, slot)
