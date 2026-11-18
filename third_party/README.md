@@ -29,6 +29,15 @@ instead, which declares PerMonitorV2 itself and handles `WM_DPICHANGED`/`WM_GETD
   against an unplanned folder (see the global operating rules). The app sets
   `WEBVIEW2_USER_DATA_FOLDER` itself (`cmd/infinite-theater-3d/window_windows.go`) to its one
   fixed folder before creating the window; this change only makes the library honor it.
+- `libs/webview/include/webview.h` (LOCAL-CHANGE): `webview2_com_handler` also handles
+  `ProcessFailed` (a constexpr `IID_ICoreWebView2ProcessFailedEventHandler`, its `QueryInterface`
+  case, `add_ProcessFailed`, and the handler). When the page's render process exits (out of
+  memory on a large map, 2026-11-18), the window navigates to its address without the fragment,
+  the app's match list, instead of staying blank and frozen until a restart. A plain `Reload`
+  would reopen the route that crashed; an unresponsive renderer is left alone.
+- `webview.cc` (LOCAL-CHANGE): a revision comment for `webview.h`. Go's build cache hashes only
+  this package's own folder, so an edit to the header alone silently reuses the stale compiled
+  object: bump the revision line with every local edit of `webview.h`.
 - Everything else is unmodified: `go.sum` is empty upstream (no dependencies) and is copied as
   such; `examples/`, `webview_test.go`, `CHANGELOG.md`, `README.md`, `.github/` and `.gitignore`
   are omitted (not needed to build).

@@ -2557,6 +2557,13 @@ static constexpr IID IID_ICoreWebView2WebMessageReceivedEventHandler{
     0x00E6,
     0x49FA,
     {0x8E, 0x07, 0x89, 0x8E, 0xA0, 0x1E, 0xCB, 0xD2}};
+// LOCAL-CHANGE (infinite-theater-3d): the value of WebView2.h's
+// IID_ICoreWebView2ProcessFailedEventHandler, as a constant expression.
+static constexpr IID IID_ICoreWebView2ProcessFailedEventHandler{
+    0x79E0AEA4,
+    0x990B,
+    0x42D9,
+    {0xAA, 0x1D, 0x0F, 0xCC, 0x2E, 0x5B, 0xC7, 0xF1}};
 
 #if WEBVIEW_MSWEBVIEW2_BUILTIN_IMPL == 1
 enum class webview2_runtime_type { installed = 0, embedded = 1 };
@@ -2805,6 +2812,11 @@ static constexpr auto message_received =
 static constexpr auto permission_requested =
     cast_info_t<ICoreWebView2PermissionRequestedEventHandler>{
         IID_ICoreWebView2PermissionRequestedEventHandler};
+
+// LOCAL-CHANGE (infinite-theater-3d): see webview2_com_handler's ProcessFailed handler.
+static constexpr auto process_failed =
+    cast_info_t<ICoreWebView2ProcessFailedEventHandler>{
+        IID_ICoreWebView2ProcessFailedEventHandler};
 } // namespace cast_info
 } // namespace mswebview2
 
@@ -2812,7 +2824,8 @@ class webview2_com_handler
     : public ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
       public ICoreWebView2CreateCoreWebView2ControllerCompletedHandler,
       public ICoreWebView2WebMessageReceivedEventHandler,
-      public ICoreWebView2PermissionRequestedEventHandler {
+      public ICoreWebView2PermissionRequestedEventHandler,
+      public ICoreWebView2ProcessFailedEventHandler /* LOCAL-CHANGE (infinite-theater-3d) */ {
   using webview2_com_handler_cb_t =
       std::function<void(ICoreWebView2Controller *, ICoreWebView2 *webview)>;
 
@@ -2854,7 +2867,8 @@ public:
     if (cast_if_equal_iid(riid, controller_completed, ppv) ||
         cast_if_equal_iid(riid, environment_completed, ppv) ||
         cast_if_equal_iid(riid, message_received, ppv) ||
-        cast_if_equal_iid(riid, permission_requested, ppv)) {
+        cast_if_equal_iid(riid, permission_requested, ppv) ||
+        cast_if_equal_iid(riid, process_failed, ppv)) { // LOCAL-CHANGE (infinite-theater-3d)
       return S_OK;
     }
 
@@ -2890,6 +2904,7 @@ public:
     controller->get_CoreWebView2(&webview);
     webview->add_WebMessageReceived(this, &token);
     webview->add_PermissionRequested(this, &token);
+    webview->add_ProcessFailed(this, &token); // LOCAL-CHANGE (infinite-theater-3d)
 
     m_cb(controller, webview);
     return S_OK;
@@ -2912,6 +2927,31 @@ public:
     if (kind == COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ) {
       args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
     }
+    return S_OK;
+  }
+  // LOCAL-CHANGE (infinite-theater-3d): a page whose render process exits (out of memory on a
+  // large map, 2026-11-18) left the window blank and frozen until the app was restarted. The
+  // window now navigates to the same address without its fragment (the app's hash route), which
+  // opens the match list: a plain Reload would reopen the route that crashed and loop. An
+  // unresponsive renderer is left alone: a large map's load blocks the page for tens of seconds.
+  HRESULT STDMETHODCALLTYPE Invoke(ICoreWebView2 *sender,
+                                   ICoreWebView2ProcessFailedEventArgs *args) {
+    COREWEBVIEW2_PROCESS_FAILED_KIND kind;
+    if (FAILED(args->get_ProcessFailedKind(&kind)) ||
+        kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED) {
+      return S_OK;
+    }
+    LPWSTR source = nullptr;
+    if (FAILED(sender->get_Source(&source)) || !source) {
+      return S_OK;
+    }
+    std::wstring url(source);
+    CoTaskMemFree(source);
+    auto hash = url.find(L'#');
+    if (hash != std::wstring::npos) {
+      url.erase(hash);
+    }
+    sender->Navigate(url.c_str());
     return S_OK;
   }
 
