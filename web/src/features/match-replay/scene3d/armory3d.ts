@@ -156,14 +156,17 @@ export class SpartanArmory {
     const { coat } = await buildMaterialsCoat(armor, manifest, this.library)
     if (this.disposed) return null
     const paint = new Map(coat)
+    let weaponPainted = 0
     if (weapon.length > 0) {
       const weaponLib = this.weaponLibrary ?? this.ownWeaponLibrary()
       const entry = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === weaponKey) ?? null
       if (weaponLib) {
         const { coat: weaponCoat } = await buildWeaponCoat(weapon, entry?.style_key || null, weaponLib)
+        weaponPainted = weaponCoat.size
         for (const [m, p] of weaponCoat) paint.set(m, p)
       }
     }
+    console.info(`3D replay: rig ${xuid} (${weaponKey}): ${coat.size} arm materials, ${weaponPainted} weapon materials painted`)
     return paint
   }
 

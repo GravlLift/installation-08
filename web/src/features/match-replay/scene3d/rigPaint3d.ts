@@ -20,7 +20,7 @@ import type { LoadGate } from './loadGate3d'
 
 import { armorMaterial } from './armorMaterial3d'
 import type { Dress, SpartanArmory } from './armory3d'
-import { isArmMaterial, samePaint } from './firstPersonArms3d'
+import { isPaintedMaterial, samePaint } from './firstPersonArms3d'
 import type { BakedLight } from './bakedLightShader'
 import type { Coat } from './armorCoat3d'
 import { energyCopy, energyTintOf, isEnergized } from './energyField3d'
@@ -206,7 +206,7 @@ function paintableMaterials(root: THREE.Object3D, source: (m: THREE.Material) =>
     if (!(object instanceof THREE.Mesh) || !object.visible) return
     for (const m of Array.isArray(object.material) ? object.material : [object.material]) {
       const original = source(m)
-      if (isArmMaterial(original) && original.userData.style && !result.includes(original)) result.push(original)
+      if (isPaintedMaterial(original) && original.userData.style && !result.includes(original)) result.push(original)
     }
   })
   return result

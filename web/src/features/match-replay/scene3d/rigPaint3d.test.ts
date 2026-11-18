@@ -86,6 +86,20 @@ describe('RigPaint3d', () => {
     expect((b.root.children[0] as THREE.Mesh).material).toBe(b.material)
   })
 
+  it('applies a prepared coat to a styled rig weapon and the arms', () => {
+    const arm = armRig(), weapon = armRig()
+    weapon.material.userData.rigWeapon = true
+    weapon.material.userData.style = { stylelist: 'e868f305', region: '095e93ad', layers: 7 }
+    arm.root.add(weapon.root.children[0])
+    const armory = armoryFor({} as Dress)
+    const coat = new Map([...coatFor(arm.material), ...coatFor(weapon.material)])
+    const paint = paintFor(arm.root, armory.armory, preparationFor(coat), () => 'f408190f')
+    paint.refresh('rifle', arm.root)
+    const painted = (arm.root.children[1] as THREE.Mesh).material as THREE.Material
+    expect(paint.sourceMaterial(painted)).toBe(weapon.material)
+    expect(painted).not.toBe(weapon.material)
+    expect(armory.paintArms).not.toHaveBeenCalled()
+  })
   it('rejects a prepared coating that does not cover the rig\'s pieces', async () => {
     const a = armRig(), piece = armRig(), b = armRig()
     a.root.add(piece.root.children[0])
