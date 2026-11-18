@@ -167,11 +167,35 @@ interface Prepared {
   glowAnimation: GlowAnimator
   /**
    * The GLB's decoder (`GLTFParser`): the only reference keeping the pre-merge data alive (JSON,
-   * binary chunk, main buffer, accessors, decoded images). Read by `prepareSurfaces` and
-   * `loadBakedLight` only; never retained by the rendered model, so that data is collectable as
-   * soon as the model is built.
+   * the binary chunk's copy, the downloaded GLB through its loading manager, accessors, decoded
+   * images: about 1 GB for Aquarius, 2026-11-18 heap snapshot). Read by `prepareSurfaces` and
+   * `readSkyAndLight` only, then cleared (`releaseParser`), so that data is collectable as soon as
+   * the model is built. It must never be named in a function that also creates the model's
+   * methods: V8 keeps every variable an inner closure uses in one shared context, so the model's
+   * `dispose` held the decoder, and the GLB with it, for the whole session.
    */
-  parser: GLTFParser
+  parser: GLTFParser | null
+}
+
+/** releaseParser drops `prepared`'s decoder (see `Prepared.parser`). */
+function releaseParser(prepared: Prepared): void {
+  prepared.parser = null
+}
+
+/**
+ * readSkyAndLight reads the sky's texture and the baked light through the decoder, then releases
+ * it. A function of its own so that `loadMapModel`, whose closures become the model's methods,
+ * never names the decoder.
+ */
+async function readSkyAndLight(prepared: Prepared, lamps: ReturnType<typeof readPlacedLights>) {
+  const { scene, parser, owned } = prepared
+  if (!parser) throw new Error('3D replay: the map decoder was already released')
+  const cielInfo = lireCiel(scene.userData)
+  const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
+  const baked = await timed('map:baked-light', () => loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps))
+  if (baked) for (const m of owned) baked.apply(m)
+  releaseParser(prepared)
+  return { ciel, baked }
 }
 
 /** emits: the glTF material carries its own light (`emissiveFactor`, strengthened by extension). */
@@ -256,14 +280,10 @@ export function glassTintOf(couches: LayeredInfo): [number, number, number] | nu
  */
 export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<MapModel> {
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? WEBGL2_LIMITS : null, ktx2, 'map')
-  const { scene, parser, owned, merge } = prepared
-  // Last read of the decoder: after this, the model retains no reference to it and the
-  // pre-merge data it holds (see `Prepared.parser`) becomes collectable.
-  const lamps = readPlacedLights(scene.userData)
-  const cielInfo = lireCiel(scene.userData)
-  const ciel = cielInfo ? { color: cielInfo.color, texture: cielInfo.texture === null ? null : await parser.getDependency('texture', cielInfo.texture) as THREE.Texture } : null
-  const baked = await timed('map:baked-light', () => loadBakedLight(scene.userData, parser, BAKED_INTENSITY, lamps))
-  if (baked) for (const m of owned) baked.apply(m)
+  const { scene, merge } = prepared
+  // The decoder's last reads, in a function of its own (see `Prepared.parser`): after this the
+  // pre-merge data it holds is collectable.
+  const { ciel, baked } = await readSkyAndLight(prepared, readPlacedLights(scene.userData))
   const model = await indexSurfaces(prepared, onStep, 'map', bvhCache)
   // Entries `adoptCopies` adds later (environment-probe copies) are this attach's own: a session
   // cache reattaching this model on a later match resets them first (`resetCopies`).
@@ -297,6 +317,7 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
 export async function loadLayerModel(buffer: ArrayBuffer, light: BakedLight | null, onStep: StepCallback = quiet, ktx2: KTX2Loader | null = null, bvhCache: ArrayBuffer | null = null): Promise<SurfaceModel> {
   // Merged like the map's, two arrays short: its surfaces are drawn as batches (layerBatch3d).
   const prepared = await prepareSurfaces(buffer, onStep, MERGE_LAYERED ? BATCHED_LIMITS : null, ktx2, 'variant')
+  releaseParser(prepared) // a layer reads nothing more through it (see `Prepared.parser`)
   if (light) for (const m of prepared.owned) light.apply(m)
   const model = await indexSurfaces(prepared, onStep, 'variant', bvhCache)
   model.glowAnimation.markBaseline() // see loadMapModel: bounds what a reattach's adoptCopies may add
@@ -422,14 +443,27 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
  * them (layers, cutouts, own light) and tags them for the inspector; `ombre*` nodes are hidden.
  * `mergeLimits`: opaque layered materials get converted to merged materials (`convertLayered`).
  */
-async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null, label: string): Promise<Prepared> {
-  // The "materials" step: decoding the GLB's images is its long wait. The loading manager
-  // counts them (itemStart / itemEnd, one per image) so the bar advances image by image; with no
-  // image, it stays at the start of the bar.
+/**
+ * stepManager: a loading manager that reports the "materials" step. Decoding the GLB's images is
+ * its long wait; the manager counts them (itemStart / itemEnd, one per image) so the bar advances
+ * image by image, and with no image it stays at the start of the bar. A function of its own: the
+ * decoder keeps its manager, and the progress closure must hold `onStep` only, never the GLB.
+ */
+function stepManager(onStep: StepCallback): LoadingManager {
   const manager = new LoadingManager()
   manager.onProgress = (_url, done, total) => onStep('materials', done, total)
+  return manager
+}
+
+/** parseGlb decodes the GLB; the buffer is named here only, never in `prepareSurfaces`'s closures. */
+function parseGlb(buffer: ArrayBuffer, onStep: StepCallback, ktx2: KTX2Loader | null, label: string) {
   onStep('materials', 0, 0)
-  const gltf = await timed(`${label}:gltf-parse`, () => withKtx2(new GLTFLoader(manager), ktx2).parseAsync(buffer, ''))
+  const loader = withKtx2(new GLTFLoader(stepManager(onStep)), ktx2)
+  return timed(`${label}:gltf-parse`, () => loader.parseAsync(buffer, ''))
+}
+
+async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeLimits: ArrayLimits | null, ktx2: KTX2Loader | null, label: string): Promise<Prepared> {
+  const gltf = await parseGlb(buffer, onStep, ktx2, label)
   const materialsStart = now()
   timedSync(`${label}:markers`, () => dropMarkerObjects(gltf.scene))
   const { mats, groups, owned } = familyMaterials()

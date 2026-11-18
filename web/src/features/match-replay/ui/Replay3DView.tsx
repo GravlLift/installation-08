@@ -71,6 +71,26 @@ const MB = 1024 * 1024
 /** How far a pointer may move (CSS px) over the minimap before it is a drag, not a click. */
 const MINIMAP_DRAG_PX = 4
 
+/**
+ * downloadMapModel fetches the map's GLB with its ray-index sidecar and decodes them. A function of
+ * its own so the downloaded GLB (hundreds of MB) is named only here: in the scene effect, an inner
+ * closure that outlives the load (the scene's color callback, the idle upload) keeps that
+ * function's whole closure context, and with it every variable an inner closure uses (V8), alive
+ * for the scene's lifetime.
+ */
+async function downloadMapModel(
+  meshPath: string,
+  onProgress: (loaded: number, total: number) => void,
+  onStep: Parameters<typeof loadMapModel>[1],
+  ktx2: Parameters<typeof loadMapModel>[2],
+  signal: AbortSignal,
+  onDownloaded: () => void,
+): ReturnType<typeof loadMapModel> {
+  const [buffer, bvhCache] = await Promise.all([fetchMesh(meshPath, onProgress, signal), fetchBVHCache(meshPath, signal)])
+  onDownloaded()
+  return timed('map:load', () => loadMapModel(buffer, onStep, ktx2, bvhCache))
+}
+
 export interface Replay3DViewProps {
   meshPath: string
   /** The variant's object layer, placed on the map once loaded; null with no layer. */
@@ -229,12 +249,9 @@ export function Replay3DView({
         } else {
           // The sidecar is small next to the GLB: fetched alongside it, never after, so a cache
           // hit never adds a round trip to the critical path.
-          const [buffer, bvhCache] = await Promise.all([
-            fetchMesh(meshPath, onProgress, abort.signal),
-            fetchBVHCache(meshPath, abort.signal),
-          ])
-          if (alive) progress.mapDownloaded()
-          model = await timed('map:load', () => loadMapModel(buffer, onStep, scene.textureLoader, bvhCache))
+          model = await downloadMapModel(meshPath, onProgress, onStep, scene.textureLoader, abort.signal, () => {
+            if (alive) progress.mapDownloaded()
+          })
           if (!alive) {
             model.dispose()
             return

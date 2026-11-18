@@ -326,6 +326,24 @@ export function packLayers(layers: readonly LayerInfo[], hasNormal: readonly boo
 }
 
 /**
+ * loadLayerTextures loads each layer's color, normal and control maps and the mask. A function of
+ * its own so that `layeredMaterial`, whose closures stay on the material (`onBeforeCompile`,
+ * `customProgramCacheKey`), never names the decoder in a closure: V8 keeps every variable an inner
+ * closure uses in one context shared by all of a function's closures, so every layered material
+ * held the GLB's decoder and its 500 MB binary chunk for the whole session (Aquarius, 2026-11-18
+ * heap snapshot).
+ */
+function loadLayerTextures(layers: readonly LayerInfo[], info: LayeredInfo, parser: GLTFParser) {
+  const color = (l: LayerInfo) => (l.sorte === 'couleur' ? THREE.SRGBColorSpace : THREE.NoColorSpace)
+  return Promise.all([
+    Promise.all(layers.map((l) => load(parser, l.texture, color(l)))),
+    Promise.all(layers.map((l) => load(parser, l.normale, THREE.NoColorSpace))),
+    Promise.all(layers.map((l) => load(parser, l.controle, THREE.NoColorSpace))),
+    load(parser, info.masque, THREE.NoColorSpace),
+  ])
+}
+
+/**
  * layeredMaterial clones `base` (same lighting, same fog) and replaces its color, normal,
  * roughness and metal with the layer composition from `info`.
  */
@@ -335,13 +353,7 @@ export async function layeredMaterial(
   parser: GLTFParser,
 ): Promise<THREE.MeshStandardMaterial> {
   const layers = info.couches.slice(0, MAX_LAYERS)
-  const color = (l: LayerInfo) => (l.sorte === 'couleur' ? THREE.SRGBColorSpace : THREE.NoColorSpace)
-  const [maps, normals, controls, mask] = await Promise.all([
-    Promise.all(layers.map((l) => load(parser, l.texture, color(l)))),
-    Promise.all(layers.map((l) => load(parser, l.normale, THREE.NoColorSpace))),
-    Promise.all(layers.map((l) => load(parser, l.controle, THREE.NoColorSpace))),
-    load(parser, info.masque, THREE.NoColorSpace),
-  ])
+  const [maps, normals, controls, mask] = await loadLayerTextures(layers, info, parser)
 
   const uniforms: Record<string, THREE.IUniform> = {
     uMask: { value: mask },
