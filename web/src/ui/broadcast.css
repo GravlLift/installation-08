@@ -332,6 +332,9 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 .bc-player-map { font-weight: 700; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
 .bc-player-meta { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); }
 .bc-player-top .bc-spacer { flex: 1; }
+.bc-match-id { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--ink-dim); white-space: nowrap; cursor: pointer; }
+.bc-match-id:hover, .bc-match-id:focus-visible { color: var(--ink); }
+.bc-pregame-id { position: absolute; right: 36px; bottom: 48px; z-index: 2; }
 .bc-player-notice { font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
 /* A notice that can carry a server message (the coatings setup's failure): one line, cut with
  * an ellipsis, the full text in its tooltip. */

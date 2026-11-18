@@ -16,6 +16,7 @@
  * tested there.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MatchId } from './MatchId'
 
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 import {
@@ -337,6 +338,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
     <>
     {viewer}
     <div className="bc-over">
+    <div className="bc-pregame-id"><MatchId matchId={matchId} /></div>
     <Screen
       id="pregame"
       gamertag={gamertag}

@@ -33,6 +33,7 @@ import { useCameraChoice } from './useCameraChoice'
 import { usePlayerChromeInsets } from './usePlayerChromeInsets'
 import { usePlayerMarks } from './usePlayerMarks'
 import { useVariantSource } from './useVariantLayer'
+import { MatchId } from './MatchId'
 import { MESH_BUILD_POLL_MS, useMeshBuild } from './useMeshBuild'
 import { buildLineOf } from './preGameModel'
 import { ProgressLine } from './ProgressLine'
@@ -306,6 +307,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
         {mapName && <span className="bc-player-map">{mapName}</span>}
         {meta && <span className="bc-player-meta">{meta}</span>}
         <span className="bc-spacer" />
+        <MatchId matchId={matchId} />
         {coatings.notice && coatings.canSetUp && <CoatingsSetupControl notice={coatings.notice} />}
         {coatings.notice && !coatings.canSetUp && (
           <span data-testid="coatings-notice" title={COATING_NOTICE_TOOLTIP} className="bc-player-notice">
