@@ -3,7 +3,8 @@ import { useCopyToClipboard } from '../lib/clipboard/useCopyToClipboard'
 
 export function MatchId({ matchId }: { matchId: string }) {
   const { copy, copied } = useCopyToClipboard()
-  return <button type="button" className="bc-match-id" onClick={() => void copy(matchId)}>
-    <span>{matchId}</span> <span>{copied ? 'Copied' : 'Copy'}</span>
+  // The ID alone; a click copies it, and "Copied" shows beside it only right after.
+  return <button type="button" className="bc-match-id" title="Click to copy the match ID" onClick={() => void copy(matchId)}>
+    <span>{matchId}</span>{copied ? <span> Copied</span> : null}
   </button>
 }
