@@ -158,17 +158,24 @@ function useMatchDocument(matchId: string, attempt: number, quality: TextureQual
 function QualityChoice({
   cancelled,
   preferred,
+  built,
   onPick,
 }: {
   cancelled: boolean
   preferred: TextureQuality
+  /** Which qualities the match list reports built: those load at once instead of building. */
+  built: Partial<Record<TextureQuality, boolean>>
   onPick: (quality: TextureQuality) => void
 }) {
+  const anyBuilt = TEXTURE_QUALITIES.some((q) => built[q])
+  const intro = cancelled
+    ? 'Build cancelled. Pick a texture quality.'
+    : anyBuilt
+      ? `This map is not built at ${QUALITY_BUILD_COST[preferred].name} yet. Load the quality already built, or build this one.`
+      : 'This map has not been built yet. Pick a texture quality to build it.'
   return (
     <div className="bc-quality-choice" data-testid="quality-choice">
-      <div className="bc-step">
-        {cancelled ? 'Build cancelled.' : 'This map has not been built yet.'} Pick a texture quality to build it.
-      </div>
+      <div className="bc-step">{intro}</div>
       <div className="bc-quality-options" role="group" aria-label="Texture quality">
         {TEXTURE_QUALITIES.map((q) => {
           const cost = QUALITY_BUILD_COST[q]
@@ -180,10 +187,10 @@ function QualityChoice({
               data-testid={`build-quality-${q}`}
               onClick={() => onPick(q)}
             >
-              <b>Build {cost.name}</b>
-              <small>
-                {cost.time}, {cost.size}
-              </small>
+              <b>
+                {built[q] ? 'Load' : 'Build'} {cost.name}
+              </b>
+              <small>{built[q] ? 'already built, loads at once' : `${cost.time}, ${cost.size}`}</small>
             </button>
           )
         })}
@@ -348,7 +355,13 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
       items={[
         <span key="server">
           <TickerDot bad={state.phase === 'error'} />
-          {state.phase === 'error' ? 'Failed to load the match' : state.phase === 'missing' ? stepLabel : 'Match loading'}
+          {state.phase === 'error'
+            ? 'Failed to load the match'
+            : state.phase === 'missing'
+              ? stepLabel
+              : choosing
+                ? 'Waiting for a texture quality pick'
+                : 'Match loading'}
         </span>,
       ]}
       keys={counting ? [['Any key', 'Skip'], ['Esc', 'Back']] : [['Esc', 'Back']]}
@@ -393,6 +406,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
                 <QualityChoice
                   cancelled={buildPhase.phase === 'cancelled'}
                   preferred={quality}
+                  built={{ standard: summary?.readyStandard, high: summary?.readyHigh }}
                   onPick={onPickQuality}
                 />
               ) : counting ? null : (

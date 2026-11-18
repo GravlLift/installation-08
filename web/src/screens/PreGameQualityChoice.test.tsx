@@ -40,6 +40,7 @@ function serve(built: Array<'standard' | 'high'>) {
     const q = high ? 'high' : 'standard'
     if (url === '/api/auth/state') return json({ state: 'signed_out' })
     if (url === `/api/matches/${ID}/replay`) return json({ id: ID })
+    if (url === '/api/matches') return json([{ matchId: ID, mapName: 'Streets', players: [], readyStandard: built.includes('standard'), readyHigh: built.includes('high') }])
     if (url.startsWith(`/api/matches/${ID}/mesh.glb`)) {
       if (built.includes(q)) return json(null, 200)
       return json({ error: 'mesh_not_built', moduleKey: 'streets' }, 404)
@@ -85,6 +86,21 @@ describe('the pre-game quality choice', () => {
     // The default (Standard) is the marked one.
     expect(screen.getByTestId('build-quality-standard')).toHaveClass('on')
     expect(screen.queryByTestId('replay-viewer')).toBeNull()
+  })
+
+  it('marks the quality already built as Load and says it waits for a pick', async () => {
+    serve(['standard'])
+    localStorage.setItem(QUALITY_KEY, 'high')
+    render(<PreGameScreen matchId={ID} onBack={vi.fn()} />)
+    await flush()
+    await flush()
+
+    expect(screen.getByTestId('quality-choice').textContent).toContain('not built at High yet')
+    expect(screen.getByTestId('build-quality-standard').textContent).toContain('Load Standard')
+    expect(screen.getByTestId('build-quality-standard').textContent).toContain('already built')
+    expect(screen.getByTestId('build-quality-high').textContent).toContain('Build High')
+    expect(document.body.textContent).toContain('Waiting for a texture quality pick')
+    expect(document.body.textContent).not.toContain('Match loading')
   })
 
   it('picking High stores it and builds only High', async () => {
