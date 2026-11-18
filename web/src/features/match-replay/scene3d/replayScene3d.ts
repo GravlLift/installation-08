@@ -741,7 +741,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       if (!a) continue
       const s = tracks.sample(p.xuid, f)
       const rider = this.action?.riderAt(p.xuid, f) ?? null // aboard, the biped stops replicating: it follows its vehicle
-      const firstPerson = p.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
+      const firstPerson = !rider && p.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
       if (!s && !rider) {
         a.group.visible = false
         a.tag.visible = false

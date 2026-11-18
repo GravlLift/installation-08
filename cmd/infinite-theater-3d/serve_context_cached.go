@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,12 +55,12 @@ func contextReadJSON(path string) map[string]any {
 func contextNumber(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
-		return n, true
+		return n, !math.IsNaN(n) && !math.IsInf(n, 0)
 	case int:
 		return float64(n), true
 	case string:
 		x, e := strconv.ParseFloat(n, 64)
-		return x, e == nil
+		return x, e == nil && !math.IsNaN(x) && !math.IsInf(x, 0)
 	}
 	return 0, false
 }

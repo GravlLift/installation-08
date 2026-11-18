@@ -132,6 +132,13 @@ describe('Motion3d', () => {
     const a = motion().at('A', 30, true, newClipMix()) as ClipMix
     expect(base(a).map((l) => [l.name, l.weight])).toEqual([['combat:rifle:idle', 1]])
   })
+  it('uses the vehicle seat animation when the clip is available', () => {
+    const seat = fakeClip('ghost_d:idle', 1)
+    const clips = new SpartanClips([...CATALOG.names().map((name) => CATALOG.get(name) as SpartanClip), seat])
+    const result = motion(true, doc, clips).at('A', 30, true, newClipMix(), 'ghost_d:idle') as ClipMix
+    expect(names(base(result))).toEqual(['ghost_d:idle'])
+    expect(over(result)).toEqual([])
+  })
   it('derives the jump from the rise then the landing and keeps the published fallback', () => {
     const film = testReplayDoc({
       frameIntervalMs: 100, originMs: 12000,

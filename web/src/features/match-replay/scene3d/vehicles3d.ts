@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * vehicles3d.ts — VEHICLES IN THE 3D SCENE: a box per vehicle, a cone on its nose.
+ * vehicles3d.ts — vehicles in the 3D scene, with a box and cone until their models load.
  *
  * What draws is what the 2D draws (`layers/vehiclesPaint.ts`): neither decor, nor map decor, nor
  * a mounted turret (`vehicleIsHidden`); a map element draws with the "no team" ink; a vehicle
@@ -17,11 +17,12 @@ import * as THREE from 'three'
 
 import type { ReplayVehicleTrackReady } from '../../../lib/replay/replayNormalize'
 import { vehicleChassisHeadingAt } from '../model/vehiclesAim'
-import { vehicleIsHidden, vehiclePaintColor, vehicleSpriteFamily, vehicleVisibleAt } from '../model/vehiclesLayer'
+import { vehicleActiveRides, vehicleIsHidden, vehiclePaintColor, vehicleSpriteFamily, vehicleVisibleAt } from '../model/vehiclesLayer'
 import type { Action3dInputs } from './action3dInputs'
 import { InstancePool } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { toThree } from './tracks3d'
+import { WeaponModelPool } from './weaponModels3d'
 import {
   RIDER_ABOVE_BOTTOM,
   buildRiderIndex,
@@ -43,6 +44,12 @@ const NOSE_RADIUS = 0.18
 const NOSE_RADIUS_OF_WIDTH = 0.3
 
 const UP = new THREE.Vector3(0, 1, 0)
+// shortcut: armed variants use the base chassis, upgrade when their mounted weapons are assembled.
+const VEHICLE_MODELS: Readonly<Record<string, string>> = {
+  warthog: 'fe32c0f4', rockethog: 'fe32c0f4', warthog_gauss: 'fe32c0f4', razorback: 'fe32c0f4',
+  mongoose: 'af31ab1a', gungoose: 'af31ab1a', ghost: '5b80c406', scorpion: '0000d3db',
+  wasp: 'b65b3b4a', banshee: '000026ed', wraith: '00002706', chopper: '002ba902',
+}
 
 /** A drawable life, prepared once: its rank in the document and its published kind. */
 interface VehicleEntry {
@@ -64,6 +71,8 @@ interface VehiclePose {
 export class Vehicles3dLayer implements ActionLayer3d {
   private readonly bodies: InstancePool
   private readonly noses: InstancePool
+  private readonly models: WeaponModelPool
+  private readonly modelBottoms = new Map<THREE.Object3D, number>()
   private readonly tracks: readonly ReplayVehicleTrackReady[]
   private readonly entries: VehicleEntry[]
   private readonly sizes: VehicleSize3d[]
@@ -93,18 +102,25 @@ export class Vehicles3dLayer implements ActionLayer3d {
     // The cone points toward local +X: the box's heading axis.
     const nose = new THREE.ConeGeometry(1, 1, 12).rotateZ(-Math.PI / 2)
     this.noses = new InstancePool(ctx.root, nose, new THREE.MeshBasicMaterial({ toneMapped: false }), CAPACITY)
+    this.models = new WeaponModelPool(ctx.root)
   }
 
   update(frame: number): void {
     const inputs = this.ctx.inputs()
     this.bodies.begin()
     this.noses.begin()
+    this.models.begin()
     if (inputs.show.vehicles) {
       for (const entry of this.entries) {
         const track = this.tracks[entry.index]
         if (!vehicleVisibleAt(track, frame)) continue
         const pose = this.poseAt(entry.index, frame)
-        if (pose) this.draw(pose, this.colorOf(track, entry, frame, inputs))
+        if (pose) {
+          const key = VEHICLE_MODELS[vehicleSpriteFamily(track) ?? '']
+          const model = key ? this.ctx.weaponModel(key) : null
+          if (model) this.drawModel(pose, model)
+          else this.draw(pose, this.colorOf(track, entry, frame, inputs))
+        }
       }
     }
     this.bodies.end()
@@ -116,6 +132,17 @@ export class Vehicles3dLayer implements ActionLayer3d {
     if (!seat) return null
     const pose = this.poseAt(seat.vehicle, frame)
     if (!pose) return null
+    const track = this.tracks[seat.vehicle]
+    const ride = vehicleActiveRides(track, frame).find((r) => r.xuid === xuid)
+    const key = VEHICLE_MODELS[vehicleSpriteFamily(track) ?? '']
+    const model = key ? this.ctx.weaponModel(key) : null
+    const marker = ride?.seat == null ? null : model?.userData.vehicleSeats?.[ride.seat] as [number, number, number] | undefined
+    if (model && marker) {
+      let bottom = this.modelBottoms.get(model)
+      if (bottom === undefined) { bottom = new THREE.Box3().setFromObject(model).min.y; this.modelBottoms.set(model, Number.isFinite(bottom) ? bottom : 0) }
+      const offset = new THREE.Vector3(...toThree(...marker)).applyAxisAngle(UP, pose.heading * Math.PI / 180 + Math.PI)
+      return offset.add(new THREE.Vector3(pose.x, pose.bottom - (Number.isFinite(bottom) ? bottom : 0), pose.z))
+    }
     const { dx, dy } = rotateOffset(seatOffset(seat.order, pose.size), pose.heading)
     // Halo (dx, dy) -> three.js (dx, -dy): the same conversion as `toThree`.
     return new THREE.Vector3(pose.x + dx, pose.bottom + RIDER_ABOVE_BOTTOM, pose.z - dy)
@@ -127,9 +154,35 @@ export class Vehicles3dLayer implements ActionLayer3d {
     return seat ? (this.poseAt(seat.vehicle, frame)?.heading ?? null) : null
   }
 
+  riderClipAt(xuid: string, frame: number): string | null {
+    const seat = this.seatOf(xuid, frame)
+    if (!seat) return null
+    const track = this.tracks[seat.vehicle]
+    const ride = vehicleActiveRides(track, frame).find((r) => r.xuid === xuid)
+    if (track.family === 'ghost' && ride?.seat === 0) return 'ghost_d:idle'
+    if (track.family === 'warthog') {
+      if (ride?.seat === 0) return 'warthog_d:idle'
+      if (ride?.seat === 1) return 'warthog_p:rifle:idle'
+      if (ride?.seat === 2) return 'warthog_g:idle'
+    }
+    return null
+  }
+
   dispose(): void {
     this.bodies.dispose()
     this.noses.dispose()
+    this.models.dispose()
+  }
+
+  private drawModel(pose: VehiclePose, model: THREE.Object3D): void {
+    let bottom = this.modelBottoms.get(model)
+    if (bottom === undefined) {
+      bottom = new THREE.Box3().setFromObject(model).min.y
+      this.modelBottoms.set(model, Number.isFinite(bottom) ? bottom : 0)
+    }
+    this.p.set(pose.x, pose.bottom - (Number.isFinite(bottom) ? bottom : 0), pose.z)
+    this.q.setFromAxisAngle(UP, pose.heading * Math.PI / 180 + Math.PI)
+    this.models.add(model, this.p, this.q)
   }
 
   private colorOf(track: ReplayVehicleTrackReady, entry: VehicleEntry, frame: number, inputs: Action3dInputs): THREE.Color {

@@ -186,6 +186,8 @@ export class WeaponModels {
       try {
         const buffer = await fetchMesh(`${this.base}/${key}.glb`, noProgress, this.abort.signal)
         const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, '')
+        const extras = gltf.parser.json.asset?.extras as { vehicleSeats?: Record<string, [number, number, number]> } | undefined
+        if (extras?.vehicleSeats) gltf.scene.userData.vehicleSeats = extras.vehicleSeats
         prepareModel(gltf.scene)
         await rawMaps(gltf.scene, gltf.parser).catch((error: unknown) => {
           if (!this.abort.signal.aborted) console.warn('3D replay: weapon masks unavailable', key, error)

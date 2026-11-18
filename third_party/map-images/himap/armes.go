@@ -74,6 +74,29 @@ func (a *Arsenal) Arme(ctx context.Context, weap uint32) (*MaillageMonde, error)
 	return a.objet(ctx, weap, GroupeArme)
 }
 
+// Vehicule returns the vehicle's default model in its local frame.
+// LOCAL-CHANGE (infinite-theater-3d): expose vehicle geometry to the replay library.
+func (a *Arsenal) Vehicule(ctx context.Context, vehi uint32) (*MaillageMonde, error) {
+	return a.objet(ctx, vehi, GroupeVehi)
+}
+
+// MarqueursVehicule returns named markers in the vehicle model's frame.
+// LOCAL-CHANGE (infinite-theater-3d): place replay occupants on the game's seat markers.
+func (a *Arsenal) MarqueursVehicule(ctx context.Context, vehi uint32, noms map[uint32]bool) ([]MarqueurArme, error) {
+	if g, _, ok := a.geo.Lookup(vehi); !ok || g != GroupeVehi {
+		return nil, fmt.Errorf("%w: %08x is not a vehicle", ErrSansModele, vehi)
+	}
+	raw, err := a.geo.Extract(vehi)
+	if err != nil {
+		return nil, err
+	}
+	mode, group, ok := RefModeleVehicule(ctx, a.geo, raw)
+	if !ok || group != GroupeMode {
+		return nil, ErrSansModele
+	}
+	return a.MarqueursDuModele(mode, noms)
+}
+
 // objet rend le maillage du modele de l'objet `id`, un tag du groupe `groupe` (arme, projectile).
 func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*MaillageMonde, error) {
 	if g, _, ok := a.geo.Lookup(id); !ok || g != groupe {

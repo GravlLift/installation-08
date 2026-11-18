@@ -101,8 +101,10 @@ const (
 // versioning) is outdated. A format-2 GLB differs from format 3 by its geometry encoding only:
 // UpgradeFile brings it to format 3 in place, without reading the game.
 const (
-	BuildFormat    = 3
-	BuildFormatKey = "buildFormat"
+	BuildFormat                = 3
+	BuildFormatKey             = "buildFormat"
+	BreakerMaterialRevisionKey = "breakerMaterialRevision"
+	BreakerMaterialRevision    = 1
 )
 
 // commonExtras are the extras every map and variant GLB carries: the axis mapping (the
@@ -174,6 +176,9 @@ func Build(ctx context.Context, gameRoot string, t Target, path, generator strin
 	extras := map[string]any{"module": t.Key, "mapNames": t.Names, "frame": t.Frame}
 	for k, v := range commonExtras() {
 		extras[k] = v
+	}
+	if t.Key == "ctf_breaker" {
+		extras[BreakerMaterialRevisionKey] = BreakerMaterialRevision
 	}
 	sky := skyOf(ctx, gameRoot, t, m)
 	// The summary is read before writing: the texture pass that follows the writer must not keep

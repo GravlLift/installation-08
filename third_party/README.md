@@ -169,6 +169,9 @@ All module testdata totals are below 50 MiB. The decoder includes pseudonymized 
 
 ## Changes from upstream (map-images v1.0.1, files-reader v1.0.1)
 
+- `map-images/himap/armes.go`: expose the existing object-model extraction for vehicle tags to the replay model library (LOCAL-CHANGE).
+- `map-images/himap/couches.go`: read the inferred base gradient of Breaker's frigate shader; its additional atlas masks remain undecoded (LOCAL-CHANGE).
+
 These two modules are modified copies. The changes come from the LevelUp 3D replay work
 (three-way merge against the LevelUp fork point, no conflicts):
 
